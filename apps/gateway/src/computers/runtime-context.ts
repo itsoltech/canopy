@@ -18,7 +18,7 @@ import { Routes, type RouteRow } from "./routes.ts";
 
 import { LanDiscovery, type LanTransportFactory } from "./lan.ts";
 
-import { listenLink } from "./transport.ts";
+import type { NetworkAccess } from "../network/network.ts";
 
 export type Connection = {
   send: (frame: MessageInitShape<typeof link.LinkFrameSchema>) => void;
@@ -35,9 +35,8 @@ export type Connection = {
 
 export type Options = {
   store: ComputerStore;
-  host?: string;
-  port?: number;
-  addresses?: string[];
+  /** The network access listener this computer's link service answers on, and its addresses. */
+  network: NetworkAccess;
   minProtocol?: number;
   maxProtocol?: number;
   heartbeatMs?: number;
@@ -115,7 +114,7 @@ export async function computerGuard<A>(run: () => Promise<A>): Promise<A> {
   } catch (error) {
     if (error instanceof ConnectError) throw error;
     throw new ConnectError(
-      "Computer link operation failed. Check the address, code and listener settings.",
+      "Computer link operation failed. Check the address, code and Network access settings.",
       Code.FailedPrecondition,
     );
   }
@@ -126,7 +125,7 @@ export const computersState: unique symbol = Symbol("LinkedComputers state");
 export class LinkedComputersState {
   identity!: Awaited<ReturnType<ComputerStore["identity"]>>;
 
-  listener: Awaited<ReturnType<typeof listenLink>> | undefined;
+  unsubscribe: (() => void) | undefined;
 
   timer: ReturnType<typeof setInterval> | undefined;
 
@@ -143,8 +142,6 @@ export class LinkedComputersState {
   tasks = new Set<Promise<void>>();
 
   retry = new Map<string, { at: number; delay: number }>();
-
-  addresses: string[] = [];
 
   tickRunning = false;
 

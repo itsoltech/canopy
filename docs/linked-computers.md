@@ -191,20 +191,16 @@ o potrzebie ponownego parowania; nigdy nie nadpisuje pinu automatycznie.
 
 ### Listener i sieć
 
-| Zmienna | Znaczenie |
-|---|---|
-| `CANOPY_LINK_HOST` | Jawny bind osobnego listenera TLS. Brak = listener wyłączony; wychodzące parowanie nadal działa. |
-| `CANOPY_LINK_PORT` | Port listenera. Brak/0 = wolny port przy starcie; serwer powinien ustawić stały port. |
-| `CANOPY_LINK_ADDRESSES` | Lista originów HTTPS rozdzielona przecinkami, bez ścieżek/credentials. Dla konkretnego bindu domyślnie jego adres; wildcard wymaga jawnej listy. |
-
-Nie ma nowego stałego portu produktu. Desktop wybiera wolny port na wybranym interfejsie,
-zapisuje go w `userData/computer-link.json` i używa ponownie po restarcie. BFF, główny gRPC
-i Postgres pozostają na swoich portach loopback. Przełącznik Settings → Linked computers
-zapisuje stan listenera w bazie; możliwość wystawienia go jest dodatkowo ograniczona przez
-desktopowe „Allow other machines to connect”. Wyłączenie listenera nie odwołuje partnerów
-ani nie zamyka niezależnych połączeń wychodzących. Zmiana adresu interfejsu wymaga co najmniej
-jednej działającej trasy; przy zmianie wszystkich tras obu stron jednocześnie potrzebne jest
-ponowne parowanie po podaniu nowego adresu. Wykrywanie LAN i ogłaszanie zmian adresów opisuje etap 6.
+Listener łącza jest częścią [dostępu sieciowego](network-access.md): jeden przełącznik w Settings →
+Network access („Let phones and other computers connect”) otwiera port TLS na wszystkich interfejsach,
+a połączenia z certyfikatem klienta trafiają do `ComputerLinkService`. Port jest wybierany raz i
+zapisany w bazie (`network_access`), adresy są wykrywane i odświeżane, dodatkowe nazwy hostów dodaje się
+w UI; serwer w kontenerze może ustalić port przez `CANOPY_NETWORK_PORT`. Dawne `CANOPY_LINK_HOST`,
+`CANOPY_LINK_PORT`, `CANOPY_LINK_ADDRESSES`, desktopowe `computer-link.json` i wybór interfejsu
+zniknęły. BFF, główny gRPC i Postgres pozostają na swoich portach loopback. Wyłączenie dostępu nie
+odwołuje partnerów ani nie zamyka niezależnych połączeń wychodzących. Zmiana adresu komputera jest
+ogłaszana partnerom łączem; przy zmianie wszystkich tras obu stron jednocześnie potrzebna jest trasa
+ręczna albo wykrywanie LAN (etap 6).
 
 TLS co najmniej 1.3, HTTP/2 gRPC. Ruch nie przechodzi przez TLS-terminujący proxy: proxy musi
 przekazywać TCP/TLS bez zakończenia sesji. VPN/Tailscale są wyłącznie trasą, nie źródłem zaufania.
@@ -807,8 +803,8 @@ i usunąć dowolną (`ManageComputer` akcje `add_route`/`remove_route`, pole `ad
 
 ### Ogłaszanie adresów przez łącze
 
-Komputer z listenerem na wszystkich interfejsach (`0.0.0.0`/`::`) i włączonym wykrywaniem dodaje do
-ogłaszanych adresów swoje bieżące adresy LAN; pozostałe ogłaszają adresy skonfigurowane jak dotąd.
+Komputer ogłasza adresy dostępu sieciowego: wykryte adresy swoich interfejsów (LAN, Tailscale, VPN,
+publiczne) i dodane nazwy hostów ([network-access.md](network-access.md#adresy)).
 Zmiana listy (nowe IP, listener wł./wył.) jest wysyłana od razu ramką `RouteAnnouncement {addresses}`
 każdemu połączeniu z wynegocjowanym protokołem i capability `lan_routes`. Odbiorca waliduje je jak
 `NodeHello` (najwyżej 16 originów HTTPS) i dopisuje jako `announced`. Ogłoszony adres nie daje
@@ -867,7 +863,7 @@ nazw.
 network” w Settings → Linked computers (`ManageComputer` `lan_discovery`). Wyłączenie zamyka gniazdo:
 brak ogłoszeń, pytań i odpowiedzi, lokalne adresy LAN znikają z ogłaszanych, a trasy `lan` są usuwane.
 `ComputersSnapshot` ma `lan_discovery_enabled`, `lan_discovery_state` (`active`, `off`, `unavailable`)
-i `lan_discovery_note`. „Unavailable”: zajęte/niedostępne gniazdo UDP 5353, `CANOPY_LINK_DISCOVERY=off`
+i `lan_discovery_note`. „Unavailable”: zajęte/niedostępne gniazdo UDP 5353, opcjonalne nadpisanie serwera `CANOPY_LINK_DISCOVERY=off`
 albo kontener bez sieci hosta (`/.dockerenv` i same interfejsy `eth*`; `on` pomija heurystykę) —
 patrz [deploy.md](deploy.md#połączone-komputery-wykrywanie-w-sieci-lokalnej). Interfejsy wirtualne
 (loopback, Tailscale, WireGuard, utun, mostki Dockera/VM) nie biorą udziału w wykrywaniu. Desktop na

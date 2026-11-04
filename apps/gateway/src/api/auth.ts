@@ -35,6 +35,8 @@ export function serviceTokenAuth(token: string, mobile?: MobileDevices): Interce
           "CreateComputerPairing",
           "LinkComputer",
           "ManageComputer",
+          "GetNetworkAccess",
+          "UpdateNetworkAccess",
           "PreviewMove",
           "StartMove",
           "GetMoves",

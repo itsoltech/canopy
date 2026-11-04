@@ -76,4 +76,18 @@ export function attachmentLimits(env: Readonly<Record<string, string | undefined
   };
 }
 
+/** CANOPY_NETWORK_PORT: a server (container) fixes the network access port it publishes.
+ * Unset = the port chosen in the app (docs/network-access.md). */
+export function networkPort(env: Readonly<Record<string, string | undefined>>) {
+  const value = env["CANOPY_NETWORK_PORT"];
+
+  if (!value) return undefined;
+  const port = Number(value);
+
+  if (!Number.isInteger(port) || port < 1 || port > 65535)
+    throw new Error("CANOPY_NETWORK_PORT must be a port number from 1 to 65535");
+
+  return port;
+}
+
 export { Effect };

@@ -22,12 +22,13 @@ import {
 import { certificateIdentity, computerName, linkAddress } from "./identity.ts";
 
 import { computersBroadcast, computersPulse, computersTick } from "./runtime-connection.ts";
-import { computersState, WILDCARD } from "./runtime-context.ts";
+import { computersState } from "./runtime-context.ts";
 import { computersAdvertise, computersDiscovery, computersLanState } from "./runtime-lan.ts";
 import { computersEmit } from "./runtime-mirrors.ts";
 import { computersComputerMessage } from "./runtime-remote.ts";
 import type { LinkedComputers } from "./runtime.ts";
-import { discoverCertificate, linkClient, listenLink } from "./transport.ts";
+import { errorCode } from "../network/listener.ts";
+import { discoverCertificate, linkClient } from "./transport.ts";
 
 /** A direct partner connected now that receives moves (never through a relay). */
 export function computersMovable(hostContext: LinkedComputers, nodeId: string) {
@@ -41,28 +42,6 @@ export function computersMovable(hostContext: LinkedComputers, nodeId: string) {
 
 export function computersSharesConfig(hostContext: LinkedComputers) {
   return Boolean(hostContext.shared) && hostContext.hello().capabilities.includes(SHARED_CONFIG);
-}
-
-export async function computersListen(hostContext: LinkedComputers) {
-  if (
-    hostContext[computersState].listener ||
-    !hostContext.options.host ||
-    !hostContext[computersState].identity.listener_enabled ||
-    hostContext[computersState].stopped ||
-    hostContext[computersState].paused
-  )
-    return;
-  hostContext[computersState].listener = await listenLink({
-    host: hostContext.options.host,
-    port: hostContext.options.port ?? 0,
-    identity: hostContext[computersState].identity,
-    routes: hostContext.routes,
-  });
-  const host = hostContext.options.host.includes(":") ? `[${hostContext.options.host}]` : hostContext.options.host;
-  hostContext[computersState].addresses =
-    hostContext.options.addresses?.map(linkAddress) ??
-    (WILDCARD.has(hostContext.options.host) ? [] : [`https://${host}:${hostContext[computersState].listener.port}`]);
-  computersAdvertise(hostContext);
 }
 
 export interface ComputersPresenceMethods {
@@ -107,7 +86,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
     await this.relay.load();
     await this.redirects.load();
     await this.moves?.load();
-    await computersListen(this);
+    this[computersState].unsubscribe = this.options.network.onChange(() => computersAdvertise(this));
     await computersDiscovery(this);
     this[computersState].timer = setInterval(() => {
       computersPulse(this);
@@ -139,8 +118,8 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
           ),
         ),
       ),
-      listenerEnabled: Boolean(this[computersState].listener),
-      listenerAvailable: Boolean(this.options.host),
+      listenerEnabled: this.options.network.listening,
+      listenerAvailable: true,
       lanDiscoveryEnabled: this[computersState].identity.lan_discovery,
       lanDiscoveryState: lan.state,
       lanDiscoveryNote: lan.note,
@@ -148,15 +127,21 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
   },
 
   async createPairing(this: LinkedComputers) {
-    if (!this[computersState].listener || !this[computersState].addresses.length)
+    if (!this.options.network.listening)
       throw new ConnectError(
-        "Enable the link listener and configure at least one advertised address first",
+        "Turn on network access first, so the other computer can connect",
+        Code.FailedPrecondition,
+      );
+
+    if (!this.options.network.origins().length)
+      throw new ConnectError(
+        "This computer has no network address right now. Connect to a network or add a hostname in Network access.",
         Code.FailedPrecondition,
       );
 
     return create(
       ui.ComputerPairingSchema,
-      await this.store.invitation(this[computersState].identity.fingerprint, this[computersState].addresses),
+      await this.store.invitation(this[computersState].identity.fingerprint, this.options.network.origins()),
     );
   },
 
@@ -167,7 +152,20 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
     if (!/^[a-f0-9]{96}$/.test(raw))
       throw new ConnectError("Paste the complete pairing code from the other computer", Code.InvalidArgument);
     const started = performance.now();
-    const certificate = await discoverCertificate(address, raw.slice(0, 64), this[computersState].identity);
+
+    let certificate: string;
+
+    try {
+      certificate = await discoverCertificate(address, raw.slice(0, 64), this[computersState].identity);
+    } catch (error) {
+      // On macOS a refused local network permission looks like an unreachable computer.
+      const cause = error instanceof ConnectError && error.cause instanceof Error ? errorCode(error.cause) : "";
+      const help = this.options.network.unreachable(new URL(address).hostname, cause);
+
+      throw help ? new ConnectError(help, Code.Unavailable) : error;
+    }
+
+    this.options.network.reached();
     const latency = performance.now() - started;
 
     if (certificateIdentity(certificate).nodeId === this[computersState].identity.node_id)
@@ -236,28 +234,6 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         "UPDATE computer_pairings SET revoked_at=now() WHERE owner_user_id=$1::uuid AND used_at IS NULL",
         [this.store.owner],
       );
-    } else if (action === "listener") {
-      if (!this.options.host)
-        throw new ConnectError(
-          "Enable Allow other machines to connect in desktop settings, or configure CANOPY_LINK_HOST",
-          Code.FailedPrecondition,
-        );
-
-      if (request.enabled) {
-        this[computersState].identity.listener_enabled = true;
-        await computersListen(this);
-      } else {
-        this[computersState].identity.listener_enabled = false;
-        await this[computersState].listener?.close();
-        this[computersState].listener = undefined;
-        this[computersState].addresses = [];
-        computersAdvertise(this);
-      }
-
-      await this.store.query("UPDATE computer_identity SET listener_enabled=$2 WHERE owner_user_id=$1::uuid", [
-        this.store.owner,
-        request.enabled,
-      ]);
     } else if (action === "lan_discovery") {
       await this.store.query("UPDATE computer_identity SET lan_discovery=$2 WHERE owner_user_id=$1::uuid", [
         this.store.owner,

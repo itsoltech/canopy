@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import * as dns from "dns-packet";
 import { dockerAvailable } from "@canopy/db/testing";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
+import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { ROUTE_ORDER } from "../../apps/gateway/src/computers/routes.ts";
 import { discoveryKey, lanNames, lanWindow } from "../../apps/gateway/src/computers/lan.ts";
@@ -65,10 +66,10 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
     eventually(async () => (await status(a)) === "connected" && (await status(b)) === "connected", 15_000);
 
   async function restartA(meanwhile = async () => {}) {
-    const port = la.options.port!;
+    const port = la.options.network.status().port;
     await la.close();
     await meanwhile();
-    la = new LinkedComputers({
+    la = linkedComputers({
       store: sa,
       host: "127.0.0.1",
       port,
@@ -76,6 +77,7 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
       discovery: discovery("a", [SUBNET]),
     });
     a.core.computers = la;
+    a.core.network = la.options.network;
     await la.start();
   }
 
@@ -91,22 +93,25 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
     sa = new ComputerStore(a.runtime, a.userId, a.secretsKey);
     sb = new ComputerStore(b.runtime, b.userId, b.secretsKey);
     // A fixed port: A's listener is switched off and on to make A the dialling side.
-    la = new LinkedComputers({
+    la = linkedComputers({
       store: sa,
       host: "127.0.0.1",
       port: await freePort(),
       heartbeatMs: HEARTBEAT_MS,
       discovery: discovery("a", [SUBNET]),
     });
-    // B listens on every interface without configured addresses: it advertises its LAN addresses.
-    lb = new LinkedComputers({
+    // B listens on every interface: it advertises the addresses of its interfaces.
+    lb = linkedComputers({
       store: sb,
       host: "0.0.0.0",
+      detect: () => ifaceB.map((i) => ({ host: i.address, kind: "lan" as const, interfaceName: "test" })),
       heartbeatMs: HEARTBEAT_MS,
       discovery: discovery("b", ifaceB),
     });
     a.core.computers = la;
+    a.core.network = la.options.network;
     b.core.computers = lb;
+    b.core.network = lb.options.network;
     await la.start();
     await lb.start();
     portB = Number(new URL(lb.hello().addresses[0]!).port);
@@ -139,14 +144,14 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
     const route = (await routesOf(a)).find((r) => r.source === "lan")!;
     expect(route.latencyMs).toBeGreaterThanOrEqual(0);
     // And A reaches B through it when it has to dial: B can no longer reach A.
-    await a.api.manageComputer({ action: "listener", enabled: false });
+    await a.api.updateNetworkAccess({ action: "set_enabled", enabled: false });
 
     try {
       // Wait for the old streams and their presence writes to finish before testing a fresh dial.
       await restartA();
       await online();
     } finally {
-      await a.api.manageComputer({ action: "listener", enabled: true });
+      await a.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
     }
   }, 30_000);
 
@@ -276,7 +281,7 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
     const nodeB = lb.hello().nodeId;
     // Only A can dial now (a new runtime without its listener and earlier connections), and its best route is dead.
     // The routes change while A is stopped, so no dial of the old runtime reorders them.
-    await a.api.manageComputer({ action: "listener", enabled: false });
+    await a.api.updateNetworkAccess({ action: "set_enabled", enabled: false });
     await restartA(async () => {
       await sa.query(
         "UPDATE computer_routes SET last_success=now()-interval '1 hour',last_failure=NULL WHERE owner_user_id=$1::uuid",
@@ -321,7 +326,7 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
       // A failed route goes behind the working ones without being forgotten.
       expect(routes.at(-1)!.address).toBe(deadAddress);
     } finally {
-      await a.api.manageComputer({ action: "listener", enabled: true });
+      await a.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
       await dead.close();
     }
 

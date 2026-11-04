@@ -10,26 +10,19 @@ import { discoverCertificate } from "./transport.ts";
 
 // ------------------------------------------------------------------ stage 6: routes and LAN discovery
 
-/** Addresses sent to partners: the configured ones and, for a listener on every interface with
- * discovery on, this computer's current local network addresses. A change is announced over the link. */
+/** Addresses sent to partners: where network access reaches this computer now (detected addresses
+ * and added hostnames). A change is announced over the link. */
 export function computersAdvertise(hostContext: LinkedComputers) {
-  const port = hostContext[computersState].listener?.port;
+  const network = hostContext.options.network;
+  const port = network.port;
   const interfaces = hostContext[computersState].lan?.transport?.interfaces() ?? [];
-
-  const local =
-    port && hostContext.options.host && WILDCARD.has(hostContext.options.host)
-      ? interfaces.map((i) => `https://${i.address}:${port}`)
-      : [];
-
-  const next = hostContext[computersState].listener
-    ? [...new Set([...hostContext[computersState].addresses, ...local])].slice(0, 16)
-    : [];
+  const next = network.origins().slice(0, 16);
 
   // A new network or listener: announce on the local network at once, not at the next window.
-  const network = `${port ?? ""}|${interfaces.map((i) => i.address).join()}`;
+  const key = `${port ?? ""}|${interfaces.map((i) => i.address).join()}`;
 
-  if (network !== hostContext[computersState].network) {
-    hostContext[computersState].network = network;
+  if (key !== hostContext[computersState].network) {
+    hostContext[computersState].network = key;
     void hostContext[computersState].lan?.tick(true).catch(() => {});
   }
 
@@ -67,10 +60,11 @@ export async function computersDiscovery(hostContext: LinkedComputers) {
         privateKey: hostContext[computersState].identity.privateKey,
       }),
       partners: () => hostContext.store.peers(),
-      listener: () =>
-        hostContext[computersState].listener && hostContext.options.host
-          ? { port: hostContext[computersState].listener.port, host: hostContext.options.host }
-          : undefined,
+      listener: () => {
+        const { port, host } = hostContext.options.network;
+
+        return port && host ? { port, host } : undefined;
+      },
       found: (nodeId, address) => void computersFound(hostContext, nodeId, address).catch(() => {}),
     });
 
@@ -99,10 +93,9 @@ export function computersLanState(hostContext: LinkedComputers) {
 
   if (unavailable || !hostContext[computersState].lan)
     return { state: "unavailable", note: unavailable || "Starting…" };
-  const host = hostContext.options.host;
+  const host = hostContext.options.network.host;
 
   const reachable =
-    hostContext[computersState].listener &&
     host &&
     (WILDCARD.has(host) || hostContext[computersState].lan.transport?.interfaces().some((i) => i.address === host));
 
@@ -110,9 +103,9 @@ export function computersLanState(hostContext: LinkedComputers) {
     state: "active",
     note: reachable
       ? ""
-      : hostContext[computersState].listener
-        ? "The link listener isn't on a local network interface, so this computer only looks for its linked computers."
-        : "This computer looks for its linked computers. Turn on the listener so they can find it too.",
+      : host
+        ? "Network access isn't on a local network interface, so this computer only looks for its linked computers."
+        : "This computer looks for its linked computers. Turn on network access so they can find it too.",
   };
 }
 

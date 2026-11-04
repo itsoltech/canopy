@@ -1,6 +1,6 @@
 import { createSocket } from "node:dgram";
-import { existsSync } from "node:fs";
 import { networkInterfaces } from "node:os";
+import { containerBridged } from "../network/addresses.ts";
 import type { LanInterface, LanTransportFactory } from "./lan.ts";
 
 const GROUP = "224.0.0.251";
@@ -28,17 +28,13 @@ export function lanInterfaces(): LanInterface[] {
 export function lanUnavailable(env: Record<string, string | undefined>): string | undefined {
   const setting = env["CANOPY_LINK_DISCOVERY"]?.toLowerCase();
 
-  if (setting === "off" || setting === "0" || setting === "false")
-    return "Turned off for this gateway by CANOPY_LINK_DISCOVERY.";
+  if (setting === "off" || setting === "0" || setting === "false") return "Turned off by this server's configuration.";
 
   if (setting === "on" || setting === "1" || setting === "true") return undefined;
-  const names = Object.keys(networkInterfaces()).filter((n) => n !== "lo");
 
-  if (existsSync("/.dockerenv") && names.length && names.every((n) => /^eth\d+$/.test(n))) {
-    return "Running in a container without host networking, so the local network can't be reached. Use host networking or add routes manually.";
-  }
-
-  return undefined;
+  return containerBridged()
+    ? "Running in a container without host networking, so the local network can't be reached. Use host networking or add routes manually."
+    : undefined;
 }
 
 /** mDNS over IPv4 multicast (RFC 6762), shared with the system's responder through SO_REUSEADDR. */

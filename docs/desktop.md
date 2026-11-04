@@ -33,11 +33,12 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    `basic_text` jest odrzucany; aplikacja wymaga działającego magazynu kluczy.
    `worker.json` zachowuje istniejący format enrollment i uprawnienia 0600.
 4. **Porty:** losowe wolne porty; Postgres, web i domyślnie gRPC na `127.0.0.1`.
-   Opcja „Allow other machines to connect” pozwala uruchomić dodatkowy listener
-   worker link/enrollment gRPC oraz osobny listener mTLS połączonych komputerów;
-   pełne UI/API pozostaje na loopback.
-   Wymaga świadomego wybrania interfejsu. Nie wystawia BFF ani bazy. HTTP bez TLS
-   nadaje się wyłącznie do zaufanej sieci prywatnej; publiczne udostępnienie wymaga TLS.
+   Settings → Network access otwiera jeden listener TLS dla połączonych komputerów
+   na wszystkich interfejsach, z portem wybieranym i zapisywanym w bazie. Parowanie
+   przypina certyfikat komputera; zmiany sieci odświeżają ogłaszane adresy.
+   Tymczasowa opcja „Let workers on other machines connect” dotyczy wyłącznie
+   workerów i wymaga wybrania prywatnego interfejsu (HTTP bez TLS). Zastąpi ją etap 3
+   [dostępu sieciowego](network-access.md). BFF i baza pozostają na loopback.
 5. **Pakowanie:** electron-builder, AppImage + deb na Linuxie, dmg + zip na macOS, NSIS
    na Windows x64.
    Osobny build zasobów dla każdej pary OS/arch; Bun i natywne zależności nie mogą
@@ -189,7 +190,6 @@ secrets.enc                 # ciphertext OS keychain; 0600 na POSIX
 desktop.json                # tryb/adresy; bez tokenu enrollment
 app-updates.json            # wybrany kanał desktopu; zapis atomowy w main, bez gatewaya
 app-shortcuts.json          # quitShortcut; zapis atomowy w main, bez gatewaya
-computer-link.json          # stały port mTLS wybrany losowo przy pierwszym włączeniu
 postgres/data/              # pełny klaster PostgreSQL
 postgres/versions/<pin>/    # zweryfikowany runtime; installed.json oznacza pełną instalację
 postgres/versions/*.download/ # częściowe pobranie do wznowienia; nigdy nie służy do startu
@@ -201,17 +201,11 @@ logs/                       # redakcja sekretów; 5 MiB + 3 rotacje na usługę
 ### Settings → Linked computers
 
 Tryb lokalny może dodatkowo sparować swój gateway z innym własnym komputerem;
-to nie nowy tryb pracy. Włącz „Allow other machines to connect” w Desktop settings
-i wybierz interfejs. Settings → Linked computers pokazuje tożsamość oraz osobny
-przełącznik listenera. Przełącznik zapisuje się w bazie, działa też z przeglądarki
-i nie zmienia ustawień workera. Wyłączenie nadrzędnego allowNetwork zatrzymuje
-udostępnianie sieciowe przy rekonfiguracji; wychodzące łącza nadal mogą działać.
-
-Listener używa wyłącznie przypiętego mTLS (TLS 1.3), bez plaintext i bez CA sieci.
-To osobny port od worker enrollment; firewall musi przepuszczać TCP na ten port.
-Wybrany raz port jest zapisany w `computer-link.json`, żeby peer mógł wrócić po
-restarcie aplikacji. Zajęty zapisany port powoduje błąd startu, zamiast cichej zmiany
-adresu. Nie usuwaj pliku w celu rozwiązywania konfliktu bez ponownego ustawienia tras/parowania.
+to nie nowy tryb pracy. Telefony i komputery łączą się przez **Settings → Network access**
+([network-access.md](network-access.md)): jeden przełącznik, listener na wszystkich interfejsach,
+port wybrany raz i zapisany w bazie, adresy wykrywane przy każdej zmianie sieci. Nie trzeba niczego
+wybierać w Desktop settings. „Link a computer” przy wyłączonym dostępie włącza go jednym kliknięciem.
+Listener używa przypiętego TLS; firewall systemu może zapytać o zgodę na połączenia przychodzące.
 Kod jednorazowy i lista adresów są w „Link a computer”; druga strona wybiera „Enter code”.
 Porównanie odcisków obu certyfikatów jest dostępne na liście.
 

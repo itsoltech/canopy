@@ -97,6 +97,7 @@ flowchart LR
 | Przeglądarka ⇄ SvelteKit (BFF) | HTTPS (HTTP/1.1): strony, akcje, JSON; SSE dla zmian na żywo | przeglądarka | Prywatny adres BFF i token usługi zostają na serwerze; UI pokazuje publiczny adres gRPC dla workerów i jednorazowe sekrety enrollment/rotacji ([ui-api.md](ui-api.md)). |
 | SvelteKit → Gateway | gRPC (HTTP/2), `GatewayService`, token usługi | SvelteKit | Komendy i strumienie (`WatchThread`, `WatchOverview`); ten sam serwer co workery. |
 | Mobile → Tailscale Serve → Gateway | HTTPS Connect, dalej HTTP/1.1 loopback | aplikacja | Unary i server streaming przez `expo/fetch`. Jednorazowe parowanie, osobny odwoływalny token urządzenia; administracja urządzeniami tylko przez BFF. |
+| Gateway ⇄ połączony komputer | gRPC HTTP/2, wzajemny przypięty TLS 1.3, port [dostępu sieciowego](network-access.md) | oba | Jeden przełącznik Settings → Network access; adresy wykrywane i ogłaszane łączem ([linked-computers.md](linked-computers.md)). |
 | Worker ↔ Gateway | gRPC, jeden strumień dwukierunkowy, HTTP/2 + TLS | **Worker** | Działa za NAT-em i firewallem. Szczegóły: [protocol.md](protocol.md). |
 | Worker → Gateway (aktualizacje) | osobny gRPC `canopy.update.v1.UpdateService`, ten sam port HTTP/2 | **Worker** | Zamrożony kontrakt działa także po odmowie WorkerLink. Werdykt, polecenia, postęp, mirror binarki; [updates.md](updates.md). |
 | Gateway → PostgreSQL | SQL po TLS | Gateway | Pula połączeń. Opcjonalnie `LISTEN/NOTIFY` przy wielu instancjach gateway. |

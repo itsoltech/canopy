@@ -153,9 +153,29 @@ services:
 
 Sprawdzenie z sieci Dockera: `docker run --rm --network canopy_default curlimages/curl -sS -o /dev/null -w '%{http_code}\n' <endpoint>/v1/models`.
 
+### Dostęp sieciowy: telefony i połączone komputery
+
+Telefony i połączone komputery łączą się z jednym portem TLS gatewaya, włączanym w Settings → Network
+access ([network-access.md](network-access.md)). W kontenerze ustal port i opublikuj go jako TCP, bez
+proxy kończącego TLS:
+
+```yaml
+services:
+  gateway:
+    environment:
+      CANOPY_NETWORK_PORT: "24443"
+    ports:
+      - "24443:24443"
+```
+
+Następnie włącz dostęp w aplikacji i w „Reachable at” dodaj nazwę lub adres serwera (kontener na sieci
+bridge nie widzi adresów hosta; z `network_mode: host` wykrywa je sam). Firewall hosta musi przepuszczać
+TCP na tym porcie. Na serwerze bez kontenera `CANOPY_NETWORK_PORT` nie jest potrzebne: port wybrany
+w aplikacji zostaje zapisany w bazie i można go zmienić w Settings.
+
 ### Połączone komputery: wykrywanie w sieci lokalnej
 
-Gateway z listenerem połączonych komputerów (`CANOPY_LINK_HOST`) wykrywa już sparowane komputery
+Gateway z włączonym dostępem sieciowym wykrywa już sparowane komputery
 w tej samej podsieci przez mDNS (UDP 5353, grupa 224.0.0.251; [etap 6](linked-computers.md#konkretny-protokół-etapu-6)).
 Domyślna sieć bridge Dockera nie przenosi multicastu do LAN-u hosta: gateway w kontenerze z samymi
 interfejsami `eth*` pokazuje w Settings → Linked computers „Not available here” i działa dalej na

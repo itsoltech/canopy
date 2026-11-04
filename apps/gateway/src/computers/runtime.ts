@@ -31,7 +31,7 @@ import {
 } from "./runtime-presence.ts";
 import { computersRemoteMethods, type ComputersRemoteMethods } from "./runtime-remote.ts";
 import { computersServingMethods, type ComputersServingMethods } from "./runtime-serving.ts";
-import { remoteCertificate, type LinkIdentity } from "./transport.ts";
+import { linkHandler, remoteCertificate, type LinkIdentity } from "./transport.ts";
 
 export { computerGuard, type ComputerChange } from "./runtime-context.ts";
 
@@ -70,6 +70,7 @@ export class LinkedComputers {
 
   constructor(readonly options: Options) {
     this[computersState].routes = new Routes(options.store);
+    options.network.mount("link", linkHandler(this.routes));
     this.mirror = new ThreadMirror(options.store);
     this.botMirror = new BotMirror(options.store);
     this.relay = new ComputerRelay(options.store, {
@@ -143,8 +144,9 @@ export class LinkedComputers {
     return this[computersState].identity;
   }
 
+  /** Where linked computers reach this one (network access). */
   get addresses() {
-    return this[computersState].addresses;
+    return this.options.network.origins();
   }
 
   routes = (router: ConnectRouter) =>

@@ -9,6 +9,7 @@ import { dockerAvailable } from "@canopy/db/testing";
 import { AsyncChannel } from "@canopy/transport";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
+import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { methodNamed } from "../../apps/gateway/src/computers/remote.ts";
 import { linkClient } from "../../apps/gateway/src/computers/transport.ts";
@@ -50,7 +51,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
   const q = (value: string) => `${value}~${nodeRef(bNode)}`;
 
   const linkedB = (extra: Partial<ConstructorParameters<typeof LinkedComputers>[0]> = {}, port = 0) =>
-    new LinkedComputers({
+    linkedComputers({
       store: sb,
       host: "127.0.0.1",
       port,
@@ -65,6 +66,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     await lb.close();
     lb = linkedB(extra, port);
     b.core.computers = lb;
+    b.core.network = lb.options.network;
     await lb.start();
   }
 
@@ -76,7 +78,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     b = await startTestGateway();
     sa = new ComputerStore(a.runtime, a.userId, randomBytes(32));
     sb = new ComputerStore(b.runtime, b.userId, randomBytes(32));
-    la = new LinkedComputers({
+    la = linkedComputers({
       store: sa,
       host: "127.0.0.1",
       port: await freePort(),
@@ -86,7 +88,9 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     });
     lb = linkedB({}, await freePort());
     a.core.computers = la;
+    a.core.network = la.options.network;
     b.core.computers = lb;
+    b.core.network = lb.options.network;
     await la.start();
     await lb.start();
     bNode = lb.hello().nodeId;
@@ -277,8 +281,8 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
   test("an unreachable partner fails fast with a clear reason and no work waits for it", async () => {
     const plain = thread.split("~")[0]!;
     const before = (b.worker.inputs.get(plain) ?? []).length;
-    await b.api.manageComputer({ action: "listener", enabled: false });
-    await a.api.manageComputer({ action: "listener", enabled: false });
+    await b.api.updateNetworkAccess({ action: "set_enabled", enabled: false });
+    await a.api.updateNetworkAccess({ action: "set_enabled", enabled: false });
     await eventually(async () => (await a.api.getComputers({})).peers[0]?.status === "unreachable", 10_000);
     const started = Date.now();
     expect(await failure(a.api.sendMessage({ threadId: thread, text: "while away", clientRequestId: id() }))).toMatch(
@@ -288,8 +292,8 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     expect(Date.now() - started).toBeLessThan(1500);
     expect((await a.api.getOverview({})).workers.some((w) => w.nodeId)).toBe(false);
     expect((await a.api.listThreads({})).threads.some((t) => t.nodeId)).toBe(false);
-    await a.api.manageComputer({ action: "listener", enabled: true });
-    await b.api.manageComputer({ action: "listener", enabled: true });
+    await a.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
+    await b.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
     await reachable();
     await Bun.sleep(300);
     expect((b.worker.inputs.get(plain) ?? []).length).toBe(before);

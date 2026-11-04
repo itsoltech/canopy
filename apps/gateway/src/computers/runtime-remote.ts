@@ -24,7 +24,6 @@ import { type RouteRow } from "./routes.ts";
 import { computersBroadcast, computersTick } from "./runtime-connection.ts";
 import { computersState, ms, peerMessage, STATE_TEXT } from "./runtime-context.ts";
 import { computersEmit } from "./runtime-mirrors.ts";
-import { computersListen } from "./runtime-presence.ts";
 import type { LinkedComputers } from "./runtime.ts";
 
 export async function computersStatus(hostContext: LinkedComputers, nodeId: string, status: string, updateNodeId = "") {
@@ -253,7 +252,6 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
 
     if (state === "connected") {
       this[computersState].paused = false;
-      await computersListen(this);
       await computersTick(this);
     }
   },
@@ -279,8 +277,8 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     for (const controller of this[computersState].botMirroring.values()) controller.abort();
 
     for (const set of this[computersState].active.values()) for (const c of set) c.close();
-    await this[computersState].listener?.close();
-    this[computersState].listener = undefined;
+    this[computersState].unsubscribe?.();
+    this.options.network.mount("link", undefined);
     await moves;
     await Promise.allSettled(this[computersState].tasks);
   },
