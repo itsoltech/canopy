@@ -43,29 +43,7 @@ export function ComposerBox({
         borderColor: c.line,
       }}
     >
-      <TextInput
-        accessibilityLabel="Message to your agent"
-        value={text}
-        onChangeText={onChange}
-        editable={!busy}
-        multiline
-        maxLength={32000}
-        placeholder={placeholder}
-        placeholderTextColor={c.faint}
-        style={[
-          styles.body,
-          {
-            minHeight: compact ? 44 : 64,
-            flex: compact ? 1 : undefined,
-            maxHeight: 160,
-            paddingHorizontal: 16,
-            paddingTop: 14,
-            paddingBottom: 12,
-            color: c.text,
-            textAlignVertical: "top",
-          },
-        ]}
-      />
+      <ComposerInput text={text} onChange={onChange} busy={busy} compact={compact} placeholder={placeholder} />
       {!compact || text.trim() || running ? (
         <View
           style={[
@@ -126,6 +104,42 @@ export function ComposerBox({
         </View>
       ) : null}
     </View>
+  );
+}
+
+function ComposerInput({
+  text,
+  onChange,
+  busy,
+  compact,
+  placeholder,
+}: Pick<Parameters<typeof ComposerBox>[0], "text" | "onChange" | "busy" | "compact" | "placeholder">) {
+  const c = useColors();
+
+  return (
+    <TextInput
+      accessibilityLabel="Message to your agent"
+      value={text}
+      onChangeText={onChange}
+      editable={!busy}
+      multiline
+      maxLength={32000}
+      placeholder={placeholder}
+      placeholderTextColor={c.faint}
+      style={[
+        styles.body,
+        {
+          minHeight: compact ? 44 : 64,
+          flex: compact ? 1 : undefined,
+          maxHeight: 160,
+          paddingHorizontal: 16,
+          paddingTop: 14,
+          paddingBottom: 12,
+          color: c.text,
+          textAlignVertical: "top",
+        },
+      ]}
+    />
   );
 }
 
