@@ -1,19 +1,21 @@
-import {
-  fromBinary,
-  isMessage,
-  toBinary,
-  ScalarType,
-  type DescMessage,
-  type DescMethod,
-  type Message,
-  type MessageInitShape,
-  type MessageShape,
-} from "@bufbuild/protobuf";
-import { reflect, isReflectMessage } from "@bufbuild/protobuf/reflect";
-import { Code, ConnectError } from "@connectrpc/connect";
-import { computerLink as link, MentionKind, ui } from "@canopy/contracts";
-import { qualifyId, splitId, nodeRef } from "@canopy/domain/computers";
+import { fromBinary, toBinary, type DescMethod, type Message, type MessageInitShape } from "@bufbuild/protobuf";
+import { computerLink as link } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { nodesOf } from "./remote-ids.ts";
+import { methodNamed, MovedError, movedItems, SERVED } from "./remote-policy.ts";
+
+export { globalize, mapIds, nodesOf, qualify, unqualify } from "./remote-ids.ts";
+
+export {
+  BOT_METHODS,
+  linkedMessage,
+  methodNamed,
+  MOVE_METHODS,
+  MovedError,
+  movedItems,
+  SERVED,
+} from "./remote-policy.ts";
 
 /**
  * Stage 2 of docs/linked-computers.md: GatewayService calls proxied to a thread's home gateway over the
@@ -27,124 +29,6 @@ const MAX_MESSAGE = 48 * 1024 * 1024;
 
 /** Calls one connection may run on this gateway at the same time. */
 const MAX_SERVED = 64;
-
-/** Explicit home operations for threads and bots, plus capability-gated internal services.
- * Credential and connector administration are never exposed through this allowlist. */
-export const SERVED = new Set([
-  "GetOverview",
-  "WatchOverview",
-  "ListThreads",
-  "GetThread",
-  "WatchThread",
-  "CreateThread",
-  "SendMessage",
-  "InterruptThread",
-  "AnswerInteraction",
-  "UpdateThread",
-  "RegenerateTitle",
-  "SetGoal",
-  "StopBackgroundTask",
-  "MarkThreadSeen",
-  "SetThreadRead",
-  "SetThreadArchived",
-  "DeleteThread",
-  "RestoreThread",
-  "ListModels",
-  "ListDirectory",
-  "GetAttachment",
-  "UploadAttachment",
-  "GetThreadBlob",
-  "ReorderQueuedTurns",
-  "EditQueuedTurn",
-  "DeleteQueuedTurn",
-  "RestoreQueuedTurn",
-  "SteerQueuedTurn",
-  "ListMentionCatalog",
-  "SearchFiles",
-  "WatchThreadMirror",
-  "PushSharedConfig",
-  "ListBots",
-  "GetBot",
-  "WatchBotConversation",
-  "SendBotMessage",
-  "AnswerBotApproval",
-  "UpdateBot",
-  "InterruptBot",
-  "RetryBot",
-  "MarkBotRead",
-  "ArchiveBot",
-  "UnarchiveBot",
-  "DeleteBot",
-  "ReadBotExchange",
-  "SetBotRoutineEnabled",
-  "DeleteBotRoutine",
-  "CancelBotReminder",
-  "WatchBotMirror",
-  "CallAgentBus",
-  "GetBotProviderInstances",
-  "PrepareMove",
-  "DecideMove",
-  "MoveOutcome",
-  "InspectMove",
-]);
-
-/** Stage 8: the two sides of a move, direct partners only (never relayed). */
-export const MOVE_METHODS = new Set(["PrepareMove", "DecideMove", "MoveOutcome", "InspectMove"]);
-
-export const methodNamed = (name: string) =>
-  ui.GatewayService.methods.find((m) => m.name === name) ??
-  link.ThreadMirrorService.methods.find((m) => m.name === name) ??
-  link.SharedConfigService.methods.find((m) => m.name === name) ??
-  link.LinkedAgentsService.methods.find((m) => m.name === name) ??
-  link.ComputerMoveService.methods.find((m) => m.name === name);
-
-/** Link messages have already been decoded; verify their descriptor before accessing a concrete message. */
-export function linkedMessage<D extends DescMessage>(desc: D, message: Message): MessageShape<D> {
-  if (!isMessage(message, desc)) throw new ConnectError("Unexpected linked message type", Code.Internal);
-
-  return message;
-}
-
-/** Stage 8: a call named things that moved to another computer. The caller follows the redirect; the items cross relays. */
-export class MovedError extends ConnectError {
-  constructor(
-    readonly items: link.MovedItem[],
-    message = `Moved to ${items[0]?.homeName || "another computer"}`,
-  ) {
-    super(message, Code.FailedPrecondition);
-  }
-}
-
-/** ConnectError's `instanceof` matches any ConnectError, so moved errors are told apart by their items. */
-export const movedItems = (cause: unknown): link.MovedItem[] | undefined =>
-  cause instanceof ConnectError &&
-  "items" in cause &&
-  Array.isArray(cause.items) &&
-  cause.items.length &&
-  cause.items.every((item): item is link.MovedItem => isMessage(item, link.MovedItemSchema))
-    ? cause.items
-    : undefined;
-
-export const BOT_METHODS = new Set([
-  "ListBots",
-  "GetBot",
-  "WatchBotConversation",
-  "SendBotMessage",
-  "AnswerBotApproval",
-  "UpdateBot",
-  "InterruptBot",
-  "RetryBot",
-  "MarkBotRead",
-  "ArchiveBot",
-  "UnarchiveBot",
-  "DeleteBot",
-  "ReadBotExchange",
-  "SetBotRoutineEnabled",
-  "DeleteBotRoutine",
-  "CancelBotReminder",
-  "WatchBotMirror",
-  "GetBotProviderInstances",
-]);
 
 /** Routing metadata is fixed for every chunk of a call. It is never inferred from payload ids. */
 export type RelayRoute = { targetNodeId: string; originNodeId: string; relayHops: number };
@@ -160,135 +44,6 @@ export type RemoteServe = (
 ) => AsyncIterable<Message>;
 
 type Frame = MessageInitShape<typeof link.LinkFrameSchema>;
-
-// ------------------------------------------------------------------ ids
-
-const idField = (name: string) => name === "id" || name.endsWith("_id") || name.endsWith("_ids");
-const STAMPED = new Set(["canopy.ui.v1.Thread", "canopy.ui.v1.Worker", "canopy.ui.v1.Project", "canopy.ui.v1.Bot"]);
-
-/** Rewrites every id-like string field (`id`, `*_id`, `*_ids`) of a message in place, recursively. */
-export function mapIds(
-  desc: DescMessage,
-  message: Message,
-  map: (id: string, field: string) => string,
-  visit?: (desc: DescMessage, message: Message) => void,
-): void {
-  const record = reflect(desc, message);
-  visit?.(desc, message);
-
-  if (
-    desc.typeName === "canopy.worker.v1.Mention" &&
-    [MentionKind.BOT, MentionKind.THREAD, MentionKind.CONNECTOR].some(
-      (kind) => kind === record.get(desc.field["kind"]!),
-    )
-  ) {
-    const name = desc.field["name"]!;
-    record.set(name, map(String(record.get(name)), "mention_id"));
-  }
-
-  for (const field of desc.fields) {
-    if (field.oneof && record.oneofCase(field.oneof) !== field) continue;
-
-    if (field.fieldKind === "scalar" && field.scalar === ScalarType.STRING && idField(field.name)) {
-      const value = record.get(field);
-
-      if (value) record.set(field, map(value, field.name));
-    } else if (
-      field.fieldKind === "list" &&
-      field.listKind === "scalar" &&
-      field.scalar === ScalarType.STRING &&
-      idField(field.name)
-    ) {
-      const values = record.get(field);
-
-      for (const [index, value] of values.entries()) {
-        // SAFETY: The descriptor identifies this list as scalar STRING, so every reflected element is a string.
-        values.set(index, map(value as string, field.name));
-      }
-    } else if (field.fieldKind === "list" && field.listKind === "message") {
-      for (const item of record.get(field)) if (isReflectMessage(item)) mapIds(field.message, item.message, map, visit);
-    } else if (field.fieldKind === "message" && record.isSet(field))
-      mapIds(field.message, record.get(field).message, map, visit);
-    else if (field.fieldKind === "map" && field.mapKind === "message")
-      for (const item of record.get(field).values())
-        if (isReflectMessage(item)) mapIds(field.message, item.message, map, visit);
-  }
-}
-
-/** Ids from the home become unambiguous here; threads, workers and projects say which computer they live on. */
-export function qualify(desc: DescMessage, message: Message, nodeId: string): void {
-  mapIds(
-    desc,
-    message,
-    (id) => qualifyId(id, nodeId),
-    (d, message) => {
-      if (STAMPED.has(d.typeName)) reflect(d, message).set(d.field["nodeId"]!, nodeId);
-    },
-  );
-}
-
-/** A shared project is one identity on every computer: its home-qualified id becomes the plain one. */
-export function globalize(desc: DescMessage, message: Message, global: ReadonlySet<string>): void {
-  if (!global.size) return;
-  mapIds(desc, message, (id) => {
-    const { id: plain, node } = splitId(id);
-
-    return node && global.has(plain) ? plain : id;
-  });
-}
-
-/** The computers a request's ids point at (empty: all local). */
-export function nodesOf(desc: DescMessage, message: Message, topLevelOnly = false): Set<string> {
-  const nodes = new Set<string>();
-
-  if (topLevelOnly) {
-    const record = reflect(desc, message);
-
-    for (const field of desc.fields) {
-      if (field.fieldKind === "scalar" && field.scalar === ScalarType.STRING && idField(field.name)) {
-        const { node } = splitId(record.get(field));
-
-        if (node) nodes.add(node);
-      }
-    }
-
-    return nodes;
-  }
-
-  mapIds(desc, message, (id) => {
-    const { node } = splitId(id);
-
-    if (node) nodes.add(node);
-
-    return id;
-  });
-
-  return nodes;
-}
-
-/**
- * A request for the home: its own ids, nothing of this or any third computer (no transitive sharing yet).
- * `global`: ids that are the same on every computer (shared projects, stage 4) pass unchanged.
- */
-export function unqualify(
-  desc: DescMessage,
-  message: Message,
-  nodeId: string,
-  global: ReadonlySet<string> = new Set(),
-): void {
-  mapIds(desc, message, (id, field) => {
-    const { id: plain, node } = splitId(id);
-
-    if (node === nodeRef(nodeId)) return plain;
-
-    if (!node && global.has(id)) return id;
-
-    if (node || (field !== "client_request_id" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id)))
-      throw new ConnectError("Choose a project, worker and thread on the same computer", Code.InvalidArgument);
-
-    return id;
-  });
-}
 
 // ------------------------------------------------------------------ calls over one connection
 
