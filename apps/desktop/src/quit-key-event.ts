@@ -9,6 +9,7 @@ export function quitKeyEvent(log: (decision: string) => void) {
   if (process.platform === "darwin") {
     try {
       const directory = app.isPackaged ? process.resourcesPath : join(app.getAppPath(), "build");
+      // SAFETY: Both paths load our packaged N-API addon, which exports isRepeat and timing with this contract.
       native = require(join(directory, "native/quit-key-event.node")) as typeof native;
       log("repeat adapter=appkit");
     } catch {

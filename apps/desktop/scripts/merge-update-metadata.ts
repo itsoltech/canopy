@@ -12,6 +12,36 @@ interface Feed {
   releaseDate?: string;
 }
 
+function isFeedFile(value: unknown): value is Feed["files"][number] {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "url" in value &&
+    typeof value.url === "string" &&
+    "sha512" in value &&
+    typeof value.sha512 === "string" &&
+    (!("size" in value) || value.size === undefined || typeof value.size === "number")
+  );
+}
+
+function isFeed(value: unknown): value is Feed {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "version" in value &&
+    typeof value.version === "string" &&
+    "files" in value &&
+    Array.isArray(value.files) &&
+    value.files.length > 0 &&
+    value.files.every(isFeedFile) &&
+    "path" in value &&
+    typeof value.path === "string" &&
+    "sha512" in value &&
+    typeof value.sha512 === "string" &&
+    (!("releaseDate" in value) || value.releaseDate === undefined || typeof value.releaseDate === "string")
+  );
+}
+
 // Every macOS runner emits <channel>-mac.yml (only arm64 today). Merge their files arrays
 // instead of allowing download-artifact's last writer to remove an architecture.
 export async function mergeDesktopUpdates(source: string, destination: string, channel: string, version: string) {
@@ -32,10 +62,9 @@ export async function mergeDesktopUpdates(source: string, destination: string, c
       if (name.endsWith(".yml")) {
         if (!new RegExp(`^${identity.feed}(-mac|-linux(-arm64)?)?\\.yml$`).test(name))
           throw new Error(`Unexpected update channel: ${name}`);
-        const feed = load(readFileSync(path, "utf8")) as Feed;
+        const feed = load(readFileSync(path, "utf8"));
 
-        if (feed.version !== version || !Array.isArray(feed.files) || !feed.files.length)
-          throw new Error(`Invalid feed: ${name}`);
+        if (!isFeed(feed) || feed.version !== version) throw new Error(`Invalid feed: ${name}`);
 
         for (const file of feed.files) {
           if (basename(file.url) !== file.url || !file.url.startsWith(`${identity.artifactPrefix}-${version}-`))

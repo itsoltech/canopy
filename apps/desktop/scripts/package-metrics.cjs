@@ -1,5 +1,5 @@
 const { createHash } = require("node:crypto");
-const { closeSync, openSync, readSync, readFileSync, readdirSync, lstatSync } = require("node:fs");
+const { closeSync, openSync, readSync, readdirSync, lstatSync } = require("node:fs");
 const { basename, join, relative } = require("node:path");
 const MiB = 1024 ** 2;
 

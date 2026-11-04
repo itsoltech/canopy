@@ -59,7 +59,7 @@ const configuration = {
   ],
   protocols: [{ name: `${identity.productName} enrollment`, schemes: [identity.scheme] }],
   linux: { ...base.linux, icon, desktop: { entry: { StartupWMClass: identity.productName } } },
-  mac: { ...base.mac, icon, ...(signed ? {} : { identity: "-" }), notarize },
+  mac: { ...base.mac, icon, ...(!signed && { identity: "-" }), notarize },
   win: { ...base.win, icon },
   // Never advertise an ad-hoc macOS build to already signed clients.
   publish:

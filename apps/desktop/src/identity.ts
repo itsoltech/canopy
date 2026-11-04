@@ -2,9 +2,14 @@ export type DesktopChannel = "stable" | "beta" | "nightly";
 
 declare const CANOPY_DESKTOP_CHANNEL: string | undefined;
 
+function isDefinedChannel(value: string | undefined): value is string {
+  return typeof value === "string";
+}
+
 export function desktopIdentity(
-  value = (typeof CANOPY_DESKTOP_CHANNEL === "string" ? CANOPY_DESKTOP_CHANNEL : process.env["CANOPY_CHANNEL"]) ??
-    "stable",
+  value = (typeof CANOPY_DESKTOP_CHANNEL !== "undefined" && isDefinedChannel(CANOPY_DESKTOP_CHANNEL)
+    ? CANOPY_DESKTOP_CHANNEL
+    : process.env["CANOPY_CHANNEL"]) ?? "stable",
 ) {
   if (value !== "stable" && value !== "beta" && value !== "nightly")
     throw new Error(`Invalid desktop channel: ${value}`);

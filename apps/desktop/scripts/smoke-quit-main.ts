@@ -22,8 +22,11 @@ async function smoke() {
     {
       clock: {
         now: () => performance.now(),
-        setTimeout: (callback, ms) => setTimeout(callback, ms),
-        clearTimeout: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
+        setTimeout: (callback, ms) => {
+          const timer = setTimeout(callback, ms);
+
+          return () => clearTimeout(timer);
+        },
       },
       shortcut: "Ctrl+Q",
       repeatTiming: () => ({ initialDelayMs: 300, intervalMs: 50 }),
@@ -198,8 +201,8 @@ async function smoke() {
 
 void smoke().then(
   () => app.exit(0),
-  (error: unknown) => {
-    console.error(error);
+  (cause: unknown) => {
+    console.error(cause);
     app.exit(1);
   },
 );

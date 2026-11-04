@@ -3,7 +3,7 @@ import { autoUpdater } from "electron-updater";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { desktopIdentity, type DesktopChannel } from "./identity.ts";
-import { newestRelease, type DesktopRelease } from "./update-releases.ts";
+import { isDesktopRelease, newestRelease, type DesktopRelease } from "./update-releases.ts";
 import { UpdateController } from "./update-controller.ts";
 import { UpdateSettings } from "./update-settings.ts";
 
@@ -61,7 +61,7 @@ export class DesktopUpdates {
   status() {
     return this.control.status();
   }
-  setChannel(channel: unknown) {
+  setChannel(channel: string) {
     return this.control.setChannel(channel);
   }
   check() {
@@ -168,7 +168,9 @@ export class DesktopUpdates {
       });
 
       if (!response.ok) throw new Error("Release feed unavailable");
-      const batch = (await response.json()) as DesktopRelease[];
+      const batch: unknown = await response.json();
+
+      if (!Array.isArray(batch) || !batch.every(isDesktopRelease)) throw new Error("Invalid release feed");
       releases.push(...batch);
 
       if (batch.length < 100) break;

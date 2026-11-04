@@ -41,6 +41,7 @@ try {
     if (!result.success) throw new AggregateError(result.logs, "Quit smoke build failed");
   }
 
+  // SAFETY: Under Bun, Electron's npm entry exports the installed executable path, not the Electron runtime API.
   const electron = require("electron") as string;
 
   const child = Bun.spawn(

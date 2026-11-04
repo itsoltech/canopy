@@ -8,6 +8,26 @@ export interface DesktopRelease {
   assets: { name: string }[];
 }
 
+function isReleaseAsset(value: unknown): value is DesktopRelease["assets"][number] {
+  return !!value && typeof value === "object" && "name" in value && typeof value.name === "string";
+}
+
+export function isDesktopRelease(value: unknown): value is DesktopRelease {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "tag_name" in value &&
+    typeof value.tag_name === "string" &&
+    "draft" in value &&
+    typeof value.draft === "boolean" &&
+    "prerelease" in value &&
+    typeof value.prerelease === "boolean" &&
+    "assets" in value &&
+    Array.isArray(value.assets) &&
+    value.assets.every(isReleaseAsset)
+  );
+}
+
 export const channelRank = { stable: 0, beta: 1, nightly: 2 } as const;
 export const channelFeed = (channel: DesktopChannel) => (channel === "stable" ? "latest" : channel);
 

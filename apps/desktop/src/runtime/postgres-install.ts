@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { DesktopStatus } from "@canopy/ui/desktop";
 
+// SAFETY: Our repository-owned CommonJS packaging module exports this two-string entry point.
 const { preparePostgres } = require("../../scripts/postgres.cjs") as {
   preparePostgres(directory: string, target: string): void;
 };
@@ -24,6 +25,34 @@ export interface PostgresPin {
   major: number;
   target: string;
   integrity: string;
+}
+
+function isPostgresPin(value: unknown): value is PostgresPin {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "packageName" in value &&
+    typeof value.packageName === "string" &&
+    "version" in value &&
+    typeof value.version === "string" &&
+    "major" in value &&
+    typeof value.major === "number" &&
+    "target" in value &&
+    typeof value.target === "string" &&
+    "integrity" in value &&
+    typeof value.integrity === "string"
+  );
+}
+
+function isInstalledMarker(value: unknown): value is Pick<PostgresPin, "integrity" | "target"> {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "integrity" in value &&
+    typeof value.integrity === "string" &&
+    "target" in value &&
+    typeof value.target === "string"
+  );
 }
 
 export type DatabaseProgress = NonNullable<DesktopStatus["database"]>;
@@ -72,7 +101,10 @@ export class PostgresInstaller {
     private readonly progress: (value: DatabaseProgress) => void = () => {},
     testing?: PostgresTestOptions,
   ) {
-    this.pin = JSON.parse(readFileSync(manifest, "utf8")) as PostgresPin;
+    const value: unknown = JSON.parse(readFileSync(manifest, "utf8"));
+
+    if (!isPostgresPin(value)) throw new Error("Invalid PostgreSQL distribution pin");
+    this.pin = value;
     const pin = this.pin;
 
     if (
@@ -108,10 +140,9 @@ export class PostgresInstaller {
 
   #ready(): boolean {
     try {
-      const marker = JSON.parse(readFileSync(join(this.directory, "installed.json"), "utf8")) as {
-        integrity: string;
-        target: string;
-      };
+      const marker: unknown = JSON.parse(readFileSync(join(this.directory, "installed.json"), "utf8"));
+
+      if (!isInstalledMarker(marker)) return false;
 
       if (
         !lstatSync(this.directory).isDirectory() ||

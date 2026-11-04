@@ -5,10 +5,17 @@ import { tempDirs } from "@canopy/testing";
 import { noAgentClis } from "../../../scripts/agent-clis.ts";
 
 const { createPackage } = require("@electron/asar") as { createPackage(source: string, output: string): Promise<void> };
-const verify = require("../scripts/verify-package.cjs") as (context: unknown) => Promise<void>;
+
+interface PackageContext {
+  appOutDir: string;
+  electronPlatformName: string;
+  packager: { appInfo?: { productFilename: string }; platformSpecificBuildOptions?: { binaries: string[] } };
+}
+
+const verify = require("../scripts/verify-package.cjs") as (context: PackageContext) => Promise<void>;
 
 const { packageMetrics } = require("../scripts/package-metrics.cjs") as {
-  packageMetrics(app: string, resources: string, target: string): unknown;
+  packageMetrics(app: string, resources: string, target: string): { target: string; total: number; budget: number };
 };
 
 const { restorePostgresLinks, linkDuplicateLibraries } = require("../scripts/postgres.cjs") as {
