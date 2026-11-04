@@ -95,6 +95,11 @@ describe.skipIf(!dockerAvailable)("actionable errors across gateway APIs", () =>
       create: true,
       kind: ProviderProfileKind.NATIVE,
     });
+    await suite.gw.api.setInstanceModels({
+      harness: Provider.GROK,
+      id: "proxy-looking",
+      models: { custom: ["grok-4.7"] },
+    });
     expect(
       await failure(
         add("Device cannot be bot", { provider: Provider.GROK, providerInstance: "proxy-looking", model: "grok-4.7" }),

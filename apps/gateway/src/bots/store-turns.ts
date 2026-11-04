@@ -136,7 +136,16 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
             return yield* Effect.fail(new Invalid("only a failed last reply can be retried"));
           // The failure note goes; the same input runs again from its checkpoint.
           yield* sql`DELETE FROM bot_messages WHERE turn_id = ${last.id}::uuid AND message_key = 'answer' AND kind = 'event'`;
-          yield* sql`UPDATE bot_turns SET status = 'queued', finished_at = NULL, lease_token = NULL, lease_until = NULL WHERE id = ${last.id}::uuid`;
+          const harness = yield* sql`SELECT turn_id FROM bot_harness_turns WHERE turn_id = ${last.id}::uuid`;
+
+          if (harness.length) {
+            // An explicit retry is a new harness turn; the failed command and journal remain immutable audit.
+            const next = uuid();
+            yield* sql`INSERT INTO bot_turns(id, bot_id, client_request_id, input, hops, reply_to_bot_id, exchange_id, remote_recipient_ref, routine_id)
+              SELECT ${next}::uuid, bot_id, ${`retry:${last.id}`}, input, hops, reply_to_bot_id, exchange_id, remote_recipient_ref, routine_id FROM bot_turns WHERE id = ${last.id}::uuid`;
+            yield* sql`UPDATE bot_messages SET turn_id = ${next}::uuid WHERE turn_id = ${last.id}::uuid AND message_key = 'input'`;
+          } else
+            yield* sql`UPDATE bot_turns SET status = 'queued', finished_at = NULL, lease_token = NULL, lease_until = NULL WHERE id = ${last.id}::uuid`;
           yield* changed(id);
         }),
       ),

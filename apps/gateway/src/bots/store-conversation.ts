@@ -76,6 +76,12 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
           const active =
             yield* sql`SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND status IN ('queued','running','waiting') AND (routine_id IS NULL OR status = 'waiting') LIMIT 1`;
 
+          const streaming =
+            (yield* sql<{
+              text: string;
+            }>`SELECT h.text FROM bot_harness_turns h JOIN bot_turns t ON t.id = h.turn_id WHERE h.bot_id = ${id}::uuid AND t.status = 'running' AND t.routine_id IS NULL AND t.handoff_configuration IS NULL ORDER BY t.created_at LIMIT 1`)[0]
+              ?.text ?? "";
+
           const reminders = yield* sql<{
             id: string;
             prompt: string;
@@ -91,6 +97,7 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
             approvals: approvals.map(approvalView),
             statusLine: active.length ? bot.status_line : "",
             working: active.length > 0,
+            streamingText: streaming,
             revision: BigInt(bot.revision),
             routines: yield* routines.routines(user, id),
             reminders: reminders.map((r) =>

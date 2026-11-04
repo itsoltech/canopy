@@ -384,6 +384,9 @@ message Command {
     WorktreeTarget reveal_worktree = 215;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
+    // Capability bot_harness_v1. Trwałe, odizolowane od wątków projektowych.
+    RunBotTurn run_bot_turn = 830;
+    InterruptTurn interrupt_bot_turn = 831;
   }
 }
 
@@ -606,6 +609,20 @@ message GenerateText {
   string model = 3;
   string effort = 4;
   string prompt = 5;
+}
+
+message RunBotTurn {
+  string bot_id = 1;
+  string turn_id = 2;
+  Provider provider = 3;
+  string profile_id = 4;
+  string model = 5;
+  string effort = 6;
+  string instructions = 7;
+  // Historia jako dane do odbudowy sesji, nigdy instrukcje ani ponowienie narzędzi.
+  string history_json = 8;
+  string input = 9;
+  repeated ConnectorTool tools = 10;
 }
 
 message DirectoryEntry {
@@ -1115,6 +1132,8 @@ message InteractionResponse {
 // Wywołanie narzędzia szyny przez model. Idempotentne po call_id: worker ponawia je po
 // ponownym połączeniu, a gateway zwraca zapisany wynik zamiast wykonywać drugi raz.
 message AgentToolCall {
+  // Boty używają odrębnej autoryzacji; thread_id nie nadaje uprawnień bota.
+  string bot_id = 830;
   string connector_account_id = 520;
   string call_id = 1;
   string thread_id = 2;

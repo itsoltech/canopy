@@ -1,0 +1,174 @@
+import { statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { Cause, Deferred, Effect, Exit, Stream } from "effect";
+import { ItemDeltaField, ItemStatus } from "@canopy/contracts";
+import { CodexAppServer } from "../providers/codex/app-server.ts";
+import { codexAppServerLaunch, codexThreadProvider } from "../providers/codex/launch.ts";
+import { codexTextCatalog, codexTextOverrides } from "../providers/generate-text.ts";
+import { botPrompt } from "./session.ts";
+import type { BotHarnessContext } from "./types.ts";
+import { BotHarnessFailure } from "./types.ts";
+import { codexErrorCode } from "../providers/codex/status-mapping.ts";
+import { decodeJson } from "../providers/json.ts";
+
+function botCodexLaunch(ctx: BotHarnessContext) {
+  const { input, session } = ctx;
+  const catalog = join(session.home, "bot-model.json");
+  writeFileSync(catalog, JSON.stringify(codexTextCatalog(input.model, input.effort)), { mode: 0o600 });
+
+  const base = codexAppServerLaunch(
+    [ctx.profile],
+    process.env,
+    ctx.executable,
+    undefined,
+    session.home,
+    ctx.profile.env,
+    // Bot isolation owns CLI configuration; instance launch flags may enable local tools or MCP servers.
+    [],
+  );
+
+  return { ...base, command: [...base.command, ...codexTextOverrides(catalog)] };
+}
+
+/** Dedicated official app-server; a minimal catalog removes every model-supplied local tool. */
+function codexBotProgram(ctx: BotHarnessContext) {
+  const { input, session } = ctx;
+
+  const program = Effect.gen(function* () {
+    const server = yield* CodexAppServer;
+    const done = yield* Deferred.make<void, Error>();
+    yield* Effect.forkScoped(
+      server.exited.pipe(Effect.flatMap(() => Deferred.fail(done, new BotHarnessFailure("process_exit")))),
+    );
+    let id = "";
+    yield* Effect.forkScoped(
+      server.notifications.pipe(
+        Stream.runForEach((event) => {
+          if (!("threadId" in event.params) || event.params.threadId !== id) return Effect.void;
+
+          if (event.method === "item/agentMessage/delta")
+            return Effect.promise(() =>
+              ctx.record({
+                body: {
+                  case: "itemDelta",
+                  value: { itemId: event.params.itemId, field: ItemDeltaField.TEXT, chunk: event.params.delta },
+                },
+              }),
+            );
+
+          if (event.method === "item/completed" && event.params.item.type === "agentMessage") {
+            const item = event.params.item;
+
+            return Effect.promise(() =>
+              ctx.record({
+                body: {
+                  case: "itemCompleted",
+                  value: {
+                    item: {
+                      itemId: item.id,
+                      status: ItemStatus.COMPLETED,
+                      content: { case: "agentMessage", value: { text: item.text } },
+                    },
+                  },
+                },
+              }),
+            );
+          }
+
+          if (event.method === "turn/completed")
+            return event.params.turn.status === "completed"
+              ? Deferred.succeed(done, undefined)
+              : Deferred.fail(
+                  done,
+                  new BotHarnessFailure(
+                    codexErrorCode(decodeJson(event.params.turn.error?.codexErrorInfo)) || "HARNESS_ERROR",
+                  ),
+                );
+
+          return Effect.void;
+        }),
+      ),
+    );
+
+    const params = {
+      model: input.model,
+      ...codexThreadProvider(ctx.profile),
+      cwd: session.cwd,
+      approvalPolicy: "never" as const,
+      sandbox: "read-only" as const,
+      baseInstructions: input.instructions,
+      developerInstructions: "",
+      config: {
+        project_doc_max_bytes: 0,
+        mcp_servers: input.tools.length ? { canopy: { url: ctx.mcp.url, http_headers: ctx.mcp.headers } } : {},
+        developer_instructions: "",
+      },
+    };
+
+    const resumed = session.id
+      ? yield* server
+          .request("thread/resume", { threadId: session.id, ...params })
+          .pipe(
+            Effect.catch((error) =>
+              /no rollout found|not found|session missing/i.test(error.message)
+                ? Effect.succeed(undefined)
+                : Effect.fail(error),
+            ),
+          )
+      : undefined;
+
+    const started =
+      resumed ??
+      (yield* server.request("thread/start", { ...params, ephemeral: false, dynamicTools: [], environments: [] }));
+
+    id = started.thread.id;
+    session.save(id);
+    const path = started.thread.path || "";
+
+    const offset = path
+      ? (() => {
+          try {
+            return statSync(path).size;
+          } catch {
+            return 0;
+          }
+        })()
+      : 0;
+
+    yield* Effect.promise(() =>
+      ctx.noteHarness({ harness: "codex", transcript: path, sessionId: id, offset, providerTurn: "" }),
+    );
+
+    const turn = yield* server.request("turn/start", {
+      threadId: id,
+      input: [{ type: "text", text: botPrompt(input, Boolean(resumed)), text_elements: [] }],
+      ...(input.effort && { effort: input.effort }),
+      approvalPolicy: "never",
+      sandboxPolicy: { type: "readOnly", networkAccess: false },
+    });
+
+    yield* Effect.promise(() =>
+      ctx.noteHarness({ harness: "codex", transcript: path, sessionId: id, offset, providerTurn: turn.turn.id }),
+    );
+    yield* Deferred.await(done);
+  }).pipe(
+    Effect.provide(
+      CodexAppServer.layer({
+        launch: botCodexLaunch(ctx),
+        clientVersion: ctx.clientVersion,
+        onServerRequest: async () => {
+          throw new Error("Bots have no native tools or interactions");
+        },
+      }),
+    ),
+    Effect.scoped,
+  );
+
+  return program;
+}
+
+export async function runCodexBot(ctx: BotHarnessContext): Promise<void> {
+  const exit = await Effect.runPromiseExit(codexBotProgram(ctx), { signal: ctx.signal });
+
+  if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+}

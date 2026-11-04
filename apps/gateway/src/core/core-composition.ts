@@ -20,6 +20,7 @@ import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core
 import { corePublishSchedule } from "./core-schedules.ts";
 import type { GatewayCore } from "./core.ts";
 import { nameAutomationBranch, prepareScheduledWorkspace, prepareSpawnWorkspace } from "../worktrees/automation.ts";
+import { runBotHarness } from "./bot-harness.ts";
 
 export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): BotsRuntime {
   return new BotsRuntime({
@@ -27,6 +28,7 @@ export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): 
     userId: options.userId,
     draining: () => core.updates?.draining ?? false,
     connectors: core.connectors,
+    harness: (input) => runBotHarness(core, input),
     ...(options.botClock && { now: options.botClock }),
     ...(options.botModel && { model: options.botModel }),
     ...(options.log && { log: options.log }),

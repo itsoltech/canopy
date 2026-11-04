@@ -5,7 +5,7 @@ mobilnej (2026-11-02). Logowanie użytkowników i część docelowych rozszerze�
 
 Powiązane dokumenty:
 
-- [bots.md](bots.md) — boty gateway: bezpośrednie API, trwałość, zdalne MCP i minimalny UI.
+- [bots.md](bots.md) — rozmowy botów, trwałość i narzędzia; [bots-harness.md](bots-harness.md) — migracja inferencji na oficjalne harnessy workerów.
 - [connectors.md](connectors.md) — współdzielone konta zewnętrznych MCP, OAuth w gateway, granty workerów/botów i proxy bez poświadczeń na workerze.
 - [protocol.md](protocol.md) — kanał gRPC gateway ↔ worker
 - [data-model.md](data-model.md) — model danych PostgreSQL i reguły dostępu

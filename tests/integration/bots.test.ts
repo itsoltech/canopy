@@ -358,7 +358,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
     await suite.current.bots.remove(bot.id);
     expect((await suite.current.bots.list()).some((b) => b.id === bot.id)).toBe(false);
   }, 20_000);
-  test("harness aliases resolve to API models on save and at runtime; failed replies are marked and can be retried", async () => {
+  test("harness aliases stay intact; failed replies are marked and can be retried", async () => {
     await suite.gw.api.saveProviderInstance({
       harness: Provider.CLAUDE,
       id: "bots-claude",
@@ -387,7 +387,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
     );
     const claude = { provider: Provider.CLAUDE, providerInstance: "bots-claude" };
     const saved = await add("Aliased", { ...claude, model: "default" });
-    expect(saved.configuration?.model).toBe("claude-opus-5-5");
+    expect(saved.configuration?.model).toBe("default");
 
     const create_ = (name: string, model: string) =>
       suite.current.bots.create(
@@ -397,8 +397,8 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
         }),
       );
 
-    await expect(create_("Unresolved", "sonnet")).rejects.toThrow(/alias/);
-    await expect(create_("Unknown", "claude-missing")).rejects.toThrow(/does not offer/);
+    await expect(create_("Unresolved", "sonnet")).rejects.toThrow(/matching model/);
+    await expect(create_("Unknown", "claude-missing")).rejects.toThrow(/matching model/);
     expect(
       (
         await suite.gw.api.updateBot({
@@ -406,9 +406,9 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
           configuration: configuration("Aliased", { ...claude, model: "default" }),
         })
       ).bot?.configuration?.model,
-    ).toBe("claude-opus-5-5");
+    ).toBe("default");
 
-    // A bot saved before validation still names the alias; the runtime sends the concrete model.
+    // The official harness resolves its own aliases, including definitions saved before migration.
     await suite.gw.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
@@ -427,7 +427,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
 
     await send(saved.id, "hello alias");
     const failed = await settled(saved.id);
-    expect(models).toEqual(["claude-opus-5-5"]);
+    expect(models).toEqual(["default"]);
     expect(failed.messages.at(-1)).toMatchObject({ failed: true, text: "Model endpoint returned HTTP 400" });
     expect((await suite.current.bots.list()).find((b) => b.id === saved.id)?.lastMessage?.failed).toBe(true);
     fail = false;

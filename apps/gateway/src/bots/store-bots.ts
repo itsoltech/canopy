@@ -38,22 +38,23 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
       }>`SELECT label FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance}`.pipe(
         Effect.map((rows) => rows[0]?.label ?? config.providerInstance),
       ),
-    apiModels: (provider: Provider, instanceId: string) =>
+    apiModels: (provider: Provider, instanceId: string, workerId = "") =>
       Effect.gen(function* () {
         const instance =
-          (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(provider)} AND id = ${instanceId} AND kind = 'endpoint'`)[0];
+          (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(provider)} AND id = ${instanceId}`)[0];
 
-        if (!instance) return yield* Effect.fail(new Invalid("choose a gateway-accessible endpoint provider instance"));
+        if (!instance) return yield* Effect.fail(new Invalid("choose an existing provider instance"));
 
         const profiles = yield* catalogs(
-          create(bots.BotConfigurationSchema, { provider, providerInstance: instanceId }),
+          create(bots.BotConfigurationSchema, { provider, providerInstance: instanceId, workerId }),
         );
 
         const models = profiles
           .flatMap((p) => p.models)
           .filter((m) => !m.hidden)
           .flatMap((m) => {
-            const resolved = apiModel(m.id, profiles, instance.custom_models);
+            const resolved =
+              provider === Provider.GROK ? apiModel(m.id, profiles, instance.custom_models) : { model: m.id };
 
             return "problem" in resolved
               ? []

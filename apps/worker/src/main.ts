@@ -297,6 +297,7 @@ while (!stopping.signal.aborted) {
           "probe_providers",
           "codex_device_login",
           "generate_text",
+          "bot_harness_v1",
           "thread_secrets",
           "cli_install",
           ...(Bun.env["CANOPY_LOCAL_WORKER"] === "1" ? [] : ["network_route_migration"]),

@@ -58,6 +58,7 @@ import { coreWorkLoopMethods, type CoreWorkLoopMethods } from "./core-work-loop.
 import { coreWorktreesMethods, type CoreWorktreesMethods } from "../worktrees/core-worktrees.ts";
 import { coreWorktreeLifecycleMethods, type CoreWorktreeLifecycleMethods } from "../worktrees/core-lifecycle.ts";
 import { WorktreeCleanupSchedule } from "../worktrees/cleanup-schedule.ts";
+import { workerJournalWelcome } from "./bot-harness.ts";
 
 export {
   describeError,
@@ -227,15 +228,7 @@ export class GatewayCore {
     this.bots = createCoreBots(this, options);
     this.link = createWorkerLink({
       authenticate: (credential) => coreRun(this, (s) => s.authenticateWorker(credential)),
-      welcome: async (workerId, hello) => {
-        this[coreState].journalIds.set(workerId, hello.journalId);
-
-        const persisted = hello.journalId
-          ? await coreRun(this, (s) => s.journalCursors(workerId, hello.journalId))
-          : [];
-
-        return { heartbeatIntervalSeconds: 15, persisted };
-      },
+      welcome: (workerId, hello) => workerJournalWelcome(this, workerId, hello.journalId),
       config: async (workerId) => (await coreRun(this, (s) => s.workerConfig(workerId))) ?? undefined,
       onConnected: (connection) =>
         coreServe(this, connection).catch((cause: unknown) => {

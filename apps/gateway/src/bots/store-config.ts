@@ -1,5 +1,5 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
-import { bots, ProfileModelsSchema, type ProfileModels } from "@canopy/contracts";
+import { bots, Provider, ProfileModelsSchema, type ProfileModels } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { Invalid } from "../store/store.ts";
@@ -60,29 +60,43 @@ function botValidate(
         return yield* Effect.fail(new Invalid("invalid approval policy or MCP connections"));
 
       const instances =
-        yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance} AND kind = 'endpoint'`;
+        yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance}`;
 
-      if (!instances[0])
-        return yield* Effect.fail(
-          new Invalid(
-            "bots require a gateway-accessible endpoint provider instance; native CLI login is not supported",
-          ),
-        );
+      if (!instances[0]) return yield* Effect.fail(new Invalid("choose an existing provider instance"));
+
+      // Grok keeps the direct gateway runtime until its ACP adapter lands in stage 2.
+      if (config.provider === Provider.GROK && instances[0].kind !== "endpoint")
+        return yield* Effect.fail(new Invalid("Grok bots require a gateway-accessible endpoint provider instance"));
+
+      if (config.workerId) {
+        const workers =
+          yield* sql`SELECT w.id FROM workers w JOIN provider_instances i ON i.harness = ${harnessOf(config.provider)} AND i.id = ${config.providerInstance}
+          LEFT JOIN provider_instance_workers a ON a.worker_id = w.id AND a.harness = i.harness AND a.instance_id = i.id
+          WHERE w.id::text = ${config.workerId} AND (w.owner_user_id = ${user}::uuid OR w.owner_user_id IS NULL) AND w.revoked_at IS NULL AND w.archived_at IS NULL
+          AND coalesce(a.enabled, i.all_workers)`;
+
+        if (!workers.length)
+          return yield* Effect.fail(new Invalid("choose a worker with this provider instance enabled"));
+      }
 
       for (const id of config.mcpServerIds) yield* server(user, id);
       const catalog = yield* catalogs(config);
-      const model = apiModel(config.model, catalog, instances[0].custom_models);
+
+      const model =
+        config.provider === Provider.GROK
+          ? apiModel(config.model, catalog, instances[0].custom_models)
+          : { model: config.model };
 
       if ("problem" in model) return yield* Effect.fail(new Invalid(model.problem));
 
       if (
-        requireCatalog &&
+        (requireCatalog || catalog.some((p) => p.models.length > 0)) &&
         !instances[0].custom_models.includes(model.model) &&
         !catalog.some((p) => p.models.some((m) => m.id === model.model || m.resolvedModel === model.model))
       )
         return yield* Effect.fail(
           new Invalid(
-            "this provider instance has no matching API model in its catalog; use list_models or configure a custom model in Settings",
+            "this provider instance has no matching model in its worker catalog; use list_models or configure a custom model in Settings",
           ),
         );
 
@@ -110,7 +124,9 @@ export function botConfig(sql: SqlClient.SqlClient, access: BotAccess) {
 
   /** What the workers last reported for the bot's instance (aliases and their concrete models). */
   const catalogs = (config: bots.BotConfiguration) =>
-    sql<{ profiles: JsonValue[] }>`SELECT profiles FROM worker_model_catalogs`.pipe(
+    sql<{
+      profiles: JsonValue[];
+    }>`SELECT profiles FROM worker_model_catalogs WHERE (${config.workerId || null}::uuid IS NULL OR worker_id = ${config.workerId || null}::uuid)`.pipe(
       Effect.map((rows): ProfileModels[] =>
         rows
           .flatMap((r) => r.profiles.map((p) => fromJson(ProfileModelsSchema, p, { ignoreUnknownFields: true })))
@@ -123,6 +139,8 @@ export function botConfig(sql: SqlClient.SqlClient, access: BotAccess) {
   /** The concrete API model of a saved bot; bots saved before validation may still name an alias. */
   const resolveModel = (config: bots.BotConfiguration) =>
     Effect.gen(function* () {
+      if (config.provider !== Provider.GROK) return { model: config.model };
+
       const instance =
         (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance} AND kind = 'endpoint'`)[0];
 

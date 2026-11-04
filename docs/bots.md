@@ -1,10 +1,15 @@
-# Boty w gateway
+# Boty
 
 Grok jest dostępny w `start_thread` oraz jako model bota na instancji CLIProxyAPI (chat completions/function tools). Live potwierdził tani `grok-3-mini-fast`, wywołanie narzędzia i kolejną odpowiedź po jego wyniku. Bot nie uruchamia CLI ani lokalnych narzędzi. [Konfiguracja Groka](grok-adapter.md).
 
-Status: **rdzeń, edytor ustawień, samodzielna edycja, archiwum i rutyny**, 2026-11-02. Bot ma jedną rozmowę
-z właścicielem i działa w procesie gateway. Nie ma katalogu, workera ani lokalnego
-harnessu. Kod: `apps/gateway/src/bots`, kontrakt: `proto/canopy/ui/v1/bots.proto`.
+Etap 1 migracji na harnessy: Claude i Codex wykonują inferencję na przypiętym workerze,
+przez oficjalne CLI/SDK, z izolowaną sesją i wyłącznie narzędziami Canopy. Gateway
+zachowuje rozmowę, outbox, zgody i wykonawców narzędzi. Ustawienie **Runs on** wybiera
+workera; offline wiadomości czekają. Native/device login i proxy są obsługiwane przez
+harness. Grok pozostaje w dotychczasowym runtime API do etapu 2. Pełna decyzja,
+ograniczenia i plan stosu: [bots-harness.md](bots-harness.md).
+
+Kod: `apps/gateway/src/bots`, `apps/worker/src/bots`; kontrakty: boty UI i WorkerLink.
 
 ## Zmiana modelu — ukryte przekazanie kontekstu
 
@@ -187,25 +192,20 @@ z reduced motion; mobilny dialog korzysta ze wspólnego ruchu dolnego panelu.
 
 ## 1. Decyzja o wykonaniu
 
-Wybrany wariant **B: bezpośrednie API modelu i własna pętla narzędzi**. Claude korzysta
-z Anthropic Messages, Codex z OpenAI Responses. Oba połączenia mogą przechodzić przez
-CLIProxyAPI. Gateway czyta globalną instancję `provider_instances` i odszyfrowuje jej
-klucz wyłącznie na czas żądania. Nie używa nadpisań workera ani nie kopiuje jego logowania.
+Decyzja maintenera zastępuje wariant B: **oficjalny harness na workerze**.
+Claude/Codex nie mają fallbacku do bezpośredniego API. Runtime B pozostaje przejściowo
+wyłącznie dla Groka; musi zniknąć w etapie 2 przed scaleniem całego stosu.
 
 | Wariant | Korzyść | Koszt i decyzja |
 |---|---|---|
 | A: Claude Agent SDK / Codex app-server na hoście gateway | Logowania subskrypcyjne harnessu, gotowy kontekst i sesje | Można usunąć narzędzia, ale proces dostawcy nadal działa na hoście. Wznowienie wymaga plików sesji i pogodzenia historii harnessu z zatwierdzeniami w PostgreSQL. Aktualizacja katalogu lub CLI może zmienić zestaw narzędzi. Nie jest runtime'em Bots w fazie 1. |
-| B: API i jawne funkcje | Brak lokalnego wykonawcy; pełny checkpoint pętli w bazie, ta sama polityka obu dostawców | Wymaga endpointu dostępnego z gateway i jego klucza; własne limity kontekstu i formatowanie historii. Wybrane. |
+| B: API i jawne funkcje | Pełny checkpoint pętli w bazie | Wycofywany: brak wsparcia logowania subskrypcyjnego oficjalnego harnessu. |
 
-**Ograniczenie logowania:** tworzenie bota na połączeniu Device login jest odrzucane,
-niezależnie od id instancji. Wbudowana instancja `native` przełączona na Proxy jest dozwolona. Login Claude/Codex
-na workerze nie stanowi poświadczenia gateway. Dla subskrypcji należy skonfigurować
-instancję endpointową przez CLIProxyAPI. Pola `runtime` i dowolne zmienne środowiskowe
-instancji są opcjami procesu harnessu, więc runtime API Bots ich nie wykonuje ani nie
-wczytuje do procesu gateway. Wykorzystuje `base_url`, `api_key`, dostawcę, model i effort.
-Nie ma automatycznego przełączenia na wariant A.
+Instancje `native` Claude/Codex są dostępne dla botów. Login jest linkowany do
+izolowanego home na workerze zgodnie z konfiguracją instancji. Proxy trafia do oficjalnego
+CLI, a nie klienta HTTP Canopy. Nie uruchamiamy harnessów na hoście gateway.
 
-### Dowód usunięcia narzędzi w wariancie A
+### Izolowane generowanie tekstu i dowód dla sesji botów
 
 Repozytorium już używa izolowanych SDK do generowania tytułów
 ([thread-titles.md](thread-titles.md)). Sprawdzone wersje: Claude Agent SDK **0.3.316**,
@@ -238,7 +238,11 @@ Codexa z tej maszyny, bez aktualizacji zależności.
   odpowiadają `NO_LOCAL_TOOLS` na prośbę o lokalne `ls`; brak trwałych wątków,
   transkryptów i dziennika komend generacji.
 
-W wariancie B brak lokalnych możliwości wynika dodatkowo z konstrukcji: gateway nie
+Powyższe ustawienia opisują generowanie tekstu bez narzędzi. Sesje botów zachowują
+transkrypt i dodają wyłącznie Canopy MCP; szczegóły oraz dowód listy narzędzi
+rzeczywistych CLI zawiera [bots-harness.md](bots-harness.md).
+
+W wycofywanym wariancie B brak lokalnych możliwości wynika dodatkowo z konstrukcji: gateway nie
 uruchamia procesu dostawcy, a wysyłane schematy są wyłącznie funkcjami z jawnej listy.
 Nie wysyła narzędzi hostowanych dostawcy (shell, wyszukiwanie, code interpreter).
 Wywołanie nieznanej funkcji zwraca błąd, nie uruchamia dynamicznego dispatchera.
@@ -440,7 +444,7 @@ i `approval_policy` dziedziczą ustawienia twórcy; `shape` i `color` są losowa
 14 kształtów i 11 kolorów wizarda. Zmiana instancji nie dobiera automatycznie innego
 modelu ani effortu: przed wyborem modelu bot powinien użyć `list_models` **bez** `worker_id`,
 z docelowym providerem i instancją. Walidacja konfiguracji i zapis są wspólne z CreateBot RPC:
-endpoint dostępny dla gateway, model API instancji, obsługiwany effort, nazwa właściciela
+instancja na dostępnym workerze, model harnessu, obsługiwany effort, nazwa właściciela
 unikalna bez rozróżniania wielkości liter i reprezentacji Unicode NFC.
 
 Utworzenie zawsze wymaga karty zgody, także przy `safe`: nowy agent jest trwały i generuje
@@ -485,8 +489,8 @@ linii; nie można przekazać obu pól naraz. Pominięte pola pozostają bez zmia
 Walidacja jest wspólna z `UpdateBot`: unikalna nazwa właściciela (bez rozróżniania wielkości
 liter), 14 znanych kształtów, kolor `#rrggbb`, limity tekstu, katalog modeli i obsługiwany effort.
 Zapis nazw jest serializowany blokadą właściciela. `list_models` bez `worker_id` zwraca modele
-API endpointu (domyślnie własnego), rozwiązane aliasy i modele własne; z `worker_id` zachowuje
-katalog harnessu dla `start_thread`.
+harnessu przypiętego workera i instancji, zachowując aliasy Claude/Codex oraz modele
+własne. Z `worker_id` można odczytać katalog innego dostępnego workera.
 
 Zmiana modelu, effort, dostawcy/instancji lub polityki zawsze wymaga istniejącej karty zgody,
 również przy `safe`. Warstwa zapisu sprawdza zatwierdzenie. Konfiguracja, wynik narzędzia

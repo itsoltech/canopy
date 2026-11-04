@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
 import { recordProbe, releaseProbe } from "./instance-probe.ts";
+import { botTool, codexBotConfig } from "./bot-probe.ts";
 
 if (process.argv.includes("--version")) {
   console.log("codex-cli 0.164.0");
@@ -18,6 +19,7 @@ mkdirSync(join(home, "sessions"), { recursive: true });
 recordProbe("codex", "spawn");
 
 const providers = new Map<string, string>();
+const botServers = new Map<string, ReturnType<typeof codexBotConfig>>();
 const send = (message: JsonObject) => process.stdout.write(JSON.stringify(message) + "\n");
 const notify = (method: string, params: JsonObject) => send({ method, params });
 
@@ -29,6 +31,33 @@ async function turn(id: number, params: { threadId: string; input: { text?: stri
   notify("turn/started", { threadId, turn: { id: turnId, status: "inProgress", items: [], error: null } });
   recordProbe("codex", "turn", threadId, providers.get(threadId));
   await releaseProbe(text);
+
+  const failureMarker = join(home, "bot-failed-once");
+
+  if (process.env["BOT_TRACE"] && text.includes("FAIL_ONCE") && !existsSync(failureMarker)) {
+    writeFileSync(failureMarker, "failed");
+    notify("turn/completed", {
+      threadId,
+      turn: {
+        id: turnId,
+        status: "failed",
+        items: [],
+        error: { message: "fixture failure", codexErrorInfo: "usageLimitExceeded", additionalDetails: null },
+      },
+    });
+
+    return;
+  }
+
+  if (process.env["BOT_TRACE"]) {
+    const answer = await botTool(text, botServers.get(threadId));
+    notify("item/completed", {
+      threadId,
+      turnId,
+      item: { id: `answer-${turnId}`, type: "agentMessage", text: answer },
+    });
+  }
+
   recordProbe("codex", "finish", threadId, providers.get(threadId));
 
   if (text.includes("BACKGROUND")) {
@@ -72,6 +101,8 @@ for await (const line of createInterface({ input: process.stdin })) {
 
     writeFileSync(file, "{}");
     providers.set(session, params.modelProvider);
+
+    if (params.config) botServers.set(session, codexBotConfig(params.config));
     recordProbe("codex", request.method, session, params.modelProvider);
     send({ id, result: { thread: { id: session, path: null } } });
   } else if (request.method === "turn/start") void turn(id, params);

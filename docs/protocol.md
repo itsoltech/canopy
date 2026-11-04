@@ -6,6 +6,12 @@ Status: **szkic**, kanał i handshake zaimplementowane (`apps/gateway/src/worker
 
 Nietrwała komenda `GenerateText` (capability `generate_text`) uruchamia izolowaną generację przez SDK instancji i zwraca `CommandResult.generated_text`, bez platformowej sesji i dziennika. Szczegóły: [thread-titles.md](thread-titles.md).
 
+Capability `bot_harness_v1` dodaje trwałe `RunBotTurn` i `InterruptBotTurn`.
+Bot używa istniejących `ThreadEvent` i ACK (thread_id = bot_id), przechowywanych
+oddzielnie od wątków projektowych. `AgentToolCall.bot_id` kieruje MCP do wykonawców
+botów w gateway; gateway sprawdza właściciela, przypięcie workera, turę i zgody.
+Starsze workery nie dostają tych komend. [Projekt i trwałość](bots-harness.md).
+
 ## Założenia
 
 - **Worker inicjuje połączenie.** Edge device może stać za NAT-em. Nie otwieramy na nim portów.

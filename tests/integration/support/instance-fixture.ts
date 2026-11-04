@@ -14,13 +14,14 @@ import { probeRecords } from "../fixtures/instance-probe.ts";
 
 const tempDir = tempDirs();
 
-export async function startInstanceFixture() {
+export async function startInstanceFixture(bots = false) {
   const dir = tempDir("canopy-instance-switch-");
   const dataDir = join(dir, "data");
   const trace = join(dir, "probe.jsonl");
   const repo = join(dir, "repo");
   mkdirSync(repo);
   const gw = await startTestGateway();
+
   const added = await gw.addWorker("Instance fixture");
   const executable = (harness: string) => resolve(import.meta.dir, `../fixtures/instance-${harness}.ts`);
   await gw.runtime.runPromise(
@@ -37,39 +38,47 @@ export async function startInstanceFixture() {
     ),
   );
   const logs: string[] = [];
-  const runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
+  let runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
 
-  const host = new WorkerHost({
-    runtime,
-    dataDir,
-    clientVersion: "test",
-    log: (message) => logs.push(message),
-    deviceHomes: {
-      claude: join(dir, "device-claude"),
-      codex: join(dir, "device-codex"),
-      grok: join(dir, "device-grok"),
-    },
-    probe: {
-      which: (name) => executable(name),
-      version: () => "1.0.70",
-      realDirectory: (path) => path,
-      login: () => "fixture login",
-    },
-  });
+  const createHost = () =>
+    new WorkerHost({
+      runtime,
+      dataDir,
+      clientVersion: "test",
+      log: (message) => logs.push(message),
+      deviceHomes: {
+        claude: join(dir, "device-claude"),
+        codex: join(dir, "device-codex"),
+        grok: join(dir, "device-grok"),
+      },
+      probe: {
+        which: (name) => executable(name),
+        version: () => "1.0.70",
+        realDirectory: (path) => path,
+        login: () => "fixture login",
+      },
+    });
 
-  const link = await openGatewayLink({
+  let host = createHost();
+
+  let link = await openGatewayLink({
     baseUrl: gw.grpcUrl,
     credential: added.credential,
-    hello: { workerId: added.workerId, ...(await runtime.runPromise(journalHello())) },
+    hello: {
+      workerId: added.workerId,
+      capabilities: ["bot_harness_v1"],
+      ...(await runtime.runPromise(journalHello())),
+    },
   });
 
   let stopped = false;
 
-  const serving = serveLink(link, host, runtime).catch((error) => {
+  let serving = serveLink(link, host, runtime).catch((error) => {
     if (!stopped) throw error;
   });
 
   await eventually(async () => host.config, Boolean);
+
   const project = (await gw.api.createProject({ name: "Instance changes" })).project!;
 
   const workspace = (await gw.api.createWorkspace({ projectId: project.id, workerId: added.workerId, rootPath: repo }))
@@ -116,6 +125,7 @@ export async function startInstanceFixture() {
       env: [
         { name: "PROFILE_PROBE", value: probe },
         { name: "INSTANCE_TRACE", value: trace },
+        ...(bots ? [{ name: "BOT_TRACE", value: join(dir, "bots.jsonl") }] : []),
         { name: "INSTANCE_SECRET", value: `fixture-secret-${probe}`, secret: true },
       ],
       runtime: { ownLogin: harness === Provider.CODEX && id === "native" },
@@ -186,7 +196,9 @@ export async function startInstanceFixture() {
 
   return {
     gw,
-    host,
+    get host() {
+      return host;
+    },
     dir,
     dataDir,
     trace,
@@ -198,6 +210,50 @@ export async function startInstanceFixture() {
     thread,
     send,
     finished,
+    restartWorker: async () => {
+      link.close();
+      await serving;
+      await host.close();
+      await runtime.dispose();
+      runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
+      host = createHost();
+      await host.recover();
+      link = await openGatewayLink({
+        baseUrl: gw.grpcUrl,
+        credential: added.credential,
+        hello: {
+          workerId: added.workerId,
+          capabilities: ["bot_harness_v1"],
+          ...(await runtime.runPromise(journalHello())),
+        },
+      });
+      serving = serveLink(link, host, runtime).catch(() => {});
+      await eventually(async () => host.config, Boolean);
+    },
+    disconnect: async () => {
+      link.close();
+      await serving;
+    },
+    reconnect: async (baseUrl = gw.grpcUrl) => {
+      const next = await openGatewayLink({
+        baseUrl,
+        credential: added.credential,
+        hello: {
+          workerId: added.workerId,
+          capabilities: ["bot_harness_v1"],
+          ...(await runtime.runPromise(journalHello())),
+        },
+      });
+
+      const done = serveLink(next, host, runtime).catch(() => {});
+      link = next;
+      serving = done;
+
+      return async () => {
+        next.close();
+        await done;
+      };
+    },
     records: () => probeRecords(trace),
     release: (label: string) => Bun.write(join(dir, `release-${label}`), "release"),
     close: async () => {

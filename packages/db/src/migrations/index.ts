@@ -67,6 +67,7 @@ import worktrees from "./0066_worktrees.sql" with { type: "text" };
 import worktreeLifecycle from "./0067_worktree_lifecycle.sql" with { type: "text" };
 import worktreeAutomation from "./0068_worktree_automation.sql" with { type: "text" };
 import botErrors from "./0069_bot_errors.sql" with { type: "text" };
+import botHarness from "./0070_bot_harness.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -150,6 +151,7 @@ export const migrations = Migrator.fromRecord({
   "0067_worktree_lifecycle": sqlFile(worktreeLifecycle),
   "0068_worktree_automation": sqlFile(worktreeAutomation),
   "0069_bot_errors": sqlFile(botErrors),
+  "0070_bot_harness": sqlFile(botHarness),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

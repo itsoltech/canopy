@@ -239,7 +239,7 @@ export async function botPlatform(
 
 type Args = Pick<ReturnType<typeof context>, "string" | "optional">;
 
-/** list_models: an instance's API models (no worker), or the visible models of one on a worker. */
+/** list_models defaults to the bot's worker and instance, preserving native harness aliases. */
 async function listBotModels(core: GatewayCore, turn: BotTurn, { string, optional }: Args) {
   const requested = optional("provider");
 
@@ -252,6 +252,7 @@ async function listBotModels(core: GatewayCore, turn: BotTurn, { string, optiona
       s.apiModels(
         requested ? legacyProvider(requested) : config.provider,
         optional("provider_instance") || config.providerInstance,
+        config.workerId,
       ),
     );
   }

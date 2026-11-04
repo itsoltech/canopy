@@ -12,6 +12,7 @@ import { botConfiguration, botView, BotStore } from "./store.ts";
 import type { BotModel, BotTurn, ModelInput, StoredCall, ToolResult, ToolSpec } from "./types.ts";
 import type { ConnectorsRuntime } from "../connectors/runtime.ts";
 import { runToolCall, turnInstructions, WAITING } from "./turn-steps.ts";
+import { HarnessTools } from "./harness-tools.ts";
 
 /** Model implementations are pluggable; whatever they return becomes stored JSON only as an object. */
 const toolArguments = Schema.decodeUnknownSync(Schema.JsonObject);
@@ -24,6 +25,7 @@ export interface BotRuntimeOptions {
   userId: string;
   connectors: ConnectorsRuntime;
   model?: BotModel;
+  harness?: BotModel;
   now?: () => Date;
   platform: (turn: BotTurn, call: StoredCall) => Promise<ToolResult>;
   describeTool?: (tool: ToolSpec, args: JsonObject) => Promise<string>;
@@ -38,15 +40,30 @@ export interface BotRuntimeOptions {
 export class BotsRuntime {
   readonly #options: BotRuntimeOptions;
   readonly #model: BotModel;
+  readonly harnessTools: HarnessTools;
   readonly #active = new Map<string, { turn: BotTurn; abort: AbortController; done: Promise<void> }>();
+  readonly #waiting = new Set<string>();
   #timer: ReturnType<typeof setInterval> | undefined;
   #ticking = false;
   #tickDone: Promise<void> = Promise.resolve();
   #stopped = false;
   constructor(options: BotRuntimeOptions) {
     this.#options = options;
+    this.harnessTools = new HarnessTools(
+      options,
+      this.run.bind(this),
+      (id) => [...this.#active.values()].find((task) => task.turn.id === id),
+      (id, waiting) => this.waiting(id, waiting),
+    );
+    const direct = directModel((input) => this.run((s) => s.provider(options.userId, input.configuration)));
     this.#model =
-      options.model ?? directModel((input) => this.run((s) => s.provider(options.userId, input.configuration)));
+      options.model ??
+      ((input) =>
+        input.configuration.provider === Provider.GROK
+          ? direct(input)
+          : options.harness
+            ? options.harness(input)
+            : Promise.reject(new Error("Bot worker runtime is unavailable")));
   }
   now(): Date {
     return this.#options.now?.() ?? new Date();
@@ -78,8 +95,10 @@ export class BotsRuntime {
         note = saved.text;
       } else {
         if (remaining <= 0) throw new Error("handoff deadline exceeded");
+
         // Availability is checked even with an injected model; credentials never enter context.
-        await this.run((s) => s.provider(this.#options.userId, config));
+        if (this.#options.model || config.provider === Provider.GROK)
+          await this.run((s) => s.provider(this.#options.userId, config));
         const resolved = await this.run((s) => s.resolveModel(config));
 
         if ("problem" in resolved) throw new Error("source model unavailable");
@@ -107,6 +126,7 @@ export class BotsRuntime {
             turn.bot_id,
             {
               configuration: config,
+              turn,
               instructions: `You are ${config.name}, a conversational assistant inside Canopy. ${time}\n${config.instructions}\n\n${HANDOFF_PROMPT}\n\n${context}`,
               messages,
               tools: [],
@@ -145,6 +165,14 @@ export class BotsRuntime {
   get idle(): boolean {
     return !this.#ticking && this.#active.size === 0;
   }
+  get stopping(): boolean {
+    return this.#stopped;
+  }
+  /** Durable waiting turns retain their lease without consuming an inference slot. */
+  waiting(turnId: string, waiting: boolean): void {
+    if (waiting && [...this.#active.values()].some((task) => task.turn.id === turnId)) this.#waiting.add(turnId);
+    else this.#waiting.delete(turnId);
+  }
   start(intervalMs = 250): void {
     this.#stopped = false;
     this.#timer ??= setInterval(() => {
@@ -174,7 +202,7 @@ export class BotsRuntime {
       await this.run((s) => s.deliver());
       await this.run((s) => s.deliverRoutines(this.#options.userId, this.now()));
 
-      while (this.#active.size < 4 && !this.#stopped && !this.#options.draining?.()) {
+      while (this.#active.size - this.#waiting.size < 4 && !this.#stopped && !this.#options.draining?.()) {
         const turn = await this.run((s) => s.claim(this.#options.userId));
 
         if (!turn) break;
@@ -183,7 +211,10 @@ export class BotsRuntime {
 
         const done = this.#execute(turn, abort)
           .catch(() => this.#options.log?.("bots: turn could not be settled; lease recovery will resume it"))
-          .finally(() => this.#active.delete(lease));
+          .finally(() => {
+            this.#active.delete(lease);
+            this.#waiting.delete(turn.id);
+          });
 
         this.#active.set(lease, { turn, abort, done });
       }
@@ -202,7 +233,10 @@ export class BotsRuntime {
       );
     }, 5000);
 
-    const deadline = setTimeout(() => abort.abort(new Error("turn deadline exceeded")), 10 * 60_000);
+    const deadline =
+      this.#options.harness && !this.#options.model
+        ? undefined
+        : setTimeout(() => abort.abort(new Error("turn deadline exceeded")), 10 * 60_000);
 
     try {
       if (turn.handoff_configuration) {
@@ -259,6 +293,7 @@ export class BotsRuntime {
 
         const reply = await this.#reply(turn.bot_id, {
           configuration: config,
+          turn,
           // A snapshot: model implementations may keep their input, and the loop appends to its own list.
           messages: [...messages],
           tools,
@@ -310,7 +345,8 @@ export class BotsRuntime {
       }
     } finally {
       clearInterval(heartbeat);
-      clearTimeout(deadline);
+
+      if (deadline) clearTimeout(deadline);
     }
   }
 

@@ -1,6 +1,7 @@
 import { toJson, type MessageInitShape } from "@bufbuild/protobuf";
 import { CommandResultSchema, CommandSchema, type Command, type CommandResult } from "@canopy/contracts";
 import { AgentBusStore } from "../store/index.ts";
+import { BotStore } from "../bots/store.ts";
 import { coreState, HARNESS_ERROR_CODES, SETTLE_TURN_ENDED } from "./core-context.ts";
 import { coreEndLostTurns, coreSettle } from "./core-work-loop.ts";
 import type { GatewayCore } from "./core.ts";
@@ -41,6 +42,20 @@ export async function coreDeliver(hostContext: GatewayCore, workerId: string, co
   const connection = hostContext.link.connections.get(workerId);
 
   if (!connection?.isOpen || !command.kind.case) return;
+
+  if (command.kind.case === "runBotTurn" && !connection.hello.capabilities.includes("bot_harness_v1")) return;
+
+  if (
+    command.kind.case === "runBotTurn" &&
+    !(await hostContext[coreState].options.runtime.runPromise(
+      BotStore.use((s) => s.harnessDispatchable(command.commandId)),
+    ))
+  ) {
+    await coreRun(hostContext, (s) => s.commandDone(command.commandId, false, { errorCode: "TURN_NOT_RUNNING" }));
+
+    return;
+  }
+
   let result: CommandResult;
 
   try {

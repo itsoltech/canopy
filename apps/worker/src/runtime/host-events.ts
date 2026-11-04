@@ -2,6 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import {
   type AgentToolCall,
   type AgentToolResult,
+  AgentToolResultSchema,
   type InteractionRequest,
   type InteractionResponse,
   InteractionResponseSchema,
@@ -70,19 +71,37 @@ export class HostEvents {
     });
   }
 
-  callTool(call: AgentToolCall): Promise<AgentToolResult> {
+  callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult> {
     return new Promise((resolve) => {
+      const abort = () => {
+        this.ctx.state.toolCalls.delete(call.callId);
+        resolve(create(AgentToolResultSchema, { callId: call.callId, isError: true, content: "Turn interrupted" }));
+      };
+
+      if (signal?.aborted) {
+        abort();
+
+        return;
+      }
+
+      signal?.addEventListener("abort", abort, { once: true });
+
+      const finish = (result: AgentToolResult) => {
+        signal?.removeEventListener("abort", abort);
+        resolve(result);
+      };
+
       // The same call asked twice (provider retry) shares one gateway round trip.
       const pending = this.ctx.state.toolCalls.get(call.callId);
 
       if (pending) {
         const first = pending.resolve;
-        pending.resolve = (result) => (first(result), resolve(result));
+        pending.resolve = (result) => (first(result), finish(result));
 
         return;
       }
 
-      this.ctx.state.toolCalls.set(call.callId, { call, resolve });
+      this.ctx.state.toolCalls.set(call.callId, { call, resolve: finish });
       this.ctx.ops.send({ case: "agentToolCall", value: call });
     });
   }

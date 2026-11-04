@@ -14,6 +14,7 @@ import { TaskCommands } from "./task-commands.ts";
 import { TextGeneration } from "./text-generation.ts";
 import { CommandHandlers } from "./command-handlers.ts";
 import { GitCommands } from "./git-commands.ts";
+import { BotTurns } from "../bots/runtime.ts";
 
 export interface HostHooks {
   applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit>;
@@ -54,6 +55,7 @@ export type HostOperations = HostHooks &
   > &
   Pick<TaskCommands, "setGoal" | "stopTask" | "unloadThread"> &
   Pick<TextGeneration, "generateText"> &
+  Pick<BotTurns, "runBotTurn" | "interruptBotTurn" | "closeBots"> &
   Pick<
     GitCommands,
     "listGitRefs" | "createWorktree" | "renameWorktreeBranch" | "scanWorktrees" | "removeWorktree" | "revealWorktree"
@@ -76,6 +78,7 @@ export class HostContext {
     const queries = new QueryCommands(this);
     const tasks = new TaskCommands(this);
     const generation = new TextGeneration(this);
+    const bots = new BotTurns(this);
     const commands = new CommandHandlers(this);
     const gitCommands = new GitCommands(this);
     this.ops = {
@@ -128,6 +131,9 @@ export class HostContext {
       stopTask: tasks.stopTask.bind(tasks),
       unloadThread: tasks.unloadThread.bind(tasks),
       generateText: generation.generateText.bind(generation),
+      runBotTurn: bots.runBotTurn.bind(bots),
+      interruptBotTurn: bots.interruptBotTurn.bind(bots),
+      closeBots: bots.closeBots.bind(bots),
       execute: commands.execute.bind(commands),
       listGitRefs: gitCommands.listGitRefs.bind(gitCommands),
       createWorktree: gitCommands.createWorktree.bind(gitCommands),

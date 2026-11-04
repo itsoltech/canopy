@@ -10,6 +10,7 @@ export interface BotProviderInstance {
   readonly models: readonly ModelOption[];
   readonly disabledReason?: string;
   readonly settingsHref?: string;
+  readonly modelsByWorker?: ReadonlyMap<string, readonly ModelOption[]>;
 }
 
 export interface BotAppearanceDraft extends BotAppearance {
@@ -18,6 +19,7 @@ export interface BotAppearanceDraft extends BotAppearance {
 
 export interface CreateBotDraft extends BotAppearanceDraft {
   providerInstanceId: string;
+  workerId: string;
   model: string;
   /** undefined means the selected model's default. */
   effort: string | undefined;
