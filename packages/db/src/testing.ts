@@ -27,9 +27,18 @@ export async function startPostgres(): Promise<TestPostgres> {
     `${CREATED_LABEL}=${Date.now()}`,
     "-e",
     "POSTGRES_PASSWORD=test",
+    // Throwaway data: no fsync at init or at run time. Under load the synced initdb alone took tens of seconds.
+    "-e",
+    "POSTGRES_INITDB_ARGS=--no-sync",
     "-p",
     "127.0.0.1::5432",
     "postgres:17",
+    "-c",
+    "fsync=off",
+    "-c",
+    "synchronous_commit=off",
+    "-c",
+    "full_page_writes=off",
   ]);
 
   if (run.exitCode !== 0) throw new Error(`docker run failed: ${run.stderr.toString()}`);
@@ -41,23 +50,21 @@ export async function startPostgres(): Promise<TestPostgres> {
     const port = Number(Bun.spawnSync(["docker", "port", name, "5432/tcp"]).stdout.toString().trim().split(":").at(-1));
 
     // pg_isready inside the container flips before the final restart of the entrypoint; wait for a real query.
-    for (let attempt = 0; ; attempt++) {
-      const ready = Bun.spawnSync([
-        "docker",
-        "exec",
-        name,
-        "psql",
-        "-U",
-        "postgres",
-        "-h",
-        "127.0.0.1",
-        "-c",
-        "select 1",
-      ]);
+    // Asynchronously: a blocking probe stalls everything else in the test process (other gateways' links too).
+    // Before the 60 s beforeAll limit of the suites, so the failure names its cause.
+    const deadline = Date.now() + 45_000;
 
-      if (ready.exitCode === 0) break;
+    for (;;) {
+      const probe = Bun.spawn(["docker", "exec", name, "psql", "-U", "postgres", "-h", "127.0.0.1", "-c", "select 1"], {
+        stdout: "ignore",
+        stderr: "pipe",
+      });
 
-      if (attempt > 60) throw new Error("postgres did not become ready");
+      const [code, error] = await Promise.all([probe.exited, new Response(probe.stderr).text()]);
+
+      if (code === 0) break;
+
+      if (Date.now() > deadline) throw new Error(`postgres did not become ready: ${error.trim()}`);
       await Bun.sleep(250);
     }
 
