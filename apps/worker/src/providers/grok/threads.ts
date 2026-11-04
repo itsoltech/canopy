@@ -1,4 +1,6 @@
 import { create } from "@bufbuild/protobuf";
+import { Schema } from "effect";
+import type { JsonValue } from "@canopy/domain";
 import { readFile } from "node:fs/promises";
 import {
   GrokClient,
@@ -32,6 +34,37 @@ import { grokLaunch } from "./launch.ts";
 import { grokBus, platformToolName } from "./bus.ts";
 import { GrokEventMapper } from "./mapping.ts";
 
+const ToolInput = Schema.Struct({
+  tool_name: Schema.optionalKey(Schema.String),
+  tool_input: Schema.optionalKey(Schema.Json),
+});
+
+const ModelMetadata = Schema.Struct({
+  reasoningEfforts: Schema.optionalKey(
+    Schema.Array(Schema.Struct({ id: Schema.String, default: Schema.optionalKey(Schema.Boolean) })),
+  ),
+});
+
+const ModelDiscovery = Schema.Struct({
+  _meta: Schema.optionalKey(
+    Schema.Struct({
+      modelState: Schema.optionalKey(
+        Schema.Struct({
+          currentModelId: Schema.String,
+          availableModels: Schema.Array(
+            Schema.Struct({
+              modelId: Schema.String,
+              name: Schema.String,
+              description: Schema.optionalKey(Schema.String),
+              _meta: Schema.optionalKey(ModelMetadata),
+            }),
+          ),
+        }),
+      ),
+    }),
+  ),
+});
+
 interface Options {
   dataDir: string;
   executable: string;
@@ -52,22 +85,22 @@ interface Entry {
   mode: PermissionMode;
   interrupted: boolean;
   settings: string;
-  toolUses: Map<string, { name: string; args: unknown }>;
+  toolUses: Map<string, { name: string; args: JsonValue }>;
   approvals: Set<string>;
   idleTimer?: ReturnType<typeof setTimeout>;
 }
 
 // ACP metadata from Grok lists the highest effort first; composers expect lowest first.
-const effortRank: Readonly<Record<string, number>> = {
-  none: 0,
-  minimal: 1,
-  low: 2,
-  medium: 3,
-  high: 4,
-  xhigh: 5,
-  max: 6,
-  ultra: 7,
-};
+const effortRank = new Map([
+  ["none", 0],
+  ["minimal", 1],
+  ["low", 2],
+  ["medium", 3],
+  ["high", 4],
+  ["xhigh", 5],
+  ["max", 6],
+  ["ultra", 7],
+]);
 
 /** Worker registry with the same lifecycle operations as ClaudeThreads/CodexThreads; one ACP process per thread. */
 export class GrokThreads {
@@ -300,7 +333,7 @@ export class GrokThreads {
           const update = event.update;
 
           if (update.sessionUpdate === "tool_call" && update.title === "use_tool") {
-            const input = update.rawInput as { tool_name?: string; tool_input?: unknown } | undefined;
+            const input = Schema.decodeUnknownSync(Schema.UndefinedOr(ToolInput))(update.rawInput);
             const platformTool = input?.tool_name === undefined ? undefined : platformToolName(input.tool_name);
 
             if (platformTool)
@@ -388,13 +421,13 @@ export class GrokThreads {
 
     try {
       const info = await client.initialize();
-      const state = (info as unknown as { _meta?: { modelState?: SessionResult["models"] } })._meta?.modelState;
+      const state = Schema.decodeUnknownSync(ModelDiscovery)(info)._meta?.modelState;
 
       const known: ModelInit[] = (state?.availableModels ?? []).map((m) => {
-        const meta = (m as unknown as { _meta?: { reasoningEfforts?: { id: string; default?: boolean }[] } })._meta;
+        const meta = m._meta;
 
         const efforts = (meta?.reasoningEfforts?.map((e) => e.id) ?? []).sort(
-          (a, b) => (effortRank[a] ?? 100) - (effortRank[b] ?? 100),
+          (a, b) => (effortRank.get(a) ?? 100) - (effortRank.get(b) ?? 100),
         );
 
         return {

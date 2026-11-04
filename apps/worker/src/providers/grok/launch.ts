@@ -4,6 +4,11 @@ import { homedir } from "node:os";
 import type { GrokOptions } from "@canopy/grok-acp";
 import type { ResolvedProfile } from "../profiles.ts";
 
+interface GrokLaunch {
+  options: GrokOptions;
+  cleanup(): void;
+}
+
 /** Isolated configuration per process; durable sessions per instance. Keys never enter config or argv. */
 export function grokLaunch(options: {
   dataDir: string;
@@ -15,7 +20,7 @@ export function grokLaunch(options: {
   fullAuto?: boolean;
   baseEnv?: NodeJS.ProcessEnv;
   linkDeviceLogin?: boolean;
-}): { options: GrokOptions; cleanup(): void } {
+}): GrokLaunch {
   const { profile } = options;
   const runtime = profile.runtime ?? {};
   const root = join(options.dataDir, "grok", profile.id);

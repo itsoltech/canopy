@@ -2,15 +2,17 @@
 /** Deterministic process fixture for the complete gateway↔worker ACP path. */
 import { createInterface } from "node:readline";
 import { join } from "node:path";
+import type { JsonObject, JsonValue } from "@canopy/domain";
+import { decodeJsonObject, jsonObject } from "../../json.ts";
 
 if (process.argv.includes("--version")) {
   console.log("grok 1.0.70 (fake)");
   process.exit();
 }
 
-const send = (value: object) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...value }) + "\n");
+const send = (value: JsonObject) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...value }) + "\n");
 
-const update = (sessionId: string, value: object) =>
+const update = (sessionId: string, value: JsonObject) =>
   send({ method: "session/update", params: { sessionId, update: value } });
 
 const sessions = new Map<
@@ -100,14 +102,16 @@ for await (const line of createInterface({ input: process.stdin })) {
         ...Object.fromEntries(server.headers.map((h) => [h.name, h.value])),
       };
 
-      const rpc = async (method: string, params: unknown = {}) =>
-        (
-          await fetch(server.url, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-          })
-        ).json() as Promise<{ result?: unknown }>;
+      const rpc = async (method: string, params: JsonValue = {}) =>
+        decodeJsonObject(
+          await (
+            await fetch(server.url, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+            })
+          ).json(),
+        );
 
       await rpc("initialize", {
         protocolVersion: "2025-03-26",
@@ -117,12 +121,14 @@ for await (const line of createInterface({ input: process.stdin })) {
       await rpc("tools/list");
       const response = await rpc("tools/call", { name: "list_threads", arguments: {} });
 
-      if (!response.result) throw new Error("MCP tool call failed");
+      if (!response["result"]) throw new Error("MCP tool call failed");
 
       if (text.includes("IMAGE")) {
         const image = await rpc("tools/call", { name: "view_image", arguments: { path: "fixture.png" } });
 
-        if (!(image.result as { content: { type: string }[] })?.content.some((c) => c.type === "image"))
+        const content = jsonObject(image["result"])?.["content"];
+
+        if (!Array.isArray(content) || !content.some((c) => jsonObject(c)?.["type"] === "image"))
           throw new Error("MCP image missing");
       }
     }

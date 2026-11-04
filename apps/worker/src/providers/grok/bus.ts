@@ -5,6 +5,7 @@ import {
   type AgentToolCall,
   type AgentToolResult,
   type ConnectorTool,
+  type ThreadEvent,
 } from "@canopy/contracts";
 import type { ThreadEventInit } from "../../journal/index.ts";
 import {
@@ -18,6 +19,22 @@ import {
 import type { ViewImageResult } from "../../images/index.ts";
 import type { McpServer } from "@canopy/grok-acp";
 import { toolCallId } from "../tool-call-id.ts";
+import { Schema } from "effect";
+import type { JsonValue } from "@canopy/domain";
+import { decodeJsonObject, jsonObject, jsonString } from "../json.ts";
+
+const McpRequest = Schema.Struct({
+  id: Schema.optionalKey(Schema.Union([Schema.Number, Schema.String])),
+  method: Schema.String,
+  params: Schema.optionalKey(
+    Schema.Struct({ name: Schema.optionalKey(Schema.String), arguments: Schema.optionalKey(Schema.Json) }),
+  ),
+});
+
+interface GrokBus {
+  server: McpServer;
+  close(): void;
+}
 
 /** Stateless Streamable HTTP MCP bound to loopback, authenticated and scoped to a single thread. */
 export function grokBus(options: {
@@ -25,12 +42,12 @@ export function grokBus(options: {
   depth: number;
   agentBus?: boolean;
   connectorTools?: readonly ConnectorTool[];
-  record?(event: ThreadEventInit): Promise<unknown>;
+  record?(event: ThreadEventInit): Promise<ThreadEvent | void>;
   viewImage?(path: string): Promise<ViewImageResult>;
-  toolUseId?(tool: string, args: unknown): string | undefined;
+  toolUseId?(tool: string, args: JsonValue): string | undefined;
   turnId(): string;
   callTool(call: AgentToolCall): Promise<AgentToolResult>;
-}): { server: McpServer; close(): void } {
+}): GrokBus {
   const token = crypto.randomUUID();
 
   const tools = [
@@ -38,7 +55,7 @@ export function grokBus(options: {
     ...(options.connectorTools ?? []).map((t) => ({
       name: t.name,
       description: t.description,
-      inputSchema: JSON.parse(t.inputSchemaJson) as object,
+      inputSchema: decodeJsonObject(JSON.parse(t.inputSchemaJson)),
     })),
     ...(options.viewImage ? [viewImageSpec()] : []),
   ];
@@ -50,16 +67,18 @@ export function grokBus(options: {
       if (request.headers.get("authorization") !== `Bearer ${token}`) return new Response(null, { status: 401 });
 
       if (request.method !== "POST") return new Response(null, { status: 405 });
-      let rpc: { id?: number | string; method: string; params?: { name?: string; arguments?: unknown } };
+      let rpc: typeof McpRequest.Type;
 
       try {
-        rpc = (await request.json()) as typeof rpc;
+        rpc = Schema.decodeUnknownSync(McpRequest)(await request.json());
       } catch {
         return new Response(null, { status: 400 });
       }
 
       if (rpc.id === undefined) return new Response(null, { status: 202 });
-      const reply = (result: unknown) => Response.json({ jsonrpc: "2.0", id: rpc.id, result });
+
+      const reply = (result: JsonValue | { tools: typeof tools }) =>
+        Response.json({ jsonrpc: "2.0", id: rpc.id, result });
 
       if (rpc.method === "initialize")
         return reply({
@@ -115,7 +134,7 @@ export function grokBus(options: {
 
       try {
         if (rpc.params?.name === VIEW_IMAGE_TOOL && options.viewImage) {
-          const path = (rpc.params.arguments as { path?: string } | undefined)?.path ?? "";
+          const path = jsonString(jsonObject(rpc.params.arguments)?.["path"]);
           const image = await options.viewImage(path);
 
           const result = image.ok
