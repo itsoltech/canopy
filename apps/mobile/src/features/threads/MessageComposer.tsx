@@ -16,30 +16,8 @@ export const permissionLabels = {
   4: "Full auto",
 } satisfies Record<PermissionMode, string>;
 
-export function MessageComposer({
-  thread,
-  worker,
-  text,
-  onChange,
-  send,
-  stop,
-  disabled,
-  busy,
-  onDetails,
-}: {
-  thread?: ui.Thread;
-  worker?: ui.Worker;
-  text: string;
-  onChange: (text: string) => void;
-  send: (delivery: ui.MessageDelivery) => void;
-  stop: () => void;
-  disabled: boolean;
-  busy: boolean;
-  onDetails: () => void;
-}) {
-  const c = useColors();
+function useComposerSettings(thread: ui.Thread | undefined) {
   const { client } = useSession();
-  const { user } = useAppearance();
   const [sheet, setSheet] = useState<"model" | "permission" | "goal" | null>(null);
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
@@ -86,6 +64,48 @@ export function MessageComposer({
       setSaving(false);
     }
   }
+
+  return {
+    sheet,
+    setSheet,
+    model,
+    setModel,
+    effort,
+    setEffort,
+    saving,
+    error,
+    setError,
+    models,
+    currentModel,
+    currentEffort,
+    update,
+  };
+}
+
+export function MessageComposer({
+  thread,
+  worker,
+  text,
+  onChange,
+  send,
+  stop,
+  disabled,
+  busy,
+  onDetails,
+}: {
+  thread?: ui.Thread;
+  worker?: ui.Worker;
+  text: string;
+  onChange: (text: string) => void;
+  send: (delivery: ui.MessageDelivery) => void;
+  stop: () => void;
+  disabled: boolean;
+  busy: boolean;
+  onDetails: () => void;
+}) {
+  const { user } = useAppearance();
+  const state = useComposerSettings(thread);
+  const { setSheet, setModel, setEffort, setError, currentModel, currentEffort } = state;
 
   return (
     <>
@@ -148,75 +168,90 @@ export function MessageComposer({
           onPress={() => setSheet("permission")}
         />
       </View>
-      <Sheet
-        visible={sheet !== null}
-        title={sheet === "model" ? "Model and effort" : sheet === "permission" ? "Permissions" : "Goal"}
-        onClose={() => setSheet(null)}
-      >
-        {sheet === "model" && (
-          <>
-            {models
-              .filter((m) => !m.hidden)
-              .map((m) => (
-                <Button key={m.id} secondary title={m.displayName || m.id} onPress={() => setModel(m.id)} />
-              ))}
-            <Field
-              label="Model"
-              value={model}
-              onChangeText={setModel}
-              placeholder="Default model"
-              autoCapitalize="none"
-            />
-            <Field
-              label="Effort"
-              value={effort}
-              onChangeText={setEffort}
-              placeholder="Default effort"
-              autoCapitalize="none"
-            />
-            <Text style={[styles.meta, { color: c.muted }]}>These defaults apply to the next turn.</Text>
-            <Button
-              title="Save"
-              busy={saving}
-              onPress={() => void update({ model: model.trim(), effort: effort.trim() })}
-            />
-          </>
-        )}
-        {sheet === "permission" && (
-          <View style={{ gap: 12 }}>
-            {[PermissionMode.ASK, PermissionMode.ACCEPT_EDITS, PermissionMode.READ_ONLY, PermissionMode.FULL_AUTO].map(
-              (mode) => (
-                <Button
-                  key={mode}
-                  title={permissionLabels[mode]!}
-                  secondary
-                  busy={saving}
-                  onPress={() =>
-                    mode === PermissionMode.FULL_AUTO
-                      ? Alert.alert("Full auto", "Runs without asking, sandboxed to the workspace.", [
-                          { text: "Cancel", style: "cancel" },
-                          {
-                            text: "Use Full auto",
-                            onPress: () => void update({ permissionMode: mode }),
-                          },
-                        ])
-                      : void update({ permissionMode: mode })
-                  }
-                />
-              ),
-            )}
-          </View>
-        )}
-        {sheet === "goal" && (
-          <>
-            <Text style={[styles.body, { color: c.text }]}>
-              {thread?.goalStatus ? `Goal · ${thread.goalStatus}` : "No active goal"}
-            </Text>
-            <Text style={[styles.meta, { color: c.muted }]}>Manage goals in Canopy on the web.</Text>
-          </>
-        )}
-        {error ? <Notice error>{error}</Notice> : null}
-      </Sheet>
+      <ComposerSettingsSheet state={state} thread={thread} />
     </>
+  );
+}
+
+function ComposerSettingsSheet({
+  state,
+  thread,
+}: {
+  state: ReturnType<typeof useComposerSettings>;
+  thread: ui.Thread | undefined;
+}) {
+  const c = useColors();
+  const { sheet, setSheet, models, model, setModel, effort, setEffort, saving, update, error } = state;
+
+  return (
+    <Sheet
+      visible={sheet !== null}
+      title={sheet === "model" ? "Model and effort" : sheet === "permission" ? "Permissions" : "Goal"}
+      onClose={() => setSheet(null)}
+    >
+      {sheet === "model" && (
+        <>
+          {models
+            .filter((m) => !m.hidden)
+            .map((m) => (
+              <Button key={m.id} secondary title={m.displayName || m.id} onPress={() => setModel(m.id)} />
+            ))}
+          <Field
+            label="Model"
+            value={model}
+            onChangeText={setModel}
+            placeholder="Default model"
+            autoCapitalize="none"
+          />
+          <Field
+            label="Effort"
+            value={effort}
+            onChangeText={setEffort}
+            placeholder="Default effort"
+            autoCapitalize="none"
+          />
+          <Text style={[styles.meta, { color: c.muted }]}>These defaults apply to the next turn.</Text>
+          <Button
+            title="Save"
+            busy={saving}
+            onPress={() => void update({ model: model.trim(), effort: effort.trim() })}
+          />
+        </>
+      )}
+      {sheet === "permission" && (
+        <View style={{ gap: 12 }}>
+          {[PermissionMode.ASK, PermissionMode.ACCEPT_EDITS, PermissionMode.READ_ONLY, PermissionMode.FULL_AUTO].map(
+            (mode) => (
+              <Button
+                key={mode}
+                title={permissionLabels[mode]!}
+                secondary
+                busy={saving}
+                onPress={() =>
+                  mode === PermissionMode.FULL_AUTO
+                    ? Alert.alert("Full auto", "Runs without asking, sandboxed to the workspace.", [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Use Full auto",
+                          onPress: () => void update({ permissionMode: mode }),
+                        },
+                      ])
+                    : void update({ permissionMode: mode })
+                }
+              />
+            ),
+          )}
+        </View>
+      )}
+      {sheet === "goal" && (
+        <>
+          <Text style={[styles.body, { color: c.text }]}>
+            {thread?.goalStatus ? `Goal · ${thread.goalStatus}` : "No active goal"}
+          </Text>
+          <Text style={[styles.meta, { color: c.muted }]}>Manage goals in Canopy on the web.</Text>
+        </>
+      )}
+      {error ? <Notice error>{error}</Notice> : null}
+    </Sheet>
   );
 }

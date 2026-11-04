@@ -3,21 +3,18 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
-  Menu,
   nativeImage,
   powerMonitor,
-  shell,
   Tray,
   type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createInterface } from "node:readline";
 import { join, resolve } from "node:path";
-import { createHash } from "node:crypto";
 import type { QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
 import { configuration, initialStatus, origin, serviceEnvironment, type ConfigurationInput } from "./runtime/config.ts";
-import type { ControllerArguments, ControllerResponse, ControllerResult } from "./controller.ts";
+import type { ControllerArguments, ControllerResult } from "./controller.ts";
+import { ControllerConnection } from "./controller-connection.ts";
 import { loadSecrets } from "./vault.ts";
 import { Logs } from "./runtime/log.ts";
 import { controllerEntry, runtimePaths } from "./runtime/launch.ts";
@@ -26,7 +23,10 @@ import { DesktopUpdates } from "./updates.ts";
 import { QuitGuard } from "./quit-guard.ts";
 import { quitKeyEvent } from "./quit-key-event.ts";
 import { isQuitShortcut, QuitSettings } from "./quit-settings.ts";
-import { attachWindowChrome, windowState, windowViewMenu } from "./window-chrome.ts";
+import { windowState } from "./window-chrome.ts";
+import { updateDesktopMenus } from "./desktop-menu.ts";
+import { createDesktopWindow, isTrustedDesktopEvent } from "./desktop-window.ts";
+import { DocumentPolicy } from "./document-policy.ts";
 
 const identity = desktopIdentity();
 
@@ -68,14 +68,9 @@ const updates = new DesktopUpdates(broadcast, () => {
   app.quit();
 });
 
-let sequence = 0;
+let connection: ControllerConnection | undefined;
 let pendingLink: string | undefined;
 const enrollmentReady = new Set<number>();
-
-const requests = new Map<
-  number,
-  { resolve: (value: ControllerResult) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
->();
 
 const resources = app.isPackaged ? process.resourcesPath : join(app.getAppPath(), "build");
 
@@ -111,65 +106,16 @@ const quitGuard = new QuitGuard(
   process.platform,
 );
 
-const scriptHashes = new Map<string, Set<string>>();
-
-async function preparePolicy(url: string) {
-  const response = await fetch(url, { signal: AbortSignal.timeout(10_000), redirect: "error" });
-
-  if (!response.ok) throw new Error("The Canopy web address did not return an application page");
-  const html = await response.text();
-  const origin = new URL(url).origin;
-  const hashes = scriptHashes.get(origin) ?? new Set<string>();
-
-  for (const match of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi))
-    hashes.add(
-      `'sha256-${createHash("sha256")
-        .update(match[1] ?? "")
-        .digest("base64")}'`,
-    );
-  scriptHashes.set(origin, hashes);
-}
+const policy = new DocumentPolicy();
 
 function rpc(action: string, args: ControllerArguments = {}) {
-  return new Promise<ControllerResult>((resolveRequest, reject) => {
-    if (!controller?.stdin.writable) {
-      reject(new Error("Desktop services are unavailable; restart Canopy"));
-
-      return;
-    }
-
-    const id = ++sequence;
-
-    const timer = setTimeout(() => {
-      requests.delete(id);
-      reject(new Error("Desktop operation timed out; see logs"));
-    }, 20 * 60_000);
-
-    requests.set(id, { resolve: resolveRequest, reject, timer });
-    controller.stdin.write(JSON.stringify({ id, action, ...args }) + "\n");
-  });
+  return connection
+    ? connection.request(action, args)
+    : Promise.reject<ControllerResult>(new Error("Desktop services are unavailable; restart Canopy"));
 }
 
 function isTrusted(event: IpcMainInvokeEvent | IpcMainEvent, setupOnly = false) {
-  const frame = event.senderFrame;
-
-  if (
-    !frame ||
-    event.sender.isDestroyed() ||
-    frame !== event.sender.mainFrame ||
-    ![window?.webContents, settingsWindow?.webContents].includes(event.sender)
-  )
-    return false;
-
-  try {
-    const url = new URL(frame.url);
-
-    return setupOnly
-      ? url.origin === setupOrigin && url.pathname === "/desktop"
-      : url.origin === setupOrigin || url.origin === status.webUrl;
-  } catch {
-    return false;
-  }
+  return isTrustedDesktopEvent(event, [window, settingsWindow], setupOrigin, status.webUrl, setupOnly);
 }
 
 function authorize(event: IpcMainInvokeEvent, setupOnly = false) {
@@ -183,85 +129,17 @@ function broadcast() {
   for (const target of [window, settingsWindow])
     if (target && !target.isDestroyed()) target.webContents.send("canopy:updates", updates.status());
 
-  const text =
-    status.phase === "error"
-      ? "Needs attention"
-      : status.worker === "online"
-        ? "Worker online"
-        : status.phase === "starting"
-          ? "Starting…"
-          : "Worker offline";
-
-  tray?.setToolTip(`${identity.productName} · ${text}`);
-  tray?.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: `${identity.productName} · ${text}`, enabled: false },
-      { label: `Open ${identity.productName}`, click: showMain },
-      {
-        label: `CLIs: ${
-          Object.entries(status.clis)
-            .filter(([, found]) => found)
-            .map(([name]) => name)
-            .join(", ") || "none found"
-        }`,
-        enabled: false,
-      },
-      { label: "Desktop settings…", click: openSettings },
-      updates.item(),
-      { type: "separator" },
-      { label: `Quit ${identity.productName}`, click: () => app.quit() },
-    ]),
-  );
-
-  const quitItem: Electron.MenuItemConstructorOptions = {
-    label: `Quit ${identity.productName}`,
-    accelerator: "CmdOrCtrl+Q",
-    click: (_item, _target, event) => {
-      if (event.triggeredByAccelerator) {
-        const repeat = quitKey.isRepeat();
-
-        if (!BrowserWindow.getFocusedWindow() && quitGuard.mode !== "immediately") showMain();
-        quitGuard.accelerator(BrowserWindow.getFocusedWindow(), repeat);
-      } else app.quit();
-    },
-  };
-
-  const template: Electron.MenuItemConstructorOptions[] = [
-    {
-      label: identity.productName,
-      submenu: [
-        ...(process.platform === "darwin" ? [{ role: "about" as const }, { type: "separator" as const }] : []),
-        { label: "Desktop settings…", accelerator: "CmdOrCtrl+,", click: openSettings },
-        updates.item(),
-        { label: "Open logs folder", click: () => void shell.openPath(logs.directory) },
-        ...(process.platform === "darwin"
-          ? [
-              { type: "separator" as const },
-              { role: "services" as const },
-              { type: "separator" as const },
-              { role: "hide" as const },
-              { role: "hideOthers" as const },
-              { role: "unhide" as const },
-            ]
-          : []),
-        { type: "separator" },
-        quitItem,
-      ],
-    },
-    { role: "editMenu" },
-    windowViewMenu(),
-    { role: "windowMenu" },
-  ];
-
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
-}
-
-function external(url: string) {
-  try {
-    if (["https:", "http:", "mailto:"].includes(new URL(url).protocol)) void shell.openExternal(url);
-  } catch {
-    /* Invalid link. */
-  }
+  updateDesktopMenus({
+    status,
+    tray,
+    productName: identity.productName,
+    showMain,
+    openSettings,
+    updates,
+    quitGuard,
+    quitKey,
+    logsDirectory: logs.directory,
+  });
 }
 
 function showMain() {
@@ -277,75 +155,15 @@ function showMain() {
 }
 
 function createWindow() {
-  const target = new BrowserWindow({
-    width: 1280,
-    height: 850,
-    minWidth: 760,
-    minHeight: 560,
-    title: identity.productName,
-    icon: iconPath,
-    show: false,
-    ...(process.platform === "darwin" && {
-      titleBarStyle: "hiddenInset" as const,
-      trafficLightPosition: { x: 18, y: 18 },
-    }),
-    webPreferences: {
-      preload: join(app.getAppPath(), "dist/preload.cjs"),
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: true,
-      webSecurity: true,
-      allowRunningInsecureContent: false,
-      webviewTag: false,
-    },
+  return createDesktopWindow({
+    productName: identity.productName,
+    iconPath,
+    quitGuard,
+    enrollmentReady,
+    quitting: () => quitting,
+    setupOrigin: () => setupOrigin,
+    webUrl: () => status.webUrl,
   });
-
-  quitGuard.attach(target);
-  attachWindowChrome(target);
-  target.once("ready-to-show", () => {
-    if (!quitting) target.show();
-  });
-  target.on("page-title-updated", (event) => {
-    event.preventDefault();
-    target.setTitle(identity.productName);
-  });
-  const contentId = target.webContents.id;
-  target.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
-    if (isMainFrame && !isInPlace) enrollmentReady.delete(target.webContents.id);
-  });
-  target.on("closed", () => enrollmentReady.delete(contentId));
-  target.webContents.setWindowOpenHandler(({ url }) => {
-    external(url);
-
-    return { action: "deny" };
-  });
-  target.webContents.on("will-navigate", (event, url) => {
-    try {
-      const parsed = new URL(url);
-
-      if (parsed.origin === setupOrigin || parsed.origin === status.webUrl) return;
-    } catch {
-      /* Block malformed navigation. */
-    }
-
-    event.preventDefault();
-    external(url);
-  });
-  target.webContents.on("will-redirect", (event, url) => {
-    try {
-      if ([setupOrigin, status.webUrl].includes(new URL(url).origin)) return;
-    } catch {
-      /* Block. */
-    }
-
-    event.preventDefault();
-    external(url);
-  });
-  target.webContents.on("will-attach-webview", (event) => event.preventDefault());
-  target.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-  target.webContents.session.setPermissionCheckHandler(() => false);
-
-  return target;
 }
 
 function openSettings() {
@@ -462,15 +280,16 @@ app.on("before-quit", (event) => {
     });
 });
 
-async function start() {
+function registerPowerEvents() {
   powerMonitor.on("suspend", () => {
     void rpc("presence", { state: "sleeping" }).catch(() => {});
   });
   powerMonitor.on("resume", () => {
     void rpc("presence", { state: "connected" }).catch(() => {});
   });
-  const secrets = await loadSecrets(app.getPath("userData"));
-  logs.protect(...Object.values(secrets));
+}
+
+function startController() {
   const runtime = join(resources, "runtime");
   const paths = runtimePaths(runtime);
   controller = spawn(paths.bun, [controllerEntry(runtime)], {
@@ -479,56 +298,27 @@ async function start() {
     cwd: runtime,
     windowsHide: true,
   });
-  controller.stderr.on("data", logs.stream("controller"));
-  createInterface({ input: controller.stdout }).on("line", (line) => {
-    try {
-      // SAFETY: stdout is the private protocol pipe of our spawned, bundled controller; send uses ControllerResponse.
-      const message = JSON.parse(line) as ControllerResponse;
-
-      if (message.event === "status" && message.status) {
-        status = message.status;
-        broadcast();
-
-        return;
-      }
-
-      if (message.id) {
-        const request = requests.get(message.id);
-
-        if (!request) return;
-        requests.delete(message.id);
-        clearTimeout(request.timer);
-
-        if (message.error) request.reject(new Error(message.error));
-        else request.resolve(message.result ?? {});
-      }
-    } catch {
-      logs.write("controller", "Invalid controller message");
-    }
-  });
-  controller.on("error", (error) => logs.write("controller", error.message));
-  controller.once("exit", () => {
-    controllerExited = true;
-
-    for (const request of requests.values()) {
-      clearTimeout(request.timer);
-      request.reject(new Error("Desktop services stopped"));
-    }
-
-    requests.clear();
-
-    if (!quitting) {
-      status = { ...status, phase: "error", worker: "offline", error: "Desktop services stopped. Restart Canopy." };
+  connection = new ControllerConnection(
+    controller,
+    logs,
+    (next) => {
+      status = next;
       broadcast();
-    }
-  });
+    },
+    () => {
+      controllerExited = true;
 
-  const initialized = await rpc("initialize", { directory: app.getPath("userData"), secrets, paths });
+      if (!quitting) {
+        status = { ...status, phase: "error", worker: "offline", error: "Desktop services stopped. Restart Canopy." };
+        broadcast();
+      }
+    },
+  );
 
-  if (!initialized.origin || !initialized.status) throw new Error("Invalid desktop initialization response");
+  return paths;
+}
 
-  setupOrigin = initialized.origin;
-  status = initialized.status;
+function registerIpc() {
   ipcMain.handle("canopy:status", (event) => {
     authorize(event);
 
@@ -607,7 +397,7 @@ async function start() {
     try {
       if (config.mode === "remote" && config.enrollmentToken) logs.protect(config.enrollmentToken);
       await rpc("configure", { configuration: config });
-      await preparePolicy(status.webUrl!);
+      await policy.prepare(status.webUrl!);
       setTimeout(() => {
         if (!window || window.isDestroyed()) window = createWindow();
         void window.loadURL(status.webUrl!);
@@ -617,46 +407,34 @@ async function start() {
       busy = false;
     }
   });
+}
+
+async function start() {
+  registerPowerEvents();
+  const secrets = await loadSecrets(app.getPath("userData"));
+  logs.protect(...Object.values(secrets));
+  const paths = startController();
+  const initialized = await rpc("initialize", { directory: app.getPath("userData"), secrets, paths });
+
+  if (!initialized.origin || !initialized.status) throw new Error("Invalid desktop initialization response");
+
+  setupOrigin = initialized.origin;
+  status = initialized.status;
+  registerIpc();
   window = createWindow();
-  await preparePolicy(`${setupOrigin}/desktop`);
+  await policy.prepare(`${setupOrigin}/desktop`);
   let initialUrl = `${setupOrigin}/desktop`;
 
   if (status.phase === "running" && status.webUrl) {
     try {
-      await preparePolicy(status.webUrl);
+      await policy.prepare(status.webUrl);
       initialUrl = status.webUrl;
     } catch {
       logs.write("desktop", "Web application unavailable; opening desktop settings while the worker reconnects");
     }
   }
 
-  // Only documents need these hooks. Unfiltered, every script, fetch and font would wait for a
-  // round trip through this process (busy with menus and IPC) before reaching the network.
-  const documents: Electron.WebRequestFilter = { urls: ["<all_urls>"], types: ["mainFrame"] };
-  // Refresh hashes for every document (including reloading a nested SvelteKit route).
-  window.webContents.session.webRequest.onBeforeRequest(documents, (details, callback) => {
-    if (details.resourceType === "mainFrame" && [setupOrigin, status.webUrl].includes(new URL(details.url).origin)) {
-      void preparePolicy(details.url)
-        .then(() => callback({}))
-        .catch(() => callback({ cancel: true }));
-    } else callback({});
-  });
-  // Restrict executable code to the selected origin. Svelte needs inline style attributes; no eval.
-  window.webContents.session.webRequest.onHeadersReceived(documents, (details, callback) => {
-    let headers = details.responseHeaders;
-
-    if (details.resourceType === "mainFrame" && [setupOrigin, status.webUrl].includes(new URL(details.url).origin)) {
-      const hashes = [...(scriptHashes.get(new URL(details.url).origin) ?? [])].join(" ");
-      headers = {
-        ...headers,
-        "Content-Security-Policy": [
-          `default-src 'self'; script-src 'self' ${hashes}; style-src 'self' 'unsafe-inline' https://rsms.me; font-src 'self' https://rsms.me data:; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'`,
-        ],
-      };
-    }
-
-    callback(headers ? { responseHeaders: headers } : {});
-  });
+  policy.attach(window.webContents.session, () => [setupOrigin, status.webUrl]);
   const image = nativeImage.createFromPath(iconPath).resize({ width: 20, height: 20 });
   tray = new Tray(image);
   tray.on("click", showMain);
@@ -673,7 +451,7 @@ async function start() {
 
     if (status.phase === "running" && status.webUrl) {
       try {
-        await preparePolicy(status.webUrl);
+        await policy.prepare(status.webUrl);
         await window.loadURL(status.webUrl);
       } catch {
         logs.write("desktop", "Web application unavailable; keeping desktop settings open");
