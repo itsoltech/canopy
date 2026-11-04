@@ -199,6 +199,15 @@ test("the versioned blame ignore list skips formatting that reflows lines", () =
   expect(selectPromotion(f.input()).sha).toBe(f.baseline.sha);
 });
 
+test("blame ignores listed revisions that are missing from the repository", () => {
+  const f = fixture();
+  const feature = f.commit("feat: panel", 60, root + featureRule);
+  writeFileSync(join(f.cwd, ".git-blame-ignore-revs"), `# Pre-squash formatting\n${"0".repeat(39)}1\n`);
+  f.commit("chore: list a revision that was never fetched", 40, root + featureRule);
+  const fix = f.commit("fix: panel color", 1, root + featureRule.replace("red", "blue"));
+  expect(fix.attributions[0]?.sha).toBe(feature.sha);
+});
+
 test("explicit PR/SHA links and standard reverts take precedence over blame and its path exclusions", () => {
   const f = fixture();
   const feature = f.commit("feat: panel", 50, root + featureRule);
