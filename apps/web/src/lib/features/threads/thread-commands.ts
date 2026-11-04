@@ -56,7 +56,7 @@ function threadActionCommands(current: ui.Thread, context: ThreadCommandContext)
     },
     {
       id: "thread:side",
-      title: "Side thread…",
+      title: "New side thread",
       group: "actions",
       icon: "arrows-right-left",
       keywords: "new side branch fork",

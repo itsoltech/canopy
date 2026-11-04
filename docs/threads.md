@@ -1,5 +1,23 @@
 # Projekty, wątki i wątki boczne
 
+## Nowy wątek boczny w webie
+
+„New side thread” z panelu szczegółów, menu wątku i palety poleceń otwiera
+`/threads/[id]/new-side-thread`. Widok używa tego samego `ComposerBox`, `ModelControls`
+i `PermissionPicker` co nowy wątek. Fokus trafia do wiadomości; Escape oraz „Back”
+wracają do wątku głównego. Escape w otwartym pickerze najpierw zamyka picker.
+
+Kontekst „Side thread of …” prowadzi do rodzica, a „Same directory on …” podaje komputer.
+Długie nazwy są ucinane; podpowiedź pokazuje pełny komputer, projekt, katalog i gałąź worktree.
+Projekt, komputer, workspace, worktree oraz gałąź bazowa nie mają pickerów: ten przepływ
+zawsze używa miejsca wątku głównego. Dostawca i instancja pochodzą z rodzica także w BFF;
+picker modelu oferuje tylko modele tej instancji. Wysiłek i uprawnienia można zmienić.
+
+Przełącznik „Use main thread history” jest domyślnie włączony i kontynuuje historię
+do ostatniej zakończonej tury rodzica. Wyłączenie zaczyna od samego zadania.
+Tytuł jest generowany jak w zwykłym wątku. Wiadomość, wzmianki i załączniki trafiają
+do wspólnego `CreateThread`; zgody i lineage nadal egzekwuje gateway.
+
 ## No project — rozmowy na maszynie
 
 Pierwsza pozycja pickera projektu na ekranie „What should we work on?” to **No project**
