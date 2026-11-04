@@ -282,6 +282,8 @@ export class GrokThreads {
     return signal.aborted || answer.cancelled ? { outcome: { outcome: "cancelled" } } : selected(answer.allow);
   }
   async startTurn(spec: ThreadSpec, turnId: string, input: UserInput, settings?: TurnSettings): Promise<void> {
+    // The outbox replays StartTurn after a reconnect while the original prompt may still await an interaction.
+    if (this.#entries.get(spec.threadId)?.turnId === turnId) return;
     const entry = await this.#open(spec, settings);
     entry.turnId = turnId;
     entry.interrupted = false;

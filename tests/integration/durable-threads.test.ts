@@ -15,6 +15,7 @@ import {
   ui,
 } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore, Ingest } from "@canopy/gateway/store";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, watchUntil, type ScriptedWorker, type TestGateway } from "./support/gateway.ts";
@@ -138,6 +139,76 @@ describe.skipIf(!dockerAvailable)("durable threads (gateway + scripted worker)",
   afterAll(async () => {
     await gw?.close();
   });
+
+  for (const kind of [InteractionKind.QUESTION, InteractionKind.ELICITATION]) {
+    test(`a long network outage keeps a native ${InteractionKind[kind]} pending until its running turn is answered`, async () => {
+      const running = await runningThread(`offline-${kind}`);
+      const requestId = Bun.randomUUIDv7();
+
+      const request = {
+        requestId,
+        ...running,
+        kind,
+        toolName: kind === InteractionKind.QUESTION ? "request_user_input" : "mcp_elicitation",
+        requestJson: "{}",
+      };
+
+      worker.ask(request);
+      await eventually(
+        () => query<{ status: string }>("SELECT status FROM interaction_requests WHERE id = $1::uuid", requestId),
+        (r) => r[0]?.status === "pending",
+      );
+      worker.link.close();
+      expect(
+        await eventually(
+          async () => gw.core.online.has(edge.workerId),
+          (online) => !online,
+        ),
+      ).toBe(false);
+      // A day without traffic exceeds the gateway's stale threshold, but the worker process still owns its turn.
+      await query("UPDATE threads SET updated_at = now() - interval '1 day' WHERE id = $1::uuid", running.threadId);
+      await query("UPDATE turns SET started_at = now() - interval '1 day' WHERE id = $1::uuid", running.turnId);
+      await query(
+        "UPDATE interaction_requests SET created_at = now() - interval '1 day' WHERE id = $1::uuid",
+        requestId,
+      );
+      expect(await gw.core.sweep()).not.toContain(running.threadId);
+      await gw.runtime.runPromise(
+        Ingest.use((i) => i.settle(running.threadId, "test: offline running turn", { staleSeconds: 0 })),
+      );
+      expect(await gw.runtime.runPromise(GatewayStore.use((s) => s.expireEndedInteractions(running.threadId)))).toEqual(
+        [],
+      );
+      const before = await snapshotOf(running.threadId);
+      expect(before.turns.find((t) => t.id === running.turnId)?.status).toBe("running");
+      expect(before.interactions).toMatchObject([{ requestId, status: "pending" }]);
+      await reconnect([running]);
+      // ScriptedWorker has no in-memory pending map: explicitly replay the same native request as attach() does.
+      worker.ask(request);
+      const answerJson = '{"choice":"continue"}';
+      await gw.api.answerInteraction({ requestId, answerJson });
+      expect(
+        await eventually(
+          async () => worker.interactionAnswers,
+          (answers) => answers.some((a) => a.requestId === requestId),
+        ),
+      ).toContainEqual({ requestId, allow: false });
+      expect((await snapshotOf(running.threadId)).interactions).toEqual([]);
+      expect(
+        await query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM thread_items WHERE thread_id = $1::uuid AND type = 'interaction_prompt'",
+          running.threadId,
+        ),
+      ).toEqual([{ n: 1 }]);
+      worker.finish(running.threadId, running.turnId);
+      expect(
+        await eventually(
+          () => turns(running.threadId),
+          (t) => t[0]?.status === "completed",
+        ),
+      ).toMatchObject([{ status: "completed" }]);
+    }, 30_000);
+  }
 
   test("restart mid-turn: the turn is interrupted by the system, its open items end (live), the harness's late record wins", async () => {
     const { threadId, turnId } = await runningThread("restart-items");
