@@ -66,22 +66,22 @@ export const deniedEnvPrefixes: readonly string[] = DENIED_PREFIXES;
 
 /** Why this name cannot be used, or undefined when it can. */
 export function envNameProblem(kind: ProfileKind, name: string): string | undefined {
-  if (!name) return "name is required";
+  if (!name) return "Enter a variable name.";
 
-  if (name.length > MAX_ENV_NAME_LENGTH) return `name is longer than ${MAX_ENV_NAME_LENGTH} characters`;
+  if (name.length > MAX_ENV_NAME_LENGTH) return `Use a name with ${MAX_ENV_NAME_LENGTH} characters or fewer.`;
 
-  if (!ENV_NAME.test(name)) return "use letters, digits and _ (not starting with a digit)";
+  if (!ENV_NAME.test(name)) return "Use letters, digits and underscores. Start with a letter or underscore.";
   const upper = name.toUpperCase();
 
   if (deniedEnvNames(kind).includes(upper)) {
     return ENDPOINT_DENIED.some((denied) => denied === upper)
-      ? `${name} is set by the profile's endpoint and key`
-      : `${name} is controlled by the worker`;
+      ? `${name} comes from this instance's connection. Pick or edit a proxy in Connection instead.`
+      : `Canopy sets ${name} for this harness so each instance keeps its own login and sessions. Change the home or binary in Runtime instead.`;
   }
 
   const prefix = DENIED_PREFIXES.find((p) => upper.startsWith(p));
 
-  if (prefix) return `${prefix}* variables are reserved for the platform`;
+  if (prefix) return `Names starting with ${prefix} are reserved for Canopy itself. Use a different prefix.`;
 
   return undefined;
 }
@@ -94,16 +94,16 @@ export function envListProblems(
   const problems: { index: number; message: string }[] = [];
 
   if (vars.length > MAX_PROFILE_ENV_VARS)
-    problems.push({ index: MAX_PROFILE_ENV_VARS, message: `at most ${MAX_PROFILE_ENV_VARS} variables` });
+    problems.push({ index: MAX_PROFILE_ENV_VARS, message: `Use ${MAX_PROFILE_ENV_VARS} variables or fewer.` });
   const seen = new Set<string>();
   vars.forEach((v, index) => {
     const problem =
       envNameProblem(kind, v.name) ??
-      (seen.has(v.name.toUpperCase()) ? `${v.name} is listed twice` : undefined) ??
+      (seen.has(v.name.toUpperCase()) ? `${v.name} is already in this list. Use a different name.` : undefined) ??
       (v.value.length > MAX_ENV_VALUE_LENGTH
-        ? `${v.name}: value is longer than ${MAX_ENV_VALUE_LENGTH} characters`
+        ? `${v.name}: use a value with ${MAX_ENV_VALUE_LENGTH} characters or fewer.`
         : undefined) ??
-      (v.value.includes("\0") ? `${v.name}: value contains a NUL character` : undefined);
+      (v.value.includes("\0") ? `${v.name}: remove the NUL character from the value.` : undefined);
 
     seen.add(v.name.toUpperCase());
 

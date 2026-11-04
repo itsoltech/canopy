@@ -610,6 +610,16 @@ Ograniczenia kontraktu: `BackgroundTask` i snapshot `TimelineItem` nie zawieraj�
 
 `Popover.maxHeight` nadpisuje limit wysokości zakotwiczonego panelu przez styl komponentu (bez konfliktu klas Tailwind). Picker daty używa większego limitu zależnego od dostępnego miejsca; mobilny arkusz zachowuje własny limit wysokości ekranu.
 
+`FieldValidationPopover` pokazuje błąd obok pola, korzystając z `Popover` i jego
+pozycjonowania oraz tokenów ruchu (również reduced motion). Snippet `field(props)`
+przekazuje kotwicę, `aria-describedby` oraz obsługę fokusu i wskaźnika do kontrolki.
+Komunikat jest ogłaszany przez stały `role="alert"`, także po zamknięciu panelu.
+Panel otwiera się po zmianie błędu, fokusie, najechaniu lub dotknięciu pola; nie
+przejmuje fokusu. Escape i kliknięcie poza zamykają go. Edytor Environment w Providers
+waliduje nazwy podczas pisania; komunikat wskazuje Runtime, Connection lub inny
+prefiks zamiast wyświetlać listę wszystkich zastrzeżonych nazw. `FieldError` zachowuje
+dotychczasowe działanie w pozostałych formularzach.
+
 `Input` pozostaje wspólnym publicznym API pól. Dla `number` używa wewnętrznego `NumberControl`: tekstowe pole `spinbutton`, własne −/+, min/max/step, strzałki i ograniczenie wartości przy zatwierdzeniu. Puste pole wiąże `null`, nieprawidłowy tekst `NaN`, aby walidacja wywołującego nie uznała go za pustą wartość. Dla `date`, `time`, `datetime-local` używa `DateTimeControl`: sformatowany lokalnie przycisk, `Calendar` z jednym przystankiem Tab i nawigacją po dniach/tygodniach/miesiącach, tekstowy czas HH:MM ze steperami, szybkie wybory i jawne Apply/Cancel. Dane zachowują format `YYYY-MM-DD`, `HH:MM`, `YYYY-MM-DDTHH:MM` bez `Z`. Nieistniejące godziny w luce DST są odrzucane; podwójna godzina jesienią oznacza wcześniejszy moment, zgodnie z dotychczasowym `Date`. `PickerTrigger` współdzieli wygląd i integrację `Field`, `StepperButtons` przyciski zmiany wartości, `ChoiceControl` rysowanie checkboxów/radio w `Input`, `Checkbox`, `Radio` i markdown. Wysoki kontrast (`forced-colors`) świadomie przywraca systemowy wygląd checkboxów/radio; zwykłe motywy używają własnej grafiki. Szczegóły w [raporcie weryfikacji](custom-form-controls-verification.md).
 
 Kod wg funkcji (`#lib/features/*`), kod tylko serwerowy w katalogach `server/` (SvelteKit nie pozwala go zaimportować w przeglądarce).

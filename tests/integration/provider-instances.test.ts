@@ -215,10 +215,10 @@ describe.skipIf(!dockerAvailable)("global provider instances (gateway + two scri
     expect(await failure(gw.api.saveProviderInstance({ ...base, id: "team" }))).toContain("already has");
     expect(
       await failure(gw.api.saveProviderInstance({ ...base, id: "x", env: [{ name: "CODEX_HOME", value: "/tmp" }] })),
-    ).toContain("controlled by the worker");
+    ).toContain("Change the home or binary in Runtime instead.");
     expect(
       await failure(gw.api.saveProviderInstance({ ...base, id: "x", env: [{ name: "NEW_SECRET", secret: true }] })),
-    ).toContain("enter the secret value");
+    ).toContain("Enter the secret value.");
     expect(await failure(gw.api.saveProviderInstance({ ...base, id: "x", accentColor: "red" }))).toContain("#rrggbb");
     const current = await team();
     expect(

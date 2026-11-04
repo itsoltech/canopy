@@ -1,7 +1,7 @@
 import { sharedKey } from "@canopy/domain/computers";
 import { create, type DescMessage, type MessageInitShape } from "@bufbuild/protobuf";
 import { Provider, ProviderProfileKind, ui } from "@canopy/contracts";
-import { envNameProblem, type ProfileKind } from "@canopy/domain";
+import { envListProblems, type ProfileKind } from "@canopy/domain";
 import { providerKeyOf, type ProviderKey } from "#lib/features/threads/providers.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import type { Tone } from "#lib/shared/ui/tone.ts";
@@ -157,20 +157,23 @@ export interface EnvProblems {
 /** Problems of variable rows by row key, with the same rules as the gateway and the worker. */
 export function envProblems(kind: ProviderProfileKind, rows: readonly EnvVarDraft[]): EnvProblems {
   const problems: EnvProblems = {};
-  const seen = new Set<string>();
 
-  for (const row of rows) {
+  const shared = new Map(
+    envListProblems(
+      ruleKind(kind),
+      rows.map((row) => ({ name: row.name.trim(), value: row.secret && row.keep ? "" : row.value })),
+    ).map(({ index, message }) => [index, message]),
+  );
+
+  for (const [index, row] of rows.entries()) {
     const name = row.name.trim();
 
     const problem =
-      envNameProblem(ruleKind(kind), name) ??
-      (seen.has(name.toUpperCase()) ? `${name} is listed twice.` : undefined) ??
+      shared.get(index) ??
       (row.secret && !row.keep && !row.value ? "Enter the secret value." : undefined) ??
-      (row.keep && name !== row.storedName ? "Enter the value again to rename a secret." : undefined);
+      (row.keep && name !== row.storedName ? "Enter the secret value again to use a different name." : undefined);
 
-    seen.add(name.toUpperCase());
-
-    if (problem) problems[row.key] = problem.endsWith(".") ? problem : `${capitalize(problem)}.`;
+    if (problem) problems[row.key] = problem;
   }
 
   return problems;

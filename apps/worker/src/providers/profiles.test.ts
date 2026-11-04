@@ -199,7 +199,7 @@ describe("custom profiles and their environment", () => {
     expect(resolveProfiles([{ ...PROXY, env: [PROBE] }])[1]?.problem).toContain("reserved");
     expect(
       resolveProfiles([{ ...PROXY, env: [{ name: "ANTHROPIC_BASE_URL", value: "http://x" }] }])[1]?.problem,
-    ).toContain("endpoint");
+    ).toContain("Pick or edit a proxy in Connection instead.");
   });
 
   test("a disabled profile is unavailable and reported so", () => {
