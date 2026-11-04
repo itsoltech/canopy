@@ -7,7 +7,6 @@
   import { threadCommands } from "#lib/features/threads/thread-commands.ts";
   import GoalBar from "#lib/features/goals/GoalBar.svelte";
   import GoalDialog from "#lib/features/goals/GoalDialog.svelte";
-  import SetGoalPill from "#lib/features/goals/SetGoalPill.svelte";
   import CiteLayer from "#lib/features/quotes/CiteLayer.svelte";
   import { isFinishedGoal, showsGoal, takesGoals } from "#lib/features/goals/goals.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
@@ -687,13 +686,8 @@
                     onsent={(response) => {
                       if (response.steer) view.upsertSteer(response.steer);
                     }}
-                  >
-                    {#snippet leading()}
-                      {#if canGoal && !openGoal}
-                        <SetGoalPill onclick={() => (goalDialog = true)} />
-                      {/if}
-                    {/snippet}
-                  </Composer>
+                    ongoal={canGoal && !openGoal ? () => (goalDialog = true) : undefined}
+                  />
                 </ThreadComposerSlot>
               {:else}
                 <Skeleton class="h-28 rounded-2xl" />

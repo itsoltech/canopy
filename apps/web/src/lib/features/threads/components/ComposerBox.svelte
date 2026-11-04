@@ -67,6 +67,7 @@
     compact = false,
     panelsLabel,
     onexpand,
+    ongoal,
     class: className,
   }: {
     value?: string;
@@ -97,6 +98,8 @@
     compact?: boolean;
     panelsLabel?: string | undefined;
     onexpand?: ((activity?: ComposerActivity) => void) | undefined;
+    /** "Set a goal" in the "+" menu. */
+    ongoal?: (() => void) | undefined;
     class?: ClassValue;
   } = $props();
 
@@ -245,9 +248,10 @@
               : "queue"}
           </p>
         {/if}
-        {#if onfiles || sources}
+        {#if onfiles || sources || ongoal}
           <ComposerPlusMenu
             {onfiles}
+            {ongoal}
             {triggers}
             {disabled}
             ontrigger={sources ? (char) => editor?.insertTrigger(char) : undefined}

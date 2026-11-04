@@ -10,16 +10,18 @@
   /**
    * The composer's "+": attach files (the system picker; on phones also the camera and photos) and, for
    * discoverability, each mention trigger: choosing one types it at the caret and opens its list. The hint on the
-   * right is the character that does the same while typing.
+   * right is the character that does the same while typing. `ongoal` adds "Set a goal" at the end.
    */
   let {
     onfiles,
     ontrigger,
+    ongoal,
     triggers,
     disabled = false,
   }: {
     onfiles?: ((files: File[]) => void) | undefined;
     ontrigger?: ((char: TriggerChar) => void) | undefined;
+    ongoal?: (() => void) | undefined;
     triggers: ReadonlySet<TriggerChar>;
     disabled?: boolean;
   } = $props();
@@ -44,7 +46,7 @@
 <DropdownMenu label="Add to the message" placement="top-start">
   {#snippet trigger(props)}<IconButton
       icon="plus"
-      label="Add files, commands, skills…"
+      label="Add files, commands, skills, a goal…"
       size="sm"
       {disabled}
       {...props}
@@ -63,6 +65,10 @@
       {entry.label}
     </MenuItem>
   {/each}
+  {#if ongoal}
+    {#if onfiles || offered.length > 0}<MenuSeparator />{/if}
+    <MenuItem icon="flag" description="The agent keeps working until it is met" onselect={ongoal}>Set a goal</MenuItem>
+  {/if}
 </DropdownMenu>
 {#if onfiles}
   <input
