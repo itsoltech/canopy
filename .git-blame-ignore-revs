@@ -1,2 +1,2 @@
-# style(repo): apply oxfmt and readable spacing
-28347c5fd09396d5aef4ed408f1f0ea22cca0b2f
+# chore(lint): adopt anti-slop oxlint rules and oxfmt formatting (#29) — the repo-wide oxfmt + readable spacing pass
+acd67d247938921788c16e0bb5988599276ac4bc
