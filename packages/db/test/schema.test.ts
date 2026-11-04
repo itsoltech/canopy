@@ -165,7 +165,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "9_models_effort_steer", "10_goals_background_harness", "11_goals_engine_cleanup", "12_worker_restart", "13_turn_end_sources", "14_turn_permission_mode",
       "15_provider_profiles", "16_attachments", "18_global_providers", "19_thread_reads", "20_fork_from_turn", "21_queue_manage", "22_thread_titles", "23_agent_senders",
       "24_background_task_notes", "25_ask_user", "26_sidebar_threads", "27_schedules_new_thread", "28_archive_cascade", "29_schedule_edit", "30_bus_notify_delivery",
-      "31_bots", "32_scratch_projects", "33_bot_mentions", "34_bot_archive", "36_thread_secrets", "39_bot_routines", "40_bot_creation", "41_connectors", "42_answer_bot", "43_grok_provider", "44_worker_enrollment", "45_bot_handoffs", "46_mobile_devices", "47_worker_ssh", "48_linked_computers", "49_thread_mirrors",
+      "31_bots", "32_scratch_projects", "33_bot_mentions", "34_bot_archive", "36_thread_secrets", "39_bot_routines", "40_bot_creation", "41_connectors", "42_answer_bot", "43_grok_provider", "44_worker_enrollment", "45_bot_handoffs", "46_mobile_devices", "47_worker_ssh", "48_linked_computers", "49_thread_mirrors", "50_shared_config",
     ]);
   }, 60_000);
 
@@ -786,6 +786,23 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       await query(upsert, [w.worker, 1, `{"profiles":[{"id":"proxy","apiKey":{"secretRef":"${secret}"}}]}`, w.user]);
       await query(`INSERT INTO worker_config_secrets (worker_id, secret_id) VALUES ($1, $2)`, [w.worker, secret]);
       expect(await failure(`DELETE FROM secrets WHERE id = $1`, [secret])).toContain("foreign key");
+    });
+  });
+
+  describe("shared configuration (0050)", () => {
+    test("unlinking a computer removes its acknowledgements and pending conflicts, not the shared items", async () => {
+      const w = await world();
+      const node = `peer-${id()}`;
+      await query(`INSERT INTO computer_peers (owner_user_id, node_id, name, certificate, fingerprint) VALUES ($1, $2, 'B', 'c', 'f')`, [w.user, node]);
+      await query(`INSERT INTO computer_shared_items (owner_user_id, item_key, shared) VALUES ($1, 'settings:appearance', true)`, [w.user]);
+      await query(`INSERT INTO computer_shared_acks (owner_user_id, node_id, item_key, digest, shared) VALUES ($1, $2, 'settings:appearance', 'd', true)`, [w.user, node]);
+      await query(`INSERT INTO computer_shared_conflicts (owner_user_id, item_key, node_id, remote_payload, remote_clock, remote_digest, remote_changed_at)
+                   VALUES ($1, 'settings:appearance', $2, '{}', '{}', 'd', now())`, [w.user, node]);
+      expect(await failure(`INSERT INTO computer_shared_acks (owner_user_id, node_id, item_key, digest, shared) VALUES ($1, 'unknown', 'k', 'd', true)`, [w.user])).toContain("foreign key");
+      await query(`DELETE FROM computer_peers WHERE owner_user_id = $1 AND node_id = $2`, [w.user, node]);
+      expect(await query(`SELECT 1 FROM computer_shared_acks WHERE owner_user_id = $1`, [w.user])).toHaveLength(0);
+      expect(await query(`SELECT 1 FROM computer_shared_conflicts WHERE owner_user_id = $1`, [w.user])).toHaveLength(0);
+      expect(await query(`SELECT shared FROM computer_shared_items WHERE owner_user_id = $1`, [w.user])).toEqual([{ shared: true }]);
     });
   });
 

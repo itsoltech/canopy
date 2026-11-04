@@ -22,10 +22,10 @@ export const SERVED = new Set([
   "AnswerInteraction", "UpdateThread", "RegenerateTitle", "SetGoal", "StopBackgroundTask", "MarkThreadSeen", "SetThreadRead",
   "SetThreadArchived", "DeleteThread", "RestoreThread", "ListModels", "ListDirectory", "GetAttachment", "UploadAttachment",
   "GetThreadBlob", "ReorderQueuedTurns", "EditQueuedTurn", "DeleteQueuedTurn", "RestoreQueuedTurn", "SteerQueuedTurn",
-  "ListMentionCatalog", "SearchFiles", "WatchThreadMirror",
+  "ListMentionCatalog", "SearchFiles", "WatchThreadMirror", "PushSharedConfig",
 ]);
 export const methodNamed = (name: string) => ui.GatewayService.methods.find((m) => m.name === name)
-  ?? link.ThreadMirrorService.methods.find((m) => m.name === name);
+  ?? link.ThreadMirrorService.methods.find((m) => m.name === name) ?? link.SharedConfigService.methods.find((m) => m.name === name);
 
 export type RemoteServe = (method: DescMethod, request: Message, signal: AbortSignal) => AsyncIterable<Message>;
 type Frame = MessageInitShape<typeof link.LinkFrameSchema>;
@@ -60,6 +60,12 @@ export function qualify(desc: DescMessage, message: Message, nodeId: string): vo
   mapIds(desc, message, (id) => qualifyId(id, nodeId), (d, record) => { if (STAMPED.has(d.typeName)) record["nodeId"] = nodeId; });
 }
 
+/** A shared project is one identity on every computer: its home-qualified id becomes the plain one. */
+export function globalize(desc: DescMessage, message: Message, global: ReadonlySet<string>): void {
+  if (!global.size) return;
+  mapIds(desc, message, (id) => { const { id: plain, node } = splitId(id); return node && global.has(plain) ? plain : id; });
+}
+
 /** The computers a request's ids point at (empty: all local). */
 export function nodesOf(desc: DescMessage, message: Message, topLevelOnly = false): Set<string> {
   const nodes = new Set<string>();
@@ -74,11 +80,15 @@ export function nodesOf(desc: DescMessage, message: Message, topLevelOnly = fals
   return nodes;
 }
 
-/** A request for the home: its own ids, nothing of this or any third computer (no transitive sharing yet). */
-export function unqualify(desc: DescMessage, message: Message, nodeId: string): void {
+/**
+ * A request for the home: its own ids, nothing of this or any third computer (no transitive sharing yet).
+ * `global`: ids that are the same on every computer (shared projects, stage 4) pass unchanged.
+ */
+export function unqualify(desc: DescMessage, message: Message, nodeId: string, global: ReadonlySet<string> = new Set()): void {
   mapIds(desc, message, (id, field) => {
     const { id: plain, node } = splitId(id);
     if (node === nodeRef(nodeId)) return plain;
+    if (!node && global.has(id)) return id;
     if (node || (field !== "client_request_id" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id)))
       throw new ConnectError("Choose a project, worker and thread on the same computer", Code.InvalidArgument);
     return id;

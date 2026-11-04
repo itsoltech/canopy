@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { startConnectHttpServer, startGrpcServer } from "@canopy/transport";
-import { remoteServe, serviceTokenAuth, uiHandlers, uiRoutes } from "./api/index.ts";
+import { remoteServe, serviceTokenAuth, sharedHost, uiHandlers, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
 import { healthcheck } from "./healthcheck.ts";
 import { attachmentLimits, ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
@@ -61,8 +61,9 @@ const core = new GatewayCore({
 });
 if (installKind() === "binary") onSupervisorHandover(() => core.updates.handover(), (message) => console.info(message));
 // Workers' configurations follow the global provider instances (e.g. right after the migration to them).
+const own = uiHandlers(core);
 core.computers = new LinkedComputers({ store: new ComputerStore(runtime, userId, loadSecretsKey(env)),
-  serve: remoteServe(uiHandlers(core)), zone: async () => (await core.settings()).user?.timezone,
+  serve: remoteServe(own), shared: sharedHost(core, own), zone: async () => (await core.settings()).user?.timezone,
   ...(env["CANOPY_LINK_HOST"] && { host: env["CANOPY_LINK_HOST"] }),
   ...(env["CANOPY_LINK_PORT"] && { port: Number(env["CANOPY_LINK_PORT"]) }),
   ...(env["CANOPY_LINK_ADDRESSES"] && { addresses: env["CANOPY_LINK_ADDRESSES"].split(",").map((a) => a.trim()) }),

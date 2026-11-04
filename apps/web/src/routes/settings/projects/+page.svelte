@@ -2,6 +2,8 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import NewProjectForm from "#lib/features/projects/NewProjectForm.svelte";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
+  import ShareScope from "#lib/features/computers/ShareScope.svelte";
+  import { sharedKey } from "@canopy/domain/computers";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
@@ -22,6 +24,7 @@
   {#each overview.ownProjects.filter((p) => p.kind !== "scratch") as project (project.id)}
     <SettingsRow title={project.name} description={summary(project.workspaces)} href="/settings/projects/{project.id}">
       {#snippet leading()}<ProjectAvatar name={project.name} />{/snippet}
+      {#snippet control()}<ShareScope itemKey={sharedKey.project(project.id)} compact />{/snippet}
     </SettingsRow>
   {:else}
     <SettingsRow title="No projects yet" description="A project groups threads; its workspaces are directories on your workers." />

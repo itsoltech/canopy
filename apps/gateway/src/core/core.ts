@@ -813,8 +813,8 @@ export class GatewayCore {
     return create(ui.ListDirectoryResponseSchema, { entries: result.entries, path: result.directoryPath || path });
   }
 
-  async createProject(name: string): Promise<ui.Project> {
-    const project = await this.#run((s) => s.createProject(this.#options.userId, name));
+  async createProject(name: string, id?: string): Promise<ui.Project> {
+    const project = await this.#run((s) => s.createProject(this.#options.userId, name, id));
     this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
     return project;
   }

@@ -18,6 +18,8 @@ service GatewayService {
   rpc CreateComputerPairing(CreateComputerPairingRequest) returns (ComputerPairing);
   rpc LinkComputer(LinkComputerRequest) returns (ComputersSnapshot);
   rpc ManageComputer(ComputerOperationRequest) returns (ComputersSnapshot);
+  rpc GetSharedConfig(SharedConfigRequest) returns (SharedConfigSnapshot);
+  rpc ManageSharedConfig(SharedConfigOperation) returns (SharedConfigSnapshot);
   rpc FetchWorkerInstall(FetchWorkerInstallRequest) returns (stream WorkerInstallChunk);
   rpc WorkerSsh(WorkerSshRequest) returns (stream WorkerSshEvent);
   rpc GetUpdates(UpdatesRequest) returns (UpdatesSnapshot);
@@ -600,6 +602,8 @@ message OverviewUpdate {
     // Komputer rozłączony (Unlink): jego wątki, projekty i workery znikają z widoku.
     string computer_removed = 801;
     LinkedComputerSnapshot computer_snapshot = 802;
+    // Etap 4: wspólna konfiguracja (znaczki, konflikty) się zmieniła.
+    SharedConfigSnapshot shared_config = 803;
   }
 }
 

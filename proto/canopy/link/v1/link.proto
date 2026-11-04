@@ -23,6 +23,46 @@ message MirrorUpdate {
   bool snapshot_end = 9;
 }
 
+// Stage 4, capability "shared_config": internal call over RemoteRequest/RemoteResponse, never
+// registered on a public listener. A computer pushes the state of every item it shares (and the
+// items it stopped sharing); the receiver applies, ignores or records a conflict per item.
+service SharedConfigService {
+  rpc PushSharedConfig(SharedConfigPush) returns (SharedConfigReply);
+}
+// A secret value of a shared item, only for items marked shared and only while the receiver does
+// not have this value yet. The token names the value; the receiver encrypts it with its own key.
+message SharedSecret { string token = 1; string value = 2; }
+message SharedItem {
+  // "instance:<harness>:<id>", "models:<harness>:<id>", "settings:<section>", "project:<uuid>".
+  string key = 1;
+  // false: the sender stopped sharing it (or deleted it); every copy becomes local.
+  bool shared = 2;
+  // Version vector: node id -> counter. Concurrent vectors with different values are a conflict.
+  map<string, uint64> clock = 3;
+  string changed_by = 4;
+  int64 changed_at_ms = 5;
+  // Hex SHA-256 of the canonical payload (secret values are represented by their tokens).
+  string digest = 6;
+  // Canonical JSON of the item's shared fields. Never contains secret values.
+  string payload = 7;
+  repeated SharedSecret secrets = 8;
+  // Why the sender stopped sharing ("deleted"), shown on the receiver.
+  string reason = 9;
+}
+message SharedConfigPush { repeated SharedItem items = 1; }
+message SharedItemResult {
+  string key = 1;
+  // applied, same, newer (the receiver has a newer value and pushes it back), conflict,
+  // unshared, rejected (invalid here, e.g. a missing instance), secrets (resend with secrets).
+  string outcome = 2;
+  string digest = 3;
+  string message = 4;
+  // The receiver's version vector after this item (applied, same): the sender merges it, so a
+  // later change on either side is not mistaken for a concurrent one, and settles its own question.
+  map<string, uint64> clock = 5;
+}
+message SharedConfigReply { repeated SharedItemResult results = 1; }
+
 // Pair is the only RPC open to a certificate without a pin. The invitation
 // authenticates the server certificate before its secret is sent.
 service ComputerLinkService {

@@ -4,7 +4,8 @@ import { ui } from "@canopy/contracts";
 import { qualifyId, splitId, THREAD_MIRROR } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 import type { GatewayCore } from "../core/core.ts";
-import { methodNamed, nodesOf, qualify, SERVED, unqualify, type RemoteServe } from "../computers/remote.ts";
+import { globalize, methodNamed, nodesOf, qualify, SERVED, unqualify, type RemoteServe } from "../computers/remote.ts";
+import type { SharedHost } from "../computers/shared.ts";
 import { toConnectError, type UiHandlers } from "./ui-service.ts";
 
 /**
@@ -16,6 +17,22 @@ import { toConnectError, type UiHandlers } from "./ui-service.ts";
  */
 const UNARY_TIMEOUT_MS = 30_000;
 const GATHER_TIMEOUT_MS = 3_000;
+/** Writes that may change configuration shared with linked computers (stage 4): version and send it at once. */
+const CONFIG_WRITES = new Set(["SaveProviderInstance", "DeleteProviderInstance", "SetInstanceModels", "UpdateUserSettings", "RenameProject", "ArchiveProject"]);
+const NONE: ReadonlySet<string> = new Set();
+/** Ids of projects shared with linked computers: one identity on every computer. */
+const globalIds = (core: GatewayCore): ReadonlySet<string> => core.computers?.shared?.projects ?? NONE;
+
+/** Other computers' overviews in this one. A shared project is listed once, with every computer's workspaces. */
+function absorb(overview: { workers: ui.Worker[]; projects: ui.Project[] }, others: readonly ui.GetOverviewResponse[], global: ReadonlySet<string>) {
+  for (const other of others) {
+    overview.workers.push(...other.workers);
+    for (const project of other.projects) {
+      if (!global.has(project.id)) { overview.projects.push(project); continue; }
+      overview.projects.find((p) => p.id === project.id)?.workspaces.push(...project.workspaces);
+    }
+  }
+}
 
 type Handler = (request: Message, context: HandlerContext) => unknown;
 const unary = (handler: Handler, request: Message, context: HandlerContext) => handler(request, context) as Promise<Message>;
@@ -44,8 +61,14 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
       const refuse = (request: Message) => {
         if (nodesOf(method.input, request, true).size) throw new ConnectError("This isn't available for threads on another computer yet", Code.FailedPrecondition);
       };
+      const shared = CONFIG_WRITES.has(method.name);
       handlers[method.localName] = method.methodKind === "unary"
-        ? (request, context) => { refuse(request); return handler(request, context); }
+        ? async (request, context) => {
+          refuse(request);
+          const response = await handler(request, context);
+          if (shared) void core.computers?.configChanged();
+          return response;
+        }
         : async function* (request, context) { refuse(request); yield* stream(handler, request, context); };
       continue;
     }
@@ -69,11 +92,12 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
         core.computers?.snapshot(),
         gather<ui.GetOverviewResponse>(core, "GetOverview", request, context.signal),
       ]);
-      for (const other of remote) { overview.workers.push(...other.workers); overview.projects.push(...other.projects); }
+      absorb(overview, remote, globalIds(core));
       overview.computers = snapshot?.peers ?? [];
       return overview;
     },
     listThreads: async (request, context) => {
+      // A plain project id gathers too: a shared project has threads on every computer.
       if (target(methodNamed("ListThreads")!, request)) return unary(routedOne["listThreads"]!, request, context) as Promise<ui.ListThreadsResponse>;
       const [list, remote] = await Promise.all([unary(handler("listThreads"), request, context) as Promise<ui.ListThreadsResponse>, gather<ui.ListThreadsResponse>(core, "ListThreads", request, context.signal)]);
       for (const other of remote) list.threads.push(...other.threads);
@@ -103,8 +127,17 @@ async function peerOf(core: GatewayCore, ref: string) {
   return (await core.computers.resolve(ref)).node_id;
 }
 
-/** One call to a thread's home: ids become the home's, attachments uploaded here travel with the message. */
+/** One call to a thread's home. Shared projects keep their one id in both directions. */
 async function* forward(core: GatewayCore, nodeId: string, method: DescMethod, request: Message, signal: AbortSignal): AsyncGenerator<Message> {
+  const global = globalIds(core);
+  for await (const message of home(core, nodeId, method, request, signal, global)) {
+    globalize(method.output, message, global);
+    yield message;
+  }
+}
+
+/** Ids become the home's, attachments uploaded here travel with the message; offline, the mirror answers reads. */
+async function* home(core: GatewayCore, nodeId: string, method: DescMethod, request: Message, signal: AbortSignal, global: ReadonlySet<string>): AsyncGenerator<Message> {
   const computers = core.computers;
   if (!computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
   if (!computers.reachable().includes(nodeId) && computers.capabilities(nodeId).includes(THREAD_MIRROR)) {
@@ -138,7 +171,7 @@ async function* forward(core: GatewayCore, nodeId: string, method: DescMethod, r
   }
   const outbound = clone(method.input, request);
   await carryAttachments(core, nodeId, method, outbound, signal);
-  unqualify(method.input, outbound, nodeId);
+  unqualify(method.input, outbound, nodeId, global);
   for await (const message of computers.remote(nodeId, method, outbound, signal)) {
     qualify(method.output, message, nodeId);
     yield message;
@@ -171,6 +204,26 @@ async function gather<A extends Message>(core: GatewayCore, name: string, reques
   const results = await Promise.allSettled([...nodes].map((nodeId) =>
     single<A>(forward(core, nodeId, method, request, AbortSignal.any([signal, AbortSignal.timeout(GATHER_TIMEOUT_MS)])))));
   return results.flatMap((r) => r.status === "fulfilled" ? [r.value] : []);
+}
+
+/** Takes shared projects out of another computer's update; returns their ids. */
+function splitShared(update: ui.OverviewUpdate, global: ReadonlySet<string>): Set<string> {
+  const merged = new Set<string>();
+  const change = update.change;
+  if (change.case === "project" && global.has(change.value.id)) { merged.add(change.value.id); update.change = { case: undefined }; }
+  if (change.case === "mobileSnapshot" && change.value.overview) {
+    change.value.overview.projects = change.value.overview.projects.filter((p) => !global.has(p.id) || !merged.add(p.id));
+  }
+  return merged;
+}
+
+/** This computer's overview with every reachable computer's workers, projects and workspaces. */
+async function ownOverview(core: GatewayCore, own: Record<string, Handler>, signal: AbortSignal): Promise<ui.GetOverviewResponse> {
+  const request = create(ui.GetOverviewRequestSchema);
+  const context = { signal, values: createContextValues(), requestHeader: new Headers(), responseHeader: new Headers(), responseTrailer: new Headers() } as unknown as HandlerContext;
+  const [overview, remote] = await Promise.all([unary(own["getOverview"]!, request, context) as Promise<ui.GetOverviewResponse>, gather<ui.GetOverviewResponse>(core, "GetOverview", request, signal)]);
+  absorb(overview, remote, globalIds(core));
+  return overview;
 }
 
 /** What another computer's overview stream adds here: its workers, projects, threads and models. */
@@ -207,7 +260,15 @@ async function* watchOverview(core: GatewayCore, own: Record<string, Handler>, r
     void (async () => {
       try {
         const remote = forward(core, nodeId, watchMethod, create(ui.WatchOverviewRequestSchema, { includeSnapshot: true }), AbortSignal.any([signal, controller.signal]));
-        for await (const update of remote) for (const value of remoteUpdates(update as ui.OverviewUpdate, nodeId)) out.push(value);
+        for await (const message of remote) {
+          const update = message as ui.OverviewUpdate;
+          const merged = splitShared(update, globalIds(core));
+          for (const value of remoteUpdates(update, nodeId)) out.push(value);
+          // A shared project is this computer's row: send it again with the other computer's workspaces.
+          if (merged.size) void ownOverview(core, own, signal).then((overview) => {
+            for (const value of overview.projects) if (merged.has(value.id)) out.push(create(ui.OverviewUpdateSchema, { change: { case: "project", value } }));
+          }).catch(() => {});
+        }
       } catch { /* the link dropped; its presence change follows */ }
       finally {
         if (watchers.get(nodeId) === controller) watchers.delete(nodeId);
@@ -236,7 +297,7 @@ async function* watchOverview(core: GatewayCore, own: Record<string, Handler>, r
             gather<ui.GetOverviewResponse>(core, "GetOverview", create(ui.GetOverviewRequestSchema), signal),
             gather<ui.ListThreadsResponse>(core, "ListThreads", create(ui.ListThreadsRequestSchema), signal),
           ]);
-          for (const other of overviews) { update.change.value.overview.workers.push(...other.workers); update.change.value.overview.projects.push(...other.projects); }
+          absorb(update.change.value.overview, overviews, globalIds(core));
           update.change.value.overview.computers = (await computers.snapshot()).peers;
           for (const other of lists) update.change.value.threads.push(...other.threads);
         }
@@ -263,5 +324,14 @@ export function remoteServe(local: UiHandlers): RemoteServe {
       if (method.methodKind === "unary") yield create(method.output, await unary(own[method.localName]!, request, context));
       else for await (const message of stream(own[method.localName]!, request, context)) yield create(method.output, message);
     } catch (error) { throw toConnectError(error); }
+  };
+}
+
+/** What shared configuration needs from this gateway: its own handlers, projects with a given id, live UI updates. */
+export function sharedHost(core: GatewayCore, local: UiHandlers): SharedHost {
+  return {
+    serve: remoteServe(local),
+    createProject: async (id, name) => { await core.createProject(name, id); },
+    publish: (value) => core.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "sharedConfig", value } })),
   };
 }

@@ -30,6 +30,7 @@
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import GatewayUnavailable from "#lib/shared/ui/GatewayUnavailable.svelte";
   import type { Snippet } from "svelte";
+  import { SharedConfigState, provideSharedConfig } from "#lib/features/computers/shared-config.svelte.ts";
   import { ThreadActions, provideThreadActions } from "#lib/features/threads/thread-actions.svelte.ts";
   import ThreadActionDialogs from "#lib/features/threads/components/ThreadActionDialogs.svelte";
 
@@ -44,6 +45,11 @@
   // Settings live in the gateway: seeded by the server, changed from other devices through the stream.
   const settings = new SettingsState(create(ui.GetSettingsResponseSchema, { user: { appearance: appearanceFromDocument() } }));
   provideSettings(settings);
+  // What is shared with linked computers: badges and questions on every settings page.
+  const shared = new SharedConfigState();
+  provideSharedConfig(shared);
+  $effect(() => overview.subscribe((update) => shared.apply(update)));
+  $effect(() => { if (overview.resyncs > 0) void shared.reload().catch(() => {}); });
   const threadActions = new ThreadActions(overview, settings, () => page.params.threadId);
   provideThreadActions(threadActions);
   $effect(() => overview.subscribe((update) => settings.apply(update)));

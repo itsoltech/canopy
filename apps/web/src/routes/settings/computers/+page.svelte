@@ -13,6 +13,7 @@
   import Switch from "#lib/shared/ui/Switch.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
+  import SharedConfigOverview from "#lib/features/computers/SharedConfigOverview.svelte";
 
   let setup = $state.raw(create(ui.ComputersSnapshotSchema));
   let loaded = $state(false);
@@ -94,6 +95,7 @@
     <ComputerDetails {computer} {busy} onrename={() => edit(computer)} onunlink={() => { error = ""; remove = computer; removeOpen = true; }} />
   {:else}<SettingsRow title={loaded ? "No computers linked yet" : "Loading linked computers…"} description="Generate a code here, or enter a code from your other computer." />{/each}
 </SettingsGroup>
+{#if setup.peers.length}<SharedConfigOverview />{/if}
 <Dialog bind:open title="Link a computer" description="Both computers belong to you and will have full access to each other.">
   <div class="grid min-w-0 gap-5">
     {#if error}<Alert tone="error">{error}</Alert>{/if}
