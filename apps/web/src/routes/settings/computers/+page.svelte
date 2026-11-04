@@ -21,13 +21,19 @@
   import ShareOnwardDialog from "#lib/features/computers/ShareOnwardDialog.svelte";
   import MoveDialog from "#lib/features/computers/MoveDialog.svelte";
   import { MOVE_ITEMS, RELAY } from "@canopy/domain/computers";
+  import { useConnectionRequest } from "#lib/features/network/connection-request.svelte.ts";
+  import ConnectionRequestError from "#lib/features/network/ConnectionRequestError.svelte";
 
   const network = useNetworkAccess();
-  let setup = $state.raw(create(ui.ComputersSnapshotSchema));
-  let loaded = $state(false);
+
+  const request = useConnectionRequest(create(ui.ComputersSnapshotSchema), async () =>
+    decode(ui.ComputersSnapshotSchema, await requestJson("GET", "/api/computers")),
+  );
+
+  const setup = $derived(request.data);
+  const loaded = $derived(request.loaded);
   let busy = $state(false);
   let error = $state("");
-  let refreshError = $state("");
   let open = $state(false);
   let mode = $state<"choose" | "invite" | "enter" | "linked">("choose");
   let invitation = $state<ui.ComputerPairing>();
@@ -63,9 +69,7 @@
   }
 
   async function reload() {
-    setup = decode(ui.ComputersSnapshotSchema, await requestJson("GET", "/api/computers"));
-    loaded = true;
-    refreshError = "";
+    await request.reload();
 
     if (invitation && setup.peers.some((p) => p.linkedAtMs >= invitation!.expiresAtMs - 600_000n)) {
       invitation = undefined;
@@ -74,19 +78,14 @@
   }
 
   async function manage(action: string, extra: JsonObject = {}) {
-    setup = decode(ui.ComputersSnapshotSchema, await requestJson("PUT", "/api/computers", { action, ...extra }));
+    request.set(decode(ui.ComputersSnapshotSchema, await requestJson("PUT", "/api/computers", { action, ...extra })));
   }
 
   onMount(() => {
-    void reload().catch(() => {
-      refreshError = "Could not load computer status. Try again.";
-    });
+    void reload();
 
     const refresh = setInterval(() => {
-      if (!busy && !document.hidden)
-        void reload().catch(() => {
-          refreshError = "Could not refresh computer status. Try again.";
-        });
+      if (!busy && !document.hidden) void reload();
     }, 3000);
 
     const clock = setInterval(() => {
@@ -156,28 +155,36 @@
   </div>
   <Button
     variant="primary"
-    disabled={!loaded || busy}
+    disabled={!loaded || !!request.error || busy}
     onclick={() => {
       error = "";
       open = true;
     }}>Link a computer</Button
   >
 </div>
-{#if (error || refreshError) && !open && !renameOpen && !removeOpen && !routeOpen && !shareOpen}<Alert tone="error"
-    >{error || refreshError}<Button size="sm" onclick={() => void run(reload)}>Retry</Button></Alert
+{#if request.error}<ConnectionRequestError
+    title="Could not load linked computers"
+    error={request.error}
+    {loaded}
+    loading={request.loading}
+    onretry={() => void reload()}
+  />{/if}
+{#if error && !open && !renameOpen && !removeOpen && !routeOpen && !shareOpen}<Alert tone="error"
+    >{error}<Button size="sm" onclick={() => void run(reload)}>Retry</Button></Alert
   >{/if}
 <SettingsGroup title="This computer">
   {#if setup.self}<ComputerDetails computer={setup.self} self {busy} onrename={() => setup.self && edit(setup.self)} />
-  {:else}<SettingsRow title="Loading computer identity…" />{/if}
+  {:else}<SettingsRow
+      title={request.error || loaded ? "Computer identity unavailable" : "Loading computer identity…"}
+    />{/if}
   {#if setup.self}<LanDiscoveryRow
       {setup}
-      disabled={busy}
+      disabled={busy || !!request.error}
       onchange={(enabled) => void run(() => manage("lan_discovery", { enabled }))}
     />{/if}
 </SettingsGroup>
 <NetworkAccessSummary
-  status={network.status}
-  loaded={network.loaded}
+  {network}
   busy={network.busy || busy}
   onenable={() => void run(async () => void (await network.update("set_enabled", { enabled: true })))}
 />
@@ -217,8 +224,16 @@
       onremoveroute={(address) => void run(() => manage("remove_route", { nodeId: computer.nodeId, address }))}
     />
   {:else}<SettingsRow
-      title={loaded ? "No computers linked yet" : "Loading linked computers…"}
-      description="Generate a code here, or enter a code from your other computer."
+      title={loaded
+        ? "No computers linked yet"
+        : request.error
+          ? "Linked computers unavailable"
+          : "Loading linked computers…"}
+      description={loaded
+        ? "Generate a code here, or enter a code from your other computer."
+        : request.error
+          ? "Retry the linked computers request above."
+          : undefined}
     />{/each}
 </SettingsGroup>
 {#if setup.peers.length}<SharedConfigOverview />{/if}
@@ -233,7 +248,9 @@
       <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         Open Linked computers on your other computer, then choose how to pair.
       </p>
-      {#if network.status.state === "on"}<Button
+      {#if network.error || !network.loaded}
+        <NetworkAccessSummary {network} busy={busy || network.busy} onenable={() => void enableAndInvite()} />
+      {:else if network.status.state === "on"}<Button
           variant="primary"
           disabled={busy}
           loading={busy}
@@ -306,9 +323,11 @@
         onsubmit={(event) => {
           event.preventDefault();
           void run(async () => {
-            setup = decode(
-              ui.ComputersSnapshotSchema,
-              await requestJson("POST", "/api/computers", { address, code }, 25_000),
+            request.set(
+              decode(
+                ui.ComputersSnapshotSchema,
+                await requestJson("POST", "/api/computers", { address, code }, 25_000),
+              ),
             );
             open = false;
           });

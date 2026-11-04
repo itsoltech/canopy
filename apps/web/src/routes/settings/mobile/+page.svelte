@@ -15,15 +15,21 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
+  import { useConnectionRequest } from "#lib/features/network/connection-request.svelte.ts";
+  import ConnectionRequestError from "#lib/features/network/ConnectionRequestError.svelte";
 
   const overview = useOverview();
   const network = useNetworkAccess();
-  let setup = $state.raw(create(ui.GetMobileDevicesResponseSchema));
+
+  const request = useConnectionRequest(create(ui.GetMobileDevicesResponseSchema), async () =>
+    decode(ui.GetMobileDevicesResponseSchema, await requestJson("GET", "/api/mobile-devices")),
+  );
+
+  const setup = $derived(request.data);
   let invitation = $state<ui.CreateMobilePairingResponse>();
   let open = $state(false);
   let qr = $state("");
   let busy = $state(false);
-  let loaded = $state(false);
   let error = $state("");
   let copied = $state(false);
   let now = $state(Date.now());
@@ -44,14 +50,7 @@
     ),
   );
 
-  async function reload() {
-    try {
-      setup = decode(ui.GetMobileDevicesResponseSchema, await requestJson("GET", "/api/mobile-devices"));
-      loaded = true;
-    } catch (e) {
-      error = e instanceof Error ? e.message : "Could not load mobile devices";
-    }
-  }
+  const reload = request.reload;
 
   onMount(() => {
     void reload();
@@ -158,14 +157,28 @@
     </p>
   </div>
   <div class="flex flex-wrap gap-3">
-    <Button disabled={!loaded || !network.loaded || busy} onclick={() => void pair("desktop")}
-      >Pair a desktop app</Button
+    <Button
+      disabled={!request.loaded || !network.loaded || !!network.error || !!request.error || busy}
+      onclick={() => void pair("desktop")}>Pair a desktop app</Button
     >
-    <Button variant="primary" disabled={!loaded || !network.loaded || busy} loading={busy} onclick={() => void pair()}
-      >{network.status.enabled ? "Pair a phone" : "Turn on network access and pair a phone"}</Button
+    <Button
+      variant="primary"
+      disabled={!request.loaded || !network.loaded || !!network.error || !!request.error || busy}
+      loading={busy}
+      onclick={() => void pair()}
+      >{network.loaded && !network.error && network.status.state === "off"
+        ? "Turn on network access and pair a phone"
+        : "Pair a phone"}</Button
     >
   </div>
 </div>
+{#if request.error}<ConnectionRequestError
+    title="Could not load paired devices"
+    error={request.error}
+    loaded={request.loaded}
+    loading={request.loading}
+    onretry={() => void reload()}
+  />{/if}
 {#if error}<Alert tone="error"
     >{error}<Button
       size="sm"
@@ -176,8 +189,7 @@
     ></Alert
   >{/if}
 <NetworkAccessSummary
-  status={network.status}
-  loaded={network.loaded}
+  {network}
   busy={busy || network.busy}
   onenable={() =>
     void network.update("set_enabled", { enabled: true }).catch((e) => {
@@ -201,8 +213,16 @@
           >{/if}{/snippet}
     </SettingsRow>
   {:else}<SettingsRow
-      title={loaded ? "No devices paired yet" : "Loading devices…"}
-      description="Pair a phone or desktop app. Revoke its access here at any time."
+      title={request.loaded
+        ? "No devices paired yet"
+        : request.error
+          ? "Paired devices unavailable"
+          : "Loading devices…"}
+      description={request.loaded
+        ? "Pair a phone or desktop app. Revoke its access here at any time."
+        : request.error
+          ? "Retry the paired devices request above."
+          : undefined}
     />{/each}
 </SettingsGroup>
 {#if pending.length}

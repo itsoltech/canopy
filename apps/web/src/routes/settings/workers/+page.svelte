@@ -93,8 +93,7 @@
   </p>
 {/if}
 <NetworkAccessSummary
-  status={network.status}
-  loaded={network.loaded}
+  {network}
   busy={network.busy}
   onenable={() =>
     void network

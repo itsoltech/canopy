@@ -53,11 +53,14 @@ export class GatewayCapabilities {
         return;
       this.state = value["state"];
       this.message = value["message"];
-      this.methods = value["methods"].filter(isString);
-      this.linkedComputers = value["linkedComputers"] === true;
+
+      // An outage says nothing about feature support. Keep the last successful negotiation.
+      if (this.state !== "unavailable") {
+        this.methods = value["methods"].filter(isString);
+        this.linkedComputers = value["linkedComputers"] === true;
+      }
     } catch {
       this.state = "unavailable";
-      this.linkedComputers = false;
     }
   }
   connect() {
