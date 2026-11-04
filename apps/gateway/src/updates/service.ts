@@ -154,7 +154,8 @@ export class GatewayUpdateService {
 
     try {
       path = await this.options.mirror.artifact(request.os, request.arch);
-    } catch {
+    } catch (cause) {
+      if (cause instanceof ConnectError) throw cause;
       throw new ConnectError(
         "Verified gateway mirror is unavailable; retry after the gateway can reach its release source",
         Code.Unavailable,

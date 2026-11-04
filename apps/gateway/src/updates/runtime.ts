@@ -10,7 +10,6 @@ import {
   managedInstructions,
   normalizeChannel,
   readUpdateRecord,
-  ReleaseMirror,
   ReleaseSource,
   releaseAsset,
   stageBinaryUpdate,
@@ -23,6 +22,7 @@ import {
 } from "@canopy/updater";
 import type { UpdatePersistence, WorkerUpdateRow } from "./persistence.ts";
 import { GatewayUpdateService } from "./service.ts";
+import { GatewayReleaseMirror, UpdateCache } from "./cache.ts";
 
 export interface GatewayUpdatesOptions {
   persistence: Pick<
@@ -30,7 +30,7 @@ export interface GatewayUpdatesOptions {
     "admin" | "channel" | "setChannel" | "workers" | "hello" | "saveCommand" | "report"
   >;
   authenticate(credential: string): Promise<string | undefined>;
-  cacheDir: string;
+  cacheDir?: string;
   source?: ReleaseSourceOptions;
   channel?: string;
   version?: string;
@@ -62,6 +62,7 @@ export class GatewayUpdates {
   #draining = false;
   #ready = false;
   #commands = new Map<string, Promise<update.UpdateCommand | undefined>>();
+  readonly #cache: UpdateCache;
   get draining(): boolean {
     return this.#draining;
   }
@@ -70,10 +71,11 @@ export class GatewayUpdates {
     this.kind = options.kind ?? installKind();
     this.#channel = normalizeChannel(options.channel ?? "stable");
     this.source = new ReleaseSource(options.source);
+    this.#cache = new UpdateCache(options.cacheDir, options.log);
     this.service = new GatewayUpdateService({
       version: this.version,
       authenticate: options.authenticate,
-      mirror: new ReleaseMirror(options.cacheDir, this.version, this.source),
+      mirror: new GatewayReleaseMirror(this.#cache, this.version, this.source),
       hello: (id, hello) => options.persistence.hello(id, hello),
       command: (id, hello) => this.#onHello(id, hello),
       report: (id, report) => options.persistence.report(id, report),
@@ -115,6 +117,7 @@ export class GatewayUpdates {
     if (this.#timer) clearInterval(this.#timer);
     this.#stopping.abort();
     this.service.close();
+    this.#cache.close();
   }
   async handover(): Promise<void> {
     if (!this.#ready || this.kind !== "binary" || !this.options.restart || updateBusyState(this.#state)) return;
@@ -296,7 +299,7 @@ export class GatewayUpdates {
       apply: async () => {
         this.#state = "downloading";
         this.#reason = "Downloading and verifying the gateway release";
-        const mirror = new ReleaseMirror(this.options.cacheDir, manifest.version, this.source);
+        const mirror = new GatewayReleaseMirror(this.#cache, manifest.version, this.source);
         await mirror.remember(manifest);
 
         // Retain artifacts for known private workers before nightly assets can expire.

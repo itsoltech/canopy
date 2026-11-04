@@ -8,8 +8,6 @@ import { BotsRuntime } from "../bots/runtime.ts";
 import { botPlatform, describeBotTool, prepareBotTool } from "../bots/platform.ts";
 import { GatewayUpdates } from "../updates/runtime.ts";
 import { UpdatePersistence } from "../updates/persistence.ts";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { coreDeliver } from "./core-commands.ts";
 import { coreState, type GatewayCoreOptions } from "./core-context.ts";
 import { coreStartThread } from "./core-threads.ts";
@@ -99,7 +97,6 @@ export function createCoreScheduler(core: GatewayCore, options: GatewayCoreOptio
 
 export function createCoreUpdates(core: GatewayCore, options: GatewayCoreOptions): GatewayUpdates {
   return new GatewayUpdates({
-    cacheDir: join(homedir(), ".cache", "canopy", "releases"),
     ...options.updates,
     idle: async () =>
       core[coreState].pumpAdmissions === 0 && core.bots.idle && ((await options.updates?.idle?.()) ?? true),
