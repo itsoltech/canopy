@@ -1,3 +1,4 @@
+import { managedWorktreesRoot } from "../git/worktrees.ts";
 import { ThreadSecretFiles } from "./thread-secrets.ts";
 import {
   Provider,
@@ -58,7 +59,13 @@ export type { WorkerHostOptions } from "./host-types.ts";
 const QUERIES: ReadonlySet<Command["kind"]["case"]> = new Set(["listMentionCatalog", "searchFiles", "generateText"]);
 
 /** Never redelivered from an outbox (sent directly): not remembered either. */
-const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([...QUERIES, "installCli"]);
+const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
+  ...QUERIES,
+  "installCli",
+  "listGitRefs",
+  "createWorktree",
+  "renameWorktreeBranch",
+]);
 
 /** How often provider CLIs are looked at again without a reason (connect, check, install). */
 const CLI_REPORT_INTERVAL_MS = 6 * 60 * 60_000;
@@ -74,6 +81,10 @@ export class WorkerHost {
   }
   get attachmentsRoot(): string {
     return this.#ctx.state.files.root;
+  }
+  /** Managed root of git worktrees (Hello.worktrees_root, docs/worktrees.md). */
+  get worktreesRoot(): string {
+    return managedWorktreesRoot(this.#ctx.state.options.dataDir);
   }
   get config(): AppliedConfig | undefined {
     return this.#ctx.state.config;
@@ -265,6 +276,8 @@ export class WorkerHost {
         ...(output.mentionCatalog && { mentionCatalog: output.mentionCatalog }),
         ...(output.fileSearch && { fileSearch: output.fileSearch }),
         ...(output.generatedText !== undefined && { generatedText: output.generatedText }),
+        ...(output.gitRefs && { gitRefs: output.gitRefs }),
+        ...(output.worktree && { worktree: output.worktree }),
       };
 
       if (!NOT_REMEMBERED.has(command.kind.case)) await this.#remember(result);

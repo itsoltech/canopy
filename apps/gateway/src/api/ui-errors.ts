@@ -10,6 +10,7 @@ import {
   QueueConflict,
   ScheduleConflict,
   SettingsConflict,
+  WorktreeSettingsConflict,
 } from "../store/index.ts";
 
 export async function guard<A>(run: () => Promise<A>): Promise<A> {
@@ -71,7 +72,8 @@ export function toConnectError(cause: unknown): ConnectError {
     error instanceof SettingsConflict ||
     error instanceof InstanceConflict ||
     error instanceof QueueConflict ||
-    error instanceof ScheduleConflict
+    error instanceof ScheduleConflict ||
+    error instanceof WorktreeSettingsConflict
   )
     return new ConnectError(error.message, Code.FailedPrecondition);
   const constraint = constraintOf(error ?? cause);
@@ -95,7 +97,8 @@ export function unwrap(cause: unknown) {
       current instanceof SettingsConflict ||
       current instanceof ScheduleConflict ||
       current instanceof QueueConflict ||
-      current instanceof InstanceConflict
+      current instanceof InstanceConflict ||
+      current instanceof WorktreeSettingsConflict
     ) {
       return current;
     }

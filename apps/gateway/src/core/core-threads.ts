@@ -14,6 +14,7 @@ import { coreWorkers } from "./core-providers.ts";
 import { coreAutoTitle, coreUiThread } from "./core-titles.ts";
 import { coreBroadcastThread, coreRun } from "./core-broadcast.ts";
 import { coreAnnounceSchedule } from "./core-schedules.ts";
+import { coreNameBranchLater, corePrepareWorkspace } from "../worktrees/core-worktrees.ts";
 
 /**
  * The worker's last report (ConfigApplied) must offer the provider and the profile for it. A worker that
@@ -83,6 +84,9 @@ export async function coreForkRequest(
     instructions: from.settings.instructions ?? "",
     fork: false,
     title: request.title.trim() || `Fork of ${from.title}`,
+    // The fork works in the source's worktree (docs/worktrees.md).
+    workspaceMode: from.worktree_id ? ui.WorkspaceMode.EXISTING_WORKTREE : ui.WorkspaceMode.CHECKOUT,
+    worktreeId: from.worktree_id ?? "",
   });
 }
 
@@ -220,18 +224,24 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     input: ui.CreateThreadRequest,
     remoteParent?: { ref: string; kind: string; instructions: string; interactions: string },
   ): Promise<ui.Thread> {
-    const request = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(this, input) : input;
-    await coreCheckProvider(this, request);
+    const asked = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(this, input) : input;
+    await coreCheckProvider(this, asked);
 
     const where = {
-      workspaceId: request.workspaceId,
-      provider: request.provider,
-      profileId: request.providerProfileId,
+      workspaceId: asked.workspaceId,
+      provider: asked.provider,
+      profileId: asked.providerProfileId,
     };
 
-    await coreCheckModel(this, where, request.model, request.effort);
+    await coreCheckModel(this, where, asked.model, asked.effort);
     // A model without efforts keeps none as the thread's default.
-    const effort = turnEffort((await coreProfileModels(this, where)).models, request.model, request.effort);
+    const effort = turnEffort((await coreProfileModels(this, where)).models, asked.model, asked.effort);
+    // A new worktree is made before the thread, which then works in it (docs/worktrees.md).
+    const prepared = await corePrepareWorkspace(this, asked);
+    const request = prepared.request;
+
+    const nameBranch = (row: ThreadRow) =>
+      prepared.nameLater && coreNameBranchLater(this, row, request.initialMessage, prepared.nameLater);
 
     if (request.initialAttachmentIds.length === 0 && request.initialMentions.length === 0) {
       const row = await coreRun(this, (s) =>
@@ -252,6 +262,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
       }
 
       await coreStartThread(this, row);
+      nameBranch(row);
 
       if (request.initialMessage.trim()) coreAutoTitle(this, row.id, titleContext({ text: request.initialMessage }));
 
@@ -303,6 +314,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     }
 
     await coreStartThread(this, row);
+    nameBranch(row);
 
     // A /goal first message: the new thread's goal (Claude: its /goal turn; Codex: thread/goal/set after the thread).
     if (goal !== undefined)

@@ -1,5 +1,7 @@
 export { SettingsConflict, SettingsStore } from "./settings.ts";
 
+export { WorktreeSettingsConflict, type WorktreeRow } from "./worktrees.ts";
+
 export {
   AgentBusStore,
   ScheduleConflict,

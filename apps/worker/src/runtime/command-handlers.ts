@@ -11,6 +11,12 @@ export class CommandHandlers {
 
     if (kind.case === "listDirectory") return this.ctx.ops.listDirectory(kind.value.path);
 
+    if (kind.case === "listGitRefs") return this.ctx.ops.listGitRefs(kind);
+
+    if (kind.case === "createWorktree") return this.ctx.ops.createWorktree(kind);
+
+    if (kind.case === "renameWorktreeBranch") return this.ctx.ops.renameWorktreeBranch(kind);
+
     if (kind.case === "installCli") {
       try {
         await this.ctx.state.cli.start(kind.value);

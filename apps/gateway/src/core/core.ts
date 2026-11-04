@@ -53,6 +53,7 @@ import { coreThreadsMethods, type CoreThreadsMethods } from "./core-threads.ts";
 import { coreTitlesMethods, type CoreTitlesMethods } from "./core-titles.ts";
 import { coreWatchMethods, type CoreWatchMethods } from "./core-watch.ts";
 import { coreWorkLoopMethods, type CoreWorkLoopMethods } from "./core-work-loop.ts";
+import { coreWorktreesMethods, type CoreWorktreesMethods } from "../worktrees/core-worktrees.ts";
 
 export {
   describeError,
@@ -140,6 +141,9 @@ export class GatewayCore {
   declare setScheduleStatus: CoreSchedulesMethods["setScheduleStatus"];
   declare setGoal: CoreGoalsMethods["setGoal"];
   declare stopBackgroundTask: CoreGoalsMethods["stopBackgroundTask"];
+  declare getWorktreeSettings: CoreWorktreesMethods["getWorktreeSettings"];
+  declare updateWorktreeSettings: CoreWorktreesMethods["updateWorktreeSettings"];
+  declare listGitRefs: CoreWorktreesMethods["listGitRefs"];
   declare threadsChanged: CoreBroadcastMethods["threadsChanged"];
   declare botAction: CoreBroadcastMethods["botAction"];
 
@@ -344,6 +348,7 @@ for (const methods of [
   coreSchedulesMethods,
   coreGoalsMethods,
   coreBroadcastMethods,
+  coreWorktreesMethods,
 ]) {
   const descriptors = Object.getOwnPropertyDescriptors(methods);
 

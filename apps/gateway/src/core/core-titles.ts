@@ -50,6 +50,27 @@ export function coreLaunchTitle(hostContext: GatewayCore, thread: ThreadRow): vo
 }
 
 export async function coreGenerateTitle(hostContext: GatewayCore, thread: ThreadRow): Promise<void> {
+  const text = await coreGenerateText(hostContext, thread, (settings) =>
+    titlePrompt(thread.title_context, settings?.threadTitleInstructions),
+  );
+
+  const title = sanitizeTitle(text);
+
+  if (!title) throw new Error("text generation returned an empty title");
+  // The job's end broadcasts the thread: the new title and the end of "generating" arrive together.
+  await coreRun(hostContext, (s) => s.finishTitle(thread.id, thread.title_revision, title));
+}
+
+/**
+ * One generation for a thread (titles, branch names): the instance, model and effort of Settings → Text
+ * generation, else a small model of the thread's instance; on the thread's worker when it can, else another
+ * online worker with that instance.
+ */
+export async function coreGenerateText(
+  hostContext: GatewayCore,
+  thread: Pick<ThreadRow, "owner_user_id" | "provider" | "provider_profile_id" | "worker_id" | "settings">,
+  prompt: (settings: ui.TextGenerationSettings | undefined) => string,
+): Promise<string> {
   const settings = (await coreSettings(hostContext, (s) => s.user(thread.owner_user_id))).textGeneration;
   const explicit = !!settings?.model;
   const provider = explicit ? settings!.provider : providerOf(thread.provider);
@@ -82,18 +103,15 @@ export async function coreGenerateTitle(hostContext: GatewayCore, thread: Thread
         provider,
         profileId,
         ...choice,
-        prompt: titlePrompt(thread.title_context, settings?.threadTitleInstructions),
+        prompt: prompt(settings),
       },
     },
     32_000,
   );
 
   if (!result.ok) throw new Error("text generation failed");
-  const title = sanitizeTitle(result.generatedText);
 
-  if (!title) throw new Error("text generation returned an empty title");
-  // The job's end broadcasts the thread: the new title and the end of "generating" arrive together.
-  await coreRun(hostContext, (s) => s.finishTitle(thread.id, thread.title_revision, title));
+  return result.generatedText;
 }
 
 export interface CoreTitlesMethods {

@@ -15,6 +15,7 @@
     detailClass,
     class: className,
     leading,
+    trailing,
   }: {
     title: string;
     /** The line under the name. */
@@ -26,6 +27,8 @@
     detailClass?: ClassValue;
     class?: ClassValue;
     leading?: Snippet;
+    /** Right of the name, instead of `status` (e.g. badges). */
+    trailing?: Snippet;
   } = $props();
 </script>
 
@@ -40,7 +43,9 @@
         {detail}
       </p>{/if}
   </div>
-  {#if status}
+  {#if trailing}
+    <div class="flex h-lh shrink-0 items-center gap-1">{@render trailing()}</div>
+  {:else if status}
     <div class="flex h-lh shrink-0 items-center">
       <p class="text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{status}</p>
     </div>

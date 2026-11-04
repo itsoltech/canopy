@@ -15,6 +15,7 @@ import { settingsHandlers } from "./ui-settings.ts";
 import { threadsHandlers } from "./ui-threads.ts";
 import { workersHandlers } from "./ui-workers.ts";
 import { agentEnvironmentHandlers } from "./ui-agent-environment.ts";
+import { worktreesHandlers } from "./ui-worktrees.ts";
 
 export { toConnectError } from "./ui-errors.ts";
 
@@ -41,5 +42,6 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     ...providersHandlers(core),
     ...attachmentsHandlers(core),
     ...queueHandlers(core),
+    ...worktreesHandlers(core),
   };
 }

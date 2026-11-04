@@ -157,6 +157,8 @@ message Hello {
   string home_directory = 14;
   NetworkRouteStatus network_route_status = 15;
   string environment_kind = 820; // desktop | server; reported by the actual worker launch
+  // Zarządzany korzeń worktree: <data_dir>/worktrees (capability "worktrees", docs/worktrees.md).
+  string worktrees_root = 16;
 }
 
 message RunningTurn {
@@ -373,6 +375,10 @@ message Command {
     SearchFiles search_files = 141;
     // Nietrwałe zapytanie: bez wątku platformy, outboxa ani journala.
     GenerateText generate_text = 200;
+    // Git worktrees (capability "worktrees", docs/worktrees.md). Nietrwałe: nigdy z outboxa.
+    ListGitRefs list_git_refs = 210;
+    CreateWorktree create_worktree = 211;
+    RenameWorktreeBranch rename_worktree_branch = 212;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
   }
@@ -583,6 +589,10 @@ message CommandResult {
   MentionCatalog mention_catalog = 140;
   FileSearchResult file_search = 141;
   string generated_text = 200;
+  // Wynik ListGitRefs.
+  GitRefs git_refs = 210;
+  // Wynik CreateWorktree i RenameWorktreeBranch.
+  WorktreeInfo worktree = 211;
 }
 
 message GenerateText {
@@ -1371,4 +1381,69 @@ message CliInstallProgress {
   string install_id = 1;
   Provider provider = 2;
   repeated string lines = 3;
+}
+
+// ---------- Git worktrees (docs/worktrees.md) ----------
+
+// Refy repozytorium, w którym leży repo_path (absolutny istniejący katalog).
+message ListGitRefs {
+  string repo_path = 1;
+  // Remote gałęzi domyślnej, gdy brak <remote>/HEAD (pusty = origin).
+  string remote = 2;
+}
+
+message GitRef {
+  // Krótka nazwa: main, feat/x albo origin/main.
+  string name = 1;
+  bool remote = 2;
+  string commit = 3;
+  // Śledzona gałąź zdalna (tylko lokalne), np. origin/main.
+  string upstream = 4;
+  google.protobuf.Timestamp committed_at = 5;
+}
+
+message GitRefs {
+  // Fałsz: katalog nie jest w repozytorium git (reszta pusta).
+  bool is_repo = 1;
+  string repo_root = 2;
+  // Pusty przy odłączonym HEAD.
+  string current_branch = 3;
+  string default_branch = 4;
+  repeated GitRef refs = 5;
+  // Checkout ma niezatwierdzone zmiany.
+  bool dirty = 6;
+}
+
+// Nowy worktree z nową gałęzią. Ścieżkę liczy worker: <location | worktrees_root>/<repo>/<gałąź>.
+message CreateWorktree {
+  string repo_path = 1;
+  // Ref bazowy (gałąź lokalna albo zdalna); pusty = gałąź domyślna.
+  string base_ref = 2;
+  // Żądana nazwa gałęzi; zajęta dostaje przyrostek -2, -3, ...
+  string branch = 3;
+  // Absolutny folder z ustawień; pusty = worktrees_root.
+  string location = 4;
+  // Najpierw najnowszy commit śledzonej gałęzi zdalnej (albo <remote>/<base>), z fetch; inaczej lokalny ref.
+  bool start_from_remote = 5;
+  string remote = 6;
+}
+
+// Zmiana nazwy gałęzi worktree (pod korzeniem), tylko gdy nadal jest w nim wybrana i nie ma upstreamu.
+message RenameWorktreeBranch {
+  string path = 1;
+  string from_branch = 2;
+  string to_branch = 3;
+  string location = 4;
+}
+
+message WorktreeInfo {
+  string path = 1;
+  string branch = 2;
+  string repo_root = 3;
+  // Rozstrzygnięta baza: ref i commit, od którego wyszła gałąź.
+  string base_ref = 4;
+  string base_commit = 5;
+  // Fałsz przy RenameWorktreeBranch, gdy nazwa została (powód w detail).
+  bool renamed = 6;
+  string detail = 7;
 }

@@ -7,6 +7,7 @@ import { harnessOf } from "./instance-config.ts";
 import type { TurnRow } from "./rows.ts";
 import { permissionModeName } from "./ui-mappers.ts";
 import type { ThreadStore } from "./threads-store.ts";
+import type { WorktreeStore } from "./worktrees.ts";
 
 /**
  * The turn a fork starts after (CreateThreadRequest.fork_at_turn_id): in the visible history of the thread
@@ -56,7 +57,7 @@ const forkPoint = (sql: SqlClient.SqlClient, ownerUserId: string, request: ui.Cr
 
 export function threadCreation(
   sql: SqlClient.SqlClient,
-  self: () => Pick<ThreadStore, "thread">,
+  self: () => Pick<ThreadStore, "thread"> & Pick<WorktreeStore, "ownWorktree">,
 ): Pick<ThreadStore, "createThread"> {
   return {
     createThread: (ownerUserId, request, movedId) =>
@@ -128,7 +129,24 @@ export function threadCreation(
             return yield* Effect.fail(new Invalid("a new no-project thread gets its own scratch directory"));
           }
 
-          const requested = request.cwd ? normalizePath(request.cwd, style) : undefined;
+          // A git worktree (docs/worktrees.md): the core made it (or the user chose one) before; it is the owner's,
+          // in this project and workspace. Side threads stay in their parent's directory and worktree.
+          const worktreeMode = [ui.WorkspaceMode.NEW_WORKTREE, ui.WorkspaceMode.EXISTING_WORKTREE].includes(
+            request.workspaceMode,
+          );
+
+          if (worktreeMode && !parent && workspace.project_kind === "scratch")
+            return yield* Effect.fail(new Invalid("a no-project thread has no repository for a worktree"));
+
+          if (worktreeMode && !parent && !request.worktreeId)
+            return yield* Effect.fail(new Invalid("choose a worktree for the thread"));
+
+          const worktree =
+            worktreeMode && !parent
+              ? yield* self().ownWorktree(ownerUserId, request.worktreeId, workspace.project_id, workspace.id)
+              : undefined;
+
+          const requested = !worktree && !inherited && request.cwd ? normalizePath(request.cwd, style) : undefined;
 
           if (
             (workspace.project_kind !== "scratch" || !inherited) &&
@@ -140,6 +158,7 @@ export function threadCreation(
           }
 
           const cwd =
+            worktree?.path ??
             inherited?.cwd ??
             (workspace.project_kind === "scratch"
               ? scratchCwd(workspace.root_path, id, style)
@@ -154,11 +173,13 @@ export function threadCreation(
 
           yield* sql`
                   INSERT INTO threads (id, project_id, owner_user_id, kind, parent_thread_id, root_thread_id, depth, runtime, provider,
-                                       provider_profile_id, worker_id, workspace_id, cwd, fork_source_thread_id, fork_after_turn_id, settings, status, title, title_source)
+                                       provider_profile_id, worker_id, workspace_id, cwd, fork_source_thread_id, fork_after_turn_id, settings, status, title, title_source,
+                                       worktree_id)
                   VALUES (${id}::uuid, ${workspace.project_id}::uuid, ${ownerUserId}::uuid, ${parent ? "side" : "main"},
                           ${parent?.id ?? null}::uuid, ${parent?.root_thread_id ?? id}::uuid, ${parent ? parent.depth + 1 : 0}, 'worker', ${provider},
                           ${request.providerProfileId && request.providerProfileId !== "native" ? request.providerProfileId : null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${cwd},
-                          ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || request.initialMessage.trim().split("\n")[0]?.slice(0, 60) || "New thread"}, ${request.title.trim() ? "user" : "provisional"})`;
+                          ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || request.initialMessage.trim().split("\n")[0]?.slice(0, 60) || "New thread"}, ${request.title.trim() ? "user" : "provisional"},
+                          ${worktree?.id ?? parent?.worktree_id ?? null}::uuid)`;
 
           if (request.initialMessage.trim()) {
             yield* sql`

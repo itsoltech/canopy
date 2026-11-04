@@ -290,6 +290,7 @@ while (!stopping.signal.aborted) {
         // probe_providers, codex_device_login: provider instances are checked again and sign in from the app.
         // attachments: turns may carry files (fetched with FetchBlob into attachments_root).
         // cli_install: provider CLIs are reported (CliToolsReport) and installed on demand (InstallCli).
+        // worktrees: git refs and worktrees of workspaces (docs/worktrees.md), under worktrees_root by default.
         capabilities: [
           "running_turns",
           "attachments",
@@ -302,7 +303,9 @@ while (!stopping.signal.aborted) {
           "agent_environment_v1",
           "agent_skills_v1",
           "agent_plugins_v1",
+          "worktrees",
         ],
+        worktreesRoot: host.worktreesRoot,
         attachmentsRoot: host.attachmentsRoot,
         scratchRoot: join(dataDir, "scratch"),
         homeDirectory: homedir(),

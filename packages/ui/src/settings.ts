@@ -46,6 +46,13 @@ export const settingsSections: readonly SettingsSection[] = [
     keywords: "project workspace directory threads",
   },
   {
+    href: "/settings/worktrees",
+    label: "Worktrees",
+    icon: "git-fork",
+    group: "Code",
+    keywords: "git worktree branch base ref remote prefix semantic checkout location",
+  },
+  {
     href: "/settings/providers",
     label: "Providers",
     icon: "cpu-chip",

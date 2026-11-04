@@ -88,13 +88,14 @@ const spawn = (
       yield* sql`
             INSERT INTO threads (id, project_id, owner_user_id, kind, parent_thread_id, root_thread_id, depth, origin, spawned_by_call_id,
                                  interaction_route, runtime, provider, provider_profile_id, worker_id, workspace_id, cwd,
-                                 fork_source_thread_id, settings, status, title)
+                                 fork_source_thread_id, settings, status, title, worktree_id)
             VALUES (${id}::uuid, ${caller.project_id}::uuid, ${caller.owner_user_id}::uuid, 'side', ${caller.id}::uuid,
                     ${caller.root_thread_id}::uuid, ${caller.depth + 1}, 'agent', ${source.callId}::uuid,
                     ${args.interactions ?? "parent"}, 'worker', ${target.harness},
                     ${target.instance && target.instance !== "native" ? target.instance : null},
                     ${caller.worker_id}::uuid, ${caller.workspace_id}::uuid, ${caller.cwd},
-                    ${args.fork ? caller.id : null}::uuid, ${JSON.stringify(settings)}::jsonb, 'creating', ${args.title.trim()})`;
+                    ${args.fork ? caller.id : null}::uuid, ${JSON.stringify(settings)}::jsonb, 'creating', ${args.title.trim()},
+                    ${caller.worktree_id ?? null}::uuid)`;
 
       const input: TurnInput = {
         note:

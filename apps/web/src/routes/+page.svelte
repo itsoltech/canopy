@@ -28,6 +28,9 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import TextLink from "#lib/shared/ui/TextLink.svelte";
+  import RefPicker from "#lib/features/worktrees/RefPicker.svelte";
+  import WorkspacePicker from "#lib/features/worktrees/WorkspacePicker.svelte";
+  import { WorkspaceDraft } from "#lib/features/worktrees/workspace-draft.svelte.ts";
   import type { PageProps } from "./$types";
 
   /**
@@ -76,6 +79,14 @@
   });
 
   const worker = $derived(overview.worker(workspace?.workerId ?? ""));
+
+  // Checkout, new worktree or a previous one, and the base ref (docs/worktrees.md): when the worker offers worktrees.
+  const place = new WorkspaceDraft(() =>
+    workspace && project?.kind !== "scratch"
+      ? { workspaceId: workspace.id, ready: Boolean(worker?.online && worker.worktrees && !worker.nodeId) }
+      : undefined,
+  );
+
   const pickProject = (next: ui.Project) => (picks = { requested, projectId: next.id });
   const pickWorkspace = (next: ui.Workspace) => (picks = { requested, projectId: project?.id, workspaceId: next.id });
   const defaultProvider = $derived(providerKeyOf(defaults.provider));
@@ -126,11 +137,18 @@
   let mentions = $state<Mention[]>([]);
 
   // Mentions of the first message: commands, skills and files of the chosen worker, folder and agent.
-  const sources = new MentionSources(() =>
-    workspace && selected
-      ? { workspaceId: workspace.id, provider: Provider[selected.provider], providerProfileId: selected.profileId }
-      : undefined,
-  );
+  const sources = new MentionSources(() => {
+    const choice = place.choice;
+
+    return workspace && selected
+      ? {
+          workspaceId: workspace.id,
+          provider: Provider[selected.provider],
+          providerProfileId: selected.profileId,
+          cwd: choice.kind === "existing" ? choice.worktree.path : "",
+        }
+      : undefined;
+  });
 
   // Files of the first message (uploaded as added; their ids go with the form).
   const draft = new AttachmentDraft(() => limitsOf(settings.attachmentLimits));
@@ -144,6 +162,8 @@
     if (!workspace) return "no-worker" as const;
 
     if (!worker?.online) return "offline" as const;
+
+    if (place.loading) return "workspace-loading" as const;
 
     if (!selected) return "no-agent" as const;
 
@@ -203,6 +223,9 @@
           <input type="hidden" name="effort" value={sentEffort} />
           <input type="hidden" name="workspaceId" value={workspace?.id ?? ""} />
           <input type="hidden" name="permissionMode" value={permissionMode} />
+          <input type="hidden" name="workspaceMode" value={place.form.workspaceMode} />
+          <input type="hidden" name="baseRef" value={place.form.baseRef} />
+          <input type="hidden" name="worktreeId" value={place.form.worktreeId} />
           {#each draft.ids as id (id)}<input type="hidden" name="attachmentId" value={id} />{/each}
           {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
           <ComposerBox
@@ -229,7 +252,7 @@
               {/if}
             {/snippet}
             {#snippet meta()}
-              <span class="-ml-2 flex min-w-0 items-center gap-0.5">
+              <span class="-ml-2 flex min-w-0 flex-wrap items-center gap-0.5">
                 <ProjectPicker
                   projects={overview.projects}
                   value={project.id}
@@ -237,12 +260,36 @@
                   class="max-w-48 sm:max-w-56"
                 />
                 <WorkerPicker {project} value={workspace?.id} onselect={pickWorkspace} />
+                {#if place.gitRefs}
+                  <WorkspacePicker
+                    choice={place.choice}
+                    worktrees={place.worktrees}
+                    onselect={(choice) => place.choose(choice)}
+                  />
+                  <RefPicker
+                    refs={place.gitRefs}
+                    branch={place.branch}
+                    editable={place.choice.kind === "new"}
+                    onselect={(ref) => place.chooseBase(ref.name)}
+                  />
+                {/if}
               </span>
               <PermissionPicker value={permissionMode} onselect={(mode) => (permission = mode)} class="-mr-1.5" />
             {/snippet}
           </ComposerBox>
           {#if draft.blocker && !blocker}
             <ComposerNotice>{draft.blocker}</ComposerNotice>
+          {/if}
+          {#if place.loading}
+            <ComposerNotice>Loading workspace options…</ComposerNotice>
+          {:else if place.error}
+            <ComposerNotice tone="warning">{place.error}. Using the current checkout.</ComposerNotice>
+          {/if}
+          {#if worker?.nodeId && project.kind !== "scratch"}
+            <ComposerNotice
+              >Worktrees on linked computers are not supported yet. Open Canopy on the workspace's home computer to use
+              one.</ComposerNotice
+            >
           {/if}
           {#if blocker === "no-worker"}
             <ComposerNotice>

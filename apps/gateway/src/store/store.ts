@@ -12,6 +12,7 @@ import { turnStore, type TurnStore } from "./turns-store.ts";
 import { threadSnapshot, type ThreadSnapshotStore } from "./thread-snapshot.ts";
 import { outboxStore, type OutboxStore } from "./outbox.ts";
 import { interactionStore, type InteractionStore } from "./interactions-store.ts";
+import { worktreeStore, type WorktreeStore } from "./worktrees.ts";
 
 /**
  * Gateway data access (PostgreSQL). One service, grouped by concern; every query casts uuid
@@ -42,6 +43,7 @@ export class GatewayStore extends Context.Service<
     ThreadSnapshotStore &
     OutboxStore &
     InteractionStore &
+    WorktreeStore &
     ThreadLifecycle
 >()("canopy/gateway/GatewayStore") {
   static readonly layer = (secretsKey: Buffer) =>
@@ -63,6 +65,7 @@ export class GatewayStore extends Context.Service<
           ...threadSnapshot(sql, () => store),
           ...outboxStore(sql),
           ...interactionStore(sql, () => store),
+          ...worktreeStore(sql),
         };
 
         return GatewayStore.of(store);

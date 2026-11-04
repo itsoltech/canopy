@@ -187,6 +187,10 @@ service GatewayService {
   // Załączniki (sekcja na końcu pliku): plik użytkownika do wiadomości, jego bajty i podglądy obrazów z transkryptu.
   rpc UploadAttachment(UploadAttachmentRequest) returns (UploadAttachmentResponse);
   rpc GetAttachment(GetAttachmentRequest) returns (GetAttachmentResponse);
+  // Git worktrees (docs/worktrees.md): ustawienia w zakresach, refy i worktree workspace'u dla kompozytora.
+  rpc GetWorktreeSettings(GetWorktreeSettingsRequest) returns (WorktreeSettingsResponse);
+  rpc UpdateWorktreeSettings(UpdateWorktreeSettingsRequest) returns (WorktreeSettingsResponse);
+  rpc ListGitRefs(ListGitRefsRequest) returns (ListGitRefsResponse);
   rpc GetThreadBlob(GetThreadBlobRequest) returns (GetThreadBlobResponse);
 
   // Kolejka (sekcja na końcu pliku): wiadomości czekające za turą w toku — kolejność, edycja, usunięcie
@@ -328,6 +332,8 @@ message Worker {
   // Worker innego komputera (id kwalifikowane), pusty = ten komputer.
   string node_id = 802;
   canopy.worker.v1.NetworkRouteStatus network_route_status = 803;
+  // Worker obsługuje git worktrees (capability "worktrees", docs/worktrees.md).
+  bool worktrees = 804;
 }
 
 message Project {
@@ -441,6 +447,8 @@ message Thread {
   uint32 schedule_run = 292;
   // Numery od 800: dom wątku na innym komputerze (id kwalifikowane, docs/linked-computers.md), pusty = ten komputer.
   string node_id = 800;
+  // Numery od 900: git worktree wątku (docs/worktrees.md); nieustawione = bieżący checkout workspace'u.
+  ThreadWorktree worktree = 900;
 }
 
 // Wątek agenta, od którego przyszło wejście tury albo steer (zadanie, wiadomość, raport): do oznaczenia wiadomości
@@ -771,6 +779,12 @@ message CreateThreadRequest {
   string fork_at_turn_id = 190;
   // Wątek, z którego użytkownik forkuje (pusty = parent_thread_id).
   string fork_thread_id = 191;
+  // Numery od 900: git worktree (docs/worktrees.md). UNSPECIFIED = bieżący checkout (jak dotąd).
+  WorkspaceMode workspace_mode = 900;
+  // NEW_WORKTREE: ref bazowy nowej gałęzi (pusty = gałąź domyślna).
+  string base_ref = 901;
+  // EXISTING_WORKTREE: rekord worktree tego projektu i workspace'u.
+  string worktree_id = 902;
 }
 
 message CreateThreadResponse {
@@ -1875,3 +1889,94 @@ message DeleteThreadResponse {
   repeated string thread_ids = 1;
 }
 message RestoreThreadRequest { string thread_id = 1; }
+
+// ---------- Git worktrees (docs/worktrees.md) ----------
+
+enum WorkspaceMode {
+  WORKSPACE_MODE_UNSPECIFIED = 0;
+  // Katalog workspace'u (bieżący checkout).
+  WORKSPACE_MODE_CHECKOUT = 1;
+  WORKSPACE_MODE_NEW_WORKTREE = 2;
+  WORKSPACE_MODE_EXISTING_WORKTREE = 3;
+}
+
+enum BranchNaming {
+  BRANCH_NAMING_UNSPECIFIED = 0;
+  // Model wybiera feat/..., fix/..., refactor/... z pierwszej wiadomości.
+  BRANCH_NAMING_SEMANTIC = 1;
+  // <prefix>/<slug pierwszej wiadomości>.
+  BRANCH_NAMING_PREFIX = 2;
+  // Slug tytułu wątku.
+  BRANCH_NAMING_TITLE = 3;
+}
+
+message ThreadWorktree {
+  string id = 1;
+  string branch = 2;
+  string path = 3;
+  string base_ref = 4;
+  string repo_root = 5;
+  google.protobuf.Timestamp created_at = 6;
+  string worker_id = 7;
+}
+
+// Nieustawione pole (UNSPECIFIED / brak optional) = dziedziczone z szerszego zakresu.
+message WorktreeSettings {
+  optional string location = 1;
+  optional bool start_from_remote = 2;
+  optional string remote = 3;
+  BranchNaming branch_naming = 4;
+  optional string branch_prefix = 5;
+  WorkspaceMode default_mode = 6;
+}
+
+// Zakres: puste project_id = All projects, puste worker_id = All computers.
+message GetWorktreeSettingsRequest {
+  string project_id = 1;
+  string worker_id = 2;
+}
+
+message UpdateWorktreeSettingsRequest {
+  string project_id = 1;
+  string worker_id = 2;
+  // Nadpisania zakresu (zastępują zapisane w całości).
+  WorktreeSettings settings = 3;
+  // Wersja zakresu, od której klient zaczął (0 = zakres jeszcze nie istnieje); konflikt = FailedPrecondition.
+  uint64 expected_version = 4;
+}
+
+message WorktreeSettingsResponse {
+  string project_id = 1;
+  string worker_id = 2;
+  // Nadpisania tego zakresu.
+  WorktreeSettings settings = 3;
+  // Wartości z szerszych zakresów i domyślne (wszystkie pola ustawione).
+  WorktreeSettings inherited = 4;
+  // Wynik: inherited z nadpisaniami tego zakresu.
+  WorktreeSettings effective = 5;
+  uint64 version = 6;
+  // Źródło dziedziczonej wartości każdego pola; brak źródła = wbudowane domyślne.
+  repeated WorktreeSettingSource inherited_sources = 7;
+}
+
+message WorktreeSettingSource {
+  // Nazwa pola JSON WorktreeSettings, np. startFromRemote.
+  string field = 1;
+  string project_id = 2;
+  string worker_id = 3;
+}
+
+message ListGitRefsRequest {
+  string workspace_id = 1;
+}
+
+message ListGitRefsResponse {
+  // Fałsz: worker bez capability "worktrees" (powód w detail); reszta pusta.
+  bool supported = 1;
+  string detail = 2;
+  canopy.worker.v1.GitRefs refs = 3;
+  // Wcześniejsze worktree tego projektu na tym workerze, od ostatnio używanego.
+  repeated ThreadWorktree worktrees = 4;
+  // Efektywne ustawienia projektu × workera (m.in. domyślny tryb).
+  WorktreeSettings settings = 5;
+}

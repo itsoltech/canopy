@@ -1,8 +1,8 @@
-import { create, type Message } from "@bufbuild/protobuf";
+import { create } from "@bufbuild/protobuf";
 import { bots, computerLink as link, ui } from "@canopy/contracts";
 import { nodeRef, splitId } from "@canopy/domain/computers";
 import { Code, ConnectError, createHandlerContext } from "@connectrpc/connect";
-import { linkedMessage, mapIds, methodNamed, nodesOf, SERVED, type RemoteServe } from "../computers/remote.ts";
+import { linkedMessage, mapIds, methodNamed, SERVED, type RemoteServe } from "../computers/remote.ts";
 import type { SharedHost } from "../computers/shared.ts";
 import type { GatewayCore } from "../core/core.ts";
 import {
@@ -10,6 +10,7 @@ import {
   globalIds,
   redirected,
   refuseFrozen,
+  refuseForeignAdministration,
   single,
   stream,
   target,
@@ -21,6 +22,7 @@ import { forward, peerOf } from "./routed-home.ts";
 import { absorb, gather, watchOverview } from "./routed-overview.ts";
 import { toConnectError } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
+import { refuseRemoteWorktree } from "../worktrees/remote.ts";
 
 export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   // SAFETY: Each entry is invoked with the request decoded by its own GatewayService method descriptor.
@@ -32,16 +34,11 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
 
     if (!SERVED.has(method.name)) {
       // Settings, credentials and administration stay per computer in this stage.
-      const refuse = (request: Message) => {
-        if (nodesOf(method.input, request, true).size)
-          throw new ConnectError("This isn't available for threads on another computer yet", Code.FailedPrecondition);
-      };
-
       const shared = CONFIG_WRITES.has(method.name);
       handlers[method.localName] =
         method.methodKind === "unary"
           ? async (request, context) => {
-              refuse(request);
+              refuseForeignAdministration(method, request);
               const response = await unary(handler, request, context);
 
               if (shared) void core.computers?.configChanged();
@@ -49,7 +46,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
               return response;
             }
           : async function* (request, context) {
-              refuse(request);
+              refuseForeignAdministration(method, request);
               yield* stream(handler, request, context);
             };
 
@@ -67,6 +64,8 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
 
               return unary(handler, request, context);
             }
+
+            refuseRemoteWorktree(method, request);
 
             return single(
               forward(
@@ -186,6 +185,8 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
   const own = local as Record<string, Handler>;
 
   return async function* (method, request, signal, peerNodeId) {
+    if (peerNodeId) refuseRemoteWorktree(method, request);
+
     if (core) await refuseFrozen(core, method, request);
 
     if (method.name === "CallAgentBus") {
