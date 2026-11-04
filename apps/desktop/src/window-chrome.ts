@@ -1,6 +1,8 @@
 import { BrowserWindow, type MenuItemConstructorOptions } from "electron";
 import type { DesktopWindowState } from "@canopy/ui/desktop";
 
+export { registerAppearanceIpc } from "./window-appearance.ts";
+
 export function windowState(target: BrowserWindow): DesktopWindowState {
   return { zoomFactor: target.webContents.getZoomFactor(), fullscreen: target.isFullScreen() };
 }

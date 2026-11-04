@@ -25,6 +25,8 @@ function subscribe<T>(channel: string, listener: (data: T) => void) {
 
 const bridge: DesktopBridge = {
   platform: process.platform,
+  startupAppearance: ipcRenderer.sendSync("canopy:appearance-startup"),
+  setAppearance: (appearance) => ipcRenderer.invoke("canopy:appearance", appearance),
   windowState: () => ipcRenderer.invoke("canopy:window-state"),
   onWindowState: (listener) => subscribe<DesktopWindowState>("canopy:window-state", listener),
   status: () => ipcRenderer.invoke("canopy:status"),

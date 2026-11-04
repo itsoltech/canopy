@@ -84,7 +84,13 @@ export async function sharedWrite(
       if (key.section === "appearance") {
         const a = fromJson(ui.AppearanceSettingsSchema, payload, { ignoreUnknownFields: true });
         request.appearance = clone(ui.AppearanceSettingsSchema, user.appearance ?? create(ui.AppearanceSettingsSchema));
-        Object.assign(request.appearance, { colorScheme: a.colorScheme, accent: a.accent, chatWidth: a.chatWidth });
+        Object.assign(request.appearance, {
+          colorScheme: a.colorScheme,
+          accent: a.accent,
+          lightTheme: a.lightTheme,
+          darkTheme: a.darkTheme,
+          chatWidth: a.chatWidth,
+        });
       } else if (key.section === "thread_defaults") {
         request.threadDefaults = fromJson(ui.ThreadDefaultsSchema, payload, { ignoreUnknownFields: true });
         request.threadDefaults.workspaceId = user.threadDefaults?.workspaceId ?? "";
@@ -216,7 +222,13 @@ export const sharedValuesMethods: SharedValuesMethods = {
       payload = payloadObject(
         toJson(
           ui.AppearanceSettingsSchema,
-          create(ui.AppearanceSettingsSchema, { colorScheme: a.colorScheme, accent: a.accent, chatWidth: a.chatWidth }),
+          create(ui.AppearanceSettingsSchema, {
+            colorScheme: a.colorScheme,
+            accent: a.accent,
+            lightTheme: a.lightTheme,
+            darkTheme: a.darkTheme,
+            chatWidth: a.chatWidth,
+          }),
         ),
       );
     } else if (key.section === "thread_defaults") {

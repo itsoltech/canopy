@@ -1101,12 +1101,25 @@ enum ChatWidth {
   CHAT_WIDTH_FULL = 3;
 }
 
+// Pełne palety interfejsu; niezależny wybór dla jasnego i ciemnego schematu.
+enum ColorTheme {
+  COLOR_THEME_UNSPECIFIED = 0; // odczytaj dotychczasowy accent
+  COLOR_THEME_BIRCH = 1;
+  COLOR_THEME_FERN = 2;
+  COLOR_THEME_LAGOON = 3;
+  COLOR_THEME_CEDAR = 4;
+  COLOR_THEME_HEATHER = 5;
+  COLOR_THEME_BLOSSOM = 6;
+}
+
 message AppearanceSettings {
   ColorScheme color_scheme = 1;
   AccentTheme accent = 2;
   ChatWidth chat_width = 3;
   // Panel kontekstu wątku zwinięty.
   bool thread_panel_collapsed = 4;
+  ColorTheme light_theme = 5;
+  ColorTheme dark_theme = 6;
   // Szerokość paska bocznego na desktopie w px; 0 = domyślna. Gateway przycina do granic
   // (@canopy/domain SIDEBAR_WIDTH), UI dodatkowo do szerokości okna.
   uint32 sidebar_width = 130;

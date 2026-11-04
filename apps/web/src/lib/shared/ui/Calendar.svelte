@@ -136,9 +136,7 @@
                 disabled={unavailable(day)}
                 class={[
                   "relative grid w-full place-items-center rounded-lg py-1.5 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-25 pointer-coarse:min-h-12",
-                  day === value
-                    ? "bg-brand-600 font-medium text-white dark:bg-brand-500"
-                    : "hover:bg-zinc-950/5 dark:hover:bg-white/10",
+                  day === value ? "bg-action font-medium text-on-accent" : "hover:bg-zinc-950/5 dark:hover:bg-white/10",
                   day.slice(0, 7) !== month.slice(0, 7) && day !== value && "text-zinc-400 dark:text-zinc-500",
                   day === today && day !== value && "ring-1 ring-brand-500/60 ring-inset",
                 ]}

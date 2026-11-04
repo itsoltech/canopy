@@ -131,11 +131,9 @@
     void back();
   }}
 />
-<!-- On macOS the window has no title bar: the top of the screen moves it (routes/layout.css). -->
-<div class="fixed inset-x-0 top-0 hidden h-12 macos:block" data-window-drag></div>
-<main
-  class="isolate flex min-h-dvh items-center bg-white pt-[max(3rem,var(--window-safe-top))] pb-12 text-zinc-950 dark:bg-black dark:text-white"
->
+<!-- The native title controls overlay the app: the top strip moves the desktop window (layout.css). -->
+<div class="fixed inset-x-0 top-0 hidden h-12 desktop:block" data-window-drag></div>
+<main class="isolate flex min-h-dvh items-center bg-canvas pt-[max(3rem,var(--window-safe-top))] pb-12 text-ink">
   {#if startup}
     <DesktopStartup {status} {message} retrying={busy} onretry={() => void submit()} />
   {:else}

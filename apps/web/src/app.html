@@ -1,14 +1,16 @@
 <!doctype html>
 <html
   lang="en"
-  class="dark:bg-black%canopy.dark% bg-white antialiased"
+  class="%canopy.dark% bg-canvas antialiased"
   data-color-scheme="%canopy.scheme%"
   data-accent="%canopy.accent%"
+  data-light-theme="%canopy.lightTheme%"
+  data-dark-theme="%canopy.darkTheme%"
   data-chat-width="%canopy.chatWidth%"
   data-sidebar-width="%canopy.sidebarWidth%"
   data-sidebar-collapsed="%canopy.sidebarCollapsed%"
   data-thread-panel-collapsed="%canopy.threadPanelCollapsed%"
-  style="--canopy-sidebar-width: min(45vw, %canopy.sidebarWidth%px)"
+  style="%canopy.paletteStyle%;--canopy-sidebar-width: min(45vw, %canopy.sidebarWidth%px)"
 >
   <head>
     <meta charset="utf-8" />
@@ -24,22 +26,19 @@
     <meta name="application-name" content="Canopy" />
     <style>
       html {
-        background: white;
+        background: var(--theme-canvas);
+        color: var(--theme-ink);
         color-scheme: light;
       }
       html.dark {
-        background: black;
         color-scheme: dark;
       }
       #canopy-boot {
         position: fixed;
         inset: 0;
         display: flex;
-        background: white;
+        background: var(--theme-canvas);
         z-index: 100;
-      }
-      .dark #canopy-boot {
-        background: black;
       }
       #canopy-boot aside {
         display: none;
@@ -54,10 +53,7 @@
         width: 176px;
         height: 24px;
         border-radius: 6px;
-        background: #f4f4f5;
-      }
-      .dark #canopy-boot i {
-        background: #18181b;
+        background: var(--theme-hover);
       }
       #canopy-boot section {
         max-width: 720px;
@@ -72,10 +68,7 @@
           display: block;
           width: var(--canopy-sidebar-width);
           flex-shrink: 0;
-          background: #fafafa;
-        }
-        .dark #canopy-boot aside {
-          background: #09090b;
+          background: var(--theme-panel);
         }
         html[data-sidebar-collapsed="true"] #canopy-boot aside {
           width: 0;
@@ -83,12 +76,21 @@
       }
     </style>
     <script>
-      // The server renders the saved appearance (hooks.server.ts); only "system" needs the browser's preference.
-      if (
-        document.documentElement.dataset.colorScheme === "system" &&
-        matchMedia("(prefers-color-scheme: dark)").matches
-      )
-        document.documentElement.classList.add("dark");
+      // Gateway palettes are already inline. Only the bundled desktop startup uses its chrome cache.
+      const root = document.documentElement;
+      const startup = location.pathname === "/desktop" && window.canopyDesktop?.startupAppearance;
+      if (startup) {
+        root.style.cssText += ";" + startup.style;
+        root.dataset.colorScheme = startup.scheme;
+        root.dataset.lightTheme = startup.light;
+        root.dataset.darkTheme = startup.dark;
+      }
+      const scheme = root.dataset.colorScheme;
+      root.classList.toggle(
+        "dark",
+        scheme === "dark" || (scheme === "system" && matchMedia("(prefers-color-scheme: dark)").matches),
+      );
+      document.querySelector('meta[name="color-scheme"]').content = scheme === "system" ? "light dark" : scheme;
     </script>
     <link rel="preconnect" href="https://rsms.me/" />
     <!-- The font file starts loading with the page, not after the stylesheet: fewer frames in the fallback. -->

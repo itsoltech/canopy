@@ -167,7 +167,7 @@
 <div class={["grid grid-cols-1", className]}>
   <div
     class={[
-      "relative rounded-2xl bg-white shadow-sm ring-1 has-focus-visible:ring-zinc-950/25 dark:bg-zinc-950 dark:shadow-none dark:has-focus-visible:ring-white/20",
+      "relative rounded-2xl bg-surface shadow-sm ring-1 has-focus-visible:ring-accent dark:shadow-none",
       disabled && "opacity-70",
       dragging ? "ring-2 ring-brand-600 dark:ring-brand-500" : "ring-zinc-950/10 dark:ring-white/10",
     ]}
@@ -285,7 +285,7 @@
         {:else}
           <button
             type="submit"
-            class="relative grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-white focus-ring not-disabled:hover:bg-brand-500 disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
+            class="relative grid size-9 shrink-0 place-items-center rounded-full bg-action text-on-accent focus-ring not-disabled:hover:bg-action-hover disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
             aria-label={sendLabel}
             {@attach tooltip(sendLabel, { hotkey: "Enter" })}
             disabled={disabled || !canSend || sending || !hasContent}
