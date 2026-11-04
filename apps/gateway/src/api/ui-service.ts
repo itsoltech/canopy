@@ -7,6 +7,7 @@ import { botsHandlers } from "./ui-bots.ts";
 import { computersHandlers } from "./ui-computers.ts";
 import { connectorsHandlers } from "./ui-connectors.ts";
 import { mobileHandlers } from "./ui-mobile.ts";
+import { networkHandlers } from "./ui-network.ts";
 import { projectsHandlers } from "./ui-projects.ts";
 import { providersHandlers } from "./ui-providers.ts";
 import { queueHandlers } from "./ui-queue.ts";
@@ -30,6 +31,7 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     ...workersHandlers(core),
     ...threadsHandlers(core),
     ...mobileHandlers(core),
+    ...networkHandlers(core),
     ...connectorsHandlers(core),
     ...botsHandlers(core),
     ...projectsHandlers(core),

@@ -41,7 +41,9 @@ message ComputersRequest {}
 message ComputersSnapshot {
   LinkedComputer self = 1;
   repeated LinkedComputer peers = 2;
+  // Network access is on and listening (UpdateNetworkAccess turns it on and off).
   bool listener_enabled = 3;
+  // Always true: every computer can listen (kept for older web clients).
   bool listener_available = 4;
   // Stage 6: local network discovery of linked computers (a setting of this computer).
   bool lan_discovery_enabled = 5;
@@ -59,7 +61,8 @@ message ComputerPairing {
 }
 message LinkComputerRequest { string address = 1; string code = 2; }
 message ComputerOperationRequest {
-  // rename, unlink, listener, revoke_pairing, presence, lan_discovery, add_route, remove_route.
+  // rename, unlink, revoke_pairing, presence, lan_discovery, add_route, remove_route.
+  // (The former "listener" action is UpdateNetworkAccess set_enabled.)
   // Empty node_id is self.
   string action = 1;
   string node_id = 2;

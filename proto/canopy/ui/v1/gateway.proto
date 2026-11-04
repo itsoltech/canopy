@@ -12,6 +12,7 @@ import "canopy/ui/v1/quotes.proto";
 import "canopy/ui/v1/connectors.proto";
 import "canopy/ui/v1/mobile.proto";
 import "canopy/ui/v1/computers.proto";
+import "canopy/ui/v1/network.proto";
 
 service GatewayService {
   // Safe model picker metadata for a bot, resolved at its home. No credentials or connector grants.
@@ -20,6 +21,9 @@ service GatewayService {
   rpc CreateComputerPairing(CreateComputerPairingRequest) returns (ComputerPairing);
   rpc LinkComputer(LinkComputerRequest) returns (ComputersSnapshot);
   rpc ManageComputer(ComputerOperationRequest) returns (ComputersSnapshot);
+  // Network access for phones and linked computers (restricted to the web BFF).
+  rpc GetNetworkAccess(GetNetworkAccessRequest) returns (NetworkAccess);
+  rpc UpdateNetworkAccess(UpdateNetworkAccessRequest) returns (NetworkAccess);
   rpc GetSharedConfig(SharedConfigRequest) returns (SharedConfigSnapshot);
   rpc ManageSharedConfig(SharedConfigOperation) returns (SharedConfigSnapshot);
   // Stage 8: "Move to…" for threads and bots of this computer (restricted to the web BFF).

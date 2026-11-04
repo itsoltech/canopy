@@ -14,7 +14,6 @@ export type IdentityRow = {
   name: string;
   certificate: string;
   private_key: Uint8Array;
-  listener_enabled: boolean;
   lan_discovery: boolean;
 };
 

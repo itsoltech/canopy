@@ -16,7 +16,6 @@ import {
   serviceEnvironment,
   isString,
   isWorkerStatus,
-  isLinkPort,
   isWorkerConfiguration,
 } from "./config.ts";
 import { startDatabase } from "./database.ts";
@@ -245,15 +244,6 @@ export class DesktopRuntime {
     installer.cleanup();
     const gatewayPort = await freePort();
     const workerPort = config.allowNetwork ? await freePort(config.bindHost) : undefined;
-    // Unlike loopback sidecars, peers need a stable reachable port after restart.
-    const linkPortFile = join(this.directory, "computer-link.json");
-
-    const savedLink = existsSync(linkPortFile) ? JSON.parse(readFileSync(linkPortFile, "utf8")) : undefined;
-    const savedLinkPort = isLinkPort(savedLink) ? savedLink.port : undefined;
-
-    const linkPort = config.allowNetwork ? (savedLinkPort ?? (await freePort(config.bindHost))) : undefined;
-
-    if (linkPort) this.writeJson(linkPortFile, { port: linkPort });
     const gatewayUrl = `http://127.0.0.1:${gatewayPort}`;
     const workerDirectory = join(this.directory, "local-worker");
     this.services.start({
@@ -269,11 +259,6 @@ export class DesktopRuntime {
         CANOPY_PORT: String(gatewayPort),
         CANOPY_PUBLIC_GATEWAY_URL: workerPort ? `http://${config.bindHost}:${workerPort}` : gatewayUrl,
         ...(workerPort && { CANOPY_WORKER_HOST: config.bindHost, CANOPY_WORKER_PORT: String(workerPort) }),
-        ...(linkPort && {
-          CANOPY_LINK_HOST: config.bindHost,
-          CANOPY_LINK_PORT: String(linkPort),
-          CANOPY_LINK_ADDRESSES: `https://${config.bindHost}:${linkPort}`,
-        }),
       },
       restart: true,
     });

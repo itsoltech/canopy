@@ -67,6 +67,13 @@ export const settingsSections: readonly SettingsSection[] = [
     keywords: "worker machine environment device online config",
   },
   {
+    href: "/settings/network",
+    label: "Network access",
+    icon: "signal",
+    group: "Connections",
+    keywords: "network listen port address hostname tailscale lan wifi firewall phones computers connect",
+  },
+  {
     href: "/settings/mobile",
     label: "Mobile devices",
     icon: "link",

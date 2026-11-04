@@ -7,6 +7,7 @@ import { qualifyId, REMOTE_THREADS, SHARED_CONFIG, sharedKey, THREAD_MIRROR } fr
 import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, sharedHost, uiHandlers } from "@canopy/gateway/api";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
+import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { decryptSecret } from "../../apps/gateway/src/store/secrets.ts";
 import { eventually as poll, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
@@ -51,7 +52,7 @@ describe.skipIf(!dockerAvailable)("shared configuration between two linked gatew
   const start = (gateway: TestGateway, store: ComputerStore, linkPort: number, capabilities?: string[]) => {
     const own = uiHandlers(gateway.core);
 
-    const computers = new LinkedComputers({
+    const computers = linkedComputers({
       store,
       host: "127.0.0.1",
       port: linkPort,
@@ -63,6 +64,8 @@ describe.skipIf(!dockerAvailable)("shared configuration between two linked gatew
 
     gateway.core.computers = computers;
 
+    gateway.core.network = computers.options.network;
+
     return computers;
   };
 
@@ -73,14 +76,22 @@ describe.skipIf(!dockerAvailable)("shared configuration between two linked gatew
     eventually(async () => la.shared!.peers.ready().includes(nodeB) && lb.shared!.peers.ready().includes(nodeA));
 
   async function offline() {
-    await la.manage(create(ui.ComputerOperationRequestSchema, { action: "listener", enabled: false }));
-    await lb.manage(create(ui.ComputerOperationRequestSchema, { action: "listener", enabled: false }));
+    await la.options.network.update(
+      create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: false }),
+    );
+    await lb.options.network.update(
+      create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: false }),
+    );
     await eventually(async () => !la.reachable().length && !lb.reachable().length);
   }
 
   async function reconnect() {
-    await la.manage(create(ui.ComputerOperationRequestSchema, { action: "listener", enabled: true }));
-    await lb.manage(create(ui.ComputerOperationRequestSchema, { action: "listener", enabled: true }));
+    await la.options.network.update(
+      create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }),
+    );
+    await lb.options.network.update(
+      create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }),
+    );
     await online();
   }
 

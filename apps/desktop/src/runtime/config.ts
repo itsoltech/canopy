@@ -14,10 +14,6 @@ export function isWorkerStatus(value: unknown): value is { status?: string; time
   );
 }
 
-export function isLinkPort(value: unknown): value is { port: number } {
-  return !!value && typeof value === "object" && "port" in value && typeof value.port === "number";
-}
-
 export function isWorkerConfiguration(value: JsonValue): value is JsonObject {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }

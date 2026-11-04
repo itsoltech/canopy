@@ -17,6 +17,7 @@ import { GatewayUpdates } from "../updates/runtime.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
 import { CliTools } from "./cli-tools.ts";
 import type { LinkedComputers } from "../computers/runtime.ts";
+import type { NetworkAccess } from "../network/network.ts";
 import { LinkedAgents } from "../computers/agents.ts";
 import { coreState, type GatewayCoreOptions } from "./core-context.ts";
 import { coreServe } from "./core-workers.ts";
@@ -132,6 +133,8 @@ export class GatewayCore {
   declare botAction: CoreBroadcastMethods["botAction"];
 
   computers?: LinkedComputers;
+
+  network?: NetworkAccess;
 
   readonly updates: GatewayUpdates;
 

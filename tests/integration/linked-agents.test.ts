@@ -6,6 +6,7 @@ import { qualifyId, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/compute
 import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
+import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import type { BotModel, ModelInput } from "../../apps/gateway/src/bots/types.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
@@ -49,14 +50,14 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
   beforeAll(async () => {
     a = await startTestGateway({ botModel: (i) => modelA(i) });
     b = await startTestGateway({ botModel: (i) => modelB(i) });
-    la = new LinkedComputers({
+    la = linkedComputers({
       store: new ComputerStore(a.runtime, a.userId, a.secretsKey),
       host: "127.0.0.1",
       port: 0,
       heartbeatMs: 100,
       serve: remoteServe(uiHandlers(a.core), a.core),
     });
-    lb = new LinkedComputers({
+    lb = linkedComputers({
       store: new ComputerStore(b.runtime, b.userId, b.secretsKey),
       host: "127.0.0.1",
       port: 0,
@@ -64,7 +65,9 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
       serve: remoteServe(uiHandlers(b.core), b.core),
     });
     a.core.computers = la;
+    a.core.network = la.options.network;
     b.core.computers = lb;
+    b.core.network = lb.options.network;
     await la.start();
     await lb.start();
     aNode = la.hello().nodeId;
@@ -681,7 +684,7 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
     await lb.close();
     await la.close();
     // New runtimes on the same databases preserve mirrors and advertise explicit addresses.
-    la = new LinkedComputers({
+    la = linkedComputers({
       store: new ComputerStore(a.runtime, a.userId, a.secretsKey),
       host: "127.0.0.1",
       port: portA,
@@ -689,6 +692,7 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
       serve: remoteServe(uiHandlers(a.core), a.core),
     });
     a.core.computers = la;
+    a.core.network = la.options.network;
     await la.start();
     b.worker.finish(offlineChild, offlineTurn, "offline result must not arrive later");
     b.worker.holdTurns = false;
@@ -722,7 +726,7 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
     expect(
       await failure(a.api.sendBotMessage({ botId: q(botB), text: "must never reach bot", clientRequestId: id() })),
     ).toMatch(/unreachable|shut down/);
-    lb = new LinkedComputers({
+    lb = linkedComputers({
       store: new ComputerStore(b.runtime, b.userId, b.secretsKey),
       host: "127.0.0.1",
       port: portB,
@@ -730,6 +734,7 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
       serve: remoteServe(uiHandlers(b.core), b.core),
     });
     b.core.computers = lb;
+    b.core.network = lb.options.network;
     await lb.start();
     await ready();
     expect((b.worker.inputs.get(child) ?? []).some((m) => m.includes("must never run later"))).toBe(false);
@@ -742,7 +747,7 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
   test("older partners give an explicit update error and unlink detaches remote lineage", async () => {
     const port = Number(new URL(lb.addresses[0]!).port);
     await lb.close();
-    lb = new LinkedComputers({
+    lb = linkedComputers({
       store: new ComputerStore(b.runtime, b.userId, b.secretsKey),
       host: "127.0.0.1",
       port,
@@ -751,6 +756,7 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
       capabilities: ["presence", "unlink", REMOTE_THREADS, THREAD_MIRROR],
     });
     b.core.computers = lb;
+    b.core.network = lb.options.network;
     await lb.start();
     await ready();
     const result = await tool("send_message", { thread_id: q(child), prompt: "outdated" });

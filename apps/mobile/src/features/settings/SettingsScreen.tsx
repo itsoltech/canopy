@@ -269,6 +269,11 @@ function SettingsContent({ state }: { state: ReturnType<typeof useSettingsState>
           </Text>
         </View>
       )}
+      {["network", "computers"].includes(section) && (
+        <Text style={[styles.meta, { color: c.muted }]}>
+          Manage {current.label.toLowerCase()} in Canopy on the web.
+        </Text>
+      )}
       {section === "mobile" && (
         <View style={{ gap: 20 }}>
           <PanelRow title="Gateway" value={session!.gatewayUrl} icon="link" />

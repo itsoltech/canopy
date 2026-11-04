@@ -66,6 +66,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "52_computer_routes",
       "53_computer_relay",
       "54_computer_moves",
+      "55_network_access",
     ]);
   }, 60_000);
 
@@ -544,6 +545,22 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
           [w.user, id(), bot],
         ),
       ).toContain("check");
+    });
+  });
+
+  describe("network access (0055)", () => {
+    test("one row per gateway, a valid port and a bounded list of names", async () => {
+      const w = await world();
+      const insert = `INSERT INTO network_access (owner_user_id, port, hostnames) VALUES ($1, $2, $3)`;
+      expect(await failure(insert, [w.user, 0, []])).toContain("check");
+      expect(await failure(insert, [w.user, 65536, []])).toContain("check");
+      expect(await failure(insert, [w.user, 24000, Array.from({ length: 9 }, (_, i) => `host-${i}`)])).toContain(
+        "check",
+      );
+      await query(insert, [w.user, 24000, ["laptop.tailnet.ts.net"]]);
+      expect(await query(`SELECT enabled FROM network_access`)).toEqual([{ enabled: false }]);
+      expect(await failure(insert, [w.user, 24001, []])).toContain("network_access_pkey");
+      await query(`DELETE FROM network_access`);
     });
   });
 

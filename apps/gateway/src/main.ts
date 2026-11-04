@@ -4,7 +4,7 @@ import { startConnectHttpServer, startGrpcServer } from "@canopy/transport";
 import { remoteServe, serviceTokenAuth, sharedHost, uiHandlers, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
 import { healthcheck } from "./healthcheck.ts";
-import { attachmentLimits, ensureDevUser, gatewayRuntime, migrateDatabase } from "./runtime.ts";
+import { attachmentLimits, ensureDevUser, gatewayRuntime, migrateDatabase, networkPort } from "./runtime.ts";
 import {
   installKind,
   isStandalone,
@@ -18,6 +18,7 @@ import { SqlClient } from "effect/sql";
 import { LinkedComputers } from "./computers/runtime.ts";
 import { lanUnavailable, multicastTransport } from "./computers/lan-transport.ts";
 import { ComputerStore } from "./computers/store.ts";
+import { NetworkAccess } from "./network/network.ts";
 import { loadSecretsKey } from "./store/secrets.ts";
 
 const env = Bun.env;
@@ -102,19 +103,33 @@ if (installKind() === "binary")
 // Workers' configurations follow the global provider instances (e.g. right after the migration to them).
 const own = uiHandlers(core);
 
+const computerStore = new ComputerStore(runtime, userId, loadSecretsKey(env));
+const fixedPort = networkPort(env);
+
+// Phones and linked computers: one pinned TLS listener, switched on in Settings → Network access.
+const network = new NetworkAccess({
+  store: computerStore,
+  ...(fixedPort !== undefined && { port: fixedPort }),
+  log: (m) => console.info(m),
+});
+
+core.network = network;
+
 core.computers = new LinkedComputers({
-  store: new ComputerStore(runtime, userId, loadSecretsKey(env)),
+  store: computerStore,
+  network,
   serve: remoteServe(own, core),
   shared: sharedHost(core, own),
   core,
   zone: async () => (await core.settings()).user?.timezone,
-  ...(env["CANOPY_LINK_HOST"] && { host: env["CANOPY_LINK_HOST"] }),
-  ...(env["CANOPY_LINK_PORT"] && { port: Number(env["CANOPY_LINK_PORT"]) }),
-  ...(env["CANOPY_LINK_ADDRESSES"] && { addresses: env["CANOPY_LINK_ADDRESSES"].split(",").map((a) => a.trim()) }),
   discovery: { transport: multicastTransport, ...(lanUnavailable(env) && { unavailable: lanUnavailable(env)! }) },
 });
 
 await core.computers.start();
+
+await network.start();
+
+if (network.listening) console.info(`network access on port ${network.port}`);
 
 await core.syncProviderInstances();
 
@@ -191,6 +206,7 @@ await core.updates.start();
 
 async function stop(presence = "shutting_down") {
   await core.computers?.close(presence);
+  await network.close();
   core.updates.close();
   core.secrets.stop();
   await core.scheduler.stop();

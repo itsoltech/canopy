@@ -5,6 +5,7 @@ import { qualifyId } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
+import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { MoveCrash, type MoveHost } from "../../apps/gateway/src/computers/moves.ts";
 import type { BotModel, ModelInput } from "../../apps/gateway/src/bots/types.ts";
@@ -36,7 +37,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
   let modelC: BotModel = async (i) => ({ text: `C: ${input(i)}`, calls: [] });
 
   const runtime = (gw: TestGateway) =>
-    new LinkedComputers({
+    linkedComputers({
       store: new ComputerStore(gw.runtime, gw.userId, gw.secretsKey),
       host: "127.0.0.1",
       port: ports.get(gw) ?? 0,
@@ -74,6 +75,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     closing.delete(gw);
     const next = runtime(gw);
     gw.core.computers = next;
+    gw.core.network = next.options.network;
     await next.start();
 
     if (gw === a) la = next;
@@ -184,8 +186,11 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     lb = runtime(b);
     lc = runtime(c);
     a.core.computers = la;
+    a.core.network = la.options.network;
     b.core.computers = lb;
+    b.core.network = lb.options.network;
     c.core.computers = lc;
+    c.core.network = lc.options.network;
     await la.start();
     await lb.start();
     await lc.start();

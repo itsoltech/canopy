@@ -6,9 +6,10 @@ import { computerLink as link } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { AsyncChannel } from "@canopy/transport";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
+import { linkedComputers, listenLink } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { generateIdentity, hash } from "../../apps/gateway/src/computers/identity.ts";
-import { linkClient, listenLink } from "../../apps/gateway/src/computers/transport.ts";
+import { linkClient } from "../../apps/gateway/src/computers/transport.ts";
 import { eventually as poll, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 async function eventually(predicate: () => Promise<boolean>, timeoutMs = 5000) {
@@ -36,16 +37,17 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
   }
 
   async function restartB(extra: { minProtocol?: number; maxProtocol?: number } = {}) {
-    const address = lb.addresses[0]!;
+    const port = lb.options.network.status().port;
     await lb.close();
-    lb = new LinkedComputers({
+    lb = linkedComputers({
       store: sb,
       host: "127.0.0.1",
-      port: Number(new URL(address).port),
+      port,
       heartbeatMs: 100,
       ...extra,
     });
     b.core.computers = lb;
+    b.core.network = lb.options.network;
     await lb.start();
   }
 
@@ -54,10 +56,12 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
     b = await startTestGateway();
     sa = new ComputerStore(a.runtime, a.userId, randomBytes(32));
     sb = new ComputerStore(b.runtime, b.userId, randomBytes(32));
-    la = new LinkedComputers({ store: sa, host: "127.0.0.1", heartbeatMs: 100 });
-    lb = new LinkedComputers({ store: sb, host: "127.0.0.1", heartbeatMs: 100 });
+    la = linkedComputers({ store: sa, host: "127.0.0.1", heartbeatMs: 100 });
+    lb = linkedComputers({ store: sb, host: "127.0.0.1", heartbeatMs: 100 });
     a.core.computers = la;
+    a.core.network = la.options.network;
     b.core.computers = lb;
+    b.core.network = lb.options.network;
     await la.start();
     await lb.start();
   }, 60_000);
@@ -180,8 +184,9 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
       await mitm.close();
     }
 
-    la = new LinkedComputers({ store: sa, host: "127.0.0.1", port, heartbeatMs: 100 });
+    la = linkedComputers({ store: sa, host: "127.0.0.1", port, heartbeatMs: 100 });
     a.core.computers = la;
+    a.core.network = la.options.network;
     await la.start();
     await online();
   }, 25_000);
@@ -209,12 +214,12 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
     await online();
     expect(lb.hello().nodeId).toBe(nodeId);
     // Loss of the listening socket has no announcement and ends the bidi stream.
-    await b.api.manageComputer({ action: "listener", enabled: false });
+    await b.api.updateNetworkAccess({ action: "set_enabled", enabled: false });
     // The other side may have dialled too; shut its listener to drop both directions.
-    await a.api.manageComputer({ action: "listener", enabled: false });
+    await a.api.updateNetworkAccess({ action: "set_enabled", enabled: false });
     await eventually(async () => (await status(a)) === "unreachable" && (await status(b)) === "unreachable", 10_000);
-    await a.api.manageComputer({ action: "listener", enabled: true });
-    await b.api.manageComputer({ action: "listener", enabled: true });
+    await a.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
+    await b.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
     await online();
   }, 35_000);
 

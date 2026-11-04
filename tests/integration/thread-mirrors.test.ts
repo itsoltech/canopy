@@ -13,6 +13,7 @@ import { SqlClient } from "effect/sql";
 import { remoteServe, serviceTokenAuth, uiHandlers, uiRoutes } from "@canopy/gateway/api";
 import { GatewayCore } from "@canopy/gateway/core";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
+import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { linkClient } from "../../apps/gateway/src/computers/transport.ts";
 import {
@@ -71,14 +72,22 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     });
 
   async function offline() {
-    await la.manage(create(ui.ComputerOperationRequestSchema, { action: "listener", enabled: false }));
-    await lb.manage(create(ui.ComputerOperationRequestSchema, { action: "listener", enabled: false }));
+    await la.options.network.update(
+      create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: false }),
+    );
+    await lb.options.network.update(
+      create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: false }),
+    );
     await eventually(async () => !la.reachable().length && !lb.reachable().length);
   }
 
   async function reconnect() {
-    await la.manage(create(ui.ComputerOperationRequestSchema, { action: "listener", enabled: true }));
-    await lb.manage(create(ui.ComputerOperationRequestSchema, { action: "listener", enabled: true }));
+    await la.options.network.update(
+      create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }),
+    );
+    await lb.options.network.update(
+      create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }),
+    );
     await online();
     await caughtUp();
   }
@@ -97,7 +106,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
   }
 
   const newB = (capabilities?: string[]) =>
-    new LinkedComputers({
+    linkedComputers({
       store: sb,
       host: "127.0.0.1",
       port: bPort,
@@ -124,7 +133,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     );
     aPort = await port();
     bPort = await port();
-    la = new LinkedComputers({
+    la = linkedComputers({
       store: sa,
       host: "127.0.0.1",
       port: aPort,
@@ -133,7 +142,9 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     });
     lb = newB();
     a.core.computers = la;
+    a.core.network = la.options.network;
     b.core.computers = lb;
+    b.core.network = lb.options.network;
     await la.start();
     await lb.start();
     node = lb.hello().nodeId;
@@ -152,7 +163,9 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     await offline();
     // The raw pinned client below owns B's handshake, without its runtime reconnecting alongside it.
     await lb.close();
-    await la.manage(create(ui.ComputerOperationRequestSchema, { action: "listener", enabled: true }));
+    await la.options.network.update(
+      create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }),
+    );
     const entered = Promise.withResolvers<void>();
     const resume = Promise.withResolvers<void>();
     const status = sa.status;
@@ -192,6 +205,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
       await offline();
       lb = newB();
       b.core.computers = lb;
+      b.core.network = lb.options.network;
       await lb.start();
       await reconnect();
     }
@@ -636,7 +650,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     });
 
     const store = new ComputerStore(a.runtime, a.userId, keyA);
-    la = new LinkedComputers({
+    la = linkedComputers({
       store,
       host: "127.0.0.1",
       port: aPort,
@@ -645,6 +659,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     });
     core.computers = la;
     a.core.computers = la;
+    a.core.network = la.options.network;
     await la.start();
     const grpc = await startGrpcServer({ routes: uiRoutes(core), interceptors: [serviceTokenAuth(SERVICE_TOKEN)] });
 
@@ -680,6 +695,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     await lb.close();
     lb = newB(["presence", "unlink", REMOTE_THREADS]);
     b.core.computers = lb;
+    b.core.network = lb.options.network;
     await lb.start();
     await online();
     expect((await a.api.listThreads({})).threads.some((t) => t.id === q(thread))).toBe(true);
@@ -689,6 +705,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     await lb.close();
     lb = newB();
     b.core.computers = lb;
+    b.core.network = lb.options.network;
     await lb.start();
     await reconnect();
   }, 45_000);

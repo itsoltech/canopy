@@ -11,7 +11,8 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
-  import Switch from "#lib/shared/ui/Switch.svelte";
+  import NetworkAccessSummary from "#lib/features/network/NetworkAccessSummary.svelte";
+  import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import SharedConfigOverview from "#lib/features/computers/SharedConfigOverview.svelte";
@@ -21,6 +22,7 @@
   import MoveDialog from "#lib/features/computers/MoveDialog.svelte";
   import { MOVE_ITEMS, RELAY } from "@canopy/domain/computers";
 
+  const network = useNetworkAccess();
   let setup = $state.raw(create(ui.ComputersSnapshotSchema));
   let loaded = $state(false);
   let busy = $state(false);
@@ -97,6 +99,18 @@
     };
   });
 
+  /** One click from the pairing dialog: network access on, then the code. */
+  async function enableAndInvite() {
+    await run(async () => {
+      await network.update("set_enabled", { enabled: true });
+
+      if (network.status.state === "error") throw new Error(network.status.error);
+      await reload();
+    });
+
+    if (network.status.state === "on") await invite();
+  }
+
   async function invite() {
     await run(async () => {
       invitation = decode(ui.ComputerPairingSchema, await requestJson("POST", "/api/computers/pairing", {}));
@@ -155,30 +169,18 @@
 <SettingsGroup title="This computer">
   {#if setup.self}<ComputerDetails computer={setup.self} self {busy} onrename={() => setup.self && edit(setup.self)} />
   {:else}<SettingsRow title="Loading computer identity…" />{/if}
-  <SettingsRow
-    title="Allow linked computers to connect"
-    description="Opens a dedicated encrypted listener. Access requires pairing; your web interface and database stay private."
-  >
-    {#snippet control()}<Switch
-        name="link-listener"
-        label="Allow linked computers to connect"
-        checked={setup.listenerEnabled}
-        disabled={busy || !setup.listenerAvailable}
-        onchange={(enabled) => void run(() => manage("listener", { enabled }))}
-      />{/snippet}
-  </SettingsRow>
   {#if setup.self}<LanDiscoveryRow
       {setup}
       disabled={busy}
       onchange={(enabled) => void run(() => manage("lan_discovery", { enabled }))}
     />{/if}
 </SettingsGroup>
-{#if loaded && !setup.listenerAvailable}
-  <Alert tone="info"
-    >In the desktop app, enable “Allow other machines to connect” and choose an interface in Desktop settings. On a
-    server, configure CANOPY_LINK_HOST and advertised addresses.</Alert
-  >
-{/if}
+<NetworkAccessSummary
+  status={network.status}
+  loaded={network.loaded}
+  busy={network.busy || busy}
+  onenable={() => void run(async () => void (await network.update("set_enabled", { enabled: true })))}
+/>
 <SettingsGroup
   title="Linked computers"
   description="Pairing grants full access between your computers. Only link computers you own."
@@ -231,12 +233,24 @@
       <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         Open Linked computers on your other computer, then choose how to pair.
       </p>
-      <Button variant="primary" disabled={busy || !setup.listenerEnabled} loading={busy} onclick={() => void invite()}
-        >Generate pairing code</Button
-      >
-      {#if !setup.listenerEnabled}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          Enable the listener above to generate a code on this computer.
-        </p>{/if}
+      {#if network.status.state === "on"}<Button
+          variant="primary"
+          disabled={busy}
+          loading={busy}
+          onclick={() => void invite()}>Generate pairing code</Button
+        >
+      {:else}
+        <Button
+          variant="primary"
+          disabled={busy || !network.loaded}
+          loading={busy}
+          onclick={() => void enableAndInvite()}>Turn on network access and generate a code</Button
+        >
+        <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+          The other computer connects to this one, so network access needs to be on here. Entering a code from the other
+          computer works without it.
+        </p>
+      {/if}
       <Button
         disabled={busy}
         onclick={() => {

@@ -206,11 +206,15 @@ export type ComputersSnapshot = Message<"canopy.ui.v1.ComputersSnapshot"> & {
   peers: LinkedComputer[];
 
   /**
+   * Network access is on and listening (UpdateNetworkAccess turns it on and off).
+   *
    * @generated from field: bool listener_enabled = 3;
    */
   listenerEnabled: boolean;
 
   /**
+   * Always true: every computer can listen (kept for older web clients).
+   *
    * @generated from field: bool listener_available = 4;
    */
   listenerAvailable: boolean;
@@ -316,7 +320,8 @@ export const LinkComputerRequestSchema: GenMessage<LinkComputerRequest> = /*@__P
  */
 export type ComputerOperationRequest = Message<"canopy.ui.v1.ComputerOperationRequest"> & {
   /**
-   * rename, unlink, listener, revoke_pairing, presence, lan_discovery, add_route, remove_route.
+   * rename, unlink, revoke_pairing, presence, lan_discovery, add_route, remove_route.
+   * (The former "listener" action is UpdateNetworkAccess set_enabled.)
    * Empty node_id is self.
    *
    * @generated from field: string action = 1;

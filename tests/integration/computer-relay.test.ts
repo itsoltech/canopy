@@ -14,6 +14,7 @@ import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { AsyncChannel } from "@canopy/transport";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
+import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { methodNamed, RemoteCalls, type RelayRoute } from "../../apps/gateway/src/computers/remote.ts";
 import { linkClient } from "../../apps/gateway/src/computers/transport.ts";
@@ -39,7 +40,7 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
   const q = (value: string) => qualifyId(value, n2);
 
   const runtime = (gw: TestGateway, port = 0, capabilities?: string[]) =>
-    new LinkedComputers({
+    linkedComputers({
       store: new ComputerStore(gw.runtime, gw.userId, gw.secretsKey),
       host: "127.0.0.1",
       port,
@@ -119,8 +120,11 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
     l1 = runtime(p1);
     l2 = runtime(p2);
     w.core.computers = lw;
+    w.core.network = lw.options.network;
     p1.core.computers = l1;
+    p1.core.network = l1.options.network;
     p2.core.computers = l2;
+    p2.core.network = l2.options.network;
     await lw.start();
     await l1.start();
     await l2.start();
@@ -489,6 +493,7 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
     await lw.close();
     lw = runtime(w, wport);
     w.core.computers = lw;
+    w.core.network = lw.options.network;
     await lw.start();
     expect((await w.api.getThread({ threadId: q(thread) })).thread?.id).toBe(q(thread));
     expect((await w.api.getComputers({})).peers.find((p) => p.nodeId === n2)?.unavailableReason).toContain(
@@ -496,6 +501,7 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
     );
     l1 = runtime(p1, port);
     p1.core.computers = l1;
+    p1.core.network = l1.options.network;
     await l1.start();
     await ready();
     await relayed();
@@ -507,6 +513,7 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
     await l2.close();
     l2 = runtime(p2, port, ["presence", "unlink", REMOTE_THREADS, THREAD_MIRROR]);
     p2.core.computers = l2;
+    p2.core.network = l2.options.network;
     await l2.start();
     await ready();
     expect(
@@ -516,6 +523,7 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
     await l2.close();
     l2 = runtime(p2, port);
     p2.core.computers = l2;
+    p2.core.network = l2.options.network;
     await l2.start();
     await ready();
     await relayed();

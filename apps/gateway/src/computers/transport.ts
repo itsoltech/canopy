@@ -1,6 +1,4 @@
-import * as http2 from "node:http2";
 import * as tls from "node:tls";
-import type { AddressInfo } from "node:net";
 import {
   Code,
   ConnectError,
@@ -11,6 +9,7 @@ import {
 } from "@connectrpc/connect";
 import { connectNodeAdapter, createGrpcTransport } from "@connectrpc/connect-node";
 import { computerLink as link } from "@canopy/contracts";
+import type { Handler } from "../network/listener.ts";
 import { certificateIdentity, linkAddress } from "./identity.ts";
 
 export const remoteCertificate = createContextKey("");
@@ -34,9 +33,15 @@ export function discoverCertificate(address: string, fingerprint: string, identi
     });
 
     socket.setTimeout(5000, () => socket.destroy(new Error("Computer link timed out")));
-    socket.once("error", () =>
+    socket.once("error", (cause) =>
       reject(
-        new ConnectError("The computer is unreachable. Check the address and listener settings.", Code.Unavailable),
+        new ConnectError(
+          "The computer is unreachable. Check the address and that network access is on there.",
+          Code.Unavailable,
+          undefined,
+          undefined,
+          cause,
+        ),
       ),
     );
     socket.once("secureConnect", () => {
@@ -88,14 +93,11 @@ export function linkClient(address: string, certificate: string, identity: LinkI
   );
 }
 
-export async function listenLink(options: {
-  host: string;
-  port: number;
-  identity: LinkIdentity;
-  routes: (router: ConnectRouter) => void;
-}) {
+/** The link service on the network access listener (network/listener.ts). Only computers that
+ * present a certificate reach it, over TLS 1.3. */
+export function linkHandler(routes: (router: ConnectRouter) => void): Handler {
   const adapter = connectNodeAdapter({
-    routes: options.routes,
+    routes,
     readMaxBytes: 64 * 1024,
     writeMaxBytes: 64 * 1024,
     contextValues: (request) => {
@@ -108,56 +110,21 @@ export async function listenLink(options: {
     },
   });
 
-  const server = http2.createSecureServer(
-    {
-      cert: options.identity.certificate,
-      key: options.identity.privateKey,
-      minVersion: "TLSv1.3",
-      requestCert: true,
+  return (request, response) => {
+    try {
+      if (!(request.socket instanceof tls.TLSSocket) || request.socket.getProtocol() !== "TLSv1.3")
+        throw new Error("Expected TLS 1.3");
+      const raw = request.socket.getPeerCertificate()?.raw;
+
+      if (!raw) throw new Error();
       // Pair must accept a new self-signed certificate. Every RPC verifies TLS
       // proof of possession + self signature; Connect additionally requires a pin.
-      rejectUnauthorized: false,
-      handshakeTimeout: 5000,
-      settings: { maxConcurrentStreams: 8 },
-    },
-    (request, response) => {
-      try {
-        if (!(request.socket instanceof tls.TLSSocket)) throw new Error("Expected a TLS socket");
-        const raw = request.socket.getPeerCertificate()?.raw;
+      certificateIdentity(raw);
 
-        if (!raw) throw new Error();
-        certificateIdentity(raw);
-
-        return adapter(request, response);
-      } catch {
-        response.writeHead(403);
-        response.end();
-      }
-    },
-  );
-
-  const sessions = new Set<http2.ServerHttp2Session>();
-  server.on("session", (session) => {
-    sessions.add(session);
-    session.once("close", () => sessions.delete(session));
-  });
-  server.on("tlsClientError", () => {});
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(options.port, options.host, () => {
-      server.off("error", reject);
-      resolve();
-    });
-  });
-
-  return {
-    // SAFETY: listen completed successfully on the configured TCP host/port, so address is an AddressInfo.
-    port: (server.address() as AddressInfo).port,
-    close: () =>
-      new Promise<void>((resolve) => {
-        server.close(() => resolve());
-
-        for (const session of sessions) session.destroy();
-      }),
+      return adapter(request, response);
+    } catch {
+      response.writeHead(403);
+      response.end();
+    }
   };
 }
