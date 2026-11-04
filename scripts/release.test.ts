@@ -287,7 +287,8 @@ test("server-then-desktop publication keeps checksums.txt and manifest.json cons
     join(linux, "nightly-linux.yml"),
     `version: ${version}\nfiles:\n  - url: ${installer}\n    sha512: ${sha512}\n    size: 8\npath: ${installer}\nsha512: ${sha512}\n`,
   );
-  await mergeDesktopUpdates(artifacts, assets, "nightly", version);
+  // download-artifact v5 flattens its output when only one target succeeds.
+  await mergeDesktopUpdates(linux, assets, "nightly", version);
   const desktop = await writeReleaseFiles(assets, env);
   consistent(desktop);
   expect(desktop.assets.filter((asset) => asset.app !== "desktop")).toEqual([...server.assets]);

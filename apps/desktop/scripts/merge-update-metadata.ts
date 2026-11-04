@@ -48,11 +48,15 @@ export async function mergeDesktopUpdates(source: string, destination: string, c
   const identity = desktopIdentity(channel);
   const feeds = new Map<string, Feed>();
   mkdirSync(destination, { recursive: true });
+  const entries = readdirSync(source, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
 
-  for (const entry of readdirSync(source, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!entry.isDirectory()) throw new Error(`Expected an artifact directory: ${entry.name}`);
-    const directory = join(source, entry.name);
+  // download-artifact v5 extracts a single matching artifact directly into source.
+  // Multiple targets retain their artifact directories so feeds can be merged.
+  const directories = entries.some((entry) => !entry.isDirectory())
+    ? [source]
+    : entries.map((entry) => join(source, entry.name));
 
+  for (const directory of directories) {
     for (const name of readdirSync(directory)) {
       const path = join(directory, name);
 

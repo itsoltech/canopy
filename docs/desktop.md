@@ -470,6 +470,13 @@ utworzeniem zip/dmg. Bez kompletnego zestawu notaryzacji podpis pozostaje Develo
 ale app nie otrzymuje biletu. Bez certyfikatu konfiguracja jawnie używa `identity: "-"`
 (podpis ad-hoc), zamiast pomijać signing.
 
+Przypięty `@electron/notarize@2.5.0` ma lokalny patch Bun: przekazuje błąd staplera
+do callbacku `promise-retry` (oryginał go nie wywołuje) i sprawdza bilet przez
+`xcrun stapler validate` po każdym udanym `staple`. Maksymalnie pięć prób, odstępy
+15, 30, 60 i 60 sekund. Ponawiany jest tylko stapling z walidacją; zgłoszenie
+do Apple pozostaje jedno i musi zostać zaakceptowane. Wyczerpanie prób zatrzymuje
+pakowanie przed utworzeniem instalatorów. Patch jest w `patches/` i `bun.lock`.
+
 | Pobrana aplikacja z quarantine | Co zobaczy użytkownik | Aktualizacje |
 | --- | --- | --- |
 | Developer ID + notaryzacja + staple | zwykłe potwierdzenie aplikacji pobranej z Internetu; potem uruchomienie | włączone |

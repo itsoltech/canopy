@@ -1,0 +1,37 @@
+diff --git a/lib/index.js b/lib/index.js
+index 53ba7b5f31ce3d4a5569212083ae1e4fd773192f..948d00471de9c1bc52b458c744e4a32db8b2c155 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -44,8 +44,11 @@ function notarize(_a) {
+             throw new Error('notarytool is not available, you must be on at least Xcode 13 or provide notarytoolPath');
+         }
+         yield (0, notarytool_1.notarizeAndWaitForNotaryTool)(Object.assign({ appPath }, otherOptions));
+-        yield (0, promise_retry_1.default)(() => (0, staple_1.stapleApp)({ appPath }), {
+-            retries: 3,
++        yield (0, promise_retry_1.default)((retry) => (0, staple_1.stapleApp)({ appPath }).catch(retry), {
++            retries: 4,
++            minTimeout: 15000,
++            maxTimeout: 60000,
++            factor: 2,
+         });
+     });
+ }
+diff --git a/lib/staple.js b/lib/staple.js
+index 47dbd85b2fc279d999b57f47fb8171e1cc674436..a68051e9e5bab8a4bed63091798ff5c076196293 100644
+--- a/lib/staple.js
++++ b/lib/staple.js
+@@ -49,7 +49,13 @@ function stapleApp(opts) {
+         if (result.code !== 0) {
+             throw new Error(`Failed to staple your application with code: ${result.code}\n\n${result.output}`);
+         }
+-        d('staple succeeded');
++        const validation = yield (0, spawn_1.spawn)('xcrun', ['stapler', 'validate', '-v', path.basename(opts.appPath)], {
++            cwd: path.dirname(opts.appPath),
++        });
++        if (validation.code !== 0) {
++            throw new Error(`Failed to validate stapled application with code: ${validation.code}\n\n${validation.output}`);
++        }
++        d('staple and validation succeeded');
+         return;
+     });
+ }

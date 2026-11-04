@@ -41,5 +41,8 @@
     "semantic-release": "25.0.9",
     "simple-git-hooks": "2.14.0",
     "typescript": "npm:@typescript/typescript6@6.0.2"
+  },
+  "patchedDependencies": {
+    "@electron/notarize@2.5.0": "patches/@electron%2Fnotarize@2.5.0.patch"
   }
 }
