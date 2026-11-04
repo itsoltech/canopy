@@ -95,7 +95,7 @@ export async function skillMachine(gateway: TestGateway, root: string, name: str
         workerId: registration.workerId,
         host: { os, arch: "x64", hostname: name },
         environmentKind: "desktop",
-        capabilities: ["agent_environment_v1", ...(capable ? ["agent_skills_v1"] : [])],
+        capabilities: ["agent_environment_v1", ...(capable ? ["agent_skills_v1", "agent_plugins_v1"] : [])],
       },
     });
 

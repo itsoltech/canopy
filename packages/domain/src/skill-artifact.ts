@@ -45,7 +45,7 @@ export function skillManifestDigest(files: readonly SkillFile[]): string {
 
 const Metadata = Schema.Struct({ name: Schema.String, description: Schema.String });
 
-export function validateSkillFiles(input: readonly SkillFile[]) {
+export function validateArtifactFiles(input: readonly SkillFile[]) {
   if (!input.length || input.length > SKILL_FILE_COUNT) throw new Error("Upload between 1 and 1000 skill files.");
   const paths = new Set<string>();
   const spelling = new Map<string, string>();
@@ -85,6 +85,11 @@ export function validateSkillFiles(input: readonly SkillFile[]) {
     }
   }
 
+  return files;
+}
+
+export function validateSkillFiles(input: readonly SkillFile[]) {
+  const files = validateArtifactFiles(input);
   const entry = files.find((file) => file.path === "SKILL.md");
 
   if (!entry || !isUtf8(entry.content)) throw new Error("The skill root must contain a UTF-8 SKILL.md.");

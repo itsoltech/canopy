@@ -1,5 +1,6 @@
 import type { Env, ResolvedProfile } from "../profiles.ts";
 import { codexNativeToolOverrides, DEFAULT_NATIVE_TOOL_POLICY, type NativeToolPolicy } from "../native-tools.ts";
+import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
 
 /**
  * Codex runs as one long-lived `codex app-server` per worker (JSON-RPC over stdio).
@@ -29,6 +30,7 @@ export function codexAppServerLaunch(
   /** Launch arguments of the instance (a process that serves one instance with its own runtime). */
   extraArgs: readonly string[] = [],
 ): CodexAppServerLaunch {
+  if (codexHome) managedPlugins(codexHome, "codex");
   const command = [codexBin, "app-server", ...codexNativeToolOverrides(nativeTools), ...extraArgs];
 
   const env: NodeJS.ProcessEnv = {

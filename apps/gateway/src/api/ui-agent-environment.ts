@@ -19,6 +19,12 @@ export function agentEnvironmentHandlers(
   | "addSkillSource"
   | "checkSkillSource"
   | "applySkillSource"
+  | "previewMarketplace"
+  | "saveMarketplace"
+  | "deleteMarketplace"
+  | "saveLibraryPlugin"
+  | "deleteLibraryPlugin"
+  | "resolvePluginDrift"
 > {
   return {
     getAgentEnvironment: () => workerGuard(() => core.environment.snapshot()),
@@ -34,5 +40,11 @@ export function agentEnvironmentHandlers(
     addSkillSource: (r) => workerGuard(() => core.environment.sources.add(r)),
     checkSkillSource: (r) => workerGuard(() => core.environment.sources.check(r)),
     applySkillSource: (r) => workerGuard(() => core.environment.sources.apply(r)),
+    previewMarketplace: (r) => workerGuard(() => core.environment.marketplaces.preview(r)),
+    saveMarketplace: (r) => workerGuard(() => core.environment.marketplaces.save(r)),
+    deleteMarketplace: (r) => workerGuard(() => core.environment.marketplaces.remove(r)),
+    saveLibraryPlugin: (r) => workerGuard(() => core.environment.plugins.save(r)),
+    deleteLibraryPlugin: (r) => workerGuard(() => core.environment.plugins.remove(r)),
+    resolvePluginDrift: (r) => workerGuard(() => core.environment.plugins.resolve(r)),
   };
 }

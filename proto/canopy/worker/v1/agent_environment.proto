@@ -23,6 +23,8 @@ message AgentEnvironmentDesired {
   repeated EnvironmentResolution resolutions = 3;
   repeated EnvironmentSkill skills = 4; // capability agent_skills_v1
   repeated EnvironmentResolution skill_resolutions = 5;
+  repeated EnvironmentSkill plugins = 6; // capability agent_plugins_v1; validated plugin artifacts
+  repeated EnvironmentResolution plugin_resolutions = 7;
 }
 
 message SkillFile {
@@ -82,4 +84,5 @@ message AgentEnvironmentReport {
   uint64 revision = 1;
   repeated EnvironmentFileStatus files = 2;
   repeated EnvironmentSkillStatus skills = 3;
+  repeated EnvironmentSkillStatus plugins = 4;
 }

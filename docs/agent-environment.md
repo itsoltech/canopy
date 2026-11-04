@@ -3,9 +3,10 @@
 Projekt: 2026-11-04. Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
 do bazy gatewaya; użytkownik nie konfiguruje zmiennych środowiskowych ani plików
-usług. Etapy 1–3 obejmują instrukcje Claude/Codex, tagi, upload i synchronizację
-skilli Claude/Codex/Grok oraz źródła Git/skills.sh z utrzymaniem wersji.
-Marketplace i współdzielenie biblioteki pozostają projektem etapu 4.
+usług. Etapy 1–4 obejmują instrukcje Claude/Codex, tagi, upload i synchronizację
+skilli Claude/Codex/Grok, źródła Git/skills.sh oraz marketplace i pluginy
+Claude/Codex z przypiętymi wersjami. Współdzielenie biblioteki między gatewayami
+pozostaje osobnym, późniejszym zakresem; nie należy do zleconego etapu 4.
 
 ## Badanie źródeł i wersji
 
@@ -158,7 +159,7 @@ CRC, rozmiary i metadane ZIP przed zapisem; nie uruchamia kodu ani instalatora.
 Odrzuca linki, specjalne typy plików, traversal, ścieżki absolutne, nazwy Windows,
 kolizje wielkości liter (także katalogów), konflikty plik/katalog i zip bombs.
 
-Migracja `0056_agent_skills` dodaje owner-scoped definicje i niezmienne artefakty
+Migracja `0058_agent_skills` dodaje owner-scoped definicje i niezmienne artefakty
 wersji. `SkillArtifact` zawiera nazwę folderu, opis, SHA-256 manifestu oraz pliki
 z SHA-256 i flagą executable. Upload tworzy kolejny numer wersji; wybór wcześniejszej
 wersji wykonuje rollback bez mutowania historii. Selektory są takie jak dla
@@ -284,7 +285,7 @@ artefaktu ani workera. Preview przechowuje ID konta, nie sekret. Add/apply ponow
 sprawdza właściciela, połączenie i host, więc odłączenie konta unieważnia zgodę
 starego preview. Błędy Git są zastępowane stałymi komunikatami bez stderr.
 
-Migracja `0057_agent_skill_sources` dodaje commit do niezmiennych wersji i trwałe,
+Migracja `0059_agent_skill_sources` dodaje commit do niezmiennych wersji i trwałe,
 owner-scoped preview. Addytywne UI RPC i BFF POST
 `/api/agent-environment/skills/source/{preview,add,check,apply}`:
 
@@ -340,7 +341,117 @@ Docker gateway zawiera Git; samodzielna binarka wymaga Git w PATH i CA na hości
 Desktopowy BFF oraz Docker/compose/`.env.example` ustawiają `BODY_SIZE_LIMIT=50M`.
 To tylko bootstrap serwera, a nie konfiguracja użytkownika. Proxy musi dopuścić
 ten sam rozmiar; folder 25 MiB staje się około 34 MiB po base64 w JSON.
-Marketplace `plugin@marketplace`, npm packages i linked library należą do etapu 4.
+Marketplace `plugin@marketplace` opisano poniżej. Pobieranie paczek npm
+i linked library pozostają poza zakresem implementacji.
+
+## Marketplace i pluginy — badanie etapu 4
+
+Badanie z 2026-11-04: Claude Code **2.1.308**, Codex **0.164.0**, SDK Claude
+repo **0.3.316**. Nie instalowano upstream CLI ani nie uruchamiano modeli.
+Przeczytano oficjalne [Claude plugin reference](https://code.claude.com/docs/en/plugins-reference),
+[marketplace](https://code.claude.com/docs/en/plugin-marketplaces),
+[marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference.md)
+i [settings](https://code.claude.com/docs/en/settings.md): katalog
+`.claude-plugin/marketplace.json`, `/plugin marketplace add …`,
+`/plugin install name@marketplace`, `extraKnownMarketplaces`, `enabledPlugins`,
+`plugins/installed_plugins.json` v2 i cache pod rzeczywistym domem Claude.
+Źródło `directory` pozwala deklarować lokalny katalog bez komendy interaktywnej;
+`autoUpdate: false` utrzymuje zatwierdzony snapshot.
+
+Codex ma natywne pluginy — nie zastępujemy ich luźnymi MCP/prompts.
+[Oficjalna dokumentacja](https://developers.openai.com/codex/plugins/)
+przekierowuje obecnie do `learn.chatgpt.com/docs/plugins`. Format ustalono też
+z przypiętego źródła **rust-v0.164.0**:
+[schema config](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/config.schema.json),
+[installed](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core-plugin-common/src/installed.rs),
+[store](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core-plugins/src/store.rs),
+[loader](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core-plugins/src/loader.rs)
+i [marketplace](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core-plugins/src/marketplace.rs).
+CLI oferuje `plugin add/list/remove` i `plugin marketplace add/list/upgrade/remove`.
+Obsługuje `.agents/plugins/marketplace.json`, format Claude oraz lokalne źródła
+string i `{source: "local", path: "./…"}`. Aktywacja to
+`[plugins."name@marketplace"] enabled = true`; lokalny marketplace deklaruje
+`[marketplaces.name] source_type = "local", source = "<path>"`.
+Cache to `plugins/cache/<marketplace>/<plugin>/<version>`; wariant `local`
+ma pierwszeństwo przy wyborze zainstalowanej wersji.
+
+## Marketplace i pluginy — protokół etapu 4
+
+Gateway rozwiązuje skrót GitHub lub repo HTTPS z opcjonalnym `#ref` przez ten sam
+transport i magazyn poświadczeń co etap 3. Przyjmuje wyłącznie zamknięte przepisy
+`/plugin marketplace add …`, `/plugin install name@marketplace` oraz ich odpowiedniki
+`claude plugin …` / `codex plugin …`; nigdy nie uruchamia wklejonego tekstu w shellu.
+Preview zamraża commit i pliki na 30 minut, nie zapisuje przypisania. Zapis katalogu
+i zatwierdzenie pluginu są osobnymi operacjami. **Check upstream** czyta śledzony ref;
+**Save updated catalog** nie zmienia uruchamianego kodu. Edytor pluginu porównuje
+zatwierdzoną wersję z kandydatem przez wspólny diff etapu 3.
+
+Biblioteka obsługuje kompletne, repozytoryjne katalogi `./plugins/name`, z manifestem
+`.claude-plugin/plugin.json` lub `.codex-plugin/plugin.json`. Dwa manifesty muszą
+mieć tę samą nazwę. Plugin Claude jest zgodny również z Codex; sam manifest Codex
+nie deklaruje zgodności z Claude. Zewnętrzne Git/npm/URL entries są widoczne
+z przyczyną niedostępności. Root `./`, nested marketplaces i automatyczne zależności
+pluginów nie są instalowane. Bundle rezerwuje jeden plik i 1 KiB na lokalny katalog
+(maksymalnie 999 plików źródłowych, 1 MiB/plik, 25 MiB minus 1 KiB na bundle).
+Nie uruchamiamy instalatorów ani dependency managera;
+potrzebne programy muszą już istnieć w środowisku harnessu.
+
+Każda aktywacja/zmiana przypisania wymaga jawnego, domyślnie niezaznaczonego
+potwierdzenia dokładnego checksumu. UI udostępnia wszystkie pliki, manifesty,
+hooks, MCP i skrypty; oznaczenia komponentów są pomocnicze, nie stanowią analizy
+bezpieczeństwa kodu. Gateway sprawdza zgodę niezależnie od UI i zapisuje ją atomowo
+z przypisaniem w audycie (`checksum`, commit, wersja). Nowy kod wymaga nowej zgody;
+pluginy nie mają auto-update. Nieusunięta zatwierdzona wersja pozostaje dostępna
+do edycji/usunięcia także po zniknięciu pluginu z katalogu upstream.
+
+Selektory/tagi są wspólne z instrukcjami i skillami. Domyślny cel UI to sesje Canopy;
+**Device CLI too** jest osobnym opt-in. Capability `agent_plugins_v1` rozszerza
+`AgentEnvironmentDesired.plugins=6`, `plugin_resolutions=7`, raport `plugins=4`.
+Starszy worker nie dostaje pluginów; UI pokazuje potrzebę aktualizacji. Artefakt
+wykorzystuje istniejącą kopertę plików i SHA-256, bez źródłowych poświadczeń.
+Limity: 30 marketplace, 100 pluginów, do czterech trwałych preview/właściciela,
+25 MiB artefaktów pluginów/worker, 384 docelowe katalogi i łącznie 512 statusów
+bundle/aktywacji. Porównania skilli
+i pluginów współdzielą budżet raportu 96 MiB (gateway 128 MiB).
+
+Worker instaluje do każdego faktycznego domu platformy, także jawnego shadow home,
+oraz opcjonalnego domu CLI: `plugins/cache/canopy-<uuid>-<harness>/<name>/local`.
+Sufiks harnessu zapobiega kolizji, gdy dwa harnessy dzielą jeden shadow home.
+Dodaje deterministyczny lokalny katalog `.claude-plugin/marketplace.json` wskazujący
+wyłącznie zatwierdzony bundle; raport plików obejmuje też ten wygenerowany plik.
+Digest zgody w gateway pozostaje digestem oryginalnego artefaktu.
+
+Claude: własne namespace w `settings.json` (`enabledPlugins`,
+`extraKnownMarketplaces`) i `plugins/installed_plugins.json` v2; SDK ładuje gotowe
+lokalne pluginy jawnie, zachowuje `settingSources: ["project", "local"]`.
+Codex: własny blok `# canopy:plugins:begin/end` w `config.toml`, natywne tabele
+pluginów i lokalnych marketplace. Pozostałe ustawienia zostają lokalne i nie są
+raportowane. Nie kopiujemy prywatnych user settings do platformy.
+
+Własność: `data_dir/agent-environment/plugins.json`, konfiguracja aktywacji:
+`plugin-config.json`; transakcja katalogu i journal jak dla skilli. Lokalne zmiany
+lub nowe pliki zatrzymują aktywację. Keep/Overwrite korzystają z jednorazowego CAS;
+import plugin driftu nie istnieje, bo omijałby przegląd kodu. Usunięcie zachowuje
+obce pliki i puste katalogi, a przy drifcie czeka na decyzję. Pusty znacznik Claude
+`.in_use` pozostaje na dysku; dziennik zachowuje własność resztek cache, dzięki czemu
+ponowne przypisanie nie przejmuje obcego katalogu. Prywatne dodatki nie trafiają
+do porównań i blokują ponowne włączenie do czasu ich przeniesienia.
+
+Receipt `canopy-<harness>-plugins.json` opisuje gotowe bundle i digest zarządzanych
+części konfiguracji. Start nowej sesji platformy sprawdza receipt, pliki i aktywację;
+zmiana lub niekompletny reconcile daje błąd. Reconcile nie wykonuje pluginów.
+Stan applied potwierdza zapis plików; nie dowodzi dostępności binariów wymaganych
+przez MCP/hook ani ich poprawnego działania. Test zgodności używa natywnych
+`claude plugin list --json` i `codex plugin list --json --marketplace …`.
+To formaty sprawdzone na podanych wersjach, bez obietnicy obsługi starszych CLI.
+Aktywne sesje/procesy mogą zachować cache; dla Codexa może być potrzebny nowy
+app-server (restart workera z UI po zakończeniu tur). Nie mutujemy uruchomionych modeli.
+
+Migracje całego nieopublikowanego stosu przenumerowano w etapie 4 na
+`0057_agent_environment`, `0058_agent_skills`, `0059_agent_skill_sources`,
+`0060_agent_plugins`: `origin/dev` zajął wcześniej 0055–0056. Nie zmieniono treści
+migracji etapów 1–3 ani migracji wdrożonych na dev. Wcześniejsze raporty weryfikacji
+zachowują historyczne numery; do wdrożenia należy użyć końcowego stosu.
 
 ## Bezpieczeństwo, Docker i połączone komputery
 
@@ -368,19 +479,25 @@ rozszerzony opt-in o `environment:<uuid>`: wspólna definicja + niezmienne wersj
 artefaktów, istniejące wektory i konflikty, capability po obu stronach. Przypisania
 do workerów, tagi, ścieżki, drift i zgody instalacyjne zostają lokalne. Otrzymanie
 wspólnego elementu nie jest zgodą na wykonanie kodu na maszynach odbiorcy.
-Etapy 1–3 nie udostępniają biblioteki między gatewayami.
+Etapy 1–4 nie udostępniają biblioteki między gatewayami; ten dawniej planowany
+element etapu 4 odroczono poza zakres zleconych marketplace/pluginów.
 
 ## Plan stosu
 
-1. **Instrukcje i maszyny** (`feat/agent-environment-1`): dokumenty/fragmenty,
+1. **Instrukcje i maszyny** (`feat/agent-environment-1`, zaimplementowany): dokumenty/fragmenty,
    selektory, tagi, per-machine overrides, preview, managed blocks, drift/resolution,
    status i temp-HOME integration. Pełna samodzielna funkcja bez instalacji kodu.
 2. **Umiejętności** (`feat/agent-environment-2`, zaimplementowany): bezpieczny upload folder/zip, wersje i manifesty własności,
    synchronizacja do rzeczywistych domów, usuwanie i rollback; również Grok adapter.
 3. **Źródła i utrzymanie** (`feat/agent-environment-3`, zaimplementowany): git/skills.sh refs, parser komendy, update tracking,
    ręczne/opt-in automatyczne aktualizacje z diff i zamrożonymi artefaktami.
-4. **Marketplace i współdzielenie**: Claude/Codex plugins, capability/version-aware
-   recipes, przegląd komponentów wykonywalnych, opt-in linked-computer library.
+4. **Marketplace i pluginy** (`feat/agent-environment-4`, zaimplementowany):
+   Claude/Codex, zamrożone katalogi i wersje, własna konfiguracja harnessów,
+   audytowana zgoda, przypisania, reconcile, drift i przegląd kodu/diff.
+
+Zlecony czteroetapowy zakres implementacji jest kompletny. Linked-computer library
+pozostaje osobnym projektem, bez deklaracji ukończenia. Wyniki sprawdzeń i granice
+dowodów każdego etapu: [agent-environment-verification.md](agent-environment-verification.md).
 
 Każdy etap jest osobną gałęzią opartą o poprzednią. Przy publikacji przez
 maintainera: stacked draft PR, dolny do `dev`; gotowy i zweryfikowany cały stos
@@ -391,7 +508,7 @@ scala się razem squash. To zlecenie nie obejmuje push ani otwierania PR.
 `workflow_mode: autonomous-planned`, `mode_source: explicit-user-task-instruction`,
 `decision_authority: delegated`, `scope: current-task`,
 `artifact_state: ready-for-execution`, `execution_mode: inline`.
-Zlecono projekt i implementację etapów 1–3 jako subagent, z samodzielnym doborem
+Zlecono projekt i implementację etapów 1–4 jako subagent, z samodzielnym doborem
 odwracalnych szczegółów. Protected constraints: bez push/PR, produkcji, prawdziwych
 domów CLI w testach, portów stosu maintainera, zmian Tailscale i instalacji kodu
 upstream. Kryterium: instrukcje i skille end to end, owner scoping, zgodność ze starszym workerem,

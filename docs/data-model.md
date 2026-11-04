@@ -249,6 +249,9 @@ Pozostałe tabele:
 | `provider_instances` | globalne instancje dostawców (harness + id): połączenie, sekrety jako odwołania, środowisko uruchomienia, kolor, modele w pickerach (ulubione, ukryte, pokazane, własne), `all_workers` (migracja `0018`) — [worker-config.md](worker-config.md#9-globalne-instancje-dostawców) |
 | `provider_instance_workers` | instancja na workerze: `enabled` (`NULL` = `all_workers`) i nadpisania (ścieżki, argumenty, zmienne, endpoint, klucz); efektywny wynik trafia do `worker_configs.config.profiles` (migracja `0018`; `provider_model_selections` z `0015` usunięta, dane przeniesione) |
 | `audit_log` | komendy, decyzje, zmiany konfiguracji |
+| `agent_environments`, `worker_environments`, `instruction_documents` | rewizja środowiska właściciela, tagi, capabilities i ostatni raport workera oraz dokumenty instrukcji (`0057`) |
+| `agent_skills`, `agent_skill_versions`, `agent_skill_source_previews` | przypisania, niezmienne artefakty i provenance oraz zamrożone preview Git (`0058–0059`) |
+| `agent_marketplaces`, `agent_marketplace_previews`, `agent_plugins`, `agent_plugin_versions` | przypięte katalogi marketplace, 30-minutowe preview, przypisania i niezmienne zatwierdzone wersje pluginów (`0060`); każdy odczyt/zapis filtruje ownera; audyt zgody zawiera checksum, commit i wersję |
 
 ## Niezmienniki
 

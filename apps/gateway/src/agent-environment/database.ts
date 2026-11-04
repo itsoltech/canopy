@@ -21,8 +21,9 @@ export function workers(sql: SqlClient.SqlClient, owner: string) {
     manual_tags: string[] | null;
     supported: boolean | null;
     skills_supported: boolean | null;
+    plugins_supported: boolean | null;
     report: JsonValue | null;
-  }>`SELECT w.id, w.name, e.automatic_tags, e.manual_tags, e.supported, e.skills_supported, e.report
+  }>`SELECT w.id, w.name, e.automatic_tags, e.manual_tags, e.supported, e.skills_supported, e.plugins_supported, e.report
      FROM workers w LEFT JOIN worker_environments e ON e.worker_id = w.id
      WHERE w.owner_user_id = ${owner}::uuid AND w.archived_at IS NULL AND w.revoked_at IS NULL ORDER BY w.name, w.id`.pipe(
     Effect.map((rows) =>
@@ -34,6 +35,7 @@ export function workers(sql: SqlClient.SqlClient, owner: string) {
           manualTags: w.manual_tags ?? [],
           supported: w.supported ?? false,
           skillsSupported: w.skills_supported ?? false,
+          pluginsSupported: w.plugins_supported ?? false,
           ...(w.report && { report: fromJson(AgentEnvironmentReportSchema, w.report) }),
         }),
       ),

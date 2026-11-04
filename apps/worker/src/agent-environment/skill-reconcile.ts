@@ -1,12 +1,17 @@
 import { create } from "@bufbuild/protobuf";
-import { EnvironmentSkillStatusSchema, type EnvironmentResolution } from "@canopy/contracts";
+import { EnvironmentSkillStatusSchema, type EnvironmentResolution, type SkillFile } from "@canopy/contracts";
 import { skillManifestDigest, validateSkillFiles } from "@canopy/domain/skill-artifact";
 import { readSkillTree } from "./skill-files.ts";
 import { recoverSkillSwap, swapSkillTree } from "./skill-transaction.ts";
 import type { SkillLedger, ManagedSkill } from "./skill-ledger.ts";
 import type { SkillTarget } from "./skill-targets.ts";
 
-export function reconcileSkill(target: SkillTarget, ledger: SkillLedger, resolution?: EnvironmentResolution) {
+export function reconcileSkill(
+  target: SkillTarget,
+  ledger: SkillLedger,
+  resolution?: EnvironmentResolution,
+  strict = false,
+) {
   const artifact = target.desired?.artifact;
 
   const status = create(EnvironmentSkillStatusSchema, {
@@ -29,8 +34,14 @@ export function reconcileSkill(target: SkillTarget, ledger: SkillLedger, resolut
     const owned = previous?.owned && previous.skillId === target.skillId;
     status.owned = Boolean(owned);
     const managed = owned ? current.files.filter((f) => previous.files.some((p) => p.path === f.path)) : [];
-    const extras = current.files.filter((f) => !managed.includes(f));
-    const changed = owned && skillManifestDigest(managed) !== previous.checksum;
+    // Claude creates this cache liveness marker even for read-only plugin/list commands.
+    const markers = strict && target.harness === "claude" ? current.files.filter((f) => f.path === ".in_use") : [];
+    const extras = current.files.filter((f) => !managed.includes(f) && !markers.includes(f));
+
+    const changed =
+      owned &&
+      (skillManifestDigest(managed) !== previous.checksum || (strict && artifact !== undefined && extras.length > 0));
+
     const conflict = Boolean((current.exists && !owned) || changed || (owned && !current.exists && artifact));
 
     const force =
@@ -68,17 +79,20 @@ export function reconcileSkill(target: SkillTarget, ledger: SkillLedger, resolut
       const next = artifact?.files ?? [];
 
       // Never replace a user-added file, including when a new version introduces the same path.
-      if (
-        extras.some((f) =>
-          next.some(
-            (n) =>
-              n.path.toLowerCase() === f.path.toLowerCase() ||
-              n.path.toLowerCase().startsWith(`${f.path.toLowerCase()}/`) ||
-              f.path.toLowerCase().startsWith(`${n.path.toLowerCase()}/`),
-          ),
-        )
-      )
+      if (conflictsWithExtras(extras, next))
         throw new Error("A new skill version conflicts with user-owned files. Move those files before syncing.");
+
+      const files = [...next, ...extras, ...markers];
+
+      // Preserve foreign empty directories, including Claude's empty .in_use cache marker.
+      const directories =
+        strict && !artifact && owned
+          ? current.directories.filter(
+              (dir) =>
+                !previous.files.some((file) => file.path.startsWith(`${dir}/`)) ||
+                extras.some((file) => file.path.startsWith(`${dir}/`)),
+            )
+          : current.directories;
 
       const entry: ManagedSkill | undefined = artifact
         ? {
@@ -87,13 +101,16 @@ export function reconcileSkill(target: SkillTarget, ledger: SkillLedger, resolut
             checksum: artifact.checksum,
             files: next.map((f) => ({ path: f.path, checksum: f.checksum, executable: f.executable })),
           }
-        : undefined;
+        : strict && (files.length || directories.length)
+          ? { ...base, owned: true, checksum: skillManifestDigest([]), files: [] }
+          : undefined;
 
-      const files = [...next, ...extras];
+      if (strict && artifact && extras.length)
+        throw new Error("Move user-added plugin files before enabling it. Additional components are not approved.");
       const same = current.exists && skillManifestDigest(current.files) === skillManifestDigest(files);
 
       if (!same && (artifact || current.exists))
-        swapSkillTree(target.path, current, files, ledger, entry, target.targetId);
+        swapSkillTree(target.path, current, files, ledger, entry, target.targetId, directories);
       else ledger.commit(target.targetId, entry);
       status.status = artifact ? "applied" : "removed";
       status.owned = Boolean(artifact);
@@ -127,4 +144,15 @@ export function reconcileSkill(target: SkillTarget, ledger: SkillLedger, resolut
   }
 
   return status;
+}
+
+function conflictsWithExtras(extras: readonly SkillFile[], next: readonly SkillFile[]): boolean {
+  return extras.some((file) =>
+    next.some((candidate) => {
+      const local = file.path.toLowerCase();
+      const desired = candidate.path.toLowerCase();
+
+      return desired === local || desired.startsWith(`${local}/`) || local.startsWith(`${desired}/`);
+    }),
+  );
 }

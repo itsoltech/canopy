@@ -5,6 +5,8 @@
   import { EnvironmentState } from "#lib/features/agent-environment/environment-state.svelte.ts";
   import DocumentEditor from "#lib/features/agent-environment/DocumentEditor.svelte";
   import SkillsLibrary from "#lib/features/agent-environment/SkillsLibrary.svelte";
+  import MarketplaceLibrary from "#lib/features/agent-environment/MarketplaceLibrary.svelte";
+  import ComputerPlugins from "#lib/features/agent-environment/ComputerPlugins.svelte";
   import AssignmentSummary from "#lib/features/agent-environment/AssignmentSummary.svelte";
   import EnvironmentComputer from "#lib/features/agent-environment/EnvironmentComputer.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -42,7 +44,7 @@
 <div class="grid min-w-0 gap-7">
   <SettingsHeading
     title="Agent environment"
-    description="Instructions and skills that follow your computers. Assign by tag and see exactly what each agent receives."
+    description="Instructions, skills and plugins that follow your computers. Assign by tag and see exactly what each agent receives."
   />
   {#if state.error}<Alert tone="error">{state.error}</Alert>{/if}
   {#if state.notice}<Alert>{state.notice}</Alert>{/if}
@@ -103,6 +105,7 @@
     {/if}
   </section>
   <SkillsLibrary environment={state} />
+  <MarketplaceLibrary environment={state} />
   <section
     class="grid min-w-0 gap-5 border-t border-zinc-950/10 pt-6 dark:border-white/10"
     aria-label="Environment computers"
@@ -126,6 +129,7 @@
         <Badge>{worker.online ? "Online" : "Offline"}</Badge><Badge>This computer's workers</Badge>
       </div>
       {#key worker.workerId}<EnvironmentComputer {worker} {state} />{/key}
+      {#key worker.workerId}<ComputerPlugins {worker} environment={state} />{/key}
     {:else}<p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
         Add a worker in Settings → Workers to preview and sync instructions.
       </p>{/if}

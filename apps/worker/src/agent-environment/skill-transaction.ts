@@ -76,12 +76,13 @@ export function swapSkillTree(
   ledger: SkillLedger,
   entry: ManagedSkill | undefined,
   targetId: string,
+  directories: readonly string[] = current.directories,
 ): void {
   const { staging, backup, journal } = paths(path, targetId);
 
   if (existsSync(staging) || existsSync(backup) || existsSync(journal))
     throw new Error("A previous skill transaction needs recovery before syncing.");
-  writeSkillTree(staging, files, current.directories);
+  writeSkillTree(staging, files, directories);
   const staged = readSkillTree(staging);
   let movedOld = false;
   let published = false;
@@ -137,6 +138,6 @@ export function swapSkillTree(
   if (existsSync(journal))
     throw new Error("The skill backup changed during installation. It was preserved for review.");
 
-  if (!entry && files.length === 0 && current.directories.length === 0 && readSkillTree(path).files.length === 0)
+  if (!entry && files.length === 0 && directories.length === 0 && readSkillTree(path).files.length === 0)
     rmdirSync(path);
 }

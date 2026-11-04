@@ -339,3 +339,146 @@ marketplace i linked library pozostają etapami 3–4.
 
 Lokalny commit: `feat(agents): sync versioned skills and add tag pickers`.
 Dokładny SHA znajduje się w raporcie końcowym zadania.
+
+---
+
+## Etap 4 — marketplace i pluginy; zakończenie zleconego stosu
+
+Data: 2026-11-04. Gałąź `feat/agent-environment-4` utworzona po fetch z
+`origin/feat/agent-environment-3` (`bfa293a6`), zgodnie ze stosami #59 / #63 / #66.
+Bez push, nowych PR, tagów i zmian środowiska maintainera.
+
+Po ponownym fetch `origin/dev` (`7925d4a4`) ma już migracje 0055–0056 dla sieci.
+Nieopublikowane migracje tego stosu przenumerowano bez zmiany SQL na
+**0057_agent_environment**, **0058_agent_skills**, **0059_agent_skill_sources**;
+nowa to **0060_agent_plugins**. Indeks i schema test mają końcowe numery.
+Nie zmieniano wdrożonych migracji dev. Historyczne sekcje tego raportu podają
+numery obowiązujące podczas weryfikacji wcześniejszych etapów. Finalny stos
+należy scalać razem; nie wdrażać starszych, kolidujących numerów z pojedynczej gałęzi.
+
+### Badanie i dostarczone zachowanie
+
+Claude Code **2.1.308**, Codex CLI **0.164.0**, Claude SDK repo **0.3.316**.
+Codex ma natywne pluginy, lokalne marketplace i deklaratywne wpisy aktywacji.
+Przeczytano dokumentację producentów i źródła Codex przypięte do `rust-v0.164.0`.
+Linki, formaty i decyzje: [projekt etapu 4](agent-environment.md#marketplace-i-pluginy--badanie-etapu-4).
+Kopie źródeł poza repo: `~/.cache/canopy-agent-environment-4/research/`.
+
+Gateway przechowuje owner-scoped katalogi marketplace, zamrożone preview Git,
+przypięte commity, niezmienne wersje pluginów i przypisania przez dotychczasowe
+tagi/selektory. Parser przyjmuje zamknięte marketplace/install recipes, nie shell.
+Check i zapis katalogu nie aktualizują zatwierdzonego kodu. UI pokazuje pliki,
+hooks/MCP/skrypty i diff; osobne potwierdzenie dokładnego SHA-256 jest sprawdzane
+w gateway i zapisywane w audycie atomowo z przypisaniem. Także zmiana przypisania
+wymaga zgody na wybraną wersję. Usunięcie wpisu upstream nie odbiera kontroli
+nad zatwierdzoną wersją: nadal można ją edytować i usunąć.
+
+Worker negocjuje `agent_plugins_v1`, uzgadnia rzeczywiste domy urządzenia i platformy,
+również jeden jawny shadow home współdzielony przez oba harnessy. Używa natywnych
+cache/configów; namespace zawiera harness, więc cele nie kolidują. Utrzymuje
+dzienniki własności i receipt aktywacji, sprawdza drift plików oraz zarządzanych
+części configu przed startem nowych sesji. Nie raportuje prywatnych ustawień ani
+dodatkowych plików. Keep/Overwrite używają jednorazowego CAS; usunięcie zachowuje
+lokalne dodatki. Claude tworzy pusty `.in_use` także przy samym odczycie katalogu;
+znacznik pozostaje zachowany, a resztki cache nadal mają właściciela w dzienniku,
+co umożliwia bezpieczne ponowne przypisanie. Prywatne resztki po odinstalowaniu
+nie powodują ponownego konfliktu, dopóki plugin nie jest włączany.
+
+### Sprawdzenia etapu 4
+
+| Polecenie | Wynik |
+| --- | --- |
+| `bun install` | PASS; bez celowej zmiany lockfile, dwa zablokowane postinstall pozostawiono zablokowane |
+| `bun run gen:check` | PASS; addytywne RPC/pola, bez zmiany WORKER_LINK_PROTOCOL |
+| `bun run typecheck` | PASS; wszystkie pakiety, scripts/tools, Svelte bez błędów i ostrzeżeń |
+| `bun run lint` | PASS po dozwolonym lint:spacing; bez globalnego oxlint --fix i wyłączania reguł wielkości |
+| `bun run format:check` | PASS po bun run format |
+| `bun run check:tmp` | PASS: **881 pass, 150 skip, 0 fail**, 5393 asercje, 1031 testów / 165 plików; TMPDIR czysty |
+| `bun run check:tmp tests/integration/agent-plugins.test.ts tests/integration/agent-skills-files.test.ts packages/db/test/schema.test.ts` | PASS: **40 pass, 0 fail**, 187 asercji, migracje i idempotencja |
+| `bun run check:tmp tests/integration/agent-plugins.test.ts tests/integration/agent-skills-files.test.ts` | PASS po końcowym przeglądzie: **20 pass, 0 fail**, 123 asercje, TMPDIR czysty |
+| `bun run --filter @canopy/web build` | PASS; standardowe ostrzeżenie o chunkach >500 kB |
+
+Logi w `~/.cache/canopy-agent-environment-4/`: `check-tmp.log`, `focused-final.log`,
+`focused-post-review.log`, `gen-check.log`, `typecheck-final.log`, `lint-final.log`,
+`format-check.log`, `web-build-final.log`, `browser.log`. Końcowy przegląd po pełnym
+przebiegu dodał ochronę liczby statusów i rezerwę metadanych bundle, poprawkę stanu
+resztek po usunięciu oraz jawne przekazanie bindable draftu w Svelte. Ponowiono
+odpowiednie testy integracyjne i kontrole statyczne; UI/build po zmianie bindingu.
+Katalog `claude-1000` został utworzony przez natywne CLI i checker raportuje go
+oddzielnie od zasobów testów Canopy.
+
+### Pokrycie i przegląd
+
+1. Rzeczywisty UI RPC → gateway/PostgreSQL → gRPC WorkerLink → WorkerHost:
+   zamrożony commit pomimo przesunięcia upstream, odmowa bez zgody/z błędnym
+   checksumem, audyt zgodny z zatwierdzonym artefaktem, tagi/exclude i stary worker.
+2. Izolowane/device/custom homes, zachowanie prywatnych settings/TOML i wspólnego
+   shadow home. Natywne `claude plugin list --json` i
+   `codex plugin list --json --marketplace …` rozpoznają instalację bez modelu
+   i bez wykonania komendy install. Codex local-object source jest obsługiwany.
+3. Ręczny update z nową zgodą, brak cichej aktualizacji po zapisie katalogu,
+   przypisanie/usunięcie/ponowne przypisanie, własność po restarcie, offline catch-up,
+   drift kodu i aktywacji/receipt, keep/overwrite, powtórzona identyczna lokalna
+   edycja i prywatne dodatki. Usunięty upstream nie blokuje edycji starej wersji.
+4. Owner scoping preview, katalogów, zapisów, usuwania i rozstrzygnięć. Hostile
+   commands/URL nie zmieniają rewizji. Prywatne repo korzystają z tego samego
+   sprawdzonego transportu i autoryzacji stage 3; tokeny nie jadą do workerów.
+
+`itsol-self-review` lokalnie: owner/revision/digest-bound consent, źródła i historyczne
+wersje, natywne katalogi, współdzielone shadow homes, journal/rollback, blokowanie
+aktywacji, jednorazowy CAS, prywatność raportów, limity i sprzątanie, odwracalne
+usuwanie oraz dostępność kontroli po zniknięciu pluginu upstream.
+
+### UI, design i componentize
+
+Skille `design` i osobny przebieg `componentize`: kit Field/Input/Select/Checkbox,
+Alert/Disclosure/Button/Badge; współdzielone SkillDestinations, AssignmentSummary,
+SourceCredentialPicker, SkillSourceFiles i VersionComparison. MarketplaceImport,
+MarketplaceLibrary, PluginEditor oraz ComputerPlugins dzielą odpowiedzialności;
+PluginState obsługuje żądania. Draft edytora jest przekazywany jawnym bindingiem,
+co usuwa wykryte w przeglądarce ostrzeżenie Svelte o własności.
+
+Prawdziwa przeglądarka T3: desktop **1280×800**, telefon **390×844** CSS px,
+light/dark. Sprawdzono review manifestu/hooks/MCP, początkowo zablokowany zapis,
+jawną zgodę i zapis v1, status applied w rzeczywistych domach, Check upstream,
+zapis katalogu bez zmiany kodu, diff README, ponowne potwierdzenie i zapis v2.
+Odczyt temp CODEX_HOME potwierdził nowe bajty. Tag picker zmienił przypisanie
+na `kind:desktop` i licznik na jeden komputer; zapis zachował v2. Po poprawce
+bindingu nie wystąpiło nowe ostrzeżenie o własności. Treść funkcji nie wychodzi
+poziomo poza viewport; długie ścieżki i SHA zawijają się.
+
+Zrzuty poza repo: `~/.cache/canopy-agent-environment-4/evidence/`:
+
+- `desktop-light.png`, `desktop-dark.png` — manifest i oznaczenia wykonania.
+- `phone-light.png`, `phone-dark.png` — ten sam przegląd przy 390 px.
+- `worker-applied-desktop-light.png` — rzeczywiste cele i applied.
+- `update-diff-desktop-dark.png` — zatwierdzona wersja obok kandydata.
+
+Fixture: osobny PostgreSQL, losowy gateway, web **18684**, lokalne bare Git,
+wyłączone harnessy i prywatne domy w `~/.cache/canopy-agent-environment-4/browser`.
+Po kontroli karta i własne procesy fixture'a zostały zamknięte. Nie używano
+zastrzeżonych portów, prawdziwych domów CLI, stosu maintainera ani Tailscale.
+Nie dodano testów komponentów lub trwałego zestawu E2E UI.
+
+### Granice i stan stosu
+
+Zlecony zakres czterech etapów jest zaimplementowany i zweryfikowany lokalnie.
+Linked-computer library z pierwotnego projektu odroczono poza zakres marketplace
+i pluginów; nie jest deklarowana jako ukończona. Nie publikowano stosu.
+
+Obsługiwane źródła bundle są lokalnymi ścieżkami w repo marketplace; zewnętrzne
+Git/npm/URL, root `./`, nested marketplaces i zależności automatyczne są jawnie
+niedostępne. Brak auto-update pluginów; każda nowa wersja wymaga zgody.
+Import driftu i per-computer version pin pluginów nie są udostępnione. UI wybiera
+bieżącą zatwierdzoną lub najnowszą wersję; backend przechowuje niezmienną historię.
+Wymagane przez hook/MCP programy muszą już być na workerze.
+
+Dowody dotyczą Linux i wymienionych wersji CLI. Windows/macOS, starsze natywne CLI,
+zdalne prywatne konto i płatne sesje modeli nie były uruchamiane. Natywny list
+potwierdza format instalacji, nie wykonanie MCP/hook. Nie ma wieloplikowej
+transakcji ani hot-reload pamięci uruchomionych modeli; działający Codex app-server
+może wymagać restartu workera z UI po zakończeniu tur. Format cache jest zależny
+od wersji upstream; capability negocjuje worker Canopy, nie minimalną wersję CLI.
+
+Lokalny commit etapu: `feat(agents): sync reviewed marketplace plugins across workers`.
+Dokładny SHA znajduje się w raporcie końcowym zadania.

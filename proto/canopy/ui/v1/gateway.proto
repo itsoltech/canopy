@@ -29,6 +29,12 @@ service GatewayService {
   rpc AddSkillSource(AddSkillSourceRequest) returns (AgentEnvironmentSnapshot);
   rpc CheckSkillSource(CheckSkillSourceRequest) returns (SkillSourcePreview);
   rpc ApplySkillSource(ApplySkillSourceRequest) returns (AgentEnvironmentSnapshot);
+  rpc PreviewMarketplace(PreviewMarketplaceRequest) returns (MarketplacePreview);
+  rpc SaveMarketplace(SaveMarketplaceRequest) returns (AgentEnvironmentSnapshot);
+  rpc DeleteMarketplace(DeleteMarketplaceRequest) returns (AgentEnvironmentSnapshot);
+  rpc SaveLibraryPlugin(SaveLibraryPluginRequest) returns (AgentEnvironmentSnapshot);
+  rpc DeleteLibraryPlugin(DeleteLibraryPluginRequest) returns (AgentEnvironmentSnapshot);
+  rpc ResolvePluginDrift(ResolveSkillDriftRequest) returns (AgentEnvironmentSnapshot);
   // Safe model picker metadata for a bot, resolved at its home. No credentials or connector grants.
   rpc GetBotProviderInstances(GetBotRequest) returns (ListProviderInstancesResponse);
   rpc GetComputers(ComputersRequest) returns (ComputersSnapshot);

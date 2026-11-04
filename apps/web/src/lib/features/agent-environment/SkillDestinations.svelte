@@ -7,13 +7,21 @@
   let {
     skill = $bindable(),
     workers,
+    harnesses = ["claude", "codex", "grok"],
+    plugin = false,
     class: className,
-  }: { skill: ui.LibrarySkill; workers: readonly ui.EnvironmentWorker[]; class?: ClassValue } = $props();
+  }: {
+    skill: ui.LibrarySkill;
+    workers: readonly ui.EnvironmentWorker[];
+    harnesses?: readonly string[];
+    plugin?: boolean;
+    class?: ClassValue;
+  } = $props();
 </script>
 
 <div class={["grid min-w-0 gap-5", className]}>
-  <div class="flex flex-wrap gap-4" aria-label="Skill harnesses">
-    {#each ["claude", "codex", "grok"] as harness (harness)}
+  <div class="flex flex-wrap gap-4" aria-label={plugin ? "Plugin harnesses" : "Skill harnesses"}>
+    {#each harnesses as harness (harness)}
       <Checkbox
         name="skill-{harness}"
         label={harness === "claude" ? "Claude" : harness === "codex" ? "Codex" : "Grok"}
@@ -34,7 +42,9 @@
   <Checkbox
     name="skill-device-home"
     label="Device CLI too"
-    description="Includes ~/.agents/skills for Codex. Other compatible harnesses may discover these user skills."
+    description={plugin
+      ? "Also manages plugin activation in the device's Claude or Codex home."
+      : "Includes ~/.agents/skills for Codex. Other compatible harnesses may discover these user skills."}
     bind:checked={skill.deviceHome}
   />
   {#if skill.selector}<AssignmentEditor

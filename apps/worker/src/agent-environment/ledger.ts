@@ -24,8 +24,8 @@ export class InstructionLedger {
   readonly entries = new Map<string, ManagedInstruction>();
   problem = "";
 
-  constructor(dataDir: string) {
-    this.path = join(dataDir, "agent-environment", "state.json");
+  constructor(dataDir: string, filename = "state.json") {
+    this.path = join(dataDir, "agent-environment", filename);
 
     try {
       if (!existsSync(this.path)) return;

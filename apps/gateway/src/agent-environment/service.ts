@@ -21,11 +21,16 @@ import { EnvironmentSkills } from "./skills.ts";
 import { skillApplies } from "./skill-assignment.ts";
 import { EnvironmentSources } from "./sources.ts";
 import type { SourceOptions } from "./source-discovery.ts";
+import { marketplaces, plugins } from "./plugin-database.ts";
+import { EnvironmentMarketplaces } from "./marketplaces.ts";
+import { EnvironmentPlugins, desiredPlugins } from "./plugins.ts";
 
 export class AgentEnvironment {
   readonly db: EnvironmentDatabase;
   readonly skills: EnvironmentSkills;
   readonly sources: EnvironmentSources;
+  readonly marketplaces: EnvironmentMarketplaces;
+  readonly plugins: EnvironmentPlugins;
 
   constructor(
     readonly options: {
@@ -39,6 +44,8 @@ export class AgentEnvironment {
     this.db = new EnvironmentDatabase(options.runtime, options.userId);
     this.skills = new EnvironmentSkills(this);
     this.sources = new EnvironmentSources(this, options.sources);
+    this.marketplaces = new EnvironmentMarketplaces(this);
+    this.plugins = new EnvironmentPlugins(this);
   }
 
   async snapshot(): Promise<ui.AgentEnvironmentSnapshot> {
@@ -58,6 +65,8 @@ export class AgentEnvironment {
               documents: yield* documents(sql, owner),
               workers: yield* workers(sql, owner),
               skills: yield* skills(sql, owner),
+              marketplaces: yield* marketplaces(sql, owner),
+              plugins: yield* plugins(sql, owner),
             });
           }),
         );
@@ -75,11 +84,19 @@ export class AgentEnvironment {
         ? connection.hello.capabilities.includes("agent_skills_v1")
         : worker.skillsSupported;
       worker.skillIds = snapshot.skills.filter((s) => skillApplies(s, worker)).map((s) => s.id);
+      worker.pluginsSupported = connection?.isOpen
+        ? connection.hello.capabilities.includes("agent_plugins_v1")
+        : worker.pluginsSupported;
+      worker.pluginIds = snapshot.plugins
+        .filter((p) => p.assignment && skillApplies(p.assignment, worker))
+        .map((p) => p.assignment!.id);
 
       try {
         worker.preview = compose(snapshot.documents, worker);
 
         if (worker.skillsSupported) await this.skills.desired(snapshot.skills, worker);
+
+        if (worker.pluginsSupported) desiredPlugins(snapshot.plugins, worker);
       } catch (error) {
         worker.compositionError =
           error instanceof ConnectError ? error.rawMessage : "Couldn't compose this computer's instructions.";
@@ -181,6 +198,12 @@ export class AgentEnvironment {
             ? await this.skills.desired(snapshot.skills, worker)
             : [],
           skillResolutions: connection.hello.capabilities.includes("agent_skills_v1") ? pending.skillResolutions : [],
+          plugins: connection.hello.capabilities.includes("agent_plugins_v1")
+            ? desiredPlugins(snapshot.plugins, worker)
+            : [],
+          pluginResolutions: connection.hello.capabilities.includes("agent_plugins_v1")
+            ? pending.pluginResolutions
+            : [],
         },
       });
     }
@@ -207,6 +230,7 @@ export class AgentEnvironment {
     const automatic = tags;
     const supported = hello.capabilities.includes("agent_environment_v1");
     const skillsSupported = hello.capabilities.includes("agent_skills_v1");
+    const pluginsSupported = hello.capabilities.includes("agent_plugins_v1");
     const owner = this.options.userId;
 
     const changed = await this.db.run(
@@ -223,10 +247,10 @@ export class AgentEnvironment {
             yield* sql`SELECT revision FROM agent_environments WHERE owner_user_id = ${owner}::uuid FOR UPDATE`;
 
             const updated =
-              yield* sql`INSERT INTO worker_environments (worker_id, automatic_tags, supported, skills_supported)
-          VALUES (${workerId}::uuid, ${automatic}::text[], ${supported}, ${skillsSupported})
-          ON CONFLICT (worker_id) DO UPDATE SET automatic_tags = EXCLUDED.automatic_tags, supported = EXCLUDED.supported, skills_supported = EXCLUDED.skills_supported
-          WHERE worker_environments.automatic_tags IS DISTINCT FROM EXCLUDED.automatic_tags OR worker_environments.supported <> EXCLUDED.supported OR worker_environments.skills_supported <> EXCLUDED.skills_supported
+              yield* sql`INSERT INTO worker_environments (worker_id, automatic_tags, supported, skills_supported, plugins_supported)
+          VALUES (${workerId}::uuid, ${automatic}::text[], ${supported}, ${skillsSupported}, ${pluginsSupported})
+          ON CONFLICT (worker_id) DO UPDATE SET automatic_tags = EXCLUDED.automatic_tags, supported = EXCLUDED.supported, skills_supported = EXCLUDED.skills_supported, plugins_supported = EXCLUDED.plugins_supported
+          WHERE worker_environments.automatic_tags IS DISTINCT FROM EXCLUDED.automatic_tags OR worker_environments.supported <> EXCLUDED.supported OR worker_environments.skills_supported <> EXCLUDED.skills_supported OR worker_environments.plugins_supported <> EXCLUDED.plugins_supported
           RETURNING worker_id`;
 
             if (updated.length)
@@ -247,6 +271,7 @@ export class AgentEnvironment {
     if (
       report.files.length > 128 ||
       report.skills.length > 512 ||
+      report.plugins.length > 512 ||
       Buffer.byteLength(JSON.stringify(toJson(AgentEnvironmentReportSchema, report))) > 128 * 1024 * 1024
     )
       return;

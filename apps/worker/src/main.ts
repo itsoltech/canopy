@@ -291,6 +291,7 @@ while (!stopping.signal.aborted) {
           ...(Bun.env["CANOPY_LOCAL_WORKER"] === "1" ? [] : ["network_route_migration"]),
           "agent_environment_v1",
           "agent_skills_v1",
+          "agent_plugins_v1",
         ],
         attachmentsRoot: host.attachmentsRoot,
         scratchRoot: join(dataDir, "scratch"),
