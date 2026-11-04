@@ -39,6 +39,53 @@ export interface ThreadSecretsStore {
   secretReceipt(workerId: string, receipt: ThreadSecretReceipt): Fx<void>;
 }
 
+const owned = (sql: SqlClient.SqlClient, ownerId: string, id: string) =>
+  Effect.gen(function* () {
+    const rows = yield* sql<ThreadSecretRow>`SELECT s.* FROM thread_secrets s JOIN threads t ON t.id = s.thread_id
+    WHERE s.id = ${id}::uuid AND t.owner_user_id = ${ownerId}::uuid AND t.deleted_at IS NULL FOR UPDATE OF s`;
+
+    if (!rows[0]) return yield* Effect.fail(new NotFound("secret request not found"));
+
+    return rows[0];
+  });
+
+const requestSecret = (sql: SqlClient.SqlClient, source: CallSource, args: AgentBusArgs["request_secret"]) =>
+  sql.withTransaction(
+    Effect.gen(function* () {
+      const threads = yield* sql`SELECT id FROM threads WHERE id = ${source.threadId}::uuid
+    AND worker_id IS NOT NULL AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`;
+
+      if (!threads[0]) return yield* Effect.fail(new NotFound("active worker thread not found"));
+
+      if (args.request_id) {
+        const rows =
+          yield* sql<ThreadSecretRow>`SELECT * FROM thread_secrets WHERE id = ${args.request_id}::uuid AND thread_id = ${source.threadId}::uuid`;
+
+        if (!rows[0]) return yield* Effect.fail(new NotFound("secret request not found in this thread"));
+
+        return rows[0];
+      }
+
+      const existing =
+        yield* sql<ThreadSecretRow>`SELECT * FROM thread_secrets WHERE thread_id = ${source.threadId}::uuid
+    AND (call_id = ${source.callId}::uuid OR (status = 'pending' AND label = ${args.label})) ORDER BY created_at LIMIT 1`;
+
+      if (existing[0]) return existing[0];
+
+      const turns =
+        yield* sql`SELECT id FROM turns WHERE id = ${source.turnId || null}::uuid AND thread_id = ${source.threadId}::uuid AND status = 'running'`;
+
+      if (!turns[0]) return yield* Effect.fail(new Invalid("request_secret requires a running turn"));
+
+      const rows =
+        yield* sql<ThreadSecretRow>`INSERT INTO thread_secrets(id, thread_id, turn_id, call_id, label, description, placeholder, name)
+    VALUES (${source.callId}::uuid, ${source.threadId}::uuid, ${source.turnId}::uuid, ${source.callId}::uuid,
+      ${args.label}, ${args.description}, ${args.placeholder ?? ""}, ${args.name ?? ""}) RETURNING *`;
+
+      return rows[0]!;
+    }),
+  );
+
 export function toUiThreadSecret(row: ThreadSecretRow): ui.ThreadSecret {
   return create(ui.ThreadSecretSchema, {
     requestId: row.id,
@@ -54,53 +101,8 @@ export function toUiThreadSecret(row: ThreadSecretRow): ui.ThreadSecret {
 
 /** Values never enter normal interactions, agent-bus arguments/results or worker_commands. */
 export function threadSecretsStore(sql: SqlClient.SqlClient, key: Buffer): ThreadSecretsStore {
-  const owned = (ownerId: string, id: string) =>
-    Effect.gen(function* () {
-      const rows = yield* sql<ThreadSecretRow>`SELECT s.* FROM thread_secrets s JOIN threads t ON t.id = s.thread_id
-      WHERE s.id = ${id}::uuid AND t.owner_user_id = ${ownerId}::uuid AND t.deleted_at IS NULL FOR UPDATE OF s`;
-
-      if (!rows[0]) return yield* Effect.fail(new NotFound("secret request not found"));
-
-      return rows[0];
-    });
-
   return {
-    requestSecret: (source, args) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          const threads = yield* sql`SELECT id FROM threads WHERE id = ${source.threadId}::uuid
-        AND worker_id IS NOT NULL AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`;
-
-          if (!threads[0]) return yield* Effect.fail(new NotFound("active worker thread not found"));
-
-          if (args.request_id) {
-            const rows =
-              yield* sql<ThreadSecretRow>`SELECT * FROM thread_secrets WHERE id = ${args.request_id}::uuid AND thread_id = ${source.threadId}::uuid`;
-
-            if (!rows[0]) return yield* Effect.fail(new NotFound("secret request not found in this thread"));
-
-            return rows[0];
-          }
-
-          const existing =
-            yield* sql<ThreadSecretRow>`SELECT * FROM thread_secrets WHERE thread_id = ${source.threadId}::uuid
-        AND (call_id = ${source.callId}::uuid OR (status = 'pending' AND label = ${args.label})) ORDER BY created_at LIMIT 1`;
-
-          if (existing[0]) return existing[0];
-
-          const turns =
-            yield* sql`SELECT id FROM turns WHERE id = ${source.turnId || null}::uuid AND thread_id = ${source.threadId}::uuid AND status = 'running'`;
-
-          if (!turns[0]) return yield* Effect.fail(new Invalid("request_secret requires a running turn"));
-
-          const rows =
-            yield* sql<ThreadSecretRow>`INSERT INTO thread_secrets(id, thread_id, turn_id, call_id, label, description, placeholder, name)
-        VALUES (${source.callId}::uuid, ${source.threadId}::uuid, ${source.turnId}::uuid, ${source.callId}::uuid,
-          ${args.label}, ${args.description}, ${args.placeholder ?? ""}, ${args.name ?? ""}) RETURNING *`;
-
-          return rows[0]!;
-        }),
-      ),
+    requestSecret: (source, args) => requestSecret(sql, source, args),
     threadSecrets: (ownerId, threadId) =>
       Effect.gen(function* () {
         const rows = yield* sql<ThreadSecretRow>`SELECT s.* FROM thread_secrets s JOIN threads t ON t.id = s.thread_id
@@ -147,7 +149,7 @@ export function threadSecretsStore(sql: SqlClient.SqlClient, key: Buffer): Threa
             );
           }
 
-          const row = yield* owned(ownerId, id);
+          const row = yield* owned(sql, ownerId, id);
 
           // Transport retries are safe; a second answer cannot overwrite an accepted secret.
           if (row.status !== "pending") return row;
@@ -169,7 +171,7 @@ export function threadSecretsStore(sql: SqlClient.SqlClient, key: Buffer): Threa
     revokeSecret: (ownerId, id) =>
       sql.withTransaction(
         Effect.gen(function* () {
-          const row = yield* owned(ownerId, id);
+          const row = yield* owned(sql, ownerId, id);
 
           if (row.status !== "saved" && row.status !== "pending") return row;
 

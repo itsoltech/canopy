@@ -23,20 +23,20 @@ interface Owned {
   moved_to: string | null;
 }
 
+const owned = (sql: SqlClient.SqlClient, userId: string, threadId: string, deleted = false) =>
+  Effect.gen(function* () {
+    const row =
+      (yield* sql<Owned>`SELECT id, parent_thread_id, deleted_at, deletion_batch_id, archived_at, moved_to FROM threads
+    WHERE id = ${threadId}::uuid AND owner_user_id = ${userId}::uuid FOR UPDATE`)[0];
+
+    if (!row || (!deleted && row.deleted_at)) return yield* Effect.fail(new NotFound("thread not found"));
+
+    return row;
+  });
+
 /** All lifecycle transitions lock the same thread rows as the turn queue. Interrupts go into the durable
  * outbox before a thread is hidden, including an offline worker. Restoring never restarts work. */
 export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
-  const owned = (userId: string, threadId: string, deleted = false) =>
-    Effect.gen(function* () {
-      const row =
-        (yield* sql<Owned>`SELECT id, parent_thread_id, deleted_at, deletion_batch_id, archived_at, moved_to FROM threads
-      WHERE id = ${threadId}::uuid AND owner_user_id = ${userId}::uuid FOR UPDATE`)[0];
-
-      if (!row || (!deleted && row.deleted_at)) return yield* Effect.fail(new NotFound("thread not found"));
-
-      return row;
-    });
-
   const stop = (ids: string[]) =>
     Effect.gen(function* () {
       const turns = yield* sql<{ id: string; thread_id: string; worker_id: string | null }>`
@@ -78,7 +78,7 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
     setThreadRead: (userId: string, threadId: string, unread: boolean) =>
       sql.withTransaction(
         Effect.gen(function* () {
-          yield* owned(userId, threadId);
+          yield* owned(sql, userId, threadId);
           yield* sql`INSERT INTO thread_reads (user_id, thread_id, seen_seq, marked_unread)
         SELECT ${userId}::uuid, id, last_seq, ${unread} FROM threads WHERE id = ${threadId}::uuid
         ON CONFLICT (user_id, thread_id) DO UPDATE SET seen_seq = EXCLUDED.seen_seq, marked_unread = EXCLUDED.marked_unread, seen_at = now()`;
@@ -87,7 +87,7 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
     setThreadArchived: (userId: string, threadId: string, archived: boolean) =>
       sql.withTransaction(
         Effect.gen(function* () {
-          const row = yield* owned(userId, threadId);
+          const row = yield* owned(sql, userId, threadId);
 
           if (Boolean(row.archived_at) === archived) return { ids: [threadId], commands: [] };
 
@@ -123,7 +123,7 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
     deleteThread: (userId: string, threadId: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
-          yield* owned(userId, threadId);
+          yield* owned(sql, userId, threadId);
 
           const rows = yield* sql<{
             id: string;
@@ -141,7 +141,7 @@ export function threadLifecycle(sql: SqlClient.SqlClient, dispatch: Dispatch) {
     restoreThread: (userId: string, threadId: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
-          const row = yield* owned(userId, threadId, true);
+          const row = yield* owned(sql, userId, threadId, true);
 
           if (!row.deleted_at) return [threadId];
 
