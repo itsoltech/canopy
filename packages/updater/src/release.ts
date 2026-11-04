@@ -1,6 +1,8 @@
+import { isJsonArray, isJsonObject, type JsonObject, type JsonValue } from "@canopy/domain/json";
+
 export type InstallKind = "binary" | "docker" | "source" | "desktop";
 
-export interface ReleaseAsset {
+export type ReleaseAsset = {
   app: "gateway" | "worker" | "desktop";
   os: "linux" | "darwin" | "windows";
   arch: "x64" | "arm64";
@@ -8,9 +10,9 @@ export interface ReleaseAsset {
   url: string;
   sha256: string;
   size: number;
-}
+};
 
-export interface ReleaseManifest {
+export type ReleaseManifest = {
   schema: 1;
   version: string;
   channel: string;
@@ -18,7 +20,7 @@ export interface ReleaseManifest {
   published_at: string;
   protocol: { worker_link: number; update: number };
   assets: ReleaseAsset[];
-}
+};
 
 export interface ReleaseSourceOptions {
   /** GitHub API repository URL, or explicit mirror/test endpoint with the same layout. */
@@ -136,55 +138,109 @@ export async function releaseFetch(url: string, options: ReleaseSourceOptions = 
   throw new Error("Too many release redirects");
 }
 
-export function parseManifest(value: unknown, options: ReleaseSourceOptions = {}): ReleaseManifest {
-  if (!value || typeof value !== "object") throw new Error("Invalid release manifest");
-  const m = value as ReleaseManifest;
+export function parseManifest(value: JsonValue, options: ReleaseSourceOptions = {}): ReleaseManifest {
+  if (!value || (!isJsonObject(value) && !isJsonArray(value))) throw new Error("Invalid release manifest");
 
-  if (
-    m.schema !== 1 ||
-    !SEMVER.test(m.version) ||
-    !validChannel(m.channel) ||
-    typeof m.commit !== "string" ||
-    typeof m.published_at !== "string" ||
-    !m.protocol ||
-    !Number.isInteger(m.protocol.worker_link) ||
-    m.protocol.worker_link < 1 ||
-    !Number.isInteger(m.protocol.update) ||
-    m.protocol.update < 1 ||
-    !Array.isArray(m.assets)
-  )
-    throw new Error("Invalid release manifest schema");
+  if (!isJsonObject(value) || !isManifestFields(value)) throw new Error("Invalid release manifest schema");
   const names = new Set<string>();
+  const assets: ReleaseAsset[] = [];
 
-  for (const a of m.assets) {
-    if (
-      !a ||
-      !["gateway", "worker", "desktop"].includes(a.app) ||
-      !["linux", "darwin", "windows"].includes(a.os) ||
-      !["x64", "arm64"].includes(a.arch) ||
-      typeof a.name !== "string" ||
-      (a.app === "desktop"
-        ? !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(a.name)
-        : a.name !== `canopy-${a.app}-${a.os}-${a.arch}${a.os === "windows" ? ".exe" : ""}`) ||
-      names.has(a.name) ||
-      !/^[a-f0-9]{64}$/i.test(a.sha256) ||
-      !Number.isSafeInteger(a.size) ||
-      a.size < 1 ||
-      a.size > 2 * 1024 ** 3
-    )
-      throw new Error("Invalid release asset");
+  for (const a of value.assets) {
+    if (!isReleaseAsset(a) || names.has(a.name)) throw new Error("Invalid release asset");
     secureUrl(a.url, options.allowHttpForTests);
     names.add(a.name);
+    assets.push(a);
   }
 
-  return m;
+  return { ...value, assets };
 }
 
-interface GithubRelease {
+type ManifestFields = JsonObject & Omit<ReleaseManifest, "assets"> & { readonly assets: readonly JsonValue[] };
+
+function isManifestFields(m: JsonObject): m is ManifestFields {
+  const protocol = m["protocol"];
+
+  return (
+    m["schema"] === 1 &&
+    isText(m["version"]) &&
+    SEMVER.test(m["version"]) &&
+    isText(m["channel"]) &&
+    validChannel(m["channel"]) &&
+    isText(m["commit"]) &&
+    isText(m["published_at"]) &&
+    isJsonObject(protocol) &&
+    isPositiveInteger(protocol["worker_link"]) &&
+    isPositiveInteger(protocol["update"]) &&
+    isJsonArray(m["assets"])
+  );
+}
+
+function isReleaseAsset(a: JsonValue): a is JsonObject & ReleaseAsset {
+  if (!isJsonObject(a)) return false;
+  const { app, os, arch, name, url, sha256, size } = a;
+
+  return (
+    (app === "gateway" || app === "worker" || app === "desktop") &&
+    (os === "linux" || os === "darwin" || os === "windows") &&
+    (arch === "x64" || arch === "arm64") &&
+    isText(name) &&
+    (app === "desktop"
+      ? /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)
+      : name === `canopy-${app}-${os}-${arch}${os === "windows" ? ".exe" : ""}`) &&
+    isText(url) &&
+    isText(sha256) &&
+    /^[a-f0-9]{64}$/i.test(sha256) &&
+    typeof size === "number" &&
+    Number.isSafeInteger(size) &&
+    size >= 1 &&
+    size <= 2 * 1024 ** 3
+  );
+}
+
+type GithubRelease = {
   tag_name: string;
-  draft: boolean;
-  prerelease: boolean;
-  assets: { name: string; browser_download_url: string }[];
+  draft?: boolean;
+  prerelease?: boolean;
+  assets?: { name: string; browser_download_url: string }[];
+};
+
+function isGithubRelease(release: JsonValue): release is JsonObject & GithubRelease {
+  if (!isJsonObject(release)) return false;
+  const assets = release["assets"];
+
+  return (
+    isText(release["tag_name"]) &&
+    isOptionalFlag(release["draft"]) &&
+    isOptionalFlag(release["prerelease"]) &&
+    (assets === undefined ||
+      (isJsonArray(assets) &&
+        assets.every((asset) => isJsonObject(asset) && isText(asset["name"]) && isText(asset["browser_download_url"]))))
+  );
+}
+
+/** GitHub's release JSON, checked for the fields the channel resolution reads. */
+async function githubRelease(response: Response): Promise<GithubRelease> {
+  const release = await jsonBody(response);
+
+  if (!isGithubRelease(release)) throw new Error("Invalid release response");
+
+  return release;
+}
+
+async function jsonBody(response: Response): Promise<JsonValue> {
+  return JSON.parse(await response.text());
+}
+
+function isText(value: JsonValue | undefined): value is string {
+  return typeof value === "string";
+}
+
+function isOptionalFlag(value: JsonValue | undefined): value is boolean | undefined {
+  return value === undefined || typeof value === "boolean";
+}
+
+function isPositiveInteger(value: JsonValue | undefined): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1;
 }
 
 export class ReleaseSource {
@@ -206,11 +262,11 @@ export class ReleaseSource {
     const candidates: GithubRelease[] = [];
 
     for (let page = 1; ; page++) {
-      const batch = (await (
-        await releaseFetch(`${this.baseUrl}/releases?per_page=100&page=${page}`, this.options)
-      ).json()) as GithubRelease[];
+      const batch = await jsonBody(
+        await releaseFetch(`${this.baseUrl}/releases?per_page=100&page=${page}`, this.options),
+      );
 
-      if (!Array.isArray(batch)) throw new Error("Invalid releases response");
+      if (!isJsonArray(batch) || !batch.every(isGithubRelease)) throw new Error("Invalid releases response");
       candidates.push(
         ...batch.filter((release) => {
           const version = release.tag_name.replace(/^v/, "");
@@ -245,14 +301,10 @@ export class ReleaseSource {
     let release: GithubRelease;
 
     try {
-      release = (await (
-        await releaseFetch(`${this.baseUrl}/releases/tags/v${version}`, this.options)
-      ).json()) as GithubRelease;
+      release = await githubRelease(await releaseFetch(`${this.baseUrl}/releases/tags/v${version}`, this.options));
     } catch (error) {
       if (!(error instanceof ReleaseHttpError) || error.status !== 404) throw error;
-      release = (await (
-        await releaseFetch(`${this.baseUrl}/releases/tags/${version}`, this.options)
-      ).json()) as GithubRelease;
+      release = await githubRelease(await releaseFetch(`${this.baseUrl}/releases/tags/${version}`, this.options));
     }
 
     if (release.draft || (stableOnly && release.prerelease)) throw new Error("No release for this channel");

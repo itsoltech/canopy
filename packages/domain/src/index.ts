@@ -18,6 +18,6 @@ export * from "./background-tasks/index.ts";
 
 export * from "./platform.ts";
 
-export type { JsonObject, JsonValue } from "./json.ts";
+export { isJsonArray, isJsonObject, type JsonObject, type JsonValue } from "./json.ts";
 
 export { PLACEMENTS, scheduleWorkerEligible, selectScheduleWorkspace, type Placement } from "./schedules.ts";
