@@ -7,7 +7,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ScheduleActions from "./ScheduleActions.svelte";
   import ScheduleRuns from "./ScheduleRuns.svelte";
-  import ScheduleStatus from "./ScheduleStatus.svelte";
+  import ScheduleText from "./ScheduleText.svelte";
   import { modelDisplayName } from "#lib/features/models/catalog.ts";
   import { describeWhen, isFinished, placementLabels, runsLabel } from "./schedules.ts";
 
@@ -27,21 +27,8 @@
 </script>
 
 <div class={["flex items-start gap-3 px-4 py-3.5", className]}>
-  <div class="grid min-w-0 flex-1 gap-1.5">
-    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-      <p
-        class="line-clamp-2 min-w-0 text-base/6 font-medium break-words text-zinc-950 sm:text-sm/6 dark:text-white"
-        title={schedule.prompt}
-      >
-        {schedule.name || schedule.prompt}
-      </p>
-      <ScheduleStatus status={schedule.status} />
-    </div>
-    {#if schedule.name && schedule.name !== schedule.prompt}<p
-        class="line-clamp-2 text-base/6 break-words text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
-      >
-        {schedule.prompt}
-      </p>{/if}
+  <div class="@container grid min-w-0 flex-1 gap-1.5">
+    <ScheduleText {schedule} />
     <dl class="flex flex-wrap gap-x-4 gap-y-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
       <div class="flex min-w-0 items-center gap-1.5">
         <dt>
@@ -50,7 +37,7 @@
             class="size-3.5 fill-zinc-400 dark:fill-zinc-500"
           /><span class="sr-only">When</span>
         </dt>
-        <dd class="truncate">{describeWhen(schedule)}</dd>
+        <dd class="min-w-0 wrap-anywhere">{describeWhen(schedule)}</dd>
       </div>
       {#if !isFinished(schedule) && schedule.nextRunAt}
         <div class="flex items-center gap-1">
@@ -67,31 +54,33 @@
         <dd>{runsLabel(schedule)}</dd>
       </div>
       {#if schedule.target === "new_thread" && schedule.newThread}
-        <div class="flex min-w-0 items-center gap-1">
+        <div class="flex min-w-0 basis-full items-center gap-1 @md:basis-auto">
           <dt class="sr-only">Target</dt>
-          <dd class="break-words">
+          <dd class="min-w-0 wrap-anywhere">
             New thread in {overview.project(schedule.projectId)?.name ?? "project"} · {placementLabels.get(
               schedule.newThread.placement,
             )} · {modelDisplayName(schedule.newThread.model)}
           </dd>
         </div>
       {:else}
-        <div class="flex min-w-0 items-center gap-1">
-          <dt>Thread</dt>
-          <dd class="truncate">
-            <a href="/threads/{schedule.threadId}" class={linkClass}>{thread?.title ?? "Thread"}</a>
+        <div class="flex min-w-0 basis-full items-baseline gap-1 @md:basis-auto">
+          <dt class="shrink-0">Thread</dt>
+          <dd class="min-w-0">
+            <a href="/threads/{schedule.threadId}" class={["line-clamp-2 wrap-anywhere", linkClass]}
+              >{thread?.title ?? "Thread"}</a
+            >
           </dd>
         </div>
       {/if}
-      <div class="flex min-w-0 items-center gap-1">
+      <div class="flex min-w-0 basis-full items-center gap-1 @md:basis-auto">
         <dt class="sr-only">Set by</dt>
         {#if schedule.createdBy === "agent"}
-          <dd class="flex min-w-0 items-center gap-1">
-            <Icon name="sparkles" class="size-3.5 shrink-0 text-violet-500 dark:text-violet-400" />
+          <dd class="flex min-w-0 items-baseline gap-1">
+            <Icon name="sparkles" class="mt-0.75 size-3.5 shrink-0 self-start text-violet-500 dark:text-violet-400" />
             <span class="shrink-0">Agent</span>
             {#if schedule.createdByThreadId && schedule.createdByThreadId !== schedule.threadId}
               <span class="shrink-0">in</span>
-              <a href="/threads/{schedule.createdByThreadId}" class={["truncate", linkClass]}
+              <a href="/threads/{schedule.createdByThreadId}" class={["line-clamp-2 wrap-anywhere", linkClass]}
                 >{creator?.title ?? "another thread"}</a
               >
             {/if}
