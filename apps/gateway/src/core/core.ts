@@ -106,6 +106,11 @@ export class GatewayCore {
   declare regenerateTitle: CoreTitlesMethods["regenerateTitle"];
   declare listModels: CoreModelsMethods["listModels"];
   declare listProviderInstances: CoreProvidersMethods["listProviderInstances"];
+  declare listProxies: CoreProvidersMethods["listProxies"];
+  declare saveProxy: CoreProvidersMethods["saveProxy"];
+  declare deleteProxy: CoreProvidersMethods["deleteProxy"];
+  declare testProxy: CoreProvidersMethods["testProxy"];
+  declare moveInstanceToProxy: CoreProvidersMethods["moveInstanceToProxy"];
   declare saveProviderInstance: CoreProvidersMethods["saveProviderInstance"];
   declare deleteProviderInstance: CoreProvidersMethods["deleteProviderInstance"];
   declare setInstanceWorkers: CoreProvidersMethods["setInstanceWorkers"];

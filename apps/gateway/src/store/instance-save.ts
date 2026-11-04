@@ -22,9 +22,14 @@ import {
   type InstanceApi,
 } from "./instance-checks.ts";
 import type { InstanceCore } from "./instance-queries.ts";
+import { proxySupports, proxyRecords } from "./proxies.ts";
 
 /** Creating or changing an instance. */
-export function instanceSave(sql: SqlClient.SqlClient, core: InstanceCore): Pick<InstanceApi, "save"> {
+export function instanceSave(
+  sql: SqlClient.SqlClient,
+  core: InstanceCore,
+  secretsKey: Buffer,
+): Pick<InstanceApi, "save"> {
   const { threadUse, lockInstance, putSecret, envFrom, runtimeFrom, assign, sync } = core;
 
   return {
@@ -90,11 +95,21 @@ export function instanceSave(sql: SqlClient.SqlClient, core: InstanceCore): Pick
 
           let baseUrl = "";
 
+          const proxy =
+            kind === "endpoint" && request.proxyId
+              ? yield* proxyRecords(sql, secretsKey).get(userId, request.proxyId)
+              : undefined;
+
+          if (existing?.proxy_id) yield* proxyRecords(sql, secretsKey).get(userId, existing.proxy_id);
+
+          if (proxy && !proxySupports(proxy.kind, harness))
+            return yield* Effect.fail(new Invalid("This proxy does not support this harness"));
+
           if (kind === "endpoint") {
-            const problem = checkBaseUrl(request.baseUrl);
+            const problem = checkBaseUrl(proxy?.base_url ?? request.baseUrl);
 
             if (problem) return yield* Effect.fail(new Invalid(problem));
-            baseUrl = request.baseUrl.trim();
+            baseUrl = proxy?.base_url ?? request.baseUrl.trim();
           }
 
           const accent = request.accentColor.trim().toLowerCase();
@@ -106,7 +121,8 @@ export function instanceSave(sql: SqlClient.SqlClient, core: InstanceCore): Pick
           let apiKey: SecretRef | null = null;
 
           if (kind === "endpoint") {
-            if (request.apiKey === undefined) apiKey = existing?.api_key ?? null;
+            if (proxy) apiKey = proxy.secret_id ? { secretRef: proxy.secret_id } : null;
+            else if (request.apiKey === undefined) apiKey = existing?.api_key ?? null;
             else if (request.apiKey !== "") apiKey = yield* putSecret(userId, request.apiKey);
           }
 
@@ -125,11 +141,12 @@ export function instanceSave(sql: SqlClient.SqlClient, core: InstanceCore): Pick
                     UPDATE provider_instances
                        SET label = ${values.label}, kind = ${values.kind}, base_url = ${values.baseUrl}, api_key = ${values.apiKey}::jsonb, env = ${values.env}::jsonb,
                            runtime = ${values.runtime}::jsonb, accent_color = ${values.accent}, revision = revision + 1, updated_at = now()
+                           , proxy_id = ${proxy?.id ?? null}::uuid
                      WHERE harness = ${harness} AND id = ${id}`;
           } else {
             yield* sql`
-                    INSERT INTO provider_instances (harness, id, label, kind, base_url, api_key, env, runtime, accent_color, created_by)
-                    VALUES (${harness}, ${id}, ${values.label}, ${values.kind}, ${values.baseUrl}, ${values.apiKey}::jsonb, ${values.env}::jsonb, ${values.runtime}::jsonb, ${values.accent}, ${userId}::uuid)`;
+                    INSERT INTO provider_instances (harness, id, label, kind, base_url, api_key, env, runtime, accent_color, created_by, proxy_id)
+                    VALUES (${harness}, ${id}, ${values.label}, ${values.kind}, ${values.baseUrl}, ${values.apiKey}::jsonb, ${values.env}::jsonb, ${values.runtime}::jsonb, ${values.accent}, ${userId}::uuid, ${proxy?.id ?? null}::uuid)`;
             yield* assign(harness, id, request.allWorkers, request.workerIds);
           }
 
@@ -143,6 +160,7 @@ export function instanceSave(sql: SqlClient.SqlClient, core: InstanceCore): Pick
 export function instanceMutations(
   sql: SqlClient.SqlClient,
   core: InstanceCore,
+  secretsKey: Buffer,
 ): Pick<InstanceApi, "remove" | "setWorkers" | "setWorker"> {
   const { workers, threadUse, lockInstance, putSecret, envFrom, assign, sync } = core;
 
@@ -211,9 +229,30 @@ export function instanceMutations(
                   SELECT * FROM provider_instance_workers WHERE harness = ${harness} AND instance_id = ${row.id} AND worker_id = ${request.workerId}::uuid FOR UPDATE`)[0];
 
           let overrides: StoredOverrides = current?.overrides ?? {};
+          let proxyId = current?.proxy_id ?? null;
           const input = request.overrides;
 
           if (input) {
+            if (input.proxyId === undefined && (input.baseUrl !== undefined || input.apiKey !== undefined) && proxyId) {
+              const previous = yield* proxyRecords(sql, secretsKey).get(userId, proxyId);
+              overrides = {
+                ...overrides,
+                baseUrl: previous.base_url,
+                ...(previous.secret_id && { apiKey: { secretRef: previous.secret_id } }),
+              };
+              proxyId = null;
+            }
+
+            if (input.proxyId !== undefined) {
+              if (row.kind !== "endpoint")
+                return yield* Effect.fail(new Invalid("Device login cannot use a proxy override"));
+              const proxy = input.proxyId ? yield* proxyRecords(sql, secretsKey).get(userId, input.proxyId) : undefined;
+
+              if (proxy && !proxySupports(proxy.kind, harness))
+                return yield* Effect.fail(new Invalid("This proxy does not support this harness"));
+              proxyId = proxy?.id ?? null;
+            }
+
             const problem =
               checkPath("binary path", input.binaryPath) ??
               checkPath("home path", input.homePath) ??
@@ -237,6 +276,7 @@ export function instanceMutations(
 
             if (row.kind === "endpoint") {
               if (input.baseUrl !== undefined) next.baseUrl = input.baseUrl.trim();
+              else if (overrides.baseUrl && input.proxyId === undefined) next.baseUrl = overrides.baseUrl;
 
               if (input.apiKey === undefined && overrides.apiKey) next.apiKey = overrides.apiKey;
               else if (input.apiKey) next.apiKey = yield* putSecret(userId, input.apiKey);
@@ -247,9 +287,9 @@ export function instanceMutations(
 
           const enabled = request.enabled ?? current?.enabled ?? null;
           yield* sql`
-                  INSERT INTO provider_instance_workers (harness, instance_id, worker_id, enabled, overrides)
-                  VALUES (${harness}, ${row.id}, ${request.workerId}::uuid, ${enabled}, ${JSON.stringify(overrides)}::jsonb)
-                  ON CONFLICT (harness, instance_id, worker_id) DO UPDATE SET enabled = EXCLUDED.enabled, overrides = EXCLUDED.overrides, updated_at = now()`;
+                    INSERT INTO provider_instance_workers (harness, instance_id, worker_id, enabled, overrides, proxy_id)
+                    VALUES (${harness}, ${row.id}, ${request.workerId}::uuid, ${enabled}, ${JSON.stringify(overrides)}::jsonb, ${proxyId}::uuid)
+                    ON CONFLICT (harness, instance_id, worker_id) DO UPDATE SET enabled = EXCLUDED.enabled, overrides = EXCLUDED.overrides, proxy_id = EXCLUDED.proxy_id, updated_at = now()`;
 
           return yield* sync(userId, [request.workerId]);
         }),

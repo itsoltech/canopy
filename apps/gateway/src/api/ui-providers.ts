@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { type GatewayCore } from "../core/core.ts";
-import { guard } from "./ui-errors.ts";
+import { credentialGuard as guard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 
 export function providersHandlers(
@@ -17,8 +17,26 @@ export function providersHandlers(
   | "setInstanceModels"
   | "refreshProviders"
   | "startProviderLogin"
+  | "listProxies"
+  | "saveProxy"
+  | "deleteProxy"
+  | "testProxy"
+  | "moveInstanceToProxy"
 > {
   return {
+    listProxies: () => guard(async () => create(ui.ListProxiesResponseSchema, { proxies: await core.listProxies() })),
+    saveProxy: (request) => guard(async () => create(ui.ProxyResponseSchema, { proxy: await core.saveProxy(request) })),
+    deleteProxy: (request) =>
+      guard(async () => {
+        await core.deleteProxy(request);
+
+        return create(ui.DeleteProxyResponseSchema);
+      }),
+    testProxy: (request) => guard(() => core.testProxy(request)),
+    moveInstanceToProxy: (request) =>
+      guard(async () =>
+        create(ui.SaveProviderInstanceResponseSchema, { instance: await core.moveInstanceToProxy(request) }),
+      ),
     listModels: (request) =>
       guard(async () => create(ui.ListModelsResponseSchema, { workers: await core.listModels(request) })),
 

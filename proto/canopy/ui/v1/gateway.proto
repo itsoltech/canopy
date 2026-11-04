@@ -35,6 +35,12 @@ service GatewayService {
   rpc SaveLibraryPlugin(SaveLibraryPluginRequest) returns (AgentEnvironmentSnapshot);
   rpc DeleteLibraryPlugin(DeleteLibraryPluginRequest) returns (AgentEnvironmentSnapshot);
   rpc ResolvePluginDrift(ResolveSkillDriftRequest) returns (AgentEnvironmentSnapshot);
+  rpc ListProxies(ListProxiesRequest) returns (ListProxiesResponse);
+  rpc SaveProxy(SaveProxyRequest) returns (ProxyResponse);
+  rpc DeleteProxy(ProxyIdRequest) returns (DeleteProxyResponse);
+  rpc TestProxy(ProxyIdRequest) returns (TestProxyResponse);
+  // Move stored endpoint variables without returning their values to the client.
+  rpc MoveInstanceToProxy(MoveInstanceToProxyRequest) returns (SaveProviderInstanceResponse);
   // Safe model picker metadata for a bot, resolved at its home. No credentials or connector grants.
   rpc GetBotProviderInstances(GetBotRequest) returns (ListProviderInstancesResponse);
   rpc GetComputers(ComputersRequest) returns (ComputersSnapshot);
@@ -1386,6 +1392,7 @@ message InstanceOverrides {
   // Endpoint: inny adres albo klucz na tym workerze (np. inna sieć).
   optional string base_url = 7;
   bool api_key_set = 8;
+  string proxy_id = 9;
 }
 
 message InstanceOverridesInput {
@@ -1399,6 +1406,7 @@ message InstanceOverridesInput {
   optional string base_url = 7;
   // Nieustawiony = bez zmian, pusty = bez własnego klucza (globalny), inaczej nowy klucz.
   optional string api_key = 8;
+  optional string proxy_id = 9;
 }
 
 // Instancja na jednym workerze: włączenie, nadpisania i ostatni raport workera.
@@ -1445,6 +1453,7 @@ message ProviderInstance {
   // Każdy worker (niezarchiwizowany), także te, na których instancja jest wyłączona.
   repeated InstanceOnWorker workers = 15;
   google.protobuf.Timestamp updated_at = 16;
+  string proxy_id = 17;
 }
 
 // Instancja w Worker.provider_instances: to, czego potrzebują pickery.
@@ -1484,6 +1493,55 @@ message SaveProviderInstanceRequest {
   // Tylko przy tworzeniu: gdzie instancja działa (jak SetInstanceWorkers).
   bool all_workers = 12;
   repeated string worker_ids = 13;
+  string proxy_id = 14;
+}
+
+message Proxy {
+  string id = 1;
+  string name = 2;
+  // cliproxyapi (including forks), anthropic, openai.
+  string kind = 3;
+  // Normalized root, without a trailing /v1.
+  string base_url = 4;
+  bool secret_set = 5;
+  canopy.worker.v1.ProxyCodexOptions codex = 6;
+  uint64 revision = 7;
+  // Human-readable profile references, including worker-specific choices.
+  repeated string used_by = 8;
+}
+message ListProxiesRequest {}
+message ListProxiesResponse { repeated Proxy proxies = 1; }
+message SaveProxyRequest {
+  // Empty creates a new proxy.
+  string id = 1;
+  string name = 2;
+  string kind = 3;
+  string base_url = 4;
+  // Omitted keeps the stored secret; a supplied value replaces it. Never returned.
+  optional string secret = 5;
+  canopy.worker.v1.ProxyCodexOptions codex = 6;
+  uint64 expected_revision = 7;
+}
+message ProxyIdRequest {
+  string id = 1;
+  uint64 expected_revision = 2;
+}
+message ProxyResponse { Proxy proxy = 1; }
+message DeleteProxyResponse {}
+message TestProxyResponse {
+  bool ok = 1;
+  uint32 model_count = 2;
+  bool cliproxyapi_detected = 3;
+  // Sanitized diagnostic, never an upstream response body or secret.
+  string detail = 4;
+}
+message MoveInstanceToProxyRequest {
+  canopy.worker.v1.Provider harness = 1;
+  string id = 2;
+  uint64 expected_revision = 3;
+  // Built-in login stays native; a separate instance receives the proxy.
+  string new_instance_id = 4;
+  string name = 5;
 }
 
 message SaveProviderInstanceResponse {

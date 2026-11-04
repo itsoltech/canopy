@@ -3,6 +3,7 @@ import { ModelInfoSchema, ProfileModelsSchema, Provider, ui, type ProfileModels 
 import type { JsonValue } from "@canopy/domain";
 import { Match, Predicate } from "effect";
 import { isJsonObject } from "../bots/json.ts";
+import type { ProxyOptions } from "./proxy-records.ts";
 
 /**
  * Global provider instances, the pure part (docs/worker-config.md, section 9): what a worker gets is the
@@ -42,6 +43,9 @@ export interface StoredOverrides {
 }
 
 export interface InstanceRow {
+  proxy_id?: string | null;
+  proxy_owner?: string | null;
+  proxy_codex?: ProxyOptions | null;
   harness: Harness;
   id: string;
   label: string;
@@ -62,6 +66,8 @@ export interface InstanceRow {
 }
 
 export interface AssignmentRow {
+  proxy_id?: string | null;
+  proxy_codex?: ProxyOptions | null;
   harness: Harness;
   instance_id: string;
   worker_id: string;
@@ -71,6 +77,7 @@ export interface AssignmentRow {
 
 /** A profile of WorkerConfig.profiles as stored (protobuf JSON, secrets as references, defaults omitted). */
 export type StoredProfile = {
+  proxyCodex?: ProxyOptions;
   id: string;
   kind: "PROVIDER_PROFILE_KIND_NATIVE" | "PROVIDER_PROFILE_KIND_CLIPROXYAPI";
   providers: ["PROVIDER_CLAUDE" | "PROVIDER_CODEX" | "PROVIDER_GROK"];
@@ -158,6 +165,10 @@ export function effectiveProfile(instance: InstanceRow, assignment: AssignmentRo
   if (baseUrl) profile.baseUrl = baseUrl;
 
   if (apiKey) profile.apiKey = apiKey;
+
+  const codex = assignment?.proxy_codex ?? instance.proxy_codex;
+
+  if (endpoint && codex) profile.proxyCodex = codex;
 
   if (instance.label) profile.displayName = instance.label;
 

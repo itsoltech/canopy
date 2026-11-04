@@ -382,23 +382,29 @@ Per worker, profil i dostawca użytkownik wybiera, które modele katalogu (`work
 
 ## 9. Globalne instancje dostawców
 
+Połączenie instancji wybiera zapisane **Proxy** z Settings → Proxies, zamiast
+osobnego URL i klucza. Nadpisanie workera również może wybrać proxy. Wbudowany
+login pozostaje natywny; przycisk dodaje nową instancję, a **Move to a proxy**
+przenosi ręczne zmienne połączenia po stronie gateway. Migracja `0057`, deduplikacja,
+sekrety i dokładne mapowania Claude/Codex/Grok: [proxies.md](proxies.md).
+
 Status: **zaimplementowane** (migracja `0018_global_providers`; gateway `store/instances.ts`, `store/instance-config.ts`; kontrakt UI: `ListProviderInstances`, `SaveProviderInstance`, `DeleteProviderInstance`, `SetInstanceWorkers`, `SetInstanceWorker`, `SetInstanceModels`, `RefreshProviders`, `StartProviderLogin`, `Worker.provider_instances`; kontrakt workera: `ProviderProfileConfig.executable_path/home_path/shadow_home_path/launch_args/own_login`, `ProviderProfile.version/auth/authenticated`, komendy `ProbeProviders`, `StartLogin`; worker `config/remote.ts`, `runtime/host.ts`, `providers/codex/login.ts`; UI Settings → Providers).
 
 ### 9.1. Model
 
-**Instancja** = harness (Claude Code albo Codex) + `id`, zdefiniowana **raz w gateway** i włączana na wybranych workerach. Klucz to para (harness, id), bo wątki zapisują dostawcę i profil osobno (`threads.provider`, `threads.provider_profile_id`): ten sam `id` może mieć instancja Claude i instancja Codexa (np. `native`, `cliproxyapi`).
+**Instancja** = harness (Claude Code, Codex albo Grok) + `id`, zdefiniowana **raz w gateway** i włączana na wybranych workerach. Klucz to para (harness, id), bo wątki zapisują dostawcę i profil osobno (`threads.provider`, `threads.provider_profile_id`): ten sam `id` może mieć instancja Claude i instancja Codexa (np. `native`, `cliproxyapi`).
 
 | Globalnie (`provider_instances`) | Per worker (`provider_instance_workers`) |
 |---|---|
 | `label`, `accent_color` (kropka w pickerze) | `enabled`: `NULL` = jak `all_workers`, inaczej wybór dla tego workera |
-| `kind`: `native` (logowanie harnessu) albo `endpoint` (URL + klucz, CLIProxyAPI) | `overrides.baseUrl`, `overrides.apiKey` (inna sieć, inny klucz) |
-| `base_url`, `api_key` (sekret) | `overrides.binaryPath`, `homePath`, `shadowHomePath`, `launchArgs` (ścieżki zależne od systemu) |
+| `kind`: `native` (logowanie harnessu) albo `endpoint` (zapisane proxy) | `proxy_id`: inne proxy lub `NULL` (wybór instancji) |
+| `proxy_id`; `base_url`, `api_key` jako projekcja zgodności | `overrides.binaryPath`, `homePath`, `shadowHomePath`, `launchArgs` (ścieżki zależne od systemu) |
 | `env` (jawne i sekrety) | `overrides.env`: dodane albo zastąpione po nazwie (bez wielkości liter) |
 | `runtime`: `binaryPath`, `homePath`, `shadowHomePath`, `launchArgs`, `ownLogin` | |
 | `favorites` (kolejność), `hidden_models`, `shown_models`, `custom_models` | |
 | `all_workers` (także workery zarejestrowane później), `built_in`, `revision` | |
 
-Wbudowane instancje `claude/native` i `codex/native` (logowanie CLI na urządzeniu) istnieją zawsze, na wszystkich workerach; można im nadać nazwę, zmienne i ścieżki, wyłączyć na wybranym workerze, ale nie usunąć ani zmienić rodzaju połączenia.
+Wbudowane instancje `claude/native`, `codex/native` i `grok/native` (logowanie CLI na urządzeniu) istnieją zawsze, na wszystkich workerach; można im nadać nazwę, zmienne i ścieżki, wyłączyć na wybranym workerze, ale nie usunąć ani zmienić rodzaju połączenia.
 
 ### 9.2. Synchronizacja
 
@@ -419,7 +425,7 @@ sequenceDiagram
 - **Efektywna konfiguracja** = definicja ⊕ nadpisania workera (`effectiveProfile`): jeden `ProviderProfileConfig` na instancję, z jednym dostawcą w `providers`, w kolejności dostawca, `native`, id. Porównanie z zapisaną konfiguracją ignoruje kolejność kluczy (jsonb), więc niezmieniony worker nie dostaje nowej wersji.
 - **Wyłączona instancja jest na workerze nieobecna**: nie dostaje ani definicji, ani sekretów. Wyjątki: wbudowane `native` (inaczej worker dodałby je sam) i instancja, której używają wątki tego workera — dostają zaślepkę bez sekretów `disabled: true`, więc ich tury kończą się czytelnym `provider profile "<id>" is unavailable: disabled`.
 - Gateway synchronizuje wszystkie workery przy starcie (`syncProviderInstances`, np. zaraz po migracji) i po każdej zmianie; CLI (`worker add --cliproxy-url`) zakłada instancje `cliproxyapi` obu dostawców (albo nadpisania istniejących) i synchronizuje nowego workera.
-- **Sekrety**: klucz i zmienne-sekrety w `secrets` (nazwa `instance-<uuid>`), w definicji, nadpisaniach i konfiguracjach tylko `{"secretRef"}`. Sekrety `instance-*` i `profile-*`, do których nie odwołuje się żadna definicja, nadpisanie ani konfiguracja, są usuwane po każdej zmianie. Do UI wracają tylko flagi (`api_key_set`, zmienna-sekret z pustą wartością); sekret bez nowej wartości zostaje (po nazwie).
+- **Sekrety**: klucz proxy i zmienne-sekrety w `secrets` (nazwa `instance-<uuid>`), w definicji, nadpisaniach i konfiguracjach tylko `{"secretRef"}`. Sekrety `instance-*` i `profile-*`, do których nie odwołuje się żadne proxy, definicja, nadpisanie ani konfiguracja, są usuwane po każdej zmianie. Do UI wracają tylko flagi (`secret_set`, `api_key_set`, zmienna-sekret z pustą wartością); sekret bez nowej wartości zostaje (zmienna po nazwie).
 - **Współbieżność**: `expected_revision` w `SaveProviderInstanceRequest` / `DeleteProviderInstanceRequest`; inna = `FailedPrecondition` (BFF 409).
 - Instancji, której używają wątki, nie da się usunąć ani zmienić jej rodzaju połączenia (`FailedPrecondition`); można ją wyłączyć.
 

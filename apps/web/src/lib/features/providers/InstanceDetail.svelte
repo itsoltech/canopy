@@ -29,6 +29,7 @@
     workers,
     state: providers,
     ondeleted,
+    onaddproxy,
     class: className,
   }: {
     instance: ui.ProviderInstance;
@@ -36,6 +37,7 @@
     workers: readonly ui.Worker[];
     state: ProvidersState;
     ondeleted: () => void;
+    onaddproxy: () => void;
     class?: ClassValue;
   } = $props();
 
@@ -154,7 +156,14 @@
       </p>
     {/if}
   {:else}
-    <DefinitionForm {instance} onsaved={(saved) => providers.put(saved)} />
+    <DefinitionForm
+      {instance}
+      {onaddproxy}
+      onsaved={(saved) => {
+        providers.put(saved);
+        void providers.reload();
+      }}
+    />
   {/if}
 
   <SettingsSection title="Models" description="What the model picker offers for this instance, on every worker.">

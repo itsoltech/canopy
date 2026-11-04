@@ -72,6 +72,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "58_agent_skills",
       "59_agent_skill_sources",
       "60_agent_plugins",
+      "61_proxies",
     ]);
   }, 60_000);
 

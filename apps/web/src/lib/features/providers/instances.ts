@@ -35,7 +35,7 @@ export const instanceName = (instance: Pick<ui.ProviderInstance, "label" | "id" 
   instance.label || (instance.builtIn ? harnessName(instance.harness) : instance.id);
 
 export const kindLabel = (kind: ProviderProfileKind): string =>
-  kind === ProviderProfileKind.CLIPROXYAPI ? "API endpoint" : "Device login";
+  kind === ProviderProfileKind.CLIPROXYAPI ? "Proxy" : "Device login";
 
 export const ruleKind = (kind: ProviderProfileKind): ProfileKind =>
   kind === ProviderProfileKind.CLIPROXYAPI ? "endpoint" : "native";
@@ -212,20 +212,10 @@ export function splitArgs(text: string): string[] {
 export const joinArgs = (args: readonly string[]): string =>
   args.map((a) => (a === "" || /[\s"'\\]/.test(a) ? `"${a.replace(/["\\]/g, "\\$&")}"` : a)).join(" ");
 
-export function urlProblem(value: string): string | undefined {
-  const url = URL.canParse(value.trim()) ? new URL(value.trim()) : undefined;
-
-  if (!url || (url.protocol !== "http:" && url.protocol !== "https:"))
-    return "Enter an http(s) URL, e.g. http://127.0.0.1:8317.";
-
-  if (url.username || url.password) return "Put the key in the API key field, not in the URL.";
-
-  return undefined;
-}
-
 // ------------------------------------------------------------------ the definition (global)
 
 export interface InstanceDraft {
+  proxyId: string;
   harness: Provider;
   id: string;
   /** The id follows the label until the user edits it (new instances only). */
@@ -233,10 +223,6 @@ export interface InstanceDraft {
   label: string;
   accentColor: string;
   kind: ProviderProfileKind;
-  baseUrl: string;
-  apiKeySet: boolean;
-  keyAction: KeyAction;
-  apiKey: string;
   env: EnvVarDraft[];
   binaryPath: string;
   homePath: string;
@@ -250,16 +236,13 @@ export interface InstanceDraft {
 
 export function newDraft(harness: Provider, workerIds: string[]): InstanceDraft {
   return {
+    proxyId: "",
     harness,
     id: "",
     idEdited: false,
     label: "",
     accentColor: "",
     kind: ProviderProfileKind.CLIPROXYAPI,
-    baseUrl: "",
-    apiKeySet: false,
-    keyAction: "replace",
-    apiKey: "",
     env: [],
     binaryPath: "",
     homePath: "",
@@ -273,16 +256,13 @@ export function newDraft(harness: Provider, workerIds: string[]): InstanceDraft 
 
 export function draftOf(instance: ui.ProviderInstance): InstanceDraft {
   return {
+    proxyId: instance.proxyId,
     harness: instance.harness,
     id: instance.id,
     idEdited: true,
     label: instance.label,
     accentColor: instance.accentColor,
     kind: instance.kind,
-    baseUrl: instance.baseUrl,
-    apiKeySet: instance.apiKeySet,
-    keyAction: instance.apiKeySet ? "keep" : "replace",
-    apiKey: "",
     env: envDrafts(instance.env),
     binaryPath: instance.runtime?.binaryPath ?? "",
     homePath: instance.runtime?.homePath ?? "",
@@ -309,8 +289,7 @@ export const INSTANCE_ID = /^[a-z0-9][a-z0-9_-]{0,62}$/;
 export interface DraftProblems {
   label?: string;
   id?: string;
-  baseUrl?: string;
-  apiKey?: string;
+  proxyId?: string;
   workers?: string;
   env: EnvProblems;
 }
@@ -335,12 +314,7 @@ export function draftProblems(
   }
 
   if (draft.kind === ProviderProfileKind.CLIPROXYAPI) {
-    const problem = urlProblem(draft.baseUrl);
-
-    if (problem) problems.baseUrl = problem;
-
-    if (draft.keyAction === "replace" && draft.apiKeySet && !draft.apiKey)
-      problems.apiKey = "Enter the new key, or keep the current one.";
+    if (!draft.proxyId) problems.proxyId = "Choose a proxy, or add one.";
   }
 
   return problems;
@@ -348,12 +322,7 @@ export function draftProblems(
 
 export const hasProblems = (problems: DraftProblems): boolean =>
   Boolean(
-    problems.label ||
-    problems.id ||
-    problems.baseUrl ||
-    problems.apiKey ||
-    problems.workers ||
-    Object.keys(problems.env).length > 0,
+    problems.label || problems.id || problems.proxyId || problems.workers || Object.keys(problems.env).length > 0,
   );
 
 export function saveRequest(
@@ -368,10 +337,7 @@ export function saveRequest(
     create: options.creating,
     label: draft.label.trim(),
     kind: draft.kind,
-    baseUrl: endpoint ? draft.baseUrl.trim() : "",
-    // Unset keeps the stored key; "" clears it.
-    ...(endpoint && draft.keyAction === "replace" && draft.apiKey && { apiKey: draft.apiKey }),
-    ...(endpoint && draft.keyAction === "clear" && { apiKey: "" }),
+    proxyId: endpoint ? draft.proxyId : "",
     env: envInput(draft.env),
     runtime: {
       binaryPath: draft.binaryPath.trim(),
@@ -390,14 +356,11 @@ export function saveRequest(
 
 /** A field of the worker's overrides: unset follows the definition. */
 export interface OverrideDraft {
+  proxyId: string;
   binaryPath: string | undefined;
   homePath: string | undefined;
   shadowHomePath: string | undefined;
   launchArgs: string | undefined;
-  baseUrl: string | undefined;
-  apiKeySet: boolean;
-  keyAction: KeyAction;
-  apiKey: string;
   env: EnvVarDraft[];
 }
 
@@ -405,14 +368,11 @@ export function overrideDraftOf(on: ui.InstanceOnWorker | undefined): OverrideDr
   const o = on?.overrides;
 
   return {
+    proxyId: o?.proxyId ?? "",
     binaryPath: o?.binaryPath,
     homePath: o?.homePath,
     shadowHomePath: o?.shadowHomePath,
     launchArgs: o?.launchArgsSet ? joinArgs(o.launchArgs) : undefined,
-    baseUrl: o?.baseUrl,
-    apiKeySet: o?.apiKeySet ?? false,
-    keyAction: o?.apiKeySet ? "keep" : "replace",
-    apiKey: "",
     env: envDrafts(o?.env ?? []),
   };
 }
@@ -435,27 +395,18 @@ export function overrideRequest(
       launchArgsSet: draft.launchArgs !== undefined,
       launchArgs: draft.launchArgs !== undefined ? splitArgs(draft.launchArgs) : [],
       env: envInput(draft.env),
-      ...(endpoint && draft.baseUrl !== undefined && { baseUrl: draft.baseUrl }),
-      // Unset keeps the worker's key; "" drops it (the definition's applies); a value replaces it.
-      ...(endpoint && draft.keyAction === "replace" && draft.apiKey && { apiKey: draft.apiKey }),
-      ...(endpoint && draft.keyAction === "clear" && { apiKey: "" }),
+      ...(endpoint && { proxyId: draft.proxyId }),
     },
   });
 }
 
 export interface OverrideProblems {
-  baseUrl?: string;
-  apiKey?: string;
   env: EnvProblems;
 }
 
 export function overrideProblems(instance: ui.ProviderInstance, draft: OverrideDraft): OverrideProblems {
   return {
     env: envProblems(instance.kind, draft.env),
-    ...(draft.baseUrl !== undefined && urlProblem(draft.baseUrl) && { baseUrl: urlProblem(draft.baseUrl) }),
-    ...(draft.keyAction === "replace" &&
-      draft.apiKeySet &&
-      !draft.apiKey && { apiKey: "Enter the new key, or keep the current one." }),
   };
 }
 
@@ -470,6 +421,7 @@ const actions = {
   models: [ui.SetInstanceModelsRequestSchema, ui.SetInstanceModelsResponseSchema],
   refresh: [ui.RefreshProvidersRequestSchema, ui.RefreshProvidersResponseSchema],
   login: [ui.StartProviderLoginRequestSchema, ui.StartProviderLoginResponseSchema],
+  move: [ui.MoveInstanceToProxyRequestSchema, ui.SaveProviderInstanceResponseSchema],
 } as const satisfies Record<string, readonly [DescMessage, DescMessage]>;
 
 export type ProviderAction = keyof typeof actions;

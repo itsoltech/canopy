@@ -4,12 +4,10 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
-  import Field from "#lib/shared/ui/Field.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
+  import ProxyPicker from "#lib/features/proxies/ProxyPicker.svelte";
   import EnvVarEditor from "./EnvVarEditor.svelte";
   import { joinArgs, overrideDraftOf, overrideProblems, overrideRequest, providerCall } from "./instances.ts";
   import RuntimeFields from "./RuntimeFields.svelte";
-  import SecretValue from "./SecretValue.svelte";
   import SettingsSection from "./SettingsSection.svelte";
 
   /**
@@ -37,7 +35,6 @@
     homePath: draft.homePath ?? "",
     shadowHomePath: draft.shadowHomePath ?? "",
     launchArgs: draft.launchArgs ?? "",
-    baseUrl: draft.baseUrl ?? "",
   });
 
   let draft = $state(overrideDraftOf(undefined));
@@ -60,7 +57,6 @@
     homePath: text.homePath.trim() || undefined,
     shadowHomePath: text.shadowHomePath.trim() || undefined,
     launchArgs: text.launchArgs.trim() || undefined,
-    baseUrl: text.baseUrl.trim() || undefined,
   });
 
   const problems = $derived(overrideProblems(instance, merged));
@@ -79,7 +75,7 @@
     tried = true;
     failure = undefined;
 
-    if (problems.baseUrl || problems.apiKey || Object.keys(problems.env).length > 0) return;
+    if (Object.keys(problems.env).length > 0) return;
     busy = true;
 
     try {
@@ -94,34 +90,11 @@
 
 <form class={["grid gap-8", className]} onsubmit={submit} novalidate>
   {#if endpoint}
-    <SettingsSection title="Connection on {worker.name}" description="Empty: the definition's address and key.">
-      <div class="grid gap-4">
-        <Field label="Endpoint URL" error={shown.baseUrl}>
-          <Input
-            name="ovr-url"
-            bind:value={text.baseUrl}
-            placeholder={instance.baseUrl}
-            autocomplete="off"
-            spellcheck="false"
-            inputmode="url"
-            class="font-mono"
-          />
-        </Field>
-        <Field
-          label="API key"
-          description={draft.apiKeySet ? "This worker has its own key." : "Empty: the definition's key."}
-          error={shown.apiKey}
-        >
-          <SecretValue
-            set={draft.apiKeySet}
-            bind:action={draft.keyAction}
-            bind:value={draft.apiKey}
-            name="ovr-key"
-            placeholder="Key for this worker"
-            allowClear
-          />
-        </Field>
-      </div>
+    <SettingsSection
+      title="Connection on {worker.name}"
+      description="Choose another saved proxy, or follow the instance's connection."
+    >
+      <ProxyPicker harness={instance.harness} bind:value={draft.proxyId} inherited />
     </SettingsSection>
   {/if}
 

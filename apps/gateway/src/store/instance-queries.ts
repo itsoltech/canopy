@@ -19,12 +19,18 @@ import {
 import { encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
 import { Invalid, NotFound } from "./store.ts";
 import { SECRET_PREFIX, checkArgs, checkPath, toUi, type ConfigRow, type WorkerRow } from "./instance-checks.ts";
+import { migrateProxies } from "./proxy-migration.ts";
+import { isCredentialEnv, protectCredentialEnv } from "./credential-env.ts";
 
 /** Instances, assignments and workers as stored, and the settings view of them. */
 export function instanceReads(sql: SqlClient.SqlClient) {
-  const instances = () => sql<InstanceRow>`SELECT * FROM provider_instances ORDER BY harness, (id <> 'native'), id`;
+  const instances = () => sql<InstanceRow>`SELECT i.*, p.codex AS proxy_codex, p.owner_user_id AS proxy_owner
+    FROM provider_instances i LEFT JOIN proxies p ON p.id = i.proxy_id ORDER BY harness, (i.id <> 'native'), i.id`;
 
-  const assignments = () => sql<AssignmentRow>`SELECT * FROM provider_instance_workers`;
+  const assignments = () => sql<AssignmentRow>`SELECT w.*, p.codex AS proxy_codex,
+    CASE WHEN p.id IS NULL THEN w.overrides ELSE w.overrides || jsonb_build_object('baseUrl', p.base_url, 'apiKey',
+      CASE WHEN p.secret_id IS NULL THEN NULL ELSE jsonb_build_object('secretRef', p.secret_id::text) END) END AS overrides
+    FROM provider_instance_workers w LEFT JOIN proxies p ON p.id = w.proxy_id`;
 
   const workers = () =>
     sql<WorkerRow>`
@@ -50,7 +56,7 @@ export function instanceReads(sql: SqlClient.SqlClient) {
       return row;
     });
 
-  const list = () =>
+  const list = (userId?: string) =>
     Effect.gen(function* () {
       const [all, rows, workerRows, used] = [
         yield* instances(),
@@ -59,12 +65,14 @@ export function instanceReads(sql: SqlClient.SqlClient) {
         yield* threadUse(),
       ];
 
-      return all.map((row) => toUi(row, rows, workerRows, used));
+      return all
+        .filter((row) => !userId || !row.proxy_owner || row.proxy_owner === userId)
+        .map((row) => toUi(row, rows, workerRows, used));
     });
 
-  const get = (harness: Harness, id: string) =>
+  const get = (harness: Harness, id: string, userId?: string) =>
     Effect.gen(function* () {
-      const found = (yield* list()).find((i) => harnessOf(i.harness) === harness && i.id === id);
+      const found = (yield* list(userId)).find((i) => harnessOf(i.harness) === harness && i.id === id);
 
       if (!found) return yield* Effect.fail(new NotFound(`provider instance ${harness}/${id} not found`));
 
@@ -106,7 +114,7 @@ export function instanceWrites(sql: SqlClient.SqlClient, secretsKey: Buffer, rea
       const env: StoredEnvVar[] = [];
 
       for (const variable of input) {
-        if (!variable.secret) {
+        if (!variable.secret && !isCredentialEnv(variable.name)) {
           env.push({ name: variable.name, value: variable.value ?? "" });
           continue;
         }
@@ -172,7 +180,7 @@ export function instanceWrites(sql: SqlClient.SqlClient, secretsKey: Buffer, rea
 }
 
 /** Writes the workers' effective instances into their configurations. */
-export function instanceSync(sql: SqlClient.SqlClient, reads: InstanceReads) {
+export function instanceSync(sql: SqlClient.SqlClient, reads: InstanceReads, secretsKey: Buffer) {
   const { instances, assignments, threadUse } = reads;
 
   /** Secrets of this store (and of the per-worker profiles before it) that nothing references any more. */
@@ -181,6 +189,7 @@ export function instanceSync(sql: SqlClient.SqlClient, reads: InstanceReads) {
             DELETE FROM secrets s
              WHERE (s.name LIKE ${`${SECRET_PREFIX}%`} OR s.name LIKE 'profile-%')
                AND NOT EXISTS (SELECT 1 FROM worker_config_secrets r WHERE r.secret_id = s.id)
+               AND NOT EXISTS (SELECT 1 FROM proxies p WHERE p.secret_id = s.id)
                AND NOT EXISTS (
                  SELECT 1 FROM provider_instances i
                   WHERE i.api_key ->> 'secretRef' = s.id::text
@@ -192,15 +201,22 @@ export function instanceSync(sql: SqlClient.SqlClient, reads: InstanceReads) {
 
   const sync = (userId: string, workerIds?: readonly string[]) =>
     Effect.gen(function* () {
+      yield* migrateProxies(sql, secretsKey, userId);
+      yield* protectCredentialEnv(sql, secretsKey, userId);
+      // Compatibility fields also serve gateway bots and linked-computer exports. Proxy is their source of truth.
+      yield* sql`UPDATE provider_instances i SET base_url = p.base_url,
+        api_key = CASE WHEN p.secret_id IS NULL THEN NULL ELSE jsonb_build_object('secretRef', p.secret_id::text) END
+        FROM proxies p WHERE i.proxy_id = p.id`;
+
       const configs = workerIds
         ? workerIds.length === 0
           ? []
           : yield* sql<ConfigRow>`
-                    SELECT c.worker_id, c.config, c.version FROM worker_configs c JOIN workers w ON w.id = c.worker_id
+                    SELECT c.worker_id, c.config, c.version, w.owner_user_id FROM worker_configs c JOIN workers w ON w.id = c.worker_id
                      WHERE c.worker_id = ANY(${workerIds}::uuid[]) AND w.archived_at IS NULL AND w.revoked_at IS NULL
                      ORDER BY c.worker_id FOR UPDATE OF c`
         : yield* sql<ConfigRow>`
-                  SELECT c.worker_id, c.config, c.version FROM worker_configs c JOIN workers w ON w.id = c.worker_id
+                  SELECT c.worker_id, c.config, c.version, w.owner_user_id FROM worker_configs c JOIN workers w ON w.id = c.worker_id
                    WHERE w.archived_at IS NULL AND w.revoked_at IS NULL ORDER BY c.worker_id FOR UPDATE OF c`;
 
       const changed: string[] = [];
@@ -216,7 +232,7 @@ export function instanceSync(sql: SqlClient.SqlClient, reads: InstanceReads) {
           );
 
           const profiles = effectiveProfiles(
-            all,
+            all.filter((i) => !i.proxy_owner || !row.owner_user_id || i.proxy_owner === row.owner_user_id),
             rows.filter((a) => a.worker_id === row.worker_id),
             usedHere,
           );

@@ -427,7 +427,13 @@ function profileConfig(
     case ProviderProfileKind.NATIVE:
       return { kind: "native", ...common };
     case ProviderProfileKind.CLIPROXYAPI:
-      return { kind: "cliproxyapi", ...common, baseUrl: profile.baseUrl, apiKey: profile.apiKey };
+      return {
+        kind: "cliproxyapi",
+        ...common,
+        baseUrl: profile.baseUrl,
+        apiKey: profile.apiKey,
+        ...(profile.proxyCodex && { codex: profile.proxyCodex }),
+      };
     default:
       issue(`profiles[${index}].kind`, `unsupported profile kind for "${profile.id}"`);
 

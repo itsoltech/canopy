@@ -27,6 +27,7 @@ export function claudeProfileOptions(profile: ResolvedProfile, baseEnv: Env): Pi
     for (const name of AUTH_ENV) delete env[name];
     env["ANTHROPIC_BASE_URL"] = stripTrailingSlash(profile.baseUrl.href);
     env["ANTHROPIC_AUTH_TOKEN"] = profile.apiKey;
+    env["ANTHROPIC_API_KEY"] = "";
     // Lets Claude Code list the models the proxy exposes (CLIProxyAPI docs).
     env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] = "1";
   }

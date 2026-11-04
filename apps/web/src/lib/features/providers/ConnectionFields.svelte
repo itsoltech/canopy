@@ -2,13 +2,10 @@
   import type { ClassValue } from "svelte/elements";
   import { Provider, ProviderProfileKind } from "@canopy/contracts";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
-  import Field from "#lib/shared/ui/Field.svelte";
   import Fieldset from "#lib/shared/ui/Fieldset.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
   import ChoiceCard from "#lib/shared/ui/ChoiceCard.svelte";
-  import type { KeyAction } from "./instances.ts";
-  import SecretValue from "./SecretValue.svelte";
+  import ProxyPicker from "#lib/features/proxies/ProxyPicker.svelte";
 
   /**
    * How an instance reaches its models: the harness's own login (the device's, or its own for Codex, signed in from
@@ -18,10 +15,7 @@
   let {
     harness,
     kind = $bindable(),
-    baseUrl = $bindable(""),
-    apiKeySet,
-    keyAction = $bindable(),
-    apiKey = $bindable(""),
+    proxyId = $bindable(""),
     ownLogin = $bindable(false),
     kindLocked = false,
     errors,
@@ -30,13 +24,10 @@
   }: {
     harness: Provider;
     kind: ProviderProfileKind;
-    baseUrl: string;
-    apiKeySet: boolean;
-    keyAction: KeyAction;
-    apiKey: string;
+    proxyId: string;
     ownLogin: boolean;
     kindLocked?: boolean;
-    errors: { baseUrl?: string | undefined; apiKey?: string | undefined };
+    errors: { proxyId?: string | undefined };
     prefix: string;
     class?: ClassValue;
   } = $props();
@@ -46,8 +37,8 @@
   const options = $derived([
     {
       value: ProviderProfileKind.CLIPROXYAPI,
-      label: "API endpoint",
-      description: "An Anthropic/OpenAI-compatible URL with a key, e.g. CLIProxyAPI.",
+      label: "Proxy",
+      description: "A saved CLIProxyAPI or compatible connection. Manage connections in Settings → Proxies.",
     },
     {
       value: ProviderProfileKind.NATIVE,
@@ -70,33 +61,14 @@
         checked={kind === option.value}
         title={option.label}
         description={option.description}
+        disabled={kindLocked}
         onchange={() => (kind = option.value)}
       />
     {/each}
   </Fieldset>
   {#if endpoint}
     <GrowIn class="grid gap-4">
-      <Field label="Endpoint URL" error={errors.baseUrl}>
-        <Input
-          name="{prefix}-url"
-          bind:value={baseUrl}
-          placeholder="http://127.0.0.1:8317"
-          autocomplete="off"
-          spellcheck="false"
-          inputmode="url"
-          class="font-mono"
-        />
-      </Field>
-      <Field label="API key" error={errors.apiKey}>
-        <SecretValue
-          set={apiKeySet}
-          bind:action={keyAction}
-          bind:value={apiKey}
-          name="{prefix}-key"
-          placeholder="Key"
-          allowClear
-        />
-      </Field>
+      <ProxyPicker {harness} bind:value={proxyId} error={errors.proxyId} />
     </GrowIn>
   {:else if harness === Provider.CODEX}
     <GrowIn>

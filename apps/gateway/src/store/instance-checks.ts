@@ -16,6 +16,8 @@ import {
   type StoredEnvVar,
 } from "./instance-config.ts";
 import { Invalid, NotFound } from "./store.ts";
+import type { ProxyApi } from "./proxies.ts";
+import { isCredentialEnv } from "./credential-env.ts";
 
 /** The change started from an older definition, or an instance in use cannot be deleted. */
 export class InstanceConflict extends Error {
@@ -42,6 +44,7 @@ export interface WorkerRow {
 }
 
 export interface ConfigRow {
+  owner_user_id?: string | null;
   worker_id: string;
   /** jsonb: WorkerConfig in protobuf JSON form (see worker-config-json.ts). */
   config: { version?: string; profiles?: JsonValue[]; [key: string]: JsonValue | undefined };
@@ -63,8 +66,8 @@ export const envSettings = (env: readonly StoredEnvVar[]) =>
   env.map((v) =>
     create(ui.ProfileEnvVarSettingsSchema, {
       name: v.name,
-      secret: v.secret === true,
-      value: v.secret || isRef(v.value) ? "" : v.value,
+      secret: v.secret === true || isCredentialEnv(v.name),
+      value: v.secret || isRef(v.value) || isCredentialEnv(v.name) ? "" : v.value,
     }),
   );
 
@@ -113,6 +116,7 @@ export const toUi = (
     label: row.label,
     kind: row.kind === "endpoint" ? ProviderProfileKind.CLIPROXYAPI : ProviderProfileKind.NATIVE,
     baseUrl: row.base_url,
+    proxyId: row.proxy_id ?? "",
     apiKeySet: isRef(row.api_key),
     env: envSettings(row.env ?? []),
     runtime: {
@@ -155,6 +159,7 @@ export const toUi = (
           env: envSettings(o.env ?? []),
           ...(o.baseUrl !== undefined && { baseUrl: o.baseUrl }),
           apiKeySet: isRef(o.apiKey),
+          proxyId: assignment?.proxy_id ?? "",
         },
         reported: reported !== undefined,
         available: reported?.available ?? false,
@@ -174,10 +179,14 @@ export const toUi = (
   });
 };
 
-export interface InstanceApi {
+export interface InstanceApi extends ProxyApi {
+  moveInstanceToProxy(
+    userId: string,
+    request: ui.MoveInstanceToProxyRequest,
+  ): Fx<{ harness: Harness; id: string; changed: string[] }>;
   /** Every instance with its state on every worker (settings screen; no secret values). */
-  list(): Fx<ui.ProviderInstance[]>;
-  get(harness: Harness, id: string): Fx<ui.ProviderInstance>;
+  list(userId?: string): Fx<ui.ProviderInstance[]>;
+  get(harness: Harness, id: string, userId?: string): Fx<ui.ProviderInstance>;
   /** Creates or changes an instance. Returns the workers whose configuration changed. */
   save(input: SaveInstanceInput): Fx<{ harness: Harness; id: string; changed: string[] }>;
   remove(input: { userId: string; request: ui.DeleteProviderInstanceRequest }): Fx<string[]>;
