@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ProgressBar from "#lib/shared/ui/ProgressBar.svelte";
   import { onMount } from "svelte";
   import type { DesktopMode, DesktopStatus } from "@canopy/ui/desktop";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -194,19 +195,7 @@
               {status?.database?.message ?? "Starting services and connecting your worker…"}
             </p>
             {#if status?.database?.phase === "downloading" && status.database.progress !== undefined}
-              <div
-                role="progressbar"
-                aria-label="PostgreSQL download"
-                aria-valuemin="0"
-                aria-valuemax="100"
-                aria-valuenow={status.database.progress}
-                class="h-1.5 overflow-hidden rounded-full bg-zinc-950/10 dark:bg-white/10"
-              >
-                <div
-                  class="h-full rounded-full bg-zinc-950 dark:bg-white"
-                  style:width={`${status.database.progress}%`}
-                ></div>
-              </div>
+              <ProgressBar label="PostgreSQL download" value={status.database.progress} />
             {/if}
           {/if}
           <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">

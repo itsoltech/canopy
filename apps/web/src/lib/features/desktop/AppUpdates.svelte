@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ProgressBar from "#lib/shared/ui/ProgressBar.svelte";
   import { onMount } from "svelte";
   import type { SelectOption } from "#lib/shared/ui/listbox.ts";
   import type { ClassValue } from "svelte/elements";
@@ -99,12 +100,7 @@
         </p>
         {#if status.phase === "downloading"}
           <div class="flex items-center gap-3">
-            <progress
-              class="h-1.5 min-w-0 flex-1 accent-brand-600 dark:accent-brand-400"
-              aria-label="Update download"
-              max="100"
-              value={status.progress ?? 0}
-            ></progress>
+            <ProgressBar class="min-w-0 flex-1" label="Update download" value={status.progress ?? 0} />
             <span class="text-base/6 text-zinc-500 tabular-nums sm:text-sm/6 dark:text-zinc-400"
               >{Math.round(status.progress ?? 0)}%</span
             >
