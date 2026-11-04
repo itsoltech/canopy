@@ -8,8 +8,9 @@
     shape,
     color,
     name,
+    compact = false,
     class: className,
-  }: { shape: MascotShapeId; color: string; name: string; class?: ClassValue } = $props();
+  }: { shape: MascotShapeId; color: string; name: string; compact?: boolean; class?: ClassValue } = $props();
 
   let displayedColor = $state(defaultAppearance.color);
   let current = $state<MascotShapeId>("round");
@@ -39,10 +40,19 @@
   });
 </script>
 
-<div class={["grid justify-items-center gap-1 rounded-2xl bg-zinc-950/3 px-4 py-3 dark:bg-white/4", className]}>
+<div
+  class={[
+    "grid min-w-0 justify-items-center gap-1",
+    !compact && "rounded-2xl bg-zinc-950/3 px-4 py-3 dark:bg-white/4",
+    className,
+  ]}
+>
   <button
     type="button"
-    class="t-icon-swap size-40 cursor-pointer rounded-full outline-offset-2 focus-visible:outline-2 focus-visible:outline-brand-500"
+    class={[
+      "t-icon-swap cursor-pointer rounded-full outline-offset-2 focus-visible:outline-2 focus-visible:outline-brand-500",
+      compact ? "size-16" : "size-40",
+    ]}
     data-state={slot}
     aria-label={`Play with ${name.trim() || "your bot"}`}
     onclick={() => play++}
@@ -55,7 +65,7 @@
         reaction={name}
         event={play}
         playful
-        class="size-40"
+        class={compact ? "size-16" : "size-40"}
       /></span
     >
     <span class="t-icon" data-icon="b"
@@ -66,11 +76,13 @@
         reaction={name}
         event={play}
         playful
-        class="size-40"
+        class={compact ? "size-16" : "size-40"}
       /></span
     >
   </button>
-  <p class="max-w-full truncate text-base/6 font-medium sm:text-sm/6">{name.trim() || "Your new bot"}</p>
+  {#if !compact}<p class="max-w-full truncate text-base/6 font-medium sm:text-sm/6">
+      {name.trim() || "Your new bot"}
+    </p>{/if}
 </div>
 
 <style>

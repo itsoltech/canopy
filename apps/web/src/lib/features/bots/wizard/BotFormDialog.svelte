@@ -53,10 +53,23 @@
   let effort = $state<string>();
   let busy = $state(false);
   let submitted = $state(false);
+  let appearanceOpen = $state(false);
   let error = $state<string>();
   let form = $state<HTMLFormElement>();
   let session = $state(0);
   let wasOpen = false;
+
+  const status = $derived.by(() => {
+    if (busy) return editing ? "Saving appearance…" : "Creating your bot…";
+
+    if (editing) return "";
+
+    if (loading) return "Loading models before you can create a bot.";
+
+    if (loadError) return "Reload models to continue.";
+
+    return option ? "" : "Choose an available model to create your bot.";
+  });
 
   $effect(() => {
     if (open && !wasOpen)
@@ -69,8 +82,9 @@
         effort = undefined;
         error = undefined;
         submitted = false;
+        appearanceOpen = false;
         session += 1;
-        // The session key remounts fields after Dialog's initial focus; focus the fresh input.
+        // Focus the fresh readiness section on create, or the name input on appearance-only edit.
         void tick().then(() => {
           if (open) form?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
         });
@@ -86,6 +100,7 @@
     error = appearanceError({ name, shape, color }, existingNames, initial?.name);
 
     if (error) {
+      if (!normalizeColor(color)) appearanceOpen = true;
       await tick();
       form?.querySelector<HTMLElement>("[aria-invalid=true]")?.focus();
 
@@ -156,13 +171,22 @@
           {editing ? "Edit Bot appearance" : "Create New Bot"}
         </p>
         <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          {editing ? "A fresh look for a familiar face." : "A little character. A mind of its own."}
+          {editing ? "A fresh look for a familiar face." : "Choose a model, then give your bot a name."}
         </p>
       </div>
       <IconButton icon="x-mark" label="Close" size="sm" disabled={busy} onclick={() => (open = false)} />
     </div>
     <div class="grid gap-5 px-5 pb-5 sm:px-6">
       {#key session}
+        {#if !editing}
+          <div tabindex="-1" data-autofocus class="min-w-0 outline-none">
+            {#if loading}<p role="status" class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+                Loading providers and models…
+              </p>
+            {:else if loadError}<Alert tone="error">{loadError}</Alert><Button onclick={onreload}>Try again</Button>
+            {:else}<ProviderModelFields {instances} bind:instanceId bind:option bind:effort disabled={busy} />{/if}
+          </div>
+        {/if}
         <AppearanceFields
           bind:name
           bind:shape
@@ -170,24 +194,22 @@
           {existingNames}
           originalName={initial?.name}
           {submitted}
+          collapsible={!editing}
+          bind:expanded={appearanceOpen}
           disabled={busy}
         />
-        {#if !editing}
-          {#if loading}<p role="status" class="text-sm text-zinc-500 dark:text-zinc-400">
-              Loading providers and models…
-            </p>
-          {:else if loadError}<Alert tone="error">{loadError}</Alert><Button onclick={onreload}>Try again</Button>
-          {:else}<ProviderModelFields {instances} bind:instanceId bind:option bind:effort disabled={busy} />{/if}
-        {/if}
       {/key}
       {#if error}<Alert tone="error">{error}</Alert>{/if}
     </div>
     <div
-      class="sticky bottom-0 flex items-center justify-end gap-2 border-t border-zinc-950/10 bg-white px-5 pt-3 pb-[max(--spacing(4),env(safe-area-inset-bottom))] sm:px-6 dark:border-white/10 dark:bg-zinc-950"
+      class="sticky bottom-0 flex flex-wrap items-center justify-end gap-2 border-t border-zinc-950/10 bg-white px-5 pt-3 pb-[max(--spacing(4),env(safe-area-inset-bottom))] sm:px-6 dark:border-white/10 dark:bg-zinc-950"
     >
-      <div class="mr-auto text-sm/5 text-zinc-500 dark:text-zinc-400" role="status">
-        {busy ? (editing ? "Saving appearance…" : "Creating your bot…") : ""}
-      </div>
+      {#if status}<p
+          class="mr-auto min-w-0 basis-full text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400"
+          role="status"
+        >
+          {status}
+        </p>{/if}
       <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
       <Button type="submit" variant="primary" loading={busy} disabled={!editing && (loading || !!loadError || !option)}
         >{editing ? "Save changes" : "Create Bot"}</Button
