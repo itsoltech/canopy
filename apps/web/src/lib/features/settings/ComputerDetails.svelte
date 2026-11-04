@@ -2,6 +2,8 @@
   import type { ClassValue } from "svelte/elements";
   import type { ui } from "@canopy/contracts";
   import Button from "#lib/shared/ui/Button.svelte";
+  import Badge from "#lib/shared/ui/Badge.svelte";
+  import { needsThreadUpdate } from "#lib/features/computers/computers.ts";
   let { computer, self = false, busy = false, onrename, onunlink, class: className }: {
     computer: ui.LinkedComputer; self?: boolean; busy?: boolean; onrename: () => void; onunlink?: () => void; class?: ClassValue;
   } = $props();
@@ -15,8 +17,12 @@
 <div class={["grid min-w-0 gap-4 p-4", className]}>
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div class="min-w-0 flex-1">
-      <h3 class="break-words text-base font-semibold text-zinc-950 dark:text-white">{computer.displayName || computer.name}</h3>
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <h3 class="break-words text-base font-semibold text-zinc-950 dark:text-white">{computer.displayName || computer.name}</h3>
+        {#if !self && needsThreadUpdate(computer)}<Badge tone="amber" icon="arrow-path">Needs an update</Badge>{/if}
+      </div>
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{self ? "This computer" : status}</p>
+      {#if !self && needsThreadUpdate(computer)}<p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Its threads appear here after it updates to a Canopy version that shares them.</p>{/if}
       {#if !self && computer.status !== "connected"}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Since {date(computer.statusSinceMs)}</p>{/if}
     </div>
     <div class="flex flex-wrap gap-2">

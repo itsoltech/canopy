@@ -6,8 +6,11 @@
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import { splitId } from "@canopy/domain/computers";
 
-  const unavailable = $derived(page.status >= 500);
+  // A linked computer's thread while that computer is away: its reason ("Travel laptop is unreachable since …"), not a gateway outage.
+  const away = $derived(Boolean(splitId(page.params["threadId"] ?? "").node) && (page.status === 503 || page.status === 409));
+  const unavailable = $derived(page.status >= 500 || away);
   let retrying = $state(false);
   async function retry() {
     if (retrying) return;
@@ -32,7 +35,13 @@
 <div class="flex h-full flex-col">
   <TopBar><Crumb>{page.status === 404 ? "Not found" : "Error"}</Crumb></TopBar>
   {#if unavailable}
-    <div class="min-h-0 flex-1"><GatewayUnavailable {retry} {retrying} /></div>
+    <div class="min-h-0 flex-1">
+      {#if away}
+        <GatewayUnavailable {retry} {retrying} icon="link" title={page.error?.message ?? "The other computer is away"} description="This thread lives on that computer and opens here again once it is connected. Retrying automatically." />
+      {:else}
+        <GatewayUnavailable {retry} {retrying} />
+      {/if}
+    </div>
   {:else}
     <div class="grid min-h-0 flex-1 place-items-center overflow-y-auto p-6">
       <div class="flex max-w-md flex-col items-center text-center">

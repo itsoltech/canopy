@@ -11,6 +11,7 @@
   import SidebarThreadLink from "./SidebarThreadLink.svelte";
   import SwapText from "#lib/shared/ui/SwapText.svelte";
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
+  import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
 
   /**
    * One thread in the inbox (T3 layout): project and status, title, then where it runs with its marks
@@ -43,6 +44,7 @@
   <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5">
     <Icon name="computer-desktop" class="size-3.5 {worker?.online ? 'fill-zinc-400 dark:fill-zinc-500' : 'fill-zinc-300 dark:fill-zinc-700'}" />
     <span class="min-w-0 flex-1 truncate">{worker?.name ?? "Unknown worker"}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span>{project?.kind === "scratch" ? "scratch folder" : basename(thread.cwd)}</span>
+    <MachineBadge nodeId={thread.nodeId} compact class="max-w-28" />
     <span class="flex shrink-0 items-center gap-2">
       <ThreadGoalMark {thread} />
       <ScheduleOrigin {thread} compact />

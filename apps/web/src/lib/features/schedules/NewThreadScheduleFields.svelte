@@ -19,11 +19,11 @@
   const overview = useOverview();
   const catalog = useModelCatalog();
   const initial = untrack(() => value);
-  let projectId = $state(initial?.projectId ?? overview.projects[0]?.id ?? "");
+  let projectId = $state(initial?.projectId ?? overview.ownProjects[0]?.id ?? "");
   let placement = $state(initial?.placement || untrack(() => overview.project(projectId)?.kind === "scratch" ? "specific" : "any"));
   let workspaceId = $state(initial?.workspaceId ?? "");
   const initialWorker = untrack(() => {
-    const candidates = overview.workers.filter((w) => overview.project(projectId)?.workspaces.some((ws) => ws.workerId === w.id && (placement !== "specific" || ws.id === workspaceId)));
+    const candidates = overview.ownWorkers.filter((w) => overview.project(projectId)?.workspaces.some((ws) => ws.workerId === w.id && (placement !== "specific" || ws.id === workspaceId)));
     return candidates.find((w) => initial && scheduleWorkerEligible(w, initial, false)) ?? candidates[0];
   });
   const initialProfile = initial?.providerProfileId === "native" ? "" : initial?.providerProfileId || "";
@@ -34,7 +34,7 @@
   let title = $state(initial?.title ?? "");
   const project = $derived(overview.project(projectId));
   const workspaces = $derived(project?.workspaces ?? []);
-  const workers = $derived(overview.workers.filter((w) => workspaces.some((ws) => ws.workerId === w.id && (placement !== "specific" || ws.id === workspaceId))));
+  const workers = $derived(overview.ownWorkers.filter((w) => workspaces.some((ws) => ws.workerId === w.id && (placement !== "specific" || ws.id === workspaceId))));
   const options = $derived([...new Map(workers.flatMap((worker) =>
     modelOptions({ worker, catalog: catalog.of(worker.id), threads: overview.threads.values() }),
   ).map((o) => [o.key, o])).values()]);
@@ -63,7 +63,7 @@
 <div class={["grid min-w-0 gap-4", className]}>
   <div class="grid gap-4 sm:grid-cols-2">
     <Field label="Project">
-      <Select name="projectId" bind:value={projectId} options={overview.projects.length ? overview.projects.map((project) => ({ value: project.id, label: project.name })) : [{ value: "", label: "No projects yet" }]} />
+      <Select name="projectId" bind:value={projectId} options={overview.ownProjects.length ? overview.ownProjects.map((project) => ({ value: project.id, label: project.name })) : [{ value: "", label: "No projects yet" }]} />
     </Field>
     {#if project?.kind !== "scratch"}<Field label="Placement">
       <Select name="placement" bind:value={placement} options={Object.entries(placementLabels).map(([value, label]) => ({ value, label }))} />

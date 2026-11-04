@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./items": "./src/items.ts",
+    "./computers": "./src/computers.ts",
     "./background-tasks": "./src/background-tasks/index.ts",
     "./release/protocol": "./src/release/protocol.ts",
     "./release/version": "./src/release/version.ts"

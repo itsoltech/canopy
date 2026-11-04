@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/link/v1/link.proto.
  */
 export const file_canopy_link_v1_link: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvbGluay92MS9saW5rLnByb3RvEg5jYW5vcHkubGluay52MSKUAQoJTm9kZUhlbGxvEg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglhZGRyZXNzZXMYAyADKAkSEwoLYXBwX3ZlcnNpb24YBCABKAkSFAoMbWluX3Byb3RvY29sGAUgASgNEhQKDG1heF9wcm90b2NvbBgGIAEoDRIUCgxjYXBhYmlsaXRpZXMYByADKAkiRwoLUGFpclJlcXVlc3QSDgoGc2VjcmV0GAEgASgJEigKBWhlbGxvGAIgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvIjgKDFBhaXJSZXNwb25zZRIoCgVoZWxsbxgBIAEoCzIZLmNhbm9weS5saW5rLnYxLk5vZGVIZWxsbyJhCgtMaW5rV2VsY29tZRIoCgVoZWxsbxgBIAEoCzIZLmNhbm9weS5saW5rLnYxLk5vZGVIZWxsbxIQCghwcm90b2NvbBgCIAEoDRIWCg51cGRhdGVfbm9kZV9pZBgDIAEoCSIyCghQcmVzZW5jZRINCgVzdGF0ZRgBIAEoCRIXCg9hbm5vdW5jZWRfYXRfbXMYAiABKAMiHwoJSGVhcnRiZWF0EhIKCnNlbnRfYXRfbXMYASABKAMiCgoIVW5saW5rZWQi+wEKCUxpbmtGcmFtZRIqCgVoZWxsbxgBIAEoCzIZLmNhbm9weS5saW5rLnYxLk5vZGVIZWxsb0gAEi4KB3dlbGNvbWUYAiABKAsyGy5jYW5vcHkubGluay52MS5MaW5rV2VsY29tZUgAEi4KCWhlYXJ0YmVhdBgDIAEoCzIZLmNhbm9weS5saW5rLnYxLkhlYXJ0YmVhdEgAEiwKCHByZXNlbmNlGAQgASgLMhguY2Fub3B5LmxpbmsudjEuUHJlc2VuY2VIABIsCgh1bmxpbmtlZBgFIAEoCzIYLmNhbm9weS5saW5rLnYxLlVubGlua2VkSABCBgoEYm9keTKdAQoTQ29tcHV0ZXJMaW5rU2VydmljZRJBCgRQYWlyEhsuY2Fub3B5LmxpbmsudjEuUGFpclJlcXVlc3QaHC5jYW5vcHkubGluay52MS5QYWlyUmVzcG9uc2USQwoHQ29ubmVjdBIZLmNhbm9weS5saW5rLnYxLkxpbmtGcmFtZRoZLmNhbm9weS5saW5rLnYxLkxpbmtGcmFtZSgBMAFiBnByb3RvMw");
+  fileDesc("ChljYW5vcHkvbGluay92MS9saW5rLnByb3RvEg5jYW5vcHkubGluay52MSKUAQoJTm9kZUhlbGxvEg8KB25vZGVfaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglhZGRyZXNzZXMYAyADKAkSEwoLYXBwX3ZlcnNpb24YBCABKAkSFAoMbWluX3Byb3RvY29sGAUgASgNEhQKDG1heF9wcm90b2NvbBgGIAEoDRIUCgxjYXBhYmlsaXRpZXMYByADKAkiRwoLUGFpclJlcXVlc3QSDgoGc2VjcmV0GAEgASgJEigKBWhlbGxvGAIgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvIjgKDFBhaXJSZXNwb25zZRIoCgVoZWxsbxgBIAEoCzIZLmNhbm9weS5saW5rLnYxLk5vZGVIZWxsbyJhCgtMaW5rV2VsY29tZRIoCgVoZWxsbxgBIAEoCzIZLmNhbm9weS5saW5rLnYxLk5vZGVIZWxsbxIQCghwcm90b2NvbBgCIAEoDRIWCg51cGRhdGVfbm9kZV9pZBgDIAEoCSIyCghQcmVzZW5jZRINCgVzdGF0ZRgBIAEoCRIXCg9hbm5vdW5jZWRfYXRfbXMYAiABKAMiHwoJSGVhcnRiZWF0EhIKCnNlbnRfYXRfbXMYASABKAMiCgoIVW5saW5rZWQiTwoNUmVtb3RlUmVxdWVzdBIPCgdjYWxsX2lkGAEgASgEEg4KBm1ldGhvZBgCIAEoCRIPCgdwYXlsb2FkGAMgASgMEgwKBG1vcmUYBCABKAgibAoOUmVtb3RlUmVzcG9uc2USDwoHY2FsbF9pZBgBIAEoBBIPCgdwYXlsb2FkGAIgASgMEgwKBG1vcmUYAyABKAgSCwoDZW5kGAQgASgIEgwKBGNvZGUYBSABKA0SDwoHbWVzc2FnZRgGIAEoCSIfCgxSZW1vdGVDYW5jZWwSDwoHY2FsbF9pZBgBIAEoBCKmAwoJTGlua0ZyYW1lEioKBWhlbGxvGAEgASgLMhkuY2Fub3B5LmxpbmsudjEuTm9kZUhlbGxvSAASLgoHd2VsY29tZRgCIAEoCzIbLmNhbm9weS5saW5rLnYxLkxpbmtXZWxjb21lSAASLgoJaGVhcnRiZWF0GAMgASgLMhkuY2Fub3B5LmxpbmsudjEuSGVhcnRiZWF0SAASLAoIcHJlc2VuY2UYBCABKAsyGC5jYW5vcHkubGluay52MS5QcmVzZW5jZUgAEiwKCHVubGlua2VkGAUgASgLMhguY2Fub3B5LmxpbmsudjEuVW5saW5rZWRIABI3Cg5yZW1vdGVfcmVxdWVzdBgGIAEoCzIdLmNhbm9weS5saW5rLnYxLlJlbW90ZVJlcXVlc3RIABI5Cg9yZW1vdGVfcmVzcG9uc2UYByABKAsyHi5jYW5vcHkubGluay52MS5SZW1vdGVSZXNwb25zZUgAEjUKDXJlbW90ZV9jYW5jZWwYCCABKAsyHC5jYW5vcHkubGluay52MS5SZW1vdGVDYW5jZWxIAEIGCgRib2R5Mp0BChNDb21wdXRlckxpbmtTZXJ2aWNlEkEKBFBhaXISGy5jYW5vcHkubGluay52MS5QYWlyUmVxdWVzdBocLmNhbm9weS5saW5rLnYxLlBhaXJSZXNwb25zZRJDCgdDb25uZWN0EhkuY2Fub3B5LmxpbmsudjEuTGlua0ZyYW1lGhkuY2Fub3B5LmxpbmsudjEuTGlua0ZyYW1lKAEwAWIGcHJvdG8z");
 
 /**
  * @generated from message canopy.link.v1.NodeHello
@@ -181,6 +181,114 @@ export const UnlinkedSchema: GenMessage<Unlinked> = /*@__PURE__*/
   messageDesc(file_canopy_link_v1_link, 6);
 
 /**
+ * Stage 2, capability "remote_threads": a canopy.ui.v1.GatewayService call
+ * proxied to the home gateway of a thread. Either side may call over any
+ * connection; call ids are chosen by the caller and unique per connection and
+ * direction. Payloads are binary protobuf of the method's request/response,
+ * split into chunks that fit the link frame limit. Only an allowlisted set of
+ * thread methods is served; ids never carry another computer's qualification.
+ *
+ * @generated from message canopy.link.v1.RemoteRequest
+ */
+export type RemoteRequest = Message<"canopy.link.v1.RemoteRequest"> & {
+  /**
+   * @generated from field: uint64 call_id = 1;
+   */
+  callId: bigint;
+
+  /**
+   * GatewayService method name, e.g. "WatchThread".
+   *
+   * @generated from field: string method = 2;
+   */
+  method: string;
+
+  /**
+   * @generated from field: bytes payload = 3;
+   */
+  payload: Uint8Array;
+
+  /**
+   * The request continues in the next frame of the same call.
+   *
+   * @generated from field: bool more = 4;
+   */
+  more: boolean;
+};
+
+/**
+ * Describes the message canopy.link.v1.RemoteRequest.
+ * Use `create(RemoteRequestSchema)` to create a new message.
+ */
+export const RemoteRequestSchema: GenMessage<RemoteRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 7);
+
+/**
+ * @generated from message canopy.link.v1.RemoteResponse
+ */
+export type RemoteResponse = Message<"canopy.link.v1.RemoteResponse"> & {
+  /**
+   * @generated from field: uint64 call_id = 1;
+   */
+  callId: bigint;
+
+  /**
+   * @generated from field: bytes payload = 2;
+   */
+  payload: Uint8Array;
+
+  /**
+   * This response message continues in the next frame.
+   *
+   * @generated from field: bool more = 3;
+   */
+  more: boolean;
+
+  /**
+   * The call is finished; no payload follows. A non-zero code is a Connect error.
+   *
+   * @generated from field: bool end = 4;
+   */
+  end: boolean;
+
+  /**
+   * @generated from field: uint32 code = 5;
+   */
+  code: number;
+
+  /**
+   * @generated from field: string message = 6;
+   */
+  message: string;
+};
+
+/**
+ * Describes the message canopy.link.v1.RemoteResponse.
+ * Use `create(RemoteResponseSchema)` to create a new message.
+ */
+export const RemoteResponseSchema: GenMessage<RemoteResponse> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 8);
+
+/**
+ * The caller stopped listening (stream closed, timeout). The home aborts the call.
+ *
+ * @generated from message canopy.link.v1.RemoteCancel
+ */
+export type RemoteCancel = Message<"canopy.link.v1.RemoteCancel"> & {
+  /**
+   * @generated from field: uint64 call_id = 1;
+   */
+  callId: bigint;
+};
+
+/**
+ * Describes the message canopy.link.v1.RemoteCancel.
+ * Use `create(RemoteCancelSchema)` to create a new message.
+ */
+export const RemoteCancelSchema: GenMessage<RemoteCancel> = /*@__PURE__*/
+  messageDesc(file_canopy_link_v1_link, 9);
+
+/**
  * @generated from message canopy.link.v1.LinkFrame
  */
 export type LinkFrame = Message<"canopy.link.v1.LinkFrame"> & {
@@ -217,6 +325,24 @@ export type LinkFrame = Message<"canopy.link.v1.LinkFrame"> & {
      */
     value: Unlinked;
     case: "unlinked";
+  } | {
+    /**
+     * @generated from field: canopy.link.v1.RemoteRequest remote_request = 6;
+     */
+    value: RemoteRequest;
+    case: "remoteRequest";
+  } | {
+    /**
+     * @generated from field: canopy.link.v1.RemoteResponse remote_response = 7;
+     */
+    value: RemoteResponse;
+    case: "remoteResponse";
+  } | {
+    /**
+     * @generated from field: canopy.link.v1.RemoteCancel remote_cancel = 8;
+     */
+    value: RemoteCancel;
+    case: "remoteCancel";
   } | { case: undefined; value?: undefined };
 };
 
@@ -225,7 +351,7 @@ export type LinkFrame = Message<"canopy.link.v1.LinkFrame"> & {
  * Use `create(LinkFrameSchema)` to create a new message.
  */
 export const LinkFrameSchema: GenMessage<LinkFrame> = /*@__PURE__*/
-  messageDesc(file_canopy_link_v1_link, 7);
+  messageDesc(file_canopy_link_v1_link, 10);
 
 /**
  * Pair is the only RPC open to a certificate without a pin. The invitation

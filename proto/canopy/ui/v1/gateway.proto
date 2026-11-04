@@ -277,6 +277,8 @@ message Worker {
   // CLI dostawców na tym workerze (docs/provider-cli.md); puste = worker ich nie zgłasza (starsza wersja).
   repeated WorkerCliTool cli_tools = 800;
   string arch = 801;
+  // Worker innego komputera (id kwalifikowane), pusty = ten komputer.
+  string node_id = 802;
 }
 
 message Project {
@@ -287,6 +289,8 @@ message Project {
   string kind = 410;
   repeated Workspace workspaces = 4;
   google.protobuf.Timestamp archived_at = 480;
+  // Numery od 800: projekt innego komputera (id kwalifikowane), pusty = ten komputer.
+  string node_id = 800;
 }
 
 message Workspace {
@@ -386,6 +390,8 @@ message Thread {
   string schedule_id = 290;
   string schedule_name = 291;
   uint32 schedule_run = 292;
+  // Numery od 800: dom wątku na innym komputerze (id kwalifikowane, docs/linked-computers.md), pusty = ten komputer.
+  string node_id = 800;
 }
 
 // Wątek agenta, od którego przyszło wejście tury albo steer (zadanie, wiadomość, raport): do oznaczenia wiadomości
@@ -551,6 +557,8 @@ message GetOverviewResponse {
   repeated Worker workers = 1;
   repeated Project projects = 2;
   repeated Agent agents = 3;
+  // Połączone komputery: nazwy i obecność dla znaczków maszyny i zdalnych wątków.
+  repeated LinkedComputer computers = 800;
 }
 
 message WatchOverviewRequest {
@@ -579,6 +587,10 @@ message OverviewUpdate {
     ProjectSettings project_settings = 6;
     // Nowy katalog modeli workera.
     WorkerModels models = 40;
+    // Numery od 800: obecność, nazwa albo capabilities połączonego komputera się zmieniły.
+    LinkedComputer computer = 800;
+    // Komputer rozłączony (Unlink): jego wątki, projekty i workery znikają z widoku.
+    string computer_removed = 801;
   }
 }
 

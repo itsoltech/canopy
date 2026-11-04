@@ -1,6 +1,10 @@
 import { error } from "@sveltejs/kit";
 import { fromJson, type DescMessage, type JsonValue, type MessageShape } from "@bufbuild/protobuf";
 import { Result, Schema } from "effect";
+import { isEntityId } from "@canopy/domain/computers";
+
+/** A uuid of this computer or of a linked one (qualified, docs/linked-computers.md). */
+export const EntityId = Schema.String.check(Schema.makeFilter((value: string) => isEntityId(value) || "Expected an id"));
 
 /** Parses a JSON body; anything else is a 415 or 400. */
 async function readJson(request: Request): Promise<unknown> {

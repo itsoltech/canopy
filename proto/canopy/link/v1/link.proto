@@ -29,6 +29,34 @@ message LinkWelcome {
 message Presence { string state = 1; int64 announced_at_ms = 2; }
 message Heartbeat { int64 sent_at_ms = 1; }
 message Unlinked {}
+
+// Stage 2, capability "remote_threads": a canopy.ui.v1.GatewayService call
+// proxied to the home gateway of a thread. Either side may call over any
+// connection; call ids are chosen by the caller and unique per connection and
+// direction. Payloads are binary protobuf of the method's request/response,
+// split into chunks that fit the link frame limit. Only an allowlisted set of
+// thread methods is served; ids never carry another computer's qualification.
+message RemoteRequest {
+  uint64 call_id = 1;
+  // GatewayService method name, e.g. "WatchThread".
+  string method = 2;
+  bytes payload = 3;
+  // The request continues in the next frame of the same call.
+  bool more = 4;
+}
+message RemoteResponse {
+  uint64 call_id = 1;
+  bytes payload = 2;
+  // This response message continues in the next frame.
+  bool more = 3;
+  // The call is finished; no payload follows. A non-zero code is a Connect error.
+  bool end = 4;
+  uint32 code = 5;
+  string message = 6;
+}
+// The caller stopped listening (stream closed, timeout). The home aborts the call.
+message RemoteCancel { uint64 call_id = 1; }
+
 message LinkFrame {
   oneof body {
     NodeHello hello = 1;
@@ -36,5 +64,8 @@ message LinkFrame {
     Heartbeat heartbeat = 3;
     Presence presence = 4;
     Unlinked unlinked = 5;
+    RemoteRequest remote_request = 6;
+    RemoteResponse remote_response = 7;
+    RemoteCancel remote_cancel = 8;
   }
 }

@@ -19,7 +19,7 @@
 <svelte:head><title>Projects · Settings · Canopy</title></svelte:head>
 
 <SettingsGroup title="Projects" description="Choose a project to manage its workspaces and threads.">
-  {#each overview.projects.filter((p) => p.kind !== "scratch") as project (project.id)}
+  {#each overview.ownProjects.filter((p) => p.kind !== "scratch") as project (project.id)}
     <SettingsRow title={project.name} description={summary(project.workspaces)} href="/settings/projects/{project.id}">
       {#snippet leading()}<ProjectAvatar name={project.name} />{/snippet}
     </SettingsRow>

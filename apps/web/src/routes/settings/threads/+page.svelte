@@ -9,7 +9,7 @@
 
   const overview = useOverview();
   const settings = useSettings();
-  const workspaces = $derived(overview.projects.map((project) => ({ project, workspaces: project.workspaces })));
+  const workspaces = $derived(overview.ownProjects.map((project) => ({ project, workspaces: project.workspaces })));
 </script>
 
 <svelte:head><title>Threads · Settings · Canopy</title></svelte:head>

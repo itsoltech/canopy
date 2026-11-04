@@ -57,6 +57,12 @@
         {#snippet mark()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} class="size-4" />{/snippet}
         <span class="truncate">{project?.name ?? "Unknown project"}</span>
       </SummaryRow>
+      {#if thread.nodeId}
+        <SummaryRow>
+          {#snippet mark()}<Icon name="link" class={muted} />{/snippet}
+          <span class="truncate">On {overview.machine(thread.nodeId)}</span>
+        </SummaryRow>
+      {/if}
       <SummaryRow>
         {#snippet mark()}<Icon name="computer-desktop" class={muted} />{/snippet}
         <span class="truncate">{worker?.name ?? "Unknown worker"}</span>

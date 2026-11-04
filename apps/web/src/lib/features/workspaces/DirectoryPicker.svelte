@@ -26,7 +26,7 @@
   let path = $state("");
   let address = $state("");
   let entries = $state.raw<ui.ListDirectoryResponse["entries"]>([]);
-  const locations = $derived([...new Set(overview.projects.filter((p) => p.kind !== "scratch")
+  const locations = $derived([...new Set(overview.ownProjects.filter((p) => p.kind !== "scratch")
     .flatMap((p) => p.workspaces.filter((w) => w.workerId === workerId).map((w) => w.rootPath)))].slice(-4).reverse());
   let error = $state<string | undefined>(undefined);
   let loading = $state(false);

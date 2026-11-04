@@ -30,7 +30,7 @@
   const overview = useOverview();
   const provider = $derived(providerKeyOf(value.provider));
   // Profiles any worker offers for the provider (the thread's worker decides when it starts).
-  const profiles = $derived(provider ? [...new Set(overview.workers.flatMap((w) => instancesFor(w, provider).map((p) => p.id)))] : []);
+  const profiles = $derived(provider ? [...new Set(overview.ownWorkers.flatMap((w) => instancesFor(w, provider).map((p) => p.id)))] : []);
   const inheritedAgent = $derived(inherited && inherited.provider !== Provider.UNSPECIFIED ? providerLabel(inherited.provider) : "any available");
 
   const set = (change: Partial<Omit<ui.ThreadDefaults, "$typeName">>) => onchange(create(ui.ThreadDefaultsSchema, { ...value, ...change }));

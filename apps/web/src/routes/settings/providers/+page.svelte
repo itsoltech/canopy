@@ -39,7 +39,7 @@
   let toggling = $state<string>();
   let failure = $state<string>();
 
-  const workers = $derived(overview.workers);
+  const workers = $derived(overview.ownWorkers);
   const worker = $derived(workers.find((w) => w.id === scope));
   const selected = $derived(providers.find(selectedKey) ?? providers.instances[0]);
 

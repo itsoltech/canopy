@@ -1,7 +1,9 @@
 # Połączone komputery (projekt)
 
-Status: **etap 1 zaimplementowany** (2026-11-03): tożsamość, parowanie, przypięty mTLS,
-wersjonowanie, obecność i Settings → Linked computers. Etapy 2–8 poniżej pozostają projektem.
+Status: **etapy 1–2 zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
+wersjonowanie, obecność i Settings → Linked computers. Etap 2: zsumowany overview i zdalne wątki
+(lista, odczyt na żywo, pisanie, steer, kolejka, przerwanie, zgody i tworzenie wątku na workerze
+partnera, trasowane do domu). Etapy 3–8 poniżej pozostają projektem.
 
 ## Cel
 
@@ -277,3 +279,109 @@ niezgodność obu stron, obecność, reconnect po restarcie serwisu, nazwy i unl
 Kontrola UI przechodzi przez dwa produkcyjne gatewaye/BFF za pomocą jednorazowej automatyzacji
 Chromium poza repo; screenshoty obejrzano. Nie dodaje testów komponentów/E2E do repo.
 Wyniki i screenshoty: [raport etapu 1](../artifacts/linked-computers/verification.md).
+
+## Konkretny protokół etapu 2
+
+Implementacja: `apps/gateway/src/computers/remote.ts` (wywołania na łączu, przepisywanie id),
+`apps/gateway/src/api/routed.ts` (trasowanie `GatewayService`), `packages/domain/src/computers.ts`
+(format id), UI w `apps/web/src/lib/features/computers`. Bez nowej migracji: capabilities połączenia
+są stanem w pamięci, nic z partnera nie trafia do bazy A.
+
+### Capability zamiast nowej wersji protokołu
+
+Gateway ogłasza w `NodeHello.capabilities` funkcję **`remote_threads`**, gdy ma czym obsłużyć wywołania.
+Nowe warianty `LinkFrame` (`remote_request` 6, `remote_response` 7, `remote_cancel` 8) są wysyłane
+wyłącznie połączeniu z wynegocjowanym dodatnim protokołem **i** tą capability partnera. Gateway etapu 1
+zamknąłby strumień na nieznanej ramce, ale nigdy jej nie dostanie, bo jej nie ogłasza. Dlatego
+`COMPUTER_LINK_PROTOCOL` zostaje 1: zmiana jest addytywna i negocjowana funkcją, a starszy partner
+dalej działa w kanale kontrolnym. Partner połączony bez capability ma w UI stan „Laptop B needs an update
+to share its threads” (Settings → Linked computers: znaczek „Needs an update”), a każda akcja na jego
+wątkach kończy się tym samym komunikatem (`FAILED_PRECONDITION`).
+
+### Wywołania przez łącze
+
+`RemoteRequest {call_id, method, payload, more}` niesie wywołanie `canopy.ui.v1.GatewayService` (nazwa
+metody, binarny protobuf żądania), `RemoteResponse {call_id, payload, more, end, code, message}` kolejne
+wiadomości odpowiedzi (unary: jedna, stream: wiele) i koniec z kodem Connect. Ładunki są dzielone na
+kawałki 32 KiB (limit ramki łącza 64 KiB zostaje), złożona wiadomość ma limit 48 MiB. `RemoteCancel`
+przerywa wywołanie u domu (zamknięty strumień przeglądarki, timeout). Identyfikatory wywołań wybiera
+wołający, osobno dla każdego kierunku połączenia. Każda strona może wołać przez dowolne gotowe
+połączenie, więc wystarczy, że jedna strona ma listener.
+
+Dom obsługuje tylko listę dozwolonych metod wątków (`SERVED`): overview, lista i odczyt wątków,
+`WatchThread`, tworzenie wątku, wiadomości (kolejka i steer), przerwanie, odpowiedzi na zgody i pytania,
+zarządzanie kolejką, ustawienia wątku, tytuł, cel, zadania w tle, przeczytanie/archiwizacja/usuwanie,
+modele, katalogi workera, wzmianki plików, załączniki i bloby osi czasu. Inne metody (ustawienia,
+instancje dostawców, sekrety wątków, connectory, boty, harmonogramy, workery, aktualizacje, komputery,
+telefony) zwracają `UNIMPLEMENTED`. Żądanie partnera wykonuje się lokalnymi handlerami, jako właściciel
+tego gatewaya, bez dalszego trasowania i bez agregacji (brak przechodniości, etap 7). Żądanie
+zawierające id innego komputera jest odrzucane. Błędy przechodzą wyłącznie jako kod i komunikat
+domeny; nieznany błąd to „internal error” bez szczegółów.
+
+Wywołanie przed wysłaniem sprawdza, czy partner nadal jest sparowany. Unlink zamyka połączenie,
+a wraz z nim przerywa wszystkie wywołania w obu kierunkach. Utrata połączenia kończy otwarte wywołania
+błędem `UNAVAILABLE` („Laptop B disconnected”). **Nic nie jest kolejkowane**: brak gotowego połączenia
+to natychmiastowy błąd z powodem z obecności etapu 1 — „Laptop B is unreachable since 19:42”,
+„is updating since …”, „went to sleep at …”, „shut down at …”, „needs an update”, „must be paired again”
+(godzina w strefie użytkownika). Unary ma limit 30 s, zbieranie overview/list z partnerów 3 s;
+partner, który nie odpowie, jest pomijany, a nie oczekiwany.
+
+### Id i trasowanie w gatewayu
+
+Id z domu dostaje sufiks `~` + pierwsze 16 znaków hex id węzła domu (`<uuid>~<node16>`), np. id wątku,
+tury, interakcji, workera, projektu, workspace'u i załącznika. Przepisywanie jest generyczne (refleksja
+protobuf): każde pole tekstowe `id`, `*_id`, `*_ids` z wartością uuid. Wątki, workery i projekty
+partnera mają `node_id` z pełnym id węzła domu (800 dla projektu i wątku, 802 dla workera;
+800–801 workera zajmują pola CLI). Przeglądarka i telefon nie trasują niczego:
+wysyłają id tak, jak je dostały. `routed.ts` po sufiksie wybiera partnera (prefiks musi wskazywać
+dokładnie jednego), zdejmuje sufiks, wysyła wywołanie i kwalifikuje odpowiedź. Żądanie mieszające id
+dwóch komputerów albo lokalny uuid w wywołaniu do partnera jest odrzucane („Choose a project, worker
+and thread on the same computer”). Wyjątek: załączniki wgrane na A do wiadomości dla wątku B gateway A
+odczytuje i wgrywa na B (`UploadAttachment`), a w żądaniu podmienia na id z B.
+
+Metody spoza listy z kwalifikowanym id najwyższego poziomu (np. `ListSchedules` dla wątku B) dają
+„This isn't available for threads on another computer yet”. Sekrety wątków nie przechodzą przez łącze.
+Przypięcia i filtr projektów sidebara mogą zawierać id kwalifikowane (walidacja `isEntityId`).
+
+### Zsumowany widok
+
+- `GetOverview`: lokalne workery i projekty plus te z każdego partnera, który udostępnia wątki teraz,
+  oraz `computers` (800): wszyscy partnerzy z obecnością i capabilities.
+- `ListThreads` bez projektu i `ListModels` bez workera: lokalne plus partnerzy; z kwalifikowanym
+  projektem/workerem — tylko dom.
+- `WatchOverview`: lokalny strumień plus, dla każdego udostępniającego partnera, jego `WatchOverview`
+  z `include_snapshot` rozpakowanym do zmian `worker`/`project`/`thread`. Zmiana obecności, nazwy
+  albo capabilities partnera to `OverviewUpdate.computer` (800), Unlink — `computer_removed` (801).
+  Ustawienia, harmonogramy i urządzenia partnera nie są przekazywane. Migawka telefonu
+  (`include_snapshot`) obejmuje także partnerów.
+- `ListArchivedThreads` pozostaje lokalne (stronicowanie per komputer); archiwum partnera jest u niego.
+
+W etapie 2 wątki partnera są widoczne **tylko gdy jest połączony** i udostępnia wątki. Gdy zniknie,
+UI usuwa jego workery, projekty i wątki z list (lustra offline to etap 3). Otwarty wątek zostaje
+na ekranie z ostatnim stanem, z bannerem „Read only for now” i powodem, a composer jest zablokowany.
+
+### UI
+
+Znaczek maszyny (`MachineBadge`: ikona łącza i nazwa) przy wątku partnera w sidebarze i nagłówku
+wątku, w karcie podglądu wątku, przy projekcie w pickerze projektu (status wiersza i pigułka) oraz
+„On Laptop B” przy workerze. Nowy wątek na workerze partnera: wybierasz projekt partnera i jego
+workera; B zostaje właścicielem. Ekrany konfiguracji per komputer (projekty, workery, dostawcy,
+connectory, domyślne ustawienia wątków, harmonogramy) pokazują wyłącznie własne rzeczy
+(`ownWorkers`/`ownProjects`), bo konfiguracja wspólna to etap 4. Harmonogramy wątków partnera są
+w tym etapie niedostępne.
+
+### Dowody
+
+`tests/integration/remote-threads.test.ts`: dwa prawdziwe gatewaye z osobnymi bazami PostgreSQL,
+skryptowany worker na B, łącze mTLS. Sprawdza zsumowany overview i modele (bez echa A przez B),
+utworzenie wątku z A na workerze B (wątek tylko w bazie B) i strumień na żywo, wiadomość, steer,
+kolejkę (usunięcie tury po kwalifikowanym id) i przerwanie wykonane na B, zgodę z B odpowiedzianą z A,
+załącznik wgrany na A dostarczony na B, overview na żywo (wątek utworzony na B, obecność „updating”),
+niedostępnego partnera (błąd „unreachable since HH:MM” w < 1,5 s, brak partnera w overview, po
+powrocie brak dostarczonej wiadomości), partnera bez capability („needs an update”), odmowę metod
+spoza listy i żądań przez inny komputer oraz brak dostępu po Unlink w obie strony, także surowym
+przypiętym strumieniem z `remote_request` (odpowiedź wyłącznie `unlinked`).
+
+Odroczone: lustra offline i kursory (3), wspólna konfiguracja, harmonogramy i sekrety (4), boty
+i szyna agentów przez granicę (5), archiwum partnera w sidebarze A, wyszukiwanie wątków partnera we
+wzmiankach.

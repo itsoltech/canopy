@@ -49,7 +49,7 @@
     </PillButton>
   {/snippet}
   {#snippet option(ws, state)}
-    <PickerRow title={nameOf(ws)} status={workerStatus(overview.worker(ws.workerId))} selected={state.selected}>
+    <PickerRow title={nameOf(ws)} detail={project.nodeId ? `On ${overview.machine(project.nodeId)}` : undefined} status={workerStatus(overview.worker(ws.workerId))} selected={state.selected}>
       {#snippet leading()}<StatusDot tone={online(ws) ? "emerald" : "neutral"} />{/snippet}
     </PickerRow>
   {/snippet}
