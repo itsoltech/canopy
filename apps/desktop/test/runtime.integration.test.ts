@@ -247,7 +247,7 @@ test.skipIf(!existsSync(paths.gateway))(
       Number(readFileSync(join(directory, "postgres", "data", "postmaster.pid"), "utf8").split("\n")[0]);
 
     const first = guardian();
-    await first.start();
+    const orphaned = await first.start();
     const orphan = postmaster();
     first.child.kill("SIGKILL"); // kill -9 / OOM: no cleanup code runs in the guardian.
     await first.exited;
@@ -268,6 +268,8 @@ test.skipIf(!existsSync(paths.gateway))(
     // A clean quit stops it and removes the lock.
     expect(gone(current)).toBe(true);
     expect(existsSync(join(directory, "postgres", "data", "postmaster.pid"))).toBe(false);
+    // The killed guardian's other sidecars stop on their own (stdin EOF), and none keeps writing to its data.
+    await until(async () => orphaned.every(gone), 30_000);
   },
   240_000,
 );
