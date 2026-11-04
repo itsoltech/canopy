@@ -6,5 +6,5 @@
     "noUncheckedIndexedAccess": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": [".", "../oxlint.config.ts"]
+  "include": [".", "../oxlint.config.ts", "../oxlint.spacing.config.ts"]
 }

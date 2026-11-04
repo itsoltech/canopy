@@ -1,302 +1,292 @@
 # Jakość kodu: lint, formatter, limity rozmiaru
 
-Status: **przygotowanie**. Narzędzia, konfiguracja i pomiar są w repo, ale kod aplikacji nie był jeszcze ani
-formatowany, ani poprawiany. Refaktor i formatowanie ruszą dopiero po zmergowaniu wszystkich otwartych PR-ów/gałęzi
-(inaczej każdy z nich miałby konflikty w prawie każdym pliku). Do tego czasu `bun run lint` i `bun run format:check`
-**nie przechodzą** i nie są częścią `check` ani CI.
+Status: **faza 1 — konfiguracja i przebieg mechaniczny wykonane** (2026-11-04).
+Gałąź narzędziowa została zrebase'owana na `origin/dev` @ `85867472bd860df93e1dab9231464b59a16691f0`,
+po scaleniu ośmiu etapów połączonych komputerów oraz zmian desktop/worker. Jedyny konflikt dotyczył `bun.lock`:
+zachowano zależności aktualnego `dev`, a Bun dopisał przypięte zależności narzędziowe.
 
-Liczby poniżej: `origin/dev` @ `f39f5b6` (2026-11-03). Pełne zestawienie maszynowe: `docs/code-quality-baseline.json`.
+Pomiar dotyczy sformatowanego drzewa z commita `28347c5fd09396d5aef4ed408f1f0ea22cca0b2f` i przyjętej
+konfiguracji. **1798 naruszeń w 376 plikach**: 1713 do fazy 2 i 85 zgłoszeń rozmiaru do fazy 3.
+`format:check` przechodzi; `lint` celowo kończy się błędem. **CI i root `check` pozostają bez zmian** do zakończenia
+wszystkich poprawek. Pełny pomiar: [code-quality-baseline.json](code-quality-baseline.json).
 
-## Narzędzia
+## Narzędzia i polecenia
 
-| Narzędzie                                          | Wersja (dokładny pin)                        | Rola                                                        |
-| -------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------- |
-| `oxlint`                                           | 1.91.0                                       | linter (reguły wbudowane + pluginy JS)                      |
-| `@oxlint/plugins`                                  | 1.91.0 (zawsze ta sama co `oxlint`)          | API, którego używa vendorowany plugin                       |
-| [anti-slop](https://github.com/dmmulroy/anti-slop) | commit `13909c9` (v0.1.2), vendorowany, MIT  | reguły przeciw „slopowi” agentów, `tools/oxlint/anti-slop/` |
-| `oxfmt`                                            | 0.76.0                                       | formatter (TS, TSX, Svelte, JSON, CSS, YAML)                |
+| Narzędzie | Dokładny pin | Rola |
+| --- | --- | --- |
+| `oxlint` / `@oxlint/plugins` | 1.91.0 / 1.91.0 | linter i API pluginów JS |
+| [anti-slop](https://github.com/dmmulroy/anti-slop) | `13909c9e07590f5a85d93c62712259fe14a883f7` (v0.1.2) | vendorowane reguły w `tools/oxlint/anti-slop/` |
+| `oxfmt` | 0.76.0 | formatter TS, TSX, Svelte, JSON, CSS, YAML |
 
-Skrypty (root `package.json`):
+Pochodzenie, licencje MIT i odstępstwa: `tools/oxlint/anti-slop/UPSTREAM.md` oraz
+`vendor/eslint-stylistic/{LICENSE,UPSTREAM.md}` wewnątrz pluginu. Aktualizację pluginu należy porównywać trójstronnie
+z powyższym commitem upstreamu. Vendorowany kod jest nasz; politykę zmieniamy w konfiguracji lub regule.
 
-- `bun run lint`: `oxlint` na całym repo (~1,4 s, 1116 plików).
-- `bun run lint:fix`: `oxlint --fix`, wszystkie bezpieczne autofixy. Uwaga na `unicorn/no-useless-spread` niżej.
-- `bun run lint:spacing`: tylko autofix `anti-slop/require-readable-spacing` (same białe znaki); do przebiegu
-  mechanicznego. Osobny `oxlint.spacing.config.ts` współdzieli ignore'y i wyłącza pozostałe reguły: samo `-A all`
-  nie wyłącza jawnie skonfigurowanych reguł pluginów JS, więc poprzednia komenda kończyła się błędem.
-- `bun run format` / `bun run format:check`: `oxfmt` (~3 s na całym repo).
-- `bun run typecheck` sprawdza też `tools/tsconfig.json` (vendorowany plugin + `oxlint.config.ts`).
+- `bun run lint` — pełny oxlint (obecnie 1218 plików).
+- `bun run lint:fix` — wszystkie bezpieczne autofixy oxlint; nie jest krokiem przebiegu mechanicznego.
+- `bun run lint:spacing` — wyłącznie `require-readable-spacing`, przez `oxlint.spacing.config.ts`.
+- `bun run format` / `bun run format:check` — zapis / sprawdzenie oxfmt.
+- `bun run typecheck` — obejmuje także `tools/tsconfig.json` (plugin i konfiguracje oxlint).
 
-### anti-slop
+Osobny config spacing współdzieli `ignorePatterns` z głównym i wyłącza domyślną kategorię `correctness`.
+Poprzednie `oxlint -A all -D anti-slop/require-readable-spacing --fix` nie wyłączało jawnie skonfigurowanych reguł
+pluginów JS: spacing był poprawiany, lecz komenda kończyła się błędem innych reguł. Dedykowany config usuwa ten problem.
 
-Vendorowany procedurą skilla `install-anti-slop` (kopia `assets/anti-slop/` = upstream `src/` bez testów). Pochodzenie,
-licencje i odstępstwa: `tools/oxlint/anti-slop/UPSTREAM.md` oraz `vendor/eslint-stylistic/{LICENSE,UPSTREAM.md}`. Kod jest
-nasz: politykę zmienia się w regułach albo w `oxlint.config.ts`, nie przez `oxlint-disable` w kodzie aplikacji.
-Aktualizacja: `skills/install-anti-slop/references/update.md` z upstreamu (merge trójstronny względem `13909c9`).
+`.oxfmtrc.json`: `printWidth: 120`, `svelte: true`, `sortPackageJson: false`, pozostałe ustawienia domyślne.
+W pomiarze przygotowawczym dawało to mniejszy diff niż pojedyncze cudzysłowy, brak średników albo węższe linie.
+oxfmt ma wbudowany formatter Svelte i sortowanie klas Tailwind. `sortTailwindcss` korzysta z
+`apps/web/src/routes/layout.css` (v4, wraz z własnymi utility). Sortowanie klas nie zmienia ich priorytetu w CSS.
+Nie wprowadzamy `max-len`: formatter zostawia długie stringi, komentarze i atrybuty, których sztuczne łamanie szkodzi.
 
-Wszystkie 24 zestawy testów RuleTester z upstreamu przechodzą na `oxlint` 1.91.0 (upstream testował 1.78.0).
+Oba konfiguratory pomijają katalogi agentów, vendorowany plugin, `**/gen/**`, wyjścia buildów, `.svelte-kit`, `.expo`
+i artefakty. Formatter pomija także `packages/ui/src/palette.json` (generowany) i `**/*.md` (polska dokumentacja
+nie potrzebuje mechanicznego przełamywania prozy). `gen:check` potwierdza brak zmian kontraktów i palety;
+osobno sprawdzono brak diffu w `packages/codex-protocol/src/gen`.
 
-### Dlaczego oxfmt, a nie Prettier + prettier-plugin-svelte
+## Przyjęta konfiguracja i zasady fazy 2
 
-Zmierzone na kopii repo, ta sama konfiguracja (`printWidth: 120`, reszta domyślna):
+Maintainer zaakceptował te decyzje; są już w `oxlint.config.ts`:
 
-- **Wynik praktycznie identyczny.** Prettier 3.9.10 + prettier-plugin-svelte 4.1.1 zmienia 958 plików, oxfmt 961;
-  wyniki różnią się tylko w 15 plikach. 7 z nich to `package.json` (oxfmt domyślnie sortuje klucze, wyłączone:
-  `sortPackageJson: false`). Pozostałe 8 to głównie inne łamanie długich unii typów (np. po `as`). oxfmt ma wbudowany port
-  prettier-plugin-svelte (wymaga pakietu `svelte`, który jest w root `node_modules` przez `apps/web`).
-- **Szybkość:** 2,6 s vs 13,2 s na całym repo.
-- **Jeden zestaw narzędzi** z oxlint (Oxc), bez pluginów. Sortowanie klas Tailwind jest wbudowane (port
-  prettier-plugin-tailwindcss).
+- `anti-slop/no-shape-in-symbol-names`: **off**. `MessageInitShape`/`MessageShape` pochodzą z protobuf-es,
+  a kształt maskotki jest rzeczywistym pojęciem domenowym.
+- `anti-slop/require-safety-comment-for-type-assertion`: **off w testach**, error w kodzie źródłowym.
+  Testy to `*.test.ts(x)`, `**/test/**`, `tests/**`. W źródłach najpierw usuwamy zbędne asercje przez dekoder,
+  `satisfies` lub konkretny typ; komentarz `SAFETY:` opisuje sprawdzony invariant.
+- `anti-slop/no-runtime-typeof`: error z **`allowInTypeGuards: true`**. Zewnętrzny JSON dekodujemy na granicy I/O;
+  proste nazwane type guardy są dozwolone. Nie przenosimy ślepo wszystkich sprawdzeń do wspólnego worka helperów.
+- `anti-slop-effect/prefer-effect-match`: **off w `.svelte`**, error w pozostałym kodzie pakietów Effect.
+- `JsonObject` / `JsonValue`: typy tylko, już eksportowane z `@canopy/domain` (`src/json.ts`), bez migracji użyć.
+  `JsonValue` obejmuje prymitywy JSON, readonly tablice i `JsonObject`; obiekt ma readonly indeks wartości JSON.
 
-Ustawienia dobrane pomiarem: liczyłem, ile linii zmieni każdy wariant. Domyślne (spacje ×2, cudzysłowy podwójne,
-średniki, `trailingComma: all`, `arrowParens: always`) dają najmniejszy diff. `semi: false` i `singleQuote` podwajają
-diff, a `trailingComma: none/es5` i `arrowParens: avoid` go zwiększają. `printWidth`: 80 → 93k wstawionych linii,
-100 → 66k, **120 → 48k**, 160 → 27k. 120 to kompromis między czytelnością a churnem. Dziś 7895 linii TS/Svelte ma > 120
-znaków, a 2602 > 160.
+Pozostałe reguły anti-slop oraz `oxc/no-accumulating-spread` pozostają error. Reguły `anti-slop-effect/*` obowiązują
+wyłącznie w pakietach z bezpośrednią zależnością `effect`: gateway, worker, web, domain, db i testy integracyjne.
+Domyślna kategoria oxlint `correctness` jest włączona. Mobile zachowuje także własny ESLint Expo/React.
 
-**Tailwind:** `sortTailwindcss` z `apps/web/src/routes/layout.css` (v4, rozumie własne utility jak `focus-ring`). Klasy
-są już prawie posortowane: włączenie sortowania dokłada tylko 72 pliki z drobnymi przestawieniami. Kolejność klas w
-atrybucie nie zmienia kaskady Tailwinda v4, więc nie koliduje z regułą z AGENTS.md o klasach komponentów kitu (tam
-problemem jest konflikt utility, nie kolejność). Repo nie używa helperów `clsx`/`cn`, więc `functions` jest puste.
+W fazie 2:
 
-**Markdown nie jest formatowany** (`**/*.md` w `ignorePatterns`). oxfmt zmieniłby 50 dokumentów (~1150 linii: tabele,
-listy, łamanie), czyli głównie polską prozę w `docs/`, bez zysku dla czytelności kodu. YAML (2 pliki, kosmetyka), JSON i
-CSS są formatowane.
+- `no-array-filter-map` poprawiamy przez **`flatMap`**. Podpowiedź `.values().filter().map().toArray()` nie przejdzie
+  typechecku przy `lib: ["ES2024"]`; mobile używa Hermesa. Nie podnosimy `lib` dla tego refaktoru.
+- `no-unsafe-dictionary-type`: konkretny typ właściciela/dekoder, a `JsonObject` tylko dla rzeczywistego JSON-a.
+  Zastąpienie dowolnego `Record<string, unknown>` typem JSON nie dowodzi poprawności danych wejściowych.
+- `no-unknown-parameters`: w `.catch` zachowujemy jawny typ i konwencję `cause`; inne granice dostają kontrakt
+  lub dekoder. Nie usuwamy adnotacji, gdy stworzyłoby to `any`.
+- `no-conditional-empty-object-spread`: preferowany istniejący idiom `...(x && { x })`; uwzględnić
+  `exactOptionalPropertyTypes`. Celowe sanitizery dla `no-control-regex` wymagają lokalnego uzasadnienia
+  `// oxlint-disable-next-line no-control-regex -- <powód>`.
+- Pozostałe reguły z zerem trafień zostają strażnikami. Nie wyłączamy reguł ani nie dodajemy zbiorczych suppressions
+  w celu wyzerowania baseline'u. Zmiana zachowania wymaga osobnego, świadomego zakresu.
 
-**Długie linie:** reguły `max-len` celowo nie ma. Po formatowaniu zostaje 1504 linii > 120 znaków: 1035 to stringi i
-template literale, 128 to atrybuty `class`, 104 to komentarze, 237 inne. Formatter ich nie łamie, a ręczne łamanie
-stringów pogarsza czytelność.
+### Limity i ograniczenia pomiaru
 
-## Konfiguracja
+`max-lines`: **400 linii kodu**, bez pustych i komentarzy. `max-lines-per-function`: **120**, `IIFEs: true`.
+Testy: 800 linii pliku, bez limitu funkcji. Ręczne tabele SVG `packages/ui/src/icons.ts` i `mascot.ts` bez limitów.
+Kod generowany jest ignorowany.
 
-`oxlint.config.ts` (TS config jest wspierany w 1.91.0):
+oxlint lintuje tylko bloki `<script>` komponentów Svelte (instancji i `module`), nie szablony ani style.
+Rozmiar `.svelte` w tabelach dotyczy skryptu. Zgłoszenia warstwy Effect i zagnieżdżonego generatora liczą się osobno:
+55 zgłoszeń funkcji nie oznacza 55 niezależnych zadań. Podział jednego serwisu często usuwa oba zgłoszenia.
 
-- domyślna kategoria `correctness` oxlint (wbudowane reguły) zostaje włączona;
-- wszystkie generyczne reguły anti-slop + `oxc/no-accumulating-spread` jako `error`;
-- grupa Effect (`anti-slop-effect/*`) jako `error`, ale **tylko w pakietach z bezpośrednią zależnością `effect`**:
-  `apps/gateway`, `apps/web`, `apps/worker`, `packages/db`, `packages/domain`, `tests/integration`. W
-  `apps/desktop`, `apps/mobile`, `scripts/` i pozostałych `packages/*` nie ma `Match`, więc te reguły nie mają sensu
-  (zgodnie ze skillem: Effect tylko przy bezpośredniej zależności);
-- `ignorePatterns`: katalogi agentów (`.agents/`, `.claude/`, `.codex/`, …), vendorowany plugin, kod generowany
-  (`**/gen/**`: `packages/contracts/src/gen`, `packages/codex-protocol/src/gen`), wyjścia buildów (`build`, `dist`,
-  `.svelte-kit`, `.expo`, `apps/web/releases`), `artifacts/`. `node_modules` i `.gitignore` są pomijane i tak.
+## Przebieg mechaniczny
 
-`.oxfmtrc.json`: `printWidth: 120`, `svelte: true`, `sortPackageJson: false`, `sortTailwindcss`, te same ignore'y plus
-`packages/ui/src/palette.json` (generowany przez `packages/ui/scripts/palette.ts`, sprawdzany przez `gen:check`) i
-`**/*.md`.
+1. Przed formatowaniem poprawiono `safeFileName` w `packages/domain/src/attachments/files.ts`:
+   `Array.from(clean.slice(...))` zachowuje podział stringa na code pointy. Autofix `unicorn/no-useless-spread`
+   dla poprzedniego `[...string.slice(...)]` tworzył string z `.join()`, co psuło typecheck.
+2. Uruchomiono dokładnie `bun run format && bun run lint:spacing && bun run format` na całym repo.
+3. Powtórzono te same trzy polecenia i porównano pełne patche: **zero dodatkowych zmian**.
 
-`apps/mobile` ma też własny `eslint.config.js` (`expo lint`). Zostaje: reguły Expo/React są uzupełnieniem, a oxlint
-obejmuje `.tsx` mobile tak jak resztę.
+Commit: **`28347c5fd09396d5aef4ed408f1f0ea22cca0b2f`**, `style(repo): apply oxfmt and readable spacing`.
+**1155 plików, +72 950 / −18 258 linii**. Pierwszy krok oxfmt: 1058 plików, +59 101 / −18 217.
+Nie uruchamiano pełnego `lint:fix`, nie naprawiano ręcznych reguł ani nie dzielono plików w tym commicie.
+Zmiany YAML w workflowach są wyłącznie formatowaniem; nie dodano kroków CI.
 
-### Pliki `.svelte`
+Commit znajduje się w `.git-blame-ignore-revs`. Lokalna konfiguracja:
 
-oxlint 1.91 lintuje bloki `<script>` (instancji i `module`), łącznie z pluginami JS. Sprawdzone: diagnostyki są w 256
-plikach `.svelte` z poprawnymi numerami linii. Ograniczenia:
-
-- **nie** są lintowane wyrażenia w szablonie (`{…}`, handlery `onclick={…}`, `{#if}`), ani `<style>`;
-- `max-lines` liczy tylko linie skryptu (np. `VirtualFeed.svelte`: 599 linii pliku, 527 w `<script>`);
-- runy (`$state`, `$derived`, `$props`) nie przeszkadzają regułom.
-
-### Limity rozmiaru
-
-- `max-lines`: **400 linii kodu** (`skipBlankLines`, `skipComments`), więc komentarze nigdy nie „wypychają” pliku. 400
-  linii kodu to po formatowaniu typowo 550–650 linii pliku.
-- `max-lines-per-function`: **120 linii kodu** (`IIFEs: true`).
-- Testy (`*.test.ts(x)`, `**/test/**`, `tests/**`): `max-lines` 800, bez limitu na funkcję. Test czyta się jako
-  scenariusz z góry na dół, a `describe`/`test` to jedna funkcja.
-- `packages/ui/src/icons.ts`, `packages/ui/src/mascot.ts`: bez limitów. To ręcznie utrzymywane tabele danych (ścieżki
-  SVG); dzielenie ich po rozmiarze tylko rozprasza wyszukiwanie.
-- Kod generowany: ignorowany w całości.
-
-Uwaga dla serwisów Effect: `Layer.effect(…, Effect.gen(function* () { …; return { metody } }))` to dla
-`max-lines-per-function` jedna funkcja. Cały store jest więc jedną funkcją (np. `bots/store.ts` → `makeStore`, 988
-linii). Zagnieżdżenie bywa liczone podwójnie (`static layer` + generator w środku). Rozwiązuje to ten sam podział, co
-`max-lines`.
-
-## Pomiar
-
-### Dziś (bez zmian w kodzie)
-
-**11 543 naruszeń w 869 plikach.** Z tego `require-readable-spacing`: **9570** (854 pliki), w całości autofix.
-Formatter zmieniłby 961 plików (+47 873 / −15 172 linii).
-
-### Po przebiegu mechanicznym (format + spacing), symulacja na kopii
-
-Kolejność `format → lint:spacing → format` osiąga punkt stały w jednej rundzie (kolejna runda: zero zmian).
-Sprawdziłem na kopii: `bun run typecheck` czysty i build web (`vite build`) przechodzi. Testy: patrz „Weryfikacja” niżej.
-Linie TS/TSX/Svelte rosną z 93 069 do 137 188 (+47%).
-
-Zostaje **1992 naruszeń w 411 plikach**, wszystkie do poprawy ręcznej:
-
-| Reguła                                                  | src | testy | Rekomendacja                                         |
-| ------------------------------------------------------- | --: | ----: | ---------------------------------------------------- |
-| `anti-slop/require-safety-comment-for-type-assertion`   | 496 |   194 | zostaw w src, **wyłącz w testach**                   |
-| `anti-slop/no-shape-in-symbol-names`                    | 241 |    59 | **wyłącz**                                           |
-| `anti-slop/no-runtime-typeof`                           | 229 |    17 | zostaw + `allowInTypeGuards: true`                   |
-| `anti-slop/no-unsafe-dictionary-type`                   | 138 |    36 | zostaw, wprowadzić `JsonObject`                      |
-| `anti-slop/no-unknown-parameters`                       | 130 |    22 | zostaw                                               |
-| `anti-slop/no-known-value-widening`                     | 127 |    16 | zostaw                                               |
-| `anti-slop-effect/prefer-effect-match`                  |  63 |     3 | zostaw, **wyłącz w `.svelte`**                       |
-| `max-lines-per-function`                                |  46 |     — | zostaw (120)                                         |
-| `anti-slop/no-unknown-returns`                          |  31 |     0 | zostaw                                               |
-| `anti-slop/no-chained-type-assertions`                  |  22 |     8 | zostaw                                               |
-| `max-lines`                                             |  20 |     2 | zostaw (400 / 800)                                   |
-| `anti-slop/no-array-filter-map`                         |  12 |    17 | zostaw, uwaga na `lib`                               |
-| `no-unused-vars`                                        |   8 |    10 | zostaw                                               |
-| `no-control-regex`                                      |   9 |     0 | zostaw, wyjątki z uzasadnieniem                      |
-| `anti-slop/no-conditional-empty-object-spread`          |   8 |     1 | zostaw                                               |
-| `anti-slop/no-object-parameters`                        |   4 |     6 | zostaw                                               |
-| inne wbudowane (`no-useless-spread`, `no-accumulating-spread`, `no-unused-expressions`, `no-unsafe-optional-chaining`, `triple-slash-reference`, `no-new-array`, `no-non-null-asserted-optional-chain`) | 9 | 5 | zostaw |
-| `anti-slop-effect/no-manual-tag-comparison`             |   2 |     0 | zostaw                                               |
-
-Pozostałe reguły anti-slop (`no-module-mocking`, `no-reflect-*`, `no-widen-then-assert`, `no-unknown-type-aliases`,
-`no-reduce-accumulator-copy`, reszta Effect) mają dziś 0 trafień. Zostają jako strażnicy.
-
-Po obszarach (po przebiegu mechanicznym): `apps/web` 584, `apps/worker` 458, `apps/gateway` 417,
-`tests/integration` 261, `packages/domain` 65, `apps/desktop` 54, `apps/mobile` 40, `scripts` 33,
-`packages/grok-acp` 25, `packages/ui` 24, `packages/db` 13, `packages/updater` 12, `packages/transport` 5,
-`packages/testing` 1. Rozbicie reguła × obszar: `afterMechanicalPass.byRuleAndArea` w JSON.
-
-### Autofix: co jest bezpieczne
-
-- `require-readable-spacing`: tylko wstawia białe znaki (np. rozbija `a(); return;` w jednej linii; formatter potem to
-  porządkuje). Sprawdzone porównaniem plików bez białych znaków: zero zmian tokenów.
-- Formatter: zmiany składniowo neutralne. Typecheck i build przechodzą (wyżej).
-- **`lint:fix` (pełne `oxlint --fix`) nie jest bezpieczny jako krok mechaniczny.** Poza spacingiem robi 4 zmiany
-  tokenów. 3 są poprawne (`startsWith`, zbędny escape w regexie, `[...arr.map()].sort()`). Czwarta to **błąd
-  autofixa `unicorn/no-useless-spread`**: w `packages/domain/src/attachments/files.ts:36`
-  `[...clean.slice(…)].slice(…).join("")` (spread **stringa** na code pointy) zamienia na `clean.slice(…).slice(…)…`,
-  co psuje typecheck (`join` na stringu). Dlatego przebieg mechaniczny używa `lint:spacing`. Tę linię trzeba poprawić
-  ręcznie (np. `Array.from(clean.slice(…))`), wtedy reguła przestaje ją zgłaszać.
-
-## Reguły słabo dopasowane: przyjęte decyzje
-
-Maintainer zatwierdził poniższe dostosowania. Konfiguracja wyłącza `no-shape-in-symbol-names`, komentarze
-`SAFETY:` w testach i `prefer-effect-match` w `.svelte`; `no-runtime-typeof` ma `allowInTypeGuards: true`.
-Wspólne typy `JsonObject` i `JsonValue` są eksportowane z `@canopy/domain` (`src/json.ts`), bez migracji użyć.
-
-- **`no-shape-in-symbol-names`: wyłączyć** (300). 153 to typy biblioteki protobuf-es (`MessageInitShape` 133,
-  `MessageShape` 20). Nazwy tej nie da się zmienić bez sztucznych aliasów, a plugin zgłasza import dwukrotnie (61
-  duplikatów). Pozostałe 147 to `shape` maskotki bota (`MascotShape`, `mascotShapes`, `shape`), czyli prawdziwe pojęcie
-  domenowe (kształt ciała maskotki), a nie „kształt danych”, przed którym reguła chroni.
-- **`require-safety-comment-for-type-assertion`: w src zostawić, w testach wyłączyć** (496 + 194). W testach
-  asercje dotyczą fixtur (`c.value as SetGoal`, `request.json() as {…}`), a komentarz `SAFETY:` przy każdej to szum. W
-  src naprawa to najczęściej **usunięcie** asercji (dekoder Schema, `satisfies`, typowany helper JSON), a nie
-  dopisanie komentarza. Np. `n["project_id"] as string` w `apps/gateway/src/bots/tools/schedules.ts:21` → dekoder
-  argumentów narzędzia.
-- **`no-runtime-typeof`: zostawić, `allowInTypeGuards: true`** (246). Opcja sama zdejmuje tylko 6. ~118 trafień jest
-  na granicach zewnętrznego JSON-a (mapowanie zdarzeń Codex/Claude/Grok, argumenty narzędzi od modelu, parse w UI).
-  Właściwa naprawa to przeniesienie sprawdzeń do nazwanych type guardów albo dekoderów `Schema` (Effect Schema jest
-  już używany w `packages/domain` i `apps/web`) w modułach granicznych (`mapping.ts`, `parse.ts`). Przykład:
-  `apps/worker/src/providers/codex/mapping.ts:244` `typeof turnId === "string" ? …`.
-- **`no-unknown-parameters`: zostawić** (152). 53 to `.catch((error: unknown) => …)`: reguła akceptuje konwencję
-  `cause`, więc to zmiana nazwy. Usunięcie adnotacji nie wchodzi w grę: w `.catch` dałoby `any`. Reszta to granice JSON
-  (`requestJson(…, body?: unknown)` w `apps/web/src/lib/shared/http.ts:15`), które powinny przyjmować `JsonValue` albo
-  typ generyczny.
-- **`no-unsafe-dictionary-type`: zostawić** (174). Prawie wszystko to `Record<string, unknown>` dla argumentów narzędzi
-  i JSON Schema. Rozwiązanie: jeden typ `JsonObject = { readonly [key: string]: JsonValue }` w `packages/domain` (nie
-  jest `unknown`, więc reguła go akceptuje) albo dekoder Schema.
-- **`prefer-effect-match`: zostawić w kodzie Effect, wyłączyć w `.svelte`** (66, w tym 20 w komponentach Svelte).
-  `Match.value(…).pipe(…)` w `$derived` albo w handlerze UI jest cięższy niż trójstopniowy ternary. W `.ts` web, w
-  gateway i w workerze reguła pasuje do stylu.
-- **`no-array-filter-map`: zostawić** (29). Podpowiedź reguły (`.values().filter().map().toArray()`) **nie
-  przejdzie typechecku**: `tsconfig.base.json` ma `lib: ["ES2024"]` bez iterator helpers, a mobile działa na Hermesie.
-  Naprawa w fazie 2: `flatMap`. Nie stosować iterator helpers ani nie podnosić `lib` w ramach tego refaktoru.
-- **`no-module-mocking`: zostawić** (0). Obejmuje tylko `vi`/`jest`. Repo używa `bun:test` i nie ma `mock.module`, co
-  zgadza się z polityką testów. Można rozszerzyć regułę o `mock.module` z `bun:test`.
-- **`no-conditional-empty-object-spread`: zostawić** (9). Przy `exactOptionalPropertyTypes` pomijanie pola jest
-  wymagane, a dominujący idiom repo `...(x && { x })` reguła akceptuje. 9 miejsc z `: {}` trzeba przepisać na ten idiom.
-- **`no-control-regex`: zostawić** (9). To celowe sanitizery znaków sterujących (np. nazwy plików). Każde miejsce
-  dostaje `// oxlint-disable-next-line no-control-regex -- <powód>`.
-
-## Pliki ponad limit
-
-20 plików źródłowych i 2 testy po przebiegu mechanicznym (dziś przed formatowaniem: 11). Liczby to linie kodu bez
-pustych i komentarzy. Podział po odpowiedzialności:
-
-| Plik                                                  | Kod  | Proponowany podział                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ----------------------------------------------------- | ---: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/gateway/src/core/core.ts`                       | 2564 | Wg istniejących sekcji, na wzór `core/agent-bus.ts` (moduł + wąski interfejs `…Host`): `core.ts` (fasada `GatewayCore`, konstruktor, okablowanie), `work-loop.ts` (serve/ingest/redeliver), `commands.ts` (dispatch/deliver/settle/sweep/pump/startTurn), `queue.ts`, `projects.ts` (projekty, workspace'y, katalogi), `threads.ts` (create/send/update, tytuły), `bot-threads.ts`, `attachments.ts` (upload, bloby, podglądy), `mentions.ts`, `models.ts` + steery, `provider-instances.ts`, `interactions.ts`, `settings.ts`, `schedules.ts`, `goals.ts` (goale, zadania w tle), `errors.ts` (`describeError`, `UnavailableError`, `InvalidError`). |
-| `apps/gateway/src/store/store.ts`                     | 1382 | Osobne `Context.Service` na obszar (jak istniejące `QueueStore`, `GoalStore`, `SteerStore`): `WorkerStore` (ensureUser, authenticate/add/connected/seen, journalCursors, config i sekrety workera), `ProjectStore` (projekty, workspace'y), `ThreadStore` (create/list/archive/settings/tytuły), `TurnStore` (enqueue/next/running/fail/endLost/turnsOf), interakcje; mapery `toUi*`/`permissionMode*` do `store/ui-mappers.ts`. Nie `makeX` importowane względnie: `no-service-constructor-imports`. |
-| `apps/gateway/src/store/agent-bus.ts`                 | 1183 | `AgentBusStore` (wywołania: storedCall/recordCall/spawn/send/summary/listThreads/readThread), `BusScheduleStore` (create/list/cancel/claimDue/fire, schedule'y użytkownika), `BusDeliveryStore` (notifications, deliveries, forwardInteraction); mapery `toUiSchedule`/`toUiDelivery` osobno. |
-| `apps/worker/src/runtime/host.ts`                     | 1161 | `host.ts` (attach/detach, routing komend, shutdown/flush/recover), `commands.ts` (`#execute`, 260 linii: handler na komendę), `codex-runtimes.ts` (grupy, reconcile, start/stop, sieroty), `claude-runtimes.ts`, `catalog.ts` (probe, login, listModels, publishCatalog), `files.ts` (checkCwd, listDirectory). |
-| `apps/gateway/src/bots/store.ts`                      | 1124 | Wg agregatów z `makeStore` (988 linii): boty (list/archive/updateSelf/createFromBot/remove), rozmowy i wiadomości (conversation/history/messageUser/markRead), wymiany (exchange/claim/heartbeat/status/checkpoint/planCall/call/action/remote*), zatwierdzenia (approval/wait/answer/interrupt/retry/release), handoff, serwery MCP, wakeupy i przypomnienia. |
-| `apps/worker/src/providers/claude/threads.ts`         |  917 | `make` (~690 linii) → `sessions.ts` (open/switchMode/closeWhenIdle/sessionExists), `turns.ts` (beginTurn, consume, steery), `permissions.ts` (`canUseTool`), `output.ts` (readOutput, goal verdicts, fileSize/readFrom). |
-| `packages/db/test/schema.test.ts`                     |  885 | Test (limit 800): oczekiwana lista migracji i asercje schematu do osobnych plików na obszar (`schema.threads.test.ts`, …). |
-| `tests/integration/bots.test.ts`                      |  836 | Test (limit 800): podzielić wg scenariuszy (CRUD, rozmowa, zatwierdzenia, routines). |
-| `apps/worker/src/providers/codex/threads.ts`          |  722 | Jak Claude: sesje/wątki, tury i steery, narzędzia dynamiczne (`codexViewImageTool`, `codexAgentBusTools`, `dynamicTools`) do `tools.ts`. |
-| `apps/worker/src/providers/codex/mapping.ts`          |  648 | `CodexEventMapper` (stan tury, `map`) / `items.ts` (`mapItem`, `shellCommandItem`, `providerToolCall`, `outputText`) / `background.ts` (`#toBackground`, `#backgroundEnded`) / `status.ts` (turnOutcome, threadStatus, usage, codexErrorCode). |
-| `apps/worker/src/providers/claude/mapping.ts`         |  645 | `ClaudeEventMapper` / `background-tasks.ts` (taskStarted/backgrounded/endTask, outputFile) / `content.ts` (text/tool content, editDiff, resultText) / `goal.ts` (goalVerdict, goalAnswer). |
-| `apps/gateway/src/store/instances.ts`                 |  612 | `InstanceStore` (CRUD, workers, models) / `instance-validation.ts` (checkPath/checkArgs/checkBaseUrl, limity) / sync i `registerEndpoint` osobno. |
-| `apps/desktop/src/main.ts`                            |  531 | `ipc.ts` (handlery `ipcMain` + `authorize`), `windows.ts` (createWindow, showMain, openSettings, chrome), `enrollment.ts`, `main.ts` (start, lifecycle aplikacji). |
-| `apps/web/src/lib/features/providers/instances.ts`    |  470 | Wg istniejących sekcji: `instance-status.ts`, `env-vars.ts` (drafty, problemy, splitArgs/joinArgs), `instance-form.ts`, klient API. |
-| `apps/gateway/src/connectors/runtime.ts`              |  468 | `ConnectorsRuntime` (lista, zapis, OAuth begin/complete) / `connector-calls.ts` (call/#execute/#permission/handle). |
-| `apps/gateway/src/bots/runtime.ts`                    |  454 | `BotsRuntime` (cykl życia, tick) / `bot-turn.ts` (`#execute`, 194 linie: kroki tury) / fasada API (create…testServer) zostaje. |
-| `apps/gateway/src/core/agent-bus.ts`                  |  440 | `#execute` (177 linii, switch po narzędziach) → `bus-tools/*.ts` (handler na narzędzie); helpers (`targetsOf`, `ok`/`failure`, `safeJson`) osobno. |
-| `apps/web/src/lib/features/threads/dev/tool-fixtures.ts` | 436 | Fixtury galerii dev (`toolGallery`, 350 linii w jednej funkcji): plik na rodzinę narzędzi (shell, edycja, MCP, agent bus). Albo wyjątek w configu jak dla `icons.ts`, jeśli to czyste dane. |
-| `apps/gateway/src/store/ingest.ts`                    |  435 | Generator `Ingest` (321 linii) → osobne handlery na rodzaj zdarzenia (tura, item, notice/steer, background task). |
-| `apps/web/src/lib/shared/ui/virtual/VirtualFeed.svelte` | 434 | Logika poza komponent: `size-index` (już jest) + `feed-anchor.svelte.ts` (kotwiczenie/scroll), `feed-range.svelte.ts` (zakres widoczny, padding), komponent tylko z widokiem. |
-| `apps/web/src/routes/threads/[threadId]/+page.svelte` | 427 | Stan strony do `thread-page.svelte.ts` (goal, schedule, background tasks, komendy), dialogi (goal/schedule/background) do osobnego komponentu `ThreadDialogs.svelte`. |
-| `apps/gateway/src/api/ui-service.ts`                  |  425 | `uiRoutes` (337 linii) → trasy per obszar (`routes/threads.ts`, `projects.ts`, `bots.ts`, `settings.ts`, …), `guard`/`toConnectError` do `api/errors.ts`. |
-
-Najdłuższe funkcje (`max-lines-per-function`, pełna lista 46 w JSON): `bots/store.ts makeStore` 988,
-`store/store.ts layer` 918, `store/agent-bus.ts` generator 858, `claude/threads.ts make` 691, `codex/threads.ts make`
-536, `store/instances.ts layer` 508, `tool-fixtures.ts toolGallery` 350, `ui-service.ts uiRoutes` 339,
-`ingest.ts` 321, `connectors/store.ts` 316, komponenty mobile (`settings.tsx` 290, `index.tsx` 249,
-`thread/[id].tsx` 237), `host.ts #execute` 260. Większość znika razem z podziałem plików. Komponenty React mobile
-dzielimy na podkomponenty.
-
-## Plan refaktoru (po zamknięciu otwartych PR-ów)
-
-Commit mechaniczny jest zapisany w `.git-blame-ignore-revs`. Lokalnie włącz pomijanie go przez
-`git config blame.ignoreRevsFile .git-blame-ignore-revs`.
-
-1. **Commit mechaniczny** (jeden, sam, łatwy do review przez `git diff -w` / pominięcia w blame):
-   `bun run format && bun run lint:spacing && bun run format`, potem drugi raz te same trzy kroki: musi być zero
-   zmian. Najpierw ręcznie poprawić `files.ts:36` (wyżej). Tytuł np. `style: format with oxfmt and readable spacing`.
-   Commit dodać do `.git-blame-ignore-revs`. Sprawdzenie: `bun run typecheck`, `bun run check:tmp`, build web, rzut oka
-   na UI (Svelte: zmiany białych znaków w szablonach).
-2. **Decyzje o konfiguracji** z sekcji wyżej (wyłączenia/opcje) w osobnym commicie `chore(lint): …`, zanim ktokolwiek
-   zacznie poprawiać reguły.
-3. **Poprawki reguł per obszar**, osobne commity/PR-y. Najpierw rzeczy przekrojowe w `packages/domain`
-   (`JsonObject`, dekodery JSON, wspólne type guardy), bo inne obszary z nich korzystają. Potem równolegle.
-4. **Podziały plików** na końcu, po jednym pliku/module na commit. Same przenosiny (`refactor(gateway): split core
-   into modules`), bez zmian logiki. Zmiany zachowania osobno.
-
-**Równoległość (subagenci):** podział po katalogach, które się nie przecinają. Każdy agent dostaje wyłączną listę
-plików i uruchamia `bun run lint -- <katalog>` (oxlint przyjmuje ścieżki) oraz typecheck pakietu:
-
-- A: `apps/gateway/src/core/**` + `api/**` (core.ts najpierw: największy i najwięcej zależności),
-- B: `apps/gateway/src/store/**` + `bots/**` + `connectors/**`,
-- C: `apps/worker/**`,
-- D: `apps/web/src/lib/**` + `routes/**`,
-- E: `apps/desktop/**` + `apps/mobile/**` + `scripts/**`,
-- F: `packages/*` (domain najpierw, jako krok 3) + `tests/integration/**`.
-
-Wspólne typy (`packages/domain`, `packages/contracts`) zmienia tylko F. Pozostali najpierw czekają na F, a potem tylko
-importują. Podziały core/store (A, B) szły sekwencyjnie, bo `core.ts` importuje store'y.
-
-**CI na końcu** (w `.github/workflows/ci.yml`, job `check`, zaraz po „Bun and dependencies”):
-
-```yaml
-- name: Lint and formatting
-  run: bun run lint && bun run format:check
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
-oraz `lint` i `format:check` dopisane do root `check`:
-`"check": "bun run gen:check && bun run typecheck && bun run lint && bun run format:check && bun run check:tmp"`.
+## Aktualny baseline
 
-**AGENTS.md** (dopiero razem z włączeniem CI), w „Before handing over” dodać do listy:
+Polecenie pomiaru: `bun run lint --format json` (exit 1 jest oczekiwany).
+Przy tej samej przyjętej konfiguracji przed przebiegiem: **13 238 naruszeń w 936 plikach**,
+w tym **11 476 spacing**. Po przebiegu: **1798 w 376 plikach**, **0 spacing**.
+Różnica nie jest samym odjęciem spacing: formatter zmienia także liczbę zgłoszeń limitów rozmiaru.
 
-```markdown
-- `bun run lint` and `bun run format:check` (run `bun run format` and `bun run lint:fix` first; never silence a rule
-  with `oxlint-disable` without a `-- reason`, and change policy in `oxlint.config.ts`, not per file)
-```
+| Reguła | Naruszenia |
+| --- | ---: |
+| `anti-slop/require-safety-comment-for-type-assertion` | 640 |
+| `anti-slop/no-runtime-typeof` | 276 |
+| `anti-slop/no-unsafe-dictionary-type` | 208 |
+| `anti-slop/no-known-value-widening` | 178 |
+| `anti-slop/no-unknown-parameters` | 173 |
+| `max-lines-per-function` | 55 |
+| `anti-slop-effect/prefer-effect-match` | 52 |
+| `anti-slop/no-chained-type-assertions` | 41 |
+| `anti-slop/no-unknown-returns` | 35 |
+| `anti-slop/no-array-filter-map` | 32 |
+| `max-lines` | 30 |
+| `no-unused-vars` | 24 |
+| `no-control-regex` | 12 |
+| `anti-slop/no-object-parameters` | 10 |
+| `anti-slop/no-conditional-empty-object-spread` | 9 |
+| `oxc/no-accumulating-spread` | 4 |
+| `unicorn/no-useless-spread` | 4 |
+| `no-unused-expressions` | 3 |
+| `anti-slop-effect/no-manual-tag-comparison` | 2 |
+| `no-unsafe-optional-chaining` | 2 |
+| `require-yield` | 2 |
+| `typescript/triple-slash-reference` | 2 |
+| `no-useless-escape` | 1 |
+| `typescript/no-non-null-asserted-optional-chain` | 1 |
+| `unicorn/no-new-array` | 1 |
+| `unicorn/prefer-string-starts-ends-with` | 1 |
 
-oraz w „Project” jedną linię: „Lint: oxlint + vendored anti-slop (`tools/oxlint/anti-slop`), formatter: oxfmt
-(`printWidth` 120). Files ≤ 400 code lines, functions ≤ 120 (docs/code-quality.md).”
+| Obszar | Naruszenia |
+| --- | ---: |
+| `apps/gateway` | 619 |
+| `apps/web` | 454 |
+| `apps/worker` | 367 |
+| `tests/integration` | 95 |
+| `apps/desktop` | 73 |
+| `packages/domain` | 62 |
+| `apps/mobile` | 36 |
+| `scripts` | 32 |
+| `packages/grok-acp` | 25 |
+| `packages/updater` | 19 |
+| `packages/db` | 9 |
+| `packages/transport` | 5 |
+| `packages/testing` | 1 |
+| `packages/ui` | 1 |
 
-## Weryfikacja przygotowania
+W JSON: `afterMechanicalPass.byRule`, `byArea`, `filesPerRule`, `byRuleAndArea` i `byRuleAndKind` (źródła/testy).
+Wyłączone reguły i obszary bez zgłoszeń nie występują w tych mapach; ich liczba to zero.
 
-W tej gałęzi kod aplikacji jest nietknięty: diff to tylko `oxlint.config.ts`, `.oxfmtrc.json`, `tools/`,
-`package.json`, `bun.lock`, ten dokument i `docs/code-quality-baseline.json`. `bun install`, `bun run gen:check`,
-`bun run typecheck` i `bun run check:tmp` przechodzą jak przed zmianą.
+## Faza 2: sześć rozłącznych obszarów
+
+Każdy właściciel dostaje katalogi wraz z testami w nich. A obejmuje resztę gatewaya poza trzema katalogami B,
+w tym **całe `computers/**`**, `api/**`, `core/**`, `updates/**`, `worker-link/**`, `attachments/**`, root gatewaya
+i `apps/gateway/test/**`. Nie ma plików współdzielonych przez A i B. F ma wszystkie `packages/**` i `tests/**`.
+Konfiguracje root, CI, dokumentacja baseline i lockfile pozostają u integratora; żaden agent nie zmienia ich sam.
+
+| Właściciel | Wyłączny zakres | Wszystkie | Faza 2 (bez limitów) | Faza 3 (limity) |
+| --- | --- | ---: | ---: | ---: |
+| A | `apps/gateway/**` poza katalogami B | 343 | 321 | 22 |
+| B | `apps/gateway/src/{store,bots,connectors}/**` | 276 | 253 | 23 |
+| C | `apps/worker/**` | 367 | 352 | 15 |
+| D | `apps/web/**` | 454 | 445 | 9 |
+| E | `apps/desktop/**`, `apps/mobile/**`, `scripts/**` | 141 | 129 | 12 |
+| F | `packages/**`, `tests/**` | 217 | 213 | 4 |
+| **Razem** | | **1798** | **1713** | **85** |
+
+Wszystkie obszary mają `require-safety-comment-for-type-assertion`, `no-runtime-typeof`,
+`no-unsafe-dictionary-type`, `no-unknown-parameters`, `no-known-value-widening`, `no-unknown-returns`,
+`no-chained-type-assertions` oraz `no-unused-vars`. Dodatkowe reguły (prefiks `anti-slop/`, o ile nie podano innego):
+
+| Właściciel | Pozostałe reguły fazy 2 |
+| --- | --- |
+| A | `no-array-filter-map`, `no-conditional-empty-object-spread`, `anti-slop-effect/prefer-effect-match`, `no-control-regex`, `oxc/no-accumulating-spread`, `typescript/triple-slash-reference` |
+| B | `no-array-filter-map`, `anti-slop-effect/prefer-effect-match`, `no-control-regex`, `oxc/no-accumulating-spread` |
+| C | `no-array-filter-map`, `no-conditional-empty-object-spread`, `no-object-parameters`, `anti-slop-effect/{prefer-effect-match,no-manual-tag-comparison}`, `no-control-regex`, `no-unsafe-optional-chaining`, `unicorn/no-useless-spread`, `unicorn/prefer-string-starts-ends-with` |
+| D | `no-array-filter-map`, `no-object-parameters`, `anti-slop-effect/prefer-effect-match`, `no-control-regex`, `no-unused-expressions`, `oxc/no-accumulating-spread`, `unicorn/no-new-array` |
+| E | `no-conditional-empty-object-spread`, `no-unused-expressions` |
+| F | `no-array-filter-map`, `no-conditional-empty-object-spread`, `no-object-parameters`, `anti-slop-effect/prefer-effect-match`, `no-control-regex`, `no-useless-escape`, `require-yield`, `typescript/no-non-null-asserted-optional-chain`, `typescript/triple-slash-reference`, `unicorn/no-useless-spread` |
+
+Dokładne liczby każdej reguły dla A–F: `phase2WorkSplit[].byRule` w JSON. `max-lines` i
+`max-lines-per-function` są tam również, ale pozostają zadaniami fazy 3, nie podstawą do tłumienia lintów w fazie 2.
+
+Kolejność pracy:
+
+1. F najpierw uzgadnia potrzebne wspólne kontrakty JSON/dekodery/type guardy w `packages/domain` i udostępnia commit.
+   Typy `JsonObject`/`JsonValue` są już gotowe. Nie dodawać współdzielonych helperów bez rzeczywistych konsumentów.
+2. A–E importują te kontrakty i pracują równolegle wyłącznie w swoich katalogach; F kontynuuje pakiety i integrację.
+   Nowa potrzeba zmiany wspólnego kontraktu wraca do F. W tej fazie nie przenosimy plików między obszarami.
+3. Każdy uruchamia lint wyłącznie swoich ścieżek i typecheck dotkniętych pakietów; A filtruje trzy katalogi B
+   przez `--ignore-pattern`. Pozostałe zgłoszenia limitów zapisuje jako zadania fazy 3.
+4. Integrator scala poprawki i ponownie mierzy cały lint. Kryterium końca fazy 2: zero zgłoszeń poza dwiema
+   regułami rozmiaru; istniejące testy bezpieczeństwa, adapterów i trwałości pozostają zielone.
+
+## Faza 3: podziały po formatowaniu
+
+**28 plików źródłowych i 2 testy** ponad limit. Liczby oznaczają linie kodu oxlint, nie fizyczne linie pliku.
+Pełne 30 wpisów z propozycjami: `maxLinesAfterMechanicalPass`; pełne 55 zgłoszeń funkcji z linią i propozycją:
+`maxLinesPerFunctionAfterMechanicalPass`. Propozycja jest dołączona do każdego wpisu, także funkcji w mniejszym pliku.
+
+| Plik (skróty katalogów poniżej) | Kod | Proponowany podział |
+| --- | ---: | --- |
+| gateway `core/core.ts` | 2659 | fasada/okablowanie, work-loop, commands/queue, projects, threads/bot-threads, attachments, providers, interactions, settings, schedules/goals |
+| gateway `store/store.ts` | 1388 | WorkerStore, ProjectStore, ThreadStore, TurnStore, InteractionStore, mapery UI; kompozycja Context.Service |
+| gateway `computers/runtime.ts` | 1240 | pairing/presence, connection/retry, frame handlers, LAN/routes, mirror subscriptions, remote/relay serving |
+| worker `runtime/host.ts` | 1227 | command handlers, runtime'y Claude/Codex, katalog/login, pliki; host jako fasada |
+| gateway `store/agent-bus.ts` | 1192 | wywołania/wątki, harmonogramy, deliveries/interakcje, mapery |
+| gateway `bots/store.ts` | 1137 | boty, rozmowy, exchanges/calls, approvals, handoffs, MCP, wakeups |
+| gateway `computers/agents.ts` | 1084 | bot-tools, bus-tools, receive/dispatch, deliveries/tick, katalog/overview |
+| `packages/db/test/schema.test.ts` | 1007 | fixture migracji i asercje per domena, w tym komputery; bez zmiany migracji |
+| worker `providers/claude/threads.ts` | 917 | sessions, turns/consume/steer, permissions, output/goal |
+| gateway `computers/shared.ts` | 916 | zegary/konflikty, read/write per rodzaj, referencje sekretów, push/receive, snapshot/diff |
+| `tests/integration/bots.test.ts` | 836 | CRUD, rozmowy, approvals, routines; wspólny setup/cleanup |
+| gateway `computers/moves.ts` | 834 | preview/inspect, source driver, target handlers, tick/recovery |
+| gateway `computers/move-state.ts` | 773 | blockers/freeze/export, source commit/rollback, target stage/decision, bot/thread import, redirects/audit |
+| worker `providers/codex/threads.ts` | 722 | sesje, turns/steer, dynamic tools |
+| gateway `api/routed.ts` | 652 | lokalny/zdalny routing, overview, frozen/moved guards, stream/relay |
+| worker `providers/codex/mapping.ts` | 648 | mapper, items, background, status/usage/errors |
+| worker `providers/claude/mapping.ts` | 645 | mapper, background tasks, content/tools, goal verdicts |
+| gateway `store/instances.ts` | 612 | CRUD/models, validation, sync/registerEndpoint |
+| desktop `main.ts` | 586 | startup/lifecycle, IPC/authorization, windows/chrome, enrollment |
+| web `lib/features/providers/instances.ts` | 475 | status, env/argument parsing, form, API |
+| gateway `connectors/runtime.ts` | 468 | konfiguracja/OAuth i call/permission/execute |
+| gateway `core/agent-bus.ts` | 463 | bus-tools per narzędzie i walidacja/serializacja |
+| gateway `api/ui-service.ts` | 459 | uiHandlers per obszar i wspólne errors/guards |
+| gateway `bots/runtime.ts` | 456 | lifecycle/tick, bot-turn, fasada API |
+| web `routes/threads/[threadId]/+page.svelte` | 452 | stan/komendy strony i ThreadDialogs, także move dialogs |
+| web `lib/shared/ui/virtual/VirtualFeed.svelte` | 447 | feed-anchor, feed-range, istniejący size-index; widok w komponencie |
+| web `lib/features/threads/dev/tool-fixtures.ts` | 436 | galerie per rodzina narzędzi: shell, edit, MCP, bus |
+| gateway `store/ingest.ts` | 435 | handlery turn/item/notice/steer/background, jedna transakcja |
+| gateway `computers/remote.ts` | 414 | method policy, mapowanie id, wire errors, transport/cancellation |
+| gateway `core/cli-tools.ts` | 402 | latest sources/cache i parser HTTP oddzielnie od administracji CLI |
+
+Skróty: gateway = `apps/gateway/src/`, worker = `apps/worker/src/`, desktop = `apps/desktop/src/`,
+web = `apps/web/src/`.
+
+Najdłuższe funkcje: `bots/store.ts makeStore` **995**, `store/store.ts layer` **921** (generator 917),
+`store/agent-bus.ts` generator **867**, `claude/threads.ts` fabryka **690** (generator 689),
+`codex/threads.ts` **536** (generator 535), `store/instances.ts layer` **508** (generator 504),
+`api/ui-service.ts uiHandlers` **351**, `tool-fixtures.ts toolGallery` **350**, `store/ingest.ts` **321**,
+`connectors/store.ts connectorStore` **316**. To te same zadania co podziały serwisów/plików.
+
+Nowe funkcje linked computers: `agents.ts botTool` 220, `tool` 149, `receive` 199 (wewnętrzna funkcja 130),
+`shared.ts write` 144, `mirror.ts consume` 121 i `publish` 133. Rozdzielić handlery przy zachowaniu routingu domu,
+idempotencji, owner scoping, kursorów i kontroli sekretów.
+
+Pozostałe funkcje w plikach mieszczących się w limicie: `connectors/store`, `bots/platform/routines`,
+`store/{background-tasks,queue,settings,thread-lifecycle,thread-secrets}`, `core/worker-ssh`, `worker/journal`,
+`grok/bus`, desktop runtime i smoke-quit, komendy/animacje web, siedem komponentów mobile, `domain/agent-bus/policy`,
+`updater/binary`, `scripts/prune-nightly`. Konkretne odpowiedzialności do wydzielenia i rozmiary każdego zgłoszenia
+są w JSON. Komponenty mobile dzielimy na podkomponenty i hooki, nie na sztuczne helpery JSX.
+
+Kolejność podziałów (jeden moduł na commit, bez zmiany logiki):
+
+1. Pakiety/testy oraz mniejsze niezależne moduły: db schema, bots integration, domain policy, updater,
+   desktop, mobile, web i mapery workerów. To ustala wzorce bez poruszania fasady gatewaya.
+2. Gateway persistence: `store/store`, `store/instances`, `store/agent-bus`, `store/ingest`, pozostałe warstwy,
+   `bots/store`, `connectors/store`. Najpierw ustabilizować kontrakty serwisów; nie importować ich konstruktorów.
+3. Linked computers: `remote` i `move-state` jako niższe moduły, potem `shared`/`mirror`, następnie
+   `moves`/`agents`, na końcu `runtime`. Pilnować dwufazowych przenosin, restartów, odwołania relay i mTLS.
+4. Gateway orchestration: bots/connectors runtime, core helpers i agent bus, następnie `core/core`,
+   na końcu `api/{routed,ui-service}`. Nie zmieniać jednocześnie eksportów store i importujących je fasad.
+   Worker host dzielić po ustabilizowaniu mapperów i sesji dostawców.
+5. Po każdym podziale lint/typecheck dotkniętego pakietu i istniejące testy danego zachowania; pełna weryfikacja
+   po integracji. Dopiero przy zerowym lint dodać `lint` + `format:check` do CI/root `check` i zaktualizować AGENTS.md.
+
+## Weryfikacja fazy 1
+
+Obie bramki przeszły: po commicie mechanicznym i po aktualizacji dokumentacji/baseline'u.
+W każdej zielone: `bun install`, `bun run gen:check`, `bun run typecheck`, `bun run check:tmp`,
+`bun run --filter @canopy/web build`, `bun run --filter @canopy/desktop build:shell`, `bun run format:check`.
+Każdy pełny przebieg testów: **823 pass, 150 skip, 0 fail**, 973 testy w 156 plikach; czas 615,30 s i 666,68 s.
+`check:tmp` w obu przypadkach potwierdził brak pozostałości testów. Przypadki live pozostały opt-in i były pominięte.
+Nowy config spacing dołączono do `tools/tsconfig.json`; dodatkowy typecheck tego projektu także przeszedł.
+`bun run lint` pozostaje czerwony wyłącznie z powyższymi ręcznymi zgłoszeniami; nie jest jeszcze bramką CI.
+
+Scratch i `TMPDIR` testów są w `~/.cache/canopy-anti-slop`, poza małym `/tmp`; po pracy są usuwane.
+Nie uruchamiano serwerów na zastrzeżonych portach, publikacji ani testów E2E. Ocena UI w prawdziwej przeglądarce
+(jasny/ciemny, desktop/telefon) pozostaje osobną niewykonaną weryfikacją; typecheck/build nie zastępują jej.
