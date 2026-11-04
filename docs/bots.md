@@ -196,11 +196,19 @@ rodziny providerów obsługują instancje `native` i proxy. Login jest udostępn
 izolowanego home na workerze zgodnie z konfiguracją instancji. Proxy trafia do oficjalnego
 CLI, a nie klienta HTTP Canopy. Nie uruchamiamy harnessów na hoście gateway.
 
-Bez zapisanego workera pierwsza tura wybiera własny desktop obsługujący instancję,
-a następnie pierwszy dostępny worker online; wybór zostaje zapisany. Brak kandydata
+Bez zapisanego workera pierwsza tura w lokalnym gatewayu desktopu preferuje jego
+worker obsługujący instancję. Gateway serwerowy wybiera pierwszy dostępny worker
+online z obsługą harnessu botów i dostępną instancją; wybór zostaje zapisany. Brak kandydata
 daje `Waiting for a worker`; offline przypiętego workera daje `Waiting for ‹worker›`.
 Nie ma automatycznego failoveru. Istniejące boty zachowują identyfikatory i historię;
 następna tura tworzy ukrytą sesję na podstawie transkryptu gatewaya.
+
+**Runs on** w ustawieniach pozwala zmienić przypięcie. Gdy żaden worker nie ma
+instancji, UI kieruje do ustawień providerów: włącz instancję na workerze, zainstaluj
+CLI i zaloguj się. Wyłączenie instancji na już przypiętym workerze daje błąd
+konfiguracji z wyborem ustawień lub innego workera, bez cichego przenoszenia sesji.
+Zmiana przypięcia dotyczy kolejnej tury. Aby użyć innego workera dla wiadomości
+oczekującej offline, zatrzymaj odpowiedź, zmień Runs on i wyślij wiadomość ponownie.
 
 Grok ma prywatne sesje per bot i instancja, wznawiane przez `session/load`.
 Curated profil oraz `--tools search_tool,use_tool` usuwają lokalne narzędzia,
@@ -674,14 +682,20 @@ JSON i składanych logów pracy.
   „A ⇄ B”: wiadomości z nazwami i awatarami po lewej, separatory czasu, „Close chat” (i Esc)
   wraca do czatu bota. Odpowiedź bota dla Ciebie pozostaje zwykłym dymkiem.
 - **Błędy** (`ChatErrorLine`, wspólny `FailureNotice` dla botów i wątków): klasa błędu
-  określa wyjaśnienie i akcje: logowanie, ustawienia instancji, zmiana modelu, test proxy
-  lub ponowienie. **Show details** pokazuje źródło, kod i bezpieczny komunikat z kopiowaniem.
+  określa wyjaśnienie i akcje: **Sign in on that worker** dla native loginu,
+  **Open provider settings**, **Change model**, **Pick another worker (Runs on)**,
+  test proxy i **Retry** (także po naprawieniu konfiguracji). Link logowania wskazuje
+  konkretną instancję i przypięty worker. **Show details** pokazuje źródło, kod
+  i bezpieczny komunikat z kopiowaniem.
   `BotMessage.error_code/error_source` są utrwalane w migracji `0069_bot_errors`.
   Klasy domenowe obejmują auth, brak CLI, model, limity, sieć, uciętą odpowiedź,
   zakończenie procesu, konfigurację, niedostępnego dostawcę i błąd wewnętrzny.
-  Wątki zachowują natywny `error_code` harnessu; dodatkowe `error_class` służy UI.
-  Granica `ProviderFailure` przenosi klasę i źródło także dla przyszłego runtime harnessów.
-  Szczegóły redagują URL i rozpoznane sekrety; treści błędów HTTP modeli nie są zapisywane.
+  Boty i wątki używają `classifyFailure`. Natywny `error_code` pozostaje w journalu
+  i `bot_harness_turns`; addytywne `TurnFinished.error_class` i migracja
+  `0071_bot_harness_errors.sql` zachowują klasę przed usunięciem prozy providera.
+  Granica `ProviderFailure` przenosi klasę i źródło z runtime'u harnessów do rozmowy.
+  Szczegóły nie zawierają endpointów, stderr ani sekretów; surowe komunikaty błędów
+  modeli nie są zapisywane w gatewayu.
   Lista boczna pokazuje „Couldn't reply”.
 - **Composer** (`BotComposer`): jedna zaokrąglona „pigułka”: „+” (załączniki — na razie
   niedostępne z podpowiedzią), wspólny `MentionEditor` z Threads zamiast textarea.

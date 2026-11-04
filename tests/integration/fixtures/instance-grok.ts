@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
 import { recordProbe, releaseProbe } from "./instance-probe.ts";
-import { arg, botEvidence, botTool } from "./bot-probe.ts";
+import { arg, botEvidence, botFailure, botTool } from "./bot-probe.ts";
 
 const servers = new Map<string, { url: string; headers: Record<string, string> }>();
 const permissions = new Map<string, (denied: boolean) => void>();
@@ -33,6 +33,15 @@ async function turn(id: number, params: { sessionId: string; prompt: { text?: st
   const text = params.prompt.map((p) => p.text ?? "").join("\n");
   transcript(params.sessionId, { sessionUpdate: "user_message_chunk", content: { type: "text", text } });
   await releaseProbe(text);
+  const failure = process.env["BOT_TRACE"] ? botFailure(text) : undefined;
+
+  if (failure) {
+    if (text.includes("FAIL:exit")) process.exit(7);
+    send({ id, error: { code: -32000, message: failure.message } });
+
+    return;
+  }
+
   const marker = join(process.env["GROK_HOME"]!, "sessions", "failed-once");
 
   if (text.includes("FAIL_ONCE") && !existsSync(marker)) {

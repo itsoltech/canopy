@@ -354,6 +354,7 @@
         onsend={send}
         onretry={canAct ? retry : undefined}
         onchangemodel={canAct ? openChangeModel : undefined}
+        onchangeworker={canAct ? () => openBotSettings(bot.id) : undefined}
         class="flex-1"
       >
         {#snippet notice()}

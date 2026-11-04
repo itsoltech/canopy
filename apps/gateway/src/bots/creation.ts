@@ -65,14 +65,21 @@ export function proposedBot(args: JsonObject, own: bots.BotConfiguration): bots.
 
   if (name === undefined) throw new Invalid("name is required");
 
-  if (provider !== undefined && provider !== "codex" && provider !== "claude")
-    throw new Invalid("provider must be claude or codex");
+  if (provider !== undefined && !["codex", "claude", "grok"].includes(provider))
+    throw new Invalid("provider must be claude, codex or grok");
 
   return create(bots.BotConfigurationSchema, {
     name,
     shape: given.get("shape") ?? shapes[randomInt(shapes.length)]!,
     color: given.get("color") ?? colors[randomInt(colors.length)]!,
-    provider: provider === undefined ? own.provider : provider === "claude" ? Provider.CLAUDE : Provider.CODEX,
+    provider:
+      provider === undefined
+        ? own.provider
+        : provider === "claude"
+          ? Provider.CLAUDE
+          : provider === "grok"
+            ? Provider.GROK
+            : Provider.CODEX,
     providerInstance: given.get("provider_instance") ?? own.providerInstance,
     model: given.get("model") ?? own.model,
     effort: given.get("effort") ?? own.effort,

@@ -82,6 +82,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "68_worktree_automation",
       "69_bot_errors",
       "70_bot_harness",
+      "71_bot_harness_errors",
     ]);
   }, 60_000);
 

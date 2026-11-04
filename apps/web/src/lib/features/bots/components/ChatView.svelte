@@ -44,6 +44,7 @@
     onpolicy,
     onretry,
     onchangemodel,
+    onchangeworker,
     onreact,
     onclose,
     onattach,
@@ -72,6 +73,7 @@
     onpolicy?: ((policy: ApprovalPolicy) => void) | undefined;
     onretry?: (() => void) | undefined;
     onchangemodel?: (() => void) | undefined;
+    onchangeworker?: (() => void) | undefined;
     onreact?: ((message: ChatMessageView) => void) | undefined;
     onclose?: (() => void) | undefined;
     onattach?: (() => void) | undefined;
@@ -233,6 +235,7 @@
           {onpolicy}
           {onretry}
           {onchangemodel}
+          {onchangeworker}
           {onreact}
           onreply={conversation.kind === "watch" || conversation.archived ? undefined : reply}
           class="mx-auto w-full max-w-(--chat-width) px-3 pt-4 pb-6 sm:px-6"

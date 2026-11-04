@@ -160,7 +160,14 @@ export class CodexRuntimes {
     });
 
     const scope = await Effect.runPromise(Scope.make());
-    const context = await this.ctx.state.options.runtime.runPromise(Layer.buildWithScope(layer, scope));
+
+    const context = await this.ctx.state.options.runtime
+      .runPromise(Layer.buildWithScope(layer, scope))
+      .catch(async (error) => {
+        await Effect.runPromise(Scope.close(scope, Exit.void));
+        throw error;
+      });
+
     this.ctx.state.codex.set(name, { key: group.key, scope, context });
     this.ctx.ops.log(`codex runtime started (${name})`);
   }

@@ -5,8 +5,11 @@ import type { BotSession } from "./session.ts";
 
 /** Stable harness code only; provider payloads and stderr never enter gateway-visible reasons. */
 export class BotHarnessFailure extends Error {
-  constructor(readonly code: string) {
-    super("Bot harness could not finish this turn");
+  constructor(
+    readonly code: string,
+    message = "Bot harness could not finish this turn",
+  ) {
+    super(message);
   }
 }
 

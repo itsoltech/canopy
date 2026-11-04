@@ -1,17 +1,29 @@
 import { create } from "@bufbuild/protobuf";
 import { Match } from "effect";
+import { classifyFailure } from "@canopy/domain";
 import { AgentToolCallSchema, Provider, TurnEndSource, TurnOutcome, type RunBotTurn } from "@canopy/contracts";
 import { instanceShadowHome } from "../config/remote.ts";
 import { Journal, type ThreadEventInit } from "../journal/index.ts";
 import { grokBus } from "../providers/grok/bus.ts";
-import { reconcileTurn } from "../providers/reconcile.ts";
-import { CommandError, usableBy, type CommandOutput } from "../runtime/host-types.ts";
+import { readHarnessRecord, reconcileEvents } from "../providers/reconcile.ts";
+import { CommandError, type CommandOutput } from "../runtime/host-types.ts";
 import type { HostContext } from "../runtime/host-context.ts";
 import { botSession } from "./session.ts";
 import { runClaudeBot } from "./claude.ts";
 import { runCodexBot } from "./codex.ts";
 import { runGrokBot } from "./grok.ts";
 import { BotHarnessFailure } from "./types.ts";
+import { botFailureEvent } from "./failures.ts";
+import { providersOf } from "../providers/profiles.ts";
+
+function botProvider(provider: Provider) {
+  return Match.value(provider).pipe(
+    Match.when(Provider.CLAUDE, () => "claude" as const),
+    Match.when(Provider.CODEX, () => "codex" as const),
+    Match.when(Provider.GROK, () => "grok" as const),
+    Match.orElse(() => undefined),
+  );
+}
 
 /** Hidden bot sessions own no project workspace and expose only gateway-executed MCP. */
 export class BotTurns {
@@ -21,21 +33,20 @@ export class BotTurns {
     if (this.ctx.state.closing) throw new CommandError("WORKER_DRAINING", "worker is stopping", false);
     const config = this.ctx.state.config;
 
-    const provider =
-      input.provider === Provider.CLAUDE
-        ? "claude"
-        : input.provider === Provider.CODEX
-          ? "codex"
-          : input.provider === Provider.GROK
-            ? "grok"
-            : undefined;
+    const provider = botProvider(input.provider);
 
-    const profile = config?.profiles.find(
-      (p) => p.resolved?.id === input.profileId && provider && usableBy(p.resolved, provider),
-    )?.resolved;
+    const status = config?.profiles.find(
+      (p) => p.config.id === input.profileId && provider && providersOf(p.config).includes(provider),
+    );
+
+    const profile = status?.resolved;
 
     if (!config || !provider || !profile || !config[provider].enabled)
-      throw new CommandError("PROVIDER_UNAVAILABLE", "Bot provider instance is unavailable on this worker", true);
+      throw new CommandError(
+        classifyFailure(status?.problem || "provider unavailable"),
+        "Bot provider instance is unavailable on this worker",
+        true,
+      );
     const key = `${input.botId}/${input.turnId}`;
 
     if (this.#active.has(key)) return {};
@@ -58,7 +69,7 @@ export class BotTurns {
 
     const record = async (event: ThreadEventInit) => {
       const saved = await this.ctx.state.options.runtime.runPromise(
-        Journal.use((j) => j.append(input.botId, { ...event, turnId: input.turnId })),
+        Journal.use((j) => j.append(input.botId, { ...botFailureEvent(event), turnId: input.turnId })),
       );
 
       this.ctx.ops.publish(saved);
@@ -127,16 +138,24 @@ export class BotTurns {
           if (!open) return;
 
           // Use the same transcript readers and end codes as project thread turns.
-          const reconciled = await this.ctx.state.options.runtime.runPromise(
-            reconcileTurn(open, {
-              outcome: abort.signal.aborted ? TurnOutcome.INTERRUPTED : TurnOutcome.FAILED,
-              source: abort.signal.aborted ? TurnEndSource.SYSTEM : TurnEndSource.HARNESS,
-              reason: abort.signal.aborted ? "Bot turn interrupted" : "Bot harness could not finish this turn",
-              errorCode: abort.signal.aborted ? "" : error instanceof BotHarnessFailure ? error.code : "HARNESS_ERROR",
-            }),
-          );
+          const transcript = await readHarnessRecord(open);
 
-          for (const event of reconciled.events) this.ctx.ops.publish(event);
+          const reconciled = reconcileEvents(open, transcript, {
+            outcome: abort.signal.aborted ? TurnOutcome.INTERRUPTED : TurnOutcome.FAILED,
+            source: abort.signal.aborted ? TurnEndSource.SYSTEM : TurnEndSource.HARNESS,
+            reason: abort.signal.aborted
+              ? "Bot turn interrupted"
+              : error instanceof Error
+                ? error.message
+                : "Bot harness could not finish this turn",
+            errorCode: abort.signal.aborted
+              ? ""
+              : error instanceof BotHarnessFailure
+                ? error.code
+                : classifyFailure(error instanceof Error ? error.message : ""),
+          });
+
+          for (const event of reconciled) await record(event);
         },
       )
       .catch(() => this.ctx.ops.log("bots: harness journal failed"))

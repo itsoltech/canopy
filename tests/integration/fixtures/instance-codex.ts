@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
 import { recordProbe, releaseProbe } from "./instance-probe.ts";
-import { botTool, codexBotConfig } from "./bot-probe.ts";
+import { botFailure, botTool, codexBotConfig } from "./bot-probe.ts";
 
 if (process.argv.includes("--version")) {
   console.log("codex-cli 0.164.0");
@@ -31,6 +31,22 @@ async function turn(id: number, params: { threadId: string; input: { text?: stri
   notify("turn/started", { threadId, turn: { id: turnId, status: "inProgress", items: [], error: null } });
   recordProbe("codex", "turn", threadId, providers.get(threadId));
   await releaseProbe(text);
+  const failure = process.env["BOT_TRACE"] ? botFailure(text) : undefined;
+
+  if (failure) {
+    if (text.includes("FAIL:exit")) process.exit(7);
+    notify("turn/completed", {
+      threadId,
+      turn: {
+        id: turnId,
+        status: "failed",
+        items: [],
+        error: { message: failure.message, codexErrorInfo: failure.codex, additionalDetails: null },
+      },
+    });
+
+    return;
+  }
 
   const failureMarker = join(home, "bot-failed-once");
 

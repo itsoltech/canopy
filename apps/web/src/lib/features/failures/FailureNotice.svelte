@@ -16,6 +16,8 @@
     providerHref = "/settings/providers",
     onretry,
     onchangemodel,
+    onchangeworker,
+    signInLabel = "Sign in",
     retrying = false,
     retryDisabled = false,
     heading = "Could not finish this turn",
@@ -29,6 +31,8 @@
     providerHref?: string;
     onretry?: (() => void) | undefined;
     onchangemodel?: (() => void) | undefined;
+    onchangeworker?: (() => void) | undefined;
+    signInLabel?: string;
     retrying?: boolean;
     retryDisabled?: boolean;
     heading?: string;
@@ -51,14 +55,14 @@
     {#if failure.model && onchangemodel}<Button size="sm" onclick={onchangemodel}>Change model</Button>{/if}
     {#if failure.settings}
       <ButtonLink size="sm" variant="ghost" href={providerHref}
-        >{failure.kind === "auth_required" && !proxy ? "Sign in" : "Open provider settings"}</ButtonLink
+        >{failure.kind === "auth_required" && !proxy ? signInLabel : "Open provider settings"}</ButtonLink
       >
     {/if}
     {#if failure.proxy}<ButtonLink size="sm" variant="ghost" href="/settings/proxies"
         >Check proxy (Test connection)</ButtonLink
       >{/if}
-    {#if failure.retry && onretry}<Button size="sm" loading={retrying} disabled={retryDisabled} onclick={onretry}
-        >Retry</Button
+    {#if onretry}<Button size="sm" loading={retrying} disabled={retryDisabled} onclick={onretry}>Retry</Button>{/if}
+    {#if onchangeworker}<Button size="sm" variant="ghost" onclick={onchangeworker}>Pick another worker (Runs on)</Button
       >{/if}
   </div>
   <Disclosure class="min-w-0 text-zinc-500 dark:text-zinc-400">

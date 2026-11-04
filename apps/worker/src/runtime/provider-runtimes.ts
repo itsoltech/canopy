@@ -2,6 +2,7 @@ import { clone } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { ItemSchema, ItemStatus, type Item } from "@canopy/contracts";
 import { Cause, Effect, Exit, Predicate } from "effect";
+import { classifyFailure } from "@canopy/domain";
 import { Journal } from "../journal/index.ts";
 import { GrokThreads } from "../providers/grok/threads.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
@@ -177,7 +178,11 @@ export class ProviderRuntimes {
       this.ctx.state.staleRuntimes.delete(key);
       await stopRuntime(this.ctx, key);
 
-      if (next) await next.start();
+      if (next)
+        await next.start().catch((error: Error) => {
+          // A failed instance must not disconnect WorkerLink or block other providers and bot commands.
+          this.ctx.ops.log(`provider runtime unavailable (${classifyFailure(error.message)})`);
+        });
       changed = true;
     }
 

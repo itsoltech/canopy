@@ -1,6 +1,14 @@
 import { fromBinary, toBinary, type JsonValue } from "@bufbuild/protobuf";
-import { CommandSchema, ItemDeltaField, ThreadEventSchema, type Command, type ThreadEvent } from "@canopy/contracts";
+import {
+  CommandSchema,
+  ItemDeltaField,
+  ThreadEventSchema,
+  TurnOutcome,
+  type Command,
+  type ThreadEvent,
+} from "@canopy/contracts";
 import { Effect } from "effect";
+import { classifyFailure } from "@canopy/domain";
 import type { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
 import type { BotAccess } from "./store-access.ts";
@@ -16,6 +24,7 @@ export interface HarnessTurnRow {
   source: number;
   reason: string;
   error_code: string;
+  error_class: string;
   items: Record<string, string>;
 }
 
@@ -74,6 +83,23 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
     harnessEvent: (workerId: string, journalId: string, event: ThreadEvent) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          // Recovered transcripts and older workers may still carry provider prose.
+          if (event.body.case === "turnFinished" && event.body.value.outcome === TurnOutcome.FAILED) {
+            const end = event.body.value;
+            event = {
+              ...event,
+              rawJson: "",
+              body: {
+                case: "turnFinished",
+                value: {
+                  ...end,
+                  errorClass: classifyFailure(end.reason, end.errorClass || end.errorCode),
+                  reason: "Bot harness could not finish this turn",
+                },
+              },
+            };
+          }
+
           const row =
             (yield* sql<HarnessTurnRow>`SELECT h.* FROM bot_harness_turns h WHERE h.turn_id = ${event.turnId}::uuid AND h.bot_id = ${event.threadId}::uuid AND h.worker_id = ${workerId}::uuid FOR UPDATE`)[0];
 
@@ -97,7 +123,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
             row.items[body.value.itemId] = (row.items[body.value.itemId] ?? "") + body.value.chunk;
           const text = Object.values(row.items).join("\n");
           const end = body.case === "turnFinished" ? body.value : undefined;
-          yield* sql`UPDATE bot_harness_turns SET items = ${JSON.stringify(row.items)}::jsonb, text = ${text}, outcome = ${end?.outcome ?? row.outcome}, source = ${end?.source ?? row.source}, reason = ${end?.reason ?? row.reason}, error_code = ${end?.errorCode ?? row.error_code} WHERE turn_id = ${row.turn_id}::uuid`;
+          yield* sql`UPDATE bot_harness_turns SET items = ${JSON.stringify(row.items)}::jsonb, text = ${text}, outcome = ${end?.outcome ?? row.outcome}, source = ${end?.source ?? row.source}, reason = ${end?.reason ?? row.reason}, error_code = ${end?.errorCode ?? row.error_code}, error_class = ${end?.errorClass ?? row.error_class} WHERE turn_id = ${row.turn_id}::uuid`;
           yield* access.changed(row.bot_id);
 
           return true;
