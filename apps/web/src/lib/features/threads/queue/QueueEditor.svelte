@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
-  import { shake, swap } from "#lib/shared/ui/motion.ts";
+  import { shake } from "#lib/shared/ui/motion.ts";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
 
   /**
@@ -57,7 +57,7 @@
   };
 </script>
 
-<form class={["grid gap-2 p-1", className]} onsubmit={save} in:swap>
+<form class={["grid gap-2 p-1", className]} onsubmit={save}>
   <Textarea
     {@attach focus}
     {@attach shake(error)}

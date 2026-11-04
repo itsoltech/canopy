@@ -3,14 +3,13 @@
   import type { ClassValue } from "svelte/elements";
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
-  import { shake } from "./motion.ts";
 
   type AlertTone = "info" | "warning" | "error";
 
   /**
    * Inline message. `error` is announced immediately (role=alert), the others politely (role=status).
-   * `banner` drops the rounded frame for full-width strips under a header. An inline error (a form that
-   * failed) shakes when it appears.
+   * `banner` drops the rounded frame for full-width strips under a header. Only offending fields shake;
+   * messages stay still so a service error cannot resemble a field validation failure.
    */
   let {
     tone = "info",
@@ -63,7 +62,6 @@
     className,
   ]}
   role={tone === "error" ? "alert" : "status"}
-  {@attach shake(tone === "error" && !banner)}
 >
   <div class="flex h-lh items-center"><Icon name={look.icon} class={look.icon_} /></div>
   <div class="min-w-0 flex-1">

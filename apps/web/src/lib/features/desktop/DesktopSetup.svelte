@@ -12,7 +12,6 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ModeChoice from "./ModeChoice.svelte";
   import DesktopStartup from "./DesktopStartup.svelte";
-  import { rise } from "#lib/shared/ui/motion.ts";
 
   let { settings = false }: { settings?: boolean } = $props();
 
@@ -173,7 +172,7 @@
               disabled={working}
             />
           </div>
-          <div class="grid gap-5" in:rise>
+          <div class="grid gap-5">
             {#if mode === "remote"}
               <RemoteGatewayFields
                 bind:invitation={pairingInvitation}

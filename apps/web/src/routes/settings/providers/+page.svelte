@@ -14,7 +14,6 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import InsetList from "#lib/shared/ui/InsetList.svelte";
-  import { pageSlide } from "#lib/shared/ui/motion.ts";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
@@ -170,7 +169,7 @@
     <div class={["grid min-w-0 grid-cols-1", pane === "list" && "max-md:hidden"]}>
       {#if selected}
         {#key `${instanceKeyOf(selected)}:${scope ?? ""}`}
-          <div class="col-start-1 row-start-1 grid min-w-0 grid-cols-1 gap-4" in:pageSlide>
+          <div class="col-start-1 row-start-1 grid min-w-0 grid-cols-1 gap-4">
             <button
               type="button"
               class="-ml-1 flex min-h-(--settings-target) items-center gap-1 justify-self-start rounded-md px-1 text-base/6 text-zinc-600 focus-ring hover:text-zinc-950 md:hidden dark:text-zinc-400 dark:hover:text-white"

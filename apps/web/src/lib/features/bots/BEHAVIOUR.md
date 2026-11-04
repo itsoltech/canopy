@@ -11,8 +11,8 @@ from bots-core. Images and user initials have no behaviour.
   `BotAvatar` also opts its 20 px `xs` size out explicitly.
 - `state` accepts `idle`, `working`, `typing`, `waiting`, `done`, `error`. Working eyes read down-left;
   waiting eyes look toward the chat's composer. Hover temporarily takes precedence.
-- Change `event` on a sent/received message for a small squash. Initial mounting is quiet.
-  Change `reaction` on `MascotFace` for a name/hover lift. With `playful`, events become a wobble;
+- Change `event` on a sent/received message for a brief squint. Initial mounting is quiet.
+  Change `reaction` on `MascotFace` for the same name/hover expression. `playful` deepens the squint;
   the wizard's preview button supports pointer, touch, Enter and Space.
 - `blink` remains accepted on `MascotFace` for source compatibility; the shared random scheduler now
   controls all natural blinking. No independent CSS blink loops remain.
@@ -36,7 +36,8 @@ at 3.6–8.2 seconds. Small idle glances occur at 12–24 second intervals after
 without pointer motion. Touch taps and focus give a one-second glance, then return to idle.
 Eye offsets use an elliptical clamp, with tighter envelopes for spark, star, diamond and triangle;
 legacy pupils keep extra space inside their sclera. One screen-wide owner admits attention cues
-(hop, lift, squash, wobble, happy squint, error shake); overlapping cues are dropped rather than queued.
+(a brief squint); overlapping cues are dropped rather than queued. Bodies do not squash, wobble or hop,
+and bot failures use status text instead of a shake. Only an offending form field shakes on validation.
 State changes cause one cue, never a repeating attention loop. Durations read existing motion tokens.
 
 Settings → Appearance → **Animated mascots** defaults on and is saved locally on this device,

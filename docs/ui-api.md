@@ -24,6 +24,22 @@ jawne klasy koloru nadal mają pierwszeństwo. Przełącznik Thread details uży
 `layout-sidebar-right`, czyli obrysu okna z prawym panelem. `view-columns` używa tego
 samego glifu w komendach i aplikacji mobilnej; `sidebar` używa `layout-sidebar`.
 
+## Ruch formularzy
+
+Otwarcie `Dialog` / arkusza / `Popover` animuje wyłącznie kontener według tokenów
+z `routes/layout.css` i `shared/ui/motion.css`. Pola, wiersze ustawień i kroki kreatorów
+pojawiają się bez osobnego wejścia, przesunięcia, rozmycia ani opóźnienia.
+Nowe wiersze list mogą przenikać lub spokojnie rozwijać wysokość (`rise`, `expand`,
+`t-rise`, `t-unfold`), bez podskoków i ruchu poziomego. Przełącznik zachowuje ruch
+suwaka po zmianie wartości; przy `prefers-reduced-motion` zmienia stan od razu.
+
+`shake(error)` wymaga jawnego, prawdziwego błędu walidacji i działa jednorazowo
+na kontrolce odrzucającej wartość. Brak błędu (`undefined`, pusty tekst, `false`)
+nie uruchamia animacji. Sprzątanie usuwa klasę po zakończeniu lub odpięciu attachmentu.
+Przy ograniczonym ruchu pozostają kolor, komunikat i `aria-invalid`, bez potrząśnięcia.
+`Alert` i awatar bota nie potrząsają się; błędy usług sygnalizuje ich tekst i semantyka.
+Dekoracyjne potwierdzenia nie używają krzywych z przeregulowaniem.
+
 ## Canopy mobile
 
 Natywny klient `apps/mobile` korzysta z tego samego `GatewayService` przez Connect

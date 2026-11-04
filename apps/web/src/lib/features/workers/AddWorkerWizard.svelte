@@ -10,7 +10,6 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import TagInput from "#lib/shared/ui/TagInput.svelte";
-  import { pageIn } from "#lib/shared/ui/motion.ts";
   import WorkerInstallStep from "./WorkerInstallStep.svelte";
   import WorkerConnectionStatus from "./WorkerConnectionStatus.svelte";
   import WorkerProviderChoices from "./WorkerProviderChoices.svelte";
@@ -37,7 +36,6 @@
   let busy = $state(false);
   let error = $state("");
   let now = $state(Date.now());
-  let direction = $state(1);
   const titles = ["Name your machine", "Set up the worker", "Connect to Canopy", "Choose providers"];
   const currentEnrollment = $derived(setup.enrollments.find((e) => e.id === invitation?.id) ?? invitation);
   const worker = $derived(overview.worker(currentEnrollment?.workerId ?? ""));
@@ -73,7 +71,6 @@
   });
 
   function go(next: number) {
-    direction = next > step ? 1 : -1;
     step = next;
     error = "";
   }
@@ -143,7 +140,7 @@
     </ol>
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     {#key step}
-      <div class="grid min-w-0 gap-4" in:pageIn={{ from: direction }}>
+      <div class="grid min-w-0 gap-4">
         <h3 class="text-base/7 font-semibold">{titles[step - 1]}</h3>
         {#if step === 1}
           <form

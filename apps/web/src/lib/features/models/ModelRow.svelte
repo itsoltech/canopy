@@ -37,7 +37,7 @@
     class?: ClassValue;
   } = $props();
 
-  // Starring gives the star a small spring (motion.css `t-pop`).
+  // Starring fades the star in (motion.css `t-pop`).
   let popping = $state(false);
   let popped: ReturnType<typeof setTimeout> | undefined;
 

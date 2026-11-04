@@ -4,7 +4,6 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import { rise } from "#lib/shared/ui/motion.ts";
   import { providerCall } from "./instances.ts";
 
   /**
@@ -49,7 +48,7 @@
 
 <div class={["grid gap-3", className]}>
   {#if code}
-    <div class="grid gap-2 rounded-xl bg-zinc-950/2.5 p-4 dark:bg-white/2.5" in:rise>
+    <div class="grid gap-2 rounded-xl bg-zinc-950/2.5 p-4 dark:bg-white/2.5">
       <p class="text-base/6 text-zinc-700 sm:text-sm/6 dark:text-zinc-300">
         Open the link, sign in with ChatGPT and enter this code. It expires in 15 minutes.
       </p>

@@ -9,7 +9,7 @@
    * One article of a VirtualFeed: measured while mounted (`measure`), and the scope of the UI memory
    * its content uses, so the row looks the same when it is scrolled back into view. A new row enters once
    * (`enter`: motion.css `t-rise` for one that arrived, `t-reveal` for the first rows replacing a
-   * skeleton, `t-unfold` for rows of a fold that opened, staggered by `order`); all are transform,
+   * skeleton, `t-unfold` for rows of a fold that opened, staggered by `order`); all preserve layout,
    * opacity and blur only, so its measured height is final from the start.
    */
   let {
