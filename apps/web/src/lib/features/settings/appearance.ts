@@ -37,6 +37,7 @@ export const colorThemes: Record<ThemeName, ui.ColorTheme> = {
   cedar: ui.ColorTheme.CEDAR,
   heather: ui.ColorTheme.HEATHER,
   blossom: ui.ColorTheme.BLOSSOM,
+  ash: ui.ColorTheme.ASH,
 };
 
 const previousThemes: Record<AccentName, ThemeName> = {

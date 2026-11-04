@@ -13,6 +13,10 @@ paski próbek oraz etykiety z liściem. Wybrano miniatury: pokazują jednocześn
 sidebar, tło rozmowy, tekst i kompozytor, więc prezentują pełną paletę. Dwie grupy
 Light / Dark mają niezależne znaczniki i nazwy bieżącego wyboru. Na telefonie każda grupa ma jedną
 kolumnę, w szerszym kontenerze dwie.
+Każda grupa zawiera siedem motywów. Wspólna miniatura ma wysokość 48 px
+(wcześniej 64–72 px), a karty mają mniejszy padding i odstępy. Dzięki temu dodanie
+siódmego wyboru nie zwiększa wysokości listy na telefonie; na desktopie dochodzi
+jeden krótszy rząd. Nazwy mogą się zawijać bez rozszerzania kolumn.
 Sekcja Color scheme korzysta ze wspólnego wiersza SettingsRow (opis po lewej,
 kontrolki po prawej), a obie sekcje z SettingsGroup i tokenów gęstości ustawień.
 
@@ -42,6 +46,15 @@ Zmiana motywu obejmuje istniejące ekrany bez warunków zależnych od nazwy moty
 | Cedar | piasek, drewno sekwoi | `#fffcf7` | `#20150f` |
 | Heather | liliowa mgła, fiolet zmierzchu | `#fefbff` | `#1b1223` |
 | Blossom | płatki, morwa | `#fffbfd` | `#23121f` |
+| Ash | czysta biel, prawdziwa czerń | `#ffffff` | `#000000` |
+
+Ash ma neutralne, nietonowane szarości. Canvas, surface i panel są identyczne:
+`#ffffff` w Light i `#000000` w Dark, także dla tła okna i nakładki paska tytułu
+desktopu. Hover to `#f5f5f5` / `#171717`, border `#d9d9d9` / `#383838`,
+ink `#111111` / `#ffffff`, a muted `#666666` / `#bfbfbf`. Akcent to
+`#606060` / `#b3b3b3`; akcje używają `#606060`, hover akcji `#4d4d4d`
+i białych etykiet w obu wariantach. Kolory statusów, diffów i składni nadal
+zachowują swoje znaczenie. Ash można mieszać z dowolnym innym motywem.
 
 Poniższe liczby to minimalne współczynniki kontrastu WCAG obliczone z luminancji
 sRGB na canvas, surface, panel i hover. „Pomocniczy” oznacza istniejący tekst
@@ -58,6 +71,11 @@ kolorów tekstu statusów (600 w Light, 400 w Dark).
 | Cedar | 14,21 / 11,39 | 4,56 / 4,93 | 5,22 | 4,18 / 5,36 | 5,02 / 5,96 |
 | Heather | 14,04 / 11,34 | 4,96 / 4,79 | 7,30 | 5,81 / 4,51 | 4,99 / 6,03 |
 | Blossom | 14,17 / 11,25 | 5,00 / 4,77 | 5,91 | 4,70 / 4,58 | 5,03 / 5,91 |
+| Ash | 17,32 / 17,93 | 5,27 / 7,11 | 6,29 | 5,77 / 8,55 | 5,67 / 7,91 |
+
+Ash zmierzono w przeglądarce na rzeczywistych wartościach CSS (statusy po
+rozwiązaniu `color-mix` przez Canvas 2D do sRGB). Etykieta akcji na hover ma
+kontrast 8,45:1 w obu wariantach.
 
 Te pary tekstu przekraczają AA 4,5:1 (również próg AA dla dużego tekstu 3:1),
 a fokus przekracza 3:1. Pomiar dotyczy tokenów; nie jest audytem każdego
@@ -71,6 +89,8 @@ appearance w `user_settings`, w zakresie właściciela. Nie jest potrzebna migra
 schematu bazy. Obowiązują istniejące wersjonowanie, konflikt 409 oraz dystrybucja
 ustawień przez Overview. Test integracyjny sprawdza zapis, odczyt i zachowanie
 obu wariantów przy zmianie innej sekcji z drugiego urządzenia.
+Ash dodaje `COLOR_THEME_ASH = 7`, bez zmiany istniejących numerów. Test zapisu
+ustawień obejmuje mieszankę Fern Light / Ash Dark.
 Udostępnianie wyglądu między połączonymi komputerami przenosi także oba warianty;
 osobny test synchronizacji sprawdza je wraz z zachowaniem lokalnej szerokości sidebara.
 
@@ -107,3 +127,18 @@ Nie dodano testów UI. Materiały sesji są w `~/.cache/canopy-themes/`:
 widoków wątku, popoverów i dialogów. Nie uruchamiano natywnego okna Electron;
 wizualne zachowanie nakładki Linux/Windows i paska macOS wymaga potwierdzenia
 w aplikacji desktopowej.
+
+Ash sprawdzono osobno w obu wariantach: sidebar, syntetyczny wątek
+`/dev/long-thread`, wspólny kompozytor z długą ścieżką i Unicode, ustawienia,
+popover uprawnień, dialog dodawania workera oraz rozwinięte bloki kodu i diffów
+w `/dev/tool-calls`. Picker obejrzano przy szerokościach 1280, 800 i 390 px,
+dodatkowo 320 px z nawigacją strzałkami i End. Nie stwierdzono poziomego overflow,
+uciętych nazw motywów ani szczelin między powierzchniami. Potwierdzono zapis
+Fern Light / Ash Dark oraz Ash Light / Heather Dark i przełączanie System.
+Zrzuty tej sesji są w `~/.cache/canopy-pure-themes/`: `desktop-picker-*.png`,
+`narrow-picker-*.png`, `phone-picker-*.png`, `desktop-thread-*.png`,
+`phone-thread-*.png`, `desktop-code-diff-*.png`, `phone-code-dark.png`,
+`phone-diff-*.png`, `phone-composer-*.png`, `phone-popover-*.png`,
+`desktop-dialog-*.png`, `phone-dialog-*.png` i `desktop-mixed-*.png`.
+Natywnego okna Electron nie uruchamiano; jego tło i symbole paska tytułu korzystają
+z tych samych zweryfikowanych tokenów canvas/ink i istniejącej walidacji IPC.
