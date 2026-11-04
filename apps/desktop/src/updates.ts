@@ -67,6 +67,9 @@ export class DesktopUpdates {
   check() {
     return this.control.check();
   }
+  checkRemote() {
+    return this.control.checkRemote();
+  }
   restartIfReady() {
     if (this.status().phase === "downloaded" && !this.status().changingChannel) this.restart();
   }

@@ -5,6 +5,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import { updateBusy, updateStateLabel } from "./updates.svelte.ts";
+  import DesktopUpdateStatus from "./DesktopUpdateStatus.svelte";
 
   let {
     worker,
@@ -12,6 +13,7 @@
     admin,
     pending,
     onupdate,
+    onforce,
     class: className,
   }: {
     worker: ui.WorkerUpdate;
@@ -19,6 +21,7 @@
     admin: boolean;
     pending: string;
     onupdate(): void;
+    onforce(): void;
     class?: ClassValue;
   } = $props();
 
@@ -33,25 +36,29 @@
         >{worker.version || "Version unknown"}</span
       >
     </p>
-    <div class="flex flex-wrap items-center gap-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      {#key `${worker.state}/${worker.compatibility}`}
-        <div in:swap role="status">
-          <Badge
-            tone={worker.state === "failed"
-              ? "rose"
-              : worker.state === "managed_externally" || worker.state === "ahead"
-                ? "neutral"
-                : busy || worker.compatibility !== "compatible"
-                  ? "amber"
-                  : "emerald"}>{updateStateLabel(worker.state, worker.compatibility === "compatible")}</Badge
-          >
-        </div>
-      {/key}
-      <p>{worker.connected ? "Update channel connected" : "Update channel offline"}</p>
-    </div>
-    {#if worker.reason}<p class="text-base/6 text-pretty break-words text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        {worker.reason}
-      </p>{/if}
+    {#if worker.installKind === "desktop" && worker.desktop}
+      <DesktopUpdateStatus state={worker.desktop} pending={pending === worker.workerId} {onupdate} {onforce} />
+    {:else}
+      <div class="flex flex-wrap items-center gap-2 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+        {#key `${worker.state}/${worker.compatibility}`}
+          <div in:swap role="status">
+            <Badge
+              tone={worker.state === "failed"
+                ? "rose"
+                : worker.state === "managed_externally" || worker.state === "ahead"
+                  ? "neutral"
+                  : busy || worker.compatibility !== "compatible"
+                    ? "amber"
+                    : "emerald"}>{updateStateLabel(worker.state, worker.compatibility === "compatible")}</Badge
+            >
+          </div>
+        {/key}
+        <p>{worker.connected ? "Update channel connected" : "Update channel offline"}</p>
+      </div>
+      {#if worker.reason}<p class="text-base/6 text-pretty break-words text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+          {worker.reason}
+        </p>{/if}
+    {/if}
   </div>
   {#if worker.installKind === "binary" && admin}
     <div class="shrink-0">

@@ -165,6 +165,7 @@ async function stop(presence = "shutting_down") {
   unmountMobile();
   await network.close();
   core.updates.close();
+  core.desktopControl.close();
   core.secrets.stop();
   await core.scheduler.stop();
   await core.stopSweep();

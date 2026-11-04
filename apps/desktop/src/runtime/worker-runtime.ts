@@ -10,6 +10,17 @@ import { enrollWorker } from "../../../worker/src/enroll.ts";
 import { isString, isWorkerConfiguration } from "./config.ts";
 import type { Logs } from "./log.ts";
 import type { Supervisor } from "./process.ts";
+import { Schema } from "effect";
+
+export function desktopWorkerIdle(services: Supervisor, statusFile: string, draining: boolean) {
+  const pid = services.send("worker", draining ? "canopy:drain" : "canopy:resume");
+
+  const value = Schema.decodeUnknownSync(
+    Schema.Struct({ pid: Schema.Number, time: Schema.Number, idle: Schema.Boolean, draining: Schema.Boolean }),
+  )(JSON.parse(readFileSync(statusFile, "utf8")));
+
+  return value.pid === pid && Date.now() - value.time < 3000 && value.draining && value.idle;
+}
 
 export async function remoteEnrollment(client: DesktopClientCredential, directory: string, logs: Logs) {
   if (existsSync(join(directory, "worker.json"))) return undefined;

@@ -174,6 +174,9 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(existsSync(join(remoteData, "postgres"))).toBe(false);
       remote.pids.forEach((pid) => owned.add(pid));
       expect(remote.pids).toHaveLength(2); // worker and local frontend/BFF; no gateway or DB
+      await until(() => remote.drainWorker(true));
+      expect(await remote.drainWorker(true)).toBe(true);
+      await remote.drainWorker(false);
       expect((await formAction(remote.origin)).body).toContain("Choose a project");
       await until(async () => (await api.getOverview({})).workers.filter((worker) => worker.online).length === 2);
       expect((await api.getOverview({})).workers.filter((worker) => worker.online)).toHaveLength(2);

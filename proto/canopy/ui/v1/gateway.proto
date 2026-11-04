@@ -14,6 +14,7 @@ import "canopy/ui/v1/mobile.proto";
 import "canopy/ui/v1/computers.proto";
 import "canopy/ui/v1/network.proto";
 import "canopy/ui/v1/agent_environment.proto";
+import "canopy/ui/v1/desktop.proto";
 
 service GatewayService {
   rpc GetAgentEnvironment(AgentEnvironmentRequest) returns (AgentEnvironmentSnapshot);
@@ -269,6 +270,7 @@ message ManageUpdatesRequest {
   string worker_id = 3;
   bool force = 4;
   bool allow_downgrade = 5; // explicit user choice only
+  string desktop_request_id = 6; // required for desktop force, bound to the current request
 }
 message WorkerUpdate {
   string worker_id = 1;
@@ -279,6 +281,7 @@ message WorkerUpdate {
   string state = 6;
   string reason = 7;
   bool connected = 8;
+  DesktopUpdateState desktop = 9;
 }
 message UpdatesSnapshot {
   string gateway_version = 1;
@@ -627,6 +630,7 @@ message OverviewUpdate {
     MobilePairing mobile_pairing = 761;
     MobileOverviewSnapshot mobile_snapshot = 763;
     MobileRoutes mobile_routes = 764;
+    DesktopUpdateState desktop_update = 765;
     string worker_removed = 700;
     WorkerEnrollment enrollment = 701;
     Worker worker = 1;

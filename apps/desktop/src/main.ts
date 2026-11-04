@@ -28,6 +28,8 @@ import { windowState } from "./window-chrome.ts";
 import { updateDesktopMenus } from "./desktop-menu.ts";
 import { createDesktopWindow, isTrustedDesktopEvent } from "./desktop-window.ts";
 import { DocumentPolicy } from "./document-policy.ts";
+import type { RemoteAppUpdate } from "./remote-app-update.ts";
+import { acceptRemoteUpdate, remoteAppUpdate, registerUpdateIpc } from "./update-ipc.ts";
 
 const identity = desktopIdentity();
 
@@ -69,6 +71,8 @@ const updates = new DesktopUpdates(broadcast, () => {
   installingUpdate = true;
   app.quit();
 });
+
+let remoteUpdate: RemoteAppUpdate | undefined;
 
 let connection: ControllerConnection | undefined;
 let pendingLink: string | undefined;
@@ -125,6 +129,10 @@ function authorize(event: IpcMainInvokeEvent, setupOnly = false) {
 }
 
 function broadcast() {
+  remoteUpdate?.changed();
+
+  if (remoteUpdate && !remoteUpdate.active) void remoteUpdate.publish().catch(() => {});
+
   for (const target of [window, settingsWindow])
     if (target && !target.isDestroyed()) target.webContents.send("canopy:status", status);
 
@@ -269,6 +277,7 @@ app.on("before-quit", (event) => {
 
   for (const target of BrowserWindow.getAllWindows()) target.hide();
   updates.stop();
+  remoteUpdate?.stop();
 
   const finish = () => {
     stopped = true;
@@ -302,15 +311,6 @@ app.on("before-quit", (event) => {
     });
 });
 
-function registerPowerEvents() {
-  powerMonitor.on("suspend", () => {
-    void rpc("presence", { state: "sleeping" }).catch(() => {});
-  });
-  powerMonitor.on("resume", () => {
-    void rpc("presence", { state: "connected" }).catch(() => {});
-  });
-}
-
 function startController() {
   const runtime = join(resources, "runtime");
   const paths = runtimePaths(runtime);
@@ -335,6 +335,7 @@ function startController() {
         broadcast();
       }
     },
+    (command) => acceptRemoteUpdate(remoteUpdate, command, logs),
   );
 
   return paths;
@@ -384,25 +385,7 @@ function registerIpc() {
 
     return value;
   });
-  ipcMain.handle("canopy:updates", (event) => {
-    authorize(event);
-
-    return updates.status();
-  });
-  ipcMain.handle("canopy:update-channel", (event, channel: string) => {
-    authorize(event);
-
-    return updates.setChannel(channel);
-  });
-  ipcMain.handle("canopy:update-check", (event) => {
-    authorize(event);
-
-    return updates.check();
-  });
-  ipcMain.handle("canopy:update-install", (event) => {
-    authorize(event);
-    updates.restartIfReady();
-  });
+  registerUpdateIpc(updates, () => remoteUpdate, authorize);
   ipcMain.handle("canopy:enrollment-ready", (event) => {
     authorize(event, true);
     enrollmentReady.add(event.sender.id);
@@ -413,6 +396,8 @@ function registerIpc() {
     authorize(event, true);
 
     if (busy) throw new Error("Desktop configuration is already in progress");
+
+    if (remoteUpdate?.active) throw new Error("Wait for the requested app update to finish.");
     const config = configuration(raw);
     busy = true;
     startupError = "";
@@ -422,6 +407,9 @@ function registerIpc() {
       const client = config.mode === "remote" ? await remoteClient(app.getPath("userData"), config) : undefined;
 
       if (client) logs.protect(client.token);
+
+      if (client) remoteUpdate?.selectDevice(client.deviceId);
+      await remoteUpdate?.publish();
       await rpc("configure", {
         configuration: { ...config, ...(config.mode === "remote" && { pairingInvitation: undefined }) },
         remoteClient: client,
@@ -435,10 +423,17 @@ function registerIpc() {
 }
 
 async function start() {
-  registerPowerEvents();
+  powerMonitor.on("suspend", () => {
+    void rpc("presence", { state: "sleeping" }).catch(() => {});
+  });
+  powerMonitor.on("resume", () => {
+    void rpc("presence", { state: "connected" }).catch(() => {});
+  });
   const secrets = await loadSecrets(app.getPath("userData"));
   logs.protect(...Object.values(secrets));
   const paths = startController();
+  remoteUpdate = remoteAppUpdate(updates, rpc);
+  await remoteUpdate.publish();
   const initialized = await rpc("initialize", { directory: app.getPath("userData"), secrets, paths });
 
   if (!initialized.origin || !initialized.status) throw new Error("Invalid desktop initialization response");
@@ -465,6 +460,9 @@ async function start() {
     const client = await savedRemoteClient(app.getPath("userData")).catch(() => undefined);
 
     if (client) logs.protect(client.token);
+
+    if (client) remoteUpdate.selectDevice(client.deviceId);
+    await remoteUpdate.publish();
     await rpc("restore", { remoteClient: client });
 
     if (status.phase === "running") await openApplication();

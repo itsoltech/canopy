@@ -16,12 +16,19 @@ export class ControllerConnection {
     logs: Logs,
     changed: (status: DesktopStatus) => void,
     exited: () => void,
+    remoteUpdate: (command: string) => void = () => {},
   ) {
     controller.stderr.on("data", logs.stream("controller"));
     createInterface({ input: controller.stdout }).on("line", (line) => {
       try {
         // SAFETY: stdout is the private protocol pipe of our spawned, bundled controller; send uses ControllerResponse.
         const message = JSON.parse(line) as ControllerResponse;
+
+        if (message.event === "remote-update" && message.command) {
+          remoteUpdate(message.command);
+
+          return;
+        }
 
         if (message.event === "status" && message.status) {
           changed(message.status);

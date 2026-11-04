@@ -11,7 +11,7 @@ import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "
 import { Journal } from "./journal/index.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
 import { enrollWorker, workerCommand, workerServiceSnippet } from "./enroll.ts";
-import { desktopStatus, workerOnline } from "./desktop-status.ts";
+import { desktopDrain, desktopStatus, workerOnline } from "./desktop-status.ts";
 import {
   confirmStartup,
   installKind,
@@ -165,6 +165,16 @@ const shutdown = new AbortController();
 const stopping = new AbortController();
 let currentLink: GatewayLink | undefined;
 let gracefulStop: Promise<void> | undefined;
+
+desktopDrain({
+  idle: () => host.updateIdle(),
+  online: () => !!currentLink,
+  drain: (value) => {
+    host.setUpdateDraining(value);
+
+    if (!value) currentLink?.close();
+  },
+});
 
 const updates = new WorkerUpdates({
   ...endpointOptions(local),

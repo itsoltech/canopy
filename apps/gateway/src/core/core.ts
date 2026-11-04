@@ -14,6 +14,8 @@ import { ActionContext } from "./action-context.ts";
 import { ConnectorsRuntime } from "../connectors/runtime.ts";
 import { WorkerAdministration } from "./worker-administration.ts";
 import { MobileDevices } from "./mobile-devices.ts";
+import { DesktopControl } from "../desktop-updates/control.ts";
+import { DesktopUpdateStore } from "../desktop-updates/store.ts";
 import { GatewayUpdates } from "../updates/runtime.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
 import { CliTools } from "./cli-tools.ts";
@@ -146,6 +148,7 @@ export class GatewayCore {
   readonly updates: GatewayUpdates;
 
   readonly mobile: MobileDevices;
+  readonly desktopControl: DesktopControl;
 
   readonly workers: WorkerAdministration;
 
@@ -188,6 +191,17 @@ export class GatewayCore {
       network: () => this.network,
       publish: (update) => this.hub.publishOverview(update),
     });
+    this.desktopControl = new DesktopControl(
+      new DesktopUpdateStore(options.runtime, options.userId),
+      this.mobile,
+      (value) =>
+        this.hub.publishOverview(
+          create(ui.OverviewUpdateSchema, {
+            change: { case: "desktopUpdate", value },
+          }),
+        ),
+      (credential) => coreRun(this, (s) => s.authenticateWorker(credential)),
+    );
     this.connectors = new ConnectorsRuntime({
       runtime: options.runtime,
       userId: options.userId,

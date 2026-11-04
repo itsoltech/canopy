@@ -13,6 +13,7 @@ export function mountMobileNetwork(core: GatewayCore, network: NetworkAccess, se
   const adapter = connectNodeAdapter({
     routes: (router) => {
       core.mobile.routes(router);
+      core.desktopControl.routes(router);
       uiRoutes(core)(router);
     },
     interceptors: [serviceTokenAuth(serviceToken, core.mobile)],

@@ -291,6 +291,7 @@ test.skipIf(process.platform !== "linux")(
       const { controller, updater, settings } = fixture("0.6.0-nightly.2", "nightly", () => confirmation);
       const switching = controller.setChannel("stable");
       await expect(controller.setChannel("beta")).rejects.toThrow("Wait");
+      expect(() => controller.checkRemote()).toThrow("Wait");
       await controller.check();
       expect(updater.downloads).toHaveLength(0);
       expect(settings.read("nightly")).toBe("nightly");

@@ -3,6 +3,9 @@ import { DesktopRuntime, type RuntimePaths, type Secrets } from "./runtime/runti
 import type { DesktopStatus } from "@canopy/ui/desktop";
 import { configuration, type ConfigurationInput } from "./runtime/config.ts";
 import type { DesktopClientCredential } from "./remote-client.ts";
+import { RemoteDesktopControl } from "./remote-control.ts";
+import { toJsonString } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
 
 export interface ControllerArguments {
   directory?: string;
@@ -11,6 +14,8 @@ export interface ControllerArguments {
   configuration?: ConfigurationInput;
   state?: string;
   remoteClient?: DesktopClientCredential | undefined;
+  draining?: boolean;
+  updateState?: string;
 }
 
 type ControllerRequest = { id: number } & (
@@ -18,16 +23,20 @@ type ControllerRequest = { id: number } & (
   | { action: "restore"; remoteClient?: DesktopClientCredential }
   | { action: "configure"; configuration: ConfigurationInput; remoteClient?: DesktopClientCredential }
   | { action: "presence"; state: string }
+  | { action: "worker-drain"; draining: boolean }
+  | { action: "remote-update-state"; updateState: string }
 );
 
 export interface ControllerResult {
   origin?: string;
   status?: DesktopStatus;
   pids?: number[];
+  idle?: boolean;
 }
 
 export interface ControllerResponse {
-  event?: "status";
+  event?: "status" | "remote-update";
+  command?: string;
   status?: DesktopStatus;
   id?: number | undefined;
   result?: ControllerResult;
@@ -39,10 +48,27 @@ const send = (message: ControllerResponse) => process.stdout.write(JSON.stringif
 let runtime: DesktopRuntime | undefined;
 let ending = false;
 let queue = Promise.resolve();
+let control: RemoteDesktopControl | undefined;
+let updateState = "";
+
+function connectControl() {
+  control?.stop();
+  control = undefined;
+  const remote = runtime?.remoteControl();
+
+  if (!remote) return;
+  control = new RemoteDesktopControl(remote.client, remote.directory, (command) =>
+    send({ event: "remote-update", command: toJsonString(ui.DesktopUpdateCommandSchema, command) }),
+  );
+
+  if (updateState) void control.report(updateState).catch(() => {});
+  void control.run();
+}
 
 async function stop() {
   if (ending) return;
   ending = true;
+  control?.stop();
 
   // Bound cleanup even when a startup/enrollment operation has not settled yet.
   const deadline = setTimeout(() => {
@@ -87,12 +113,21 @@ lines.on("line", (line) => {
         send({ id, result: { origin, status: runtime.status } });
       } else if (request.action === "restore" && runtime) {
         await runtime.restore(request.remoteClient);
+        connectControl();
         send({ id, result: { status: runtime.status } });
       } else if (request.action === "configure" && runtime) {
+        control?.stop();
         await runtime.configure(configuration(request.configuration), request.remoteClient);
+        connectControl();
         send({ id, result: { pids: runtime.pids } });
       } else if (request.action === "presence" && runtime) {
         await runtime.presence(request.state);
+        send({ id, result: {} });
+      } else if (request.action === "worker-drain" && runtime) {
+        send({ id, result: { idle: await runtime.drainWorker(request.draining) } });
+      } else if (request.action === "remote-update-state") {
+        updateState = request.updateState;
+        await control?.report(updateState).catch(() => {});
         send({ id, result: {} });
       } else throw new Error("Invalid desktop controller request");
     } catch (error) {

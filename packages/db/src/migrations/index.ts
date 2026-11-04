@@ -60,6 +60,7 @@ import agentSkillSources from "./0059_agent_skill_sources.sql" with { type: "tex
 import agentPlugins from "./0060_agent_plugins.sql" with { type: "text" };
 import proxies from "./0061_proxies.sql" with { type: "text" };
 import desktopClients from "./0062_desktop_clients.sql" with { type: "text" };
+import desktopUpdates from "./0063_desktop_updates.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -136,6 +137,7 @@ export const migrations = Migrator.fromRecord({
   "0060_agent_plugins": sqlFile(agentPlugins),
   "0061_proxies": sqlFile(proxies),
   "0062_desktop_clients": sqlFile(desktopClients),
+  "0063_desktop_updates": sqlFile(desktopUpdates),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
