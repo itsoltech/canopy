@@ -51,7 +51,7 @@ export interface Command {
   /** Listed on an empty query (default true); false = only found by searching. */
   readonly suggested?: boolean | undefined;
   /** Runs it (after the palette closed); a returned promise is awaited. */
-  readonly run?: (() => unknown) | undefined;
+  readonly run?: (() => void) | undefined;
   readonly href?: string | undefined;
   readonly children?: (() => readonly Command[]) | undefined;
   /** Search placeholder of the submenu. */

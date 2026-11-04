@@ -146,8 +146,6 @@ function withoutIcon(m: MentionData): Omit<MentionData, "icon"> {
   return rest;
 }
 
-const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
 /**
  * HTML for a model (setting the editor's content from outside: a cleared or restored draft, a paste with fences).
  * Complete fences without mentions in them become blocks; the text around them renders by lines, with its inline

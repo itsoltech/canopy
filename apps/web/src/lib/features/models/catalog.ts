@@ -7,6 +7,7 @@ import {
   instanceValue,
   knownModels,
   profileIdValue,
+  providerName,
   type ProviderKey,
   providerKeyOf,
   providerKeys,
@@ -106,8 +107,7 @@ const aliases: Record<ProviderKey, readonly string[]> = {
 export const modelKey = (provider: ProviderKey, profileId: string, model: string): string =>
   `${provider}:${profileId}:${model}`;
 
-export const providerName = (provider: ProviderKey): string =>
-  provider === "CLAUDE" ? "Claude" : provider === "GROK" ? "Grok" : "Codex";
+export { providerName };
 
 /**
  * Readable name of a model id the catalog does not name:
@@ -277,9 +277,12 @@ function profileModels(
 
   const seen = new Set<string>();
 
-  return entries
-    .filter((e) => !seen.has(e.model) && seen.add(e.model))
-    .map((e) => standIn(provider, profileId, meta, e.model, e.origin, undefined));
+  return entries.flatMap((e) => {
+    if (seen.has(e.model)) return [];
+    seen.add(e.model);
+
+    return [standIn(provider, profileId, meta, e.model, e.origin, undefined)];
+  });
 }
 
 /**

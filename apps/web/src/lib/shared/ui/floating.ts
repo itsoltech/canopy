@@ -70,27 +70,29 @@ export function computePosition(
 
     // Keep zero-safe-area placement identical, including anchors scrolled beyond the viewport.
     if (safeTop > 0) y = Math.max(top, y);
-    x =
-      align === "start"
-        ? anchor.left
-        : align === "end"
-          ? anchor.right - size.width
-          : anchor.left + (anchor.width - size.width) / 2;
+    x = aligned(align, anchor.left, anchor.right - size.width, anchor.left + (anchor.width - size.width) / 2);
     x = clamp(x, padding, viewport.width - size.width - padding);
   } else {
     x = side === "right" ? anchor.right + offset : anchor.left - offset - size.width;
-    y =
-      align === "start"
-        ? anchor.top
-        : align === "end"
-          ? anchor.bottom - size.height
-          : anchor.top + (anchor.height - size.height) / 2;
+    y = aligned(align, anchor.top, anchor.bottom - size.height, anchor.top + (anchor.height - size.height) / 2);
     y = clamp(y, top, viewport.height - size.height - padding);
   }
 
   const availableHeight = vertical ? Math.max(room[side], 0) : viewport.height - top - padding;
 
   return { x: Math.round(x), y: Math.round(y), side, availableHeight: Math.floor(availableHeight) };
+}
+
+/** The coordinate for an alignment: the anchor's start edge, its end edge or its center. */
+function aligned(align: "start" | "center" | "end", start: number, end: number, center: number): number {
+  switch (align) {
+    case "start":
+      return start;
+    case "end":
+      return end;
+    default:
+      return center;
+  }
 }
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, Math.max(min, max)));

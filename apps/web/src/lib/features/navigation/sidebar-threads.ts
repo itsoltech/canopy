@@ -13,7 +13,7 @@ export function sidebarThreads(
   const selected = new Set(settings.projectIds);
   const eligible = threads.filter((t) => !t.deletedAt && (!selected.size || selected.has(t.projectId)));
   const ids = new Set(eligible.map((t) => t.id));
-  const archivedParents = new Set(threads.filter((t) => t.status === "archived").map((t) => t.id));
+  const archivedParents = new Set(threads.flatMap((t) => (t.status === "archived" ? [t.id] : [])));
   const pins = new Set(settings.pinnedThreadIds);
   const sides = new Map<string, ui.Thread[]>();
 

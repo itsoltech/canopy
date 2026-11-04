@@ -1,6 +1,7 @@
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import type { ui } from "@canopy/contracts";
 import type { FeedRow } from "../feed.ts";
+import { turnIdOf } from "../work-groups.ts";
 import type { FeedViewport } from "#lib/shared/ui/virtual/viewport.ts";
 
 export interface RailTurn {
@@ -40,7 +41,7 @@ export function railTurns(rows: readonly FeedRow[]): RailTurn[] {
       return;
     }
 
-    const id = row.kind === "item" ? row.node.entry.turnId : row.kind === "notice" ? row.notice.turnId : row.turn.id;
+    const id = turnIdOf(row);
     const at = byId.get(id);
     const turn = at === undefined ? undefined : turns[at];
 

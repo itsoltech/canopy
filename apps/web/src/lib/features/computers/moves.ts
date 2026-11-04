@@ -28,22 +28,23 @@ export const getMoves = async (batchId = "") =>
 
 /** Direct partners only: a move never passes through a relay. Each option says why it can't receive one now. */
 export function moveTargets(computers: Iterable<ui.LinkedComputer>): SelectOption[] {
-  return [...computers]
-    .filter((c) => !c.viaNodeId)
-    .map((c) => {
-      const away = awayReason(c);
+  return [...computers].flatMap((c) => {
+    if (c.viaNodeId) return [];
+    const away = awayReason(c);
 
-      const reason =
-        away ??
-        (c.capabilities.includes(MOVE_ITEMS) ? undefined : `${computerName(c)} needs an update to receive moves.`);
+    const reason =
+      away ??
+      (c.capabilities.includes(MOVE_ITEMS) ? undefined : `${computerName(c)} needs an update to receive moves.`);
 
-      return {
+    return [
+      {
         value: c.nodeId,
         label: computerName(c),
         icon: "computer-desktop" as const,
         ...(reason ? { description: reason, disabled: true } : { description: "Connected" }),
-      };
-    });
+      },
+    ];
+  });
 }
 
 /**
@@ -56,7 +57,7 @@ export function targetWorkspaces(
   project: { id: string; name: string },
 ): SelectOption[] {
   const ref = nodeRef(nodeId);
-  const options: (SelectOption & { rank: number })[] = [];
+  const ranked: { option: SelectOption; rank: number }[] = [];
 
   for (const p of projects) {
     if (p.kind === "scratch") continue;
@@ -64,17 +65,19 @@ export function targetWorkspaces(
     for (const workspace of p.workspaces) {
       if (splitId(workspace.id).node !== ref) continue;
       const rank = p.id === project.id ? 0 : p.name.trim().toLowerCase() === project.name.trim().toLowerCase() ? 1 : 2;
-      options.push({
-        value: workspace.id,
-        label: `${p.name} · ${workspace.label || workspace.rootPath}`,
-        description: workspace.rootPath,
-        icon: "folder",
+      ranked.push({
+        option: {
+          value: workspace.id,
+          label: `${p.name} · ${workspace.label || workspace.rootPath}`,
+          description: workspace.rootPath,
+          icon: "folder",
+        },
         rank,
       });
     }
   }
 
-  return options.sort((a, b) => a.rank - b.rank).map(({ rank: _, ...option }) => option);
+  return ranked.sort((a, b) => a.rank - b.rank).map(({ option }) => option);
 }
 
 /** The projects of the threads in a preview that can move, each once. */

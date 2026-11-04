@@ -163,7 +163,7 @@ export class OverviewState {
     this.computers = new Map(overview.computers.map((c) => [c.nodeId, c]));
     this.workers = overview.workers;
     this.projects = overview.projects;
-    const visible = new Map(threads.filter((t) => !t.deletedAt).map((t) => [t.id, t]));
+    const visible = new Map(threads.flatMap((t) => (t.deletedAt ? [] : [[t.id, t] as const])));
 
     // Reconcile deletions and restores that happened while the overview stream was disconnected.
     for (const [id, thread] of this.threads)

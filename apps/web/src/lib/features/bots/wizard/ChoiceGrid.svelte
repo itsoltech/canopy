@@ -32,12 +32,14 @@
     const button = event.currentTarget as HTMLButtonElement;
     const group = button.parentElement!;
     const columns = getComputedStyle(group).gridTemplateColumns.split(" ").length;
+
     const delta = new Map<string, number>([
       ["ArrowRight", 1],
       ["ArrowLeft", -1],
       ["ArrowDown", columns],
       ["ArrowUp", -columns],
     ]);
+
     let next: number;
 
     if (event.key === "Home") next = 0;

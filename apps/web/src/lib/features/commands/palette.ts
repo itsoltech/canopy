@@ -69,18 +69,17 @@ export function paletteView(
   }
 
   const scored = candidates
-    .map((candidate, index) => {
+    .flatMap((candidate, index) => {
       const match = matchCommand(q, {
         title: candidate.command.title,
         keywords: [candidate.parent?.title, candidate.command.keywords].filter(Boolean).join(" "),
       });
 
       // A submenu's entry needs its own name in the query ("ocean", "theme ocean"), not just the parent's.
-      if (!match || (candidate.parent && match.indices.length === 0)) return undefined;
+      if (!match || (candidate.parent && match.indices.length === 0)) return [];
 
-      return { ...candidate, match, index };
+      return [{ ...candidate, match, index }];
     })
-    .filter((s) => s !== undefined)
     .sort(
       (a, b) => b.match.score - a.match.score || (a.command.rank ?? 0) - (b.command.rank ?? 0) || a.index - b.index,
     );

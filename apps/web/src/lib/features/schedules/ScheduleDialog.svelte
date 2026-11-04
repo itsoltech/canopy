@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { create } from "@bufbuild/protobuf";
+  import { create, isMessage } from "@bufbuild/protobuf";
   import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
   import { ui } from "@canopy/contracts";
   import { untrack } from "svelte";
@@ -206,7 +206,7 @@
     event.preventDefault();
     const built = request();
 
-    if (typeof built === "string") {
+    if (!isMessage(built, ui.CreateScheduleRequestSchema)) {
       error = built;
 
       return;

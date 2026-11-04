@@ -18,6 +18,12 @@ export function parseJson(text: string): JsonValue | undefined {
   }
 }
 
+/** A request's or response's JSON body; rejects when it is not JSON, like `Body.json()`. */
+export async function bodyJson(body: Body): Promise<JsonValue> {
+  // SAFETY: Body.json() parses the body with JSON.parse, which only produces JSON values.
+  return (await body.json()) as JsonValue;
+}
+
 export const isJsonObject = (value: JsonValue | undefined): value is JsonObject =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 

@@ -130,7 +130,7 @@ export function buildTimeline(
   elements.forEach((element, index) => element.turnId && lastIndex.set(element.turnId, index));
 
   const echoed = new Set(
-    entries.filter((e) => e.item.content.case === "userMessage" && !isSteerMessage(e)).map((e) => e.turnId),
+    entries.flatMap((e) => (e.item.content.case === "userMessage" && !isSteerMessage(e) ? [e.turnId] : [])),
   );
 
   const answers = new Map<string, string>();

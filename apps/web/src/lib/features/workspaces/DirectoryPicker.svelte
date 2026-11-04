@@ -12,6 +12,7 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
+  import { objectOf, bodyJson, str } from "#lib/shared/json.ts";
   import { decode } from "#lib/shared/wire.ts";
   import DirectoryShortcuts from "./DirectoryShortcuts.svelte";
 
@@ -62,9 +63,9 @@
         },
       );
 
-      const payload: unknown = await response.json();
+      const payload = await bodyJson(response);
 
-      if (!response.ok) throw new Error((payload as { message?: string }).message ?? `HTTP ${response.status}`);
+      if (!response.ok) throw new Error(str(objectOf(payload)["message"]) || `HTTP ${response.status}`);
       const listing = decode(ui.ListDirectoryResponseSchema, payload);
       // Hidden folders (.cache, .config…) after the ones people usually pick.
       entries = listing.entries

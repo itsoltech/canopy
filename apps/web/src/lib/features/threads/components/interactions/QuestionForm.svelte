@@ -22,7 +22,7 @@
   let panel = $state<HTMLElement>();
 
   $effect(() => {
-    session.step;
+    void session.step;
     untrack(() => {
       if (panel?.contains(document.activeElement)) {
         void tick().then(() => panel?.querySelector<HTMLElement>("input, legend")?.focus());

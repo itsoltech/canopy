@@ -53,7 +53,7 @@ export interface WorkSummary {
   readonly size: number;
 }
 
-function turnIdOf(row: TimelineRow): string {
+export function turnIdOf(row: TimelineRow): string {
   switch (row.kind) {
     case "item":
       return row.node.entry.turnId;
@@ -103,9 +103,11 @@ export function foldTurns(
   const turns = new Map<string, ui.Turn>();
 
   for (const row of rows) if (row.kind === "turn-start" || row.kind === "turn-end") turns.set(row.turn.id, row.turn);
+
   const inputs = new Set(
     rows.flatMap((r) => (r.kind === "input" || (r.kind === "item" && r.inputOf) ? [turnIdOf(r)] : [])),
   );
+
   const bodies = new Map<string, TimelineRow[]>();
 
   for (const row of rows) {

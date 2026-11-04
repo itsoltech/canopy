@@ -19,6 +19,7 @@ import { activityOf, byActivity } from "#lib/features/threads/activity.ts";
 import { providerKeyOf } from "#lib/features/threads/providers.ts";
 import { isSide } from "#lib/features/threads/thread-tree.ts";
 import { basename } from "#lib/shared/format.ts";
+import type { IconName } from "#lib/shared/ui/icons.ts";
 import type { Command, CommandSource } from "./registry.ts";
 import { threadActions } from "#lib/features/threads/thread-actions.ts";
 import type { ThreadActions } from "#lib/features/threads/thread-actions.svelte.ts";
@@ -42,6 +43,12 @@ export interface AppCommandContext {
 const newThreadHref = (project: ui.Project) => `/?project=${encodeURIComponent(project.id)}`;
 
 /** Palette titles of the settings sections ("Threads" alone would read as the thread list). */
+const SCHEME_ICONS = {
+  system: "computer-desktop",
+  light: "sun",
+  dark: "moon",
+} satisfies Record<keyof typeof schemeNames, IconName>;
+
 const sectionTitles = new Map<string, string>([["/settings/threads", "Thread defaults"]]);
 
 /** Commands of the whole app: new threads, navigation, appearance, settings, every thread and project. */
@@ -159,7 +166,7 @@ export function appCommands(context: AppCommandContext): CommandSource {
             id: name,
             title: schemeLabels[name],
             group: "actions",
-            icon: name === "dark" ? "moon" : name === "light" ? "sun" : "computer-desktop",
+            icon: SCHEME_ICONS[name],
             keywords: "appearance color scheme mode",
             checked: schemeOf(appearance) === name,
             run: () => void settings.updateAppearance({ colorScheme: schemeNames[name] }),

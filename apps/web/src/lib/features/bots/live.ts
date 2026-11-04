@@ -155,6 +155,14 @@ function questionView(a: bots.BotApproval): QuestionView {
   };
 }
 
+function approvalStatus(a: bots.BotApproval): ApprovalView["status"] {
+  if (a.status === "approved") return "approved";
+
+  if (a.status === "discarded") return a.answer ? "edited" : "discarded";
+
+  return "pending";
+}
+
 /** The gateway's approval text: "Needs approval · Sending to Notion" and then one "Label: value" per line. */
 export function approvalView(a: bots.BotApproval): ApprovalView {
   const [heading = "", ...lines] = a.prompt.split("\n");
@@ -169,8 +177,7 @@ export function approvalView(a: bots.BotApproval): ApprovalView {
         : { label: "", value: line };
     });
 
-  const status =
-    a.status === "approved" ? "approved" : a.status === "discarded" ? (a.answer ? "edited" : "discarded") : "pending";
+  const status = approvalStatus(a);
 
   const proposal = a.proposedBot;
 
@@ -214,49 +221,50 @@ export function botWizardInstances(
   instances: readonly ui.ProviderInstance[],
   catalogs: readonly ui.WorkerModels[],
 ): BotProviderInstance[] {
-  return instances
-    .filter(
-      (i) =>
-        i.kind === ProviderProfileKind.CLIPROXYAPI &&
-        [Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(i.harness),
+  return instances.flatMap((instance) => {
+    if (
+      instance.kind !== ProviderProfileKind.CLIPROXYAPI ||
+      ![Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(instance.harness)
     )
-    .map((instance) => {
-      const provider =
-        instance.harness === Provider.CLAUDE ? "CLAUDE" : instance.harness === Provider.GROK ? "GROK" : "CODEX";
+      return [];
+    const provider =
+      instance.harness === Provider.CLAUDE ? "CLAUDE" : instance.harness === Provider.GROK ? "GROK" : "CODEX";
 
-      const name = instance.label || instance.id;
-      const models = new Map<string, ModelOption>();
+    const name = instance.label || instance.id;
+    const models = new Map<string, ModelOption>();
 
-      for (const catalog of catalogs) {
-        const profile = catalog.profiles.find((p) => p.provider === instance.harness && p.profileId === instance.id);
+    for (const catalog of catalogs) {
+      const profile = catalog.profiles.find((p) => p.provider === instance.harness && p.profileId === instance.id);
 
-        for (const info of profile?.models ?? []) {
-          // Bots call the API directly: an alias is offered as the model it resolves to, never by its name.
-          const id = info.resolvedModel || info.id;
+      for (const info of profile?.models ?? []) {
+        // Bots call the API directly: an alias is offered as the model it resolves to, never by its name.
+        const id = info.resolvedModel || info.id;
 
-          if (info.hidden || !id || HARNESS_ALIAS.test(id) || models.has(id)) continue;
-          models.set(id, modelOption(provider, instance.id, name, id, catalog, "catalog"));
-        }
+        if (info.hidden || !id || HARNESS_ALIAS.test(id) || models.has(id)) continue;
+        models.set(id, modelOption(provider, instance.id, name, id, catalog, "catalog"));
       }
+    }
 
-      // Custom models remain usable when no worker has ever reported this instance.
-      for (const id of instance.models?.custom ?? []) {
-        if (!models.has(id) && !instance.models?.hidden.includes(id))
-          models.set(id, {
-            ...modelOption(provider, instance.id, name, id, undefined),
-            efforts: [],
-            defaultEffort: undefined,
-          });
-      }
+    // Custom models remain usable when no worker has ever reported this instance.
+    for (const id of instance.models?.custom ?? []) {
+      if (!models.has(id) && !instance.models?.hidden.includes(id))
+        models.set(id, {
+          ...modelOption(provider, instance.id, name, id, undefined),
+          efforts: [],
+          defaultEffort: undefined,
+        });
+    }
 
-      const favorites = instance.models?.favorites ?? [];
-      const rank = (id: string) => (favorites.includes(id) ? favorites.indexOf(id) : favorites.length);
+    const favorites = instance.models?.favorites ?? [];
+    const rank = (id: string) => (favorites.includes(id) ? favorites.indexOf(id) : favorites.length);
 
-      return {
+    return [
+      {
         id: instanceKeyOf(instance),
         name,
         provider,
         models: [...models.values()].sort((a, b) => rank(a.model) - rank(b.model)),
-      };
-    });
+      },
+    ];
+  });
 }
