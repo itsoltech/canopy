@@ -32,12 +32,14 @@ const CLAUDE_MODEL = process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-
 
 type Part = string | { kind: MentionKind; name: string; label?: string; path?: string; source?: string };
 
-function message(...parts: Part[]): { text: string; mentions: Mention[] } {
+const isText = (part: Part): part is string => typeof part === "string";
+
+function message(...parts: Part[]) {
   let text = "";
   const mentions: Mention[] = [];
 
   for (const part of parts) {
-    if (typeof part === "string") {
+    if (isText(part)) {
       text += part;
       continue;
     }

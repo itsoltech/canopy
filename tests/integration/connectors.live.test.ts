@@ -162,9 +162,7 @@ describe.skipIf(!enabled)("connectors (Codex + Claude, live CLIProxyAPI)", () =>
         ).toBe(0);
       expect(logs.join("\n")).not.toContain(fake.secret);
 
-      for (const file of readdirSync(data, { recursive: true }).filter(
-        (f) => typeof f === "string" && f.endsWith(".jsonl"),
-      ))
-        expect(readFileSync(join(data, String(file)), "utf8")).not.toContain(fake.secret);
+      for (const file of readdirSync(data, { recursive: true, encoding: "utf8" }).filter((f) => f.endsWith(".jsonl")))
+        expect(readFileSync(join(data, file), "utf8")).not.toContain(fake.secret);
     }, 300_000);
 });

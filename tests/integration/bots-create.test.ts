@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { JsonObject } from "@canopy/domain";
 import { create, toJson } from "@bufbuild/protobuf";
 import { bots, ProfileModelsSchema, Provider, ProviderProfileKind } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -52,7 +53,7 @@ describe.skipIf(!dockerAvailable)("create_bot through the durable gateway loop",
   const send = (id: string, text = "Create the requested bot") =>
     core.bots.send(create(bots.SendBotMessageRequestSchema, { botId: id, text, clientRequestId: Bun.randomUUIDv7() }));
 
-  const propose = (args: Record<string, unknown>, tool = "create_bot") => {
+  const propose = (args: JsonObject, tool = "create_bot") => {
     model = async (i) =>
       i.messages.at(-1)?.role === "tool"
         ? reply(i.messages.at(-1)!.text)
@@ -359,7 +360,7 @@ describe.skipIf(!dockerAvailable)("create_bot through the durable gateway loop",
 
     const rpc = gw.api.createBot({ configuration: config("RPC at cap"), clientRequestId: Bun.randomUUIDv7() }).then(
       () => ({ ok: true }),
-      (error: unknown) => ({ ok: false, error: String(error) }),
+      (cause: unknown) => ({ ok: false, error: String(cause) }),
     );
 
     const tool = JSON.parse((await settled(parent.id)).messages.at(-1)!.text) as { id?: string; error?: string };

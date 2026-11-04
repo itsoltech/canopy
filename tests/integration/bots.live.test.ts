@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { create } from "@bufbuild/protobuf";
-import { bots, Provider } from "@canopy/contracts";
+import { Provider } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDirs } from "@canopy/testing";

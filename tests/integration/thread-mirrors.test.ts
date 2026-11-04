@@ -8,7 +8,7 @@ import { NoticeLevel, Provider, ui, computerLink as link } from "@canopy/contrac
 import { qualifyId, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { startGrpcServer } from "@canopy/transport";
-import { Effect } from "effect";
+import { Effect, Match } from "effect";
 import { SqlClient } from "effect/sql";
 import { remoteServe, serviceTokenAuth, uiHandlers, uiRoutes } from "@canopy/gateway/api";
 import { GatewayCore } from "@canopy/gateway/core";
@@ -256,7 +256,12 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
 
     const turn = updates
       .flatMap((u) =>
-        u.change.case === "snapshot" ? u.change.value.turns : u.change.case === "turn" ? [u.change.value] : [],
+        Match.value(u.change).pipe(
+          Match.withReturnType<readonly ui.Turn[]>(),
+          Match.discriminator("case")("snapshot", (change) => change.value.turns),
+          Match.discriminator("case")("turn", (change) => [change.value]),
+          Match.orElse(() => []),
+        ),
       )
       .find((t) => t.status === "completed")!;
 

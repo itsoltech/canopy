@@ -4,6 +4,7 @@
  * and results come back to the calling thread as notification turns.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { JsonObject } from "@canopy/domain";
 import { InteractionKind, PermissionMode, Provider, type AgentToolResult } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
@@ -16,7 +17,7 @@ let mainId = "";
 let projectId = "";
 let workspaceId = "";
 
-const json = (result: AgentToolResult) => JSON.parse(result.content) as Record<string, unknown>;
+const json = (result: AgentToolResult) => JSON.parse(result.content) as JsonObject;
 
 const query = <A extends object>(text: string, ...params: unknown[]) =>
   gw.runtime.runPromise(
@@ -437,11 +438,11 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
         await gw.worker.callTool({
           threadId: mainId,
           tool: "cancel_schedule",
-          args: { schedule_id: created["schedule_id"] },
+          args: { schedule_id: created["schedule_id"]! },
         }),
       ),
     ).toEqual({
-      schedule_id: created["schedule_id"],
+      schedule_id: created["schedule_id"]!,
       cancelled: true,
     });
     expect(await gw.core.scheduler.tick(new Date(Date.now() + 2 * 3600_000))).toBe(0);

@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 /** Local Codex stand-in for directory integration tests. Never contacts a model or endpoint. */
 import { writeFileSync } from "node:fs";
+import type { JsonValue } from "@canopy/domain";
 
 if (process.argv[2] === "--version") {
   console.log("codex-cli 0.164.0");
@@ -21,7 +22,7 @@ for await (const chunk of process.stdin) {
     const request = JSON.parse(line);
 
     if (request.id === undefined) continue;
-    let result: unknown;
+    let result: JsonValue | undefined;
 
     if (request.method === "initialize") result = { userAgent: "directory-fixture" };
     else if (request.method === "model/list") result = { data: [], nextCursor: null };

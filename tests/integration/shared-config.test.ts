@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import { isBigInt } from "@canopy/testing";
 import { createServer, type AddressInfo } from "node:net";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
@@ -211,7 +212,7 @@ describe.skipIf(!dockerAvailable)("shared configuration between two linked gatew
         await a.api.getSharedConfig({}),
         await b.api.getOverview({}),
       ],
-      (_k, v: unknown) => (typeof v === "bigint" ? v.toString() : v),
+      (_k, v) => (isBigInt(v) ? v.toString() : v),
     );
 
     for (const secret of [KEY, ORG_TOKEN]) {

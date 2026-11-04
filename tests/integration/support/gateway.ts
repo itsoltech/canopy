@@ -20,6 +20,7 @@ import {
   ui,
   type AgentToolResult,
   type Command,
+  type CommandResultSchema,
   type InputAttachment,
   type UserInput,
   type InteractionRequest,
@@ -43,7 +44,7 @@ import {
   SettingsStore,
   SteerStore,
 } from "@canopy/gateway/store";
-import type { AttachmentLimits } from "@canopy/domain";
+import type { AttachmentLimits, JsonValue } from "@canopy/domain";
 import { startGrpcServer } from "@canopy/transport";
 import { applyWorkerConfig } from "@canopy/worker/config";
 import { openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
@@ -98,8 +99,11 @@ type CommandKind = Command["kind"];
 /** Takes over a command kind; reply() answers the command. */
 export type CommandHandler = (
   value: NonNullable<CommandKind["value"]>,
-  reply: (ok: boolean, extra?: Record<string, unknown>) => void,
+  reply: (ok: boolean, extra?: CommandReplyExtra) => void,
 ) => void;
+
+/** Result fields a handler adds to its command's reply. */
+export type CommandReplyExtra = Omit<MessageInitShape<typeof CommandResultSchema>, "$typeName" | "commandId" | "ok">;
 
 export interface ScriptedWorkerOptions {
   readonly secretsDataDir?: string;
@@ -197,7 +201,7 @@ export class ScriptedWorker {
     threadId: string;
     turnId?: string;
     tool: string;
-    args: unknown;
+    args: JsonValue;
     callId?: string;
     connectorAccountId?: string;
   }): Promise<AgentToolResult> {
@@ -361,7 +365,7 @@ export class ScriptedWorker {
       if (payload.case !== "command") continue;
       const { commandId, kind } = payload.value;
 
-      const reply = (ok: boolean, extra: Record<string, unknown> = {}) =>
+      const reply = (ok: boolean, extra: CommandReplyExtra = {}) =>
         this.link.send({ case: "commandResult", value: { commandId, ok, ...extra } });
 
       this.commands.push(kind);
@@ -715,7 +719,7 @@ export const answers = (updates: ui.ThreadUpdate[]) =>
 export const failure = (call: Promise<unknown>): Promise<string> =>
   call.then(
     () => "",
-    (e: unknown) => (e instanceof Error ? e.message : String(e)),
+    (cause: unknown) => (cause instanceof Error ? cause.message : String(cause)),
   );
 
 /** Polls until the predicate holds (5 s at most). */

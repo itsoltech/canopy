@@ -4,6 +4,7 @@
  * answers an agent bus call. Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env (docs/claude-adapter.md).
  */
 import { describe, expect, test } from "bun:test";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { join } from "node:path";
 import {
   DeviceLogin,
@@ -12,6 +13,7 @@ import {
   Provider,
   ProviderProfileKind,
   type ThreadEvent,
+  type ThreadSpecSchema,
 } from "@canopy/contracts";
 import { tempDir } from "@canopy/testing";
 import { journalHello } from "@canopy/worker/gateway-link";
@@ -27,14 +29,10 @@ const model = process.env["CANOPY_LIVE_CLAUDE_MODEL"] ?? "claude-haiku-5-5";
 
 const text = (events: ThreadEvent[], turnId: string) =>
   events
-    .filter(
-      (e) =>
-        e.turnId === turnId && e.body.case === "itemCompleted" && e.body.value.item?.content.case === "agentMessage",
-    )
-    .map((e) =>
-      e.body.case === "itemCompleted" && e.body.value.item?.content.case === "agentMessage"
-        ? e.body.value.item.content.value.text
-        : "",
+    .flatMap((e) =>
+      e.turnId === turnId && e.body.case === "itemCompleted" && e.body.value.item?.content.case === "agentMessage"
+        ? [e.body.value.item.content.value.text]
+        : [],
     )
     .join("\n");
 
@@ -106,7 +104,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker + Claude end to end (li
 
     while (!applied) await Bun.sleep(50);
 
-    const turn = async (spec: object, turnId: string, prompt: string) => {
+    const turn = async (spec: MessageInitShape<typeof ThreadSpecSchema>, turnId: string, prompt: string) => {
       const started = await connection.sendCommand(
         { case: "startTurn", value: { thread: spec, turnId, input: { text: prompt } } },
         60_000,

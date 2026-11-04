@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import type { JsonValue } from "@canopy/domain";
 import { create } from "@bufbuild/protobuf";
 import {
   AgentToolCallSchema,
@@ -9,7 +10,7 @@ import {
   type ui,
 } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { AgentBusStore, SteerStore } from "@canopy/gateway/store";
+import { SteerStore } from "@canopy/gateway/store";
 import { GatewayCore } from "@canopy/gateway/core";
 import { startGrpcServer } from "@canopy/transport";
 import { openGatewayLink } from "@canopy/worker/gateway-link";
@@ -63,7 +64,7 @@ describe.skipIf(!dockerAvailable)("agent bus report delivery", () => {
     return updates[0]!.change.value as ui.ThreadSnapshot;
   };
 
-  const call = (threadId: string, turnId: string, tool: string, args: unknown) =>
+  const call = (threadId: string, turnId: string, tool: string, args: JsonValue) =>
     gw.worker.callTool({ threadId, turnId, tool, args });
 
   const start = async () => {

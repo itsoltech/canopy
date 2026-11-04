@@ -7,10 +7,11 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { create } from "@bufbuild/protobuf";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
 import {
   BackgroundTaskKind,
+  type BackgroundTaskSchema,
   ItemStatus,
   PermissionMode,
   Provider,
@@ -80,10 +81,12 @@ describe.skipIf(!dockerAvailable)("background task notes (gateway)", () => {
     return updates.find((u) => u.change.case === "snapshot")!.change.value as ui.ThreadSnapshot;
   };
 
+  type BackgroundTaskInit = MessageInitShape<typeof BackgroundTaskSchema>;
+
   const noteTurns = async (threadId: string) =>
     (await snapshot(threadId)).turns.filter((t) => t.trigger === "background_task");
 
-  const task = (itemId: string, taskId: string, turnId: string, extra: Record<string, unknown> = {}) => ({
+  const task = (itemId: string, taskId: string, turnId: string, extra: BackgroundTaskInit = {}) => ({
     itemId,
     status: ItemStatus.IN_PROGRESS,
     content: {
@@ -99,7 +102,7 @@ describe.skipIf(!dockerAvailable)("background task notes (gateway)", () => {
     },
   });
 
-  const ended = (itemId: string, taskId: string, status: ItemStatus, value: Record<string, unknown>) => ({
+  const ended = (itemId: string, taskId: string, status: ItemStatus, value: BackgroundTaskInit) => ({
     itemId,
     status,
     content: {

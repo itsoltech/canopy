@@ -7,7 +7,7 @@ import { connectWorker, makeSelfSignedCert, startGateway, take, type TestCert } 
 async function expectConnectError(promise: Promise<unknown>, code: Code): Promise<void> {
   const error = await promise.then(
     () => undefined,
-    (e: unknown) => e,
+    (cause: unknown) => cause,
   );
 
   expect(error).toBeInstanceOf(ConnectError);
@@ -481,7 +481,7 @@ describe("WorkerLink over TLS (HTTP/2 + ALPN h2)", () => {
     // connect-node maps TLS verification failures to Code.Internal (same on Node); the cause carries the reason.
     const error = await connectWorker(gateway.server.url).then(
       () => undefined,
-      (e: unknown) => e,
+      (cause: unknown) => cause,
     );
 
     expect(error).toBeInstanceOf(ConnectError);

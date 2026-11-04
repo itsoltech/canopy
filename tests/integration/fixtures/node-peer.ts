@@ -37,28 +37,29 @@ const definition = {
   },
 } satisfies grpc.ServiceDefinition;
 
-const log = (step: string, extra: Record<string, unknown> = {}) =>
+const log = (step: string, extra: Readonly<Record<string, string | number | boolean | undefined>> = {}) =>
   process.stdout.write(`${JSON.stringify({ step, ...extra })}\n`);
 
-function fail(error: unknown): never {
-  log("error", { message: error instanceof Error ? error.message : String(error) });
+function fail(cause: unknown): never {
+  log("error", { message: cause instanceof Error ? cause.message : String(cause) });
   process.exit(1);
 }
 
 function runClient(baseUrl: string, caFile: string | undefined): void {
   const url = new URL(baseUrl);
   const credentials = caFile ? grpc.credentials.createSsl(readFileSync(caFile)) : grpc.credentials.createInsecure();
-  const Client = grpc.makeGenericClientConstructor(definition, "WorkerLinkService");
   // Node refuses an IP address as TLS servername; the test certificate also covers DNS:localhost.
   const channelOptions = caFile ? { "grpc.ssl_target_name_override": "localhost" } : {};
-
-  const client = new Client(url.host, credentials, channelOptions) as unknown as grpc.Client & {
-    connect(metadata: grpc.Metadata): grpc.ClientDuplexStream<WorkerMessage, GatewayMessage>;
-  };
-
+  const client = new grpc.Client(url.host, credentials, channelOptions);
   const metadata = new grpc.Metadata();
   metadata.set("authorization", "Bearer secret-worker-1");
-  const call = client.connect(metadata);
+
+  const call = client.makeBidiStreamRequest(
+    definition.connect.path,
+    definition.connect.requestSerialize,
+    definition.connect.responseDeserialize,
+    metadata,
+  );
 
   const send = (payload: WorkerPayloadInit) =>
     call.write(create(WorkerMessageSchema, { messageId: crypto.randomUUID(), payload }));

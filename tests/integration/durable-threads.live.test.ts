@@ -8,6 +8,7 @@
  * Opt-in: CANOPY_LIVE=1 with the CLIProxyAPI env; needs Docker for PostgreSQL.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { JsonObject } from "@canopy/domain";
 import { chmodSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PermissionMode, Provider, ui } from "@canopy/contracts";
@@ -73,7 +74,7 @@ const jsonl = (path: string) =>
     .filter((l) => l.trim())
     .flatMap((l) => {
       try {
-        return [JSON.parse(l) as Record<string, unknown> & { type?: string; payload?: Record<string, unknown> }];
+        return [JSON.parse(l) as JsonObject & { type?: string; payload?: JsonObject }];
       } catch {
         return [];
       }

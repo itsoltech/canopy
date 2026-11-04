@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { JsonObject } from "@canopy/domain";
 import { create, toJson } from "@bufbuild/protobuf";
-import { bots, MentionKind, ProfileModelsSchema, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
+import { bots, MentionKind, ProfileModelsSchema, Provider, ProviderProfileKind } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayCore } from "@canopy/gateway/core";
 import { Effect } from "effect";
@@ -10,7 +11,7 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 
 const reply = (text: string): ModelReply => ({ text, calls: [] });
 
-const edit = (args: Record<string, unknown>): ModelReply => ({
+const edit = (args: JsonObject): ModelReply => ({
   text: "",
   calls: [{ id: "edit", name: "update_self", arguments: args }],
 });
@@ -46,7 +47,7 @@ describe.skipIf(!dockerAvailable)("bot settings and archive through gateway", ()
   const send = (id: string, text: string) =>
     core.bots.send(create(bots.SendBotMessageRequestSchema, { botId: id, text, clientRequestId: Bun.randomUUIDv7() }));
 
-  const useEdit = (args: Record<string, unknown>) => {
+  const useEdit = (args: JsonObject) => {
     model = async (i) => (i.messages.at(-1)?.role === "tool" ? reply(i.messages.at(-1)!.text) : edit(args));
   };
 

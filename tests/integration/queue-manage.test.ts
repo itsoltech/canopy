@@ -122,7 +122,7 @@ describe.skipIf(!dockerAvailable)("managing the queue (gateway + scripted worker
     await Bun.sleep(100); // the snapshot first
     const moved = await gw.api.reorderQueuedTurns({ threadId: thread.id, turnIds: [c, a, b] });
     expect(moved.turns.map((t) => t.inputText)).toEqual(["C", "A", "B"]);
-    expect(moved.turns.map((t) => t.ordinal)).toEqual([...queued.map((t) => t.ordinal)].sort((x, y) => x - y));
+    expect(moved.turns.map((t) => t.ordinal)).toEqual(queued.map((t) => t.ordinal).sort((x, y) => x - y));
     await watching;
     expect(new Map(live.map((t) => [t.id, t.ordinal]))).toEqual(new Map(moved.turns.map((t) => [t.id, t.ordinal])));
     expect(await queuedTexts(thread.id)).toEqual(["C", "A", "B"]);

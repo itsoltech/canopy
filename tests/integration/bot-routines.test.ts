@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import type { JsonObject } from "@canopy/domain";
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { bots, Provider, ProviderProfileKind } from "@canopy/contracts";
@@ -13,7 +14,7 @@ import { eventually, failure, startTestGateway, type TestGateway } from "./suppo
 
 const reply = (text = "Internal: nothing important") => ({ text, calls: [] });
 
-const tool = (name: string, args: Record<string, unknown>): ModelReply => ({
+const tool = (name: string, args: JsonObject): ModelReply => ({
   text: "Internal progress",
   calls: [{ id: "requested", name, arguments: args }],
 });

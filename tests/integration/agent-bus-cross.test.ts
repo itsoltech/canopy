@@ -8,6 +8,7 @@
  * - the UI sees who sent a turn or steer (AgentSender) and where a call went (BusDelivery, snapshot and live).
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { JsonObject } from "@canopy/domain";
 import { create } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui, type AgentToolResult } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -45,7 +46,7 @@ const CLAUDE_MODELS = {
   ],
 };
 
-const json = (result: AgentToolResult) => JSON.parse(result.content) as Record<string, unknown>;
+const json = (result: AgentToolResult) => JSON.parse(result.content) as JsonObject;
 
 const query = <A extends object>(text: string, ...params: unknown[]) =>
   gw.runtime.runPromise(
@@ -270,7 +271,7 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
   test("validated like a user's thread: the catalog's models and efforts; fork keeps the provider", async () => {
     const lead = await mainThread("Validator", Provider.CODEX);
 
-    const call = (args: Record<string, unknown>) =>
+    const call = (args: JsonObject) =>
       studio.callTool({
         threadId: lead.id,
         tool: "spawn_thread",

@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { Match } from "effect";
+import type { JsonObject } from "@canopy/domain";
 import { create } from "@bufbuild/protobuf";
 import {
   bots,
@@ -23,7 +25,7 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
   let projectId = "";
   let workspaceId = "";
   let threadId = "";
-  const requested = new Map<string, { name: string; args: Record<string, unknown> }>();
+  const requested = new Map<string, { name: string; args: JsonObject }>();
 
   const model: BotModel = async (input) => {
     const last = input.messages.at(-1)!;
@@ -51,9 +53,9 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
 
   const read = (id: string) => gw.core.bots.run((s) => s.conversation(gw.userId, id));
 
-  async function invoke<T = Record<string, unknown>>(
+  async function invoke<T = JsonObject>(
     name: string,
-    args: Record<string, unknown> = {},
+    args: JsonObject = {},
     approval = false,
     policy = "safe",
   ): Promise<T> {
@@ -94,7 +96,7 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     expect(conversation.working).toBe(false);
 
     const result = conversation.messages.find(
-      (m) => m.senderId === bot.id && m.kind === "message" && /^[\[{]/.test(m.text),
+      (m) => m.senderId === bot.id && m.kind === "message" && /^[[{]/.test(m.text),
     );
 
     expect(result).toBeDefined();
@@ -284,7 +286,13 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
         ...(action === "set" && { objective: "Keep going", token_budget: 10000 }),
       });
 
-      expect(result["status"]).toBe(action === "pause" ? "paused" : action === "clear" ? "cancelled" : "active");
+      expect(result["status"]).toBe(
+        Match.value(action).pipe(
+          Match.when("pause", () => "paused"),
+          Match.when("clear", () => "cancelled"),
+          Match.orElse(() => "active"),
+        ),
+      );
     }
 
     await eventually(

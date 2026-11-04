@@ -12,12 +12,13 @@ import {
   UPDATE_RESTART_EXIT_CODE,
 } from "@canopy/updater";
 import { WorkerUpdates } from "../../../apps/worker/src/update-link.ts";
+import type { JsonObject } from "@canopy/domain";
 import { GatewayUpdates } from "../../../apps/gateway/src/updates/runtime.ts";
 
 const directory = process.env["CANOPY_TEST_DIRECTORY"]!;
 const binaryPath = join(directory, "installed");
 
-function event(type: string, details: Record<string, unknown> = {}) {
+function event(type: string, details: JsonObject = {}) {
   appendFileSync(
     join(directory, "events.jsonl"),
     JSON.stringify({ type, version: CANOPY_VERSION, pid: process.pid, ...details }) + "\n",
@@ -154,8 +155,8 @@ if (CANOPY_VERSION === "4.0.0") {
 
       if (command.restart) await restart();
     })()
-      .catch((error: unknown) => {
-        event("error", { error: String(error) });
+      .catch((cause: unknown) => {
+        event("error", { error: String(cause) });
         process.exit(1);
       })
       .finally(() => {

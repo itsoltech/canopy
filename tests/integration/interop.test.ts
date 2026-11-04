@@ -3,6 +3,7 @@
  * @grpc/grpc-js on real Node.js, in both directions, over h2c and TLS.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { JsonObject } from "@canopy/domain";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ItemDeltaField } from "@canopy/contracts";
@@ -44,7 +45,7 @@ afterAll(() => {
   cert.cleanup();
 });
 
-type PeerLine = { step: string } & Record<string, unknown>;
+type PeerLine = { step: string } & JsonObject;
 
 /** Spawns the Node peer and exposes its JSON-lines stdout. */
 function spawnPeer(args: string[]) {

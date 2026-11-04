@@ -14,7 +14,7 @@ import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayCore } from "@canopy/gateway/core";
 import { startGrpcServer } from "@canopy/transport";
 import { openGatewayLink } from "@canopy/worker/gateway-link";
-import { tempDirs } from "@canopy/testing";
+import { isBigInt, tempDirs } from "@canopy/testing";
 import { Journal } from "@canopy/worker/journal";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
@@ -124,7 +124,7 @@ describe.skipIf(!dockerAvailable)("thread secrets (gateway ↔ scripted worker, 
     const snapshots = await watchUntil(gw.api, source.threadId, (u) => u.length > 0);
     expect(snapshots[0]?.change.case === "snapshot" && snapshots[0].change.value.secrets[0]?.status).toBe("pending");
     const saved = await gw.api.answerThreadSecret({ requestId: callId, value });
-    expect(JSON.stringify(saved, (_, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain(value);
+    expect(JSON.stringify(saved, (_, v) => (isBigInt(v) ? String(v) : v))).not.toContain(value);
     const tool = await waiting;
     expect(tool.isError).toBe(false);
     expect(tool.content).not.toContain(value);
@@ -189,7 +189,7 @@ describe.skipIf(!dockerAvailable)("thread secrets (gateway ↔ scripted worker, 
         ),
       );
 
-      expect(JSON.stringify(complete, (_, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain(value);
+      expect(JSON.stringify(complete, (_, v) => (isBigInt(v) ? String(v) : v))).not.toContain(value);
       expect(
         complete.body.case === "itemCompleted" &&
           complete.body.value.item?.content.case === "commandExecution" &&

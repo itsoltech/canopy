@@ -131,7 +131,7 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
 
       const error = await stream[Symbol.asyncIterator]()
         .next()
-        .catch((e: unknown) => e);
+        .catch((cause: unknown) => cause);
 
       expect(error).toBeInstanceOf(ConnectError);
       expect((error as ConnectError).code).toBe(Code.Unauthenticated);
@@ -158,8 +158,10 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
 
             return create(link.PairResponseSchema);
           },
+          // Counts a connect that got past the certificate pin (expected: none); the stream sends nothing.
           connect: async function* () {
             calls++;
+            yield* [];
           },
         });
       },
@@ -252,8 +254,10 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
 
             return create(link.PairResponseSchema);
           },
+          // Counts a connect that got past the certificate pin (expected: none); the stream sends nothing.
           connect: async function* () {
             calls++;
+            yield* [];
           },
         });
       },
