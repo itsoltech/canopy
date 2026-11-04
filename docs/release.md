@@ -273,7 +273,7 @@ nic nie zostało otagowane, więc ponowienie (**Re-run all jobs**) jest bezpiecz
 
 Błąd desktopu nie dotyka już opublikowanego etapu 1. `publish-desktop` publikuje cele, które się
 zbudowały; brakujący cel jest widoczny jako czerwony job i ewentualne ostrzeżenie w podsumowaniu.
-`promote.ts` wymaga zielonego przebiegu Release na HEAD, więc niepełny desktop blokuje promocję
+`promote.ts` wymaga zielonego przebiegu Release na wybranym commicie C, więc niepełny desktop blokuje promocję tego commita
 aż do skutecznego ponowienia. Ponowny upload manifestu przesuwa jego `updated_at`, od którego liczy się
 burn-in bety — to zamierzone: liczy się od kompletu assetów.
 
@@ -455,32 +455,109 @@ Nightly powstaje po każdej zmianie `feat`/`fix`/`perf` na `dev` (zmiany bez wp�
 nie publikują buildu). Beta to wybrany nightly; stable to beta po okresie obserwacji.
 Promocja przebudowuje ten sam commit z nowym numerem wersji, nie kopiuje binariów między kanałami.
 
-1. **dev → next:** maintainer wybiera HEAD z opublikowanym tagiem nightly; CI i live smoke
-   muszą być zielone, bez otwartych issue `release-blocker`. Uruchamia **Promote**, `dev-next`,
-   zaznaczając `live_smoke`. Jeśli `dev` ma już nowsze commity, najpierw wybiera odpowiedni
-   moment promocji; workflow celowo wymaga tagu na HEAD i nie przesuwa `dev` wstecz.
-2. **next → main:** beta na HEAD musi mieć gotowy manifest od co najmniej `burn_in_days`
-   (domyślnie **3 dni**); brak issue `release-blocker`, ostatni przebieg Release na HEAD zielony,
-   live smoke i aktualizacja gatewaya/workera z rollbackiem sprawdzone. Maintainer uruchamia
-   **Promote**, `next-main`, zaznaczając oba potwierdzenia smoke.
-3. Workflow sprawdza, czy target jest przodkiem source; robi zwykły push fast-forward
-   `<src-sha>:refs/heads/<target>` bez `--force`. Rozjechana historia lub zmiana targetu zatrzymuje
-   promocję. Po pushu jawnie dispatchuje Release na target, bo `GITHUB_TOKEN` nie uruchamia
-   workflow od swojego pushu. `expected_sha` chroni przed wydaniem późniejszego commita.
-4. Co poniedziałek **Promotion review** tworzy/aktualizuje issue
-   „Promote next → main (beta X)” z listą kontrolną i linkiem do Promote, gdy warunki automatyczne
-   są spełnione. `BETA_BURN_IN_DAYS` ustala próg przypomnienia (domyślnie 3). Stable zawsze wymaga
-   decyzji maintainera. Opcjonalne `AUTO_PROMOTE_DEV_TO_NEXT=true` włącza promocję do beta podczas
-   tego przeglądu; wymaga też `NIGHTLY_SMOKE_SHA` równemu HEAD dev, ustawionego po zewnętrznym
-   live smoke. Nie kopiuj starego potwierdzenia smoke dla nowego SHA.
-5. Po stable **Back-merge** przenosi hotfix `main` → `next` → `dev` commitami merge bota,
+**Automatic promotion** (`promotion-review.yml`) działa co **3 h**, o `0 */3 * * *` UTC.
+Najpierw wykonuje **next → main**, potem **dev → next**, w jednej grupie
+`release-branch-mutations`, wspólnej z ręcznym Promote i Back-merge. Nie wymaga decyzji
+maintainera w zwykłym cyklu. Opóźnienia harmonogramu GitHub mogą wydłużyć oczekiwanie.
+Oba workflowy instalują zamrożone zależności, aby prognoza używała tego samego analyzera
+Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawdzałby prawo pushu.
+
+1. **Cutoff C0.** Dla dev wybieramy najnowszy ciągły prefiks historii first-parent, którego
+   każdy commit ma datę commitera squasha starszą o co najmniej **24 h**. Dla next kandydatami
+   są wyłącznie commity z opublikowanym tagiem beta; wybieramy najnowszy z gotowym manifestem
+   od co najmniej **72 h** (`BETA_BURN_IN_DAYS`, domyślnie 3). Początek obserwacji to późniejszy
+   z `release.published_at` i `manifest.json.updated_at`. Dopisanie desktopu do manifestu
+   zaczyna obserwację tej bety ponownie. Nowsza beta nie zeruje obserwacji starszej.
+2. **Poprawki i hold.** Każdy `fix`/`perf`/revert po cutoffie może zatrzymać powiązaną zmianę
+   w `(target, C]`. Cofamy cutoff przed najwcześniejszą taką zmianę, potem powtarzamy sprawdzenie
+   do punktu stałego. Etykieta `promotion-hold` na scalonym PR zatrzymuje jego squash i cały suffix.
+   Ponownie sprawdzamy również poprawki wykluczone przez hold lub wybór starszego zielonego CI,
+   nawet jeżeli są już starsze niż soak: cofnięcie nie może oddzielić funkcji od jej poprawki.
+   Stable sprawdza dodatkowo poprawki na dev, których nie ma jeszcze w next: znana naprawa
+   bety zatrzymuje stable, dopóki nie wejdzie do bety i nie przejdzie jej burn-in. Rozbieżność
+   next/dev zatrzymuje tę ścieżkę do Back-merge; commity dev są tu tylko sygnałami, nigdy kandydatami stable.
+   Jeżeli funkcja i poprawka są już po soak i obie mieszczą się w cutoffie, idą razem.
+3. **Gotowość C.** Najnowszy przebieg Release **dokładnie dla C** na gałęzi źródłowej musi być
+   zakończony sukcesem. Późniejszy zielony commit nie dowodzi poprawności wcześniejszego drzewa.
+   Preferujemy najnowszy taki commit z ukończonym release i tagiem nightly; dopiero przy braku
+   takiego tagu szukamy zielonego commita bez tagu w dozwolonym prefiksie dev, wymagając także
+   sukcesu wszystkich czterech jobów `smoke` (pominięty smoke nie wystarcza). Stable zawsze
+   wymaga ukończonej bety. Otwarte issue `release-blocker` blokuje obie ścieżki. Zmienna repo
+   **`AUTO_PROMOTION=off`** wstrzymuje promocje (brak/inna wartość włącza automat).
+4. **Push i raport.** Target musi być przodkiem C. Kandydat C leży na historii first-parent
+   źródła; po back-merge hotfixu target może być jego przodkiem przez drugi rodzic merge'a.
+   Nie wybieramy wtedy cutoffu sprzed merge'a, który włączył hotfix.
+   Tuż przed zapisem ponownie sprawdzamy referencje, PR-y, blokery i CI. Zwykły push
+   `<C>:refs/heads/<target>` bez force nigdy nie cofa gałęzi; rozbieżność wymaga Back-merge.
+   Dispatch Release podaje `expected_sha=C`, ponieważ push `GITHUB_TOKEN` nie uruchamia workflow.
+   `C == target`, brak bootstrapu stable lub zakres bez zmiany wersji oznacza no-op; docs-only
+   nie tworzy bety. Każdy przebieg zapisuje C0, C, wersję oczekiwaną, listę włączoną i wykluczoną
+   oraz przyczyny hold w job summary. Wersja jest prognozą z tego samego analyzera Angular;
+   Release wyznacza ją ponownie. Issue `Promotion history: <path>` przechowuje historię planów
+   przed pushem (nie stanowi dowodu udanej publikacji; dowodem jest przebieg Release).
+5. **Brak postępu.** Jeśli powiązana poprawka lub hold zatrzymuje zmianę przez co najmniej
+   **7 dni od jej kwalifikacji czasowej**, tworzymy/aktualizujemy `Promotion stalled: <path>`
+   z SHA i powodem (konkretna poprawka oraz PR/SHA/pliki). Nie obchodzimy blokady automatycznie.
+
+**Konwencja linkowania.** Poprawiając wcześniejszą scaloną zmianę, autor `fix`/`perf`/revert
+podaje oryginalny PR lub SHA squasha w osobnej linii body PR/commita i zachowuje ją w squashu:
+
+```text
+fix(worker): handle reconnect after suspend
+
+Fixes: #68
+```
+
+Alternatywy: `Refs: abc1234567890`, `Refs: #68`, `Refs #68`, `follow-up to #68`.
+Szablon PR udostępnia `Fixes an earlier change: #68`. Revert zachowuje
+`This reverts commit abc1234567890.`. Akceptujemy SHA hex 7–40 znaków (preferowane pełne)
+i słowa GitHuba `fix`/`fixes`/`fixed`, `close`/`closes`/`closed`,
+`resolve`/`resolves`/`resolved`, z opcjonalnym dwukropkiem, np. `Fixes #68`.
+Link musi zajmować osobną linię; przypadkowe numery PR i hashe w zdaniu nie wiążą zmian.
+Numery odnoszą się do PR-ów tego repozytorium. Jawny link działa bez ograniczenia wieku i plików.
+
+**Heurystyka awaryjna.** Przy braku jawnego linku szukamy wspólnych zmienionych plików,
+tylko gdy poprawka trafiła na gałąź 0–7 dni po oryginale. Pomijamy:
+
+- `packages/contracts/src/gen/**`, `packages/codex-protocol/src/gen/**`;
+- `packages/db/src/migrations/index.ts`, `packages/db/test/schema.test.ts`;
+- `docs/**`;
+- pliki o nazwach `bun.lock`, `bun.lockb`, `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`,
+  `pnpm-lock.yaml`, `Cargo.lock`, `Gemfile.lock`, `poetry.lock`, `uv.lock` w dowolnym katalogu;
+- nazwy `CHANGELOG`, `CHANGES`, `HISTORY`, `RELEASE-NOTES` (bez względu na wielkość liter),
+  również z sufiksem po kropce/myślniku. Migracje SQL i źródłowe proto nadal wiążą zmiany.
+
+To heurystyka konserwatywna, może zatrzymać niezależne zmiany w jednym pliku; jawne stopki
+są podstawową konwencją i nie wolno polegać wyłącznie na podobieństwie plików.
+
+**Smoke zamiast checkboxów.** Automat niczego nie zaznacza w imieniu człowieka.
+Zielony Release obejmuje CI, testy updatera w CI, start binariów gateway/worker z kontrolą
+wersji na linux-x64/linux-arm64/darwin-arm64/windows-x64 oraz publikację serwera;
+stable dodatkowo wymaga tej samej automatycznej weryfikacji na becie i jej burn-in.
+Nie jest to ludzkie potwierdzenie live smoke dostawców ani pełny scenariusz self-update/rollback
+w realnej instalacji. Te ręczne potwierdzenia przestają być warunkiem promocji. Nie dodajemy
+nowego testu E2E aktualizacji; zachowujemy istniejące testy updatera i smoke Release.
+
+**Ręczny Promote.** Nadal wybiera `dev-next`/`next-main` tym samym algorytmem.
+`dry_run` (domyślnie true) wypisuje plan bez pushu, dispatchu i zapisu issue. Opcjonalne
+`override=true` pozwala maintainerowi pominąć soak, pauzę i `promotion-hold`; nie pomija
+powiązanych wykluczonych poprawek, zielonego CI, ukończonej bety dla stable, blockerów ani FF.
+Stare wejścia `live_smoke`/`update_smoke` zachowano dla kompatybilności dispatchu, ale nie są
+już bramkami. Zmienne `AUTO_PROMOTE_DEV_TO_NEXT` i `NIGHTLY_SMOKE_SHA` nie są używane.
+Odczyt lokalny: `GITHUB_REPOSITORY=itsoltech/canopy bun scripts/promote.ts --automatic --dry-run`.
+Polecenie fetchuje referencje/tagi i tylko czyta GitHub (autoryzacja `gh`), bez publikacji.
+Gdy dispatch po pushu zawiedzie, issue historii zachowuje plan i SHA; następny cykl ponawia
+dispatch dokładnie tego SHA, zanim dopuści kolejną promocję. Pauza i release-blocker wstrzymują
+także ponowienie. Historia rozróżnia plan przed pushem i skuteczny dispatch; stan publikacji
+pozostaje w Release. Przy błędzie końcowego zapisu issue dispatch może zostać ponowiony,
+ale serializacja i planowanie Release nadal zapobiegają podwójnemu tagowaniu.
+Przed ponowieniem sprawdzamy cały pierwotny zakres od starego targetu: nowa poprawka
+lub hold może zatrzymać jeszcze nieopublikowaną promocję mimo udanego pushu.
+
+Po stable **Back-merge** (bez zmian) przenosi hotfix `main` → `next` → `dev` commitami merge bota,
    dispatchując CI/Release dla zmienionych gałęzi. Dla promocji bez rozbieżności jest to no-op.
    Przy konflikcie otwiera PR i zatrzymuje dalsze przenoszenie. Po rozwiązaniu konfliktu i squash
    merge PR uruchom Back-merge ponownie: dopisze merge commit przywracający relację przodków.
-
-Nowy commit w `next` zeruje obserwację dopiero po wydaniu kolejnej bety i ukończeniu jej assetów.
-Workflow nie uznaje ręcznych potwierdzeń smoke za automatyczne testy; maintainer odpowiada za
-ich prawdziwość. Docs-only HEAD bez nowego tagu nie jest kandydatem promocji.
 
 ## Retencja nightly
 
@@ -534,7 +611,7 @@ do pushu, nie do usuwania). Bez tego job zgłasza `GHCR canopy-…: no access to
   botowi na te operacje i zapis tagów/notes. Nie wymagaj linear history dla back-merge.
 - Actions: joby żądają `contents: write`, `packages: write`, `actions: write`, `issues: write`
   lub `pull-requests: write` według potrzeby. Włącz „Allow GitHub Actions to create and approve
-  pull requests” dla PR konfliktowych. Utwórz etykietę **release-blocker**. Proponowana gałąź
+  pull requests” dla PR konfliktowych. Utwórz etykiety **release-blocker** i **promotion-hold**. Proponowana gałąź
   domyślna: **dev** (również dla workflowów schedule/dispatch).
 - Pierwszy push tworzy pakiety GHCR prywatne: w ustawieniach pakietów `canopy-gateway`,
   `canopy-web`, `canopy-worker` ustaw **Public** (albo daj dostęp konkretnym użytkownikom)
