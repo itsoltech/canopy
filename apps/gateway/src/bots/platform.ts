@@ -123,10 +123,7 @@ export async function botPlatform(
     validate(call.tool.parameters, args);
     const linked = await core.linkedAgents.botTool(turn, call);
 
-    if (linked !== undefined) {
-      // SAFETY: linked bot tools return toJson output or plain JSON objects; their declared type is still `unknown`.
-      return linked as ToolResult;
-    }
+    if (linked !== undefined) return linked;
 
     const registered = areaTool.get(call.tool.name);
 
@@ -242,8 +239,7 @@ export async function botPlatform(
             );
         }
 
-        // SAFETY: GatewayCore's bot thread actions return plain JSON objects; their declared type is still `unknown`.
-        return (await core.startBotThread(
+        return await core.startBotThread(
           turn,
           call,
           create(ui.CreateThreadRequestSchema, {
@@ -258,18 +254,17 @@ export async function botPlatform(
             title: optional("title"),
             clientRequestId: call.id,
           }),
-        )) as ToolResult;
+        );
       }
 
       case "send_message": {
-        // SAFETY: GatewayCore's bot thread actions return plain JSON objects; their declared type is still `unknown`.
-        return (await core.sendBotThreadMessage(
+        return await core.sendBotThreadMessage(
           turn,
           call,
           string("thread_id"),
           string("text"),
           optional("delivery") || "queue",
-        )) as ToolResult;
+        );
       }
 
       case "send_bot_message":
@@ -281,15 +276,13 @@ export async function botPlatform(
       case "cancel_schedule":
         return action(BotStore.use((s) => s.cancelWakeup(turn.bot_id, string("schedule_id"))));
       case "rename_thread":
-        // SAFETY: GatewayCore's bot thread actions return plain JSON objects; their declared type is still `unknown`.
-        return (await core.updateBotThread(
+        return await core.updateBotThread(
           turn,
           call,
           create(ui.UpdateThreadRequestSchema, { threadId: string("thread_id"), title: string("title", 200) }),
-        )) as ToolResult;
+        );
       case "set_thread_model":
-        // SAFETY: GatewayCore's bot thread actions return plain JSON objects; their declared type is still `unknown`.
-        return (await core.updateBotThread(
+        return await core.updateBotThread(
           turn,
           call,
           create(ui.UpdateThreadRequestSchema, {
@@ -297,10 +290,9 @@ export async function botPlatform(
             model: string("model", 200),
             effort: optional("effort"),
           }),
-        )) as ToolResult;
+        );
       case "archive_thread":
-        // SAFETY: GatewayCore's bot thread actions return plain JSON objects; their declared type is still `unknown`.
-        return (await core.archiveBotThread(turn, call, string("thread_id"))) as ToolResult;
+        return await core.archiveBotThread(turn, call, string("thread_id"));
       default:
         return { error: "Unknown platform tool" };
     }
