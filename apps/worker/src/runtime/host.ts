@@ -33,10 +33,9 @@ export type { WorkerHostOptions } from "./host-types.ts";
  * Everything the worker does between the gateway link and the provider runtimes
  * (docs/worker-config.md, docs/codex-adapter.md). Used by main.ts and by integration tests.
  *
- * - Remote config: validated, applied; provider runtimes are rebuilt when their settings change,
- *   but never under a running turn (deferred until the worker is idle). Codex runs one shared app-server for
- *   the profiles without environment variables and one per profile with its own variables (they belong to the
- *   process); only the processes whose settings changed restart.
+ * - Remote config: validated, applied per instance. Changed runtimes drain admitted turns and owned background
+ *   tasks before replacement; new work waits for the latest snapshot. Codex has one app-server per instance,
+ *   including instances without environment variables. Unchanged instances keep running.
  * - Commands: answered once; final results are remembered in the journal for redelivery.
  * - Events: journal first (inside the runtimes), then sent when the link is up.
  * - Interactions and agent bus tool calls: forwarded to the gateway, re-sent after reconnect until
@@ -65,6 +64,7 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([...QUERIES
 const CLI_REPORT_INTERVAL_MS = 6 * 60 * 60_000;
 
 export class WorkerHost {
+  readonly #commands = new Map<string, Promise<CommandResultInit | undefined>>();
   readonly secrets: ThreadSecretFiles;
   readonly cli: CliTools;
   readonly environment: WorkerAgentEnvironment;
@@ -223,6 +223,16 @@ export class WorkerHost {
    * gateway's outbox and the next process gets it (an error would end e.g. a turn the next process can run).
    */
   async handleCommand(command: Command): Promise<CommandResultInit | undefined> {
+    const pending = this.#commands.get(command.commandId);
+
+    if (pending) return pending;
+    const result = this.#handleCommand(command).finally(() => this.#commands.delete(command.commandId));
+    this.#commands.set(command.commandId, result);
+
+    return result;
+  }
+
+  async #handleCommand(command: Command): Promise<CommandResultInit | undefined> {
     const known = await this.#ctx.state.options.runtime.runPromise(
       Journal.use((j) => j.commandResult(command.commandId)),
     );
@@ -288,6 +298,8 @@ export class WorkerHost {
 
   async close(): Promise<void> {
     this.#ctx.state.closing = true;
+    this.#ctx.ops.wakeRuntimes();
+    await this.#ctx.state.runtimeReconcile;
     clearInterval(this.#ctx.state.cliTimer);
     this.environment.stop();
 
@@ -297,9 +309,11 @@ export class WorkerHost {
 
       for (const group of Array.from(this.#ctx.state.codex.keys())) await this.#ctx.ops.stopCodex(group);
       await this.#ctx.ops.closeCodexOrphans();
-      await this.#ctx.ops.stopClaude();
-      await this.#ctx.state.grok?.runtime.close();
-      this.#ctx.state.grok = undefined;
+
+      for (const id of Array.from(this.#ctx.state.claude.keys())) await this.#ctx.ops.stopClaude(id);
+
+      for (const handle of this.#ctx.state.grok.values()) await handle.runtime.close();
+      this.#ctx.state.grok.clear();
     } finally {
       // Keep masking late provider output until its processes have stopped.
       this.#ctx.state.secrets.close();

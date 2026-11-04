@@ -69,6 +69,8 @@ export class CodexThreads extends Context.Service<
     stopTask(threadId: string, taskId: string): Effect.Effect<void, CodexThreadError>;
     /** Background processes still running, per platform thread. */
     backgroundTasks(): ReadonlyMap<string, readonly string[]>;
+    /** Includes turns admitted before their first notification reaches the host. */
+    hasActiveTurns(): boolean;
     /** Why this runtime cannot serve any more (its app-server process exited), else undefined. */
     failure(): string | undefined;
     /** The platform thread is loaded in this process (started or resumed here). */
@@ -112,6 +114,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     };
 
     const { record } = threadEvents(ctx);
+    let processing = 0;
     const settleAfterExit = threadExit(ctx);
     // Interrupted (before the process is killed) when the runtime closes on purpose.
     yield* Effect.forkScoped(codex.exited.pipe(Effect.flatMap(settleAfterExit), Effect.ignore));
@@ -122,7 +125,17 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
           const threadId = jsonString(jsonObject(decodeJson(notification.params ?? null))?.["threadId"]);
           const entry = threadId ? ctx.byCodex.get(threadId) : undefined;
 
-          return entry ? record(entry, notification).pipe(Effect.ignore) : Effect.void;
+          return entry
+            ? Effect.acquireUseRelease(
+                Effect.sync(() => processing++),
+                () => record(entry, notification).pipe(Effect.ignore),
+                () =>
+                  Effect.sync(() => {
+                    processing--;
+                    options.onActivitySettled?.();
+                  }),
+              )
+            : Effect.void;
         }),
       ),
     );
@@ -142,6 +155,13 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
           [...ctx.byPlatform.values()].flatMap((entry) =>
             entry.mapper.backgroundTasks.length > 0 ? [[entry.platformId, entry.mapper.backgroundTasks] as const] : [],
           ),
+        ),
+      hasActiveTurns: () =>
+        processing > 0 ||
+        [...ctx.byPlatform.values()].some(
+          (entry) =>
+            entry.pendingTurns.length > 0 ||
+            [...entry.codexToPlatform.keys()].some((turn) => !entry.finishedTurns.has(turn)),
         ),
       failure: () => ctx.failure,
       has: (threadId) => ctx.byPlatform.has(threadId),

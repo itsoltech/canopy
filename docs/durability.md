@@ -120,7 +120,32 @@ sequenceDiagram
 
 Zdarzenia rekoncyliacji mają w `raw_json` znacznik `{"reconciled": "<harness> transcript", "found": …}`.
 
-### 3.6 Opcja na później: host wątków niezależny od workera
+### 3.6 Zmiana konfiguracji instancji
+
+Każda zmiana efektywnej konfiguracji instancji obowiązuje od następnej tury.
+Rozpoczęte tury, także dopiero przyjęte przez harness, i jego zadania w tle zachowują
+migawkę, z którą wystartowały. Zapis ustawień nie przerywa ich i nie oznacza ich jako
+`worker_restart`. Nowa praca czeka na drain wyłącznie zmienionej instancji; przerwanie,
+steer i zatrzymanie zadania nadal trafiają do starego runtime'u.
+
+Bezczynny runtime jest wymieniany od razu, zajęty po ostatniej turze i zadaniu.
+Kolejne zapisy podczas drain składają się do najnowszej konfiguracji. Codex ma jeden
+app-server per instancja i wznawia wątki przez `thread/resume`; Claude zamyka zachowane
+procesy sesji, a Grok odtwarza proces ACP przed nową turą. Globalna wersja konfiguracji
+nie restartuje niezmienionych instancji. `ConfigApplied` oznacza przyjęcie konfiguracji,
+nie zakończenie drain każdej instancji.
+
+Przełączenie Device login ↔ Proxy zachowuje id instancji i magazyn sesji
+(`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, trwały katalog sesji Groka). Dotyczy także `native`
+i instancji z wątkami. Jawna zmiana katalogu lub wyboru własnego logowania może wskazać
+inny magazyn; worker nie przenosi automatycznie jego zawartości.
+
+Regresje: `tests/integration/instance-changes.test.ts` używa rzeczywistego gatewaya,
+workera, PostgreSQL i protokołów adapterów z deterministycznymi lokalnymi CLI.
+Sprawdza starą/nową konfigurację, wznowienie, drain tła, liczbę restartów, izolację
+instancji oraz brak sekretów w raportach, audycie i logach.
+
+### 3.7 Opcja na później: host wątków niezależny od workera
 
 Procesy dostawców w osobnym procesie, który przeżywa restart procesu workera. Worker po aktualizacji podłącza się do niego przez lokalny socket. Daje aktualizację workera bez przerywania długich tur, ale sporo kosztuje: osobny proces, IPC, własny cykl życia. Wracamy do tego, jeśli drain okaże się niewystarczający.
 

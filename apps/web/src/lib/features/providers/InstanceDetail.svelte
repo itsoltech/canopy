@@ -29,7 +29,6 @@
     workers,
     state: providers,
     ondeleted,
-    onaddproxy,
     class: className,
   }: {
     instance: ui.ProviderInstance;
@@ -37,7 +36,6 @@
     workers: readonly ui.Worker[];
     state: ProvidersState;
     ondeleted: () => void;
-    onaddproxy: () => void;
     class?: ClassValue;
   } = $props();
 
@@ -158,7 +156,6 @@
   {:else}
     <DefinitionForm
       {instance}
-      {onaddproxy}
       onsaved={(saved) => {
         providers.put(saved);
         void providers.reload();

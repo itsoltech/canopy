@@ -66,6 +66,7 @@ export function instanceReads(sql: SqlClient.SqlClient) {
       ];
 
       return all
+        .filter((row) => !userId || !row.created_by || row.created_by === userId)
         .filter((row) => !userId || !row.proxy_owner || row.proxy_owner === userId)
         .map((row) => toUi(row, rows, workerRows, used));
     });
@@ -134,7 +135,7 @@ export function instanceWrites(sql: SqlClient.SqlClient, secretsKey: Buffer, rea
       return env;
     });
 
-  const runtimeFrom = (runtime: ui.InstanceRuntime | undefined, kind: "native" | "endpoint") =>
+  const runtimeFrom = (runtime: ui.InstanceRuntime | undefined) =>
     Effect.gen(function* () {
       const problem =
         checkPath("binary path", runtime?.binaryPath) ??
@@ -153,7 +154,7 @@ export function instanceWrites(sql: SqlClient.SqlClient, secretsKey: Buffer, rea
 
       if (runtime?.launchArgs.length) stored.launchArgs = [...runtime.launchArgs];
 
-      if (runtime?.ownLogin && kind === "native") stored.ownLogin = true;
+      if (runtime?.ownLogin) stored.ownLogin = true;
 
       return stored;
     });
@@ -232,7 +233,11 @@ export function instanceSync(sql: SqlClient.SqlClient, reads: InstanceReads, sec
           );
 
           const profiles = effectiveProfiles(
-            all.filter((i) => !i.proxy_owner || !row.owner_user_id || i.proxy_owner === row.owner_user_id),
+            all.filter(
+              (i) =>
+                (!i.created_by || !row.owner_user_id || i.created_by === row.owner_user_id) &&
+                (!i.proxy_owner || !row.owner_user_id || i.proxy_owner === row.owner_user_id),
+            ),
             rows.filter((a) => a.worker_id === row.worker_id),
             usedHere,
           );

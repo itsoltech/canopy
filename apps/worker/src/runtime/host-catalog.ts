@@ -122,13 +122,21 @@ export class HostCatalog {
 
       if (!resolved || (profileId && resolved.id !== profileId)) continue;
 
-      if (this.ctx.state.claude && usableBy(resolved, "claude") && (!provider || provider === Provider.CLAUDE))
+      if (
+        this.ctx.state.claude.has(resolved.id) &&
+        usableBy(resolved, "claude") &&
+        (!provider || provider === Provider.CLAUDE)
+      )
         pairs.push({ provider: Provider.CLAUDE, profile: resolved.id });
 
       if (this.ctx.state.codex.size > 0 && usableBy(resolved, "codex") && (!provider || provider === Provider.CODEX))
         pairs.push({ provider: Provider.CODEX, profile: resolved.id });
 
-      if (this.ctx.state.grok && usableBy(resolved, "grok") && (!provider || provider === Provider.GROK))
+      if (
+        this.ctx.state.grok.has(resolved.id) &&
+        usableBy(resolved, "grok") &&
+        (!provider || provider === Provider.GROK)
+      )
         pairs.push({ provider: Provider.GROK, profile: resolved.id });
     }
 
@@ -137,9 +145,9 @@ export class HostCatalog {
         try {
           const listed: { models: ProfileModelsInit["models"]; detail?: string } =
             p === Provider.GROK
-              ? await this.ctx.state.grok!.runtime.listModels(profile)
+              ? await this.ctx.ops.runGrok((threads) => threads.listModels(profile), profile)
               : p === Provider.CLAUDE
-                ? await this.ctx.ops.runClaude((threads) => threads.listModels(profile))
+                ? await this.ctx.ops.runClaude((threads) => threads.listModels(profile), profile)
                 : await this.ctx.ops.runCodex(
                     Provider.CODEX,
                     (threads) => threads.listModels(profile),

@@ -20,8 +20,12 @@ export class HostEvents {
 
     if (event.body.case === "turnFinished") {
       this.ctx.state.running.delete(key);
+    }
 
-      if (this.ctx.state.rebuildWanted && this.ctx.state.running.size === 0) void this.ctx.ops.reconcileRuntimes();
+    if (event.body.case === "turnFinished" || event.body.case === "itemCompleted") {
+      this.ctx.ops.wakeRuntimes();
+      // The mapper releases its turn/task after publishing the event.
+      setTimeout(() => void this.ctx.ops.reconcileRuntimes().catch(() => {}), 0).unref();
     }
 
     this.ctx.ops.sendEvent(event);

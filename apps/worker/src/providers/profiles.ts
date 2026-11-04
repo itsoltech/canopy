@@ -22,7 +22,7 @@ interface ProfileConfigBase {
   readonly disabled?: boolean;
   /**
    * How the harness of this instance runs (global provider instances, docs/worker-config.md, section 9); absent =
-   * the worker's settings (shared process, isolated home under the data dir, device login linked).
+   * the worker's settings (isolated home under the data dir, device login linked).
    */
   readonly runtime?: ProfileRuntimeConfig;
 }
@@ -101,7 +101,7 @@ export interface ProfileStatus {
   readonly authenticated?: boolean;
 }
 
-/** A profile's runtime differs from the worker's: Codex gives it its own process, Claude its own home and flags. */
+/** The instance overrides the worker's executable, home, login or launch arguments. */
 export function hasOwnRuntime(runtime: ProfileRuntimeConfig): boolean {
   return Boolean(
     runtime.executablePath ||
@@ -167,8 +167,6 @@ export function resolveProfiles(configs: readonly ProviderProfileConfig[]): Prof
 
     if (envProblem) return { config, problem: `env: ${envProblem.message}` };
     const runtime = config.runtime ?? {};
-
-    if (runtime.ownLogin && config.kind !== "native") return { config, problem: "an endpoint has no login of its own" };
 
     const base = {
       id: config.id,

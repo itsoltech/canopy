@@ -30,6 +30,8 @@ Potwierdzone na żywo (`tests/integration/worker-codex.live.test.ts`): gateway k
 
 ## Runtime wątków
 
+- **Konfiguracja instancji:** jeden app-server per instancja, także bez własnych zmiennych. Każda zmiana oznacza runtime jako nieaktualny; nowa praca czeka na koniec jego tur i zadań w tle, potem jeden restart stosuje najnowszą konfigurację. Inne instancje działają dalej. Ścieżka `CODEX_HOME` nie zależy od rodzaju połączenia, a proxy jest wpisem `model_providers` przez `-c`. `thread/resume` jawnie wybiera bieżący provider (`openai` po powrocie do Device login). Równoczesne wznowienia tej samej sesji korzystają z jednego rejestru.
+
 - **Tury platformy:** `turn/start` dostaje `clientUserMessageId = turn_id`. Kolejka oczekujących tur rozstrzyga wyścig: powiadomienie `turn/started` może przyjść przed odpowiedzią. Tura bez oczekującej komendy to tura dostawcy (np. kontynuacja celu) z nowym ID i `origin = PROVIDER`.
 - **Ponownie dostarczony `StartTurn`** z tym samym `turn_id` nie startuje drugiej tury.
 - **Model i wysiłek:** `turn/start` zawsze dostaje `model` i `effort`: wartości ze `StartTurn`, a bez nich domyślny model katalogu (`model/list`, `isDefault`) i jego domyślny wysiłek: `model_reasoning_effort` z `config.toml` urządzenia (z profilu wybranego przez `profile`, potem główny), jeśli model go oferuje, inaczej `defaultReasoningEffort`. Izolowany `CODEX_HOME` nie ma tych ustawień, więc czyta je worker (tylko odczyt, [protocol.md](protocol.md#modele-effort-i-steer)). Nadpisanie w Codexie obowiązuje „tę i kolejne tury”, więc bez jawnych wartości tura po nadpisaniu zostałaby na poprzednim modelu.

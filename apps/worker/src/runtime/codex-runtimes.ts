@@ -5,18 +5,9 @@ import { prepareCodexHome } from "../providers/codex/home.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { readCodexConfiguredEffort } from "../providers/default-effort.ts";
-import { hasOwnRuntime, type ProfileRuntimeConfig, type ResolvedProfile } from "../providers/profiles.ts";
+import { type ProfileRuntimeConfig, type ResolvedProfile } from "../providers/profiles.ts";
 
-import {
-  CommandError,
-  SHARED_CODEX,
-  kindOf,
-  taskOf,
-  usableBy,
-  hasEnv,
-  codexProfileGroup,
-  type CodexGroup,
-} from "./host-types.ts";
+import { CommandError, kindOf, taskOf, usableBy, codexProfileGroup, type CodexGroup } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 
 export class CodexRuntimes {
@@ -25,34 +16,37 @@ export class CodexRuntimes {
     provider: Provider,
     use: (threads: CodexThreads["Service"]) => Effect.Effect<A, E>,
     group: string,
+    current = false,
   ): Promise<A> {
     if (provider !== Provider.CODEX)
       throw new CommandError("PROVIDER_UNAVAILABLE", `${Provider[provider]} is not supported by this worker yet`, true);
-    await this.ctx.ops.restartFailedCodex(group);
-    const codex = this.ctx.state.codex.get(group);
 
-    if (!codex)
-      throw new CommandError(
-        "PROVIDER_UNAVAILABLE",
-        this.ctx.state.config?.codex.problem ?? "codex is disabled",
-        false,
-      );
+    return this.ctx.ops.useRuntime(`codex/${group}`, current, async () => {
+      await this.ctx.ops.restartFailedCodex(group);
+      const codex = this.ctx.state.codex.get(group);
 
-    return this.ctx.ops.runIn(Effect.provide(CodexThreads.use(use), codex.context));
+      if (!codex)
+        throw new CommandError(
+          "PROVIDER_UNAVAILABLE",
+          this.ctx.state.config?.codex.problem ?? "codex is disabled",
+          false,
+        );
+
+      return this.ctx.ops.runIn(Effect.provide(CodexThreads.use(use), codex.context));
+    });
   }
 
-  /** The Codex process for a profile: its own when it has variables, else the shared one. */
+  /** Every instance drains its own Codex process independently. */
   codexGroupOf(profileId: string): string {
-    const group = codexProfileGroup(profileId || "native");
-
-    return this.ctx.state.codex.has(group) ? group : SHARED_CODEX;
+    return codexProfileGroup(profileId || "native");
   }
 
-  /** The Codex process that has the thread loaded (it runs the thread's turn), else the shared one. */
+  /** The Codex process that has the thread loaded (it runs the thread's turn). */
   codexGroupWith(threadId: string): string {
     return (
       [...this.ctx.state.codex].find(([, codex]) => Context.get(codex.context, CodexThreads).has(threadId))?.[0] ??
-      SHARED_CODEX
+      this.ctx.state.threadInstances.get(threadId)?.slice("codex/".length) ??
+      ""
     );
   }
 
@@ -82,7 +76,7 @@ export class CodexRuntimes {
     await restart;
   }
 
-  /** Wanted Codex processes: the shared one, and one per usable profile with its own variables. */
+  /** One wanted Codex process per usable instance. */
   codexGroups(config: AppliedConfig): Map<string, CodexGroup> {
     const groups = new Map<string, CodexGroup>();
 
@@ -109,27 +103,18 @@ export class CodexRuntimes {
       }),
     });
 
-    // The shared process always runs: threads of an unknown or unavailable profile get its error from it.
-    // Variables and an own runtime (executable, homes, arguments) belong to a process: such an instance gets its own.
-    const own = (p: ResolvedProfile) => hasEnv(p) || hasOwnRuntime(p.runtime ?? {});
-    groups.set(
-      SHARED_CODEX,
-      group(
-        usable.filter((p) => !own(p)),
-        {},
-        {},
-      ),
-    );
-
-    for (const profile of usable.filter(own))
+    // Separate processes even when env/homes match: one instance must drain independently of the others.
+    for (const profile of usable)
       groups.set(codexProfileGroup(profile.id), group([profile], profile.env, profile.runtime ?? {}, profile.id));
 
     return groups;
   }
 
-  async startCodex(name: string, group: CodexGroup): Promise<void> {
-    const config = this.ctx.state.config;
-
+  async startCodex(
+    name: string,
+    group: CodexGroup,
+    config: AppliedConfig | undefined = this.ctx.state.config,
+  ): Promise<void> {
     if (!config) return;
     const { profiles, runtime } = group;
 
@@ -164,6 +149,9 @@ export class CodexRuntimes {
       configuredEffort: () => readCodexConfiguredEffort(deviceHome),
       profile: (id) => profiles.find((p) => p.id === (id || "native")),
       publish: (event) => this.ctx.ops.publish(event),
+      onActivitySettled: () => {
+        if (this.ctx.state.staleRuntimes.has(`codex/${name}`)) void this.ctx.ops.reconcileRuntimes().catch(() => {});
+      },
       interact: (request) => this.ctx.ops.interact(request),
       callTool: (call) => this.ctx.ops.callTool(call),
       viewImage: (threadId, path) => this.ctx.ops.viewImage(threadId, this.ctx.state.cwds.get(threadId) ?? "", path),
@@ -174,7 +162,7 @@ export class CodexRuntimes {
     const scope = await Effect.runPromise(Scope.make());
     const context = await this.ctx.state.options.runtime.runPromise(Layer.buildWithScope(layer, scope));
     this.ctx.state.codex.set(name, { key: group.key, scope, context });
-    this.ctx.ops.log(`codex runtime started${name === SHARED_CODEX ? "" : ` (${name})`}`);
+    this.ctx.ops.log(`codex runtime started (${name})`);
   }
 
   async stopCodex(name: string): Promise<void> {
@@ -183,7 +171,7 @@ export class CodexRuntimes {
     if (!codex) return;
     this.ctx.state.codex.delete(name);
     await Effect.runPromise(Scope.close(codex.scope, Exit.void));
-    this.ctx.ops.log(`codex runtime stopped${name === SHARED_CODEX ? "" : ` (${name})`}`);
+    this.ctx.ops.log(`codex runtime stopped (${name})`);
   }
 
   /** Codex background processes the journal has open that no running Codex process holds any more. */

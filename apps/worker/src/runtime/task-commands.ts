@@ -27,16 +27,18 @@ export class TaskCommands {
 
   async stopTask(kind: Extract<Command["kind"], { case: "stopTask" }>): Promise<CommandOutput> {
     const { threadId, taskId } = kind.value;
-    const claude = this.ctx.state.claude && Context.get(this.ctx.state.claude.context, ClaudeThreads);
+
+    const claude = [...this.ctx.state.claude].find(([, handle]) =>
+      Context.get(handle.context, ClaudeThreads).backgroundTasks().get(threadId)?.includes(taskId),
+    );
 
     const codexGroup = [...this.ctx.state.codex].find(([, codex]) =>
       Context.get(codex.context, CodexThreads).backgroundTasks().get(threadId)?.includes(taskId),
     )?.[0];
 
-    if (claude?.backgroundTasks().get(threadId)?.includes(taskId))
-      await this.ctx.ops.runClaude((threads) => threads.stopTask(threadId, taskId));
+    if (claude) await this.ctx.ops.runClaude((threads) => threads.stopTask(threadId, taskId), claude[0], true);
     else if (codexGroup !== undefined)
-      await this.ctx.ops.runCodex(Provider.CODEX, (threads) => threads.stopTask(threadId, taskId), codexGroup);
+      await this.ctx.ops.runCodex(Provider.CODEX, (threads) => threads.stopTask(threadId, taskId), codexGroup, true);
     // No process runs it: if the journal still has it open, its process is gone, so it ends here.
     else
       await this.ctx.ops.closeOrphans(
@@ -48,7 +50,7 @@ export class TaskCommands {
   }
 
   async unloadThread(kind: Extract<Command["kind"], { case: "unloadThread" }>): Promise<CommandOutput> {
-    await this.ctx.state.grok?.runtime.unload(kind.value.threadId);
+    for (const handle of this.ctx.state.grok.values()) await handle.runtime.unload(kind.value.threadId);
 
     return {}; // nothing to free yet: Codex threads share their group's app-server process, Claude turns end with their query
   }

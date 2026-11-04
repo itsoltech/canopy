@@ -25,6 +25,7 @@ export function proxyEnvMove(
         const row = yield* core.lockInstance(harness, request.id);
 
         if (row.proxy_id) yield* records.get(userId, row.proxy_id);
+        yield* core.get(harness, row.id, userId);
 
         if (request.expectedRevision !== 0n && request.expectedRevision !== BigInt(row.revision))
           return yield* Effect.fail(new InstanceConflict("The instance changed meanwhile; reload and try again"));
@@ -67,21 +68,12 @@ export function proxyEnvMove(
           }),
         );
 
-        const id = row.built_in ? request.newInstanceId : row.id;
+        const createInstance = row.built_in && !!request.newInstanceId;
+        const id = createInstance ? request.newInstanceId : row.id;
 
-        if (!id) return yield* Effect.fail(new Invalid("Give the new proxy instance an ID"));
-
-        if (row.built_in) {
+        if (createInstance) {
           yield* sql`UPDATE provider_instances SET env = ${JSON.stringify(env)}::jsonb, revision = revision + 1, updated_at = now()
         WHERE harness = ${harness} AND id = ${row.id}`;
-        } else if (
-          (yield* core.threadUse()).some((u) => u.harness === harness && u.id === row.id && Number(u.count) > 0)
-        ) {
-          return yield* Effect.fail(
-            new InstanceConflict(
-              "Threads use this device-login instance; add a separate instance before moving its connection",
-            ),
-          );
         }
 
         const saved = yield* api.save({
@@ -89,12 +81,12 @@ export function proxyEnvMove(
           request: create(ui.SaveProviderInstanceRequestSchema, {
             harness: request.harness,
             id,
-            create: row.built_in,
+            create: createInstance,
             label: request.name || `${row.label || harness} proxy`,
             kind: ProviderProfileKind.CLIPROXYAPI,
             proxyId: proxy.id,
-            env: row.built_in ? [] : input,
-            runtime: { ...row.runtime, ownLogin: false },
+            env: createInstance ? [] : input,
+            runtime: { ...row.runtime, ...(createInstance && { ownLogin: false }) },
             accentColor: row.accent_color,
             allWorkers: row.all_workers,
             workerIds: (yield* core.assignments())

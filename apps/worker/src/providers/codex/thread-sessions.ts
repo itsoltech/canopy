@@ -1,5 +1,5 @@
 import type { ForkSpec, ThreadSpec } from "@canopy/contracts";
-import { Effect } from "effect";
+import { Effect, Semaphore } from "effect";
 import { codexThreadProvider } from "./launch.ts";
 import { codexPermissions } from "./permissions.ts";
 
@@ -12,6 +12,7 @@ const NO_ROLLOUT = /no rollout found/i;
 
 export function threadSessions(ctx: CodexThreadContext) {
   const { options, codex, journal, byPlatform, connectorCatalog } = ctx;
+  const loading = Semaphore.makeUnsafe(1);
 
   const register = (platformId: string, codexId: string, rolloutPath: string | null) =>
     registerThread(ctx, platformId, codexId, rolloutPath);
@@ -86,7 +87,7 @@ export function threadSessions(ctx: CodexThreadContext) {
       yield* announce(entry, spec.providerThreadId).pipe(Effect.mapError(fail(spec.threadId, "journal")));
 
       return entry;
-    });
+    }).pipe(loading.withPermit);
 
   return {
     ensureLoaded,

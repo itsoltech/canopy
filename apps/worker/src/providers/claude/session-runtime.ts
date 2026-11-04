@@ -7,6 +7,9 @@ import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
 
 import type { ClaudeInstanceRuntime, ClaudeThreadContext } from "./thread-types.ts";
 
+// SDK helpers read process.env. Serialize across every instance, not just one runtime.
+let helpers: Promise<unknown> = Promise.resolve();
+
 export function claudeRuntime(ctx: ClaudeThreadContext) {
   const { options } = ctx;
 
@@ -31,16 +34,16 @@ export function claudeRuntime(ctx: ClaudeThreadContext) {
    * A session helper in a config dir: CLAUDE_CONFIG_DIR of this process points there meanwhile. Helpers run one at a
    * time so two homes never mix (queries get their env explicitly and are not affected).
    */
-  let helpers: Promise<unknown> = Promise.resolve();
-
   const inHome = <A>(home: string, run: () => Promise<A>): Promise<A> => {
     const next = helpers.then(async () => {
+      const previous = process.env["CLAUDE_CONFIG_DIR"];
       process.env["CLAUDE_CONFIG_DIR"] = home;
 
       try {
         return await run();
       } finally {
-        process.env["CLAUDE_CONFIG_DIR"] = options.home;
+        if (previous === undefined) delete process.env["CLAUDE_CONFIG_DIR"];
+        else process.env["CLAUDE_CONFIG_DIR"] = previous;
       }
     });
 

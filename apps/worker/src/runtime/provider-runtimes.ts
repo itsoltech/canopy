@@ -4,17 +4,54 @@ import { ItemSchema, ItemStatus, type Item } from "@canopy/contracts";
 import { Cause, Effect, Exit, Predicate } from "effect";
 import { Journal } from "../journal/index.ts";
 import { GrokThreads } from "../providers/grok/threads.ts";
-
-import { CommandError, usableBy, type CodexGroup } from "./host-types.ts";
+import type { ResolvedProfile } from "../providers/profiles.ts";
+import type { AppliedConfig } from "../config/remote.ts";
+import { CommandError } from "./host-types.ts";
+import { matchingProfile, runtimeBusy, runtimeKeys, stopRuntime, wantedRuntimes } from "./instance-runtimes.ts";
 import type { HostContext } from "./host-context.ts";
 
 export class ProviderRuntimes {
   constructor(readonly ctx: HostContext) {}
-  async runGrok<A>(use: (threads: GrokThreads) => Promise<A>): Promise<A> {
-    if (!this.ctx.state.grok)
-      throw new CommandError("PROVIDER_UNAVAILABLE", this.ctx.state.config?.grok.problem ?? "Grok is disabled", false);
+  async runGrok<A>(use: (threads: GrokThreads) => Promise<A>, id = "native", current = false): Promise<A> {
+    return this.useRuntime(`grok/${id}`, current, async () => {
+      const handle = this.ctx.state.grok.get(id);
 
-    return use(this.ctx.state.grok.runtime);
+      if (!handle) throw new CommandError("PROVIDER_UNAVAILABLE", "Grok instance unavailable", true);
+
+      return use(handle.runtime);
+    });
+  }
+
+  async startGrok(
+    profile: ResolvedProfile,
+    key: string,
+    config: AppliedConfig | undefined = this.ctx.state.config,
+  ): Promise<void> {
+    if (!config?.grok.executable) return;
+    this.ctx.state.grok.set(profile.id, {
+      key,
+      runtime: new GrokThreads({
+        dataDir: this.ctx.state.options.dataDir,
+        executable: config.grok.executable,
+        linkDeviceLogin: config.grok.linkDeviceLogin,
+        idleUnloadMs: config.limits.idleUnloadSeconds * 1000,
+        profile: (id) => matchingProfile(profile, id),
+        record: async (threadId, init) => {
+          const enriched = await this.ctx.state.previews.enrich(init);
+
+          const event = await this.ctx.state.options.runtime.runPromise(
+            Journal.use((j) => j.append(threadId, enriched)),
+          );
+
+          this.ctx.ops.publish(event);
+
+          return event;
+        },
+        interact: (request, signal) => this.ctx.ops.interact(request, signal),
+        callTool: (call) => this.ctx.ops.callTool(call),
+        viewImage: (threadId, cwd, path) => this.ctx.ops.viewImage(threadId, cwd, path),
+      }),
+    });
   }
 
   async runIn<A, E>(effect: Effect.Effect<A, E, Journal>): Promise<A> {
@@ -25,7 +62,6 @@ export class ProviderRuntimes {
 
     if (error instanceof CommandError) throw error;
 
-    // The harness itself refused or failed (e.g. Codex answered the request with an error): the gateway says so.
     const code =
       Predicate.isObject(error) && "harness" in error && error["harness"] === true ? "HARNESS_ERROR" : "THREAD_ERROR";
 
@@ -38,91 +74,120 @@ export class ProviderRuntimes {
     );
   }
 
-  /** Provider runtimes follow the configuration, but are never rebuilt under a running turn. */
-  async reconcileRuntimes(): Promise<void> {
-    const config = this.ctx.state.config;
-    const codexGroups = config ? this.ctx.ops.codexGroups(config) : new Map<string, CodexGroup>();
-    const claudeKey = config ? this.ctx.ops.claudeKey(config) : undefined;
+  /** Serialize swaps and acquisitions. Never wait for a turn inside this lock. */
+  #locked<A>(run: () => Promise<A>): Promise<A> {
+    const next = this.ctx.state.runtimeReconcile.then(run);
+    this.ctx.state.runtimeReconcile = next.then(
+      () => {},
+      () => {},
+    );
 
-    const grokKey =
-      config?.grok.enabled && config.grok.executable
-        ? JSON.stringify({ grok: config.grok, profiles: config.profiles })
-        : undefined;
+    return next;
+  }
 
-    const codexChanged =
-      codexGroups.size !== this.ctx.state.codex.size ||
-      [...codexGroups].some(([name, group]) => this.ctx.state.codex.get(name)?.key !== group.key);
+  wakeRuntimes(): void {
+    for (const wake of this.ctx.state.runtimeWaiters) wake();
+    this.ctx.state.runtimeWaiters.clear();
+  }
 
-    if (!codexChanged && claudeKey === this.ctx.state.claude?.key && grokKey === this.ctx.state.grok?.key) return;
+  /** New work waits for its instance to drain; controls continue to address the running snapshot. */
+  async useRuntime<A>(key: string, current: boolean, use: () => Promise<A>): Promise<A> {
+    for (;;) {
+      let wake!: () => void;
 
-    if (this.ctx.state.shuttingDown) return;
+      const changed = new Promise<void>((resolve) => {
+        wake = resolve;
+      });
 
-    if (this.ctx.state.running.size > 0) {
-      this.ctx.state.rebuildWanted = true;
-      this.ctx.ops.log(
-        `provider settings changed; restart deferred until ${this.ctx.state.running.size} running turn(s) finish`,
-      );
+      this.ctx.state.runtimeWaiters.add(wake);
 
-      return;
-    }
+      const acquired = await this.#locked(async () => {
+        if (this.ctx.state.closing || this.ctx.state.shuttingDown)
+          throw new CommandError("WORKER_DRAINING", "worker is stopping", false);
 
-    this.ctx.state.rebuildWanted = false;
+        if (!current) await this.#reconcile();
+        const wanted = wantedRuntimes(this.ctx).get(key);
+        const active = runtimeKeys(this.ctx).get(key);
 
-    if (codexChanged) {
-      // Only the processes whose settings changed restart; their threads resume in the new ones.
-      for (const name of Array.from(this.ctx.state.codex.keys())) {
-        if (this.ctx.state.codex.get(name)?.key !== codexGroups.get(name)?.key) await this.ctx.ops.stopCodex(name);
+        if (!active || (!current && !wanted)) {
+          const harness = key.split("/")[0];
+          const config = this.ctx.state.config;
+          let problem = config?.grok.problem;
+
+          if (harness === "codex") problem = config?.codex.problem;
+
+          if (harness === "claude") problem = config?.claude.problem;
+          throw new CommandError("PROVIDER_UNAVAILABLE", problem ?? "provider instance unavailable", true);
+        }
+
+        if (!current && active !== wanted?.key) return false;
+        this.ctx.state.runtimeUsers.set(key, (this.ctx.state.runtimeUsers.get(key) ?? 0) + 1);
+
+        return true;
+      }).catch((error) => {
+        this.ctx.state.runtimeWaiters.delete(wake);
+        throw error;
+      });
+
+      if (!acquired) {
+        await changed;
+        continue;
       }
 
-      await this.ctx.ops.closeCodexOrphans();
+      this.ctx.state.runtimeWaiters.delete(wake);
 
-      for (const [name, group] of codexGroups)
-        if (!this.ctx.state.codex.has(name)) await this.ctx.ops.startCodex(name, group);
-    }
-
-    if (claudeKey !== this.ctx.state.claude?.key) await this.ctx.ops.reconcileClaude(config, claudeKey);
-
-    if (grokKey !== this.ctx.state.grok?.key) {
-      await this.ctx.state.grok?.runtime.close();
-      this.ctx.state.grok = undefined;
-
-      if (grokKey && config?.grok.executable)
-        this.ctx.state.grok = {
-          key: grokKey,
-          runtime: new GrokThreads({
-            dataDir: this.ctx.state.options.dataDir,
-            executable: config.grok.executable,
-            linkDeviceLogin: config.grok.linkDeviceLogin,
-            idleUnloadMs: config.limits.idleUnloadSeconds * 1000,
-            profile: (id) =>
-              this.ctx.state.config?.profiles.find(
-                (p) => p.resolved?.id === (id || "native") && usableBy(p.resolved, "grok"),
-              )?.resolved,
-            record: async (threadId, init) => {
-              const enriched = await this.ctx.state.previews.enrich(init);
-
-              const event = await this.ctx.state.options.runtime.runPromise(
-                Journal.use((j) => j.append(threadId, enriched)),
-              );
-
-              this.ctx.ops.publish(event);
-
-              return event;
-            },
-            interact: (request, signal) => this.ctx.ops.interact(request, signal),
-            callTool: (call) => this.ctx.ops.callTool(call),
-            viewImage: (threadId, cwd, path) => this.ctx.ops.viewImage(threadId, cwd, path),
-          }),
-        };
+      try {
+        return await use();
+      } finally {
+        this.ctx.state.runtimeUsers.set(key, (this.ctx.state.runtimeUsers.get(key) ?? 1) - 1);
+        this.wakeRuntimes();
+        void this.reconcileRuntimes().catch(() => {});
+      }
     }
   }
 
-  /** Why tasks of a stopping provider runtime end: the worker stops, or only the runtime restarts. */
+  async reconcileRuntimes(): Promise<void> {
+    try {
+      await this.#locked(() => this.#reconcile());
+    } finally {
+      // A save can also revert to the active snapshot or disable an instance while work is waiting.
+      this.wakeRuntimes();
+    }
+  }
+
+  async #reconcile(): Promise<void> {
+    if (this.ctx.state.closing || this.ctx.state.shuttingDown) return;
+    const wanted = wantedRuntimes(this.ctx);
+    const active = runtimeKeys(this.ctx);
+    let changed = false;
+
+    for (const key of new Set([...active.keys(), ...wanted.keys()])) {
+      const next = wanted.get(key);
+
+      if (active.get(key) === next?.key) {
+        this.ctx.state.staleRuntimes.delete(key);
+        continue;
+      }
+
+      if (runtimeBusy(this.ctx, key)) {
+        this.ctx.state.staleRuntimes.add(key);
+        continue;
+      }
+
+      this.ctx.state.staleRuntimes.delete(key);
+      await stopRuntime(this.ctx, key);
+
+      if (next) await next.start();
+      changed = true;
+    }
+
+    if (changed) this.wakeRuntimes();
+  }
+
   stopReason(): string {
     return this.ctx.state.shuttingDown ? "worker_shutdown" : "worker_restart";
   }
 
-  /** Ends background tasks the journal has open but no provider process runs any more. */
   async closeOrphans(match: (threadId: string, item: Item) => boolean, stopReason: string): Promise<number> {
     const open = await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.openBackgroundTasks()));
     let closed = 0;
@@ -134,7 +199,6 @@ export class ProviderRuntimes {
 
       if (ended.content.case === "backgroundTask") {
         ended.content.value.stopReason = stopReason;
-        // Now: when its end is recorded (for a crash, when the worker found it dead).
         ended.content.value.endedAt = timestampNow();
       }
 

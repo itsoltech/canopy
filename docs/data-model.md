@@ -266,7 +266,7 @@ Pozostałe tabele:
 | `thread_blobs` | bloby, które pokazuje transkrypt wątku (podglądy obrazów od workera): przez nie UI czyta blob (właściciel, drzewo wątku) |
 | `worker_journal_cursors` | potwierdzone `journal_seq` per worker, dziennik i wątek (kursory `Welcome`) |
 | `worker_configs`, `worker_config_history`, `secrets`, `worker_config_secrets` | zdalna konfiguracja workerów (migracja `0002`) — [worker-config.md](worker-config.md#7-schemat-0002_worker_config) |
-| `provider_instances` | globalne instancje dostawców (harness + id): połączenie, sekrety jako odwołania, środowisko uruchomienia, kolor, modele w pickerach (ulubione, ukryte, pokazane, własne), `all_workers` (migracja `0018`) — [worker-config.md](worker-config.md#9-globalne-instancje-dostawców) |
+| `provider_instances` | instancje dostawców (harness + id): połączenie, sekrety jako odwołania, środowisko uruchomienia, kolor, modele w pickerach (ulubione, ukryte, pokazane, własne), `all_workers` (migracja `0018`). Migracja `0065` zachowuje wymagane id `native` dla instancji wbudowanej, pozwalając zmieniać jej rodzaj połączenia — [worker-config.md](worker-config.md#9-globalne-instancje-dostawców) |
 | `provider_instance_workers` | instancja na workerze: `enabled` (`NULL` = `all_workers`) i nadpisania (ścieżki, argumenty, zmienne, endpoint, klucz); efektywny wynik trafia do `worker_configs.config.profiles` (migracja `0018`; `provider_model_selections` z `0015` usunięta, dane przeniesione) |
 | `audit_log` | komendy, decyzje, zmiany konfiguracji |
 | `agent_environments`, `worker_environments`, `instruction_documents` | rewizja środowiska właściciela, tagi, capabilities i ostatni raport workera oraz dokumenty instrukcji (`0057`) |

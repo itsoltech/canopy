@@ -87,16 +87,13 @@ export function usableBy(profile: ResolvedProfile, provider: "claude" | "codex" 
   return profile.providers.includes(provider);
 }
 
-/** The Codex process for profiles without their own variables. */
-export const SHARED_CODEX = "shared";
-
 export interface CodexGroup {
   /** Settings of the process: a change restarts it. */
   readonly key: string;
   readonly profiles: ResolvedProfile[];
   /** Variables of the process (a profile's own). */
   readonly env: Readonly<Record<string, string>>;
-  /** The instance's own runtime (executable, homes, launch arguments); empty for the shared process. */
+  /** The instance's runtime (executable, homes, launch arguments). */
   readonly runtime: ProfileRuntimeConfig;
   /** The instance a process of its own serves. */
   readonly id?: string;
@@ -104,10 +101,6 @@ export interface CodexGroup {
 
 export function codexProfileGroup(profileId: string): string {
   return `profile:${profileId}`;
-}
-
-export function hasEnv(profile: ResolvedProfile): boolean {
-  return Object.keys(profile.env).length > 0;
 }
 
 /** The provider a command starts work for (admission: turns wait for an install of its CLI). */

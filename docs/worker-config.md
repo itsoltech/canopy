@@ -331,9 +331,11 @@ uprawnienia użytkownika systemowego workera. Środki:
 
 ## 6. Zmiana na żywo
 
-- Limity i domyślne narzędzia natywne obowiązują od następnej tury.
-- Zmiana profili albo ustawień Codexa wymaga restartu `codex app-server`. Worker robi to, gdy nie ma żadnej tury w toku (zmiana czeka do końca ostatniej). Restartują się tylko procesy, których ustawienia się zmieniły (osobny app-server profilu ze zmiennymi, sekcja 8.1); ich wątki wznawiają się w nowym procesie (`thread/resume`), a procesy w tle zamkniętego procesu kończą się jako przerwane.
-- Claude Code dostaje środowisko profilu przy każdej turze (`query()` per tura), więc zmiana obowiązuje od następnej tury po zastosowaniu konfiguracji.
+- Każda instancja utrzymuje migawkę efektywnej konfiguracji: połączenie i proxy, zmienne (także sekrety), plik wykonywalny i jego wersję, argumenty, katalogi, logowanie i opcje harnessu. Zmiana nie przerywa rozpoczętych tur ani należących do nich zadań w tle.
+- Zmieniona instancja przestaje przyjmować nową pracę do starego runtime'u. Nowe komendy czekają na zakończenie jego tur i zadań, potem worker wymienia runtime i dopiero wpuszcza oczekujące komendy. Bezczynna instancja jest wymieniana od razu. Sterowanie trwającą turą lub zadaniem nadal trafia do starego runtime'u.
+- Codex ma osobny `app-server` per instancja, również bez własnych zmiennych. Po drain następuje jeden restart do najnowszej konfiguracji; istniejące wątki używają `thread/resume`. Claude zamyka zachowane procesy sesji przed następną turą; Grok odtwarza proces ACP i ładuje sesję z tego samego katalogu.
+- Worker porównuje konfigurację per instancja, nie sam globalny numer `WorkerConfig.version`. Zmiana innej instancji nie restartuje pozostałych. `ConfigApplied` potwierdza przyjęcie wersji; zajęty runtime może jeszcze kończyć pracę na poprzedniej migawce.
+- Domyślne modele i effort są wybierane dla nowej tury. Ulubione i widoczność modeli to metadane pickerów, poza konfiguracją procesu.
 
 ## 7. Schemat (`0002_worker_config`)
 
@@ -362,7 +364,7 @@ Status: **zastąpione przez sekcję 9** (kontrakt: `ProviderProfileConfig.displa
 | `env` | zmienne środowiskowe procesu harnessu, każda jawna albo sekret |
 | `disabled` | wyłączony przez użytkownika |
 
-Wbudowany profil `native` zawsze istnieje (worker dodaje go, gdy konfiguracja go nie wymienia). Można mu nadać nazwę i zmienne, nie można zmienić połączenia, wyłączyć ani usunąć.
+Wbudowany profil `native` zawsze istnieje (worker dodaje go, gdy konfiguracja go nie wymienia). Można zmieniać jego połączenie w miejscu, nazwę i zmienne oraz wyłączać go na workerach; nie można go usunąć.
 
 **Usunięcie i wyłączenie.** Profilu, którego używa jakiś (niezarchiwizowany) wątek, nie da się usunąć (`FailedPrecondition`, w UI propozycja wyłączenia): wątek straciłby informację, jak dotrzeć do modelu. Wyłączony profil worker raportuje jako `available = false`, `detail = "disabled"` (bez wpisu w `issues`); gateway odrzuca na nim nowe wątki, a tura istniejącego wątku kończy się błędem `provider profile "<id>" is unavailable: disabled`, więc wątek mówi, dlaczego nie działa. Po włączeniu działa dalej. Usunięcie nieużywanego profilu usuwa też jego wybór modeli i sekrety.
 
@@ -384,9 +386,9 @@ Gdzie trafiają:
 | Harness | Jak |
 |---|---|
 | Claude Code | `options.env` każdej tury: środowisko workera, potem zmienne profilu, potem zmienne auth endpointu |
-| Codex | zmienne należą do procesu, więc profil ze zmiennymi ma **własny `codex app-server`** (ten sam izolowany `CODEX_HOME`, więc wątki przechodzą między procesami przez `thread/resume`); profile bez zmiennych dzielą jeden proces. Komendy idą do procesu profilu wątku, a steer, przerwanie i zatrzymanie zadania w tle do procesu, który ma wątek załadowany |
+| Codex | każda instancja ma **własny `codex app-server`**, niezależnie od zmiennych; wątki przechodzą między procesami przez `thread/resume` w tym samym `CODEX_HOME`. Steer, przerwanie i zatrzymanie zadania w tle trafiają do runtime'u prowadzącego tę pracę |
 
-Kiedy obowiązują: Claude od następnej tury po zastosowaniu konfiguracji; Codex po restarcie procesu profilu, który worker robi, gdy nie ma tur w toku (sekcja 6). Polecenia, które agent uruchamia, dziedziczą środowisko harnessu (Codex domyślnie pomija w nich zmienne z `KEY`, `SECRET`, `TOKEN` w nazwie — `shell_environment_policy`).
+Kiedy obowiązują: od następnej tury, po drain zmienionej instancji (sekcja 6). Polecenia, które agent uruchamia, dziedziczą środowisko harnessu (Codex domyślnie pomija w nich zmienne z `KEY`, `SECRET`, `TOKEN` w nazwie — `shell_environment_policy`).
 
 Potwierdzone na żywo (2026-11-02, profil endpointu na CLIProxyAPI): Codex (`gpt-6.1-sol`, osobny app-server profilu) i Claude (`sonnet`) uruchomiły `printf` i zwróciły jawną zmienną profilu oraz informację, że zmienna-sekret jest ustawiona; klucz i wartość sekretu nie pojawiły się w odpowiedziach dla UI ani w logach gateway, workera i BFF.
 
@@ -422,7 +424,9 @@ Status: **zaimplementowane** (migracja `0018_global_providers`; gateway `store/i
 | `favorites` (kolejność), `hidden_models`, `shown_models`, `custom_models` | |
 | `all_workers` (także workery zarejestrowane później), `built_in`, `revision` | |
 
-Wbudowane instancje `claude/native`, `codex/native` i `grok/native` (logowanie CLI na urządzeniu) istnieją zawsze, na wszystkich workerach; można im nadać nazwę, zmienne i ścieżki, wyłączyć na wybranym workerze, ale nie usunąć ani zmienić rodzaju połączenia.
+Wbudowane instancje `claude/native`, `codex/native` i `grok/native` istnieją zawsze; można im nadać nazwę, zmienne i ścieżki, wyłączyć na wybranym workerze oraz przełączać Device login ↔ Proxy. Id `native` pozostaje stałe, także dla instancji z istniejącymi wątkami. Nie można ich usunąć.
+
+Przełączenie połączenia zachowuje katalog sesji: Claude używa tego samego `CLAUDE_CONFIG_DIR`, Codex tego samego `CODEX_HOME` z wpisem `model_providers` przekazanym przez `-c`, a Grok tego samego trwałego katalogu `sessions`. `own_login` zostaje zachowane jako wybór katalogu także podczas używania proxy. Powrót Codexa do Device login jawnie ustawia `modelProvider = openai` przy wznowieniu, żeby nie odziedziczyć proxy z poprzedniej sesji. Jawna zmiana ścieżki katalogu lub `own_login` jest osobną operacją i może wskazać magazyn bez poprzednich sesji.
 
 ### 9.2. Synchronizacja
 
@@ -457,7 +461,7 @@ Pickery (nowy wątek i wątek) pokazują dla wybranego workera tylko instancje `
 
 - Profile są identyfikowane parą (dostawca, id): duplikat tej pary jest błędem krytycznym; `native` worker dodaje sam tylko dla dostawców, których konfiguracja nie wymienia. Wyłączona zaślepka nie jest dalej walidowana. Profil dla obu dostawców (konfiguracja lokalna albo starsza; także `native` dodany przez workera) jest rozbijany na instancję per dostawca i tak sprawdzany i raportowany: wyłączony Claude nie wyłącza strony Codexa.
 - **Środowisko uruchomienia instancji** (`hasOwnRuntime`): własny plik wykonywalny, `home_path` (katalog CLI właściciela urządzenia, z którego dowiązywane jest logowanie), `shadow_home_path` (izolowany katalog harnessu; dotąd zawsze `<data_dir>/codex-home` / `claude-home`), argumenty uruchomienia, `own_login`. Instancja z `home_path` albo `own_login` bez `shadow_home_path` dostaje własny katalog `<data_dir>/homes/<harness>-<id>` (dwa logowania nie dzielą katalogu).
-  - Codex: instancja z własnym środowiskiem (albo zmiennymi) ma własny `codex app-server`: `<binary> app-server … <launch_args>`, `CODEX_HOME` = jej katalog. Wątki instancji z własnym katalogiem żyją w nim (zmiana katalogu instancji z wątkami = ich sesje zostają w starym).
+  - Codex: każda instancja ma własny `codex app-server`: `<binary> app-server … <launch_args>`, `CODEX_HOME` = jej katalog. Wątki instancji z własnym katalogiem żyją w nim (jawna zmiana katalogu instancji z wątkami = ich sesje zostają w starym).
   - Claude: per zapytanie `pathToClaudeCodeExecutable`, `CLAUDE_CONFIG_DIR` w `env` i `extraArgs` (z `--flag wartość`); pomocnicze funkcje SDK (`forkSession`, `getSessionMessages`) czytają katalog z procesu, więc wywołania idą po kolei z ustawionym `CLAUDE_CONFIG_DIR` katalogu instancji.
 - **Raport per instancja** (`ConfigApplied.profiles`): `version` (wersja jej pliku wykonywalnego albo dostawcy), `auth` i `authenticated`: endpoint — „endpoint key”; native — login w katalogu (Codex `auth.json`: „ChatGPT” albo „OpenAI API key”, czytany tylko kształt; Claude `.credentials.json`: „Claude account”; na macOS Claude trzyma login w pęku kluczy: nieznane), albo klucz w zmiennych (`ANTHROPIC_API_KEY` itd.). Native bez logowania, brak CLI albo plik wykonywalny, który się nie uruchamia, robią instancję niedostępną z powodem (`not signed in`, `no Codex login on this device`, `… not found or not runnable`) — bez wpisu w `issues`.
 - **`ProbeProviders`** (UI: Refresh): worker stosuje bieżącą konfigurację jeszcze raz (sprawdza wersje i logowania), wysyła `ConfigApplied` z tą samą wersją i katalog modeli, potem odpowiada. Capability `probe_providers`.

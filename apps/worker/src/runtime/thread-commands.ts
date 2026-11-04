@@ -8,6 +8,7 @@ import type { SteerError } from "../providers/turn-input.ts";
 
 import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
+import { instanceKey } from "./instance-runtimes.ts";
 
 const TURN_NOT_RUNNING = "TURN_NOT_RUNNING";
 
@@ -29,6 +30,10 @@ export class ThreadCommands {
     this.ctx.ops.checkCwd(spec.cwd);
     this.ctx.state.cwds.set(spec.threadId, spec.cwd);
     this.ctx.state.threadProviders.set(spec.threadId, spec.provider);
+    this.ctx.state.threadInstances.set(
+      spec.threadId,
+      instanceKey(Provider[spec.provider]!.toLowerCase(), spec.providerProfileId),
+    );
     const fork = kind.value.fork;
 
     // A fork point without its provider ref would make both harnesses copy the whole history instead.
@@ -36,8 +41,10 @@ export class ThreadCommands {
       throw new CommandError("FORK_POINT_UNKNOWN", `turn ${fork.afterTurnId} has no fork point at the provider`, true);
     }
 
-    if (spec.provider === Provider.GROK) await this.ctx.ops.runGrok((threads) => threads.create(spec, fork));
-    else if (spec.provider === Provider.CLAUDE) await this.ctx.ops.runClaude((threads) => threads.create(spec, fork));
+    if (spec.provider === Provider.GROK)
+      await this.ctx.ops.runGrok((threads) => threads.create(spec, fork), spec.providerProfileId || "native");
+    else if (spec.provider === Provider.CLAUDE)
+      await this.ctx.ops.runClaude((threads) => threads.create(spec, fork), spec.providerProfileId || "native");
     else
       await this.ctx.ops.runCodex(
         spec.provider,
@@ -55,6 +62,10 @@ export class ThreadCommands {
     this.ctx.ops.checkCwd(spec.cwd);
     this.ctx.state.cwds.set(spec.threadId, spec.cwd);
     this.ctx.state.threadProviders.set(spec.threadId, spec.provider);
+    this.ctx.state.threadInstances.set(
+      spec.threadId,
+      instanceKey(Provider[spec.provider]!.toLowerCase(), spec.providerProfileId),
+    );
 
     // The files first: the input already names their paths.
     if (input.attachments.length > 0) await this.ctx.ops.ensureAttachments(spec.threadId, input.attachments);
@@ -62,9 +73,15 @@ export class ThreadCommands {
     const settings = { model, effort, permissionMode: permissionMode || spec.permissionMode };
 
     if (spec.provider === Provider.GROK)
-      await this.ctx.ops.runGrok((threads) => threads.startTurn(spec, turnId, input, settings));
+      await this.ctx.ops.runGrok(
+        (threads) => threads.startTurn(spec, turnId, input, settings),
+        spec.providerProfileId || "native",
+      );
     else if (spec.provider === Provider.CLAUDE)
-      await this.ctx.ops.runClaude((threads) => threads.startTurn(spec, turnId, input, settings));
+      await this.ctx.ops.runClaude(
+        (threads) => threads.startTurn(spec, turnId, input, settings),
+        spec.providerProfileId || "native",
+      );
     else
       await this.ctx.ops.runCodex(
         spec.provider,
@@ -79,23 +96,31 @@ export class ThreadCommands {
     const { threadId, turnId, inputId, input } = kind.value;
 
     if (!input || !inputId) throw new CommandError("INVALID_COMMAND", "input or input_id missing", true);
+
     // Like InterruptTurn: the runtime with the running turn takes it.
-    const claude = this.ctx.state.claude;
+    const claude = [...this.ctx.state.claude].find(([, handle]) =>
+      Context.get(handle.context, ClaudeThreads).running(threadId),
+    );
 
     const steer = (effect: Effect.Effect<void, SteerError>) =>
       effect.pipe(
         Effect.catchTag("SteerError", (error) => Effect.die(new CommandError(error.code, error.message, true))),
       );
 
-    if (this.ctx.state.grok?.runtime.running(threadId)) {
+    if ([...this.ctx.state.grok.values()].some((handle) => handle.runtime.running(threadId))) {
       throw new CommandError("STEER_REJECTED", "Grok ACP does not support mid-turn input; queue this message", true);
-    } else if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {
-      await this.ctx.ops.runClaude((threads) => steer(threads.steer(threadId, turnId, inputId, input)));
+    } else if (claude) {
+      await this.ctx.ops.runClaude(
+        (threads) => steer(threads.steer(threadId, turnId, inputId, input)),
+        claude[0],
+        true,
+      );
     } else if (this.ctx.state.codex.size > 0) {
       await this.ctx.ops.runCodex(
         Provider.CODEX,
         (threads) => steer(threads.steer(threadId, turnId, inputId, input)),
         this.ctx.ops.codexGroupWith(threadId),
+        true,
       );
     } else {
       throw new CommandError("STEER_NOT_RUNNING", "the turn is not running on this worker", true);
@@ -112,18 +137,24 @@ export class ThreadCommands {
       throw new CommandError(TURN_NOT_RUNNING, "the turn is not running on this worker", true);
     // Remembered with the turn: if it ends without the worker seeing it, its interruption was asked for.
     await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.noteInterrupt(threadId, turnId)));
-    // The command does not name the provider: the runtime with the running turn takes it.
-    const claude = this.ctx.state.claude;
 
-    if (this.ctx.state.grok?.runtime.running(threadId)) {
-      await this.ctx.ops.runGrok((threads) => threads.interrupt(threadId, turnId));
-    } else if (claude && Context.get(claude.context, ClaudeThreads).running(threadId)) {
-      await this.ctx.ops.runClaude((threads) => threads.interrupt(threadId, turnId));
+    // The command does not name the provider: the runtime with the running turn takes it.
+    const claude = [...this.ctx.state.claude].find(([, handle]) =>
+      Context.get(handle.context, ClaudeThreads).running(threadId),
+    );
+
+    const grok = [...this.ctx.state.grok].find(([, handle]) => handle.runtime.running(threadId));
+
+    if (grok) {
+      await this.ctx.ops.runGrok((threads) => threads.interrupt(threadId, turnId), grok[0], true);
+    } else if (claude) {
+      await this.ctx.ops.runClaude((threads) => threads.interrupt(threadId, turnId), claude[0], true);
     } else {
       await this.ctx.ops.runCodex(
         Provider.CODEX,
         (threads) => threads.interrupt(threadId, turnId),
         this.ctx.ops.codexGroupWith(threadId),
+        true,
       );
     }
 

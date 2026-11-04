@@ -41,11 +41,15 @@ export class HostState {
   /** Sign-ins from the app in progress, by provider/profile. */
   readonly logins = new Map<string, Promise<unknown>>();
   link: GatewayLink | undefined;
-  /** Codex runtimes by group (SHARED_CODEX, or one per profile with its own variables). */
+  /** Runtime snapshots per instance; configuration changes drain only the affected instance. */
   readonly codex = new Map<string, ProviderRuntimeHandle<CodexThreads>>();
-  claude: ProviderRuntimeHandle<ClaudeThreads> | undefined;
-  grok: { key: string; runtime: GrokThreads } | undefined;
-  rebuildWanted = false;
+  readonly claude = new Map<string, ProviderRuntimeHandle<ClaudeThreads>>();
+  readonly grok = new Map<string, { key: string; runtime: GrokThreads }>();
+  readonly threadInstances = new Map<string, string>();
+  readonly runtimeUsers = new Map<string, number>();
+  readonly staleRuntimes = new Set<string>();
+  runtimeReconcile: Promise<void> = Promise.resolve();
+  readonly runtimeWaiters = new Set<() => void>();
   /** The worker is stopping (shutdown): runtimes stay down, tasks they kill end as worker_shutdown. */
   shuttingDown = false;
   readonly codexRestart = new Map<string, Promise<void>>();
@@ -67,8 +71,8 @@ export class HostState {
   };
   /** Claude's mention catalogs (a listing starts Claude Code); Codex answers skills/list from its own cache. */
   readonly catalogs = new CatalogCache();
-  /** The isolated Claude config dir of the running Claude runtime (its skills and commands). */
-  claudeHome = "";
+  /** The isolated Claude config dir per instance (skills and commands). */
+  readonly claudeHomes = new Map<string, string>();
   readonly files: AttachmentFiles;
   readonly previews: PreviewStore;
   /** Working directory per thread (from the commands' ThreadSpec): view_image's scope. */
