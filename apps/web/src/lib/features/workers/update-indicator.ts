@@ -10,16 +10,19 @@ export function updateIndicator(
   const workers = snapshot?.workers ?? [];
   const clis = snapshot?.cliWorkers.flatMap((w) => w.cliTools) ?? [];
   const run = snapshot?.run;
+  const failedWorker = workers.find((w) => w.state === "failed");
+  const failedDesktop = workers.find((w) => w.desktop?.phase === "failed")?.desktop;
+  const failedCli = clis.find((t) => t.tool?.install?.state === "failed");
 
   const failed =
     error ||
     snapshot?.checkError ||
-    (app?.phase === "error" ? app.message : "") ||
-    (["failed", "blocked"].includes(run?.state ?? "") ? run?.reason : "") ||
-    (snapshot?.gatewayState === "failed" ? snapshot.gatewayReason : "") ||
-    workers.find((w) => w.state === "failed")?.reason ||
-    workers.find((w) => w.desktop?.phase === "failed")?.desktop?.reason ||
-    clis.find((t) => t.tool?.install?.state === "failed")?.tool?.install?.error;
+    (app?.phase === "error" ? app.message || "App update failed" : "") ||
+    (["failed", "blocked"].includes(run?.state ?? "") ? run?.reason || "Update all stopped" : "") ||
+    (snapshot?.gatewayState === "failed" ? snapshot.gatewayReason || "Gateway update failed" : "") ||
+    (failedWorker ? failedWorker.reason || "Worker update failed" : "") ||
+    (failedDesktop ? failedDesktop.reason || "Desktop update failed" : "") ||
+    (failedCli ? failedCli.tool?.install?.error || "Agent CLI update failed" : "");
 
   if (failed) return { phase: "error", message: failed, progress: undefined };
 

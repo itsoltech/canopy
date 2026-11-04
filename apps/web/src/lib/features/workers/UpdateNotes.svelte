@@ -1,10 +1,34 @@
-<script lang="ts">
+<script module lang="ts">
   import { Schema } from "effect";
-  import type { ClassValue } from "svelte/elements";
   import { requestJson } from "#lib/shared/http.ts";
+
+  type ReleaseNote = { version: string; markdown: string };
+
+  const cache = new Map<string, { at: number; value: Promise<ReleaseNote[]> }>();
+
+  function loadNotes(query: string): Promise<ReleaseNote[]> {
+    const cached = cache.get(query);
+
+    if (cached && Date.now() - cached.at < 60000) return cached.value;
+
+    const value = requestJson("GET", `/api/updates/notes?${query}`, undefined, 120000).then((response) =>
+      [
+        ...Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ version: Schema.String, markdown: Schema.String })))(
+          response,
+        ),
+      ].filter((note) => !!note.markdown.trim()),
+    );
+
+    if (cache.size >= 100) cache.clear();
+    cache.set(query, { at: Date.now(), value });
+
+    return value;
+  }
+</script>
+
+<script lang="ts">
+  import type { ClassValue } from "svelte/elements";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
-  import Alert from "#lib/shared/ui/Alert.svelte";
-  import Button from "#lib/shared/ui/Button.svelte";
   import UpdateReleaseNotes from "#lib/features/desktop/UpdateReleaseNotes.svelte";
 
   let {
@@ -13,6 +37,7 @@
     channel,
     source = "canopy",
     expanded = false,
+    compact = false,
     class: className,
   }: {
     current: string;
@@ -20,41 +45,26 @@
     channel: string;
     source?: "canopy" | "claude" | "codex";
     expanded?: boolean;
+    compact?: boolean;
     class?: ClassValue;
   } = $props();
 
-  let open = $state(false);
-  let notes = $state<{ version: string; markdown: string }[]>();
-  let error = $state("");
-  let retry = $state(0);
+  let notes = $state<ReleaseNote[]>([]);
 
   const query = $derived(
     current && target && current !== target ? new URLSearchParams({ current, target, channel, source }).toString() : "",
   );
 
   $effect(() => {
-    if (expanded) open = true;
-  });
+    notes = [];
 
-  $effect(() => {
-    if (!open || !query) return;
-    void retry;
+    if (!query) return;
     let active = true;
-    error = "";
-    notes = undefined;
-    void requestJson("GET", `/api/updates/notes?${query}`, undefined, 120_000)
+    void loadNotes(query)
       .then((value) => {
-        if (!active) return;
-        notes = [
-          ...Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ version: Schema.String, markdown: Schema.String })))(
-            value,
-          ),
-        ];
+        if (active) notes = value;
       })
-      .catch((cause: Error) => {
-        if (!active) return;
-        error = cause instanceof Error ? cause.message : "Release notes could not be loaded";
-      });
+      .catch(() => {});
 
     return () => {
       active = false;
@@ -62,17 +72,11 @@
   });
 </script>
 
-{#if current && target && current !== target}
-  <Disclosure bind:open class={className} summaryClass="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-    {#snippet summary()}Release notes · {current} → {target}{/snippet}
-    <div class="pt-4">
-      {#if error}<Alert tone="error"
-          >{error}{#snippet actions()}<Button size="sm" onclick={() => retry++}>Retry</Button>{/snippet}</Alert
-        >
-      {:else if notes}<UpdateReleaseNotes releases={notes} {channel} {source} />
-      {:else}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status">
-          Loading release notes…
-        </p>{/if}
+{#if notes.length}
+  <Disclosure open={expanded} class={className} summaryClass="py-1 text-sm/5 text-muted">
+    {#snippet summary()}{#if compact}What’s new{:else}Release notes · {current} → {target}{/if}{/snippet}
+    <div class={["break-anywhere pt-2", compact && "max-h-60 overflow-y-auto overscroll-contain"]}>
+      <UpdateReleaseNotes releases={notes} {channel} {source} />
     </div>
   </Disclosure>
 {/if}

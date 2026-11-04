@@ -231,7 +231,7 @@ test.skipIf(process.platform !== "linux")(
       expect(settings.read("stable")).toBe("nightly");
       expect(phases).toContain("downloading");
       expect(controller.status().phase).toBe("downloaded");
-      expect(controller.status().releases?.map((r) => r.version)).toEqual(["0.6.0-nightly.1", "0.5.0-beta.1", "0.4.0"]);
+      expect(controller.status().releases).toEqual([]);
       expect(requests).toEqual([
         "/v0.4.0/latest-linux.yml",
         "/v0.5.0-beta.1/beta-linux.yml",
@@ -248,6 +248,8 @@ test("release notes include every intervening channel release, newest first, wit
     { ...release("v0.4.0-beta.3", "beta-mac.yml"), body: "third" },
     { ...release("v0.4.0-beta.1", "beta-mac.yml"), body: "installed" },
     { ...release("v0.4.0-beta.2", "beta-mac.yml"), assets: [], body: "second" },
+    { ...release("v0.4.0-beta.1.1", "beta-mac.yml"), body: null },
+    { ...release("v0.4.0-beta.1.2", "beta-mac.yml"), body: "  " },
     { ...release("v0.4.0-beta.4", "beta-mac.yml"), body: "future" },
     { ...release("v0.4.0-nightly.1", "nightly-mac.yml"), body: "nightly" },
     { ...release("v0.4.0-beta.5", "beta-mac.yml"), draft: true },
