@@ -5,6 +5,7 @@
   import WorkerRow from "#lib/features/workers/WorkerRow.svelte";
   import AddWorkerWizard from "#lib/features/workers/AddWorkerWizard.svelte";
   import { WorkerSetup } from "#lib/features/workers/worker-setup.svelte.ts";
+  import { workerEnvironment } from "#lib/features/workers/worker-environment.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import WorkerConnectionSettings from "#lib/features/workers/WorkerConnectionSettings.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -19,6 +20,7 @@
   const overview = useOverview();
   const online = $derived(overview.ownWorkers.filter((w) => w.online).length);
   const setup = new WorkerSetup();
+  const environment = workerEnvironment(overview);
   const network = useNetworkAccess();
   let adding = $state(false);
   let error = $state("");
@@ -72,12 +74,22 @@
       >{/snippet}</Alert
   >{/if}
 <SettingsGroup>
-  {#each overview.ownWorkers as worker (worker.id)}<WorkerRow {worker} {setup} />
+  {#each overview.ownWorkers as worker (worker.id)}<WorkerRow {worker} {setup} {environment} />
   {:else}<SettingsRow
       title="Connect your first machine"
       description="Add a worker to run Claude, Codex or Grok on a machine you control."
     />{/each}
 </SettingsGroup>
+{#if environment.error}<Alert tone="error"
+    >{environment.error}{#snippet actions()}<Button size="sm" onclick={() => void environment.refresh()}
+        >Refresh tags</Button
+      >{/snippet}</Alert
+  >{/if}
+{#if overview.workers.some((worker) => worker.nodeId)}
+  <p class="px-1 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+    Workers from linked computers are managed in Settings → Workers on their home computer.
+  </p>
+{/if}
 <NetworkAccessSummary
   status={network.status}
   loaded={network.loaded}
@@ -107,4 +119,4 @@
 <UpdatesPanel />
 <SettingsGroup title="Install over SSH"><WorkerSshKey class="p-4 sm:p-5" /></SettingsGroup>
 <WorkerConnectionSettings {setup} />
-<AddWorkerWizard {setup} bind:open={adding} />
+<AddWorkerWizard {setup} workers={environment.snapshot.workers} bind:open={adding} />

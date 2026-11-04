@@ -9,6 +9,7 @@
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import TagInput from "#lib/shared/ui/TagInput.svelte";
   import { pageIn } from "#lib/shared/ui/motion.ts";
   import WorkerInstallStep from "./WorkerInstallStep.svelte";
   import WorkerConnectionStatus from "./WorkerConnectionStatus.svelte";
@@ -20,14 +21,16 @@
 
   let {
     setup,
+    workers = [],
     open = $bindable(false),
     class: className,
-  }: { setup: WorkerSetup; open?: boolean; class?: ClassValue } = $props();
+  }: { setup: WorkerSetup; workers?: readonly ui.EnvironmentWorker[]; open?: boolean; class?: ClassValue } = $props();
 
   const overview = useOverview();
   const network = useNetworkAccess();
   let step = $state(1);
   let name = $state("");
+  let tags = $state<string[]>([]);
   let address = $state("");
   let invitation = $state<ui.WorkerEnrollment>();
   let token = $state("");
@@ -62,6 +65,7 @@
     } else {
       step = 1;
       name = "";
+      tags = [];
       token = "";
       invitation = undefined;
       error = "";
@@ -90,7 +94,7 @@
       // Revoke the previous invitation first; a lost response is recoverable from Pending enrollments.
       if (currentEnrollment && !currentEnrollment.usedAt && !currentEnrollment.revokedAt)
         await setup.revoke(currentEnrollment.id);
-      const response = await workerAction("enroll", { name });
+      const response = await workerAction("enroll", { name, tags });
       invitation = response.enrollment;
       token = response.token;
       await setup.reload();
@@ -159,6 +163,14 @@
                 required
               /></Field
             >
+            <TagInput
+              label="Worker tags"
+              name="new-worker-tags"
+              bind:value={tags}
+              {workers}
+              automatic={false}
+              description="Optional groups for instructions, skills and plugins. Applied when this worker enrolls."
+            />
             <Field
               label="Gateway address for workers"
               description="Chosen from Network access. Add a hostname there if this worker uses a different network."
@@ -182,6 +194,7 @@
         {:else if step === 2}
           <WorkerInstallStep
             {name}
+            {tags}
             gatewayUrl={setup.gatewayUrl}
             fingerprint={setup.fingerprint}
             {token}

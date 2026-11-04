@@ -9,6 +9,8 @@ import { GatewayStore, InstanceStore, SettingsStore } from "../store/index.ts";
 import type { WorkerLink } from "../worker-link/index.ts";
 import type { CoreRuntime } from "./core.ts";
 import type { NetworkAccess } from "../network/network.ts";
+import { manualTags } from "../agent-environment/composition.ts";
+import { enrollTags } from "../agent-environment/enrollment.ts";
 
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const secret = () => randomBytes(32).toString("base64url");
@@ -95,8 +97,9 @@ export class WorkerAdministration {
     });
   }
 
-  async create(name: string): Promise<ui.CreateWorkerEnrollmentResponse> {
+  async create(name: string, requestedTags: readonly string[] = []): Promise<ui.CreateWorkerEnrollmentResponse> {
     name = machineName(name);
+    const tags = manualTags(requestedTags);
     const { runtime, userId } = this.options;
     const token = enrollmentSecret();
 
@@ -115,8 +118,8 @@ export class WorkerAdministration {
             if (pending.length >= 20) return yield* Effect.fail(new Error("too many pending invitations"));
 
             const rows =
-              yield* sql<EnrollmentRow>`INSERT INTO worker_enrollments (id, owner_user_id, name, token_hash, expires_at)
-          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${name}, ${digest(token)}, now() + interval '30 minutes')
+              yield* sql<EnrollmentRow>`INSERT INTO worker_enrollments (id, owner_user_id, name, token_hash, expires_at, tags)
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${name}, ${digest(token)}, now() + interval '30 minutes', ${tags}::text[])
           RETURNING id, name, expires_at, used_at, revoked_at, worker_id`;
 
             yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id)
@@ -197,7 +200,9 @@ export class WorkerAdministration {
         return yield* sql.withTransaction(
           Effect.gen(function* () {
             // UPDATE takes the row lock and rechecks eligibility after concurrent exchange/revoke.
-            const rows = yield* sql<EnrollmentRow & { owner_user_id: string }>`SELECT * FROM worker_enrollments
+            const rows = yield* sql<
+              EnrollmentRow & { owner_user_id: string; tags: string[] }
+            >`SELECT * FROM worker_enrollments
           WHERE token_hash = ${digest(request.enrollmentToken)} AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now() FOR UPDATE`;
 
             const row = rows[0];
@@ -215,6 +220,7 @@ export class WorkerAdministration {
             );
 
             yield* sql`UPDATE workers SET os = ${host.os}, arch = ${host.arch}, capabilities = ${JSON.stringify({ hostname: host.hostname })}::jsonb WHERE id = ${workerId}::uuid`;
+            yield* enrollTags(sql, row.owner_user_id, workerId, row.tags);
             yield* GatewayStore.use((s) =>
               s.setWorkerConfig(
                 workerId,

@@ -12,10 +12,11 @@ export class EnvironmentState {
   notice = $state("");
   busy = $state(false);
   editConflict = $state(false);
+  loaded = $state(false);
   #refresh = 0;
   #editRevision = 0n;
 
-  constructor(initial: JsonValue) {
+  constructor(initial: JsonValue = {}) {
     this.snapshot = decode(ui.AgentEnvironmentSnapshotSchema, initial);
     this.workerId = this.snapshot.workers[0]?.workerId ?? "";
   }
@@ -43,7 +44,10 @@ export class EnvironmentState {
     try {
       const result = decode(ui.AgentEnvironmentSnapshotSchema, await requestJson("GET", "/api/agent-environment"));
 
-      if (sequence === this.#refresh && result.revision >= this.snapshot.revision) this.snapshot = result;
+      if (sequence === this.#refresh && result.revision >= this.snapshot.revision) {
+        this.snapshot = result;
+        this.loaded = true;
+      }
 
       return result;
     } catch (error) {
@@ -79,16 +83,6 @@ export class EnvironmentState {
     });
 
     await this.mutate("DELETE", "", encode(ui.DeleteInstructionDocumentRequestSchema, body));
-  }
-
-  async tags(workerId: string, tags: string[]): Promise<void> {
-    const body = create(ui.SetEnvironmentTagsRequestSchema, {
-      workerId,
-      tags,
-      expectedRevision: this.snapshot.revision,
-    });
-
-    await this.mutate("POST", "/tags", encode(ui.SetEnvironmentTagsRequestSchema, body));
   }
 
   async resolve(file: EnvironmentFileStatus, action: string): Promise<void> {

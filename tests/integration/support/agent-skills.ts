@@ -34,8 +34,15 @@ export const librarySkill = () =>
   });
 
 /** The fixture never reads or writes a real CLI home and never launches a harness. */
-export async function skillMachine(gateway: TestGateway, root: string, name: string, os = "linux", capable = true) {
-  const registration = await gateway.addWorker(name);
+export async function skillMachine(
+  gateway: TestGateway,
+  root: string,
+  name: string,
+  os = "linux",
+  capable = true,
+  enrolled?: { workerId: string; credential: string },
+) {
+  const registration = enrolled ?? (await gateway.addWorker(name));
   const home = join(root, name, "home");
   const dataDir = join(root, name, "data");
 

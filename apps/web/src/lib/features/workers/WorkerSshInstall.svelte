@@ -12,12 +12,14 @@
 
   let {
     name,
+    tags,
     busy = $bindable(false),
     onenrollment,
     oninstalled,
     class: className,
   }: {
     name: string;
+    tags: string[];
     busy?: boolean;
     onenrollment: (value: ui.WorkerEnrollment) => void;
     oninstalled: () => void;
@@ -49,7 +51,7 @@
     } else output = "";
 
     try {
-      await workerSsh({ action, target, fingerprint, name }, controller.signal, (event) => {
+      await workerSsh({ action, target, fingerprint, name, tags }, controller.signal, (event) => {
         if (event.fingerprint) {
           fingerprint = event.fingerprint;
           trusted = event.trusted;

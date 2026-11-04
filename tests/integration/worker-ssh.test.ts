@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { ui, WorkerEnrollmentService } from "@canopy/contracts";
+import { createClient } from "@connectrpc/connect";
+import { createGrpcTransport } from "@connectrpc/connect-node";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient, type SqlConnection } from "effect/sql";
@@ -18,6 +20,8 @@ let directory = "";
 let ssh: Server;
 let port: number;
 let authenticated = 0;
+let acceptInstall = false;
+let installerInput = "";
 let privateKey = "";
 const hostKey = utils.generateKeyPairSync("ed25519", {});
 
@@ -47,7 +51,39 @@ describe.skipIf(!dockerAvailable)("owner-scoped SSH enrollment trust boundary", 
       connection.on("error", () => {});
       connection.on("authentication", (ctx) => {
         authenticated++;
-        ctx.reject();
+
+        if (acceptInstall) ctx.accept();
+        else ctx.reject();
+      });
+      connection.on("session", (accept) => {
+        const session = accept();
+        session.on("exec", (accept, _reject, info) => {
+          expect(info.command).toBe("sh -s");
+          const stream = accept();
+          stream.on("data", (chunk: Buffer) => {
+            installerInput += chunk.toString();
+          });
+          stream.on("end", () => {
+            void (async () => {
+              const token = installerInput.match(/--token '([^']+)'/)?.[1];
+
+              if (!token) throw new Error("Fixed installer did not receive an enrollment token");
+              const client = createClient(WorkerEnrollmentService, createGrpcTransport({ baseUrl: gw.grpcUrl }));
+
+              const enrolled = await client.enroll({
+                enrollmentToken: token,
+                host: { hostname: "ssh-tagged", os: "linux", arch: "x64" },
+              });
+
+              await gw.connect(enrolled.workerId, enrolled.workerCredential, "linux");
+              stream.exit(0);
+              stream.end();
+            })().catch(() => {
+              stream.exit(1);
+              stream.end();
+            });
+          });
+        });
       });
     });
     await new Promise<void>((resolve) => ssh.listen(0, "127.0.0.1", resolve));
@@ -86,6 +122,35 @@ describe.skipIf(!dockerAvailable)("owner-scoped SSH enrollment trust boundary", 
     ).toContain("Add this Canopy public key");
     // ssh2 only sends authentication after accepting the pinned/confirmed host key.
     expect(authenticated).toBeGreaterThan(0);
+  });
+
+  test("SSH install stores tags at home, without sending them in the fixed installer", async () => {
+    acceptInstall = true;
+    const settings = await gw.api.getSettings({});
+    await gw.api.updateUserSettings({ expectedVersion: settings.user!.version, workerGatewayUrl: gw.grpcUrl });
+    const target = `canopy@127.0.0.1:${port}`;
+
+    const events = await collect("install", {
+      target,
+      name: "SSH tagged worker",
+      tags: ["ssh-team"],
+      webOrigin: "http://localhost",
+    });
+
+    const workerId = events.findLast((e) => e.enrollment?.workerId)?.enrollment?.workerId;
+    expect(workerId).toBeDefined();
+    expect(installerInput.includes("ssh-team")).toBe(false);
+    expect((await gw.api.getAgentEnvironment({})).workers.find((w) => w.workerId === workerId)?.manualTags).toEqual([
+      "ssh-team",
+    ]);
+    expect(
+      await query("SELECT tags FROM worker_enrollments WHERE worker_id = $1 AND owner_user_id = $2", [
+        workerId,
+        gw.userId,
+      ]),
+    ).toEqual([{ tags: ["ssh-team"] }]);
+    acceptInstall = false;
+    installerInput = "";
   });
 
   test("a stored host-key mismatch is a hard error, independent of supplied confirmation", async () => {

@@ -52,7 +52,7 @@ export async function installWorker(session: SshInstallation, fail: (message: st
   session.signal.throwIfAborted();
 
   if (!setup.gatewayUrl) throw new ConnectError("Set the worker gateway address first", Code.FailedPrecondition);
-  const invitation = await session.workers.create(session.request.name);
+  const invitation = await session.workers.create(session.request.name, session.request.tags);
   session.token = invitation.token;
   session.invitationId = invitation.enrollment!.id;
   session.signal.throwIfAborted();

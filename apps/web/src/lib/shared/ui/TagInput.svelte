@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import type { ui } from "@canopy/contracts";
   import Field from "#lib/shared/ui/Field.svelte";
   import Combobox from "#lib/shared/ui/Combobox.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -18,7 +17,7 @@
     label: string;
     name: string;
     value?: string[];
-    workers?: readonly ui.EnvironmentWorker[];
+    workers?: readonly { manualTags: readonly string[]; automaticTags: readonly string[] }[];
     automatic?: boolean;
     description?: string;
     class?: ClassValue;

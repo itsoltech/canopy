@@ -31,7 +31,8 @@ Gateway przechowuje konfigurację w `worker_configs`; lokalny plik zawiera tylko
 
 ## Dodanie maszyny z UI
 
-1. W **Settings → Workers → Add worker** podaj nazwę. Kreator może jednym kliknięciem
+1. W **Settings → Workers → Add worker** podaj nazwę i opcjonalne **Worker tags**.
+   Picker podpowiada ręczne tagi używane przez Twoje workery. Kreator może jednym kliknięciem
    włączyć Network access i wybiera jego pierwszy adres. W Settings → Workers można zapisać
    własny origin (np. nazwę z Network access); pusty przywraca wybór automatyczny.
    Adres kreatora dotyczy nowych instalacji. Istniejące workery zachowują działający endpoint;
@@ -54,6 +55,21 @@ Przykład Maca przez Tailscale: ACL muszą pozwalać na TCP do portu Network acc
 Wybierz osiągalny adres tego komputera, **macOS** i wykonaj komendę na Macu. Wszystkie metody
 instalacji (skrypt, ręczna, Docker i SSH) przekazują `--fingerprint` z pełnym SHA-256.
 Enrollment najpierw wykonuje sam handshake TLS i porównuje pin; dopiero potem wysyła token.
+
+Tagi wybrane w kreatorze dotyczą każdej metody, również SSH i ponownego generowania
+tokenu. Gateway przechowuje je przy zaproszeniu; komendy i token nie zawierają
+tagów. Rejestracja zapisuje je atomowo z workerem. Pierwsze połączenie dobiera już
+przypisane instrukcje, skille i pluginy na podstawie tagów ręcznych i automatycznych.
+Ponowna instalacja SSH istniejącego workera zachowuje jego konfigurację i tagi;
+zmiany wykonuje się w jego szczegółach w Workers.
+
+W **Settings → Workers** rozwiń maszynę albo otwórz jej szczegóły. **Worker tags**
+pokazuje wykryte OS/architekturę i pozostałe automatyczne fakty tylko do odczytu,
+oraz edytowalne **Manual tags**. **Save tags** zapisuje zmianę z kontrolą rewizji,
+audytuje ją i uruchamia ponowne uzgodnienie przypisań. Worker offline odbierze
+aktualny stan po połączeniu. Workery z połączonego komputera wymagają edycji
+w Workers na swoim komputerze macierzystym. Agent environment pokazuje tagi
+tylko do odczytu z odnośnikiem **Edit in Workers**.
 Plik 0600 zapisuje `gateway_certificate` i `gateway_fingerprint`; WorkerLink oraz niezależny
 UpdateService sprawdzają certyfikat i dokładny pin. Nie trzeba instalować systemowego CA.
 Listener procesu BFF/lokalnego workera nadal obsługuje dotychczasowe połączenia HTTP(S),
@@ -184,13 +200,15 @@ przez administratora. launchd uruchamia worker w sesji zalogowanego użytkownika
 - Migracja **0044_worker_enrollment** dodaje `worker_enrollments`: właściciel, nazwa,
   SHA-256 tokenu, daty utworzenia/wygaśnięcia/użycia/odwołania i utworzony worker.
   Token oraz credential mają po 32 losowe bajty (base64url); baza zna tylko ich hashe.
+  Migracja **0064_worker_enrollment_tags** dodaje ręczne tagi zaproszenia (do 32),
+  zapisane wyłącznie po stronie gatewaya i kopiowane przy wymianie tokenu.
 - Token jest ważny **30 minut** i działa raz. `WorkerEnrollmentService.Enroll` jest
   anonimowym RPC na tym samym porcie co `WorkerLinkService`, bez tokenu usługi UI.
   Ma wspólny limit **60 prób/minutę na proces gateway**, także dla błędnych tokenów.
   Nie ufa nagłówkom proxy; dla wdrożeń publicznych można dodatkowo ograniczyć IP na brzegu.
   Maksymalnie 20 aktywnych zaproszeń na właściciela; lista obejmuje ostatni dzień (do 100 wpisów).
 - Wymiana blokuje wiersz i w jednej transakcji sprawdza ważność, tworzy worker należący do
-  właściciela tokenu, zapisuje fakty maszyny i początkowy config, synchronizuje instancje
+  właściciela tokenu, zapisuje fakty maszyny, ręczne tagi i początkowy config, synchronizuje instancje
   oraz oznacza token jako użyty. Klient nie wybiera właściciela. Błędy nie odróżniają
   złego, zużytego, odwołanego i wygasłego tokenu; nie odbijają wartości wejścia ani SQL.
 - Menu **…**: **Rename**, **Rotate credential**, **Revoke**, **Archive**. Rotacja zachowuje

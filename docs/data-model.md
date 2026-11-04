@@ -270,6 +270,7 @@ Pozostałe tabele:
 | `provider_instance_workers` | instancja na workerze: `enabled` (`NULL` = `all_workers`) i nadpisania (ścieżki, argumenty, zmienne, endpoint, klucz); efektywny wynik trafia do `worker_configs.config.profiles` (migracja `0018`; `provider_model_selections` z `0015` usunięta, dane przeniesione) |
 | `audit_log` | komendy, decyzje, zmiany konfiguracji |
 | `agent_environments`, `worker_environments`, `instruction_documents` | rewizja środowiska właściciela, tagi, capabilities i ostatni raport workera oraz dokumenty instrukcji (`0057`) |
+| `worker_enrollments.tags` | ręczne tagi zaproszenia właściciela (`0064`), kopiowane atomowo do `worker_environments.manual_tags` przy rejestracji; token i komenda instalacji nie zawierają tagów |
 | `agent_skills`, `agent_skill_versions`, `agent_skill_source_previews` | przypisania, niezmienne artefakty i provenance oraz zamrożone preview Git (`0058–0059`) |
 | `agent_marketplaces`, `agent_marketplace_previews`, `agent_plugins`, `agent_plugin_versions` | przypięte katalogi marketplace, 30-minutowe preview, przypisania i niezmienne zatwierdzone wersje pluginów (`0060`); każdy odczyt/zapis filtruje ownera; audyt zgody zawiera checksum, commit i wersję |
 
