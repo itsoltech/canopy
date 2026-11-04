@@ -121,6 +121,17 @@ binarki poza Dockerem wymaga dostarczenia Git przez administratora. Nie trzeba
 instalować `skills`, Node ani npm; wklejone komendy nie są uruchamiane. Dane dostępu
 pochodzą wyłącznie z zaszyfrowanego magazynu konektorów gatewaya.
 
+Obraz gatewaya działa bez roota jako UID/GID 65532 (`canopy`), z zapisywalnym
+`HOME=/home/canopy`. Git może tam zapisywać konfigurację, a domyślny cache wydań
+znajduje się w `/home/canopy/.cache/canopy/releases`. Web ma ten sam zapisywalny
+HOME; worker używa istniejącego użytkownika `canopy` (10001) i wolumenu `/home/canopy`.
+Opcjonalne `CANOPY_UPDATE_CACHE_DIR` pozwala ustawić inny katalog cache serwera
+(w Compose: `services.gateway.environment`); zamontowany katalog musi być zapisywalny
+dla UID 65532. Bez tej zmiennej gateway respektuje `$XDG_CACHE_HOME/canopy/releases`,
+a następnie `~/.cache/canopy/releases`. Gdy wybrany katalog nie jest zapisywalny,
+używa prywatnego katalogu w systemowym katalogu tymczasowym i zapisuje jedno ostrzeżenie.
+Ten awaryjny cache nie jest trwały; zachowanie cache między restartami wymaga wolumenu.
+
 Worker w kontenerze (opcjonalnie, profil `worker`) — token z Settings → Workers → Add worker:
 
 ```sh

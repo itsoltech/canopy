@@ -238,7 +238,7 @@ i wyświetla jawny fallback. Skrypt zawsze weryfikuje checksum przed wykonaniem 
 | `CANOPY_VERSION` | Wspólna wersja, wstrzykiwana przez pipeline. |
 | `CANOPY_UPDATE_CHANNEL` | Kanał początkowy, domyślnie `stable`; `beta`, `nightly` lub stabilny pin. Zapisany wybór administratora ma pierwszeństwo. |
 | `CANOPY_RELEASE_BASE_URL` | Alternatywny HTTPS endpoint o układzie API GitHub (mirror/testy). |
-| `CANOPY_UPDATE_CACHE_DIR` | Trwały cache gatewaya, domyślnie `~/.cache/canopy/releases`. |
+| `CANOPY_UPDATE_CACHE_DIR` | Katalog cache gatewaya; ma pierwszeństwo przed `$XDG_CACHE_HOME/canopy/releases` i `~/.cache/canopy/releases`. Brak zapisu powoduje jedno ostrzeżenie i przejście na prywatny, nietrwały katalog pod `os.tmpdir()`. Jeśli on też jest niedostępny, UI dostaje konkretny błąd zamiast informacji o braku połączenia. |
 | `CANOPY_INSTALL_KIND=docker` | Jawnie oznacza kontener; runtime rozpoznaje też `/.dockerenv` i `/run/.containerenv`, a poza kontenerem standalone Bun albo checkout źródeł. |
 
 Samoczynna wymiana obsługuje binarki **Linux/macOS** z zapisywalnym katalogiem

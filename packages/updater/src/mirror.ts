@@ -9,10 +9,13 @@ export class ReleaseMirror {
   readonly #inflight = new Map<string, Promise<string>>();
   #manifest: Promise<ReleaseManifest> | undefined;
   constructor(
-    readonly directory: string,
+    private readonly cacheDirectory: string,
     readonly version: string,
     readonly source: ReleaseSource,
   ) {}
+  get directory(): string {
+    return this.cacheDirectory;
+  }
   manifest(): Promise<ReleaseManifest> {
     return (this.#manifest ??= this.#loadManifest().catch((error) => {
       this.#manifest = undefined;

@@ -1,9 +1,10 @@
-import { Code, ConnectError, createClient, type Client } from "@connectrpc/connect";
+import { createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import { error, fail, isActionFailure, isHttpError, type ActionFailure } from "@sveltejs/kit";
 import { ui } from "@canopy/contracts";
 import { GATEWAY_SERVICE_TOKEN, GATEWAY_URL } from "$app/env/private";
 import { desktopGateway, type GatewayCompatibility } from "./desktop-gateway.ts";
+import { gatewayFailure } from "./gateway-errors.ts";
 
 const desktop = process.env["CANOPY_DESKTOP_CLIENT_TOKEN"]
   ? desktopGateway(process.env["CANOPY_DESKTOP_GATEWAY_ROUTES"] ?? "", process.env["CANOPY_DESKTOP_CLIENT_TOKEN"])
@@ -23,10 +24,10 @@ export async function gatewayCompatibility(): Promise<GatewayCompatibility> {
       gatewayRole: info.gatewayRole,
       linkedComputers: info.linkedComputers,
     };
-  } catch {
+  } catch (cause) {
     return {
       state: "unavailable",
-      message: "The gateway is not available",
+      message: gatewayFailure(cause).message,
       methods: [],
       gatewayVersion: "",
       gatewayRole: "",
@@ -74,37 +75,12 @@ export function gateway(): Client<typeof ui.GatewayService> {
   return client;
 }
 
-/** Maps gateway errors to HTTP errors; internal details stay in the server log. */
+/** Maps gateway errors to HTTP errors; only sanitised messages reach the response and log. */
 export function failWith(cause: unknown): never {
-  if (cause instanceof ConnectError) {
-    switch (cause.code) {
-      case Code.InvalidArgument:
-        error(400, cause.rawMessage);
-      case Code.NotFound:
-        error(404, cause.rawMessage);
-      case Code.PermissionDenied:
-        error(403, cause.rawMessage);
-      case Code.ResourceExhausted:
-        error(429, cause.rawMessage);
-      case Code.FailedPrecondition:
-        error(409, cause.rawMessage);
-      case Code.Unimplemented:
-        error(426, "Update Canopy on your gateway to use this feature");
-      case Code.Unauthenticated:
-        error(401, "Desktop access is invalid or revoked. Pair this app again in gateway Settings → Devices");
-      case Code.Unavailable:
-        // Sent by the gateway (e.g. a worker is offline): the message is for the user. A transport
-        // failure carries the Node error as `cause` and may name internal addresses: log it only.
-        if (cause.cause === undefined) error(503, cause.rawMessage);
-        console.error("gateway unreachable", cause);
-        error(503, "The gateway is not available");
-      default:
-        break;
-    }
-  }
+  const failure = gatewayFailure(cause);
 
-  console.error("gateway call failed", cause);
-  error(502, "The gateway is not available");
+  if (failure.status >= 500) console.error("gateway call failed", failure);
+  error(failure.status, failure.message);
 }
 
 export async function call<A>(run: (api: Client<typeof ui.GatewayService>) => Promise<A>): Promise<A> {

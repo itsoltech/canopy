@@ -29,9 +29,13 @@ FROM build AS web-build
 RUN bun scripts/build-web.ts --outdir /out/web
 
 # Gateway: gRPC (HTTP/2) for workers and the web BFF on 7443. Needs PostgreSQL (CANOPY_DATABASE_URL).
-FROM debian:bookworm-slim AS gateway
+FROM debian:bookworm-slim AS gateway-base
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates libstdc++6 \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --gid 65532 canopy \
+ && useradd --create-home --uid 65532 --gid 65532 --shell /usr/sbin/nologin canopy
+
+FROM gateway-base AS gateway
 ARG CANOPY_VERSION=0.0.0-dev
 ARG CANOPY_REVISION=unknown
 LABEL org.opencontainers.image.title="canopy-gateway" \
@@ -41,7 +45,7 @@ LABEL org.opencontainers.image.title="canopy-gateway" \
       org.opencontainers.image.revision="${CANOPY_REVISION}"
 COPY --from=gateway-build /out/canopy-gateway /usr/local/bin/canopy-gateway
 # sharp's native library is extracted on first start; /tmp is writable for the nonroot user.
-ENV CANOPY_VERSION=${CANOPY_VERSION} CANOPY_NATIVE_DIR=/tmp/canopy-native CANOPY_HOST=0.0.0.0 CANOPY_PORT=7443
+ENV HOME=/home/canopy CANOPY_VERSION=${CANOPY_VERSION} CANOPY_NATIVE_DIR=/tmp/canopy-native CANOPY_HOST=0.0.0.0 CANOPY_PORT=7443
 USER 65532:65532
 EXPOSE 7443
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD ["/usr/local/bin/canopy-gateway", "healthcheck"]
@@ -57,8 +61,9 @@ LABEL org.opencontainers.image.title="canopy-web" \
       org.opencontainers.image.version="${CANOPY_VERSION}" \
       org.opencontainers.image.revision="${CANOPY_REVISION}"
 WORKDIR /app
+COPY --from=gateway-base --chown=65532:65532 /home/canopy /home/canopy
 COPY --from=web-build /out/web /app
-ENV CANOPY_VERSION=${CANOPY_VERSION} NODE_ENV=production HOST=0.0.0.0 PORT=3000 BODY_SIZE_LIMIT=50M GATEWAY_URL=http://gateway:7443
+ENV HOME=/home/canopy CANOPY_VERSION=${CANOPY_VERSION} NODE_ENV=production HOST=0.0.0.0 PORT=3000 BODY_SIZE_LIMIT=50M GATEWAY_URL=http://gateway:7443
 USER 65532:65532
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

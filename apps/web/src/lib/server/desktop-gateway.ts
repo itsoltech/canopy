@@ -4,6 +4,7 @@ import { fromJsonString } from "@bufbuild/protobuf";
 import { Match } from "effect";
 import { routedPinnedTransport } from "@canopy/transport";
 import { DESKTOP_CLIENT_PROTOCOL, MIN_DESKTOP_CLIENT_PROTOCOL } from "@canopy/domain/release/protocol";
+import { gatewayFailure } from "./gateway-errors.ts";
 
 export interface GatewayCompatibility {
   state: "ready" | "gateway-update" | "app-update" | "unavailable" | "pairing";
@@ -31,10 +32,12 @@ export function desktopGateway(routesJson: string, token: string) {
 
   let expires = 0;
   let pending: Promise<GatewayCompatibility> | undefined;
+  let failureCode: Code | undefined;
 
   async function refresh(): Promise<GatewayCompatibility> {
     try {
       const info = await raw.getClientCapabilities({}, { timeoutMs: 2500 });
+      failureCode = undefined;
 
       if (info.routes) routed.update(info.routes);
       const name = info.gatewayName || "your gateway";
@@ -64,6 +67,7 @@ export function desktopGateway(routesJson: string, token: string) {
       };
     } catch (cause) {
       const code = cause instanceof ConnectError ? cause.code : undefined;
+      failureCode = code ?? Code.Internal;
       snapshot = {
         state:
           code === Code.Unimplemented ? "gateway-update" : code === Code.Unauthenticated ? "pairing" : "unavailable",
@@ -72,7 +76,7 @@ export function desktopGateway(routesJson: string, token: string) {
             ? "Update Canopy on your gateway to use this app"
             : code === Code.Unauthenticated
               ? "Desktop access was revoked. Pair this app again in gateway Settings → Devices"
-              : "The gateway is not available",
+              : gatewayFailure(cause).message,
         methods: [],
         gatewayVersion: "",
         linkedComputers: false,
@@ -98,11 +102,12 @@ export function desktopGateway(routesJson: string, token: string) {
     if (info.state !== "ready")
       throw new ConnectError(
         info.message,
-        Match.value(info.state).pipe(
-          Match.when("unavailable", () => Code.Unavailable),
-          Match.when("pairing", () => Code.Unauthenticated),
-          Match.orElse(() => Code.FailedPrecondition),
-        ),
+        failureCode ??
+          Match.value(info.state).pipe(
+            Match.when("unavailable", () => Code.Unavailable),
+            Match.when("pairing", () => Code.Unauthenticated),
+            Match.orElse(() => Code.FailedPrecondition),
+          ),
       );
 
     if (!info.methods.includes(name))
