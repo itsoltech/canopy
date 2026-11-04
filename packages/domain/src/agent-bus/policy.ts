@@ -107,20 +107,13 @@ export function authorizeBusCall(
     return deny(`${call.tool} is not available in side threads; ask your parent thread with send_message`);
   }
 
-  const nextHops = facts.callerHops + 1;
-
-  const withHops = (notify: boolean | undefined): BusDecision =>
-    nextHops > limits.maxHops || ((notify ?? true) && nextHops + 1 > limits.maxHops)
-      ? deny(`agent-to-agent chain limit reached (${limits.maxHops} hops without human input)`)
-      : { allowed: true, hops: nextHops };
-
   switch (call.tool) {
     case "request_secret":
       return caller.archived ? deny("this thread is archived") : allow;
     case "ask_user":
       if (caller.archived) return deny("this thread is archived");
 
-      return withHops(false);
+      return hopsDecision(facts, limits, false);
     case "get_answers":
       return allow;
     case "list_agents":
@@ -129,44 +122,8 @@ export function authorizeBusCall(
     case "list_schedules":
       return allow;
 
-    case "spawn_thread": {
-      if (caller.archived) return deny("this thread is archived");
-
-      if (caller.depth + 1 > limits.maxDepth) return deny("side threads cannot start further side threads");
-
-      if (facts.callerChildren >= limits.maxChildrenPerThread) {
-        return deny(`side thread limit (${limits.maxChildrenPerThread}) reached; close finished threads first`);
-      }
-
-      if (facts.activeInTree >= limits.maxActiveThreadsPerTree) {
-        return deny(`too many active threads in this tree (${limits.maxActiveThreadsPerTree})`);
-      }
-
-      if (call.args.fork && facts.spawnProvider !== undefined && facts.spawnProvider !== caller.provider) {
-        return deny(`fork keeps the provider: ${caller.provider} cannot fork into ${facts.spawnProvider}`);
-      }
-
-      if (
-        call.args.fork &&
-        facts.spawnInstance !== undefined &&
-        facts.spawnInstance !== (caller.instance ?? "native")
-      ) {
-        return deny(
-          `fork keeps the provider: ${caller.provider}/${caller.instance ?? "native"} cannot fork into ${caller.provider}/${facts.spawnInstance}`,
-        );
-      }
-
-      const wanted = call.args.permission_mode;
-      const ceiling = facts.callerPermissionMode ?? "ask";
-
-      if (wanted !== undefined && permissionRank(wanted) > permissionRank(ceiling)) {
-        return deny(
-          `permission_mode ${wanted} is broader than yours (${ceiling}); a subagent cannot get more permissions than you`,
-        );
-      }
-
-      return withHops(call.args.notify);
-    }
+    case "spawn_thread":
+      return authorizeSpawn(call, facts, limits);
 
     case "send_message": {
       const target = sameOwner(facts, call.args.thread_id);
@@ -175,7 +132,7 @@ export function authorizeBusCall(
 
       if (target.success.archived) return deny("target thread is archived");
 
-      return withHops(call.args.notify);
+      return hopsDecision(facts, limits, call.args.notify);
     }
 
     case "wait_threads": {
@@ -202,80 +159,14 @@ export function authorizeBusCall(
       return Result.isFailure(target) ? deny(target.failure) : allow;
     }
 
-    case "answer_interaction": {
-      const interaction = facts.interaction;
+    case "answer_interaction":
+      return authorizeAnswer(call, facts);
 
-      if (!interaction || interaction.id !== call.args.request_id)
-        return deny(`interaction ${call.args.request_id} not found`);
-      const owner = descendant(facts, interaction.threadId);
+    case "schedule_wakeup":
+      return authorizeWakeup(call, facts, limits);
 
-      if (Result.isFailure(owner)) return deny(`interaction ${interaction.id} not found`);
-
-      if (interaction.routedTo !== "parent") return deny("this interaction is answered by the user");
-
-      if (interaction.status !== "pending") return deny(`interaction is already ${interaction.status}`);
-      const { response } = call.args;
-
-      if (interaction.kind === "permission" && response === "answer")
-        return deny("permission prompts take allow or deny");
-
-      if (interaction.kind !== "permission" && (response === "allow" || response === "deny")) {
-        return deny(`${interaction.kind} takes answer or cancel`);
-      }
-
-      if (response === "answer" && call.args.answer_json === undefined) return deny("answer requires answer_json");
-
-      return allow;
-    }
-
-    case "schedule_wakeup": {
-      const target = scheduleTarget(facts, call.args.thread_id, limits);
-
-      if (Result.isFailure(target)) return deny(target.failure);
-      const { delay_seconds: delay, at } = call.args;
-
-      if ((delay === undefined) === (at === undefined)) return deny("set exactly one of delay_seconds or at");
-
-      if (at !== undefined) {
-        const when = Date.parse(at);
-
-        if (Number.isNaN(when)) return deny("at must be an ISO 8601 time");
-        const ahead = (when - facts.now.getTime()) / 1000;
-
-        if (ahead < 60 || ahead > 7 * 24 * 3600) return deny("at must be between 1 minute and 7 days from now");
-      }
-
-      return withHops(false);
-    }
-
-    case "schedule_recurring": {
-      const target = scheduleTarget(facts, call.args.thread_id, limits);
-
-      if (Result.isFailure(target)) return deny(target.failure);
-      const cron = checkCron(call.args.cron, limits.minCronMinutes);
-
-      if (cron) return deny(cron);
-
-      if (call.args.timezone !== undefined && !isTimeZone(call.args.timezone))
-        return deny(`unknown time zone ${call.args.timezone}`);
-
-      // Agents may not create open-ended schedules; users can, from the UI.
-      if (call.args.until === undefined && call.args.max_runs === undefined) return deny("set until or max_runs");
-
-      if (call.args.until !== undefined) {
-        const until = Date.parse(call.args.until);
-
-        if (Number.isNaN(until)) return deny("until must be an ISO 8601 time");
-
-        if (until <= facts.now.getTime()) return deny("until is in the past");
-
-        if (until - facts.now.getTime() > limits.maxRecurringDays * 24 * 3600 * 1000) {
-          return deny(`until must be within ${limits.maxRecurringDays} days`);
-        }
-      }
-
-      return withHops(false);
-    }
+    case "schedule_recurring":
+      return authorizeRecurring(call, facts, limits);
 
     // The thread's own background tasks; another thread's like get_thread (read: same owner) and interrupt_thread (stop: descendants).
     case "list_background_tasks":
@@ -309,6 +200,128 @@ export function authorizeBusCall(
       return Result.isFailure(owner) ? deny(`schedule ${schedule.id} not found`) : allow;
     }
   }
+}
+
+type CallOf<K extends AgentBusCall["tool"]> = Extract<AgentBusCall, { readonly tool: K }>;
+
+/** Hops of the turn the call starts, or a denial when the chain (and, by default, the notification back) exceeds the limit. */
+function hopsDecision(facts: BusFacts, limits: BusLimits, notify: boolean | undefined): BusDecision {
+  const nextHops = facts.callerHops + 1;
+
+  return nextHops > limits.maxHops || ((notify ?? true) && nextHops + 1 > limits.maxHops)
+    ? deny(`agent-to-agent chain limit reached (${limits.maxHops} hops without human input)`)
+    : { allowed: true, hops: nextHops };
+}
+
+function authorizeSpawn(call: CallOf<"spawn_thread">, facts: BusFacts, limits: BusLimits): BusDecision {
+  const { caller } = facts;
+
+  if (caller.archived) return deny("this thread is archived");
+
+  if (caller.depth + 1 > limits.maxDepth) return deny("side threads cannot start further side threads");
+
+  if (facts.callerChildren >= limits.maxChildrenPerThread) {
+    return deny(`side thread limit (${limits.maxChildrenPerThread}) reached; close finished threads first`);
+  }
+
+  if (facts.activeInTree >= limits.maxActiveThreadsPerTree) {
+    return deny(`too many active threads in this tree (${limits.maxActiveThreadsPerTree})`);
+  }
+
+  if (call.args.fork && facts.spawnProvider !== undefined && facts.spawnProvider !== caller.provider) {
+    return deny(`fork keeps the provider: ${caller.provider} cannot fork into ${facts.spawnProvider}`);
+  }
+
+  if (call.args.fork && facts.spawnInstance !== undefined && facts.spawnInstance !== (caller.instance ?? "native")) {
+    return deny(
+      `fork keeps the provider: ${caller.provider}/${caller.instance ?? "native"} cannot fork into ${caller.provider}/${facts.spawnInstance}`,
+    );
+  }
+
+  const wanted = call.args.permission_mode;
+  const ceiling = facts.callerPermissionMode ?? "ask";
+
+  if (wanted !== undefined && permissionRank(wanted) > permissionRank(ceiling)) {
+    return deny(
+      `permission_mode ${wanted} is broader than yours (${ceiling}); a subagent cannot get more permissions than you`,
+    );
+  }
+
+  return hopsDecision(facts, limits, call.args.notify);
+}
+
+function authorizeAnswer(call: CallOf<"answer_interaction">, facts: BusFacts): BusDecision {
+  const interaction = facts.interaction;
+
+  if (!interaction || interaction.id !== call.args.request_id)
+    return deny(`interaction ${call.args.request_id} not found`);
+  const owner = descendant(facts, interaction.threadId);
+
+  if (Result.isFailure(owner)) return deny(`interaction ${interaction.id} not found`);
+
+  if (interaction.routedTo !== "parent") return deny("this interaction is answered by the user");
+
+  if (interaction.status !== "pending") return deny(`interaction is already ${interaction.status}`);
+  const { response } = call.args;
+
+  if (interaction.kind === "permission" && response === "answer") return deny("permission prompts take allow or deny");
+
+  if (interaction.kind !== "permission" && (response === "allow" || response === "deny")) {
+    return deny(`${interaction.kind} takes answer or cancel`);
+  }
+
+  if (response === "answer" && call.args.answer_json === undefined) return deny("answer requires answer_json");
+
+  return allow;
+}
+
+function authorizeWakeup(call: CallOf<"schedule_wakeup">, facts: BusFacts, limits: BusLimits): BusDecision {
+  const target = scheduleTarget(facts, call.args.thread_id, limits);
+
+  if (Result.isFailure(target)) return deny(target.failure);
+  const { delay_seconds: delay, at } = call.args;
+
+  if ((delay === undefined) === (at === undefined)) return deny("set exactly one of delay_seconds or at");
+
+  if (at !== undefined) {
+    const when = Date.parse(at);
+
+    if (Number.isNaN(when)) return deny("at must be an ISO 8601 time");
+    const ahead = (when - facts.now.getTime()) / 1000;
+
+    if (ahead < 60 || ahead > 7 * 24 * 3600) return deny("at must be between 1 minute and 7 days from now");
+  }
+
+  return hopsDecision(facts, limits, false);
+}
+
+function authorizeRecurring(call: CallOf<"schedule_recurring">, facts: BusFacts, limits: BusLimits): BusDecision {
+  const target = scheduleTarget(facts, call.args.thread_id, limits);
+
+  if (Result.isFailure(target)) return deny(target.failure);
+  const cron = checkCron(call.args.cron, limits.minCronMinutes);
+
+  if (cron) return deny(cron);
+
+  if (call.args.timezone !== undefined && !isTimeZone(call.args.timezone))
+    return deny(`unknown time zone ${call.args.timezone}`);
+
+  // Agents may not create open-ended schedules; users can, from the UI.
+  if (call.args.until === undefined && call.args.max_runs === undefined) return deny("set until or max_runs");
+
+  if (call.args.until !== undefined) {
+    const until = Date.parse(call.args.until);
+
+    if (Number.isNaN(until)) return deny("until must be an ISO 8601 time");
+
+    if (until <= facts.now.getTime()) return deny("until is in the past");
+
+    if (until - facts.now.getTime() > limits.maxRecurringDays * 24 * 3600 * 1000) {
+      return deny(`until must be within ${limits.maxRecurringDays} days`);
+    }
+  }
+
+  return hopsDecision(facts, limits, false);
 }
 
 /** read_only < ask < accept_edits < full_auto: how much a thread may do without a human answer. */
