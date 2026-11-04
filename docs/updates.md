@@ -1,5 +1,26 @@
 # Aktualizacje Canopy
 
+## Wskaźnik w pasku bocznym
+
+Trzecia ikona stopki (za Settings i licznikiem workerów) pokazuje aktualizacje
+własnej aplikacji desktopowej: stan spokojny, sprawdzanie, pobieranie z procentem
+oraz gotowość do restartu. Hover i klik otwierają ten sam przewijany popover;
+na telefonie jest to dolny panel. Animacja respektuje ograniczenie ruchu.
+Przeglądarka serwerowa nie pokazuje sekcji własnej aplikacji.
+
+Proces main pobiera publiczne GitHub Releases bez tokena, z paginacją i cache
+60 sekund. Notatki obejmują `(wersja zainstalowana, wersja pobierana]`, zgodnie
+z wybranym kanałem, w malejącej kolejności SemVer. Istniejący renderer Markdown
+nie wstrzykuje HTML, ogranicza schematy linków i nie ładuje obrazów. Retencja
+nightly może usunąć starsze notatki; panel jawnie wskazuje to ograniczenie.
+
+Release bez feedu platformy lub manifestu nie jest aktualizacją desktopu.
+Jeśli nowsza wersja jest już w GitHub Releases, ale nie ma paczki platformy,
+updater wyjaśnia, że publikacja może jeszcze trwać lub wymagać ponowienia;
+nie twierdzi, że aplikacja jest aktualna. Dotyczyło to `v0.2.0-nightly.33`:
+2026-11-04 release miał tylko binaria serwera/workerów, a przebieg Release
+`41890651151` zakończył błędem pakowanie macOS i `publish-desktop`.
+
 Workers → Updates oferuje **Update Canopy app** dla `installKind=desktop`.
 Aktualizuje całą aplikację: Electron, dołączony runtime i worker. Desktop w trybie
 zdalnym musi być sparowany z gatewayem i obsługiwać kanał sterowania z

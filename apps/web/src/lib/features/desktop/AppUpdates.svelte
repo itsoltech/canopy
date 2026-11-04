@@ -10,6 +10,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import UpdateReleaseNotes from "./UpdateReleaseNotes.svelte";
 
   let { class: className }: { class?: ClassValue } = $props();
   let status = $state<DesktopUpdateStatus>();
@@ -126,6 +127,14 @@
           >
         {/if}
       </div>
+      {#if current.publishing && current.publishing !== current.message}<p
+          class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
+        >
+          {current.publishing}
+        </p>{/if}
+      {#if current.updateVersion && ["downloading", "downloaded", "error"].includes(current.phase)}
+        <UpdateReleaseNotes releases={current.releases ?? []} channel={current.channel} />
+      {/if}
     </div>
   </SettingsGroup>
 {/if}

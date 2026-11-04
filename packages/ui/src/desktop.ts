@@ -26,6 +26,13 @@ export interface DesktopUpdateStatus {
   progress?: number | undefined;
   updateVersion?: string | undefined;
   changingChannel: boolean;
+  releases?: DesktopReleaseNote[] | undefined;
+  publishing?: string | undefined;
+}
+
+export interface DesktopReleaseNote {
+  version: string;
+  markdown: string;
 }
 
 export interface DesktopStatus {

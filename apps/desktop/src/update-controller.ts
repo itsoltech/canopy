@@ -1,5 +1,5 @@
 import type { AppUpdater } from "electron-updater";
-import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
+import type { DesktopUpdateStatus, DesktopReleaseNote } from "@canopy/ui/desktop";
 import type { DesktopChannel } from "./identity.ts";
 import { channelFeed, channelRank, isDesktopChannel } from "./update-releases.ts";
 
@@ -14,7 +14,10 @@ interface Options {
   channel: DesktopChannel;
   save(channel: DesktopChannel): void;
   confirmDowngrade(channel: DesktopChannel): Promise<boolean>;
-  prepare(channel: DesktopChannel, allowDowngrade: boolean): Promise<boolean>;
+  prepare(
+    channel: DesktopChannel,
+    allowDowngrade: boolean,
+  ): Promise<boolean | { available: boolean; releases: DesktopReleaseNote[]; publishing: string | undefined }>;
   changed(): void;
   downloaded(): void;
 }
@@ -51,7 +54,13 @@ export class UpdateController {
         });
     });
     updater.on("update-available", (info) => {
-      if (this.running) this.publish({ updateVersion: info.version });
+      if (this.running)
+        this.publish({
+          phase: "downloading",
+          message: "Downloading update…",
+          progress: 0,
+          updateVersion: info.version,
+        });
     });
     updater.on("update-downloaded", (info) => {
       if (!this.running) return;
@@ -98,6 +107,8 @@ export class UpdateController {
           phase: this.enabled ? "idle" : "disabled",
           updateVersion: undefined,
           progress: undefined,
+          releases: undefined,
+          publishing: undefined,
           message: this.enabled ? "Update channel changed" : this.state.message,
         });
         this.configure(false);
@@ -127,12 +138,23 @@ export class UpdateController {
       message: "Checking for updates…",
       progress: undefined,
       updateVersion: undefined,
+      releases: undefined,
+      publishing: undefined,
     });
     this.configure(allowDowngrade);
 
     try {
-      if (!(await this.options.prepare(this.state.channel, allowDowngrade))) {
-        this.publish({ phase: "idle", message: "Up to date — no update available for this channel" });
+      const prepared = await this.options.prepare(this.state.channel, allowDowngrade);
+      const available = prepared === true || (prepared !== false && prepared.available);
+
+      if (prepared !== true && prepared !== false)
+        this.publish({ releases: prepared.releases, publishing: prepared.publishing });
+
+      if (!available) {
+        this.publish({
+          phase: "idle",
+          message: this.state.publishing ?? "Up to date — no update available for this channel",
+        });
 
         return this.status();
       }
