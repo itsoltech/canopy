@@ -128,7 +128,7 @@ export function instanceWrites(sql: SqlClient.SqlClient, secretsKey: Buffer, rea
         const old = kept.get(variable.name);
 
         if (!old?.secret || !isRef(old.value))
-          return yield* Effect.fail(new Invalid(`${variable.name}: enter the secret value`));
+          return yield* Effect.fail(new Invalid(`${variable.name}: Enter the secret value.`));
         env.push({ name: variable.name, secret: true, value: old.value });
       }
 

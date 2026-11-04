@@ -10,20 +10,20 @@ describe("profile env rules", () => {
 
   test("rejects what the worker controls, case-insensitively", () => {
     for (const name of ["HOME", "path", "CLAUDE_CONFIG_DIR", "codex_home", "USERPROFILE", "CLAUDE_CODE_ENTRYPOINT"]) {
-      expect(envNameProblem("native", name)).toContain("controlled by the worker");
+      expect(envNameProblem("native", name)).toContain("Change the home or binary in Runtime instead.");
     }
 
     expect(envNameProblem("native", "CANOPY_X_API_KEY")).toContain("reserved");
   });
 
   test("an endpoint profile owns its endpoint and key variables", () => {
-    expect(envNameProblem("endpoint", "ANTHROPIC_BASE_URL")).toContain("endpoint");
-    expect(envNameProblem("endpoint", "anthropic_api_key")).toContain("endpoint");
+    expect(envNameProblem("endpoint", "ANTHROPIC_BASE_URL")).toContain("Pick or edit a proxy in Connection instead.");
+    expect(envNameProblem("endpoint", "anthropic_api_key")).toContain("Pick or edit a proxy in Connection instead.");
     expect(envNameProblem("native", "ANTHROPIC_BASE_URL")).toBeUndefined();
   });
 
   test("rejects malformed names", () => {
-    expect(envNameProblem("native", "")).toBe("name is required");
+    expect(envNameProblem("native", "")).toBe("Enter a variable name.");
     expect(envNameProblem("native", "1ABC")).toContain("letters");
     expect(envNameProblem("native", "A-B")).toContain("letters");
     expect(envNameProblem("native", "A=B")).toContain("letters");

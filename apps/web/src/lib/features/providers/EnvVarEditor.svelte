@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { deniedEnvNames, deniedEnvPrefixes } from "@canopy/domain";
   import { flip } from "svelte/animate";
+  import { SvelteSet } from "svelte/reactivity";
   import Button from "#lib/shared/ui/Button.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
-  import FieldError from "#lib/shared/ui/FieldError.svelte";
+  import FieldValidationPopover from "#lib/shared/ui/FieldValidationPopover.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import { duration, expand } from "#lib/shared/ui/motion.ts";
-  import { envRow, ruleKind, type EnvVarDraft } from "./instances.ts";
+  import { envProblems, envRow, type EnvVarDraft } from "./instances.ts";
   import SecretValue from "./SecretValue.svelte";
   import type { ProviderProfileKind } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
@@ -28,7 +28,8 @@
     class?: ClassValue;
   } = $props();
 
-  const reserved = $derived([...deniedEnvNames(ruleKind(kind)), ...deniedEnvPrefixes.map((p) => `${p}*`)].join(", "));
+  const liveProblems = $derived(envProblems(kind, rows));
+  const edited = new SvelteSet<string>();
 
   function add() {
     rows = [...rows, envRow()];
@@ -49,7 +50,7 @@
   {#if rows.length > 0}
     <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/8">
       {#each rows as row, index (row.key)}
-        {@const problem = problems[row.key]}
+        {@const problem = problems[row.key] ?? (row.name || edited.has(row.key) ? liveProblems[row.key] : undefined)}
         <li
           class="grid gap-1 py-2 first:pt-0 last:pb-0"
           transition:expand
@@ -59,18 +60,24 @@
             class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 @xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto_auto]"
           >
             <div class="col-span-2 min-w-0 @xl:col-span-1">
-              <Input
-                name="env-name-{index}"
-                bind:value={row.name}
-                aria-label="Variable {index + 1} name"
-                aria-invalid={Boolean(problem) || undefined}
-                placeholder="NAME"
-                autocomplete="off"
-                spellcheck="false"
-                autocapitalize="characters"
-                data-env-name={row.key}
-                class="font-mono"
-              />
+              <FieldValidationPopover message={problem}>
+                {#snippet field(props)}
+                  <Input
+                    {...props}
+                    name="env-name-{index}"
+                    bind:value={row.name}
+                    oninput={() => edited.add(row.key)}
+                    aria-label="Variable {index + 1} name"
+                    aria-invalid={Boolean(problem) || undefined}
+                    placeholder="NAME"
+                    autocomplete="off"
+                    spellcheck="false"
+                    autocapitalize="characters"
+                    data-env-name={row.key}
+                    class="font-mono"
+                  />
+                {/snippet}
+              </FieldValidationPopover>
             </div>
             <div class="col-span-2 min-w-0 @xl:col-span-1">
               {#if row.secret}
@@ -106,15 +113,11 @@
               onclick={() => (rows = rows.filter((r) => r !== row))}
             />
           </div>
-          <FieldError message={problem} />
         </li>
       {/each}
     </ul>
   {/if}
   <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
     <Button size="sm" icon="plus" onclick={add}>Add variable</Button>
-    <p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">
-      Reserved: <span class="font-mono">{reserved}</span>
-    </p>
   </div>
 </div>
