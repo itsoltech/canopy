@@ -1,24 +1,31 @@
 import {
   clone,
   create,
-  fromJson,
+  fromJsonString,
   toJson,
   type DescMessage,
   type JsonValue,
+  type JsonObject,
   type Message,
   type MessageShape,
 } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { bots, computerLink as link, PermissionMode, Provider, ui, type AgentToolCall } from "@canopy/contracts";
-import { agentBusToolsFor, authorizeBusCall, DEFAULT_BUS_LIMITS, type AgentBusCall } from "@canopy/domain";
+import {
+  agentBusToolsFor,
+  authorizeBusCall,
+  DEFAULT_BUS_LIMITS,
+  type AgentBusCall,
+  type JsonValue as ArgumentValue,
+} from "@canopy/domain";
 import { AGENT_BUS, nodeRef, qualifyId, REMOTE_BOTS, splitId } from "@canopy/domain/computers";
-import { Effect } from "effect";
+import { Effect, Match, Predicate, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreServices, GatewayCore, GatewayCoreOptions } from "../core/core.ts";
-import { AgentBusStore, GatewayStore, type ThreadRow } from "../store/index.ts";
+import { AgentBusStore, type ThreadRow } from "../store/index.ts";
 import type { BotTurn, StoredCall } from "../bots/types.ts";
 import { BotStore } from "../bots/store.ts";
-import { methodNamed, movedItems, qualify, unqualify } from "./remote.ts";
+import { linkedMessage, methodNamed, movedItems, qualify, unqualify } from "./remote.ts";
 
 type Actor = {
   id: string;
@@ -56,13 +63,19 @@ const fail = (message: string): never => {
 
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
-const record = (value: unknown): Record<string, unknown> =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : fail("Invalid linked agent arguments");
+type Arguments = { [key: string]: ArgumentValue };
 
-const text = (a: Record<string, unknown>, key: string, optional = false): string =>
-  typeof a[key] === "string" && (optional || String(a[key]).trim()) && String(a[key]).length <= 100_000
+const isToolArguments = Schema.is(Schema.Record(Schema.String, Schema.MutableJson));
+
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+const record = (value: JsonValue | undefined): JsonObject =>
+  isJsonObject(value) ? value : fail("Invalid linked agent arguments");
+
+const text = (a: Arguments, key: string, optional = false): string =>
+  Predicate.isString(a[key]) && (optional || String(a[key]).trim()) && String(a[key]).length <= 100_000
     ? String(a[key])
     : optional && a[key] === undefined
       ? ""
@@ -71,10 +84,10 @@ const text = (a: Record<string, unknown>, key: string, optional = false): string
 function qualifyResult(value: JsonValue, node: string, key = ""): JsonValue {
   if (Array.isArray(value)) return value.map((v) => qualifyResult(v, node, key));
 
-  if (value && typeof value === "object")
+  if (Predicate.isObject(value))
     return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, qualifyResult(v, node, k)]));
 
-  return typeof value === "string" && (key === "id" || key.endsWith("_id") || key.endsWith("_ids"))
+  return Predicate.isString(value) && (key === "id" || key.endsWith("_id") || key.endsWith("_ids"))
     ? qualifyId(value, node)
     : value;
 }
@@ -105,13 +118,7 @@ export class LinkedAgents {
     return peer ? peer.displayName || peer.name : "This computer";
   }
 
-  async call(
-    node: string,
-    operation: string,
-    actor: Actor,
-    callId: string,
-    args: Record<string, unknown>,
-  ): Promise<JsonValue> {
+  async call(node: string, operation: string, actor: Actor, callId: string, args: Arguments): Promise<JsonValue> {
     const computers = this.core.computers;
 
     if (!computers) return fail("That computer is no longer linked");
@@ -130,7 +137,12 @@ export class LinkedAgents {
         }),
         AbortSignal.timeout(10_000),
       ))
-        return qualifyResult(JSON.parse((result as link.LinkedAgentResult).resultJson) as JsonValue, node);
+        return qualifyResult(
+          Schema.decodeUnknownSync(Schema.MutableJson)(
+            JSON.parse(linkedMessage(link.LinkedAgentResultSchema, result).resultJson),
+          ),
+          node,
+        );
     } catch (error) {
       // The target moved (stage 8): learn its new home and deliver there once, when it is a partner of this computer.
       const moved = movedItems(error);
@@ -157,16 +169,15 @@ export class LinkedAgents {
   }
 
   /** Old ids of moved threads and bots in a tool's arguments name their new home (stage 8). */
-  redirect(args: Record<string, unknown>): void {
+  redirect(args: Arguments): void {
     const redirects = this.core.computers?.redirects;
 
     if (!redirects?.size) return;
 
-    for (const key of ["thread_id", "bot_id"])
-      if (typeof args[key] === "string") args[key] = redirects.map(args[key] as string);
+    for (const key of ["thread_id", "bot_id"]) if (Predicate.isString(args[key])) args[key] = redirects.map(args[key]);
 
     if (Array.isArray(args["thread_ids"]))
-      args["thread_ids"] = (args["thread_ids"] as unknown[]).map((v) => (typeof v === "string" ? redirects.map(v) : v));
+      args["thread_ids"] = args["thread_ids"].map((v) => (Predicate.isString(v) ? redirects.map(v) : v));
   }
 
   async peer(ref: string): Promise<string> {
@@ -177,11 +188,11 @@ export class LinkedAgents {
     return (await this.core.computers.resolve(node)).node_id;
   }
 
-  sameHome(node: string, args: Record<string, unknown>): void {
+  sameHome(node: string, args: Arguments): void {
     for (const key of ["workspace_id", "project_id", "thread_id", "bot_id", "worker_id", "request_id"]) {
       const value = args[key];
 
-      if (typeof value !== "string" || !value) continue;
+      if (!Predicate.isString(value) || !value) continue;
 
       if (key === "project_id" && this.core.computers?.shared?.projects.has(value)) continue;
 
@@ -193,7 +204,7 @@ export class LinkedAgents {
     const method = methodNamed(name)!;
 
     const node = await this.peer(
-      String(Object.values(request).find((v) => typeof v === "string" && splitId(v).node) ?? ""),
+      String(Object.values(request).find((v) => Predicate.isString(v) && splitId(v).node) ?? ""),
     );
 
     const outbound = clone(method.input, request);
@@ -202,7 +213,7 @@ export class LinkedAgents {
     for await (const result of this.core.computers!.remote(node, method, outbound, AbortSignal.timeout(10_000))) {
       qualify(output, result, node);
 
-      return result as MessageShape<D>;
+      return linkedMessage(output, result);
     }
 
     return fail("The other computer sent no answer");
@@ -285,13 +296,13 @@ export class LinkedAgents {
         if (!p.capabilities.includes(AGENT_BUS))
           return { ...machine, error: `${machine.machine} needs an update for linked bots and agents` };
 
-        const get = async (name: string, request: Message) => {
+        const get = async <D extends DescMessage>(name: string, request: Message, output: D) => {
           const method = methodNamed(name)!;
 
           for await (const result of computers.remote(p.nodeId, method, request, AbortSignal.timeout(3000))) {
             qualify(method.output, result, p.nodeId);
 
-            return result;
+            return linkedMessage(output, result);
           }
 
           return undefined;
@@ -299,17 +310,17 @@ export class LinkedAgents {
 
         try {
           const [overview, botList, models] = await Promise.all([
-            get("GetOverview", create(ui.GetOverviewRequestSchema)) as Promise<ui.GetOverviewResponse>,
-            get("ListBots", create(bots.ListBotsRequestSchema)) as Promise<bots.ListBotsResponse>,
-            get("ListModels", create(ui.ListModelsRequestSchema)) as Promise<ui.ListModelsResponse>,
+            get("GetOverview", create(ui.GetOverviewRequestSchema), ui.GetOverviewResponseSchema),
+            get("ListBots", create(bots.ListBotsRequestSchema), bots.ListBotsResponseSchema),
+            get("ListModels", create(ui.ListModelsRequestSchema), ui.ListModelsResponseSchema),
           ]);
 
           return {
             ...machine,
-            projects: overview.projects.map((v) => toJson(ui.ProjectSchema, v)),
-            workers: overview.workers.map((w) => ({ worker_id: w.id, name: w.name, online: w.online })),
-            bots: botList.bots.map((b) => ({ bot_id: b.id, name: b.configuration?.name ?? "Bot" })),
-            models: toJson(ui.ListModelsResponseSchema, models),
+            projects: overview!.projects.map((v) => toJson(ui.ProjectSchema, v)),
+            workers: overview!.workers.map((w) => ({ worker_id: w.id, name: w.name, online: w.online })),
+            bots: botList!.bots.map((b) => ({ bot_id: b.id, name: b.configuration?.name ?? "Bot" })),
+            models: toJson(ui.ListModelsResponseSchema, models!),
           };
         } catch {
           return { ...machine, error: "Computer unavailable; try again while connected" };
@@ -317,7 +328,7 @@ export class LinkedAgents {
       }),
     );
 
-    return results as JsonValue[];
+    return results;
   }
 
   async overview(): Promise<ui.GetOverviewResponse> {
@@ -337,8 +348,9 @@ export class LinkedAgents {
           AbortSignal.timeout(3000),
         )) {
           qualify(ui.GetOverviewResponseSchema, response, node);
-          own.workers.push(...(response as ui.GetOverviewResponse).workers);
-          own.projects.push(...(response as ui.GetOverviewResponse).projects);
+          const overview = linkedMessage(ui.GetOverviewResponseSchema, response);
+          own.workers.push(...overview.workers);
+          own.projects.push(...overview.projects);
         }
       } catch {
         /* disconnected while gathering */
@@ -348,12 +360,13 @@ export class LinkedAgents {
     return own;
   }
 
-  async botTool(turn: BotTurn, call: StoredCall): Promise<unknown | undefined> {
+  async botTool(turn: BotTurn, call: StoredCall) {
+    if (!isToolArguments(call.arguments)) return fail("Invalid linked agent arguments");
     const args = call.arguments;
     this.redirect(args);
 
     if (call.tool.name === "list_threads") {
-      const project = typeof args["project_id"] === "string" ? args["project_id"] : "";
+      const project = Predicate.isString(args["project_id"]) ? args["project_id"] : "";
 
       const request = create(ui.ListThreadsRequestSchema, {
         projectId: project,
@@ -376,7 +389,7 @@ export class LinkedAgents {
               AbortSignal.timeout(3000),
             )) {
               qualify(ui.ListThreadsResponseSchema, result, node);
-              threads.push(...(result as ui.ListThreadsResponse).threads);
+              threads.push(...linkedMessage(ui.ListThreadsResponseSchema, result).threads);
             }
           } catch {
             /* optional catalog entry */
@@ -384,7 +397,12 @@ export class LinkedAgents {
         }
 
       const query = String(args["query"] ?? "").toLowerCase();
-      const statuses = args["statuses"] as string[] | undefined;
+
+      const statuses =
+        args["statuses"] === undefined
+          ? undefined
+          : Schema.decodeUnknownSync(Schema.Array(Schema.String))(args["statuses"]);
+
       threads = threads
         .filter(
           (t) =>
@@ -398,7 +416,9 @@ export class LinkedAgents {
     }
 
     if (call.tool.name === "list_bots") {
-      const own: unknown[] = (await this.core.bots.list()).map((b) => ({
+      const own: { id: string; name: string | undefined; machine: string | undefined }[] = (
+        await this.core.bots.list()
+      ).map((b) => ({
         id: b.id,
         name: b.configuration?.name,
         machine: "This computer",
@@ -417,7 +437,7 @@ export class LinkedAgents {
             qualify(bots.ListBotsResponseSchema, response, node);
             const peer = await this.core.computers!.computer(node);
             own.push(
-              ...(response as bots.ListBotsResponse).bots.map((b) => ({
+              ...linkedMessage(bots.ListBotsResponseSchema, response).bots.map((b) => ({
                 id: b.id,
                 name: b.configuration?.name,
                 machine: peer?.displayName || peer?.name,
@@ -434,9 +454,9 @@ export class LinkedAgents {
 
     const ref = ["workspace_id", "thread_id", "bot_id", "worker_id", "request_id"]
       .map((key) => args[key])
-      .find((v) => typeof v === "string" && splitId(v).node);
+      .find((v) => Predicate.isString(v) && splitId(v).node);
 
-    if (typeof ref !== "string") return undefined;
+    if (!Predicate.isString(ref)) return undefined;
     const node = await this.peer(ref);
     this.sameHome(node, args);
     const ownBot = await this.core.bots.get(turn.bot_id);
@@ -469,12 +489,11 @@ export class LinkedAgents {
               create(ui.CreateThreadRequestSchema, {
                 projectId: splitId(text(args, "project_id")).id,
                 workspaceId: splitId(text(args, "workspace_id")).id,
-                provider:
-                  args["provider"] === "claude"
-                    ? Provider.CLAUDE
-                    : args["provider"] === "grok"
-                      ? Provider.GROK
-                      : Provider.CODEX,
+                provider: Match.value(args["provider"]).pipe(
+                  Match.when("claude", () => Provider.CLAUDE),
+                  Match.when("grok", () => Provider.GROK),
+                  Match.orElse(() => Provider.CODEX),
+                ),
                 providerProfileId: text(args, "provider_instance"),
                 model: text(args, "model", true),
                 effort: text(args, "effort", true),
@@ -524,7 +543,7 @@ export class LinkedAgents {
             );
           await this.query("UPDATE bots SET revision=revision+1,updated_at=now() WHERE id=$1::uuid", [turn.bot_id]);
 
-          return { ...record(result), bot_id: target, exchange_id: call.id } as JsonValue;
+          return { ...record(result), bot_id: target, exchange_id: call.id };
         });
       case "get_thread":
         return toJson(
@@ -601,11 +620,13 @@ export class LinkedAgents {
   }
 
   async extend(call: AgentBusCall, caller: ThreadRow, result: JsonValue): Promise<JsonValue> {
-    if (call.tool === "list_agents") return { ...record(result), linked_computers: await this.catalog() } as JsonValue;
+    if (call.tool === "list_agents") return { ...record(result), linked_computers: await this.catalog() };
 
     if (call.tool !== "list_threads" || !this.core.computers) return result;
     const list = record(result);
-    const threads = list["threads"] as JsonValue[];
+    const threads = list["threads"];
+
+    if (!Array.isArray(threads)) return fail("Invalid linked thread list");
 
     if (call.args.scope === "all") {
       for (const node of this.core.computers.reachable()) {
@@ -621,7 +642,7 @@ export class LinkedAgents {
             qualify(ui.ListThreadsResponseSchema, response, node);
             const machine = await this.core.computers.computer(node);
 
-            for (const t of (response as ui.ListThreadsResponse).threads)
+            for (const t of linkedMessage(ui.ListThreadsResponseSchema, response).threads)
               if (!call.args.query || t.title.toLowerCase().includes(call.args.query.toLowerCase()))
                 threads.push({
                   thread_id: t.id,
@@ -644,11 +665,11 @@ export class LinkedAgents {
         threads.push({ thread_id: qualifyId(r.target_id, r.peer_node_id), parent_thread_id: caller.id, remote: true });
     }
 
-    return list as JsonValue;
+    return Schema.decodeUnknownSync(Schema.MutableJson)(list);
   }
 
   async tool(request: AgentToolCall, call: AgentBusCall, caller: ThreadRow): Promise<JsonValue | undefined> {
-    this.redirect(call.args as Record<string, unknown>);
+    this.redirect(call.args);
 
     if (call.tool === "wait_threads" && call.args.thread_ids.some((id) => splitId(id).node)) {
       if (caller.owner_user_id !== this.owner) return fail("Thread not found");
@@ -676,8 +697,7 @@ export class LinkedAgents {
       const summaries = async () =>
         Promise.all(
           call.args.thread_ids.map(async (id) => {
-            if (!splitId(id).node)
-              return (await this.scope.run(AgentBusStore.use((s) => s.summary(id)))) as unknown as JsonValue;
+            if (!splitId(id).node) return { ...(await this.scope.run(AgentBusStore.use((s) => s.summary(id)))) };
             const node = await this.peer(id);
 
             const owned = await this.query(
@@ -703,16 +723,15 @@ export class LinkedAgents {
       }
     }
 
-    const args = call.args as Record<string, unknown>;
+    const args: Arguments = call.args;
 
-    const ref =
-      typeof args["workspace_id"] === "string"
-        ? args["workspace_id"]
-        : typeof args["thread_id"] === "string"
-          ? args["thread_id"]
-          : typeof args["request_id"] === "string"
-            ? args["request_id"]
-            : "";
+    const ref = Predicate.isString(args["workspace_id"])
+      ? args["workspace_id"]
+      : Predicate.isString(args["thread_id"])
+        ? args["thread_id"]
+        : Predicate.isString(args["request_id"])
+          ? args["request_id"]
+          : "";
 
     if (!splitId(ref).node) return undefined;
 
@@ -785,7 +804,11 @@ export class LinkedAgents {
             projectId: call.args.project_id ? splitId(call.args.project_id).id : "",
             title: call.args.title,
             initialMessage: call.args.prompt,
-            provider: provider === "claude" ? Provider.CLAUDE : provider === "grok" ? Provider.GROK : Provider.CODEX,
+            provider: Match.value(provider).pipe(
+              Match.when("claude", () => Provider.CLAUDE),
+              Match.when("grok", () => Provider.GROK),
+              Match.orElse(() => Provider.CODEX),
+            ),
             providerProfileId: instance,
             model: call.args.model ?? "",
             effort: call.args.effort ?? "",
@@ -832,13 +855,7 @@ export class LinkedAgents {
     return fail("This agent tool is unavailable across computers");
   }
 
-  async send(
-    node: string,
-    operation: string,
-    actor: Actor,
-    callId: string,
-    args: Record<string, unknown>,
-  ): Promise<JsonValue> {
+  async send(node: string, operation: string, actor: Actor, callId: string, args: Arguments): Promise<JsonValue> {
     // Persist the route before the remote acceptance so even a fast completion has a recipient.
     const computers = this.core.computers!;
 
@@ -897,10 +914,10 @@ export class LinkedAgents {
 
     if (!this.core.computers || !(await this.core.computers.store.computer(node)))
       return fail("That computer is no longer linked");
-    let args: Record<string, unknown>;
+    let args: Arguments;
 
     try {
-      args = record(JSON.parse(call.argumentsJson));
+      args = record(Schema.decodeUnknownSync(Schema.MutableJson)(JSON.parse(call.argumentsJson)));
     } catch {
       return fail("Invalid linked agent arguments");
     }
@@ -933,7 +950,7 @@ export class LinkedAgents {
         let steerId = "";
 
         if (call.operation === "spawn") {
-          const request = fromJson(ui.CreateThreadRequestSchema, args["request"] as JsonValue);
+          const request = fromJsonString(ui.CreateThreadRequestSchema, JSON.stringify(args["request"] ?? null));
 
           if (
             request.parentThreadId ||
@@ -1072,7 +1089,7 @@ export class LinkedAgents {
       await this.core.getThread(target); // owner-scoped authorization before accessing the bus store
 
       if (call.operation === "get_thread")
-        return (await this.scope.run(AgentBusStore.use((s) => s.summary(target)))) as unknown as JsonValue;
+        return { ...(await this.scope.run(AgentBusStore.use((s) => s.summary(target)))) };
       const afterSeq = Number(args["after_seq"] ?? 0);
       const limit = Number(args["limit"] ?? 50);
 
@@ -1135,15 +1152,11 @@ export class LinkedAgents {
     return fail("This linked agent operation is unavailable");
   }
 
-  async deliver(node: string, call: link.LinkedAgentCall, args: Record<string, unknown>): Promise<JsonValue> {
+  async deliver(node: string, call: link.LinkedAgentCall, args: Arguments): Promise<JsonValue> {
     return this.scope.transaction(() => this.deliverAtHome(node, call, args));
   }
 
-  private async deliverAtHome(
-    node: string,
-    call: link.LinkedAgentCall,
-    args: Record<string, unknown>,
-  ): Promise<JsonValue> {
+  private async deliverAtHome(node: string, call: link.LinkedAgentCall, args: Arguments): Promise<JsonValue> {
     const active = await this.query(
       "SELECT node_id FROM computer_peers WHERE owner_user_id=$1::uuid AND node_id=$2 FOR UPDATE",
       [this.owner, node],

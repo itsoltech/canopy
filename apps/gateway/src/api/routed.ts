@@ -1,11 +1,20 @@
-import { clone, create, type DescMethod, type Message } from "@bufbuild/protobuf";
-import { Code, ConnectError, createContextValues, type HandlerContext } from "@connectrpc/connect";
+import {
+  clone,
+  create,
+  type DescMessage,
+  type DescMethod,
+  type Message,
+  type MessageInitShape,
+} from "@bufbuild/protobuf";
+import { Code, ConnectError, createHandlerContext, type HandlerContext } from "@connectrpc/connect";
+import { Match } from "effect";
 import { bots, computerLink as link, ui } from "@canopy/contracts";
 import { nodeRef, qualifyId, REMOTE_BOTS, splitId, THREAD_MIRROR } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 import type { GatewayCore } from "../core/core.ts";
 import {
   globalize,
+  linkedMessage,
   mapIds,
   methodNamed,
   movedItems,
@@ -114,19 +123,31 @@ function absorb(
   }
 }
 
-type Handler = (request: Message, context: HandlerContext) => unknown;
+type Handler = {
+  invoke(
+    request: Message,
+    context: HandlerContext,
+  ): MessageInitShape<DescMessage> | Promise<MessageInitShape<DescMessage>> | AsyncIterable<Message>;
+}["invoke"];
 
 const unary = (handler: Handler, request: Message, context: HandlerContext) =>
+  // SAFETY: Called only for descriptors with methodKind unary; those handlers return a message or its promise.
   handler(request, context) as Promise<Message>;
 
 const stream = (handler: Handler, request: Message, context: HandlerContext) =>
+  // SAFETY: Called only for server-streaming descriptors, whose handlers return an AsyncIterable.
   handler(request, context) as AsyncIterable<Message>;
 
 const withSignal = (context: HandlerContext, signal: AbortSignal): HandlerContext =>
+  // SAFETY: Object.create preserves the complete HandlerContext prototype and overrides only its AbortSignal.
   Object.create(context, { signal: { value: signal } });
 
 async function single<A extends Message>(messages: AsyncIterable<Message>): Promise<A> {
-  for await (const message of messages) return message as A;
+  for await (const message of messages) {
+    // SAFETY: Callers supply A from the output descriptor used to decode this stream.
+    return message as A;
+  }
+
   throw new ConnectError("The other computer sent no answer", Code.Internal);
 }
 
@@ -141,7 +162,8 @@ function target(method: DescMethod, request: Message): string | undefined {
 }
 
 export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
-  const own = local as unknown as Record<string, Handler>;
+  // SAFETY: Each entry is invoked with the request decoded by its own GatewayService method descriptor.
+  const own = local as Record<string, Handler>;
   const handlers: Record<string, Handler> = {};
 
   for (const method of ui.GatewayService.methods) {
@@ -159,7 +181,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
         method.methodKind === "unary"
           ? async (request, context) => {
               refuse(request);
-              const response = await handler(request, context);
+              const response = await unary(handler, request, context);
 
               if (shared) void core.computers?.configChanged();
 
@@ -206,7 +228,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
           };
   }
 
-  const routedOne = handlers as Record<string, Handler>;
+  const routedOne = handlers;
 
   const overrides: Partial<UiHandlers> = {
     readBotExchange: async (request) => {
@@ -222,11 +244,13 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
       return response;
     },
     getOverview: async (request, context) => {
-      const [overview, snapshot, remote] = await Promise.all([
-        unary(own["getOverview"]!, request, context) as Promise<ui.GetOverviewResponse>,
+      const [result, snapshot, remote] = await Promise.all([
+        local.getOverview(request, context),
         core.computers?.snapshot(),
         gather<ui.GetOverviewResponse>(core, "GetOverview", request, context.signal),
       ]);
+
+      const overview = create(ui.GetOverviewResponseSchema, result);
 
       absorb(overview, remote, globalIds(core));
       overview.computers = snapshot?.peers ?? [];
@@ -236,12 +260,15 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
     listThreads: async (request, context) => {
       // A plain project id gathers too: a shared project has threads on every computer.
       if (target(methodNamed("ListThreads")!, request))
+        // SAFETY: This entry was built from the ListThreads descriptor above.
         return unary(routedOne["listThreads"]!, request, context) as Promise<ui.ListThreadsResponse>;
 
-      const [list, remote] = await Promise.all([
-        unary(handler("listThreads"), request, context) as Promise<ui.ListThreadsResponse>,
+      const [result, remote] = await Promise.all([
+        local.listThreads(request, context),
         gather<ui.ListThreadsResponse>(core, "ListThreads", request, context.signal),
       ]);
+
+      const list = create(ui.ListThreadsResponseSchema, result);
 
       for (const other of remote) list.threads.push(...other.threads);
 
@@ -249,22 +276,27 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
     },
     listModels: async (request, context) => {
       if (target(methodNamed("ListModels")!, request))
+        // SAFETY: This entry was built from the ListModels descriptor above.
         return unary(routedOne["listModels"]!, request, context) as Promise<ui.ListModelsResponse>;
 
-      const [list, remote] = await Promise.all([
-        unary(handler("listModels"), request, context) as Promise<ui.ListModelsResponse>,
+      const [result, remote] = await Promise.all([
+        local.listModels(request, context),
         gather<ui.ListModelsResponse>(core, "ListModels", request, context.signal),
       ]);
+
+      const list = create(ui.ListModelsResponseSchema, result);
 
       for (const other of remote) list.workers.push(...other.workers);
 
       return list;
     },
     listBots: async (request, context) => {
-      const [list, others] = await Promise.all([
-        unary(handler("listBots"), request, context) as Promise<bots.ListBotsResponse>,
+      const [result, others] = await Promise.all([
+        local.listBots(request, context),
         gather<bots.ListBotsResponse>(core, "ListBots", request, context.signal),
       ]);
+
+      const list = create(bots.ListBotsResponseSchema, result);
 
       for (const other of others) list.bots.push(...other.bots);
 
@@ -276,20 +308,15 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
 
       if (request.projectIds.length && !projectIds.length) return create(ui.ListArchivedThreadsResponseSchema);
 
-      return unary(
-        handler("listArchivedThreads"),
+      return local.listArchivedThreads(
         create(ui.ListArchivedThreadsRequestSchema, { ...request, projectIds }),
         context,
-      ) as Promise<ui.ListArchivedThreadsResponse>;
+      );
     },
     watchOverview: (request, context) => watchOverview(core, own, request, context),
   };
 
-  return { ...(handlers as unknown as UiHandlers), ...overrides };
-
-  function handler(name: string) {
-    return own[name]!;
-  }
+  return { ...local, ...handlers, ...overrides };
 }
 
 async function peerOf(core: GatewayCore, ref: string, method?: DescMethod, request?: Message) {
@@ -368,11 +395,17 @@ async function* home(
       if (method.name === "ListBots") {
         yield create(bots.ListBotsResponseSchema, {
           bots: snapshots.flatMap((c) =>
-            c.bot && ((request as bots.ListBotsRequest).includeArchived || !c.bot.archived) ? [c.bot] : [],
+            c.bot && (linkedMessage(bots.ListBotsRequestSchema, request).includeArchived || !c.bot.archived)
+              ? [c.bot]
+              : [],
           ),
         });
       } else {
-        const id = (request as bots.GetBotRequest).botId;
+        const id =
+          method.name === "GetBot"
+            ? linkedMessage(bots.GetBotRequestSchema, request).botId
+            : linkedMessage(ui.GatewayService.method.watchBotConversation.input, request).botId;
+
         const snapshot = snapshots.find((s) => s.bot?.id === id);
 
         if (!snapshot)
@@ -412,7 +445,12 @@ async function* home(
 
   if (!computers.reachable().includes(nodeId) && computers.capabilities(nodeId).includes(THREAD_MIRROR)) {
     if (method.name === "GetThread" || method.name === "WatchThread") {
-      const threadId = splitId((request as ui.GetThreadRequest).threadId).id;
+      const threadId = splitId(
+        method.name === "GetThread"
+          ? linkedMessage(ui.GetThreadRequestSchema, request).threadId
+          : linkedMessage(ui.WatchThreadRequestSchema, request).threadId,
+      ).id;
+
       const snapshot = await computers.mirror.snapshot(nodeId, threadId);
 
       if (!snapshot?.thread)
@@ -454,8 +492,8 @@ async function* home(
         threads: await computers.mirror.threads(
           nodeId,
           create(ui.ListThreadsRequestSchema, {
-            ...(request as ui.ListThreadsRequest),
-            projectId: splitId((request as ui.ListThreadsRequest).projectId).id,
+            ...linkedMessage(ui.ListThreadsRequestSchema, request),
+            projectId: splitId(linkedMessage(ui.ListThreadsRequestSchema, request).projectId).id,
           }),
         ),
       });
@@ -496,15 +534,15 @@ async function carryAttachments(
   request: Message,
   signal: AbortSignal,
 ) {
-  const field =
-    method.name === "SendMessage"
-      ? "attachmentIds"
-      : method.name === "CreateThread"
-        ? "initialAttachmentIds"
-        : undefined;
+  const field = Match.value(method.name).pipe(
+    Match.when("SendMessage", () => "attachmentIds" as const),
+    Match.when("CreateThread", () => "initialAttachmentIds" as const),
+    Match.orElse(() => undefined),
+  );
 
   if (!field) return;
-  const record = request as unknown as Record<string, string[]>;
+  // SAFETY: The method-name match above selects the corresponding repeated string field in this decoded request.
+  const record = request as Message & { attachmentIds: string[]; initialAttachmentIds: string[] };
   const upload = methodNamed("UploadAttachment")!;
   record[field] = await Promise.all(
     record[field]!.map(async (id) => {
@@ -586,15 +624,20 @@ async function ownOverview(
 ): Promise<ui.GetOverviewResponse> {
   const request = create(ui.GetOverviewRequestSchema);
 
-  const context = {
-    signal,
-    values: createContextValues(),
+  const context = createHandlerContext({
+    requestSignal: signal,
+    service: ui.GatewayService,
+    method: ui.GatewayService.method.getOverview,
+    protocolName: "canopy.link",
+    requestMethod: "POST",
+    url: "",
     requestHeader: new Headers(),
     responseHeader: new Headers(),
     responseTrailer: new Headers(),
-  } as unknown as HandlerContext;
+  });
 
   const [overview, remote] = await Promise.all([
+    // SAFETY: The getOverview entry returns the output of the GetOverview descriptor.
     unary(own["getOverview"]!, request, context) as Promise<ui.GetOverviewResponse>,
     gather<ui.GetOverviewResponse>(core, "GetOverview", request, signal),
   ]);
@@ -647,6 +690,7 @@ async function* watchOverview(
   const computers = core.computers;
 
   if (!computers) {
+    // SAFETY: watchOverview is the server-streaming WatchOverview implementation.
     yield* stream(own["watchOverview"]!, request, context) as AsyncIterable<ui.OverviewUpdate>;
 
     return;
@@ -674,7 +718,7 @@ async function* watchOverview(
 
         for await (const message of remote) {
           if (signal.aborted || controller.signal.aborted || watchers.get(nodeId) !== controller) break;
-          const update = message as ui.OverviewUpdate;
+          const update = linkedMessage(ui.OverviewUpdateSchema, message);
           const merged = splitShared(update, globalIds(core));
 
           for (const value of remoteUpdates(update, nodeId)) out.push(value);
@@ -733,11 +777,9 @@ async function* watchOverview(
 
   void (async () => {
     try {
-      for await (const update of stream(
-        own["watchOverview"]!,
-        request,
-        withSignal(context, signal),
-      ) as AsyncIterable<ui.OverviewUpdate>) {
+      for await (const message of stream(own["watchOverview"]!, request, withSignal(context, signal))) {
+        const update = linkedMessage(ui.OverviewUpdateSchema, message);
+
         if (update.change.case === "mobileSnapshot" && update.change.value.overview) {
           // A phone's reconnect snapshot covers every connected computer too.
           const [overviews, lists] = await Promise.all([
@@ -774,7 +816,8 @@ async function* watchOverview(
 
 /** Serves a linked computer's call with this computer's own handlers: no routing onward, no aggregation. */
 export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe {
-  const own = local as unknown as Record<string, Handler>;
+  // SAFETY: Each entry is invoked with the request decoded by the matching GatewayService descriptor.
+  const own = local as Record<string, Handler>;
 
   return async function* (method, request, signal, peerNodeId) {
     if (core) await refuseFrozen(core, method, request);
@@ -784,7 +827,9 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
 
       try {
         yield create(link.LinkedAgentResultSchema, {
-          resultJson: JSON.stringify(await core.linkedAgents.receive(peerNodeId, request as link.LinkedAgentCall)),
+          resultJson: JSON.stringify(
+            await core.linkedAgents.receive(peerNodeId, linkedMessage(link.LinkedAgentCallSchema, request)),
+          ),
         });
       } catch (error) {
         throw toConnectError(error);
@@ -793,9 +838,8 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
       return;
     }
 
-    const context = {
-      signal,
-      values: createContextValues(),
+    const context = createHandlerContext({
+      requestSignal: signal,
       requestHeader: new Headers(),
       responseHeader: new Headers(),
       responseTrailer: new Headers(),
@@ -804,7 +848,7 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
       protocolName: "canopy.link",
       requestMethod: "POST",
       url: "",
-    } as unknown as HandlerContext;
+    });
 
     try {
       if (method.methodKind === "unary")

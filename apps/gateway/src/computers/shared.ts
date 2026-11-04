@@ -1,11 +1,12 @@
 import { clone, create, fromJson, toJson, type DescMethod, type JsonValue, type Message } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
+import { Predicate, Schema } from "effect";
 import { computerLink as link, ProviderProfileKind, ui } from "@canopy/contracts";
 import { parseSharedKey, type SharedKey } from "@canopy/domain/computers";
 import { createHash, randomBytes } from "node:crypto";
 import { canonicalJson, isRef, providerOf, type InstanceRow, type StoredEnvVar } from "../store/instance-config.ts";
 import { decryptSecret, encryptSecret } from "../store/secrets.ts";
-import { methodNamed, type RemoteServe } from "./remote.ts";
+import { linkedMessage, methodNamed, type RemoteServe } from "./remote.ts";
 import type { ComputerStore } from "./store.ts";
 
 /**
@@ -31,6 +32,19 @@ type Row = {
 };
 
 type Payload = Record<string, JsonValue>;
+
+const payloadObject = Schema.decodeUnknownSync(Schema.Record(Schema.String, Schema.MutableJson));
+
+const envValues = Schema.decodeUnknownSync(
+  Schema.Array(
+    Schema.Struct({
+      name: Schema.String,
+      value: Schema.optionalKey(Schema.String),
+      secret: Schema.optionalKey(Schema.Boolean),
+      token: Schema.optionalKey(Schema.String),
+    }),
+  ),
+);
 
 /** A local value: canonical payload, secret tokens by local secret id, and the reverse. */
 type Value = { payload: Payload; tokens: Record<string, string>; refs: Map<string, string>; empty: boolean };
@@ -72,20 +86,22 @@ type Peers = {
 };
 
 const PUSH_TIMEOUT_MS = 15_000;
-const ORDER: Record<string, number> = { instance: 0, models: 1, settings: 2, project: 3 };
+const ORDER = new Map(Object.entries({ instance: 0, models: 1, settings: 2, project: 3 }));
 
-const SETTINGS_LABEL: Record<string, string> = {
-  appearance: "Appearance",
-  thread_defaults: "Thread defaults",
-  timezone: "Time zone",
-  text_generation: "Text generation",
-};
+const SETTINGS_LABEL = new Map(
+  Object.entries({
+    appearance: "Appearance",
+    thread_defaults: "Thread defaults",
+    timezone: "Time zone",
+    text_generation: "Text generation",
+  }),
+);
 
-const HARNESS_LABEL: Record<string, string> = { claude: "Claude", codex: "Codex", grok: "Grok" };
+const HARNESS_LABEL = new Map(Object.entries({ claude: "Claude", codex: "Codex", grok: "Grok" }));
 
 const digestOf = (payload: Payload) => createHash("sha256").update(canonicalJson(payload)).digest("hex");
 
-const merge = (a: Clock, b: Clock): Clock => {
+const merge = (a: Clock, b: Clock) => {
   const out = { ...a };
 
   for (const [k, v] of Object.entries(b)) out[k] = Math.max(out[k] ?? 0, v);
@@ -93,7 +109,7 @@ const merge = (a: Clock, b: Clock): Clock => {
   return out;
 };
 
-const bump = (clock: Clock, node: string): Clock => ({ ...clock, [node]: (clock[node] ?? 0) + 1 });
+const bump = (clock: Clock, node: string) => ({ ...clock, [node]: (clock[node] ?? 0) + 1 });
 
 function compare(a: Clock, b: Clock): "equal" | "before" | "after" | "concurrent" {
   let less = false;
@@ -113,17 +129,17 @@ const wireClock = (clock: Clock) => Object.fromEntries(Object.entries(clock).map
 const fromWire = (clock: Record<string, bigint>): Clock =>
   Object.fromEntries(Object.entries(clock).map(([k, v]) => [k, Number(v)]));
 
-const failure = (error: unknown): Outcome => ({
+const failure = (cause: unknown): Outcome => ({
   outcome: "rejected",
-  message: error instanceof ConnectError ? error.rawMessage : "could not apply it here",
+  message: cause instanceof ConnectError ? cause.rawMessage : "could not apply it here",
 });
 
 /** Secret tokens a payload refers to. */
 function tokensIn(payload: Payload): string[] {
-  const env = Array.isArray(payload["env"]) ? (payload["env"] as { token?: string }[]) : [];
+  const env = Array.isArray(payload["env"]) ? envValues(payload["env"]) : [];
 
   return [
-    ...(typeof payload["apiKey"] === "string" ? [payload["apiKey"]] : []),
+    ...(Predicate.isString(payload["apiKey"]) ? [payload["apiKey"]] : []),
     ...env.flatMap((v) => (v.token ? [v.token] : [])),
   ];
 }
@@ -221,7 +237,10 @@ export class SharedConfig {
     const abort = new AbortController();
 
     try {
-      for await (const value of this.host.serve(method, request, abort.signal)) return value as A;
+      for await (const value of this.host.serve(method, request, abort.signal)) {
+        // SAFETY: Call sites choose A from the named method's output descriptor; host.serve supplies that method's reply.
+        return value as A;
+      }
     } finally {
       abort.abort();
     }
@@ -311,10 +330,12 @@ export class SharedConfig {
         create(ui.AppearanceSettingsSchema);
 
       // Panel and sidebar layout follow each screen; only the look is shared.
-      payload = toJson(
-        ui.AppearanceSettingsSchema,
-        create(ui.AppearanceSettingsSchema, { colorScheme: a.colorScheme, accent: a.accent, chatWidth: a.chatWidth }),
-      ) as Payload;
+      payload = payloadObject(
+        toJson(
+          ui.AppearanceSettingsSchema,
+          create(ui.AppearanceSettingsSchema, { colorScheme: a.colorScheme, accent: a.accent, chatWidth: a.chatWidth }),
+        ),
+      );
     } else if (key.section === "thread_defaults") {
       const t =
         read(stored["threadDefaults"], (j) => fromJson(ui.ThreadDefaultsSchema, j, { ignoreUnknownFields: true })) ??
@@ -322,16 +343,18 @@ export class SharedConfig {
 
       // A workspace is a directory on one machine.
       t.workspaceId = "";
-      payload = toJson(ui.ThreadDefaultsSchema, t) as Payload;
+      payload = payloadObject(toJson(ui.ThreadDefaultsSchema, t));
     } else if (key.section === "timezone")
-      payload = typeof stored["timezone"] === "string" && stored["timezone"] ? { timezone: stored["timezone"] } : {};
+      payload = Predicate.isString(stored["timezone"]) && stored["timezone"] ? { timezone: stored["timezone"] } : {};
     else
-      payload = toJson(
-        ui.TextGenerationSettingsSchema,
-        read(stored["textGeneration"], (j) =>
-          fromJson(ui.TextGenerationSettingsSchema, j, { ignoreUnknownFields: true }),
-        ) ?? create(ui.TextGenerationSettingsSchema),
-      ) as Payload;
+      payload = payloadObject(
+        toJson(
+          ui.TextGenerationSettingsSchema,
+          read(stored["textGeneration"], (j) =>
+            fromJson(ui.TextGenerationSettingsSchema, j, { ignoreUnknownFields: true }),
+          ) ?? create(ui.TextGenerationSettingsSchema),
+        ),
+      );
 
     return value(payload, {}, !Object.keys(payload).length);
   }
@@ -356,10 +379,7 @@ export class SharedConfig {
         const known = current?.payload ?? {};
 
         const knownEnv = new Map(
-          (Array.isArray(known["env"]) ? (known["env"] as { name: string; token?: string }[]) : []).map((v) => [
-            v.name,
-            v.token,
-          ]),
+          (Array.isArray(known["env"]) ? envValues(known["env"]) : []).map((v) => [v.name, v.token]),
         );
 
         const missing: string[] = [];
@@ -380,7 +400,7 @@ export class SharedConfig {
               : undefined
             : secret(String(payload["apiKey"]), known["apiKey"] === payload["apiKey"]);
 
-        const env = (payload["env"] as { name: string; value?: string; secret?: boolean; token?: string }[]).map((v) =>
+        const env = envValues(payload["env"]).map((v) =>
           v.secret
             ? { name: v.name, secret: true, value: secret(v.token!, knownEnv.get(v.name) === v.token) }
             : { name: v.name, secret: false, value: v.value ?? "" },
@@ -421,9 +441,9 @@ export class SharedConfig {
 
         const tokens: Record<string, string> = {};
 
-        if (isRef(saved.api_key) && typeof payload["apiKey"] === "string")
+        if (isRef(saved.api_key) && Predicate.isString(payload["apiKey"]))
           tokens[saved.api_key.secretRef] = payload["apiKey"];
-        const incoming = new Map((payload["env"] as { name: string; token?: string }[]).map((v) => [v.name, v.token]));
+        const incoming = new Map(envValues(payload["env"]).map((v) => [v.name, v.token]));
 
         for (const v of saved.env ?? [])
           if (v.secret && isRef(v.value) && incoming.get(v.name)) tokens[v.value.secretRef] = incoming.get(v.name)!;
@@ -439,10 +459,10 @@ export class SharedConfig {
             harness: providerOf(key.harness),
             id: key.id,
             models: {
-              favorites: payload["favorites"] as string[],
-              hidden: payload["hidden"] as string[],
-              shown: payload["shown"] as string[],
-              custom: payload["custom"] as string[],
+              favorites: [...Schema.decodeUnknownSync(Schema.Array(Schema.String))(payload["favorites"])],
+              hidden: [...Schema.decodeUnknownSync(Schema.Array(Schema.String))(payload["hidden"])],
+              shown: [...Schema.decodeUnknownSync(Schema.Array(Schema.String))(payload["shown"])],
+              custom: [...Schema.decodeUnknownSync(Schema.Array(Schema.String))(payload["custom"])],
             },
           }),
         );
@@ -490,7 +510,7 @@ export class SharedConfig {
           request.threadDefaults = fromJson(ui.ThreadDefaultsSchema, payload, { ignoreUnknownFields: true });
           request.threadDefaults.workspaceId = user.threadDefaults?.workspaceId ?? "";
         } else if (key.section === "timezone") {
-          if (typeof payload["timezone"] !== "string") return { outcome: "same" };
+          if (!Predicate.isString(payload["timezone"])) return { outcome: "same" };
           request.timezone = payload["timezone"];
         } else
           request.textGeneration = fromJson(ui.TextGenerationSettingsSchema, payload, { ignoreUnknownFields: true });
@@ -610,7 +630,7 @@ export class SharedConfig {
           create(link.SharedConfigPushSchema, { items }),
           AbortSignal.timeout(PUSH_TIMEOUT_MS),
         )) {
-          reply = message as link.SharedConfigReply;
+          reply = linkedMessage(link.SharedConfigReplySchema, message);
           break;
         }
 
@@ -673,7 +693,7 @@ export class SharedConfig {
     const items: link.SharedItem[] = [];
 
     const rows = [...this.#rows.values()].sort(
-      (a, b) => (ORDER[a.item_key.split(":")[0]!] ?? 9) - (ORDER[b.item_key.split(":")[0]!] ?? 9),
+      (a, b) => (ORDER.get(a.item_key.split(":")[0]!) ?? 9) - (ORDER.get(b.item_key.split(":")[0]!) ?? 9),
     );
 
     for (const row of rows) {
@@ -785,7 +805,7 @@ export class SharedConfig {
     let payload: Payload;
 
     try {
-      payload = JSON.parse(item.payload) as Payload;
+      payload = payloadObject(JSON.parse(item.payload));
     } catch {
       return { outcome: "rejected", message: "invalid item" };
     }
@@ -938,7 +958,9 @@ export class SharedConfig {
           const secrets = new Map(
             Object.entries(
               conflict.remote_secrets
-                ? (JSON.parse(decryptSecret(this.store.key, conflict.remote_secrets)) as Record<string, string>)
+                ? Schema.decodeUnknownSync(Schema.Record(Schema.String, Schema.String))(
+                    JSON.parse(decryptSecret(this.store.key, conflict.remote_secrets)),
+                  )
                 : {},
             ),
           );
@@ -1029,7 +1051,7 @@ export class SharedConfig {
     return create(ui.SharedConfigSnapshotSchema, { items, conflicts, needsUpdateNodeIds: await this.peers.outdated() });
   }
   async #label(key: SharedKey): Promise<string> {
-    if (key.kind === "settings") return SETTINGS_LABEL[key.section] ?? key.section;
+    if (key.kind === "settings") return SETTINGS_LABEL.get(key.section) ?? key.section;
 
     if (key.kind === "project")
       return (
@@ -1044,7 +1066,7 @@ export class SharedConfig {
       )
     )[0];
 
-    const name = `${HARNESS_LABEL[key.harness] ?? key.harness} · ${label?.built_in ? "Device login" : label?.label || key.id}`;
+    const name = `${HARNESS_LABEL.get(key.harness) ?? key.harness} · ${label?.built_in ? "Device login" : label?.label || key.id}`;
 
     return key.kind === "models" ? `Models of ${name}` : name;
   }
@@ -1067,31 +1089,33 @@ export class SharedConfig {
 const ENUM_FIELDS = new Set(["colorScheme", "accent", "chatWidth", "provider", "permissionMode"]);
 const ENUM_PREFIX = /^(COLOR_SCHEME|ACCENT_THEME|CHAT_WIDTH|PROVIDER|PERMISSION_MODE)_/;
 
-const FIELD: Record<string, string> = {
-  label: "Name",
-  kind: "Connects with",
-  baseUrl: "Endpoint",
-  accentColor: "Accent",
-  apiKey: "API key",
-  env: "Variables",
-  favorites: "Favourites",
-  hidden: "Hidden models",
-  shown: "Shown models",
-  custom: "Custom models",
-  colorScheme: "Color scheme",
-  accent: "Accent",
-  chatWidth: "Chat width",
-  provider: "Provider",
-  providerProfileId: "Instance",
-  profileId: "Instance",
-  permissionMode: "Permissions",
-  models: "Models",
-  timezone: "Time zone",
-  model: "Model",
-  effort: "Effort",
-  threadTitleInstructions: "Title instructions",
-  name: "Name",
-};
+const FIELD = new Map(
+  Object.entries({
+    label: "Name",
+    kind: "Connects with",
+    baseUrl: "Endpoint",
+    accentColor: "Accent",
+    apiKey: "API key",
+    env: "Variables",
+    favorites: "Favourites",
+    hidden: "Hidden models",
+    shown: "Shown models",
+    custom: "Custom models",
+    colorScheme: "Color scheme",
+    accent: "Accent",
+    chatWidth: "Chat width",
+    provider: "Provider",
+    providerProfileId: "Instance",
+    profileId: "Instance",
+    permissionMode: "Permissions",
+    models: "Models",
+    timezone: "Time zone",
+    model: "Model",
+    effort: "Effort",
+    threadTitleInstructions: "Title instructions",
+    name: "Name",
+  }),
+);
 
 function show(field: string, value: JsonValue | undefined, other?: JsonValue): string {
   // `other` is only given for the other computer's side: its key differs from this computer's.
@@ -1101,44 +1125,46 @@ function show(field: string, value: JsonValue | undefined, other?: JsonValue): s
 
   if (field === "kind") return value === "endpoint" ? "Endpoint and API key" : "Device login";
 
-  if (typeof value === "string" && ENUM_PREFIX.test(value)) {
+  if (Predicate.isString(value) && ENUM_PREFIX.test(value)) {
     const words = value.replace(ENUM_PREFIX, "").toLowerCase().replaceAll("_", " ");
 
     return words[0]!.toUpperCase() + words.slice(1);
   }
 
-  if (typeof value === "string") return value;
+  if (Predicate.isString(value)) return value;
 
   if (Array.isArray(value)) {
     if (!value.length) return "None";
 
     return value
       .map((v) =>
-        typeof v !== "object" || v === null
+        !Predicate.isObjectOrArray(v)
           ? String(v)
           : "secret" in v
             ? `${String(v["name"])} (secret)`
             : "name" in v
               ? `${String(v["name"])}=${String(v["value"] ?? "")}`
-              : `${show("provider", (v as Payload)["provider"], undefined)}: ${String((v as Payload)["model"] ?? "")}`,
+              : `${show("provider", "provider" in v ? v["provider"] : undefined, undefined)}: ${String("model" in v ? (v["model"] ?? "") : "")}`,
       )
       .join(", ");
   }
 
-  return typeof value === "object" ? canonicalJson(value) : String(value);
+  return Predicate.isObjectOrArray(value) ? canonicalJson(value) : String(value);
 }
 
 /** The fields that differ, readable. Secret values never appear; only whether a key is set or another one. */
 function differences(local: Payload | undefined, remote: Payload): ui.SharedConfigField[] {
   const names = [...new Set([...Object.keys(local ?? {}), ...Object.keys(remote)])];
 
-  return names
-    .filter((n) => canonicalJson(local?.[n] ?? null) !== canonicalJson(remote[n] ?? null))
-    .map((n) =>
-      create(ui.SharedConfigFieldSchema, {
-        name: FIELD[n] ?? n,
-        local: local ? show(n, local[n]) : "Not on this computer",
-        remote: show(n, remote[n], local?.[n]),
-      }),
-    );
+  return names.flatMap((n) =>
+    canonicalJson(local?.[n] ?? null) !== canonicalJson(remote[n] ?? null)
+      ? [
+          create(ui.SharedConfigFieldSchema, {
+            name: FIELD.get(n) ?? n,
+            local: local ? show(n, local[n]) : "Not on this computer",
+            remote: show(n, remote[n], local?.[n]),
+          }),
+        ]
+      : [],
+  );
 }

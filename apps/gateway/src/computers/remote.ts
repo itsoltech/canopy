@@ -1,12 +1,15 @@
 import {
   fromBinary,
+  isMessage,
   toBinary,
   ScalarType,
   type DescMessage,
   type DescMethod,
   type Message,
   type MessageInitShape,
+  type MessageShape,
 } from "@bufbuild/protobuf";
+import { reflect, isReflectMessage } from "@bufbuild/protobuf/reflect";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link, MentionKind, ui } from "@canopy/contracts";
 import { qualifyId, splitId, nodeRef } from "@canopy/domain/computers";
@@ -95,6 +98,13 @@ export const methodNamed = (name: string) =>
   link.LinkedAgentsService.methods.find((m) => m.name === name) ??
   link.ComputerMoveService.methods.find((m) => m.name === name);
 
+/** Link messages have already been decoded; verify their descriptor before accessing a concrete message. */
+export function linkedMessage<D extends DescMessage>(desc: D, message: Message): MessageShape<D> {
+  if (!isMessage(message, desc)) throw new ConnectError("Unexpected linked message type", Code.Internal);
+
+  return message;
+}
+
 /** Stage 8: a call named things that moved to another computer. The caller follows the redirect; the items cross relays. */
 export class MovedError extends ConnectError {
   constructor(
@@ -106,11 +116,13 @@ export class MovedError extends ConnectError {
 }
 
 /** ConnectError's `instanceof` matches any ConnectError, so moved errors are told apart by their items. */
-export const movedItems = (error: unknown): link.MovedItem[] | undefined =>
-  error instanceof ConnectError &&
-  Array.isArray((error as Partial<MovedError>).items) &&
-  (error as MovedError).items.length
-    ? (error as MovedError).items
+export const movedItems = (cause: unknown): link.MovedItem[] | undefined =>
+  cause instanceof ConnectError &&
+  "items" in cause &&
+  Array.isArray(cause.items) &&
+  cause.items.length &&
+  cause.items.every((item): item is link.MovedItem => isMessage(item, link.MovedItemSchema))
+    ? cause.items
     : undefined;
 
 export const BOT_METHODS = new Set([
@@ -159,52 +171,47 @@ export function mapIds(
   desc: DescMessage,
   message: Message,
   map: (id: string, field: string) => string,
-  visit?: (desc: DescMessage, message: Record<string, unknown>) => void,
+  visit?: (desc: DescMessage, message: Message) => void,
 ): void {
-  const record = message as unknown as Record<string, unknown>;
-  visit?.(desc, record);
+  const record = reflect(desc, message);
+  visit?.(desc, message);
 
   if (
     desc.typeName === "canopy.worker.v1.Mention" &&
-    [MentionKind.BOT, MentionKind.THREAD, MentionKind.CONNECTOR].includes(record["kind"] as MentionKind)
+    [MentionKind.BOT, MentionKind.THREAD, MentionKind.CONNECTOR].some(
+      (kind) => kind === record.get(desc.field["kind"]!),
+    )
   ) {
-    record["name"] = map(String(record["name"]), "mention_id");
+    const name = desc.field["name"]!;
+    record.set(name, map(String(record.get(name)), "mention_id"));
   }
 
   for (const field of desc.fields) {
-    let holder = record;
-    let key = field.localName;
+    if (field.oneof && record.oneofCase(field.oneof) !== field) continue;
 
-    if (field.oneof) {
-      const oneof = record[field.oneof.localName] as { case?: string; value?: unknown } | undefined;
+    if (field.fieldKind === "scalar" && field.scalar === ScalarType.STRING && idField(field.name)) {
+      const value = record.get(field);
 
-      if (oneof?.case !== field.localName) continue;
-      holder = oneof as Record<string, unknown>;
-      key = "value";
-    }
-
-    const value = holder[key];
-
-    if (
-      field.fieldKind === "scalar" &&
-      field.scalar === ScalarType.STRING &&
-      idField(field.name) &&
-      typeof value === "string" &&
-      value
-    )
-      holder[key] = map(value, field.name);
-    else if (
+      if (value) record.set(field, map(value, field.name));
+    } else if (
       field.fieldKind === "list" &&
       field.listKind === "scalar" &&
       field.scalar === ScalarType.STRING &&
       idField(field.name)
-    )
-      holder[key] = (value as string[]).map((v) => map(v, field.name));
-    else if (field.fieldKind === "list" && field.listKind === "message")
-      for (const item of value as Message[]) mapIds(field.message, item, map, visit);
-    else if (field.fieldKind === "message" && value) mapIds(field.message, value as Message, map, visit);
+    ) {
+      const values = record.get(field);
+
+      for (const [index, value] of values.entries()) {
+        // SAFETY: The descriptor identifies this list as scalar STRING, so every reflected element is a string.
+        values.set(index, map(value as string, field.name));
+      }
+    } else if (field.fieldKind === "list" && field.listKind === "message") {
+      for (const item of record.get(field)) if (isReflectMessage(item)) mapIds(field.message, item.message, map, visit);
+    } else if (field.fieldKind === "message" && record.isSet(field))
+      mapIds(field.message, record.get(field).message, map, visit);
     else if (field.fieldKind === "map" && field.mapKind === "message")
-      for (const item of Object.values(value as Record<string, Message>)) mapIds(field.message, item, map, visit);
+      for (const item of record.get(field).values())
+        if (isReflectMessage(item)) mapIds(field.message, item.message, map, visit);
   }
 }
 
@@ -214,8 +221,8 @@ export function qualify(desc: DescMessage, message: Message, nodeId: string): vo
     desc,
     message,
     (id) => qualifyId(id, nodeId),
-    (d, record) => {
-      if (STAMPED.has(d.typeName)) record["nodeId"] = nodeId;
+    (d, message) => {
+      if (STAMPED.has(d.typeName)) reflect(d, message).set(d.field["nodeId"]!, nodeId);
     },
   );
 }
@@ -235,11 +242,11 @@ export function nodesOf(desc: DescMessage, message: Message, topLevelOnly = fals
   const nodes = new Set<string>();
 
   if (topLevelOnly) {
-    for (const field of desc.fields) {
-      const value = (message as unknown as Record<string, unknown>)[field.localName];
+    const record = reflect(desc, message);
 
-      if (field.fieldKind === "scalar" && idField(field.name) && typeof value === "string") {
-        const { node } = splitId(value);
+    for (const field of desc.fields) {
+      if (field.fieldKind === "scalar" && field.scalar === ScalarType.STRING && idField(field.name)) {
+        const { node } = splitId(record.get(field));
 
         if (node) nodes.add(node);
       }
@@ -310,18 +317,18 @@ function join(parts: Uint8Array[]): Uint8Array {
 }
 
 /** Only Connect's own codes cross; anything else is an internal error without details. */
-function wireError(error: unknown): { code: number; message: string; moved?: link.MovedItem[] } {
-  const moved = movedItems(error);
+function wireError(cause: unknown) {
+  const moved = movedItems(cause);
 
-  if (moved)
+  if (moved && cause instanceof ConnectError)
     return {
-      code: (error as ConnectError).code,
-      message: (error as ConnectError).rawMessage.slice(0, 500),
+      code: cause.code,
+      message: cause.rawMessage.slice(0, 500),
       moved: moved.slice(0, 64),
     };
 
-  if (error instanceof ConnectError && error.code > 0 && error.code <= 16)
-    return { code: error.code, message: error.rawMessage.slice(0, 500) };
+  if (cause instanceof ConnectError && cause.code > 0 && cause.code <= 16)
+    return { code: cause.code, message: cause.rawMessage.slice(0, 500) };
 
   return { code: Code.Internal, message: "internal error" };
 }

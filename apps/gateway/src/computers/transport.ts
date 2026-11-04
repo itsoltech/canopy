@@ -99,7 +99,9 @@ export async function listenLink(options: {
     readMaxBytes: 64 * 1024,
     writeMaxBytes: 64 * 1024,
     contextValues: (request) => {
-      const socket = request.socket as tls.TLSSocket;
+      const socket = request.socket;
+
+      if (!(socket instanceof tls.TLSSocket)) throw new Error("Expected a TLS socket");
       const raw = socket.getPeerCertificate()?.raw;
 
       return createContextValues().set(remoteCertificate, raw ? certificateIdentity(raw).certificate : "");
@@ -120,7 +122,8 @@ export async function listenLink(options: {
     },
     (request, response) => {
       try {
-        const raw = (request.socket as tls.TLSSocket).getPeerCertificate()?.raw;
+        if (!(request.socket instanceof tls.TLSSocket)) throw new Error("Expected a TLS socket");
+        const raw = request.socket.getPeerCertificate()?.raw;
 
         if (!raw) throw new Error();
         certificateIdentity(raw);
@@ -148,6 +151,7 @@ export async function listenLink(options: {
   });
 
   return {
+    // SAFETY: listen completed successfully on the configured TCP host/port, so address is an AddressInfo.
     port: (server.address() as AddressInfo).port,
     close: () =>
       new Promise<void>((resolve) => {

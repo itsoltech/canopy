@@ -1,11 +1,11 @@
 import { create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link } from "@canopy/contracts";
-import { AGENT_BUS, RELAY, REMOTE_BOTS, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
+import { AGENT_BUS, REMOTE_BOTS, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { ComputerStore, type PeerRow } from "./store.ts";
-import { SERVED } from "./remote.ts";
+import { linkedMessage, SERVED } from "./remote.ts";
 
 // Configuration (which can contain credentials) is deliberately absent, even when
 // every participant supports stage 4. Routes and relay itself are never inherited.
@@ -31,7 +31,10 @@ const revoked = () => new ConnectError("Share onward access was revoked", Code.P
 /** Reverse access exists only for already-authorized agent questions/reports.
  * LinkedAgents.receive checks the original call, actor and target at its home. */
 export function relayCallback(method: DescMethod, request: Message): boolean {
-  return method.name === "CallAgentBus" && ["question", "report"].includes((request as link.LinkedAgentCall).operation);
+  return (
+    method.name === "CallAgentBus" &&
+    ["question", "report"].includes(linkedMessage(link.LinkedAgentCallSchema, request).operation)
+  );
 }
 
 /** Stage 7 policy and catalog. Indirect peers are mirror owners, never trust pins.
@@ -80,7 +83,7 @@ export class ComputerRelay {
     return this.grants.has(key(recipient, home)) && this.host.enabled(recipient) && this.host.enabled(home);
   }
   selected(recipient: string) {
-    return [...this.grants].filter((g) => g.startsWith(`${recipient}:`)).map((g) => g.slice(recipient.length + 1));
+    return [...this.grants].flatMap((g) => (g.startsWith(`${recipient}:`) ? [g.slice(recipient.length + 1)] : []));
   }
   /** Abort network work as soon as a policy or reachability predicate stops holding. */
   check() {
@@ -211,11 +214,11 @@ export class ComputerRelay {
       };
 
       for (const g of this.grants) {
-        const [recipient, home] = g.split(":") as [string, string];
+        const [recipient, home] = g.split(":");
 
-        if (recipient === partner.node_id) add(home, "home");
+        if (recipient === partner.node_id && home) add(home, "home");
 
-        if (home === partner.node_id) add(recipient, "origin");
+        if (home === partner.node_id && recipient) add(recipient, "origin");
       }
 
       this.host.send(partner.node_id, create(link.RelayCatalogSchema, { revision, computers: [...offered.values()] }));

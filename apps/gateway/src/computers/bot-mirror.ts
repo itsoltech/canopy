@@ -4,7 +4,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { bots, computerLink as link } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { methodNamed, qualify, type RemoteServe } from "./remote.ts";
+import { linkedMessage, methodNamed, qualify, type RemoteServe } from "./remote.ts";
 import type { ComputerStore } from "./store.ts";
 
 /** Bot conversations are projections only. A complete replacement commits atomically, like thread mirrors. */
@@ -95,7 +95,8 @@ export class BotMirror {
             for (const field of ["messages", "approvals", "routines", "reminders"] as const) {
               for (const entry of conversation[field]) {
                 const part = create(bots.BotConversationSchema);
-                (part[field] as unknown[]).push(entry);
+                // SAFETY: Both arrays use the same field key; this fragment receives only that field's own entry type.
+                (part[field] as (typeof entry)[]).push(entry);
                 yield create(link.BotMirrorUpdateSchema, { cursor: next, conversation: part });
               }
             }
@@ -124,7 +125,7 @@ export class BotMirror {
 
     for await (const message of updates) {
       if (signal.aborted) return;
-      const update = message as link.BotMirrorUpdate;
+      const update = linkedMessage(link.BotMirrorUpdateSchema, message);
 
       if (update.start) {
         batch = [];
@@ -186,7 +187,11 @@ export class BotMirror {
 }
 
 async function first<A extends Message>(messages: AsyncIterable<Message>): Promise<A> {
-  for await (const message of messages) return message as A;
+  for await (const message of messages) {
+    // SAFETY: Callers choose A from the output descriptor used by the remote stream's decoder.
+    return message as A;
+  }
+
   throw new ConnectError("Missing bot snapshot", Code.DataLoss);
 }
 
