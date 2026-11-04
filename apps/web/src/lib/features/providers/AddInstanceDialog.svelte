@@ -145,9 +145,7 @@
           <span
             class={[
               "grid size-6 shrink-0 place-items-center rounded-full font-medium sm:size-5",
-              i <= step
-                ? "bg-brand-600 text-white dark:bg-brand-500"
-                : "bg-zinc-950/5 text-zinc-500 dark:bg-white/8 dark:text-zinc-400",
+              i <= step ? "bg-action text-on-accent" : "bg-zinc-950/5 text-zinc-500 dark:bg-white/8 dark:text-zinc-400",
             ]}
             aria-hidden="true">{i + 1}</span
           >

@@ -13,7 +13,7 @@ export const useField = (): FieldContext | undefined => getContext<FieldContext 
 
 /** Text controls (input, select, textarea) share one look; `focus` uses an inset outline. */
 export const controlClasses =
-  "w-full rounded-lg bg-white px-3 py-2 text-base/6 text-zinc-950 outline-1 -outline-offset-1 outline-zinc-950/15 placeholder:text-zinc-400 focus:outline-2 focus:-outline-offset-1 focus:outline-brand-500 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500 aria-invalid:outline-rose-500 sm:py-1.5 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-zinc-500 dark:disabled:bg-white/2.5 dark:disabled:text-zinc-400";
+  "w-full rounded-lg bg-surface px-3 py-2 text-base/6 text-ink outline-1 -outline-offset-1 outline-divider placeholder:text-muted focus:outline-2 focus:-outline-offset-1 focus:outline-accent disabled:cursor-not-allowed disabled:bg-panel disabled:text-muted aria-invalid:outline-rose-500 sm:py-1.5 sm:text-sm/6";
 
 /** A text control without a box (search field inside a picker): text, placeholder, no outline of its own. */
 export const bareControlClasses =

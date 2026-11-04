@@ -92,6 +92,24 @@ parowanie i handshake addytywnie. `packages/ui/desktop` jest opcjonalnym
 kontraktem typów. Mobile i przeglądarka nie muszą go implementować. Root workspaces
 już obejmuje `apps/*`, więc nowa aplikacja nie wymaga zmiany konfiguracji workspaces.
 
+### Kolory okna i paski tytułu
+
+Pełne palety Light / Dark z Settings → Appearance obejmują też tło okna.
+Main zachowuje opcjonalny `appearance-cache.json` w userData (wyłącznie nazwy
+motywów i schemat), aby dobrać tło przed utworzeniem BrowserWindow. Preload
+odczytuje go przez walidowane synchroniczne IPC; lokalny ekran `/desktop`
+stosuje te same tokeny przed pierwszym renderem. Po połączeniu ustawienia
+właściciela z gatewaya aktualizują cache i okno. Błąd zapisu cache nie blokuje
+zmiany kolorów. Szczegóły kontraktu i pomiarów: [appearance.md](appearance.md).
+
+Linux i Windows używają `titleBarStyle: hidden` oraz natywnego titleBarOverlay
+o wysokości 48 px, z tłem canvas i symbolami ink aktywnej palety. Nagłówek
+rezerwuje po prawej miejsce dla kontrolek, z uwzględnieniem zoomu. Regiony
+przeciągania i bezpieczna wysokość są wspólne dla wszystkich platform desktop.
+Zmiana schematu ustawia nativeTheme; System reaguje na preferencję systemu.
+Integracja jest sprawdzona typami; wyglądu natywnego okna nie potwierdzono
+w tej sesji na Linux, Windows ani macOS.
+
 ### Paski okna macOS
 
 Okna używają `hiddenInset` i pozycji kontrolek `{ x: 18, y: 18 }`. Regiony przeciągania

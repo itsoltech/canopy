@@ -542,7 +542,7 @@ same na każdym komputerze:
 |---|---|---|
 | `instance:<harness>:<id>` | nazwa, rodzaj, endpoint, kolor, klucz API, zmienne (także sekretne) | ścieżki CLI, katalogi, argumenty, własne logowanie, workery i ich nadpisania, stan instalacji CLI |
 | `models:<harness>:<id>` | ulubione, ukryte, pokazane i własne modele instancji | — |
-| `settings:appearance` | schemat kolorów, motyw, szerokość czatu | układ paneli i paska bocznego |
+| `settings:appearance` | schemat kolorów, osobne pełne palety Light / Dark, szerokość czatu | układ paneli i paska bocznego |
 | `settings:thread_defaults` | dostawca, instancja, uprawnienia, modele | domyślny workspace |
 | `settings:timezone` | strefa IANA | — |
 | `settings:text_generation` | instancja, model, wysiłek, instrukcje tytułów | — |

@@ -29,10 +29,12 @@
   } = $props();
 
   const steerFirst = $derived(primary === "steer");
-  const half = "relative flex h-9 items-center focus-ring not-disabled:hover:bg-brand-500 disabled:opacity-60 sm:h-8";
+
+  const half =
+    "relative flex h-9 items-center focus-ring not-disabled:hover:bg-action-hover disabled:opacity-60 sm:h-8";
 </script>
 
-<div class={["flex shrink-0 items-center rounded-full bg-brand-600 text-white", className]}>
+<div class={["flex shrink-0 items-center rounded-full bg-action text-on-accent", className]}>
   <button
     type="submit"
     class={[half, "gap-1.5 rounded-l-full pr-2.5 pl-3 text-sm/5 font-medium sm:text-[0.8125rem]/5"]}
@@ -54,7 +56,7 @@
     {#snippet trigger(props)}
       <button
         type="button"
-        class={[half, "rounded-r-full pr-2.5 pl-1.5 aria-expanded:bg-brand-500"]}
+        class={[half, "rounded-r-full pr-2.5 pl-1.5 aria-expanded:bg-action-hover"]}
         aria-label="More ways to send"
         disabled={disabled || sending}
         {...props}

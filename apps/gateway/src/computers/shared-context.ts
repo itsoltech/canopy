@@ -150,9 +150,17 @@ export function tokensIn(payload: Payload): string[] {
 
 // ------------------------------------------------------------------ conflict details
 
-export const ENUM_FIELDS = new Set(["colorScheme", "accent", "chatWidth", "provider", "permissionMode"]);
+export const ENUM_FIELDS = new Set([
+  "colorScheme",
+  "accent",
+  "lightTheme",
+  "darkTheme",
+  "chatWidth",
+  "provider",
+  "permissionMode",
+]);
 
-export const ENUM_PREFIX = /^(COLOR_SCHEME|ACCENT_THEME|CHAT_WIDTH|PROVIDER|PERMISSION_MODE)_/;
+export const ENUM_PREFIX = /^(COLOR_SCHEME|ACCENT_THEME|COLOR_THEME|CHAT_WIDTH|PROVIDER|PERMISSION_MODE)_/;
 
 export const FIELD = new Map(
   Object.entries({
@@ -168,6 +176,8 @@ export const FIELD = new Map(
     custom: "Custom models",
     colorScheme: "Color scheme",
     accent: "Accent",
+    lightTheme: "Light theme",
+    darkTheme: "Dark theme",
     chatWidth: "Chat width",
     provider: "Provider",
     providerProfileId: "Instance",

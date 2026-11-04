@@ -26,9 +26,7 @@
   data-settling={sidebar.settling || undefined}
   inert={sidebar.collapsed && !sidebar.dragging}
 >
-  <div
-    class="t-sidebar-panel absolute inset-y-0 right-0 w-(--sidebar-width) border-r border-zinc-950/5 bg-zinc-50 dark:border-white/8 dark:bg-zinc-950"
-  >
+  <div class="t-sidebar-panel absolute inset-y-0 right-0 w-(--sidebar-width) border-r border-divider bg-panel">
     {@render children()}
   </div>
 </aside>

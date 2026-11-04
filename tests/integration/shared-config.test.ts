@@ -243,6 +243,8 @@ describe.skipIf(!dockerAvailable)("shared configuration between two linked gatew
       appearance: {
         colorScheme: ui.ColorScheme.DARK,
         accent: ui.AccentTheme.IRIS,
+        lightTheme: ui.ColorTheme.FERN,
+        darkTheme: ui.ColorTheme.HEATHER,
         chatWidth: ui.ChatWidth.WIDE,
         sidebarWidth: 333,
       },
@@ -254,6 +256,8 @@ describe.skipIf(!dockerAvailable)("shared configuration between two linked gatew
     const question = (await conflicts(lb)).find((c) => c.key === APPEARANCE)!;
     expect(question.nodeId).toBe(nodeA);
     expect(question.fields.find((f) => f.name === "Color scheme")).toMatchObject({ local: "Light", remote: "Dark" });
+    expect(question.fields.find((f) => f.name === "Light theme")).toMatchObject({ local: "Default", remote: "Fern" });
+    expect(question.fields.find((f) => f.name === "Dark theme")).toMatchObject({ local: "Default", remote: "Heather" });
     await op(lb, "keep_remote", APPEARANCE, nodeA);
 
     const project = (await a.api.createProject({ name: "Shared app" })).project!;
@@ -302,6 +306,8 @@ describe.skipIf(!dockerAvailable)("shared configuration between two linked gatew
     const user = await settings(b);
     expect(user.appearance).toMatchObject({
       accent: ui.AccentTheme.IRIS,
+      lightTheme: ui.ColorTheme.FERN,
+      darkTheme: ui.ColorTheme.HEATHER,
       chatWidth: ui.ChatWidth.WIDE,
       sidebarWidth: 280,
     });

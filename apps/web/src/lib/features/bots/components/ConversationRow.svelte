@@ -99,7 +99,7 @@
         {/if}
       </span>
       {#if conversation.unread > 0}
-        <span class="shrink-0 rounded-full bg-brand-600 px-1.5 text-xs/5 font-medium text-white tabular-nums">
+        <span class="shrink-0 rounded-full bg-action px-1.5 text-xs/5 font-medium text-on-accent tabular-nums">
           {conversation.unread > 99 ? "99+" : conversation.unread}<span class="sr-only"> unread</span>
         </span>
       {/if}

@@ -91,7 +91,7 @@
   data-sheet
   inert={closing || undefined}
   class={[
-    "t-modal top-(--window-safe-top) m-0 mt-auto max-h-[min(90dvh,var(--window-safe-height))] w-full max-w-none overflow-y-auto rounded-t-2xl bg-white p-0 text-zinc-950 shadow-xl ring-1 ring-zinc-950/10 backdrop:bg-zinc-950/40 sm:m-auto sm:rounded-2xl dark:bg-zinc-950 dark:text-white dark:shadow-none dark:ring-white/10 dark:backdrop:bg-black/60",
+    "t-modal top-(--window-safe-top) m-0 mt-auto max-h-[min(90dvh,var(--window-safe-height))] w-full max-w-none overflow-y-auto rounded-t-2xl bg-surface p-0 text-ink shadow-xl ring-1 ring-divider backdrop:bg-zinc-950/40 sm:m-auto sm:rounded-2xl dark:shadow-none dark:backdrop:bg-black/60",
     size === "output" ? "sm:max-w-[55rem]" : size === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg",
     fullscreen && "max-sm:mt-0 max-sm:h-(--window-safe-height) max-sm:max-h-(--window-safe-height) max-sm:rounded-none",
     className,

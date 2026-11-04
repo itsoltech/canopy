@@ -28,7 +28,7 @@
   class="t-drawer top-(--window-safe-top) m-0 h-(--window-safe-height) max-h-none w-full max-w-88 bg-transparent p-0 backdrop:bg-zinc-950/40 dark:backdrop:bg-black/60"
 >
   <div
-    class="relative flex h-full w-[calc(100%-3.5rem)] max-w-80 flex-col bg-white shadow-xl ring-1 ring-zinc-950/10 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10"
+    class="relative flex h-full w-[calc(100%-3.5rem)] max-w-80 flex-col bg-panel text-ink shadow-xl ring-1 ring-divider dark:shadow-none"
   >
     <div class="absolute top-2.5 -right-12">
       <IconButton icon="x-mark" label="Close menu" variant="secondary" onclick={() => (open = false)} />

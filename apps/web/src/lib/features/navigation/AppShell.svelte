@@ -166,7 +166,7 @@
 <!-- `data-sidebar`: whether the sidebar clears the page header from the native window controls. While the column
      eases (`data-sidebar-settling`), the header's clearance eases with it (layout.css), so the toggle never jumps. -->
 <div
-  class="isolate flex h-dvh bg-white text-zinc-950 dark:bg-black dark:text-white"
+  class="isolate flex h-dvh bg-canvas text-ink"
   data-sidebar={wide.current && !sidebar.collapsed ? "shown" : "hidden"}
   data-sidebar-settling={sidebar.settling || undefined}
 >
@@ -183,7 +183,7 @@
   >
     {#if overview.connection === "unavailable" || !ready || page.error}
       <!-- Keep banners, loading and error content below a static native title strip. -->
-      <div class="hidden h-12 shrink-0 macos:block" data-window-drag></div>
+      <div class="hidden h-12 shrink-0 desktop:block" data-window-drag></div>
     {/if}
     {#if overview.connection === "unavailable"}
       <GrowIn

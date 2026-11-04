@@ -2,6 +2,7 @@ import { app, BrowserWindow, nativeTheme, shell, type IpcMainEvent, type IpcMain
 import { join } from "node:path";
 import type { QuitGuard } from "./quit-guard.ts";
 import { attachWindowChrome } from "./window-chrome.ts";
+import { applyWindowAppearance, windowAppearance, windowColors } from "./window-appearance.ts";
 
 interface WindowOptions {
   productName: string;
@@ -50,6 +51,8 @@ function external(url: string) {
 }
 
 export function createDesktopWindow(options: WindowOptions) {
+  nativeTheme.themeSource = windowAppearance().scheme;
+
   const target = new BrowserWindow({
     width: 1280,
     height: 850,
@@ -58,7 +61,11 @@ export function createDesktopWindow(options: WindowOptions) {
     title: options.productName,
     icon: options.iconPath,
     show: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#000000" : "#ffffff",
+    backgroundColor: windowColors()["canvas"],
+    ...((process.platform === "win32" || process.platform === "linux") && {
+      titleBarStyle: "hidden" as const,
+      titleBarOverlay: { color: windowColors().canvas, symbolColor: windowColors().ink, height: 48 },
+    }),
     ...(process.platform === "darwin" && {
       titleBarStyle: "hiddenInset" as const,
       trafficLightPosition: { x: 18, y: 18 },
@@ -76,7 +83,7 @@ export function createDesktopWindow(options: WindowOptions) {
 
   options.quitGuard.attach(target);
   attachWindowChrome(target);
-  const updateBackground = () => target.setBackgroundColor(nativeTheme.shouldUseDarkColors ? "#000000" : "#ffffff");
+  const updateBackground = () => applyWindowAppearance(target);
   nativeTheme.on("updated", updateBackground);
   target.once("closed", () => nativeTheme.removeListener("updated", updateBackground));
   target.once("ready-to-show", () => {

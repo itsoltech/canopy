@@ -1,8 +1,7 @@
 import {
   namesOf,
-  accentLabel,
-  accentNames,
-  accentOf,
+  colorThemes,
+  themeOf,
   chatWidthLabels,
   chatWidthNames,
   chatWidthOf,
@@ -13,6 +12,7 @@ import {
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 import type { Command } from "./registry.ts";
+import { themes, themeNames } from "@canopy/ui/themes";
 
 const SCHEME_ICONS = {
   system: "computer-desktop",
@@ -20,7 +20,7 @@ const SCHEME_ICONS = {
   dark: "moon",
 } satisfies Record<keyof typeof schemeNames, IconName>;
 
-/** Palette commands that change the look: theme (accent), color scheme and chat width. */
+/** Each theme command changes one variant; the other mode keeps its chosen palette. */
 export function appearanceCommands(settings: SettingsState): Command[] {
   const appearance = settings.appearance;
 
@@ -30,19 +30,24 @@ export function appearanceCommands(settings: SettingsState): Command[] {
       title: "Change theme",
       group: "actions",
       icon: "swatch",
-      keywords: "accent color colour",
+      keywords: "palette color colour light dark",
       placeholder: "Search themes…",
       rank: 11,
       searchChildren: true,
       children: () =>
-        namesOf(accentNames).map((name) => ({
-          id: name,
-          title: accentLabel(name),
-          group: "actions",
-          keywords: "theme accent",
-          checked: accentOf(appearance) === name,
-          run: () => void settings.updateAppearance({ accent: accentNames[name] }),
-        })),
+        (["light", "dark"] as const).flatMap((mode) =>
+          themeNames.map((name) => ({
+            id: `${mode}-${name}`,
+            title: `${themes[name].label} · ${mode === "light" ? "Light" : "Dark"}`,
+            group: "actions",
+            keywords: `theme palette ${mode}`,
+            checked: themeOf(appearance, mode) === name,
+            run: () =>
+              void settings.updateAppearance(
+                mode === "light" ? { lightTheme: colorThemes[name] } : { darkTheme: colorThemes[name] },
+              ),
+          })),
+        ),
     },
     {
       id: "appearance",

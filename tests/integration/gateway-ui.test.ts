@@ -632,7 +632,13 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     // Device A saves the appearance; the thread defaults section stays untouched.
     const a = (
       await api.updateUserSettings({
-        appearance: { colorScheme: ui.ColorScheme.DARK, accent: ui.AccentTheme.GROVE, chatWidth: ui.ChatWidth.WIDE },
+        appearance: {
+          colorScheme: ui.ColorScheme.DARK,
+          accent: ui.AccentTheme.GROVE,
+          chatWidth: ui.ChatWidth.WIDE,
+          lightTheme: ui.ColorTheme.FERN,
+          darkTheme: ui.ColorTheme.HEATHER,
+        },
         expectedVersion: 0n,
       })
     ).settings!;
@@ -664,6 +670,9 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
       Provider.CLAUDE,
     ]);
     expect(b.threadDefaults?.models.map((m) => m.model)).toEqual(["claude-haiku-5-5", "gpt-6.1-sol"]);
+    // Another device changes a different section; both independent palettes survive the DB round trip.
+    const persisted = (await api.getSettings({})).user?.appearance;
+    expect([persisted?.lightTheme, persisted?.darkTheme]).toEqual([ui.ColorTheme.FERN, ui.ColorTheme.HEATHER]);
     expect(
       await failure(
         api.updateUserSettings({

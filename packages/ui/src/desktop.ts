@@ -1,4 +1,12 @@
 /** Optional, capability-limited Electron bridge. No filesystem, secrets or generic IPC. */
+import type { ThemeName } from "./themes.ts";
+
+export interface DesktopAppearance {
+  scheme: "system" | "light" | "dark";
+  light: ThemeName;
+  dark: ThemeName;
+}
+
 export type DesktopMode = "local" | "remote";
 
 export type DesktopUpdateChannel = "stable" | "beta" | "nightly";
@@ -113,6 +121,15 @@ export function sameDesktopConfiguration(
 
 export interface DesktopBridge {
   readonly platform: string;
+  /** Read-only startup cache, used by the bundled setup page before its first paint. */
+  readonly startupAppearance?: {
+    scheme: DesktopAppearance["scheme"];
+    light: ThemeName;
+    dark: ThemeName;
+    style: string;
+  };
+  /** Chrome cache only; the gateway remains the owner of appearance settings. */
+  setAppearance?(appearance: DesktopAppearance): Promise<void>;
   windowState(): Promise<DesktopWindowState>;
   onWindowState(listener: (state: DesktopWindowState) => void): () => void;
   status(): Promise<DesktopStatus>;

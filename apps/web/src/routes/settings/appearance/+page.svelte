@@ -1,21 +1,19 @@
 <script lang="ts">
   import {
-    accentLabel,
-    accentNames,
-    accentOf,
     chatWidthLabels,
     chatWidthNames,
     chatWidthOf,
     schemeLabels,
     schemeNames,
     schemeOf,
-    type AccentName,
+    themeOf,
     type ChatWidthName,
-    type SchemeName,
   } from "#lib/features/settings/appearance.ts";
-  import SchemePreview from "#lib/features/settings/SchemePreview.svelte";
+  import ThemePreview from "#lib/features/settings/ThemePreview.svelte";
+  import ThemePicker from "#lib/features/settings/ThemePicker.svelte";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import Select from "#lib/shared/ui/Select.svelte";
+  import OptionTile from "#lib/shared/ui/OptionTile.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import ShareSetting from "#lib/features/computers/ShareSetting.svelte";
@@ -23,124 +21,43 @@
   import { sharedKey } from "@canopy/domain/computers";
   import AnimatedMascotsSetting from "#lib/features/bots/components/AnimatedMascotsSetting.svelte";
 
-  /** Saved in the gateway: the same on every device, changes elsewhere show up here live. */
   const settings = useSettings();
   const scheme = $derived(schemeOf(settings.appearance));
-  const accent = $derived(accentOf(settings.appearance));
   const chatWidth = $derived(chatWidthOf(settings.appearance));
-
-  const schemes = (["system", "light", "dark"] as const).map((value: SchemeName) => ({
-    value,
-    label: schemeLabels[value],
-  }));
-
-  // Each theme: its accent, shown as a light and a dark orb.
-  const accents: { value: AccentName; label: string; light: string; dark: string }[] = [
-    {
-      value: "default",
-      label: accentLabel("default"),
-      light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-blue-100)_45%,var(--color-blue-300))]",
-      dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-blue-400),var(--color-zinc-900)_60%,black)]",
-    },
-    {
-      value: "grove",
-      label: accentLabel("grove"),
-      light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-emerald-100)_45%,var(--color-emerald-300))]",
-      dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-emerald-400),var(--color-emerald-900)_60%,black)]",
-    },
-    {
-      value: "ocean",
-      label: accentLabel("ocean"),
-      light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-sky-100)_45%,var(--color-sky-400))]",
-      dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-sky-400),var(--color-sky-900)_60%,black)]",
-    },
-    {
-      value: "ember",
-      label: accentLabel("ember"),
-      light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-orange-100)_45%,var(--color-orange-300))]",
-      dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-orange-400),var(--color-orange-900)_60%,black)]",
-    },
-    {
-      value: "iris",
-      label: accentLabel("iris"),
-      light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-violet-100)_45%,var(--color-violet-300))]",
-      dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-violet-400),var(--color-violet-900)_60%,black)]",
-    },
-    {
-      value: "rose",
-      label: accentLabel("rose"),
-      light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-pink-100)_45%,var(--color-pink-300))]",
-      dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-pink-400),var(--color-pink-900)_60%,black)]",
-    },
-  ];
-
-  const cardClass =
-    "group relative min-h-(--settings-target) cursor-pointer gap-2 rounded-xl p-2 ring-1 ring-zinc-950/10 hover:ring-zinc-950/20 has-checked:ring-2 has-checked:ring-brand-500 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-brand-500 dark:ring-white/10 dark:hover:ring-white/20 dark:has-checked:ring-brand-500";
+  const schemes = ["system", "light", "dark"] as const;
 </script>
 
 <svelte:head><title>Appearance · Settings · Canopy</title></svelte:head>
 
-<section aria-labelledby="scheme-title">
-  <h2 id="scheme-title" class="mb-3 px-1 text-base/7 font-semibold">Color scheme</h2>
-  <div class="@container">
-    <div class="grid max-w-xl grid-cols-3 gap-2" role="radiogroup" aria-labelledby="scheme-title">
-      {#each schemes as option (option.value)}
-        <label class={[cardClass, "grid"]}>
-          <input
-            type="radio"
-            name="scheme"
-            value={option.value}
-            class="sr-only"
-            checked={scheme === option.value}
-            onchange={() => settings.updateAppearance({ colorScheme: schemeNames[option.value] })}
-          />
-          <div
-            class="relative aspect-[20/9] overflow-hidden rounded-[calc(var(--radius-2xl)-var(--spacing)*2)] ring-1 ring-zinc-950/5 dark:ring-white/5"
+<SettingsGroup>
+  <SettingsRow title="Color scheme" description="Follow this device or always use your light or dark palette.">
+    {#snippet control()}
+      <div class="grid w-80 max-w-full grid-cols-3 gap-2" role="radiogroup" aria-label="Color scheme">
+        {#each schemes as mode (mode)}
+          <OptionTile
+            checked={scheme === mode}
+            label={schemeLabels[mode]}
+            onchange={() => settings.updateAppearance({ colorScheme: schemeNames[mode] })}
+            class="grid gap-2 p-2"
           >
-            {#if option.value === "system"}
-              <SchemePreview mode="light" class="absolute inset-0" />
-              <SchemePreview mode="dark" class="absolute inset-0 [clip-path:inset(0_0_0_50%)]" />
-            {:else}
-              <SchemePreview mode={option.value} />
-            {/if}
-          </div>
-          <span
-            class="pb-1 text-center text-sm/6 text-zinc-600 group-has-checked:font-medium group-has-checked:text-zinc-950 dark:text-zinc-400 dark:group-has-checked:text-white"
-            >{option.label}</span
-          >
-        </label>
-      {/each}
-    </div>
-  </div>
-</section>
+            <div class="relative overflow-hidden rounded-lg">
+              <ThemePreview
+                theme={themeOf(settings.appearance, mode === "dark" ? "dark" : "light")}
+                mode={mode === "dark" ? "dark" : "light"}
+              />
+              {#if mode === "system"}<div class="absolute inset-0 [clip-path:inset(0_0_0_50%)]">
+                  <ThemePreview theme={themeOf(settings.appearance, "dark")} mode="dark" />
+                </div>{/if}
+            </div>
+            <div class="text-center font-medium">{schemeLabels[mode]}</div>
+          </OptionTile>
+        {/each}
+      </div>
+    {/snippet}
+  </SettingsRow>
+</SettingsGroup>
 
-<section aria-labelledby="themes-title">
-  <h2 id="themes-title" class="mb-1 px-1 text-base/7 font-semibold">Themes</h2>
-  <p class="mb-3 px-1 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-    The accent of buttons, focus rings and the send button.
-  </p>
-  <div class="@container">
-    <div class="grid grid-cols-2 gap-3 @lg:grid-cols-3" role="radiogroup" aria-labelledby="themes-title">
-      {#each accents as option (option.value)}
-        <label class={[cardClass, "flex items-center gap-3"]}>
-          <input
-            type="radio"
-            name="accent"
-            value={option.value}
-            class="sr-only"
-            checked={accent === option.value}
-            onchange={() => settings.updateAppearance({ accent: accentNames[option.value] })}
-          />
-          <span class="flex shrink-0 gap-1" aria-hidden="true">
-            <span class={["size-6 rounded-full ring-1 ring-zinc-950/10 dark:ring-white/10", option.light]}></span>
-            <span class={["size-6 rounded-full ring-1 ring-zinc-950/10 dark:ring-white/10", option.dark]}></span>
-          </span>
-          <span class="text-base/6 font-medium sm:text-sm/6">{option.label}</span>
-        </label>
-      {/each}
-    </div>
-  </div>
-</section>
+<ThemePicker />
 
 <SettingsGroup title="Interface">
   <SettingsRow
@@ -149,11 +66,9 @@
       ? "Taken from this device. Bots use it for local times and scheduled tasks."
       : "Bots use it for local times and scheduled tasks."}
   >
-    {#snippet control()}
-      <p class="text-base/6 wrap-anywhere text-zinc-950 sm:text-sm/6 dark:text-white">
+    {#snippet control()}<p class="text-base/6 wrap-anywhere text-ink sm:text-sm/6">
         {settings.user.timezone || "UTC"}
-      </p>
-    {/snippet}
+      </p>{/snippet}
   </SettingsRow>
   <AnimatedMascotsSetting />
   <SettingsRow title="Chat width" description="How wide the conversation and the message box are.">
@@ -174,7 +89,7 @@
   <ShareSetting
     itemKey={sharedKey.settings("appearance")}
     label="Appearance"
-    local="Color scheme, theme and chat width. Panel and sidebar layout stay on each computer."
+    local="Color scheme, light and dark themes, and chat width. Panel and sidebar layout stay on each computer."
   />
   <ShareSetting itemKey={sharedKey.settings("timezone")} label="Time zone" />
 </SharingGroup>
