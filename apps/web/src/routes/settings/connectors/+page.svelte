@@ -12,9 +12,11 @@
   import { rise } from "#lib/shared/ui/motion.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   let { data }: PageProps = $props();
   const overview = useOverview();
+  const capabilities = useGatewayCapabilities();
   const route = useSettingsRoute();
   const catalog = $derived(decode(connectors.ListConnectorsResponseSchema, data.connections));
 
@@ -54,7 +56,7 @@
     title="Connectors"
     description="Connect your apps once. Choose which workers and bots can use each account."
   />
-  {#if overview.computers.size > 0}
+  {#if capabilities?.linkedComputers && overview.computers.size > 0}
     <Alert title="Accounts stay on this computer">
       <p>Connector accounts are never shared. Connect an app on each linked computer whose workers or bots need it.</p>
       <div class="pt-2"><ShareScope shared={false} /></div>

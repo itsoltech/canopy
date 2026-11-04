@@ -25,10 +25,13 @@ export function reachableAt(status: ui.NetworkAccess, shown = 2) {
 }
 
 /** One sentence for the state: what works now, or what to do. */
-export function networkSummary(status: ui.NetworkAccess) {
+export function networkSummary(status: ui.NetworkAccess, linkedComputers = false) {
   if (status.state === "error") return status.error;
 
-  if (status.state !== "on") return "Phones and other computers can't connect to this computer yet.";
+  if (status.state !== "on")
+    return linkedComputers
+      ? "Phones and other computers can't connect to this computer yet."
+      : "Paired devices and remote workers can't connect to this gateway yet.";
 
   return status.addresses.length
     ? `Reachable at ${reachableAt(status)}.`

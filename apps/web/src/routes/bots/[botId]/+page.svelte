@@ -29,9 +29,11 @@
   import { useBotHome } from "#lib/features/bots/home.svelte.ts";
   import MovedBotNotice from "#lib/features/bots/components/MovedBotNotice.svelte";
   import { nodeRef, splitId } from "@canopy/domain/computers";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   let { data }: PageProps = $props();
   const settings = useSettings();
+  const capabilities = useGatewayCapabilities();
   const catalogs = useModelCatalog();
   let snapshot = $state.raw(create(bots.BotConversationSchema));
   let connection = $state("");
@@ -398,7 +400,7 @@
                   .catch(reportLifecycleError);
               }}>{bot.archived ? "Unarchive bot" : "Archive bot"}</MenuItem
             >
-            {#if !bot.nodeId}<MenuItem
+            {#if capabilities?.linkedComputers && !bot.nodeId}<MenuItem
                 icon="arrows-right-left"
                 onselect={() => window.dispatchEvent(new CustomEvent("move-bot", { detail: bot.id }))}
                 >Move to…</MenuItem

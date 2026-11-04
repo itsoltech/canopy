@@ -1,4 +1,25 @@
-# Połączone komputery (projekt)
+# Połączone komputery
+
+**Wyłącznie aplikacje Canopy Desktop w trybie lokalnym.** Łącze łączy dwa lub więcej
+lokalnych gatewayów desktopu. Gateway serwerowy (Docker lub samodzielna binarka)
+nie oferuje parowania komputerów, łącza, wykrywania LAN/mDNS, luster, wspólnej
+konfiguracji, przenoszenia ani relay. Łączenie wielu gatewayów serwerowych nie jest wspierane.
+
+Rolę gatewaya ustala sposób uruchomienia: domyślnie `server`, a kontroler desktopu
+oznacza własny lokalny sidecar jako `desktop` wewnętrznym znacznikiem startowym.
+Nie jest to ustawienie użytkownika. `GetClientCapabilities` zwraca `gateway_role`
+i `linked_computers`; brak capability oznacza brak funkcji. Web i lokalny frontend
+desktopu w trybie remote ukrywają wszystkie wejścia linkowania, gdy serwer jej nie oferuje.
+RPC linkowania zwracają wtedy `FailedPrecondition` z komunikatem
+„Linked computers are available only in the Canopy desktop app”. Network access
+nadal obsługuje telefony, sparowane klienty desktopowe i workery, ale odrzuca łącza komputerów.
+
+Istniejące na serwerze rekordy partnerów otrzymują przy starcie stan `inactive`.
+Nie są usuwane: piny, trasy, lustra, konfiguracja i niedokończone przeniesienia zostają
+w bazie, lecz nie są łączone, synchronizowane, udostępniane ani wznawiane przez usługi linków.
+Lokalne dane domu pozostają dostępne. Start tej samej bazy przez lokalny desktop
+ponownie uruchamia zwykły protokół linkowania; stan `inactive` nie odwołuje zaufania.
+W dalszym opisie „gateway” oznacza lokalny gateway aplikacji desktopowej.
 
 Status: **wszystkie etapy (1–8) zaimplementowane** (2026-11-03). Etap 1: tożsamość, parowanie, przypięty mTLS,
 wersjonowanie, obecność i Settings → Linked computers. Etap 2: zsumowany overview i zdalne wątki
@@ -264,7 +285,7 @@ Peer może wcześniej wysłać `Presence {state, announced_at_ms}`: `updating`, 
 łącza; nie zgaduje bieżącej przyczyny. Heartbeat nie zamienia ogłoszenia w Connected.
 Restart lokalnego procesu resetuje stare stany aktywnego połączenia, ale zachowuje ogłoszenia
 partnera. Desktop korzysta z `powerMonitor` suspend/resume, quit i restartu aktualizacji;
-gateway serwerowy ogłasza graceful shutdown lub restart aktualizatora. Awaria/SIGKILL/wyłączenie
+lokalny gateway ogłasza graceful shutdown lub restart aktualizatora. Awaria/SIGKILL/wyłączenie
 systemu bez czasu na wysłanie ramki nie dają gwarancji ogłoszenia.
 
 Unlink usuwa aktywny rekord partnera, trasy i certyfikat, a następnie zamyka jego strumienie.
@@ -863,9 +884,9 @@ nazw.
 network” w Settings → Linked computers (`ManageComputer` `lan_discovery`). Wyłączenie zamyka gniazdo:
 brak ogłoszeń, pytań i odpowiedzi, lokalne adresy LAN znikają z ogłaszanych, a trasy `lan` są usuwane.
 `ComputersSnapshot` ma `lan_discovery_enabled`, `lan_discovery_state` (`active`, `off`, `unavailable`)
-i `lan_discovery_note`. „Unavailable”: zajęte/niedostępne gniazdo UDP 5353, opcjonalne nadpisanie serwera `CANOPY_LINK_DISCOVERY=off`
-albo kontener bez sieci hosta (`/.dockerenv` i same interfejsy `eth*`; `on` pomija heurystykę) —
-patrz [deploy.md](deploy.md#połączone-komputery-wykrywanie-w-sieci-lokalnej). Interfejsy wirtualne
+i `lan_discovery_note`. „Unavailable”: zajęte/niedostępne gniazdo UDP 5353 lub diagnostyczne
+wyłączenie wykrywania runtime desktopu. Gateway serwerowy nigdy nie uruchamia wykrywania.
+Interfejsy wirtualne
 (loopback, Tailscale, WireGuard, utun, mostki Dockera/VM) nie biorą udziału w wykrywaniu. Desktop na
 macOS deklaruje `NSLocalNetworkUsageDescription` ([desktop.md](desktop.md)).
 

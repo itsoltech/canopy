@@ -70,6 +70,7 @@ describe("bundled desktop BFF protocol negotiation over real TLS", () => {
 
         const status = await bff.compatibility();
         expect(status.state).toBe(scenario.state);
+        expect(status.linkedComputers).toBe(false);
 
         if (scenario.state === "ready") {
           expect(status.message).toBe("");

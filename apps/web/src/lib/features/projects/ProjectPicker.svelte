@@ -7,6 +7,7 @@
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import SearchPicker from "#lib/shared/ui/SearchPicker.svelte";
   import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   /**
    * The new-thread composer's project pill: a searchable list of your projects, each with the workers it
@@ -25,8 +26,10 @@
   } = $props();
 
   const overview = useOverview();
+  const capabilities = useGatewayCapabilities();
+  const available = $derived(projects.filter((project) => !project.nodeId || capabilities?.linkedComputers));
 
-  const selected = $derived(projects.find((p) => p.id === value));
+  const selected = $derived(available.find((p) => p.id === value));
 
   const workersOf = (project: ui.Project) => [
     ...new Set(project.workspaces.map((w) => overview.worker(w.workerId)?.name ?? "Unknown worker")),
@@ -47,7 +50,7 @@
   label="Choose a project"
   searchLabel="Search projects"
   placeholder="Search projects…"
-  items={projects}
+  items={available}
   key={(p) => p.id}
   text={(p) => `${p.name} ${workersOf(p).join(" ")} ${overview.machine(p.nodeId) ?? ""}`}
   {value}

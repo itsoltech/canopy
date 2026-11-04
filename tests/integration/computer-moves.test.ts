@@ -179,9 +179,9 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
   });
 
   beforeAll(async () => {
-    a = await startTestGateway({ botModel: async (i) => ({ text: `A: ${input(i)}`, calls: [] }) });
-    b = await startTestGateway();
-    c = await startTestGateway({ botModel: (i) => modelC(i) });
+    a = await startTestGateway({ role: "desktop", botModel: async (i) => ({ text: `A: ${input(i)}`, calls: [] }) });
+    b = await startTestGateway({ role: "desktop" });
+    c = await startTestGateway({ role: "desktop", botModel: (i) => modelC(i) });
     la = runtime(a);
     lb = runtime(b);
     lc = runtime(c);

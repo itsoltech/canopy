@@ -8,6 +8,7 @@
   import PillButton from "#lib/shared/ui/PillButton.svelte";
   import SearchPicker from "#lib/shared/ui/SearchPicker.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   /**
    * The new-thread composer's worker pill: only the workers the project lives on (its workspaces), each
@@ -27,8 +28,10 @@
   } = $props();
 
   const overview = useOverview();
+  const capabilities = useGatewayCapabilities();
+  const available = $derived(project.nodeId && !capabilities?.linkedComputers ? [] : project.workspaces);
 
-  const selected = $derived(project.workspaces.find((w) => w.id === value));
+  const selected = $derived(available.find((w) => w.id === value));
   const nameOf = (ws: ui.Workspace) => overview.worker(ws.workerId)?.name ?? "Unknown worker";
   const online = (ws: ui.Workspace) => overview.worker(ws.workerId)?.online ?? false;
 </script>
@@ -37,7 +40,7 @@
   label="Choose a worker"
   searchLabel="Search workers"
   placeholder="Search workers…"
-  items={project.workspaces}
+  items={available}
   key={(w) => w.id}
   text={(w) => nameOf(w)}
   {value}

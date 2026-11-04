@@ -145,6 +145,7 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(local.status.phase).toBe("running");
       expect(statSync(join(data, "desktop.json")).mtimeMs).toBe(configBeforeSave);
       const api = local.client();
+      expect(await api.getClientCapabilities({})).toMatchObject({ gatewayRole: "desktop", linkedComputers: true });
       const online = (await api.getOverview({})).workers;
       expect(online.filter((worker) => worker.online)).toHaveLength(1);
       const workerId = online[0]!.id;

@@ -38,6 +38,7 @@ describe.skipIf(!dockerAvailable)("workers and persisted limits through Network 
   });
 
   test("enrollment pins TLS, persists trust and authenticates WorkerLink and UpdateService", async () => {
+    expect(await gw.api.getClientCapabilities({})).toMatchObject({ gatewayRole: "server", linkedComputers: false });
     const setup = await gw.api.getWorkerSetup({});
     expect(setup.gatewayUrl).toBe(network.origins()[0]!);
     expect(setup.gatewayFingerprint).toBe(network.fingerprint);

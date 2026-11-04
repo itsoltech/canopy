@@ -13,11 +13,13 @@ import { threadActions } from "#lib/features/threads/thread-actions.ts";
 import type { ThreadActions } from "#lib/features/threads/thread-actions.svelte.ts";
 import { awayReason } from "#lib/features/computers/computers.ts";
 import { appearanceCommands } from "./appearance-commands.ts";
+import type { GatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
 /** New thread in the current project (Mod+N and Mod+Shift+N belong to the browser: new window, private window). */
 export const NEW_THREAD_HOTKEY = "Mod+Shift+O";
 
 export interface AppCommandContext {
+  readonly capabilities: GatewayCapabilities;
   readonly overview: OverviewState;
   readonly settings: SettingsState;
   readonly sidebar: SidebarLayout;
@@ -219,14 +221,16 @@ export function appCommands(context: AppCommandContext): CommandSource {
 
     const projects = projectCommands(overview, threads);
 
-    const sections: Command[] = settingsSections.map((section) => ({
-      id: `settings:${section.href}`,
-      title: sectionTitles.get(section.href) ?? section.label,
-      group: "settings",
-      icon: section.icon,
-      keywords: `settings ${section.keywords}`,
-      href: section.href,
-    }));
+    const sections: Command[] = settingsSections
+      .filter((section) => context.capabilities.supports(section.href))
+      .map((section) => ({
+        id: `settings:${section.href}`,
+        title: sectionTitles.get(section.href) ?? section.label,
+        group: "settings",
+        icon: section.icon,
+        keywords: `settings ${section.keywords}`,
+        href: section.href,
+      }));
 
     const thread = overview.threads.get(currentThreadId ?? "");
     const currentActions = currentThreadCommands(context, thread);

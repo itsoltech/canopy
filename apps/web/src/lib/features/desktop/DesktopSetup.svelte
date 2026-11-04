@@ -187,8 +187,8 @@
               />
             {:else}
               <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-                Your data stays on this computer. No database installation or account is needed. Phones, linked
-                computers and remote workers connect through Settings → Network access.
+                Your data stays on this computer. No database installation or account is needed. Phones and remote
+                workers connect through Settings → Network access.
               </p>
             {/if}
             {#if message}<Alert tone="error">{message}</Alert>{/if}

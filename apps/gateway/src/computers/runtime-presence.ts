@@ -80,7 +80,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
     await this.shared?.load();
     // A process restart never claims an old connection is still alive.
     await this.store.query(
-      "UPDATE computer_peers SET status='unreachable',status_since=now() WHERE owner_user_id=$1::uuid AND status IN ('connected','needs_update')",
+      "UPDATE computer_peers SET status='unreachable',status_since=now() WHERE owner_user_id=$1::uuid AND status IN ('connected','needs_update','inactive')",
       [this.store.owner],
     );
     await this.relay.load();

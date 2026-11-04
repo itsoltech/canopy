@@ -156,7 +156,7 @@
 {#if shown}
   <SettingsDialog {open} onclose={close} onexited={() => !view && (last = undefined)}>
     {#if capabilities && !capabilities.supports(shown.url.pathname)}
-      <AlertCompatibility message="Update Canopy on your gateway to use this feature" />
+      <AlertCompatibility message={capabilities.unavailableMessage(shown.url.pathname)} desktopActions={false} />
     {:else if !shown.key}
       {@render route()}
     {:else if overlay.bridging?.key === shown.key && !overlay.bridging.ready}

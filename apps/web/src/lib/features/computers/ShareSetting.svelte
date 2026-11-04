@@ -8,6 +8,7 @@
   import ConflictHint from "./ConflictHint.svelte";
   import ShareScope from "./ShareScope.svelte";
   import { useSharedConfig } from "./shared-config.svelte.ts";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   /**
    * "Share with linked computers" for one item, as a settings row: the switch, where it applies, who changed it
@@ -30,6 +31,7 @@
   } = $props();
 
   const overview = useOverview();
+  const capabilities = useGatewayCapabilities();
   const shared = useSharedConfig();
   const item = $derived(shared.item(itemKey));
   const on = $derived(item?.shared ?? false);
@@ -52,7 +54,7 @@
   }
 </script>
 
-{#if overview.computers.size > 0}
+{#if capabilities?.linkedComputers && overview.computers.size > 0}
   <div class={className}>
     <SettingsRow
       title={label}

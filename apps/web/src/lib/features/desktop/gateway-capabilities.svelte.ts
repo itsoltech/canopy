@@ -18,14 +18,23 @@ export class GatewayCapabilities {
   state = $state("ready");
   message = $state("");
   methods = $state<string[]>();
+  linkedComputers = $state(false);
   get incompatible() {
     return ["gateway-update", "app-update", "pairing"].includes(this.state);
   }
   supports(path: string) {
+    if (path === "/settings/computers" || path.startsWith("/settings/computers/"))
+      if (!this.linkedComputers) return false;
+
     const required =
       Object.entries(sections).find(([prefix]) => path === prefix || path.startsWith(`${prefix}/`))?.[1] ?? [];
 
     return !this.methods || required.every((method) => this.methods?.includes(method));
+  }
+  unavailableMessage(path: string) {
+    return path.startsWith("/settings/computers") && !this.linkedComputers
+      ? "Linked computers are available only in the Canopy desktop app"
+      : "Update Canopy on your gateway to use this feature";
   }
   async reload() {
     try {
@@ -41,8 +50,10 @@ export class GatewayCapabilities {
       this.state = value["state"];
       this.message = value["message"];
       this.methods = value["methods"].filter(isString);
+      this.linkedComputers = value["linkedComputers"] === true;
     } catch {
       this.state = "unavailable";
+      this.linkedComputers = false;
     }
   }
   connect() {

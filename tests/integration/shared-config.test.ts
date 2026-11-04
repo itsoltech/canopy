@@ -128,8 +128,8 @@ describe.skipIf(!dockerAvailable)("shared configuration between two linked gatew
   };
 
   beforeAll(async () => {
-    a = await startTestGateway();
-    b = await startTestGateway();
+    a = await startTestGateway({ role: "desktop" });
+    b = await startTestGateway({ role: "desktop" });
     // Each computer has its own CANOPY_SECRETS_KEY, as in production.
     sa = new ComputerStore(a.runtime, a.userId, a.secretsKey);
     sb = new ComputerStore(b.runtime, b.userId, b.secretsKey);

@@ -12,8 +12,10 @@
   import AttachmentLimitsSettings from "#lib/features/network/AttachmentLimitsSettings.svelte";
   import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
   import type { JsonBody } from "#lib/shared/http.ts";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   const network = useNetworkAccess();
+  const capabilities = useGatewayCapabilities();
   const status = $derived(network.status);
   let error = $state("");
   let hostnameOpen = $state(false);
@@ -41,7 +43,9 @@
 <div class="min-w-0 px-1">
   <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Network access</h1>
   <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-    Pair phones and link your other computers on any network they share with this one: Wi-Fi, Tailscale or the internet.
+    {capabilities?.linkedComputers
+      ? "Pair phones and link your other computers on any network they share with this one: Wi-Fi, Tailscale or the internet."
+      : "Connect paired devices and remote workers over Wi-Fi, Tailscale or the internet."}
   </p>
 </div>
 {#if (error || network.error) && !hostnameOpen && !portOpen}<Alert tone="error"
@@ -70,7 +74,9 @@
 {#if status.note}<Alert tone="warning">{status.note}</Alert>{/if}
 <SettingsGroup
   title="Reachable at"
-  description="Phones and linked computers try these addresses in turn. They follow this computer from network to network."
+  description={capabilities?.linkedComputers
+    ? "Phones and linked computers try these addresses in turn. They follow this computer from network to network."
+    : "Paired devices and workers try these addresses in turn to reach this gateway."}
 >
   {#snippet actions()}<Button size="sm" disabled={!network.loaded || network.busy} onclick={() => (hostnameOpen = true)}
       >Add hostname</Button

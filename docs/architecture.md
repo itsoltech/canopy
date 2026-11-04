@@ -47,6 +47,16 @@ Platforma do zarządzania agentami AI dla wielu użytkowników:
 
 Tylko gateway łączy się z bazą. Worker nie ma dostępu do bazy i nie przyjmuje połączeń przychodzących.
 
+Gateway ma rolę startową: domyślnie `server`; kontroler Canopy Desktop oznacza własny
+sidecar trybu lokalnego jako `desktop`. To wewnętrzna decyzja runtime, bez ustawienia
+w UI. **Linked computers łączy wyłącznie lokalne gatewaye aplikacji desktopowych**
+([linked-computers.md](linked-computers.md)). Serwer Docker/binarny nie uruchamia usług
+linkowania ani discovery/mDNS, nie synchronizuje luster/konfiguracji, nie przenosi rzeczy
+i nie pośredniczy między gatewayami. Istniejące relacje zachowuje jako `inactive`.
+Network access nadal przyjmuje telefony, klienty desktopowe i workery, odrzucając
+handshake komputerów. `GetClientCapabilities` ogłasza rolę i `linked_computers`;
+web oraz desktop remote chowają linkowanie zgodnie z capability podłączonego gatewaya.
+
 ## 3. Diagram komponentów i połączeń
 
 ```mermaid

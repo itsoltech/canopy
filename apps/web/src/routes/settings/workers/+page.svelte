@@ -16,8 +16,10 @@
   import WorkerSshKey from "#lib/features/workers/WorkerSshKey.svelte";
   import NetworkAccessSummary from "#lib/features/network/NetworkAccessSummary.svelte";
   import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   const overview = useOverview();
+  const capabilities = useGatewayCapabilities();
   const online = $derived(overview.ownWorkers.filter((w) => w.online).length);
   const setup = new WorkerSetup();
   const environment = workerEnvironment(overview);
@@ -85,7 +87,7 @@
         >Refresh tags</Button
       >{/snippet}</Alert
   >{/if}
-{#if overview.workers.some((worker) => worker.nodeId)}
+{#if capabilities?.linkedComputers && overview.workers.some((worker) => worker.nodeId)}
   <p class="px-1 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
     Workers from linked computers are managed in Settings → Workers on their home computer.
   </p>

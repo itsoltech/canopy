@@ -23,6 +23,8 @@ export function mobileHandlers(
     getClientCapabilities: async () =>
       create(ui.ClientCapabilitiesSchema, {
         gatewayVersion: CANOPY_VERSION,
+        gatewayRole: core.role,
+        linkedComputers: core.role === "desktop",
         gatewayName: (await core.computers?.snapshot())?.self?.name ?? "your gateway",
         minProtocol: MIN_DESKTOP_CLIENT_PROTOCOL,
         maxProtocol: DESKTOP_CLIENT_PROTOCOL,

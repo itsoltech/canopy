@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { startGrpcServer } from "@canopy/transport";
-import { remoteServe, serviceTokenAuth, sharedHost, uiHandlers, uiRoutes } from "./api/index.ts";
+import { serviceTokenAuth, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
 import { healthcheck } from "./healthcheck.ts";
 import { ensureDevUser, gatewayRuntime, migrateDatabase, networkPort } from "./runtime.ts";
@@ -15,13 +15,14 @@ import {
 } from "@canopy/updater";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { LinkedComputers } from "./computers/runtime.ts";
+import { startComputerLinks } from "./computers/start.ts";
 import { lanUnavailable, multicastTransport } from "./computers/lan-transport.ts";
 import { ComputerStore } from "./computers/store.ts";
 import { NetworkAccess } from "./network/network.ts";
 import { mountMobileNetwork } from "./network/devices.ts";
 import { loadSecretsKey } from "./store/secrets.ts";
 import { workerRoutes } from "./worker-link/routes.ts";
+import { gatewayRole } from "./role.ts";
 
 const env = Bun.env;
 
@@ -62,6 +63,7 @@ if ((env["CANOPY_MIGRATE"] ?? "1") === "1") {
 const userId = await ensureDevUser(runtime, env["CANOPY_DEV_USER_EMAIL"] ?? "dev@localhost");
 
 const core = new GatewayCore({
+  role: gatewayRole(env),
   runtime,
   instanceId: `${process.pid}@${Bun.env["HOSTNAME"] ?? "gateway"}`,
   userId,
@@ -96,14 +98,12 @@ if (installKind() === "binary")
     (message) => console.info(message),
   );
 
-// Workers' configurations follow the global provider instances (e.g. right after the migration to them).
-const own = uiHandlers(core);
-
 const computerStore = new ComputerStore(runtime, userId, loadSecretsKey(env));
 const fixedPort = networkPort(env);
 
 // Phones and linked computers: one pinned TLS listener, switched on in Settings → Network access.
 const network = new NetworkAccess({
+  role: core.role,
   store: computerStore,
   ...(fixedPort !== undefined && { port: fixedPort }),
   log: (m) => console.info(m),
@@ -113,17 +113,10 @@ core.network = network;
 
 const unmountMobile = mountMobileNetwork(core, network, serviceToken);
 
-core.computers = new LinkedComputers({
-  store: computerStore,
-  network,
-  serve: remoteServe(own, core),
-  shared: sharedHost(core, own),
-  core,
-  zone: async () => (await core.settings()).user?.timezone,
-  discovery: { transport: multicastTransport, ...(lanUnavailable(env) && { unavailable: lanUnavailable(env)! }) },
+await startComputerLinks(core, computerStore, network, {
+  transport: multicastTransport,
+  ...(lanUnavailable(env) && { unavailable: lanUnavailable(env)! }),
 });
-
-await core.computers.start();
 
 await network.start();
 

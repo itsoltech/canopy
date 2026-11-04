@@ -74,8 +74,8 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     eventually(async () => la.reachable().includes(bNode) && lb.reachable().includes(la.hello().nodeId), 15_000);
 
   beforeAll(async () => {
-    a = await startTestGateway();
-    b = await startTestGateway();
+    a = await startTestGateway({ role: "desktop" });
+    b = await startTestGateway({ role: "desktop" });
     sa = new ComputerStore(a.runtime, a.userId, randomBytes(32));
     sb = new ComputerStore(b.runtime, b.userId, randomBytes(32));
     la = linkedComputers({

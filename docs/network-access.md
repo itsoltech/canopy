@@ -6,6 +6,16 @@ i telefony. Nie ma wyboru interfejsu, nie ma zmiennych środowiskowych do ustawi
 na desktopie i nie trzeba nic zmieniać po przejściu do innej sieci. Granicą bezpieczeństwa jest
 przypięty certyfikat tego komputera i parowanie, nie sieć.
 
+**Połączone komputery są funkcją wyłącznie lokalnego trybu Canopy Desktop.** Kontroler
+desktopu ustala wewnętrzną rolę `desktop` dla własnego gatewaya; zwykły start gatewaya
+ma rolę `server`. Na serwerze przełącznik nosi nazwę „Let devices and workers connect”
+i obsługuje telefony, sparowane klienty desktopowe oraz workery. Nie uruchamia usług
+linkowania, discovery/mDNS, luster, wspólnej konfiguracji, przenoszenia ani relay.
+Połączenia komputerów z certyfikatem klienta są odrzucane. Zapisane dawne relacje
+pozostają w bazie jako `inactive`, bez połączeń i synchronizacji.
+`GetClientCapabilities.linked_computers` steruje widocznością linkowania w webie
+i desktopie remote; brak capability ukrywa tę funkcję, także przy starym gatewayu.
+
 Implementacja: `apps/gateway/src/network/` (`network.ts` — stan i ustawienia, `listener.ts` — serwer TLS,
 `addresses.ts` — wykrywanie adresów i nazwy hostów, `local-network.ts` — podpowiedź macOS), migracja
 **0055_network_access**, kontrakt `proto/canopy/ui/v1/network.proto` (`GetNetworkAccess`,
@@ -38,8 +48,9 @@ Jeden port, HTTP/2 i HTTP/1.1 (ALPN), TLS z certyfikatem tożsamości komputera 
 (IPv6 z mapowaniem IPv4), a bez IPv6 w systemie na `0.0.0.0`. Serwer prosi o certyfikat klienta,
 ale go nie wymaga:
 
-- połączenie **z certyfikatem** trafia wyłącznie do `ComputerLinkService` i dodatkowo musi być TLS 1.3
+- połączenie **z certyfikatem** w roli `desktop` trafia wyłącznie do `ComputerLinkService` i dodatkowo musi być TLS 1.3
   (dotychczasowe zasady pinu, samopodpisu i `Pair`/`Connect` bez zmian);
+- rola `server` odrzuca połączenie z certyfikatem klienta, bez montowania usługi łącza;
 - połączenie **bez certyfikatu** trafia do usług urządzeń (telefony, etap 2); bez nich dostaje 403.
 
 Listener nie wystawia BFF ani bazy. Sparowane desktopowe BFF korzystają z UI gRPC
@@ -110,7 +121,7 @@ Pole `note` pojawia się tylko, gdy coś wymaga działania:
 | `CANOPY_MIGRATE`, `CANOPY_DEV_USER_EMAIL`, `CANOPY_RELEASE_BASE_URL`, `CANOPY_UPDATE_CACHE_DIR`, `CANOPY_UPDATE_CHANNEL`, `CANOPY_SUPERVISED`, `CANOPY_INSTALL_KIND` | a | bez zmian (wdrożenie/updater) |
 | `CANOPY_NETWORK_PORT` | a | nowe, opcjonalne: port opublikowany przez kontener |
 | `CANOPY_LINK_HOST`, `CANOPY_LINK_PORT`, `CANOPY_LINK_ADDRESSES` | b | **usunięte** → Network access (etap 1) |
-| `CANOPY_LINK_DISCOVERY` | b | opcjonalne nadpisanie serwera; przełącznik „Find linked computers on this network” jest w UI |
+| `CANOPY_LINK_DISCOVERY` | b | diagnostyka wykrywania desktopu; serwer nigdy nie uruchamia discovery niezależnie od wartości |
 | `CANOPY_MOBILE_PORT`, `CANOPY_MOBILE_GATEWAY_URL` | b | **usunięte** → telefony przez Network access (etap 2) |
 | `CANOPY_WORKER_HOST`, `CANOPY_WORKER_PORT`, `CANOPY_PUBLIC_GATEWAY_URL` | b | **usunięte** → workery przez Network access; adres w Settings → Workers (etap 3) |
 | `CANOPY_ATTACHMENT_MAX_FILE_MB`, `…_MAX_MESSAGE_MB`, `…_MAX_FILES` | b | **usunięte** → Attachments w Network access, zapis w ustawieniach właściciela (etap 3) |
@@ -144,7 +155,7 @@ Dotychczasowy port procesu gatewaya (`CANOPY_PORT`, domyślnie 7443) nadal obsł
 Enrollment oraz zamrożony UpdateService — zachowaj istniejące publikowanie/przekazywanie tego portu.
 Dotychczasowe wdrożenie jest poprawne również bez dostępu sieciowego. Opcjonalnie opublikuj
 dodatkowo port dostępu sieciowego i ustaw go jako `CANOPY_NETWORK_PORT` (szczegóły:
-[deploy.md](deploy.md#dostęp-sieciowy-telefony-i-połączone-komputery)). Port nie może przechodzić przez
+[deploy.md](deploy.md#dostęp-sieciowy-telefony-klienty-desktopowe-i-workery)). Port nie może przechodzić przez
 proxy kończące TLS — przekazuj TCP. W kontenerze bez sieci hosta dodaj w Settings → Network access
 nazwę albo adres serwera.
 

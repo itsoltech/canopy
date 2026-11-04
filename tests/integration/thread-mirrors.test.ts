@@ -116,8 +116,8 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     });
 
   beforeAll(async () => {
-    a = await startTestGateway();
-    b = await startTestGateway();
+    a = await startTestGateway({ role: "desktop" });
+    b = await startTestGateway({ role: "desktop" });
     sa = new ComputerStore(a.runtime, a.userId, keyA);
     sb = new ComputerStore(b.runtime, b.userId, keyB);
     project = (await b.api.createProject({ name: "Laptop B project" })).project!.id;
@@ -643,6 +643,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     await la.close();
 
     const core = new GatewayCore({
+      role: "desktop",
       runtime: a.runtime,
       userId: a.userId,
       instanceId: "restarted",
