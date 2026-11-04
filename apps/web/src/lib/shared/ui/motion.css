@@ -391,7 +391,8 @@
   min-height: --spacing(44);
   transition: min-height var(--duration-slow) var(--ease-smooth-out);
 }
-.t-composer-slot[data-compact] {
+.t-composer-slot[data-compact],
+.t-composer-slot:has([data-pending-decision]) {
   min-height: 0;
   transition-duration: var(--duration-medium);
 }

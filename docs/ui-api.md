@@ -602,6 +602,17 @@ Popraw oba miejsca.
 
 ## 4. Frontend (`apps/web`)
 
+**Oczekujące decyzje.** Pytanie ma jeden przewijany obszar z treścią, opcjami i polem
+odpowiedzi; nagłówek oraz akcje pozostają widoczne. Przycisk pod treścią wskazuje,
+że niżej są dalsze opcje lub szczegóły, i przewija ten obszar. Przy pojedynczym pytaniu
+nie ma Back ani Skip all. Skip pomija odpowiedź, a Dismiss anuluje całe żądanie;
+opis przy akcjach wyjaśnia różnicę. Zgoda utrzymuje Allow, Deny i Allow for this session
+pod szczegółami, a kompozytor na czas oczekiwania pokazuje przycisk Steer instead…
+otwierający zwarte pole wiadomości. Szkice, payloady odpowiedzi i semantyka grantów
+sesyjnych pozostają bez zmian.
+Gdy czeka kilka zgód lub formularzy, widoczny jest licznik i jedno żądanie;
+Previous i Next request pozwalają przejrzeć pozostałe bez rozstrzygania bieżącego.
+
 **Kontekst kompozytora.** `ComposerContextRow` oddziela miejsce uruchomienia od uprawnień:
 projekt i komputer zajmują pierwszą parę pól, workspace i gałąź drugą. Przy szerokości
 kompozytora od 44 rem pary mieszczą się w jednym wierszu, z naturalną szerokością

@@ -23,7 +23,7 @@
   {#if command || relatedCommand}
     <!-- Wrapped, never cut off: the person approving must see the whole command. -->
     <pre
-      class="max-h-48 overflow-y-auto rounded-lg bg-zinc-950 p-3 font-mono text-[0.8125rem]/5 break-all whitespace-pre-wrap text-zinc-100 dark:bg-black/40"><span
+      class="rounded-lg bg-zinc-950 p-3 font-mono text-[0.8125rem]/5 break-all whitespace-pre-wrap text-zinc-100 dark:bg-black/40"><span
         class="text-zinc-500 select-none"
         >$ </span>{command || relatedCommand}</pre>
     {#if cwd}<p class="truncate font-mono text-xs/5 text-zinc-500 dark:text-zinc-400" title={cwd}>in {cwd}</p>{/if}
@@ -41,9 +41,9 @@
         />{/if}
     {/each}
   {:else if toolName === "permissions" && request["permissions"]}
-    <StructuredView node={structure(request["permissions"])} class="max-h-48 overflow-y-auto" />
+    <StructuredView node={structure(request["permissions"])} />
   {:else if !reason}
     <!-- Any other tool: its input as labelled fields (the raw request stays on the timeline's "Show raw"). -->
-    <StructuredView node={structureJson(requestJson)} class="max-h-48 overflow-y-auto" />
+    <StructuredView node={structureJson(requestJson)} />
   {/if}
 </div>

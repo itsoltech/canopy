@@ -8,6 +8,7 @@
   import ElicitationForm from "./ElicitationForm.svelte";
   import PermissionRequest from "./PermissionRequest.svelte";
   import ThreadLink from "../items/ThreadLink.svelte";
+  import DecisionContent from "./DecisionContent.svelte";
 
   /**
    * The agent is blocked on a person: a permission (allow / deny), questions or an MCP form.
@@ -53,14 +54,17 @@
 
 <section
   class={[
-    "rounded-xl bg-white p-4 shadow-lg ring-1 dark:bg-zinc-950 dark:shadow-none",
+    "rounded-xl bg-white shadow-lg ring-1 dark:bg-zinc-950 dark:shadow-none",
+    interaction.kind === InteractionKind.PERMISSION
+      ? "flex max-h-[min(65dvh,calc(100dvh-14rem))] min-h-0 flex-col"
+      : "p-4",
     interaction.routedTo === "parent"
       ? "ring-violet-500/40 dark:ring-violet-400/30"
       : "ring-amber-500/40 dark:ring-amber-400/30",
   ]}
   aria-labelledby="{id}-title"
 >
-  <div class="flex items-start gap-2">
+  <div class={["flex shrink-0 items-start gap-2", interaction.kind === InteractionKind.PERMISSION && "p-3"]}>
     <span class="flex h-lh items-center text-base/6"
       ><Icon
         name={interaction.kind === InteractionKind.PERMISSION ? "hand-raised" : "question-mark-circle"}
@@ -80,26 +84,37 @@
     </div>
   </div>
 
-  <div class="mt-3">
-    {#if interaction.kind === InteractionKind.PERMISSION}
-      <PermissionRequest toolName={interaction.toolName} requestJson={interaction.requestJson} {related} />
-      <div class="mt-4 flex flex-wrap gap-2">
-        <Button variant="primary" icon="check" loading={busy} onclick={() => respond({ allow: true })}>Allow</Button>
-        <Button disabled={busy} onclick={() => respond({ allow: true, allowForSession: true })}
-          >Allow for this session</Button
-        >
-        <Button
-          variant="danger"
-          disabled={busy}
-          onclick={() => respond({ allow: false, message: "Denied by the user" })}>Deny</Button
-        >
+  {#if interaction.kind === InteractionKind.PERMISSION}
+    <DecisionContent label="Permission request details">
+      <div class="px-3 pb-3">
+        <PermissionRequest toolName={interaction.toolName} requestJson={interaction.requestJson} {related} />
       </div>
-    {:else if interaction.kind === InteractionKind.QUESTION}
-      <p class="text-sm/6 text-zinc-500 dark:text-zinc-400">Answer in the question panel above the composer.</p>
-    {:else}
-      <ElicitationForm requestJson={interaction.requestJson} {busy} submit={respond} />
-    {/if}
-  </div>
+      {#snippet actions()}
+        <div class="grid grid-cols-2 gap-2 p-3">
+          <Button variant="primary" icon="check" loading={busy} onclick={() => respond({ allow: true })}>Allow</Button>
+          <Button
+            variant="danger"
+            disabled={busy}
+            onclick={() => respond({ allow: false, message: "Denied by the user" })}>Deny</Button
+          >
+          <div class="col-span-2 grid">
+            <Button disabled={busy} onclick={() => respond({ allow: true, allowForSession: true })}
+              >Allow for this session</Button
+            >
+          </div>
+        </div>
+        {#if error}<Alert tone="error" class="mx-3 mb-3">{error}</Alert>{/if}
+      {/snippet}
+    </DecisionContent>
+  {:else}
+    <div class="mt-3">
+      {#if interaction.kind === InteractionKind.QUESTION}
+        <p class="text-sm/6 text-zinc-500 dark:text-zinc-400">Answer in the question panel above the composer.</p>
+      {:else}
+        <ElicitationForm requestJson={interaction.requestJson} {busy} submit={respond} />
+      {/if}
+    </div>
 
-  {#if error}<Alert tone="error" class="mt-3">{error}</Alert>{/if}
+    {#if error}<Alert tone="error" class="mt-3">{error}</Alert>{/if}
+  {/if}
 </section>

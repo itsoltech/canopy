@@ -2,7 +2,7 @@
   import { InteractionKind, type ui } from "@canopy/contracts";
   import { tick, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import ComposerBox from "./ComposerBox.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
   import type { ComposerActivity } from "./composer-compaction.ts";
   import ComposerTop from "./ComposerTop.svelte";
   import MessageComposer from "./MessageComposer.svelte";
@@ -66,8 +66,11 @@
   });
 
   const answering = $derived(session && !session.done && !session.messaging);
+  const approval = $derived(questions.find((q) => q.kind === InteractionKind.PERMISSION && q.status === "pending"));
+  let steeringRequest = $state<string>();
+  const steering = $derived(Boolean(approval && steeringRequest === approval.requestId));
 
-  // Only blocking questions require the full answer form. Async drafts stay mounted while folded.
+  // Blocking questions stay expanded; asynchronous answers follow composer compaction.
   const folded = $derived(compact && active?.asynchronous !== false);
   let root = $state<HTMLDivElement>();
 </script>
@@ -76,6 +79,7 @@
   bind:this={root}
   class={["grid min-w-0 grid-cols-1", className]}
   data-composer
+  data-pending-decision={Boolean(answering || approval) || undefined}
   data-compact={folded || undefined}
   onfocusin={() => {
     onfocuschange?.(true);
@@ -86,15 +90,38 @@
   }}
 >
   {#if top || (session && !session.done)}
-    <div class="-mb-4 px-2 pt-px sm:px-3">
-      <ComposerTop>
-        {@render top?.()}
-        {#if session && !session.done}<QuestionForm {session} more={pending.length - 1} compact={folded} />{/if}
+    <div class={["px-2 pt-px sm:px-3", !answering && "-mb-4"]}>
+      <ComposerTop decision={Boolean(answering)}>
+        {#if !answering}{@render top?.()}{/if}
+        {#if session && !session.done}<QuestionForm
+            {session}
+            {disabled}
+            {note}
+            more={pending.length - 1}
+            compact={folded}
+          />{/if}
       </ComposerTop>
     </div>
   {/if}
   <!-- Keep the message draft mounted while answering. It returns intact when switching modes. -->
-  <div class={["relative min-w-0", answering && "hidden"]} inert={Boolean(answering)}>
+  {#if approval && !answering}
+    <div
+      class="relative flex items-center justify-between gap-2 rounded-2xl bg-surface p-2 text-sm/5 text-zinc-500 dark:text-zinc-400"
+    >
+      <p>Approval needed</p>
+      <Button
+        size="sm"
+        variant="ghost"
+        aria-expanded={steering}
+        onclick={() => (steeringRequest = steering ? undefined : approval.requestId)}
+        >{steering ? "Hide steer editor" : "Steer instead…"}</Button
+      >
+    </div>
+  {/if}
+  <div
+    class={["relative min-w-0", (answering || (approval && !steering)) && "hidden"]}
+    inert={Boolean(answering || (approval && !steering))}
+  >
     <MessageComposer
       {thread}
       {worker}
@@ -103,48 +130,9 @@
       {note}
       {onsent}
       {ongoal}
-      compact={folded}
+      compact={folded || Boolean(approval)}
       {panelsLabel}
       {onexpand}
     />
   </div>
-  {#if answering && session}
-    <form
-      class="relative"
-      onsubmit={(event) => {
-        event.preventDefault();
-        void session.submit();
-      }}
-    >
-      <ComposerBox
-        bind:value={
-          () => session.text,
-          (value) => {
-            session.text = value;
-          }
-        }
-        label={`Your answer: ${session.question.header || session.question.question}`}
-        placeholder="Type your own answer, or leave this blank to use the selected option"
-        disabled={disabled || session.busy}
-        sending={session.busy}
-        canSend={Boolean(session.answer)}
-        blockedReason={disabled
-          ? note
-          : session.busy
-            ? "Submitting your answer…"
-            : !session.answer
-              ? "Choose an option or type an answer to submit."
-              : undefined}
-        allowEmpty={Boolean(session.labels.length)}
-        sendLabel="Submit"
-        secret={session.question.secret}
-        compact={folded}
-        {onexpand}
-      >
-        {#snippet controls()}<p class="flex-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
-            {session.step + 1 < session.questions.length ? "Submit to continue" : "Submit answers"}
-          </p>{/snippet}
-      </ComposerBox>
-    </form>
-  {/if}
 </div>
