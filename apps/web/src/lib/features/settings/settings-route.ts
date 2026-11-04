@@ -1,4 +1,4 @@
-import type { ReadonlyURL } from "$app/state";
+import type { page, ReadonlyURL } from "$app/state";
 import { getContext, setContext } from "svelte";
 
 /**
@@ -7,7 +7,13 @@ import { getContext, setContext } from "svelte";
  * `page.url`, `page.params` and `page.form` belong to the page underneath, so settings pages read their
  * URL, parameters and form result from here (`useSettingsRoute`), never from `$app/state`.
  */
-export interface SettingsRoute<Form = Record<string, unknown> | null | undefined> {
+/** What a settings page's loads returned (layouts included), as SvelteKit passes it to the page. */
+export type SettingsData = (typeof page)["data"];
+
+/** A form action's result (SvelteKit's `form`): whatever the page's actions returned. */
+export type SettingsForm = (typeof page)["form"];
+
+export interface SettingsRoute<Form = SettingsForm> {
   readonly url: ReadonlyURL;
   readonly params: Readonly<Record<string, string>>;
   /** The last form action result of this settings page (SvelteKit's `form`). */
@@ -23,8 +29,7 @@ const KEY = Symbol("settings-route");
 export const provideSettingsRoute = (route: SettingsRoute) => setContext(KEY, route);
 
 /** `Form`: the page's `PageProps["form"]` (its actions' results). */
-export const useSettingsRoute = <Form = Record<string, unknown> | null | undefined>() =>
-  getContext<SettingsRoute<Form>>(KEY);
+export const useSettingsRoute = <Form = SettingsForm>() => getContext<SettingsRoute<Form>>(KEY);
 
 /** A route under Settings (`/settings` itself redirects to its first section). */
 export const isSettingsRoute = (id: string | null | undefined): boolean =>
@@ -32,7 +37,7 @@ export const isSettingsRoute = (id: string | null | undefined): boolean =>
 
 /** What identifies a settings page shown in the overlay: its path and query. */
 export const overlayKey = (url: { readonly pathname: string; readonly search: string } | string): string => {
-  const { pathname, search } = typeof url === "string" ? new URL(url, "http://local") : url;
+  const { pathname, search } = url instanceof Object ? url : new URL(url, "http://local");
 
   return pathname + search;
 };

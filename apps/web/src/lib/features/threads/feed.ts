@@ -74,26 +74,26 @@ export const feedInserted = (row: FeedRow): "unfold" | "reveal" | undefined =>
       ? "unfold"
       : undefined;
 
-const ESTIMATES: Record<string, number> = {
-  "history-head": 56,
-  "history-part": 36,
-  forked: 32,
-  working: 36,
-  steer: 96,
-  "turn-start": 24,
-  input: 96,
-  notice: 44,
-  "turn-end": 40,
-  work: 36,
-  "work-group": 44,
-  answer: 160,
-  "item:userMessage": 96,
-  "item:agentMessage": 160,
-  "item:subagent": 44,
-};
+const ESTIMATES = new Map<string, number>([
+  ["history-head", 56],
+  ["history-part", 36],
+  ["forked", 32],
+  ["working", 36],
+  ["steer", 96],
+  ["turn-start", 24],
+  ["input", 96],
+  ["notice", 44],
+  ["turn-end", 40],
+  ["work", 36],
+  ["work-group", 44],
+  ["answer", 160],
+  ["item:userMessage", 96],
+  ["item:agentMessage", 160],
+  ["item:subagent", 44],
+]);
 
 /** First guess of a group's height (px) until one of its rows is measured. */
-export const feedEstimate = (group: string): number => ESTIMATES[group.replace(/:history$/, "")] ?? 44;
+export const feedEstimate = (group: string): number => ESTIMATES.get(group.replace(/:history$/, "")) ?? 44;
 
 /**
  * Builds the feed, reusing the previous row objects (and item nodes) that did not change, so a streaming
@@ -218,12 +218,15 @@ function sameRow(a: FeedRow, b: FeedRow): boolean {
   return true;
 }
 
-function shallowEqual(a: object, b: object, skip: readonly string[] = []): boolean {
-  const left = a as Record<string, unknown>;
-  const right = b as Record<string, unknown>;
-  const keys = Object.keys(left);
+function shallowEqual<T extends FeedRow | TimelineRow | WorkSummary>(
+  a: T,
+  b: T,
+  skip: readonly string[] = [],
+): boolean {
+  const left = Object.entries(a);
+  const right = new Map(Object.entries(b));
 
-  if (keys.length !== Object.keys(right).length) return false;
+  if (left.length !== right.size) return false;
 
-  return keys.every((key) => skip.includes(key) || left[key] === right[key]);
+  return left.every(([key, value]) => skip.includes(key) || value === right.get(key));
 }

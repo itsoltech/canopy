@@ -1,4 +1,16 @@
-import { formatDateTime, parseObject, str } from "#lib/shared/format.ts";
+import { formatDateTime } from "#lib/shared/format.ts";
+import {
+  listOf,
+  num,
+  objectOf,
+  objectsOf,
+  parseObject,
+  str,
+  isJsonObject,
+  isNumber,
+  type JsonObject,
+  type JsonValue,
+} from "#lib/shared/json.ts";
 import { humanizeEnum, humanizeSeconds, humanizeToolName, plural } from "#lib/shared/humanize.ts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 import { describeCron } from "#lib/features/schedules/schedules.ts";
@@ -19,83 +31,90 @@ interface Look {
   readonly icon: IconName;
 }
 
-const LOOKS: Record<string, Look> = {
-  request_secret: {
-    doing: "Asking for a secret",
-    done: "Asked for a secret",
-    tried: "ask for a secret",
-    icon: "lock-closed",
-  },
-  spawn_thread: {
-    doing: "Starting a subagent",
-    done: "Started a subagent",
-    tried: "start a subagent",
-    icon: "sparkles",
-  },
-  send_message: {
-    doing: "Sending a message to",
-    done: "Sent a message to",
-    tried: "send a message to",
-    icon: "paper-airplane",
-  },
-  wait_threads: { doing: "Waiting for", done: "Waited for", tried: "wait for", icon: "clock" },
-  get_thread: { doing: "Checking", done: "Checked", tried: "check", icon: "signal" },
-  read_thread: { doing: "Reading", done: "Read", tried: "read", icon: "document-text" },
-  list_threads: { doing: "Listing subagents", done: "Listed subagents", tried: "list subagents", icon: "queue-list" },
-  interrupt_thread: { doing: "Interrupting", done: "Interrupted", tried: "interrupt", icon: "stop" },
-  close_thread: { doing: "Closing", done: "Closed", tried: "close", icon: "archive-box" },
-  list_interactions: {
-    doing: "Checking pending questions",
-    done: "Checked pending questions",
-    tried: "check pending questions",
-    icon: "question-mark-circle",
-  },
-  answer_interaction: {
-    doing: "Answering for a side thread",
-    done: "Answered for a side thread",
-    tried: "answer for a side thread",
-    icon: "hand-raised",
-  },
-  list_agents: { doing: "Listing agents", done: "Listed agents", tried: "list agents", icon: "user-group" },
-  schedule_wakeup: {
-    doing: "Scheduling a wake-up",
-    done: "Scheduled a wake-up",
-    tried: "schedule a wake-up",
-    icon: "clock",
-  },
-  schedule_recurring: {
-    doing: "Scheduling a recurring run",
-    done: "Scheduled a recurring run",
-    tried: "schedule a recurring run",
-    icon: "arrow-path-rounded-square",
-  },
-  list_schedules: {
-    doing: "Listing schedules",
-    done: "Listed schedules",
-    tried: "list schedules",
-    icon: "calendar-days",
-  },
-  cancel_schedule: {
-    doing: "Cancelling a schedule",
-    done: "Cancelled a schedule",
-    tried: "cancel a schedule",
-    icon: "calendar-days",
-  },
-};
+const LOOKS = new Map<string, Look>(
+  Object.entries({
+    request_secret: {
+      doing: "Asking for a secret",
+      done: "Asked for a secret",
+      tried: "ask for a secret",
+      icon: "lock-closed",
+    },
+    spawn_thread: {
+      doing: "Starting a subagent",
+      done: "Started a subagent",
+      tried: "start a subagent",
+      icon: "sparkles",
+    },
+    send_message: {
+      doing: "Sending a message to",
+      done: "Sent a message to",
+      tried: "send a message to",
+      icon: "paper-airplane",
+    },
+    wait_threads: { doing: "Waiting for", done: "Waited for", tried: "wait for", icon: "clock" },
+    get_thread: { doing: "Checking", done: "Checked", tried: "check", icon: "signal" },
+    read_thread: { doing: "Reading", done: "Read", tried: "read", icon: "document-text" },
+    list_threads: { doing: "Listing subagents", done: "Listed subagents", tried: "list subagents", icon: "queue-list" },
+    interrupt_thread: { doing: "Interrupting", done: "Interrupted", tried: "interrupt", icon: "stop" },
+    close_thread: { doing: "Closing", done: "Closed", tried: "close", icon: "archive-box" },
+    list_interactions: {
+      doing: "Checking pending questions",
+      done: "Checked pending questions",
+      tried: "check pending questions",
+      icon: "question-mark-circle",
+    },
+    answer_interaction: {
+      doing: "Answering for a side thread",
+      done: "Answered for a side thread",
+      tried: "answer for a side thread",
+      icon: "hand-raised",
+    },
+    list_agents: { doing: "Listing agents", done: "Listed agents", tried: "list agents", icon: "user-group" },
+    schedule_wakeup: {
+      doing: "Scheduling a wake-up",
+      done: "Scheduled a wake-up",
+      tried: "schedule a wake-up",
+      icon: "clock",
+    },
+    schedule_recurring: {
+      doing: "Scheduling a recurring run",
+      done: "Scheduled a recurring run",
+      tried: "schedule a recurring run",
+      icon: "arrow-path-rounded-square",
+    },
+    list_schedules: {
+      doing: "Listing schedules",
+      done: "Listed schedules",
+      tried: "list schedules",
+      icon: "calendar-days",
+    },
+    cancel_schedule: {
+      doing: "Cancelling a schedule",
+      done: "Cancelled a schedule",
+      tried: "cancel a schedule",
+      icon: "calendar-days",
+    },
+  } satisfies Record<string, Look>),
+);
 
 /** A tool of the agent bus (its calls also arrive as their own agent bus items, also from Codex scripts). */
-export const isBusTool = (name: string): boolean => Object.hasOwn(LOOKS, name);
+export const isBusTool = (name: string): boolean => LOOKS.has(name);
 
-const ANSWERS: Record<string, string> = { allow: "Allowed", deny: "Denied", answer: "Answered", cancel: "Dismissed" };
+const ANSWERS = new Map([
+  ["allow", "Allowed"],
+  ["deny", "Denied"],
+  ["answer", "Answered"],
+  ["cancel", "Dismissed"],
+]);
+
+export interface BusLook {
+  readonly title: string;
+  readonly icon: IconName;
+}
 
 /** Title and icon of a bus call; a tool this UI does not know shows its name in words. */
-export function busLook(
-  tool: string,
-  args: Record<string, unknown>,
-  running: boolean,
-  refused = false,
-): { title: string; icon: IconName } {
-  const look = LOOKS[tool];
+export function busLook(tool: string, args: JsonObject, running: boolean, refused = false): BusLook {
+  const look = LOOKS.get(tool);
 
   if (!look) return { title: humanizeToolName(tool), icon: "sparkles" };
 
@@ -105,7 +124,7 @@ export function busLook(
     return { title: running ? "Listing the thread tree" : "Listed the thread tree", icon: look.icon };
 
   if (tool === "answer_interaction" && !running) {
-    const answer = ANSWERS[str(args["response"])];
+    const answer = ANSWERS.get(str(args["response"]));
 
     if (answer) return { title: `${answer} for a side thread`, icon: look.icon };
   }
@@ -138,32 +157,24 @@ export interface ThreadSummary {
   readonly settings: string;
 }
 
-const count = (value: unknown) => (typeof value === "number" ? value : 0);
-
 /** One thread of get_thread / wait_threads / list_threads (gateway ThreadSummary). */
-export function threadSummary(value: unknown): ThreadSummary | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const record = value as Record<string, unknown>;
+export function threadSummary(record: JsonObject): ThreadSummary | undefined {
   const threadId = str(record["thread_id"]);
 
   if (!threadId) return undefined;
 
-  const turn =
-    record["last_turn"] && typeof record["last_turn"] === "object"
-      ? (record["last_turn"] as Record<string, unknown>)
-      : undefined;
-
-  const turnStatus = str(turn?.["status"]);
-  const reason = str(turn?.["reason"]);
+  const turn = objectOf(record["last_turn"]);
+  const turnStatus = str(turn["status"]);
+  const reason = str(turn["reason"]);
 
   return {
     threadId,
     title: str(record["title"]),
     status: str(record["status"]),
     settled: record["settled"] === true,
-    queuedTurns: count(record["queued_turns"]),
-    waitingForParent: count(record["waiting_for_parent"]),
-    waitingForUser: count(record["waiting_for_user"]),
+    queuedTurns: num(record["queued_turns"]),
+    waitingForParent: num(record["waiting_for_parent"]),
+    waitingForUser: num(record["waiting_for_user"]),
     lastTurn: turnStatus ? `${humanizeEnum(turnStatus)}${reason ? `: ${reason}` : ""}` : "",
     lastTurnStatus: turnStatus,
     lastMessage: str(record["last_message"]).trim(),
@@ -184,10 +195,10 @@ export function permissionWords(mode: string): string {
 }
 
 /** The threads a get_thread, wait_threads or list_threads result describes. */
-export function summariesOf(tool: string, result: Record<string, unknown>): ThreadSummary[] {
-  const list = tool === "get_thread" ? [result] : Array.isArray(result["threads"]) ? result["threads"] : [];
+export function summariesOf(tool: string, result: JsonObject): ThreadSummary[] {
+  const list = tool === "get_thread" ? [result] : objectsOf(result["threads"]);
 
-  return list.flatMap((value: unknown) => threadSummary(value) ?? []);
+  return list.flatMap((value) => threadSummary(value) ?? []);
 }
 
 export interface TranscriptLine {
@@ -199,17 +210,14 @@ export interface TranscriptLine {
 }
 
 /** read_thread `entries` as a short transcript: messages as bubbles, every other item as one line of activity. */
-export function transcriptOf(result: Record<string, unknown>): TranscriptLine[] {
-  const entries = Array.isArray(result["entries"]) ? result["entries"] : [];
-
-  return entries.flatMap((value: unknown, index: number): TranscriptLine[] => {
-    if (!value || typeof value !== "object") return [];
-    const entry = value as Record<string, unknown>;
-    const key = `${typeof entry["seq"] === "number" ? entry["seq"] : index}`;
+export function transcriptOf(result: JsonObject): TranscriptLine[] {
+  return listOf(result["entries"]).flatMap((value, index): TranscriptLine[] => {
+    if (!isJsonObject(value)) return [];
+    const entry = value;
+    const seq = entry["seq"];
+    const key = `${isNumber(seq) ? seq : index}`;
     const type = str(entry["type"]);
-
-    const body = (name: string) =>
-      entry[name] && typeof entry[name] === "object" ? (entry[name] as Record<string, unknown>) : {};
+    const body = (name: string) => objectOf(entry[name]);
 
     switch (type) {
       case "user_message":
@@ -223,11 +231,11 @@ export function transcriptOf(result: Record<string, unknown>): TranscriptLine[] 
           { key, role: "activity", text: str(body("commandExecution")["command"]) || "Ran a command", mono: true },
         ];
       case "file_change": {
-        const changes = Array.isArray(body("fileChange")["changes"])
-          ? (body("fileChange")["changes"] as Record<string, unknown>[])
-          : [];
+        const names = listOf(body("fileChange")["changes"]).flatMap((c) => {
+          const name = str(objectOf(c)["path"]).split("/").pop();
 
-        const names = changes.map((c) => str(c?.["path"]).split("/").pop()).filter(Boolean);
+          return name ? [name] : [];
+        });
 
         return [
           {
@@ -303,11 +311,11 @@ const dateWords = (iso: string) => {
 };
 
 /** A schedule from schedule_wakeup / schedule_recurring (arguments and result) or a list_schedules row. */
-export function scheduleOf(args: Record<string, unknown>, result: Record<string, unknown> = {}): ScheduleView {
+export function scheduleOf(args: JsonObject, result: JsonObject = {}): ScheduleView {
   const cron = str(args["cron"]) || str(result["cron"]);
   const timezone = str(args["timezone"]) || str(result["timezone"]);
   const at = str(args["at"]) || str(args["run_at"]);
-  const delay = typeof args["delay_seconds"] === "number" ? args["delay_seconds"] : 0;
+  const delay = num(args["delay_seconds"]);
 
   const when = cron
     ? `${describeCron(cron)}${timezone && timezone !== "UTC" ? ` (${timezone})` : ""}`
@@ -318,7 +326,7 @@ export function scheduleOf(args: Record<string, unknown>, result: Record<string,
         : "Once";
 
   const until = str(args["until"]);
-  const maxRuns = typeof args["max_runs"] === "number" ? args["max_runs"] : 0;
+  const maxRuns = num(args["max_runs"]);
   const next = str(result["next_run_at"]) || str(args["next_run_at"]);
 
   return {
@@ -334,12 +342,8 @@ export function scheduleOf(args: Record<string, unknown>, result: Record<string,
 }
 
 /** list_schedules rows. */
-export function schedulesOf(result: Record<string, unknown>): ScheduleView[] {
-  const rows = Array.isArray(result["schedules"]) ? result["schedules"] : [];
-
-  return rows.flatMap((row: unknown) =>
-    row && typeof row === "object" ? [scheduleOf(row as Record<string, unknown>)] : [],
-  );
+export function schedulesOf(result: JsonObject): ScheduleView[] {
+  return objectsOf(result["schedules"]).map((row) => scheduleOf(row));
 }
 
 export interface InteractionView {
@@ -347,30 +351,21 @@ export interface InteractionView {
   readonly kind: string;
   /** The tool it is about, in words ("Bash", "Web fetch"). */
   readonly tool: string;
-  readonly request: unknown;
+  readonly request: JsonValue | undefined;
 }
 
 /** list_interactions: what the side threads ask. */
-export function interactionsOf(result: Record<string, unknown>): InteractionView[] {
-  const rows = Array.isArray(result["interactions"]) ? result["interactions"] : [];
-
-  return rows.flatMap((row: unknown) => {
-    if (!row || typeof row !== "object") return [];
-    const record = row as Record<string, unknown>;
-
-    return [
-      {
-        threadId: str(record["thread_id"]),
-        kind: humanizeEnum(str(record["kind"])) || "Question",
-        tool: humanizeToolName(str(record["tool_name"])),
-        request: record["request"],
-      },
-    ];
-  });
+export function interactionsOf(result: JsonObject): InteractionView[] {
+  return objectsOf(result["interactions"]).map((record) => ({
+    threadId: str(record["thread_id"]),
+    kind: humanizeEnum(str(record["kind"])) || "Question",
+    tool: humanizeToolName(str(record["tool_name"])),
+    request: record["request"],
+  }));
 }
 
 /** How a send_message was delivered, in words. */
-export function deliveryOf(args: Record<string, unknown>, result: Record<string, unknown>): string {
+export function deliveryOf(args: JsonObject, result: JsonObject): string {
   const asked = str(args["delivery"]) || "queue";
   const done = str(result["delivery"]) || asked;
 
@@ -383,17 +378,17 @@ export function deliveryOf(args: Record<string, unknown>, result: Record<string,
  * list_agents rows: the provider instances a subagent can run on ({provider: "claude/native", name, models: [{id, name,
  * efforts, default}], note}); `settings` is the instance key, `description` its models (the default first named so).
  */
-export function agentsOf(result: Record<string, unknown>): { name: string; description: string; settings: string }[] {
-  const rows = Array.isArray(result["agents"]) ? result["agents"] : [];
+export interface AgentRow {
+  readonly name: string;
+  readonly description: string;
+  readonly settings: string;
+}
 
-  return rows.flatMap((row: unknown) => {
-    if (!row || typeof row !== "object") return [];
-    const record = row as Record<string, unknown>;
+export function agentsOf(result: JsonObject): AgentRow[] {
+  return objectsOf(result["agents"]).flatMap((record) => {
     const name = str(record["name"]) || str(record["provider"]);
 
-    const models = (Array.isArray(record["models"]) ? record["models"] : []).flatMap((m: unknown) => {
-      if (!m || typeof m !== "object") return [];
-      const model = m as Record<string, unknown>;
+    const models = objectsOf(record["models"]).flatMap((model) => {
       const label = str(model["name"]) || str(model["id"]);
 
       return label ? [model["default"] === true ? `${label} (default)` : label] : [];

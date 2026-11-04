@@ -56,72 +56,74 @@ export const grammars = {
 export type LanguageId = keyof typeof grammars;
 
 /** Fence tags and file extensions that name a grammar by another word. */
-const aliases: Record<string, LanguageId> = {
-  "c++": "cpp",
-  cc: "cpp",
-  cxx: "cpp",
-  h: "c",
-  hh: "cpp",
-  hpp: "cpp",
-  hxx: "cpp",
-  "c#": "csharp",
-  cs: "csharp",
-  dockerfile: "docker",
-  containerfile: "docker",
-  env: "dotenv",
-  ex: "elixir",
-  exs: "elixir",
-  golang: "go",
-  gql: "graphql",
-  hs: "haskell",
-  htm: "html",
-  xhtml: "html",
-  cfg: "ini",
-  conf: "ini",
-  properties: "ini",
-  js: "javascript",
-  mjs: "javascript",
-  cjs: "javascript",
-  node: "javascript",
-  json5: "jsonc",
-  jsonl: "json",
-  kt: "kotlin",
-  kts: "kotlin",
-  makefile: "make",
-  mk: "make",
-  md: "markdown",
-  mdx: "markdown",
-  ps1: "powershell",
-  ps: "powershell",
-  pwsh: "powershell",
-  protobuf: "proto",
-  py: "python",
-  py3: "python",
-  python3: "python",
-  pyi: "python",
-  rb: "ruby",
-  gemfile: "ruby",
-  rs: "rust",
-  sh: "shellscript",
-  bash: "shellscript",
-  zsh: "shellscript",
-  shell: "shellscript",
-  console: "shellscript",
-  fish: "shellscript",
-  ksh: "shellscript",
-  bashrc: "shellscript",
-  zshrc: "shellscript",
-  tf: "terraform",
-  tfvars: "terraform",
-  ts: "typescript",
-  mts: "typescript",
-  cts: "typescript",
-  patch: "diff",
-  svg: "xml",
-  plist: "xml",
-  xsd: "xml",
-  yml: "yaml",
-};
+const aliases = new Map<string, LanguageId>([
+  ["c++", "cpp"],
+  ["cc", "cpp"],
+  ["cxx", "cpp"],
+  ["h", "c"],
+  ["hh", "cpp"],
+  ["hpp", "cpp"],
+  ["hxx", "cpp"],
+  ["c#", "csharp"],
+  ["cs", "csharp"],
+  ["dockerfile", "docker"],
+  ["containerfile", "docker"],
+  ["env", "dotenv"],
+  ["ex", "elixir"],
+  ["exs", "elixir"],
+  ["golang", "go"],
+  ["gql", "graphql"],
+  ["hs", "haskell"],
+  ["htm", "html"],
+  ["xhtml", "html"],
+  ["cfg", "ini"],
+  ["conf", "ini"],
+  ["properties", "ini"],
+  ["js", "javascript"],
+  ["mjs", "javascript"],
+  ["cjs", "javascript"],
+  ["node", "javascript"],
+  ["json5", "jsonc"],
+  ["jsonl", "json"],
+  ["kt", "kotlin"],
+  ["kts", "kotlin"],
+  ["makefile", "make"],
+  ["mk", "make"],
+  ["md", "markdown"],
+  ["mdx", "markdown"],
+  ["ps1", "powershell"],
+  ["ps", "powershell"],
+  ["pwsh", "powershell"],
+  ["protobuf", "proto"],
+  ["py", "python"],
+  ["py3", "python"],
+  ["python3", "python"],
+  ["pyi", "python"],
+  ["rb", "ruby"],
+  ["gemfile", "ruby"],
+  ["rs", "rust"],
+  ["sh", "shellscript"],
+  ["bash", "shellscript"],
+  ["zsh", "shellscript"],
+  ["shell", "shellscript"],
+  ["console", "shellscript"],
+  ["fish", "shellscript"],
+  ["ksh", "shellscript"],
+  ["bashrc", "shellscript"],
+  ["zshrc", "shellscript"],
+  ["tf", "terraform"],
+  ["tfvars", "terraform"],
+  ["ts", "typescript"],
+  ["mts", "typescript"],
+  ["cts", "typescript"],
+  ["patch", "diff"],
+  ["svg", "xml"],
+  ["plist", "xml"],
+  ["xsd", "xml"],
+  ["yml", "yaml"],
+]);
+
+const isLanguageId = (word: string): word is LanguageId => Object.hasOwn(grammars, word);
 
 /**
  * The grammar a fence's info string asks for (`ts`, `TypeScript`, `language-ts`, `py title="x"`), or
@@ -136,9 +138,9 @@ export function languageOf(info: string | undefined): LanguageId | undefined {
 
   if (!word) return undefined;
 
-  if (Object.hasOwn(grammars, word)) return word as LanguageId;
+  if (isLanguageId(word)) return word;
 
-  return Object.hasOwn(aliases, word) ? aliases[word] : undefined;
+  return aliases.get(word);
 }
 
 /** The grammar for a file path, by its extension or a well-known file name (`Dockerfile`, `Makefile`). */
@@ -222,10 +224,11 @@ export const LANGUAGES: ReadonlyArray<{
   readonly id: LanguageId;
   readonly name: string;
   readonly words: readonly string[];
-}> = (Object.keys(grammars) as LanguageId[])
+}> = Object.keys(grammars)
+  .filter(isLanguageId)
   .map((id) => ({
     id,
     name: LANGUAGE_NAMES[id],
-    words: [id, ...Object.keys(aliases).filter((word) => aliases[word] === id)],
+    words: [id, ...[...aliases].flatMap(([word, language]) => (language === id ? [word] : []))],
   }))
   .sort((a, b) => a.name.localeCompare(b.name));

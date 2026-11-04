@@ -24,8 +24,13 @@ export function groupSideThreads(threads: readonly ui.Thread[]) {
   };
 }
 
+export interface SideMark {
+  icon: IconName;
+  iconClass: string;
+}
+
 /** The mark of a side thread in lists: violet sparkles when an agent started it, a copy for a fork, else a turn arrow. */
-export function sideMark(thread: ui.Thread): { icon: IconName; iconClass: string } {
+export function sideMark(thread: ui.Thread): SideMark {
   if (thread.spawnedByAgent) return { icon: "sparkles", iconClass: "fill-violet-500 dark:fill-violet-400" };
 
   return {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ItemStatus, WebSearch } from "@canopy/contracts";
-  import { prettyJson, str } from "#lib/shared/format.ts";
+  import { prettyJson } from "#lib/shared/format.ts";
+  import { objectsOf, parseJson, str } from "#lib/shared/json.ts";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
   import { safeHref } from "#lib/shared/ui/markdown/safe-url.ts";
   import ItemFrame from "./ItemFrame.svelte";
@@ -8,20 +9,13 @@
   /** Web search: the query, and the results as links when they have a recognisable shape. */
   let { search, status }: { search: WebSearch; status: ItemStatus } = $props();
 
-  const results = $derived.by(() => {
-    try {
-      const value: unknown = JSON.parse(search.resultsJson);
-      const list = Array.isArray(value) ? value : [];
+  const results = $derived(
+    objectsOf(parseJson(search.resultsJson)).flatMap((r) => {
+      const href = safeHref(str(r["url"]));
 
-      return list.flatMap((r: Record<string, unknown>) => {
-        const href = safeHref(str(r?.["url"]));
-
-        return href ? [{ href, title: str(r["title"]) || href }] : [];
-      });
-    } catch {
-      return [];
-    }
-  });
+      return href ? [{ href, title: str(r["title"]) || href }] : [];
+    }),
+  );
 </script>
 
 <ItemFrame icon="globe-alt" {status}>

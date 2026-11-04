@@ -11,15 +11,15 @@ export interface QuoteDraft {
   readonly language: string;
 }
 
-/** A quote as the BFF takes it (api/threads/[id]/messages, `quotes`). */
-export interface WireQuote {
+/** A quote as the BFF takes it (api/threads/[id]/messages, `quotes`); a type alias, so it fits a `JsonBody`. */
+export type WireQuote = {
   readonly text: string;
   readonly comment?: string;
   readonly sourceItemId?: string;
   readonly sourceThreadId?: string;
   readonly sourceKind?: string;
   readonly language?: string;
-}
+};
 
 export function toWire(quote: QuoteDraft): WireQuote {
   return {

@@ -5,7 +5,7 @@ import { defineConfig } from "vite";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildVersion } from "./scripts/build-version.ts";
-import { retainImmutable } from "./scripts/release-assets.ts";
+import { retainImmutable, stringList } from "./scripts/release-assets.ts";
 
 const out = process.env["BUILD_DIR"] || "build";
 const node = adapter({ out });
@@ -26,7 +26,7 @@ export default defineConfig({
       adapter: {
         ...node,
         async adapt(builder) {
-          const previous = JSON.parse(process.env["WEB_PREVIOUS_RELEASES"] ?? "[]") as string[];
+          const previous = stringList(process.env["WEB_PREVIOUS_RELEASES"] ?? "[]");
           const own = retainImmutable(builder.getClientDirectory(), previous);
           await node.adapt(builder);
           writeFileSync(join(out, "immutable-files.json"), JSON.stringify(own));

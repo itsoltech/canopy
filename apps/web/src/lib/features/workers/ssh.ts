@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { isJsonObject, parseJson, str } from "#lib/shared/json.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 
 export async function workerSsh(
@@ -29,11 +30,15 @@ export async function workerSsh(
 
       for (const line of lines) {
         if (!line) continue;
-        const message = JSON.parse(line) as { event?: unknown; error?: string };
+        const message = parseJson(line);
 
-        if (message.error) throw new Error(message.error);
+        if (!isJsonObject(message)) throw new Error("SSH request failed");
+        const failure = str(message["error"]);
 
-        if (message.event) receive(decode(ui.WorkerSshEventSchema, message.event));
+        if (failure) throw new Error(failure);
+        const event = message["event"];
+
+        if (event) receive(decode(ui.WorkerSshEventSchema, event));
       }
     }
   } finally {

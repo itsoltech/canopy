@@ -193,16 +193,16 @@
     if (event.isComposing) return;
     const plain = !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 
-    const keys: Record<string, Parameters<typeof moveActive>[1]> = {
-      ArrowDown: "next",
-      ArrowUp: "previous",
-      PageDown: "pageDown",
-      PageUp: "pageUp",
-      Home: "first",
-      End: "last",
-    };
+    const keys = new Map<string, Parameters<typeof moveActive>[1]>([
+      ["ArrowDown", "next"],
+      ["ArrowUp", "previous"],
+      ["PageDown", "pageDown"],
+      ["PageUp", "pageUp"],
+      ["Home", "first"],
+      ["End", "last"],
+    ]);
 
-    const movement = keys[event.key];
+    const movement = keys.get(event.key);
 
     if (movement && (plain || event.key.startsWith("Arrow"))) {
       event.preventDefault();

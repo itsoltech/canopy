@@ -18,7 +18,13 @@ export function hsvToHex(hue: number, saturation: number, value: number): string
     .join("")}`;
 }
 
-export function hexToHsv(color: string): { hue: number; saturation: number; value: number } {
+export interface Hsv {
+  hue: number;
+  saturation: number;
+  value: number;
+}
+
+export function hexToHsv(color: string): Hsv {
   const hex = normalizeColor(color) ?? "#f97316";
   const [r = 0, g = 0, b = 0] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255);
 

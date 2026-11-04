@@ -3,7 +3,7 @@
  * the page answers input: a timer where there is no `requestIdleCallback` (Safari). Returns the cancel.
  */
 export function whenIdle(task: () => void, timeout: number): () => void {
-  if (typeof requestIdleCallback === "function") {
+  if ("requestIdleCallback" in globalThis) {
     const id = requestIdleCallback(task, { timeout });
 
     return () => cancelIdleCallback(id);

@@ -15,6 +15,7 @@
   import {
     finished,
     getMoves,
+    isMoveKind,
     movedProjects,
     moveTargets,
     previewMove,
@@ -139,7 +140,7 @@
         nodeId: target,
         ...(everything
           ? { everything: true }
-          : { items: movable.map((i) => ({ kind: i.kind as MoveRef["kind"], id: i.id })) }),
+          : { items: movable.flatMap((i) => (isMoveKind(i.kind) ? [{ kind: i.kind, id: i.id }] : [])) }),
         placements: projects.map((p) => ({ projectId: p.id, workspaceId: placements[p.id]! })),
       });
 

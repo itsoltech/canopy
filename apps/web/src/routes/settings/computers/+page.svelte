@@ -3,6 +3,7 @@
   import { create } from "@bufbuild/protobuf";
   import { ui } from "@canopy/contracts";
   import { requestJson } from "#lib/shared/http.ts";
+  import type { JsonObject } from "#lib/shared/json.ts";
   import { decode } from "#lib/shared/wire.ts";
   import ComputerDetails from "#lib/features/settings/ComputerDetails.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -70,7 +71,7 @@
     }
   }
 
-  async function manage(action: string, extra: Record<string, unknown> = {}) {
+  async function manage(action: string, extra: JsonObject = {}) {
     setup = decode(ui.ComputersSnapshotSchema, await requestJson("PUT", "/api/computers", { action, ...extra }));
   }
 

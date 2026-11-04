@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ItemStatus, type AgentBusCall } from "@canopy/contracts";
-  import { parseObject, str } from "#lib/shared/format.ts";
+  import { isString, listOf, parseObject, str } from "#lib/shared/json.ts";
   import { humanizeSeconds, plural } from "#lib/shared/humanize.ts";
   import { structure, structureJson } from "#lib/shared/structure.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";
@@ -57,11 +57,7 @@
   const subagent = $derived(tool === "spawn_thread" && !call.isError && target !== "");
   const message = $derived(tool === "send_message" && !call.isError && target !== "" && call.resultJson !== "");
 
-  const waitingFor = $derived(
-    Array.isArray(args["thread_ids"])
-      ? (args["thread_ids"] as unknown[]).filter((id): id is string => typeof id === "string")
-      : [],
-  );
+  const waitingFor = $derived(listOf(args["thread_ids"]).filter(isString));
 
   const titled = new Set(["send_message", "get_thread", "read_thread", "interrupt_thread", "close_thread"]);
 

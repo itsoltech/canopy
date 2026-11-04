@@ -226,11 +226,14 @@ export function longThreadSnapshot({ turns, inherited = 0 }: FixtureOptions): ui
   });
 }
 
+export interface StreamingTurn {
+  start: ui.ThreadUpdate[];
+  deltas: ui.ThreadUpdate[];
+  finish: ui.ThreadUpdate[];
+}
+
 /** Live updates of a new streaming turn: the turn, its input echo, then an agent message in `chunks` deltas. */
-export function streamingTurn(
-  snapshot: ui.ThreadSnapshot,
-  chunks: number,
-): { start: ui.ThreadUpdate[]; deltas: ui.ThreadUpdate[]; finish: ui.ThreadUpdate[] } {
+export function streamingTurn(snapshot: ui.ThreadSnapshot, chunks: number): StreamingTurn {
   const ordinal = snapshot.turns.length + 1;
   const turnId = `turn-live-${ordinal}`;
   let seq = snapshot.lastSeq + 1n;

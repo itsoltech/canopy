@@ -321,7 +321,7 @@ function connect(): void {
 
   observer = new IntersectionObserver((entries) => {
     for (const entry of entries) {
-      const c = characters.get(entry.target as SVGSVGElement);
+      const c = entry.target instanceof SVGSVGElement ? characters.get(entry.target) : undefined;
 
       if (c) {
         c.visible = entry.isIntersecting;

@@ -66,7 +66,7 @@
   const optionId = (index: number) => `${uid}-option-${index}`;
 
   $effect(() => {
-    if (!open || !options[active] || options[active]?.disabled) active = selectedIndex(options, value);
+    if (!open || !options[active] || options[active]?.disabled) active = selectedIndex(options, selected?.value);
   });
 
   $effect(() => {
@@ -157,7 +157,7 @@
 
     if (event.key.length === 1 && !event.altKey) {
       event.preventDefault();
-      active = typeahead(options, wasOpen ? active : selectedIndex(options, value), event.key);
+      active = typeahead(options, wasOpen ? active : selectedIndex(options, selected?.value), event.key);
       open = true;
     }
   }

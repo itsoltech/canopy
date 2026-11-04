@@ -20,18 +20,18 @@ export interface GoalLook {
   readonly active?: boolean;
 }
 
-const looks: Record<string, GoalLook> = {
-  active: { label: "Active", tone: "sky", icon: "flag", active: true },
-  paused: { label: "Paused", tone: "neutral", icon: "pause" },
-  blocked: { label: "Blocked", tone: "rose", icon: "exclamation-circle" },
-  budget_limited: { label: "Budget reached", tone: "amber", icon: "exclamation-triangle" },
-  usage_limited: { label: "Usage limit", tone: "amber", icon: "exclamation-triangle" },
-  achieved: { label: "Achieved", tone: "emerald", icon: "check-circle" },
-  cancelled: { label: "Cleared", tone: "neutral", icon: "x-circle" },
-};
+const looks = new Map<string, GoalLook>([
+  ["active", { label: "Active", tone: "sky", icon: "flag", active: true }],
+  ["paused", { label: "Paused", tone: "neutral", icon: "pause" }],
+  ["blocked", { label: "Blocked", tone: "rose", icon: "exclamation-circle" }],
+  ["budget_limited", { label: "Budget reached", tone: "amber", icon: "exclamation-triangle" }],
+  ["usage_limited", { label: "Usage limit", tone: "amber", icon: "exclamation-triangle" }],
+  ["achieved", { label: "Achieved", tone: "emerald", icon: "check-circle" }],
+  ["cancelled", { label: "Cleared", tone: "neutral", icon: "x-circle" }],
+]);
 
 export const goalLook = (status: string): GoalLook =>
-  looks[status] ?? { label: humanizeEnum(status) || "Goal", tone: "neutral", icon: "flag" };
+  looks.get(status) ?? { label: humanizeEnum(status) || "Goal", tone: "neutral", icon: "flag" };
 
 /** Achieved and cancelled goals stay finished; every other status is the thread's open goal. */
 export const isFinishedGoal = (status: string): boolean => status === "achieved" || status === "cancelled";
@@ -40,8 +40,14 @@ export const isFinishedGoal = (status: string): boolean => status === "achieved"
 export const goalNeedsYou = (status: string): boolean =>
   status === "blocked" || status === "budget_limited" || status === "usage_limited";
 
+export interface GoalActions {
+  pause: boolean;
+  resume: boolean;
+  clear: boolean;
+}
+
 /** What you can do with a goal: the gateway pauses only an active one and resumes any other open one. */
-export function goalActions(status: string): { pause: boolean; resume: boolean; clear: boolean } {
+export function goalActions(status: string): GoalActions {
   const open = !isFinishedGoal(status);
 
   return { pause: status === "active", resume: open && status !== "active", clear: open };

@@ -1,13 +1,13 @@
 import { ui } from "@canopy/contracts";
 import type { PermissionModeKey } from "./labels.ts";
-import { requestJson } from "#lib/shared/http.ts";
+import { requestJson, type JsonBody } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 import type { Mention } from "@canopy/contracts";
 import { mentionsToWire } from "#lib/features/mentions/wire.ts";
 import type { WireQuote } from "#lib/features/quotes/quote.ts";
 
 /** Browser-side calls to the BFF (same origin, JSON). */
-const post = (path: string, body: unknown) => requestJson("POST", path, body);
+const post = (path: string, body: JsonBody) => requestJson("POST", path, body);
 const threadPath = (threadId: string) => `/api/threads/${encodeURIComponent(threadId)}`;
 
 /** queue: the next turn; steer: into the running turn (without one the gateway queues it too). */

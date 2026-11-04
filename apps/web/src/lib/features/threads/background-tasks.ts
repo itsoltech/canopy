@@ -51,11 +51,13 @@ export function backgroundStatus(entry: BackgroundEntry, exitCode?: number): str
   return "Pending";
 }
 
-/** When the task started and ended: the worker's times on the task, else the ones seen on the live stream. */
-export function backgroundTimes(entry: BackgroundEntry): {
+export interface BackgroundTimes {
   startedAt?: number | undefined;
   endedAt?: number | undefined;
-} {
+}
+
+/** When the task started and ended: the worker's times on the task, else the ones seen on the live stream. */
+export function backgroundTimes(entry: BackgroundEntry): BackgroundTimes {
   const task = entry.item.content.value;
 
   return {

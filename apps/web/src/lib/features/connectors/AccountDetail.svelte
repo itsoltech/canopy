@@ -4,6 +4,7 @@
   import { timestampMs } from "@bufbuild/protobuf/wkt";
   import type { ClassValue } from "svelte/elements";
   import { requestJson } from "#lib/shared/http.ts";
+  import type { JsonObject } from "#lib/shared/json.ts";
   import { decode } from "#lib/shared/wire.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -48,6 +49,17 @@
   let disconnecting = $state(false);
   let deleting = $state(false);
 
+  /** What a save action sends: the new access, or the new name; the revision guards against changes elsewhere. */
+  function actionBody(action: string): JsonObject {
+    const expectedRevision = account.revision.toString();
+
+    if (action === "access") return { allWorkers, workerIds, allBots, botIds, expectedRevision };
+
+    if (action === "rename") return { id: account.id, name, expectedRevision };
+
+    return {};
+  }
+
   async function run(action: string) {
     if (busy) return;
     busy = action;
@@ -74,16 +86,9 @@
       } else {
         const path = action === "rename" ? "/api/connectors" : `/api/connectors/${account.id}/${action}`;
 
-        const body =
-          action === "access"
-            ? { allWorkers, workerIds, allBots, botIds, expectedRevision: account.revision.toString() }
-            : action === "rename"
-              ? { id: account.id, name, expectedRevision: account.revision.toString() }
-              : {};
-
         const updated = decode(
           connectors.ConnectorAccountResponseSchema,
-          await requestJson("POST", path, body, 55000),
+          await requestJson("POST", path, actionBody(action), 55000),
         ).account!;
 
         onupdate(updated);

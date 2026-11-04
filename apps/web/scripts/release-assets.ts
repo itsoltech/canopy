@@ -1,6 +1,13 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+/** A JSON list of strings (release lists, asset manifests); other entries are left out. */
+export function stringList(json: string): string[] {
+  const value: unknown = JSON.parse(json);
+
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 const IMMUTABLE = "_app/immutable";
 
 function immutableFiles(client: string): string[] {
@@ -18,7 +25,7 @@ export function retainImmutable(client: string, previous: readonly string[]): st
     const manifest = join(release, "immutable-files.json");
 
     const files = existsSync(manifest)
-      ? (JSON.parse(readFileSync(manifest, "utf8")) as string[])
+      ? stringList(readFileSync(manifest, "utf8"))
       : immutableFiles(join(release, "client"));
 
     for (const file of files) {

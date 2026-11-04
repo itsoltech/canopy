@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    accentLabels,
+    accentLabel,
     accentNames,
     accentOf,
     chatWidthLabels,
@@ -38,37 +38,37 @@
   const accents: { value: AccentName; label: string; light: string; dark: string }[] = [
     {
       value: "default",
-      label: accentLabels.default,
+      label: accentLabel("default"),
       light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-blue-100)_45%,var(--color-blue-300))]",
       dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-blue-400),var(--color-zinc-900)_60%,black)]",
     },
     {
       value: "grove",
-      label: accentLabels.grove,
+      label: accentLabel("grove"),
       light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-emerald-100)_45%,var(--color-emerald-300))]",
       dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-emerald-400),var(--color-emerald-900)_60%,black)]",
     },
     {
       value: "ocean",
-      label: accentLabels.ocean,
+      label: accentLabel("ocean"),
       light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-sky-100)_45%,var(--color-sky-400))]",
       dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-sky-400),var(--color-sky-900)_60%,black)]",
     },
     {
       value: "ember",
-      label: accentLabels.ember,
+      label: accentLabel("ember"),
       light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-orange-100)_45%,var(--color-orange-300))]",
       dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-orange-400),var(--color-orange-900)_60%,black)]",
     },
     {
       value: "iris",
-      label: accentLabels.iris,
+      label: accentLabel("iris"),
       light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-violet-100)_45%,var(--color-violet-300))]",
       dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-violet-400),var(--color-violet-900)_60%,black)]",
     },
     {
       value: "rose",
-      label: accentLabels.rose,
+      label: accentLabel("rose"),
       light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-pink-100)_45%,var(--color-pink-300))]",
       dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-pink-400),var(--color-pink-900)_60%,black)]",
     },

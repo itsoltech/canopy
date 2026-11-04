@@ -162,8 +162,8 @@ export class ArchivedThreadsPager {
 
   async #loadPages(epoch: number, pages: number, quiet = false): Promise<void> {
     try {
-      let threads: ui.Thread[] = [];
-      let sideThreads: ui.Thread[] = [];
+      const threads: ui.Thread[] = [];
+      const sideThreads: ui.Thread[] = [];
       let pageToken = "";
       let first = this.#first;
 
@@ -174,8 +174,8 @@ export class ArchivedThreadsPager {
 
         if (i === 0)
           first = { threads: page.threads, sideThreads: page.sideThreads, nextPageToken: page.nextPageToken };
-        threads = [...threads, ...page.threads];
-        sideThreads = [...sideThreads, ...page.sideThreads];
+        threads.push(...page.threads);
+        sideThreads.push(...page.sideThreads);
         pageToken = page.nextPageToken;
 
         if (!pageToken || i === pages - 1) {

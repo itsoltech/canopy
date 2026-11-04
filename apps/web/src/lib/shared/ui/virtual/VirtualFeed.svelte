@@ -144,7 +144,7 @@
 
     if (viewport === 0)
       return index.tail(
-        typeof innerHeight !== "number" ? INITIAL_HEIGHT : Math.min(INITIAL_HEIGHT, innerHeight + 2 * COLD_OVERSCAN),
+        "innerHeight" in globalThis ? Math.min(INITIAL_HEIGHT, innerHeight + 2 * COLD_OVERSCAN) : INITIAL_HEIGHT,
       );
     const overscan = Math.min(fullOverscan, overscanLimit);
     // Reading above: the window follows the anchor row, also when rows were added or resized above it
@@ -222,7 +222,8 @@
 
         if (at > last) entering.set(rowKey, { kind: "rise", order: 0 });
         else {
-          const kind = inserted?.(rows[at] as T);
+          const row = rows[at];
+          const kind = row === undefined ? undefined : inserted?.(row);
 
           if (kind) entering.set(rowKey, { kind, order: order++ });
         }
@@ -271,7 +272,9 @@
       ? undefined
       : new ResizeObserver((entries) => {
           for (const entry of entries) {
-            const target = entry.target as HTMLElement;
+            const target = entry.target;
+
+            if (!(target instanceof HTMLElement)) continue;
             const height = entry.borderBoxSize[0]?.blockSize ?? target.offsetHeight;
 
             if (target === scroller) measuredViewport = target.clientHeight;
@@ -395,14 +398,15 @@
     while (low < high) {
       const middle = (low + high) >> 1;
 
-      if ((children[middle] as HTMLElement).getBoundingClientRect().bottom > edge + 1) high = middle;
+      if ((children[middle]?.getBoundingClientRect().bottom ?? 0) > edge + 1) high = middle;
       else low = middle + 1;
     }
 
-    const element = children[low] as HTMLElement | undefined;
-    anchor = element?.dataset.key
-      ? { key: element.dataset.key, element, top: element.getBoundingClientRect().top - edge }
-      : undefined;
+    const element = children[low];
+    anchor =
+      element instanceof HTMLElement && element.dataset.key
+        ? { key: element.dataset.key, element, top: element.getBoundingClientRect().top - edge }
+        : undefined;
   }
 
   function onscroll() {
@@ -620,7 +624,6 @@
 
   function onkeydown(event: KeyboardEvent) {
     if (event.defaultPrevented) return;
-    const target = event.target as HTMLElement;
 
     if (event.ctrlKey && event.key === "End") {
       event.preventDefault();
@@ -644,8 +647,10 @@
 
     if (event.key !== "PageDown" && event.key !== "PageUp") return;
 
+    const target = event.target;
+
     // Text fields and scrollable code keep their own Page keys.
-    if (target.closest("pre, textarea, input, select, [contenteditable]")) return;
+    if (!(target instanceof Element) || target.closest("pre, textarea, input, select, [contenteditable]")) return;
     const current = target.closest<HTMLElement>("article[data-key]")?.dataset.key;
     const at = current === undefined ? undefined : positions.get(current);
 
@@ -655,11 +660,12 @@
   }
 
   function onfocusin(event: FocusEvent) {
-    focusedKey = (event.target as HTMLElement).closest<HTMLElement>("article[data-key]")?.dataset.key;
+    focusedKey =
+      event.target instanceof Element ? event.target.closest<HTMLElement>("article[data-key]")?.dataset.key : undefined;
   }
 
   function onfocusout(event: FocusEvent) {
-    if (!list?.contains(event.relatedTarget as Node | null)) focusedKey = undefined;
+    if (!(event.relatedTarget instanceof Node) || !list?.contains(event.relatedTarget)) focusedKey = undefined;
   }
 </script>
 

@@ -53,8 +53,16 @@ export interface WorkSummary {
   readonly size: number;
 }
 
-const turnIdOf = (row: TimelineRow): string =>
-  row.kind === "item" ? row.node.entry.turnId : row.kind === "notice" ? row.notice.turnId : row.turn.id;
+export function turnIdOf(row: TimelineRow): string {
+  switch (row.kind) {
+    case "item":
+      return row.node.entry.turnId;
+    case "notice":
+      return row.notice.turnId;
+    default:
+      return row.turn.id;
+  }
+}
 
 /** Rows of the turn that are its work or its final message (not its frame or input). */
 const isBody = (row: TimelineRow): boolean => (row.kind === "item" && !row.inputOf) || row.kind === "notice";
@@ -95,7 +103,11 @@ export function foldTurns(
   const turns = new Map<string, ui.Turn>();
 
   for (const row of rows) if (row.kind === "turn-start" || row.kind === "turn-end") turns.set(row.turn.id, row.turn);
-  const inputs = new Set(rows.filter((r) => r.kind === "input" || (r.kind === "item" && r.inputOf)).map(turnIdOf));
+
+  const inputs = new Set(
+    rows.flatMap((r) => (r.kind === "input" || (r.kind === "item" && r.inputOf) ? [turnIdOf(r)] : [])),
+  );
+
   const bodies = new Map<string, TimelineRow[]>();
 
   for (const row of rows) {
@@ -252,8 +264,29 @@ function summarize(
 const isToolRow = (row: TimelineRow): boolean =>
   row.kind === "item" && !["agentMessage", "userMessage", "reasoning"].includes(row.node.entry.item.content.case ?? "");
 
-function activity(row: TimelineRow): string {
-  if (row.kind !== "item") return "";
+type Activity =
+  | "read"
+  | "command"
+  | "edit"
+  | "search"
+  | "tool"
+  | "agent call"
+  | "subagent"
+  | "background task"
+  | "item";
+
+/** Items other than tool calls, by their content case. */
+const ITEM_ACTIVITIES = new Map<string, Activity>([
+  ["commandExecution", "command"],
+  ["fileChange", "edit"],
+  ["webSearch", "search"],
+  ["agentBusCall", "agent call"],
+  ["subagent", "subagent"],
+  ["backgroundTask", "background task"],
+]);
+
+function activity(row: TimelineRow): Activity | undefined {
+  if (row.kind !== "item") return undefined;
   const content = row.node.entry.item.content;
 
   if (content.case === "toolCall") {
@@ -271,44 +304,33 @@ function activity(row: TimelineRow): string {
     return "tool";
   }
 
-  return (
-    (
-      {
-        commandExecution: "command",
-        fileChange: "edit",
-        webSearch: "search",
-        agentBusCall: "agent call",
-        subagent: "subagent",
-        backgroundTask: "background task",
-      } as Record<string, string>
-    )[content.case ?? ""] ?? "item"
-  );
+  return ITEM_ACTIVITIES.get(content.case ?? "") ?? "item";
 }
+
+const VERBS = {
+  read: ["Read", "file", "files"],
+  command: ["Ran", "command", "commands"],
+  edit: ["Made", "edit", "edits"],
+  search: ["Ran", "search", "searches"],
+  tool: ["Made", "tool call", "tool calls"],
+  "agent call": ["Made", "agent call", "agent calls"],
+  subagent: ["Started", "subagent", "subagents"],
+  "background task": ["Started", "background task", "background tasks"],
+  item: ["Updated", "item", "items"],
+} satisfies Record<Activity, readonly [string, string, string]>;
 
 /** Consecutive tools form one stable group, until a progress message/reasoning/notice separates them. */
 export function groupSummary(rows: readonly TimelineRow[]): string {
-  const counts = new Map<string, number>();
+  const counts = new Map<Activity, number>();
 
   for (const row of rows) {
-    const kind = activity(row);
+    const kind = activity(row) ?? "item";
     counts.set(kind, (counts.get(kind) ?? 0) + 1);
   }
 
-  const verbs: Record<string, [string, string, string]> = {
-    read: ["Read", "file", "files"],
-    command: ["Ran", "command", "commands"],
-    edit: ["Made", "edit", "edits"],
-    search: ["Ran", "search", "searches"],
-    tool: ["Made", "tool call", "tool calls"],
-    "agent call": ["Made", "agent call", "agent calls"],
-    subagent: ["Started", "subagent", "subagents"],
-    "background task": ["Started", "background task", "background tasks"],
-    item: ["Updated", "item", "items"],
-  };
-
   return [...counts]
     .map(([kind, n], i) => {
-      const [verb, one, many] = verbs[kind]!;
+      const [verb, one, many] = VERBS[kind];
 
       return `${i ? verb.toLowerCase() : verb} ${n} ${n === 1 ? one : many}`;
     })

@@ -13,7 +13,7 @@ const Body = Schema.Union([
     text: Schema.String.check(Schema.isMaxLength(100_000)),
     expectedRevision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
     // Mentions in the new text (protobuf JSON Mention; the gateway checks them).
-    mentions: Schema.optionalKey(Schema.Array(Schema.Unknown).check(Schema.isMaxLength(50))),
+    mentions: Schema.optionalKey(Schema.Array(Schema.Json).check(Schema.isMaxLength(50))),
   }),
   // delete: out of the queue; restore: its undo; steer: into the running turn now.
   Schema.Struct({ action: Schema.Literals(["delete", "restore", "steer"]) }),

@@ -38,8 +38,8 @@ class InstanceFavorites implements FavoriteModels {
       ? current.filter((m) => m !== option.model)
       : [...current, option.model];
 
-    providerCall("models", { harness, id, favoritesOnly: true, models: { favorites } }).catch((error: unknown) =>
-      toast(error instanceof Error ? error.message : "Could not change the favorites", { tone: "error" }),
+    providerCall("models", { harness, id, favoritesOnly: true, models: { favorites } }).catch((cause: unknown) =>
+      toast(cause instanceof Error ? cause.message : "Could not change the favorites", { tone: "error" }),
     );
   }
 

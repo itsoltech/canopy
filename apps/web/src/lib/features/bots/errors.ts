@@ -1,9 +1,14 @@
+export interface ReplyFailure {
+  reason: string;
+  model: boolean;
+}
+
 /**
  * Why a bot could not reply, in words for people. The gateway stores the technical cause (an HTTP status of
  * the model endpoint, a refused model, a limit); the chat shows this reason and keeps the cause for a tooltip.
  * `model`: changing the bot's model is the likely fix.
  */
-export function replyFailure(detail: string): { reason: string; model: boolean } {
+export function replyFailure(detail: string): ReplyFailure {
   const status = /HTTP (\d{3})/.exec(detail)?.[1];
 
   if (status === "400" || status === "404" || /alias|does not offer|Choose a model/i.test(detail))

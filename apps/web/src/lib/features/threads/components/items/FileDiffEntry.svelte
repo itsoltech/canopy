@@ -19,14 +19,21 @@
     diffBlob,
   }: { path: string; kind: string; movePath?: string; diff: string; diffBlob?: BlobRef | undefined } = $props();
 
-  const kinds: Record<string, { label: string; tone: Tone }> = {
-    add: { label: "Added", tone: "emerald" },
-    update: { label: "Edited", tone: "sky" },
-    delete: { label: "Deleted", tone: "rose" },
-    move: { label: "Moved", tone: "violet" },
-  };
+  interface KindLook {
+    label: string;
+    tone: Tone;
+  }
 
-  const look = $derived(kinds[kind] ?? { label: "Changed", tone: "neutral" as Tone });
+  const CHANGED: KindLook = { label: "Changed", tone: "neutral" };
+
+  const kinds = new Map<string, KindLook>([
+    ["add", { label: "Added", tone: "emerald" }],
+    ["update", { label: "Edited", tone: "sky" }],
+    ["delete", { label: "Deleted", tone: "rose" }],
+    ["move", { label: "Moved", tone: "violet" }],
+  ]);
+
+  const look = $derived(kinds.get(kind) ?? CHANGED);
   const counts = $derived(diffCounts([{ diff }]));
   const directory = useThreadDirectory();
 </script>

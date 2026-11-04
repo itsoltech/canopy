@@ -1,3 +1,5 @@
+import type { GrammarState } from "@shikijs/primitive";
+
 /** A run of a line with one colour; no `color` is the default text colour. */
 export interface CodeToken {
   readonly content: string;
@@ -11,9 +13,12 @@ export interface HighlightedLine {
 
 /**
  * Tokenizes one line (no line break) starting from the grammar state after the previous line (undefined
- * for the first) and returns the state after it. The state is opaque here (Shiki's `GrammarState`).
+ * for the first) and returns the state after it. The state is opaque here.
  */
-export type LineTokenizer = (text: string, state: unknown) => { tokens: CodeToken[]; state: unknown };
+export type LineTokenizer = (
+  text: string,
+  state: GrammarState | undefined,
+) => { tokens: CodeToken[]; state: GrammarState | undefined };
 
 /**
  * Highlighting of a text that grows line by line. It keeps the tokens and the grammar state after every
@@ -24,7 +29,7 @@ export type LineTokenizer = (text: string, state: unknown) => { tokens: CodeToke
 export class IncrementalHighlight {
   /** The highlighted prefix of the source, line by line. */
   readonly lines: HighlightedLine[] = [];
-  readonly #states: unknown[] = [];
+  readonly #states: (GrammarState | undefined)[] = [];
 
   /** Drops the highlighted lines from the first one that differs from `source`; true when any were dropped. */
   retain(source: readonly string[]): boolean {

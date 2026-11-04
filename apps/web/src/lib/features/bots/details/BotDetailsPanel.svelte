@@ -47,7 +47,7 @@
   let removing = $state<bots.BotRoutine>();
   let confirming = $state(false);
 
-  async function act(id: string, action: () => Promise<unknown>) {
+  async function act<T>(id: string, action: () => Promise<T>) {
     if (busy[id]) return;
     busy = { ...busy, [id]: true };
     error = "";

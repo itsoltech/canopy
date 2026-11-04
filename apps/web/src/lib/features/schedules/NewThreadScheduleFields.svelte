@@ -9,7 +9,7 @@
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
-  import type { PermissionModeKey } from "#lib/features/threads/labels.ts";
+  import { permissionKey, type PermissionModeKey } from "#lib/features/threads/labels.ts";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
@@ -59,9 +59,7 @@
 
   let effort = $state<string | undefined>(initial?.effort || undefined);
 
-  let permission = $state<PermissionModeKey>(
-    initial ? (PermissionMode[initial.permissionMode] as PermissionModeKey) : "ASK",
-  );
+  let permission = $state<PermissionModeKey>(initial ? permissionKey(initial.permissionMode) : "ASK");
 
   let title = $state(initial?.title ?? "");
   const project = $derived(overview.project(projectId));
@@ -151,7 +149,7 @@
         <Select
           name="placement"
           bind:value={placement}
-          options={Object.entries(placementLabels).map(([value, label]) => ({ value, label }))}
+          options={[...placementLabels].map(([value, label]) => ({ value, label }))}
         />
       </Field>{/if}
     {#if placement === "specific"}

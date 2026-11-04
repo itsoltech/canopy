@@ -19,7 +19,14 @@ export function localValue(date: Date, kind: DateTimeKind = "datetime-local", ti
   const day = `${part("year")}-${part("month")}-${part("day")}`;
   const time = `${part("hour")}:${part("minute")}`;
 
-  return kind === "date" ? day : kind === "time" ? time : `${day}T${time}`;
+  switch (kind) {
+    case "date":
+      return day;
+    case "time":
+      return time;
+    default:
+      return `${day}T${time}`;
+  }
 }
 
 export function parseDay(value: string): Date | undefined {
@@ -45,9 +52,11 @@ export function parseDateTime(value: string, timeZone = userTimeZone()): Date | 
     offsets.add(Date.parse(`${localValue(new Date(instant), "datetime-local", timeZone)}:00Z`) - instant);
   }
 
-  const matches = [...offsets]
-    .map((offset) => new Date(naive - offset))
-    .filter((date) => localValue(date, "datetime-local", timeZone) === value);
+  const matches = [...offsets].flatMap((offset) => {
+    const date = new Date(naive - offset);
+
+    return localValue(date, "datetime-local", timeZone) === value ? [date] : [];
+  });
 
   return matches.sort((a, b) => a.getTime() - b.getTime())[0];
 }
@@ -75,6 +84,17 @@ export function formatDateTime(value: string, kind: DateTimeKind, locale?: strin
     : value;
 }
 
+function parseValue(value: string, kind: DateTimeKind, timeZone: string): Date | boolean | undefined {
+  switch (kind) {
+    case "time":
+      return validTime(value);
+    case "date":
+      return parseDay(value);
+    default:
+      return parseDateTime(value, timeZone);
+  }
+}
+
 export function dateTimeError(
   value: string,
   kind: DateTimeKind,
@@ -82,7 +102,7 @@ export function dateTimeError(
   max?: string,
   timeZone = userTimeZone(),
 ): string | undefined {
-  const valid = kind === "time" ? validTime(value) : kind === "date" ? parseDay(value) : parseDateTime(value, timeZone);
+  const valid = parseValue(value, kind, timeZone);
 
   if (!valid)
     return kind === "time"

@@ -23,8 +23,13 @@ interface Context {
   restore(text: string): string;
 }
 
+export interface WithSentinels {
+  text: string;
+  context: Context;
+}
+
 /** The source with sentinels, and the context MarkdownInline and code blocks read. */
-export function withSentinels(text: string, elements: InlineElements): { text: string; context: Context } {
+export function withSentinels(text: string, elements: InlineElements): WithSentinels {
   const originals: string[] = [];
   let out = "";
   let at = 0;

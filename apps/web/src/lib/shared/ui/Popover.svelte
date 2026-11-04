@@ -186,9 +186,9 @@
     if (!open) return;
 
     const onpointerdown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
+      const target = event.target;
 
-      if (!panel || !target) return;
+      if (!panel || !(target instanceof Node)) return;
 
       if ((anchorElement ?? anchor)?.contains(target)) return;
 
@@ -212,7 +212,8 @@
       if (
         event.key === "Escape" &&
         !event.defaultPrevented &&
-        (event.target === document.body || (anchorElement ?? anchor)?.contains(event.target as Node))
+        (event.target === document.body ||
+          (event.target instanceof Node && (anchorElement ?? anchor)?.contains(event.target)))
       ) {
         event.preventDefault();
         open = false;
@@ -238,9 +239,9 @@
   }
 
   function onfocusout(event: FocusEvent) {
-    const next = event.relatedTarget as Node | null;
+    const next = event.relatedTarget;
 
-    if (next && panel && !panel.contains(next)) {
+    if (next instanceof Node && panel && !panel.contains(next)) {
       focusInside = false;
 
       if (!(anchorElement ?? anchor)?.contains(next)) open = false;

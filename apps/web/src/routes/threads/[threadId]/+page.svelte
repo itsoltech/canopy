@@ -106,7 +106,12 @@
   });
 
   // A linked computer's project and worker leave the overview while it is away; the open thread keeps their names.
-  let known: { project?: ui.Project; worker?: ui.Worker } = {};
+  interface Known {
+    project?: ui.Project;
+    worker?: ui.Worker;
+  }
+
+  let known: Known = {};
 
   const worker = $derived(
     overview.worker(thread?.workerId ?? "") ?? (known.worker?.id === thread?.workerId ? known.worker : undefined),

@@ -36,6 +36,8 @@ export function elementOf(node: EditorNode): InlineElement | undefined {
   if (node.dataset?.["element"] !== "mention") return undefined;
 
   try {
+    // SAFETY: only the chip renderer (`INLINE_RENDERERS.mention`) writes `data-mention`, as a MentionData's JSON;
+    // pastes arrive as plain text, so no other markup reaches the editor.
     const data = JSON.parse(node.dataset["mention"] ?? "") as MentionData;
 
     return { type: "mention", mention: data };
@@ -146,8 +148,6 @@ function withoutIcon(m: MentionData): Omit<MentionData, "icon"> {
   return rest;
 }
 
-const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
 /**
  * HTML for a model (setting the editor's content from outside: a cleared or restored draft, a paste with fences).
  * Complete fences without mentions in them become blocks; the text around them renders by lines, with its inline
@@ -209,6 +209,9 @@ export const iconKey = (m: Pick<Mention, "kind" | "name">) => `${m.kind}:${m.nam
 
 export type TriggerChar = "/" | "$" | "@" | "#";
 
+const isTriggerChar = (char: string | undefined): char is TriggerChar =>
+  char === "/" || char === "$" || char === "@" || char === "#";
+
 export interface ActiveTrigger {
   readonly char: TriggerChar;
   /** What was typed after the trigger. */
@@ -225,10 +228,10 @@ export function activeTrigger(before: string, enabled: ReadonlySet<TriggerChar>)
   const match = /(?:^|[\s ])([/$@#])([^\s ]*)$/.exec(before) ?? /(?:^|[\s ])(#)((?:[^\s #]+ ?){0,6})$/.exec(before);
 
   if (!match) return undefined;
-  const char = match[1] as TriggerChar;
+  const char = match[1];
   const query = match[2] ?? "";
 
-  if (!enabled.has(char) || query.length > 120) return undefined;
+  if (!isTriggerChar(char) || !enabled.has(char) || query.length > 120) return undefined;
 
   return { char, query, length: query.length + 1 };
 }

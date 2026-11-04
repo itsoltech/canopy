@@ -34,7 +34,7 @@ const Body = Schema.Struct({
     ).check(Schema.isMaxLength(20)),
   ),
   // Commands, skills, plugins, files and threads in the text (protobuf JSON Mention; the gateway checks them).
-  mentions: Schema.optionalKey(Schema.Array(Schema.Unknown).check(Schema.isMaxLength(50))),
+  mentions: Schema.optionalKey(Schema.Array(Schema.Json).check(Schema.isMaxLength(50))),
 });
 
 export const POST: RequestHandler = async ({ request, params }) => {

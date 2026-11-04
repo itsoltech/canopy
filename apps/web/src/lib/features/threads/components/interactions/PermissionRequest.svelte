@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Item } from "@canopy/contracts";
-  import { parseObject, str } from "#lib/shared/format.ts";
+  import { parseObject, str } from "#lib/shared/json.ts";
   import { structure, structureJson } from "#lib/shared/structure.ts";
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
   import Diff from "../Diff.svelte";

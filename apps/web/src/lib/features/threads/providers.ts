@@ -5,8 +5,11 @@ export const providerKeys = ["CLAUDE", "CODEX", "GROK"] as const;
 
 export type ProviderKey = (typeof providerKeys)[number];
 
-export const isProviderKey = (value: string): value is ProviderKey =>
-  (providerKeys as readonly string[]).includes(value);
+const PROVIDER_NAMES = { CLAUDE: "Claude", CODEX: "Codex", GROK: "Grok" } satisfies Record<ProviderKey, string>;
+
+export const providerName = (provider: ProviderKey): string => PROVIDER_NAMES[provider];
+
+export const isProviderKey = (value: string): value is ProviderKey => providerKeys.some((key) => key === value);
 
 export const providerKeyOf = (provider: Provider): ProviderKey | undefined =>
   provider === Provider.CLAUDE
@@ -66,7 +69,7 @@ export function agentChoices(worker: ui.Worker | undefined): { provider: Provide
       value: `${provider}:${instanceValue(instance)}`,
       provider,
       profileId: instanceValue(instance),
-      label: `${provider === "CLAUDE" ? "Claude" : provider === "GROK" ? "Grok" : "Codex"} · ${instanceLabel(instance)}`,
+      label: `${providerName(provider)} · ${instanceLabel(instance)}`,
     })),
   }));
 }

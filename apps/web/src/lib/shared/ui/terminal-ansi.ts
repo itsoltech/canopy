@@ -61,6 +61,7 @@ export function terminalAnsi(output: string): TerminalToken[][] {
   };
 
   const controls =
+    // oxlint-disable-next-line no-control-regex -- matching ANSI escape sequences and C0/C1 control characters is what this sanitizer does.
     /(?:\x1b\[|\x9b)([0-?]*)([ -/]*)([@-~])|(?:\x1b\]|\x9d)[^\x07\x1b\x9c]*(?:\x07|\x1b\\|\x9c|$)|(?:\x1b[P^_X]|[\x90\x98\x9e\x9f])[\s\S]*?(?:\x1b\\|\x9c|$)|\x1b\[[^@-~]*$|\x1b[ -/]*[0-~]?|[\x00-\x08\x0b-\x1f\x7f-\x9f]/g;
 
   let end = 0;

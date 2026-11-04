@@ -1,11 +1,18 @@
 import type { connectors } from "@canopy/contracts";
 import { listConnectors } from "./api.ts";
 
+export interface ConnectorAccounts {
+  accounts: connectors.ConnectorAccount[];
+  types: connectors.ConnectorType[];
+  loading: boolean;
+  error: string;
+}
+
 /** Shared scoped catalog; late responses from a previous bot/thread cannot replace the current one. */
 export function useConnectorAccounts(scope: () => { botId: string } | { threadId: string } | undefined) {
-  const state = $state({
-    accounts: [] as connectors.ConnectorAccount[],
-    types: [] as connectors.ConnectorType[],
+  const state = $state<ConnectorAccounts>({
+    accounts: [],
+    types: [],
     loading: true,
     error: "",
   });

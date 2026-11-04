@@ -1,3 +1,5 @@
+import type { JsonValue } from "@bufbuild/protobuf";
+
 /**
  * Server-Sent Events from a gRPC stream (docs/ui-api.md): one `data:` line of JSON per update,
  * a comment heartbeat to keep proxies from closing idle connections, and the upstream stream
@@ -6,7 +8,7 @@
 export function sseResponse<T>(
   request: Request,
   source: (signal: AbortSignal) => AsyncIterable<T>,
-  encode: (value: T) => unknown,
+  encode: (value: T) => JsonValue,
 ): Response {
   const upstream = new AbortController();
   const abort = () => upstream.abort();

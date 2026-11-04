@@ -8,10 +8,12 @@ export class UiMemory {
   readonly #values = new Map<string, unknown>();
 
   get<T>(key: string): T | undefined {
+    // SAFETY: a key is written only by `set<T>` through `useRemembered<T>`, whose key carries the scope path and
+    // the name of the one component state it remembers, so the value read back has that state's type.
     return this.#values.get(key) as T | undefined;
   }
 
-  set(key: string, value: unknown): void {
+  set<T>(key: string, value: T): void {
     this.#values.set(key, value);
   }
 }

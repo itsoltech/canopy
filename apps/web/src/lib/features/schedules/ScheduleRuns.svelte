@@ -7,11 +7,11 @@
   let { runs, class: className }: { runs: readonly ui.ScheduleRun[]; class?: ClassValue } = $props();
   const overview = useOverview();
 
-  const outcomes: Record<string, string> = {
-    missed: "Missed",
-    running: "Skipped · previous run working",
-    expired: "Expired",
-  };
+  const outcomes = new Map<string, string>([
+    ["missed", "Missed"],
+    ["running", "Skipped · previous run working"],
+    ["expired", "Expired"],
+  ]);
 </script>
 
 <div class={["grid gap-2 text-base/6 sm:text-sm/5", className]}>
@@ -26,7 +26,7 @@
             >Run {run.number} · {overview.threads.get(run.threadId)?.title ?? "Open thread"}</a
           >
           <span>· {overview.worker(run.workerId)?.name ?? "Worker"}</span>
-        {:else}<span>{outcomes[run.outcome] ?? run.outcome}</span>{/if}
+        {:else}<span>{outcomes.get(run.outcome) ?? run.outcome}</span>{/if}
         {#if run.scheduledFor}<span>· {formatDateTime(run.scheduledFor)}</span>{/if}
       </li>
     {/each}

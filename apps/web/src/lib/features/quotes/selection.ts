@@ -180,6 +180,8 @@ export interface QuoteSource {
 
 const KINDS = new Set<string>(["agent_message", "reasoning", "command_output", "tool_call", "code", "diff"]);
 
+const isQuoteKind = (kind: string): kind is QuoteSourceKind => KINDS.has(kind);
+
 /**
  * Where a selection quotes from, from the element around both of its ends (the range's common ancestor): the
  * nearest quotable region, which must belong to the nearest item around it. Undefined = no Cite here.
@@ -191,12 +193,12 @@ export function quoteSourceOf(element: Element | null): QuoteSource | undefined 
   if (!region || !item || !item.contains(region) || region.closest("[data-quote-item]") !== item) return undefined;
   const kind = region.dataset.quoteKind ?? "";
 
-  if (!KINDS.has(kind)) return undefined;
+  if (!isQuoteKind(kind)) return undefined;
 
   return {
     itemId: item.dataset.quoteItem ?? "",
     threadId: item.dataset.quoteThread ?? "",
-    kind: kind as QuoteSourceKind,
+    kind,
     language: region.dataset.quoteLang ?? "",
   };
 }
@@ -215,12 +217,12 @@ export function selectedQuote(selection: Selection | null): SelectedQuote | unde
   if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return undefined;
   const range = selection.getRangeAt(0);
   const common = range.commonAncestorContainer;
-  const element = common.nodeType === TEXT ? common.parentElement : (common as Element);
+  const element = common instanceof Element ? common : common.parentElement;
   const source = quoteSourceOf(element);
 
   if (!source || !element) return undefined;
   const pre = element.closest("pre, .code-surface") !== null;
-  const text = visibleText(range.cloneContents() as unknown as QuoteNode, pre);
+  const text = visibleText(range.cloneContents(), pre);
 
   if (!text.trim()) return undefined;
   const rects = [...range.getClientRects()].filter((r) => r.width > 0 || r.height > 0);

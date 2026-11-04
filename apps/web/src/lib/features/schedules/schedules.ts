@@ -17,7 +17,12 @@ export function scheduleActions(status: string): readonly ("edit" | "pause" | "r
   return [];
 }
 
-export function scheduleStatusLook(status: string): { label: string; tone: Tone } {
+export interface StatusLook {
+  label: string;
+  tone: Tone;
+}
+
+export function scheduleStatusLook(status: string): StatusLook {
   switch (status) {
     case "active":
       return { label: "Active", tone: "emerald" };
@@ -43,7 +48,7 @@ export function describeCron(cron: string): string {
   const fields = cron.trim().split(/\s+/);
 
   if (fields.length !== 5) return cron;
-  const [minute, hour, day, month, weekday] = fields as [string, string, string, string, string];
+  const [minute = "", hour = "", day = "", month = "", weekday = ""] = fields;
   const number = /^\d+$/;
   const at = number.test(minute) && number.test(hour) ? `${pad(hour)}:${pad(minute)}` : undefined;
   const every = /^\*\/(\d+)$/.exec(minute);
@@ -102,9 +107,9 @@ export function upsertSchedule(list: readonly ui.Schedule[], schedule: ui.Schedu
   return index >= 0 ? list.with(index, schedule) : [...list, schedule];
 }
 
-export const placementLabels: Record<string, string> = {
-  any: "Any available",
-  least_busy: "Least busy",
-  round_robin: "Round robin",
-  specific: "Specific worker",
-};
+export const placementLabels = new Map<string, string>([
+  ["any", "Any available"],
+  ["least_busy", "Least busy"],
+  ["round_robin", "Round robin"],
+  ["specific", "Specific worker"],
+]);

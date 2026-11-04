@@ -43,8 +43,10 @@ export type TurnResult = "completed" | "failed" | "interrupted";
 
 const results: readonly string[] = ["completed", "failed", "interrupted"] satisfies TurnResult[];
 
+const isTurnResult = (value: string): value is TurnResult => results.includes(value);
+
 export const unseenResult = (thread: ui.Thread): TurnResult | undefined =>
-  results.includes(thread.unseenResult) ? (thread.unseenResult as TurnResult) : undefined;
+  isTurnResult(thread.unseenResult) ? thread.unseenResult : undefined;
 
 /**
  * Busy without needing anyone: a turn running or starting, asking its agent, or background tasks alone with

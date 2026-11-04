@@ -14,7 +14,7 @@
     class: className,
   }: { route: ui.ComputerRoute; now: number; busy?: boolean; onremove: () => void; class?: ClassValue } = $props();
 
-  const source = $derived(ROUTE_SOURCES[route.source] ?? { label: route.source, tone: "neutral" as const });
+  const source = $derived(ROUTE_SOURCES.get(route.source) ?? { label: route.source, tone: "neutral" as const });
   const status = $derived(routeStatus(route, now));
 </script>
 

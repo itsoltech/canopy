@@ -20,8 +20,8 @@
     class?: ClassValue;
   } = $props();
 
-  function fromPointer(event: PointerEvent) {
-    const track = event.currentTarget as HTMLElement;
+  function fromPointer(event: PointerEvent & { currentTarget: HTMLElement }) {
+    const track = event.currentTarget;
     const box = track.getBoundingClientRect();
     onchange(Math.round(Math.max(0, Math.min(1, (event.clientX - box.left - 10) / Math.max(1, box.width - 20))) * max));
   }

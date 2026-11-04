@@ -33,17 +33,18 @@
           : "minus",
   );
 
-  const reasons: Record<string, string> = {
-    user: "by you",
-    interrupted: "by you",
-    drain: "worker draining",
-    worker_restart: "worker restarted",
-  };
+  const reasons = new Map<string, string>([
+    ["user", "by you"],
+    ["interrupted", "by you"],
+    ["drain", "worker draining"],
+    ["worker_restart", "worker restarted"],
+  ]);
 
   const reason = $derived(turn.interruptReason || result?.reason || "");
 
   // A known reason in words; a machine token (`process_exit`) humanized; prose as it is.
-  const said = (value: string) => reasons[value] ?? (isEnumToken(value) ? humanizeEnum(value).toLowerCase() : value);
+  const said = (value: string) =>
+    reasons.get(value) ?? (isEnumToken(value) ? humanizeEnum(value).toLowerCase() : value);
 
   const detail = $derived.by(() => {
     if (turn.status === "failed") {

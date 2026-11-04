@@ -23,19 +23,21 @@ export function stateForStatus(status: string): MascotState {
 }
 
 /** Conservative face space in the shared 40×40 viewBox, including the full eye outline. */
-const limits: Partial<Record<MascotShapeId, EyeOffset>> = {
-  spark: { x: 0.6, y: 0.35 },
-  star: { x: 0.6, y: 0.4 },
-  diamond: { x: 0.9, y: 0.7 },
-  triangle: { x: 0.75, y: 0.65 },
-};
+const limits = new Map<string, EyeOffset>(
+  Object.entries({
+    spark: { x: 0.6, y: 0.35 },
+    star: { x: 0.6, y: 0.4 },
+    diamond: { x: 0.9, y: 0.7 },
+    triangle: { x: 0.75, y: 0.65 },
+  } satisfies Partial<Record<MascotShapeId, EyeOffset>>),
+);
 
 export function eyeLimits(shape: MascotShape, pupils = false): EyeOffset {
   // Legacy round eyes retain their original gaze; leave room inside their white sclera.
   if (pupils) return { x: 0.5, y: 0.5 };
-  const id = "id" in shape ? (shape.id as MascotShapeId) : undefined;
+  const id = "id" in shape ? String(shape.id) : undefined;
 
-  return (id && limits[id]) || { x: 1.2, y: 0.85 };
+  return (id && limits.get(id)) || { x: 1.2, y: 0.85 };
 }
 
 /** Elliptical clamp: diagonal glances cannot exceed the face's safe movement envelope. */

@@ -3,10 +3,10 @@ import { SvelteMap } from "svelte/reactivity";
 import { goto, preloadData } from "$app/navigation";
 import { match } from "$app/paths";
 import { page } from "$app/state";
-import { isSettingsRoute, overlayKey, pageModule } from "./settings-route.ts";
+import { isSettingsRoute, overlayKey, pageModule, type SettingsData, type SettingsForm } from "./settings-route.ts";
 
 /** Every settings page, loaded on demand: any route under `/settings` works in the overlay as it is. */
-type SettingsPage = Component<{ data: Record<string, unknown>; form: Record<string, unknown> | null | undefined }>;
+type SettingsPage = Component<{ data: SettingsData; form: SettingsForm }>;
 
 const modules = import.meta.glob<{ default: SettingsPage }>("/src/routes/settings/**/+page.svelte");
 
@@ -16,7 +16,7 @@ export type OverlayPage =
       readonly status: "loaded";
       readonly component: SettingsPage;
       /** What the route's loads returned (layouts included), as SvelteKit passes it to the page. */
-      readonly data: Record<string, unknown>;
+      readonly data: SettingsData;
       readonly params: Readonly<Record<string, string>>;
     }
   | { readonly status: "error"; readonly code: number; readonly message: string };

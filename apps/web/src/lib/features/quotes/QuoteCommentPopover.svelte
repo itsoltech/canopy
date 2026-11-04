@@ -68,7 +68,7 @@
   // Tab and Shift+Tab go round the panel's controls.
   function trap(event: KeyboardEvent) {
     if (event.key !== "Tab") return;
-    const panel = (event.currentTarget as HTMLElement | null) ?? undefined;
+    const panel = event.currentTarget instanceof HTMLElement ? event.currentTarget : undefined;
     const items = panel ? focusables(panel) : [];
     const first = items[0];
     const last = items.at(-1);

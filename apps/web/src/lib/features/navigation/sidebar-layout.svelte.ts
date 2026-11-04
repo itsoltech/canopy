@@ -10,6 +10,12 @@ export const SIDEBAR_HOTKEY = "Mod+B";
 /** How long after the last change the width and collapse are saved (a drag saves once, when let go). */
 const SAVE_DELAY_MS = 400;
 
+/** Sidebar geometry not yet saved to the appearance settings. */
+interface LayoutChange {
+  sidebarWidth?: number;
+  sidebarCollapsed?: boolean;
+}
+
 /**
  * Width and collapse of the desktop sidebar. Both live in the appearance settings (gateway); while the user
  * changes them the change shows at once as a draft and is saved once things are still. `viewport` (the
@@ -25,7 +31,7 @@ export class SidebarLayout {
   settling = $state(false);
   #width = $state<number | undefined>(undefined);
   #collapsed = $state<boolean | undefined>(undefined);
-  #pending: { sidebarWidth?: number; sidebarCollapsed?: boolean } = {};
+  #pending: LayoutChange = {};
   #saveTimer: ReturnType<typeof setTimeout> | undefined;
   #settleTimer: ReturnType<typeof setTimeout> | undefined;
   readonly #settings: SettingsState;
@@ -110,7 +116,7 @@ export class SidebarLayout {
     this.#collapsed = undefined;
   }
 
-  #save(change: { sidebarWidth?: number; sidebarCollapsed?: boolean }): void {
+  #save(change: LayoutChange): void {
     this.#pending = { ...this.#pending, ...change };
     clearTimeout(this.#saveTimer);
     this.#saveTimer = setTimeout(() => this.flush(), SAVE_DELAY_MS);

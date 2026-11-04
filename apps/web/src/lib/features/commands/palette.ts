@@ -69,18 +69,17 @@ export function paletteView(
   }
 
   const scored = candidates
-    .map((candidate, index) => {
+    .flatMap((candidate, index) => {
       const match = matchCommand(q, {
         title: candidate.command.title,
         keywords: [candidate.parent?.title, candidate.command.keywords].filter(Boolean).join(" "),
       });
 
       // A submenu's entry needs its own name in the query ("ocean", "theme ocean"), not just the parent's.
-      if (!match || (candidate.parent && match.indices.length === 0)) return undefined;
+      if (!match || (candidate.parent && match.indices.length === 0)) return [];
 
-      return { ...candidate, match, index };
+      return [{ ...candidate, match, index }];
     })
-    .filter((s) => s !== undefined)
     .sort(
       (a, b) => b.match.score - a.match.score || (a.command.rank ?? 0) - (b.command.rank ?? 0) || a.index - b.index,
     );
@@ -124,8 +123,13 @@ export const enterLevel = (stack: readonly PaletteLevel[], command: Command, que
   { command, query },
 ];
 
+export interface LeftLevel {
+  stack: PaletteLevel[];
+  query: string;
+}
+
 /** One level up: the stack without the last submenu and the query to restore. */
-export function leaveLevel(stack: readonly PaletteLevel[]): { stack: PaletteLevel[]; query: string } {
+export function leaveLevel(stack: readonly PaletteLevel[]): LeftLevel {
   return { stack: stack.slice(0, -1), query: stack.at(-1)?.query ?? "" };
 }
 

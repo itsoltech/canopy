@@ -48,7 +48,12 @@
   let frame = 0;
   const range = $derived({ min, max, reset });
 
-  function sizeAt(x: number): { size: number; collapsed: boolean } {
+  interface Size {
+    size: number;
+    collapsed: boolean;
+  }
+
+  function sizeAt(x: number): Size {
     if (!drag) return { size: value, collapsed: false };
     const raw = drag.size + (grows === "right" ? x - drag.x : drag.x - x);
 
@@ -80,10 +85,10 @@
     else if (last !== size || collapsed) onchange?.({ size: last, collapsed, reason: "drag" });
   }
 
-  function onpointerdown(event: PointerEvent) {
+  function onpointerdown(event: PointerEvent & { currentTarget: HTMLElement }) {
     if (event.button !== 0 || event.detail > 1) return;
     event.preventDefault(); // no text selection, no focus jump
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
     drag = { id: event.pointerId, x: event.clientX, size: value, last: value, collapsed: false };
     dragging = true;
     // Keeps the cursor and stops text selection anywhere on the page while dragging (layout.css).

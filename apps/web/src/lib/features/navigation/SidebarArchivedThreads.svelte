@@ -125,14 +125,14 @@
       `${overview.resyncs}:${revision}`,
     );
 
-  function outgoing(event: Event) {
-    const node = event.currentTarget as HTMLElement;
+  function outgoing(event: Event & { currentTarget: HTMLElement }) {
+    const node = event.currentTarget;
     node.inert = true;
     node.ariaHidden = "true";
   }
 
-  function incoming(event: Event) {
-    const node = event.currentTarget as HTMLElement;
+  function incoming(event: Event & { currentTarget: HTMLElement }) {
+    const node = event.currentTarget;
     node.inert = false;
     node.removeAttribute("aria-hidden");
   }

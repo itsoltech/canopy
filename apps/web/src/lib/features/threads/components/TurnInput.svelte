@@ -29,21 +29,21 @@
   const parts = $derived({ note: turn.platformNote, message: turn.messageText });
   const tone = $derived(origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet");
 
-  const icons: Record<string, IconName> = {
-    task: "sparkles",
-    message: "chat-bubble-left-right",
-    report: "document-text",
-    question: "hand-raised",
-    schedule: "clock",
-    answer: "chat-bubble-left-right",
-  };
+  const icons = new Map<string, IconName>([
+    ["task", "sparkles"],
+    ["message", "chat-bubble-left-right"],
+    ["report", "document-text"],
+    ["question", "hand-raised"],
+    ["schedule", "clock"],
+    ["answer", "chat-bubble-left-right"],
+  ]);
 
-  const triggerLabels: Record<string, string> = {
-    agent_bus: "From an agent",
-    interaction: "A side thread is waiting",
-    schedule: "Scheduled",
-    goal: "Goal",
-  };
+  const triggerLabels = new Map<string, string>([
+    ["agent_bus", "From an agent"],
+    ["interaction", "A side thread is waiting"],
+    ["schedule", "Scheduled"],
+    ["goal", "Goal"],
+  ]);
 
   // Long reports (a side thread's whole answer) start folded.
   const long = $derived(
@@ -87,7 +87,7 @@
       ]}
     >
       {#if !((origin.kind === "other" || origin.kind === "answer") && turn.botId)}<Icon
-          name={icons[origin.kind] ?? "sparkles"}
+          name={icons.get(origin.kind) ?? "sparkles"}
           class="size-3.5"
         />{/if}
       {#if origin.kind === "task"}
@@ -122,7 +122,7 @@
       {:else if turn.botId}
         <BotSenderLabel botId={turn.botId} />
       {:else}
-        {triggerLabels[origin.trigger] ?? origin.trigger}
+        {triggerLabels.get(origin.trigger) ?? origin.trigger}
       {/if}
       {#if turn.hops > 0}
         <span

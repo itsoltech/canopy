@@ -31,10 +31,19 @@ export interface Position {
 
 const opposite: Record<Side, Side> = { top: "bottom", bottom: "top", left: "right", right: "left" };
 
-function split(placement: Placement): [Side, "start" | "center" | "end"] {
-  const [side, align] = placement.split("-") as [Side, "start" | "end" | undefined];
+type Align = "start" | "center" | "end";
 
-  return [side, align ?? "center"];
+/** Every placement, as its side and its alignment along that side. */
+const PLACEMENTS = new Map<Placement, readonly [Side, Align]>(
+  (["top", "bottom", "left", "right"] as const).flatMap((side) => [
+    [side, [side, "center"]],
+    [`${side}-start`, [side, "start"]],
+    [`${side}-end`, [side, "end"]],
+  ]),
+);
+
+function split(placement: Placement): readonly [Side, Align] {
+  return PLACEMENTS.get(placement) ?? ["bottom", "start"];
 }
 
 /** Pure placement maths: anchor rectangle, floating size and viewport size in, coordinates out. */
@@ -70,27 +79,29 @@ export function computePosition(
 
     // Keep zero-safe-area placement identical, including anchors scrolled beyond the viewport.
     if (safeTop > 0) y = Math.max(top, y);
-    x =
-      align === "start"
-        ? anchor.left
-        : align === "end"
-          ? anchor.right - size.width
-          : anchor.left + (anchor.width - size.width) / 2;
+    x = aligned(align, anchor.left, anchor.right - size.width, anchor.left + (anchor.width - size.width) / 2);
     x = clamp(x, padding, viewport.width - size.width - padding);
   } else {
     x = side === "right" ? anchor.right + offset : anchor.left - offset - size.width;
-    y =
-      align === "start"
-        ? anchor.top
-        : align === "end"
-          ? anchor.bottom - size.height
-          : anchor.top + (anchor.height - size.height) / 2;
+    y = aligned(align, anchor.top, anchor.bottom - size.height, anchor.top + (anchor.height - size.height) / 2);
     y = clamp(y, top, viewport.height - size.height - padding);
   }
 
   const availableHeight = vertical ? Math.max(room[side], 0) : viewport.height - top - padding;
 
   return { x: Math.round(x), y: Math.round(y), side, availableHeight: Math.floor(availableHeight) };
+}
+
+/** The coordinate for an alignment: the anchor's start edge, its end edge or its center. */
+function aligned(align: Align, start: number, end: number, center: number): number {
+  switch (align) {
+    case "start":
+      return start;
+    case "end":
+      return end;
+    default:
+      return center;
+  }
 }
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, Math.max(min, max)));

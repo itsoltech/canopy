@@ -14,7 +14,12 @@
   const directory = useThreadDirectory();
   const openOutput = useBackgroundOutput();
 
-  function headline(id: string): { title: string; outcome: string } {
+  interface Headline {
+    title: string;
+    outcome: string;
+  }
+
+  function headline(id: string): Headline {
     const item = directory.item?.(id);
 
     if (item?.content.case !== "backgroundTask") return { title: id, outcome: "Background task ended" };

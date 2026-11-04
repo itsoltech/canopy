@@ -59,16 +59,18 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    const delta: Record<string, number> = {
-      ArrowRight: 1,
-      ArrowUp: 1,
-      PageUp: 1,
-      ArrowLeft: -1,
-      ArrowDown: -1,
-      PageDown: -1,
-    };
+    const delta = new Map<string, number>([
+      ["ArrowRight", 1],
+      ["ArrowUp", 1],
+      ["PageUp", 1],
+      ["ArrowLeft", -1],
+      ["ArrowDown", -1],
+      ["PageDown", -1],
+    ]);
 
-    if (event.key in delta) set(index + delta[event.key]!);
+    const step = delta.get(event.key);
+
+    if (step !== undefined) set(index + step);
     else if (event.key === "Home") set(0);
     else if (event.key === "End") set(steps.length - 1);
     else return;
@@ -84,17 +86,17 @@
     set(Math.round(((event.clientX - box.left - inset) / Math.max(box.width - 2 * inset, 1)) * last));
   }
 
-  function onpointerdown(event: PointerEvent) {
+  function onpointerdown(event: PointerEvent & { currentTarget: HTMLElement }) {
     if (disabled || event.button !== 0) return;
     event.preventDefault();
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
     pressed = true;
     fromPointer(event);
-    (event.currentTarget as HTMLElement).querySelector<HTMLElement>("[role=slider]")?.focus();
+    event.currentTarget.querySelector<HTMLElement>("[role=slider]")?.focus();
   }
 
-  function onpointermove(event: PointerEvent) {
-    if ((event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) fromPointer(event);
+  function onpointermove(event: PointerEvent & { currentTarget: HTMLElement }) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) fromPointer(event);
   }
 
   const release = () => (pressed = false);

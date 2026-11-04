@@ -1,8 +1,8 @@
-import { str } from "#lib/shared/format.ts";
+import { isJsonArray, objectOf, str, type JsonObject } from "#lib/shared/json.ts";
 import { parsePatch, replacementDiff, type PatchFile } from "./parse.ts";
 
 /** Shared by edit headers and their lazily mounted diff body. */
-export function toolChanges(name: string, input: Record<string, unknown>): PatchFile[] {
+export function toolChanges(name: string, input: JsonObject): PatchFile[] {
   if (name === "apply_patch") return parsePatch(str(input["input"]) || str(input["patch"]));
   const path = str(input["file_path"]) || str(input["notebook_path"]);
 
@@ -10,19 +10,24 @@ export function toolChanges(name: string, input: Record<string, unknown>): Patch
 
   if (name === "NotebookEdit")
     return [{ path, kind: "update", movePath: "", diff: replacementDiff("", str(input["new_source"])) }];
-  const edits = Array.isArray(input["edits"]) ? (input["edits"] as Record<string, unknown>[]) : [input];
+  const edits = isJsonArray(input["edits"]) ? input["edits"].map(objectOf) : [input];
 
   return [
     {
       path,
       kind: "update",
       movePath: "",
-      diff: edits.map((edit) => replacementDiff(str(edit?.["old_string"]), str(edit?.["new_string"]))).join("\n"),
+      diff: edits.map((edit) => replacementDiff(str(edit["old_string"]), str(edit["new_string"]))).join("\n"),
     },
   ];
 }
 
-export function diffCounts(diffs: readonly { diff: string }[]): { added: number; removed: number } {
+export interface DiffCounts {
+  readonly added: number;
+  readonly removed: number;
+}
+
+export function diffCounts(diffs: readonly { diff: string }[]): DiffCounts {
   let added = 0;
   let removed = 0;
 

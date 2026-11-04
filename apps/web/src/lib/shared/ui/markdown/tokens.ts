@@ -1,4 +1,5 @@
 import { Lexer, type Token, type Tokens } from "marked";
+import { isString } from "#lib/shared/json.ts";
 
 /** `breaks`: a single newline is a line break (people's messages), not a soft wrap (agents' markdown). */
 export const lexMarkdown = (text: string, breaks = false): Token[] => Lexer.lex(text, { gfm: true, breaks });
@@ -8,7 +9,7 @@ export const lexMarkdown = (text: string, breaks = false): Token[] => Lexer.lex(
  * previous object. Svelte's `{#each}` skips items that are the same object, so while a message
  * streams only the block that grew renders again (and inside a list or table, only the item or row).
  */
-export function shareTokens(previous: readonly Token[], next: Token[]): Token[] {
+export function shareTokens<T extends Token>(previous: readonly T[], next: T[]): T[] {
   return next.map((token, index) => {
     const before = previous[index];
 
@@ -16,20 +17,17 @@ export function shareTokens(previous: readonly Token[], next: Token[]): Token[] 
   });
 }
 
-function share(before: Token, after: Token): Token {
+function share<T extends Token>(before: T, after: T): T {
   if (before.type !== after.type) return after;
 
   // A list item's looseness comes from its list, not from its own source.
   if (before.raw === after.raw && looseOf(before) === looseOf(after)) return before;
 
-  if (after.type === "list" && before.type === "list") {
-    (after as Tokens.List).items = shareTokens(
-      (before as Tokens.List).items,
-      (after as Tokens.List).items,
-    ) as Tokens.ListItem[];
-  } else if (after.type === "table" && before.type === "table") {
-    const rows = (before as Tokens.Table).rows;
-    (after as Tokens.Table).rows = (after as Tokens.Table).rows.map((row, index) => {
+  if (isToken(after, "list") && isToken(before, "list")) {
+    after.items = shareTokens(before.items, after.items);
+  } else if (isToken(after, "table") && isToken(before, "table")) {
+    const rows = before.rows;
+    after.rows = after.rows.map((row, index) => {
       const old = rows[index];
 
       return old && old.length === row.length && old.every((cell, cellIndex) => cell.text === row[cellIndex]?.text)
@@ -45,6 +43,21 @@ function share(before: Token, after: Token): Token {
   return after;
 }
 
+/** The marked tokens read here by their `type`. */
+interface TokenTypes {
+  readonly list: Tokens.List;
+  readonly table: Tokens.Table;
+  readonly link: Tokens.Link;
+  readonly image: Tokens.Image;
+  readonly code: Tokens.Code;
+  readonly blockquote: Tokens.Blockquote;
+}
+
+/** marked's token of a `type` is that type's interface (a `list` token is a `Tokens.List`). */
+const isToken = <K extends keyof TokenTypes>(token: Token, type: K): token is TokenTypes[K] => token.type === type;
+
+const textToken = (raw: string, text = raw): Tokens.Text => ({ type: "text", raw, text });
+
 const looseOf = (token: Token): boolean | undefined => ("loose" in token ? Boolean(token.loose) : undefined);
 
 /**
@@ -56,20 +69,18 @@ export function snippetTokens(text: string): Token[] {
   const out: Token[] = [];
 
   const space = (): void => {
-    if (out.length > 0) out.push({ type: "text", raw: " ", text: " " } as Tokens.Text);
+    if (out.length > 0) out.push(textToken(" "));
   };
 
   const inline = (tokens: Token[] | undefined): Token[] =>
     (tokens ?? []).flatMap((token): Token[] => {
-      if (token.type === "link") return inline((token as Tokens.Link).tokens);
+      if (isToken(token, "link")) return inline(token.tokens);
 
-      if (token.type === "image")
-        return [{ type: "text", raw: token.raw, text: (token as Tokens.Image).text } as Tokens.Text];
+      if (isToken(token, "image")) return [textToken(token.raw, token.text)];
 
-      if (token.type === "br") return [{ type: "text", raw: " ", text: " " } as Tokens.Text];
+      if (token.type === "br") return [textToken(" ")];
 
-      if ("tokens" in token && Array.isArray(token.tokens))
-        return [{ ...token, tokens: inline(token.tokens) } as Token];
+      if ("tokens" in token && Array.isArray(token.tokens)) return [{ ...token, tokens: inline(token.tokens) }];
 
       return [token];
     });
@@ -78,19 +89,19 @@ export function snippetTokens(text: string): Token[] {
     for (const token of tokens) {
       if (token.type === "space" || token.type === "hr" || token.type === "html") continue;
 
-      if (token.type === "code") {
-        const first = (token as Tokens.Code).text.split("\n").find((line) => line.trim()) ?? "";
+      if (isToken(token, "code")) {
+        const first = token.text.split("\n").find((line) => line.trim()) ?? "";
 
         if (first) {
           space();
-          out.push({ type: "codespan", raw: first, text: first.trim() } as Tokens.Codespan);
+          out.push({ type: "codespan", raw: first, text: first.trim() } satisfies Tokens.Codespan);
         }
-      } else if (token.type === "list") {
-        for (const item of (token as Tokens.List).items) walk(item.tokens);
-      } else if (token.type === "blockquote") {
-        walk((token as Tokens.Blockquote).tokens);
-      } else if (token.type === "table") {
-        const table = token as Tokens.Table;
+      } else if (isToken(token, "list")) {
+        for (const item of token.items) walk(item.tokens);
+      } else if (isToken(token, "blockquote")) {
+        walk(token.tokens);
+      } else if (isToken(token, "table")) {
+        const table = token;
 
         for (const row of [table.header, ...table.rows])
           for (const cell of row) {
@@ -100,9 +111,9 @@ export function snippetTokens(text: string): Token[] {
       } else if ("tokens" in token && Array.isArray(token.tokens)) {
         space();
         out.push(...inline(token.tokens));
-      } else if ("text" in token && typeof token.text === "string") {
+      } else if ("text" in token && isString(token.text)) {
         space();
-        out.push({ type: "text", raw: token.text, text: token.text } as Tokens.Text);
+        out.push(textToken(token.text));
       }
     }
   };

@@ -35,10 +35,10 @@ export const menuIconClasses =
  * Pointer handler of a row: hovering with a mouse moves the roving focus to it, like native menus.
  * `onhover` runs too (rows close a sibling's submenu, submenu rows open theirs).
  */
-export function hoverFocus(onhover: () => void): (event: PointerEvent) => void {
+export function hoverFocus(onhover: () => void): (event: PointerEvent & { currentTarget: HTMLElement }) => void {
   return (event) => {
     if (event.pointerType !== "mouse") return;
-    const row = event.currentTarget as HTMLElement;
+    const row = event.currentTarget;
 
     if (document.activeElement !== row) row.focus({ preventScroll: true });
     onhover();
@@ -66,9 +66,11 @@ export function menuKeydown(): (event: KeyboardEvent) => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   return (event) => {
-    const panel = event.currentTarget as HTMLElement;
+    const panel = event.currentTarget;
+
+    if (!(panel instanceof HTMLElement)) return;
     const items = menuItems(panel);
-    const current = items.indexOf(document.activeElement as HTMLElement);
+    const current = items.findIndex((item) => item === document.activeElement);
 
     const move = (index: number) => {
       event.preventDefault();
@@ -76,7 +78,7 @@ export function menuKeydown(): (event: KeyboardEvent) => void {
     };
 
     // Keys pressed inside a submenu are handled by the submenu's panel.
-    if ((event.target as HTMLElement).closest("[data-menu-panel]") !== panel) return;
+    if (!(event.target instanceof Element) || event.target.closest("[data-menu-panel]") !== panel) return;
 
     switch (event.key) {
       case "ArrowDown":

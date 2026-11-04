@@ -1,8 +1,9 @@
 import type { ui } from "@canopy/contracts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
 import {
-  accentLabels,
+  accentLabel,
   accentNames,
+  namesOf,
   accentOf,
   chatWidthLabels,
   chatWidthNames,
@@ -19,6 +20,7 @@ import { activityOf, byActivity } from "#lib/features/threads/activity.ts";
 import { providerKeyOf } from "#lib/features/threads/providers.ts";
 import { isSide } from "#lib/features/threads/thread-tree.ts";
 import { basename } from "#lib/shared/format.ts";
+import type { IconName } from "#lib/shared/ui/icons.ts";
 import type { Command, CommandSource } from "./registry.ts";
 import { threadActions } from "#lib/features/threads/thread-actions.ts";
 import type { ThreadActions } from "#lib/features/threads/thread-actions.svelte.ts";
@@ -42,7 +44,13 @@ export interface AppCommandContext {
 const newThreadHref = (project: ui.Project) => `/?project=${encodeURIComponent(project.id)}`;
 
 /** Palette titles of the settings sections ("Threads" alone would read as the thread list). */
-const sectionTitles: Record<string, string> = { "/settings/threads": "Thread defaults" };
+const SCHEME_ICONS = {
+  system: "computer-desktop",
+  light: "sun",
+  dark: "moon",
+} satisfies Record<keyof typeof schemeNames, IconName>;
+
+const sectionTitles = new Map<string, string>([["/settings/threads", "Thread defaults"]]);
 
 /** Commands of the whole app: new threads, navigation, appearance, settings, every thread and project. */
 export function appCommands(context: AppCommandContext): CommandSource {
@@ -136,9 +144,9 @@ export function appCommands(context: AppCommandContext): CommandSource {
         rank: 11,
         searchChildren: true,
         children: () =>
-          (Object.keys(accentNames) as (keyof typeof accentNames)[]).map((name) => ({
+          namesOf(accentNames).map((name) => ({
             id: name,
-            title: accentLabels[name],
+            title: accentLabel(name),
             group: "actions",
             keywords: "theme accent",
             checked: accentOf(appearance) === name,
@@ -155,11 +163,11 @@ export function appCommands(context: AppCommandContext): CommandSource {
         rank: 12,
         searchChildren: true,
         children: () =>
-          (Object.keys(schemeNames) as (keyof typeof schemeNames)[]).map((name) => ({
+          namesOf(schemeNames).map((name) => ({
             id: name,
             title: schemeLabels[name],
             group: "actions",
-            icon: name === "dark" ? "moon" : name === "light" ? "sun" : "computer-desktop",
+            icon: SCHEME_ICONS[name],
             keywords: "appearance color scheme mode",
             checked: schemeOf(appearance) === name,
             run: () => void settings.updateAppearance({ colorScheme: schemeNames[name] }),
@@ -174,7 +182,7 @@ export function appCommands(context: AppCommandContext): CommandSource {
         rank: 13,
         searchChildren: true,
         children: () =>
-          (Object.keys(chatWidthNames) as (keyof typeof chatWidthNames)[]).map((name) => ({
+          namesOf(chatWidthNames).map((name) => ({
             id: name,
             title: chatWidthLabels[name],
             group: "actions",
@@ -244,7 +252,7 @@ export function appCommands(context: AppCommandContext): CommandSource {
 
     const sections: Command[] = settingsSections.map((section) => ({
       id: `settings:${section.href}`,
-      title: sectionTitles[section.href] ?? section.label,
+      title: sectionTitles.get(section.href) ?? section.label,
       group: "settings",
       icon: section.icon,
       keywords: `settings ${section.keywords}`,

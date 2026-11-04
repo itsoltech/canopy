@@ -24,13 +24,19 @@ export const permissionModes = [
 
 export type PermissionModeKey = (typeof permissionModes)[number]["value"];
 
+/** A PermissionMode enum name ("ASK", "UNSPECIFIED"); not the enum's numeric reverse mapping or other keys. */
+export const isPermissionModeName = (name: string): name is keyof typeof PermissionMode =>
+  Object.hasOwn(PermissionMode, name) && !/^\d+$/.test(name);
+
 /** The mode's key; unspecified (and unknown) = ASK, as the worker treats it. */
 export function permissionKey(mode: PermissionMode): PermissionModeKey {
   return permissionModes.find((m) => PermissionMode[m.value] === mode)?.value ?? "ASK";
 }
 
+const isModeKey = (mode: PermissionMode | PermissionModeKey): mode is PermissionModeKey => typeof mode === "string";
+
 export function permissionLabel(mode: PermissionMode | PermissionModeKey): string {
-  const key = typeof mode === "string" ? mode : permissionKey(mode);
+  const key = isModeKey(mode) ? mode : permissionKey(mode);
 
   return permissionModes.find((m) => m.value === key)?.label ?? "Ask first";
 }

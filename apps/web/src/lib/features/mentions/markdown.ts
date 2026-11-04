@@ -40,6 +40,12 @@ export interface InlineSpan {
   readonly mask: number;
 }
 
+const SPAN_CLASSES = {
+  code: INLINE_CODE_CLASS,
+  strong: "font-semibold",
+  em: "italic",
+} satisfies Record<InlineSpan["kind"], string>;
+
 /** Markdown emphasis and code, with original delimiters kept as editable text. No links or HTML execute. */
 export function inlineSpans(text: string): InlineSpan[] {
   const spans: InlineSpan[] = [];
@@ -90,7 +96,7 @@ export function inlineHtml(text: string, fresh = false): string {
     for (const span of opened.slice(same).reverse()) html += `</${span.kind}>`;
 
     for (const span of active.slice(same)) {
-      const classes = span.kind === "code" ? INLINE_CODE_CLASS : span.kind === "strong" ? "font-semibold" : "italic";
+      const classes = SPAN_CLASSES[span.kind];
       html += `<${span.kind} data-md="${span.kind}" class="${classes}${fresh ? " t-code-form" : ""}">`;
     }
 

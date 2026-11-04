@@ -149,9 +149,14 @@ export const envInput = (rows: readonly EnvVarDraft[]): MessageInitShape<typeof 
     ...(!(row.secret && row.keep) && { value: row.value }),
   }));
 
+/** Problems of variable rows, by row key. */
+export interface EnvProblems {
+  [rowKey: string]: string;
+}
+
 /** Problems of variable rows by row key, with the same rules as the gateway and the worker. */
-export function envProblems(kind: ProviderProfileKind, rows: readonly EnvVarDraft[]): Record<string, string> {
-  const problems: Record<string, string> = {};
+export function envProblems(kind: ProviderProfileKind, rows: readonly EnvVarDraft[]): EnvProblems {
+  const problems: EnvProblems = {};
   const seen = new Set<string>();
 
   for (const row of rows) {
@@ -307,7 +312,7 @@ export interface DraftProblems {
   baseUrl?: string;
   apiKey?: string;
   workers?: string;
-  env: Record<string, string>;
+  env: EnvProblems;
 }
 
 export function draftProblems(
@@ -438,10 +443,13 @@ export function overrideRequest(
   });
 }
 
-export function overrideProblems(
-  instance: ui.ProviderInstance,
-  draft: OverrideDraft,
-): { baseUrl?: string; apiKey?: string; env: Record<string, string> } {
+export interface OverrideProblems {
+  baseUrl?: string;
+  apiKey?: string;
+  env: EnvProblems;
+}
+
+export function overrideProblems(instance: ui.ProviderInstance, draft: OverrideDraft): OverrideProblems {
   return {
     env: envProblems(instance.kind, draft.env),
     ...(draft.baseUrl !== undefined && urlProblem(draft.baseUrl) && { baseUrl: urlProblem(draft.baseUrl) }),
@@ -609,17 +617,12 @@ export async function providerCall<A extends ProviderAction>(
   request: MessageInitShape<RequestOf<A>>,
   timeoutMs = 30_000,
 ): Promise<import("@bufbuild/protobuf").MessageShape<ResponseOf<A>>> {
-  const [requestSchema, responseSchema] = actions[action];
-  const message = create(requestSchema as DescMessage, request as never);
+  const requestSchema: RequestOf<A> = actions[action][0];
+  const responseSchema: ResponseOf<A> = actions[action][1];
+  const message = create(requestSchema, request);
+  const json = await requestJson("POST", `/api/providers/${action}`, encode(requestSchema, message), timeoutMs);
 
-  const json = await requestJson(
-    "POST",
-    `/api/providers/${action}`,
-    encode(requestSchema as DescMessage, message),
-    timeoutMs,
-  );
-
-  return decode(responseSchema as DescMessage, json) as never;
+  return decode(responseSchema, json);
 }
 
 export async function listInstances(): Promise<ui.ProviderInstance[]> {

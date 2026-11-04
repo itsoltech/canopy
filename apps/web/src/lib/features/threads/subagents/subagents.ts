@@ -52,8 +52,11 @@ export function isActiveSubagent(thread: ui.Thread): boolean {
 /** Only the thread's active subagents, newest first. Completed work stays in the timeline/lineage. */
 export function subagentsOf(threads: Iterable<ui.Thread>, parentId: string): Subagent[] {
   return [...threads]
-    .filter((t) => t.parentThreadId === parentId && t.spawnedByAgent && isActiveSubagent(t))
-    .map((thread) => ({ thread, state: subagentState(thread) }))
+    .flatMap((thread) =>
+      thread.parentThreadId === parentId && thread.spawnedByAgent && isActiveSubagent(thread)
+        ? [{ thread, state: subagentState(thread) }]
+        : [],
+    )
     .sort((a, b) => Number((b.thread.createdAt?.seconds ?? 0n) - (a.thread.createdAt?.seconds ?? 0n)));
 }
 

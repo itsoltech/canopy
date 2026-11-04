@@ -79,7 +79,7 @@ export function fuzzyMatch(query: string, text: string): FuzzyMatch | undefined 
   const score = ending[m - 1]![end]!;
 
   if (!Number.isFinite(score)) return undefined;
-  const indices = new Array<number>(m);
+  const indices = Array.from({ length: m }, () => 0);
   indices[m - 1] = end;
 
   for (let i = m - 1; i > 0; i--) {

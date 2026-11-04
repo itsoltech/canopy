@@ -61,7 +61,7 @@
 
   // Hydrated: the benchmark button works (the runner waits for this).
   $effect(() => {
-    (window as unknown as { __benchReady: boolean }).__benchReady = true;
+    Object.assign(window, { __benchReady: true });
   });
 
   async function run() {
@@ -95,7 +95,7 @@
       scrollFrameMaxMs: scroll.max,
       longFrames: scroll.long,
     };
-    (window as unknown as { __bench: BenchResult }).__bench = result;
+    Object.assign(window, { __bench: result });
     running = false;
   }
 </script>
