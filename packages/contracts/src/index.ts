@@ -2,6 +2,8 @@
 // Generated code lives in ./gen (do not edit, run `bun run gen`).
 export * from "./gen/canopy/worker/v1/worker_link_pb.ts";
 
+export * from "./gen/canopy/worker/v1/agent_environment_pb.ts";
+
 // UI API (gateway <-> browser). Namespaced to keep worker and UI names apart (Thread, Worker, ...).
 export * as ui from "./ui.ts";
 

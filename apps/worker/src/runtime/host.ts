@@ -16,6 +16,7 @@ import { CliTools } from "../cli-tools/index.ts";
 import { systemCliProbe } from "../cli-tools/discovery.ts";
 import { installKind } from "@canopy/updater";
 import { AttachmentError } from "../attachments/files.ts";
+import { WorkerAgentEnvironment } from "../agent-environment/index.ts";
 
 import {
   CommandError,
@@ -66,6 +67,7 @@ const CLI_REPORT_INTERVAL_MS = 6 * 60 * 60_000;
 export class WorkerHost {
   readonly secrets: ThreadSecretFiles;
   readonly cli: CliTools;
+  readonly environment: WorkerAgentEnvironment;
   readonly #ctx: HostContext;
   get updateDraining(): boolean {
     return this.#ctx.state.updateDraining;
@@ -83,6 +85,10 @@ export class WorkerHost {
       sendPreviews: (link, event) => this.sendPreviews(link, event),
     });
     this.secrets = state.secrets;
+    this.environment = new WorkerAgentEnvironment({
+      homes: () => ({ dataDir: options.dataDir, deviceHomes: state.deviceHomes, config: state.config }),
+      send: (report) => this.#ctx.ops.send({ case: "agentEnvironment", value: report }),
+    });
     this.cli = this.#ctx.state.cli = new CliTools({
       dataDir: options.dataDir,
       probe: options.cliProbe ?? systemCliProbe(installKind() === "docker"),
@@ -135,6 +141,7 @@ export class WorkerHost {
 
   attach(link: GatewayLink): void {
     this.#ctx.state.link = link;
+    this.environment.refresh(true);
 
     for (const { request } of this.#ctx.state.interactions.values())
       this.#ctx.ops.send({ case: "interactionRequest", value: request });
@@ -187,6 +194,7 @@ export class WorkerHost {
     if (result.applied) {
       this.#ctx.state.received = message;
       this.#ctx.state.config = result.config;
+      this.environment.refresh();
       await this.#ctx.ops.reconcileRuntimes();
       void this.#ctx.ops.publishCatalog(message.version);
     }
@@ -281,6 +289,7 @@ export class WorkerHost {
   async close(): Promise<void> {
     this.#ctx.state.closing = true;
     clearInterval(this.#ctx.state.cliTimer);
+    this.environment.stop();
 
     try {
       for (const generation of this.#ctx.state.generations.keys()) generation.abort();

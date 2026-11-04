@@ -5,6 +5,7 @@ syntax = "proto3";
 package canopy.worker.v1;
 
 import "google/protobuf/timestamp.proto";
+import "canopy/worker/v1/agent_environment.proto";
 
 // Jednorazowa rejestracja nowego workera tokenem z UI.
 service WorkerEnrollmentService {
@@ -64,6 +65,7 @@ message WorkerMessage {
     CliToolsReport cli_tools = 800;
     CliInstallProgress cli_install_progress = 801;
     NetworkRouteStatus network_route_status = 802;
+    AgentEnvironmentReport agent_environment = 820;
   }
 }
 
@@ -85,6 +87,7 @@ message GatewayMessage {
     ThreadSecretDelivery thread_secret_delivery = 500;
     // Only sent to workers advertising "network_route_migration".
     NetworkRoutes network_routes = 802;
+    AgentEnvironmentDesired agent_environment = 820;
   }
 }
 
@@ -153,6 +156,7 @@ message Hello {
   string scratch_root = 13;
   string home_directory = 14;
   NetworkRouteStatus network_route_status = 15;
+  string environment_kind = 820; // desktop | server; reported by the actual worker launch
 }
 
 message RunningTurn {

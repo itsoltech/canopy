@@ -248,6 +248,19 @@ Wyszukiwanie plików jest własne workera (nie Codexowe `fuzzyFileSearch`), bo m
 
 Capability `cli_install`: worker wysyła `CliToolsReport` (ścieżka, wersja, sposób instalacji każdego CLI) po połączeniu, po `ProbeProviders`, po instalacji i co 6 h; nietrwała komenda `InstallCli` (nigdy z outboxa) uruchamia stały przepis, postęp idzie w `CliInstallProgress`, wynik w następnym raporcie. Bez zmiany `WORKER_LINK_PROTOCOL`. Szczegóły i zasady: [provider-cli.md](provider-cli.md).
 
+## Środowisko agentów
+
+Capability `agent_environment_v1` dodaje pełny `AgentEnvironmentDesired` oraz
+`AgentEnvironmentReport` (pola oneof 820). `Hello.environment_kind` (820) rozróżnia
+desktop/server; fakty hosta i dostępne CLI tworzą automatyczne tagi. Starszy worker
+nie otrzymuje tych wiadomości. Bez zmiany `WORKER_LINK_PROTOCOL`.
+
+Gateway wylicza instrukcje per właściciel/worker/harness/destination; wysyła pełny
+stan po reconnect i zmianach biblioteki, tagów lub domów instancji. Rewizje chronią
+przed starymi wiadomościami, checksum pełnego pliku wiąże jednorazowe rozstrzygnięcie
+driftu z podglądem właściciela. Raport zawiera tekst wyłącznie zarządzanego bloku
+w konflikcie, nigdy prywatny tekst poza nim. Szczegóły: [agent-environment.md](agent-environment.md).
+
 ## Kontrola przepływu
 
 - HTTP/2 ma flow control na poziomie strumienia. Dodatkowo worker ogranicza liczbę niepotwierdzonych zdarzeń (np. 1000). Po przekroczeniu buforuje tylko w dzienniku.

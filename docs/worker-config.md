@@ -438,6 +438,19 @@ Pickery (nowy wątek i wątek) pokazują dla wybranego workera tylko instancje `
 - **Raport per instancja** (`ConfigApplied.profiles`): `version` (wersja jej pliku wykonywalnego albo dostawcy), `auth` i `authenticated`: endpoint — „endpoint key”; native — login w katalogu (Codex `auth.json`: „ChatGPT” albo „OpenAI API key”, czytany tylko kształt; Claude `.credentials.json`: „Claude account”; na macOS Claude trzyma login w pęku kluczy: nieznane), albo klucz w zmiennych (`ANTHROPIC_API_KEY` itd.). Native bez logowania, brak CLI albo plik wykonywalny, który się nie uruchamia, robią instancję niedostępną z powodem (`not signed in`, `no Codex login on this device`, `… not found or not runnable`) — bez wpisu w `issues`.
 - **`ProbeProviders`** (UI: Refresh): worker stosuje bieżącą konfigurację jeszcze raz (sprawdza wersje i logowania), wysyła `ConfigApplied` z tą samą wersją i katalog modeli, potem odpowiada. Capability `probe_providers`.
 
+### Środowisko agentów
+
+Settings → Agent environment przechowuje w DB wersjonowane dokumenty i tagi;
+to osobny oczekiwany stan z capability `agent_environment_v1`, nie pole konfiguracji
+CLI ani zmienna procesu. Instrukcje trafiają do domyślnych izolowanych domów i
+każdego domu instancji wyznaczonego przez `instanceShadowHome`, opcjonalnie również
+do domu CLI urządzenia. Zmiana konfiguracji instancji uruchamia ponowne uzgodnienie.
+Claude dopisuje tylko zarządzany blok do system promptu, zachowując
+`settingSources: ["project", "local"]`. Codex czyta `AGENTS.md` z faktycznego
+`CODEX_HOME`. Lokalne teksty poza blokiem pozostają na urządzeniu; dla platformowego
+Claude nie są częścią dopisanego promptu. Zmiany dotyczą nowych sesji.
+Patrz [agent-environment.md](agent-environment.md).
+
 ### 9.5. Logowanie z aplikacji
 
 Codex ma logowanie w API app-servera: `account/login/start` z `chatgptDeviceCode` zwraca adres i jednorazowy kod. `StartProviderLogin` (instancja Codexa `native` z `own_login`, worker z capability `codex_device_login`) uruchamia krótko żyjący `codex app-server` z `CODEX_HOME` = katalog instancji; UI pokazuje kod i link („Continue with ChatGPT”), użytkownik potwierdza w dowolnej przeglądarce, Codex zapisuje `auth.json` w katalogu instancji, worker po `account/login/completed` (najwyżej 15 min) wysyła nowy `ConfigApplied` („Authenticated · ChatGPT”). Tokeny nie opuszczają katalogu Codexa. Claude Code nie ma logowania w API SDK: instancja Claude używa logowania urządzenia (`claude login` w swoim katalogu CLI), klucza w zmiennych albo endpointu.

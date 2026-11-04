@@ -734,6 +734,19 @@ Symlink wybiera wydanie dla **następnego procesu**; działający serwer nadal u
 
 Powłoka odpowiada 200 także bez gateway; początkowy HTML zawiera szkielet z właściwym schematem i geometrią. BFF zwraca szybko 502/503 dla niedostępnego gateway, a widoki błędów tras i nakładki ponawiają dane co 3 s w widocznej karcie oraz mają Try again. Przy istniejących danych aplikacja zachowuje ostatni stan i szkic podczas ponawiania SSE. Wywołania celowo czekające na worker, np. odświeżanie modeli i logowanie dostawcy, mają osobne dłuższe deadline'y.
 
+### Agent environment
+
+Settings → Agent environment korzysta z `GetAgentEnvironment`,
+`SaveInstructionDocument`, `DeleteInstructionDocument`, `SetEnvironmentTags`,
+`PreviewAgentEnvironment` i `ResolveEnvironmentDrift`. BFF udostępnia
+`/api/agent-environment` (GET/POST/DELETE), `/tags`, `/preview`, `/resolve` (POST).
+Każda mutacja wymaga bieżącej `expected_revision`; konflikt daje HTTP 409 i nie
+nadpisuje równoczesnej edycji. Draft preview nie zapisuje ani nie synchronizuje
+treści. `OverviewUpdate.agent_environment_changed` (820) odświeża widok statusu
+bez zamykania edytora. Wszystkie zasoby są filtrowane po właścicielu w gateway;
+współdzielone workery pozostają poza zakresem plików globalnych. Szczegóły i limity:
+[agent-environment.md](agent-environment.md).
+
 ## 6. Ograniczenia na teraz
 
 - **Jeden użytkownik deweloperski** (`CANOPY_DEV_USER_EMAIL`). Logowanie powstanie w SvelteKit (sesja w cookie `HttpOnly`), a tożsamość użytkownika trafi do gateway w metadanych wywołania z tokenem usługi.

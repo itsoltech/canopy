@@ -53,6 +53,13 @@ export const settingsSections: readonly SettingsSection[] = [
     keywords: "provider instance codex claude cliproxyapi endpoint key login models favorites environment",
   },
   {
+    href: "/settings/agent-environment",
+    label: "Agent environment",
+    icon: "sparkles",
+    group: "Code",
+    keywords: "instructions claude.md agents.md fragments skills plugins tags machines sync drift",
+  },
+  {
     href: "/settings/connectors",
     label: "Connectors",
     icon: "link",

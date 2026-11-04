@@ -17,6 +17,7 @@ import { MobileDevices } from "./mobile-devices.ts";
 import { GatewayUpdates } from "../updates/runtime.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
 import { CliTools } from "./cli-tools.ts";
+import { AgentEnvironment } from "../agent-environment/service.ts";
 import type { LinkedComputers } from "../computers/runtime.ts";
 import type { NetworkAccess } from "../network/network.ts";
 import { LinkedAgents } from "../computers/agents.ts";
@@ -147,6 +148,7 @@ export class GatewayCore {
 
   /** Provider CLIs on the owner's workers: reports, latest versions, installs (docs/provider-cli.md). */
   readonly cli: CliTools;
+  readonly environment: AgentEnvironment;
 
   readonly connectors: ConnectorsRuntime;
 
@@ -233,6 +235,17 @@ export class GatewayCore {
       ...(options.cliLatest && { latest: options.cliLatest }),
       changed: () => coreBroadcastWorkers(this),
       log: (message) => coreLog(this, message),
+    });
+    this.environment = new AgentEnvironment({
+      runtime: options.runtime,
+      userId: options.userId,
+      link: this.link,
+      changed: () =>
+        this.hub.publishOverview(
+          create(ui.OverviewUpdateSchema, {
+            change: { case: "agentEnvironmentChanged", value: true },
+          }),
+        ),
     });
     this.workerSsh = new WorkerSsh({
       runtime: options.runtime,
