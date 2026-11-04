@@ -8,17 +8,23 @@
    * the shortcut is also announced elsewhere (`aria-keyshortcuts` on the control).
    */
   let { hotkey, class: className }: { hotkey: string; class?: ClassValue } = $props();
+
   // Rendered on the server too: the platform is known only in the browser, so the label settles there.
   let mounted = $state(false);
+
   $effect(() => {
     mounted = true;
   });
+
   const apple = $derived(mounted && isApple());
   const keys = $derived(mounted ? hotkeyKeys(hotkey) : []);
 </script>
 
 <kbd
-  class={["inline-flex shrink-0 items-center gap-0.5 font-sans text-[0.6875rem]/4 text-zinc-400 pointer-coarse:hidden dark:text-zinc-500", className]}
+  class={[
+    "inline-flex shrink-0 items-center gap-0.5 font-sans text-[0.6875rem]/4 text-zinc-400 dark:text-zinc-500 pointer-coarse:hidden",
+    className,
+  ]}
 >
   {#each keys as key, index (index)}
     {#if !apple && index > 0}<span aria-hidden="true">+</span>{/if}

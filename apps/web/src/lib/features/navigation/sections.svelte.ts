@@ -13,6 +13,7 @@ export const sections: readonly { id: Section; label: string; home: string }[] =
 /** Section of a page; Settings belongs to none (the sidebar keeps the last one). */
 export function sectionOf(pathname: string): Section | undefined {
   if (pathname.startsWith("/settings")) return undefined;
+
   return pathname === "/bots" || pathname.startsWith("/bots/") ? "bots" : "threads";
 }
 
@@ -24,6 +25,7 @@ class SectionMemory {
   /** Remembers a visited page (called after every navigation). */
   visit(url: URL): void {
     const section = sectionOf(url.pathname);
+
     if (!section) return;
     this.current = section;
     this.#last[section] = `${url.pathname}${url.search}`;

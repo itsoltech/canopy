@@ -20,6 +20,7 @@
     meta,
     class: className,
   }: { thread: ui.Thread; current?: boolean; meta?: string | undefined; class?: ClassValue } = $props();
+
   const look = $derived(statusLook(thread.status));
 </script>
 
@@ -27,27 +28,38 @@
   href="/threads/{thread.id}"
   aria-current={current ? "page" : undefined}
   class={[
-    "group flex min-w-0 items-start gap-2.5 rounded-lg px-2 py-2 hover:bg-zinc-950/5 focus-ring aria-[current=page]:bg-zinc-950/5 sm:py-1.5 dark:hover:bg-white/5 dark:aria-[current=page]:bg-white/10",
+    "group flex min-w-0 items-start gap-2.5 rounded-lg px-2 py-2 focus-ring hover:bg-zinc-950/5 aria-[current=page]:bg-zinc-950/5 sm:py-1.5 dark:hover:bg-white/5 dark:aria-[current=page]:bg-white/10",
     className,
   ]}
 >
-  <span class="flex h-lh items-center text-base/6 sm:text-sm/6"><StatusDot tone={look.tone} active={look.active} /></span>
+  <span class="flex h-lh items-center text-base/6 sm:text-sm/6"
+    ><StatusDot tone={look.tone} active={look.active} /></span
+  >
   <span class="min-w-0 flex-1">
     <span class="flex min-w-0 items-center gap-1.5 text-base/6 sm:text-sm/6">
-      <span class="truncate text-zinc-700 group-aria-[current=page]:font-medium group-aria-[current=page]:text-zinc-950 dark:text-zinc-300 dark:group-aria-[current=page]:text-white">{thread.title}</span>
+      <span
+        class="truncate text-zinc-700 group-aria-[current=page]:font-medium group-aria-[current=page]:text-zinc-950 dark:text-zinc-300 dark:group-aria-[current=page]:text-white"
+        >{thread.title}</span
+      >
       {#if thread.spawnedByAgent}<AgentBadge compact />{/if}
       <ScheduleOrigin {thread} compact />
       <span class="sr-only">({look.label})</span>
     </span>
     {#if meta}
       <span class="block truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-        {meta}{#if activityOf(thread)}{" · "}<time datetime={isoDateTime(activityOf(thread))}>{formatRelative(activityOf(thread), clock.now)}</time>{/if}
+        {meta}{#if activityOf(thread)}{" · "}<time datetime={isoDateTime(activityOf(thread))}
+            >{formatRelative(activityOf(thread), clock.now)}</time
+          >{/if}
       </span>
     {/if}
   </span>
   {#if needsYou(thread)}
-    <span class="flex h-lh shrink-0 items-center gap-1 text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400">
-      <Icon name="hand-raised" class="size-3.5" />{thread.pendingInteractions || ""}<span class="sr-only">waiting for you</span>
+    <span
+      class="flex h-lh shrink-0 items-center gap-1 text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400"
+    >
+      <Icon name="hand-raised" class="size-3.5" />{thread.pendingInteractions || ""}<span class="sr-only"
+        >waiting for you</span
+      >
     </span>
   {/if}
 </a>

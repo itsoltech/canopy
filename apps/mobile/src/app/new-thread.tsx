@@ -7,13 +7,7 @@ import { Provider } from "@canopy/contracts";
 import { useSession } from "../state/session";
 import { useOverview } from "../state/overview";
 import { useAppearance } from "../state/appearance";
-import {
-  Button,
-  Field,
-  Notice,
-  ScreenHeader,
-  Segmented,
-} from "../ui/components";
+import { Button, Field, Notice, ScreenHeader, Segmented } from "../ui/components";
 import { ComposerBox } from "../features/threads/ComposerBox";
 import { styles, useColors } from "../ui/theme";
 
@@ -22,32 +16,31 @@ export default function NewThread() {
   const { session, client } = useSession();
   const { projects, workers } = useOverview();
   const settings = useAppearance();
-  const [workspaceId, setWorkspaceId] = useState(
-    settings.user?.threadDefaults?.workspaceId ?? "",
-  );
-  const [provider, setProvider] = useState(
-    String(settings.user?.threadDefaults?.provider || Provider.CODEX),
-  );
+  const [workspaceId, setWorkspaceId] = useState(settings.user?.threadDefaults?.workspaceId ?? "");
+  const [provider, setProvider] = useState(String(settings.user?.threadDefaults?.provider || Provider.CODEX));
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const requestId = useRef(Crypto.randomUUID());
   const sending = useRef(false);
+
   if (!session) return <Redirect href="/pair" />;
+
   const workspaces = projects
     .filter((p) => !p.archivedAt)
     .flatMap((p) => p.workspaces.map((w) => ({ ...w, projectName: p.name })));
+
   const workspace =
     workspaces.find((w) => w.id === workspaceId) ??
-    workspaces.find(
-      (w) => workers.find((worker) => worker.id === w.workerId)?.online,
-    );
+    workspaces.find((w) => workers.find((worker) => worker.id === w.workerId)?.online);
+
   async function createThread() {
     if (!client || !workspace || sending.current) return;
     sending.current = true;
     setBusy(true);
     setError("");
+
     try {
       const result = await client.api.createThread(
         {
@@ -61,6 +54,7 @@ export default function NewThread() {
         },
         { timeoutMs: 20_000 },
       );
+
       if (result.thread)
         router.replace({
           pathname: "/thread/[id]",
@@ -73,6 +67,7 @@ export default function NewThread() {
       setBusy(false);
     }
   }
+
   return (
     <SafeAreaView style={styles.fill}>
       <ScreenHeader title="New thread" />
@@ -80,9 +75,7 @@ export default function NewThread() {
         contentContainerStyle={[styles.page, { paddingTop: 32, gap: 24 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={[styles.title, { color: c.text }]}>
-          What would you like to do?
-        </Text>
+        <Text style={[styles.title, { color: c.text }]}>What would you like to do?</Text>
         <View style={{ gap: 8 }}>
           <Text style={[styles.label, { color: c.text }]}>Workspace</Text>
           {workspaces.map((w) => (
@@ -93,11 +86,7 @@ export default function NewThread() {
               onPress={() => setWorkspaceId(w.id)}
             />
           ))}
-          {!workspace && (
-            <Notice>
-              No workspace is available. Add one in Canopy on the web.
-            </Notice>
-          )}
+          {!workspace && <Notice>No workspace is available. Add one in Canopy on the web.</Notice>}
         </View>
         <Segmented
           options={[
@@ -108,12 +97,7 @@ export default function NewThread() {
           value={provider}
           onChange={setProvider}
         />
-        <Field
-          label="Title"
-          value={title}
-          onChangeText={setTitle}
-          placeholder="Optional"
-        />
+        <Field label="Title" value={title} onChangeText={setTitle} placeholder="Optional" />
         <ComposerBox
           text={text}
           onChange={setText}

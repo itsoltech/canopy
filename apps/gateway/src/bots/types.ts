@@ -11,14 +11,25 @@ export interface ToolSpec {
   readOnly?: boolean;
   dangerous?: boolean;
 }
-export interface ToolCall { id: string; name: string; arguments: Record<string, unknown> }
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
 export interface ModelMessage {
   role: "user" | "assistant" | "tool";
   text: string;
   calls?: ToolCall[];
   callId?: string;
 }
-export interface ModelReply { text: string; calls: ToolCall[] }
+
+export interface ModelReply {
+  text: string;
+  calls: ToolCall[];
+}
+
 export interface ModelInput {
   configuration: bots.BotConfiguration;
   instructions: string;
@@ -26,10 +37,16 @@ export interface ModelInput {
   tools: ToolSpec[];
   signal: AbortSignal;
 }
+
 export type BotModel = (input: ModelInput) => Promise<ModelReply>;
+
 export interface BotRow {
-  id: string; owner_user_id: string; configuration: unknown;
-  created_at: Date; updated_at: Date; revision: string | bigint;
+  id: string;
+  owner_user_id: string;
+  configuration: unknown;
+  created_at: Date;
+  updated_at: Date;
+  revision: string | bigint;
   status_line: string;
   last_read_seq: string | bigint;
   unread_count?: number | string;
@@ -43,22 +60,41 @@ export interface BotRow {
   /** Joined: what the bot that moved here still needs connected on this computer. */
   move_reconnect?: string[] | null;
 }
+
 export interface BotTurn {
-  id: string; bot_id: string; input: string; hops: number;
-  status: string; checkpoint: ModelMessage[]; lease_token: string;
-  reply_to_bot_id: string | null; exchange_id: string | null;
+  id: string;
+  bot_id: string;
+  input: string;
+  hops: number;
+  status: string;
+  checkpoint: ModelMessage[];
+  lease_token: string;
+  reply_to_bot_id: string | null;
+  exchange_id: string | null;
   remote_recipient_ref?: string | null;
-  routine_id: string | null; routine_title: string;
+  routine_id: string | null;
+  routine_title: string;
   handoff_configuration: unknown | null;
   handoff_instance_label: string | null;
   handoff_deadline: Date | null;
 }
+
 export interface StoredCall {
-  id: string; turn_id: string; call_key: string; tool: ToolSpec;
-  arguments: Record<string, unknown>; status: string; result: unknown;
+  id: string;
+  turn_id: string;
+  call_key: string;
+  tool: ToolSpec;
+  arguments: Record<string, unknown>;
+  status: string;
+  result: unknown;
 }
+
 export interface McpConnection {
   namespace?: string;
-  id: string; name: string; url: string; transport: string;
-  enabled: boolean; headers: Record<string, string>;
+  id: string;
+  name: string;
+  url: string;
+  transport: string;
+  enabled: boolean;
+  headers: Record<string, string>;
 }

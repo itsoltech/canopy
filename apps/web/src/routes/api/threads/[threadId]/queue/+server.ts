@@ -15,5 +15,6 @@ const Body = Schema.Struct({
 export const POST: RequestHandler = async ({ request, params }) => {
   const { turnIds } = await readBody(request, Body);
   const response = await call((api) => api.reorderQueuedTurns({ threadId: params.threadId, turnIds: [...turnIds] }));
+
   return json(encode(ui.ReorderQueuedTurnsResponseSchema, response));
 };

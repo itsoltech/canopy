@@ -9,22 +9,36 @@ const text = (value: string) => new TextEncoder().encode(value);
 
 describe("sniff: the content decides, not the name", () => {
   test("raster images by magic bytes, whatever the extension says", () => {
-    expect(sniff(bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0), "notes.txt")).toMatchObject({ kind: "image", mimeType: "image/png" });
+    expect(sniff(bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0), "notes.txt")).toMatchObject({
+      kind: "image",
+      mimeType: "image/png",
+    });
     expect(sniff(bytes(0xff, 0xd8, 0xff, 0xe0), "a.png").mimeType).toBe("image/jpeg");
     expect(sniff(text("GIF89a...."), "x").mimeType).toBe("image/gif");
     expect(sniff(text("RIFF\0\0\0\0WEBPVP8 "), "x").mimeType).toBe("image/webp");
   });
 
   test("HEIC, AVIF and TIFF are converted, other ISO media is a file", () => {
-    expect(sniff(text("\0\0\0\x18ftypheic\0\0\0\0"), "IMG_1.HEIC")).toMatchObject({ kind: "convertible", mimeType: "image/heic" });
+    expect(sniff(text("\0\0\0\x18ftypheic\0\0\0\0"), "IMG_1.HEIC")).toMatchObject({
+      kind: "convertible",
+      mimeType: "image/heic",
+    });
     expect(sniff(text("\0\0\0\x18ftypavif\0\0\0\0")).mimeType).toBe("image/avif");
     expect(sniff(bytes(0x49, 0x49, 0x2a, 0x00)).kind).toBe("convertible");
-    expect(sniff(text("\0\0\0\x18ftypisom\0\0\0\0"), "clip.mp4")).toMatchObject({ kind: "file", mimeType: "video/mp4" });
+    expect(sniff(text("\0\0\0\x18ftypisom\0\0\0\0"), "clip.mp4")).toMatchObject({
+      kind: "file",
+      mimeType: "video/mp4",
+    });
   });
 
   test("an image name on a text file is a text file; SVG and HTML are files, never inline images", () => {
     expect(sniff(text("hello"), "photo.png")).toMatchObject({ kind: "file", mimeType: "text/plain", text: true });
-    expect(sniff(text('<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'), "x.png")).toMatchObject({
+    expect(
+      sniff(
+        text('<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+        "x.png",
+      ),
+    ).toMatchObject({
       kind: "file",
       mimeType: "image/svg+xml",
     });
@@ -38,7 +52,11 @@ describe("sniff: the content decides, not the name", () => {
     expect(sniff(bytes(0x50, 0x4b, 0x03, 0x04), "report.docx").mimeType).toContain("wordprocessingml");
     expect(sniff(bytes(0x50, 0x4b, 0x03, 0x04), "x.zip").mimeType).toBe("application/zip");
     // Bytes that are not UTF-8 are binary even when named .txt.
-    expect(sniff(bytes(0xff, 0xfe, 0x00, 0x41), "a.txt")).toMatchObject({ kind: "file", mimeType: "application/octet-stream", text: false });
+    expect(sniff(bytes(0xff, 0xfe, 0x00, 0x41), "a.txt")).toMatchObject({
+      kind: "file",
+      mimeType: "application/octet-stream",
+      text: false,
+    });
   });
 
   test("native programs are executables, scripts are text", () => {
@@ -66,13 +84,23 @@ describe("file names and paths", () => {
 
   test("the path follows the worker's OS and always ends in the attachment's own directory", () => {
     expect(attachmentPath("/data/attachments/", "linux", "t1", "a1", "../x.png")).toBe("/data/attachments/t1/a1/x.png");
-    expect(attachmentPath("C:\\canopy\\attachments", "win32", "t1", "a1", "s.png")).toBe("C:\\canopy\\attachments\\t1\\a1\\s.png");
+    expect(attachmentPath("C:\\canopy\\attachments", "win32", "t1", "a1", "s.png")).toBe(
+      "C:\\canopy\\attachments\\t1\\a1\\s.png",
+    );
   });
 });
 
 describe("the platform note", () => {
   const note = attachmentsNote([
-    { name: "shot.png", path: "/d/t/a/shot.png", mimeType: "image/png", sizeBytes: 250_000, kind: "image", width: 1920, height: 1080 },
+    {
+      name: "shot.png",
+      path: "/d/t/a/shot.png",
+      mimeType: "image/png",
+      sizeBytes: 250_000,
+      kind: "image",
+      width: 1920,
+      height: 1080,
+    },
     { name: "notes.txt", path: "/d/t/b/notes.txt", mimeType: "text/plain", sizeBytes: 2048, kind: "file" },
   ]);
 

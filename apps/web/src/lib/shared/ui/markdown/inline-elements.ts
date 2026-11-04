@@ -38,9 +38,13 @@ export function withSentinels(text: string, elements: InlineElements): { text: s
       at = end;
     });
   out += text.slice(at);
+
   return {
     text: out,
-    context: { render: elements.render, restore: (code) => code.replace(SENTINEL, (_, i: string) => originals[Number(i)] ?? "") },
+    context: {
+      render: elements.render,
+      restore: (code) => code.replace(SENTINEL, (_, i: string) => originals[Number(i)] ?? ""),
+    },
   };
 }
 
@@ -51,11 +55,14 @@ export const useInlineElements = () => getContext<Context | undefined>(KEY);
 export function splitSentinels(text: string): (string | number)[] {
   const parts: (string | number)[] = [];
   let at = 0;
+
   for (const match of text.matchAll(SENTINEL)) {
     if (match.index > at) parts.push(text.slice(at, match.index));
     parts.push(Number(match[1]));
     at = match.index + match[0].length;
   }
+
   if (at < text.length) parts.push(text.slice(at));
+
   return parts;
 }

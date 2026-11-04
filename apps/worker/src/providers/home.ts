@@ -39,25 +39,39 @@ export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome 
 
   if (options.ownLogin) {
     if (isSymlink(target)) removeIfPresent(target);
+
     return { path, login: existsSync(target) ? "own" : "none" };
   }
+
   if (!options.linkDeviceLogin) {
     removeIfPresent(target);
+
     return { path, login: "none" };
   }
+
   const source = join(options.deviceHome, options.loginFile);
+
   if (!existsSync(source)) {
     removeIfPresent(target);
+
     return { path, login: "none", problem: `${options.missingLogin} (${source})` };
   }
+
   if (isSymlinkTo(target, source)) return { path, login: "linked" };
   removeIfPresent(target);
+
   try {
     symlinkSync(source, target);
+
     return { path, login: "linked" };
   } catch {
     copyFileSync(source, target);
-    return { path, login: "copied", problem: "symlinks not permitted; login copied, token refresh is not shared with the device CLI" };
+
+    return {
+      path,
+      login: "copied",
+      problem: "symlinks not permitted; login copied, token refresh is not shared with the device CLI",
+    };
   }
 }
 
@@ -83,5 +97,6 @@ function removeIfPresent(path: string): void {
   } catch {
     return;
   }
+
   rmSync(path, { force: true });
 }

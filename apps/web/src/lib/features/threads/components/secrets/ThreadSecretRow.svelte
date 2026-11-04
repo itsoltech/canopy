@@ -13,8 +13,10 @@
 
   async function revoke() {
     busy = true;
+
     try {
       const updated = await answerThreadSecret(secret.requestId, { revoke: true });
+
       if (updated) onchange(updated);
     } catch {
       toast("Could not revoke the secret. Try again.", { tone: "error" });
@@ -25,11 +27,25 @@
 </script>
 
 <PanelRow icon="lock-closed">
-  <span {@attach tooltip(secret.expiresAt ? `Kept out of chat; the agent's commands can read it until ${formatDateTime(secret.expiresAt)}` : undefined)}>{secret.label || "Secret"}</span>
+  <span
+    {@attach tooltip(
+      secret.expiresAt
+        ? `Kept out of chat; the agent's commands can read it until ${formatDateTime(secret.expiresAt)}`
+        : undefined,
+    )}>{secret.label || "Secret"}</span
+  >
   {#snippet aside()}
     <span class="flex shrink-0 items-center gap-1">
-      {#if secret.expiresAt}<span class="text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400">until {formatTime(secret.expiresAt)}</span>{/if}
-      <IconButton icon="x-mark" size="sm" label="Revoke {secret.label || 'secret'}" loading={busy} onclick={() => void revoke()} />
+      {#if secret.expiresAt}<span class="text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400"
+          >until {formatTime(secret.expiresAt)}</span
+        >{/if}
+      <IconButton
+        icon="x-mark"
+        size="sm"
+        label="Revoke {secret.label || 'secret'}"
+        loading={busy}
+        onclick={() => void revoke()}
+      />
     </span>
   {/snippet}
 </PanelRow>

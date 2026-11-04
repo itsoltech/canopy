@@ -9,5 +9,6 @@ import type { RequestHandler } from "./$types";
 export const PUT: RequestHandler = async ({ request, params }) => {
   const body = await readMessage(request, ui.UpdateProjectSettingsRequestSchema);
   const response = await call((api) => api.updateProjectSettings({ ...body, projectId: params.projectId }));
+
   return json(encode(ui.UpdateProjectSettingsResponseSchema, response));
 };

@@ -91,8 +91,10 @@ export class AttachmentStore extends Context.Service<
 
       const readBlob = (rows: readonly { data: Uint8Array | null; mime_type: string }[], what: string) => {
         const row = rows[0];
+
         // Blobs moved to object storage (storage_url) are not served yet.
         if (!row?.data) return Effect.fail(new NotFound(`${what} not found`));
+
         return Effect.succeed({ data: new Uint8Array(row.data), mimeType: row.mime_type });
       };
 
@@ -103,12 +105,15 @@ export class AttachmentStore extends Context.Service<
           sql.withTransaction(
             Effect.gen(function* () {
               yield* putBlob(input.sha256, input.data, input.mimeType);
+
               if (input.thumbnail) yield* putBlob(input.thumbnail.sha256, input.thumbnail.data, "image/webp");
+
               const rows = yield* sql<AttachmentRow>`
                 INSERT INTO attachments (id, owner_user_id, sha256, thumb_sha256, name, mime_type, kind, size_bytes, width, height)
                 VALUES (${Bun.randomUUIDv7()}::uuid, ${input.ownerUserId}::uuid, ${input.sha256}, ${input.thumbnail?.sha256 ?? null}, ${input.name},
                         ${input.mimeType}, ${input.kind}, ${input.data.length}, ${input.width ?? null}, ${input.height ?? null})
                 RETURNING *`;
+
               return rows[0]!;
             }),
           ),
@@ -116,31 +121,46 @@ export class AttachmentStore extends Context.Service<
         owned: (ownerUserId, attachmentId) =>
           UUID.test(attachmentId)
             ? sql<AttachmentRow>`SELECT * FROM attachments WHERE id = ${attachmentId}::uuid AND owner_user_id = ${ownerUserId}::uuid`.pipe(
-                Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("attachment not found")))),
+                Effect.flatMap((rows) =>
+                  rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("attachment not found")),
+                ),
               )
             : Effect.fail(new NotFound("attachment not found")),
 
         forMessage: (ownerUserId, ids) =>
           Effect.gen(function* () {
             if (ids.length === 0) return [];
-            if (new Set(ids).size !== ids.length) return yield* Effect.fail(new Invalid("an attachment is listed twice"));
+
+            if (new Set(ids).size !== ids.length)
+              return yield* Effect.fail(new Invalid("an attachment is listed twice"));
+
             if (!ids.every((id) => UUID.test(id))) return yield* Effect.fail(new Invalid("unknown attachment"));
+
             const rows = yield* sql<AttachmentRow>`
               SELECT * FROM attachments WHERE id = ANY(${`{${ids.join(",")}}`}::uuid[]) AND owner_user_id = ${ownerUserId}::uuid`;
+
             const byId = new Map(rows.map((r) => [r.id, r]));
             const ordered: AttachmentRow[] = [];
+
             for (const id of ids) {
               const row = byId.get(id);
+
               if (!row) return yield* Effect.fail(new Invalid("unknown attachment (upload it again)"));
-              if (row.thread_id) return yield* Effect.fail(new Invalid(`${row.name} was already sent with another message`));
+
+              if (row.thread_id)
+                return yield* Effect.fail(new Invalid(`${row.name} was already sent with another message`));
               ordered.push(row);
             }
+
             return ordered;
           }),
 
         blob: (sha256) =>
           SHA256.test(sha256)
-            ? sql<{ data: Uint8Array | null; mime_type: string }>`SELECT data, mime_type FROM blobs WHERE sha256 = ${sha256}`.pipe(
+            ? sql<{
+                data: Uint8Array | null;
+                mime_type: string;
+              }>`SELECT data, mime_type FROM blobs WHERE sha256 = ${sha256}`.pipe(
                 Effect.flatMap((rows) => readBlob(rows, "blob")),
               )
             : Effect.fail(new NotFound("blob not found")),
@@ -194,6 +214,7 @@ export function toUiAttachment(row: AttachmentRow | StoredAttachment): ui.Attach
       hasThumbnail: row.thumb_sha256 !== null,
     });
   }
+
   return create(ui.AttachmentSchema, {
     id: row.id,
     name: row.name,

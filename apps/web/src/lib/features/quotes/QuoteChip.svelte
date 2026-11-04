@@ -15,7 +15,13 @@
     onedit,
     onremove,
     class: className,
-  }: { quote: QuoteDraft; editing?: boolean; onedit: (anchor: HTMLElement) => void; onremove: () => void; class?: ClassValue } = $props();
+  }: {
+    quote: QuoteDraft;
+    editing?: boolean;
+    onedit: (anchor: HTMLElement) => void;
+    onremove: () => void;
+    class?: ClassValue;
+  } = $props();
 
   function onkeydown(event: KeyboardEvent) {
     if (event.key !== "Delete" && event.key !== "Backspace") return;

@@ -5,4 +5,5 @@ import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
 
 /** The user's and projects' settings (reloaded after a conflict or a reconnect). */
-export const GET: RequestHandler = async () => json(encode(ui.GetSettingsResponseSchema, await call((api) => api.getSettings({}))));
+export const GET: RequestHandler = async () =>
+  json(encode(ui.GetSettingsResponseSchema, await call((api) => api.getSettings({}))));

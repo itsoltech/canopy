@@ -27,12 +27,23 @@
   } & ConversationHandlers = $props();
 
   const q = $derived(query.trim().toLowerCase());
+
   const matches = (c: ConversationView) =>
-    [conversationTitle(c), ...c.bots.map((b) => b.name), c.lastMessage?.text ?? ""].some((text) => text.toLowerCase().includes(q));
-  const arranged = $derived(q ? { pinned: [], others: byLatest(conversations.filter(matches)) } : arrangeConversations(conversations));
+    [conversationTitle(c), ...c.bots.map((b) => b.name), c.lastMessage?.text ?? ""].some((text) =>
+      text.toLowerCase().includes(q),
+    );
+
+  const arranged = $derived(
+    q ? { pinned: [], others: byLatest(conversations.filter(matches)) } : arrangeConversations(conversations),
+  );
 </script>
 
-<div class={["grid grid-cols-1 gap-2 [--avatar-ring:var(--color-zinc-50)] dark:[--avatar-ring:var(--color-zinc-950)]", className]}>
+<div
+  class={[
+    "grid grid-cols-1 gap-2 [--avatar-ring:var(--color-zinc-50)] dark:[--avatar-ring:var(--color-zinc-950)]",
+    className,
+  ]}
+>
   {#if arranged.pinned.length > 0}
     <PinnedConversations conversations={arranged.pinned} {hrefOf} {currentId} {...handlers} />
   {/if}
@@ -41,9 +52,19 @@
       {#each arranged.others as conversation (conversation.id)}
         <li>
           {#if conversation.kind === "direct"}
-            <BotListItem {conversation} href={hrefOf(conversation)} current={conversation.id === currentId} {...handlers} />
+            <BotListItem
+              {conversation}
+              href={hrefOf(conversation)}
+              current={conversation.id === currentId}
+              {...handlers}
+            />
           {:else}
-            <GroupListItem {conversation} href={hrefOf(conversation)} current={conversation.id === currentId} {...handlers} />
+            <GroupListItem
+              {conversation}
+              href={hrefOf(conversation)}
+              current={conversation.id === currentId}
+              {...handlers}
+            />
           {/if}
         </li>
       {/each}

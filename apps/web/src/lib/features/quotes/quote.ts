@@ -35,5 +35,6 @@ export function toWire(quote: QuoteDraft): WireQuote {
 /** The beginning of a quote for a chip: one line, whitespace collapsed, ellipsized past `max` characters. */
 export function quoteLabel(text: string, max = 32): string {
   const line = text.replace(/\s+/g, " ").trim();
+
   return line.length > max ? `${line.slice(0, max).trimEnd()}…` : line;
 }

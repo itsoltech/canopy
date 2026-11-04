@@ -13,7 +13,10 @@
 </script>
 
 <Alert class={className} tone="warning" title="Different on two computers">
-  <p>{overview.machine(conflict.nodeId) ?? "Another computer"} has a different version. Each computer keeps its own until you choose.</p>
+  <p>
+    {overview.machine(conflict.nodeId) ?? "Another computer"} has a different version. Each computer keeps its own until you
+    choose.
+  </p>
   <div class="pt-2"><Button size="sm" onclick={() => (open = true)}>Choose a version</Button></div>
 </Alert>
 <ConflictDialog {conflict} bind:open />

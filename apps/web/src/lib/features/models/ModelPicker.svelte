@@ -64,36 +64,72 @@
   const selected = $derived(options.find((o) => o.key === value));
   const providers = $derived([...new Set(options.map((o) => o.provider))]);
   const favoriteOptions = $derived(favorites.among(options));
-  const current = $derived(section ?? (favoriteOptions.length > 0 ? "favorites" : (selected?.provider ?? providers[0] ?? "favorites")));
+
+  const current = $derived(
+    section ?? (favoriteOptions.length > 0 ? "favorites" : (selected?.provider ?? providers[0] ?? "favorites")),
+  );
+
   const searching = $derived(query.trim().length > 0);
 
   // A typed model id becomes an option of the provider in view, on the current profile when it matches.
   const custom = $derived.by(() => {
     const model = query.trim();
+
     if (!allowCustom || !model || /\s/.test(model)) return undefined;
     const provider = current !== "favorites" ? current : (selected?.provider ?? providers[0]);
+
     if (!provider) return undefined;
     const base = selected?.provider === provider ? selected : options.find((o) => o.provider === provider);
-    if (!base || options.some((o) => o.provider === provider && o.profileId === base.profileId && o.model === model)) return undefined;
+
+    if (!base || options.some((o) => o.provider === provider && o.profileId === base.profileId && o.model === model))
+      return undefined;
+
     return { ...modelOption(provider, base.profileId, base.profileName, model, catalog), origin: "custom" as const };
   });
 
   const listed = $derived(
-    searching ? [...options, ...(custom ? [custom] : [])] : current === "favorites" ? favoriteOptions : options.filter((o) => o.provider === current),
+    searching
+      ? [...options, ...(custom ? [custom] : [])]
+      : current === "favorites"
+        ? favoriteOptions
+        : options.filter((o) => o.provider === current),
   );
+
   // Headings only where profiles mix: a provider's profiles, or a search over several providers/profiles.
   const sourceOf = (o: ModelOption) => `${o.provider}:${o.profileId}`;
-  const grouped = $derived(current !== "favorites" || searching ? new Set(listed.filter((o) => o.origin !== "custom").map(sourceOf)).size > 1 : false);
-  const groupOf = (o: ModelOption) => (!grouped || o.origin === "custom" ? undefined : searching ? `${providerName(o.provider)} · ${o.profileName}` : o.profileName);
-  // Incomplete lists of the profiles in view (the catalog says why).
-  const details = $derived(
-    [...new Map(listed.filter((o) => o.listDetail).map((o) => [sourceOf(o), `${providerName(o.provider)} · ${o.profileName}: ${o.listDetail}`])).values()],
+
+  const grouped = $derived(
+    current !== "favorites" || searching
+      ? new Set(listed.filter((o) => o.origin !== "custom").map(sourceOf)).size > 1
+      : false,
   );
+
+  const groupOf = (o: ModelOption) =>
+    !grouped || o.origin === "custom"
+      ? undefined
+      : searching
+        ? `${providerName(o.provider)} · ${o.profileName}`
+        : o.profileName;
+
+  // Incomplete lists of the profiles in view (the catalog says why).
+  const details = $derived([
+    ...new Map(
+      listed
+        .filter((o) => o.listDetail)
+        .map((o) => [sourceOf(o), `${providerName(o.provider)} · ${o.profileName}: ${o.listDetail}`]),
+    ).values(),
+  ]);
+
   const shortcutOf = (key: string) => {
     const index = favoriteOptions.findIndex((o) => o.key === key);
+
     return index >= 0 && index < 9 ? `Mod+${index + 1}` : undefined;
   };
-  const secondary = (o: ModelOption) => [grouped ? "" : o.profileName, o.description || (o.model && o.name !== o.model ? o.model : "")].filter(Boolean).join(" · ");
+
+  const secondary = (o: ModelOption) =>
+    [grouped ? "" : o.profileName, o.description || (o.model && o.name !== o.model ? o.model : "")]
+      .filter(Boolean)
+      .join(" · ");
 
   function choose(option: ModelOption) {
     onselect(option);
@@ -105,10 +141,13 @@
       if (matchesHotkey(event, `Mod+${n}`)) {
         event.preventDefault();
         const favorite = favoriteOptions[n - 1];
+
         if (favorite) choose(favorite);
+
         return;
       }
     }
+
     if (matchesHotkey(event, FAVORITE_HOTKEY) && active && active.origin !== "custom") {
       event.preventDefault();
       favorites.toggle(active);
@@ -128,7 +167,11 @@
   class="w-[min(26rem,calc(100vw-1rem))]"
 >
   {#snippet trigger(props)}
-    <PillButton {...props} class={["pl-1.5", className]} aria-label="Model: {selected?.name ?? 'none'}{effort ? `, ${effort} effort` : ''}">
+    <PillButton
+      {...props}
+      class={["pl-1.5", className]}
+      aria-label="Model: {selected?.name ?? 'none'}{effort ? `, ${effort} effort` : ''}"
+    >
       {#if selected}<ProviderIcon provider={selected.provider} class="size-3.5" />{/if}
       <span class="truncate text-zinc-800 dark:text-zinc-200">{selected?.name ?? "Choose a model"}</span>
       {#if effort}<span class="shrink-0 text-zinc-500 dark:text-zinc-400">{effort}</span>{/if}
@@ -137,7 +180,11 @@
 
   <!-- Fixed height: clip, so the bottom buttons' touch targets don't make the panel scroll by a few pixels. -->
   <div class="flex h-[min(26rem,var(--float-available-height,26rem))] overflow-clip in-data-sheet:h-[70dvh]">
-    <div role="group" aria-label="Show models" class="flex shrink-0 flex-col items-center gap-1 border-r border-zinc-950/5 p-1.5 dark:border-white/8">
+    <div
+      role="group"
+      aria-label="Show models"
+      class="flex shrink-0 flex-col items-center gap-1 border-r border-zinc-950/5 p-1.5 dark:border-white/8"
+    >
       {#snippet railButton(target: "favorites" | ProviderKey, label: string)}
         {@const pressed = !searching && current === target}
         <button
@@ -203,18 +250,28 @@
           {/if}
         {/snippet}
       </Combobox>
-      <div class="flex shrink-0 items-center gap-2 border-t border-zinc-950/5 py-1.5 pr-1.5 pl-3 text-sm/5 text-zinc-500 sm:text-xs/4 dark:border-white/8 dark:text-zinc-400">
+      <div
+        class="flex shrink-0 items-center gap-2 border-t border-zinc-950/5 py-1.5 pr-1.5 pl-3 text-sm/5 text-zinc-500 sm:text-xs/4 dark:border-white/8 dark:text-zinc-400"
+      >
         {#if notice}
           <p class="min-w-0 flex-1 text-pretty" role="status">{notice}</p>
         {:else if details.length > 0}
           <p class="flex min-w-0 flex-1 items-center gap-1.5" title={details.join("\n")}>
             <Icon name="information-circle" class="size-3.5 fill-zinc-400 dark:fill-zinc-500" />
-            <span class="truncate">{details.length === 1 ? `Incomplete list. ${details[0]}` : `${details.length} lists are incomplete.`}</span>
+            <span class="truncate"
+              >{details.length === 1
+                ? `Incomplete list. ${details[0]}`
+                : `${details.length} lists are incomplete.`}</span
+            >
           </p>
         {:else}
-          <p class="min-w-0 flex-1 truncate">{favoriteOptions.length > 0 ? "Favorites have shortcuts" : "Star models you use often"}</p>
+          <p class="min-w-0 flex-1 truncate">
+            {favoriteOptions.length > 0 ? "Favorites have shortcuts" : "Star models you use often"}
+          </p>
         {/if}
-        <span class="flex shrink-0 items-center gap-1.5 pointer-coarse:hidden"><Kbd hotkey={FAVORITE_HOTKEY} />star</span>
+        <span class="flex shrink-0 items-center gap-1.5 pointer-coarse:hidden"
+          ><Kbd hotkey={FAVORITE_HOTKEY} />star</span
+        >
         {#if onrefresh}
           <IconButton
             icon="arrow-path"

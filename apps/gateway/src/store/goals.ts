@@ -59,7 +59,9 @@ export function toUiGoal(row: GoalRow): ui.Goal {
 const latestGoal = (sql: SqlClient.SqlClient, threadId: string) =>
   sql<GoalRow>`
     SELECT * FROM goals WHERE thread_id = ${threadId}::uuid
-     ORDER BY (status NOT IN ('achieved', 'cancelled')) DESC, created_at DESC LIMIT 1`.pipe(Effect.map((rows) => rows[0]));
+     ORDER BY (status NOT IN ('achieved', 'cancelled')) DESC, created_at DESC LIMIT 1`.pipe(
+    Effect.map((rows) => rows[0]),
+  );
 
 /** Objectives compared as the harness may echo them (trimmed, whitespace collapsed). */
 const sameObjective = (a: string, b: string) => a.trim().replace(/\s+/g, " ") === b.trim().replace(/\s+/g, " ");
@@ -75,37 +77,62 @@ const sameObjective = (a: string, b: string) => a.trim().replace(/\s+/g, " ") ==
 export const applyGoalState = (sql: SqlClient.SqlClient, threadId: string, turnId: string, state: GoalState) =>
   Effect.gen(function* () {
     const thread = (yield* sql<{ provider: string }>`SELECT provider FROM threads WHERE id = ${threadId}::uuid`)[0];
+
     if (!thread) return undefined;
     const provider = thread.provider === "claude" ? "claude" : "codex";
     const cleared = state.cleared || state.nativeStatus === "cleared";
+
     const open = (yield* sql<GoalRow>`
       SELECT * FROM goals WHERE thread_id = ${threadId}::uuid AND status NOT IN ('achieved', 'cancelled') FOR UPDATE`)[0];
-    const turnGoal = turnId ? (yield* sql<{ goal_id: string | null }>`SELECT goal_id FROM turns WHERE id = ${turnId}::uuid`)[0]?.goal_id : undefined;
-    let goal = open && (cleared || !state.objective || turnGoal === open.id || sameObjective(open.objective, state.objective)) ? open : undefined;
+
+    const turnGoal = turnId
+      ? (yield* sql<{ goal_id: string | null }>`SELECT goal_id FROM turns WHERE id = ${turnId}::uuid`)[0]?.goal_id
+      : undefined;
+
+    let goal =
+      open && (cleared || !state.objective || turnGoal === open.id || sameObjective(open.objective, state.objective))
+        ? open
+        : undefined;
+
     if (!goal && !open) {
       // Late reports of a goal that already ended update it: Codex usage after complete, or the harness
       // confirming a clear the user asked for (the goal was closed when they asked).
       const latest = yield* latestGoal(sql, threadId);
+
       if (latest && ((cleared && !state.objective) || sameObjective(latest.objective, state.objective))) goal = latest;
     }
+
     if (!goal) {
       if (cleared || !state.objective) return undefined;
+
       if (open) {
         yield* sql`UPDATE goals SET status = 'cancelled', last_reason = 'replaced by a new goal', finished_at = now(), updated_at = now() WHERE id = ${open.id}::uuid`;
       }
+
       const id = Bun.randomUUIDv7();
       yield* sql`
         INSERT INTO goals (id, thread_id, objective, status, created_by, native_status)
         VALUES (${id}::uuid, ${threadId}::uuid, ${state.objective}, 'active', 'provider', ${state.nativeStatus || null})`;
       goal = (yield* sql<GoalRow>`SELECT * FROM goals WHERE id = ${id}::uuid`)[0]!;
     }
+
     // A finished goal stays finished: late reports only update its usage.
-    const status = isFinished(goal.status) ? goal.status : goalStatusFromHarness(provider, state.nativeStatus, cleared, goal.status);
-    if (turnId) yield* sql`UPDATE turns SET goal_id = ${goal.id}::uuid WHERE id = ${turnId}::uuid AND thread_id = ${threadId}::uuid AND goal_id IS NULL`;
+    const status = isFinished(goal.status)
+      ? goal.status
+      : goalStatusFromHarness(provider, state.nativeStatus, cleared, goal.status);
+
+    if (turnId)
+      yield* sql`UPDATE turns SET goal_id = ${goal.id}::uuid WHERE id = ${turnId}::uuid AND thread_id = ${threadId}::uuid AND goal_id IS NULL`;
+
     const turns =
       provider === "codex"
-        ? Number((yield* sql<{ n: string }>`SELECT count(*) AS n FROM turns WHERE goal_id = ${goal.id}::uuid AND trigger = 'provider'`)[0]?.n ?? 0)
+        ? Number(
+            (yield* sql<{
+              n: string;
+            }>`SELECT count(*) AS n FROM turns WHERE goal_id = ${goal.id}::uuid AND trigger = 'provider'`)[0]?.n ?? 0,
+          )
         : Math.max(goal.turns_used, state.iterations);
+
     const native = JSON.stringify(toJson(GoalStateSchema, state) as JsonValue);
     yield* sql`
       UPDATE goals SET status = ${status},
@@ -119,6 +146,7 @@ export const applyGoalState = (sql: SqlClient.SqlClient, threadId: string, turnI
                        finished_at = CASE WHEN ${status} IN ('achieved', 'cancelled') THEN coalesce(finished_at, now()) ELSE NULL END,
                        updated_at = now()
        WHERE id = ${goal.id}::uuid`;
+
     return goal.id;
   });
 
@@ -149,10 +177,12 @@ export class GoalStore extends Context.Service<
     GoalStore,
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
+
       const goal = (goalId: string) =>
         sql<GoalRow>`SELECT * FROM goals WHERE id = ${goalId}::uuid`.pipe(
           Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("goal not found")))),
         );
+
       return GoalStore.of({
         latest: (threadId) => latestGoal(sql, threadId),
         goal,
@@ -166,6 +196,7 @@ export class GoalStore extends Context.Service<
               yield* sql`
                 INSERT INTO goals (id, thread_id, objective, status, created_by, created_by_user_id, token_budget)
                 VALUES (${id}::uuid, ${threadId}::uuid, ${objective}, 'active', 'user', ${userId}::uuid, ${tokenBudget > 0n ? tokenBudget : null})`;
+
               return yield* goal(id);
             }),
           ),
@@ -178,15 +209,25 @@ export class GoalStore extends Context.Service<
           sql.withTransaction(
             Effect.gen(function* () {
               const current = yield* goal(goalId);
-              const thread = (yield* sql<{ provider: string }>`SELECT provider FROM threads WHERE id = ${current.thread_id}::uuid`)[0];
-              const target = goalStatusAfterFailure(thread?.provider === "claude" ? "claude" : "codex", current.native_status ?? "");
+
+              const thread = (yield* sql<{
+                provider: string;
+              }>`SELECT provider FROM threads WHERE id = ${current.thread_id}::uuid`)[0];
+
+              const target = goalStatusAfterFailure(
+                thread?.provider === "claude" ? "claude" : "codex",
+                current.native_status ?? "",
+              );
+
               const other = yield* sql`
                 SELECT 1 FROM goals WHERE thread_id = ${current.thread_id}::uuid AND id <> ${goalId}::uuid AND status NOT IN ('achieved', 'cancelled')`;
+
               const status = isFinished(target) || other.length === 0 ? target : current.status;
               yield* sql`
                 UPDATE goals SET status = ${status}, error = ${error}, error_at = now(), updated_at = now(),
                                  finished_at = CASE WHEN ${status} IN ('achieved', 'cancelled') THEN coalesce(finished_at, now()) ELSE NULL END
                  WHERE id = ${goalId}::uuid`;
+
               return yield* goal(goalId);
             }),
           ),

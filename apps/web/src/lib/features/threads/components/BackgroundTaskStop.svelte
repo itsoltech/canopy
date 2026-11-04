@@ -8,10 +8,12 @@
   let stopping = $state(false);
   const directory = useThreadDirectory();
   let error = $state<string>();
+
   async function stop() {
     if (stopping) return;
     stopping = true;
     error = undefined;
+
     try {
       await stopBackgroundTask(threadId, itemId);
     } catch (cause) {
@@ -22,6 +24,8 @@
 </script>
 
 <div class={["grid gap-1", className]}>
-  <Button size="sm" icon="stop" disabled={directory.readOnly} loading={stopping} onclick={stop}>{stopping ? "Stopping…" : "Stop"}</Button>
+  <Button size="sm" icon="stop" disabled={directory.readOnly} loading={stopping} onclick={stop}
+    >{stopping ? "Stopping…" : "Stop"}</Button
+  >
   {#if error}<p role="alert" class="text-xs/5 text-rose-700 dark:text-rose-400">{error}</p>{/if}
 </div>

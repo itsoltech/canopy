@@ -34,7 +34,9 @@ export const defaultLimits: PaletteLimits = {
 };
 
 const byRank = (commands: readonly Command[]) =>
-  commands.map((command, index) => ({ command, index })).sort((a, b) => (a.command.rank ?? 0) - (b.command.rank ?? 0) || a.index - b.index);
+  commands
+    .map((command, index) => ({ command, index }))
+    .sort((a, b) => (a.command.rank ?? 0) - (b.command.rank ?? 0) || a.index - b.index);
 
 /**
  * Sections for `query` over `commands` (the available ones of a level). At the top level the groups
@@ -42,35 +44,65 @@ const byRank = (commands: readonly Command[]) =>
  * list. Searching ranks by score inside each group and also finds the entries of `searchChildren`
  * submenus whose own title matches, labelled with their parent.
  */
-export function paletteView(commands: readonly Command[], query: string, { nested = false, limits = defaultLimits }: { nested?: boolean; limits?: PaletteLimits } = {}): PaletteSection[] {
+export function paletteView(
+  commands: readonly Command[],
+  query: string,
+  { nested = false, limits = defaultLimits }: { nested?: boolean; limits?: PaletteLimits } = {},
+): PaletteSection[] {
   const q = query.trim();
+
   if (!q) {
-    const entries = byRank(nested ? commands : commands.filter((c) => c.suggested !== false)).map(({ command }) => ({ key: command.id, command, indices: [] }));
+    const entries = byRank(nested ? commands : commands.filter((c) => c.suggested !== false)).map(({ command }) => ({
+      key: command.id,
+      command,
+      indices: [],
+    }));
+
     return sectioned(entries, nested, limits.suggested);
   }
+
   const candidates: { command: Command; parent?: Command }[] = commands.map((command) => ({ command }));
+
   if (!nested) {
-    for (const parent of commands) if (parent.searchChildren) for (const command of childrenOf(parent)) candidates.push({ command, parent });
+    for (const parent of commands)
+      if (parent.searchChildren) for (const command of childrenOf(parent)) candidates.push({ command, parent });
   }
+
   const scored = candidates
     .map((candidate, index) => {
-      const match = matchCommand(q, { title: candidate.command.title, keywords: [candidate.parent?.title, candidate.command.keywords].filter(Boolean).join(" ") });
+      const match = matchCommand(q, {
+        title: candidate.command.title,
+        keywords: [candidate.parent?.title, candidate.command.keywords].filter(Boolean).join(" "),
+      });
+
       // A submenu's entry needs its own name in the query ("ocean", "theme ocean"), not just the parent's.
       if (!match || (candidate.parent && match.indices.length === 0)) return undefined;
+
       return { ...candidate, match, index };
     })
     .filter((s) => s !== undefined)
-    .sort((a, b) => b.match.score - a.match.score || (a.command.rank ?? 0) - (b.command.rank ?? 0) || a.index - b.index);
-  const entries = scored.map(({ command, parent, match }) => ({ key: parent ? `${parent.id}/${command.id}` : command.id, command, parent, indices: match.indices }));
+    .sort(
+      (a, b) => b.match.score - a.match.score || (a.command.rank ?? 0) - (b.command.rank ?? 0) || a.index - b.index,
+    );
+
+  const entries = scored.map(({ command, parent, match }) => ({
+    key: parent ? `${parent.id}/${command.id}` : command.id,
+    command,
+    parent,
+    indices: match.indices,
+  }));
+
   return sectioned(entries, nested, limits.search);
 }
 
 function sectioned(entries: PaletteEntry[], nested: boolean, limits: PaletteLimits["suggested"]): PaletteSection[] {
   if (nested) return entries.length > 0 ? [{ entries }] : [];
+
   return commandGroups
     .map((group) => {
       const inGroup = entries.filter((e) => (e.parent ?? e.command).group === group);
       const limit = limits[group];
+
       return { group, label: groupLabels[group], entries: limit === undefined ? inGroup : inGroup.slice(0, limit) };
     })
     .filter((section) => section.entries.length > 0);
@@ -87,7 +119,10 @@ export interface PaletteLevel {
   readonly query: string;
 }
 
-export const enterLevel = (stack: readonly PaletteLevel[], command: Command, query: string): PaletteLevel[] => [...stack, { command, query }];
+export const enterLevel = (stack: readonly PaletteLevel[], command: Command, query: string): PaletteLevel[] => [
+  ...stack,
+  { command, query },
+];
 
 /** One level up: the stack without the last submenu and the query to restore. */
 export function leaveLevel(stack: readonly PaletteLevel[]): { stack: PaletteLevel[]; query: string } {
@@ -97,19 +132,28 @@ export function leaveLevel(stack: readonly PaletteLevel[]): { stack: PaletteLeve
 /** The commands of the current level: the top level's, or the open submenu's available entries. */
 export const levelCommands = (top: readonly Command[], stack: readonly PaletteLevel[]): readonly Command[] => {
   const open = stack.at(-1);
+
   return open ? childrenOf(open.command) : top;
 };
 
 /** What choosing a command does: open its submenu, run it (or follow its link), or nothing (disabled). */
 export function actionOf(command: Command): "enter" | "run" | "none" {
   if (command.disabled) return "none";
+
   if (command.children) return "enter";
+
   return command.run || command.href ? "run" : "none";
 }
 
 /** The next active row for a key: arrows wrap, pages stop at the ends. */
-export function moveActive(index: number, key: "next" | "previous" | "first" | "last" | "pageDown" | "pageUp", length: number, page = 8): number {
+export function moveActive(
+  index: number,
+  key: "next" | "previous" | "first" | "last" | "pageDown" | "pageUp",
+  length: number,
+  page = 8,
+): number {
   if (length === 0) return -1;
+
   switch (key) {
     case "first":
       return 0;

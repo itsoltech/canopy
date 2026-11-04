@@ -8,7 +8,13 @@
    * What an agent runs on, inline: the provider's mark and the model (with the effort when given), e.g. for a
    * subagent or the sender of a message. Inherits the text size and color of its line.
    */
-  let { provider, model, effort = "", class: className }: { provider: Provider; model: string; effort?: string; class?: ClassValue } = $props();
+  let {
+    provider,
+    model,
+    effort = "",
+    class: className,
+  }: { provider: Provider; model: string; effort?: string; class?: ClassValue } = $props();
+
   const key = $derived(providerKeyOf(provider));
   const name = $derived(key === "CLAUDE" ? "Claude" : key === "GROK" ? "Grok" : "Codex");
 </script>

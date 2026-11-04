@@ -36,14 +36,39 @@ html[data-canopy-platform="darwin"][data-window-fullscreen] {
   --window-safe-top: 0px;
   --window-titlebar-height: var(--window-titlebar-size);
 }
-html[data-canopy-platform="darwin"] :is([data-window-drag], [data-window-titlebar]) { min-height: var(--window-titlebar-height); }
-html[data-canopy-platform="darwin"] .canopy-sidebar-header { padding-left: calc(var(--window-controls-inset) + 8px); }
-html[data-canopy-platform="darwin"] [data-sidebar="hidden"] [data-window-titlebar]:not([data-window-offset] *) { padding-left: calc(var(--window-controls-inset) + 8px); }
+html[data-canopy-platform="darwin"] :is([data-window-drag], [data-window-titlebar]) {
+  min-height: var(--window-titlebar-height);
+}
+html[data-canopy-platform="darwin"] .canopy-sidebar-header {
+  padding-left: calc(var(--window-controls-inset) + 8px);
+}
+html[data-canopy-platform="darwin"] [data-sidebar="hidden"] [data-window-titlebar]:not([data-window-offset] *) {
+  padding-left: calc(var(--window-controls-inset) + 8px);
+}
 html[data-canopy-platform="darwin"]:not(:has(:popover-open, [data-window-no-drag])) {
   &:not(:has(dialog:modal)) :is([data-window-drag], [data-window-titlebar]):not(dialog *, [inert] *),
   & [data-window-modal-top]:modal :is([data-window-drag], [data-window-titlebar]):not([inert] *) {
     -webkit-app-region: drag;
-    & :is(a, button, input, select, textarea, label, summary, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="switch"], [role="combobox"], [tabindex]:not([tabindex="-1"]), [contenteditable]) { -webkit-app-region: no-drag; }
+    &
+      :is(
+        a,
+        button,
+        input,
+        select,
+        textarea,
+        label,
+        summary,
+        [role="button"],
+        [role="link"],
+        [role="tab"],
+        [role="menuitem"],
+        [role="switch"],
+        [role="combobox"],
+        [tabindex]:not([tabindex="-1"]),
+        [contenteditable]
+      ) {
+      -webkit-app-region: no-drag;
+    }
   }
 }
 

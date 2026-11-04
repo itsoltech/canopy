@@ -1,0 +1,1508 @@
+{
+  "schemaVersion": 2,
+  "generated": "2026-11-04",
+  "base": "origin/dev 85867472bd860df93e1dab9231464b59a16691f0",
+  "measuredCommit": "28347c5fd09396d5aef4ed408f1f0ea22cca0b2f",
+  "tools": {
+    "oxlint": "1.91.0",
+    "@oxlint/plugins": "1.91.0",
+    "oxfmt": "0.76.0",
+    "antiSlop": "13909c9e07590f5a85d93c62712259fe14a883f7"
+  },
+  "measurement": {
+    "command": "bun run lint --format json",
+    "sizeUnit": "oxlint code lines: blank lines/comments excluded; Svelte script blocks only",
+    "functionFindings": "Nested layer/generator findings are retained separately, not deduplicated",
+    "config": "Accepted rule adjustments active in both snapshots; generated and vendored sources excluded"
+  },
+  "lintedFiles": 1218,
+  "mechanicalPass": {
+    "commit": "28347c5fd09396d5aef4ed408f1f0ea22cca0b2f",
+    "sequence": ["bun run format", "bun run lint:spacing", "bun run format"],
+    "rounds": 2,
+    "secondRoundChanges": 0,
+    "files": 1155,
+    "insertions": 72950,
+    "deletions": 18258,
+    "formatterFirstStep": {
+      "files": 1058,
+      "insertions": 59101,
+      "deletions": 18217
+    },
+    "generatedFilesChanged": 0
+  },
+  "beforeMechanicalPass": {
+    "total": 13238,
+    "files": 936,
+    "byRule": {
+      "anti-slop-effect/no-manual-tag-comparison": 2,
+      "anti-slop-effect/prefer-effect-match": 52,
+      "anti-slop/no-array-filter-map": 32,
+      "anti-slop/no-chained-type-assertions": 41,
+      "anti-slop/no-conditional-empty-object-spread": 9,
+      "anti-slop/no-known-value-widening": 178,
+      "anti-slop/no-object-parameters": 10,
+      "anti-slop/no-runtime-typeof": 276,
+      "anti-slop/no-unknown-parameters": 173,
+      "anti-slop/no-unknown-returns": 35,
+      "anti-slop/no-unsafe-dictionary-type": 208,
+      "anti-slop/require-readable-spacing": 11476,
+      "anti-slop/require-safety-comment-for-type-assertion": 640,
+      "max-lines": 15,
+      "max-lines-per-function": 34,
+      "no-control-regex": 12,
+      "no-unsafe-optional-chaining": 2,
+      "no-unused-expressions": 3,
+      "no-unused-vars": 24,
+      "no-useless-escape": 1,
+      "oxc/no-accumulating-spread": 4,
+      "require-yield": 2,
+      "typescript/no-non-null-asserted-optional-chain": 1,
+      "typescript/triple-slash-reference": 2,
+      "unicorn/no-new-array": 1,
+      "unicorn/no-useless-spread": 4,
+      "unicorn/prefer-string-starts-ends-with": 1
+    },
+    "byArea": {
+      "apps/desktop": 690,
+      "apps/gateway": 4009,
+      "apps/mobile": 325,
+      "apps/web": 3667,
+      "apps/worker": 1936,
+      "packages/codex-protocol": 1,
+      "packages/contracts": 7,
+      "packages/db": 78,
+      "packages/domain": 444,
+      "packages/grok-acp": 113,
+      "packages/testing": 14,
+      "packages/transport": 25,
+      "packages/ui": 41,
+      "packages/updater": 177,
+      "scripts": 268,
+      "tests/integration": 1443
+    },
+    "filesPerRule": {
+      "anti-slop-effect/no-manual-tag-comparison": 2,
+      "anti-slop-effect/prefer-effect-match": 39,
+      "anti-slop/no-array-filter-map": 20,
+      "anti-slop/no-chained-type-assertions": 17,
+      "anti-slop/no-conditional-empty-object-spread": 7,
+      "anti-slop/no-known-value-widening": 90,
+      "anti-slop/no-object-parameters": 7,
+      "anti-slop/no-runtime-typeof": 90,
+      "anti-slop/no-unknown-parameters": 90,
+      "anti-slop/no-unknown-returns": 28,
+      "anti-slop/no-unsafe-dictionary-type": 77,
+      "anti-slop/require-readable-spacing": 928,
+      "anti-slop/require-safety-comment-for-type-assertion": 197,
+      "max-lines": 15,
+      "max-lines-per-function": 28,
+      "no-control-regex": 9,
+      "no-unsafe-optional-chaining": 1,
+      "no-unused-expressions": 2,
+      "no-unused-vars": 21,
+      "no-useless-escape": 1,
+      "oxc/no-accumulating-spread": 3,
+      "require-yield": 1,
+      "typescript/no-non-null-asserted-optional-chain": 1,
+      "typescript/triple-slash-reference": 2,
+      "unicorn/no-new-array": 1,
+      "unicorn/no-useless-spread": 3,
+      "unicorn/prefer-string-starts-ends-with": 1
+    },
+    "byRuleAndArea": {
+      "anti-slop-effect/no-manual-tag-comparison": {
+        "apps/worker": 2
+      },
+      "anti-slop-effect/prefer-effect-match": {
+        "apps/gateway": 21,
+        "apps/web": 15,
+        "apps/worker": 10,
+        "packages/domain": 4,
+        "tests/integration": 2
+      },
+      "anti-slop/no-array-filter-map": {
+        "apps/gateway": 4,
+        "apps/web": 10,
+        "apps/worker": 13,
+        "tests/integration": 5
+      },
+      "anti-slop/no-chained-type-assertions": {
+        "apps/desktop": 1,
+        "apps/gateway": 19,
+        "apps/web": 3,
+        "apps/worker": 15,
+        "tests/integration": 3
+      },
+      "anti-slop/no-conditional-empty-object-spread": {
+        "apps/desktop": 1,
+        "apps/gateway": 1,
+        "apps/worker": 4,
+        "packages/transport": 1,
+        "scripts": 2
+      },
+      "anti-slop/no-known-value-widening": {
+        "apps/desktop": 1,
+        "apps/gateway": 30,
+        "apps/mobile": 6,
+        "apps/web": 83,
+        "apps/worker": 32,
+        "packages/domain": 10,
+        "scripts": 2,
+        "tests/integration": 14
+      },
+      "anti-slop/no-object-parameters": {
+        "apps/web": 2,
+        "apps/worker": 4,
+        "packages/grok-acp": 3,
+        "tests/integration": 1
+      },
+      "anti-slop/no-runtime-typeof": {
+        "apps/desktop": 14,
+        "apps/gateway": 83,
+        "apps/mobile": 9,
+        "apps/web": 57,
+        "apps/worker": 69,
+        "packages/db": 2,
+        "packages/domain": 23,
+        "packages/grok-acp": 2,
+        "packages/updater": 7,
+        "tests/integration": 10
+      },
+      "anti-slop/no-unknown-parameters": {
+        "apps/desktop": 18,
+        "apps/gateway": 47,
+        "apps/web": 32,
+        "apps/worker": 44,
+        "packages/db": 1,
+        "packages/domain": 2,
+        "packages/grok-acp": 4,
+        "packages/transport": 1,
+        "packages/updater": 4,
+        "scripts": 1,
+        "tests/integration": 19
+      },
+      "anti-slop/no-unknown-returns": {
+        "apps/desktop": 2,
+        "apps/gateway": 12,
+        "apps/web": 8,
+        "apps/worker": 8,
+        "packages/grok-acp": 5
+      },
+      "anti-slop/no-unsafe-dictionary-type": {
+        "apps/desktop": 5,
+        "apps/gateway": 77,
+        "apps/mobile": 2,
+        "apps/web": 57,
+        "apps/worker": 27,
+        "packages/db": 4,
+        "packages/domain": 6,
+        "packages/grok-acp": 3,
+        "scripts": 1,
+        "tests/integration": 26
+      },
+      "anti-slop/require-readable-spacing": {
+        "apps/desktop": 621,
+        "apps/gateway": 3413,
+        "apps/mobile": 287,
+        "apps/web": 3219,
+        "apps/worker": 1571,
+        "packages/codex-protocol": 1,
+        "packages/contracts": 7,
+        "packages/db": 70,
+        "packages/domain": 382,
+        "packages/grok-acp": 88,
+        "packages/testing": 13,
+        "packages/transport": 20,
+        "packages/ui": 40,
+        "packages/updater": 159,
+        "scripts": 236,
+        "tests/integration": 1349
+      },
+      "anti-slop/require-safety-comment-for-type-assertion": {
+        "apps/desktop": 23,
+        "apps/gateway": 263,
+        "apps/mobile": 12,
+        "apps/web": 170,
+        "apps/worker": 115,
+        "packages/domain": 15,
+        "packages/grok-acp": 8,
+        "packages/transport": 3,
+        "packages/ui": 1,
+        "packages/updater": 6,
+        "scripts": 24
+      },
+      "max-lines": {
+        "apps/gateway": 9,
+        "apps/web": 1,
+        "apps/worker": 5
+      },
+      "max-lines-per-function": {
+        "apps/gateway": 13,
+        "apps/mobile": 9,
+        "apps/web": 2,
+        "apps/worker": 8,
+        "packages/domain": 1,
+        "scripts": 1
+      },
+      "no-control-regex": {
+        "apps/gateway": 7,
+        "apps/web": 1,
+        "apps/worker": 3,
+        "packages/domain": 1
+      },
+      "no-unsafe-optional-chaining": {
+        "apps/worker": 2
+      },
+      "no-unused-expressions": {
+        "apps/desktop": 2,
+        "apps/web": 1
+      },
+      "no-unused-vars": {
+        "apps/desktop": 2,
+        "apps/gateway": 7,
+        "apps/web": 3,
+        "apps/worker": 1,
+        "packages/updater": 1,
+        "scripts": 1,
+        "tests/integration": 9
+      },
+      "no-useless-escape": {
+        "tests/integration": 1
+      },
+      "oxc/no-accumulating-spread": {
+        "apps/gateway": 2,
+        "apps/web": 2
+      },
+      "require-yield": {
+        "tests/integration": 2
+      },
+      "typescript/no-non-null-asserted-optional-chain": {
+        "tests/integration": 1
+      },
+      "typescript/triple-slash-reference": {
+        "apps/gateway": 1,
+        "packages/db": 1
+      },
+      "unicorn/no-new-array": {
+        "apps/web": 1
+      },
+      "unicorn/no-useless-spread": {
+        "apps/worker": 2,
+        "packages/testing": 1,
+        "tests/integration": 1
+      },
+      "unicorn/prefer-string-starts-ends-with": {
+        "apps/worker": 1
+      }
+    },
+    "byRuleAndKind": {
+      "anti-slop-effect/no-manual-tag-comparison": {
+        "source": 2,
+        "tests": 0
+      },
+      "anti-slop-effect/prefer-effect-match": {
+        "source": 48,
+        "tests": 4
+      },
+      "anti-slop/no-array-filter-map": {
+        "source": 15,
+        "tests": 17
+      },
+      "anti-slop/no-chained-type-assertions": {
+        "source": 32,
+        "tests": 9
+      },
+      "anti-slop/no-conditional-empty-object-spread": {
+        "source": 8,
+        "tests": 1
+      },
+      "anti-slop/no-known-value-widening": {
+        "source": 161,
+        "tests": 17
+      },
+      "anti-slop/no-object-parameters": {
+        "source": 8,
+        "tests": 2
+      },
+      "anti-slop/no-runtime-typeof": {
+        "source": 257,
+        "tests": 19
+      },
+      "anti-slop/no-unknown-parameters": {
+        "source": 144,
+        "tests": 29
+      },
+      "anti-slop/no-unknown-returns": {
+        "source": 34,
+        "tests": 1
+      },
+      "anti-slop/no-unsafe-dictionary-type": {
+        "source": 170,
+        "tests": 38
+      },
+      "anti-slop/require-readable-spacing": {
+        "source": 9554,
+        "tests": 1922
+      },
+      "anti-slop/require-safety-comment-for-type-assertion": {
+        "source": 640,
+        "tests": 0
+      },
+      "max-lines": {
+        "source": 15,
+        "tests": 0
+      },
+      "max-lines-per-function": {
+        "source": 34,
+        "tests": 0
+      },
+      "no-control-regex": {
+        "source": 12,
+        "tests": 0
+      },
+      "no-unsafe-optional-chaining": {
+        "source": 0,
+        "tests": 2
+      },
+      "no-unused-expressions": {
+        "source": 1,
+        "tests": 2
+      },
+      "no-unused-vars": {
+        "source": 13,
+        "tests": 11
+      },
+      "no-useless-escape": {
+        "source": 0,
+        "tests": 1
+      },
+      "oxc/no-accumulating-spread": {
+        "source": 4,
+        "tests": 0
+      },
+      "require-yield": {
+        "source": 0,
+        "tests": 2
+      },
+      "typescript/no-non-null-asserted-optional-chain": {
+        "source": 0,
+        "tests": 1
+      },
+      "typescript/triple-slash-reference": {
+        "source": 2,
+        "tests": 0
+      },
+      "unicorn/no-new-array": {
+        "source": 1,
+        "tests": 0
+      },
+      "unicorn/no-useless-spread": {
+        "source": 3,
+        "tests": 1
+      },
+      "unicorn/prefer-string-starts-ends-with": {
+        "source": 1,
+        "tests": 0
+      }
+    }
+  },
+  "afterMechanicalPass": {
+    "total": 1798,
+    "files": 376,
+    "byRule": {
+      "anti-slop-effect/no-manual-tag-comparison": 2,
+      "anti-slop-effect/prefer-effect-match": 52,
+      "anti-slop/no-array-filter-map": 32,
+      "anti-slop/no-chained-type-assertions": 41,
+      "anti-slop/no-conditional-empty-object-spread": 9,
+      "anti-slop/no-known-value-widening": 178,
+      "anti-slop/no-object-parameters": 10,
+      "anti-slop/no-runtime-typeof": 276,
+      "anti-slop/no-unknown-parameters": 173,
+      "anti-slop/no-unknown-returns": 35,
+      "anti-slop/no-unsafe-dictionary-type": 208,
+      "anti-slop/require-safety-comment-for-type-assertion": 640,
+      "max-lines": 30,
+      "max-lines-per-function": 55,
+      "no-control-regex": 12,
+      "no-unsafe-optional-chaining": 2,
+      "no-unused-expressions": 3,
+      "no-unused-vars": 24,
+      "no-useless-escape": 1,
+      "oxc/no-accumulating-spread": 4,
+      "require-yield": 2,
+      "typescript/no-non-null-asserted-optional-chain": 1,
+      "typescript/triple-slash-reference": 2,
+      "unicorn/no-new-array": 1,
+      "unicorn/no-useless-spread": 4,
+      "unicorn/prefer-string-starts-ends-with": 1
+    },
+    "byArea": {
+      "apps/desktop": 73,
+      "apps/gateway": 619,
+      "apps/mobile": 36,
+      "apps/web": 454,
+      "apps/worker": 367,
+      "packages/db": 9,
+      "packages/domain": 62,
+      "packages/grok-acp": 25,
+      "packages/testing": 1,
+      "packages/transport": 5,
+      "packages/ui": 1,
+      "packages/updater": 19,
+      "scripts": 32,
+      "tests/integration": 95
+    },
+    "filesPerRule": {
+      "anti-slop-effect/no-manual-tag-comparison": 2,
+      "anti-slop-effect/prefer-effect-match": 39,
+      "anti-slop/no-array-filter-map": 20,
+      "anti-slop/no-chained-type-assertions": 17,
+      "anti-slop/no-conditional-empty-object-spread": 7,
+      "anti-slop/no-known-value-widening": 90,
+      "anti-slop/no-object-parameters": 7,
+      "anti-slop/no-runtime-typeof": 90,
+      "anti-slop/no-unknown-parameters": 90,
+      "anti-slop/no-unknown-returns": 28,
+      "anti-slop/no-unsafe-dictionary-type": 77,
+      "anti-slop/require-safety-comment-for-type-assertion": 197,
+      "max-lines": 30,
+      "max-lines-per-function": 44,
+      "no-control-regex": 9,
+      "no-unsafe-optional-chaining": 1,
+      "no-unused-expressions": 2,
+      "no-unused-vars": 21,
+      "no-useless-escape": 1,
+      "oxc/no-accumulating-spread": 3,
+      "require-yield": 1,
+      "typescript/no-non-null-asserted-optional-chain": 1,
+      "typescript/triple-slash-reference": 2,
+      "unicorn/no-new-array": 1,
+      "unicorn/no-useless-spread": 3,
+      "unicorn/prefer-string-starts-ends-with": 1
+    },
+    "byRuleAndArea": {
+      "anti-slop-effect/no-manual-tag-comparison": {
+        "apps/worker": 2
+      },
+      "anti-slop-effect/prefer-effect-match": {
+        "apps/gateway": 21,
+        "apps/web": 15,
+        "apps/worker": 10,
+        "packages/domain": 4,
+        "tests/integration": 2
+      },
+      "anti-slop/no-array-filter-map": {
+        "apps/gateway": 4,
+        "apps/web": 10,
+        "apps/worker": 13,
+        "tests/integration": 5
+      },
+      "anti-slop/no-chained-type-assertions": {
+        "apps/desktop": 1,
+        "apps/gateway": 19,
+        "apps/web": 3,
+        "apps/worker": 15,
+        "tests/integration": 3
+      },
+      "anti-slop/no-conditional-empty-object-spread": {
+        "apps/desktop": 1,
+        "apps/gateway": 1,
+        "apps/worker": 4,
+        "packages/transport": 1,
+        "scripts": 2
+      },
+      "anti-slop/no-known-value-widening": {
+        "apps/desktop": 1,
+        "apps/gateway": 30,
+        "apps/mobile": 6,
+        "apps/web": 83,
+        "apps/worker": 32,
+        "packages/domain": 10,
+        "scripts": 2,
+        "tests/integration": 14
+      },
+      "anti-slop/no-object-parameters": {
+        "apps/web": 2,
+        "apps/worker": 4,
+        "packages/grok-acp": 3,
+        "tests/integration": 1
+      },
+      "anti-slop/no-runtime-typeof": {
+        "apps/desktop": 14,
+        "apps/gateway": 83,
+        "apps/mobile": 9,
+        "apps/web": 57,
+        "apps/worker": 69,
+        "packages/db": 2,
+        "packages/domain": 23,
+        "packages/grok-acp": 2,
+        "packages/updater": 7,
+        "tests/integration": 10
+      },
+      "anti-slop/no-unknown-parameters": {
+        "apps/desktop": 18,
+        "apps/gateway": 47,
+        "apps/web": 32,
+        "apps/worker": 44,
+        "packages/db": 1,
+        "packages/domain": 2,
+        "packages/grok-acp": 4,
+        "packages/transport": 1,
+        "packages/updater": 4,
+        "scripts": 1,
+        "tests/integration": 19
+      },
+      "anti-slop/no-unknown-returns": {
+        "apps/desktop": 2,
+        "apps/gateway": 12,
+        "apps/web": 8,
+        "apps/worker": 8,
+        "packages/grok-acp": 5
+      },
+      "anti-slop/no-unsafe-dictionary-type": {
+        "apps/desktop": 5,
+        "apps/gateway": 77,
+        "apps/mobile": 2,
+        "apps/web": 57,
+        "apps/worker": 27,
+        "packages/db": 4,
+        "packages/domain": 6,
+        "packages/grok-acp": 3,
+        "scripts": 1,
+        "tests/integration": 26
+      },
+      "anti-slop/require-safety-comment-for-type-assertion": {
+        "apps/desktop": 23,
+        "apps/gateway": 263,
+        "apps/mobile": 12,
+        "apps/web": 170,
+        "apps/worker": 115,
+        "packages/domain": 15,
+        "packages/grok-acp": 8,
+        "packages/transport": 3,
+        "packages/ui": 1,
+        "packages/updater": 6,
+        "scripts": 24
+      },
+      "max-lines": {
+        "apps/desktop": 1,
+        "apps/gateway": 18,
+        "apps/web": 4,
+        "apps/worker": 5,
+        "packages/db": 1,
+        "tests/integration": 1
+      },
+      "max-lines-per-function": {
+        "apps/desktop": 3,
+        "apps/gateway": 27,
+        "apps/mobile": 7,
+        "apps/web": 5,
+        "apps/worker": 10,
+        "packages/domain": 1,
+        "packages/updater": 1,
+        "scripts": 1
+      },
+      "no-control-regex": {
+        "apps/gateway": 7,
+        "apps/web": 1,
+        "apps/worker": 3,
+        "packages/domain": 1
+      },
+      "no-unsafe-optional-chaining": {
+        "apps/worker": 2
+      },
+      "no-unused-expressions": {
+        "apps/desktop": 2,
+        "apps/web": 1
+      },
+      "no-unused-vars": {
+        "apps/desktop": 2,
+        "apps/gateway": 7,
+        "apps/web": 3,
+        "apps/worker": 1,
+        "packages/updater": 1,
+        "scripts": 1,
+        "tests/integration": 9
+      },
+      "no-useless-escape": {
+        "tests/integration": 1
+      },
+      "oxc/no-accumulating-spread": {
+        "apps/gateway": 2,
+        "apps/web": 2
+      },
+      "require-yield": {
+        "tests/integration": 2
+      },
+      "typescript/no-non-null-asserted-optional-chain": {
+        "tests/integration": 1
+      },
+      "typescript/triple-slash-reference": {
+        "apps/gateway": 1,
+        "packages/db": 1
+      },
+      "unicorn/no-new-array": {
+        "apps/web": 1
+      },
+      "unicorn/no-useless-spread": {
+        "apps/worker": 2,
+        "packages/testing": 1,
+        "tests/integration": 1
+      },
+      "unicorn/prefer-string-starts-ends-with": {
+        "apps/worker": 1
+      }
+    },
+    "byRuleAndKind": {
+      "anti-slop-effect/no-manual-tag-comparison": {
+        "source": 2,
+        "tests": 0
+      },
+      "anti-slop-effect/prefer-effect-match": {
+        "source": 48,
+        "tests": 4
+      },
+      "anti-slop/no-array-filter-map": {
+        "source": 15,
+        "tests": 17
+      },
+      "anti-slop/no-chained-type-assertions": {
+        "source": 32,
+        "tests": 9
+      },
+      "anti-slop/no-conditional-empty-object-spread": {
+        "source": 8,
+        "tests": 1
+      },
+      "anti-slop/no-known-value-widening": {
+        "source": 161,
+        "tests": 17
+      },
+      "anti-slop/no-object-parameters": {
+        "source": 8,
+        "tests": 2
+      },
+      "anti-slop/no-runtime-typeof": {
+        "source": 257,
+        "tests": 19
+      },
+      "anti-slop/no-unknown-parameters": {
+        "source": 144,
+        "tests": 29
+      },
+      "anti-slop/no-unknown-returns": {
+        "source": 34,
+        "tests": 1
+      },
+      "anti-slop/no-unsafe-dictionary-type": {
+        "source": 170,
+        "tests": 38
+      },
+      "anti-slop/require-safety-comment-for-type-assertion": {
+        "source": 640,
+        "tests": 0
+      },
+      "max-lines": {
+        "source": 28,
+        "tests": 2
+      },
+      "max-lines-per-function": {
+        "source": 55,
+        "tests": 0
+      },
+      "no-control-regex": {
+        "source": 12,
+        "tests": 0
+      },
+      "no-unsafe-optional-chaining": {
+        "source": 0,
+        "tests": 2
+      },
+      "no-unused-expressions": {
+        "source": 1,
+        "tests": 2
+      },
+      "no-unused-vars": {
+        "source": 13,
+        "tests": 11
+      },
+      "no-useless-escape": {
+        "source": 0,
+        "tests": 1
+      },
+      "oxc/no-accumulating-spread": {
+        "source": 4,
+        "tests": 0
+      },
+      "require-yield": {
+        "source": 0,
+        "tests": 2
+      },
+      "typescript/no-non-null-asserted-optional-chain": {
+        "source": 0,
+        "tests": 1
+      },
+      "typescript/triple-slash-reference": {
+        "source": 2,
+        "tests": 0
+      },
+      "unicorn/no-new-array": {
+        "source": 1,
+        "tests": 0
+      },
+      "unicorn/no-useless-spread": {
+        "source": 3,
+        "tests": 1
+      },
+      "unicorn/prefer-string-starts-ends-with": {
+        "source": 1,
+        "tests": 0
+      }
+    }
+  },
+  "phase2ManualViolations": 1713,
+  "phase3SizeViolations": 85,
+  "phase2WorkSplit": [
+    {
+      "id": "A",
+      "paths": ["apps/gateway/**"],
+      "excludePaths": ["apps/gateway/src/store/**", "apps/gateway/src/bots/**", "apps/gateway/src/connectors/**"],
+      "total": 343,
+      "files": 30,
+      "manualViolations": 321,
+      "sizeViolations": 22,
+      "byRule": {
+        "anti-slop-effect/prefer-effect-match": 8,
+        "anti-slop/no-array-filter-map": 3,
+        "anti-slop/no-chained-type-assertions": 17,
+        "anti-slop/no-conditional-empty-object-spread": 1,
+        "anti-slop/no-known-value-widening": 17,
+        "anti-slop/no-runtime-typeof": 38,
+        "anti-slop/no-unknown-parameters": 31,
+        "anti-slop/no-unknown-returns": 8,
+        "anti-slop/no-unsafe-dictionary-type": 30,
+        "anti-slop/require-safety-comment-for-type-assertion": 158,
+        "max-lines": 11,
+        "max-lines-per-function": 11,
+        "no-control-regex": 2,
+        "no-unused-vars": 6,
+        "oxc/no-accumulating-spread": 1,
+        "typescript/triple-slash-reference": 1
+      },
+      "prerequisites": "Consume shared contracts from F; do not edit packages, generated contracts, lint config or another owners files"
+    },
+    {
+      "id": "B",
+      "paths": ["apps/gateway/src/store/**", "apps/gateway/src/bots/**", "apps/gateway/src/connectors/**"],
+      "excludePaths": [],
+      "total": 276,
+      "files": 37,
+      "manualViolations": 253,
+      "sizeViolations": 23,
+      "byRule": {
+        "anti-slop-effect/prefer-effect-match": 13,
+        "anti-slop/no-array-filter-map": 1,
+        "anti-slop/no-chained-type-assertions": 2,
+        "anti-slop/no-known-value-widening": 13,
+        "anti-slop/no-runtime-typeof": 45,
+        "anti-slop/no-unknown-parameters": 16,
+        "anti-slop/no-unknown-returns": 4,
+        "anti-slop/no-unsafe-dictionary-type": 47,
+        "anti-slop/require-safety-comment-for-type-assertion": 105,
+        "max-lines": 7,
+        "max-lines-per-function": 16,
+        "no-control-regex": 5,
+        "no-unused-vars": 1,
+        "oxc/no-accumulating-spread": 1
+      },
+      "prerequisites": "Consume shared contracts from F; do not edit packages, generated contracts, lint config or another owners files"
+    },
+    {
+      "id": "C",
+      "paths": ["apps/worker/**"],
+      "excludePaths": [],
+      "total": 367,
+      "files": 50,
+      "manualViolations": 352,
+      "sizeViolations": 15,
+      "byRule": {
+        "anti-slop-effect/no-manual-tag-comparison": 2,
+        "anti-slop-effect/prefer-effect-match": 10,
+        "anti-slop/no-array-filter-map": 13,
+        "anti-slop/no-chained-type-assertions": 15,
+        "anti-slop/no-conditional-empty-object-spread": 4,
+        "anti-slop/no-known-value-widening": 32,
+        "anti-slop/no-object-parameters": 4,
+        "anti-slop/no-runtime-typeof": 69,
+        "anti-slop/no-unknown-parameters": 44,
+        "anti-slop/no-unknown-returns": 8,
+        "anti-slop/no-unsafe-dictionary-type": 27,
+        "anti-slop/require-safety-comment-for-type-assertion": 115,
+        "max-lines": 5,
+        "max-lines-per-function": 10,
+        "no-control-regex": 3,
+        "no-unsafe-optional-chaining": 2,
+        "no-unused-vars": 1,
+        "unicorn/no-useless-spread": 2,
+        "unicorn/prefer-string-starts-ends-with": 1
+      },
+      "prerequisites": "Consume shared contracts from F; do not edit packages, generated contracts, lint config or another owners files"
+    },
+    {
+      "id": "D",
+      "paths": ["apps/web/**"],
+      "excludePaths": [],
+      "total": 454,
+      "files": 136,
+      "manualViolations": 445,
+      "sizeViolations": 9,
+      "byRule": {
+        "anti-slop-effect/prefer-effect-match": 15,
+        "anti-slop/no-array-filter-map": 10,
+        "anti-slop/no-chained-type-assertions": 3,
+        "anti-slop/no-known-value-widening": 83,
+        "anti-slop/no-object-parameters": 2,
+        "anti-slop/no-runtime-typeof": 57,
+        "anti-slop/no-unknown-parameters": 32,
+        "anti-slop/no-unknown-returns": 8,
+        "anti-slop/no-unsafe-dictionary-type": 57,
+        "anti-slop/require-safety-comment-for-type-assertion": 170,
+        "max-lines": 4,
+        "max-lines-per-function": 5,
+        "no-control-regex": 1,
+        "no-unused-expressions": 1,
+        "no-unused-vars": 3,
+        "oxc/no-accumulating-spread": 2,
+        "unicorn/no-new-array": 1
+      },
+      "prerequisites": "Consume shared contracts from F; do not edit packages, generated contracts, lint config or another owners files"
+    },
+    {
+      "id": "E",
+      "paths": ["apps/desktop/**", "apps/mobile/**", "scripts/**"],
+      "excludePaths": [],
+      "total": 141,
+      "files": 46,
+      "manualViolations": 129,
+      "sizeViolations": 12,
+      "byRule": {
+        "anti-slop/no-chained-type-assertions": 1,
+        "anti-slop/no-conditional-empty-object-spread": 3,
+        "anti-slop/no-known-value-widening": 9,
+        "anti-slop/no-runtime-typeof": 23,
+        "anti-slop/no-unknown-parameters": 19,
+        "anti-slop/no-unknown-returns": 2,
+        "anti-slop/no-unsafe-dictionary-type": 8,
+        "anti-slop/require-safety-comment-for-type-assertion": 59,
+        "max-lines": 1,
+        "max-lines-per-function": 11,
+        "no-unused-expressions": 2,
+        "no-unused-vars": 3
+      },
+      "prerequisites": "Consume shared contracts from F; do not edit packages, generated contracts, lint config or another owners files"
+    },
+    {
+      "id": "F",
+      "paths": ["packages/**", "tests/**"],
+      "excludePaths": [],
+      "total": 217,
+      "files": 77,
+      "manualViolations": 213,
+      "sizeViolations": 4,
+      "byRule": {
+        "anti-slop-effect/prefer-effect-match": 6,
+        "anti-slop/no-array-filter-map": 5,
+        "anti-slop/no-chained-type-assertions": 3,
+        "anti-slop/no-conditional-empty-object-spread": 1,
+        "anti-slop/no-known-value-widening": 24,
+        "anti-slop/no-object-parameters": 4,
+        "anti-slop/no-runtime-typeof": 44,
+        "anti-slop/no-unknown-parameters": 31,
+        "anti-slop/no-unknown-returns": 5,
+        "anti-slop/no-unsafe-dictionary-type": 39,
+        "anti-slop/require-safety-comment-for-type-assertion": 33,
+        "max-lines": 2,
+        "max-lines-per-function": 2,
+        "no-control-regex": 1,
+        "no-unused-vars": 10,
+        "no-useless-escape": 1,
+        "require-yield": 2,
+        "typescript/no-non-null-asserted-optional-chain": 1,
+        "typescript/triple-slash-reference": 1,
+        "unicorn/no-useless-spread": 2
+      },
+      "prerequisites": "Publish shared domain JSON contracts/decoders first, then continue packages and integration tests"
+    }
+  ],
+  "maxLinesAfterMechanicalPass": [
+    {
+      "file": "apps/gateway/src/core/core.ts",
+      "lines": 2659,
+      "limit": 400,
+      "proposedSplit": "Fasada i okablowanie GatewayCore; work-loop, commands/queue, projects/workspaces, threads, bot-threads, attachments, models/provider-instances, interactions, settings, schedules/goals. Połączenia komputerów zostają za wąskim interfejsem hosta."
+    },
+    {
+      "file": "apps/gateway/src/store/store.ts",
+      "lines": 1388,
+      "limit": 400,
+      "proposedSplit": "WorkerStore, ProjectStore, ThreadStore, TurnStore i InteractionStore jako osobne Context.Service; mapery UI do ui-mappers.ts. Rozdzielić warstwy Effect, zamiast importować konstruktory serwisów."
+    },
+    {
+      "file": "apps/gateway/src/computers/runtime.ts",
+      "lines": 1240,
+      "limit": 400,
+      "proposedSplit": "LinkedComputers jako fasada; pairing/presence, connection lifecycle i retry, frame handlers, LAN/routes, mirror subscriptions, remote/relay serving. Zachować przypięty mTLS i zasady odwołania dostępu."
+    },
+    {
+      "file": "apps/worker/src/runtime/host.ts",
+      "lines": 1227,
+      "limit": 400,
+      "proposedSplit": "Fasada hosta, command handlers, codex-runtimes, claude-runtimes, katalog/login i operacje plikowe; zachować admission/drain/recovery."
+    },
+    {
+      "file": "apps/gateway/src/store/agent-bus.ts",
+      "lines": 1192,
+      "limit": 400,
+      "proposedSplit": "AgentBusStore dla wywołań i wątków, BusScheduleStore dla harmonogramów, BusDeliveryStore dla powiadomień i przekazywania interakcji; mapery osobno."
+    },
+    {
+      "file": "apps/gateway/src/bots/store.ts",
+      "lines": 1137,
+      "limit": 400,
+      "proposedSplit": "Serwisy per agregat: boty, rozmowy/wiadomości, exchanges/calls, approvals, handoffs, MCP i wakeups. Usunąć wielką fabrykę makeStore przez kompozycję warstw."
+    },
+    {
+      "file": "apps/gateway/src/computers/agents.ts",
+      "lines": 1084,
+      "limit": 400,
+      "proposedSplit": "Osobne bot-tools, agent-bus-tools, receive/dispatch i deliveries/tick; katalog/overview oraz kwalifikowanie wyników osobno. Zachować home routing, deduplikację i owner scoping."
+    },
+    {
+      "file": "packages/db/test/schema.test.ts",
+      "lines": 1007,
+      "limit": 800,
+      "proposedSplit": "Lista migracji jako wspólny fixture i pliki asercji per domena, w tym schema.computers.test.ts; nie zmieniać zastosowanych migracji."
+    },
+    {
+      "file": "apps/worker/src/providers/claude/threads.ts",
+      "lines": 917,
+      "limit": 400,
+      "proposedSplit": "sessions (open/switch/close), turns/consume/steer, permissions (canUseTool), output/goal verdict; zachować granice sesji SDK."
+    },
+    {
+      "file": "apps/gateway/src/computers/shared.ts",
+      "lines": 916,
+      "limit": 400,
+      "proposedSplit": "Zegar wersji i konflikty, read/write per rodzaj konfiguracji, sekretne referencje, push/receive oraz snapshot/diff. Nie rozszerzać ujawniania sekretów."
+    },
+    {
+      "file": "tests/integration/bots.test.ts",
+      "lines": 836,
+      "limit": 800,
+      "proposedSplit": "Scenariusze CRUD, rozmowy, approvals i routines do osobnych testów, wspólny setup/cleanup."
+    },
+    {
+      "file": "apps/gateway/src/computers/moves.ts",
+      "lines": 834,
+      "limit": 400,
+      "proposedSplit": "Preview/inspect/configuration, source driver (freeze/prepare/decide/settle), target handlers (prepare/apply/outcome), tick/recovery. Zachować dwufazowy protokół i idempotencję."
+    },
+    {
+      "file": "apps/gateway/src/computers/move-state.ts",
+      "lines": 773,
+      "limit": 400,
+      "proposedSplit": "Move types/rows, blockers/freeze/export, source commit/rollback, target stage/decision, bot import, thread import/history i redirects/audit; transakcje pozostają atomowe."
+    },
+    {
+      "file": "apps/worker/src/providers/codex/threads.ts",
+      "lines": 722,
+      "limit": 400,
+      "proposedSplit": "Sesje/wątki, turns/steer i dynamic tools (view_image/agent bus) w osobnych modułach."
+    },
+    {
+      "file": "apps/gateway/src/api/routed.ts",
+      "lines": 652,
+      "limit": 400,
+      "proposedSplit": "Routing lokalny/zdalny, overview aggregation, frozen/moved guards oraz stream forwarding/relay w osobnych modułach; autoryzacja nadal na gateway."
+    },
+    {
+      "file": "apps/worker/src/providers/codex/mapping.ts",
+      "lines": 648,
+      "limit": 400,
+      "proposedSplit": "CodexEventMapper, item mappers, background tasks i status/usage/errors; map oraz mapItem na handlery typów zdarzeń."
+    },
+    {
+      "file": "apps/worker/src/providers/claude/mapping.ts",
+      "lines": 645,
+      "limit": 400,
+      "proposedSplit": "ClaudeEventMapper, background tasks, content/tool mapping i goal verdicts w osobnych modułach."
+    },
+    {
+      "file": "apps/gateway/src/store/instances.ts",
+      "lines": 612,
+      "limit": 400,
+      "proposedSplit": "InstanceStore CRUD/workers/models, instance-validation oraz sync/registerEndpoint jako osobne operacje/warstwy."
+    },
+    {
+      "file": "apps/desktop/src/main.ts",
+      "lines": 586,
+      "limit": 400,
+      "proposedSplit": "main startup/lifecycle, windows/chrome, IPC authorization/handlers i enrollment; start na jawne kroki inicjalizacji i shutdown."
+    },
+    {
+      "file": "apps/web/src/lib/features/providers/instances.ts",
+      "lines": 475,
+      "limit": 400,
+      "proposedSplit": "instance-status, env-vars/argument parsing, instance-form i API client; zachować istniejące publiczne typy."
+    },
+    {
+      "file": "apps/gateway/src/connectors/runtime.ts",
+      "lines": 468,
+      "limit": 400,
+      "proposedSplit": "ConnectorsRuntime lista/zapis/OAuth i connector-calls execute/permission/handle; poświadczenia pozostają w gateway."
+    },
+    {
+      "file": "apps/gateway/src/core/agent-bus.ts",
+      "lines": 463,
+      "limit": 400,
+      "proposedSplit": "execute na handlery bus-tools per narzędzie; serializacja wyników i walidacja targetów osobno."
+    },
+    {
+      "file": "apps/gateway/src/api/ui-service.ts",
+      "lines": 459,
+      "limit": 400,
+      "proposedSplit": "uiHandlers na moduły tras per obszar: threads, projects, workers, bots, settings/computers; wspólne guard/toConnectError do errors.ts."
+    },
+    {
+      "file": "apps/gateway/src/bots/runtime.ts",
+      "lines": 456,
+      "limit": 400,
+      "proposedSplit": "Cykl życia/tick, bot-turn (execute) i fasada API; kroki tury bez zmiany kolejności checkpointów."
+    },
+    {
+      "file": "apps/web/src/routes/threads/[threadId]/+page.svelte",
+      "lines": 452,
+      "limit": 400,
+      "proposedSplit": "thread-page.svelte.ts dla stanu/komend i ThreadDialogs.svelte dla goal/schedule/background/move dialogs; bez zmiany zachowania UI."
+    },
+    {
+      "file": "apps/web/src/lib/shared/ui/virtual/VirtualFeed.svelte",
+      "lines": 447,
+      "limit": 400,
+      "proposedSplit": "feed-anchor.svelte.ts i feed-range.svelte.ts obok istniejącego size-index; komponent zawiera render i wiązania zdarzeń."
+    },
+    {
+      "file": "apps/web/src/lib/features/threads/dev/tool-fixtures.ts",
+      "lines": 436,
+      "limit": 400,
+      "proposedSplit": "Galeria narzędzi na rodziny: shell, edit, MCP, agent bus. Nie dodawać wyjątku limitu bez uzasadnienia danymi."
+    },
+    {
+      "file": "apps/gateway/src/store/ingest.ts",
+      "lines": 435,
+      "limit": 400,
+      "proposedSplit": "Handlery zdarzeń: turn, item, notice/steer i background task; zachować jedną transakcję i deduplikację."
+    },
+    {
+      "file": "apps/gateway/src/computers/remote.ts",
+      "lines": 414,
+      "limit": 400,
+      "proposedSplit": "Method policy, kwalifikacja identyfikatorów, wire errors i RemoteCalls transport z cancellation/fragmentation; bez zmiany formatu ramek."
+    },
+    {
+      "file": "apps/gateway/src/core/cli-tools.ts",
+      "lines": 402,
+      "limit": 400,
+      "proposedSplit": "Latest-version sources/cache i bezpieczny HTTP parser osobno od administracji i poleceń CLI."
+    }
+  ],
+  "maxLinesPerFunctionAfterMechanicalPass": [
+    {
+      "file": "apps/gateway/src/bots/store.ts",
+      "line": 152,
+      "lines": 995,
+      "message": "The function `makeStore` has too many lines (995). Maximum allowed is 120.",
+      "proposedSplit": "Serwisy per agregat: boty, rozmowy/wiadomości, exchanges/calls, approvals, handoffs, MCP i wakeups. Usunąć wielką fabrykę makeStore przez kompozycję warstw."
+    },
+    {
+      "file": "apps/gateway/src/store/store.ts",
+      "line": 353,
+      "lines": 921,
+      "message": "The static method `layer` has too many lines (921). Maximum allowed is 120.",
+      "proposedSplit": "WorkerStore, ProjectStore, ThreadStore, TurnStore i InteractionStore jako osobne Context.Service; mapery UI do ui-mappers.ts. Rozdzielić warstwy Effect, zamiast importować konstruktory serwisów."
+    },
+    {
+      "file": "apps/gateway/src/store/store.ts",
+      "line": 356,
+      "lines": 917,
+      "message": "The generator function has too many lines (917). Maximum allowed is 120.",
+      "proposedSplit": "WorkerStore, ProjectStore, ThreadStore, TurnStore i InteractionStore jako osobne Context.Service; mapery UI do ui-mappers.ts. Rozdzielić warstwy Effect, zamiast importować konstruktory serwisów."
+    },
+    {
+      "file": "apps/gateway/src/store/agent-bus.ts",
+      "line": 340,
+      "lines": 867,
+      "message": "The generator function has too many lines (867). Maximum allowed is 120.",
+      "proposedSplit": "AgentBusStore dla wywołań i wątków, BusScheduleStore dla harmonogramów, BusDeliveryStore dla powiadomień i przekazywania interakcji; mapery osobno."
+    },
+    {
+      "file": "apps/worker/src/providers/claude/threads.ts",
+      "line": 236,
+      "lines": 690,
+      "message": "The function has too many lines (690). Maximum allowed is 120.",
+      "proposedSplit": "sessions (open/switch/close), turns/consume/steer, permissions (canUseTool), output/goal verdict; zachować granice sesji SDK."
+    },
+    {
+      "file": "apps/worker/src/providers/claude/threads.ts",
+      "line": 237,
+      "lines": 689,
+      "message": "The generator function has too many lines (689). Maximum allowed is 120.",
+      "proposedSplit": "sessions (open/switch/close), turns/consume/steer, permissions (canUseTool), output/goal verdict; zachować granice sesji SDK."
+    },
+    {
+      "file": "apps/worker/src/providers/codex/threads.ts",
+      "line": 256,
+      "lines": 536,
+      "message": "The function has too many lines (536). Maximum allowed is 120.",
+      "proposedSplit": "Sesje/wątki, turns/steer i dynamic tools (view_image/agent bus) w osobnych modułach."
+    },
+    {
+      "file": "apps/worker/src/providers/codex/threads.ts",
+      "line": 257,
+      "lines": 535,
+      "message": "The generator function has too many lines (535). Maximum allowed is 120.",
+      "proposedSplit": "Sesje/wątki, turns/steer i dynamic tools (view_image/agent bus) w osobnych modułach."
+    },
+    {
+      "file": "apps/gateway/src/store/instances.ts",
+      "line": 150,
+      "lines": 508,
+      "message": "The static method `layer` has too many lines (508). Maximum allowed is 120.",
+      "proposedSplit": "InstanceStore CRUD/workers/models, instance-validation oraz sync/registerEndpoint jako osobne operacje/warstwy."
+    },
+    {
+      "file": "apps/gateway/src/store/instances.ts",
+      "line": 153,
+      "lines": 504,
+      "message": "The generator function has too many lines (504). Maximum allowed is 120.",
+      "proposedSplit": "InstanceStore CRUD/workers/models, instance-validation oraz sync/registerEndpoint jako osobne operacje/warstwy."
+    },
+    {
+      "file": "apps/gateway/src/api/ui-service.ts",
+      "line": 52,
+      "lines": 351,
+      "message": "The function `uiHandlers` has too many lines (351). Maximum allowed is 120.",
+      "proposedSplit": "uiHandlers na moduły tras per obszar: threads, projects, workers, bots, settings/computers; wspólne guard/toConnectError do errors.ts."
+    },
+    {
+      "file": "apps/web/src/lib/features/threads/dev/tool-fixtures.ts",
+      "line": 94,
+      "lines": 350,
+      "message": "The function `toolGallery` has too many lines (350). Maximum allowed is 120.",
+      "proposedSplit": "Galeria narzędzi na rodziny: shell, edit, MCP, agent bus. Nie dodawać wyjątku limitu bez uzasadnienia danymi."
+    },
+    {
+      "file": "apps/gateway/src/store/ingest.ts",
+      "line": 97,
+      "lines": 321,
+      "message": "The generator function has too many lines (321). Maximum allowed is 120.",
+      "proposedSplit": "Handlery zdarzeń: turn, item, notice/steer i background task; zachować jedną transakcję i deduplikację."
+    },
+    {
+      "file": "apps/gateway/src/connectors/store.ts",
+      "line": 60,
+      "lines": 316,
+      "message": "The function `connectorStore` has too many lines (316). Maximum allowed is 120.",
+      "proposedSplit": "connectorStore na konta, OAuth state i granty; szyfrowanie i owner scoping we wspólnej warstwie."
+    },
+    {
+      "file": "apps/mobile/src/app/settings.tsx",
+      "line": 17,
+      "lines": 290,
+      "message": "The function `Settings` has too many lines (290). Maximum allowed is 120.",
+      "proposedSplit": "Settings na sekcje konta, urządzeń i wyglądu oraz hook stanu ekranu."
+    },
+    {
+      "file": "apps/worker/src/runtime/host.ts",
+      "line": 667,
+      "lines": 271,
+      "message": "The private async method `execute` has too many lines (271). Maximum allowed is 120.",
+      "proposedSplit": "Fasada hosta, command handlers, codex-runtimes, claude-runtimes, katalog/login i operacje plikowe; zachować admission/drain/recovery."
+    },
+    {
+      "file": "apps/mobile/src/app/index.tsx",
+      "line": 14,
+      "lines": 249,
+      "message": "The function `AppSidebar` has too many lines (249). Maximum allowed is 120.",
+      "proposedSplit": "AppSidebar na listy projektów/wątków/botów i hook filtrowania/nawigacji."
+    },
+    {
+      "file": "apps/mobile/src/app/thread/[id].tsx",
+      "line": 27,
+      "lines": 237,
+      "message": "The function `Thread` has too many lines (237). Maximum allowed is 120.",
+      "proposedSplit": "Thread na odczyt/stream stanu, nagłówek i panel rozmowy z kompozytorem."
+    },
+    {
+      "file": "apps/worker/src/journal/journal.ts",
+      "line": 187,
+      "lines": 226,
+      "message": "The function `makeJournal` has too many lines (226). Maximum allowed is 120.",
+      "proposedSplit": "makeJournal składa operacje sesji, pending commands, ack/cursors i replay; zachować trwałość zapisu."
+    },
+    {
+      "file": "apps/gateway/src/computers/agents.ts",
+      "line": 351,
+      "lines": 220,
+      "message": "The async method `botTool` has too many lines (220). Maximum allowed is 120.",
+      "proposedSplit": "Osobne bot-tools, agent-bus-tools, receive/dispatch i deliveries/tick; katalog/overview oraz kwalifikowanie wyników osobno. Zachować home routing, deduplikację i owner scoping."
+    },
+    {
+      "file": "apps/web/src/lib/features/commands/app-commands.ts",
+      "line": 48,
+      "lines": 220,
+      "message": "The function `appCommands` has too many lines (220). Maximum allowed is 120.",
+      "proposedSplit": "Rejestratory komend per obszar (threads, navigation, providers/settings), składane przez appCommands."
+    },
+    {
+      "file": "apps/gateway/src/store/background-tasks.ts",
+      "line": 107,
+      "lines": 202,
+      "message": "The generator function has too many lines (202). Maximum allowed is 120.",
+      "proposedSplit": "Warstwa serwisu składa operacje create/update/list/finish oraz mapery tasków."
+    },
+    {
+      "file": "apps/desktop/src/main.ts",
+      "line": 461,
+      "lines": 199,
+      "message": "The async function `start` has too many lines (199). Maximum allowed is 120.",
+      "proposedSplit": "main startup/lifecycle, windows/chrome, IPC authorization/handlers i enrollment; start na jawne kroki inicjalizacji i shutdown."
+    },
+    {
+      "file": "apps/gateway/src/computers/agents.ts",
+      "line": 894,
+      "lines": 199,
+      "message": "The async method `receive` has too many lines (199). Maximum allowed is 120.",
+      "proposedSplit": "Osobne bot-tools, agent-bus-tools, receive/dispatch i deliveries/tick; katalog/overview oraz kwalifikowanie wyników osobno. Zachować home routing, deduplikację i owner scoping."
+    },
+    {
+      "file": "apps/web/src/lib/features/commands/app-commands.ts",
+      "line": 72,
+      "lines": 198,
+      "message": "The function has too many lines (198). Maximum allowed is 120.",
+      "proposedSplit": "Rejestratory komend per obszar (threads, navigation, providers/settings), składane przez appCommands."
+    },
+    {
+      "file": "apps/gateway/src/bots/platform.ts",
+      "line": 80,
+      "lines": 197,
+      "message": "The async function `botPlatform` has too many lines (197). Maximum allowed is 120.",
+      "proposedSplit": "botPlatform: grupy narzędzi i kontrola uprawnień w osobnych rejestratorach, wspólny kontekst pozostaje jawny."
+    },
+    {
+      "file": "apps/mobile/src/features/threads/MessageComposer.tsx",
+      "line": 19,
+      "lines": 196,
+      "message": "The function `MessageComposer` has too many lines (196). Maximum allowed is 120.",
+      "proposedSplit": "MessageComposer na hook draft/send, załączniki i przyciski akcji."
+    },
+    {
+      "file": "apps/gateway/src/bots/runtime.ts",
+      "line": 191,
+      "lines": 194,
+      "message": "The private async method `execute` has too many lines (194). Maximum allowed is 120.",
+      "proposedSplit": "Cykl życia/tick, bot-turn (execute) i fasada API; kroki tury bez zmiany kolejności checkpointów."
+    },
+    {
+      "file": "apps/gateway/src/core/worker-ssh.ts",
+      "line": 127,
+      "lines": 178,
+      "message": "The private async generator method `run` has too many lines (178). Maximum allowed is 120.",
+      "proposedSplit": "run na przygotowanie połączenia, wykonanie instalacji/enrollment i strumień postępu; zachować anulowanie i cleanup."
+    },
+    {
+      "file": "apps/gateway/src/core/agent-bus.ts",
+      "line": 296,
+      "lines": 177,
+      "message": "The private async method `execute` has too many lines (177). Maximum allowed is 120.",
+      "proposedSplit": "execute na handlery bus-tools per narzędzie; serializacja wyników i walidacja targetów osobno."
+    },
+    {
+      "file": "scripts/prune-nightly.ts",
+      "line": 93,
+      "lines": 177,
+      "message": "The async function `runHygiene` has too many lines (177). Maximum allowed is 120.",
+      "proposedSplit": "runHygiene na wybór zachowanych wersji, plan usunięć i wykonanie; zachować tryb dry run i testy planowania."
+    },
+    {
+      "file": "apps/worker/src/providers/claude/threads.ts",
+      "line": 606,
+      "lines": 174,
+      "message": "The async function has too many lines (174). Maximum allowed is 120.",
+      "proposedSplit": "sessions (open/switch/close), turns/consume/steer, permissions (canUseTool), output/goal verdict; zachować granice sesji SDK."
+    },
+    {
+      "file": "apps/worker/src/providers/codex/mapping.ts",
+      "line": 108,
+      "lines": 172,
+      "message": "The method `map` has too many lines (172). Maximum allowed is 120.",
+      "proposedSplit": "CodexEventMapper, item mappers, background tasks i status/usage/errors; map oraz mapItem na handlery typów zdarzeń."
+    },
+    {
+      "file": "apps/mobile/src/app/pair.tsx",
+      "line": 13,
+      "lines": 164,
+      "message": "The function `Pair` has too many lines (164). Maximum allowed is 120.",
+      "proposedSplit": "Pair na formularz parowania, stan żądania i wynik/logowanie urządzenia."
+    },
+    {
+      "file": "apps/worker/src/providers/codex/mapping.ts",
+      "line": 477,
+      "lines": 164,
+      "message": "The function `mapItem` has too many lines (164). Maximum allowed is 120.",
+      "proposedSplit": "CodexEventMapper, item mappers, background tasks i status/usage/errors; map oraz mapItem na handlery typów zdarzeń."
+    },
+    {
+      "file": "apps/desktop/scripts/smoke-quit-main.ts",
+      "line": 14,
+      "lines": 162,
+      "message": "The async function `smoke` has too many lines (162). Maximum allowed is 120.",
+      "proposedSplit": "smoke na setup, scenariusze quit/restart/confirmation i cleanup; nie uruchamiać bez osobnej zgody na E2E."
+    },
+    {
+      "file": "apps/gateway/src/core/core.ts",
+      "line": 240,
+      "lines": 156,
+      "message": "The constructor `constructor` has too many lines (156). Maximum allowed is 120.",
+      "proposedSplit": "Fasada i okablowanie GatewayCore; work-loop, commands/queue, projects/workspaces, threads, bot-threads, attachments, models/provider-instances, interactions, settings, schedules/goals. Połączenia komputerów zostają za wąskim interfejsem hosta."
+    },
+    {
+      "file": "apps/gateway/src/store/queue.ts",
+      "line": 74,
+      "lines": 152,
+      "message": "The generator function has too many lines (152). Maximum allowed is 120.",
+      "proposedSplit": "Warstwa serwisu składa enqueue/claim/settle i osobne mapery kolejki; zachować blokady transakcyjne."
+    },
+    {
+      "file": "apps/desktop/src/runtime/runtime.ts",
+      "line": 210,
+      "lines": 151,
+      "message": "The async method `configure` has too many lines (151). Maximum allowed is 120.",
+      "proposedSplit": "configure na local/remote startup, instalację bazy i sidecar environment; zachować generation/cancel startup."
+    },
+    {
+      "file": "packages/domain/src/agent-bus/policy.ts",
+      "line": 97,
+      "lines": 151,
+      "message": "The function `authorizeBusCall` has too many lines (151). Maximum allowed is 120.",
+      "proposedSplit": "authorizeBusCall na walidację drzewa, ograniczeń i uprawnień narzędzi; zachować domyślną odmowę."
+    },
+    {
+      "file": "apps/gateway/src/computers/agents.ts",
+      "line": 650,
+      "lines": 149,
+      "message": "The async method `tool` has too many lines (149). Maximum allowed is 120.",
+      "proposedSplit": "Osobne bot-tools, agent-bus-tools, receive/dispatch i deliveries/tick; katalog/overview oraz kwalifikowanie wyników osobno. Zachować home routing, deduplikację i owner scoping."
+    },
+    {
+      "file": "apps/gateway/src/store/settings.ts",
+      "line": 72,
+      "lines": 149,
+      "message": "The generator function has too many lines (149). Maximum allowed is 120.",
+      "proposedSplit": "Oddzielić walidację/normalizację ustawień i persistence; warstwa Effect tylko składa operacje."
+    },
+    {
+      "file": "packages/updater/src/binary.ts",
+      "line": 247,
+      "lines": 145,
+      "message": "The async function `superviseBinary` has too many lines (145). Maximum allowed is 120.",
+      "proposedSplit": "superviseBinary na lifecycle procesu, recovery/restart i health; zamrożony protokół aktualizacji bez zmian."
+    },
+    {
+      "file": "apps/gateway/src/computers/shared.ts",
+      "line": 340,
+      "lines": 144,
+      "message": "The private async method `write` has too many lines (144). Maximum allowed is 120.",
+      "proposedSplit": "Zegar wersji i konflikty, read/write per rodzaj konfiguracji, sekretne referencje, push/receive oraz snapshot/diff. Nie rozszerzać ujawniania sekretów."
+    },
+    {
+      "file": "apps/worker/src/providers/grok/bus.ts",
+      "line": 23,
+      "lines": 142,
+      "message": "The function `grokBus` has too many lines (142). Maximum allowed is 120.",
+      "proposedSplit": "grokBus na rejestrację narzędzi, dispatch i obsługę odpowiedzi/interakcji."
+    },
+    {
+      "file": "apps/gateway/src/bots/routines.ts",
+      "line": 84,
+      "lines": 138,
+      "message": "The function `routineStore` has too many lines (138). Maximum allowed is 120.",
+      "proposedSplit": "routineStore: CRUD, planowanie/claim i mapowanie rekordu do osobnych operacji."
+    },
+    {
+      "file": "apps/gateway/src/computers/mirror.ts",
+      "line": 239,
+      "lines": 133,
+      "message": "The async generator method `publish` has too many lines (133). Maximum allowed is 120.",
+      "proposedSplit": "consume: osobne handlery delty/resetu i zapis kursora; publish: snapshot i kolejne delty. Zachować wznowienie i pełną resynchronizację."
+    },
+    {
+      "file": "apps/mobile/src/app/bot/[id].tsx",
+      "line": 23,
+      "lines": 132,
+      "message": "The function `BotChat` has too many lines (132). Maximum allowed is 120.",
+      "proposedSplit": "BotChat na hook rozmowy, listę wiadomości i akcje bota."
+    },
+    {
+      "file": "apps/gateway/src/computers/agents.ts",
+      "line": 913,
+      "lines": 130,
+      "message": "The async function has too many lines (130). Maximum allowed is 120.",
+      "proposedSplit": "Osobne bot-tools, agent-bus-tools, receive/dispatch i deliveries/tick; katalog/overview oraz kwalifikowanie wyników osobno. Zachować home routing, deduplikację i owner scoping."
+    },
+    {
+      "file": "apps/gateway/src/store/thread-secrets.ts",
+      "line": 56,
+      "lines": 130,
+      "message": "The function `threadSecretsStore` has too many lines (130). Maximum allowed is 120.",
+      "proposedSplit": "threadSecretsStore na grant/read/revoke, z jednym punktem szyfrowania i kontroli właściciela."
+    },
+    {
+      "file": "apps/web/src/lib/features/bots/behaviour.ts",
+      "line": 121,
+      "lines": 127,
+      "message": "The function `tick` has too many lines (127). Maximum allowed is 120.",
+      "proposedSplit": "tick na stan ruchu, reakcje i aktualizację animacji; zachować te same tokeny czasu i reduced-motion."
+    },
+    {
+      "file": "apps/mobile/src/features/threads/ComposerBox.tsx",
+      "line": 6,
+      "lines": 124,
+      "message": "The function `ComposerBox` has too many lines (124). Maximum allowed is 120.",
+      "proposedSplit": "ComposerBox na pole edycji i toolbar/status; zachować focus i obsługę klawiatury."
+    },
+    {
+      "file": "apps/web/src/routes/threads/[threadId]/+page.svelte",
+      "line": 419,
+      "lines": 124,
+      "message": "The function has too many lines (124). Maximum allowed is 120.",
+      "proposedSplit": "thread-page.svelte.ts dla stanu/komend i ThreadDialogs.svelte dla goal/schedule/background/move dialogs; bez zmiany zachowania UI."
+    },
+    {
+      "file": "apps/gateway/src/computers/mirror.ts",
+      "line": 93,
+      "lines": 121,
+      "message": "The async method `consume` has too many lines (121). Maximum allowed is 120.",
+      "proposedSplit": "consume: osobne handlery delty/resetu i zapis kursora; publish: snapshot i kolejne delty. Zachować wznowienie i pełną resynchronizację."
+    },
+    {
+      "file": "apps/gateway/src/store/thread-lifecycle.ts",
+      "line": 28,
+      "lines": 121,
+      "message": "The function `threadLifecycle` has too many lines (121). Maximum allowed is 120.",
+      "proposedSplit": "threadLifecycle na archive/remove i cleanup zależnych rekordów w tej samej transakcji."
+    }
+  ]
+}

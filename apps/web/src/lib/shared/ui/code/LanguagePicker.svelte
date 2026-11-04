@@ -10,9 +10,14 @@
    * or any tag that names them (`py`, `golang`, `yml`). `value` is the fence's word as typed (one we do not know shows
    * as it is); choosing writes the language's short tag (`fenceTag`), "Plain text" writes none.
    */
-  let { value, onselect, class: className }: { value: string; onselect: (tag: string) => void; class?: ClassValue } = $props();
+  let {
+    value,
+    onselect,
+    class: className,
+  }: { value: string; onselect: (tag: string) => void; class?: ClassValue } = $props();
 
   type Item = { readonly id: LanguageId | ""; readonly name: string; readonly words: readonly string[] };
+
   const items: readonly Item[] = [{ id: "", name: "Plain text", words: ["text", "plain", "txt"] }, ...LANGUAGES];
   const language = $derived(languageOf(value));
   const label = $derived(language ? LANGUAGE_NAMES[language] : value || "Plain text");
@@ -35,7 +40,12 @@
     </PillButton>
   {/snippet}
   {#snippet option(item, state)}
-    <PickerRow title={item.name} detail={item.id ? fenceTag(item.id) : undefined} detailClass="font-mono" selected={state.selected} />
+    <PickerRow
+      title={item.name}
+      detail={item.id ? fenceTag(item.id) : undefined}
+      detailClass="font-mono"
+      selected={state.selected}
+    />
   {/snippet}
   {#snippet empty(query)}No languages match “{query}”.{/snippet}
 </SearchPicker>

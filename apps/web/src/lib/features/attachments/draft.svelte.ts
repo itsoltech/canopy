@@ -27,11 +27,28 @@ export interface DraftFile {
 }
 
 /** Native programs: refused by the gateway anyway, said here before the upload. */
-const PROGRAMS: ReadonlySet<string> = new Set(["exe", "dll", "msi", "com", "scr", "sys", "so", "dylib", "app", "msix", "appx"]);
+const PROGRAMS: ReadonlySet<string> = new Set([
+  "exe",
+  "dll",
+  "msi",
+  "com",
+  "scr",
+  "sys",
+  "so",
+  "dylib",
+  "app",
+  "msix",
+  "appx",
+]);
 
 export function limitsOf(limits: ui.AttachmentLimits | undefined): AttachmentLimits {
   if (!limits || limits.maxFileBytes === 0n) return DEFAULT_ATTACHMENT_LIMITS;
-  return { maxFileBytes: Number(limits.maxFileBytes), maxMessageBytes: Number(limits.maxMessageBytes), maxFiles: limits.maxFiles };
+
+  return {
+    maxFileBytes: Number(limits.maxFileBytes),
+    maxMessageBytes: Number(limits.maxMessageBytes),
+    maxFiles: limits.maxFiles,
+  };
 }
 
 export class AttachmentDraft {
@@ -65,26 +82,36 @@ export class AttachmentDraft {
   /** Why the message cannot go with its files yet (undefined: it can). */
   get blocker(): string | undefined {
     if (this.uploading) return "Wait for the files to upload.";
+
     if (this.failed) return "Remove the files that could not be attached.";
+
     return undefined;
   }
 
   add(list: Iterable<File>): void {
     const limits = this.#limits();
     const problems: string[] = [];
+
     for (const file of list) {
-      const name = file.name || (file.type.startsWith("image/") ? `pasted-image.${file.type.split("/")[1] ?? "png"}` : "attachment");
+      const name =
+        file.name ||
+        (file.type.startsWith("image/") ? `pasted-image.${file.type.split("/")[1] ?? "png"}` : "attachment");
+
       const total = this.files.reduce((sum, f) => sum + f.size, 0) + file.size;
+
       if (this.files.length >= limits.maxFiles) problems.push(`Up to ${limits.maxFiles} files go with one message.`);
       else if (file.size === 0) problems.push(`${name} is empty.`);
-      else if (file.size > limits.maxFileBytes) problems.push(`${name} is ${formatSize(file.size)}; files can be up to ${formatSize(limits.maxFileBytes)}.`);
-      else if (total > limits.maxMessageBytes) problems.push(`Together the files would be over ${formatSize(limits.maxMessageBytes)}.`);
+      else if (file.size > limits.maxFileBytes)
+        problems.push(`${name} is ${formatSize(file.size)}; files can be up to ${formatSize(limits.maxFileBytes)}.`);
+      else if (total > limits.maxMessageBytes)
+        problems.push(`Together the files would be over ${formatSize(limits.maxMessageBytes)}.`);
       else if (PROGRAMS.has(extensionOf(name))) problems.push(`${name} is a program; programs cannot be attached.`);
       else {
         this.#start(file, name);
         continue;
       }
     }
+
     this.notice = problems.length > 0 ? [...new Set(problems)].join(" ") : undefined;
   }
 
@@ -92,6 +119,7 @@ export class AttachmentDraft {
     this.#uploads.get(key)?.abort();
     this.#uploads.delete(key);
     const file = this.files.find((f) => f.key === key);
+
     if (file?.localUrl) URL.revokeObjectURL(file.localUrl);
     this.files = this.files.filter((f) => f.key !== key);
     this.notice = undefined;
@@ -100,6 +128,7 @@ export class AttachmentDraft {
   /** After sending: the files went with the message (the chat shows them from now on). */
   clear(): void {
     for (const file of this.files) if (file.localUrl) URL.revokeObjectURL(file.localUrl);
+
     for (const upload of this.#uploads.values()) upload.abort();
     this.#uploads.clear();
     this.files = [];
@@ -109,7 +138,17 @@ export class AttachmentDraft {
   #start(file: File, name: string): void {
     const key = crypto.randomUUID();
     const image = /^image\/(png|jpeg|gif|webp)$/.test(file.type);
-    this.files.push({ key, name, size: file.size, image, localUrl: image ? URL.createObjectURL(file) : undefined, status: "uploading", progress: 0, error: undefined, attachment: undefined });
+    this.files.push({
+      key,
+      name,
+      size: file.size,
+      image,
+      localUrl: image ? URL.createObjectURL(file) : undefined,
+      status: "uploading",
+      progress: 0,
+      error: undefined,
+      attachment: undefined,
+    });
     const entry = () => this.files.find((f) => f.key === key);
     const request = new XMLHttpRequest();
     this.#uploads.set(key, request);
@@ -120,12 +159,16 @@ export class AttachmentDraft {
     request.responseType = "json";
     request.upload.onprogress = (event) => {
       const draft = entry();
+
       if (draft && event.lengthComputable) draft.progress = event.loaded / event.total;
     };
+
     request.onload = () => {
       this.#uploads.delete(key);
       const draft = entry();
+
       if (!draft) return;
+
       if (request.status >= 200 && request.status < 300) {
         draft.attachment = decode(ui.AttachmentSchema, request.response);
         draft.progress = 1;
@@ -133,14 +176,22 @@ export class AttachmentDraft {
       } else {
         const message = (request.response as { message?: unknown } | null)?.message;
         draft.status = "failed";
-        draft.error = typeof message === "string" ? message : request.status === 413 ? "The file is too large." : `Upload failed (${request.status}).`;
+        draft.error =
+          typeof message === "string"
+            ? message
+            : request.status === 413
+              ? "The file is too large."
+              : `Upload failed (${request.status}).`;
       }
     };
+
     request.onerror = () => {
       this.#uploads.delete(key);
       const draft = entry();
+
       if (draft) Object.assign(draft, { status: "failed", error: "Upload failed: the connection was lost." });
     };
+
     request.send(file);
   }
 }
@@ -148,6 +199,10 @@ export class AttachmentDraft {
 /** Files from a drop or paste (images pasted from the clipboard, e.g. screenshots, come as files too). */
 export function filesOf(data: DataTransfer | null): File[] {
   if (!data) return [];
+
   if (data.files.length > 0) return [...data.files];
-  return [...data.items].flatMap((item) => (item.kind === "file" ? [item.getAsFile()].filter((f): f is File => f !== null) : []));
+
+  return [...data.items].flatMap((item) =>
+    item.kind === "file" ? [item.getAsFile()].filter((f): f is File => f !== null) : [],
+  );
 }

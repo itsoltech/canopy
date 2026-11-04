@@ -21,6 +21,7 @@ let keyFile: string;
 
 beforeAll(async () => {
   workDir = tempDir("canopy-interop-");
+
   const build = await Bun.build({
     entrypoints: [join(import.meta.dir, "fixtures/node-peer.ts")],
     target: "node",
@@ -28,6 +29,7 @@ beforeAll(async () => {
     outdir: workDir,
     naming: "node-peer.mjs",
   });
+
   if (!build.success) throw new AggregateError(build.logs, "bundling node-peer failed");
   peerScript = join(workDir, "node-peer.mjs");
 
@@ -49,15 +51,19 @@ function spawnPeer(args: string[]) {
   const proc = Bun.spawn(["node", peerScript, ...args], { stdout: "pipe", stderr: "pipe" });
   const lines: PeerLine[] = [];
   const waiters: Array<{ step: string; resolve: (line: PeerLine) => void }> = [];
+
   const reading = (async () => {
     let rest = "";
+
     for await (const chunk of proc.stdout.pipeThrough(new TextDecoderStream())) {
       rest += chunk;
       let newline: number;
+
       while ((newline = rest.indexOf("\n")) >= 0) {
         const line = JSON.parse(rest.slice(0, newline)) as PeerLine;
         rest = rest.slice(newline + 1);
         lines.push(line);
+
         for (const waiter of waiters.filter((w) => w.step === line.step)) {
           waiters.splice(waiters.indexOf(waiter), 1);
           waiter.resolve(line);
@@ -65,16 +71,19 @@ function spawnPeer(args: string[]) {
       }
     }
   })();
+
   return {
     proc,
     lines,
     waitFor: (step: string): Promise<PeerLine> => {
       const seen = lines.find((l) => l.step === step);
+
       return seen ? Promise.resolve(seen) : new Promise((resolve) => waiters.push({ step, resolve }));
     },
     finished: async () => {
       const exitCode = await proc.exited;
       await reading;
+
       return { exitCode, stderr: await new Response(proc.stderr).text() };
     },
   };
@@ -91,7 +100,11 @@ describe.each([
     const connection = await gateway.nextConnection();
     expect(connection.hello.host?.hostname).toBe("node-peer");
 
-    const result = await connection.sendCommand({ case: "createThread", value: { thread: { threadId: "t-1", cwd: "/tmp" } } });
+    const result = await connection.sendCommand({
+      case: "createThread",
+      value: { thread: { threadId: "t-1", cwd: "/tmp" } },
+    });
+
     expect(result.ok).toBe(true);
 
     const events = await take(connection.messages, EVENTS);
@@ -117,6 +130,7 @@ describe.each([
 ])("Bun worker -> grpc-js (Node) gateway over $name", ({ tls }) => {
   test("handshake, command, 100 events, ack, worker half-close", async () => {
     const peer = spawnPeer(["server", ...(tls ? [certFile, keyFile] : [])]);
+
     try {
       const { port } = await peer.waitFor("listening");
       const baseUrl = `${tls ? "https" : "http"}://127.0.0.1:${String(port)}`;
@@ -124,6 +138,7 @@ describe.each([
       expect(link.welcome.heartbeatIntervalSeconds).toBe(7);
 
       const [command] = await take(link.messages, 1);
+
       if (command?.payload.case !== "command") throw new Error(`expected command, got ${command?.payload.case}`);
       expect(command.payload.value.kind.case).toBe("createThread");
       link.send({ case: "commandResult", value: { commandId: command.payload.value.commandId, ok: true } });
@@ -139,6 +154,7 @@ describe.each([
           },
         });
       }
+
       const [ack] = await take(link.messages, 1);
       expect(ack?.payload.case === "eventAck" && ack.payload.value.ackSeq).toBe(BigInt(EVENTS));
 

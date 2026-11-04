@@ -12,11 +12,17 @@ import type { RequestHandler } from "./$types";
 export const POST: RequestHandler = async ({ params, request }) => {
   if (params.action === "install") {
     const body = await readMessage(request, ui.InstallCliRequestSchema);
+
     return json(encode(ui.InstallCliResponseSchema, await call((api) => api.installCli(body, { timeoutMs: 70_000 }))));
   }
+
   if (params.action === "check") {
     const body = await readMessage(request, ui.CheckCliUpdatesRequestSchema);
-    return json(encode(ui.CheckCliUpdatesResponseSchema, await call((api) => api.checkCliUpdates(body, { timeoutMs: 70_000 }))));
+
+    return json(
+      encode(ui.CheckCliUpdatesResponseSchema, await call((api) => api.checkCliUpdates(body, { timeoutMs: 70_000 }))),
+    );
   }
+
   error(404, "unknown action");
 };

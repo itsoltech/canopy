@@ -18,6 +18,7 @@ const dir = tempDir("canopy-profile-env-");
 const root = join(dir, "repos");
 const log = join(dir, "codex-processes.jsonl");
 const codex = join(dir, "codex");
+
 mkdirSync(root, { recursive: true });
 
 // Answers --version and the app-server handshake; writes one line per app-server process: pid, its probe variables.
@@ -43,6 +44,7 @@ for await (const chunk of process.stdin) {
 }
 `,
 );
+
 chmodSync(codex, 0o755);
 
 let runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>;
@@ -51,16 +53,23 @@ let version = 0n;
 
 const processes = () =>
   existsSync(log)
-    ? readFileSync(log, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as { pid: number; probe: string | null; token: string | null; keys: string[] })
+    ? readFileSync(log, "utf8")
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as { pid: number; probe: string | null; token: string | null; keys: string[] })
     : [];
+
 const alive = (pid: number) => {
   try {
     process.kill(pid, 0);
+
     return true;
   } catch {
     return false;
   }
 };
+
 const config = (profiles: NonNullable<MessageInitShape<typeof WorkerConfigSchema>["profiles"]>): WorkerConfig =>
   create(WorkerConfigSchema, {
     version: ++version,
@@ -69,11 +78,23 @@ const config = (profiles: NonNullable<MessageInitShape<typeof WorkerConfigSchema
     codex: { enabled: true, executablePath: codex },
     profiles,
   });
-const proxy = { id: "team", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:9", apiKey: "k", providers: [Provider.CODEX] };
+
+const proxy = {
+  id: "team",
+  kind: ProviderProfileKind.CLIPROXYAPI,
+  baseUrl: "http://127.0.0.1:9",
+  apiKey: "k",
+  providers: [Provider.CODEX],
+};
 
 beforeAll(() => {
   runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
-  host = new WorkerHost({ runtime, dataDir: join(dir, "data"), clientVersion: "test", deviceHomes: { claude: join(dir, "claude"), codex: join(dir, "codex-device") } });
+  host = new WorkerHost({
+    runtime,
+    dataDir: join(dir, "data"),
+    clientVersion: "test",
+    deviceHomes: { claude: join(dir, "claude"), codex: join(dir, "codex-device") },
+  });
 });
 
 afterAll(async () => {
@@ -92,7 +113,17 @@ describe("profile environment on the Codex app-server", () => {
 
   test("a profile with variables gets its own process with them; the shared one keeps running", async () => {
     const [shared] = processes();
-    await host.applyConfig(config([{ ...proxy, env: [{ name: "PROFILE_PROBE", value: "probe-7" }, { name: "TEAM_TOKEN", value: "t0k", secret: true }] }]));
+    await host.applyConfig(
+      config([
+        {
+          ...proxy,
+          env: [
+            { name: "PROFILE_PROBE", value: "probe-7" },
+            { name: "TEAM_TOKEN", value: "t0k", secret: true },
+          ],
+        },
+      ]),
+    );
     const started = processes();
     expect(started).toHaveLength(3); // the shared one again (its profile left it), and the profile's own
     expect(alive(shared!.pid)).toBe(false);

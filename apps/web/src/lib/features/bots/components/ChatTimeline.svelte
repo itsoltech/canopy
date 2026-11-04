@@ -65,22 +65,30 @@
   } = $props();
 
   const watching = $derived(conversation.kind === "watch");
+
   const participants = $derived(
-    new Map<string, ParticipantView>([[me.id, me], ...directory.map((b) => [b.id, b] as const), ...conversation.bots.map((b) => [b.id, b] as const)]),
+    new Map<string, ParticipantView>([
+      [me.id, me],
+      ...directory.map((b) => [b.id, b] as const),
+      ...conversation.bots.map((b) => [b.id, b] as const),
+    ]),
   );
+
   const bots = $derived([...participants.values()].filter((p) => p.kind === "bot"));
-  const rows = $derived(
-    layoutChat({ entries, participants, me: me.id, kind: conversation.kind, firstUnreadId }),
-  );
+  const rows = $derived(layoutChat({ entries, participants, me: me.id, kind: conversation.kind, firstUnreadId }));
   const nameOf = (id: string) => participants.get(id)?.name;
 
   // The entries the chat opens with are already there; only later ones rise in.
   let live = $state(false);
+
   $effect(() => {
     if (entries.length > 0 && !live) void tick().then(() => (live = true));
   });
+
   const enter = (node: HTMLElement) => (live ? rise(node) : { duration: 0 });
-  const approvalAnswering = (value: string | undefined) => (value === "approve" || value === "discard" || value === "edit" ? value : undefined);
+
+  const approvalAnswering = (value: string | undefined) =>
+    value === "approve" || value === "discard" || value === "edit" ? value : undefined;
 </script>
 
 <ol role="list" class={["flex flex-col", className]}>
@@ -92,14 +100,27 @@
     {:else if row.kind === "event"}
       <li class="py-2" in:enter><ChatEventLine event={row.event} /></li>
     {:else if row.kind === "exchanges"}
-      <li class="py-2" in:enter><ExchangeLine segments={row.segments} hrefOf={(segment) => exchangeHref?.(segment) ?? "#"} /></li>
+      <li class="py-2" in:enter>
+        <ExchangeLine segments={row.segments} hrefOf={(segment) => exchangeHref?.(segment) ?? "#"} />
+      </li>
     {:else if row.kind === "error"}
       <li class="pt-3" in:enter>
-        <ChatErrorLine error={row.error} sender={row.sender} {retrying} onretry={watching ? undefined : onretry} onchangemodel={watching ? undefined : onchangemodel} />
+        <ChatErrorLine
+          error={row.error}
+          sender={row.sender}
+          {retrying}
+          onretry={watching ? undefined : onretry}
+          onchangemodel={watching ? undefined : onchangemodel}
+        />
       </li>
     {:else if row.kind === "question"}
       <li class="pt-3" in:enter>
-        <MessageRow sender={row.sender} showName={conversation.kind !== "direct"} gutter={conversation.kind !== "direct"} state={row.question.answer ? "done" : "waiting"}>
+        <MessageRow
+          sender={row.sender}
+          showName={conversation.kind !== "direct"}
+          gutter={conversation.kind !== "direct"}
+          state={row.question.answer ? "done" : "waiting"}
+        >
           <QuestionCard
             question={row.question}
             answering={answering[row.question.id]}
@@ -109,7 +130,12 @@
       </li>
     {:else if row.kind === "approval"}
       <li class="pt-3" in:enter>
-        <MessageRow sender={row.sender} showName={conversation.kind !== "direct"} gutter={conversation.kind !== "direct"} state={row.approval.status === "pending" ? "waiting" : "done"}>
+        <MessageRow
+          sender={row.sender}
+          showName={conversation.kind !== "direct"}
+          gutter={conversation.kind !== "direct"}
+          state={row.approval.status === "pending" ? "waiting" : "done"}
+        >
           <ApprovalCard
             approval={row.approval}
             answering={approvalAnswering(answering[row.approval.id])}

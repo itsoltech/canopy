@@ -46,22 +46,44 @@
   };
 
   const look = $derived(
-    describeTool({ server: call.server, name: call.name, inputJson: call.inputJson, output: call.output, isError: call.isError, running: status === ItemStatus.IN_PROGRESS }),
+    describeTool({
+      server: call.server,
+      name: call.name,
+      inputJson: call.inputJson,
+      output: call.output,
+      isError: call.isError,
+      running: status === ItemStatus.IN_PROGRESS,
+    }),
   );
+
   const input = $derived(parseObject(call.inputJson));
   const Body = $derived(bodies[look.body]);
   const failed = $derived(call.isError || status === ItemStatus.FAILED);
-  const counts = $derived(look.body === "edit" || look.body === "patch" ? diffCounts(toolChanges(call.name, input)) : undefined);
+
+  const counts = $derived(
+    look.body === "edit" || look.body === "patch" ? diffCounts(toolChanges(call.name, input)) : undefined,
+  );
+
   const directory = useThreadDirectory();
 </script>
 
 <ItemFrame icon={look.icon} {status} tone={failed ? "rose" : "neutral"}>
-  {#snippet lead()}{#if call.connectorAccountId}<ConnectorIcon type={call.connectorType} />{:else}<Icon name={look.icon} class={failed ? 'fill-rose-500 dark:fill-rose-400' : 'fill-zinc-400 dark:fill-zinc-500'} />{/if}{/snippet}
+  {#snippet lead()}{#if call.connectorAccountId}<ConnectorIcon type={call.connectorType} />{:else}<Icon
+        name={look.icon}
+        class={failed ? "fill-rose-500 dark:fill-rose-400" : "fill-zinc-400 dark:fill-zinc-500"}
+      />{/if}{/snippet}
   {#snippet title()}
     <span class="flex min-w-0 gap-1.5">
-      <span class="min-w-0 truncate text-zinc-800 dark:text-zinc-200">{call.connectorAccountId ? `${call.server} · ${call.connectorAccountName} · ${call.name.split('__').at(-1)?.replaceAll('_', ' ')}` : look.title}</span>
+      <span class="min-w-0 truncate text-zinc-800 dark:text-zinc-200"
+        >{call.connectorAccountId
+          ? `${call.server} · ${call.connectorAccountName} · ${call.name.split("__").at(-1)?.replaceAll("_", " ")}`
+          : look.title}</span
+      >
       {#if look.subject}
-        <span class={["truncate text-zinc-500 dark:text-zinc-400", look.mono && "font-mono text-xs"]} title={look.subjectTitle}>{look.subject}</span>
+        <span
+          class={["truncate text-zinc-500 dark:text-zinc-400", look.mono && "font-mono text-xs"]}
+          title={look.subjectTitle}>{look.subject}</span
+        >
       {/if}
     </span>
   {/snippet}

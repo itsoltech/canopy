@@ -17,5 +17,6 @@ const Body = Schema.Struct({
 export const POST: RequestHandler = async ({ request, params }) => {
   const body = await readBody(request, Body);
   const response = await call((api) => api.answerInteraction({ requestId: params.requestId, ...body }));
+
   return json(encode(ui.AnswerInteractionResponseSchema, response));
 };

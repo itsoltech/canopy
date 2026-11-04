@@ -1,12 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { styles, useColors } from "../../ui/theme";
 import { Icon } from "../../ui/Icon";
 
@@ -38,6 +31,7 @@ export function ComposerBox({
   const c = useColors();
   const stop = running && !text.trim() && Boolean(onStop);
   const unavailable = disabled || busy || (!stop && !text.trim());
+
   return (
     <View
       style={{
@@ -107,9 +101,7 @@ export function ComposerBox({
           ) : null}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={
-              stop ? "Stop the turn" : running ? "Send now" : "Send message"
-            }
+            accessibilityLabel={stop ? "Stop the turn" : running ? "Send now" : "Send message"}
             disabled={unavailable}
             onPress={stop ? onStop : onSend}
             style={{
@@ -136,6 +128,7 @@ export function ComposerBox({
     </View>
   );
 }
+
 export function ComposerPill({
   icon,
   title,
@@ -150,6 +143,7 @@ export function ComposerPill({
   leading?: ReactNode;
 }) {
   const c = useColors();
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -165,16 +159,8 @@ export function ComposerPill({
         backgroundColor: pressed ? c.inset : "transparent",
       })}
     >
-      {leading ?? (
-        <Icon name={icon} size={14} color={warning ? c.warning : c.muted} />
-      )}
-      <Text
-        numberOfLines={1}
-        style={[
-          styles.meta,
-          { color: warning ? c.warning : c.muted, maxWidth: 140 },
-        ]}
-      >
+      {leading ?? <Icon name={icon} size={14} color={warning ? c.warning : c.muted} />}
+      <Text numberOfLines={1} style={[styles.meta, { color: warning ? c.warning : c.muted, maxWidth: 140 }]}>
         {title}
       </Text>
       <Icon name="chevron-down" size={12} />

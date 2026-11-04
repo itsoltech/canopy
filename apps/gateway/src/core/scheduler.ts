@@ -24,17 +24,26 @@ export interface SchedulerHost {
 }
 
 const LEASE_SECONDS = 60;
+
 /** A run later than this after its time counts as missed (missed_policy applies). */
 const MISSED_AFTER_MS = 2 * 60_000;
 
 /** Coalesce downtime to one occurrence; timezone and interval validation stay in cron.ts. */
-export function scheduleTiming(schedule: Pick<ScheduleRow, "next_run_at" | "kind" | "cron" | "timezone" | "missed_policy">, now: Date) {
+export function scheduleTiming(
+  schedule: Pick<ScheduleRow, "next_run_at" | "kind" | "cron" | "timezone" | "missed_policy">,
+  now: Date,
+) {
   const late = now.getTime() - new Date(schedule.next_run_at ?? now).getTime() > MISSED_AFTER_MS;
   let nextRunAt: Date | undefined;
+
   if (schedule.kind === "recurring" && schedule.cron) {
-    try { nextRunAt = nextCronRun(schedule.cron, schedule.timezone, now); }
-    catch { /* A parser change must not leave a schedule in an endless loop. */ }
+    try {
+      nextRunAt = nextCronRun(schedule.cron, schedule.timezone, now);
+    } catch {
+      /* A parser change must not leave a schedule in an endless loop. */
+    }
   }
+
   return { late, run: !(late && schedule.missed_policy === "skip"), nextRunAt };
 }
 
@@ -53,7 +62,9 @@ export class Scheduler {
   start(): void {
     this.#timer ??= setInterval(() => {
       if (this.#ticking) return;
-      this.#running = this.tick().catch((error: unknown) => this.#host.log(`scheduler tick failed: ${error instanceof Error ? error.message : String(error)}`));
+      this.#running = this.tick().catch((error: unknown) =>
+        this.#host.log(`scheduler tick failed: ${error instanceof Error ? error.message : String(error)}`),
+      );
     }, this.#tickMs);
   }
 
@@ -68,23 +79,47 @@ export class Scheduler {
   async tick(now = new Date()): Promise<number> {
     if (this.#ticking) return 0;
     this.#ticking = true;
+
     try {
-      const due = await this.#host.run(AgentBusStore.use((s) => s.claimDueSchedules(this.#host.owner, now, LEASE_SECONDS)));
+      const due = await this.#host.run(
+        AgentBusStore.use((s) => s.claimDueSchedules(this.#host.owner, now, LEASE_SECONDS)),
+      );
+
       for (const schedule of due) {
-        try { await this.#fire(schedule, now); }
-        catch (error) { this.#host.log(`schedule ${schedule.id} failed: ${error instanceof Error ? error.message : String(error)}`); }
+        try {
+          await this.#fire(schedule, now);
+        } catch (error) {
+          this.#host.log(`schedule ${schedule.id} failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
+
       return due.length;
-    } finally { this.#ticking = false; }
+    } finally {
+      this.#ticking = false;
+    }
   }
 
   async #fire(schedule: ScheduleRow, now: Date): Promise<void> {
     const { late, run, nextRunAt } = scheduleTiming(schedule, now);
-    const runLabel = schedule.kind === "once" ? "wake-up" : `run ${schedule.runs + 1}${schedule.max_runs ? ` of ${schedule.max_runs}` : ""}`;
-    const input = { note: `[canopy] Scheduled ${runLabel} (schedule_id: ${schedule.id}${late ? ", delayed" : ""}):`, message: schedule.prompt };
+
+    const runLabel =
+      schedule.kind === "once"
+        ? "wake-up"
+        : `run ${schedule.runs + 1}${schedule.max_runs ? ` of ${schedule.max_runs}` : ""}`;
+
+    const input = {
+      note: `[canopy] Scheduled ${runLabel} (schedule_id: ${schedule.id}${late ? ", delayed" : ""}):`,
+      message: schedule.prompt,
+    };
+
     const eligibleWorkerIds = schedule.target === "new_thread" ? await this.#host.eligibleWorkers(schedule) : [];
-    const fired = await this.#host.run(AgentBusStore.use((s) => s.fireSchedule({ schedule, input, run, nextRunAt, eligibleWorkerIds, now })));
+
+    const fired = await this.#host.run(
+      AgentBusStore.use((s) => s.fireSchedule({ schedule, input, run, nextRunAt, eligibleWorkerIds, now })),
+    );
+
     if (fired.created) await this.#host.created(fired.created, schedule.prompt);
+
     if (fired.turn) await this.#host.queued(fired.threadId, fired.turn);
     await this.#host.changed(schedule.id);
   }

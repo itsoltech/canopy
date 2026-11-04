@@ -3,4 +3,8 @@ import { ui } from "@canopy/contracts";
 import { call } from "#lib/server/gateway.ts";
 import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
-export const GET: RequestHandler = async () => json(encode(ui.GetWorkerSetupResponseSchema, await call((api) => api.getWorkerSetup({}))), { headers: { "cache-control": "no-store" } });
+
+export const GET: RequestHandler = async () =>
+  json(encode(ui.GetWorkerSetupResponseSchema, await call((api) => api.getWorkerSetup({}))), {
+    headers: { "cache-control": "no-store" },
+  });

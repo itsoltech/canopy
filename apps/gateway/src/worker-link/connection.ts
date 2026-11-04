@@ -11,6 +11,7 @@ import { AsyncChannel } from "@canopy/transport";
 import { gatewayMessage, type GatewayPayloadInit } from "./messages.ts";
 
 type KindInit = NonNullable<MessageInitShape<typeof CommandSchema>["kind"]>;
+
 /** One command variant, e.g. `{ case: "unloadThread", value: { threadId } }`. */
 export type CommandInit = Exclude<KindInit, { case: undefined }>;
 
@@ -56,13 +57,17 @@ export class WorkerConnection {
   /** Sends a command, preserving its durable outbox id on retries. Concurrent retries share the acknowledgement. */
   sendCommand(command: CommandInit, timeoutMs = 10_000, commandId = Bun.randomUUIDv7()): Promise<CommandResult> {
     const existing = this.#pending.get(commandId);
+
     if (existing) return existing.promise;
     const { promise, resolve, reject } = Promise.withResolvers<CommandResult>();
+
     const timer = setTimeout(() => {
       this.#pending.delete(commandId);
       reject(new ConnectError(`command ${commandId} timed out`, Code.DeadlineExceeded));
     }, timeoutMs);
+
     this.#pending.set(commandId, { promise, resolve, reject, timer });
+
     try {
       this.send({ case: "command", value: create(CommandSchema, { commandId, kind: command }) });
     } catch (error) {
@@ -70,6 +75,7 @@ export class WorkerConnection {
       this.#pending.delete(commandId);
       reject(error);
     }
+
     return promise;
   }
 
@@ -83,13 +89,16 @@ export class WorkerConnection {
   deliver(message: WorkerMessage): void {
     if (message.payload.case === "commandResult") {
       const pending = this.#pending.get(message.payload.value.commandId);
+
       if (pending) {
         clearTimeout(pending.timer);
         this.#pending.delete(message.payload.value.commandId);
         pending.resolve(message.payload.value);
+
         return;
       }
     }
+
     this.#inbound.push(message);
   }
 
@@ -102,10 +111,12 @@ export class WorkerConnection {
   #finish(error: unknown): void {
     this.#inbound.close(error);
     const reason = new ConnectError(`worker ${this.workerId} disconnected`, Code.Unavailable);
+
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(reason);
     }
+
     this.#pending.clear();
     this.#markClosed();
   }

@@ -96,18 +96,22 @@
 
   const id = $props.id();
   let panel = $state<HTMLElement>();
+
   /** Opened at least once: the panel stays mounted from then on. */
   let opened = false;
   const mounted = $derived.by(() => (opened ||= open));
   let anchor = $state<HTMLElement>();
   const narrow = $derived(sheet && narrowScreen.current);
   let focusInside = false;
+
   /** The exit transition runs: content stays (inert) until it ends. */
   let closing = $state(false);
   let closed: ReturnType<typeof setTimeout> | undefined;
+
   $effect(() => () => clearTimeout(closed));
 
   const anchorKey = createAttachmentKey();
+
   const triggerProps = $derived<PopoverTriggerProps>({
     "aria-haspopup": role === "menu" ? "menu" : "dialog",
     "aria-expanded": open,
@@ -116,6 +120,7 @@
     onkeydown: triggerKeydown,
     [anchorKey]: (node: HTMLElement) => {
       anchor = node;
+
       return () => {
         if (anchor === node) anchor = undefined;
       };
@@ -125,15 +130,18 @@
   // Show and focus when opened; hide and return focus to the trigger when closed.
   $effect(() => {
     if (!panel) return;
+
     if (!open) {
       if (panel.matches(":popover-open")) {
         // Content unmounts before this runs, so "focus was inside" is tracked by focusin/focusout.
         const hadFocus = focusInside || panel.contains(document.activeElement);
         focusInside = false;
         panel.hidePopover();
+
         if (hadFocus && (document.activeElement === document.body || panel.contains(document.activeElement))) {
           untrack(() => anchorElement ?? anchor)?.focus({ preventScroll: true });
         }
+
         const exit = exitDuration(panel);
         closing = true;
         clearTimeout(closed);
@@ -142,13 +150,16 @@
           untrack(() => onclose)?.();
         }, exit);
       }
+
       return;
     }
+
     if (untrack(() => closing)) {
       clearTimeout(closed);
       closing = false;
       untrack(() => onclose)?.();
     }
+
     if (!panel.matches(":popover-open")) panel.showPopover();
     const target = panel;
     untrack(() => {
@@ -164,50 +175,74 @@
   // Follow the anchor while open (a sheet sits at the bottom instead).
   $effect(() => {
     const target = anchorElement ?? anchor;
+
     if (!open || !panel || narrow || !target) return;
+
     return autoPosition(target, panel, { placement, offset });
   });
 
   // Light dismiss: pointer down outside the panel and its trigger.
   $effect(() => {
     if (!open) return;
+
     const onpointerdown = (event: PointerEvent) => {
       const target = event.target as Node | null;
+
       if (!panel || !target) return;
+
       if ((anchorElement ?? anchor)?.contains(target)) return;
+
       if (target === panel && narrow) {
         // The sheet's backdrop belongs to the panel element: close when the press is outside its box.
         const box = panel.getBoundingClientRect();
+
         if (event.clientY < box.top) open = false;
+
         return;
       }
+
       if (!panel.contains(target)) open = false;
     };
+
     document.addEventListener("pointerdown", onpointerdown, true);
+
     // A choice can remove its own button (for example Clear filters), leaving focus on body.
     // Keep Escape working in that case as well as on the trigger.
     const lostFocusEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented && (event.target === document.body || (anchorElement ?? anchor)?.contains(event.target as Node))) {
+      if (
+        event.key === "Escape" &&
+        !event.defaultPrevented &&
+        (event.target === document.body || (anchorElement ?? anchor)?.contains(event.target as Node))
+      ) {
         event.preventDefault();
         open = false;
       }
     };
+
     document.addEventListener("keydown", lostFocusEscape);
-    return () => { document.removeEventListener("pointerdown", onpointerdown, true); document.removeEventListener("keydown", lostFocusEscape); };
+
+    return () => {
+      document.removeEventListener("pointerdown", onpointerdown, true);
+      document.removeEventListener("keydown", lostFocusEscape);
+    };
   });
 
   function onkeydown(event: KeyboardEvent) {
     panelKeydown?.(event);
+
     if (event.key === "Escape" && !event.defaultPrevented) {
       event.preventDefault();
       event.stopPropagation();
       open = false;
     }
   }
+
   function onfocusout(event: FocusEvent) {
     const next = event.relatedTarget as Node | null;
+
     if (next && panel && !panel.contains(next)) {
       focusInside = false;
+
       if (!(anchorElement ?? anchor)?.contains(next)) open = false;
     }
   }
@@ -218,29 +253,29 @@
 <!-- overflow-x-hidden: on touch screens the 48 px touch targets of buttons at the panel's edge reach a few
      pixels past it, which would otherwise scroll the panel sideways (a scrollbar on Android). -->
 {#if mounted}
-<div
-  bind:this={panel}
-  {id}
-  popover="manual"
-  role={role === "none" ? undefined : role}
-  aria-label={role === "none" ? undefined : label}
-  tabindex="-1"
-  data-sheet={narrow || undefined}
-  data-menu-panel={role === "menu" || undefined}
-  inert={closing || undefined}
-  style:max-height={!narrow ? maxHeight : undefined}
-  {onkeydown}
-  {onfocusout}
-  onfocusin={() => (focusInside = true)}
-  class={[
-    "t-dropdown fixed inset-auto top-(--float-y) left-(--float-x) m-0 max-h-[min(var(--float-available-height,32rem),32rem)] overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border-0 bg-white p-0 text-zinc-950 shadow-lg ring-1 ring-zinc-950/10 outline-none dark:bg-zinc-900 dark:text-white dark:shadow-none dark:ring-white/10",
-    "data-sheet:top-auto data-sheet:bottom-0 data-sheet:left-0 data-sheet:max-h-[min(85dvh,var(--window-safe-height))] data-sheet:w-full data-sheet:max-w-none data-sheet:rounded-b-none data-sheet:pb-[env(safe-area-inset-bottom)] data-sheet:backdrop:bg-zinc-950/40 dark:data-sheet:backdrop:bg-black/60",
-    className,
-  ]}
->
-  {#if narrow}
-    <SheetHandle onclose={() => (open = false)} />
-  {/if}
-  {#if open || closing}{@render children()}{/if}
-</div>
+  <div
+    bind:this={panel}
+    {id}
+    popover="manual"
+    role={role === "none" ? undefined : role}
+    aria-label={role === "none" ? undefined : label}
+    tabindex="-1"
+    data-sheet={narrow || undefined}
+    data-menu-panel={role === "menu" || undefined}
+    inert={closing || undefined}
+    style:max-height={!narrow ? maxHeight : undefined}
+    {onkeydown}
+    {onfocusout}
+    onfocusin={() => (focusInside = true)}
+    class={[
+      "t-dropdown fixed inset-auto top-(--float-y) left-(--float-x) m-0 max-h-[min(var(--float-available-height,32rem),32rem)] overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border-0 bg-white p-0 text-zinc-950 shadow-lg ring-1 ring-zinc-950/10 outline-none dark:bg-zinc-900 dark:text-white dark:shadow-none dark:ring-white/10",
+      "data-sheet:top-auto data-sheet:bottom-0 data-sheet:left-0 data-sheet:max-h-[min(85dvh,var(--window-safe-height))] data-sheet:w-full data-sheet:max-w-none data-sheet:rounded-b-none data-sheet:pb-[env(safe-area-inset-bottom)] data-sheet:backdrop:bg-zinc-950/40 dark:data-sheet:backdrop:bg-black/60",
+      className,
+    ]}
+  >
+    {#if narrow}
+      <SheetHandle onclose={() => (open = false)} />
+    {/if}
+    {#if open || closing}{@render children()}{/if}
+  </div>
 {/if}

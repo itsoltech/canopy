@@ -15,13 +15,33 @@ export interface CiteRoom {
  * line (with a mouse, flush to the end; on touch screens centred and clear of the selection handles), and flips
  * above the line when the room below it is too small, so it never covers the composer.
  */
-export function citePosition(line: Box | undefined, size: { width: number; height: number }, room: CiteRoom, options: { backward: boolean; touch: boolean }): { x: number; y: number } | undefined {
+export function citePosition(
+  line: Box | undefined,
+  size: { width: number; height: number },
+  room: CiteRoom,
+  options: { backward: boolean; touch: boolean },
+): { x: number; y: number } | undefined {
   if (!line || line.bottom < room.top || line.top > room.bottom) return undefined;
   const x = options.backward ? line.left : line.right;
-  const anchor = { left: x, right: x, width: 0, top: line.top - room.top, bottom: line.bottom - room.top, height: line.height };
-  const position = computePosition(anchor, size, { width: room.width, height: room.bottom - room.top }, {
-    placement: options.touch ? "bottom" : options.backward ? "top-start" : "bottom-end",
-    offset: options.touch ? 28 : 6,
-  });
+
+  const anchor = {
+    left: x,
+    right: x,
+    width: 0,
+    top: line.top - room.top,
+    bottom: line.bottom - room.top,
+    height: line.height,
+  };
+
+  const position = computePosition(
+    anchor,
+    size,
+    { width: room.width, height: room.bottom - room.top },
+    {
+      placement: options.touch ? "bottom" : options.backward ? "top-start" : "bottom-end",
+      offset: options.touch ? 28 : 6,
+    },
+  );
+
   return { x: position.x, y: position.y + room.top };
 }

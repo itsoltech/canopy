@@ -135,26 +135,29 @@ export const defaultAppearance: BotAppearance = {
 /** Accept CSS hex shorthand, but never arbitrary CSS or transparent colours. */
 export function normalizeColor(value: string): string | undefined {
   const hex = value.trim().replace(/^#/, "");
+
   if (/^[\da-f]{3}$/i.test(hex))
     return `#${[...hex]
       .map((c) => c + c)
       .join("")
       .toLowerCase()}`;
+
   return /^[\da-f]{6}$/i.test(hex) ? `#${hex.toLowerCase()}` : undefined;
 }
 
 /** WCAG sRGB relative luminance. Choose whichever eye colour has the higher contrast. */
 export function eyeColor(color: string): "#ffffff" | "#18181b" {
   const hex = normalizeColor(color) ?? defaultAppearance.color;
+
   const channels = [1, 3, 5].map((i) => {
     const c = Number.parseInt(hex.slice(i, i + 2), 16) / 255;
+
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   });
-  const luminance =
-    channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
-  return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / (0.00925 + 0.05)
-    ? "#ffffff"
-    : "#18181b";
+
+  const luminance = channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
+
+  return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / (0.00925 + 0.05) ? "#ffffff" : "#18181b";
 }
 
 /** Colour of a bot: its avatar (background + body) and its name in group chats. */
@@ -218,6 +221,7 @@ const tones: readonly MascotTone[] = [
 ];
 
 export type MascotEyes = "round" | "dots" | "happy";
+
 const eyes: readonly MascotEyes[] = ["round", "dots", "happy"];
 
 export interface Mascot {
@@ -232,28 +236,22 @@ export interface Mascot {
 /** FNV-1a, 32 bit: stable across sessions and runtimes. */
 function hash(value: string): number {
   let h = 0x811c9dc5;
+
   for (let i = 0; i < value.length; i++) {
     h ^= value.charCodeAt(i);
     h = Math.imul(h, 0x01000193) >>> 0;
   }
+
   return h;
 }
 
 export function mascotFor(id: string, shape?: string): Mascot {
   const h = hash(id);
+
   return {
     shape:
-      shapes[
-        [
-          "round",
-          "squircle",
-          "ghost",
-          "cloud",
-          "drop",
-          "capsule",
-          "triangle",
-        ].indexOf(shape ?? "")
-      ] ?? shapes[h % shapes.length]!,
+      shapes[["round", "squircle", "ghost", "cloud", "drop", "capsule", "triangle"].indexOf(shape ?? "")] ??
+      shapes[h % shapes.length]!,
     tone: tones[(h >>> 4) % tones.length]!,
     eyes: eyes[(h >>> 9) % eyes.length]!,
     gaze: (((h >>> 12) % 3) - 1) as -1 | 0 | 1,
@@ -269,10 +267,7 @@ export const nameTone = (id: string): string => mascotFor(id).tone.name;
  * in light mode and toward white in dark mode. Set `--bot-color` (style:--bot-color) on the same element.
  * Bots without a chosen colour use their generated tone.
  */
-export const botTextTone = (bot: {
-  id: string;
-  color?: string | undefined;
-}): string =>
+export const botTextTone = (bot: { id: string; color?: string | undefined }): string =>
   bot.color
     ? "text-[color-mix(in_oklab,var(--bot-color)_72%,var(--bot-chip-light-target,black))] dark:text-[color-mix(in_oklab,var(--bot-color)_70%,var(--bot-chip-dark-target,white))]"
     : nameTone(bot.id);

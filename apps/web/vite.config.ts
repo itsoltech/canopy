@@ -9,7 +9,8 @@ import { retainImmutable } from "./scripts/release-assets.ts";
 
 const out = process.env["BUILD_DIR"] || "build";
 const node = adapter({ out });
-const version = process.env["WEB_BUILD_VERSION"] ??= buildVersion();
+const version = (process.env["WEB_BUILD_VERSION"] ??= buildVersion());
+
 // The Canopy version (scripts/version.ts, docs/release.md), shown in Settings and by /api/health.
 const canopyVersion = process.env["CANOPY_VERSION"] || "0.0.0-dev";
 

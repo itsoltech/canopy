@@ -4,7 +4,9 @@ import { Result, Schema } from "effect";
 import { isEntityId } from "@canopy/domain/computers";
 
 /** A uuid of this computer or of a linked one (qualified, docs/linked-computers.md). */
-export const EntityId = Schema.String.check(Schema.makeFilter((value: string) => isEntityId(value) || "Expected an id"));
+export const EntityId = Schema.String.check(
+  Schema.makeFilter((value: string) => isEntityId(value) || "Expected an id"),
+);
 
 /** Parses a JSON body; anything else is a 415 or 400. */
 async function readJson(request: Request): Promise<unknown> {
@@ -12,6 +14,7 @@ async function readJson(request: Request): Promise<unknown> {
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
     error(415, "content-type must be application/json");
   }
+
   try {
     return await request.json();
   } catch {
@@ -20,15 +23,21 @@ async function readJson(request: Request): Promise<unknown> {
 }
 
 /** Strict JSON body decoding for BFF endpoints: unknown fields and wrong types are 400s. */
-export async function readBody<S extends Schema.Codec<unknown>>(request: Request, schema: S): Promise<Schema.Schema.Type<S>> {
+export async function readBody<S extends Schema.Codec<unknown>>(
+  request: Request,
+  schema: S,
+): Promise<Schema.Schema.Type<S>> {
   const decoded = Schema.decodeUnknownResult(schema)(await readJson(request), { onExcessProperty: "error" });
+
   if (Result.isFailure(decoded)) error(400, decoded.failure.message);
+
   return decoded.success as Schema.Schema.Type<S>;
 }
 
 /** A body that is a contract message in protobuf JSON (strict: unknown fields are 400s). */
 export async function readMessage<D extends DescMessage>(request: Request, schema: D): Promise<MessageShape<D>> {
   const raw = await readJson(request);
+
   try {
     return fromJson(schema, raw as JsonValue);
   } catch (cause) {

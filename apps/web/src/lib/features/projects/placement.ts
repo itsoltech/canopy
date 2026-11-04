@@ -9,6 +9,7 @@ import type { ui } from "@canopy/contracts";
 /** Main threads you started, newest first: what you used last. */
 function recentThreads(threads: Iterable<ui.Thread>): ui.Thread[] {
   const created = (t: ui.Thread) => (t.createdAt ? timestampMs(t.createdAt) : 0);
+
   return [...threads].filter((t) => !t.parentThreadId && !t.spawnedByAgent).sort((a, b) => created(b) - created(a));
 }
 
@@ -25,6 +26,7 @@ export function defaultProject(input: {
 }): ui.Project | undefined {
   const { projects, requested, defaultWorkspaceId } = input;
   const byId = (id: string | undefined) => (id ? projects.find((p) => p.id === id) : undefined);
+
   return (
     byId(requested) ??
     (defaultWorkspaceId ? projects.find((p) => p.workspaces.some((w) => w.id === defaultWorkspaceId)) : undefined) ??
@@ -51,6 +53,7 @@ export function defaultWorkspace(input: {
 }): ui.Workspace | undefined {
   const { project, defaultWorkspaceId, online } = input;
   const byId = (id: string | undefined) => (id ? project.workspaces.find((w) => w.id === id) : undefined);
+
   return (
     byId(defaultWorkspaceId) ??
     recentThreads(input.threads)
@@ -65,9 +68,15 @@ export function defaultWorkspace(input: {
 /** A project's workspaces grouped by worker, in the order of the workers' first workspace. */
 export function workspacesByWorker(project: ui.Project): { workerId: string; workspaces: ui.Workspace[] }[] {
   const groups = new Map<string, ui.Workspace[]>();
+
   for (const ws of project.workspaces) groups.set(ws.workerId, [...(groups.get(ws.workerId) ?? []), ws]);
+
   return [...groups].map(([workerId, workspaces]) => ({ workerId, workspaces }));
 }
 
 /** Last segment of a worker path (`/home/me/app` → `app`, `C:\code\app` → `app`). */
-export const baseName = (path: string): string => path.replace(/[/\\]+$/, "").split(/[/\\]/).at(-1) || path;
+export const baseName = (path: string): string =>
+  path
+    .replace(/[/\\]+$/, "")
+    .split(/[/\\]/)
+    .at(-1) || path;

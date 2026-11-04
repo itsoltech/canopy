@@ -3,20 +3,18 @@ import { InteractionKind, ui } from "@canopy/contracts";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 
-export function InteractionCard({
-  interaction,
-}: {
-  interaction: ui.Interaction;
-}) {
+export function InteractionCard({ interaction }: { interaction: ui.Interaction }) {
   const c = useColors();
   let request: Record<string, unknown> = {};
+
   try {
     const value: unknown = JSON.parse(interaction.requestJson);
-    if (value && typeof value === "object" && !Array.isArray(value))
-      request = value as Record<string, unknown>;
+
+    if (value && typeof value === "object" && !Array.isArray(value)) request = value as Record<string, unknown>;
   } catch {
     /* Non-JSON provider prompts remain readable. */
   }
+
   const questions = Array.isArray(request.questions)
     ? (request.questions as {
         header?: string;
@@ -24,7 +22,9 @@ export function InteractionCard({
         options?: { label?: string; description?: string }[];
       }[])
     : [];
+
   const permission = interaction.kind === InteractionKind.PERMISSION;
+
   return (
     <View
       style={{
@@ -46,14 +46,9 @@ export function InteractionCard({
           },
         ]}
       >
-        <Icon
-          name={permission ? "shield-exclamation" : "hand-raised"}
-          color={c.warning}
-        />
+        <Icon name={permission ? "shield-exclamation" : "hand-raised"} color={c.warning} />
         <Text style={[styles.meta, { color: c.text }]}>
-          {permission
-            ? "Approval required"
-            : questions[0]?.header || "Question"}
+          {permission ? "Approval required" : questions[0]?.header || "Question"}
         </Text>
       </View>
       <View style={{ padding: 16, gap: 8 }}>
@@ -69,23 +64,11 @@ export function InteractionCard({
             <View key={i} style={{ gap: 8 }}>
               <Text style={[styles.meta, { color: c.text }]}>{q.question}</Text>
               {q.options?.map((o, n) => (
-                <View
-                  key={n}
-                  style={[
-                    styles.row,
-                    { padding: 10, backgroundColor: c.inset, borderRadius: 8 },
-                  ]}
-                >
+                <View key={n} style={[styles.row, { padding: 10, backgroundColor: c.inset, borderRadius: 8 }]}>
                   <Text style={[styles.meta, { color: c.muted }]}>{n + 1}</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.meta, { color: c.text }]}>
-                      {o.label}
-                    </Text>
-                    {o.description ? (
-                      <Text style={[styles.caption, { color: c.muted }]}>
-                        {o.description}
-                      </Text>
-                    ) : null}
+                    <Text style={[styles.meta, { color: c.text }]}>{o.label}</Text>
+                    {o.description ? <Text style={[styles.caption, { color: c.muted }]}>{o.description}</Text> : null}
                   </View>
                 </View>
               ))}
@@ -103,9 +86,7 @@ export function InteractionCard({
             )}
           </Text>
         )}
-        <Text style={[styles.caption, { color: c.muted }]}>
-          Open this thread in Canopy on the web to respond.
-        </Text>
+        <Text style={[styles.caption, { color: c.muted }]}>Open this thread in Canopy on the web to respond.</Text>
       </View>
     </View>
   );

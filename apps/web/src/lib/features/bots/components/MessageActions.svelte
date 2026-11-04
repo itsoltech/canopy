@@ -19,7 +19,14 @@
     text,
     more = [],
     class: className,
-  }: { label: string; onreact?: (() => void) | undefined; onreply?: (() => void) | undefined; text?: string | undefined; more?: readonly BotAction[]; class?: ClassValue } = $props();
+  }: {
+    label: string;
+    onreact?: (() => void) | undefined;
+    onreply?: (() => void) | undefined;
+    text?: string | undefined;
+    more?: readonly BotAction[];
+    class?: ClassValue;
+  } = $props();
 </script>
 
 <div

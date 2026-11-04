@@ -26,7 +26,9 @@ export class QuoteDrafts {
 
   add(threadId: string, quote: { text: string; source: QuoteSource; comment?: string }): QuoteDraft | undefined {
     const current = this.list(threadId);
+
     if (current.length >= QUOTE_LIMITS.maxQuotes) return undefined;
+
     const draft: QuoteDraft = {
       id: crypto.randomUUID(),
       text: quote.text.slice(0, QUOTE_LIMITS.maxTextChars),
@@ -36,14 +38,18 @@ export class QuoteDrafts {
       sourceKind: quote.source.kind,
       language: quote.source.language,
     };
+
     this.#set(threadId, [...current, draft]);
+
     return draft;
   }
 
   edit(threadId: string, id: string, comment: string): void {
     this.#set(
       threadId,
-      this.list(threadId).map((q) => (q.id === id ? { ...q, comment: comment.slice(0, QUOTE_LIMITS.maxCommentChars) } : q)),
+      this.list(threadId).map((q) =>
+        q.id === id ? { ...q, comment: comment.slice(0, QUOTE_LIMITS.maxCommentChars) } : q,
+      ),
     );
   }
 
@@ -65,6 +71,7 @@ export class QuoteDrafts {
 
   #set(threadId: string, quotes: readonly QuoteDraft[]): void {
     const next = new Map(this.#byThread);
+
     if (quotes.length > 0) next.set(threadId, quotes);
     else next.delete(threadId);
     this.#byThread = next;
@@ -77,4 +84,5 @@ const drafts = new QuoteDrafts();
 export function useQuoteDrafts(): QuoteDrafts {
   return drafts;
 }
+
 export { quoteLabel, toWire, type QuoteDraft, type WireQuote } from "./quote.ts";

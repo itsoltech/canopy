@@ -4,6 +4,7 @@
 
   /** "12 tools · 8.1K tokens · 1m 4s" for subagents and background tasks. */
   let { progress }: { progress: TaskProgress | undefined } = $props();
+
   const parts = $derived(
     progress
       ? [

@@ -42,23 +42,38 @@
   const label = $derived(current ? effortLevel(current).label : "Default");
   const rank = $derived(option.efforts.findIndex((e) => e.id === current));
   const isDefault = $derived(fallback !== undefined && current === fallback);
+
   // While the picker is open the pill keeps the name it had when it opened, so neither it, the model pill beside
   // it nor the popover anchored to it moves as the effort changes; on close the name swaps in and the pill
   // eases to fit it (ResizeSlot in ModelControls).
   let frozen = $state<{ label: string; rank: number }>();
+
   $effect(() => {
     frozen = open ? untrack(() => ({ label, rank })) : undefined;
   });
+
   const pillLabel = $derived(frozen?.label ?? label);
   const pillRank = $derived(frozen?.rank ?? rank);
 </script>
 
 <!-- rounded-*! wins over the panel's own rounded-xl (same specificity, later in the stylesheet). The radius
      is concentric with the slider's track: half its height (28px, sm 24px) plus the panel's p-3. -->
-<Popover bind:open label="Reasoning effort" placement="top-start" class="w-[min(16rem,calc(100vw-1rem))] rounded-[1.625rem]! sm:rounded-3xl!">
+<Popover
+  bind:open
+  label="Reasoning effort"
+  placement="top-start"
+  class="w-[min(16rem,calc(100vw-1rem))] rounded-[1.625rem]! sm:rounded-3xl!"
+>
   {#snippet trigger(props)}
-    <PillButton {...props} class={["pl-1.5", className]} aria-label="Reasoning effort: {label}{isDefault && current ? ' (default)' : ''}">
-      <Icon name="light-bulb" class={["size-3.5", value ? "fill-zinc-500 dark:fill-zinc-400" : "fill-zinc-400 dark:fill-zinc-500"]} />
+    <PillButton
+      {...props}
+      class={["pl-1.5", className]}
+      aria-label="Reasoning effort: {label}{isDefault && current ? ' (default)' : ''}"
+    >
+      <Icon
+        name="light-bulb"
+        class={["size-3.5", value ? "fill-zinc-500 dark:fill-zinc-400" : "fill-zinc-400 dark:fill-zinc-500"]}
+      />
       <SwapText text={pillLabel} rank={pillRank} />
     </PillButton>
   {/snippet}
@@ -81,7 +96,12 @@
       <div class="relative flex text-lg/7 font-medium text-brand-600 dark:text-brand-400">
         <SwapText text={label} {rank} distance="base" />
         {#if isDefault}
-          <div class="absolute inset-y-0 left-full ml-1.5 flex items-center text-xs/4 font-normal whitespace-nowrap text-zinc-400 dark:text-zinc-500" in:swap>Default</div>
+          <div
+            class="absolute inset-y-0 left-full ml-1.5 flex items-center text-xs/4 font-normal whitespace-nowrap text-zinc-400 dark:text-zinc-500"
+            in:swap
+          >
+            Default
+          </div>
         {/if}
       </div>
       <button
@@ -97,10 +117,20 @@
         <Icon name="chevron-right" class="size-3.5 shrink-0 fill-zinc-400 dark:fill-zinc-500" />
       </button>
     </div>
-    <Slider {steps} variant="pill" label="Reasoning effort" unsetLabel="Default" value={current} onchange={(next) => (value = next)} autofocus />
+    <Slider
+      {steps}
+      variant="pill"
+      label="Reasoning effort"
+      unsetLabel="Default"
+      value={current}
+      onchange={(next) => (value = next)}
+      autofocus
+    />
     <!-- Shown whatever the value (it is about the model), so choosing one never resizes the popover. -->
     {#if !fallback}
-      <p class="text-center text-sm/5 text-pretty text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{option.name} has no default effort listed: {providerName(option.provider)} uses its own.</p>
+      <p class="text-center text-sm/5 text-pretty text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
+        {option.name} has no default effort listed: {providerName(option.provider)} uses its own.
+      </p>
     {/if}
   </div>
 </Popover>

@@ -8,5 +8,6 @@ import type { RequestHandler } from "./$types";
 /** The user's threads by title, to mention one. A read: POST only because the request is a protobuf message. */
 export const POST: RequestHandler = async ({ request }) => {
   const body = await readMessage(request, ui.SearchThreadsRequestSchema);
+
   return json(encode(ui.SearchThreadsResponseSchema, await call((api) => api.searchThreads(body))));
 };

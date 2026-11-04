@@ -26,20 +26,21 @@
     class?: ClassValue;
     aside?: Snippet;
   } = $props();
+
   const id = $props.id();
 </script>
 
 <div class={["flex gap-3 pointer-coarse:min-h-12", className]}>
   <div class="flex h-lh items-center text-base/6 sm:text-sm/6">
-      <ChoiceControl
-        {id}
-        type="checkbox"
-        {name}
-        {value}
-        {disabled}
-        bind:checked
-        aria-describedby={description ? `${id}-description` : undefined}
-      />
+    <ChoiceControl
+      {id}
+      type="checkbox"
+      {name}
+      {value}
+      {disabled}
+      bind:checked
+      aria-describedby={description ? `${id}-description` : undefined}
+    />
   </div>
   <div class="min-w-0 text-base/6 sm:text-sm/6">
     {#if aside}

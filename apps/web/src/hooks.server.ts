@@ -15,9 +15,11 @@ export const init: ServerInit = () => {
 export const handle: Handle = async ({ event, resolve }) => {
   const page = !event.isDataRequest && !event.url.pathname.startsWith("/api/");
   const appearance = page && event.url.pathname !== "/desktop" ? shellAppearance() : undefined;
+
   return resolve(event, {
     transformPageChunk: async ({ html }) => {
       const attributes = documentAttributes(await appearance);
+
       return html.replace(/%canopy\.\w+%/g, (placeholder) => attributes[placeholder] ?? "");
     },
   });

@@ -9,4 +9,7 @@
   let { mention, class: className }: { mention: Mention; class?: ClassValue } = $props();
 </script>
 
-<span class={[CHIP_CLASS, className]} title={chipTitle(mention)}><Icon name={kindLook(mention).icon} class={CHIP_ICON_CLASS} /><span class="truncate">{mentionLabel(mention)}</span></span>
+<span class={[CHIP_CLASS, className]} title={chipTitle(mention)}
+  ><Icon name={kindLook(mention).icon} class={CHIP_ICON_CLASS} /><span class="truncate">{mentionLabel(mention)}</span
+  ></span
+>

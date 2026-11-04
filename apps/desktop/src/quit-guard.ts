@@ -3,11 +3,27 @@ import { QuitMachine, type QuitMachineOptions } from "./quit-machine.ts";
 
 /** Only keyboard requests enter the guard; app.quit() remains an unconditional lifecycle operation. */
 export class QuitGuard extends QuitMachine {
-  constructor(mode: QuitMachine["mode"], options: QuitMachineOptions, private readonly platform: string) { super(mode, options); }
+  constructor(
+    mode: QuitMachine["mode"],
+    options: QuitMachineOptions,
+    private readonly platform: string,
+  ) {
+    super(mode, options);
+  }
 
   accelerator(focused: BrowserWindow | null, isRepeat: boolean | undefined) {
-    if (this.mode === "immediately") { this.press(false); return; }
-    if (!focused || isRepeat === undefined) { this.unavailable(); return; }
+    if (this.mode === "immediately") {
+      this.press(false);
+
+      return;
+    }
+
+    if (!focused || isRepeat === undefined) {
+      this.unavailable();
+
+      return;
+    }
+
     this.press(isRepeat);
   }
 
@@ -17,10 +33,13 @@ export class QuitGuard extends QuitMachine {
       const q = input.key.toLowerCase() === "q";
       const modifier = this.platform === "darwin" ? input.meta : input.control;
       const modifierKey = input.key === (this.platform === "darwin" ? "Meta" : "Control");
+
       if (input.type === "keyUp" && (q || (modifierKey && !modifier))) this.release();
+
       if (!q || !modifier || input.alt || input.shift || input.isComposing) return;
       // Prevent Chromium and the menu accelerator from also handling this physical key event.
       event.preventDefault();
+
       if (input.type === "keyDown") this.press(input.isAutoRepeat);
     });
     target.on("blur", () => this.cancel("blur"));

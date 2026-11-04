@@ -21,15 +21,19 @@ export interface SettingsRoute<Form = Record<string, unknown> | null | undefined
 
 const KEY = Symbol("settings-route");
 export const provideSettingsRoute = (route: SettingsRoute) => setContext(KEY, route);
+
 /** `Form`: the page's `PageProps["form"]` (its actions' results). */
-export const useSettingsRoute = <Form = Record<string, unknown> | null | undefined>() => getContext<SettingsRoute<Form>>(KEY);
+export const useSettingsRoute = <Form = Record<string, unknown> | null | undefined>() =>
+  getContext<SettingsRoute<Form>>(KEY);
 
 /** A route under Settings (`/settings` itself redirects to its first section). */
-export const isSettingsRoute = (id: string | null | undefined): boolean => id === "/settings" || Boolean(id?.startsWith("/settings/"));
+export const isSettingsRoute = (id: string | null | undefined): boolean =>
+  id === "/settings" || Boolean(id?.startsWith("/settings/"));
 
 /** What identifies a settings page shown in the overlay: its path and query. */
 export const overlayKey = (url: { readonly pathname: string; readonly search: string } | string): string => {
   const { pathname, search } = typeof url === "string" ? new URL(url, "http://local") : url;
+
   return pathname + search;
 };
 

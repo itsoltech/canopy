@@ -15,7 +15,9 @@ import { icons, lineIcons, type IconName, type SolidIconName } from "#lib/shared
 export type InlineElement = { readonly type: "mention"; readonly mention: MentionData };
 
 /** What a mention chip carries (Mention without its range: the range comes from where the chip sits). */
-export type MentionData = Pick<Mention, "kind" | "name" | "label" | "path" | "source" | "isDir"> & { readonly icon?: string };
+export type MentionData = Pick<Mention, "kind" | "name" | "label" | "path" | "source" | "isDir"> & {
+  readonly icon?: string;
+};
 
 export interface KindLook {
   readonly icon: IconName;
@@ -45,17 +47,24 @@ export function kindLook(m: Pick<Mention, "kind" | "isDir">): KindLook {
 /** The chip: accent text with the kind's icon (or the plugin's own), on a faint accent wash. */
 export const CHIP_CLASS =
   "mention-chip inline-flex max-w-full items-baseline gap-1 rounded-md bg-brand-600/8 py-px pr-1.5 pl-1 align-baseline font-medium text-brand-700 select-none dark:bg-brand-400/12 dark:text-brand-300";
+
 export const CHIP_ICON_CLASS = "size-4 shrink-0 self-center fill-brand-600 dark:fill-brand-400";
 export const CHIP_IMAGE_CLASS = "size-4 shrink-0 self-center rounded-sm object-contain";
 
-const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const escape = (value: string) =>
+  value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 function iconSvg(name: IconName): string {
   if (name in lineIcons) {
     const paths = lineIcons[name as keyof typeof lineIcons].map((d) => `<path d="${d}"/>`).join("");
+
     return `<svg viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${CHIP_ICON_CLASS}">${paths}</svg>`;
   }
-  const paths = icons[name as SolidIconName].map((p) => `<path d="${p.d}"${"evenodd" in p ? ' fill-rule="evenodd" clip-rule="evenodd"' : ""}/>`).join("");
+
+  const paths = icons[name as SolidIconName]
+    .map((p) => `<path d="${p.d}"${"evenodd" in p ? ' fill-rule="evenodd" clip-rule="evenodd"' : ""}/>`)
+    .join("");
+
   return `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="${CHIP_ICON_CLASS}">${paths}</svg>`;
 }
 
@@ -64,13 +73,22 @@ export function safeIcon(url: string | undefined): string | undefined {
   return url && (url.startsWith("data:image/") || url.startsWith("https://")) ? url : undefined;
 }
 
-export const INLINE_RENDERERS: { readonly [T in InlineElement["type"]]: { html(element: Extract<InlineElement, { type: T }>): string } } = {
+export const INLINE_RENDERERS: {
+  readonly [T in InlineElement["type"]]: { html(element: Extract<InlineElement, { type: T }>): string };
+} = {
   mention: {
     html: ({ mention }) => {
       const icon = safeIcon(mention.icon);
       const mark = mention.kind === MentionKind.CONNECTOR ? connectorMarks[mention.source] : undefined;
-      const glyph = mark ? `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="${CHIP_ICON_CLASS}"><path d="${mark}"/></svg>` : icon ? `<img src="${escape(icon)}" alt="" class="${CHIP_IMAGE_CLASS}">` : iconSvg(kindLook(mention).icon);
+
+      const glyph = mark
+        ? `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="${CHIP_ICON_CLASS}"><path d="${mark}"/></svg>`
+        : icon
+          ? `<img src="${escape(icon)}" alt="" class="${CHIP_IMAGE_CLASS}">`
+          : iconSvg(kindLook(mention).icon);
+
       const data = escape(JSON.stringify({ ...mention, kind: mention.kind }));
+
       return `<span contenteditable="false" data-element="mention" data-mention="${data}" class="${CHIP_CLASS}" title="${escape(chipTitle(mention))}">${glyph}<span class="truncate">${escape(mentionLabel(mention))}</span></span>`;
     },
   },

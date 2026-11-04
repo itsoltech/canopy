@@ -11,9 +11,11 @@
 
   const route = useSettingsRoute<PageProps["form"]>();
   const overview = useOverview();
+
   const summary = (workspaces: { workerId: string; rootPath: string }[]) => {
     if (workspaces.length === 0) return "No workspaces yet";
     const workers = [...new Set(workspaces.map((w) => overview.worker(w.workerId)?.name ?? "unknown worker"))];
+
     return workspaces.length === 1 ? workers[0] : `${workspaces.length} workspaces on ${workers.join(", ")}`;
   };
 </script>
@@ -27,7 +29,10 @@
       {#snippet control()}<ShareScope itemKey={sharedKey.project(project.id)} compact />{/snippet}
     </SettingsRow>
   {:else}
-    <SettingsRow title="No projects yet" description="A project groups threads; its workspaces are directories on your workers." />
+    <SettingsRow
+      title="No projects yet"
+      description="A project groups threads; its workspaces are directories on your workers."
+    />
   {/each}
 </SettingsGroup>
 

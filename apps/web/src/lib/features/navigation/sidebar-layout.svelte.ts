@@ -46,6 +46,7 @@ export class SidebarLayout {
   /** The width the sidebar has when open, px. */
   get width(): number {
     const saved = this.#saved;
+
     return this.viewport === undefined ? saved || SIDEBAR_WIDTH.default : sidebarWidthFor(saved, this.viewport);
   }
 
@@ -56,6 +57,7 @@ export class SidebarLayout {
   /** `--sidebar-width`: the width capped by the window in CSS too (right on the server's first paint). */
   get cssWidth(): string {
     const width = this.#saved || SIDEBAR_WIDTH.default;
+
     return `clamp(${SIDEBAR_WIDTH.min}px, ${width}px, max(${SIDEBAR_WIDTH.min}px, ${SIDEBAR_WIDTH.viewportShare * 100}vw))`;
   }
 
@@ -71,7 +73,9 @@ export class SidebarLayout {
     if (reason === "reset" || collapsed !== this.collapsed) this.#settle();
     this.#width = size;
     this.#collapsed = collapsed;
-    this.#save(collapsed ? { sidebarCollapsed: true } : { sidebarWidth: reason === "reset" ? 0 : size, sidebarCollapsed: false });
+    this.#save(
+      collapsed ? { sidebarCollapsed: true } : { sidebarWidth: reason === "reset" ? 0 : size, sidebarCollapsed: false },
+    );
   }
 
   toggle(): void {
@@ -81,9 +85,13 @@ export class SidebarLayout {
   /** Focus inside a collapsing sidebar moves to the toggle (the sidebar becomes inert). */
   setCollapsed(collapsed: boolean): void {
     if (collapsed === this.collapsed) return;
+
     if (collapsed && document.getElementById(SIDEBAR_ID)?.contains(document.activeElement)) {
-      [...document.querySelectorAll<HTMLElement>("[data-sidebar-toggle]")].find((toggle) => toggle.checkVisibility())?.focus();
+      [...document.querySelectorAll<HTMLElement>("[data-sidebar-toggle]")]
+        .find((toggle) => toggle.checkVisibility())
+        ?.focus();
     }
+
     this.#settle();
     this.#collapsed = collapsed;
     this.#save({ sidebarCollapsed: collapsed });
@@ -94,6 +102,7 @@ export class SidebarLayout {
     clearTimeout(this.#saveTimer);
     const change = this.#pending;
     this.#pending = {};
+
     if (Object.keys(change).length === 0) return;
     // The settings show the change at once, so the drafts can go.
     void this.#settings.updateAppearance(change).catch(() => undefined);

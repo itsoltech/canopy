@@ -18,12 +18,14 @@ import { connectWorker, startGateway } from "./helpers.ts";
 
 const dir = tempDir("canopy-host-attachments-");
 const root = join(dir, "repos");
+
 mkdirSync(join(root, "app"), { recursive: true });
 
 let gateway: Awaited<ReturnType<typeof startGateway>>;
 let connection: WorkerConnection;
 let runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>;
 let host: WorkerHost;
+
 /** What the fake gateway hands out, by sha256; the requests it saw. */
 const blobs = new Map<string, Uint8Array>();
 const requests: { threadId: string; sha256: string }[] = [];
@@ -34,10 +36,21 @@ beforeAll(async () => {
   gateway = await startGateway();
   runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
   host = new WorkerHost({ runtime, dataDir: join(dir, "data"), clientVersion: "test" });
-  const link = await connectWorker(gateway.server.url, { hello: { workerId: "worker-1", attachmentsRoot: host.attachmentsRoot, ...(await runtime.runPromise(journalHello())) } });
+
+  const link = await connectWorker(gateway.server.url, {
+    hello: {
+      workerId: "worker-1",
+      attachmentsRoot: host.attachmentsRoot,
+      ...(await runtime.runPromise(journalHello())),
+    },
+  });
+
   void serveLink(link, host, runtime);
   connection = await gateway.nextConnection();
-  connection.send({ case: "config", value: { version: 1n, allowedRoots: [root], claude: { enabled: false }, codex: { enabled: false } } });
+  connection.send({
+    case: "config",
+    value: { version: 1n, allowedRoots: [root], claude: { enabled: false }, codex: { enabled: false } },
+  });
   // The gateway's side of FetchBlob, in 1000-byte chunks.
   void (async () => {
     for await (const message of connection.messages) {
@@ -45,16 +58,28 @@ beforeAll(async () => {
       const { requestId, sha256, threadId } = message.payload.value;
       requests.push({ threadId, sha256 });
       const data = blobs.get(sha256);
+
       if (!data) {
         connection.send({ case: "blobChunk", value: { requestId, sha256, last: true, error: "attachment not found" } });
         continue;
       }
+
       for (let offset = 0; offset < data.length; offset += 1000) {
         const end = Math.min(offset + 1000, data.length);
-        connection.send({ case: "blobChunk", value: { requestId, sha256, offset: BigInt(offset), data: data.subarray(offset, end), last: end === data.length } });
+        connection.send({
+          case: "blobChunk",
+          value: {
+            requestId,
+            sha256,
+            offset: BigInt(offset),
+            data: data.subarray(offset, end),
+            last: end === data.length,
+          },
+        });
       }
     }
   })();
+
   await Bun.sleep(100); // config applied
 });
 
@@ -118,7 +143,11 @@ describe("a turn's attachments on the worker", () => {
     const real = new TextEncoder().encode("real");
     const forged = sha(new TextEncoder().encode("expected"));
     blobs.set(forged, real);
-    const result = await startTurn(threadId, [{ id, name: "x.txt", data: new TextEncoder().encode("expected"), sha256: forged }]);
+
+    const result = await startTurn(threadId, [
+      { id, name: "x.txt", data: new TextEncoder().encode("expected"), sha256: forged },
+    ]);
+
     expect(result).toMatchObject({ ok: false, errorCode: "ATTACHMENT_UNAVAILABLE" });
     expect(result.errorMessage).toContain("damaged");
   });

@@ -20,15 +20,23 @@ export interface ResizeChange {
 export const RESIZE_STEP = 16;
 export const RESIZE_BIG_STEP = 64;
 
-export const clampSize = (size: number, { min, max }: Pick<ResizeRange, "min" | "max">): number => Math.round(Math.max(min, Math.min(max, size)));
+export const clampSize = (size: number, { min, max }: Pick<ResizeRange, "min" | "max">): number =>
+  Math.round(Math.max(min, Math.min(max, size)));
 
 /**
  * The size after a key on the handle (`grows`: the arrow that makes the panel larger, "ArrowRight" for a
  * panel on the left); "reset" for Enter, undefined for keys the handle leaves alone.
  */
-export function keySize(key: string, shift: boolean, size: number, range: ResizeRange, grows: "ArrowRight" | "ArrowLeft" = "ArrowRight"): number | "reset" | undefined {
+export function keySize(
+  key: string,
+  shift: boolean,
+  size: number,
+  range: ResizeRange,
+  grows: "ArrowRight" | "ArrowLeft" = "ArrowRight",
+): number | "reset" | undefined {
   const step = shift ? RESIZE_BIG_STEP : RESIZE_STEP;
   const shrinks = grows === "ArrowRight" ? "ArrowLeft" : "ArrowRight";
+
   switch (key) {
     case grows:
     case "ArrowUp":

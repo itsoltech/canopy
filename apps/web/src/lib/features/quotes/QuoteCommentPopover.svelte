@@ -39,6 +39,7 @@
 
   let draft = $state("");
   let saved = false;
+
   $effect(() => {
     if (open) {
       draft = comment;
@@ -51,16 +52,19 @@
     onsave(draft.trim());
     open = false;
   }
+
   function onclose() {
     if (!saved) oncancel?.();
     onclosed?.();
   }
+
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       save();
     }
   }
+
   // Tab and Shift+Tab go round the panel's controls.
   function trap(event: KeyboardEvent) {
     if (event.key !== "Tab") return;
@@ -68,7 +72,9 @@
     const items = panel ? focusables(panel) : [];
     const first = items[0];
     const last = items.at(-1);
+
     if (!first || !last) return;
+
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
       last.focus();
@@ -79,7 +85,15 @@
   }
 </script>
 
-<Popover bind:open label="Comment on the quote" {anchor} {placement} panelKeydown={trap} {onclose} class={["w-80 max-w-[calc(100vw-1rem)]", className]}>
+<Popover
+  bind:open
+  label="Comment on the quote"
+  {anchor}
+  {placement}
+  panelKeydown={trap}
+  {onclose}
+  class={["w-80 max-w-[calc(100vw-1rem)]", className]}
+>
   <form
     class="grid gap-3 p-3"
     onsubmit={(event) => {

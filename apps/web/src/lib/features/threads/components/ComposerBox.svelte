@@ -99,6 +99,7 @@
     onexpand?: ((activity?: ComposerActivity) => void) | undefined;
     class?: ClassValue;
   } = $props();
+
   const triggers: ReadonlySet<TriggerChar> = new Set(["/", "$", "@", "#"]);
   const trimmed = $derived(trimValue({ text: value, mentions }));
 
@@ -107,41 +108,53 @@
   const hasContent = $derived(Boolean(value.trim()) || hasFiles || elementCount > 0 || allowEmpty);
   const onfiles = $derived(draft ? (files: File[]) => draft.add(files) : undefined);
   const stopMode = $derived(Boolean(onstop) && !hasContent);
+
   // Files go with the next turn: a message with them is never steered.
   const steerMode = $derived(Boolean(onqueue) && !stopMode && (Boolean(value.trim()) || elementCount > 0) && !hasFiles);
   let dragging = $state(false);
   const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes("Files") ?? false;
+
   function ondrop(event: DragEvent) {
     dragging = false;
+
     if (!onfiles || !carriesFiles(event)) return;
     event.preventDefault();
     onexpand?.("drop");
     onfiles(filesOf(event.dataTransfer));
   }
+
   function onpaste(event: ClipboardEvent) {
     onexpand?.("paste");
     const files = filesOf(event.clipboardData);
+
     if (!onfiles || files.length === 0) return;
+
     // A screenshot comes without text: nothing else to paste. Text with files (an office copy) pastes as well.
     if (!event.clipboardData?.types.includes("text/plain")) event.preventDefault();
     onfiles(files);
   }
+
   let box = $state<HTMLDivElement>();
   let sendWidth = $state(36);
+
   // From its observer, after layout: `bind:clientWidth` also reads the width as it mounts, which forces a
   // layout of the whole page in the middle of rendering it (the observer still reports before the first paint).
   const followSendWidth: Attachment<HTMLElement> = (node) => {
     const observer = new ResizeObserver(() => (sendWidth = node.clientWidth));
     observer.observe(node);
+
     return () => observer.disconnect();
   };
+
   let editor = $state<{ insertTrigger(char: TriggerChar): void; focus(): void }>();
   const submit = () => box?.closest("form")?.requestSubmit();
 
   function onkeydown(event: KeyboardEvent) {
     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
+
       if (!hasContent || !canSend) return;
+
       if (onqueue && matchesHotkey(event, "Mod+Enter")) (primary === "queue" ? (onalternate ?? onqueue) : onqueue)();
       else submit();
     }
@@ -178,43 +191,70 @@
       {@render elements?.()}
     </ComposerFold>
     <div class={secret ? undefined : "t-composer-editor"}>
-    {#if secret}
-      <label for="{id}-secret" class="sr-only">{label}</label>
-      <Input id="{id}-secret" type="password" bare bind:value {placeholder} {disabled} {onkeydown} autocomplete="off" class="px-4 pt-3.5 pb-4 text-base/6 sm:text-sm/6" />
-    {:else}
-    <MentionEditor
-      id="{id}-input"
-      {label}
-      bind:value
-      bind:mentions
-      bind:editor
-      {placeholder}
-      {disabled}
-      {autofocus}
-      {sources}
-      {triggers}
-      anchor={box}
-      {onkeydown}
-      {onpaste}
-      singleLine={compact}
-      class={["text-base/6 sm:text-sm/6", disabled && "cursor-not-allowed"]}
-    />
-    {/if}
+      {#if secret}
+        <label for="{id}-secret" class="sr-only">{label}</label>
+        <Input
+          id="{id}-secret"
+          type="password"
+          bare
+          bind:value
+          {placeholder}
+          {disabled}
+          {onkeydown}
+          autocomplete="off"
+          class="px-4 pt-3.5 pb-4 text-base/6 sm:text-sm/6"
+        />
+      {:else}
+        <MentionEditor
+          id="{id}-input"
+          {label}
+          bind:value
+          bind:mentions
+          bind:editor
+          {placeholder}
+          {disabled}
+          {autofocus}
+          {sources}
+          {triggers}
+          anchor={box}
+          {onkeydown}
+          {onpaste}
+          singleLine={compact}
+          class={["text-base/6 sm:text-sm/6", disabled && "cursor-not-allowed"]}
+        />
+      {/if}
     </div>
     <input type="hidden" {name} value={trimmed.text} />
-    {#if trimmed.mentions.length > 0}<input type="hidden" name="mentions" value={JSON.stringify(mentionsToWire(trimmed.mentions))} />{/if}
+    {#if trimmed.mentions.length > 0}<input
+        type="hidden"
+        name="mentions"
+        value={JSON.stringify(mentionsToWire(trimmed.mentions))}
+      />{/if}
     <ComposerFold open={!compact}>
-    <div class="flex min-h-13 items-center justify-end gap-2 p-2.5 pr-[calc(var(--composer-send-width)+--spacing(5))] pl-3">
-      {#if steerMode}
-        <p class="flex shrink-0 items-center gap-1.5 text-xs/5 text-zinc-500 max-sm:hidden pointer-coarse:hidden dark:text-zinc-400" aria-hidden="true" in:rise>
-          <Kbd hotkey="Enter" />{primary}<Kbd hotkey="Mod+Enter" class="ml-1" />{primary === "queue" ? "steer" : "queue"}
-        </p>
-      {/if}
-      {#if onfiles || sources}
-        <ComposerPlusMenu {onfiles} {triggers} {disabled} ontrigger={sources ? (char) => editor?.insertTrigger(char) : undefined} />
-      {/if}
-      {@render controls?.()}
-    </div>
+      <div
+        class="flex min-h-13 items-center justify-end gap-2 p-2.5 pr-[calc(var(--composer-send-width)+--spacing(5))] pl-3"
+      >
+        {#if steerMode}
+          <p
+            class="flex shrink-0 items-center gap-1.5 text-xs/5 text-zinc-500 max-sm:hidden dark:text-zinc-400 pointer-coarse:hidden"
+            aria-hidden="true"
+            in:rise
+          >
+            <Kbd hotkey="Enter" />{primary}<Kbd hotkey="Mod+Enter" class="ml-1" />{primary === "queue"
+              ? "steer"
+              : "queue"}
+          </p>
+        {/if}
+        {#if onfiles || sources}
+          <ComposerPlusMenu
+            {onfiles}
+            {triggers}
+            {disabled}
+            ontrigger={sources ? (char) => editor?.insertTrigger(char) : undefined}
+          />
+        {/if}
+        {@render controls?.()}
+      </div>
     </ComposerFold>
     <div class="absolute right-2.5 bottom-2.5" {@attach followSendWidth}>
       <ResizeSlot>
@@ -246,7 +286,9 @@
             {@attach tooltip(sendLabel, { hotkey: "Enter" })}
             disabled={disabled || !canSend || sending || !hasContent}
           >
-            {#if sending}<Spinner class="size-3.5" />{:else}<Icon name={sendLabel === "Submit" ? "check" : "arrow-up"} />{/if}
+            {#if sending}<Spinner class="size-3.5" />{:else}<Icon
+                name={sendLabel === "Submit" ? "check" : "arrow-up"}
+              />{/if}
             <TouchTarget />
           </button>
         {/if}
@@ -255,7 +297,11 @@
   </div>
   {#if meta}
     <ComposerFold open={!compact}>
-      <div class="flex min-w-0 items-center justify-between gap-3 px-3 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{@render meta()}</div>
+      <div
+        class="flex min-w-0 items-center justify-between gap-3 px-3 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+      >
+        {@render meta()}
+      </div>
     </ComposerFold>
   {/if}
 </div>

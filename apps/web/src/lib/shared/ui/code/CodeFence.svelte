@@ -10,7 +10,12 @@
    * A fenced code block of markdown: its language and a copy button above the code, highlighted when the
    * language is one we know (a `diff` fence shows as a diff). While `streaming`, lines resolve in one by one.
    */
-  let { code, lang, streaming = false, class: className }: { code: string; lang?: string | undefined; streaming?: boolean; class?: ClassValue } = $props();
+  let {
+    code,
+    lang,
+    streaming = false,
+    class: className,
+  }: { code: string; lang?: string | undefined; streaming?: boolean; class?: ClassValue } = $props();
 
   const language = $derived(languageOf(lang));
 </script>
@@ -22,9 +27,21 @@
   {/snippet}
   {#if language === "diff"}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-    <div class="code-surface max-h-[32rem] py-2 focus-ring" tabindex="0" role="region" aria-label="Diff" data-quote-kind="diff"><DiffLines diff={code} {streaming} /></div>
+    <div
+      class="max-h-[32rem] code-surface py-2 focus-ring"
+      tabindex="0"
+      role="region"
+      aria-label="Diff"
+      data-quote-kind="diff"
+    >
+      <DiffLines diff={code} {streaming} />
+    </div>
   {:else}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-    <pre data-quote-kind="code" data-quote-lang={lang} class="code-surface max-h-[32rem] p-3 text-zinc-800 focus-ring dark:text-zinc-200" tabindex="0"><CodeLines text={code} lang={language} {streaming} /></pre>
+    <pre
+      data-quote-kind="code"
+      data-quote-lang={lang}
+      class="max-h-[32rem] code-surface p-3 text-zinc-800 focus-ring dark:text-zinc-200"
+      tabindex="0"><CodeLines text={code} lang={language} {streaming} /></pre>
   {/if}
 </CodeFrame>

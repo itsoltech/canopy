@@ -52,13 +52,22 @@
 
   function set(i: number) {
     const step = steps[Math.max(0, Math.min(i, steps.length - 1))];
+
     if (!step || disabled || step.value === value) return;
     value = step.value;
     onchange?.(step.value);
   }
 
   function onkeydown(event: KeyboardEvent) {
-    const delta: Record<string, number> = { ArrowRight: 1, ArrowUp: 1, PageUp: 1, ArrowLeft: -1, ArrowDown: -1, PageDown: -1 };
+    const delta: Record<string, number> = {
+      ArrowRight: 1,
+      ArrowUp: 1,
+      PageUp: 1,
+      ArrowLeft: -1,
+      ArrowDown: -1,
+      PageDown: -1,
+    };
+
     if (event.key in delta) set(index + delta[event.key]!);
     else if (event.key === "Home") set(0);
     else if (event.key === "End") set(steps.length - 1);
@@ -74,6 +83,7 @@
     const inset = variant === "pill" ? box.height / 2 : 0;
     set(Math.round(((event.clientX - box.left - inset) / Math.max(box.width - 2 * inset, 1)) * last));
   }
+
   function onpointerdown(event: PointerEvent) {
     if (disabled || event.button !== 0) return;
     event.preventDefault();
@@ -82,9 +92,11 @@
     fromPointer(event);
     (event.currentTarget as HTMLElement).querySelector<HTMLElement>("[role=slider]")?.focus();
   }
+
   function onpointermove(event: PointerEvent) {
     if ((event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) fromPointer(event);
   }
+
   const release = () => (pressed = false);
 </script>
 
@@ -157,17 +169,25 @@
   {:else}
     <div bind:this={track} class="relative h-5">
       <div class="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-zinc-950/10 dark:bg-white/10"></div>
-      <div class="t-slide absolute top-1/2 left-0 h-1 w-(--fill) -translate-y-1/2 rounded-full bg-zinc-950 dark:bg-white" style:--fill={at(Math.max(index, 0))}></div>
+      <div
+        class="t-slide absolute top-1/2 left-0 h-1 w-(--fill) -translate-y-1/2 rounded-full bg-zinc-950 dark:bg-white"
+        style:--fill={at(Math.max(index, 0))}
+      ></div>
       {#each steps as step, i (step.value)}
         <span
-          class={["absolute top-1/2 left-(--stop) size-1.5 -translate-1/2 rounded-full", i <= index ? "bg-white/60 dark:bg-zinc-950/60" : "bg-zinc-950/25 dark:bg-white/25"]}
+          class={[
+            "absolute top-1/2 left-(--stop) size-1.5 -translate-1/2 rounded-full",
+            i <= index ? "bg-white/60 dark:bg-zinc-950/60" : "bg-zinc-950/25 dark:bg-white/25",
+          ]}
           style:--stop={at(i)}
           aria-hidden="true"
         ></span>
       {/each}
       {@render thumb([
         "t-slide absolute top-1/2 left-(--stop) size-5 -translate-1/2 cursor-grab rounded-full shadow-sm focus-ring active:cursor-grabbing sm:size-4 dark:shadow-none",
-        unset ? "bg-white ring-2 ring-zinc-950/25 dark:bg-zinc-900 dark:ring-white/30" : "bg-white ring-1 ring-zinc-950/15 dark:bg-zinc-100 dark:ring-white/20",
+        unset
+          ? "bg-white ring-2 ring-zinc-950/25 dark:bg-zinc-900 dark:ring-white/30"
+          : "bg-white ring-1 ring-zinc-950/15 dark:bg-zinc-100 dark:ring-white/20",
       ])}
     </div>
     <div class="relative h-5" aria-hidden="true">

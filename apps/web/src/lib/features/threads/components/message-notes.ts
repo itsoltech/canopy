@@ -6,5 +6,6 @@ export const STEERED: MessageNote = { icon: "arrow-turn-down-right", text: "Stee
 
 /** A steer on its way: sent to the worker, or taken by the provider and waiting for the agent's next step. */
 export const steeringNote = (steer: ui.Steer): MessageNote =>
-  steer.status === "accepted" ? { icon: "arrow-turn-down-right", text: "Accepted, joins at the agent's next step" } : { icon: "spinner", text: "Steering into the running turn…" };
-
+  steer.status === "accepted"
+    ? { icon: "arrow-turn-down-right", text: "Accepted, joins at the agent's next step" }
+    : { icon: "spinner", text: "Steering into the running turn…" };

@@ -1,8 +1,16 @@
 /** Print-only: no service installation and no credentials in generated unit/plist content. */
-export function serviceSnippet(app: "worker" | "gateway", platform: string, executable: string, args: string[]): string {
+export function serviceSnippet(
+  app: "worker" | "gateway",
+  platform: string,
+  executable: string,
+  args: string[],
+): string {
   const name = `canopy-${app}`;
+
   if (platform === "darwin") {
-    const xml = (s: string) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+    const xml = (s: string) =>
+      s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+
     return `Save as ~/Library/LaunchAgents/com.canopy.${app}.plist, then run:
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.canopy.${app}.plist
 
@@ -17,7 +25,10 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.canopy.${app}.plist
   <key>EnvironmentVariables</key><dict><key>PATH</key><string>${xml(process.env["PATH"] ?? "/usr/local/bin:/usr/bin:/bin")}</string></dict>
 </dict></plist>`;
   }
-  const unit = (s: string) => '"' + s.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "%%").replaceAll("$", "$$") + '"';
+
+  const unit = (s: string) =>
+    '"' + s.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "%%").replaceAll("$", "$$") + '"';
+
   return `Save as ~/.config/systemd/user/${name}.service, then run:
 systemctl --user daemon-reload
 systemctl --user enable --now ${name}

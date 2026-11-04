@@ -26,13 +26,15 @@ export interface Field {
 }
 
 /** Keys whose one-word values are states or kinds (`"open"`, `"baseBranch"`), shown in words. */
-const ENUM_KEYS = /^(type|kind|status|state|mode|phase|role|source|delivery|view|scope|outcome|level)$|_(type|kind|status|mode)$|(Type|Kind|Status|Mode)$/;
+const ENUM_KEYS =
+  /^(type|kind|status|state|mode|phase|role|source|delivery|view|scope|outcome|level)$|_(type|kind|status|mode)$|(Type|Kind|Status|Mode)$/;
 
 /** Whole numbers grouped (300,000), fractions as they are. */
 const GROUPED = new Intl.NumberFormat("en", { maximumFractionDigits: 20, useGrouping: true });
 
 /** Text longer than this, or with a line break, is shown as a block of its own. */
 const LONG = 120;
+
 /** Nesting below this depth stays a short JSON line (a value that deep is rarely read). */
 const MAX_DEPTH = 6;
 
@@ -42,38 +44,63 @@ const isPath = (text: string) =>
 /** A JSON value (or a JSON text inside a string) as a node; `key` helps tell ids and enums apart. */
 export function structure(value: unknown, key = "", depth = 0): Node {
   if (value === null || value === undefined) return { kind: "empty" };
+
   if (typeof value === "boolean") return { kind: "bool", value };
+
   if (typeof value === "number" || typeof value === "bigint") return { kind: "number", text: GROUPED.format(value) };
+
   if (typeof value === "string") return leaf(value, key, depth);
+
   if (depth >= MAX_DEPTH) return { kind: "long", text: JSON.stringify(value) };
-  if (Array.isArray(value)) return { kind: "list", items: value.map((item) => structure(item, singular(key), depth + 1)) };
-  if (typeof value === "object") return { kind: "object", fields: fieldsOf(value as Record<string, unknown>, depth + 1) };
+
+  if (Array.isArray(value))
+    return { kind: "list", items: value.map((item) => structure(item, singular(key), depth + 1)) };
+
+  if (typeof value === "object")
+    return { kind: "object", fields: fieldsOf(value as Record<string, unknown>, depth + 1) };
+
   return { kind: "text", text: String(value) };
 }
 
 /** The fields of an object, in its order. */
 export function fieldsOf(record: Record<string, unknown>, depth = 0): Field[] {
-  return Object.entries(record).map(([key, value]) => ({ key, label: humanizeKey(key), node: structure(value, key, depth) }));
+  return Object.entries(record).map(([key, value]) => ({
+    key,
+    label: humanizeKey(key),
+    node: structure(value, key, depth),
+  }));
 }
 
 function leaf(text: string, key: string, depth: number): Node {
   const trimmed = text.trim();
+
   if (trimmed === "") return { kind: "empty" };
+
   // JSON inside a string (answer_json, nested tool output): its structure, not its text.
   if (/^[[{]/.test(trimmed) && depth < MAX_DEPTH) {
     try {
       const parsed: unknown = JSON.parse(trimmed);
+
       if (parsed && typeof parsed === "object") return structure(parsed, key, depth + 1);
     } catch {
       // Not JSON: text below.
     }
   }
-  if (isOpaqueId(trimmed) || (isIdKey(key) && !/\s/.test(trimmed) && trimmed.length >= 8)) return { kind: "id", id: trimmed };
+
+  if (isOpaqueId(trimmed) || (isIdKey(key) && !/\s/.test(trimmed) && trimmed.length >= 8))
+    return { kind: "id", id: trimmed };
+
   if (isIsoDateTime(trimmed)) return { kind: "date", iso: trimmed };
+
   if (/^https?:\/\/\S+$/.test(trimmed)) return { kind: "url", href: trimmed };
+
   if (isPath(trimmed)) return { kind: "path", path: trimmed };
-  if (isEnumToken(trimmed) || (ENUM_KEYS.test(key) && /^[a-z]+([A-Z][a-z0-9]*)*$/.test(trimmed))) return { kind: "enum", label: humanizeEnum(trimmed), raw: trimmed };
+
+  if (isEnumToken(trimmed) || (ENUM_KEYS.test(key) && /^[a-z]+([A-Z][a-z0-9]*)*$/.test(trimmed)))
+    return { kind: "enum", label: humanizeEnum(trimmed), raw: trimmed };
+
   if (text.includes("\n") || text.length > LONG) return { kind: "long", text };
+
   return { kind: "text", text };
 }
 
@@ -82,7 +109,11 @@ const singular = (key: string) => key.replace(/(Ids|_ids|IDs)$/, (m) => m.slice(
 
 /** Nothing worth showing: an empty object, list or value. */
 export function isEmptyNode(node: Node): boolean {
-  return node.kind === "empty" || (node.kind === "list" && node.items.length === 0) || (node.kind === "object" && node.fields.length === 0);
+  return (
+    node.kind === "empty" ||
+    (node.kind === "list" && node.items.length === 0) ||
+    (node.kind === "object" && node.fields.length === 0)
+  );
 }
 
 /** A node short enough to sit on one line next to its label. */
@@ -91,7 +122,9 @@ export const isInline = (node: Node): boolean => !["long", "list", "object"].inc
 /** Parses JSON text into a node; text that is not JSON stays text (long when it has lines). */
 export function structureJson(json: string): Node {
   const text = json.trim();
+
   if (!text) return { kind: "empty" };
+
   try {
     return structure(JSON.parse(text));
   } catch {

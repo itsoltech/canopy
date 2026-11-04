@@ -20,25 +20,40 @@
    * schedule (yours or one an agent set). `hops` (agent-to-agent steps since a person wrote) shows when
    * an agent chain started the turn. Queued turns are not shown here: the queue panel has them.
    */
-  let {
-    turn,
-    text,
-    attachments = [],
-  }: { turn: ui.Turn; text: string; attachments?: readonly BlobRef[] } = $props();
+  let { turn, text, attachments = [] }: { turn: ui.Turn; text: string; attachments?: readonly BlobRef[] } = $props();
 
   const directory = useThreadDirectory();
   const origin = $derived(turnOrigin(turn));
+
   // The platform's note (where the input comes from) and the delivered content, kept apart by the gateway.
   const parts = $derived({ note: turn.platformNote, message: turn.messageText });
   const tone = $derived(origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet");
-  const icons: Record<string, IconName> = { task: "sparkles", message: "chat-bubble-left-right", report: "document-text", question: "hand-raised", schedule: "clock", answer: "chat-bubble-left-right" };
-  const triggerLabels: Record<string, string> = { agent_bus: "From an agent", interaction: "A side thread is waiting", schedule: "Scheduled", goal: "Goal" };
+
+  const icons: Record<string, IconName> = {
+    task: "sparkles",
+    message: "chat-bubble-left-right",
+    report: "document-text",
+    question: "hand-raised",
+    schedule: "clock",
+    answer: "chat-bubble-left-right",
+  };
+
+  const triggerLabels: Record<string, string> = {
+    agent_bus: "From an agent",
+    interaction: "A side thread is waiting",
+    schedule: "Scheduled",
+    goal: "Goal",
+  };
 
   // Long reports (a side thread's whole answer) start folded.
-  const long = $derived(origin.kind === "report" && (parts.message.length > 900 || parts.message.split("\n").length > 14));
+  const long = $derived(
+    origin.kind === "report" && (parts.message.length > 900 || parts.message.split("\n").length > 14),
+  );
+
   // Remembered while the row is scrolled out of a virtual list.
   const memory = useRemembered<boolean>("expanded");
   let expanded = $state(memory?.get() ?? false);
+
   $effect(() => memory?.set(expanded));
 </script>
 
@@ -50,7 +65,12 @@
        reordered command: the message shows as written, with its files, chips and quotes, and the full text folds. -->
   {@const rich = turn.attachments.length > 0 || turn.mentions.length > 0 || turn.quotes.length > 0}
   <UserMessageView
-    message={{ text: rich ? parts.message : text, authorAgentId: "", attachments: [...attachments], mentions: turn.mentions }}
+    message={{
+      text: rich ? parts.message : text,
+      authorAgentId: "",
+      attachments: [...attachments],
+      mentions: turn.mentions,
+    }}
     files={turn.attachments}
     quotes={turn.quotes}
   />
@@ -59,10 +79,17 @@
     <p
       class={[
         "flex max-w-full flex-wrap items-center justify-end gap-x-1.5 gap-y-1 text-sm/5 sm:text-xs/5",
-        tone === "amber" ? "text-amber-700 dark:text-amber-400" : tone === "sky" ? "text-sky-700 dark:text-sky-400" : "text-violet-700 dark:text-violet-400",
+        tone === "amber"
+          ? "text-amber-700 dark:text-amber-400"
+          : tone === "sky"
+            ? "text-sky-700 dark:text-sky-400"
+            : "text-violet-700 dark:text-violet-400",
       ]}
     >
-      {#if !((origin.kind === "other" || origin.kind === "answer") && turn.botId)}<Icon name={icons[origin.kind] ?? "sparkles"} class="size-3.5" />{/if}
+      {#if !((origin.kind === "other" || origin.kind === "answer") && turn.botId)}<Icon
+          name={icons[origin.kind] ?? "sparkles"}
+          class="size-3.5"
+        />{/if}
       {#if origin.kind === "task"}
         <AgentSenderLabel verb="Task from" threadId={origin.threadId} sender={turn.sender} />
       {:else if origin.kind === "message"}
@@ -76,7 +103,12 @@
           Your answer
         {/if}
       {:else if origin.kind === "report"}
-        <AgentSenderLabel verb="Report from" threadId={origin.threadId} sender={turn.sender} fallback="a thread it follows" />
+        <AgentSenderLabel
+          verb="Report from"
+          threadId={origin.threadId}
+          sender={turn.sender}
+          fallback="a thread it follows"
+        />
       {:else if origin.kind === "question"}
         <ThreadLink threadId={origin.threadId} fallback="A side thread" /> is waiting for an answer
       {:else if origin.kind === "schedule"}
@@ -93,8 +125,12 @@
         {triggerLabels[origin.trigger] ?? origin.trigger}
       {/if}
       {#if turn.hops > 0}
-        <span class="text-zinc-500 tabular-nums dark:text-zinc-400" title="Agent-to-agent steps since a person last wrote; a chain stops at the limit">
-          · {turn.hops} {turn.hops === 1 ? "hop" : "hops"}
+        <span
+          class="text-zinc-500 tabular-nums dark:text-zinc-400"
+          title="Agent-to-agent steps since a person last wrote; a chain stops at the limit"
+        >
+          · {turn.hops}
+          {turn.hops === 1 ? "hop" : "hops"}
         </span>
       {/if}
     </p>
@@ -115,7 +151,12 @@
           <Markdown text={parts.message || "(no message)"} />
         </div>
         {#if long}
-          <button type="button" class="mt-1 rounded-md text-sm/6 font-medium text-violet-700 hover:text-violet-900 focus-ring sm:text-xs/6 dark:text-violet-300 dark:hover:text-violet-100" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
+          <button
+            type="button"
+            class="mt-1 rounded-md text-sm/6 font-medium text-violet-700 focus-ring hover:text-violet-900 sm:text-xs/6 dark:text-violet-300 dark:hover:text-violet-100"
+            aria-expanded={expanded}
+            onclick={() => (expanded = !expanded)}
+          >
             {expanded ? "Show less" : "Show the whole report"}
           </button>
         {/if}

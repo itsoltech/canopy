@@ -19,7 +19,14 @@
     class: className,
     children,
     actions,
-  }: { tone?: AlertTone; title?: string; banner?: boolean; class?: ClassValue; children?: Snippet; actions?: Snippet } = $props();
+  }: {
+    tone?: AlertTone;
+    title?: string;
+    banner?: boolean;
+    class?: ClassValue;
+    children?: Snippet;
+    actions?: Snippet;
+  } = $props();
 
   const looks: Record<AlertTone, { icon: IconName; box: string; icon_: string; title: string; body: string }> = {
     info: {
@@ -44,10 +51,20 @@
       body: "text-rose-900 dark:text-rose-200",
     },
   };
+
   const look = $derived(looks[tone]);
 </script>
 
-<div class={["flex items-start gap-3 text-base/6 sm:text-sm/6", look.box, banner ? "px-4 py-2.5 sm:px-6" : "rounded-lg p-3 ring-1 ring-inset", className]} role={tone === "error" ? "alert" : "status"} {@attach shake(tone === "error" && !banner)}>
+<div
+  class={[
+    "flex items-start gap-3 text-base/6 sm:text-sm/6",
+    look.box,
+    banner ? "px-4 py-2.5 sm:px-6" : "rounded-lg p-3 ring-1 ring-inset",
+    className,
+  ]}
+  role={tone === "error" ? "alert" : "status"}
+  {@attach shake(tone === "error" && !banner)}
+>
   <div class="flex h-lh items-center"><Icon name={look.icon} class={look.icon_} /></div>
   <div class="min-w-0 flex-1">
     {#if title}<p class={["font-medium", look.title]}>{title}</p>{/if}

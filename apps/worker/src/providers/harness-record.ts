@@ -25,12 +25,15 @@ export interface TurnEnd {
 /** Complete lines of a JSONL file from a byte offset (a partly written last line is left out). */
 export async function readJsonl(path: string, offset: number): Promise<unknown[]> {
   const file = Bun.file(path);
+
   if (!(await file.exists())) return [];
   const text = await file.slice(Math.max(0, offset)).text();
   const lines = text.split("\n");
   lines.pop(); // empty after the last newline, or a line still being written
+
   return lines.flatMap((line) => {
     if (!line.trim()) return [];
+
     try {
       return [JSON.parse(line) as unknown];
     } catch {

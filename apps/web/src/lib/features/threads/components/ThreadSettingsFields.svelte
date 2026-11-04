@@ -15,8 +15,10 @@
   const provider = $derived(providerLabel(parent.provider));
   const key = $derived(providerKeyOf(parent.provider));
   const profiles = $derived(key ? instancesFor(worker, key) : []);
+
   // svelte-ignore state_referenced_locally
   let mode = $state<string>(PermissionMode[parent.permissionMode] ?? "ASK");
+
   // svelte-ignore state_referenced_locally
   let profile = $state(parent.providerProfileId);
   const modeDescription = $derived(permissionModes.find((m) => m.value === mode)?.description);
@@ -25,9 +27,17 @@
 <div class="grid gap-4 sm:grid-cols-2">
   <Field
     label="{provider} profile"
-    description={profiles.length === 0 ? `The worker reports no profile for ${provider}; its default is used.` : `Side threads run on the main thread's agent (${provider}).`}
+    description={profiles.length === 0
+      ? `The worker reports no profile for ${provider}; its default is used.`
+      : `Side threads run on the main thread's agent (${provider}).`}
   >
-    <Select name="profileId" bind:value={profile} options={profiles.length ? profiles.map((option) => ({ value: instanceValue(option), label: instanceLabel(option) })) : [{ value: "", label: "Default" }]} />
+    <Select
+      name="profileId"
+      bind:value={profile}
+      options={profiles.length
+        ? profiles.map((option) => ({ value: instanceValue(option), label: instanceLabel(option) }))
+        : [{ value: "", label: "Default" }]}
+    />
   </Field>
   <Field label="Model" optional>
     {#if key}<ModelIdField provider={key} label="Model" value={parent.model} />{/if}

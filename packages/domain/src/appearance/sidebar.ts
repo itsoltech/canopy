@@ -16,6 +16,7 @@ export const SIDEBAR_WIDTH = {
 /** What the gateway stores: 0 stays "default", anything else is held within min…max (whole px). */
 export function storedSidebarWidth(width: number): number {
   if (!Number.isFinite(width) || width <= 0) return 0;
+
   return Math.round(Math.min(SIDEBAR_WIDTH.max, Math.max(SIDEBAR_WIDTH.min, width)));
 }
 
@@ -27,5 +28,6 @@ export function maxSidebarWidth(viewport: number): number {
 /** The width shown for a saved value (0 = default) in a window `viewport` px wide. */
 export function sidebarWidthFor(saved: number, viewport: number): number {
   const width = saved > 0 ? saved : SIDEBAR_WIDTH.default;
+
   return Math.round(Math.min(maxSidebarWidth(viewport), Math.max(SIDEBAR_WIDTH.min, width)));
 }

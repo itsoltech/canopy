@@ -6,11 +6,24 @@ import { INLINE_IMAGE_TYPES } from "@canopy/domain";
  * safely are shown inline; everything else (SVG, HTML, text, archives) is a download. The type is the gateway's
  * (from the content), the browser must not guess (`nosniff`), and the document gets no rights at all (CSP sandbox).
  */
-export function fileResponse(data: Uint8Array, mimeType: string, options: { name?: string; download?: boolean } = {}): Response {
+export function fileResponse(
+  data: Uint8Array,
+  mimeType: string,
+  options: { name?: string; download?: boolean } = {},
+): Response {
   const inline = INLINE_IMAGE_TYPES.has(mimeType) && !options.download;
+
   // A text file read as text, never as markup.
-  const type = inline ? mimeType : mimeType.startsWith("text/") ? "text/plain; charset=utf-8" : mimeType === "image/svg+xml" ? "application/octet-stream" : mimeType;
+  const type = inline
+    ? mimeType
+    : mimeType.startsWith("text/")
+      ? "text/plain; charset=utf-8"
+      : mimeType === "image/svg+xml"
+        ? "application/octet-stream"
+        : mimeType;
+
   const name = options.name ?? "attachment";
+
   return new Response(data as Uint8Array<ArrayBuffer>, {
     headers: {
       "content-type": type,
@@ -38,10 +51,12 @@ export function requireSameOrigin(request: Request, url: URL): void {
   if (request.headers.get("x-requested-with") !== "canopy") error(403, "Missing request header");
   const origin = request.headers.get("origin");
   let host: string | undefined;
+
   try {
     host = origin === null ? url.host : new URL(origin).host;
   } catch {
     host = undefined;
   }
+
   if (host !== url.host) error(403, "Cross-origin request");
 }

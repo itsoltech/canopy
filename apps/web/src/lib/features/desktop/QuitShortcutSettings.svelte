@@ -10,32 +10,59 @@
   let choice = $state("");
   let pending = $state(false);
   let error = $state("");
+
   const options = [
     { value: "press-twice", label: "Press twice", description: "Press twice within 500 ms to quit." },
-    { value: "hold", label: "Hold", description: "Hold for at least 1 second. Requires key repeat; otherwise press twice." },
+    {
+      value: "hold",
+      label: "Hold",
+      description: "Hold for at least 1 second. Requires key repeat; otherwise press twice.",
+    },
     { value: "immediately", label: "Quit immediately", description: "Quit on the first press." },
   ];
-  function receive(value: QuitShortcut) { saved = value; choice = value; }
+
+  function receive(value: QuitShortcut) {
+    saved = value;
+    choice = value;
+  }
+
   onMount(() => {
     const bridge = window.canopyDesktop;
+
     if (!bridge?.quitShortcut) return;
     const off = bridge.onQuitShortcut(receive);
-    void bridge.quitShortcut().then(receive).catch(() => { error = "Quit shortcut settings could not be loaded."; });
+    void bridge
+      .quitShortcut()
+      .then(receive)
+      .catch(() => {
+        error = "Quit shortcut settings could not be loaded.";
+      });
+
     return off;
   });
+
   async function change(value: string) {
     if (pending || !options.some((option) => option.value === value)) return;
-    pending = true; error = "";
-    try { receive(await window.canopyDesktop!.setQuitShortcut(value as QuitShortcut)); }
-    catch { choice = saved ?? "press-twice"; error = "The quit shortcut could not be saved. Please try again."; }
-    finally { pending = false; }
+    pending = true;
+    error = "";
+
+    try {
+      receive(await window.canopyDesktop!.setQuitShortcut(value as QuitShortcut));
+    } catch {
+      choice = saved ?? "press-twice";
+      error = "The quit shortcut could not be saved. Please try again.";
+    } finally {
+      pending = false;
+    }
   }
 </script>
 
 {#if saved}
   <SettingsGroup title="Desktop shortcuts" description="Choose how the quit shortcut works on this computer.">
     <SettingsRow title="Quit shortcut" description="Menu clicks and system shutdown always quit immediately.">
-      {#snippet control()}<div class="w-48"><Select aria-label="Quit shortcut" options={options} bind:value={choice} onchange={change} disabled={pending} /></div>{/snippet}
+      {#snippet control()}<div class="w-48">
+          <Select aria-label="Quit shortcut" {options} bind:value={choice} onchange={change} disabled={pending} />
+        </div>{/snippet}
     </SettingsRow>
   </SettingsGroup>
 {/if}

@@ -21,10 +21,13 @@
   const code = $derived(str(input["code"]));
   const calls = $derived(parseScriptCalls(code));
   const result = $derived(streaming ? undefined : parseScriptOutput(call.output));
+
   // Tool results in the output belong, in order, to the calls that are not shell commands.
   const toolCalls = $derived(calls.filter((c) => c.command === undefined));
+
   const ownerOf = (index: number): string => {
     const nth = result ? result.parts.slice(0, index).filter((p) => p.kind === "json").length : 0;
+
     return toolCalls[nth]?.tool ?? "";
   };
 </script>
@@ -36,7 +39,9 @@
       {#each calls as entry, index (index)}
         <li class="min-w-0">
           {#if entry.command !== undefined}
-            <code class="font-mono text-xs/5 break-words whitespace-pre-wrap text-zinc-800 dark:text-zinc-200"><span class="text-zinc-400 select-none dark:text-zinc-500">{"$ "}</span>{entry.command}</code>
+            <code class="font-mono text-xs/5 break-words whitespace-pre-wrap text-zinc-800 dark:text-zinc-200"
+              ><span class="text-zinc-400 select-none dark:text-zinc-500">{"$ "}</span>{entry.command}</code
+            >
           {:else}
             <span class="text-zinc-700 dark:text-zinc-300">{humanizeToolName(entry.tool)}</span>
           {/if}
@@ -50,9 +55,13 @@
 {/if}
 {#if result}
   <Section label={result.failed ? "Failed" : "Output"}>
-    {#snippet aside()}{#if result.wallSeconds !== undefined}<span class="tabular-nums">{result.wallSeconds < 1 ? "under a second" : plural(Math.round(result.wallSeconds), "second")}</span>{/if}{/snippet}
+    {#snippet aside()}{#if result.wallSeconds !== undefined}<span class="tabular-nums"
+          >{result.wallSeconds < 1 ? "under a second" : plural(Math.round(result.wallSeconds), "second")}</span
+        >{/if}{/snippet}
     {#if result.parts.length === 0}
-      <p class="text-sm/5 text-zinc-500 italic sm:text-xs/5 dark:text-zinc-400">{result.failed ? result.status : "No output."}</p>
+      <p class="text-sm/5 text-zinc-500 italic sm:text-xs/5 dark:text-zinc-400">
+        {result.failed ? result.status : "No output."}
+      </p>
     {/if}
     <div class="grid grid-cols-[minmax(0,1fr)] gap-2">
       {#each result.parts as part, index (index)}
@@ -60,16 +69,24 @@
           <div class="grid grid-cols-[minmax(0,1fr)] gap-1">
             <div class="flex items-center gap-1.5 text-sm/5 sm:text-xs/5">
               {#if part.exitCode !== undefined}
-                <Badge tone={part.exitCode === 0 ? "emerald" : "rose"}>{part.exitCode === 0 ? "Succeeded" : `Exit code ${part.exitCode}`}</Badge>
+                <Badge tone={part.exitCode === 0 ? "emerald" : "rose"}
+                  >{part.exitCode === 0 ? "Succeeded" : `Exit code ${part.exitCode}`}</Badge
+                >
               {:else if part.running}
                 <Badge tone="sky">Still running</Badge>
               {/if}
             </div>
-            {#if part.output.trim()}<CodeBlock text={part.output.replace(/\n$/, "")} label="Command output" data-quote-kind="command_output" />{/if}
+            {#if part.output.trim()}<CodeBlock
+                text={part.output.replace(/\n$/, "")}
+                label="Command output"
+                data-quote-kind="command_output"
+              />{/if}
           </div>
         {:else if part.kind === "json" && isBusTool(ownerOf(index))}
           <!-- Agent bus calls in a script also arrive as their own items, with their own view. -->
-          <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{humanizeToolName(ownerOf(index))}: its result shows in the agent call below.</p>
+          <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+            {humanizeToolName(ownerOf(index))}: its result shows in the agent call below.
+          </p>
         {:else if part.kind === "json"}
           <StructuredView node={structure(part.value)} />
         {:else}

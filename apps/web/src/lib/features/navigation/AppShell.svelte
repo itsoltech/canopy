@@ -39,56 +39,90 @@
 
   // One overview per tab. Its first SSE connection fetches the current state, then follows changes.
   const overview = new OverviewState(undefined);
+
   provideOverview(overview);
+
   $effect(() => overview.connect());
+
   let ready = $state(false);
 
   // Settings live in the gateway: seeded by the server, changed from other devices through the stream.
-  const settings = new SettingsState(create(ui.GetSettingsResponseSchema, { user: { appearance: appearanceFromDocument() } }));
+  const settings = new SettingsState(
+    create(ui.GetSettingsResponseSchema, { user: { appearance: appearanceFromDocument() } }),
+  );
+
   provideSettings(settings);
+
   // What is shared with linked computers: badges and questions on every settings page.
   const shared = new SharedConfigState();
+
   provideSharedConfig(shared);
+
   $effect(() => overview.subscribe((update) => shared.apply(update)));
-  $effect(() => { if (overview.resyncs > 0) void shared.reload().catch(() => {}); });
+
+  $effect(() => {
+    if (overview.resyncs > 0) void shared.reload().catch(() => {});
+  });
+
   const threadActions = new ThreadActions(overview, settings, () => page.params.threadId);
+
   provideThreadActions(threadActions);
+
   $effect(() => overview.subscribe((update) => settings.apply(update)));
+
   // Model catalogs: new ones arrive through the stream; after a gap they reload.
   const models = new ModelCatalogState(undefined);
+
   provideModelCatalog(models);
+
   $effect(() => overview.subscribe((update) => models.apply(update)));
+
   $effect(() => {
     if (overview.resyncs > 0) void Promise.allSettled([settings.reload(), models.reload()]).then(() => (ready = true));
   });
+
   // The server rendered the appearance into <html>; keep it current (and follow the system for "system").
   $effect(() => applyAppearance(settings.appearance));
+
   onMount(() => document.getElementById("canopy-boot")?.remove());
+
   $effect(() => {
     const query = matchMedia("(prefers-color-scheme: dark)");
     const follow = () => applyAppearance(settings.appearance);
     query.addEventListener("change", follow);
+
     return () => query.removeEventListener("change", follow);
   });
 
   // Desktop sidebar: width and collapse from the appearance settings, rendered by the server (no jump).
   const sidebar = new SidebarLayout(settings);
+
   $effect(() => () => sidebar.flush());
 
   let menuOpen = $state(false);
+
   // One sidebar at a time: the column from `lg` (it is max-lg:hidden), the drawer below. Mounting both made every
   // list in it (threads, archived pages, …) load twice.
   const wide = new MediaQuery("(min-width: 64rem)");
-  $effect(() => { if (wide.current) menuOpen = false; });
+
+  $effect(() => {
+    if (wide.current) menuOpen = false;
+  });
+
   provideShell({ openMenu: () => (menuOpen = true), sidebar });
+
   // Close the menu as a navigation starts: Settings then opens over the page (focus returns to the menu button).
   beforeNavigate(() => (menuOpen = false));
 
   // Command palette (Mod+K): the app's commands here, pages add their own (contributeCommands).
   const commands = new CommandRegistry();
+
   provideCommands(commands);
+
   const palette = new PaletteState();
+
   providePalette(palette);
+
   commands.add(
     appCommands({
       overview,
@@ -104,6 +138,7 @@
         undefined,
     }),
   );
+
   afterNavigate(({ to }) => {
     if (to) sectionMemory.visit(to.url);
   });
@@ -118,7 +153,10 @@
 <ThreadActionDialogs />
 
 <!-- `data-sidebar`: whether the sidebar clears the page header from the native window controls. -->
-<div class="isolate flex h-dvh bg-white text-zinc-950 dark:bg-black dark:text-white" data-sidebar={wide.current && !sidebar.collapsed && !sidebar.settling ? "shown" : "hidden"}>
+<div
+  class="isolate flex h-dvh bg-white text-zinc-950 dark:bg-black dark:text-white"
+  data-sidebar={wide.current && !sidebar.collapsed && !sidebar.settling ? "shown" : "hidden"}
+>
   <SidebarColumn {sidebar}>
     {#if wide.current}<AppSidebar currentThreadId={page.params.threadId} />{/if}
   </SidebarColumn>
@@ -126,13 +164,20 @@
     {#if !wide.current}<AppSidebar currentThreadId={page.params.threadId} />{/if}
   </Drawer>
 
-  <div class="flex min-h-0 min-w-0 flex-1 flex-col" data-window-offset={overview.connection === "unavailable" || !ready || Boolean(page.error) || undefined}>
+  <div
+    class="flex min-h-0 min-w-0 flex-1 flex-col"
+    data-window-offset={overview.connection === "unavailable" || !ready || Boolean(page.error) || undefined}
+  >
     {#if overview.connection === "unavailable" || !ready || page.error}
       <!-- Keep banners, loading and error content below a static native title strip. -->
       <div class="hidden h-12 shrink-0 macos:block" data-window-drag></div>
     {/if}
     {#if overview.connection === "unavailable"}
-      <GrowIn><Alert tone="warning" banner>The gateway is not responding. Showing the last known state; retrying automatically.</Alert></GrowIn>
+      <GrowIn
+        ><Alert tone="warning" banner
+          >The gateway is not responding. Showing the last known state; retrying automatically.</Alert
+        ></GrowIn
+      >
     {/if}
     <main class="min-h-0 flex-1">
       <!-- A settings page loaded on its own shows in the settings dialog, until it goes over the new thread. -->
@@ -141,7 +186,9 @@
       {:else if !ready && !page.error}
         <div class="flex h-full flex-col gap-4 p-6" role="status" aria-label="Loading application">
           <Skeleton class="h-6 w-44" />
-          <div class="m-auto flex w-full max-w-(--chat-width) flex-col gap-4"><Skeleton class="h-8 w-64" /><Skeleton class="h-32 w-full" /></div>
+          <div class="m-auto flex w-full max-w-(--chat-width) flex-col gap-4">
+            <Skeleton class="h-8 w-64" /><Skeleton class="h-32 w-full" />
+          </div>
         </div>
       {:else if !isSettingsRoute(page.route.id) || page.error}{@render children()}{/if}
     </main>

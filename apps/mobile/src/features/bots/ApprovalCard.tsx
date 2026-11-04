@@ -13,9 +13,11 @@ export function ApprovalCard({ approval }: { approval: bots.BotApproval }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const question = approval.kind === "question";
+
   async function respond(approve: boolean, text = answer) {
     setBusy(true);
     setError("");
+
     try {
       await client!.api.answerBotApproval({
         approvalId: approval.id,
@@ -28,6 +30,7 @@ export function ApprovalCard({ approval }: { approval: bots.BotApproval }) {
       setBusy(false);
     }
   }
+
   return (
     <View
       style={{
@@ -40,13 +43,8 @@ export function ApprovalCard({ approval }: { approval: bots.BotApproval }) {
       }}
     >
       <View style={styles.row}>
-        <Icon
-          name={question ? "hand-raised" : "shield-exclamation"}
-          color={c.warning}
-        />
-        <Text style={[styles.label, { color: c.text }]}>
-          {question ? "Question" : "Approval required"}
-        </Text>
+        <Icon name={question ? "hand-raised" : "shield-exclamation"} color={c.warning} />
+        <Text style={[styles.label, { color: c.text }]}>{question ? "Question" : "Approval required"}</Text>
       </View>
       <Text selectable style={[styles.body, { color: c.text }]}>
         {approval.prompt}
@@ -54,31 +52,15 @@ export function ApprovalCard({ approval }: { approval: bots.BotApproval }) {
       {question && (
         <>
           {approval.options.map((o) => (
-            <Button
-              key={o}
-              secondary
-              title={o}
-              busy={busy}
-              onPress={() => void respond(true, o)}
-            />
+            <Button key={o} secondary title={o} busy={busy} onPress={() => void respond(true, o)} />
           ))}
-          <Field
-            label="Your answer"
-            value={answer}
-            onChangeText={setAnswer}
-            multiline
-          />
+          <Field label="Your answer" value={answer} onChangeText={setAnswer} multiline />
         </>
       )}
       {error ? <Notice error>{error}</Notice> : null}
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Button
-            title={question ? "Dismiss" : "Decline"}
-            secondary
-            busy={busy}
-            onPress={() => void respond(false)}
-          />
+          <Button title={question ? "Dismiss" : "Decline"} secondary busy={busy} onPress={() => void respond(false)} />
         </View>
         <View style={{ flex: 1 }}>
           <Button

@@ -51,7 +51,9 @@
   function sizeAt(x: number): { size: number; collapsed: boolean } {
     if (!drag) return { size: value, collapsed: false };
     const raw = drag.size + (grows === "right" ? x - drag.x : drag.x - x);
+
     if (collapsible && raw < min / 2) return { size: drag.size, collapsed: true };
+
     return { size: clampSize(raw, range), collapsed: false };
   }
 
@@ -67,11 +69,13 @@
     if (!drag) return;
     cancelAnimationFrame(frame);
     frame = 0;
+
     if (commit && x !== undefined) follow(x);
     const { size, last, collapsed } = drag;
     drag = undefined;
     dragging = false;
     delete document.documentElement.dataset["resizing"];
+
     if (!commit) onresize?.(size, false);
     else if (last !== size || collapsed) onchange?.({ size: last, collapsed, reason: "drag" });
   }
@@ -100,12 +104,16 @@
     if (event.key === "Escape" && drag) {
       event.preventDefault();
       end(false);
+
       return;
     }
+
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     const next = keySize(event.key, event.shiftKey, value, range, grows === "right" ? "ArrowRight" : "ArrowLeft");
+
     if (next === undefined) return;
     event.preventDefault();
+
     if (next === "reset") onchange?.({ size: reset, collapsed: false, reason: "reset" });
     else if (next !== value) onchange?.({ size: next, collapsed: false, reason: "key" });
   }

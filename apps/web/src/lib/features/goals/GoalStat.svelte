@@ -3,7 +3,12 @@
   import type { ClassValue } from "svelte/elements";
 
   /** One figure of a goal's usage in a `<dl>`: label, value and optional content under it (a meter). */
-  let { label, value, children, class: className }: { label: string; value: Snippet; children?: Snippet; class?: ClassValue } = $props();
+  let {
+    label,
+    value,
+    children,
+    class: className,
+  }: { label: string; value: Snippet; children?: Snippet; class?: ClassValue } = $props();
 </script>
 
 <div class={["grid content-start gap-0.5", className]}>

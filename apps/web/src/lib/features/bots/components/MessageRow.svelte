@@ -23,7 +23,18 @@
     event,
     children,
     class: className,
-  }: { sender: ParticipantView | undefined; side?: "start" | "end"; mine?: boolean; showAvatar?: boolean; showName?: boolean; gutter?: boolean; state?: MascotState; event?: unknown; children: Snippet; class?: ClassValue } = $props();
+  }: {
+    sender: ParticipantView | undefined;
+    side?: "start" | "end";
+    mine?: boolean;
+    showAvatar?: boolean;
+    showName?: boolean;
+    gutter?: boolean;
+    state?: MascotState;
+    event?: unknown;
+    children: Snippet;
+    class?: ClassValue;
+  } = $props();
 </script>
 
 <div class={["flex items-end gap-2", side === "end" && "flex-row-reverse", className]}>
@@ -34,7 +45,15 @@
   {/if}
   <div class={["flex min-w-0 flex-1 flex-col gap-1", side === "end" ? "items-end" : "items-start"]}>
     {#if showName && sender}
-      <p class={["px-3 text-sm/5 font-medium sm:text-xs/5", sender.kind === "bot" ? botTextTone(sender) : "text-zinc-500 dark:text-zinc-400"]} style:--bot-color={sender.color}>{sender.name}</p>
+      <p
+        class={[
+          "px-3 text-sm/5 font-medium sm:text-xs/5",
+          sender.kind === "bot" ? botTextTone(sender) : "text-zinc-500 dark:text-zinc-400",
+        ]}
+        style:--bot-color={sender.color}
+      >
+        {sender.name}
+      </p>
     {/if}
     {@render children()}
   </div>

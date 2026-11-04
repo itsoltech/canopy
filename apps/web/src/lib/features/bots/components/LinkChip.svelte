@@ -8,14 +8,20 @@
   /** A link a bot posted (pull request, issue, commit, web page) as a compact chip; unsafe URLs stay text. */
   let { link, class: className }: { link: LinkView; class?: ClassValue } = $props();
 
-  const icons: Record<LinkView["kind"], IconName> = { pull_request: "code-bracket", issue: "exclamation-circle", commit: "link", web: "globe-alt" };
+  const icons: Record<LinkView["kind"], IconName> = {
+    pull_request: "code-bracket",
+    issue: "exclamation-circle",
+    commit: "link",
+    web: "globe-alt",
+  };
+
   const href = $derived(safeHref(link.url));
   const subtitle = $derived(link.subtitle ?? (href ? new URL(href).host : undefined));
 </script>
 
 <svelte:element
   this={href ? "a" : "span"}
-  href={href}
+  {href}
   target={href ? "_blank" : undefined}
   rel={href ? "noopener noreferrer nofollow" : undefined}
   class={[
@@ -24,7 +30,10 @@
     className,
   ]}
 >
-  <Icon name={icons[link.kind]} class={link.kind === "pull_request" ? "fill-emerald-600 dark:fill-emerald-400" : "fill-zinc-500 dark:fill-zinc-400"} />
+  <Icon
+    name={icons[link.kind]}
+    class={link.kind === "pull_request" ? "fill-emerald-600 dark:fill-emerald-400" : "fill-zinc-500 dark:fill-zinc-400"}
+  />
   <span class="min-w-0 truncate font-medium text-zinc-900 dark:text-zinc-100">{link.title}</span>
   {#if subtitle}<span class="shrink-0 text-zinc-500 dark:text-zinc-400">{subtitle}</span>{/if}
   {#if href}<Icon name="arrow-top-right-on-square" class="size-3.5 fill-zinc-400 dark:fill-zinc-500" />{/if}

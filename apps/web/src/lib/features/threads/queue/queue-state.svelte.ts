@@ -12,6 +12,7 @@ export interface QueueSource {
   readonly steers: readonly ui.Steer[];
   readonly running: boolean;
 }
+
 export interface QueueSink {
   turn(turn: ui.Turn): void;
   steer(steer: ui.Steer): void;
@@ -36,7 +37,12 @@ export class QueueState {
   readonly #source: () => QueueSource;
   readonly #sink: QueueSink;
 
-  readonly rows: ui.Turn[] = $derived.by(() => ordered(this.#source().turns.filter((t) => !this.hidden.has(t.id)), this.order));
+  readonly rows: ui.Turn[] = $derived.by(() =>
+    ordered(
+      this.#source().turns.filter((t) => !this.hidden.has(t.id)),
+      this.order,
+    ),
+  );
   readonly running: boolean = $derived.by(() => this.#source().running);
 
   constructor(source: () => QueueSource, sink: QueueSink) {
@@ -51,7 +57,11 @@ export class QueueState {
 
   /** Moves a row in the shown order only (dragging); `commit` sends it. */
   preview(id: string, index: number): void {
-    this.order = moveTo(this.rows.map((t) => t.id), id, index);
+    this.order = moveTo(
+      this.rows.map((t) => t.id),
+      id,
+      index,
+    );
   }
 
   /** Moves a row and sends the new order. */
@@ -59,10 +69,13 @@ export class QueueState {
     const before = this.rows.findIndex((t) => t.id === id);
     this.preview(id, index);
     const after = this.rows.findIndex((t) => t.id === id);
+
     if (after === before) {
       this.order = undefined;
+
       return;
     }
+
     this.announce(after);
     await this.commit();
   }
@@ -70,9 +83,11 @@ export class QueueState {
   /** Sends the shown order; the gateway's answer (new ordinals) replaces it. */
   async commit(): Promise<void> {
     const order = this.order;
+
     if (!order) return;
     const { threadId, turns } = this.#source();
     const unchanged = turns.filter((t) => !this.hidden.has(t.id)).every((t, i) => t.id === order[i]);
+
     try {
       if (!unchanged) for (const turn of await reorderQueue(threadId, order)) this.#sink.turn(turn);
     } catch (cause) {
@@ -87,8 +102,10 @@ export class QueueState {
       // The chips the new text still has keep their mentions (the inline editor is plain text).
       const mentions = relocateMentions(messageOf(turn), turn.mentions, text);
       const saved = await editQueued(this.#source().threadId, turn.id, text, turn.revision, mentions);
+
       if (saved) this.#sink.turn(saved);
       this.editing = undefined;
+
       return undefined;
     } catch (cause) {
       return failure(cause);
@@ -100,8 +117,12 @@ export class QueueState {
     const { threadId } = this.#source();
     await this.#withdraw(turn, "Could not delete", async () => {
       const removed = await deleteQueued(threadId, turn.id);
+
       if (removed) this.#sink.turn(removed);
-      toast("Message deleted", { tone: "info", action: { label: "Undo", run: () => void this.#restore(threadId, turn.id) } });
+      toast("Message deleted", {
+        tone: "info",
+        action: { label: "Undo", run: () => void this.#restore(threadId, turn.id) },
+      });
     });
   }
 
@@ -110,7 +131,9 @@ export class QueueState {
     const { threadId } = this.#source();
     await this.#withdraw(turn, "Could not steer", async () => {
       const { steer, turn: withdrawn } = await steerQueued(threadId, turn.id);
+
       if (withdrawn) this.#sink.turn(withdrawn);
+
       if (steer) this.#sink.steer(steer);
     });
   }
@@ -118,6 +141,7 @@ export class QueueState {
   async #withdraw(turn: ui.Turn, what: string, run: () => Promise<void>): Promise<void> {
     if (this.editing === turn.id) this.editing = undefined;
     this.hidden = new Set(this.hidden).add(turn.id);
+
     try {
       await run();
     } catch (cause) {
@@ -132,6 +156,7 @@ export class QueueState {
   async #restore(threadId: string, turnId: string): Promise<void> {
     try {
       const restored = await restoreQueued(threadId, turnId);
+
       if (restored) this.#sink.turn(restored);
     } catch (cause) {
       toast(`Could not restore: ${failure(cause)}`, { tone: "error" });

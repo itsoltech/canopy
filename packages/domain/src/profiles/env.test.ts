@@ -12,6 +12,7 @@ describe("profile env rules", () => {
     for (const name of ["HOME", "path", "CLAUDE_CONFIG_DIR", "codex_home", "USERPROFILE", "CLAUDE_CODE_ENTRYPOINT"]) {
       expect(envNameProblem("native", name)).toContain("controlled by the worker");
     }
+
     expect(envNameProblem("native", "CANOPY_X_API_KEY")).toContain("reserved");
   });
 
@@ -35,6 +36,7 @@ describe("profile env rules", () => {
       { name: "B", value: "x".repeat(40_000) },
       { name: "C", value: "a\0b" },
     ]);
+
     expect(problems.map((p) => p.index)).toEqual([1, 2, 3]);
   });
 });

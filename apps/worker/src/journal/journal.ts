@@ -180,12 +180,14 @@ function open(path: string): Database {
   db.exec("PRAGMA busy_timeout = 5000");
   db.exec(SCHEMA);
   db.query("INSERT OR IGNORE INTO meta (key, value) VALUES ('journal_id', $id)").run({ id: Bun.randomUUIDv7() });
+
   return db;
 }
 
 function makeJournal(db: Database): Journal["Service"] {
   const redact = secretEventRedactor();
   let shuttingDown = false;
+
   const attempt = <A>(operation: string, run: () => A) =>
     Effect.try({ try: run, catch: (cause) => new JournalError({ operation, cause }) });
 
@@ -196,62 +198,100 @@ function makeJournal(db: Database): Journal["Service"] {
      ON CONFLICT (thread_id) DO UPDATE SET last_seq = last_seq + 1
      RETURNING last_seq`,
   );
+
   const insertEvent = db.query(
     "INSERT INTO events (thread_id, journal_seq, event_id, payload, created_at) VALUES ($thread, $seq, $id, $payload, $at)",
   );
+
   const upsertBackground = db.query(
     `INSERT INTO background_tasks (thread_id, item_id, item) VALUES ($thread, $item_id, $item)
      ON CONFLICT (thread_id, item_id) DO UPDATE SET item = excluded.item`,
   );
+
   const deleteBackground = db.query("DELETE FROM background_tasks WHERE thread_id = $thread AND item_id = $item_id");
-  const selectBackground = db.query<{ thread_id: string; item: Uint8Array }, []>("SELECT thread_id, item FROM background_tasks ORDER BY rowid");
+
+  const selectBackground = db.query<{ thread_id: string; item: Uint8Array }, []>(
+    "SELECT thread_id, item FROM background_tasks ORDER BY rowid",
+  );
+
   const trackBackground = (threadId: string, body: ThreadEvent["body"]) => {
     if (body.case !== "itemStarted" && body.case !== "itemCompleted") return;
     const item = body.value.item;
+
     if (item?.content.case !== "backgroundTask") return;
+
     if (item.status === ItemStatus.IN_PROGRESS) {
       upsertBackground.run({ thread: threadId, item_id: item.itemId, item: toBinary(ItemSchema, item) });
     } else {
       deleteBackground.run({ thread: threadId, item_id: item.itemId });
     }
   };
+
   const insertTurn = db.query("INSERT OR IGNORE INTO open_turns (thread_id, turn_id) VALUES ($thread, $turn)");
   const deleteTurn = db.query("DELETE FROM open_turns WHERE thread_id = $thread AND turn_id = $turn");
-  const selectTurns = db.query<{ thread_id: string; turn_id: string }, []>("SELECT thread_id, turn_id FROM open_turns ORDER BY rowid");
+
+  const selectTurns = db.query<{ thread_id: string; turn_id: string }, []>(
+    "SELECT thread_id, turn_id FROM open_turns ORDER BY rowid",
+  );
+
   const upsertItem = db.query(
     `INSERT INTO turn_items (thread_id, turn_id, item_id, item, done)
      SELECT $thread, $turn, $item_id, $item, $done WHERE EXISTS (SELECT 1 FROM open_turns WHERE thread_id = $thread AND turn_id = $turn)
      ON CONFLICT (thread_id, item_id) DO UPDATE SET item = excluded.item, done = max(turn_items.done, excluded.done)`,
   );
+
   const deleteItems = db.query("DELETE FROM turn_items WHERE thread_id = $thread AND turn_id = $turn");
   const deleteHarness = db.query("DELETE FROM turn_harness WHERE thread_id = $thread AND turn_id = $turn");
-  const insertInterrupt = db.query("INSERT OR IGNORE INTO turn_interrupts (thread_id, turn_id) VALUES ($thread, $turn)");
+
+  const insertInterrupt = db.query(
+    "INSERT OR IGNORE INTO turn_interrupts (thread_id, turn_id) VALUES ($thread, $turn)",
+  );
+
   const deleteInterrupt = db.query("DELETE FROM turn_interrupts WHERE thread_id = $thread AND turn_id = $turn");
-  const selectInterrupt = db.query<{ n: number }, { thread: string; turn: string }>("SELECT count(*) AS n FROM turn_interrupts WHERE thread_id = $thread AND turn_id = $turn");
+
+  const selectInterrupt = db.query<{ n: number }, { thread: string; turn: string }>(
+    "SELECT count(*) AS n FROM turn_interrupts WHERE thread_id = $thread AND turn_id = $turn",
+  );
+
   const trackTurn = (threadId: string, turnId: string, body: ThreadEvent["body"]) => {
     if (!turnId) return;
+
     if (body.case === "turnStarted") insertTurn.run({ thread: threadId, turn: turnId });
+
     if (body.case === "turnFinished") {
       deleteTurn.run({ thread: threadId, turn: turnId });
       deleteItems.run({ thread: threadId, turn: turnId });
       deleteHarness.run({ thread: threadId, turn: turnId });
       deleteInterrupt.run({ thread: threadId, turn: turnId });
     }
+
     if (body.case === "itemStarted" || body.case === "itemCompleted") {
       const item = body.value.item;
+
       if (!item?.itemId || item.content.case === "backgroundTask") return;
       // A started event never reopens a finished item (like the gateway's reducer).
       const done = body.case === "itemCompleted" && item.status !== ItemStatus.IN_PROGRESS ? 1 : 0;
       upsertItem.run({ thread: threadId, turn: turnId, item_id: item.itemId, item: toBinary(ItemSchema, item), done });
     }
   };
+
   const selectHarness = db.query<
-    { harness: "codex" | "claude"; transcript: string; session_id: string; start_offset: number; provider_turn: string },
+    {
+      harness: "codex" | "claude";
+      transcript: string;
+      session_id: string;
+      start_offset: number;
+      provider_turn: string;
+    },
     { thread: string; turn: string }
-  >("SELECT harness, transcript, session_id, start_offset, provider_turn FROM turn_harness WHERE thread_id = $thread AND turn_id = $turn");
+  >(
+    "SELECT harness, transcript, session_id, start_offset, provider_turn FROM turn_harness WHERE thread_id = $thread AND turn_id = $turn",
+  );
+
   const selectItems = db.query<{ item: Uint8Array; done: number }, { thread: string; turn: string }>(
     "SELECT item, done FROM turn_items WHERE thread_id = $thread AND turn_id = $turn ORDER BY rowid",
   );
+
   const upsertHarness = db.query(
     `INSERT INTO turn_harness (thread_id, turn_id, harness, transcript, session_id, start_offset, provider_turn)
      VALUES ($thread, $turn, $harness, $transcript, $session, $offset, $provider_turn)
@@ -259,8 +299,10 @@ function makeJournal(db: Database): Journal["Service"] {
        session_id = excluded.session_id, start_offset = min(turn_harness.start_offset, excluded.start_offset),
        provider_turn = CASE WHEN excluded.provider_turn <> '' THEN excluded.provider_turn ELSE turn_harness.provider_turn END`,
   );
+
   const appendTx = db.transaction((threadId: string, event: ThreadEventInit) => {
     const seq = BigInt(nextSeq.get({ thread: threadId })!.last_seq);
+
     const init: MessageInitShape<typeof ThreadEventSchema> = {
       ...event,
       threadId,
@@ -268,39 +310,58 @@ function makeJournal(db: Database): Journal["Service"] {
       eventId: Bun.randomUUIDv7(),
       occurredAt: event.occurredAt ?? timestampNow(),
     } as MessageInitShape<typeof ThreadEventSchema>;
+
     const full = create(ThreadEventSchema, init);
+
     // Providers can report stopped/failed (or even a successful exit) while their runtime is being torn down.
     // Normalize BEFORE the first durable end, not in publish() or the later orphan sweep: the gateway's first
     // end wins and may already have queued the agent's note. This covers Claude and Codex alike.
     if (shuttingDown && full.body.case === "itemCompleted") {
       const item = full.body.value.item;
+
       if (item?.content.case === "backgroundTask" && item.status !== ItemStatus.IN_PROGRESS) {
         item.status = ItemStatus.INTERRUPTED;
         item.content.value.stopReason = "worker_shutdown";
         item.content.value.endedAt ??= full.occurredAt;
       }
     }
-    insertEvent.run({ thread: threadId, seq: Number(seq), id: full.eventId, payload: toBinary(ThreadEventSchema, full), at: Date.now() });
+
+    insertEvent.run({
+      thread: threadId,
+      seq: Number(seq),
+      id: full.eventId,
+      payload: toBinary(ThreadEventSchema, full),
+      at: Date.now(),
+    });
     trackBackground(threadId, full.body);
     trackTurn(threadId, full.turnId, full.body);
+
     return full;
   });
 
   const deleteUpTo = db.query("DELETE FROM events WHERE thread_id = $thread AND journal_seq <= $seq");
+
   const cursorRows = db.query<{ thread_id: string; last_seq: number }, []>(
     "SELECT thread_id, MAX(journal_seq) AS last_seq FROM events GROUP BY thread_id ORDER BY thread_id",
   );
+
   const threadsWithEvents = db.query<{ thread_id: string }, []>("SELECT DISTINCT thread_id FROM events");
+
   const eventsAfter = db.query<{ payload: Uint8Array }, { thread: string; seq: number }>(
     "SELECT payload FROM events WHERE thread_id = $thread AND journal_seq > $seq ORDER BY journal_seq",
   );
+
   const pendingTx = db.transaction((persisted: ReadonlyMap<string, bigint>) => {
     const out: ThreadEvent[] = [];
+
     for (const { thread_id: thread } of threadsWithEvents.all()) {
       const cursor = Number(persisted.get(thread) ?? 0n);
+
       if (cursor > 0) deleteUpTo.run({ thread, seq: cursor });
+
       for (const row of eventsAfter.all({ thread, seq: cursor })) out.push(fromBinary(ThreadEventSchema, row.payload));
     }
+
     return out;
   });
 
@@ -308,7 +369,11 @@ function makeJournal(db: Database): Journal["Service"] {
     `INSERT INTO processed_commands (command_id, result, processed_at) VALUES ($id, $result, $at)
      ON CONFLICT (command_id) DO UPDATE SET result = excluded.result, processed_at = excluded.processed_at`,
   );
-  const selectCommand = db.query<{ result: Uint8Array }, { id: string }>("SELECT result FROM processed_commands WHERE command_id = $id");
+
+  const selectCommand = db.query<{ result: Uint8Array }, { id: string }>(
+    "SELECT result FROM processed_commands WHERE command_id = $id",
+  );
+
   const purge = db.query("DELETE FROM processed_commands WHERE processed_at < $before");
 
   return Journal.of({
@@ -322,7 +387,9 @@ function makeJournal(db: Database): Journal["Service"] {
     cursors: Effect.fn("Journal.cursors")(() =>
       attempt("cursors", () => cursorRows.all().map((r) => ({ threadId: r.thread_id, lastSeq: BigInt(r.last_seq) }))),
     ),
-    pending: Effect.fn("Journal.pending")((persisted: ReadonlyMap<string, bigint>) => attempt("pending", () => pendingTx(persisted))),
+    pending: Effect.fn("Journal.pending")((persisted: ReadonlyMap<string, bigint>) =>
+      attempt("pending", () => pendingTx(persisted)),
+    ),
     rememberCommand: Effect.fn("Journal.rememberCommand")((result: MessageInitShape<typeof CommandResultSchema>) =>
       attempt("rememberCommand", () => {
         const message = create(CommandResultSchema, result);
@@ -332,6 +399,7 @@ function makeJournal(db: Database): Journal["Service"] {
     commandResult: Effect.fn("Journal.commandResult")((commandId: string) =>
       attempt("commandResult", () => {
         const row = selectCommand.get({ id: commandId });
+
         return row ? fromBinary(CommandResultSchema, row.result) : undefined;
       }),
     ),
@@ -339,11 +407,14 @@ function makeJournal(db: Database): Journal["Service"] {
       attempt("purgeCommands", () => purge.run({ before: Date.now() - maxAgeMs }).changes),
     ),
     openBackgroundTasks: Effect.fn("Journal.openBackgroundTasks")(() =>
-      attempt("openBackgroundTasks", () => selectBackground.all().map((r) => ({ threadId: r.thread_id, item: fromBinary(ItemSchema, r.item) }))),
+      attempt("openBackgroundTasks", () =>
+        selectBackground.all().map((r) => ({ threadId: r.thread_id, item: fromBinary(ItemSchema, r.item) })),
+      ),
     ),
     beginShutdown: Effect.fn("Journal.beginShutdown")(() =>
       attempt("beginShutdown", () => {
         shuttingDown = true;
+
         return selectBackground.all().length;
       }),
     ),
@@ -352,11 +423,18 @@ function makeJournal(db: Database): Journal["Service"] {
         selectTurns.all().map((r): OpenTurn => {
           const key = { thread: r.thread_id, turn: r.turn_id };
           const h = selectHarness.get(key);
+
           return {
             threadId: r.thread_id,
             turnId: r.turn_id,
             ...(h && {
-              harness: { harness: h.harness, transcript: h.transcript, sessionId: h.session_id, offset: h.start_offset, providerTurn: h.provider_turn },
+              harness: {
+                harness: h.harness,
+                transcript: h.transcript,
+                sessionId: h.session_id,
+                offset: h.start_offset,
+                providerTurn: h.provider_turn,
+              },
             }),
             items: selectItems.all(key).map((i) => ({ item: fromBinary(ItemSchema, i.item), done: i.done === 1 })),
             interruptRequested: (selectInterrupt.get(key)?.n ?? 0) > 0,

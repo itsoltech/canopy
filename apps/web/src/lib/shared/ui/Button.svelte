@@ -17,10 +17,26 @@
     children: Snippet;
   };
 
-  let { variant = "secondary", size = "md", icon, loading = false, type = "button", disabled, class: className, children, ...rest }: Props = $props();
+  let {
+    variant = "secondary",
+    size = "md",
+    icon,
+    loading = false,
+    type = "button",
+    disabled,
+    class: className,
+    children,
+    ...rest
+  }: Props = $props();
 </script>
 
-<button {type} class={[buttonClasses(variant, size, Boolean(icon || loading)), className]} disabled={disabled || loading} aria-busy={loading || undefined} {...rest}>
+<button
+  {type}
+  class={[buttonClasses(variant, size, Boolean(icon || loading)), className]}
+  disabled={disabled || loading}
+  aria-busy={loading || undefined}
+  {...rest}
+>
   {#if loading}<Spinner />{:else if icon}<Icon name={icon} />{/if}
   {@render children()}
   {#if size === "sm"}<TouchTarget />{/if}

@@ -6,7 +6,9 @@ const THREAD = "0196f0c1-0000-7000-8000-000000000000";
 
 function failure(name: string, args: unknown): string {
   const result = decodeAgentBusCall(name, typeof args === "string" ? args : JSON.stringify(args));
+
   if (Result.isSuccess(result)) throw new Error(`expected failure for ${name}`);
+
   return result.failure;
 }
 
@@ -15,6 +17,7 @@ describe("agent bus tool specs", () => {
 
   test("one spec per tool, every input is a closed object schema", () => {
     expect(specs.map((s) => s.name).sort()).toEqual(Object.keys(AGENT_BUS_TOOLS).sort());
+
     for (const spec of specs) {
       expect(spec.inputSchema["type"]).toBe("object");
       expect(spec.inputSchema["additionalProperties"]).toBe(false);
@@ -27,6 +30,7 @@ describe("agent bus tool specs", () => {
       properties: Record<string, Record<string, unknown>>;
       required: string[];
     };
+
     expect(wait.required).toEqual(["thread_ids"]);
     expect(wait.properties["thread_ids"]).toMatchObject({ type: "array", minItems: 1, maxItems: 20 });
     expect(wait.properties["timeout_seconds"]).toMatchObject({ type: "integer", minimum: 1, maximum: 300 });
@@ -61,7 +65,11 @@ describe("tool sets per level", () => {
 
 describe("decodeAgentBusCall", () => {
   test("valid calls decode to typed arguments", () => {
-    const spawn = decodeAgentBusCall("spawn_thread", JSON.stringify({ title: "Review", prompt: "Review the diff", fork: true }));
+    const spawn = decodeAgentBusCall(
+      "spawn_thread",
+      JSON.stringify({ title: "Review", prompt: "Review the diff", fork: true }),
+    );
+
     expect(Result.isSuccess(spawn) && spawn.success).toEqual({
       tool: "spawn_thread",
       args: { title: "Review", prompt: "Review the diff", fork: true },

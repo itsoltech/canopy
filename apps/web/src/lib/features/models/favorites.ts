@@ -27,9 +27,17 @@ class InstanceFavorites implements FavoriteModels {
   toggle(option: ModelOption): void {
     const harness = Provider[option.provider];
     const id = option.profileId || "native";
-    const instance = this.overview.workers.flatMap((w) => w.providerInstances).find((i) => i.harness === harness && i.id === id);
+
+    const instance = this.overview.workers
+      .flatMap((w) => w.providerInstances)
+      .find((i) => i.harness === harness && i.id === id);
+
     const current = instance?.favorites ?? [];
-    const favorites = current.includes(option.model) ? current.filter((m) => m !== option.model) : [...current, option.model];
+
+    const favorites = current.includes(option.model)
+      ? current.filter((m) => m !== option.model)
+      : [...current, option.model];
+
     providerCall("models", { harness, id, favoritesOnly: true, models: { favorites } }).catch((error: unknown) =>
       toast(error instanceof Error ? error.message : "Could not change the favorites", { tone: "error" }),
     );
@@ -38,9 +46,14 @@ class InstanceFavorites implements FavoriteModels {
   among(options: readonly ModelOption[]): ModelOption[] {
     const instances = [...new Set(options.map((o) => `${o.provider}:${o.profileId}`))];
     const seen = new Set<string>();
+
     return options
       .filter((o) => o.favoriteIndex !== undefined && !seen.has(o.key) && seen.add(o.key))
-      .sort((a, b) => instances.indexOf(`${a.provider}:${a.profileId}`) - instances.indexOf(`${b.provider}:${b.profileId}`) || a.favoriteIndex! - b.favoriteIndex!);
+      .sort(
+        (a, b) =>
+          instances.indexOf(`${a.provider}:${a.profileId}`) - instances.indexOf(`${b.provider}:${b.profileId}`) ||
+          a.favoriteIndex! - b.favoriteIndex!,
+      );
   }
 }
 

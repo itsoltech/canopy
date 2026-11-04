@@ -61,6 +61,7 @@ import { splitStatements } from "./split.ts";
 const sqlFile = (content: string) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
+
     for (const statement of splitStatements(content)) {
       yield* sql.unsafe(statement).raw;
     }

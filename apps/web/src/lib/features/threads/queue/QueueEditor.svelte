@@ -15,7 +15,13 @@
     oncancel,
     allowEmpty = false,
     class: className,
-  }: { text: string; onsave: (text: string) => Promise<string | undefined>; oncancel: () => void; allowEmpty?: boolean; class?: ClassValue } = $props();
+  }: {
+    text: string;
+    onsave: (text: string) => Promise<string | undefined>;
+    oncancel: () => void;
+    allowEmpty?: boolean;
+    class?: ClassValue;
+  } = $props();
 
   // svelte-ignore state_referenced_locally
   let value = $state(text);
@@ -25,7 +31,9 @@
 
   async function save(event?: SubmitEvent) {
     event?.preventDefault();
+
     if (saving) return;
+
     if (value === text) return oncancel();
     saving = true;
     error = await onsave(value);
@@ -42,6 +50,7 @@
       void save();
     }
   }
+
   const focus = (node: HTMLTextAreaElement) => {
     node.focus();
     node.setSelectionRange(node.value.length, node.value.length);
@@ -58,11 +67,17 @@
     aria-invalid={error ? true : undefined}
     aria-describedby={error ? `${id}-error` : undefined}
     rows={1}
-    class="max-h-40 resize-none! [field-sizing:content]"
+    class="[field-sizing:content] max-h-40 resize-none!"
     {onkeydown}
   />
   <div class="flex items-center justify-end gap-2">
-    {#if error}<p id="{id}-error" class="min-w-0 flex-1 text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="alert">{error}</p>{/if}
+    {#if error}<p
+        id="{id}-error"
+        class="min-w-0 flex-1 text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400"
+        role="alert"
+      >
+        {error}
+      </p>{/if}
     <Button variant="ghost" size="sm" onclick={oncancel}>Cancel</Button>
     <Button type="submit" size="sm" loading={saving} disabled={!allowEmpty && !value.trim()}>Save</Button>
   </div>

@@ -7,9 +7,11 @@ import type { BotView, ChatEntry, ConversationView, ParticipantView } from "../m
 
 const now = Date.now();
 const minutesAgo = (minutes: number) => new Date(now - minutes * 60_000);
+
 const daysAgo = (days: number, hour: number, minute = 0) => {
   const d = new Date(now - days * 86_400_000);
   d.setHours(hour, minute, 0, 0);
+
   return d;
 };
 
@@ -87,7 +89,11 @@ export const conversations: ConversationView[] = [
     id: "c-docs",
     kind: "direct",
     bots: [bots.docs],
-    lastMessage: { senderId: bots.docs.id, text: "I rewrote the quick start; three sections were out of date and one command no longer exists.", at: daysAgo(2, 10, 30) },
+    lastMessage: {
+      senderId: bots.docs.id,
+      text: "I rewrote the quick start; three sections were out of date and one command no longer exists.",
+      at: daysAgo(2, 10, 30),
+    },
     unread: 0,
     pinned: false,
   },
@@ -103,9 +109,30 @@ export const conversations: ConversationView[] = [
 ];
 
 export const directEntries: ChatEntry[] = [
-  { kind: "message", message: { id: "d1", senderId: "me", at: daysAgo(1, 18, 2), text: "Can you merge #441 once CI is green?" } },
-  { kind: "message", message: { id: "d2", senderId: bots.canopy.id, at: daysAgo(1, 18, 3), text: "Sure. I set up a routine that checks every 10 minutes." } },
-  { kind: "event", event: { id: "d3", at: daysAgo(1, 18, 3), kind: "routine_created", text: "Created routine", detail: "Canopy: merge PR #441 after CI", actorId: bots.canopy.id } },
+  {
+    kind: "message",
+    message: { id: "d1", senderId: "me", at: daysAgo(1, 18, 2), text: "Can you merge #441 once CI is green?" },
+  },
+  {
+    kind: "message",
+    message: {
+      id: "d2",
+      senderId: bots.canopy.id,
+      at: daysAgo(1, 18, 3),
+      text: "Sure. I set up a routine that checks every 10 minutes.",
+    },
+  },
+  {
+    kind: "event",
+    event: {
+      id: "d3",
+      at: daysAgo(1, 18, 3),
+      kind: "routine_created",
+      text: "Created routine",
+      detail: "Canopy: merge PR #441 after CI",
+      actorId: bots.canopy.id,
+    },
+  },
   {
     kind: "message",
     message: {
@@ -113,13 +140,56 @@ export const directEntries: ChatEntry[] = [
       senderId: bots.canopy.id,
       at: daysAgo(1, 19, 40),
       text: "Merged **#441**.",
-      links: [{ url: "https://github.com/example/canopy/pull/441", title: "Settings from the gateway", kind: "pull_request", subtitle: "canopy#441" }],
+      links: [
+        {
+          url: "https://github.com/example/canopy/pull/441",
+          title: "Settings from the gateway",
+          kind: "pull_request",
+          subtitle: "canopy#441",
+        },
+      ],
     },
   },
-  { kind: "message", message: { id: "d5", senderId: "me", at: minutesAgo(16), text: "Stop the routine for #443, I'll merge it myself.\nAnd pause the other ones for today." } },
-  { kind: "event", event: { id: "d6", at: minutesAgo(15), kind: "routine_deleted", text: "Deleted routine", detail: "Canopy: scalenie PR #443 po CI", actorId: bots.canopy.id } },
-  { kind: "event", event: { id: "d7", at: minutesAgo(15), kind: "routines_disabled", text: "Disabled", detail: "3 routines", actorId: bots.canopy.id } },
-  { kind: "message", message: { id: "d8", senderId: bots.canopy.id, at: minutesAgo(14), text: "Done. Nothing will merge on its own today." } },
+  {
+    kind: "message",
+    message: {
+      id: "d5",
+      senderId: "me",
+      at: minutesAgo(16),
+      text: "Stop the routine for #443, I'll merge it myself.\nAnd pause the other ones for today.",
+    },
+  },
+  {
+    kind: "event",
+    event: {
+      id: "d6",
+      at: minutesAgo(15),
+      kind: "routine_deleted",
+      text: "Deleted routine",
+      detail: "Canopy: scalenie PR #443 po CI",
+      actorId: bots.canopy.id,
+    },
+  },
+  {
+    kind: "event",
+    event: {
+      id: "d7",
+      at: minutesAgo(15),
+      kind: "routines_disabled",
+      text: "Disabled",
+      detail: "3 routines",
+      actorId: bots.canopy.id,
+    },
+  },
+  {
+    kind: "message",
+    message: {
+      id: "d8",
+      senderId: bots.canopy.id,
+      at: minutesAgo(14),
+      text: "Done. Nothing will merge on its own today.",
+    },
+  },
   {
     kind: "message",
     message: {
@@ -129,7 +199,17 @@ export const directEntries: ChatEntry[] = [
       text: "Paused routines:\n\n- `merge-after-ci` for #445\n- nightly dependency bumps\n- stale branch cleanup",
     },
   },
-  { kind: "event", event: { id: "d10", at: minutesAgo(5), kind: "relayed_message", text: "Message from T3 Bot", detail: "the landing branch is rebased", actorId: bots.t3.id } },
+  {
+    kind: "event",
+    event: {
+      id: "d10",
+      at: minutesAgo(5),
+      kind: "relayed_message",
+      text: "Message from T3 Bot",
+      detail: "the landing branch is rebased",
+      actorId: bots.t3.id,
+    },
+  },
   {
     kind: "message",
     message: {
@@ -138,7 +218,12 @@ export const directEntries: ChatEntry[] = [
       at: minutesAgo(4),
       text: "T3 Bot rebased the landing branch and CI passed.",
       links: [
-        { url: "https://github.com/example/canopy/pull/446", title: "Landing page", kind: "pull_request", subtitle: "canopy#446" },
+        {
+          url: "https://github.com/example/canopy/pull/446",
+          title: "Landing page",
+          kind: "pull_request",
+          subtitle: "canopy#446",
+        },
         { url: "https://ci.example.com/runs/9182", title: "CI run 9182", kind: "web" },
       ],
     },
@@ -159,12 +244,39 @@ export const directEntries: ChatEntry[] = [
 ];
 
 export const groupEntries: ChatEntry[] = [
-  { kind: "event", event: { id: "g0", at: minutesAgo(70), kind: "joined", text: "Docs Bot joined", actorId: bots.docs.id } },
-  { kind: "message", message: { id: "g1", senderId: "me", at: minutesAgo(65), text: "Let's ship the landing page today. What's left?" } },
-  { kind: "message", message: { id: "g2", senderId: bots.t3.id, at: minutesAgo(64), text: "The branch is two commits behind `main`. I'll rebase it." } },
-  { kind: "message", message: { id: "g3", senderId: bots.canopy.id, at: minutesAgo(62), text: "I'll merge once CI is green." } },
+  {
+    kind: "event",
+    event: { id: "g0", at: minutesAgo(70), kind: "joined", text: "Docs Bot joined", actorId: bots.docs.id },
+  },
+  {
+    kind: "message",
+    message: { id: "g1", senderId: "me", at: minutesAgo(65), text: "Let's ship the landing page today. What's left?" },
+  },
+  {
+    kind: "message",
+    message: {
+      id: "g2",
+      senderId: bots.t3.id,
+      at: minutesAgo(64),
+      text: "The branch is two commits behind `main`. I'll rebase it.",
+    },
+  },
+  {
+    kind: "message",
+    message: { id: "g3", senderId: bots.canopy.id, at: minutesAgo(62), text: "I'll merge once CI is green." },
+  },
   { kind: "message", message: { id: "g4", senderId: bots.canopy.id, at: minutesAgo(61), text: "Routine is set." } },
-  { kind: "event", event: { id: "g5", at: minutesAgo(61), kind: "routine_created", text: "Created routine", detail: "Canopy: merge PR #446 after CI", actorId: bots.canopy.id } },
+  {
+    kind: "event",
+    event: {
+      id: "g5",
+      at: minutesAgo(61),
+      kind: "routine_created",
+      text: "Created routine",
+      detail: "Canopy: merge PR #446 after CI",
+      actorId: bots.canopy.id,
+    },
+  },
   {
     kind: "question",
     question: {
@@ -179,7 +291,16 @@ export const groupEntries: ChatEntry[] = [
       answer: { optionId: "yes", at: minutesAgo(28) },
     },
   },
-  { kind: "message", message: { id: "g7", senderId: "me", at: minutesAgo(27), text: "Yes, but keep it short.", replyTo: { senderId: bots.docs.id, excerpt: "Should the changelog mention the new pricing?" } } },
+  {
+    kind: "message",
+    message: {
+      id: "g7",
+      senderId: "me",
+      at: minutesAgo(27),
+      text: "Yes, but keep it short.",
+      replyTo: { senderId: bots.docs.id, excerpt: "Should the changelog mention the new pricing?" },
+    },
+  },
   { kind: "message", message: { id: "g8", senderId: bots.t3.id, at: minutesAgo(14), text: "Rebased, CI is running." } },
   {
     kind: "message",
@@ -188,18 +309,56 @@ export const groupEntries: ChatEntry[] = [
       senderId: bots.docs.id,
       at: minutesAgo(12),
       text: "The changelog entry is ready for review:\n\n> **Pricing.** Plans now start at the team tier.",
-      links: [{ url: "https://github.com/example/canopy/pull/447", title: "Changelog: landing page", kind: "pull_request", subtitle: "canopy#447" }],
+      links: [
+        {
+          url: "https://github.com/example/canopy/pull/447",
+          title: "Changelog: landing page",
+          kind: "pull_request",
+          subtitle: "canopy#447",
+        },
+      ],
     },
   },
-  { kind: "message", message: { id: "g10", senderId: "me", at: minutesAgo(2), text: "Looks good, merging after lunch.", delivery: "sending" } },
+  {
+    kind: "message",
+    message: {
+      id: "g10",
+      senderId: "me",
+      at: minutesAgo(2),
+      text: "Looks good, merging after lunch.",
+      delivery: "sending",
+    },
+  },
 ];
 
 export const watchEntries: ChatEntry[] = [
-  { kind: "message", message: { id: "w1", senderId: bots.canopy.id, at: minutesAgo(48), text: "CI on #446 fails: the branch is behind `main`. Can you rebase it?" } },
+  {
+    kind: "message",
+    message: {
+      id: "w1",
+      senderId: bots.canopy.id,
+      at: minutesAgo(48),
+      text: "CI on #446 fails: the branch is behind `main`. Can you rebase it?",
+    },
+  },
   { kind: "message", message: { id: "w2", senderId: bots.t3.id, at: minutesAgo(47), text: "On it." } },
-  { kind: "message", message: { id: "w3", senderId: bots.t3.id, at: minutesAgo(46), text: "Two conflicts in `apps/web/src/routes/+layout.svelte`. Resolving them the same way as in #441." } },
-  { kind: "message", message: { id: "w4", senderId: bots.canopy.id, at: minutesAgo(40), text: "Fine by me. Ping me when it's pushed." } },
-  { kind: "event", event: { id: "w5", at: minutesAgo(26), kind: "info", text: "T3 Bot pushed 2 commits", detail: "landing" } },
+  {
+    kind: "message",
+    message: {
+      id: "w3",
+      senderId: bots.t3.id,
+      at: minutesAgo(46),
+      text: "Two conflicts in `apps/web/src/routes/+layout.svelte`. Resolving them the same way as in #441.",
+    },
+  },
+  {
+    kind: "message",
+    message: { id: "w4", senderId: bots.canopy.id, at: minutesAgo(40), text: "Fine by me. Ping me when it's pushed." },
+  },
+  {
+    kind: "event",
+    event: { id: "w5", at: minutesAgo(26), kind: "info", text: "T3 Bot pushed 2 commits", detail: "landing" },
+  },
   {
     kind: "message",
     message: {
@@ -219,5 +378,7 @@ export const pictureBot: BotView = {
   name: "Picture Bot",
   imageUrl:
     "data:image/svg+xml;utf8," +
-    encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f97316"/><stop offset="1" stop-color="#db2777"/></linearGradient></defs><rect width="40" height="40" fill="url(#g)"/></svg>'),
+    encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f97316"/><stop offset="1" stop-color="#db2777"/></linearGradient></defs><rect width="40" height="40" fill="url(#g)"/></svg>',
+    ),
 };

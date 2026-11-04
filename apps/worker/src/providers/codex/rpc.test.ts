@@ -7,6 +7,7 @@ function fakeServer(handlers: Partial<RpcHandlers> = {}) {
   const written: unknown[] = [];
   const incoming = new AsyncChannel<string>();
   const notifications: [string, unknown][] = [];
+
   const peer = new JsonRpcPeer(
     { write: (line) => written.push(JSON.parse(line)), lines: incoming },
     {
@@ -14,9 +15,11 @@ function fakeServer(handlers: Partial<RpcHandlers> = {}) {
       onRequest: handlers.onRequest ?? (async () => ({})),
     },
   );
+
   const running = peer.run();
   const push = (message: unknown) => incoming.push(JSON.stringify(message));
   const pushRaw = (line: string) => incoming.push(line);
+
   return { peer, written, push, pushRaw, notifications, close: () => incoming.close(), running };
 }
 
@@ -62,6 +65,7 @@ describe("JsonRpcPeer", () => {
         throw new RpcError(method, -32601, "unsupported");
       },
     });
+
     server.push({ id: 7, method: "item/commandExecution/requestApproval", params: {} });
     server.push({ id: "x", method: "item/tool/requestUserInput", params: {} });
     await Bun.sleep(1);
@@ -84,13 +88,16 @@ describe("JsonRpcPeer", () => {
 describe("readLines", () => {
   test("splits across chunk boundaries and multi-byte characters", async () => {
     const bytes = new TextEncoder().encode('{"a":"zażółć"}\n{"b":1}\n{"c"');
+
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         for (let i = 0; i < bytes.length; i += 3) controller.enqueue(bytes.slice(i, i + 3));
         controller.close();
       },
     });
+
     const lines: string[] = [];
+
     for await (const line of readLines(stream)) lines.push(line);
     expect(lines).toEqual(['{"a":"zażółć"}', '{"b":1}', '{"c"']);
   });

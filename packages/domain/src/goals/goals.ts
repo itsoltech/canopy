@@ -46,15 +46,23 @@ export type ClaudeGoalStatus = "active" | "met" | "failed" | "cleared";
  * user asked for is not undone by the harness confirming it (Claude has no pause: the platform clears the
  * goal and keeps it as paused).
  */
-export function goalStatusFromHarness(provider: "codex" | "claude", nativeStatus: string, cleared: boolean, current: GoalStatus | undefined): GoalStatus {
+export function goalStatusFromHarness(
+  provider: "codex" | "claude",
+  nativeStatus: string,
+  cleared: boolean,
+  current: GoalStatus | undefined,
+): GoalStatus {
   if (cleared || nativeStatus === "cleared") {
     return current === "paused" || current === "achieved" || current === "cancelled" ? current : "cancelled";
   }
+
   if (provider === "codex") {
     const status = isCodexGoalStatus(nativeStatus) ? fromCodexStatus(nativeStatus) : "active";
+
     // The pause was the user's; Codex may still report the running turn's progress as active.
     return current === "paused" && status === "active" ? "paused" : status;
   }
+
   switch (nativeStatus as ClaudeGoalStatus) {
     case "met":
       return "achieved";

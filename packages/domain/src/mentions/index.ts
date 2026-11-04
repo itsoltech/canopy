@@ -1,4 +1,5 @@
 export { fuzzyMatch, fuzzyRank, type FuzzyMatch } from "./fuzzy.ts";
+
 export {
   MAX_MENTIONS,
   MENTION_TRIGGERS,

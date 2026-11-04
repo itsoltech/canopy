@@ -7,8 +7,10 @@
    */
   let { ms = 300, children }: { ms?: number; children: Snippet } = $props();
   let shown = $state(false);
+
   $effect(() => {
     const timer = setTimeout(() => (shown = true), ms);
+
     return () => clearTimeout(timer);
   });
 </script>

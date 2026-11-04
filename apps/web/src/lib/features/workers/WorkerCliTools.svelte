@@ -14,12 +14,22 @@
 
 <SettingsGroup title="Agent CLIs" description="Installed on this machine. Nothing changes until you install or update.">
   {#snippet actions()}
-    <Button size="sm" icon="arrow-path" loading={cli.pending[key]} disabled={!worker.online} onclick={() => void cli.check(worker.id)}>Check for updates</Button>
+    <Button
+      size="sm"
+      icon="arrow-path"
+      loading={cli.pending[key]}
+      disabled={!worker.online}
+      onclick={() => void cli.check(worker.id)}>Check for updates</Button
+    >
   {/snippet}
   {#each worker.cliTools as item (item.tool?.provider)}
     <CliToolRow workerId={worker.id} {item} class="p-4" />
   {:else}
-    <p class="p-4 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{worker.online ? "This worker has not reported its CLIs. Update the worker to manage them here." : "Connect the worker to see its CLIs."}</p>
+    <p class="p-4 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+      {worker.online
+        ? "This worker has not reported its CLIs. Update the worker to manage them here."
+        : "Connect the worker to see its CLIs."}
+    </p>
   {/each}
   <ActionNote error={cli.errors[key]} note={cli.notes[key]} class="p-4" />
 </SettingsGroup>

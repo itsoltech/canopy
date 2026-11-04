@@ -4,7 +4,13 @@
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
-  import { measureMount, measureScroll, measureStream, toEnd, type BenchResult } from "#lib/features/threads/dev/bench.ts";
+  import {
+    measureMount,
+    measureScroll,
+    measureStream,
+    toEnd,
+    type BenchResult,
+  } from "#lib/features/threads/dev/bench.ts";
   import { longThreadSnapshot, streamingTurn } from "#lib/features/threads/dev/fixture.ts";
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { ThreadState } from "#lib/features/threads/thread-state.svelte.ts";
@@ -16,11 +22,14 @@
   let { data }: PageProps = $props();
 
   const snapshot = $derived(longThreadSnapshot({ turns: data.turns, inherited: data.inherited }));
+
   const view = $derived.by(() => {
     const state = new ThreadState();
     state.apply(create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: snapshot } }));
+
     return state;
   });
+
   provideThreadDirectory({ currentId: "", thread: () => undefined, awaiting: () => false, goal: () => undefined });
 
   const working = $derived(view.running);
@@ -28,6 +37,7 @@
   let openWork = $state.raw<ReadonlySet<string>>(new Set());
   let openGroups = $state.raw<ReadonlySet<string>>(new Set());
   const builder = new FeedBuilder();
+
   const rows = $derived(
     builder.build({
       entries: view.ownEntries,
@@ -62,14 +72,29 @@
     const scroll = await measureScroll(target);
     await toEnd(target);
     const live = streamingTurn(snapshot, 200);
+
     for (const update of live.start) view.apply(update);
+
     const stream = await measureStream(target, (i) => {
       const update = live.deltas[i];
+
       if (update) view.apply(update);
+
       return Boolean(update);
     });
+
     for (const update of live.finish) view.apply(update);
-    result = { rows: rows.length, nodes, mountMs, deltaAvgMs: stream.avg, deltaP95Ms: stream.p95, afterStreamGap: stream.gap, scrollFrameAvgMs: scroll.avg, scrollFrameMaxMs: scroll.max, longFrames: scroll.long };
+    result = {
+      rows: rows.length,
+      nodes,
+      mountMs,
+      deltaAvgMs: stream.avg,
+      deltaP95Ms: stream.p95,
+      afterStreamGap: stream.gap,
+      scrollFrameAvgMs: scroll.avg,
+      scrollFrameMaxMs: scroll.max,
+      longFrames: scroll.long,
+    };
     (window as unknown as { __bench: BenchResult }).__bench = result;
     running = false;
   }
@@ -85,19 +110,34 @@
     {/snippet}
   </TopBar>
   {#if result}
-    <pre class="mx-4 rounded-lg bg-zinc-950/5 p-2 text-xs/5 dark:bg-white/5" data-bench-result>{JSON.stringify(result)}</pre>
+    <pre class="mx-4 rounded-lg bg-zinc-950/5 p-2 text-xs/5 dark:bg-white/5" data-bench-result>{JSON.stringify(
+        result,
+      )}</pre>
   {/if}
 
   <!-- Same structure as the thread page (the commit that added this route measured the one before virtualization). -->
   {#key generation}
     <div class="min-h-0 flex-1" data-bench-scroller>
-      <VirtualFeed {rows} key={(row: FeedRow) => row.key} group={feedGroup} estimate={feedEstimate} label="Timeline" busy={working}>
+      <VirtualFeed
+        {rows}
+        key={(row: FeedRow) => row.key}
+        group={feedGroup}
+        estimate={feedEstimate}
+        label="Timeline"
+        busy={working}
+      >
         {#snippet row(row: FeedRow)}
           <FeedRowView
             {row}
             ontoggle={() => (historyOpen = !historyOpen)}
-            onwork={(turnId) => (openWork = openWork.has(turnId) ? new Set([...openWork].filter((id) => id !== turnId)) : new Set([...openWork, turnId]))}
-            ongroup={(key) => (openGroups = openGroups.has(key) ? new Set([...openGroups].filter((id) => id !== key)) : new Set([...openGroups, key]))}
+            onwork={(turnId) =>
+              (openWork = openWork.has(turnId)
+                ? new Set([...openWork].filter((id) => id !== turnId))
+                : new Set([...openWork, turnId]))}
+            ongroup={(key) =>
+              (openGroups = openGroups.has(key)
+                ? new Set([...openGroups].filter((id) => id !== key))
+                : new Set([...openGroups, key]))}
           />
         {/snippet}
         {#snippet footer()}

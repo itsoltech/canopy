@@ -9,19 +9,30 @@
   import { requestTitleRegeneration } from "../title-actions.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
 
-  let { thread, titlebar = false, class: className }: { thread: ui.Thread; titlebar?: boolean; class?: ClassValue } = $props();
+  let {
+    thread,
+    titlebar = false,
+    class: className,
+  }: { thread: ui.Thread; titlebar?: boolean; class?: ClassValue } = $props();
+
   const actions = useThreadActions();
-  const closed = $derived(thread.status === "archived" || Boolean(thread.nodeId && awayReason(actions.overview.computer(thread.nodeId))));
+
+  const closed = $derived(
+    thread.status === "archived" || Boolean(thread.nodeId && awayReason(actions.overview.computer(thread.nodeId))),
+  );
+
   // From the click until the gateway reports the generation (and then until it ends): the button spins and
   // the title shimmers, so a request never looks ignored.
   let requested = $state(false);
   const generating = $derived(thread.titleGenerating || requested);
+
   $effect(() => {
     if (thread.titleGenerating) requested = false;
   });
 
   async function regenerate() {
     requested = true;
+
     try {
       await requestTitleRegeneration(thread.id);
     } finally {
@@ -29,15 +40,30 @@
       setTimeout(() => (requested = false), 1500);
     }
   }
-
 </script>
 
-<section aria-label="Thread title" data-window-drag={titlebar || undefined} class={["flex min-w-0 items-center gap-2 text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white", titlebar ? "h-12 shrink-0 px-3" : "p-3", className]}>
+<section
+  aria-label="Thread title"
+  data-window-drag={titlebar || undefined}
+  class={[
+    "flex min-w-0 items-center gap-2 text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white",
+    titlebar ? "h-12 shrink-0 px-3" : "p-3",
+    className,
+  ]}
+>
   <SwapText text={thread.title || "New thread"} class={["min-w-0 flex-1 overflow-hidden", generating && "shimmer"]} />
   <!-- Rename and regenerate are occasional: behind "more", so the panel opens on the title alone. -->
   <DropdownMenu label="Title actions" placement="bottom-end">
-    {#snippet trigger(props)}<IconButton {...props} icon="ellipsis-horizontal" size="sm" label="Title actions" disabled={closed} />{/snippet}
+    {#snippet trigger(props)}<IconButton
+        {...props}
+        icon="ellipsis-horizontal"
+        size="sm"
+        label="Title actions"
+        disabled={closed}
+      />{/snippet}
     <MenuItem icon="pencil-square" onselect={() => void actions.run("rename", thread)}>Rename…</MenuItem>
-    <MenuItem icon="arrow-path" disabled={generating} onselect={regenerate}>{generating ? "Generating title…" : "Regenerate title"}</MenuItem>
+    <MenuItem icon="arrow-path" disabled={generating} onselect={regenerate}
+      >{generating ? "Generating title…" : "Regenerate title"}</MenuItem
+    >
   </DropdownMenu>
 </section>

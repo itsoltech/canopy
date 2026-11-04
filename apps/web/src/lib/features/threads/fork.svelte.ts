@@ -16,8 +16,10 @@ export const forking = new SvelteSet<string>();
 export async function forkFrom(threadId: string, turnId: string): Promise<void> {
   if (forking.has(turnId)) return;
   forking.add(turnId);
+
   try {
     const fork = await forkThread(threadId, turnId);
+
     if (fork) await goto(`/threads/${encodeURIComponent(fork.id)}`);
   } catch (error) {
     toast(error instanceof Error ? `Could not fork: ${error.message}` : "Could not fork the thread", { tone: "error" });

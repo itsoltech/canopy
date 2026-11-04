@@ -12,7 +12,12 @@
     current = false,
     class: className,
     ...handlers
-  }: { conversation: ConversationView; href: string; current?: boolean; class?: ClassValue } & ConversationHandlers = $props();
+  }: {
+    conversation: ConversationView;
+    href: string;
+    current?: boolean;
+    class?: ClassValue;
+  } & ConversationHandlers = $props();
 </script>
 
 <ConversationRow {conversation} {href} {current} class={className} {...handlers}>

@@ -8,10 +8,12 @@ class Clock {
 
   get now(): number {
     if (typeof window === "undefined") return Date.now();
+
     if (!this.#started) {
       this.#started = true;
       setInterval(() => (this.#now = Date.now()), 30_000);
     }
+
     return this.#now;
   }
 }

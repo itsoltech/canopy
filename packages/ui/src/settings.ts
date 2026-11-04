@@ -15,8 +15,7 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "Appearance",
     icon: "swatch",
     group: "General",
-    keywords:
-      "theme color scheme dark light accent chat width time zone timezone device",
+    keywords: "theme color scheme dark light accent chat width time zone timezone device",
   },
   {
     href: "/settings/threads",
@@ -51,16 +50,14 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "Providers",
     icon: "cpu-chip",
     group: "Connections",
-    keywords:
-      "provider instance codex claude cliproxyapi endpoint key login models favorites environment",
+    keywords: "provider instance codex claude cliproxyapi endpoint key login models favorites environment",
   },
   {
     href: "/settings/connectors",
     label: "Connectors",
     icon: "link",
     group: "Connections",
-    keywords:
-      "github slack outlook microsoft notion linear google atlassian mcp oauth accounts integrations access",
+    keywords: "github slack outlook microsoft notion linear google atlassian mcp oauth accounts integrations access",
   },
   {
     href: "/settings/workers",

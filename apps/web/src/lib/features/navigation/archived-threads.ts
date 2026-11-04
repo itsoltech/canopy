@@ -1,6 +1,10 @@
 import type { ui } from "@canopy/contracts";
 
-export interface ArchivedFilter { projectIds: string[]; query: string }
+export interface ArchivedFilter {
+  projectIds: string[];
+  query: string;
+}
+
 export interface ArchivedPageState {
   threads: ui.Thread[];
   sideThreads: ui.Thread[];
@@ -11,8 +15,20 @@ export interface ArchivedPageState {
   loading: boolean;
   error: string;
 }
-type Load = (request: ArchivedFilter & { pageToken: string; countOnly: boolean }) => Promise<ui.ListArchivedThreadsResponse>;
-const empty = (): ArchivedPageState => ({ threads: [], sideThreads: [], totalCount: undefined, nextPageToken: "", loaded: false, loading: false, error: "" });
+
+type Load = (
+  request: ArchivedFilter & { pageToken: string; countOnly: boolean },
+) => Promise<ui.ListArchivedThreadsResponse>;
+
+const empty = (): ArchivedPageState => ({
+  threads: [],
+  sideThreads: [],
+  totalCount: undefined,
+  nextPageToken: "",
+  loaded: false,
+  loading: false,
+  error: "",
+});
 
 /** Latest request wins. Live invalidations rebuild the loaded pages using fresh keyset cursors;
  * a collapsed section fetches only its count, and never downloads the archive in the overview.
@@ -30,12 +46,19 @@ export class ArchivedThreadsPager {
   #first: Pick<ArchivedPageState, "threads" | "sideThreads" | "nextPageToken"> | undefined;
   #prefetching: Promise<void> | undefined;
   #filter: ArchivedFilter = { projectIds: [], query: "" };
-  constructor(private load: Load, private changed: (state: ArchivedPageState) => void) {}
-  #set(change: Partial<ArchivedPageState>) { this.state = { ...this.state, ...change }; this.changed(this.state); }
+  constructor(
+    private load: Load,
+    private changed: (state: ArchivedPageState) => void,
+  ) {}
+  #set(change: Partial<ArchivedPageState>) {
+    this.state = { ...this.state, ...change };
+    this.changed(this.state);
+  }
 
   /** `version` changes whenever the archive may have changed (stream updates, reconnects). */
   async refresh(filter: ArchivedFilter, expanded: boolean, version = ""): Promise<void> {
     const key = JSON.stringify([[...filter.projectIds].sort(), filter.query.trim().toLowerCase()]);
+
     if (key !== this.#key) {
       this.#key = key;
       this.#pages = 1;
@@ -44,36 +67,58 @@ export class ArchivedThreadsPager {
       this.#prefetching = undefined;
       this.state = empty();
     }
+
     const changed = version !== this.#version;
-    if (changed) { this.#version = version; this.#fresh = false; }
+
+    if (changed) {
+      this.#version = version;
+      this.#fresh = false;
+    }
+
     const opening = expanded && !this.#expanded;
     const closing = !expanded && this.#expanded;
+
     if (expanded !== this.#expanded) this.#pages = 1;
     this.#filter = filter;
     this.#expanded = expanded;
+
     // Collapsed: keep only the first page as the cache for the next opening.
     if (closing && this.#first) this.#set({ ...this.#first });
+
     if (!changed && !opening && this.state.totalCount !== undefined && !this.state.error) {
       // Nothing changed since the count / pages (a settings write re-ran the caller): no request, and
       // closing drops a pending "load more".
-      if (closing) { this.#epoch += 1; this.#set({ loading: false }); }
+      if (closing) {
+        this.#epoch += 1;
+        this.#set({ loading: false });
+      }
+
       return;
     }
+
     if (opening && !changed) {
       if (this.#prefetching) {
         const epoch = this.#epoch;
         await this.#prefetching;
+
         if (epoch !== this.#epoch) return; // a newer request owns the state
       }
+
       if (this.#fresh) return;
     }
+
     const epoch = ++this.#epoch;
     this.#set({ loading: true, error: "" });
+
     if (expanded) return this.#loadPages(epoch, this.#pages);
+
     try {
       const page = await this.load({ ...filter, pageToken: "", countOnly: true });
+
       if (epoch === this.#epoch) this.#set({ totalCount: page.totalCount, loading: false });
-    } catch (cause) { if (epoch === this.#epoch) this.#set({ loading: false, error: message(cause) }); }
+    } catch (cause) {
+      if (epoch === this.#epoch) this.#set({ loading: false, error: message(cause) });
+    }
   }
 
   /** Warm the first page while collapsed (hover, focus, idle): cheap, once per change, errors stay quiet. */
@@ -81,7 +126,11 @@ export class ArchivedThreadsPager {
     if (this.#expanded || !this.#key || this.#fresh || this.#prefetching || this.state.totalCount === 0) return;
     const epoch = ++this.#epoch;
     this.#set({ loading: true });
-    const run = this.#loadPages(epoch, 1, true).finally(() => { if (this.#prefetching === run) this.#prefetching = undefined; });
+
+    const run = this.#loadPages(epoch, 1, true).finally(() => {
+      if (this.#prefetching === run) this.#prefetching = undefined;
+    });
+
     this.#prefetching = run;
   }
 
@@ -89,15 +138,27 @@ export class ArchivedThreadsPager {
     if (!this.#expanded || this.state.loading || !this.state.nextPageToken) return;
     const epoch = ++this.#epoch;
     this.#set({ loading: true, error: "" });
+
     try {
       const page = await this.load({ ...this.#filter, pageToken: this.state.nextPageToken, countOnly: false });
+
       if (epoch !== this.#epoch) return;
       this.#pages += 1;
-      this.#set({ threads: unique([...this.state.threads, ...page.threads]), sideThreads: unique([...this.state.sideThreads, ...page.sideThreads]), totalCount: page.totalCount, nextPageToken: page.nextPageToken, loading: false });
-    } catch (cause) { if (epoch === this.#epoch) this.#set({ loading: false, error: message(cause) }); }
+      this.#set({
+        threads: unique([...this.state.threads, ...page.threads]),
+        sideThreads: unique([...this.state.sideThreads, ...page.sideThreads]),
+        totalCount: page.totalCount,
+        nextPageToken: page.nextPageToken,
+        loading: false,
+      });
+    } catch (cause) {
+      if (epoch === this.#epoch) this.#set({ loading: false, error: message(cause) });
+    }
   }
 
-  dispose() { this.#epoch += 1; }
+  dispose() {
+    this.#epoch += 1;
+  }
 
   async #loadPages(epoch: number, pages: number, quiet = false): Promise<void> {
     try {
@@ -105,22 +166,38 @@ export class ArchivedThreadsPager {
       let sideThreads: ui.Thread[] = [];
       let pageToken = "";
       let first = this.#first;
+
       for (let i = 0; i < pages; i++) {
         const page = await this.load({ ...this.#filter, pageToken, countOnly: false });
+
         if (epoch !== this.#epoch) return;
-        if (i === 0) first = { threads: page.threads, sideThreads: page.sideThreads, nextPageToken: page.nextPageToken };
+
+        if (i === 0)
+          first = { threads: page.threads, sideThreads: page.sideThreads, nextPageToken: page.nextPageToken };
         threads = [...threads, ...page.threads];
         sideThreads = [...sideThreads, ...page.sideThreads];
         pageToken = page.nextPageToken;
+
         if (!pageToken || i === pages - 1) {
           this.#first = first;
           this.#fresh = true;
-          this.#set({ threads: unique(threads), sideThreads: unique(sideThreads), totalCount: page.totalCount, nextPageToken: pageToken, loaded: true, loading: false });
+          this.#set({
+            threads: unique(threads),
+            sideThreads: unique(sideThreads),
+            totalCount: page.totalCount,
+            nextPageToken: pageToken,
+            loaded: true,
+            loading: false,
+          });
+
           return;
         }
       }
-    } catch (cause) { if (epoch === this.#epoch) this.#set({ loading: false, error: quiet ? this.state.error : message(cause) }); }
+    } catch (cause) {
+      if (epoch === this.#epoch) this.#set({ loading: false, error: quiet ? this.state.error : message(cause) });
+    }
   }
 }
+
 const unique = (threads: ui.Thread[]) => [...new Map(threads.map((t) => [t.id, t])).values()];
-const message = (cause: unknown) => cause instanceof Error ? cause.message : "Could not load archived threads.";
+const message = (cause: unknown) => (cause instanceof Error ? cause.message : "Could not load archived threads.");

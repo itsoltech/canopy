@@ -12,19 +12,23 @@ export function splitStatements(script: string): string[] {
   while (i < n) {
     const ch = script[i];
     const next = script[i + 1];
+
     if (ch === "-" && next === "-") {
       const end = script.indexOf("\n", i);
       i = end === -1 ? n : end + 1;
     } else if (ch === "/" && next === "*") {
       const end = script.indexOf("*/", i + 2);
+
       if (end === -1) throw new Error("unterminated block comment");
       i = end + 2;
     } else if (ch === "'" || ch === '"') {
       i = skipQuoted(script, i, ch);
     } else if (ch === "$") {
       const tag = /^\$[A-Za-z_]*\$/.exec(script.slice(i))?.[0];
+
       if (tag) {
         const end = script.indexOf(tag, i + tag.length);
+
         if (end === -1) throw new Error(`unterminated dollar quote ${tag}`);
         i = end + tag.length;
       } else {
@@ -37,25 +41,32 @@ export function splitStatements(script: string): string[] {
       i++;
     }
   }
+
   push(statements, script.slice(start));
+
   return statements;
 }
 
 function skipQuoted(script: string, from: number, quote: string): number {
   let i = from + 1;
+
   for (;;) {
     const end = script.indexOf(quote, i);
+
     if (end === -1) throw new Error(`unterminated ${quote === "'" ? "string" : "identifier"}`);
+
     // A doubled quote is an escaped quote inside the literal.
     if (script[end + 1] === quote) {
       i = end + 2;
       continue;
     }
+
     return end + 1;
   }
 }
 
 function push(statements: string[], raw: string): void {
   const withoutComments = raw.replace(/--[^\n]*/g, "").trim();
+
   if (withoutComments.length > 0) statements.push(raw.trim());
 }

@@ -12,7 +12,9 @@
    */
   let { node }: { node: ItemNode } = $props();
   const directory = useThreadDirectory();
+
   provideItemAwaiting(() => directory.awaiting(node.entry.id));
+
   // Nested items remember their own state (open details) apart from their parent's.
   provideMemoryScope(untrack(() => node.entry.id));
 </script>
@@ -21,6 +23,14 @@
   {#each node.children as child (child.entry.id)}<ItemNodeView node={child} />{/each}
 {/snippet}
 
-<div class="min-w-0 rounded-lg" data-quote-item={node.entry.id} data-quote-thread={node.entry.fromThreadId || directory.currentId}>
-  <ItemView item={node.entry.item} nested={node.children.length > 0 ? nested : undefined} turnEnded={directory.turnEnded?.(node.entry.turnId) ?? false} />
+<div
+  class="min-w-0 rounded-lg"
+  data-quote-item={node.entry.id}
+  data-quote-thread={node.entry.fromThreadId || directory.currentId}
+>
+  <ItemView
+    item={node.entry.item}
+    nested={node.children.length > 0 ? nested : undefined}
+    turnEnded={directory.turnEnded?.(node.entry.turnId) ?? false}
+  />
 </div>

@@ -45,6 +45,7 @@ export function turnOrigin(turn: ui.Turn): TurnOrigin {
 /** Label of a turn started without input (provider wake-up, recovery, goal); undefined otherwise. */
 export function silentTriggerLabel(turn: ui.Turn): string | undefined {
   if (turn.inputText) return undefined;
+
   switch (turn.trigger) {
     case "provider":
       // Codex continues an active goal on its own; other wake-ups follow finished background work.

@@ -22,11 +22,13 @@ const browser: LiveSourceEnvironment = {
   random: Math.random,
   schedule: (run, delay) => {
     const timer = setTimeout(run, delay);
+
     return () => clearTimeout(timer);
   },
   listen: (event, run) => {
     const target = event === "visibilitychange" ? document : window;
     target.addEventListener(event, run);
+
     return () => target.removeEventListener(event, run);
   },
 };
@@ -59,12 +61,17 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
     if (stopped || cancelRetry) return;
     close();
     handlers.ondrop?.();
+
     if (failed || attempt >= 2) handlers.onfailure?.();
+
     if (environment.hidden() || !environment.online()) return;
-    cancelRetry = environment.schedule(() => {
-      cancelRetry = undefined;
-      open();
-    }, retryDelay(attempt++, environment.random()));
+    cancelRetry = environment.schedule(
+      () => {
+        cancelRetry = undefined;
+        open();
+      },
+      retryDelay(attempt++, environment.random()),
+    );
   };
 
   const heartbeat = () => {
@@ -85,10 +92,13 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
       if (!active() || ready) return;
       ready = true;
       heartbeat();
+
       const opened = async () => {
         await handlers.onopen?.(opens++ > 0, abort.signal);
+
         if (active()) attempt = 0;
       };
+
       void opened().catch(() => {
         if (active()) retry(true);
       });
@@ -99,6 +109,7 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
     current.onerror = () => {
       if (active()) retry();
     };
+
     current.addEventListener("failure", () => {
       if (active()) retry(true);
     });
@@ -113,23 +124,32 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
     if (environment.hidden() || !environment.online()) {
       cancelRetry?.();
       cancelRetry = undefined;
+
       if (!ready || !environment.online()) {
         if (source && !environment.online()) handlers.ondrop?.();
         close();
       }
+
       return;
     }
+
     if (source) return;
     cancelRetry?.();
     cancelRetry = undefined;
     open();
   };
-  const unsubscribe = (["focus", "online", "offline", "visibilitychange"] as const).map((event) => environment.listen(event, resume));
+
+  const unsubscribe = (["focus", "online", "offline", "visibilitychange"] as const).map((event) =>
+    environment.listen(event, resume),
+  );
+
   open();
+
   return () => {
     stopped = true;
     cancelRetry?.();
     close();
+
     for (const off of unsubscribe) off();
   };
 }

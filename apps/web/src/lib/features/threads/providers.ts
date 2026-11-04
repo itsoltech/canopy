@@ -2,10 +2,20 @@ import { Provider, type ui } from "@canopy/contracts";
 
 /** Providers a thread can run on, as sent by forms (enum key). */
 export const providerKeys = ["CLAUDE", "CODEX", "GROK"] as const;
+
 export type ProviderKey = (typeof providerKeys)[number];
 
-export const isProviderKey = (value: string): value is ProviderKey => (providerKeys as readonly string[]).includes(value);
-export const providerKeyOf = (provider: Provider): ProviderKey | undefined => (provider === Provider.CLAUDE ? "CLAUDE" : provider === Provider.CODEX ? "CODEX" : provider === Provider.GROK ? "GROK" : undefined);
+export const isProviderKey = (value: string): value is ProviderKey =>
+  (providerKeys as readonly string[]).includes(value);
+
+export const providerKeyOf = (provider: Provider): ProviderKey | undefined =>
+  provider === Provider.CLAUDE
+    ? "CLAUDE"
+    : provider === Provider.CODEX
+      ? "CODEX"
+      : provider === Provider.GROK
+        ? "GROK"
+        : undefined;
 
 /** Providers whose CLI the worker reports as available (installed, logged in). */
 function availableProviders(worker: ui.Worker | undefined): ProviderKey[] {
@@ -21,7 +31,11 @@ export function instancesFor(worker: ui.Worker | undefined, key: ProviderKey): u
 }
 
 /** A thread's instance on its worker, also when it is turned off or unavailable there (it keeps it for life). */
-export function instanceOf(worker: ui.Worker | undefined, key: ProviderKey, profileId: string): ui.WorkerInstance | undefined {
+export function instanceOf(
+  worker: ui.Worker | undefined,
+  key: ProviderKey,
+  profileId: string,
+): ui.WorkerInstance | undefined {
   return worker?.providerInstances.find((i) => i.harness === Provider[key] && i.id === (profileId || "native"));
 }
 
@@ -33,7 +47,8 @@ export const profileIdValue = (id: string): string => (id === "native" ? "" : id
 export const instanceValue = (instance: Pick<ui.WorkerInstance, "id">): string => profileIdValue(instance.id);
 
 /** The label the user gave the instance, else its id ("Device login" for the built-in one). */
-export const instanceLabel = (instance: Pick<ui.WorkerInstance, "label" | "id">): string => instance.label || (instance.id === "native" ? "Device login" : instance.id);
+export const instanceLabel = (instance: Pick<ui.WorkerInstance, "label" | "id">): string =>
+  instance.label || (instance.id === "native" ? "Device login" : instance.id);
 
 /** One provider + profile choice of the new-thread "agent" pill. */
 export interface AgentChoice {
@@ -58,6 +73,9 @@ export function agentChoices(worker: ui.Worker | undefined): { provider: Provide
 
 /** Models already used with a provider in your threads, newest first (suggestions for the model field). */
 export function knownModels(threads: Iterable<ui.Thread>, key: ProviderKey): string[] {
-  const sorted = [...threads].filter((t) => t.provider === Provider[key] && t.model).sort((a, b) => Number((b.createdAt?.seconds ?? 0n) - (a.createdAt?.seconds ?? 0n)));
+  const sorted = [...threads]
+    .filter((t) => t.provider === Provider[key] && t.model)
+    .sort((a, b) => Number((b.createdAt?.seconds ?? 0n) - (a.createdAt?.seconds ?? 0n)));
+
   return [...new Set(sorted.map((t) => t.model))].slice(0, 8);
 }

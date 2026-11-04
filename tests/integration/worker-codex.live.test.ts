@@ -6,7 +6,14 @@
  */
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { DeviceLogin, InteractionKind, PermissionMode, Provider, ProviderProfileKind, type ThreadEvent } from "@canopy/contracts";
+import {
+  DeviceLogin,
+  InteractionKind,
+  PermissionMode,
+  Provider,
+  ProviderProfileKind,
+  type ThreadEvent,
+} from "@canopy/contracts";
 import { tempDir } from "@canopy/testing";
 import { journalHello } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
@@ -27,7 +34,11 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker + Codex end to end (liv
     const gateway = await startGateway();
     const runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
     const host = new WorkerHost({ runtime, dataDir: join(dir, "data"), clientVersion: "live" });
-    const link = await connectWorker(gateway.server.url, { hello: { workerId: "worker-1", ...(await runtime.runPromise(journalHello())) } });
+
+    const link = await connectWorker(gateway.server.url, {
+      hello: { workerId: "worker-1", ...(await runtime.runPromise(journalHello())) },
+    });
+
     const serving = serveLink(link, host, runtime);
     const connection = await gateway.nextConnection();
 
@@ -37,10 +48,15 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker + Codex end to end (liv
     void (async () => {
       for await (const message of connection.messages) {
         if (message.payload.case === "configApplied") applied = message.payload.value.applied;
+
         if (message.payload.case === "threadEvent") {
           events.push(message.payload.value);
-          connection.send({ case: "eventAck", value: { threadId: message.payload.value.threadId, ackSeq: message.payload.value.journalSeq } });
+          connection.send({
+            case: "eventAck",
+            value: { threadId: message.payload.value.threadId, ackSeq: message.payload.value.journalSeq },
+          });
         }
+
         if (message.payload.case === "interactionRequest") {
           const request = message.payload.value;
           permissions.push(`${InteractionKind[request.kind]}:${request.toolName}`);
@@ -59,9 +75,18 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker + Codex end to end (liv
         profiles: [{ id: "live", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: proxyUrl!, apiKey: proxyKey! }],
       },
     });
+
     while (!applied) await Bun.sleep(50);
 
-    const spec = { threadId: Bun.randomUUIDv7(), provider: Provider.CODEX, providerProfileId: "live", cwd: repo, model, permissionMode: PermissionMode.ASK };
+    const spec = {
+      threadId: Bun.randomUUIDv7(),
+      provider: Provider.CODEX,
+      providerProfileId: "live",
+      cwd: repo,
+      model,
+      permissionMode: PermissionMode.ASK,
+    };
+
     const created = await connection.sendCommand({ case: "createThread", value: { thread: spec } }, 60_000);
     expect(created).toMatchObject({ ok: true });
     const providerThreadId = events.find((e) => e.body.case === "threadReady" && e.threadId === spec.threadId);
@@ -73,14 +98,19 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("worker + Codex end to end (liv
         value: {
           thread: spec,
           turnId: "turn-1",
-          input: { text: "Create a file named hello.txt containing exactly: hi\nUse a shell command. Then reply with the single word DONE." },
+          input: {
+            text: "Create a file named hello.txt containing exactly: hi\nUse a shell command. Then reply with the single word DONE.",
+          },
         },
       },
       60_000,
     );
+
     expect(started).toMatchObject({ ok: true });
     const deadline = Date.now() + 240_000;
-    while (!events.some((e) => e.turnId === "turn-1" && e.body.case === "turnFinished") && Date.now() < deadline) await Bun.sleep(100);
+
+    while (!events.some((e) => e.turnId === "turn-1" && e.body.case === "turnFinished") && Date.now() < deadline)
+      await Bun.sleep(100);
 
     expect(permissions.length).toBeGreaterThan(0); // read-only sandbox: the write had to be approved
     expect(permissions.every((p) => p.startsWith("PERMISSION:"))).toBe(true);

@@ -9,7 +9,8 @@ const seconds = (thread: ui.Thread) => activityOf(thread)?.seconds ?? 0n;
 export const byActivity = (a: ui.Thread, b: ui.Thread) => Number(seconds(b) - seconds(a));
 
 /** Latest activity of a main thread and its side threads, for ordering trees. */
-export const treeActivity = (threads: readonly ui.Thread[]): bigint => threads.reduce((max, t) => (seconds(t) > max ? seconds(t) : max), 0n);
+export const treeActivity = (threads: readonly ui.Thread[]): bigint =>
+  threads.reduce((max, t) => (seconds(t) > max ? seconds(t) : max), 0n);
 
 const waiting = (thread: ui.Thread) => thread.status === "waiting_input" || thread.pendingInteractions > 0;
 
@@ -27,16 +28,23 @@ export type WorkState = "needs" | "asks" | "starting" | "running" | "background"
 
 export function workState(thread: ui.Thread): WorkState {
   if (needsYou(thread)) return "needs";
+
   if (asksAgent(thread)) return "asks";
+
   if (thread.status === "creating") return "starting";
+
   if (thread.status === "running") return "running";
+
   return thread.backgroundTasks > 0 ? "background" : "idle";
 }
 
 /** How a finished turn ended, while the user has not seen it (Thread.unseen_result). */
 export type TurnResult = "completed" | "failed" | "interrupted";
+
 const results: readonly string[] = ["completed", "failed", "interrupted"] satisfies TurnResult[];
-export const unseenResult = (thread: ui.Thread): TurnResult | undefined => (results.includes(thread.unseenResult) ? (thread.unseenResult as TurnResult) : undefined);
+
+export const unseenResult = (thread: ui.Thread): TurnResult | undefined =>
+  results.includes(thread.unseenResult) ? (thread.unseenResult as TurnResult) : undefined;
 
 /**
  * Busy without needing anyone: a turn running or starting, asking its agent, or background tasks alone with
@@ -44,5 +52,8 @@ export const unseenResult = (thread: ui.Thread): TurnResult | undefined => (resu
  */
 export function isCalm(thread: ui.Thread): boolean {
   const state = workState(thread);
-  return state === "starting" || state === "running" || state === "asks" || (state === "background" && !unseenResult(thread));
+
+  return (
+    state === "starting" || state === "running" || state === "asks" || (state === "background" && !unseenResult(thread))
+  );
 }

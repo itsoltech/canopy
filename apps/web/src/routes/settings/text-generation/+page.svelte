@@ -10,7 +10,11 @@
 <div class="grid gap-6">
   <TextGenerationFields />
 
-<SharingGroup>
-  <ShareSetting itemKey={sharedKey.settings("text_generation")} label="Text generation" local="The chosen instance must exist on each computer that uses it." />
-</SharingGroup>
+  <SharingGroup>
+    <ShareSetting
+      itemKey={sharedKey.settings("text_generation")}
+      label="Text generation"
+      local="The chosen instance must exist on each computer that uses it."
+    />
+  </SharingGroup>
 </div>

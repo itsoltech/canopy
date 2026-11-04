@@ -10,7 +10,10 @@ export interface BotProviderInstance {
   readonly models: readonly ModelOption[];
 }
 
-export interface BotAppearanceDraft extends BotAppearance { name: string }
+export interface BotAppearanceDraft extends BotAppearance {
+  name: string;
+}
+
 export interface CreateBotDraft extends BotAppearanceDraft {
   providerInstanceId: string;
   model: string;
@@ -22,26 +25,48 @@ export interface CreateBotDraft extends BotAppearanceDraft {
 export function nameError(name: string, existingNames: readonly string[], originalName?: string): string | undefined {
   const key = (value: string) => value.trim().normalize("NFC").toLowerCase();
   const normalized = key(name);
+
   if (!normalized) return "Give your bot a name.";
   let skippedOriginal = false;
+
   const duplicate = existingNames.some((existing) => {
     if (!skippedOriginal && originalName !== undefined && key(existing) === key(originalName)) {
       skippedOriginal = true;
+
       return false;
     }
+
     return key(existing) === normalized;
   });
+
   return duplicate ? "A bot with this name already exists. Choose another name." : undefined;
 }
 
-export function appearanceError(draft: BotAppearanceDraft, existingNames: readonly string[], originalName?: string): string | undefined {
-  return nameError(draft.name, existingNames, originalName) ?? (!normalizeColor(draft.color) ? "Enter a colour as #RGB or #RRGGBB." : undefined);
+export function appearanceError(
+  draft: BotAppearanceDraft,
+  existingNames: readonly string[],
+  originalName?: string,
+): string | undefined {
+  return (
+    nameError(draft.name, existingNames, originalName) ??
+    (!normalizeColor(draft.color) ? "Enter a colour as #RGB or #RRGGBB." : undefined)
+  );
 }
 
 /** Revalidate against live props immediately before invoking the caller. */
-export function selectionError(instances: readonly BotProviderInstance[], instanceId: string, option: ModelOption | undefined, effort: string | undefined): string | undefined {
+export function selectionError(
+  instances: readonly BotProviderInstance[],
+  instanceId: string,
+  option: ModelOption | undefined,
+  effort: string | undefined,
+): string | undefined {
   const instance = instances.find((i) => i.id === instanceId);
-  if (!instance || !option || !instance.models.some((m) => m.key === option.key)) return "Choose an available provider instance and model.";
-  if (effort !== undefined && !option.efforts.some((e) => e.id === effort)) return "Choose an effort supported by this model.";
+
+  if (!instance || !option || !instance.models.some((m) => m.key === option.key))
+    return "Choose an available provider instance and model.";
+
+  if (effort !== undefined && !option.efforts.some((e) => e.id === effort))
+    return "Choose an effort supported by this model.";
+
   return undefined;
 }

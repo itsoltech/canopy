@@ -25,9 +25,12 @@ const isSeparator = (char: string) => /[\s\-_/.:·,()[\]]/.test(char);
 function bonusAt(text: string, index: number): number {
   if (index === 0) return WORD_START + TEXT_START;
   const before = text[index - 1]!;
+
   if (isSeparator(before)) return WORD_START;
   const char = text[index]!;
+
   if (before === before.toLowerCase() && char !== char.toLowerCase()) return CAMEL;
+
   return 0;
 }
 
@@ -36,11 +39,15 @@ export function fuzzyMatch(query: string, text: string): FuzzyMatch | undefined 
   const t = text.toLowerCase();
   const m = q.length;
   const n = t.length;
+
   if (m === 0) return { score: 0, indices: [] };
+
   if (m > n) return undefined;
+
   // Quick reject: not even a subsequence.
   for (let i = 0, j = 0; i < m; i++, j++) {
     j = t.indexOf(q[i]!, j);
+
     if (j < 0) return undefined;
   }
 
@@ -49,6 +56,7 @@ export function fuzzyMatch(query: string, text: string): FuzzyMatch | undefined 
   const ending = Array.from({ length: m }, () => new Float64Array(n).fill(-Infinity));
   const best = Array.from({ length: m }, () => new Float64Array(n).fill(-Infinity));
   const bonus = Array.from({ length: n }, (_, j) => bonusAt(text, j));
+
   for (let i = 0; i < m; i++) {
     for (let j = i; j < n; j++) {
       if (q[i] === t[j]) {
@@ -59,44 +67,58 @@ export function fuzzyMatch(query: string, text: string): FuzzyMatch | undefined 
           ending[i]![j] = Math.max(run, jump);
         }
       }
+
       best[i]![j] = Math.max(ending[i]![j]!, j > 0 ? best[i]![j - 1]! - GAP : -Infinity);
     }
   }
 
   // Walk back from the best end to recover the positions.
   let end = -1;
+
   for (let j = m - 1; j < n; j++) if (end < 0 || ending[m - 1]![j]! > ending[m - 1]![end]!) end = j;
   const score = ending[m - 1]![end]!;
+
   if (!Number.isFinite(score)) return undefined;
   const indices = new Array<number>(m);
   indices[m - 1] = end;
+
   for (let i = m - 1; i > 0; i--) {
     const j = indices[i]!;
     const here = ending[i]![j]! - bonus[j]!;
+
     // A run from the previous character when that is what scored, else the best earlier match.
     if (Math.abs(ending[i - 1]![j - 1]! + RUN - here) < 1e-9) {
       indices[i - 1] = j - 1;
       continue;
     }
+
     let pick = -1;
     let pickScore = -Infinity;
+
     for (let k = i - 1; k < j; k++) {
       const value = ending[i - 1]![k]! - (j - 1 - k) * GAP;
+
       if (value > pickScore) {
         pickScore = value;
         pick = k;
       }
     }
+
     indices[i - 1] = pick;
   }
+
   // Too scattered to be meant: more pieces starting inside a word than one (one per three characters
   // typed for longer queries), e.g. "ocean" in "navigation collapse expand"; a single character only at a
   // word start. Pieces at word starts are always fine ("nt" in "New thread").
   let inside = 0;
-  for (let i = 0; i < m; i++) if ((i === 0 || indices[i - 1] !== indices[i]! - 1) && bonus[indices[i]!] === 0) inside += 1;
+
+  for (let i = 0; i < m; i++)
+    if ((i === 0 || indices[i - 1] !== indices[i]! - 1) && bonus[indices[i]!] === 0) inside += 1;
+
   if (inside > (m === 1 ? 0 : Math.max(1, Math.floor(m / 3)))) return undefined;
   // A whole-word or prefix hit beats a scattered one with the same bonuses.
   const exact = t.startsWith(q) ? 4 : t.includes(q) ? 2 : 0;
+
   return { score: score + exact, indices };
 }
 
@@ -115,18 +137,23 @@ const KEYWORD_WEIGHT = 0.6;
  */
 export function matchCommand(query: string, item: Searchable): FuzzyMatch | undefined {
   const words = query.trim().split(/\s+/).filter(Boolean);
+
   if (words.length === 0) return { score: 0, indices: [] };
   let score = 0;
   const indices = new Set<number>();
+
   for (const word of words) {
     const inTitle = fuzzyMatch(word, item.title);
     const inKeywords = item.keywords ? fuzzyMatch(word, item.keywords) : undefined;
     const keywordScore = inKeywords ? inKeywords.score * KEYWORD_WEIGHT : -Infinity;
+
     if (inTitle && inTitle.score >= keywordScore) {
       score += inTitle.score;
+
       for (const index of inTitle.indices) indices.add(index);
     } else if (inKeywords) score += keywordScore;
     else return undefined;
   }
+
   return { score, indices: [...indices].sort((a, b) => a - b) };
 }

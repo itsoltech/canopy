@@ -37,7 +37,11 @@
     ? `Threads already there keep their directory (${workspace.rootPath}). New threads start in the one you choose.`
     : `Choose the project's directory on ${worker.name}. New threads on this worker start there.`}
 >
-  <ActionForm action={workspace ? "?/updateWorkspace" : "?/createWorkspace"} onsuccess={() => (open = false)} class="grid gap-4">
+  <ActionForm
+    action={workspace ? "?/updateWorkspace" : "?/createWorkspace"}
+    onsuccess={() => (open = false)}
+    class="grid gap-4"
+  >
     {#snippet children({ busy, submitted })}
       {#if workspace}
         <input type="hidden" name="workspaceId" value={workspace.id} />
@@ -50,7 +54,9 @@
       {#if submitted && error}<Alert tone="error">{error}</Alert>{/if}
       <DialogActions>
         <Button onclick={() => (open = false)}>Cancel</Button>
-        <Button type="submit" variant="primary" loading={busy} disabled={!rootPath || unchanged}>{workspace ? "Use this directory" : `Add to ${worker.name}`}</Button>
+        <Button type="submit" variant="primary" loading={busy} disabled={!rootPath || unchanged}
+          >{workspace ? "Use this directory" : `Add to ${worker.name}`}</Button
+        >
       </DialogActions>
     {/snippet}
   </ActionForm>

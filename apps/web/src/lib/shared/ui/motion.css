@@ -33,7 +33,10 @@
   transition: scale var(--duration-quick) var(--ease-smooth-out);
 }
 @media (prefers-reduced-motion: reduce) {
-  .t-rail-preview, .t-rail-tick { transition: none !important; }
+  .t-rail-preview,
+  .t-rail-tick {
+    transition: none !important;
+  }
 }
 @starting-style {
   .t-dropdown:popover-open {
@@ -412,7 +415,9 @@
   min-height: --spacing(16);
   max-height: --spacing(72);
   overflow-y: auto;
-  transition: min-height var(--duration-slow) var(--ease-smooth-out), max-height var(--duration-slow) var(--ease-smooth-out);
+  transition:
+    min-height var(--duration-slow) var(--ease-smooth-out),
+    max-height var(--duration-slow) var(--ease-smooth-out);
 }
 .t-composer-input[data-single-line] {
   min-height: --spacing(6);
@@ -445,8 +450,13 @@
   transition-duration: var(--duration-slow);
 }
 @media (prefers-reduced-motion: reduce) {
-  .t-composer-slot, .t-composer-editor, .t-composer-input,
-  .t-composer-fold, .t-composer-fold > * { transition: none !important; }
+  .t-composer-slot,
+  .t-composer-editor,
+  .t-composer-input,
+  .t-composer-fold,
+  .t-composer-fold > * {
+    transition: none !important;
+  }
 }
 
 .t-toast {

@@ -1,5 +1,11 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
-import { MentionCatalogEntrySchema, MentionKind, MentionSchema, type Mention, type MentionCatalogEntry } from "@canopy/contracts";
+import {
+  MentionCatalogEntrySchema,
+  MentionKind,
+  MentionSchema,
+  type Mention,
+  type MentionCatalogEntry,
+} from "@canopy/contracts";
 
 /**
  * Mentions on the gateway (docs/ui-api.md, "Wzmianki"): how they are stored with a turn or a steer, where a file
@@ -31,6 +37,7 @@ export function workerPath(cwd: string, relative: string): string {
   const windows = /^[A-Za-z]:[\\/]|^\\\\/.test(cwd);
   const sep = windows ? "\\" : "/";
   const base = cwd.endsWith(sep) && cwd.length > 1 ? cwd.slice(0, -1) : cwd;
+
   return [base, ...relative.split("/").filter((part) => part && part !== ".")].join(sep);
 }
 

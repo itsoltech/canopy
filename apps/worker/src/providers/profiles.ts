@@ -74,6 +74,7 @@ export type ResolvedProfile =
 export const NATIVE_PROFILE: NativeProfileConfig = { kind: "native", id: "native" };
 
 const PROFILE_ID = /^[a-z0-9][a-z0-9_-]{0,62}$/;
+
 // Legacy profiles without an explicit provider list keep their original meaning.
 const BOTH = ["claude", "codex"] as const;
 const ALL = [...BOTH, "grok"] as const;
@@ -95,10 +96,18 @@ export interface ProfileStatus {
 
 /** A profile's runtime differs from the worker's: Codex gives it its own process, Claude its own home and flags. */
 export function hasOwnRuntime(runtime: ProfileRuntimeConfig): boolean {
-  return Boolean(runtime.executablePath || runtime.homePath || runtime.shadowHomePath || runtime.launchArgs?.length || runtime.ownLogin);
+  return Boolean(
+    runtime.executablePath ||
+    runtime.homePath ||
+    runtime.shadowHomePath ||
+    runtime.launchArgs?.length ||
+    runtime.ownLogin,
+  );
 }
 
-export const providersOf = (config: Pick<ProviderProfileConfig, "providers">): readonly ("claude" | "codex" | "grok")[] => (config.providers?.length ? config.providers : BOTH);
+export const providersOf = (
+  config: Pick<ProviderProfileConfig, "providers">,
+): readonly ("claude" | "codex" | "grok")[] => (config.providers?.length ? config.providers : BOTH);
 
 /**
  * Validates configs. Invalid ids and endpoints throw (fatal); a missing key, a variable the worker controls or
@@ -106,42 +115,63 @@ export const providersOf = (config: Pick<ProviderProfileConfig, "providers">): r
  */
 export function resolveProfiles(configs: readonly ProviderProfileConfig[]): ProfileStatus[] {
   // The built-in native profile for every provider the configuration gives none (an instance per provider, or both).
-  const nativeFor = ALL.filter((provider) => !configs.some((c) => c.id === NATIVE_PROFILE.id && providersOf(c).includes(provider)));
+  const nativeFor = ALL.filter(
+    (provider) => !configs.some((c) => c.id === NATIVE_PROFILE.id && providersOf(c).includes(provider)),
+  );
+
   const all = nativeFor.length === 0 ? configs : [{ ...NATIVE_PROFILE, providers: nativeFor }, ...configs];
   const seen = new Set<string>();
+
   return all.map((config): ProfileStatus => {
     if (!PROFILE_ID.test(config.id)) throw new ProfileError(`invalid profile id "${config.id}"`);
+
     // One instance per provider and id: the same id may serve the other provider as its own instance.
     for (const provider of providersOf(config)) {
       if (seen.has(`${provider}/${config.id}`)) throw new ProfileError(`duplicate profile id "${config.id}"`);
       seen.add(`${provider}/${config.id}`);
     }
+
     // Turned off: unused, so not validated further (a stub without endpoint or key).
     if (config.disabled) return { config, problem: "disabled" };
 
     let baseUrl: URL | undefined;
+
     if (config.kind === "cliproxyapi") {
       try {
         baseUrl = new URL(config.baseUrl);
       } catch {
         throw new ProfileError(`profile "${config.id}": invalid baseUrl "${config.baseUrl}"`);
       }
+
       if (baseUrl.protocol !== "http:" && baseUrl.protocol !== "https:") {
         throw new ProfileError(`profile "${config.id}": baseUrl must be http(s)`);
       }
+
       if (baseUrl.username || baseUrl.password) {
         throw new ProfileError(`profile "${config.id}": put credentials in api_key, not in base_url`);
       }
     }
+
     const vars = config.env ?? [];
     // Only the name goes into the problem: values may be secrets.
     const envProblem = envListProblems(config.kind === "native" ? "native" : "endpoint", vars)[0];
+
     if (envProblem) return { config, problem: `env: ${envProblem.message}` };
     const runtime = config.runtime ?? {};
+
     if (runtime.ownLogin && config.kind !== "native") return { config, problem: "an endpoint has no login of its own" };
-    const base = { id: config.id, providers: providersOf(config), env: Object.fromEntries(vars.map((v) => [v.name, v.value])), runtime };
+
+    const base = {
+      id: config.id,
+      providers: providersOf(config),
+      env: Object.fromEntries(vars.map((v) => [v.name, v.value])),
+      runtime,
+    };
+
     if (config.kind === "native") return { config, resolved: { kind: "native", ...base } };
+
     if (!config.apiKey) return { config, problem: "api_key is not set" };
+
     return { config, resolved: { kind: "cliproxyapi", ...base, baseUrl: baseUrl!, apiKey: config.apiKey } };
   });
 }
@@ -149,10 +179,13 @@ export function resolveProfiles(configs: readonly ProviderProfileConfig[]): Prof
 /** ConfigApplied.profiles entry. Contains no secrets (no key, no variable values). */
 export function toProfileReport(status: ProfileStatus): MessageInitShape<typeof ProviderProfileSchema> {
   const { config } = status;
+
   return {
     id: config.id,
     kind: config.kind === "native" ? ProviderProfileKind.NATIVE : ProviderProfileKind.CLIPROXYAPI,
-    providers: providersOf(config).map((p) => (p === "claude" ? Provider.CLAUDE : p === "grok" ? Provider.GROK : Provider.CODEX)),
+    providers: providersOf(config).map((p) =>
+      p === "claude" ? Provider.CLAUDE : p === "grok" ? Provider.GROK : Provider.CODEX,
+    ),
     ...(config.kind === "cliproxyapi" && URL.canParse(config.baseUrl) && { endpoint: new URL(config.baseUrl).origin }),
     available: status.resolved !== undefined,
     ...(status.problem !== undefined && { detail: status.problem }),
@@ -171,9 +204,13 @@ export function selectProfile(
 ): ResolvedProfile {
   const id = profileId || NATIVE_PROFILE.id;
   const ofId = statuses.filter((s) => s.config.id === id);
+
   if (ofId.length === 0) throw new ProfileError(`unknown provider profile "${id}"`);
   const status = ofId.find((s) => providersOf(s.config).includes(provider));
+
   if (!status) throw new ProfileError(`provider profile "${id}" is not enabled for ${provider}`);
+
   if (!status.resolved) throw new ProfileError(`provider profile "${id}" is unavailable: ${status.problem ?? "?"}`);
+
   return status.resolved;
 }

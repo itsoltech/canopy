@@ -13,7 +13,12 @@
     onsuccess,
     class: className,
     children,
-  }: { action: string; onsuccess?: (() => void) | undefined; class?: ClassValue; children: Snippet<[{ busy: boolean; submitted: boolean }]> } = $props();
+  }: {
+    action: string;
+    onsuccess?: (() => void) | undefined;
+    class?: ClassValue;
+    children: Snippet<[{ busy: boolean; submitted: boolean }]>;
+  } = $props();
 
   let busy = $state(false);
   let submitted = $state(false);

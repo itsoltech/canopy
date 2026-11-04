@@ -24,6 +24,7 @@ export class WorkFolds {
   toggle(turnId: string, open = !this.open.has(turnId)): void {
     if (open === this.open.has(turnId)) return;
     const next = new Set(this.open);
+
     if (open) next.add(turnId);
     else next.delete(turnId);
     this.open = next;
@@ -32,23 +33,33 @@ export class WorkFolds {
   toggleGroup(key: string, open = !this.groups.has(key)): void {
     if (open === this.groups.has(key)) return;
     const next = new Set(this.groups);
+
     if (open) next.add(key);
     else next.delete(key);
     this.groups = next;
   }
 
   /** The thread's turns changed: call before the feed renders (`$effect.pre`), outside tracking. */
-  update(turns: readonly ui.Turn[], entries: readonly TimelineEntry[], notices: readonly TimelineNotice[], reader: FoldReader | undefined): void {
+  update(
+    turns: readonly ui.Turn[],
+    entries: readonly TimelineEntry[],
+    notices: readonly TimelineNotice[],
+    reader: FoldReader | undefined,
+  ): void {
     const ended: string[] = [];
+
     for (const turn of turns) {
       if (!isTerminal(turn.status)) this.#running.add(turn.id);
       else if (this.#running.delete(turn.id)) ended.push(turn.id);
     }
+
     if (ended.length === 0 || !reader) return;
+
     for (const [turnId, key] of readWork(ended, reader.reading(), entries, notices)) {
       reader.hold(key);
       this.toggle(turnId, true);
     }
+
     // VirtualFeed only moves a reader still following the end, and only for an oversized answer.
     for (const turnId of ended) void reader.scrollRowToTop(`answer:${turnId}`);
   }

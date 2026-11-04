@@ -18,21 +18,49 @@
   const overview = useOverview();
   const catalog = useModelCatalog();
   const value = $derived(settings.textGeneration);
-  const options = $derived([...new Map(overview.ownWorkers.flatMap((worker) =>
-    modelOptions({ worker, catalog: catalog.of(worker.id), threads: overview.threads.values() }).filter((o) => o.model),
-  ).map((o) => [o.key, o])).values()]);
+
+  const options = $derived([
+    ...new Map(
+      overview.ownWorkers
+        .flatMap((worker) =>
+          modelOptions({ worker, catalog: catalog.of(worker.id), threads: overview.threads.values() }).filter(
+            (o) => o.model,
+          ),
+        )
+        .map((o) => [o.key, o]),
+    ).values(),
+  ]);
+
   const provider = $derived(providerKeyOf(value.provider));
   const profileId = $derived(value.profileId === "native" ? "" : value.profileId);
-  const worker = $derived(overview.ownWorkers.find((w) => w.providerInstances.some((i) => i.harness === value.provider && i.id === (profileId || "native") && i.available && i.enabled)));
-  const option = $derived(value.model && provider
-    ? options.find((o) => o.provider === provider && o.profileId === profileId && o.model === value.model)
-      ?? modelOption(provider, profileId, profileId || "Device login", value.model, worker ? catalog.of(worker.id) : undefined)
-    : undefined);
+
+  const worker = $derived(
+    overview.ownWorkers.find((w) =>
+      w.providerInstances.some(
+        (i) => i.harness === value.provider && i.id === (profileId || "native") && i.available && i.enabled,
+      ),
+    ),
+  );
+
+  const option = $derived(
+    value.model && provider
+      ? (options.find((o) => o.provider === provider && o.profileId === profileId && o.model === value.model) ??
+          modelOption(
+            provider,
+            profileId,
+            profileId || "Device login",
+            value.model,
+            worker ? catalog.of(worker.id) : undefined,
+          ))
+      : undefined,
+  );
 
   function select(next: ModelOption | undefined) {
     if (!next) return;
     void settings.updateTextGeneration({
-      provider: Provider[next.provider], profileId: next.profileId, model: next.model,
+      provider: Provider[next.provider],
+      profileId: next.profileId,
+      model: next.model,
       effort: next.efforts.some((e) => e.id === "low") ? "low" : "",
     });
   }
@@ -41,7 +69,14 @@
 <div class={["grid gap-6", className]}>
   <SettingsGroup title="Text generation">
     {#snippet actions()}
-      <Button size="sm" icon="arrow-path" disabled={!value.model} onclick={() => settings.updateTextGeneration({ provider: Provider.UNSPECIFIED, profileId: "", model: "", effort: "" })}>Reset to default</Button>
+      <Button
+        size="sm"
+        icon="arrow-path"
+        disabled={!value.model}
+        onclick={() =>
+          settings.updateTextGeneration({ provider: Provider.UNSPECIFIED, profileId: "", model: "", effort: "" })}
+        >Reset to default</Button
+      >
     {/snippet}
     <SettingsRow title="Text generation model" description="Used for thread titles and other generated text">
       <div class="grid min-w-0 gap-2 pt-3">
@@ -49,14 +84,21 @@
           <ModelControls
             {options}
             bind:option={() => option, select}
-            bind:effort={() => value.effort || undefined, (effort) => void settings.updateTextGeneration({ effort: effort ?? "" })}
+            bind:effort={
+              () => value.effort || undefined, (effort) => void settings.updateTextGeneration({ effort: effort ?? "" })
+            }
             workerId={worker?.id}
             allowCustom={false}
           />
-          {#if option}<p class="min-w-0 truncate text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{option.provider === "CLAUDE" ? "Claude" : option.provider === "GROK" ? "Grok" : "Codex"} · {option.profileName}</p>{/if}
+          {#if option}<p class="min-w-0 truncate text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+              {option.provider === "CLAUDE" ? "Claude" : option.provider === "GROK" ? "Grok" : "Codex"} · {option.profileName}
+            </p>{/if}
         </div>
         {#if !value.model}
-          <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Automatic: a small, fast model from the thread’s provider instance at low effort when supported. Falls back to the thread’s model.</p>
+          <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+            Automatic: a small, fast model from the thread’s provider instance at low effort when supported. Falls back
+            to the thread’s model.
+          </p>
         {/if}
       </div>
     </SettingsRow>
@@ -64,8 +106,18 @@
 
   <SettingsGroup title="Advanced">
     <div class="p-4">
-      <Field label="Thread title instructions" description="Appended to the prompt for new and regenerated thread titles">
-        <Textarea name="threadTitleInstructions" rows={3} maxlength={4000} value={value.threadTitleInstructions} placeholder="Keep titles to a few words. Lead with the main subject." onchange={(event) => settings.updateTextGeneration({ threadTitleInstructions: event.currentTarget.value })} />
+      <Field
+        label="Thread title instructions"
+        description="Appended to the prompt for new and regenerated thread titles"
+      >
+        <Textarea
+          name="threadTitleInstructions"
+          rows={3}
+          maxlength={4000}
+          value={value.threadTitleInstructions}
+          placeholder="Keep titles to a few words. Lead with the main subject."
+          onchange={(event) => settings.updateTextGeneration({ threadTitleInstructions: event.currentTarget.value })}
+        />
       </Field>
     </div>
   </SettingsGroup>

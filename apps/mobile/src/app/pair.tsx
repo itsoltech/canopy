@@ -1,13 +1,5 @@
 import { useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { Redirect, router } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { fetch } from "expo/fetch";
@@ -23,62 +15,67 @@ export default function Pair() {
   const { session, ready, pair, error: sessionError } = useSession();
   const [gatewayUrl, setUrl] = useState("");
   const [code, setCode] = useState("");
-  const [name, setName] = useState(
-    Device.deviceName ?? (Platform.OS === "ios" ? "My iPhone" : "My Android"),
-  );
+  const [name, setName] = useState(Device.deviceName ?? (Platform.OS === "ios" ? "My iPhone" : "My Android"));
   const [scanning, setScanning] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const scanLock = useRef(false);
   const submitting = useRef(false);
-  if (!ready)
-    return <ActivityIndicator accessibilityLabel="Opening secure storage" />;
+
+  if (!ready) return <ActivityIndicator accessibilityLabel="Opening secure storage" />;
+
   if (session) return <Redirect href="/" />;
+
   async function scan() {
     setError("");
     const granted = permission?.granted || (await requestPermission()).granted;
+
     if (!granted) {
-      setError(
-        "Camera permission is needed to scan a QR code. You can enter the code below instead.",
-      );
+      setError("Camera permission is needed to scan a QR code. You can enter the code below instead.");
+
       return;
     }
+
     scanLock.current = false;
     setScanning(true);
   }
+
   function scanned(data: string) {
     if (scanLock.current) return;
     scanLock.current = true;
     setScanning(false);
+
     try {
       const qr = readPairingQr(data);
       setUrl(qr.gatewayUrl);
       setCode(qr.code);
       setError("");
     } catch {
-      setError(
-        "Scan the pairing QR code from Canopy → Settings → Mobile devices.",
-      );
+      setError("Scan the pairing QR code from Canopy → Settings → Mobile devices.");
     }
   }
+
   async function connect() {
     if (submitting.current) return;
     submitting.current = true;
     setBusy(true);
     setError("");
+
     try {
       const client = mobileClient({
         gatewayUrl,
         fetch: fetch as typeof globalThis.fetch,
         development: __DEV__,
       });
+
       const response = await client.pairing.exchangeMobilePairing(
         { code, name, platform: Platform.OS },
         { timeoutMs: 15_000 },
       );
-      if (!response.device || !response.deviceToken)
-        throw new Error("Invalid pairing response");
+
+      if (!response.device || !response.deviceToken) throw new Error("Invalid pairing response");
+
       // Persist before navigation. A storage failure must not leave the UI pretending it is paired.
       try {
         await pair({
@@ -97,10 +94,9 @@ export default function Pair() {
         })
           .api.unpairMobileDevice({}, { timeoutMs: 5000 })
           .catch(() => undefined);
-        throw new Error(
-          "Could not save the token securely. Create a new pairing code and try again.",
-        );
+        throw new Error("Could not save the token securely. Create a new pairing code and try again.");
       }
+
       setCode("");
       router.replace("/");
     } catch (e) {
@@ -116,17 +112,13 @@ export default function Pair() {
       setBusy(false);
     }
   }
+
   return (
     <SafeAreaView style={styles.fill}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.fill}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.fill}>
         <ScrollView
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={
-            Platform.OS === "ios" ? "interactive" : "on-drag"
-          }
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           contentContainerStyle={styles.page}
         >
           <Image
@@ -136,22 +128,15 @@ export default function Pair() {
           />
           <View style={{ gap: 10 }}>
             <Text style={[styles.title, { color: c.text }]}>Canopy</Text>
-            <Text style={[styles.body, { color: c.muted }]}>
-              Connect to your gateway
-            </Text>
+            <Text style={[styles.body, { color: c.muted }]}>Connect to your gateway</Text>
           </View>
           <View style={{ gap: 12 }}>
-            <Text style={[styles.heading, { color: c.text }]}>
-              Pair with your Canopy
-            </Text>
+            <Text style={[styles.heading, { color: c.text }]}>Pair with your Canopy</Text>
             <Text style={[styles.body, { color: c.muted }]}>
-              On the web, open Settings → Mobile devices → Pair a phone. Connect
-              this phone to Tailscale first.
+              On the web, open Settings → Mobile devices → Pair a phone. Connect this phone to Tailscale first.
             </Text>
           </View>
-          {(error || sessionError) && (
-            <Notice error>{error || sessionError}</Notice>
-          )}
+          {(error || sessionError) && <Notice error>{error || sessionError}</Notice>}
           {scanning ? (
             <View style={{ gap: 12 }}>
               <CameraView
@@ -164,22 +149,12 @@ export default function Pair() {
                   setError("Camera unavailable. Enter the pairing code below.");
                 }}
               />
-              <Button
-                title="Cancel scan"
-                secondary
-                onPress={() => setScanning(false)}
-              />
+              <Button title="Cancel scan" secondary onPress={() => setScanning(false)} />
             </View>
           ) : (
-            <Button
-              title="Scan pairing QR code"
-              onPress={() => void scan()}
-              disabled={busy}
-            />
+            <Button title="Scan pairing QR code" onPress={() => void scan()} disabled={busy} />
           )}
-          <Text style={[styles.body, { color: c.muted, textAlign: "center" }]}>
-            or enter the details
-          </Text>
+          <Text style={[styles.body, { color: c.muted, textAlign: "center" }]}>or enter the details</Text>
           <Field
             label="Gateway HTTPS address"
             value={gatewayUrl}
@@ -200,13 +175,7 @@ export default function Pair() {
             maxLength={24}
             editable={!busy}
           />
-          <Field
-            label="Device name"
-            value={name}
-            onChangeText={setName}
-            maxLength={100}
-            editable={!busy}
-          />
+          <Field label="Device name" value={name} onChangeText={setName} maxLength={100} editable={!busy} />
           <Button
             title="Pair this phone"
             secondary
@@ -215,8 +184,7 @@ export default function Pair() {
             busy={busy}
           />
           <Text style={[styles.meta, { color: c.muted }]}>
-            Your device key stays in encrypted storage. You can revoke access at
-            any time in web Settings.
+            Your device key stays in encrypted storage. You can revoke access at any time in web Settings.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

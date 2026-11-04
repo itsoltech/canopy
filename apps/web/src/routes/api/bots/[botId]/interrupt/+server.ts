@@ -7,5 +7,6 @@ import type { RequestHandler } from "./$types";
 
 export const POST: RequestHandler = async ({ params, request }) => {
   await readMessage(request, bots.InterruptBotRequestSchema);
+
   return json(encode(bots.InterruptBotResponseSchema, await call((api) => api.interruptBot({ botId: params.botId }))));
 };

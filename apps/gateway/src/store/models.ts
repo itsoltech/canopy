@@ -19,7 +19,11 @@ interface Row {
 export class ModelStore extends Context.Service<
   ModelStore,
   {
-    save(input: { workerId: string; configVersion: bigint; profiles: readonly ProfileModels[] }): Effect.Effect<ui.WorkerModels, SqlError.SqlError>;
+    save(input: {
+      workerId: string;
+      configVersion: bigint;
+      profiles: readonly ProfileModels[];
+    }): Effect.Effect<ui.WorkerModels, SqlError.SqlError>;
     /** Catalogs of the given workers (all workers when empty). */
     catalogs(workerIds: readonly string[]): Effect.Effect<ui.WorkerModels[], SqlError.SqlError>;
   }
@@ -28,13 +32,17 @@ export class ModelStore extends Context.Service<
     ModelStore,
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
+
       const toUi = (row: Row) =>
         create(ui.WorkerModelsSchema, {
           workerId: row.worker_id,
           configVersion: BigInt(row.config_version),
-          profiles: (row.profiles as JsonValue[]).map((p) => fromJson(ProfileModelsSchema, p, { ignoreUnknownFields: true })),
+          profiles: (row.profiles as JsonValue[]).map((p) =>
+            fromJson(ProfileModelsSchema, p, { ignoreUnknownFields: true }),
+          ),
           updatedAt: timestampFromDate(new Date(row.updated_at)),
         });
+
       return ModelStore.of({
         save: ({ workerId, configVersion, profiles }) =>
           sql<Row>`
@@ -55,7 +63,9 @@ export class ModelStore extends Context.Service<
 
 /** The catalog entry a model id names (also by the model an alias resolves to); the default model for "". */
 function findModel(catalog: ProfileModels, model: string): ModelInfo | undefined {
-  return model ? catalog.models.find((m) => m.id === model || m.resolvedModel === model) : catalog.models.find((m) => m.isDefault);
+  return model
+    ? catalog.models.find((m) => m.id === model || m.resolvedModel === model)
+    : catalog.models.find((m) => m.isDefault);
 }
 
 /**
@@ -66,7 +76,9 @@ function findModel(catalog: ProfileModels, model: string): ModelInfo | undefined
 export function turnEffort(catalog: ProfileModels | undefined, model: string, effort: string): string {
   if (!effort || !catalog) return effort;
   const info = findModel(catalog, model);
+
   if (!info || info.efforts.includes(effort)) return effort;
+
   return info.efforts.includes(info.defaultEffort) ? info.defaultEffort : "";
 }
 
@@ -83,13 +95,18 @@ export function modelProblem(
   effort: string,
 ): string | undefined {
   if (model.length > 200 || effort.length > 40) return "model or effort is too long";
+
   if (effort && !/^[a-z][a-z0-9_-]*$/.test(effort)) return `invalid reasoning effort "${effort}"`;
+
   if (!catalog || catalog.detail || catalog.models.length === 0) return undefined;
   const name = provider === Provider.CLAUDE ? "Claude" : provider === Provider.GROK ? "Grok" : "Codex";
   const info = findModel(catalog, model);
+
   if (model && !info) return `${name} on profile "${profileId || "native"}" does not offer the model "${model}"`;
+
   if (effort && info && info.efforts.length > 0 && !info.efforts.includes(effort)) {
     return `${info.displayName || info.id} supports the reasoning efforts ${info.efforts.join(", ")}, not "${effort}"`;
   }
+
   return undefined;
 }

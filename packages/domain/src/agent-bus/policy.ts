@@ -94,12 +94,19 @@ export type BusDecision =
 const deny = (reason: string): BusDecision => ({ allowed: false, reason });
 const allow: BusDecision = { allowed: true };
 
-export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: BusLimits = DEFAULT_BUS_LIMITS): BusDecision {
+export function authorizeBusCall(
+  call: AgentBusCall,
+  facts: BusFacts,
+  limits: BusLimits = DEFAULT_BUS_LIMITS,
+): BusDecision {
   const { caller } = facts;
+
   if (!agentBusToolsFor(caller.depth).includes(call.tool)) {
     return deny(`${call.tool} is not available in side threads; ask your parent thread with send_message`);
   }
+
   const nextHops = facts.callerHops + 1;
+
   const withHops = (notify: boolean | undefined): BusDecision =>
     nextHops > limits.maxHops || ((notify ?? true) && nextHops + 1 > limits.maxHops)
       ? deny(`agent-to-agent chain limit reached (${limits.maxHops} hops without human input)`)
@@ -110,6 +117,7 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
       return caller.archived ? deny("this thread is archived") : allow;
     case "ask_user":
       if (caller.archived) return deny("this thread is archived");
+
       return withHops(false);
     case "get_answers":
       return allow;
@@ -121,100 +129,149 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
 
     case "spawn_thread": {
       if (caller.archived) return deny("this thread is archived");
+
       if (caller.depth + 1 > limits.maxDepth) return deny("side threads cannot start further side threads");
+
       if (facts.callerChildren >= limits.maxChildrenPerThread) {
         return deny(`side thread limit (${limits.maxChildrenPerThread}) reached; close finished threads first`);
       }
+
       if (facts.activeInTree >= limits.maxActiveThreadsPerTree) {
         return deny(`too many active threads in this tree (${limits.maxActiveThreadsPerTree})`);
       }
+
       if (call.args.fork && facts.spawnProvider !== undefined && facts.spawnProvider !== caller.provider) {
         return deny(`fork keeps the provider: ${caller.provider} cannot fork into ${facts.spawnProvider}`);
       }
-      if (call.args.fork && facts.spawnInstance !== undefined && facts.spawnInstance !== (caller.instance ?? "native")) {
-        return deny(`fork keeps the provider: ${caller.provider}/${caller.instance ?? "native"} cannot fork into ${caller.provider}/${facts.spawnInstance}`);
+
+      if (
+        call.args.fork &&
+        facts.spawnInstance !== undefined &&
+        facts.spawnInstance !== (caller.instance ?? "native")
+      ) {
+        return deny(
+          `fork keeps the provider: ${caller.provider}/${caller.instance ?? "native"} cannot fork into ${caller.provider}/${facts.spawnInstance}`,
+        );
       }
+
       const wanted = call.args.permission_mode;
       const ceiling = facts.callerPermissionMode ?? "ask";
+
       if (wanted !== undefined && permissionRank(wanted) > permissionRank(ceiling)) {
-        return deny(`permission_mode ${wanted} is broader than yours (${ceiling}); a subagent cannot get more permissions than you`);
+        return deny(
+          `permission_mode ${wanted} is broader than yours (${ceiling}); a subagent cannot get more permissions than you`,
+        );
       }
+
       return withHops(call.args.notify);
     }
 
     case "send_message": {
       const target = sameOwner(facts, call.args.thread_id);
+
       if (typeof target === "string") return deny(target);
+
       if (target.archived) return deny("target thread is archived");
+
       return withHops(call.args.notify);
     }
 
     case "wait_threads": {
       for (const id of call.args.thread_ids) {
         const target = inTree(facts, id);
+
         if (typeof target === "string") return deny(target);
       }
+
       return allow;
     }
 
     case "get_thread":
     case "read_thread": {
       const target = sameOwner(facts, call.args.thread_id);
+
       return typeof target === "string" ? deny(target) : allow;
     }
 
     case "interrupt_thread":
     case "close_thread": {
       const target = descendant(facts, call.args.thread_id);
+
       return typeof target === "string" ? deny(target) : allow;
     }
 
     case "answer_interaction": {
       const interaction = facts.interaction;
-      if (!interaction || interaction.id !== call.args.request_id) return deny(`interaction ${call.args.request_id} not found`);
+
+      if (!interaction || interaction.id !== call.args.request_id)
+        return deny(`interaction ${call.args.request_id} not found`);
       const owner = descendant(facts, interaction.threadId);
+
       if (typeof owner === "string") return deny(`interaction ${interaction.id} not found`);
+
       if (interaction.routedTo !== "parent") return deny("this interaction is answered by the user");
+
       if (interaction.status !== "pending") return deny(`interaction is already ${interaction.status}`);
       const { response } = call.args;
-      if (interaction.kind === "permission" && response === "answer") return deny("permission prompts take allow or deny");
+
+      if (interaction.kind === "permission" && response === "answer")
+        return deny("permission prompts take allow or deny");
+
       if (interaction.kind !== "permission" && (response === "allow" || response === "deny")) {
         return deny(`${interaction.kind} takes answer or cancel`);
       }
+
       if (response === "answer" && call.args.answer_json === undefined) return deny("answer requires answer_json");
+
       return allow;
     }
 
     case "schedule_wakeup": {
       const target = scheduleTarget(facts, call.args.thread_id, limits);
+
       if (typeof target === "string") return deny(target);
       const { delay_seconds: delay, at } = call.args;
+
       if ((delay === undefined) === (at === undefined)) return deny("set exactly one of delay_seconds or at");
+
       if (at !== undefined) {
         const when = Date.parse(at);
+
         if (Number.isNaN(when)) return deny("at must be an ISO 8601 time");
         const ahead = (when - facts.now.getTime()) / 1000;
+
         if (ahead < 60 || ahead > 7 * 24 * 3600) return deny("at must be between 1 minute and 7 days from now");
       }
+
       return withHops(false);
     }
 
     case "schedule_recurring": {
       const target = scheduleTarget(facts, call.args.thread_id, limits);
+
       if (typeof target === "string") return deny(target);
       const cron = checkCron(call.args.cron, limits.minCronMinutes);
+
       if (cron) return deny(cron);
-      if (call.args.timezone !== undefined && !isTimeZone(call.args.timezone)) return deny(`unknown time zone ${call.args.timezone}`);
+
+      if (call.args.timezone !== undefined && !isTimeZone(call.args.timezone))
+        return deny(`unknown time zone ${call.args.timezone}`);
+
       // Agents may not create open-ended schedules; users can, from the UI.
       if (call.args.until === undefined && call.args.max_runs === undefined) return deny("set until or max_runs");
+
       if (call.args.until !== undefined) {
         const until = Date.parse(call.args.until);
+
         if (Number.isNaN(until)) return deny("until must be an ISO 8601 time");
+
         if (until <= facts.now.getTime()) return deny("until is in the past");
+
         if (until - facts.now.getTime() > limits.maxRecurringDays * 24 * 3600 * 1000) {
           return deny(`until must be within ${limits.maxRecurringDays} days`);
         }
       }
+
       return withHops(false);
     }
 
@@ -222,23 +279,31 @@ export function authorizeBusCall(call: AgentBusCall, facts: BusFacts, limits: Bu
     case "list_background_tasks":
     case "get_background_task": {
       const id = call.args.thread_id;
+
       if (id === undefined || id === caller.id) return allow;
       const target = sameOwner(facts, id);
+
       return typeof target === "string" ? deny(target) : allow;
     }
 
     case "stop_background_task": {
       const id = call.args.thread_id;
+
       if (id === undefined || id === caller.id) return allow;
       const target = descendant(facts, id);
+
       return typeof target === "string" ? deny(target) : allow;
     }
 
     case "cancel_schedule": {
       const schedule = facts.schedule;
-      if (!schedule || schedule.id !== call.args.schedule_id) return deny(`schedule ${call.args.schedule_id} not found`);
+
+      if (!schedule || schedule.id !== call.args.schedule_id)
+        return deny(`schedule ${call.args.schedule_id} not found`);
+
       if (schedule.threadId === caller.id) return allow;
       const owner = descendant(facts, schedule.threadId);
+
       return typeof owner === "string" ? deny(`schedule ${schedule.id} not found`) : allow;
     }
   }
@@ -253,7 +318,9 @@ export function permissionRank(mode: SpawnPermissionMode): number {
 function inTree(facts: BusFacts, id: string): ThreadNode | string {
   if (id === facts.caller.id) return "a thread cannot address itself";
   const target = facts.targets.get(id);
+
   if (!target || target.rootId !== facts.caller.rootId) return `thread ${id} not found in your thread tree`;
+
   return target;
 }
 
@@ -261,24 +328,33 @@ function inTree(facts: BusFacts, id: string): ThreadNode | string {
 function sameOwner(facts: BusFacts, id: string): ThreadNode | string {
   if (id === facts.caller.id) return "a thread cannot address itself";
   const target = facts.targets.get(id);
+
   if (!target || target.ownerId !== facts.caller.ownerId) return `thread ${id} not found`;
+
   return target;
 }
 
 function descendant(facts: BusFacts, id: string): ThreadNode | string {
   const target = inTree(facts, id);
+
   if (typeof target === "string") return target;
+
   if (!target.ancestorIds.includes(facts.caller.id)) return "you can only control threads you spawned";
+
   return target;
 }
 
 function scheduleTarget(facts: BusFacts, id: string | undefined, limits: BusLimits): ThreadNode | string {
   const target = id === undefined || id === facts.caller.id ? facts.caller : descendant(facts, id);
+
   if (typeof target === "string") return target;
+
   if (target.archived) return "target thread is archived";
+
   if ((facts.targetSchedules ?? 0) >= limits.maxSchedulesPerThread) {
     return `schedule limit (${limits.maxSchedulesPerThread}) reached for this thread`;
   }
+
   return target;
 }
 
@@ -288,18 +364,24 @@ function scheduleTarget(facts: BusFacts, id: string | undefined, limits: BusLimi
  */
 function checkCron(cron: string, minMinutes: number): string | undefined {
   const fields = cron.trim().split(/\s+/);
+
   if (fields.length !== 5) return "cron must have five fields (minute hour day month weekday)";
+
   if (!fields.every((f) => /^[\d*,/\-A-Za-z]+$/.test(f))) return "cron contains invalid characters";
   const minute = fields[0] ?? "";
+
   if (minute === "*") return `cron runs every minute; the minimum interval is ${minMinutes} minutes`;
   const step = /^\*\/(\d+)$/.exec(minute);
+
   if (step && Number(step[1]) < minMinutes) return `cron interval is below ${minMinutes} minutes`;
+
   return undefined;
 }
 
 function isTimeZone(zone: string): boolean {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: zone });
+
     return true;
   } catch {
     return false;

@@ -17,9 +17,17 @@ export const POST: RequestHandler = async ({ request, params }) => {
   try {
     const body = await readBody(request, Body);
     const api = gateway();
+
     const response = body.revoke
       ? await api.revokeThreadSecret({ requestId: params.requestId })
-      : await api.answerThreadSecret({ requestId: params.requestId, value: body.value ?? "", decline: body.decline ?? false });
+      : await api.answerThreadSecret({
+          requestId: params.requestId,
+          value: body.value ?? "",
+          decline: body.decline ?? false,
+        });
+
     return json(encode(ui.ThreadSecretResponseSchema, response), { headers: { "cache-control": "no-store" } });
-  } catch { error(400, "Could not update the secret. Try again."); }
+  } catch {
+    error(400, "Could not update the secret. Try again.");
+  }
 };

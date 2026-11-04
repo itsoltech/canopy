@@ -29,9 +29,11 @@
 
   // Direction of the last change of `rank` (kept when the text changes on its own).
   let previous: number | undefined;
+
   const step = $derived.by(() => {
     const from = previous;
     previous = rank;
+
     return from === undefined || rank === undefined || rank === from ? 1 : Math.sign(rank - from);
   });
 </script>

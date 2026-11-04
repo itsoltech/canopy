@@ -8,6 +8,7 @@
   let preview = $state<ui.PreviewScheduleResponse>();
   let error = $state<string>();
   let loading = $state(false);
+
   $effect(() => {
     const expression = cron;
     const zone = timezone;
@@ -15,18 +16,34 @@
     preview = undefined;
     error = undefined;
     loading = true;
+
     const timer = setTimeout(() => {
-      void previewSchedule(expression, zone).then((response) => {
-        if (active) preview = response;
-      }, (cause: unknown) => {
-        if (active) error = cause instanceof Error ? cause.message : "Could not preview the next runs";
-      }).finally(() => { if (active) loading = false; });
+      void previewSchedule(expression, zone)
+        .then(
+          (response) => {
+            if (active) preview = response;
+          },
+          (cause: unknown) => {
+            if (active) error = cause instanceof Error ? cause.message : "Could not preview the next runs";
+          },
+        )
+        .finally(() => {
+          if (active) loading = false;
+        });
     }, 300);
-    return () => { active = false; clearTimeout(timer); };
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   });
 </script>
 
-<div class={["grid gap-1 text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400", className]} aria-live="polite" aria-busy={loading}>
+<div
+  class={["grid gap-1 text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400", className]}
+  aria-live="polite"
+  aria-busy={loading}
+>
   {#if error}<p>{error}</p>
   {:else if preview}
     <p class="font-medium">Next runs</p>

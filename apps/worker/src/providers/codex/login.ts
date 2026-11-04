@@ -19,9 +19,14 @@ export interface DeviceLogin {
   readonly done: Promise<{ readonly success: boolean; readonly error?: string }>;
 }
 
-export async function startCodexDeviceLogin(options: { launch: CodexAppServerLaunch; clientVersion: string; timeoutMs?: number }): Promise<DeviceLogin> {
+export async function startCodexDeviceLogin(options: {
+  launch: CodexAppServerLaunch;
+  clientVersion: string;
+  timeoutMs?: number;
+}): Promise<DeviceLogin> {
   const scope = await Effect.runPromise(Scope.make());
   const close = () => Effect.runPromise(Scope.close(scope, Exit.void));
+
   try {
     const context = await Effect.runPromise(
       Layer.buildWithScope(
@@ -34,27 +39,44 @@ export async function startCodexDeviceLogin(options: { launch: CodexAppServerLau
         scope,
       ),
     );
+
     const server = Context.get(context, CodexAppServer);
+
     // Subscribed before the login starts, so a fast completion is not missed.
     const completed = await Effect.runPromise(
-      Stream.runHead(
-        server.notifications.pipe(Stream.filter((n) => n.method === "account/login/completed")),
-      ).pipe(Effect.forkIn(scope)),
+      Stream.runHead(server.notifications.pipe(Stream.filter((n) => n.method === "account/login/completed"))).pipe(
+        Effect.forkIn(scope),
+      ),
     );
+
     const started = await Effect.runPromise(server.request("account/login/start", { type: "chatgptDeviceCode" }));
+
     if (started.type !== "chatgptDeviceCode") throw new Error(`Codex answered a ${started.type} login`);
     const timeoutMs = options.timeoutMs ?? 15 * 60_000;
+
     const done = (async () => {
       try {
-        const outcome = await withDeadline(Effect.runPromise(Fiber.join(completed)), timeoutMs, () => "timeout" as const);
+        const outcome = await withDeadline(
+          Effect.runPromise(Fiber.join(completed)),
+          timeoutMs,
+          () => "timeout" as const,
+        );
+
         if (outcome === "timeout") return { success: false, error: "the sign-in code expired" };
-        const params = outcome._tag === "Some" && outcome.value.method === "account/login/completed" ? outcome.value.params : undefined;
+
+        const params =
+          outcome._tag === "Some" && outcome.value.method === "account/login/completed"
+            ? outcome.value.params
+            : undefined;
+
         if (!params) return { success: false, error: "Codex ended the sign-in without an answer" };
+
         return params.success ? { success: true } : { success: false, error: params.error ?? "the sign-in failed" };
       } finally {
         await close();
       }
     })();
+
     return { verificationUrl: started.verificationUrl, userCode: started.userCode, loginId: started.loginId, done };
   } catch (error) {
     await close();

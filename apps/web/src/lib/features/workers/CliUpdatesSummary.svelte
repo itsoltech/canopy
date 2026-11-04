@@ -14,15 +14,29 @@
 </script>
 
 {#if updates.length > 0}
-  <SettingsGroup title="Agent CLI updates" description="Newer versions of the agent CLIs on your workers. Workers with running turns update when you try again later." class={className}>
+  <SettingsGroup
+    title="Agent CLI updates"
+    description="Newer versions of the agent CLIs on your workers. Workers with running turns update when you try again later."
+    class={className}
+  >
     {#snippet actions()}
-      <Button size="sm" icon="arrow-path" loading={cli.pending["check/"]} onclick={() => void cli.check()}>Check for updates</Button>
+      <Button size="sm" icon="arrow-path" loading={cli.pending["check/"]} onclick={() => void cli.check()}
+        >Check for updates</Button
+      >
     {/snippet}
     {#each updates as update (update.provider)}
       {@const key = `all/${update.provider}`}
-      <SettingsRow title={`${cliLabel(update.provider)} ${update.version}`} description={`${update.workers.length} worker${update.workers.length === 1 ? "" : "s"}: ${update.workers.map((w) => w.name).join(", ")}`}>
+      <SettingsRow
+        title={`${cliLabel(update.provider)} ${update.version}`}
+        description={`${update.workers.length} worker${update.workers.length === 1 ? "" : "s"}: ${update.workers.map((w) => w.name).join(", ")}`}
+      >
         {#snippet control()}
-          <Button size="sm" icon="arrow-up" loading={cli.pending[key]} onclick={() => void cli.updateAll(update.provider)}>Update all</Button>
+          <Button
+            size="sm"
+            icon="arrow-up"
+            loading={cli.pending[key]}
+            onclick={() => void cli.updateAll(update.provider)}>Update all</Button
+          >
         {/snippet}
         <ActionNote error={cli.errors[key]} note={cli.notes[key]} class="mt-1" />
       </SettingsRow>

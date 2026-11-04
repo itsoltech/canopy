@@ -5,4 +5,5 @@ import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
 
 /** Every global provider instance with its state per worker (secrets only as "set"). */
-export const GET: RequestHandler = async () => json(encode(ui.ListProviderInstancesResponseSchema, await call((api) => api.listProviderInstances({}))));
+export const GET: RequestHandler = async () =>
+  json(encode(ui.ListProviderInstancesResponseSchema, await call((api) => api.listProviderInstances({}))));

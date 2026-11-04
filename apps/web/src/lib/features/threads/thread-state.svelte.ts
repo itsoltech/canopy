@@ -1,5 +1,16 @@
 import { create } from "@bufbuild/protobuf";
-import { ItemStatus, TurnEndSource, TurnOrigin, TurnOutcome, ui, type Item, type Notice, type TurnFinished, type TurnStarted, type Usage } from "@canopy/contracts";
+import {
+  ItemStatus,
+  TurnEndSource,
+  TurnOrigin,
+  TurnOutcome,
+  ui,
+  type Item,
+  type Notice,
+  type TurnFinished,
+  type TurnStarted,
+  type Usage,
+} from "@canopy/contracts";
 import { eventItemId, reduceItem } from "@canopy/domain/items";
 import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
@@ -86,22 +97,34 @@ export class ThreadState {
   readonly running = $derived(this.ownTurns.some((t) => t.status === "running"));
   readonly queued = $derived(this.ownTurns.filter((t) => t.status === "queued"));
   /** Background tasks still running (items `background_task` in progress), oldest first. */
-  readonly backgroundTasks = $derived(this.ownEntries.filter((e) => e.item.content.case === "backgroundTask" && e.item.status === ItemStatus.IN_PROGRESS));
+  readonly backgroundTasks = $derived(
+    this.ownEntries.filter((e) => e.item.content.case === "backgroundTask" && e.item.status === ItemStatus.IN_PROGRESS),
+  );
   /**
    * Steers on their way into the running turn: sent or accepted and not yet in the transcript (a
    * delivered one is a user_message item with `client_id` = its id; a queued one is a queued turn). The platform's
    * notes about background tasks are not messages: they show once they are in the turn.
    */
   readonly steering = $derived.by(() => {
-    const echoed = new Set(this.ownEntries.flatMap((e) => (e.item.content.case === "userMessage" && e.item.content.value.clientId ? [e.item.content.value.clientId] : [])));
-    return this.steers.filter((s) => (s.status === "pending" || s.status === "accepted") && !echoed.has(s.id) && s.backgroundItemIds.length === 0);
+    const echoed = new Set(
+      this.ownEntries.flatMap((e) =>
+        e.item.content.case === "userMessage" && e.item.content.value.clientId ? [e.item.content.value.clientId] : [],
+      ),
+    );
+
+    return this.steers.filter(
+      (s) =>
+        (s.status === "pending" || s.status === "accepted") && !echoed.has(s.id) && s.backgroundItemIds.length === 0,
+    );
   });
   /** Usage of the thread's own turns (from the snapshot, so it survives a reload). */
   readonly totals = $derived(
     this.ownTurns.reduce<UsageTotals>(
       (sum, turn) => {
         const usage = turn.usage ?? this.turnResults.get(turn.id)?.usage;
+
         if (!usage) return sum;
+
         return {
           inputTokens: sum.inputTokens + usage.inputTokens,
           cachedInputTokens: sum.cachedInputTokens + usage.cachedInputTokens,
@@ -119,11 +142,13 @@ export class ThreadState {
    */
   constructor(thread?: ui.Thread | undefined, snapshot?: ui.ThreadSnapshot | undefined) {
     this.thread = thread;
+
     if (snapshot) this.apply(create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: snapshot } }));
   }
 
   apply(update: ui.ThreadUpdate): void {
     const change = update.change;
+
     switch (change.case) {
       case "snapshot": {
         const snapshot = change.value;
@@ -134,9 +159,25 @@ export class ThreadState {
         const known = new Map(this.entries.map((entry) => [`${entry.fromThreadId}:${entry.id}`, entry]));
         this.entries = snapshot.items.flatMap((i) => {
           const previous = known.get(`${i.fromThreadId}:${i.item?.itemId}`);
-          return i.item ? [{ id: i.item.itemId, item: i.item, turnId: i.turnId, firstSeq: i.firstSeq, inherited: i.inherited, fromThreadId: i.fromThreadId, startedAt: previous?.startedAt, completedAt: previous?.completedAt }] : [];
+
+          return i.item
+            ? [
+                {
+                  id: i.item.itemId,
+                  item: i.item,
+                  turnId: i.turnId,
+                  firstSeq: i.firstSeq,
+                  inherited: i.inherited,
+                  fromThreadId: i.fromThreadId,
+                  startedAt: previous?.startedAt,
+                  completedAt: previous?.completedAt,
+                },
+              ]
+            : [];
         });
-        this.notices = snapshot.notices.flatMap((n) => (n.notice ? [{ seq: n.seq, turnId: n.turnId, notice: n.notice, at: n.occurredAt }] : []));
+        this.notices = snapshot.notices.flatMap((n) =>
+          n.notice ? [{ seq: n.seq, turnId: n.turnId, notice: n.notice, at: n.occurredAt }] : [],
+        );
         this.schedules = snapshot.schedules;
         this.steers = snapshot.steers;
         this.deliveries = new Map(snapshot.busDeliveries.map((d) => [d.callId, d]));
@@ -145,6 +186,7 @@ export class ThreadState {
         this.loaded = true;
         break;
       }
+
       case "event":
         this.#event(change.value);
         break;
@@ -159,9 +201,11 @@ export class ThreadState {
         break;
       case "interaction": {
         const index = this.interactions.findIndex((i) => i.requestId === change.value.requestId);
-        this.interactions = index >= 0 ? this.interactions.with(index, change.value) : [...this.interactions, change.value];
+        this.interactions =
+          index >= 0 ? this.interactions.with(index, change.value) : [...this.interactions, change.value];
         break;
       }
+
       case "schedule":
         this.upsertSchedule(change.value);
         break;
@@ -185,18 +229,20 @@ export class ThreadState {
    */
   upsertTurn(turn: ui.Turn): void {
     const index = this.turns.findIndex((t) => t.id === turn.id);
+
     if (index >= 0 && this.turns[index]!.ordinal === turn.ordinal) this.turns = this.turns.with(index, turn);
     else this.turns = [...this.turns.filter((t) => t.id !== turn.id), turn].sort((a, b) => a.ordinal - b.ordinal);
   }
 
   upsertSecret(secret: ui.ThreadSecret): void {
     const index = this.secrets.findIndex((s) => s.requestId === secret.requestId);
-    this.secrets = index < 0 ? [...this.secrets, secret] : this.secrets.map((s, i) => i === index ? secret : s);
+    this.secrets = index < 0 ? [...this.secrets, secret] : this.secrets.map((s, i) => (i === index ? secret : s));
   }
 
   /** A schedule created or changed here (also before the stream reports it). */
   upsertSchedule(schedule: ui.Schedule): void {
     if ((this.schedules.find((s) => s.id === schedule.id)?.version ?? 0) > schedule.version) return;
+
     if (schedule.threadId === this.thread?.id) this.schedules = upsertSchedule(this.schedules, schedule);
     else this.schedules = this.schedules.filter((s) => s.id !== schedule.id);
   }
@@ -213,6 +259,7 @@ export class ThreadState {
     if (goal.threadId !== this.thread?.id) return;
     const current = this.goal;
     const created = (g: ui.Goal) => (g.createdAt ? timestampMs(g.createdAt) : 0);
+
     if (current && current.id !== goal.id && created(goal) < created(current)) return;
     this.goal = goal;
   }
@@ -220,38 +267,53 @@ export class ThreadState {
   #event({ seq, event }: ui.ThreadEventUpdate): void {
     if (!event) return;
     const body = event.body;
+
     switch (body.case) {
       case "notice":
         if (!this.notices.some((n) => n.seq === seq)) {
           this.notices = [...this.notices, { seq, turnId: event.turnId, notice: body.value, at: event.occurredAt }];
         }
+
         return;
       case "turnStarted":
         this.#started(event.turnId, body.value, event.occurredAt);
+
         return;
       case "turnFinished":
         this.#finished(event.turnId, body.value, event.occurredAt);
+
         return;
       case "usageUpdated":
         this.usage = body.value.usage;
+
         return;
       default:
         break;
     }
+
     const id = eventItemId(body);
+
     if (!id) return;
     // Live events are the thread's own; an inherited item may share its id with the source's copy.
     const index = this.entries.findIndex((e) => e.id === id && !e.inherited);
     const next = reduceItem(index >= 0 ? this.entries[index]?.item : undefined, body);
+
     if (!next) return;
     const previous = index >= 0 ? this.entries[index] : undefined;
     // Background work reports after its turn ended without a turn id: it stays in the turn it started in.
     const at = event.occurredAt ? timestampMs(event.occurredAt) : undefined;
+
     const entry: TimelineEntry = {
-      id, item: next, turnId: previous?.turnId || event.turnId, firstSeq: previous?.firstSeq ?? seq, inherited: false, fromThreadId: "",
+      id,
+      item: next,
+      turnId: previous?.turnId || event.turnId,
+      firstSeq: previous?.firstSeq ?? seq,
+      inherited: false,
+      fromThreadId: "",
       startedAt: previous?.startedAt ?? (body.case === "itemStarted" ? at : undefined),
       completedAt: previous?.completedAt ?? (body.case === "itemCompleted" ? at : undefined),
     };
+
     this.entries = index >= 0 ? this.entries.with(index, entry) : [...this.entries, entry];
   }
 
@@ -261,31 +323,64 @@ export class ThreadState {
    */
   #started(turnId: string, started: TurnStarted, at: Timestamp | undefined): void {
     if (!turnId || this.turns.some((t) => t.id === turnId)) return;
-    const trigger = started.origin === TurnOrigin.PROVIDER ? "provider" : started.origin === TurnOrigin.RECOVERY ? "recovery" : "user";
+
+    const trigger =
+      started.origin === TurnOrigin.PROVIDER
+        ? "provider"
+        : started.origin === TurnOrigin.RECOVERY
+          ? "recovery"
+          : "user";
+
     const ordinal = Math.max(0, ...this.ownTurns.map((t) => t.ordinal)) + 1;
-    this.turns = [...this.turns, create(ui.TurnSchema, { id: turnId, ordinal, status: "running", trigger, ...(at && { queuedAt: at, startedAt: at }) })];
+    this.turns = [
+      ...this.turns,
+      create(ui.TurnSchema, {
+        id: turnId,
+        ordinal,
+        status: "running",
+        trigger,
+        ...(at && { queuedAt: at, startedAt: at }),
+      }),
+    ];
   }
 
   #finished(turnId: string, finished: TurnFinished, at: Timestamp | undefined): void {
     if (!turnId) return;
     this.turnResults = new Map(this.turnResults).set(turnId, { usage: finished.usage, reason: finished.reason });
     const index = this.turns.findIndex((t) => t.id === turnId && t.status === "running");
-    const status = { [TurnOutcome.COMPLETED]: "completed", [TurnOutcome.INTERRUPTED]: "interrupted", [TurnOutcome.FAILED]: "failed" }[finished.outcome as number];
+
+    const status = {
+      [TurnOutcome.COMPLETED]: "completed",
+      [TurnOutcome.INTERRUPTED]: "interrupted",
+      [TurnOutcome.FAILED]: "failed",
+    }[finished.outcome as number];
+
     const turn = this.turns[index];
+
     // Who interrupted it or where its error came from, until the gateway's turn update brings the stored values.
-    const source = { [TurnEndSource.USER]: "user", [TurnEndSource.SYSTEM]: "system", [TurnEndSource.PLATFORM]: "platform", [TurnEndSource.HARNESS]: "harness" }[finished.source as number] ?? "";
+    const source =
+      {
+        [TurnEndSource.USER]: "user",
+        [TurnEndSource.SYSTEM]: "system",
+        [TurnEndSource.PLATFORM]: "platform",
+        [TurnEndSource.HARNESS]: "harness",
+      }[finished.source as number] ?? "";
+
     const end =
       status === "failed"
         ? { error: finished.reason, errorSource: source || "harness", errorCode: finished.errorCode }
         : status === "interrupted"
           ? { interruptReason: finished.reason, interruptSource: source || "user" }
           : {};
-    if (turn && status) this.turns = this.turns.with(index, { ...turn, status, ...end, ...(at && { completedAt: at }) });
+
+    if (turn && status)
+      this.turns = this.turns.with(index, { ...turn, status, ...end, ...(at && { completedAt: at }) });
   }
 
   /** Subscribes to the BFF event stream; returns the cleanup for $effect. */
   connect(threadId: string): () => void {
     this.connection = "connecting";
+
     // Every (re)connect starts with a fresh snapshot from the server, so nothing needs reconciling here.
     return liveSource(`/api/threads/${encodeURIComponent(threadId)}/events`, {
       ondrop: () => {

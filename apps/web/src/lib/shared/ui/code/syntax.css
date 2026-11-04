@@ -17,7 +17,8 @@
   --code-inserted: var(--color-emerald-700);
   --code-deleted: var(--color-rose-700);
 }
-:root.dark, .terminal-surface {
+:root.dark,
+.terminal-surface {
   --code-fg: var(--color-zinc-200);
   --code-comment: var(--color-zinc-500);
   --code-punctuation: var(--color-zinc-400);

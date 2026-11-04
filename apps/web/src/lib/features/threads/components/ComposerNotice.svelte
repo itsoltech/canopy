@@ -3,7 +3,11 @@
   import type { ClassValue } from "svelte/elements";
 
   /** One line under a composer: why the message cannot go yet, or what will happen to it. Announced politely. */
-  let { tone = "neutral", class: className, children }: { tone?: "neutral" | "warning"; class?: ClassValue; children: Snippet } = $props();
+  let {
+    tone = "neutral",
+    class: className,
+    children,
+  }: { tone?: "neutral" | "warning"; class?: ClassValue; children: Snippet } = $props();
 </script>
 
 <p

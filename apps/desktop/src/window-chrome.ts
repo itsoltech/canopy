@@ -29,16 +29,24 @@ export function attachWindowChrome(target: BrowserWindow) {
 export function windowViewMenu(): MenuItemConstructorOptions {
   const zoom = (step: number | null) => {
     const target = BrowserWindow.getFocusedWindow();
+
     if (!target) return;
     target.webContents.setZoomLevel(step === null ? 0 : target.webContents.getZoomLevel() + step);
     sendWindowStates();
   };
-  return { role: "viewMenu", submenu: [
-    { role: "reload" }, { role: "forceReload" }, { role: "toggleDevTools" },
-    { type: "separator" },
-    { label: "Actual Size", accelerator: "CmdOrCtrl+0", click: () => zoom(null) },
-    { label: "Zoom In", accelerator: "CmdOrCtrl+Plus", click: () => zoom(0.5) },
-    { label: "Zoom Out", accelerator: "CmdOrCtrl+-", click: () => zoom(-0.5) },
-    { type: "separator" }, { role: "togglefullscreen" },
-  ] };
+
+  return {
+    role: "viewMenu",
+    submenu: [
+      { role: "reload" },
+      { role: "forceReload" },
+      { role: "toggleDevTools" },
+      { type: "separator" },
+      { label: "Actual Size", accelerator: "CmdOrCtrl+0", click: () => zoom(null) },
+      { label: "Zoom In", accelerator: "CmdOrCtrl+Plus", click: () => zoom(0.5) },
+      { label: "Zoom Out", accelerator: "CmdOrCtrl+-", click: () => zoom(-0.5) },
+      { type: "separator" },
+      { role: "togglefullscreen" },
+    ],
+  };
 }

@@ -8,6 +8,7 @@ import { colorsFor, styles, useColors } from "../../ui/theme";
 
 function SchemePreview({ mode }: { mode: "light" | "dark" | "system" }) {
   const c = colorsFor(mode === "dark");
+
   return (
     <View
       style={{
@@ -20,14 +21,9 @@ function SchemePreview({ mode }: { mode: "light" | "dark" | "system" }) {
         borderColor: c.line,
       }}
     >
-      <View
-        style={{ width: "28%", padding: 4, gap: 4, backgroundColor: c.sidebar }}
-      >
+      <View style={{ width: "28%", padding: 4, gap: 4, backgroundColor: c.sidebar }}>
         {[1, 2, 3].map((i) => (
-          <View
-            key={i}
-            style={{ height: 3, backgroundColor: c.line, borderRadius: 2 }}
-          />
+          <View key={i} style={{ height: 3, backgroundColor: c.line, borderRadius: 2 }} />
         ))}
       </View>
       <View style={{ flex: 1, padding: 6, gap: 5 }}>
@@ -83,15 +79,8 @@ function SchemePreview({ mode }: { mode: "light" | "dark" | "system" }) {
     </View>
   );
 }
-function Orb({
-  color,
-  dark,
-  id,
-}: {
-  color: typeof palette.blue;
-  dark: boolean;
-  id: string;
-}) {
+
+function Orb({ color, dark, id }: { color: typeof palette.blue; dark: boolean; id: string }) {
   return (
     <Svg width={48} height={48} viewBox="0 0 48 48">
       <Defs>
@@ -105,22 +94,17 @@ function Orb({
     </Svg>
   );
 }
+
 export function AppearanceSettings() {
   const c = useColors();
   const settings = useAppearance();
   const scheme = settings.appearance?.colorScheme ?? ui.ColorScheme.SYSTEM;
   const selected = scheme || ui.ColorScheme.SYSTEM;
+
   return (
     <View style={{ gap: 24 }}>
       <View style={{ gap: 12 }}>
-        <Text
-          style={[
-            styles.meta,
-            { color: c.text, fontFamily: "Inter_500Medium" },
-          ]}
-        >
-          Color scheme
-        </Text>
+        <Text style={[styles.meta, { color: c.text, fontFamily: "Inter_500Medium" }]}>Color scheme</Text>
         <View style={[styles.row, { alignItems: "stretch" }]}>
           {(
             [
@@ -138,9 +122,7 @@ export function AppearanceSettings() {
                 disabled: settings.saving,
               }}
               disabled={settings.saving}
-              onPress={() =>
-                void settings.updateAppearance({ colorScheme: s.value })
-              }
+              onPress={() => void settings.updateAppearance({ colorScheme: s.value })}
               style={{
                 flex: 1,
                 gap: 8,
@@ -151,28 +133,15 @@ export function AppearanceSettings() {
               }}
             >
               <SchemePreview mode={s.mode} />
-              <Text
-                style={[styles.meta, { textAlign: "center", color: c.text }]}
-              >
-                {s.label}
-              </Text>
+              <Text style={[styles.meta, { textAlign: "center", color: c.text }]}>{s.label}</Text>
             </Pressable>
           ))}
         </View>
       </View>
       <View style={{ gap: 12 }}>
         <View style={{ gap: 4 }}>
-          <Text
-            style={[
-              styles.meta,
-              { color: c.text, fontFamily: "Inter_500Medium" },
-            ]}
-          >
-            Themes
-          </Text>
-          <Text style={[styles.body, { color: c.muted }]}>
-            The accent of buttons, focus rings and the send button.
-          </Text>
+          <Text style={[styles.meta, { color: c.text, fontFamily: "Inter_500Medium" }]}>Themes</Text>
+          <Text style={[styles.body, { color: c.muted }]}>The accent of buttons, focus rings and the send button.</Text>
         </View>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
           {accents.map((a, i) => (
@@ -196,17 +165,8 @@ export function AppearanceSettings() {
                 borderColor: settings.accent === a.name ? c.accent : c.line,
               }}
             >
-              <View
-                style={[
-                  styles.row,
-                  { justifyContent: "center", gap: 12, paddingVertical: 8 },
-                ]}
-              >
-                <Orb
-                  id={`${a.name}-light`}
-                  color={palette[a.palette]}
-                  dark={false}
-                />
+              <View style={[styles.row, { justifyContent: "center", gap: 12, paddingVertical: 8 }]}>
+                <Orb id={`${a.name}-light`} color={palette[a.palette]} dark={false} />
                 <Orb id={`${a.name}-dark`} color={palette[a.palette]} dark />
               </View>
               <Text style={[styles.label, { color: c.text }]}>{a.label}</Text>
@@ -218,30 +178,20 @@ export function AppearanceSettings() {
         <Text style={[styles.heading, { color: c.text }]}>Interface</Text>
         <View style={{ gap: 4 }}>
           <Text style={[styles.label, { color: c.text }]}>Time zone</Text>
-          <Text style={[styles.body, { color: c.muted }]}>
-            Bots use it for local times and scheduled tasks.
-          </Text>
-          <Text style={[styles.body, { color: c.text }]}>
-            {settings.user?.timezone || "UTC"}
-          </Text>
+          <Text style={[styles.body, { color: c.muted }]}>Bots use it for local times and scheduled tasks.</Text>
+          <Text style={[styles.body, { color: c.text }]}>{settings.user?.timezone || "UTC"}</Text>
         </View>
         <View style={{ gap: 8 }}>
           <Text style={[styles.label, { color: c.text }]}>Chat width</Text>
-          <Text style={[styles.body, { color: c.muted }]}>
-            How wide the conversation and the message box are.
-          </Text>
+          <Text style={[styles.body, { color: c.muted }]}>How wide the conversation and the message box are.</Text>
           <Segmented
-            value={String(
-              settings.appearance?.chatWidth || ui.ChatWidth.COMFORTABLE,
-            )}
+            value={String(settings.appearance?.chatWidth || ui.ChatWidth.COMFORTABLE)}
             options={[
               { value: "1", label: "Comfortable" },
               { value: "2", label: "Wide" },
               { value: "3", label: "Full width" },
             ]}
-            onChange={(v) =>
-              void settings.updateAppearance({ chatWidth: Number(v) })
-            }
+            onChange={(v) => void settings.updateAppearance({ chatWidth: Number(v) })}
           />
         </View>
       </View>

@@ -25,13 +25,12 @@ export default function Settings() {
   const [error, setError] = useState("");
   const [rows, setRows] = useState<{ title: string; value: string }[]>([]);
   const [draftInstructions, setInstructions] = useState<string>();
-  const instructions =
-    draftInstructions ??
-    settings.user?.textGeneration?.threadTitleInstructions ??
-    "";
+  const instructions = draftInstructions ?? settings.user?.textGeneration?.threadTitleInstructions ?? "";
   useEffect(() => {
     let active = true;
+
     if (!client) return;
+
     const request =
       section === "schedules"
         ? client.api.listSchedules({}).then((r) =>
@@ -55,6 +54,7 @@ export default function Settings() {
                 })),
               )
             : null;
+
     if (request)
       void request
         .then((r) => {
@@ -63,14 +63,15 @@ export default function Settings() {
         .catch(() => {
           if (active) setError("Could not load this section. Try again.");
         });
+
     return () => {
       active = false;
     };
   }, [section, client]);
+
   if (!session) return <Redirect href="/pair" />;
-  const current =
-    settingsSections.find((s) => s.href.endsWith(`/${section}`)) ??
-    settingsSections[0]!;
+  const current = settingsSections.find((s) => s.href.endsWith(`/${section}`)) ?? settingsSections[0]!;
+
   async function removeLocal() {
     try {
       await forget();
@@ -79,20 +80,21 @@ export default function Settings() {
       setError("Could not remove the pairing from secure storage. Try again.");
     }
   }
+
   async function unpair() {
     setBusy(true);
     setError("");
+
     try {
       await client!.api.unpairMobileDevice({}, { timeoutMs: 10_000 });
       await removeLocal();
     } catch {
-      setError(
-        "Could not revoke access on the gateway. Reconnect and retry, or revoke this phone in web Settings.",
-      );
+      setError("Could not revoke access on the gateway. Reconnect and retry, or revoke this phone in web Settings.");
     } finally {
       setBusy(false);
     }
   }
+
   return (
     <SafeAreaView style={[styles.fill, { backgroundColor: c.background }]}>
       <ScrollView
@@ -103,6 +105,7 @@ export default function Settings() {
       >
         {settingsSections.map((s) => {
           const key = s.href.split("/").pop()!;
+
           return (
             <Pressable
               key={key}
@@ -125,14 +128,7 @@ export default function Settings() {
               ]}
             >
               <Icon name={s.icon} color={section === key ? c.text : c.muted} />
-              <Text
-                style={[
-                  styles.meta,
-                  { color: section === key ? c.text : c.muted },
-                ]}
-              >
-                {s.label}
-              </Text>
+              <Text style={[styles.meta, { color: section === key ? c.text : c.muted }]}>{s.label}</Text>
             </Pressable>
           );
         })}
@@ -151,62 +147,39 @@ export default function Settings() {
       >
         <Text style={[styles.meta, { color: c.muted }]}>Settings</Text>
         <Text style={[styles.meta, { color: c.faint }]}>/</Text>
-        <Text style={[styles.meta, { color: c.text, flex: 1 }]}>
-          {current.label}
-        </Text>
+        <Text style={[styles.meta, { color: c.text, flex: 1 }]}>{current.label}</Text>
         <IconButton
           icon="x-mark"
           label="Close Settings"
-          onPress={() =>
-            router.canGoBack() ? router.back() : router.replace("/")
-          }
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
         />
       </View>
       <ScrollView
         key={section}
-        contentContainerStyle={[
-          styles.page,
-          { padding: 20, paddingTop: 28, gap: 24 },
-        ]}
+        contentContainerStyle={[styles.page, { padding: 20, paddingTop: 28, gap: 24 }]}
         keyboardShouldPersistTaps="handled"
       >
-        {settings.error || error ? (
-          <Notice error>{error || settings.error}</Notice>
-        ) : null}
+        {settings.error || error ? <Notice error>{error || settings.error}</Notice> : null}
         {section === "appearance" && <AppearanceSettings />}
         {section === "threads" && (
           <View style={{ gap: 20 }}>
-            <Text style={[styles.heading, { color: c.text }]}>
-              New thread defaults
-            </Text>
+            <Text style={[styles.heading, { color: c.text }]}>New thread defaults</Text>
             <PanelRow
               title="Workspace"
               value={
-                projects
-                  .flatMap((p) => p.workspaces)
-                  .find(
-                    (w) => w.id === settings.user?.threadDefaults?.workspaceId,
-                  )?.label || "No preference"
+                projects.flatMap((p) => p.workspaces).find((w) => w.id === settings.user?.threadDefaults?.workspaceId)
+                  ?.label || "No preference"
               }
               icon="folder"
             />
             <PanelRow
               title="Model"
-              value={
-                settings.user?.threadDefaults?.models
-                  .map((m) => m.model)
-                  .join(" · ") || "Default model"
-              }
+              value={settings.user?.threadDefaults?.models.map((m) => m.model).join(" · ") || "Default model"}
               icon="cpu-chip"
             />
-            <Text style={[styles.label, { color: c.text }]}>
-              While a turn runs
-            </Text>
+            <Text style={[styles.label, { color: c.text }]}>While a turn runs</Text>
             <Segmented
-              value={String(
-                settings.user?.composer?.runningDelivery ||
-                  ui.MessageDelivery.STEER,
-              )}
+              value={String(settings.user?.composer?.runningDelivery || ui.MessageDelivery.STEER)}
               options={[
                 { value: "2", label: "Steer" },
                 { value: "1", label: "Queue" },
@@ -219,21 +192,13 @@ export default function Settings() {
                 })
               }
             />
-            <Text style={[styles.meta, { color: c.muted }]}>
-              Edit new thread defaults in Canopy on the web.
-            </Text>
+            <Text style={[styles.meta, { color: c.muted }]}>Edit new thread defaults in Canopy on the web.</Text>
           </View>
         )}
         {section === "text-generation" && (
           <View style={{ gap: 16 }}>
-            <Text style={[styles.heading, { color: c.text }]}>
-              Thread titles
-            </Text>
-            <PanelRow
-              title="Model"
-              value={settings.user?.textGeneration?.model || "Automatic"}
-              icon="cpu-chip"
-            />
+            <Text style={[styles.heading, { color: c.text }]}>Thread titles</Text>
+            <PanelRow title="Model" value={settings.user?.textGeneration?.model || "Automatic"} icon="cpu-chip" />
             <Field
               label="Instructions"
               multiline
@@ -249,10 +214,7 @@ export default function Settings() {
               onPress={() =>
                 void settings.update({
                   textGeneration: Object.assign(
-                    create(
-                      ui.TextGenerationSettingsSchema,
-                      settings.user?.textGeneration,
-                    ),
+                    create(ui.TextGenerationSettingsSchema, settings.user?.textGeneration),
                     { threadTitleInstructions: instructions },
                   ),
                 })
@@ -268,16 +230,11 @@ export default function Settings() {
                 <PanelRow
                   key={p.id}
                   title={p.name}
-                  value={
-                    p.workspaces.map((w) => w.rootPath).join("\n") ||
-                    "No workspaces"
-                  }
+                  value={p.workspaces.map((w) => w.rootPath).join("\n") || "No workspaces"}
                   icon="folder"
                 />
               ))}
-            <Text
-              style={[styles.meta, { color: c.muted, paddingVertical: 16 }]}
-            >
+            <Text style={[styles.meta, { color: c.muted, paddingVertical: 16 }]}>
               Manage projects in Canopy on the web.
             </Text>
           </View>
@@ -292,9 +249,7 @@ export default function Settings() {
                 icon="server"
               />
             ))}
-            <Text
-              style={[styles.meta, { color: c.muted, paddingVertical: 16 }]}
-            >
+            <Text style={[styles.meta, { color: c.muted, paddingVertical: 16 }]}>
               Manage workers in Canopy on the web.
             </Text>
           </View>
@@ -302,18 +257,9 @@ export default function Settings() {
         {["schedules", "providers", "connectors"].includes(section) && (
           <View style={{ gap: 16 }}>
             {rows.length ? (
-              rows.map((r, i) => (
-                <PanelRow
-                  key={i}
-                  title={r.title}
-                  value={r.value}
-                  icon={current.icon}
-                />
-              ))
+              rows.map((r, i) => <PanelRow key={i} title={r.title} value={r.value} icon={current.icon} />)
             ) : (
-              <Text style={[styles.body, { color: c.muted }]}>
-                {error ? "" : `No ${current.label.toLowerCase()}.`}
-              </Text>
+              <Text style={[styles.body, { color: c.muted }]}>{error ? "" : `No ${current.label.toLowerCase()}.`}</Text>
             )}
             <Text style={[styles.meta, { color: c.muted }]}>
               Manage {current.label.toLowerCase()} in Canopy on the web.
@@ -323,11 +269,7 @@ export default function Settings() {
         {section === "mobile" && (
           <View style={{ gap: 20 }}>
             <PanelRow title="Gateway" value={session.gatewayUrl} icon="link" />
-            <PanelRow
-              title="Device name"
-              value={session.deviceName}
-              icon="computer-desktop"
-            />
+            <PanelRow title="Device name" value={session.deviceName} icon="computer-desktop" />
             <Text style={[styles.meta, { color: c.muted }]}>
               To change gateway or device name, unpair and pair again.
             </Text>
@@ -336,18 +278,14 @@ export default function Settings() {
               danger
               busy={busy}
               onPress={() =>
-                Alert.alert(
-                  "Unpair this phone?",
-                  "This revokes access on the gateway and removes the saved key.",
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Unpair",
-                      style: "destructive",
-                      onPress: () => void unpair(),
-                    },
-                  ],
-                )
+                Alert.alert("Unpair this phone?", "This revokes access on the gateway and removes the saved key.", [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Unpair",
+                    style: "destructive",
+                    onPress: () => void unpair(),
+                  },
+                ])
               }
             />
             {error ? (

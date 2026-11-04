@@ -5,7 +5,12 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 
   /** The "Linked computers" card of a settings page (ShareSetting rows); absent until a computer is linked. */
-  let { description = "Choose what stays the same on every linked computer.", class: className, children }: { description?: string; class?: ClassValue; children: Snippet } = $props();
+  let {
+    description = "Choose what stays the same on every linked computer.",
+    class: className,
+    children,
+  }: { description?: string; class?: ClassValue; children: Snippet } = $props();
+
   const overview = useOverview();
 </script>
 

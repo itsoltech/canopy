@@ -7,7 +7,13 @@
 </script>
 
 {#if kind === "scratch"}
-  <span class={["inline-block size-4.5 shrink-0 rounded-sm border border-dashed border-zinc-500 dark:border-zinc-400", className]} aria-hidden="true"></span>
+  <span
+    class={[
+      "inline-block size-4.5 shrink-0 rounded-sm border border-dashed border-zinc-500 dark:border-zinc-400",
+      className,
+    ]}
+    aria-hidden="true"
+  ></span>
 {:else}
   <ProjectAvatar {name} class={className} />
 {/if}

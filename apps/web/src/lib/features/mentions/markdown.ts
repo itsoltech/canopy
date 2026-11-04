@@ -13,21 +13,25 @@ import { Lexer, type Token } from "marked";
  *   attributes; it serializes back to exactly that text.
  */
 
-const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const escapeHtml = (value: string) =>
+  value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** Content ranges `[start, end)` of the inline code spans in a run of text (the backticks are around them). */
 export function codeSpans(text: string): Array<readonly [number, number]> {
   const spans: Array<readonly [number, number]> = [];
+
   for (const match of text.matchAll(/(?<!`)`([^`\n]+)`(?!`)/g)) {
     if (!match[1]!.trim()) continue;
     const start = match.index + 1;
     spans.push([start, start + match[1]!.length]);
   }
+
   return spans;
 }
 
 /** Inline code as it looks in the editor (the chat's `codespan` look, MarkdownInline.svelte). */
-export const INLINE_CODE_CLASS = "rounded-sm bg-zinc-950/5 box-decoration-clone px-1 py-px font-mono text-[0.875em] text-zinc-950 dark:bg-white/10 dark:text-white";
+export const INLINE_CODE_CLASS =
+  "rounded-sm bg-zinc-950/5 box-decoration-clone px-1 py-px font-mono text-[0.875em] text-zinc-950 dark:bg-white/10 dark:text-white";
 
 export interface InlineSpan {
   readonly start: number;
@@ -39,19 +43,31 @@ export interface InlineSpan {
 /** Markdown emphasis and code, with original delimiters kept as editable text. No links or HTML execute. */
 export function inlineSpans(text: string): InlineSpan[] {
   const spans: InlineSpan[] = [];
+
   function walk(tokens: readonly Token[], offset: number) {
     let at = offset;
+
     for (const token of tokens) {
       if (token.type === "strong" || token.type === "em") {
         const edge = token.type === "strong" ? 2 : 1;
-        spans.push({ start: at + edge, end: at + token.raw.length - edge, kind: token.type, mask: token.type === "strong" ? 2 : 4 });
+        spans.push({
+          start: at + edge,
+          end: at + token.raw.length - edge,
+          kind: token.type,
+          mask: token.type === "strong" ? 2 : 4,
+        });
+
         if ("tokens" in token && token.tokens) walk(token.tokens, at + edge);
       }
+
       at += token.raw.length;
     }
   }
+
   walk(Lexer.lexInline(text), 0);
+
   for (const [start, end] of codeSpans(text)) spans.push({ start, end, kind: "code", mask: 1 });
+
   return spans.sort((a, b) => a.start - b.start || b.end - a.end);
 }
 
@@ -62,21 +78,28 @@ export function inlineHtml(text: string, fresh = false): string {
   const spans = inlineSpans(text);
   const points = [...new Set([0, text.length, ...spans.flatMap((s) => [s.start, s.end])])].sort((a, b) => a - b);
   let opened: InlineSpan[] = [];
+
   for (let i = 0; i < points.length - 1; i++) {
     const from = points[i]!;
     const to = points[i + 1]!;
     const active = spans.filter((s) => s.start <= from && s.end >= to);
     let same = 0;
+
     while (same < opened.length && opened[same] === active[same]) same++;
+
     for (const span of opened.slice(same).reverse()) html += `</${span.kind}>`;
+
     for (const span of active.slice(same)) {
       const classes = span.kind === "code" ? INLINE_CODE_CLASS : span.kind === "strong" ? "font-semibold" : "italic";
       html += `<${span.kind} data-md="${span.kind}" class="${classes}${fresh ? " t-code-form" : ""}">`;
     }
+
     html += plain(text.slice(from, to));
     opened = active;
   }
+
   for (const span of opened.reverse()) html += `</${span.kind}>`;
+
   return html;
 }
 
@@ -97,8 +120,10 @@ export interface FencedBlock extends CodeBlockData {
 /** The fence markdown of a block: the code verbatim, between fences long enough that no line of it closes them. */
 export function fenceText({ lang, code, fence }: CodeBlockData): string {
   let longest = 0;
+
   for (const match of code.matchAll(/^ {0,3}(`{3,})/gm)) longest = Math.max(longest, match[1]!.length);
   const ticks = "`".repeat(Math.max(3, fence, longest + 1));
+
   return code ? `${ticks}${lang}\n${code}\n${ticks}` : `${ticks}${lang}\n${ticks}`;
 }
 
@@ -114,30 +139,38 @@ export function findFences(text: string): FencedBlock[] {
   const lines = text.split("\n");
   const starts: number[] = [];
   let offset = 0;
+
   for (const line of lines) {
     starts.push(offset);
     offset += line.length + 1;
   }
+
   for (let i = 0; i < lines.length; i++) {
     const open = OPENING.exec(lines[i]!);
+
     if (!open) continue;
     const ticks = open[1]!;
     let close = i + 1;
+
     while (close < lines.length && lines[close] !== ticks) close++;
+
     if (close >= lines.length) continue;
     const block = { lang: open[2]!, code: lines.slice(i + 1, close).join("\n"), fence: ticks.length };
     const start = starts[i]!;
     const end = starts[close]! + ticks.length;
+
     if (fenceText(block) !== text.slice(start, end)) continue;
     blocks.push({ ...block, start, end });
     i = close;
   }
+
   return blocks;
 }
 
 /** The fence an opening line asks for (`` ``` ``, `` ```ts ``), when the line is nothing else. */
 export function openingFence(line: string): { lang: string; fence: number } | undefined {
   const open = OPENING.exec(line);
+
   return open ? { lang: open[2]!, fence: open[1]!.length } : undefined;
 }
 

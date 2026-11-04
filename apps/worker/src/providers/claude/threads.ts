@@ -1,6 +1,14 @@
 import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { create } from "@bufbuild/protobuf";
-import { forkSession, getSessionMessages, query, type CanUseTool, type Options, type Query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import {
+  forkSession,
+  getSessionMessages,
+  query,
+  type CanUseTool,
+  type Options,
+  type Query,
+  type SDKUserMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import { claudeExecutable } from "./executable.ts";
 import {
   InteractionKind,
@@ -24,7 +32,14 @@ import {
 import { AsyncChannel } from "@canopy/transport";
 import { Context, Effect, Layer, Schema } from "effect";
 import { Journal, type ThreadEventInit } from "../../journal/index.ts";
-import { claudeAgentModels, claudeModel, isClaudeEffort, proxyCapabilities, type ModelInit, type ProxyCapabilities } from "../models.ts";
+import {
+  claudeAgentModels,
+  claudeModel,
+  isClaudeEffort,
+  proxyCapabilities,
+  type ModelInit,
+  type ProxyCapabilities,
+} from "../models.ts";
 import { claudeNativeToolOptions, type NativeToolPolicy } from "../native-tools.ts";
 import { SteerError, type TurnSettings } from "../turn-input.ts";
 import type { Env, ResolvedProfile } from "../profiles.ts";
@@ -118,15 +133,20 @@ export interface ClaudeInstanceRuntime {
 /** Launch arguments as the SDK takes them: `--name value` pairs and bare flags. */
 export function claudeExtraArgs(args: readonly string[]): Record<string, string | null> {
   const extra: Record<string, string | null> = {};
+
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
+
     if (!arg.startsWith("--")) continue;
     const [name, inline] = arg.slice(2).split(/=(.*)/s, 2);
+
     if (!name) continue;
+
     if (inline !== undefined) extra[name] = inline;
     else if (args[i + 1] !== undefined && !args[i + 1]!.startsWith("--")) extra[name] = args[++i]!;
     else extra[name] = null;
   }
+
   return extra;
 }
 
@@ -136,7 +156,12 @@ export class ClaudeThreads extends Context.Service<
     /** Records thread_ready with the session id (forked session for a fork). Returns the session id. */
     create(spec: ThreadSpec, fork?: ForkSpec): Effect.Effect<string, ClaudeThreadError>;
     /** Starts a turn and returns once it runs; the turn streams into the journal in the background. */
-    startTurn(spec: ThreadSpec, turnId: string, input: UserInput, settings?: TurnSettings): Effect.Effect<void, ClaudeThreadError>;
+    startTurn(
+      spec: ThreadSpec,
+      turnId: string,
+      input: UserInput,
+      settings?: TurnSettings,
+    ): Effect.Effect<void, ClaudeThreadError>;
     interrupt(threadId: string, turnId: string): Effect.Effect<void, ClaudeThreadError>;
     /** Adds input to the running turn (the input stream); idempotent by inputId. */
     steer(threadId: string, turnId: string, inputId: string, input: UserInput): Effect.Effect<void, SteerError>;
@@ -149,7 +174,10 @@ export class ClaudeThreads extends Context.Service<
     /** Models a profile offers (Query.supportedModels() without a prompt; no model turn). */
     listModels(profileId: string): Effect.Effect<{ models: ModelInit[] }, ClaudeThreadError>;
     /** Commands and skills for the composer in a folder (Query.supportedCommands() without a prompt; claude/catalog.ts). */
-    listMentionCatalog(profileId: string, cwd: string): Effect.Effect<{ entries: MentionEntryInit[]; notes: string[] }, ClaudeThreadError>;
+    listMentionCatalog(
+      profileId: string,
+      cwd: string,
+    ): Effect.Effect<{ entries: MentionEntryInit[]; notes: string[] }, ClaudeThreadError>;
   }
 >()("canopy/worker/ClaudeThreads") {
   static readonly layer = (options: ClaudeThreadsOptions) => Layer.effect(ClaudeThreads, make(options));
@@ -190,7 +218,10 @@ interface Session {
 interface SessionTurn {
   readonly turnId: string;
   /** Steered inputs by input id; started once Claude Code took them into the turn (command_lifecycle). */
-  readonly steers: Map<string, { readonly text: string; readonly authorUserId: string; readonly mentions: readonly Mention[]; started: boolean }>;
+  readonly steers: Map<
+    string,
+    { readonly text: string; readonly authorUserId: string; readonly mentions: readonly Mention[]; started: boolean }
+  >;
   /** The turn is finishing (result seen, or interrupted): no more steers. */
   ended: boolean;
   interrupting: boolean;
@@ -216,28 +247,42 @@ const make = (options: ClaudeThreadsOptions) =>
     const idleGraceMs = options.idleGraceMs ?? 3_000;
     // Session helpers (forkSession, getSessionMessages) run in this process and read CLAUDE_CONFIG_DIR here.
     process.env["CLAUDE_CONFIG_DIR"] = options.home;
+
     /** The runtime of a profile: its own (an instance with its own config dir or executable), else the runtime's. */
-    const runtimeOf = (profile: ResolvedProfile): ClaudeInstanceRuntime => options.runtimeOf?.(profile) ?? { home: options.home, ...(options.executable && { executable: options.executable }) };
-    const queryRuntime = (profile: ResolvedProfile, runtime: ClaudeInstanceRuntime): Pick<Options, "env" | "settingSources" | "pathToClaudeCodeExecutable" | "extraArgs"> => ({
+    const runtimeOf = (profile: ResolvedProfile): ClaudeInstanceRuntime =>
+      options.runtimeOf?.(profile) ?? {
+        home: options.home,
+        ...(options.executable && { executable: options.executable }),
+      };
+
+    const queryRuntime = (
+      profile: ResolvedProfile,
+      runtime: ClaudeInstanceRuntime,
+    ): Pick<Options, "env" | "settingSources" | "pathToClaudeCodeExecutable" | "extraArgs"> => ({
       ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: runtime.home }),
       pathToClaudeCodeExecutable: claudeExecutable(runtime.executable, options.baseEnv),
       ...(runtime.extraArgs && Object.keys(runtime.extraArgs).length > 0 && { extraArgs: runtime.extraArgs }),
     });
+
     /**
      * A session helper in a config dir: CLAUDE_CONFIG_DIR of this process points there meanwhile. Helpers run one at a
      * time so two homes never mix (queries get their env explicitly and are not affected).
      */
     let helpers: Promise<unknown> = Promise.resolve();
+
     const inHome = <A>(home: string, run: () => Promise<A>): Promise<A> => {
       const next = helpers.then(async () => {
         process.env["CLAUDE_CONFIG_DIR"] = home;
+
         try {
           return await run();
         } finally {
           process.env["CLAUDE_CONFIG_DIR"] = options.home;
         }
       });
+
       helpers = next.catch(() => {});
+
       return next;
     };
 
@@ -246,42 +291,54 @@ const make = (options: ClaudeThreadsOptions) =>
 
     const record = async (threadId: string, init: ThreadEventInit) => {
       const enriched = options.enrich ? await options.enrich(init) : init;
-      return Effect.runPromise(journal.append(threadId, enriched).pipe(Effect.tap((event) => Effect.sync(() => options.publish(event)))));
+
+      return Effect.runPromise(
+        journal.append(threadId, enriched).pipe(Effect.tap((event) => Effect.sync(() => options.publish(event)))),
+      );
     };
 
     yield* Effect.addFinalizer(() =>
       Effect.promise(async () => {
         shuttingDown = true;
+
         for (const session of sessions.values()) {
           session.input.close();
           session.abort.abort();
         }
+
         await Promise.allSettled([...sessions.values()].map((s) => s.done));
       }),
     );
 
     // Background task output, read from the files Claude Code writes it to.
     const poll = setInterval(() => {
-      for (const session of sessions.values()) for (const taskId of session.mapper.backgroundTasks) void readOutput(session, taskId);
+      for (const session of sessions.values())
+        for (const taskId of session.mapper.backgroundTasks) void readOutput(session, taskId);
     }, options.outputPollMs ?? 1_000);
+
     yield* Effect.addFinalizer(() => Effect.sync(() => clearInterval(poll)));
 
     const serial = (session: Session, run: () => Promise<void>) => {
       const next = session.io.then(run, run).catch(() => {});
       session.io = next;
+
       return next;
     };
 
     const readOutput = (session: Session, taskId: string, file?: string) =>
       serial(session, async () => {
         const path = file ?? session.mapper.outputFile(taskId);
+
         if (!path || !existsSync(path)) return;
         const state = session.outputs.get(taskId) ?? { offset: 0, decoder: new TextDecoder() };
         session.outputs.set(taskId, state);
         const chunk = readFrom(path, state.offset);
+
         if (chunk.length === 0) return;
         state.offset += chunk.length;
-        for (const init of session.mapper.taskOutput(taskId, state.decoder.decode(chunk, { stream: true }))) await record(session.threadId, init);
+
+        for (const init of session.mapper.taskOutput(taskId, state.decoder.decode(chunk, { stream: true })))
+          await record(session.threadId, init);
       });
 
     /** Goal verdicts the evaluator wrote to the session transcript since the last read. */
@@ -289,13 +346,16 @@ const make = (options: ClaudeThreadsOptions) =>
       serial(session, async () => {
         const transcript = session.transcript;
         transcript.path ??= transcriptPath(session.home, session.sessionId);
+
         if (!transcript.path) return;
         const chunk = readFrom(transcript.path, transcript.offset);
         transcript.offset += chunk.length;
         const lines = (transcript.tail + new TextDecoder().decode(chunk)).split("\n");
         transcript.tail = lines.pop() ?? "";
+
         for (const line of lines) {
           const verdict = goalVerdictOf(line);
+
           if (verdict) for (const init of session.mapper.goalVerdict(verdict)) await record(session.threadId, init);
         }
       });
@@ -311,9 +371,12 @@ const make = (options: ClaudeThreadsOptions) =>
     const canUseTool =
       (spec: ThreadSpec, turnId: () => string, autoAllow: () => boolean): CanUseTool =>
       async (toolName, input, context) => {
-        if (toolName.startsWith(`mcp__${BUS_SERVER}__`) && context.mcpServer?.source === "sdk") return { behavior: "allow", updatedInput: input };
+        if (toolName.startsWith(`mcp__${BUS_SERVER}__`) && context.mcpServer?.source === "sdk")
+          return { behavior: "allow", updatedInput: input };
         const question = toolName === "AskUserQuestion";
+
         if (autoAllow() && !question) return { behavior: "allow", updatedInput: input };
+
         const answer = await options.interact(
           create(InteractionRequestSchema, {
             requestId: Bun.randomUUIDv7(),
@@ -331,13 +394,21 @@ const make = (options: ClaudeThreadsOptions) =>
             }),
           }),
         );
+
         if (answer.cancelled) return { behavior: "deny", message: "cancelled by the user", interrupt: true };
+
         if (question) {
           const answers = answer.answerJson ? (JSON.parse(answer.answerJson) as unknown) : {};
+
           return { behavior: "allow", updatedInput: { ...input, answers } };
         }
+
         return answer.allow
-          ? { behavior: "allow", updatedInput: input, ...(answer.allowForSession && context.suggestions && { updatedPermissions: context.suggestions }) }
+          ? {
+              behavior: "allow",
+              updatedInput: input,
+              ...(answer.allowForSession && context.suggestions && { updatedPermissions: context.suggestions }),
+            }
           : { behavior: "deny", message: answer.message || "denied by the user" };
       };
 
@@ -350,27 +421,45 @@ const make = (options: ClaudeThreadsOptions) =>
       const transcript = transcriptPath(session.home, session.sessionId);
       await Effect.runPromise(
         journal
-          .noteHarness(session.threadId, turnId, { harness: "claude", transcript: session.home, sessionId: session.sessionId, offset: transcript ? fileSize(transcript) : 0, providerTurn: "" })
+          .noteHarness(session.threadId, turnId, {
+            harness: "claude",
+            transcript: session.home,
+            sessionId: session.sessionId,
+            offset: transcript ? fileSize(transcript) : 0,
+            providerTurn: "",
+          })
           .pipe(Effect.ignore),
       );
-      await record(session.threadId, { turnId, body: { case: "turnStarted", value: { origin, ...(model && { model }) } } });
+      await record(session.threadId, {
+        turnId,
+        body: { case: "turnStarted", value: { origin, ...(model && { model }) } },
+      });
     };
 
     /** An idle process ends unless background tasks run; after tasks it waits a little for a turn Claude starts. */
     const closeWhenIdle = (session: Session) => {
       if (session.turn || session.closing || session.mapper.backgroundTasks.length > 0 || session.closeTimer) return;
+
       const close = () => {
         session.closeTimer = undefined;
+
         if (session.turn || session.mapper.backgroundTasks.length > 0) return;
         session.closing = true;
         session.input.close();
       };
+
       if (session.hadTasks) session.closeTimer = setTimeout(close, idleGraceMs);
       else close();
     };
 
-    const open = async (spec: ThreadSpec, model: string, effort: Options["effort"], mode: PermissionMode): Promise<Session> => {
+    const open = async (
+      spec: ThreadSpec,
+      model: string,
+      effort: Options["effort"],
+      mode: PermissionMode,
+    ): Promise<Session> => {
       const profile = options.profile(spec.providerProfileId);
+
       if (!profile) throw new Error(`provider profile "${spec.providerProfileId || "native"}" is not available`);
       const sessionId = spec.providerThreadId || spec.threadId;
       const runtime = runtimeOf(profile);
@@ -381,14 +470,22 @@ const make = (options: ClaudeThreadsOptions) =>
       const busCalls = new Map<string, string[]>();
       let session: Session | undefined;
       const turnId = () => session?.turn?.turnId ?? "";
-      const busTools = [...(spec.enableAgentBus ? claudeBusToolNames(spec.depth) : []), ...(options.viewImage ? [CLAUDE_VIEW_IMAGE_TOOL] : []),
-        ...spec.connectorTools.map((tool) => `mcp__${BUS_SERVER}__${tool.name}`)];
+
+      const busTools = [
+        ...(spec.enableAgentBus ? claudeBusToolNames(spec.depth) : []),
+        ...(options.viewImage ? [CLAUDE_VIEW_IMAGE_TOOL] : []),
+        ...spec.connectorTools.map((tool) => `mcp__${BUS_SERVER}__${tool.name}`),
+      ];
+
       const attachments = options.attachmentsDir?.(spec.threadId);
       const secrets = options.secretsDir?.(spec.threadId);
+
       const queryOptions: Options = {
         cwd: spec.cwd,
         // The thread's attachments live outside the workspace (docs/protocol.md, "Załączniki").
-        ...((attachments || secrets) && { additionalDirectories: [attachments, secrets].filter((p): p is string => !!p) }),
+        ...((attachments || secrets) && {
+          additionalDirectories: [attachments, secrets].filter((p): p is string => !!p),
+        }),
         ...(model && { model }),
         ...(effort && { effort }),
         ...queryRuntime(profile, runtime),
@@ -414,13 +511,20 @@ const make = (options: ClaudeThreadsOptions) =>
                   turnId,
                   toolUseId: (tool, args) => busCalls.get(callKey(tool, args))?.shift(),
                   callTool: options.callTool,
-                  ...(options.viewImage && { viewImage: (path: string) => options.viewImage!(spec.threadId, spec.cwd, path) }),
+                  ...(options.viewImage && {
+                    viewImage: (path: string) => options.viewImage!(spec.threadId, spec.cwd, path),
+                  }),
                 }),
               }
             : {},
-        systemPrompt: { type: "preset", preset: "claude_code", ...(spec.instructions && { append: spec.instructions }) },
+        systemPrompt: {
+          type: "preset",
+          preset: "claude_code",
+          ...(spec.instructions && { append: spec.instructions }),
+        },
         abortController: abort,
       };
+
       const q = query({ prompt: input, options: queryOptions });
       const transcript = transcriptPath(runtime.home, sessionId);
       session = {
@@ -448,6 +552,7 @@ const make = (options: ClaudeThreadsOptions) =>
       };
       session.done = consume(session);
       sessions.set(spec.threadId, session);
+
       return session;
     };
 
@@ -459,15 +564,19 @@ const make = (options: ClaudeThreadsOptions) =>
     const switchMode = async (session: Session, mode: PermissionMode) => {
       const current = claudePermissions(session.mode);
       const next = claudePermissions(mode);
+
       // Leaving FULL_AUTO: stop auto-allowing first; entering it: only once the sandbox is on.
       if (!next.autoAllow) session.autoAllow = false;
+
       if (Boolean(next.options.sandbox) !== Boolean(current.options.sandbox)) {
         // Options.sandbox is the settings' sandbox; live, only an explicit `enabled: false` turns it off
         // (`sandbox: null` leaves the one from the start in place and sandboxed Bash stays auto-allowed).
         type FlagSandbox = NonNullable<Parameters<Query["applyFlagSettings"]>[0]["sandbox"]>;
+
         const sandbox = (next.options.sandbox ?? { enabled: false }) as FlagSandbox;
         await session.query.applyFlagSettings({ sandbox });
       }
+
       await session.query.setPermissionMode(next.options.permissionMode ?? "default");
       session.mode = mode;
       session.autoAllow = next.autoAllow;
@@ -482,7 +591,12 @@ const make = (options: ClaudeThreadsOptions) =>
           turnId: turn.turnId,
           body: {
             case: "notice",
-            value: { level: NoticeLevel.WARNING, code: "steer_dropped", message: "the message did not join the turn before it ended", dataJson: JSON.stringify({ input_id: inputId }) },
+            value: {
+              level: NoticeLevel.WARNING,
+              code: "steer_dropped",
+              message: "the message did not join the turn before it ended",
+              dataJson: JSON.stringify({ input_id: inputId }),
+            },
           },
         }).catch(() => {});
       }
@@ -491,57 +605,98 @@ const make = (options: ClaudeThreadsOptions) =>
     /** Reads the process's messages until it ends: turns (also the ones Claude starts), steers, background tasks, goals. */
     const consume = async (session: Session) => {
       const { mapper, threadId } = session;
+
       /** Ends the current turn: free the thread before the gateway hears it is over (it may start the next one). */
       const endTurn = async () => {
         const turn = session.turn;
         session.turn = undefined;
+
         if (!turn) return;
         turn.ended = true;
         await dropSteers(session, turn);
       };
+
       const finishTurn = async (cause: EndCause) => {
         const turn = session.turn;
+
         if (!turn) return;
         await endTurn();
         await record(threadId, {
           turnId: turn.turnId,
           body: {
             case: "turnFinished",
-            value: { outcome: cause.outcome, source: cause.source, reason: cause.reason, ...(cause.errorCode && { errorCode: cause.errorCode }), providerTurnRef: mapper.lastEntry ?? "" },
+            value: {
+              outcome: cause.outcome,
+              source: cause.source,
+              reason: cause.reason,
+              ...(cause.errorCode && { errorCode: cause.errorCode }),
+              providerTurnRef: mapper.lastEntry ?? "",
+            },
           },
         }).catch(() => {});
       };
+
       /**
        * The process ended mid-turn on its own: the transcript says how far it got (items it never streamed, its end);
        * without an end there the turn failed in the harness.
        */
       const settleFromTranscript = async (cause: EndCause) => {
         const turn = session.turn;
+
         if (!turn) return;
         await endTurn();
         await session.io;
+
         try {
-          const open = (await Effect.runPromise(journal.openTurns())).find((t) => t.threadId === threadId && t.turnId === turn.turnId);
+          const open = (await Effect.runPromise(journal.openTurns())).find(
+            (t) => t.threadId === threadId && t.turnId === turn.turnId,
+          );
+
           if (!open) return;
-          const { events } = await Effect.runPromise(reconcileTurn(open, cause).pipe(Effect.provideService(Journal, journal)));
+
+          const { events } = await Effect.runPromise(
+            reconcileTurn(open, cause).pipe(Effect.provideService(Journal, journal)),
+          );
+
           for (const event of events) options.publish(event);
         } catch {
-          await record(threadId, { turnId: turn.turnId, body: { case: "turnFinished", value: { outcome: cause.outcome, source: cause.source, reason: cause.reason, errorCode: cause.errorCode ?? "" } } }).catch(() => {});
+          await record(threadId, {
+            turnId: turn.turnId,
+            body: {
+              case: "turnFinished",
+              value: {
+                outcome: cause.outcome,
+                source: cause.source,
+                reason: cause.reason,
+                errorCode: cause.errorCode ?? "",
+              },
+            },
+          }).catch(() => {});
         }
       };
+
       /** Why the process ended mid-turn: the worker stopping it, the platform interrupting, or the process itself. */
       const knownEnd = (): EndCause | undefined => {
-        if (shuttingDown) return { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.SYSTEM, reason: "worker stopped mid-turn" };
-        if (session.turn?.interrupting || session.abort.signal.aborted) return { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.USER, reason: "interrupted" };
+        if (shuttingDown)
+          return { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.SYSTEM, reason: "worker stopped mid-turn" };
+
+        if (session.turn?.interrupting || session.abort.signal.aborted)
+          return { outcome: TurnOutcome.INTERRUPTED, source: TurnEndSource.USER, reason: "interrupted" };
+
         return undefined;
       };
+
       /** A result that did not end the turn (a steered message was still queued): ends it if nothing follows. */
       let deferredResult: ThreadEventInit | undefined;
       const messages = session.query[Symbol.asyncIterator]();
+
       try {
         for (;;) {
           // After a deferred result the steered message must start soon; otherwise that result ends the turn.
-          const next = deferredResult ? await Promise.race([messages.next(), Bun.sleep(STEER_GRACE_MS).then(() => undefined)]) : await messages.next();
+          const next = deferredResult
+            ? await Promise.race([messages.next(), Bun.sleep(STEER_GRACE_MS).then(() => undefined)])
+            : await messages.next();
+
           if (!next && deferredResult) {
             const result = deferredResult;
             deferredResult = undefined;
@@ -550,8 +705,10 @@ const make = (options: ClaudeThreadsOptions) =>
             closeWhenIdle(session);
             continue;
           }
+
           if (!next || next.done) break;
           const message = next.value;
+
           // A resumed process first drains old task notifications. Their empty result is not the answer to
           // StartTurn (nor to a queued steer), and must not release or close the waiting input's turn.
           if (isTaskNotificationAck(message)) {
@@ -559,30 +716,59 @@ const make = (options: ClaudeThreadsOptions) =>
             closeWhenIdle(session);
             continue;
           }
+
           if (deferredResult && session.turn) mapper.continueTurn(session.turn.turnId);
           deferredResult = undefined;
           const lifecycle = message as unknown as { type: string; command_uuid?: string; state?: string };
-          const steer = lifecycle.type === "command_lifecycle" && lifecycle.state === "started" && lifecycle.command_uuid ? session.turn?.steers.get(lifecycle.command_uuid) : undefined;
+
+          const steer =
+            lifecycle.type === "command_lifecycle" && lifecycle.state === "started" && lifecycle.command_uuid
+              ? session.turn?.steers.get(lifecycle.command_uuid)
+              : undefined;
+
           if (steer && !steer.started && session.turn) {
             steer.started = true;
-            await record(threadId, userItem(session.turn.turnId, `user:${lifecycle.command_uuid}`, lifecycle.command_uuid ?? "", steer.text, steer.authorUserId, steer.mentions));
+            await record(
+              threadId,
+              userItem(
+                session.turn.turnId,
+                `user:${lifecycle.command_uuid}`,
+                lifecycle.command_uuid ?? "",
+                steer.text,
+                steer.authorUserId,
+                steer.mentions,
+              ),
+            );
           }
+
           if (message.type === "assistant") {
             for (const block of message.message.content) {
-              if (block.type !== "tool_use" || !block.name.startsWith(`mcp__${BUS_SERVER}__`) || block.name === CLAUDE_VIEW_IMAGE_TOOL) continue;
+              if (
+                block.type !== "tool_use" ||
+                !block.name.startsWith(`mcp__${BUS_SERVER}__`) ||
+                block.name === CLAUDE_VIEW_IMAGE_TOOL
+              )
+                continue;
               const key = callKey(block.name.slice(`mcp__${BUS_SERVER}__`.length), block.input);
               session.busCalls.set(key, [...(session.busCalls.get(key) ?? []), block.id]);
             }
           }
+
           // Claude starts a turn by itself (e.g. to report a finished background task): a provider turn.
-          if (!session.turn && startsTurn(message)) await beginTurn(session, Bun.randomUUIDv7(), TurnOrigin.PROVIDER, session.model);
+          if (!session.turn && startsTurn(message))
+            await beginTurn(session, Bun.randomUUIDv7(), TurnOrigin.PROVIDER, session.model);
+
           // The task's last output lands before its end.
-          if (message.type === "system" && message.subtype === "task_notification") await readOutput(session, message.task_id, message.output_file);
+          if (message.type === "system" && message.subtype === "task_notification")
+            await readOutput(session, message.task_id, message.output_file);
+
           // The evaluator's verdict of this turn belongs to it.
           if (message.type === "result") await readGoalVerdicts(session);
+
           for (const init of mapper.map(message)) {
             if (init.body?.case === "turnFinished") {
               const turn = session.turn;
+
               // A steered message still queued in Claude Code runs right after this result: the turn goes on
               // (the result is kept, without its body). An interrupt drops such messages instead.
               if (turn && !turn.interrupting && [...turn.steers.values()].some((s) => !s.started)) {
@@ -590,33 +776,57 @@ const make = (options: ClaudeThreadsOptions) =>
                 await record(threadId, { turnId: turn.turnId, rawJson: init.rawJson ?? "" });
                 continue;
               }
+
               await endTurn();
             }
-            if (init.body?.case === "itemStarted" && init.body.value.item?.content?.case === "backgroundTask") session.hadTasks = true;
+
+            if (init.body?.case === "itemStarted" && init.body.value.item?.content?.case === "backgroundTask")
+              session.hadTasks = true;
             await record(threadId, init);
           }
+
           if (!deferredResult) closeWhenIdle(session);
         }
+
         if (deferredResult) {
           await endTurn();
           await record(threadId, deferredResult);
         }
+
         if (session.turn) {
           const known = knownEnd();
+
           if (known) await finishTurn(known);
-          else await settleFromTranscript({ outcome: TurnOutcome.FAILED, source: TurnEndSource.HARNESS, reason: "harness process exited: the session ended without a result", errorCode: "process_exit" });
+          else
+            await settleFromTranscript({
+              outcome: TurnOutcome.FAILED,
+              source: TurnEndSource.HARNESS,
+              reason: "harness process exited: the session ended without a result",
+              errorCode: "process_exit",
+            });
         }
       } catch (error) {
         const known = knownEnd();
+
         if (known) await finishTurn(known);
-        else await settleFromTranscript({ outcome: TurnOutcome.FAILED, source: TurnEndSource.HARNESS, reason: `harness process exited: ${error instanceof Error ? error.message : String(error)}`, errorCode: "process_exit" });
+        else
+          await settleFromTranscript({
+            outcome: TurnOutcome.FAILED,
+            source: TurnEndSource.HARNESS,
+            reason: `harness process exited: ${error instanceof Error ? error.message : String(error)}`,
+            errorCode: "process_exit",
+          });
       } finally {
         session.input.close();
+
         if (session.closeTimer) clearTimeout(session.closeTimer);
         await session.io;
+
         // Tasks die with the process.
-        for (const init of mapper.endTasks(shuttingDown ? (options.closingReason?.() ?? "worker_restart") : "error")) await record(threadId, init).catch(() => {});
+        for (const init of mapper.endTasks(shuttingDown ? (options.closingReason?.() ?? "worker_restart") : "error"))
+          await record(threadId, init).catch(() => {});
         await readGoalVerdicts(session);
+
         if (sessions.get(threadId) === session) sessions.delete(threadId);
       }
     };
@@ -625,6 +835,7 @@ const make = (options: ClaudeThreadsOptions) =>
       create: Effect.fn("ClaudeThreads.create")(function* (spec: ThreadSpec, fork?: ForkSpec) {
         const forkProfile = fork ? options.profile(spec.providerProfileId) : undefined;
         const forkHome = forkProfile ? runtimeOf(forkProfile).home : options.home;
+
         const sessionId = fork
           ? yield* Effect.tryPromise({
               try: () =>
@@ -637,33 +848,49 @@ const make = (options: ClaudeThreadsOptions) =>
               catch: fail(spec.threadId, "fork"),
             })
           : spec.threadId;
+
         yield* journal
           .append(spec.threadId, { body: { case: "threadReady", value: { providerThreadId: sessionId } } })
           .pipe(
             Effect.tap((event) => Effect.sync(() => options.publish(event))),
             Effect.mapError(fail(spec.threadId, "journal")),
           );
+
         return sessionId;
       }),
 
-      startTurn: Effect.fn("ClaudeThreads.startTurn")(function* (spec: ThreadSpec, turnId: string, input: UserInput, settings?: TurnSettings) {
+      startTurn: Effect.fn("ClaudeThreads.startTurn")(function* (
+        spec: ThreadSpec,
+        turnId: string,
+        input: UserInput,
+        settings?: TurnSettings,
+      ) {
         if (started.has(turnId)) return; // redelivered StartTurn
         const model = settings?.model || spec.model;
         const mode = settings?.permissionMode || spec.permissionMode;
         const requested = settings?.effort ?? "";
+
         if (requested && !isClaudeEffort(requested)) {
-          return yield* new ClaudeThreadError({ threadId: spec.threadId, operation: "turn", message: `unknown reasoning effort "${requested}" (Claude: low, medium, high, xhigh, max)` });
+          return yield* new ClaudeThreadError({
+            threadId: spec.threadId,
+            operation: "turn",
+            message: `unknown reasoning effort "${requested}" (Claude: low, medium, high, xhigh, max)`,
+          });
         }
+
         started.add(turnId);
         yield* Effect.tryPromise({
           try: async () => {
             let session = sessions.get(spec.threadId);
+
             // A process that is ending (idle, no tasks) finishes first; the turn gets a new one.
             if (session?.closing) {
               await session.done;
               session = undefined;
             }
+
             if (session?.turn) throw new Error("a turn of this thread is already running");
+
             if (session && session.mode !== mode && session.mapper.backgroundTasks.length === 0) {
               // Only the grace period after tasks keeps it: a new process starts with the turn's mode.
               if (session.closeTimer) clearTimeout(session.closeTimer);
@@ -673,9 +900,13 @@ const make = (options: ClaudeThreadsOptions) =>
               await session.done;
               session = undefined;
             }
+
             if (!session) {
               // No effort chosen: the device owner's configured default (docs/claude-adapter.md).
-              const configured = requested ? undefined : options.configuredEffort?.([model || "default", resolvedModels.get(model || "default") ?? ""]);
+              const configured = requested
+                ? undefined
+                : options.configuredEffort?.([model || "default", resolvedModels.get(model || "default") ?? ""]);
+
               // Only a level the model offers: a model without efforts gets none (docs/protocol.md, "Wysiłek a model").
               const offered = modelEfforts.get(model || "default");
               const fits = configured && isClaudeEffort(configured) && (!offered || offered.includes(configured));
@@ -687,10 +918,15 @@ const make = (options: ClaudeThreadsOptions) =>
                 await session.query.setModel(model);
                 session.model = model;
               }
+
               if (mode !== session.mode) await switchMode(session, mode);
             }
+
             await beginTurn(session, turnId, TurnOrigin.COMMAND, model);
-            await record(spec.threadId, userItem(turnId, `user:${turnId}`, turnId, input.text, input.authorUserId, input.mentions));
+            await record(
+              spec.threadId,
+              userItem(turnId, `user:${turnId}`, turnId, input.text, input.authorUserId, input.mentions),
+            );
             session.input.push(userMessage(input.text));
           },
           catch: fail(spec.threadId, "turn"),
@@ -699,6 +935,7 @@ const make = (options: ClaudeThreadsOptions) =>
 
       interrupt: Effect.fn("ClaudeThreads.interrupt")(function* (threadId: string, turnId: string) {
         const session = sessions.get(threadId);
+
         if (!session?.turn || (turnId && session.turn.turnId !== turnId)) return;
         session.turn.interrupting = true;
         session.mapper.markInterrupted();
@@ -709,37 +946,71 @@ const make = (options: ClaudeThreadsOptions) =>
         );
       }),
 
-      steer: Effect.fn("ClaudeThreads.steer")(function* (threadId: string, turnId: string, inputId: string, input: UserInput) {
+      steer: Effect.fn("ClaudeThreads.steer")(function* (
+        threadId: string,
+        turnId: string,
+        inputId: string,
+        input: UserInput,
+      ) {
         const session = sessions.get(threadId);
         const turn = session?.turn;
+
         if (turn?.turnId === turnId && turn.steers.has(inputId)) return; // redelivered SteerTurn
+
         if (!session || !turn || turn.turnId !== turnId || turn.ended || turn.interrupting) {
-          return yield* new SteerError({ code: "STEER_NOT_RUNNING", message: "the turn is not running on this worker" });
+          return yield* new SteerError({
+            code: "STEER_NOT_RUNNING",
+            message: "the turn is not running on this worker",
+          });
         }
+
         // The uuid names the message in command_lifecycle (queued -> started -> completed).
-        if (!session.input.push(userMessage(input.text, { uuid: inputId as SDKUserMessage["uuid"] & string, priority: "next" }))) {
+        if (
+          !session.input.push(
+            userMessage(input.text, { uuid: inputId as SDKUserMessage["uuid"] & string, priority: "next" }),
+          )
+        ) {
           return yield* new SteerError({ code: "STEER_NOT_RUNNING", message: "the turn's input is closed" });
         }
-        turn.steers.set(inputId, { text: input.text, authorUserId: input.authorUserId, mentions: input.mentions, started: false });
+
+        turn.steers.set(inputId, {
+          text: input.text,
+          authorUserId: input.authorUserId,
+          mentions: input.mentions,
+          started: false,
+        });
       }),
 
       running: (threadId) => sessions.get(threadId)?.turn !== undefined,
 
       stopTask: Effect.fn("ClaudeThreads.stopTask")(function* (threadId: string, taskId: string) {
         const session = sessions.get(threadId);
-        if (!session?.mapper.markStopping(taskId)) return yield* new ClaudeThreadError({ threadId, operation: "stop", message: "the task is not running here" });
+
+        if (!session?.mapper.markStopping(taskId))
+          return yield* new ClaudeThreadError({ threadId, operation: "stop", message: "the task is not running here" });
         yield* Effect.tryPromise({ try: () => session.query.stopTask(taskId), catch: fail(threadId, "stop") });
       }),
 
       backgroundTasks: () =>
-        new Map([...sessions.values()].flatMap((s) => (s.mapper.backgroundTasks.length > 0 ? [[s.threadId, s.mapper.backgroundTasks] as const] : []))),
+        new Map(
+          [...sessions.values()].flatMap((s) =>
+            s.mapper.backgroundTasks.length > 0 ? [[s.threadId, s.mapper.backgroundTasks] as const] : [],
+          ),
+        ),
 
       listMentionCatalog: Effect.fn("ClaudeThreads.listMentionCatalog")(function* (profileId: string, cwd: string) {
         const profile = options.profile(profileId);
-        if (!profile) return yield* new ClaudeThreadError({ threadId: "", operation: "commands", message: `provider profile "${profileId || "native"}" is not available` });
+
+        if (!profile)
+          return yield* new ClaudeThreadError({
+            threadId: "",
+            operation: "commands",
+            message: `provider profile "${profileId || "native"}" is not available`,
+          });
         // Started like a turn's process (folder, config dir, setting sources), so it lists what a turn would have.
         const prompt = new AsyncChannel<SDKUserMessage>();
         const abort = new AbortController();
+
         const commands = yield* Effect.tryPromise({
           try: async () => {
             const q = query({
@@ -753,6 +1024,7 @@ const make = (options: ClaudeThreadsOptions) =>
                 abortController: abort,
               },
             });
+
             try {
               return await withDeadline(q.supportedCommands(), 30_000, () => {
                 throw new Error("Claude Code did not list its commands within 30 s");
@@ -764,14 +1036,25 @@ const make = (options: ClaudeThreadsOptions) =>
           },
           catch: fail("", "commands"),
         });
-        return { entries: claudeCatalogEntries(commands, claudeSkillsOnDisk(cwd, options.home), options.nativeTools), notes: [...CLAUDE_CATALOG_NOTES] };
+
+        return {
+          entries: claudeCatalogEntries(commands, claudeSkillsOnDisk(cwd, options.home), options.nativeTools),
+          notes: [...CLAUDE_CATALOG_NOTES],
+        };
       }),
       listModels: Effect.fn("ClaudeThreads.listModels")(function* (profileId: string) {
         const profile = options.profile(profileId);
-        if (!profile) return yield* new ClaudeThreadError({ threadId: "", operation: "models", message: `provider profile "${profileId || "native"}" is not available` });
+
+        if (!profile)
+          return yield* new ClaudeThreadError({
+            threadId: "",
+            operation: "models",
+            message: `provider profile "${profileId || "native"}" is not available`,
+          });
         // A query without a prompt starts Claude Code and answers control requests; the model is never called.
         const prompt = new AsyncChannel<SDKUserMessage>();
         const abort = new AbortController();
+
         const models = yield* Effect.tryPromise({
           try: async () => {
             const q = query({
@@ -786,6 +1069,7 @@ const make = (options: ClaudeThreadsOptions) =>
                 abortController: abort,
               },
             });
+
             try {
               return await withDeadline(q.supportedModels(), 30_000, () => {
                 throw new Error("Claude Code did not list its models within 30 s");
@@ -797,27 +1081,39 @@ const make = (options: ClaudeThreadsOptions) =>
           },
           catch: fail("", "models"),
         });
+
         // Through a proxy: its capabilities say which listed models cannot run an agent turn (optional).
         const capabilities =
-          profile.kind === "cliproxyapi" ? yield* Effect.tryPromise(() => proxyCapabilities(profile)).pipe(Effect.orElseSucceed((): ProxyCapabilities[] => [])) : [];
+          profile.kind === "cliproxyapi"
+            ? yield* Effect.tryPromise(() => proxyCapabilities(profile)).pipe(
+                Effect.orElseSucceed((): ProxyCapabilities[] => []),
+              )
+            : [];
+
         const agentModels = claudeAgentModels(models, capabilities);
+
         for (const m of agentModels) {
           if (m.resolvedModel) resolvedModels.set(m.value, m.resolvedModel);
           modelEfforts.set(m.value, m.supportsEffort === false ? [] : (m.supportedEffortLevels ?? []));
         }
-        return { models: agentModels.map((m) => claudeModel(m, options.configuredEffort?.([m.value, m.resolvedModel ?? ""]))) };
+
+        return {
+          models: agentModels.map((m) => claudeModel(m, options.configuredEffort?.([m.value, m.resolvedModel ?? ""]))),
+        };
       }),
     });
   });
 
-
 /** A goal_status attachment line of the transcript (the /goal evaluator's verdict). */
 export function goalVerdictOf(line: string): GoalVerdict | undefined {
   if (!line.includes('"goal_status"')) return undefined;
+
   try {
     const entry = JSON.parse(line) as { type?: string; attachment?: { type?: string } & Partial<GoalVerdict> };
     const a = entry.attachment;
+
     if (entry.type !== "attachment" || a?.type !== "goal_status" || typeof a.condition !== "string") return undefined;
+
     return {
       met: a.met === true,
       condition: a.condition,
@@ -842,11 +1138,14 @@ function fileSize(path: string): number {
 /** Bytes of a file from an offset (empty when it is missing or has not grown). */
 function readFrom(path: string, offset: number): Uint8Array {
   const size = fileSize(path);
+
   if (size <= offset) return new Uint8Array(0);
   const buffer = new Uint8Array(Math.min(size - offset, 1 << 20));
   const fd = openSync(path, "r");
+
   try {
     const read = readSync(fd, buffer, 0, buffer.length, offset);
+
     return buffer.subarray(0, read);
   } finally {
     closeSync(fd);
@@ -859,17 +1158,35 @@ function callKey(tool: string, args: unknown): string {
     Array.isArray(value)
       ? value.map(sorted)
       : value && typeof value === "object"
-        ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, sorted(v)]))
+        ? Object.fromEntries(
+            Object.entries(value)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([k, v]) => [k, sorted(v)]),
+          )
         : value;
+
   return `${tool} ${JSON.stringify(sorted(args))}`;
 }
 
-function userItem(turnId: string, itemId: string, clientId: string, text: string, authorUserId: string, mentions: readonly Mention[] = []): ThreadEventInit {
+function userItem(
+  turnId: string,
+  itemId: string,
+  clientId: string,
+  text: string,
+  authorUserId: string,
+  mentions: readonly Mention[] = [],
+): ThreadEventInit {
   return {
     turnId,
     body: {
       case: "itemCompleted",
-      value: { item: { itemId, status: ItemStatus.COMPLETED, content: { case: "userMessage", value: { text, authorUserId, clientId, mentions: [...mentions] } } } },
+      value: {
+        item: {
+          itemId,
+          status: ItemStatus.COMPLETED,
+          content: { case: "userMessage", value: { text, authorUserId, clientId, mentions: [...mentions] } },
+        },
+      },
     },
   };
 }

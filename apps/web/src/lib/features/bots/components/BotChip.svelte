@@ -9,7 +9,12 @@
    * A bot named inline: a small avatar and the name in the bot's colour ("‹avatar› FIXme CRM"), in a
    * message (a mention) or a bot ⇄ bot marker. With `href` it is a link; it never wraps inside.
    */
-  let { bot, href, class: className }: { bot: ParticipantView; href?: string | undefined; class?: ClassValue } = $props();
+  let {
+    bot,
+    href,
+    class: className,
+  }: { bot: ParticipantView; href?: string | undefined; class?: ClassValue } = $props();
+
   const classes = $derived([
     BOT_CHIP_CLASS,
     botTextTone(bot),

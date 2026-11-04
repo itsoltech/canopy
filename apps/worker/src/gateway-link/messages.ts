@@ -3,6 +3,7 @@ import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { WorkerMessageSchema, type WorkerMessage } from "@canopy/contracts";
 
 type PayloadInit = NonNullable<MessageInitShape<typeof WorkerMessageSchema>["payload"]>;
+
 export type WorkerPayloadInit = Exclude<PayloadInit, { case: undefined }>;
 
 export function workerMessage(payload: WorkerPayloadInit): WorkerMessage {

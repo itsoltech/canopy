@@ -72,6 +72,7 @@
 
   function onkeydown(event: KeyboardEvent) {
     if (editing || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
+
     // ↑/↓ alone on the handle; Alt+↑/↓ anywhere in the row.
     if (!event.altKey && event.target !== handle) return;
     event.preventDefault();
@@ -100,17 +101,32 @@
         {text || (turn.attachments.length > 0 ? "(only files)" : "(only quotes)")}
       </p>
       {#if fallback}
-        <span class="flex shrink-0" {@attach tooltip(`Could not join the running turn${fallback.reason ? ` (${fallback.reason})` : ""}; it runs at its place in the queue.`)}>
+        <span
+          class="flex shrink-0"
+          {@attach tooltip(
+            `Could not join the running turn${fallback.reason ? ` (${fallback.reason})` : ""}; it runs at its place in the queue.`,
+          )}
+        >
           <Icon name="exclamation-circle" class="fill-amber-500" label="Could not join the running turn" />
         </span>
       {/if}
       {#if hints.length > 0}
-        <p class="max-w-48 shrink-0 truncate text-xs/6 text-zinc-500 max-sm:hidden dark:text-zinc-400" title="Runs with {hints.join(', ')}">{hints.join(" · ")}</p>
+        <p
+          class="max-w-48 shrink-0 truncate text-xs/6 text-zinc-500 max-sm:hidden dark:text-zinc-400"
+          title="Runs with {hints.join(', ')}"
+        >
+          {hints.join(" · ")}
+        </p>
       {/if}
       {#if own && running}
         {@const files = !steerable(turn)}
-        <span class="flex shrink-0" {@attach tooltip(files ? "A message with files runs as its own turn" : "Send it into the running turn now")}>
-          <Button variant="ghost" size="sm" icon="arrow-turn-down-right" disabled={files} onclick={onsteer}><span class="max-sm:sr-only">Steer</span></Button>
+        <span
+          class="flex shrink-0"
+          {@attach tooltip(files ? "A message with files runs as its own turn" : "Send it into the running turn now")}
+        >
+          <Button variant="ghost" size="sm" icon="arrow-turn-down-right" disabled={files} onclick={onsteer}
+            ><span class="max-sm:sr-only">Steer</span></Button
+          >
         </span>
       {/if}
       {#if own}

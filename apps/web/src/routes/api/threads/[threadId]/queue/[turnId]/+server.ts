@@ -23,17 +23,27 @@ const Body = Schema.Union([
 export const POST: RequestHandler = async ({ request, params }) => {
   const body = await readBody(request, Body);
   const turnId = params.turnId;
+
   switch (body.action) {
     case "edit": {
       let mentions;
+
       try {
         mentions = mentionsFromWire(body.mentions);
       } catch (cause) {
         error(400, cause instanceof Error ? cause.message : "invalid mentions");
       }
+
       const { text, expectedRevision } = body;
-      return json(encode(ui.EditQueuedTurnResponseSchema, await call((api) => api.editQueuedTurn({ turnId, text, expectedRevision, mentions }))));
+
+      return json(
+        encode(
+          ui.EditQueuedTurnResponseSchema,
+          await call((api) => api.editQueuedTurn({ turnId, text, expectedRevision, mentions })),
+        ),
+      );
     }
+
     case "delete":
       return json(encode(ui.DeleteQueuedTurnResponseSchema, await call((api) => api.deleteQueuedTurn({ turnId }))));
     case "restore":

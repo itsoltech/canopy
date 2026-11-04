@@ -14,20 +14,29 @@ const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim()
  * - Side thread: pass the parent; project, workspace and provider come from the parent (GetThread), so a
  *   fork keeps the provider its history is written in.
  */
-export async function createThreadFromForm(form: FormData, action: string, target: { projectId: string } | { parent: ui.Thread }) {
+export async function createThreadFromForm(
+  form: FormData,
+  action: string,
+  target: { projectId: string } | { parent: ui.Thread },
+) {
   const parent = "parent" in target ? target.parent : undefined;
   const projectId = parent?.projectId ?? ("projectId" in target ? target.projectId : "");
   const workspaceId = parent?.workspaceId ?? text(form, "workspaceId");
+
   if (!workspaceId) return fail(400, { action, error: "Choose a worker" });
   const mode = text(form, "permissionMode") || "ASK";
+
   if (!(mode in PermissionMode)) return fail(400, { action, error: "Unknown permission mode" });
   const requested = text(form, "provider");
   const provider = parent ? providerKeyOf(parent.provider) : isProviderKey(requested) ? requested : undefined;
+
   if (!provider) return fail(400, { action, error: "Choose Claude, Codex or Grok" });
   const profileId = text(form, "profileId");
   const initialMessage = text(form, "message");
+
   if (parent && !initialMessage) return fail(400, { action, error: "Tell the side thread what to do" });
   let initialMentions;
+
   try {
     initialMentions = mentionsFromWire(form.get("mentions"));
   } catch {
@@ -52,6 +61,7 @@ export async function createThreadFromForm(form: FormData, action: string, targe
       initialMentions,
     }),
   );
+
   if (failed(result)) return result;
   redirect(303, `/threads/${result.thread?.id}`);
 }

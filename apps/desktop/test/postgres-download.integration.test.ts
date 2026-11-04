@@ -9,12 +9,18 @@ import { postgresArchive, postgresRegistry } from "./postgres-fixture.ts";
 const makeTemp = tempDirs();
 const fixture = postgresArchive(tempDir("canopy-postgres-download-fixture-"));
 const registries: Awaited<ReturnType<typeof postgresRegistry>>[] = [];
-afterAll(async () => { for (const registry of registries) await registry.close(); });
+
+afterAll(async () => {
+  for (const registry of registries) await registry.close();
+});
+
 async function registry(interrupt = false) {
   const value = await postgresRegistry(fixture.bytes, interrupt);
   registries.push(value);
+
   return value;
 }
+
 const signal = () => new AbortController().signal;
 
 test("verified Postgres is executable, installed atomically, reused offline and old unused runtimes are removed", async () => {
@@ -49,7 +55,10 @@ test("bad SHA-512 is rejected before extraction and leaves no install or partial
   const server = await registry();
   const data = makeTemp("canopy-postgres-bad-hash-");
   const manifest = join(data, "bad-pin.json");
-  writeFileSync(manifest, JSON.stringify({ ...fixture.pin, integrity: `sha512-${createHash("sha512").update("wrong").digest("base64")}` }));
+  writeFileSync(
+    manifest,
+    JSON.stringify({ ...fixture.pin, integrity: `sha512-${createHash("sha512").update("wrong").digest("base64")}` }),
+  );
   const installer = new PostgresInstaller(manifest, data, () => {}, server);
   await expect(installer.ensure(signal())).rejects.toThrow("SHA-512 integrity verification failed");
   expect(existsSync(installer.directory)).toBe(false);
@@ -60,9 +69,16 @@ test("bad SHA-512 is rejected before extraction and leaves no install or partial
 test("interrupted transfer resumes with HTTP Range and only exposes a complete executable", async () => {
   const server = await registry(true);
   const data = makeTemp("canopy-postgres-interrupted-");
-  const installer = new PostgresInstaller(fixture.manifest, data, (value) => {
-    if (value.phase !== "ready") expect(existsSync(installer.directory)).toBe(false);
-  }, server);
+
+  const installer = new PostgresInstaller(
+    fixture.manifest,
+    data,
+    (value) => {
+      if (value.phase !== "ready") expect(existsSync(installer.directory)).toBe(false);
+    },
+    server,
+  );
+
   const directory = await installer.ensure(signal());
   expect(server.ranges.length).toBeGreaterThanOrEqual(2);
   expect(server.ranges[0]).toBeUndefined();
@@ -88,7 +104,16 @@ test("cancellation preserves resumable bytes but never publishes an unfinished i
   const server = await registry(true);
   const data = makeTemp("canopy-postgres-cancelled-");
   const abort = new AbortController();
-  const installer = new PostgresInstaller(fixture.manifest, data, (value) => { if (value.phase === "downloading" && value.progress !== undefined && value.progress > 0) abort.abort(); }, server);
+
+  const installer = new PostgresInstaller(
+    fixture.manifest,
+    data,
+    (value) => {
+      if (value.phase === "downloading" && value.progress !== undefined && value.progress > 0) abort.abort();
+    },
+    server,
+  );
+
   await expect(installer.ensure(abort.signal)).rejects.toThrow("cancelled");
   expect(existsSync(installer.directory)).toBe(false);
   const resumed = new PostgresInstaller(fixture.manifest, data, () => {}, server);

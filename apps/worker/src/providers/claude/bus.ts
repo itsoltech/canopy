@@ -46,15 +46,33 @@ export function claudeBusServer(options: ClaudeBusOptions): McpSdkServerConfigWi
     tools: [
       ...(options.agentBus ? busTools(options) : []),
       ...(options.connectorTools ?? []).map((spec) => ({
-        name: spec.name, description: spec.description,
+        name: spec.name,
+        description: spec.description,
         inputSchema: z.fromJSONSchema(JSON.parse(spec.inputSchemaJson)) as never,
         handler: async (args: Record<string, unknown>, extra: unknown) => {
           const meta = (extra as { _meta?: Record<string, unknown> } | undefined)?._meta;
-          const id = typeof meta?.["claudecode/toolUseId"] === "string" ? meta["claudecode/toolUseId"] as string : options.toolUseId(spec.name, args) ?? crypto.randomUUID();
-          const result = await options.callTool(create(AgentToolCallSchema, { callId: toolCallId(options.threadId, id),
-            threadId: options.threadId, turnId: options.turnId(), itemId: id, toolName: spec.name,
-            connectorAccountId: spec.accountId, argumentsJson: JSON.stringify(args) }));
-          return { content: [{ type: "text" as const, text: result.content }], ...(result.isError && { isError: true }) };
+
+          const id =
+            typeof meta?.["claudecode/toolUseId"] === "string"
+              ? (meta["claudecode/toolUseId"] as string)
+              : (options.toolUseId(spec.name, args) ?? crypto.randomUUID());
+
+          const result = await options.callTool(
+            create(AgentToolCallSchema, {
+              callId: toolCallId(options.threadId, id),
+              threadId: options.threadId,
+              turnId: options.turnId(),
+              itemId: id,
+              toolName: spec.name,
+              connectorAccountId: spec.accountId,
+              argumentsJson: JSON.stringify(args),
+            }),
+          );
+
+          return {
+            content: [{ type: "text" as const, text: result.content }],
+            ...(result.isError && { isError: true }),
+          };
         },
       })),
       ...(options.viewImage ? [viewImageTool(options.viewImage)] : []),
@@ -64,13 +82,16 @@ export function claudeBusServer(options: ClaudeBusOptions): McpSdkServerConfigWi
 
 function viewImageTool(view: (path: string) => Promise<ViewImageResult>) {
   const spec = viewImageSpec();
+
   return {
     name: spec.name,
     description: spec.description,
     inputSchema: z.fromJSONSchema(spec.inputSchema as Parameters<typeof z.fromJSONSchema>[0]) as never,
     handler: async (args: Record<string, unknown>) => {
       const result = await view(typeof args["path"] === "string" ? args["path"] : "");
+
       if (!result.ok) return { content: [{ type: "text" as const, text: result.message }], isError: true };
+
       return {
         content: [
           { type: "image" as const, data: result.base64, mimeType: result.mimeType },
@@ -83,24 +104,29 @@ function viewImageTool(view: (path: string) => Promise<ViewImageResult>) {
 
 function busTools(options: ClaudeBusOptions) {
   return agentBusToolSpecs(agentBusToolsFor(options.depth)).map((spec) => ({
-      name: spec.name,
-      description: spec.description,
-      inputSchema: z.fromJSONSchema(spec.inputSchema as Parameters<typeof z.fromJSONSchema>[0]) as never,
-      handler: async (args: Record<string, unknown>, extra: unknown) => {
-        const meta = (extra as { _meta?: Record<string, unknown> } | undefined)?._meta;
-        const fromMeta = typeof meta?.["claudecode/toolUseId"] === "string" ? (meta["claudecode/toolUseId"] as string) : undefined;
-        const useId = fromMeta ?? options.toolUseId(spec.name, args) ?? crypto.randomUUID();
-        const result = await options.callTool(
-          create(AgentToolCallSchema, {
-            callId: toolCallId(options.threadId, useId),
-            threadId: options.threadId,
-            turnId: options.turnId(),
-            itemId: useId,
-            toolName: spec.name,
-            argumentsJson: JSON.stringify(args),
-          }),
-        );
-        return { content: [{ type: "text" as const, text: result.content }], ...(result.isError && { isError: true }) };
-      },
-    }));
+    name: spec.name,
+    description: spec.description,
+    inputSchema: z.fromJSONSchema(spec.inputSchema as Parameters<typeof z.fromJSONSchema>[0]) as never,
+    handler: async (args: Record<string, unknown>, extra: unknown) => {
+      const meta = (extra as { _meta?: Record<string, unknown> } | undefined)?._meta;
+
+      const fromMeta =
+        typeof meta?.["claudecode/toolUseId"] === "string" ? (meta["claudecode/toolUseId"] as string) : undefined;
+
+      const useId = fromMeta ?? options.toolUseId(spec.name, args) ?? crypto.randomUUID();
+
+      const result = await options.callTool(
+        create(AgentToolCallSchema, {
+          callId: toolCallId(options.threadId, useId),
+          threadId: options.threadId,
+          turnId: options.turnId(),
+          itemId: useId,
+          toolName: spec.name,
+          argumentsJson: JSON.stringify(args),
+        }),
+      );
+
+      return { content: [{ type: "text" as const, text: result.content }], ...(result.isError && { isError: true }) };
+    },
+  }));
 }

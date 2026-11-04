@@ -29,24 +29,30 @@ export class IncrementalHighlight {
   /** Drops the highlighted lines from the first one that differs from `source`; true when any were dropped. */
   retain(source: readonly string[]): boolean {
     let same = 0;
+
     while (same < this.lines.length && same < source.length && this.lines[same]?.text === source[same]) same++;
+
     if (same === this.lines.length) return false;
     this.lines.length = same;
     this.#states.length = same;
+
     return true;
   }
 
   /** Highlights the next lines of `source` while `more()` allows (at least one); true when all of them are. */
   advance(source: readonly string[], tokenize: LineTokenizer, more: () => boolean = () => true): boolean {
     this.retain(source);
+
     while (this.lines.length < source.length) {
       const index = this.lines.length;
       const text = source[index] ?? "";
       const { tokens, state } = tokenize(text, this.#states[index - 1]);
       this.lines.push({ text, tokens });
       this.#states.push(state);
+
       if (!more()) break;
     }
+
     return this.lines.length === source.length;
   }
 }

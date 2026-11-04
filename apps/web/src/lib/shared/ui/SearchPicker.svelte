@@ -59,7 +59,15 @@
   let query = $state("");
 </script>
 
-<Popover bind:open {label} {placement} sheet onclose={() => (query = "")} class={["w-[min(22rem,calc(100vw-1rem))]", className]} {trigger}>
+<Popover
+  bind:open
+  {label}
+  {placement}
+  sheet
+  onclose={() => (query = "")}
+  class={["w-[min(22rem,calc(100vw-1rem))]", className]}
+  {trigger}
+>
   <div class="flex max-h-[min(24rem,var(--float-available-height,24rem))] flex-col in-data-sheet:max-h-[70dvh]">
     <Combobox
       inline
@@ -81,8 +89,14 @@
       {empty}
     />
     {#if link}
-      <div class="flex shrink-0 border-t border-zinc-950/5 py-1.5 pr-1.5 pl-3 text-sm/5 sm:text-xs/4 dark:border-white/8">
-        <a href={link.href} class="min-w-0 flex-1 truncate py-1 font-medium text-zinc-700 focus-ring hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white">{link.label}</a>
+      <div
+        class="flex shrink-0 border-t border-zinc-950/5 py-1.5 pr-1.5 pl-3 text-sm/5 sm:text-xs/4 dark:border-white/8"
+      >
+        <a
+          href={link.href}
+          class="min-w-0 flex-1 truncate py-1 font-medium text-zinc-700 focus-ring hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white"
+          >{link.label}</a
+        >
       </div>
     {/if}
   </div>

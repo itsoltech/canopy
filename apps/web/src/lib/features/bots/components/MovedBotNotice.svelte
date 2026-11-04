@@ -14,7 +14,11 @@
 {#if bot.movedFromName && bot.reconnect.length}
   <div class={className}>
     <Alert tone="info" title={`Moved from ${bot.movedFromName}`}>
-      <p class="text-pretty">Connect these again on this computer so {bot.configuration?.name || "the bot"} can use them: {bot.reconnect.join(", ")}.</p>
+      <p class="text-pretty">
+        Connect these again on this computer so {bot.configuration?.name || "the bot"} can use them: {bot.reconnect.join(
+          ", ",
+        )}.
+      </p>
       <ButtonLink size="sm" href="/settings/connectors">Open connectors</ButtonLink>
     </Alert>
   </div>

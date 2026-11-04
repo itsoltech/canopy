@@ -8,7 +8,9 @@ import { applyWorkerConfig, systemProbe, type DeviceProbe } from "./remote.ts";
 
 const base = tempDir("canopy-remote-config-");
 const repo = join(base, "repo");
+
 mkdirSync(join(repo, "sub"), { recursive: true });
+
 symlinkSync(repo, join(base, "link"));
 
 /** Real filesystem, fake CLIs: claude 2.3.1 and codex 0.164.0 installed. */
@@ -19,6 +21,7 @@ const probe: DeviceProbe = {
 };
 
 type ConfigInit = MessageInitShape<typeof WorkerConfigSchema>;
+
 const config = (init: Omit<ConfigInit, "version"> = {}) =>
   create(WorkerConfigSchema, {
     version: 7n,
@@ -32,17 +35,29 @@ describe("applyWorkerConfig", () => {
   test("applies a valid configuration and reports providers and profiles without secrets", () => {
     const result = applyWorkerConfig(
       config({
-        profiles: [{ id: "proxy", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:8317", apiKey: "sk-secret" }],
+        profiles: [
+          { id: "proxy", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:8317", apiKey: "sk-secret" },
+        ],
         limits: { maxRunningTurns: 2 },
         nativeTools: { subagents: true },
       }),
       probe,
     );
+
     if (!result.applied) throw new Error("expected applied");
-    expect(result.config.claude).toEqual({ enabled: true, linkDeviceLogin: true, executable: "/usr/bin/claude", version: "2.3.1" });
+    expect(result.config.claude).toEqual({
+      enabled: true,
+      linkDeviceLogin: true,
+      executable: "/usr/bin/claude",
+      version: "2.3.1",
+    });
     expect(result.config.limits.maxRunningTurns).toBe(2);
     expect(result.config.limits.drainTimeoutSeconds).toBe(600); // default when unset
-    expect(result.config.nativeTools).toEqual({ nativeSubagents: true, nativeScheduling: false, nativeConnectors: false });
+    expect(result.config.nativeTools).toEqual({
+      nativeSubagents: true,
+      nativeScheduling: false,
+      nativeConnectors: false,
+    });
     expect(result.report.version).toBe(7n);
     expect(result.report.issues).toEqual([]);
     expect(result.report.providers?.map((p) => [p.provider, p.available, p.version])).toEqual([
@@ -54,7 +69,11 @@ describe("applyWorkerConfig", () => {
   });
 
   test("legacy allowedRoots are ignored even when relative, missing or symlinked", () => {
-    const result = applyWorkerConfig(config({ allowedRoots: ["relative/path", join(base, "missing"), join(base, "link"), repo] }), probe);
+    const result = applyWorkerConfig(
+      config({ allowedRoots: ["relative/path", join(base, "missing"), join(base, "link"), repo] }),
+      probe,
+    );
+
     if (!result.applied) throw new Error("expected applied");
     expect(result.report.issues).toEqual([]);
   });
@@ -64,8 +83,13 @@ describe("applyWorkerConfig", () => {
       config({ codex: { enabled: true, requiredVersion: "0.170.0" }, claude: { enabled: true, executablePath: "" } }),
       { ...probe, which: (c) => (c === "codex" ? "/usr/bin/codex" : null) },
     );
+
     if (!result.applied) throw new Error("expected applied");
-    expect(result.config.claude).toEqual({ enabled: false, linkDeviceLogin: true, problem: "Claude Code is not installed on this computer" });
+    expect(result.config.claude).toEqual({
+      enabled: false,
+      linkDeviceLogin: true,
+      problem: "Claude Code is not installed on this computer",
+    });
     expect(result.config.codex.enabled).toBe(false);
     expect(result.config.codex.problem).toBe("codex 0.164.0 found, 0.170.0 required");
   });
@@ -78,14 +102,37 @@ describe("applyWorkerConfig", () => {
   });
 
   test("a configured Claude instance works without a default CLI while other instances report it missing", () => {
-    const result = applyWorkerConfig(config({ profiles: [{ id: "custom", kind: ProviderProfileKind.CLIPROXYAPI, providers: [Provider.CLAUDE], baseUrl: "http://127.0.0.1:8317", apiKey: "test", executablePath: "/opt/custom/claude" }] }), {
-      ...probe, which: () => null, version: (path) => path === "/opt/custom/claude" ? "2.3.1 (Claude Code)" : undefined,
-    });
+    const result = applyWorkerConfig(
+      config({
+        profiles: [
+          {
+            id: "custom",
+            kind: ProviderProfileKind.CLIPROXYAPI,
+            providers: [Provider.CLAUDE],
+            baseUrl: "http://127.0.0.1:8317",
+            apiKey: "test",
+            executablePath: "/opt/custom/claude",
+          },
+        ],
+      }),
+      {
+        ...probe,
+        which: () => null,
+        version: (path) => (path === "/opt/custom/claude" ? "2.3.1 (Claude Code)" : undefined),
+      },
+    );
+
     if (!result.applied) throw new Error("expected applied");
     expect(result.config.claude.enabled).toBe(true);
     expect(result.config.claude.executable).toBeUndefined();
-    expect(result.config.profiles.find((status) => status.config.id === "custom")?.resolved?.runtime?.executablePath).toBe("/opt/custom/claude");
-    expect(result.config.profiles.find((status) => status.config.id === "native" && status.config.providers?.includes("claude"))?.problem).toBe("Claude Code is not installed on this computer");
+    expect(
+      result.config.profiles.find((status) => status.config.id === "custom")?.resolved?.runtime?.executablePath,
+    ).toBe("/opt/custom/claude");
+    expect(
+      result.config.profiles.find(
+        (status) => status.config.id === "native" && status.config.providers?.includes("claude"),
+      )?.problem,
+    ).toBe("Claude Code is not installed on this computer");
   });
 
   test("invalid profiles are fatal: the worker keeps its previous configuration", () => {
@@ -101,8 +148,12 @@ describe("applyWorkerConfig", () => {
       config({ profiles: [{ id: "p", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:8317" }] }),
       probe,
     );
+
     expect(result.applied).toBe(true);
-    expect(result.report.profiles?.find((p) => p.id === "p")).toMatchObject({ available: false, detail: "api_key is not set" });
+    expect(result.report.profiles?.find((p) => p.id === "p")).toMatchObject({
+      available: false,
+      detail: "api_key is not set",
+    });
   });
 
   test("a profile for both harnesses is an instance per harness: Claude turned off leaves its Codex side usable", () => {
@@ -110,19 +161,27 @@ describe("applyWorkerConfig", () => {
       config({
         claude: { enabled: false },
         codex: { enabled: true, deviceLogin: DeviceLogin.NONE },
-        profiles: [{ id: "proxy", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:8317", apiKey: "k" }],
+        profiles: [
+          { id: "proxy", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:8317", apiKey: "k" },
+        ],
       }),
       probe,
     );
+
     if (!result.applied) throw new Error("expected applied");
-    expect(result.report.profiles?.filter((p) => p.id === "proxy").map((p) => [p.providers, p.available, p.detail])).toEqual([
+    expect(
+      result.report.profiles?.filter((p) => p.id === "proxy").map((p) => [p.providers, p.available, p.detail]),
+    ).toEqual([
       [[Provider.CLAUDE], false, "disabled in configuration"],
       [[Provider.CODEX], true, ""],
     ]);
-    const codex = result.config.profiles.find((s) => s.config.id === "proxy" && s.resolved?.providers.includes("codex"));
+
+    const codex = result.config.profiles.find(
+      (s) => s.config.id === "proxy" && s.resolved?.providers.includes("codex"),
+    );
+
     expect(codex?.resolved?.providers).toEqual(["codex"]);
   });
-
 });
 
 describe("applyWorkerConfig: custom profiles", () => {
@@ -130,13 +189,24 @@ describe("applyWorkerConfig: custom profiles", () => {
     const result = applyWorkerConfig(
       config({
         profiles: [
-          { id: "team", kind: ProviderProfileKind.CLIPROXYAPI, baseUrl: "http://127.0.0.1:8317", apiKey: "k", displayName: "Team", env: [{ name: "PROBE", value: "1" }, { name: "TOKEN", value: "hidden-value", secret: true }] },
+          {
+            id: "team",
+            kind: ProviderProfileKind.CLIPROXYAPI,
+            baseUrl: "http://127.0.0.1:8317",
+            apiKey: "k",
+            displayName: "Team",
+            env: [
+              { name: "PROBE", value: "1" },
+              { name: "TOKEN", value: "hidden-value", secret: true },
+            ],
+          },
           { id: "off", kind: ProviderProfileKind.NATIVE, disabled: true },
           { id: "bad", kind: ProviderProfileKind.NATIVE, env: [{ name: "PATH", value: "/evil-path" }] },
         ],
       }),
       probe,
     );
+
     if (!result.applied) throw new Error("expected applied");
     const byId = new Map(result.config.profiles.map((p) => [p.config.id, p]));
     expect(byId.get("team")?.resolved?.env).toEqual({ PROBE: "1", TOKEN: "hidden-value" });
@@ -144,7 +214,11 @@ describe("applyWorkerConfig: custom profiles", () => {
     expect(byId.get("bad")?.resolved).toBeUndefined();
     expect(result.report.issues?.map((i) => i.path)).toEqual(["profiles[bad]"]);
     expect(result.report.profiles?.find((p) => p.id === "team")?.displayName).toBe("Team");
-    expect(JSON.stringify(result.report, (_k, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain("hidden-value");
-    expect(JSON.stringify(result.report, (_k, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain("/evil-path");
+    expect(JSON.stringify(result.report, (_k, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain(
+      "hidden-value",
+    );
+    expect(JSON.stringify(result.report, (_k, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain(
+      "/evil-path",
+    );
   });
 });

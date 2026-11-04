@@ -12,7 +12,13 @@
     currentId,
     class: className,
     ...handlers
-  }: { conversations: readonly ConversationView[]; hrefOf: (conversation: ConversationView) => string; currentId?: string | undefined; class?: ClassValue } & ConversationHandlers = $props();
+  }: {
+    conversations: readonly ConversationView[];
+    hrefOf: (conversation: ConversationView) => string;
+    currentId?: string | undefined;
+    class?: ClassValue;
+  } & ConversationHandlers = $props();
+
   const id = $props.id();
 </script>
 
@@ -22,7 +28,14 @@
   <ul role="list" class="grid grid-cols-[repeat(auto-fill,minmax(5rem,1fr))] gap-1">
     {#each conversations as conversation (conversation.id)}
       <li class="min-w-0">
-        <PinnedTile {conversation} href={hrefOf(conversation)} current={conversation.id === currentId} hint="{id}-hint" class="w-full" {...handlers} />
+        <PinnedTile
+          {conversation}
+          href={hrefOf(conversation)}
+          current={conversation.id === currentId}
+          hint="{id}-hint"
+          class="w-full"
+          {...handlers}
+        />
       </li>
     {/each}
   </ul>

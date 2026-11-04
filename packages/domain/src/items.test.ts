@@ -1,34 +1,40 @@
 import { describe, expect, test } from "bun:test";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import {
-  ItemDeltaField,
-  ItemStatus,
-  ThreadEventSchema,
-  type Item,
-  type ThreadEvent,
-} from "@canopy/contracts";
+import { ItemDeltaField, ItemStatus, ThreadEventSchema, type Item, type ThreadEvent } from "@canopy/contracts";
 import { eventItemId, eventKind, itemStatus, itemType, reduceItem } from "./items.ts";
 
 type Body = NonNullable<MessageInitShape<typeof ThreadEventSchema>["body"]>;
+
 const event = (body: Body): ThreadEvent => create(ThreadEventSchema, { threadId: "t", eventId: "e", body });
 
 /** Folds events into the item map, like the gateway projection does. */
 function project(bodies: Body[]): Map<string, Item> {
   const items = new Map<string, Item>();
+
   for (const body of bodies) {
     const e = event(body);
     const id = eventItemId(e.body);
+
     if (!id) continue;
     const next = reduceItem(items.get(id), e.body);
+
     if (next) items.set(id, next);
   }
+
   return items;
 }
 
 const commandStarted: Body = {
   case: "itemStarted",
-  value: { item: { itemId: "c1", status: ItemStatus.IN_PROGRESS, content: { case: "commandExecution", value: { command: "bun test" } } } },
+  value: {
+    item: {
+      itemId: "c1",
+      status: ItemStatus.IN_PROGRESS,
+      content: { case: "commandExecution", value: { command: "bun test" } },
+    },
+  },
 };
+
 const outputDelta = (chunk: string): Body => ({
   case: "itemDelta",
   value: { itemId: "c1", field: ItemDeltaField.OUTPUT, chunk },
@@ -46,11 +52,15 @@ describe("reduceItem", () => {
           item: {
             itemId: "c1",
             status: ItemStatus.COMPLETED,
-            content: { case: "commandExecution", value: { command: "bun test", exitCode: 0, output: "1 pass\n0 fail\n" } },
+            content: {
+              case: "commandExecution",
+              value: { command: "bun test", exitCode: 0, output: "1 pass\n0 fail\n" },
+            },
           },
         },
       },
     ]);
+
     const item = items.get("c1")!;
     expect(itemType(item)).toBe("command_execution");
     expect(itemStatus(item)).toBe("completed");
@@ -66,9 +76,16 @@ describe("reduceItem", () => {
       outputDelta("streamed output"),
       {
         case: "itemCompleted",
-        value: { item: { itemId: "c1", status: ItemStatus.FAILED, content: { case: "commandExecution", value: { exitCode: 1 } } } },
+        value: {
+          item: {
+            itemId: "c1",
+            status: ItemStatus.FAILED,
+            content: { case: "commandExecution", value: { exitCode: 1 } },
+          },
+        },
       },
     ]);
+
     const item = items.get("c1")!;
     expect(item.status).toBe(ItemStatus.FAILED);
     expect(item.content.case === "commandExecution" && item.content.value.output).toBe("streamed output");
@@ -77,8 +94,15 @@ describe("reduceItem", () => {
   test("late deltas and a late started do not change a finished item", () => {
     const completed: Body = {
       case: "itemCompleted",
-      value: { item: { itemId: "c1", status: ItemStatus.COMPLETED, content: { case: "commandExecution", value: { output: "final" } } } },
+      value: {
+        item: {
+          itemId: "c1",
+          status: ItemStatus.COMPLETED,
+          content: { case: "commandExecution", value: { output: "final" } },
+        },
+      },
     };
+
     const items = project([completed, outputDelta("late"), commandStarted]);
     const item = items.get("c1")!;
     expect(item.status).toBe(ItemStatus.COMPLETED);
@@ -87,32 +111,64 @@ describe("reduceItem", () => {
 
   test("text and summary deltas go to the matching fields only", () => {
     const items = project([
-      { case: "itemStarted", value: { item: { itemId: "r1", status: ItemStatus.IN_PROGRESS, content: { case: "reasoning", value: {} } } } },
+      {
+        case: "itemStarted",
+        value: { item: { itemId: "r1", status: ItemStatus.IN_PROGRESS, content: { case: "reasoning", value: {} } } },
+      },
       { case: "itemDelta", value: { itemId: "r1", field: ItemDeltaField.TEXT, chunk: "think " } },
       { case: "itemDelta", value: { itemId: "r1", field: ItemDeltaField.SUMMARY, chunk: "sum" } },
       // OUTPUT does not apply to reasoning and is ignored by the projection (still kept in thread_events).
       { case: "itemDelta", value: { itemId: "r1", field: ItemDeltaField.OUTPUT, chunk: "x" } },
       { case: "itemDelta", value: { itemId: "r1", field: ItemDeltaField.TEXT, chunk: "more" } },
     ]);
+
     const item = items.get("r1")!;
-    expect(item.content.case === "reasoning" && item.content.value).toMatchObject({ text: "think more", summary: "sum" });
+    expect(item.content.case === "reasoning" && item.content.value).toMatchObject({
+      text: "think more",
+      summary: "sum",
+    });
   });
 
   test("subagent items keep their parent; unknown provider items are kept whole", () => {
     const items = project([
-      { case: "itemStarted", value: { item: { itemId: "task", status: ItemStatus.IN_PROGRESS, content: { case: "subagent", value: { agentType: "explore" } } } } },
       {
-        case: "itemCompleted",
-        value: { item: { itemId: "read-1", parentItemId: "task", status: ItemStatus.COMPLETED, content: { case: "toolCall", value: { name: "Read" } } } },
+        case: "itemStarted",
+        value: {
+          item: {
+            itemId: "task",
+            status: ItemStatus.IN_PROGRESS,
+            content: { case: "subagent", value: { agentType: "explore" } },
+          },
+        },
       },
       {
         case: "itemCompleted",
-        value: { item: { itemId: "x", status: ItemStatus.COMPLETED, content: { case: "providerItem", value: { type: "sleep", json: '{"ms":10}' } } } },
+        value: {
+          item: {
+            itemId: "read-1",
+            parentItemId: "task",
+            status: ItemStatus.COMPLETED,
+            content: { case: "toolCall", value: { name: "Read" } },
+          },
+        },
+      },
+      {
+        case: "itemCompleted",
+        value: {
+          item: {
+            itemId: "x",
+            status: ItemStatus.COMPLETED,
+            content: { case: "providerItem", value: { type: "sleep", json: '{"ms":10}' } },
+          },
+        },
       },
     ]);
+
     expect(items.get("read-1")?.parentItemId).toBe("task");
     expect(itemType(items.get("x")!)).toBe("provider_item");
-    expect(items.get("x")?.content.case === "providerItem" && items.get("x")?.content.value).toMatchObject({ type: "sleep" });
+    expect(items.get("x")?.content.case === "providerItem" && items.get("x")?.content.value).toMatchObject({
+      type: "sleep",
+    });
   });
 
   test("event kinds for thread_events.kind", () => {

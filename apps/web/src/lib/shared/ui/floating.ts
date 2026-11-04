@@ -10,6 +10,7 @@
  */
 
 export type Side = "top" | "bottom" | "left" | "right";
+
 export type Placement = Side | `${Side}-start` | `${Side}-end`;
 
 export interface PositionOptions {
@@ -32,6 +33,7 @@ const opposite: Record<Side, Side> = { top: "bottom", bottom: "top", left: "righ
 
 function split(placement: Placement): [Side, "start" | "center" | "end"] {
   const [side, align] = placement.split("-") as [Side, "start" | "end" | undefined];
+
   return [side, align ?? "center"];
 }
 
@@ -45,31 +47,49 @@ export function computePosition(
   const [preferred, align] = split(placement);
   const safeTop = viewport.top ?? 0;
   const top = safeTop + padding;
+
   const room: Record<Side, number> = {
     top: anchor.top - offset - top,
     bottom: viewport.height - (safeTop > 0 ? Math.max(anchor.bottom + offset, top) : anchor.bottom + offset) - padding,
     left: anchor.left - offset - padding,
     right: viewport.width - anchor.right - offset - padding,
   };
+
   const vertical = preferred === "top" || preferred === "bottom";
   const needed = vertical ? size.height : size.width;
+
   // Flip when the preferred side is too small and the other side has more room.
-  const side = room[preferred] < needed && room[opposite[preferred]] > room[preferred] ? opposite[preferred] : preferred;
+  const side =
+    room[preferred] < needed && room[opposite[preferred]] > room[preferred] ? opposite[preferred] : preferred;
 
   let x: number;
   let y: number;
+
   if (vertical) {
     y = side === "bottom" ? anchor.bottom + offset : anchor.top - offset - Math.min(size.height, room.top);
+
     // Keep zero-safe-area placement identical, including anchors scrolled beyond the viewport.
     if (safeTop > 0) y = Math.max(top, y);
-    x = align === "start" ? anchor.left : align === "end" ? anchor.right - size.width : anchor.left + (anchor.width - size.width) / 2;
+    x =
+      align === "start"
+        ? anchor.left
+        : align === "end"
+          ? anchor.right - size.width
+          : anchor.left + (anchor.width - size.width) / 2;
     x = clamp(x, padding, viewport.width - size.width - padding);
   } else {
     x = side === "right" ? anchor.right + offset : anchor.left - offset - size.width;
-    y = align === "start" ? anchor.top : align === "end" ? anchor.bottom - size.height : anchor.top + (anchor.height - size.height) / 2;
+    y =
+      align === "start"
+        ? anchor.top
+        : align === "end"
+          ? anchor.bottom - size.height
+          : anchor.top + (anchor.height - size.height) / 2;
     y = clamp(y, top, viewport.height - size.height - padding);
   }
+
   const availableHeight = vertical ? Math.max(room[side], 0) : viewport.height - top - padding;
+
   return { x: Math.round(x), y: Math.round(y), side, availableHeight: Math.floor(availableHeight) };
 }
 
@@ -87,6 +107,7 @@ export function positionNow(anchor: Element, floating: HTMLElement, options?: Po
     },
     options,
   );
+
   floating.style.setProperty("--float-x", `${position.x}px`);
   floating.style.setProperty("--float-y", `${position.y}px`);
   floating.style.setProperty("--float-available-height", `${position.availableHeight}px`);
@@ -94,15 +115,18 @@ export function positionNow(anchor: Element, floating: HTMLElement, options?: Po
   floating.style.setProperty("--float-anchor-width", `${box.width}px`);
   floating.style.setProperty("--float-origin", transformOrigin(position, box, floating));
   floating.dataset.side = position.side;
+
   return position;
 }
 
 /** Where the floating element grows from: the edge facing the anchor, at the anchor's centre. */
 function transformOrigin(position: Position, anchor: DOMRect, floating: HTMLElement): string {
   const across = (from: number, size: number, center: number) => `${Math.round(clamp(center - from, 0, size))}px`;
+
   if (position.side === "top" || position.side === "bottom") {
     return `${across(position.x, floating.offsetWidth, anchor.left + anchor.width / 2)} ${position.side === "bottom" ? "top" : "bottom"}`;
   }
+
   return `${position.side === "right" ? "left" : "right"} ${across(position.y, floating.offsetHeight, anchor.top + anchor.height / 2)}`;
 }
 
@@ -112,19 +136,25 @@ function transformOrigin(position: Position, anchor: DOMRect, floating: HTMLElem
  */
 export function autoPosition(anchor: Element, floating: HTMLElement, options?: PositionOptions): () => void {
   let frame = 0;
+
   const update = () => {
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => positionNow(anchor, floating, options));
   };
+
   positionNow(anchor, floating, options);
   const observer = new ResizeObserver(update);
   observer.observe(anchor);
   observer.observe(floating);
   // Fullscreen/bridge zoom can change the safe area while a menu stays open.
   const windowState = new MutationObserver(update);
-  windowState.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "data-window-fullscreen", "data-canopy-platform"] });
+  windowState.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["style", "data-window-fullscreen", "data-canopy-platform"],
+  });
   window.addEventListener("scroll", update, { capture: true, passive: true });
   window.addEventListener("resize", update, { passive: true });
+
   return () => {
     cancelAnimationFrame(frame);
     observer.disconnect();

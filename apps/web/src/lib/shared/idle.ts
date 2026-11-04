@@ -5,8 +5,11 @@
 export function whenIdle(task: () => void, timeout: number): () => void {
   if (typeof requestIdleCallback === "function") {
     const id = requestIdleCallback(task, { timeout });
+
     return () => cancelIdleCallback(id);
   }
+
   const timer = setTimeout(task, Math.min(timeout, 1000));
+
   return () => clearTimeout(timer);
 }

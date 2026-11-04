@@ -8,8 +8,10 @@ const base = tempDir("canopy-codex-home-test-");
 
 function device(withLogin: boolean): string {
   const dir = mkdtempSync(join(base, "device-"));
+
   if (withLogin) writeFileSync(join(dir, "auth.json"), '{"tokens":{}}');
   mkdirSync(join(dir, "plugins"), { recursive: true }); // must never reach the worker home
+
   return dir;
 }
 
@@ -27,7 +29,12 @@ describe("prepareCodexHome", () => {
   });
 
   test("no device login: home still prepared, problem reported", () => {
-    const home = prepareCodexHome({ dataDir: mkdtempSync(join(base, "data-")), linkDeviceLogin: true, deviceCodexHome: device(false) });
+    const home = prepareCodexHome({
+      dataDir: mkdtempSync(join(base, "data-")),
+      linkDeviceLogin: true,
+      deviceCodexHome: device(false),
+    });
+
     expect(home.login).toBe("none");
     expect(home.problem).toContain("codex login");
   });

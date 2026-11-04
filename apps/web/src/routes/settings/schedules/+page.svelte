@@ -21,14 +21,20 @@
 
   let schedules = $state.raw(untrack(() => decode(ui.ListSchedulesResponseSchema, data.schedules).schedules));
   const upsert = (schedule: ui.Schedule) => (schedules = upsertSchedule(schedules, schedule));
+
   $effect(() =>
     overview.subscribe((update) => {
       if (update.change.case === "schedule") upsert(update.change.value);
     }),
   );
+
   $effect(() => {
     // After a gap in the stream: what changed meanwhile.
-    if (overview.resyncs > 0) void listSchedules({ includeFinished: true }).then((list) => (schedules = list), () => undefined);
+    if (overview.resyncs > 0)
+      void listSchedules({ includeFinished: true }).then(
+        (list) => (schedules = list),
+        () => undefined,
+      );
   });
 
   let view = $state<"upcoming" | "finished">("upcoming");
@@ -38,6 +44,7 @@
 
   let creating = $state(false);
   const threads = $derived([...overview.threads.values()].sort((a, b) => a.title.localeCompare(b.title)));
+
   const tab =
     "flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-base/6 font-medium text-zinc-600 has-checked:bg-white has-checked:text-zinc-950 has-checked:shadow-xs has-checked:ring-1 has-checked:ring-zinc-950/10 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 pointer-coarse:min-h-12 sm:py-1 sm:text-sm/6 dark:text-zinc-400 dark:has-checked:bg-white/10 dark:has-checked:text-white dark:has-checked:shadow-none dark:has-checked:ring-white/10";
 </script>
@@ -48,17 +55,23 @@
   <div class="flex flex-wrap items-end justify-between gap-4 px-1">
     <div class="min-w-0">
       <h2 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Scheduled tasks</h2>
-      <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Messages that start a turn on their own at a set time. You and your agents create them.</p>
+      <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+        Messages that start a turn on their own at a set time. You and your agents create them.
+      </p>
     </div>
     <Button variant="primary" size="sm" icon="plus" onclick={() => (creating = true)}>New task</Button>
   </div>
 
   <div role="radiogroup" aria-label="Show" class="flex w-fit gap-0.5 rounded-lg bg-zinc-950/5 p-0.5 dark:bg-white/5">
     <label class={tab}>
-      <input type="radio" name="view" value="upcoming" class="sr-only" bind:group={view} />Upcoming<span class="text-zinc-500 tabular-nums dark:text-zinc-400">{upcoming.length}</span>
+      <input type="radio" name="view" value="upcoming" class="sr-only" bind:group={view} />Upcoming<span
+        class="text-zinc-500 tabular-nums dark:text-zinc-400">{upcoming.length}</span
+      >
     </label>
     <label class={tab}>
-      <input type="radio" name="view" value="finished" class="sr-only" bind:group={view} />Finished<span class="text-zinc-500 tabular-nums dark:text-zinc-400">{finished.length}</span>
+      <input type="radio" name="view" value="finished" class="sr-only" bind:group={view} />Finished<span
+        class="text-zinc-500 tabular-nums dark:text-zinc-400">{finished.length}</span
+      >
     </label>
   </div>
 

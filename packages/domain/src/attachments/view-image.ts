@@ -12,7 +12,8 @@ export const VIEW_IMAGE_TOOL = "view_image";
 
 export const ViewImage = Schema.Struct({
   path: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(4096)).annotate({
-    description: "Absolute path of the image (or relative to the thread's working directory), e.g. an attachment path from the user's message.",
+    description:
+      "Absolute path of the image (or relative to the thread's working directory), e.g. an attachment path from the user's message.",
   }),
 });
 
@@ -25,11 +26,17 @@ export const VIEW_IMAGE_DESCRIPTION =
 
 export function viewImageSpec(): ToolJsonSpec {
   const document = Schema.toJsonSchemaDocument(ViewImage, { onExcessProperty: "error" });
-  return { name: VIEW_IMAGE_TOOL, description: VIEW_IMAGE_DESCRIPTION, inputSchema: document.schema as Record<string, unknown> };
+
+  return {
+    name: VIEW_IMAGE_TOOL,
+    description: VIEW_IMAGE_DESCRIPTION,
+    inputSchema: document.schema as Record<string, unknown>,
+  };
 }
 
 export function decodeViewImage(argumentsJson: string | unknown): Result.Result<ViewImageArgs, string> {
   let raw: unknown = argumentsJson;
+
   if (typeof argumentsJson === "string") {
     try {
       raw = argumentsJson.trim() === "" ? {} : JSON.parse(argumentsJson);
@@ -37,6 +44,10 @@ export function decodeViewImage(argumentsJson: string | unknown): Result.Result<
       return Result.fail(`${VIEW_IMAGE_TOOL}: arguments are not valid JSON`);
     }
   }
+
   const decoded = Schema.decodeUnknownResult(ViewImage)(raw, { onExcessProperty: "error" });
-  return Result.isSuccess(decoded) ? Result.succeed(decoded.success) : Result.fail(`${VIEW_IMAGE_TOOL}: ${decoded.failure.message}`);
+
+  return Result.isSuccess(decoded)
+    ? Result.succeed(decoded.success)
+    : Result.fail(`${VIEW_IMAGE_TOOL}: ${decoded.failure.message}`);
 }

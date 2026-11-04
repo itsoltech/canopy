@@ -30,26 +30,35 @@ class FakeStore {
   }
 }
 
-const delta = (chunk: string) => ({ turnId: "turn-1", body: { case: "itemDelta" as const, value: { itemId: "m", field: ItemDeltaField.TEXT, chunk } } });
+const delta = (chunk: string) => ({
+  turnId: "turn-1",
+  body: { case: "itemDelta" as const, value: { itemId: "m", field: ItemDeltaField.TEXT, chunk } },
+});
 
 async function connect(runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>, url: string): Promise<GatewayLink> {
   const hello = await runtime.runPromise(journalHello());
   const link = await connectWorker(url, { hello: { workerId: "worker-1", ...hello } });
   await runtime.runPromise(resendPending(link));
+
   return link;
 }
 
 describe("durable delivery from the worker journal", () => {
   test("offline events are delivered, partial acks survive reconnect, resends are deduplicated", async () => {
     const store = new FakeStore();
+
     const gateway = await startGateway({
       link: {
         welcome: async (_workerId, hello) => ({
           heartbeatIntervalSeconds: 15,
-          persisted: [...(store.cursors.get(hello.journalId) ?? new Map())].map(([threadId, lastSeq]) => ({ threadId, lastSeq })),
+          persisted: [...(store.cursors.get(hello.journalId) ?? new Map())].map(([threadId, lastSeq]) => ({
+            threadId,
+            lastSeq,
+          })),
         }),
       },
     });
+
     const runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
     const journalId = await runtime.runPromise(Effect.map(Journal, (j) => j.journalId));
 
@@ -57,7 +66,9 @@ describe("durable delivery from the worker journal", () => {
     await runtime.runPromise(
       Effect.gen(function* () {
         const journal = yield* Journal;
+
         for (const chunk of ["a", "b", "c"]) yield* journal.append("t1", delta(chunk));
+
         for (const chunk of ["x", "y"]) yield* journal.append("t2", delta(chunk));
       }),
     );
@@ -66,21 +77,22 @@ describe("durable delivery from the worker journal", () => {
     let link = await connect(runtime, gateway.server.url);
     let connection = await gateway.nextConnection();
     const first = await take(connection.messages, 5);
+
     for (const m of first) if (m.payload.case === "threadEvent") store.persist(journalId, m.payload.value);
     store.commit(journalId, "t1", 2n);
     store.commit(journalId, "t2", 2n);
     connection.send({ case: "eventAck", value: { threadId: "t1", ackSeq: 2n } });
     connection.send({ case: "eventAck", value: { threadId: "t2", ackSeq: 2n } });
+
     for (const m of await take(link.messages, 2)) {
       if (m.payload.case === "eventAck") await runtime.runPromise(applyAck(m.payload.value));
     }
-    expect(first.map((m) => (m.payload.case === "threadEvent" ? `${m.payload.value.threadId}:${m.payload.value.journalSeq}` : "?"))).toEqual([
-      "t1:1",
-      "t1:2",
-      "t1:3",
-      "t2:1",
-      "t2:2",
-    ]);
+
+    expect(
+      first.map((m) =>
+        m.payload.case === "threadEvent" ? `${m.payload.value.threadId}:${m.payload.value.journalSeq}` : "?",
+      ),
+    ).toEqual(["t1:1", "t1:2", "t1:3", "t2:1", "t2:2"]);
     link.close();
     await connection.closed;
 
@@ -90,6 +102,7 @@ describe("durable delivery from the worker journal", () => {
     link = await connect(runtime, gateway.server.url);
     connection = await gateway.nextConnection();
     const [resent] = await take(connection.messages, 1);
+
     if (resent?.payload.case !== "threadEvent") throw new Error("expected a resent event");
     expect(resent.payload.value.journalSeq).toBe(3n);
     store.persist(journalId, resent.payload.value);
@@ -106,8 +119,10 @@ describe("durable delivery from the worker journal", () => {
   test("a reinstalled worker starts a new journal: old cursors do not apply", async () => {
     const id = (path: string) => {
       const runtime = ManagedRuntime.make(Journal.layer(path));
+
       return runtime.runPromise(Effect.map(Journal, (j) => j.journalId)).finally(() => runtime.dispose());
     };
+
     expect(await id(join(dir, "a.db"))).not.toBe(await id(join(dir, "b.db")));
   });
 });

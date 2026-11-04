@@ -22,25 +22,39 @@ export class ActionContext {
 
   defer(action: () => void | Promise<void>): boolean {
     const scope = this.#scope.getStore();
+
     if (!scope) return false;
     scope.after.push(action);
+
     return true;
   }
 
   async action<A>(turn: BotTurn, call: StoredCall, perform: () => Promise<A>): Promise<A> {
     const after: Scope["after"] = [];
     const scope = this.#scope;
-    const result = await this.runtime.runPromise(BotStore.use((bots) => bots.action(turn, call, Effect.gen(function* () {
-      // SqlClient's transaction connection lives in the Effect context too.
-      const context = yield* Effect.context<CoreServices>();
-      return yield* Effect.tryPromise({
-        try: () => scope.run({ run: Effect.runPromiseWith(context), after }, perform),
-        catch: (error) => error,
-      });
-    }))));
+
+    const result = await this.runtime.runPromise(
+      BotStore.use((bots) =>
+        bots.action(
+          turn,
+          call,
+          Effect.gen(function* () {
+            // SqlClient's transaction connection lives in the Effect context too.
+            const context = yield* Effect.context<CoreServices>();
+
+            return yield* Effect.tryPromise({
+              try: () => scope.run({ run: Effect.runPromiseWith(context), after }, perform),
+              catch: (error) => error,
+            });
+          }),
+        ),
+      ),
+    );
+
     // A failure here cannot undo the durable result. Worker commands remain in
     // the existing outbox and recover on reconnect; inference reads the result.
     for (const notify of after) await notify();
+
     return result;
   }
 
@@ -48,14 +62,26 @@ export class ActionContext {
     if (this.#scope.getStore()) return perform();
     const after: Scope["after"] = [];
     const scope = this.#scope;
-    const result = await this.runtime.runPromise(Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      return yield* sql.withTransaction(Effect.gen(function* () {
-        const context = yield* Effect.context<CoreServices>();
-        return yield* Effect.tryPromise({ try: () => scope.run({ run: Effect.runPromiseWith(context), after }, perform), catch: (error) => error });
-      }));
-    }));
+
+    const result = await this.runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+
+        return yield* sql.withTransaction(
+          Effect.gen(function* () {
+            const context = yield* Effect.context<CoreServices>();
+
+            return yield* Effect.tryPromise({
+              try: () => scope.run({ run: Effect.runPromiseWith(context), after }, perform),
+              catch: (error) => error,
+            });
+          }),
+        );
+      }),
+    );
+
     for (const notify of after) await notify();
+
     return result;
   }
 }

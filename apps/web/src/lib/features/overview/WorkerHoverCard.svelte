@@ -19,7 +19,14 @@
 {#if worker}
   <HoverCard label="Worker {worker.name}">
     {#snippet trigger(props)}
-      <button type="button" {...props} class={["flex min-w-0 items-center gap-1.5 rounded-md focus-ring hover:text-zinc-950 dark:hover:text-white", className]}>
+      <button
+        type="button"
+        {...props}
+        class={[
+          "flex min-w-0 items-center gap-1.5 rounded-md focus-ring hover:text-zinc-950 dark:hover:text-white",
+          className,
+        ]}
+      >
         <Icon name="computer-desktop" class="size-3.5" />
         <span class="truncate">{worker.name}{worker.online ? "" : " (offline)"}</span>
       </button>
@@ -29,16 +36,27 @@
         <StatusDot tone={worker.online ? "emerald" : "neutral"} />{worker.name}
       </p>
       <p>
-        {worker.online ? "Online" : `Offline${worker.lastSeenAt ? `, seen ${formatRelative(worker.lastSeenAt, clock.now)}` : ""}`} · {osLabel(worker.os)}{worker.hostname ? ` · ${worker.hostname}` : ""}
+        {worker.online
+          ? "Online"
+          : `Offline${worker.lastSeenAt ? `, seen ${formatRelative(worker.lastSeenAt, clock.now)}` : ""}`} · {osLabel(
+          worker.os,
+        )}{worker.hostname ? ` · ${worker.hostname}` : ""}
       </p>
       <ul role="list" class="grid gap-0.5">
         {#each worker.providers as provider (provider.provider)}<li>{providerSummary(provider)}</li>{/each}
       </ul>
       {#if worker.providerInstances.some((i) => i.enabled && i.available)}
-        <p>Providers: {worker.providerInstances.filter((i) => i.enabled && i.available).map(instanceLabel).join(", ")}</p>
+        <p>
+          Providers: {worker.providerInstances
+            .filter((i) => i.enabled && i.available)
+            .map(instanceLabel)
+            .join(", ")}
+        </p>
       {/if}
     </div>
   </HoverCard>
 {:else}
-  <span class={["flex min-w-0 items-center gap-1.5", className]}><Icon name="computer-desktop" class="size-3.5" /><span class="truncate">Unknown worker</span></span>
+  <span class={["flex min-w-0 items-center gap-1.5", className]}
+    ><Icon name="computer-desktop" class="size-3.5" /><span class="truncate">Unknown worker</span></span
+  >
 {/if}

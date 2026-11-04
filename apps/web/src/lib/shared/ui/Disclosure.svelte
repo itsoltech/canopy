@@ -21,18 +21,37 @@
     summaryClass,
     summary,
     children,
-  }: { open?: boolean; remember?: string; align?: "start" | "center"; class?: ClassValue; summaryClass?: ClassValue; summary: Snippet; children: Snippet } = $props();
+  }: {
+    open?: boolean;
+    remember?: string;
+    align?: "start" | "center";
+    class?: ClassValue;
+    summaryClass?: ClassValue;
+    summary: Snippet;
+    children: Snippet;
+  } = $props();
 
   const memory = untrack(() => (remember ? useRemembered<boolean>(remember) : undefined));
   const saved = memory?.get();
+
   if (saved !== undefined) open = saved;
+
   $effect(() => memory?.set(open));
 </script>
 
 <details class={["t-acc group/disclosure", className]} bind:open>
-  <summary class={["flex cursor-pointer list-none gap-2 rounded-md focus-ring select-none", align === "center" ? "items-center" : "items-start", summaryClass]}>
+  <summary
+    class={[
+      "flex cursor-pointer list-none gap-2 rounded-md focus-ring select-none",
+      align === "center" ? "items-center" : "items-start",
+      summaryClass,
+    ]}
+  >
     <span class={["flex items-center", align === "start" && "h-lh"]}>
-      <Icon name="chevron-right" class="t-acc-chevron fill-zinc-400 group-open/disclosure:rotate-90 dark:fill-zinc-500" />
+      <Icon
+        name="chevron-right"
+        class="t-acc-chevron fill-zinc-400 group-open/disclosure:rotate-90 dark:fill-zinc-500"
+      />
     </span>
     <span class="min-w-0 flex-1">{@render summary()}</span>
   </summary>

@@ -20,16 +20,24 @@ const OtherThread = Schema.optionalKey(
 
 export const ListBackgroundTasks = Schema.Struct({
   status: Schema.optionalKey(
-    Schema.Literals(["all", "running", "finished"]).annotate({ description: "all (default), running, or finished (completed, failed, interrupted)." }),
+    Schema.Literals(["all", "running", "finished"]).annotate({
+      description: "all (default), running, or finished (completed, failed, interrupted).",
+    }),
   ),
-  limit: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 })).annotate({ description: "Newest first; default 20." })),
+  limit: Schema.optionalKey(
+    Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 })).annotate({
+      description: "Newest first; default 20.",
+    }),
+  ),
   thread_id: OtherThread,
 });
 
 export const GetBackgroundTask = Schema.Struct({
   task_id: TaskId,
   output_lines: Schema.optionalKey(
-    Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 500 })).annotate({ description: "How many of the last output lines to return (default 80)." }),
+    Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 500 })).annotate({
+      description: "How many of the last output lines to return (default 80).",
+    }),
   ),
   thread_id: OtherThread,
 });
@@ -37,7 +45,9 @@ export const GetBackgroundTask = Schema.Struct({
 export const StopBackgroundTask = Schema.Struct({
   task_id: TaskId,
   thread_id: Schema.optionalKey(
-    Schema.String.check(Schema.isUUID()).annotate({ description: "A thread you spawned whose task to stop. Default: this thread." }),
+    Schema.String.check(Schema.isUUID()).annotate({
+      description: "A thread you spawned whose task to stop. Default: this thread.",
+    }),
   ),
 });
 
@@ -62,7 +72,8 @@ export const BACKGROUND_TASK_TOOLS = {
   },
   stop_background_task: {
     name: "stop_background_task",
-    description: "Stop a running background task of this thread (the same as the user's Stop). It ends as stopped; check with get_background_task.",
+    description:
+      "Stop a running background task of this thread (the same as the user's Stop). It ends as stopped; check with get_background_task.",
     args: StopBackgroundTask,
     mutates: true,
   },

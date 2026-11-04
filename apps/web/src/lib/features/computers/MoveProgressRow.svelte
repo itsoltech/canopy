@@ -17,5 +17,7 @@
     {#if !finished(move)}<Spinner class="size-4 shrink-0" />{/if}
     <Badge tone={state.tone}>{state.label}</Badge>
   </div>
-  {#if move.error}<p class="text-base/6 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">{move.error}{move.state.startsWith("abort") ? " It stays on this computer." : ""}</p>{/if}
+  {#if move.error}<p class="text-base/6 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">
+      {move.error}{move.state.startsWith("abort") ? " It stays on this computer." : ""}
+    </p>{/if}
 </div>

@@ -42,7 +42,10 @@ export class SettingsState {
   #queue: Promise<void> = Promise.resolve();
   #timezoneSynced = false;
   /** What the gateway last confirmed (without changes still being written). */
-  #server: { user: ui.UserSettings; projects: Map<string, ui.ProjectSettings> } = { user: create(ui.UserSettingsSchema), projects: new Map() };
+  #server: { user: ui.UserSettings; projects: Map<string, ui.ProjectSettings> } = {
+    user: create(ui.UserSettingsSchema),
+    projects: new Map(),
+  };
 
   constructor(initial: ui.GetSettingsResponse | undefined) {
     if (initial) this.#replace(initial);
@@ -69,14 +72,20 @@ export class SettingsState {
   }
 
   pinThread(threadId: string, pinned: boolean): Promise<void> {
-    return this.#writeUser("sidebar", (current) => ({ ...current,
-      pinnedThreadIds: pinned ? [...new Set([...current.pinnedThreadIds, threadId])] : current.pinnedThreadIds.filter((id) => id !== threadId),
+    return this.#writeUser("sidebar", (current) => ({
+      ...current,
+      pinnedThreadIds: pinned
+        ? [...new Set([...current.pinnedThreadIds, threadId])]
+        : current.pinnedThreadIds.filter((id) => id !== threadId),
     }));
   }
 
   pinBot(botId: string, pinned: boolean): Promise<void> {
-    return this.#writeUser("sidebar", (current) => ({ ...current,
-      pinnedBotIds: pinned ? [...new Set([...current.pinnedBotIds, botId])] : current.pinnedBotIds.filter((id) => id !== botId),
+    return this.#writeUser("sidebar", (current) => ({
+      ...current,
+      pinnedBotIds: pinned
+        ? [...new Set([...current.pinnedBotIds, botId])]
+        : current.pinnedBotIds.filter((id) => id !== botId),
     }));
   }
 
@@ -95,7 +104,9 @@ export class SettingsState {
 
   updateRunningDelivery(delivery: "steer" | "queue"): Promise<void> {
     return this.#writeUser("composer", () =>
-      create(ui.ComposerSettingsSchema, { runningDelivery: delivery === "queue" ? ui.MessageDelivery.QUEUE : ui.MessageDelivery.STEER }),
+      create(ui.ComposerSettingsSchema, {
+        runningDelivery: delivery === "queue" ? ui.MessageDelivery.QUEUE : ui.MessageDelivery.STEER,
+      }),
     );
   }
 
@@ -106,9 +117,13 @@ export class SettingsState {
   /** A change from the overview stream: newer versions replace what is here. */
   apply(update: ui.OverviewUpdate): void {
     const change = update.change;
-    if (change.case === "userSettings" && change.value.version > this.#server.user.version) this.#confirmUser(change.value);
+
+    if (change.case === "userSettings" && change.value.version > this.#server.user.version)
+      this.#confirmUser(change.value);
+
     if (change.case === "projectSettings") {
       const known = this.#server.projects.get(change.value.projectId);
+
       if (!known || change.value.version > known.version) this.#confirmProject(change.value);
     }
   }
@@ -123,25 +138,51 @@ export class SettingsState {
     if (this.#timezoneSynced) return;
     this.#timezoneSynced = true;
     const timezone = userTimeZone();
+
     if (!timezone || timezone === this.#server.user.timezone) return;
     void this.#enqueue(async () => {
       const before = this.#server.user;
+
       for (let attempt = 0; ; attempt++) {
         if (timezone === this.#server.user.timezone) return;
+
         try {
-          const body = create(ui.UpdateUserSettingsRequestSchema, { timezone, expectedVersion: this.#server.user.version });
-          const response = await requestJson("PUT", "/api/settings/user", encode(ui.UpdateUserSettingsRequestSchema, body));
+          const body = create(ui.UpdateUserSettingsRequestSchema, {
+            timezone,
+            expectedVersion: this.#server.user.version,
+          });
+
+          const response = await requestJson(
+            "PUT",
+            "/api/settings/user",
+            encode(ui.UpdateUserSettingsRequestSchema, body),
+          );
+
           const saved = decode(ui.UpdateUserSettingsResponseSchema, response).settings;
+
           if (saved && saved.version > this.#server.user.version) this.#confirmUser(saved);
+
           return;
         } catch (cause) {
-          if (!(await this.#retryAfterConflict(cause, attempt, () => this.#server.user, before, ui.UserSettingsSchema, true))) return;
+          if (
+            !(await this.#retryAfterConflict(
+              cause,
+              attempt,
+              () => this.#server.user,
+              before,
+              ui.UserSettingsSchema,
+              true,
+            ))
+          )
+            return;
         }
       }
     }).catch(() => undefined);
   }
 
-  updateAppearance(change: Partial<Omit<MessageShape<typeof ui.AppearanceSettingsSchema>, "$typeName">>): Promise<void> {
+  updateAppearance(
+    change: Partial<Omit<MessageShape<typeof ui.AppearanceSettingsSchema>, "$typeName">>,
+  ): Promise<void> {
     return this.#writeUser("appearance", (current) => ({ ...current, ...change }));
   }
 
@@ -159,17 +200,33 @@ export class SettingsState {
       const known = this.projects.get(projectId) ?? create(ui.ProjectSettingsSchema, { projectId });
       this.projects = new Map(this.projects).set(projectId, { ...known, threadDefaults: next });
     };
+
     show();
+
     return this.#enqueue(async () => {
       const confirmed = () => this.#server.projects.get(projectId)?.threadDefaults ?? create(ui.ThreadDefaultsSchema);
       const before = confirmed();
+
       for (let attempt = 0; ; attempt++) {
         show();
+
         try {
-          const body = create(ui.UpdateProjectSettingsRequestSchema, { projectId, threadDefaults: next, expectedVersion: this.#server.projects.get(projectId)?.version ?? 0n });
-          const response = await requestJson("PUT", `/api/settings/projects/${encodeURIComponent(projectId)}`, encode(ui.UpdateProjectSettingsRequestSchema, body));
+          const body = create(ui.UpdateProjectSettingsRequestSchema, {
+            projectId,
+            threadDefaults: next,
+            expectedVersion: this.#server.projects.get(projectId)?.version ?? 0n,
+          });
+
+          const response = await requestJson(
+            "PUT",
+            `/api/settings/projects/${encodeURIComponent(projectId)}`,
+            encode(ui.UpdateProjectSettingsRequestSchema, body),
+          );
+
           const saved = decode(ui.UpdateProjectSettingsResponseSchema, response).settings;
+
           if (saved) this.#confirmProject(saved);
+
           return;
         } catch (cause) {
           if (!(await this.#retryAfterConflict(cause, attempt, confirmed, before, ui.ThreadDefaultsSchema))) return;
@@ -182,21 +239,38 @@ export class SettingsState {
     this.notice = undefined;
   }
 
-  #writeUser<S extends UserSection>(section: S, patch: (current: ui.UserSettings[S] & {}) => ui.UserSettings[S] & {}): Promise<void> {
+  #writeUser<S extends UserSection>(
+    section: S,
+    patch: (current: ui.UserSettings[S] & {}) => ui.UserSettings[S] & {},
+  ): Promise<void> {
     const schema = userSchemas[section] as DescMessage;
     const current = () => (this.user[section] ?? create(schema)) as ui.UserSettings[S] & {};
     const confirmed = () => (this.#server.user[section] ?? create(schema)) as ui.UserSettings[S] & {};
     const show = () => (this.user = { ...this.user, [section]: patch(current()) });
     show();
+
     return this.#enqueue(async () => {
       const before = confirmed();
+
       for (let attempt = 0; ; attempt++) {
         show();
+
         try {
-          const body = create(ui.UpdateUserSettingsRequestSchema, { [section]: this.user[section], expectedVersion: this.#server.user.version });
-          const response = await requestJson("PUT", "/api/settings/user", encode(ui.UpdateUserSettingsRequestSchema, body));
+          const body = create(ui.UpdateUserSettingsRequestSchema, {
+            [section]: this.user[section],
+            expectedVersion: this.#server.user.version,
+          });
+
+          const response = await requestJson(
+            "PUT",
+            "/api/settings/user",
+            encode(ui.UpdateUserSettingsRequestSchema, body),
+          );
+
           const saved = decode(ui.UpdateUserSettingsResponseSchema, response).settings;
+
           if (saved && saved.version > this.#server.user.version) this.#confirmUser(saved);
+
           return;
         } catch (cause) {
           if (!(await this.#retryAfterConflict(cause, attempt, confirmed, before, schema))) return;
@@ -210,18 +284,38 @@ export class SettingsState {
    * elsewhere (`section` = what the gateway has now, `before` = what it had when the write started;
    * true = try again); otherwise report the failure and show what the gateway has.
    */
-  async #retryAfterConflict<D extends DescMessage>(cause: unknown, attempt: number, section: () => MessageShape<D>, before: MessageShape<D>, schema: D, silent = false): Promise<boolean> {
+  async #retryAfterConflict<D extends DescMessage>(
+    cause: unknown,
+    attempt: number,
+    section: () => MessageShape<D>,
+    before: MessageShape<D>,
+    schema: D,
+    silent = false,
+  ): Promise<boolean> {
     const conflict = cause instanceof HttpError && cause.status === 409;
+
     try {
       await this.reload();
     } catch {
       // keep what is shown; the stream or the next write catches up
     }
+
     if (conflict && attempt === 0) {
-      if (!silent && !equals(schema, section(), before)) this.notice = { tone: "info", text: "These settings were just changed on another device. Your change was applied on top." };
+      if (!silent && !equals(schema, section(), before))
+        this.notice = {
+          tone: "info",
+          text: "These settings were just changed on another device. Your change was applied on top.",
+        };
+
       return true;
     }
-    if (!silent) this.notice = { tone: "error", text: `Could not save the change: ${cause instanceof Error ? cause.message : "unknown error"}` };
+
+    if (!silent)
+      this.notice = {
+        tone: "error",
+        text: `Could not save the change: ${cause instanceof Error ? cause.message : "unknown error"}`,
+      };
+
     return false;
   }
 
@@ -229,6 +323,7 @@ export class SettingsState {
     this.saving += 1;
     const run = this.#queue.then(job).finally(() => (this.saving -= 1));
     this.#queue = run.catch(() => undefined);
+
     return run;
   }
 
@@ -244,6 +339,7 @@ export class SettingsState {
 
   #replace(settings: ui.GetSettingsResponse): void {
     if (settings.attachmentLimits) this.attachmentLimits = settings.attachmentLimits;
+
     if (settings.user) this.#confirmUser(settings.user);
     this.#server.projects = new Map(settings.projects.map((p) => [p.projectId, p]));
     this.projects = new Map(this.#server.projects);

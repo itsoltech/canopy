@@ -123,10 +123,19 @@ export interface ApprovalView {
   action: string;
   routineTitle?: string | undefined;
   fields: { label: string; value: string }[];
-  botProposal?: {
-    name: string; shape: string; color: string; model: string; effort: string;
-    provider: string; instance: string; approvalPolicy: string; instructions: string;
-  } | undefined;
+  botProposal?:
+    | {
+        name: string;
+        shape: string;
+        color: string;
+        model: string;
+        effort: string;
+        provider: string;
+        instance: string;
+        approvalPolicy: string;
+        instructions: string;
+      }
+    | undefined;
   /** pending until you answer; `edited` = you sent your own version back instead of approving. */
   status: "pending" | "approved" | "discarded" | "edited";
 }
@@ -170,12 +179,18 @@ export type ChatEntry =
 
 const entryValue = (entry: ChatEntry): { id: string; at: Date } => {
   switch (entry.kind) {
-    case "message": return entry.message;
-    case "event": return entry.event;
-    case "question": return entry.question;
-    case "approval": return entry.approval;
-    case "error": return entry.error;
-    case "exchange": return entry.exchange;
+    case "message":
+      return entry.message;
+    case "event":
+      return entry.event;
+    case "question":
+      return entry.question;
+    case "approval":
+      return entry.approval;
+    case "error":
+      return entry.error;
+    case "exchange":
+      return entry.exchange;
   }
 };
 
@@ -187,6 +202,7 @@ export const entryAt = (entry: ChatEntry): Date => entryValue(entry).at;
 export function conversationTitle(conversation: ConversationView): string {
   if (conversation.title) return conversation.title;
   const names = conversation.bots.map((b) => b.name);
+
   return conversation.kind === "watch" ? names.join(" ⇄ ") : names.join(", ");
 }
 
@@ -195,7 +211,11 @@ export const byLatest = (conversations: readonly ConversationView[]): Conversati
   [...conversations].sort((a, b) => (b.lastMessage?.at.getTime() ?? 0) - (a.lastMessage?.at.getTime() ?? 0));
 
 /** Pinned ones in pin order, then the rest by latest message. */
-export function arrangeConversations(conversations: readonly ConversationView[]): { pinned: ConversationView[]; others: ConversationView[] } {
+export function arrangeConversations(conversations: readonly ConversationView[]): {
+  pinned: ConversationView[];
+  others: ConversationView[];
+} {
   const pinned = conversations.filter((c) => c.pinned).sort((a, b) => (a.pinOrder ?? 0) - (b.pinOrder ?? 0));
+
   return { pinned, others: byLatest(conversations.filter((c) => !c.pinned)) };
 }

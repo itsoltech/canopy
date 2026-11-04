@@ -31,7 +31,9 @@ export class ProvidersState {
     if (!instance) return;
     const key = instanceKeyOf(instance);
     const exists = this.instances.some((i) => instanceKeyOf(i) === key);
-    this.instances = exists ? this.instances.map((i) => (instanceKeyOf(i) === key ? instance : i)) : [...this.instances, instance];
+    this.instances = exists
+      ? this.instances.map((i) => (instanceKeyOf(i) === key ? instance : i))
+      : [...this.instances, instance];
   }
 
   async reload(): Promise<void> {
@@ -46,6 +48,7 @@ export class ProvidersState {
   async refresh(): Promise<void> {
     if (this.refreshing) return;
     this.refreshing = true;
+
     try {
       const response = await providerCall("refresh", {}, 75_000);
       this.instances = response.instances;
@@ -61,8 +64,14 @@ export class ProvidersState {
   models(instance: ui.ProviderInstance, workerId: string | undefined): ModelInfo[] {
     const lists = this.catalogs
       .filter((c) => !workerId || c.workerId === workerId)
-      .flatMap((c) => c.profiles.filter((p) => harnessKey(p.provider) === harnessKey(instance.harness) && (p.profileId || "native") === instance.id));
+      .flatMap((c) =>
+        c.profiles.filter(
+          (p) => harnessKey(p.provider) === harnessKey(instance.harness) && (p.profileId || "native") === instance.id,
+        ),
+      );
+
     const seen = new Set<string>();
+
     return lists.flatMap((l) => l.models).filter((m) => !seen.has(m.id) && seen.add(m.id));
   }
 }

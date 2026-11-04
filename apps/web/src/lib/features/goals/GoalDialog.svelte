@@ -21,10 +21,17 @@
     provider,
     current,
     onset,
-  }: { open?: boolean; threadId: string; provider: Provider; current: ui.Goal | undefined; onset?: ((goal: ui.Goal) => void) | undefined } = $props();
+  }: {
+    open?: boolean;
+    threadId: string;
+    provider: Provider;
+    current: ui.Goal | undefined;
+    onset?: ((goal: ui.Goal) => void) | undefined;
+  } = $props();
 
   const budgeted = $derived(takesTokenBudget(provider));
   const replacing = $derived(current && !isFinishedGoal(current.status) ? current : undefined);
+
   const how = $derived(
     provider === Provider.CLAUDE
       ? "Claude checks the goal after each turn and keeps working until it is met. Pausing interrupts the running turn."
@@ -32,12 +39,18 @@
   );
 
   let objective = $state("");
+
   // A number input binds a number (null when empty).
   let budget = $state<number | null>(null);
   let busy = $state(false);
   let error = $state<string>();
   const tokens = $derived(budget ?? 0);
-  const budgetError = $derived(budgeted && (!Number.isSafeInteger(tokens) || tokens < 0) ? "Enter a whole number of tokens, or leave it empty for no limit." : undefined);
+
+  const budgetError = $derived(
+    budgeted && (!Number.isSafeInteger(tokens) || tokens < 0)
+      ? "Enter a whole number of tokens, or leave it empty for no limit."
+      : undefined,
+  );
 
   $effect(() => {
     if (!open) return;
@@ -48,11 +61,17 @@
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
+
     if (!objective.trim() || budgetError) return;
     busy = true;
     error = undefined;
+
     try {
-      const goal = await setGoal(threadId, "set", { objective: objective.trim(), ...(budgeted && tokens > 0 && { tokenBudget: tokens }) });
+      const goal = await setGoal(threadId, "set", {
+        objective: objective.trim(),
+        ...(budgeted && tokens > 0 && { tokenBudget: tokens }),
+      });
+
       if (goal) onset?.(goal);
       open = false;
     } catch (cause) {
@@ -66,20 +85,51 @@
 <Dialog bind:open title={replacing ? "Replace the goal" : "Set a goal"} description={how}>
   <form class="grid gap-5" onsubmit={submit} novalidate>
     {#if replacing}
-      <Alert tone="info">This replaces the current goal: “{replacing.objective.length > 160 ? `${replacing.objective.slice(0, 160)}…` : replacing.objective}”</Alert>
+      <Alert tone="info"
+        >This replaces the current goal: “{replacing.objective.length > 160
+          ? `${replacing.objective.slice(0, 160)}…`
+          : replacing.objective}”</Alert
+      >
     {/if}
     <Field label="Goal" description="What has to be true when the agent is done. Be specific about how to check it.">
-      <Textarea name="objective" rows={4} maxlength={OBJECTIVE_LIMIT} required placeholder="All tests in packages/api pass and the build is green" bind:value={objective} data-autofocus />
+      <Textarea
+        name="objective"
+        rows={4}
+        maxlength={OBJECTIVE_LIMIT}
+        required
+        placeholder="All tests in packages/api pass and the build is green"
+        bind:value={objective}
+        data-autofocus
+      />
     </Field>
     {#if budgeted}
-      <Field label="Token budget" optional description="Codex stops working on the goal once it has used this many tokens." error={budgetError}>
-        <Input name="tokenBudget" type="number" inputmode="numeric" min="0" step="1000" placeholder="No limit" bind:value={budget} />
+      <Field
+        label="Token budget"
+        optional
+        description="Codex stops working on the goal once it has used this many tokens."
+        error={budgetError}
+      >
+        <Input
+          name="tokenBudget"
+          type="number"
+          inputmode="numeric"
+          min="0"
+          step="1000"
+          placeholder="No limit"
+          bind:value={budget}
+        />
       </Field>
     {/if}
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <DialogActions>
       <Button onclick={() => (open = false)}>Cancel</Button>
-      <Button type="submit" variant="primary" icon="flag" loading={busy} disabled={!objective.trim() || Boolean(budgetError)}>{replacing ? "Replace goal" : "Set goal"}</Button>
+      <Button
+        type="submit"
+        variant="primary"
+        icon="flag"
+        loading={busy}
+        disabled={!objective.trim() || Boolean(budgetError)}>{replacing ? "Replace goal" : "Set goal"}</Button
+      >
     </DialogActions>
   </form>
 </Dialog>

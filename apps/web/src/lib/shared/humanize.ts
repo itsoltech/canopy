@@ -102,7 +102,9 @@ function phrase(parts: readonly string[]): string {
     .map((word, index) => {
       const lower = word.toLowerCase();
       const spelled = SPELLING[lower];
+
       if (spelled) return spelled;
+
       return index === 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : lower;
     })
     .join(" ");
@@ -111,6 +113,7 @@ function phrase(parts: readonly string[]): string {
 /** A field name as a label: `file_path` → "File", `afterSeq` → "After seq", `thread_ids` → "Thread IDs". */
 export function humanizeKey(key: string): string {
   const known = KEY_LABELS[key] ?? KEY_LABELS[words(key).join("_").toLowerCase()];
+
   return known ?? phrase(words(key));
 }
 
@@ -121,24 +124,31 @@ export function humanizeKey(key: string): string {
 export function humanizeEnum(value: string): string {
   if (!value) return "";
   let key = value.trim();
+
   if (/^[A-Z0-9_]+$/.test(key)) {
     const prefix = ENUM_PREFIXES.find((p) => key.startsWith(p) && key.length > p.length);
+
     if (prefix) key = key.slice(prefix.length);
+
     if (key === "UNSPECIFIED") return "";
   }
+
   return phrase(words(key));
 }
 
 /** A tool's name as a person says it: `read_thread` → "Read thread", `WebFetch` → "Web fetch", `mcp__github__get_issue` → "GitHub · Get issue". */
 export function humanizeToolName(name: string): string {
   const mcp = /^mcp__(.+?)__(.+)$/.exec(name);
+
   if (mcp) return `${humanizeServer(mcp[1]!)} · ${phrase(words(mcp[2]!))}`;
+
   return phrase(words(name));
 }
 
 /** An MCP server's name: `github` → "GitHub", `chrome-devtools` → "Chrome devtools", `canopy` → "Canopy". */
 export function humanizeServer(server: string): string {
   if (isPlatformServer(server)) return "Canopy";
+
   return phrase(words(server));
 }
 
@@ -152,8 +162,11 @@ export const isUuid = (value: string): boolean => UUID.test(value);
  */
 export function isOpaqueId(value: string): boolean {
   if (UUID.test(value)) return true;
+
   if (/^(call|toolu|exec|msg|req|run|item|chatcmpl|resp)[-_][A-Za-z0-9-]{8,}$/.test(value)) return true;
+
   if (/^[0-9a-f]{16,}$/i.test(value)) return true;
+
   // One long token of letters and digits mixed (no spaces, no path or dot), e.g. ULIDs and API ids.
   return /^[A-Za-z0-9]{20,}$/.test(value) && /\d/.test(value) && /[A-Za-z]/.test(value);
 }
@@ -162,13 +175,15 @@ export function isOpaqueId(value: string): boolean {
 export const isIdKey = (key: string): boolean => /(^|_)ids?$/i.test(key) || /[a-z](Id|Ids|ID)$/.test(key);
 
 /** An ISO 8601 date-time (`2026-11-01T18:21:00.781Z`). */
-export const isIsoDateTime = (value: string): boolean => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/.test(value);
+export const isIsoDateTime = (value: string): boolean =>
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/.test(value);
 
 /**
  * An enum-like token: one word of lower snake case (`full_auto`, `user_message`) or SCREAMING case
  * (`ITEM_STATUS_COMPLETED`), as opposed to prose, paths and code.
  */
-export const isEnumToken = (value: string): boolean => /^[a-z]+(_[a-z0-9]+)+$/.test(value) || /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/.test(value);
+export const isEnumToken = (value: string): boolean =>
+  /^[a-z]+(_[a-z0-9]+)+$/.test(value) || /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/.test(value);
 
 /** "1 file", "3 files". */
 export const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
@@ -180,12 +195,14 @@ export function humanizeSeconds(total: number): string {
   const hours = Math.floor((total % 86_400) / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = Math.round(total % 60);
+
   const parts = [
     days && plural(days, "day"),
     hours && plural(hours, "hour"),
     minutes && plural(minutes, "minute"),
     !days && !hours && seconds && plural(seconds, "second"),
   ].filter(Boolean);
+
   return parts.slice(0, 2).join(" ");
 }
 
@@ -195,6 +212,7 @@ export function humanizeSeconds(total: number): string {
  */
 export function withoutIds(text: string): string {
   const id = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
   return text
     .replace(new RegExp(` ?\\(\\w+_id: ${id}\\)`, "gi"), "")
     .replace(new RegExp(`\\(\\w+_id: ${id}, `, "gi"), "(");

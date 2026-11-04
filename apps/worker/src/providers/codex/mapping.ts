@@ -30,12 +30,15 @@ import type { ThreadEventInit } from "../../journal/index.ts";
  */
 
 type ItemInit = MessageInitShape<typeof ItemSchema>;
+
 type CodexItem = v2.ThreadItem;
+
 type EventOf = (codexTurnId: string | null | undefined, body: ThreadEventInit["body"]) => ThreadEventInit;
 
 /** Code-mode cell (custom tool) and its continuation (function): no app-server item exists for either. */
 const CODE_MODE_CELL = "exec";
 const CODE_MODE_WAIT = "wait";
+
 /** Shell tools whose calls Codex normally reports as `commandExecution` items, with the call id as item id. */
 const SHELL_TOOLS: ReadonlySet<string> = new Set(["exec_command", "shell_command", "shell"]);
 
@@ -73,7 +76,10 @@ export class CodexEventMapper {
   /** Code-mode cells and waits by call id: they become tool_call items (docs/codex-adapter.md, "Code mode"). */
   readonly #calls = new Map<string, { codexTurnId: string; name: string; inputJson: string; outputs: string[] }>();
   /** Shell calls by call id, kept until the turn ends: then those Codex reported no item for get one. */
-  readonly #shellCalls = new Map<string, { codexTurnId: string; name: string; arguments: string; output?: FunctionCallOutputBody }>();
+  readonly #shellCalls = new Map<
+    string,
+    { codexTurnId: string; name: string; arguments: string; output?: FunctionCallOutputBody }
+  >();
   /** Item ids Codex reported in the current turn. */
   readonly #reported = new Set<string>();
 
@@ -91,16 +97,20 @@ export class CodexEventMapper {
     for (const command of this.#commands.values()) {
       if (command.background && command.processId === taskId) {
         command.background.stopping = true;
+
         return command.processId;
       }
     }
+
     return undefined;
   }
 
   map(notification: ServerNotification): ThreadEventInit[] {
     const rawJson = JSON.stringify(notification);
+
     const event = (codexTurnId: string | null | undefined, body: ThreadEventInit["body"]): ThreadEventInit => {
       const turnId = codexTurnId ? this.#ctx.turnId(codexTurnId) : undefined;
+
       return { ...(turnId ? { turnId } : {}), ...(body ? { body } : {}), rawJson } as ThreadEventInit;
     };
 
@@ -108,6 +118,7 @@ export class CodexEventMapper {
       case "turn/started": {
         const { turn } = notification.params;
         const turnId = this.#ctx.startTurn(turn.id);
+
         return [
           {
             turnId,
@@ -122,10 +133,12 @@ export class CodexEventMapper {
           },
         ];
       }
+
       case "turn/completed": {
         const { turn } = notification.params;
         const usage = this.#usage.get(turn.id);
         this.#usage.delete(turn.id);
+
         return [
           ...this.#unreportedShellCalls(event, turn.id),
           ...this.#toBackground(turn.id, rawJson),
@@ -141,26 +154,40 @@ export class CodexEventMapper {
           }),
         ];
       }
+
       case "thread/status/changed": {
         const status = threadStatus(notification.params.status);
+
         return [event(undefined, status === undefined ? undefined : { case: "activity", value: { status } })];
       }
+
       case "item/started":
       case "item/completed": {
         const { item, turnId } = notification.params;
         const completed = notification.method === "item/completed";
         this.#reported.add(item.id);
+
         if (item.type === "commandExecution") {
           const running = this.#commands.get(item.id);
+
           if (completed && running?.background) return this.#backgroundEnded(item, running, rawJson);
+
           if (completed) this.#commands.delete(item.id);
           else if (item.processId) {
-            this.#commands.set(item.id, { codexTurnId: turnId, command: item.command, processId: item.processId, output: item.aggregatedOutput ?? "" });
+            this.#commands.set(item.id, {
+              codexTurnId: turnId,
+              command: item.command,
+              processId: item.processId,
+              output: item.aggregatedOutput ?? "",
+            });
           }
         }
+
         const mapped = mapItem(item, completed);
+
         return [event(turnId, { case: completed ? "itemCompleted" : "itemStarted", value: { item: mapped } })];
       }
+
       case "item/agentMessage/delta":
         return [this.#delta(event, notification.params, ItemDeltaField.TEXT)];
       case "item/reasoning/textDelta":
@@ -169,15 +196,32 @@ export class CodexEventMapper {
         return [this.#delta(event, notification.params, ItemDeltaField.SUMMARY)];
       case "item/commandExecution/outputDelta": {
         const running = this.#commands.get(notification.params.itemId);
+
         if (running?.background) {
           // After the turn: the process's output belongs to its background item, outside any turn.
-          return [{ rawJson, body: { case: "itemDelta", value: { itemId: running.background.itemId, field: ItemDeltaField.OUTPUT, chunk: notification.params.delta } } }];
+          return [
+            {
+              rawJson,
+              body: {
+                case: "itemDelta",
+                value: {
+                  itemId: running.background.itemId,
+                  field: ItemDeltaField.OUTPUT,
+                  chunk: notification.params.delta,
+                },
+              },
+            },
+          ];
         }
+
         if (running) running.output += notification.params.delta;
+
         return [this.#delta(event, notification.params, ItemDeltaField.OUTPUT)];
       }
+
       case "turn/plan/updated": {
         const { turnId, explanation, plan } = notification.params;
+
         // One plan item per turn; each update replaces it (item_completed carries the full state).
         return [
           event(turnId, {
@@ -188,39 +232,56 @@ export class CodexEventMapper {
                 status: ItemStatus.COMPLETED,
                 content: {
                   case: "plan",
-                  value: { text: explanation ?? "", steps: plan.map((p) => ({ text: p.step, status: snake(p.status) })) },
+                  value: {
+                    text: explanation ?? "",
+                    steps: plan.map((p) => ({ text: p.step, status: snake(p.status) })),
+                  },
                 },
               },
             },
           }),
         ];
       }
+
       case "thread/tokenUsage/updated": {
         const { turnId, tokenUsage } = notification.params;
         this.#usage.set(turnId, tokenUsage.total);
+
         return [
           event(turnId, {
             case: "usageUpdated",
-            value: { usage: { ...usageOf(tokenUsage.total), contextWindowTokens: BigInt(tokenUsage.modelContextWindow ?? 0) } },
+            value: {
+              usage: { ...usageOf(tokenUsage.total), contextWindowTokens: BigInt(tokenUsage.modelContextWindow ?? 0) },
+            },
           }),
         ];
       }
+
       case "error": {
         const { error, willRetry, turnId } = notification.params;
+
         return [
           event(turnId, {
             case: "notice",
             value: {
               level: willRetry ? NoticeLevel.WARNING : NoticeLevel.ERROR,
-              code: error.codexErrorInfo ? (typeof error.codexErrorInfo === "string" ? error.codexErrorInfo : Object.keys(error.codexErrorInfo)[0] ?? "error") : "error",
+              code: error.codexErrorInfo
+                ? typeof error.codexErrorInfo === "string"
+                  ? error.codexErrorInfo
+                  : (Object.keys(error.codexErrorInfo)[0] ?? "error")
+                : "error",
               message: error.message,
-              ...(error.additionalDetails && { dataJson: JSON.stringify({ additionalDetails: error.additionalDetails }) }),
+              ...(error.additionalDetails && {
+                dataJson: JSON.stringify({ additionalDetails: error.additionalDetails }),
+              }),
             },
           }),
         ];
       }
+
       case "thread/goal/updated": {
         const { goal, turnId } = notification.params;
+
         return [
           event(turnId, {
             case: "goalState",
@@ -234,6 +295,7 @@ export class CodexEventMapper {
           }),
         ];
       }
+
       case "thread/goal/cleared":
         return [event(undefined, { case: "goalState", value: { cleared: true } })];
       case "rawResponseItem/completed":
@@ -241,6 +303,7 @@ export class CodexEventMapper {
       default: {
         // Hooks, read state, moderation metadata, diffs, ...: kept raw for the timeline and later projections.
         const turnId = (notification.params as { turnId?: unknown } | undefined)?.turnId;
+
         return [event(typeof turnId === "string" ? turnId : undefined, undefined)];
       }
     }
@@ -250,6 +313,7 @@ export class CodexEventMapper {
   #toBackground(codexTurnId: string, rawJson: string): ThreadEventInit[] {
     const turnId = this.#ctx.turnId(codexTurnId) ?? "";
     const started: ThreadEventInit[] = [];
+
     for (const [itemId, command] of this.#commands) {
       if (command.codexTurnId !== codexTurnId || command.background) continue;
       command.background = { itemId: `bg:${itemId}`, stopping: false };
@@ -282,17 +346,23 @@ export class CodexEventMapper {
       });
       command.output = ""; // later output goes to the background item only
     }
+
     return started;
   }
 
   /** The process of a backgrounded command exited (or was terminated): both items end, outside any turn. */
-  #backgroundEnded(item: Extract<CodexItem, { type: "commandExecution" }>, running: RunningCommand, rawJson: string): ThreadEventInit[] {
+  #backgroundEnded(
+    item: Extract<CodexItem, { type: "commandExecution" }>,
+    running: RunningCommand,
+    rawJson: string,
+  ): ThreadEventInit[] {
     this.#commands.delete(item.id);
     const background = running.background!;
     const stopped = background.stopping;
     const failed = item.status === "failed" || (item.exitCode !== null && item.exitCode !== 0);
     // The command item keeps the output its turn showed (the full output is on the background item).
     const command = mapItem({ ...item, aggregatedOutput: null }, true);
+
     return [
       { rawJson, body: { case: "itemCompleted", value: { item: command } } },
       {
@@ -333,15 +403,20 @@ export class CodexEventMapper {
     const call = (callId: string, name: string, inputJson: string) => {
       const state = { codexTurnId, name, inputJson, outputs: [] };
       this.#calls.set(callId, state);
+
       return [event(codexTurnId, { case: "itemStarted", value: { item: providerToolCall(callId, state, false) } })];
     };
+
     const output = (callId: string, body: FunctionCallOutputBody) => {
       const state = this.#calls.get(callId);
+
       if (!state) return undefined;
       // A cell can report more than once (notify(), then its result); the item carries all of it.
       state.outputs.push(outputText(body));
+
       return [event(codexTurnId, { case: "itemCompleted", value: { item: providerToolCall(callId, state, true) } })];
     };
+
     switch (item.type) {
       case "custom_tool_call":
         return item.name === CODE_MODE_CELL ? call(item.call_id, item.name, JSON.stringify({ code: item.input })) : [];
@@ -349,14 +424,20 @@ export class CodexEventMapper {
         return output(item.call_id, item.output) ?? [];
       case "function_call":
         if (item.name === CODE_MODE_WAIT) return call(item.call_id, item.name, item.arguments);
-        if (SHELL_TOOLS.has(item.name)) this.#shellCalls.set(item.call_id, { codexTurnId, name: item.name, arguments: item.arguments });
+
+        if (SHELL_TOOLS.has(item.name))
+          this.#shellCalls.set(item.call_id, { codexTurnId, name: item.name, arguments: item.arguments });
+
         return [];
       case "function_call_output": {
         if (!item.call_id) return [];
         const shell = this.#shellCalls.get(item.call_id);
+
         if (shell) shell.output = item.output;
+
         return output(item.call_id, item.output) ?? [];
       }
+
       default:
         return [];
     }
@@ -369,13 +450,18 @@ export class CodexEventMapper {
    */
   #unreportedShellCalls(event: EventOf, codexTurnId: string): ThreadEventInit[] {
     const events: ThreadEventInit[] = [];
+
     for (const [callId, call] of this.#shellCalls) {
       if (call.codexTurnId !== codexTurnId) continue;
       this.#shellCalls.delete(callId);
-      if (!this.#reported.has(callId)) events.push(event(codexTurnId, { case: "itemCompleted", value: { item: shellCommandItem(callId, call) } }));
+
+      if (!this.#reported.has(callId))
+        events.push(event(codexTurnId, { case: "itemCompleted", value: { item: shellCommandItem(callId, call) } }));
     }
+
     for (const [callId, call] of this.#calls) if (call.codexTurnId === codexTurnId) this.#calls.delete(callId);
     this.#reported.clear();
+
     return events;
   }
 
@@ -391,6 +477,7 @@ export class CodexEventMapper {
 export function mapItem(item: CodexItem, completed: boolean): ItemInit {
   const base = { itemId: item.id };
   const lifecycle = completed ? ItemStatus.COMPLETED : ItemStatus.IN_PROGRESS;
+
   switch (item.type) {
     case "userMessage":
       return {
@@ -399,14 +486,21 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
         content: {
           case: "userMessage",
           value: {
-            text: item.content.map((part) => (part.type === "text" ? part.text : "")).filter(Boolean).join("\n"),
+            text: item.content
+              .map((part) => (part.type === "text" ? part.text : ""))
+              .filter(Boolean)
+              .join("\n"),
             // turn/start and turn/steer send the platform's id (turn id, steer input id) as clientUserMessageId.
             ...(item.clientId && { clientId: item.clientId }),
           },
         },
       };
     case "agentMessage":
-      return { ...base, status: lifecycle, content: { case: "agentMessage", value: { text: item.text, phase: item.phase ?? "" } } };
+      return {
+        ...base,
+        status: lifecycle,
+        content: { case: "agentMessage", value: { text: item.text, phase: item.phase ?? "" } },
+      };
     case "reasoning":
       return {
         ...base,
@@ -461,18 +555,25 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
       };
     case "dynamicToolCall": {
       const output = (item.contentItems ?? []).map((c) => (c.type === "inputText" ? c.text : `[${c.type}]`)).join("\n");
+
       // The platform's view_image (namespace "canopy"): an image item; the preview comes from its result.
       if (item.tool === VIEW_IMAGE_TOOL && isPlatformServer(item.namespace)) {
         const path = (item.arguments as { path?: unknown } | null)?.path;
+
         return {
           ...base,
           status: toolStatus(item.status),
           content: {
             case: "image",
-            value: { path: typeof path === "string" ? path : "", source: VIEW_IMAGE_TOOL, ...(item.success === false && { detail: output }) },
+            value: {
+              path: typeof path === "string" ? path : "",
+              source: VIEW_IMAGE_TOOL,
+              ...(item.success === false && { detail: output }),
+            },
           },
         };
       }
+
       if (isAgentBusTool(item.tool)) {
         return {
           ...base,
@@ -489,6 +590,7 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
           },
         };
       }
+
       return {
         ...base,
         status: toolStatus(item.status),
@@ -504,6 +606,7 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
         },
       };
     }
+
     case "webSearch":
       return { ...base, status: lifecycle, content: { case: "webSearch", value: { query: item.query } } };
     case "plan":
@@ -515,7 +618,10 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
       return {
         ...base,
         status: item.failure ? ItemStatus.FAILED : lifecycle,
-        content: { case: "image", value: { path: item.savedPath ?? "", prompt: item.revisedPrompt ?? "", source: "generated" } },
+        content: {
+          case: "image",
+          value: { path: item.savedPath ?? "", prompt: item.revisedPrompt ?? "", source: "generated" },
+        },
       };
     case "contextCompaction":
       return { ...base, status: lifecycle, content: { case: "contextCompaction", value: {} } };
@@ -535,31 +641,56 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
       };
     default:
       // hookPrompt, review mode, sleep, functionCallOutput, subAgentActivity, and future types: kept whole.
-      return { ...base, status: lifecycle, content: { case: "providerItem", value: { type: item.type, json: JSON.stringify(item) } } };
+      return {
+        ...base,
+        status: lifecycle,
+        content: { case: "providerItem", value: { type: item.type, json: JSON.stringify(item) } },
+      };
   }
 }
 
-function providerToolCall(callId: string, call: { name: string; inputJson: string; outputs: string[] }, completed: boolean): ItemInit {
+function providerToolCall(
+  callId: string,
+  call: { name: string; inputJson: string; outputs: string[] },
+  completed: boolean,
+): ItemInit {
   return {
     itemId: callId,
     status: completed ? ItemStatus.COMPLETED : ItemStatus.IN_PROGRESS,
-    content: { case: "toolCall", value: { name: call.name, inputJson: call.inputJson, output: call.outputs.join("\n") } },
+    content: {
+      case: "toolCall",
+      value: { name: call.name, inputJson: call.inputJson, output: call.outputs.join("\n") },
+    },
   };
 }
 
 /** A `commandExecution`-like item from the call and its output ("Process exited with code N ... Output:\n..."). */
-function shellCommandItem(callId: string, call: { name: string; arguments: string; output?: FunctionCallOutputBody }): ItemInit {
+function shellCommandItem(
+  callId: string,
+  call: { name: string; arguments: string; output?: FunctionCallOutputBody },
+): ItemInit {
   let args: { cmd?: unknown; command?: unknown; workdir?: unknown } = {};
+
   try {
     args = JSON.parse(call.arguments);
   } catch {
     // Not JSON: shown as the command below.
   }
-  const command = typeof args.cmd === "string" ? args.cmd : Array.isArray(args.command) ? args.command.join(" ") : typeof args.command === "string" ? args.command : call.arguments;
+
+  const command =
+    typeof args.cmd === "string"
+      ? args.cmd
+      : Array.isArray(args.command)
+        ? args.command.join(" ")
+        : typeof args.command === "string"
+          ? args.command
+          : call.arguments;
+
   const text = call.output === undefined ? "" : outputText(call.output);
   const exit = /Process exited with code (-?\d+)/.exec(text);
   const marker = text.indexOf("Output:\n");
   const exitCode = exit ? Number(exit[1]) : undefined;
+
   return {
     itemId: callId,
     status: exitCode !== undefined && exitCode !== 0 ? ItemStatus.FAILED : ItemStatus.COMPLETED,
@@ -576,7 +707,9 @@ function shellCommandItem(callId: string, call: { name: string; arguments: strin
 }
 
 function outputText(body: FunctionCallOutputBody): string {
-  return typeof body === "string" ? body : body.map((part) => (part.type === "input_text" ? part.text : `[${part.type}]`)).join("\n");
+  return typeof body === "string"
+    ? body
+    : body.map((part) => (part.type === "input_text" ? part.text : `[${part.type}]`)).join("\n");
 }
 
 function toolStatus(status: "inProgress" | "completed" | "failed" | "declined"): ItemStatus {
@@ -596,7 +729,10 @@ function toolStatus(status: "inProgress" | "completed" | "failed" | "declined"):
 function turnEndSource(turn: v2.Turn, asked: boolean): { source: TurnEndSource; errorCode?: string } {
   switch (turn.status) {
     case "failed":
-      return { source: TurnEndSource.HARNESS, ...(turn.error?.codexErrorInfo && { errorCode: codexErrorCode(turn.error.codexErrorInfo) }) };
+      return {
+        source: TurnEndSource.HARNESS,
+        ...(turn.error?.codexErrorInfo && { errorCode: codexErrorCode(turn.error.codexErrorInfo) }),
+      };
     case "interrupted":
       return { source: asked ? TurnEndSource.USER : TurnEndSource.SYSTEM };
     default:
@@ -607,10 +743,15 @@ function turnEndSource(turn: v2.Turn, asked: boolean): { source: TurnEndSource; 
 /** e.g. `{ httpConnectionFailed: { httpStatusCode: 401 } }` -> "httpConnectionFailed:401"; a string stays as is. */
 export function codexErrorCode(info: unknown): string {
   if (typeof info === "string") return info;
+
   if (!info || typeof info !== "object") return "";
   const [key, detail] = Object.entries(info)[0] ?? [];
+
   if (!key) return "";
-  const status = detail && typeof detail === "object" ? Object.entries(detail).find(([k]) => /status/i.test(k))?.[1] : undefined;
+
+  const status =
+    detail && typeof detail === "object" ? Object.entries(detail).find(([k]) => /status/i.test(k))?.[1] : undefined;
+
   return typeof status === "number" ? `${key}:${status}` : key;
 }
 

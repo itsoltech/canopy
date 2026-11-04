@@ -14,10 +14,12 @@ export function lingeringResult(read: () => ui.Thread): { readonly current: Turn
   $effect(() => {
     const now = unseenResult(read());
     clearTimeout(timer);
+
     if (now) shown = now;
     else timer = setTimeout(() => (shown = undefined), LINGER_MS);
   });
   $effect(() => () => clearTimeout(timer));
+
   return {
     get current() {
       return shown;

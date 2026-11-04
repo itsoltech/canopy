@@ -3,6 +3,7 @@ import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { GatewayMessageSchema, type GatewayMessage } from "@canopy/contracts";
 
 type PayloadInit = NonNullable<MessageInitShape<typeof GatewayMessageSchema>["payload"]>;
+
 export type GatewayPayloadInit = Exclude<PayloadInit, { case: undefined }>;
 
 export function gatewayMessage(payload: GatewayPayloadInit): GatewayMessage {

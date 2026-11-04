@@ -13,7 +13,13 @@
     workerName,
     workspace,
     error,
-  }: { open?: boolean; projectName: string; workerName: string; workspace: ui.Workspace; error?: string | undefined } = $props();
+  }: {
+    open?: boolean;
+    projectName: string;
+    workerName: string;
+    workspace: ui.Workspace;
+    error?: string | undefined;
+  } = $props();
 </script>
 
 <Dialog

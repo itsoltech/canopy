@@ -19,7 +19,12 @@
     onanswer,
     answering,
     class: className,
-  }: { question: QuestionView; onanswer?: ((optionId: string) => void) | undefined; answering?: string | undefined; class?: ClassValue } = $props();
+  }: {
+    question: QuestionView;
+    onanswer?: ((optionId: string) => void) | undefined;
+    answering?: string | undefined;
+    class?: ClassValue;
+  } = $props();
 
   const id = $props.id();
   let text = $state("");
@@ -29,8 +34,10 @@
 
   function onkeydown(event: KeyboardEvent) {
     if (event.target instanceof Element && event.target.closest("input, textarea, [contenteditable=true]")) return;
+
     if (!open || event.altKey || event.ctrlKey || event.metaKey || event.key.length !== 1) return;
     const option = question.options[letters.indexOf(event.key.toUpperCase())];
+
     if (!option) return;
     event.preventDefault();
     onanswer?.(option.id);
@@ -38,7 +45,9 @@
 </script>
 
 <ChatCard labelledby="{id}-prompt" class={["p-1", className]} {onkeydown}>
-  {#if question.routineTitle}<p class="px-3 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">From routine “{question.routineTitle}”</p>{/if}
+  {#if question.routineTitle}<p class="px-3 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+      From routine “{question.routineTitle}”
+    </p>{/if}
   <div class="flex items-start gap-2 px-3 pt-2.5 pb-2 text-base/6 sm:text-sm/6">
     <Icon name="question-mark-circle" class="h-lh shrink-0 fill-sky-500 dark:fill-sky-400" />
     <h3 id="{id}-prompt" class="font-medium text-pretty text-zinc-950 dark:text-white">{question.prompt}</h3>
@@ -63,7 +72,9 @@
               <span
                 class={[
                   "grid size-6 shrink-0 place-items-center rounded-md font-mono text-xs/none font-medium ring-1 sm:size-5",
-                  chosen ? "bg-zinc-900 text-white ring-zinc-900 dark:bg-white dark:text-zinc-950 dark:ring-white" : "text-zinc-600 ring-zinc-950/15 dark:text-zinc-300 dark:ring-white/15",
+                  chosen
+                    ? "bg-zinc-900 text-white ring-zinc-900 dark:bg-white dark:text-zinc-950 dark:ring-white"
+                    : "text-zinc-600 ring-zinc-950/15 dark:text-zinc-300 dark:ring-white/15",
                 ]}
               >
                 {letters[index]}
@@ -71,7 +82,8 @@
             </span>
             <span class="min-w-0 flex-1">
               <span class="text-zinc-950 dark:text-white">{option.label}</span>
-              {#if option.description}<span class="block text-zinc-500 dark:text-zinc-400">{option.description}</span>{/if}
+              {#if option.description}<span class="block text-zinc-500 dark:text-zinc-400">{option.description}</span
+                >{/if}
             </span>
             {#if answering === option.id}
               <span class="flex h-lh items-center"><Spinner class="size-3.5" /></span>
@@ -84,13 +96,30 @@
     </ul>
   {/if}
   {#if question.answer && !question.answer.optionId && !question.answer.skipped && question.answer.text}
-    <p class="mx-3 mb-1 rounded-xl bg-zinc-950/4 px-3 py-2 text-base/6 whitespace-pre-wrap text-zinc-800 sm:text-sm/6 dark:bg-white/5 dark:text-zinc-200"><span class="sr-only">Your answer: </span>{question.answer.text}</p>
+    <p
+      class="mx-3 mb-1 rounded-xl bg-zinc-950/4 px-3 py-2 text-base/6 whitespace-pre-wrap text-zinc-800 sm:text-sm/6 dark:bg-white/5 dark:text-zinc-200"
+    >
+      <span class="sr-only">Your answer: </span>{question.answer.text}
+    </p>
   {/if}
   {#if question.freeText && open}
-    <form class="flex items-end gap-2 px-2 pt-1 pb-1" onsubmit={(event) => { event.preventDefault(); if (text.trim() && open) onanswer?.(`text:${text.trim()}`); }}>
+    <form
+      class="flex items-end gap-2 px-2 pt-1 pb-1"
+      onsubmit={(event) => {
+        event.preventDefault();
+        if (text.trim() && open) onanswer?.(`text:${text.trim()}`);
+      }}
+    >
       <label class="sr-only" for="{id}-answer">Your answer</label>
       <div class="min-w-0 flex-1">
-        <Input id="{id}-answer" name="answer" bind:value={text} maxlength={32000} autocomplete="off" placeholder={question.options.length > 0 ? "Or answer in your own words" : "Your answer"} />
+        <Input
+          id="{id}-answer"
+          name="answer"
+          bind:value={text}
+          maxlength={32000}
+          autocomplete="off"
+          placeholder={question.options.length > 0 ? "Or answer in your own words" : "Your answer"}
+        />
       </div>
       <Button type="submit" size="sm" variant="primary" disabled={!text.trim()}>Send</Button>
     </form>

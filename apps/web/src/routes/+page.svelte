@@ -44,17 +44,37 @@
   const requested = $derived(page.url.searchParams.get("project") ?? "");
   let picks = $state<{ requested: string; projectId?: string; workspaceId?: string }>({ requested: "" });
   const placed = $derived(picks.requested === requested ? picks : undefined);
+
   const project = $derived(
     overview.project(placed?.projectId ?? "") ??
-      defaultProject({ projects: overview.projects, threads: overview.threads.values(), requested, defaultWorkspaceId: settings.threadDefaults.workspaceId }),
+      defaultProject({
+        projects: overview.projects,
+        threads: overview.threads.values(),
+        requested,
+        defaultWorkspaceId: settings.threadDefaults.workspaceId,
+      }),
   );
-  const defaults = $derived(effectiveDefaults(settings.threadDefaults, project ? settings.projectDefaults(project.id) : undefined));
+
+  const defaults = $derived(
+    effectiveDefaults(settings.threadDefaults, project ? settings.projectDefaults(project.id) : undefined),
+  );
+
   const workspace = $derived.by(() => {
     if (!project) return undefined;
     const pick = project.workspaces.find((w) => w.id === placed?.workspaceId);
     const online = (id: string) => overview.worker(id)?.online ?? false;
-    return pick ?? defaultWorkspace({ project, threads: overview.threads.values(), defaultWorkspaceId: defaults.workspaceId, online });
+
+    return (
+      pick ??
+      defaultWorkspace({
+        project,
+        threads: overview.threads.values(),
+        defaultWorkspaceId: defaults.workspaceId,
+        online,
+      })
+    );
   });
+
   const worker = $derived(overview.worker(workspace?.workerId ?? ""));
   const pickProject = (next: ui.Project) => (picks = { requested, projectId: next.id });
   const pickWorkspace = (next: ui.Workspace) => (picks = { requested, projectId: project?.id, workspaceId: next.id });
@@ -65,21 +85,38 @@
   // provider, else the first option (also when your pick is not offered on this workspace's worker).
   const models = useModelCatalog();
   const workerId = $derived(workspace?.workerId ?? "");
-  const options = $derived(modelOptions({ worker, catalog: models.of(workerId), threads: overview.threads.values(), defaults }));
+
+  const options = $derived(
+    modelOptions({ worker, catalog: models.of(workerId), threads: overview.threads.values(), defaults }),
+  );
+
   let picked = $state<ModelOption>();
+
   const fromDefaults = $derived.by(() => {
     if (!defaultProvider) return undefined;
     const ofProvider = options.filter((o) => o.provider === defaultProvider);
     const profile = defaults.providerProfileId ? profileIdValue(defaults.providerProfileId) : undefined;
-    const profileId = profile !== undefined && ofProvider.some((o) => o.profileId === profile) ? profile : ofProvider[0]?.profileId;
+
+    const profileId =
+      profile !== undefined && ofProvider.some((o) => o.profileId === profile) ? profile : ofProvider[0]?.profileId;
+
     if (profileId === undefined) return undefined;
-    return findOption(options, defaultProvider, profileId, modelFor(defaults, Provider[defaultProvider])) ?? findOption(options, defaultProvider, profileId, "");
+
+    return (
+      findOption(options, defaultProvider, profileId, modelFor(defaults, Provider[defaultProvider])) ??
+      findOption(options, defaultProvider, profileId, "")
+    );
   });
-  const offered = (option: ModelOption | undefined) => option && options.some((o) => o.provider === option.provider && o.profileId === option.profileId);
+
+  const offered = (option: ModelOption | undefined) =>
+    option && options.some((o) => o.provider === option.provider && o.profileId === option.profileId);
+
   const selected = $derived(offered(picked) ? picked : (fromDefaults ?? options[0]));
+
   // Not picked and the profile's default: "" (the thread follows the profile's default model).
   const model = $derived(!selected || (selected !== picked && selected.isDefault) ? "" : selected.model);
   let effort = $state<string>();
+
   // Only an effort the model takes (switching the workspace can change the model).
   const sentEffort = $derived(effort && selected?.efforts.some((e) => e.id === effort) ? effort : "");
   let permission = $state<PermissionModeKey>();
@@ -87,10 +124,14 @@
 
   let message = $state("");
   let mentions = $state<Mention[]>([]);
+
   // Mentions of the first message: commands, skills and files of the chosen worker, folder and agent.
   const sources = new MentionSources(() =>
-    workspace && selected ? { workspaceId: workspace.id, provider: Provider[selected.provider], providerProfileId: selected.profileId } : undefined,
+    workspace && selected
+      ? { workspaceId: workspace.id, provider: Provider[selected.provider], providerProfileId: selected.profileId }
+      : undefined,
   );
+
   // Files of the first message (uploaded as added; their ids go with the form).
   const draft = new AttachmentDraft(() => limitsOf(settings.attachmentLimits));
   let busy = $state(false);
@@ -99,9 +140,13 @@
   // Why the message cannot go yet (the send button is disabled and this says why).
   const blocker = $derived.by(() => {
     if (!project) return undefined;
+
     if (!workspace) return "no-worker" as const;
+
     if (!worker?.online) return "offline" as const;
+
     if (!selected) return "no-agent" as const;
+
     return undefined;
   });
 </script>
@@ -110,19 +155,31 @@
 
 <div class="flex h-full flex-col">
   <TopBar>
-    <Crumb><span class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400"><ProjectMark name={project?.name ?? "No project"} kind={project?.kind} />{project?.name ?? "No project"}</span></Crumb>
+    <Crumb
+      ><span class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400"
+        ><ProjectMark name={project?.name ?? "No project"} kind={project?.kind} />{project?.name ?? "No project"}</span
+      ></Crumb
+    >
     <Crumb>New thread</Crumb>
   </TopBar>
 
   <div class="grid min-h-0 flex-1 place-items-center overflow-y-auto px-4 pb-16 sm:px-6">
     <div class="w-full max-w-(--chat-width)">
       <div class="mb-8 text-center">
-        <h1 class="text-3xl font-medium tracking-tight text-balance text-zinc-950 dark:text-white">What should we work on?</h1>
+        <h1 class="text-3xl font-medium tracking-tight text-balance text-zinc-950 dark:text-white">
+          What should we work on?
+        </h1>
       </div>
 
       {#if !project}
-        <EmptyState icon="folder-open" title="Create a project first" description="A thread runs in a project's directory on one of your workers. Create a project in Settings and add it to a worker.">
-          {#snippet action()}<ButtonLink href="/settings/projects" variant="primary" icon="cog-6-tooth">Open project settings</ButtonLink>{/snippet}
+        <EmptyState
+          icon="folder-open"
+          title="Create a project first"
+          description="A thread runs in a project's directory on one of your workers. Create a project in Settings and add it to a worker."
+        >
+          {#snippet action()}<ButtonLink href="/settings/projects" variant="primary" icon="cog-6-tooth"
+              >Open project settings</ButtonLink
+            >{/snippet}
         </EmptyState>
       {:else}
         <form
@@ -160,14 +217,25 @@
           >
             {#snippet controls()}
               {#if workspace && selected}
-                <ModelControls {options} bind:option={() => selected, (option) => (picked = option)} bind:effort {workerId} class="flex-1 justify-end" />
+                <ModelControls
+                  {options}
+                  bind:option={() => selected, (option) => (picked = option)}
+                  bind:effort
+                  {workerId}
+                  class="flex-1 justify-end"
+                />
               {:else if worker?.online}
                 <PillText class="flex-1 text-right">No agent available</PillText>
               {/if}
             {/snippet}
             {#snippet meta()}
               <span class="-ml-2 flex min-w-0 items-center gap-0.5">
-                <ProjectPicker projects={overview.projects} value={project.id} onselect={pickProject} class="max-w-48 sm:max-w-56" />
+                <ProjectPicker
+                  projects={overview.projects}
+                  value={project.id}
+                  onselect={pickProject}
+                  class="max-w-48 sm:max-w-56"
+                />
                 <WorkerPicker {project} value={workspace?.id} onselect={pickWorkspace} />
               </span>
               <PermissionPicker value={permissionMode} onselect={(mode) => (permission = mode)} class="-mr-1.5" />
@@ -191,10 +259,14 @@
               {worker?.name ?? "This worker"} is offline. Start it or choose another worker to send.
             </ComposerNotice>
           {:else if blocker === "no-agent"}
-            <ComposerNotice tone="warning">{worker?.name} reports no available agents. Check the worker in Settings.</ComposerNotice>
+            <ComposerNotice tone="warning"
+              >{worker?.name} reports no available agents. Check the worker in Settings.</ComposerNotice
+            >
           {/if}
           {#if project.kind === "scratch" && workspace && !blocker}
-            <ComposerNotice>A dedicated scratch directory is created when you send. Files are kept until you remove them manually.</ComposerNotice>
+            <ComposerNotice
+              >A dedicated scratch directory is created when you send. Files are kept until you remove them manually.</ComposerNotice
+            >
           {/if}
         </form>
       {/if}

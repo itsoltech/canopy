@@ -38,14 +38,19 @@
   } = $props();
 
   const menu = useMenu();
+
   function choose(event: MouseEvent) {
     if (disabled) {
       event.preventDefault();
+
       return;
     }
+
     onselect?.();
+
     if (!keepOpen) menu.closeAll();
   }
+
   const onpointermove = hoverFocus(() => (menu.openSub = undefined));
 </script>
 
@@ -58,7 +63,15 @@
 {/snippet}
 
 {#if href && !disabled}
-  <a {href} role="menuitem" tabindex="-1" data-menu-item class={[menuRowClasses, danger && "text-rose-700 dark:text-rose-400", className]} onclick={choose} {onpointermove}>
+  <a
+    {href}
+    role="menuitem"
+    tabindex="-1"
+    data-menu-item
+    class={[menuRowClasses, danger && "text-rose-700 dark:text-rose-400", className]}
+    onclick={choose}
+    {onpointermove}
+  >
     {@render body()}
   </a>
 {:else}

@@ -43,7 +43,12 @@ interface Pending {
 }
 
 type Incoming =
-  | { id: number | string; result?: unknown; error?: { code: number; message: string; data?: unknown }; method?: undefined }
+  | {
+      id: number | string;
+      result?: unknown;
+      error?: { code: number; message: string; data?: unknown };
+      method?: undefined;
+    }
   | { id: number | string; method: string; params?: unknown }
   | { id?: undefined; method: string; params?: unknown };
 
@@ -62,6 +67,7 @@ export class JsonRpcPeer {
   request(method: string, params: unknown): Promise<unknown> {
     if (this.#closed) return Promise.reject(this.#closed);
     const id = this.#nextId++;
+
     return new Promise((resolve, reject) => {
       this.#pending.set(id, { method, resolve, reject });
       this.#send({ id, method, params });
@@ -79,13 +85,16 @@ export class JsonRpcPeer {
       for await (const line of this.#transport.lines) {
         if (line.trim() === "") continue;
         let message: Incoming;
+
         try {
           message = JSON.parse(line) as Incoming;
         } catch {
           continue; // not ours (e.g. a stray log line); the protocol is line-delimited JSON only
         }
+
         this.#dispatch(message);
       }
+
       this.#close(new RpcClosedError("codex app-server closed its output"));
     } catch (error) {
       this.#close(error instanceof Error ? error : new RpcClosedError(String(error)));
@@ -95,16 +104,23 @@ export class JsonRpcPeer {
   #dispatch(message: Incoming): void {
     if (message.method === undefined) {
       const pending = typeof message.id === "number" ? this.#pending.get(message.id) : undefined;
+
       if (!pending) return;
       this.#pending.delete(message.id as number);
-      if (message.error) pending.reject(new RpcError(pending.method, message.error.code, message.error.message, message.error.data));
+
+      if (message.error)
+        pending.reject(new RpcError(pending.method, message.error.code, message.error.message, message.error.data));
       else pending.resolve(message.result);
+
       return;
     }
+
     if (message.id === undefined) {
       this.#handlers.onNotification(message.method, message.params);
+
       return;
     }
+
     const { id, method, params } = message;
     this.#handlers.onRequest(method, params).then(
       (result) => this.#safeSend({ id, result }),
@@ -130,6 +146,7 @@ export class JsonRpcPeer {
   #close(error: Error): void {
     if (this.#closed) return;
     this.#closed = error;
+
     for (const pending of this.#pending.values()) pending.reject(error);
     this.#pending.clear();
   }
@@ -139,13 +156,16 @@ export class JsonRpcPeer {
 export async function* readLines(stream: ReadableStream<Uint8Array>): AsyncIterable<string> {
   const decoder = new TextDecoder();
   let buffer = "";
+
   for await (const chunk of stream) {
     buffer += decoder.decode(chunk, { stream: true });
     let index: number;
+
     while ((index = buffer.indexOf("\n")) >= 0) {
       yield buffer.slice(0, index);
       buffer = buffer.slice(index + 1);
     }
   }
+
   if (buffer.length > 0) yield buffer;
 }

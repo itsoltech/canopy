@@ -15,28 +15,40 @@ import { api, git, repository } from "./release-github.ts";
 
 const GENERATED = ["checksums.txt", "manifest.json"];
 
-interface Release { id: number; tag_name: string; draft: boolean; prerelease: boolean; assets: { id: number; name: string }[] }
+interface Release {
+  id: number;
+  tag_name: string;
+  draft: boolean;
+  prerelease: boolean;
+  assets: { id: number; name: string }[];
+}
 
 function gh(...args: string[]): void {
   execFileSync("gh", args, { stdio: ["ignore", "inherit", "inherit"] });
 }
 
 function release(repo: string, tag: string): Release | undefined {
-  try { return api<Release>(`repos/${repo}/releases/tags/${tag}`); }
-  catch { return undefined; }
+  try {
+    return api<Release>(`repos/${repo}/releases/tags/${tag}`);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Upload under a temporary name, then swap it in: the old file stays published until the rename. */
 function replace(repo: string, tag: string, path: string, name: string): void {
   const staging = mkdtempSync(join(tmpdir(), "canopy-release-upload-"));
+
   try {
     const staged = join(staging, `${name}.next`);
     copyFileSync(path, staged);
     gh("release", "upload", tag, staged, "--clobber");
     const assets = release(repo, tag)?.assets ?? [];
     const next = assets.find((asset) => asset.name === `${name}.next`);
+
     if (!next) throw new Error(`Uploaded ${name}.next is missing from ${tag}`);
     const current = assets.find((asset) => asset.name === name);
+
     if (current) api(`repos/${repo}/releases/assets/${current.id}`, "DELETE");
     api(`repos/${repo}/releases/assets/${next.id}`, "PATCH", { name });
   } finally {
@@ -50,28 +62,52 @@ if (import.meta.main) {
   const version = process.env["CANOPY_VERSION"];
   const channel = process.env["CANOPY_CHANNEL"];
   const sha = process.env["GITHUB_SHA"];
-  if (!process.argv[2] || !tag || !version || !channel || !sha) throw new Error("Usage: CANOPY_RELEASE_TAG=… CANOPY_VERSION=… CANOPY_CHANNEL=… GITHUB_SHA=… bun scripts/release-upload.ts <assets dir>");
+
+  if (!process.argv[2] || !tag || !version || !channel || !sha)
+    throw new Error(
+      "Usage: CANOPY_RELEASE_TAG=… CANOPY_VERSION=… CANOPY_CHANNEL=… GITHUB_SHA=… bun scripts/release-upload.ts <assets dir>",
+    );
+
   if (tag !== `v${version}`) throw new Error(`Tag ${tag} does not match version ${version}`);
-  for (const name of GENERATED) if (!existsSync(join(directory, name))) throw new Error(`${name} is missing; run scripts/release-manifest.ts first`);
+
+  for (const name of GENERATED)
+    if (!existsSync(join(directory, name)))
+      throw new Error(`${name} is missing; run scripts/release-manifest.ts first`);
   // Never attach this run's assets to a tag that names another commit.
   git("fetch", "--quiet", "--no-tags", "origin", `+refs/tags/${tag}:refs/tags/${tag}`);
+
   if (git("rev-parse", `${tag}^{commit}`) !== sha) throw new Error(`${tag} does not point at ${sha}`);
 
   const repo = repository();
   const existing = release(repo, tag);
+
   if (!existing) {
     // Branch releases come from semantic-release; a manual stable tag gets its release here.
-    gh("release", "create", tag, "--verify-tag", "--title", `Canopy ${version}`, "--generate-notes",
-      ...(channel === "stable" ? [] : ["--prerelease", "--latest=false"]));
+    gh(
+      "release",
+      "create",
+      tag,
+      "--verify-tag",
+      "--title",
+      `Canopy ${version}`,
+      "--generate-notes",
+      ...(channel === "stable" ? [] : ["--prerelease", "--latest=false"]),
+    );
   } else if (existing.draft || existing.prerelease !== (channel !== "stable")) {
     throw new Error(`Release ${tag} is a draft or has the wrong prerelease flag`);
   }
 
-  const names = readdirSync(directory).filter((name) => !GENERATED.includes(name)).sort();
+  const names = readdirSync(directory)
+    .filter((name) => !GENERATED.includes(name))
+    .sort();
+
   const assets = names.filter((name) => !name.endsWith(".yml")).map((name) => join(directory, name));
   const feeds = names.filter((name) => name.endsWith(".yml")).map((name) => join(directory, name));
+
   if (assets.length) gh("release", "upload", tag, ...assets, "--clobber");
+
   if (feeds.length) gh("release", "upload", tag, ...feeds, "--clobber");
+
   for (const name of GENERATED) replace(repo, tag, join(directory, name), name);
   console.info(`${tag}: ${assets.length} assets, ${feeds.length} feeds, checksums.txt and manifest.json`);
 }

@@ -25,8 +25,10 @@ class BotList {
         clearInterval(timer);
         window.removeEventListener("bots-changed", refresh);
       };
+
       refresh();
     }
+
     return () => {
       if (--this.#users === 0) this.#stop?.();
     };
@@ -34,7 +36,9 @@ class BotList {
 
   async refresh(): Promise<void> {
     try {
-      this.list = decode(bots.ListBotsResponseSchema, await requestJson("GET", "/api/bots?archived=1")).bots.map((bot) => this.#saving.has(bot.id) ? this.list.find((b) => b.id === bot.id) ?? bot : bot);
+      this.list = decode(bots.ListBotsResponseSchema, await requestJson("GET", "/api/bots?archived=1")).bots.map(
+        (bot) => (this.#saving.has(bot.id) ? (this.list.find((b) => b.id === bot.id) ?? bot) : bot),
+      );
       this.error = "";
     } catch {
       this.error = "Could not load bots";
@@ -45,23 +49,45 @@ class BotList {
 
   upsert(bot: bots.Bot): void {
     if (this.#saving.has(bot.id)) return;
-    this.list = this.list.some((b) => b.id === bot.id) ? this.list.map((b) => b.id === bot.id ? bot : b) : [...this.list, bot];
+    this.list = this.list.some((b) => b.id === bot.id)
+      ? this.list.map((b) => (b.id === bot.id ? bot : b))
+      : [...this.list, bot];
   }
 
   async markRead(botId: string, throughSeq: bigint): Promise<void> {
-    const response = decode(bots.GetBotResponseSchema, await requestJson('POST', `/api/bots/${botId}/read`, encode(bots.MarkBotReadRequestSchema, create(bots.MarkBotReadRequestSchema, { botId, throughSeq }))));
+    const response = decode(
+      bots.GetBotResponseSchema,
+      await requestJson(
+        "POST",
+        `/api/bots/${botId}/read`,
+        encode(bots.MarkBotReadRequestSchema, create(bots.MarkBotReadRequestSchema, { botId, throughSeq })),
+      ),
+    );
+
     if (response.bot) this.upsert(response.bot);
   }
 
   async save(bot: bots.Bot, configuration: bots.BotConfiguration): Promise<void> {
     if (this.#saving.has(bot.id)) throw new Error("This bot is already being saved. Try again after it finishes.");
     this.#saving.add(bot.id);
-    this.list = this.list.map((b) => b.id === bot.id ? create(bots.BotSchema, { ...b, configuration }) : b);
+    this.list = this.list.map((b) => (b.id === bot.id ? create(bots.BotSchema, { ...b, configuration }) : b));
+
     try {
-      const response = decode(bots.GetBotResponseSchema, await requestJson("PUT", `/api/bots/${bot.id}`, encode(bots.UpdateBotRequestSchema, create(bots.UpdateBotRequestSchema, { botId: bot.id, configuration }))));
-      if (response.bot) this.list = this.list.map((b) => b.id === bot.id ? create(bots.BotSchema, { ...response.bot!, lastMessage: b.lastMessage }) : b);
+      const response = decode(
+        bots.GetBotResponseSchema,
+        await requestJson(
+          "PUT",
+          `/api/bots/${bot.id}`,
+          encode(bots.UpdateBotRequestSchema, create(bots.UpdateBotRequestSchema, { botId: bot.id, configuration })),
+        ),
+      );
+
+      if (response.bot)
+        this.list = this.list.map((b) =>
+          b.id === bot.id ? create(bots.BotSchema, { ...response.bot!, lastMessage: b.lastMessage }) : b,
+        );
     } catch (cause) {
-      this.list = this.list.map((b) => b.id === bot.id ? bot : b);
+      this.list = this.list.map((b) => (b.id === bot.id ? bot : b));
       throw cause;
     } finally {
       this.#saving.delete(bot.id);

@@ -8,5 +8,6 @@ import type { RequestHandler } from "./$types";
 export const PUT: RequestHandler = async ({ request, params }) => {
   const body = await readMessage(request, ui.UpdateScheduleRequestSchema);
   body.scheduleId = params.scheduleId;
+
   return json(encode(ui.UpdateScheduleResponseSchema, await call((api) => api.updateSchedule(body))));
 };

@@ -11,7 +11,13 @@
    * `bare`: no box of its own, for inputs inside another surface (a picker's search field).
    * `choice`: radio/checkbox; controlled through checked/onchange, without a text-value binding.
    */
-  type Props = Omit<HTMLInputAttributes, "class"> & { class?: ClassValue; value?: HTMLInputAttributes["value"]; bare?: boolean; choice?: boolean };
+  type Props = Omit<HTMLInputAttributes, "class"> & {
+    class?: ClassValue;
+    value?: HTMLInputAttributes["value"];
+    bare?: boolean;
+    choice?: boolean;
+  };
+
   let { class: className, value = $bindable(), bare = false, choice = false, type = "text", ...rest }: Props = $props();
   const field = useField();
 </script>
@@ -31,13 +37,13 @@
     {...rest}
   />
 {:else}
-<input
-  {type}
-  id={field?.id}
-  aria-describedby={field?.describedBy}
-  aria-invalid={field?.invalid || undefined}
-  class={[bare ? bareControlClasses : controlClasses, className]}
-  bind:value
-  {...rest}
-/>
+  <input
+    {type}
+    id={field?.id}
+    aria-describedby={field?.describedBy}
+    aria-invalid={field?.invalid || undefined}
+    class={[bare ? bareControlClasses : controlClasses, className]}
+    bind:value
+    {...rest}
+  />
 {/if}

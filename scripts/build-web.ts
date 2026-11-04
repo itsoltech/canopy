@@ -13,16 +13,26 @@ const root = resolve(import.meta.dir, "..");
 const { values } = parseArgs({ args: Bun.argv.slice(2), strict: true, options: { outdir: { type: "string" } } });
 const outdir = resolve(values.outdir ?? join(root, "dist/web"));
 const version = process.env["CANOPY_VERSION"] || currentVersion().version;
+
 mkdirSync(join(root, ".tmp"), { recursive: true });
+
 const staging = mkdtempSync(join(root, ".tmp/web-"));
+
 try {
   const vite = Bun.spawnSync(["bun", "run", "build"], {
     cwd: join(root, "apps/web"),
-    env: { ...process.env, CANOPY_VERSION: version, WEB_BUILD_VERSION: process.env["WEB_BUILD_VERSION"] || version, BUILD_DIR: staging },
+    env: {
+      ...process.env,
+      CANOPY_VERSION: version,
+      WEB_BUILD_VERSION: process.env["WEB_BUILD_VERSION"] || version,
+      BUILD_DIR: staging,
+    },
     stdio: ["inherit", "inherit", "inherit"],
   });
+
   if (vite.exitCode !== 0) throw new Error("web build failed");
   rmSync(outdir, { recursive: true, force: true });
+
   const bundle = await Bun.build({
     entrypoints: [join(staging, "index.js")],
     outdir,
@@ -31,9 +41,12 @@ try {
     minify: { syntax: true },
     define: { "process.env.CANOPY_VERSION": JSON.stringify(version) },
   });
+
   if (!bundle.success) throw new AggregateError(bundle.logs, "web bundle failed");
   cpSync(join(staging, "client"), join(outdir, "client"), { recursive: true });
-  if (existsSync(join(staging, "prerendered"))) cpSync(join(staging, "prerendered"), join(outdir, "prerendered"), { recursive: true });
+
+  if (existsSync(join(staging, "prerendered")))
+    cpSync(join(staging, "prerendered"), join(outdir, "prerendered"), { recursive: true });
   console.info(`Canopy web ${version}: ${outdir}`);
 } finally {
   rmSync(staging, { recursive: true, force: true });

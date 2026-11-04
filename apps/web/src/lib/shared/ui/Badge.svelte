@@ -6,7 +6,13 @@
   import { badgeTones, type Tone } from "./tone.ts";
 
   /** Compact label. Colour is never the only signal: the text always says what it means. `compact` fits a text line (list rows). */
-  let { tone = "neutral", icon, compact = false, class: className, children }: { tone?: Tone; icon?: IconName; compact?: boolean; class?: ClassValue; children: Snippet } = $props();
+  let {
+    tone = "neutral",
+    icon,
+    compact = false,
+    class: className,
+    children,
+  }: { tone?: Tone; icon?: IconName; compact?: boolean; class?: ClassValue; children: Snippet } = $props();
 </script>
 
 <span

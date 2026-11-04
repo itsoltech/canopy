@@ -13,10 +13,24 @@
     note,
     class: className,
     children,
-  }: { expanded: boolean; onclick: () => void; note?: string | undefined; class?: ClassValue; children: Snippet } = $props();
+  }: {
+    expanded: boolean;
+    onclick: () => void;
+    note?: string | undefined;
+    class?: ClassValue;
+    children: Snippet;
+  } = $props();
 </script>
 
-<div data-quote-skip class={["flex items-center justify-between gap-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", className]}>
+<div
+  data-quote-skip
+  class={["flex items-center justify-between gap-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400", className]}
+>
   {#if note}<p class="tabular-nums">{note}</p>{/if}
-  <button type="button" class="rounded-md font-medium text-zinc-700 hover:text-zinc-950 focus-ring dark:text-zinc-300 dark:hover:text-white" aria-expanded={expanded} {onclick}>{@render children()}</button>
+  <button
+    type="button"
+    class="rounded-md font-medium text-zinc-700 focus-ring hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white"
+    aria-expanded={expanded}
+    {onclick}>{@render children()}</button
+  >
 </div>

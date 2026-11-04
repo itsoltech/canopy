@@ -8,16 +8,33 @@
    * Bot ⇄ bot messages as one quiet line instead of their text: "Messaged ‹A› and ‹B›", "Message from ‹A›",
    * "2 messages with ‹A›". Each bot links to that exchange (`hrefOf`), which opens as its own chat.
    */
-  let { segments, hrefOf, class: className }: { segments: readonly ExchangeSegment[]; hrefOf: (segment: ExchangeSegment) => string; class?: ClassValue } = $props();
+  let {
+    segments,
+    hrefOf,
+    class: className,
+  }: {
+    segments: readonly ExchangeSegment[];
+    hrefOf: (segment: ExchangeSegment) => string;
+    class?: ClassValue;
+  } = $props();
+
   const phrases = $derived(exchangePhrases(segments));
   const unknown = { id: "", kind: "bot", name: "a deleted bot" } as const;
 </script>
 
 {#snippet chip(segment: ExchangeSegment)}
-  <BotChip bot={segment.bot ?? { ...unknown, id: segment.botId, color: '#71717a', shape: 'round' }} href={segment.bot ? hrefOf(segment) : undefined} />
+  <BotChip
+    bot={segment.bot ?? { ...unknown, id: segment.botId, color: "#71717a", shape: "round" }}
+    href={segment.bot ? hrefOf(segment) : undefined}
+  />
 {/snippet}
 
-<p class={["flex flex-wrap items-center gap-x-1.5 gap-y-1 pl-9 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400", className]}>
+<p
+  class={[
+    "flex flex-wrap items-center gap-x-1.5 gap-y-1 pl-9 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400",
+    className,
+  ]}
+>
   <Icon name="arrows-right-left" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" />
   {#each phrases as phrase, index (index)}
     {#if index > 0}<span aria-hidden="true">·</span>{/if}

@@ -23,6 +23,7 @@
 
   const projectId = $derived(route.params.projectId ?? "");
   const project = $derived(overview.project(projectId));
+
   // Server list, with live status updates (and new threads, e.g. spawned by agents) laid over it.
   const threads = $derived(overview.liveThreads(projectId, decode(ui.ListThreadsResponseSchema, data.threads).threads));
 </script>
@@ -41,15 +42,25 @@
 {#if project}
   {#if project.kind !== "scratch"}
     <SharingGroup>
-      <ShareSetting itemKey={sharedKey.project(project.id)} label={project.name} local="Linked computers get the same project and its name. Workspaces are directories on each computer and stay separate." />
+      <ShareSetting
+        itemKey={sharedKey.project(project.id)}
+        label={project.name}
+        local="Linked computers get the same project and its name. Workspaces are directories on each computer and stay separate."
+      />
     </SharingGroup>
   {/if}
 
-  <SettingsGroup title="Workers" description="Where this project lives: a directory on each worker you add it to. A new thread runs on one of them.">
+  <SettingsGroup
+    title="Workers"
+    description="Where this project lives: a directory on each worker you add it to. A new thread runs on one of them."
+  >
     <ProjectWorkers {project} error={route.form?.action === "workspace" ? route.form.error : undefined} />
   </SettingsGroup>
 
-  <SettingsGroup title="Thread defaults" description="Starting values of new threads in this project, over your own defaults from Settings → Threads.">
+  <SettingsGroup
+    title="Thread defaults"
+    description="Starting values of new threads in this project, over your own defaults from Settings → Threads."
+  >
     <ThreadDefaultsFields
       value={settings.projectDefaults(project.id)}
       workspaces={[{ project, workspaces: project.workspaces }]}

@@ -29,16 +29,51 @@
   const accent = $derived(accentOf(settings.appearance));
   const chatWidth = $derived(chatWidthOf(settings.appearance));
 
-  const schemes = (["system", "light", "dark"] as const).map((value: SchemeName) => ({ value, label: schemeLabels[value] }));
+  const schemes = (["system", "light", "dark"] as const).map((value: SchemeName) => ({
+    value,
+    label: schemeLabels[value],
+  }));
+
   // Each theme: its accent, shown as a light and a dark orb.
   const accents: { value: AccentName; label: string; light: string; dark: string }[] = [
-    { value: "default", label: accentLabels.default, light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-blue-100)_45%,var(--color-blue-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-blue-400),var(--color-zinc-900)_60%,black)]" },
-    { value: "grove", label: accentLabels.grove, light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-emerald-100)_45%,var(--color-emerald-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-emerald-400),var(--color-emerald-900)_60%,black)]" },
-    { value: "ocean", label: accentLabels.ocean, light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-sky-100)_45%,var(--color-sky-400))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-sky-400),var(--color-sky-900)_60%,black)]" },
-    { value: "ember", label: accentLabels.ember, light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-orange-100)_45%,var(--color-orange-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-orange-400),var(--color-orange-900)_60%,black)]" },
-    { value: "iris", label: accentLabels.iris, light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-violet-100)_45%,var(--color-violet-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-violet-400),var(--color-violet-900)_60%,black)]" },
-    { value: "rose", label: accentLabels.rose, light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-pink-100)_45%,var(--color-pink-300))]", dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-pink-400),var(--color-pink-900)_60%,black)]" },
+    {
+      value: "default",
+      label: accentLabels.default,
+      light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-blue-100)_45%,var(--color-blue-300))]",
+      dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-blue-400),var(--color-zinc-900)_60%,black)]",
+    },
+    {
+      value: "grove",
+      label: accentLabels.grove,
+      light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-emerald-100)_45%,var(--color-emerald-300))]",
+      dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-emerald-400),var(--color-emerald-900)_60%,black)]",
+    },
+    {
+      value: "ocean",
+      label: accentLabels.ocean,
+      light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-sky-100)_45%,var(--color-sky-400))]",
+      dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-sky-400),var(--color-sky-900)_60%,black)]",
+    },
+    {
+      value: "ember",
+      label: accentLabels.ember,
+      light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-orange-100)_45%,var(--color-orange-300))]",
+      dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-orange-400),var(--color-orange-900)_60%,black)]",
+    },
+    {
+      value: "iris",
+      label: accentLabels.iris,
+      light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-violet-100)_45%,var(--color-violet-300))]",
+      dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-violet-400),var(--color-violet-900)_60%,black)]",
+    },
+    {
+      value: "rose",
+      label: accentLabels.rose,
+      light: "bg-[radial-gradient(circle_at_35%_30%,white,var(--color-pink-100)_45%,var(--color-pink-300))]",
+      dark: "bg-[radial-gradient(circle_at_35%_30%,var(--color-pink-400),var(--color-pink-900)_60%,black)]",
+    },
   ];
+
   const cardClass =
     "group relative grid cursor-pointer gap-2 rounded-2xl p-2 ring-1 ring-zinc-950/10 hover:ring-zinc-950/20 has-checked:ring-2 has-checked:ring-brand-500 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-brand-500 dark:ring-white/10 dark:hover:ring-white/20 dark:has-checked:ring-brand-500";
 </script>
@@ -51,8 +86,17 @@
     <div class="grid grid-cols-3 gap-2 @md:gap-3" role="radiogroup" aria-labelledby="scheme-title">
       {#each schemes as option (option.value)}
         <label class={cardClass}>
-          <input type="radio" name="scheme" value={option.value} class="sr-only" checked={scheme === option.value} onchange={() => settings.updateAppearance({ colorScheme: schemeNames[option.value] })} />
-          <div class="relative aspect-[16/9] overflow-hidden rounded-[calc(var(--radius-2xl)-var(--spacing)*2)] ring-1 ring-zinc-950/5 dark:ring-white/5">
+          <input
+            type="radio"
+            name="scheme"
+            value={option.value}
+            class="sr-only"
+            checked={scheme === option.value}
+            onchange={() => settings.updateAppearance({ colorScheme: schemeNames[option.value] })}
+          />
+          <div
+            class="relative aspect-[16/9] overflow-hidden rounded-[calc(var(--radius-2xl)-var(--spacing)*2)] ring-1 ring-zinc-950/5 dark:ring-white/5"
+          >
             {#if option.value === "system"}
               <SchemePreview mode="light" class="absolute inset-0" />
               <SchemePreview mode="dark" class="absolute inset-0 [clip-path:inset(0_0_0_50%)]" />
@@ -60,7 +104,10 @@
               <SchemePreview mode={option.value} />
             {/if}
           </div>
-          <span class="pb-1 text-center text-sm/6 text-zinc-600 group-has-checked:font-medium group-has-checked:text-zinc-950 dark:text-zinc-400 dark:group-has-checked:text-white">{option.label}</span>
+          <span
+            class="pb-1 text-center text-sm/6 text-zinc-600 group-has-checked:font-medium group-has-checked:text-zinc-950 dark:text-zinc-400 dark:group-has-checked:text-white"
+            >{option.label}</span
+          >
         </label>
       {/each}
     </div>
@@ -69,15 +116,26 @@
 
 <section aria-labelledby="themes-title">
   <h2 id="themes-title" class="mb-1 px-1 text-base/7 font-semibold">Themes</h2>
-  <p class="mb-3 px-1 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">The accent of buttons, focus rings and the send button.</p>
+  <p class="mb-3 px-1 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+    The accent of buttons, focus rings and the send button.
+  </p>
   <div class="@container">
     <div class="grid grid-cols-2 gap-3 @lg:grid-cols-3" role="radiogroup" aria-labelledby="themes-title">
       {#each accents as option (option.value)}
         <label class={[cardClass, "p-4"]}>
-          <input type="radio" name="accent" value={option.value} class="sr-only" checked={accent === option.value} onchange={() => settings.updateAppearance({ accent: accentNames[option.value] })} />
+          <input
+            type="radio"
+            name="accent"
+            value={option.value}
+            class="sr-only"
+            checked={accent === option.value}
+            onchange={() => settings.updateAppearance({ accent: accentNames[option.value] })}
+          />
           <span class="flex justify-center gap-3 py-2" aria-hidden="true">
-            <span class={["size-12 rounded-full shadow-inner ring-1 ring-zinc-950/10 dark:ring-white/10", option.light]}></span>
-            <span class={["size-12 rounded-full shadow-inner ring-1 ring-zinc-950/10 dark:ring-white/10", option.dark]}></span>
+            <span class={["size-12 rounded-full shadow-inner ring-1 ring-zinc-950/10 dark:ring-white/10", option.light]}
+            ></span>
+            <span class={["size-12 rounded-full shadow-inner ring-1 ring-zinc-950/10 dark:ring-white/10", option.dark]}
+            ></span>
           </span>
           <span class="text-base/6 font-medium sm:text-sm/6">{option.label}</span>
         </label>
@@ -87,9 +145,16 @@
 </section>
 
 <SettingsGroup title="Interface">
-  <SettingsRow title="Time zone" description={settings.user.timezone ? "Taken from this device. Bots use it for local times and scheduled tasks." : "Bots use it for local times and scheduled tasks."}>
+  <SettingsRow
+    title="Time zone"
+    description={settings.user.timezone
+      ? "Taken from this device. Bots use it for local times and scheduled tasks."
+      : "Bots use it for local times and scheduled tasks."}
+  >
     {#snippet control()}
-      <p class="text-base/6 wrap-anywhere text-zinc-950 sm:text-sm/6 dark:text-white">{settings.user.timezone || "UTC"}</p>
+      <p class="text-base/6 wrap-anywhere text-zinc-950 sm:text-sm/6 dark:text-white">
+        {settings.user.timezone || "UTC"}
+      </p>
     {/snippet}
   </SettingsRow>
   <AnimatedMascotsSetting />
@@ -108,6 +173,10 @@
 </SettingsGroup>
 
 <SharingGroup>
-  <ShareSetting itemKey={sharedKey.settings("appearance")} label="Appearance" local="Color scheme, theme and chat width. Panel and sidebar layout stay on each computer." />
+  <ShareSetting
+    itemKey={sharedKey.settings("appearance")}
+    label="Appearance"
+    local="Color scheme, theme and chat width. Panel and sidebar layout stay on each computer."
+  />
   <ShareSetting itemKey={sharedKey.settings("timezone")} label="Time zone" />
 </SharingGroup>

@@ -1,4 +1,10 @@
-import type { InitializeParams, InitializeResponse, ServerNotification, ServerRequest, v2 } from "@canopy/codex-protocol";
+import type {
+  InitializeParams,
+  InitializeResponse,
+  ServerNotification,
+  ServerRequest,
+  v2,
+} from "@canopy/codex-protocol";
 import { Context, Effect, Layer, PubSub, Schema, Stream } from "effect";
 import type { CodexAppServerLaunch } from "./launch.ts";
 import { JsonRpcPeer, RpcError, readLines } from "./rpc.ts";
@@ -28,8 +34,14 @@ export interface CodexMethods {
   "thread/goal/get": { params: v2.ThreadGoalGetParams; result: v2.ThreadGoalGetResponse };
   "thread/goal/clear": { params: v2.ThreadGoalClearParams; result: v2.ThreadGoalClearResponse };
   "model/list": { params: v2.ModelListParams; result: v2.ModelListResponse };
-  "thread/backgroundTerminals/list": { params: v2.ThreadBackgroundTerminalsListParams; result: v2.ThreadBackgroundTerminalsListResponse };
-  "thread/backgroundTerminals/terminate": { params: v2.ThreadBackgroundTerminalsTerminateParams; result: v2.ThreadBackgroundTerminalsTerminateResponse };
+  "thread/backgroundTerminals/list": {
+    params: v2.ThreadBackgroundTerminalsListParams;
+    result: v2.ThreadBackgroundTerminalsListResponse;
+  };
+  "thread/backgroundTerminals/terminate": {
+    params: v2.ThreadBackgroundTerminalsTerminateParams;
+    result: v2.ThreadBackgroundTerminalsTerminateResponse;
+  };
   "account/login/start": { params: v2.LoginAccountParams; result: v2.LoginAccountResponse };
   "skills/list": { params: v2.SkillsListParams; result: v2.SkillsListResponse };
   "plugin/list": { params: v2.PluginListParams; result: v2.PluginListResponse };
@@ -51,7 +63,10 @@ export class CodexAppServer extends Context.Service<
   {
     /** e.g. "canopy-worker/0.164.0 (Linux ...)"; the Codex version is the first version in it. */
     readonly userAgent: string;
-    request<M extends keyof CodexMethods>(method: M, params: CodexMethods[M]["params"]): Effect.Effect<CodexMethods[M]["result"], CodexAppServerError>;
+    request<M extends keyof CodexMethods>(
+      method: M,
+      params: CodexMethods[M]["params"],
+    ): Effect.Effect<CodexMethods[M]["result"], CodexAppServerError>;
     /** Every server notification, for all threads. Subscribe before triggering the work you want to observe. */
     readonly notifications: Stream.Stream<ServerNotification>;
     /** Last stderr lines of the process, for diagnostics. */
@@ -88,6 +103,7 @@ export class CodexAppServer extends Context.Service<
           Effect.promise(async () => {
             for await (const line of readLines(proc.stderr)) {
               stderr.push(line);
+
               if (stderr.length > 200) stderr.shift();
             }
           }),
@@ -107,6 +123,7 @@ export class CodexAppServer extends Context.Service<
             onRequest: (method, params) => options.onServerRequest({ method, params } as Omit<ServerRequest, "id">),
           },
         );
+
         yield* Effect.forkScoped(Effect.promise(() => peer.run()));
 
         const call = (method: string, params: unknown) =>
@@ -125,7 +142,11 @@ export class CodexAppServer extends Context.Service<
           // experimentalApi: dynamicTools (agent bus) and other experimental fields.
           capabilities: { experimentalApi: true, requestAttestation: false },
         };
-        const initialized = (yield* call("initialize", initializeParams).pipe(Effect.timeout("30 seconds"))) as InitializeResponse;
+
+        const initialized = (yield* call("initialize", initializeParams).pipe(
+          Effect.timeout("30 seconds"),
+        )) as InitializeResponse;
+
         peer.notify("initialized");
 
         return CodexAppServer.of({

@@ -8,6 +8,12 @@
   let { onclick, class: className }: { onclick: () => void; class?: ClassValue } = $props();
 </script>
 
-<PillButton chevron={false} aria-label="Set a goal" class={className} {onclick} {@attach tooltip("Set a goal: the agent keeps working until it is met")}>
+<PillButton
+  chevron={false}
+  aria-label="Set a goal"
+  class={className}
+  {onclick}
+  {@attach tooltip("Set a goal: the agent keeps working until it is met")}
+>
   <Icon name="flag" class="size-3.5" /><span class="max-sm:sr-only">Goal</span>
 </PillButton>

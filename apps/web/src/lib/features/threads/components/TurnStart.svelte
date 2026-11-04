@@ -21,24 +21,36 @@
   const label = $derived(silentTriggerLabel(turn));
   const at = $derived(turn.startedAt ?? turn.queuedAt);
   const goal = $derived(turn.goalId ? directory.goal(turn.goalId) : undefined);
+
   turnReveal.listen();
 </script>
 
 <div data-shown={turnReveal.shows(turn.id) || undefined}>
   {#if newDay && at}
     <p class="flex justify-center pb-2">
-      <time datetime={isoDateTime(at)} class="rounded-full bg-zinc-950/5 px-2.5 py-0.5 text-sm/5 font-medium text-zinc-600 sm:text-xs/5 dark:bg-white/8 dark:text-zinc-400">{formatDay(at)}</time>
+      <time
+        datetime={isoDateTime(at)}
+        class="rounded-full bg-zinc-950/5 px-2.5 py-0.5 text-sm/5 font-medium text-zinc-600 sm:text-xs/5 dark:bg-white/8 dark:text-zinc-400"
+        >{formatDay(at)}</time
+      >
     </p>
   {/if}
   <div class="flex h-5 items-center gap-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
     {#if turn.goalId}
-      <span class="flex min-w-0 items-center gap-1 text-sky-700 dark:text-sky-400" {@attach tooltip(goal ? `Goal (${goalLook(goal.status).label.toLowerCase()}): ${goal.objective}` : undefined)}>
-        <Icon name="flag" class="size-3.5" />Goal{#if goal}<span class="sr-only">: {goal.objective.slice(0, 200)}</span>{/if}
+      <span
+        class="flex min-w-0 items-center gap-1 text-sky-700 dark:text-sky-400"
+        {@attach tooltip(goal ? `Goal (${goalLook(goal.status).label.toLowerCase()}): ${goal.objective}` : undefined)}
+      >
+        <Icon name="flag" class="size-3.5" />Goal{#if goal}<span class="sr-only">: {goal.objective.slice(0, 200)}</span
+          >{/if}
       </span>
     {/if}
     {#if label}<span class="truncate">{label}</span>{/if}
-    <span class="ml-auto shrink-0 t-quiet tabular-nums">
-      <span class="sr-only">Turn {number}{#if at}, {formatDateTime(at)}{/if}</span>{#if at}<time aria-hidden="true" datetime={isoDateTime(at)} title={formatDateTime(at)}>{formatTime(at)}</time>{/if}
+    <span class="t-quiet ml-auto shrink-0 tabular-nums">
+      <span class="sr-only"
+        >Turn {number}{#if at}, {formatDateTime(at)}{/if}</span
+      >{#if at}<time aria-hidden="true" datetime={isoDateTime(at)} title={formatDateTime(at)}>{formatTime(at)}</time
+        >{/if}
     </span>
   </div>
 </div>

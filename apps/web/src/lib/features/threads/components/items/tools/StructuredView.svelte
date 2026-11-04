@@ -34,15 +34,27 @@
           <dd class="min-w-0 text-zinc-600 dark:text-zinc-400">
             <Disclosure summaryClass="-mx-1 px-1 hover:bg-zinc-950/2.5 dark:hover:bg-white/5">
               {#snippet summary()}{field.node.kind === "object" ? field.node.fields.length : 0} fields{/snippet}
-              <StructuredView node={field.node} depth={depth + 1} class="mt-1 border-l border-zinc-950/10 pl-3 dark:border-white/10" />
+              <StructuredView
+                node={field.node}
+                depth={depth + 1}
+                class="mt-1 border-l border-zinc-950/10 pl-3 dark:border-white/10"
+              />
             </Disclosure>
           </dd>
         </div>
       {:else}
         <div class="grid gap-1">
           <dt class="font-medium text-zinc-900 dark:text-zinc-100" title={field.key}>{field.label}</dt>
-          <dd class={["min-w-0 text-zinc-600 dark:text-zinc-400", field.node.kind !== "long" && "border-l border-zinc-950/10 pl-3 dark:border-white/10"]}>
-            {#if field.node.kind === "long"}<LeafValue node={field.node} />{:else}<StructuredView node={field.node} depth={depth + 1} />{/if}
+          <dd
+            class={[
+              "min-w-0 text-zinc-600 dark:text-zinc-400",
+              field.node.kind !== "long" && "border-l border-zinc-950/10 pl-3 dark:border-white/10",
+            ]}
+          >
+            {#if field.node.kind === "long"}<LeafValue node={field.node} />{:else}<StructuredView
+                node={field.node}
+                depth={depth + 1}
+              />{/if}
           </dd>
         </div>
       {/if}
@@ -64,9 +76,13 @@
       </ol>
     {/if}
     {#if node.items.length > LIST_HEAD}
-      <MoreButton expanded={allItems} onclick={() => (allItems = !allItems)}>{allItems ? "Show fewer" : `Show ${node.items.length - LIST_HEAD} more`}</MoreButton>
+      <MoreButton expanded={allItems} onclick={() => (allItems = !allItems)}
+        >{allItems ? "Show fewer" : `Show ${node.items.length - LIST_HEAD} more`}</MoreButton
+      >
     {/if}
   </div>
 {:else}
-  <div class={["min-w-0 text-base/6 text-zinc-700 sm:text-sm/6 dark:text-zinc-300", className]}><LeafValue {node} /></div>
+  <div class={["min-w-0 text-base/6 text-zinc-700 sm:text-sm/6 dark:text-zinc-300", className]}>
+    <LeafValue {node} />
+  </div>
 {/if}

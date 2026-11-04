@@ -42,6 +42,7 @@
   let lang = $state(untrack(() => initialLang));
   let area = $state<HTMLTextAreaElement>();
   const language = $derived(languageOf(lang));
+
   // The copy keeps a last empty line visible (a <pre> drops a trailing line break).
   const mirror = $derived(code === "" || code.endsWith("\n") ? `${code} ` : code);
   const INDENT = "  ";
@@ -57,7 +58,9 @@
   /** Replaces the selection through the browser, so Undo takes it back. */
   function insert(text: string) {
     if (!area) return;
-    if (!document.execCommand("insertText", false, text)) area.setRangeText(text, area.selectionStart, area.selectionEnd, "end");
+
+    if (!document.execCommand("insertText", false, text))
+      area.setRangeText(text, area.selectionStart, area.selectionEnd, "end");
     sync();
   }
 
@@ -71,15 +74,19 @@
   function indent(outdent: boolean) {
     if (!area) return;
     const { selectionStart: start, selectionEnd: end, value } = area;
+
     if (!outdent && start === end) return insert(INDENT);
     const from = value.lastIndexOf("\n", start - 1) + 1;
     let to = value.indexOf("\n", end > start && value[end - 1] === "\n" ? end - 1 : end);
+
     if (to < 0) to = value.length;
     const lines = value.slice(from, to).split("\n");
     const next = lines.map((line) => (outdent ? line.replace(/^( {1,2}|\t)/, "") : INDENT + line)).join("\n");
+
     if (next === value.slice(from, to)) return;
     area.setSelectionRange(from, to);
     insert(next);
+
     if (start === end) {
       const removed = lines[0]!.length - next.length;
       const at = Math.max(from, start - removed);
@@ -100,48 +107,69 @@
     const { selectionStart: start, selectionEnd: end, value } = area;
     const mod = event.metaKey || event.ctrlKey;
     const plain = !mod && !event.altKey;
+
     if (event.key === "Tab" && plain) {
       event.preventDefault();
       indent(event.shiftKey);
+
       return;
     }
+
     if (event.key === "Enter" && plain) {
       // A line, never a message.
       event.stopPropagation();
+
       if (start !== end) return;
       const lineStart = value.lastIndexOf("\n", start - 1) + 1;
       const line = value.slice(lineStart, start);
       const atEnd = start === value.length;
+
       if (atEnd && !event.shiftKey && line === "" && value.endsWith("\n")) {
         event.preventDefault();
         remove(start - 1, start);
         onexit("after");
+
         return;
       }
+
       if (atEnd && /^`{3,}$/.test(line)) {
         // The closing fence was typed: the block ends where it started.
         event.preventDefault();
         remove(Math.max(0, lineStart - 1), start);
         onexit("after");
+
         return;
       }
+
       const indentation = /^[ \t]*/.exec(line)?.[0] ?? "";
+
       if (indentation) {
         event.preventDefault();
         insert(`\n${indentation}`);
       }
+
       return;
     }
+
     if (event.key === "Backspace" && plain && value === "") {
       event.preventDefault();
       onremove();
+
       return;
     }
+
     if (start !== end || event.shiftKey || !plain) return;
-    if ((event.key === "ArrowDown" && !value.includes("\n", start)) || (event.key === "ArrowRight" && start === value.length)) {
+
+    if (
+      (event.key === "ArrowDown" && !value.includes("\n", start)) ||
+      (event.key === "ArrowRight" && start === value.length)
+    ) {
       event.preventDefault();
       onexit("after");
-    } else if ((event.key === "ArrowUp" && !value.slice(0, start).includes("\n")) || (event.key === "ArrowLeft" && start === 0)) {
+    } else if (
+      (event.key === "ArrowUp" && !value.slice(0, start).includes("\n")) ||
+      (event.key === "ArrowLeft" && start === 0)
+    ) {
       if (onexit("before")) event.preventDefault();
     }
   }
@@ -162,7 +190,12 @@
     <IconButton icon="x-mark" label="Remove code block" size="sm" onclick={onremove} />
   {/snippet}
   <div class="grid grid-cols-1 font-mono text-[0.8125rem]/5 [tab-size:4] max-sm:text-base/6">
-    <pre aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 p-3 break-words whitespace-pre-wrap text-zinc-800 dark:text-zinc-200"><CodeLines text={mirror} lang={language} /></pre>
+    <pre
+      aria-hidden="true"
+      class="pointer-events-none col-start-1 row-start-1 p-3 break-words whitespace-pre-wrap text-zinc-800 dark:text-zinc-200"><CodeLines
+        text={mirror}
+        lang={language}
+      /></pre>
     <textarea
       bind:this={area}
       {@attach (node) => {
@@ -175,7 +208,6 @@
       autocomplete="off"
       class="col-start-1 row-start-1 resize-none overflow-hidden bg-transparent p-3 break-words whitespace-pre-wrap text-transparent caret-zinc-950 outline-none selection:bg-brand-500/25 dark:caret-white"
       oninput={sync}
-      {onkeydown}
-    ></textarea>
+      {onkeydown}></textarea>
   </div>
 </CodeFrame>

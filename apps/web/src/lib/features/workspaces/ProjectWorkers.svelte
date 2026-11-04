@@ -18,15 +18,20 @@
   const rows = $derived.by(() => {
     const on = (workerId: string) => project.workspaces.filter((w) => w.workerId === workerId);
     const missing = [...new Set(project.workspaces.map((w) => w.workerId))].filter((id) => !overview.worker(id));
+
     return [
       ...overview.ownWorkers.map((worker) => ({ worker, workspaces: on(worker.id) })),
       ...missing.map((id) => ({ worker: create(ui.WorkerSchema, { id, name: "Unknown worker" }), workspaces: on(id) })),
     ];
   });
 
-  type Editing = { kind: "add"; worker: ui.Worker } | { kind: "move" | "remove"; worker: ui.Worker; workspace: ui.Workspace };
+  type Editing =
+    | { kind: "add"; worker: ui.Worker }
+    | { kind: "move" | "remove"; worker: ui.Worker; workspace: ui.Workspace };
+
   let editing = $state<Editing>();
   let dialogOpen = $state(false);
+
   const edit = (next: Editing) => {
     editing = next;
     dialogOpen = true;
@@ -49,8 +54,20 @@
 
 {#key editing}
   {#if editing?.kind === "remove"}
-    <RemoveWorkspaceDialog bind:open={dialogOpen} projectName={project.name} workerName={editing.worker.name} workspace={editing.workspace} {error} />
+    <RemoveWorkspaceDialog
+      bind:open={dialogOpen}
+      projectName={project.name}
+      workerName={editing.worker.name}
+      workspace={editing.workspace}
+      {error}
+    />
   {:else if editing}
-    <WorkspaceDirectoryDialog bind:open={dialogOpen} projectName={project.name} worker={editing.worker} workspace={editing.kind === "move" ? editing.workspace : undefined} {error} />
+    <WorkspaceDirectoryDialog
+      bind:open={dialogOpen}
+      projectName={project.name}
+      worker={editing.worker}
+      workspace={editing.kind === "move" ? editing.workspace : undefined}
+      {error}
+    />
   {/if}
 {/key}

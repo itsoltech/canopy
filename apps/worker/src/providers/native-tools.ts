@@ -16,12 +16,27 @@
  * Claude Code tools for native multi-agent work: subagents (Agent, formerly Task), multi-agent scripts
  * (Workflow) and agent-to-agent messaging (ListAgents, SendMessage, SubagentHandback).
  */
-export const CLAUDE_SUBAGENT_TOOLS = ["Agent", "Task", "Workflow", "ListAgents", "SendMessage", "SubagentHandback"] as const;
+export const CLAUDE_SUBAGENT_TOOLS = [
+  "Agent",
+  "Task",
+  "Workflow",
+  "ListAgents",
+  "SendMessage",
+  "SubagentHandback",
+] as const;
+
 /** Claude Code tools that schedule work outside the platform. */
-export const CLAUDE_SCHEDULING_TOOLS = ["ScheduleWakeup", "CronCreate", "CronDelete", "CronList", "RemoteTrigger"] as const;
+export const CLAUDE_SCHEDULING_TOOLS = [
+  "ScheduleWakeup",
+  "CronCreate",
+  "CronDelete",
+  "CronList",
+  "RemoteTrigger",
+] as const;
 
 /** Codex features that expose subagent tools (spawn_agent, wait, ...). */
 export const CODEX_SUBAGENT_FEATURES = ["multi_agent", "multi_agent_v2"] as const;
+
 /**
  * The features alone do not remove the collaboration tools: a model whose catalog entry declares
  * `multi_agent_version: "v2"` (e.g. gpt-6.1-sol) still gets spawn_agent, send_message, wait_agent, ...
@@ -31,8 +46,10 @@ export const CODEX_SUBAGENT_FEATURES = ["multi_agent", "multi_agent_v2"] as cons
  * that already recorded v2 (`Session::resolve_multi_agent_version_for_model`).
  */
 export const CODEX_AGENTS_ENABLED_KEY = "agents.enabled";
+
 /** Codex features that schedule or delay work outside the platform. */
 export const CODEX_SCHEDULING_FEATURES = ["in_app_local_automation", "sleep_tool"] as const;
+
 /** Codex features that connect the device owner's ChatGPT account apps (built-in `codex_apps` MCP server). */
 export const CODEX_CONNECTOR_FEATURES = ["apps"] as const;
 
@@ -43,7 +60,11 @@ export interface NativeToolPolicy {
   readonly nativeConnectors?: boolean;
 }
 
-export const DEFAULT_NATIVE_TOOL_POLICY: NativeToolPolicy = { nativeSubagents: false, nativeScheduling: false, nativeConnectors: false };
+export const DEFAULT_NATIVE_TOOL_POLICY: NativeToolPolicy = {
+  nativeSubagents: false,
+  nativeScheduling: false,
+  nativeConnectors: false,
+};
 
 /** Merged into Claude `query()` options. `disallowedTools` removes tools from the model context entirely. */
 export function claudeNativeToolOptions(policy: NativeToolPolicy): { disallowedTools: string[] } {
@@ -62,6 +83,7 @@ export function codexNativeToolOverrides(policy: NativeToolPolicy): string[] {
     ...CODEX_SCHEDULING_FEATURES.map((f): [string, boolean] => [f, policy.nativeScheduling]),
     ...CODEX_CONNECTOR_FEATURES.map((f): [string, boolean] => [f, policy.nativeConnectors ?? false]),
   ];
+
   return [
     ...features.flatMap(([feature, enabled]) => ["-c", `features.${feature}=${String(enabled)}`]),
     ...(policy.nativeSubagents ? [] : ["-c", `${CODEX_AGENTS_ENABLED_KEY}=false`]),

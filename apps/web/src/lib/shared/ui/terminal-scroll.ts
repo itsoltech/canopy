@@ -1,7 +1,9 @@
 /** Fixed-height output rows: only the viewport and its overscan enter the DOM. */
 export const OUTPUT_LINE_HEIGHT = 20;
+
 export function outputRange(count: number, top: number, height: number): [number, number] {
   const start = Math.max(0, Math.floor(Math.max(0, top) / OUTPUT_LINE_HEIGHT) - 8);
+
   return [Math.min(count, start), Math.min(count, Math.ceil((Math.max(0, top) + height) / OUTPUT_LINE_HEIGHT) + 8)];
 }
 
@@ -18,6 +20,7 @@ export class OutputPin {
 
   latest(height: number, total: number): number {
     this.pinned = true;
+
     return (this.top = Math.max(0, total - height));
   }
 }

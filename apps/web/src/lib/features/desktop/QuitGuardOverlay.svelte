@@ -7,33 +7,80 @@
   let draining = $state(false);
   let drainFrom = $state("1");
   let progress = $state<SVGCircleElement>();
+
   onMount(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
+
     const off = window.canopyDesktop?.onQuitGuard?.((value) => {
       clearTimeout(timer);
+
       if (value.phase === "cancel" && feedbackState?.phase === "holding") {
         drainFrom = progress ? getComputedStyle(progress).strokeDashoffset : "1";
         draining = true;
-        timer = setTimeout(() => { feedbackState = undefined; }, duration("quick"));
-      } else { draining = false; feedbackState = value.phase === "cancel" ? undefined : value; }
+        timer = setTimeout(() => {
+          feedbackState = undefined;
+        }, duration("quick"));
+      } else {
+        draining = false;
+        feedbackState = value.phase === "cancel" ? undefined : value;
+      }
     }, 1);
-    return () => { off?.(); clearTimeout(timer); };
+
+    return () => {
+      off?.();
+      clearTimeout(timer);
+    };
   });
 </script>
 
-<div class="pointer-events-none fixed inset-x-0 bottom-0 top-(--window-safe-top) z-[1000] flex items-center justify-center p-6 macos:overflow-y-auto">
+<div
+  class="pointer-events-none fixed inset-x-0 top-(--window-safe-top) bottom-0 z-[1000] flex items-center justify-center p-6 macos:overflow-y-auto"
+>
   {#if feedbackState}
     {#key feedbackState}
-      <div transition:rise class="flex max-w-full items-center gap-4 rounded-2xl border border-zinc-950/10 bg-white px-5 py-4 text-zinc-950 shadow-xl dark:border-white/10 dark:bg-zinc-900 dark:text-white" data-window-no-drag role="status" aria-live="polite">
+      <div
+        transition:rise
+        class="flex max-w-full items-center gap-4 rounded-2xl border border-zinc-950/10 bg-white px-5 py-4 text-zinc-950 shadow-xl dark:border-white/10 dark:bg-zinc-900 dark:text-white"
+        data-window-no-drag
+        role="status"
+        aria-live="polite"
+      >
         {#if feedbackState.phase === "holding"}
-          <div class="relative flex size-16 shrink-0 items-center justify-center" style:--hold-duration={`${feedbackState.durationMs}ms`}>
+          <div
+            class="relative flex size-16 shrink-0 items-center justify-center"
+            style:--hold-duration={`${feedbackState.durationMs}ms`}
+          >
             <svg class="quit-ring absolute inset-0 size-full -rotate-90" viewBox="0 0 64 64" aria-hidden="true">
-              <circle cx="32" cy="32" r="29" fill="none" stroke="currentColor" stroke-width="3" class="text-zinc-200 dark:text-zinc-700" />
-              <circle bind:this={progress} cx="32" cy="32" r="29" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" pathLength="1" class="quit-progress text-brand-600 dark:text-brand-400" class:draining style:--drain-from={drainFrom} />
+              <circle
+                cx="32"
+                cy="32"
+                r="29"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                class="text-zinc-200 dark:text-zinc-700"
+              />
+              <circle
+                bind:this={progress}
+                cx="32"
+                cy="32"
+                r="29"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"
+                pathLength="1"
+                class="quit-progress text-brand-600 dark:text-brand-400"
+                class:draining
+                style:--drain-from={drainFrom}
+              />
             </svg>
             <kbd class="text-sm font-semibold">{feedbackState.shortcut}</kbd>
           </div>
-          <div class="grid gap-1"><p class="font-medium">Keep holding…</p><p class="text-sm text-zinc-500 dark:text-zinc-400">Release to cancel</p></div>
+          <div class="grid gap-1">
+            <p class="font-medium">Keep holding…</p>
+            <p class="text-sm text-zinc-500 dark:text-zinc-400">Release to cancel</p>
+          </div>
         {:else}
           <p class="text-sm font-medium">{feedbackState.message ?? `Press ${feedbackState.shortcut} twice to quit`}</p>
         {/if}
@@ -48,11 +95,29 @@
     stroke-dashoffset: 1;
     animation: quit-fill var(--hold-duration) linear forwards;
   }
-  @keyframes quit-fill { to { stroke-dashoffset: 0; } }
-  .quit-progress.draining { animation: quit-drain var(--duration-quick) var(--ease-smooth-out) forwards; }
-  @keyframes quit-drain { from { stroke-dashoffset: var(--drain-from); } to { stroke-dashoffset: 1; } }
+  @keyframes quit-fill {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  .quit-progress.draining {
+    animation: quit-drain var(--duration-quick) var(--ease-smooth-out) forwards;
+  }
+  @keyframes quit-drain {
+    from {
+      stroke-dashoffset: var(--drain-from);
+    }
+    to {
+      stroke-dashoffset: 1;
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .quit-progress, .quit-progress.draining { animation: none; }
-    .quit-ring { display: none; }
+    .quit-progress,
+    .quit-progress.draining {
+      animation: none;
+    }
+    .quit-ring {
+      display: none;
+    }
   }
 </style>

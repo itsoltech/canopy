@@ -7,7 +7,13 @@
   import FileChip from "./FileChip.svelte";
 
   /** Blob metadata is mirrored; file contents stay at home and are fetched on demand. */
-  let { entityId, name, children, class: className }: { entityId: string; name: string; children: Snippet; class?: ClassValue } = $props();
+  let {
+    entityId,
+    name,
+    children,
+    class: className,
+  }: { entityId: string; name: string; children: Snippet; class?: ClassValue } = $props();
+
   const overview = useOverview();
   const node = $derived(splitId(entityId).node);
   const computer = $derived(node ? [...overview.computers.values()].find((c) => c.nodeId.startsWith(node)) : undefined);
@@ -16,7 +22,11 @@
 
 <div class={className}>
   {#if away}
-    <FileChip {name} detail="Available when {computerName(computer)} is connected." class="max-w-80 rounded-xl p-3 ring-1 ring-zinc-950/10 dark:ring-white/10" />
+    <FileChip
+      {name}
+      detail="Available when {computerName(computer)} is connected."
+      class="max-w-80 rounded-xl p-3 ring-1 ring-zinc-950/10 dark:ring-white/10"
+    />
   {:else}
     {@render children()}
   {/if}

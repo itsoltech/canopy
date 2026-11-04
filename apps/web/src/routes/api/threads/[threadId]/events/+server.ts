@@ -12,6 +12,7 @@ import type { RequestHandler } from "./$types";
  */
 export const GET: RequestHandler = async ({ request, params }) => {
   await call((api) => api.getThread({ threadId: params.threadId }, { signal: request.signal }));
+
   return sseResponse(
     request,
     (signal) => coalesceDeltas(gateway().watchThread({ threadId: params.threadId }, { signal, timeoutMs: 0 })),

@@ -38,6 +38,7 @@ async function screenshot(): Promise<Uint8Array> {
     <rect width="1600" height="900" fill="#f4f4f5"/><rect x="300" y="200" width="1000" height="500" rx="24" fill="#ffffff" stroke="#3b82f6" stroke-width="8"/>
     <text x="800" y="380" font-family="sans-serif" font-size="64" text-anchor="middle" fill="#111">Order confirmed</text>
     <text x="800" y="560" font-family="sans-serif" font-size="160" font-weight="bold" text-anchor="middle" fill="#dc2626">4721</text></svg>`;
+
   return new Uint8Array(await sharp(Buffer.from(svg)).png().toBuffer());
 }
 
@@ -48,10 +49,12 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("attachment
   let projectId = "";
   let dataDir = "";
   let stop = async () => {};
+
   const query = <A extends object>(text: string, ...params: unknown[]) =>
     gw.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
+
         return yield* sql.unsafe<A>(text, params as never[]);
       }),
     );
@@ -61,16 +64,27 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("attachment
     const repo = tempDir("canopy-live-att-repo-");
     const data = tempDir("canopy-live-att-worker-");
     dataDir = join(data, "data");
-    const added = await gw.runtime.runPromise(GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })));
+
+    const added = await gw.runtime.runPromise(
+      GatewayStore.use((s) => s.addWorker({ name: "live", ownerUserId: gw.userId })),
+    );
+
     workerId = added.workerId;
     await useLiveProxy(gw, workerId, { url: proxyUrl!, key: proxyKey!, allowedRoots: [repo] });
     const runtime = ManagedRuntime.make(Journal.layer(join(data, "journal.db")));
     const host = new WorkerHost({ runtime, dataDir, clientVersion: "live" });
+
     const link = await openGatewayLink({
       baseUrl: gw.grpcUrl,
       credential: added.credential,
-      hello: { workerId, attachmentsRoot: host.attachmentsRoot, host: { os: process.platform }, ...(await runtime.runPromise(journalHello())) },
+      hello: {
+        workerId,
+        attachmentsRoot: host.attachmentsRoot,
+        host: { os: process.platform },
+        ...(await runtime.runPromise(journalHello())),
+      },
     });
+
     const serving = serveLink(link, host, runtime);
     stop = async () => {
       link.close();
@@ -78,6 +92,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("attachment
       await host.close();
       await runtime.dispose();
     };
+
     projectId = (await gw.api.createProject({ name: "Live attachments" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId, rootPath: repo, label: "live" })).workspace!.id;
   }, 120_000);
@@ -89,9 +104,22 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("attachment
 
   for (const c of CASES) {
     test(`${c.name}: a screenshot and a text file reach the agent, which looks at them; the transcript shows the image`, async () => {
-      await eventually(() => gw.api.listModels({ workerId }), (r) => (r.workers[0]?.profiles.length ?? 0) >= 2, 90_000);
-      const shot = (await gw.api.uploadAttachment({ name: "Screenshot 2026-11-02.png", data: await screenshot() })).attachment!;
-      const notes = (await gw.api.uploadAttachment({ name: "notes.txt", data: new TextEncoder().encode("The codeword is PELICAN.\n") })).attachment!;
+      await eventually(
+        () => gw.api.listModels({ workerId }),
+        (r) => (r.workers[0]?.profiles.length ?? 0) >= 2,
+        90_000,
+      );
+
+      const shot = (await gw.api.uploadAttachment({ name: "Screenshot 2026-11-02.png", data: await screenshot() }))
+        .attachment!;
+
+      const notes = (
+        await gw.api.uploadAttachment({
+          name: "notes.txt",
+          data: new TextEncoder().encode("The codeword is PELICAN.\n"),
+        })
+      ).attachment!;
+
       const thread = (
         await gw.api.createThread({
           projectId,
@@ -108,13 +136,15 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("attachment
       ).thread!;
 
       const answer = await eventually(
-        () => query<{ text: string }>(
-          "SELECT content->'agentMessage'->>'text' AS text FROM thread_items WHERE thread_id = $1::uuid AND type = 'agent_message' ORDER BY first_seq",
-          thread.id,
-        ),
+        () =>
+          query<{ text: string }>(
+            "SELECT content->'agentMessage'->>'text' AS text FROM thread_items WHERE thread_id = $1::uuid AND type = 'agent_message' ORDER BY first_seq",
+            thread.id,
+          ),
         (rows) => rows.some((r) => /NUMBER:\s*4721/.test(r.text ?? "") && /PELICAN/.test(r.text ?? "")),
         300_000,
       );
+
       console.info(`${c.name} answered: ${answer.map((r) => r.text).join(" | ")}`);
       expect(answer.some((r) => /NUMBER:\s*4721/.test(r.text) && /PELICAN/.test(r.text))).toBe(true);
 
@@ -123,15 +153,28 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)("attachment
       expect(existsSync(join(dataDir, "attachments", thread.id, notes.id, "notes.txt"))).toBe(true);
 
       // How the agent looked at the image, and the preview of what it saw.
-      const items = await query<{ type: string; content: { image?: { source?: string; path?: string; blob?: { sha256: string } }; toolCall?: { name?: string; images?: { sha256: string }[] } } }>(
+      const items = await query<{
+        type: string;
+        content: {
+          image?: { source?: string; path?: string; blob?: { sha256: string } };
+          toolCall?: { name?: string; images?: { sha256: string }[] };
+        };
+      }>(
         "SELECT type, content FROM thread_items WHERE thread_id = $1::uuid AND type IN ('image', 'tool_call') ORDER BY first_seq",
         thread.id,
       );
+
       const looks = items.flatMap((i) => {
         const sha = i.content.image?.blob?.sha256 ?? i.content.toolCall?.images?.[0]?.sha256;
-        return sha ? [{ how: i.content.image ? `image:${i.content.image.source}` : `tool:${i.content.toolCall?.name}`, sha }] : [];
+
+        return sha
+          ? [{ how: i.content.image ? `image:${i.content.image.source}` : `tool:${i.content.toolCall?.name}`, sha }]
+          : [];
       });
-      console.info(`${c.name} looked at the image with: ${looks.map((l) => l.how).join(", ") || "nothing with a preview"}; items: ${items.map((i) => i.content.image ? `image:${i.content.image.source}` : `tool:${i.content.toolCall?.name}`).join(", ")}`);
+
+      console.info(
+        `${c.name} looked at the image with: ${looks.map((l) => l.how).join(", ") || "nothing with a preview"}; items: ${items.map((i) => (i.content.image ? `image:${i.content.image.source}` : `tool:${i.content.toolCall?.name}`)).join(", ")}`,
+      );
       expect(looks.length).toBeGreaterThan(0);
       const preview = await gw.api.getThreadBlob({ threadId: thread.id, sha256: looks[0]!.sha });
       const meta = await sharp(preview.data).metadata();

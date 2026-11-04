@@ -40,25 +40,35 @@
   // Starring gives the star a small spring (motion.css `t-pop`).
   let popping = $state(false);
   let popped: ReturnType<typeof setTimeout> | undefined;
+
   function pop() {
     popping = true;
     clearTimeout(popped);
     popped = setTimeout(() => (popping = false), duration("medium"));
   }
+
   $effect(() => () => clearTimeout(popped));
 </script>
 
 <div class={["flex items-center gap-2", className]}>
   {#if option.origin === "custom"}
     <Icon name="plus" class="fill-zinc-500 dark:fill-zinc-400" />
-    <span class="min-w-0 flex-1 truncate">Use “{option.model}” <span class="text-zinc-500 dark:text-zinc-400">with {providerName(option.provider)} · {option.profileName}</span></span>
+    <span class="min-w-0 flex-1 truncate"
+      >Use “{option.model}”
+      <span class="text-zinc-500 dark:text-zinc-400">with {providerName(option.provider)} · {option.profileName}</span
+      ></span
+    >
   {:else}
     <span class="grid min-w-0 flex-1">
       <span class="truncate font-medium" title={option.model || undefined}>{option.name}</span>
       {#if detail}
         <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
           {#if providerMark}<ProviderIcon provider={option.provider} class="size-3" />{/if}
-          {#if option.accent}<span class="size-2 shrink-0 rounded-full" style:background-color={option.accent} aria-hidden="true"></span>{/if}
+          {#if option.accent}<span
+              class="size-2 shrink-0 rounded-full"
+              style:background-color={option.accent}
+              aria-hidden="true"
+            ></span>{/if}
           <span class="truncate" title={option.description || undefined}>{detail}</span>
         </span>
       {/if}
@@ -68,7 +78,9 @@
       icon="star"
       size="sm"
       tabindex={-1}
-      label={starred ? `Remove ${option.name} (${option.profileName}) from favorites` : `Add ${option.name} (${option.profileName}) to favorites`}
+      label={starred
+        ? `Remove ${option.name} (${option.profileName}) from favorites`
+        : `Add ${option.name} (${option.profileName}) to favorites`}
       aria-pressed={starred}
       class={popping ? "t-pop" : undefined}
       iconClass={starred ? "fill-amber-500" : ["fill-zinc-300 dark:fill-zinc-600", !active && "pointer-fine:invisible"]}

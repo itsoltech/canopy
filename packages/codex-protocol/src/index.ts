@@ -3,6 +3,7 @@
 // and the configuration can require it (WorkerConfig.codex.required_version), so the wire format
 // matches these types. Do not edit src/gen by hand.
 export type * from "./gen/index";
+
 export type * as v2 from "./gen/v2/index";
 
 /** Codex version the bindings were generated from. */

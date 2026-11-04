@@ -5,7 +5,15 @@
  * stable format of `quotesNote`.
  */
 
-export const QUOTE_SOURCE_KINDS = ["agent_message", "reasoning", "command_output", "tool_call", "code", "diff"] as const;
+export const QUOTE_SOURCE_KINDS = [
+  "agent_message",
+  "reasoning",
+  "command_output",
+  "tool_call",
+  "code",
+  "diff",
+] as const;
+
 export type QuoteSourceKind = (typeof QUOTE_SOURCE_KINDS)[number];
 
 /** Limits per message: the gateway refuses more (the UI keeps a draft within them). */
@@ -41,17 +49,21 @@ const origins: Record<QuoteSourceKind, string> = {
 /** A fence longer than any run of backticks in the text (CommonMark), at least three. */
 export function fenceFor(text: string): string {
   const longest = Math.max(0, ...[...text.matchAll(/`+/g)].map((m) => m[0].length));
+
   return "`".repeat(Math.max(3, longest + 1));
 }
 
 /** The quoted text as markdown: a fenced block for code-like sources, else a blockquote (every line marked). */
 export function quoteBlock(quote: NotedQuote): string {
   const text = quote.text.replace(/\r\n?/g, "\n").replace(/\n+$/, "");
+
   if (isCodeQuote(quote.sourceKind)) {
     const fence = fenceFor(text);
     const language = (quote.language || (quote.sourceKind === "diff" ? "diff" : "text")).replace(/[^\w+#.-]/g, "");
+
     return `${fence}${language}\n${text}\n${fence}`;
   }
+
   return text
     .split("\n")
     .map((line) => (line.trim() ? `> ${line}` : ">"))
@@ -79,15 +91,18 @@ export function quoteBlock(quote: NotedQuote): string {
 export function quotesNote(quotes: readonly NotedQuote[]): string {
   if (quotes.length === 0) return "";
   const count = quotes.length === 1 ? "a passage" : `${quotes.length} passages`;
+
   const parts = [
     `[canopy] The user quoted ${count} of this conversation. Each quote is the exact text they selected, followed by their comment on it when they wrote one; their message comes after the quotes.`,
   ];
+
   quotes.forEach((quote, index) => {
     const kind = quote.sourceKind ?? "";
     const origin = isQuoteSourceKind(kind) ? origins[kind] : "this conversation";
     const comment = quote.comment?.trim();
     parts.push(`Quote ${index + 1}, from ${origin}:\n${quoteBlock(quote)}${comment ? `\n\nComment: ${comment}` : ""}`);
   });
+
   return parts.join("\n\n");
 }
 

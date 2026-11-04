@@ -18,17 +18,26 @@
   let error = $state("");
 
   async function keep(action: "keep_local" | "keep_remote") {
-    busy = action; error = "";
+    busy = action;
+    error = "";
+
     try {
       await shared.manage(action, conflict.key, conflict.nodeId);
       open = false;
       toast(action === "keep_local" ? `Kept this computer’s ${conflict.label}` : `Using ${other}’s ${conflict.label}`);
-    } catch (e) { error = e instanceof Error ? e.message : "Could not save the choice"; }
-    finally { busy = undefined; }
+    } catch (e) {
+      error = e instanceof Error ? e.message : "Could not save the choice";
+    } finally {
+      busy = undefined;
+    }
   }
 </script>
 
-<Dialog bind:open title={`${conflict.label} differs on two computers`} description={`This computer and ${other} have different versions. Choose the one every linked computer should use.`}>
+<Dialog
+  bind:open
+  title={`${conflict.label} differs on two computers`}
+  description={`This computer and ${other} have different versions. Choose the one every linked computer should use.`}
+>
   <div class="grid min-w-0 gap-5">
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <dl class="grid min-w-0 gap-4">
@@ -43,8 +52,12 @@
       {/each}
     </dl>
     <DialogActions>
-      <Button disabled={Boolean(busy)} loading={busy === "keep_remote"} onclick={() => keep("keep_remote")}>Keep {other}’s</Button>
-      <Button disabled={Boolean(busy)} loading={busy === "keep_local"} onclick={() => keep("keep_local")}>Keep this computer’s</Button>
+      <Button disabled={Boolean(busy)} loading={busy === "keep_remote"} onclick={() => keep("keep_remote")}
+        >Keep {other}’s</Button
+      >
+      <Button disabled={Boolean(busy)} loading={busy === "keep_local"} onclick={() => keep("keep_local")}
+        >Keep this computer’s</Button
+      >
     </DialogActions>
   </div>
 </Dialog>

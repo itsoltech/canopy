@@ -15,17 +15,32 @@
    * to this ended turn) and how long the turn ran. Model, effort, permission mode and tokens are not repeated
    * per turn (the thread panel shows them). One line, so showing it moves nothing; on touch screens it stays visible.
    */
-  let { turn, answer, class: className }: { turn: ui.Turn; result?: TurnResult | undefined; answer: string; class?: ClassValue } = $props();
-  const took = $derived(turn.startedAt && turn.completedAt ? timestampMs(turn.completedAt) - timestampMs(turn.startedAt) : undefined);
+  let {
+    turn,
+    answer,
+    class: className,
+  }: { turn: ui.Turn; result?: TurnResult | undefined; answer: string; class?: ClassValue } = $props();
+
+  const took = $derived(
+    turn.startedAt && turn.completedAt ? timestampMs(turn.completedAt) - timestampMs(turn.startedAt) : undefined,
+  );
+
   const directory = useThreadDirectory();
   const canFork = $derived(Boolean(directory.canFork && directory.currentId) && forkable(turn));
 </script>
 
-<div class={["-ml-2 flex min-h-8 items-center gap-x-2 text-sm/5 sm:-ml-1.5 sm:min-h-7 sm:text-xs/5", className]} role="group" aria-label="Turn details">
+<div
+  class={["-ml-2 flex min-h-8 items-center gap-x-2 text-sm/5 sm:-ml-1.5 sm:min-h-7 sm:text-xs/5", className]}
+  role="group"
+  aria-label="Turn details"
+>
   {#if turn.status === "completed"}<span class="sr-only">Completed</span>{/if}
-  <div class="flex min-w-0 items-center t-quiet t-quiet-touch">
+  <div class="t-quiet t-quiet-touch flex min-w-0 items-center">
     {#if answer}<CopyButton text={answer} label="Copy answer" />{/if}
     {#if canFork}<ForkButton threadId={directory.currentId} turnId={turn.id} />{/if}
-    {#if took !== undefined && took >= 0}<span class="shrink-0 pl-1.5 text-zinc-500 tabular-nums dark:text-zinc-400" title="Time the turn ran">{formatDuration(took)}</span>{/if}
+    {#if took !== undefined && took >= 0}<span
+        class="shrink-0 pl-1.5 text-zinc-500 tabular-nums dark:text-zinc-400"
+        title="Time the turn ran">{formatDuration(took)}</span
+      >{/if}
   </div>
 </div>

@@ -11,24 +11,46 @@ export function writeInteractionTimeline(sql: SqlClient.SqlClient, row: Interact
     const itemId = `interaction-${row.id}`;
     const pending = row.status === "pending";
     const response = row.response as { answerJson?: string; message?: string } | null;
+
     const item = create(ItemSchema, {
-      itemId, status: pending ? ItemStatus.IN_PROGRESS : ItemStatus.COMPLETED,
-      content: { case: "interactionPrompt", value: {
-        requestId: row.id,
-        kind: row.kind === "question" ? InteractionKind.QUESTION : row.kind === "permission" ? InteractionKind.PERMISSION : InteractionKind.ELICITATION,
-        toolName: row.tool_name, requestJson: JSON.stringify(row.request),
-        responseJson: response?.answerJson || (response ? JSON.stringify(response) : ""),
-        answeredByUserId: row.answered_by ?? "", answeredByThreadId: row.answered_by_thread_id ?? "",
-        outcome: pending ? "" : row.status, routedTo: row.routed_to,
-        asynchronous: row.question_wait === false,
-      } },
+      itemId,
+      status: pending ? ItemStatus.IN_PROGRESS : ItemStatus.COMPLETED,
+      content: {
+        case: "interactionPrompt",
+        value: {
+          requestId: row.id,
+          kind:
+            row.kind === "question"
+              ? InteractionKind.QUESTION
+              : row.kind === "permission"
+                ? InteractionKind.PERMISSION
+                : InteractionKind.ELICITATION,
+          toolName: row.tool_name,
+          requestJson: JSON.stringify(row.request),
+          responseJson: response?.answerJson || (response ? JSON.stringify(response) : ""),
+          answeredByUserId: row.answered_by ?? "",
+          answeredByThreadId: row.answered_by_thread_id ?? "",
+          outcome: pending ? "" : row.status,
+          routedTo: row.routed_to,
+          asynchronous: row.question_wait === false,
+        },
+      },
     });
-    const locked = yield* sql<{ last_seq: string }>`SELECT last_seq FROM threads WHERE id = ${row.thread_id}::uuid FOR UPDATE`;
+
+    const locked = yield* sql<{
+      last_seq: string;
+    }>`SELECT last_seq FROM threads WHERE id = ${row.thread_id}::uuid FOR UPDATE`;
+
     const seq = BigInt(locked[0]!.last_seq) + 1n;
+
     const event = create(ThreadEventSchema, {
-      eventId: Bun.randomUUIDv7(), threadId: row.thread_id, turnId: row.turn_id ?? "", occurredAt: timestampNow(),
+      eventId: Bun.randomUUIDv7(),
+      threadId: row.thread_id,
+      turnId: row.turn_id ?? "",
+      occurredAt: timestampNow(),
       body: { case: pending ? "itemStarted" : "itemCompleted", value: { item } },
     });
+
     yield* sql`
       INSERT INTO thread_events(thread_id, seq, event_id, origin, turn_id, kind, item_id, payload, occurred_at)
       VALUES (${row.thread_id}::uuid, ${seq}, ${event.eventId}::uuid, 'gateway', ${row.turn_id}::uuid,

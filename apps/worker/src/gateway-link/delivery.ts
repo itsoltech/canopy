@@ -14,6 +14,7 @@ import type { GatewayLink } from "./link.ts";
 export const journalHello = Effect.fn("delivery.journalHello")(function* () {
   const journal = yield* Journal;
   const cursors = yield* journal.cursors();
+
   return {
     journalId: journal.journalId,
     threads: cursors.map((c) => ({ threadId: c.threadId, lastSeq: c.lastSeq })),
@@ -24,18 +25,24 @@ export const journalHello = Effect.fn("delivery.journalHello")(function* () {
  * After Welcome: drop what the gateway already has, resend the rest in order. Returns how many were sent.
  * `before` sends what an event needs first (its image previews, WorkerHost.sendPreviews).
  */
-export const resendPending = Effect.fn("delivery.resendPending")(function* (link: GatewayLink, before?: (event: ThreadEvent) => void) {
+export const resendPending = Effect.fn("delivery.resendPending")(function* (
+  link: GatewayLink,
+  before?: (event: ThreadEvent) => void,
+) {
   const journal = yield* Journal;
   const persisted = new Map(link.welcome.persisted.map((c) => [c.threadId, c.lastSeq] as const));
   const events = yield* journal.pending(persisted);
+
   for (const event of events) {
     before?.(event);
     link.send({ case: "threadEvent", value: event });
   }
+
   return events.length;
 });
 
 export const applyAck = Effect.fn("delivery.applyAck")(function* (ack: EventAck) {
   const journal = yield* Journal;
+
   return yield* journal.ack(ack.threadId, ack.ackSeq);
 });
