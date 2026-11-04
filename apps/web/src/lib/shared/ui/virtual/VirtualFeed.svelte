@@ -1,11 +1,15 @@
 <script lang="ts" generics="T">
   import type { Snippet } from "svelte";
   import { tick, untrack } from "svelte";
-  import type { Attachment } from "svelte/attachments";
   import { whenIdle } from "../../idle.ts";
   import Button from "../Button.svelte";
   import { rise } from "../motion.ts";
   import { UiMemory } from "../memory.ts";
+  import { captureAnchor, rowsOnScreen, type FeedAnchor } from "./feed-anchor.ts";
+  import { FeedEntrances } from "./feed-entrances.ts";
+  import { publishViewport, rowAttachment } from "./feed-measure.ts";
+  import { COLD_OVERSCAN, initialHeight, keepMounted, OVERSCAN_STEP } from "./feed-range.ts";
+  import { footerField, pagedRow } from "./feed-keys.ts";
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
   import { FEED_END_THRESHOLD, ScrollIntent, type ReaderScroll } from "./scroll.ts";
@@ -74,14 +78,6 @@
   const uid = $props.id();
   const id = `feed-${uid}`;
 
-  /** Enough rows from the end to fill the viewport before its first measurement. */
-  const INITIAL_HEIGHT = 2400;
-
-  /** Overscan when the rows first render: opening a thread renders about half of the rows in its frame. */
-  const COLD_OVERSCAN = 240;
-
-  /** How much the overscan grows per idle period up to its full size (a row or two each time). */
-  const OVERSCAN_STEP = 120;
   const memory = new UiMemory();
   const index = new SizeIndex((name) => untrack(() => estimate(name)));
 
@@ -126,7 +122,7 @@
   let focusedKey = $state<string>();
 
   /** The first row at the top of the viewport and its distance from the top edge. */
-  let anchor: { key: string; element: HTMLElement; top: number } | undefined;
+  let anchor: FeedAnchor | undefined;
 
   const sized = $derived(rows.map((r) => ({ key: key(r), group: group(r) })));
   const positions = $derived(new Map(sized.map((r, i) => [r.key, i])));
@@ -142,29 +138,18 @@
     void layout;
     void scrollTop;
 
-    if (viewport === 0)
-      return index.tail(
-        "innerHeight" in globalThis ? Math.min(INITIAL_HEIGHT, innerHeight + 2 * COLD_OVERSCAN) : INITIAL_HEIGHT,
-      );
+    if (viewport === 0) return index.tail(initialHeight());
     const overscan = Math.min(fullOverscan, overscanLimit);
     // Reading above: the window follows the anchor row, also when rows were added or resized above it
     // (its scroll position is corrected only once it is mounted).
     const at = anchor && positions.get(anchor.key);
     const top = at === undefined || !anchor ? scrollTop : listTop + index.offset(at) - anchor.top;
 
-    let [start, end] = stuck
+    const bounds = stuck
       ? index.tail(viewport + 2 * overscan)
       : index.range(top - listTop - overscan, top - listTop + viewport + overscan);
 
-    const focused = focusedKey === undefined ? undefined : positions.get(focusedKey);
-
-    // Keep a focused row mounted (not across a long jump away).
-    if (focused !== undefined && focused >= start - 100 && focused < end + 100) {
-      start = Math.min(start, focused);
-      end = Math.max(end, focused + 1);
-    }
-
-    return [start, end];
+    return keepMounted(bounds, focusedKey === undefined ? undefined : positions.get(focusedKey));
   });
 
   const padTop = $derived.by(() => (void layout, index.offset(range[0])));
@@ -179,12 +164,7 @@
 
     if (!callback || !viewport) return;
 
-    const frame = requestAnimationFrame(() => {
-      const [start, end] = index.range(top, top + height);
-      callback({ start, end, height });
-    });
-
-    return () => cancelAnimationFrame(frame);
+    return publishViewport(index, top, height, callback);
   });
 
   // A start-aligned last row needs enough space below it to reach the viewport's top.
@@ -201,49 +181,18 @@
   let rowTimer: ReturnType<typeof setTimeout> | undefined;
 
   // --- New rows ---------------------------------------------------------------------------------------
-  /** Keys shown so far (undefined until the first rows); rows that arrive later enter until they mount. */
-  let known: Set<string> | undefined;
-  const entering = new Map<string, { kind: "rise" | "reveal" | "unfold"; order: number }>();
-  let enterFrame = 0;
+  const entrances = new FeedEntrances();
 
   $effect.pre(() => {
-    const keys = sized.map((r) => r.key);
+    entrances.update(
+      sized.map((r) => r.key),
+      (at) => {
+        const row = rows[at];
 
-    if (keys.length === 0) return;
-
-    if (known) {
-      let last = -1;
-      keys.forEach((rowKey, at) => {
-        if (known?.has(rowKey)) last = at;
-      });
-      let order = 0;
-      keys.forEach((rowKey, at) => {
-        if (known?.has(rowKey)) return;
-
-        if (at > last) entering.set(rowKey, { kind: "rise", order: 0 });
-        else {
-          const row = rows[at];
-          const kind = row === undefined ? undefined : inserted?.(row);
-
-          if (kind) entering.set(rowKey, { kind, order: order++ });
-        }
-      });
-    }
-
-    // The first rows (a thread just opened) appear as they are: no entrance, they replace the placeholder at once.
-    // What did not mount with this update (scrolled away) is not new any more.
-    cancelAnimationFrame(enterFrame);
-    enterFrame = requestAnimationFrame(() => entering.clear());
-    known = new Set(keys);
+        return row === undefined ? undefined : inserted?.(row);
+      },
+    );
   });
-
-  /** How a row enters the first time it mounts (once), if it is new. */
-  function takeEnter(rowKey: string) {
-    const enter = entering.get(rowKey);
-    entering.delete(rowKey);
-
-    return enter;
-  }
 
   // --- Measuring ------------------------------------------------------------------------------------
   const elements = new Map<string, HTMLElement>();
@@ -293,17 +242,7 @@
           commit();
         });
 
-  const measure: Attachment<HTMLElement> = (element) => {
-    const rowKey = element.dataset.key ?? "";
-    elements.set(rowKey, element);
-    observer?.observe(element);
-
-    return () => {
-      observer?.unobserve(element);
-
-      if (elements.get(rowKey) === element) elements.delete(rowKey);
-    };
-  };
+  const measure = rowAttachment(elements, observer);
 
   $effect(() => {
     if (!observer || !scroller || !list || !footerElement) return;
@@ -318,7 +257,7 @@
   $effect(() => () => {
     observer?.disconnect();
     cancelAnimationFrame(commitFrame);
-    cancelAnimationFrame(enterFrame);
+    entrances.dispose();
     clearTimeout(rowTimer);
   });
 
@@ -389,24 +328,7 @@
 
   function capture() {
     if (!scroller || !list) return;
-    const edge = scroller.getBoundingClientRect().top;
-    const children = list.children;
-    let low = 0;
-    let high = children.length - 1;
-
-    // The first mounted row whose bottom is below the top edge (rows are in order).
-    while (low < high) {
-      const middle = (low + high) >> 1;
-
-      if ((children[middle]?.getBoundingClientRect().bottom ?? 0) > edge + 1) high = middle;
-      else low = middle + 1;
-    }
-
-    const element = children[low];
-    anchor =
-      element instanceof HTMLElement && element.dataset.key
-        ? { key: element.dataset.key, element, top: element.getBoundingClientRect().top - edge }
-        : undefined;
+    anchor = captureAnchor(list.children, scroller.getBoundingClientRect().top);
   }
 
   function onscroll() {
@@ -600,15 +522,8 @@
 
     if (stuck || !scroller) return keys;
     const box = scroller.getBoundingClientRect();
-    const bottom = box.bottom - footerHeight;
 
-    for (const [rowKey, element] of elements) {
-      const rect = element.getBoundingClientRect();
-
-      if (rect.bottom > box.top && rect.top < bottom && rowKey !== focusedKey) keys.push(rowKey);
-    }
-
-    return keys;
+    return [...keys, ...rowsOnScreen(elements, box.top, box.bottom - footerHeight, focusedKey)];
   }
 
   /**
@@ -628,12 +543,7 @@
     if (event.ctrlKey && event.key === "End") {
       event.preventDefault();
 
-      // The message box first, else the first control of the footer.
-      const field =
-        footerElement?.querySelector<HTMLElement>('[contenteditable="true"], textarea:not([disabled])') ??
-        footerElement?.querySelector<HTMLElement>("input:not([disabled]), button:not([disabled])");
-
-      field?.focus({ preventScroll: true });
+      footerField(footerElement)?.focus({ preventScroll: true });
 
       return;
     }
@@ -645,13 +555,7 @@
       return;
     }
 
-    if (event.key !== "PageDown" && event.key !== "PageUp") return;
-
-    const target = event.target;
-
-    // Text fields and scrollable code keep their own Page keys.
-    if (!(target instanceof Element) || target.closest("pre, textarea, input, select, [contenteditable]")) return;
-    const current = target.closest<HTMLElement>("article[data-key]")?.dataset.key;
+    const current = pagedRow(event);
     const at = current === undefined ? undefined : positions.get(current);
 
     if (at === undefined) return;
@@ -720,7 +624,7 @@
               count={sized.length}
               {memory}
               {measure}
-              enter={takeEnter(key(item))}
+              enter={entrances.take(key(item))}
             >
               {@render row(item, range[0] + offset)}
             </VirtualRow>
