@@ -178,16 +178,7 @@ function tagsOf(version: PackageVersion): string[] {
   return version.metadata?.container?.tags ?? [];
 }
 
-export async function runHygiene(options: HygieneOptions): Promise<HygieneResult> {
-  const now = options.now ?? Date.now();
-  const log = options.log ?? console.info;
-  const mark = options.dryRun ? "[dry run] would delete" : "deleted";
-  const [owner] = options.repository.split("/");
-  const result: HygieneResult = { deletedReleases: [], deletedVersions: {}, errors: [] };
-
-  const old = (...dates: (string | null | undefined)[]) =>
-    dates.every((date) => !date || now - Date.parse(date) >= GRACE_MS);
-
+function githubApi(options: HygieneOptions) {
   async function call(url: string, init: RequestInit = {}): Promise<Response> {
     const response = await fetch(url, {
       ...init,
@@ -239,11 +230,10 @@ export async function runHygiene(options: HygieneOptions): Promise<HygieneResult
     if (!options.dryRun) await call(`${options.apiUrl}/${path}`, { method: "DELETE" });
   }
 
-  // 1. GitHub releases.
-  const nightlies = (await pages(`repos/${options.repository}/releases?per_page=100`, isRelease))
-    .filter((release) => !release.draft && release.prerelease && NIGHTLY.test(release.tag_name))
-    .sort((a, b) => compareNightly(b.tag_name, a.tag_name));
+  return { call, pages, remove };
+}
 
+function nightlyRetention(nightlies: Release[], old: (...dates: (string | null | undefined)[]) => boolean) {
   const complete = nightlies.filter((release) => release.assets.some((asset) => asset.name === "manifest.json"));
   const newestComplete = complete[0]?.tag_name;
 
@@ -259,7 +249,29 @@ export async function runHygiene(options: HygieneOptions): Promise<HygieneResult
     ),
   ]);
 
-  const kept = new Set(nightlies.filter((release) => !pruned.has(release)).map((release) => release.tag_name));
+  const kept = new Set(nightlies.flatMap((release) => (pruned.has(release) ? [] : [release.tag_name])));
+
+  return { complete, newestComplete, pruned, kept };
+}
+
+export async function runHygiene(options: HygieneOptions): Promise<HygieneResult> {
+  const now = options.now ?? Date.now();
+  const log = options.log ?? console.info;
+  const mark = options.dryRun ? "[dry run] would delete" : "deleted";
+  const [owner] = options.repository.split("/");
+  const result: HygieneResult = { deletedReleases: [], deletedVersions: {}, errors: [] };
+
+  const old = (...dates: (string | null | undefined)[]) =>
+    dates.every((date) => !date || now - Date.parse(date) >= GRACE_MS);
+
+  const { call, pages, remove } = githubApi(options);
+
+  // 1. GitHub releases.
+  const nightlies = (await pages(`repos/${options.repository}/releases?per_page=100`, isRelease))
+    .filter((release) => !release.draft && release.prerelease && NIGHTLY.test(release.tag_name))
+    .sort((a, b) => compareNightly(b.tag_name, a.tag_name));
+
+  const { complete, newestComplete, pruned, kept } = nightlyRetention(nightlies, old);
 
   for (const release of nightlies) {
     if (!pruned.has(release)) continue;
@@ -300,7 +312,7 @@ export async function runHygiene(options: HygieneOptions): Promise<HygieneResult
   async function prunePackage(name: string): Promise<string[]> {
     const base = `orgs/${owner}/packages/container/${name}/versions`;
     const versions = await pages(`${base}?per_page=100&state=active`, isPackageVersion);
-    const registry = await registryClient(name);
+    const registry = await registryClient(name, options, owner, call);
     const manifests = new Map<string, Manifest | null>();
 
     const manifest = async (digest: string) => {
@@ -389,39 +401,44 @@ export async function runHygiene(options: HygieneOptions): Promise<HygieneResult
 
     return deleted;
   }
+}
 
-  /** Manifest fetcher for `<owner>/<name>` on the registry, with a pull token from its token endpoint. */
-  async function registryClient(name: string): Promise<(digest: string) => Promise<Manifest | null>> {
-    const repo = `${owner}/${name}`.toLowerCase();
+/** Manifest fetcher for `<owner>/<name>` on the registry, with a pull token from its token endpoint. */
+async function registryClient(
+  name: string,
+  options: HygieneOptions,
+  owner: string | undefined,
+  call: ReturnType<typeof githubApi>["call"],
+): Promise<(digest: string) => Promise<Manifest | null>> {
+  const repo = `${owner}/${name}`.toLowerCase();
 
-    const auth = await call(
-      `${options.registryUrl}/token?service=${new URL(options.registryUrl).host}&scope=repository:${repo}:pull`,
-      {
-        headers: { Authorization: `Basic ${btoa(`token:${options.token}`)}`, Accept: "application/json" },
-      },
-    );
+  const auth = await call(
+    `${options.registryUrl}/token?service=${new URL(options.registryUrl).host}&scope=repository:${repo}:pull`,
+    {
+      headers: { Authorization: `Basic ${btoa(`token:${options.token}`)}`, Accept: "application/json" },
+    },
+  );
 
-    const authorization: unknown = await auth.json();
+  const authorization: unknown = await auth.json();
 
-    if (!isRegistryToken(authorization)) throw new Error("Invalid registry token response");
-    const { token } = authorization;
+  if (!isRegistryToken(authorization)) throw new Error("Invalid registry token response");
+  const { token } = authorization;
 
-    return async (digest) => {
-      const response = await fetch(`${options.registryUrl}/v2/${repo}/manifests/${digest}`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: MANIFEST_TYPES.join(", ") },
-      });
+  return async (digest) => {
+    const response = await fetch(`${options.registryUrl}/v2/${repo}/manifests/${digest}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: MANIFEST_TYPES.join(", ") },
+    });
 
-      if (response.status === 404) return null;
+    if (response.status === 404) return null;
 
-      if (!response.ok) throw new HttpError(response.status, `GET manifest ${digest} → HTTP ${response.status}`);
-      const body: unknown = await response.json();
+    if (!response.ok) throw new HttpError(response.status, `GET manifest ${digest} → HTTP ${response.status}`);
+    const body: unknown = await response.json();
 
-      if (!isManifest(body)) throw new Error(`Invalid registry manifest: ${digest}`);
-      const type = body.mediaType ?? response.headers.get("content-type") ?? "";
+    if (!isManifest(body)) throw new Error(`Invalid registry manifest: ${digest}`);
+    const type = body.mediaType ?? response.headers.get("content-type") ?? "";
 
-      return INDEX_TYPES.some((index) => type.startsWith(index)) ? body : { ...body, manifests: [] };
-    };
-  }
+    return INDEX_TYPES.some((index) => type.startsWith(index)) ? body : { ...body, manifests: [] };
+  };
 }
 
 if (import.meta.main) {
