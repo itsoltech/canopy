@@ -703,6 +703,15 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
       ),
     ).toEqual({ a: 0, c: 1 });
     expect(await finalState(id2)).toBe("done");
+    // The thread shows on C before C finishes applying the move (redirects, then its own record).
+    expect(
+      await eventually(
+        async () =>
+          (await sql<{ state: string }>(c, "SELECT state FROM computer_moves WHERE id=$1::uuid", [id2]))[0]?.state,
+        (s) => s === "done",
+        15000,
+      ),
+    ).toBe("done");
 
     // Repeating every message changes nothing: one thread, one history, one decision.
     const row = (await sql<{ payload: Uint8Array }>(a, "SELECT 1 FROM computer_moves WHERE id=$1::uuid", [id2])).length;
