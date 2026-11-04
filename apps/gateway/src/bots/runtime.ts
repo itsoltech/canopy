@@ -1,7 +1,7 @@
 import { create, fromJson } from "@bufbuild/protobuf";
 import { bots, Provider } from "@canopy/contracts";
 import type { JsonObject, JsonValue } from "@canopy/domain";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import type { CoreRuntime } from "../core/core.ts";
 import { Invalid } from "../store/store.ts";
 import { SettingsStore } from "../store/settings.ts";
@@ -13,6 +13,9 @@ import { botConfiguration, botView, BotStore, requiredString } from "./store.ts"
 import type { BotModel, BotTurn, ModelInput, StoredCall, ToolResult, ToolSpec } from "./types.ts";
 import type { ConnectorsRuntime } from "../connectors/runtime.ts";
 import { isJsonObject } from "./json.ts";
+
+/** Model implementations are pluggable; whatever they return becomes stored JSON only as an object. */
+const toolArguments = Schema.decodeUnknownSync(Schema.JsonObject);
 
 /** Thread permissions above ask/read_only make the tool need approval like a dangerous one. */
 const elevated = (permission: JsonValue | undefined) =>
@@ -388,9 +391,15 @@ export class BotsRuntime {
 
         if (reply.calls.length > 32 || reply.text.length > 100_000)
           throw new Error("Model response exceeds bot limits");
+
         // Canonical ids survive a restart and do not depend on a provider reusing call ids.
-        reply.calls = reply.calls.map((c) => ({ ...c, id: `call_${Bun.randomUUIDv7().replaceAll("-", "")}` }));
-        messages.push({ role: "assistant", text: reply.text, calls: reply.calls });
+        const calls = reply.calls.map((c) => ({
+          id: `call_${Bun.randomUUIDv7().replaceAll("-", "")}`,
+          name: c.name,
+          arguments: toolArguments(c.arguments),
+        }));
+
+        messages.push({ role: "assistant", text: reply.text, calls });
         await this.run((s) => s.checkpoint(turn, messages));
       }
     } catch (error) {

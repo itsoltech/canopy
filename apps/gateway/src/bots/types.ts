@@ -30,8 +30,20 @@ export interface ModelMessage {
   callId?: string;
 }
 
+/** A tool call as a model implementation returns it; the runtime decodes its arguments into a JSON object. */
+export interface ModelToolCall {
+  id: string;
+  name: string;
+  arguments: unknown;
+}
+
 export interface ModelReply {
   text: string;
+  calls: ModelToolCall[];
+}
+
+/** A reply whose tool arguments are already decoded (the direct provider APIs). */
+export interface DecodedReply extends ModelReply {
   calls: ToolCall[];
 }
 

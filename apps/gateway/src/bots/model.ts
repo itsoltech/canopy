@@ -1,7 +1,7 @@
 import { Provider, type ProfileModels } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
 import { Option, Schema } from "effect";
-import type { BotModel, ModelInput, ModelReply, ToolCall } from "./types.ts";
+import type { DecodedReply, ModelInput, ToolCall } from "./types.ts";
 
 type Endpoint = { url: string; key: string };
 
@@ -108,8 +108,10 @@ export function apiModel(
 }
 
 /** Explicit function schemas only. No provider-hosted tools, CLI, shell, browser or local SDK. */
-export function directModel(resolve: (input: ModelInput) => Promise<Endpoint>): BotModel {
-  return async (input): Promise<ModelReply> => {
+export function directModel(
+  resolve: (input: ModelInput) => Promise<Endpoint>,
+): (input: ModelInput) => Promise<DecodedReply> {
+  return async (input): Promise<DecodedReply> => {
     const endpoint = await resolve(input);
     const base = endpoint.url.replace(/\/+$/, "").replace(/\/v1$/, "");
     const claude = input.configuration.provider === Provider.CLAUDE;
@@ -183,7 +185,7 @@ export function grokRequest(input: ModelInput) {
   };
 }
 
-function grokReply(reply: typeof GrokResponse.Type): ModelReply {
+function grokReply(reply: typeof GrokResponse.Type): DecodedReply {
   const choice = reply.choices?.[0];
 
   if (!choice?.message || !["stop", "tool_calls"].includes(choice.finish_reason ?? "")) throw incomplete();
@@ -255,7 +257,7 @@ export function openaiRequest(input: ModelInput) {
   };
 }
 
-function anthropicReply(reply: typeof AnthropicResponse.Type): ModelReply {
+function anthropicReply(reply: typeof AnthropicResponse.Type): DecodedReply {
   if (reply.stop_reason === "max_tokens") throw incomplete();
   const calls: ToolCall[] = [];
   const text: string[] = [];
@@ -273,7 +275,7 @@ function anthropicReply(reply: typeof AnthropicResponse.Type): ModelReply {
   return { text: text.join("\n"), calls };
 }
 
-function openaiReply(reply: typeof OpenaiResponse.Type): ModelReply {
+function openaiReply(reply: typeof OpenaiResponse.Type): DecodedReply {
   if (reply.status && reply.status !== "completed") throw incomplete();
   const calls: ToolCall[] = [];
   const text: string[] = [];
