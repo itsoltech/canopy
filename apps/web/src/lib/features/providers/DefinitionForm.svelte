@@ -18,17 +18,15 @@
   /**
    * The global definition of an instance (scope "All workers"): name and color, connection, runtime and variables.
    * Saving makes new configuration versions for the workers it runs on. Threads keep the instance's id; an instance
-   * threads use keeps its kind of connection.
+   * keeps its sessions when the connection changes.
    */
   let {
     instance,
     onsaved,
-    onaddproxy,
     class: className,
   }: {
     instance: ui.ProviderInstance;
     onsaved: (instance: ui.ProviderInstance | undefined) => void;
-    onaddproxy: () => void;
     class?: ClassValue;
   } = $props();
 
@@ -46,7 +44,6 @@
 
   const problems = $derived(draftProblems(draft, { builtIn: instance.builtIn, creating: false, takenIds: new Set() }));
   const shown = $derived(tried ? problems : { env: {} });
-  const locked = $derived(instance.builtIn || instance.threadCount > 0);
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -91,22 +88,16 @@
 
   <SettingsSection
     title="Connection"
-    description={locked
-      ? instance.builtIn
-        ? "To use a proxy, add an instance. The built-in device login keeps its connection."
-        : "Threads use this instance: it keeps its kind of connection."
-      : undefined}
+    description="Changes apply to the next turn. Running turns and background tasks finish with their current settings; existing threads keep their sessions."
   >
     <ConnectionFields
       harness={instance.harness}
       bind:kind={draft.kind}
       bind:proxyId={draft.proxyId}
       bind:ownLogin={draft.ownLogin}
-      kindLocked={locked}
       errors={shown}
       prefix="def"
     />
-    {#if instance.builtIn}<div><Button size="sm" onclick={onaddproxy}>Add instance with a proxy</Button></div>{/if}
   </SettingsSection>
 
   <SettingsSection title="Runtime" description="For every worker; a worker can override paths for its system.">

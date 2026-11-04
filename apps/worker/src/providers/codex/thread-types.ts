@@ -35,6 +35,8 @@ export interface CodexThreadsOptions {
   profile(id: string): ResolvedProfile | undefined;
   /** Called after an event is safely in the journal (e.g. send it to the gateway when connected). */
   publish(event: ThreadEvent): void;
+  /** A notification has finished journaling; the host may recheck a pending drain. */
+  onActivitySettled?(): void;
   /** Asks the platform (gateway -> user or parent agent) and waits for the answer. */
   interact(request: InteractionRequest): Promise<InteractionResponse>;
   /** Runs an agent bus tool call on the gateway (docs/agent-bus.md) and waits for its result. */

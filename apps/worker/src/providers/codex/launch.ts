@@ -3,11 +3,10 @@ import { codexNativeToolOverrides, DEFAULT_NATIVE_TOOL_POLICY, type NativeToolPo
 import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
 
 /**
- * Codex runs as one long-lived `codex app-server` per worker (JSON-RPC over stdio).
+ * Codex runs as one long-lived `codex app-server` per instance (JSON-RPC over stdio).
  * CLIProxyAPI profiles become extra model providers via `-c` overrides at spawn time;
  * each thread then picks one with `thread/start { modelProvider }`.
- * A profile with its own environment variables gets its own app-server (same CODEX_HOME), started with them:
- * the variables belong to the process, so one process cannot carry two profiles' sets (runtime/host.ts).
+ * Each instance drains and replaces its process independently, preserving CODEX_HOME across connection changes.
  * The device owner's ~/.codex/config.toml is never modified.
  */
 export interface CodexAppServerLaunch {
@@ -68,9 +67,9 @@ export function codexAppServerLaunch(
   return { command, env };
 }
 
-/** `thread/start` fields for a profile. Native keeps the device's own Codex config. */
-export function codexThreadProvider(profile: ResolvedProfile): { modelProvider?: string } {
-  return profile.kind === "cliproxyapi" ? { modelProvider: codexModelProviderId(profile) } : {};
+/** Also sent on resume: omitting the native provider would retain the rollout's previous proxy. */
+export function codexThreadProvider(profile: ResolvedProfile) {
+  return { modelProvider: profile.kind === "cliproxyapi" ? codexModelProviderId(profile) : "openai" };
 }
 
 /** Prefixed so it cannot collide with providers from the device owner's config.toml. */

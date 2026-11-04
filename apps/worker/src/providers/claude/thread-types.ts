@@ -50,6 +50,8 @@ export interface ClaudeThreadsOptions {
    */
   runtimeOf?(profile: ResolvedProfile): ClaudeInstanceRuntime | undefined;
   publish(event: ThreadEvent): void;
+  /** An event has finished journaling; the host may recheck a pending drain. */
+  onActivitySettled?(): void;
   interact(request: InteractionRequest): Promise<InteractionResponse>;
   callTool(call: AgentToolCall): Promise<AgentToolResult>;
   /** The thread's attachments directory: readable without a prompt (additionalDirectories). */

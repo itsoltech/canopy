@@ -30,7 +30,6 @@
 
   let open = $state(false);
   let name = $state("");
-  let id = $state("");
   let failure = $state<string>();
   let busy = $state(false);
 
@@ -46,7 +45,6 @@
         id: instance.id,
         expectedRevision: instance.revision,
         name,
-        newInstanceId: id,
       });
 
       open = false;
@@ -70,7 +68,6 @@
         size="sm"
         onclick={() => {
           name = `${harnessName(instance.harness)} proxy`;
-          id = `${instance.harness === Provider.CLAUDE ? "claude" : "codex"}-proxy`;
           open = true;
         }}>Move to a proxy</Button
       >
@@ -80,15 +77,10 @@
 <Dialog
   bind:open
   title="Move to a proxy"
-  description={instance.builtIn
-    ? "A new instance will use the proxy. The built-in instance keeps device login."
-    : "This instance will use the saved proxy."}
+  description="This instance will use the saved proxy from its next turn and keep its existing sessions."
 >
   <form class="grid gap-4" onsubmit={move}>
     <Field label="Proxy and instance name"><Input name="move-name" bind:value={name} required /></Field>
-    {#if instance.builtIn}<Field label="New instance ID"
-        ><Input name="move-id" bind:value={id} required pattern={"[a-z0-9][a-z0-9_-]{0,62}"} /></Field
-      >{/if}
     {#if failure}<Alert tone="error">{failure}</Alert>{/if}
     <div class="flex justify-end gap-2">
       <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button><Button

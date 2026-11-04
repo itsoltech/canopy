@@ -1,8 +1,7 @@
 /**
  * A profile's environment variables reach its harness process (docs/worker-config.md, "Zmienne środowiskowe
  * profilu"): WorkerHost with a stand-in `codex` that only answers `initialize` and records its environment.
- * Profiles without variables share one app-server; a profile with variables gets its own; a change restarts only
- * the processes whose settings changed.
+ * Every instance owns an app-server; a change restarts only the affected process.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -13,6 +12,7 @@ import { isBigInt, tempDir } from "@canopy/testing";
 import { Journal } from "@canopy/worker/journal";
 import { WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
+import { eventually } from "./support/gateway.ts";
 
 const dir = tempDir("canopy-profile-env-");
 const root = join(dir, "repos");
@@ -103,16 +103,16 @@ afterAll(async () => {
 });
 
 describe("profile environment on the Codex app-server", () => {
-  test("profiles without variables share one process", async () => {
+  test("a proxy instance without variables owns a process", async () => {
     const report = await host.applyConfig(config([proxy]));
     expect(report.applied).toBe(true);
     const started = processes();
-    expect(started).toHaveLength(1);
-    expect(started[0]).toMatchObject({ probe: null, keys: ["CANOPY_TEAM_API_KEY"] });
+    expect(started.filter((p) => p.keys.includes("CANOPY_TEAM_API_KEY"))).toHaveLength(1);
   });
 
-  test("a profile with variables gets its own process with them; the shared one keeps running", async () => {
-    const [shared] = processes();
+  test("adding variables replaces only the instance process", async () => {
+    const before = processes();
+    const previous = before.find((p) => p.keys.includes("CANOPY_TEAM_API_KEY"))!;
     await host.applyConfig(
       config([
         {
@@ -124,30 +124,52 @@ describe("profile environment on the Codex app-server", () => {
         },
       ]),
     );
-    const started = processes();
-    expect(started).toHaveLength(3); // the shared one again (its profile left it), and the profile's own
-    expect(alive(shared!.pid)).toBe(false);
+
+    const started = await eventually(
+      async () => processes(),
+      (ps) => ps.length === before.length + 1,
+    );
+
+    expect(started).toHaveLength(before.length + 1);
+    expect(alive(previous.pid)).toBe(false);
     const own = started.find((p) => p.probe === "probe-7");
     expect(own).toMatchObject({ token: "t0k", keys: ["CANOPY_TEAM_API_KEY"] });
-    const newShared = started.at(-1)!.probe === null ? started.at(-1)! : started.at(-2)!;
-    expect(newShared).toMatchObject({ probe: null, keys: [] });
-    expect(alive(own!.pid) && alive(newShared.pid)).toBe(true);
+    expect(alive(own!.pid)).toBe(true);
+
+    for (const p of before.filter((p) => p.pid !== previous.pid)) expect(alive(p.pid)).toBe(true);
   });
 
   test("changing only the profile's variables restarts only its process", async () => {
     const before = processes();
-    const shared = before.find((p) => p.probe === null && p.keys.length === 0)!;
+    const unrelated = before.filter((p) => p.probe === null && p.keys.length === 0);
     await host.applyConfig(config([{ ...proxy, env: [{ name: "PROFILE_PROBE", value: "probe-8" }] }]));
-    const after = processes();
+
+    const after = await eventually(
+      async () => processes(),
+      (ps) => ps.length === before.length + 1,
+    );
+
     expect(after).toHaveLength(before.length + 1);
     expect(after.at(-1)).toMatchObject({ probe: "probe-8", token: null });
-    expect(alive(shared.pid)).toBe(true);
+
+    for (const p of unrelated) expect(alive(p.pid)).toBe(true);
   });
 
   test("a variable the worker controls disables the profile instead of reaching the process", async () => {
     const report = await host.applyConfig(config([{ ...proxy, env: [{ name: "CODEX_HOME", value: "/elsewhere" }] }]));
+    await eventually(
+      async () =>
+        processes()
+          .filter((p) => p.probe === "probe-8")
+          .every((p) => !alive(p.pid)),
+      Boolean,
+    );
     expect(report.profiles?.find((p) => p.id === "team")).toMatchObject({ available: false });
     expect(JSON.stringify(report, (_k, v) => (isBigInt(v) ? String(v) : v))).not.toContain("/elsewhere");
-    expect(processes().some((p) => p.probe === null && p.keys.length === 0)).toBe(true);
+    expect(
+      processes()
+        .filter((p) => p.probe === "probe-8")
+        .every((p) => !alive(p.pid)),
+    ).toBe(true);
   });
 });

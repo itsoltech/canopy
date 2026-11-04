@@ -82,15 +82,16 @@ połączenie w tych profilach. FK zamyka wyścig z równoczesnym przypięciem.
 
 ## Wbudowany login i ręczne zmienne
 
-Wbudowane **Device login** ma widocznie wyłączone karty połączenia oraz wyjaśnienie
-**To use a proxy, add an instance**. Przycisk otwiera dodawanie instancji z wybranym
-harnessem i rodzajem Proxy.
+Każda instancja, także wbudowane `native` i instancja z wątkami, pozwala przełączać
+**Device login** ↔ **Proxy** w miejscu. Proxy wybiera się z zapisanej listy; **Add proxy**
+otwiera formularz bez opuszczania instancji. Id i katalog sesji zostają te same.
+Trwające tury i zadania kończą się na poprzedniej konfiguracji; nowa praca czeka na
+drain i uruchamia się z nowym połączeniem ([worker-config.md](worker-config.md#6-zmiana-na-żywo)).
 
 **Move to a proxy** wykrywa `ANTHROPIC_BASE_URL` z `ANTHROPIC_AUTH_TOKEN`/
 `ANTHROPIC_API_KEY`, a dla Codexa `OPENAI_BASE_URL`/`CODEX_BASE_URL` z
 `OPENAI_API_KEY`/`CLIPROXY_API_KEY`. Gateway odczytuje zapisane zmienne, tworzy proxy,
-usuwa zmienne połączenia i aktualizuje instancję w jednej transakcji. Dla wbudowanego
-loginu tworzy oddzielną instancję; oryginał zachowuje logowanie urządzenia. Pozostałe
+usuwa zmienne połączenia i aktualizuje tę samą instancję w jednej transakcji. Pozostałe
 zmienne nie zmieniają się. Błąd walidacji cofa całość. Znane zmienne kluczy są
 automatycznie szyfrowane również wtedy, gdy starszy klient zapisał je jako zwykły tekst.
 

@@ -34,7 +34,6 @@
 
   let scope = $state<string>();
   let selectedKey = $state<string>();
-  let addPrefill = $state<ui.ProviderInstance>();
 
   /** Phones show one pane: the list, or the selected instance. */
   let pane = $state<"list" | "detail">("list");
@@ -121,7 +120,6 @@
       variant="primary"
       icon="plus"
       onclick={() => {
-        addPrefill = undefined;
         adding = true;
       }}>Add</Button
     >
@@ -169,10 +167,6 @@
               {workers}
               state={providers}
               ondeleted={() => ((selectedKey = undefined), (pane = "list"))}
-              onaddproxy={() => {
-                addPrefill = selected;
-                adding = true;
-              }}
             />
           </div>
         {/key}
@@ -182,7 +176,6 @@
 </div>
 
 <AddInstanceDialog
-  prefill={addPrefill}
   bind:open={adding}
   instances={providers.instances}
   {workers}

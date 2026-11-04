@@ -2,6 +2,7 @@ import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { Provider, type Command } from "@canopy/contracts";
+import { Effect } from "effect";
 import { claudeCatalogStamp } from "../providers/claude/catalog.ts";
 import { searchFiles } from "../files/search.ts";
 
@@ -36,11 +37,17 @@ export class QueryCommands {
       provider === Provider.GROK
         ? { entries: [], notes: ["Grok ACP does not expose a mention catalog"] }
         : provider === Provider.CLAUDE
-          ? await this.ctx.state.catalogs.get(
-              `claude|${profileId}|${folder}`,
-              claudeCatalogStamp(folder, this.ctx.state.claudeHome),
-              () => this.ctx.ops.runClaude((threads) => threads.listMentionCatalog(profileId, folder)),
-              refresh,
+          ? await this.ctx.ops.runClaude(
+              (threads) =>
+                Effect.promise(() =>
+                  this.ctx.state.catalogs.get(
+                    `claude|${profileId}|${folder}`,
+                    `${this.ctx.state.claude.get(profileId)?.key}|${claudeCatalogStamp(folder, this.ctx.state.claudeHomes.get(profileId) ?? "")}`,
+                    () => this.ctx.ops.runIn(threads.listMentionCatalog(profileId, folder)),
+                    refresh,
+                  ),
+                ),
+              profileId,
             )
           : await this.ctx.ops.runCodex(
               provider,

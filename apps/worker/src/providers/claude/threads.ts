@@ -62,6 +62,8 @@ export class ClaudeThreads extends Context.Service<
     stopTask(threadId: string, taskId: string): Effect.Effect<void, ClaudeThreadError>;
     /** Background tasks still running, per platform thread. */
     backgroundTasks(): ReadonlyMap<string, readonly string[]>;
+    /** Includes terminal events still being persisted before a runtime can drain. */
+    hasActiveTurns(): boolean;
     /** Models a profile offers (Query.supportedModels() without a prompt; no model turn). */
     listModels(profileId: string): Effect.Effect<{ models: ModelInit[] }, ClaudeThreadError>;
     /** Commands and skills for the composer in a folder (Query.supportedCommands() without a prompt; claude/catalog.ts). */
@@ -88,7 +90,6 @@ const make = (options: ClaudeThreadsOptions) =>
       shuttingDown: false,
     };
 
-    process.env["CLAUDE_CONFIG_DIR"] = options.home;
     const runtime = claudeRuntime(ctx);
     const output = sessionOutput(ctx);
     yield* Effect.addFinalizer(() =>
@@ -117,6 +118,7 @@ const make = (options: ClaudeThreadsOptions) =>
       ...threadCreation(ctx, runtime),
       ...threadStart(ctx, sessions, turns.beginTurn, output.record),
       ...threadControls(ctx),
+      hasActiveTurns: () => output.recording() || [...ctx.sessions.values()].some((session) => !!session.turn),
       ...threadCatalog(ctx, runtime),
     });
   });

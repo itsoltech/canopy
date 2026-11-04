@@ -43,6 +43,7 @@ export interface StoredOverrides {
 }
 
 export interface InstanceRow {
+  created_by?: string | null;
   proxy_id?: string | null;
   proxy_owner?: string | null;
   proxy_codex?: ProxyOptions | null;
@@ -188,7 +189,7 @@ export function effectiveProfile(instance: InstanceRow, assignment: AssignmentRo
 
   if (launchArgs.length > 0) profile.launchArgs = [...launchArgs];
 
-  if (runtime.ownLogin && !endpoint) profile.ownLogin = true;
+  if (runtime.ownLogin) profile.ownLogin = true;
 
   return profile;
 }

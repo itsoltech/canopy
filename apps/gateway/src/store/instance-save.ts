@@ -30,7 +30,7 @@ export function instanceSave(
   core: InstanceCore,
   secretsKey: Buffer,
 ): Pick<InstanceApi, "save"> {
-  const { threadUse, lockInstance, putSecret, envFrom, runtimeFrom, assign, sync } = core;
+  const { lockInstance, putSecret, envFrom, runtimeFrom, assign, sync } = core;
 
   return {
     save: ({ userId, request }) =>
@@ -65,6 +65,11 @@ export function instanceSave(
           } else {
             existing = yield* lockInstance(harness, id);
 
+            if (existing.proxy_id) yield* proxyRecords(sql, secretsKey).get(userId, existing.proxy_id);
+
+            if (existing.created_by && existing.created_by !== userId)
+              return yield* Effect.fail(new NotFound("provider instance not found"));
+
             if (request.expectedRevision !== 0n && request.expectedRevision !== BigInt(existing.revision)) {
               return yield* Effect.fail(new InstanceConflict("the instance changed meanwhile; reload and try again"));
             }
@@ -76,22 +81,11 @@ export function instanceSave(
           if (!label && !builtIn) return yield* Effect.fail(new Invalid("a label is required"));
 
           if (label.length > 80) return yield* Effect.fail(new Invalid("the label is longer than 80 characters"));
-          const kindValue = builtIn ? ProviderProfileKind.NATIVE : request.kind;
+          const kindValue = request.kind;
 
           if (kindValue !== ProviderProfileKind.NATIVE && kindValue !== ProviderProfileKind.CLIPROXYAPI)
             return yield* Effect.fail(new Invalid("choose how the instance connects"));
           const kind = kindValue === ProviderProfileKind.NATIVE ? "native" : "endpoint";
-
-          if (
-            existing &&
-            existing.kind !== kind &&
-            Number((yield* threadUse()).find((u) => u.harness === harness && u.id === id)?.count ?? 0) > 0
-          ) {
-            // Threads of the instance keep their provider session; switching device login and endpoint under them is refused.
-            return yield* Effect.fail(
-              new InstanceConflict("threads use this instance; add a new instance to connect another way"),
-            );
-          }
 
           let baseUrl = "";
 
@@ -99,8 +93,6 @@ export function instanceSave(
             kind === "endpoint" && request.proxyId
               ? yield* proxyRecords(sql, secretsKey).get(userId, request.proxyId)
               : undefined;
-
-          if (existing?.proxy_id) yield* proxyRecords(sql, secretsKey).get(userId, existing.proxy_id);
 
           if (proxy && !proxySupports(proxy.kind, harness))
             return yield* Effect.fail(new Invalid("This proxy does not support this harness"));
@@ -116,7 +108,10 @@ export function instanceSave(
 
           if (accent && !ACCENT.test(accent)) return yield* Effect.fail(new Invalid("the accent color is #rrggbb"));
           const env = yield* envFrom(userId, kind, request.env, existing?.env ?? []);
-          const runtime = yield* runtimeFrom(request.runtime, kind);
+          const runtime = request.runtime ? yield* runtimeFrom(request.runtime) : { ...existing?.runtime };
+
+          // Own login also selects the session home. Keep it dormant while using a proxy.
+          if (kind === "endpoint" && existing?.runtime.ownLogin) runtime.ownLogin = true;
           // The key: unset keeps it, "" clears it, a value replaces it. Only endpoints have one.
           let apiKey: SecretRef | null = null;
 
@@ -140,7 +135,7 @@ export function instanceSave(
             yield* sql`
                     UPDATE provider_instances
                        SET label = ${values.label}, kind = ${values.kind}, base_url = ${values.baseUrl}, api_key = ${values.apiKey}::jsonb, env = ${values.env}::jsonb,
-                           runtime = ${values.runtime}::jsonb, accent_color = ${values.accent}, revision = revision + 1, updated_at = now()
+                           runtime = ${values.runtime}::jsonb, accent_color = ${values.accent}, revision = revision + 1, updated_at = now(), created_by = coalesce(created_by, ${userId}::uuid)
                            , proxy_id = ${proxy?.id ?? null}::uuid
                      WHERE harness = ${harness} AND id = ${id}`;
           } else {
@@ -148,6 +143,12 @@ export function instanceSave(
                     INSERT INTO provider_instances (harness, id, label, kind, base_url, api_key, env, runtime, accent_color, created_by, proxy_id)
                     VALUES (${harness}, ${id}, ${values.label}, ${values.kind}, ${values.baseUrl}, ${values.apiKey}::jsonb, ${values.env}::jsonb, ${values.runtime}::jsonb, ${values.accent}, ${userId}::uuid, ${proxy?.id ?? null}::uuid)`;
             yield* assign(harness, id, request.allWorkers, request.workerIds);
+          }
+
+          if (existing && existing.kind !== kind) {
+            yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, details)
+              VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, 'provider.connection_changed', 'provider_instance',
+                ${JSON.stringify({ harness, id, from: existing.kind, to: kind })}::jsonb)`;
           }
 
           return { harness, id, changed: yield* sync(userId) };
@@ -170,6 +171,7 @@ export function instanceMutations(
         Effect.gen(function* () {
           const harness = yield* harnessOrFail(request.harness);
           const row = yield* lockInstance(harness, request.id);
+          yield* core.get(harness, row.id, userId);
 
           if (row.built_in)
             return yield* Effect.fail(
@@ -211,6 +213,7 @@ export function instanceMutations(
         Effect.gen(function* () {
           const harness = yield* harnessOrFail(request.harness);
           yield* lockInstance(harness, request.id);
+          yield* core.get(harness, request.id, userId);
           yield* assign(harness, request.id, request.allWorkers, request.workerIds);
 
           return yield* sync(userId);
@@ -221,6 +224,7 @@ export function instanceMutations(
         Effect.gen(function* () {
           const harness = yield* harnessOrFail(request.harness);
           const row = yield* lockInstance(harness, request.id);
+          yield* core.get(harness, row.id, userId);
 
           if (!(yield* workers()).some((w) => w.id === request.workerId))
             return yield* Effect.fail(new NotFound(`worker ${request.workerId} not found`));

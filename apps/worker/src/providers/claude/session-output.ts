@@ -8,13 +8,21 @@ import { readFrom, goalVerdictOf } from "./session-io.ts";
 
 export function sessionOutput(ctx: ClaudeThreadContext) {
   const { options, journal } = ctx;
+  let recording = 0;
 
   const record = async (threadId: string, init: ThreadEventInit) => {
-    const enriched = options.enrich ? await options.enrich(init) : init;
+    recording++;
 
-    return Effect.runPromise(
-      journal.append(threadId, enriched).pipe(Effect.tap((event) => Effect.sync(() => options.publish(event)))),
-    );
+    try {
+      const enriched = options.enrich ? await options.enrich(init) : init;
+
+      return await Effect.runPromise(
+        journal.append(threadId, enriched).pipe(Effect.tap((event) => Effect.sync(() => options.publish(event)))),
+      );
+    } finally {
+      recording--;
+      options.onActivitySettled?.();
+    }
   };
 
   const serial = (session: Session, run: () => Promise<void>) => {
@@ -59,5 +67,5 @@ export function sessionOutput(ctx: ClaudeThreadContext) {
       }
     });
 
-  return { record, readOutput, readGoalVerdicts };
+  return { record, readOutput, readGoalVerdicts, recording: () => recording > 0 };
 }

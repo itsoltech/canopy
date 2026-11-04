@@ -33,8 +33,18 @@ export type HostOperations = HostHooks &
     | "stopCodex"
     | "closeCodexOrphans"
   > &
-  Pick<ClaudeRuntimes, "runClaude" | "claudeKey" | "reconcileClaude" | "stopClaude"> &
-  Pick<ProviderRuntimes, "runGrok" | "runIn" | "reconcileRuntimes" | "stopReason" | "closeOrphans"> &
+  Pick<ClaudeRuntimes, "runClaude" | "startClaude" | "stopClaude"> &
+  Pick<
+    ProviderRuntimes,
+    | "runGrok"
+    | "startGrok"
+    | "useRuntime"
+    | "wakeRuntimes"
+    | "runIn"
+    | "reconcileRuntimes"
+    | "stopReason"
+    | "closeOrphans"
+  > &
   Pick<HostEvents, "publish" | "sendEvent" | "interact" | "callTool" | "send" | "log"> &
   Pick<ThreadCommands, "createThread" | "startTurn" | "steerTurn" | "interruptTurn"> &
   Pick<
@@ -83,10 +93,12 @@ export class HostContext {
       stopCodex: codex.stopCodex.bind(codex),
       closeCodexOrphans: codex.closeCodexOrphans.bind(codex),
       runClaude: claude.runClaude.bind(claude),
-      claudeKey: claude.claudeKey.bind(claude),
-      reconcileClaude: claude.reconcileClaude.bind(claude),
+      startClaude: claude.startClaude.bind(claude),
       stopClaude: claude.stopClaude.bind(claude),
       runGrok: runtimes.runGrok.bind(runtimes),
+      startGrok: runtimes.startGrok.bind(runtimes),
+      useRuntime: runtimes.useRuntime.bind(runtimes),
+      wakeRuntimes: runtimes.wakeRuntimes.bind(runtimes),
       runIn: runtimes.runIn.bind(runtimes),
       reconcileRuntimes: runtimes.reconcileRuntimes.bind(runtimes),
       stopReason: runtimes.stopReason.bind(runtimes),

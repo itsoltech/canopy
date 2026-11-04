@@ -344,7 +344,7 @@ export function saveRequest(
       homePath: draft.homePath.trim(),
       shadowHomePath: draft.shadowHomePath.trim(),
       launchArgs: splitArgs(draft.launchArgs),
-      ownLogin: !endpoint && draft.ownLogin,
+      ownLogin: draft.ownLogin,
     },
     accentColor: draft.accentColor,
     expectedRevision: options.expectedRevision,

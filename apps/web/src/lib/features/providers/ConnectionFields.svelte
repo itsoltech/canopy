@@ -9,15 +9,13 @@
 
   /**
    * How an instance reaches its models: the harness's own login (the device's, or its own for Codex, signed in from
-   * the app) or an Anthropic/OpenAI-compatible endpoint (CLIProxyAPI) with a key. `kindLocked`: the built-in device
-   * login, or an instance threads use, keeps its kind.
+   * the app) or an Anthropic/OpenAI-compatible endpoint (CLIProxyAPI) with a key.
    */
   let {
     harness,
     kind = $bindable(),
     proxyId = $bindable(""),
     ownLogin = $bindable(false),
-    kindLocked = false,
     errors,
     prefix,
     class: className,
@@ -26,7 +24,6 @@
     kind: ProviderProfileKind;
     proxyId: string;
     ownLogin: boolean;
-    kindLocked?: boolean;
     errors: { proxyId?: string | undefined };
     prefix: string;
     class?: ClassValue;
@@ -54,14 +51,13 @@
 </script>
 
 <div class={["grid gap-4", className]}>
-  <Fieldset legend="Connection" disabled={kindLocked}>
+  <Fieldset legend="Connection">
     {#each options as option (option.value)}
       <ChoiceCard
         name="{prefix}-kind"
         checked={kind === option.value}
         title={option.label}
         description={option.description}
-        disabled={kindLocked}
         onchange={() => (kind = option.value)}
       />
     {/each}
@@ -75,7 +71,7 @@
       <Checkbox
         name="{prefix}-own-login"
         label="Own login (sign in with ChatGPT)"
-        description="Keeps a login of its own in its shadow home instead of the device's; sign in from the instance once it runs on a worker."
+        description="Keeps its own login in a separate session home; sign in once it runs on a worker. Changing this home may start fresh sessions for existing threads."
         bind:checked={ownLogin}
       />
     </GrowIn>

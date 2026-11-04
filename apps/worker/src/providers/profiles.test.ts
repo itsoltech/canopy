@@ -143,7 +143,7 @@ describe("codexAppServerLaunch", () => {
 
   test("threads select the provider by id", () => {
     const [native, proxy] = resolved([{ ...PROXY, id: "my-proxy" }]);
-    expect(codexThreadProvider(native!)).toEqual({});
+    expect(codexThreadProvider(native!)).toEqual({ modelProvider: "openai" });
     expect(codexThreadProvider(proxy!)).toEqual({ modelProvider: "canopy_my_proxy" });
   });
 
