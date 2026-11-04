@@ -502,8 +502,10 @@ przycięciu dziennika i zmianie epoki, usunięcia/archiwizację oraz wymianę li
 błędny poprzednik fragmentu/checkpoint, przerwany i współbieżny resync, rekoncyliację źródła forka,
 nowy core i listener A na tej samej bazie, fallback starszego partnera, owner scoping i Unlink.
 Test współbieżnych transakcji blokujących turę i wątek chroni przed odwróceniem kolejności
-blokad przez dziennik. Test bezpieczeństwa tworzy rzeczywiste metadane sekretu w domu i sprawdza
-ich brak w zapisanej binarnej projekcji partnera.
+blokad przez dziennik. Test kolejności handshake wstrzymuje zapis statusu połączenia i równocześnie
+wywołuje `ListThreads`: pierwszą odpowiedzią musi być `welcome`, zanim łącze udostępni zdalne
+wywołania lub subskrypcje luster. Test bezpieczeństwa tworzy rzeczywiste metadane sekretu w domu
+i sprawdza ich brak w zapisanej binarnej projekcji partnera.
 Nie dodaje testów UI. `schema.test.ts` obejmuje migrację 0049.
 
 ## Konkretny protokół etapu 4

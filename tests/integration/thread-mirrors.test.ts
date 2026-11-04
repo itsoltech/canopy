@@ -7,13 +7,14 @@ import { createGrpcTransport } from "@connectrpc/connect-node";
 import { NoticeLevel, Provider, ui, computerLink as link } from "@canopy/contracts";
 import { qualifyId, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
-import { startGrpcServer } from "@canopy/transport";
+import { AsyncChannel, startGrpcServer } from "@canopy/transport";
 import { Effect, Match } from "effect";
 import { SqlClient } from "effect/sql";
 import { remoteServe, serviceTokenAuth, uiHandlers, uiRoutes } from "@canopy/gateway/api";
 import { GatewayCore } from "@canopy/gateway/core";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
+import { linkClient } from "../../apps/gateway/src/computers/transport.ts";
 import {
   eventually as poll,
   failure,
@@ -146,6 +147,55 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     await a?.close();
     await b?.close();
   }, 20_000);
+
+  test("the welcome precedes remote calls while the handshake status is still being stored", async () => {
+    await offline();
+    // The raw pinned client below owns B's handshake, without its runtime reconnecting alongside it.
+    await lb.close();
+    await la.manage(create(ui.ComputerOperationRequestSchema, { action: "listener", enabled: true }));
+    const entered = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<void>();
+    const status = sa.status;
+    // Hold the real persistence boundary so the API can race the handshake without a timing delay.
+    sa.status = async (...args) => {
+      if (args[1] === "connected") {
+        entered.resolve();
+        await resume.promise;
+      }
+
+      return status.apply(sa, args);
+    };
+
+    const frames = new AsyncChannel<link.LinkFrame>();
+    frames.push(create(link.LinkFrameSchema, { body: { case: "hello", value: lb.hello() } }));
+    const controller = new AbortController();
+
+    const stream = linkClient(la.addresses[0]!, la.identity.certificate, lb.identity)
+      .connect(frames, {
+        signal: controller.signal,
+      })
+      [Symbol.asyncIterator]();
+
+    const first = stream.next();
+    let listing: Promise<unknown> | undefined;
+
+    try {
+      await entered.promise;
+      listing = a.api.listThreads({}, { signal: controller.signal });
+      expect((await first).value?.body.case).toBe("welcome");
+    } finally {
+      resume.resolve();
+      sa.status = status;
+      controller.abort();
+      frames.close();
+      await Promise.allSettled([first, listing]);
+      await offline();
+      lb = newB();
+      b.core.computers = lb;
+      await lb.start();
+      await reconnect();
+    }
+  }, 30_000);
 
   test("initial sync includes existing full timelines and metadata, with no execution rows on A", async () => {
     const snapshot = (await mirror())!;
