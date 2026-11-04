@@ -339,6 +339,13 @@ Sekrety dodaje maintainer do GitHub → Settings → Secrets and variables → A
 (repository secrets). Nic nie trafia do kodu, gatewaya, workera ani renderera.
 Do pobierania publicznych aktualizacji aplikacja nie potrzebuje tokena GitHub.
 
+Centrum aktualizacji pobiera również publiczne notatki GitHub Releases, z krótkim
+cache, dla przedziału (wersja zainstalowana, wersja docelowa], od najnowszej.
+Filtrowanie zachowuje hierarchię kanałów stable → beta → nightly. Wydanie serwera
+może istnieć przed publikacją desktopu: brak feedu danej platformy oznacza, że
+desktop nadal nie jest dostępny, a publikacja może trwać albo wymagać ponowienia.
+Nie jest to potwierdzenie, że zadanie CI nadal działa.
+
 1. Dołącz do **Apple Developer Program** i zaakceptuj aktualne umowy Apple.
    Na Macu w Keychain Access utwórz Certificate Signing Request, a w Apple Developer
    → Certificates, Identifiers & Profiles utwórz **Developer ID Application**.

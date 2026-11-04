@@ -44,7 +44,9 @@ export function channelReleases(releases: readonly DesktopRelease[], channel: De
 
       if (!version || release.draft) return false;
       const pre = prerelease(version);
-      const candidate = !pre && !release.prerelease ? "stable" : release.prerelease ? pre?.[0] : undefined;
+
+      const candidate =
+        !pre && !release.prerelease ? "stable" : release.prerelease && pre?.[0] !== "stable" ? pre?.[0] : undefined;
 
       return isDesktopChannel(candidate) && channelRank[candidate] <= channelRank[channel];
     })

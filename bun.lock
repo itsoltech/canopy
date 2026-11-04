@@ -125,6 +125,7 @@
         "@canopy/domain": "workspace:*",
         "@canopy/transport": "workspace:*",
         "@canopy/ui": "workspace:*",
+        "@canopy/updater": "workspace:*",
         "@connectrpc/connect": "2.3.0",
         "@connectrpc/connect-node": "2.3.0",
         "@shikijs/engine-javascript": "4.6.0",

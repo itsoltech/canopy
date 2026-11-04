@@ -9,12 +9,14 @@
   let {
     state: update,
     pending,
+    disabled = false,
     onupdate,
     onforce,
     class: className,
   }: {
     state: ui.DesktopUpdateState;
     pending: boolean;
+    disabled?: boolean;
     onupdate(): void;
     onforce(): void;
     class?: ClassValue;
@@ -53,11 +55,13 @@
       "Updates the entire app using this desktop’s update channel."}
   </p>
   <div class="flex flex-wrap gap-2">
-    <Button size="sm" disabled={pending || busy || !!reason} loading={pending} onclick={onupdate}
+    <Button size="sm" disabled={disabled || pending || busy || !!reason} loading={pending} onclick={onupdate}
       >Update Canopy app</Button
     >
     {#if update.phase === "waiting_idle"}
-      <Button size="sm" disabled={pending || !!reason} onclick={() => (confirming = true)}>Restart now…</Button>
+      <Button size="sm" disabled={disabled || pending || !!reason} onclick={() => (confirming = true)}
+        >Restart now…</Button
+      >
     {/if}
   </div>
 </div>
@@ -71,6 +75,7 @@
       <Button
         size="sm"
         variant="primary"
+        disabled={disabled || pending || !!reason}
         onclick={() => {
           confirming = false;
           onforce();

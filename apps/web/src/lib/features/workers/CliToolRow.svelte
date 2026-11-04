@@ -10,7 +10,13 @@
   import { cliActions, cliLabel, methodLabel, sentence } from "./cli-tools.svelte.ts";
 
   /** One provider CLI on a worker: version and install method, update state, and the one action allowed. */
-  let { workerId, item, class: className }: { workerId: string; item: ui.WorkerCliTool; class?: ClassValue } = $props();
+  let {
+    workerId,
+    item,
+    disabled = false,
+    class: className,
+  }: { workerId: string; item: ui.WorkerCliTool; disabled?: boolean; class?: ClassValue } = $props();
+
   const actions = cliActions();
   const tool = $derived(item.tool!);
   const key = $derived(`${workerId}/${tool.provider}`);
@@ -59,7 +65,7 @@
           size="sm"
           icon={item.action === "install" ? "plus" : "arrow-up"}
           loading={installing || actions.pending[key]}
-          disabled={Boolean(item.blockedReason) || installing}
+          disabled={disabled || Boolean(item.blockedReason) || installing}
           onclick={() => void actions.install(workerId, tool.provider)}
         >
           {item.action === "install" ? "Install" : "Update"}
