@@ -40,7 +40,7 @@
             : "text-zinc-500 hover:bg-zinc-950/5 dark:text-zinc-400 dark:hover:bg-white/5",
         ]}
       >
-        <Icon name="bars-3" />
+        <Icon name="bars-3" tone={active ? "inherit" : "muted"} />
         {#if selected.length}<span class="min-w-3 tabular-nums">{selected.length}</span>{/if}
       </button>
     {/snippet}

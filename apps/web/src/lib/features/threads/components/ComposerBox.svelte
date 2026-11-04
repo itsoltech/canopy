@@ -275,7 +275,7 @@
             disabled={stopping}
             onclick={onstop}
           >
-            {#if stopping}<Spinner class="size-3.5" />{:else}<Icon name="stop" class="size-3.5" />{/if}
+            {#if stopping}<Spinner class="size-3.5" />{:else}<Icon name="stop" tone="inherit" class="size-3.5" />{/if}
             <TouchTarget />
           </button>
         {:else}
@@ -288,6 +288,7 @@
           >
             {#if sending}<Spinner class="size-3.5" />{:else}<Icon
                 name={sendLabel === "Submit" ? "check" : "arrow-up"}
+                tone="inherit"
               />{/if}
             <TouchTarget />
           </button>

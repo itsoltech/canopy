@@ -37,14 +37,14 @@
   {#key state}<span class="flex items-center" in:swap>
       {#if needsYou(thread)}
         <span class="flex items-center gap-1 text-amber-700 dark:text-amber-400"
-          >{#if icons}<Icon name="hand-raised" class="size-3.5" />{/if}Needs input</span
+          >{#if icons}<Icon name="hand-raised" tone="inherit" class="size-3.5" />{/if}Needs input</span
         >
       {:else if asksAgent(thread)}
         <span
           class="flex items-center gap-1 text-violet-700 dark:text-violet-400"
           title="Waiting for the main agent to answer. You can answer instead."
         >
-          {#if icons}<Icon name="hand-raised" class="size-3.5" />{/if}Asking agent
+          {#if icons}<Icon name="hand-raised" tone="inherit" class="size-3.5" />{/if}Asking agent
         </span>
       {:else if thread.status === "creating"}
         <span class="flex items-center gap-1 text-sky-700 dark:text-sky-400"
@@ -58,15 +58,15 @@
         <span
           class="flex items-center gap-1 text-emerald-700 dark:text-emerald-400"
           title="Finished {formatDateTime(at)}, not opened since"
-          ><Icon name="check-circle" class="size-3.5" />Completed</span
+          ><Icon name="check-circle" tone="inherit" class="size-3.5" />Completed</span
         >
       {:else if state === "failed"}
         <span class="flex items-center gap-1 text-rose-700 dark:text-rose-400"
-          ><Icon name="x-circle" class="size-3.5" />Failed</span
+          ><Icon name="x-circle" tone="inherit" class="size-3.5" />Failed</span
         >
       {:else if state === "interrupted"}
         <span class="flex items-center gap-1 text-orange-700 dark:text-orange-400"
-          ><Icon name="stop" class="size-3.5" />Interrupted</span
+          ><Icon name="stop" tone="inherit" class="size-3.5" />Interrupted</span
         >
       {:else}
         <time class="text-zinc-500" datetime={isoDateTime(at)} title="Last active {formatDateTime(at)}">{age}</time>

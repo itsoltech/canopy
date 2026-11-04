@@ -24,6 +24,6 @@
     className,
   ]}
 >
-  {#if icon}<Icon name={icon} class="size-3.5" />{/if}
+  {#if icon}<Icon name={icon} tone="inherit" class="size-3.5" />{/if}
   {@render children()}
 </span>

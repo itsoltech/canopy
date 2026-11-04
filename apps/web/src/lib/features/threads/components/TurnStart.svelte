@@ -41,7 +41,8 @@
         class="flex min-w-0 items-center gap-1 text-sky-700 dark:text-sky-400"
         {@attach tooltip(goal ? `Goal (${goalLook(goal.status).label.toLowerCase()}): ${goal.objective}` : undefined)}
       >
-        <Icon name="flag" class="size-3.5" />Goal{#if goal}<span class="sr-only">: {goal.objective.slice(0, 200)}</span
+        <Icon name="flag" tone="inherit" class="size-3.5" />Goal{#if goal}<span class="sr-only"
+            >: {goal.objective.slice(0, 200)}</span
           >{/if}
       </span>
     {/if}

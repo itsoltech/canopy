@@ -16,14 +16,14 @@
   >
 {:else if status === ItemStatus.FAILED}
   <span class="flex items-center gap-1 text-rose-700 dark:text-rose-400"
-    ><span class="flex" in:iconSwap><Icon name="x-circle" class="size-3.5" /></span>Failed</span
+    ><span class="flex" in:iconSwap><Icon name="x-circle" tone="inherit" class="size-3.5" /></span>Failed</span
   >
 {:else if status === ItemStatus.DECLINED}
   <span class="flex items-center gap-1 text-rose-700 dark:text-rose-400"
-    ><span class="flex" in:iconSwap><Icon name="hand-raised" class="size-3.5" /></span>Declined</span
+    ><span class="flex" in:iconSwap><Icon name="hand-raised" tone="inherit" class="size-3.5" /></span>Declined</span
   >
 {:else if status === ItemStatus.INTERRUPTED}
   <span class="flex items-center gap-1 text-orange-700 dark:text-orange-400"
-    ><span class="flex" in:iconSwap><Icon name="stop" class="size-3.5" /></span>Interrupted</span
+    ><span class="flex" in:iconSwap><Icon name="stop" tone="inherit" class="size-3.5" /></span>Interrupted</span
   >
 {/if}

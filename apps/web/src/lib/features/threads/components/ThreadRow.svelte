@@ -57,7 +57,7 @@
     <span
       class="flex h-lh shrink-0 items-center gap-1 text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400"
     >
-      <Icon name="hand-raised" class="size-3.5" />{thread.pendingInteractions || ""}<span class="sr-only"
+      <Icon name="hand-raised" tone="inherit" class="size-3.5" />{thread.pendingInteractions || ""}<span class="sr-only"
         >waiting for you</span
       >
     </span>

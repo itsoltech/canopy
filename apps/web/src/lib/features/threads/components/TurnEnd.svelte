@@ -99,7 +99,7 @@
   {#if turn.status !== "completed"}
     <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm/5 sm:text-xs/5">
       <span class={["flex items-center gap-1 font-medium", textTones[look.tone]]}
-        ><Icon name={icon} class="size-3.5" />{look.label}</span
+        ><Icon name={icon} tone="inherit" class="size-3.5" />{look.label}</span
       >
       {#if detail}<span
           class={turn.status === "failed" ? "text-rose-700 dark:text-rose-400" : "text-zinc-500 dark:text-zinc-400"}

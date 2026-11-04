@@ -57,6 +57,9 @@
   }}
   {@attach withTooltip(tooltip)}
 >
-  {#if busy}<Spinner class="size-3.5" />{:else}<Icon name={icon} />{/if}
+  {#if busy}<Spinner class="size-3.5" />{:else}<Icon
+      name={icon}
+      tone={variant === "primary" ? "inherit" : "muted"}
+    />{/if}
   <TouchTarget />
 </button>

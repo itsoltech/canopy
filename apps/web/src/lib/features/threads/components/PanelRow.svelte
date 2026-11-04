@@ -43,7 +43,7 @@
 </script>
 
 {#snippet content()}
-  {#if lead}{@render lead()}{:else}<Icon name={icon} class={iconClass ?? "fill-zinc-400 dark:fill-zinc-500"} />{/if}
+  {#if lead}{@render lead()}{:else}<Icon name={icon} class={iconClass} />{/if}
   <span class={["min-w-0 flex-1", wrap ? "break-words whitespace-normal" : "truncate"]}>{@render children()}</span>
   {@render aside?.()}
 {/snippet}
