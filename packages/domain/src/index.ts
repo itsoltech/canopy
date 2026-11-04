@@ -8,4 +8,5 @@ export * from "./appearance/index.ts";
 export * from "./quotes/index.ts";
 export * from "./background-tasks/index.ts";
 export * from "./platform.ts";
+export type { JsonObject, JsonValue } from "./json.ts";
 export { PLACEMENTS, scheduleWorkerEligible, selectScheduleWorkspace, type Placement } from "./schedules.ts";

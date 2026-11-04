@@ -45,8 +45,8 @@ export default defineConfig({
     "anti-slop/no-object-parameters": "error",
     "anti-slop/no-reflect-apply": "error",
     "anti-slop/no-reflect-get": "error",
-    "anti-slop/no-runtime-typeof": "error",
-    "anti-slop/no-shape-in-symbol-names": "error",
+    "anti-slop/no-runtime-typeof": ["error", { allowInTypeGuards: true }],
+    "anti-slop/no-shape-in-symbol-names": "off",
     "anti-slop/no-unknown-parameters": "error",
     "anti-slop/no-unknown-returns": "error",
     "anti-slop/no-unknown-type-aliases": "error",
@@ -79,11 +79,17 @@ export default defineConfig({
       },
     },
     {
+      // UI expressions stay readable without Effect Match inside Svelte components.
+      files: ["**/*.svelte"],
+      rules: { "anti-slop-effect/prefer-effect-match": "off" },
+    },
+    {
       // Tests read top to bottom as scenarios: a suite may be longer, and a `describe`/`test` body is one function.
       files: ["**/*.test.ts", "**/*.test.tsx", "**/test/**", "tests/**"],
       rules: {
         "max-lines": ["error", { ...maxLines, max: 800 }],
         "max-lines-per-function": "off",
+        "anti-slop/require-safety-comment-for-type-assertion": "off",
       },
     },
     {

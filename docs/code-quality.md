@@ -21,7 +21,8 @@ Skrypty (root `package.json`):
 - `bun run lint`: `oxlint` na całym repo (~1,4 s, 1116 plików).
 - `bun run lint:fix`: `oxlint --fix`, wszystkie bezpieczne autofixy. Uwaga na `unicorn/no-useless-spread` niżej.
 - `bun run lint:spacing`: tylko autofix `anti-slop/require-readable-spacing` (same białe znaki); do przebiegu
-  mechanicznego.
+  mechanicznego. Osobny `oxlint.spacing.config.ts` współdzieli ignore'y i wyłącza pozostałe reguły: samo `-A all`
+  nie wyłącza jawnie skonfigurowanych reguł pluginów JS, więc poprzednia komenda kończyła się błędem.
 - `bun run format` / `bun run format:check`: `oxfmt` (~3 s na całym repo).
 - `bun run typecheck` sprawdza też `tools/tsconfig.json` (vendorowany plugin + `oxlint.config.ts`).
 
@@ -167,9 +168,11 @@ Po obszarach (po przebiegu mechanicznym): `apps/web` 584, `apps/worker` 458, `ap
   co psuje typecheck (`join` na stringu). Dlatego przebieg mechaniczny używa `lint:spacing`. Tę linię trzeba poprawić
   ręcznie (np. `Array.from(clean.slice(…))`), wtedy reguła przestaje ją zgłaszać.
 
-## Reguły słabo dopasowane: rekomendacje
+## Reguły słabo dopasowane: przyjęte decyzje
 
-Decyzje należą do maintainera. Na razie wszystko jest `error`, zgodnie z procedurą instalacji.
+Maintainer zatwierdził poniższe dostosowania. Konfiguracja wyłącza `no-shape-in-symbol-names`, komentarze
+`SAFETY:` w testach i `prefer-effect-match` w `.svelte`; `no-runtime-typeof` ma `allowInTypeGuards: true`.
+Wspólne typy `JsonObject` i `JsonValue` są eksportowane z `@canopy/domain` (`src/json.ts`), bez migracji użyć.
 
 - **`no-shape-in-symbol-names`: wyłączyć** (300). 153 to typy biblioteki protobuf-es (`MessageInitShape` 133,
   `MessageShape` 20). Nazwy tej nie da się zmienić bez sztucznych aliasów, a plugin zgłasza import dwukrotnie (61
@@ -197,7 +200,7 @@ Decyzje należą do maintainera. Na razie wszystko jest `error`, zgodnie z proce
   gateway i w workerze reguła pasuje do stylu.
 - **`no-array-filter-map`: zostawić** (29). Podpowiedź reguły (`.values().filter().map().toArray()`) **nie
   przejdzie typechecku**: `tsconfig.base.json` ma `lib: ["ES2024"]` bez iterator helpers, a mobile działa na Hermesie.
-  Naprawa: `flatMap` albo podniesienie `lib` do `ES2025` tylko tam, gdzie runtime to wspiera (Bun, Electron, przeglądarka).
+  Naprawa w fazie 2: `flatMap`. Nie stosować iterator helpers ani nie podnosić `lib` w ramach tego refaktoru.
 - **`no-module-mocking`: zostawić** (0). Obejmuje tylko `vi`/`jest`. Repo używa `bun:test` i nie ma `mock.module`, co
   zgadza się z polityką testów. Można rozszerzyć regułę o `mock.module` z `bun:test`.
 - **`no-conditional-empty-object-spread`: zostawić** (9). Przy `exactOptionalPropertyTypes` pomijanie pola jest

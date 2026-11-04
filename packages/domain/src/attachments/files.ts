@@ -33,7 +33,7 @@ export function safeFileName(name: string): string {
   if ([...clean].length > MAX_NAME) {
     const dot = clean.lastIndexOf(".");
     const ext = dot > 0 && clean.length - dot <= 16 ? clean.slice(dot) : "";
-    clean = [...clean.slice(0, clean.length - ext.length)].slice(0, MAX_NAME - ext.length).join("").trimEnd() + ext;
+    clean = Array.from(clean.slice(0, clean.length - ext.length)).slice(0, MAX_NAME - ext.length).join("").trimEnd() + ext;
   }
   // Windows device names stay files only with something in front.
   if (/^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(clean)) clean = `_${clean}`;
