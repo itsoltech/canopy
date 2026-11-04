@@ -13,6 +13,23 @@ message ConnectorType {
   string requirements = 5;
   bool oauth_app_set = 6;
   string documentation_url = 7;
+  // Kolejność jak auth_kinds; opisuje, jakie poświadczenie zdobyć i gdzie.
+  repeated ConnectorAuthMethod auth_methods = 8;
+}
+// Wskazówki dla jednej metody uwierzytelnienia konektora (tylko tekst, bez sekretów).
+message ConnectorAuthMethod {
+  string auth_kind = 1;
+  string label = 2;
+  string description = 3;
+  repeated string steps = 4;
+  string setup_url = 5;
+  string setup_label = 6;
+  string token_label = 7;
+  string token_description = 8;
+  bool token_required = 9;
+  bool oauth_app_required = 10;
+  string scope_description = 11;
+  string scope_placeholder = 12;
 }
 message ConnectorAccount {
   string id = 1;

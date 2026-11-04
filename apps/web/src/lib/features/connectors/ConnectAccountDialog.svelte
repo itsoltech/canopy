@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { create } from "@bufbuild/protobuf";
   import { connectors } from "@canopy/contracts";
   import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
@@ -10,12 +11,14 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
-  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
+  import { rise } from "#lib/shared/ui/motion.ts";
   import Select from "#lib/shared/ui/Select.svelte";
-  import Textarea from "#lib/shared/ui/Textarea.svelte";
-  import OAuthAppForm from "./OAuthAppForm.svelte";
+  import AuthMethodPicker from "./AuthMethodPicker.svelte";
+  import OAuthFields from "./OAuthFields.svelte";
+  import SetupSteps from "./SetupSteps.svelte";
+  import TokenFields from "./TokenFields.svelte";
 
   let {
     open = $bindable(false),
@@ -43,6 +46,24 @@
   let error = $state("");
   let appSaved = $state(untrack(() => type.oauthAppSet));
   const callback = $derived(`${page.url.origin}/api/connectors/oauth/callback`);
+
+  const methods = $derived(
+    type.authKinds.map(
+      (kind) =>
+        type.authMethods.find((m) => m.authKind === kind) ??
+        create(connectors.ConnectorAuthMethodSchema, {
+          authKind: kind,
+          label: kind === "oauth" ? "Sign in with OAuth" : "Token or secret headers",
+        }),
+    ),
+  );
+
+  const method = $derived(methods.find((m) => m.authKind === authKind) ?? methods[0]!);
+
+  const ready = $derived(
+    Boolean(name.trim() && endpoint) &&
+      (authKind === "oauth" ? !method.oauthAppRequired || appSaved : !method.tokenRequired || Boolean(token.trim())),
+  );
 
   async function connect() {
     if (busy) return;
@@ -113,6 +134,17 @@
     <Field label="Account name" description="A name you recognize, such as personal or work."
       ><Input bind:value={name} required maxlength={80} disabled={busy} placeholder="work" /></Field
     >
+    {#if methods.length > 1}<AuthMethodPicker {methods} bind:value={authKind} disabled={busy} />{/if}
+    {#key method.authKind}
+      <div in:rise>
+        <SetupSteps
+          {method}
+          documentationUrl={type.documentationUrl}
+          name={type.name}
+          description={methods.length === 1}
+        />
+      </div>
+    {/key}
     {#if !type.url || type.id === "custom"}<Field label="Remote MCP endpoint"
         ><Input bind:value={endpoint} required disabled={busy} placeholder="https://mcp.example.com/mcp" /></Field
       >{/if}
@@ -126,50 +158,10 @@
           ]}
         /></Field
       >{/if}
-    {#if type.authKinds.length > 1}<Field label="Authentication"
-        ><Select
-          bind:value={authKind}
-          disabled={busy}
-          options={type.authKinds.map((value) => ({
-            value,
-            label: value === "oauth" ? "Sign in with OAuth" : "Token or secret headers",
-          }))}
-        /></Field
-      >{/if}
     {#if authKind === "headers"}
-      <Field label="Bearer token" optional
-        ><Input
-          type="password"
-          bind:value={token}
-          autocomplete="off"
-          spellcheck={false}
-          disabled={busy}
-          placeholder="Stored encrypted in the gateway"
-        /></Field
-      >
-      <Disclosure summaryClass="text-base/6 sm:text-sm/6"
-        >{#snippet summary()}Custom secret headers{/snippet}
-        <div class="pt-3">
-          <Field label="Headers" optional description="One per line: Header-Name: value"
-            ><Textarea bind:value={headerText} rows={3} autocomplete="off" spellcheck={false} disabled={busy} /></Field
-          >
-        </div></Disclosure
-      >
+      <TokenFields {method} bind:token bind:headers={headerText} disabled={busy} />
     {:else}
-      <Field label="OAuth scopes" optional description="Space-separated scopes required by your application."
-        ><Input
-          bind:value={scope}
-          disabled={busy}
-          placeholder={type.id === "slack" ? "search:read.public users:read" : "Use server defaults"}
-        /></Field
-      >
-      <p class="text-base/6 wrap-anywhere text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        Callback: <code>{callback}</code>
-      </p>
-      <Disclosure summaryClass="text-base/6 sm:text-sm/6"
-        >{#snippet summary()}{appSaved ? "OAuth app configured · Replace" : "Use a registered OAuth app"}{/snippet}
-        <div class="pt-4"><OAuthAppForm type={type.id} ondone={() => (appSaved = true)} /></div></Disclosure
-      >
+      <OAuthFields type={type.id} {method} {callback} bind:scope bind:appSaved disabled={busy} />
     {/if}
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <DialogActions
@@ -177,7 +169,7 @@
         type="submit"
         variant="primary"
         loading={busy}
-        disabled={!name.trim() || !endpoint}
+        disabled={!ready}
       >
         {authKind === "oauth" ? "Continue to sign in" : "Connect account"}</Button
       ></DialogActions
