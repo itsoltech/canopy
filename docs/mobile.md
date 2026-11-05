@@ -266,6 +266,13 @@ zwinięte; bardzo długi output ma jawny limit podglądu 12 tys. znaków i odsy�
 Pytania/zgody w wątkach są widoczne **read-only** i odpowiada się na nie w web.
 Kompozytor oferuje Queue, Send now/steer, stop, wybór modelu/effort i permissions;
 respektuje ustawienie zachowania podczas trwającej tury. Goal jest read-only.
+New thread to jeden ekran jak w web: kompozytor z modelem, effort i plikami, pod nim projekt,
+worker (offline z notą, która blokuje wysyłkę) i uprawnienia. Wartości startowe biorą domyślne
+projektu nad Settings → Threads, potem ostatnio użyte (`features/new-thread/placement.ts`).
+Pliki (zdjęcia z `expo-image-picker`, dokumenty z `expo-document-picker`, odczyt przez
+`expo-file-system`) trafiają do `UploadAttachment` od razu po wyborze, z limitami gatewaya
+z GetSettings; wiadomość z plikami zawsze idzie do kolejki. Settings → Threads edytuje
+domyślny workspace, agenta i uprawnienia.
 Są tworzenie wątku, rename/archive/unread, wyszukiwanie treści, zwinięta praca/narzędzia,
 subagents i panel worker/cwd/model/status/schedules/lineage/connectors.
 
@@ -275,7 +282,7 @@ running delivery i instrukcje tytułów; pozostałe sekcje prezentują dane i od
 po zarządzanie. Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
 listę, czat ze streamem, wysyłanie/stop, karty pytań/zgód z odpowiedziami oraz sheet
 szczegółów/routines/reminders (zarządzanie w web). Lista botów odświeża się co 10 sekund.
-Brak załączników, push i trwałego offline cache. To pierwsza iteracja zgodności z web,
+Brak push i trwałego offline cache. To pierwsza iteracja zgodności z web,
 nie pełna równoważność wszystkich jego funkcji.
 
 ## Sprawdzanie aplikacji

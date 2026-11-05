@@ -10,8 +10,18 @@ function useAppearanceState() {
   const { client, session } = useSession();
   const system = useColorScheme();
   const [user, setUser] = useState<ui.UserSettings>();
+  const [projects, setProjects] = useState<ui.ProjectSettings[]>([]);
+  const [limits, setLimits] = useState<ui.AttachmentLimits>();
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const loaded = (r: ui.GetSettingsResponse) => {
+    setUser(r.user);
+    setProjects(r.projects);
+    setLimits(r.attachmentLimits);
+    setError("");
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -19,10 +29,7 @@ function useAppearanceState() {
       void client.api
         .getSettings({})
         .then((r) => {
-          if (active) {
-            setUser(r.user);
-            setError("");
-          }
+          if (active) loaded(r);
         })
         .catch(() => {
           if (active) setError("Could not load settings.");
@@ -35,15 +42,17 @@ function useAppearanceState() {
   useStream(
     client ? (signal) => client.api.watchOverview({ includeSnapshot: true }, { signal }) : null,
     (update: ui.OverviewUpdate) => {
-      if (update.change.case === "userSettings") setUser(update.change.value);
+      const change = update.change;
+
+      if (change.case === "userSettings") setUser(change.value);
+
+      if (change.case === "projectSettings")
+        setProjects((rows) => [...rows.filter((r) => r.projectId !== change.value.projectId), change.value]);
 
       if (update.change.case === "mobileSnapshot")
         void client?.api
           .getSettings({})
-          .then((r) => {
-            setUser(r.user);
-            setError("");
-          })
+          .then(loaded)
           .catch(() => setError("Could not load settings."));
     },
     `appearance:${session?.deviceId}`,
@@ -56,6 +65,9 @@ function useAppearanceState() {
 
   return {
     user,
+    limits,
+    /** A project's thread defaults (Settings → Projects), if it has its own. */
+    projectDefaults: (projectId: string) => projects.find((p) => p.projectId === projectId)?.threadDefaults,
     appearance,
     dark,
     accent: accents[Math.max(0, (appearance?.accent ?? 1) - 1)]?.name ?? "default",

@@ -15,6 +15,9 @@ export function ComposerBox({
   controls,
   compact = false,
   placeholder = "Ask anything…",
+  top,
+  files = 0,
+  label = "Message to your agent",
 }: {
   text: string;
   onChange: (text: string) => void;
@@ -27,10 +30,16 @@ export function ComposerBox({
   controls?: ReactNode;
   compact?: boolean;
   placeholder?: string;
+  /** Above the text (attachment chips). */
+  top?: ReactNode;
+  /** Attached files: a message may be files only. */
+  files?: number;
+  label?: string;
 }) {
   const c = useColors();
-  const stop = running && !text.trim() && Boolean(onStop);
-  const unavailable = disabled || busy || (!stop && !text.trim());
+  const empty = !text.trim() && files === 0;
+  const stop = running && empty && Boolean(onStop);
+  const unavailable = disabled || busy || (!stop && empty);
 
   return (
     <View
@@ -43,8 +52,16 @@ export function ComposerBox({
         borderColor: c.line,
       }}
     >
-      <ComposerInput text={text} onChange={onChange} busy={busy} compact={compact} placeholder={placeholder} />
-      {!compact || text.trim() || running ? (
+      {top}
+      <ComposerInput
+        text={text}
+        onChange={onChange}
+        busy={busy}
+        compact={compact}
+        placeholder={placeholder}
+        label={label}
+      />
+      {!compact || !empty || running ? (
         <View
           style={[
             styles.row,
@@ -66,7 +83,7 @@ export function ComposerBox({
               {controls}
             </ScrollView>
           )}
-          {running && text.trim() && onQueue ? (
+          {running && !empty && onQueue ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Queue message"
@@ -113,12 +130,13 @@ function ComposerInput({
   busy,
   compact,
   placeholder,
-}: Pick<Parameters<typeof ComposerBox>[0], "text" | "onChange" | "busy" | "compact" | "placeholder">) {
+  label,
+}: Pick<Parameters<typeof ComposerBox>[0], "text" | "onChange" | "busy" | "compact" | "placeholder" | "label">) {
   const c = useColors();
 
   return (
     <TextInput
-      accessibilityLabel="Message to your agent"
+      accessibilityLabel={label}
       value={text}
       onChangeText={onChange}
       editable={!busy}
