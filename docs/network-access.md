@@ -107,6 +107,8 @@ Pole `note` pojawia się tylko, gdy coś wymaga działania:
 
 - **Settings → Network access**: przełącznik, „Reachable at” (adres, rodzaj, interfejs, kopiowanie,
   usuwanie dodanych nazw, „Add hostname”), „Advanced” (port i „Change”, odcisk certyfikatu).
+- **Settings → Network access → Tailscale**: stan Tailscale, nazwa MagicDNS i adresy tailnetu z kopiowaniem,
+  „Check again” oraz „HTTPS over Tailscale” (przełącznik, adres z kodem QR, port) — [tailscale.md](tailscale.md).
 - **Settings → Linked computers**: karta stanu („Network access is on · Reachable at 192.168.1.20,
   100.x.y.z (Tailscale)…” albo „off” z przyciskiem „Turn on”) i link „Manage”. „Link a computer” przy
   wyłączonym dostępie oferuje jednym kliknięciem „Turn on network access and generate a code”; wpisanie

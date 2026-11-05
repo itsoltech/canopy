@@ -14,6 +14,7 @@
   import type { JsonBody } from "#lib/shared/http.ts";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import ConnectionRequestError from "#lib/features/network/ConnectionRequestError.svelte";
+  import TailscaleSettings from "#lib/features/network/tailscale/TailscaleSettings.svelte";
 
   const network = useNetworkAccess();
   const capabilities = useGatewayCapabilities();
@@ -128,6 +129,7 @@
       {/each}
     {/if}
   </SettingsGroup>
+  <TailscaleSettings {network} />
   <SettingsGroup title="Advanced">
     <SettingsRow
       title={status.port ? `Port ${status.port}` : "Port"}
