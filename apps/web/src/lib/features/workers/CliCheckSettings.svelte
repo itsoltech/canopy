@@ -78,15 +78,14 @@
           : updateCheckChoices}
       />
     </div>{/snippet}
+  {#if worker}<p class="mt-1 text-sm/5 text-zinc-500 tabular-nums dark:text-zinc-400" role="status">
+      Last checked {formatDateTime(worker.cliUpdatesCheckedAt) || "never"} · Next check {worker.effectiveCliUpdateCheckMinutes ===
+      0
+        ? "manual only"
+        : formatDateTime(worker.cliUpdatesNextCheckAt) || "when the gateway checks"}
+    </p>
+  {:else}<p class="mt-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
+      Checks never install updates. You can still check manually.
+    </p>{/if}
 </PreferenceRow>
-{#if !worker}<div class="px-4 pb-3 text-sm/5 text-zinc-500">
-    <p>Checks never install updates.</p>
-    <p>Manual checks remain available.</p>
-  </div>{/if}
-{#if worker}<p class="px-4 pb-3 text-sm/5 text-zinc-500" role="status">
-    Last checked {formatDateTime(worker.cliUpdatesCheckedAt) || "never"} · Next check {worker.effectiveCliUpdateCheckMinutes ===
-    0
-      ? "manual only"
-      : formatDateTime(worker.cliUpdatesNextCheckAt) || "when the gateway checks"}
-  </p>{/if}
 {#if error}<Alert tone="error">{error}</Alert>{/if}

@@ -125,19 +125,19 @@
               disabled={pending}
             />
           </div>{/snippet}
+        <p class="mt-1 text-sm/5 text-zinc-500 tabular-nums dark:text-zinc-400" role="status">
+          Last checked {checkedTime(current.lastCheckedAt)} · Next check {current.checkIntervalMinutes === 0
+            ? "manual only"
+            : current.nextCheckAt
+              ? checkedTime(current.nextCheckAt)
+              : current.phase === "downloaded"
+                ? "after restart"
+                : "unavailable in this installation"}
+        </p>
+        {#if current.checkIntervalMinutes === 0}<p class="mt-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
+            Automatic downloads are off. Use Check for updates to check manually.
+          </p>{/if}
       </PreferenceRow>
-      <p class="px-4 pb-3 text-sm/5 text-zinc-500" role="status">
-        Last checked {checkedTime(current.lastCheckedAt)} · Next check {current.checkIntervalMinutes === 0
-          ? "manual only"
-          : current.nextCheckAt
-            ? checkedTime(current.nextCheckAt)
-            : current.phase === "downloaded"
-              ? "after restart"
-              : "unavailable in this installation"}
-      </p>
-      {#if current.checkIntervalMinutes === 0}<p class="px-4 pb-3 text-sm/5 text-zinc-500">
-          Automatic downloads are off; use Check for updates to check manually.
-        </p>{/if}
     {/if}
     <PreferenceRow
       title="Update channel"
