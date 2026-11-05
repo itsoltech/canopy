@@ -1718,12 +1718,14 @@ i dostęp connectorów. Partnerzy zapisują go jako kopię tylko do odczytu. Rek
 zmieniony przez kogokolwiek poza domem jest odrzucany.
 
 Edycja ustawień workera z innego komputera to wywołanie do domu przez trasę etapu 2. `SERVED` obejmuje
-`RenameWorker`, `SetInstanceWorker`, `SetInstanceWorkers`, `SetWorkerCliUpdateSettings`,
-`SetEnvironmentTags`, `UpdateWorktreeSettings` z workerem, `SetConnectorAccess` (część workerów domu),
+`RenameWorker`, `SetInstanceWorker`, `SetWorkerCliUpdateSettings`,
+`SetEnvironmentTags`, `GetWorktreeSettings` i `UpdateWorktreeSettings` z workerem, `SetConnectorAccess` (część workerów domu),
 `RefreshProviders`, `InstallCli`, `CheckCliUpdates`, `StartProviderLogin` i `ListDirectory`.
 Dom wykonuje je własnymi handlerami jako właściciel tego gatewaya. Każde id workera i workspace'u musi
 należeć do domu. Żądanie mieszające komputery jest odrzucane. `SetConnectorAccess` z workerami kilku
 komputerów rozdziela gateway wywołujący: część wspólną zapisuje lokalnie, a części workerów wysyła do domów.
+Tak samo `SetInstanceWorkers`: `all_workers` jest polem wspólnym, a workery innych komputerów dostają
+`SetInstanceWorker`. Relay nie przenosi żadnej z tych metod.
 Obie strony zapisują `audit_log` `computer.config.worker.sent` / `.received`.
 
 Telefony i przeglądarki nie trasują niczego. Metody zarządzania wymagają tokenu serwisowego BFF jak dziś.
@@ -1871,6 +1873,29 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    daje natychmiastowy błąd i nic nie zostaje zastosowane po powrocie; partner nie może zapisać rekordu
    cudzego workera ani mieszać id; kopia rekordu czytelna offline; edycja ustawień workera przez łącze
    bez Share configuration odrzucona.
+   Implementacja etapu 6: migracja **0078_config_workers** (rekord `worker` i `computer` zawsze ma dom,
+   indeks kopii po domu, indeks audytu, `proxies.worker_scoped`). Dom zapisuje rekordy przy starcie, po każdej
+   zmianie widocznej w overview, po edycji z innego komputera i co 30 s (`config-sync/worker-records.ts`,
+   `computers/runtime-workers.ts`). Pola: `name`, `os`, `arch`, `hostname`, `revoked`, `tags`,
+   `automaticTags`, `cliUpdateCheckMinutes`, `connectors` (globalne id), `workspaces`
+   (`{id, project, path, worktrees}`), `instances` (mapa `harness:globalne id` → `{enabled, keySet,
+   overrides, env}`, tylko nazwy) i `worktree` (mapa globalne id projektu, `""` = zakres workera →
+   ustawienia). Nazwy pól rekordu nie mogą zawierać `:` ani `-`, dlatego instancje i zakresy są mapami
+   w jednym polu. Odbiorca odrzuca kopię, której zegar nie jest zegarem domu albo która niesie sekret,
+   a kopię własnego workera ignoruje. Kopie nie mają notek.
+   Klucz workera dla instancji endpoint dom zapisuje jako proxy tego workera (`worker_scoped`): nie ma rekordu
+   `proxy`, nie ma go w Settings → Proxies i instancja nie może go użyć, więc klucz nie opuszcza domu.
+   `SERVED` obejmuje `GetWorktreeSettings` (odczyt bez audytu), a nie obejmuje `SetInstanceWorkers`: ta
+   lista ma pole wspólne `all_workers`, więc wywołujący zapisuje je lokalnie, a workerom innych komputerów
+   wysyła `SetInstanceWorker` z różnicą względem rekordu. `SetConnectorAccess` od partnera zmienia w domu
+   wyłącznie granty jego workerów (`workerAccess`). `SetEnvironmentTags` od partnera pomija rewizję
+   biblioteki wywołującego: tagi jednego workera nie kolidują z resztą biblioteki. Każdy dom grupy, którego
+   dotyczy zmiana listy, musi być osiągalny, zanim cokolwiek zostanie zapisane. Nadpisanie proxy workera
+   (`proxy_id`) z innego komputera nie jest tłumaczone i kończy się odmową. Worker komputera z grupy,
+   ale bez bezpośredniego łącza, jest tylko do odczytu („Change this worker's settings on “Laptop B”.”).
+   UI etapu 6: Settings → Workers i strona workera. Pozostałe listy z [UI](#ui-wspólnej-konfiguracji)
+   (Providers, Agent environment, Worktrees, Connectors) mają API, a pokazanie w nich workerów innych
+   komputerów należy do kolejnego etapu UI. Testy: `tests/integration/config-sync-workers.test.ts`.
 7. **Rzeczy z domem tworzone z dowolnego komputera.** `CreateBot` i `CreateSchedule` trasowane według workera
    z pickera; edycja harmonogramów partnera. Bez migracji. Testy: bot utworzony z A na workerze B mieszka
    w bazie B; harmonogram wątku B edytowany z A; odmowa przy niedostępnym domu.

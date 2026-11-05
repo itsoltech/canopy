@@ -64,6 +64,36 @@ export const SERVED = new Set([
   "DecideMove",
   "MoveOutcome",
   "InspectMove",
+  "RenameWorker",
+  "SetInstanceWorker",
+  "SetWorkerCliUpdateSettings",
+  "SetEnvironmentTags",
+  "GetWorktreeSettings",
+  "UpdateWorktreeSettings",
+  "SetConnectorAccess",
+  "RefreshProviders",
+  "InstallCli",
+  "CheckCliUpdates",
+  "StartProviderLogin",
+]);
+
+/**
+ * Stage 6 (shared configuration): a worker's settings, changed at its home over a link that carries
+ * configuration. Every worker and workspace id must be the home's; both computers audit the edit.
+ * SetInstanceWorkers and SetConnectorAccess with workers of several computers are split by the caller.
+ */
+export const WORKER_SETTINGS = new Set([
+  "RenameWorker",
+  "SetInstanceWorker",
+  "SetWorkerCliUpdateSettings",
+  "SetEnvironmentTags",
+  "GetWorktreeSettings",
+  "UpdateWorktreeSettings",
+  "SetConnectorAccess",
+  "RefreshProviders",
+  "InstallCli",
+  "CheckCliUpdates",
+  "StartProviderLogin",
 ]);
 
 /** Stage 8: the two sides of a move, direct partners only (never relayed). */

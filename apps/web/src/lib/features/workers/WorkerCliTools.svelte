@@ -8,7 +8,7 @@
   import CliCheckSettings from "./CliCheckSettings.svelte";
 
   /** The agent CLIs on one worker (docs/provider-cli.md): Canopy never bundles them, it installs them on request. */
-  let { worker }: { worker: ui.Worker } = $props();
+  let { worker, readOnly = "" }: { worker: ui.Worker; readOnly?: string } = $props();
   const cli = cliActions();
   const key = $derived(`check/${worker.id}`);
 </script>
@@ -19,16 +19,16 @@
       size="sm"
       icon="arrow-path"
       loading={cli.pending[key]}
-      disabled={!worker.online}
+      disabled={!worker.online || Boolean(readOnly)}
       onclick={() => void cli.check(worker.id)}>Check for updates</Button
     >
   {/snippet}
-  <CliCheckSettings {worker} />
+  <CliCheckSettings {worker} {readOnly} />
   {#each worker.cliTools as item (item.tool?.provider)}
-    <CliToolRow workerId={worker.id} {item} class="p-4" />
+    <CliToolRow workerId={worker.id} {item} disabled={Boolean(readOnly)} class="p-4" />
   {:else}
     <p class="p-4 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      {worker.online
+      {worker.online && !readOnly
         ? "This worker has not reported its CLIs. Update the worker to manage them here."
         : "Connect the worker to see its CLIs."}
     </p>

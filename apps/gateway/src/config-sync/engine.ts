@@ -18,6 +18,7 @@ import { applyRecord, readBatch, receiveItem, syncWorkers, type ReceiveResult } 
 import { instanceIds } from "./aliases.ts";
 import { mapSettingsInstances, settingsValues } from "./settings.ts";
 import type { SettingsRow } from "./settings-apply.ts";
+import { recordWorkers } from "./worker-records.ts";
 
 export class ConfigSync {
   readonly ahead = new Map<string, number>();
@@ -78,6 +79,7 @@ export class ConfigSync {
         yield* recordProjects(sql);
         yield* recordConnectors(sql, store.key);
         yield* recordEnvironment(sql);
+        yield* recordWorkers(sql, store.owner, self());
       }).pipe((fx) => Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(fx))),
     );
   }
@@ -150,6 +152,8 @@ export class ConfigSync {
 
     if (result.connectors) await host.connectorsChanged?.();
 
+    if (result.workerRecords) host.workerRecordsChanged?.();
+
     if ((await this.fetchMissing(peer)) || result.environment) await host.environmentChanged?.();
   }
 
@@ -187,6 +191,15 @@ export class ConfigSync {
     }
 
     return changed;
+  }
+
+  /** This computer's worker records after a local change; true when any of them changed. */
+  async publishWorkers() {
+    const { store, self } = this;
+
+    return store.runtime.runPromise(
+      Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(recordWorkers(sql, store.owner, self()))),
+    );
   }
 
   async publishComputer(name: string, neighbors: string[]) {

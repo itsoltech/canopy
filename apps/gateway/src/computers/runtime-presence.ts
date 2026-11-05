@@ -31,6 +31,7 @@ import { errorCode } from "../network/listener.ts";
 import { discoverCertificate, linkClient } from "./transport.ts";
 import { refreshConfigGroup, setConfigSharing } from "./runtime-config.ts";
 import { configNotices } from "../config-sync/notices.ts";
+import { followWorkerRecords } from "./runtime-workers.ts";
 
 /** A direct partner connected now that receives moves (never through a relay). */
 export function computersMovable(hostContext: LinkedComputers, nodeId: string) {
@@ -76,6 +77,9 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
 
     for (const peer of await this.store.peers()) this[computersState].capabilities.set(peer.node_id, peer.capabilities);
     await this.config?.start();
+
+    if (this.config && this.options.core)
+      this[computersState].workerRecords = followWorkerRecords(this.config, this.options.core.hub);
     await refreshConfigGroup(this);
     // A process restart never claims an old connection is still alive.
     await this.store.query(

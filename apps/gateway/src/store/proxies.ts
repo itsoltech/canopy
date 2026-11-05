@@ -92,7 +92,8 @@ export function proxyStore(sql: SqlClient.SqlClient, key: Buffer, core: Instance
     listProxies: (userId) =>
       Effect.gen(function* () {
         const rows =
-          yield* sql<ProxyRow>`SELECT * FROM proxies WHERE owner_user_id = ${userId}::uuid ORDER BY name, id`;
+          yield* sql<ProxyRow>`SELECT * FROM proxies WHERE owner_user_id = ${userId}::uuid AND NOT worker_scoped
+            ORDER BY name, id`;
 
         return yield* Effect.forEach(rows, records.toUi);
       }),

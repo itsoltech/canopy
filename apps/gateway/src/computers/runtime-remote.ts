@@ -296,6 +296,7 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
 
     for (const set of this[computersState].active.values()) for (const c of set) c.close();
     this[computersState].unsubscribe?.();
+    this[computersState].workerRecords?.();
     this.options.network.mount("link", undefined);
     await moves;
     await Promise.allSettled(this[computersState].tasks);

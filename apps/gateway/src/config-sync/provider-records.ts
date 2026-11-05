@@ -73,7 +73,9 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
         AND kind IN ('instance','proxy')`),
     ];
 
-    const proxies = yield* sql<Stamped<ProxyRow>>`SELECT * FROM proxies WHERE owner_user_id=${owner}::uuid ORDER BY id`;
+    // A worker's own key stays at its home: its proxy is no shared record.
+    const proxies = yield* sql<Stamped<ProxyRow>>`SELECT * FROM proxies WHERE owner_user_id=${owner}::uuid
+      AND NOT worker_scoped ORDER BY id`;
 
     const instances =
       yield* sql<InstanceRow>`SELECT i.* FROM provider_instances i LEFT JOIN proxies p ON p.id=i.proxy_id

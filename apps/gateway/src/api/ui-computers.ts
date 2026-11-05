@@ -4,6 +4,7 @@ import { computers, moves } from "./ui-computers-context.ts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import type { UiHandlers } from "./ui-service.ts";
 import { manageConfigNotice } from "../config-sync/notices.ts";
+import { listWorkerRecords } from "./worker-records.ts";
 
 export function computersHandlers(
   core: GatewayCore,
@@ -19,6 +20,7 @@ export function computersHandlers(
   | "previewMove"
   | "startMove"
   | "getMoves"
+  | "listWorkerRecords"
 > {
   return {
     getComputers: () => computerGuard(() => computers(core).snapshot()),
@@ -54,5 +56,7 @@ export function computersHandlers(
     startMove: (r) => computerGuard(() => moves(core).start(r)),
 
     getMoves: (r) => computerGuard(() => moves(core).list(r.batchId)),
+
+    listWorkerRecords: () => computerGuard(() => listWorkerRecords(core)),
   };
 }

@@ -8,7 +8,8 @@ import { Invalid } from "./store.ts";
 export function migrateProxies(sql: SqlClient.SqlClient, key: Buffer, fallbackOwner: string) {
   const records = proxyRecords(sql, key);
 
-  const ensure = (owner: string, baseUrl: string, ref: SecretRef | null, name: string) =>
+  // A worker's own key gets a proxy of its own: never shared, never reused by an instance.
+  const ensure = (owner: string, baseUrl: string, ref: SecretRef | null, name: string, workerScoped = false) =>
     Effect.gen(function* () {
       const root = yield* Effect.try({
         try: () => proxyRoot(baseUrl),
@@ -20,13 +21,14 @@ export function migrateProxies(sql: SqlClient.SqlClient, key: Buffer, fallbackOw
 
       const existing = (yield* sql<{
         id: string;
-      }>`SELECT id FROM proxies WHERE owner_user_id = ${owner}::uuid AND kind = 'cliproxyapi' AND fingerprint = ${fingerprint} ORDER BY created_at LIMIT 1`)[0];
+      }>`SELECT id FROM proxies WHERE owner_user_id = ${owner}::uuid AND kind = 'cliproxyapi' AND fingerprint = ${fingerprint}
+        AND worker_scoped = ${workerScoped} ORDER BY created_at LIMIT 1`)[0];
 
       if (existing) return existing.id;
       const id = Bun.randomUUIDv7();
-      yield* sql`INSERT INTO proxies (id, owner_user_id, name, kind, base_url, secret_id, fingerprint, codex)
+      yield* sql`INSERT INTO proxies (id, owner_user_id, name, kind, base_url, secret_id, fingerprint, codex, worker_scoped)
       VALUES (${id}::uuid, ${owner}::uuid, ${name.slice(0, 80) || "Migrated proxy"}, 'cliproxyapi', ${root}, ${ref?.secretRef ?? null}::uuid,
-        ${fingerprint}, ${JSON.stringify(proxyOptions("cliproxyapi"))}::jsonb)`;
+        ${fingerprint}, ${JSON.stringify(proxyOptions("cliproxyapi"))}::jsonb, ${workerScoped})`;
       yield* records.audit(owner, id, "proxy.migrated");
 
       return id;
@@ -65,6 +67,7 @@ export function migrateProxies(sql: SqlClient.SqlClient, key: Buffer, fallbackOw
         row.overrides.baseUrl ?? row.base_url,
         row.overrides.apiKey ?? row.api_key,
         row.label,
+        true,
       );
 
       yield* sql`UPDATE provider_instance_workers SET proxy_id = ${id}::uuid, overrides = overrides - 'baseUrl' - 'apiKey'
