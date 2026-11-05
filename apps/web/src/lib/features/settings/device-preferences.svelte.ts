@@ -4,6 +4,8 @@ import { toast } from "#lib/shared/ui/toast.svelte.ts";
 export const deviceChoices = {
   threadNotifications: ["off", "notifications", "sound"],
   inAppNotifications: ["on", "off"],
+  showFinishedSubagents: ["off", "on"],
+  subagentsExpanded: ["off", "on"],
   timeFormat: ["system", "12h", "24h"],
   contrast: ["standard", "strong", "maximum"],
   effortDisplay: ["name", "bars"],
@@ -25,6 +27,8 @@ export type DeviceKey = keyof typeof deviceChoices;
 export const deviceDefaults: Record<DeviceKey, string> = {
   threadNotifications: "off",
   inAppNotifications: "on",
+  showFinishedSubagents: "off",
+  subagentsExpanded: "off",
   timeFormat: "system",
   contrast: "standard",
   effortDisplay: "name",
