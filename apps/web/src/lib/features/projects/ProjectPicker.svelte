@@ -81,7 +81,7 @@
   {#if selected?.kind === "scratch"}
     <HintIcon
       label="About the scratch directory"
-      text="A dedicated scratch directory is created when you send. Files are kept until you remove them manually."
+      text="Canopy creates a scratch directory when you send. Its files stay until you remove them."
     />
   {/if}
 </div>

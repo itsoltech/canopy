@@ -10,10 +10,7 @@
   const modes: ThemeMode[] = ["light", "dark"];
 </script>
 
-<SettingsGroup
-  title="Themes"
-  description="Choose a light palette and a dark palette. Your color scheme decides which is shown."
->
+<SettingsGroup title="Themes" description="Your color scheme decides which palette Canopy shows.">
   <div class="@container p-(--settings-row-x)">
     <div class="grid grid-cols-2 gap-3 sm:gap-4">
       {#each modes as mode (mode)}

@@ -39,7 +39,7 @@
       loaded = true;
       previewed = action === "preview";
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Worktrees unavailable";
+      error = cause instanceof Error ? cause.message : "Could not load worktrees. Refresh to try again.";
       previewed = false;
     } finally {
       loading = false;
@@ -70,13 +70,13 @@
   </div>
   {#if error}<Alert class="mt-4" tone="error">{error}</Alert>{/if}
   {#if previewed}<p class="mt-4 text-base font-medium sm:text-sm" role="status">
-      Will remove {count}
-      {count === 1 ? "worktree" : "worktrees"}. Local work requiring confirmation is kept.
+      Cleanup removes {count}
+      {count === 1 ? "worktree" : "worktrees"}. Local work that needs confirmation stays.
     </p>{/if}
   {#if loading && !loaded}<Skeleton class="mt-4 h-32 w-full" />
   {:else if !entries.length && !error}<p class="mt-4 text-base text-zinc-500 sm:text-sm dark:text-zinc-400">
       {worktreeId
-        ? "This worktree has been removed. Thread history remains available."
+        ? "This worktree was removed. Thread history stays available."
         : "No managed worktrees in this scope."}
     </p>
   {:else}

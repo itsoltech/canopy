@@ -74,7 +74,7 @@
       <IconButton
         size="sm"
         icon="information-circle"
-        label="Update all goes in order: gateway, binary workers, agent CLIs, then Canopy apps on other computers. Binary workers follow the gateway. Desktop apps follow their own channel."
+        label="Update all goes in order: gateway, binary workers, agent CLIs, then Canopy apps on other computers. Desktop apps follow their own channel."
       />
       <Button
         size="sm"

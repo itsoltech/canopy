@@ -38,7 +38,7 @@
 </script>
 
 <div class={["settings-form", className]}>
-  <Field layout="row" label="Binary path" description="Empty: {binary} from the worker's settings or PATH.">
+  <Field layout="row" label="CLI path" description="Empty: {binary} from the worker's settings or PATH.">
     <Input
       name="{prefix}-binary"
       bind:value={binaryPath}

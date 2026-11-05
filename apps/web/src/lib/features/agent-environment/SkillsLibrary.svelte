@@ -53,7 +53,7 @@
         /></Field
       >
       <p class="text-base text-muted sm:text-sm">
-        Review the files, choose tags or computers, then confirm. Pasted commands are parsed without running them.
+        Review the files, choose tags or computers, then confirm. Canopy reads pasted commands without running them.
       </p>{/snippet}
   </EnvironmentSheet>
   <SkillEditor

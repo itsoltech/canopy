@@ -114,7 +114,7 @@
         variant="ghost"
         aria-expanded={steering}
         onclick={() => (steeringRequest = steering ? undefined : approval.requestId)}
-        >{steering ? "Hide steer editor" : "Steer instead…"}</Button
+        >{steering ? "Hide steer editor" : "Steer instead"}</Button
       >
     </div>
   {/if}

@@ -131,7 +131,7 @@
               <Switch
                 name="continueHistory"
                 label="Continue from the main thread's history"
-                description="Continue from the main thread's last completed turn. Turn off to start with only your task."
+                description="The side thread starts from the main thread's last completed turn."
                 bind:checked={fork}
               />
               <span>Use main thread history</span>

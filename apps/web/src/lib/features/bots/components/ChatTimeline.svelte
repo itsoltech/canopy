@@ -174,7 +174,7 @@
       <BotStatusRow bot={status.bot} text={status.text} waiting={status.waiting} />
       {#if !status.waiting && status.text.startsWith("Waiting for") && onchangeworker && !watching}
         <div class="pl-9">
-          <Button size="sm" variant="ghost" onclick={onchangeworker}>Pick another worker (Runs on)</Button>
+          <Button size="sm" variant="ghost" onclick={onchangeworker}>Change worker</Button>
           <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">
             To use another worker for this message, stop this reply, change Runs on, then send the message again.
           </p>

@@ -71,8 +71,8 @@
   class={className}
 >
   <div class="flex flex-wrap items-center gap-3">
-    <Button variant="primary" onclick={() => (open = true)}>Create New Bot</Button>
-    <Button onclick={() => (editOpen = true)}>Edit Bot appearance</Button>
+    <Button variant="primary" onclick={() => (open = true)}>Create bot</Button>
+    <Button onclick={() => (editOpen = true)}>Edit bot appearance</Button>
     <BotAvatar
       participant={{ id: "editable-orbit", name: appearance.name, kind: "bot" }}
       {appearance}

@@ -76,7 +76,7 @@ export function envNameProblem(kind: ProfileKind, name: string): string | undefi
   if (deniedEnvNames(kind).includes(upper)) {
     return ENDPOINT_DENIED.some((denied) => denied === upper)
       ? `${name} comes from this instance's connection. Pick or edit a proxy in Connection instead.`
-      : `Canopy sets ${name} for this harness so each instance keeps its own login and sessions. Change the home or binary in Runtime instead.`;
+      : `Canopy sets ${name} for this agent CLI, so each instance keeps its own login and sessions. Change the home or CLI path in Runtime instead.`;
   }
 
   const prefix = DENIED_PREFIXES.find((p) => upper.startsWith(p));

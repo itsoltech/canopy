@@ -64,7 +64,7 @@
         name="worktreeLocation"
         field="location"
         title="Worktree location"
-        description="An absolute folder on the computer. Empty: a folder Canopy manages in the worker's data directory."
+        description="An absolute directory path on the computer. Empty: Canopy manages one in the worker's data directory."
         placeholder="Managed by Canopy"
         inputClass="w-64"
         value={effective.location ?? ""}
@@ -76,7 +76,7 @@
       <WorktreeSettingRow
         title="Start from remote"
         field="startFromRemote"
-        description="Use the latest commit of the base branch's tracked remote branch, else the same branch on the remote; fall back to the local branch."
+        description="New worktrees start from the base branch's latest remote commit, or from the local branch if it has no remote."
         overridden={is("startFromRemote")}
         inherited={inherited.startFromRemote ? "On" : "Off"}
         onreset={() => reset("startFromRemote")}

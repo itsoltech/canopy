@@ -65,7 +65,7 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
 
   if (row.removed_at) {
     entry.removed = true;
-    entry.detail = "This worktree has been removed. Thread history remains available.";
+    entry.detail = "This worktree was removed. Thread history stays available.";
   } else if (!online) entry.detail = "Worker offline; cleanup will retry when it reconnects";
   else if (!connection?.hello.capabilities.includes("worktree_lifecycle"))
     entry.detail = "Update this worker to manage worktrees";
