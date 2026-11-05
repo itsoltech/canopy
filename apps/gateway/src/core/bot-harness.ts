@@ -1,6 +1,7 @@
 import { create, fromJson } from "@bufbuild/protobuf";
 import { CommandSchema, CommandResultSchema, TurnOutcome } from "@canopy/contracts";
 import { classifyFailure, ProviderFailure } from "@canopy/domain";
+import { budgetedHistory } from "../bots/history-budget.ts";
 import { BotStore } from "../bots/store.ts";
 import type { BotTurn, ModelInput, ModelReply } from "../bots/types.ts";
 import { coreState } from "./core-context.ts";
@@ -98,7 +99,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
               model: input.configuration.model,
               effort: input.configuration.effort,
               instructions: input.instructions,
-              historyJson: JSON.stringify(input.messages),
+              historyJson: JSON.stringify(budgetedHistory(input.messages)),
               input: input.messages.findLast((m) => m.role === "user")?.text ?? "",
               tools: input.tools.map((t) => ({
                 name: t.name,

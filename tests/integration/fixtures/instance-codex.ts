@@ -12,6 +12,22 @@ if (process.argv.includes("--version")) {
   process.exit();
 }
 
+if (process.argv[2] === "debug" && process.argv[3] === "models") {
+  // The raw catalog entry carries local tools; the bot catalog must keep only its limits.
+  const entry = {
+    slug: "fixture-model",
+    context_window: 64_000,
+    auto_compact_token_limit: 48_000,
+    truncation_policy: { mode: "tokens", limit: 12_000 },
+    shell_type: "unified_exec",
+    tool_mode: "code_mode_only",
+    experimental_supported_tools: ["clock"],
+  };
+
+  console.log(JSON.stringify({ models: [entry] }));
+  process.exit();
+}
+
 const home = process.env["CODEX_HOME"]!;
 
 mkdirSync(join(home, "sessions"), { recursive: true });
@@ -66,6 +82,7 @@ async function turn(id: number, params: { threadId: string; input: { text?: stri
   }
 
   if (process.env["BOT_TRACE"]) {
+    writeFileSync(join(home, "bot-input.txt"), text);
     const answer = await botTool(text, botServers.get(threadId));
     notify("item/completed", {
       threadId,

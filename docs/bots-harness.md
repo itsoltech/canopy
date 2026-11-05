@@ -40,10 +40,27 @@ Zaginiona lub przeniesiona sesja jest odbudowywana bez powtarzania narzędzi z h
 Wznowienie dostaje nowe wejście i aktualny kontekst. Zmiana zestawu narzędzi wymaga
 nowej sesji, żeby odebrany grant nie pozostał w katalogu harnessu.
 
-Nie dodajemy osobnego wywołania modelu do streszczania. Przy odbudowie
-obowiązują istniejące granice historii bota (ostatnie 60 wiadomości dla rutyn,
-notatka handoffu). Dla nadmiernego kontekstu zwracamy błąd harnessu; nie obcinamy
-po cichu bieżącego wejścia. Dalsza kompakcja musi zachować decyzje i wyniki narzędzi.
+Nie dodajemy osobnego wywołania modelu do streszczania. Długą rozmowę kompaktuje
+harness, tak jak w wątkach: Claude Agent SDK automatycznie, Codex według
+`auto_compact_token_limit` z katalogu modelu bota, Grok według własnego limitu CLI.
+
+Przy odbudowie obowiązują istniejące granice historii bota (ostatnie 60 wiadomości
+dla rutyn, notatka handoffu) oraz budżet historii. Harness nie skompaktuje pierwszego
+wejścia, które już się nie mieści. Dlatego gateway daje historii około połowy okna
+kontekstu, liczonego ostrożnie: 3 znaki na token. Katalog workera nie podaje okna
+modelu, więc gateway przyjmuje 128k tokenów, mniej niż każdy obsługiwany model.
+Gdy historia jest dłuższa, idą najnowsze wiadomości, które się mieszczą, a przed nimi
+wpis `canopy_note` z liczbą pominiętych wiadomości. Bieżące wejście nigdy nie jest
+pomijane ani obcinane. Transkrypt gatewaya pozostaje pełny.
+
+Codex: `model_catalog_json` zastępuje metadane modelu, a Codex wylicza z nich próg
+kompakcji. Worker czyta prawdziwy wpis modelu przez `codex debug models` z tym samym
+plikiem wykonywalnym, środowiskiem i `CODEX_HOME` co app-server bota (`model/list` nie
+podaje okna). Katalog bota zachowuje okno, limit kompakcji i `truncation_policy` tego
+wpisu; bez limitu ustawia jawnie 90% okna, jak Codex. Bez wpisu (model tylko z proxy,
+błąd CLI) używa 128k okna i 100k limitu. Instrukcje bazowe są neutralne; prompt
+systemowy bota idzie w `baseInstructions` wątku. Generowanie tytułów ma osobny,
+minimalny katalog (`codexTextCatalog`).
 
 ## Narzędzia i granica bezpieczeństwa
 
@@ -54,9 +71,11 @@ sandbox jest drugą warstwą, nie dowodem usunięcia narzędzi.
 Claude: `tools: []`, `settingSources: []`, `strictMcpConfig`, wyłączone hooki,
 puste pluginy, własny system prompt i allowlista konkretnych `mcp__canopy__*`.
 Serwer ma `alwaysLoad: true`, bez odroczonego wyszukiwania narzędzi.
-Zgody na akcje MCP egzekwuje gateway. Codex: minimalny katalog modelu z
-`shell_type: disabled`, bez patcha i dodatkowych narzędzi, wyłączenia wspólne
-z `codexTextOverrides`, read-only, sieć sandboxa wyłączona, approvals `never`,
+Zgody na akcje MCP egzekwuje gateway. Codex: katalog bota nadpisuje we wpisie modelu
+wszystko, co dodaje narzędzia: `shell_type: disabled`, bez patcha, eksperymentalnych
+narzędzi, `tool_mode` innego niż `direct`, multi-agenta, wyszukiwania narzędzi,
+node REPL, `model_messages` i responses-lite (schematy zostają w polu `tools`).
+Do tego wyłączenia wspólne z `codexTextOverrides`, read-only, sieć sandboxa wyłączona, approvals `never`,
 brak dokumentów projektu. Konfiguracja MCP zawiera wyłącznie serwer Canopy.
 Codex zachowuje funkcje transportu MCP `list_mcp_resources`,
 `list_mcp_resource_templates` i `read_mcp_resource`; serwer bota nie udostępnia
@@ -148,7 +167,10 @@ wyłączenie instancji przypiętego workera oraz brak sekretów w zapisie i snap
 `bots-harness-regressions.test.ts` obejmuje rutyny, wakeupy, ukryte handoffy bez
 narzędzi, granty i zgody MCP przez gateway, tworzenie Groka oraz wiele wzmianek
 i wiadomości bot–bot. `bots-harness-defaults.test.ts` sprawdza wybór desktop/server
-i trwałość przypięcia. Dotychczasowy `bots-harness.test.ts` nadal obejmuje offline,
+i trwałość przypięcia. `bots-harness-context.test.ts` sprawdza limity w katalogu
+Codexa bota oraz odbudowę długiej rozmowy w budżecie: najnowsze wiadomości, notatkę
+o pominięciu, całe bieżące wejście i pełny transkrypt. `codex-catalog.test.ts`
+sprawdza z prawdziwym CLI, że Codex odczytuje okno i limit z katalogu bota. Dotychczasowy `bots-harness.test.ts` nadal obejmuje offline,
 reconnect, restarty, owner scoping i izolację.
 `linked-agent-messages.test.ts` łączy dwa gatewaye i kontrolowany harness bota:
 sprawdza autora oraz treść wiadomości i steerów, czytelny event zakończenia,
