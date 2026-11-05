@@ -650,7 +650,8 @@ Nie dodaje testów UI. `schema.test.ts` obejmuje migrację 0049.
 > ([migracja](#migracja-z-0050)). Sekrety ponownie szyfrowane kluczem odbiorcy i zapis przez własne
 > handlery odbiorcy przechodzą do nowego projektu.
 
-Implementacja: `apps/gateway/src/computers/shared.ts` (stan, wektory wersji, push/odbiór, konflikty),
+Historyczna implementacja, usunięta w etapie 3 wspólnej konfiguracji: `apps/gateway/src/computers/shared.ts`
+(stan, wektory wersji, push/odbiór, konflikty),
 runtime łącza, `api/routed.ts` (wspólna tożsamość projektu), migracja **0050_shared_config**,
 kontrakty `SharedConfigService` w `canopy.link.v1` i `GetSharedConfig`/`ManageSharedConfig` w
 `canopy.ui.v1`. UI: `apps/web/src/lib/features/computers` (`ShareSetting`, `ShareScope`,
@@ -1624,6 +1625,27 @@ jak dotąd, po origin. Lokalne rekordy, wątki i workspace'y zachowują swoje id
 z projektu kanonicznego dostaje id projektu z B przez alias. Zmiana nazwy na dowolnym komputerze zmienia
 ją wszędzie.
 
+Etap 3 publikuje `Project.global_id` (801); `Project.id` pozostaje lokalnym id odbiorcy. Rekordy potomne
+`project_settings` i projektowy `worktree_policy` mają globalny klucz projektu. Zmiana origin przechodzi
+przez ten sam zegar co inne pola. Po późnym odkryciu origin scalenie może ukryć wcześniejszą kopię bez
+lokalnych workspace'ów; wybiera wiersz z lokalnym katalogiem i nie przepisuje kluczy obcych. Dwa wiersze
+z lokalnymi katalogami pozostają osobne. Liście `originAmbiguous.<node_id>` przenoszą origin, dla którego
+dany komputer ma kilka aktywnych projektów. Każdy komputer zmienia tylko własny znacznik; zwykły zapis
+u partnera nie kasuje cudzej obserwacji. Usunięcie niejednoznaczności czyści własny znacznik, a projekty
+zarchiwizowane nie są kandydatami scalenia. Już uzgodnione aliasy
+są trwałe: późniejsze dodanie drugiego projektu o tym samym origin blokuje kolejne scalenia, ale nie
+rozdziela istniejącej tożsamości. Bez tej reguły późniejsze odkrycie katalogu wymagałoby przepisywania
+lokalnych referencji i odwracania wcześniej zsynchronizowanych edycji.
+
+Archiwizacja jest polem wspólnym, a tombstone oznacza usunięcie konfiguracji. Oba ukrywają projekt
+i anulują jego lokalne harmonogramy. Lokalny wiersz oraz katalogi zostają do Restore i historii wątków;
+przywrócenie konfiguracji nie uruchamia ponownie anulowanych harmonogramów ani zarchiwizowanych wątków.
+Dodawanie katalogu korzysta również ze znanego origin wspólnego projektu bez lokalnego workspace'u.
+W Settings → Projects nie ma etykiet zakresu. „Workspaces” pokazuje workera i komputer; katalogi innych
+komputerów są tylko do odczytu do etapu 6. Polityka konta i projektu jest wspólna bez `location`, a
+zakres z workerem pozostaje lokalny. Protokół i UI 0050 nie działają po migracji 0075; deklaracje proto
+pozostają zarezerwowane dla zgodności kontraktu.
+
 ### Rekordy workerów i edycja zdalna
 
 Dom publikuje rekord `worker` każdego swojego workera: nazwę, system, tagi, instancje na workerze
@@ -1671,7 +1693,7 @@ Elementy oznaczone w `computer_shared_items` jako wspólne mają już te same kl
 bez aliasów. Nieoznaczone stają się wspólne i przechodzą bootstrap. Otwarte pytania z
 `computer_shared_conflicts` stają się wpisami historii z notką: wygrywa nowsza wartość, druga zostaje
 do przywrócenia. Kopie lokalne po wyłączeniu udostępniania są zwykłymi elementami i scalają się według
-tożsamości. Ostatni etap migruje projekty i usuwa tabele `computer_shared_*`, pętlę `shared_config`,
+tożsamości. Etap 3 migruje projekty i usuwa tabele `computer_shared_*`, pętlę `shared_config`,
 `ShareSetting`, `ShareScope`, `ConflictDialog`, `ConflictHint` i `SharedConfigOverview`.
 `GetSharedConfig`/`ManageSharedConfig` i `SharedConfigService` zostają w proto jako przestarzałe.
 

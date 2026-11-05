@@ -5,7 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { nodesOf } from "./remote-ids.ts";
 import { methodNamed, MovedError, movedItems, SERVED } from "./remote-policy.ts";
 
-export { globalize, mapIds, nodesOf, qualify, unqualify } from "./remote-ids.ts";
+export { mapIds, nodesOf, qualify, unqualify } from "./remote-ids.ts";
 
 export {
   BOT_METHODS,

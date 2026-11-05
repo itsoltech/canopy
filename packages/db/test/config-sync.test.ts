@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Effect, ManagedRuntime } from "effect";
 import { Migrator, SqlClient, type SqlConnection } from "effect/sql";
-import { migrate, migrations } from "../src/index.ts";
+import { migrations } from "../src/index.ts";
 import { dockerAvailable, startPostgres, type TestPostgres } from "../src/testing.ts";
 
 const owner = crypto.randomUUID();
@@ -13,6 +13,11 @@ let runtime: ManagedRuntime.ManagedRuntime<SqlClient.SqlClient, unknown>;
 
 const before = Migrator.make({})({
   loader: Effect.map(migrations, (all) => all.filter(([n]) => n < 73)),
+  table: "schema_migrations",
+});
+
+const migrate = Migrator.make({})({
+  loader: Effect.map(migrations, (all) => all.filter(([n]) => n <= 73)),
   table: "schema_migrations",
 });
 

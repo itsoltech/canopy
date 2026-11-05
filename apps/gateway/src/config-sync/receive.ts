@@ -2,7 +2,7 @@ import { computerLink as link } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { type SqlClient } from "effect/sql";
-import type { SharedHost } from "../computers/shared.ts";
+import type { SharedHost } from "./host.ts";
 import { instanceReads, instanceSync } from "../store/instance-queries.ts";
 import { compareClock } from "./clock.ts";
 import { applySettings } from "./settings-apply.ts";
@@ -13,11 +13,21 @@ import { maxClock, saveRecord, type ConfigRow } from "./persistence.ts";
 import { applyInstance, applyProxy, applyWaiting, NOT_SUPPORTED } from "./provider-apply.ts";
 import { PROVIDER_KINDS } from "./provider-values.ts";
 import { cipherOf, encryptIncoming, pruneSecrets, recordCiphers, storeSecret } from "./secrets.ts";
+import { PROJECT_KINDS } from "./project-values.ts";
+import { applyProject, applyProjectConfiguration } from "./project-apply.ts";
 
 /** Kinds this computer materializes, with their schema version. Everything else is kept and passed on. */
-export const SCHEMAS = { settings: 1, computer: 1, proxy: 1, instance: 1 } as const;
+export const SCHEMAS = {
+  settings: 1,
+  computer: 1,
+  proxy: 1,
+  instance: 1,
+  project: 1,
+  project_settings: 1,
+  worktree_policy: 1,
+} as const;
 
-const ORDER = ["computer", "proxy", "instance"];
+const ORDER = ["computer", "proxy", "instance", "project", "project_settings", "worktree_policy"];
 
 const rank = (kind: string) => (ORDER.includes(kind) ? ORDER.indexOf(kind) : ORDER.length);
 
@@ -39,7 +49,7 @@ export type ReceiveContext = {
   host: SharedHost;
 };
 
-export type ReceiveResult = { last: string; settings: boolean; cli: boolean; providers: boolean };
+export type ReceiveResult = { last: string; settings: boolean; cli: boolean; providers: boolean; projects?: boolean };
 
 export function checkItem(item: ConfigRow, self: string) {
   if (item.kind === "settings" && (item.global_id !== "account" || item.home_node_id))
@@ -48,7 +58,7 @@ export function checkItem(item: ConfigRow, self: string) {
   if (item.kind === "computer" && (!item.home_node_id || item.global_id !== item.home_node_id))
     return Effect.fail(new ConnectError("Invalid configuration computer", Code.PermissionDenied));
 
-  if (PROVIDER_KINDS.has(item.kind) && item.home_node_id)
+  if ((PROVIDER_KINDS.has(item.kind) || PROJECT_KINDS.has(item.kind)) && item.home_node_id)
     return Effect.fail(new ConnectError("Invalid shared configuration", Code.PermissionDenied));
 
   return Effect.succeed(!(item.kind === "computer" && item.home_node_id === self));
@@ -76,6 +86,12 @@ export function applyRecord(ctx: ReceiveContext, row: ConfigRow, result: Receive
     } else if (row.kind === "instance") {
       yield* applyInstance(ctx.sql, ctx.owner, row);
       result.providers = true;
+    } else if (row.kind === "project") {
+      yield* applyProject(ctx.sql, ctx.owner, row);
+      result.projects = true;
+    } else if (row.kind === "project_settings" || row.kind === "worktree_policy") {
+      yield* applyProjectConfiguration(ctx.sql, ctx.owner, row, ctx.host);
+      result.projects = true;
     }
   });
 }

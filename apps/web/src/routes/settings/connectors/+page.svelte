@@ -7,7 +7,6 @@
   import ConnectorIcon from "#lib/features/connectors/ConnectorIcon.svelte";
   import ConnectAccountDialog from "#lib/features/connectors/ConnectAccountDialog.svelte";
   import AccountDetail from "#lib/features/connectors/AccountDetail.svelte";
-  import ShareScope from "#lib/features/computers/ShareScope.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import { decode } from "#lib/shared/wire.ts";
   import { completeConnectorOAuth } from "#lib/features/connectors/api.ts";
@@ -83,7 +82,6 @@
   {#if capabilities?.linkedComputers && overview.computers.size > 0}
     <Alert title="Accounts stay on this computer">
       <p>Connector accounts are never shared. Connect an app on each linked computer whose workers or bots need it.</p>
-      <div class="pt-2"><ShareScope shared={false} /></div>
     </Alert>
   {/if}
   {#if notice === "connected"}<Alert>Account connected. Choose who can use it below.</Alert

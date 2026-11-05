@@ -19,6 +19,7 @@ export async function configComputer(name: string, capabilities?: string[]) {
       store,
       host: "127.0.0.1",
       heartbeatMs: 150,
+      core: gateway.core,
       serve: remoteServe(own, gateway.core),
       shared: sharedHost(gateway.core, own),
       ...(capabilities && { capabilities }),

@@ -39,7 +39,6 @@ export const SERVED = new Set([
   "ListMentionCatalog",
   "SearchFiles",
   "WatchThreadMirror",
-  "PushSharedConfig",
   "WatchConfig",
   "ListBots",
   "GetBot",
@@ -72,7 +71,6 @@ export const MOVE_METHODS = new Set(["PrepareMove", "DecideMove", "MoveOutcome",
 export const methodNamed = (name: string) =>
   ui.GatewayService.methods.find((m) => m.name === name) ??
   link.ThreadMirrorService.methods.find((m) => m.name === name) ??
-  link.SharedConfigService.methods.find((m) => m.name === name) ??
   link.LinkedAgentsService.methods.find((m) => m.name === name) ??
   link.ConfigSyncService.methods.find((m) => m.name === name) ??
   link.ComputerMoveService.methods.find((m) => m.name === name);

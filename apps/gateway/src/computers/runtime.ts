@@ -4,7 +4,7 @@ import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
 
 import { computerLink as link } from "@canopy/contracts";
 
-import { MOVE_ITEMS, RELAY, SHARED_CONFIG } from "@canopy/domain/computers";
+import { MOVE_ITEMS, RELAY } from "@canopy/domain/computers";
 
 import { ThreadMirror } from "./mirror.ts";
 
@@ -16,21 +16,13 @@ import { ComputerRelay } from "./relay.ts";
 
 import { BotMirror } from "./bot-mirror.ts";
 
-import { SharedConfig } from "./shared.ts";
-
 import { Routes } from "./routes.ts";
 
 import { computerGuard, computersState, LinkedComputersState, type Options } from "./runtime-context.ts";
 import { computersAccept } from "./runtime-frames.ts";
 import { computersEmit, computersMirrorsMethods, type ComputersMirrorsMethods } from "./runtime-mirrors.ts";
-import {
-  computersMovable,
-  computersPresenceMethods,
-  computersSharesConfig,
-  type ComputersPresenceMethods,
-} from "./runtime-presence.ts";
+import { computersMovable, computersPresenceMethods, type ComputersPresenceMethods } from "./runtime-presence.ts";
 import { computersRemoteMethods, type ComputersRemoteMethods } from "./runtime-remote.ts";
-import { computersServingMethods, type ComputersServingMethods } from "./runtime-serving.ts";
 import { linkHandler, remoteCertificate, type LinkIdentity } from "./transport.ts";
 import { requireDesktopRole } from "../role.ts";
 import { ConfigSync } from "../config-sync/engine.ts";
@@ -44,7 +36,6 @@ export class LinkedComputers {
   declare createPairing: ComputersPresenceMethods["createPairing"];
   declare pair: ComputersPresenceMethods["pair"];
   declare manage: ComputersPresenceMethods["manage"];
-  declare configChanged: ComputersServingMethods["configChanged"];
   declare subscribe: ComputersMirrorsMethods["subscribe"];
   declare capabilities: ComputersRemoteMethods["capabilities"];
   declare reachable: ComputersRemoteMethods["reachable"];
@@ -62,7 +53,6 @@ export class LinkedComputers {
 
   readonly botMirror: BotMirror;
 
-  readonly shared: SharedConfig | undefined;
   readonly config: ConfigSync | undefined;
 
   readonly relay: ComputerRelay;
@@ -90,25 +80,6 @@ export class LinkedComputers {
       },
       changed: (nodeId, removed) => computersEmit(this, nodeId, removed),
     });
-    this.shared =
-      options.shared && options.serve
-        ? new SharedConfig(options.store, options.shared, {
-            self: () => this[computersState].identity.node_id,
-            ready: () =>
-              computersSharesConfig(this)
-                ? this.reachable().filter(
-                    (n) => !this.relay.entries.has(n) && this.capabilities(n).includes(SHARED_CONFIG),
-                  )
-                : [],
-            outdated: async () =>
-              (await this.store.peers())
-                .filter(
-                  (p) => this.capabilities(p.node_id).length && !this.capabilities(p.node_id).includes(SHARED_CONFIG),
-                )
-                .map((p) => p.node_id),
-            call: (nodeId, method, request, signal) => this.remote(nodeId, method, request, signal),
-          })
-        : undefined;
     this.redirects = new Redirects(options.store, () => this[computersState].identity.node_id);
     this.moves =
       options.core && options.serve
@@ -182,12 +153,7 @@ export class LinkedComputers {
     });
 }
 
-for (const methods of [
-  computersPresenceMethods,
-  computersServingMethods,
-  computersMirrorsMethods,
-  computersRemoteMethods,
-]) {
+for (const methods of [computersPresenceMethods, computersMirrorsMethods, computersRemoteMethods]) {
   const descriptors = Object.getOwnPropertyDescriptors(methods);
 
   for (const descriptor of Object.values(descriptors)) descriptor.enumerable = false;

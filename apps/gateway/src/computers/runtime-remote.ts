@@ -282,7 +282,6 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
       state === "shutting_down" && this[computersState].announced === "updating" ? "updating" : state,
     );
     clearInterval(this[computersState].timer);
-    this.shared?.close();
     this.relay.close();
     await this[computersState].lan?.close();
     this[computersState].lan = undefined;

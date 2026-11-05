@@ -10,7 +10,8 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 // ------------------------------------------------------------------ ids
 
-export const idField = (name: string) => name === "id" || name.endsWith("_id") || name.endsWith("_ids");
+export const idField = (name: string) =>
+  name !== "global_id" && (name === "id" || name.endsWith("_id") || name.endsWith("_ids"));
 
 export const STAMPED = new Set([
   "canopy.ui.v1.Thread",
@@ -80,16 +81,6 @@ export function qualify(desc: DescMessage, message: Message, nodeId: string): vo
   );
 }
 
-/** A shared project is one identity on every computer: its home-qualified id becomes the plain one. */
-export function globalize(desc: DescMessage, message: Message, global: ReadonlySet<string>): void {
-  if (!global.size) return;
-  mapIds(desc, message, (id) => {
-    const { id: plain, node } = splitId(id);
-
-    return node && global.has(plain) ? plain : id;
-  });
-}
-
 /** The computers a request's ids point at (empty: all local). */
 export function nodesOf(desc: DescMessage, message: Message, topLevelOnly = false): Set<string> {
   const nodes = new Set<string>();
@@ -134,7 +125,7 @@ export function unqualify(
 
     if (node === nodeRef(nodeId)) return plain;
 
-    if (!node && global.has(id)) return id;
+    if (!node && (field === "project_id" || field === "project_ids") && global.has(id)) return id;
 
     if (node || (field !== "client_request_id" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id)))
       throw new ConnectError("Choose a project, worker and thread on the same computer", Code.InvalidArgument);

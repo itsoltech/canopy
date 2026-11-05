@@ -33,7 +33,6 @@
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import GatewayUnavailable from "#lib/shared/ui/GatewayUnavailable.svelte";
   import type { Snippet } from "svelte";
-  import { SharedConfigState, provideSharedConfig } from "#lib/features/computers/shared-config.svelte.ts";
   import { ThreadActions, provideThreadActions } from "#lib/features/threads/thread-actions.svelte.ts";
   import ThreadActionDialogs from "#lib/features/threads/components/ThreadActionDialogs.svelte";
   import {
@@ -76,17 +75,6 @@
   $effect(() => applyDeviceAppearance(devicePreferences));
 
   onMount(() => watchThreadNotifications(overview, () => page.params.threadId));
-
-  // What is shared with linked computers: badges and questions on every settings page.
-  const shared = new SharedConfigState();
-
-  provideSharedConfig(shared);
-
-  $effect(() => overview.subscribe((update) => shared.apply(update)));
-
-  $effect(() => {
-    if (capabilities.linkedComputers && overview.resyncs > 0) void shared.reload().catch(() => {});
-  });
 
   const threadActions = new ThreadActions(overview, settings, () => page.params.threadId);
 

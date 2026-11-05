@@ -27,21 +27,6 @@ export function refuseForeignAdministration(method: DescMethod, request: Message
 
 export const GATHER_TIMEOUT_MS = 3_000;
 
-/** Writes that may change configuration shared with linked computers (stage 4): version and send it at once. */
-export const CONFIG_WRITES = new Set([
-  "SaveProviderInstance",
-  "DeleteProviderInstance",
-  "SetInstanceModels",
-  "UpdateUserSettings",
-  "RenameProject",
-  "ArchiveProject",
-]);
-
-export const NONE: ReadonlySet<string> = new Set();
-
-/** Ids of projects shared with linked computers: one identity on every computer. */
-export const globalIds = (core: GatewayCore): ReadonlySet<string> => core.computers?.shared?.projects ?? NONE;
-
 /** Calls that only read: allowed on a thread or bot frozen for a move (stage 8). */
 export const READS = new Set([
   "GetOverview",

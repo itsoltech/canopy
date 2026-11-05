@@ -39,47 +39,5 @@ export function splitId(value: string): { id: string; node?: string } {
 /** A uuid of this computer or of a linked one (sidebar pins, queue order, fork points). */
 export const isEntityId = (value: string): boolean => ENTITY.test(value);
 
-/**
- * Stage 4: configuration shared between linked computers. Keys name the item on every computer:
- * a provider instance (its definition, not CLI paths or worker choices), an instance's model choices,
- * a user settings section, or a project (its identity and name, not its workspaces).
- */
-export const SHARED_CONFIG = "shared_config";
+/** Per-field configuration across direct links whose two ends share configuration. */
 export const CONFIG_SYNC = "config_sync";
-export const SHARED_SETTINGS = ["appearance", "thread_defaults", "timezone", "text_generation"] as const;
-
-export type SharedSettingsSection = (typeof SHARED_SETTINGS)[number];
-
-export const sharedKey = {
-  instance: (harness: string, id: string) => `instance:${harness}:${id}`,
-  models: (harness: string, id: string) => `models:${harness}:${id}`,
-  settings: (section: SharedSettingsSection) => `settings:${section}`,
-  project: (id: string) => `project:${id}`,
-};
-
-export type SharedKey =
-  | { kind: "instance" | "models"; harness: string; id: string }
-  | { kind: "settings"; section: SharedSettingsSection }
-  | { kind: "project"; id: string };
-
-const SHARED_KEY =
-  /^(instance|models):(claude|codex|grok):([a-z0-9][a-z0-9_-]{0,62})$|^settings:([a-z_]+)$|^project:([0-9a-f-]{36})$/;
-
-/** The item a key names, or undefined for anything this version does not share. */
-export function parseSharedKey(key: string): SharedKey | undefined {
-  const m = SHARED_KEY.exec(key);
-
-  if (!m) return undefined;
-
-  const [, kind, harness, id, section, project] = m;
-
-  if (kind === "instance" || kind === "models") return { kind, harness: harness!, id: id! };
-
-  if (section) return isSharedSettingsSection(section) ? { kind: "settings", section } : undefined;
-
-  return PLAIN.test(project!) ? { kind: "project", id: project!.toLowerCase() } : undefined;
-}
-
-function isSharedSettingsSection(section: string): section is SharedSettingsSection {
-  return SHARED_SETTINGS.some((known) => known === section);
-}

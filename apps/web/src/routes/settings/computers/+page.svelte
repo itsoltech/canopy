@@ -15,7 +15,6 @@
   import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
-  import SharedConfigOverview from "#lib/features/computers/SharedConfigOverview.svelte";
   import AddRouteDialog from "#lib/features/computers/AddRouteDialog.svelte";
   import LanDiscoveryRow from "#lib/features/computers/LanDiscoveryRow.svelte";
   import ShareOnwardDialog from "#lib/features/computers/ShareOnwardDialog.svelte";
@@ -273,7 +272,6 @@
           })}
       />{/each}
   </SettingsGroup>{/if}
-{#if setup.peers.length}<SharedConfigOverview />{/if}
 <Dialog
   bind:open
   title="Link a computer"

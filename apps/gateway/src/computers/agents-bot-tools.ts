@@ -56,7 +56,7 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
 
     if (!Predicate.isString(ref)) return undefined;
     const node = await this.peer(ref);
-    this.sameHome(node, args);
+    await this.sameHome(node, args);
     const ownBot = await this.core.bots.get(turn.bot_id);
 
     const actor: Actor = {

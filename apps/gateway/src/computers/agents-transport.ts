@@ -11,6 +11,7 @@ import { SqlClient } from "effect/sql";
 import { fail, qualifyResult, type Actor, type Arguments } from "./agents-context.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { linkedMessage, methodNamed, movedItems, qualify, unqualify } from "./remote.ts";
+import { ConfigIds } from "../api/routed-config.ts";
 import { localAgentSender } from "./agents-senders.ts";
 
 export async function agentsRemoteSnapshot(hostContext: LinkedAgents, id: string): Promise<ui.ThreadSnapshot> {
@@ -29,7 +30,7 @@ export interface AgentsTransportMethods {
   call(node: string, operation: string, actor: Actor, callId: string, args: Arguments): Promise<JsonValue>;
   redirect(args: Arguments): void;
   peer(ref: string): Promise<string>;
-  sameHome(node: string, args: Arguments): void;
+  sameHome(node: string, args: Arguments): Promise<void>;
   ui<D extends DescMessage>(name: string, request: Message, output: D): Promise<MessageShape<D>>;
   snapshot(id: string): Promise<ui.ThreadSnapshot>;
   thread(id: string): Promise<ui.Thread>;
@@ -134,13 +135,15 @@ export const agentsTransportMethods: AgentsTransportMethods = {
     return (await this.core.computers.resolve(node)).node_id;
   },
 
-  sameHome(this: LinkedAgents, node: string, args: Arguments): void {
+  async sameHome(this: LinkedAgents, node: string, args: Arguments): Promise<void> {
+    const projects = await (await ConfigIds.for(this.core, node)).projects();
+
     for (const key of ["workspace_id", "project_id", "thread_id", "bot_id", "worker_id", "request_id"]) {
       const value = args[key];
 
       if (!Predicate.isString(value) || !value) continue;
 
-      if (key === "project_id" && this.core.computers?.shared?.projects.has(value)) continue;
+      if (key === "project_id" && projects.known.has(value)) continue;
 
       if (splitId(value).node !== nodeRef(node)) return fail("Choose targets on the same linked computer");
     }
@@ -159,10 +162,13 @@ export const agentsTransportMethods: AgentsTransportMethods = {
     );
 
     const outbound = clone(method.input, request);
-    unqualify(method.input, outbound, node, this.core.computers?.shared?.projects);
+    const ids = await ConfigIds.for(this.core, node);
+    unqualify(method.input, outbound, node, (await ids.projects()).known);
+    await ids.map(method.input, outbound, "toGlobal");
 
     for await (const result of this.core.computers!.remote(node, method, outbound, AbortSignal.timeout(10_000))) {
       qualify(output, result, node);
+      await ids.map(output, result, "toLocal");
 
       return linkedMessage(output, result);
     }

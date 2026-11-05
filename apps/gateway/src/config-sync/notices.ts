@@ -11,6 +11,8 @@ import { compactTombstone } from "./merge.ts";
 import { applyInstance, applyProxy } from "./provider-apply.ts";
 import { PROVIDER_KINDS, secretField } from "./provider-values.ts";
 import { syncWorkers } from "./receive.ts";
+import { applyProject, applyProjectConfiguration } from "./project-apply.ts";
+import { PROJECT_KINDS } from "./project-values.ts";
 import { cipherOf, pruneSecrets, recordCiphers, storeSecret } from "./secrets.ts";
 
 type HistoryRow = Field & {
@@ -27,8 +29,9 @@ type HistoryRow = Field & {
 
 type NoticeRow = HistoryRow & { node_name: string; local_id: string | null; item: ConfigRow["fields"] | null };
 
-/** A deleted instance or proxy is one notice, not one per lost field. */
-const grouped = (r: Pick<HistoryRow, "kind" | "reason">) => PROVIDER_KINDS.has(r.kind) && r.reason === "deleted";
+/** A deleted element is one notice rather than one per lost field. */
+const grouped = (r: Pick<HistoryRow, "kind" | "reason">) =>
+  (PROVIDER_KINDS.has(r.kind) || PROJECT_KINDS.has(r.kind)) && r.reason === "deleted";
 
 const nameOf = (fields: Record<string, { value: JsonValue } | undefined> | null | undefined) => {
   const value = fields?.["label"]?.value ?? fields?.["name"]?.value;
@@ -39,10 +42,11 @@ const nameOf = (fields: Record<string, { value: JsonValue } | undefined> | null 
 export async function configNotices(sync: ConfigSync) {
   const rows = await sync.store.query<NoticeRow>(
     `SELECT h.*,COALESCE(NULLIF(p.display_name,''),p.name,c.fields->'name'->>'value','Linked computer') AS node_name,
-      i.local_id,i.fields AS item
+      i.local_id,CASE WHEN h.kind='project_settings' OR (h.kind='worktree_policy' AND h.global_id<>'account') THEN project.fields ELSE i.fields END AS item
     FROM config_history h LEFT JOIN computer_peers p ON p.owner_user_id=h.owner_user_id AND p.node_id=h.notice_node_id
     LEFT JOIN config_items c ON c.owner_user_id=h.owner_user_id AND c.kind='computer' AND c.global_id=h.notice_node_id
     LEFT JOIN config_items i ON i.owner_user_id=h.owner_user_id AND i.kind=h.kind AND i.global_id=h.global_id
+    LEFT JOIN config_items project ON project.owner_user_id=h.owner_user_id AND project.kind='project' AND project.global_id=h.global_id
     WHERE h.owner_user_id=$1::uuid AND h.state='open' AND h.superseded_at>now()-interval '90 days' ORDER BY h.superseded_at DESC`,
     [sync.store.owner],
   );
@@ -110,12 +114,14 @@ function restore(sync: ConfigSync, row: ConfigRow, history: readonly HistoryRow[
 
     if (row.kind === "settings") cli = yield* applySettings(sql, store.owner, row, self(), host);
     else if (row.kind === "proxy") yield* applyProxy(sql, store.owner, store.key, row);
-    else yield* applyInstance(sql, store.owner, row);
+    else if (row.kind === "instance") yield* applyInstance(sql, store.owner, row);
+    else if (row.kind === "project") yield* applyProject(sql, store.owner, row);
+    else yield* applyProjectConfiguration(sql, store.owner, row, host);
 
     yield* pruneSecrets(sql, store.owner, row);
     yield* saveRecord(sql, store.owner, row, clock);
     // After the record: the worker sync compares the domain rows with it and must find them equal.
-    const workers = row.kind === "settings" ? [] : yield* syncWorkers(sql, store.owner, store.key);
+    const workers = PROVIDER_KINDS.has(row.kind) ? yield* syncWorkers(sql, store.owner, store.key) : [];
 
     return { cli, workers };
   });
@@ -151,7 +157,7 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
             const row = (yield* sql<ConfigRow>`SELECT * FROM config_items WHERE owner_user_id=${store.owner}::uuid
           AND kind=${first.kind} AND global_id=${first.global_id}`)[0];
 
-            if (!row || !["settings", "instance", "proxy"].includes(row.kind))
+            if (!row || !["settings", "instance", "proxy", ...PROJECT_KINDS].includes(row.kind))
               return yield* Effect.fail(new ConnectError("Not supported on this computer", Code.FailedPrecondition));
             result = yield* restore(sync, row, history, clock.hlc);
           }
@@ -168,4 +174,6 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
   if (outcome.kind === "settings" && action === "restore") await host.settingsChanged?.(outcome.cli ?? false);
 
   if (outcome.workers) await host.providersChanged?.(outcome.workers);
+
+  if (PROJECT_KINDS.has(outcome.kind) && action === "restore") await host.projectsChanged?.();
 }

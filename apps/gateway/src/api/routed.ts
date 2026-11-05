@@ -1,13 +1,12 @@
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots, computerLink as link, ui } from "@canopy/contracts";
 import { nodeRef, splitId } from "@canopy/domain/computers";
 import { Code, ConnectError, createHandlerContext } from "@connectrpc/connect";
 import { linkedMessage, mapIds, methodNamed, SERVED, type RemoteServe } from "../computers/remote.ts";
-import type { SharedHost } from "../computers/shared.ts";
+import type { SharedHost } from "../config-sync/host.ts";
 import type { GatewayCore } from "../core/core.ts";
 import {
-  CONFIG_WRITES,
-  globalIds,
   redirected,
   refuseFrozen,
   refuseForeignAdministration,
@@ -21,7 +20,7 @@ import {
 import { forward, peerOf } from "./routed-home.ts";
 import { absorb, gather, watchOverview } from "./routed-overview.ts";
 import { toConnectError } from "./ui-errors.ts";
-import { ConfigIds, refuseMissingInstance } from "./routed-config.ts";
+import { ConfigIds, localProjectIds, refuseMissingInstance } from "./routed-config.ts";
 import { harnessOf } from "../store/instance-config.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { refuseRemoteWorktree } from "../worktrees/remote.ts";
@@ -40,14 +39,11 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
 
     if (!SERVED.has(method.name)) {
       // Settings, credentials and administration stay per computer in this stage.
-      const shared = CONFIG_WRITES.has(method.name);
       handlers[method.localName] =
         method.methodKind === "unary"
           ? async (request, context) => {
               refuseForeignAdministration(method, request);
               const response = await unary(handler, request, context);
-
-              if (shared) void core.computers?.configChanged();
 
               return response;
             }
@@ -118,7 +114,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
 
       const overview = create(ui.GetOverviewResponseSchema, result);
 
-      absorb(overview, remote, globalIds(core));
+      absorb(overview, remote, await localProjectIds(core));
       overview.computers = snapshot?.peers ?? [];
 
       return overview;
@@ -248,8 +244,8 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
   };
 }
 
-/** What shared configuration needs from this gateway: its own handlers, projects with a given id, live UI updates. */
-export function sharedHost(core: GatewayCore, local: UiHandlers): SharedHost {
+/** Validation and live UI updates for shared configuration materialized by this gateway. */
+export function sharedHost(core: GatewayCore, _local: UiHandlers): SharedHost {
   return {
     validateSettings: async (request) => {
       validateUserSettings(request);
@@ -270,11 +266,39 @@ export function sharedHost(core: GatewayCore, local: UiHandlers): SharedHost {
       await coreConfigsChanged(core, workerIds);
       await corePublishModels(core, await coreModels(core, (s) => s.catalogs([])));
     },
-    serve: remoteServe(local),
-    createProject: async (id, name) => {
-      await core.createProject(name, id);
+    validateProjectSettings: (defaults) => coreCheckThreadDefaults(core, defaults),
+    projectsChanged: async () => {
+      const archived =
+        (await core.computers?.store.query<{ id: string; name: string }>(
+          "SELECT id::text,name FROM projects WHERE owner_user_id=$1::uuid AND archived_at IS NOT NULL AND kind='project'",
+          [core.computers.store.owner],
+        )) ?? [];
+
+      for (const project of archived) {
+        const threads = await core.listThreads(project.id, true);
+
+        for (const thread of threads.filter((t) => !t.parentThreadId)) await core.setThreadArchived(thread.id, true);
+        core.hub.publishOverview(
+          create(ui.OverviewUpdateSchema, {
+            change: {
+              case: "project",
+              value: {
+                ...project,
+                kind: "project",
+                archivedAt: timestampFromDate(new Date()),
+              },
+            },
+          }),
+        );
+      }
+
+      for (const project of (await core.overview()).projects)
+        core.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
+
+      for (const settings of (await core.settings()).projects)
+        core.hub.publishOverview(
+          create(ui.OverviewUpdateSchema, { change: { case: "projectSettings", value: settings } }),
+        );
     },
-    publish: (value) =>
-      core.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "sharedConfig", value } })),
   };
 }

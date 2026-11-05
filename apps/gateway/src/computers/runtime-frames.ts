@@ -6,7 +6,7 @@ import { computerLink as link } from "@canopy/contracts";
 
 import { AsyncChannel } from "@canopy/transport";
 
-import { MOVE_ITEMS, RELAY, SHARED_CONFIG } from "@canopy/domain/computers";
+import { MOVE_ITEMS, RELAY } from "@canopy/domain/computers";
 
 import { RemoteCalls } from "./remote.ts";
 
@@ -15,7 +15,6 @@ import { certificateIdentity, linkAddress } from "./identity.ts";
 import { computersHeartbeat, computersTrack } from "./runtime-connection.ts";
 import { computersState, type Connection } from "./runtime-context.ts";
 import { computersEmit } from "./runtime-mirrors.ts";
-import { computersSharesConfig } from "./runtime-presence.ts";
 import { computersStatus } from "./runtime-remote.ts";
 import { computersServeRemote } from "./runtime-serving.ts";
 import type { LinkedComputers } from "./runtime.ts";
@@ -47,7 +46,6 @@ export async function computersReceive(
     await hostContext.store.remove(nodeId, false);
     await hostContext.relay.refresh();
     computersEmit(hostContext, nodeId, true);
-    hostContext.shared?.changed();
 
     for (const c of hostContext[computersState].active.get(nodeId) ?? []) c.close();
     hostContext[computersState].dialing.get(nodeId)?.abort();
@@ -258,10 +256,6 @@ async function receiveHandshake(
   hostContext[computersState].retry.delete(nodeId);
   await computersStatus(hostContext, nodeId, protocol ? "connected" : "needs_update", updateNodeId);
 
-  // Both sides offer everything they share after each handshake; offline edits meet here.
-  if (protocol && computersSharesConfig(hostContext) && hello.capabilities.includes(SHARED_CONFIG))
-    setTimeout(() => void hostContext.shared?.push(nodeId, true).catch(() => {}), 0);
-  hostContext.shared?.changed();
   await hostContext.relay.refresh();
 
   // Where moved things live now, and unfinished moves with this computer (stage 8).

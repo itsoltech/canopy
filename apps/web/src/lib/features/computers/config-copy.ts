@@ -57,11 +57,44 @@ const ITEM_LABELS = new Map(
 
 const PROXY_LABELS = new Map(Object.entries({ kind: "Kind", baseUrl: "Base URL" }));
 
+const PROJECT_LABELS = new Map(
+  Object.entries({
+    name: "Name",
+    kind: "Kind",
+    archived: "Archived",
+    origin: "Git origin",
+    deleted: "Deleted",
+  }),
+);
+
+const POLICY_LABELS = new Map(
+  Object.entries({
+    startFromRemote: "Start from remote",
+    remote: "Remote",
+    branchNaming: "Branch naming",
+    branchPrefix: "Branch prefix",
+    defaultMode: "Default workspace",
+    cleanupDeletedThreads: "Deleted threads",
+    cleanupMerged: "Merged branches",
+    cleanupInactiveDays: "Inactive for days",
+    cleanupSettled: "Settled threads",
+    cleanupUnchanged: "Unchanged worktrees",
+    keepLocalChanges: "Keep worktrees with local changes",
+    deleteLocalBranch: "Delete safe local branches",
+    deleted: "Deleted",
+  }),
+);
+
 const string = Schema.is(Schema.String);
 const boolean = Schema.is(Schema.Boolean);
 
 export function configFieldLabel(field: string, kind = "settings") {
-  if (kind === "settings") return LABELS.get(field) ?? "Account setting";
+  if (kind === "settings" || kind === "project_settings") return LABELS.get(field) ?? "Setting";
+
+  if (kind === "project")
+    return (field.startsWith("originAmbiguous.") ? "Git origin" : PROJECT_LABELS.get(field)) ?? "Project setting";
+
+  if (kind === "worktree_policy") return POLICY_LABELS.get(field) ?? "Worktree setting";
 
   if (field.startsWith("env.")) return `Variable ${field.slice(4)}`;
 
@@ -102,7 +135,7 @@ export function configNoticeValue(value: string) {
     if (/^[A-Z_]+$/.test(parsed)) {
       const words = parsed
         .replace(
-          /^(COLOR_SCHEME|ACCENT_THEME|CHAT_WIDTH|COLOR_THEME|PROJECT_ORDER|MESSAGE_DELIVERY|PERMISSION_MODE|PROVIDER)_/,
+          /^(COLOR_SCHEME|ACCENT_THEME|CHAT_WIDTH|COLOR_THEME|PROJECT_ORDER|MESSAGE_DELIVERY|PERMISSION_MODE|PROVIDER|WORKSPACE_MODE|BRANCH_NAMING)_/,
           "",
         )
         .toLowerCase()

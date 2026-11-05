@@ -16,7 +16,6 @@ import {
   RELAY,
   REMOTE_BOTS,
   REMOTE_THREADS,
-  SHARED_CONFIG,
   THREAD_MIRROR,
 } from "@canopy/domain/computers";
 
@@ -41,10 +40,6 @@ export function computersMovable(hostContext: LinkedComputers, nodeId: string) {
     hostContext.reachable().includes(nodeId) &&
     hostContext.capabilities(nodeId).includes(MOVE_ITEMS)
   );
-}
-
-export function computersSharesConfig(hostContext: LinkedComputers) {
-  return Boolean(hostContext.shared) && hostContext.hello().capabilities.includes(SHARED_CONFIG);
 }
 
 export interface ComputersPresenceMethods {
@@ -80,7 +75,6 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
     this[computersState].identity = await this.store.identity();
 
     for (const peer of await this.store.peers()) this[computersState].capabilities.set(peer.node_id, peer.capabilities);
-    await this.shared?.load();
     await this.config?.start();
     await refreshConfigGroup(this);
     // A process restart never claims an old connection is still alive.
@@ -238,7 +232,6 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
       await this.store.remove(nodeId, true);
       await this.relay.refresh();
       computersEmit(this, nodeId, true);
-      this.shared?.changed();
 
       for (const connection of this[computersState].active.get(nodeId) ?? [])
         connection.send({ body: { case: "unlinked", value: {} } });

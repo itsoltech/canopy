@@ -1,6 +1,6 @@
 import { Effect, Result } from "effect";
 import { type SqlClient } from "effect/sql";
-import type { SharedHost } from "../computers/shared.ts";
+import type { SharedHost } from "./host.ts";
 import { SettingsStore } from "../store/settings.ts";
 import { compareClock } from "./clock.ts";
 import type { ConfigRow } from "./persistence.ts";

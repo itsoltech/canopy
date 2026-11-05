@@ -8,6 +8,9 @@ import { coreRun } from "./core-broadcast.ts";
 import { coreWorkerQuery } from "./core-mentions.ts";
 import { corePublishProject } from "./core-projects.ts";
 import { coreWorkers } from "./core-providers.ts";
+import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
+import { configLock } from "../config-sync/persistence.ts";
 
 /** A clone may take minutes; the worker stops git at 5 minutes, the gateway waits a little longer. */
 export const CLONE_COMMAND_TIMEOUT_MS = 5 * 60_000 + 15_000;
@@ -72,6 +75,7 @@ export async function coreAddProject(core: GatewayCore, request: ui.AddProjectRe
 
   return core[coreState].actions.transaction(async () => {
     const userId = core[coreState].options.userId;
+    await core[coreState].actions.run(Effect.flatMap(SqlClient.SqlClient, (sql) => configLock(sql, userId)));
     const projects = (await core.overview()).projects.filter((p) => p.kind !== "scratch");
 
     const existing = projects.find((p) =>
@@ -81,11 +85,8 @@ export async function coreAddProject(core: GatewayCore, request: ui.AddProjectRe
     if (existing) throw new InvalidError(`This directory is already in “${existing.name}”.`);
 
     // The same rule as the merged pickers: every workspace of the project knows this one origin.
-    const matches = origin
-      ? projects.filter((p) => p.workspaces.length && p.workspaces.every((w) => w.gitOrigin === origin))
-      : [];
-
-    const attachTo = matches.length === 1 ? matches[0] : undefined;
+    const matches = origin ? await coreRun(core, (s) => s.projectsWithOrigin(userId, origin)) : [];
+    const attachTo = matches.length === 1 ? projects.find((p) => p.id === matches[0]!.id) : undefined;
     const project = attachTo ?? (await coreRun(core, (s) => s.createProject(userId, directoryName(directory))));
 
     const workspace = await coreRun(core, (s) =>

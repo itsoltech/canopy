@@ -1,6 +1,7 @@
 import { computerGuard } from "../computers/runtime.ts";
 import { type GatewayCore } from "../core/core.ts";
-import { computers, moves, shared } from "./ui-computers-context.ts";
+import { computers, moves } from "./ui-computers-context.ts";
+import { Code, ConnectError } from "@connectrpc/connect";
 import type { UiHandlers } from "./ui-service.ts";
 import { manageConfigNotice } from "../config-sync/notices.ts";
 
@@ -37,9 +38,16 @@ export function computersHandlers(
         return linked.snapshot();
       }),
 
-    getSharedConfig: () => computerGuard(() => shared(core).snapshot()),
-
-    manageSharedConfig: (r) => computerGuard(() => shared(core).manage(r)),
+    getSharedConfig: () =>
+      computerGuard(async () => {
+        computers(core);
+        throw new ConnectError("Update Canopy to manage configuration", Code.Unimplemented);
+      }),
+    manageSharedConfig: () =>
+      computerGuard(async () => {
+        computers(core);
+        throw new ConnectError("Update Canopy to manage configuration", Code.Unimplemented);
+      }),
 
     previewMove: (r) => computerGuard(() => moves(core).preview(r)),
 

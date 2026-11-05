@@ -368,10 +368,10 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
   }, 20000);
 
   test("no secret/configuration relay, forged origin, loops or second relay hop", async () => {
-    const empty = create(link.SharedConfigPushSchema);
-    expect(
-      await failure(raw({ targetNodeId: n2, originNodeId: "", relayHops: 0 }, "PushSharedConfig", empty)),
-    ).toContain("cannot be relayed");
+    const empty = create(link.ConfigCursorSchema);
+    expect(await failure(raw({ targetNodeId: n2, originNodeId: "", relayHops: 0 }, "WatchConfig", empty))).toContain(
+      "cannot be relayed",
+    );
 
     for (const route of [
       { targetNodeId: n2, originNodeId: wn, relayHops: 1 },
