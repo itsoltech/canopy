@@ -38,6 +38,39 @@ bota oraz pary harness/instancja. Udostępnia tylko login wskazanej instancji,
 bez ustawień, pluginów, skilli i instrukcji katalogu użytkownika. Nie przyjmuje
 ścieżki projektu z komendy bota.
 
+Procesy botów Codexa i Groka dostają także prywatne `HOME`, `USERPROFILE` i katalogi
+XDG oraz prywatne `CODEX_HOME` i `CLAUDE_CONFIG_DIR`, również dla zgodności między CLI.
+Samo `CODEX_HOME` nie izoluje `~/.agents/skills`. Codex ma dodatkowo
+`skills.include_instructions=false`, `skills.bundled.enabled=false` i
+`features.skip_host_skill_discovery=true`; flaga katalogu modelu
+`include_skills_usage_instructions` nie zastępuje tych ustawień.
+Zmiana izolacji unieważnia cache sesji, żeby odbudowa usunęła wcześniejszy
+kontekst skilli z transkryptu harnessu. Wątki zachowują swoje skille i instrukcje.
+
+Claude zachowuje `HOME`, `USERPROFILE` i XDG procesu workera; izoluje wyłącznie
+`CLAUDE_CONFIG_DIR`. `settingSources: []`, puste pluginy i własny system prompt
+usuwają instrukcje i skille użytkownika także bez zmiany HOME, co sprawdza
+przechwycenie żądania CLI z zasianym katalogiem użytkownika. Nie zmieniamy HOME,
+żeby nie wpływać na odkrywanie loginu i macOS Keychain; nie jest to deklaracja
+sprawdzenia rzeczywistego logowania na macOS.
+
+Codex także na macOS odczytuje plik `auth.json` spod `CODEX_HOME`. Bot jawnie
+ustawia `cli_auth_credentials_store="file"` i dowiązuje tylko ten plik z katalogu
+logowania wybranej instancji; zmiana HOME nie zmienia źródła ani dowiązania.
+Konfiguracja instancji nie jest kopiowana. Magazyny `keyring` i `auto` są osobnymi
+trybami CLI: bezpośredni wpis keyringu jest identyfikowany hashem kanonicznego
+`CODEX_HOME`. Samo zachowanie HOME nie przeniosłoby takiego wpisu do prywatnego
+`CODEX_HOME` bota. Obecna integracja wymaga loginu dostępnego jako `auth.json`
+albo proxy; nie eksportuje wpisów Keychain/keyringu. Login istniejący wyłącznie
+w keyringu był już ograniczeniem izolowanego `CODEX_HOME`, przed tą poprawką.
+
+Grok przechowuje login w `auth.json`; `GROK_AUTH_PATH` jest jawną, bezwzględną
+ścieżką do tego pliku w katalogu logowania wybranej instancji, również na macOS.
+Worker wybiera źródło przed uruchomieniem CLI. Prywatne `GROK_HOME` służy
+konfiguracji procesu i sesjom, a prywatne HOME nie zmienia `GROK_AUTH_PATH`.
+Nie kopiujemy pozostałych plików katalogu użytkownika. Proxy przekazuje klucz
+w środowisku zamiast używać loginu plikowego.
+
 Claude zapisuje sesję i wznawia ją przez `resume`, Codex przez `thread/resume`,
 Grok przez `session/load`. Identyfikator sesji jest cache'em. Transkrypt
 gatewaya pozostaje źródłem prawdy, także dla rutyn i handoffów. Nowa sesja dostaje

@@ -31,7 +31,8 @@ export function botSession(input: RunBotTurn, options: { dataDir: string; source
   const sessionPath = join(path, "session.json");
 
   const key = createHash("sha256")
-    .update(JSON.stringify({ model: input.model, tools: input.tools }))
+    // Rebuild older sessions: their transcripts may already contain user skills or instructions.
+    .update(JSON.stringify({ isolation: 2, model: input.model, tools: input.tools }))
     .digest("hex");
 
   let saved: typeof SavedSession.Type | undefined;

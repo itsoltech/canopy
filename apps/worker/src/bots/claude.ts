@@ -29,15 +29,17 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
 
   if (signal.aborted) cancel();
   const allowedTools = input.tools.map((t) => `mcp__canopy__${t.name}`);
+  const profile = claudeProfileOptions(ctx.profile, process.env);
 
   const q = query({
     prompt: botPrompt(input, resumed),
     options: {
-      ...claudeProfileOptions(ctx.profile, {
-        ...process.env,
+      ...profile,
+      env: {
+        ...profile.env,
         CLAUDE_CONFIG_DIR: session.home,
         ENABLE_TOOL_SEARCH: "false",
-      }),
+      },
       pathToClaudeCodeExecutable: claudeExecutable(ctx.executable),
       cwd: session.cwd,
       model: input.model,
