@@ -9,7 +9,7 @@ import { ui } from "@canopy/contracts";
 import { applyThread } from "../../api/thread";
 import { useSession } from "../../state/session";
 import { useStream } from "../../state/stream";
-import { Button, ConnectionNotice, Notice } from "../../ui/components";
+import { Button, ConnectionNotice, LatestButton, Notice } from "../../ui/components";
 import { TimelineTurn } from "../../ui/timeline";
 import { styles, useColors } from "../../ui/theme";
 import { MessageComposer } from "./MessageComposer";
@@ -213,11 +213,6 @@ export function ThreadScreen({ id }: { id: string }) {
         style={styles.fill}
       >
         <ThreadTimeline state={state} />
-        {!atBottom && (
-          <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
-            <Button title="Latest messages" secondary onPress={showLatest} />
-          </View>
-        )}
         <View
           style={{
             paddingHorizontal: 12,
@@ -227,6 +222,7 @@ export function ThreadScreen({ id }: { id: string }) {
             backgroundColor: c.background,
           }}
         >
+          <LatestButton visible={!atBottom} onPress={showLatest} />
           {error ? <Notice error>{error}</Notice> : null}
           {interactions.slice(0, 1).map((i) => (
             <InteractionCard key={i.requestId} interaction={i} />
@@ -276,23 +272,20 @@ export function ThreadScreen({ id }: { id: string }) {
 function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> }) {
   const c = useColors();
   const { turns, following, stream, snapshot } = state;
-  const { list, onScroll, onScrollBeginDrag, onContentSizeChange } = following;
+  const latestFirst = [...turns].reverse();
 
   return (
     <FlatList
-      ref={list}
-      data={turns}
+      {...following.listProps}
+      data={latestFirst}
       keyExtractor={(turn) => `${turn.fromThreadId}:${turn.id}`}
       style={styles.fill}
       contentContainerStyle={[styles.page, { paddingTop: 24, flexGrow: 1 }]}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-      onScroll={onScroll}
-      onScrollBeginDrag={onScrollBeginDrag}
-      scrollEventThrottle={100}
-      onContentSizeChange={onContentSizeChange}
-      ListHeaderComponent={
-        <View style={{ gap: 16 }}>
+      // Inverted: the footer is the top of the feed, the header sits under the latest turn.
+      ListFooterComponent={
+        <View style={{ gap: 16, paddingBottom: 16 }}>
           <ConnectionNotice {...stream} />
           {!snapshot && <ActivityIndicator accessibilityLabel="Loading conversation" color={c.accent} />}
           {snapshot && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
@@ -304,7 +297,7 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
           entries={snapshot?.items.filter((i) => i.turnId === item.id && i.fromThreadId === item.fromThreadId) ?? []}
         />
       )}
-      ListFooterComponent={
+      ListHeaderComponent={
         <View style={{ gap: 12 }}>
           {snapshot?.steers
             .filter((s) => ["pending", "accepted"].includes(s.status))
