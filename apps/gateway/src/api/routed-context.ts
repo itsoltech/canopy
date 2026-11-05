@@ -13,6 +13,11 @@ import { refuseRemoteWorktree } from "../worktrees/remote.ts";
  */
 export const UNARY_TIMEOUT_MS = 30_000;
 
+/** Calls that may outlast the usual limit at their home: a clone waits for git (docs/linked-computers.md). */
+const LONG_CALLS = new Map([["AddProject", 6 * 60_000]]);
+
+export const unaryTimeout = (method: DescMethod): number => LONG_CALLS.get(method.name) ?? UNARY_TIMEOUT_MS;
+
 /** Administration stays on this computer; worktree errors explain where to open the workspace. */
 export function refuseForeignAdministration(method: DescMethod, request: Message): void {
   if (!nodesOf(method.input, request, true).size) return;

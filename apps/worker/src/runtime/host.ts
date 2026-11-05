@@ -65,6 +65,8 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "installCli",
   "getProviderAccounts",
   "readWorkspaceOrigin",
+  "initRepository",
+  "cloneRepository",
   "listGitRefs",
   "createWorktree",
   "renameWorktreeBranch",

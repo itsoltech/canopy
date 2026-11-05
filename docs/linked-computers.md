@@ -106,6 +106,58 @@ Testy: `packages/domain/src/projects.test.ts` (normalizacja i reguły scalania) 
 tworzenie na domu wybranego workera, owner scoping, zmiana ścieżki, offline i odmowa bez kolejki
 po utracie domu). Nie ma testów UI.
 
+### Dodawanie projektu na dowolnym komputerze
+
+Z komputera A można dodać projekt na workerze komputera B. Dialog „Add project” (polecenie palety
+i przycisk w Settings → Projects) prowadzi przez worker (wszystkie komputery, ten komputer pierwszy,
+offline wyłączone z powodem), źródło i katalog. Źródła: **New project** (nowy katalog z `git init`),
+**Existing directory**, **Git URL** i **GitHub repository** (`owner/repo` →
+`https://github.com/owner/repo.git`). Przeglądarka katalogów ma pole ścieżki (`~/GIT/pin`): część do
+ostatniego separatora to katalog, reszta filtruje wpisy; `/` wchodzi głębiej, `..` cofa, strzałki
+wybierają, Enter otwiera wybrany wpis, a bez wybranego wpisu (oraz zawsze z Mod+Enter) wykonuje akcję.
+Klon i nowy projekt wybierają w tej samej przeglądarce katalog nadrzędny, a ostatni segment to nazwa.
+
+`GatewayService.AddProject` jest na liście `SERVED`: kwalifikowany `worker_id` trasuje wywołanie
+do domu workera (etap 2), a dom wykonuje je własnym handlerem jako właściciel. Limit trasowanego
+wywołania to 6 min (zamiast 30 s), bo klon czeka na git. Nic nie jest kolejkowane: offline worker
+albo niedostępny partner daje natychmiastowy błąd. Dom:
+
+1. sprawdza, że worker należy do właściciela i jest online;
+2. dla istniejącego katalogu potwierdza go przez `ListDirectory`, dla nowego wysyła worker
+   `Command.init_repository` (**217**) albo `Command.clone_repository` (**218**); wynik w istniejącym
+   `CommandResult.directory_path` (6);
+3. czyta origin przez `read_workspace_origin` (216);
+4. katalog, który już jest workspace'em na tym workerze, daje błąd „This directory is already in …”;
+5. dołącza workspace do **jedynego** projektu domu, którego wszystkie workspace'y mają ten origin
+   (ta sama reguła co scalanie pickerów); przy braku albo niejednoznaczności tworzy projekt o nazwie katalogu.
+
+Projekt partnera o tym samym origin nie jest dołączany po stronie domu: workspace musi należeć do
+rekordu na swoim komputerze. Widok i tak scala oba rekordy po origin. Zgodnie z modelem etapu 4
+nowy rekord jest zwykłym lokalnym projektem; jawne współdzielenie i wspólne id pozostają osobną
+decyzją, a późniejsza synchronizacja projektów jako wspólnych elementów nie zmienia tego wywołania.
+
+Worker ogłasza capability **`project_sources`**; gateway zapisuje ją jako `Worker.project_sources` (**805**),
+a UI wyłącza źródła tworzące katalog dla starszego workera („Update Canopy on … to use this”).
+Komendy są nietrwałe (bez outboxa i journala, `NOT_REMEMBERED`). Nowy katalog jest zawsze jednym
+segmentem (bez `/`, `\`, `.`, `..`) w istniejącym, bezwzględnym katalogu nadrzędnym po `realpath`.
+Worker tworzy go sam (`mkdir` zawodzi, jeśli istnieje, także jako symlink), więc sprzątanie po
+nieudanym git usuwa wyłącznie jego własny katalog. Git biegnie przez process governor (rodzaj `git`):
+`git init` z limitem 15 s, `git clone -- <url> <nazwa>` z limitem 5 min, bez shella i promptów,
+z `GIT_ALLOW_PROTOCOL=https:http:ssh:git:file` (bez `ext::` i `fd::`). Istniejący katalog podlega tym
+samym regułom co `ListDirectory` (ścieżka bezwzględna, istniejący katalog, uprawnienia użytkownika OS
+workera); przeglądarka startuje w katalogu domowym workera.
+
+Poświadczenia: URL z danymi logowania (`https://user:token@…`) jest odrzucany, zanim trafi do git,
+`.git/config` albo logów; błędy git zastępują URL-e znacznikiem `[remote URL]`. Klon używa własnego
+logowania git komputera workera (credential helper, klucze SSH). Konto GitHub z Settings → Connectors
+**nie** jest używane do klonowania: poświadczenia zostają w gatewayu i nie trafiają na workery.
+Prywatne repozytorium wymaga więc dostępu git na komputerze workera; UI mówi to przy polu URL.
+
+Testy: `tests/integration/add-project.test.ts` (dwa gatewaye, rzeczywisty WorkerHost na B: listowanie,
+istniejący katalog, klon z lokalnego bare repo przez `file://`, `git init`, dołączenie po origin,
+odmowa ścieżek względnych, `..`, symlinku i istniejącej nazwy, URL z poświadczeniami, cudzy worker
+i worker offline bez kolejki). Bez testów UI.
+
 ## Dostępność: bez kolejkowania
 
 Gdy komputer jest niedostępny, **nie da się do niego nic wysłać** — nie wiemy, czy śpi, stracił sieć,
@@ -382,7 +434,7 @@ połączenie, więc wystarczy, że jedna strona ma listener.
 Dom obsługuje tylko listę dozwolonych metod wątków (`SERVED`): overview, lista i odczyt wątków,
 `WatchThread`, tworzenie wątku, wiadomości (kolejka i steer), przerwanie, odpowiedzi na zgody i pytania,
 zarządzanie kolejką, ustawienia wątku, tytuł, cel, zadania w tle, przeczytanie/archiwizacja/usuwanie,
-modele, katalogi workera, wzmianki plików, załączniki i bloby osi czasu. Inne metody (ustawienia,
+modele, katalogi workera, dodawanie projektu (`AddProject`), wzmianki plików, załączniki i bloby osi czasu. Inne metody (ustawienia,
 instancje dostawców, sekrety wątków, connectory, boty, harmonogramy, workery, aktualizacje, komputery,
 telefony) zwracają `UNIMPLEMENTED`. Żądanie partnera wykonuje się lokalnymi handlerami, jako właściciel
 tego gatewaya, bez dalszego trasowania i bez agregacji (brak przechodniości, etap 7). Żądanie
@@ -436,9 +488,10 @@ na ekranie z ostatnim stanem i krótkim statusem nad composerem, który pozostaj
 Znaczek maszyny (`MachineBadge`: ikona łącza i nazwa) przy wątku partnera w sidebarze i nagłówku
 wątku oraz w karcie podglądu wątku. Kompozytor scala projekty według origin (reguły powyżej),
 a komputer wybiera się przez worker. Nowy wątek na workerze B używa rekordu projektu z B;
-B zostaje właścicielem. Ekrany konfiguracji per komputer (projekty, workery, dostawcy,
-connectory, domyślne ustawienia wątków, harmonogramy) pokazują wyłącznie własne rzeczy
-(`ownWorkers`/`ownProjects`), bo konfiguracja wspólna to etap 4. Harmonogramy wątków partnera są
+B zostaje właścicielem. Ekrany konfiguracji per komputer (workery, dostawcy, connectory,
+domyślne ustawienia wątków, harmonogramy) pokazują wyłącznie własne rzeczy (`ownWorkers`/`ownProjects`),
+bo konfiguracja wspólna to etap 4. Wyjątek: lista Settings → Projects pokazuje sumę projektów wszystkich
+komputerów z komputerami ich workspace'ów, a stronę ustawień ma tylko projekt z rekordem na tym komputerze. Harmonogramy wątków partnera są
 w tym etapie niedostępne.
 
 ### Dowody

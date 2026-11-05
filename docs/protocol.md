@@ -13,6 +13,14 @@ Brak origin daje pustą tożsamość; błąd komendy zachowuje poprzedni odczyt 
 Bez outboxa i journala. Starszy worker nie dostaje komendy; `WORKER_LINK_PROTOCOL` pozostaje 1.
 Reguły scalania wyborów: [linked-computers.md](linked-computers.md#tożsamość-projektu-według-git-origin).
 
+Nietrwałe `InitRepository` (`Command.init_repository = 217`) i `CloneRepository`
+(`Command.clone_repository = 218`), capability `project_sources`: nowy katalog `name` (jeden segment)
+w istniejącym bezwzględnym `parent_path`, potem `git init` albo `git clone` z `url` przez process
+governor (limity 15 s i 5 min). Wynik: rzeczywista ścieżka w `CommandResult.directory_path` (6).
+URL z poświadczeniami jest odrzucany; klon używa logowania git urządzenia. Bez outboxa i journala;
+starszy worker nie dostaje komend, `WORKER_LINK_PROTOCOL` pozostaje 1.
+[Reguły i bezpieczeństwo](linked-computers.md#dodawanie-projektu-na-dowolnym-komputerze).
+
 Capability `bot_harness_v1` dodaje trwałe `RunBotTurn` i `InterruptBotTurn`.
 Bot używa istniejących `ThreadEvent` i ACK (thread_id = bot_id), przechowywanych
 oddzielnie od wątków projektowych. `AgentToolCall.bot_id` kieruje MCP do wykonawców

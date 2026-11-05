@@ -24,6 +24,10 @@ export class CommandHandlers {
 
     if (kind.case === "readWorkspaceOrigin") return this.ctx.ops.readWorkspaceOrigin(kind);
 
+    if (kind.case === "initRepository") return this.ctx.ops.initRepository(kind);
+
+    if (kind.case === "cloneRepository") return this.ctx.ops.cloneRepository(kind);
+
     if (kind.case === "createWorktree") return this.ctx.ops.createWorktree(kind);
 
     if (kind.case === "renameWorktreeBranch") return this.ctx.ops.renameWorktreeBranch(kind);
