@@ -82,7 +82,7 @@ export const CONNECTOR_TYPES = [
   },
 ].map((t) => create(connectors.ConnectorTypeSchema, t));
 
-/** Registered apps use one fixed redirect URL. An installation may set its own callback to skip the page. */
+/** S256 OAuth registrations use this redirect. An installation may set its own callback to skip the page. */
 export function oauthRedirectUrl(): string {
   return connectorUrl(process.env["CANOPY_OAUTH_REDIRECT_URL"] || DEFAULT_OAUTH_REDIRECT_URL);
 }

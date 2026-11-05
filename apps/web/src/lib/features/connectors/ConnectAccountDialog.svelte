@@ -123,9 +123,8 @@
 
         window.location.assign(str(response["authorizationUrl"]));
 
-        // A registered app returns to the desktop app through canopy://; the code field stays here as a fallback.
-        if (window.canopyDesktop && method.oauthAppRequired) waiting = true;
-        else if (window.canopyDesktop) open = false;
+        // Fixed redirects return through canopy://; keep the sign-in code fallback available for DCR too.
+        if (window.canopyDesktop) waiting = true;
       } else open = false;
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Could not connect this account.";
@@ -180,7 +179,7 @@
       <TokenFields {method} bind:token bind:headers={headerText} disabled={busy} />
     {:else}
       <OAuthFields type={type.id} {method} {callback} bind:scope bind:appSaved disabled={busy} />
-      {#if method.oauthAppRequired && appSaved}<ManualReturn {waiting} onconnected={connected} />{/if}
+      <ManualReturn {waiting} onconnected={connected} />
     {/if}
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <DialogActions
