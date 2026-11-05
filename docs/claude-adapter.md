@@ -106,6 +106,7 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 - Funkcje sesji SDK (`forkSession`, `getSessionMessages`) działają w procesie workera, więc adapter ustawia `CLAUDE_CONFIG_DIR` dla całego procesu.
 - `strictMcpConfig`: tylko serwery MCP platformy.
 - `settingSources: ["project", "local"]`: `CLAUDE.md` i ustawienia repozytorium działają, ustawienia użytkownika nie.
+- `claudeMdExcludes` w ustawieniach wywołania odcina instrukcje globalne oraz przodków powyżej repozytorium/worktree, a w scratch powyżej cwd. Samo `settingSources` nie blokuje pamięci użytkownika: CLI 2.1.308 nadal czyta `<HOME>/.claude/CLAUDE.md` oraz nadrzędne `CLAUDE.md`. Zarządzany blok jest jawnie dopisywany do system promptu; pozostała treść izolowanego `CLAUDE.md` nie trafia przez automatyczny odczyt. `HOME` pozostaje bez zmian, więc poprawka nie zmienia odkrywania macOS Keychain. Testy przechwytują żądania prawdziwego CLI w tymczasowym HOME, bez logowania i bez inferencji; nie zastępują sprawdzenia loginu na Macu.
 - Wyłączone narzędzia natywne: subagenci (`Agent`, `Task`, `Workflow`, `ListAgents`, `SendMessage`, `SubagentHandback`) i harmonogramy (`ScheduleWakeup`, `CronCreate`, `CronDelete`, `CronList`, `RemoteTrigger`); zastępuje je szyna ([agent-bus.md](agent-bus.md)). Sprawdzone na żywo: lista narzędzi z `system/init` nie ma `Agent` ani `Task` (`worker-claude.live.test.ts`), a prośba o subagenta kończy się `mcp__canopy__spawn_thread` (`platform-subagents.live.test.ts`).
 
 ## Otwarte

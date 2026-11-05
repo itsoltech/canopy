@@ -12,7 +12,7 @@ import type { ClaudeThreadContext, Session } from "./thread-types.ts";
 import type { claudeRuntime } from "./session-runtime.ts";
 import { sessionPermissions } from "./session-permissions.ts";
 import { callKey, fileSize } from "./session-io.ts";
-import { managedClaudeInstructions } from "./instructions.ts";
+import { claudeInstructionSettings, managedClaudeInstructions } from "./instructions.ts";
 
 export function claudeSessions(
   ctx: ClaudeThreadContext,
@@ -61,6 +61,7 @@ export function claudeSessions(
       ...(model && { model }),
       ...(effort && { effort }),
       ...queryRuntime(profile, runtime),
+      settings: await claudeInstructionSettings(spec.cwd, spec.scratch, runtime.home, options.baseEnv),
       ...(resume ? { resume: sessionId } : { sessionId }),
       includePartialMessages: true,
       ...permissions.options,

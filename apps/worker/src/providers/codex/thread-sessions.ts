@@ -28,6 +28,8 @@ export function threadSessions(ctx: CodexThreadContext) {
 
     return {
       cwd: spec.cwd,
+      // No project root search in scratch: otherwise Codex can collect ~/AGENTS.md on its parent walk.
+      ...(spec.scratch && { config: { project_root_markers: [] } }),
       ...(spec.model && { model: spec.model }),
       ...(spec.instructions && { developerInstructions: spec.instructions }),
       ...codexPermissions(spec.permissionMode),

@@ -89,13 +89,18 @@ test("bot isolation keeps only the selected login and rebuilds pre-isolation ses
   }
 });
 
-test("Grok bot login uses the selected absolute auth path independently of its private HOME", () => {
+test("Grok login uses the selected auth path; only bots replace the shell home", () => {
   const user = userEnvironment(temp("canopy-bot-grok-login-"));
   const sourceHome = user.env.GROK_HOME;
   const auth = join(sourceHome, "auth.json");
   writeFileSync(auth, "{}");
 
-  for (const linkDeviceLogin of [true, false]) {
+  for (const [linkDeviceLogin, bot] of [
+    [true, true],
+    [false, true],
+    [true, false],
+    [false, false],
+  ] as const) {
     const launch = grokLaunch({
       dataDir: temp("canopy-bot-grok-data-"),
       profile: {
@@ -103,15 +108,14 @@ test("Grok bot login uses the selected absolute auth path independently of its p
         id: "fixture",
         providers: ["grok"],
         env: { ...user.env, GROK_AUTH_PATH: join(user.env.HOME, "wrong-auth.json") },
-        runtime: { homePath: user.env.HOME },
+        runtime: { homePath: sourceHome },
       },
       linkDeviceLogin,
-      bot: { cwd: sourceHome, instructions: "Use only Canopy tools.", sourceHome },
+      ...(bot && { bot: { cwd: sourceHome, instructions: "Use only Canopy tools.", sourceHome } }),
     });
 
     try {
-      expect(launch.options.env?.["HOME"]).not.toBe(user.env.HOME);
-      expect(launch.options.env?.["HOME"]).toBe(launch.options.env?.["GROK_HOME"]);
+      expect(launch.options.env?.["HOME"]).toBe(bot ? launch.options.env?.["GROK_HOME"] : user.env.HOME);
       expect(launch.options.env?.["GROK_AUTH_PATH"]).toBe(linkDeviceLogin ? auth : undefined);
     } finally {
       launch.cleanup();

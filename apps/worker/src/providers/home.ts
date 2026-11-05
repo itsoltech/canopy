@@ -18,7 +18,7 @@ export interface ProviderHome {
   readonly problem?: string;
 }
 
-/** Bot processes must not discover user skills through HOME or cross-provider compatibility paths. */
+/** Bots have no shell and can replace HOME to hide device compatibility paths. */
 export function isolatedHomeEnvironment(home: string) {
   return {
     HOME: home,

@@ -108,7 +108,8 @@ export class GrokThreads {
 
     const launch = grokLaunch({
       dataDir: this.options.dataDir,
-      profile,
+      // Fresh GROK_HOME has no trusted projects. Scratch must never trust an enclosing repository.
+      profile: spec.scratch ? { ...profile, env: { ...profile.env, GROK_FOLDER_TRUST: "1" } } : profile,
       executable: this.options.executable,
       model: chosen.model,
       effort: chosen.effort,

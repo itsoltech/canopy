@@ -13,7 +13,7 @@ interface GrokLaunch {
   cleanup(): void;
 }
 
-/** Keep optional device capabilities out of hidden bot processes. */
+/** Hidden bots have no shell and must not discover any device context. */
 function isolateBotEnv(env: NodeJS.ProcessEnv, home: string): void {
   Object.assign(env, isolatedHomeEnvironment(home));
 
@@ -38,6 +38,28 @@ function isolateBotEnv(env: NodeJS.ProcessEnv, home: string): void {
     env[name] = "0";
 
   env["GROK_DISABLE_EXPERIMENTS"] = "1";
+}
+
+/** Exclude global compatibility context while keeping the thread's shell environment. */
+function instructionConfig(env: NodeJS.ProcessEnv, bot: boolean): string {
+  if (!bot) {
+    for (const name of [
+      "GROK_CLAUDE_AGENTS_ENABLED",
+      "GROK_CURSOR_AGENTS_ENABLED",
+      "GROK_CLAUDE_RULES_ENABLED",
+      "GROK_CURSOR_RULES_ENABLED",
+      "GROK_CLAUDE_SKILLS_ENABLED",
+      "GROK_CURSOR_SKILLS_ENABLED",
+      "GROK_CODEX_SKILLS_ENABLED",
+      "GROK_MEMORY",
+    ])
+      env[name] = "0";
+  }
+
+  // .agents is also a native Grok skill source, independent of Codex compatibility.
+  const deviceHome = env["HOME"] || env["USERPROFILE"] || homedir();
+
+  return `\n[compat.codex]\nskills = false\n\n[skills]\nignore = [${JSON.stringify(join(deviceHome, ".agents"))}]\n`;
 }
 
 /** Isolated configuration per process; durable sessions per instance. Keys never enter config or argv. */
@@ -131,7 +153,7 @@ export function grokLaunch(options: {
     config +=
       '\n[permission]\ndeny = ["Bash(*)", "Read(*)", "Write(*)", "Edit(*)", "WebFetch(*)", "WebSearch(*)", "Agent(*)"]\n';
 
-  if (options.bot) config += "\n[compat.codex]\nskills = false\n";
+  if (!options.textOnly) config += instructionConfig(env, !!options.bot);
 
   if (profile.kind === "cliproxyapi") {
     delete env["XAI_API_KEY"];
