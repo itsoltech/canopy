@@ -4,7 +4,7 @@ import { startGrpcServer } from "@canopy/transport";
 import { serviceTokenAuth, uiRoutes } from "./api/index.ts";
 import { GatewayCore } from "./core/core.ts";
 import { healthcheck } from "./healthcheck.ts";
-import { ensureDevUser, gatewayRuntime, migrateDatabase, networkPort } from "./runtime.ts";
+import { ensureDevUser, gatewayRuntime, migrateDatabase, networkPort, webOrigin } from "./runtime.ts";
 import {
   installKind,
   isStandalone,
@@ -101,6 +101,7 @@ if (installKind() === "binary")
 
 const computerStore = new ComputerStore(runtime, userId, loadSecretsKey(env));
 const fixedPort = networkPort(env);
+const web = webOrigin(env);
 
 // This host's Tailscale, read-only; absent (Docker, most servers) is just a state (docs/tailscale.md).
 const tailscale = new Tailscale({ log: (m) => console.info(m) });
@@ -112,6 +113,7 @@ const network = new NetworkAccess({
   role: core.role,
   store: computerStore,
   tailscale,
+  ...(web && { webOrigin: web }),
   ...(fixedPort !== undefined && { port: fixedPort }),
   log: (m) => console.info(m),
 });

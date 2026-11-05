@@ -57,6 +57,9 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    przypina certyfikat komputera; zmiany sieci odświeżają ogłaszane adresy.
    Dawny wybór interfejsu w Desktop settings został usunięty; zapisane stare ustawienia
    nie otwierają listenera HTTP. BFF i baza pozostają na loopback.
+   Gateway dostaje ten sam `CANOPY_WEB_ORIGIN` co BFF: opcjonalne HTTPS over Tailscale przekazuje
+   żądania z tailnetu przez lokalny front gatewaya do BFF, z originem przepisanym dopiero po
+   sprawdzeniu tożsamości i originu przeglądarki ([tailscale.md](tailscale.md#https-over-tailscale)).
 5. **Pakowanie:** electron-builder, AppImage + deb na Linuxie, dmg + zip na macOS, NSIS
    na Windows x64.
    Osobny build zasobów dla każdej pary OS/arch; Bun i natywne zależności nie mogą

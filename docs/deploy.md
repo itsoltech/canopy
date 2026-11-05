@@ -260,7 +260,13 @@ CANOPY_HOST=0.0.0.0
 CANOPY_PORT=7443
 CANOPY_NETWORK_PORT=24443
 # CANOPY_OAUTH_REDIRECT_URL=…    # opcjonalnie: własny callback zamiast stałej strony przekierowania OAuth
+# CANOPY_WEB_ORIGIN=http://127.0.0.1:3000  # opcjonalnie: web dla HTTPS over Tailscale (docs/tailscale.md)
 ```
+
+HTTPS over Tailscale na natywnym gatewayu wymaga `CANOPY_WEB_ORIGIN` (origin web BFF na tym hoście),
+web z `PROTOCOL_HEADER=x-forwarded-proto` oraz prawa operatora Tailscale dla użytkownika usługi
+(`sudo tailscale set --operator=canopy`). Bez nich przełącznik w Settings → Network access jest
+niedostępny albo pokazuje, czego brakuje; wykrywanie i nazwa MagicDNS działają bez tego.
 
 `/etc/systemd/system/canopy-gateway.service`:
 

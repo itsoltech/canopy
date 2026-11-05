@@ -42,6 +42,16 @@ export class Tailscale {
     return this.#access?.cli;
   }
 
+  /** Runs the CLI with a fixed argument array (Serve changes); a missing CLI is a failed result. */
+  run(args: readonly string[], timeoutMs = 15_000) {
+    const cli = this.#access?.cli;
+
+    if (!cli)
+      return Promise.resolve({ ok: false, stdout: "", stderr: "The Tailscale command-line tool isn't installed." });
+
+    return runCli(cli, args, { timeoutMs, ...this.#path() });
+  }
+
   onChange(listener: () => void) {
     this.#changes.add(listener);
 

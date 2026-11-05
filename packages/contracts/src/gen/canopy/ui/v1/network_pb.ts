@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/network.proto.
  */
 export const file_canopy_ui_v1_network: GenFile = /*@__PURE__*/
-  fileDesc("ChpjYW5vcHkvdWkvdjEvbmV0d29yay5wcm90bxIMY2Fub3B5LnVpLnYxIlQKDk5ldHdvcmtBZGRyZXNzEg4KBm9yaWdpbhgBIAEoCRIMCgRob3N0GAIgASgJEgwKBGtpbmQYAyABKAkSFgoOaW50ZXJmYWNlX25hbWUYBCABKAki8wEKDU5ldHdvcmtBY2Nlc3MSDwoHZW5hYmxlZBgBIAEoCBINCgVzdGF0ZRgCIAEoCRINCgVlcnJvchgDIAEoCRIMCgRwb3J0GAQgASgNEhIKCnBvcnRfZml4ZWQYBSABKAgSLwoJYWRkcmVzc2VzGAYgAygLMhwuY2Fub3B5LnVpLnYxLk5ldHdvcmtBZGRyZXNzEhEKCWhvc3RuYW1lcxgHIAMoCRITCgtmaW5nZXJwcmludBgIIAEoCRIMCgRub3RlGAkgASgJEioKCXRhaWxzY2FsZRgKIAEoCzIXLmNhbm9weS51aS52MS5UYWlsc2NhbGUinwEKCVRhaWxzY2FsZRINCgVzdGF0ZRgBIAEoCRIQCghkbnNfbmFtZRgCIAEoCRIMCgRpcHY0GAMgAygJEgwKBGlwdjYYBCADKAkSDwoHdGFpbG5ldBgFIAEoCRIRCgltYWdpY19kbnMYBiABKAgSGgoSaHR0cHNfY2VydGlmaWNhdGVzGAcgASgIEhUKDWNoZWNrZWRfYXRfbXMYCCABKAMiGQoXR2V0TmV0d29ya0FjY2Vzc1JlcXVlc3QiXgoaVXBkYXRlTmV0d29ya0FjY2Vzc1JlcXVlc3QSDgoGYWN0aW9uGAEgASgJEg8KB2VuYWJsZWQYAiABKAgSDAoEcG9ydBgDIAEoDRIRCglob3N0bmFtZXMYBCADKAliBnByb3RvMw");
+  fileDesc("ChpjYW5vcHkvdWkvdjEvbmV0d29yay5wcm90bxIMY2Fub3B5LnVpLnYxIlQKDk5ldHdvcmtBZGRyZXNzEg4KBm9yaWdpbhgBIAEoCRIMCgRob3N0GAIgASgJEgwKBGtpbmQYAyABKAkSFgoOaW50ZXJmYWNlX25hbWUYBCABKAki8wEKDU5ldHdvcmtBY2Nlc3MSDwoHZW5hYmxlZBgBIAEoCBINCgVzdGF0ZRgCIAEoCRINCgVlcnJvchgDIAEoCRIMCgRwb3J0GAQgASgNEhIKCnBvcnRfZml4ZWQYBSABKAgSLwoJYWRkcmVzc2VzGAYgAygLMhwuY2Fub3B5LnVpLnYxLk5ldHdvcmtBZGRyZXNzEhEKCWhvc3RuYW1lcxgHIAMoCRITCgtmaW5nZXJwcmludBgIIAEoCRIMCgRub3RlGAkgASgJEioKCXRhaWxzY2FsZRgKIAEoCzIXLmNhbm9weS51aS52MS5UYWlsc2NhbGUizAEKCVRhaWxzY2FsZRINCgVzdGF0ZRgBIAEoCRIQCghkbnNfbmFtZRgCIAEoCRIMCgRpcHY0GAMgAygJEgwKBGlwdjYYBCADKAkSDwoHdGFpbG5ldBgFIAEoCRIRCgltYWdpY19kbnMYBiABKAgSGgoSaHR0cHNfY2VydGlmaWNhdGVzGAcgASgIEhUKDWNoZWNrZWRfYXRfbXMYCCABKAMSKwoFaHR0cHMYCSABKAsyHC5jYW5vcHkudWkudjEuVGFpbHNjYWxlSHR0cHMisQEKDlRhaWxzY2FsZUh0dHBzEg8KB2VuYWJsZWQYASABKAgSDQoFc3RhdGUYAiABKAkSDAoEcG9ydBgDIAEoDRIWCg5wb3J0X2F1dG9tYXRpYxgEIAEoCBILCgN1cmwYBSABKAkSDQoFZXJyb3IYBiABKAkSEwoLdW5hdmFpbGFibGUYByABKAkSEQoJYWRtaW5fdXJsGAggASgJEhUKDWFsbG93ZWRfbG9naW4YCSABKAkiGQoXR2V0TmV0d29ya0FjY2Vzc1JlcXVlc3QiXgoaVXBkYXRlTmV0d29ya0FjY2Vzc1JlcXVlc3QSDgoGYWN0aW9uGAEgASgJEg8KB2VuYWJsZWQYAiABKAgSDAoEcG9ydBgDIAEoDRIRCglob3N0bmFtZXMYBCADKAliBnByb3RvMw");
 
 /**
  * Network access (docs/network-access.md): one switch per computer lets phones and linked computers
@@ -180,6 +180,13 @@ export type Tailscale = Message<"canopy.ui.v1.Tailscale"> & {
    * @generated from field: int64 checked_at_ms = 8;
    */
   checkedAtMs: bigint;
+
+  /**
+   * HTTPS over Tailscale: the web app at https://<dns_name>[:port] through Tailscale Serve.
+   *
+   * @generated from field: canopy.ui.v1.TailscaleHttps https = 9;
+   */
+  https?: TailscaleHttps | undefined;
 };
 
 /**
@@ -188,6 +195,81 @@ export type Tailscale = Message<"canopy.ui.v1.Tailscale"> & {
  */
 export const TailscaleSchema: GenMessage<Tailscale> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_network, 2);
+
+/**
+ * @generated from message canopy.ui.v1.TailscaleHttps
+ */
+export type TailscaleHttps = Message<"canopy.ui.v1.TailscaleHttps"> & {
+  /**
+   * The switch in Settings.
+   *
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * off, on, error, unavailable
+   *
+   * @generated from field: string state = 2;
+   */
+  state: string;
+
+  /**
+   * The HTTPS port in use, or the one chosen for next time; 0 while automatic and off.
+   *
+   * @generated from field: uint32 port = 3;
+   */
+  port: number;
+
+  /**
+   * No port was chosen: 443 when it is free in Serve, otherwise 8447.
+   *
+   * @generated from field: bool port_automatic = 4;
+   */
+  portAutomatic: boolean;
+
+  /**
+   * https://name[:port] while on.
+   *
+   * @generated from field: string url = 5;
+   */
+  url: string;
+
+  /**
+   * Why it isn't working, in the words the UI shows (a used port, missing operator rights).
+   *
+   * @generated from field: string error = 6;
+   */
+  error: string;
+
+  /**
+   * Why it can't be turned on now, in the words the UI shows; empty when it can.
+   *
+   * @generated from field: string unavailable = 7;
+   */
+  unavailable: string;
+
+  /**
+   * The Tailscale admin console page with the one action needed (HTTPS certificates); empty otherwise.
+   *
+   * @generated from field: string admin_url = 8;
+   */
+  adminUrl: string;
+
+  /**
+   * The Tailscale login that may open it; empty when every device in the tailnet may (a tagged server).
+   *
+   * @generated from field: string allowed_login = 9;
+   */
+  allowedLogin: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.TailscaleHttps.
+ * Use `create(TailscaleHttpsSchema)` to create a new message.
+ */
+export const TailscaleHttpsSchema: GenMessage<TailscaleHttps> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_network, 3);
 
 /**
  * @generated from message canopy.ui.v1.GetNetworkAccessRequest
@@ -200,14 +282,15 @@ export type GetNetworkAccessRequest = Message<"canopy.ui.v1.GetNetworkAccessRequ
  * Use `create(GetNetworkAccessRequestSchema)` to create a new message.
  */
 export const GetNetworkAccessRequestSchema: GenMessage<GetNetworkAccessRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_network, 3);
+  messageDesc(file_canopy_ui_v1_network, 4);
 
 /**
  * @generated from message canopy.ui.v1.UpdateNetworkAccessRequest
  */
 export type UpdateNetworkAccessRequest = Message<"canopy.ui.v1.UpdateNetworkAccessRequest"> & {
   /**
-   * set_enabled, set_port, choose_port (a new free port), set_hostnames, refresh_tailscale
+   * set_enabled, set_port, choose_port (a new free port), set_hostnames, refresh_tailscale,
+   * set_tailscale_https (enabled), set_tailscale_https_port (port; 0 = automatic)
    *
    * @generated from field: string action = 1;
    */
@@ -234,5 +317,5 @@ export type UpdateNetworkAccessRequest = Message<"canopy.ui.v1.UpdateNetworkAcce
  * Use `create(UpdateNetworkAccessRequestSchema)` to create a new message.
  */
 export const UpdateNetworkAccessRequestSchema: GenMessage<UpdateNetworkAccessRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_network, 4);
+  messageDesc(file_canopy_ui_v1_network, 5);
 

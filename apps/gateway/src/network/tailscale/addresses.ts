@@ -26,7 +26,7 @@ export function preferTailnet(
 }
 
 /** What Settings shows about this host's Tailscale. */
-export function tailscaleMessage(snapshot: TailscaleSnapshot | undefined) {
+export function tailscaleMessage(snapshot: TailscaleSnapshot | undefined, https?: ui.TailscaleHttps) {
   return create(ui.TailscaleSchema, {
     state: snapshot?.state ?? "not_installed",
     dnsName: snapshot?.dnsName ?? "",
@@ -36,5 +36,6 @@ export function tailscaleMessage(snapshot: TailscaleSnapshot | undefined) {
     magicDns: snapshot?.magicDns ?? false,
     httpsCertificates: Boolean(snapshot?.dnsName && snapshot.certDomains.includes(snapshot.dnsName)),
     checkedAtMs: BigInt(snapshot?.checkedAt ?? 0),
+    ...(https && { https }),
   });
 }

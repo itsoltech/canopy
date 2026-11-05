@@ -69,4 +69,17 @@ export function networkPort(env: Readonly<Record<string, string | undefined>>) {
   return port;
 }
 
+/** The web BFF's origin (CANOPY_WEB_ORIGIN): what HTTPS over Tailscale forwards to. The desktop sets it. */
+export function webOrigin(env: Readonly<Record<string, string | undefined>>) {
+  const value = env["CANOPY_WEB_ORIGIN"];
+
+  if (!value) return undefined;
+  const url = URL.parse(value);
+
+  if (!url || !/^https?:$/.test(url.protocol) || url.origin !== value.replace(/\/$/, ""))
+    throw new Error("CANOPY_WEB_ORIGIN must be an origin like http://127.0.0.1:3000");
+
+  return url.origin;
+}
+
 export { Effect };

@@ -18,6 +18,7 @@ import { localNetworkBlocked, LOCAL_NETWORK_HELP } from "./local-network.ts";
 import { requireDesktopRole, type GatewayRole } from "../role.ts";
 import type { Tailscale } from "./tailscale/tailscale.ts";
 import { preferTailnet, tailscaleMessage } from "./tailscale/addresses.ts";
+import { TailscaleHttps } from "./tailscale/https.ts";
 
 export type NetworkOptions = {
   role?: GatewayRole;
@@ -31,6 +32,8 @@ export type NetworkOptions = {
   pollMs?: number;
   /** This host's Tailscale (docs/tailscale.md): its MagicDNS name and tailnet address go first. */
   tailscale?: Tailscale;
+  /** The web BFF's origin, for HTTPS over Tailscale (CANOPY_WEB_ORIGIN). */
+  webOrigin?: string;
   log?: (message: string) => void;
 };
 
@@ -53,10 +56,21 @@ export class NetworkAccess {
   #queue: Promise<unknown> = Promise.resolve();
   #blockedAt = 0;
   #unsubscribe: (() => void) | undefined;
+  readonly #https: TailscaleHttps | undefined;
   readonly #services = new Map<Service, Handler>();
   readonly #changes = new Set<() => void>();
 
-  constructor(readonly options: NetworkOptions) {}
+  constructor(readonly options: NetworkOptions) {
+    this.#https =
+      options.tailscale &&
+      new TailscaleHttps({
+        tailscale: options.tailscale,
+        store: options.store,
+        role: options.role ?? "server",
+        webOrigin: options.webOrigin,
+        log: options.log,
+      });
+  }
 
   get role() {
     return this.options.role ?? "server";
@@ -78,7 +92,12 @@ export class NetworkAccess {
       await this.#apply();
       this.#timer = setInterval(() => void this.refresh(), this.options.pollMs ?? 10_000);
       this.#timer.unref?.();
-      this.#unsubscribe = this.options.tailscale?.onChange(() => void this.refresh());
+      this.#unsubscribe = this.options.tailscale?.onChange(() => {
+        void this.refresh();
+        void this.#https?.sync();
+      });
+      // Serve commands can be slow: the gateway doesn't wait; the next change waits in line behind them.
+      void this.#https?.start();
     });
   }
 
@@ -152,7 +171,7 @@ export class NetworkAccess {
       hostnames: this.#settings.hostnames,
       fingerprint: this.fingerprint,
       note,
-      tailscale: tailscaleMessage(this.options.tailscale?.snapshot),
+      tailscale: tailscaleMessage(this.options.tailscale?.snapshot, this.#https?.message()),
     });
   }
 
@@ -179,8 +198,13 @@ export class NetworkAccess {
         this.#publish();
       } else if (request.action === "refresh_tailscale") {
         await this.options.tailscale?.refresh();
+        await this.#https?.sync();
         this.#detected = this.#detect();
         this.#publish();
+      } else if (request.action === "set_tailscale_https") {
+        await this.#tailscaleHttps().setEnabled(request.enabled);
+      } else if (request.action === "set_tailscale_https_port") {
+        await this.#tailscaleHttps().setPort(request.port);
       } else throw new ConnectError("Unknown network access operation", Code.InvalidArgument);
 
       return this.status();
@@ -214,8 +238,15 @@ export class NetworkAccess {
 
     return this.#serial(async () => {
       await this.#listener?.close();
+      await this.#https?.close();
       this.#listener = undefined;
     });
+  }
+
+  #tailscaleHttps() {
+    if (!this.#https) throw new ConnectError("Tailscale isn't available on this gateway.", Code.FailedPrecondition);
+
+    return this.#https;
   }
 
   #detect() {
