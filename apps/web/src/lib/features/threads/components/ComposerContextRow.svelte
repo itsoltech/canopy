@@ -53,17 +53,18 @@
 </div>
 
 <style>
-  /* Only the controls under the editor are dense; top-layer menus keep the app's normal sizing. */
+  /* Compact chrome set in captions (docs/ui-scale.md): only the controls under the editor; their menus are
+     overlays with their own scale. */
   .composer-context :global(:is(button, [data-composer-branch]):not([popover] *)) {
-    min-height: 2rem;
+    min-height: var(--control-chrome);
     gap: 0.25rem;
-    font-size: 0.75rem;
+    font-size: var(--type-caption);
     line-height: 1rem;
   }
 
   .composer-context :global(:is(button, [data-composer-branch]):not([popover] *) > svg) {
-    width: 0.75rem;
-    height: 0.75rem;
+    width: var(--icon-dense);
+    height: var(--icon-dense);
   }
 
   .composer-context :global([data-project-mark]:not([popover] *)) {
@@ -74,7 +75,7 @@
 
   @media (max-width: 39.999rem), (pointer: coarse) {
     .composer-context :global(:is(button, [data-composer-branch]):not([popover] *)) {
-      min-height: 2.5rem;
+      min-height: var(--control-touch);
     }
   }
 </style>

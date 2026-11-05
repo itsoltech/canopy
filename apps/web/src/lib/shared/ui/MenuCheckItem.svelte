@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Icon from "./Icon.svelte";
-  import { hoverFocus, menuRowClasses, useMenu } from "./menu.ts";
+  import { hoverFocus, menuGlyphClasses, menuRowClasses, useMenu } from "./menu.ts";
   import MenuItemText from "./MenuItemText.svelte";
   import TouchTarget from "./TouchTarget.svelte";
 
@@ -56,6 +56,8 @@
   {onpointermove}
 >
   <MenuItemText {description}>{@render children()}</MenuItemText>
-  <Icon name="check" class={["h-lh text-brand-600 dark:text-brand-400", !checked && "invisible"]} />
+  <span class={menuGlyphClasses}
+    ><Icon name="check" class={["text-brand-600 dark:text-brand-400", !checked && "invisible"]} /></span
+  >
   <TouchTarget />
 </button>

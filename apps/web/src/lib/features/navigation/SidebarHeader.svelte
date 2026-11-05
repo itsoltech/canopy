@@ -73,7 +73,10 @@
       {/each}
     </div>
   {/if}
-  <div class="canopy-sidebar-header flex h-12 items-center justify-between gap-2 pr-2 pl-4" data-window-drag>
+  <div
+    class="canopy-sidebar-header density-standard flex h-12 items-center justify-between gap-2 pr-2 pl-4"
+    data-window-drag
+  >
     <Logo
       label={`Canopy homepage, ${channel === "stable" ? "" : `${identity.label} build `}${version}`}
       class="min-w-0"

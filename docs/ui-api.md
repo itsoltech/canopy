@@ -679,8 +679,8 @@ Lista refów zachowuje kolejność workera wewnątrz dwóch grup: lokalnej i zda
 Nagłówki list zestawu mają nieprzezroczyste tło i przyklejają się do krawędzi obszaru
 przewijania bez pionowego paddingu między wyszukiwaniem a nagłówkiem.
 
-**Gęstość Settings.** `features/settings/density.css` definiuje tokeny ograniczone do
-`SettingsDialog`: tekst i etykiety 13 px na desktopie, 15 px na telefonie, opisy 13 px,
+**Gęstość Settings.** `features/settings/density.css` definiuje na stopniach skali
+([ui-scale.md](ui-scale.md)) tokeny ograniczone do `SettingsDialog`: tekst i etykiety 13 px na desktopie, 15 px na telefonie, opisy 13 px,
 nagłówki sekcji 14 px i stron 18 px. Odstęp sekcji wynosi 20/24 px (desktop/telefon),
 pionowy padding wiersza 8/10 px, kontrolki i cele kliknięcia co najmniej 32/44 px.
 Pola tekstowe na telefonie zachowują 16 px, aby nie uruchamiać automatycznego zoomu.

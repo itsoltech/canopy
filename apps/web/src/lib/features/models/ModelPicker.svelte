@@ -236,7 +236,7 @@
     section = undefined;
     expandedLegacy = new Map();
   }}
-  class="w-[min(26rem,calc(100vw-1rem))]"
+  class="w-[min(24rem,calc(100vw-1rem))]"
 >
   {#snippet trigger(props)}
     <PillButton
@@ -268,7 +268,7 @@
   {/snippet}
 
   <!-- Fixed height: clip, so the bottom buttons' touch targets don't make the panel scroll by a few pixels. -->
-  <div class="flex h-[min(26rem,var(--float-available-height,26rem))] overflow-clip in-data-sheet:h-[70dvh]">
+  <div class="flex h-[min(24rem,var(--float-available-height,24rem))] overflow-clip in-data-sheet:h-[70dvh]">
     <ModelPickerRail {instances} {current} {searching} onpick={pickTab} />
 
     <div class="flex min-w-0 flex-1 flex-col">
@@ -316,7 +316,7 @@
         {/snippet}
       </Combobox>
       <div
-        class="flex shrink-0 items-center gap-2 border-t border-zinc-950/5 py-1.5 pr-1.5 pl-3 text-sm/5 text-zinc-500 sm:text-xs/4 dark:border-white/8 dark:text-zinc-400"
+        class="flex shrink-0 items-center gap-2 border-t border-zinc-950/5 py-1 pr-1 pl-2.5 text-sm/5 text-zinc-500 sm:text-xs/4 dark:border-white/8 dark:text-zinc-400"
       >
         {#if notice}
           <p class="min-w-0 flex-1 text-pretty" role="status">{notice}</p>

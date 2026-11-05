@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
+  import { provideDensity } from "./density.ts";
   import IconButton from "./IconButton.svelte";
   import { exitDuration } from "./motion.ts";
   import SheetHandle from "./SheetHandle.svelte";
@@ -14,6 +15,7 @@
    * `size="lg"`: wider from `sm`, for forms with lists (e.g. a provider profile's variables).
    * `size="output"`: 880px terminal viewer; `fullscreen`: fills the phone screen.
    * `dismissible={false}` prevents user dismissal while the caller finishes an async save.
+   * Its content uses standard controls (docs/ui-scale.md), also when it opens from a menu or the sidebar.
    */
   let {
     open = $bindable(false),
@@ -38,6 +40,8 @@
     class?: ClassValue;
     children: Snippet;
   } = $props();
+
+  provideDensity("standard");
 
   let dialog = $state<HTMLDialogElement>();
   const id = $props.id();
@@ -91,7 +95,7 @@
   data-sheet
   inert={closing || undefined}
   class={[
-    "t-modal top-(--window-safe-top) m-0 mt-auto max-h-[min(90dvh,var(--window-safe-height))] w-full max-w-none overflow-y-auto rounded-t-2xl bg-surface p-0 text-ink shadow-xl ring-1 ring-divider backdrop:bg-zinc-950/40 sm:m-auto sm:rounded-2xl dark:shadow-none dark:backdrop:bg-black/60",
+    "density-standard t-modal top-(--window-safe-top) m-0 mt-auto max-h-[min(90dvh,var(--window-safe-height))] w-full max-w-none overflow-y-auto rounded-t-2xl bg-surface p-0 text-ink shadow-xl ring-1 ring-divider backdrop:bg-zinc-950/40 sm:m-auto sm:rounded-2xl dark:shadow-none dark:backdrop:bg-black/60",
     size === "output" ? "sm:max-w-[55rem]" : size === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg",
     fullscreen && "max-sm:mt-0 max-sm:h-(--window-safe-height) max-sm:max-h-(--window-safe-height) max-sm:rounded-none",
     className,

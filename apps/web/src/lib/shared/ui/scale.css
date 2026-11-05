@@ -1,0 +1,45 @@
+/*
+ * Type and density scale (docs/ui-scale.md). Kit text uses three steps: `text-base` (primary on phones),
+ * `text-sm` (primary on desktop, secondary on phones) and `text-xs` (secondary and section headers on desktop),
+ * written `text-base sm:text-sm` and `text-sm sm:text-xs`. A context redefines the steps for its subtree, so the
+ * same markup is compact in the sidebar or a menu without per-screen sizes.
+ *
+ *   standard (kit default): 16 / 14 / 12 px
+ *   chrome (sidebar, toolbars) and overlay (popovers, menus, pickers, palette): 15 / 13 / 11.5 px
+ *
+ * Values are rem, so Appearance → Interface size scales them with the root.
+ */
+:root {
+  --type-touch: 1rem; /* 16px: standard primary on phones, every typed field on phones */
+  --type-standard: 0.875rem; /* 14px: standard primary on desktop */
+  --type-compact-touch: 0.9375rem; /* 15px: compact primary on phones */
+  --type-compact: 0.8125rem; /* 13px: compact primary on desktop, compact secondary on phones */
+  --type-caption: 0.75rem; /* 12px: standard secondary on desktop, tooltips, compact chrome rows */
+  --type-meta: 0.71875rem; /* 11.5px: compact secondary and section headers on desktop */
+  --icon-standard: 1rem; /* 16px: standard rows and controls, overlays on phones */
+  --icon-compact: 0.875rem; /* 14px: overlay rows and controls on desktop */
+  --icon-dense: 0.75rem; /* 12px: rows set in captions (composer context row) */
+  --control-overlay: 1.75rem; /* 28px: overlay rows, buttons, fields on desktop */
+  --control-chrome: 2rem; /* 32px: chrome controls (sidebar, toolbars, composer context row) on desktop */
+  --control-touch: 2.5rem; /* 40px: least height of a row or control on touch screens */
+}
+
+/* Each scope sets the steps on itself: an overlay opened from the sidebar, or a dialog opened from a menu, takes
+   its own context, not its parent's. */
+.density-standard {
+  --text-base: var(--type-touch);
+  --text-sm: var(--type-standard);
+  --text-xs: var(--type-caption);
+}
+
+.density-chrome,
+.density-overlay {
+  --text-base: var(--type-compact-touch);
+  --text-sm: var(--type-compact);
+  --text-xs: var(--type-meta);
+}
+
+/* Fields that take typing keep 16px on phones: iOS zooms into anything smaller on focus. */
+:where(.density-chrome, .density-overlay) :where(input, textarea, [contenteditable="true"]) {
+  --text-base: var(--type-touch);
+}

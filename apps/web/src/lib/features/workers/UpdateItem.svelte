@@ -48,18 +48,18 @@
     <span class="flex h-5 shrink-0 items-center"><Icon name={icon} /></span>
     <div class="min-w-0 flex-1">
       <div class="flex h-5 min-w-0 items-center gap-2">
-        <p class="min-w-0 flex-1 truncate text-[0.8125rem]/5 font-medium" title={name}>{name}</p>
+        <p class="min-w-0 flex-1 truncate text-sm/5 font-medium" title={name}>{name}</p>
         <Badge compact {tone}>{status}</Badge>
       </div>
       <p
-        class="flex min-w-0 gap-1 font-mono text-[0.6875rem]/4 text-muted"
+        class="flex min-w-0 gap-1 font-mono text-xs/4 text-muted"
         title={`${current || "Version unknown"}${target && target !== current ? ` → ${target}` : ""}`}
       >
         <span class="min-w-0 truncate">{current || "Version unknown"}</span>
         {#if target && target !== current}<span aria-hidden="true">→</span><span class="min-w-0 truncate">{target}</span
           >{/if}
       </p>
-      {#if metadata}<p class="truncate text-[0.6875rem]/4 text-muted" title={metadata}>{metadata}</p>{/if}
+      {#if metadata}<p class="truncate text-xs/4 text-muted" title={metadata}>{metadata}</p>{/if}
     </div>
     <div class="flex h-5 w-8 shrink-0 items-center justify-center sm:w-7">
       {#if action}{@render action()}

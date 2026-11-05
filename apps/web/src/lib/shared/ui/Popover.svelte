@@ -31,6 +31,7 @@
   import type { ClassValue } from "svelte/elements";
   import { autoPosition, focusables, type Placement } from "./floating.ts";
   import { exitDuration } from "./motion.ts";
+  import OverlayScope from "./OverlayScope.svelte";
   import SheetHandle from "./SheetHandle.svelte";
 
   /**
@@ -39,7 +40,8 @@
    * close it. On open, focus goes to the first `[data-autofocus]` inside, else the first focusable
    * element, else the panel; on close it returns to the trigger. With `sheet` it is a bottom sheet on
    * phones (with a drag handle). It grows from its trigger and fades out (motion.css `t-dropdown`); content
-   * renders while open and during that exit, inert, and `onclose` runs once it is gone. The panel itself
+   * renders while open and during that exit, inert, and `onclose` runs once it is gone. The panel is an overlay
+   * (docs/ui-scale.md): its text steps are compact and kit controls inside take their compact size. The panel itself
    * mounts on the first opening (lists keep a closed popover per row).
    *
    *   <Popover bind:open label="Reasoning effort" placement="top-start">
@@ -269,7 +271,7 @@
     {onfocusout}
     onfocusin={() => (focusInside = true)}
     class={[
-      "t-dropdown fixed inset-auto top-(--float-y) left-(--float-x) m-0 max-h-[min(var(--float-available-height,32rem),32rem)] overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border-0 bg-surface p-0 text-ink shadow-lg ring-1 ring-divider outline-none dark:shadow-none",
+      "density-overlay t-dropdown fixed inset-auto top-(--float-y) left-(--float-x) m-0 max-h-[min(var(--float-available-height,32rem),32rem)] overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border-0 bg-surface p-0 text-ink shadow-lg ring-1 ring-divider outline-none dark:shadow-none",
       "data-sheet:top-auto data-sheet:bottom-0 data-sheet:left-0 data-sheet:max-h-[min(85dvh,var(--window-safe-height))] data-sheet:w-full data-sheet:max-w-none data-sheet:rounded-b-none data-sheet:pb-[env(safe-area-inset-bottom)] data-sheet:backdrop:bg-zinc-950/40 dark:data-sheet:backdrop:bg-black/60",
       className,
     ]}
@@ -277,6 +279,6 @@
     {#if narrow}
       <SheetHandle onclose={() => (open = false)} />
     {/if}
-    {#if open || closing}{@render children()}{/if}
+    {#if open || closing}<OverlayScope>{@render children()}</OverlayScope>{/if}
   </div>
 {/if}

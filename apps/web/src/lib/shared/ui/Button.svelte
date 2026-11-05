@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue, HTMLButtonAttributes } from "svelte/elements";
-  import { buttonClasses, type ButtonSize, type ButtonVariant } from "./button.ts";
+  import { buttonClasses, defaultButtonSize, type ButtonSize, type ButtonVariant } from "./button.ts";
+  import { useDensity } from "./density.ts";
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
   import Spinner from "./Spinner.svelte";
@@ -9,6 +10,7 @@
 
   type Props = Omit<HTMLButtonAttributes, "class" | "children"> & {
     variant?: ButtonVariant;
+    /** Default: `md`, `sm` in an overlay (docs/ui-scale.md). */
     size?: ButtonSize;
     /** Leading icon; replaced by a spinner while `loading`. */
     icon?: IconName;
@@ -19,7 +21,7 @@
 
   let {
     variant = "secondary",
-    size = "md",
+    size: explicitSize,
     icon,
     loading = false,
     type = "button",
@@ -28,6 +30,9 @@
     children,
     ...rest
   }: Props = $props();
+
+  const density = useDensity();
+  const size = $derived(explicitSize ?? defaultButtonSize(density));
 </script>
 
 <button

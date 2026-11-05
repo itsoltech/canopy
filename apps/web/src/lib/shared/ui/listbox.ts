@@ -3,10 +3,10 @@
  * a sticky group heading and an option row that highlights the active option (`data-active`).
  */
 export const listboxHeadingClasses =
-  "sticky top-0 z-10 bg-surface pt-2 pb-1 text-sm/5 font-medium text-zinc-500 sm:text-xs/4 dark:text-zinc-400";
+  "sticky top-0 z-10 bg-surface pt-1.5 pb-0.5 text-sm/5 font-medium text-zinc-500 sm:text-xs/4 dark:text-zinc-400";
 
 export const listboxOptionClasses =
-  "cursor-default scroll-mt-9 rounded-lg px-2.5 py-2 text-base/6 text-zinc-800 select-none data-active:bg-zinc-950/5 data-active:text-zinc-950 sm:py-1.5 sm:text-sm/5 dark:text-zinc-200 dark:data-active:bg-white/8 dark:data-active:text-white";
+  "cursor-default scroll-mt-8 rounded-lg px-2 py-2 text-base/6 text-zinc-800 select-none data-active:bg-zinc-950/5 data-active:text-zinc-950 sm:py-1 sm:text-sm/5 dark:text-zinc-200 dark:data-active:bg-white/8 dark:data-active:text-white";
 
 /** Select data and navigation stay independent of the DOM. */
 export interface SelectOption {

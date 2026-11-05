@@ -5,6 +5,7 @@
   import Icon from "./Icon.svelte";
   import Popover from "./Popover.svelte";
   import TouchTarget from "./TouchTarget.svelte";
+  import TruncatedText from "./TruncatedText.svelte";
   import PickerTrigger from "./PickerTrigger.svelte";
   import {
     listboxHeadingClasses,
@@ -219,7 +220,7 @@
           <li role="presentation" class="mx-2 my-1 h-px bg-zinc-950/5 dark:bg-white/10"></li>
         {/if}
         <li role={group.label ? "group" : "presentation"} aria-label={group.label}>
-          {#if group.label}<div class={[listboxHeadingClasses, "-mx-1 px-3.5"]}>{group.label}</div>{/if}
+          {#if group.label}<div class={[listboxHeadingClasses, "-mx-1 px-3"]}>{group.label}</div>{/if}
           <ul role="presentation" class="grid gap-0.5">
             {#each group.entries as { option, index } (option.value)}
               <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -233,7 +234,7 @@
                 data-active={active === index || undefined}
                 class={[
                   listboxOptionClasses,
-                  "relative flex items-center gap-2.5 pointer-coarse:min-h-12",
+                  "relative flex items-center gap-2 pointer-coarse:min-h-11",
                   option.disabled && "opacity-40",
                 ]}
                 onpointerdown={(event) => event.preventDefault()}
@@ -244,10 +245,10 @@
               >
                 {#if option.icon}<Icon name={option.icon} />{/if}
                 <div class="min-w-0 flex-1">
-                  <div class="wrap-anywhere">{option.label}</div>
+                  <TruncatedText text={option.label} />
                   {#if option.description}<p
                       id="{optionId(index)}-description"
-                      class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400"
+                      class="text-sm/5 text-pretty text-zinc-500 sm:text-xs/4 dark:text-zinc-400"
                     >
                       {option.description}
                     </p>{/if}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ClassValue, HTMLInputAttributes } from "svelte/elements";
+  import { useDensity } from "./density.ts";
   import TouchTarget from "./TouchTarget.svelte";
 
   /** Shared drawn checkbox/radio. The semantic input retains focus, forms and native radio keys.
@@ -8,11 +9,14 @@
 
   let { type = "checkbox", class: className, checked = $bindable(false), onchange, ...rest }: Props = $props();
   let input: HTMLInputElement;
+
+  // Overlays (docs/ui-scale.md): 18px on touch screens, 14px from `sm`.
+  const size = useDensity() === "overlay" ? "size-4.5 sm:size-3.5" : "size-5 sm:size-4";
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 <span
-  class={["group relative inline-grid size-5 shrink-0 grid-cols-1 sm:size-4", className]}
+  class={["group relative inline-grid shrink-0 grid-cols-1", size, className]}
   onclick={(event) => {
     if (event.target === input) return;
     event.preventDefault();

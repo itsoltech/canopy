@@ -21,7 +21,7 @@
 <button
   {type}
   class={[
-    "relative flex min-w-0 items-center gap-1.5 rounded-lg py-1.5 pr-1.5 pl-2 text-sm/5 text-zinc-600 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 aria-expanded:bg-zinc-950/5 aria-expanded:text-zinc-950 sm:text-[0.8125rem]/5 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-expanded:bg-white/5 dark:aria-expanded:text-white",
+    "relative flex min-w-0 items-center gap-1.5 rounded-lg py-1.5 pr-1.5 pl-2 text-sm/5 text-zinc-600 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 aria-expanded:bg-zinc-950/5 aria-expanded:text-zinc-950 sm:text-(length:--type-compact)/5 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-expanded:bg-white/5 dark:aria-expanded:text-white",
     className,
   ]}
   {...rest}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ClassValue, HTMLButtonAttributes } from "svelte/elements";
-  import { iconButtonClasses, type ButtonSize, type ButtonVariant } from "./button.ts";
+  import { defaultButtonSize, iconButtonClasses, type ButtonSize, type ButtonVariant } from "./button.ts";
+  import { useDensity } from "./density.ts";
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
   import Spinner from "./Spinner.svelte";
@@ -12,6 +13,7 @@
     icon: IconName;
     label: string;
     variant?: ButtonVariant;
+    /** Default: `md`, `sm` in an overlay (docs/ui-scale.md). */
     size?: ButtonSize;
     /** Replaces the icon with a spinner and disables the button (an action in progress). */
     loading?: boolean;
@@ -26,7 +28,7 @@
     icon,
     label,
     variant = "ghost",
-    size = "md",
+    size: explicitSize,
     type = "button",
     loading = false,
     disabled,
@@ -35,11 +37,14 @@
     class: className,
     ...rest
   }: Props = $props();
+
+  const density = useDensity();
+  const size = $derived(explicitSize ?? defaultButtonSize(density));
 </script>
 
 <button
   {type}
-  class={[iconButtonClasses(variant, size), className]}
+  class={[iconButtonClasses(variant, size, density), className]}
   aria-label={label}
   disabled={disabled || loading}
   aria-busy={loading || undefined}

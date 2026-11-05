@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { tick } from "svelte";
+  import { provideDensity } from "#lib/shared/ui/density.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { windowModal } from "#lib/shared/ui/window-modal.ts";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -44,12 +45,15 @@
    *
    * It also binds the hotkeys the commands advertise, globally: those with a modifier work while typing
    * too, bare keys only outside text fields; none while another modal dialog is open.
+   * An overlay (docs/ui-scale.md): compact text and rows like menus and pickers.
    */
   let {
     registry,
     palette,
     class: className,
   }: { registry: CommandRegistry; palette: PaletteState; class?: ClassValue } = $props();
+
+  provideDensity("overlay");
 
   const id = $props.id();
   let dialog = $state<HTMLDialogElement>();
@@ -297,7 +301,7 @@
     if (event.target === dialog) close(); // click on the backdrop
   }}
   inert={closing || undefined}
-  class={[paletteDialogClass, className]}
+  class={["density-overlay", paletteDialogClass, className]}
 >
   {#if palette.open || closing}
     <div class={paletteHeaderClass}>

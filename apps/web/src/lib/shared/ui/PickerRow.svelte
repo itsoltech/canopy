@@ -2,10 +2,12 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Icon from "./Icon.svelte";
+  import TruncatedText from "./TruncatedText.svelte";
 
   /**
    * One option of a picker list (`SearchPicker`, `Combobox`): a leading mark, the name, a line under it,
-   * a short status on the right and a check on the current one.
+   * a short status on the right and a check on the current one. Name and line stay one line each, cut off with
+   * an ellipsis and shown in full as a tooltip (docs/ui-scale.md).
    */
   let {
     title,
@@ -32,19 +34,14 @@
   } = $props();
 </script>
 
-<div class={["flex items-start gap-2.5", className]}>
+<div class={["flex items-start gap-2", className]}>
   {#if leading}<div class="flex h-lh shrink-0 items-center">{@render leading()}</div>{/if}
   <div class="grid min-w-0 flex-1">
-    <p class="font-medium [overflow-wrap:anywhere] whitespace-normal">{title}</p>
-    {#if detail}<p
-        class={[
-          "text-sm/5 [overflow-wrap:anywhere] whitespace-normal text-zinc-500 sm:text-xs/4 dark:text-zinc-400",
-          detailClass,
-        ]}
-        title={detail}
-      >
-        {detail}
-      </p>{/if}
+    <TruncatedText text={title} class="font-medium" />
+    {#if detail}<TruncatedText
+        text={detail}
+        class={["text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400", detailClass]}
+      />{/if}
   </div>
   {#if trailing}
     <div class="flex h-lh shrink-0 items-center gap-1">{@render trailing()}</div>

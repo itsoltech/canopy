@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import { useDensity } from "./density.ts";
   import TouchTarget from "./TouchTarget.svelte";
   import { tooltip } from "./tooltip.ts";
 
@@ -26,6 +27,9 @@
   } = $props();
 
   let input: HTMLInputElement;
+
+  // Overlays (docs/ui-scale.md): 36 × 20 px on touch screens, 28 × 16 px from `sm`.
+  const width = useDensity() === "overlay" ? "w-9 sm:w-7" : "w-11 sm:w-9";
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
@@ -38,7 +42,8 @@
     }
   }}
   class={[
-    "group relative inline-flex w-11 shrink-0 rounded-full bg-zinc-200 p-0.5 inset-ring inset-ring-zinc-900/5 outline-offset-2 outline-brand-600 transition-colors duration-(--duration-fast) ease-smooth-out has-checked:bg-brand-600 has-focus-visible:outline-2 has-disabled:opacity-50 motion-reduce:transition-none sm:w-9 dark:bg-white/5 dark:inset-ring-white/10 dark:outline-brand-500 dark:has-checked:bg-brand-500",
+    "group relative inline-flex shrink-0 rounded-full bg-zinc-200 p-0.5 inset-ring inset-ring-zinc-900/5 outline-offset-2 outline-brand-600 transition-colors duration-(--duration-fast) ease-smooth-out has-checked:bg-brand-600 has-focus-visible:outline-2 has-disabled:opacity-50 motion-reduce:transition-none dark:bg-white/5 dark:inset-ring-white/10 dark:outline-brand-500 dark:has-checked:bg-brand-500",
+    width,
     className,
   ]}
 >
