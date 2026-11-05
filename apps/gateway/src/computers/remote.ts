@@ -15,6 +15,7 @@ export {
   MovedError,
   movedItems,
   SERVED,
+  UPDATE_METHODS,
   WORKER_SETTINGS,
 } from "./remote-policy.ts";
 

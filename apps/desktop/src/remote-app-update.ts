@@ -9,7 +9,8 @@ export interface RemoteUpdateBoundary {
   status(): DesktopUpdateStatus;
   check(): Promise<DesktopUpdateStatus>;
   drain(value: boolean): Promise<boolean>;
-  notify(): void;
+  /** `requestedBy`: the linked computer that asked (local mode); empty for the gateway owner. */
+  notify(requestedBy: string): void;
   prepareRestart?(): Promise<DesktopUpdateStatus | undefined>;
   restart(): void;
   report(state: ui.DesktopUpdateState): Promise<void>;
@@ -77,6 +78,7 @@ export class RemoteAppUpdate {
         ? this.state.availableVersion
         : (update.updateVersion ?? this.state.availableVersion),
       disabledReason: this.historyError || (update.phase === "disabled" ? update.message : ""),
+      ready: update.phase === "downloaded",
     };
   }
   async publish() {
@@ -121,7 +123,7 @@ export class RemoteAppUpdate {
     this.force = false;
     this.state = create(ui.DesktopUpdateStateSchema, { requestId: command.requestId, phase: "checking" });
     this.persist();
-    this.boundary.notify();
+    this.boundary.notify(command.requestedBy);
 
     try {
       await this.publish().catch(() => {});

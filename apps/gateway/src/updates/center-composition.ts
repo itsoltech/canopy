@@ -5,8 +5,10 @@ import { coreWorkers } from "../core/core-providers.ts";
 import { coreState } from "../core/core-context.ts";
 import { UpdateCenter } from "./center.ts";
 import { UpdateRunStore } from "./run-store.ts";
+import { linkedUpdates, requestComputerUpdate } from "./linked.ts";
 
-export async function updatesSnapshot(core: GatewayCore) {
+/** With `linked`, linked computers' apps too; a linked computer asking for this one's snapshot gets it without. */
+export async function updatesSnapshot(core: GatewayCore, linked = true) {
   const value = await core.updates.snapshot();
   const states = await core.desktopControl.states();
   value.cliWorkers = await coreWorkers(core);
@@ -20,6 +22,12 @@ export async function updatesSnapshot(core: GatewayCore) {
         workerId: worker.workerId,
         disabledReason: "Pair this desktop app, or update it manually to enable remote updates.",
       });
+  }
+
+  if (core.role === "desktop") {
+    value.app = core.appControl.snapshot();
+
+    if (linked) value.computers = await linkedUpdates(core);
   }
 
   return value;
@@ -37,6 +45,11 @@ export function createUpdateCenter(core: GatewayCore) {
     install: (request) => core.installCli(request),
     desktop: async (request) => {
       await core.desktopControl.manage(request);
+    },
+    computer: async (nodeId) => {
+      const snapshot = await requestComputerUpdate(core, nodeId, "app");
+
+      return snapshot.app?.requestId ?? "";
     },
   });
 }

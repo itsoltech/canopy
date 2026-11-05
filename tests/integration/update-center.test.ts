@@ -212,6 +212,9 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
       desktop: async () => {
         throw new Error("No desktop selected");
       },
+      computer: async () => {
+        throw new Error("No computer selected");
+      },
     });
 
     expect((await resumed.status())?.id).toBe(started.run?.id);
@@ -290,6 +293,9 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
       desktop: async (request) => {
         desktops.push(request.workerId);
         phase = "downloading";
+      },
+      computer: async () => {
+        throw new Error("No computer selected");
       },
     });
 

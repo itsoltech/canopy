@@ -15,6 +15,7 @@ import { ConnectorsRuntime } from "../connectors/runtime.ts";
 import { WorkerAdministration } from "./worker-administration.ts";
 import { MobileDevices } from "./mobile-devices.ts";
 import { DesktopControl } from "../desktop-updates/control.ts";
+import { LocalAppControl } from "../desktop-updates/local.ts";
 import { DesktopUpdateStore } from "../desktop-updates/store.ts";
 import { GatewayUpdates } from "../updates/runtime.ts";
 import { UpdateCenter } from "../updates/center.ts";
@@ -168,6 +169,8 @@ export class GatewayCore {
 
   readonly mobile: MobileDevices;
   readonly desktopControl: DesktopControl;
+  /** Local mode: this desktop app's own control channel (remote app updates from linked computers). */
+  readonly appControl: LocalAppControl;
 
   readonly workers: WorkerAdministration;
 
@@ -223,6 +226,7 @@ export class GatewayCore {
         ),
       (credential) => coreRun(this, (s) => s.authenticateWorker(credential)),
     );
+    this.appControl = new LocalAppControl(options.runtime, options.userId);
     this.connectors = new ConnectorsRuntime({
       runtime: options.runtime,
       userId: options.userId,

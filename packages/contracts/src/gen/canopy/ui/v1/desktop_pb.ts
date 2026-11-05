@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/desktop.proto.
  */
 export const file_canopy_ui_v1_desktop: GenFile = /*@__PURE__*/
-  fileDesc("ChpjYW5vcHkvdWkvdjEvZGVza3RvcC5wcm90bxIMY2Fub3B5LnVpLnYxIgwKCkRlc2t0b3BBY2siWgoMRGVza3RvcEhlbGxvEhEKCXdvcmtlcl9pZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEg8KB2NoYW5uZWwYAyABKAkSFQoNcmVtb3RlX3VwZGF0ZRgEIAEoCCI7ChJEZXNrdG9wV29ya2VyUHJvb2YSEQoJZGV2aWNlX2lkGAEgASgJEhIKCnNlc3Npb25faWQYAiABKAkiOQoURGVza3RvcFVwZGF0ZUNvbW1hbmQSEgoKcmVxdWVzdF9pZBgBIAEoCRINCgVmb3JjZRgCIAEoCCJxChNEZXNrdG9wQ29udHJvbEV2ZW50EhIKCnNlc3Npb25faWQYASABKAkSEQoJY29uZmlybWVkGAIgASgIEjMKB2NvbW1hbmQYAyABKAsyIi5jYW5vcHkudWkudjEuRGVza3RvcFVwZGF0ZUNvbW1hbmQi/wEKEkRlc2t0b3BVcGRhdGVTdGF0ZRIRCgl3b3JrZXJfaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIPCgdjaGFubmVsGAMgASgJEhkKEWF2YWlsYWJsZV92ZXJzaW9uGAQgASgJEg0KBXBoYXNlGAUgASgJEg4KBnJlYXNvbhgGIAEoCRIQCghwcm9ncmVzcxgHIAEoARISCgpyZXF1ZXN0X2lkGAggASgJEhAKCHJldmlzaW9uGAkgASgNEhEKCWNvbm5lY3RlZBgKIAEoCBIXCg9kaXNhYmxlZF9yZWFzb24YCyABKAkSFgoOdGFyZ2V0X3ZlcnNpb24YDCABKAkiVAoNRGVza3RvcFJlcG9ydBISCgpzZXNzaW9uX2lkGAEgASgJEi8KBXN0YXRlGAIgASgLMiAuY2Fub3B5LnVpLnYxLkRlc2t0b3BVcGRhdGVTdGF0ZTKiAQoVRGVza3RvcENvbnRyb2xTZXJ2aWNlEkgKBVdhdGNoEhouY2Fub3B5LnVpLnYxLkRlc2t0b3BIZWxsbxohLmNhbm9weS51aS52MS5EZXNrdG9wQ29udHJvbEV2ZW50MAESPwoGUmVwb3J0EhsuY2Fub3B5LnVpLnYxLkRlc2t0b3BSZXBvcnQaGC5jYW5vcHkudWkudjEuRGVza3RvcEFjazJdChREZXNrdG9wV29ya2VyU2VydmljZRJFCgdDb25maXJtEiAuY2Fub3B5LnVpLnYxLkRlc2t0b3BXb3JrZXJQcm9vZhoYLmNhbm9weS51aS52MS5EZXNrdG9wQWNrYgZwcm90bzM");
+  fileDesc("ChpjYW5vcHkvdWkvdjEvZGVza3RvcC5wcm90bxIMY2Fub3B5LnVpLnYxIgwKCkRlc2t0b3BBY2siWgoMRGVza3RvcEhlbGxvEhEKCXdvcmtlcl9pZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEg8KB2NoYW5uZWwYAyABKAkSFQoNcmVtb3RlX3VwZGF0ZRgEIAEoCCI7ChJEZXNrdG9wV29ya2VyUHJvb2YSEQoJZGV2aWNlX2lkGAEgASgJEhIKCnNlc3Npb25faWQYAiABKAkiXgoURGVza3RvcFVwZGF0ZUNvbW1hbmQSEgoKcmVxdWVzdF9pZBgBIAEoCRINCgVmb3JjZRgCIAEoCBIUCgxyZXF1ZXN0ZWRfYnkYAyABKAkSDQoFY2hlY2sYBCABKAgicQoTRGVza3RvcENvbnRyb2xFdmVudBISCgpzZXNzaW9uX2lkGAEgASgJEhEKCWNvbmZpcm1lZBgCIAEoCBIzCgdjb21tYW5kGAMgASgLMiIuY2Fub3B5LnVpLnYxLkRlc2t0b3BVcGRhdGVDb21tYW5kIo4CChJEZXNrdG9wVXBkYXRlU3RhdGUSEQoJd29ya2VyX2lkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSDwoHY2hhbm5lbBgDIAEoCRIZChFhdmFpbGFibGVfdmVyc2lvbhgEIAEoCRINCgVwaGFzZRgFIAEoCRIOCgZyZWFzb24YBiABKAkSEAoIcHJvZ3Jlc3MYByABKAESEgoKcmVxdWVzdF9pZBgIIAEoCRIQCghyZXZpc2lvbhgJIAEoDRIRCgljb25uZWN0ZWQYCiABKAgSFwoPZGlzYWJsZWRfcmVhc29uGAsgASgJEhYKDnRhcmdldF92ZXJzaW9uGAwgASgJEg0KBXJlYWR5GA0gASgIIlQKDURlc2t0b3BSZXBvcnQSEgoKc2Vzc2lvbl9pZBgBIAEoCRIvCgVzdGF0ZRgCIAEoCzIgLmNhbm9weS51aS52MS5EZXNrdG9wVXBkYXRlU3RhdGUyogEKFURlc2t0b3BDb250cm9sU2VydmljZRJICgVXYXRjaBIaLmNhbm9weS51aS52MS5EZXNrdG9wSGVsbG8aIS5jYW5vcHkudWkudjEuRGVza3RvcENvbnRyb2xFdmVudDABEj8KBlJlcG9ydBIbLmNhbm9weS51aS52MS5EZXNrdG9wUmVwb3J0GhguY2Fub3B5LnVpLnYxLkRlc2t0b3BBY2syXQoURGVza3RvcFdvcmtlclNlcnZpY2USRQoHQ29uZmlybRIgLmNhbm9weS51aS52MS5EZXNrdG9wV29ya2VyUHJvb2YaGC5jYW5vcHkudWkudjEuRGVza3RvcEFja2IGcHJvdG8z");
 
 /**
  * @generated from message canopy.ui.v1.DesktopAck
@@ -92,6 +92,20 @@ export type DesktopUpdateCommand = Message<"canopy.ui.v1.DesktopUpdateCommand"> 
    * @generated from field: bool force = 2;
    */
   force: boolean;
+
+  /**
+   * Local mode: the linked computer that asked for this update (its name, for the notification).
+   *
+   * @generated from field: string requested_by = 3;
+   */
+  requestedBy: string;
+
+  /**
+   * Local mode: check for an update with the app's own channel and settings. Installs nothing; no request id.
+   *
+   * @generated from field: bool check = 4;
+   */
+  check: boolean;
 };
 
 /**
@@ -193,6 +207,13 @@ export type DesktopUpdateState = Message<"canopy.ui.v1.DesktopUpdateState"> & {
    * @generated from field: string target_version = 12;
    */
   targetVersion: string;
+
+  /**
+   * The app downloaded an update and installs it at the next restart.
+   *
+   * @generated from field: bool ready = 13;
+   */
+  ready: boolean;
 };
 
 /**

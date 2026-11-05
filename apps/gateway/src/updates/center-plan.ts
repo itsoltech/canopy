@@ -86,5 +86,28 @@ export function updatePlan(snapshot: ui.UpdatesSnapshot): ui.UpdateRun {
       );
   }
 
+  // Linked computers last: this computer's link stays up while each one restarts, one at a time.
+  for (const computer of snapshot.computers) {
+    const app = computer.updates?.app;
+
+    if (
+      computer.remoteUpdate &&
+      computer.presence === "connected" &&
+      app?.connected &&
+      !app.disabledReason &&
+      newerVersion(app.availableVersion, app.version)
+    )
+      steps.push(
+        create(ui.UpdateStepSchema, {
+          kind: "computer",
+          nodeId: computer.nodeId,
+          label: `${computer.name} · Canopy app`,
+          version: app.availableVersion,
+          fromVersion: app.version,
+          state: "queued",
+        }),
+      );
+  }
+
   return create(ui.UpdateRunSchema, { id: crypto.randomUUID(), state: steps.length ? "running" : "succeeded", steps });
 }

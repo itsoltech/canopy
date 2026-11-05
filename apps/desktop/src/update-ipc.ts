@@ -7,8 +7,22 @@ import { RemoteAppUpdate } from "./remote-app-update.ts";
 import type { DesktopUpdates } from "./updates.ts";
 import type { Logs } from "./runtime/log.ts";
 
-export function acceptRemoteUpdate(remote: RemoteAppUpdate | undefined, command: string, logs: Logs) {
-  void remote?.command(fromJsonString(ui.DesktopUpdateCommandSchema, command)).catch(() => {
+export function acceptRemoteUpdate(
+  remote: RemoteAppUpdate | undefined,
+  updates: DesktopUpdates,
+  json: string,
+  logs: Logs,
+) {
+  const command = fromJsonString(ui.DesktopUpdateCommandSchema, json);
+
+  // A linked computer's "Check now": this app's own check, channel and settings; it installs nothing.
+  if (command.check) {
+    if (!remote?.active) void updates.check().catch(() => {});
+
+    return;
+  }
+
+  void remote?.command(command).catch(() => {
     logs.write("desktop", "Remote app update could not be recorded; request it again.");
   });
 }
@@ -24,11 +38,13 @@ export function remoteAppUpdate(
     report: async (state) => {
       await rpc("remote-update-state", { updateState: toJsonString(ui.DesktopUpdateStateSchema, state) });
     },
-    notify: () => {
+    notify: (requestedBy) => {
       if (Notification.isSupported())
         new Notification({
           title: "Canopy app update requested",
-          body: "Your gateway owner requested an app update. Canopy will restart after the current turns finish.",
+          body: requestedBy
+            ? `${requestedBy} requested an app update. Canopy restarts after the current turns end.`
+            : "Your gateway owner requested an app update. Canopy will restart after the current turns finish.",
         }).show();
     },
     prepareRestart: () => updates.prepareRestart(),

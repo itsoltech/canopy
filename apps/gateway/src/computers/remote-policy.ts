@@ -83,7 +83,12 @@ export const SERVED = new Set([
   "GetInstanceWorker",
   "GetWorkerEnvironment",
   "SetWorkerEnvironmentOverride",
+  "GetComputerUpdates",
+  "RequestComputerUpdate",
 ]);
+
+/** A linked computer's app and its updates (capability remote_app_update): direct links only, never relayed. */
+export const UPDATE_METHODS = new Set(["GetComputerUpdates", "RequestComputerUpdate"]);
 
 /**
  * Stage 6 (shared configuration): a worker's settings, changed at its home over a link that carries
@@ -115,7 +120,8 @@ export const methodNamed = (name: string) =>
   link.ThreadMirrorService.methods.find((m) => m.name === name) ??
   link.LinkedAgentsService.methods.find((m) => m.name === name) ??
   link.ConfigSyncService.methods.find((m) => m.name === name) ??
-  link.ComputerMoveService.methods.find((m) => m.name === name);
+  link.ComputerMoveService.methods.find((m) => m.name === name) ??
+  link.ComputerUpdateService.methods.find((m) => m.name === name);
 
 /** Link messages have already been decoded; verify their descriptor before accessing a concrete message. */
 export function linkedMessage<D extends DescMessage>(desc: D, message: Message): MessageShape<D> {
