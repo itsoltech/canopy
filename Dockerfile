@@ -85,7 +85,8 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 10001 --user-group --shell /bin/bash canopy
 COPY --from=worker-build /out/canopy-worker /usr/local/bin/canopy-worker
-ENV CANOPY_VERSION=${CANOPY_VERSION} CANOPY_WORKER_STATUS_FILE=/tmp/canopy-worker-status.json
+ENV CANOPY_VERSION=${CANOPY_VERSION} CANOPY_WORKER_STATUS_FILE=/tmp/canopy-worker-status.json \
+    CANOPY_WORKTREES_ROOT=/home/canopy/.local/share/canopy/worktrees
 USER canopy
 WORKDIR /home/canopy
 VOLUME ["/home/canopy"]

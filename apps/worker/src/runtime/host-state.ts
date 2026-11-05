@@ -21,6 +21,7 @@ import { CatalogCache } from "../mentions/catalog.ts";
 import { AttachmentFiles } from "../attachments/files.ts";
 import { PreviewStore } from "../images/index.ts";
 import { AccountStatuses } from "../providers/account-status.ts";
+import { resolveWorktreeRoots, type WorktreeRoots } from "../git/worktree-roots.ts";
 
 import type { ProviderRuntimeHandle, ProfileModelsInit, WorkerHostOptions } from "./host-types.ts";
 
@@ -89,6 +90,8 @@ export class HostState {
   /** Working directory per thread (from the commands' ThreadSpec): view_image's scope. */
   readonly cwds = new Map<string, string>();
   readonly removingPaths = new Set<string>();
+  /** Managed git worktree roots (docs/worktrees.md, "Położenie"). */
+  readonly worktreeRoots: WorktreeRoots;
   /** Attachments being fetched (FetchBlob), by request id. */
   readonly fetches = new Map<
     string,
@@ -104,6 +107,7 @@ export class HostState {
       grok: process.env["GROK_HOME"] || join(homedir(), ".grok"),
       agents: join(homedir(), ".agents", "skills"),
     };
+    this.worktreeRoots = options.worktreeRoots ?? resolveWorktreeRoots({ dataDir: options.dataDir, home: "" });
     this.files = new AttachmentFiles(options.dataDir);
     this.previews = new PreviewStore(options.dataDir);
     this.previews.prune();

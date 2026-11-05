@@ -1,4 +1,3 @@
-import { managedWorktreesRoot } from "../git/worktrees.ts";
 import { ThreadSecretFiles } from "./thread-secrets.ts";
 import {
   Provider,
@@ -90,7 +89,7 @@ export class WorkerHost {
   }
   /** Managed root of git worktrees (Hello.worktrees_root, docs/worktrees.md). */
   get worktreesRoot(): string {
-    return managedWorktreesRoot(this.#ctx.state.options.dataDir);
+    return this.#ctx.state.worktreeRoots.primary;
   }
   get config(): AppliedConfig | undefined {
     return this.#ctx.state.config;

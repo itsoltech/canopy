@@ -9,6 +9,7 @@ import { GatewayStore } from "@canopy/gateway/store";
 import { journalHello, openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
 import { serveLink, WorkerHost } from "@canopy/worker/runtime";
+import type { WorktreeRoots } from "../../../apps/worker/src/git/worktree-roots.ts";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway } from "./gateway.ts";
@@ -45,6 +46,7 @@ export async function worktreeFixture(
     botModel?: BotModel;
     role?: "desktop" | "server";
     originUrl?: string;
+    worktreeRoots?: WorktreeRoots;
   } = {},
 ) {
   const data = join(dir, "data");
@@ -81,12 +83,16 @@ export async function worktreeFixture(
   );
   const runtime = ManagedRuntime.make(Journal.layer(join(data, "journal.db")));
 
-  const host = new WorkerHost({
-    runtime,
-    dataDir: data,
-    clientVersion: "test",
-    deviceHomes: { codex: home, claude: join(dir, "claude") },
-  });
+  const startHost = (worktreeRoots = options.worktreeRoots) =>
+    new WorkerHost({
+      runtime,
+      dataDir: data,
+      clientVersion: "test",
+      deviceHomes: { codex: home, claude: join(dir, "claude") },
+      ...(worktreeRoots && { worktreeRoots }),
+    });
+
+  let host = startHost();
 
   let link: GatewayLink;
   const calls = new Map<string, (result: AgentToolResult) => void>();
@@ -174,7 +180,9 @@ export async function worktreeFixture(
     data,
     repo,
     origin,
-    host,
+    get host() {
+      return host;
+    },
     runtime,
     gw,
     workerId,
@@ -187,6 +195,13 @@ export async function worktreeFixture(
     cleanup,
     connect,
     disconnect: () => link.close(),
+    /** A new worker process on the same data directory (an upgrade), with other worktree roots. */
+    restart: async (worktreeRoots?: WorktreeRoots) => {
+      link.close();
+      await host.close();
+      host = startHost(worktreeRoots);
+      await connect();
+    },
     sql: <A>(query: (sql: SqlClient.SqlClient) => Effect.Effect<A, import("effect/sql").SqlError.SqlError>) =>
       gw.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, query)),
     command: (kind: MessageInitShape<typeof CommandSchema>) => host.handleCommand(create(CommandSchema, kind)),

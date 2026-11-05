@@ -10,14 +10,6 @@ export type WorktreeInfoInit = MessageInitShape<typeof WorktreeInfoSchema>;
 /** Attempts at a free branch name or folder (`name-2`, `name-3`, ...). */
 const MAX_SUFFIX = 50;
 
-/** `<data_dir>/worktrees` as a real path: where new worktrees go without a configured location. */
-export function managedWorktreesRoot(dataDir: string): string {
-  const root = join(dataDir, "worktrees");
-  mkdirSync(root, { recursive: true, mode: 0o700 });
-
-  return realpathSync(root);
-}
-
 /** `path` is `root` or below it (both real paths). */
 export function isWithin(root: string, path: string): boolean {
   const rel = relative(root, path);
@@ -139,7 +131,7 @@ export async function createWorktree(managedRoot: string, request: CreateWorktre
 
 /** Renames the branch of a worktree under a root, while it is still checked out there and has no upstream. */
 export async function renameWorktreeBranch(
-  managedRoot: string,
+  managedRoots: readonly string[],
   request: RenameWorktreeBranch,
 ): Promise<WorktreeInfoInit> {
   let path: string;
@@ -150,7 +142,7 @@ export async function renameWorktreeBranch(
     throw new GitError("WORKTREE_NOT_FOUND", `${request.path} does not exist`);
   }
 
-  const roots = [managedRoot, ...(request.location ? [request.location] : [])].flatMap((r) =>
+  const roots = [...managedRoots, ...(request.location ? [request.location] : [])].flatMap((r) =>
     existsSync(r) ? [realpathSync(r)] : [],
   );
 

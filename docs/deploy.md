@@ -154,7 +154,10 @@ ENV PATH=/home/canopy/.local/bin:$PATH
 ```
 
 Loginy CLI (`~/.claude`, `~/.codex`), `worker.json` i dziennik leżą w wolumenie `/home/canopy`.
-Projekty, na których pracują agenci, montuj jako dodatkowe wolumeny.
+Projekty, na których pracują agenci, montuj jako dodatkowe wolumeny. Obraz ustawia
+`CANOPY_WORKTREES_ROOT=/home/canopy/.local/share/canopy/worktrees`, więc nowe worktree zostają w wolumenie
+danych, jak dotąd. Inny trwały folder ustaw w `services.worker.environment`. Worker binarny na serwerze bez
+tej zmiennej tworzy worktree w `~/canopy/worktrees` użytkownika usługi ([worktrees.md](worktrees.md#położenie)).
 
 ### Sieć kontenera gatewaya
 

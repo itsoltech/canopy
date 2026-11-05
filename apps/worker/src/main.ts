@@ -7,6 +7,7 @@ import { ManagedRuntime, Result } from "effect";
 import { WorkerState } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig } from "./config/local.ts";
+import { resolveWorktreeRoots, type WorktreeRoots } from "./git/worktree-roots.ts";
 import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
 import { Journal } from "./journal/index.ts";
 import { serveLink, WorkerHost } from "./runtime/index.ts";
@@ -147,7 +148,26 @@ mkdirSync(dataDir, { recursive: true, mode: 0o700 });
 // Durable outbox: every thread event goes through the journal before it is sent (docs/durability.md, 3.1).
 const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db")));
 const { journalId } = await runtime.runPromise(journalHello());
-const host = new WorkerHost({ runtime, dataDir, clientVersion: WORKER_VERSION, log: (m) => console.info(m) });
+let worktreeRoots: WorktreeRoots;
+
+try {
+  worktreeRoots = resolveWorktreeRoots({
+    dataDir,
+    override: Bun.env["CANOPY_WORKTREES_ROOT"] ?? "",
+    log: (m) => console.warn(m),
+  });
+} catch (error) {
+  console.error(error instanceof Error ? error.message : "the worktree root cannot be created");
+  process.exit(78);
+}
+
+const host = new WorkerHost({
+  runtime,
+  dataDir,
+  clientVersion: WORKER_VERSION,
+  worktreeRoots,
+  log: (m) => console.info(m),
+});
 
 console.info(
   `worker ${local.worker_id} (Canopy ${CANOPY_VERSION}), gateway ${local.gateway_url}, data ${dataDir}, journal ${journalId}`,

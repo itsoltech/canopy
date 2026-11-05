@@ -64,6 +64,7 @@ describe.skipIf(!dockerAvailable)("worker server-port compatibility and secure r
         PATH: "",
         CODEX_HOME: join(directory, "codex"),
         CLAUDE_CONFIG_DIR: join(directory, "claude"),
+        CANOPY_WORKTREES_ROOT: join(directory, "worktrees"),
       },
       stdout: "ignore",
       stderr: "pipe",
