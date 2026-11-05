@@ -3,6 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import ResettableControl from "#lib/shared/ui/ResettableControl.svelte";
 
   let {
     title,
@@ -26,7 +27,14 @@
 <SettingsRow {title} {description} class={className}>
   {@render children?.()}
   {#snippet control()}
-    {@render rowControl()}
-    {#if changed}<IconButton icon="arrow-path" label="Reset {title} to default" size="sm" onclick={onreset} />{/if}
+    <ResettableControl {changed}>
+      {@render rowControl()}
+      {#snippet reset()}<IconButton
+          icon="arrow-path"
+          label="Reset {title} to default"
+          size="sm"
+          onclick={onreset}
+        />{/snippet}
+    </ResettableControl>
   {/snippet}
 </SettingsRow>

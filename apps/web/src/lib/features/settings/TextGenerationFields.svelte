@@ -9,6 +9,8 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import ResettableControl from "#lib/shared/ui/ResettableControl.svelte";
+  import SettingAction from "#lib/shared/ui/SettingAction.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
@@ -82,23 +84,24 @@
     <SettingsRow title="Text generation model" description="Generate thread titles and branch names with this model.">
       <div class="grid min-w-0 gap-2 pt-3">
         <div class="flex min-w-0 flex-wrap items-center gap-2">
-          <ModelControls
-            {options}
-            bind:option={() => option, select}
-            bind:effort={
-              () => value.effort || undefined, (effort) => void settings.updateTextGeneration({ effort: effort ?? "" })
-            }
-            workerId={worker?.id}
-            allowCustom={false}
-          />
-          {#if value.effort}
-            <IconButton
-              icon="arrow-path"
-              label="Reset text generation effort to default"
-              size="sm"
-              onclick={() => settings.updateTextGeneration({ effort: "" })}
+          <ResettableControl changed={!!value.effort} align="start">
+            <ModelControls
+              {options}
+              bind:option={() => option, select}
+              bind:effort={
+                () => value.effort || undefined,
+                (effort) => void settings.updateTextGeneration({ effort: effort ?? "" })
+              }
+              workerId={worker?.id}
+              allowCustom={false}
             />
-          {/if}
+            {#snippet reset()}<IconButton
+                icon="arrow-path"
+                label="Reset text generation effort to default"
+                size="sm"
+                onclick={() => settings.updateTextGeneration({ effort: "" })}
+              />{/snippet}
+          </ResettableControl>
           {#if option}<p class="min-w-0 truncate text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
               {option.provider === "CLAUDE" ? "Claude" : option.provider === "GROK" ? "Grok" : "Codex"} · {option.profileName}
             </p>{/if}
@@ -115,7 +118,7 @@
 
   <SettingsGroup title="Advanced" description="Account">
     {#snippet actions()}
-      {#if value.threadTitleInstructions}
+      <SettingAction active={!!value.threadTitleInstructions}>
         <Button
           size="sm"
           icon="arrow-path"
@@ -123,7 +126,7 @@
         >
           Reset instructions
         </Button>
-      {/if}
+      </SettingAction>
     {/snippet}
     <div class="p-4">
       <Field label="Thread title instructions" description="Add guidance for new and regenerated thread titles.">
