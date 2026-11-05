@@ -7,8 +7,8 @@ type EntryInit = MentionEntryInit;
 
 /**
  * What Codex offers the composer (docs/codex-adapter.md, "Wzmianki"), from the app-server without a model turn:
- * - skills: `skills/list` for the thread's folder (scopes: repo, user = $CODEX_HOME/skills and the device owner's
- *   ~/.agents/skills, system = bundled with Codex, admin); disabled ones are left out;
+ * - skills: `skills/list` for the thread's folder (scopes: repo, user = isolated $CODEX_HOME/skills,
+ *   system = bundled with Codex, admin); native path selectors disable the device's ~/.agents/skills;
  * - plugins: installed and enabled ones from `plugin/list` (mention path plugin://<id>, id = name@marketplace);
  * - apps (connectors): `app/list`, only when the worker enables connectors; accessible and enabled ones (app://<id>);
  * - commands: none. Codex's slash commands are features of its TUI, not of turn input; the app-server has methods

@@ -84,6 +84,50 @@ settings. Codex czyta `AGENTS.md` z własnego `CODEX_HOME`; obecność
 Zmiana dotyczy nowych sesji harnessu; już rozpoczęta sesja może mieć wcześniejszy
 prompt. UI nie obiecuje zmiany pamięci już działającego modelu.
 
+### Granica instrukcji wątków
+
+`settingSources` wybiera ustawienia, ale nie stanowi granicy pamięci Claude Code.
+CLI 2.1.308 uruchomione przez SDK 0.3.316 odczytuje także
+`<HOME>/.claude/CLAUDE.md` i nadrzędny `<HOME>/CLAUDE.md` mimo źródeł
+`["project", "local"]` oraz izolowanego `CLAUDE_CONFIG_DIR`.
+Adapter używa udokumentowanego `claudeMdExcludes` w ustawieniach wywołania:
+wyklucza globalne instrukcje i pliki/reguły powyżej korzenia repozytorium lub
+worktree; poza Gitem granicą jest cwd. Dla scratch granicą zawsze jest jego cwd,
+także gdy leży wewnątrz innego repozytorium. Reguły wewnątrz workspace pozostają
+dostępne. Izolowany `CLAUDE.md` też jest wykluczony z automatycznego odczytu:
+zarządzany blok trafia do promptu wyłącznie przez adapter. `HOME`, `USERPROFILE`
+i XDG Claude pozostają bez zmian; nie zmieniamy odkrywania loginu ani Keychain.
+
+Wątki wszystkich trzech dostawców zachowują `HOME`, `USERPROFILE` i XDG urządzenia:
+ich komendy potomne potrzebują konfiguracji git, SSH, gh i innych narzędzi.
+Codex izoluje `CODEX_HOME` i przy starcie app-servera wyłącza znalezione
+`~/.agents/skills/**/SKILL.md` przez `skills.config` z selektorami ścieżek.
+W CLI 0.164.0 samo `features.skip_host_skill_discovery=true` nie wystarcza:
+rozszerzenie skilli nadal żąda odkrywania hosta. Wyłączenia są snapshotem procesu;
+po dodaniu skilli urządzenia wymagany jest restart workera. Skille biblioteki,
+projektu i pluginów pozostają dostępne.
+Grok izoluje `GROK_HOME`, wyłącza źródła zgodności Claude/Cursor i pamięć flagami,
+Codex skills przez `[compat.codex]`, a domowe `.agents` przez `[skills] ignore`.
+Codex scratch ustawia `project_root_markers=[]`,
+aby nie zbierać instrukcji nadrzędnych. Projekty zachowują zwykłe wykrywanie
+korzenia Git. Scratch Groka wymusza folder trust w świeżym prywatnym GROK_HOME bez
+zaufanych projektów, więc nie ładuje też reguł repozytorium obejmującego data dir.
+Instrukcje platformy nadal trafiają przez prompt wątku. Login Codexa nadal pochodzi
+z izolowanego `CODEX_HOME`, a Grok wyznacza bezwzględne `GROK_AUTH_PATH` z oryginalnych
+ustawień instancji. Prywatne HOME pozostaje tylko dla botów bez shella.
+Biblioteka dokumentów obsługuje obecnie Claude/Codex; Grok zachowuje instrukcje
+wątku i własną kontrolę zaufania do folderu projektu.
+
+Test `providers/instruction-isolation.test.ts` przechwytuje rzeczywiste żądania
+trzech CLI do lokalnego endpointu, bez inferencji: scratch/projekt, pusta
+biblioteka/przypisany blok, prywatne pliki i skille wyłącznie w tymczasowym HOME.
+Sprawdza cały request, ponieważ Claude przesyła pamięć także jako kontekst user.
+Test projektu Groka jawnie ufa wyłącznie fixture; produkcyjna kontrola zaufania
+pozostaje włączona. Test `providers/thread-environment.test.ts` sprawdza też,
+że komendy potomne Codexa/Groka widzą HOME/XDG urządzenia i fixture git identity.
+Wcześniejszy kontekst może pozostać w historii istniejącej
+sesji — izolację należy sprawdzać w nowym wątku.
+
 ## Biblioteka i przypisania
 
 Gateway przechowuje bibliotekę **owner-scoped**, identyfikatory UUID, rosnące

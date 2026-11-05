@@ -1,6 +1,7 @@
 import type { Env, ResolvedProfile } from "../profiles.ts";
 import { codexNativeToolOverrides, DEFAULT_NATIVE_TOOL_POLICY, type NativeToolPolicy } from "../native-tools.ts";
 import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
+import { deviceSkillOverrides } from "./skills.ts";
 
 /**
  * Codex runs as one long-lived `codex app-server` per instance (JSON-RPC over stdio).
@@ -37,6 +38,8 @@ export function codexAppServerLaunch(
     ...profileEnv,
     ...(codexHome !== undefined && { CODEX_HOME: codexHome }),
   };
+
+  if (codexHome) command.push(...deviceSkillOverrides(env));
 
   for (const profile of profiles) {
     if (profile.kind !== "cliproxyapi" || !profile.providers.includes("codex")) continue;

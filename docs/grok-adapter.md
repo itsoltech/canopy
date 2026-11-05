@@ -23,6 +23,31 @@ nazwy i grupa starszych wersji: [protocol.md](protocol.md#modele-effort-i-steer)
 
 Grok obsługuje backendy `chat_completions` (domyślnie), `responses`, `messages`. Konfiguracja `[model.<id>]` przyjmuje `model`, `base_url` (z `/v1`), `env_key`, `api_backend`. Per-model `env_key` ma pierwszeństwo przed loginem. `GROK_HOME` zmienia katalog konfiguracji, a `GROK_AUTH_PATH` wskazuje plik loginu. `GROK_CONFIG` jest ograniczoną nakładką JSON: **nie** służy do zmiany endpointów ani auth; nie wkładamy tam sekretów.
 
+Wątki zachowują `HOME`, `USERPROFILE` i XDG, żeby ich shell widział git identity,
+SSH, gh i konfigurację narzędzi. Prywatne `GROK_HOME` odcina globalne `~/.grok/AGENTS.md`.
+Flagi `GROK_{CLAUDE,CURSOR}_{AGENTS,RULES,SKILLS}_ENABLED=0`, `GROK_MEMORY=0`
+i `[compat.codex] skills=false` wyłączają źródła zgodności i pamięć.
+Ponieważ `.agents` jest też natywnym źródłem Groka, `[skills] ignore` wyklucza
+bezwzględną ścieżkę domowego `.agents`. Skille biblioteki pod prywatnym
+`GROK_HOME/skills` pozostają dostępne. Login native wskazuje bezwzględne `GROK_AUTH_PATH`
+wyznaczone z oryginalnych ustawień instancji, także na macOS. Instrukcje wątku i reguły projektu
+pozostają dostępne; kontrola zaufania do folderu Groka nadal obowiązuje.
+Scratch wymusza włączony folder trust w świeżym prywatnym GROK_HOME bez zaufanych
+projektów, więc nie ładuje reguł nadrzędnego repozytorium, nawet gdy data dir leży
+wewnątrz niego i profil wyłącza folder trust dla zwykłych projektów.
+Biblioteka dokumentów Canopy obsługuje obecnie Claude/Codex, nie dokumenty Groka.
+Test `providers/instruction-isolation.test.ts` przechwytuje CLI 1.0.70 z tymczasowym
+HOME urządzenia i lokalnym endpointem; tylko fixture projektu jawnie wyłącza folder trust,
+żeby potwierdzić obecność reguł repozytorium bez zmiany polityki produkcyjnej.
+`providers/thread-environment.test.ts` potwierdza odczyt fixture `~/.gitconfig`
+przez proces potomny ze środowiskiem wątku. Tylko boty bez shella zmieniają HOME.
+Ograniczenie CLI 1.0.70: przełączniki zgodności nie rozdzielają źródeł globalnych
+i projektowych. Wyłączenie Claude/Cursor rules i skills wyłącza też projektowe
+`.claude/rules`, `.cursor/rules` oraz skille tych dostawców. Natywne `.grok/rules`,
+skille `.grok`/`.agents` projektu i repozytoryjne `CLAUDE.md`/`AGENTS.md` pozostają
+dostępne. Samo `CLAUDE_CONFIG_DIR` nie przenosi globalnych reguł Claude czytanych
+przez Groka; nie zastępujemy HOME ze względu na komendy użytkownika.
+
 Instancja CLIProxyAPI używa odizolowanego `GROK_HOME` i konfiguracji modelu z `env_key`, kluczem wyłącznie w env procesu. Nie przekazujemy klucza w argv, logach, repozytorium ani globalnej konfiguracji użytkownika. Tymczasowe pliki mają 0600, katalog 0700; cleanup po zakończeniu procesu. Backend `chat_completions` używa `/v1/chat/completions`, a katalog modeli `/v1/models`. Własny endpoint ma pierwszeństwo przed loginem urządzenia. Guard auth CLI wymaga dodatkowo `XAI_API_KEY` z tym samym kluczem; samo `env_key` nie wystarcza do utworzenia sesji.
 
 ## Boty: budżet i klasyfikacja odpowiedzi

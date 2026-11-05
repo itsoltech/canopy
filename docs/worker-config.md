@@ -498,6 +498,20 @@ Claude dopisuje tylko zarządzany blok do system promptu, zachowując
 `settingSources: ["project", "local"]`. Codex czyta `AGENTS.md` z faktycznego
 `CODEX_HOME`. Lokalne teksty poza blokiem pozostają na urządzeniu; dla platformowego
 Claude nie są częścią dopisanego promptu. Zmiany dotyczą nowych sesji.
+Ponieważ `settingSources` nie blokuje automatycznego odczytu pamięci Claude,
+wątki przekazują dodatkowo `claudeMdExcludes`: globalne instrukcje i pliki powyżej
+repozytorium/worktree (scratch: powyżej cwd) są wykluczone. `HOME` Claude pozostaje
+bez zmian ze względu na logowanie. Wątki Codexa/Groka również zachowują HOME,
+USERPROFILE i XDG, aby shell miał konfigurację git, SSH i narzędzi użytkownika.
+Codex wyłącza znalezione domowe `.agents/skills` przez natywne selektory `skills.config`
+przy starcie app-servera (nowe skille wymagają restartu workera).
+Grok wyłącza źródła zgodności i pamięć flagami, a domowe `.agents` przez `[skills] ignore`.
+Izolowane `CODEX_HOME`/`GROK_HOME` odcinają globalne instrukcje tych CLI.
+Codex scratch wyłącza szukanie korzenia projektu (`project_root_markers=[]`).
+Grok scratch wymusza folder trust w prywatnym GROK_HOME bez zaufanych projektów,
+żeby nie ładować reguł nadrzędnego repozytorium obejmującego data dir.
+Źródła loginu nie zmieniają się: izolowany `CODEX_HOME` i jawne `GROK_AUTH_PATH`.
+Prywatne HOME pozostaje dla botów bez shella.
 Skille negocjują osobną capability `agent_skills_v1`. Claude ładuje zarządzane
 `<actual home>/canopy-environment/skills` jako jawny lokalny plugin bez włączania
 user settings. Codex platformowy czyta `<actual CODEX_HOME>/skills`; osobny cel CLI
