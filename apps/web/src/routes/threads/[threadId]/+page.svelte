@@ -68,7 +68,7 @@
   import ThreadComposerSlot from "#lib/features/threads/components/ThreadComposerSlot.svelte";
   import ThreadMenuItems from "#lib/features/threads/components/ThreadMenuItems.svelte";
   import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
-  import ComputerAwayAlert from "#lib/features/computers/ComputerAwayAlert.svelte";
+  import ComputerAwayBar from "#lib/features/computers/ComputerAwayBar.svelte";
   import { awayReason } from "#lib/features/computers/computers.ts";
 
   let { data }: PageProps = $props();
@@ -532,9 +532,7 @@
     {#if thread?.status === "failed" && thread.statusDetail}
       <Alert tone="error" banner title="The thread failed">{thread.statusDetail}</Alert>
     {/if}
-    {#if away}
-      <ComputerAwayAlert reason={away} />
-    {:else if view.connection === "reconnecting" && overview.connection !== "unavailable"}
+    {#if !away && view.connection === "reconnecting" && overview.connection !== "unavailable"}
       <Alert tone="info" banner>{view.failure ?? "Reconnecting to live updates…"}</Alert>
     {/if}
 
@@ -659,8 +657,12 @@
                 </div>
               {/snippet}
               {#if thread}
+                {#snippet computerStatus()}
+                  {#if away}<ComputerAwayBar computer={overview.computer(thread.nodeId)} reason={away} />{/if}
+                {/snippet}
                 <ThreadComposerSlot {thread} {parent} {compact}>
                   <Composer
+                    status={away ? computerStatus : undefined}
                     {compact}
                     panelsLabel={queue.rows.length > 0 || subagents.length > 0
                       ? `${subagents.length} agents · ${queue.rows.length} queued`

@@ -13,7 +13,7 @@
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
   import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import { awayReason, lastSeen } from "#lib/features/computers/computers.ts";
+  import { awayReason } from "#lib/features/computers/computers.ts";
 
   /**
    * One thread in the inbox: project and status, title, then where it runs with its marks
@@ -56,15 +56,11 @@
       class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5 dark:text-zinc-400"
       >{project?.name ?? "Unknown project"}</span
     >
-    {#if away}
-      <span class="shrink-0" title={away}>{lastSeen(computer)}</span>
-    {:else}
-      <ThreadStatusText
-        {thread}
-        icons={false}
-        class="group-data-calm:opacity-60 pointer-fine:group-focus-within/row:invisible pointer-fine:group-hover/row:invisible"
-      />
-    {/if}
+    <ThreadStatusText
+      {thread}
+      icons={false}
+      class="group-data-calm:opacity-60 pointer-fine:group-focus-within/row:invisible pointer-fine:group-hover/row:invisible"
+    />
   </span>
   <SwapText
     text={thread.title}

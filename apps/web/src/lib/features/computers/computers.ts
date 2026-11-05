@@ -16,9 +16,6 @@ export const sharesThreads = (computer: ui.LinkedComputer): boolean =>
 export const listsThreads = (computer: ui.LinkedComputer): boolean =>
   !computer.relayOrigin && (sharesThreads(computer) || computer.capabilities.includes(THREAD_MIRROR));
 
-export const lastSeen = (computer: ui.LinkedComputer | undefined): string =>
-  computer?.lastSeenMs ? `Last seen ${since(computer.lastSeenMs)}` : "Not synced yet";
-
 /** Connected, but an older Canopy that cannot share threads yet. */
 export const needsThreadUpdate = (computer: ui.LinkedComputer): boolean =>
   !computer.relayOrigin &&
@@ -32,10 +29,38 @@ export const needsMirrorUpdate = (computer: ui.LinkedComputer): boolean =>
 const time = new Intl.DateTimeFormat("en", { timeStyle: "short" });
 const dayTime = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
-function since(ms: bigint): string {
+export function presenceTime(ms: bigint): string {
   const at = new Date(Number(ms));
 
   return (at.toDateString() === new Date().toDateString() ? time : dayTime).format(at);
+}
+
+/** Short presence labels for read-only threads; `awayReason` keeps the full explanation. */
+export function awayStatus(computer: ui.LinkedComputer | undefined): string {
+  if (!computer) return "no longer linked";
+
+  if (computer.relayOrigin) return "access unavailable";
+
+  if (needsThreadUpdate(computer)) return "needs an update";
+
+  if (computer.unavailableReason && sharesThreads(computer)) return "unavailable";
+
+  switch (computer.status) {
+    case "connected":
+      return "reconnecting…";
+    case "needs_update":
+      return "update needed";
+    case "updating":
+      return "updating…";
+    case "sleeping":
+      return "asleep";
+    case "shutting_down":
+      return "offline";
+    case "pairing_required":
+      return "needs pairing";
+    default:
+      return "unreachable";
+  }
 }
 
 /** Why a computer's threads cannot be used right now ("Laptop B is unreachable since 7:42 PM"); undefined when they can. */
@@ -49,7 +74,7 @@ export function awayReason(computer: ui.LinkedComputer | undefined): string | un
 
   if (sharesThreads(computer)) return undefined;
   const name = computerName(computer);
-  const at = computer.statusSinceMs ? since(computer.statusSinceMs) : "";
+  const at = computer.statusSinceMs ? presenceTime(computer.statusSinceMs) : "";
 
   if (needsThreadUpdate(computer)) return `${name} needs an update to share its threads.`;
 
@@ -75,7 +100,7 @@ export function awayReason(computer: ui.LinkedComputer | undefined): string | un
 
 /** "Last changed on Laptop B · 2:41 PM"; this computer's own change names no computer. */
 export function changedLine(item: ui.SharedConfigItem, name: (nodeId: string) => string | undefined): string {
-  const at = item.changedAtMs ? ` · ${since(item.changedAtMs)}` : "";
+  const at = item.changedAtMs ? ` · ${presenceTime(item.changedAtMs)}` : "";
 
   return `Last changed ${item.changedByNodeId ? `on ${name(item.changedByNodeId) ?? "another computer"}` : "on this computer"}${at}`;
 }

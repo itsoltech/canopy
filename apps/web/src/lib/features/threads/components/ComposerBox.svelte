@@ -189,7 +189,7 @@
   <div
     class={[
       "relative rounded-2xl bg-surface shadow-sm ring-1 has-focus-visible:ring-accent dark:shadow-none",
-      disabled && "opacity-70",
+      disabled && "*:opacity-70",
       dragging ? "ring-2 ring-brand-600 dark:ring-brand-500" : "ring-zinc-950/10 dark:ring-white/10",
     ]}
     bind:this={box}
