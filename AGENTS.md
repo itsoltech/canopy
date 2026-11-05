@@ -81,6 +81,7 @@ Short rules for agents working in this repository. Details live in `docs/` (most
 
 ## UI rules
 
+- Controls that appear on state changes (reset buttons, inline actions, badges) must not move existing elements: place them on the side away from the alignment edge or reserve their space.
 - Custom form controls only: no native `select`, radio, range or color inputs. Use the kit in `apps/web/src/lib/shared/ui`.
 - Tailwind v4 pitfall: kit components carry their own positioning/padding classes, which beat conflicting classes you pass via `class`. Wrap the component in an element instead.
 - Motion follows the tokens in `motion.ts` / `motion.css` and respects `prefers-reduced-motion`.

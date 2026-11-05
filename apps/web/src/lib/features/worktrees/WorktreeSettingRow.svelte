@@ -3,6 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
+  import ResettableControl from "#lib/shared/ui/ResettableControl.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { getContext } from "svelte";
   import type { WorktreeField, WorktreeSettingsState } from "./worktree-settings.svelte.ts";
@@ -18,7 +19,7 @@
     overridden,
     inherited,
     onreset,
-    control,
+    control: rowControl,
     class: className,
   }: {
     title: string;
@@ -44,9 +45,16 @@
   );
 </script>
 
-<SettingsRow {title} {description} {control} class={className}>
-  <p class="mt-1 flex flex-wrap items-center gap-x-2 text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400">
-    <span>{overridden ? `Overrides ${inherited}` : "Inherited"} · {sourceLabel}</span>
-    {#if overridden}<Button size="sm" variant="ghost" icon="arrow-uturn-left" onclick={onreset}>Reset</Button>{/if}
+<SettingsRow {title} {description} class={className}>
+  {#snippet control()}
+    <ResettableControl changed={overridden}>
+      {@render rowControl()}
+      {#snippet reset()}<Button size="sm" variant="ghost" icon="arrow-uturn-left" onclick={onreset}>Reset</Button
+        >{/snippet}
+    </ResettableControl>
+  {/snippet}
+  <p class="mt-1 grid text-base/6 wrap-anywhere text-zinc-500 sm:text-sm/5 dark:text-zinc-400">
+    <span class="invisible col-start-1 row-start-1" aria-hidden="true">Overrides {inherited} · {sourceLabel}</span>
+    <span class="col-start-1 row-start-1">{overridden ? `Overrides ${inherited}` : "Inherited"} · {sourceLabel}</span>
   </p>
 </SettingsRow>

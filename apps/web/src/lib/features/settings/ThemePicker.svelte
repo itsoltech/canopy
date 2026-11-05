@@ -6,6 +6,7 @@
   import ThemePreview from "./ThemePreview.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import ResettableControl from "#lib/shared/ui/ResettableControl.svelte";
 
   const settings = useSettings();
   const modes: ThemeMode[] = ["light", "dark"];
@@ -20,19 +21,23 @@
           aria-label="{mode === 'light' ? 'Light' : 'Dark'} theme"
           class="grid content-start gap-2 @2xl:grid-cols-2"
         >
-          <p class="col-span-full flex flex-wrap justify-between gap-x-2 text-base/6 font-medium sm:text-sm/6">
-            <span>{mode === "light" ? "Light" : "Dark"}</span>
-            <span class="text-muted">{themes[themeOf(settings.appearance, mode)].label}</span>
-            {#if themeOf(settings.appearance, mode) !== "birch"}<IconButton
-                icon="arrow-path"
-                size="sm"
-                label="Reset {mode} theme to default"
-                onclick={() =>
-                  settings.updateAppearance(
-                    mode === "light" ? { lightTheme: colorThemes.birch } : { darkTheme: colorThemes.birch },
-                  )}
-              />{/if}
-          </p>
+          <div
+            class="col-span-full flex min-w-0 items-center justify-between gap-2 text-base/6 font-medium sm:text-sm/6"
+          >
+            <p>{mode === "light" ? "Light" : "Dark"}</p>
+            <ResettableControl changed={themeOf(settings.appearance, mode) !== "birch"} align="end">
+              <p class="truncate text-muted">{themes[themeOf(settings.appearance, mode)].label}</p>
+              {#snippet reset()}<IconButton
+                  icon="arrow-path"
+                  size="sm"
+                  label="Reset {mode} theme to default"
+                  onclick={() =>
+                    settings.updateAppearance(
+                      mode === "light" ? { lightTheme: colorThemes.birch } : { darkTheme: colorThemes.birch },
+                    )}
+                />{/snippet}
+            </ResettableControl>
+          </div>
           {#each themeNames as name (name)}
             <OptionTile
               checked={themeOf(settings.appearance, mode) === name}

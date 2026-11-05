@@ -12,6 +12,7 @@
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Kbd from "#lib/shared/ui/Kbd.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
+  import ResettableControl from "#lib/shared/ui/ResettableControl.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
 
   const registry = useCommands();
@@ -38,7 +39,7 @@
       ) ?? "";
   }
 
-  function reset(command: BindingDefinition) {
+  function resetCommand(command: BindingDefinition) {
     const conflict = command.defaults.flatMap((binding) => keybindings.conflicts(command.id, binding, definitions));
 
     if (conflict.length) {
@@ -73,40 +74,44 @@
         <div class="divide-y divide-zinc-950/5 dark:divide-white/10">
           {#each entries as command (command.id)}
             {@const bindings = keybindings.get(command.id, command.defaults)}
-            <div class="flex flex-wrap items-center justify-between gap-3 px-(--settings-row-x) py-(--settings-row-y)">
-              <div class="min-w-0 flex-1 basis-56">
+            <div
+              class="flex flex-col items-start gap-3 px-(--settings-row-x) py-(--settings-row-y) sm:flex-row sm:items-center"
+            >
+              <div class="min-w-0 flex-1">
                 <p class="text-sm/6 font-medium wrap-anywhere">{command.title}</p>
                 <p class="text-sm/5 text-zinc-500">When: {command.when}.</p>
               </div>
-              <div class="flex max-w-full flex-wrap items-center gap-2">
-                {#each bindings as binding, index (binding)}
-                  <div class="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      aria-label={`Edit ${command.title}: ${binding}`}
-                      onclick={() => (editing = { command, index })}><Kbd hotkey={binding} /></Button
-                    ><IconButton
-                      size="sm"
-                      icon="x-mark"
-                      label={`Remove ${command.title}: ${binding}`}
-                      onclick={() => remove(command, index)}
-                    />
-                  </div>
-                {:else}<span class="text-sm text-zinc-500">Unassigned</span>{/each}
-                <IconButton
-                  size="sm"
-                  icon="plus"
-                  label={`Add binding for ${command.title}`}
-                  disabled={bindings.length >= 5}
-                  onclick={() => (editing = { command })}
-                />
-                {#if Object.hasOwn(keybindings.overrides, command.id)}<IconButton
+              <ResettableControl changed={Object.hasOwn(keybindings.overrides, command.id)}>
+                <div class="flex min-w-0 flex-wrap items-center gap-2">
+                  {#each bindings as binding, index (binding)}
+                    <div class="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        aria-label={`Edit ${command.title}: ${binding}`}
+                        onclick={() => (editing = { command, index })}><Kbd hotkey={binding} /></Button
+                      ><IconButton
+                        size="sm"
+                        icon="x-mark"
+                        label={`Remove ${command.title}: ${binding}`}
+                        onclick={() => remove(command, index)}
+                      />
+                    </div>
+                  {:else}<span class="text-sm text-zinc-500">Unassigned</span>{/each}
+                  <IconButton
+                    size="sm"
+                    icon="plus"
+                    label={`Add binding for ${command.title}`}
+                    disabled={bindings.length >= 5}
+                    onclick={() => (editing = { command })}
+                  />
+                </div>
+                {#snippet reset()}<IconButton
                     size="sm"
                     icon="arrow-path"
                     label={`Reset ${command.title} to default`}
-                    onclick={() => reset(command)}
-                  />{/if}
-              </div>
+                    onclick={() => resetCommand(command)}
+                  />{/snippet}
+              </ResettableControl>
             </div>
           {/each}
         </div>
