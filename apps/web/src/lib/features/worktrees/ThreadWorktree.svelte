@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import Button from "#lib/shared/ui/Button.svelte";
   import WorktreeBadge from "./WorktreeBadge.svelte";
 
+  /** The worktree badge as a button (opens Manage worktree). It shrinks with its container and truncates the branch. */
   let {
     worktree,
     onclick,
@@ -11,8 +11,11 @@
   }: { worktree: ui.ThreadWorktree; onclick: () => void; class?: ClassValue } = $props();
 </script>
 
-<div class={["min-w-0", className]}>
-  <Button variant="ghost" size="sm" {onclick} aria-label="Manage worktree">
-    <WorktreeBadge {worktree} class="max-w-48" />
-  </Button>
-</div>
+<button
+  type="button"
+  {onclick}
+  aria-label="Manage worktree"
+  class={["flex min-w-0 rounded-md p-1 focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/5", className]}
+>
+  <WorktreeBadge {worktree} class="max-w-full" />
+</button>
