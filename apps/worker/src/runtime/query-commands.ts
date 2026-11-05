@@ -7,6 +7,7 @@ import { claudeCatalogStamp } from "../providers/claude/catalog.ts";
 import { searchFiles } from "../files/search.ts";
 
 import type { CommandOutput } from "./host-types.ts";
+import { refreshShellEnv } from "../cli-tools/shell-env.ts";
 import type { HostContext } from "./host-context.ts";
 
 export class QueryCommands {
@@ -17,6 +18,8 @@ export class QueryCommands {
 
   async probeProviders(): Promise<CommandOutput> {
     this.ctx.state.accounts.invalidate();
+    // A CLI installed since the worker started may have changed the user's shell profile.
+    await refreshShellEnv();
     await this.ctx.ops.probe();
     void this.ctx.state.cli.report().catch(() => undefined);
 

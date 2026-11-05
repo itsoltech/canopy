@@ -24,7 +24,7 @@ export const pathSeparator = (os: string): string => (os === "win32" ? "\\" : "/
 
 /** "Codex 0.5.1", or why it is not usable. */
 export const providerSummary = (provider: ui.Worker["providers"][number]): string =>
-  `${providerLabel(provider.provider)}${provider.available ? (provider.version ? ` ${provider.version}` : "") : ` unavailable${provider.detail ? `: ${provider.detail}` : ""}`}`;
+  `${providerLabel(provider.provider)}${provider.available ? (provider.version ? ` ${provider.version}` : ", version unknown") : ` unavailable${provider.detail ? `: ${provider.detail}` : ""}`}`;
 
 /** The worker has not applied its latest configuration yet. */
 export const configPending = (worker: ui.Worker): boolean => worker.appliedVersion < worker.configVersion;

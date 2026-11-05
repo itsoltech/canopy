@@ -4,7 +4,7 @@
   import Badge from "#lib/shared/ui/Badge.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
 
-  /** Where a CLI stands: installing, failed, behind the latest release, or current (nothing when it cannot tell). */
+  /** Where a CLI stands: installing, failed, behind the latest release, or current (nothing when it cannot tell, e.g. an unknown version). */
   let { item, class: className }: { item: ui.WorkerCliTool; class?: ClassValue } = $props();
   const tool = $derived(item.tool!);
 
@@ -23,7 +23,7 @@
         ? "failed"
         : item.updateAvailable
           ? "update"
-          : installed && item.latest?.version && !item.latest.error
+          : installed && tool.version && item.latest?.version && !item.latest.error
             ? "current"
             : "",
   );

@@ -5,9 +5,10 @@
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import ActionNote from "./ActionNote.svelte";
+  import CliAlternatives from "./CliAlternatives.svelte";
   import CliStateBadge from "./CliStateBadge.svelte";
   import InlineCommand from "./InlineCommand.svelte";
-  import { cliActions, cliLabel, methodLabel, sentence } from "./cli-tools.svelte.ts";
+  import { cliActions, cliLabel, methodLabel, sentence, versionProblem } from "./cli-tools.svelte.ts";
 
   /** One provider CLI on a worker: version and install method, update state, and the one action allowed. */
   let {
@@ -52,6 +53,9 @@
         >
           {where}
         </p>{/if}
+      {#if installed && tool.versionError}<p class="text-sm/5 text-pretty break-words text-zinc-500 dark:text-zinc-400">
+          {versionProblem(tool)}. Fix it on the computer, then check for updates.
+        </p>{/if}
       {#if item.latest?.error}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
           Couldn't check for updates: {item.latest.error}.
         </p>{/if}
@@ -83,6 +87,7 @@
     <p class="text-sm/5 text-pretty break-words text-zinc-500 dark:text-zinc-400">{sentence(tool.detail)}</p>
   {/if}
   {#if manual}<InlineCommand text={manual} />{/if}
+  <CliAlternatives alternatives={tool.alternatives} />
 
   <ActionNote
     error={actions.errors[key] ||

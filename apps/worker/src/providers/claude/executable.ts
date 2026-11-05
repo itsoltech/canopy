@@ -5,12 +5,8 @@ export function claudeExecutable(
   configured?: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): string {
-  // Same lookup as discovery: PATH, then where the official installers put the CLI.
-  const executable =
-    configured ||
-    findCli("claude", env["HOME"] || undefined, undefined, (command) =>
-      Bun.which(command, { PATH: env["PATH"] ?? "" }),
-    );
+  // Same lookup as discovery: the copy it chose, else PATH, else the package managers' places.
+  const executable = configured || findCli("claude", env["HOME"] || undefined, undefined, undefined, env);
 
   if (!executable) throw new Error("Claude Code is not installed on this computer");
 

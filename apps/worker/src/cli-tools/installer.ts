@@ -276,7 +276,7 @@ export async function runInstall(input: InstallInput): Promise<InstallOutcome> {
 
   if (
     after.version !== before.version &&
-    (before.method === CliInstallMethod.NPM || before.method === CliInstallMethod.BUN)
+    [CliInstallMethod.NPM, CliInstallMethod.BUN, CliInstallMethod.VOLTA, CliInstallMethod.PNPM].includes(before.method)
   ) {
     try {
       const plan = planRecipe(before, before.version, tools);

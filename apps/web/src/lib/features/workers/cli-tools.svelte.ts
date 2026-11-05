@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { CliInstallMethod, Provider, ui } from "@canopy/contracts";
+import { CliInstallMethod, Provider, ui, type CliTool } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 
@@ -18,6 +18,9 @@ const METHOD_LABELS = new Map([
   [CliInstallMethod.NATIVE, "Native installer"],
   [CliInstallMethod.NPM, "npm global"],
   [CliInstallMethod.BUN, "Bun global"],
+  [CliInstallMethod.VOLTA, "Volta"],
+  [CliInstallMethod.PNPM, "pnpm global"],
+  [CliInstallMethod.YARN, "Yarn global"],
   [CliInstallMethod.HOMEBREW, "Homebrew"],
   [CliInstallMethod.MISE, "mise"],
   [CliInstallMethod.ASDF, "asdf"],
@@ -27,6 +30,12 @@ const METHOD_LABELS = new Map([
 ]);
 
 export const methodLabel = (method: CliInstallMethod): string => METHOD_LABELS.get(method) ?? "Unknown";
+
+const fileName = (path: string): string => path.split(/[\\/]/).at(-1) || path;
+
+/** Why the worker can't tell the version: `<file> --version` failed (empty when it ran). */
+export const versionProblem = (tool: CliTool): string =>
+  tool.versionError ? `Couldn't run ${fileName(tool.path)} --version: ${tool.versionError}` : "";
 
 /** Workers that can update a provider now, and the version they would get. */
 export function providerUpdates(

@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { CliInstallMethod } from "@canopy/contracts";
 import type { DiscoveredCli } from "./discovery.ts";
+import type { Env } from "./shell-env.ts";
 
 /**
  * Fixed install/update recipes per provider and install method (docs/provider-cli.md). The UI only picks a provider
@@ -32,7 +33,19 @@ export const validTarget = (version: string): boolean => version === "latest" ||
 export interface RecipeTools {
   readonly platform: NodeJS.Platform;
   readonly home: string;
+  /** BUN_INSTALL, VOLTA_HOME, PNPM_HOME: where a manager keeps its own executable. */
+  readonly env?: Env;
   which(command: string): string | null;
+}
+
+/** A package manager's executable: PATH (or discovery's places), else its own home directory. */
+function managerOf(tools: RecipeTools, command: string, homes: readonly (string | undefined)[]): string | null {
+  const found = tools.which(command);
+
+  if (found) return found;
+  const exe = tools.platform === "win32" ? `${command}.exe` : command;
+
+  return homes.map((dir) => dir && join(dir, exe)).find((p): p is string => Boolean(p && existsSync(p))) ?? null;
 }
 
 export function planRecipe(cli: DiscoveredCli, version: string, tools: RecipeTools): RecipePlan {
@@ -48,8 +61,10 @@ export function planRecipe(cli: DiscoveredCli, version: string, tools: RecipeToo
   };
 
   const bun = () =>
-    tools.which("bun") ??
-    (existsSync(join(tools.home, ".bun", "bin", "bun")) ? join(tools.home, ".bun", "bin", "bun") : null);
+    managerOf(tools, "bun", [
+      tools.env?.["BUN_INSTALL"] && join(tools.env["BUN_INSTALL"], "bin"),
+      join(tools.home, ".bun", "bin"),
+    ]);
 
   switch (cli.method) {
     case CliInstallMethod.DOCKER:
@@ -107,6 +122,27 @@ export function planRecipe(cli: DiscoveredCli, version: string, tools: RecipeToo
       return { recipe: { kind: "run", argv: [runtime, "add", "--global", pkg] } };
     }
 
+    case CliInstallMethod.VOLTA: {
+      const volta = managerOf(tools, "volta", [
+        tools.env?.["VOLTA_HOME"] && join(tools.env["VOLTA_HOME"], "bin"),
+        join(tools.home, ".volta", "bin"),
+      ]);
+
+      if (!volta) return { managedBy: "Volta", manualCommand: `volta install ${pkg}`, detail: "volta was not found." };
+
+      return { recipe: { kind: "run", argv: [volta, "install", pkg] } };
+    }
+
+    case CliInstallMethod.PNPM: {
+      const pnpm = managerOf(tools, "pnpm", [tools.env?.["PNPM_HOME"]]);
+
+      if (!pnpm) return { managedBy: "pnpm", manualCommand: `pnpm add -g ${pkg}`, detail: "pnpm was not found." };
+
+      return { recipe: { kind: "run", argv: [pnpm, "add", "--global", pkg] } };
+    }
+
+    case CliInstallMethod.YARN:
+      return { managedBy: "Yarn", manualCommand: `yarn global add ${pkg}` };
     case CliInstallMethod.NOT_INSTALLED: {
       // The official user-level installer, into the home directory.
       if (spec.script && posix)

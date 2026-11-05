@@ -8,6 +8,9 @@ CLI **Claude Code (`claude`), Codex (`codex`) i Grok (`grok`)** muszą być już
 zainstalowane na komputerze workera. Dotyczy to desktopu, samodzielnych binarek
 i Dockera. Canopy ich nie zawiera, nie pobiera i nie aktualizuje. Użytkownik
 zapewnia wersję, login oraz PATH usługi albo ścieżkę pliku wykonywalnego instancji.
+Worker sam dobiera PATH z powłoki logowania użytkownika (`$SHELL -l -i -c`, raz na start) i szuka CLI także
+w miejscach Bun, Volta, npm, pnpm, Yarn, nvm/fnm, mise/asdf i Homebrew; kolejność, pierwszeństwo zmiennych
+i wybór działającej kopii opisuje [provider-cli.md](provider-cli.md#wykrywanie-na-workerze).
 W Dockerze CLI trzeba zamontować lub dodać do własnego obrazu; instalacja CLI
 na hoście nie udostępnia go automatycznie w kontenerze.
 

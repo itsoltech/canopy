@@ -43,23 +43,94 @@ workerów pozostają widoczne. Linie postępu są tylko w pamięci gatewaya (ost
 
 ## Wykrywanie na workerze
 
-- Plik wykonywalny: `executable_path` z konfiguracji dostawcy, inaczej `PATH`, inaczej znane miejsca w katalogu
-  domowym (`~/.local/bin`, `~/.bun/bin`, `~/.claude/local`, `~/.grok/bin`). Te same miejsca uzupełniają teraz
-  `which` przy uruchamianiu dostawców — usługa systemd/launchd często nie ma `~/.local/bin` w `PATH`.
-  Ścieżki z instancji (`ProviderProfileConfig.executable_path`) nie są osobno raportowane.
-- Wersja: pierwsza linia `--version` (asynchronicznie, limit 10 s).
-- Sposób instalacji wg rzeczywistej ścieżki (po symlinkach), w tej kolejności:
+Kod: `apps/worker/src/cli-tools/shell-env.ts` (środowisko powłoki), `locations.ts` (miejsca), `managers.ts`
+(menedżer), `discovery.ts` (wybór i sonda wersji). Test: `tests/integration/cli-discovery.test.ts`.
 
-| Metoda | Rozpoznanie |
-|---|---|
-| `DOCKER` | worker w kontenerze (`CANOPY_INSTALL_KIND=docker`, `/.dockerenv`, `/run/.containerenv`) |
-| `MISE` / `ASDF` | `…/mise/installs/<narzędzie>/…`, `…/mise/shims/…` (narzędzie z `mise which`), `~/.asdf/installs|shims` |
-| `HOMEBREW` | `…/Cellar/<formuła>/…`, `…/Caskroom/<cask>/…`, `/opt/homebrew`, `/home/linuxbrew/.linuxbrew` |
-| `NATIVE` | Claude: `~/.local/share/claude/versions/…`; Grok: `~/.grok/bin|downloads/…` |
-| `BUN` | `~/.bun/install/global/…` |
-| `NPM` | `<prefix>/lib/node_modules/<pakiet>/…` (Windows: `<prefix>/node_modules/…`); prefiks jest zapamiętany |
-| `OTHER` | cokolwiek innego |
-| `NOT_INSTALLED` | brak pliku |
+### Środowisko powłoki logowania
+
+Worker uruchomiony z aplikacji desktop (macOS: z GUI, bez PATH z profilu powłoki), launchd albo systemd nie widzi
+tego, co dopisuje profil użytkownika: `~/.bun/bin`, `~/.volta/bin`, shimów nvm/fnm/mise/asdf, prefiksu npm. Dlatego
+`main.ts` raz na start procesu uruchamia `$SHELL -l -i -c` (przez governor, rodzaj `probe`, limit 8 s, stdin pusty,
+`TERM=dumb`). Powłoka uruchamia `/bin/sh`, który wypisuje między dwoma losowymi znacznikami pary `nazwa=wartość`
+rozdzielone bajtem NUL. Szum z plików startowych (powitania, prompt, sekwencje ANSI) przed i po znacznikach jest
+pomijany, a wartość wieloliniowa nie podszyje się pod inną zmienną. Powłoka nie dostaje zmiennych `CANOPY_*` ani
+zmiennych o nazwach jak token/secret/password/api key/auth.
+
+Brana jest tylko lista: `PATH`, `BUN_INSTALL`, `VOLTA_HOME`, `PNPM_HOME`, `NVM_DIR`, `NVM_BIN`, `FNM_DIR`,
+`FNM_MULTISHELL_PATH`, `MISE_DATA_DIR`, `ASDF_DIR`, `ASDF_DATA_DIR`, `NPM_CONFIG_PREFIX`, `npm_config_prefix`,
+`NPM_CONFIG_USERCONFIG`, `HOMEBREW_PREFIX`, `N_PREFIX`. Pierwszeństwo:
+
+1. `PATH`: najpierw wpisy powłoki logowania, potem wpisy procesu workera, których tam nie było (bez duplikatów).
+2. Pozostałe zmienne: wartość procesu workera wygrywa; wartość powłoki uzupełnia tylko brakujące.
+3. Gdy w `PATH` nie ma `node`, worker dopisuje **na końcu** pierwszy katalog ze znanych miejsc, w którym `node`
+   jest (Volta, nvm, fnm, Homebrew…). Shimy JS (`#!/usr/bin/env node`) z npm, Bun, pnpm i Yarn wtedy działają, a
+   własny `node` użytkownika nadal wygrywa.
+
+Wynik trafia do `process.env`, więc te same `PATH` i zmienne widzą wykrywanie, sondy `--version`, instalatory i
+procesy harnessów. Ponowne zapytanie powłoki: `ProbeProviders` („Check for updates”), najwyżej raz na minutę.
+Bez powłoki (Windows, Docker, brak `$SHELL`, `CANOPY_LOGIN_SHELL_ENV=0`), po błędzie albo po przekroczeniu limitu
+worker działa na własnym środowisku i znanych miejscach. Wykrywanie czeka na wynik, zanim sprawdzi CLI.
+
+### Kolejność szukania
+
+`executable_path` z konfiguracji dostawcy wygrywa i jest jedyną kandydatką. Inaczej worker zbiera pliki o nazwie
+CLI (do 8, także zepsute symlinki; bez bitu wykonywania są pomijane) w tej kolejności:
+
+1. `PATH` (po scaleniu: powłoka logowania, potem proces workera).
+2. `~/.local/bin` (Claude: także `~/.claude/local`; Grok: `~/.grok/bin`).
+3. Bun: `$BUN_INSTALL/bin`, `~/.bun/bin`.
+4. Volta: `$VOLTA_HOME/bin`, `~/.volta/bin`.
+5. pnpm: `$PNPM_HOME`, `~/Library/pnpm` (macOS) albo `${XDG_DATA_HOME:-~/.local/share}/pnpm`.
+6. npm: `<prefix>/bin` dla `$NPM_CONFIG_PREFIX`, `$npm_config_prefix` i `prefix=` z `~/.npmrc`
+   (albo `$NPM_CONFIG_USERCONFIG`; plik jest czytany, npm nie jest uruchamiany), potem `~/.npm-global/bin`.
+7. Yarn: `~/.yarn/bin`, `${XDG_CONFIG_HOME:-~/.config}/yarn/global/node_modules/.bin`.
+8. nvm: `$NVM_BIN`, trzy najnowsze `~/.nvm/versions/node/*/bin`; fnm: `$FNM_MULTISHELL_PATH/bin`,
+   `aliases/default/bin` w `$FNM_DIR`, `~/.local/share/fnm` i `~/Library/Application Support/fnm`.
+9. Shimy mise (`$MISE_DATA_DIR/shims`, `~/.local/share/mise/shims`) i asdf (`$ASDF_DATA_DIR/shims`, `~/.asdf/shims`).
+10. Homebrew: `$HOMEBREW_PREFIX/bin`, `/opt/homebrew/bin` (Apple Silicon), `/usr/local/bin` (Intel),
+    `/home/linuxbrew/.linuxbrew/bin`, `~/.linuxbrew/bin`.
+
+Windows (bez zmian w zachowaniu, tylko `<cli>.exe`): `PATH`, `%APPDATA%\npm`, `%VOLTA_HOME%\bin`,
+`%LOCALAPPDATA%\Volta\bin`, `~/scoop/shims`, Bun, `%PNPM_HOME%`, `~/.local/bin`.
+
+**Wybór:** kandydaci są sprawdzani po kolei przez `<plik> --version` (governor: ≤2 naraz, cache 60 s; ten sam klucz
+dla raportu CLI i konfiguracji). Pierwsza kopia, która odpowie, wygrywa, więc działająca kopia z Bun wygrywa ze
+starą kopią Homebrew wcześniej w `PATH`; przy kilku działających wygrywa ta, którą wskazuje powłoka. Gdy żadna nie
+działa, worker używa pierwszej istniejącej i raportuje błąd. Zwykle wystarcza jedna sonda na CLI; dalszych kopii
+worker nie uruchamia. Pozostałe kopie idą w `CliTool.alternatives` (ścieżka, ścieżka po symlinkach, metoda, wersja
+lub problem: błąd `--version`, „points to a missing file”); kopie o tej samej ścieżce rzeczywistej są pomijane.
+Sam zepsuty symlink to `NOT_INSTALLED` z informacją w `detail`.
+
+**Wersja:** pierwsza linia `--version` (limit 10 s, 64 KiB, `NO_COLOR=1`). Błąd idzie w `CliTool.version_error`:
+pierwsza linia stderr (np. `env: node: No such file or directory`), kod wyjścia albo przekroczony limit. UI pokazuje
+„Couldn't run codex --version: …”. Przy nieznanej wersji nie ma odznaki „Up to date” ani przycisku aktualizacji.
+
+**Jedno źródło:** raport CLI (`CliToolsReport`), lista Agents (`ConfigApplied.providers`, `prepareSystemProbe`) i
+centrum aktualizacji używają tego samego wyboru i tej samej sondy. Harness uruchamia wybraną kopię
+(`findCli` zwraca ją, dopóki istnieje). Ścieżki z instancji (`ProviderProfileConfig.executable_path`) nie są osobno
+raportowane.
+
+### Sposób instalacji
+
+Decyduje rzeczywista ścieżka (po symlinkach), typ shimu i ścieżka pakietu zapisana w shimie skryptowym, w tej
+kolejności. Sam prefiks nie decyduje: `npm i -g` z node z Homebrew instaluje do `/opt/homebrew/lib/node_modules`.
+
+| Metoda | Rozpoznanie | Aktualizacja |
+|---|---|---|
+| `DOCKER` | worker w kontenerze (`CANOPY_INSTALL_KIND=docker`, `/.dockerenv`, `/run/.containerenv`) | obraz |
+| `MISE` / `ASDF` | `…/mise/installs/<narzędzie>/…`, `…/mise/shims/…` (narzędzie z `mise which`), `~/.asdf/installs|shims` | `mise upgrade …` / `asdf install …` |
+| `HOMEBREW` | `…/Cellar/<formuła>/…`, `…/Caskroom/<cask>/…` | `brew upgrade [--cask] <nazwa>` |
+| `NATIVE` | Claude: `~/.local/share/claude/versions/…`; Grok: `~/.grok/bin|downloads/…` | własny updater / skrypt |
+| `VOLTA` | link do `volta-shim`, `…/.volta/tools/image/…`, `$VOLTA_HOME/tools/image/…` | `volta install <pakiet>@<w>` |
+| `BUN` | `~/.bun/install/global/…`, `$BUN_INSTALL/install/global/…`, shim z tą ścieżką | `bun add -g <pakiet>@<w>` |
+| `PNPM` | `…/pnpm/global/…`, `…/.pnpm/…`, shim skryptowy w `$PNPM_HOME` z `global/5/node_modules/<pakiet>` | `pnpm add -g <pakiet>@<w>` |
+| `YARN` | `…/yarn/global/node_modules/…` | ręcznie: `yarn global add <pakiet>@<w>` |
+| `NPM` | `<prefix>/lib/node_modules/<pakiet>/…` (Windows: `<prefix>/node_modules/…`), także pod prefiksem Homebrew, nvm i fnm; prefiks jest zapamiętany | `<prefix>/bin/npm install -g --prefix <prefix> …` |
+| `HOMEBREW` | reszta pod `/opt/homebrew`, `/home/linuxbrew/.linuxbrew`, `/usr/local/Homebrew` | `brew upgrade <nazwa>` |
+| `OTHER` | cokolwiek innego | ręcznie |
+| `NOT_INSTALLED` | brak działającego pliku | instalacja |
+
+Starszy gateway nie zna `VOLTA`/`PNPM`/`YARN`: pokazuje „Unknown”, a akcję wylicza z `installable` workera.
 
 Raport idzie po każdym połączeniu, po `ProbeProviders` („Check for updates”), po każdej instalacji
 i zgodnie z efektywnym `WorkerConfig.cli_update_check_minutes` (domyślnie 360; 0 wyłącza timer).
@@ -98,7 +169,10 @@ tablica argv albo oficjalny skrypt instalatora pobrany z jego stałego adresu HT
 |---|---|---|---|
 | `NATIVE` | `claude install <wersja>` (własny updater) | — | `https://x.ai/cli/install.sh [wersja]` (POSIX) |
 | `NPM` | `<prefix>/bin/npm install --global --prefix <prefix> @anthropic-ai/claude-code@<w>` | to samo z `@openai/codex` | to samo z `@xai-official/grok` |
-| `BUN` | `bun add --global <pakiet>@<w>` | jw. | jw. |
+| `BUN` | `<bun> add --global <pakiet>@<w>` (`bun` z PATH, `$BUN_INSTALL/bin`, `~/.bun/bin`) | jw. | jw. |
+| `VOLTA` | `<volta> install <pakiet>@<w>` (`volta` z PATH, `$VOLTA_HOME/bin`, `~/.volta/bin`) | jw. | jw. |
+| `PNPM` | `<pnpm> add --global <pakiet>@<w>` (`pnpm` z PATH, `$PNPM_HOME`) | jw. | jw. |
+| `YARN` | brak przycisku: „Managed by Yarn” + `yarn global add <pakiet>@<w>` | | |
 | `NOT_INSTALLED` | `https://claude.ai/install.sh [wersja]` (POSIX, do `~/.local`) | `npm install --global --prefix ~/.local @openai/codex@<w>`, bez npm: `bun add -g` | `https://x.ai/cli/install.sh [wersja]` (POSIX, do `~/.grok/bin`) |
 | `HOMEBREW` | brak przycisku: „Managed by Homebrew — update it there” + `brew upgrade --cask claude-code` / `brew upgrade <formuła>` | | |
 | `MISE` / `ASDF` | brak przycisku: `mise upgrade <narzędzie>` / `asdf install <plugin> latest` | | |
@@ -111,7 +185,7 @@ bash nie działają. Przepisy macOS i Windows nie były sprawdzone na prawdziwyc
 ## Zasady bezpieczeństwa
 
 - **Egzekwuje gateway**, nie UI: tylko właściciel workera (`workers.owner_user_id`; cudzy i współdzielony worker =
-  `NotFound`), worker online z `cli_install`, metoda z przepisem (Homebrew, mise, asdf, Docker i `OTHER` są
+  `NotFound`), worker online z `cli_install`, metoda z przepisem (Homebrew, mise, asdf, Yarn, Docker i `OTHER` są
   odrzucane niezależnie od tego, co zgłosił worker), brak trwających tur dostawcy, jedna instalacja naraz.
   Każde uruchomienie trafia do `audit_log` (`worker.cli.install`: dostawca, wersja, poprzednia, metoda).
 - **Trwające tury: odmowa.** Gateway (tury `running` w bazie) i worker (własne tury i tury właśnie przyjmowane)
@@ -121,7 +195,7 @@ bash nie działają. Przepisy macOS i Windows nie były sprawdzone na prawdziwyc
   zmianie wersji restartuje się, gdy nie ma trwających tur.
 - **Brak połowicznej instalacji w użyciu.** Po przepisie nowy plik musi odpowiedzieć na `--version` (z żądaną
   wersją, jeśli była dokładna). Inaczej worker przywraca poprzednią: symlink natywnego launchera (atomowy
-  `rename`), a dla npm/Bun ponowna instalacja poprzedniej wersji tym samym przepisem. Błąd brzmi np. „the installer
+  `rename`), a dla npm/Bun/Volta/pnpm ponowna instalacja poprzedniej wersji tym samym przepisem. Błąd brzmi np. „the installer
   exited with code 1; 0.160.0 is still in use”. Limit 10 minut (SIGTERM, po 5 s SIGKILL).
 - **Sekrety.** Instalator działa bez zmiennych `CANOPY_*` i o nazwach jak token/secret/password/api key/auth;
   linie wyjścia są redagowane (ANSI, dane w URL, `Bearer`, `sk-…`, `ghp_…`, `token=…`, wartości usuniętych
@@ -137,3 +211,5 @@ bash nie działają. Przepisy macOS i Windows nie były sprawdzone na prawdziwyc
 - Opcjonalna „automatyczna aktualizacja” per worker (wyłączona domyślnie; dziś każda instalacja wymaga kliknięcia).
 - Raportowanie plików wykonywalnych ustawionych w instancjach dostawców, przepisy Windows (`install.ps1`) i
   sprawdzenie przepisów na macOS.
+- Sprawdzenie na prawdziwym macOS: powłoka logowania z aplikacji desktop (zsh z oh-my-zsh/powerlevel10k, fish),
+  shimy Volta i pnpm, `npm i -g` z node z Homebrew; Windows: npm/Volta/scoop.

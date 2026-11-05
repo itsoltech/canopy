@@ -21,35 +21,44 @@ import {
   type ProfileStatus,
   type ProviderProfileConfig,
 } from "../providers/index.ts";
-import { findCli } from "../cli-tools/discovery.ts";
-import { processKey, runProcess } from "@canopy/process-governor";
+import { CLIS, discoverCli, findCli, systemCliProbe, type CliProbe } from "../cli-tools/discovery.ts";
+import { shellEnvReady } from "../cli-tools/shell-env.ts";
 
-/** Async preparation keeps configuration validation synchronous and test probes deterministic. */
-export async function prepareSystemProbe(config: WorkerConfig): Promise<DeviceProbe> {
-  const executables = new Set<string>();
-
-  for (const name of ["claude", "codex", "grok"] as const) {
-    const executable = config[name]?.executablePath || findCli(name);
-
-    if (config[name]?.enabled && executable) executables.add(executable);
-  }
-
-  for (const profile of config.profiles) if (profile.executablePath) executables.add(profile.executablePath);
+/**
+ * Async preparation keeps configuration validation synchronous and test probes deterministic. The provider CLIs are
+ * found exactly as the CLI report finds them (same copy, same version probe, shared through the governor's cache).
+ */
+export async function prepareSystemProbe(
+  config: WorkerConfig,
+  cliProbe: CliProbe = systemCliProbe(false),
+): Promise<DeviceProbe> {
+  await shellEnvReady();
+  const chosen = new Map<string, string>();
   const versions = new Map<string, string | undefined>();
-  await Promise.all(
-    [...executables].map(async (executable) => {
-      const command = { argv: [executable, "--version"], timeoutMs: 10_000, maxBytes: 64 * 1024 };
 
-      try {
-        const result = await runProcess(command, { kind: "probe", key: processKey(command), ttlMs: 60_000 });
-        versions.set(executable, result.code === 0 ? result.stdout.trim().split("\n")[0] : undefined);
-      } catch {
-        versions.set(executable, undefined);
-      }
+  await Promise.all(
+    CLIS.map(async (spec) => {
+      const found = await discoverCli(spec, config[spec.name]?.executablePath || undefined, cliProbe);
+
+      if (!found.path) return;
+      chosen.set(spec.name, found.path);
+      versions.set(found.path, found.version || undefined);
     }),
   );
 
-  return { ...systemProbe, version: (executable) => versions.get(executable) };
+  const own = config.profiles.map((p) => p.executablePath).filter((p) => p && !versions.has(p));
+  await Promise.all(
+    [...new Set(own)].map(async (executable) => {
+      const result = await cliProbe.version(executable);
+      versions.set(executable, "line" in result ? result.line : undefined);
+    }),
+  );
+
+  return {
+    ...systemProbe,
+    which: (command) => chosen.get(command) ?? null,
+    version: (executable) => versions.get(executable),
+  };
 }
 
 /**

@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { Provider, type ui } from "@canopy/contracts";
+  import { CliInstallMethod, Provider, type ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import UpdateItem from "./UpdateItem.svelte";
   import { cliCurrent } from "./compact-updates.ts";
-  import { cliActions, cliLabel } from "./cli-tools.svelte.ts";
+  import { cliActions, cliLabel, versionProblem } from "./cli-tools.svelte.ts";
 
   let {
     worker,
@@ -22,14 +22,20 @@
     cli.errors[key] || (tool?.install?.state === "failed" ? tool.install.error : "") || item.latest?.error || "",
   );
 
-  const detail = $derived(item.blockedReason || error || item.managedBy || tool?.detail || "");
+  const installed = $derived(
+    !!tool && tool.method !== CliInstallMethod.NOT_INSTALLED && tool.method !== CliInstallMethod.UNSPECIFIED,
+  );
+
+  const detail = $derived(
+    item.blockedReason || error || (tool && versionProblem(tool)) || item.managedBy || tool?.detail || "",
+  );
 </script>
 
 {#if tool}
   <UpdateItem
     name={`${cliLabel(tool.provider)} · ${worker.name}`}
     icon="command-line"
-    current={tool.version || "Not installed"}
+    current={tool.version || (installed ? "" : "Not installed")}
     target={item.latest?.version}
     status={busy
       ? "Installing"
