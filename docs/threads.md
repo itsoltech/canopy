@@ -7,7 +7,7 @@
 i `PermissionPicker` co nowy wątek. Fokus trafia do wiadomości; Escape oraz „Back”
 wracają do wątku głównego. Escape w otwartym pickerze najpierw zamyka picker.
 
-Kontekst „Side thread of …” prowadzi do rodzica, a „Same directory on …” podaje komputer.
+Breadcrumb nad stroną pokazuje projekt, wątek główny (link) i „New side thread”; „Same directory on …” podaje komputer.
 Długie nazwy są ucinane; podpowiedź pokazuje pełny komputer, projekt, katalog i gałąź worktree.
 Projekt, komputer, workspace, worktree oraz gałąź bazowa nie mają pickerów: ten przepływ
 zawsze używa miejsca wątku głównego. Dostawca i instancja pochodzą z rodzica także w BFF;

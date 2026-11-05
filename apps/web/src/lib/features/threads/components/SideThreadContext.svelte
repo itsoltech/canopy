@@ -28,14 +28,6 @@
 
 <div class={["grid min-w-0 justify-items-center gap-3", className]}>
   <h1 class="text-3xl font-medium tracking-tight text-balance text-zinc-950 dark:text-white">New side thread</h1>
-  <a
-    href="/threads/{encodeURIComponent(main.id)}"
-    class="flex max-w-full min-w-0 items-center gap-1.5 rounded-sm text-base/6 text-zinc-600 focus-ring hover:text-zinc-950 sm:text-sm/6 dark:text-zinc-400 dark:hover:text-white"
-    {@attach tooltip(main.title || "Untitled thread")}
-  >
-    <span class="shrink-0">Side thread of</span>
-    <span class="truncate font-medium">{main.title || "Untitled thread"}</span>
-  </a>
   <p class="flex max-w-full min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 dark:text-zinc-400">
     <Icon name="computer-desktop" class="shrink-0" />
     <span class="shrink-0">Same directory on</span>
