@@ -45,6 +45,7 @@
   import { isSide, treeOf } from "#lib/features/threads/thread-tree.ts";
   import { isTerminal, topLevelEntry } from "#lib/features/threads/timeline.ts";
   import { WorkFolds, type FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
+  import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
   import { FeedBuilder, feedEstimate, feedGroup, feedInserted, type FeedRow } from "#lib/features/threads/feed.ts";
   import TurnRail from "#lib/features/threads/rail/TurnRail.svelte";
   import { railTurns } from "#lib/features/threads/rail/turn-rail.ts";
@@ -411,8 +412,16 @@
   }
 
   $effect.pre(() => {
-    const turns = view.ownTurns;
-    untrack(() => folds.update(turns, view.ownEntries, view.notices, feed));
+    const turns = [...view.inheritedTurns, ...view.ownTurns];
+    const entries = [...view.inheritedEntries, ...view.ownEntries];
+    const notices = view.notices;
+
+    const preferences = {
+      expandWhileWorking: device.values.workWhileWorking === "expanded",
+      keepAfterTurn: device.values.workAfterTurn === "keep-open",
+    };
+
+    untrack(() => folds.update(turns, entries, notices, feed, preferences));
   });
 
   $effect.pre(() => {

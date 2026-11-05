@@ -32,6 +32,8 @@ bez zmian. Opcja wyboru bez działania jest wyłączona z opisem „Soon”.
 | General / Display | Time format | urządzenie | System | Godziny w znacznikach czasu web/desktop: system, 12h lub 24h |
 | General / Display | Time zone | konto, odczyt z urządzenia | IANA urządzenia, fallback UTC | Istniejąca synchronizacja dla botów i harmonogramów; przeniesiona z Appearance, bez zmiany semantyki |
 | Threads / Thread details | Show finished subagents | urządzenie | Off | Zakończeni tylko w liczniku; On pokazuje ostatnie 10 minut i starszych pod Previous subagents. Reset przywraca Off; sidebar zawsze ukrywa subagentów |
+| Threads / Turn activity | While working | urządzenie | Expanded | Rozwinięta lub zwinięta praca podczas tury; Expanded pokazuje postęp, podsumowania rozumowania i narzędzia. Ręczny wybór foldu ma pierwszeństwo; osobny reset |
+| Threads / Turn activity | After the turn | urządzenie | Collapse | Collapse zamyka pracę przy niepustej odpowiedzi oznaczonej final_answer, a bez wiarygodnej fazy przy końcu tury; Keep open zostawia ją rozwiniętą. Czytana praca i ręczny wybór pozostają zachowane; osobny reset |
 | Appearance / Colors | Color scheme; Light theme; Dark theme | konto | System; Birch; Birch | Pełne palety, w tym Ash, niezależne dla obu trybów |
 | Appearance / Interface | Contrast | urządzenie | Standard | Wzmocnienie kontrastu tekstu pomocniczego i obrysów w obu schematach |
 | Appearance / Interface | Thread width | konto | Comfortable | Szerokość wątku i kompozytora |
