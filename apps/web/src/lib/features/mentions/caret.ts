@@ -101,6 +101,45 @@ export function lineBeforeCaret(root: HTMLElement): string | undefined {
   return line.slice(line.lastIndexOf("\n") + 1);
 }
 
+/** The chip right after a collapsed caret, if any (Delete removes it whole). */
+export function chipAfterCaret(root: HTMLElement): Element | undefined {
+  const current = selection();
+
+  if (!current?.isCollapsed || current.rangeCount === 0) return undefined;
+  const node = current.anchorNode;
+
+  if (!node || !root.contains(node)) return undefined;
+
+  const next =
+    node.nodeType === Node.TEXT_NODE
+      ? current.anchorOffset < (node.textContent?.length ?? 0)
+        ? null
+        : node.nextSibling
+      : node.childNodes[current.anchorOffset];
+
+  return next instanceof HTMLElement && elementOf(next) ? next : undefined;
+}
+
+/** The selection's range when it is inside `root` (to put the caret back after focus went elsewhere). */
+export function rangeIn(root: HTMLElement): Range | undefined {
+  const current = selection();
+
+  if (!current || current.rangeCount === 0 || !root.contains(current.anchorNode)) return undefined;
+
+  return current.getRangeAt(0).cloneRange();
+}
+
+/** The caret back at a remembered range, if its nodes are still in `root`; else at the end. */
+export function restoreCaret(root: HTMLElement, range: Range | undefined): void {
+  if (range && root.contains(range.startContainer) && root.contains(range.endContainer)) select(range);
+  else {
+    const end = document.createRange();
+    end.selectNodeContents(root);
+    end.collapse(false);
+    select(end);
+  }
+}
+
 /** Selects a whole node (a chip, to delete it as one edit). */
 export function selectNode(node: Node): void {
   const range = document.createRange();

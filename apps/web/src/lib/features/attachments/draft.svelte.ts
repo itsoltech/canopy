@@ -1,4 +1,5 @@
-import { ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { MentionKind, MentionSchema, ui, type Mention } from "@canopy/contracts";
 import { DEFAULT_ATTACHMENT_LIMITS, extensionOf, formatSize, type AttachmentLimits } from "@canopy/domain";
 import { isJsonObject, isString, type JsonValue } from "#lib/shared/json.ts";
 import { decode } from "#lib/shared/wire.ts";
@@ -7,6 +8,11 @@ import { decode } from "#lib/shared/wire.ts";
  * The files a message is about to carry (docs/ui-api.md, "Załączniki"). Each file uploads as soon as it is added
  * (POST api/attachments, with progress), so sending only names the uploaded ids. The checks here (size, count,
  * total, programs) only save a round trip and say why at once; the gateway decides (it types files by content).
+ *
+ * In a composer with a text field each file is a badge in the text (docs/ui-api.md, "Załączniki w tekście"): the
+ * badge is an ATTACHMENT mention named by the file's `key`. `place` follows the badges the text holds: a file whose
+ * badge is gone stays here, out of the message, so Undo can bring the badge and the file back together. Without
+ * `placing` (a composer with no badges) every file goes.
  */
 
 export type DraftStatus = "uploading" | "ready" | "failed";
@@ -57,6 +63,8 @@ const uploadFailure = (status: number): string =>
 
 export class AttachmentDraft {
   files = $state<DraftFile[]>([]);
+  /** Keys of the files with a badge in the text; undefined: the composer has no badges, every file goes. */
+  placed = $state<ReadonlySet<string> | undefined>(undefined);
   /** Why the last added files were not taken (shown until the next change). */
   notice = $state<string | undefined>(undefined);
   readonly #limits: () => AttachmentLimits;
@@ -66,21 +74,52 @@ export class AttachmentDraft {
     this.#limits = limits;
   }
 
+  /** The files that go with the message (with their badge, in a composer that places them). */
+  get attached(): DraftFile[] {
+    const placed = this.placed;
+
+    return placed ? this.files.filter((f) => placed.has(f.key)) : this.files;
+  }
+
   get uploading(): boolean {
-    return this.files.some((f) => f.status === "uploading");
+    return this.attached.some((f) => f.status === "uploading");
   }
 
   get failed(): boolean {
-    return this.files.some((f) => f.status === "failed");
+    return this.attached.some((f) => f.status === "failed");
   }
 
   /** Ids to send: every file uploaded, none failed or still on its way. */
   get ids(): string[] {
-    return this.files.flatMap((f) => (f.attachment ? [f.attachment.id] : []));
+    return this.attached.flatMap((f) => (f.attachment ? [f.attachment.id] : []));
   }
 
   get ready(): boolean {
-    return this.files.length > 0 && !this.uploading && !this.failed;
+    return this.attached.length > 0 && !this.uploading && !this.failed;
+  }
+
+  file(key: string): DraftFile | undefined {
+    return this.files.find((f) => f.key === key);
+  }
+
+  /** The badges the text holds now (keys of ATTACHMENT mentions). */
+  place(mentions: readonly Mention[]): void {
+    const keys = new Set(mentions.flatMap((m) => (m.kind === MentionKind.ATTACHMENT ? [m.name] : [])));
+    const current = this.placed;
+
+    if (current && current.size === keys.size && [...keys].every((k) => current.has(k))) return;
+    this.placed = keys;
+    this.notice = undefined;
+  }
+
+  /** The mentions to send: each badge names its uploaded file's id; a badge of a file not here goes. */
+  wire(mentions: readonly Mention[]): Mention[] {
+    return mentions.flatMap((m) => {
+      if (m.kind !== MentionKind.ATTACHMENT) return [m];
+      const id = this.file(m.name)?.attachment?.id;
+
+      return id ? [create(MentionSchema, { ...m, name: id })] : [];
+    });
   }
 
   /** Why the message cannot go with its files yet (undefined: it can). */
@@ -92,18 +131,21 @@ export class AttachmentDraft {
     return undefined;
   }
 
-  add(list: Iterable<File>): void {
+  /** Takes the files within the limits (says why not for the rest); returns the ones taken. */
+  add(list: Iterable<File>): DraftFile[] {
     const limits = this.#limits();
     const problems: string[] = [];
+    const added: DraftFile[] = [];
 
     for (const file of list) {
       const name =
         file.name ||
         (file.type.startsWith("image/") ? `pasted-image.${file.type.split("/")[1] ?? "png"}` : "attachment");
 
-      const total = this.files.reduce((sum, f) => sum + f.size, 0) + file.size;
+      const going = [...this.attached, ...added];
+      const total = going.reduce((sum, f) => sum + f.size, 0) + file.size;
 
-      if (this.files.length >= limits.maxFiles) problems.push(`Up to ${limits.maxFiles} files go with one message.`);
+      if (going.length >= limits.maxFiles) problems.push(`Up to ${limits.maxFiles} files go with one message.`);
       else if (file.size === 0) problems.push(`${name} is empty.`);
       else if (file.size > limits.maxFileBytes)
         problems.push(`${name} is ${formatSize(file.size)}; files can be up to ${formatSize(limits.maxFileBytes)}.`);
@@ -111,22 +153,14 @@ export class AttachmentDraft {
         problems.push(`Together the files would be over ${formatSize(limits.maxMessageBytes)}.`);
       else if (PROGRAMS.has(extensionOf(name))) problems.push(`${name} is a program; programs cannot be attached.`);
       else {
-        this.#start(file, name);
+        added.push(this.#start(file, name));
         continue;
       }
     }
 
     this.notice = problems.length > 0 ? [...new Set(problems)].join(" ") : undefined;
-  }
 
-  remove(key: string): void {
-    this.#uploads.get(key)?.abort();
-    this.#uploads.delete(key);
-    const file = this.files.find((f) => f.key === key);
-
-    if (file?.localUrl) URL.revokeObjectURL(file.localUrl);
-    this.files = this.files.filter((f) => f.key !== key);
-    this.notice = undefined;
+    return added;
   }
 
   /** After sending: the files went with the message (the chat shows them from now on). */
@@ -139,10 +173,12 @@ export class AttachmentDraft {
     this.notice = undefined;
   }
 
-  #start(file: File, name: string): void {
+  #start(file: File, name: string): DraftFile {
     const key = crypto.randomUUID();
     const image = /^image\/(png|jpeg|gif|webp)$/.test(file.type);
-    this.files.push({
+
+    // What the badge needs at once (the reactive copy in `files` follows the upload).
+    const added: DraftFile = {
       key,
       name,
       size: file.size,
@@ -152,7 +188,9 @@ export class AttachmentDraft {
       progress: 0,
       error: undefined,
       attachment: undefined,
-    });
+    };
+
+    this.files.push(added);
     const entry = () => this.files.find((f) => f.key === key);
     const request = new XMLHttpRequest();
     this.#uploads.set(key, request);
@@ -194,6 +232,8 @@ export class AttachmentDraft {
     };
 
     request.send(file);
+
+    return added;
   }
 }
 

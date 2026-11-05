@@ -7,12 +7,12 @@ import { decode } from "#lib/shared/wire.ts";
 export const mentionsToWire = (mentions: readonly Mention[]): ProtoJson[] =>
   mentions.map((m) => toJson(MentionSchema, m));
 
-/** Throws on anything that is not a mention (the route answers 400). At most 50, like the gateway. */
+/** Throws on anything that is not a mention (the route answers 400). At most 150, like the gateway (50 + 100 files). */
 export function mentionsFromWire(value: FormDataEntryValue | readonly JsonValue[] | null | undefined): Mention[] {
   if (value === undefined || value === null || value === "") return [];
   const list = value instanceof File ? undefined : isString(value) ? parseJson(value) : value;
 
-  if (!isJsonArray(list) || list.length > 50) throw new Error("mentions: up to 50 mentions");
+  if (!isJsonArray(list) || list.length > 150) throw new Error("mentions: up to 150 mentions");
 
   return list.map((m) => decode(MentionSchema, m));
 }

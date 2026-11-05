@@ -4,7 +4,7 @@
   import type { Snippet } from "svelte";
   import {
     blockBesideCaret,
-    caretAfter,
+    chipAfterCaret,
     caretAtPoint,
     caretBesideBlock,
     caretNextToBlock,
@@ -15,6 +15,7 @@
     selectNode,
     textBeforeCaret,
   } from "./caret.ts";
+  import { ChipEdits, chipClicked, copiedValue, copyValue } from "./chip-edits.ts";
   import { CodeBlocks } from "./code-blocks.ts";
   import {
     activeTrigger,
@@ -23,6 +24,7 @@
     serialize,
     toHtml,
     type ActiveTrigger,
+    type EditorControls,
     type TriggerChar,
   } from "./editor.ts";
   import { formatInlineCode, markTicks } from "./inline-code.ts";
@@ -39,7 +41,9 @@
    * `value` (plain text) and `mentions` (ranges in it). Typing a trigger at the start of a line or after a space
    * opens the popup above the composer: "/" commands, "$" skills and plugins (Codex's convention), "@" files of
    * the thread's folder, "#" other threads. ↑↓ move, Enter or Tab insert the chip, Escape closes; a tap inserts too.
-   * A chip is one unit: Backspace next to it removes it whole (and Undo brings it back).
+   * A chip is one unit: Backspace or Delete next to it removes it whole (and Undo brings it back). `editor` lets the
+   * composer put chips at the caret (attachments: docs/ui-api.md, "Załączniki w tekście") and take them out;
+   * `acceptChip` says which chips a paste may bring back (others stay their text); `onchipclick` gets a click on one.
    *
    * Live markdown (markdown.ts): a backtick span turns into inline code as its closing backtick is typed (the
    * backticks stay, muted), and an opening fence line (`` ``` `` or `` ```ts ``) with Enter turns into a code block
@@ -73,6 +77,8 @@
     anchor,
     onkeydown: forward,
     onpaste: pasteFirst,
+    acceptChip,
+    onchipclick,
     editor = $bindable(),
     class: className,
   }: {
@@ -96,8 +102,10 @@
     anchor?: HTMLElement | undefined;
     onkeydown?: ((event: KeyboardEvent) => void) | undefined;
     onpaste?: ((event: ClipboardEvent) => void) | undefined;
-    /** Controls for the "+" menu: start a trigger at the caret, focus. */
-    editor?: { insertTrigger(char: TriggerChar): void; focus(): void } | undefined;
+    acceptChip?: ((mention: MentionData) => boolean) | undefined;
+    onchipclick?: ((mention: MentionData, chip: HTMLElement) => void) | undefined;
+    /** Controls for the "+" menu, drops and pastes: a trigger or chips at the caret, focus. */
+    editor?: EditorControls | undefined;
     class?: ClassValue;
   } = $props();
 
@@ -270,30 +278,17 @@
     if (!root || !trigger || !selectBackFromCaret(trigger.length)) return;
 
     if (option.data.icon) icons.set(iconKey(option.data), option.data.icon);
-    insertChip(option.data);
+    chips.insertChip(option.data);
     trigger = undefined;
     dismissed = undefined;
   }
 
-  function insertChip(mention: MentionData) {
-    const html = (
-      sources?.renderMention?.(mention) ?? INLINE_RENDERERS.mention.html({ type: "mention", mention })
-    ).replace("<span ", '<span data-inserted="" ');
-
-    document.execCommand("insertHTML", false, `${html}&nbsp;`);
-    // Chrome leaves the caret before inserted non-editable content: put it after the chip and its space.
-    const chip = root?.querySelector("[data-inserted]");
-
-    if (chip) {
-      // WebKit's insertHTML can strip contenteditable=false. Restore the chip's atomic
-      // boundary before placing the caret, otherwise Backspace edits its label instead.
-      chip.setAttribute("contenteditable", "false");
-      chip.removeAttribute("data-inserted");
-      caretAfter(chip);
-    }
-
-    sync();
-  }
+  const chips = new ChipEdits(
+    () => root,
+    (mention) => sources?.renderMention?.(mention) ?? INLINE_RENDERERS.mention.html({ type: "mention", mention }),
+    () => sync(),
+    (value) => toHtml(value, icons, sources?.renderMention),
+  );
 
   /** Plain text at the caret: lines as text and line breaks (no markup from the clipboard); complete fences as blocks. */
   function insertPlain(text: string) {
@@ -445,9 +440,9 @@
       return;
     }
 
-    if (event.key === "Backspace" && !event.altKey && !event.metaKey && !event.ctrlKey) {
+    if ((event.key === "Backspace" || event.key === "Delete") && !event.altKey && !event.metaKey && !event.ctrlKey) {
       // A chip goes whole (one undoable delete).
-      const chip = root && chipBeforeCaret(root);
+      const chip = root && (event.key === "Backspace" ? chipBeforeCaret(root) : chipAfterCaret(root));
 
       if (chip) {
         event.preventDefault();
@@ -491,7 +486,10 @@
     // A block's textarea pastes verbatim on its own.
     if (event.defaultPrevented || inBlockArea(event.target)) return;
     const text = event.clipboardData?.getData("text/plain");
+    const copied = copiedValue(event.clipboardData);
     event.preventDefault();
+
+    if (copied) return chips.pasteCopied(copied, mentions, acceptChip ?? (() => true));
 
     if (text) insertPlain(text);
   }
@@ -513,7 +511,7 @@
 
     if (!root.contains(range.commonAncestorContainer)) return;
     event.preventDefault();
-    event.clipboardData.setData("text/plain", serialize(range.cloneContents()).text);
+    copyValue(event.clipboardData, serialize(range.cloneContents()));
 
     if (event.type === "cut") {
       document.execCommand("delete");
@@ -534,7 +532,7 @@
     insertPlain(text);
   }
 
-  editor = {
+  editor = Object.assign(chips.controls(), {
     focus: () => root?.focus({ preventScroll: true }),
     insertTrigger(char: TriggerChar) {
       if (!root) return;
@@ -546,7 +544,7 @@
       document.execCommand("insertText", false, `${needsSpace ? " " : ""}${char}`);
       sync();
     },
-  };
+  });
 
   function focusOnMount(node: HTMLDivElement) {
     if (autofocus) node.focus();
@@ -629,7 +627,10 @@
     onkeyup={(event) => {
       if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") detectTrigger();
     }}
-    onclick={detectTrigger}
+    onclick={(event) => {
+      detectTrigger();
+      chipClicked(event.target, onchipclick);
+    }}
     oncompositionstart={() => {
       inputSession.start();
       composing = true;
@@ -640,6 +641,7 @@
       composing = false;
     }}
     onblur={() => {
+      chips.remember();
       inputSession.reset();
       composing = false;
       popupOpen = false;

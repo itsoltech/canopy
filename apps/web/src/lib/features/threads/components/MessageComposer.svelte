@@ -33,8 +33,8 @@
    * saved on the thread at once (UpdateThread) and applies from the next turn; the running turn and a steer
    * into it keep the mode the turn started with. Until the gateway confirms, a message sent meanwhile
    * carries the pick as its turn's override.
-   * Attachments (paperclip, drop, paste): uploaded as they are added, sent with the message, which then always
-   * runs as the next turn (its files reach the worker before the turn starts).
+   * Attachments (paperclip, drop, paste): badges in the text, uploaded as they are added, sent with the message at
+   * their places, which then always runs as the next turn (its files reach the worker before the turn starts).
    * Mentions ("/", "$", "@", "#"; docs/ui-api.md "Wzmianki") come from the thread's worker and folder; "/goal" is
    * the platform's command: the rest of the message becomes the thread's goal.
    * Quotes (Cite on the agent's output; docs/ui-api.md "Cytaty") wait as chips above the text, in the thread's quote
@@ -130,7 +130,7 @@
     const message = text.trimStart().startsWith("!") ? text.trimEnd() : trimmed.text;
     const sentMentions = trimmed.mentions;
 
-    if ((!message && draft.files.length === 0 && quotes.length === 0) || sending || disabled) return;
+    if ((!message && draft.attached.length === 0 && quotes.length === 0) || sending || disabled) return;
 
     if (draft.blocker) {
       error = draft.blocker;
@@ -153,7 +153,7 @@
         override,
         attachmentIds.length > 0 ? "queue" : delivery,
         attachmentIds,
-        sentMentions,
+        draft.wire(sentMentions),
         sentQuotes.map(toWire),
       );
 
