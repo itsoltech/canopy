@@ -244,6 +244,66 @@ describe.skipIf(!dockerAvailable)("connector test diagnostics at the gateway bou
     }
   });
 
+  test("Slack's disabled MCP app error gives a specific action without exposing the settings URL", async () => {
+    const account = (
+      await gw.api.saveConnectorAccount({
+        connectorType: "slack",
+        name: "MCP access",
+        url: fake.url,
+        authKind: "oauth",
+      })
+    ).account!;
+
+    await gw.core.connectors.run((s) =>
+      s
+        .owned(gw.userId, account.id)
+        .pipe(
+          Effect.flatMap((row) =>
+            s.updateCredentials(row, { tokens: { access_token: fake.secret, token_type: "user" } }, "connected"),
+          ),
+        ),
+    );
+    const warnings = spyOn(console, "warn").mockImplementation(() => undefined);
+
+    try {
+      reply = (method, id) =>
+        method === "initialize"
+          ? Response.json(
+              {
+                jsonrpc: "2.0",
+                id,
+                error: {
+                  code: -32600,
+                  message: `App is not enabled for Slack MCP server access. Please enable it here: https://api.slack.com/apps/private-app-id/settings?token=${fake.secret}`,
+                },
+              },
+              { status: 400 },
+            )
+          : undefined;
+      const result = await gw.api.testConnector({ accountId: account.id });
+      expect(result.account?.error?.message).toBe(
+        "Slack MCP access is off for this app. Turn it on in the app's settings, then test again.",
+      );
+      expect(result.account?.error?.detail).toContain("HTTP status: 400");
+      expect(result.account?.error?.detail).toContain("Code: -32600");
+      expect(result.account?.error?.detail).toContain("[endpoint]");
+
+      const output = JSON.stringify([
+        toJson(connectors.TestConnectorResponseSchema, result),
+        await stored(account.id),
+        warnings.mock.calls,
+      ]);
+
+      for (const secret of [fake.secret, "private-app-id", "https://api.slack.com"])
+        expect(output.includes(secret)).toBe(false);
+      reply = () => undefined;
+      expect((await gw.api.testConnector({ accountId: account.id })).account?.status).toBe("connected");
+    } finally {
+      warnings.mockRestore();
+      reply = () => undefined;
+    }
+  });
+
   test("timeout while listing tools is distinguished from a network failure", async () => {
     const warnings = spyOn(console, "warn").mockImplementation(() => undefined);
     let release: (() => void) | undefined;

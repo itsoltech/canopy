@@ -4,6 +4,7 @@ import { type GatewayCore } from "../core/core.ts";
 import { connectorGuard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { ConnectorTestFailure } from "../connectors/test-error.ts";
+import { connectorOAuthError } from "../connectors/oauth-error.ts";
 
 export function connectorsHandlers(
   core: GatewayCore,
@@ -67,10 +68,13 @@ export function connectorsHandlers(
 
     completeConnectorOAuth: async (r) => {
       try {
-        return create(connectors.CompleteConnectorOAuthResponseSchema, { account: await core.connectors.complete(r) });
-      } catch {
+        return create(connectors.CompleteConnectorOAuthResponseSchema, await core.connectors.complete(r));
+      } catch (cause) {
+        const failure = connectorOAuthError(cause);
+
         return create(connectors.CompleteConnectorOAuthResponseSchema, {
-          error: "Authorization expired, was declined or could not finish. Reconnect the account.",
+          error: failure.message,
+          failure,
         });
       }
     },

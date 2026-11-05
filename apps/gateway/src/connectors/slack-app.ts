@@ -52,7 +52,12 @@ export function slackAppManifest(redirectUrl: string) {
       background_color: "#007a55",
     },
     oauth_config: { redirect_urls: [redirectUrl], scopes: { user: [...SLACK_USER_SCOPES] } },
-    settings: { org_deploy_enabled: false, socket_mode_enabled: false, token_rotation_enabled: false },
+    settings: {
+      is_mcp_enabled: true,
+      org_deploy_enabled: false,
+      socket_mode_enabled: false,
+      token_rotation_enabled: false,
+    },
   };
 
   return {

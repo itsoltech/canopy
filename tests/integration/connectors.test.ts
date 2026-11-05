@@ -371,19 +371,23 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     fake.duration = 1;
     const accountId = account.id;
 
+    const exchanges = fake.tokenRedirects.length;
+
     const results = await Promise.all([
       gw.api.completeConnectorOAuth(complete),
       gw.api.completeConnectorOAuth(complete),
     ]);
 
-    expect(results.filter((r) => r.account && !r.error)).toHaveLength(1);
-    expect(results.filter((r) => r.error)).toHaveLength(1);
+    expect(results.filter((r) => r.account && !r.alreadyConnected)).toHaveLength(1);
+    expect(results.every((r) => r.account || r.failure?.kind === "oauth_used")).toBe(true);
+    expect(fake.tokenRedirects.length).toBe(exchanges + 1);
     account = results.find((r) => r.account)!.account!;
     expect(account.id).toBe(accountId);
-    await expect(
-      gw.core.connectors.complete(create(connectors.CompleteConnectorOAuthRequestSchema, complete)),
-    ).rejects.toThrow();
-    expect((await gw.api.completeConnectorOAuth(complete, { timeoutMs: 4000 })).error).not.toBe("");
+    expect(
+      (await gw.core.connectors.complete(create(connectors.CompleteConnectorOAuthRequestSchema, complete)))
+        .alreadyConnected,
+    ).toBe(true);
+    expect((await gw.api.completeConnectorOAuth(complete, { timeoutMs: 4000 })).alreadyConnected).toBe(true);
     account = await grant(account);
     const before = fake.refreshes;
     const tools = (await gw.api.testConnector({ accountId: account.id })).tools;
@@ -515,10 +519,12 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
 
     const manifest = JSON.parse(slack.appManifest) as {
       oauth_config: { redirect_urls: string[]; scopes: { user: string[] } };
+      settings: { is_mcp_enabled: boolean };
     };
 
     expect(manifest.oauth_config.redirect_urls).toEqual([fixed]);
     expect(manifest.oauth_config.scopes.user).toEqual([...SLACK_USER_SCOPES]);
+    expect(manifest.settings.is_mcp_enabled).toBe(true);
     expect(slack.defaultScope).toBe(SLACK_USER_SCOPES.join(" "));
     expect(new URL(slack.appCreateUrl).searchParams.get("manifest_json")).toBe(
       JSON.stringify(JSON.parse(slack.appManifest)),
@@ -550,7 +556,7 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     expect((await gw.api.completeConnectorOAuth(forged)).error).not.toBe("");
     // The fake token endpoint accepts the code only with the redirect_uri it was issued for.
     expect((await gw.api.completeConnectorOAuth({ ...web, browserBinding })).account?.status).toBe("connected");
-    expect((await gw.api.completeConnectorOAuth({ ...web, browserBinding })).error).not.toBe("");
+    expect((await gw.api.completeConnectorOAuth({ ...web, browserBinding })).alreadyConnected).toBe(true);
 
     const desktop = await begin(true);
     expect(returnTarget(`?state=${desktop.state}&code=x`)?.desktop).toBe(true);
@@ -561,6 +567,6 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     expect((await gw.api.completeConnectorOAuth({ pastedCode: pasted, browserBinding })).account?.status).toBe(
       "connected",
     );
-    expect((await gw.api.completeConnectorOAuth({ pastedCode: pasted, browserBinding })).error).not.toBe("");
+    expect((await gw.api.completeConnectorOAuth({ pastedCode: pasted, browserBinding })).alreadyConnected).toBe(true);
   }, 15_000);
 });

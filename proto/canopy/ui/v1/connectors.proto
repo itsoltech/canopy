@@ -97,4 +97,11 @@ message BeginConnectorOAuthResponse { string authorization_url = 1; }
 // pasted_code: kod skopiowany ze strony przekierowania (state i code w jednym ciągu); zastępuje state/code.
 message CompleteConnectorOAuthRequest { string state = 1; string code = 2; string browser_binding = 3; string error = 4; string issuer = 5; string pasted_code = 6; }
 // Callback outcomes are explicit, so a declined/expired authorization completes the redirect normally.
-message CompleteConnectorOAuthResponse { ConnectorAccount account = 1; string error = 2; }
+message CompleteConnectorOAuthResponse {
+  ConnectorAccount account = 1;
+  string error = 2;
+  // Classified, redacted failure; error keeps the same message for older clients.
+  ConnectorError failure = 3;
+  // A repeated return confirms this sign-in already completed; no second exchange occurs.
+  bool already_connected = 4;
+}

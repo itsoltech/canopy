@@ -15,7 +15,6 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import { rise } from "#lib/shared/ui/motion.ts";
   import Select from "#lib/shared/ui/Select.svelte";
-  import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import AuthMethodPicker from "./AuthMethodPicker.svelte";
   import ManualReturn from "./ManualReturn.svelte";
   import OAuthFields from "./OAuthFields.svelte";
@@ -26,13 +25,15 @@
     open = $bindable(false),
     type,
     account,
+    oauthCompletion,
     onsave,
     class: className,
   }: {
     open?: boolean;
     type: connectors.ConnectorType;
     account?: connectors.ConnectorAccount | undefined;
-    onsave: (account: connectors.ConnectorAccount) => void;
+    oauthCompletion?: connectors.CompleteConnectorOAuthResponse | undefined;
+    onsave: (account: connectors.ConnectorAccount, alreadyConnected?: boolean) => void;
     class?: ClassValue;
   } = $props();
 
@@ -48,6 +49,7 @@
   let busy = $state(false);
   let error = $state("");
   let appSaved = $state(untrack(() => type.oauthAppSet));
+  let seenCompletion = untrack(() => oauthCompletion);
   const callback = $derived(`${page.url.origin}/api/connectors/oauth/callback`);
 
   const methods = $derived(
@@ -68,10 +70,19 @@
     scope = method.defaultScope;
   });
 
-  function connected(account: connectors.ConnectorAccount) {
-    onsave(account);
+  // Match the account saved for this attempt, so another account's return cannot close this dialog.
+  $effect(() => {
+    if (oauthCompletion === seenCompletion) return;
+    seenCompletion = oauthCompletion;
+    const completed = oauthCompletion?.account;
+
+    if (open && waiting && completed && completed.id === savedAccount?.id)
+      untrack(() => connected(completed, oauthCompletion?.alreadyConnected));
+  });
+
+  function connected(account: connectors.ConnectorAccount, alreadyConnected = false) {
+    onsave(account, alreadyConnected);
     open = false;
-    toast("Account connected");
   }
 
   const ready = $derived(

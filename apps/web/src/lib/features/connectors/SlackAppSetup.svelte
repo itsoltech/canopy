@@ -25,6 +25,11 @@
     "Paste them below and save the app.",
   ];
 
+  const existingSteps = [
+    "Turn on MCP access in the Slack app's settings or manifest.",
+    "Ask the app's owner for its client ID and client secret, then paste them below.",
+  ];
+
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   $effect(() => () => clearTimeout(timer));
@@ -70,9 +75,7 @@
       Keep distribution internal and install the app in your workspace. Ask your administrator to approve it if needed.
     </p>
   {:else}
-    <p class="text-base/6 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-300">
-      Ask the app's owner for its client ID and client secret, then paste them below.
-    </p>
+    <StepList steps={existingSteps} class="text-base/6 sm:text-sm/6" />
   {/if}
   <Disclosure summaryClass="text-base/6 sm:text-sm/6"
     >{#snippet summary()}Redirect URL for a manual setup{/snippet}

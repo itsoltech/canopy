@@ -12,6 +12,7 @@ export function fakeConnector(
       request: Request,
     ) => Response | undefined | Promise<Response | undefined>;
     userToken?: boolean;
+    exchangeResponse?: (request: Pick<Request, "text">) => Response | undefined | Promise<Response | undefined>;
   } = {},
 ) {
   const secret = `connector-secret-${crypto.randomUUID()}`;
@@ -87,6 +88,9 @@ export function fakeConnector(
       }
 
       if (path === "/token") {
+        const override = await options.exchangeResponse?.(request.clone());
+
+        if (override) return override;
         const p = new URLSearchParams(await request.text());
         const client = clients.get(p.get("client_id") ?? "");
 

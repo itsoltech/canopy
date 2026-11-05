@@ -73,7 +73,7 @@ describe.skipIf(!dockerAvailable)("connector OAuth redirect selection", () => {
     const request = { pastedCode: pastedCode(state, code), browserBinding: binding };
     expect((await gw.api.completeConnectorOAuth(request)).account?.status).toBe("connected");
     expect(fake.tokenRedirects.at(-1)).toBe(DEFAULT_OAUTH_REDIRECT_URL);
-    expect((await gw.api.completeConnectorOAuth(request)).error).not.toBe("");
+    expect((await gw.api.completeConnectorOAuth(request)).alreadyConnected).toBe(true);
   });
 
   test("DCR without advertised S256 keeps the installation callback", async () => {
