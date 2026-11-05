@@ -99,7 +99,7 @@ export async function worktreeFixture(
         workerId,
         host: { os: process.platform },
         homeDirectory: homedir(),
-        capabilities: ["worktrees", "worktree_lifecycle", "workspace_origin"],
+        capabilities: ["worktrees", "worktree_lifecycle", "workspace_origin", "project_sources"],
         worktreesRoot: host.worktreesRoot,
         ...(await runtime.runPromise(journalHello())),
       },

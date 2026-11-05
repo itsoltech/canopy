@@ -27,6 +27,7 @@ export const SERVED = new Set([
   "RestoreThread",
   "ListModels",
   "ListDirectory",
+  "AddProject",
   "GetAttachment",
   "UploadAttachment",
   "GetThreadBlob",

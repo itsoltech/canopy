@@ -15,7 +15,7 @@ import {
   stream,
   target,
   unary,
-  UNARY_TIMEOUT_MS,
+  unaryTimeout,
   type Handler,
 } from "./routed-context.ts";
 import { forward, peerOf } from "./routed-home.ts";
@@ -73,7 +73,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
                 await peerOf(core, node, method, request),
                 method,
                 request,
-                AbortSignal.any([context.signal, AbortSignal.timeout(UNARY_TIMEOUT_MS)]),
+                AbortSignal.any([context.signal, AbortSignal.timeout(unaryTimeout(method))]),
               ),
             );
           }

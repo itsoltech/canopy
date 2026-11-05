@@ -385,6 +385,10 @@ message Command {
     WorktreeTarget reveal_worktree = 215;
     // Read-only, capability workspace_origin; never persisted in the outbox.
     ReadWorkspaceOrigin read_workspace_origin = 216;
+    // Capability project_sources: a new project directory (git init) or a clone in a parent directory.
+    // Never persisted in the outbox; the result carries directory_path (6).
+    InitRepository init_repository = 217;
+    CloneRepository clone_repository = 218;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
@@ -620,6 +624,20 @@ message GetProviderAccounts {
 
 message ReadWorkspaceOrigin {
   string repo_path = 1;
+}
+
+// A new directory `name` inside the existing absolute `parent_path`, then `git init`.
+message InitRepository {
+  string parent_path = 1;
+  string name = 2;
+}
+
+// `git clone url` into the new directory `name` inside the existing absolute `parent_path`.
+// URLs with embedded credentials are refused; the worker's own Git credentials apply.
+message CloneRepository {
+  string parent_path = 1;
+  string name = 2;
+  string url = 3;
 }
 
 // Wyłącznie metadane do wyświetlenia. Bez tokenów, kluczy, org ID i surowych błędów.

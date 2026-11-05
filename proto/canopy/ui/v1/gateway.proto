@@ -121,6 +121,9 @@ service GatewayService {
   rpc RenameProject(RenameProjectRequest) returns (CreateProjectResponse);
   rpc ArchiveProject(ArchiveProjectRequest) returns (ArchiveProjectResponse);
   rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
+  // Katalog na workerze (istniejący, nowy z git init albo klon) jako workspace: dołącza do projektu
+  // o tym samym git origin albo tworzy nowy projekt. Trasowane do domu workera.
+  rpc AddProject(AddProjectRequest) returns (AddProjectResponse);
 
   rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
   rpc ListArchivedThreads(ListArchivedThreadsRequest) returns (ListArchivedThreadsResponse);
@@ -362,6 +365,8 @@ message Worker {
   canopy.worker.v1.NetworkRouteStatus network_route_status = 803;
   // Worker obsługuje git worktrees (capability "worktrees", docs/worktrees.md).
   bool worktrees = 804;
+  // Worker tworzy katalogi nowych projektów i klony (capability "project_sources").
+  bool project_sources = 805;
   optional uint32 cli_update_check_minutes = 900; // nadpisanie; brak = konto
   uint32 effective_cli_update_check_minutes = 901;
   google.protobuf.Timestamp cli_updates_checked_at = 902;
@@ -744,6 +749,34 @@ message CreateWorkspaceRequest {
 
 message CreateWorkspaceResponse {
   Workspace workspace = 1;
+}
+
+message AddProjectRequest {
+  string worker_id = 1;
+  oneof source {
+    // Istniejący katalog (ścieżka bezwzględna).
+    string directory_path = 2;
+    AddProjectInit init = 3;
+    AddProjectClone clone = 4;
+  }
+}
+
+message AddProjectInit {
+  string parent_path = 1;
+  string name = 2;
+}
+
+message AddProjectClone {
+  string parent_path = 1;
+  string name = 2;
+  string url = 3;
+}
+
+message AddProjectResponse {
+  Project project = 1;
+  Workspace workspace = 2;
+  // Dołączony do istniejącego projektu o tym samym git origin.
+  bool attached = 3;
 }
 
 // ---------- Wątki ----------

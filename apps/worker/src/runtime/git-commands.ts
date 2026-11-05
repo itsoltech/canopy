@@ -15,6 +15,7 @@ import { createWorktree, managedWorktreesRoot, renameWorktreeBranch } from "../g
 import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import { workspaceOrigin } from "../git/origin.ts";
+import { cloneRepository, initRepository } from "../git/project-sources.ts";
 
 /** Git worktrees (docs/worktrees.md): refs of a workspace, new worktrees and their branch names. */
 export class GitCommands {
@@ -25,6 +26,16 @@ export class GitCommands {
     this.ctx.ops.checkCwd(kind.value.repoPath);
 
     return { workspaceOrigin: await workspaceOrigin(kind.value.repoPath) };
+  }
+
+  async initRepository(kind: Extract<Command["kind"], { case: "initRepository" }>): Promise<CommandOutput> {
+    return { directoryPath: await gitStep(() => initRepository(kind.value.parentPath, kind.value.name)) };
+  }
+
+  async cloneRepository(kind: Extract<Command["kind"], { case: "cloneRepository" }>): Promise<CommandOutput> {
+    return {
+      directoryPath: await gitStep(() => cloneRepository(kind.value.parentPath, kind.value.name, kind.value.url)),
+    };
   }
 
   /** `<data_dir>/worktrees`: the managed root of new worktrees without a configured location. */

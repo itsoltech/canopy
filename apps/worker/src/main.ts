@@ -296,6 +296,7 @@ while (!stopping.signal.aborted) {
         // attachments: turns may carry files (fetched with FetchBlob into attachments_root).
         // cli_install: provider CLIs are reported (CliToolsReport) and installed on demand (InstallCli).
         // worktrees: git refs and worktrees of workspaces (docs/worktrees.md), under worktrees_root by default.
+        // project_sources: new project directories (git init) and clones (InitRepository, CloneRepository).
         capabilities: [
           "provider_account_status",
           "running_turns",
@@ -313,6 +314,7 @@ while (!stopping.signal.aborted) {
           "worktrees",
           "workspace_origin",
           "worktree_lifecycle",
+          "project_sources",
         ],
         worktreesRoot: host.worktreesRoot,
         attachmentsRoot: host.attachmentsRoot,

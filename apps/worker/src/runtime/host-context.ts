@@ -59,6 +59,8 @@ export type HostOperations = HostHooks &
   Pick<
     GitCommands,
     | "readWorkspaceOrigin"
+    | "initRepository"
+    | "cloneRepository"
     | "listGitRefs"
     | "createWorktree"
     | "renameWorktreeBranch"
@@ -143,6 +145,8 @@ export class HostContext {
       execute: commands.execute.bind(commands),
       listGitRefs: gitCommands.listGitRefs.bind(gitCommands),
       readWorkspaceOrigin: gitCommands.readWorkspaceOrigin.bind(gitCommands),
+      initRepository: gitCommands.initRepository.bind(gitCommands),
+      cloneRepository: gitCommands.cloneRepository.bind(gitCommands),
       createWorktree: gitCommands.createWorktree.bind(gitCommands),
       renameWorktreeBranch: gitCommands.renameWorktreeBranch.bind(gitCommands),
       scanWorktrees: gitCommands.scanWorktrees.bind(gitCommands),
