@@ -176,7 +176,7 @@ export class PostgresInstaller {
       await rm(extracted, { recursive: true, force: true });
       await rm(stage, { recursive: true, force: true });
       const complete = existsSync(archive) && (await integrity(archive)) === this.pin.integrity;
-      this.progress({ phase: "downloading", message: `Downloading PostgreSQL ${this.pin.major} for local mode…` });
+      this.progress({ phase: "downloading", message: `Downloading PostgreSQL ${this.pin.major}…` });
 
       if (!complete)
         for (let attempt = 0; ; attempt++) {
@@ -199,7 +199,7 @@ export class PostgresInstaller {
         );
       }
 
-      this.progress({ phase: "installing", message: "Preparing PostgreSQL for this computer…" });
+      this.progress({ phase: "installing", message: "Setting up PostgreSQL…" });
       // Bun validates archive paths and symlink targets. Extract only the native
       // distribution and its license, never package scripts or dependencies.
       await new Bun.Archive(await Bun.file(archive).bytes()).extract(extracted, {
@@ -322,7 +322,7 @@ export class PostgresInstaller {
           this.progress({
             phase: "downloading",
             ...(percent !== undefined && { progress: percent }),
-            message: `Downloading PostgreSQL ${this.pin.major}${percent === undefined ? "" : ` (${percent}%)`}… Local mode needs this once; remote mode does not.`,
+            message: `Downloading PostgreSQL ${this.pin.major}${percent === undefined ? "" : ` (${percent}%)`}. You need this download only once.`,
           });
         }
       }

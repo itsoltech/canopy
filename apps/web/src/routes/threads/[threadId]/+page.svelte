@@ -580,8 +580,8 @@
                 description={thread?.status === "creating"
                   ? `Setting up the agent on ${worker?.name ?? "the worker"}.`
                   : closed
-                    ? "Nothing was said in this thread before it closed."
-                    : "Send the first message below to start a turn."}
+                    ? "This thread closed before anyone said a word."
+                    : "Send a message below to start."}
                 class="mt-8"
               />
             {/if}

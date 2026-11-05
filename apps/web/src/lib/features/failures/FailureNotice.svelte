@@ -58,9 +58,7 @@
         >{failure.kind === "auth_required" && !proxy ? signInLabel : "Open provider settings"}</ButtonLink
       >
     {/if}
-    {#if failure.proxy}<ButtonLink size="sm" variant="ghost" href="/settings/proxies"
-        >Check proxy (Test connection)</ButtonLink
-      >{/if}
+    {#if failure.proxy}<ButtonLink size="sm" variant="ghost" href="/settings/proxies">Check proxy</ButtonLink>{/if}
     {#if onretry}<Button size="sm" loading={retrying} disabled={retryDisabled} onclick={onretry}>Retry</Button>{/if}
     {#if onchangeworker}<Button size="sm" variant="ghost" onclick={onchangeworker}>Pick another worker (Runs on)</Button
       >{/if}

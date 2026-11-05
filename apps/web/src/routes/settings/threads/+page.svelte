@@ -19,7 +19,7 @@
 
 <SettingsGroup
   title="New threads"
-  description="Starting values of the new-thread composer on every device. A project's own defaults take precedence."
+  description="Defaults for new threads on all your computers and devices. Project defaults override them."
 >
   {#snippet actions()}
     <Button size="sm" icon="arrow-path" onclick={() => settings.updateThreadDefaults(create(ui.ThreadDefaultsSchema))}
@@ -37,6 +37,6 @@
   <ShareSetting
     itemKey={sharedKey.settings("thread_defaults")}
     label="Thread defaults"
-    local="The default workspace is a directory on one computer and stays on each."
+    local="The default workspace is a directory on one computer, so each computer keeps its own."
   />
 </SharingGroup>

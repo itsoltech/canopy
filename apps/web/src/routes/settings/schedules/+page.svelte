@@ -88,8 +88,8 @@
       icon="clock"
       title={view === "upcoming" ? "Nothing scheduled" : "No finished tasks"}
       description={view === "upcoming"
-        ? "Schedule a message for a thread, once or on a repeat. Agents can schedule their own wake-ups too."
-        : "One-off tasks that ran and cancelled ones show up here."}
+        ? "Send a message to a thread later, once or on repeat. Agents can schedule their own wake-ups too."
+        : "Tasks that ran once or were cancelled appear here."}
     />
   {/if}
 </div>

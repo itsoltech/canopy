@@ -13,7 +13,7 @@ Short rules for agents working in this repository. Details live in `docs/` (most
   - `packages/*`: contracts, db, domain, updater, …
   - `proto/canopy/*`: the gRPC contracts.
 - The name is **Canopy** everywhere: code, docs, UI, prompts, env vars (`CANOPY_*`), packages (`@canopy/*`), proto (`canopy.*`). No traces of former names, no legacy fallbacks.
-- UI and user-facing text are in English. Docs in `docs/` are in Polish; keep that when editing them.
+- UI and user-facing text are in English. Docs in `docs/` are in Polish (except `docs/copy.md`, which is in English); keep that when editing them.
 - Start with `docs/architecture.md`. Then read the doc for the area you touch: `protocol.md`, `worker-config.md`, `bots.md`, `connectors.md`, `updates.md`, `release.md`, `deploy.md`, `ui-api.md`.
 
 ## Branches, commits, releases
@@ -87,6 +87,7 @@ Short rules for agents working in this repository. Details live in `docs/` (most
 - Keep components small and reusable; extract repeated UI.
 - Check UI with short, typical and long/worst-case texts (names, branches, labels) at desktop, narrow and phone widths, where it matters; truncation and wrapping must stay tidy. Use the `design`, `componentize` and `transitions-dev` skills for UI work.
 - Check overlays, sticky headers and scroll areas for gaps and see-through seams (stray padding, margins or offsets).
+- UI text follows `docs/copy.md`. Run its copy audit (§8) for every feature that changes UI text and put the result in the PR description; no separate copy review is needed.
 
 ## Security
 

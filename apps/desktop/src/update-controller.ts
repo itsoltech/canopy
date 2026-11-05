@@ -43,7 +43,7 @@ export class UpdateController {
     updater.autoInstallOnAppQuit = false;
     this.configure(false);
     updater.on("error", () => {
-      if (this.running) this.publish({ phase: "error", message: "Update failed — check again to retry" });
+      if (this.running) this.publish({ phase: "error", message: "Update failed. Check again to retry." });
     });
     updater.on("download-progress", (progress) => {
       if (this.running)
@@ -88,7 +88,7 @@ export class UpdateController {
   }
   enable(reason?: string) {
     this.enabled = !reason;
-    this.publish({ phase: reason ? "disabled" : "idle", message: reason ?? "Ready to check for updates" });
+    this.publish({ phase: reason ? "disabled" : "idle", message: reason ?? "Not checked yet" });
   }
   async setChannel(raw: string) {
     if (!isDesktopChannel(raw)) throw new Error("Invalid update channel");
@@ -153,7 +153,7 @@ export class UpdateController {
       if (!available) {
         this.publish({
           phase: "idle",
-          message: this.state.publishing ?? "Up to date — no update available for this channel",
+          message: this.state.publishing ?? "Up to date",
         });
 
         return this.status();
@@ -162,10 +162,9 @@ export class UpdateController {
       const result = await this.updater.checkForUpdates();
       await result?.downloadPromise;
 
-      if (this.state.phase === "checking")
-        this.publish({ phase: "idle", message: "Up to date — check again any time" });
+      if (this.state.phase === "checking") this.publish({ phase: "idle", message: "Up to date" });
     } catch {
-      this.publish({ phase: "error", message: "Update failed — check again to retry", progress: undefined });
+      this.publish({ phase: "error", message: "Update failed. Check again to retry.", progress: undefined });
     } finally {
       this.updater.allowDowngrade = false;
       this.running = false;

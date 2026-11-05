@@ -49,7 +49,7 @@
   title={inherited ? "Worker" : "Project and worker"}
   description={inherited
     ? "Where new threads of this project start."
-    : "Where new threads start. Projects and “New thread” in a project take precedence."}
+    : "Where new threads start, unless you start them from a project."}
 >
   {#snippet control()}
     <Select
@@ -67,7 +67,10 @@
     />
   {/snippet}
 </SettingsRow>
-<SettingsRow title="Agent" description="Claude, Codex or Grok. New threads offer only what the workspace's worker has.">
+<SettingsRow
+  title="Agent"
+  description="Claude, Codex or Grok. New threads offer only the agents on the workspace's worker."
+>
   {#snippet control()}
     <Select
       name="provider"
@@ -98,7 +101,7 @@
       />
     {/snippet}
   </SettingsRow>
-  <SettingsRow title="Model" description="Leave empty for the profile's default model.">
+  <SettingsRow title="Model" description="Leave empty to use the profile's default.">
     {#snippet control()}
       <ModelIdField
         {provider}

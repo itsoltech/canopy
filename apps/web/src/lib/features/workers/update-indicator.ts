@@ -18,7 +18,7 @@ export function updateIndicator(
     error ||
     snapshot?.checkError ||
     (app?.phase === "error" ? app.message || "App update failed" : "") ||
-    (["failed", "blocked"].includes(run?.state ?? "") ? run?.reason || "Update all stopped" : "") ||
+    (["failed", "blocked"].includes(run?.state ?? "") ? run?.reason || "Updates stopped" : "") ||
     (snapshot?.gatewayState === "failed" ? snapshot.gatewayReason || "Gateway update failed" : "") ||
     (failedWorker ? failedWorker.reason || "Worker update failed" : "") ||
     (failedDesktop ? failedDesktop.reason || "Desktop update failed" : "") ||
@@ -51,7 +51,7 @@ export function updateIndicator(
     };
 
   if (app?.phase === "downloaded")
-    return { phase: "ready", message: "Canopy app is ready — open to restart", progress: 100 };
+    return { phase: "ready", message: "Canopy update ready. Restart to install it.", progress: 100 };
 
   if (
     app?.phase === "checking" ||
@@ -68,7 +68,7 @@ export function updateIndicator(
     clis.some((t) => !!t.action) ||
     workers.some((w) => !!w.desktop?.availableVersion && w.desktop.availableVersion !== w.desktop.version)
   )
-    return { phase: "available", message: "Updates available — open the updates center", progress: undefined };
+    return { phase: "available", message: "Updates available", progress: undefined };
 
-  return { phase: "quiet", message: app?.publishing || "No new updates available", progress: undefined };
+  return { phase: "quiet", message: app?.publishing || "Up to date", progress: undefined };
 }

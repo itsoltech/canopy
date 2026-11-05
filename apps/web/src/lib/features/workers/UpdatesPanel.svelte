@@ -38,7 +38,7 @@
     summary.phase === "quiet"
       ? "All up to date"
       : summary.phase === "error"
-        ? "Needs attention"
+        ? "Update failed"
         : summary.phase === "available"
           ? "Updates available"
           : summary.message,
@@ -74,7 +74,7 @@
       <IconButton
         size="sm"
         icon="information-circle"
-        label="Update order: gateway, binary workers, agent CLIs, then remote Canopy apps. Binary workers follow the gateway; desktop apps follow their own channel."
+        label="Update all goes in order: gateway, binary workers, agent CLIs, then Canopy apps on other computers. Binary workers follow the gateway. Desktop apps follow their own channel."
       />
       <Button
         size="sm"
@@ -105,7 +105,7 @@
     />
     {#each snapshot.workers as worker (worker.workerId)}
       <div class="min-w-0 px-3"><CompactWorkerUpdate {worker} {updates} allowForce /></div>
-    {:else}<p class="px-3 py-2 text-sm/5 text-muted">No enrolled workers</p>{/each}
+    {:else}<p class="px-3 py-2 text-sm/5 text-muted">No workers yet</p>{/each}
     {#if snapshot.run && (snapshot.run.steps.length || snapshot.run.state === "running" || snapshot.run.reason)}<UpdateRun
         run={snapshot.run}
         class="px-3 py-2"

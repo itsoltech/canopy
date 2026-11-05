@@ -73,7 +73,7 @@
     </div>
   {:else}<p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
       {worker.pluginIds.length
-        ? "Assigned plugins will appear after the first sync."
+        ? "Assigned plugins appear after the first sync."
         : "No plugins assigned to this computer."}
     </p>{/each}
 </section>

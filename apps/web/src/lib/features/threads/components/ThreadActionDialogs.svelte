@@ -63,9 +63,9 @@
   {:else if actions.dialog}
     <div class="grid gap-4">
       <p class="text-base/6 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">
-        “{actions.dialog.thread.title}”{sideCount
+        This deletes “{actions.dialog.thread.title}”{sideCount
           ? ` and ${sideCount} side ${sideCount === 1 ? "thread" : "threads"}`
-          : ""} will be hidden. Running turns will be interrupted and schedules cancelled. You can undo this for a few seconds.
+          : ""}. Running turns stop and their schedules are cancelled. You can undo this for a few seconds.
       </p>
       <div class="flex justify-end gap-2">
         <Button data-autofocus onclick={() => (actions.dialog = undefined)}>Cancel</Button>

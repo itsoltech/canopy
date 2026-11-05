@@ -36,7 +36,7 @@
       .quitShortcut()
       .then(receive)
       .catch(() => {
-        error = "Quit shortcut settings could not be loaded.";
+        error = "Could not load the quit shortcut setting.";
       });
 
     return off;
@@ -53,7 +53,7 @@
       receive(await window.canopyDesktop!.setQuitShortcut(option.value));
     } catch {
       choice = saved ?? "press-twice";
-      error = "The quit shortcut could not be saved. Please try again.";
+      error = "Could not save the quit shortcut. Try again.";
     } finally {
       pending = false;
     }
