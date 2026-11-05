@@ -120,12 +120,13 @@ export class WorkerRecords {
             .worker(record.workerId)
             ?.providerInstances.find((i) => i.harness === instance.harness && i.id === instance.id);
 
+          if (live?.status) return create(ui.InstanceOnWorkerSchema, { ...live.status, workerId: record.workerId });
+
           return create(ui.InstanceOnWorkerSchema, {
             workerId: record.workerId,
-            enabled: on?.enabled ?? instance.allWorkers,
+            enabled: live?.enabled ?? on?.enabled ?? instance.allWorkers,
             explicit: on?.enabled !== undefined,
-            available: live?.available ?? false,
-            reported: !!live,
+            detail: `Status from ${record.computerName || record.name} unavailable`,
             overrides: { apiKeySet: on?.keySet ?? false },
           });
         }),

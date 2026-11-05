@@ -58,10 +58,14 @@ export async function coreWorkers(hostContext: GatewayCore): Promise<ui.Worker[]
   for (const worker of workers) {
     worker.providerInstances = instances.get(worker.id) ?? [];
 
-    for (const instance of worker.providerInstances)
+    for (const instance of worker.providerInstances) {
       instance.account = instance.enabled
         ? hostContext.accounts.get(worker.id, instance.harness, instance.id, worker.configVersion)
         : undefined;
+
+      if (instance.status) instance.status.account = instance.account;
+    }
+
     worker.networkRouteStatus = hostContext.link.connections.get(worker.id)?.networkRouteStatus;
   }
 

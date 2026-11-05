@@ -20,6 +20,7 @@ import { applyEnvironment } from "./environment-apply.ts";
 import { CONNECTOR_KINDS } from "./connector-values.ts";
 import { applyConnector } from "./connector-apply.ts";
 import { homeWritten, WORKER_KIND } from "./worker-records.ts";
+import { configEquality } from "./equality.ts";
 
 /** Kinds this computer materializes, with their schema version. Everything else is kept and passed on. */
 export const SCHEMAS = {
@@ -163,7 +164,11 @@ export function receiveItem(ctx: ReceiveContext, received: Received, result: Rec
       : new Map();
 
     const cipher = cipherOf(new Map([...known, ...incoming]));
-    const { row, changed } = yield* mergeRecord(sql, owner, placed.current, placed.item, peer, cipher);
+    const same = yield* configEquality(sql, owner, key);
+
+    const { row, changed } = yield* mergeRecord(sql, owner, placed.current, placed.item, peer, cipher, (name, a, b) =>
+      same(placed.item.kind, name, a, b, cipher),
+    );
 
     if (!placed.current && row.kind === "instance") row.local_id = row.global_id.slice(row.global_id.indexOf(":") + 1);
     result.last = maxClock(result.last, received.row.fields);

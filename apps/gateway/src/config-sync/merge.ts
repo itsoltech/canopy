@@ -139,6 +139,7 @@ export function mergeRecord(
   incoming: ConfigRow,
   peer: string,
   cipher?: Cipher,
+  same = (_name: string, a: Field, b: Field) => equalValue(a.value, b.value),
 ) {
   return Effect.gen(function* () {
     const row = current
@@ -161,7 +162,7 @@ export function mergeRecord(
       if (old && order === 0 && !equalValue(old.value, next.value))
         return yield* Effect.fail(new ConnectError("Configuration clock reused for a different value", Code.DataLoss));
 
-      if (old && old.hlc && next.hlc && !equalValue(old.value, next.value)) {
+      if (old && old.hlc && next.hlc && !same(name, old, next)) {
         if (order > 0 && compareClock(next.prev, old.hlc) < 0)
           yield* remember(sql, owner, row, name, old, peer, next.prev ? "concurrent" : "merged", cipher);
         else if (order < 0 && compareClock(old.prev, next.hlc) < 0)

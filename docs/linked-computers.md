@@ -1586,6 +1586,18 @@ Pytania o wersję znikają. Edycja wszędzie pozostaje prosta, a dane nie giną 
   nie ukrywa notki na innych; historia jest lokalna i wygasa po 90 dniach.
 - Sekret w notce widać wyłącznie jako „A different key”.
 
+Równość dotyczy wartości efektywnych: kolejność kluczy JSON nie ma znaczenia, aliasy tego samego
+proxy wskazują jedną rzecz, a sekret porównywany jest po odszyfrowanej wartości wyłącznie wewnątrz
+gatewaya. Losowy token wersji i szyfrogram odbiorcy nie są różnicą konfiguracji. Jawne wartości
+domyślne potwierdzenia usuwania i częstotliwości CLI odpowiadają brakowi nadpisania. HLC nadal
+rozstrzyga, która wersja pola wygrywa; równoważność usuwa tylko fałszywą notkę.
+
+Odczyt notek porównuje też zachowaną wartość z bieżącym polem. Gdy znów są równoważne, oznacza
+notkę jako obsłużoną, zachowując historię. Działa to również dla notek zapisanych przez starszą
+wersję i po restarcie; nie wymaga migracji ani ręcznego Dismiss. Rzeczywista przegrana edycja
+pozostaje dostępna przez Restore, dopóki różni się od bieżącej wartości. Usunięcie nadal ma notkę,
+gdy pole zniknęło; przywrócenie po usunięciu zachowuje osobną notkę `resurrected`.
+
 ### Usuwanie
 
 Usunięcie zapisuje **tombstone**: pole `deleted` z własnym HLC. Rekord bez ładunku pól zostaje na stałe,
@@ -1780,6 +1792,13 @@ Obie strony zapisują `audit_log` `computer.config.worker.sent` / `.received`.
 Odczyty nie tworzą wpisów audytu. Providers, Agent environment, Worktrees i Connectors używają
 `ListWorkerRecords` do list workerów pogrupowanych według komputera. Offline worktree pokazuje zapisane
 nadpisania bez zgadywania wartości dziedziczonych; pozostałe odczyty szczegółów wymagają połączenia z domem.
+
+Status instancji providera pochodzi z domu workera: `Worker.provider_instances.status` w `GetOverview`
+i `WatchOverview` przenosi pełny `InstanceOnWorker` (uwierzytelnienie, wersję CLI, raportowany rodzaj
+połączenia, czas sprawdzenia i zgodność konfiguracji). Dom buduje go z `ConfigApplied` danego workera,
+po zastosowaniu jego nadpisań; odbiorca nie odtwarza go ze swojej definicji instancji. Rekord `worker`
+pozostaje informacją o konfiguracji, bez raportu dostępności. Partner starszy albo bez aktualnego
+raportu daje „Status from … unavailable”; brak danych nie oznacza logowania urządzenia.
 
 Telefony i przeglądarki nie trasują niczego. Metody zarządzania wymagają tokenu serwisowego BFF jak dziś.
 Partner nigdy nie zmienia rekordu wspólnego przez `RemoteRequest`, tylko przez `WatchConfig`. Model nie ma

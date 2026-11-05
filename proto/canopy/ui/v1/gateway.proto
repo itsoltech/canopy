@@ -1627,6 +1627,8 @@ message InstanceOnWorker {
   // Worker ma już wersję konfiguracji z bieżącą definicją instancji.
   bool synced = 13;
   canopy.worker.v1.ProviderAccountStatus account = 14;
+  // Connection in the worker's actual ConfigApplied report; absent when not reported.
+  optional canopy.worker.v1.ProviderProfileKind kind = 15;
 }
 
 message ProviderInstance {
@@ -1667,6 +1669,8 @@ message WorkerInstance {
   repeated string favorites = 8;
   canopy.worker.v1.ProviderProfileKind kind = 9;
   canopy.worker.v1.ProviderAccountStatus account = 10;
+  // Full status from this worker's home, also carried over linked overview streams.
+  InstanceOnWorker status = 11;
 }
 
 message ListProviderInstancesRequest {}
