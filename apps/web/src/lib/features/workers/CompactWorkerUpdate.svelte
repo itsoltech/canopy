@@ -11,13 +11,22 @@
   let {
     worker,
     updates,
+    home,
     allowForce = false,
     class: className,
-  }: { worker: ui.WorkerUpdate; updates: UpdatesState; allowForce?: boolean; class?: ClassValue } = $props();
+  }: {
+    worker: ui.WorkerUpdate;
+    updates: UpdatesState;
+    /** The snapshot of the computer the worker belongs to (a linked computer's); this computer's by default. */
+    home?: ui.UpdatesSnapshot | undefined;
+    allowForce?: boolean;
+    class?: ClassValue;
+  } = $props();
 
   let confirming = $state(false);
 
-  const snapshot = $derived(updates.snapshot);
+  const snapshot = $derived(home ?? updates.snapshot);
+  const linked = $derived(!!home && home !== updates.snapshot);
   const desktop = $derived(worker.desktop);
   const current = $derived(workerCurrent(worker, snapshot?.gatewayVersion ?? ""));
 
@@ -36,9 +45,11 @@
       (!worker.connected ? "Update channel offline" : ""),
   );
 
+  // A linked computer's remote desktop apps update from that computer only.
   const actionable = $derived(
     desktop
-      ? desktop.connected &&
+      ? !linked &&
+          desktop.connected &&
           !desktop.disabledReason &&
           !!desktop.availableVersion &&
           desktop.availableVersion !== desktop.version
@@ -92,11 +103,11 @@
         icon="arrow-up"
         size="sm"
         label={`Update ${worker.name}`}
-        disabled={!!updates.pending || snapshot?.run?.state === "running"}
+        disabled={!!updates.pending || updates.snapshot?.run?.state === "running"}
         loading={updates.pending === worker.workerId}
         onclick={() => void updates.manage({ action: desktop ? "desktop" : "worker", workerId: worker.workerId })}
       />
-    {:else if allowForce && desktop?.phase === "waiting_idle" && desktop.connected && !desktop.disabledReason}
+    {:else if allowForce && !linked && desktop?.phase === "waiting_idle" && desktop.connected && !desktop.disabledReason}
       <IconButton
         icon="arrow-path"
         size="sm"
