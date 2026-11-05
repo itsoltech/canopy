@@ -11,6 +11,8 @@ import { useAppearance } from "../../state/appearance";
 import { effortLabel, findChoice, modelSections, useModelCatalog } from "../models/catalog";
 import { EffortPickerSheet, ModelPickerSheet } from "../models/ModelPicker";
 import { permissionLabel, permissionLook, PermissionPickerSheet } from "./permissions";
+import { AttachButton, AttachmentChips } from "../attachments/Attachments";
+import type { useAttachmentDraft } from "../attachments/useAttachmentDraft";
 
 type Picker = "model" | "effort" | "permission" | "goal";
 
@@ -47,6 +49,7 @@ export function MessageComposer({
   worker,
   text,
   onChange,
+  draft,
   send,
   stop,
   disabled,
@@ -57,6 +60,7 @@ export function MessageComposer({
   worker?: ui.Worker;
   text: string;
   onChange: (text: string) => void;
+  draft: ReturnType<typeof useAttachmentDraft>;
   send: (delivery: ui.MessageDelivery) => void;
   stop: () => void;
   disabled: boolean;
@@ -84,11 +88,14 @@ export function MessageComposer({
         onQueue={() => send(ui.MessageDelivery.QUEUE)}
         onStop={stop}
         running={thread?.status === "running"}
-        disabled={disabled}
+        disabled={disabled || Boolean(draft.blocker)}
         busy={busy}
+        files={draft.ids.length}
+        top={<AttachmentChips draft={draft} />}
         controls={
           <>
-            <ComposerPill icon="flag" title="Goal" onPress={() => setPicker("goal")} />
+            <AttachButton draft={draft} disabled={busy} />
+            {thread?.goalStatus ? <ComposerPill icon="flag" title="Goal" onPress={() => setPicker("goal")} /> : null}
             <ComposerPill
               icon="cpu-chip"
               leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}

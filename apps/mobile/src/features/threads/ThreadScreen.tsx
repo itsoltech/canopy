@@ -18,6 +18,7 @@ import { InteractionCard } from "./InteractionCard";
 import { useOverview } from "../../state/overview";
 import { ThreadHeader } from "./ThreadHeader";
 import { useFollowingList } from "../../ui/useFollowingList";
+import { useAttachmentDraft } from "../attachments/useAttachmentDraft";
 
 function visibleTurns(snapshot: ui.ThreadSnapshot | undefined) {
   const turns = snapshot?.turns.filter((t) => !t.withdrawn).slice() ?? [];
@@ -49,6 +50,7 @@ function useThreadState(id: string) {
   const [details, setDetails] = useState(false);
   const { projects, workers, threads } = useOverview();
   const sending = useRef(false);
+  const draft = useAttachmentDraft();
 
   const pending = useRef<{
     text: string;
@@ -75,13 +77,17 @@ function useThreadState(id: string) {
   const interactions = snapshot?.interactions.filter((i) => i.status === "pending") ?? [];
   const turns = visibleTurns(snapshot);
 
-  async function send(delivery: ui.MessageDelivery) {
-    if (!client || !text.trim() || sending.current) return;
+  async function send(requested: ui.MessageDelivery) {
+    if (!client || (!text.trim() && !draft.ids.length) || draft.blocker || sending.current) return;
     sending.current = true;
     following.resumeFollowing();
     setBusy(true);
     setError("");
     const value = text.trim();
+    const attachmentIds = draft.ids;
+
+    // A message with files always waits in the queue (it never joins a running turn).
+    const delivery = attachmentIds.length ? ui.MessageDelivery.QUEUE : requested;
 
     if (pending.current?.text !== value || pending.current.delivery !== delivery)
       pending.current = { text: value, delivery, id: Crypto.randomUUID() };
@@ -92,6 +98,7 @@ function useThreadState(id: string) {
           threadId: id,
           text: value,
           delivery,
+          attachmentIds,
           clientRequestId: pending.current.id,
         },
         { signal: requestController.current.signal, timeoutMs: 20_000 },
@@ -121,6 +128,7 @@ function useThreadState(id: string) {
               ),
         );
       setText("");
+      draft.clear();
       pending.current = null;
     } catch (e) {
       if (ConnectError.from(e).code === Code.Unauthenticated) await expired();
@@ -162,6 +170,7 @@ function useThreadState(id: string) {
     turns,
     send,
     blocked,
+    draft,
   };
 }
 
@@ -252,6 +261,7 @@ export function ThreadScreen({ id }: { id: string }) {
             worker={worker}
             text={text}
             onChange={setText}
+            draft={state.draft}
             send={(delivery) => void send(delivery)}
             stop={() =>
               void client!.api
