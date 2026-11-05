@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { ui } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import ProjectThreadList from "#lib/features/projects/ProjectThreadList.svelte";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
@@ -11,19 +9,14 @@
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
-  import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
 
-  let { data }: PageProps = $props();
   const route = useSettingsRoute<PageProps["form"]>();
   const overview = useOverview();
   const settings = useSettings();
 
   const projectId = $derived(route.params.projectId ?? "");
   const project = $derived(overview.project(projectId));
-
-  // Server list, with live status updates (and new threads, e.g. spawned by agents) laid over it.
-  const threads = $derived(overview.liveThreads(projectId, decode(ui.ListThreadsResponseSchema, data.threads).threads));
 </script>
 
 <svelte:head><title>{project?.name ?? "Project"} · Settings · Canopy</title></svelte:head>
@@ -63,7 +56,3 @@
     />
   </SettingsGroup>
 {/if}
-
-<SettingsGroup title="Threads" description="Main threads with their side threads.">
-  <div class="p-2"><ProjectThreadList {threads} /></div>
-</SettingsGroup>
