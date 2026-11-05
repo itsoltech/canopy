@@ -6,6 +6,7 @@ import type { JsonObject, JsonValue } from "@canopy/domain";
 import { decodeJsonObject, isString, jsonObject } from "./json.ts";
 import { pickDefaultEffort } from "./default-effort.ts";
 import type { ResolvedProfile } from "./profiles.ts";
+import { claudeModelName, concreteModelName } from "./model-metadata.ts";
 
 /**
  * Model catalogs (docs/protocol.md#modele-effort-i-steer): what each provider + profile offers, with the
@@ -13,9 +14,10 @@ import type { ResolvedProfile } from "./profiles.ts";
  * - Codex: app-server `model/list` (its bundled catalog, the same for every model provider),
  * - Claude: `Query.supportedModels()` of a query that never gets a prompt,
  * - a CLIProxyAPI profile also asks the proxy (`GET /v1/models`): Codex keeps the catalog models the proxy
- *   serves and adds the proxy's other models (no effort data); Claude Code does that itself
+ *   serves and adds compatible proxy models (no effort data); Claude Code discovers proxy models itself
  *   (CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY).
- * Models that cannot run an agent turn (image, video, speech, embeddings...) are left out (`isAgentModel`), and
+ * Proxy entries are scoped by family and wire protocol (`proxyModelFits`). Models that cannot run an agent
+ * turn (image, video, speech, embeddings...) are left out (`isAgentModel`), and
  * `default_effort` is the device owner's configured default when the model offers it (default-effort.ts).
  */
 
@@ -40,7 +42,8 @@ type CatalogModel = Pick<
   | "isDefault"
   | "supportedReasoningEfforts"
   | "defaultReasoningEffort"
->;
+> &
+  Partial<Pick<v2.Model, "upgrade" | "upgradeInfo">>;
 
 export function codexModel(model: CatalogModel, configuredEffort?: string): ModelInit {
   const efforts = model.supportedReasoningEfforts.map((e) => e.reasoningEffort);
@@ -51,6 +54,7 @@ export function codexModel(model: CatalogModel, configuredEffort?: string): Mode
     displayName: model.displayName,
     description: model.description,
     hidden: model.hidden,
+    legacy: model.hidden || Boolean(model.upgrade || model.upgradeInfo),
     isDefault: model.isDefault,
     efforts,
     ...(defaultEffort && { defaultEffort }),
@@ -65,7 +69,7 @@ export function claudeModel(model: ClaudeModelInfo, configuredEffort?: string): 
   return {
     id: model.value,
     ...(model.resolvedModel && model.resolvedModel !== model.value && { resolvedModel: model.resolvedModel }),
-    displayName: model.displayName,
+    displayName: claudeModelName(model),
     description: model.description,
     // The "default" row is what Claude Code runs when no model is chosen.
     isDefault: model.value === "default",
@@ -86,6 +90,8 @@ export interface ProxyModel extends ModelCapabilities {
   readonly id: string;
   readonly ownedBy: string;
   readonly displayName?: string;
+  /** Explicit wire protocols, when the proxy reports them. */
+  readonly supportedEndpoints?: readonly string[];
 }
 
 /**
@@ -159,7 +165,18 @@ export async function proxyModels(profile: CliProxyProfile, fetchImpl: FetchMode
     if (!m || !isString(m["id"]) || !m["id"]) return [];
     const known = byId.get(m["id"]);
 
-    return [{ ...known, id: m["id"], ownedBy: isString(m["owned_by"]) ? m["owned_by"] : "" }];
+    const displayName = isString(m["display_name"]) ? m["display_name"] : known?.displayName;
+    const supportedEndpoints = strings(m["supported_endpoint_types"]);
+
+    return [
+      {
+        ...known,
+        id: m["id"],
+        ownedBy: isString(m["owned_by"]) ? m["owned_by"] : "",
+        ...(displayName && { displayName }),
+        ...(supportedEndpoints && { supportedEndpoints }),
+      },
+    ];
   });
 }
 
@@ -226,22 +243,21 @@ function strings(value: JsonValue | undefined): string[] | undefined {
 
 /**
  * Codex through a proxy: the catalog models the proxy serves (with their efforts), then the proxy's other
- * agent models (Codex runs them with generic metadata, so no efforts are known). Catalog models are Codex's
- * own agent models and are never filtered.
+ * compatible agent models (Codex runs them with generic metadata, so no efforts are known). Both must fit
+ * the harness; explicit proxy protocol metadata also applies to models known by the catalog.
  */
 export function codexProxyModels(catalog: readonly ModelInit[], proxy: readonly ProxyModel[]): ModelInit[] {
-  const served = new Set(proxy.map((m) => m.id));
+  const served = new Set(proxy.flatMap((m) => (proxyModelFits("codex", m) ? [m.id] : [])));
   const known = catalog.filter((m) => served.has(m.id ?? ""));
   const knownIds = new Set(known.map((m) => m.id));
 
   const extra = proxy
     .flatMap((m): ModelInit[] =>
-      !knownIds.has(m.id) && isAgentModel([m.id, m.displayName ?? ""], m)
+      !knownIds.has(m.id) && proxyModelFits("codex", m)
         ? [
             {
               id: m.id,
-              displayName: m.id,
-              description: m.ownedBy ? `CLIProxyAPI (${m.ownedBy})` : "CLIProxyAPI",
+              displayName: m.displayName || concreteModelName(m.id),
               efforts: [],
             },
           ]
@@ -260,9 +276,9 @@ export function codexProxyModels(catalog: readonly ModelInit[], proxy: readonly 
  */
 export function claudeAgentModels(
   models: readonly ClaudeModelInfo[],
-  capabilities: readonly ProxyCapabilities[] = [],
+  capabilities: readonly ProxyModel[] = [],
 ): ClaudeModelInfo[] {
-  const byName = new Map<string, ProxyCapabilities>();
+  const byName = new Map<string, ProxyModel>();
 
   for (const c of capabilities) {
     byName.set(c.id.toLowerCase(), c);
@@ -274,6 +290,41 @@ export function claudeAgentModels(
     const names = [m.value, m.resolvedModel ?? "", m.displayName];
     const known = names.map((n) => byName.get(n.toLowerCase())).find((c) => c !== undefined);
 
-    return isAgentModel(names, known);
+    if (known) return proxyModelFits("claude", known);
+
+    // Discovery wrappers can start with "claude-" even for another model family.
+    if (/^claude-fable-\d+-dd-/i.test(m.value)) return false;
+
+    return isAgentModel(names) && !names.some((name) => /^(?:gpt|o\d|codex|grok|gemini)(?:[-\s.]|$)/i.test(name));
   });
+}
+
+/** Family comes from the actual id/name before the upstream account's owner (which may serve several families). */
+export function proxyModelFits(harness: "claude" | "codex" | "grok", model: ProxyModel): boolean {
+  if (!isAgentModel([model.id, model.displayName ?? ""], model)) return false;
+  const names = [model.id, model.displayName ?? ""];
+
+  const family = names.some((name) => /^claude(?:[-\s]|$)/i.test(name))
+    ? "anthropic"
+    : names.some((name) => /^(?:gpt|o\d|codex)(?:[-\s.]|$)/i.test(name))
+      ? "openai"
+      : names.some((name) => /^grok(?:[-\s]|$)/i.test(name))
+        ? "xai"
+        : names.some((name) => /^gemini(?:[-\s]|$)/i.test(name))
+          ? "google"
+          : model.ownedBy.toLowerCase();
+
+  const endpoints = model.supportedEndpoints?.map((endpoint) => endpoint.toLowerCase());
+
+  if (harness === "claude") {
+    return ["anthropic", "claude"].includes(family) && (!endpoints || endpoints.includes("messages"));
+  }
+
+  if (harness === "grok") {
+    return ["xai", "x-ai", "grok"].includes(family) && (!endpoints || endpoints.includes("chat_completions"));
+  }
+
+  if (["anthropic", "claude", "google", "gemini", "antigravity"].includes(family)) return false;
+
+  return endpoints ? endpoints.includes("responses") : ["openai", "codex", "xai", "x-ai", "grok"].includes(family);
 }

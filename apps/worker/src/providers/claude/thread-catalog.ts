@@ -1,7 +1,7 @@
 import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { AsyncChannel } from "@canopy/transport";
 import { Effect } from "effect";
-import { claudeAgentModels, claudeModel, proxyCapabilities, type ProxyCapabilities } from "../models.ts";
+import { claudeAgentModels, claudeModel, proxyModels, type ProxyModel } from "../models.ts";
 import { CLAUDE_CATALOG_NOTES, claudeCatalogEntries, claudeSkillsOnDisk } from "./catalog.ts";
 import { withDeadline } from "../deadline.ts";
 
@@ -100,9 +100,7 @@ export function threadCatalog(ctx: ClaudeThreadContext, runtime: ReturnType<type
       // Through a proxy: its capabilities say which listed models cannot run an agent turn (optional).
       const capabilities =
         profile.kind === "cliproxyapi"
-          ? yield* Effect.tryPromise(() => proxyCapabilities(profile)).pipe(
-              Effect.orElseSucceed((): ProxyCapabilities[] => []),
-            )
+          ? yield* Effect.tryPromise(() => proxyModels(profile)).pipe(Effect.orElseSucceed((): ProxyModel[] => []))
           : [];
 
       const agentModels = claudeAgentModels(models, capabilities);

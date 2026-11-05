@@ -8,6 +8,7 @@ import { prepareCodexHome } from "../providers/codex/home.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { startCodexDeviceLogin } from "../providers/codex/login.ts";
 import { providersOf } from "../providers/profiles.ts";
+import { classifyLegacyModels } from "../providers/model-metadata.ts";
 
 import { CommandError, usableBy, type CommandOutput, type ProfileModelsInit } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
@@ -158,7 +159,7 @@ export class HostCatalog {
           return {
             provider: p,
             profileId: profile,
-            models: listed.models ?? [],
+            models: classifyLegacyModels(listed.models ?? []),
             ...(listed.detail && { detail: listed.detail }),
             listedAt: timestampNow(),
           };
