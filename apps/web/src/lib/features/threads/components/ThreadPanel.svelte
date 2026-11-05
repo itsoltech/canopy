@@ -1,5 +1,4 @@
 <script lang="ts">
-  import ThreadWorktree from "#lib/features/worktrees/ThreadWorktree.svelte";
   import ThreadSecretRow from "./secrets/ThreadSecretRow.svelte";
   import ThreadConnectors from "#lib/features/connectors/ThreadConnectors.svelte";
   import { timestampMs } from "@bufbuild/protobuf/wkt";
@@ -128,14 +127,14 @@
       {#snippet aside()}<CopyButton text={thread.cwd} label="Copy working directory" class="-my-1" />{/snippet}
     </PanelRow>
     {#if thread.worktree}
-      <div class="px-2 py-1"><ThreadWorktree worktree={thread.worktree} onclick={onworktree} /></div>
-      <!-- A git worktree (docs/worktrees.md): its branch and what it started from. -->
-      <PanelRow icon="git-fork">
+      <!-- A git worktree (docs/worktrees.md): its branch and what it started from; opens Manage worktree. -->
+      <PanelRow icon="git-fork" onclick={onworktree}>
         <code class="font-mono text-xs/6" {@attach tooltip(`Worktree ${thread.worktree.path}`)}
           >{thread.worktree.branch}</code
         >
         {#snippet aside()}{#if thread.worktree?.baseRef}<span
-              class="shrink-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+              class="max-w-1/2 min-w-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+              {@attach tooltip(`Started from ${thread.worktree.baseRef}`)}
               >from <code class="font-mono">{thread.worktree.baseRef}</code></span
             >{/if}{/snippet}
       </PanelRow>
