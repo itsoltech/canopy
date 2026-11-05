@@ -5,7 +5,8 @@ import { AsyncChannel } from "@canopy/transport";
 import { createHandlerContext, type HandlerContext } from "@connectrpc/connect";
 import { linkedMessage, methodNamed } from "../computers/remote.ts";
 import type { GatewayCore } from "../core/core.ts";
-import { GATHER_TIMEOUT_MS, globalIds, single, stream, unary, withSignal, type Handler } from "./routed-context.ts";
+import { GATHER_TIMEOUT_MS, single, stream, unary, withSignal, type Handler } from "./routed-context.ts";
+import { localProjectIds } from "./routed-config.ts";
 import { forward } from "./routed-home.ts";
 
 /** Other computers' overviews in this one. A shared project is listed once, with every computer's workspaces. */
@@ -101,7 +102,7 @@ export async function ownOverview(
     gather<ui.GetOverviewResponse>(core, "GetOverview", request, signal),
   ]);
 
-  absorb(overview, remote, globalIds(core));
+  absorb(overview, remote, await localProjectIds(core));
 
   return overview;
 }
@@ -178,7 +179,7 @@ export async function* watchOverview(
         for await (const message of remote) {
           if (signal.aborted || controller.signal.aborted || watchers.get(nodeId) !== controller) break;
           const update = linkedMessage(ui.OverviewUpdateSchema, message);
-          const merged = splitShared(update, globalIds(core));
+          const merged = splitShared(update, await localProjectIds(core));
 
           for (const value of remoteUpdates(update, nodeId)) out.push(value);
 
@@ -246,7 +247,7 @@ export async function* watchOverview(
             gather<ui.ListThreadsResponse>(core, "ListThreads", create(ui.ListThreadsRequestSchema), signal),
           ]);
 
-          absorb(update.change.value.overview, overviews, globalIds(core));
+          absorb(update.change.value.overview, overviews, await localProjectIds(core));
           update.change.value.overview.computers = (await computers.snapshot()).peers;
 
           for (const other of lists) update.change.value.threads.push(...other.threads);

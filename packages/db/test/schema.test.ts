@@ -86,6 +86,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "72_workspace_origin",
       "73_config_sync",
       "74_config_providers",
+      "75_config_projects",
     ]);
   }, 60_000);
 
@@ -448,39 +449,39 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
     });
   });
 
-  describe("shared configuration (0050)", () => {
-    test("unlinking a computer removes its acknowledgements and pending conflicts, not the shared items", async () => {
+  describe("shared configuration (0075)", () => {
+    test("unlinking removes the checkpoint and retains shared records and history", async () => {
       const w = await world();
       const node = `peer-${id()}`;
       await query(
         `INSERT INTO computer_peers (owner_user_id, node_id, name, certificate, fingerprint) VALUES ($1, $2, 'B', 'c', 'f')`,
         [w.user, node],
       );
+      await query(`INSERT INTO config_items (owner_user_id,kind,global_id,revision) VALUES ($1,'project','test',1)`, [
+        w.user,
+      ]);
+      await query(`INSERT INTO config_peer_cursors (owner_user_id,node_id,cursor) VALUES ($1,$2,'epoch:1')`, [
+        w.user,
+        node,
+      ]);
       await query(
-        `INSERT INTO computer_shared_items (owner_user_id, item_key, shared) VALUES ($1, 'settings:appearance', true)`,
-        [w.user],
-      );
-      await query(
-        `INSERT INTO computer_shared_acks (owner_user_id, node_id, item_key, digest, shared) VALUES ($1, $2, 'settings:appearance', 'd', true)`,
-        [w.user, node],
-      );
-      await query(
-        `INSERT INTO computer_shared_conflicts (owner_user_id, item_key, node_id, remote_payload, remote_clock, remote_digest, remote_changed_at)
-                   VALUES ($1, 'settings:appearance', $2, '{}', '{}', 'd', now())`,
+        `INSERT INTO config_history (owner_user_id,kind,global_id,field,value,hlc,node_id,notice_node_id)
+                   VALUES ($1,'project','test','name','"Old name"','1.0.test',$2,$2)`,
         [w.user, node],
       );
       expect(
         await failure(
-          `INSERT INTO computer_shared_acks (owner_user_id, node_id, item_key, digest, shared) VALUES ($1, 'unknown', 'k', 'd', true)`,
+          `INSERT INTO config_peer_cursors (owner_user_id,node_id,cursor) VALUES ($1,'unknown','epoch:1')`,
           [w.user],
         ),
       ).toContain("foreign key");
       await query(`DELETE FROM computer_peers WHERE owner_user_id = $1 AND node_id = $2`, [w.user, node]);
-      expect(await query(`SELECT 1 FROM computer_shared_acks WHERE owner_user_id = $1`, [w.user])).toHaveLength(0);
-      expect(await query(`SELECT 1 FROM computer_shared_conflicts WHERE owner_user_id = $1`, [w.user])).toHaveLength(0);
-      expect(await query(`SELECT shared FROM computer_shared_items WHERE owner_user_id = $1`, [w.user])).toEqual([
-        { shared: true },
-      ]);
+      expect(await query(`SELECT 1 FROM config_peer_cursors WHERE owner_user_id = $1`, [w.user])).toHaveLength(0);
+      expect(await query(`SELECT 1 FROM config_history WHERE owner_user_id = $1`, [w.user])).toHaveLength(1);
+      expect(await query(`SELECT 1 FROM config_items WHERE owner_user_id = $1`, [w.user])).toHaveLength(1);
+      expect(
+        await query(`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'computer_shared_%'`),
+      ).toHaveLength(0);
     });
   });
 

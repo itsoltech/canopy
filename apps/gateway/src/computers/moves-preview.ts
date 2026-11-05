@@ -4,12 +4,12 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link, ui } from "@canopy/contracts";
 
-import { splitId } from "@canopy/domain/computers";
+import { CONFIG_SYNC, splitId } from "@canopy/domain/computers";
 
 import { Effect } from "effect";
 
 import { botBlocker, botRowsJson, exportBot, threadBlocker, threadFamily, transaction } from "./move-state.ts";
-import { DECIDE_TIMEOUT_MS, movesState, sharedLabel } from "./moves-context.ts";
+import { DECIDE_TIMEOUT_MS, movesState } from "./moves-context.ts";
 import { movesUnary } from "./moves-recovery.ts";
 import type { ComputerMoves } from "./moves.ts";
 
@@ -207,22 +207,19 @@ export async function movesPreviewBot(hostContext: ComputerMoves, id: string, in
 
 /** Move everything: what is already shared stays shared; what is this computer's own has to be set up again. */
 export async function movesConfiguration(hostContext: ComputerMoves, target: string) {
-  const shared = (
-    await hostContext[movesState].store
-      .query<{ key: string }>(
-        `SELECT key FROM computer_shared_items WHERE owner_user_id=$1::uuid AND shared ORDER BY key`,
-        [hostContext[movesState].store.owner],
-      )
-      .catch(() => [])
-  ).map((r) => sharedLabel(r.key));
+  const peer = await hostContext[movesState].store.peer(target);
+  const sharing = peer?.share_config && peer.peer_share_config && peer.capabilities.includes(CONFIG_SYNC);
 
-  const instances = await hostContext[movesState].store
-    .query<{ label: string; harness: string; id: string }>(
-      `SELECT label, harness, id FROM provider_instances p WHERE NOT EXISTS
-      (SELECT 1 FROM computer_shared_items s WHERE s.owner_user_id=$1::uuid AND s.shared AND s.key = 'instance:' || p.harness || ':' || p.id) ORDER BY label`,
-      [hostContext[movesState].store.owner],
-    )
-    .catch(() => []);
+  const shared = sharing
+    ? (
+        await hostContext[movesState].store.query<{ kind: string; name: string }>(
+          `SELECT kind,COALESCE(fields->'name'->>'value',fields->'label'->>'value','') AS name FROM config_items
+      WHERE owner_user_id=$1::uuid AND kind IN ('settings','instance','proxy','project')
+      AND deleted->>'value'='false' AND unsupported='' ORDER BY kind,global_id`,
+          [hostContext[movesState].store.owner],
+        )
+      ).map((r) => (r.kind === "settings" ? "Account settings" : r.name))
+    : [];
 
   const accounts = await hostContext[movesState].store.query<{ name: string; connector_type: string }>(
     `SELECT name, connector_type FROM connector_accounts WHERE owner_user_id=$1::uuid ORDER BY name`,
@@ -243,7 +240,6 @@ export async function movesConfiguration(hostContext: ComputerMoves, target: str
     )[0]?.n ?? 0;
 
   const localOnly = [
-    ...instances.filter((i) => i.id !== "native").map((i) => `Provider instance ${i.label || i.id} (not shared)`),
     ...accounts.map((a) => `Connector account ${a.name} (${a.connector_type})`),
     ...servers.map((s) => `MCP server ${s.name}`),
     ...(schedules
@@ -251,8 +247,6 @@ export async function movesConfiguration(hostContext: ComputerMoves, target: str
       : []),
     "Workers, workspaces and desktop settings of this computer",
   ];
-
-  void target;
 
   return { shared, localOnly };
 }

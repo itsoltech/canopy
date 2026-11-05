@@ -18,6 +18,7 @@
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
+  import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
 
   /** Settings → Worktrees (docs/worktrees.md): creation, branch names and the default for new threads, per scope. */
   const settingsState = new WorktreeSettingsState();
@@ -51,6 +52,11 @@
 
 <div class="settings-stack">
   <WorktreeScopeBar {scope} disabled={settingsState.saving > 0} onchange={(next) => (scope = next)} />
+  <ConfigNotices
+    match={(notice) =>
+      !scope.workerId && notice.kind === "worktree_policy" && notice.localId === (scope.projectId || "account")}
+    onchange={() => void settingsState.load(scope)}
+  />
   {#if settingsState.error}<Alert tone="error">{settingsState.error}</Alert>{/if}
 
   {#if !effective || !inherited}

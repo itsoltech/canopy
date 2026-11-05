@@ -6,6 +6,7 @@ import { SqlClient, type SqlError } from "effect/sql";
 import { isUniqueViolation } from "./agent-bus.ts";
 import { NotFound } from "./store.ts";
 import { configLock, configSettingsChanged } from "../config-sync/persistence.ts";
+import { recordProjects } from "../config-sync/project-records.ts";
 
 /**
  * User and project settings (docs/ui-api.md): stored by the gateway, the browser only reads and writes
@@ -240,6 +241,8 @@ export class SettingsStore extends Context.Service<
         updateProject: ({ userId, projectId, threadDefaults: nextDefaults, expectedVersion }) =>
           sql.withTransaction(
             Effect.gen(function* () {
+              yield* configLock(sql, userId);
+
               const owned =
                 yield* sql`SELECT 1 FROM projects WHERE id = ${projectId}::uuid AND owner_user_id = ${userId}::uuid AND archived_at IS NULL AND kind <> 'scratch'`;
 
@@ -266,6 +269,8 @@ export class SettingsStore extends Context.Service<
                   UPDATE project_settings SET settings = ${settings}::jsonb, version = version + 1, updated_by = ${userId}::uuid, updated_at = now()
                    WHERE project_id = ${projectId}::uuid AND version = ${version} RETURNING settings, version, updated_at`,
               });
+
+              yield* recordProjects(sql);
 
               return toProject(projectId, row);
             }),

@@ -10,7 +10,7 @@ import { RemoteCalls, type RemoteServe } from "./remote.ts";
 
 import { type MoveHost } from "./moves.ts";
 
-import { type SharedHost } from "./shared.ts";
+import { type SharedHost } from "../config-sync/host.ts";
 
 import { ComputerStore, type PeerRow } from "./store.ts";
 
@@ -44,7 +44,7 @@ export type Options = {
   heartbeatMs?: number;
   /** Serves linked computers' calls on this computer's threads (stage 2). Without it the capability is not offered. */
   serve?: RemoteServe;
-  /** Configuration shared with linked computers (stage 4). Without it the capability is not offered. */
+  /** Configuration shared with linked computers. Without it the capability is not offered. */
   shared?: SharedHost;
   /** The owner's IANA zone for "unreachable since 19:42". */
   zone?: () => Promise<string | undefined>;
@@ -159,7 +159,6 @@ export class LinkedComputersState {
 
   botMirroring = new Map<string, AbortController>();
 
-  sharing = false;
   configWatching = new Map<string, AbortController>();
   configServing = new Map<string, Set<AbortController>>();
 

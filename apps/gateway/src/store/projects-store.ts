@@ -5,9 +5,11 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound, one, type Fx } from "./errors.ts";
 import { isAbsolutePath, normalizePath, pathKey, pathStyle, scratchBase } from "./paths.ts";
+import { projectTransaction } from "../config-sync/project-records.ts";
+import { configLock } from "../config-sync/persistence.ts";
 
 export interface ProjectStore {
-  /** `id`: a project shared by a linked computer keeps its id here (docs/linked-computers.md, stage 4). */
+  /** Optional local id; config_items keeps the shared identity separately. */
   createProject(ownerUserId: string, name: string, id?: string): Fx<ui.Project>;
   lockProject(ownerUserId: string, projectId: string): Fx<void>;
   renameProject(ownerUserId: string, projectId: string, name: string): Fx<void>;
@@ -21,6 +23,7 @@ export interface ProjectStore {
   /** Takes the project off the workspace's worker (archived): no new threads there, existing ones go on. */
   removeWorkspace(ownerUserId: string, workspaceId: string): Fx<ui.Workspace>;
   listProjects(ownerUserId: string): Fx<ui.Project[]>;
+  projectsWithOrigin(ownerUserId: string, origin: string): Fx<readonly { id: string }[]>;
   setWorkspaceOrigin(ownerUserId: string, workspace: ui.Workspace, origin: string): Fx<void>;
 }
 
@@ -113,8 +116,17 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
           yield* sql`UPDATE project_workspaces SET root_path = ${base} WHERE id = ${current.id}::uuid`;
       }
 
-      const projects = yield* sql<{ id: string; name: string; slug: string; kind: string; created_at: Date }>`
-            SELECT id, name, slug, kind, created_at FROM projects WHERE owner_user_id = ${ownerUserId}::uuid AND archived_at IS NULL ORDER BY (kind = 'scratch') DESC, created_at`;
+      const projects = yield* sql<{
+        id: string;
+        name: string;
+        slug: string;
+        kind: string;
+        created_at: Date;
+        global_id: string;
+      }>`
+            SELECT p.id, p.name, p.slug, p.kind, p.created_at,COALESCE(c.global_id,'') AS global_id
+            FROM projects p LEFT JOIN config_items c ON c.owner_user_id=p.owner_user_id AND c.kind='project' AND c.local_id=p.id::text
+            WHERE p.owner_user_id = ${ownerUserId}::uuid AND p.archived_at IS NULL ORDER BY (p.kind = 'scratch') DESC, p.created_at`;
 
       const workspaces = yield* sql<{
         id: string;
@@ -135,6 +147,7 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
       return projects.map((p) =>
         create(ui.ProjectSchema, {
           ...p,
+          globalId: p.global_id,
           createdAt: timestampFromDate(new Date(p.created_at)),
           workspaces: workspaces
             .filter((w) => w.project_id === p.id)
@@ -166,10 +179,12 @@ export function projectStore(sql: SqlClient.SqlClient): ProjectStore {
         yield* sql`INSERT INTO projects (id, owner_user_id, name, slug) VALUES (${id}::uuid, ${ownerUserId}::uuid, ${trimmed}, ${slug})`;
 
         return create(ui.ProjectSchema, { id, name: trimmed, slug, kind: "project", workspaces: [] });
-      }),
+      }).pipe((fx) => projectTransaction(sql, fx)),
 
     lockProject: (ownerUserId, projectId) =>
       Effect.gen(function* () {
+        yield* configLock(sql, ownerUserId);
+
         const rows = yield* sql`SELECT id FROM projects WHERE id = ${projectId}::uuid
               AND owner_user_id = ${ownerUserId}::uuid AND kind = 'project' AND archived_at IS NULL FOR UPDATE`;
 
@@ -183,22 +198,22 @@ export function projectStore(sql: SqlClient.SqlClient): ProjectStore {
         if (!trimmed || trimmed.length > 200 || /[\r\n\p{Cc}]/u.test(trimmed))
           return yield* Effect.fail(new Invalid("project name must be one line with 1–200 characters"));
 
-        const rows = yield* sql`UPDATE projects SET name = ${trimmed} WHERE id = ${projectId}::uuid
+        const rows = yield* sql`UPDATE projects SET name = ${trimmed}, updated_at = now() WHERE id = ${projectId}::uuid
               AND owner_user_id = ${ownerUserId}::uuid AND kind = 'project' AND archived_at IS NULL RETURNING id`;
 
         if (!rows.length) return yield* Effect.fail(new NotFound("project not found or is system-managed"));
-      }),
+      }).pipe((fx) => projectTransaction(sql, fx)),
 
     archiveProject: (ownerUserId, projectId) =>
       Effect.gen(function* () {
-        const rows = yield* sql`UPDATE projects SET archived_at = now() WHERE id = ${projectId}::uuid
+        const rows =
+          yield* sql`UPDATE projects SET archived_at = now(), updated_at = now() WHERE id = ${projectId}::uuid
               AND owner_user_id = ${ownerUserId}::uuid AND kind = 'project' AND archived_at IS NULL RETURNING id`;
 
         if (!rows.length) return yield* Effect.fail(new NotFound("project not found or is system-managed"));
-        yield* sql`UPDATE project_workspaces SET archived_at = coalesce(archived_at, now()) WHERE project_id = ${projectId}::uuid`;
         yield* sql`UPDATE schedules SET status = 'cancelled', next_run_at = NULL, lease_owner = NULL, lease_until = NULL, version = version + 1
               WHERE project_id = ${projectId}::uuid AND status IN ('active', 'paused')`;
-      }),
+      }).pipe((fx) => projectTransaction(sql, fx)),
 
     createWorkspace: ({ projectId, workerId, rootPath, label }) =>
       Effect.gen(function* () {
@@ -218,7 +233,7 @@ export function projectStore(sql: SqlClient.SqlClient): ProjectStore {
                 VALUES (${id}::uuid, ${projectId}::uuid, ${workerId}::uuid, ${root}, ${label})`;
 
         return create(ui.WorkspaceSchema, { id, projectId, workerId, rootPath: root, label });
-      }),
+      }).pipe((fx) => projectTransaction(sql, fx)),
 
     updateWorkspace: (ownerUserId, { workspaceId, rootPath, label }) =>
       Effect.gen(function* () {
@@ -245,7 +260,7 @@ export function projectStore(sql: SqlClient.SqlClient): ProjectStore {
           rootPath: root,
           label: nextLabel,
         });
-      }),
+      }).pipe((fx) => projectTransaction(sql, fx)),
 
     removeWorkspace: (ownerUserId, workspaceId) =>
       Effect.gen(function* () {
@@ -259,14 +274,24 @@ export function projectStore(sql: SqlClient.SqlClient): ProjectStore {
           rootPath: current.root_path,
           label: current.label,
         });
-      }),
+      }).pipe((fx) => projectTransaction(sql, fx)),
 
     listProjects: (ownerUserId) => listProjects(sql, ownerUserId),
+    projectsWithOrigin: (ownerUserId, origin) => sql<{ id: string }>`SELECT p.id::text FROM projects p
+      LEFT JOIN config_items c ON c.owner_user_id=p.owner_user_id AND c.kind='project' AND c.local_id=p.id::text
+      WHERE p.owner_user_id=${ownerUserId}::uuid AND p.archived_at IS NULL AND p.kind='project'
+      AND (CASE WHEN EXISTS(SELECT 1 FROM project_workspaces w WHERE w.project_id=p.id AND w.archived_at IS NULL)
+        THEN NOT EXISTS(SELECT 1 FROM project_workspaces w WHERE w.project_id=p.id AND w.archived_at IS NULL
+          AND w.git_origin<>${origin})
+        ELSE c.fields->'origin'->>'value'=${origin} AND NOT EXISTS(SELECT 1 FROM jsonb_each(c.fields) f
+          WHERE f.key LIKE 'originAmbiguous.%' AND f.value->>'value'=${origin}) END)`,
     setWorkspaceOrigin: (ownerUserId, workspace, origin) =>
       sql`UPDATE project_workspaces w SET git_origin = ${origin} FROM projects p
         WHERE w.id = ${workspace.id}::uuid AND w.project_id = p.id AND p.owner_user_id = ${ownerUserId}::uuid
           AND w.worker_id = ${workspace.workerId}::uuid AND w.root_path = ${workspace.rootPath}
-          AND w.archived_at IS NULL AND p.archived_at IS NULL AND p.kind <> 'scratch'`.pipe(Effect.asVoid),
+          AND w.archived_at IS NULL AND p.archived_at IS NULL AND p.kind <> 'scratch'`.pipe(Effect.asVoid, (fx) =>
+        projectTransaction(sql, fx),
+      ),
   };
 }
 

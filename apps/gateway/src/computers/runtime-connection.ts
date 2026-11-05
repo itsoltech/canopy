@@ -97,13 +97,6 @@ export async function computersTick(hostContext: LinkedComputers) {
     computersAdvertise(hostContext);
     await refreshConfigGroup(hostContext);
 
-    if (hostContext.shared && !hostContext[computersState].sharing) {
-      hostContext[computersState].sharing = true;
-      void hostContext.configChanged().finally(() => {
-        hostContext[computersState].sharing = false;
-      });
-    }
-
     for (const peer of await hostContext.store.peers()) {
       if (hostContext[computersState].stopped || hostContext[computersState].paused) break;
       computersSyncMirror(hostContext, peer.node_id);

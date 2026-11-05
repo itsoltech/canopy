@@ -4,11 +4,12 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { ComputerStore } from "../computers/store.ts";
-import type { SharedHost } from "../computers/shared.ts";
+import type { SharedHost } from "./host.ts";
 import { clockParts, compareClock, nextClock } from "./clock.ts";
 import { configLock, emptyRecord, maxClock, saveRecord, type ConfigRow } from "./persistence.ts";
 import { recordProviders } from "./provider-records.ts";
-import { readBatch, receiveItem, syncWorkers, type ReceiveResult } from "./receive.ts";
+import { recordProjects } from "./project-records.ts";
+import { applyRecord, readBatch, receiveItem, syncWorkers, type ReceiveResult } from "./receive.ts";
 import { instanceIds } from "./aliases.ts";
 import { mapSettingsInstances, settingsValues } from "./settings.ts";
 import type { SettingsRow } from "./settings-apply.ts";
@@ -23,7 +24,7 @@ export class ConfigSync {
     readonly self: () => string,
   ) {}
 
-  /** Seed all existing account preferences, instances and proxies, using their original timestamps. */
+  /** Seed existing shared configuration using the domain rows' original timestamps. */
   async start() {
     const { store, self } = this;
     await store.runtime.runPromise(
@@ -67,6 +68,7 @@ export class ConfigSync {
         if (changed) yield* saveRecord(sql, store.owner, row, observed);
         else yield* sql`UPDATE config_clock SET hlc=${observed} WHERE owner_user_id=${store.owner}::uuid`;
         yield* recordProviders(sql);
+        yield* recordProjects(sql);
       }).pipe((fx) => Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(fx))),
     );
   }
@@ -97,6 +99,20 @@ export class ConfigSync {
             const outcome: ReceiveResult = { last: clock.hlc, settings: false, cli: false, providers: false };
 
             for (const item of incoming) yield* receiveItem(context, item, outcome);
+
+            if (outcome.projects) {
+              const waiting = yield* sql<ConfigRow>`SELECT * FROM config_items WHERE owner_user_id=${store.owner}::uuid
+                AND kind IN ('project_settings','worktree_policy') AND schema_version=1`;
+
+              for (const row of waiting) {
+                const before = `${row.local_id}:${row.unsupported}`;
+                yield* applyRecord(context, row, outcome);
+
+                if (`${row.local_id}:${row.unsupported}` !== before)
+                  yield* saveRecord(sql, store.owner, row, outcome.last);
+              }
+            }
+
             const workers = outcome.providers ? yield* syncWorkers(sql, store.owner, store.key) : [];
             yield* sql`UPDATE config_clock SET hlc=${outcome.last} WHERE owner_user_id=${store.owner}::uuid`;
 
@@ -118,6 +134,8 @@ export class ConfigSync {
     if (result.settings) await host.settingsChanged?.(result.cli);
 
     if (result.providers) await host.providersChanged?.(result.workers);
+
+    if (result.projects) await host.projectsChanged?.();
   }
 
   async publishComputer(name: string, neighbors: string[]) {

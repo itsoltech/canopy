@@ -51,17 +51,6 @@ export const ACTIVE = ["preparing", "prepared", "committed", "aborting"];
 
 export const ms = (date: Date | string) => BigInt(new Date(date).getTime());
 
-export const sharedLabel = (key: string) => {
-  const [kind, ...rest] = key.split(":");
-
-  return Match.value(kind).pipe(
-    Match.when("instance", () => `Provider instance ${rest.at(-1)}`),
-    Match.when("models", () => `Models of ${rest.at(-1)}`),
-    Match.when("project", () => "A project"),
-    Match.orElse(() => `Settings: ${rest.join(" ").replace("_", " ")}`),
-  );
-};
-
 /**
  * The note a moved thread's agent gets in its new session's instructions, like a bot's handoff (docs/bots.md):
  * where it came from, the task, and an excerpt of the conversation, clearly marked as incomplete.

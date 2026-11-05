@@ -19,12 +19,7 @@ Parowanie atomowo zużywa kod i zapisuje peer. Unlink usuwa rekord peer; znaczni
 odwołania pozwala usunąć relację po stronie partnera wracającego z offline.
 Szczegóły i granice bezpieczeństwa: [linked-computers.md](linked-computers.md#konkretny-protokół-etapu-1).
 
-Migracja `0050_shared_config` dodaje `computer_shared_items` (stan udostępnienia, wektor wersji,
-skrót wartości, tokeny sekretów, notatka o kopii lokalnej), `computer_shared_acks` (co potwierdził
-partner) i `computer_shared_conflicts` (pytania do odpowiedzi, sekrety drugiej strony zaszyfrowane
-kluczem tego komputera). Potwierdzenia i pytania kasują się z partnerem. Wartości zostają w
-`provider_instances`, `user_settings` i `projects`; wspólny projekt ma to samo id na każdym komputerze.
-[Etap 4](linked-computers.md#konkretny-protokół-etapu-4).
+Historyczny protokół `0050_shared_config` został zastąpiony wspólną konfiguracją w migracjach 0073–0075.
 
 Migracja `0073_config_sync` przenosi ustawienia konta z protokołu 0050 do `config_items`
 (HLC i poprzednik per liść, tombstone, lokalna rewizja). `config_clock` porządkuje commity
@@ -40,6 +35,15 @@ zmienna sekretna, sekret proxy) zaszyfrowaną kluczem tego komputera, z opcjonal
 `secrets`, który z niej powstał. `config_history.ciphertext` przechowuje przegraną wartość sekretu do Restore.
 Pytania 0050 o instancje i modele stają się wpisami historii; ich wiersze `computer_shared_*` znikają.
 Rekordy `instance` (`harness:slug`) i `proxy` (uuid) powstają przy starcie gatewaya z `updated_at` wierszy.
+
+Migracja `0075_config_projects` przenosi pozostałe pytania 0050 o nazwy projektów do historii i usuwa
+wszystkie trzy tabele `computer_shared_*`. Dodaje `projects.updated_at` do inicjalizacji wersji oraz
+`config_deleted`: tombstone ukrywa projekt, zachowując lokalne workspace'y i klucze obce historii wątków.
+Restore zapisuje odzyskane pola z nową wersją. Rekordy `project`, `project_settings` i `worktree_policy`
+powstają przy starcie i zmieniają się transakcyjnie razem z tabelami domeny. Ustawienia projektu
+pomijają `workspaceId`, polityka bez workera pomija `location`; zakres z workerem nie jest replikowany.
+Scalenie origin przenosi globalny klucz rekordów i ich historii przez `config_aliases`, zachowując
+`config_items.local_id` i lokalne klucze obce.
 
 Migracja `0051_linked_agents` dodaje atomowo zastępowane projekcje rozmów botów
 (`computer_mirror_bots`, `computer_bot_mirror_state`) oraz owner-scoped referencje

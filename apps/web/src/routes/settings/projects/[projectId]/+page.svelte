@@ -7,9 +7,7 @@
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import ThreadDefaultsFields from "#lib/features/settings/ThreadDefaultsFields.svelte";
   import ProjectWorkers from "#lib/features/workspaces/ProjectWorkers.svelte";
-  import ShareSetting from "#lib/features/computers/ShareSetting.svelte";
-  import SharingGroup from "#lib/features/computers/SharingGroup.svelte";
-  import { sharedKey } from "@canopy/domain/computers";
+  import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
@@ -40,19 +38,15 @@
 </SettingsHeading>
 
 {#if project}
-  {#if project.kind !== "scratch"}
-    <SharingGroup>
-      <ShareSetting
-        itemKey={sharedKey.project(project.id)}
-        label={project.name}
-        local="Linked computers get the same project and its name. Workspaces are directories on each computer and stay separate."
-      />
-    </SharingGroup>
-  {/if}
+  <ConfigNotices
+    match={(n) => ["project", "project_settings", "worktree_policy"].includes(n.kind) && n.localId === project.id}
+    named={false}
+    onchange={() => void settings.reload()}
+  />
 
   <SettingsGroup
-    title="Workers"
-    description="Where this project lives: a directory on each worker you add it to. A new thread runs on one of them."
+    title="Workspaces"
+    description="A new thread runs in one of these directories on the project's workers."
   >
     <ProjectWorkers {project} error={route.form?.action === "workspace" ? route.form.error : undefined} />
   </SettingsGroup>

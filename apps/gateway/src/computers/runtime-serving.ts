@@ -4,22 +4,13 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link } from "@canopy/contracts";
 
-import {
-  AGENT_BUS,
-  MOVE_ITEMS,
-  RELAY,
-  REMOTE_BOTS,
-  REMOTE_THREADS,
-  SHARED_CONFIG,
-  THREAD_MIRROR,
-} from "@canopy/domain/computers";
+import { AGENT_BUS, MOVE_ITEMS, RELAY, REMOTE_BOTS, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
 
 import { BOT_METHODS, linkedMessage, MOVE_METHODS, type RelayRoute } from "./remote.ts";
 
 import { RELAY_METHODS, relayCallback } from "./relay.ts";
 
 import { computersState, type Connection } from "./runtime-context.ts";
-import { computersSharesConfig } from "./runtime-presence.ts";
 import { computersRelayChannel } from "./runtime-remote.ts";
 import type { LinkedComputers } from "./runtime.ts";
 import { serveConfig } from "./runtime-config.ts";
@@ -161,10 +152,6 @@ export async function* computersServeHome(
       hostContext.options.serve,
       signal,
     );
-  } else if (method.name === "PushSharedConfig") {
-    if (!hostContext.shared || !computersSharesConfig(hostContext) || !connection.capabilities?.has(SHARED_CONFIG))
-      throw new ConnectError("Shared configuration needs an update on both computers", Code.Unimplemented);
-    yield await hostContext.shared.receive(nodeId, linkedMessage(link.SharedConfigPushSchema, request));
   } else if (method.name === "WatchBotMirror")
     yield* hostContext.botMirror.publish(
       linkedMessage(link.MirrorRequestSchema, request),
@@ -173,21 +160,3 @@ export async function* computersServeHome(
     );
   else yield* hostContext.options.serve(method, request, signal, nodeId);
 }
-
-export interface ComputersServingMethods {
-  configChanged(): Promise<void>;
-}
-
-export const computersServingMethods: ComputersServingMethods = {
-  /** A local change of configuration (or the heartbeat): version shared items and send what peers lack. */
-  async configChanged(this: LinkedComputers) {
-    if (!this.shared || this[computersState].stopped) return;
-
-    try {
-      await this.shared.scan();
-      await Promise.allSettled(this.shared.peers.ready().map((nodeId) => this.shared!.push(nodeId)));
-    } catch {
-      /* retried on the next heartbeat */
-    }
-  },
-};

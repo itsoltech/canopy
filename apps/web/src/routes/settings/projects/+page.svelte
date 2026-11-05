@@ -1,8 +1,7 @@
 <script lang="ts">
   import type { ProjectChoice } from "@canopy/domain/projects";
-  import { sharedKey } from "@canopy/domain/computers";
-  import ShareScope from "#lib/features/computers/ShareScope.svelte";
-  import { useSharedConfig } from "#lib/features/computers/shared-config.svelte.ts";
+  import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
+  import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useAddProject } from "#lib/features/projects/add/add-project.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -12,10 +11,10 @@
 
   /**
    * Projects of every linked computer, merged by Git origin like the pickers. Each row names where it has
-   * workspaces. Settings stay with each computer's own record, so only projects with one here open their page.
+   * workspaces. Shared fields open on this computer; workspace paths stay at their worker's home.
    */
   const overview = useOverview();
-  const sharing = useSharedConfig();
+  const settings = useSettings();
   const addProject = useAddProject();
 
   const projects = $derived(overview.projectChoices.filter((p) => p.kind !== "scratch"));
@@ -46,14 +45,7 @@
   {/snippet}
   {#each projects as project (project.id)}
     {@const id = localId(project)}
-    {@const key = id && sharedKey.project(id)}
-    {#snippet scope()}{#if key}<ShareScope itemKey={key} compact />{/if}{/snippet}
-    <SettingsRow
-      title={project.name}
-      description={places(project)}
-      href={id && `/settings/projects/${id}`}
-      control={key && (sharing.shared(key) || sharing.conflicts(key).length > 0) ? scope : undefined}
-    >
+    <SettingsRow title={project.name} description={places(project)} href={id && `/settings/projects/${id}`}>
       {#snippet leading()}<ProjectAvatar name={project.name} />{/snippet}
     </SettingsRow>
   {:else}
@@ -63,3 +55,7 @@
     />
   {/each}
 </SettingsGroup>
+<ConfigNotices
+  match={(n) => ["project", "project_settings", "worktree_policy"].includes(n.kind)}
+  onchange={() => void settings.reload()}
+/>

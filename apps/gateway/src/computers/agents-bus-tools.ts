@@ -121,7 +121,7 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
 
     if (actor.hops > 7) return fail("Agent-to-agent chain limit reached (8 hops without human input)");
     const node = await this.peer(ref);
-    this.sameHome(node, args);
+    await this.sameHome(node, args);
 
     if (call.tool === "spawn_thread") {
       refuseRemoteAutomation(call.args.workspace_mode, call.args.fork);

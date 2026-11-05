@@ -44,19 +44,25 @@ function projectOrigin(project: ui.Project): string {
 
 /** Presentation only. Never combines ambiguous project records on the same gateway. */
 export function projectChoices(projects: readonly ui.Project[]): ProjectChoice[] {
-  const buckets = new Map<string, ui.Project[]>();
+  const identities = new Map<string, ui.Project[]>();
 
   for (const project of projects) {
-    const origin = project.kind === "scratch" ? "scratch" : projectOrigin(project);
-    const key = origin || `project:${project.id}`;
-    buckets.set(key, [...(buckets.get(key) ?? []), project]);
+    const key = project.globalId ? `global:${project.globalId}` : `project:${project.id}`;
+    identities.set(key, [...(identities.get(key) ?? []), project]);
   }
 
-  return [...buckets].flatMap(([key, members]) => {
-    const homes = members.map((project) => project.nodeId);
+  const buckets = new Map<string, ui.Project[][]>();
 
-    const groups =
-      key !== "scratch" && new Set(homes).size !== members.length ? members.map((project) => [project]) : [members];
+  for (const [identity, members] of identities) {
+    const origins = new Set(members.map(projectOrigin).filter(Boolean));
+    const origin = origins.size === 1 ? [...origins][0] : "";
+    const key = members[0]!.kind === "scratch" ? "scratch" : origin || identity;
+    buckets.set(key, [...(buckets.get(key) ?? []), members]);
+  }
+
+  return [...buckets].flatMap(([key, identities]) => {
+    const homes = identities.flatMap((members) => [...new Set(members.map((p) => p.nodeId))]);
+    const groups = key !== "scratch" && new Set(homes).size !== homes.length ? identities : [identities.flat()];
 
     return groups.map((group) => {
       const ordered = [...group].sort(

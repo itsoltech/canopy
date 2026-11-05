@@ -4,11 +4,12 @@ import { nodeRef, qualifyId, REMOTE_BOTS, splitId, THREAD_MIRROR } from "@canopy
 import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Match } from "effect";
-import { globalize, linkedMessage, mapIds, methodNamed, movedItems, qualify, unqualify } from "../computers/remote.ts";
+import { linkedMessage, mapIds, methodNamed, movedItems, qualify, unqualify } from "../computers/remote.ts";
 import type { GatewayCore } from "../core/core.ts";
-import { globalIds, redirected, single, target } from "./routed-context.ts";
+import { redirected, single, target } from "./routed-context.ts";
 import { toConnectError } from "./ui-errors.ts";
 import { ConfigIds } from "./routed-config.ts";
+import { mapProjectIds } from "../config-sync/project-aliases.ts";
 
 export async function peerOf(core: GatewayCore, ref: string, method?: DescMethod, request?: Message) {
   if (!core.computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
@@ -42,11 +43,11 @@ export async function* forward(
   signal: AbortSignal,
   followed = false,
 ): AsyncGenerator<Message> {
-  const global = globalIds(core);
+  const projects = await (await ConfigIds.for(core, nodeId)).projects();
 
   try {
-    for await (const message of home(core, nodeId, method, request, signal, global)) {
-      globalize(method.output, message, global);
+    for await (const message of home(core, nodeId, method, request, signal)) {
+      mapProjectIds(method.output, message, (id) => (projects.known.has(splitId(id).id) ? projects.toLocal(id) : id));
       const self = core.computers && nodeRef(core.computers.hello().nodeId);
 
       if (self) mapIds(method.output, message, (id) => (splitId(id).node === self ? splitId(id).id : id));
@@ -73,7 +74,6 @@ export async function* home(
   method: DescMethod,
   request: Message,
   signal: AbortSignal,
-  global: ReadonlySet<string>,
 ): AsyncGenerator<Message> {
   const computers = core.computers;
 
@@ -179,15 +179,26 @@ export async function* home(
     }
 
     if (method.name === "ListThreads") {
-      yield create(ui.ListThreadsResponseSchema, {
+      const input = linkedMessage(ui.ListThreadsRequestSchema, request);
+      const projects = await (await ConfigIds.for(core, nodeId)).projects();
+      const shared = projects.known.has(splitId(input.projectId).id);
+
+      const response = create(ui.ListThreadsResponseSchema, {
         threads: await computers.mirror.threads(
           nodeId,
           create(ui.ListThreadsRequestSchema, {
-            ...linkedMessage(ui.ListThreadsRequestSchema, request),
-            projectId: splitId(linkedMessage(ui.ListThreadsRequestSchema, request).projectId).id,
+            ...input,
+            projectId: shared ? "" : splitId(input.projectId).id,
           }),
         ),
       });
+
+      if (shared) {
+        mapProjectIds(method.output, response, projects.toLocal);
+        response.threads = response.threads.filter((thread) => thread.projectId === projects.toLocal(input.projectId));
+      }
+
+      yield response;
 
       return;
     }
@@ -207,7 +218,7 @@ export async function* home(
     }
   }
 
-  yield* send(core, computers, nodeId, method, request, signal, global);
+  yield* send(core, computers, nodeId, method, request, signal);
 }
 
 /** The call itself: this computer's ids become the home's, and the answer's ids this computer's. */
@@ -218,12 +229,11 @@ async function* send(
   method: DescMethod,
   request: Message,
   signal: AbortSignal,
-  global: ReadonlySet<string>,
 ): AsyncGenerator<Message> {
   const outbound = clone(method.input, request);
   await carryAttachments(core, nodeId, method, outbound, signal);
-  unqualify(method.input, outbound, nodeId, global);
   const ids = await ConfigIds.for(core, nodeId);
+  unqualify(method.input, outbound, nodeId, (await ids.projects()).known);
   await ids.map(method.input, outbound, "toGlobal");
 
   for await (const message of computers.remote(nodeId, method, outbound, signal)) {

@@ -18,12 +18,3 @@ export function moves(core: GatewayCore) {
 
   return value;
 }
-
-export function shared(core: GatewayCore) {
-  const config = computers(core).shared;
-
-  if (!config)
-    throw new ConnectError("Shared configuration is not available on this computer", Code.FailedPrecondition);
-
-  return config;
-}

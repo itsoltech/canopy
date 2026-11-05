@@ -63,7 +63,9 @@
       options={[
         { value: "", label: "Last used" },
         ...workspaces.flatMap((group) =>
-          group.workspaces.map((ws) => ({ value: ws.id, label: workerName(ws), group: group.project.name })),
+          group.workspaces
+            .filter((ws) => !ws.id.includes("~"))
+            .map((ws) => ({ value: ws.id, label: workerName(ws), group: group.project.name })),
         ),
       ]}
     />

@@ -389,6 +389,8 @@ message Project {
   google.protobuf.Timestamp archived_at = 480;
   // Numery od 800: projekt innego komputera (id kwalifikowane), pusty = ten komputer.
   string node_id = 800;
+  // Canonical shared configuration identity; local domain id stays in id.
+  string global_id = 801;
 }
 
 message Workspace {

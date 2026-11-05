@@ -177,14 +177,16 @@ komputerze (puste, gdy go już nie ma), a `item_name` jego nazwa. Usunięcie na 
 notka z `field` = `deleted`. Wartość sekretu w notce to zawsze „A different key”.
 [Protokół i etapy](linked-computers.md#konkretny-protokół-wspólna-konfiguracja).
 
-Pozostałe rodzaje (projekty) zachowują API 0050 do migracji w kolejnych etapach.
-`GetSharedConfig` i `ManageSharedConfig` (`share`, `unshare`, `keep_local`, `keep_remote`) zwracają
-`SharedConfigSnapshot`: elementy (klucz, rodzaj, nazwa, wspólny, wersja, autor ostatniej zmiany,
-notatka o kopii lokalnej), pytania z różniącymi się polami obu wersji (sekrety tylko jako „Set”,
-„Not set”, „A different key”) i partnerów wymagających aktualizacji. Zmiany przychodzą na żywo jako
-`OverviewUpdate.shared_config` (803). BFF: `GET`/`PUT /api/computers/shared`. Wspólny projekt ma to samo
-id na każdym komputerze i nie ma `node_id`; jego workspace'y z partnerów są kwalifikowane.
-[Etap 4](linked-computers.md#konkretny-protokół-etapu-4).
+Od etapu 3 nazwa, rodzaj i archiwizacja projektu, ustawienia projektu bez workspace'u oraz polityka
+worktree konta i projektu bez `location` są wspólne. `Project.global_id` (801) identyfikuje projekt
+po scaleniu origin; `id` nadal wskazuje lokalny wiersz. Gateway tłumaczy `project_id` przez aliasy
+w wywołaniach trasowanych i zbiera workspace'y partnerów w jednym projekcie. Id workspace'ów i workerów
+zachowują kwalifikator komputera. Ustawienia worktree z workerem zostają lokalne do etapu 6.
+Settings → Projects i strona projektu używają `ConfigNotice` oraz Restore; sekcja „Workspaces” pokazuje
+nazwę workera i komputera, a katalogi partnera są tylko do odczytu. Opis: „A new thread runs in one of
+these directories on the project's workers.”.
+API i UI 0050 zostały usunięte. Dawne deklaracje protobuf zostają zarezerwowane; `GetSharedConfig`
+i `ManageSharedConfig` zwracają Unimplemented, a `PushSharedConfig` nie jest obsługiwane na łączu.
 
 ## Workery: kreator i zarządzanie
 

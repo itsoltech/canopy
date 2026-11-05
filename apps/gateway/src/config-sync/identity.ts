@@ -6,6 +6,8 @@ import { canonicalId, recordOf } from "./provider-apply.ts";
 import { alive } from "./provider-records.ts";
 import { instanceIdentity, PROVIDER_KINDS, proxyIdentity, valuesOf } from "./provider-values.ts";
 import { currentSecret } from "./secrets.ts";
+import { placeProject } from "./project-identity.ts";
+import type { ConnectError } from "@connectrpc/connect";
 
 /**
  * Where a received record belongs here (docs/linked-computers.md, "Bootstrap i scalanie tożsamości"). Every
@@ -81,7 +83,7 @@ const firstClock = (row: ConfigRow) =>
   Object.values(row.fields).reduce((min, f) => (!min || compareClock(f.hlc, min) < 0 ? f.hlc : min), "");
 
 /** Moves a local record, its secrets and history to another global id; aliases follow. */
-function rekey(sql: SqlClient.SqlClient, owner: string, row: ConfigRow, id: string) {
+export function rekey(sql: SqlClient.SqlClient, owner: string, row: ConfigRow, id: string) {
   return Effect.gen(function* () {
     for (const table of ["config_items", "config_secrets", "config_history"])
       yield* sql.unsafe(`UPDATE ${table} SET global_id=$4 WHERE owner_user_id=$1::uuid AND kind=$2 AND global_id=$3`, [
@@ -97,7 +99,7 @@ function rekey(sql: SqlClient.SqlClient, owner: string, row: ConfigRow, id: stri
   });
 }
 
-function alias(sql: SqlClient.SqlClient, owner: string, kind: string, from: string, to: string) {
+export function alias(sql: SqlClient.SqlClient, owner: string, kind: string, from: string, to: string) {
   return sql`INSERT INTO config_aliases(owner_user_id,kind,alias_id,global_id) VALUES(${owner}::uuid,${kind},${from},${to})
     ON CONFLICT(owner_user_id,kind,alias_id) DO UPDATE SET global_id=excluded.global_id`;
 }
@@ -112,8 +114,10 @@ export function place(
   key: Buffer,
   incoming: ConfigRow,
   plain: ReadonlyMap<string, string>,
-): Effect.Effect<Placement, SqlError.SqlError> {
+): Effect.Effect<Placement, SqlError.SqlError | ConnectError> {
   return Effect.gen(function* () {
+    if (["project", "project_settings", "worktree_policy"].includes(incoming.kind))
+      return yield* placeProject(sql, owner, incoming);
     const item = { ...incoming, global_id: yield* canonicalId(sql, owner, incoming.kind, incoming.global_id) };
     let current = yield* recordOf(sql, owner, item.kind, item.global_id);
 

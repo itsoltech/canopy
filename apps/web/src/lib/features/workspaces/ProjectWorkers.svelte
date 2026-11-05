@@ -20,7 +20,9 @@
     const missing = [...new Set(project.workspaces.map((w) => w.workerId))].filter((id) => !overview.worker(id));
 
     return [
-      ...overview.ownWorkers.map((worker) => ({ worker, workspaces: on(worker.id) })),
+      ...overview.workers
+        .filter((worker) => !worker.nodeId || on(worker.id).length)
+        .map((worker) => ({ worker, workspaces: on(worker.id) })),
       ...missing.map((id) => ({ worker: create(ui.WorkerSchema, { id, name: "Unknown worker" }), workspaces: on(id) })),
     ];
   });
@@ -42,6 +44,8 @@
   <ProjectWorkerRow
     {worker}
     {workspaces}
+    computer={overview.machine(worker.nodeId) ?? "This computer"}
+    readonly={Boolean(worker.nodeId)}
     onadd={() => edit({ kind: "add", worker })}
     onmove={(workspace) => edit({ kind: "move", worker, workspace })}
     onremove={(workspace) => edit({ kind: "remove", worker, workspace })}

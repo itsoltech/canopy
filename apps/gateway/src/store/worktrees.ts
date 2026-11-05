@@ -2,6 +2,7 @@ import type { JsonValue } from "@bufbuild/protobuf";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
 import { Invalid, NotFound, one, type Fx } from "./errors.ts";
+import { projectTransaction } from "../config-sync/project-records.ts";
 
 /**
  * Git worktrees (docs/worktrees.md): the owner's settings in four scopes and the worktrees threads work in.
@@ -105,7 +106,7 @@ export function worktreeStore(sql: SqlClient.SqlClient): WorktreeStore {
         if (!rows[0]) return yield* Effect.fail(new WorktreeSettingsConflict("worktree settings changed elsewhere"));
 
         return BigInt(rows[0].version);
-      }),
+      }).pipe((fx) => projectTransaction(sql, fx)),
 
     insertWorktree: (row) =>
       sql<WorktreeRow>`

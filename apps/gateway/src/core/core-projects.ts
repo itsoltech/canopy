@@ -9,6 +9,9 @@ import { coreWorkerQuery } from "./core-mentions.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreRun } from "./core-broadcast.ts";
 import { decorateOrigins } from "./workspace-origins.ts";
+import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
+import { configLock } from "../config-sync/persistence.ts";
 
 export async function coreValidateWorkspaceDirectory(
   hostContext: GatewayCore,
@@ -89,10 +92,10 @@ export const coreProjectsMethods: CoreProjectsMethods = {
   /** Soft archive through the same thread lifecycle, retaining history and worker files. */
   async archiveProject(this: GatewayCore, projectId: string): Promise<void> {
     await this[coreState].actions.transaction(async () => {
+      await coreRun(this, (s) => s.lockProject(this[coreState].options.userId, projectId));
       const project = (await this.overview()).projects.find((p) => p.id === projectId && p.kind !== "scratch");
 
       if (!project) throw new NotFound("project not found or is system-managed");
-      await coreRun(this, (s) => s.lockProject(this[coreState].options.userId, projectId));
       const threads = await this.listThreads(projectId, true);
 
       for (const thread of threads.filter((t) => !t.parentThreadId)) await this.setThreadArchived(thread.id, true);
@@ -107,6 +110,9 @@ export const coreProjectsMethods: CoreProjectsMethods = {
 
   async createWorkspace(this: GatewayCore, request: ui.CreateWorkspaceRequest): Promise<ui.Workspace> {
     return this[coreState].actions.transaction(async () => {
+      await this[coreState].actions.run(
+        Effect.flatMap(SqlClient.SqlClient, (sql) => configLock(sql, this[coreState].options.userId)),
+      );
       const overview = await this.overview();
 
       if (!overview.projects.some((p) => p.id === request.projectId)) throw new NotFound("project not found");
@@ -115,6 +121,7 @@ export const coreProjectsMethods: CoreProjectsMethods = {
 
       if (overview.projects.find((p) => p.id === request.projectId)?.kind === "scratch")
         throw new InvalidError("scratch workspaces are managed automatically");
+      await coreRun(this, (store) => store.lockProject(this[coreState].options.userId, request.projectId));
       await coreValidateWorkspaceDirectory(this, request.workerId, request.rootPath);
 
       const workspace = await coreRun(this, (s) =>
