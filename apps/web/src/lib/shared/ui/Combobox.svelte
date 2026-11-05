@@ -40,6 +40,7 @@
     placeholder,
     autofocus = false,
     groupOf,
+    disabled,
     groupExpanded,
     ontogglegroup,
     onkeydown: extraKeydown,
@@ -71,6 +72,7 @@
     autofocus?: boolean;
     /** Group heading of an item; consecutive items with the same group share one heading. */
     groupOf?: ((item: T) => string | undefined) | undefined;
+    disabled?: ((item: T) => boolean) | undefined;
     /** Undefined = plain heading; false = collapsed (excluded from keyboard navigation). */
     groupExpanded?: ((group: string) => boolean | undefined) | undefined;
     ontogglegroup?: ((group: string) => void) | undefined;
@@ -144,6 +146,8 @@
   });
 
   function choose(item: T) {
+    if (disabled?.(item)) return;
+
     if (multiple) {
       query = "";
       activeKey = undefined;
@@ -254,8 +258,9 @@
             id={optionId(index)}
             role="option"
             aria-selected={selected}
+            aria-disabled={disabled?.(item) || undefined}
             data-active={isActive || undefined}
-            class={["group/option relative", listboxOptionClasses]}
+            class={["group/option relative", listboxOptionClasses, disabled?.(item) && "opacity-50"]}
             onpointerdown={(event) => event.preventDefault()}
             onpointermove={() => (activeKey = key(item))}
             onclick={() => choose(item)}

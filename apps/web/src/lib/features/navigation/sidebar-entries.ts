@@ -1,4 +1,5 @@
 import { ui } from "@canopy/contracts";
+import type { ProjectChoice } from "@canopy/domain/projects";
 import { isCalm, needsYou, treeActivity } from "#lib/features/threads/activity.ts";
 
 export interface SidebarEntry {
@@ -12,7 +13,7 @@ export interface SidebarEntry {
 export function sidebarEntries(
   filtered: { roots: ui.Thread[]; sides: Map<string, ui.Thread[]>; pins: Set<string> },
   settings: ui.SidebarSettings,
-  projects: readonly ui.Project[],
+  projects: readonly ProjectChoice[],
   workingOpen: boolean,
 ): SidebarEntry[] {
   const entries: SidebarEntry[] = [];
@@ -42,10 +43,13 @@ export function sidebarEntries(
   if (settings.groupByProject) {
     add("Needs attention", "attention", attention);
 
-    const groups = [...new Set(normal.map((t) => t.projectId))].map((id) => ({
+    const projectId = (thread: ui.Thread) =>
+      projects.find((p) => p.projectIds.includes(thread.projectId))?.id ?? thread.projectId;
+
+    const groups = [...new Set(normal.map(projectId))].map((id) => ({
       id,
       project: projects.find((p) => p.id === id),
-      threads: normal.filter((t) => t.projectId === id),
+      threads: normal.filter((t) => projectId(t) === id),
     }));
 
     groups.sort((a, b) =>

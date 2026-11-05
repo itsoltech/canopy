@@ -80,14 +80,15 @@ function actionCommands(context: AppCommandContext, current: ui.Project | undefi
       keywords: "new thread project",
       placeholder: "Search projects…",
       rank: -9,
-      when: () => overview.projects.length > 1,
+      when: () => overview.projectChoices.length > 1,
       children: () =>
-        overview.projects.map((project) => ({
+        overview.projectChoices.map((project) => ({
           id: project.id,
           title: project.name,
           group: "actions",
           projectName: project.name,
           projectKind: project.kind,
+          keywords: project.aliases.join(" "),
           href: newThreadHref(project),
           checked: project.id === current?.id,
         })),
@@ -127,13 +128,13 @@ function actionCommands(context: AppCommandContext, current: ui.Project | undefi
 
 /** Each project, with a new thread, its settings and its threads inside. */
 const projectCommands = (overview: OverviewState, threads: readonly ui.Thread[]): Command[] =>
-  overview.projects.map((project) => ({
+  overview.projectChoices.map((project) => ({
     id: `project:${project.id}`,
     title: project.name,
     group: "projects",
     projectName: project.name,
     projectKind: project.kind,
-    keywords: "project",
+    keywords: `project ${project.aliases.join(" ")}`,
     suggested: false,
     placeholder: `Search ${project.name}…`,
     children: () => [
@@ -151,7 +152,7 @@ const projectCommands = (overview: OverviewState, threads: readonly ui.Thread[])
         icon: "cog-6-tooth",
         href: project.kind === "scratch" ? "/settings/threads" : `/settings/projects/${project.id}`,
       },
-      ...threads.flatMap((t) => (t.projectId === project.id ? [threadCommand(overview, t, true)] : [])),
+      ...threads.flatMap((t) => (project.projectIds.includes(t.projectId) ? [threadCommand(overview, t, true)] : [])),
     ],
   }));
 
@@ -186,9 +187,9 @@ export function appCommands(context: AppCommandContext): CommandSource {
     const projectId = context.currentProjectId();
 
     const current =
-      overview.project(projectId ?? "") ??
+      overview.projectChoice(projectId ?? "") ??
       defaultProject({
-        projects: overview.projects,
+        projects: overview.projectChoices,
         threads: overview.threads.values(),
         defaultWorkspaceId: settings.threadDefaults.workspaceId,
       });

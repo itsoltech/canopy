@@ -2,6 +2,8 @@
   import { enhance } from "$app/forms";
   import { page } from "$app/state";
   import { Provider, type ui } from "@canopy/contracts";
+  import type { ProjectChoice } from "@canopy/domain/projects";
+  import { awayReason } from "#lib/features/computers/computers.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -48,9 +50,9 @@
   const placed = $derived(picks.requested === requested ? picks : undefined);
 
   const project = $derived(
-    overview.project(placed?.projectId ?? "") ??
+    overview.projectChoice(placed?.projectId ?? "") ??
       defaultProject({
-        projects: overview.projects,
+        projects: overview.projectChoices,
         threads: overview.threads.values(),
         requested,
         defaultWorkspaceId: settings.threadDefaults.workspaceId,
@@ -78,6 +80,7 @@
   });
 
   const worker = $derived(overview.worker(workspace?.workerId ?? ""));
+  const unavailable = $derived(worker?.nodeId ? awayReason(overview.computer(worker.nodeId)) : undefined);
 
   // Checkout, new worktree or a previous one, and the base ref (docs/worktrees.md): when the worker offers worktrees.
   const place = new WorkspaceDraft(() =>
@@ -86,7 +89,7 @@
       : undefined,
   );
 
-  const pickProject = (next: ui.Project) => (picks = { requested, projectId: next.id });
+  const pickProject = (next: ProjectChoice) => (picks = { requested, projectId: next.id });
   const pickWorkspace = (next: ui.Workspace) => (picks = { requested, projectId: project?.id, workspaceId: next.id });
   const defaultProvider = $derived(providerKeyOf(defaults.provider));
 
@@ -160,7 +163,7 @@
 
     if (!workspace) return "no-worker" as const;
 
-    if (!worker?.online) return "offline" as const;
+    if (unavailable || !worker?.online) return "offline" as const;
 
     if (place.loading) return "workspace-loading" as const;
 
@@ -175,7 +178,9 @@
         ? "Choose a worker with an allowed directory to start a scratch thread. Configure a worker in Settings."
         : `${project?.name} is not on any worker yet, so there is nowhere to run the thread. Add it to a worker in project settings.`
       : blocker === "offline"
-        ? `${worker?.name ?? "This worker"} is offline. Start it or choose another worker to send.`
+        ? unavailable
+          ? `${unavailable} Choose another worker to send.`
+          : `${worker?.name ?? "This worker"} is offline. Start it or choose another worker to send.`
         : blocker === "no-agent"
           ? `${worker?.name} reports no available agents. Check the worker in Settings.`
           : undefined,
@@ -239,7 +244,7 @@
             };
           }}
         >
-          <input type="hidden" name="projectId" value={project.id} />
+          <input type="hidden" name="projectId" value={workspace?.projectId ?? project.id} />
           <input type="hidden" name="clientRequestId" value={clientRequestId} />
           <input type="hidden" name="provider" value={selected?.provider ?? ""} />
           <input type="hidden" name="profileId" value={selected?.profileId ?? ""} />
@@ -275,10 +280,10 @@
               {/if}
             {/snippet}
             {#snippet meta()}
-              <ComposerContextRow hasWorkspace={Boolean(place.gitRefs)}>
+              <ComposerContextRow hasWorkspace={Boolean(place.gitRefs)} stackPlacement>
                 {#snippet projectControl()}
                   <ProjectPicker
-                    projects={overview.projects}
+                    projects={overview.projectChoices}
                     value={project.id}
                     onselect={pickProject}
                     class="w-full max-w-full"

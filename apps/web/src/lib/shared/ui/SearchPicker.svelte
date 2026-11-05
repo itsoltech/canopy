@@ -26,6 +26,7 @@
     open = $bindable(false),
     placement = "bottom-start",
     groupOf,
+    disabled,
     class: className,
     trigger,
     option,
@@ -47,6 +48,7 @@
     open?: boolean;
     placement?: Placement;
     groupOf?: ((item: T) => string | undefined) | undefined;
+    disabled?: ((item: T) => boolean) | undefined;
     /** Width of the panel (it is full width as a sheet). */
     class?: ClassValue;
     trigger: Snippet<[PopoverTriggerProps]>;
@@ -76,6 +78,7 @@
       {key}
       {text}
       {groupOf}
+      {disabled}
       bind:query
       {value}
       label={searchLabel ?? label}

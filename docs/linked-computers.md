@@ -62,11 +62,49 @@ kopii. Dzięki temu nie ma scalania historii, a nic nie wykonuje się dwa razy.
 | Harmonogramy | dom wątku albo bota | widoczne i edytowalne zdalnie |
 | Worker, workspace (katalog projektu na maszynie) | swoja maszyna | można uruchomić wątek na workerze innego komputera — wątek mieszka wtedy tam |
 | Konto connectora | każdy komputer osobno | autoryzacja per komputer; UI podpowiada „Not connected on Laptop B — Connect” |
-| Projekt | wspólna tożsamość (globalne id) | workspace'y projektu należą do poszczególnych maszyn |
+| Projekt | rekord na każdym komputerze; wspólna tożsamość git origin w pickerach | workspace'y zachowują projekt i komputer domu; jawnie współdzielone projekty nadal mają globalne id |
 
 Tworzenie wątku na workerze komputera B z UI komputera A jest wywołaniem do B; B zostaje właścicielem.
 Szyna agentów przekracza granicę tak samo: `spawn_thread` na workerze B tworzy wątek na B z rodzicem
 na A, a raporty i pytania wracają przez łącze.
+
+### Tożsamość projektu według git origin
+
+Picker nowego wątku scala projekty z różnych komputerów po znormalizowanym `remote.origin.url`
+ich workspace'ów. Formy HTTPS, SSH i `git@host:owner/repo.git` wskazują tę samą tożsamość:
+host ma małe litery, końcowy ukośnik i `.git` znikają. Ścieżka zachowuje wielkość liter;
+niestandardowy port odróżnia repozytoria. Poświadczenia URL nie wchodzą do tożsamości.
+Lokalne ścieżki, `file:`, URL z query/fragmentem i brak origin nie stanowią wspólnej tożsamości.
+
+Scalenie wymaga jednego znanego origin we wszystkich workspace'ach każdego projektu.
+Różne origin, brak metadanych choćby jednego workspace'u lub różne projekty z tym samym origin
+na jednym gatewayu pozostają osobnymi wyborami. W ostatnim przypadku cała grupa tego origin
+pozostaje rozdzielona: nie zgadujemy, do którego lokalnego projektu należy dołączyć partnera.
+Istniejące jawne współdzielenie tego samego globalnego id działa jak dotychczas.
+
+To scalenie **widoku**, bez zmiany id, ustawień, właściciela ani danych projektu w bazie.
+Nazwa lokalnego projektu ma pierwszeństwo; bez lokalnego rekordu wybór jest deterministyczny po id.
+Inne nazwy są aliasami widocznymi w szczegółach wiersza i przeszukiwanymi w pickerze.
+Filtr i grupy projektów w sidebarze oraz paleta poleceń korzystają z tej samej tożsamości.
+Ekrany ustawień, listy wątków pojedynczego projektu, harmonogramy i przenoszenie pozostają przy
+oryginalnych rekordach. Tożsamość origin nie zmienia kontraktu etapów 4 ani 8.
+
+Worker z capability **`workspace_origin`** obsługuje nietrwałe `Command.read_workspace_origin` (**216**)
+i `CommandResult.workspace_origin` (**216**). Odczytuje lokalne `remote.origin.url` katalogu workspace'u
+przez process governor: bez shella, fetch i promptów, z limitem 2 s oraz cache 30 s.
+Zwraca wyłącznie znormalizowaną tożsamość, nigdy surowy URL z credentialami.
+Gateway pyta wyłącznie o workspace'y właściciela, cache'uje odpowiedź 30 s i zachowuje ją
+w `project_workspaces.git_origin` (migracja **0072_workspace_origin**).
+Zmiana ścieżki czyści poprzednią tożsamość; błąd odczytu zachowuje ostatnią znaną.
+Odczyt overview oraz aktualizacje projektów i workerów odświeżają metadane po wygaśnięciu cache.
+`Workspace.git_origin` (**216**) przechodzi przez istniejący overview, aktualizacje i lustra offline.
+Starszy worker nie dostaje nowej komendy. Obie wersje protokołu (`WORKER_LINK_PROTOCOL`
+i `COMPUTER_LINK_PROTOCOL`) pozostają 1: pola są addytywne, a komenda jest negocjowana capability.
+
+Testy: `packages/domain/src/projects.test.ts` (normalizacja i reguły scalania) oraz
+`tests/integration/linked-projects.test.ts` (dwa gatewaye, rzeczywiste odczyty git przez WorkerHost,
+tworzenie na domu wybranego workera, owner scoping, zmiana ścieżki, offline i odmowa bez kolejki
+po utracie domu). Nie ma testów UI.
 
 ## Dostępność: bez kolejkowania
 
@@ -175,6 +213,14 @@ Telefon i przeglądarka łączą się z jednym gatewayem i widzą przez niego ws
   Krótki stan, „read only” i czas zmiany obecności; szczegóły pod ikoną informacji, dostępne także dotknięciem.
   „Last seen” zostaje przy samym komputerze w ustawieniach. Okno konfliktu konfiguracji; stan „needs an update”.
 - Znaczki „This computer” / „All linked computers” w ustawieniach.
+- Kompozytor: jeden wiersz projektu na wspólny origin i jeden **No project**. Bez znaczków komputerów
+  i podpisów per komputer przy projektach. Picker workera grupuje workery wszystkich komputerów;
+  jego przycisk pokazuje worker i komputer. Dla projektu pokazuje tylko workery z workspace'em tego
+  projektu, a dla No project wszystkie workery (brak katalogu scratch oznacza wybór wyłączony).
+  Offline pozostaje Offline; nieosiągalny dom pokazuje ogłoszony stan (np. Going to sleep) lub Unreachable,
+  z rzeczywistym powodem obecności w szczegółach.
+  Wysyłanie wymaga osiągalnego domu i workera online. Wybór workspace'u workera przekazuje oryginalne
+  `workspace.project_id` i id workspace'u do istniejącej ścieżki zdalnego tworzenia wątku.
 
 ## Etapy
 
@@ -388,9 +434,9 @@ na ekranie z ostatnim stanem i krótkim statusem nad composerem, który pozostaj
 ### UI
 
 Znaczek maszyny (`MachineBadge`: ikona łącza i nazwa) przy wątku partnera w sidebarze i nagłówku
-wątku, w karcie podglądu wątku, przy projekcie w pickerze projektu (status wiersza i pigułka) oraz
-„On Laptop B” przy workerze. Nowy wątek na workerze partnera: wybierasz projekt partnera i jego
-workera; B zostaje właścicielem. Ekrany konfiguracji per komputer (projekty, workery, dostawcy,
+wątku oraz w karcie podglądu wątku. Kompozytor scala projekty według origin (reguły powyżej),
+a komputer wybiera się przez worker. Nowy wątek na workerze B używa rekordu projektu z B;
+B zostaje właścicielem. Ekrany konfiguracji per komputer (projekty, workery, dostawcy,
 connectory, domyślne ustawienia wątków, harmonogramy) pokazują wyłącznie własne rzeczy
 (`ownWorkers`/`ownProjects`), bo konfiguracja wspólna to etap 4. Harmonogramy wątków partnera są
 w tym etapie niedostępne.
@@ -636,6 +682,9 @@ Gdy obie strony jednocześnie odpowiedzą przeciwnie, wektory znów są współb
   udostępnienia zostają na obu komputerach; ponowne sparowanie zaczyna jak pierwsze udostępnienie.
 
 ### Projekty jako wspólna tożsamość
+
+Ta sekcja opisuje **jawne współdzielenie konfiguracji**, niezależne od scalania pickerów po git origin.
+Samo zgodne origin nie włącza współdzielenia ustawień i nie nadaje wspólnego id.
 
 Wspólny projekt ma to samo id na każdym komputerze. Gateway nie kwalifikuje go sufiksem węzła
 (`globalize`), dopuszcza je w wywołaniach do partnera (`unqualify` z listą globalnych id) i pokazuje

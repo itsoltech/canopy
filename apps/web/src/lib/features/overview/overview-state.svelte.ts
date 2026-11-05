@@ -3,6 +3,7 @@ import { ui } from "@canopy/contracts";
 import { decode } from "#lib/shared/wire.ts";
 import { liveSource } from "#lib/shared/live-source.ts";
 import { computerName, listsThreads, sharesThreads } from "#lib/features/computers/computers.ts";
+import { projectChoices } from "@canopy/domain/projects";
 
 /** live: stream open and in sync; reconnecting: dropped, retrying; unavailable: the gateway does not answer. */
 export type OverviewConnection = "live" | "reconnecting" | "unavailable";
@@ -15,6 +16,7 @@ export type OverviewConnection = "live" | "reconnecting" | "unavailable";
 export class OverviewState {
   workers = $state.raw<ui.Worker[]>([]);
   projects = $state.raw<ui.Project[]>([]);
+  projectChoices = $derived(projectChoices(this.projects));
   /** Active threads and Previous agents, plus archived rows observed live or fetched on demand. */
   threads = $state.raw<ReadonlyMap<string, ui.Thread>>(new Map());
   /** Linked computers by node id. Mirror-capable peers remain listed while offline. */
@@ -39,6 +41,10 @@ export class OverviewState {
 
   project(id: string): ui.Project | undefined {
     return this.projects.find((p) => p.id === id);
+  }
+
+  projectChoice(id: string) {
+    return this.projectChoices.find((project) => project.projectIds.includes(id));
   }
 
   computer(nodeId: string): ui.LinkedComputer | undefined {

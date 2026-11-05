@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ui } from "@canopy/contracts";
+  import { expandProjectIds } from "@canopy/domain/projects";
   import type { ClassValue } from "svelte/elements";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
@@ -51,11 +52,24 @@
   });
 
   const openTree = $derived(current ? (isSide(current) ? current.parentThreadId : current.id) : undefined);
-  const filtered = $derived(sidebarThreads(all, settings.sidebar, query, (id) => overview.project(id)?.name ?? ""));
+
+  const filterSettings = $derived({
+    ...settings.sidebar,
+    projectIds: expandProjectIds(settings.sidebar.projectIds, overview.projectChoices),
+  });
+
+  const filtered = $derived(
+    sidebarThreads(all, filterSettings, query, (id) => {
+      const choice = overview.projectChoice(id);
+
+      return choice ? [choice.name, ...choice.aliases].join(" ") : "";
+    }),
+  );
+
   const rootIds = $derived(new Set(filtered.roots.map((t) => t.id)));
 
   let workingOpen = $state(false);
-  const entries = $derived(sidebarEntries(filtered, settings.sidebar, overview.projects, workingOpen));
+  const entries = $derived(sidebarEntries(filtered, settings.sidebar, overview.projectChoices, workingOpen));
 
   // The each below animates reorders, so every update of its list measures all rows and forces a style and
   // layout pass. It iterates the order only, kept while unchanged; rows read their entry from the map, so a

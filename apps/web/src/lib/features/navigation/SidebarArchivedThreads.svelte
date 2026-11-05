@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { ui } from "@canopy/contracts";
+  import { expandProjectIds } from "@canopy/domain/projects";
   import type { ClassValue } from "svelte/elements";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
@@ -25,6 +26,7 @@
 
   const overview = useOverview();
   const settings = useSettings();
+  const projectIds = $derived(expandProjectIds(settings.sidebar.projectIds, overview.projectChoices));
   const id = $props.id();
   const expanded = $derived(settings.sidebar.archivedExpanded);
 
@@ -33,7 +35,7 @@
       current,
       expanded,
       overview.threads,
-      settings.sidebar.projectIds,
+      projectIds,
       query,
       (id) => overview.project(id)?.name ?? "",
     ),
@@ -100,7 +102,7 @@
   });
 
   $effect(() => {
-    const filter = { projectIds: [...settings.sidebar.projectIds], query };
+    const filter = { projectIds, query };
     const open = expanded;
     const version = `${overview.resyncs}:${revision}`;
     untrack(() => void pager.refresh(filter, open, version));
@@ -118,12 +120,7 @@
     if (!expanded) pager.prefetch();
   };
 
-  const retry = () =>
-    void pager.refresh(
-      { projectIds: [...settings.sidebar.projectIds], query },
-      expanded,
-      `${overview.resyncs}:${revision}`,
-    );
+  const retry = () => void pager.refresh({ projectIds, query }, expanded, `${overview.resyncs}:${revision}`);
 
   function outgoing(event: Event & { currentTarget: HTMLElement }) {
     const node = event.currentTarget;
