@@ -13,6 +13,7 @@
     overridden,
     onchange,
     onreset,
+    soon = false,
     class: className,
   }: {
     field: WorktreeField;
@@ -23,6 +24,7 @@
     overridden: boolean;
     onchange: (checked: boolean) => void;
     onreset: () => void;
+    soon?: boolean;
     class?: ClassValue;
   } = $props();
 </script>
@@ -34,6 +36,7 @@
   {overridden}
   inherited={inherited ? "On" : "Off"}
   {onreset}
+  {soon}
   class={className}
 >
   {#snippet control()}<Switch name={field} label={title} {checked} {onchange} />{/snippet}

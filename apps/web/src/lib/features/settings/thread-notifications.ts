@@ -6,7 +6,12 @@ import { toast } from "#lib/shared/ui/toast.svelte.ts";
 import { devicePreferences } from "./device-preferences.svelte.ts";
 import { playNotificationSound, connectNotificationSound } from "./notification-sound.ts";
 
-/** Snapshots/reconnects establish a baseline; only live transitions of already visible threads alert. */
+const busy = (thread: ui.Thread) => thread.status === "running" || thread.status === "creating";
+
+/**
+ * Snapshots/reconnects establish a baseline; only live transitions of already visible threads alert.
+ * A result alerts once, when its turn ends: a new turn starting next to an unseen result does not.
+ */
 export function notificationEvent(
   before: ui.Thread | undefined,
   next: ui.Thread,
@@ -15,13 +20,11 @@ export function notificationEvent(
 
   if (needsYou(next) && (!needsYou(before) || next.pendingInteractions > before.pendingInteractions)) return "input";
 
-  if (
-    next.unseenResult !== before.unseenResult ||
-    next.lastActivityAt?.seconds !== before.lastActivityAt?.seconds ||
-    next.lastActivityAt?.nanos !== before.lastActivityAt?.nanos
-  ) {
-    if (next.unseenResult === "completed" || next.unseenResult === "failed") return next.unseenResult;
-  }
+  if (busy(next)) return;
+  const result = next.unseenResult;
+
+  if ((result === "completed" || result === "failed") && (result !== before.unseenResult || busy(before)))
+    return result;
 
   return undefined;
 }

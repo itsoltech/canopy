@@ -45,7 +45,8 @@
   const naming = [
     { value: String(ui.BranchNaming.SEMANTIC), label: "Semantic prefix", description: "feat/…, fix/…, refactor/…" },
     { value: String(ui.BranchNaming.PREFIX), label: "Prefix", description: "<prefix>/<task>" },
-    { value: String(ui.BranchNaming.TITLE), label: "Thread title", description: "The title as a slug" },
+    // Soon: new threads send no title yet and the branch is not renamed when the title arrives.
+    { value: String(ui.BranchNaming.TITLE), label: "Thread title", description: "Soon", disabled: true },
   ];
 
   const modes = [

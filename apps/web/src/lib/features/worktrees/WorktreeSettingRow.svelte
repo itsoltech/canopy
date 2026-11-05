@@ -19,6 +19,7 @@
     overridden,
     inherited,
     onreset,
+    soon = false,
     control: rowControl,
     class: className,
   }: {
@@ -30,6 +31,8 @@
     /** The value from broader scopes and the defaults, for the hint. */
     inherited: string;
     onreset: () => void;
+    /** The feature behind the setting does not exist yet (SettingsRow `soon`). */
+    soon?: boolean;
     control: Snippet;
     class?: ClassValue;
   } = $props();
@@ -45,9 +48,9 @@
   );
 </script>
 
-<SettingsRow {title} {description} class={className}>
+<SettingsRow {title} {description} {soon} class={className}>
   {#snippet control()}
-    <ResettableControl changed={overridden}>
+    <ResettableControl changed={overridden && !soon}>
       {@render rowControl()}
       {#snippet reset()}<Button size="sm" variant="ghost" icon="arrow-uturn-left" onclick={onreset}>Reset</Button
         >{/snippet}

@@ -23,9 +23,11 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    konto i TTL. Strona wyniku próbuje `canopy://connectors`; ten stały link
    pokazuje aplikację i otwiera ustawienia konektorów bez parametrów dostawcy.
    Okna odmawiają wszystkich uprawnień przeglądarki poza zapisem do schowka
-   (`clipboard-sanitized-write`, potrzebnym dla `navigator.clipboard.writeText`), i to tylko
-   stronom z originu setupu albo web UI (`window-permissions.ts`). Odczyt schowka, media
-   i powiadomienia pozostają zablokowane.
+   (`clipboard-sanitized-write`, potrzebnym dla `navigator.clipboard.writeText`)
+   i powiadomieniami (`notifications`), i to tylko stronom z originu setupu albo web UI
+   (`window-permissions.ts`). Odczyt schowka, media i reszta pozostają zablokowane.
+   Alerty wątków idą przez IPC `canopy:thread-notification` do natywnego `Notification`
+   procesu main; uprawnienie `notifications` jest rezerwą dla Notification API strony.
 2. **Baza:** pełny PostgreSQL 18.6 z binariów `@embedded-postgres`, pobieranych tylko
    po wybraniu trybu lokalnego. Aplikacja nie zawiera PostgreSQL. Pierwszy lokalny start
    wymaga internetu; gotowy cache działa offline. Nie wymaga ręcznej instalacji ani
@@ -43,6 +45,9 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    `basic_text` jest odrzucany; aplikacja wymaga działającego magazynu kluczy.
    `worker.json` zachowuje istniejący format enrollment i uprawnienia 0600.
 4. **Porty:** losowe wolne porty; Postgres, web i domyślnie gRPC na `127.0.0.1`.
+   Port web jest wybierany raz i zapisywany w `web-port` w katalogu runtime, bo origin
+   `http://127.0.0.1:<port>` wyznacza localStorage z preferencjami urządzenia. Zajęty
+   zapisany port zastępuje nowy, również zapisany.
    Settings → Network access otwiera jeden listener TLS dla telefonów, połączonych komputerów i workerów
    na wszystkich interfejsach, z portem wybieranym i zapisywanym w bazie. Parowanie
    przypina certyfikat komputera; zmiany sieci odświeżają ogłaszane adresy.
@@ -212,7 +217,7 @@ PostgreSQL pasek postępu. Błędy udostępniają „Try again” i „Open desk
 Niepoprawny plik konfiguracji również prowadzi do odzyskiwania, zamiast do pierwszego uruchomienia.
 Formularz wyboru trybu pojawia się tylko bez konfiguracji albo po jawnym otwarciu
 wyboru trybu (`/desktop?settings=1`). Ekran zawiera wyłącznie wybór local/remote
-i pola połączenia. Aktualizacje oraz skrót Quit pozostają w Settings → App updates.
+i pola połączenia. Aktualizacje pozostają w Settings → App updates, a skrót Quit w Settings → General → Desktop app.
 „Back to Settings” i Escape zamykają osobne okno wyboru, przywracając poprzedni
 widok Settings bez zapisu ani przeładowania; pierwsze uruchomienie nie ma przycisku powrotu.
 Zapis niezmienionych pól tylko wraca. Main i kontroler również pomijają wtedy
@@ -260,6 +265,8 @@ desktop.json                # tryb/adresy; bez tokenu enrollment
 app-updates.json            # wybrany kanał desktopu; zapis atomowy w main, bez gatewaya
 remote-update.json.<hash>    # historia zdalnej aktualizacji per desktop device; bez credentiali
 app-shortcuts.json          # quitShortcut; zapis atomowy w main, bez gatewaya
+app-update-checks.json      # częstotliwość i ostatnie sprawdzenie aktualizacji desktopu
+web-port                    # stały port web UI, więc localStorage (preferencje urządzenia) przetrwa restart
 window-state.json           # pozycja, rozmiar, maksymalizacja, pełny ekran i ekran głównego okna
 postgres/data/              # pełny klaster PostgreSQL
 postgres/versions/<pin>/    # zweryfikowany runtime; installed.json oznacza pełną instalację
@@ -583,7 +590,7 @@ przez gateway i dopiero potem zamyka WorkerLink. Po flush nie czeka bez końca n
 odpowiedź zdalnego serwera na half-close. Niepotwierdzone zdarzenia zostają w SQLite
 i są wysyłane po kolejnym starcie ([durability.md](durability.md)).
 
-**Settings → App updates → Desktop shortcuts → Quit shortcut**
+**Settings → General → Desktop app → Quit shortcut**
 wybiera zachowanie `⌘Q` na macOS i `Ctrl+Q` na Linux/Windows:
 
 - **Press twice** (domyślnie): wymagane są dwa osobne naciśnięcia w oknie krótszym

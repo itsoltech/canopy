@@ -203,8 +203,10 @@
       title={device.name}
       description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.revokedAt ? "Revoked" : device.lastSeenAt ? `Last seen ${formatDateTime(device.lastSeenAt)}` : "Not connected yet"}`}
     >
-      {#snippet control()}{#if device.pairingVersion < 2}<Button size="sm" disabled={busy} onclick={() => void pair()}
-            >Pair again</Button
+      {#snippet control()}{#if device.pairingVersion < 2}<Button
+            size="sm"
+            disabled={busy}
+            onclick={() => void pair(device.clientKind === "desktop" ? "desktop" : "mobile")}>Pair again</Button
           >
         {:else if !device.revokedAt}<Button
             size="sm"

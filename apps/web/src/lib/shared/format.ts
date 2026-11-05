@@ -4,7 +4,8 @@ import { devicePreferences } from "#lib/features/settings/device-preferences.sve
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
-function clockOptions(): Intl.DateTimeFormatOptions {
+/** The 12/24-hour clock of General → Time format, for any formatter that shows a time. */
+export function clockOptions(): Intl.DateTimeFormatOptions {
   const format = devicePreferences.values.timeFormat;
 
   return format === "system" ? {} : { hour12: format === "12h" };

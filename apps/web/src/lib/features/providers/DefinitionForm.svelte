@@ -39,10 +39,15 @@
   let failure = $state<string>();
 
   // Back to the stored definition whenever another revision arrives (after a save, or a change elsewhere).
+  // Only the revision: reloads swap in equal instance objects (worker status, model stars) and must keep typed edits.
+  const revision = $derived(instance.revision);
+
   $effect.pre(() => {
-    void instance.revision;
-    draft = draftOf(instance);
-    tried = false;
+    void revision;
+    untrack(() => {
+      draft = draftOf(instance);
+      tried = false;
+    });
   });
 
   const problems = $derived(draftProblems(draft, { builtIn: instance.builtIn, creating: false, takenIds: new Set() }));

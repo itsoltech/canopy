@@ -12,13 +12,17 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* Dark muted text is mostly zinc-400 (`text-zinc-500 dark:text-zinc-400`) or `muted`, so both steps change too. */
 :root[data-contrast="strong"] {
   --theme-zinc-500: light-dark(var(--light-zinc-600), var(--dark-zinc-300)) !important;
+  --theme-zinc-400: light-dark(var(--light-zinc-500), var(--dark-zinc-300)) !important;
+  --theme-muted: light-dark(var(--light-zinc-700), var(--dark-zinc-200)) !important;
   --theme-border: light-dark(var(--light-zinc-400), var(--dark-zinc-400)) !important;
 }
 :root[data-contrast="maximum"] {
   --theme-zinc-500: light-dark(var(--light-zinc-700), var(--dark-zinc-200)) !important;
   --theme-zinc-400: light-dark(var(--light-zinc-600), var(--dark-zinc-100)) !important;
+  --theme-muted: light-dark(var(--light-zinc-800), var(--dark-zinc-100)) !important;
   --theme-border: light-dark(var(--light-zinc-600), var(--dark-zinc-300)) !important;
 }
 .diff-line[data-kind="add"] {

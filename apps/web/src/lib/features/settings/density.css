@@ -52,6 +52,8 @@
 
 .settings-stack {
   display: grid;
+  /* An auto track grows to a long nowrap title; rows truncate inside the pane instead. */
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: var(--settings-section-gap);
 }
