@@ -42,3 +42,17 @@ test("a pasted code round-trips and rejects anything else", () => {
   for (const text of ["", "not base64 !", btoa("no-space"), btoa(`bad-state code`), btoa(`${state} `)])
     expect(parsePastedCode(text)).toBeUndefined();
 });
+
+test("the copied redirect address works as a pasted code", () => {
+  const state = returnState(nonce, { desktop: true });
+  const page = `https://itsoltech.github.io/canopy/oauth/callback${search(state)}`;
+  expect(parsePastedCode(page)).toEqual({ state, code: "one-time" });
+  expect(parsePastedCode(search(state).slice(1))).toEqual({ state, code: "one-time" });
+  expect(parsePastedCode(`${page}#top`)).toEqual({ state, code: "one-time" });
+
+  for (const text of [
+    `https://x.test/cb?code=one-time&state=bad`,
+    `https://x.test/cb?state=${encodeURIComponent(state)}`,
+  ])
+    expect(parsePastedCode(text)).toBeUndefined();
+});

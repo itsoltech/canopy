@@ -85,8 +85,23 @@ export function returnTarget(search: string): { desktop: boolean; url: string } 
 /** One opaque string for the manual return: the user copies it from the redirect page into Canopy. */
 export const pastedCode = (state: string, code: string) => encode(`${state} ${code}`);
 
+/**
+ * Accepts the opaque code from the redirect page, or the whole redirect URL (or its query) when someone copies
+ * the address bar instead.
+ */
 export function parsePastedCode(text: string): { state: string; code: string } | undefined {
-  const value = decode(text.trim());
+  const trimmed = text.trim();
+  const query = trimmed.includes("?") ? trimmed.slice(trimmed.indexOf("?") + 1) : trimmed.includes("=") ? trimmed : "";
+
+  if (query) {
+    const params = new URLSearchParams(query.split("#")[0]);
+    const state = params.get("state") ?? "";
+    const code = params.get("code") ?? "";
+
+    return isOAuthState(state) && code ? { state, code } : undefined;
+  }
+
+  const value = decode(trimmed);
   const space = value?.indexOf(" ") ?? -1;
 
   if (!value || space < 1) return undefined;
