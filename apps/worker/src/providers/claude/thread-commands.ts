@@ -9,6 +9,7 @@ import type { claudeRuntime } from "./session-runtime.ts";
 import type { claudeSessions } from "./sessions.ts";
 import type { sessionOutput } from "./session-output.ts";
 import type { sessionTurns } from "./session-turns.ts";
+import { claudeContent } from "./input.ts";
 import { userMessage, userItem } from "./session-io.ts";
 
 export function threadCreation(ctx: ClaudeThreadContext, runtime: ReturnType<typeof claudeRuntime>) {
@@ -123,7 +124,7 @@ export function threadStart(
             spec.threadId,
             userItem(turnId, `user:${turnId}`, turnId, input.text, input.authorUserId, input.mentions),
           );
-          session.input.push(userMessage(input.text));
+          session.input.push(userMessage(await claudeContent(input)));
         },
         catch: fail(spec.threadId, "turn"),
       }).pipe(Effect.tapError(() => Effect.sync(() => started.delete(turnId))));

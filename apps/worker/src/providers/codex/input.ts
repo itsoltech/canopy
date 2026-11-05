@@ -1,5 +1,6 @@
 import { MentionKind, type UserInput } from "@canopy/contracts";
 import type { v2 } from "@canopy/codex-protocol";
+import { interleave } from "../../attachments/inline.ts";
 
 /** Image files a model can look at when mentioned (Codex localImage). */
 const IMAGE_FILE = /\.(png|jpe?g|gif|webp)$/i;
@@ -12,24 +13,29 @@ const IMAGE_FILE = /\.(png|jpe?g|gif|webp)$/i;
  * - an image file -> { type: "localImage", path } (the model sees it); other files stay "@path" in the text,
  *   relative to the thread's folder, like the Codex composer inserts them.
  * Commands and threads have no Codex item (the gateway already added the thread note to the text).
+ * Files the user placed in the text (docs/protocol.md, "Załączniki w tekście"): the text splits after each placed
+ * image's marker and a localImage goes there, so Codex reads text and images in the user's order.
  */
-export function codexUserInput(input: Pick<UserInput, "text" | "mentions">): v2.UserInput[] {
+export function codexUserInput(input: Pick<UserInput, "text" | "mentions" | "attachments">): v2.UserInput[] {
   const { text, mentions } = input;
   const encoder = new TextEncoder();
-  const bytes = (end: number) => encoder.encode(text.slice(0, end)).length;
 
-  const items: v2.UserInput[] = [
-    {
+  const items: v2.UserInput[] = interleave(input).map((part) => {
+    if (part.type === "image") return { type: "localImage", path: part.attachment.path };
+    const end = part.offset + part.text.length;
+    const bytes = (at: number) => encoder.encode(text.slice(part.offset, at)).length;
+
+    return {
       type: "text",
-      text,
+      text: part.text,
       text_elements: mentions
-        .filter((m) => m.end > m.start && m.end <= text.length)
+        .filter((m) => m.end > m.start && m.start >= part.offset && m.end <= end)
         .map((m) => ({
           byteRange: { start: bytes(m.start), end: bytes(m.end) },
           placeholder: text.slice(m.start, m.end),
         })),
-    },
-  ];
+    };
+  });
 
   const seen = new Set<string>();
 

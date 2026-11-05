@@ -75,6 +75,7 @@ Gotowe:
 - `view_image` platformy: narzędzie dynamiczne `canopy` › `view_image` ([agent-bus.md](agent-bus.md#view_image)); item `dynamicToolCall` z tą przestrzenią nazw → item `image` (`source = view_image`), podgląd z `contentItems[].inputImage`.
 - Wbudowane `view_image` Codexa → item `imageView` → `image` (`source = native`), podgląd z pliku (`path`). Wygenerowane obrazy (`imageGeneration`, `savedPath`) → `source = generated`.
 - Obrazy w wynikach narzędzi MCP (`result.content[].type = image`) → `ToolCall.images`.
+- Obrazy umieszczone w tekście wiadomości: tekst dzieli się za znacznikiem `[Attachment N: nazwa]`, a tam idzie `localImage {path}` (`codex/input.ts`, [protocol.md](protocol.md#załączniki-w-tekście)). Echo `userMessage` dostaje z powrotem tekst wysłany.
 
 ## Wzmianki
 

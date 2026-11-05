@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
-import { recordProbe, releaseProbe } from "./instance-probe.ts";
+import { recordInput, recordProbe, releaseProbe } from "./instance-probe.ts";
 import { botFailure, botTool, codexBotConfig } from "./bot-probe.ts";
 
 if (process.argv.includes("--version")) {
@@ -40,7 +40,14 @@ const interrupted = new Set<string>();
 const send = (message: JsonObject) => process.stdout.write(JSON.stringify(message) + "\n");
 const notify = (method: string, params: JsonObject) => send({ method, params });
 
-async function turn(id: number, params: { threadId: string; input: { text?: string }[] }): Promise<void> {
+async function turn(
+  id: number,
+  params: { threadId: string; input: { type: string; text?: string; path?: string }[] },
+): Promise<void> {
+  recordInput(
+    "codex",
+    params.input.map((i) => ({ type: i.type, text: i.text, image: i.path?.split("/").pop() })),
+  );
   const turnId = crypto.randomUUID();
   const threadId = params.threadId;
   const text = params.input.map((i) => i.text ?? "").join("\n");

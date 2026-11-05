@@ -10,7 +10,7 @@ import { ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { Effect } from "effect";
 import { startTestGateway, eventually, watchUntil } from "./gateway.ts";
-import { probeRecords } from "../fixtures/instance-probe.ts";
+import { inputRecords, probeRecords } from "../fixtures/instance-probe.ts";
 
 const tempDir = tempDirs();
 
@@ -90,7 +90,8 @@ export async function startInstanceFixture(
     credential: added.credential,
     hello: {
       workerId: added.workerId,
-      capabilities: ["bot_harness_v1", ...(shellCapability ? ["shell_input_v1"] : [])],
+      capabilities: ["bot_harness_v1", "attachments", ...(shellCapability ? ["shell_input_v1"] : [])],
+      attachmentsRoot: host.attachmentsRoot,
       environmentKind: "desktop",
       ...(await runtime.runPromise(journalHello())),
     },
@@ -250,7 +251,8 @@ export async function startInstanceFixture(
         credential: added.credential,
         hello: {
           workerId: added.workerId,
-          capabilities: ["bot_harness_v1", ...(shellCapability ? ["shell_input_v1"] : [])],
+          capabilities: ["bot_harness_v1", "attachments", ...(shellCapability ? ["shell_input_v1"] : [])],
+          attachmentsRoot: host.attachmentsRoot,
           environmentKind: "desktop",
           ...(await runtime.runPromise(journalHello())),
         },
@@ -283,7 +285,8 @@ export async function startInstanceFixture(
         credential: added.credential,
         hello: {
           workerId: added.workerId,
-          capabilities: ["bot_harness_v1", ...(shellCapability ? ["shell_input_v1"] : [])],
+          capabilities: ["bot_harness_v1", "attachments", ...(shellCapability ? ["shell_input_v1"] : [])],
+          attachmentsRoot: host.attachmentsRoot,
           environmentKind: "desktop",
           runningTurns: host.runningTurns(),
           ...(await runtime.runPromise(journalHello())),
@@ -301,6 +304,7 @@ export async function startInstanceFixture(
       };
     },
     records: () => probeRecords(trace),
+    inputs: () => inputRecords(trace),
     release: (label: string) => Bun.write(join(dir, `release-${label}`), "release"),
     close: async () => {
       stopped = true;

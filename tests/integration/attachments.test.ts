@@ -7,7 +7,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import type { Client } from "@connectrpc/connect";
-import { ItemStatus, Provider, ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { ItemStatus, MentionKind, MentionSchema, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { AttachmentStore, GatewayStore } from "@canopy/gateway/store";
 import sharp from "sharp";
@@ -444,6 +445,205 @@ describe.skipIf(!dockerAvailable)("attachments", () => {
       });
       await Bun.sleep(200);
       expect(await failure(api.getThreadBlob({ threadId: thread.id, sha256: forged }))).toContain("not found");
+    });
+  });
+  describe('placed in the text (docs/ui-api.md, "Załączniki w tekście")', () => {
+    /** A badge: the placeholder "[name]" at `start` of `text`. */
+    const badge = (text: string, id: string, name: string) => {
+      const start = text.indexOf(`[${name}]`);
+
+      return create(MentionSchema, {
+        kind: MentionKind.ATTACHMENT,
+        name: id,
+        label: name,
+        start,
+        end: start + name.length + 2,
+      });
+    };
+
+    const snapshotOf = async (threadId: string) => {
+      const updates = await watchUntil(api, threadId, (u) => u.some((x) => x.change.case === "snapshot"));
+
+      return updates.find((u) => u.change.case === "snapshot")?.change.value as ui.ThreadSnapshot;
+    };
+
+    test("the agent gets numbered markers where the user put the files; the turn keeps the positions", async () => {
+      const thread = await newThread("Inline");
+      const loose = (await api.uploadAttachment({ name: "loose.txt", data: text("loose") })).attachment!;
+      const plik = (await api.uploadAttachment({ name: "plik.txt", data: text("hello") })).attachment!;
+
+      const png = new Uint8Array(
+        await sharp({ create: { width: 8, height: 4, channels: 3, background: "#ff0000" } })
+          .png()
+          .toBuffer(),
+      );
+
+      const image = (await api.uploadAttachment({ name: "obrazek.png", data: png })).attachment!;
+      const message = "hey, the file: [plik.txt] and the image: [obrazek.png], analyse them";
+
+      const turn = (
+        await api.sendMessage({
+          threadId: thread.id,
+          text: message,
+          clientRequestId: "inline-1",
+          attachmentIds: [loose.id, image.id, plik.id],
+          mentions: [badge(message, image.id, "obrazek.png"), badge(message, plik.id, "plik.txt")],
+        })
+      ).turn!;
+
+      // The user's message and its badges as written; placed files first, in their order, then the rest.
+      expect(turn.messageText).toBe(message);
+      expect(turn.mentions.map((m) => [m.kind, m.name, m.source, message.slice(m.start, m.end)])).toEqual([
+        [MentionKind.ATTACHMENT, plik.id, "file", "[plik.txt]"],
+        [MentionKind.ATTACHMENT, image.id, "image", "[obrazek.png]"],
+      ]);
+      expect(turn.attachments.map((a) => a.name)).toEqual(["plik.txt", "obrazek.png", "loose.txt"]);
+      const path = (id: string, name: string) => `${SCRIPTED_ATTACHMENTS_ROOT}/${thread.id}/${id}/${name}`;
+      expect(turn.platformNote).toContain(
+        "Each [Attachment N: name] in the message marks where the user put that file",
+      );
+      expect(turn.platformNote).toContain(`- Attachment 1: ${path(plik.id, "plik.txt")} (text/plain, 5 B)`);
+      expect(turn.platformNote).toContain(`- Attachment 2: ${path(image.id, "obrazek.png")} (image/png,`);
+      expect(turn.platformNote).toContain(`- Attachment 3: ${path(loose.id, "loose.txt")} (text/plain, 5 B)`);
+
+      const delivered =
+        "hey, the file: [Attachment 1: plik.txt] and the image: [Attachment 2: obrazek.png], analyse them";
+
+      expect(turn.inputText).toBe(`${turn.platformNote}\n\n${delivered}`);
+
+      // The worker gets the same text, the files in the note's order and the markers' ranges.
+      const started = await eventually(
+        async () => worker.started.get(turn.id),
+        (input) => input !== undefined,
+      );
+
+      expect(started!.text).toBe(turn.inputText);
+      expect(started!.attachments.map((a) => a.attachmentId)).toEqual([plik.id, image.id, loose.id]);
+      expect(started!.mentions.map((m) => [m.name, started!.text.slice(m.start, m.end)])).toEqual([
+        [plik.id, "[Attachment 1: plik.txt]"],
+        [image.id, "[Attachment 2: obrazek.png]"],
+      ]);
+
+      // A reload (snapshot) and a fork at this turn keep the positions.
+      await eventually(
+        async () => (await snapshotOf(thread.id)).turns.find((t) => t.id === turn.id)?.status,
+        (status) => status === "completed",
+      );
+      const reloaded = (await snapshotOf(thread.id)).turns.find((t) => t.id === turn.id)!;
+      expect(reloaded.mentions).toEqual(turn.mentions);
+      expect(reloaded.attachments.map((a) => a.id)).toEqual([plik.id, image.id, loose.id]);
+      const fork = (await api.createThread({ forkThreadId: thread.id, forkAtTurnId: turn.id })).thread!;
+      const inherited = (await snapshotOf(fork.id)).turns.find((t) => t.id === turn.id)!;
+      expect([inherited.messageText, inherited.mentions, inherited.inputText]).toEqual([
+        message,
+        turn.mentions,
+        turn.inputText,
+      ]);
+    });
+
+    test("a message without positions keeps the note as it always was", async () => {
+      const thread = await newThread("Old format");
+      const file = (await api.uploadAttachment({ name: "old.txt", data: text("old") })).attachment!;
+
+      const turn = (
+        await api.sendMessage({
+          threadId: thread.id,
+          text: "[old.txt] as text",
+          clientRequestId: "inline-old",
+          attachmentIds: [file.id],
+        })
+      ).turn!;
+
+      expect(turn.mentions).toEqual([]);
+      expect(turn.platformNote).not.toContain("Attachment 1");
+      expect(turn.platformNote).toContain(
+        `- ${SCRIPTED_ATTACHMENTS_ROOT}/${thread.id}/${file.id}/old.txt (text/plain, 3 B)`,
+      );
+      expect(turn.inputText).toEndWith("\n\n[old.txt] as text");
+    });
+
+    test("a badge names only a file of its own message, once; never another user's file", async () => {
+      const thread = await newThread("Badges");
+      const mine = (await api.uploadAttachment({ name: "mine.txt", data: text("mine") })).attachment!;
+      const unsent = (await api.uploadAttachment({ name: "other.txt", data: text("other") })).attachment!;
+      const otherUser = await gw.runtime.runPromise(GatewayStore.use((s) => s.ensureUser("badges@localhost", "B")));
+
+      const theirs = await gw.runtime.runPromise(
+        AttachmentStore.use((s) =>
+          s.create({
+            ownerUserId: otherUser,
+            name: "theirs.txt",
+            mimeType: "text/plain",
+            kind: "file",
+            data: text("theirs"),
+            sha256: sha(text("theirs")),
+          }),
+        ),
+      );
+
+      const send = (id: string, mentions: ReturnType<typeof badge>[], attachmentIds = [mine.id]) =>
+        failure(
+          api.sendMessage({
+            threadId: thread.id,
+            text: "see [mine.txt] and [x]",
+            clientRequestId: id,
+            attachmentIds,
+            mentions,
+          }),
+        );
+
+      const message = "see [mine.txt] and [x]";
+
+      const other = (id: string) =>
+        create(MentionSchema, { kind: MentionKind.ATTACHMENT, name: id, label: "x", start: 19, end: 22 });
+
+      expect(await send("b-1", [badge(message, mine.id, "mine.txt"), other(unsent.id)])).toContain(
+        "not attached to it",
+      );
+      expect(await send("b-2", [badge(message, mine.id, "mine.txt"), other(theirs.id)])).toContain(
+        "not attached to it",
+      );
+      expect(await send("b-3", [badge(message, mine.id, "mine.txt"), other(mine.id)])).toContain("more than once");
+      expect(await send("b-4", [other(theirs.id)], [theirs.id])).toContain("unknown attachment");
+      // The worker never got another user's file.
+      expect([...worker.attachments.values()].flat().some((a) => a.attachmentId === theirs.id)).toBe(false);
+    });
+
+    test("editing a queued message: a file lives with its badge", async () => {
+      const thread = await newThread("Queue edit");
+      worker.holdTurns = true;
+      const first = (await api.sendMessage({ threadId: thread.id, text: "work", clientRequestId: "qe-1" })).turn!;
+      const a = (await api.uploadAttachment({ name: "a.txt", data: text("a") })).attachment!;
+      const b = (await api.uploadAttachment({ name: "b.txt", data: text("b") })).attachment!;
+      const message = "[a.txt] then [b.txt]";
+
+      const queued = (
+        await api.sendMessage({
+          threadId: thread.id,
+          text: message,
+          clientRequestId: "qe-2",
+          attachmentIds: [a.id, b.id],
+          mentions: [badge(message, a.id, "a.txt"), badge(message, b.id, "b.txt")],
+        })
+      ).turn!;
+
+      // b's badge moves to the front, a's goes: a leaves the message, b is Attachment 1 now.
+      const edited = "[b.txt] only";
+
+      const { turn } = await api.editQueuedTurn({
+        turnId: queued.id,
+        text: edited,
+        expectedRevision: queued.revision,
+        mentions: [badge(edited, b.id, "b.txt")],
+      });
+
+      expect(turn!.attachments.map((x) => x.id)).toEqual([b.id]);
+      expect(turn!.mentions.map((m) => [m.name, edited.slice(m.start, m.end)])).toEqual([[b.id, "[b.txt]"]]);
+      expect(turn!.inputText).toEndWith("\n\n[Attachment 1: b.txt] only");
+      expect(turn!.platformNote).toContain(`- Attachment 1: ${SCRIPTED_ATTACHMENTS_ROOT}/${thread.id}/${b.id}/b.txt`);
+      expect(turn!.platformNote).not.toContain("a.txt");
+      worker.holdTurns = false;
+      worker.finish(thread.id, first.id);
     });
   });
 });

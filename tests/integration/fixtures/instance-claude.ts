@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
 import { Schema } from "effect";
-import { recordProbe, releaseProbe } from "./instance-probe.ts";
+import { recordInput, recordProbe, releaseProbe } from "./instance-probe.ts";
 import { botFailure, botTool, claudeBotConfig } from "./bot-probe.ts";
 
 if (process.argv.includes("--version")) {
@@ -179,10 +179,21 @@ for await (const line of createInterface({ input: process.stdin })) {
     const content = Schema.decodeSync(
       Schema.Union([
         Schema.String,
-        Schema.Array(Schema.Struct({ type: Schema.String, text: Schema.optional(Schema.String) })),
+        Schema.Array(
+          Schema.Struct({
+            type: Schema.String,
+            text: Schema.optional(Schema.String),
+            source: Schema.optional(Schema.Struct({ media_type: Schema.String })),
+          }),
+        ),
       ]),
     )(message.message.content);
 
-    void turn(Schema.is(Schema.String)(content) ? content : content.map((part) => part.text ?? "").join("\n"));
+    const parts = Schema.is(Schema.String)(content)
+      ? [{ type: "text", text: content }]
+      : content.map((part) => ({ type: part.type, text: part.text, image: part.source?.media_type }));
+
+    recordInput("claude", parts);
+    void turn(parts.map((part) => part.text ?? "").join("\n"));
   }
 }

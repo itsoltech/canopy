@@ -32,7 +32,7 @@ export function mapIds(
 
   if (
     desc.typeName === "canopy.worker.v1.Mention" &&
-    [MentionKind.BOT, MentionKind.THREAD, MentionKind.CONNECTOR].some(
+    [MentionKind.BOT, MentionKind.THREAD, MentionKind.CONNECTOR, MentionKind.ATTACHMENT].some(
       (kind) => kind === record.get(desc.field["kind"]!),
     )
   ) {

@@ -93,6 +93,7 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 - Katalog załączników wątku (`<data_dir>/attachments/<thread_id>`) jest w `additionalDirectories`: `Read` czyta załączniki bez pytania w każdym trybie.
 - `mcp__canopy__view_image` ([agent-bus.md](agent-bus.md#view_image)) — serwer `canopy` jest zawsze, narzędzia szyny tylko z `enable_agent_bus`. Mapowanie: item `image` (`source = view_image`), błąd w `detail`.
 - Obrazy w `tool_result` (np. `Read` na pliku obrazu) → `ToolCall.images`: podgląd z bloku `image` (base64) wyniku, czyli dokładnie to, co dostał model.
+- Obrazy umieszczone w tekście wiadomości: blok `image` (base64, skalowany jak `view_image`) zaraz za znacznikiem `[Attachment N: nazwa]`, między blokami `text` (`claude/input.ts`, [protocol.md](protocol.md#załączniki-w-tekście)). Bez umieszczonych obrazów treść jest zwykłym tekstem jak dotąd.
 
 ## Wzmianki
 

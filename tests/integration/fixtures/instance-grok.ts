@@ -4,7 +4,7 @@ import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
-import { recordProbe, releaseProbe } from "./instance-probe.ts";
+import { recordInput, recordProbe, releaseProbe } from "./instance-probe.ts";
 import { arg, botEvidence, botFailure, botTool } from "./bot-probe.ts";
 
 const servers = new Map<string, { url: string; headers: Record<string, string> }>();
@@ -28,8 +28,15 @@ const send = (message: JsonObject) => process.stdout.write(JSON.stringify({ json
 
 recordProbe("grok", "spawn");
 
-async function turn(id: number, params: { sessionId: string; prompt: { text?: string }[] }): Promise<void> {
+async function turn(
+  id: number,
+  params: { sessionId: string; prompt: { type: string; text?: string; mimeType?: string }[] },
+): Promise<void> {
   recordProbe("grok", "turn", params.sessionId);
+  recordInput(
+    "grok",
+    params.prompt.map((p) => ({ type: p.type, text: p.text, image: p.mimeType })),
+  );
   const text = params.prompt.map((p) => p.text ?? "").join("\n");
   transcript(params.sessionId, { sessionUpdate: "user_message_chunk", content: { type: "text", text } });
   await releaseProbe(text);
@@ -91,7 +98,10 @@ for await (const line of createInterface({ input: process.stdin })) {
   } else if (message.method === "initialize")
     send({
       id,
-      result: { protocolVersion: 1, agentCapabilities: { loadSession: true, mcpCapabilities: { http: true } } },
+      result: {
+        protocolVersion: 1,
+        agentCapabilities: { loadSession: true, mcpCapabilities: { http: true }, promptCapabilities: { image: true } },
+      },
     });
   else if (message.method === "session/new" || message.method === "session/load") {
     const session = params.sessionId ?? crypto.randomUUID();

@@ -1,6 +1,6 @@
 import { clone, create, type DescMethod, type Message } from "@bufbuild/protobuf";
-import { bots, ui } from "@canopy/contracts";
-import { nodeRef, qualifyId, REMOTE_BOTS, splitId, THREAD_MIRROR } from "@canopy/domain/computers";
+import { bots, MentionKind, MentionSchema, ui, type Mention } from "@canopy/contracts";
+import { INLINE_ATTACHMENTS, nodeRef, qualifyId, REMOTE_BOTS, splitId, THREAD_MIRROR } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Match } from "effect";
@@ -243,7 +243,11 @@ async function* send(
   }
 }
 
-/** The browser uploads to this gateway; a message for another computer's thread brings its files along. */
+/**
+ * The browser uploads to this gateway; a message for another computer's thread brings its files along. The files'
+ * badges in the text (ATTACHMENT mentions) follow their new ids; a home without INLINE_ATTACHMENTS gets the text
+ * without them (the placeholders stay as plain text).
+ */
 export async function carryAttachments(
   core: GatewayCore,
   nodeId: string,
@@ -252,18 +256,38 @@ export async function carryAttachments(
   signal: AbortSignal,
 ) {
   const field = Match.value(method.name).pipe(
-    Match.when("SendMessage", () => "attachmentIds" as const),
-    Match.when("CreateThread", () => "initialAttachmentIds" as const),
+    Match.when("SendMessage", () => ({ ids: "attachmentIds", mentions: "mentions" }) as const),
+    Match.when("CreateThread", () => ({ ids: "initialAttachmentIds", mentions: "initialMentions" }) as const),
     Match.orElse(() => undefined),
   );
 
   if (!field) return;
-  // SAFETY: The method-name match above selects the corresponding repeated string field in this decoded request.
-  const record = request as Message & { attachmentIds: string[]; initialAttachmentIds: string[] };
+  // SAFETY: The method-name match above selects the corresponding repeated fields of this decoded request.
+  const record = request as Message & Record<typeof field.ids, string[]> & Record<typeof field.mentions, Mention[]>;
+  const sent = await uploadAll(core, nodeId, record[field.ids], signal);
+  record[field.ids] = record[field.ids].map((id) => sent.get(id) ?? id);
+  const inline = core.computers?.capabilities(nodeId).includes(INLINE_ATTACHMENTS) ?? false;
+  record[field.mentions] = record[field.mentions].flatMap((m) =>
+    m.kind !== MentionKind.ATTACHMENT
+      ? [m]
+      : inline
+        ? [create(MentionSchema, { ...m, name: sent.get(m.name) ?? m.name })]
+        : [],
+  );
+}
+
+/** Each file not yet on the home goes there; the map gives its id there (qualified with the home's node). */
+async function uploadAll(
+  core: GatewayCore,
+  nodeId: string,
+  ids: readonly string[],
+  signal: AbortSignal,
+): Promise<Map<string, string>> {
   const upload = methodNamed("UploadAttachment")!;
-  record[field] = await Promise.all(
-    record[field]!.map(async (id) => {
-      if (splitId(id).node) return id;
+
+  const pairs = await Promise.all(
+    ids.map(async (id): Promise<[string, string]> => {
+      if (splitId(id).node) return [id, id];
       let file: ui.GetAttachmentResponse;
 
       try {
@@ -281,7 +305,9 @@ export async function carryAttachments(
         ),
       );
 
-      return qualifyId(sent.attachment?.id ?? "", nodeId);
+      return [id, qualifyId(sent.attachment?.id ?? "", nodeId)];
     }),
   );
+
+  return new Map(pairs);
 }

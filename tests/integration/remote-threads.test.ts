@@ -3,8 +3,8 @@ import type { JsonObject } from "@canopy/domain";
 import { randomBytes } from "node:crypto";
 import { createServer, type AddressInfo } from "node:net";
 import { create } from "@bufbuild/protobuf";
-import { InteractionKind, PermissionMode, Provider, ui, computerLink as link } from "@canopy/contracts";
-import { nodeRef, REMOTE_THREADS } from "@canopy/domain/computers";
+import { InteractionKind, MentionKind, PermissionMode, Provider, ui, computerLink as link } from "@canopy/contracts";
+import { INLINE_ATTACHMENTS, nodeRef, REMOTE_THREADS } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { AsyncChannel } from "@canopy/transport";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
@@ -57,7 +57,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
       port,
       heartbeatMs: 100,
       serve: remoteServe(uiHandlers(b.core)),
-      capabilities: ["presence", "unlink", REMOTE_THREADS],
+      capabilities: ["presence", "unlink", REMOTE_THREADS, INLINE_ATTACHMENTS],
       ...extra,
     });
 
@@ -235,6 +235,51 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     expect(turn.attachments.map((x) => [x.name, x.id.endsWith(`~${nodeRef(bNode)}`)])).toEqual([["notes.txt", true]]);
     await eventually(async () => (b.worker.attachments.get(turn.id.split("~")[0]!) ?? []).length === 1);
   }, 20_000);
+
+  test("a file placed in the text on A keeps its place on B; an older B gets the text without the badge", async () => {
+    const text = "read [placed.txt] first";
+
+    const send = async () => {
+      const file = (await a.api.uploadAttachment({ name: "placed.txt", data: new TextEncoder().encode("placed") }))
+        .attachment!;
+
+      const turn = (
+        await a.api.sendMessage({
+          threadId: thread,
+          text,
+          clientRequestId: id(),
+          attachmentIds: [file.id],
+          mentions: [{ kind: MentionKind.ATTACHMENT, name: file.id, label: "placed.txt", start: 5, end: 17 }],
+        })
+      ).turn!;
+
+      const started = await poll(
+        async () => b.worker.started.get(turn.id.split("~")[0]!),
+        (input) => input !== undefined,
+      );
+
+      return { turn, started: started! };
+    };
+
+    // The badge follows the file to B (its id there, qualified like the file's).
+    const placed = await send();
+    expect(placed.turn.attachments[0]!.id).toEndWith(`~${nodeRef(bNode)}`);
+    expect(placed.turn.mentions.map((m) => [m.name, text.slice(m.start, m.end)])).toEqual([
+      [placed.turn.attachments[0]!.id, "[placed.txt]"],
+    ]);
+    expect(placed.started.text).toEndWith("\n\nread [Attachment 1: placed.txt] first");
+
+    // A home without INLINE_ATTACHMENTS: the same message, the placeholder as plain text, the file as always.
+    await restartB({ capabilities: ["presence", "unlink", REMOTE_THREADS] });
+    await reachable();
+    const plain = await send();
+    expect(plain.turn.mentions).toEqual([]);
+    expect(plain.turn.attachments.map((x) => x.name)).toEqual(["placed.txt"]);
+    expect(plain.started.text).toEndWith("\n\nread [placed.txt] first");
+    expect(plain.started.text).not.toContain("Attachment 1");
+    await restartB();
+    await reachable();
+  }, 30_000);
 
   test("A's live overview follows B's threads and B's presence", async () => {
     const controller = new AbortController();

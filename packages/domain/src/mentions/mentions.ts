@@ -23,11 +23,15 @@ export const MENTION_TRIGGERS = {
   thread: "#",
   bot: "@",
   connector: "@",
+  attachment: "[",
 } as const;
 
 export const MAX_MENTIONS = 50;
 
-export type MentionKindName = "command" | "skill" | "plugin" | "file" | "thread" | "bot" | "connector";
+/** Attachments placed in the text count apart from MAX_MENTIONS: the attachment limits bound them. */
+export const MAX_ATTACHMENT_MENTIONS = 100;
+
+export type MentionKindName = "command" | "skill" | "plugin" | "file" | "thread" | "bot" | "connector" | "attachment";
 
 export function mentionKindName(kind: MentionKind): MentionKindName | undefined {
   switch (kind) {
@@ -45,6 +49,8 @@ export function mentionKindName(kind: MentionKind): MentionKindName | undefined 
       return "bot";
     case MentionKind.CONNECTOR:
       return "connector";
+    case MentionKind.ATTACHMENT:
+      return "attachment";
     default:
       return undefined;
   }
@@ -55,6 +61,8 @@ export function mentionPlaceholder(mention: Pick<Mention, "kind" | "name" | "lab
   const kind = mentionKindName(mention.kind);
 
   if (!kind) return "";
+
+  if (kind === "attachment") return `[${mention.label || mention.name}]`;
 
   return `${MENTION_TRIGGERS[kind]}${kind === "thread" || kind === "bot" || kind === "connector" ? mention.label || mention.name : mention.name}`;
 }
@@ -88,7 +96,13 @@ export function isWorkspaceRelative(path: string): boolean {
  * starting with its kind's trigger, at most one command, file paths inside the workspace, thread ids as uuids.
  */
 export function checkMentions(text: string, mentions: readonly Mention[]): Mention[] {
-  if (mentions.length > MAX_MENTIONS) throw new MentionError(`a message can carry up to ${MAX_MENTIONS} mentions`);
+  const placed = mentions.filter((m) => m.kind === MentionKind.ATTACHMENT).length;
+
+  if (mentions.length - placed > MAX_MENTIONS)
+    throw new MentionError(`a message can carry up to ${MAX_MENTIONS} mentions`);
+
+  if (placed > MAX_ATTACHMENT_MENTIONS)
+    throw new MentionError(`a message can place up to ${MAX_ATTACHMENT_MENTIONS} attachments`);
   const sorted = [...mentions].sort((a, b) => a.start - b.start);
   let end = 0;
   let commands = 0;
@@ -118,6 +132,8 @@ export function checkMentions(text: string, mentions: readonly Mention[]): Menti
     if (kind === "bot" && !UUID.test(m.name)) throw new MentionError(`"${m.name}" is not a bot id`);
 
     if (kind === "connector" && !UUID.test(m.name)) throw new MentionError("invalid connector account id");
+
+    if (kind === "attachment" && !UUID.test(m.name)) throw new MentionError(`"${m.name}" is not an attachment id`);
     end = m.end;
   }
 

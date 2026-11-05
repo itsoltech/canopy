@@ -293,6 +293,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
       { cwd: request.cwd || workspace?.rootPath || "" },
       request.initialMessage,
       request.initialMentions,
+      files?.files,
     );
 
     if (goal !== undefined && files) throw new InvalidError("a /goal message cannot carry attachments");
@@ -315,7 +316,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
           provider,
           request.initialMessage,
           mentions,
-          files?.input(row.id, request.initialMessage),
+          files?.input(row.id, request.initialMessage, mentions),
         );
 
       await coreRun(this, (s) =>

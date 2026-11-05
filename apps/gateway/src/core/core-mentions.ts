@@ -10,7 +10,15 @@ import {
 } from "@canopy/contracts";
 import { type CommandInit } from "../worker-link/index.ts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { checkMentions, composeMessage, fuzzyRank, joinNotes, MentionError, quotesNote } from "@canopy/domain";
+import {
+  checkMentions,
+  composeMessage,
+  fuzzyRank,
+  joinNotes,
+  MentionError,
+  numberAttachmentMarkers,
+  quotesNote,
+} from "@canopy/domain";
 import { isPlatformCommand, mentionsToJson, PLATFORM_COMMANDS, workerPath } from "./mentions.ts";
 import type { StoredQuote } from "../store/quotes.ts";
 import { withQuotes } from "./quotes.ts";
@@ -19,6 +27,7 @@ import { CATALOG_TTL_MS, coreState, InvalidError, UnavailableError, type TurnInp
 import type { GatewayCore } from "./core.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreUiThread } from "./core-titles.ts";
+import type { PlacedFile } from "./core-attachments.ts";
 import { coreRun } from "./core-broadcast.ts";
 
 /** Worker, provider, profile and folder of a thread, or of a new thread in a workspace. */
@@ -88,14 +97,16 @@ export async function coreWorkerQuery(
 
 /**
  * A user's message with mentions: checked against the text, files resolved to their path on the worker, threads
- * to the user's own (their title as the label). A platform command (/goal) is returned apart: the rest of the text
- * is its argument.
+ * to the user's own (their title as the label), placed attachments to the message's own files (`attachments`: by
+ * id, the stored name as the badge's label and the kind, image or file, as its source; each placed once). A platform command (/goal) is returned apart: the rest of the
+ * text is its argument.
  */
 export async function coreMessageMentions(
   hostContext: GatewayCore,
   thread: { id?: string; cwd: string },
   text: string,
   mentions: readonly Mention[],
+  attachments: ReadonlyMap<string, PlacedFile> = new Map(),
 ): Promise<{ mentions: Mention[]; goal?: string }> {
   if (mentions.length === 0) return { mentions: [] };
   let checked: Mention[];
@@ -119,9 +130,21 @@ export async function coreMessageMentions(
   }
 
   const resolved: Mention[] = [];
+  const placed = new Set<string>();
 
   for (const m of checked) {
     if (m.kind === MentionKind.BOT) throw new InvalidError("bot mentions are supported in bot conversations only");
+
+    if (m.kind === MentionKind.ATTACHMENT) {
+      const file = attachments.get(m.name);
+
+      if (!file) throw new InvalidError("a file placed in the message is not attached to it");
+
+      if (placed.has(m.name)) throw new InvalidError("a file is placed in the message more than once");
+      placed.add(m.name);
+      resolved.push(create(MentionSchema, { ...m, label: file.name, source: file.kind, path: "" }));
+      continue;
+    }
 
     if (m.kind === MentionKind.FILE) {
       resolved.push(create(MentionSchema, { ...m, path: workerPath(thread.cwd, m.name) }));
@@ -139,7 +162,10 @@ export async function coreMessageMentions(
   return { mentions: resolved };
 }
 
-/** The turn (or steer) input of a message with mentions: composed for the provider after the other notes. */
+/**
+ * The turn (or steer) input of a message with mentions: composed for the provider after the other notes. Placed
+ * attachments become "[Attachment N: name]" in the delivered text (N: the line of the note, `base.attachments`).
+ */
 export function coreComposeInput(
   hostContext: GatewayCore,
   provider: string,
@@ -151,7 +177,14 @@ export function coreComposeInput(
   if (mentions.length === 0) return quotes.length > 0 ? withQuotes(base ?? { text: message, message }, quotes) : base;
   // The quotes' note joins the other notes before the message, so the mentions' ranges shift past it too.
   const note = joinNotes(base?.note ?? "", quotesNote(quotes));
-  const composed = composeMessage(providerOf(provider), message, mentions, note ? [note] : []);
+
+  const numbered = numberAttachmentMarkers(
+    message,
+    mentions,
+    (base?.attachments ?? []).map((a) => a.id),
+  );
+
+  const composed = composeMessage(providerOf(provider), numbered.message, numbered.mentions, note ? [note] : []);
 
   return {
     ...base,

@@ -182,12 +182,15 @@ export class QueueStore extends Context.Service<
                 return yield* Effect.fail(
                   new QueueConflict("this message was changed elsewhere; edit the new version"),
                 );
-              const carries = (turn.input.attachments ?? []).length > 0 || (input.quotes ?? []).length > 0;
+              // The files stay the turn's (they are bound to it): the edit may leave some out or order them, never
+              // bring others.
+              const own = new Map((turn.input.attachments ?? []).map((a) => [a.id, a]));
+              const attachments = (input.attachments ?? []).flatMap((a) => own.get(a.id) ?? []);
+              const carries = attachments.length > 0 || (input.quotes ?? []).length > 0;
 
               if (!(input.message ?? input.text ?? "").trim() && !carries)
                 return yield* Effect.fail(new Invalid("message is empty"));
-              // The files stay the turn's (they are bound to it).
-              const next = { ...input, ...(turn.input.attachments && { attachments: turn.input.attachments }) };
+              const next = { ...input, ...(attachments.length > 0 ? { attachments } : { attachments: undefined }) };
               yield* sql`UPDATE turns SET input = ${JSON.stringify(next)}::jsonb, revision = revision + 1 WHERE id = ${turnId}::uuid`;
 
               return yield* readOne(sql, turnId);

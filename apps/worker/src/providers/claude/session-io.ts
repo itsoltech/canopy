@@ -93,9 +93,12 @@ export function userItem(
   };
 }
 
-export const userMessage = (text: string, extra: Partial<SDKUserMessage> = {}): SDKUserMessage => ({
+export const userMessage = (
+  content: SDKUserMessage["message"]["content"],
+  extra: Partial<SDKUserMessage> = {},
+): SDKUserMessage => ({
   type: "user",
-  message: { role: "user", content: text },
+  message: { role: "user", content },
   parent_tool_use_id: null,
   ...extra,
 });

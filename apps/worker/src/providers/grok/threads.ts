@@ -1,14 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Schema } from "effect";
 import { classifyFailure, safeFailureDetail, type JsonValue } from "@canopy/domain";
-import { readFile } from "node:fs/promises";
-import {
-  GrokClient,
-  type Content,
-  type PermissionRequest,
-  type PermissionResult,
-  type SessionResult,
-} from "@canopy/grok-acp";
+import { GrokClient, type PermissionRequest, type PermissionResult, type SessionResult } from "@canopy/grok-acp";
 import {
   InteractionKind,
   InteractionRequestSchema,
@@ -31,6 +24,7 @@ import { proxyModelFits, proxyModels, type ModelInit } from "../models.ts";
 import { concreteModelName } from "../model-metadata.ts";
 import type { ResolvedProfile } from "../profiles.ts";
 import type { TurnSettings } from "../turn-input.ts";
+import { grokPrompt } from "./input.ts";
 import { grokLaunch } from "./launch.ts";
 import { grokBus, platformToolName } from "./bus.ts";
 import { GrokEventMapper } from "./mapping.ts";
@@ -274,27 +268,11 @@ export class GrokThreads {
     let errorCode = "";
 
     try {
-      const prompt: Content[] = [
-        {
-          type: "text",
-          text: [spec.instructions ? `Canopy thread instructions:\n${spec.instructions}` : "", input.text]
-            .filter(Boolean)
-            .join("\n\n"),
-        },
-      ];
-
-      for (const attachment of input.attachments) {
-        if (
-          attachment.mimeType.startsWith("image/") &&
-          entry.client.capabilities?.agentCapabilities?.promptCapabilities?.image
-        ) {
-          prompt.push({
-            type: "image",
-            data: (await readFile(attachment.path)).toString("base64"),
-            mimeType: attachment.mimeType,
-          });
-        } else prompt.push({ type: "text", text: `Attachment: ${attachment.path}` });
-      }
+      const prompt = await grokPrompt(
+        spec.instructions,
+        input,
+        entry.client.capabilities?.agentCapabilities?.promptCapabilities?.image === true,
+      );
 
       for await (const event of entry.client.prompt(entry.session.sessionId, prompt)) {
         if (event.type === "update") {

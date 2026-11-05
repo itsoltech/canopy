@@ -203,6 +203,7 @@ export const coreMessagesMethods: CoreMessagesMethods = {
       { id: thread.id, cwd: thread.cwd ?? "" },
       request.text,
       request.mentions,
+      files?.files,
     );
 
     if (goal !== undefined) {
@@ -252,7 +253,14 @@ export const coreMessagesMethods: CoreMessagesMethods = {
     const input =
       linked?.input ??
       shell ??
-      coreComposeInput(this, thread.provider, request.text, mentions, files?.input(threadId, request.text), quotes);
+      coreComposeInput(
+        this,
+        thread.provider,
+        request.text,
+        mentions,
+        files?.input(threadId, request.text, mentions),
+        quotes,
+      );
 
     const turn = await coreEnqueueTurn(this, {
       threadId,
