@@ -36,6 +36,10 @@ export type PeerRow = {
   via_node_id: string | null;
   relay_role: string;
   relay_revision: string;
+  share_config: boolean;
+  peer_share_config: boolean;
+  share_config_revision: string;
+  peer_share_config_revision: string;
 };
 
 // A peer's addresses are its routes in the order connecting tries them (stage 6).
@@ -95,7 +99,7 @@ export class ComputerStore {
   async peer(nodeId: string) {
     return (await this.query<PeerRow>(`${PEERS} AND p.node_id=$2 AND p.via_node_id IS NULL`, [this.owner, nodeId]))[0];
   }
-  async invitation(fingerprint: string, addresses: string[]) {
+  async invitation(fingerprint: string, addresses: string[], shareConfig = true) {
     const id = crypto.randomUUID();
     const secret = randomBytes(16).toString("hex");
     // A new code revokes all outstanding invitations. No plaintext is persisted.
@@ -107,7 +111,7 @@ export class ComputerStore {
           Effect.gen(function* () {
             yield* sql`SELECT singleton FROM computer_identity WHERE owner_user_id=${owner}::uuid FOR UPDATE`;
             yield* sql`DELETE FROM computer_pairings WHERE owner_user_id=${owner}::uuid`;
-            yield* sql`INSERT INTO computer_pairings (id,owner_user_id,secret_hash,expires_at) VALUES (${id}::uuid,${owner}::uuid,${hash(secret)},now()+interval '10 minutes')`;
+            yield* sql`INSERT INTO computer_pairings (id,owner_user_id,secret_hash,expires_at,share_config) VALUES (${id}::uuid,${owner}::uuid,${hash(secret)},now()+interval '10 minutes',${shareConfig})`;
           }),
         );
       }),
@@ -120,7 +124,7 @@ export class ComputerStore {
       addresses,
     };
   }
-  async pair(secret: string, hello: link.NodeHello, certificate: string) {
+  async pair(secret: string, hello: link.NodeHello, certificate: string, peerShareConfig = true) {
     const identity = certificateIdentity(certificate);
     this.validateHello(hello, identity.nodeId);
     const { owner } = this;
@@ -139,15 +143,18 @@ export class ComputerStore {
             if (budget[0]!.attempts > 30) return "limited";
             yield* sql`UPDATE computer_pairings SET attempts=attempts+1 WHERE owner_user_id=${owner}::uuid AND used_at IS NULL AND revoked_at IS NULL`;
 
-            const rows =
-              yield* sql`UPDATE computer_pairings SET used_at=clock_timestamp() WHERE owner_user_id=${owner}::uuid
-          AND secret_hash=${hash(secret)} AND expires_at>clock_timestamp() AND used_at IS NULL AND revoked_at IS NULL AND attempts<=10 RETURNING id`;
+            const rows = yield* sql<{
+              share_config: boolean;
+            }>`UPDATE computer_pairings SET used_at=clock_timestamp() WHERE owner_user_id=${owner}::uuid
+          AND secret_hash=${hash(secret)} AND expires_at>clock_timestamp() AND used_at IS NULL AND revoked_at IS NULL AND attempts<=10 RETURNING share_config`;
 
             if (!rows.length) return "invalid";
             yield* sql`INSERT INTO computer_peers (owner_user_id,node_id,name,certificate,fingerprint,app_version,min_protocol,max_protocol)
           VALUES (${owner}::uuid,${identity.nodeId},${hello.name},${identity.certificate},${identity.fingerprint},${hello.appVersion},${hello.minProtocol},${hello.maxProtocol})
           ON CONFLICT (owner_user_id,node_id) DO UPDATE SET name=excluded.name,certificate=excluded.certificate,
           fingerprint=excluded.fingerprint,linked_at=now(),app_version=excluded.app_version,min_protocol=excluded.min_protocol,max_protocol=excluded.max_protocol,via_node_id=NULL,relay_role=''`;
+            yield* sql`UPDATE computer_peers SET share_config=${rows[0]!.share_config},peer_share_config=${peerShareConfig},
+              share_config_revision=0,peer_share_config_revision=0 WHERE owner_user_id=${owner}::uuid AND node_id=${identity.nodeId}`;
 
             for (const address of new Set(hello.addresses))
               yield* sql`INSERT INTO computer_routes (owner_user_id,node_id,address,source)

@@ -23,6 +23,10 @@
   import { MOVE_ITEMS, RELAY } from "@canopy/domain/computers";
   import { useConnectionRequest } from "#lib/features/network/connection-request.svelte.ts";
   import ConnectionRequestError from "#lib/features/network/ConnectionRequestError.svelte";
+  import ConfigSharing from "#lib/features/computers/ConfigSharing.svelte";
+  import ConfigNotice from "#lib/features/computers/ConfigNotice.svelte";
+  import PairingChoice from "#lib/features/computers/PairingChoice.svelte";
+  import PairingInvitation from "#lib/features/computers/PairingInvitation.svelte";
 
   const network = useNetworkAccess();
 
@@ -45,6 +49,15 @@
   let remove = $state<ui.LinkedComputer>();
   let removeOpen = $state(false);
   let copied = $state("");
+  let shareConfig = $state(true);
+  const groupNames = $derived(setup.configGroup.filter((c) => c.nodeId !== setup.self?.nodeId).map((c) => c.name));
+
+  const groupDescription = $derived(
+    groupNames.length
+      ? `Shares configuration with ${new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(groupNames)}`
+      : "Configuration stays on this computer.",
+  );
+
   let routeFor = $state<ui.LinkedComputer>();
   let routeOpen = $state(false);
   let shareFor = $state("");
@@ -112,7 +125,10 @@
 
   async function invite() {
     await run(async () => {
-      invitation = decode(ui.ComputerPairingSchema, await requestJson("POST", "/api/computers/pairing", {}));
+      invitation = decode(
+        ui.ComputerPairingSchema,
+        await requestJson("POST", "/api/computers/pairing", { shareConfig }),
+      );
       mode = "invite";
     });
   }
@@ -183,6 +199,9 @@
       onchange={(enabled) => void run(() => manage("lan_discovery", { enabled }))}
     />{/if}
 </SettingsGroup>
+<p role="status" class="px-1 text-base/6 text-pretty break-words text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+  {groupDescription}
+</p>
 <NetworkAccessSummary
   {network}
   busy={network.busy || busy}
@@ -223,6 +242,12 @@
       }}
       onremoveroute={(address) => void run(() => manage("remove_route", { nodeId: computer.nodeId, address }))}
     />
+    {#if !computer.viaNodeId}<ConfigSharing
+        {computer}
+        {busy}
+        alternative={computer.configAlternativeName}
+        onchange={(enabled) => run(() => manage("share_config", { nodeId: computer.nodeId, enabled }))}
+      />{/if}
   {:else}<SettingsRow
       title={loaded
         ? "No computers linked yet"
@@ -236,6 +261,18 @@
           : undefined}
     />{/each}
 </SettingsGroup>
+{#if setup.configNotices.length}<SettingsGroup title="Changed on two computers">
+    {#each setup.configNotices as notice (notice.id)}<ConfigNotice
+        {notice}
+        {busy}
+        onaction={(id, action) =>
+          void run(async () => {
+            request.set(
+              decode(ui.ComputersSnapshotSchema, await requestJson("PUT", "/api/computers/notices", { id, action })),
+            );
+          })}
+      />{/each}
+  </SettingsGroup>{/if}
 {#if setup.peers.length}<SharedConfigOverview />{/if}
 <Dialog
   bind:open
@@ -244,79 +281,35 @@
 >
   <div class="grid min-w-0 gap-5">
     {#if error}<Alert tone="error">{error}</Alert>{/if}
-    {#if mode === "choose"}
-      <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        Open Linked computers on your other computer, then choose how to pair.
-      </p>
-      {#if network.error || !network.loaded}
-        <NetworkAccessSummary {network} busy={busy || network.busy} onenable={() => void enableAndInvite()} />
-      {:else if network.status.state === "on"}<Button
-          variant="primary"
-          disabled={busy}
-          loading={busy}
-          onclick={() => void invite()}>Generate pairing code</Button
-        >
-      {:else}
-        <Button
-          variant="primary"
-          disabled={busy || !network.loaded}
-          loading={busy}
-          onclick={() => void enableAndInvite()}>Turn on network access and generate a code</Button
-        >
-        <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          The other computer connects to this one, so network access needs to be on here. Entering a code from the other
-          computer works without it.
-        </p>
-      {/if}
-      <Button
-        disabled={busy}
-        onclick={() => {
+    {#if mode === "choose" || mode === "enter"}
+      <PairingChoice
+        {network}
+        {busy}
+        choosing={mode === "choose"}
+        bind:shareConfig
+        onenable={() => void enableAndInvite()}
+        oninvite={() => void invite()}
+        onenter={() => {
           mode = "enter";
           error = "";
-        }}>Enter code</Button
-      >
-    {:else if mode === "invite" && invitation}
-      <div class="grid gap-2">
-        <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Pairing code</p>
-        <p class="rounded-xl bg-zinc-950/3 p-3 font-mono text-base/6 break-all select-all dark:bg-white/5">
-          {invitation.code}
-        </p>
-        <div>
-          <Button size="sm" disabled={!remaining} onclick={() => void copy(invitation!.code, "code")}
-            >{copied === "code" ? "Copied" : "Copy code"}</Button
-          >
-        </div>
-      </div>
-      <div class="grid gap-2">
-        <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          Enter one of these addresses on the other computer
-        </p>
-        {#each invitation.addresses as value}<p class="font-mono text-base/6 break-all select-all sm:text-sm/6">
-            {value}
-          </p>
-          <div>
-            <Button size="sm" onclick={() => void copy(value, value)}
-              >{copied === value ? "Copied" : "Copy address"}</Button
-            >
-          </div>{/each}
-      </div>
-      <p role="status" class="text-base/6 text-zinc-500 tabular-nums sm:text-sm/6 dark:text-zinc-400">
-        {remaining
-          ? `One use · expires in ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`
-          : "Code expired. Generate a new code."}
-      </p>
-      <Button disabled={busy} onclick={() => void invite()}>Generate new code</Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={busy}
-        onclick={() =>
+        }}
+      />
+    {/if}
+    {#if mode === "invite" && invitation}
+      <PairingInvitation
+        {invitation}
+        {remaining}
+        {copied}
+        {busy}
+        oncopy={(value, label) => void copy(value, label)}
+        oninvite={() => void invite()}
+        onrevoke={() =>
           void run(async () => {
             await manage("revoke_pairing");
             invitation = undefined;
             mode = "choose";
-          })}>Revoke code</Button
-      >
+          })}
+      />
     {:else if mode === "enter"}
       <form
         class="grid gap-5"
@@ -326,7 +319,7 @@
             request.set(
               decode(
                 ui.ComputersSnapshotSchema,
-                await requestJson("POST", "/api/computers", { address, code }, 25_000),
+                await requestJson("POST", "/api/computers", { address, code, shareConfig }, 25_000),
               ),
             );
             open = false;

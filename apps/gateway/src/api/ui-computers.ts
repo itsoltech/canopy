@@ -2,6 +2,7 @@ import { computerGuard } from "../computers/runtime.ts";
 import { type GatewayCore } from "../core/core.ts";
 import { computers, moves, shared } from "./ui-computers-context.ts";
 import type { UiHandlers } from "./ui-service.ts";
+import { manageConfigNotice } from "../config-sync/notices.ts";
 
 export function computersHandlers(
   core: GatewayCore,
@@ -11,6 +12,7 @@ export function computersHandlers(
   | "createComputerPairing"
   | "linkComputer"
   | "manageComputer"
+  | "manageConfigNotice"
   | "getSharedConfig"
   | "manageSharedConfig"
   | "previewMove"
@@ -20,11 +22,20 @@ export function computersHandlers(
   return {
     getComputers: () => computerGuard(() => computers(core).snapshot()),
 
-    createComputerPairing: () => computerGuard(() => computers(core).createPairing()),
+    createComputerPairing: (r) => computerGuard(() => computers(core).createPairing(r.shareConfig)),
 
-    linkComputer: (r) => computerGuard(() => computers(core).pair(r.address, r.code)),
+    linkComputer: (r) => computerGuard(() => computers(core).pair(r.address, r.code, r.shareConfig)),
 
     manageComputer: (r) => computerGuard(() => computers(core).manage(r)),
+    manageConfigNotice: (r) =>
+      computerGuard(async () => {
+        const linked = computers(core);
+
+        if (!linked.config) throw new Error("Configuration sync unavailable");
+        await manageConfigNotice(linked.config, r.id, r.action);
+
+        return linked.snapshot();
+      }),
 
     getSharedConfig: () => computerGuard(() => shared(core).snapshot()),
 

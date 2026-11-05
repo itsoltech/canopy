@@ -521,7 +521,7 @@ export interface TestGateway {
   addWorker(name: string, allowedRoots?: string[]): Promise<{ workerId: string; credential: string }>;
   /** Connects a scripted worker; closed with the gateway. */
   connect(workerId: string, credential: string, os?: string, options?: ScriptedWorkerOptions): Promise<ScriptedWorker>;
-  close(): Promise<void>;
+  close(keepDatabase?: boolean): Promise<void>;
 }
 
 /** Starts PostgreSQL, the gateway (UI API + worker link on one server) and a connected worker "laptop" (root /repo). */
@@ -536,10 +536,11 @@ export async function startTestGateway(
     botModel?: BotModel;
     worker?: ScriptedWorkerOptions;
     secretTtlMs?: number;
+    storage?: { pg: TestPostgres; secretsKey: Buffer; workerId: string; workerCredential: string };
   } = {},
 ): Promise<TestGateway> {
-  const pg = await startPostgres({ migrated: true });
-  const secretsKey = randomBytes(32);
+  const pg = options.storage?.pg ?? (await startPostgres({ migrated: true }));
+  const secretsKey = options.storage?.secretsKey ?? randomBytes(32);
 
   const runtime: TestRuntime = ManagedRuntime.make(
     Layer.mergeAll(
@@ -653,7 +654,10 @@ export async function startTestGateway(
     return worker;
   };
 
-  const laptop = await addWorker("laptop");
+  const laptop = options.storage
+    ? { workerId: options.storage.workerId, credential: options.storage.workerCredential }
+    : await addWorker("laptop");
+
   const worker = await connect(laptop.workerId, laptop.credential, undefined, options.worker);
   // Directory validation can finish before configuration/catalog delivery. Return a ready fixture.
   await eventually(
@@ -678,7 +682,7 @@ export async function startTestGateway(
     workerCredential: laptop.credential,
     addWorker,
     connect,
-    close: async () => {
+    close: async (keepDatabase = false) => {
       await core.stopSweep();
       await core.bots.stop();
 
@@ -691,7 +695,8 @@ export async function startTestGateway(
       await grpc.close();
       cliRegistry?.stop(true);
       await runtime.dispose();
-      await pg.stop();
+
+      if (!keepDatabase) await pg.stop();
     },
   };
 }

@@ -6,9 +6,9 @@ import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
 
 export const POST: RequestHandler = async ({ request }) => {
-  await readMessage(request, ui.CreateComputerPairingRequestSchema);
+  const body = await readMessage(request, ui.CreateComputerPairingRequestSchema);
 
-  return json(encode(ui.ComputerPairingSchema, await call((api) => api.createComputerPairing({}))), {
+  return json(encode(ui.ComputerPairingSchema, await call((api) => api.createComputerPairing(body))), {
     headers: { "cache-control": "no-store" },
   });
 };

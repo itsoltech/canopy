@@ -2,13 +2,11 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { storedSidebarWidth } from "@canopy/domain";
-import { harnessOf, SettingsStore } from "../store/index.ts";
-import { checkWorkerGatewayUrl } from "./worker-administration.ts";
-import { isEntityId } from "@canopy/domain/computers";
-import { checkFavorites, coreState, InvalidError } from "./core-context.ts";
+import { SettingsStore } from "../store/index.ts";
+import { coreState, InvalidError } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreRun } from "./core-broadcast.ts";
-import { isCheckInterval } from "@canopy/domain/update-checks";
+import { validateUserSettings } from "./settings-validation.ts";
 import { coreConfigsChanged } from "./core-providers.ts";
 import { SqlClient } from "effect/sql";
 
@@ -44,6 +42,28 @@ export interface CoreSettingsMethods {
   updateProjectSettings(request: ui.UpdateProjectSettingsRequest): Promise<ui.ProjectSettings>;
 }
 
+/** Refresh only local workers that inherit the account's CLI update interval. */
+export async function coreCliDefaultsChanged(host: GatewayCore) {
+  const userId = host[coreState].options.userId;
+
+  const changed = await host[coreState].options.runtime.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+
+      return yield* sql<{ worker_id: string }>`UPDATE worker_configs c SET version = c.version + 1,
+        updated_by = ${userId}::uuid, updated_at = now() FROM workers w
+        WHERE w.id = c.worker_id AND w.owner_user_id = ${userId}::uuid
+          AND NOT (c.config ? 'cliUpdateCheckMinutes') RETURNING c.worker_id`;
+    }),
+  );
+
+  await coreConfigsChanged(
+    host,
+    changed.map((row) => row.worker_id),
+  );
+  void host.cli.checks.tick().catch(() => undefined);
+}
+
 export const coreSettingsMethods: CoreSettingsMethods = {
   // ------------------------------------------------------------------ settings (UI)
 
@@ -68,68 +88,9 @@ export const coreSettingsMethods: CoreSettingsMethods = {
 
   /** The sidebar width is held within its limits instead of refused (a drag past them is not an error). */
   async updateUserSettings(this: GatewayCore, request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
-    const interval = request.cliUpdates?.intervalMinutes;
-
-    if (interval !== undefined && !isCheckInterval(interval))
-      throw new InvalidError("invalid CLI update check interval");
-
-    if (request.workerGatewayUrl !== undefined) checkWorkerGatewayUrl(request.workerGatewayUrl);
-
-    if (request.attachmentLimits) {
-      const { maxFileBytes, maxMessageBytes, maxFiles } = request.attachmentLimits;
-
-      // Keep all uploads within the transport's 32 MiB request budget, including protobuf overhead.
-      if (
-        maxFileBytes < 1n ||
-        maxFileBytes > 30n * 1024n ** 2n ||
-        maxMessageBytes < maxFileBytes ||
-        maxMessageBytes > 1024n ** 3n ||
-        maxFiles < 1 ||
-        maxFiles > 100
-      )
-        throw new InvalidError(
-          "Choose up to 30 MiB per file, at least that much per message (up to 1 GiB), and 1–100 files.",
-        );
-    }
-
-    if (request.timezone !== undefined) {
-      try {
-        if (!request.timezone || request.timezone.length > 100 || /^[+-]/.test(request.timezone)) throw new Error();
-        new Intl.DateTimeFormat("en", { timeZone: request.timezone }).format();
-      } catch {
-        throw new InvalidError("unknown IANA timezone");
-      }
-    }
-
-    if (request.sidebar) {
-      if (!(request.sidebar.projectOrder in ui.ProjectOrder)) throw new InvalidError("unknown project order");
-      const ids = [...request.sidebar.projectIds, ...request.sidebar.pinnedThreadIds, ...request.sidebar.pinnedBotIds];
-
-      if (ids.length > 1000 || ids.some((id) => !isEntityId(id))) throw new InvalidError("invalid sidebar ids");
-    }
+    validateUserSettings(request);
 
     if (request.threadDefaults) await coreCheckThreadDefaults(this, request.threadDefaults);
-
-    if (request.modelFavorites) checkFavorites(request.modelFavorites);
-
-    if (request.composer && !(request.composer.runningDelivery in ui.MessageDelivery))
-      throw new InvalidError("unknown message delivery");
-
-    if (request.textGeneration) {
-      const t = request.textGeneration;
-
-      if (
-        t.threadTitleInstructions.length > 4_000 ||
-        t.profileId.length > 100 ||
-        t.model.length > 200 ||
-        t.effort.length > 40
-      )
-        throw new InvalidError("text generation setting is too long");
-
-      if (t.model && !harnessOf(t.provider)) throw new InvalidError("text generation needs a provider instance");
-
-      if (t.effort && !/^[a-z][a-z0-9_-]*$/.test(t.effort)) throw new InvalidError("invalid text generation effort");
-    }
 
     const settings = await coreSettings(this, (s) =>
       s.updateUser({
@@ -160,26 +121,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
 
     this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "userSettings", value: settings } }));
 
-    if (request.cliUpdates) {
-      const userId = this[coreState].options.userId;
-
-      const changed = await this[coreState].options.runtime.runPromise(
-        Effect.gen(function* () {
-          const sql = yield* SqlClient.SqlClient;
-
-          return yield* sql<{ worker_id: string }>`UPDATE worker_configs c SET version = c.version + 1,
-          updated_by = ${userId}::uuid, updated_at = now() FROM workers w
-          WHERE w.id = c.worker_id AND w.owner_user_id = ${userId}::uuid
-            AND NOT (c.config ? 'cliUpdateCheckMinutes') RETURNING c.worker_id`;
-        }),
-      );
-
-      await coreConfigsChanged(
-        this,
-        changed.map((row) => row.worker_id),
-      );
-      void this.cli.checks.tick().catch(() => undefined);
-    }
+    if (request.cliUpdates) await coreCliDefaultsChanged(this);
 
     return settings;
   },

@@ -71,6 +71,8 @@ export type Outcome = {
 
 /** What the link runtime provides: this computer's own handlers and the connected peers. */
 export type SharedHost = {
+  validateSettings?(request: ui.UpdateUserSettingsRequest): Promise<void>;
+  settingsChanged?(cliChanged?: boolean): Promise<void>;
   /** This computer's GatewayService handlers: validation, worker configuration and live UI updates. */
   serve: RemoteServe;
   /** A project with the shared id (projects are one identity on every computer). */

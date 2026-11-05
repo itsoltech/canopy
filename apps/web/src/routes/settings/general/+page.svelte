@@ -12,9 +12,7 @@
   import Switch from "#lib/shared/ui/Switch.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
-  import SharingGroup from "#lib/features/computers/SharingGroup.svelte";
-  import ShareSetting from "#lib/features/computers/ShareSetting.svelte";
-  import { sharedKey } from "@canopy/domain/computers";
+  import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
 
   const settings = useSettings();
   let desktopSettings = $state<{ resetDefaults(): Promise<void> }>();
@@ -49,7 +47,9 @@
 <svelte:head><title>General · Settings · Canopy</title></svelte:head>
 <div class="settings-stack">
   <div class="flex flex-wrap items-center justify-between gap-2">
-    <p class="text-sm/5 text-zinc-500">Account preferences sync through this gateway. “This device” stays here.</p>
+    <p class="text-sm/5 text-zinc-500">
+      Account preferences follow your configuration group. “This device” stays here.
+    </p>
     <Button size="sm" icon="arrow-path" onclick={restoreDeviceDefaults}>Restore device defaults</Button>
   </div>
   <NotificationSettings />
@@ -136,5 +136,7 @@
         <p class="text-sm/6 wrap-anywhere">{settings.user.timezone || "UTC"}</p>{/snippet}
     </SettingsRow>
   </SettingsGroup>
-  <SharingGroup><ShareSetting itemKey={sharedKey.settings("timezone")} label="Time zone" /></SharingGroup>
+  <AccountConfigNotices section="timezone" />
+  <AccountConfigNotices section="general" />
+  <AccountConfigNotices section="sidebar" />
 </div>

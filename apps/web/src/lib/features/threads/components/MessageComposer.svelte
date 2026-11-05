@@ -20,6 +20,7 @@
   import type { ComposerActivity } from "./composer-compaction.ts";
   import PermissionPicker from "./PermissionPicker.svelte";
   import ComposerContextRow from "./ComposerContextRow.svelte";
+  import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
 
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
@@ -256,3 +257,4 @@
   </ComposerBox>
   {#if outcome}<p class="sr-only" role="status">{outcome}</p>{/if}
 </form>
+<AccountConfigNotices section="composer" />

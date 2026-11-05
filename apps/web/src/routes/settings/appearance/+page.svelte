@@ -15,9 +15,7 @@
   import Select from "#lib/shared/ui/Select.svelte";
   import OptionTile from "#lib/shared/ui/OptionTile.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
-  import ShareSetting from "#lib/features/computers/ShareSetting.svelte";
-  import SharingGroup from "#lib/features/computers/SharingGroup.svelte";
-  import { sharedKey } from "@canopy/domain/computers";
+  import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
   import AnimatedMascotsSetting from "#lib/features/bots/components/AnimatedMascotsSetting.svelte";
   import InterfaceSettings from "#lib/features/settings/InterfaceSettings.svelte";
   import TypographySettings from "#lib/features/settings/TypographySettings.svelte";
@@ -106,10 +104,4 @@
 
 <TypographySettings />
 
-<SharingGroup>
-  <ShareSetting
-    itemKey={sharedKey.settings("appearance")}
-    label="Appearance"
-    local="Color scheme, themes and thread width."
-  />
-</SharingGroup>
+<AccountConfigNotices section="appearance" />

@@ -59,7 +59,8 @@ describe.skipIf(!dockerAvailable)("shared configuration between two linked gatew
       heartbeatMs: 100,
       serve: remoteServe(own),
       shared: sharedHost(gateway.core, own),
-      ...(capabilities && { capabilities }),
+      // Keep coverage of the retained 0050 protocol until the final configuration migration.
+      capabilities: capabilities ?? ["presence", "unlink", REMOTE_THREADS, THREAD_MIRROR, SHARED_CONFIG],
     });
 
     gateway.core.computers = computers;

@@ -92,9 +92,13 @@ export const formatLocalDateTime = (value: Date, timeZone?: string): string =>
 export const formatDateTime = (timestamp: Timestamp | undefined, timeZone?: string): string =>
   timestamp ? formatLocalDateTime(timestampDate(timestamp), timeZone) : "";
 
-export const formatTime = (timestamp: Timestamp | undefined): string =>
+export const formatTime = (timestamp: Timestamp | undefined, timeZone?: string): string =>
   timestamp
-    ? new Intl.DateTimeFormat(undefined, { timeStyle: "short", ...clockOptions() }).format(timestampDate(timestamp))
+    ? new Intl.DateTimeFormat(undefined, {
+        timeStyle: "short",
+        ...clockOptions(),
+        ...(timeZone && { timeZone }),
+      }).format(timestampDate(timestamp))
     : "";
 
 /** The local calendar day of a timestamp ("2026-11-02"), for telling days apart; "" without one. */

@@ -10,6 +10,7 @@ import { COMPUTER_LINK_PROTOCOL, MIN_COMPUTER_LINK_PROTOCOL } from "@canopy/doma
 
 import {
   AGENT_BUS,
+  CONFIG_SYNC,
   LAN_ROUTES,
   MOVE_ITEMS,
   RELAY,
@@ -29,6 +30,8 @@ import { computersComputerMessage } from "./runtime-remote.ts";
 import type { LinkedComputers } from "./runtime.ts";
 import { errorCode } from "../network/listener.ts";
 import { discoverCertificate, linkClient } from "./transport.ts";
+import { refreshConfigGroup, setConfigSharing } from "./runtime-config.ts";
+import { configNotices } from "../config-sync/notices.ts";
 
 /** A direct partner connected now that receives moves (never through a relay). */
 export function computersMovable(hostContext: LinkedComputers, nodeId: string) {
@@ -48,8 +51,8 @@ export interface ComputersPresenceMethods {
   hello(): link.NodeHello;
   start(): Promise<void>;
   snapshot(): Promise<ui.ComputersSnapshot>;
-  createPairing(): Promise<ui.ComputerPairing>;
-  pair(address: string, code: string): Promise<ui.ComputersSnapshot>;
+  createPairing(shareConfig?: boolean): Promise<ui.ComputerPairing>;
+  pair(address: string, code: string, shareConfig?: boolean): Promise<ui.ComputersSnapshot>;
   manage(request: ui.ComputerOperationRequest): Promise<ui.ComputersSnapshot>;
 }
 
@@ -67,7 +70,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         "unlink",
         LAN_ROUTES,
         ...(this.options.serve ? [REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS, RELAY] : []),
-        ...(this.shared ? [SHARED_CONFIG] : []),
+        ...(this.config ? [CONFIG_SYNC] : []),
         ...(this.moves ? [MOVE_ITEMS] : []),
       ],
     });
@@ -78,6 +81,8 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
 
     for (const peer of await this.store.peers()) this[computersState].capabilities.set(peer.node_id, peer.capabilities);
     await this.shared?.load();
+    await this.config?.start();
+    await refreshConfigGroup(this);
     // A process restart never claims an old connection is still alive.
     await this.store.query(
       "UPDATE computer_peers SET status='unreachable',status_since=now() WHERE owner_user_id=$1::uuid AND status IN ('connected','needs_update','inactive')",
@@ -123,10 +128,12 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
       lanDiscoveryEnabled: this[computersState].identity.lan_discovery,
       lanDiscoveryState: lan.state,
       lanDiscoveryNote: lan.note,
+      configGroup: await refreshConfigGroup(this),
+      configNotices: this.config ? await configNotices(this.config) : [],
     });
   },
 
-  async createPairing(this: LinkedComputers) {
+  async createPairing(this: LinkedComputers, shareConfig = true) {
     if (!this.options.network.listening)
       throw new ConnectError(
         "Turn on network access first, so the other computer can connect",
@@ -141,11 +148,15 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
 
     return create(
       ui.ComputerPairingSchema,
-      await this.store.invitation(this[computersState].identity.fingerprint, this.options.network.origins()),
+      await this.store.invitation(
+        this[computersState].identity.fingerprint,
+        this.options.network.origins(),
+        shareConfig,
+      ),
     );
   },
 
-  async pair(this: LinkedComputers, address: string, code: string) {
+  async pair(this: LinkedComputers, address: string, code: string, shareConfig = true) {
     address = linkAddress(address);
     const raw = code.replace(/[\s-]/g, "").toLowerCase();
 
@@ -172,12 +183,17 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
       throw new ConnectError("Choose another computer", Code.InvalidArgument);
 
     const response = await linkClient(address, certificate, this[computersState].identity).pair(
-      { secret: raw.slice(64), hello: this.hello() },
+      { secret: raw.slice(64), hello: this.hello(), shareConfig },
       { timeoutMs: 10_000 },
     );
 
     if (!response.hello) throw new ConnectError("The computer did not return an identity", Code.Unauthenticated);
     await this.store.remember(response.hello, certificate, address, latency);
+    await this.store.query(
+      `UPDATE computer_peers SET share_config=$3,peer_share_config=$4,share_config_revision=0,peer_share_config_revision=0
+      WHERE owner_user_id=$1::uuid AND node_id=$2`,
+      [this.store.owner, response.hello.nodeId, shareConfig, response.shareConfig ?? true],
+    );
     this[computersState].retry.delete(response.hello.nodeId);
     void this[computersState].lan?.refresh().catch(() => {});
     void computersTick(this).catch(() => {});
@@ -188,7 +204,10 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
   async manage(this: LinkedComputers, request: ui.ComputerOperationRequest) {
     const { nodeId, action } = request;
 
-    if (action === "share_onward") {
+    if (action === "share_config") {
+      await setConfigSharing(this, nodeId, request.enabled);
+      computersEmit(this, nodeId);
+    } else if (action === "share_onward") {
       await this.relay.set(nodeId, request.shareOnwardNodeIds);
       computersEmit(this, nodeId);
     } else if (action === "rename") {

@@ -51,6 +51,7 @@ service GatewayService {
   rpc CreateComputerPairing(CreateComputerPairingRequest) returns (ComputerPairing);
   rpc LinkComputer(LinkComputerRequest) returns (ComputersSnapshot);
   rpc ManageComputer(ComputerOperationRequest) returns (ComputersSnapshot);
+  rpc ManageConfigNotice(ConfigNoticeOperation) returns (ComputersSnapshot);
   // Network access for phones and linked computers (restricted to the web BFF).
   rpc GetNetworkAccess(GetNetworkAccessRequest) returns (NetworkAccess);
   rpc UpdateNetworkAccess(UpdateNetworkAccessRequest) returns (NetworkAccess);

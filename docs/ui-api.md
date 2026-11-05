@@ -163,6 +163,16 @@ istniejącego service tokenu; ustawienia i sekrety nie są przesyłane przez rel
 
 ## Połączone komputery: wspólna konfiguracja
 
+Ustawienia konta synchronizuje capability `config_sync`, bez opt-in per sekcja.
+`GetComputers` zwraca `config_group`, `config_notices` oraz obie zgody i stan synchronizacji
+przy bezpośrednim partnerze. `CreateComputerPairing` i `LinkComputer` przyjmują `share_config`;
+`ManageComputer` z akcją `share_config` zmienia lokalny wybór. Konfiguracja przechodzi dopiero
+po zgodzie obu stron. `ManageConfigNotice` (`restore`, `dismiss`), przez
+`PUT /api/computers/notices`, wymaga tokenu serwisowego BFF jak zarządzanie komputerami.
+Restore tworzy nową wspólną zmianę, Dismiss ukrywa notkę wyłącznie lokalnie.
+[Protokół i etapy](linked-computers.md#konkretny-protokół-wspólna-konfiguracja).
+
+Pozostałe rodzaje zachowują API 0050 do migracji w kolejnych etapach.
 `GetSharedConfig` i `ManageSharedConfig` (`share`, `unshare`, `keep_local`, `keep_remote`) zwracają
 `SharedConfigSnapshot`: elementy (klucz, rodzaj, nazwa, wspólny, wersja, autor ostatniej zmiany,
 notatka o kopii lokalnej), pytania z różniącymi się polami obu wersji (sekrety tylko jako „Set”,

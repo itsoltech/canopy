@@ -4,9 +4,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ThreadDefaultsFields from "#lib/features/settings/ThreadDefaultsFields.svelte";
-  import ShareSetting from "#lib/features/computers/ShareSetting.svelte";
-  import SharingGroup from "#lib/features/computers/SharingGroup.svelte";
-  import { sharedKey } from "@canopy/domain/computers";
+  import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SubagentDisplaySettings from "#lib/features/settings/SubagentDisplaySettings.svelte";
@@ -36,10 +34,4 @@
   />
 </SettingsGroup>
 
-<SharingGroup>
-  <ShareSetting
-    itemKey={sharedKey.settings("thread_defaults")}
-    label="Thread defaults"
-    local="The default workspace is a directory on one computer, so each computer keeps its own."
-  />
-</SharingGroup>
+<AccountConfigNotices section="threadDefaults" />

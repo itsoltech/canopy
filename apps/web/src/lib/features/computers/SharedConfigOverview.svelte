@@ -46,20 +46,12 @@
       {/each}
     </SettingsGroup>
   {/if}
-  <SettingsGroup
-    title="Shared configuration"
-    description="Turn on “Share with linked computers” next to a provider, model list, setting or project. CLI paths, logins, workspaces, addresses, desktop settings and connector accounts stay on each computer."
-  >
-    {#each items as item (item.key)}
-      <SettingsRow title={item.label} description={item.shared ? changedLine(item, name) : localCopyNote(item, name)}>
-        {#snippet control()}<ShareScope itemKey={item.key} />{/snippet}
-      </SettingsRow>
-    {:else}
-      <SettingsRow
-        title="Nothing shared yet"
-        description="Every setting applies only to the computer where you change it."
-      />
-    {/each}
-  </SettingsGroup>
+  {#if items.length}<SettingsGroup title="Shared configuration">
+      {#each items as item (item.key)}
+        <SettingsRow title={item.label} description={item.shared ? changedLine(item, name) : localCopyNote(item, name)}>
+          {#snippet control()}<ShareScope itemKey={item.key} />{/snippet}
+        </SettingsRow>
+      {/each}
+    </SettingsGroup>{/if}
 </div>
 {#if reviewing}<ConflictDialog conflict={reviewing} bind:open />{/if}
