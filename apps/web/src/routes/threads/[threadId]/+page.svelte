@@ -498,19 +498,16 @@
               ? "/settings/threads"
               : `/settings/projects/${project.id}`
             : undefined}
-          ><ProjectMark name={project?.name ?? "?"} kind={project?.kind} /><span class="truncate"
-            >{project?.name ?? "Project"}</span
-          ></Crumb
+          >{#snippet mark()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}{project?.name ??
+            "Project"}</Crumb
         >
         {#if thread.nodeId}<li class="flex shrink-0 items-center">
             <MachineBadge nodeId={thread.nodeId} compact class="max-w-20 sm:max-w-40" />
           </li>{/if}
         {#if tree && isSide(thread) && tree.main.id !== thread.id}
-          <Crumb href="/threads/{tree.main.id}"
-            ><span class="truncate max-sm:hidden">{tree.main.title}</span><span class="sm:hidden">…</span></Crumb
-          >
+          <Crumb href="/threads/{tree.main.id}">{tree.main.title}</Crumb>
         {/if}
-        <Crumb><span class={["truncate", thread.titleGenerating && "shimmer"]}>{thread.title}</span></Crumb>
+        <Crumb><span class={[thread.titleGenerating && "shimmer"]}>{thread.title}</span></Crumb>
         {#if thread.worktree}<li class="flex min-w-0 shrink items-center max-sm:hidden">
             <ThreadWorktree worktree={thread.worktree} class="max-w-48" onclick={manageWorktree} />
           </li>{/if}

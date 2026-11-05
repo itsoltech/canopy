@@ -104,7 +104,7 @@
 
 <div class="flex h-full min-w-0 flex-col">
   <TopBar>
-    <Crumb><span class="truncate">{view.thread?.title}</span></Crumb>
+    <Crumb>{view.thread?.title}</Crumb>
     {#snippet actions()}
       <Button size="sm" loading={running} onclick={run}>Run benchmark</Button>
     {/snippet}
