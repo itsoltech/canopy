@@ -19,7 +19,7 @@
   /**
    * Model picker: the composer's model pill (provider mark, model, effort) opens a popover (a
    * bottom sheet on phones) with a rail (Favorites, then each provider), a search over every model, and
-   * the list — name, profile and the catalog's description, a star, ⌘1…⌘9 for the first nine favorites
+   * the list — concrete name, a star, ⌘1…⌘9 for the first nine favorites
    * and a check on the current one. A provider with several profiles lists them under headings. The
    * footer says when a profile's list is incomplete and refreshes the worker's list. Typing a model id
    * the list does not know offers it as a custom model. Keys in the search field: arrows + Enter choose,
@@ -62,6 +62,7 @@
 
   let query = $state("");
   let section = $state<"favorites" | ProviderKey>();
+  let expandedLegacy = $state<ReadonlyMap<string, boolean>>(new Map());
   const selected = $derived(options.find((o) => o.key === value));
   const providers = $derived([...new Set(options.map((o) => o.provider))]);
   const favoriteOptions = $derived(favorites.among(options));
@@ -88,7 +89,7 @@
     return { ...modelOption(provider, base.profileId, base.profileName, model, catalog), origin: "custom" as const };
   });
 
-  const listed = $derived(
+  const offered = $derived(
     searching
       ? [...options, ...(custom ? [custom] : [])]
       : current === "favorites"
@@ -99,18 +100,52 @@
   // Headings only where profiles mix: a provider's profiles, or a search over several providers/profiles.
   const sourceOf = (o: ModelOption) => `${o.provider}:${o.profileId}`;
 
+  const legacyGroups = $derived.by(() => {
+    if (searching || current === "favorites") return new Map<string, string>();
+
+    return new Map(
+      [...new Set(offered.map(sourceOf))].flatMap((source) => {
+        const count = offered.filter((o) => sourceOf(o) === source && o.legacy).length;
+
+        return count ? [[source, `Legacy models · ${count.toLocaleString()} ${count === 1 ? "model" : "models"}`]] : [];
+      }),
+    );
+  });
+
+  const listed = $derived(
+    legacyGroups.size === 0
+      ? offered
+      : [...new Set(offered.map(sourceOf))].flatMap((source) => {
+          const own = offered.filter((o) => sourceOf(o) === source);
+
+          return [...own.filter((o) => !o.legacy), ...own.filter((o) => o.legacy)];
+        }),
+  );
+
   const grouped = $derived(
     current !== "favorites" || searching
       ? new Set(listed.filter((o) => o.origin !== "custom").map(sourceOf)).size > 1
       : false,
   );
 
-  const groupOf = (o: ModelOption) =>
-    !grouped || o.origin === "custom"
-      ? undefined
-      : searching
-        ? `${providerName(o.provider)} · ${o.profileName}`
-        : o.profileName;
+  const groupOf = (o: ModelOption) => {
+    if (o.origin === "custom") return undefined;
+    const legacy = o.legacy ? legacyGroups.get(sourceOf(o)) : undefined;
+
+    if (legacy) return grouped ? `${o.profileName} · ${legacy}` : legacy;
+
+    if (!grouped) return undefined;
+
+    return searching ? `${providerName(o.provider)} · ${o.profileName}` : o.profileName;
+  };
+
+  const groupExpanded = (group: string) => {
+    const legacy = listed.filter((o) => o.legacy && legacyGroups.has(sourceOf(o)) && groupOf(o) === group);
+
+    if (!legacy.length) return undefined;
+
+    return expandedLegacy.get(group) ?? legacy.some((o) => o.key === value);
+  };
 
   // Incomplete lists of the profiles in view (the catalog says why).
   const details = $derived([
@@ -126,11 +161,6 @@
 
     return index >= 0 && index < 9 ? keybindings.get(`model:pick-${index + 1}`)[0] : undefined;
   };
-
-  const secondary = (o: ModelOption) =>
-    [grouped ? "" : o.profileName, o.description || (o.model && o.name !== o.model ? o.model : "")]
-      .filter(Boolean)
-      .join(" · ");
 
   function choose(option: ModelOption) {
     onselect(option);
@@ -164,6 +194,7 @@
   onclose={() => {
     query = "";
     section = undefined;
+    expandedLegacy = new Map();
   }}
   class="w-[min(26rem,calc(100vw-1rem))]"
 >
@@ -226,6 +257,10 @@
         key={(o) => o.key}
         text={searchText}
         {groupOf}
+        {groupExpanded}
+        ontogglegroup={(group) => {
+          expandedLegacy = new Map(expandedLegacy).set(group, !groupExpanded(group));
+        }}
         bind:query
         {value}
         label="Search models"
@@ -237,8 +272,6 @@
         {#snippet option(o, state)}
           <ModelRow
             option={o}
-            detail={secondary(o)}
-            providerMark={!grouped}
             active={state.active}
             selected={state.selected}
             starred={favorites.has(o)}

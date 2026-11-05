@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import type { ModelInfo, ui } from "@canopy/contracts";
-  import Badge from "#lib/shared/ui/Badge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -24,7 +23,7 @@
 
   /**
    * An instance's models in the pickers: favorites first (star, move up and down, ⌘1… in the
-   * picker), the rest, and the ones hidden from the picker, each with a switch; capability tags from the catalog;
+   * picker), the rest, and the ones hidden from the picker, each with a switch; names and ids from the catalog;
    * a filter, hide all / show all, and custom model ids the catalog does not list. Every change saves at once (the
    * pickers follow live); a failed save goes back.
    */
@@ -82,7 +81,7 @@
   }
 </script>
 
-<div class={["grid gap-4", className]}>
+<div class={["grid min-w-0 grid-cols-1 gap-4", className]}>
   <div class="flex flex-wrap items-center gap-2">
     <SearchField
       label="Filter models"
@@ -131,16 +130,10 @@
                 onclick={() => change(withFavorite(current, row.id, !row.favorite))}
               />
               <div class="min-w-0 flex-1">
-                <p class="flex min-w-0 items-center gap-2">
-                  <span class="truncate text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white">{row.name}</span>
-                  {#each row.tags as tag (tag)}<Badge tone={tag === "custom" ? "violet" : "neutral"}>{tag}</Badge
-                    >{/each}
+                <p class="truncate text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white" title={row.name}>
+                  {row.name}
                 </p>
-                {#if row.name !== row.id || row.description}
-                  <p class="truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-                    {[row.name !== row.id ? row.id : "", row.description].filter(Boolean).join(" · ")}
-                  </p>
-                {/if}
+                <p class="truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" title={row.id}>{row.id}</p>
               </div>
               {#if row.favorite && !row.hidden}
                 <IconButton

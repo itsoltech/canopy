@@ -66,6 +66,7 @@ appear only as the literal name used by an external tool).
 | turn | one request and the agent's answer in a thread | run, request, round |
 | agent | Claude, Codex or Grok working in a thread | assistant, AI, model (a model is something else) |
 | model | the model an agent uses | engine, LLM |
+| legacy model | an older model version kept in the collapsible `Legacy models` group | deprecated model (unless the provider declares it deprecated) |
 | agent CLI | the provider's tool installed on a worker | provider CLI, binary, tool |
 | provider | Anthropic, OpenAI, xAI and their equivalents | vendor, backend |
 | instance | configured access to a provider (Settings → Providers) | account, connection |

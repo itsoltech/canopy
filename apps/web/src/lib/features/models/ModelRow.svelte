@@ -5,17 +5,14 @@
   import Kbd from "#lib/shared/ui/Kbd.svelte";
   import { duration } from "#lib/shared/ui/motion.ts";
   import { providerName, type ModelOption } from "./catalog.ts";
-  import ProviderIcon from "./ProviderIcon.svelte";
 
   /**
-   * One model in the picker's list: its name, a line under it (profile and/or the catalog's description),
-   * its favorite shortcut, a star and a check on the current one. A custom model reads "Use “…” with …".
+   * One model in the picker's list: its concrete name, favorite shortcut, star and selection check.
+   * A custom model reads "Use “…” with …".
    * The star shows on the active row only (always on touch screens and when starred).
    */
   let {
     option,
-    detail,
-    providerMark = true,
     active,
     selected,
     starred,
@@ -24,10 +21,6 @@
     class: className,
   }: {
     option: ModelOption;
-    /** The line under the name ("" = none). */
-    detail: string;
-    /** Provider mark in front of the line (off under a profile heading). */
-    providerMark?: boolean;
     active: boolean;
     selected: boolean;
     starred: boolean;
@@ -59,24 +52,10 @@
       ></span
     >
   {:else}
-    <span class="grid min-w-0 flex-1">
-      <span class="font-medium [overflow-wrap:anywhere] whitespace-normal" title={option.model || undefined}
-        >{option.name}</span
-      >
-      {#if detail}
-        <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
-          {#if providerMark}<ProviderIcon provider={option.provider} class="size-3" />{/if}
-          {#if option.accent}<span
-              class="size-2 shrink-0 rounded-full"
-              style:background-color={option.accent}
-              aria-hidden="true"
-            ></span>{/if}
-          <span class="min-w-0 [overflow-wrap:anywhere] whitespace-normal" title={option.description || undefined}
-            >{detail}</span
-          >
-        </span>
-      {/if}
-    </span>
+    <span
+      class="min-w-0 flex-1 font-medium [overflow-wrap:anywhere] whitespace-normal"
+      title={option.model || undefined}>{option.name}</span
+    >
     {#if shortcut}<Kbd hotkey={shortcut} />{/if}
     <IconButton
       icon="star"

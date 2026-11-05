@@ -3,6 +3,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tempDirs } from "@canopy/testing";
 import { claudeConfiguredEffort, codexConfiguredEffort, readClaudeUserSettings } from "./default-effort.ts";
+import { classifyLegacyModels } from "./model-metadata.ts";
 import {
   claudeAgentModels,
   claudeModel,
@@ -11,6 +12,7 @@ import {
   isAgentModel,
   proxyCapabilities,
   proxyModels,
+  proxyModelFits,
 } from "./models.ts";
 
 const proxy = {
@@ -93,6 +95,7 @@ describe("model catalogs", () => {
       displayName: "GPT-6.1-Sol",
       description: "",
       hidden: false,
+      legacy: false,
       isDefault: true,
       efforts: ["low", "xhigh"],
       defaultEffort: "low",
@@ -115,7 +118,7 @@ describe("model catalogs", () => {
     ).toEqual({
       id: "haiku",
       resolvedModel: "claude-haiku-5-5",
-      displayName: "Haiku",
+      displayName: "Claude Haiku 5.5",
       description: "",
       isDefault: false,
       efforts: ["low", "max"],
@@ -188,6 +191,128 @@ describe("model catalogs", () => {
     }
   });
 
+  test("Claude labels resolve changing SDK aliases without changing saved ids or effort data", () => {
+    const alias = { value: "opus", displayName: "Opus", description: "", supportedEffortLevels: ["high" as const] };
+
+    const resolvedNames: readonly (readonly [string, string])[] = [
+      ["claude-opus-5-5", "Claude Opus 5.5"],
+      ["claude-opus-7-12-20261105[1m]", "Claude Opus 7.12 1M"],
+      ["claude-3-7-sonnet-20250219", "Claude Sonnet 3.7"],
+    ];
+
+    for (const [resolvedModel, name] of resolvedNames) {
+      expect(claudeModel({ ...alias, resolvedModel })).toMatchObject({
+        id: "opus",
+        resolvedModel,
+        displayName: name,
+        efforts: ["high"],
+      });
+    }
+
+    expect(claudeModel({ ...alias, description: "Opus 8.2 · Everyday tasks · $4/$20 per Mtok" }).displayName).toBe(
+      "Claude Opus 8.2",
+    );
+    expect(claudeModel({ ...alias, displayName: "Claude Opus 8.3" }).displayName).toBe("Claude Opus 8.3");
+    expect(claudeModel(alias).displayName).toBe("Opus");
+    expect(claudeModel({ value: "private-agent", displayName: "Private agent", description: "" })).toMatchObject({
+      id: "private-agent",
+      displayName: "Private agent",
+    });
+  });
+
+  test("legacy follows catalog upgrades and older versions within the same family and variant", () => {
+    const catalog = [
+      { id: "opus", resolvedModel: "claude-opus-8-2", displayName: "Claude Opus 8.2" },
+      { id: "claude-opus-8-1" },
+      { id: "claude-opus-8-1[1m]" },
+      { id: "claude-haiku-7-1" },
+      { id: "gpt-9.1-sol" },
+      { id: "gpt-9-sol" },
+      { id: "private", legacy: true },
+      { id: "hidden", hidden: true },
+    ];
+
+    expect(classifyLegacyModels(catalog).map((m) => [m.id, m.legacy])).toEqual([
+      ["opus", false],
+      ["claude-opus-8-1", true],
+      ["claude-opus-8-1[1m]", false],
+      ["claude-haiku-7-1", false],
+      ["gpt-9.1-sol", false],
+      ["gpt-9-sol", true],
+      ["private", true],
+      ["hidden", true],
+    ]);
+    expect(classifyLegacyModels([{ id: "claude-opus-8-1" }])[0]?.legacy).toBe(false);
+
+    expect(
+      codexModel({
+        id: "old",
+        model: "old",
+        displayName: "Old",
+        description: "",
+        hidden: false,
+        isDefault: false,
+        upgrade: "new",
+        supportedReasoningEfforts: [],
+        defaultReasoningEffort: "low",
+      }),
+    ).toMatchObject({ id: "old", hidden: false, legacy: true });
+  });
+
+  test("one proxy catalog stays scoped by family and wire protocol for every harness", async () => {
+    const server = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch(request) {
+        if (new URL(request.url).pathname !== "/v1/models") return new Response(null, { status: 404 });
+
+        if (request.headers.get("authorization") !== "Bearer sk-test") return new Response(null, { status: 401 });
+
+        return Response.json({
+          data: [
+            { id: "claude-opus-8-2", owned_by: "antigravity", display_name: "Claude Opus 8.2" },
+            { id: "gpt-9.1-sol", owned_by: "openai" },
+            { id: "grok-8.2", owned_by: "xai" },
+            { id: "gemini-8-flash", owned_by: "google", supported_endpoint_types: ["responses"] },
+            { id: "private-responses", owned_by: "private", supported_endpoint_types: ["responses"] },
+            { id: "private-chat", owned_by: "openai", supported_endpoint_types: ["chat_completions"] },
+            { id: "claude-chat-only", owned_by: "anthropic", supported_endpoint_types: ["chat_completions"] },
+            { id: "grok-messages-only", owned_by: "xai", supported_endpoint_types: ["messages"] },
+            { id: "gpt-image-8", owned_by: "openai" },
+            { id: "unknown", owned_by: "private" },
+          ],
+        });
+      },
+    });
+
+    try {
+      const served = await proxyModels({ ...proxy, baseUrl: new URL(server.url) });
+
+      const ids = (harness: "claude" | "codex" | "grok") =>
+        served.filter((m) => proxyModelFits(harness, m)).map((m) => m.id);
+
+      expect(ids("claude")).toEqual(["claude-opus-8-2"]);
+      expect(ids("codex")).toEqual(["gpt-9.1-sol", "grok-8.2", "private-responses"]);
+      expect(ids("grok")).toEqual(["grok-8.2"]);
+      expect(
+        codexProxyModels([{ id: "private-chat", efforts: ["high"] }], served).some((m) => m.id === "private-chat"),
+      ).toBe(false);
+      expect(codexProxyModels([], served).find((m) => m.id === "private-responses")?.id).toBe("private-responses");
+      expect(
+        claudeAgentModels(
+          [
+            { value: "opus", resolvedModel: "claude-opus-8-2", displayName: "Opus", description: "" },
+            { value: "claude-fable-5-dd-2-8-supo", displayName: "Claude Opus 8.2", description: "" },
+            { value: "claude-fable-5-dd-2.8-korg", displayName: "Grok 8.2", description: "" },
+          ],
+          served,
+        ).map((m) => m.value),
+      ).toEqual(["opus", "claude-fable-5-dd-2-8-supo"]);
+    } finally {
+      server.stop(true);
+    }
+  });
+
   test("Claude through a proxy: models that cannot run a turn are left out, matched by id, alias or display name", () => {
     const row = (value: string, displayName: string, resolvedModel?: string) => ({
       value,
@@ -205,22 +330,19 @@ describe("model catalogs", () => {
     ];
 
     const capabilities = [
-      { id: "grok-4.7", displayName: "Grok 4.7", outputModalities: ["text"] },
-      { id: "gemini-3.1-flash-image", displayName: "Gemini 3.1 Flash Image", outputModalities: ["text", "image"] },
-      { id: "claude-opus-5-5", displayName: "Claude Opus 5.5", outputModalities: ["text"] },
+      { id: "grok-4.7", ownedBy: "xai", displayName: "Grok 4.7", outputModalities: ["text"] },
+      {
+        id: "gemini-3.1-flash-image",
+        ownedBy: "google",
+        displayName: "Gemini 3.1 Flash Image",
+        outputModalities: ["text", "image"],
+      },
+      { id: "claude-opus-5-5", ownedBy: "anthropic", displayName: "Claude Opus 5.5", outputModalities: ["text"] },
     ];
 
-    expect(claudeAgentModels(listed, capabilities).map((m) => m.value)).toEqual([
-      "default",
-      "claude-fable-5-dd-7.4-korg",
-      "claude-fable-5-dd-tsaf-5.2-resopmoc-korg",
-    ]);
+    expect(claudeAgentModels(listed, capabilities).map((m) => m.value)).toEqual(["default"]);
     // Without the proxy's capabilities the display names' words still catch the image and speech rows.
-    expect(claudeAgentModels(listed).map((m) => m.value)).toEqual([
-      "default",
-      "claude-fable-5-dd-7.4-korg",
-      "claude-fable-5-dd-tsaf-5.2-resopmoc-korg",
-    ]);
+    expect(claudeAgentModels(listed).map((m) => m.value)).toEqual(["default"]);
   });
 
   test("Codex through a proxy: catalog models the proxy serves, then the proxy's others without efforts", () => {
@@ -237,10 +359,9 @@ describe("model catalogs", () => {
 
     expect(merged.map((m) => [m.id, m.isDefault ?? false, m.efforts])).toEqual([
       ["gpt-6.1-sol", true, ["low"]],
-      ["claude-opus-5", false, []],
       ["grok-4.7", false, []],
     ]);
-    expect(merged[2]?.description).toBe("CLIProxyAPI (xai)");
+    expect(merged[1]?.displayName).toBe("Grok 4.7");
   });
 
   test("Codex through a proxy: the proxy's non-agent models are left out, chat models without efforts stay", () => {
@@ -259,7 +380,6 @@ describe("model catalogs", () => {
 
     expect(merged.map((m) => [m.id, m.efforts])).toEqual([
       ["gpt-6.1-sol", ["low"]],
-      ["gemini-3-flash", []],
       ["grok-composer-2.5-fast", []],
     ]);
   });

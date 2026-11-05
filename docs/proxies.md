@@ -45,6 +45,11 @@ prefiks ścieżki reverse proxy. URL nie może zawierać loginu, hasła, query a
 **Test connection** wykonuje z gateway `GET <root>/v1/models`: Bearer dla
 CLIProxyAPI/OpenAI albo `x-api-key` i `anthropic-version` dla Anthropic.
 Pokazuje liczbę modeli, status HTTP albo zredagowany błąd sieci. Nie wykonuje tury LLM.
+To liczba modeli pośrednika, nie lista wyboru każdego harnessu. Worker osobno buduje
+katalog instancji, filtrując rodzinę i protokół: Claude → Anthropic Messages,
+Codex → OpenAI/Responses (również zgodne modele xAI), Grok → xAI Chat Completions.
+Własne modele instancji pozostają dostępne. Źródła metadanych i zachowanie przy ich
+braku: [protocol.md](protocol.md#modele-effort-i-steer).
 Przekierowania są odrzucane, aby klucz nie trafił do innego hosta. Rozpoznanie
 CLIProxyAPI wymaga dodatniego markera nagłówka lub publicznego root JSON
 `message = "CLI Proxy API Server"`; dodatkowe zapytanie root nie wysyła sekretu.

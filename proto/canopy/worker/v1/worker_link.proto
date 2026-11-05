@@ -1209,6 +1209,9 @@ message ModelInfo {
   repeated string efforts = 7;
   // Domyślny wysiłek modelu; pusty = domyślny dostawcy (Claude go nie podaje).
   string default_effort = 8;
+  // Starsza wersja tej samej rodziny albo model oznaczony przez katalog jako zastąpiony/ukryty.
+  // Niezależne od hidden: w pickerze trafia do zwijanej grupy starszych modeli.
+  bool legacy = 9;
 }
 
 // Modele jednej pary dostawca + profil na workerze.

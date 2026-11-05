@@ -13,6 +13,12 @@ Opis protokołu dotyczy CLI `grok 1.0.70 (f50904eaee6c)`.
 `grok models` bez loginu pokazuje fallback `grok-4.6` (domyślny), `grok-4.5`.
 To nie jest pełny katalog konta. Nie odczytujemy ani nie wypisujemy wartości tokenów.
 
+Katalog workera pochodzi z ACP `initialize._meta.modelState.availableModels` (nazwy,
+domyślny model i metadane wysiłku). Z proxy lista jest przecinana z `/v1/models`:
+zostaje rodzina xAI/Grok zgodna z `chat_completions`, a dodatkowe modele dostają
+nazwę proxy lub czytelny formatter id. Filtry modalności oraz rodziny/protokołu,
+nazwy i grupa starszych wersji: [protocol.md](protocol.md#modele-effort-i-steer).
+
 ## Endpointy i izolacja
 
 Grok obsługuje backendy `chat_completions` (domyślnie), `responses`, `messages`. Konfiguracja `[model.<id>]` przyjmuje `model`, `base_url` (z `/v1`), `env_key`, `api_backend`. Per-model `env_key` ma pierwszeństwo przed loginem. `GROK_HOME` zmienia katalog konfiguracji, a `GROK_AUTH_PATH` wskazuje plik loginu. `GROK_CONFIG` jest ograniczoną nakładką JSON: **nie** służy do zmiany endpointów ani auth; nie wkładamy tam sekretów.

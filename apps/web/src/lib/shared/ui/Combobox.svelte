@@ -4,7 +4,8 @@
   import { useField } from "./field.ts";
   import Icon from "./Icon.svelte";
   import Input from "./Input.svelte";
-  import { listboxHeadingClasses, listboxOptionClasses } from "./listbox.ts";
+  import { listboxOptionClasses } from "./listbox.ts";
+  import ComboboxGroup from "./ComboboxGroup.svelte";
   import Popover from "./Popover.svelte";
   import Spinner from "./Spinner.svelte";
 
@@ -39,6 +40,8 @@
     placeholder,
     autofocus = false,
     groupOf,
+    groupExpanded,
+    ontogglegroup,
     onkeydown: extraKeydown,
     class: className,
     listClass,
@@ -68,6 +71,9 @@
     autofocus?: boolean;
     /** Group heading of an item; consecutive items with the same group share one heading. */
     groupOf?: ((item: T) => string | undefined) | undefined;
+    /** Undefined = plain heading; false = collapsed (excluded from keyboard navigation). */
+    groupExpanded?: ((group: string) => boolean | undefined) | undefined;
+    ontogglegroup?: ((group: string) => void) | undefined;
     /** Runs first on every key in the input, with the active item (picker hotkeys). */
     onkeydown?: ((event: KeyboardEvent, active: T | undefined) => void) | undefined;
     class?: ClassValue;
@@ -96,7 +102,15 @@
   // Autocomplete lists everything when opened and filters once you type (inline pickers always filter).
   let typed = $state(false);
   const filtering = $derived(filter !== false && Boolean(query.trim()) && (inline || typed));
-  const visible = $derived(filtering ? items.filter((item) => (filter || defaultFilter)(item, query.trim())) : items);
+  const matched = $derived(filtering ? items.filter((item) => (filter || defaultFilter)(item, query.trim())) : items);
+
+  const visible = $derived(
+    matched.filter((item) => {
+      const group = groupOf?.(item);
+
+      return !group || groupExpanded?.(group) !== false;
+    }),
+  );
 
   const active = $derived(
     visible.find((item) => key(item) === activeKey) ?? visible.find((item) => key(item) === value) ?? visible[0],
@@ -107,7 +121,8 @@
 
   const groups = $derived.by(() => {
     const out: { label: string | undefined; entries: { item: T; index: number }[] }[] = [];
-    visible.forEach((item, index) => {
+    matched.forEach((item) => {
+      const index = visible.indexOf(item);
       const label = groupOf?.(item);
       const last = out.at(-1);
 
@@ -224,48 +239,47 @@
     ]}
   >
     {#each groups as group, g (g)}
-      {#if group.label}
-        <!-- No vertical scroll padding: sticky top-0 must meet the search field without a see-through seam.
-             The truncating box is
-             inside: a grid row of an overflow-hidden item may shrink to nothing in the scrolling list. -->
-        <li role="presentation" class={[listboxHeadingClasses, inline ? "-mx-1.5 px-4" : "-mx-1 px-3.5"]}>
-          <div class="truncate">{group.label}</div>
-        </li>
-      {/if}
-      {#each group.entries as { item, index } (key(item))}
-        {@const isActive = index === activeIndex}
-        {@const selected = multiple ? selectedKeys.includes(key(item)) : key(item) === value}
-        <!-- Keys reach options through the input (aria-activedescendant); a click picks with the pointer. -->
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <li
-          id={optionId(index)}
-          role="option"
-          aria-selected={selected}
-          data-active={isActive || undefined}
-          class={["group/option relative", listboxOptionClasses]}
-          onpointerdown={(event) => event.preventDefault()}
-          onpointermove={() => (activeKey = key(item))}
-          onclick={() => choose(item)}
-        >
-          {#if option}
-            {@render option(item, { active: isActive, selected })}
-          {:else}
-            <span class="flex items-center gap-2"
-              ><span class="min-w-0 flex-1 truncate">{text(item)}</span>{#if selected}<Icon
-                  name="check"
-                  class="text-brand-600 dark:text-brand-400"
-                />{/if}</span
-            >
-          {/if}
-        </li>
-      {/each}
+      <ComboboxGroup
+        label={group.label}
+        expanded={group.label ? groupExpanded?.(group.label) : undefined}
+        {inline}
+        ontoggle={() => group.label && ontogglegroup?.(group.label)}
+      >
+        {#each group.entries as { item, index } (key(item))}
+          {@const isActive = index === activeIndex}
+          {@const selected = multiple ? selectedKeys.includes(key(item)) : key(item) === value}
+          <!-- Keys reach options through the input (aria-activedescendant); a click picks with the pointer. -->
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <li
+            id={optionId(index)}
+            role="option"
+            aria-selected={selected}
+            data-active={isActive || undefined}
+            class={["group/option relative", listboxOptionClasses]}
+            onpointerdown={(event) => event.preventDefault()}
+            onpointermove={() => (activeKey = key(item))}
+            onclick={() => choose(item)}
+          >
+            {#if option}
+              {@render option(item, { active: isActive, selected })}
+            {:else}
+              <span class="flex items-center gap-2"
+                ><span class="min-w-0 flex-1 truncate">{text(item)}</span>{#if selected}<Icon
+                    name="check"
+                    class="text-brand-600 dark:text-brand-400"
+                  />{/if}</span
+              >
+            {/if}
+          </li>
+        {/each}
+      </ComboboxGroup>
     {/each}
   </ul>
   {#if loading}
     <p class="flex items-center gap-2 px-4 py-2 text-sm/5 text-zinc-500 dark:text-zinc-400" role="status">
       <Spinner class="size-3.5" />Loading…
     </p>
-  {:else if visible.length === 0}
+  {:else if matched.length === 0}
     <div class="px-4 py-6 text-center text-sm/5 text-zinc-500 dark:text-zinc-400" role="status">
       {#if empty}{@render empty(query)}{:else}No matches{query ? ` for “${query}”` : ""}{/if}
     </div>

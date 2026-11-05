@@ -27,7 +27,8 @@ import {
 } from "@canopy/contracts";
 import type { ThreadEventInit } from "../../journal/index.ts";
 import type { ViewImageResult } from "../../images/index.ts";
-import { isAgentModel, proxyModels, type ModelInit } from "../models.ts";
+import { proxyModelFits, proxyModels, type ModelInit } from "../models.ts";
+import { concreteModelName } from "../model-metadata.ts";
 import type { ResolvedProfile } from "../profiles.ts";
 import type { TurnSettings } from "../turn-input.ts";
 import { grokLaunch } from "./launch.ts";
@@ -410,11 +411,17 @@ export class GrokThreads {
       });
 
       if (profile.kind !== "cliproxyapi") return { models: known };
-      const models = (await proxyModels(profile)).filter((m) => /grok/i.test(m.id) && isAgentModel([m.id], m));
+      const models = (await proxyModels(profile)).filter((m) => proxyModelFits("grok", m));
 
       return {
         models: models.map(
-          (m) => known.find((k) => k.id === m.id) ?? { id: m.id, displayName: m.id, efforts: [], isDefault: false },
+          (m) =>
+            known.find((k) => k.id === m.id) ?? {
+              id: m.id,
+              displayName: m.displayName || concreteModelName(m.id),
+              efforts: [],
+              isDefault: false,
+            },
         ),
       };
     } finally {

@@ -52,6 +52,7 @@ export interface ModelOption {
   readonly resolvedModel: string;
   /** The model the profile uses when none is chosen. */
   readonly isDefault: boolean;
+  readonly legacy: boolean;
   /** Supported reasoning efforts, lowest first (empty = the model has no effort setting). */
   readonly efforts: readonly EffortLevel[];
   /** The model's default effort; undefined = the provider's own default (shown as "Default"). */
@@ -191,6 +192,7 @@ function fromCatalog(
     description: info.description,
     resolvedModel: info.resolvedModel,
     isDefault: info.isDefault,
+    legacy: info.legacy,
     efforts: info.efforts.map(effortLevel),
     defaultEffort: info.defaultEffort || undefined,
     origin: "catalog",
@@ -222,6 +224,7 @@ function standIn(
     description: "",
     resolvedModel: "",
     isDefault: !model,
+    legacy: false,
     efforts: effort?.efforts.map(effortLevel) ?? [],
     defaultEffort: effort?.default,
     origin,
@@ -251,7 +254,7 @@ export function modelOption(
   // An alias's resolved id keeps the id it was given (that is what the thread stores and sends).
   return info.id === model || !model
     ? option
-    : { ...option, key: modelKey(provider, profileId, model), model, name: modelDisplayName(model), isDefault: false };
+    : { ...option, key: modelKey(provider, profileId, model), model, isDefault: false };
 }
 
 /** Models of one provider on one profile, in the catalog's order (default first without one). */
