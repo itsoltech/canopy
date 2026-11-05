@@ -73,7 +73,8 @@ function length(name: string, fallbackPx: number): number {
 
 /**
  * Accordion expand / collapse (21) for content mounted with its disclosure: height from and to 0 with a
- * quiet fade, on --duration-fast both ways (one reversible motion).
+ * quiet fade, on --duration-fast both ways (one reversible motion). Clips only vertically, so rows that
+ * bleed sideways with negative margins keep their edges while the height animates.
  */
 export function expand(
   node: HTMLElement,
@@ -95,7 +96,7 @@ export function expand(
     duration: ms,
     easing: smoothOut,
     css: (t) =>
-      `overflow: hidden; height: ${t * height}px; padding-top: ${t * padTop}px; padding-bottom: ${t * padBottom}px; ` +
+      `overflow-x: visible; overflow-y: clip; height: ${t * height}px; padding-top: ${t * padTop}px; padding-bottom: ${t * padBottom}px; ` +
       `margin-top: ${t * marginTop}px; margin-bottom: ${t * marginBottom}px; opacity: ${t}`,
   };
 }
