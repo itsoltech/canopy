@@ -20,7 +20,7 @@ Reset strony przywraca wyłącznie jej preferencje urządzenia, bez cofania zgó
 | Strona / sekcja | Ustawienie | Zakres | Domyślnie | Skutek |
 | --- | --- | --- | --- | --- |
 | Keybindings | Skróty komend, kompozytora, cytowania i modeli | urządzenie | przypisania rejestru | Wyszukiwanie, edycja, nagrywanie i dodatkowe przypisania z kontrolą konfliktów kontekstu |
-| General / Notifications | Thread notifications | urządzenie | Off | Alert systemowy przy ukończeniu, błędzie lub pytaniu/zgodzie wątku, tylko gdy aplikacja otwarta; opcjonalny dźwięk; web wymaga zgody Notification API, desktop używa Electron |
+| General / Notifications | Thread notifications | urządzenie | Off | Alert systemowy przy ukończeniu, błędzie lub pytaniu/zgodzie wątku, tylko gdy otwarte jest okno Canopy (na macOS zamknięte okno nie wysyła alertów); opcjonalny dźwięk; web wymaga zgody Notification API i pokazuje odmowę lub zamknięty monit, desktop używa natywnego `Notification` przez IPC |
 | General / Notifications | In-app notifications | urządzenie | On | Toast o innym wątku przy fokusie aplikacji |
 | General / Sidebar | Group by project | konto | Off | Nagłówki projektów w aktywnym sidebarze, z zachowaniem przypięć i priorytetu pytań |
 | General / Sidebar | Project order | konto | Latest activity | Kolejność grup według aktywności, nazwy lub utworzenia projektu; bez obietnicy ostatniej wiadomości użytkownika, której indeks nie udostępnia |

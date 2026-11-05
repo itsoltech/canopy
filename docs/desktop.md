@@ -23,9 +23,11 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    konto i TTL. Strona wyniku próbuje `canopy://connectors`; ten stały link
    pokazuje aplikację i otwiera ustawienia konektorów bez parametrów dostawcy.
    Okna odmawiają wszystkich uprawnień przeglądarki poza zapisem do schowka
-   (`clipboard-sanitized-write`, potrzebnym dla `navigator.clipboard.writeText`), i to tylko
-   stronom z originu setupu albo web UI (`window-permissions.ts`). Odczyt schowka, media
-   i powiadomienia pozostają zablokowane.
+   (`clipboard-sanitized-write`, potrzebnym dla `navigator.clipboard.writeText`)
+   i powiadomieniami (`notifications`), i to tylko stronom z originu setupu albo web UI
+   (`window-permissions.ts`). Odczyt schowka, media i reszta pozostają zablokowane.
+   Alerty wątków idą przez IPC `canopy:thread-notification` do natywnego `Notification`
+   procesu main; uprawnienie `notifications` jest rezerwą dla Notification API strony.
 2. **Baza:** pełny PostgreSQL 18.6 z binariów `@embedded-postgres`, pobieranych tylko
    po wybraniu trybu lokalnego. Aplikacja nie zawiera PostgreSQL. Pierwszy lokalny start
    wymaga internetu; gotowy cache działa offline. Nie wymaga ręcznej instalacji ani
