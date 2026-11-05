@@ -3,18 +3,17 @@ import { join } from "node:path";
 import { Cause, Deferred, Effect, Exit, Stream } from "effect";
 import { ItemDeltaField, ItemStatus } from "@canopy/contracts";
 import { CodexAppServer } from "../providers/codex/app-server.ts";
-import { codexAppServerLaunch, codexThreadProvider } from "../providers/codex/launch.ts";
-import { codexTextCatalog, codexTextOverrides } from "../providers/generate-text.ts";
+import { codexAppServerLaunch, codexThreadProvider, type CodexAppServerLaunch } from "../providers/codex/launch.ts";
+import { codexTextOverrides } from "../providers/generate-text.ts";
+import { codexBotCatalog, codexModelEntry } from "./codex-catalog.ts";
 import { botPrompt } from "./session.ts";
 import type { BotHarnessContext } from "./types.ts";
 import { BotHarnessFailure } from "./types.ts";
 import { codexErrorCode } from "../providers/codex/status-mapping.ts";
 import { decodeJson } from "../providers/json.ts";
 
-function botCodexLaunch(ctx: BotHarnessContext) {
+async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLaunch> {
   const { input, session } = ctx;
-  const catalog = join(session.home, "bot-model.json");
-  writeFileSync(catalog, JSON.stringify(codexTextCatalog(input.model, input.effort)), { mode: 0o600 });
 
   const base = codexAppServerLaunch(
     [ctx.profile],
@@ -27,6 +26,10 @@ function botCodexLaunch(ctx: BotHarnessContext) {
     [],
   );
 
+  const catalog = join(session.home, "bot-model.json");
+  const entry = await codexModelEntry(base, input.model);
+  writeFileSync(catalog, JSON.stringify(codexBotCatalog(input.model, input.effort, entry)), { mode: 0o600 });
+
   return { ...base, command: [...base.command, ...codexTextOverrides(catalog)] };
 }
 
@@ -34,8 +37,8 @@ function codexFailure(error: import("@canopy/codex-protocol").v2.TurnError | nul
   return new BotHarnessFailure(codexErrorCode(decodeJson(error?.codexErrorInfo)) || "HARNESS_ERROR", error?.message);
 }
 
-/** Dedicated official app-server; a minimal catalog removes every model-supplied local tool. */
-function codexBotProgram(ctx: BotHarnessContext) {
+/** Dedicated official app-server; the bot catalog keeps the model's limits and removes every local tool. */
+function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
   const { input, session } = ctx;
 
   const program = Effect.gen(function* () {
@@ -153,7 +156,7 @@ function codexBotProgram(ctx: BotHarnessContext) {
   }).pipe(
     Effect.provide(
       CodexAppServer.layer({
-        launch: botCodexLaunch(ctx),
+        launch,
         clientVersion: ctx.clientVersion,
         onServerRequest: async () => {
           throw new Error("Bots have no native tools or interactions");
@@ -167,7 +170,7 @@ function codexBotProgram(ctx: BotHarnessContext) {
 }
 
 export async function runCodexBot(ctx: BotHarnessContext): Promise<void> {
-  const exit = await Effect.runPromiseExit(codexBotProgram(ctx), { signal: ctx.signal });
+  const exit = await Effect.runPromiseExit(codexBotProgram(ctx, await botCodexLaunch(ctx)), { signal: ctx.signal });
 
   if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
 }
