@@ -14,7 +14,7 @@
   import WorkerHoverCard from "#lib/features/overview/WorkerHoverCard.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import PillText from "#lib/shared/ui/PillText.svelte";
-  import { interruptThread, sendMessage, type Delivery } from "../api.ts";
+  import { interruptThread, sendMessage, updateThread, type Delivery } from "../api.ts";
   import { permissionKey, providerLabel, type PermissionModeKey } from "../labels.ts";
   import ComposerBox from "./ComposerBox.svelte";
   import type { ComposerActivity } from "./composer-compaction.ts";
@@ -28,9 +28,10 @@
    * queued turn or the steer) so the page shows it before the stream does.
    * Pills: the model and reasoning effort for the next messages (same provider and profile as the
    * thread), sent with each message as an override for its turn; unchanged = the thread's defaults.
-   * Under the box: where the thread runs (hover for the worker) and the permission mode for the next
-   * messages, sent like the model as an override of their turns (the thread's default = no override; a
-   * steer runs in the mode of the turn it joins).
+   * Under the box: where the thread runs (hover for the worker) and the thread's permission mode. A pick is
+   * saved on the thread at once (UpdateThread) and applies from the next turn; the running turn and a steer
+   * into it keep the mode the turn started with. Until the gateway confirms, a message sent meanwhile
+   * carries the pick as its turn's override.
    * Attachments (paperclip, drop, paste): uploaded as they are added, sent with the message, which then always
    * runs as the next turn (its files reach the worker before the turn starts).
    * Mentions ("/", "$", "@", "#"; docs/ui-api.md "Wzmianki") come from the thread's worker and folder; "/goal" is
@@ -77,8 +78,15 @@
   const option = $derived(mine?.option ?? offer.current);
   const effort = $derived(mine?.effort);
   const threadMode = $derived(permissionKey(thread.permissionMode));
-  let modeChoice = $state<{ threadId: string; mode: PermissionModeKey }>();
-  const mode = $derived(modeChoice?.threadId === thread.id ? modeChoice.mode : threadMode);
+
+  // A pick on its way to the gateway: shown until the thread's mode changes from the one it was made over.
+  let modeChoice = $state.raw<{ threadId: string; mode: PermissionModeKey; over: PermissionModeKey }>();
+
+  const pending = $derived(
+    modeChoice?.threadId === thread.id && modeChoice.over === threadMode ? modeChoice : undefined,
+  );
+
+  const mode = $derived(pending?.mode ?? threadMode);
 
   const override = $derived({
     ...turnOverride(option, offer.current, effort, thread.effort),
@@ -167,6 +175,20 @@
     }
   }
 
+  async function pickMode(next: PermissionModeKey) {
+    if (next === mode) return;
+    const pick = { threadId: thread.id, mode: next, over: threadMode };
+    modeChoice = pick;
+    error = undefined;
+
+    try {
+      await updateThread(pick.threadId, { permissionMode: next });
+    } catch (e) {
+      if (modeChoice === pick) modeChoice = undefined;
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   async function interrupt() {
     stopping = true;
     error = undefined;
@@ -226,11 +248,7 @@
         {#snippet computerControl()}<WorkerHoverCard {worker} {note} class="max-w-full" />{/snippet}
         {#snippet permissionControl()}
           <fieldset {disabled} class="contents">
-            <PermissionPicker
-              value={mode}
-              inherited={threadMode}
-              onselect={(next) => (modeChoice = { threadId: thread.id, mode: next })}
-            />
+            <PermissionPicker value={mode} onselect={(next) => void pickMode(next)} />
           </fieldset>
         {/snippet}
       </ComposerContextRow>

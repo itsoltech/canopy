@@ -20,7 +20,8 @@
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
-  import { permissionKey, type PermissionModeKey } from "#lib/features/threads/labels.ts";
+  import { permissionKey } from "#lib/features/threads/labels.ts";
+  import { NEW_THREAD, usePermissionDrafts } from "#lib/features/threads/permission-drafts.svelte.ts";
   import { profileIdValue, providerKeyOf } from "#lib/features/threads/providers.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
@@ -132,8 +133,10 @@
 
   // Only an effort the model takes (switching the workspace can change the model).
   const sentEffort = $derived(effort && selected?.efforts.some((e) => e.id === effort) ? effort : "");
-  let permission = $state<PermissionModeKey>();
-  const permissionMode = $derived(permission ?? permissionKey(defaults.permissionMode));
+
+  // Your pick stays with the new-thread draft (leave and come back); unset = the defaults (Settings → Threads).
+  const permissions = usePermissionDrafts();
+  const permissionMode = $derived(permissions.get(NEW_THREAD) ?? permissionKey(defaults.permissionMode));
 
   let message = $state("");
   let mentions = $state<Mention[]>([]);
@@ -238,7 +241,8 @@
           use:enhance={({ cancel }) => {
             if (blockedReason) return cancel();
             busy = true;
-            return async ({ update }) => {
+            return async ({ result, update }) => {
+              if (result.type === "redirect") permissions.clear(NEW_THREAD);
               await update({ reset: false });
               busy = false;
             };
@@ -329,7 +333,7 @@
                   {/if}
                 {/snippet}
                 {#snippet permissionControl()}
-                  <PermissionPicker value={permissionMode} onselect={(mode) => (permission = mode)} />
+                  <PermissionPicker value={permissionMode} onselect={(mode) => permissions.set(NEW_THREAD, mode)} />
                 {/snippet}
               </ComposerContextRow>
             {/snippet}
