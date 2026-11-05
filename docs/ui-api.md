@@ -100,8 +100,11 @@ Szczegóły, lista metod i błędy niedostępności: [linked-computers.md](linke
 
 Partner z capability `thread_mirror` pozostaje na liście po utracie łącza. `GetThread`,
 `WatchThread`, `ListThreads` i metadane overview korzystają wtedy z trwałego lustra; online
-odczyt pozostaje trasowany do domu. UI pokazuje „Last seen” i banner odczytu offline, blokuje
-composer, zgody i akcje. Żaden zapis nie trafia do lustra ani kolejki na później.
+odczyt pozostaje trasowany do domu. UI pokazuje krótki status „read only” z czasem zmiany obecności
+we wspólnym pasku nad composerem (z celem i subagentami), bez bannera u góry wątku. Szczegóły
+braku kolejkowania i dostępności plików są pod ikoną informacji. Wiersze zachowują zwykły czas aktywności
+i stonowaną ikonę komputera; „Last seen” jest przy samym komputerze w ustawieniach.
+Composer, zgody i akcje są zablokowane. Żaden zapis nie trafia do lustra ani kolejki na później.
 Metadane plików są czytelne offline, zawartość/miniatury są pobierane z domu tylko online
 („Available when Laptop B is connected”). Bez `thread_mirror` pozostaje zachowanie etapu 2,
 z informacją o aktualizacji dla odczytu offline. Szczegóły kursora, resync i zakresu projekcji:

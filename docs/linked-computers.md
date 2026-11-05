@@ -75,7 +75,8 @@ działa dalej, czy właśnie aktualizuje aplikację. Wiadomości nie czekają w 
 
 - Stan partnera: **Connected**, stan ogłoszony przed zniknięciem (**Updating…**, **Going to sleep**,
   **Shutting down**, z czasem ogłoszenia) albo **Unreachable since 19:42** — bez zgadywania przyczyny.
-- Wątki i boty niedostępnego komputera zostają na liście, **wyszarzone, z „last seen”**. Da się w nie
+- Wątki i boty niedostępnego komputera zostają na liście ze stonowanym oznaczeniem komputera. Wiersze
+  wątków zachowują zwykły czas aktywności, bez powtarzania „Last seen”. Da się w nie
   wejść i czytać wszystko, co było zsynchronizowane do chwili rozłączenia. Composer, zgody i akcje są
   zablokowane z wyjaśnieniem.
 - Agent, który próbuje sięgnąć do niedostępnego komputera (np. `send_message` do jego wątku), dostaje
@@ -169,8 +170,10 @@ Telefon i przeglądarka łączą się z jednym gatewayem i widzą przez niego ws
 
 - Settings → **Linked computers**: lista z nazwą, stanem, trasami i wersją; „Link computer”; przy partnerze
   „Share onward”, „Move to…”, „Unlink”.
-- Sidebar, lista botów, nagłówek wątku: znaczek maszyny; wyszarzenie i „last seen” dla niedostępnych.
-- Banner w wątku niedostępnego komputera; okno konfliktu konfiguracji; stan „needs an update”.
+- Sidebar, lista botów, nagłówek wątku: znaczek maszyny; stonowana ikona dla niedostępnych.
+- Status niedostępnego komputera w pasku nad composerem, obok celu i subagentów; bez bannera u góry.
+  Krótki stan, „read only” i czas zmiany obecności; szczegóły pod ikoną informacji, dostępne także dotknięciem.
+  „Last seen” zostaje przy samym komputerze w ustawieniach. Okno konfliktu konfiguracji; stan „needs an update”.
 - Znaczki „This computer” / „All linked computers” w ustawieniach.
 
 ## Etapy
@@ -380,7 +383,7 @@ Przypięcia i filtr projektów sidebara mogą zawierać id kwalifikowane (walida
 
 W etapie 2 wątki partnera są widoczne **tylko gdy jest połączony** i udostępnia wątki. Gdy zniknie,
 UI usuwa jego workery, projekty i wątki z list (lustra offline to etap 3). Otwarty wątek zostaje
-na ekranie z ostatnim stanem, z bannerem „Read only for now” i powodem, a composer jest zablokowany.
+na ekranie z ostatnim stanem i krótkim statusem nad composerem, który pozostaje zablokowany.
 
 ### UI
 
@@ -490,8 +493,10 @@ Offline `GetOverview`, `ListThreads` (także per projekt), `GetThread` i pierwsz
 kończy się; zwykły reconnect UI otwiera ponownie odczyt z domu. Niezsynchronizowany wątek
 dostaje jasny błąd zamiast pustej historii.
 
-Wątki pozostają na liście wyszarzone z „Last seen”; banner i karta podglądu wyjaśniają odczyt
-zsynchronizowanej osi czasu oraz brak kolejkowania. Composer, zgody, kolejka, kontynuacja tury, fork,
+Wątki pozostają na liście ze stonowaną ikoną komputera i zwykłym czasem aktywności. Pasek nad
+composerem i karta podglądu pokazują krótki stan komputera, „read only” i czas zmiany obecności.
+Panel pod ikoną informacji wyjaśnia brak kolejkowania i dostępność plików po połączeniu; działa myszą,
+klawiaturą i dotknięciem. Composer, zgody, kolejka, kontynuacja tury, fork,
 akcje tytułu i zatrzymywanie pracy są zablokowane. Worker partnera nie udaje online.
 Zapisy zawsze przechodzą do domu i natychmiast odmawiają, gdy łącze jest niedostępne.
 
@@ -997,7 +1002,7 @@ nie odwołuje ani nie zastępuje tego osobnego opt-in. Wspólne projekty zachowu
 UI: `ShareOnwardDialog` i `ShareOnwardChoice` (osobny przebieg `componentize`) używają istniejących
 `Dialog`, `SettingsRow` i `Switch`. Wpisy pośrednie pokazują **via P1**, bez tras, fingerprintu,
 Rename, Unlink ani dalszego udostępniania. Wpis informacyjny opisuje kierunek dostępu. Znaczek
-maszyny przy rzeczy również podaje pośrednika; banner blokady korzysta z tego samego powodu co API.
+maszyny przy rzeczy również podaje pośrednika; pasek blokady wątku korzysta z tego samego powodu co API.
 
 ### Weryfikacja i odroczenia
 

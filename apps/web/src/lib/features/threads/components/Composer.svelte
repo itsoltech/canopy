@@ -18,6 +18,7 @@
     onsent,
     ongoal,
     top,
+    status,
     questions = [],
     compact = false,
     panelsLabel,
@@ -33,6 +34,7 @@
     onsent?: ((response: ui.SendMessageResponse) => void) | undefined;
     ongoal?: (() => void) | undefined;
     top?: Snippet | undefined;
+    status?: Snippet | undefined;
     questions?: ui.Interaction[];
     class?: ClassValue;
     compact?: boolean;
@@ -89,10 +91,11 @@
     void tick().then(() => onfocuschange?.(Boolean(root?.contains(document.activeElement))));
   }}
 >
-  {#if top || (session && !session.done)}
+  {#if top || status || (session && !session.done)}
     <div class={["px-2 pt-px sm:px-3", !answering && "-mb-4"]}>
       <ComposerTop decision={Boolean(answering)}>
         {#if !answering}{@render top?.()}{/if}
+        {@render status?.()}
         {#if session && !session.done}<QuestionForm
             {session}
             {disabled}

@@ -26,7 +26,7 @@
   import SummaryRow from "./components/SummaryRow.svelte";
   import ThreadStatusText from "./ThreadStatusText.svelte";
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
-  import ComputerAwayAlert from "#lib/features/computers/ComputerAwayAlert.svelte";
+  import ComputerAwayBar from "#lib/features/computers/ComputerAwayBar.svelte";
   import { awayReason } from "#lib/features/computers/computers.ts";
 
   /**
@@ -73,14 +73,14 @@
     <p class="text-base/6 font-semibold text-pretty text-zinc-950 sm:text-sm/5 dark:text-white">{thread.title}</p>
     <ScheduleOrigin {thread} />
     {#if away}
-      <ComputerAwayAlert reason={away} />
+      <ComputerAwayBar computer={overview.computer(thread.nodeId)} reason={away} class="px-0" />
     {/if}
     <ul role="list" class="grid gap-1.5">
       <SummaryRow>
         {#snippet mark()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} class="size-4" />{/snippet}
         <span class="truncate">{project?.name ?? "Unknown project"}</span>
       </SummaryRow>
-      {#if thread.nodeId}
+      {#if thread.nodeId && !away}
         <SummaryRow>
           {#snippet mark()}<Icon name="link" class={muted} />{/snippet}
           <span class="truncate">On {overview.machine(thread.nodeId)}</span>
