@@ -26,8 +26,12 @@ export const harnessKey = (harness: Provider): ProviderKey => providerKeyOf(harn
 export const instanceName = (instance: Pick<ui.ProviderInstance, "label" | "id" | "builtIn" | "harness">): string =>
   instance.label || (instance.builtIn ? harnessName(instance.harness) : instance.id);
 
-export const kindLabel = (kind: ProviderProfileKind): string =>
-  kind === ProviderProfileKind.CLIPROXYAPI ? "Proxy" : "Device login";
+export const kindLabel = (kind: ProviderProfileKind | undefined): string =>
+  kind === ProviderProfileKind.CLIPROXYAPI
+    ? "Proxy"
+    : kind === ProviderProfileKind.NATIVE
+      ? "Device login"
+      : "Connection unknown";
 
 export const ruleKind = (kind: ProviderProfileKind): ProfileKind =>
   kind === ProviderProfileKind.CLIPROXYAPI ? "endpoint" : "native";
@@ -60,7 +64,10 @@ export function statusOn(on: ui.InstanceOnWorker | undefined, online: boolean): 
   if (!on.enabled) return { label: "Turned off", tone: "neutral" };
 
   if (!on.reported)
-    return { label: online ? "Waiting for the worker" : "Applies when the worker connects", tone: "neutral" };
+    return {
+      label: on.detail || (online ? "Waiting for the worker" : "Applies when the worker connects"),
+      tone: "neutral",
+    };
 
   if (on.available)
     return { label: on.authenticated && on.auth ? `Authenticated · ${on.auth}` : "Available", tone: "emerald" };

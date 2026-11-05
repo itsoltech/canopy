@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { enabledOn, modelsRule, providerOf, type InstanceRow, type StoredOverrides } from "./instance-config.ts";
 import { Invalid, NotFound } from "./store.ts";
-import { MAX_MODELS, checkBaseUrl, harnessOrFail, report, type InstanceApi } from "./instance-checks.ts";
+import { MAX_MODELS, checkBaseUrl, harnessOrFail, report, toUi, type InstanceApi } from "./instance-checks.ts";
 import type { InstanceCore } from "./instance-queries.ts";
 import { configTransaction, recordProviders } from "../config-sync/provider-records.ts";
 
@@ -85,6 +85,7 @@ export function instanceModels(
                     assignment?.proxy_id || row.kind === "endpoint"
                       ? ProviderProfileKind.CLIPROXYAPI
                       : ProviderProfileKind.NATIVE,
+                  status: toUi(row, rows, [w], []).workers[0],
                 });
               }),
             ] as const;

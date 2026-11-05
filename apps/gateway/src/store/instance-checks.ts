@@ -171,6 +171,7 @@ export const toUi = (
         version: reported?.version ?? "",
         auth: reported?.auth ?? "",
         authenticated: reported?.authenticated ?? false,
+        ...(reported && { kind: reported.kind }),
         threadCount: Number(ofInstance.find((u) => u.worker_id === w.id)?.count ?? 0),
         ...(w.applied_at && { checkedAt: timestampFromDate(new Date(w.applied_at)) }),
         synced: w.version !== null && w.applied_version !== null && BigInt(w.applied_version) === BigInt(w.version),

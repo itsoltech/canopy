@@ -118,12 +118,16 @@
         <dd class="text-zinc-950 dark:text-white"><StatusLine {status} /></dd>
         {#if on?.version}<dt class="text-zinc-500 dark:text-zinc-400">Version</dt>
           <dd class="font-mono text-zinc-950 dark:text-white">{on.version}</dd>{/if}
+        {#if on?.reported && on.account?.authMethod !== "Proxy"}<dt class="text-zinc-500 dark:text-zinc-400">
+            Connection
+          </dt>
+          <dd class="text-zinc-950 dark:text-white">{kindLabel(on.kind)}</dd>{/if}
         {#if on?.reported && !on.available && on.detail}<dt class="text-zinc-500 dark:text-zinc-400">Detail</dt>
           <dd class="text-pretty text-zinc-950 dark:text-white">{on.detail}</dd>{/if}
         {#if on?.checkedAt && !accountShown}<dt class="text-zinc-500 dark:text-zinc-400">Checked</dt>
           <dd class="text-zinc-950 dark:text-white">
             {formatRelative(on.checkedAt)}{on.synced ? "" : " · newer settings on their way"}
-          </dd>{:else if on && !on.synced}<dt class="text-zinc-500 dark:text-zinc-400">Settings</dt>
+          </dd>{:else if on?.reported && !on.synced}<dt class="text-zinc-500 dark:text-zinc-400">Settings</dt>
           <dd class="text-zinc-950 dark:text-white">Newer settings on their way</dd>{/if}
         {#if on && accountShown}<dt class="text-zinc-500 dark:text-zinc-400">Account</dt>
           <dd class="-my-0.5 min-w-0">
@@ -152,6 +156,14 @@
             {#if w.version}<span class="shrink-0 font-mono text-sm/5 text-zinc-500 sm:text-xs/5">v{w.version}</span
               >{/if}
             <StatusLine {status} class="min-w-0 text-sm/5 text-zinc-600 sm:max-w-[70%] dark:text-zinc-400" />
+            {#if w.reported && w.account?.authMethod !== "Proxy"}<p
+                class="basis-full text-sm/5 text-zinc-500 dark:text-zinc-400"
+              >
+                {kindLabel(w.kind)}
+                {#if !hasAccountStatus(w.account)}
+                  · {w.checkedAt ? `Checked ${formatRelative(w.checkedAt)}` : "Check time unknown"}
+                {/if}
+              </p>{/if}
             {#if w.enabled && hasAccountStatus(w.account)}<div class="min-w-0 basis-full">
                 <AccountStatusRow
                   account={w.account}

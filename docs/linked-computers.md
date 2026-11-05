@@ -1781,6 +1781,13 @@ Odczyty nie tworzą wpisów audytu. Providers, Agent environment, Worktrees i Co
 `ListWorkerRecords` do list workerów pogrupowanych według komputera. Offline worktree pokazuje zapisane
 nadpisania bez zgadywania wartości dziedziczonych; pozostałe odczyty szczegółów wymagają połączenia z domem.
 
+Status instancji providera pochodzi z domu workera: `Worker.provider_instances.status` w `GetOverview`
+i `WatchOverview` przenosi pełny `InstanceOnWorker` (uwierzytelnienie, wersję CLI, raportowany rodzaj
+połączenia, czas sprawdzenia i zgodność konfiguracji). Dom buduje go z `ConfigApplied` danego workera,
+po zastosowaniu jego nadpisań; odbiorca nie odtwarza go ze swojej definicji instancji. Rekord `worker`
+pozostaje informacją o konfiguracji, bez raportu dostępności. Partner starszy albo bez aktualnego
+raportu daje „Status from … unavailable”; brak danych nie oznacza logowania urządzenia.
+
 Telefony i przeglądarki nie trasują niczego. Metody zarządzania wymagają tokenu serwisowego BFF jak dziś.
 Partner nigdy nie zmienia rekordu wspólnego przez `RemoteRequest`, tylko przez `WatchConfig`. Model nie ma
 dostępu do żadnej z tych metod. Niedostępny dom daje od razu powód z obecności („Laptop B is unreachable
