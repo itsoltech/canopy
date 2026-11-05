@@ -383,6 +383,8 @@ message Command {
     ScanWorktrees scan_worktrees = 213;
     RemoveWorktree remove_worktree = 214;
     WorktreeTarget reveal_worktree = 215;
+    // Read-only, capability workspace_origin; never persisted in the outbox.
+    ReadWorkspaceOrigin read_workspace_origin = 216;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
@@ -604,6 +606,8 @@ message CommandResult {
   WorktreeInfo worktree = 211;
   repeated WorktreeStatus worktree_statuses = 213;
   bool worktree_branch_deleted = 214;
+  // Normalized identity only; never the raw remote URL or its credentials.
+  string workspace_origin = 216;
   ProviderAccountsReport provider_accounts = 810;
 }
 
@@ -612,6 +616,10 @@ message GetProviderAccounts {
   bool refresh = 2;
   Provider provider = 3;
   string profile_id = 4;
+}
+
+message ReadWorkspaceOrigin {
+  string repo_path = 1;
 }
 
 // Wyłącznie metadane do wyświetlenia. Bez tokenów, kluczy, org ID i surowych błędów.

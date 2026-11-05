@@ -387,6 +387,8 @@ message Workspace {
   string worker_id = 3;
   string root_path = 4;
   string label = 5;
+  // Normalized git origin identity reported by its worker; empty = unknown/no origin.
+  string git_origin = 216;
 }
 
 message Agent {

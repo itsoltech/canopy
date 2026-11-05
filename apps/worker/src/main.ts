@@ -311,6 +311,7 @@ while (!stopping.signal.aborted) {
           "agent_skills_v1",
           "agent_plugins_v1",
           "worktrees",
+          "workspace_origin",
           "worktree_lifecycle",
         ],
         worktreesRoot: host.worktreesRoot,

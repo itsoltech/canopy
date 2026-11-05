@@ -9,6 +9,7 @@
     "./provider-accounts": "./src/provider-accounts.ts",
     "./update-checks": "./src/update-checks.ts",
     "./computers": "./src/computers.ts",
+    "./projects": "./src/projects.ts",
     "./json": "./src/json.ts",
     "./agent-environment": "./src/agent-environment.ts",
     "./skill-artifact": "./src/skill-artifact.ts",

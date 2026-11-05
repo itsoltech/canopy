@@ -58,7 +58,13 @@ export type HostOperations = HostHooks &
   Pick<BotTurns, "runBotTurn" | "interruptBotTurn" | "closeBots"> &
   Pick<
     GitCommands,
-    "listGitRefs" | "createWorktree" | "renameWorktreeBranch" | "scanWorktrees" | "removeWorktree" | "revealWorktree"
+    | "readWorkspaceOrigin"
+    | "listGitRefs"
+    | "createWorktree"
+    | "renameWorktreeBranch"
+    | "scanWorktrees"
+    | "removeWorktree"
+    | "revealWorktree"
   > &
   Pick<CommandHandlers, "execute">;
 
@@ -136,6 +142,7 @@ export class HostContext {
       closeBots: bots.closeBots.bind(bots),
       execute: commands.execute.bind(commands),
       listGitRefs: gitCommands.listGitRefs.bind(gitCommands),
+      readWorkspaceOrigin: gitCommands.readWorkspaceOrigin.bind(gitCommands),
       createWorktree: gitCommands.createWorktree.bind(gitCommands),
       renameWorktreeBranch: gitCommands.renameWorktreeBranch.bind(gitCommands),
       scanWorktrees: gitCommands.scanWorktrees.bind(gitCommands),

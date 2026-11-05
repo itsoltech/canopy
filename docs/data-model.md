@@ -72,6 +72,14 @@ Id żądania i rewizja chronią przed spóźnionymi raportami. Zapis komendy lub
 i `audit_log` są atomowe. Sekrety pozostają w dotychczasowych magazynach.
 Przepływ: [updates.md](updates.md#zdalna-aktualizacja-aplikacji-desktopowej).
 
+## Tożsamość workspace'u według git origin
+
+Migracja `0072_workspace_origin` dodaje `project_workspaces.git_origin` (tekst, domyślnie pusty).
+To ostatnia znormalizowana tożsamość git origin odczytana przez workera, bez credentiali URL.
+Gateway zapisuje ją tylko dla workspace'u właściciela o nadal tej samej ścieżce i workerze.
+Zmiana ścieżki czyści wartość. Metadata pozostaje dostępna offline i po restarcie gatewaya;
+nie zmienia id ani właściciela projektu. [Reguły pickerów](linked-computers.md#tożsamość-projektu-według-git-origin).
+
 ## Wątki bez projektu (scratch)
 
 Migracja `0032_scratch_projects` dodaje `projects.kind`: `project` (domyślnie, także dla
