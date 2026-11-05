@@ -1936,6 +1936,9 @@ message EditQueuedTurnRequest {
   uint32 expected_revision = 3;
   // Wzmianki w nowym tekście (jak SendMessage.mentions); puste = bez wzmianek.
   repeated canopy.worker.v1.Mention mentions = 4;
+  // Klient wysyła pełną listę pozycji z edytora (plakietki plików, wzmianki). Bez tej flagi i bez wzmianek
+  // (starszy klient z edycją jako tekstem) gateway odnajduje dotychczasowe wzmianki w nowym tekście po ich znacznikach.
+  bool mentions_complete = 5;
 }
 
 message EditQueuedTurnResponse {

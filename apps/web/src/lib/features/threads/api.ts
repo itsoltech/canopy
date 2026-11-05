@@ -101,7 +101,10 @@ export async function reorderQueue(threadId: string, turnIds: readonly string[])
   return decode(ui.ReorderQueuedTurnsResponseSchema, await post(queuePath(threadId), { turnIds })).turns;
 }
 
-/** A queued message's new text with its mentions; `expectedRevision` = the `Turn.revision` the edit started from. */
+/**
+ * A queued message's new text with all its mentions (`mentionsComplete`: the gateway takes them as the whole set);
+ * `expectedRevision` = the `Turn.revision` the edit started from.
+ */
 export async function editQueued(
   threadId: string,
   turnId: string,
@@ -115,6 +118,7 @@ export async function editQueued(
       action: "edit",
       text,
       expectedRevision,
+      mentionsComplete: true,
       ...(mentions.length > 0 && { mentions: mentionsToWire(mentions) }),
     }),
   ).turn;

@@ -1,5 +1,5 @@
-import { create } from "@bufbuild/protobuf";
-import { MentionSchema, PermissionMode, type Mention, type ui } from "@canopy/contracts";
+import { PermissionMode, type ui } from "@canopy/contracts";
+import { readableText } from "#lib/features/mentions/editor.ts";
 import { effortLevel, modelDisplayName } from "#lib/features/models/catalog.ts";
 import { permissionLabel } from "../labels.ts";
 
@@ -43,28 +43,11 @@ export const steerable = (turn: ui.Turn): boolean => ownMessage(turn) && turn.at
 /** The message as the user wrote it (without the platform's note: attachments, mentions, a source). */
 export const messageOf = (turn: ui.Turn): string => turn.messageText || turn.inputText;
 
-/** The text a row shows: the message on one line. */
-export const queuedText = (turn: ui.Turn): string => messageOf(turn).replace(/\s+/g, " ").trim();
-
-/**
- * The mentions of `before` that are still in `after` (an inline edit is plain text): each chip's text, found again
- * in order, with its new range; a chip whose text was changed or removed is dropped.
- */
-export function relocateMentions(before: string, mentions: readonly Mention[], after: string): Mention[] {
-  let from = 0;
-
-  return [...mentions]
-    .sort((a, b) => a.start - b.start)
-    .flatMap((mention) => {
-      const token = before.slice(mention.start, mention.end);
-      const start = token ? after.indexOf(token, from) : -1;
-
-      if (start < 0) return [];
-      from = start + token.length;
-
-      return [create(MentionSchema, { ...mention, start, end: from })];
-    });
-}
+/** The text a row shows: the message on one line, each chip (a file's badge, a mention) as its name. */
+export const queuedText = (turn: ui.Turn): string =>
+  (turn.messageText ? readableText({ text: turn.messageText, mentions: turn.mentions }) : messageOf(turn))
+    .replace(/\s+/g, " ")
+    .trim();
 
 /** The message carries more than its text (files, quotes): it may be sent, and edited, without any. */
 export const carriesMore = (turn: ui.Turn): boolean => turn.attachments.length > 0 || turn.quotes.length > 0;

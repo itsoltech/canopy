@@ -85,7 +85,7 @@
               onsteer={() => void queue.steer(turn)}
               ondelete={() => void queue.remove(turn)}
               onedit={() => (queue.editing = turn.id)}
-              onsave={(text) => queue.edit(turn, text)}
+              onsave={(text, mentions) => queue.edit(turn, text, mentions)}
               oncancel={() => (queue.editing = undefined)}
               {ondelivery}
             />

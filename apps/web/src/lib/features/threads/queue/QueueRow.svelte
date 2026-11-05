@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@canopy/contracts";
+  import type { Mention, ui } from "@canopy/contracts";
   import { tick } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -52,7 +52,7 @@
     onsteer: () => void;
     ondelete: () => void;
     onedit: () => void;
-    onsave: (text: string) => Promise<string | undefined>;
+    onsave: (text: string, mentions: Mention[]) => Promise<string | undefined>;
     oncancel: () => void;
     ondelivery: (delivery: "steer" | "queue") => void;
     class?: ClassValue;
@@ -93,7 +93,13 @@
   {onkeydown}
 >
   {#if editing}
-    <QueueEditor text={messageOf(turn)} allowEmpty={carriesMore(turn)} {onsave} {oncancel} />
+    <QueueEditor
+      text={messageOf(turn)}
+      mentions={turn.messageText ? turn.mentions : []}
+      allowEmpty={carriesMore(turn)}
+      {onsave}
+      {oncancel}
+    />
   {:else}
     <div class="flex min-h-9 items-center gap-1 px-3 py-0.5">
       <QueueHandle label={text} bind:element={handle} {ondragstart} />

@@ -1,7 +1,7 @@
-import type { ui } from "@canopy/contracts";
+import type { Mention, ui } from "@canopy/contracts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
 import { deleteQueued, editQueued, reorderQueue, restoreQueued, steerQueued } from "../api.ts";
-import { messageOf, moveTo, ordered, relocateMentions } from "./queue.ts";
+import { moveTo, ordered } from "./queue.ts";
 
 /** Where the queue comes from (the thread's live state) and where confirmed changes go before the stream has them. */
 export interface QueueSource {
@@ -97,10 +97,9 @@ export class QueueState {
     }
   }
 
-  async edit(turn: ui.Turn, text: string): Promise<string | undefined> {
+  /** The editor's text with its chips' ranges (badges of files too): the whole set, so the gateway takes it as is. */
+  async edit(turn: ui.Turn, text: string, mentions: readonly Mention[]): Promise<string | undefined> {
     try {
-      // The chips the new text still has keep their mentions (the inline editor is plain text).
-      const mentions = relocateMentions(messageOf(turn), turn.mentions, text);
       const saved = await editQueued(this.#source().threadId, turn.id, text, turn.revision, mentions);
 
       if (saved) this.#sink.turn(saved);
