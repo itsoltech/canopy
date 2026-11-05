@@ -31,7 +31,7 @@ export function workState(thread: ui.Thread): WorkState {
 
   if (asksAgent(thread)) return "asks";
 
-  if (thread.status === "creating") return "starting";
+  if (thread.status === "creating" || thread.turnStarting) return "starting";
 
   if (thread.status === "running") return "running";
 

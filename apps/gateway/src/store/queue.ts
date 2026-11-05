@@ -2,6 +2,7 @@ import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import type { SteerRow } from "./steers.ts";
 import { Invalid, NotFound, type TurnRow } from "./store.ts";
+import { DISPATCHED } from "./turn-select.ts";
 
 /**
  * The queue a user manages (docs/ui-api.md, "Kolejka"): queued turns waiting behind the running one.
@@ -26,9 +27,6 @@ type LockedTurn = TurnRow & {
   started: boolean;
 };
 
-/** The turn has a live command (StartTurn): the scheduler took it, whatever its status says yet. */
-const DISPATCHED = `EXISTS (SELECT 1 FROM worker_commands c WHERE c.turn_id = u.id AND c.status IN ('pending', 'delivered', 'completed'))`;
-
 const lockThread = (sql: SqlClient.SqlClient, threadId: string, ownerUserId: string) =>
   sql<{
     id: string;
@@ -38,11 +36,14 @@ const lockThread = (sql: SqlClient.SqlClient, threadId: string, ownerUserId: str
 
 /** The turns with their sources (as GatewayStore.turnsOf), in the given order. */
 const read = (sql: SqlClient.SqlClient, ids: readonly string[]) =>
-  sql<TurnRow>`
-    SELECT u.*, s.*, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id
-      FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id WHERE u.id = ANY(${`{${ids.join(",")}}`}::uuid[])`.pipe(
-    Effect.map((rows) => ids.flatMap((id) => rows.filter((r) => r.id === id))),
-  );
+  sql
+    .unsafe<TurnRow>(
+      `
+    SELECT u.*, s.*, ${DISPATCHED} AS dispatched, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id
+      FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id WHERE u.id = ANY($1::uuid[])`,
+      [ids],
+    )
+    .pipe(Effect.map((rows) => ids.flatMap((id) => rows.filter((r) => r.id === id))));
 
 const readOne = (sql: SqlClient.SqlClient, id: string) => read(sql, [id]).pipe(Effect.map((rows) => rows[0]!));
 
@@ -252,8 +253,7 @@ export class QueueStore extends Context.Service<
               const head = yield* sql.unsafe<{ id: string }>(
                 `SELECT u.id FROM turns u
                   WHERE u.id = $1::uuid AND u.status = 'queued' AND u.revision = $2 AND NOT ${DISPATCHED}
-                    AND NOT EXISTS (SELECT 1 FROM turns q WHERE q.thread_id = u.thread_id AND q.status = 'queued' AND q.ordinal < u.ordinal
-                                      AND NOT EXISTS (SELECT 1 FROM worker_commands c WHERE c.turn_id = q.id AND c.status IN ('pending', 'delivered', 'completed')))`,
+                    AND NOT EXISTS (SELECT 1 FROM turns q WHERE q.thread_id = u.thread_id AND q.status = 'queued' AND q.ordinal < u.ordinal)`,
                 [turnId, revision],
               );
 

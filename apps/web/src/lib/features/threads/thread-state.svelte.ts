@@ -129,7 +129,7 @@ export class ThreadState {
   readonly inheritedTurns = $derived(this.turns.filter((t) => t.inherited));
   readonly inheritedEntries = $derived(this.entries.filter((e) => e.inherited));
   readonly running = $derived(this.ownTurns.some((t) => t.status === "running"));
-  readonly queued = $derived(this.ownTurns.filter((t) => t.status === "queued"));
+  readonly queued = $derived(this.ownTurns.filter((t) => t.status === "queued" && !t.dispatched));
   /** Background tasks still running (items `background_task` in progress), oldest first. */
   readonly backgroundTasks = $derived(
     this.ownEntries.filter((e) => e.item.content.case === "backgroundTask" && e.item.status === ItemStatus.IN_PROGRESS),

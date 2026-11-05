@@ -237,7 +237,7 @@ stateDiagram-v2
     failed --> archived
 ```
 
-- **Jedna tura w toku na wątek** (`turns_one_running`). Kolejne wejścia czekają jako `queued` i są wysyłane po zakończeniu bieżącej tury. Wstrzykiwanie wejścia w trakcie tury (Codex `turn/steer`) to późniejsza optymalizacja.
+- **Jedna tura w toku na wątek** (`turns_one_running`). Kolejne wejścia czekają jako `queued` i są wysyłane po zakończeniu bieżącej tury. `queued` z `Turn.dispatched = true` już startuje (komenda w outboxie), więc UI pokazuje ją na osi czasu i scheduler czeka na jej wynik przed kolejną turą. `running` potwierdza zdarzenie workera. Wiadomość może też wejść do tury w toku jako steer ([ui-api.md](ui-api.md#kolejka)).
 - `turn_id` generuje gateway przed wysłaniem, więc `StartTurn` jest idempotentne. `client_request_id` deduplikuje ponowione akcje z UI.
 - Każda komenda niesie pełny `ThreadSpec` (placement, ustawienia, `provider_thread_id`). Worker może więc wznowić wątek nawet po utracie lokalnego stanu. Baza jest źródłem prawdy, a SQLite workera to dziennik i cache.
 
