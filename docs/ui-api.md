@@ -76,9 +76,16 @@ Pusta lista konektorów zajmuje jeden wiersz „Connectors · None” z linkiem 
 
 `connectors.proto` i osiem RPC `GatewayService` obsługują katalog, nazwane konta,
 granty, test, disconnect, aplikacje OAuth oraz begin/complete autoryzacji.
-Publiczne DTO nie zwracają poświadczeń. BFF `/api/connectors/**` ustawia prywatne
-cookie sesji OAuth i przekazuje callback do gateway. Wynik callbacku jest jawny
-(`account` albo bezpieczny `error`) i kończy redirect również po odmowie/wygaśnięciu.
+Publiczne DTO nie zwracają poświadczeń. BFF `/api/connectors/**` wiąże sesję OAuth
+prywatnym cookie w webie, a w desktopie sekretem procesu BFF, i przekazuje callback
+do gateway. Wynik callbacku jest jawny
+(`account` albo bezpieczny `error`) i kończy się małą stroną wyniku, również po
+odmowie/wygaśnięciu. Strona nie wyświetla treści błędów dostawcy. Desktop pozwala
+na cross-site wyłącznie dla `GET /api/connectors/oauth/callback` z nawigacją
+dokumentu (`Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`, jeżeli obecne);
+Host nadal musi odpowiadać `CANOPY_WEB_ORIGIN`. To wspólna ścieżka dla wszystkich
+konektorów OAuth, także aplikacji GitHub i własnych MCP. Parowanie urządzeń nie
+korzysta z przekierowań do BFF i nie ma wyjątku od kontroli origin.
 
 Settings → Connectors korzysta z istniejących Dialog/Select/Checkbox/Disclosure.
 `features/connectors` dzieli konto, access picker, formularz aplikacji OAuth,

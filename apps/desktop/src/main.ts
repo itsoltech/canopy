@@ -12,7 +12,8 @@ import {
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { join, resolve } from "node:path";
 import type { QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
-import { initialStatus, origin, serviceEnvironment, type ConfigurationInput } from "./runtime/config.ts";
+import { initialStatus, serviceEnvironment, type ConfigurationInput } from "./runtime/config.ts";
+import { desktopLink } from "./desktop-link.ts";
 import type { ControllerArguments, ControllerResult } from "./controller.ts";
 import { ControllerConnection } from "./controller-connection.ts";
 import { loadSecrets } from "./vault.ts";
@@ -165,6 +166,8 @@ function showMain() {
     return;
   }
 
+  if (window.isMinimized()) window.restore();
+
   window.show();
   window.focus();
 }
@@ -215,30 +218,31 @@ async function openApplication() {
 }
 
 function enrollment(link: string) {
-  try {
-    const url = new URL(link);
+  const parsed = desktopLink(link, identity.scheme);
 
-    if (url.protocol !== `${identity.scheme}:` || url.hostname !== "enroll" || link.length > 8192) return;
-    const gatewayUrl = origin(url.searchParams.get("gateway"), "Gateway address");
-    const webUrl = origin(url.searchParams.get("web"), "Web address");
-    const enrollmentToken = url.searchParams.get("token") ?? "";
-    const gatewayFingerprint = url.searchParams.get("fingerprint") ?? "";
+  if (!parsed) return;
+  pendingLink = link;
 
-    if (gatewayFingerprint && !/^[a-f0-9]{64}$/i.test(gatewayFingerprint)) return;
+  if (!setupOrigin) return;
 
-    if (enrollmentToken.length < 16 || enrollmentToken.length > 4096) return;
-    pendingLink = link;
+  if (parsed.connectors) {
+    pendingLink = undefined;
 
-    if (!setupOrigin) return;
-    openSettings();
-    const target = settingsWindow ?? window;
+    if (status.phase === "running" && (!window || window.isDestroyed())) window = createWindow();
 
-    if (target && enrollmentReady.has(target.webContents.id)) {
-      pendingLink = undefined;
-      target.webContents.send("canopy:enrollment", { gatewayUrl, webUrl, enrollmentToken, gatewayFingerprint });
-    }
-  } catch {
-    /* Never log deep links containing an enrollment secret. */
+    showMain();
+
+    if (window && status.phase === "running") void window.loadURL(`${setupOrigin}/settings/connectors`);
+
+    return;
+  }
+
+  openSettings();
+  const target = settingsWindow ?? window;
+
+  if (target && enrollmentReady.has(target.webContents.id)) {
+    pendingLink = undefined;
+    target.webContents.send("canopy:enrollment", parsed.enrollment);
   }
 }
 

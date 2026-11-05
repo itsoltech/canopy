@@ -3,6 +3,7 @@ import type { Handle, ServerInit } from "@sveltejs/kit/hooks";
 import { documentAttributes } from "#lib/features/settings/appearance.ts";
 import { shellAppearance } from "#lib/server/shell-appearance.ts";
 import { requireServiceToken } from "#lib/server/gateway.ts";
+import { trustedDesktopRequest } from "#lib/server/desktop-origin.ts";
 
 export const init: ServerInit = () => {
   if (!building) requireServiceToken();
@@ -15,12 +16,7 @@ export const init: ServerInit = () => {
 export const handle: Handle = async ({ event, resolve }) => {
   const desktopOrigin = process.env["CANOPY_WEB_ORIGIN"];
 
-  if (
-    desktopOrigin &&
-    (event.request.headers.get("host") !== new URL(desktopOrigin).host ||
-      (event.request.headers.get("origin") && event.request.headers.get("origin") !== desktopOrigin) ||
-      event.request.headers.get("sec-fetch-site") === "cross-site")
-  )
+  if (!trustedDesktopRequest(event.request, event.url, desktopOrigin))
     return new Response("Untrusted desktop origin", { status: 403 });
   const page = !event.isDataRequest && !event.url.pathname.startsWith("/api/");
   const appearance = page && event.url.pathname !== "/desktop" ? shellAppearance() : undefined;

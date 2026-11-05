@@ -40,9 +40,17 @@ gRPC. Publiczny callback to `/api/connectors/oauth/callback` na origin Canopy.
 Gateway używa MCP SDK **1.32.2**: protected resource metadata (RFC 9728),
 metadata authorization servera (RFC 8414), DCR i Authorization Code + PKCE S256.
 Losowy, jednorazowy state ma TTL 10 minut, wiąże konto i właściciela oraz osobny
-sekret sesji przeglądarki w cookie HttpOnly/SameSite=Lax. Callback zużywa state
+sekret sesji przeglądarki w cookie HttpOnly/SameSite=Lax. Desktop otwiera
+autoryzację w przeglądarce systemowej, oddzielnej od sesji Electrona; zamiast
+cookie używa losowego powiązania przechowywanego wyłącznie w procesie lokalnego
+BFF. Restart BFF unieważnia rozpoczęte logowanie desktopu. Callback zużywa state
 atomowo przed wymianą kodu. Nie ufa origin ani adresowi powrotu z parametrów URL.
 Sekrety aplikacji wprowadza się raz na typ konektora w ustawieniach właściciela.
+Wynik to mała strona z ustalonym komunikatem; parametry dostawcy nie trafiają do
+HTML ani logów, a skrypt usuwa je z bieżącego adresu. W desktopie strona próbuje
+otworzyć `canopy://connectors` i ma przycisk „Open Canopy”, gdy przeglądarka
+wymaga kliknięcia. Link pokazuje ustawienia konektorów; powrót fokusu także
+odświeża stan kont. W Electronie wynik wraca bezpośrednio do ustawień.
 Każde konto zachowuje własną rejestrację/tokeny; odświeżanie jest serializowane
 blokadą konta w PostgreSQL, również przy wielu gatewayach. Brak możliwości
 odświeżenia oznacza `needs_reconnect`. Disconnect najpierw odbiera dostęp,
