@@ -12,9 +12,13 @@
   import { sectionMemory, sectionOf, type Section } from "./sections.svelte.ts";
   import SidebarThreads from "./SidebarThreads.svelte";
   import SidebarProjectFilter from "./SidebarProjectFilter.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
+  import { useAddProject } from "#lib/features/projects/add/add-project.svelte.ts";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   const capabilities = useGatewayCapabilities();
+  const addProject = useAddProject();
 
   /**
    * App sidebar: logo and the section's "new" action, the Threads | Bots switch (follows the route;
@@ -86,7 +90,15 @@
         </button>
       {/if}
     </label>
-    {#if section === "threads"}<SidebarProjectFilter />{/if}
+    {#if section === "threads"}
+      <SidebarProjectFilter />
+      {#if addProject}<IconButton
+          icon="folder-plus"
+          label="Add project"
+          tooltipOptions={{ hotkey: keybindings.get("new-project")[0] }}
+          onclick={() => addProject.show()}
+        />{/if}
+    {/if}
   </div>
 
   <nav class="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label={section === "threads" ? "Threads" : "Bots"}>
