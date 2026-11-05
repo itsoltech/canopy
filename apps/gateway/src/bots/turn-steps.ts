@@ -15,6 +15,7 @@ const elevated = (permission: JsonValue | undefined) =>
 
 /** The runtime's options and store access, for the steps of a turn. */
 export interface TurnStep {
+  expiresAt?: Date;
   keepLease?: boolean;
   options: BotRuntimeOptions;
   run<A, E>(use: (store: BotStore["Service"]) => Effect.Effect<A, E>): Promise<A>;
@@ -75,7 +76,7 @@ export async function runToolCall(
           : (prepared?.prompt ?? approvalPrompt(tool, requested.arguments, phrase));
 
         const approval = await ctx
-          .run((s) => s.approval(turn, call, prompt, question))
+          .run((s) => s.approval(turn, call, prompt, question, ctx.expiresAt))
           .catch((cause: unknown) => {
             result = platformError(cause);
 

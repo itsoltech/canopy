@@ -16,6 +16,8 @@ import { isJsonArray, isJsonObject } from "../bots/json.ts";
 
 type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound | Invalid>;
 
+export const QUESTION_TIMEOUT_MS = 120_000;
+
 export interface QuestionDelivery {
   threadId: string;
   turn?: TurnRow;
@@ -42,57 +44,69 @@ function askingTurn(sql: SqlClient.SqlClient, source: CallSource) {
       AND thread_id = ${source.threadId}::uuid`;
 }
 
-export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
-  return {
-    askUser: (source, args, hops, abandoned = false) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          const threads = yield* sql<{
-            interaction_route: string;
-          }>`SELECT interaction_route FROM threads WHERE id = ${source.threadId}::uuid AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`;
+function askUser(
+  sql: SqlClient.SqlClient,
+  source: CallSource,
+  args: AgentBusArgs["ask_user"],
+  hops: number,
+  abandoned = false,
+): Fx<ui.Interaction> {
+  return sql.withTransaction(
+    Effect.gen(function* () {
+      const threads = yield* sql<{
+        interaction_route: string;
+      }>`SELECT interaction_route FROM threads WHERE id = ${source.threadId}::uuid AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE`;
 
-          if (!threads[0]) return yield* Effect.fail(new NotFound("thread not found"));
+      if (!threads[0]) return yield* Effect.fail(new NotFound("thread not found"));
 
-          const existing =
-            yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE question_call_id = ${source.callId}::uuid`;
+      const existing =
+        yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE question_call_id = ${source.callId}::uuid`;
 
-          if (existing[0]) {
-            if (abandoned && existing[0].question_wait && existing[0].status === "pending") {
-              const expired = yield* sql<InteractionRow>`UPDATE interaction_requests
+      if (existing[0]) {
+        if (abandoned && existing[0].question_wait && existing[0].status === "pending") {
+          const expired = yield* sql<InteractionRow>`UPDATE interaction_requests
                 SET status = 'expired', answered_at = now() WHERE id = ${existing[0].id}::uuid RETURNING *`;
 
-              yield* writeInteractionTimeline(sql, expired[0]!);
+          yield* writeInteractionTimeline(sql, expired[0]!);
 
-              return toInteraction(expired[0]!);
-            }
+          return toInteraction(expired[0]!);
+        }
 
-            return toInteraction(existing[0]);
-          }
+        return toInteraction(existing[0]);
+      }
 
-          const turn = yield* askingTurn(sql, source);
+      const turn = yield* askingTurn(sql, source);
 
-          if (!turn[0]) return yield* Effect.fail(new Invalid("ask_user requires a turn"));
+      if (!turn[0]) return yield* Effect.fail(new Invalid("ask_user requires a turn"));
 
-          const expired =
-            abandoned || (args.wait && ["completed", "interrupted", "failed", "cancelled"].includes(turn[0].status));
+      const expired =
+        abandoned || (args.wait && ["completed", "interrupted", "failed", "cancelled"].includes(turn[0].status));
 
-          yield* sql`
+      const expiresAt = args.wait
+        ? new Date(Math.min(Date.now() + QUESTION_TIMEOUT_MS, source.expiresAt?.getTime() ?? Infinity))
+        : null;
+
+      yield* sql`
         INSERT INTO agent_bus_calls(id, source_thread_id, source_turn_id, source_item_id, tool, arguments, status, result, completed_at, hops, target_thread_id)
         VALUES (${source.callId}::uuid, ${source.threadId}::uuid, ${source.turnId}::uuid, ${source.itemId}, 'ask_user', ${JSON.stringify(args)}::jsonb,
                 'completed', ${JSON.stringify(questionResult(source.callId, expired ? "expired" : "pending", null))}::jsonb, now(), ${abandoned ? turn[0].hops + 1 : hops}, ${source.threadId}::uuid)`;
 
-          const rows = yield* sql<InteractionRow>`
-        INSERT INTO interaction_requests(id, thread_id, turn_id, item_id, kind, tool_name, request, routed_to, question_call_id, question_wait, status, answered_at)
+      const rows = yield* sql<InteractionRow>`
+        INSERT INTO interaction_requests(id, thread_id, turn_id, item_id, kind, tool_name, request, routed_to, question_call_id, question_wait, status, answered_at, expires_at)
         VALUES (${source.callId}::uuid, ${source.threadId}::uuid, ${source.turnId}::uuid, ${source.itemId}, 'question', 'ask_user',
                 ${JSON.stringify(args)}::jsonb, ${threads[0].interaction_route}, ${source.callId}::uuid, ${args.wait},
-                ${expired ? "expired" : "pending"}, CASE WHEN ${expired} THEN now() END) RETURNING *`;
+                ${expired ? "expired" : "pending"}, CASE WHEN ${expired} THEN now() END, ${expiresAt}) RETURNING *`;
 
-          yield* writeInteractionTimeline(sql, rows[0]!);
+      yield* writeInteractionTimeline(sql, rows[0]!);
 
-          return toInteraction(rows[0]!);
-        }),
-      ),
+      return toInteraction(rows[0]!);
+    }),
+  );
+}
 
+export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
+  return {
+    askUser: (source, args, hops, abandoned) => askUser(sql, source, args, hops, abandoned),
     getAnswers: (source, id, consume) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -117,7 +131,13 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
             }
           }
 
-          return row.status === "pending" ? { ...result, waiting: alive.length > 0 } : result;
+          return row.status === "pending"
+            ? {
+                ...result,
+                waiting: alive.length > 0,
+                ...(row.expires_at && { expires_at: new Date(row.expires_at).toISOString() }),
+              }
+            : result;
         }),
       ),
 

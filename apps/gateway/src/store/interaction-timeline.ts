@@ -1,5 +1,5 @@
 import { create, toJson } from "@bufbuild/protobuf";
-import { timestampNow } from "@bufbuild/protobuf/wkt";
+import { timestampNow, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { InteractionKind, ItemSchema, ItemStatus, ThreadEventSchema } from "@canopy/contracts";
 import { Effect, Match } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -36,6 +36,7 @@ export function writeInteractionTimeline(sql: SqlClient.SqlClient, row: Interact
           outcome: pending ? "" : row.status,
           routedTo: row.routed_to,
           asynchronous: row.question_wait === false,
+          expiresAt: row.expires_at ? timestampFromDate(new Date(row.expires_at)) : undefined,
         },
       },
     });

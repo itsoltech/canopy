@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
   createSdkMcpServer,
   type McpSdkServerConfigWithInstance,
@@ -14,7 +15,9 @@ import type { JsonValue } from "@canopy/domain";
 import { Schema } from "effect";
 import { decodeJsonObject, isString } from "../json.ts";
 
-const decodeExtra = Schema.decodeUnknownSync(Schema.Struct({ _meta: Schema.optionalKey(Schema.JsonObject) }));
+const decodeExtra = Schema.decodeUnknownSync(
+  Schema.Struct({ _meta: Schema.optionalKey(Schema.UndefinedOr(Schema.JsonObject)) }),
+);
 
 /**
  * Agent bus tools for Claude: an in-process MCP server "canopy" (tools `mcp__canopy__<name>`),
@@ -34,11 +37,19 @@ export interface ClaudeBusOptions {
   turnId(): string;
   /** tool_use id of a call by tool name and arguments, from the streamed assistant message. */
   toolUseId(tool: string, args: JsonValue): string | undefined;
-  callTool(call: AgentToolCall): Promise<AgentToolResult>;
+  callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult>;
 }
 
 /** Longer than the longest wait_threads (300 s): the gateway answers every call, a timeout would orphan it. */
-const BUS_TIMEOUT_MS = 330_000;
+export const BUS_TIMEOUT_MS = 330_000;
+
+/** The same bound configures the SDK and cancels the durable gateway wait. */
+function timedCall(options: ClaudeBusOptions, call: AgentToolCall): Promise<AgentToolResult> {
+  const deadline = Date.now() + BUS_TIMEOUT_MS;
+  call.expiresAt = timestampFromDate(new Date(deadline));
+
+  return options.callTool(call, AbortSignal.timeout(Math.max(0, deadline - Date.now())));
+}
 
 export function claudeBusToolNames(depth: number): string[] {
   return agentBusToolsFor(depth).map((name) => `mcp__${BUS_SERVER}__${name}`);
@@ -69,7 +80,8 @@ export function claudeBusServer(options: ClaudeBusOptions): McpSdkServerConfigWi
                 ? meta["claudecode/toolUseId"]
                 : (options.toolUseId(spec.name, args) ?? crypto.randomUUID());
 
-              const result = await options.callTool(
+              const result = await timedCall(
+                options,
                 create(AgentToolCallSchema, {
                   callId: toolCallId(options.threadId, id),
                   threadId: options.threadId,
@@ -133,7 +145,8 @@ function busTools(options: ClaudeBusOptions) {
 
           const useId = fromMeta ?? options.toolUseId(spec.name, args) ?? crypto.randomUUID();
 
-          const result = await options.callTool(
+          const result = await timedCall(
+            options,
             create(AgentToolCallSchema, {
               callId: toolCallId(options.threadId, useId),
               threadId: options.threadId,

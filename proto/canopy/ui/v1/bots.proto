@@ -80,6 +80,8 @@ message BotApproval {
   repeated string options = 9;
   // Labelled values preserve multi-paragraph tool input without parsing prose.
   repeated BotApprovalField fields = 601;
+  // Absent for unbounded waits, including HTTP MCP without a known timeout.
+  google.protobuf.Timestamp expires_at = 602;
   // Pełny, trwały podgląd create_bot, bez sekretów i MCP. Wykonanie używa tego snapshotu.
   BotConfiguration proposed_bot = 600;
   string routine_title = 560;

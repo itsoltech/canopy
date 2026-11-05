@@ -1,4 +1,5 @@
 import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { ThreadEventSchema, ui, type InteractionRequest, type ThreadEvent } from "@canopy/contracts";
 import { decodeUserAnswers } from "@canopy/domain";
 import { Effect, Result } from "effect";
@@ -79,7 +80,7 @@ function interactionExpiry(
               UPDATE interaction_requests q SET status = 'expired', answered_at = now()
                 FROM turns u
                WHERE u.id = q.turn_id AND q.thread_id = ${threadId}::uuid AND q.status = 'pending'
-                 AND u.status IN ('completed', 'interrupted', 'failed', 'cancelled')
+                 AND (u.status IN ('completed', 'interrupted', 'failed', 'cancelled') OR q.expires_at <= now())
                  AND (q.question_call_id IS NULL OR q.question_wait)
               RETURNING q.*`;
 
@@ -120,11 +121,11 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
           }
 
           const rows = yield* sql<InteractionRow>`
-                INSERT INTO interaction_requests (id, thread_id, turn_id, item_id, kind, tool_name, request, routed_to)
+                INSERT INTO interaction_requests (id, thread_id, turn_id, item_id, kind, tool_name, request, routed_to, expires_at)
                 VALUES (${request.requestId}::uuid, ${request.threadId}::uuid,
                         (SELECT id FROM turns WHERE id = ${request.turnId || null}::uuid AND thread_id = ${request.threadId}::uuid),
                         ${request.itemId || null}, ${interactionKind(request.kind)}, ${request.toolName}, ${request.requestJson || "{}"}::jsonb,
-                        ${thread.interaction_route})
+                        ${thread.interaction_route}, ${request.expiresAt ? timestampDate(request.expiresAt) : null})
                 ON CONFLICT (id) DO UPDATE SET request = interaction_requests.request
                 RETURNING *`;
 
@@ -168,7 +169,10 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
             const ended = yield* sql`SELECT id FROM turns WHERE id = ${current.turn_id}::uuid
             AND status IN ('completed', 'interrupted', 'failed', 'cancelled')`;
 
-            if (ended.length && (!current.question_call_id || current.question_wait)) {
+            if (
+              (ended.length || (current.expires_at && new Date(current.expires_at).getTime() <= Date.now())) &&
+              (!current.question_call_id || current.question_wait)
+            ) {
               const rows =
                 yield* sql<InteractionRow>`UPDATE interaction_requests SET status = 'expired', answered_at = now()
               WHERE id = ${requestId}::uuid RETURNING *`;

@@ -37,6 +37,7 @@ export interface MessageRow {
 }
 
 export interface ApprovalRow {
+  expires_at?: Date | null;
   id: string;
   bot_id: string;
   turn_id: string;
@@ -109,6 +110,7 @@ export const approvalView = (row: ApprovalRow) =>
         : [],
     status: row.status,
     answer: row.answer,
+    expiresAt: row.expires_at ? timestampFromDate(new Date(row.expires_at)) : undefined,
     createdAt: timestampFromDate(new Date(row.created_at)),
     options: Array.isArray(row.options)
       ? row.options

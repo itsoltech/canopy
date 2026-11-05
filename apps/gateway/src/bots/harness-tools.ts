@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { AgentToolResultSchema, type AgentToolCall, type AgentToolResult } from "@canopy/contracts";
 import { Schema } from "effect";
 import type { BotRuntimeOptions } from "./runtime.ts";
@@ -31,6 +32,8 @@ export class HarnessTools {
     return task;
   }
   async #handle(call: AgentToolCall, workerId: string): Promise<AgentToolResult> {
+    const expiresAt = call.expiresAt ? timestampDate(call.expiresAt) : undefined;
+
     const reply = (content: string, isError = false) =>
       create(AgentToolResultSchema, {
         callId: call.callId,
@@ -42,6 +45,12 @@ export class HarnessTools {
     if (!call.botId || call.threadId !== call.botId) return reply("Bot turn unavailable", true);
 
     for (;;) {
+      if (expiresAt && Date.now() >= expiresAt.getTime()) {
+        await this.run((s) => s.abandonHarnessCall(this.options.userId, workerId, call));
+
+        return reply("This request expired.", true);
+      }
+
       if (!(await this.run((s) => s.harnessAuthorized(this.options.userId, workerId, call.botId, call.turnId))))
         return reply("Bot turn unavailable", true);
       const active = this.active(call.turnId);
@@ -69,7 +78,7 @@ export class HarnessTools {
         const args = Schema.decodeUnknownSync(Schema.JsonObject)(JSON.parse(call.argumentsJson));
 
         const result = await runToolCall(
-          { options: this.options, run: this.run, keepLease: true },
+          { options: this.options, run: this.run, keepLease: true, ...(expiresAt && { expiresAt }) },
           turn,
           active.abort,
           tools,

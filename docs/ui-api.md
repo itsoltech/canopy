@@ -554,6 +554,20 @@ Nieodpowiedziana interakcja blokująca wygasa po zakończeniu pytającej tury;
 `ask_user(wait: true)` także po limicie 120 s. Stan `expired` jest zapisany na osi
 czasu i publikowany w strumieniu. `AnswerInteraction` odrzuca spóźnioną odpowiedź
 `FailedPrecondition: This request expired.`, także przed sweepem porządkującym turę.
+
+Znany termin odpowiedzi jest trwałym `expires_at` w `Interaction`, osi czasu
+(`InteractionPrompt`) i `BotApproval`. Synchroniczne `ask_user` zapisuje termin 120 s
+przy utworzeniu; ponowienie nie zaczyna odliczania od nowa. Wcześniejszy termin
+transportu wygrywa. In-process MCP Claude przekazuje i egzekwuje 330 s z tej samej
+stałej, która konfiguruje SDK. Natywne interakcje bez znanego limitu, asynchroniczne
+pytania i HTTP MCP botów bez limitu Canopy nie dostają terminu.
+
+Web pokazuje `Expires in 1:45`, bursztynowo w ostatnich 25 s. Wartość aktualizuje się
+co sekundę lokalnie w karcie, bez animacji i bez przesuwania zawartości. Przy zerze
+pokazuje `Expiring…`; dopiero zdarzenie gatewaya rozstrzyga o wygaśnięciu. Aplikacja
+nie ma offsetu zegara serwera, więc odliczanie używa zegara klienta (jego rozbieżność
+może zmienić wskazanie, nigdy stan prośby). Natywna aplikacja mobilna otrzymuje pole
+w kontrakcie, ale prezentacja odliczania jest odłożona do osobnej zmiany mobile UX.
 Pytania asynchroniczne zachowują możliwość odpowiedzi w kolejnej turze.
 
 `ComposerTop` to wspólna powierzchnia/slot nad polem wiadomości: panel subagentów, kolejka i pytania tworzą jeden stos z jednym nachodzeniem na composer. Warianty `embedded` paneli nie dodają własnych obwódek ani przesunięć. `Composer` wybiera najstarszy zestaw blokujący przed async, przechowuje szkice per id zestawu i używa osobnego `MessageComposer` do zwykłych wiadomości.

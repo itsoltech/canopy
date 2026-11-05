@@ -10,6 +10,8 @@
   import type { QuestionSession } from "./question-session.svelte.ts";
   import ComposerPanelHeader from "../ComposerPanelHeader.svelte";
   import DecisionContent from "./DecisionContent.svelte";
+  import RequestCountdown from "#lib/shared/ui/RequestCountdown.svelte";
+  import { timestampDate } from "@bufbuild/protobuf/wkt";
 
   let {
     session,
@@ -92,6 +94,12 @@
   class={["flex max-h-[70dvh] min-w-0 flex-col", className]}
   aria-label="Questions from the agent"
 >
+  <div class="flex justify-end px-3">
+    <RequestCountdown
+      expiresAt={session.interaction.expiresAt ? timestampDate(session.interaction.expiresAt) : undefined}
+      pending={!session.expired && session.interaction.status === "pending"}
+    />
+  </div>
   {#if session.expired}
     <p role="status" class="flex min-h-16 items-center p-3 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
       Expired. The agent no longer needs an answer.

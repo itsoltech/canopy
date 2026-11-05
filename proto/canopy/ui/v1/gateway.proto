@@ -701,6 +701,8 @@ message Interaction {
   google.protobuf.Timestamp created_at = 10;
   // Pytanie platformy wait=false: agent pracuje dalej, odpowiedź trafia jako steer lub nowa tura.
   bool asynchronous = 250;
+  // Absent when the asking side has no known response timeout.
+  google.protobuf.Timestamp expires_at = 251;
 }
 
 // ---------- Overview ----------

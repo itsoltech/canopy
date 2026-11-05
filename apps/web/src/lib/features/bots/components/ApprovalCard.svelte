@@ -7,6 +7,7 @@
   import Textarea from "#lib/shared/ui/Textarea.svelte";
   import RequestField from "#lib/shared/ui/RequestField.svelte";
   import RequestText from "#lib/shared/ui/RequestText.svelte";
+  import RequestCountdown from "#lib/shared/ui/RequestCountdown.svelte";
   import type { ApprovalView } from "../model.ts";
   import ChatCard from "./ChatCard.svelte";
   import CreateBotPreview from "./CreateBotPreview.svelte";
@@ -102,6 +103,7 @@
     {:else}
       <p class="text-sm/5 font-medium text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Approval request</p>
     {/if}
+    <RequestCountdown expiresAt={approval.expiresAt} pending={approval.status === "pending"} class="text-right" />
   </header>
   {#if approval.routineTitle}<p class="px-4 pt-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
       From routine “{approval.routineTitle}”

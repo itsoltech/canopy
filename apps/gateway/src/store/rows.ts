@@ -168,6 +168,7 @@ export interface InteractionResponse {
 }
 
 export interface InteractionRow {
+  expires_at?: Date | null;
   id: string;
   thread_id: string;
   turn_id: string | null;

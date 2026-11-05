@@ -147,6 +147,7 @@ function questionView(a: bots.BotApproval): QuestionView {
   return {
     id: a.id,
     at: dateOf(a.createdAt),
+    expiresAt: a.expiresAt ? dateOf(a.expiresAt) : undefined,
     askedBy: a.botId,
     prompt: a.prompt,
     options,
@@ -195,6 +196,7 @@ export function approvalView(a: bots.BotApproval): ApprovalView {
   return {
     id: a.id,
     at: dateOf(a.createdAt),
+    expiresAt: a.expiresAt ? dateOf(a.expiresAt) : undefined,
     askedBy: a.botId,
     action: heading.replace(/^Needs approval · /, "") || "Use a tool",
     fields: a.fields.length ? a.fields : fields,

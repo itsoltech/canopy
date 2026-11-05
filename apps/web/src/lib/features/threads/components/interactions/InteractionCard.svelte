@@ -9,6 +9,8 @@
   import PermissionRequest from "./PermissionRequest.svelte";
   import ThreadLink from "../items/ThreadLink.svelte";
   import DecisionContent from "./DecisionContent.svelte";
+  import RequestCountdown from "#lib/shared/ui/RequestCountdown.svelte";
+  import { timestampDate } from "@bufbuild/protobuf/wkt";
 
   /**
    * The agent is blocked on a person: a permission (allow / deny), questions or an MCP form.
@@ -80,6 +82,10 @@
     >
     <div class="min-w-0 flex-1">
       <h2 id="{id}-title" class="text-base/6 font-semibold text-zinc-950 dark:text-white">{title}</h2>
+      <RequestCountdown
+        expiresAt={interaction.expiresAt ? timestampDate(interaction.expiresAt) : undefined}
+        pending={!expired && interaction.status === "pending"}
+      />
       {#if interaction.routedTo === "parent"}
         <p class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm/5 text-violet-700 dark:text-violet-400">
           <Icon name="sparkles" tone="inherit" class="size-3.5" />
