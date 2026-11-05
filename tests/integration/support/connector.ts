@@ -12,6 +12,9 @@ export function fakeConnector(options: { call?: (name: string, args: JsonValue) 
   const revoked: string[] = [];
   let refreshes = 0;
   let registrations = 0;
+  const registrationRedirects: string[][] = [];
+  const tokenRedirects: string[] = [];
+  let codeChallengeMethods: string[] | undefined = ["S256"];
   let rejectRefresh = false;
   let failCatalog = false;
   let readOnlyTools = ["read_marker"];
@@ -36,7 +39,7 @@ export function fakeConnector(options: { call?: (name: string, args: JsonValue) 
           revocation_endpoint: `${url}/revoke`,
           response_types_supported: ["code"],
           grant_types_supported: ["authorization_code", "refresh_token"],
-          code_challenge_methods_supported: ["S256"],
+          ...(codeChallengeMethods && { code_challenge_methods_supported: codeChallengeMethods }),
           token_endpoint_auth_methods_supported: ["none", "client_secret_post"],
         });
 
@@ -44,6 +47,7 @@ export function fakeConnector(options: { call?: (name: string, args: JsonValue) 
         const body = (await request.json()) as { redirect_uris: string[] };
         const id = crypto.randomUUID();
         clients.set(id, { redirect: body.redirect_uris[0]! });
+        registrationRedirects.push(body.redirect_uris);
         registrations++;
 
         return Response.json({ ...body, client_id: id, token_endpoint_auth_method: "none" }, { status: 201 });
@@ -78,6 +82,7 @@ export function fakeConnector(options: { call?: (name: string, args: JsonValue) 
           return Response.json({ error: "invalid_client" }, { status: 401 });
 
         if (p.get("grant_type") === "authorization_code") {
+          tokenRedirects.push(p.get("redirect_uri") ?? "");
           const code = codes.get(p.get("code") ?? "");
           codes.delete(p.get("code") ?? "");
 
@@ -205,6 +210,11 @@ export function fakeConnector(options: { call?: (name: string, args: JsonValue) 
     secret,
     calls,
     revoked,
+    registrationRedirects,
+    tokenRedirects,
+    set codeChallengeMethods(value: string[] | undefined) {
+      codeChallengeMethods = value;
+    },
     get tokens() {
       return [...access, ...refresh];
     },

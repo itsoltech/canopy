@@ -51,15 +51,25 @@ HTML ani logów, a skrypt usuwa je z bieżącego adresu. W desktopie strona pró
 otworzyć `canopy://connectors` i ma przycisk „Open Canopy”, gdy przeglądarka
 wymaga kliknięcia. Link pokazuje ustawienia konektorów; powrót fokusu także
 odświeża stan kont. W Electronie wynik wraca bezpośrednio do ustawień.
-### Stały redirect zarejestrowanych aplikacji
+### Stały redirect OAuth
 
-Aplikacje bez DCR (`oauth_app_required`: Slack, GitHub OAuth app) mają **jeden stały
-redirect URL dla wszystkich instalacji**: statyczną stronę
+Nowe rejestracje DCR oraz aplikacje bez DCR (`oauth_app_required`: Slack, GitHub OAuth app)
+korzystają z **jednego stałego redirect URL dla wszystkich instalacji**: statycznej strony
 `https://itsoltech.github.io/canopy/oauth/callback` (GitHub Pages tego repozytorium,
 źródło `site/oauth/`, workflow `pages.yml`). Dzięki temu manifest aplikacji Slack jest
 identyczny wszędzie, współpracownicy mogą dzielić jedną aplikację bez dopisywania
 własnych redirectów, a dostawca widzi wyłącznie adres HTTPS — także gdy Canopy działa
 na `http://` w sieci lokalnej.
+
+Warunkiem użycia tej strony jest jawne ogłoszenie `S256` w
+`code_challenge_methods_supported` metadanych serwera autoryzacji. Gateway wybiera adres
+po discovery, przed DCR. Przy DCR wysyła `redirect_uris = [stały adres]`. Dotyczy to
+Notion, Linear, Atlassian i własnych serwerów MCP, a także endpointów Microsoft 365
+i Google Workspace skonfigurowanych przez właściciela. Decydują metadane konkretnego
+serwera, nie nazwa konektora. Bez ogłoszonego S256 DCR zachowuje callback instalacji;
+SDK nadal wysyła challenge S256 i odrzuca metadane jawnie wykluczające tę metodę.
+Zapisana aplikacja ze stałym redirectem bez ogłoszonego S256 nie rozpoczyna logowania.
+Uwierzytelnianie tokenem lub nagłówkami nie używa redirectów.
 
 Gateway używa tego adresu jako `redirect_uri` w autoryzacji i w wymianie kodu (PKCE S256
 pozostaje obowiązkowe), a drogę powrotu zapisuje w `state`
@@ -71,7 +81,8 @@ logowania, query i fragmentu; inaczej pokazuje błąd (brak open redirect). Ma
 hashem, nie ładuje skryptów zewnętrznych ani analityki i usuwa query z historii.
 
 Dlaczego to bezpieczne: przez przeglądarkę przechodzi tylko jednorazowy, krótko ważny
-kod, bezużyteczny bez client secret i weryfikatora PKCE, które ma wyłącznie gateway.
+kod, bezużyteczny bez weryfikatora PKCE, który ma wyłącznie gateway
+(oraz client secret, jeśli aplikacja go ma). Dotyczy to również publicznych klientów DCR.
 Gateway przechowuje tylko hash całego `state`, więc zmieniony adres powrotu, obcy albo
 powtórzony state nie pasuje: callback nadal sprawdza state jednorazowo, z właścicielem,
 powiązaniem przeglądarki i TTL 10 minut. Strona niczego nie dodaje do tego, czemu gateway
@@ -95,8 +106,18 @@ Trzy drogi powrotu:
 `CANOPY_OAUTH_REDIRECT_URL` zmienia stały adres (HTTPS albo loopback). Instalacja może
 wskazać własny callback i ominąć stronę; wtedy musi go zarejestrować u dostawcy. Zapisana
 aplikacja pamięta redirect, z którym ją zapisano, więc późniejsza zmiana zmiennej nie psuje
-istniejących aplikacji. Aplikacje zapisane przed tą zmianą (bez zapisanego redirectu)
-nadal używają callbacku instalacji. Typy z DCR rejestrują callback instalacji jak dotąd.
+istniejących aplikacji. Ręczne aplikacje zapisane bez redirectu nadal używają callbacku
+instalacji; formularz Advanced pokazuje dla nich ten adres. Nie można automatycznie
+zmienić redirectu aplikacji zarejestrowanej ręcznie u dostawcy.
+
+Klient DCR pamięta dokładny redirect w zaszyfrowanych poświadczeniach konta
+(`Credentials.redirectUri`). Zmiana konfiguracji nie zmienia rozpoczętej wymiany kodu
+ani odświeżania istniejących tokenów. Stare rejestracje nadal działają. Dopiero jawne
+Reconnect wykonuje discovery ponownie i wybiera aktualny adres: stały dla S256,
+callback instalacji bez ogłoszonego S256 albo override. Gdy adres i issuer są takie
+same, używa istniejącego klienta; gdy się zmienią, rejestruje nowego. Zmiana endpointu
+lub sposobu uwierzytelniania usuwa poprzednią rejestrację. W obu krokach jednej sesji
+(autoryzacja i wymiana kodu) gateway wysyła identyczny `redirect_uri`.
 
 Każde konto zachowuje własną rejestrację/tokeny; odświeżanie jest serializowane
 blokadą konta w PostgreSQL, również przy wielu gatewayach. Brak możliwości

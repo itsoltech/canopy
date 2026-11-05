@@ -2,7 +2,7 @@ import { connectors } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { connectorType, connectorUrl } from "./catalog.ts";
-import { checked, digest, fail } from "./records.ts";
+import { checked, digest, fail, type Credentials } from "./records.ts";
 import type { ConnectorBase } from "./accounts.ts";
 
 /** Saving accounts and their worker and bot access. */
@@ -47,7 +47,7 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase) {
                 .slice(0, 12) || "account"
             }_${digest(id).slice(0, 8)}`;
 
-          let value = old ? yield* credentials(old) : {};
+          let value: Credentials = old ? yield* credentials(old) : {};
 
           const replacing =
             request.replaceCredentials || !old || !!request.token || Object.keys(request.headers).length > 0;
@@ -70,7 +70,15 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase) {
 
             if (new Set(Object.keys(headers).map((h) => h.toLowerCase())).size !== Object.keys(headers).length)
               return yield* fail("Duplicate connector header");
-            value = { headers };
+            // Reconnect clears tokens, but a DCR client for the same endpoint can be reused after discovery.
+            value = {
+              headers,
+              ...(old?.url === url &&
+                old.transport === transport &&
+                old.auth_kind === "oauth" &&
+                authKind === "oauth" &&
+                value.client && { client: value.client, redirectUri: value.redirectUri }),
+            };
           }
 
           const status = replacing ? (authKind === "oauth" ? "needs_reconnect" : "connected") : old!.status;

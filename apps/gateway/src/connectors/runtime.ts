@@ -7,7 +7,6 @@ import {
   type ConnectorTool,
   type ThreadEvent,
 } from "@canopy/contracts";
-import { randomBytes } from "node:crypto";
 import type { JsonObject } from "@canopy/domain";
 import { Effect, Schema } from "effect";
 import { GatewayStore } from "../store/store.ts";
@@ -15,7 +14,7 @@ import type { CoreRuntime } from "../core/core.ts";
 import { mcpCall, mcpTools } from "../bots/mcp.ts";
 import type { McpConnection, ToolSpec } from "../bots/types.ts";
 import { connectorCatalog, connectorType, connectorUrl } from "./catalog.ts";
-import { isOAuthState, parsePastedCode, returnState } from "@canopy/domain/oauth-return";
+import { isOAuthState, parsePastedCode } from "@canopy/domain/oauth-return";
 import {
   ConnectorFailure,
   digest,
@@ -25,6 +24,7 @@ import {
   type ExecutionSource,
 } from "./store.ts";
 import { authorizeOAuth, redactConnector, revokeOAuth } from "./oauth.ts";
+import { beginOAuth } from "./sign-in.ts";
 import { connectorPermission, failed, handleConnectorCall } from "./calls.ts";
 import { worktreeMerged } from "./merged-pr.ts";
 
@@ -92,14 +92,14 @@ export class ConnectorsRuntime {
 
     if (row.auth_kind !== "oauth") throw new ConnectorFailure("This account uses token authentication");
     const app = await this.run((s) => s.app(this.options.userId, row.connector_type));
-    const nonce = randomBytes(32).toString("base64url");
-    // A registered app keeps the redirect URL it was saved with; the redirect page reads the way back from state.
-    const fixed = app?.redirect_uri && app.redirect_uri !== redirect ? app.redirect_uri : "";
-    const state = fixed ? returnState(nonce, request.desktop ? { desktop: true } : { callback: redirect }) : nonce;
-    const value: Credentials = { redirectUri: fixed || redirect, ...(app && { client: app }) };
+    const previous = await this.run((s) => s.credentials(row));
 
     try {
-      const url = await authorizeOAuth(row.url, value, state, request.scope || undefined);
+      const {
+        authorizationUrl: url,
+        value,
+        state,
+      } = await beginOAuth(row.url, redirect, request.desktop, previous, app, request.scope || undefined);
 
       if (!url || !value.verifier) throw new Error("Authorization redirect missing");
       const authorization = new URL(url);

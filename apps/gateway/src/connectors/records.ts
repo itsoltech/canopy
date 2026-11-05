@@ -15,6 +15,7 @@ export interface Credentials {
   client?: OAuthClientInformationMixed;
   discovery?: OAuthDiscoveryState;
   verifier?: string;
+  /** The exact redirect used to register this client and start its pending code exchange. */
   redirectUri?: string;
   expiresAt?: number;
 }

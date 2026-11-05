@@ -10,8 +10,8 @@
 
   /**
    * OAuth sign-in. A service without automatic registration shows its app form until an app is saved; elsewhere
-   * scopes and a registered app are Advanced options. Registered apps use the gateway's fixed redirect URL;
-   * `callback` is this installation's own callback, for automatic registration.
+   * scopes and a registered app are Advanced options. Required apps use the gateway's fixed redirect URL;
+   * `callback` is this installation's own callback, for manually registered apps on other servers.
    */
   let {
     type,
