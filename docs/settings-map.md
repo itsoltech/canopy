@@ -14,6 +14,9 @@ Każda nowa preferencja ma opis zakresu i działania oraz reset po zmianie.
 Istniejące domyślne wartości wątków i generowania tekstu otrzymują również reset
 pojedynczych pól; reset agenta zeruje jego zależny profil, zachowując modele innych agentów.
 Reset strony przywraca wyłącznie jej preferencje urządzenia, bez cofania zgód systemowych.
+Ustawienie, którego funkcja jeszcze nie istnieje, nie udaje działania: `SettingsRow soon`
+pokazuje znacznik „Soon”, blokuje kontrolkę i ukrywa reset, więc zapisana wartość zostaje
+bez zmian. Opcja wyboru bez działania jest wyłączona z opisem „Soon”.
 
 ## Preferencje i przeniesienia
 
@@ -57,19 +60,19 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | Threads / New threads | Project and worker; Agent; Profile; Model per provider; Permissions | konto: last used, any available, first available, provider default, ask | Wartości początkowe nowych wątków; projekt może nadpisać |
 | Threads / Composer | Running delivery (w menu kolejki kompozytora) | konto: Steer | Główna akcja kompozytora podczas pracy; domyślnie Enter, druga akcja Mod+Enter |
 | Text generation | Provider instance; Model; Effort; Thread title instructions | konto: automatic, provider default, provider default, puste | Generowanie tytułów i semantycznych nazw gałęzi |
-| Scheduled tasks | Target; prompt; run time / recurrence; pause/resume; edit/delete | konto/zasób: brak zadań | Harmonogram rzeczywistych tur, nie preferencja UI |
-| Projects | Name; workspaces (worker/root path); thread defaults | konto/projekt: brak, dziedziczenie | Organizacja projektów, miejsce uruchomienia i nadpisania nowych wątków |
+| Scheduled tasks | Target; prompt; run time / recurrence; pause/resume; edit/cancel | konto/zasób: brak zadań | Harmonogram rzeczywistych tur, nie preferencja UI |
+| Projects | Workspaces (worker/root path); thread defaults | konto/projekt: brak, dziedziczenie | Miejsce uruchomienia i nadpisania nowych wątków w kompozytorze web; nazwa powstaje przy tworzeniu projektu (bez zmiany nazwy w UI) |
 | Worktrees / Scope | Project; computer | konto: wszystkie × wszystkie | Zakres dziedziczenia ustawień worktree |
 | Worktrees / Creation | Location; Start from remote; Remote | konto/zakres: managed, Off, origin | Tworzenie katalogu i wybór podstawy gałęzi |
-| Worktrees / Branches | Branch naming; Branch prefix; default workspace mode | konto/zakres: semantic, canopy, current checkout | Nowe gałęzie i początkowy tryb kompozytora |
+| Worktrees / Branches | Branch naming; Branch prefix; default workspace mode | konto/zakres: semantic, canopy, current checkout | Nowe gałęzie i początkowy tryb kompozytora. Opcja Thread title jest „Soon”: nowe wątki nie wysyłają tytułu, a gałąź nie zmienia nazwy po wygenerowaniu tytułu |
 | Worktrees / Cleanup | Deleted threads; Merged branches; Settled threads; Unchanged worktrees | konto/zakres: wszystkie Off | Reguły usuwania worktree bez aktywnych wątków; pojedynczy reset przywraca dziedziczenie |
-| Worktrees / Cleanup | Inactive for days; Keep worktrees with local changes; Delete safe local branches | konto/zakres: 0 (Off); On; Off | Retencja i ochrona lokalnej pracy; destrukcyjne wyjątki wymagają potwierdzeń |
+| Worktrees / Cleanup | Inactive for days; Keep worktrees with local changes; Delete safe local branches | konto/zakres: 0 (Off); On; Off | Retencja i ochrona lokalnej pracy; destrukcyjne wyjątki wymagają potwierdzeń. Keep worktrees with local changes jest „Soon”: sprzątanie zawsze zachowuje lokalną pracę, a przełącznik zmieniał tylko etykietę |
 | Agent environment | Instruction fragments; files; skills; sources; plugins; tags; machine targeting; synchronization | konto/zasoby: brak | Konfiguracja środowiska agentów na wybranych workerach |
 | Providers | Instances; display name; proxy/native; models; favorites; environment; worker enablement; CLI login/install/updates | konto/zasoby: native, wykryty katalog | Dostępność modeli i konfiguracja harnessów; poświadczenia w gateway |
 | Connectors | Accounts; OAuth apps; grants; access targets; test/disconnect | konto/zasoby: brak | Uprawnienia zewnętrznych MCP |
 | Proxies | Name; endpoint; API key; provider transport options | konto/zasoby: brak | Współdzielone połączenia dostawców |
-| Workers | Enrollments; public gateway URL; SSH install; name/tags; enabled profiles; directories; limits; CLI updates | konto/worker: automatic URL, konfiguracja workera | Rejestracja i zdalna konfiguracja workerów |
-| Network access | Enabled; bind/listen address; port; routes; TLS fingerprint | komputer gatewaya: Off, loopback, automatyczny port | Osiągalność gatewaya i przypięty TLS |
+| Workers | Enrollments; public gateway URL; SSH install; name/tags; CLI updates | konto/worker: automatic URL, konfiguracja workera | Rejestracja i zdalna konfiguracja workerów. Profile workera ustawia Providers; limity `WorkerConfig.limits` nie mają UI, a worker egzekwuje z nich tylko `idleUnloadSeconds` |
+| Network access | Enabled; port; hostnames; routes; TLS fingerprint | komputer gatewaya: Off, automatyczny port | Osiągalność gatewaya i przypięty TLS; adres nasłuchu ustawia wyłącznie konfiguracja gatewaya |
 | Network access / Attachments | Per file; per message; file count | konto: 20 MiB, 50 MiB, 10 | Limity uploadu egzekwowane przez gateway |
 | Devices | Pairing code / QR; device list; revoke | konto/zasoby: brak | Dostęp telefonów i klientów desktopowych |
 | Linked computers | Identity; link/pair; rename; onward sharing; unlink; per-item sharing/conflicts | komputer gatewaya: brak linków, lokalne | Wzajemny dostęp i jawne udostępnianie konfiguracji |

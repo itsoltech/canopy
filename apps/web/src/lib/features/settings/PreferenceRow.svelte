@@ -11,6 +11,7 @@
     children,
     changed,
     onreset,
+    soon = false,
     control: rowControl,
     class: className,
   }: {
@@ -20,14 +21,15 @@
     changed: boolean;
     onreset: () => void;
     control: Snippet;
+    soon?: boolean;
     class?: ClassValue;
   } = $props();
 </script>
 
-<SettingsRow {title} {description} class={className}>
+<SettingsRow {title} {description} {soon} class={className}>
   {@render children?.()}
   {#snippet control()}
-    <ResettableControl {changed}>
+    <ResettableControl changed={changed && !soon}>
       {@render rowControl()}
       {#snippet reset()}<IconButton
           icon="arrow-path"

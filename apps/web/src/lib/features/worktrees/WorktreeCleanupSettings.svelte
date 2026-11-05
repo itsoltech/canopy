@@ -37,6 +37,8 @@
       field: "keepLocalChanges",
       title: "Keep worktrees with local changes",
       description: "When off, Canopy still asks before it removes each worktree with local changes.",
+      // Removal always needs confirmation for local work; this switch only changes a label (docs/settings-map.md).
+      soon: true,
     },
     {
       field: "deleteLocalBranch",
