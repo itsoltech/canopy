@@ -1,10 +1,10 @@
-import { redirect } from "@sveltejs/kit";
 import { gateway } from "#lib/server/gateway.ts";
+import { connectorOAuthBinding } from "#lib/server/connector-oauth.ts";
+import { connectorOAuthResult } from "#lib/server/connector-oauth-result.ts";
 import type { RequestHandler } from "./$types";
 
-export const GET: RequestHandler = async ({ url, cookies, setHeaders }) => {
-  setHeaders({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
-  let connected = false;
+export const GET: RequestHandler = async ({ url, cookies }) => {
+  let connectorType: string | undefined;
 
   try {
     const response = await gateway().completeConnectorOAuth(
@@ -13,15 +13,15 @@ export const GET: RequestHandler = async ({ url, cookies, setHeaders }) => {
         code: url.searchParams.get("code") ?? "",
         error: url.searchParams.get("error") ?? "",
         issuer: url.searchParams.get("iss") ?? "",
-        browserBinding: cookies.get("canopy-connector-oauth") ?? "",
+        browserBinding: connectorOAuthBinding(cookies.get("canopy-connector-oauth")),
       },
       { timeoutMs: 60_000 },
     );
 
-    connected = !!response.account && !response.error;
+    if (response.account && !response.error) connectorType = response.account.connectorType;
   } catch {
-    /* Codes, tokens and server error responses never enter logs or the redirect. */
+    /* Codes, tokens and provider errors never enter logs or the result page. */
   }
 
-  redirect(303, `/settings/connectors?connection=${connected ? "connected" : "error"}`);
+  return connectorOAuthResult(connectorType, Boolean(process.env["CANOPY_WEB_ORIGIN"]));
 };

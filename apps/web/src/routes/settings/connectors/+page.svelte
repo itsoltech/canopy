@@ -35,6 +35,14 @@
   let notice = $state(untrack(() => route.url.searchParams.get("connection")));
   const type = $derived(catalog.types.find((t) => t.id === selected));
 
+  $effect(() => {
+    accounts = decode(connectors.ListConnectorsResponseSchema, data.connections).accounts;
+  });
+
+  function refreshAccounts() {
+    if (document.visibilityState === "visible") void route.refresh("app:connectors");
+  }
+
   function update(account: connectors.ConnectorAccount) {
     notice = null;
     accounts = accounts.some((a) => a.id === account.id)
@@ -49,6 +57,9 @@
     window.dispatchEvent(new Event("connectors-changed"));
   }
 </script>
+
+<svelte:window onfocus={refreshAccounts} />
+<svelte:document onvisibilitychange={refreshAccounts} />
 
 <div class="settings-stack">
   <SettingsHeading

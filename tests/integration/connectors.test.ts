@@ -302,6 +302,37 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     expect(renamed.description).not.toContain("Custom MCP server · personal");
   }, 15_000);
 
+  test("expired and declined OAuth flows cannot connect an account or be replayed", async () => {
+    const account = await save("pending", "oauth");
+    const browserBinding = "p".repeat(43);
+
+    const pending = async () => {
+      const begin = await gw.api.beginConnectorOAuth({
+        accountId: account.id,
+        browserBinding,
+        redirectUri: "http://127.0.0.1:19111/api/connectors/oauth/callback",
+      });
+
+      const response = await fetch(begin.authorizationUrl, { redirect: "manual" });
+      const callback = new URL(response.headers.get("location")!);
+
+      return { browserBinding, state: callback.searchParams.get("state")!, code: callback.searchParams.get("code")! };
+    };
+
+    const expired = await pending();
+    await query(
+      "UPDATE connector_oauth_states SET expires_at=now()-interval '1 second' WHERE account_id=$1::uuid",
+      account.id,
+    );
+    expect((await gw.api.completeConnectorOAuth(expired)).error).not.toBe("");
+    const declined = await pending();
+    const denial = await gw.api.completeConnectorOAuth({ ...declined, error: "provider-controlled-error" });
+    expect(denial.error).not.toContain("provider-controlled-error");
+    expect(denial.account).toBeUndefined();
+    expect((await gw.api.completeConnectorOAuth(declined)).error).not.toBe("");
+    expect((await gw.api.listConnectors({})).accounts.find((a) => a.id === account.id)?.status).not.toBe("connected");
+  });
+
   test("OAuth DCR + state/browser binding + S256, refresh rotation, reconnect and revoke", async () => {
     let account = await save("oauth", "oauth");
     const binding = crypto.randomUUID().replaceAll("-", "");
@@ -327,8 +358,25 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     };
 
     expect((await gw.api.completeConnectorOAuth({ ...complete, browserBinding: "x".repeat(32) })).error).not.toBe("");
+
+    const otherUser = await gw.runtime.runPromise(
+      GatewayStore.use((s) => s.ensureUser("oauth-other@test.local", "Other")),
+    );
+
+    await expect(gw.core.connectors.run((s) => s.consumeState(otherUser, complete.state, binding))).rejects.toThrow();
+    expect((await gw.api.completeConnectorOAuth({ ...complete, state: "f".repeat(43) })).error).not.toBe("");
     fake.duration = 1;
-    account = (await gw.api.completeConnectorOAuth(complete)).account!;
+    const accountId = account.id;
+
+    const results = await Promise.all([
+      gw.api.completeConnectorOAuth(complete),
+      gw.api.completeConnectorOAuth(complete),
+    ]);
+
+    expect(results.filter((r) => r.account && !r.error)).toHaveLength(1);
+    expect(results.filter((r) => r.error)).toHaveLength(1);
+    account = results.find((r) => r.account)!.account!;
+    expect(account.id).toBe(accountId);
     await expect(
       gw.core.connectors.complete(create(connectors.CompleteConnectorOAuthRequestSchema, complete)),
     ).rejects.toThrow();

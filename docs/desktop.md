@@ -16,6 +16,12 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    nie czyta `ORIGIN`, a bez nagłówka proxy przyjmuje `https`, więc build desktopu podmienia
    w `adapter-node.js` stały origin na `CANOPY_WEB_ORIGIN` (dokładnie `http://127.0.0.1:<port>`
    okna). Kontrola CSRF formularzy SvelteKit zostaje bez zmian.
+   Jedyny wyjątek dla obcego origin to nawigacja GET dokumentu na dokładny
+   `/api/connectors/oauth/callback`; Host nadal musi się zgadzać. OAuth otwiera
+   przeglądarkę systemową, więc powiązanie rozpoczętej autoryzacji zostaje w procesie BFF,
+   zamiast w cookie Electrona. Gateway sprawdza jednorazowy state, właściciela,
+   konto i TTL. Strona wyniku próbuje `canopy://connectors`; ten stały link
+   pokazuje aplikację i otwiera ustawienia konektorów bez parametrów dostawcy.
 2. **Baza:** pełny PostgreSQL 18.6 z binariów `@embedded-postgres`, pobieranych tylko
    po wybraniu trybu lokalnego. Aplikacja nie zawiera PostgreSQL. Pierwszy lokalny start
    wymaga internetu; gotowy cache działa offline. Nie wymaga ręcznej instalacji ani

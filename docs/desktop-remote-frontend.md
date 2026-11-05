@@ -49,7 +49,10 @@ ani ich granic przechowywania.
 BFF słucha wyłącznie na loopback. Per-launch origin oraz kontrola Host/Origin
 chronią także GET i SSE przed DNS rebinding i obcym webem; formularze zachowują
 CSRF SvelteKit. IPC wymaga własnego głównego frame i lokalnego originu, a operacje
-konfiguracji — strony `/desktop`. Brak wyjątków TLS, przekierowań i TOFU.
+konfiguracji — strony `/desktop`. Jedyny wyjątek dla obcego origin w BFF to
+nawigacja GET dokumentu na dokładny `/api/connectors/oauth/callback`, nadal z
+kontrolą Host. State sprawdza gateway; szczegóły w [connectors.md](connectors.md#oauth).
+Połączenia z gatewayem nie dopuszczają wyjątków TLS, przekierowań ani TOFU.
 Lista tras jest wskazówką; wszystkie trasy muszą dowieść tego samego pinu.
 Przełączenie trasy następuje przed wysłaniem RPC; nie ponawiamy mutacji po
 niejednoznacznej utracie odpowiedzi. Uwierzytelnione informacje o trasach

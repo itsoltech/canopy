@@ -108,6 +108,8 @@
         const response = objectOf(await requestJson("POST", `/api/connectors/${saved.id}/oauth`, { scope }, 65000));
 
         window.location.assign(str(response["authorizationUrl"]));
+
+        if (window.canopyDesktop) open = false;
       } else open = false;
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Could not connect this account.";
