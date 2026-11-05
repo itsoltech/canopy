@@ -1,5 +1,7 @@
 export { fuzzyMatch, fuzzyRank, type FuzzyMatch } from "./fuzzy.ts";
 
+export { relocateMentions } from "./relocate.ts";
+
 export { attachmentMarker, numberAttachmentMarkers, orderAttachments, placedAttachmentIds } from "./attachments.ts";
 
 export {

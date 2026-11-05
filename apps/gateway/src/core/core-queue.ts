@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { MentionKind, ui } from "@canopy/contracts";
 import { Effect } from "effect";
-import { placedAttachmentIds } from "@canopy/domain";
+import { placedAttachmentIds, relocateMentions } from "@canopy/domain";
 import { QueueStore, toUiSteer, toUiTurn, type TurnRow } from "../store/index.ts";
 import { coreState, InvalidError, type TurnInputJson } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
@@ -60,8 +60,9 @@ export const coreQueueMethods: CoreQueueMethods = {
   /**
    * A queued message's new text, composed like a sent one: the note of its files and its quotes (both stay), its
    * mentions checked and resolved. A file the message had placed in its text lives with its badge: without the badge
-   * it leaves the message (files never placed stay). The revision guards the rest (the turn may change or start
-   * meanwhile).
+   * it leaves the message (files never placed stay). Positions come from the editor (`mentions_complete`); an older
+   * client that edits plain text and sends none gets the turn's mentions found again in the new text. The revision
+   * guards the rest (the turn may change or start meanwhile).
    */
   async editQueuedTurn(this: GatewayCore, request: ui.EditQueuedTurnRequest): Promise<ui.Turn> {
     const ownerUserId = this[coreState].options.userId;
@@ -69,11 +70,20 @@ export const coreQueueMethods: CoreQueueMethods = {
     const thread = await coreRun(this, (s) => s.thread(current.thread_id));
     const text = request.text;
 
+    const given =
+      request.mentionsComplete || request.mentions.length > 0
+        ? request.mentions
+        : relocateMentions(
+            current.input.message ?? current.input.text ?? "",
+            mentionsFromJson(current.input.mentions),
+            text,
+          );
+
     const { mentions, goal } = await coreMessageMentions(
       this,
       { id: thread.id, cwd: thread.cwd ?? "" },
       text,
-      request.mentions,
+      given,
       new Map((current.input.attachments ?? []).map((a) => [a.id, { name: a.name, kind: a.kind }])),
     );
 

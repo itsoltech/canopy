@@ -645,5 +645,91 @@ describe.skipIf(!dockerAvailable)("attachments", () => {
       worker.holdTurns = false;
       worker.finish(thread.id, first.id);
     });
+
+    test("a queue edit with structured positions keeps, reorders and drops placed files", async () => {
+      const thread = await newThread("Queue positions");
+      worker.holdTurns = true;
+      const first = (await api.sendMessage({ threadId: thread.id, text: "work", clientRequestId: "qp-1" })).turn!;
+
+      const [a, b, c] = await Promise.all(
+        ["a.txt", "b.txt", "c.txt"].map(
+          async (name) => (await api.uploadAttachment({ name, data: text(name) })).attachment!,
+        ),
+      );
+
+      const message = "[a.txt] [b.txt] [c.txt]";
+
+      const queued = (
+        await api.sendMessage({
+          threadId: thread.id,
+          text: message,
+          clientRequestId: "qp-2",
+          attachmentIds: [a!.id, b!.id, c!.id],
+          mentions: [badge(message, a!.id, "a.txt"), badge(message, b!.id, "b.txt"), badge(message, c!.id, "c.txt")],
+        })
+      ).turn!;
+
+      // c moves to the front, a stays after it, b's badge is gone: the order follows the text, b leaves.
+      const edited = "first [c.txt], then [a.txt]";
+
+      const { turn } = await api.editQueuedTurn({
+        turnId: queued.id,
+        text: edited,
+        expectedRevision: queued.revision,
+        mentions: [badge(edited, c!.id, "c.txt"), badge(edited, a!.id, "a.txt")],
+        mentionsComplete: true,
+      });
+
+      expect(turn!.attachments.map((x) => x.name)).toEqual(["c.txt", "a.txt"]);
+      expect(turn!.mentions.map((m) => [m.name, edited.slice(m.start, m.end)])).toEqual([
+        [c!.id, "[c.txt]"],
+        [a!.id, "[a.txt]"],
+      ]);
+      expect(turn!.inputText).toEndWith("\n\nfirst [Attachment 1: c.txt], then [Attachment 2: a.txt]");
+
+      // Every badge removed, in the editor's whole set: the placed files leave, the text alone stays.
+      const { turn: bare } = await api.editQueuedTurn({
+        turnId: queued.id,
+        text: "just text",
+        expectedRevision: turn!.revision,
+        mentions: [],
+        mentionsComplete: true,
+      });
+
+      expect([bare!.attachments.length, bare!.mentions.length, bare!.platformNote]).toEqual([0, 0, ""]);
+      worker.holdTurns = false;
+      worker.finish(thread.id, first.id);
+    });
+
+    test("an older client's plain-text queue edit keeps the badges it left in the text", async () => {
+      const thread = await newThread("Queue plain text");
+      worker.holdTurns = true;
+      const first = (await api.sendMessage({ threadId: thread.id, text: "work", clientRequestId: "qo-1" })).turn!;
+      const a = (await api.uploadAttachment({ name: "a.txt", data: text("a") })).attachment!;
+      const b = (await api.uploadAttachment({ name: "b.txt", data: text("b") })).attachment!;
+      const message = "[a.txt] and [b.txt]";
+
+      const queued = (
+        await api.sendMessage({
+          threadId: thread.id,
+          text: message,
+          clientRequestId: "qo-2",
+          attachmentIds: [a.id, b.id],
+          mentions: [badge(message, a.id, "a.txt"), badge(message, b.id, "b.txt")],
+        })
+      ).turn!;
+
+      // No mentions and no flag: the gateway finds the badges' markers again; "[a.txt]" was deleted as text.
+      const { turn } = await api.editQueuedTurn({
+        turnId: queued.id,
+        text: "only [b.txt] now",
+        expectedRevision: queued.revision,
+      });
+
+      expect(turn!.mentions.map((m) => [m.name, m.start, m.end])).toEqual([[b.id, 5, 12]]);
+      expect(turn!.attachments.map((x) => x.name)).toEqual(["b.txt"]);
+      worker.holdTurns = false;
+      worker.finish(thread.id, first.id);
+    });
   });
 });

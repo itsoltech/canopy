@@ -13,7 +13,9 @@ const Body = Schema.Union([
     text: Schema.String.check(Schema.isMaxLength(100_000)),
     expectedRevision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
     // Mentions in the new text (protobuf JSON Mention; the gateway checks them).
-    mentions: Schema.optionalKey(Schema.Array(Schema.Json).check(Schema.isMaxLength(50))),
+    mentions: Schema.optionalKey(Schema.Array(Schema.Json).check(Schema.isMaxLength(150))),
+    // The mentions are the editor's whole set (positions), not a plain-text edit.
+    mentionsComplete: Schema.optionalKey(Schema.Boolean),
   }),
   // delete: out of the queue; restore: its undo; steer: into the running turn now.
   Schema.Struct({ action: Schema.Literals(["delete", "restore", "steer"]) }),
@@ -34,12 +36,12 @@ export const POST: RequestHandler = async ({ request, params }) => {
         error(400, cause instanceof Error ? cause.message : "invalid mentions");
       }
 
-      const { text, expectedRevision } = body;
+      const { text, expectedRevision, mentionsComplete = false } = body;
 
       return json(
         encode(
           ui.EditQueuedTurnResponseSchema,
-          await call((api) => api.editQueuedTurn({ turnId, text, expectedRevision, mentions })),
+          await call((api) => api.editQueuedTurn({ turnId, text, expectedRevision, mentions, mentionsComplete })),
         ),
       );
     }
