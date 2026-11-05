@@ -1592,6 +1592,12 @@ gatewaya. Losowy token wersji i szyfrogram odbiorcy nie są różnicą konfigura
 domyślne potwierdzenia usuwania i częstotliwości CLI odpowiadają brakowi nadpisania. HLC nadal
 rozstrzyga, która wersja pola wygrywa; równoważność usuwa tylko fałszywą notkę.
 
+Odczyt notek porównuje też zachowaną wartość z bieżącym polem. Gdy znów są równoważne, oznacza
+notkę jako obsłużoną, zachowując historię. Działa to również dla notek zapisanych przez starszą
+wersję i po restarcie; nie wymaga migracji ani ręcznego Dismiss. Rzeczywista przegrana edycja
+pozostaje dostępna przez Restore, dopóki różni się od bieżącej wartości. Usunięcie nadal ma notkę,
+gdy pole zniknęło; przywrócenie po usunięciu zachowuje osobną notkę `resurrected`.
+
 ### Usuwanie
 
 Usunięcie zapisuje **tombstone**: pole `deleted` z własnym HLC. Rekord bez ładunku pól zostaje na stałe,

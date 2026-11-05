@@ -18,6 +18,7 @@ import { applyEnvironment } from "./environment-apply.ts";
 import { cipherOf, pruneSecrets, recordCiphers, storeSecret } from "./secrets.ts";
 import { CONNECTOR_KINDS } from "./connector-values.ts";
 import { applyConnector } from "./connector-apply.ts";
+import { configEquality } from "./equality.ts";
 
 type HistoryRow = Field & {
   id: string;
@@ -31,7 +32,37 @@ type HistoryRow = Field & {
   reason: string;
 };
 
-type NoticeRow = HistoryRow & { node_name: string; local_id: string | null; item: ConfigRow["fields"] | null };
+type NoticeRow = HistoryRow & {
+  node_name: string;
+  local_id: string | null;
+  item: ConfigRow["fields"] | null;
+  current_fields: ConfigRow["fields"] | null;
+  current_deleted: Field | null;
+};
+
+/** Old releases also stored equal values in history. Reconcile on read, including after restart. */
+async function unresolved(sync: ConfigSync, rows: readonly NoticeRow[]) {
+  return sync.store.runtime.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const same = yield* configEquality(sql, sync.store.owner, sync.store.key);
+      const result: NoticeRow[] = [];
+
+      for (const row of rows) {
+        const current = row.field === "deleted" ? row.current_deleted : row.current_fields?.[row.field];
+        const ciphers = yield* recordCiphers(sql, sync.store.owner, row.kind, row.global_id);
+
+        if (row.ciphertext) ciphers.set(`${row.field}\x1f${row.hlc}`, row.ciphertext);
+
+        if (current && row.reason !== "resurrected" && same(row.kind, row.field, row, current, cipherOf(ciphers))) {
+          yield* sql`UPDATE config_history SET state='dismissed' WHERE owner_user_id=${sync.store.owner}::uuid AND id=${row.id}::uuid AND state='open'`;
+        } else result.push(row);
+      }
+
+      return result;
+    }),
+  );
+}
 
 /** A deleted element is one notice rather than one per lost field. */
 const grouped = (r: Pick<HistoryRow, "kind" | "reason">) =>
@@ -49,7 +80,7 @@ const nameOf = (fields: Record<string, { value: JsonValue } | undefined> | null 
 
 export async function configNotices(sync: ConfigSync) {
   const rows = await sync.store.query<NoticeRow>(
-    `SELECT h.*,COALESCE(NULLIF(p.display_name,''),p.name,c.fields->'name'->>'value','Linked computer') AS node_name,
+    `SELECT h.*,i.fields AS current_fields,i.deleted AS current_deleted,COALESCE(NULLIF(p.display_name,''),p.name,c.fields->'name'->>'value','Linked computer') AS node_name,
       i.local_id,CASE WHEN h.kind='project_settings' OR (h.kind='worktree_policy' AND h.global_id<>'account') THEN project.fields ELSE i.fields END AS item
     FROM config_history h LEFT JOIN computer_peers p ON p.owner_user_id=h.owner_user_id AND p.node_id=h.notice_node_id
     LEFT JOIN config_items c ON c.owner_user_id=h.owner_user_id AND c.kind='computer' AND c.global_id=h.notice_node_id
@@ -61,7 +92,7 @@ export async function configNotices(sync: ConfigSync) {
 
   const groups = new Map<string, NoticeRow[]>();
 
-  for (const r of rows) {
+  for (const r of await unresolved(sync, rows)) {
     const key = grouped(r) ? `${r.kind}\0${r.global_id}` : r.id;
     groups.set(key, [...(groups.get(key) ?? []), r]);
   }
