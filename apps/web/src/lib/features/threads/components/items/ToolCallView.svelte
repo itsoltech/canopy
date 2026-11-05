@@ -73,7 +73,7 @@
         class={failed ? "text-rose-500 dark:text-rose-400" : "fill-zinc-400 dark:fill-zinc-500"}
       />{/if}{/snippet}
   {#snippet title()}
-    <span class="flex min-w-0 gap-1.5">
+    <span class="flex min-w-0 items-baseline gap-1.5">
       <span class="min-w-0 truncate text-zinc-800 dark:text-zinc-200"
         >{call.connectorAccountId
           ? `${call.server} · ${call.connectorAccountName} · ${call.name.split("__").at(-1)?.replaceAll("_", " ")}`
