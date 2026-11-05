@@ -48,6 +48,24 @@
   let reconnecting = $state(false);
   let disconnecting = $state(false);
   let deleting = $state(false);
+  let previous = untrack(() => account);
+
+  // Follow received changes without discarding an edit the user has started here.
+  $effect(() => {
+    const next = account;
+    untrack(() => {
+      if (name === previous.name) name = next.name;
+
+      if (allWorkers === previous.allWorkers) allWorkers = next.allWorkers;
+
+      if (allBots === previous.allBots) allBots = next.allBots;
+
+      if (workerIds.join() === previous.workerIds.join()) workerIds = [...next.workerIds];
+
+      if (botIds.join() === previous.botIds.join()) botIds = [...next.botIds];
+      previous = next;
+    });
+  });
 
   /** What a save action sends: the new access, or the new name; the revision guards against changes elsewhere. */
   function actionBody(action: string): JsonObject {
@@ -111,16 +129,18 @@
       <p class="flex min-w-0 items-center gap-2 font-medium">
         <ConnectorIcon type={type.id} /><span class="truncate">{type.name} · {account.name}</span>
       </p>
-      <p
-        class={account.status === "connected"
-          ? "text-emerald-700 dark:text-emerald-400"
-          : "text-amber-700 dark:text-amber-400"}
-      >
-        {accountStatus(account.status)}
-      </p>
-      <p class="text-zinc-500 dark:text-zinc-400">
-        Last used: {formatDateTime(account.lastUsedAt) || "Not yet"}
-      </p>
+      <div class="grid gap-1">
+        <p class="text-zinc-500 dark:text-zinc-400">This computer</p>
+        <p
+          role="status"
+          class={account.status === "connected"
+            ? "text-emerald-700 dark:text-emerald-400"
+            : "text-amber-700 dark:text-amber-400"}
+        >
+          {accountStatus(account.status)}
+        </p>
+        <p class="text-zinc-500 dark:text-zinc-400">Last used: {formatDateTime(account.lastUsedAt) || "Not yet"}</p>
+      </div>
     </div>
     <div class="flex flex-wrap gap-2">
       <Button
@@ -178,7 +198,7 @@
 <Dialog
   bind:open={disconnecting}
   title="Disconnect {account.name}?"
-  description="Workers and bots will lose access immediately. You can reconnect this account later."
+  description="Computers sharing configuration lose access to this account. You can reconnect it later."
   dismissible={!busy}
 >
   <DialogActions
@@ -191,7 +211,7 @@
 <Dialog
   bind:open={deleting}
   title="Delete {type.name} · {account.name}?"
-  description="The account is disconnected and removed from Canopy. Workers and bots lose access immediately. To use it again, connect it as a new account."
+  description="This removes the account from computers sharing configuration. Workers and bots lose access. A linked computer can restore it for 90 days."
   dismissible={!busy}
 >
   <DialogActions

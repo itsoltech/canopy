@@ -28,10 +28,27 @@ HTTP jest dozwolone tylko dla loopback do lokalnego developmentu; inne endpointy
 wymagają HTTPS. Custom MCP jest jawną konfiguracją sieciową właściciela, także
 do jego usług prywatnych; nie uruchamia procesów ani transportu stdio.
 
-Konta i granty należą do **jednego komputera**. Przy przeniesieniu bota na inny połączony komputer
-([etap 8](linked-computers.md#konkretny-protokół-etapu-8)) granty nie przechodzą: podgląd ruchu wymienia
-konta do ponownego podłączenia, a bot na nowym komputerze pokazuje je („Moved from Laptop A — connect
-these again”), dopóki nie zostaną tam podłączone i przyznane. Poświadczenia nigdy nie opuszczają gatewaya.
+Konta i aplikacje OAuth są **wspólną konfiguracją** połączonych komputerów. Każdy gateway szyfruje
+poświadczenia własnym kluczem; nie wysyła ich do workerów, modeli ani UI. Łącze z wyłączonym Share
+configuration nie przenosi definicji ani sekretów. Stan połączenia, ostatnie użycie i namespace są lokalne;
+UI opisuje je jako „This computer”, a samo konto nie ma znaczka wspólności. `all_workers` i `all_bots`
+są wspólne. Konkretne granty workerów zostają w domu workera (rekordy i edycja zdalna: etap 6),
+a granty botów w domu bota. Przeniesienie bota nadal wymaga nadania mu dostępu w nowym domu.
+
+Rekordy `connector` i `oauth_app` inicjalizuje gateway przy starcie; migracja **0077_config_connectors**
+dodaje czas zapisu aplikacji. Zapis najpierw blokuje `config_clock`, a potem konto, i zapisuje rekord
+w tej samej transakcji. Definicja obejmuje typ, nazwę, URL, transport, metodę logowania, dostęp All
+i narzędzia; poświadczenia wraz z nagłówkami są jednym sekretnym polem `credentials` w `config_secrets`.
+Klient OAuth (także client ID i zapamiętany redirect) jest osobnym zaszyfrowanym rekordem per typ.
+`GetConfigBlob` nadal obsługuje wyłącznie treść biblioteki, nigdy sekrety connectorów.
+
+Przy scalaniu liczą się typ, URL i tożsamość konta z metadanych odpowiedzi tokenowej (np. workspace
+i użytkownik). Gateway zachowuje tylko hash tych identyfikatorów; klient OAuth nie jest tożsamością konta.
+Bez metadanych używa dokładnej nazwy po NFC i przycięciu spacji, tylko przy jednym kandydacie.
+Konta nagłówkowe wymagają też tych samych nagłówków; różne klucze pozostają osobnymi kontami.
+Mniejsze id zostaje kanoniczne, alias prowadzi do lokalnego wiersza bez przepisywania grantów.
+Odwołania kont w źródłach skilli/marketplace'ów są globalne w rekordzie i lokalne po materializacji.
+Gdy konto jeszcze nie dotarło, sprawdzenie źródła prosi o odczekanie i ponowienie.
 
 ## OAuth
 
@@ -123,9 +140,23 @@ Każde konto zachowuje własną rejestrację/tokeny; odświeżanie jest serializ
 blokadą konta w PostgreSQL, również przy wielu gatewayach. Brak możliwości
 odświeżenia oznacza `needs_reconnect`. Disconnect najpierw odbiera dostęp,
 następnie próbuje revoke i usuwa lokalne tokeny niezależnie od wyniku dostawcy.
-Delete (`DeleteConnectorAccount`) robi najpierw Disconnect (jeśli konto nie jest już
-odłączone), potem usuwa konto, granty, stany OAuth i rekordy deduplikacji; wpisy audytu
-zostają bez powiązania z kontem. Elementy timeline zachowują zapisaną nazwę konta.
+Delete (`DeleteConnectorAccount`) usuwa konto, granty, stany OAuth i rekordy deduplikacji na komputerach
+grupy; wpisy audytu zostają bez powiązania z kontem. Nie wykonuje revoke: to pozwala przywrócić konto
+z zaszyfrowanej historii przez 90 dni. Partner pokazuje jedną notkę z Restore. Restore przywraca definicję
+i poświadczenia, ale nie odtwarza konkretnych grantów; historię timeline zachowuje zapisana nazwa konta.
+Jawne Disconnect nadal wykonuje revoke i replikuje brak poświadczeń. Konflikt zmian ma notkę z Restore;
+sekrety są w niej wyłącznie jako „A different key”, a hash tożsamości jako „A different account”.
+Potwierdzenie Disconnect mówi „Computers sharing configuration lose access to this account. You can
+reconnect it later.” Potwierdzenie Delete mówi „This removes the account from computers sharing
+configuration. Workers and bots lose access. A linked computer can restore it for 90 days.”
+Pola notek używają etykiet „Connector”, „Name”, „Endpoint”, „Transport”, „Sign-in method”,
+„All workers”, „All bots”, „Tools”, „Account”, „Credentials” i „Deleted”.
+
+Odświeżenie tokenów jest zmianą sekretnego pola z nowym HLC. Przyjęcie nowszych poświadczeń usuwa lokalne
+`needs_reconnect`; spóźniony starszy token przegrywa i pozostaje tylko w zaszyfrowanej historii.
+Równoległe odświeżanie między komputerami może chwilowo skończyć się `needs_reconnect` na przegranym,
+aż dotrze nowszy token. Sesje state/PKCE i ich weryfikatory zostają lokalne; stały redirect, `canopy://`
+i paste-code działają jak wcześniej. Disconnect revokuje tokeny na zewnątrz, Delete nie.
 
 ## Harnessy i zgody
 

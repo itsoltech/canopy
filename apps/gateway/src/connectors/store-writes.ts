@@ -4,14 +4,17 @@ import type { SqlClient } from "effect/sql";
 import { connectorType, connectorUrl } from "./catalog.ts";
 import { checked, digest, fail, type Credentials } from "./records.ts";
 import type { ConnectorBase } from "./accounts.ts";
+import { connectorTransaction } from "../config-sync/connector-records.ts";
 
 /** Saving accounts and their worker and bot access. */
-export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase) {
+export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, key: Buffer) {
   const { owned, seal, credentials, view, audit } = base;
 
   return {
     save: (user: string, request: connectors.SaveConnectorAccountRequest) =>
-      sql.withTransaction(
+      connectorTransaction(
+        sql,
+        key,
         Effect.gen(function* () {
           const old = request.id ? yield* owned(user, request.id, true) : undefined;
 
@@ -94,7 +97,9 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase) {
         }),
       ),
     access: (user: string, request: connectors.SetConnectorAccessRequest) =>
-      sql.withTransaction(
+      connectorTransaction(
+        sql,
+        key,
         Effect.gen(function* () {
           const row = yield* owned(user, request.accountId, true);
 

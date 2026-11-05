@@ -245,7 +245,7 @@ describe("gateway skill source resolution and maintenance", () => {
           }),
         ),
       ),
-    ).toContain("connected account is on another computer");
+    ).toContain("connected account hasn't arrived on this computer");
     expect(await failure(other.sources.db.load(resolved.id))).toContain("not found");
     expect(await failure(other.sources.check(create(ui.CheckSkillSourceRequestSchema, { id })))).toContain("not found");
     expect(

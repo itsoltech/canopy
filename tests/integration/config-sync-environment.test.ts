@@ -302,7 +302,7 @@ describe.skipIf(!dockerAvailable)("agent environment library across separate lin
       b.links.config!.fetchBlob = fetch;
     }
   }, 60_000);
-  test("a source's connected account from another computer degrades with a clear reason", async () => {
+  test("a source waits for a connected account that has not arrived yet", async () => {
     const market = (await library(b)).marketplaces[0]!;
     await b.store.query(
       `UPDATE agent_marketplaces SET marketplace=jsonb_set(marketplace,'{source,credentialAccountId}',to_jsonb($2::text))
@@ -310,7 +310,7 @@ describe.skipIf(!dockerAvailable)("agent environment library across separate lin
       [market.id, crypto.randomUUID()],
     );
     expect(await failure(b.gateway.api.previewMarketplace({ id: market.id }))).toContain(
-      "connected account is on another computer",
+      "connected account hasn't arrived on this computer",
     );
   }, 30_000);
 });

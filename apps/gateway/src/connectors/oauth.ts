@@ -1,7 +1,8 @@
 import { auth, type OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
-import { Predicate } from "effect";
+import { Predicate, Schema } from "effect";
 import type { Credentials } from "./store.ts";
 import { oauthFetch } from "./catalog.ts";
+import { digest } from "./records.ts";
 
 /** Mutable only inside a gateway operation; the complete state is persisted encrypted. */
 export function oauthProvider(value: Credentials, state: string, redirect: (url: URL) => void): OAuthClientProvider {
@@ -68,7 +69,33 @@ export async function authorizeOAuth(
     }),
     {
       serverUrl: url,
-      fetchFn: oauthFetch,
+      fetchFn: async (input, init) => {
+        const response = await oauthFetch(input, init);
+
+        if (response.ok && init?.method === "POST") {
+          const metadata = await response
+            .clone()
+            .json()
+            .then(Schema.decodeUnknownSync(Schema.JsonObject))
+            .catch(() => undefined);
+
+          if (metadata && Predicate.isString(metadata["access_token"])) {
+            const ids = ["workspace_id", "account_id", "user_id", "team_id", "sub"].flatMap((name) =>
+              Predicate.isString(metadata[name]) && metadata[name] ? [[name, metadata[name]]] : [],
+            );
+
+            const owner = metadata["owner"];
+
+            const accountOwner = Schema.is(Schema.Struct({ user: Schema.Struct({ id: Schema.String }) }));
+
+            if (accountOwner(owner)) ids.push(["owner", owner.user.id]);
+
+            if (ids.length) value.accountIdentity = digest(JSON.stringify(ids));
+          }
+        }
+
+        return response;
+      },
       ...(scope && { scope }),
       ...(code !== undefined && { authorizationCode: code }),
     },

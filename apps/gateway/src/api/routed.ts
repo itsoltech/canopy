@@ -270,6 +270,9 @@ export function sharedHost(core: GatewayCore, _local: UiHandlers): SharedHost {
     environmentChanged: async () => {
       await core.environment.changed();
     },
+    connectorsChanged: async () => {
+      await core.environment.changed();
+    },
     projectsChanged: async () => {
       const archived =
         (await core.computers?.store.query<{ id: string; name: string }>(

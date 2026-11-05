@@ -57,6 +57,22 @@ const ITEM_LABELS = new Map(
 
 const PROXY_LABELS = new Map(Object.entries({ kind: "Kind", baseUrl: "Base URL" }));
 
+const CONNECTOR_LABELS = new Map(
+  Object.entries({
+    type: "Connector",
+    name: "Name",
+    url: "Endpoint",
+    transport: "Transport",
+    authKind: "Sign-in method",
+    allWorkers: "All workers",
+    allBots: "All bots",
+    tools: "Tools",
+    accountIdentity: "Account",
+    credentials: "Credentials",
+    deleted: "Deleted",
+  }),
+);
+
 const PROJECT_LABELS = new Map(
   Object.entries({
     name: "Name",
@@ -122,6 +138,8 @@ const string = Schema.is(Schema.String);
 const boolean = Schema.is(Schema.Boolean);
 
 export function configFieldLabel(field: string, kind = "settings") {
+  if (kind === "connector" || kind === "oauth_app") return CONNECTOR_LABELS.get(field) ?? "Connector setting";
+
   if (kind === "settings" || kind === "project_settings") return LABELS.get(field) ?? "Setting";
 
   if (kind === "project")
@@ -146,6 +164,8 @@ export function configItemValue(field: string, value: string) {
   const parsed = Schema.decodeUnknownSync(Schema.MutableJson)(JSON.parse(value));
 
   if (field === "proxy") return parsed ? "A different proxy" : "No proxy";
+
+  if (field === "accountIdentity") return parsed ? "A different account" : "Not set";
 
   const named = ENVIRONMENT_VALUES.get(field) ?? (field.startsWith("version.") ? "A different version" : undefined);
 

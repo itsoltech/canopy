@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { bots as botContract, connectors } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
@@ -9,15 +9,14 @@
   import AccountDetail from "#lib/features/connectors/AccountDetail.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import { decode } from "#lib/shared/wire.ts";
-  import { completeConnectorOAuth } from "#lib/features/connectors/api.ts";
+  import { completeConnectorOAuth, listConnectors } from "#lib/features/connectors/api.ts";
   import type { PageProps } from "./$types";
-  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
 
   let { data }: PageProps = $props();
   const overview = useOverview();
-  const capabilities = useGatewayCapabilities();
   const route = useSettingsRoute();
-  const catalog = $derived(decode(connectors.ListConnectorsResponseSchema, data.connections));
+  let catalog = $state(untrack(() => decode(connectors.ListConnectorsResponseSchema, data.connections)));
 
   let accounts = $state<connectors.ConnectorAccount[]>(
     untrack(() => decode(connectors.ListConnectorsResponseSchema, data.connections).accounts),
@@ -36,7 +35,9 @@
   const type = $derived(catalog.types.find((t) => t.id === selected));
 
   $effect(() => {
-    accounts = decode(connectors.ListConnectorsResponseSchema, data.connections).accounts;
+    const next = decode(connectors.ListConnectorsResponseSchema, data.connections);
+    catalog = next;
+    accounts = next.accounts;
   });
 
   // Route data refreshes on desktop returns, including when this page is already open.
@@ -55,6 +56,20 @@
   function refreshAccounts() {
     if (document.visibilityState === "visible") void route.refresh("app:connectors");
   }
+
+  async function reload() {
+    const result = await listConnectors();
+    catalog = result;
+    accounts = result.accounts;
+  }
+
+  onMount(() => {
+    const timer = setInterval(() => {
+      if (!document.hidden && !connecting) void reload().catch(() => {});
+    }, 3000);
+
+    return () => clearInterval(timer);
+  });
 
   function update(account: connectors.ConnectorAccount) {
     notice = null;
@@ -79,11 +94,7 @@
     title="Connectors"
     description="Connect your apps once. Choose which workers and bots can use each account."
   />
-  {#if capabilities?.linkedComputers && overview.computers.size > 0}
-    <Alert title="Accounts stay on this computer">
-      <p>Connector accounts are never shared. Connect an app on each linked computer whose workers or bots need it.</p>
-    </Alert>
-  {/if}
+  <ConfigNotices match={(n) => n.kind === "connector" || n.kind === "oauth_app"} onchange={() => void reload()} />
   {#if notice === "connected"}<Alert>Account connected. Choose who can use it below.</Alert
     >{:else if notice === "error"}<Alert tone="error"
       >Sign-in could not finish. Reconnect the account to try again.</Alert

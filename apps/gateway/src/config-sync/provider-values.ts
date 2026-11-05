@@ -36,6 +36,8 @@ export const ENV_FIELD = /^env\.([A-Za-z_][A-Za-z0-9_]{0,127})$/;
 
 /** Fields whose value is a token for an encrypted value. */
 export function secretField(kind: string, name: string, value: JsonValue | undefined): boolean {
+  if (kind === "connector" || kind === "oauth_app") return name === "credentials";
+
   if (kind === "proxy") return name === "secret";
 
   if (kind !== "instance") return false;

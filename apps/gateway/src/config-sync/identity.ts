@@ -10,6 +10,8 @@ import { placeProject } from "./project-identity.ts";
 import { placeEnvironment } from "./environment-identity.ts";
 import { ENVIRONMENT_KINDS } from "./environment-values.ts";
 import type { ConnectError } from "@connectrpc/connect";
+import { placeConnector } from "./connector-identity.ts";
+import { CONNECTOR_KINDS } from "./connector-values.ts";
 
 /**
  * Where a received record belongs here (docs/linked-computers.md, "Bootstrap i scalanie tożsamości"). Every
@@ -122,6 +124,8 @@ export function place(
       return yield* placeProject(sql, owner, incoming);
 
     if (ENVIRONMENT_KINDS.has(incoming.kind)) return yield* placeEnvironment(sql, owner, incoming);
+
+    if (CONNECTOR_KINDS.has(incoming.kind)) return yield* placeConnector(sql, owner, key, incoming, plain);
     const item = { ...incoming, global_id: yield* canonicalId(sql, owner, incoming.kind, incoming.global_id) };
     let current = yield* recordOf(sql, owner, item.kind, item.global_id);
 

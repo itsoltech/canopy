@@ -9,4 +9,5 @@ export type SharedHost = {
   projectsChanged?(): Promise<void>;
   /** The agent environment library changed: workers get the new desired state. */
   environmentChanged?(): Promise<void>;
+  connectorsChanged?(): Promise<void>;
 };
