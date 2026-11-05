@@ -2,7 +2,6 @@
   import type { ClassValue } from "svelte/elements";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import UpdateItem from "./UpdateItem.svelte";
-  import UpdateNotes from "./UpdateNotes.svelte";
   import { gatewayCurrent } from "./compact-updates.ts";
   import { updateBusy, updateStateLabel, type UpdatesState } from "./updates.svelte.ts";
 
@@ -45,14 +44,6 @@
           onclick={() => void updates.manage({ action: "gateway" })}
         />
       {:else if reason}<IconButton size="sm" icon="information-circle" label={reason} />{/if}
-    {/snippet}
-    {#snippet children()}
-      {#if snapshot.gatewayUpdateAvailable}<UpdateNotes
-          current={snapshot.gatewayVersion}
-          target={snapshot.availableVersion}
-          channel={snapshot.channel}
-          compact
-        />{/if}
     {/snippet}
   </UpdateItem>
 {/if}

@@ -3,7 +3,6 @@
   import type { ClassValue } from "svelte/elements";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import UpdateItem from "./UpdateItem.svelte";
-  import UpdateNotes from "./UpdateNotes.svelte";
   import { cliCurrent } from "./compact-updates.ts";
   import { cliActions, cliLabel } from "./cli-tools.svelte.ts";
 
@@ -59,15 +58,6 @@
           onclick={() => void cli.install(worker.id, tool.provider)}
         />
       {:else if detail}<IconButton icon="information-circle" size="sm" label={detail} />{/if}
-    {/snippet}
-    {#snippet children()}
-      {#if tool.provider === Provider.CLAUDE || tool.provider === Provider.CODEX}<UpdateNotes
-          current={tool.install?.previousVersion || tool.version}
-          target={tool.install?.targetVersion || item.latest?.version || ""}
-          channel="stable"
-          source={tool.provider === Provider.CLAUDE ? "claude" : "codex"}
-          compact
-        />{/if}
     {/snippet}
   </UpdateItem>
 {/if}
