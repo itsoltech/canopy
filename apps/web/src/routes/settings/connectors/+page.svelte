@@ -40,8 +40,10 @@
     accounts = decode(connectors.ListConnectorsResponseSchema, data.connections).accounts;
   });
 
-  // canopy://oauth/callback reloads this page; the code comes over the desktop bridge, never in the URL.
+  // Route data refreshes on desktop returns, including when this page is already open.
+  // The code comes over the desktop bridge, never in the URL.
   $effect(() => {
+    void data.connections;
     void window.canopyDesktop?.takeConnectorOAuth?.().then(async (result) => {
       if (!result) return;
       const response = await completeConnectorOAuth(result).catch(() => undefined);

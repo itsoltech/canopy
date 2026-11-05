@@ -1,14 +1,5 @@
-import {
-  app,
-  BrowserWindow,
-  dialog,
-  ipcMain,
-  nativeImage,
-  powerMonitor,
-  Tray,
-  type IpcMainEvent,
-  type IpcMainInvokeEvent,
-} from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, powerMonitor, Tray } from "electron";
+import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { join, resolve } from "node:path";
 import type { QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
@@ -30,6 +21,8 @@ import { quitKeyEvent } from "./quit-key-event.ts";
 import { isQuitShortcut, QuitSettings } from "./quit-settings.ts";
 import { windowState, registerWindowPreferencesIpc } from "./window-chrome.ts";
 import { updateDesktopMenus } from "./desktop-menu.ts";
+import { AppRoutes } from "./app-routes.ts";
+import { registerAppRouteIpc, showAppRoute } from "./app-route-ipc.ts";
 import { createDesktopWindow, isTrustedDesktopEvent } from "./desktop-window.ts";
 import { DocumentPolicy } from "./document-policy.ts";
 import type { RemoteAppUpdate } from "./remote-app-update.ts";
@@ -110,6 +103,7 @@ const quitGuard = new QuitGuard(
 );
 
 const policy = new DocumentPolicy();
+const appRoutes = new AppRoutes();
 
 function rpc(action: string, args: ControllerArguments = {}) {
   return connection
@@ -142,6 +136,7 @@ function broadcast() {
     productName: identity.productName,
     showMain,
     openSettings,
+    openAppSettings: () => openRoute("/settings"),
     updates,
     quitGuard,
     quitKey,
@@ -169,6 +164,7 @@ function showMain() {
 
 function createWindow() {
   return createDesktopWindow({
+    appRoutes,
     productName: identity.productName,
     iconPath,
     quitGuard,
@@ -177,6 +173,11 @@ function createWindow() {
     setupOrigin: () => setupOrigin,
     webUrl: () => status.webUrl,
   });
+}
+
+function openRoute(path: string) {
+  if (status.phase === "running" && !quitting) showAppRoute(appRoutes, path, showMain, () => window);
+  else showMain();
 }
 
 function openSettings() {
@@ -226,11 +227,7 @@ function enrollment(link: string) {
     // Settings → Connectors takes the code over the desktop bridge and finishes sign-in in its gateway.
     if (parsed.oauth) holdConnectorOAuth(parsed.oauth);
 
-    if (status.phase === "running" && (!window || window.isDestroyed())) window = createWindow();
-
-    showMain();
-
-    if (window && status.phase === "running") void window.loadURL(`${setupOrigin}/settings/connectors`);
+    openRoute("/settings/connectors");
 
     return;
   }
@@ -342,6 +339,7 @@ function startController() {
 
 function registerIpc() {
   registerWindowPreferencesIpc(authorize);
+  registerAppRouteIpc(appRoutes, authorize, () => window);
   ipcMain.handle("canopy:status", (event) => {
     authorize(event);
 

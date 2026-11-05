@@ -3,8 +3,11 @@ import { join } from "node:path";
 import type { QuitGuard } from "./quit-guard.ts";
 import { attachWindowChrome } from "./window-chrome.ts";
 import { applyWindowAppearance, windowAppearance, windowColors } from "./window-appearance.ts";
+import { trackAppRoutes } from "./app-route-ipc.ts";
+import type { AppRoutes } from "./app-routes.ts";
 
 interface WindowOptions {
+  appRoutes: AppRoutes;
   productName: string;
   iconPath: string;
   quitGuard: QuitGuard;
@@ -82,6 +85,7 @@ export function createDesktopWindow(options: WindowOptions) {
   });
 
   options.quitGuard.attach(target);
+  trackAppRoutes(target, options.appRoutes);
   attachWindowChrome(target);
   const updateBackground = () => applyWindowAppearance(target);
   nativeTheme.on("updated", updateBackground);

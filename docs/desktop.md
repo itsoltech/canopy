@@ -76,6 +76,15 @@ sondowaniu providerów. Własne pliki wykonywalne, loginy i profile native są z
 Preload udostępnia status, konfigurację trybu w zaufanym lokalnym ekranie,
 otwarcie ustawień oraz typowane operacje i subskrypcję aktualizacji aplikacji.
 Brak dostępu do plików, shella i dowolnego IPC.
+Menu „Settings…” (`CmdOrCtrl+,`) pokazuje główne okno i otwiera ostatnią stronę
+ustawień używaną w tym oknie (domyślnie `/settings`). Main wysyła `canopy:open-route`
+wyłącznie dla ścieżek `/settings` i ich podstron; preload oraz web ponawiają walidację.
+Root layout używa `goto`, więc nakładka Settings zachowuje stronę pod spodem bez
+przeładowania dokumentu. Żądanie czeka na `canopy:routes-ready` po zamontowaniu
+aplikacji; ekran startowy bez działającej aplikacji ignoruje skrót.
+`canopy://connectors` i powroty OAuth używają tej samej nawigacji SPA.
+„Change desktop mode…” w menu i trayu nie ma skrótu; dotychczasowy bridge
+`openSettings()` (`canopy:settings`) nadal otwiera osobny wybór trybu `/desktop?settings=1`.
 Każde wywołanie jest sprawdzane względem nadawcy i originu; obcy web nie może
 zmienić lokalnej konfiguracji ani przesłać tokenu enrollment. Renderer ma sandbox,
 contextIsolation i wyłączoną integrację Node. Linki zewnętrzne otwierają systemową
