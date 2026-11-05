@@ -20,14 +20,6 @@ Gotowe:
 - cele: komenda `SetGoal` → `thread/goal/set` (`origin: user`, z `objective` i `tokenBudget` przy nowym celu, sam `status` przy pauzie i wznowieniu) albo `thread/goal/clear`; wątek nieznany procesowi jest najpierw wznawiany ([goals.md](goals.md)),
 - procesy w tle: komenda unified exec, która trwa po `turn/completed`, dostaje item `background_task`; `StopTask` → `thread/backgroundTerminals/terminate` ([execution.md](execution.md#4-zadania-w-tle)).
 
-Potwierdzone na żywo (2026-11-01, `tests/integration/goals-background.live.test.ts`, cały łańcuch od UI API): cel ustawiony z UI, Codex sam zaczyna tury celu (z `goal_id`) i raportuje zużycie; pauza (bieżąca tura kończy się normalnie, nowa nie startuje), wznowienie, usunięcie. Proces `for … sleep 1` uruchomiony bez czekania trwa po turze, output płynie do itemu tła, zatrzymanie z UI kończy go jako `interrupted` (`stopped_by_user`), bez dodatkowych tur.
-
-Potwierdzone na żywo (2026-11-01, `tests/integration/worker-models-steer.live.test.ts`, `gateway-models-steer.live.test.ts`, przez CLIProxyAPI): lista modeli (63 dla profilu pośrednika, 11 dla natywnego), tura `gpt-6.1-sol` z wysiłkiem `low` (Codex potwierdza w `thread/settings/updated`), steer w trakcie komendy i w trakcie odpowiedzi bez narzędzi, przez UI API i bez niego.
-
-Potwierdzone na żywo (2026-11-01, `tests/integration/worker-model-filter-effort.live.test.ts`, przez CLIProxyAPI, katalogi domowe urządzenia jako fixture'y): z 63 modeli pośrednika zostaje 48 modeli agenta (bez obrazów, wideo i TTS; 40 bez danych o wysiłku, m.in. Grok i Gemini), `default_effort` `gpt-6.1-sol` = `medium` z `[profiles.work]`, a tura bez wysiłku działa z `medium` (`thread/settings/updated`). Dla Claude: 47 modeli, `haiku` z `modelSettings` = `medium`, w Bash `CLAUDE_EFFORT=medium`.
-
-Potwierdzone na żywo (`tests/integration/worker-codex.live.test.ts`): gateway konfiguruje workera przez gRPC, tworzy wątek w trybie `ASK`, startuje turę; Codex prosi o zgodę na zapis, gateway jej udziela, plik powstaje, a transkrypt wraca jako zdarzenia z dziennika.
-
 ## Runtime wątków
 
 - **Konfiguracja instancji:** jeden app-server per instancja, także bez własnych zmiennych. Każda zmiana oznacza runtime jako nieaktualny; nowa praca czeka na koniec jego tur i zadań w tle, potem jeden restart stosuje najnowszą konfigurację. Inne instancje działają dalej. Ścieżka `CODEX_HOME` nie zależy od rodzaju połączenia, a proxy jest wpisem `model_providers` przez `-c`. `thread/resume` jawnie wybiera bieżący provider (`openai` po powrocie do Device login). Równoczesne wznowienia tej samej sesji korzystają z jednego rejestru.
@@ -55,8 +47,6 @@ Potwierdzone na żywo (`tests/integration/worker-codex.live.test.ts`): gateway k
 - **Żądania serwera:** zgody na komendy i zmiany plików, uprawnienia, pytania i elicitation idą do brokera interakcji, a `item/tool/call` (narzędzia szyny) do gateway. Inne żądania kończą się błędem JSON-RPC.
 
 **Fork od tury** ([threads.md](threads.md#fork-od-tury-fork-from-here)): `thread/fork { threadId: źródło, lastTurnId: provider_turn_ref tury }` (codex-cli 0.164, schemat v2 `ThreadForkParams.lastTurnId`: tury po niej są pominięte; nie z tury w toku, a tury nieudane i przerwane są dozwolone). `thread/rollback` nie jest potrzebny. Bez `after_provider_turn_ref` przy podanej turze worker odmawia (`FORK_POINT_UNKNOWN`) zamiast forkować całą historię. Na żywo: `fork-from-turn.live.test.ts` (trzy tury, fork od drugiej pamięta drugą jako ostatnią).
-
-Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną historią, „restart workera” (nowy proces z tym samym `CODEX_HOME` i dziennikiem), wznowienie i tura w wznowionym wątku.
 
 ## Mapowanie zdarzeń
 
@@ -89,8 +79,7 @@ Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną hist
 
 - **Katalog** (`codex/catalog.ts`, `ListMentionCatalog`): `skills/list { cwds: [folder wątku], forceReload }` → skille (`enabled`; `interface.displayName`, `shortDescription`, `iconSmall` jako data URI do 24 KB, `brandColor`; zakres `repo` jako `project`), `plugin/list` → zainstalowane i włączone pluginy (`plugin://<id>`), `app/list` → dostępne i włączone aplikacje (`app://<id>`), tylko gdy worker włączył konektory. Komend Codex nie ma (jego `/komendy` to TUI).
 - **Wejście** (`codex/input.ts`): tekst z `text_elements` (zakres bajtów UTF-8 + znacznik, jak zapisuje je kompozytor Codexa), itemy `skill`, `mention` i `localImage` (wspomniany plik obrazu). Plik zostaje jako `@ścieżka` w tekście.
-- **Ustalenie (2026-11-02):** mimo izolowanego `CODEX_HOME` Codex czyta skille użytkownika z `~/.agents/skills` właściciela urządzenia (zakres `user`), a do `$CODEX_HOME/skills/.system` instaluje swoje skille systemowe. Skille to instrukcje, nie narzędzia ani dostęp do kont, więc zostają widoczne; katalog pokazuje ich źródło.
-- Potwierdzone na żywo (`tests/integration/mentions.live.test.ts`, `gpt-6.1-sol` przez CLIProxyAPI): skill repozytorium jako item `skill` i wzmianka pliku w jednej turze (marker skilla i treść pliku w odpowiedzi).
+- **Skille użytkownika:** mimo izolowanego `CODEX_HOME` Codex czyta skille użytkownika z `~/.agents/skills` właściciela urządzenia (zakres `user`), a do `$CODEX_HOME/skills/.system` instaluje swoje skille systemowe. Skille to instrukcje, nie narzędzia ani dostęp do kont, więc zostają widoczne; katalog pokazuje ich źródło.
 
 ## Tryb kodu (code mode)
 
@@ -98,26 +87,24 @@ Potwierdzone na żywo (2026-11-01): utworzenie, tura, fork z odziedziczoną hist
 
 **Kto go włącza:** model, nie flagi. W katalogu modeli Codexa 0.164.0 (`codex debug models`) każdy aktualny model (`gpt-6.1-sol`, `gpt-6-*`, `gpt-5.6-*`) ma `"tool_mode": "code_mode_only"`. Wyjątek to `gpt-5.5` (`tool_mode: null`). Dlatego `codex features list` pokazuje `code_mode false`, a model i tak używa trybu kodu.
 
-**Luka (zgłoszona 2026-11-01):** użytkownik prosi o `ping 8.8.8.8`, `ls -lah` i `git status` w `workspace-write`; UI pokazuje tylko `ls` i `git status`. Przyczyny są dwie:
+**Brakujące itemy komend:** użytkownik prosi o `ping 8.8.8.8`, `ls -lah` i `git status` w `workspace-write`; UI pokazuje tylko `ls` i `git status`. Przyczyny są dwie:
 
 1. **App-server nie ma itemu dla komórki `exec`.** W protokole v2 (`ThreadItem`) nie ma typu dla custom tool call. Zagnieżdżone komendy przychodzą jako `commandExecution` (źródło `unifiedExecStartup`), ale skrypt i jego łączny wynik nie trafiają w żadne powiadomienie.
-2. **Codex gubi item komendy, której wynik wygląda jak odmowa sandboxa.** To błąd Codexa, niezależny od trybu kodu. Zmierzone w trybie bezpośrednim (katalog z `tool_mode` usuniętym, jedno `exec_command` na komendę): `false`, `ls /brak`, `sh -c "exit 3"` i `nonexistent-cmd` (127) mają item. `ping` (`socket: Operation not permitted`, kod 2) i nawet `echo "Operation not permitted" >&2; exit 1` nie mają ani `item/started`, ani `item/completed`, także w rolloucie i w `turn/completed.items`. Model dostaje pełny wynik, transkrypt nic.
+2. **Codex gubi item komendy, której wynik wygląda jak odmowa sandboxa.** To błąd Codexa, niezależny od trybu kodu. W trybie bezpośrednim (katalog bez `tool_mode`, jedno `exec_command` na komendę) `false`, `ls /brak`, `sh -c "exit 3"` i `nonexistent-cmd` (127) mają item. `ping` (`socket: Operation not permitted`, kod 2) i nawet `echo "Operation not permitted" >&2; exit 1` nie mają ani `item/started`, ani `item/completed`, także w rolloucie i w `turn/completed.items`. Model dostaje pełny wynik, transkrypt nic.
 
 **Rozważone i odrzucone:**
 - `features.code_mode_host=false`: model dalej dostaje `exec`, ale każde wywołanie kończy się `code-mode host is disabled`, więc agent nie może uruchomić żadnej komendy.
 - Wyłączenie trybu kodu podmienionym katalogiem (`model_catalog_json` z `tool_mode` usuniętym): działa, ale zamraża katalog modeli, idzie wbrew temu, do czego model jest trenowany (Codex ostrzega o gorszej jakości), a luka nr 2 zostaje.
-- `thread/start { experimentalRawEvents: true }` (powiadomienia `rawResponseItem/completed`): mają komórkę i wywołania, ale tylko w wątku utworzonym w tym procesie. Zmierzone: po `thread/fork` i po `thread/resume` w nowym procesie surowych zdarzeń już nie ma, a resume zdarza się po każdym restarcie workera.
+- `thread/start { experimentalRawEvents: true }` (powiadomienia `rawResponseItem/completed`): mają komórkę i wywołania, ale tylko w wątku utworzonym w tym procesie. Po `thread/fork` i po `thread/resume` w nowym procesie surowych zdarzeń już nie ma, a resume zdarza się po każdym restarcie workera.
 
-**Decyzja (2026-11-01):** tryb kodu zostaje. Źródłem brakujących itemów jest rollout wątku, czyli własny zapis Codexa (`Thread.path`, `rollout.ts`). Działa tak samo po starcie, forku i wznowieniu:
-- worker czyta przyrost pliku przy `item/started|completed` i przed `turn/completed` (czeka, aż w pliku będzie koniec tury; zmierzone: zawsze już jest). Linie tur spoza tego procesu (historia forka lub wznowienia) są pomijane,
+**Odtwarzanie z rolloutu:** zachowujemy tryb kodu. Źródłem brakujących itemów jest rollout wątku, czyli własny zapis Codexa (`Thread.path`, `rollout.ts`). Działa tak samo po starcie, forku i wznowieniu:
+- worker czyta przyrost pliku przy `item/started|completed` i przed `turn/completed` (czeka, aż w pliku będzie koniec tury). Linie tur spoza tego procesu (historia forka lub wznowienia) są pomijane,
 - `ResponseItem` z rolloutu trafia do mappera jako `rawResponseItem/completed` (ten sam kształt co surowe zdarzenia protokołu, `raw_json` w dzienniku),
 - komórka `exec` → item `tool_call` (`name = exec`, `input_json = {"code": ...}`, wynik ze wszystkich `custom_tool_call_output`). Startuje przed zagnieżdżonymi komendami, a jej wynik zawiera każdą komendę, także nieudaną, z `exit_code`. `wait` → `tool_call` z kolejną porcją wyniku,
 - `exec_command` / `shell_command` / `shell`, dla których do końca tury nie przyszedł item Codexa o tym samym id (`call_id`), → `command_execution` z komendą, kodem wyjścia i outputem z wyniku wywołania. Rozstrzygane dopiero na końcu tury, bo rollout bywa przeczytany przed powiadomieniem o itemie tego samego wywołania,
 - pozostałe elementy rolloutu (wiadomości, rozumowanie, narzędzia z itemami) nie dają zdarzeń, bo pokrywają je itemy app-servera.
 
 Ograniczenie: w trybie kodu nieudana komenda jest widoczna w wyniku komórki `exec`, a nie jako osobny `command_execution`. Skrypt jest dowolnym JS, więc nie da się go wiarygodnie rozłożyć na komendy. Osobny item dla każdej komendy wymaga naprawy w Codexie (patrz niżej).
-
-Potwierdzone na żywo (`threads.live.test.ts`, `gpt-6.1-sol` przez CLIProxyAPI, `FULL_AUTO`): ping/ls/git status w nowym wątku i po restarcie workera (resume); istniejący test forka i wznowienia przechodzi z odczytem rolloutu (koniec tury zawsze był już w pliku przy `turn/completed`). Fixture'y: `code-mode-commands.jsonl` (tryb kodu), `direct-shell-turn.jsonl` (tryb bezpośredni przez podmieniony katalog, surowe zdarzenia zawężone do wywołań narzędzi).
 
 Do zgłoszenia w Codexie:
 - item `commandExecution` (z `exitCode`) także dla komendy, której wynik wygląda jak odmowa sandboxa, przy `approvalPolicy: never`,
@@ -153,27 +140,16 @@ Opt-in, bo zużywają limity kont: `CANOPY_LIVE=1 bun test apps/worker/src/provi
 - Nagrania strumieni: `CANOPY_LIVE_RECORD_DIR` (domyślnie `/tmp/canopy-codex-recordings`), materiał do mapowania zdarzeń.
 - Testy przez gateway (`tests/integration/*.live.test.ts`) zakładają proxy jak produkt: `useLiveProxy` (`tests/integration/support/live.ts`) zapisuje workerowi jego część konfiguracji (katalogi, harnessy, bez logowania urządzenia) i globalną instancję `cliproxyapi` każdego harnessu przez API UI, włączoną na tym workerze ([worker-config.md](worker-config.md), sekcja 9).
 
-Potwierdzone na żywo (2026-11-01):
-- handshake, wątki i nakładka celów (bez modelu),
-- **profil CLIProxyAPI z autoryzacją przez `env_key`** (`Authorization: Bearer`), czyli punkt otwarty od początku,
-- **izolowany `CODEX_HOME`**: bez hooków, serwerów MCP i wtyczek urządzenia.
-
 ## Izolacja od konfiguracji właściciela urządzenia
 
-Bez `CODEX_HOME` app-server czyta `~/.codex` właściciela urządzenia: jego provider, model, serwery MCP, wtyczki i hooki działają także w wątkach platformy. Zmierzone na tej samej turze „OK”:
+Bez `CODEX_HOME` app-server czyta `~/.codex` właściciela urządzenia: jego provider,
+model, serwery MCP, wtyczki i hooki działałyby także w wątkach platformy.
+Taka konfiguracja może też wymagać zmiennych środowiskowych niedostępnych workerowi.
+Izolowany katalog zapobiega dziedziczeniu prywatnej konfiguracji i dodatkowego kontekstu.
 
-| | Tokeny wejściowe | Hooki / MCP urządzenia |
-|---|---|---|
-| `~/.codex` właściciela | 18 693 | tak (`sessionStart` z wtyczki, 2 serwery MCP) |
-| izolowany `CODEX_HOME` | 11 744 | nie |
-
-Profil natywny z `~/.codex` zależy też od środowiska właściciela. W teście tura padła na `Missing environment variable: CLIPROXY_API_KEY`, bo jego provider czyta klucz ze zmiennej, której worker nie ma.
-
-### Ustalenia (2026-11-01)
+### Konfiguracja izolacji
 
 1. **Worker zawsze uruchamia app-server z własnym `CODEX_HOME`** (`<data_dir>/codex-home`, `0700`, `prepareCodexHome`). Konfiguracja (dostawcy, MCP, instrukcje) przychodzi z platformy.
 2. **Logowanie właściciela urządzenia jest dowiązywane** (`~/.codex/auth.json` → `codex-home/auth.json`; token odświeża się wspólnie z CLI). Wyjątek: workery korzystające z CLIProxyAPI, gdzie gateway ustawia `WorkerConfig.codex.device_login = NONE` i dowiązanie jest usuwane. Bez uprawnień do dowiązań (Windows) plik jest kopiowany, a raport to zgłasza.
 3. **Natywni subagenci są wyłączeni** także dla modeli z `multi_agent_version: "v2"` w katalogu: `-c agents.enabled=false` obok `features.multi_agent*=false` (same feature'y nie wygrywają z katalogiem; [agent-bus.md](agent-bus.md#1-natywna-orkiestracja-dostawców-wyłączona)).
 4. **Konektory konta są wyłączone** (`features.apps=false`). Po zalogowaniu kontem ChatGPT Codex uruchamia wbudowany serwer MCP `codex_apps` z aplikacjami połączonymi z kontem właściciela. W wątkach platformy byłby to dostęp do jego prywatnych kont. Można je świadomie włączyć (`NativeToolsConfig.connectors`).
-
-Potwierdzone na żywo: profil natywny w izolowanym `CODEX_HOME` z dowiązanym logowaniem odpowiada poprawnie, bez hooków, serwerów MCP i aplikacji urządzenia.

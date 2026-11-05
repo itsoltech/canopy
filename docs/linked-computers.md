@@ -301,9 +301,6 @@ odwołania. To trwałe odwołanie zaufania, nie kolejka komend użytkownika.
 dwa listenery mTLS i dwie oddzielne bazy PostgreSQL w Dockerze. Sprawdza piny, szyfrowanie klucza,
 replay/wrong/expiry/revoke/limity, obcy poprawny certyfikat, inny klucz pod tym samym adresem,
 niezgodność obu stron, obecność, reconnect po restarcie serwisu, nazwy i unlink online/offline.
-Kontrola UI przechodzi przez dwa produkcyjne gatewaye/BFF za pomocą jednorazowej automatyzacji
-Chromium poza repo; screenshoty obejrzano. Nie dodaje testów komponentów/E2E do repo.
-Wyniki i screenshoty: [raport etapu 1](../artifacts/linked-computers/verification.md).
 
 ## Konkretny protokół etapu 2
 
@@ -902,11 +899,8 @@ spoza podsieci, limit jednej próby dla serii powtórzonych ogłoszeń oraz brak
 punktu końcowego, ogłoszenie nowego adresu przez łącze, kolejność i przejęcie przez następną trasę
 po śmierci najlepszej, ręczne dodanie/usunięcie, wyłączone wykrywanie (cisza, usunięte trasy `lan`,
 trwałe ustawienie) i Unlink. `linked-computers.test.ts` sprawdza dalej fałszywą trasę z niezgodnym
-pinem. `schema.test.ts` obejmuje 0052. Ręcznie: dwa gatewaye w osobnych procesach na tym samym
-hoście Linux znalazły się przez prawdziwy multicast na interfejsie LAN (trasa `lan`, 6 ms), UI
-obejrzane w jasnym i ciemnym motywie, na desktopie i telefonie. Wymaga jeszcze sprawdzenia na dwóch
-fizycznych maszynach w jednej sieci, na macOS (pytanie o sieć lokalną, współistnienie z
-mDNSResponder) i Windows.
+pinem. `schema.test.ts` obejmuje 0052. Sieć na fizycznych urządzeniach wymaga osobnej
+kontroli, w tym zgody na sieć lokalną i współistnienia z mDNSResponder na macOS.
 
 ## Konkretny protokół etapu 7
 
@@ -1015,13 +1009,7 @@ origin spoofing, limity hop i pętle, odwołanie trwającego wywołania i purge 
 żywego strumienia overview (spóźniona odpowiedź nie odtwarza usuniętego komputera), stary
 katalog, P1 offline i restart W/P1 z czytelnym powodem i bez kolejki, capability fallback oraz Unlink.
 `schema.test.ts`: migracja 0053, izolacja ownera, brak certyfikatu wpisu pośredniego i kaskady.
-Ręcznie na trzech gatewayach z osobnymi bazami i BFF: picker „Share onward” w jasnym i ciemnym
-motywie, desktop 1440×1000 i telefon 390×844, bez poziomego przewijania. W widzi P2 via P1,
-P2 pokazuje W via P1 jako wpis tylko do odczytu; wyłączenie przełącznika na P1 usuwa P2 i jego
-wątek z W. Zastosowano `design` oraz osobny przebieg `componentize`. Fixture przeglądarkowy nie
-uruchamiał konfiguracji etapu 4 (jego endpoint zwracał 409); obejmował widoki i przełączniki relay.
-Zrzuty są poza repozytorium w katalogu tymczasowym przekazanym w raporcie.
-Bez testów UI. Bezpośrednie W↔P2 po „przedstawieniu” przez P1, discovery relayed computers
+Bezpośrednie W↔P2 po „przedstawieniu” przez P1, discovery relayed computers
 i przechodnia konfiguracja przez relay są odroczone. Przenoszenie rzeczy opisuje etap 8.
 
 ## Konkretny protokół etapu 8
@@ -1179,8 +1167,7 @@ zamrożeniu, restart źródła po przygotowaniu, restart celu w trakcie przygoto
 źródła po decyzji, restart celu przed zastosowaniem przy zerwanym łączu) — zawsze dokładnie jeden dom;
 idempotentne powtórzenia `PrepareMove`/`DecideMove`; odmowę cudzej rzeczy, nieznanego komputera
 i rzeczy innego komputera; „Move everything” z listą elementów lokalnych. `schema.test.ts` obejmuje 0054
-(triggery, jeden aktywny ruch, reguły ról). Bez testów UI; widoki obejrzane ręcznie na własnym stosie
-(jasny i ciemny motyw, desktop i telefon).
+(triggery, jeden aktywny ruch, reguły ról).
 
 Odroczone: przenoszenie przez pośrednika, przeniesienie z powrotem na komputer ze starą kopią,
 przenoszenie samych sekretów wątku, wątki bez workera, przeniesienie zainicjowane z UI innego

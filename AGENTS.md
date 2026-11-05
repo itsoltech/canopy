@@ -14,6 +14,7 @@ Short rules for agents working in this repository. Details live in `docs/` (most
   - `proto/canopy/*`: the gRPC contracts.
 - The name is **Canopy** everywhere: code, docs, UI, prompts, env vars (`CANOPY_*`), packages (`@canopy/*`), proto (`canopy.*`). No traces of former names, no legacy fallbacks.
 - UI and user-facing text are in English. Docs in `docs/` are in Polish (except `docs/copy.md`, which is in English); keep that when editing them.
+- Don't name other products as inspiration in code, docs, tests or commits. Don't commit analysis, verification, spike or test-run artifacts (reports, screenshots, logs); keep only finished docs, and fold generic lessons into the relevant doc. Never put machine-specific paths, hosts or workarounds in the repo; keep those outside it.
 - Start with `docs/architecture.md`. Then read the doc for the area you touch: `protocol.md`, `worker-config.md`, `bots.md`, `connectors.md`, `updates.md`, `release.md`, `deploy.md`, `ui-api.md`.
 
 ## Branches, commits, releases

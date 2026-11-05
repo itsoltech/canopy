@@ -16,7 +16,7 @@
   import { awayReason, lastSeen } from "#lib/features/computers/computers.ts";
 
   /**
-   * One thread in the inbox (T3 layout): project and status, title, then where it runs with its marks
+   * One thread in the inbox: project and status, title, then where it runs with its marks
    * (goal, side threads, started by an agent) and the provider's mark. `sides` = number of side threads under it.
    * What it does leads the row (ThreadActivityMark in the avatar's place, background tasks with their count);
    * busy rows step back, finished unseen ones and those that need you stand out (SidebarThreadLink). Hover,

@@ -157,7 +157,7 @@ html[data-canopy-platform]:not(:has(:popover-open, [data-window-no-drag])) {
 }
 
 /*
- * Motion tokens (transitions.dev scale), the only durations, easings, distances, scales and blurs motion
+ * Motion tokens, the only durations, easings, distances, scales and blurs motion
  * may use: `var(--duration-fast)`, Tailwind `ease-smooth-out`, … The recipes using them live in
  * `lib/shared/ui/motion.css`, the Svelte transitions in `lib/shared/ui/motion.ts`.
  * Rules: open slower than close (open --duration-fast, close --duration-quick), hover/intent delays live

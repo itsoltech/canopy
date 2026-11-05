@@ -1,8 +1,9 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
-Grok CLI ma ten sam zestaw narzędzi przez lokalny HTTP MCP przekazany w ACP `session/new` / `session/load`. Gateway nadal wykonuje i autoryzuje wywołania; instancję wybiera się jako `grok/<id>`, także w `spawn_thread` z Claude/Codex i w przeciwnym kierunku. Live potwierdził `list_threads` przez Grok → MCP → handler; pełne mieszane delegowanie jest pokryte resolverem, nie testem live. [Adapter i ograniczenia](grok-adapter.md).
+Grok CLI ma ten sam zestaw narzędzi przez lokalny HTTP MCP przekazany w ACP `session/new` / `session/load`. Gateway nadal wykonuje i autoryzuje wywołania; instancję wybiera się jako `grok/<id>`, także w `spawn_thread` z Claude/Codex i w przeciwnym kierunku. [Adapter i ograniczenia](grok-adapter.md).
 
-Status: **działa dla Codexa i Claude** (2026-11-01; Claude przez serwer MCP w procesie workera, [claude-adapter.md](claude-adapter.md#szyna-agentów)):
+Szyna działa dla Codexa i Claude; Claude korzysta z serwera MCP w procesie workera
+([claude-adapter.md](claude-adapter.md#szyna-agentów)):
 
 [Connectors](connectors.md) współdzielą transport `AgentToolCall/AgentToolResult`.
 Pole `connector_account_id` (520) wybiera oddzielny dispatcher gateway z kontrolą
@@ -15,12 +16,6 @@ i etykiety. Poświadczenia dostawcy nigdy nie trafiają do workera.
 - worker: narzędzia jako `dynamicTools` Codexa przy `thread/start` (`codexAgentBusTools`), wywołania jako `AgentToolCall` z deterministycznym `call_id` (`toolCallId`), ponawiane po ponownym połączeniu,
 - gateway: `AgentBus` (`apps/gateway/src/core/agent-bus.ts`) i `AgentBusStore` (`apps/gateway/src/store/agent-bus.ts`): dekodowanie, fakty z bazy, `authorizeBusCall`, wykonanie, powiadomienia, pytania do rodzica,
 - testy: `tests/integration/agent-bus.test.ts` (gateway + skryptowany worker), `codex dynamic tools (live)` w `app-server.live.test.ts`.
-
-Potwierdzone na żywo (Codex przez CLIProxyAPI, przez UI/BFF):
-- wątek główny wywołuje `spawn_thread`, wątek boczny powstaje w tym samym katalogu i wykonuje zadanie, a wynik wraca do wątku głównego jako tura powiadomienia (`hops` 1 → 2), po której model odpowiada użytkownikowi,
-- `schedule_wakeup` za 60 s: gateway odpala turę `trigger = schedule` i model wykonuje zaplanowane polecenie.
-
-Potwierdzone na żywo (2026-11-02, `tests/integration/subagents-any-provider.live.test.ts`, przez CLIProxyAPI): wątek Codexa (`gpt-6.1-sol`) uruchamia subagenta na Claude (`claude/cliproxyapi`, `claude-haiku-5-5`), wątek Claude subagenta na Codexie (`codex/cliproxyapi`); dziecko wykonuje zadanie, a wynik wraca do rodzica. Wątek Codexa znajduje niezwiązany wątek Claude (`list_threads` `scope: all`), wysyła mu wiadomość (`send_message`), cel wykonuje ją jako turę od agenta (`hops` 1), a odpowiedź wraca do nadawcy.
 
 Zestaw narzędzi wątku Codexa jest ustalany przy `thread/start`. Wątki utworzone przed zmianą zestawu (np. przed włączeniem harmonogramu) mają stary zestaw.
 
@@ -48,7 +43,7 @@ Subagenci i harmonogramy dostawców działają poza kontrolą platformy: są ulo
 - `disallowedTools` usuwa narzędzia z kontekstu modelu i blokuje także wywołania wewnętrzne. Test sprawdza każdą nazwę z listą `BUILTIN_TOOL_NAMES` przypiętego SDK.
 - Codex: `--print-startup-config` nie waliduje kluczy `features.*`, więc test na prawdziwym CLI sprawdza stan efektywny przez `codex features list` z tymi samymi nadpisaniami.
 - **Codex: same `features` nie wystarczą.** Model, którego wpis w katalogu ma `multi_agent_version: "v2"` (np. `gpt-6.1-sol`), dostawał narzędzia kolaboracji (`spawn_agent`, `send_message`, `wait_agent`, `followup_task`, `interrupt_agent`, `list_agents`) mimo `features.multi_agent*=false`. Codex 0.164 wybiera wersję tak: `features.multi_agent_v2` włączone → v2; `agents.enabled = false` → wyłączone; dalej katalog modelu; na końcu `features.multi_agent` (`core/src/config/mod.rs`, `multi_agent_version_override`). Tylko `agents.enabled=false` (obsługiwany klucz `[agents]`) wygrywa z katalogiem, także w wątkach, które zapisały już v2. Dowód: `codex collaboration tools (live)` w `app-server.live.test.ts` — przebieg kontrolny bez nadpisania ma te narzędzia w `additional_tools` rolloutu, z nadpisaniem ich nie ma, a prośba o subagenta kończy się wywołaniem `spawn_thread`.
-- Agent może włączyć każdą kategorię z powrotem (`ThreadSpec.native_subagents`, `native_scheduling`). Dla Codexa przełącznik działa per proces app-server; per wątek do sprawdzenia w spike'u.
+- Agent może włączyć każdą kategorię z powrotem (`ThreadSpec.native_subagents`, `native_scheduling`). Dla Codexa przełącznik działa per proces app-server, bez gwarancji niezależnego przełączania per wątek.
 - **Cele zostają włączone celowo:** to cele harnessów (Codex `goals`, Claude `/goal`), które platforma śledzi i którymi użytkownik steruje z UI — [goals.md](goals.md).
 - Bez zmian zostają zadania w tle, które nie są agentami (background Bash, procesy Codexa) — [execution.md](execution.md#4-zadania-w-tle).
 - **Natywne pytania zostają włączone:** Claude `AskUserQuestion` i Codex `request_user_input`. Platformowe `ask_user` zapewnia wspólny kontrakt i trwałość, lecz synchroniczny wait MCP trzeba odnawiać. Nie ma więc równoważnej gwarancji jednego bezterminowo otwartego wywołania w obu harnessach. Wszystkie trzy źródła pytań korzystają z tego samego panelu nad kompozytorem; różnią się adapterem odpowiedzi i zachowaniem po restarcie (sekcja 3 poniżej i [execution.md §6](execution.md#6-interakcje-z-użytkownikiem)).
@@ -213,7 +208,7 @@ To trzy osobne przykłady elementów tablicy. `dismissed` oznacza odrzucenie ca�
 
 **Synchronicznie:** `wait: true` trzyma wywołanie najwyżej 120 s. Przy `pending` opis narzędzia i wynik nakazują ponawiać `get_answers({question_set_id, wait: true})` bez wykonywania dalszej pracy. Zestaw nie wygasa po tych 120 s, zakończeniu tury ani restarcie. Jest to odnawialny wait, jak `wait_threads`; po zwróceniu `pending` platforma nie blokuje technicznie innych narzędzi modelu. Po awarii odpowiedź wznawia pracę jako nowa tura, jeśli nie ma już oczekującego wywołania.
 
-**Dowody wyboru (2026-11-02):** przypięty Claude Agent SDK **0.3.316**, `createSdkMcpServer.timeout` (`sdk.d.ts`), opisuje twardy limit wall-clock, którego progress nie przedłuża. Produkcyjny serwer szyny ma 330000 ms. `apps/worker/src/providers/claude/tool-timeout.live.test.ts` potwierdził przez CLIProxyAPI, że limit 1000 ms przerywa odpowiedź handlera trwającego 2500 ms. W przypiętym Codex **0.164.0** [`request_dynamic_tool`](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/tools/handlers/dynamic.rs) czeka na `rx_response.or_cancel(...)` bez lokalnego timera. Test live Codexa z `CANOPY_ASK_LONG_WAIT=1` podał odpowiedź po 123 s: model odnowił wait przez `get_answers` i wykorzystał odpowiedź. Nie zakładamy bezterminowości pozostałych warstw transportu.
+**Limity transportu:** przypięty Claude Agent SDK **0.3.316** definiuje `createSdkMcpServer.timeout` jako twardy limit wall-clock, którego progress nie przedłuża. Serwer szyny ma 330000 ms, więcej niż pojedyncze oczekiwanie `get_answers` lub `wait_threads`. W Codex **0.164.0** [`request_dynamic_tool`](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/tools/handlers/dynamic.rs) czeka na `rx_response.or_cancel(...)` bez lokalnego timera. Nie zakładamy bezterminowości pozostałych warstw transportu.
 
 **Asynchronicznie:** zapis odpowiedzi tworzy trwały outbox. Gdy trwa tura, gateway zapisuje `turn_steers` i komendę workera w jednej transakcji. Odmowa lub upuszczenie steera uruchamia istniejący fallback kolejki. Gdy tury już nie ma, odpowiedź zaczyna nową turę `agent_bus`. W obu przypadkach `hops` = `hops` tury pytającej + 1; odpowiedź człowieka nie zeruje tego łańcucha.
 
@@ -382,8 +377,6 @@ sequenceDiagram
 - **Restart w trakcie `wait_threads`:** niezakończone czekanie nie zużywa raportu. Po wznowieniu agent ponawia odczyt albo dostaje powiadomienie, jeśli nie odebrał wcześniej wyniku.
 
 Regresje: `tests/integration/agent-bus-notify.test.ts` (skryptowany worker, wynik podczas `ask_user`, odczyty, fallback i nowa instancja gateway na tej samej bazie), `apps/gateway/src/store/notification-observation.test.ts` (reguły odczytów), `apps/web/src/lib/features/threads/queue/queue.test.ts` (kolejka bez powiadomień) oraz opt-in `agent-bus-notify.live.test.ts` (Codex przez CLIProxyAPI: `spawn_thread` z `notify` → `wait_threads` → `close_thread`, jedna tura rodzica).
-
-Potwierdzone na żywo 2026-11-02 (`agent-bus-notify.live.test.ts`, Codex `gpt-6.1-sol` przez CLIProxyAPI): rodzic uruchomił dziecko z `notify = true`, `wait_threads` zwróciło jego wynik `391`, rodzic zamknął dziecko i odpowiedział `RESULT: 391`. Raport wszedł steerem do trwającej tury (`notify_status = delivered`); po zakończeniu rodzica i ponownym `sweep` w bazie pozostała dokładnie jedna tura rodzica (`trigger = user`, `completed`), bez dodatkowej tury `agent_bus`. Próba po scaleniu aktualnego `main` również przeszła. Sekrety i adres proxy pozostają poza repozytorium.
 
 ## 9. Udostępnienie narzędzi dostawcom
 

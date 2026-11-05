@@ -71,7 +71,7 @@ Strumieniowanie: `item_started` → `item_delta` (`text`, `summary`, `output`) �
 | `notice` | `api_retry`, `rate_limit`, hooki, `permission_denied`, `notification` | `error`, `turn/moderationMetadata`, `thread/status/changed` |
 | `usage_updated` | `result.usage`, `thinking_tokens` | `thread/tokenUsage/updated` |
 
-Mapowanie trzeba potwierdzić w spike'u adapterów na przypiętych wersjach. Nowy typ dostawcy bez mapowania nie jest błędem: trafia do `thread_events` z `raw`, a jeśli ma treść, także jako `provider_item`.
+Mapowanie sprawdzamy na przypiętych wersjach adapterów. Nowy typ dostawcy bez mapowania nie jest błędem: trafia do `thread_events` z `raw`, a jeśli ma treść, także jako `provider_item`.
 
 ## 5. Zapis po stronie gateway
 

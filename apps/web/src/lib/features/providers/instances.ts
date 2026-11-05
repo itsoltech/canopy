@@ -30,7 +30,7 @@ export const sharedInstanceKeys = (instance: Pick<ui.ProviderInstance, "harness"
   return { definition: sharedKey.instance(harness, instance.id), models: sharedKey.models(harness, instance.id) };
 };
 
-/** The label, else the harness's name for the built-in device login (T3: "Codex", "Claude"), else the id. */
+/** The label, else the harness's name for the built-in device login ("Codex", "Claude"), else the id. */
 export const instanceName = (instance: Pick<ui.ProviderInstance, "label" | "id" | "builtIn" | "harness">): string =>
   instance.label || (instance.builtIn ? harnessName(instance.harness) : instance.id);
 
@@ -61,7 +61,7 @@ export interface InstanceStatus {
   readonly tone: Tone;
 }
 
-/** One line for an instance on a worker, as the list and the detail show it (T3: "Authenticated · ChatGPT"). */
+/** One line for an instance on a worker, as the list and the detail show it (e.g. "Authenticated · ChatGPT"). */
 export function statusOn(on: ui.InstanceOnWorker | undefined, online: boolean): InstanceStatus {
   if (!on) return { label: "Unknown worker", tone: "neutral" };
 

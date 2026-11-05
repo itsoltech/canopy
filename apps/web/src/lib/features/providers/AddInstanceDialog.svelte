@@ -24,7 +24,7 @@
   import WorkersField from "./WorkersField.svelte";
 
   /**
-   * "Add provider" (T3 wizard): 1 Provider (the harnesses we run: Codex, Claude Code), 2 Identity (label, instance id,
+   * "Add provider": 1 Provider (the harnesses we run: Codex, Claude Code), 2 Identity (label, instance id,
    * optional accent color), 3 Config (connection, where it runs, runtime and launch arguments). Steps appear
    * without independent field motion. A Codex instance with its own login signs in from its detail once it runs.
    */

@@ -27,7 +27,7 @@ prefiks ścieżki reverse proxy. URL nie może zawierać loginu, hasła, query a
   włącza je) i dodać publiczne nagłówki routingu. Bieżący Codex obsługuje wyłącznie
   `responses`; inna wartość `wire_api` jest odrzucana. Nagłówki auth, cookies i kluczy
   są odrzucane; sekret ma osobne pole.
-- Grok 1.0.70 (`f50904eaee6c`, sprawdzone 2026-11-04) obsługuje własne endpointy:
+- Grok 1.0.70 (`f50904eaee6c`) obsługuje własne endpointy:
   `grok agent --help` pokazuje `--xai-api-base-url`; dołączone do CLI
   `user-guide/11-custom-models.md` opisuje `[model.<id>]`, `base_url`, `env_key`
   oraz backendy. Adapter używa prywatnego `GROK_HOME`, `<root>/v1`,

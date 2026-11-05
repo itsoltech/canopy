@@ -135,8 +135,8 @@ Renderer ustawia `--window-zoom` i `data-window-fullscreen`; rezerwa pozioma
 kontrolek. Rezerwa znika w pełnym ekranie i dotyczy tylko lewej kolumny pod kontrolkami.
 Zdalny web rozpoznaje nowe metody bridge, więc starszy shell nadal może go otworzyć.
 
-Mapę regionów i geometrię zoomu sprawdzono w Chromium 156 z `data-canopy-platform="darwin"`;
-przeciąganie i trafianie w kontrolki wymagają potwierdzenia na macOS.
+Przeciąganie i trafianie w kontrolki wymagają kontroli na natywnym macOS;
+emulowanie `data-canopy-platform="darwin"` w przeglądarce nie sprawdza zachowania okna.
 
 Zmiany wspólnego kodu są addytywne:
 
@@ -271,8 +271,8 @@ w ustawieniach workera.
 Linux potrzebuje zwykłych bibliotek Electron i odblokowanego Secret Service/KWallet;
 nie stosujemy fallbacku plaintext ani `--no-sandbox`.
 Narzędzie fpm do deb potrzebuje `libcrypt.so.1` (na Arch: `libxcrypt-compat`).
-Do pakowania zapewnij kilka GiB wolnego miejsca w `TMPDIR`; na tej maszynie
-użyto katalogu roboczego na dysku zamiast ograniczonego tmpfs `/tmp`.
+Do pakowania zapewnij kilka GiB wolnego miejsca w `TMPDIR`. Jeśli tmpfs `/tmp`
+jest zbyt mały, ustaw `TMPDIR` na katalog na dysku.
 
 Z katalogu repozytorium:
 
@@ -375,40 +375,14 @@ Adres rejestru można nadpisać tylko testowym argumentem albo
 `NODE_ENV=test CANOPY_TEST_POSTGRES_REGISTRY=http://127.0.0.1:<port>/` w procesie
 testowego kontrolera. Produkcyjne środowisko i konfiguracja UI nie mają takiego pola.
 
-### Rozmiary i blokady regresji
+### Limity rozmiaru pakietu
 
-Linux x64, Bun 1.4.4, pomiar `du -sk` rozpakowanej aplikacji, MiB (2026-11-03;
-składniki zaokrąglone):
-
-| Składnik | Przed | Po |
-| --- | ---: | ---: |
-| Electron i pozostały shell | 274 | 274 |
-| app.asar | 49,9 | 0,6 |
-| app.asar.unpacked | 57,8 | 0 |
-| Bun + cztery usługi | 525,1 | 107,2 |
-| runtime/node_modules | 485,5 | 19,6 |
-| PostgreSQL w aplikacji | 59,8 | 0 |
-| web, licencje, pozostałe | około 16 | około 16 |
-| **Cała aplikacja** | **1468,2** | **417,5** |
-
-Gotowy AppImage zmniejszył się z **586,4 MiB** (614 880 223 bajty) do
-**184,0 MiB** (192 904 303 bajty). Oba pomiary pochodzą z lokalnego pakowania
-Linux x64. Cel deb nie został ukończony: host nie ma `libcrypt.so.1` wymaganej przez fpm.
-
-Pomiary etapów: sam bundling shellu **1361,1 MiB**; minimalne zależności runtime
-i oczyszczony PG **1206,4 MiB**; jeden Bun **788,5 MiB**; bez CLI i PostgreSQL
-**417,5 MiB**. Guard używa długości plików (bez narzutu bloków filesystemu):
-aktualnie **414,2 MiB**; limity Linux 550 MiB, macOS arm64 600 MiB, Windows x64
-650 MiB. `package-sizes-<target>.json` powstaje w release i jest artefaktem CI.
+Guard liczy długości plików bez narzutu bloków filesystemu. Limity wynoszą
+550 MiB dla Linux, 600 MiB dla macOS arm64 i 650 MiB dla Windows x64.
+`package-sizes-<target>.json` powstaje jako artefakt CI, poza źródłami.
 Guard odrzuca też app node_modules, asar.unpacked, dołączoną bazę/CLI, nieoczekiwane
 zależności runtime, kopie Bun, identyczne pliki ≥8 MiB i nie-arm64 Mach-O na macOS.
 Wspólny plugin kompilatora blokuje import pakietów CLI także w binarkach i Dockerze.
-
-macOS nie został zbudowany tutaj: z pomiaru użytkownika **1,8 GiB** szacujemy
-**około 380–450 MiB** aplikacji po zmianie (Framework Electron zostaje). PG i CLI
-w pakiecie mają 0 MiB; Bun około 85–90 MiB, JS około 5 MiB, natywne zależności/SDK
-około 20 MiB, web około 16 MiB. Osobny cache PG po deduplikacji/thinning szacujemy
-na **70–110 MiB**, do pomiaru na Macu. To nie jest pomiar artefaktu macOS.
 
 ## Jedna instalacja i kanały
 
@@ -777,88 +751,23 @@ Wycofanie wadliwego wydania wymaga nowszego wydania naprawczego tego samego kana
 aplikacja nie wykonuje rollbacku bazy. Jawny downgrade desktopu nie sprawdza zgodności
 danych i nie daje gwarancji uruchomienia. Wcześniej wykonaj backup.
 
-## Weryfikacja
+## Sprawdzanie runtime i paczek
 
-Odchudzenie paczki i pobieranie PostgreSQL (Linux x64, 2026-11-03):
-`bun install`, `gen:check`, typecheck, produkcyjny build web i pakowanie AppImage
-przeszły. Pełny `check:tmp`: **687 pass, 146 skip, 0 fail**; testy desktopu/guardów:
-**15 pass**, testy konfiguracji i generowania tekstu workera: **13 pass**.
-Po poprawieniu katalogu raportu w fixture ponownie przeszedł izolowany
-`check:tmp apps/desktop/test/packaging.test.ts` (**6 pass**, bez pozostałości).
-Ekran pobierania i błędu sprawdzono w prawdziwej przeglądarce: jasny/ciemny motyw,
-szerokość desktop/telefon i reduced motion. Spakowany main uruchomiono z aktywnym
-sandboxem i magazynem kluczy OS. Mac, Windows i rzeczywiste tury providerów
-w nowej paczce wymagają osobnej weryfikacji.
+`apps/desktop/test/runtime.integration.test.ts` kopiuje finalny runtime poza repo,
+uruchamia rzeczywiste gateway/worker/BFF/DB na losowych portach i sprawdza
+enrollment, trwałość po restarcie, WAL recovery, redakcję sekretów oraz sprzątanie
+grup procesów po zamknięciu i utracie stdin kontrolera. Wymaga wcześniejszego
+desktop builda; bez sidecarów test jest pomijany. Osobne integracje obejmują
+SHA-512 pobieranego PostgreSQL, wznowienie HTTP, anulowanie, cache offline
+i blokadę zmiany major. Tryb remote nie pobiera PostgreSQL.
 
-Szybkie zamykanie mierzą testy `apps/desktop/test/shutdown.integration.test.ts` i
-`tests/integration/worker-shutdown.test.ts`; fizyczne puszczenie ⌘Q w trybie Hold wymaga macOS.
+`shutdown.integration.test.ts` i `worker-shutdown.test.ts` chronią ścieżkę
+zamykania. Fizyczny gest Hold ⌘Q, Keychain, Gatekeeper i instalacja aktualizacji
+wymagają natywnego macOS. Test paczki uruchamiaj z aktywnym sandboxem i magazynem
+kluczy OS. Wykrycie CLI i worker online nie potwierdzają loginu providera.
 
-Aktualne dowody wyboru kanału i jednej tożsamości aplikacji:
-[raport i zrzuty Chromium](../artifacts/desktop/update-channel/verification.md).
-
-Historyczna weryfikacja podpisywania przed ujednoliceniem aplikacji (2026-11-03, Linux x64):
-
-- `actionlint -shellcheck= .github/workflows/release.yml`, instalacja zależności,
-  typecheck i `gen:check` przeszły; desktop build obejmuje także produkcyjny build web.
-- Końcowy `bun run check:tmp`: **659 pass, 144 skip, 0 fail**, bez pozostawionych
-  katalogów testowych. Pierwszy przebieg miał trzy błędy w niezmienionych testach
-  `thread-secrets`; nie odtworzyły się w izolacji ani w drugim pełnym przebiegu.
-- Powstały AppImage i deb wszystkich trzech kanałów. Metadane deb mają osobne nazwy
-  `canopy`, `canopy-beta`, `canopy-nightly` (ten podział usunięto); ikony w paczkach różnią się, a stable ma
-  identyczny SHA-256 jak źródłowy PNG. Gotowe shelle uruchomiono na prywatnym Xvfb
-  z osobnymi katalogami danych; stable i nightly działały równolegle.
-- Testy resolvera chronią granice kanałów/downgrade, scalanie feedów zachowuje oba
-  zipy macOS i odrzuca błędne SHA-512; skaner znajduje także niewykonywalne pliki
-  Mach-O bez rozszerzenia i biblioteki w podkatalogach.
-- `electron-builder --mac --dir` na Linuxie przyjął konfigurację i utworzył layout app,
-  po czym kontrola zasobów odrzuciła runtime Linux („No macOS runtime binaries found”).
-  Podpisy, notaryzacja, Gatekeeper i instalacja aktualizacji wymagają macOS CI oraz
-  ręcznej próby z następnego wydania; lista kontroli jest w [release.md](release.md#pierwszy-przebieg-ci-na-macos).
-
-```sh
-bun test apps/desktop/test/runtime.integration.test.ts
-bun run typecheck
-bun run gen:check
-bun run check:tmp
-```
-
-Integracja kopiuje finalny runtime poza repozytorium, używa jednego Bun i bundli JS,
-lokalnego rejestru HTTP z prawdziwym pakietem PG z node_modules, temp data dirów
-i losowych portów. PG jest pobierany i weryfikowany jak u użytkownika.
-Obejmuje lokalny enrollment i online przez gRPC,
-zdalny enrollment do testowego gatewaya, trwałość projektu/tożsamości po restarcie,
-SIGKILL serwera i WAL recovery, redakcję sekretów, brak pozostałych grup procesów
-oraz zamknięcie kontrolera po utracie stdin rodzica. Nie dodano testów UI.
-Osobne integracje obejmują zły SHA-512, wznowienie HTTP, anulowanie, cache offline
-i blokadę zmiany major. Test remote potwierdza brak pobrania i katalogu PG.
-Release CI uruchamia integracje na spakowanym runtime Linux/macOS; Windows czeka
-na osobne potwierdzenie na natywnym runnerze.
-Przed integracją wykonaj desktop build; przy braku sidecarów testy są pomijane,
-aby zwykły checkout monorepo nie wymagał instalowania toolchainu Electron do testów backendu.
-
-Smoke okna jest wykonywany lokalnie przez Playwright/CDP na Xvfb z aktywnym
-sandboxem i prawdziwym OS keychain. Zrzuty w `artifacts/desktop/` przedstawiają
-wspólny web shell w jasnym/ciemnym motywie oraz ekran pierwszego uruchomienia.
-Skrypt browserowy jest roboczą weryfikacją i nie jest częścią repozytorium.
-Wyniki końcowych kontroli i smoke są zapisane razem ze zrzutami.
-Wykonany smoke AppImage potwierdził także zakończenie procesu Electron i czyste
-zamknięcie PostgreSQL. Pełny `check:tmp`: **629 pass, 144 skip, 0 fail**, bez
-pozostałych katalogów testowych. Szczegóły: [dowody weryfikacji](../artifacts/desktop/verification.md).
-
-Nie zweryfikowano tutaj innych OS/arch, podpisywania, interfejsu sieciowego
-udostępnionego innym komputerom ani rzeczywistych tur płatnych providerów. Znalezienie
-CLI i obecność workera online nie potwierdzają autoryzacji konkretnego providera.
-
-Źródła sprawdzone podczas implementacji: dokumentacja Electron
-[security](https://www.electronjs.org/docs/latest/tutorial/security),
-[safeStorage](https://www.electronjs.org/docs/latest/api/safe-storage),
-[electron-builder](https://www.electron.build/configuration.html), rejestr npm
-(Electron 45.2.1, electron-builder 26.18.0, binaria PostgreSQL 18.6.0-beta.19).
-
-## Uprawnienia wykonania
-
-Zakres: implementacja i lokalne commity według jawnego zlecenia, bez push/PR.
-`workflow_mode: direct`, `mode_source: explicit-user-task-instruction`,
-`decision_authority: delegated`, `scope: current-task`, `artifact_state: not-required`,
-`execution_mode: inline`. Ograniczenia chronione: brak zmian produkcji, Tailscale,
-portów 17443/17444/5180/8444 i prywatnego stacka live; brak odczytu sekretów dev-live.
+Jedna tożsamość aplikacji i cache aktualizatora obowiązuje wszystkie kanały;
+feed oraz manifest muszą zachowywać oba ZIP-y macOS i ich SHA-512. Zmiana kanału
+nie może zmieniać bundle ID ani designated requirement. Starsze osobne instalacje
+Canopy Beta / Canopy Nightly wymagają ręcznej instalacji zgodnie z sekcją migracji.
+Podpisywanie i kontrolę wydania opisuje [release.md](release.md#pierwszy-przebieg-ci-na-macos).

@@ -13,7 +13,7 @@
   import type { PageProps } from "./$types";
 
   /**
-   * Scheduled tasks across projects (T3's Settings → Scheduled tasks): yours and the ones agents set,
+   * Scheduled tasks across projects: yours and the ones agents set,
    * upcoming or finished, with pause, resume and cancel. New ones, runs and status changes arrive live.
    */
   let { data }: PageProps = $props();

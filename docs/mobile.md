@@ -29,9 +29,8 @@ VPN jest opcjonalną trasą między sieciami; TLS musi kończyć sam Canopy.
 
 ## Wersje i Bun workspace
 
-Sprawdzone 2026-11-02: npm `expo@latest` = **58.0.22**, React Native **0.88.1**,
-React **19.3.0**, Expo Router **58.0.29**, create-expo-app **5.0.0**. Punktem wyjścia
-był default template; jego kod demonstracyjny zastąpiono ekranami Canopy.
+Zależności aplikacji: Expo **58.0.22**, React Native **0.88.1**,
+React **19.3.0**, Expo Router **58.0.29**. Wersje przypina `apps/mobile/package.json`.
 Zachowane są `src/app`, Router, Hermes, domyślna New Architecture i CNG.
 Bez `react-native-web`, Expo web, NativeWind i dodatkowego systemu komponentów.
 
@@ -216,10 +215,8 @@ Nie utrzymujemy ręcznie `android/` i `ios/`. CNG generuje je z konfiguracji i p
 katalogi są w `.gitignore`; po zmianie natywnego modułu/configu potrzebny jest nowy build.
 Samo przejście Metro/OTA nie doda modułu natywnego do istniejącej aplikacji.
 
-Przy zdalnym buildzie na Macu ustaw locale UTF-8 (`LANG=en_US.UTF-8`, `LC_ALL=en_US.UTF-8`)
-i upewnij się, że CocoaPods działa z wybraną wersją Ruby. Na hoście testowym stara
-instalacja Homebrew CocoaPods 1.16.2 miała konflikt `ffi` z Ruby 4; osobna instalacja
-CocoaPods 1.17.0 w katalogu zadania rozwiązała problem. Błąd `avdmanager ENOENT` w T3
+Przy buildzie iOS ustaw locale UTF-8 (`LANG=en_US.UTF-8`, `LC_ALL=en_US.UTF-8`)
+i używaj zgodnych wersji CocoaPods, Ruby i `ffi`. Błąd `avdmanager ENOENT`
 oznacza brak Command-line Tools pod `$ANDROID_HOME/cmdline-tools/latest/bin`,
 nawet jeżeli sam obraz AVD jest już zainstalowany.
 
@@ -268,30 +265,14 @@ szczegółów/routines/reminders (zarządzanie w web). Lista botów odświeża s
 Brak załączników, push i trwałego offline cache. To pierwsza iteracja zgodności z web,
 nie pełna równoważność wszystkich jego funkcji.
 
-## Weryfikacja
+## Sprawdzanie aplikacji
 
-W checkoutcie 2026-11-02 przeszły: instalacja Bun, typecheck wszystkich workspace'ów,
-generowanie kontraktów, lint mobile, Expo Doctor **20/20**, CNG obu platform,
-eksport bundle Android/iOS i build web BFF. Pełny `check:tmp`: **627 pass, 144 skip,
-0 fail**, bez pozostawionych katalogów testowych. Testy live modeli były pominięte.
-Zbudowano i uruchomiono development client na MacStudio: iPhone 17 Pro / iOS 26.3
-Simulator i Medium Phone / Android 16 (API 36.1) Emulator. Na obu ręcznie sprawdzono
-parowanie kodem, snapshot/listę, aktualizacje live, otwarcie wątku, wysłanie i odpowiedź
-strumieniowaną, chat bota, zachowanie parowania po relaunch oraz unpair z potwierdzonym
-revoke w gatewayu. Zmiana akcentu iOS → Android synchronizuje się; działa systemowy
-light/dark. Panel wątku i zwijanie pracy również otwarto. Bez automatycznych testów UI.
-
-Zestawienia rzeczywistego web (390 × 844) i obu aplikacji: [raport i screenshoty](mobile-verification.md).
-Model testowy i worker były skryptowane, bez prawdziwego LLM ani sekretów live.
-Połączenie szło przez prywatny SSH reverse forward na loopback, nie przez Tailscale Serve.
-Kamera/QR na fizycznym telefonie, prawdziwy LLM, HTTPS Serve, utrata sieci i powrót z tła
-pozostają nieweryfikowane ręcznie; retry/reconnect jest zaimplementowany.
-
-Na testowym AVD uniwersalny APK nie mieścił się w wolnej przestrzeni
-(`INSTALL_FAILED_INSUFFICIENT_STORAGE`). Build `arm64-v8a` (~96 MB) zainstalował się poprawnie.
-Na małym AVD użyj `bunx expo run:android --active-arch-only` lub zwiększ jego dysk.
-Na iOS simulator zachowaj standardowe podpisywanie debug: build z
-`CODE_SIGNING_ALLOWED=NO` powodował błąd dostępu do Keychain/SecureStore.
+Przy `INSTALL_FAILED_INSUFFICIENT_STORAGE` na AVD użyj
+`bunx expo run:android --active-arch-only` lub zwiększ dysk emulatora.
+Na iOS Simulator zachowaj standardowe podpisywanie debug: wyłączenie go przez
+`CODE_SIGNING_ALLOWED=NO` może uniemożliwić dostęp do Keychain/SecureStore.
+Emulator nie zastępuje kontroli kamery/QR, rzeczywistej klawiatury i odzyskiwania
+połączenia po przejściu w tło na fizycznym telefonie.
 
 Polecenia z root:
 

@@ -192,26 +192,9 @@ jest dostępne w lokalnych ustawieniach desktopu.
 | `apps/desktop/test/runtime.integration.test.ts` | Prawdziwy dołączony BFF/runtime, automatyczna migracja starej konfiguracji, zachowanie `worker.json`, origin/Host, offline, brak bazy w remote, UI bez enrollmentu workera |
 | `tests/integration/network-workers.test.ts` | Istniejące enrollment, WorkerLink i UpdateService na tym samym listenerze; credential workera nadal nie autoryzuje UI |
 
-Ręczny przegląd według `design` i osobny przegląd `componentize`: wspólny
-`RemoteGatewayFields`, `GatewayCompatibility` oraz `DevicePairingDialog`;
-kontrolki z istniejącego kitu. Devices i formularz odzyskiwania migracji sprawdzone
-przy szerokości desktopu i telefonu, w obu motywach. Dialog parowania sprawdzony
-dodatkowo przy szerokości telefonu w ciemnym motywie.
-Zrzuty są poza repozytorium w `~/.cache/canopy-desktop-remote-frontend/`
-(`devices-*.png`, `setup-*.png`, `pairing-dark-phone-redacted.png`). Kod zaproszenia
-na zrzucie dialogu jest zasłonięty.
-
-Devices korzystał z prawdziwego gatewaya i poświadczenia desktopu przez pinned TLS.
-Formularz desktopu w przeglądarce używał niesekretnego stubu mostka Electron;
-to sprawdzenie układu i stanów, bez weryfikacji natywnego IPC ani magazynu kluczy.
-Nie dodano testów UI. Natywne `safeStorage`, podpisana paczka, restart aktualizatora,
-powiadomienia i zachowanie okna wymagają sprawdzenia na rzeczywistym macOS.
-Poniżej opisano osobną weryfikację zdalnego sterowania z etapu 2.
-
-Weryfikacja etapu 1 na Linux x64: `bun install`, `gen:check`, `typecheck`, `lint`,
-`format:check`, pełne `check:tmp` oraz build desktopu (obejmuje build webu,
-shella i dołączonego runtime). Pełny przebieg: 872 pass, 147 skip, 0 fail;
-brak pozostałości w katalogu testowym. Testy live pozostają opt-in.
+Natywne `safeStorage`, uprawnienia Local Network, podpisana paczka i zachowanie
+okna wymagają kontroli w aplikacji na docelowym systemie. Stub mostka Electron
+w przeglądarce sprawdza jedynie układ i stany, bez natywnego IPC i magazynu kluczy.
 
 ## Wynik etapu 2
 
@@ -268,14 +251,5 @@ właściciela, osobne uwierzytelnienie workera, revoke/re-pair, audyt,
 restart/reconnect i nieczytelną historię. Integracja dołączonego runtime sprawdza
 rzeczywiste drain/resume workera. Nie dodano testów UI.
 
-Przegląd przeglądarkowy light/dark i desktop/telefon obejmuje pobieranie, oczekiwanie,
-dialog force i offline na izolowanym gatewayu z atrapą aktualizatora.
-Zrzuty: `~/.cache/canopy-desktop-remote-frontend-2/updates-*.png`.
 Natywne powiadomienie, podpisany upgrade i odrzucenie unsigned/older przez macOS,
-instalacja Squirrel oraz restart/reconnect rzeczywistego bundla wymagają macOS.
-
-Weryfikacja etapu 2 na Linux x64: `bun install`, `gen:check`, `typecheck`, `lint`,
-`format:check`, pełne `check:tmp` i build desktopu (web, shell oraz runtime) przeszły.
-Końcowy przebieg: **879 pass, 147 skip, 0 fail**, bez pozostałości w katalogu testowym.
-Testy live pozostają opt-in. Osobno integracja zdalnej aktualizacji: 7 pass;
-polityka updatera: 6 pass; dołączony runtime: 5 pass.
+instalacja Squirrel oraz restart/reconnect bundla wymagają sprawdzenia na macOS.

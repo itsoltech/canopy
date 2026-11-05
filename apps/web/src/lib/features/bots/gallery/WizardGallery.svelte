@@ -54,7 +54,7 @@
   let created = $state<CreateBotDraft[]>([]);
   let appearance = $state<BotAppearanceDraft>({ name: "Orbit", shape: "spark", color: "#8b5cf6" });
   let saved = $state("No bot created yet.");
-  const existingNames = $derived(["Canopy Bot", "T3 Bot", appearance.name, ...created.map((b) => b.name)]);
+  const existingNames = $derived(["Canopy Bot", "Sync Bot", appearance.name, ...created.map((b) => b.name)]);
 
   async function create(draft: CreateBotDraft) {
     await new Promise((resolve) => setTimeout(resolve, 900));
@@ -67,7 +67,7 @@
 
 <GallerySection
   title="Create & edit a Bot"
-  description="Live appearance, custom colour and the existing model/effort pickers. Canopy Bot, T3 Bot and Orbit are already taken. Mock saves take 900 ms; nothing is sent to a gateway."
+  description="Live appearance, custom colour and the existing model/effort pickers. Canopy Bot, Sync Bot and Orbit are already taken. Mock saves take 900 ms; nothing is sent to a gateway."
   class={className}
 >
   <div class="flex flex-wrap items-center gap-3">

@@ -1,33 +1,10 @@
 # Boty przez oficjalne harnessy
 
-Status: etapy 1–2 implementują Claude, Codex i Groka (draft PR-y #97 i #104,
-stos #105). Etap 3 dodaje wspólne klasy błędów z #94, akcje naprawy i regresje
-całego runtime'u. Osobna migracja generowania tytułów Groka trafiła na dev w #101;
-etap 2 jest na niej oparty.
-Decyzja maintenera zastępuje wariant B z [bots.md](bots.md). Canopy docelowo
+Boty nie korzystają już z bezpośredniego API modelu (dawny wariant B). Canopy
 nie wysyła żadnych żądań inferencji HTTP. Claude działa przez Agent SDK i oficjalny
 `claude`, Codex przez oficjalny `codex app-server`, Grok przez CLI i adapter ACP.
 CLIProxyAPI jest dopuszczalne wyłącznie jako połączenie skonfigurowanej instancji
 harnessu. Nie kopiujemy tokenów subskrypcji do gatewaya.
-
-## Upoważnienie i rezultat
-
-```yaml
-workflow_mode: autonomous-planned
-mode_source: explicit-user-task-instruction
-decision_authority: delegated
-scope: current-task
-artifact_state: ready-for-execution
-execution_mode: inline
-protected_constraints:
-  - bez push, PR, wdrożeń i zmian działającego stosu
-  - bez sekretów i prywatnych hostów w repo lub wynikach
-  - addytywny protokół i nowe migracje
-```
-
-Projekt wybiera rozwiązania w zakresie przekazanym przez użytkownika. Nie stanowi
-zgody na publikację. Etap 1 jest gotowy dopiero po przejściu ścieżki bot → outbox
-→ WorkerHost → harness → szyna → gateway → rozmowa oraz testów opisanych niżej.
 
 ## Miejsce wykonania i instancje
 
@@ -63,7 +40,7 @@ Zaginiona lub przeniesiona sesja jest odbudowywana bez powtarzania narzędzi z h
 Wznowienie dostaje nowe wejście i aktualny kontekst. Zmiana zestawu narzędzi wymaga
 nowej sesji, żeby odebrany grant nie pozostał w katalogu harnessu.
 
-W etapie 1 nie dodajemy osobnego wywołania modelu do streszczania. Przy odbudowie
+Nie dodajemy osobnego wywołania modelu do streszczania. Przy odbudowie
 obowiązują istniejące granice historii bota (ostatnie 60 wiadomości dla rutyn,
 notatka handoffu). Dla nadmiernego kontekstu zwracamy błąd harnessu; nie obcinamy
 po cichu bieżącego wejścia. Dalsza kompakcja musi zachować decyzje i wyniki narzędzi.
@@ -122,8 +99,8 @@ niepewnych efektów MCP. Przerwanie/anulowanie unieważnia możliwość nowych e
 Istniejący snapshot rozmowy dostaje tekst bieżącej odpowiedzi i status, bez
 technicznych itemów narzędzi. Rutyny i handoffy zachowują niewidoczność. Końcowa
 odpowiedź ma jeden wpis czatu. Błąd używa `TurnOutcome`, `TurnEndSource` i
-`error_code`, tak jak wątki. Etap 3 korzysta z `classifyFailure` i wspólnego
-wiersza błędu z #94. `TurnFinished.error_class` zachowuje klasę przed usunięciem
+`error_code`, tak jak wątki. Boty korzystają z `classifyFailure` i wspólnego
+wiersza błędu wątków. `TurnFinished.error_class` zachowuje klasę przed usunięciem
 prozy providera. Kody końca Claude i `codexErrorCode` pozostają w journalu
 i gatewayu; UI dostaje klasę i bezpieczny komunikat, bez endpointów i stderr.
 Oczekiwanie na zgodę lub offline nie ma limitu czasu generacji.
@@ -132,28 +109,24 @@ gatewaya; pozostałe boty mogą odpowiadać podczas oczekiwania.
 
 ## Migracja i zgodność
 
-Nowa migracja ma numer po najwyższym istniejącym pliku; przed scaleniem trzeba
-sprawdzić numer ponownie. Historia botów, identyfikatory, rutyny, wakeupy i handoffy
-pozostają. Pierwsza następna tura wybiera/pamięta worker i tworzy sesję z historią.
-Nie potrzebujemy przenoszenia sesji API, bo dotychczas nie istniała.
-`0069_bot_errors.sql` jest już na `origin/dev`; migracja tego stosu została
-przenumerowana na `0070_bot_harness.sql`. Etap 3 dodaje
-`0071_bot_harness_errors.sql`. Nie edytujemy migracji zastosowanej.
+Migracje `0070_bot_harness.sql` i `0071_bot_harness_errors.sql` zachowują historię
+botów, identyfikatory, rutyny, wakeupy i handoffy. Pierwsza następna tura
+wybiera/pamięta worker i tworzy sesję z historią. Przenoszenie sesji API nie jest
+potrzebne, bo wcześniej nie istniały.
 
 Proto rozszerzamy addytywnie. `bot_harness_v1` negocjuje nową funkcję; starszy
 worker nie dostanie komendy. `WORKER_LINK_PROTOCOL` i zamrożone
-`canopy.update.v1` pozostają bez zmian. Etap 1 nie jest przeznaczony do osobnego
-scalenia do dev, dopóki pozostały runtime bezpośredni nie zostanie usunięty.
+`canopy.update.v1` pozostają bez zmian.
 
 ## Audyt inferencji
 
-Wyszukiwanie produkcyjnego kodu po endpointach `messages`, `responses`,
+Przeszukanie produkcyjnego kodu po endpointach `messages`, `responses`,
 `chat/completions`, klientach Anthropic/OpenAI i metodach inferencji wykazało:
 
 | Miejsce | Obecne zachowanie | Docelowe działanie |
 | --- | --- | --- |
-| Gateway botów | Wyłącznie worker/harness; `model.ts` usunięty | Gotowe w etapie 2 |
-| `apps/worker/src/providers/grok/generate-text.ts` | Krótkotrwały Grok CLI/ACP dla tytułów | Osobne zadanie `fix/grok-text-generation`, scalone w #101 i uwzględnione przez rebase |
+| Gateway botów | Wyłącznie worker/harness; `model.ts` usunięty | Brak bezpośrednich wywołań |
+| `apps/worker/src/providers/grok/generate-text.ts` | Krótkotrwały Grok CLI/ACP dla tytułów | Brak bezpośrednich wywołań |
 | `apps/worker/src/providers/generate-text.ts` | Izolowane oficjalne Claude SDK/Codex | Wzorzec izolacji do ponownego użycia |
 | Testy przechwytujące HTTP | Kontrolowany endpoint modelu | To fixtures harnessów, nie runtime inferencji Canopy |
 
@@ -163,37 +136,7 @@ czytać `/v1beta/models`. To nie są wywołania LLM i pozostają dozwolone.
 fixtures i wygenerowanym kodem. Endpointy inferencji oraz klienci HTTP SDK powodują
 błąd CI; generowanie tytułów nie ma wyjątku.
 
-## Stos etapów
-
-1. `feat/bots-harness-1` → `dev`: pionowa ścieżka Claude/Codex, Runs on,
-   sesje, MCP, outbox/journal, istniejący czat, migracja i testy. Bez fallbacku
-   Claude/Codex do bezpośredniego API.
-2. `feat/bots-harness-2` → etap 1: Grok CLI/ACP dla botów,
-   dowód pustych lokalnych narzędzi, usunięcie `directModel` oraz całego
-   bezpośredniego runtime'u i aktualizacja pozostałych testów/procedur.
-3. `feat/bots-harness-3` → etap 2: wspólna walidacja regresji, konflikty
-   równoległego kreatora/klasyfikacji błędów, dokumentacja i dowody całego stosu.
-
-Każdy etap jest kompletnym składnikiem stosu i ma własne testy. PR-y pozostają
-draft do pełnej migracji; cały stos scala się razem przez `gh stack merge --squash`.
-W tym zadaniu nie tworzymy PR-ów, nie pushujemy i nie scalamy.
-
-## Dowody wymagane dla etapu 1
-
-Testy gateway–worker przez prawdziwy WorkerHost i kontrolowane CLI: round trip
-obu harnessów, wznowienie sesji, MCP i karta zgody, brak wbudowanych narzędzi,
-kolejka offline, reconnect, restart obu stron, odtwarzanie końca z transkryptu,
-owner scoping i brak sekretów. Izolacja rzeczywistych binarek powinna być
-sprawdzona przez przechwycenie requestu modelu, jak przy generowaniu tytułów.
-Test live jest opt-in (`CANOPY_LIVE=1`), bez wpisanych hostów/kluczy.
-
-Wymagane sprawdzenia: install, gen:check, typecheck, lint, format:check,
-check:tmp oraz web build. Bez testów UI. Przegląd w prawdziwej przeglądarce:
-Runs on i rozmowa, jasny/ciemny, desktop/telefon; screenshoty poza repo w
-`~/.cache/canopy-bots-harness-1/`. Brak wykonania któregoś sprawdzenia musi być
-jawnie opisany w przekazaniu, nie zastąpiony deklaracją sukcesu.
-
-## Regresje etapu 3
+## Testy
 
 `bots-harness-errors.test.ts` sprawdza przez WorkerLink i kontrolowane CLI każdą
 klasę awarii Claude/Codex/Grok, brak pliku wykonywalnego i skuteczne ponowienie,
@@ -211,7 +154,4 @@ Błąd SDK Claude w wiadomości assistant jest błędem tury, a nie tekstem odpo
 Desktop ładuje wspólny web UI, a aplikacja mobilna używa tego samego UI API
 i snapshotów rozmowy; zmiana runtime'u nie wymaga nowego transportu klienta.
 Repozytorium nie implementuje kanałów Telegram/Discord/WhatsApp dla botów.
-Przegląd przeglądarkowy etapu 3 obejmuje wiersze błędów i pusty Runs on w jasnym
-i ciemnym motywie przy szerokościach desktop/telefon. Dowody są poza repo:
-`~/.cache/canopy-bots-harness-3/`. Nie zastępuje to uruchomienia natywnych powłok
-Electron/iOS/Android ani opt-in testów na płatnych modelach.
+Opt-in testy live (`CANOPY_LIVE=1`) nie mają wpisanych hostów ani kluczy.

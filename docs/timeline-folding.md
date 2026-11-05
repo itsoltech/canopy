@@ -9,10 +9,3 @@ Najnowsza niepusta wiadomość agenta strumieniuje poza foldem w stałym wierszu
 `VirtualFeed.scrollRowToTop(key)` po zakończeniu tury przewija długą odpowiedź do początku, 8 px poniżej góry feedu. Działa tylko, jeśli czytelnik nadal śledzi dół i odpowiedź jest wyższa niż dostępny obszar nad kompozytorem. Krótka odpowiedź ani czytelnik, który przewinął w górę, nie są przesuwani. Zwykły ruch jest płynny, reduced motion natychmiastowy; „Jump to latest” przywraca śledzenie końca. API nie zmienia fokusu ani reguł paddingu kompozytora.
 
 Grupy i itemy są osobnymi wirtualnymi wierszami; zamknięte grupy nie montują dzieci. `ResizeObserver` mierzy zmiany wysokości `AnswerSlot`, a obecne kotwiczenie utrzymuje czytany wiersz. Klucze foldu, grupy (pierwszy item) i odpowiedzi pozostają stabilne między deltami. „Pokaż źródło” cytatu otwiera historię, fold oraz właściwą grupę przed przewinięciem do itemu; rozpoznaje też stały wiersz odpowiedzi.
-
-## Weryfikacja
-
-
-Testy UI nie są utrzymywane w repozytorium (zasada: testy tylko dla integracji gateway↔worker i krytycznej logiki); widok sprawdza się w przeglądarce podczas pracy nad nim.
-
-Zrzuty: `artifacts/timeline-folding/<width>-<theme>-live-collapsed.png`, `*-live-expanded.png`, `*-ended.png`. Są lokalnymi artefaktami, pomijanymi przez git.

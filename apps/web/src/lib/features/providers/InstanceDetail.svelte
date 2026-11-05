@@ -19,7 +19,7 @@
   import WorkersField from "./WorkersField.svelte";
 
   /**
-   * The detail of one instance (T3 detail panel), for the scope chosen above the list: on one worker its status
+   * The detail of one instance, for the scope chosen above the list: on one worker its status
    * there, sign-in (Codex with its own login), and that worker's overrides; in "All workers" its status everywhere,
    * where it runs, and the global definition. Models and deletion are global in both.
    */

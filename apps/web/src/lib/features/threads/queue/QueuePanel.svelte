@@ -10,7 +10,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
 
   /**
-   * The queued messages, attached above the composer like in the Codex app: the composer's surface with only its
+   * The queued messages, attached above the composer: the composer's surface with only its
    * top corners rounded, sliding under the composer's top edge (`class` sets the overlap). One row per message in
    * the order they run. Rows glide to a new place (`reorder`, FLIP), grow in and shrink out (`expand`); the row
    * under the pointer follows it instead. Moves are announced politely.

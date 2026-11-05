@@ -30,7 +30,7 @@
   import { awayReason } from "#lib/features/computers/computers.ts";
 
   /**
-   * A thread's summary next to its row in lists (T3's hover card): title, project, worker, folder, agent
+   * A thread's summary next to its row in lists: title, project, worker, folder, agent
    * (model, effort, profile), permission mode, what it does now (status, background tasks, goal) and the
    * first side threads with theirs. Hover or keyboard focus opens it, tap-and-hold on touch; a tap still
    * opens the thread. `row` renders the list row, spreading the trigger props on its link. The same facts

@@ -5,7 +5,7 @@
   import Input from "#lib/shared/ui/Input.svelte";
 
   /**
-   * How the worker runs the instance's harness (T3 Runtime): its executable, the CLI home its login is linked from,
+   * How the worker runs the instance's harness: its executable, the CLI home its login is linked from,
    * the isolated ("shadow") home it runs with, and launch arguments. Empty = the worker's settings. With `inherited`
    * (one worker's overrides) an empty field follows the definition, shown as the placeholder.
    */
