@@ -16,6 +16,7 @@
   let error = $state("");
   let notice = $state("");
 
+  const blocked = "Blocked by your browser. Allow notifications in site settings, then retry.";
   const options = [
     { value: "off", label: "Off" },
     { value: "notifications", label: "Notifications" },
@@ -31,7 +32,7 @@
       : !supported
         ? "Notifications need a supported browser. Open Canopy over HTTPS or localhost."
         : Notification.permission === "denied"
-          ? "Blocked by your browser. Allow notifications in site settings, then retry."
+          ? blocked
           : "";
   }
 
@@ -59,8 +60,11 @@
 
       if (result !== "granted") {
         // Keep the choice off, and say why: a dismissed prompt leaves no browser state to show.
-        if (result === "default")
-          notice = "Notifications stay off until you allow them. Choose again, then select Allow.";
+        if (!permission)
+          notice =
+            result === "denied"
+              ? blocked
+              : "Notifications stay off until you allow them. Choose again, then select Allow.";
 
         return;
       }
