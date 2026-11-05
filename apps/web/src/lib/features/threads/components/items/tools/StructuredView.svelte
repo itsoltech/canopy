@@ -5,6 +5,7 @@
   import MoreButton from "#lib/shared/ui/MoreButton.svelte";
   import LeafValue from "./LeafValue.svelte";
   import StructuredView from "./StructuredView.svelte";
+  import RequestField from "#lib/shared/ui/RequestField.svelte";
 
   /**
    * The generic view of a tool's input or result (structure.ts): fields as a description list with
@@ -24,10 +25,7 @@
   <dl class={["grid gap-y-1.5 text-base/6 sm:text-sm/6", className]}>
     {#each fields as field (field.key)}
       {#if isInline(field.node)}
-        <div class="grid gap-x-4 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)]">
-          <dt class="truncate font-medium text-zinc-900 dark:text-zinc-100" title={field.key}>{field.label}</dt>
-          <dd class="min-w-0 text-zinc-600 dark:text-zinc-400"><LeafValue node={field.node} /></dd>
-        </div>
+        <RequestField label={field.label}><LeafValue node={field.node} /></RequestField>
       {:else if field.node.kind === "object" && field.node.fields.length > 4 && depth > 0}
         <div class="grid gap-x-4 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)]">
           <dt class="truncate font-medium text-zinc-900 dark:text-zinc-100" title={field.key}>{field.label}</dt>

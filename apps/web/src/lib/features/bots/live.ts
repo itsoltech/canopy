@@ -151,8 +151,9 @@ function questionView(a: bots.BotApproval): QuestionView {
     prompt: a.prompt,
     options,
     freeText: true,
+    expired: a.status === "expired",
     routineTitle: a.routineTitle || undefined,
-    ...(a.status !== "pending" && {
+    ...(!["pending", "expired"].includes(a.status) && {
       answer: {
         optionId: chosen?.id ?? "",
         at: dateOf(a.createdAt),
@@ -164,6 +165,8 @@ function questionView(a: bots.BotApproval): QuestionView {
 }
 
 function approvalStatus(a: bots.BotApproval): ApprovalView["status"] {
+  if (a.status === "expired") return "expired";
+
   if (a.status === "approved") return "approved";
 
   if (a.status === "discarded") return a.answer ? "edited" : "discarded";
@@ -194,7 +197,7 @@ export function approvalView(a: bots.BotApproval): ApprovalView {
     at: dateOf(a.createdAt),
     askedBy: a.botId,
     action: heading.replace(/^Needs approval · /, "") || "Use a tool",
-    fields,
+    fields: a.fields.length ? a.fields : fields,
     status,
     routineTitle: a.routineTitle || undefined,
     botProposal: proposal

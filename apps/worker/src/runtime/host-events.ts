@@ -1,9 +1,11 @@
 import { create } from "@bufbuild/protobuf";
 import {
   type AgentToolCall,
+  AgentToolCallSchema,
   type AgentToolResult,
   AgentToolResultSchema,
   type InteractionRequest,
+  InteractionRequestSchema,
   type InteractionResponse,
   InteractionResponseSchema,
   type ThreadEvent,
@@ -49,7 +51,9 @@ export class HostEvents {
   interact(request: InteractionRequest, signal?: AbortSignal): Promise<InteractionResponse> {
     return new Promise((resolve) => {
       const abort = () => {
-        this.ctx.state.interactions.delete(request.requestId);
+        const cancelled = create(InteractionRequestSchema, { ...request, cancelled: true });
+        this.ctx.state.interactions.set(request.requestId, { request: cancelled, resolve: () => {} });
+        this.ctx.ops.send({ case: "interactionRequest", value: cancelled });
         resolve(create(InteractionResponseSchema, { requestId: request.requestId, cancelled: true }));
       };
 
@@ -74,7 +78,10 @@ export class HostEvents {
   callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult> {
     return new Promise((resolve) => {
       const abort = () => {
-        this.ctx.state.toolCalls.delete(call.callId);
+        const cancelled = create(AgentToolCallSchema, { ...call, cancelled: true });
+        // Keep cancellation for reconnect until acknowledged by the gateway.
+        this.ctx.state.toolCalls.set(call.callId, { call: cancelled, resolve: () => {} });
+        this.ctx.ops.send({ case: "agentToolCall", value: cancelled });
         resolve(create(AgentToolResultSchema, { callId: call.callId, isError: true, content: "Turn interrupted" }));
       };
 

@@ -9,6 +9,13 @@ export class Invalid extends Error {
   override readonly name = "Invalid";
 }
 
+/** A decision can no longer reach its waiting tool. */
+export class RequestExpired extends Invalid {
+  constructor() {
+    super("This request expired.");
+  }
+}
+
 export type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound | Invalid>;
 
 export const one = <A>(rows: ReadonlyArray<A>, what: string): Effect.Effect<A, NotFound> =>

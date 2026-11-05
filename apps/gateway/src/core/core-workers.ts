@@ -88,6 +88,9 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
 
         case "interactionRequest": {
           const request = message.payload.value;
+          const thread = await coreRun(hostContext, (s) => s.thread(request.threadId));
+
+          if (thread.worker_id !== workerId) break;
           const interaction = await coreRun(hostContext, (s) => s.recordInteraction(request));
           await corePublishInteraction(hostContext, interaction);
           // Re-sent after a reconnect and already answered: answer again from the database.
@@ -104,9 +107,11 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           void (
             call.botId
               ? hostContext.bots.harnessTools.handle(call, workerId)
-              : call.connectorAccountId
-                ? hostContext.connectors.handle(call, workerId)
-                : hostContext.bus.handle(call, workerId)
+              : call.cancelled
+                ? hostContext.bus.handle(call, workerId)
+                : call.connectorAccountId
+                  ? hostContext.connectors.handle(call, workerId)
+                  : hostContext.bus.handle(call, workerId)
           ).then(
             (result) => {
               try {

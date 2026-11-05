@@ -7,6 +7,7 @@ import { GatewayCore } from "@canopy/gateway/core";
 import { startGrpcServer } from "@canopy/transport";
 import { startInstanceFixture, type InstanceFixture } from "./support/instance-fixture.ts";
 import { eventually } from "./support/gateway.ts";
+import { Code } from "@connectrpc/connect";
 
 describe("bots through official worker harnesses", () => {
   let f: InstanceFixture;
@@ -155,6 +156,101 @@ describe("bots through official worker harnesses", () => {
       await f.save(Provider.GROK, "bot-native");
     }
   });
+
+  test("a timed-out MCP approval expires durably, broadcasts and rejects late decisions", async () => {
+    const bot = await add(Provider.CLAUDE, "always");
+    const stop = new AbortController();
+
+    const expiredUpdate = (async () => {
+      for await (const update of f.gw.api.watchBotConversation(
+        { botId: bot.id },
+        { signal: AbortSignal.any([stop.signal, AbortSignal.timeout(10_000)]) },
+      )) {
+        if (update.approvals.some((a) => a.status === "expired")) return update;
+      }
+
+      throw new Error("Expiry was not broadcast");
+    })();
+
+    try {
+      await send(bot.id, 'TOOL:create_project TIMEOUT_TOOL ARGS:{"name":"Expired project"}');
+
+      const pending = await eventually(
+        () => read(bot.id),
+        (r) => r.approvals.some((a) => a.status === "pending"),
+      );
+
+      const approvalId = pending.approvals[0]!.id;
+      expect((await expiredUpdate).approvals[0]?.status).toBe("expired");
+      expect((await settled(bot.id)).messages.at(-1)?.text).toBe("TOOL_TIMEOUT");
+
+      for (const answer of [{ approve: true }, { approve: false }, { approve: false, answer: "Edited prompt" }]) {
+        await expect(f.gw.api.answerBotApproval({ approvalId, ...answer })).rejects.toMatchObject({
+          code: Code.FailedPrecondition,
+          rawMessage: "This request expired.",
+        });
+      }
+
+      expect(await f.query("SELECT status, answer FROM bot_approvals WHERE id = $1::uuid", [approvalId])).toEqual([
+        { status: "expired", answer: "" },
+      ]);
+      expect((await f.gw.api.getOverview({})).projects.some((p) => p.name === "Expired project")).toBe(false);
+    } finally {
+      stop.abort();
+      await expiredUpdate.catch(() => undefined);
+    }
+  }, 15_000);
+
+  test("interrupting a waiting bot expires approvals and questions without recording an answer", async () => {
+    for (const tool of ["create_project", "ask_user"]) {
+      const bot = await add(Provider.CLAUDE, "always");
+      await send(
+        bot.id,
+        `TOOL:${tool} ARGS:${JSON.stringify(tool === "ask_user" ? { question: "Continue?" } : { name: "Interrupted project" })}`,
+      );
+
+      const pending = await eventually(
+        () => read(bot.id),
+        (r) => r.approvals.some((a) => a.status === "pending"),
+      );
+
+      await f.gw.core.bots.interrupt(bot.id);
+      expect((await read(bot.id)).approvals[0]?.status).toBe("expired");
+      await expect(
+        f.gw.api.answerBotApproval({ approvalId: pending.approvals[0]!.id, approve: true, answer: "Yes" }),
+      ).rejects.toMatchObject({ code: Code.FailedPrecondition });
+    }
+  }, 15_000);
+
+  test("an offline approval has no age limit and executes once after reconnect", async () => {
+    const bot = await add(Provider.CLAUDE, "always");
+    await send(bot.id, 'TOOL:create_project ARGS:{"name":"Offline approval project"}');
+
+    const pending = await eventually(
+      () => read(bot.id),
+      (r) => r.approvals.some((a) => a.status === "pending"),
+    );
+
+    await f.disconnect();
+
+    try {
+      await f.query("UPDATE bot_approvals SET created_at = now() - interval '1 day' WHERE id = $1::uuid", [
+        pending.approvals[0]!.id,
+      ]);
+      await f.gw.core.bots.tick();
+      expect((await read(bot.id)).approvals[0]?.status).toBe("pending");
+      await f.gw.api.answerBotApproval({ approvalId: pending.approvals[0]!.id, approve: true });
+    } finally {
+      closeReconnect = await f.reconnect();
+    }
+
+    const result = await settled(bot.id);
+    expect(result.approvals[0]?.status).toBe("approved");
+    expect(result.messages.at(-1)?.text).toContain("Offline approval project");
+    expect((await f.gw.api.getOverview({})).projects.filter((p) => p.name === "Offline approval project")).toHaveLength(
+      1,
+    );
+  }, 15_000);
 
   test("gateway restart preserves a pending approval and never reruns inference", async () => {
     const bot = await add(Provider.GROK, "always");

@@ -43,10 +43,10 @@ export const QUESTION_TOOLS = {
     name: "ask_user",
     description:
       "Ask the user 1–4 questions. Use wait=true when the answer blocks your task; do not continue until answered or dismissed. " +
-      "A wait is bounded to 120 seconds: if still pending, call get_answers with wait=true again, without doing other work. " +
+      "A blocking question expires after 120 seconds, cancellation or the end of its asking turn. Never answer or retry an expired request. " +
       "Use wait=false for optional clarification while you keep working; answers arrive as a steer into your running turn, or a new turn afterwards. " +
       "Use short option labels, optional descriptions and recommended to mark your recommendation. The user may type their own answer or skip any/all questions. " +
-      "Questions survive restarts. Side-thread questions follow the thread's interaction route (parent or human).",
+      "Optional questions survive completed turns and restarts. Side-thread questions follow the thread's interaction route (parent or human).",
     args: AskUser,
     mutates: true,
   },
@@ -147,6 +147,7 @@ export function questionResult(id: string, status: string, response: { answerJso
     question_set_id: id,
     status: Match.value(status).pipe(
       Match.when("pending", () => "pending" as const),
+      Match.when("expired", () => "expired" as const),
       Match.when("cancelled", () => "dismissed" as const),
       Match.orElse(() => "answered" as const),
     ),

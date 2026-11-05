@@ -23,7 +23,7 @@ export interface QuestionDelivery {
 }
 
 export interface QuestionStore {
-  askUser(source: CallSource, args: AgentBusArgs["ask_user"], hops: number): Fx<ui.Interaction>;
+  askUser(source: CallSource, args: AgentBusArgs["ask_user"], hops: number, abandoned?: boolean): Fx<ui.Interaction>;
   getAnswers(source: CallSource, id: string, consume: boolean): Fx<JsonValue>;
   deliverAnswers(): Fx<QuestionDelivery[]>;
 }
@@ -36,9 +36,15 @@ export function storedQuestions(request: Json): readonly UserQuestion[] {
   return isJsonArray(questions) ? (questions as readonly UserQuestion[]) : [];
 }
 
+function askingTurn(sql: SqlClient.SqlClient, source: CallSource) {
+  return sql<{ id: string; hops: number; status: string }>`
+    SELECT id, hops, status FROM turns WHERE id = ${source.turnId || null}::uuid
+      AND thread_id = ${source.threadId}::uuid`;
+}
+
 export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
   return {
-    askUser: (source, args, hops) =>
+    askUser: (source, args, hops, abandoned = false) =>
       sql.withTransaction(
         Effect.gen(function* () {
           const threads = yield* sql<{
@@ -50,21 +56,36 @@ export function questionStore(sql: SqlClient.SqlClient): QuestionStore {
           const existing =
             yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE question_call_id = ${source.callId}::uuid`;
 
-          if (existing[0]) return toInteraction(existing[0]);
+          if (existing[0]) {
+            if (abandoned && existing[0].question_wait && existing[0].status === "pending") {
+              const expired = yield* sql<InteractionRow>`UPDATE interaction_requests
+                SET status = 'expired', answered_at = now() WHERE id = ${existing[0].id}::uuid RETURNING *`;
 
-          const turn =
-            yield* sql`SELECT id FROM turns WHERE id = ${source.turnId || null}::uuid AND thread_id = ${source.threadId}::uuid`;
+              yield* writeInteractionTimeline(sql, expired[0]!);
+
+              return toInteraction(expired[0]!);
+            }
+
+            return toInteraction(existing[0]);
+          }
+
+          const turn = yield* askingTurn(sql, source);
 
           if (!turn[0]) return yield* Effect.fail(new Invalid("ask_user requires a turn"));
+
+          const expired =
+            abandoned || (args.wait && ["completed", "interrupted", "failed", "cancelled"].includes(turn[0].status));
+
           yield* sql`
         INSERT INTO agent_bus_calls(id, source_thread_id, source_turn_id, source_item_id, tool, arguments, status, result, completed_at, hops, target_thread_id)
         VALUES (${source.callId}::uuid, ${source.threadId}::uuid, ${source.turnId}::uuid, ${source.itemId}, 'ask_user', ${JSON.stringify(args)}::jsonb,
-                'completed', ${JSON.stringify(questionResult(source.callId, "pending", null))}::jsonb, now(), ${hops}, ${source.threadId}::uuid)`;
+                'completed', ${JSON.stringify(questionResult(source.callId, expired ? "expired" : "pending", null))}::jsonb, now(), ${abandoned ? turn[0].hops + 1 : hops}, ${source.threadId}::uuid)`;
 
           const rows = yield* sql<InteractionRow>`
-        INSERT INTO interaction_requests(id, thread_id, turn_id, item_id, kind, tool_name, request, routed_to, question_call_id, question_wait)
+        INSERT INTO interaction_requests(id, thread_id, turn_id, item_id, kind, tool_name, request, routed_to, question_call_id, question_wait, status, answered_at)
         VALUES (${source.callId}::uuid, ${source.threadId}::uuid, ${source.turnId}::uuid, ${source.itemId}, 'question', 'ask_user',
-                ${JSON.stringify(args)}::jsonb, ${threads[0].interaction_route}, ${source.callId}::uuid, ${args.wait}) RETURNING *`;
+                ${JSON.stringify(args)}::jsonb, ${threads[0].interaction_route}, ${source.callId}::uuid, ${args.wait},
+                ${expired ? "expired" : "pending"}, CASE WHEN ${expired} THEN now() END) RETURNING *`;
 
           yield* writeInteractionTimeline(sql, rows[0]!);
 

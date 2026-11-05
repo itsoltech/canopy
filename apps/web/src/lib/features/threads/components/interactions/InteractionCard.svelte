@@ -23,6 +23,7 @@
   let busy = $state(false);
   let error = $state<string | undefined>(undefined);
   const id = $props.id();
+  let expired = $state(false);
 
   const title = $derived.by(() => {
     if (interaction.kind === InteractionKind.QUESTION) return "The agent has a question";
@@ -46,6 +47,12 @@
       await answerInteraction(interaction.requestId, answer);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+
+      if (error.includes("This request expired.")) {
+        expired = true;
+        error = "This request expired. No answer was sent.";
+      }
+
       busy = false;
     }
     // On success the card disappears when the interaction update arrives.
@@ -90,31 +97,45 @@
         <PermissionRequest toolName={interaction.toolName} requestJson={interaction.requestJson} {related} />
       </div>
       {#snippet actions()}
-        <div class="grid grid-cols-2 gap-2 p-3">
-          <Button variant="primary" icon="check" loading={busy} onclick={() => respond({ allow: true })}>Allow</Button>
-          <Button
-            variant="danger"
-            disabled={busy}
-            onclick={() => respond({ allow: false, message: "Denied by the user" })}>Deny</Button
+        {#if expired || interaction.status === "expired"}
+          <p
+            role="status"
+            class="flex min-h-28 items-center p-3 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
           >
-          <div class="col-span-2 grid">
-            <Button disabled={busy} onclick={() => respond({ allow: true, allowForSession: true })}
-              >Allow for this session</Button
+            Expired. The agent no longer needs an answer.
+          </p>
+        {:else}
+          <div class="grid grid-cols-2 gap-2 p-3">
+            <Button variant="primary" icon="check" loading={busy} onclick={() => respond({ allow: true })}>Allow</Button
             >
+            <Button
+              variant="danger"
+              disabled={busy}
+              onclick={() => respond({ allow: false, message: "Denied by the user" })}>Deny</Button
+            >
+            <div class="col-span-2 grid">
+              <Button disabled={busy} onclick={() => respond({ allow: true, allowForSession: true })}
+                >Allow for this session</Button
+              >
+            </div>
           </div>
-        </div>
-        {#if error}<Alert tone="error" class="mx-3 mb-3">{error}</Alert>{/if}
+        {/if}
+        {#if error}<Alert tone={expired ? "info" : "error"} class="mx-3 mb-3">{error}</Alert>{/if}
       {/snippet}
     </DecisionContent>
   {:else}
     <div class="mt-3">
-      {#if interaction.kind === InteractionKind.QUESTION}
+      {#if expired || interaction.status === "expired"}
+        <p role="status" class="min-h-16 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+          Expired. The agent no longer needs an answer.
+        </p>
+      {:else if interaction.kind === InteractionKind.QUESTION}
         <p class="text-sm/6 text-zinc-500 dark:text-zinc-400">Answer in the question panel above the composer.</p>
       {:else}
         <ElicitationForm requestJson={interaction.requestJson} {busy} submit={respond} />
       {/if}
     </div>
 
-    {#if error}<Alert tone="error" class="mt-3">{error}</Alert>{/if}
+    {#if error}<Alert tone={expired ? "info" : "error"} class="mt-3">{error}</Alert>{/if}
   {/if}
 </section>

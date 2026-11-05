@@ -206,7 +206,12 @@ Tura albo steer z odpowiedzią ma w osi czasu własne źródło `answer` (widok 
 
 To trzy osobne przykłady elementów tablicy. `dismissed` oznacza odrzucenie całego zestawu (`answers: []`); „Skip all” daje jawne `skipped` dla każdego pytania. Gateway waliduje kompletność, etykiety, jedno/wiele zaznaczeń i brak duplikatów. Rodzic używa `answer_interaction` z `answer_json: "{\"answers\":[...]}"`; użytkownik może odpowiedzieć zamiast niego. Odpowiadający, treść i pominięcia zostają w `interaction_prompt`.
 
-**Synchronicznie:** `wait: true` trzyma wywołanie najwyżej 120 s. Przy `pending` opis narzędzia i wynik nakazują ponawiać `get_answers({question_set_id, wait: true})` bez wykonywania dalszej pracy. Zestaw nie wygasa po tych 120 s, zakończeniu tury ani restarcie. Jest to odnawialny wait, jak `wait_threads`; po zwróceniu `pending` platforma nie blokuje technicznie innych narzędzi modelu. Po awarii odpowiedź wznawia pracę jako nowa tura, jeśli nie ma już oczekującego wywołania.
+**Synchronicznie:** `wait: true` trzyma wywołanie najwyżej 120 s (wartość bez zmian).
+Nieodpowiedziany zestaw wygasa po tym limicie, anulowaniu wywołania lub końcu
+pytającej tury, także po restarcie workera. Wynik ma `status: expired`, bez odpowiedzi;
+spóźniona decyzja człowieka lub rodzica zwraca `FailedPrecondition`.
+Odpowiedź zapisana przed końcem tury nadal korzysta z trwałego outboxa opisanego niżej.
+Pytania opcjonalne (`wait: false`) pozostają aktywne po zakończeniu tury.
 
 **Limity transportu:** przypięty Claude Agent SDK **0.3.316** definiuje `createSdkMcpServer.timeout` jako twardy limit wall-clock, którego progress nie przedłuża. Serwer szyny ma 330000 ms, więcej niż pojedyncze oczekiwanie `get_answers` lub `wait_threads`. W Codex **0.164.0** [`request_dynamic_tool`](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/tools/handlers/dynamic.rs) czeka na `rx_response.or_cancel(...)` bez lokalnego timera. Nie zakładamy bezterminowości pozostałych warstw transportu.
 

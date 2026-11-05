@@ -5,6 +5,8 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
+  import RequestField from "#lib/shared/ui/RequestField.svelte";
+  import RequestText from "#lib/shared/ui/RequestText.svelte";
   import type { ApprovalView } from "../model.ts";
   import ChatCard from "./ChatCard.svelte";
   import CreateBotPreview from "./CreateBotPreview.svelte";
@@ -46,7 +48,6 @@
     ),
   );
 
-  const details = $derived(approval.fields.filter((f) => f !== preview));
   const open = $derived(approval.status === "pending" && !answering && Boolean(onanswer));
   let editing = $state(false);
   let draft = $state("");
@@ -55,6 +56,7 @@
     approved: "Approved",
     discarded: "Discarded",
     edited: "Sent back with your edits",
+    expired: "Expired. The bot no longer needs an answer.",
   };
 
   function edit() {
@@ -68,7 +70,7 @@
 
 <ChatCard labelledby="{id}-title" class={className}>
   <header class="flex items-center justify-between gap-3 px-4 pt-3">
-    {#if onpolicy && policy && !approval.botProposal}
+    {#if onpolicy && policy && !approval.botProposal && approval.status === "pending"}
       <DropdownMenu label="When this bot asks">
         {#snippet trigger(props)}
           <button
@@ -95,8 +97,10 @@
           onselect={() => onpolicy("full_auto")}>Full auto</MenuCheckItem
         >
       </DropdownMenu>
-    {:else}
+    {:else if approval.status === "pending"}
       <p class="text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400">Needs approval</p>
+    {:else}
+      <p class="text-sm/5 font-medium text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Approval request</p>
     {/if}
   </header>
   {#if approval.routineTitle}<p class="px-4 pt-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
@@ -108,11 +112,16 @@
 
   {#if approval.botProposal}
     <CreateBotPreview proposal={approval.botProposal} class="px-4 pt-3" />
-  {:else if details.length > 0}
-    <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-4 pt-2 text-base/6 sm:text-sm/6">
-      {#each details as field, index (index)}
-        <dt class="text-zinc-500 dark:text-zinc-400">{field.label || "Detail"}</dt>
-        <dd class="min-w-0 wrap-anywhere text-zinc-800 dark:text-zinc-200">{field.value}</dd>
+  {:else if approval.fields.length > 0}
+    <dl class="grid min-w-0 gap-2 px-4 pt-2 text-base/6 sm:text-sm/6">
+      {#each approval.fields as field, index (index)}
+        {@const path = /path|ref|directory|branch/i.test(field.label)}
+        {@const long = field.value.includes("\n") || field.value.length > 50}
+        <RequestField label={field.label || "Detail"} stacked={long}>
+          {#if path}<code class="font-mono wrap-anywhere">{field.value}</code>
+          {:else if long}<RequestText text={field.value} />
+          {:else}{field.value}{/if}
+        </RequestField>
       {/each}
     </dl>
   {/if}
@@ -134,18 +143,8 @@
       </div>
     </form>
   {:else}
-    {#if preview && !approval.botProposal}
-      <div class="px-4 pt-3">
-        <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{preview.label || "Preview"}</p>
-        <p
-          class="mt-1 max-h-60 overflow-y-auto rounded-xl bg-zinc-950/3 px-3 py-2 text-base/6 wrap-anywhere whitespace-pre-wrap text-zinc-800 sm:text-sm/6 dark:bg-white/5 dark:text-zinc-200"
-        >
-          {preview.value}
-        </p>
-      </div>
-    {/if}
     {#if approval.status === "pending" && onanswer}
-      <div class="flex flex-wrap items-center justify-end gap-2 px-4 pt-3 pb-3">
+      <div class="flex min-h-16 flex-wrap items-center justify-end gap-2 px-4 pt-3 pb-3 sm:min-h-13">
         <Button
           size="sm"
           variant="ghost"
@@ -165,7 +164,10 @@
         >
       </div>
     {:else}
-      <p class="flex items-center gap-1.5 px-4 pt-3 pb-3 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+      <p
+        role="status"
+        class="flex min-h-16 items-center gap-1.5 px-4 pt-3 pb-3 text-sm/5 text-zinc-500 sm:min-h-13 sm:text-xs/5 dark:text-zinc-400"
+      >
         {#if approval.status === "approved"}<Icon
             name="check"
             class="size-4 text-emerald-600 dark:text-emerald-400"

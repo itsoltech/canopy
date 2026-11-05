@@ -6,6 +6,7 @@ import { Predicate } from "effect";
 import { Invalid } from "../store/store.ts";
 import { toUiQuote, type StoredQuote } from "../store/quotes.ts";
 import { storedMentions } from "./mentions.ts";
+import { approvalFields } from "./approval-fields.ts";
 import type { BotRow } from "./types.ts";
 
 export interface WakeupRow {
@@ -47,6 +48,8 @@ export interface ApprovalRow {
   options?: unknown;
   proposed_bot: JsonValue | null;
   routine_title?: string;
+  arguments?: JsonObject;
+  prepared?: boolean;
 }
 
 export const botConfiguration = (row: BotRow) => fromJson(bots.BotConfigurationSchema, row.configuration);
@@ -99,6 +102,11 @@ export const approvalView = (row: ApprovalRow) =>
     turnId: row.turn_id,
     kind: row.kind,
     prompt: row.prompt,
+    fields: row.prepared
+      ? [{ label: "Proposed answer", value: row.prompt.slice(row.prompt.indexOf("\n") + 1) }]
+      : row.arguments
+        ? approvalFields(row.arguments)
+        : [],
     status: row.status,
     answer: row.answer,
     createdAt: timestampFromDate(new Date(row.created_at)),

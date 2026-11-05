@@ -20,6 +20,7 @@
   import WatchBar from "../components/WatchBar.svelte";
   import { bots, conversations, directEntries, groupEntries, me, pictureBot, watchEntries } from "./fixtures.ts";
   import GallerySection from "./GallerySection.svelte";
+  import ApprovalExpiryGallery from "./ApprovalExpiryGallery.svelte";
   import WizardGallery from "./WizardGallery.svelte";
   import Segmented from "./Segmented.svelte";
   import BehaviourGallery from "./BehaviourGallery.svelte";
@@ -267,6 +268,8 @@
           {#if answered.kind === "question"}<QuestionCard question={answered.question} onanswer={() => {}} />{/if}
         </div>
       </GallerySection>
+
+      <ApprovalExpiryGallery />
 
       <GallerySection
         title="Composer and read-only bar"

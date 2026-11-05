@@ -9,6 +9,19 @@ import { DISPATCHED, nextTurn, steerTarget } from "./turn-select.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Match interaction decisions and ingest: thread before turn before request. */
+function lockLostThreads(
+  sql: SqlClient.SqlClient,
+  workerId: string,
+  only: readonly string[] | null,
+  keep: readonly string[],
+) {
+  return sql`SELECT t.id FROM threads t WHERE t.worker_id = ${workerId}::uuid
+    AND t.runtime = 'worker' AND EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id
+      AND u.status = 'running' AND (${only}::uuid[] IS NULL OR u.id = ANY(${only}::uuid[]))
+      AND NOT (u.id = ANY(${keep}::uuid[]))) ORDER BY t.id FOR UPDATE`;
+}
+
 export interface TurnStore {
   /**
    * A user's message as the next turn. With attachments: `input` is the prepared input (note + message) and the
@@ -165,6 +178,8 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
           const keep = "keep" in input ? input.keep.map((t) => t.turnId).filter((id) => UUID.test(id)) : [];
           const only = "turnIds" in input ? [...input.turnIds] : null;
 
+          yield* lockLostThreads(sql, input.workerId, only, keep);
+
           const turns = yield* sql<{ id: string; thread_id: string }>`
                   UPDATE turns u SET status = 'interrupted', interrupt_source = 'system', interrupt_reason = ${input.reason}, completed_at = now()
                     FROM threads t
@@ -182,7 +197,8 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
 
           const interactions = yield* sql<InteractionRow>`
                   UPDATE interaction_requests SET status = 'expired', answered_at = now()
-                   WHERE turn_id = ANY(${ids}::uuid[]) AND status = 'pending' AND question_call_id IS NULL
+                   WHERE turn_id = ANY(${ids}::uuid[]) AND status = 'pending'
+                     AND (question_call_id IS NULL OR question_wait)
                   RETURNING *`;
 
           for (const row of interactions) yield* writeInteractionTimeline(sql, row);

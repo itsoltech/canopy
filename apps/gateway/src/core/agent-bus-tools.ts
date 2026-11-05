@@ -6,7 +6,7 @@ export { busScheduleTool } from "./agent-bus-schedules.ts";
 import { ui } from "@canopy/contracts";
 import { agentCatalog, type AgentBusCall, type SpawnTarget } from "@canopy/domain";
 import { Predicate, type Effect } from "effect";
-import { AgentBusStore, type CallSource, type ThreadRow } from "../store/index.ts";
+import { AgentBusStore, GatewayStore, type CallSource, type ThreadRow } from "../store/index.ts";
 import { busState, callerTarget, scheduleIdOf, WAIT_POLL_MS } from "./agent-bus-context.ts";
 import type { AgentBus } from "./agent-bus.ts";
 
@@ -175,8 +175,22 @@ export async function busAnswers(
       result["status"] !== "pending" ||
       result["waiting"] === false ||
       Date.now() >= deadline
-    )
+    ) {
+      if (wait && Predicate.isObject(result) && result["status"] === "pending") {
+        const expired = await hostContext[busState].host.run(
+          GatewayStore.use((s) => s.expireInteraction(id, source.threadId)),
+        );
+
+        if (expired) {
+          await hostContext[busState].host.interaction(expired);
+
+          return hostContext[busState].host.run(AgentBusStore.use((s) => s.getAnswers(source, id, false)));
+        }
+      }
+
       return result;
+    }
+
     await Bun.sleep(Math.min(250, Math.max(0, deadline - Date.now())));
   }
 }

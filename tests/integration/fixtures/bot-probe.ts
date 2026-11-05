@@ -95,16 +95,35 @@ export async function botTool(text: string, server: typeof Mcp.Type | undefined)
       ? { name: "Harness project" }
       : {};
 
+  const headers = { ...server.headers, ...server.http_headers, "content-type": "application/json" };
+
   const response = await fetch(server.url, {
     method: "POST",
-    headers: { ...server.headers, ...server.http_headers, "content-type": "application/json" },
+    headers,
+    ...(text.includes("TIMEOUT_TOOL") && { signal: AbortSignal.timeout(1500) }),
     body: JSON.stringify({
       jsonrpc: "2.0",
       id: 1,
       method: "tools/call",
       params: { name, arguments: args },
     }),
+  }).catch(async (error: Error) => {
+    if (!text.includes("TIMEOUT_TOOL")) throw error;
+    // The official MCP client sends this notification when a call reaches its deadline.
+    await fetch(server.url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "notifications/cancelled",
+        params: { requestId: 1, reason: "Tool timed out" },
+      }),
+    });
+
+    return undefined;
   });
+
+  if (!response) return "TOOL_TIMEOUT";
 
   return `TOOL_RESULT:${JSON.stringify(await response.json())}`;
 }

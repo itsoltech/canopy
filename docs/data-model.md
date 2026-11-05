@@ -1,5 +1,11 @@
 # Model danych (PostgreSQL)
 
+Migracja `0084_bot_approval_expiry` dodaje `expired` do stanów `bot_approvals`
+i naprawia oczekujące karty zakończonych tur. Zakończenie tury, anulowanie
+wywołania i odpowiedź blokują te same wiersze bota i tury; spóźniona decyzja nie
+zapisuje odpowiedzi ani zgody. `bot_tool_calls.status = interrupted` zachowuje
+tombstone anulowanego wywołania, także gdy anulowanie dotarło przed jego wykonaniem.
+
 ## Połączenia proxy
 
 Migracja `0061_proxies` dodaje owner-scoped `proxies` z FK do zaszyfrowanego sekretu,

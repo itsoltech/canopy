@@ -4,10 +4,34 @@ import { type JsonObject } from "@canopy/domain";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { Invalid, NotFound } from "../store/store.ts";
+import { RequestExpired } from "../store/errors.ts";
 import { proposedBot } from "./creation.ts";
 import type { BotRow, BotTurn, ModelMessage, StoredCall, ToolResult, ToolSpec } from "./types.ts";
 import { approvalView, botConfiguration, uuid, type ApprovalRow } from "./store-views.ts";
 import type { BotCore } from "./store-queue.ts";
+
+function requireWaitingHarness(sql: SqlClient.SqlClient, turnId: string) {
+  return Effect.gen(function* () {
+    const ended =
+      yield* sql`SELECT turn_id FROM bot_harness_turns WHERE turn_id = ${turnId}::uuid AND outcome IS NOT NULL`;
+
+    if (ended.length) return yield* Effect.fail(new RequestExpired());
+  });
+}
+
+function startRemoteCall(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn, call: StoredCall, linked: boolean) {
+  return sql.withTransaction(
+    Effect.gen(function* () {
+      yield* core.fenced(turn);
+      yield* requireWaitingHarness(sql, turn.id);
+
+      const started = yield* sql`UPDATE bot_tool_calls SET status = 'running', linked_remote = ${linked}
+        WHERE id = ${call.id}::uuid AND status = 'pending' RETURNING id`;
+
+      if (!started.length) return yield* Effect.fail(new RequestExpired());
+    }),
+  );
+}
 
 /** Running turns: leases, checkpoints and tool calls. */
 export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
@@ -89,19 +113,15 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
             return saved.result as A;
           }
 
+          yield* requireWaitingHarness(sql, turn.id);
+
           const result = yield* effect;
           yield* sql`UPDATE bot_tool_calls SET status = 'completed', result = ${JSON.stringify(result ?? null)}::jsonb WHERE id = ${call.id}::uuid`;
 
           return result;
         }),
       ),
-    remoteStarted: (turn: BotTurn, call: StoredCall, linked = false) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          yield* fenced(turn);
-          yield* sql`UPDATE bot_tool_calls SET status = 'running', linked_remote = ${linked} WHERE id = ${call.id}::uuid AND status = 'pending'`;
-        }),
-      ),
+    remoteStarted: (turn: BotTurn, call: StoredCall, linked = false) => startRemoteCall(sql, core, turn, call, linked),
     remoteResult: (turn: BotTurn, call: StoredCall, result: ToolResult) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -118,7 +138,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
         Effect.gen(function* () {
           yield* owned(user, id, true);
           yield* sql`UPDATE bot_turns SET status = 'interrupted', lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = (SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND status IN ('running','waiting','queued') ORDER BY created_at, id LIMIT 1)`;
-          yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE bot_id = ${id}::uuid AND status = 'pending' AND turn_id IN (SELECT id FROM bot_turns WHERE status = 'interrupted')`;
+          yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now() WHERE bot_id = ${id}::uuid AND status = 'pending' AND turn_id IN (SELECT id FROM bot_turns WHERE status = 'interrupted')`;
           yield* sql`UPDATE bots SET status_line = '', revision = revision + 1 WHERE id = ${id}::uuid`;
         }),
       ),
@@ -166,6 +186,14 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
           const previous = (yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${call.id}::uuid`)[0];
 
           if (previous) return approvalView(previous);
+
+          const ended =
+            yield* sql`SELECT turn_id FROM bot_harness_turns WHERE turn_id = ${turn.id}::uuid AND outcome IS NOT NULL`;
+
+          const abandoned =
+            yield* sql`SELECT id FROM bot_tool_calls WHERE id = ${call.id}::uuid AND status = 'interrupted'`;
+
+          if (ended.length || abandoned.length) return yield* Effect.fail(new RequestExpired());
           let proposal: JsonValue | null = null;
 
           if (call.tool.source === "platform" && call.tool.name === "create_bot") {
@@ -217,13 +245,26 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
 
           if (!candidates[0]) return yield* Effect.fail(new NotFound("approval not found"));
           yield* owned(user, candidates[0].bot_id, true);
+
           // Same turn -> approval lock order as wait().
-          yield* sql`SELECT id FROM bot_turns WHERE id = ${candidates[0].turn_id}::uuid FOR UPDATE`;
+          const turns =
+            yield* sql<BotTurn>`SELECT * FROM bot_turns WHERE id = ${candidates[0].turn_id}::uuid FOR UPDATE`;
 
           const row =
             (yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${request.approvalId}::uuid FOR UPDATE`)[0]!;
 
+          if (row.status === "expired") return yield* Effect.fail(new RequestExpired());
+
+          // A retried decision returns its durable result even after the turn finishes.
           if (row.status !== "pending") return approvalView(row);
+
+          if (!["running", "waiting", "queued"].includes(turns[0]!.status))
+            return yield* Effect.fail(new RequestExpired());
+
+          const ended =
+            yield* sql`SELECT turn_id FROM bot_harness_turns WHERE turn_id = ${row.turn_id}::uuid AND outcome IS NOT NULL`;
+
+          if (ended.length) return yield* Effect.fail(new RequestExpired());
 
           if (request.answer.length > 32_000) return yield* Effect.fail(new Invalid("answer too long"));
 

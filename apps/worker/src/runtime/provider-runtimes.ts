@@ -49,7 +49,7 @@ export class ProviderRuntimes {
           return event;
         },
         interact: (request, signal) => this.ctx.ops.interact(request, signal),
-        callTool: (call) => this.ctx.ops.callTool(call),
+        callTool: (call, signal) => this.ctx.ops.callTool(call, signal),
         viewImage: (threadId, cwd, path) => this.ctx.ops.viewImage(threadId, cwd, path),
       }),
     });

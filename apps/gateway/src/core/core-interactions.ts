@@ -4,6 +4,7 @@ import { type WorkerConnection } from "../worker-link/index.ts";
 import { coreState } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreBroadcastThread, coreRun } from "./core-broadcast.ts";
+import { RequestExpired } from "../store/errors.ts";
 
 /** Stores the answer (user or parent agent), announces it and passes it to the waiting worker. */
 export async function coreAnswer(
@@ -13,6 +14,8 @@ export async function coreAnswer(
 ): Promise<ui.Interaction> {
   const interaction = await coreRun(hostContext, (s) => s.answerInteraction(request.requestId, by, request));
   await corePublishInteraction(hostContext, interaction);
+
+  if (interaction.status === "expired") throw new RequestExpired();
 
   if (interaction.toolName === "ask_user") {
     if (!hostContext[coreState].actions.defer(() => hostContext.bus.deliverAnswers()))

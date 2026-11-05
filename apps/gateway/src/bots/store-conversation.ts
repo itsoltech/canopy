@@ -68,8 +68,9 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
         WHERE m.bot_id = ${id}::uuid ORDER BY m.seq`;
 
           // A question's options are the arguments of its ask_user call (the approval id is the call id).
-          const approvals =
-            yield* sql<ApprovalRow>`SELECT a.*, t.routine_title, CASE WHEN a.kind = 'question' THEN c.arguments -> 'options' END AS options
+          const approvals = yield* sql<ApprovalRow>`SELECT a.*, c.arguments,
+              (c.tool ->> 'source' = 'platform' AND c.tool ->> 'name' = 'answer_interaction') AS prepared,
+              t.routine_title, CASE WHEN a.kind = 'question' THEN c.arguments -> 'options' END AS options
         FROM bot_approvals a JOIN bot_turns t ON t.id = a.turn_id LEFT JOIN bot_tool_calls c ON c.id = a.id WHERE a.bot_id = ${id}::uuid ORDER BY a.created_at, a.id`;
 
           const active =
