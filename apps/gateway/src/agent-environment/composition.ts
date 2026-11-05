@@ -107,7 +107,25 @@ export function checkSelector(selector: ui.EnvironmentSelector | undefined, work
     if (!/^[a-z0-9][a-z0-9._:-]{0,191}$/.test(tag)) invalid("Invalid assignment tag.");
 }
 
-export function checkDocument(document: ui.InstructionDocument, workers: readonly ui.EnvironmentWorker[]): void {
+/** Worker ids an assignment names that are not this computer's workers. */
+export function foreignWorkers(
+  selectors: readonly (ui.EnvironmentSelector | undefined)[],
+  workers: readonly ui.EnvironmentWorker[],
+) {
+  const local = new Set(workers.map((w) => w.workerId));
+
+  return new Set(selectors.flatMap((s) => s?.workerIds ?? []).filter((id) => uuid(id) && !local.has(id)));
+}
+
+/**
+ * `foreign`: workers of linked computers that an assignment already names. Each computer applies only its own
+ * workers, so their ids pass through; machine overrides name this computer's workers only.
+ */
+export function checkDocument(
+  document: ui.InstructionDocument,
+  workers: readonly ui.EnvironmentWorker[],
+  foreign: ReadonlySet<string> = new Set(),
+): void {
   if (document.id && !uuid(document.id)) invalid("Invalid document ID.");
 
   if (!document.name.trim() || document.name.length > 120) invalid("Name the document using up to 120 characters.");
@@ -127,7 +145,8 @@ export function checkDocument(document: ui.InstructionDocument, workers: readonl
     ) > ENVIRONMENT_CONTENT_BYTES
   )
     invalid("A document including its machine additions must fit in 24 KiB.");
-  const ids = new Set(workers.map((w) => w.workerId));
+  const local = new Set(workers.map((w) => w.workerId));
+  const ids = new Set([...local, ...foreign]);
   checkSelector(document.selector, ids);
   const fragments = new Set<string>();
 
@@ -142,7 +161,7 @@ export function checkDocument(document: ui.InstructionDocument, workers: readonl
   const overrides = new Set<string>();
 
   for (const override of document.overrides) {
-    if (!ids.has(override.workerId)) throw new ConnectError("Worker not found.", Code.NotFound);
+    if (!local.has(override.workerId)) throw new ConnectError("Worker not found.", Code.NotFound);
 
     if (overrides.has(override.workerId)) invalid("Only one override per machine is allowed.");
     overrides.add(override.workerId);

@@ -40,6 +40,7 @@ export const SERVED = new Set([
   "SearchFiles",
   "WatchThreadMirror",
   "WatchConfig",
+  "GetConfigBlob",
   "ListBots",
   "GetBot",
   "WatchBotConversation",

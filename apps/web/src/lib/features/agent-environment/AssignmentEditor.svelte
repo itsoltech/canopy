@@ -21,6 +21,9 @@
     parentSelector?: ui.EnvironmentSelector;
     class?: ClassValue;
   } = $props();
+
+  // Workers of linked computers stay assigned; each computer applies only its own.
+  const elsewhere = $derived(selector.workerIds.filter((id) => !workers.some((w) => w.workerId === id)).length);
 </script>
 
 <div class={["grid gap-4", className]}>
@@ -63,6 +66,10 @@
           {:else}<p class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400">
               Add a worker to choose a computer.
             </p>{/each}
+          {#if elsewhere}<p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
+              Also assigned to {elsewhere}
+              {elsewhere === 1 ? "worker" : "workers"} on linked computers. Change those there.
+            </p>{/if}
         </div>
       </Disclosure>{/if}
   {/if}

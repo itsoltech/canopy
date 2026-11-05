@@ -9,6 +9,10 @@ import { clockParts, compareClock, nextClock } from "./clock.ts";
 import { configLock, emptyRecord, maxClock, saveRecord, type ConfigRow } from "./persistence.ts";
 import { recordProviders } from "./provider-records.ts";
 import { recordProjects } from "./project-records.ts";
+import { recordEnvironment } from "./environment-records.ts";
+import { applyWaitingEnvironment } from "./environment-sync.ts";
+import { missingBlobs } from "./environment-blobs.ts";
+import { skillDigest } from "@canopy/domain/skill-artifact";
 import { applyRecord, readBatch, receiveItem, syncWorkers, type ReceiveResult } from "./receive.ts";
 import { instanceIds } from "./aliases.ts";
 import { mapSettingsInstances, settingsValues } from "./settings.ts";
@@ -17,6 +21,8 @@ import type { SettingsRow } from "./settings-apply.ts";
 export class ConfigSync {
   readonly ahead = new Map<string, number>();
   readonly syncing = new Map<string, boolean>();
+  /** Library content from a linked computer by hash (GetConfigBlob); set by the link runtime. */
+  fetchBlob?: (peer: string, hash: string) => Promise<Uint8Array>;
 
   constructor(
     readonly store: ComputerStore,
@@ -69,6 +75,7 @@ export class ConfigSync {
         else yield* sql`UPDATE config_clock SET hlc=${observed} WHERE owner_user_id=${store.owner}::uuid`;
         yield* recordProviders(sql);
         yield* recordProjects(sql);
+        yield* recordEnvironment(sql);
       }).pipe((fx) => Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(fx))),
     );
   }
@@ -113,6 +120,8 @@ export class ConfigSync {
               }
             }
 
+            if (outcome.environment)
+              outcome.environment = (yield* applyWaitingEnvironment(sql, store.owner)) || outcome.environment;
             const workers = outcome.providers ? yield* syncWorkers(sql, store.owner, store.key) : [];
             yield* sql`UPDATE config_clock SET hlc=${outcome.last} WHERE owner_user_id=${store.owner}::uuid`;
 
@@ -136,6 +145,44 @@ export class ConfigSync {
     if (result.providers) await host.providersChanged?.(result.workers);
 
     if (result.projects) await host.projectsChanged?.();
+
+    if ((await this.fetchMissing(peer)) || result.environment) await host.environmentChanged?.();
+  }
+
+  /**
+   * Library content named by records and missing here, from the computer that sent them: one item at a time,
+   * checked against its hash, applied in its own transaction. Missing content is asked for again after later batches.
+   */
+  async fetchMissing(peer: string) {
+    const { store, fetchBlob } = this;
+
+    if (!fetchBlob) return false;
+
+    const missing = await store.runtime.runPromise(
+      Effect.flatMap(SqlClient.SqlClient, (sql) => missingBlobs(sql, store.owner)),
+    );
+
+    let changed = false;
+
+    for (const hash of missing.slice(0, 64)) {
+      const content = await fetchBlob(peer, hash).catch(() => undefined);
+
+      if (!content || skillDigest(content) !== hash) continue;
+      const blobs = new Map([[hash, content]]);
+
+      changed =
+        (await store.runtime.runPromise(
+          Effect.gen(function* () {
+            const sql = yield* SqlClient.SqlClient;
+
+            return yield* sql.withTransaction(
+              Effect.andThen(configLock(sql, store.owner), applyWaitingEnvironment(sql, store.owner, blobs)),
+            );
+          }),
+        )) || changed;
+    }
+
+    return changed;
   }
 
   async publishComputer(name: string, neighbors: string[]) {

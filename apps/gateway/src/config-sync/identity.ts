@@ -7,6 +7,8 @@ import { alive } from "./provider-records.ts";
 import { instanceIdentity, PROVIDER_KINDS, proxyIdentity, valuesOf } from "./provider-values.ts";
 import { currentSecret } from "./secrets.ts";
 import { placeProject } from "./project-identity.ts";
+import { placeEnvironment } from "./environment-identity.ts";
+import { ENVIRONMENT_KINDS } from "./environment-values.ts";
 import type { ConnectError } from "@connectrpc/connect";
 
 /**
@@ -118,6 +120,8 @@ export function place(
   return Effect.gen(function* () {
     if (["project", "project_settings", "worktree_policy"].includes(incoming.kind))
       return yield* placeProject(sql, owner, incoming);
+
+    if (ENVIRONMENT_KINDS.has(incoming.kind)) return yield* placeEnvironment(sql, owner, incoming);
     const item = { ...incoming, global_id: yield* canonicalId(sql, owner, incoming.kind, incoming.global_id) };
     let current = yield* recordOf(sql, owner, item.kind, item.global_id);
 

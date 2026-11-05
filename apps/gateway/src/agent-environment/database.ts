@@ -4,6 +4,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect, Result } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
+import { environmentTransaction } from "../config-sync/environment-records.ts";
 
 export function documents(sql: SqlClient.SqlClient, owner: string) {
   return sql<{
@@ -55,7 +56,7 @@ export function saveDocument(sql: SqlClient.SqlClient, owner: string, document: 
   return Effect.gen(function* () {
     yield* sql`INSERT INTO instruction_documents (id, owner_user_id, revision, document)
       VALUES (${document.id}::uuid, ${owner}::uuid, ${document.revision}, ${json}::jsonb)
-      ON CONFLICT (id) DO UPDATE SET revision = EXCLUDED.revision, document = EXCLUDED.document
+      ON CONFLICT (id) DO UPDATE SET revision = EXCLUDED.revision, document = EXCLUDED.document, updated_at = now()
       WHERE instruction_documents.owner_user_id = ${owner}::uuid`;
     yield* sql`INSERT INTO instruction_document_versions (document_id, owner_user_id, revision, document)
       VALUES (${document.id}::uuid, ${owner}::uuid, ${document.revision}, ${json}::jsonb)`;
@@ -95,7 +96,9 @@ export class EnvironmentDatabase {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
 
-        return yield* sql.withTransaction(
+        // The library is shared configuration: versions are recorded in the same transaction (environmentTransaction).
+        return yield* environmentTransaction(
+          sql,
           Effect.gen(function* () {
             yield* sql`INSERT INTO agent_environments (owner_user_id) VALUES (${owner}::uuid) ON CONFLICT DO NOTHING`;
 

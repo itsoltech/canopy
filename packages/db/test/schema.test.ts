@@ -87,6 +87,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "73_config_sync",
       "74_config_providers",
       "75_config_projects",
+      "76_config_agent_environment",
     ]);
   }, 60_000);
 

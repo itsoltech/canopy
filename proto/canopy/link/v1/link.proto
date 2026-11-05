@@ -96,7 +96,13 @@ message SharedConfigReply { repeated SharedItemResult results = 1; }
 // Internal only: carried by RemoteRequest/RemoteResponse, never registered publicly.
 service ConfigSyncService {
   rpc WatchConfig(ConfigCursor) returns (stream ConfigUpdate);
+  // Library content (skill and plugin versions, marketplace catalogs) by SHA-256 of its JSON text.
+  // The receiver checks the hash and the artifact before storing it.
+  rpc GetConfigBlob(ConfigBlobRequest) returns (stream ConfigBlobChunk);
 }
+message ConfigBlobRequest { string hash = 1; }
+// The first chunk carries the total size; chunks arrive in order.
+message ConfigBlobChunk { bytes data = 1; uint64 size = 2; }
 message ConfigCursor { string cursor = 1; }
 message ConfigHello { map<string, uint32> schemas = 1; }
 message ConfigField {

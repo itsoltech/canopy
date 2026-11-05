@@ -16,6 +16,21 @@ export class SourceDatabase {
     if (!uuid(source.credentialAccountId))
       throw new ConnectError("Invalid connector account ID.", Code.InvalidArgument);
     const owner = this.environment.options.userId;
+    const id = source.credentialAccountId;
+
+    // A shared source names the account by id. Until connectors are shared, the account can be on another computer.
+    const known = await this.environment.db.run(
+      Effect.flatMap(
+        SqlClient.SqlClient,
+        (sql) => sql`SELECT 1 FROM connector_accounts WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid`,
+      ),
+    );
+
+    if (!known.length)
+      throw new ConnectError(
+        "This source's connected account is on another computer. Check for updates there, or connect the account here.",
+        Code.FailedPrecondition,
+      );
 
     // Store credentials are decrypted only inside the gateway. Only this closure returns the auth header.
     try {

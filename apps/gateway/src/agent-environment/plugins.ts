@@ -7,6 +7,7 @@ import { pluginHarnesses } from "@canopy/domain/plugin-components";
 import { audit, workers } from "./database.ts";
 import { checkSkillAssignment, skillApplies } from "./skill-assignment.ts";
 import { checked } from "./mutations.ts";
+import { foreignWorkers } from "./composition.ts";
 import { addPluginVersion, marketplaces, plugins, pluginVersion, savePlugin } from "./plugin-database.ts";
 import { installReference } from "./marketplace-discovery.ts";
 import type { AgentEnvironment } from "./service.ts";
@@ -112,7 +113,8 @@ export class EnvironmentPlugins {
             ),
           );
         const machines = yield* workers(sql, owner);
-        yield* checked(() => checkSkillAssignment(assignment, machines));
+        const foreign = foreignWorkers([previous?.assignment?.selector], machines);
+        yield* checked(() => checkSkillAssignment(assignment, machines, foreign));
         const updated = [...library.filter((p) => p.assignment?.id !== assignment.id), saved];
 
         for (const machine of machines) yield* checked(() => desiredPlugins(updated, machine));

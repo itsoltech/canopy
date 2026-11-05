@@ -267,6 +267,9 @@ export function sharedHost(core: GatewayCore, _local: UiHandlers): SharedHost {
       await corePublishModels(core, await coreModels(core, (s) => s.catalogs([])));
     },
     validateProjectSettings: (defaults) => coreCheckThreadDefaults(core, defaults),
+    environmentChanged: async () => {
+      await core.environment.changed();
+    },
     projectsChanged: async () => {
       const archived =
         (await core.computers?.store.query<{ id: string; name: string }>(

@@ -25,6 +25,7 @@ import { computersMovable, computersPresenceMethods, type ComputersPresenceMetho
 import { computersRemoteMethods, type ComputersRemoteMethods } from "./runtime-remote.ts";
 import { linkHandler, remoteCertificate, type LinkIdentity } from "./transport.ts";
 import { requireDesktopRole } from "../role.ts";
+import { fetchConfigBlob } from "./runtime-blobs.ts";
 import { ConfigSync } from "../config-sync/engine.ts";
 
 export { computerGuard, type ComputerChange } from "./runtime-context.ts";
@@ -70,6 +71,8 @@ export class LinkedComputers {
     this.mirror = new ThreadMirror(options.store);
     this.botMirror = new BotMirror(options.store);
     this.config = options.shared ? new ConfigSync(options.store, options.shared, () => this.hello().nodeId) : undefined;
+
+    if (this.config) this.config.fetchBlob = (nodeId, hash) => fetchConfigBlob(this, nodeId, hash);
     this.relay = new ComputerRelay(options.store, {
       self: () => this[computersState].identity.node_id,
       enabled: (nodeId) => this.hello().capabilities.includes(RELAY) && this.capabilities(nodeId).includes(RELAY),

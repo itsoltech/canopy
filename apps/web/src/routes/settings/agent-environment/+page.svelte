@@ -8,6 +8,7 @@
   import MarketplaceLibrary from "#lib/features/agent-environment/MarketplaceLibrary.svelte";
   import ComputerPlugins from "#lib/features/agent-environment/ComputerPlugins.svelte";
   import EnvironmentComputer from "#lib/features/agent-environment/EnvironmentComputer.svelte";
+  import EnvironmentNotices from "#lib/features/agent-environment/EnvironmentNotices.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
@@ -44,6 +45,7 @@
     title="Agent environment"
     description="Instructions, skills and plugins that follow your computers. Assign by tag and see exactly what each agent receives."
   />
+  <EnvironmentNotices onchange={() => void state.refresh()} />
   {#if state.error}<Alert tone="error">{state.error}</Alert>{/if}
   {#if state.notice}<Alert>{state.notice}</Alert>{/if}
   <InstructionLibrary {state} />

@@ -2,6 +2,7 @@
   import { create } from "@bufbuild/protobuf";
   import { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
+  import LocalOverridesNote from "./LocalOverridesNote.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
@@ -20,6 +21,7 @@
 </script>
 
 <div class={["grid gap-4", className]}>
+  <LocalOverridesNote />
   {#each overrides as override, i (override.workerId)}
     <div class="grid gap-3 border-t border-zinc-950/10 pt-4 dark:border-white/10">
       <div class="flex items-center justify-between gap-3">

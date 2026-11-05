@@ -9,7 +9,7 @@ import type { SettingsJson } from "./settings.ts";
 
 const PROJECT_FIELDS = new Set(["name", "kind", "archived", "origin"]);
 
-function managed(kind: string, name: string) {
+function projectManaged(kind: string, name: string) {
   if (kind === "project") return PROJECT_FIELDS.has(name);
 
   if (kind === "project_settings") return DEFAULT_FIELDS.has(name);
@@ -17,13 +17,14 @@ function managed(kind: string, name: string) {
   return POLICY_FIELDS.has(name);
 }
 
-/** Tracks only supported fields; machine paths and newer fields survive local edits. */
+/** Tracks only supported fields; machine paths and newer fields survive local edits. Also used for the library. */
 export function projectWriter(
   sql: SqlClient.SqlClient,
   owner: string,
   node: string,
   records: ConfigRow[],
   last: string,
+  managed: (kind: string, name: string) => boolean = projectManaged,
 ) {
   const state = { last };
   const seen = new Set<ConfigRow>();

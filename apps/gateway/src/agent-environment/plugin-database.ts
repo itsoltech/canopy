@@ -24,14 +24,14 @@ export function saveMarketplace(sql: SqlClient.SqlClient, owner: string, marketp
   const json = JSON.stringify(toJson(ui.EnvironmentMarketplaceSchema, marketplace));
 
   return sql`INSERT INTO agent_marketplaces (id, owner_user_id, marketplace) VALUES (${marketplace.id}::uuid, ${owner}::uuid, ${json}::jsonb)
-    ON CONFLICT (id) DO UPDATE SET marketplace = EXCLUDED.marketplace WHERE agent_marketplaces.owner_user_id = ${owner}::uuid`;
+    ON CONFLICT (id) DO UPDATE SET marketplace = EXCLUDED.marketplace, updated_at = now() WHERE agent_marketplaces.owner_user_id = ${owner}::uuid`;
 }
 
 export function savePlugin(sql: SqlClient.SqlClient, owner: string, plugin: ui.LibraryPlugin) {
   const json = JSON.stringify(toJson(ui.LibraryPluginSchema, plugin));
 
   return sql`INSERT INTO agent_plugins (id, owner_user_id, plugin) VALUES (${plugin.assignment!.id}::uuid, ${owner}::uuid, ${json}::jsonb)
-    ON CONFLICT (id) DO UPDATE SET plugin = EXCLUDED.plugin WHERE agent_plugins.owner_user_id = ${owner}::uuid`;
+    ON CONFLICT (id) DO UPDATE SET plugin = EXCLUDED.plugin, updated_at = now() WHERE agent_plugins.owner_user_id = ${owner}::uuid`;
 }
 
 export function pluginVersion(sql: SqlClient.SqlClient, owner: string, id: string, version: bigint) {

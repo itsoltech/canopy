@@ -57,5 +57,5 @@ export function saveSkillDefinition(sql: SqlClient.SqlClient, owner: string, ski
   const json = JSON.stringify(toJson(ui.LibrarySkillSchema, definition));
 
   return sql`INSERT INTO agent_skills(id, owner_user_id, definition) VALUES (${skill.id}::uuid, ${owner}::uuid, ${json}::jsonb)
-    ON CONFLICT(id) DO UPDATE SET definition = EXCLUDED.definition WHERE agent_skills.owner_user_id = ${owner}::uuid`;
+    ON CONFLICT(id) DO UPDATE SET definition = EXCLUDED.definition, updated_at = now() WHERE agent_skills.owner_user_id = ${owner}::uuid`;
 }

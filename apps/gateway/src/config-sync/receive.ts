@@ -15,6 +15,8 @@ import { PROVIDER_KINDS } from "./provider-values.ts";
 import { cipherOf, encryptIncoming, pruneSecrets, recordCiphers, storeSecret } from "./secrets.ts";
 import { PROJECT_KINDS } from "./project-values.ts";
 import { applyProject, applyProjectConfiguration } from "./project-apply.ts";
+import { ENVIRONMENT_KINDS } from "./environment-values.ts";
+import { applyEnvironment } from "./environment-apply.ts";
 
 /** Kinds this computer materializes, with their schema version. Everything else is kept and passed on. */
 export const SCHEMAS = {
@@ -25,9 +27,24 @@ export const SCHEMAS = {
   project: 1,
   project_settings: 1,
   worktree_policy: 1,
+  instruction: 1,
+  skill: 1,
+  marketplace: 1,
+  plugin: 1,
 } as const;
 
-const ORDER = ["computer", "proxy", "instance", "project", "project_settings", "worktree_policy"];
+const ORDER = [
+  "computer",
+  "proxy",
+  "instance",
+  "project",
+  "project_settings",
+  "worktree_policy",
+  "instruction",
+  "skill",
+  "marketplace",
+  "plugin",
+];
 
 const rank = (kind: string) => (ORDER.includes(kind) ? ORDER.indexOf(kind) : ORDER.length);
 
@@ -49,7 +66,14 @@ export type ReceiveContext = {
   host: SharedHost;
 };
 
-export type ReceiveResult = { last: string; settings: boolean; cli: boolean; providers: boolean; projects?: boolean };
+export type ReceiveResult = {
+  last: string;
+  settings: boolean;
+  cli: boolean;
+  providers: boolean;
+  projects?: boolean;
+  environment?: boolean;
+};
 
 export function checkItem(item: ConfigRow, self: string) {
   if (item.kind === "settings" && (item.global_id !== "account" || item.home_node_id))
@@ -58,7 +82,10 @@ export function checkItem(item: ConfigRow, self: string) {
   if (item.kind === "computer" && (!item.home_node_id || item.global_id !== item.home_node_id))
     return Effect.fail(new ConnectError("Invalid configuration computer", Code.PermissionDenied));
 
-  if ((PROVIDER_KINDS.has(item.kind) || PROJECT_KINDS.has(item.kind)) && item.home_node_id)
+  if (
+    (PROVIDER_KINDS.has(item.kind) || PROJECT_KINDS.has(item.kind) || ENVIRONMENT_KINDS.has(item.kind)) &&
+    item.home_node_id
+  )
     return Effect.fail(new ConnectError("Invalid shared configuration", Code.PermissionDenied));
 
   return Effect.succeed(!(item.kind === "computer" && item.home_node_id === self));
@@ -92,7 +119,9 @@ export function applyRecord(ctx: ReceiveContext, row: ConfigRow, result: Receive
     } else if (row.kind === "project_settings" || row.kind === "worktree_policy") {
       yield* applyProjectConfiguration(ctx.sql, ctx.owner, row, ctx.host);
       result.projects = true;
-    }
+    } else if (ENVIRONMENT_KINDS.has(row.kind))
+      // Content this computer lacks is fetched after the batch commits (ConfigSync.fetchMissing).
+      result.environment = (yield* applyEnvironment(ctx.sql, ctx.owner, row)) || !!result.environment;
   });
 }
 

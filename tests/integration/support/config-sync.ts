@@ -7,8 +7,12 @@ import { linkedComputers } from "./computers.ts";
 import { startTestGateway } from "./gateway.ts";
 
 /** Separate database, gateway, key, scripted worker and pinned link listener. */
-export async function configComputer(name: string, capabilities?: string[]) {
-  let gateway = await startTestGateway({ role: "desktop" });
+export async function configComputer(
+  name: string,
+  capabilities?: string[],
+  skillSources?: NonNullable<Parameters<typeof startTestGateway>[0]>["skillSources"],
+) {
+  let gateway = await startTestGateway({ role: "desktop", ...(skillSources && { skillSources }) });
   let store = new ComputerStore(gateway.runtime, gateway.userId, gateway.secretsKey);
   let links = makeLinks();
 
@@ -87,7 +91,7 @@ export async function configComputer(name: string, capabilities?: string[]) {
       await gateway.close(true);
 
       try {
-        gateway = await startTestGateway({ role: "desktop", storage });
+        gateway = await startTestGateway({ role: "desktop", storage, ...(skillSources && { skillSources }) });
       } catch (error) {
         await storage.pg.stop();
         throw error;

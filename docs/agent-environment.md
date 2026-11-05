@@ -5,8 +5,8 @@ instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia 
 do bazy gatewaya; użytkownik nie konfiguruje zmiennych środowiskowych ani plików
 usług. Etapy 1–4 obejmują instrukcje Claude/Codex, tagi, upload i synchronizację
 skilli Claude/Codex/Grok, źródła Git/skills.sh oraz marketplace i pluginy
-Claude/Codex z przypiętymi wersjami. Współdzielenie biblioteki między gatewayami
-pozostaje osobnym, późniejszym zakresem; nie należy do zleconego etapu 4.
+Claude/Codex z przypiętymi wersjami. Połączone komputery dzielą bibliotekę jak resztę
+konfiguracji konta ([wspólna konfiguracja](linked-computers.md#środowisko-agentów)).
 
 ## Dodawanie i edycja w interfejsie
 
@@ -521,13 +521,15 @@ volume daje widoczny błąd. Kod pluginu/skilla nie instaluje zależności OS; z
 obrazu to jawna czynność właściciela. Na Windows stosujemy copy/rename bez wymogu
 uprawnień do symlinków, a ochronę dostępu zapewnia ACL użytkownika workera.
 
-[Shared config etap 4](linked-computers.md#konkretny-protokół-etapu-4) będzie
-rozszerzony opt-in o `environment:<uuid>`: wspólna definicja + niezmienne wersje
-artefaktów, istniejące wektory i konflikty, capability po obu stronach. Przypisania
-do workerów, tagi, ścieżki, drift i zgody instalacyjne zostają lokalne. Otrzymanie
-wspólnego elementu nie jest zgodą na wykonanie kodu na maszynach odbiorcy.
-Etapy 1–4 nie udostępniają biblioteki między gatewayami; ten dawniej planowany
-element etapu 4 odroczono poza zakres zleconych marketplace/pluginów.
+Połączone komputery dzielą bibliotekę: dokumenty z fragmentami, skille z wersjami,
+źródłami, pinem i auto-update, marketplace'y z zamrożonymi katalogami, pluginy
+z zatwierdzonymi wersjami oraz przypisania (selektory i tagi). Wersje przechodzą
+łączem po hashu treści, a odbiorca sprawdza je jak upload
+([treść biblioteki](linked-computers.md#treść-biblioteki)). Lokalne zostają nadpisania
+maszyn, tagi workerów, raporty, drift, rozstrzygnięcia i wyniki sprawdzeń upstream.
+Każdy gateway stosuje przypisania wyłącznie do swoich workerów. Zgoda na plugin to
+checksum wybranej wersji: odbiorca przyjmuje tylko treść o tym checksumie, więc
+dociera wyłącznie kod, który właściciel zatwierdził.
 
 ## Ograniczenia synchronizacji
 

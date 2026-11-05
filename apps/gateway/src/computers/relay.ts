@@ -10,7 +10,7 @@ import { linkedMessage, SERVED } from "./remote.ts";
 // Configuration (which can contain credentials) is deliberately absent, even when
 // every participant supports stage 4. Routes and relay itself are never inherited.
 const FEATURES = new Set([REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS]);
-export const RELAY_METHODS = new Set([...SERVED].filter((name) => name !== "WatchConfig"));
+export const RELAY_METHODS = new Set([...SERVED].filter((name) => name !== "WatchConfig" && name !== "GetConfigBlob"));
 const NODE = /^[a-f0-9]{64}$/;
 
 const STATES = new Set([
