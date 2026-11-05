@@ -10,6 +10,7 @@ import { configLock, emptyRecord, maxClock, saveRecord, type ConfigRow } from ".
 import { recordProviders } from "./provider-records.ts";
 import { recordProjects } from "./project-records.ts";
 import { recordEnvironment } from "./environment-records.ts";
+import { recordConnectors } from "./connector-records.ts";
 import { applyWaitingEnvironment } from "./environment-sync.ts";
 import { missingBlobs } from "./environment-blobs.ts";
 import { skillDigest } from "@canopy/domain/skill-artifact";
@@ -75,6 +76,7 @@ export class ConfigSync {
         else yield* sql`UPDATE config_clock SET hlc=${observed} WHERE owner_user_id=${store.owner}::uuid`;
         yield* recordProviders(sql);
         yield* recordProjects(sql);
+        yield* recordConnectors(sql, store.key);
         yield* recordEnvironment(sql);
       }).pipe((fx) => Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(fx))),
     );
@@ -145,6 +147,8 @@ export class ConfigSync {
     if (result.providers) await host.providersChanged?.(result.workers);
 
     if (result.projects) await host.projectsChanged?.();
+
+    if (result.connectors) await host.connectorsChanged?.();
 
     if ((await this.fetchMissing(peer)) || result.environment) await host.environmentChanged?.();
   }

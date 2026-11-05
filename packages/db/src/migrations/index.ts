@@ -74,6 +74,7 @@ import configSync from "./0073_config_sync.sql" with { type: "text" };
 import configProviders from "./0074_config_providers.sql" with { type: "text" };
 import configProjects from "./0075_config_projects.sql" with { type: "text" };
 import configAgentEnvironment from "./0076_config_agent_environment.sql" with { type: "text" };
+import configConnectors from "./0077_config_connectors.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -164,6 +165,7 @@ export const migrations = Migrator.fromRecord({
   "0074_config_providers": sqlFile(configProviders),
   "0075_config_projects": sqlFile(configProjects),
   "0076_config_agent_environment": sqlFile(configAgentEnvironment),
+  "0077_config_connectors": sqlFile(configConnectors),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

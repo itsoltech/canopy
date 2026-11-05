@@ -5,18 +5,21 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { fail, type AccountRow, type ExecutionSource } from "./records.ts";
 import type { connectorSealing } from "./sealing.ts";
+import { connectorId } from "../config-sync/connector-apply.ts";
 
 /** Owned accounts, their views and the grants that authorize a worker thread or a bot. */
 export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<typeof connectorSealing>) {
   const { unseal } = sealing;
 
   const owned = (user: string, id: string, lock = false) =>
-    sql
-      .unsafe<AccountRow>(
-        `SELECT * FROM connector_accounts WHERE id=$1::uuid AND owner_user_id=$2::uuid${lock ? " FOR UPDATE" : ""}`,
-        [id, user],
-      )
-      .pipe(Effect.flatMap((r) => (r[0] ? Effect.succeed(r[0]) : fail("Connector account not found"))));
+    Effect.flatMap(connectorId(sql, user, id), (local) =>
+      sql
+        .unsafe<AccountRow>(
+          `SELECT * FROM connector_accounts WHERE id=$1::uuid AND owner_user_id=$2::uuid${lock ? " FOR UPDATE" : ""}`,
+          [local, user],
+        )
+        .pipe(Effect.flatMap((r) => (r[0] ? Effect.succeed(r[0]) : fail("Connector account not found")))),
+    );
 
   const view = (row: AccountRow) =>
     Effect.gen(function* () {

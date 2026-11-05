@@ -1601,7 +1601,7 @@ wynik niezależnie, także później, gdy taki element powstanie offline na dwó
 | skill | źródło (adres, ref, ścieżka), a bez źródła nazwa |
 | marketplace | znormalizowane repozytorium |
 | plugin | marketplace i nazwa pluginu |
-| konto connectora | typ, adres i nazwa |
+| konto connectora | typ, adres i tożsamość konta z metadanych dostawcy; bez metadanych dokładna nazwa, tylko jedno dopasowanie; przy nagłówkach także te same poświadczenia |
 | aplikacja OAuth | typ connectora |
 
 Inny klucz przy tym samym endpoincie oznacza dwa konta, więc elementy pozostają osobne. Różna treść skilla,
@@ -1672,10 +1672,11 @@ każdy gateway stosuje go tylko do swoich workerów, a zapis z innego komputera 
 UI pokazuje je jako „Also assigned to 2 workers on linked computers.”, a nadpisania maszyn opisuje
 „This computer's workers. Linked computers set their own overrides.”
 
-**Konto źródła.** `source.credentialAccountId` jest id konta connectora komputera, który dodał źródło.
-Do etapu 5 (wspólne connectory) odbiorca zachowuje to odwołanie bez zmian. Gdy konta tu nie ma, Check
-upstream kończy się „This source's connected account is on another computer. Check for updates there, or
-connect the account here.” Zainstalowane wersje działają dalej, bo są już w bibliotece.
+**Konto źródła.** `source.credentialAccountId` jest lokalnym id konta connectora. Zapis tłumaczy je na
+globalne id, odbiór na lokalne, a Check upstream ponownie rozwiązuje alias (konto mogło dotrzeć później).
+Podczas oczekiwania Check upstream kończy się „This source's connected account hasn't arrived on this
+computer. Wait for sharing to finish, then try again.” Zainstalowane wersje działają dalej, bo są już
+w bibliotece. Po odebraniu konta odbiorca używa jego poświadczeń bez ponownego logowania.
 
 **Zgoda na plugin** to checksum wybranej wersji. Odbiorca zapisuje wersję wyłącznie wtedy, gdy hash treści,
 checksum artefaktu i checksum w polu wersji się zgadzają, a harnessy pasują do manifestu. Otrzymany plugin
@@ -1851,6 +1852,19 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    tokenów (**0077_config_connectors**). Testy: konto połączone na A działa w bocie na B; ciphertext inny
    na B; równoległe odświeżenie z rotacją refresh tokenu kończy się jednym ważnym tokenem na obu;
    tokeny nie trafiają do logów ani BFF.
+   Implementacja etapu 5: migracja **0077_config_connectors** dodaje `updated_at` aplikacji OAuth.
+   Gateway inicjalizuje rekordy `connector` i `oauth_app` ze znacznikami czasu domeny. Każdy wspólny zapis,
+   także wynik refresh, najpierw blokuje `config_clock` i zapisuje rekord w tej samej transakcji.
+   Pola konta: `type`, `name`, `url`, `transport`, `authKind`, `allWorkers`, `allBots`, `tools`,
+   `accountIdentity`, `credentials`; aplikacji: `type`, `credentials` (client id i sekret razem).
+   `credentials` idzie wyłącznie przez `config_secrets`, nigdy przez `GetConfigBlob`. Odbiór aplikacji
+   i kont poprzedza źródła skilli; aliasy zachowują lokalne id oraz granty. Tożsamość dostawcy jest hashem
+   metadanych konta, a nie client id ani tokenu. Stan, ostatnie użycie i namespace zostają lokalne.
+   Nowsze poświadczenia usuwają lokalny stan needs reconnect; starszy zegar ich nie nadpisze.
+   Delete nie odwołuje tokenu: tombstone zachowuje zaszyfrowane poświadczenia do Restore przez 90 dni.
+   Disconnect odwołuje dostęp i replikuje usunięcie poświadczeń. Restore nie przywraca indywidualnych grantów.
+   UI nie oznacza wspólnego konta; stan lokalny opisuje „This computer”, konflikty i usunięcia mają Restore.
+   `connector_worker_grants` oraz zdalny zapis dostępu zostają do etapu 6; granty botów pozostają w domu.
 6. **Rekordy workerów i edycja zdalna.** Rekord `worker`, rozszerzony `SERVED`, rozdzielanie `SetConnectorAccess`,
    audyt, listy workerów wszystkich komputerów w ustawieniach (**0078_config_workers**). Testy: zmiana
    nadpisania instancji workera B z A zapisana tylko w bazie B; częstotliwość CLI workera B; niedostępny B

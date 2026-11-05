@@ -6,6 +6,7 @@ import { configLock, type ConfigRow } from "./persistence.ts";
 import { environmentManaged } from "./environment-values.ts";
 import { projectWriter } from "./project-writer.ts";
 import type { Values } from "./provider-values.ts";
+import { connectorId } from "./connector-apply.ts";
 
 type Stamped = { id: string; updated_at: Date };
 
@@ -114,7 +115,12 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
           name: skill.name,
           ...assignment(skill),
           source: source
-            ? { url: source.url, ref: source.ref, path: source.path, credentialAccountId: source.credentialAccountId }
+            ? {
+                url: source.url,
+                ref: source.ref,
+                path: source.path,
+                credentialAccountId: yield* connectorId(sql, owner, source.credentialAccountId, true),
+              }
             : null,
           autoUpdate: source?.autoUpdate ?? false,
           pinned: source?.pinned ?? false,
@@ -132,7 +138,12 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
         {
           name: market.name,
           source: source
-            ? { url: source.url, ref: source.ref, path: source.path, credentialAccountId: source.credentialAccountId }
+            ? {
+                url: source.url,
+                ref: source.ref,
+                path: source.path,
+                credentialAccountId: yield* connectorId(sql, owner, source.credentialAccountId, true),
+              }
             : null,
           catalog: { hash: row.hash, commit: source?.commit ?? "" },
         },

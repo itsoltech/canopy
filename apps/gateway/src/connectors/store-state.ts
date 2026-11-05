@@ -1,19 +1,11 @@
 import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
-import { connectors, ConnectorToolSchema, type ConnectorTool } from "@canopy/contracts";
+import { ConnectorToolSchema, type ConnectorTool } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
-import { encryptSecret } from "../store/secrets.ts";
-import { connectorType, connectorUrl, oauthRedirectUrl } from "./catalog.ts";
-import {
-  checked,
-  digest,
-  fail,
-  type AccountRow,
-  type Credentials,
-  type ExecutionSource,
-  type RegisteredApp,
-} from "./records.ts";
+import { digest, fail, type AccountRow, type Credentials, type ExecutionSource } from "./records.ts";
 import type { ConnectorBase } from "./accounts.ts";
+import { connectorTransaction } from "../config-sync/connector-records.ts";
+import { removeConnector } from "../config-sync/connector-apply.ts";
 
 /** Tools, OAuth apps and state, disconnecting and the execution log. */
 export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, key: Buffer) {
@@ -22,43 +14,13 @@ export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, ke
   return {
     tools: (row: AccountRow): ConnectorTool[] => row.tools.map((t) => fromJson(ConnectorToolSchema, t)),
     saveTools: (row: AccountRow, tools: ConnectorTool[]) =>
-      sql`UPDATE connector_accounts SET tools=${JSON.stringify(tools.map((t) => toJson(ConnectorToolSchema, t)))}::jsonb,status='connected' WHERE id=${row.id}::uuid AND revision=${BigInt(row.revision)}`,
+      connectorTransaction(
+        sql,
+        key,
+        sql`UPDATE connector_accounts SET tools=${JSON.stringify(tools.map((t) => toJson(ConnectorToolSchema, t)))}::jsonb,status='connected',updated_at=now() WHERE id=${row.id}::uuid AND owner_user_id=${row.owner_user_id}::uuid AND revision=${BigInt(row.revision)}`,
+      ),
     status: (row: AccountRow, status: string) =>
       sql`UPDATE connector_accounts SET status=${status} WHERE id=${row.id}::uuid AND revision=${BigInt(row.revision)}`,
-    app: (user: string, type: string) =>
-      sql<{
-        credentials: Uint8Array;
-      }>`SELECT credentials FROM connector_oauth_apps WHERE owner_user_id=${user}::uuid AND connector_type=${type}`.pipe(
-        Effect.map((r) => (r[0] ? opened<RegisteredApp>(r[0].credentials) : undefined)),
-      ),
-    appTypes: (user: string) =>
-      sql<{
-        connector_type: string;
-      }>`SELECT connector_type FROM connector_oauth_apps WHERE owner_user_id=${user}::uuid`.pipe(
-        Effect.map((r) => r.map((v) => v.connector_type)),
-      ),
-    saveApp: (user: string, request: connectors.SaveConnectorOAuthAppRequest) =>
-      Effect.gen(function* () {
-        if (
-          !connectorType(request.connectorType) ||
-          !request.clientId ||
-          request.clientId.length > 2000 ||
-          request.clientSecret.length > 32_000
-        )
-          return yield* fail("A connector type and OAuth client ID are required");
-        const issuer = yield* checked(() => connectorUrl(request.issuer));
-        const fixed = connectorType(request.connectorType)?.authMethods.some((m) => m.oauthAppRequired);
-
-        const client: RegisteredApp = {
-          client_id: request.clientId,
-          client_secret: request.clientSecret || undefined,
-          issuer,
-          ...(fixed && { redirect_uri: oauthRedirectUrl() }),
-        };
-
-        yield* sql`INSERT INTO connector_oauth_apps(owner_user_id,connector_type,credentials) VALUES (${user}::uuid,${request.connectorType},${encryptSecret(key, JSON.stringify(client))})
-        ON CONFLICT(owner_user_id,connector_type) DO UPDATE SET credentials=EXCLUDED.credentials`;
-      }),
     saveState: (user: string, row: AccountRow, state: string, binding: string, value: Credentials) =>
       Effect.gen(function* () {
         yield* sql`DELETE FROM connector_oauth_states WHERE expires_at < now() OR account_id=${row.id}::uuid`;
@@ -94,29 +56,31 @@ export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, ke
         }),
       ),
     disconnect: (user: string, id: string) =>
-      sql.withTransaction(
+      connectorTransaction(
+        sql,
+        key,
         Effect.gen(function* () {
           const row = yield* owned(user, id, true);
           const value = yield* credentials(row);
-          yield* sql`UPDATE connector_accounts SET status='disconnected',credentials=NULL,legacy_headers='{}',tools='[]',revision=revision+1,updated_at=now() WHERE id=${id}::uuid`;
-          yield* sql`DELETE FROM connector_oauth_states WHERE account_id=${id}::uuid`;
+          yield* sql`UPDATE connector_accounts SET status='disconnected',credentials=NULL,legacy_headers='{}',tools='[]',revision=revision+1,updated_at=now() WHERE id=${row.id}::uuid`;
+          yield* sql`DELETE FROM connector_oauth_states WHERE account_id=${row.id}::uuid`;
 
           // Legacy encrypted headers have been copied by reference. Remove only this account's owned secret rows.
           for (const ref of Object.values(row.legacy_headers))
             yield* sql`DELETE FROM secrets WHERE id=${ref.secretRef}::uuid AND owner_user_id=${user}::uuid AND name LIKE 'bot-mcp-%'`;
-          yield* audit({ userId: user, accountId: id }, "disconnect", "disconnected");
+          yield* audit({ userId: user, accountId: row.id }, "disconnect", "disconnected");
 
           return { row, value, account: yield* view(yield* owned(user, id)) };
         }),
       ),
-    /** After disconnect: drop the account, its grants and replay records; audit rows stay, unlinked. */
+    /** Drop the account without revoking its recoverable credentials; audit stays, unlinked. */
     remove: (user: string, id: string) =>
-      sql.withTransaction(
+      connectorTransaction(
+        sql,
+        key,
         Effect.gen(function* () {
-          yield* owned(user, id, true);
-          yield* sql`UPDATE connector_audit SET account_id = NULL WHERE account_id=${id}::uuid`;
-          yield* sql`DELETE FROM connector_executions WHERE account_id=${id}::uuid`;
-          yield* sql`DELETE FROM connector_accounts WHERE id=${id}::uuid`;
+          const row = yield* owned(user, id, true);
+          yield* removeConnector(sql, user, row.id);
           yield* sql`INSERT INTO connector_audit(owner_user_id,tool,outcome) VALUES (${user}::uuid,'delete','deleted')`;
         }),
       ),

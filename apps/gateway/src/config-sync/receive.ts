@@ -17,6 +17,8 @@ import { PROJECT_KINDS } from "./project-values.ts";
 import { applyProject, applyProjectConfiguration } from "./project-apply.ts";
 import { ENVIRONMENT_KINDS } from "./environment-values.ts";
 import { applyEnvironment } from "./environment-apply.ts";
+import { CONNECTOR_KINDS } from "./connector-values.ts";
+import { applyConnector } from "./connector-apply.ts";
 
 /** Kinds this computer materializes, with their schema version. Everything else is kept and passed on. */
 export const SCHEMAS = {
@@ -31,12 +33,16 @@ export const SCHEMAS = {
   skill: 1,
   marketplace: 1,
   plugin: 1,
+  connector: 1,
+  oauth_app: 1,
 } as const;
 
 const ORDER = [
   "computer",
   "proxy",
   "instance",
+  "oauth_app",
+  "connector",
   "project",
   "project_settings",
   "worktree_policy",
@@ -73,6 +79,7 @@ export type ReceiveResult = {
   providers: boolean;
   projects?: boolean;
   environment?: boolean;
+  connectors?: boolean;
 };
 
 export function checkItem(item: ConfigRow, self: string) {
@@ -83,7 +90,10 @@ export function checkItem(item: ConfigRow, self: string) {
     return Effect.fail(new ConnectError("Invalid configuration computer", Code.PermissionDenied));
 
   if (
-    (PROVIDER_KINDS.has(item.kind) || PROJECT_KINDS.has(item.kind) || ENVIRONMENT_KINDS.has(item.kind)) &&
+    (PROVIDER_KINDS.has(item.kind) ||
+      PROJECT_KINDS.has(item.kind) ||
+      ENVIRONMENT_KINDS.has(item.kind) ||
+      CONNECTOR_KINDS.has(item.kind)) &&
     item.home_node_id
   )
     return Effect.fail(new ConnectError("Invalid shared configuration", Code.PermissionDenied));
@@ -119,6 +129,9 @@ export function applyRecord(ctx: ReceiveContext, row: ConfigRow, result: Receive
     } else if (row.kind === "project_settings" || row.kind === "worktree_policy") {
       yield* applyProjectConfiguration(ctx.sql, ctx.owner, row, ctx.host);
       result.projects = true;
+    } else if (CONNECTOR_KINDS.has(row.kind)) {
+      yield* applyConnector(ctx.sql, ctx.owner, ctx.key, row);
+      result.connectors = true;
     } else if (ENVIRONMENT_KINDS.has(row.kind))
       // Content this computer lacks is fetched after the batch commits (ConfigSync.fetchMissing).
       result.environment = (yield* applyEnvironment(ctx.sql, ctx.owner, row)) || !!result.environment;

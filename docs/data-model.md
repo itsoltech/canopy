@@ -19,7 +19,7 @@ Parowanie atomowo zużywa kod i zapisuje peer. Unlink usuwa rekord peer; znaczni
 odwołania pozwala usunąć relację po stronie partnera wracającego z offline.
 Szczegóły i granice bezpieczeństwa: [linked-computers.md](linked-computers.md#konkretny-protokół-etapu-1).
 
-Historyczny protokół `0050_shared_config` został zastąpiony wspólną konfiguracją w migracjach 0073–0076.
+Historyczny protokół `0050_shared_config` został zastąpiony wspólną konfiguracją w migracjach 0073–0077.
 
 Migracja `0073_config_sync` przenosi ustawienia konta z protokołu 0050 do `config_items`
 (HLC i poprzednik per liść, tombstone, lokalna rewizja). `config_clock` porządkuje commity
@@ -51,6 +51,12 @@ i pluginów: SHA-256 tekstu JSON artefaktu (`config_content_hash`, liczony trigg
 `agent_marketplace_catalogs` trzyma każdy zamrożony katalog marketplace'u po hashu, także po jego zmianie.
 Rekordy `instruction`, `skill`, `marketplace` i `plugin` nazywają wersje tym hashem; nadpisania maszyn,
 wyniki sprawdzeń upstream, raporty i decyzje driftu zostają lokalne.
+
+Migracja `0077_config_connectors` dodaje `updated_at` do `connector_oauth_apps`. Gateway inicjalizuje
+rekordy `connector` i `oauth_app` oraz ich zaszyfrowane pola `credentials` w `config_secrets`.
+Nagłówki i tokeny nigdy nie są wartościami JSON w `config_items` ani w historii. Historia Restore
+trzyma przegrane sekrety wyłącznie jako lokalny ciphertext. Stan, ostatnie użycie, namespace i granty
+workerów/botów zostają w tabelach domeny danego komputera.
 
 Migracja `0051_linked_agents` dodaje atomowo zastępowane projekcje rozmów botów
 (`computer_mirror_bots`, `computer_bot_mirror_state`) oraz owner-scoped referencje

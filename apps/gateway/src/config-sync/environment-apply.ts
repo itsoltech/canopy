@@ -12,6 +12,7 @@ import { valuesOf } from "./provider-values.ts";
 import { sourceOf } from "./environment-values.ts";
 import type { Blobs } from "./environment-blobs.ts";
 import { applyMarketplace, applyPlugin } from "./environment-apply-plugins.ts";
+import { connectorId } from "./connector-apply.ts";
 import {
   attempt,
   bumpEnvironment,
@@ -128,6 +129,8 @@ function applySkill(sql: SqlClient.SqlClient, owner: string, row: ConfigRow, blo
     const versions = local.map((l) => BigInt(l.version)).sort((a, b) => (a < b ? -1 : 1));
     const source = sourceOf(v["source"]);
 
+    if (source) source.credentialAccountId = yield* connectorId(sql, owner, source.credentialAccountId);
+
     const workers = yield* localWorkers(sql, owner);
 
     const parsed = yield* attempt(() => {
@@ -142,7 +145,7 @@ function applySkill(sql: SqlClient.SqlClient, owner: string, row: ConfigRow, blo
         platformHome: v["platformHome"] === true,
         versions,
         ...(source && {
-          // Upstream checks are this computer's own; a connected account is this computer's until stage 5.
+          // Upstream checks are this computer's own; the account resolves through shared aliases.
           source: Object.assign(
             current?.source ? clone(ui.SkillSourceSchema, current.source) : create(ui.SkillSourceSchema),
             source,

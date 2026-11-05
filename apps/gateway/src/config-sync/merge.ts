@@ -42,7 +42,7 @@ function readField(field: link.ConfigField): Field {
 
   if (
     field.valueJson.length > 2_000_000 ||
-    (field.secret !== undefined && (!field.secret || field.secret.length > 16_384 || field.secret.includes("\0")))
+    (field.secret !== undefined && (!field.secret || field.secret.length > 2_000_000 || field.secret.includes("\0")))
   )
     throw new ConnectError("Unsupported configuration field", Code.InvalidArgument);
 

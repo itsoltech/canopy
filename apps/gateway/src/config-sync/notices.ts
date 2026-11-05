@@ -16,6 +16,8 @@ import { PROJECT_KINDS } from "./project-values.ts";
 import { ENVIRONMENT_KINDS } from "./environment-values.ts";
 import { applyEnvironment } from "./environment-apply.ts";
 import { cipherOf, pruneSecrets, recordCiphers, storeSecret } from "./secrets.ts";
+import { CONNECTOR_KINDS } from "./connector-values.ts";
+import { applyConnector } from "./connector-apply.ts";
 
 type HistoryRow = Field & {
   id: string;
@@ -33,7 +35,11 @@ type NoticeRow = HistoryRow & { node_name: string; local_id: string | null; item
 
 /** A deleted element is one notice rather than one per lost field. */
 const grouped = (r: Pick<HistoryRow, "kind" | "reason">) =>
-  (PROVIDER_KINDS.has(r.kind) || PROJECT_KINDS.has(r.kind) || ENVIRONMENT_KINDS.has(r.kind)) && r.reason === "deleted";
+  (PROVIDER_KINDS.has(r.kind) ||
+    PROJECT_KINDS.has(r.kind) ||
+    ENVIRONMENT_KINDS.has(r.kind) ||
+    CONNECTOR_KINDS.has(r.kind)) &&
+  r.reason === "deleted";
 
 const nameOf = (fields: Record<string, { value: JsonValue } | undefined> | null | undefined) => {
   const value = fields?.["label"]?.value ?? fields?.["name"]?.value;
@@ -119,6 +125,7 @@ function restore(sync: ConfigSync, row: ConfigRow, history: readonly HistoryRow[
     else if (row.kind === "proxy") yield* applyProxy(sql, store.owner, store.key, row);
     else if (row.kind === "instance") yield* applyInstance(sql, store.owner, row);
     else if (row.kind === "project") yield* applyProject(sql, store.owner, row);
+    else if (CONNECTOR_KINDS.has(row.kind)) yield* applyConnector(sql, store.owner, store.key, row);
     else if (ENVIRONMENT_KINDS.has(row.kind)) {
       row.unsupported = "";
       environment = yield* applyEnvironment(sql, store.owner, row);
@@ -163,7 +170,12 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
             const row = (yield* sql<ConfigRow>`SELECT * FROM config_items WHERE owner_user_id=${store.owner}::uuid
           AND kind=${first.kind} AND global_id=${first.global_id}`)[0];
 
-            if (!row || !["settings", "instance", "proxy", ...PROJECT_KINDS, ...ENVIRONMENT_KINDS].includes(row.kind))
+            if (
+              !row ||
+              !["settings", "instance", "proxy", ...PROJECT_KINDS, ...ENVIRONMENT_KINDS, ...CONNECTOR_KINDS].includes(
+                row.kind,
+              )
+            )
               return yield* Effect.fail(new ConnectError("Not supported on this computer", Code.FailedPrecondition));
             result = yield* restore(sync, row, history, clock.hlc);
           }
@@ -184,4 +196,6 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
   if (PROJECT_KINDS.has(outcome.kind) && action === "restore") await host.projectsChanged?.();
 
   if (outcome.environment) await host.environmentChanged?.();
+
+  if (CONNECTOR_KINDS.has(outcome.kind) && action === "restore") await host.connectorsChanged?.();
 }

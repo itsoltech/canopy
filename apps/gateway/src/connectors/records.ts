@@ -18,6 +18,8 @@ export interface Credentials {
   /** The exact redirect used to register this client and start its pending code exchange. */
   redirectUri?: string;
   expiresAt?: number;
+  /** Hash of provider-supplied account metadata, captured before the SDK strips token extensions. */
+  accountIdentity?: string;
 }
 
 export interface AccountRow {

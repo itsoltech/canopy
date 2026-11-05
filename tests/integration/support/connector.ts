@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import type { JsonValue } from "@canopy/domain";
 
 /** Real HTTP MCP + OAuth fixture: token validation, one-use codes, S256 and rotating refresh tokens. */
-export function fakeConnector(options: { call?: (name: string, args: JsonValue) => JsonValue } = {}) {
+export function fakeConnector(
+  options: { call?: (name: string, args: JsonValue) => JsonValue; accountId?: string } = {},
+) {
   const secret = `connector-secret-${crypto.randomUUID()}`;
   const clients = new Map<string, { redirect: string; secret?: string }>();
   const codes = new Map<string, { challenge: string; client: string; redirect: string }>();
@@ -20,6 +22,7 @@ export function fakeConnector(options: { call?: (name: string, args: JsonValue) 
   let readOnlyTools = ["read_marker"];
   let duration = 3600;
   let url = "";
+  let accountId = options.accountId;
 
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -112,6 +115,7 @@ export function fakeConnector(options: { call?: (name: string, args: JsonValue) 
           refresh_token: renewal,
           token_type: "Bearer",
           expires_in: duration,
+          ...(accountId && { workspace_id: accountId }),
         });
       }
 
@@ -226,6 +230,9 @@ export function fakeConnector(options: { call?: (name: string, args: JsonValue) 
     },
     set duration(seconds: number) {
       duration = seconds;
+    },
+    set accountId(value: string | undefined) {
+      accountId = value;
     },
     set rejectRefresh(value: boolean) {
       rejectRefresh = value;

@@ -333,9 +333,6 @@ export class ConnectorsRuntime {
     return account;
   }
   async remove(id: string) {
-    const account = await this.run((s) => s.owned(this.options.userId, id));
-
-    if (account.status !== "disconnected") await this.disconnect(id);
     await this.run((s) => s.remove(this.options.userId, id));
   }
   async call(

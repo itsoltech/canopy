@@ -6,6 +6,7 @@ import { SqlClient } from "effect/sql";
 import { GatewayStore } from "../store/store.ts";
 import type { AgentEnvironment } from "./service.ts";
 import { uuid } from "./composition.ts";
+import { connectorId } from "../config-sync/connector-apply.ts";
 
 export class SourceDatabase {
   constructor(readonly environment: AgentEnvironment) {}
@@ -16,19 +17,20 @@ export class SourceDatabase {
     if (!uuid(source.credentialAccountId))
       throw new ConnectError("Invalid connector account ID.", Code.InvalidArgument);
     const owner = this.environment.options.userId;
-    const id = source.credentialAccountId;
 
-    // A shared source names the account by id. Until connectors are shared, the account can be on another computer.
+    // A source may arrive before its account; alias resolution also works after a later identity merge.
     const known = await this.environment.db.run(
-      Effect.flatMap(
-        SqlClient.SqlClient,
-        (sql) => sql`SELECT 1 FROM connector_accounts WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid`,
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        Effect.flatMap(
+          connectorId(sql, owner, source.credentialAccountId),
+          (id) => sql`SELECT 1 FROM connector_accounts WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid`,
+        ),
       ),
     );
 
     if (!known.length)
       throw new ConnectError(
-        "This source's connected account is on another computer. Check for updates there, or connect the account here.",
+        "This source's connected account hasn't arrived on this computer. Wait for sharing to finish, then try again.",
         Code.FailedPrecondition,
       );
 
