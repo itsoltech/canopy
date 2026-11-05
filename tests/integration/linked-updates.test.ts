@@ -184,6 +184,10 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     // The test gateway's own release check isn't running; the linked computers' checks go out anyway.
     await a.api.manageUpdates({ action: "check" }).catch(() => undefined);
     await eventually(async () => app.checks > 0);
+    // Check now on one linked computer (Settings → App updates).
+    const before = app.checks;
+    await a.api.manageUpdates({ action: "computer_check", nodeId: bNode });
+    await eventually(async () => app.checks > before);
   }, 20_000);
 
   test("an update of B is routed and audited, waits for idle on B, restarts and comes back on the new version", async () => {

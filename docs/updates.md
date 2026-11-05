@@ -22,13 +22,22 @@ zwinięta sekcja CLI. Wiersz połączonego komputera ma stan Up to date, Availab
 procent pobierania, Ready, Waiting for idle, Restarting, Offline, Failed albo
 Manual update (aplikacja za stara na zdalne aktualizacje lub komputer pośredni), z
 przyczyną pod ikoną informacji. Galeria `/dev/updates` (tylko tryb deweloperski)
-pokazuje centrum i wszystkie stany na danych testowych. Instrukcje
+pokazuje centrum i wszystkie stany na danych testowych, a `?view=settings` obie sekcje
+ustawień. Instrukcje
 instalacji i kolejność aktualizacji są pod ikonami informacji. Długie nazwy
 i wersje mają skrót z pełną treścią w podpowiedzi; błędy można rozwinąć.
 Popover nie pokazuje notatek wydań; są w Settings → Workers / App updates razem
 z pełnymi ustawieniami, wymuszeniem restartu i szczegółami instalatorów.
 
-Settings → Workers → Updates używa tych samych zwartych wierszy. Nagłówek
+Settings → Workers → Updates pokazuje te same wiersze co popover (wspólny komponent
+`UpdateRows`): ten komputer, połączone komputery z akcją Update, workery i Agent CLIs
+pogrupowane według komputera. Gateway serwerowy ma pod swoim wierszem pole kanału.
+Settings → App updates zachowuje ustawienia tej aplikacji i dodaje grupę „Linked
+computers”: wiersz na komputer z nazwą, wersją → docelową, kanałem i stanem, przyciskami
+Check now (akcja `computer_check`, sprawdzenie feedu tamtej aplikacji) i Update albo tekstem
+„Update on that computer” dla aplikacji za starej. Oba przyciski są zawsze widoczne i tylko
+się wyłączają, więc zmiana stanu niczego nie przesuwa. Kanał i częstotliwość sprawdzania
+partnera są tu tylko do odczytu: każdy komputer zmienia je u siebie. Nagłówek
 pokazuje stan i czas sprawdzenia; Update all pojawia się tylko przy dostępnych
 aktualizacjach. Aktualne workery nie mają przycisku aktualizacji. Kanał zapisuje
 się po wyborze; przejście na starszy kanał lub starszą przypiętą wersję wymaga
@@ -197,7 +206,8 @@ requested an app update…”) i `check` (samo sprawdzenie feedu, bez instalacji
 `canopy.link.v1.ComputerUpdateService` ma dwie metody przenoszone istniejącym
 `remote_request`: `GetComputerUpdates` (snapshot domu: jego aplikacja w `UpdatesSnapshot.app`,
 workery i CLI, bez jego partnerów i bez przebiegu Update all) oraz `RequestComputerUpdate`
-(`app`, `check`, `worker`). Dom obsługuje je tylko na bezpośrednim łączu, gdy obie strony
+(`app`, `check`, `worker`). `ManageUpdates` wywołuje je akcjami `computer` i `computer_check`
+z `node_id` albo `worker` z kwalifikowanym id workera. Dom obsługuje je tylko na bezpośrednim łączu, gdy obie strony
 ogłosiły capability; relay ich nie przenosi (`RELAY_METHODS`). `COMPUTER_LINK_PROTOCOL` zostaje 1.
 
 **Weryfikacja u domu.** Wołający musi być bezpośrednio sparowanym komputerem tego właściciela

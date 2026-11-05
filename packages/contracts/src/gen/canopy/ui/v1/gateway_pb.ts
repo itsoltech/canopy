@@ -379,7 +379,7 @@ export const UpdatesRequestSchema: GenMessage<UpdatesRequest> = /*@__PURE__*/
  */
 export type ManageUpdatesRequest = Message<"canopy.ui.v1.ManageUpdatesRequest"> & {
   /**
-   * check | channel | gateway | worker | all | desktop | update_all | computer
+   * check | channel | gateway | worker | all | desktop | update_all | computer | computer_check
    *
    * @generated from field: string action = 1;
    */
@@ -415,7 +415,7 @@ export type ManageUpdatesRequest = Message<"canopy.ui.v1.ManageUpdatesRequest"> 
   desktopRequestId: string;
 
   /**
-   * computer: the directly linked computer whose Canopy app updates
+   * computer, computer_check: the directly linked computer whose Canopy app updates or checks
    *
    * @generated from field: string node_id = 7;
    */

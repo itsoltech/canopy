@@ -58,6 +58,13 @@ export function workersHandlers(
         return snapshot();
       }
 
+      // One linked computer's app checks its own feed; it installs nothing, so Update all may be running.
+      if (request.action === "computer_check") {
+        await requestComputerUpdate(core, request.nodeId, "check");
+
+        return snapshot();
+      }
+
       if (request.action !== "check" && (await core.updateCenter.status())?.state === "running")
         throw new ConnectError(
           "Update all is running. Wait for it to finish before starting another update.",
