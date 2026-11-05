@@ -1,6 +1,8 @@
 <script lang="ts">
   import "./layout.css";
   import { page } from "$app/state";
+  import { goto } from "$app/navigation";
+  import { isDesktopRoute } from "@canopy/ui/desktop";
   import { onMount } from "svelte";
   import AppShell from "#lib/features/navigation/AppShell.svelte";
   import QuitGuardOverlay from "#lib/features/desktop/QuitGuardOverlay.svelte";
@@ -8,6 +10,29 @@
   import type { LayoutProps } from "./$types";
 
   let { children }: LayoutProps = $props();
+  let lastSettings = "/settings";
+
+  $effect(() => {
+    const path = (page.shallow?.url ?? page.url).pathname;
+
+    if (isDesktopRoute(path)) lastSettings = path;
+  });
+
+  onMount(() => {
+    const bridge = window.canopyDesktop;
+
+    if (!bridge?.onOpenRoute) return;
+
+    const unsubscribe = bridge.onOpenRoute((path) => {
+      if (page.url.pathname === "/desktop" || !isDesktopRoute(path)) return;
+
+      void goto(path === "/settings" ? lastSettings : path);
+    });
+
+    if (page.url.pathname !== "/desktop") void bridge.readyForRoutes?.();
+
+    return unsubscribe;
+  });
 
   onMount(() => {
     document.getElementById("canopy-boot")?.remove();

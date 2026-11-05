@@ -4,6 +4,7 @@ import type { DesktopUpdates } from "./updates.ts";
 import type { QuitGuard } from "./quit-guard.ts";
 import type { quitKeyEvent } from "./quit-key-event.ts";
 import { windowViewMenu } from "./window-chrome.ts";
+import { settingsMenu } from "./settings-menu.ts";
 
 interface MenuOptions {
   status: DesktopStatus;
@@ -11,6 +12,7 @@ interface MenuOptions {
   productName: string;
   showMain: () => void;
   openSettings: () => void;
+  openAppSettings: () => void;
   updates: DesktopUpdates;
   quitGuard: QuitGuard;
   quitKey: ReturnType<typeof quitKeyEvent>;
@@ -18,7 +20,18 @@ interface MenuOptions {
 }
 
 export function updateDesktopMenus(options: MenuOptions) {
-  const { status, tray, productName, showMain, openSettings, updates, quitGuard, quitKey, logsDirectory } = options;
+  const {
+    status,
+    tray,
+    productName,
+    showMain,
+    openSettings,
+    openAppSettings,
+    updates,
+    quitGuard,
+    quitKey,
+    logsDirectory,
+  } = options;
 
   const text =
     status.phase === "error"
@@ -43,7 +56,7 @@ export function updateDesktopMenus(options: MenuOptions) {
         }`,
         enabled: false,
       },
-      { label: "Desktop settings…", click: openSettings },
+      ...settingsMenu(openAppSettings, openSettings),
       updates.item(),
       { type: "separator" },
       { label: `Quit ${productName}`, click: () => app.quit() },
@@ -68,7 +81,7 @@ export function updateDesktopMenus(options: MenuOptions) {
       label: productName,
       submenu: [
         ...(process.platform === "darwin" ? [{ role: "about" as const }, { type: "separator" as const }] : []),
-        { label: "Desktop settings…", accelerator: "CmdOrCtrl+,", click: openSettings },
+        ...settingsMenu(openAppSettings, openSettings),
         updates.item(),
         { label: "Open logs folder", click: () => void shell.openPath(logsDirectory) },
         ...(process.platform === "darwin"

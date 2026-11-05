@@ -1,6 +1,8 @@
 /** Optional, capability-limited Electron bridge. No filesystem, secrets or generic IPC. */
 import type { ThemeName } from "./themes.ts";
 
+export { isDesktopRoute } from "./desktop-route.ts";
+
 export interface DesktopAppearance {
   scheme: "system" | "light" | "dark";
   light: ThemeName;
@@ -130,6 +132,9 @@ export interface DesktopBridge {
     sound: boolean;
   }): Promise<boolean>;
   onThreadNotificationClick?(listener: (threadId: string) => void): () => void;
+  /** Main requests Settings navigation after the application has mounted. */
+  onOpenRoute?(listener: (path: string) => void): () => void;
+  readyForRoutes?(): Promise<void>;
   readonly platform: string;
   /** Read-only startup cache, used by the bundled setup page before its first paint. */
   readonly startupAppearance?: {

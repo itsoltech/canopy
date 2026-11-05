@@ -9,6 +9,7 @@ import type {
 } from "@canopy/ui/desktop";
 import { QuitFeedback } from "./quit-feedback.ts";
 import { quitFallback } from "./quit-fallback.ts";
+import { isDesktopRoute } from "@canopy/ui/desktop";
 
 const feedback = new QuitFeedback(
   quitFallback((phase) => ipcRenderer.send("canopy:quit-guard-delivered", phase, "shell")),
@@ -27,6 +28,11 @@ const bridge: DesktopBridge = {
   platform: process.platform,
   showThreadNotification: (notice) => ipcRenderer.invoke("canopy:thread-notification", notice),
   onThreadNotificationClick: (listener) => subscribe<string>("canopy:thread-notification-click", listener),
+  onOpenRoute: (listener) =>
+    subscribe<string>("canopy:open-route", (path) => {
+      if (isDesktopRoute(path)) listener(path);
+    }),
+  readyForRoutes: () => ipcRenderer.invoke("canopy:routes-ready"),
   startupAppearance: ipcRenderer.sendSync("canopy:appearance-startup"),
   setAppearance: (appearance) => ipcRenderer.invoke("canopy:appearance", appearance),
   windowState: () => ipcRenderer.invoke("canopy:window-state"),
