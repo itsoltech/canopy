@@ -17,6 +17,7 @@ export const POST: RequestHandler = async ({ request, params, url, cookies }) =>
         redirectUri: `${url.origin}/api/connectors/oauth/callback`,
         browserBinding: binding,
         scope: body.scope,
+        desktop: Boolean(process.env["CANOPY_WEB_ORIGIN"]),
       },
       { timeoutMs: 60_000 },
     ),

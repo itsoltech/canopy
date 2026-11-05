@@ -253,6 +253,7 @@ CANOPY_SECRETS_KEY=…             # openssl rand -base64 32
 CANOPY_HOST=0.0.0.0
 CANOPY_PORT=7443
 CANOPY_NETWORK_PORT=24443
+# CANOPY_OAUTH_REDIRECT_URL=…    # opcjonalnie: własny callback zamiast stałej strony przekierowania OAuth
 ```
 
 `/etc/systemd/system/canopy-gateway.service`:

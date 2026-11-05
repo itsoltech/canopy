@@ -10,6 +10,7 @@
   import ShareScope from "#lib/features/computers/ShareScope.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import { decode } from "#lib/shared/wire.ts";
+  import { completeConnectorOAuth } from "#lib/features/connectors/api.ts";
   import type { PageProps } from "./$types";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
@@ -37,6 +38,17 @@
 
   $effect(() => {
     accounts = decode(connectors.ListConnectorsResponseSchema, data.connections).accounts;
+  });
+
+  // canopy://oauth/callback reloads this page; the code comes over the desktop bridge, never in the URL.
+  $effect(() => {
+    void window.canopyDesktop?.takeConnectorOAuth?.().then(async (result) => {
+      if (!result) return;
+      const response = await completeConnectorOAuth(result).catch(() => undefined);
+
+      if (response?.account && !response.error) update(response.account);
+      notice = response?.account && !response.error ? "connected" : "error";
+    });
   });
 
   function refreshAccounts() {

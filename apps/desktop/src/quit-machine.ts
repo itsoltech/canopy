@@ -15,6 +15,16 @@ export interface QuitClock {
   setTimeout(callback: () => void, delayMs: number): () => void;
 }
 
+/** The real clock; tests pass their own. */
+export const systemQuitClock: QuitClock = {
+  now: () => performance.now(),
+  setTimeout: (callback, delay) => {
+    const timer = setTimeout(callback, delay);
+
+    return () => clearTimeout(timer);
+  },
+};
+
 export interface QuitMachineOptions {
   clock: QuitClock;
   shortcut: string;

@@ -6,6 +6,9 @@ import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { pastedCode, returnState, returnTarget } from "@canopy/domain/oauth-return";
+import { DEFAULT_OAUTH_REDIRECT_URL } from "../../apps/gateway/src/connectors/catalog.ts";
+import { SLACK_USER_SCOPES } from "../../apps/gateway/src/connectors/slack-app.ts";
 import { fakeConnector } from "./support/connector.ts";
 import { eventually, startTestGateway, type TestGateway, type ScriptedWorker } from "./support/gateway.ts";
 
@@ -498,5 +501,66 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     expect(
       JSON.stringify(toJson(connectors.ListConnectorsResponseSchema, await gw.api.listConnectors({}))),
     ).not.toContain(app.clientSecret);
+  }, 15_000);
+
+  test("registered apps return through the fixed redirect page; state carries the way back; codes are single-use", async () => {
+    const fixed = DEFAULT_OAUTH_REDIRECT_URL;
+    const callback = "http://127.0.0.1:19111/api/connectors/oauth/callback";
+    const app = fake.registeredApp(fixed);
+    await gw.api.saveConnectorOAuthApp({ connectorType: "github", issuer: fake.issuer, ...app });
+    await gw.api.saveConnectorOAuthApp({ connectorType: "slack", issuer: fake.issuer, ...fake.registeredApp(fixed) });
+
+    const catalog = await gw.api.listConnectors({});
+    const slack = catalog.types.find((t) => t.id === "slack")!.authMethods[0]!;
+
+    const manifest = JSON.parse(slack.appManifest) as {
+      oauth_config: { redirect_urls: string[]; scopes: { user: string[] } };
+    };
+
+    expect(manifest.oauth_config.redirect_urls).toEqual([fixed]);
+    expect(manifest.oauth_config.scopes.user).toEqual([...SLACK_USER_SCOPES]);
+    expect(slack.defaultScope).toBe(SLACK_USER_SCOPES.join(" "));
+    expect(new URL(slack.appCreateUrl).searchParams.get("manifest_json")).toBe(
+      JSON.stringify(JSON.parse(slack.appManifest)),
+    );
+    expect(catalog.types.find((t) => t.id === "github")!.authMethods[1]!.redirectUrl).toBe(fixed);
+    expect(JSON.stringify(toJson(connectors.ListConnectorsResponseSchema, catalog))).not.toContain(app.clientSecret);
+
+    const account = (
+      await gw.api.saveConnectorAccount({ connectorType: "github", name: "fixed", url: fake.url, authKind: "oauth" })
+    ).account!;
+
+    const browserBinding = "f".repeat(43);
+
+    const begin = async (desktop = false) => {
+      const request = { accountId: account.id, redirectUri: callback, browserBinding, desktop };
+      const authorization = new URL((await gw.api.beginConnectorOAuth(request)).authorizationUrl);
+      expect(authorization.searchParams.get("redirect_uri")).toBe(fixed);
+      expect(authorization.searchParams.get("code_challenge_method")).toBe("S256");
+      const back = new URL((await fetch(authorization, { redirect: "manual" })).headers.get("location")!);
+      expect(`${back.origin}${back.pathname}`).toBe(fixed);
+
+      return { state: back.searchParams.get("state")!, code: back.searchParams.get("code")! };
+    };
+
+    const web = await begin();
+    expect(returnTarget(`?state=${web.state}&code=${web.code}`)?.url).toStartWith(`${callback}?`);
+    const foreign = { callback: "https://other.example/api/connectors/oauth/callback" };
+    const forged = { state: returnState(web.state.split(".")[0]!, foreign), code: web.code, browserBinding };
+    expect((await gw.api.completeConnectorOAuth(forged)).error).not.toBe("");
+    // The fake token endpoint accepts the code only with the redirect_uri it was issued for.
+    expect((await gw.api.completeConnectorOAuth({ ...web, browserBinding })).account?.status).toBe("connected");
+    expect((await gw.api.completeConnectorOAuth({ ...web, browserBinding })).error).not.toBe("");
+
+    const desktop = await begin(true);
+    expect(returnTarget(`?state=${desktop.state}&code=x`)?.desktop).toBe(true);
+    const pasted = pastedCode(desktop.state, desktop.code);
+    const stranger = pastedCode(`${"z".repeat(43)}.d`, desktop.code);
+    expect((await gw.api.completeConnectorOAuth({ pastedCode: stranger, browserBinding })).error).not.toBe("");
+    expect((await gw.api.completeConnectorOAuth({ pastedCode: "not a code", browserBinding })).error).not.toBe("");
+    expect((await gw.api.completeConnectorOAuth({ pastedCode: pasted, browserBinding })).account?.status).toBe(
+      "connected",
+    );
+    expect((await gw.api.completeConnectorOAuth({ pastedCode: pasted, browserBinding })).error).not.toBe("");
   }, 15_000);
 });

@@ -51,6 +51,53 @@ HTML ani logów, a skrypt usuwa je z bieżącego adresu. W desktopie strona pró
 otworzyć `canopy://connectors` i ma przycisk „Open Canopy”, gdy przeglądarka
 wymaga kliknięcia. Link pokazuje ustawienia konektorów; powrót fokusu także
 odświeża stan kont. W Electronie wynik wraca bezpośrednio do ustawień.
+### Stały redirect zarejestrowanych aplikacji
+
+Aplikacje bez DCR (`oauth_app_required`: Slack, GitHub OAuth app) mają **jeden stały
+redirect URL dla wszystkich instalacji**: statyczną stronę
+`https://itsoltech.github.io/canopy/oauth/callback` (GitHub Pages tego repozytorium,
+źródło `site/oauth/`, workflow `pages.yml`). Dzięki temu manifest aplikacji Slack jest
+identyczny wszędzie, współpracownicy mogą dzielić jedną aplikację bez dopisywania
+własnych redirectów, a dostawca widzi wyłącznie adres HTTPS — także gdy Canopy działa
+na `http://` w sieci lokalnej.
+
+Gateway używa tego adresu jako `redirect_uri` w autoryzacji i w wymianie kodu (PKCE S256
+pozostaje obowiązkowe), a drogę powrotu zapisuje w `state`
+(`packages/domain/src/oauth-return.ts`): `<nonce>.w.<base64url callbacku instalacji>`
+albo `<nonce>.d` dla desktopu. Strona przekierowania przekazuje query bez zmian, ale tylko
+na `http:`/`https:` ze ścieżką dokładnie `/api/connectors/oauth/callback`, bez danych
+logowania, query i fragmentu; inaczej pokazuje błąd (brak open redirect). Ma
+`referrer: no-referrer`, CSP `default-src 'none'` ze skryptem i stylem dopuszczonymi
+hashem, nie ładuje skryptów zewnętrznych ani analityki i usuwa query z historii.
+
+Dlaczego to bezpieczne: przez przeglądarkę przechodzi tylko jednorazowy, krótko ważny
+kod, bezużyteczny bez client secret i weryfikatora PKCE, które ma wyłącznie gateway.
+Gateway przechowuje tylko hash całego `state`, więc zmieniony adres powrotu, obcy albo
+powtórzony state nie pasuje: callback nadal sprawdza state jednorazowo, z właścicielem,
+powiązaniem przeglądarki i TTL 10 minut. Strona niczego nie dodaje do tego, czemu gateway
+ufa. Logi GitHub Pages mogą zobaczyć kod w URL; z powyższych powodów nie da się go użyć.
+
+Trzy drogi powrotu:
+
+1. **Serwer/web** — przekierowanie (`location.replace`) na callback instalacji.
+2. **Desktop** — strona otwiera `canopy://oauth/callback?…` (ten sam schemat i parser
+   `desktopLink()` co `canopy://enroll` i `canopy://connectors`). Proces główny przyjmuje
+   tylko `oauth/callback`, wyłącznie klucze `code`, `state`, `error`, `error_description`,
+   `iss` (każdy raz) i state desktopu; zachowuje wynik, pokazuje okno i ładuje
+   Settings → Connectors, które odbiera kod mostem desktopu (`takeConnectorOAuth`) i kończy
+   logowanie przez `POST /api/connectors/oauth/code`. Przeglądarka nie łączy się z
+   `http://127.0.0.1`.
+3. **Ręcznie, zawsze dostępne** — po 3 s strona pokazuje „Copy code”: `state` i `code` jako
+   jeden nieprzezroczysty ciąg. Dialog Connect ma pole „Sign-in code” (w desktopie pojawia
+   się po 5 s oczekiwania albo na żądanie). Gateway (`pasted_code`) sprawdza state tak samo
+   jak callback i wymienia kod tak samo; obcy lub powtórzony state jest odrzucany.
+
+`CANOPY_OAUTH_REDIRECT_URL` zmienia stały adres (HTTPS albo loopback). Instalacja może
+wskazać własny callback i ominąć stronę; wtedy musi go zarejestrować u dostawcy. Zapisana
+aplikacja pamięta redirect, z którym ją zapisano, więc późniejsza zmiana zmiennej nie psuje
+istniejących aplikacji. Aplikacje zapisane przed tą zmianą (bez zapisanego redirectu)
+nadal używają callbacku instalacji. Typy z DCR rejestrują callback instalacji jak dotąd.
+
 Każde konto zachowuje własną rejestrację/tokeny; odświeżanie jest serializowane
 blokadą konta w PostgreSQL, również przy wielu gatewayach. Brak możliwości
 odświeżenia oznacza `needs_reconnect`. Disconnect najpierw odbiera dostęp,
@@ -97,7 +144,7 @@ po awarii nie powoduje automatycznego powtórzenia zapisu.
 | Notion | `https://mcp.notion.com/mcp` | OAuth 2.1, DCR, S256, refresh; także MCP token na Business/Enterprise | Zgoda konta; token MCP opcjonalnie | [Dokumentacja](https://developers.notion.com/guides/mcp/get-started-with-mcp), metadata AS odczytane; zwykły integration token nie jest tokenem MCP |
 | Linear | `https://mcp.linear.app/mcp` | OAuth 2.1, DCR, S256, refresh; API key/Bearer | Zgoda albo API key | [Dokumentacja](https://linear.app/docs/mcp), metadata AS odczytane; bez live |
 | Atlassian | `https://mcp.atlassian.com/v1/mcp` | OAuth, DCR, S256, refresh | Zgoda i dostęp do Jira/Confluence; ograniczenia administratora | [Dokumentacja](https://support.atlassian.com/atlassian-rovo-mcp-server/), metadata AS odczytane; endpoint i polityka tenantów wymagają live |
-| Slack | `https://mcp.slack.com/mcp` | Confidential OAuth, S256, refresh; brak DCR w metadata | Zarejestrowana aplikacja Slack, client ID/secret, scopes i instalacja | [Dokumentacja](https://docs.slack.dev/ai/slack-mcp-server/), metadata wskazują user OAuth `slack.com/oauth/v2_user/authorize` i `oauth.v2.user.access`; bez live |
+| Slack | `https://mcp.slack.com/mcp` | Confidential OAuth, S256, refresh; brak DCR w metadata | Aplikacja Slack z manifestu Canopy (wewnętrzna, we własnym workspace), client ID/secret | [Dokumentacja](https://docs.slack.dev/ai/slack-mcp-server/), metadata wskazują user OAuth `slack.com/oauth/v2_user/authorize` i `oauth.v2.user.access`; bez live |
 | Microsoft 365 / Outlook | Do ustalenia dla tenantu (Work IQ MCP / Tools registry) | Entra ID, wymagania tenantu; brak założenia o publicznym DCR | Endpoint, aplikacja Entra, zgody administratora | [Microsoft Learn](https://learn.microsoft.com/en-us/microsoft-agent-365/tooling-servers-overview); preset wymaga URL tenantu, alternatywnie Custom MCP; bez zgadywanego globalnego URL |
 | Google Workspace | Brak potwierdzonego ogólnego oficjalnego zdalnego MCP dla Gmail/Calendar | Zależnie od wybranego serwera | Własny zdalny MCP i jego OAuth app/token | Preset wymaga URL; nie utożsamiamy Google Cloud MCP z Workspace |
 | Custom MCP server | URL właściciela, HTTP/SSE | OAuth discovery/DCR albo Bearer/własne nagłówki | URL i wymagane dane | Pełna ścieżka testowana lokalnym MCP i fake OAuth, bez zależności od kont dostawców |
@@ -118,8 +165,24 @@ Dialog Connect prowadzi przez konfigurację: `ConnectorType.auth_methods`
 na której powstaje poświadczenie, oraz `documentation_url` typu. Pole tokenu nosi
 nazwę poświadczenia i jest wymagane, gdy usługa go potrzebuje (`token_required`).
 Usługa bez DCR (`oauth_app_required`: GitHub, Slack) pokazuje formularz aplikacji
-z callback URL do skopiowania, dopóki aplikacja nie zostanie zapisana; w innych
+ze stałym redirect URL (`redirect_url`), dopóki aplikacja nie zostanie zapisana; w innych
 typach scopes i zarejestrowana aplikacja oraz własne nagłówki są opcjami Advanced.
+
+**Aplikacja Slack jednym kliknięciem.** Slack nie ma DCR, więc każdy workspace potrzebuje
+własnej aplikacji. Gateway buduje jej manifest (`apps/gateway/src/connectors/slack-app.ts`,
+pola `app_manifest` i `app_create_url`): nazwa „Canopy”, opis, kolor z palety, stały
+redirect URL, user scopes narzędzi Slack MCP, bez socket mode, org deploy, token rotation
+i publicznej dystrybucji. Manifest nie zawiera sekretów. „Create the Slack app” otwiera
+`https://api.slack.com/apps?new_app=1&manifest_json=…` z wypełnionym manifestem;
+użytkownik wybiera workspace, klika Create i Install to Workspace, a z Basic Information
+kopiuje client ID i secret. „Copy manifest” to wariant ręczny. Slack pozwala używać MCP
+tylko aplikacjom wewnętrznym (albo z Marketplace) — aplikacja niepubliczna (unlisted) jest
+blokowana, więc instaluje się ją wyłącznie we własnym workspace. Token rotation jest
+wyłączone, bo Slack nie pozwala go potem wyłączyć, a tokeny bez rotacji nie wygasają.
+„Use an existing Slack app” służy współpracownikom z tego samego workspace: wklejają
+client ID i secret od właściciela aplikacji, bez dopisywania redirectów. Pole scopes jest
+wstępnie wypełnione tymi samymi scopes (`default_scope`). Redirect URL jest widoczny tylko
+jako szczegół dla ręcznej konfiguracji.
 Wskazówki są wyłącznie tekstem: nie zawierają poświadczeń i niczego nie weryfikują.
 
 Audyt zapisuje konto, właściciela, worker/wątek albo bot, narzędzie, czas i wynik.

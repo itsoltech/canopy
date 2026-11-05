@@ -3,6 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import ExternalLink from "#lib/shared/ui/ExternalLink.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import StepList from "./StepList.svelte";
 
   /**
    * What to do for the chosen authentication method: numbered steps, then the page where the credential is
@@ -35,19 +36,7 @@
       {method.description}
     </p>{/if}
   {#if method.steps.length > 0}
-    <ol class="grid gap-1.5 text-zinc-600 dark:text-zinc-300">
-      {#each method.steps as step, index (index)}
-        <li class="flex gap-2.5">
-          <span class="flex h-lh shrink-0 items-center"
-            ><span
-              class="flex size-5 items-center justify-center rounded-full bg-zinc-950/5 text-xs/4 font-medium text-zinc-700 tabular-nums dark:bg-white/10 dark:text-zinc-200"
-              >{index + 1}</span
-            ></span
-          >
-          <span class="min-w-0 text-pretty">{step}</span>
-        </li>
-      {/each}
-    </ol>
+    <StepList steps={method.steps} />
   {/if}
   {#if method.setupUrl || documentationUrl}
     <p class="flex flex-wrap gap-x-4 gap-y-1">

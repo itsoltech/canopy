@@ -14,6 +14,7 @@ import { join, resolve } from "node:path";
 import type { QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
 import { initialStatus, serviceEnvironment, type ConfigurationInput } from "./runtime/config.ts";
 import { desktopLink } from "./desktop-link.ts";
+import { holdConnectorOAuth, registerConnectorOAuthIpc } from "./connector-oauth-ipc.ts";
 import type { ControllerArguments, ControllerResult } from "./controller.ts";
 import { ControllerConnection } from "./controller-connection.ts";
 import { loadSecrets } from "./vault.ts";
@@ -24,6 +25,7 @@ import { controllerEntry, runtimePaths } from "./runtime/launch.ts";
 import { desktopIdentity } from "./identity.ts";
 import { DesktopUpdates } from "./updates.ts";
 import { QuitGuard } from "./quit-guard.ts";
+import { systemQuitClock } from "./quit-machine.ts";
 import { quitKeyEvent } from "./quit-key-event.ts";
 import { isQuitShortcut, QuitSettings } from "./quit-settings.ts";
 import { windowState, registerWindowPreferencesIpc } from "./window-chrome.ts";
@@ -94,14 +96,7 @@ const quitKey = quitKeyEvent(quitLog);
 const quitGuard = new QuitGuard(
   quitSettings.read(),
   {
-    clock: {
-      now: () => performance.now(),
-      setTimeout: (callback, delay) => {
-        const timer = setTimeout(callback, delay);
-
-        return () => clearTimeout(timer);
-      },
-    },
+    clock: systemQuitClock,
     shortcut: process.platform === "darwin" ? "⌘Q" : "Ctrl+Q",
     repeatTiming: quitKey.timing,
     quit: () => app.quit(),
@@ -225,8 +220,11 @@ function enrollment(link: string) {
 
   if (!setupOrigin) return;
 
-  if (parsed.connectors) {
+  if (parsed.connectors || parsed.oauth) {
     pendingLink = undefined;
+
+    // Settings → Connectors takes the code over the desktop bridge and finishes sign-in in its gateway.
+    if (parsed.oauth) holdConnectorOAuth(parsed.oauth);
 
     if (status.phase === "running" && (!window || window.isDestroyed())) window = createWindow();
 
@@ -388,6 +386,7 @@ function registerIpc() {
     return value;
   });
   registerUpdateIpc(updates, () => remoteUpdate, authorize);
+  registerConnectorOAuthIpc(authorize);
   ipcMain.handle("canopy:enrollment-ready", (event) => {
     authorize(event, true);
     enrollmentReady.add(event.sender.id);

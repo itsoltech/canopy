@@ -6,6 +6,9 @@ import { Effect } from "effect";
 
 export class ConnectorFailure extends Error {}
 
+/** A saved OAuth app; `redirect_uri` is the fixed redirect URL it was registered with, if any. */
+export type RegisteredApp = OAuthClientInformationMixed & { issuer?: string; redirect_uri?: string };
+
 export interface Credentials {
   headers?: Record<string, string>;
   tokens?: OAuthTokens;

@@ -8,7 +8,10 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import CallbackUrl from "./CallbackUrl.svelte";
 
-  /** A registered OAuth app for one connector type: its callback to register, then issuer, client ID and secret. */
+  /**
+   * A registered OAuth app for one connector type: its callback to register (hidden when empty), then issuer,
+   * client ID and secret. Slack's issuer is fixed, so its field stays hidden.
+   */
   let {
     type,
     callback,
@@ -53,10 +56,10 @@
       ? "An app is saved for this connector type. Saving again replaces it for every account."
       : "Saved once for this connector type, for every account."}
   </p>
-  <CallbackUrl url={callback} />
-  <Field label="Authorization server issuer"
-    ><Input bind:value={issuer} placeholder="https://auth.example.com" disabled={busy} /></Field
-  >
+  {#if callback}<CallbackUrl url={callback} />{/if}
+  {#if type !== "slack"}<Field label="Authorization server issuer"
+      ><Input bind:value={issuer} placeholder="https://auth.example.com" disabled={busy} /></Field
+    >{/if}
   <Field label="Client ID"><Input bind:value={clientId} autocomplete="off" spellcheck={false} disabled={busy} /></Field>
   <Field label="Client secret" optional
     ><Input type="password" bind:value={clientSecret} autocomplete="off" spellcheck={false} disabled={busy} /></Field

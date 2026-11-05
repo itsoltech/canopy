@@ -1,5 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { connectors } from "@canopy/contracts";
+import { SLACK_USER_SCOPES } from "./slack-app.ts";
 
 type AuthMethod = MessageInitShape<typeof connectors.ConnectorAuthMethodSchema>;
 
@@ -53,17 +54,15 @@ export const AUTH_METHODS = {
     {
       authKind: "oauth",
       label: "Slack app",
-      description: "Sign in through a Slack app you create for your workspace. Slack has no automatic registration.",
+      description: "Sign in through a Slack app in your workspace. Slack has no automatic registration.",
       steps: [
-        "Create a Slack app and add the callback URL below as a redirect URL.",
-        "Add the user scopes agents need and install the app to your workspace.",
+        "Create the Slack app, or use an existing one from your workspace.",
         "Save its client ID and secret here, then continue to sign in.",
       ],
-      setupUrl: "https://api.slack.com/apps",
-      setupLabel: "Create a Slack app",
       oauthAppRequired: true,
-      scopeDescription: "Space-separated user scopes your Slack app was installed with.",
+      scopeDescription: "Space-separated user scopes of your Slack app.",
       scopePlaceholder: "search:read.public users:read",
+      defaultScope: SLACK_USER_SCOPES.join(" "),
     },
   ],
   notion: [

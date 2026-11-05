@@ -178,6 +178,12 @@ Końcowy job **Typecheck, tests, builds** wymaga powodzenia wszystkich wybranych
 Pobiera też raporty shardów i sprawdza, czy każdy plik testowy wystąpił dokładnie raz.
 PR zmieniający wyłącznie Markdown lub obrazy dokumentacji w `docs/` (PNG/JPEG/WebP/GIF/SVG)
 pomija testy i buildy; statyczne checki nadal działają.
+
+`.github/workflows/pages.yml` (push do `dev` zmieniający `site/`, `scripts/build-site.ts` albo
+`packages/domain/src/oauth-return.ts`; ręczny dispatch) buduje `site/` skryptem
+`scripts/build-site.ts` do `dist/site` i publikuje go `actions/deploy-pages`. Strona
+przekierowania OAuth trafia pod `https://itsoltech.github.io/canopy/oauth/callback`
+([konektory](connectors.md#stały-redirect-zarejestrowanych-aplikacji)).
 Zmiany `.github/**` zawsze wymagają całości, również przy rozszerzeniu `.md`.
 Porównanie obejmuje oba końce rename; błąd odczytu zmian nie daje zielonego wyniku.
 Release zawsze uruchamia cały zestaw. Testy live są opt-in (`CANOPY_LIVE`, prywatne klucze)
@@ -646,6 +652,7 @@ do pushu, nie do usuwania). Bez tego job zgłasza `GHCR canopy-…: no access to
   W *Manage Actions access* nadaj repozytorium rolę **Admin** (retencja nightly usuwa wersje,
   [Retencja nightly](#retencja-nightly)).
   Runnery `ubuntu-24.04-arm`, `macos-15`, `windows-2025` muszą być dostępne.
+- Pages: w *Settings → Pages* ustaw źródło **GitHub Actions** (workflow `pages.yml`).
 - GitHub „immutable releases” pozostaw wyłączone: semantic-release publikuje release przed
   uploadem assetów; upload i retencja wymagają możliwości ich późniejszej zmiany/usunięcia.
 

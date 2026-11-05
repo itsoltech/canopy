@@ -1,6 +1,10 @@
 import { create } from "@bufbuild/protobuf";
 import { connectors } from "@canopy/contracts";
 import { AUTH_METHODS } from "./auth-methods.ts";
+import { slackAppManifest } from "./slack-app.ts";
+
+/** The redirect page on the repository's GitHub Pages site; it returns each sign-in to its own Canopy. */
+export const DEFAULT_OAUTH_REDIRECT_URL = "https://itsoltech.github.io/canopy/oauth/callback";
 
 /** Endpoints checked against vendor documentation, 2026-11-02; never imply a live account check. */
 export const CONNECTOR_TYPES = [
@@ -77,6 +81,33 @@ export const CONNECTOR_TYPES = [
     authMethods: AUTH_METHODS.custom,
   },
 ].map((t) => create(connectors.ConnectorTypeSchema, t));
+
+/** Registered apps use one fixed redirect URL. An installation may set its own callback to skip the page. */
+export function oauthRedirectUrl(): string {
+  return connectorUrl(process.env["CANOPY_OAUTH_REDIRECT_URL"] || DEFAULT_OAUTH_REDIRECT_URL);
+}
+
+/** The catalog for one owner: registered-app methods carry the redirect URL and, for Slack, the app manifest. */
+export function connectorCatalog(apps: readonly string[]) {
+  const redirectUrl = oauthRedirectUrl();
+  const slack = slackAppManifest(redirectUrl);
+
+  return CONNECTOR_TYPES.map((t) =>
+    create(connectors.ConnectorTypeSchema, {
+      ...t,
+      oauthAppSet: apps.includes(t.id),
+      authMethods: t.authMethods.map((m) =>
+        m.oauthAppRequired
+          ? create(connectors.ConnectorAuthMethodSchema, {
+              ...m,
+              redirectUrl,
+              ...(t.id === "slack" && { appManifest: slack.manifest, appCreateUrl: slack.createUrl }),
+            })
+          : m,
+      ),
+    }),
+  );
+}
 
 export function connectorType(id: string) {
   return CONNECTOR_TYPES.find((t) => t.id === id);
