@@ -30,6 +30,13 @@ message ConnectorAuthMethod {
   bool oauth_app_required = 10;
   string scope_description = 11;
   string scope_placeholder = 12;
+  // Scopes, które formularz wpisuje na start (np. scopes z manifestu aplikacji Slack).
+  string default_scope = 13;
+  // Manifest JSON aplikacji i link tworzący ją u dostawcy (Slack); bez sekretów.
+  string app_manifest = 14;
+  string app_create_url = 15;
+  // Stały redirect URL dla zarejestrowanej aplikacji (CANOPY_OAUTH_REDIRECT_URL), gdy oauth_app_required.
+  string redirect_url = 16;
 }
 message ConnectorAccount {
   string id = 1;
@@ -77,8 +84,10 @@ message DeleteConnectorAccountResponse {}
 message TestConnectorResponse { repeated canopy.worker.v1.ConnectorTool tools = 1; ConnectorAccount account = 2; }
 message SaveConnectorOAuthAppRequest { string connector_type = 1; string client_id = 2; string client_secret = 3; string issuer = 4; }
 message SaveConnectorOAuthAppResponse {}
-message BeginConnectorOAuthRequest { string account_id = 1; string redirect_uri = 2; string browser_binding = 3; string scope = 4; }
+// desktop: powrót przez stronę przekierowania otwiera canopy://oauth/callback zamiast callbacku instalacji.
+message BeginConnectorOAuthRequest { string account_id = 1; string redirect_uri = 2; string browser_binding = 3; string scope = 4; bool desktop = 5; }
 message BeginConnectorOAuthResponse { string authorization_url = 1; }
-message CompleteConnectorOAuthRequest { string state = 1; string code = 2; string browser_binding = 3; string error = 4; string issuer = 5; }
+// pasted_code: kod skopiowany ze strony przekierowania (state i code w jednym ciągu); zastępuje state/code.
+message CompleteConnectorOAuthRequest { string state = 1; string code = 2; string browser_binding = 3; string error = 4; string issuer = 5; string pasted_code = 6; }
 // Callback outcomes are explicit, so a declined/expired authorization completes the redirect normally.
 message CompleteConnectorOAuthResponse { ConnectorAccount account = 1; string error = 2; }

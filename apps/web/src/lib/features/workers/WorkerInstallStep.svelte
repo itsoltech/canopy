@@ -5,7 +5,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import CommandBlock from "./CommandBlock.svelte";
-  import SetupTabs from "./SetupTabs.svelte";
+  import SegmentedChoice from "#lib/shared/ui/SegmentedChoice.svelte";
   import WorkerSshInstall from "./WorkerSshInstall.svelte";
   import { enrollmentCommand, shellQuote } from "./actions.ts";
 
@@ -109,7 +109,7 @@
     gateway and keeps itself up to date.
   </p>
   <div class="min-w-0 overflow-x-auto">
-    <SetupTabs
+    <SegmentedChoice
       label="Installation method"
       bind:value={method}
       disabled={busy}
@@ -130,7 +130,7 @@
           Enroll once, then run with a persistent home volume. Agent CLIs are not included: extend the image with
           Claude, Codex or Grok and sign in inside the container.
         </p>
-        <SetupTabs
+        <SegmentedChoice
           label="Docker instructions"
           bind:value={dockerMode}
           options={[
@@ -142,7 +142,7 @@
         {#if dockerMode === "compose"}<CommandBlock text={compose} label="compose.yaml" />{/if}
       {:else}
         <div class="flex flex-wrap gap-3">
-          <SetupTabs
+          <SegmentedChoice
             label="Operating system"
             bind:value={os}
             options={[
@@ -150,7 +150,7 @@
               { value: "darwin", label: "macOS" },
             ]}
           />
-          {#if os === "linux"}<SetupTabs
+          {#if os === "linux"}<SegmentedChoice
               label="Architecture"
               bind:value={arch}
               options={[

@@ -15,7 +15,9 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import { rise } from "#lib/shared/ui/motion.ts";
   import Select from "#lib/shared/ui/Select.svelte";
+  import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import AuthMethodPicker from "./AuthMethodPicker.svelte";
+  import ManualReturn from "./ManualReturn.svelte";
   import OAuthFields from "./OAuthFields.svelte";
   import SetupSteps from "./SetupSteps.svelte";
   import TokenFields from "./TokenFields.svelte";
@@ -42,6 +44,7 @@
   let token = $state("");
   let headerText = $state("");
   let scope = $state("");
+  let waiting = $state(false);
   let busy = $state(false);
   let error = $state("");
   let appSaved = $state(untrack(() => type.oauthAppSet));
@@ -59,6 +62,17 @@
   );
 
   const method = $derived(methods.find((m) => m.authKind === authKind) ?? methods[0]!);
+
+  // The method's own scopes (Slack's manifest) are the starting value; the owner can still edit them.
+  $effect(() => {
+    scope = method.defaultScope;
+  });
+
+  function connected(account: connectors.ConnectorAccount) {
+    onsave(account);
+    open = false;
+    toast("Account connected");
+  }
 
   const ready = $derived(
     Boolean(name.trim() && endpoint) &&
@@ -109,7 +123,9 @@
 
         window.location.assign(str(response["authorizationUrl"]));
 
-        if (window.canopyDesktop) open = false;
+        // A registered app returns to the desktop app through canopy://; the code field stays here as a fallback.
+        if (window.canopyDesktop && method.oauthAppRequired) waiting = true;
+        else if (window.canopyDesktop) open = false;
       } else open = false;
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Could not connect this account.";
@@ -164,6 +180,7 @@
       <TokenFields {method} bind:token bind:headers={headerText} disabled={busy} />
     {:else}
       <OAuthFields type={type.id} {method} {callback} bind:scope bind:appSaved disabled={busy} />
+      {#if method.oauthAppRequired && appSaved}<ManualReturn {waiting} onconnected={connected} />{/if}
     {/if}
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <DialogActions

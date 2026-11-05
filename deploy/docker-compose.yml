@@ -33,6 +33,7 @@ services:
       CANOPY_SECRETS_KEY: ${CANOPY_SECRETS_KEY:?set CANOPY_SECRETS_KEY in .env}
       CANOPY_DEV_USER_EMAIL: ${CANOPY_DEV_USER_EMAIL:-dev@localhost}
       CANOPY_NETWORK_PORT: ${CANOPY_NETWORK_PORT:-24443}
+      CANOPY_OAUTH_REDIRECT_URL: ${CANOPY_OAUTH_REDIRECT_URL:-}
     ports:
       # Bootstrap/compatibility: WorkerLink + Enrollment + frozen UpdateService remain here.
       - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-7443}:7443"

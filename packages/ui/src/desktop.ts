@@ -170,6 +170,16 @@ export interface DesktopBridge {
   ): () => void;
   /** Setup subscribes before asking main to deliver a pending deep link. */
   readyForEnrollment(): Promise<void>;
+  /** The sign-in that canopy://oauth/callback returned, once; older desktop builds lack it. */
+  takeConnectorOAuth?(): Promise<DesktopConnectorOAuth | undefined>;
+}
+
+/** Code and state from canopy://oauth/callback; the gateway checks them like a callback. */
+export interface DesktopConnectorOAuth {
+  state: string;
+  code: string;
+  error: string;
+  issuer: string;
 }
 
 declare global {

@@ -55,6 +55,7 @@ const bridge: DesktopBridge = {
   onStatus: (listener) => subscribe<DesktopStatus>("canopy:status", listener),
   onEnrollment: (listener) => subscribe("canopy:enrollment", listener),
   readyForEnrollment: () => ipcRenderer.invoke("canopy:enrollment-ready"),
+  takeConnectorOAuth: () => ipcRenderer.invoke("canopy:connector-oauth"),
 };
 
 contextBridge.exposeInMainWorld("canopyDesktop", bridge);

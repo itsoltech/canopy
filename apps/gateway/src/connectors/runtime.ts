@@ -14,7 +14,8 @@ import { GatewayStore } from "../store/store.ts";
 import type { CoreRuntime } from "../core/core.ts";
 import { mcpCall, mcpTools } from "../bots/mcp.ts";
 import type { McpConnection, ToolSpec } from "../bots/types.ts";
-import { CONNECTOR_TYPES, connectorType, connectorUrl } from "./catalog.ts";
+import { connectorCatalog, connectorType, connectorUrl } from "./catalog.ts";
+import { isOAuthState, parsePastedCode, returnState } from "@canopy/domain/oauth-return";
 import {
   ConnectorFailure,
   digest,
@@ -69,10 +70,7 @@ export class ConnectorsRuntime {
 
     const apps = await this.run((s) => s.appTypes(this.options.userId));
 
-    return create(connectors.ListConnectorsResponseSchema, {
-      types: CONNECTOR_TYPES.map((t) => ({ ...t, oauthAppSet: apps.includes(t.id) })),
-      accounts,
-    });
+    return create(connectors.ListConnectorsResponseSchema, { types: connectorCatalog(apps), accounts });
   }
   save(request: connectors.SaveConnectorAccountRequest) {
     return this.run((s) => s.save(this.options.userId, request));
@@ -94,8 +92,11 @@ export class ConnectorsRuntime {
 
     if (row.auth_kind !== "oauth") throw new ConnectorFailure("This account uses token authentication");
     const app = await this.run((s) => s.app(this.options.userId, row.connector_type));
-    const state = randomBytes(32).toString("base64url");
-    const value: Credentials = { redirectUri: redirect, ...(app && { client: app }) };
+    const nonce = randomBytes(32).toString("base64url");
+    // A registered app keeps the redirect URL it was saved with; the redirect page reads the way back from state.
+    const fixed = app?.redirect_uri && app.redirect_uri !== redirect ? app.redirect_uri : "";
+    const state = fixed ? returnState(nonce, request.desktop ? { desktop: true } : { callback: redirect }) : nonce;
+    const value: Credentials = { redirectUri: fixed || redirect, ...(app && { client: app }) };
 
     try {
       const url = await authorizeOAuth(row.url, value, state, request.scope || undefined);
@@ -113,12 +114,14 @@ export class ConnectorsRuntime {
       throw new ConnectorFailure("Could not start OAuth. Check the server metadata and registered OAuth app.");
     }
   }
-  async complete(request: connectors.CompleteConnectorOAuthRequest) {
-    if (
-      !/^[\w-]{32,128}$/.test(request.state) ||
-      !/^[\w-]{32,128}$/.test(request.browserBinding) ||
-      request.code.length > 8000
-    )
+  async complete(input: connectors.CompleteConnectorOAuthRequest) {
+    const pasted = input.pastedCode ? parsePastedCode(input.pastedCode) : undefined;
+
+    if (input.pastedCode && !pasted)
+      throw new ConnectorFailure("This code is not valid. Copy it again from the sign-in page.");
+    const request = pasted ? { ...input, ...pasted, error: "", issuer: "" } : input;
+
+    if (!isOAuthState(request.state) || !/^[\w-]{32,128}$/.test(request.browserBinding) || request.code.length > 8000)
       throw new ConnectorFailure("Invalid OAuth session");
 
     const session = await this.run((s) =>

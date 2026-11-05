@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import { segmentedItem, segmentedTrack } from "#lib/shared/ui/segmented.ts";
+  import { segmentedItem, segmentedTrack } from "./segmented.ts";
+
+  /** One of a few options as a segmented control; arrow keys, Home and End move the choice. */
 
   let {
     label,

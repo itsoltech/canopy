@@ -1,0 +1,53 @@
+# Publishes site/ to GitHub Pages: the fixed OAuth redirect page (docs/connectors.md).
+name: Pages
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - site/**
+      - scripts/build-site.ts
+      - packages/domain/src/oauth-return.ts
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # Keep in sync with mise.toml.
+  BUN_VERSION: 1.4.4
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-bun
+        with:
+          install: "false"
+      - run: bun scripts/build-site.ts
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist/site
+
+  deploy:
+    name: Deploy site
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

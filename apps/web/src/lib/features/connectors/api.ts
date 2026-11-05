@@ -15,3 +15,12 @@ export const accountStatus = (status: string) =>
     error: "Connection error",
     disconnected: "Disconnected",
   })[status] ?? status;
+
+/** Finishes a sign-in that came back without the callback: a pasted code, or the desktop app's return. */
+export const completeConnectorOAuth = async (
+  body: { pastedCode: string } | { state: string; code: string; error: string; issuer: string },
+) =>
+  decode(
+    connectors.CompleteConnectorOAuthResponseSchema,
+    await requestJson("POST", "/api/connectors/oauth/code", body, 65000),
+  );

@@ -1,11 +1,18 @@
 import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { connectors, ConnectorToolSchema, type ConnectorTool } from "@canopy/contracts";
-import type { OAuthClientInformationMixed } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { encryptSecret } from "../store/secrets.ts";
-import { connectorType, connectorUrl } from "./catalog.ts";
-import { checked, digest, fail, type AccountRow, type Credentials, type ExecutionSource } from "./records.ts";
+import { connectorType, connectorUrl, oauthRedirectUrl } from "./catalog.ts";
+import {
+  checked,
+  digest,
+  fail,
+  type AccountRow,
+  type Credentials,
+  type ExecutionSource,
+  type RegisteredApp,
+} from "./records.ts";
 import type { ConnectorBase } from "./accounts.ts";
 
 /** Tools, OAuth apps and state, disconnecting and the execution log. */
@@ -22,7 +29,7 @@ export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, ke
       sql<{
         credentials: Uint8Array;
       }>`SELECT credentials FROM connector_oauth_apps WHERE owner_user_id=${user}::uuid AND connector_type=${type}`.pipe(
-        Effect.map((r) => (r[0] ? opened<OAuthClientInformationMixed>(r[0].credentials) : undefined)),
+        Effect.map((r) => (r[0] ? opened<RegisteredApp>(r[0].credentials) : undefined)),
       ),
     appTypes: (user: string) =>
       sql<{
@@ -40,7 +47,15 @@ export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, ke
         )
           return yield* fail("A connector type and OAuth client ID are required");
         const issuer = yield* checked(() => connectorUrl(request.issuer));
-        const client = { client_id: request.clientId, client_secret: request.clientSecret || undefined, issuer };
+        const fixed = connectorType(request.connectorType)?.authMethods.some((m) => m.oauthAppRequired);
+
+        const client: RegisteredApp = {
+          client_id: request.clientId,
+          client_secret: request.clientSecret || undefined,
+          issuer,
+          ...(fixed && { redirect_uri: oauthRedirectUrl() }),
+        };
+
         yield* sql`INSERT INTO connector_oauth_apps(owner_user_id,connector_type,credentials) VALUES (${user}::uuid,${request.connectorType},${encryptSecret(key, JSON.stringify(client))})
         ON CONFLICT(owner_user_id,connector_type) DO UPDATE SET credentials=EXCLUDED.credentials`;
       }),
