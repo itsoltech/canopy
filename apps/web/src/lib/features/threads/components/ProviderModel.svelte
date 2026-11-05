@@ -17,9 +17,10 @@
 
   const key = $derived(providerKeyOf(provider));
   const name = $derived(key === "CLAUDE" ? "Claude" : key === "GROK" ? "Grok" : "Codex");
+  const label = $derived([model || `${name} default`, effort].filter(Boolean).join(" · "));
 </script>
 
-<span class={["inline-flex min-w-0 items-center gap-1", className]}>
+<span class={["inline-flex min-w-0 items-center gap-1", className]} title={label}>
   {#if key}<ProviderIcon provider={key} label={name} size="sm" />{/if}
-  <span class="truncate">{[model || `${name} default`, effort].filter(Boolean).join(" · ")}</span>
+  <span class="truncate">{label}</span>
 </span>

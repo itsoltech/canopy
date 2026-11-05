@@ -847,6 +847,13 @@ aktora, cel, turę/steer, wynik i stan raportu; uuid wywołania deduplikuje przy
 Tury przez łącze mają `trigger=linked_agent`, `linked_call_id` i dodatnie `hops`; fallback steera
 zachowuje to pochodzenie i aktualizuje obserwowaną turę.
 
+`LinkedAgentCall.sender` przenosi snapshot nadawcy (`AgentSender`): tytuł wątku albo nazwę,
+kształt i kolor bota oraz dostawcę/model. Dom odbiorcy kwalifikuje id nadawcy według
+uwierzytelnionego partnera i zapisuje snapshot w `input.sender`, obok `note` i `message`.
+Metadane służą wyłącznie prezentacji; nie zastępują kontroli właściciela ani relacji szyny.
+UI pokazuje autora z odnośnikiem i cichą nazwą komputera, a w dymku samą wiadomość.
+Pełna koperta z ostrzeżeniem o niezaufanych danych pozostaje wejściem modelu.
+
 Zdalne narzędzie bota zapisuje znacznik `bot_tool_calls.linked_remote` i stan `running` pod
 kontrolą dzierżawy, a następnie zwalnia lokalne blokady przed wywołaniem partnera. Dzięki temu
 dwa boty mogą równocześnie pisać do siebie. Wynik zapisuje dom źródłowy. Restart przy nieznanym
@@ -868,6 +875,10 @@ zachowuje wymaganie jego lokalnej zgody. Człowiek może zawsze odpowiedzieć w 
 
 Zakończenie wskazanej tury wysyła raport do źródła; bot↔bot ma też `exchange_id` i czytelny podgląd
 wymiany. Każdy przeskok zwiększa `hops`; operacja rezerwuje miejsce na raport w limicie 8.
+Raport niesie też tytuł i status wątku. Rozmowa bota zapisuje krótki event
+`“‹title›” on ‹computer› finished`, tak jak lokalne powiadomienie o zakończeniu,
+bez id ani koperty platformy. `bot_turns.input` zachowuje pełny raport i wynik dla
+bieżącej inferencji oraz odbudowy historii harnessu.
 Wynik pochodzący z rutyny wraca do ukrytego wykonania tej samej rutyny na domu bota, o ile nadal
 jest włączona. Rutyna nie przenosi się na B.
 

@@ -22,7 +22,8 @@ export interface SteerRow {
   thread_id: string;
   turn_id: string;
   /** text = what the model gets; with quotes, note (the quotes) + message (the user's text) for the UI. */
-  input: { text: string; note?: string; message?: string; quotes?: StoredQuote[] } & StoredMentions;
+  input: { text: string; note?: string; message?: string; quotes?: StoredQuote[] } & StoredMentions &
+    Pick<TurnRow["input"], "sender" | "sourceKind" | "sourceStatus">;
   author_user_id: string | null;
   agent_call_id: string | null;
   bot_call_id?: string | null;
@@ -66,6 +67,7 @@ export class SteerStore extends Context.Service<
       permissionMode: string;
       /** Prepared input (mentions: the composed text, the message and both sets of ranges; quotes); default { text }. */
       input?: SteerRow["input"];
+      linked?: { callId: string; hops: number };
     }): Fx<SteerRow>;
     byClientRequest(threadId: string, clientRequestId: string): Fx<SteerRow | undefined>;
     steer(id: string): Fx<SteerRow>;
@@ -110,14 +112,14 @@ export class SteerStore extends Context.Service<
           );
 
       const store: SteerStore["Service"] = {
-        create: ({ threadId, turnId, text, userId, clientRequestId, model, effort, permissionMode, input }) =>
+        create: ({ threadId, turnId, text, userId, clientRequestId, model, effort, permissionMode, input, linked }) =>
           Effect.gen(function* () {
             const id = Bun.randomUUIDv7();
 
             const rows = yield* sql<{ id: string }>`
-              INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, client_request_id, model, effort, permission_mode)
-              VALUES (${id}::uuid, ${threadId}::uuid, ${turnId}::uuid, ${JSON.stringify(input ?? { text })}::jsonb, ${userId}::uuid,
-                      ${clientRequestId || null}, ${model}, ${effort}, ${permissionMode})
+              INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, client_request_id, model, effort, permission_mode, linked_call_id, hops)
+              VALUES (${id}::uuid, ${threadId}::uuid, ${turnId}::uuid, ${JSON.stringify(input ?? { text })}::jsonb, ${linked ? null : userId}::uuid,
+                      ${clientRequestId || null}, ${model}, ${effort}, ${permissionMode}, ${linked?.callId ?? null}::uuid, ${linked?.hops ?? 0})
               ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING
               RETURNING id`;
 
@@ -214,7 +216,7 @@ export class SteerStore extends Context.Service<
 }
 
 export function toUiSteer(row: SteerRow & SenderColumns): ui.Steer {
-  const sender = toUiSender(row);
+  const sender = toUiSender(row, row.input.sender);
 
   return create(ui.SteerSchema, {
     id: row.id,
@@ -225,7 +227,7 @@ export function toUiSteer(row: SteerRow & SenderColumns): ui.Steer {
     reason: row.reason ?? "",
     queuedTurnId: row.queued_turn_id ?? "",
     createdAt: timestampFromDate(new Date(row.created_at)),
-    sourceThreadId: row.source_thread_id ?? "",
+    sourceThreadId: sender?.threadId || row.source_thread_id || "",
     fromTurnId: row.from_turn_id ?? "",
     quotes: (row.input.quotes ?? []).map(toUiQuote),
     mentions: mentionsFromJson(row.input.mentions),

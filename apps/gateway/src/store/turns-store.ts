@@ -22,6 +22,7 @@ export interface TurnStore {
     effort?: string;
     permissionMode?: string;
     input?: TurnRow["input"];
+    linked?: { callId: string; hops: number };
   }): Fx<TurnRow>;
   /** A user turn with this client request id, if any (SendMessage idempotency across queue and steer). */
   turnByClientRequest(threadId: string, clientRequestId: string): Fx<TurnRow | undefined>;
@@ -55,7 +56,17 @@ export interface TurnStore {
 
 export function turnStore(sql: SqlClient.SqlClient): TurnStore {
   return {
-    enqueueTurn: ({ threadId, text, userId, clientRequestId, model = "", effort = "", permissionMode = "", input }) =>
+    enqueueTurn: ({
+      threadId,
+      text,
+      userId,
+      clientRequestId,
+      model = "",
+      effort = "",
+      permissionMode = "",
+      input,
+      linked,
+    }) =>
       sql.withTransaction(
         Effect.gen(function* () {
           const attachments = input?.attachments ?? [];
@@ -65,9 +76,9 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
           const id = Bun.randomUUIDv7();
 
           const rows = yield* sql<TurnRow>`
-                  INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input, model, effort, permission_mode)
-                  SELECT ${id}::uuid, ${threadId}::uuid, coalesce(max(ordinal), 0) + 1, 'user', ${userId}::uuid,
-                         ${clientRequestId || null}, ${JSON.stringify(input ?? { text })}::jsonb, ${model}, ${effort}, ${permissionMode}
+                  INSERT INTO turns (id, thread_id, ordinal, trigger, author_user_id, client_request_id, input, model, effort, permission_mode, linked_call_id, hops)
+                  SELECT ${id}::uuid, ${threadId}::uuid, coalesce(max(ordinal), 0) + 1, ${linked ? "linked_agent" : "user"}, ${linked ? null : userId}::uuid,
+                         ${clientRequestId || null}, ${JSON.stringify(input ?? { text })}::jsonb, ${model}, ${effort}, ${permissionMode}, ${linked?.callId ?? null}::uuid, ${linked?.hops ?? 0}
                     FROM turns WHERE thread_id = ${threadId}::uuid
                   ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING
                   RETURNING *`;

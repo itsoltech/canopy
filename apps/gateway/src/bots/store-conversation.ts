@@ -115,13 +115,15 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
         Effect.map((r) => r.map(messageView)),
       ),
     history: (turn: BotTurn) =>
-      sql<MessageRow>`SELECT * FROM (SELECT m.*, t.created_at AS turn_created, t.id AS turn_order FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id
+      sql<
+        MessageRow & { model_text: string }
+      >`SELECT * FROM (SELECT m.*, CASE WHEN m.message_key='input' THEN t.input ELSE m.text END AS model_text, t.created_at AS turn_created, t.id AS turn_order FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id
       WHERE m.bot_id = ${turn.bot_id}::uuid AND m.sender_id <> 'self' AND (${Boolean(turn.handoff_configuration)} OR (t.created_at, t.id) <= (SELECT created_at, id FROM bot_turns WHERE id = ${turn.id}::uuid))
       ORDER BY t.created_at DESC, t.id DESC, m.seq DESC LIMIT ${turn.routine_id ? 60 : 2147483647}) recent ORDER BY turn_created, turn_order, seq`.pipe(
         Effect.map((rows): ModelMessage[] => [
           ...rows.map((r): ModelMessage => ({
             role: r.sender_id === turn.bot_id ? "assistant" : "user",
-            text: modelInput(r.text, storedMentions(r.mentions), r.quotes),
+            text: modelInput(r.model_text, storedMentions(r.mentions), r.quotes),
           })),
           ...(turn.routine_id || turn.handoff_configuration ? [{ role: "user" as const, text: turn.input }] : []),
         ]),

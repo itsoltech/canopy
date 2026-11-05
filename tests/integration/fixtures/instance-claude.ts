@@ -111,6 +111,35 @@ async function turn(text: string): Promise<void> {
   appendFileSync(transcript, JSON.stringify(user) + "\n" + JSON.stringify(assistant) + "\n");
 
   if (text.includes("CRASH_AFTER_TRANSCRIPT")) process.exit(42);
+
+  if (process.env["BOT_TRACE"]) {
+    // SDK assistant messages contain individual blocks; thinking shifts the text's stream index.
+    const stream = (event: JsonObject) =>
+      send({ type: "stream_event", session_id: session, uuid: crypto.randomUUID(), event, parent_tool_use_id: null });
+
+    stream({
+      type: "message_start",
+      message: {
+        id: assistant.message.id,
+        type: "message",
+        role: "assistant",
+        content: [],
+        model: "fixture-model",
+        usage: { input_tokens: 1, output_tokens: 0 },
+      },
+    });
+    stream({ type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } });
+    stream({
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "thinking_delta", thinking: "Private fixture reasoning" },
+    });
+    stream({ type: "content_block_stop", index: 0 });
+    stream({ type: "content_block_start", index: 1, content_block: { type: "text", text: "" } });
+    stream({ type: "content_block_delta", index: 1, delta: { type: "text_delta", text: answer } });
+    stream({ type: "content_block_stop", index: 1 });
+  }
+
   send(assistant);
   recordProbe("claude", "finish", session);
   send({

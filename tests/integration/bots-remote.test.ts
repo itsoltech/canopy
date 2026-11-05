@@ -129,7 +129,13 @@ describe.skipIf(!dockerAvailable)("gateway bots: remote MCP capabilities and wor
       (rows) => rows[0]?.status === "completed",
       10_000,
     );
-    suite.model = async (i) => reply(lastInput(i).startsWith("Thread ") ? "Got the thread result" : "Started once");
+    suite.model = async (i) => {
+      if (!lastInput(i).startsWith("Thread ")) return reply("Started once");
+      expect(lastInput(i)).toContain("Echo: hello worker");
+
+      return reply("Got the thread result");
+    };
+
     await restart();
 
     const final = await eventually(
@@ -138,7 +144,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: remote MCP capabilities and wor
       10_000,
     );
 
-    expect(final.messages.some((m) => m.text.includes("Echo: hello worker"))).toBe(true);
+    expect(final.messages.filter((m) => m.kind === "event" && m.text.endsWith(" finished"))).toHaveLength(1);
     expect((await suite.gw.api.listThreads({ projectId: suite.projectId })).threads).toHaveLength(1);
 
     const counts = await suite.gw.runtime.runPromise(
@@ -270,12 +276,18 @@ describe.skipIf(!dockerAvailable)("gateway bots: remote MCP capabilities and wor
         (t) => t.status === "running",
       );
       const bot = await add(`Steer ${mode}`);
-      suite.model = async (i) =>
-        lastInput(i).startsWith("Thread ")
-          ? reply(`Result ${mode}`)
-          : i.messages.at(-1)?.role === "tool"
-            ? reply("Message sent")
-            : tool("send_message", { thread_id: thread.id, text: `steer ${mode}`, delivery: "steer" });
+      suite.model = async (i) => {
+        if (lastInput(i).startsWith("Thread ")) {
+          expect(lastInput(i)).toContain(mode === "not_running" ? "Echo: steer not_running" : "Finished accept");
+
+          return reply(`Result ${mode}`);
+        }
+
+        return i.messages.at(-1)?.role === "tool"
+          ? reply("Message sent")
+          : tool("send_message", { thread_id: thread.id, text: `steer ${mode}`, delivery: "steer" });
+      };
+
       await send(bot.id, "steer it");
       await settled(bot.id);
       await eventually(
@@ -293,10 +305,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: remote MCP capabilities and wor
         10_000,
       );
 
-      expect(result.messages.filter((m) => m.kind === "event" && m.text.startsWith("Thread "))).toHaveLength(1);
-
-      if (mode === "not_running")
-        expect(result.messages.some((m) => m.text.includes("Echo: steer not_running"))).toBe(true);
+      expect(result.messages.filter((m) => m.kind === "event" && m.text.endsWith(" finished"))).toHaveLength(1);
     }
 
     suite.currentWorker.steerMode = "accept";

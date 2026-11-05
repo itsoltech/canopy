@@ -25,6 +25,13 @@
   const directory = useThreadDirectory();
   const origin = $derived(turnOrigin(turn));
 
+  const senderLine = $derived(
+    origin.kind === "task" ||
+      origin.kind === "message" ||
+      origin.kind === "report" ||
+      (origin.kind === "answer" && Boolean(origin.threadId) && !turn.botId),
+  );
+
   // The platform's note (where the input comes from) and the delivered content, kept apart by the gateway.
   const parts = $derived({ note: turn.platformNote, message: turn.messageText });
   const tone = $derived(origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet");
@@ -83,30 +90,28 @@
             : "text-violet-700 dark:text-violet-400",
       ]}
     >
-      {#if !((origin.kind === "other" || origin.kind === "answer") && turn.botId)}<Icon
-          name={icons.get(origin.kind) ?? "sparkles"}
-          tone="inherit"
-          class="size-3.5"
-        />{/if}
-      {#if origin.kind === "task"}
-        <AgentSenderLabel verb="Task from" threadId={origin.threadId} sender={turn.sender} />
-      {:else if origin.kind === "message"}
-        <AgentSenderLabel verb="Message from" threadId={origin.threadId} sender={turn.sender} />
+      {#if !senderLine && !turn.botId}{@render sourceIcon()}{/if}
+      {#if senderLine}
+        <AgentSenderLabel
+          verb={origin.kind === "task"
+            ? "Task from"
+            : origin.kind === "report"
+              ? "Report from"
+              : origin.kind === "answer"
+                ? "Answer from"
+                : "Message from"}
+          threadId={turn.sourceThreadId}
+          sender={turn.sender}
+          fallback={origin.kind === "report" ? "a thread it follows" : "another thread"}
+          leading={turn.botId ? undefined : sourceIcon}
+          trailing={turn.hops > 0 ? hops : undefined}
+        />
       {:else if origin.kind === "answer"}
         {#if turn.botId}
           <BotSenderLabel verb="Answer from" botId={turn.botId} />
-        {:else if origin.threadId}
-          <AgentSenderLabel verb="Answer from" threadId={origin.threadId} sender={turn.sender} />
         {:else}
           Your answer
         {/if}
-      {:else if origin.kind === "report"}
-        <AgentSenderLabel
-          verb="Report from"
-          threadId={origin.threadId}
-          sender={turn.sender}
-          fallback="a thread it follows"
-        />
       {:else if origin.kind === "question"}
         <ThreadLink threadId={origin.threadId} fallback="A side thread" /> is waiting for an answer
       {:else if origin.kind === "schedule"}
@@ -119,18 +124,10 @@
         {/if}
       {:else if turn.botId}
         <BotSenderLabel botId={turn.botId} />
-      {:else}
+      {:else if origin.kind === "other"}
         {triggerLabels.get(origin.trigger) ?? origin.trigger}
       {/if}
-      {#if turn.hops > 0}
-        <span
-          class="text-zinc-500 tabular-nums dark:text-zinc-400"
-          title="Agent-to-agent steps since a person last wrote; a chain stops at the limit"
-        >
-          · {turn.hops}
-          {turn.hops === 1 ? "hop" : "hops"}
-        </span>
-      {/if}
+      {#if turn.hops > 0 && !senderLine}{@render hops()}{/if}
     </p>
     {#if fromAgent}
       <AgentMessageBubble
@@ -172,3 +169,17 @@
     {/if}
   </div>
 {/if}
+
+{#snippet sourceIcon()}
+  <Icon name={icons.get(origin.kind) ?? "sparkles"} tone="inherit" class="size-3.5 shrink-0" />
+{/snippet}
+
+{#snippet hops()}
+  <span
+    class="shrink-0 whitespace-nowrap text-zinc-500 tabular-nums dark:text-zinc-400"
+    title="Agent-to-agent steps since a person last wrote; a chain stops at the limit"
+  >
+    · {turn.hops}
+    {turn.hops === 1 ? "hop" : "hops"}
+  </span>
+{/snippet}

@@ -107,6 +107,10 @@ Oczekiwanie na zgodę lub offline nie ma limitu czasu generacji.
 Takie tury utrzymują lease, ale nie zajmują limitu czterech aktywnych inferencji
 gatewaya; pozostałe boty mogą odpowiadać podczas oczekiwania.
 
+Claude mapuje tekst tym samym mapperem bloków co wątki: ukończony blok zastępuje
+swój strumień, także gdy poprzedzało go rozumowanie lub narzędzie. Indeks bloku
+w częściowej wiadomości `assistant` nie jest indeksem bloku strumienia.
+
 ## Migracja i zgodność
 
 Migracje `0070_bot_harness.sql` i `0071_bot_harness_errors.sql` zachowują historię
@@ -146,6 +150,9 @@ narzędzi, granty i zgody MCP przez gateway, tworzenie Groka oraz wiele wzmianek
 i wiadomości bot–bot. `bots-harness-defaults.test.ts` sprawdza wybór desktop/server
 i trwałość przypięcia. Dotychczasowy `bots-harness.test.ts` nadal obejmuje offline,
 reconnect, restarty, owner scoping i izolację.
+`linked-agent-messages.test.ts` łączy dwa gatewaye i kontrolowany harness bota:
+sprawdza autora oraz treść wiadomości i steerów, czytelny event zakończenia,
+wznowienie bota i pojedynczy tekst po strumieniu z blokiem rozumowania.
 
 Poprawione regresje: `create_bot` odrzucał jawny wybór Groka mimo poprawnego schematu;
 awaria startu instancji Codexa mogła przerwać obsługę konfiguracji WorkerLink.

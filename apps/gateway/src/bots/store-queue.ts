@@ -30,6 +30,7 @@ function botEnqueue(
       replyTo?: string;
       exchangeId?: string;
       event?: boolean;
+      displayText?: string;
       mentions?: readonly Mention[];
       quotes?: readonly ui.Quote[];
     } = {},
@@ -125,7 +126,7 @@ function botEnqueue(
 
         if (!options.routineId)
           yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id, mentions, quotes)
-      VALUES (${uuid()}::uuid, ${botId}::uuid, ${turn.id}::uuid, 'input', ${options.sender ?? "user"}, ${botId}, ${options.event ? "event" : "message"}, ${input}, ${options.exchangeId ?? null}::uuid, ${JSON.stringify(checked.map((m) => toJson(MentionSchema, m)))}::jsonb, ${JSON.stringify(quotes)}::jsonb)
+      VALUES (${uuid()}::uuid, ${botId}::uuid, ${turn.id}::uuid, 'input', ${options.sender ?? "user"}, ${botId}, ${options.event ? "event" : "message"}, ${options.displayText ?? input}, ${options.exchangeId ?? null}::uuid, ${JSON.stringify(checked.map((m) => toJson(MentionSchema, m)))}::jsonb, ${JSON.stringify(quotes)}::jsonb)
       ON CONFLICT(turn_id, message_key) DO NOTHING`;
         yield* changed(botId);
 

@@ -89,6 +89,16 @@ na osi czasu; gateway kanonizuje je z własnego katalogu. [Projekt i ograniczeni
 
 ## Połączone komputery: zdalne wątki
 
+Wiadomości szyny z innego komputera korzystają z tego samego `Turn.sender` i
+`Steer.sender` co lokalni agenci. `AgentSender.bot_id`, `bot_shape` i `bot_color`
+opisują bota, `computer_name` daje cichy podpis komputera. Snapshot autora działa
+także bez wpisu w lokalnym katalogu. UI renderuje `message_text` zamiast koperty
+z `input_text`; `platform_note` pozostaje kontekstem modelu. Linki autora używają
+kwalifikowanych id jego domu.
+Podpis autora zachowuje stałe frazy w jednym wierszu. Przy braku miejsca najpierw
+obcina chip tytułu (pełny tytuł w tooltipie), potem nazwę modelu; na telefonie
+grupa metadanych może przejść w całości do drugiego wiersza.
+
 Wątki, workery i projekty połączonych komputerów przychodzą tym samym `GatewayService` co własne,
 z id kwalifikowanym węzłem domu (`<uuid>~<node16>`) i polem `node_id` (800 dla projektu i wątku,
 802 dla workera; 800–801 workera zajmują CLI). Przeglądarka i telefon
