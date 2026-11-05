@@ -16,6 +16,8 @@ import {
 import { loadSettings, saveSettings, type NetworkSettings } from "./settings.ts";
 import { localNetworkBlocked, LOCAL_NETWORK_HELP } from "./local-network.ts";
 import { requireDesktopRole, type GatewayRole } from "../role.ts";
+import type { Tailscale } from "./tailscale/tailscale.ts";
+import { preferTailnet, tailscaleMessage } from "./tailscale/addresses.ts";
 
 export type NetworkOptions = {
   role?: GatewayRole;
@@ -27,6 +29,8 @@ export type NetworkOptions = {
   /** Tests: this computer's interface addresses. */
   detect?: () => DetectedAddress[];
   pollMs?: number;
+  /** This host's Tailscale (docs/tailscale.md): its MagicDNS name and tailnet address go first. */
+  tailscale?: Tailscale;
   log?: (message: string) => void;
 };
 
@@ -48,6 +52,7 @@ export class NetworkAccess {
   #timer: ReturnType<typeof setInterval> | undefined;
   #queue: Promise<unknown> = Promise.resolve();
   #blockedAt = 0;
+  #unsubscribe: (() => void) | undefined;
   readonly #services = new Map<Service, Handler>();
   readonly #changes = new Set<() => void>();
 
@@ -73,6 +78,7 @@ export class NetworkAccess {
       await this.#apply();
       this.#timer = setInterval(() => void this.refresh(), this.options.pollMs ?? 10_000);
       this.#timer.unref?.();
+      this.#unsubscribe = this.options.tailscale?.onChange(() => void this.refresh());
     });
   }
 
@@ -99,12 +105,14 @@ export class NetworkAccess {
 
     if (!port) return [];
 
-    const detected =
+    const detected = preferTailnet(
       this.options.host && !this.options.detect
         ? [{ host: this.options.host, kind: "lan" as const, interfaceName: "" }]
-        : this.#detected;
+        : this.#detected,
+      this.options.tailscale?.snapshot,
+    );
 
-    return [
+    const all = [
       ...detected.map((a) =>
         create(ui.NetworkAddressSchema, {
           origin: originOf(a.host.includes(":") ? `[${a.host}]` : a.host, port),
@@ -117,6 +125,14 @@ export class NetworkAccess {
         create(ui.NetworkAddressSchema, { origin: originOf(entry, port), host: entry, kind: "hostname" }),
       ),
     ];
+
+    // A hostname the user added that is also the MagicDNS name is listed once.
+    return all.filter((a, index) => all.findIndex((b) => b.origin === a.origin) === index);
+  }
+
+  /** The tailnet origin of the listener (MagicDNS name, else tailnet IPv4); empty while either is off. */
+  tailscaleOrigin() {
+    return this.addresses().find((a) => a.kind === "tailscale")?.origin ?? "";
   }
 
   origins() {
@@ -136,6 +152,7 @@ export class NetworkAccess {
       hostnames: this.#settings.hostnames,
       fingerprint: this.fingerprint,
       note,
+      tailscale: tailscaleMessage(this.options.tailscale?.snapshot),
     });
   }
 
@@ -159,6 +176,10 @@ export class NetworkAccess {
         if (hostnames.length > 8) throw new ConnectError("Add at most 8 hostnames", Code.InvalidArgument);
         this.#settings = { ...this.#settings, hostnames };
         await saveSettings(this.options.store, this.#settings);
+        this.#publish();
+      } else if (request.action === "refresh_tailscale") {
+        await this.options.tailscale?.refresh();
+        this.#detected = this.#detect();
         this.#publish();
       } else throw new ConnectError("Unknown network access operation", Code.InvalidArgument);
 
@@ -189,6 +210,7 @@ export class NetworkAccess {
 
   close() {
     clearInterval(this.#timer);
+    this.#unsubscribe?.();
 
     return this.#serial(async () => {
       await this.#listener?.close();

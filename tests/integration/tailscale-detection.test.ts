@@ -21,8 +21,8 @@ describe("tailscale status", () => {
     expect(snapshot).toMatchObject({
       state: "connected",
       dnsName: "laptop.example-tailnet.ts.net",
-      ipv4: ["100.101.102.103"],
-      ipv6: ["fd7a:115c:a1e0::1"],
+      ipv4: ["192.0.2.10"],
+      ipv6: ["2001:db8::10"],
       tailnet: "owner@example.com",
       magicDns: true,
       certDomains: ["laptop.example-tailnet.ts.net"],

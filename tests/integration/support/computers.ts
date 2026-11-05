@@ -5,6 +5,7 @@ import { openListener } from "../../../apps/gateway/src/network/listener.ts";
 import type { Options } from "../../../apps/gateway/src/computers/runtime-context.ts";
 import type { DetectedAddress } from "../../../apps/gateway/src/network/addresses.ts";
 import { NetworkAccess } from "../../../apps/gateway/src/network/network.ts";
+import type { Tailscale } from "../../../apps/gateway/src/network/tailscale/tailscale.ts";
 
 export type TestComputerOptions = Omit<Options, "network"> & {
   /** One loopback address, or "0.0.0.0" with `detect` for a computer on every interface. */
@@ -12,17 +13,19 @@ export type TestComputerOptions = Omit<Options, "network"> & {
   /** A fixed port; 0 or none = chosen by network access and kept in the database. */
   port?: number;
   detect?: () => DetectedAddress[];
+  tailscale?: Tailscale;
 };
 
 /** Linked computers on their own network access listener, switched on, as a computer with
  * "Let phones and other computers connect" on. Closing them closes the listener too. */
-export function linkedComputers({ host, port, detect, ...options }: TestComputerOptions) {
+export function linkedComputers({ host, port, detect, tailscale, ...options }: TestComputerOptions) {
   const network = new NetworkAccess({
     role: "desktop",
     store: options.store,
     host,
     ...(port && { port }),
     ...(detect && { detect }),
+    ...(tailscale && { tailscale }),
     pollMs: 200,
   });
 

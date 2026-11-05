@@ -29,10 +29,25 @@ message NetworkAccess {
   string fingerprint = 8;
   // A help line only when needed (container networking, the macOS local network permission).
   string note = 9;
+  // This host's Tailscale, read-only (docs/tailscale.md).
+  Tailscale tailscale = 10;
+}
+message Tailscale {
+  // not_installed, not_running, stopped, logged_out, starting, connected
+  string state = 1;
+  // This computer's MagicDNS name without the trailing dot; empty without MagicDNS or while not connected.
+  string dns_name = 2;
+  repeated string ipv4 = 3;
+  repeated string ipv6 = 4;
+  string tailnet = 5;
+  bool magic_dns = 6;
+  // The tailnet issues HTTPS certificates for this computer's name.
+  bool https_certificates = 7;
+  int64 checked_at_ms = 8;
 }
 message GetNetworkAccessRequest {}
 message UpdateNetworkAccessRequest {
-  // set_enabled, set_port, choose_port (a new free port), set_hostnames
+  // set_enabled, set_port, choose_port (a new free port), set_hostnames, refresh_tailscale
   string action = 1;
   bool enabled = 2;
   uint32 port = 3;
