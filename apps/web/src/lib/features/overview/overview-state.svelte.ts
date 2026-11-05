@@ -75,16 +75,6 @@ export class OverviewState {
     return this.#deleted.has(thread.id) ? undefined : (this.threads.get(thread.id) ?? thread);
   }
 
-  /** A project's threads with live changes laid over them, plus threads created since `list` was loaded. */
-  liveThreads(projectId: string, list: readonly ui.Thread[]): ui.Thread[] {
-    const known = new Set(list.map((t) => t.id));
-    const added = [...this.threads.values()].filter((t) => t.projectId === projectId && !known.has(t.id));
-
-    return [...list.map((t) => this.threads.get(t.id) ?? t), ...added].filter(
-      (t) => !this.#deleted.has(t.id) && !t.deletedAt,
-    );
-  }
-
   /** Other changes of the stream (settings, schedules) for whoever keeps that state; returns the unsubscribe. */
   subscribe(listener: (update: ui.OverviewUpdate) => void): () => void {
     this.#listeners.add(listener);
