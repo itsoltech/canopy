@@ -1,6 +1,5 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { dirname, delimiter } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { hostname } from "node:os";
 import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";

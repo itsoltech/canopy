@@ -17,6 +17,7 @@
   let notice = $state("");
 
   const blocked = "Blocked by your browser. Allow notifications in site settings, then retry.";
+
   const options = [
     { value: "off", label: "Off" },
     { value: "notifications", label: "Notifications" },
