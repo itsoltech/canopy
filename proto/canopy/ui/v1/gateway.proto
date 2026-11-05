@@ -472,6 +472,10 @@ message Thread {
   // Wątki boczne: początek ostatniej wiadomości agenta (wynik subagenta) do karty w wątku rodzica. Główne: pusty.
   string last_message = 95;
 
+  // Tura queued ma już komendę w outboxie, ale worker jeszcze nie potwierdził running.
+  // Ten sam stan startu co Turn.dispatched, także w overview.
+  bool turn_starting = 162;
+
   // Numery od 180: stan przeczytania. Wynik ostatniej zakończonej tury, której użytkownik jeszcze nie widział
   // (completed | failed | interrupted); pusty, gdy widział wszystko (MarkThreadSeen).
   string unseen_result = 180;
@@ -616,6 +620,9 @@ message Turn {
   string withdrawn = 160;
   // Rośnie z każdą edycją wejścia tury w kolejce (EditQueuedTurn.expected_revision).
   uint32 revision = 161;
+  // StartTurn jest już w outboxie (pending, delivered lub completed). queued + dispatched = tura startuje,
+  // nie czeka w kolejce; running nadal potwierdza dopiero zdarzenie workera. Starszy klient pomija to pole.
+  bool dispatched = 162;
 
   // Wzmianki w message_text (numery od 140): chipy wiadomości użytkownika.
   repeated canopy.worker.v1.Mention mentions = 140;

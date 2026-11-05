@@ -27,9 +27,11 @@
       ? "needs"
       : asksAgent(thread)
         ? "asks"
-        : thread.status === "running" || thread.status === "creating"
-          ? thread.status
-          : (result.current ?? thread.status),
+        : thread.turnStarting
+          ? "creating"
+          : thread.status === "running" || thread.status === "creating"
+            ? thread.status
+            : (result.current ?? thread.status),
   );
 </script>
 
@@ -46,7 +48,7 @@
         >
           {#if icons}<Icon name="hand-raised" tone="inherit" class="size-3.5" />{/if}Asking agent
         </span>
-      {:else if thread.status === "creating"}
+      {:else if thread.status === "creating" || thread.turnStarting}
         <span class="flex items-center gap-1 text-sky-700 dark:text-sky-400"
           >{#if icons}<Spinner class="size-3.5" />{/if}Starting</span
         >

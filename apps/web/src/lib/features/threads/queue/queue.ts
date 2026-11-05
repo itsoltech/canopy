@@ -23,7 +23,7 @@ export function moveTo(ids: readonly string[], id: string, index: number): strin
  * meanwhile) follow in the gateway's order, turns that left the queue drop out.
  */
 export function ordered(turns: readonly ui.Turn[], order: readonly string[] | undefined): ui.Turn[] {
-  turns = turns.filter(ownMessage);
+  turns = turns.filter((t) => t.status === "queued" && !t.dispatched && ownMessage(t));
 
   if (!order) return [...turns];
   const byId = new Map(turns.map((t) => [t.id, t]));

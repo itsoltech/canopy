@@ -77,7 +77,7 @@ type Element = { seq: bigint; turnId: string } & ({ node: ItemNode } | { notice:
  * Orders items and notices by seq and frames each turn: a start row before its first element (marking a
  * new day) and an end row (status, usage, the last answer) after its last one. Items of other turns or between turns (background
  * work) keep their place in the sequence. Turns without any element yet (just started, or failed
- * before the provider ran) follow at the end; queued turns are not rows (the page shows them apart), nor
+ * before the provider ran) follow at the end; waiting turns are not rows (the queue panel shows them apart), nor
  * are turns the user took out of the queue (`withdrawn`: deleted, or steered into another turn).
  * `nodes` keeps item nodes between builds: an unchanged item (and nested items) keeps its node object.
  */
@@ -187,7 +187,7 @@ export function buildTimeline(
   });
 
   for (const turn of turns) {
-    if (opened.has(turn.id) || turn.status === "queued") continue;
+    if (opened.has(turn.id) || (turn.status === "queued" && !turn.dispatched)) continue;
     open(turn);
     close(turn);
   }

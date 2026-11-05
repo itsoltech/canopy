@@ -17,6 +17,7 @@ import { coreBus } from "./core-schedules.ts";
 import type { TurnRow } from "../store/rows.ts";
 import { coreShellInput } from "./core-shell.ts";
 import { storedShellResult } from "../store/shell-input.ts";
+import { coreEnqueueTurn } from "./core-enqueue-turn.ts";
 
 /** Internal linked input, prepared by the peer gateway rather than a public UI request. */
 export interface LinkedMessageInput {
@@ -219,7 +220,7 @@ export const coreMessagesMethods: CoreMessagesMethods = {
     // A message with attachments is always the next turn: its files go to the worker before the turn starts.
     // Quotes travel in the text (their note), so a message with quotes steers like any other.
     if (request.delivery === ui.MessageDelivery.STEER && !files) {
-      const running = await coreRun(this, (s) => s.runningTurn(threadId));
+      const running = await coreRun(this, (s) => s.steerTarget(threadId));
 
       if (running && thread.worker_id) {
         const steerInput =
@@ -251,22 +252,18 @@ export const coreMessagesMethods: CoreMessagesMethods = {
       shell ??
       coreComposeInput(this, thread.provider, request.text, mentions, files?.input(threadId, request.text), quotes);
 
-    const turn = await coreRun(this, (s) =>
-      s.enqueueTurn({
-        threadId,
-        text: request.text,
-        userId: this[coreState].options.userId,
-        clientRequestId,
-        model: request.model,
-        effort: request.effort,
-        permissionMode,
-        ...(linked && { linked }),
-        ...(input && { input }),
-      }),
-    );
+    const turn = await coreEnqueueTurn(this, {
+      threadId,
+      text: request.text,
+      userId: this[coreState].options.userId,
+      clientRequestId,
+      model: request.model,
+      effort: request.effort,
+      permissionMode,
+      ...(linked && { linked }),
+      ...(input && { input }),
+    });
 
-    const update = toUiTurn(turn);
-    this.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: update } }));
     await this.pump(threadId);
 
     if (turn.ordinal === 1)
@@ -276,7 +273,7 @@ export const coreMessagesMethods: CoreMessagesMethods = {
         titleContext({ text: request.text, mentions, quotes, attachments: input?.attachments }),
       );
 
-    return { turn: update };
+    return { turn };
   },
 
   /** The thread's default model, effort and permission mode for turns without an override. */

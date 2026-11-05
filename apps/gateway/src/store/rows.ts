@@ -49,6 +49,8 @@ export interface ThreadRow {
   deleted_at?: Date | null;
   marked_unread?: boolean;
   pending_interactions?: bigint | number;
+  /** Joined from the outbox: a queued turn has been dispatched. */
+  turn_starting?: boolean;
   last_activity_at?: Date | null;
   /** Joined: status of the open goal, running background tasks. */
   goal_status?: string | null;
@@ -86,6 +88,8 @@ export interface TurnRow {
   ordinal: number;
   status: string;
   trigger: string;
+  /** Derived from the worker outbox, including the gap before turn_started. */
+  dispatched?: boolean;
   /**
    * text = what the model got; note + message = the same split for the UI (platform-queued turns, a message with
    * attachments or quotes: the note lists them); attachments = the files of the message, with their paths on the

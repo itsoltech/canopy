@@ -594,6 +594,10 @@ Co jest na zrzucie?
 
 ### Kolejka
 
+`Thread.turn_starting` (162) przenosi ten sam stan startu do overview i aktualizacji wątku. Pozwala pokazać „Starting” także przed zdarzeniem `running`, zamiast poprzedniego wyniku tury.
+
+`Turn.dispatched` (162) pochodzi z obecności komendy workera w stanie `pending`, `delivered` albo `completed` — z tego samego warunku, którym gateway chroni wystartowane tury przed zmianami kolejki. Tura `queued` z `dispatched = true` już startuje: jest na osi czasu, poza panelem i licznikami kolejki oraz bez jej akcji. `running` nadal potwierdza worker. Gateway zapisuje wiadomość do gotowego, bezczynnego wątku i jej `StartTurn` w jednej transakcji, więc pierwszy snapshot, zdarzenie i odpowiedź nie pokazują jej jako oczekującej. Przy starcie głowy istniejącej kolejki publikuje zmianę tury przed dostarczeniem komendy. Steer z `status = queued` pozostaje w kolejce do wystartowania jego tury. Web nie dodaje lokalnego wiersza tury przed odpowiedzią gatewaya.
+
 Panel nad kompozytorem pokazuje wyłącznie wiadomości użytkownika (`trigger = user`, puste `source_kind` i `source_thread_id`). Raporty szyny agentów, fallbacki steerów platformy, notatki zadań w tle i inne wyzwalacze platformowe są z niego wykluczone, także przy lokalnym przestawianiu kolejności. Nie wyglądają jak wiadomości użytkownika oczekujące na wysłanie. Reguły dostarczenia i wygaszania raportów: [agent-bus.md](agent-bus.md#asynchroniczność). API kolejki zachowuje możliwość przestawiania tur platformy przez innych klientów.
 
 Wiadomości czekające za turą w toku (tury `queued`) użytkownik układa. Kolejność kolejki to `Turn.ordinal` (gateway startuje najniższą). Operacje działają tylko na turach `queued`, których gateway jeszcze nie wystartował (jego `StartTurn` nie jest w outboxie); taka tura, albo tura, która już wyszła z kolejki, daje `FailedPrecondition` z powodem („this message already started running”, „this message is no longer in the queue”). Każda zmiana idzie do wszystkich klientów jako `ThreadUpdate.turn`.

@@ -106,6 +106,12 @@ export async function coreSettle(
 
 export async function corePump(hostContext: GatewayCore, threadId: string): Promise<void> {
   if (hostContext[coreState].actions.defer(() => hostContext.pump(threadId))) return;
+
+  await corePumpQueued(hostContext, threadId);
+}
+
+/** Shared admission path, also used inside the transaction accepting a user message. */
+export async function corePumpQueued(hostContext: GatewayCore, threadId: string): Promise<void> {
   const state = await coreRun(hostContext, (s) => s.thread(threadId, true));
 
   if (state.deleted_at || state.archived_at) return;
@@ -181,7 +187,7 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
   let stored: Command | undefined;
 
   try {
-    stored = await hostContext[coreState].options.runtime.runPromise(
+    stored = await hostContext[coreState].actions.run(
       QueueStore.use((q) =>
         q.whileHead(
           { threadId, turnId: turn.id, revision: turn.revision ?? 0 },
@@ -214,7 +220,16 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
   }
 
   if (!stored) return false;
-  void coreDeliver(hostContext, workerId, stored);
+  await coreBroadcastTurn(hostContext, threadId, turn.id);
+  await coreBroadcastThread(hostContext, threadId);
+  const commandToDeliver = stored;
+
+  const deliver = () => {
+    void coreDeliver(hostContext, workerId, commandToDeliver);
+  };
+
+  // Admission waits for the durable outbox and UI update, not a worker acknowledgement.
+  if (!hostContext[coreState].actions.defer(deliver)) deliver();
 
   return true;
 }

@@ -128,6 +128,7 @@ export async function coreDeliver(hostContext: GatewayCore, workerId: string, co
       const source = HARNESS_ERROR_CODES.has(result.errorCode) ? "harness" : "platform";
       await coreRun(hostContext, (s) => s.failTurn(turnId, reason, source, result.errorCode));
       await coreBroadcastTurn(hostContext, thread?.threadId ?? "", turnId);
+      await coreBroadcastThread(hostContext, thread?.threadId ?? "");
       await coreSettle(hostContext, thread?.threadId ?? "", SETTLE_TURN_ENDED);
 
       // A Claude /goal turn: the goal shows why it did not start.

@@ -5,6 +5,7 @@ import { Invalid, one, type Fx } from "./errors.ts";
 import { writeInteractionTimeline } from "./interaction-timeline.ts";
 import type { InteractionRow, TurnRow } from "./rows.ts";
 import { toInteraction } from "./ui-mappers.ts";
+import { DISPATCHED, nextTurn, steerTarget } from "./turn-select.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -31,6 +32,8 @@ export interface TurnStore {
   /** Oldest queued user turn of an idle, ready thread with no StartTurn in the outbox yet. */
   nextTurn(threadId: string): Fx<TurnRow | undefined>;
   runningTurn(threadId: string): Fx<TurnRow | undefined>;
+  /** The worker may already run a dispatched turn before turn_started reaches the gateway. */
+  steerTarget(threadId: string): Fx<TurnRow | undefined>;
   turnsOf(threadId: string): Fx<ReadonlyArray<TurnRow>>;
   /** First task in the visible history, including the fork's inherited prefix. */
   titleInput(threadId: string): Fx<TurnRow | undefined>;
@@ -73,6 +76,8 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
 
           if (!text.trim() && attachments.length === 0 && !input?.quotes?.length)
             return yield* Effect.fail(new Invalid("message is empty"));
+          // Serialize ordinal allocation and admission with queue edits and dispatch.
+          yield* sql`SELECT id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
           const id = Bun.randomUUIDv7();
 
           const rows = yield* sql<TurnRow>`
@@ -107,9 +112,12 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
 
     turnByClientRequest: (threadId, clientRequestId) =>
       clientRequestId
-        ? sql<TurnRow>`SELECT * FROM turns WHERE thread_id = ${threadId}::uuid AND client_request_id = ${clientRequestId}`.pipe(
-            Effect.map((rows) => rows[0]),
-          )
+        ? sql
+            .unsafe<TurnRow>(
+              `SELECT u.*, ${DISPATCHED} AS dispatched FROM turns u WHERE u.thread_id = $1::uuid AND u.client_request_id = $2`,
+              [threadId, clientRequestId],
+            )
+            .pipe(Effect.map((rows) => rows[0]))
         : Effect.succeed(undefined),
 
     setTurnSettings: (turnId, { model, effort, permissionMode }) =>
@@ -117,26 +125,25 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
         Effect.asVoid,
       ),
 
-    nextTurn: (threadId) =>
-      sql<TurnRow>`
-              SELECT u.* FROM turns u JOIN threads t ON t.id = u.thread_id
-               WHERE u.thread_id = ${threadId}::uuid AND u.status = 'queued' AND t.provider_thread_id IS NOT NULL
-                 AND t.status IN ('idle', 'interrupted', 'failed') AND t.deleted_at IS NULL AND t.archived_at IS NULL
-                 AND NOT EXISTS (SELECT 1 FROM turns r WHERE r.thread_id = u.thread_id AND r.status = 'running')
-                 AND NOT EXISTS (SELECT 1 FROM worker_commands c WHERE c.turn_id = u.id AND c.status IN ('pending', 'delivered', 'completed'))
-               ORDER BY u.ordinal LIMIT 1`.pipe(Effect.map((rows) => rows[0])),
+    nextTurn: (threadId) => nextTurn(sql, threadId),
 
     runningTurn: (threadId) =>
       sql<TurnRow>`SELECT * FROM turns WHERE thread_id = ${threadId}::uuid AND status = 'running' LIMIT 1`.pipe(
         Effect.map((rows) => rows[0]),
       ),
 
-    turnsOf: (threadId) => sql<TurnRow>`
-            SELECT u.*, s.*, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
-             WHERE u.thread_id = ${threadId}::uuid
+    steerTarget: (threadId) => steerTarget(sql, threadId),
+
+    turnsOf: (threadId) =>
+      sql.unsafe<TurnRow>(
+        `
+            SELECT u.*, s.*, ${DISPATCHED} AS dispatched, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
+             WHERE u.thread_id = $1::uuid
                -- The placeholder holding a moved thread's history numbers is no turn of its own.
                AND NOT EXISTS (SELECT 1 FROM computer_moved_threads m WHERE m.ordinal_turn_id = u.id)
              ORDER BY u.ordinal`,
+        [threadId],
+      ),
 
     titleInput: (threadId) =>
       sql<TurnRow>`

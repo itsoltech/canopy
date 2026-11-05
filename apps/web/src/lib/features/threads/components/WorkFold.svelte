@@ -33,7 +33,11 @@
     summary.live && turn.startedAt ? Math.max(0, now - timestampMs(turn.startedAt)) : summary.spanMs,
   );
 
-  const label = $derived(summary.live ? "Working for" : summary.spanMs === undefined ? "Work" : "Worked for");
+  const starting = $derived(turn.status === "queued" && turn.dispatched);
+
+  const label = $derived(
+    starting ? "Starting" : summary.live ? "Working for" : summary.spanMs === undefined ? "Work" : "Worked for",
+  );
 
   // An ended turn whose fold holds nothing: the duration as plain text, no chevron, nothing to open.
   const empty = $derived(!summary.live && summary.size === 0);
@@ -52,9 +56,9 @@
   </span>
   <span class="flex min-w-0 items-baseline gap-x-2">
     <span class={["shrink-0 font-medium", summary.live && "shimmer"]}
-      >{label}{#if span !== undefined}&nbsp;<span class="tabular-nums">{formatSpan(span)}</span>{/if}</span
+      >{label}{#if !starting && span !== undefined}&nbsp;<span class="tabular-nums">{formatSpan(span)}</span>{/if}</span
     >
-    {#if summary.live}<span class="min-w-0 truncate text-zinc-400 dark:text-zinc-500" title={summary.hint}
+    {#if summary.live && !starting}<span class="min-w-0 truncate text-zinc-400 dark:text-zinc-500" title={summary.hint}
         >{summary.hint}</span
       >
     {:else if summary.counts}<span class="min-w-0 truncate text-zinc-400 dark:text-zinc-500">{summary.counts}</span
