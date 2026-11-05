@@ -23,7 +23,8 @@ import { windowState, registerWindowPreferencesIpc } from "./window-chrome.ts";
 import { updateDesktopMenus } from "./desktop-menu.ts";
 import { AppRoutes } from "./app-routes.ts";
 import { registerAppRouteIpc, showAppRoute } from "./app-route-ipc.ts";
-import { createDesktopWindow, isTrustedDesktopEvent } from "./desktop-window.ts";
+import { createDesktopWindow, isTrustedDesktopEvent, windowSizeLimits } from "./desktop-window.ts";
+import { windowPlacement } from "./window-state.ts";
 import { DocumentPolicy } from "./document-policy.ts";
 import type { RemoteAppUpdate } from "./remote-app-update.ts";
 import { acceptRemoteUpdate, remoteAppUpdate, registerUpdateIpc } from "./update-ipc.ts";
@@ -148,7 +149,7 @@ function showMain() {
   if (!setupOrigin || quitting) return;
 
   if (!window || window.isDestroyed()) {
-    window = createWindow();
+    window = createWindow(true);
     void window.loadURL(`${setupOrigin}/desktop`).then(() => {
       if (status.phase === "running") void openApplication();
     });
@@ -162,9 +163,10 @@ function showMain() {
   window.focus();
 }
 
-function createWindow() {
+function createWindow(main = false) {
   return createDesktopWindow({
     appRoutes,
+    placement: main ? windowPlacement(app.getPath("userData"), windowSizeLimits) : undefined,
     productName: identity.productName,
     iconPath,
     quitGuard,
@@ -185,7 +187,7 @@ function openSettings() {
 
   settingsWindow = openModeChooser({
     current: settingsWindow,
-    create: createWindow,
+    create: () => createWindow(),
     origin: setupOrigin,
     closed: () => {
       settingsWindow = undefined;
@@ -199,7 +201,7 @@ async function openApplication() {
   try {
     await policy.prepare(status.webUrl);
 
-    if (!window || window.isDestroyed()) window = createWindow();
+    if (!window || window.isDestroyed()) window = createWindow(true);
     await window.loadURL(status.webUrl);
     settingsWindow?.close();
   } catch {
@@ -443,7 +445,7 @@ async function start() {
   setupOrigin = initialized.origin;
   status = initialized.status;
   registerIpc();
-  window = createWindow();
+  window = createWindow(true);
   await policy.prepare(`${setupOrigin}/desktop`);
 
   policy.attach(window.webContents.session, () => [setupOrigin, status.webUrl]);

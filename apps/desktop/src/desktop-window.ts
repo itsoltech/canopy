@@ -5,6 +5,7 @@ import { attachWindowChrome } from "./window-chrome.ts";
 import { applyWindowAppearance, windowAppearance, windowColors } from "./window-appearance.ts";
 import { trackAppRoutes } from "./app-route-ipc.ts";
 import type { AppRoutes } from "./app-routes.ts";
+import type { WindowPlacement } from "./window-state.ts";
 
 interface WindowOptions {
   appRoutes: AppRoutes;
@@ -15,7 +16,11 @@ interface WindowOptions {
   quitting: () => boolean;
   setupOrigin: () => string;
   webUrl: () => string | undefined;
+  /** Saved position and size; only the main window remembers them. */
+  placement?: WindowPlacement | undefined;
 }
+
+export const windowSizeLimits = { minWidth: 760, minHeight: 560 };
 
 export function isTrustedDesktopEvent(
   event: IpcMainInvokeEvent | IpcMainEvent,
@@ -59,8 +64,8 @@ export function createDesktopWindow(options: WindowOptions) {
   const target = new BrowserWindow({
     width: 1280,
     height: 850,
-    minWidth: 760,
-    minHeight: 560,
+    ...options.placement?.bounds,
+    ...windowSizeLimits,
     title: options.productName,
     icon: options.iconPath,
     show: false,
@@ -87,11 +92,15 @@ export function createDesktopWindow(options: WindowOptions) {
   options.quitGuard.attach(target);
   trackAppRoutes(target, options.appRoutes);
   attachWindowChrome(target);
+  options.placement?.track(target);
   const updateBackground = () => applyWindowAppearance(target);
   nativeTheme.on("updated", updateBackground);
   target.once("closed", () => nativeTheme.removeListener("updated", updateBackground));
   target.once("ready-to-show", () => {
-    if (!options.quitting()) target.show();
+    if (options.quitting()) return;
+
+    target.show();
+    options.placement?.restore(target);
   });
   target.on("page-title-updated", (event) => {
     event.preventDefault();
