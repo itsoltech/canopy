@@ -12,6 +12,9 @@
   const effective = $derived(state.current?.effective);
   const inherited = $derived(state.current?.inherited);
 
+  /** The field is a uint32: a negative, fractional or empty entry would fail to save. */
+  const inactiveDays = (value: string) => Math.min(3650, Math.max(0, Math.trunc(Number(value) || 0)));
+
   const toggles = [
     {
       field: "cleanupDeletedThreads",
@@ -82,7 +85,11 @@
           step={1}
           value={effective.cleanupInactiveDays ?? 0}
           class="w-28"
-          onchange={(event) => state.update({ cleanupInactiveDays: Number(event.currentTarget.value) })}
+          onchange={(event) => {
+            const days = inactiveDays(event.currentTarget.value);
+            event.currentTarget.value = String(days);
+            void state.update({ cleanupInactiveDays: days });
+          }}
         />
       {/snippet}
     </WorktreeSettingRow>
