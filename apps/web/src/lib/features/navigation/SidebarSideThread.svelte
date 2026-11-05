@@ -49,7 +49,7 @@
   <SwapText
     text={thread.title}
     class={[
-      "h-6 min-w-0 flex-1 overflow-hidden text-base/6 sm:text-sm/6",
+      "h-6 min-w-0 flex-1 overflow-hidden text-base/6 sm:h-5 sm:text-sm/5",
       thread.titleGenerating
         ? "shimmer"
         : "text-zinc-700 group-aria-[current=page]:text-zinc-950 group-data-calm:opacity-60 group-data-result:text-zinc-950 dark:text-zinc-300 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
