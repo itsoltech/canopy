@@ -4,6 +4,7 @@ import type { ResolvedProfile } from "../profiles.ts";
 import { claudeProfileOptions } from "./profile.ts";
 import { claudeSkillPlugins } from "./skill-plugin.ts";
 import { managedPlugins } from "../../agent-environment/plugin-loading.ts";
+import { spawnClaude } from "./spawn.ts";
 
 import type { ClaudeInstanceRuntime, ClaudeThreadContext } from "./thread-types.ts";
 
@@ -23,7 +24,11 @@ export function claudeRuntime(ctx: ClaudeThreadContext) {
   const queryRuntime = (
     profile: ResolvedProfile,
     runtime: ClaudeInstanceRuntime,
-  ): Pick<Options, "env" | "settingSources" | "pathToClaudeCodeExecutable" | "extraArgs" | "plugins"> => ({
+  ): Pick<
+    Options,
+    "env" | "settingSources" | "pathToClaudeCodeExecutable" | "extraArgs" | "plugins" | "spawnClaudeCodeProcess"
+  > => ({
+    spawnClaudeCodeProcess: spawnClaude,
     ...claudeProfileOptions(profile, { ...options.baseEnv, CLAUDE_CONFIG_DIR: runtime.home }),
     pathToClaudeCodeExecutable: claudeExecutable(runtime.executable, options.baseEnv),
     ...(runtime.extraArgs && Object.keys(runtime.extraArgs).length > 0 && { extraArgs: runtime.extraArgs }),

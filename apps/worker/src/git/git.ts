@@ -1,3 +1,15 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import {
+  processGovernor,
+  processKey,
+  runProcess,
+  ProcessTimeoutError,
+  ProcessBusyError,
+} from "@canopy/process-governor";
+
+const freshness = new AsyncLocalStorage<boolean>();
+export const freshGit = <T>(run: () => Promise<T>): Promise<T> => freshness.run(true, run);
+
 /**
  * Git for worktrees (docs/worktrees.md): always the `git` binary with an argument list (never a shell), no prompts
  * (a fetch that needs credentials fails instead of waiting) and a time limit. Errors keep git's first lines only,
@@ -49,34 +61,49 @@ export async function git(
   timeoutMs = GIT_TIMEOUT_MS,
   input?: { text?: string; env?: Record<string, string> },
 ): Promise<GitResult> {
-  let proc;
+  const read =
+    !input?.text &&
+    !input?.env &&
+    ([
+      "status",
+      "rev-list",
+      "rev-parse",
+      "symbolic-ref",
+      "for-each-ref",
+      "check-ref-format",
+      "diff",
+      "merge-base",
+      "cherry",
+    ].includes(args[0] ?? "") ||
+      (args[0] === "worktree" && args[1] === "list") ||
+      (args[0] === "remote" && args.length === 1) ||
+      (args[0] === "config" && args[1] === "--get"));
+
+  const command = {
+    argv: ["git", ...args],
+    cwd,
+    env: { ...process.env, ...ENV, ...input?.env },
+    timeoutMs,
+    ...(input?.text !== undefined && { input: input.text }),
+  };
+
+  if (!read) processGovernor.invalidate();
 
   try {
-    proc = Bun.spawn(["git", ...args], {
-      cwd,
-      env: { ...process.env, ...ENV, ...input?.env },
-      stdin: input?.text === undefined ? "ignore" : new TextEncoder().encode(input.text),
-      stdout: "pipe",
-      stderr: "pipe",
+    const result = await runProcess(command, {
+      kind: "git",
+      ...(read && !freshness.getStore() && { key: processKey(command), ttlMs: 1_000 }),
     });
-  } catch {
+
+    return { ok: result.code === 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    if (error instanceof ProcessBusyError) throw new GitError("GIT_BUSY", error.message);
+
+    if (error instanceof ProcessTimeoutError)
+      throw new GitError("GIT_TIMEOUT", "git exceeded its time or output limit");
     throw new GitError("GIT_UNAVAILABLE", "git is not installed on this worker");
-  }
-
-  const timer = setTimeout(() => proc.kill(), timeoutMs);
-
-  try {
-    const [stdout, stderr, code] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ]);
-
-    if (proc.signalCode) throw new GitError("GIT_TIMEOUT", `git ${args[0]} took longer than ${timeoutMs / 1000} s`);
-
-    return { ok: code === 0, stdout, stderr };
   } finally {
-    clearTimeout(timer);
+    if (!read) processGovernor.invalidate();
   }
 }
 

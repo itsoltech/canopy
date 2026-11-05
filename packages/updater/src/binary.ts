@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { governBunSpawn } from "@canopy/process-governor";
 import { existsSync } from "node:fs";
 import { chmod, copyFile, lstat, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -403,23 +404,25 @@ export async function superviseBinary(options: SupervisorOptions): Promise<numbe
 
       try {
         executable = await lstat(options.binaryPath);
-        child = Bun.spawn([options.binaryPath, ...options.args], {
-          env,
-          stdin: "inherit",
-          stdout: "inherit",
-          stderr: "inherit",
-          serialization: "json",
-          ipc(message: JsonValue, sender) {
-            if (
-              sender !== child ||
-              !isStartupConfirmation(message) ||
-              (expectedVersion && message.version !== expectedVersion)
-            )
-              return;
-            confirmedVersion = message.version;
-            requestHandover();
-          },
-        });
+        child = governBunSpawn("supervisor", () =>
+          Bun.spawn([options.binaryPath, ...options.args], {
+            env,
+            stdin: "inherit",
+            stdout: "inherit",
+            stderr: "inherit",
+            serialization: "json",
+            ipc(message: JsonValue, sender) {
+              if (
+                sender !== child ||
+                !isStartupConfirmation(message) ||
+                (expectedVersion && message.version !== expectedVersion)
+              )
+                return;
+              confirmedVersion = message.version;
+              requestHandover();
+            },
+          }),
+        );
       } catch (error) {
         if (!pending || pending.state !== "restarting") throw error;
         await rollbackBinary(options.binaryPath, "New executable could not start");

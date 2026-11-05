@@ -1,5 +1,6 @@
 import type { InitializeParams, ServerNotification, ServerRequest, v2 } from "@canopy/codex-protocol";
 import { Context, Effect, Layer, PubSub, Schema, Stream } from "effect";
+import { governBunSpawn } from "@canopy/process-governor";
 import type { JsonValue } from "@canopy/domain";
 import { decodeJson } from "../json.ts";
 import type { CodexAppServerLaunch } from "./launch.ts";
@@ -82,12 +83,14 @@ export class CodexAppServer extends Context.Service<
 
         const proc = yield* Effect.acquireRelease(
           Effect.sync(() =>
-            Bun.spawn([...options.launch.command], {
-              env: options.launch.env,
-              stdin: "pipe",
-              stdout: "pipe",
-              stderr: "pipe",
-            }),
+            governBunSpawn("harness", () =>
+              Bun.spawn([...options.launch.command], {
+                env: options.launch.env,
+                stdin: "pipe",
+                stdout: "pipe",
+                stderr: "pipe",
+              }),
+            ),
           ),
           (proc) =>
             Effect.promise(async () => {

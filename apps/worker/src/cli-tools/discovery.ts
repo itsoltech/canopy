@@ -2,6 +2,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { CliInstallMethod, Provider } from "@canopy/contracts";
+import { processKey, runProcess } from "@canopy/process-governor";
 
 /**
  * Provider CLIs on the device (docs/provider-cli.md). Canopy never bundles them: the worker finds the executable it
@@ -190,17 +191,15 @@ const VERSION_TIMEOUT_MS = 10_000;
 
 async function firstLine(argv: string[]): Promise<string | undefined> {
   try {
-    const child = Bun.spawn(argv, {
-      stdout: "pipe",
-      stderr: "ignore",
-      stdin: "ignore",
-      timeout: VERSION_TIMEOUT_MS,
+    const command = {
+      argv,
+      timeoutMs: VERSION_TIMEOUT_MS,
       env: { ...process.env, NO_COLOR: "1" },
-    });
+    };
 
-    const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+    const result = await runProcess(command, { kind: "probe", key: processKey(command), ttlMs: 60_000 });
 
-    return code === 0 ? out.trim().split("\n")[0] : undefined;
+    return result.code === 0 ? result.stdout.trim().split("\n")[0] : undefined;
   } catch {
     return undefined;
   }

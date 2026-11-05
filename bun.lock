@@ -58,6 +58,7 @@
         "@canopy/contracts": "workspace:*",
         "@canopy/db": "workspace:*",
         "@canopy/domain": "workspace:*",
+        "@canopy/process-governor": "workspace:*",
         "@canopy/transport": "workspace:*",
         "@canopy/updater": "workspace:*",
         "@connectrpc/connect": "2.3.0",
@@ -159,6 +160,7 @@
         "@canopy/contracts": "workspace:*",
         "@canopy/domain": "workspace:*",
         "@canopy/grok-acp": "workspace:*",
+        "@canopy/process-governor": "workspace:*",
         "@canopy/transport": "workspace:*",
         "@canopy/updater": "workspace:*",
         "@connectrpc/connect": "2.3.0",
@@ -205,6 +207,13 @@
     "packages/grok-acp": {
       "name": "@canopy/grok-acp",
       "version": "0.0.0",
+      "dependencies": {
+        "@canopy/process-governor": "workspace:*",
+      },
+    },
+    "packages/process-governor": {
+      "name": "@canopy/process-governor",
+      "version": "0.0.0",
     },
     "packages/testing": {
       "name": "@canopy/testing",
@@ -230,6 +239,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@canopy/domain": "workspace:*",
+        "@canopy/process-governor": "workspace:*",
       },
     },
     "tests/integration": {
@@ -241,6 +251,7 @@
         "@canopy/db": "workspace:*",
         "@canopy/domain": "workspace:*",
         "@canopy/gateway": "workspace:*",
+        "@canopy/process-governor": "workspace:*",
         "@canopy/transport": "workspace:*",
         "@canopy/worker": "workspace:*",
         "@connectrpc/connect": "2.3.0",
@@ -473,6 +484,8 @@
     "@canopy/integration-tests": ["@canopy/integration-tests@workspace:tests/integration"],
 
     "@canopy/mobile": ["@canopy/mobile@workspace:apps/mobile"],
+
+    "@canopy/process-governor": ["@canopy/process-governor@workspace:packages/process-governor"],
 
     "@canopy/testing": ["@canopy/testing@workspace:packages/testing"],
 

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { processGovernor, killProcessTree } from "@canopy/process-governor";
 import { lookup } from "node:dns/promises";
 import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -74,92 +75,92 @@ async function git(
   authorizationUrl = "",
   signal?: AbortSignal,
 ) {
-  return new Promise<Buffer>((resolve, reject) => {
-    const child = spawn("git", ["--no-pager", ...config, ...argv], {
-      cwd: directory,
-      detached: process.platform !== "win32",
-      env: {
-        PATH: process.env["PATH"],
-        HOME: directory,
-        XDG_CONFIG_HOME: directory,
-        GIT_CONFIG_NOSYSTEM: "1",
-        GIT_CONFIG_GLOBAL: "/dev/null",
-        GIT_TERMINAL_PROMPT: "0",
-        GIT_CONFIG_COUNT: secret ? "1" : "0",
-        ...(secret && {
-          GIT_CONFIG_KEY_0: `http.${authorizationUrl}/.extraHeader`,
-          GIT_CONFIG_VALUE_0: `Authorization: ${secret}`,
-        }),
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+  return processGovernor.run(
+    { kind: "git" },
+    () =>
+      new Promise<Buffer>((resolve, reject) => {
+        signal?.throwIfAborted();
 
-    const chunks: Buffer[] = [];
-    let bytes = 0;
-    let stopped = false;
-    let finished = false;
-
-    const stop = () => {
-      if (finished) return;
-      stopped = true;
-
-      if (child.pid && process.platform !== "win32") {
-        try {
-          process.kill(-child.pid, "SIGKILL");
-        } catch {
-          /* Own process already exited. */
-        }
-      } else child.kill("SIGKILL");
-    };
-
-    const timer = setTimeout(stop, 60_000);
-    signal?.addEventListener("abort", stop, { once: true });
-
-    if (signal?.aborted) stop();
-    let scanning = false;
-
-    const monitor = setInterval(() => {
-      if (scanning || stopped) return;
-      scanning = true;
-      void diskBytes(directory)
-        .catch(stop)
-        .finally(() => {
-          scanning = false;
+        const child = spawn("git", ["--no-pager", ...config, ...argv], {
+          cwd: directory,
+          detached: process.platform !== "win32",
+          env: {
+            PATH: process.env["PATH"],
+            HOME: directory,
+            XDG_CONFIG_HOME: directory,
+            GIT_CONFIG_NOSYSTEM: "1",
+            GIT_CONFIG_GLOBAL: "/dev/null",
+            GIT_TERMINAL_PROMPT: "0",
+            GIT_CONFIG_COUNT: secret ? "1" : "0",
+            ...(secret && {
+              GIT_CONFIG_KEY_0: `http.${authorizationUrl}/.extraHeader`,
+              GIT_CONFIG_VALUE_0: `Authorization: ${secret}`,
+            }),
+          },
+          stdio: ["ignore", "pipe", "pipe"],
         });
-    }, 50);
 
-    const count = (data: Buffer) => {
-      bytes += data.length;
+        const chunks: Buffer[] = [];
+        let bytes = 0;
+        let stopped = false;
+        let finished = false;
 
-      if (bytes > maxBytes) stop();
-    };
+        const stop = () => {
+          if (finished) return;
+          stopped = true;
 
-    child.stdout.on("data", (data: Buffer) => {
-      count(data);
+          if (child.pid) void killProcessTree(child.pid);
+        };
 
-      if (!stopped) chunks.push(data);
-    });
-    child.stderr.on("data", count);
-    child.on("error", () => {
-      finished = true;
-      signal?.removeEventListener("abort", stop);
-      clearTimeout(timer);
-      clearInterval(monitor);
-      reject(new Error("Git is unavailable in the gateway."));
-    });
-    child.on("close", (code) => {
-      finished = true;
-      signal?.removeEventListener("abort", stop);
-      clearTimeout(timer);
-      clearInterval(monitor);
+        const timer = setTimeout(stop, 60_000);
+        signal?.addEventListener("abort", stop, { once: true });
 
-      if (code !== 0 || stopped)
-        reject(
-          new Error("Source fetch failed or exceeded its limits. Check the repository, ref and connector access."),
-        );
-      else resolve(Buffer.concat(chunks));
-    });
-  });
+        if (signal?.aborted) stop();
+        let scanning = false;
+
+        const monitor = setInterval(() => {
+          if (scanning || stopped) return;
+          scanning = true;
+          void diskBytes(directory)
+            .catch(stop)
+            .finally(() => {
+              scanning = false;
+            });
+        }, 50);
+
+        const count = (data: Buffer) => {
+          bytes += data.length;
+
+          if (bytes > maxBytes) stop();
+        };
+
+        child.stdout.on("data", (data: Buffer) => {
+          count(data);
+
+          if (!stopped) chunks.push(data);
+        });
+        child.stderr.on("data", count);
+        child.on("error", () => {
+          finished = true;
+          signal?.removeEventListener("abort", stop);
+          clearTimeout(timer);
+          clearInterval(monitor);
+          reject(new Error("Git is unavailable in the gateway."));
+        });
+        child.on("close", (code) => {
+          finished = true;
+          signal?.removeEventListener("abort", stop);
+          clearTimeout(timer);
+          clearInterval(monitor);
+
+          if (code !== 0 || stopped)
+            reject(
+              new Error("Source fetch failed or exceeded its limits. Check the repository, ref and connector access."),
+            );
+          else resolve(Buffer.concat(chunks));
+        });
+      }),
+  );
 }
 
 export interface GitEntry {

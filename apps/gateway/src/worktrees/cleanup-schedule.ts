@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { withProcessPriority } from "@canopy/process-governor";
 import { ui } from "@canopy/contracts";
 import type { GatewayCore } from "../core/core.ts";
 import { coreLog } from "../core/core-broadcast.ts";
@@ -23,8 +24,9 @@ export class WorktreeCleanupSchedule {
 
     if (existing) return existing;
 
-    const run = this.core
-      .cleanupWorktrees(create(ui.CleanupWorktreesRequestSchema, { workerId, dryRun: false }))
+    const run = withProcessPriority("background", () =>
+      this.core.cleanupWorktrees(create(ui.CleanupWorktreesRequestSchema, { workerId, dryRun: false })),
+    )
       .then(() => {})
       .catch(() => coreLog(this.core, "worktree cleanup unavailable; will retry later"))
       .finally(() => this.#running.delete(workerId));

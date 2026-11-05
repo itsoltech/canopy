@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
 import { claudeExecutable } from "./claude/executable.ts";
+import { spawnClaude } from "./claude/spawn.ts";
 import { Deferred, Effect, Stream } from "effect";
 import { CodexAppServer } from "./codex/app-server.ts";
 import { codexThreadProvider, type CodexAppServerLaunch } from "./codex/launch.ts";
@@ -93,6 +94,7 @@ export async function generateClaudeText(
     prompt: input.prompt,
     options: {
       ...runtime,
+      spawnClaudeCodeProcess: spawnClaude,
       pathToClaudeCodeExecutable: executable,
       ...(input.model && { model: input.model }),
       ...(isClaudeEffort(input.effort) && { effort: input.effort }),

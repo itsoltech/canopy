@@ -37,7 +37,8 @@ if (!process.env["CANOPY_SUPERVISED"]) {
     await superviseBinary({
       binaryPath,
       args: Bun.argv.slice(2),
-      startupTimeoutMs: 600,
+      // Compiled fixtures run on disk-backed private TMPDIRs as well as tmpfs.
+      startupTimeoutMs: 2_000,
       pollMs: 10,
       log: (message) => event("log", { message }),
     }),

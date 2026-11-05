@@ -1,4 +1,5 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawnGrok } from "./process.ts";
 import type {
   ClientCallbacks,
   Content,
@@ -65,12 +66,7 @@ export class GrokClient {
 
   constructor(options: GrokOptions = {}) {
     this.#options = options;
-    this.#process = spawn(options.executable ?? "grok", [...(options.args ?? ["agent", "--no-leader", "stdio"])], {
-      ...(options.cwd && { cwd: options.cwd }),
-      env: options.env ?? process.env,
-      stdio: ["pipe", "pipe", "pipe"],
-      detached: process.platform !== "win32",
-    });
+    this.#process = spawnGrok(options);
     this.#exited = new Promise((resolve) => {
       this.#process.once("close", (code, signal) => {
         this.#fail(new AcpError(`Grok exited (${signal ?? code})`));
