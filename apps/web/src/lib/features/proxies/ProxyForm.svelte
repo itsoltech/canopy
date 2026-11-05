@@ -83,11 +83,11 @@
 </script>
 
 <form class={["grid min-w-0 gap-5", className]} onsubmit={save}>
-  <div class="grid gap-4 sm:grid-cols-2">
+  <div class="grid items-start gap-4 sm:grid-cols-2">
     <Field label="Name"
       ><Input name="proxy-name" bind:value={name} required maxlength={80} placeholder="Team proxy" /></Field
     >
-    <Field label="Kind"
+    <Field label="Kind" description={proxyKinds.find((k) => k.value === kind)?.compatibility}
       ><Select
         name="proxy-kind"
         options={proxyKinds}
@@ -101,7 +101,10 @@
       /></Field
     >
   </div>
-  <Field label="Base URL" description="With or without /v1. The correct path is derived for each harness.">
+  <Field
+    label="Base URL"
+    description="The address of your proxy, with or without /v1. Canopy adds the right path for each agent."
+  >
     <Input
       name="proxy-url"
       bind:value={baseUrl}
@@ -115,10 +118,9 @@
   <Field label="Secret" description="Encrypted in the gateway. Saved values are never shown again.">
     <SecretValue set={proxy?.secretSet ?? false} bind:action bind:value={secret} name="proxy-secret" />
   </Field>
-  <ProxyMappings {kind} {baseUrl} />
   {#if kind !== "anthropic"}
     <Disclosure>
-      {#snippet summary()}Advanced · Codex transport{/snippet}
+      {#snippet summary()}Advanced: Codex transport{/snippet}
       <div class="grid gap-4 pt-4">
         <Field label="Wire API" description="The installed Codex adapter uses the Responses API."
           ><Input value="responses" readonly /></Field
@@ -138,6 +140,10 @@
       </div>
     </Disclosure>
   {/if}
+  <Disclosure>
+    {#snippet summary()}Advanced: how agents use this proxy{/snippet}
+    <ProxyMappings {kind} {baseUrl} class="pt-4" />
+  </Disclosure>
   {#if failure}<Alert tone="error">{failure}</Alert>{/if}
   <div class="flex flex-wrap justify-end gap-2">
     <Button variant="ghost" onclick={oncancel}>Cancel</Button>

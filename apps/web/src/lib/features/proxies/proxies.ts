@@ -3,14 +3,26 @@ import { Provider, ui } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 
+/** Kind picker options; `compatibility` is the hint under the picker: which agents can use the kind. */
 export const proxyKinds = [
   {
     value: "cliproxyapi",
     label: "CLIProxyAPI or a fork",
     description: "Claude, Codex and Grok through one connection.",
+    compatibility: "Claude, Codex and Grok can all use it.",
   },
-  { value: "anthropic", label: "Anthropic-compatible", description: "Messages API for Claude." },
-  { value: "openai", label: "OpenAI-compatible", description: "Responses API for Codex; Chat Completions for Grok." },
+  {
+    value: "anthropic",
+    label: "Anthropic-compatible",
+    description: "Messages API for Claude.",
+    compatibility: "Only Claude can use it. Codex and Grok need an OpenAI-compatible proxy.",
+  },
+  {
+    value: "openai",
+    label: "OpenAI-compatible",
+    description: "Responses API for Codex; Chat Completions for Grok.",
+    compatibility: "Codex and Grok can use it. Claude needs an Anthropic-compatible proxy.",
+  },
 ] as const;
 
 export const supportsHarness = (proxy: ui.Proxy, harness: Provider) =>
