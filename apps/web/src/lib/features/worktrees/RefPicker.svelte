@@ -79,6 +79,7 @@
       </SearchPicker>
     {:else if branch}
       <div
+        data-composer-branch
         class="flex min-h-8 min-w-0 items-center gap-1.5 px-2 text-sm/5 text-zinc-500 sm:text-[0.8125rem]/5 dark:text-zinc-400"
         title={branch}
       >

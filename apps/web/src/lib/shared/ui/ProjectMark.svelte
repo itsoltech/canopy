@@ -8,6 +8,7 @@
 
 {#if kind === "scratch"}
   <span
+    data-project-mark
     class={[
       "inline-block size-4.5 shrink-0 rounded-sm border border-dashed border-zinc-500 dark:border-zinc-400",
       className,

@@ -27,6 +27,7 @@
 </script>
 
 <span
+  data-project-mark
   class={[
     "inline-grid size-4.5 shrink-0 place-items-center rounded-sm font-mono text-[0.5625rem]/none font-bold tracking-tight",
     tone,

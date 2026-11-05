@@ -811,6 +811,11 @@ Harmonogramy i ustawienia botów korzystają z wyborów bez ścieżek. Szczegó�
 edytora roots. Katalog nadal jest widoczny i edytowalny w ustawieniach projektu oraz dostępny
 w skróconym wierszu katalogu roboczego panelu wątku, tooltipach i kopiowaniu.
 
+Wiersz kontekstu pod polem wiadomości (`ComposerContextRow`) ma tekst 12 px, ikony
+12 px i znaki projektów 16 px. Przyciski mają co najmniej 32 px wysokości, a na
+telefonie i przy obsłudze dotykowej 40 px. Menu, pola tekstowe oraz wybór modelu
+i wysiłku zachowują standardowe rozmiary aplikacji.
+
 ### Strefa czasowa użytkownika
 
 `UserSettings.timezone` (pole **620**) to nazwa strefy IANA; brak zapisanej wartości
