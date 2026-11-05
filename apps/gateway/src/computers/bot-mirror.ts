@@ -164,9 +164,11 @@ export class BotMirror {
           const sql = yield* SqlClient.SqlClient;
           yield* sql.withTransaction(
             Effect.gen(function* () {
-              // Serialize replacement and unlink. A late subscription cannot recreate an unlinked peer.
+              // Serialize replacement and unlink. A late subscription cannot recreate an unlinked peer
+              // or a revoked relay home that remains only as a callback-only origin.
               const peer =
-                yield* sql`SELECT node_id FROM computer_peers WHERE owner_user_id=${owner}::uuid AND node_id=${node} FOR UPDATE`;
+                yield* sql`SELECT node_id FROM computer_peers WHERE owner_user_id=${owner}::uuid AND node_id=${node}
+                AND (via_node_id IS NULL OR relay_role IN ('home','both')) FOR UPDATE`;
 
               if (!peer.length || signal.aborted) return;
               yield* sql`DELETE FROM computer_mirror_bots WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node}`;
