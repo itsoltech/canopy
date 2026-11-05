@@ -78,7 +78,7 @@
     <IconButton
       size="sm"
       icon="information-circle"
-      label="Update all goes in order: gateway, binary workers, agent CLIs, then Canopy apps on other computers. Each step waits for the one before."
+      label="Update all skips externally managed items. It updates the gateway, binary workers, native agent CLIs, then Canopy apps."
     />
     <IconButton
       size="sm"

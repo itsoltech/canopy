@@ -11,6 +11,7 @@
   import UpdateNotes from "./UpdateNotes.svelte";
   import UpdateRun from "./UpdateRun.svelte";
   import { cliActions } from "./cli-tools.svelte.ts";
+  import { updatesAvailable } from "./compact-updates.ts";
   import { updateBusy, updateStateLabel, type UpdatesState } from "./updates.svelte.ts";
 
   let {
@@ -34,14 +35,16 @@
 
 <section class={["grid gap-4", className]} aria-label="Gateway and worker updates">
   <div class="flex flex-wrap gap-2">
-    <Button
-      size="sm"
-      variant={appReady ? "secondary" : "primary"}
-      disabled={busy || !snapshot}
-      loading={running}
-      onclick={() => void updates.manage({ action: "update_all" })}
-      >{snapshot?.run && ["failed", "blocked"].includes(snapshot.run.state) ? "Retry update all" : "Update all"}</Button
-    >
+    {#if snapshot && updatesAvailable(snapshot)}<Button
+        size="sm"
+        variant={appReady ? "secondary" : "primary"}
+        disabled={busy || !snapshot}
+        loading={running}
+        onclick={() => void updates.manage({ action: "update_all" })}
+        >{snapshot?.run && ["failed", "blocked"].includes(snapshot.run.state)
+          ? "Retry update all"
+          : "Update all"}</Button
+      >{/if}
     <Button
       size="sm"
       disabled={busy || cli.pending["check/"]}

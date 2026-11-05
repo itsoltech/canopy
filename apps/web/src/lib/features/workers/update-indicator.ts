@@ -1,5 +1,6 @@
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import type { ui } from "@canopy/contracts";
+import { updatesAvailable, externalUpdatesAvailable } from "./compact-updates.ts";
 
 export function updateIndicator(
   app: DesktopUpdateStatus | undefined,
@@ -62,13 +63,11 @@ export function updateIndicator(
   )
     return { phase: "checking", message: "Checking for updates", progress: undefined };
 
-  if (
-    snapshot?.gatewayUpdateAvailable ||
-    workers.some((w) => w.installKind === "binary" && w.version !== snapshot?.gatewayVersion && w.state !== "ahead") ||
-    clis.some((t) => !!t.action) ||
-    workers.some((w) => !!w.desktop?.availableVersion && w.desktop.availableVersion !== w.desktop.version)
-  )
+  if (snapshot && updatesAvailable(snapshot))
     return { phase: "available", message: "Updates available", progress: undefined };
+
+  if (snapshot && externalUpdatesAvailable(snapshot))
+    return { phase: "external", message: "Updates available outside Canopy", progress: undefined };
 
   return { phase: "quiet", message: app?.publishing || "Up to date", progress: undefined };
 }

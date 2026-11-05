@@ -79,9 +79,25 @@ async function fixture(kind: "binary" | "docker" = "binary", version = "2.0.0") 
 
           if (path === "/binary") return new Response(bytes);
 
-          if (path === "/manifest") return Response.json(manifest);
+          if (path.startsWith("/manifest"))
+            return Response.json({ ...manifest, version: path.slice("/manifest/".length) || manifest.version });
 
-          return Response.json(path.includes("/tags/") ? release : [release]);
+          if (path.includes("/tags/")) {
+            const requestedVersion = path.split("/tags/v")[1] || manifest.version;
+
+            return Response.json({
+              ...release,
+              tag_name: `v${requestedVersion}`,
+              assets: [
+                {
+                  name: "manifest.json",
+                  browser_download_url: `https://releases.fixture/manifest/${requestedVersion}`,
+                },
+              ],
+            });
+          }
+
+          return Response.json([release]);
         },
       },
     },
@@ -133,7 +149,7 @@ function cliReport(gateway: TestGateway, version: string, state = "") {
       tools: [
         {
           provider: Provider.CLAUDE,
-          method: CliInstallMethod.NPM,
+          method: CliInstallMethod.NATIVE,
           version,
           installable: true,
           ...(state && { install: { installId: "fixture", state, targetVersion: "2.0.0" } }),
@@ -152,6 +168,27 @@ async function workerCommand(f: Awaited<ReturnType<typeof fixture>>) {
   while (!event.value?.command) event = await iterator.next();
 
   return event.value.command;
+}
+
+function externalCliReport(gateway: TestGateway) {
+  return gateway.core.cli.report(
+    gateway.workerId,
+    create(CliToolsReportSchema, {
+      os: "linux",
+      arch: "x64",
+      tools: [
+        { provider: Provider.CLAUDE, method: CliInstallMethod.NPM, version: "1.0.0", installable: true },
+        {
+          provider: Provider.CODEX,
+          method: CliInstallMethod.HOMEBREW,
+          version: "1.0.0",
+          installable: true,
+          manualCommand: "brew upgrade codex",
+        },
+        { provider: Provider.GROK, method: CliInstallMethod.BUN, version: "1.0.0", installable: true },
+      ],
+    }),
+  );
 }
 
 describe.skipIf(!dockerAvailable)("ordered update all through authenticated gateway and worker gRPC", () => {
@@ -292,14 +329,63 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     expect(f.gateway.worker.commands.some((c) => c.case === "installCli")).toBe(false);
   });
 
-  test("an external gateway blocks every later update and explains the manual image step", async () => {
-    const f = await fixture("docker", "1.0.0");
+  test("an external gateway and manager-installed CLIs are skipped while a binary worker updates successfully", async () => {
+    const f = await fixture("docker", "1.5.0");
+    await externalCliReport(f.gateway);
     const result = await f.gateway.api.manageUpdates({ action: "update_all" });
-    expect(result.run?.steps.map((s) => s.kind)).toEqual(["gateway", "worker", "cli"]);
-    expect(result.run?.state).toBe("blocked");
-    expect(result.run?.reason).toContain("Pull the new image");
-    expect(result.run?.steps.slice(1).every((s) => s.state === "queued")).toBe(true);
+    expect(result.gatewayUpdateAvailable).toBe(true);
+    expect(result.run?.steps.map((s) => [s.kind, s.version])).toEqual([["worker", "1.5.0"]]);
+    const command = await workerCommand(f);
+    expect(command.version).toBe("1.5.0");
+    await f.client.report(
+      { workerId: f.gateway.workerId, commandId: command.id, state: "succeeded", version: "1.5.0" },
+      { headers: f.headers },
+    );
+    await f.client.check({ ...f.hello, version: "1.5.0" }, { headers: f.headers });
+    await f.gateway.core.updateCenter.tick();
+    await f.gateway.core.updateCenter.tick();
+    expect((await f.gateway.api.getUpdates({})).run?.state).toBe("succeeded");
     expect(f.gateway.worker.commands.some((c) => c.case === "installCli")).toBe(false);
+    expect(f.restarted()).toBe(false);
+  });
+
+  test("only external items refuse an empty run without persisting a failure", async () => {
+    const f = await fixture("docker", "1.0.0");
+    await externalCliReport(f.gateway);
+    await f.client.check({ ...f.hello, installKind: "docker" }, { headers: f.headers });
+    expect(await failure(f.gateway.api.manageUpdates({ action: "update_all" }))).toContain(
+      "No updates Canopy can install",
+    );
+    expect((await f.gateway.api.getUpdates({})).run).toBeUndefined();
+    expect(await new UpdateRunStore(f.gateway.runtime, f.gateway.userId).read()).toBeUndefined();
+    expect(f.gateway.worker.commands.some((c) => c.case === "installCli")).toBe(false);
+    expect(f.restarted()).toBe(false);
+  });
+
+  test("a snapshot hides an obsolete external-gateway failure but preserves actual worker failures", async () => {
+    const f = await fixture("docker", "1.0.0");
+    await externalCliReport(f.gateway);
+    await f.client.check({ ...f.hello, installKind: "docker" }, { headers: f.headers });
+    const store = new UpdateRunStore(f.gateway.runtime, f.gateway.userId);
+
+    const run = create(ui.UpdateRunSchema, {
+      id: crypto.randomUUID(),
+      state: "blocked",
+      reason: "Gateway: Managed externally",
+      steps: [
+        {
+          kind: "gateway",
+          state: "blocked",
+          reason: "[failed_precondition] Managed externally — Managed externally. Pull the new image tag.",
+        },
+      ],
+    });
+
+    await store.write(run);
+    expect((await f.gateway.api.getUpdates({})).run).toBeUndefined();
+    run.steps.push(create(ui.UpdateStepSchema, { kind: "worker", state: "failed", reason: "SHA-256 mismatch" }));
+    await store.write(run);
+    expect((await f.gateway.api.getUpdates({})).run?.id).toBe(run.id);
   });
 
   test("a self-updatable gateway stages and restarts first; the chain waits for its new running version", async () => {

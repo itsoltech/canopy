@@ -1,10 +1,12 @@
 <script lang="ts">
   import { CliInstallMethod, Provider, type ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
+  import { cliManagedExternally } from "@canopy/domain/release/update-actions";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import UpdateItem from "./UpdateItem.svelte";
   import { cliCurrent } from "./compact-updates.ts";
   import { cliActions, cliLabel, versionProblem } from "./cli-tools.svelte.ts";
+  import { cliExternalInstructions } from "./cli-update-instructions.ts";
 
   let {
     worker,
@@ -15,6 +17,7 @@
 
   const cli = cliActions();
   const tool = $derived(item.tool);
+  const external = $derived(cliManagedExternally(item));
   const key = $derived(`${worker.id}/${tool?.provider}`);
   const busy = $derived(tool?.install?.state === "running" || cli.pending[key]);
 
@@ -27,7 +30,13 @@
   );
 
   const detail = $derived(
-    item.blockedReason || error || (tool && versionProblem(tool)) || item.managedBy || tool?.detail || "",
+    (external ? cliExternalInstructions(item) : "") ||
+      item.blockedReason ||
+      error ||
+      (tool && versionProblem(tool)) ||
+      item.managedBy ||
+      tool?.detail ||
+      "",
   );
 </script>
 
@@ -43,11 +52,13 @@
         ? "Failed"
         : cliCurrent(item)
           ? "Up to date"
-          : item.action
-            ? "Available"
-            : item.managedBy
-              ? "External"
-              : "Unavailable"}
+          : external
+            ? "Managed externally"
+            : item.action
+              ? "Available"
+              : item.managedBy
+                ? "Managed externally"
+                : "Unavailable"}
     tone={error ? "rose" : busy ? "amber" : "neutral"}
     {busy}
     {error}
@@ -55,7 +66,7 @@
     class={className}
   >
     {#snippet action()}
-      {#if item.action && !busy}
+      {#if item.action && !external && !busy}
         <IconButton
           icon={item.action === "install" ? "plus" : "arrow-up"}
           size="sm"
@@ -63,7 +74,12 @@
           disabled={disabled || !!item.blockedReason}
           onclick={() => void cli.install(worker.id, tool.provider)}
         />
-      {:else if detail}<IconButton icon="information-circle" size="sm" label={detail} />{/if}
+      {:else if detail}<IconButton
+          icon="information-circle"
+          size="sm"
+          label={detail}
+          tooltipOptions={{ touch: "tap" }}
+        />{/if}
     {/snippet}
   </UpdateItem>
 {/if}
