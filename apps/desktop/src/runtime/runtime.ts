@@ -8,6 +8,7 @@ import { sameDesktopConfiguration, type DesktopConfiguration, type DesktopStatus
 import { remoteWorkerDirectory, type DesktopClientCredential } from "../remote-client.ts";
 import { desktopWorkerIdle, remoteEnrollment, startDesktopWorker } from "./worker-runtime.ts";
 import { configuration, freePort, initialStatus, serviceEnvironment, isWorkerStatus } from "./config.ts";
+import { localGatewayEnvironment } from "./gateway-env.ts";
 import { startDatabase } from "./database.ts";
 import { PostgresInstaller, postgresTestOptions, type PostgresTestOptions } from "./postgres-install.ts";
 import { Logs } from "./log.ts";
@@ -257,15 +258,11 @@ export class DesktopRuntime {
       name: "gateway",
       ...this.command(this.paths.gateway),
       cwd: dirname(this.paths.gateway),
-      env: {
-        ...this.env,
-        CANOPY_DATABASE_URL: databaseUrl,
-        CANOPY_SECRETS_KEY: this.secrets.secretsKey,
-        CANOPY_UI_SERVICE_TOKEN: this.secrets.serviceToken,
-        CANOPY_GATEWAY_ROLE: "desktop",
-        CANOPY_HOST: "127.0.0.1",
-        CANOPY_PORT: String(gatewayPort),
-      },
+      env: localGatewayEnvironment(this.env, this.secrets, {
+        databaseUrl,
+        port: gatewayPort,
+        webOrigin: this.setupOrigin,
+      }),
       restart: true,
     });
     const client = this.client(gatewayUrl);

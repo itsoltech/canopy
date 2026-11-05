@@ -44,10 +44,33 @@ message Tailscale {
   // The tailnet issues HTTPS certificates for this computer's name.
   bool https_certificates = 7;
   int64 checked_at_ms = 8;
+  // HTTPS over Tailscale: the web app at https://<dns_name>[:port] through Tailscale Serve.
+  TailscaleHttps https = 9;
+}
+message TailscaleHttps {
+  // The switch in Settings.
+  bool enabled = 1;
+  // off, on, error, unavailable
+  string state = 2;
+  // The HTTPS port in use, or the one chosen for next time; 0 while automatic and off.
+  uint32 port = 3;
+  // No port was chosen: 443 when it is free in Serve, otherwise 8447.
+  bool port_automatic = 4;
+  // https://name[:port] while on.
+  string url = 5;
+  // Why it isn't working, in the words the UI shows (a used port, missing operator rights).
+  string error = 6;
+  // Why it can't be turned on now, in the words the UI shows; empty when it can.
+  string unavailable = 7;
+  // The Tailscale admin console page with the one action needed (HTTPS certificates); empty otherwise.
+  string admin_url = 8;
+  // The Tailscale login that may open it; empty when every device in the tailnet may (a tagged server).
+  string allowed_login = 9;
 }
 message GetNetworkAccessRequest {}
 message UpdateNetworkAccessRequest {
-  // set_enabled, set_port, choose_port (a new free port), set_hostnames, refresh_tailscale
+  // set_enabled, set_port, choose_port (a new free port), set_hostnames, refresh_tailscale,
+  // set_tailscale_https (enabled), set_tailscale_https_port (port; 0 = automatic)
   string action = 1;
   bool enabled = 2;
   uint32 port = 3;

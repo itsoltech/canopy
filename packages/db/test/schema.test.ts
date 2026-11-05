@@ -94,6 +94,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "80_full_access_mode",
       "81_connector_oauth_completion",
       "82_computer_route_withdrawn",
+      "83_tailscale_https",
     ]);
   }, 60_000);
 
@@ -606,6 +607,13 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       );
       await query(insert, [w.user, 24000, ["laptop.tailnet.ts.net"]]);
       expect(await query(`SELECT enabled FROM network_access`)).toEqual([{ enabled: false }]);
+      // HTTPS over Tailscale (0083): off by default, real ports, the recorded Serve entry is an object.
+      expect(await query(`SELECT tailscale_https, tailscale_https_port, tailscale_serve FROM network_access`)).toEqual([
+        { tailscale_https: false, tailscale_https_port: null, tailscale_serve: null },
+      ]);
+      expect(await failure(`UPDATE network_access SET tailscale_https_port = 0`)).toContain("check");
+      expect(await failure(`UPDATE network_access SET tailscale_front_port = 70000`)).toContain("check");
+      expect(await failure(`UPDATE network_access SET tailscale_serve = '[]'`)).toContain("check");
       expect(await failure(insert, [w.user, 24001, []])).toContain("network_access_pkey");
       await query(`DELETE FROM network_access`);
     });

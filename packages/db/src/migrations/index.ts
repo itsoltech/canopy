@@ -80,6 +80,7 @@ import connectorErrors from "./0079_connector_errors.sql" with { type: "text" };
 import fullAccessMode from "./0080_full_access_mode.sql" with { type: "text" };
 import connectorOAuthCompletion from "./0081_connector_oauth_completion.sql" with { type: "text" };
 import computerRouteWithdrawn from "./0082_computer_route_withdrawn.sql" with { type: "text" };
+import tailscaleHttps from "./0083_tailscale_https.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -176,6 +177,7 @@ export const migrations = Migrator.fromRecord({
   "0080_full_access_mode": sqlFile(fullAccessMode),
   "0081_connector_oauth_completion": sqlFile(connectorOAuthCompletion),
   "0082_computer_route_withdrawn": sqlFile(computerRouteWithdrawn),
+  "0083_tailscale_https": sqlFile(tailscaleHttps),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
