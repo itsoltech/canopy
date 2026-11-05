@@ -13,22 +13,36 @@
   import WorkerTagEditor from "./WorkerTagEditor.svelte";
   import type { WorkerSetup } from "./worker-setup.svelte.ts";
   import AccountStatusRow, { hasAccountStatus } from "#lib/features/providers/AccountStatusRow.svelte";
+  import Alert from "#lib/shared/ui/Alert.svelte";
+  import type { LinkedWorker } from "./worker-records.svelte.ts";
 
   let {
     worker,
     setup,
     environment,
+    linked,
+    computer,
+    onchanged,
     class: className,
   }: {
     worker: ui.Worker;
     setup: WorkerSetup;
     environment: EnvironmentState;
+    /** Another computer's worker: its home applies every change, or the row is read-only with the reason. */
+    linked?: LinkedWorker;
+    /** Where the worker lives, when workers of several computers are listed. */
+    computer?: string;
+    onchanged?: () => void;
     class?: ClassValue;
   } = $props();
 
+  const readOnly = $derived(linked?.readOnly ?? "");
+
   const accounts = $derived(worker.providerInstances.filter((i) => i.enabled && hasAccountStatus(i.account)));
   const updates = $derived(worker.cliTools.filter((t) => t.action === "update").length);
-  const status = $derived(worker.revokedAt ? "Revoked" : worker.online ? "Connected" : "Disconnected");
+  const revoked = $derived(Boolean(worker.revokedAt) || Boolean(linked?.record.revoked));
+  const online = $derived(worker.online && !readOnly);
+  const status = $derived(revoked ? "Revoked" : online ? "Connected" : "Disconnected");
 
   // Height of the summary's content: the "…" menu (outside <summary>, so it does not toggle it) centres on that row.
   let summaryHeight = $state(48);
@@ -48,14 +62,14 @@
 <div class={["relative border-b border-zinc-950/5 last:border-0 dark:border-white/10", className]}>
   <Disclosure align="center" summaryClass="min-h-20 p-4 pr-16 sm:px-5 sm:pr-16">
     {#snippet summary()}
-      <div class="flex items-center gap-3" bind:clientHeight={summaryHeight}>
+      <div class={["flex items-center gap-3", readOnly && "opacity-60"]} bind:clientHeight={summaryHeight}>
         <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-zinc-950/5 text-zinc-500 dark:bg-white/5">
           <Icon name="computer-desktop" />
         </div>
         <div class="min-w-0 flex-1 text-base/6 sm:text-sm/6">
           <p class="truncate font-medium text-zinc-950 dark:text-white">{worker.name}</p>
           <p class="text-pretty text-zinc-500 dark:text-zinc-400">{statusLine}</p>
-          {#if worker.online && worker.networkRouteStatus && worker.networkRouteStatus.route !== "local"}
+          {#if online && worker.networkRouteStatus && worker.networkRouteStatus.route !== "local"}
             <p class="text-pretty text-zinc-500 dark:text-zinc-400">
               {worker.networkRouteStatus.route === "pinned"
                 ? "Connected over secure route"
@@ -69,14 +83,19 @@
             <Badge tone="amber">{updates === 1 ? "Update" : `${updates} updates`}</Badge>
           </div>{/if}
         <div class="shrink-0 max-sm:hidden">
-          <Badge tone={worker.revokedAt ? "rose" : worker.online ? "emerald" : "neutral"}>{status}</Badge>
+          <Badge tone={revoked ? "rose" : online ? "emerald" : "neutral"}>{status}</Badge>
         </div>
       </div>
     {/snippet}
     <div class="grid grid-cols-1 gap-6 px-4 pb-4 sm:px-5">
+      {#if computer}<p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+          Settings of “{worker.name}” on {computer === "This computer" ? "this computer" : `“${computer}”`}.
+        </p>{/if}
+      <!-- The computer's group says why; the row does not repeat it. -->
+      {#if readOnly}<Alert>These are the last saved settings.</Alert>{/if}
       <WorkerSettings {worker} title="Machine details" />
-      <WorkerTagEditor {worker} {environment} />
-      <WorkerCliTools {worker} />
+      <WorkerTagEditor {worker} {environment} {linked} {onchanged} />
+      <WorkerCliTools {worker} {readOnly} />
       {#if accounts.length}<section class="grid min-w-0 gap-3" aria-label="Provider accounts">
           <h3 class="text-sm/6 font-medium text-zinc-950 dark:text-white">Provider accounts</h3>
           {#each accounts as instance (`${instance.harness}/${instance.id}`)}
@@ -89,7 +108,7 @@
                 workerId={worker.id}
                 harness={instance.harness}
                 id={instance.id}
-                online={worker.online}
+                {online}
               />
             </div>
           {/each}
@@ -98,6 +117,6 @@
   </Disclosure>
   <!-- The summary's padding is 1rem above and below its content (p-4). -->
   <div class="absolute top-0 right-3 flex items-center sm:right-4" style:height="max(5rem, {summaryHeight + 32}px)">
-    <WorkerActions {worker} {setup} />
+    <WorkerActions {worker} {setup} {linked} {onchanged} />
   </div>
 </div>

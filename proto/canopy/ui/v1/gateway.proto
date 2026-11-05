@@ -222,6 +222,8 @@ service GatewayService {
   rpc SetThreadArchived(SetThreadArchivedRequest) returns (GetThreadResponse);
   rpc DeleteThread(DeleteThreadRequest) returns (DeleteThreadResponse);
   rpc RestoreThread(RestoreThreadRequest) returns (ListThreadsResponse);
+  // Workery innych komputerów grupy konfiguracji z ich rekordów (sekcja na końcu pliku, docs/linked-computers.md).
+  rpc ListWorkerRecords(ListWorkerRecordsRequest) returns (ListWorkerRecordsResponse);
 }
 
 // ---------- Model ----------
@@ -718,6 +720,8 @@ message OverviewUpdate {
     bool agent_environment_changed = 820;
     // Provider definitions or model choices changed, including instances without workers.
     bool provider_instances_changed = 821;
+    // Rekordy workerów innych komputerów się zmieniły (ListWorkerRecords).
+    bool worker_records_changed = 822;
   }
 }
 
@@ -2163,4 +2167,55 @@ message ListGitRefsResponse {
   repeated ThreadWorktree worktrees = 4;
   // Efektywne ustawienia projektu × workera (m.in. domyślny tryb).
   WorktreeSettings settings = 5;
+}
+
+// ---------------------------------------------------------------- rekordy workerów (wspólna konfiguracja, etap 6)
+
+// Kopia tylko do odczytu rekordu workera innego komputera grupy konfiguracji. Zapisuje go wyłącznie dom
+// workera; edycja to wywołanie do domu (id kwalifikowane). Bez wartości sekretów.
+message ListWorkerRecordsRequest {}
+message ListWorkerRecordsResponse { repeated WorkerRecord records = 1; }
+message WorkerRecord {
+  // Id kwalifikowane domem (`<uuid>~<node16>`), jak w overview.
+  string worker_id = 1;
+  string node_id = 2;
+  string computer_name = 3;
+  string name = 4;
+  string os = 5;
+  string arch = 6;
+  string hostname = 7;
+  bool revoked = 8;
+  repeated string manual_tags = 9;
+  repeated string automatic_tags = 10;
+  // Nadpisanie częstotliwości sprawdzania CLI; brak = konto.
+  optional uint32 cli_update_check_minutes = 11;
+  repeated WorkerRecordInstance instances = 12;
+  // Lokalne id kont connectorów z dostępem dla tego workera.
+  repeated string connector_account_ids = 13;
+  repeated WorkerRecordWorkspace workspaces = 14;
+  repeated WorkerRecordWorktreeSettings worktree_settings = 15;
+  // Ostatnia zmiana rekordu w domu.
+  google.protobuf.Timestamp updated_at = 16;
+  // Pusty = dom osiągalny, edycja działa; inaczej powód (np. „Laptop B is unreachable since 19:42”).
+  string read_only_reason = 17;
+}
+message WorkerRecordInstance {
+  canopy.worker.v1.Provider harness = 1;
+  // Lokalne id instancji na tym komputerze.
+  string id = 2;
+  // Brak = dziedziczy z instancji (all_workers).
+  optional bool enabled = 3;
+  // Worker ma własny klucz; wartość nie opuszcza domu.
+  bool key_set = 4;
+}
+message WorkerRecordWorkspace {
+  string id = 1;
+  string project_id = 2;
+  string root_path = 3;
+  uint32 worktrees = 4;
+}
+message WorkerRecordWorktreeSettings {
+  // Pusty = zakres workera bez projektu.
+  string project_id = 1;
+  WorktreeSettings settings = 2;
 }

@@ -129,6 +129,9 @@ export class LinkedComputersState {
 
   unsubscribe: (() => void) | undefined;
 
+  /** Stops following this computer's worker records (runtime-workers.ts). */
+  workerRecords: (() => void) | undefined;
+
   timer: ReturnType<typeof setInterval> | undefined;
 
   stopped = false;

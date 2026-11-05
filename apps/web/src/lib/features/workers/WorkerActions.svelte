@@ -12,8 +12,23 @@
   import CommandBlock from "./CommandBlock.svelte";
   import { workerAction } from "./actions.ts";
   import type { WorkerSetup } from "./worker-setup.svelte.ts";
+  import type { LinkedWorker } from "./worker-records.svelte.ts";
 
-  let { worker, setup, class: className }: { worker: ui.Worker; setup: WorkerSetup; class?: ClassValue } = $props();
+  let {
+    worker,
+    setup,
+    linked,
+    onchanged,
+    class: className,
+  }: {
+    worker: ui.Worker;
+    setup: WorkerSetup;
+    /** Another computer's worker: only its name changes from here, at its home. */
+    linked?: LinkedWorker;
+    onchanged?: () => void;
+    class?: ClassValue;
+  } = $props();
+
   let action = $state<"rename" | "rotate" | "revoke" | "archive">("rename");
   let open = $state(false);
   let name = $state("");
@@ -52,6 +67,7 @@
       else await workerAction(action, { workerId: worker.id });
 
       if (action !== "rotate") open = false;
+      onchanged?.();
     } catch (e) {
       error = e instanceof Error ? e.message : "Could not change the worker. Try again.";
     } finally {
@@ -67,12 +83,12 @@
         label={`Actions for ${worker.name}`}
         {...props}
       />{/snippet}
-    <MenuItem onselect={() => choose("rename")}>Rename</MenuItem>
-    <MenuItem disabled={Boolean(worker.revokedAt) || !setup.gatewayUrl} onselect={() => choose("rotate")}
-      >Rotate credential</MenuItem
-    >
-    <MenuItem danger disabled={Boolean(worker.revokedAt)} onselect={() => choose("revoke")}>Revoke</MenuItem>
-    <MenuItem danger onselect={() => choose("archive")}>Archive</MenuItem>
+    <MenuItem disabled={Boolean(linked?.readOnly)} onselect={() => choose("rename")}>Rename</MenuItem>
+    {#if !linked}<MenuItem disabled={Boolean(worker.revokedAt) || !setup.gatewayUrl} onselect={() => choose("rotate")}
+        >Rotate credential</MenuItem
+      >
+      <MenuItem danger disabled={Boolean(worker.revokedAt)} onselect={() => choose("revoke")}>Revoke</MenuItem>
+      <MenuItem danger onselect={() => choose("archive")}>Archive</MenuItem>{/if}
   </DropdownMenu>
 </div>
 <Dialog bind:open title={titles[action]} dismissible={!busy}>

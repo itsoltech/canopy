@@ -10,7 +10,7 @@
   import { encode } from "#lib/shared/wire.ts";
   import { formatDateTime } from "#lib/shared/format.ts";
 
-  let { worker }: { worker?: ui.Worker } = $props();
+  let { worker, readOnly = "" }: { worker?: ui.Worker; readOnly?: string } = $props();
   const settings = useSettings();
   const account = $derived(settings.user.cliUpdates?.intervalMinutes ?? 360);
 
@@ -65,7 +65,7 @@
       <Select
         aria-label={worker ? "Worker CLI check frequency" : "Agent CLI update check frequency"}
         {value}
-        disabled={pending || Boolean(worker?.nodeId)}
+        disabled={pending || Boolean(readOnly)}
         onchange={change}
         options={worker
           ? [

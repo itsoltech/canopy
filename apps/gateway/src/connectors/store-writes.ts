@@ -6,9 +6,22 @@ import { checked, digest, fail, type Credentials } from "./records.ts";
 import type { ConnectorBase } from "./accounts.ts";
 import { connectorTransaction } from "../config-sync/connector-records.ts";
 
+function activeWorkers(sql: SqlClient.SqlClient, user: string, ids: readonly string[]) {
+  return Effect.gen(function* () {
+    for (const id of new Set(ids))
+      if (
+        !(yield* sql`SELECT id FROM workers WHERE id=${id}::uuid AND (owner_user_id=${user}::uuid OR owner_user_id IS NULL) AND revoked_at IS NULL AND archived_at IS NULL`)
+          .length
+      )
+        return yield* fail("Worker not found");
+  });
+}
+
 /** Saving accounts and their worker and bot access. */
 export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, key: Buffer) {
   const { owned, seal, credentials, view, audit } = base;
+
+  const checkWorkers = (user: string, ids: readonly string[]) => activeWorkers(sql, user, ids);
 
   return {
     save: (user: string, request: connectors.SaveConnectorAccountRequest) =>
@@ -109,12 +122,7 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
           if (request.workerIds.length > 256 || request.botIds.length > 256)
             return yield* fail("Too many connector grants");
 
-          for (const id of new Set(request.workerIds))
-            if (
-              !(yield* sql`SELECT id FROM workers WHERE id=${id}::uuid AND (owner_user_id=${user}::uuid OR owner_user_id IS NULL) AND revoked_at IS NULL AND archived_at IS NULL`)
-                .length
-            )
-              return yield* fail("Worker not found");
+          yield* checkWorkers(user, request.workerIds);
 
           for (const id of new Set(request.botIds))
             if (
@@ -132,6 +140,25 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
           for (const id of new Set(request.botIds))
             yield* sql`INSERT INTO connector_bot_grants(account_id,bot_id) VALUES (${row.id}::uuid,${id}::uuid)`;
           yield* sql`UPDATE bots SET revision=revision+1 WHERE owner_user_id=${user}::uuid`;
+          yield* audit({ userId: user, accountId: row.id }, "access", "updated");
+
+          return yield* view(yield* owned(user, row.id));
+        }),
+      ),
+    /** A linked computer's edit: only this computer's workers' grants; account and bot access stay as they are. */
+    workerAccess: (user: string, accountId: string, workerIds: readonly string[]) =>
+      connectorTransaction(
+        sql,
+        key,
+        Effect.gen(function* () {
+          const row = yield* owned(user, accountId, true);
+
+          if (workerIds.length > 256) return yield* fail("Too many connector grants");
+          yield* checkWorkers(user, workerIds);
+          yield* sql`DELETE FROM connector_worker_grants WHERE account_id=${row.id}::uuid`;
+
+          for (const id of new Set(workerIds))
+            yield* sql`INSERT INTO connector_worker_grants(account_id,worker_id) VALUES (${row.id}::uuid,${id}::uuid)`;
           yield* audit({ userId: user, accountId: row.id }, "access", "updated");
 
           return yield* view(yield* owned(user, row.id));

@@ -136,12 +136,16 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
     expect(fake.refreshes).toBe(1);
   }, 45_000);
 
-  test("A's connected account runs through B's worker without sign-in; machine state and grants stay local", async () => {
+  test("A's connected account runs through B's worker without sign-in; machine state and grants stay at home", async () => {
     const onA = (await account(a, id))!;
     const onB = (await account(b, id))!;
     expect(onB.allWorkers).toBe(true);
     expect(onB.allBots).toBe(true);
-    expect(onB.workerIds).toEqual([]);
+    // A's worker grant is A's: B lists it from A's worker record and stores no grant of its own.
+    expect(onB.workerIds).toEqual([`${a.gateway.workerId}~${a.node.slice(0, 16)}`]);
+    expect(await b.store.query("SELECT 1 FROM connector_worker_grants WHERE account_id=$1::uuid", [id])).toHaveLength(
+      0,
+    );
     expect(onB.namespace).not.toBe(onA.namespace);
     b.gateway.worker.holdTurns = true;
     const project = (await b.gateway.api.createProject({ name: "Connector use" })).project!;

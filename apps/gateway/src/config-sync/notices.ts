@@ -55,7 +55,7 @@ export async function configNotices(sync: ConfigSync) {
     LEFT JOIN config_items c ON c.owner_user_id=h.owner_user_id AND c.kind='computer' AND c.global_id=h.notice_node_id
     LEFT JOIN config_items i ON i.owner_user_id=h.owner_user_id AND i.kind=h.kind AND i.global_id=h.global_id
     LEFT JOIN config_items project ON project.owner_user_id=h.owner_user_id AND project.kind='project' AND project.global_id=h.global_id
-    WHERE h.owner_user_id=$1::uuid AND h.state='open' AND h.superseded_at>now()-interval '90 days' ORDER BY h.superseded_at DESC`,
+    WHERE h.owner_user_id=$1::uuid AND h.kind NOT IN ('worker','computer') AND h.state='open' AND h.superseded_at>now()-interval '90 days' ORDER BY h.superseded_at DESC`,
     [sync.store.owner],
   );
 

@@ -20,12 +20,22 @@
   import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
+  import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
   const overview = useOverview();
   const capabilities = useGatewayCapabilities();
-  const online = $derived(overview.ownWorkers.filter((w) => w.online).length);
   const setup = new WorkerSetup();
   const environment = workerEnvironment(overview);
+  const records = workerRecords(overview);
+  const linked = $derived(records.computers.flatMap((c) => c.workers));
+  const total = $derived(overview.ownWorkers.length + linked.length);
+
+  const online = $derived(
+    overview.ownWorkers.filter((w) => w.online).length + linked.filter((l) => l.worker.online && !l.readOnly).length,
+  );
+
+  // Workers of a linked computer outside the configuration group are managed only on their home.
+  const elsewhere = $derived(overview.workers.some((w) => w.nodeId && !records.record(w.id)));
   const network = useNetworkAccess();
   let adding = $state(false);
   let error = $state("");
@@ -67,7 +77,7 @@
   <div class="min-w-0">
     <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Workers</h1>
     <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      Your machines, connected to Canopy. <span class="tabular-nums">{online} of {overview.ownWorkers.length}</span> connected.
+      Your machines, connected to Canopy. <span class="tabular-nums">{online} of {total}</span> connected.
     </p>
   </div>
   <div class="shrink-0">
@@ -78,19 +88,40 @@
     >{error || setup.error}{#snippet actions()}<Button size="sm" onclick={() => void setup.reload()}>Retry</Button
       >{/snippet}</Alert
   >{/if}
-<SettingsGroup>
-  {#each overview.ownWorkers as worker (worker.id)}<WorkerRow {worker} {setup} {environment} />
+<SettingsGroup title={records.computers.length ? "This computer" : undefined}>
+  {#each overview.ownWorkers as worker (worker.id)}<WorkerRow
+      {worker}
+      {setup}
+      {environment}
+      computer={records.computers.length ? "This computer" : undefined}
+    />
   {:else}<SettingsRow
       title="No workers yet"
       description="Add a worker to run Claude, Codex or Grok on a computer you control."
     />{/each}
 </SettingsGroup>
+{#each records.computers as computer (computer.nodeId)}
+  <SettingsGroup title={computer.name} description={computer.readOnly || undefined}>
+    {#each computer.workers as item (item.record.workerId)}<WorkerRow
+        worker={item.worker}
+        linked={item}
+        computer={computer.name}
+        {setup}
+        {environment}
+        onchanged={() => void records.reload()}
+      />{/each}
+  </SettingsGroup>
+{/each}
+{#if records.error}<Alert tone="error"
+    >{records.error}{#snippet actions()}<Button size="sm" onclick={() => void records.reload()}>Retry</Button
+      >{/snippet}</Alert
+  >{/if}
 {#if environment.error}<Alert tone="error"
     >{environment.error}{#snippet actions()}<Button size="sm" onclick={() => void environment.refresh()}
         >Refresh tags</Button
       >{/snippet}</Alert
   >{/if}
-{#if capabilities?.linkedComputers && overview.workers.some((worker) => worker.nodeId)}
+{#if capabilities?.linkedComputers && elsewhere}
   <p class="px-1 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
     Workers from linked computers are managed in Settings → Workers on their home computer.
   </p>

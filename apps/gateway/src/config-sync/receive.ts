@@ -19,6 +19,7 @@ import { ENVIRONMENT_KINDS } from "./environment-values.ts";
 import { applyEnvironment } from "./environment-apply.ts";
 import { CONNECTOR_KINDS } from "./connector-values.ts";
 import { applyConnector } from "./connector-apply.ts";
+import { homeWritten, WORKER_KIND } from "./worker-records.ts";
 
 /** Kinds this computer materializes, with their schema version. Everything else is kept and passed on. */
 export const SCHEMAS = {
@@ -35,6 +36,7 @@ export const SCHEMAS = {
   plugin: 1,
   connector: 1,
   oauth_app: 1,
+  worker: 1,
 } as const;
 
 const ORDER = [
@@ -80,6 +82,7 @@ export type ReceiveResult = {
   projects?: boolean;
   environment?: boolean;
   connectors?: boolean;
+  workerRecords?: boolean;
 };
 
 export function checkItem(item: ConfigRow, self: string) {
@@ -98,7 +101,11 @@ export function checkItem(item: ConfigRow, self: string) {
   )
     return Effect.fail(new ConnectError("Invalid shared configuration", Code.PermissionDenied));
 
-  return Effect.succeed(!(item.kind === "computer" && item.home_node_id === self));
+  // A worker record is its home's: the home keeps its own, and a copy changed anywhere else is refused.
+  if (item.kind === WORKER_KIND && item.home_node_id !== self && !homeWritten(item))
+    return Effect.fail(new ConnectError("Only a worker's home computer changes its settings", Code.PermissionDenied));
+
+  return Effect.succeed(!((item.kind === "computer" || item.kind === WORKER_KIND) && item.home_node_id === self));
 }
 
 function supported(row: ConfigRow) {
@@ -132,7 +139,8 @@ export function applyRecord(ctx: ReceiveContext, row: ConfigRow, result: Receive
     } else if (CONNECTOR_KINDS.has(row.kind)) {
       yield* applyConnector(ctx.sql, ctx.owner, ctx.key, row);
       result.connectors = true;
-    } else if (ENVIRONMENT_KINDS.has(row.kind))
+    } else if (row.kind === WORKER_KIND) result.workerRecords = true;
+    else if (ENVIRONMENT_KINDS.has(row.kind))
       // Content this computer lacks is fetched after the batch commits (ConfigSync.fetchMissing).
       result.environment = (yield* applyEnvironment(ctx.sql, ctx.owner, row)) || !!result.environment;
   });
@@ -142,6 +150,9 @@ export function applyRecord(ctx: ReceiveContext, row: ConfigRow, result: Receive
 export function receiveItem(ctx: ReceiveContext, received: Received, result: ReceiveResult) {
   return Effect.gen(function* () {
     const { sql, owner, key, peer } = ctx;
+
+    if (received.row.kind === WORKER_KIND && received.plain.size)
+      return yield* Effect.fail(new ConnectError("Worker settings never carry secrets", Code.PermissionDenied));
 
     if (!(yield* checkItem(received.row, ctx.self))) return;
     const placed = yield* place(sql, owner, key, received.row, received.plain);

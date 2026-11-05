@@ -19,17 +19,21 @@ export class ConfigIds {
   private constructor(private readonly store: ComputerStore | undefined) {}
 
   static async for(core: GatewayCore, node: string) {
+    return new ConfigIds((await ConfigIds.carries(core, node)) ? core.computers?.store : undefined);
+  }
+
+  /** A direct link with Share configuration on both sides and both computers able to sync it. */
+  static async carries(core: GatewayCore, node: string) {
     const computers = core.computers;
     const peer = computers?.config ? await computers.store.peer(node) : undefined;
 
-    const carries =
+    return (
       !!peer &&
       !peer.via_node_id &&
       peer.share_config &&
       peer.peer_share_config &&
-      peer.capabilities.includes(CONFIG_SYNC);
-
-    return new ConfigIds(carries ? computers?.store : undefined);
+      peer.capabilities.includes(CONFIG_SYNC)
+    );
   }
 
   async map(desc: DescMessage, message: Message, direction: keyof InstanceIds) {

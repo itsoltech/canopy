@@ -3,7 +3,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots, computerLink as link, ui } from "@canopy/contracts";
 import { nodeRef, splitId } from "@canopy/domain/computers";
 import { Code, ConnectError, createHandlerContext } from "@connectrpc/connect";
-import { linkedMessage, mapIds, methodNamed, SERVED, type RemoteServe } from "../computers/remote.ts";
+import { linkedMessage, mapIds, methodNamed, SERVED, WORKER_SETTINGS, type RemoteServe } from "../computers/remote.ts";
 import type { SharedHost } from "../config-sync/host.ts";
 import type { GatewayCore } from "../core/core.ts";
 import {
@@ -28,6 +28,8 @@ import { validateUserSettings } from "../core/settings-validation.ts";
 import { coreCheckThreadDefaults, coreCliDefaultsChanged } from "../core/core-settings.ts";
 import { coreConfigsChanged } from "../core/core-providers.ts";
 import { coreModels, corePublishModels } from "../core/core-models.ts";
+import { receivedWorkerSetting, receiveWorkerSetting, sendWorkerSetting, settled } from "./routed-workers.ts";
+import { splitOverrides } from "./routed-workers-split.ts";
 
 export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   // SAFETY: Each entry is invoked with the request decoded by its own GatewayService method descriptor.
@@ -64,8 +66,10 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
             if (!node) {
               await refuseFrozen(core, method, request);
 
-              return unary(handler, request, context);
+              return settled(core, method, unary(handler, request, context));
             }
+
+            if (WORKER_SETTINGS.has(method.name)) return sendWorkerSetting(core, method, request, node, context.signal);
 
             refuseRemoteWorktree(method, request);
 
@@ -176,6 +180,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
       );
     },
     watchOverview: (request, context) => watchOverview(core, own, request, context),
+    ...splitOverrides(core, local),
   };
 
   return { ...local, ...handlers, ...overrides };
@@ -227,10 +232,16 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
       url: "",
     });
 
+    const setting = core && peerNodeId && WORKER_SETTINGS.has(method.name) ? peerNodeId : undefined;
+
     try {
+      const answer = setting && (await receiveWorkerSetting(core!, method, request, setting));
+
       if (method.methodKind === "unary") {
-        const response = create(method.output, await unary(own[method.localName]!, request, context));
+        const response = create(method.output, answer || (await unary(own[method.localName]!, request, context)));
         await ids?.map(method.output, response, "toGlobal");
+
+        if (setting) await receivedWorkerSetting(core!, method, request, setting);
         yield response;
       } else
         for await (const message of stream(own[method.localName]!, request, context)) {
@@ -273,6 +284,10 @@ export function sharedHost(core: GatewayCore, _local: UiHandlers): SharedHost {
     connectorsChanged: async () => {
       await core.environment.changed();
     },
+    workerRecordsChanged: () =>
+      core.hub.publishOverview(
+        create(ui.OverviewUpdateSchema, { change: { case: "workerRecordsChanged", value: true } }),
+      ),
     projectsChanged: async () => {
       const archived =
         (await core.computers?.store.query<{ id: string; name: string }>(

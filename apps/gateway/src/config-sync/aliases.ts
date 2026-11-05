@@ -18,6 +18,14 @@ export type InstanceIds = {
 
 const PROFILE_FIELDS = new Set(["provider_profile_id", "profile_id", "provider_instance"]);
 
+/** Worker settings that name an instance by `harness` and `id` (stage 6 edits at a worker's home). */
+const INSTANCE_REQUESTS = new Set([
+  "canopy.ui.v1.SetInstanceWorkerRequest",
+  "canopy.ui.v1.SetInstanceWorkersRequest",
+  "canopy.ui.v1.StartProviderLoginRequest",
+  "canopy.ui.v1.RefreshProvidersRequest",
+]);
+
 export function instanceIds(sql: SqlClient.SqlClient, owner: string): Effect.Effect<InstanceIds, SqlError.SqlError> {
   return Effect.gen(function* () {
     const records = yield* sql<{ global_id: string; local_id: string }>`SELECT global_id,local_id FROM config_items
@@ -44,7 +52,7 @@ export function instanceIds(sql: SqlClient.SqlClient, owner: string): Effect.Eff
 
 /** The harness a message's instance id belongs to, from its sibling `provider` field (enum or name). */
 function harnessIn(desc: DescMessage, message: Message): string | undefined {
-  const field = desc.fields.find((f) => f.name === "provider");
+  const field = desc.fields.find((f) => f.name === (INSTANCE_REQUESTS.has(desc.typeName) ? "harness" : "provider"));
 
   if (!field) return undefined;
   const value = reflect(desc, message).get(field);
@@ -67,8 +75,9 @@ export function mapInstanceIds(desc: DescMessage, message: Message, map: (harnes
       if (!harness) return;
 
       for (const field of d.fields) {
-        if (!PROFILE_FIELDS.has(field.name) || field.fieldKind !== "scalar" || field.scalar !== ScalarType.STRING)
-          continue;
+        const named = PROFILE_FIELDS.has(field.name) || (field.name === "id" && INSTANCE_REQUESTS.has(d.typeName));
+
+        if (!named || field.fieldKind !== "scalar" || field.scalar !== ScalarType.STRING) continue;
         const record = reflect(d, m);
         const value = record.get(field);
 

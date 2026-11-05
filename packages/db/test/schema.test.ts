@@ -89,6 +89,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "75_config_projects",
       "76_config_agent_environment",
       "77_config_connectors",
+      "78_config_workers",
     ]);
   }, 60_000);
 
@@ -484,6 +485,26 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       expect(
         await query(`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'computer_shared_%'`),
       ).toHaveLength(0);
+    });
+  });
+
+  describe("worker records (0078)", () => {
+    test("worker and computer records name their home; copies stay after unlinking until the group prunes them", async () => {
+      const w = await world();
+      const node = "b".repeat(64);
+      await query(
+        `INSERT INTO computer_peers (owner_user_id, node_id, name, certificate, fingerprint) VALUES ($1, $2, 'B', 'c', 'f')`,
+        [w.user, node],
+      );
+      const insert = `INSERT INTO config_items (owner_user_id,kind,global_id,home_node_id,revision) VALUES ($1,$2,$3,$4,1)`;
+      expect(await failure(insert, [w.user, "worker", id(), ""])).toContain("config_items_home_named");
+      expect(await failure(insert, [w.user, "computer", node, ""])).toContain("config_items_home_named");
+      await query(insert, [w.user, "worker", id(), node]);
+      await query(insert, [w.user, "instance", "claude:native", ""]);
+      await query(`DELETE FROM computer_peers WHERE owner_user_id = $1 AND node_id = $2`, [w.user, node]);
+      expect(
+        await query(`SELECT kind FROM config_items WHERE owner_user_id = $1 AND home_node_id = $2`, [w.user, node]),
+      ).toHaveLength(1);
     });
   });
 

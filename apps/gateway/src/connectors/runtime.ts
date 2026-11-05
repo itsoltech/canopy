@@ -78,6 +78,9 @@ export class ConnectorsRuntime {
   access(request: connectors.SetConnectorAccessRequest) {
     return this.run((s) => s.access(this.options.userId, request));
   }
+  workerAccess(accountId: string, workerIds: readonly string[]) {
+    return this.run((s) => s.workerAccess(this.options.userId, accountId, workerIds));
+  }
   saveApp(request: connectors.SaveConnectorOAuthAppRequest) {
     return this.run((s) => s.saveApp(this.options.userId, request));
   }

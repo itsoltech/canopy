@@ -188,6 +188,18 @@ these directories on the project's workers.”.
 API i UI 0050 zostały usunięte. Dawne deklaracje protobuf zostają zarezerwowane; `GetSharedConfig`
 i `ManageSharedConfig` zwracają Unimplemented, a `PushSharedConfig` nie jest obsługiwane na łączu.
 
+Od etapu 6 workery mają rekordy, które zapisuje wyłącznie ich dom. `ListWorkerRecords`
+(`GET /api/workers/records`) zwraca kopie rekordów workerów innych komputerów grupy konfiguracji:
+kwalifikowane `worker_id`, nazwę komputera, tagi, nadpisanie częstotliwości CLI, stan instancji
+(`key_set` bez wartości), dostęp connectorów, workspace'y i ustawienia worktree, z lokalnymi id
+elementów wspólnych. `read_only_reason` jest pusty, gdy edycja dociera do domu; inaczej zawiera powód
+z obecności. `OverviewUpdate.worker_records_changed` (822) oznacza nową kopię. `RenameWorker`,
+`SetInstanceWorker`, `SetWorkerCliUpdateSettings`, `SetEnvironmentTags`, `Get`/`UpdateWorktreeSettings`,
+`SetConnectorAccess`, `RefreshProviders`, `InstallCli`, `CheckCliUpdates` i `StartProviderLogin`
+z kwalifikowanym workerem trafiają do domu. `SetInstanceWorkers` i `SetConnectorAccess` z workerami
+kilku komputerów gateway rozdziela, a `ListConnectors` pokazuje granty workerów innych komputerów
+z ich rekordów. [Rekordy workerów i edycja zdalna](linked-computers.md#rekordy-workerów-i-edycja-zdalna).
+
 ## Workery: kreator i zarządzanie
 
 Kreator instalacji używa dodatkowych, addytywnych RPC `FetchWorkerInstall` (stream bajtów

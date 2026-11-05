@@ -10,4 +10,6 @@ export type SharedHost = {
   /** The agent environment library changed: workers get the new desired state. */
   environmentChanged?(): Promise<void>;
   connectorsChanged?(): Promise<void>;
+  /** Copies of other computers' worker records changed (ListWorkerRecords). */
+  workerRecordsChanged?(): void;
 };
