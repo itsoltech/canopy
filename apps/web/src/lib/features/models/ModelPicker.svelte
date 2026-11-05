@@ -1,8 +1,8 @@
 <script lang="ts">
+  import AccentDot from "./AccentDot.svelte";
   import EffortLabel from "./EffortLabel.svelte";
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import type { ProviderKey } from "#lib/features/threads/providers.ts";
   import Combobox from "#lib/shared/ui/Combobox.svelte";
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -10,20 +10,22 @@
   import Kbd from "#lib/shared/ui/Kbd.svelte";
   import PillButton from "#lib/shared/ui/PillButton.svelte";
   import Popover from "#lib/shared/ui/Popover.svelte";
-  import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import { modelOption, providerName, searchText, type ModelOption } from "./catalog.ts";
+  import { instanceKeyOf, modelOption, providerName, searchText, type ModelOption } from "./catalog.ts";
   import { useFavoriteModels } from "./favorites.ts";
+  import { instanceTitle, pickerInstances } from "./picker-instances.ts";
+  import ModelPickerRail from "./ModelPickerRail.svelte";
   import ModelRow from "./ModelRow.svelte";
   import ProviderIcon from "./ProviderIcon.svelte";
 
   /**
    * Model picker: the composer's model pill (provider mark, model, effort) opens a popover (a
-   * bottom sheet on phones) with a rail (Favorites, then each provider), a search over every model, and
-   * the list — concrete name, a star, ⌘1…⌘9 for the first nine favorites
-   * and a check on the current one. A provider with several profiles lists them under headings. The
-   * footer says when a profile's list is incomplete and refreshes the worker's list. Typing a model id
-   * the list does not know offers it as a custom model. Keys in the search field: arrows + Enter choose,
-   * Mod+1…9 pick a favorite, Mod+Shift+F stars the highlighted model.
+   * bottom sheet on phones) with a rail (Favorites, then one tab per provider instance; the selected model's
+   * instance is in view on open), a search over every model grouped by instance, and the list — concrete name,
+   * a star, ⌘1…⌘9 for the first nine favorites and a check on the current one. Where a provider has several
+   * instances, favorite rows and the pill name the instance ("Claude Opus 5.5 · Proxy"). The footer says when an
+   * instance's list is incomplete and refreshes the worker's list. Typing a model id the list does not know
+   * offers it as a custom model of the instance in view. Keys in the search field: arrows + Enter choose,
+   * Alt+Up/Down switch tabs, Mod+1…9 pick a favorite, Mod+Shift+F stars the highlighted model.
    */
   let {
     options,
@@ -61,32 +63,44 @@
   const FAVORITE_HOTKEY = $derived(keybindings.get("model:favorite")[0] ?? "");
 
   let query = $state("");
-  let section = $state<"favorites" | ProviderKey>();
+
+  /** "favorites" or the key of an instance (`instanceKeyOf`). */
+  let section = $state<string>();
   let expandedLegacy = $state<ReadonlyMap<string, boolean>>(new Map());
   const selected = $derived(options.find((o) => o.key === value));
-  const providers = $derived([...new Set(options.map((o) => o.provider))]);
+  const instances = $derived(pickerInstances(options));
   const favoriteOptions = $derived(favorites.among(options));
+  const instanceOf = (o: ModelOption) => instances.find((i) => i.key === instanceKeyOf(o));
+
+  // The pill names the instance only where the provider has several ("Claude Opus 5.5 · Proxy").
+  const selectedInstance = $derived(selected && instanceOf(selected)?.shared ? selected : undefined);
 
   const current = $derived(
-    section ?? (favoriteOptions.length > 0 ? "favorites" : (selected?.provider ?? providers[0] ?? "favorites")),
+    section ??
+      (selected
+        ? instanceKeyOf(selected)
+        : favoriteOptions.length > 0
+          ? "favorites"
+          : (instances[0]?.key ?? "favorites")),
   );
 
   const searching = $derived(query.trim().length > 0);
 
-  // A typed model id becomes an option of the provider in view, on the current profile when it matches.
+  // A typed model id becomes an option of the instance in view (else the selected model's, else the first).
   const custom = $derived.by(() => {
     const model = query.trim();
 
     if (!allowCustom || !model || /\s/.test(model)) return undefined;
-    const provider = current !== "favorites" ? current : (selected?.provider ?? providers[0]);
 
-    if (!provider) return undefined;
-    const base = selected?.provider === provider ? selected : options.find((o) => o.provider === provider);
+    const base =
+      instances.find((i) => i.key === current) ?? (selected ? instanceOf(selected) : undefined) ?? instances[0];
 
-    if (!base || options.some((o) => o.provider === provider && o.profileId === base.profileId && o.model === model))
-      return undefined;
+    if (!base || options.some((o) => instanceKeyOf(o) === base.key && o.model === model)) return undefined;
 
-    return { ...modelOption(provider, base.profileId, base.profileName, model, catalog), origin: "custom" as const };
+    return {
+      ...modelOption(base.provider, base.profileId, base.name, model, catalog),
+      origin: "custom" as const,
+    };
   });
 
   const offered = $derived(
@@ -94,11 +108,10 @@
       ? [...options, ...(custom ? [custom] : [])]
       : current === "favorites"
         ? favoriteOptions
-        : options.filter((o) => o.provider === current),
+        : options.filter((o) => instanceKeyOf(o) === current),
   );
 
-  // Headings only where profiles mix: a provider's profiles, or a search over several providers/profiles.
-  const sourceOf = (o: ModelOption) => `${o.provider}:${o.profileId}`;
+  const sourceOf = instanceKeyOf;
 
   const legacyGroups = $derived.by(() => {
     if (searching || current === "favorites") return new Map<string, string>();
@@ -122,30 +135,43 @@
         }),
   );
 
-  const grouped = $derived(
-    current !== "favorites" || searching
-      ? new Set(listed.filter((o) => o.origin !== "custom").map(sourceOf)).size > 1
-      : false,
-  );
+  // An instance tab lists one instance; a search over several instances groups the results by instance.
+  const grouped = $derived(searching && new Set(listed.filter((o) => o.origin !== "custom").map(sourceOf)).size > 1);
 
   const groupOf = (o: ModelOption) => {
     if (o.origin === "custom") return undefined;
     const legacy = o.legacy ? legacyGroups.get(sourceOf(o)) : undefined;
 
-    if (legacy) return grouped ? `${o.profileName} · ${legacy}` : legacy;
+    if (legacy) return legacy;
 
     if (!grouped) return undefined;
+    const instance = instanceOf(o);
 
-    return searching ? `${providerName(o.provider)} · ${o.profileName}` : o.profileName;
+    return instance ? instanceTitle(instance) : `${providerName(o.provider)} · ${o.profileName}`;
   };
 
+  // Legacy groups open and close per instance (two instances can have the same heading).
   const groupExpanded = (group: string) => {
     const legacy = listed.filter((o) => o.legacy && legacyGroups.has(sourceOf(o)) && groupOf(o) === group);
 
     if (!legacy.length) return undefined;
 
-    return expandedLegacy.get(group) ?? legacy.some((o) => o.key === value);
+    return expandedLegacy.get(`${current}|${group}`) ?? legacy.some((o) => o.key === value);
   };
+
+  // Favorites mix instances: their rows name the instance where its provider has several.
+  const rowInstance = (o: ModelOption) => {
+    const instance = current === "favorites" && !searching ? instanceOf(o) : undefined;
+
+    return instance?.shared ? instance : undefined;
+  };
+
+  const tabs = $derived(["favorites", ...instances.map((i) => i.key)]);
+
+  function pickTab(target: string) {
+    section = target;
+    query = "";
+  }
 
   // Incomplete lists of the profiles in view (the catalog says why).
   const details = $derived([
@@ -168,6 +194,20 @@
   }
 
   function onkeydown(event: KeyboardEvent, active: ModelOption | undefined) {
+    const step = keybindings.matches(event, "model:next-tab")
+      ? 1
+      : keybindings.matches(event, "model:previous-tab")
+        ? -1
+        : 0;
+
+    if (step) {
+      event.preventDefault();
+      const index = searching ? (step > 0 ? -1 : 0) : tabs.indexOf(current);
+      pickTab(tabs[(index + step + tabs.length) % tabs.length]!);
+
+      return;
+    }
+
     for (let n = 1; n <= 9; n++) {
       if (keybindings.matches(event, `model:pick-${n}`)) {
         event.preventDefault();
@@ -206,8 +246,17 @@
         ? ` · ${selected.profileName} · ${selected.model}`
         : ''}{effort ? `, ${effort} effort` : ''}"
     >
-      {#if selected}<ProviderIcon provider={selected.provider} class="size-3.5" />{/if}
-      <span class="truncate text-zinc-800 dark:text-zinc-200">{selected?.name ?? "Choose a model"}</span>
+      {#if selected}<span class="relative shrink-0"
+          ><ProviderIcon provider={selected.provider} class="size-3.5" />{#if selectedInstance}<AccentDot
+              accent={selectedInstance.accent}
+              class="absolute -right-0.5 -bottom-0.5 size-1.5 ring-1 ring-surface"
+            />{/if}</span
+        >{/if}
+      <span class="truncate text-zinc-800 dark:text-zinc-200"
+        >{selected?.name ?? "Choose a model"}{#if selectedInstance}<span class="text-zinc-500 dark:text-zinc-400"
+            >&nbsp;· {selectedInstance.profileName}</span
+          >{/if}</span
+      >
       {#if effort}<span class="shrink-0 text-zinc-500 dark:text-zinc-400"
           ><EffortLabel
             label={effort}
@@ -220,34 +269,7 @@
 
   <!-- Fixed height: clip, so the bottom buttons' touch targets don't make the panel scroll by a few pixels. -->
   <div class="flex h-[min(26rem,var(--float-available-height,26rem))] overflow-clip in-data-sheet:h-[70dvh]">
-    <div
-      role="group"
-      aria-label="Show models"
-      class="flex shrink-0 flex-col items-center gap-1 border-r border-zinc-950/5 p-1.5 dark:border-white/8"
-    >
-      {#snippet railButton(target: "favorites" | ProviderKey, label: string)}
-        {@const pressed = !searching && current === target}
-        <button
-          type="button"
-          class="relative grid size-9 place-items-center rounded-lg focus-ring hover:bg-zinc-950/5 aria-pressed:bg-zinc-950/6 sm:size-8 dark:hover:bg-white/5 dark:aria-pressed:bg-white/10"
-          aria-label={label}
-          aria-pressed={pressed}
-          onclick={() => {
-            section = target;
-            query = "";
-          }}
-          {@attach tooltip(label, { placement: "right" })}
-        >
-          {#if target === "favorites"}
-            <Icon name="star" class={pressed ? "text-amber-500" : "fill-zinc-400 dark:fill-zinc-500"} />
-          {:else}
-            <ProviderIcon provider={target} class={pressed ? undefined : "opacity-60 grayscale"} />
-          {/if}
-        </button>
-      {/snippet}
-      {@render railButton("favorites", "Favorites")}
-      {#each providers as provider (provider)}{@render railButton(provider, providerName(provider))}{/each}
-    </div>
+    <ModelPickerRail {instances} {current} {searching} onpick={pickTab} />
 
     <div class="flex min-w-0 flex-1 flex-col">
       <Combobox
@@ -259,7 +281,7 @@
         {groupOf}
         {groupExpanded}
         ontogglegroup={(group) => {
-          expandedLegacy = new Map(expandedLegacy).set(group, !groupExpanded(group));
+          expandedLegacy = new Map(expandedLegacy).set(`${current}|${group}`, !groupExpanded(group));
         }}
         bind:query
         {value}
@@ -276,6 +298,7 @@
             selected={state.selected}
             starred={favorites.has(o)}
             shortcut={shortcutOf(o.key)}
+            instance={rowInstance(o)}
             onstar={() => favorites.toggle(o)}
           />
         {/snippet}

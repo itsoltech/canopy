@@ -8,7 +8,7 @@ import { prepareCodexHome } from "../providers/codex/home.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { startCodexDeviceLogin } from "../providers/codex/login.ts";
 import { providersOf } from "../providers/profiles.ts";
-import { classifyLegacyModels } from "../providers/model-metadata.ts";
+import { classifyInstanceCatalogs } from "../providers/model-metadata.ts";
 
 import { CommandError, usableBy, type CommandOutput, type ProfileModelsInit } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
@@ -142,7 +142,7 @@ export class HostCatalog {
         pairs.push({ provider: Provider.GROK, profile: resolved.id });
     }
 
-    return Promise.all(
+    const lists = await Promise.all(
       pairs.map(async ({ provider: p, profile }): Promise<ProfileModelsInit> => {
         try {
           const listed: { models: ProfileModelsInit["models"]; detail?: string } =
@@ -159,7 +159,7 @@ export class HostCatalog {
           return {
             provider: p,
             profileId: profile,
-            models: classifyLegacyModels(listed.models ?? []),
+            models: listed.models ?? [],
             ...(listed.detail && { detail: listed.detail }),
             listedAt: timestampNow(),
           };
@@ -174,5 +174,7 @@ export class HostCatalog {
         }
       }),
     );
+
+    return classifyInstanceCatalogs(lists);
   }
 }
