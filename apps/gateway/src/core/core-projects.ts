@@ -8,6 +8,7 @@ import type { GatewayCore } from "./core.ts";
 import { coreWorkerQuery } from "./core-mentions.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreRun } from "./core-broadcast.ts";
+import { decorateOrigins } from "./workspace-origins.ts";
 
 export async function coreValidateWorkspaceDirectory(
   hostContext: GatewayCore,
@@ -27,8 +28,10 @@ export async function corePublishProject(hostContext: GatewayCore, projectId: st
   const projects = await coreRun(hostContext, (s) => s.listProjects(hostContext[coreState].options.userId));
   const project = projects.find((p) => p.id === projectId);
 
-  if (project)
+  if (project) {
+    await decorateOrigins(hostContext, [project]);
     hostContext.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
+  }
 }
 
 export interface CoreProjectsMethods {
@@ -50,6 +53,8 @@ export const coreProjectsMethods: CoreProjectsMethods = {
       coreWorkers(this),
       coreRun(this, (s) => s.listProjects(this[coreState].options.userId)),
     ]);
+
+    await decorateOrigins(this, projects);
 
     return create(ui.GetOverviewResponseSchema, { workers, projects, agents: [] });
   },

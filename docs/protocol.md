@@ -6,6 +6,13 @@ Status: **szkic**, kanał i handshake zaimplementowane (`apps/gateway/src/worker
 
 Nietrwała komenda `GenerateText` (capability `generate_text`) uruchamia izolowaną generację przez SDK instancji i zwraca `CommandResult.generated_text`, bez platformowej sesji i dziennika. Szczegóły: [thread-titles.md](thread-titles.md).
 
+Nietrwałe `ReadWorkspaceOrigin` (`Command.read_workspace_origin = 216`, capability `workspace_origin`)
+odczytuje lokalne `remote.origin.url` workspace'u przez process governor (cache 30 s, limit 2 s).
+`CommandResult.workspace_origin = 216` zawiera wyłącznie znormalizowaną tożsamość, bez credentiali.
+Brak origin daje pustą tożsamość; błąd komendy zachowuje poprzedni odczyt w gatewayu.
+Bez outboxa i journala. Starszy worker nie dostaje komendy; `WORKER_LINK_PROTOCOL` pozostaje 1.
+Reguły scalania wyborów: [linked-computers.md](linked-computers.md#tożsamość-projektu-według-git-origin).
+
 Capability `bot_harness_v1` dodaje trwałe `RunBotTurn` i `InterruptBotTurn`.
 Bot używa istniejących `ThreadEvent` i ACK (thread_id = bot_id), przechowywanych
 oddzielnie od wątków projektowych. `AgentToolCall.bot_id` kieruje MCP do wykonawców

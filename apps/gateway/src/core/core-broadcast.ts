@@ -8,6 +8,7 @@ import type { GatewayCore } from "./core.ts";
 import { corePublishDeliveries } from "./core-messages.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreUiThread } from "./core-titles.ts";
+import { decorateOrigins } from "./workspace-origins.ts";
 
 export async function coreBroadcastThread(hostContext: GatewayCore, threadId: string): Promise<void> {
   const thread = coreUiThread(hostContext, await coreRun(hostContext, (s) => s.thread(threadId, true)));
@@ -34,12 +35,11 @@ export async function coreBroadcastWorkers(hostContext: GatewayCore): Promise<vo
   }
 
   // A newly configured worker becomes a scratch placement without a page reload.
-  const scratch = (await coreRun(hostContext, (s) => s.listProjects(hostContext[coreState].options.userId))).find(
-    (p) => p.kind === "scratch",
-  );
+  const projects = await coreRun(hostContext, (s) => s.listProjects(hostContext[coreState].options.userId));
+  await decorateOrigins(hostContext, projects);
 
-  if (scratch)
-    hostContext.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: scratch } }));
+  for (const project of projects)
+    hostContext.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
 }
 
 export function coreRun<A, E>(

@@ -39,7 +39,14 @@ export function commit(path: string, file = "README.md", text = Bun.randomUUIDv7
 }
 
 /** Real git + WorkerHost + gateway + PostgreSQL, without contacting any model provider. */
-export async function worktreeFixture(dir: string, options: { botModel?: BotModel } = {}) {
+export async function worktreeFixture(
+  dir: string,
+  options: {
+    botModel?: BotModel;
+    role?: "desktop" | "server";
+    originUrl?: string;
+  } = {},
+) {
   const data = join(dir, "data");
   const repo = join(dir, "repo");
   const origin = join(dir, "origin.git");
@@ -55,6 +62,8 @@ export async function worktreeFixture(dir: string, options: { botModel?: BotMode
   commit(repo);
   git(repo, "push", "-qu", "origin", "main");
   git(repo, "remote", "set-head", "origin", "main");
+
+  if (options.originUrl) git(repo, "remote", "set-url", "origin", options.originUrl);
   const gw = await startTestGateway(options);
   const worker = await gw.addWorker("Worktree lifecycle");
   const workerId = worker.workerId;
@@ -90,7 +99,7 @@ export async function worktreeFixture(dir: string, options: { botModel?: BotMode
         workerId,
         host: { os: process.platform },
         homeDirectory: homedir(),
-        capabilities: ["worktrees", "worktree_lifecycle"],
+        capabilities: ["worktrees", "worktree_lifecycle", "workspace_origin"],
         worktreesRoot: host.worktreesRoot,
         ...(await runtime.runPromise(journalHello())),
       },

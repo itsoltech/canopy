@@ -21,6 +21,7 @@ export interface ProjectStore {
   /** Takes the project off the workspace's worker (archived): no new threads there, existing ones go on. */
   removeWorkspace(ownerUserId: string, workspaceId: string): Fx<ui.Workspace>;
   listProjects(ownerUserId: string): Fx<ui.Project[]>;
+  setWorkspaceOrigin(ownerUserId: string, workspace: ui.Workspace, origin: string): Fx<void>;
 }
 
 /**
@@ -121,8 +122,9 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
         worker_id: string;
         root_path: string;
         label: string;
+        git_origin: string;
       }>`
-            SELECT w.id, w.project_id, w.worker_id, w.root_path, w.label FROM project_workspaces w
+            SELECT w.id, w.project_id, w.worker_id, w.root_path, w.label, w.git_origin FROM project_workspaces w
               JOIN projects p ON p.id = w.project_id JOIN workers host ON host.id = w.worker_id
              WHERE p.owner_user_id = ${ownerUserId}::uuid AND w.archived_at IS NULL
                AND (p.kind <> 'scratch' OR (host.archived_at IS NULL AND host.revoked_at IS NULL
@@ -142,6 +144,7 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
               workerId: w.worker_id,
               rootPath: w.root_path,
               label: w.label,
+              gitOrigin: w.git_origin,
             })),
         }),
       );
@@ -232,7 +235,8 @@ export function projectStore(sql: SqlClient.SqlClient): ProjectStore {
               });
 
         const nextLabel = label ?? current.label;
-        yield* sql`UPDATE project_workspaces SET root_path = ${root}, label = ${nextLabel} WHERE id = ${workspaceId}::uuid`;
+        yield* sql`UPDATE project_workspaces SET root_path = ${root}, label = ${nextLabel},
+          git_origin = CASE WHEN root_path = ${root} THEN git_origin ELSE '' END WHERE id = ${workspaceId}::uuid`;
 
         return create(ui.WorkspaceSchema, {
           id: workspaceId,
@@ -258,6 +262,11 @@ export function projectStore(sql: SqlClient.SqlClient): ProjectStore {
       }),
 
     listProjects: (ownerUserId) => listProjects(sql, ownerUserId),
+    setWorkspaceOrigin: (ownerUserId, workspace, origin) =>
+      sql`UPDATE project_workspaces w SET git_origin = ${origin} FROM projects p
+        WHERE w.id = ${workspace.id}::uuid AND w.project_id = p.id AND p.owner_user_id = ${ownerUserId}::uuid
+          AND w.worker_id = ${workspace.workerId}::uuid AND w.root_path = ${workspace.rootPath}
+          AND w.archived_at IS NULL AND p.archived_at IS NULL AND p.kind <> 'scratch'`.pipe(Effect.asVoid),
   };
 }
 
