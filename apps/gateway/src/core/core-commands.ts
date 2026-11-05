@@ -5,6 +5,7 @@ import { AgentBusStore } from "../store/index.ts";
 import { BotStore } from "../bots/store.ts";
 import { coreState, HARNESS_ERROR_CODES, SETTLE_TURN_ENDED } from "./core-context.ts";
 import { coreEndLostTurns, coreSettle } from "./core-work-loop.ts";
+import { fullAccessRefusal } from "./full-access.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreSteerAnswered } from "./core-messages.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core-broadcast.ts";
@@ -57,7 +58,7 @@ export async function coreDeliver(hostContext: GatewayCore, workerId: string, co
     return;
   }
 
-  let result: CommandResult;
+  let result: CommandResult | undefined = fullAccessRefusal(connection.hello.capabilities, command);
 
   try {
     const body = command.kind.value;
@@ -75,7 +76,7 @@ export async function coreDeliver(hostContext: GatewayCore, workerId: string, co
       (command.kind.case === "startTurn" || command.kind.case === "steerTurn") &&
       command.kind.value.input?.shellCommand !== undefined;
 
-    result =
+    result ??=
       shell && !connection.hello.capabilities.includes(SHELL_INPUT_CAPABILITY)
         ? create(CommandResultSchema, {
             commandId: command.commandId,

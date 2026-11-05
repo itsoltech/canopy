@@ -4,10 +4,11 @@
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
 
-  type AlertTone = "info" | "warning" | "error";
+  type AlertTone = "info" | "warning" | "danger" | "error";
 
   /**
    * Inline message. `error` is announced immediately (role=alert), the others politely (role=status).
+   * `danger` is a warning about a risky choice (rose, like errors, but not one).
    * `banner` drops the rounded frame for full-width strips under a header. Only offending fields shake;
    * messages stay still so a service error cannot resemble a field validation failure.
    */
@@ -41,6 +42,13 @@
       icon_: "text-amber-600 dark:text-amber-400",
       title: "text-amber-950 dark:text-amber-100",
       body: "text-amber-900 dark:text-amber-200",
+    },
+    danger: {
+      icon: "exclamation-triangle",
+      box: "bg-rose-50 ring-rose-600/20 dark:bg-rose-400/10 dark:ring-rose-400/20",
+      icon_: "text-rose-600 dark:text-rose-400",
+      title: "text-rose-950 dark:text-rose-100",
+      body: "text-rose-900 dark:text-rose-200",
     },
     error: {
       icon: "exclamation-circle",

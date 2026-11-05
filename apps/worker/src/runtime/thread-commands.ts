@@ -1,6 +1,6 @@
 import { ensureScratchDirectory } from "./scratch.ts";
 import { join } from "node:path";
-import { Provider, type Command } from "@canopy/contracts";
+import { PermissionMode, Provider, type Command } from "@canopy/contracts";
 import { Context, Effect } from "effect";
 import { Journal } from "../journal/index.ts";
 import { ClaudeThreads } from "../providers/claude/threads.ts";
@@ -60,6 +60,12 @@ export class ThreadCommands {
     const { thread: spec, turnId, input: rawInput, model, effort, permissionMode } = kind.value;
 
     if (!spec || !rawInput) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
+
+    if (
+      (permissionMode || spec.permissionMode) === PermissionMode.FULL_ACCESS &&
+      this.ctx.state.options.fullAccess === false
+    )
+      throw new CommandError("FULL_ACCESS_DISABLED", "Full access is turned off on this computer's worker", true);
     this.ctx.ops.checkCwd(spec.cwd);
     this.ctx.state.cwds.set(spec.threadId, spec.cwd);
     this.ctx.state.threadProviders.set(spec.threadId, spec.provider);

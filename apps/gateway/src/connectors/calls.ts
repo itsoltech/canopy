@@ -57,7 +57,7 @@ export async function connectorPermission(
   if (facts.mode === "READ_ONLY")
     throw new ConnectorFailure("Read-only threads cannot call connector tools that may write");
 
-  if (facts.mode === "FULL_AUTO") return;
+  if (facts.mode === "FULL_AUTO" || facts.mode === "FULL_ACCESS") return;
 
   const credentials = await context.run((s) =>
     s.owned(source.userId, source.accountId).pipe(Effect.flatMap(s.credentials)),

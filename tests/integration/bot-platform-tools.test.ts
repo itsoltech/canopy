@@ -407,6 +407,18 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
       { project_id: projectId, expected_version: "0", thread_defaults: { workspaceId, provider: "PROVIDER_CODEX" } },
       true,
     );
+    // Full access is never a bot's choice, not even as a default the user approves.
+    expect(
+      await invoke(
+        "set_project_defaults",
+        {
+          project_id: projectId,
+          expected_version: "1",
+          thread_defaults: { permissionMode: "PERMISSION_MODE_FULL_ACCESS" },
+        },
+        true,
+      ),
+    ).toMatchObject({ error: expect.stringContaining("thread_defaults.permissionMode: choose") });
 
     const bot = await invoke<{ id: string }>(
       "create_bot",

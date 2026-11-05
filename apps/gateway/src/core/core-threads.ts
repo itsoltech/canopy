@@ -8,6 +8,7 @@ import { titleContext } from "./thread-titles.ts";
 import { coreDeliver, coreDispatch } from "./core-commands.ts";
 import { coreState, InvalidError, TTL } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
+import { coreCheckFullAccess, inheritedPermissionMode } from "./full-access.ts";
 import { coreMessageAttachments } from "./core-attachments.ts";
 import { coreComposeInput, coreMessageMentions } from "./core-mentions.ts";
 import { coreCheckModel, coreProfileModels } from "./core-models.ts";
@@ -26,6 +27,7 @@ export async function coreCheckProvider(hostContext: GatewayCore, request: ui.Cr
   const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === request.workspaceId);
 
   if (!workspace) return; // the store reports the missing workspace
+  coreCheckFullAccess(hostContext, workspace.workerId, request.permissionMode);
   const worker = (await coreWorkers(hostContext)).find((w) => w.id === workspace.workerId);
 
   if (!worker || worker.appliedVersion === 0n) return;
@@ -81,7 +83,8 @@ export async function coreForkRequest(
     providerProfileId: source.providerProfileId,
     model: source.model,
     effort: source.effort,
-    permissionMode: source.permissionMode,
+    // Full access is chosen again in the fork, never inherited (docs/threads.md).
+    permissionMode: inheritedPermissionMode(source.permissionMode),
     instructions: from.settings.instructions ?? "",
     fork: false,
     title: request.title.trim() || `Fork of ${from.title}`,

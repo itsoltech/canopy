@@ -49,6 +49,8 @@ export function grokLaunch(options: {
   effort?: string;
   readOnly?: boolean;
   fullAuto?: boolean;
+  /** No sandbox at all (the user's explicit choice); otherwise as fullAuto. */
+  fullAccess?: boolean;
   baseEnv?: NodeJS.ProcessEnv;
   linkDeviceLogin?: boolean;
   textOnly?: boolean;
@@ -111,6 +113,7 @@ export function grokLaunch(options: {
   if (options.bot) isolateBotEnv(env, home);
 
   if (options.readOnly) env["GROK_SANDBOX"] = "read-only";
+  else if (options.fullAccess) env["GROK_SANDBOX"] = "off";
   else if (options.fullAuto) env["GROK_SANDBOX"] = "workspace";
   else delete env["GROK_SANDBOX"];
 

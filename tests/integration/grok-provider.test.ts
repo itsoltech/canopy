@@ -50,7 +50,11 @@ test.skipIf(!dockerAvailable)(
       const link = await openGatewayLink({
         baseUrl: gw.grpcUrl,
         credential: added.credential,
-        hello: { workerId: added.workerId, ...(await runtime.runPromise(journalHello())) },
+        hello: {
+          workerId: added.workerId,
+          capabilities: ["full_access"],
+          ...(await runtime.runPromise(journalHello())),
+        },
       });
 
       const serving = serveLink(link, host, runtime);
@@ -186,6 +190,19 @@ test.skipIf(!dockerAvailable)(
           (i) => i.item?.content.case === "agentMessage" && i.item.content.value.text === "DENIED",
         ),
       ).toBe(true);
+
+      // Full access: no sandbox and nothing asks; Full auto keeps the workspace sandbox; Ask has none of its own.
+      const said = (r: Awaited<ReturnType<typeof turn>>, text: string) =>
+        r.state.items.some((i) => i.item?.content.case === "agentMessage" && i.item.content.value.text === text);
+
+      await gw.api.updateThread({ threadId: thread.id, permissionMode: PermissionMode.FULL_ACCESS });
+      const unasked = await turn("PERMISSION");
+      expect([unasked.answered.size, said(unasked, "ALLOWED")]).toEqual([0, true]);
+      expect(said(await turn("SANDBOX"), "SANDBOX=off")).toBe(true);
+      await gw.api.updateThread({ threadId: thread.id, permissionMode: PermissionMode.FULL_AUTO });
+      expect(said(await turn("SANDBOX"), "SANDBOX=workspace")).toBe(true);
+      await gw.api.updateThread({ threadId: thread.id, permissionMode: PermissionMode.ASK });
+      expect(said(await turn("SANDBOX"), "SANDBOX=unset")).toBe(true);
 
       for (const [prompt, code] of [
         ["FAIL_AUTH", "auth_required"],

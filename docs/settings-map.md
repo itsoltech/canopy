@@ -59,7 +59,7 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 
 | Strona / sekcja | Istniejące pola | Zakres i domyślne | Co zmieniają |
 | --- | --- | --- | --- |
-| Threads / New threads | Project and worker; Agent; Profile; Model per provider; Permissions | konto: last used, any available, first available, provider default, ask | Wartości początkowe nowych wątków; projekt może nadpisać |
+| Threads / New threads | Project and worker; Agent; Profile; Model per provider; Permissions | konto: last used, any available, first available, provider default, ask | Wartości początkowe nowych wątków; projekt może nadpisać. Permissions: Ask first, Accept edits, Read only, Full auto, Full access (bez sandboxa; wybór wymaga potwierdzenia, harmonogramy go nie oferują) |
 | Threads / Composer | Running delivery (w menu kolejki kompozytora) | konto: Steer | Główna akcja kompozytora podczas pracy; domyślnie Enter, druga akcja Mod+Enter |
 | Text generation | Provider instance; Model; Effort; Thread title instructions | konto: automatic, provider default, provider default, puste | Generowanie tytułów i semantycznych nazw gałęzi |
 | Scheduled tasks | Target; prompt; run time / recurrence; pause/resume; edit/cancel | konto/zasób: brak zadań | Harmonogram rzeczywistych tur, nie preferencja UI |

@@ -7,6 +7,7 @@ const defaults = object({
   workspaceId: str,
   provider: { type: "string", enum: ["PROVIDER_UNSPECIFIED", "PROVIDER_CLAUDE", "PROVIDER_CODEX", "PROVIDER_GROK"] },
   providerProfileId: str,
+  // No PERMISSION_MODE_FULL_ACCESS: bots never choose it, the user picks it in the app.
   permissionMode: {
     type: "string",
     enum: [

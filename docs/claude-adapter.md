@@ -72,9 +72,11 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 | `ACCEPT_EDITS` | `acceptEdits` | edycje w workspace przechodzą, reszta pyta |
 | `READ_ONLY` | `dontAsk` | nic nie pyta; to, co wymaga zgody (edycje, shell), jest odrzucane |
 | `FULL_AUTO` | `acceptEdits` + sandbox dla Bash | nic nie pyta; komendy w sandboxie systemu (zapis tylko w workspace), bez sandboxa komenda nie ruszy (`failIfUnavailable`) |
+| `FULL_ACCESS` | `acceptEdits`, `sandbox: { enabled: false }` + automatyczna zgoda `canUseTool` | nic nie pyta; edycje i komendy wszędzie, gdzie może użytkownik OS workera, z siecią; sandbox wyłączony jawnie, także gdy włączają go ustawienia repozytorium |
 
 - Tryb tury (`StartTurn.permission_mode`): nowy proces startuje z nim; proces trzymany przez zadania w tle przełącza się przed turą (`setPermissionMode`, sandbox przez `applyFlagSettings`, wyłączenie jako `{ enabled: false }`, automatyczna zgoda `canUseTool` czytana przy każdym pytaniu). Szczegóły: [protocol.md](protocol.md#modele-effort-i-steer).
-- `FULL_AUTO` nigdy nie oznacza `bypassPermissions`.
+- `FULL_AUTO` nigdy nie oznacza `bypassPermissions`. `FULL_ACCESS` też nie: `bypassPermissions` (z `allowDangerouslySkipPermissions`) pomija `canUseTool`, a wtedy `AskUserQuestion` nie trafiłoby do platformy. Automatyczna zgoda w `canUseTool` przepuszcza wszystko poza pytaniami.
+- Przełączenie trybu procesu trzymanego przez zadania w tle (`mode-switch.ts`): na czas zmiany automatyczna zgoda jest wyłączona; `FULL_AUTO` ↔ `FULL_ACCESS` włącza albo wyłącza sandbox przez `applyFlagSettings`.
 - `AskUserQuestion` zawsze trafia do platformy jako pytanie (`QUESTION`), odpowiedź wraca jako `answers`.
 - Różnica względem Codexa: w `READ_ONLY` Codex może uruchamiać komendy w sandboxie tylko do odczytu, Claude nie uruchamia shella.
 

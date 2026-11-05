@@ -38,6 +38,8 @@ export const LocalConfig = Schema.Struct({
   data_dir: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1))),
   /** HTTP/2 PING interval; keeps NAT mappings alive and detects dead links. */
   ping_interval_seconds: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 5, maximum: 3600 }))),
+  /** false: this device refuses Full access turns (no sandbox, no prompts); the default allows them. */
+  full_access: Schema.optionalKey(Schema.Boolean),
 });
 
 export type LocalConfig = Schema.Schema.Type<typeof LocalConfig>;

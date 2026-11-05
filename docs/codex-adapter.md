@@ -41,6 +41,7 @@ Gotowe:
   | `ACCEPT_EDITS` | `on-request` | `workspace-write` |
   | `READ_ONLY` | `never` | `read-only` |
   | `FULL_AUTO` | `never` | `workspace-write`, nigdy `danger-full-access` domyślnie |
+  | `FULL_ACCESS` | `never` | `danger-full-access` (w turze `sandboxPolicy: { type: "dangerFullAccess" }`), tylko jawny wybór |
 
   Ta sama tabela idzie w każdym `turn/start` jako `approvalPolicy` + `sandboxPolicy` (tryb tury ze `StartTurn.permission_mode`), bo Codex trzyma nadpisanie dla kolejnych tur ([protocol.md](protocol.md#modele-effort-i-steer)).
 

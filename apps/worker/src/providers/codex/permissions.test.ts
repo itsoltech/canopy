@@ -13,6 +13,11 @@ describe("codexPermissions", () => {
     });
     expect(codexPermissions(PermissionMode.READ_ONLY)).toEqual({ approvalPolicy: "never", sandbox: "read-only" });
     expect(codexPermissions(PermissionMode.FULL_AUTO)).toEqual({ approvalPolicy: "never", sandbox: "workspace-write" });
+    // Only the explicit choice drops the sandbox.
+    expect(codexPermissions(PermissionMode.FULL_ACCESS)).toEqual({
+      approvalPolicy: "never",
+      sandbox: "danger-full-access",
+    });
   });
 
   test("turn/start overrides carry the same policy and sandbox (explicit every turn)", () => {
@@ -39,6 +44,10 @@ describe("codexPermissions", () => {
     expect(codexTurnPermissions(PermissionMode.FULL_AUTO)).toEqual({
       approvalPolicy: "never",
       sandboxPolicy: workspace,
+    });
+    expect(codexTurnPermissions(PermissionMode.FULL_ACCESS)).toEqual({
+      approvalPolicy: "never",
+      sandboxPolicy: { type: "dangerFullAccess" },
     });
   });
 });

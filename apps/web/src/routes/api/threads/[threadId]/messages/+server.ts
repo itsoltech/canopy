@@ -15,7 +15,7 @@ const Body = Schema.Struct({
   model: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
   effort: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(40))),
   // This turn's permission mode (enum key); missing = the thread's default.
-  permissionMode: Schema.optionalKey(Schema.Literals(["ASK", "ACCEPT_EDITS", "READ_ONLY", "FULL_AUTO"])),
+  permissionMode: Schema.optionalKey(Schema.Literals(["ASK", "ACCEPT_EDITS", "READ_ONLY", "FULL_AUTO", "FULL_ACCESS"])),
   // queue (default): the next turn; steer: into the running turn (queued when none runs).
   delivery: Schema.optionalKey(Schema.Literals(["queue", "steer"])),
   // Uploaded attachments (api/attachments); a message with attachments is always queued.
