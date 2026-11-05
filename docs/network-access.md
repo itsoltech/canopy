@@ -89,6 +89,9 @@ Zmiana listy jest ogłaszana od razu partnerom (ramka `routes`, [etap 6](linked-
 
 Lista adresów **nie jest zaufaniem**: każde połączenie i tak sprawdza przypięty certyfikat.
 
+Gdy Tailscale jest połączony, pierwszym adresem jest nazwa MagicDNS, a za nią adres tailnetu
+([tailscale.md](tailscale.md#automatyczne-użycie-tailnetu)).
+
 ### Podpowiedzi zamiast instrukcji
 
 Pole `note` pojawia się tylko, gdy coś wymaga działania:

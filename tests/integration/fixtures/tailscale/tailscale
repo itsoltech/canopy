@@ -1,0 +1,64 @@
+#!/usr/bin/env bun
+// A stand-in `tailscale` CLI for tests (docs/tailscale.md). Tests never run the real one. Its state lives
+// next to it: status.json (or a "down" file: tailscaled unreachable), serve.json, "serve-denied" (no operator
+// rights), and calls.jsonl with every argument array it got.
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+const dir = import.meta.dir;
+const args = process.argv.slice(2);
+appendFileSync(join(dir, "calls.jsonl"), `${JSON.stringify(args)}\n`);
+
+const read = (name, fallback) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : fallback);
+
+if (args.some((a) => /funnel/i.test(a))) {
+  process.stderr.write("fake tailscale: funnel is never allowed in tests\n");
+  process.exit(2);
+}
+
+if (args[0] === "status" && args[1] === "--json") {
+  if (existsSync(join(dir, "down"))) {
+    process.stderr.write("failed to connect to local tailscaled; it doesn't appear to be running\n");
+    process.exit(1);
+  }
+
+  process.stdout.write(read("status.json", "{}"));
+  process.exit(0);
+}
+
+if (args[0] === "serve") {
+  const config = JSON.parse(read("serve.json", "{}"));
+  const save = () => writeFileSync(join(dir, "serve.json"), JSON.stringify(config));
+  const status = JSON.parse(read("status.json", "{}"));
+  const host = (status.Self?.DNSName ?? "").replace(/\.$/, "");
+
+  if (args[1] === "status" && args[2] === "--json") {
+    process.stdout.write(JSON.stringify(config));
+    process.exit(0);
+  }
+
+  const https = args.find((a) => a.startsWith("--https="))?.slice(8);
+
+  if (existsSync(join(dir, "serve-denied"))) {
+    process.stderr.write("Access denied: serve config denied\nUse 'sudo tailscale serve' or 'tailscale set --operator=$USER'\n");
+    process.exit(1);
+  }
+
+  if (https && args.at(-1) === "off") {
+    delete config.TCP?.[https];
+    delete config.Web?.[`${host}:${https}`];
+    save();
+    process.exit(0);
+  }
+
+  if (https && args.includes("--bg")) {
+    config.TCP = { ...config.TCP, [https]: { HTTPS: true } };
+    config.Web = { ...config.Web, [`${host}:${https}`]: { Handlers: { "/": { Proxy: args.at(-1) } } } };
+    save();
+    process.stdout.write(`Available within your tailnet:\n\nhttps://${host}:${https}/\n`);
+    process.exit(0);
+  }
+}
+
+process.stderr.write(`fake tailscale: unsupported ${args.join(" ")}\n`);
+process.exit(64);

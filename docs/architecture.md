@@ -16,6 +16,7 @@ Powiązane dokumenty:
 - [grok-adapter.md](grok-adapter.md) — własny SDK ACP stdio Grok CLI, native/CLIProxyAPI i MCP narzędzi platformy
 - [ui-api.md](ui-api.md) — API dla UI, SvelteKit jako BFF (HTTP/1.1 + SSE do przeglądarki, gRPC do gateway)
 - [mobile.md](mobile.md) — Canopy iOS/Android, Connect przez przypięty TLS, parowanie i automatyczne trasy
+- [tailscale.md](tailscale.md) — wykrywanie Tailscale, nazwa MagicDNS jako pierwszy adres i opcjonalne HTTPS over Tailscale dla web UI
 - [threads.md](threads.md) — projekty, wątki, wątki boczne i forki
 - [worktrees.md](worktrees.md) — git worktrees: ustawienia w zakresach, tworzenie, status, bezpieczne sprzątanie i zarządzanie
 - [transcript.md](transcript.md) — zapis wszystkich zdarzeń, itemy, oś czasu dla frontendu
