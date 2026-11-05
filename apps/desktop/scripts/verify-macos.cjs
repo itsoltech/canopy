@@ -7,6 +7,31 @@ if (process.platform !== "darwin") throw new Error("Verify macOS signatures on a
 
 const directory = process.argv[2];
 
+/**
+ * `stapler validate` asks Apple's ticket service. A dropped connection there (exit 68, "network connection was lost")
+ * says nothing about the build, so only that case is retried, with backoff; any other failure fails at once.
+ */
+function validateStaple(application) {
+  const delays = [15, 30, 60, 120];
+
+  for (let attempt = 0; ; attempt++) {
+    const result = spawnSync("xcrun", ["stapler", "validate", application], { encoding: "utf8" });
+    const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+
+    process.stdout.write(output);
+
+    if (result.error) throw result.error;
+
+    if (result.status === 0) return;
+    const transient = /Error 68|network connection was lost|NSURLErrorDomain/.test(output);
+
+    if (!transient || attempt >= delays.length)
+      throw new Error(`xcrun stapler validate failed for ${application} (exit ${result.status})`);
+    console.info(`Apple's ticket service was unreachable; retrying stapler validate in ${delays[attempt]} s`);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delays[attempt] * 1000);
+  }
+}
+
 if (!directory) throw new Error("Usage: node scripts/verify-macos.cjs <release/channel>");
 
 const applications = [];
@@ -67,7 +92,7 @@ for (const application of applications) {
 
     if (process.env.CANOPY_MAC_NOTARIZED === "true") {
       if (assessment.status !== 0) throw new Error("Gatekeeper rejected the notarized application");
-      execFileSync("xcrun", ["stapler", "validate", application], { stdio: "inherit" });
+      validateStaple(application);
     } else if (assessment.status !== 0)
       console.info("Developer ID signature verified; Gatekeeper may reject a build without notarization");
   }
