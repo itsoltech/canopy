@@ -11,6 +11,7 @@ import { interactionKind, toInteraction } from "./ui-mappers.ts";
 import type { ThreadStore } from "./threads-store.ts";
 
 export interface InteractionStore {
+  expireInteraction(requestId: string, threadId: string): Fx<ui.Interaction | undefined>;
   /** Pending interactions of the thread's finished turns expire (nothing can answer them any more). */
   expireEndedInteractions(threadId: string): Fx<ui.Interaction[]>;
   recordInteraction(request: InteractionRequest): Fx<ui.Interaction>;
@@ -25,8 +26,50 @@ export interface InteractionStore {
   interactionEvent(requestId: string): Fx<{ seq: bigint; event: ThreadEvent } | undefined>;
 }
 
-export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<ThreadStore, "thread">): InteractionStore {
+/** Reconnects replay the stored decision, including an expiry acknowledgement. */
+function interactionAnswer(sql: SqlClient.SqlClient, requestId: string) {
+  return sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${requestId}::uuid AND status <> 'pending'`.pipe(
+    Effect.map((rows) => {
+      const row = rows[0];
+
+      if (!row) return undefined;
+
+      if (row.status === "expired")
+        return {
+          threadId: row.thread_id,
+          answer: create(ui.AnswerInteractionRequestSchema, { requestId, cancelled: true }),
+        };
+
+      if (!row.response) return undefined;
+
+      return {
+        threadId: row.thread_id,
+        answer: create(ui.AnswerInteractionRequestSchema, { requestId, ...row.response }),
+      };
+    }),
+  );
+}
+
+function interactionExpiry(
+  sql: SqlClient.SqlClient,
+): Pick<InteractionStore, "expireInteraction" | "expireEndedInteractions"> {
   return {
+    expireInteraction: (requestId, threadId) =>
+      sql.withTransaction(
+        Effect.gen(function* () {
+          yield* sql`SELECT id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
+
+          const rows =
+            yield* sql<InteractionRow>`UPDATE interaction_requests SET status = 'expired', answered_at = now()
+        WHERE id = ${requestId}::uuid AND thread_id = ${threadId}::uuid AND status = 'pending'
+          AND (question_call_id IS NULL OR question_wait) RETURNING *`;
+
+          if (!rows[0]) return undefined;
+          yield* writeInteractionTimeline(sql, rows[0]);
+
+          return toInteraction(rows[0]);
+        }),
+      ),
     expireEndedInteractions: (threadId) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -36,7 +79,8 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
               UPDATE interaction_requests q SET status = 'expired', answered_at = now()
                 FROM turns u
                WHERE u.id = q.turn_id AND q.thread_id = ${threadId}::uuid AND q.status = 'pending'
-                 AND u.status IN ('completed', 'interrupted', 'failed', 'cancelled') AND q.question_call_id IS NULL
+                 AND u.status IN ('completed', 'interrupted', 'failed', 'cancelled')
+                 AND (q.question_call_id IS NULL OR q.question_wait)
               RETURNING q.*`;
 
           for (const row of rows) yield* writeInteractionTimeline(sql, row);
@@ -44,7 +88,12 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
           return rows.map(toInteraction);
         }),
       ),
+  };
+}
 
+export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<ThreadStore, "thread">): InteractionStore {
+  return {
+    ...interactionExpiry(sql),
     recordInteraction: (request) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -54,7 +103,21 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
           const known =
             yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${request.requestId}::uuid`;
 
-          if (known[0]) return toInteraction(known[0]);
+          if (known[0]) {
+            if (known[0].thread_id !== request.threadId)
+              return yield* Effect.fail(new Invalid("interaction belongs to another thread"));
+
+            if (request.cancelled && known[0].status === "pending") {
+              const expired = yield* sql<InteractionRow>`UPDATE interaction_requests
+                SET status = 'expired', answered_at = now() WHERE id = ${request.requestId}::uuid RETURNING *`;
+
+              yield* writeInteractionTimeline(sql, expired[0]!);
+
+              return toInteraction(expired[0]!);
+            }
+
+            return toInteraction(known[0]);
+          }
 
           const rows = yield* sql<InteractionRow>`
                 INSERT INTO interaction_requests (id, thread_id, turn_id, item_id, kind, tool_name, request, routed_to)
@@ -66,6 +129,15 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
                 RETURNING *`;
 
           const row = yield* one(rows, "interaction");
+
+          const ended = yield* sql`SELECT id FROM turns WHERE id = ${row.turn_id}::uuid
+            AND status IN ('completed', 'interrupted', 'failed', 'cancelled')`;
+
+          if (request.cancelled || ended.length) {
+            yield* sql`UPDATE interaction_requests SET status = 'expired', answered_at = now() WHERE id = ${row.id}::uuid`;
+            row.status = "expired";
+          }
+
           yield* writeInteractionTimeline(sql, row);
 
           return toInteraction(row);
@@ -73,42 +145,58 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
       ),
 
     answerInteraction: (requestId, by, answer) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          const found = yield* one(
-            yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${requestId}::uuid`,
-            "interaction",
-          );
+      sql
+        .withTransaction(
+          Effect.gen(function* () {
+            const found = yield* one(
+              yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${requestId}::uuid`,
+              "interaction",
+            );
 
-          yield* sql`SELECT id FROM threads WHERE id = ${found.thread_id}::uuid FOR UPDATE`;
+            yield* sql`SELECT id FROM threads WHERE id = ${found.thread_id}::uuid FOR UPDATE`;
 
-          const current = yield* one(
-            yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${requestId}::uuid FOR UPDATE`,
-            "interaction",
-          );
+            const current = yield* one(
+              yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${requestId}::uuid FOR UPDATE`,
+              "interaction",
+            );
 
-          if (current.status !== "pending")
-            return yield* Effect.fail(new Invalid(`interaction is already ${current.status}`));
+            if (current.status === "expired") return current;
 
-          if (current.question_call_id && !answer.cancelled) {
-            const decoded = decodeUserAnswers(answer.answerJson, storedQuestions(current.request));
+            if (current.status !== "pending")
+              return yield* Effect.fail(new Invalid(`interaction is already ${current.status}`));
 
-            if (Result.isFailure(decoded)) return yield* Effect.fail(new Invalid(decoded.failure));
-          }
+            const ended = yield* sql`SELECT id FROM turns WHERE id = ${current.turn_id}::uuid
+            AND status IN ('completed', 'interrupted', 'failed', 'cancelled')`;
 
-          const status = answer.cancelled
-            ? "cancelled"
-            : current.kind === "permission"
-              ? answer.allow
-                ? "allowed"
-                : "declined"
-              : "answered";
+            if (ended.length && (!current.question_call_id || current.question_wait)) {
+              const rows =
+                yield* sql<InteractionRow>`UPDATE interaction_requests SET status = 'expired', answered_at = now()
+              WHERE id = ${requestId}::uuid RETURNING *`;
 
-          // Cancellation has no author (interaction_requests_answered_by).
-          const userId = "userId" in by && !answer.cancelled ? by.userId : null;
-          const threadId = "threadId" in by && !answer.cancelled ? by.threadId : null;
+              yield* writeInteractionTimeline(sql, rows[0]!);
 
-          const rows = yield* sql<InteractionRow>`
+              return rows[0]!;
+            }
+
+            if (current.question_call_id && !answer.cancelled) {
+              const decoded = decodeUserAnswers(answer.answerJson, storedQuestions(current.request));
+
+              if (Result.isFailure(decoded)) return yield* Effect.fail(new Invalid(decoded.failure));
+            }
+
+            const status = answer.cancelled
+              ? "cancelled"
+              : current.kind === "permission"
+                ? answer.allow
+                  ? "allowed"
+                  : "declined"
+                : "answered";
+
+            // Cancellation has no author (interaction_requests_answered_by).
+            const userId = "userId" in by && !answer.cancelled ? by.userId : null;
+            const threadId = "threadId" in by && !answer.cancelled ? by.threadId : null;
+
+            const rows = yield* sql<InteractionRow>`
                 UPDATE interaction_requests SET status = ${status}, answered_by = ${userId}::uuid, answered_by_thread_id = ${threadId}::uuid,
                        answered_by_bot_id = ${"botId" in by && by.botId && !answer.cancelled ? by.botId : null}::uuid,
                        answered_at = now(),
@@ -116,14 +204,15 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
                        answer_delivery = CASE WHEN question_call_id IS NOT NULL THEN 'pending' ELSE NULL END
                  WHERE id = ${requestId}::uuid RETURNING *`;
 
-          // The parent agent no longer needs the turn that would have asked it.
-          yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now() WHERE interaction_request_id = ${requestId}::uuid AND status = 'queued'`;
-          const row = yield* one(rows, "interaction");
-          yield* writeInteractionTimeline(sql, row);
+            // The parent agent no longer needs the turn that would have asked it.
+            yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now() WHERE interaction_request_id = ${requestId}::uuid AND status = 'queued'`;
+            const row = yield* one(rows, "interaction");
+            yield* writeInteractionTimeline(sql, row);
 
-          return toInteraction(row);
-        }),
-      ),
+            return row;
+          }),
+        )
+        .pipe(Effect.map(toInteraction)),
 
     interactionEvent: (requestId) =>
       sql<{ seq: string; payload: JsonValue }>`
@@ -141,18 +230,6 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
         Effect.map((rows) => rows.map(toInteraction)),
       ),
 
-    interactionAnswer: (requestId) =>
-      sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${requestId}::uuid AND status <> 'pending'`.pipe(
-        Effect.map((rows) => {
-          const row = rows[0];
-
-          if (!row?.response) return undefined;
-
-          return {
-            threadId: row.thread_id,
-            answer: create(ui.AnswerInteractionRequestSchema, { requestId, ...row.response }),
-          };
-        }),
-      ),
+    interactionAnswer: (requestId) => interactionAnswer(sql, requestId),
   };
 }

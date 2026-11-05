@@ -37,6 +37,7 @@
   const catalogs = useModelCatalog();
   let snapshot = $state.raw(create(bots.BotConversationSchema));
   let connection = $state("");
+  const expiredNotice = $derived(connection === "This request expired. No answer was sent.");
   let sending = $state(false);
   let retrying = $state(false);
   let answering = $state<Record<string, string>>({});
@@ -231,6 +232,14 @@
       );
     } catch (cause) {
       connection = cause instanceof Error ? cause.message : "Could not send your answer";
+
+      if (connection.includes("This request expired.")) {
+        snapshot = {
+          ...snapshot,
+          approvals: snapshot.approvals.map((a) => (a.id === id ? { ...a, status: "expired" } : a)),
+        };
+        connection = "This request expired. No answer was sent.";
+      }
     } finally {
       const { [id]: _, ...rest } = answering;
       answering = rest;
@@ -431,8 +440,11 @@
   {/key}
   {#if connection || pending.some((p) => p.failed)}
     <div
-      role="alert"
-      class="flex items-center justify-center gap-3 border-t border-zinc-950/5 px-4 py-2 text-sm/5 text-rose-600 dark:border-white/5 dark:text-rose-400"
+      role={expiredNotice ? "status" : "alert"}
+      class={[
+        "flex items-center justify-center gap-3 border-t border-zinc-950/5 px-4 py-2 text-sm/5 dark:border-white/5",
+        expiredNotice ? "text-zinc-500 dark:text-zinc-400" : "text-rose-600 dark:text-rose-400",
+      ]}
     >
       {connection || "Your message was not sent."}
       {#if !bot.archived && pending.some((p) => p.failed)}<Button size="sm" variant="ghost" onclick={resend}

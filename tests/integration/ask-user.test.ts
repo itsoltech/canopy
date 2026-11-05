@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import { Code } from "@connectrpc/connect";
 import { create } from "@bufbuild/protobuf";
-import { Provider, TurnOutcome, ui, type AgentToolResult } from "@canopy/contracts";
+import { AgentToolCallSchema, Provider, TurnOutcome, ui, type AgentToolResult } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -305,7 +306,7 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
     );
   });
 
-  test("sync answers remain deliverable after the asking turn ends, including a crash during result delivery", async () => {
+  test("an unanswered sync request expires at turn end; an accepted answer survives a crash during delivery", async () => {
     for (const consumed of [false, true]) {
       const source = await start();
       const callId = Bun.randomUUIDv7();
@@ -329,7 +330,16 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
         (r) => r[0]?.status === "interrupted",
       );
 
-      if (!consumed) await gw.api.answerInteraction({ requestId: callId, answerJson });
+      if (!consumed) {
+        await expect(gw.api.answerInteraction({ requestId: callId, answerJson })).rejects.toMatchObject({
+          code: Code.FailedPrecondition,
+        });
+        expect(json(await waiting).status).toBe("expired");
+        await gw.core.bus.deliverAnswers();
+        expect(await turns(source.threadId)).toHaveLength(1);
+        continue;
+      }
+
       await gw.core.bus.deliverAnswers();
 
       const next = await eventually(
@@ -348,6 +358,37 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
       gw.worker.finish(source.threadId, next[1]!.id);
       await waiting;
     }
+  });
+
+  test("cancellation arriving before a synchronous question fences its later replay", async () => {
+    const source = await start();
+    const callId = Bun.randomUUIDv7();
+    gw.worker.link.send({
+      case: "agentToolCall",
+      value: create(AgentToolCallSchema, {
+        ...source,
+        callId,
+        toolName: "ask_user",
+        argumentsJson: JSON.stringify({ questions, wait: true }),
+        cancelled: true,
+      }),
+    });
+
+    const rows = await eventually(
+      () => query<{ status: string }>("SELECT status FROM interaction_requests WHERE id = $1::uuid", callId),
+      (r) => r[0]?.status === "expired",
+    );
+
+    expect(rows).toEqual([{ status: "expired" }]);
+    expect(
+      json(await gw.worker.callTool({ ...source, callId, tool: "ask_user", args: { questions, wait: true } })).status,
+    ).toBe("expired");
+    expect(await pending(source.threadId)).toEqual([]);
+    await expect(
+      gw.core.answerInteraction(create(ui.AnswerInteractionRequestSchema, { requestId: callId, answerJson })),
+    ).rejects.toThrow("This request expired.");
+    expect(await turns(source.threadId)).toHaveLength(1);
+    gw.worker.finish(source.threadId, source.turnId);
   });
 
   test("sync dismissal returns dismissed; async get_answers cannot read another thread's question", async () => {
@@ -424,12 +465,39 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
     expect(
       await query("SELECT answered_by FROM interaction_requests WHERE id = $1::uuid", second.question_set_id),
     ).toEqual([{ answered_by: gw.userId }]);
-    gw.worker.holdTurns = false;
+
+    const finalCallId = Bun.randomUUIDv7();
+
+    const finalQuestion = gw.worker.callTool({
+      threadId: child.thread_id,
+      turnId: child.turn_id,
+      callId: finalCallId,
+      tool: "ask_user",
+      args: { questions, wait: true },
+    });
+
+    await eventually(
+      () => pending(child.thread_id),
+      (r) => r.some((q) => q.requestId === finalCallId),
+    );
     gw.worker.finish(child.thread_id, child.turn_id);
+    expect(json(await finalQuestion).status).toBe("expired");
+
+    const lateParentAnswer = await gw.worker.callTool({
+      ...source,
+      tool: "answer_interaction",
+      args: { request_id: finalCallId, response: "answer", answer_json: answerJson },
+    });
+
+    expect(lateParentAnswer.isError).toBe(true);
+    expect(await query("SELECT status, response FROM interaction_requests WHERE id = $1::uuid", finalCallId)).toEqual([
+      { status: "expired", response: null },
+    ]);
+    gw.worker.holdTurns = false;
     gw.worker.finish(source.threadId, source.turnId);
   });
 
-  test("worker restart while waiting keeps the question; the answer resumes as a new turn", async () => {
+  test("worker restart expires an unanswered synchronous question", async () => {
     const added = await gw.addWorker("restart", ["/repo"]);
 
     const worker = await gw.connect(added.workerId, added.credential, undefined, {
@@ -494,24 +562,20 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
         () => turns(thread.id),
         (r) => r[0]?.status === "interrupted",
       );
-      expect((await pending(thread.id))[0]?.requestId).toBe(callId);
-      await gw.api.answerInteraction({ requestId: callId, answerJson });
-
-      const resumed = await eventually(
-        () => turns(thread.id),
-        (r) => r.length === 2 && r[1]?.status === "completed",
+      await eventually(
+        () => pending(thread.id),
+        (r) => r.length === 0,
       );
-
-      expect(resumed[1]).toMatchObject({
-        trigger: "agent_bus",
-        hops: 1,
-        text: expect.stringContaining('"labels":["OAuth"]'),
-      });
+      expect(json((await handling)!).status).toBe("expired");
       expect((await handling)?.isError).toBe(false);
+      await expect(
+        gw.api.answerInteraction({ requestId: callId, answerJson }, { timeoutMs: 5000 }),
+      ).rejects.toMatchObject({ code: Code.FailedPrecondition, rawMessage: "This request expired." });
+      expect(await turns(thread.id)).toHaveLength(1);
     } finally {
       spy.mockRestore();
 
       if (handling) await handling;
     }
-  });
+  }, 15_000);
 });

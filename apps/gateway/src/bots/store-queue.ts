@@ -151,6 +151,7 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
       VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, 'answer', ${turn.bot_id}, ${turn.reply_to_bot_id ?? turn.remote_recipient_ref ?? "user"}, ${status === "completed" ? "message" : "event"}, ${text}, ${turn.exchange_id}::uuid, ${errorCode}, ${errorSource})
       ON CONFLICT(turn_id, message_key) DO NOTHING`;
         yield* sql`UPDATE bot_turns SET status = ${status}, lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = ${turn.id}::uuid`;
+        yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now() WHERE turn_id = ${turn.id}::uuid AND status = 'pending'`;
         yield* sql`UPDATE bots SET status_line = '', revision = revision + 1, updated_at = now() WHERE id = ${turn.bot_id}::uuid`;
 
         if (turn.routine_id) {

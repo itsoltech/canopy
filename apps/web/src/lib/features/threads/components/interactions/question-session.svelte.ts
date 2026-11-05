@@ -15,6 +15,7 @@ export class QuestionSession {
   messaging = $state(false);
   busy = $state(false);
   done = $state(false);
+  expired = $state(false);
   error = $state("");
   constructor(interaction: ui.Interaction) {
     this.interaction = interaction;
@@ -45,7 +46,7 @@ export class QuestionSession {
         : [label];
   }
   async submit(skip = false) {
-    if (this.busy) return;
+    if (this.busy || this.expired) return;
     const answer = skip ? { id: this.question.id, kind: "skipped" as const } : this.answer;
 
     if (!answer) return;
@@ -55,7 +56,7 @@ export class QuestionSession {
     else await this.finish();
   }
   async finish(skipAll = false, dismissed = false) {
-    if (this.busy) return;
+    if (this.busy || this.expired) return;
 
     const answers = this.questions.map((q): UserAnswer =>
       skipAll ? { id: q.id, kind: "skipped" } : (this.responses[q.id] ?? { id: q.id, kind: "skipped" }),
@@ -74,6 +75,8 @@ export class QuestionSession {
       this.done = true;
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
+
+      if (this.error.includes("This request expired.")) this.expired = true;
     } finally {
       this.busy = false;
     }

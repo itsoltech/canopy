@@ -27,7 +27,11 @@ const McpRequest = Schema.Struct({
   id: Schema.optionalKey(Schema.Union([Schema.Number, Schema.String])),
   method: Schema.String,
   params: Schema.optionalKey(
-    Schema.Struct({ name: Schema.optionalKey(Schema.String), arguments: Schema.optionalKey(Schema.Json) }),
+    Schema.Struct({
+      name: Schema.optionalKey(Schema.String),
+      arguments: Schema.optionalKey(Schema.Json),
+      requestId: Schema.optionalKey(Schema.Union([Schema.String, Schema.Number])),
+    }),
   ),
 });
 
@@ -46,11 +50,12 @@ export interface GrokBusOptions {
   viewImage?(path: string): Promise<ViewImageResult>;
   toolUseId?(tool: string, args: JsonValue): string | undefined;
   turnId(): string;
-  callTool(call: AgentToolCall): Promise<AgentToolResult>;
+  callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult>;
 }
 
 export function grokBus(options: GrokBusOptions): GrokBus {
   const token = crypto.randomUUID();
+  const pending = new Map<string | number, AbortController>();
 
   const tools = [
     ...(options.agentBus === false ? [] : agentBusToolSpecs(agentBusToolsFor(options.depth))),
@@ -77,7 +82,12 @@ export function grokBus(options: GrokBusOptions): GrokBus {
         return new Response(null, { status: 400 });
       }
 
-      if (rpc.id === undefined) return new Response(null, { status: 202 });
+      if (rpc.id === undefined) {
+        if (rpc.method === "notifications/cancelled" && rpc.params?.requestId !== undefined)
+          pending.get(rpc.params.requestId)?.abort();
+
+        return new Response(null, { status: 202 });
+      }
 
       const reply = (result: JsonValue | { tools: typeof tools }) =>
         Response.json({ jsonrpc: "2.0", id: rpc.id, result });
@@ -98,7 +108,14 @@ export function grokBus(options: GrokBusOptions): GrokBus {
 
       if (!options.turnId()) return reply({ content: [{ type: "text", text: "No active turn" }], isError: true });
 
-      return callTool(options, rpc, reply);
+      const abort = new AbortController();
+      pending.set(rpc.id, abort);
+
+      try {
+        return await callTool(options, rpc, reply, AbortSignal.any([request.signal, abort.signal]));
+      } finally {
+        pending.delete(rpc.id);
+      }
     },
     idleTimeout: 0,
   });
@@ -127,6 +144,7 @@ async function callTool(
   options: GrokBusOptions,
   rpc: typeof McpRequest.Type,
   reply: (result: JsonValue) => Response,
+  signal: AbortSignal,
 ): Promise<Response> {
   const itemId = options.toolUseId?.(rpc.params!.name!, rpc.params?.arguments ?? {}) ?? crypto.randomUUID();
   const turnId = options.turnId();
@@ -209,6 +227,7 @@ async function callTool(
         argumentsJson,
         connectorAccountId: connector?.accountId ?? "",
       }),
+      signal,
     );
 
     await record(result.isError ? ItemStatus.FAILED : ItemStatus.COMPLETED, result.content, result.isError);

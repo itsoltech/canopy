@@ -73,15 +73,18 @@ message BotApproval {
   string turn_id = 3;
   string kind = 4; // approval | question
   string prompt = 5;
-  string status = 6; // pending | approved | discarded
+  string status = 6; // pending | approved | discarded | expired
   string answer = 7;
   google.protobuf.Timestamp created_at = 8;
   // Pytanie: proponowane odpowiedzi (do 6); użytkownik może też odpowiedzieć własnymi słowami.
   repeated string options = 9;
+  // Labelled values preserve multi-paragraph tool input without parsing prose.
+  repeated BotApprovalField fields = 601;
   // Pełny, trwały podgląd create_bot, bez sekretów i MCP. Wykonanie używa tego snapshotu.
   BotConfiguration proposed_bot = 600;
   string routine_title = 560;
 }
+message BotApprovalField { string label = 1; string value = 2; }
 message BotConversation {
   Bot bot = 1;
   repeated BotMessage messages = 2;

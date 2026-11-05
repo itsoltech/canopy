@@ -1,6 +1,6 @@
 <script lang="ts">
   import { formatDateTime } from "#lib/shared/format.ts";
-  import LongText from "#lib/shared/ui/LongText.svelte";
+  import RequestText from "#lib/shared/ui/RequestText.svelte";
   import ExternalLink from "#lib/shared/ui/ExternalLink.svelte";
   import { timestampFromDate } from "@bufbuild/protobuf/wkt";
   import type { Node } from "#lib/shared/structure.ts";
@@ -14,7 +14,7 @@
 {#if node.kind === "text"}
   <span class="break-words">{node.text}</span>
 {:else if node.kind === "long"}
-  <LongText text={node.text} />
+  <RequestText text={node.text} />
 {:else if node.kind === "number"}
   <span class="tabular-nums">{node.text}</span>
 {:else if node.kind === "bool"}
@@ -28,7 +28,7 @@
 {:else if node.kind === "url"}
   <ExternalLink href={node.href} title={node.href} class="break-all">{shortUrl(node.href)}</ExternalLink>
 {:else if node.kind === "path"}
-  <code class="font-mono break-all text-zinc-800 dark:text-zinc-200" title={node.path}>{node.path}</code>
+  <code class="font-mono wrap-anywhere text-zinc-800 dark:text-zinc-200" title={node.path}>{node.path}</code>
 {:else if node.kind === "empty"}
   <span class="text-zinc-400 dark:text-zinc-500">None</span>
 {/if}

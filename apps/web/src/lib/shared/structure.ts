@@ -34,13 +34,15 @@ const ENUM_KEYS =
 const GROUPED = new Intl.NumberFormat("en", { maximumFractionDigits: 20, useGrouping: true });
 
 /** Text longer than this, or with a line break, is shown as a block of its own. */
-const LONG = 120;
+const LONG = 50;
 
 /** Nesting below this depth stays a short JSON line (a value that deep is rarely read). */
 const MAX_DEPTH = 6;
 
 const isPath = (text: string) =>
   !/\s/.test(text) && (/^(\/|~\/|\.{1,2}\/)[^\s]*$/.test(text) || /^[\w.-]+(\/[\w.@-]+)+\.\w{1,8}$/.test(text));
+
+const PATH_KEYS = /^(path|ref|directory|branch)$|_(path|ref|directory|branch)$|(Path|Ref|Directory|Branch)$/;
 
 /** A JSON value (or a JSON text inside a string) as a node; `key` helps tell ids and enums apart. */
 export function structure(value: JsonValue | undefined, key = "", depth = 0): Node {
@@ -89,7 +91,7 @@ function leaf(text: string, key: string, depth: number): Node {
 
   if (/^https?:\/\/\S+$/.test(trimmed)) return { kind: "url", href: trimmed };
 
-  if (isPath(trimmed)) return { kind: "path", path: trimmed };
+  if (isPath(trimmed) || (PATH_KEYS.test(key) && !/\s/.test(trimmed))) return { kind: "path", path: trimmed };
 
   if (isEnumToken(trimmed) || (ENUM_KEYS.test(key) && /^[a-z]+([A-Z][a-z0-9]*)*$/.test(trimmed)))
     return { kind: "enum", label: humanizeEnum(trimmed), raw: trimmed };
@@ -112,7 +114,13 @@ export function isEmptyNode(node: Node): boolean {
 }
 
 /** A node short enough to sit on one line next to its label. */
-export const isInline = (node: Node): boolean => !["long", "list", "object"].includes(node.kind) || isEmptyNode(node);
+export const isInline = (node: Node): boolean => {
+  if (node.kind === "path") return node.path.length <= LONG;
+
+  if (node.kind === "url") return node.href.length <= LONG;
+
+  return !["long", "list", "object"].includes(node.kind) || isEmptyNode(node);
+};
 
 /** Parses JSON text into a node; text that is not JSON stays text (long when it has lines). */
 export function structureJson(json: string): Node {

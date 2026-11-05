@@ -89,7 +89,8 @@ export async function runToolCall(
           return WAITING;
         }
 
-        if (approval?.status === "discarded")
+        if (approval?.status === "expired") result = { error: "This request expired. Do not retry it." };
+        else if (approval?.status === "discarded")
           result =
             approval.answer && !question
               ? // "Edit" on the card: nothing ran; the user's edited version is what they want proposed instead.

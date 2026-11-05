@@ -13,6 +13,7 @@ import type { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
 import type { BotAccess } from "./store-access.ts";
 import type { BotTurn } from "./types.ts";
+import type { AgentToolCall } from "@canopy/contracts";
 
 export interface HarnessTurnRow {
   turn_id: string;
@@ -31,6 +32,29 @@ export interface HarnessTurnRow {
 /** Bot events use the worker journal, with independent storage and owner/worker checks. */
 export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
   return {
+    abandonHarnessCall: (user: string, workerId: string, call: AgentToolCall) =>
+      sql.withTransaction(
+        Effect.gen(function* () {
+          yield* access.owned(user, call.botId, true);
+
+          const turn = yield* sql`SELECT t.id FROM bot_turns t JOIN bot_harness_turns h ON h.turn_id = t.id
+            WHERE t.id = ${call.turnId}::uuid AND t.bot_id = ${call.botId}::uuid
+              AND h.worker_id = ${workerId}::uuid FOR UPDATE OF t`;
+
+          if (!turn.length) return;
+          // A tombstone also fences cancellation that overtakes the first execution.
+          yield* sql`INSERT INTO bot_tool_calls(id, turn_id, call_key, tool, arguments, status, result)
+            VALUES (${Bun.randomUUIDv7()}::uuid, ${call.turnId}::uuid, ${call.callId}, '{}'::jsonb, '{}'::jsonb,
+              'interrupted', '{"error":"This request expired. Do not retry it."}'::jsonb)
+            ON CONFLICT (turn_id, call_key) DO UPDATE SET status = 'interrupted',
+              result = '{"error":"This request expired. Do not retry it."}'::jsonb
+            WHERE bot_tool_calls.status = 'pending'`;
+          yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now()
+            WHERE id IN (SELECT id FROM bot_tool_calls WHERE turn_id = ${call.turnId}::uuid AND call_key = ${call.callId})
+              AND status = 'pending'`;
+          yield* access.changed(call.botId);
+        }),
+      ),
     harnessTurn: (id: string) =>
       sql<HarnessTurnRow>`SELECT * FROM bot_harness_turns WHERE turn_id = ${id}::uuid`.pipe(Effect.map((r) => r[0])),
     harnessCommand: (turn: BotTurn, workerId: string, command: Command) =>
@@ -100,6 +124,11 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
             };
           }
 
+          yield* sql`SELECT b.id FROM bots b JOIN bot_harness_turns h ON h.bot_id = b.id
+            WHERE h.turn_id = ${event.turnId}::uuid AND h.bot_id = ${event.threadId}::uuid
+              AND h.worker_id = ${workerId}::uuid FOR UPDATE OF b`;
+          yield* sql`SELECT id FROM bot_turns WHERE id = ${event.turnId}::uuid FOR UPDATE`;
+
           const row =
             (yield* sql<HarnessTurnRow>`SELECT h.* FROM bot_harness_turns h WHERE h.turn_id = ${event.turnId}::uuid AND h.bot_id = ${event.threadId}::uuid AND h.worker_id = ${workerId}::uuid FOR UPDATE`)[0];
 
@@ -123,6 +152,10 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
             row.items[body.value.itemId] = (row.items[body.value.itemId] ?? "") + body.value.chunk;
           const text = Object.values(row.items).join("\n");
           const end = body.case === "turnFinished" ? body.value : undefined;
+
+          if (end)
+            yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now()
+              WHERE turn_id = ${row.turn_id}::uuid AND status = 'pending'`;
           yield* sql`UPDATE bot_harness_turns SET items = ${JSON.stringify(row.items)}::jsonb, text = ${text}, outcome = ${end?.outcome ?? row.outcome}, source = ${end?.source ?? row.source}, reason = ${end?.reason ?? row.reason}, error_code = ${end?.errorCode ?? row.error_code}, error_class = ${end?.errorClass ?? row.error_class} WHERE turn_id = ${row.turn_id}::uuid`;
           yield* access.changed(row.bot_id);
 

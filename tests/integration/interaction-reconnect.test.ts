@@ -1,5 +1,6 @@
 /** Pending native interactions survive a broken gRPC link while the same worker process keeps running. */
 import { afterAll, beforeAll, describe, expect, spyOn, test, type Mock } from "bun:test";
+import { Code } from "@connectrpc/connect";
 import { join, resolve } from "node:path";
 import { PermissionMode, Provider, ui, type InteractionRequest } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -24,6 +25,7 @@ let serving: Promise<unknown>;
 let workspaceId = "";
 let projectId = "";
 let interactions: Mock<HostEvents["interact"]>;
+let abandoned: AbortSignal | undefined;
 
 const query = <A extends object>(statement: string, ...params: string[]) =>
   gw.runtime.runPromise(SqlClient.SqlClient.use((sql) => sql.unsafe<A>(statement, params)));
@@ -166,7 +168,18 @@ describe.skipIf(!dockerAvailable)("native interactions across worker reconnects 
     );
     runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
     // HostContext binds this callback during construction; observe it before the real host captures it.
-    interactions = spyOn(HostEvents.prototype, "interact");
+    const interact = HostEvents.prototype.interact;
+    interactions = spyOn(HostEvents.prototype, "interact").mockImplementation(function (
+      this: HostEvents,
+      request,
+      signal,
+    ) {
+      return interact.call(
+        this,
+        request,
+        abandoned ? AbortSignal.any([abandoned, ...(signal ? [signal] : [])]) : signal,
+      );
+    });
     host = new WorkerHost({
       runtime,
       dataDir: join(dir, "data"),
@@ -330,4 +343,58 @@ describe.skipIf(!dockerAvailable)("native interactions across worker reconnects 
     await gw.api.answerInteraction({ requestId: interaction.requestId, allow: true });
     await continued(interaction);
   }, 30_000);
+
+  test("a late native permission answer expires atomically before the settlement sweep", async () => {
+    const threadId = await thread("permission ended before answer");
+    await ask(threadId);
+    const interaction = await pending(threadId);
+    // Exercise the gap between storing the terminal worker event and settlement/broadcast.
+    await query(
+      "UPDATE turns SET status = 'interrupted', completed_at = now() WHERE id = $1::uuid",
+      interaction.turnId,
+    );
+    await expect(gw.api.answerInteraction({ requestId: interaction.requestId, allow: true })).rejects.toMatchObject({
+      code: Code.FailedPrecondition,
+      rawMessage: "This request expired.",
+    });
+    expect(
+      await query(
+        "SELECT status, response, answered_by FROM interaction_requests WHERE id = $1::uuid",
+        interaction.requestId,
+      ),
+    ).toEqual([{ status: "expired", response: null, answered_by: null }]);
+    await gw.api.interruptThread({ threadId });
+  }, 15_000);
+
+  test("a provider abandoning an offline request expires it on reconnect and rejects a late answer", async () => {
+    const abort = new AbortController();
+    abandoned = abort.signal;
+
+    try {
+      const threadId = await thread("abandoned provider request");
+      await ask(threadId);
+      const interaction = await pending(threadId);
+      await disconnect();
+      abort.abort();
+      await connect();
+
+      const expired = await eventually(
+        () =>
+          query<{ status: string }>(
+            "SELECT status FROM interaction_requests WHERE id = $1::uuid",
+            interaction.requestId,
+          ),
+        (rows) => rows[0]?.status === "expired",
+      );
+
+      expect(expired).toEqual([{ status: "expired" }]);
+      await expect(gw.api.answerInteraction({ requestId: interaction.requestId, allow: true })).rejects.toMatchObject({
+        code: Code.FailedPrecondition,
+        rawMessage: "This request expired.",
+      });
+      expect((await snapshot(threadId)).interactions).toEqual([]);
+    } finally {
+      abandoned = undefined;
+    }
+  }, 15_000);
 });

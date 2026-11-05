@@ -43,7 +43,7 @@ interface Options {
   profile(id: string): ResolvedProfile | undefined;
   record(threadId: string, init: ThreadEventInit): Promise<ThreadEvent>;
   interact(request: InteractionRequest, signal?: AbortSignal): Promise<InteractionResponse>;
-  callTool(call: AgentToolCall): Promise<AgentToolResult>;
+  callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult>;
   viewImage?(threadId: string, cwd: string, path: string): Promise<ViewImageResult>;
 }
 

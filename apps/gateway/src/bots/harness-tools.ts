@@ -17,6 +17,10 @@ export class HarnessTools {
     readonly waiting: (turnId: string, waiting: boolean) => void,
   ) {}
   handle(call: AgentToolCall, workerId: string): Promise<AgentToolResult> {
+    if (call.cancelled)
+      return this.run((s) => s.abandonHarnessCall(this.options.userId, workerId, call)).then(() =>
+        create(AgentToolResultSchema, { callId: call.callId, isError: true, content: "This request expired." }),
+      );
     const key = `${workerId}/${call.botId}/${call.turnId}/${call.callId}`;
     const pending = this.#pending.get(key);
 

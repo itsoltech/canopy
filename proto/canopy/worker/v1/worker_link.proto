@@ -1201,6 +1201,8 @@ message InteractionRequest {
   string tool_name = 6;
   // PERMISSION: wejście narzędzia; QUESTION: pytania i opcje; ELICITATION: schemat formularza.
   string request_json = 7;
+  // The provider no longer waits for this request. Replayed until acknowledged.
+  bool cancelled = 8;
 }
 
 message InteractionResponse {
@@ -1230,6 +1232,8 @@ message AgentToolCall {
   string item_id = 6;          // item narzędzia na osi czasu
   string tool_name = 4;        // nazwa z AGENT_BUS_TOOLS (packages/domain)
   string arguments_json = 5;
+  // The provider abandoned this call (timeout/cancellation). Replayed until acknowledged.
+  bool cancelled = 831;
 }
 
 message AgentToolResult {

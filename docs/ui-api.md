@@ -550,6 +550,12 @@ Przy nawigacji TurnRail rezerwa do wyrównania ostatniego wiersza jest liczona r
 
 `Interaction.asynchronous` i `InteractionPrompt.asynchronous` (pole **250** w odpowiednich wiadomościach) oznaczają pytanie, przy którym agent pracuje dalej. Domyślne `false` zachowuje zachowanie natywnych interakcji. Async pozostaje w `snapshot.interactions` i strumieniu interakcji, lecz nie zwiększa `Thread.pending_interactions` ani komunikatu czytnika ekranu „waiting for you”.
 
+Nieodpowiedziana interakcja blokująca wygasa po zakończeniu pytającej tury;
+`ask_user(wait: true)` także po limicie 120 s. Stan `expired` jest zapisany na osi
+czasu i publikowany w strumieniu. `AnswerInteraction` odrzuca spóźnioną odpowiedź
+`FailedPrecondition: This request expired.`, także przed sweepem porządkującym turę.
+Pytania asynchroniczne zachowują możliwość odpowiedzi w kolejnej turze.
+
 `ComposerTop` to wspólna powierzchnia/slot nad polem wiadomości: panel subagentów, kolejka i pytania tworzą jeden stos z jednym nachodzeniem na composer. Warianty `embedded` paneli nie dodają własnych obwódek ani przesunięć. `Composer` wybiera najstarszy zestaw blokujący przed async, przechowuje szkice per id zestawu i używa osobnego `MessageComposer` do zwykłych wiadomości.
 
 `QuestionForm`, `QuestionOption` i `QuestionSession` obsługują kroki, Back, Skip, Skip all, Dismiss (sync), zwijanie i przełączanie async na wiadomości. Pole odpowiedzi używa placeholdera „Type your own answer, or leave this blank to use the selected option” i przycisku „Submit”; wpisany tekst ma pierwszeństwo przed zaznaczeniami. Rekomendacja jest oznaczeniem, bez automatycznego wyboru. Zwykły szkic wiadomości zostaje zamontowany przy przełączaniu. Natywne pytania poufne zachowują pole hasła i ukryte odpowiedzi w rekordzie osi czasu.

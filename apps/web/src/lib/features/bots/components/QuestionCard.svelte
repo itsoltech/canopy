@@ -29,7 +29,7 @@
   const id = $props.id();
   let text = $state("");
   const letters = "ABCDEFGHIJ";
-  const answered = $derived(Boolean(question.answer));
+  const answered = $derived(Boolean(question.answer) || question.expired === true);
   const open = $derived(!answered && !answering && Boolean(onanswer));
 
   function onkeydown(event: KeyboardEvent) {
@@ -57,40 +57,56 @@
       {#each question.options as option, index (option.id)}
         {@const chosen = question.answer?.optionId === option.id || answering === option.id}
         <li>
-          <button
-            type="button"
-            disabled={!open}
-            aria-pressed={chosen}
-            aria-keyshortcuts={letters[index]}
-            class={[
-              "flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left text-base/6 focus-ring not-disabled:hover:bg-zinc-950/4 aria-pressed:bg-zinc-950/5 sm:py-2 sm:text-sm/6 dark:not-disabled:hover:bg-white/5 dark:aria-pressed:bg-white/8",
-              !open && !chosen && "opacity-50",
-            ]}
-            onclick={() => onanswer?.(option.id)}
-          >
-            <span class="flex h-lh items-center">
-              <span
-                class={[
-                  "grid size-6 shrink-0 place-items-center rounded-md font-mono text-xs/none font-medium ring-1 sm:size-5",
-                  chosen
-                    ? "bg-zinc-900 text-white ring-zinc-900 dark:bg-white dark:text-zinc-950 dark:ring-white"
-                    : "text-zinc-600 ring-zinc-950/15 dark:text-zinc-300 dark:ring-white/15",
-                ]}
-              >
-                {letters[index]}
+          {#if question.expired}
+            <div class="flex items-start gap-3 px-3 py-2.5 text-base/6 opacity-50 sm:py-2 sm:text-sm/6">
+              <span class="flex h-lh items-center">
+                <span
+                  class="grid size-6 shrink-0 place-items-center rounded-md font-mono text-xs/none font-medium text-zinc-600 ring-1 ring-zinc-950/15 sm:size-5 dark:text-zinc-300 dark:ring-white/15"
+                  >{letters[index]}</span
+                >
               </span>
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="text-zinc-950 dark:text-white">{option.label}</span>
-              {#if option.description}<span class="block text-zinc-500 dark:text-zinc-400">{option.description}</span
-                >{/if}
-            </span>
-            {#if answering === option.id}
-              <span class="flex h-lh items-center"><Spinner class="size-3.5" /></span>
-            {:else if chosen}
-              <Icon name="check" class="h-lh shrink-0" label="Your answer" />
-            {/if}
-          </button>
+              <span class="min-w-0 flex-1">
+                <span class="text-zinc-950 dark:text-white">{option.label}</span>
+                {#if option.description}<span class="block text-zinc-500 dark:text-zinc-400">{option.description}</span
+                  >{/if}
+              </span>
+            </div>
+          {:else}
+            <button
+              type="button"
+              disabled={!open}
+              aria-pressed={chosen}
+              aria-keyshortcuts={letters[index]}
+              class={[
+                "flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left text-base/6 focus-ring not-disabled:hover:bg-zinc-950/4 aria-pressed:bg-zinc-950/5 sm:py-2 sm:text-sm/6 dark:not-disabled:hover:bg-white/5 dark:aria-pressed:bg-white/8",
+                !open && !chosen && "opacity-50",
+              ]}
+              onclick={() => onanswer?.(option.id)}
+            >
+              <span class="flex h-lh items-center">
+                <span
+                  class={[
+                    "grid size-6 shrink-0 place-items-center rounded-md font-mono text-xs/none font-medium ring-1 sm:size-5",
+                    chosen
+                      ? "bg-zinc-900 text-white ring-zinc-900 dark:bg-white dark:text-zinc-950 dark:ring-white"
+                      : "text-zinc-600 ring-zinc-950/15 dark:text-zinc-300 dark:ring-white/15",
+                  ]}
+                >
+                  {letters[index]}
+                </span>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="text-zinc-950 dark:text-white">{option.label}</span>
+                {#if option.description}<span class="block text-zinc-500 dark:text-zinc-400">{option.description}</span
+                  >{/if}
+              </span>
+              {#if answering === option.id}
+                <span class="flex h-lh items-center"><Spinner class="size-3.5" /></span>
+              {:else if chosen}
+                <Icon name="check" class="h-lh shrink-0" label="Your answer" />
+              {/if}
+            </button>
+          {/if}
         </li>
       {/each}
     </ul>
@@ -125,8 +141,10 @@
     </form>
   {/if}
   <div class="flex items-center justify-between gap-3 px-3 pt-1 pb-2">
-    <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-      {#if question.answer?.skipped}
+    <p role="status" class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+      {#if question.expired}
+        Expired. The bot no longer needs an answer.
+      {:else if question.answer?.skipped}
         Skipped
       {:else if question.answer}
         Answered {timeLabel(question.answer.at)}

@@ -12,6 +12,10 @@ export function writeInteractionTimeline(sql: SqlClient.SqlClient, row: Interact
     const pending = row.status === "pending";
     const response = row.response;
 
+    if (row.status === "expired")
+      yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now()
+        WHERE interaction_request_id = ${row.id}::uuid AND status = 'queued'`;
+
     const item = create(ItemSchema, {
       itemId,
       status: pending ? ItemStatus.IN_PROGRESS : ItemStatus.COMPLETED,

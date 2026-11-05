@@ -110,6 +110,7 @@ export interface QuestionView {
   routineTitle?: string | undefined;
   options: QuestionOptionView[];
   freeText?: boolean | undefined;
+  expired?: boolean | undefined;
   /** Set once answered (by you, here or elsewhere): the option, or "" with your own words in `text`; skipped = not answered. */
   answer?: { optionId: string; at: Date; text?: string | undefined; skipped?: boolean | undefined } | undefined;
 }
@@ -137,7 +138,7 @@ export interface ApprovalView {
       }
     | undefined;
   /** pending until you answer; `edited` = you sent your own version back instead of approving. */
-  status: "pending" | "approved" | "discarded" | "edited";
+  status: "pending" | "approved" | "discarded" | "edited" | "expired";
 }
 
 /** A bot could not reply: `detail` is the technical cause (for a tooltip), never shown as a message. */

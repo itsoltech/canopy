@@ -81,8 +81,11 @@ export class BotTurns {
       agentBus: false,
       connectorTools: input.tools,
       turnId: () => input.turnId,
-      callTool: (call) =>
-        this.ctx.ops.callTool(create(AgentToolCallSchema, { ...call, botId: input.botId }), abort.signal),
+      callTool: (call, signal) =>
+        this.ctx.ops.callTool(
+          create(AgentToolCallSchema, { ...call, botId: input.botId }),
+          signal ? AbortSignal.any([abort.signal, signal]) : abort.signal,
+        ),
     });
 
     try {
@@ -160,6 +163,7 @@ export class BotTurns {
       )
       .catch(() => this.ctx.ops.log("bots: harness journal failed"))
       .finally(() => {
+        abort.abort();
         bus.close();
         this.#active.delete(key);
       });

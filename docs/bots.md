@@ -647,12 +647,24 @@ Nie ma mapowania nazw na modele API ani ograniczenia botów Groka do instancji p
 ### Zgody, pytania i edycja
 
 Karta zgody: „Needs approval ⌄” (menu polityki bota `safe`/`always`, zapis przez `UpdateBot`),
-cel akcji, pola z etykietami i najdłuższe pole jako podgląd. **Approve** wykonuje akcję,
+cel akcji i pola z etykietami. Krótkie wartości są obok etykiety; wielowierszowe lub
+dłuższe niż 50 znaków zajmują pełną szerokość. Prompt korzysta z renderera markdown
+czatu, pokazuje pierwsze cztery linie i pozwala rozwinąć oraz skopiować całość.
+`BotApproval.fields` przenosi wartości osobno, bez dzielenia akapitów po dwukropkach.
+**Approve** wykonuje akcję,
 **Discard** odrzuca, **Edit** pozwala przepisać podgląd i wysłać własną wersję: to
 `AnswerBotApproval{approve:false, answer:<tekst>}`; nic nie jest wykonywane, a model dostaje
 wynik `changes_requested` z treścią użytkownika (niezaufaną) i proponuje akcję ponownie.
 `ask_user` przyjmuje opcjonalne `options`; karta pytania pokazuje je jako A, B, C…, pozwala
 odpowiedzieć własnymi słowami albo pominąć (Skip = odrzucenie).
+
+Zgoda i pytanie mają trwały stan `expired`, jeśli oczekujące wywołanie MCP zostało
+anulowane (również po timeoutcie) albo pytająca tura się zakończyła lub została
+przerwana. Gateway zwiększa rewizję rozmowy; strumień publikuje zmianę, a karta
+zastępuje przyciski neutralnym statusem z zachowaniem wysokości stopki.
+Spóźnione Approve, Discard i Edit zwracają `FailedPrecondition: This request expired.`
+Blokady bot → tura → zgoda serializują decyzję, wygaszenie i efekt platformowy.
+Sama utrata łącza lub wiek prośby nie wygaszają zgody.
 
 ## 7. UI czatu
 

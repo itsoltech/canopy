@@ -4,6 +4,15 @@ Harness Grok: `Provider.PROVIDER_GROK = 3`, `WorkerConfig.grok = 640`; używa is
 
 Status: **szkic**, kanał i handshake zaimplementowane (`apps/gateway/src/worker-link`, `apps/worker/src/gateway-link`). Kontrakt: [`proto/canopy/worker/v1/worker_link.proto`](../proto/canopy/worker/v1/worker_link.proto).
 
+`AgentToolCall.cancelled` (831) oznacza zakończenie oczekiwania klienta MCP
+(timeout lub anulowanie). Worker ponawia tę samą kopertę do `AgentToolResult`, także
+po reconnect. Gateway autoryzuje bota/workera i zapisuje anulowanie wywołania oraz
+`expired` na oczekującej karcie atomowo z blokadami decyzji i efektów.
+
+`InteractionRequest.cancelled` (8) przekazuje analogiczne anulowanie natywnej
+interakcji dostawcy. Worker zachowuje kopertę do potwierdzenia, także po reconnect;
+gateway zapisuje `expired` i odsyła `InteractionResponse.cancelled`.
+
 Nietrwała komenda `GenerateText` (capability `generate_text`) uruchamia izolowaną generację przez SDK instancji i zwraca `CommandResult.generated_text`, bez platformowej sesji i dziennika. Szczegóły: [thread-titles.md](thread-titles.md).
 
 Nietrwałe `ReadWorkspaceOrigin` (`Command.read_workspace_origin = 216`, capability `workspace_origin`)
