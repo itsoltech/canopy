@@ -148,6 +148,9 @@ sentence. The button uses the same verb and object, `danger` variant; focus star
 An -ing verb plus an ellipsis: `Checking for updates…`. Show a percentage in one place
 only (the bar **or** the text). Long steps say what is happening and whether it happens
 only once: `Downloading PostgreSQL 17… Local mode needs this only once.`
+Numbers that change live (percentages, counters, timers) use tabular digits
+(`tabular-nums`) and never sit in the middle of a sentence, so the text around them
+doesn't move.
 
 ### 4.7 Toasts
 

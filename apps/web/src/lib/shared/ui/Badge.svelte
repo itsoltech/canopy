@@ -17,7 +17,7 @@
 
 <span
   class={[
-    "inline-flex shrink-0 items-center gap-x-1 rounded-md text-sm/5 font-medium whitespace-nowrap ring-1 ring-inset sm:text-xs/5",
+    "inline-flex shrink-0 items-center gap-x-1 rounded-md text-sm/5 font-medium whitespace-nowrap tabular-nums ring-1 ring-inset sm:text-xs/5",
     compact ? "py-0 sm:text-xs/4" : "py-0.5",
     icon ? (compact ? "pr-1 pl-0.5" : "pr-1.5 pl-1") : compact ? "px-1" : "px-1.5",
     badgeTones[tone],

@@ -322,7 +322,8 @@ export class PostgresInstaller {
           this.progress({
             phase: "downloading",
             ...(percent !== undefined && { progress: percent }),
-            message: `Downloading PostgreSQL ${this.pin.major}${percent === undefined ? "" : ` (${percent}%)`}. You need this download only once.`,
+            // The bar shows the percentage; a steady line keeps the text from jumping as it changes.
+            message: `Downloading PostgreSQL ${this.pin.major}. You need this download only once.`,
           });
         }
       }
