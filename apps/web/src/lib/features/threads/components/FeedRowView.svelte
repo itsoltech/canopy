@@ -94,8 +94,15 @@
 {:else if row.kind === "answer"}
   <div data-turn={turnId}><AnswerSlot row={row.row} /></div>
 {:else if row.kind === "timeline" || row.kind === "work" || row.kind === "work-group"}
-  <!-- A turn's start is mostly space (its details are quiet): it sits close to the input under it. -->
-  <div class={row.kind === "timeline" && row.row.kind === "turn-start" ? "pb-1" : "pb-3"} data-turn={turnId}>
+  <!-- A turn's start is mostly space (its details are quiet): it sits close to the input under it. Rows inside the
+       work fold are a dense list, a step tighter than the conversation around them. -->
+  <div
+    class={!row.end &&
+    ((row.kind === "timeline" && (row.row.kind === "turn-start" || row.work)) || row.kind === "work-group")
+      ? "pb-1"
+      : "pb-3"}
+    data-turn={turnId}
+  >
     {@render body(row)}
   </div>
 {:else if row.kind === "forked"}
@@ -143,7 +150,7 @@
   {#if row.kind === "work"}
     <WorkFold summary={row.summary} turn={row.turn} open={row.open} ontoggle={() => onwork(row.turn.id)} />
   {:else if row.kind === "work-group"}
-    <div class="ml-2 border-l border-zinc-950/10 pl-4 dark:border-white/10">
+    <div class="-mb-1 ml-2 border-l border-zinc-950/10 pb-1 pl-4 dark:border-white/10">
       <WorkGroup
         label={row.label}
         open={row.open}
@@ -155,7 +162,7 @@
     <AnswerSlot row={row.row} />
   {:else if row.work}
     <!-- The rule continues the fold's chevron (size-4, centred at 8px); it runs through the row gap. -->
-    <div class="-mb-3 ml-2 border-l border-zinc-950/10 pb-3 pl-4 dark:border-white/10">
+    <div class="-mb-1 ml-2 border-l border-zinc-950/10 pb-1 pl-4 dark:border-white/10">
       <TimelineRowView row={row.row} />
     </div>
   {:else}

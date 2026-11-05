@@ -28,11 +28,14 @@ export type FeedRow =
       readonly history: boolean;
       readonly last: boolean;
       readonly work: boolean;
+      /** The last row of an open fold: the conversation after it keeps its usual gap. */
+      readonly end?: boolean;
     }
   /** Stable fold, flattened tool group or streaming answer slot. */
   | (Extract<import("./work-groups.ts").FoldedRow, { kind: "work" | "work-group" | "answer" }> & {
       readonly history: boolean;
       readonly last: boolean;
+      readonly end?: boolean;
     })
   | { readonly kind: "forked"; readonly key: string; readonly sourceId: string }
   | { readonly kind: "working"; readonly key: string }
@@ -161,10 +164,11 @@ export class FeedBuilder {
 
     for (const steer of input.steering) next.push({ kind: "steer", key: `steer:${steer.id}`, steer });
 
+    const marked = markFoldEnds(next);
     const previous = this.#rows;
     this.#rows = new Map();
 
-    return next.map((row) => {
+    return marked.map((row) => {
       const old = previous.get(row.key);
       const kept = old && sameRow(old, row) ? old : row;
       this.#rows.set(row.key, kept);
@@ -229,4 +233,17 @@ function shallowEqual<T extends FeedRow | TimelineRow | WorkSummary>(
   if (left.length !== right.size) return false;
 
   return left.every(([key, value]) => skip.includes(key) || value === right.get(key));
+}
+
+/** A row inside an open fold (a work row or a tool group), outside the folded history. */
+const inFold = (row: FeedRow): boolean =>
+  !("history" in row && row.history) && ((row.kind === "timeline" && row.work) || row.kind === "work-group");
+
+/** Marks the last row of each open fold, so only the rows inside the fold sit close together. */
+function markFoldEnds(rows: FeedRow[]): FeedRow[] {
+  return rows.map((row, index) => {
+    const next = rows[index + 1];
+
+    return inFold(row) && (!next || !inFold(next)) ? { ...row, end: true } : row;
+  });
 }
