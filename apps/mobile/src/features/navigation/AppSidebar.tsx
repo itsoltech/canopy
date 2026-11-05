@@ -111,7 +111,10 @@ function useSidebarState() {
 
 function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const c = useColors();
-  const { section, setSection, queries, setQueries, query, setFilterOpen, projectId } = state;
+  const { section, setSection, queries, setQueries, query, setFilterOpen, projectId, projects } = state;
+  // The project filter is named in words, not only by the tinted funnel.
+  const filtered = section === "threads" ? projects.find((p) => p.id === projectId) : undefined;
+  const searchLabel = filtered ? `Search ${filtered.name} threads` : `Search ${section}`;
 
   return (
     <>
@@ -148,8 +151,8 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
         <View style={[styles.row, { flex: 1, paddingHorizontal: 10, minHeight: 44 }]}>
           <Icon name="magnifying-glass" color={c.faint} />
           <TextInput
-            accessibilityLabel={`Search ${section}`}
-            placeholder={`Search ${section}`}
+            accessibilityLabel={searchLabel}
+            placeholder={searchLabel}
             placeholderTextColor={c.muted}
             value={queries[section]}
             onChangeText={(value) => setQueries({ ...queries, [section]: value })}

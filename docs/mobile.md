@@ -271,6 +271,14 @@ BotAvatar, ChatBubble i BotDetailsPanel. Brand assety pochodzą z `apps/web/stat
 Markdown renderujemy natywnym Text/View po tokenizacji, bez HTML/WebView i automatycznego
 pobierania obrazów. Linki otwierają tylko HTTP(S) po tapnięciu. Narzędzia/praca są domyślnie
 zwinięte; bardzo długi output ma jawny limit podglądu 12 tys. znaków i odsyłacz opisowy do web.
+Oś czasu nadąża za web: grupa pracy jest otwarta, gdy agent pracuje, i zwija się po
+turze (domyślne ustawienie fold z web; tapnięcie decyduje dalej), wiersze pracy mają
+stopień `work` (15/13), komendy są monospace. Tura powłoki (`Turn.shell_command`) ma kartę
+z kodem wyjścia, 4 wierszami wyniku i „Show output”; `!` na początku kompozytora włącza tryb
+powłoki (obramowanie rose, nota w miejscu kontrolek). Tura w kolejce pokazuje „Queued”,
+a po `dispatched` „Starting”; pliki tury są odznakami w dymku. Nad kompozytorem są tylko
+subagenty w toku, zakończone zwija liczba otwierająca panel z lineage. Odrzucona przez
+gateway wiadomość pokazuje jego powód zamiast ogólnej noty o ponowieniu.
 Pytania/zgody w wątkach są widoczne **read-only** i odpowiada się na nie w web.
 Kompozytor oferuje Queue, Send now/steer, stop, wybór modelu/effort i permissions;
 respektuje ustawienie zachowania podczas trwającej tury. Goal jest read-only.
