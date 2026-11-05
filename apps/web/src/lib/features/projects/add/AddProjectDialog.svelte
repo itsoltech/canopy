@@ -9,6 +9,7 @@
   import { exitDuration, pageIn } from "#lib/shared/ui/motion.ts";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import { windowModal } from "#lib/shared/ui/window-modal.ts";
+  import { backdropDismiss } from "#lib/shared/ui/backdrop.ts";
   import { decode } from "#lib/shared/wire.ts";
   import {
     SOURCES,
@@ -182,9 +183,7 @@
     exit();
   }}
   oncancel={(event) => busy && event.preventDefault()}
-  onclick={(event) => {
-    if (event.target === dialog) close();
-  }}
+  {...backdropDismiss(close)}
   inert={closing || undefined}
   class={paletteDialogClass}
 >

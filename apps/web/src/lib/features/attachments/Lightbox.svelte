@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { windowModal } from "#lib/shared/ui/window-modal.ts";
+  import { backdropDismiss } from "#lib/shared/ui/backdrop.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
   import { exitDuration } from "#lib/shared/ui/motion.ts";
 
@@ -45,9 +46,7 @@
   aria-label={name}
   class="t-modal top-(--window-safe-top) m-auto max-h-(--window-safe-height) max-w-[min(96vw,100rem)] overflow-visible bg-transparent p-0 backdrop:bg-zinc-950/80 dark:backdrop:bg-black/85 macos:overflow-y-auto"
   onclose={() => (open = false)}
-  onclick={(event) => {
-    if (event.target === dialog) open = false;
-  }}
+  {...backdropDismiss(() => (open = false))}
 >
   {#if open || closing}
     <figure class="grid gap-3">
