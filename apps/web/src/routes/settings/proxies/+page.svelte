@@ -6,12 +6,18 @@
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import { decode } from "#lib/shared/wire.ts";
+  import { requestJson } from "#lib/shared/http.ts";
+  import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import type { PageProps } from "./$types";
 
   let { data }: PageProps = $props();
   let proxies = $state(untrack(() => decode(ui.ListProxiesResponseSchema, data.proxies).proxies));
   let editing = $state<ui.Proxy>();
   let open = $state(false);
+
+  async function reload() {
+    proxies = decode(ui.ListProxiesResponseSchema, await requestJson("GET", "/api/proxies")).proxies;
+  }
 
   function saved(proxy: ui.Proxy) {
     proxies = proxies.some((p) => p.id === proxy.id)
@@ -34,6 +40,7 @@
         }}>Add proxy</Button
       >{/snippet}
   </SettingsHeading>
+  <ConfigNotices match={(n) => n.kind === "proxy"} onchange={() => void reload()} />
   {#if proxies.length === 0}
     <div class="grid gap-2 py-4">
       <h2 class="text-lg font-semibold text-balance text-zinc-950 dark:text-white">One connection for your agents</h2>

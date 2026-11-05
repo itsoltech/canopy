@@ -33,9 +33,62 @@ const LABELS = new Map(
   }),
 );
 
+const ITEM_LABELS = new Map(
+  Object.entries({
+    label: "Name",
+    name: "Name",
+    kind: "Connects with",
+    baseUrl: "Endpoint",
+    proxy: "Proxy",
+    accentColor: "Color",
+    launchArgs: "Launch arguments",
+    ownLogin: "Own login",
+    allWorkers: "All workers",
+    favorites: "Favorite models",
+    hidden: "Hidden models",
+    shown: "Shown models",
+    custom: "Custom models",
+    apiKey: "API key",
+    secret: "Secret",
+    codex: "Codex options",
+    deleted: "Deleted",
+  }),
+);
+
+const PROXY_LABELS = new Map(Object.entries({ kind: "Kind", baseUrl: "Base URL" }));
+
 const string = Schema.is(Schema.String);
 const boolean = Schema.is(Schema.Boolean);
-export const configFieldLabel = (field: string) => LABELS.get(field) ?? "Account setting";
+
+export function configFieldLabel(field: string, kind = "settings") {
+  if (kind === "settings") return LABELS.get(field) ?? "Account setting";
+
+  if (field.startsWith("env.")) return `Variable ${field.slice(4)}`;
+
+  return (kind === "proxy" ? PROXY_LABELS.get(field) : undefined) ?? ITEM_LABELS.get(field) ?? "Setting";
+}
+
+const object = Schema.is(Schema.Record(Schema.String, Schema.MutableJson));
+const plainVariable = Schema.is(Schema.Struct({ value: Schema.String }));
+
+/** Instance and proxy values: references and options are named, never shown as raw ids. */
+export function configItemValue(field: string, value: string) {
+  if (value === "A different key") return value;
+  const parsed = Schema.decodeUnknownSync(Schema.MutableJson)(JSON.parse(value));
+
+  if (field === "proxy") return parsed ? "A different proxy" : "No proxy";
+
+  if (field === "kind" && (parsed === "endpoint" || parsed === "native"))
+    return parsed === "endpoint" ? "Endpoint" : "Device login";
+
+  if (plainVariable(parsed)) return parsed.value || "Empty";
+
+  if (object(parsed)) return "Different options";
+
+  if (parsed === null) return "Not set";
+
+  return configNoticeValue(value);
+}
 
 export function configNoticeValue(value: string) {
   if (value === "A different key") return value;

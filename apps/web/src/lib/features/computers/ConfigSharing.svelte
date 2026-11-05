@@ -35,7 +35,7 @@
       ? `${name} stopped sharing configuration. This computer keeps its copy.`
       : computer.configSyncStatus === "needs_update"
         ? "Needs an update to share configuration"
-        : "Account settings follow changes on computers in the same group.",
+        : "Settings, providers and proxies follow changes on computers in the same group.",
   );
 
   const status = $derived(

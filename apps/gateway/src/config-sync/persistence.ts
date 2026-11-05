@@ -3,7 +3,8 @@ import { Effect, Schema } from "effect";
 import { type SqlClient } from "effect/sql";
 import { canonicalJson } from "../store/instance-config.ts";
 import { compareClock, nextClock } from "./clock.ts";
-import { settingsValues, type SettingsJson } from "./settings.ts";
+import { instanceIds } from "./aliases.ts";
+import { mapSettingsInstances, settingsValues, type SettingsJson } from "./settings.ts";
 
 export type Field = { value: JsonValue; hlc: string; prev: string };
 
@@ -44,7 +45,7 @@ export function saveRecord(sql: SqlClient.SqlClient, owner: string, row: ConfigR
     yield* sql`INSERT INTO config_items(owner_user_id,kind,global_id,local_id,home_node_id,identity,fields,deleted,revision,schema_version,unsupported)
       VALUES(${owner}::uuid,${row.kind},${row.global_id},${row.local_id},${row.home_node_id},${row.identity},
         ${JSON.stringify(row.fields)}::jsonb,${JSON.stringify(row.deleted)}::jsonb,${clock.revision}::bigint,${row.schema_version},${row.unsupported})
-      ON CONFLICT(owner_user_id,kind,global_id) DO UPDATE SET fields=excluded.fields,deleted=excluded.deleted,
+      ON CONFLICT(owner_user_id,kind,global_id) DO UPDATE SET local_id=excluded.local_id,identity=excluded.identity,fields=excluded.fields,deleted=excluded.deleted,
         revision=excluded.revision,schema_version=excluded.schema_version,unsupported=excluded.unsupported`;
   });
 }
@@ -97,8 +98,9 @@ export function configSettingsChanged(
       );
 
     const nodes = [...peers.map((p) => p.node_id), ...pins];
-    const previous = settingsValues(before, node.node_id, nodes);
-    const values = settingsValues(after, node.node_id, nodes);
+    const ids = yield* instanceIds(sql, owner);
+    const previous = mapSettingsInstances(settingsValues(before, node.node_id, nodes), ids.toGlobal);
+    const values = mapSettingsInstances(settingsValues(after, node.node_id, nodes), ids.toGlobal);
     let last = clock.hlc;
     let changed = false;
 

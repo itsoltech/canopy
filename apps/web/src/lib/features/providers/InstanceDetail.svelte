@@ -14,7 +14,7 @@
   import OverrideForm from "./OverrideForm.svelte";
   import type { ProvidersState } from "./providers-state.svelte.ts";
   import SettingsSection from "./SettingsSection.svelte";
-  import SharedInstance from "./SharedInstance.svelte";
+  import InstanceNotices from "./InstanceNotices.svelte";
   import StatusLine from "./StatusLine.svelte";
   import WorkersField from "./WorkersField.svelte";
   import AccountStatusRow, { hasAccountStatus } from "./AccountStatusRow.svelte";
@@ -103,6 +103,7 @@
   </header>
 
   {#if failure}<Alert tone="error">{failure}</Alert>{/if}
+  <InstanceNotices {instance} />
 
   <SettingsSection title="Status">
     {#if worker}
@@ -191,8 +192,6 @@
   <SettingsSection title="Models" description="What the model picker offers for this instance, on every worker.">
     <InstanceModels catalog={providers.models(instance, worker?.id)} models={instance.models} onchange={setModels} />
   </SettingsSection>
-
-  <SharedInstance {instance} />
 
   {#if !instance.builtIn}
     <SettingsSection

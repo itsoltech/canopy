@@ -21,10 +21,14 @@ import {
 import { forward, peerOf } from "./routed-home.ts";
 import { absorb, gather, watchOverview } from "./routed-overview.ts";
 import { toConnectError } from "./ui-errors.ts";
+import { ConfigIds, refuseMissingInstance } from "./routed-config.ts";
+import { harnessOf } from "../store/instance-config.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { refuseRemoteWorktree } from "../worktrees/remote.ts";
 import { validateUserSettings } from "../core/settings-validation.ts";
 import { coreCheckThreadDefaults, coreCliDefaultsChanged } from "../core/core-settings.ts";
+import { coreConfigsChanged } from "../core/core-providers.ts";
+import { coreModels, corePublishModels } from "../core/core-models.ts";
 
 export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   // SAFETY: Each entry is invoked with the request decoded by its own GatewayService method descriptor.
@@ -207,6 +211,14 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
       return;
     }
 
+    const ids = core && peerNodeId ? await ConfigIds.for(core, peerNodeId) : undefined;
+    await ids?.map(method.input, request, "toLocal");
+
+    if (core && peerNodeId && method.name === "CreateThread") {
+      const thread = linkedMessage(ui.CreateThreadRequestSchema, request);
+      await refuseMissingInstance(core, harnessOf(thread.provider) ?? "", thread.providerProfileId);
+    }
+
     const context = createHandlerContext({
       requestSignal: signal,
       requestHeader: new Headers(),
@@ -220,11 +232,16 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
     });
 
     try {
-      if (method.methodKind === "unary")
-        yield create(method.output, await unary(own[method.localName]!, request, context));
-      else
-        for await (const message of stream(own[method.localName]!, request, context))
-          yield create(method.output, message);
+      if (method.methodKind === "unary") {
+        const response = create(method.output, await unary(own[method.localName]!, request, context));
+        await ids?.map(method.output, response, "toGlobal");
+        yield response;
+      } else
+        for await (const message of stream(own[method.localName]!, request, context)) {
+          const response = create(method.output, message);
+          await ids?.map(method.output, response, "toGlobal");
+          yield response;
+        }
     } catch (error) {
       throw toConnectError(error);
     }
@@ -248,6 +265,10 @@ export function sharedHost(core: GatewayCore, local: UiHandlers): SharedHost {
         );
 
       if (cliChanged) await coreCliDefaultsChanged(core);
+    },
+    providersChanged: async (workerIds) => {
+      await coreConfigsChanged(core, workerIds);
+      await corePublishModels(core, await coreModels(core, (s) => s.catalogs([])));
     },
     serve: remoteServe(local),
     createProject: async (id, name) => {

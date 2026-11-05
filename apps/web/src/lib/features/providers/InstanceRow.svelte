@@ -5,8 +5,6 @@
   import InstanceMark from "./InstanceMark.svelte";
   import { instanceName, statusAcross, statusOn, versionsOf } from "./instances.ts";
   import StatusLine from "./StatusLine.svelte";
-  import ShareScope from "#lib/features/computers/ShareScope.svelte";
-  import { sharedInstanceKeys } from "./instances.ts";
 
   /**
    * One instance in the list: mark, label, version and status line; on one worker a switch turns it on or off there,
@@ -67,9 +65,6 @@
     </div>
     <div class="flex min-w-0 items-center gap-2">
       <StatusLine {status} class="min-w-0 flex-1 text-sm/5 text-zinc-500 dark:text-zinc-400" />
-      {#if !instance.builtIn}<span class="relative shrink-0"
-          ><ShareScope itemKey={sharedInstanceKeys(instance).definition} compact /></span
-        >{/if}
     </div>
   </div>
   <div class="relative shrink-0">

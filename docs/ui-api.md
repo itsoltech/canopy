@@ -170,9 +170,14 @@ przy bezpośrednim partnerze. `CreateComputerPairing` i `LinkComputer` przyjmuj�
 po zgodzie obu stron. `ManageConfigNotice` (`restore`, `dismiss`), przez
 `PUT /api/computers/notices`, wymaga tokenu serwisowego BFF jak zarządzanie komputerami.
 Restore tworzy nową wspólną zmianę, Dismiss ukrywa notkę wyłącznie lokalnie.
+Od etapu 2 to samo dotyczy instancji providerów, list modeli i proxy: zwykłe zapisy
+(`SaveProviderInstance`, `SetInstanceModels`, `SetInstanceWorkers`, `SaveProxy`, `DeleteProxy`, …) są wspólne,
+a ścieżki CLI i ustawienia workerów zostają na komputerze. `ConfigNotice.local_id` to id elementu na tym
+komputerze (puste, gdy go już nie ma), a `item_name` jego nazwa. Usunięcie na innym komputerze to jedna
+notka z `field` = `deleted`. Wartość sekretu w notce to zawsze „A different key”.
 [Protokół i etapy](linked-computers.md#konkretny-protokół-wspólna-konfiguracja).
 
-Pozostałe rodzaje zachowują API 0050 do migracji w kolejnych etapach.
+Pozostałe rodzaje (projekty) zachowują API 0050 do migracji w kolejnych etapach.
 `GetSharedConfig` i `ManageSharedConfig` (`share`, `unshare`, `keep_local`, `keep_remote`) zwracają
 `SharedConfigSnapshot`: elementy (klucz, rodzaj, nazwa, wspólny, wersja, autor ostatniej zmiany,
 notatka o kopii lokalnej), pytania z różniącymi się polami obu wersji (sekrety tylko jako „Set”,

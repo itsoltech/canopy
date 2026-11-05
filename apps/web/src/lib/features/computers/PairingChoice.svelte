@@ -24,7 +24,10 @@
   } = $props();
 </script>
 
-<SettingsRow title="Share configuration" description="Account settings follow changes on computers in the same group.">
+<SettingsRow
+  title="Share configuration"
+  description="Settings, providers and proxies follow changes on computers in the same group."
+>
   {#snippet control()}<Switch
       name="pair-share-config"
       label="Share configuration"

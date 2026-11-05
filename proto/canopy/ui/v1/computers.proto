@@ -71,6 +71,10 @@ message ConfigNotice {
   // A display value only. Secret notices always say "A different key".
   string value = 7;
   string reason = 8;
+  // This computer's id of the item (an instance id or proxy id), when it differs from global_id or exists here.
+  string local_id = 9;
+  // The item's name (instance label, proxy name), also for deleted items.
+  string item_name = 10;
 }
 message ConfigNoticeOperation { string id = 1; string action = 2; }
 message CreateComputerPairingRequest { optional bool share_config = 1; }

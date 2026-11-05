@@ -8,6 +8,7 @@ import { globalize, linkedMessage, mapIds, methodNamed, movedItems, qualify, unq
 import type { GatewayCore } from "../core/core.ts";
 import { globalIds, redirected, single, target } from "./routed-context.ts";
 import { toConnectError } from "./ui-errors.ts";
+import { ConfigIds } from "./routed-config.ts";
 
 export async function peerOf(core: GatewayCore, ref: string, method?: DescMethod, request?: Message) {
   if (!core.computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
@@ -206,11 +207,27 @@ export async function* home(
     }
   }
 
+  yield* send(core, computers, nodeId, method, request, signal, global);
+}
+
+/** The call itself: this computer's ids become the home's, and the answer's ids this computer's. */
+async function* send(
+  core: GatewayCore,
+  computers: NonNullable<GatewayCore["computers"]>,
+  nodeId: string,
+  method: DescMethod,
+  request: Message,
+  signal: AbortSignal,
+  global: ReadonlySet<string>,
+): AsyncGenerator<Message> {
   const outbound = clone(method.input, request);
   await carryAttachments(core, nodeId, method, outbound, signal);
   unqualify(method.input, outbound, nodeId, global);
+  const ids = await ConfigIds.for(core, nodeId);
+  await ids.map(method.input, outbound, "toGlobal");
 
   for await (const message of computers.remote(nodeId, method, outbound, signal)) {
+    await ids.map(method.output, message, "toLocal");
     qualify(method.output, message, nodeId);
     yield message;
   }

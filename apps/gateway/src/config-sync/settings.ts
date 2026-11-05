@@ -1,7 +1,7 @@
 import { create, fromJson, toJson, type DescMessage, type JsonValue } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { nodeRef, splitId } from "@canopy/domain/computers";
-import { Schema } from "effect";
+import { Predicate, Schema } from "effect";
 
 export type SettingsJson = Record<string, JsonValue>;
 
@@ -117,4 +117,26 @@ export function settingsRequest(stored: SettingsJson, version: bigint) {
     cliUpdates: user.cliUpdates,
     ...(user.timezone && { timezone: user.timezone }),
   });
+}
+
+const INSTANCE_REFS = [
+  ["threadDefaults.provider", "threadDefaults.providerProfileId"],
+  ["textGeneration.provider", "textGeneration.profileId"],
+] as const;
+
+/** Instance references of the settings record are global ids (aliases.ts); each computer stores its own. */
+export function mapSettingsInstances(values: SettingsJson, map: (harness: string, id: string) => string) {
+  const next = { ...values };
+
+  for (const [provider, profile] of INSTANCE_REFS) {
+    const harness = String(next[provider] ?? "")
+      .replace(/^PROVIDER_/, "")
+      .toLowerCase();
+
+    const id = next[profile];
+
+    if (Predicate.isString(id) && id && harness && harness !== "unspecified") next[profile] = map(harness, id);
+  }
+
+  return next;
 }

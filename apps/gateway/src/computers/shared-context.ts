@@ -73,6 +73,8 @@ export type Outcome = {
 export type SharedHost = {
   validateSettings?(request: ui.UpdateUserSettingsRequest): Promise<void>;
   settingsChanged?(cliChanged?: boolean): Promise<void>;
+  /** Instances or proxies changed from a linked computer: push these workers' configurations, refresh pickers. */
+  providersChanged?(workerIds: readonly string[]): Promise<void>;
   /** This computer's GatewayService handlers: validation, worker configuration and live UI updates. */
   serve: RemoteServe;
   /** A project with the shared id (projects are one identity on every computer). */

@@ -14,6 +14,7 @@
   import RuntimeFields from "./RuntimeFields.svelte";
   import SettingsSection from "./SettingsSection.svelte";
   import MoveEnvironment from "./MoveEnvironment.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 
   /**
    * The global definition of an instance (scope "All workers"): name and color, connection, runtime and variables.
@@ -29,6 +30,8 @@
     onsaved: (instance: ui.ProviderInstance | undefined) => void;
     class?: ClassValue;
   } = $props();
+
+  const overview = useOverview();
 
   let draft = $state(untrack(() => draftOf(instance)));
   let tried = $state(false);
@@ -92,7 +95,12 @@
     />
   </SettingsSection>
 
-  <SettingsSection title="Runtime" description="For every worker; a worker can override paths for its system.">
+  <SettingsSection
+    title="Runtime"
+    description={overview.computers.size > 0
+      ? "This computer: CLI paths and homes. Launch arguments apply on every linked computer."
+      : "For every worker; a worker can override paths for its system."}
+  >
     <RuntimeFields
       harness={instance.harness}
       bind:binaryPath={draft.binaryPath}

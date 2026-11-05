@@ -1,18 +1,17 @@
 import { type JsonValue } from "@bufbuild/protobuf";
 import { computerLink as link } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { Effect, Result } from "effect";
+import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { ComputerStore } from "../computers/store.ts";
 import type { SharedHost } from "../computers/shared.ts";
-import { SettingsStore } from "../store/settings.ts";
 import { clockParts, compareClock, nextClock } from "./clock.ts";
-import { mergeRecord, readItem } from "./merge.ts";
 import { configLock, emptyRecord, maxClock, saveRecord, type ConfigRow } from "./persistence.ts";
-import { materializeSettings, settingsRequest, settingsValues, type SettingsJson } from "./settings.ts";
-import { supportedComputer } from "./group.ts";
-
-export type SettingsRow = { settings: SettingsJson; version: string; updated_at: Date };
+import { recordProviders } from "./provider-records.ts";
+import { readBatch, receiveItem, syncWorkers, type ReceiveResult } from "./receive.ts";
+import { instanceIds } from "./aliases.ts";
+import { mapSettingsInstances, settingsValues } from "./settings.ts";
+import type { SettingsRow } from "./settings-apply.ts";
 
 export class ConfigSync {
   readonly ahead = new Map<string, number>();
@@ -24,7 +23,7 @@ export class ConfigSync {
     readonly self: () => string,
   ) {}
 
-  /** Seed all existing account preferences, including defaults, using their original timestamp. */
+  /** Seed all existing account preferences, instances and proxies, using their original timestamps. */
   async start() {
     const { store, self } = this;
     await store.runtime.runPromise(
@@ -46,13 +45,15 @@ export class ConfigSync {
           node_id: string;
         }>`SELECT node_id FROM computer_peers WHERE owner_user_id=${store.owner}::uuid`;
 
-        for (const [name, value] of Object.entries(
-          settingsValues(
-            settings?.settings ?? {},
-            self(),
-            peers.map((p) => p.node_id),
-          ),
-        )) {
+        const ids = yield* instanceIds(sql, store.owner);
+
+        const values = settingsValues(
+          settings?.settings ?? {},
+          self(),
+          peers.map((p) => p.node_id),
+        );
+
+        for (const [name, value] of Object.entries(mapSettingsInstances(values, ids.toGlobal))) {
           if (row.deleted.value === true) break;
 
           if (row.fields[name]) continue;
@@ -65,6 +66,7 @@ export class ConfigSync {
 
         if (changed) yield* saveRecord(sql, store.owner, row, observed);
         else yield* sql`UPDATE config_clock SET hlc=${observed} WHERE owner_user_id=${store.owner}::uuid`;
+        yield* recordProviders(sql);
       }).pipe((fx) => Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(fx))),
     );
   }
@@ -72,15 +74,13 @@ export class ConfigSync {
   /** Batch and cursor commit together; a crash before commit safely replays the batch. */
   async receive(peer: string, update: link.ConfigUpdate, allowed: () => boolean) {
     if (!allowed()) throw new ConnectError("Configuration sharing is off", Code.FailedPrecondition);
-    const incoming = update.items.map(readItem);
 
-    if (incoming.length > 100 || update.checkpoint.length > 100)
+    if (update.items.length > 100 || update.checkpoint.length > 100)
       throw new ConnectError("Invalid configuration batch", Code.InvalidArgument);
+    const incoming = readBatch(update.items);
     const { store, self, host } = this;
-    let settingsChanged = false;
-    let cliChanged = false;
 
-    const observed = await store.runtime.runPromise(
+    const result = await store.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
 
@@ -93,61 +93,31 @@ export class ConfigSync {
 
             if (!consent || !allowed())
               return yield* Effect.fail(new ConnectError("Configuration sharing is off", Code.FailedPrecondition));
-            let last = clock.hlc;
+            const context = { sql, owner: store.owner, key: store.key, self: self(), peer, host };
+            const outcome: ReceiveResult = { last: clock.hlc, settings: false, cli: false, providers: false };
 
-            for (const item of incoming) {
-              if (item.kind === "settings" && (item.global_id !== "account" || item.home_node_id))
-                return yield* Effect.fail(new ConnectError("Invalid account configuration", Code.PermissionDenied));
-
-              if (item.kind === "computer" && (!item.home_node_id || item.global_id !== item.home_node_id))
-                return yield* Effect.fail(new ConnectError("Invalid configuration computer", Code.PermissionDenied));
-
-              // This computer is authoritative for its own graph declaration; forwarded echoes cannot edit it.
-              if (item.kind === "computer" && item.home_node_id === self()) continue;
-
-              const current = (yield* sql<ConfigRow>`SELECT * FROM config_items
-            WHERE owner_user_id=${store.owner}::uuid AND kind=${item.kind} AND global_id=${item.global_id}`)[0];
-
-              const { row, changed } = yield* mergeRecord(sql, store.owner, current, item, peer);
-              last = maxClock(last, item.fields);
-
-              if (compareClock(item.deleted.hlc, last) > 0) last = item.deleted.hlc;
-
-              if (!changed) continue;
-              row.unsupported =
-                ["settings", "computer"].includes(row.kind) && row.schema_version === 1
-                  ? ""
-                  : "Not supported on this computer";
-
-              if (row.kind === "computer" && !supportedComputer(row))
-                row.unsupported = "Not supported on this computer";
-
-              if (row.kind === "settings" && !row.unsupported) {
-                cliChanged = (yield* applySettings(sql, store.owner, row, self(), host)) || cliChanged;
-                settingsChanged = true;
-              }
-
-              yield* saveRecord(sql, store.owner, row, last);
-            }
-
-            yield* sql`UPDATE config_clock SET hlc=${last} WHERE owner_user_id=${store.owner}::uuid`;
+            for (const item of incoming) yield* receiveItem(context, item, outcome);
+            const workers = outcome.providers ? yield* syncWorkers(sql, store.owner, store.key) : [];
+            yield* sql`UPDATE config_clock SET hlc=${outcome.last} WHERE owner_user_id=${store.owner}::uuid`;
 
             if (update.checkpoint)
               yield* sql`INSERT INTO config_peer_cursors(owner_user_id,node_id,cursor)
           VALUES(${store.owner}::uuid,${peer},${update.checkpoint}) ON CONFLICT(owner_user_id,node_id) DO UPDATE SET cursor=excluded.cursor`;
 
-            return last;
+            return { ...outcome, workers };
           }),
         );
       }),
     );
 
-    const ahead = clockParts(observed).wall - Date.now();
+    const ahead = clockParts(result.last).wall - Date.now();
 
     if (ahead > 300_000) this.ahead.set(peer, Math.ceil(ahead / 60_000));
     else this.ahead.delete(peer);
 
-    if (settingsChanged) await host.settingsChanged?.(cliChanged);
+    if (result.settings) await host.settingsChanged?.(result.cli);
+
+    if (result.providers) await host.providersChanged?.(result.workers);
   }
 
   async publishComputer(name: string, neighbors: string[]) {
@@ -181,59 +151,4 @@ export class ConfigSync {
       }),
     );
   }
-}
-
-export function applySettings(sql: SqlClient.SqlClient, owner: string, row: ConfigRow, self: string, host: SharedHost) {
-  return Effect.gen(function* () {
-    const current = (yield* sql<SettingsRow>`SELECT * FROM user_settings WHERE user_id=${owner}::uuid`)[0];
-
-    const deleted =
-      row.deleted.value === true && Object.values(row.fields).every((f) => compareClock(f.hlc, row.deleted.hlc) <= 0);
-
-    const values = deleted
-      ? Object.fromEntries(Object.keys(settingsValues(current?.settings ?? {}, self)).map((key) => [key, null]))
-      : Object.fromEntries(Object.entries(row.fields).map(([key, field]) => [key, field.value]));
-
-    const parsed = yield* Effect.try(() =>
-      settingsRequest(materializeSettings(current?.settings ?? {}, values, self), BigInt(current?.version ?? 0)),
-    ).pipe(Effect.result);
-
-    if (Result.isFailure(parsed)) {
-      row.unsupported = "Not supported on this computer";
-
-      return false;
-    }
-
-    const request = parsed.success;
-
-    const valid = yield* Effect.tryPromise(() => host.validateSettings?.(request) ?? Promise.resolve()).pipe(
-      Effect.result,
-    );
-
-    if (Result.isFailure(valid)) {
-      row.unsupported = "Not supported on this computer";
-
-      return false;
-    }
-
-    const settings = yield* SettingsStore;
-    yield* settings.updateUser({
-      userId: owner,
-      synced: true,
-      expectedVersion: request.expectedVersion,
-      ...(request.appearance && { appearance: request.appearance }),
-      ...(request.threadDefaults && { threadDefaults: request.threadDefaults }),
-      ...(request.general && { general: request.general }),
-      ...(request.composer && { composer: request.composer }),
-      ...(request.sidebar && { sidebar: request.sidebar }),
-      ...(request.textGeneration && { textGeneration: request.textGeneration }),
-      ...(request.cliUpdates && { cliUpdates: request.cliUpdates }),
-      timezone: request.timezone ?? "",
-    });
-
-    return (
-      JSON.stringify(current?.settings["cliUpdates"] ?? {}) !==
-      JSON.stringify(request.cliUpdates ? { intervalMinutes: request.cliUpdates.intervalMinutes } : {})
-    );
-  });
 }

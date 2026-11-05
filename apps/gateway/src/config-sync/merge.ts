@@ -5,23 +5,29 @@ import { Effect, Schema } from "effect";
 import { type SqlClient } from "effect/sql";
 import { clockParts, compareClock } from "./clock.ts";
 import { emptyRecord, equalValue, type ConfigRow, type Field } from "./persistence.ts";
+import { versionKey, type Cipher } from "./secrets.ts";
 
 export const jsonValue = Schema.decodeUnknownSync(Schema.MutableJson);
 
-export function wireItem(row: ConfigRow): link.ConfigItem {
-  const field = (value: Field) =>
-    create(link.ConfigFieldSchema, {
+/** Secret values ride only on the link stream, keyed by version (see secrets.ts). */
+export function wireItem(row: ConfigRow, secrets: ReadonlyMap<string, string> = new Map()): link.ConfigItem {
+  const field = (value: Field, name = "deleted") => {
+    const secret = secrets.get(versionKey(row.kind, row.global_id, name, value.hlc));
+
+    return create(link.ConfigFieldSchema, {
       valueJson: JSON.stringify(value.value),
       hlc: value.hlc,
       prev: value.prev,
+      ...(secret !== undefined && { secret }),
     });
+  };
 
   return create(link.ConfigItemSchema, {
     kind: row.kind,
     globalId: row.global_id,
     homeNodeId: row.home_node_id,
     identity: row.identity,
-    fields: Object.fromEntries(Object.entries(row.fields).map(([k, v]) => [k, field(v)])),
+    fields: Object.fromEntries(Object.entries(row.fields).map(([k, v]) => [k, field(v, k)])),
     deleted: field(row.deleted),
     schemaVersion: row.schema_version,
   });
@@ -34,7 +40,10 @@ function readField(field: link.ConfigField): Field {
   if (compareClock(field.prev, field.hlc) > 0)
     throw new ConnectError("Invalid configuration ancestry", Code.InvalidArgument);
 
-  if (field.secret !== undefined || field.valueJson.length > 2_000_000)
+  if (
+    field.valueJson.length > 2_000_000 ||
+    (field.secret !== undefined && (!field.secret || field.secret.length > 16_384 || field.secret.includes("\0")))
+  )
     throw new ConnectError("Unsupported configuration field", Code.InvalidArgument);
 
   try {
@@ -43,6 +52,10 @@ function readField(field: link.ConfigField): Field {
     throw new ConnectError("Invalid configuration value", Code.InvalidArgument);
   }
 }
+
+/** Plain secret values of a received item by field name; kept apart from the record. */
+export const incomingSecrets = (item: link.ConfigItem) =>
+  new Map(Object.entries(item.fields).flatMap(([name, f]) => (f.secret === undefined ? [] : [[name, f.secret]])));
 
 export function readItem(item: link.ConfigItem): ConfigRow {
   if (
@@ -86,13 +99,22 @@ export function remember(
   value: Field,
   noticeNode: string,
   reason = "concurrent",
+  cipher?: Cipher,
 ) {
-  return sql`INSERT INTO config_history(owner_user_id,kind,global_id,field,value,hlc,node_id,notice_node_id,reason)
+  const ciphertext = cipher?.(name, value) ?? null;
+
+  return sql`INSERT INTO config_history(owner_user_id,kind,global_id,field,value,hlc,node_id,notice_node_id,reason,secret,ciphertext)
     VALUES(${owner}::uuid,${row.kind},${row.global_id},${name},${JSON.stringify(value.value)}::jsonb,${value.hlc},
-      ${clockParts(value.hlc).node},${noticeNode},${reason}) ON CONFLICT DO NOTHING`;
+      ${clockParts(value.hlc).node},${noticeNode},${reason},${ciphertext !== null},${ciphertext}) ON CONFLICT DO NOTHING`;
 }
 
-export function compactTombstone(sql: SqlClient.SqlClient, owner: string, row: ConfigRow, peer: string) {
+export function compactTombstone(
+  sql: SqlClient.SqlClient,
+  owner: string,
+  row: ConfigRow,
+  peer: string,
+  cipher?: Cipher,
+) {
   return Effect.gen(function* () {
     let changed = false;
 
@@ -100,7 +122,7 @@ export function compactTombstone(sql: SqlClient.SqlClient, owner: string, row: C
 
     for (const [name, field] of Object.entries(row.fields)) {
       if (compareClock(field.hlc, row.deleted.hlc) > 0) continue;
-      yield* remember(sql, owner, row, name, field, peer, "deleted");
+      yield* remember(sql, owner, row, name, field, peer, "deleted", cipher);
       delete row.fields[name];
       changed = true;
     }
@@ -116,6 +138,7 @@ export function mergeRecord(
   current: ConfigRow | undefined,
   incoming: ConfigRow,
   peer: string,
+  cipher?: Cipher,
 ) {
   return Effect.gen(function* () {
     const row = current
@@ -128,7 +151,7 @@ export function mergeRecord(
 
     for (const [name, next] of Object.entries({ ...incoming.fields, deleted: incoming.deleted })) {
       if (name !== "deleted" && row.deleted.value === true && compareClock(next.hlc, row.deleted.hlc) <= 0) {
-        yield* remember(sql, owner, row, name, next, peer, "deleted");
+        yield* remember(sql, owner, row, name, next, peer, "deleted", cipher);
         continue;
       }
 
@@ -140,9 +163,9 @@ export function mergeRecord(
 
       if (old && old.hlc && next.hlc && !equalValue(old.value, next.value)) {
         if (order > 0 && compareClock(next.prev, old.hlc) < 0)
-          yield* remember(sql, owner, row, name, old, peer, next.prev ? "concurrent" : "merged");
+          yield* remember(sql, owner, row, name, old, peer, next.prev ? "concurrent" : "merged", cipher);
         else if (order < 0 && compareClock(old.prev, next.hlc) < 0)
-          yield* remember(sql, owner, row, name, next, peer, next.prev ? "concurrent" : "merged");
+          yield* remember(sql, owner, row, name, next, peer, next.prev ? "concurrent" : "merged", cipher);
       }
 
       if (order > 0) {
@@ -153,7 +176,7 @@ export function mergeRecord(
     }
 
     if (row.deleted.value === true) {
-      changed = (yield* compactTombstone(sql, owner, row, peer)) || changed;
+      changed = (yield* compactTombstone(sql, owner, row, peer, cipher)) || changed;
 
       if (
         Object.keys(row.fields).length &&

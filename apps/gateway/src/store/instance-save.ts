@@ -1,4 +1,5 @@
 import { ProviderProfileKind } from "@canopy/contracts";
+import { configTransaction } from "../config-sync/provider-records.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import {
@@ -34,7 +35,8 @@ export function instanceSave(
 
   return {
     save: ({ userId, request }) =>
-      sql.withTransaction(
+      configTransaction(
+        sql,
         Effect.gen(function* () {
           const harness = yield* harnessOrFail(request.harness);
           const id = request.id.trim();
@@ -167,7 +169,8 @@ export function instanceMutations(
 
   return {
     remove: ({ userId, request }) =>
-      sql.withTransaction(
+      configTransaction(
+        sql,
         Effect.gen(function* () {
           const harness = yield* harnessOrFail(request.harness);
           const row = yield* lockInstance(harness, request.id);
@@ -209,7 +212,8 @@ export function instanceMutations(
         }),
       ),
     setWorkers: ({ userId, request }) =>
-      sql.withTransaction(
+      configTransaction(
+        sql,
         Effect.gen(function* () {
           const harness = yield* harnessOrFail(request.harness);
           yield* lockInstance(harness, request.id);
@@ -220,7 +224,8 @@ export function instanceMutations(
         }),
       ),
     setWorker: ({ userId, request }) =>
-      sql.withTransaction(
+      configTransaction(
+        sql,
         Effect.gen(function* () {
           const harness = yield* harnessOrFail(request.harness);
           const row = yield* lockInstance(harness, request.id);
