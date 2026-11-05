@@ -85,6 +85,39 @@ const POLICY_LABELS = new Map(
   }),
 );
 
+const ENVIRONMENT_LABELS = new Map(
+  Object.entries({
+    name: "Name",
+    harness: "Agent file",
+    selector: "Assignment",
+    fragments: "Fragments",
+    deviceHome: "Device CLI",
+    platformHome: "Canopy agent sessions",
+    harnesses: "Harnesses",
+    source: "Source",
+    autoUpdate: "Automatic updates",
+    pinned: "Pinned version",
+    selected: "Version",
+    catalog: "Catalog",
+    marketplace: "Marketplace",
+    deleted: "Deleted",
+  }),
+);
+
+const ENVIRONMENT_KINDS = new Set(["instruction", "skill", "marketplace", "plugin"]);
+
+/** Library values that are references or content: named, never shown as hashes or raw JSON. */
+const ENVIRONMENT_VALUES = new Map(
+  Object.entries({
+    selector: "A different assignment",
+    fragments: "Different fragments",
+    selected: "A different version",
+    catalog: "A different catalog",
+    source: "A different source",
+    harnesses: "Different harnesses",
+  }),
+);
+
 const string = Schema.is(Schema.String);
 const boolean = Schema.is(Schema.Boolean);
 
@@ -95,6 +128,9 @@ export function configFieldLabel(field: string, kind = "settings") {
     return (field.startsWith("originAmbiguous.") ? "Git origin" : PROJECT_LABELS.get(field)) ?? "Project setting";
 
   if (kind === "worktree_policy") return POLICY_LABELS.get(field) ?? "Worktree setting";
+
+  if (ENVIRONMENT_KINDS.has(kind))
+    return field.startsWith("version.") ? "Version" : (ENVIRONMENT_LABELS.get(field) ?? "Library setting");
 
   if (field.startsWith("env.")) return `Variable ${field.slice(4)}`;
 
@@ -110,6 +146,10 @@ export function configItemValue(field: string, value: string) {
   const parsed = Schema.decodeUnknownSync(Schema.MutableJson)(JSON.parse(value));
 
   if (field === "proxy") return parsed ? "A different proxy" : "No proxy";
+
+  const named = ENVIRONMENT_VALUES.get(field) ?? (field.startsWith("version.") ? "A different version" : undefined);
+
+  if (named) return parsed === null ? "Not set" : named;
 
   if (field === "kind" && (parsed === "endpoint" || parsed === "native"))
     return parsed === "endpoint" ? "Endpoint" : "Device login";

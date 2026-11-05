@@ -7,4 +7,6 @@ export type SharedHost = {
   settingsChanged?(cliChanged?: boolean): Promise<void>;
   providersChanged?(workerIds: readonly string[]): Promise<void>;
   projectsChanged?(): Promise<void>;
+  /** The agent environment library changed: workers get the new desired state. */
+  environmentChanged?(): Promise<void>;
 };

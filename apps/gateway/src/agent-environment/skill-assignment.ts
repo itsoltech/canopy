@@ -7,7 +7,11 @@ import type { SqlClient } from "effect/sql";
 import { checkSelector, invalid, selected, uuid } from "./composition.ts";
 import { skillVersion } from "./skill-database.ts";
 
-export function checkSkillAssignment(skill: ui.LibrarySkill, machines: readonly ui.EnvironmentWorker[]): void {
+export function checkSkillAssignment(
+  skill: ui.LibrarySkill,
+  machines: readonly ui.EnvironmentWorker[],
+  foreign: ReadonlySet<string> = new Set(),
+): void {
   if (skill.id && !uuid(skill.id)) invalid("Invalid skill ID.");
 
   if (!skill.name.trim() || skill.name.length > 120) invalid("Name the skill using up to 120 characters.");
@@ -22,7 +26,7 @@ export function checkSkillAssignment(skill: ui.LibrarySkill, machines: readonly 
   if (!skill.deviceHome && !skill.platformHome) invalid("Choose a platform or device destination.");
 
   if (!skill.selector) invalid("Choose a skill assignment.");
-  checkSelector(skill.selector, new Set(machines.map((w) => w.workerId)));
+  checkSelector(skill.selector, new Set([...machines.map((w) => w.workerId), ...foreign]));
 
   if (skill.overrides.length > 200 || new Set(skill.overrides.map((o) => o.workerId)).size !== skill.overrides.length)
     invalid("Use at most one override per computer, up to 200 computers.");

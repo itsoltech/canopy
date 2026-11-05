@@ -2,6 +2,7 @@
   import { create } from "@bufbuild/protobuf";
   import { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
+  import LocalOverridesNote from "./LocalOverridesNote.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
@@ -21,6 +22,7 @@
 </script>
 
 <div class={["grid gap-4", className]}>
+  <LocalOverridesNote />
   {#each workers as worker (worker.workerId)}
     {@const override = skill.overrides.find((o) => o.workerId === worker.workerId)}
     <div class="grid min-w-0 gap-3 sm:grid-cols-2">

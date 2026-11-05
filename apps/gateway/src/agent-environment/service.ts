@@ -12,7 +12,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
 import type { WorkerLink } from "../worker-link/index.ts";
-import { automaticTags, checkDocument, compose, manualTags } from "./composition.ts";
+import { automaticTags, checkDocument, compose, foreignWorkers, manualTags } from "./composition.ts";
 import { documents, EnvironmentDatabase, revision, workers } from "./database.ts";
 import { putDocument, removeDocument, setTags } from "./mutations.ts";
 import { resolveDrift } from "./drift.ts";
@@ -139,8 +139,14 @@ export class AgentEnvironment {
     let library = snapshot.documents;
 
     if (request.draft) {
-      checkDocument(request.draft, snapshot.workers);
       const draft = request.draft;
+      const saved = library.find((d) => d.id === draft.id);
+
+      checkDocument(
+        draft,
+        snapshot.workers,
+        foreignWorkers([saved?.selector, ...(saved?.fragments ?? []).map((f) => f.selector)], snapshot.workers),
+      );
 
       if (draft.id && !library.some((d) => d.id === draft.id))
         throw new ConnectError("Document not found.", Code.NotFound);

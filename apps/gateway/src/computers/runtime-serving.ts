@@ -13,6 +13,7 @@ import { RELAY_METHODS, relayCallback } from "./relay.ts";
 import { computersState, type Connection } from "./runtime-context.ts";
 import { computersRelayChannel } from "./runtime-remote.ts";
 import type { LinkedComputers } from "./runtime.ts";
+import { serveConfigBlob } from "./runtime-blobs.ts";
 import { serveConfig } from "./runtime-config.ts";
 
 // ------------------------------------------------------------------ stage 2: remote threads
@@ -119,6 +120,12 @@ export async function* computersServeHome(
   request: Message,
   signal: AbortSignal,
 ): AsyncGenerator<Message> {
+  if (method.name === "GetConfigBlob") {
+    yield* serveConfigBlob(hostContext, nodeId, connection, linkedMessage(link.ConfigBlobRequestSchema, request));
+
+    return;
+  }
+
   if (method.name === "WatchConfig") {
     yield* serveConfig(hostContext, nodeId, connection, linkedMessage(link.ConfigCursorSchema, request), signal);
 

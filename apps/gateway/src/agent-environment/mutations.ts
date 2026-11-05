@@ -3,7 +3,7 @@ import { ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
-import { checkDocument, compose, uuid } from "./composition.ts";
+import { checkDocument, compose, foreignWorkers, uuid } from "./composition.ts";
 import { audit, documents, saveDocument, workers } from "./database.ts";
 
 export const checked = <A>(perform: () => A) =>
@@ -19,8 +19,14 @@ export function putDocument(sql: SqlClient.SqlClient, owner: string, next: bigin
   return Effect.gen(function* () {
     const library = yield* documents(sql, owner);
     const machines = yield* workers(sql, owner);
-    yield* checked(() => checkDocument(document, machines));
     const previous = library.find((d) => d.id === document.id);
+
+    const foreign = foreignWorkers(
+      [previous?.selector, ...(previous?.fragments ?? []).map((f) => f.selector)],
+      machines,
+    );
+
+    yield* checked(() => checkDocument(document, machines, foreign));
 
     if (document.id && !previous) return yield* Effect.fail(new ConnectError("Document not found.", Code.NotFound));
 

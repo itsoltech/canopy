@@ -19,7 +19,7 @@ Parowanie atomowo zużywa kod i zapisuje peer. Unlink usuwa rekord peer; znaczni
 odwołania pozwala usunąć relację po stronie partnera wracającego z offline.
 Szczegóły i granice bezpieczeństwa: [linked-computers.md](linked-computers.md#konkretny-protokół-etapu-1).
 
-Historyczny protokół `0050_shared_config` został zastąpiony wspólną konfiguracją w migracjach 0073–0075.
+Historyczny protokół `0050_shared_config` został zastąpiony wspólną konfiguracją w migracjach 0073–0076.
 
 Migracja `0073_config_sync` przenosi ustawienia konta z protokołu 0050 do `config_items`
 (HLC i poprzednik per liść, tombstone, lokalna rewizja). `config_clock` porządkuje commity
@@ -44,6 +44,13 @@ powstają przy starcie i zmieniają się transakcyjnie razem z tabelami domeny. 
 pomijają `workspaceId`, polityka bez workera pomija `location`; zakres z workerem nie jest replikowany.
 Scalenie origin przenosi globalny klucz rekordów i ich historii przez `config_aliases`, zachowując
 `config_items.local_id` i lokalne klucze obce.
+
+Migracja `0076_config_agent_environment` dodaje `updated_at` do dokumentów instrukcji, skilli, marketplace'ów
+i pluginów (inicjalizacja wersji z najnowszej wersji albo `created_at`) oraz `content_hash` wersji skilli
+i pluginów: SHA-256 tekstu JSON artefaktu (`config_content_hash`, liczony triggerem). Nowa
+`agent_marketplace_catalogs` trzyma każdy zamrożony katalog marketplace'u po hashu, także po jego zmianie.
+Rekordy `instruction`, `skill`, `marketplace` i `plugin` nazywają wersje tym hashem; nadpisania maszyn,
+wyniki sprawdzeń upstream, raporty i decyzje driftu zostają lokalne.
 
 Migracja `0051_linked_agents` dodaje atomowo zastępowane projekcje rozmów botów
 (`computer_mirror_bots`, `computer_bot_mirror_state`) oraz owner-scoped referencje

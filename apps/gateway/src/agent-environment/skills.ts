@@ -6,6 +6,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { audit, workers } from "./database.ts";
 import { checked } from "./mutations.ts";
+import { foreignWorkers } from "./composition.ts";
 import { checkSkillAssignment, desiredSkills } from "./skill-assignment.ts";
 import { addSkillVersion, saveSkillDefinition, skills, skillVersion } from "./skill-database.ts";
 import { skillZip } from "./skill-zip.ts";
@@ -64,7 +65,8 @@ export class EnvironmentSkills {
         }
 
         const machines = yield* workers(sql, owner);
-        yield* checked(() => checkSkillAssignment(saved, machines));
+        const foreign = foreignWorkers([previous?.selector], machines);
+        yield* checked(() => checkSkillAssignment(saved, machines, foreign));
         const updated = [...library.filter((s) => s.id !== saved.id), saved];
 
         for (const machine of machines) yield* desiredSkills(sql, owner, updated, machine);

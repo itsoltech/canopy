@@ -1646,6 +1646,69 @@ komputerów są tylko do odczytu do etapu 6. Polityka konta i projektu jest wsp�
 zakres z workerem pozostaje lokalny. Protokół i UI 0050 nie działają po migracji 0075; deklaracje proto
 pozostają zarezerwowane dla zgodności kontraktu.
 
+### Środowisko agentów
+
+Biblioteka Settings → Agent environment jest wspólna (`config-sync/environment-*.ts`). Rekordy mają uuid
+elementu jako globalne id i pola:
+
+| Rodzaj | Pola |
+|---|---|
+| `instruction` | `name`, `harness`, `selector`, `fragments` (cała lista), `deviceHome`, `platformHome` |
+| `skill` | `name`, `harnesses`, `selector`, `deviceHome`, `platformHome`, `source` (adres, ref, ścieżka, konto), `autoUpdate`, `pinned`, `selected`, `version.<sha256>` |
+| `marketplace` | `name`, `source`, `catalog` (`{hash, commit}`) |
+| `plugin` | `name`, `marketplace` (globalne id), przypisanie jak skill, `selected`, `version.<sha256>` |
+
+**Wersje po treści.** Każda niezmienna wersja jest osobnym polem `version.<hash>` z `{commit, checksum}`,
+a `selected` wskazuje hash wybranej. Dwa komputery, które offline wgrały inną treść tego samego skilla,
+tworzą dwa różne pola: obie wersje zostają na obu komputerach, a `selected` scala się jak każde pole
+(późniejszy wygrywa, drugi wybór jest w notce z Restore). Pola wersji tylko przybywają; lokalny zapis ich
+nie kasuje. Numery wersji są lokalne: odbiorca nadaje kolejny numer wersji, której nie miał, więc ta sama
+treść może mieć na dwóch komputerach inny numer. Tożsamością wersji jest hash.
+
+**Lokalne zostaje** to, co opisuje maszynę: nadpisania maszyn (`overrides`), tagi, raporty, drift
+i rozstrzygnięcia (etap 6 przeniesie je do rekordów `worker`) oraz wynik sprawdzenia upstream
+(`checkedAt`, kandydat, preview, błąd). Selektor może wskazywać workery innych komputerów po uuid;
+każdy gateway stosuje go tylko do swoich workerów, a zapis z innego komputera zachowuje takie id.
+UI pokazuje je jako „Also assigned to 2 workers on linked computers.”, a nadpisania maszyn opisuje
+„This computer's workers. Linked computers set their own overrides.”
+
+**Konto źródła.** `source.credentialAccountId` jest id konta connectora komputera, który dodał źródło.
+Do etapu 5 (wspólne connectory) odbiorca zachowuje to odwołanie bez zmian. Gdy konta tu nie ma, Check
+upstream kończy się „This source's connected account is on another computer. Check for updates there, or
+connect the account here.” Zainstalowane wersje działają dalej, bo są już w bibliotece.
+
+**Zgoda na plugin** to checksum wybranej wersji. Odbiorca zapisuje wersję wyłącznie wtedy, gdy hash treści,
+checksum artefaktu i checksum w polu wersji się zgadzają, a harnessy pasują do manifestu. Otrzymany plugin
+nie potrzebuje drugiego potwierdzenia: właściciel zatwierdził dokładnie te bajty.
+
+Usunięcie to tombstone jak przy instancjach: odbiorca kasuje definicję (wersje zostają), a partnerzy widzą
+jedną notkę „Deleted on Laptop B at 14:02.” z Restore, które przywraca wszystkie pola, także wybraną wersję.
+Notki i Restore są na górze strony Agent environment. Element, którego wybrana wersja jeszcze nie dotarła,
+ma stan „Waiting for files from a linked computer” i zachowuje poprzednią wersję; lokalny zapis go nie cofa.
+
+### Treść biblioteki
+
+Treść wersji (pliki skilla, bundle pluginu, katalog marketplace'u) nie jedzie w strumieniu `WatchConfig`:
+artefakt ma do 25 MiB, a pole rekordu najwyżej 2 MB. Rekord niesie tylko hash, a treść przechodzi osobno:
+
+- **Adres treści** to SHA-256 tekstu JSON zapisanego w bazie (`config_content_hash(jsonb)`, migracja
+  **0076**). Tekst `jsonb` jest kanoniczny, więc ta sama treść ma ten sam hash na każdym komputerze.
+- **`ConfigSyncService.GetConfigBlob(ConfigBlobRequest{hash})`** zwraca strumień `ConfigBlobChunk`
+  (po 4 MiB, pierwszy z rozmiarem, najwyżej 128 MiB). Służy tylko partnerowi z łączem przenoszącym
+  konfigurację (jak `WatchConfig`) i nie przechodzi przez relay. Szuka wyłącznie w bibliotece tego właściciela
+  (`agent_skill_versions`, `agent_plugin_versions`, `agent_marketplace_catalogs`); inny hash daje `NOT_FOUND`.
+- **Odbiorca** po zatwierdzeniu partii szuka hashy z żywych rekordów, których nie ma w żadnej tabeli
+  biblioteki, i pobiera je od komputera, który wysłał partię: po jednym, każdy w osobnej transakcji.
+  Sprawdza hash bajtów, potem artefakt jak upload (`validateSkillFiles` / `validatePluginFiles`, checksum
+  manifestu i checksum z rekordu) i zapisuje dokładnie otrzymany tekst. Treść, którą ma już inny element
+  tego właściciela, kopiuje lokalnie bez pobierania.
+- Brakująca lub niepoprawna treść nie zmienia biblioteki. Bajty z innym hashem są odrzucane, a odbiorca
+  pyta o nie ponownie po każdej kolejnej partii, także od innego partnera grupy. Treść o zgodnym hashu,
+  która nie przechodzi walidacji, daje „Not supported on this computer”.
+
+Dzięki temu stan rekordów pozostaje mały i idempotentny, a duże bajty przechodzą tylko raz, na żądanie,
+z weryfikacją.
+
 ### Rekordy workerów i edycja zdalna
 
 Dom publikuje rekord `worker` każdego swojego workera: nazwę, system, tagi, instancje na workerze
@@ -1776,6 +1839,14 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    uuid workera (każdy gateway stosuje tylko swoje workery) (**0076_config_agent_environment**).
    Testy: skill zapisany na A instalowany na workerze B; ta sama nazwa i inna treść daje dwie wersje;
    nadpisanie dla workera B nie zmienia workera A.
+   Implementacja etapu 4: migracja **0076_config_agent_environment** (`updated_at` elementów, `content_hash`
+   wersji, `agent_marketplace_catalogs`), `GetConfigBlob` w `canopy.link.v1` ([treść](#treść-biblioteki)).
+   Zapis biblioteki najpierw blokuje `config_clock`, potem `agent_environments`, i zapisuje rekordy w tej
+   samej transakcji (`environmentTransaction`), jak przyjmowana partia. Partia przyjmuje marketplace przed
+   pluginami; plugin, którego marketplace albo treść przyszły później, stosuje się po ich przyjęciu.
+   Nadpisania maszyn zostają lokalne ([środowisko agentów](#środowisko-agentów)). Tożsamość scalania z tabeli
+   bootstrapu: instrukcja (harness, nazwa), skill (źródło albo nazwa), marketplace (repozytorium, ref,
+   ścieżka), plugin (globalne id marketplace'u i nazwa).
 5. **Connectory.** Konta, poświadczenia i aplikacje OAuth jako sekrety, stan per komputer, odświeżanie
    tokenów (**0077_config_connectors**). Testy: konto połączone na A działa w bocie na B; ciphertext inny
    na B; równoległe odświeżenie z rotacją refresh tokenu kończy się jednym ważnym tokenem na obu;
