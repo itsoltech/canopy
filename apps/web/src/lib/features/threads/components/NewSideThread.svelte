@@ -9,6 +9,8 @@
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import { useThreadModels } from "#lib/features/models/model-catalog.svelte.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
+  import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
+  import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
@@ -66,6 +68,19 @@
 
 <div class={["flex h-full min-w-0 flex-col", className]}>
   <TopBar>
+    <Crumb
+      href={project
+        ? project.kind === "scratch"
+          ? "/settings/threads"
+          : `/settings/projects/${project.id}`
+        : undefined}
+      >{#snippet mark()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}{project?.name ??
+        "Project"}</Crumb
+    >
+    {#if main.nodeId}<li class="flex shrink-0 items-center">
+        <MachineBadge nodeId={main.nodeId} compact class="max-w-20 sm:max-w-40" />
+      </li>{/if}
+    <Crumb {href}>{main.title || "Untitled thread"}</Crumb>
     <Crumb>New side thread</Crumb>
     {#snippet actions()}
       <ButtonLink {href} size="sm" icon="arrow-left" aria-label="Back to main thread">Back</ButtonLink>
