@@ -163,7 +163,7 @@
 
 <Dialog
   bind:open
-  title={editing ? "Edit Bot appearance" : "Create New Bot"}
+  title={editing ? "Edit bot appearance" : "Create bot"}
   bare
   dismissible={!busy}
   class={className}
@@ -173,7 +173,7 @@
     <div class="flex items-start justify-between gap-4 px-5 pt-6 pb-4 sm:px-6">
       <div class="grid gap-1">
         <p aria-hidden="true" class="text-xl font-semibold text-balance">
-          {editing ? "Edit Bot appearance" : "Create New Bot"}
+          {editing ? "Edit bot appearance" : "Create bot"}
         </p>
         <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
           {editing ? "A fresh look for a familiar face." : "Choose a model, then give your bot a name."}
@@ -224,7 +224,7 @@
         </p>{/if}
       <Button disabled={busy} onclick={() => (open = false)}>Cancel</Button>
       <Button type="submit" variant="primary" loading={busy} disabled={!editing && (loading || !!loadError || !option)}
-        >{editing ? "Save changes" : "Create Bot"}</Button
+        >{editing ? "Save changes" : "Create bot"}</Button
       >
     </div>
   </form>

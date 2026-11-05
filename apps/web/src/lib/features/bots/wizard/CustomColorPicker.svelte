@@ -51,15 +51,8 @@
       onchange={(v) => set("value", v)}
       {disabled}
     />
-    <Field label="Hex colour" error={!normalizeColor(value) ? "Use #RGB or #RRGGBB." : undefined}>
-      <Input
-        bind:value
-        {disabled}
-        aria-label="Hex colour"
-        spellcheck="false"
-        autocomplete="off"
-        placeholder="#a3e635"
-      />
+    <Field label="Hex color" error={!normalizeColor(value) ? "Use #RGB or #RRGGBB." : undefined}>
+      <Input bind:value {disabled} aria-label="Hex color" spellcheck="false" autocomplete="off" placeholder="#a3e635" />
     </Field>
   </div>
 </div>

@@ -21,7 +21,7 @@
     {
       field: "cleanupMerged",
       title: "Merged branches",
-      description: "Fetch, then check whether the branch is contained in the default or base branch.",
+      description: "Remove a worktree once its branch is merged into the default or base branch.",
     },
     {
       field: "cleanupSettled",
@@ -36,14 +36,12 @@
     {
       field: "keepLocalChanges",
       title: "Keep worktrees with local changes",
-      description:
-        "Keep uncommitted files and unpushed commits. Turning this off still requires manual confirmation for each worktree.",
+      description: "When off, Canopy still asks before it removes each worktree with local changes.",
     },
     {
       field: "deleteLocalBranch",
       title: "Delete safe local branches",
-      description:
-        "Also delete the local branch when merged or unchanged, with no unpushed commits. Otherwise keep it.",
+      description: "Applies to merged or unchanged branches with no unpushed commits.",
     },
   ] as const;
 </script>
@@ -51,7 +49,7 @@
 {#if effective && inherited}
   <SettingsGroup
     title="Cleanup"
-    description="Runs hourly and when a computer reconnects. Any matching rule can remove a worktree; active threads and local work are protected."
+    description="Runs hourly and when a computer reconnects. Any matching rule can remove a worktree without active threads or protected local work."
     class={className}
   >
     {#each toggles as toggle (toggle.field)}

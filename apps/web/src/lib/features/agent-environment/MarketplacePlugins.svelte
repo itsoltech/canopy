@@ -32,7 +32,7 @@
       <LibraryRow
         id={assignment?.id}
         name={assignment?.name || plugin.artifact?.name || "Unavailable plugin"}
-        meta={`${plugin.harnesses.join(" / ")} · ${assignment ? `v${assignment.version}` : "Unassigned"} · ${plugin.artifact?.files.length ?? 0} files · ${librarySource(market.source?.url)} · ${assignment ? "Pinned" : plugin.unavailableReason || "Ready to review"}`}
+        meta={`${plugin.harnesses.join(" / ")}${assignment ? ` · v${assignment.version}` : ""} · ${plugin.artifact?.files.length ?? 0} files · ${librarySource(market.source?.url)} · ${assignment ? "Pinned" : plugin.unavailableReason || "Ready to review"}`}
         disabled={controller.environment.busy || (!assignment && Boolean(plugin.unavailableReason))}
         onedit={() => controller.edit(market, plugin)}
         onremove={assignment ? () => void controller.removePlugin(assignment.id) : undefined}

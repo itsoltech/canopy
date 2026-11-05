@@ -51,7 +51,7 @@ export function appearanceError(
 ): string | undefined {
   return (
     nameError(draft.name, existingNames, originalName) ??
-    (!normalizeColor(draft.color) ? "Enter a colour as #RGB or #RRGGBB." : undefined)
+    (!normalizeColor(draft.color) ? "Enter a color as #RGB or #RRGGBB." : undefined)
   );
 }
 

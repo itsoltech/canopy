@@ -68,7 +68,7 @@
 <Dialog bind:open={confirming} title="Restart Canopy app now?">
   <div class="grid gap-5">
     <p class="text-base/6 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">
-      Restarting now interrupts the current turns on this desktop. The app will reconnect automatically.
+      Restarting stops the running turns on this computer. The app reconnects by itself.
     </p>
     <div class="flex flex-wrap justify-end gap-2">
       <Button size="sm" onclick={() => (confirming = false)}>Keep waiting</Button>

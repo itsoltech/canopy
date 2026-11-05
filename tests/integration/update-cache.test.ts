@@ -213,7 +213,7 @@ test("BFF distinguishes gateway internal errors, rejected requests and transport
     gatewayFailure(
       new ConnectError("connect to private address", Code.Unavailable, undefined, undefined, new Error("ECONNREFUSED")),
     ),
-  ).toEqual({ status: 502, message: "The gateway is not available" });
+  ).toEqual({ status: 502, message: "Could not reach the gateway. Check that it is running, then retry." });
   expect(gatewayFailure(new Error("local secret"))).toEqual({ status: 500, message: "The gateway request failed" });
 
   const failure = gatewayFailure(

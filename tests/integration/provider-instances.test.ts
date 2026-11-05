@@ -215,7 +215,7 @@ describe.skipIf(!dockerAvailable)("global provider instances (gateway + two scri
     expect(await failure(gw.api.saveProviderInstance({ ...base, id: "team" }))).toContain("already has");
     expect(
       await failure(gw.api.saveProviderInstance({ ...base, id: "x", env: [{ name: "CODEX_HOME", value: "/tmp" }] })),
-    ).toContain("Change the home or binary in Runtime instead.");
+    ).toContain("Change the home or CLI path in Runtime instead.");
     expect(
       await failure(gw.api.saveProviderInstance({ ...base, id: "x", env: [{ name: "NEW_SECRET", secret: true }] })),
     ).toContain("Enter the secret value.");

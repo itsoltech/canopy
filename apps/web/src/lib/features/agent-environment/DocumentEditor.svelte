@@ -176,7 +176,7 @@
           <InstructionPreview {worker} draft={document} />
         {:else}
           <p class="text-base text-muted sm:text-sm">
-            No computers yet. Review your fragments below; assignments sync when a matching computer connects.
+            No computers yet. Review your fragments below. They sync when a matching computer connects.
           </p>
           {#each document.fragments as fragment (fragment.id)}<InstructionText
               content={fragment.content}

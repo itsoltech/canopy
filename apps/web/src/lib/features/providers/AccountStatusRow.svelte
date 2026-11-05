@@ -89,10 +89,10 @@
 
     try {
       const result = await providerCall("refresh", { workerId, harness, id, accountOnly: true }, 75_000);
-      failure = result.skipped.length ? "The worker could not refresh this account." : "";
+      failure = result.skipped.length ? "The worker could not refresh this account. Try again." : "";
       await onupdated?.();
     } catch {
-      failure = "Could not refresh account status.";
+      failure = "Could not refresh account status. Try again.";
     } finally {
       busy = false;
     }
@@ -107,8 +107,7 @@
       {#if proxy}
         <span class="text-zinc-950 dark:text-white">Proxy</span>
         {#if account.proxyName}<span class={[sep, "min-w-0 break-words"]}>{account.proxyName}</span>{/if}
-        {#if account.state !== "signed_in"}<span class={[sep, "text-amber-700 dark:text-amber-400"]}
-            >Configuration required</span
+        {#if account.state !== "signed_in"}<span class={[sep, "text-amber-700 dark:text-amber-400"]}>Needs setup</span
           >{/if}
       {:else}
         {#if statusLabel}<span class={warn ? "text-amber-700 dark:text-amber-400" : "text-zinc-950 dark:text-white"}
@@ -142,7 +141,7 @@
       {#if signIn}
         <Popover bind:open={help} label="Sign in" placement="bottom-start" class="w-[min(20rem,calc(100vw-1rem))] p-3">
           {#snippet trigger(props)}<Button {...props} variant="ghost" size="sm">Sign in</Button>{/snippet}
-          <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">Run on this worker:</p>
+          <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">Run this on the worker, then refresh.</p>
           <div class="mt-1 flex min-w-0 items-center gap-1 rounded-md bg-zinc-950/5 py-0.5 pr-0.5 pl-2 dark:bg-white/5">
             <code class="min-w-0 flex-1 truncate font-mono text-sm/6 text-zinc-950 dark:text-white">{login}</code>
             <CopyButton text={login} label="Copy command" />

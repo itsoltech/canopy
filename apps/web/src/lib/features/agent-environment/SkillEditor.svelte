@@ -117,7 +117,7 @@
           <Checkbox
             name="source-auto-update"
             label="Automatically update this skill"
-            description="Check hourly. Script or executable changes always require review."
+            description="Check hourly. Script or executable changes always need review."
             bind:checked={skill.source.autoUpdate}
           />
           <Checkbox

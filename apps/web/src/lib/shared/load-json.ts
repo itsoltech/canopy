@@ -6,13 +6,16 @@ export async function loadJson(fetcher: typeof fetch, path: string): Promise<Jso
   const response = await fetcher(path, {
     headers: { accept: "application/json" },
     signal: AbortSignal.timeout(5000),
-  }).catch(() => error(503, "The gateway is not available"));
+  }).catch(() => error(503, "Could not reach the gateway. Check that it is running, then retry."));
 
   const body = await bodyJson(response).catch(() => null);
 
   if (!response.ok) {
     const message = isJsonObject(body) ? body["message"] : undefined;
-    error(response.status, isString(message) ? message : "The gateway is not available");
+    error(
+      response.status,
+      isString(message) ? message : "Could not reach the gateway. Check that it is running, then retry.",
+    );
   }
 
   return body;

@@ -42,7 +42,7 @@
       confirm = false;
       onchange();
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Worktree could not be removed";
+      error = cause instanceof Error ? cause.message : "Could not remove the worktree. Try again.";
     } finally {
       working = false;
     }
@@ -56,7 +56,7 @@
     try {
       await revealWorktree(entry.worktree.id);
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Folder could not be opened";
+      error = cause instanceof Error ? cause.message : "Could not open the directory. Try again.";
     } finally {
       working = false;
     }
@@ -91,13 +91,13 @@
       <Alert tone="warning"
         >This worktree has {entry.status?.dirtyFiles ?? 0} changed {(entry.status?.dirtyFiles ?? 0) === 1
           ? "file"
-          : "files"}{entry.status?.unpushed ? " and unpushed commits" : ""}. Uncommitted files will be permanently lost.
-        The local branch will be kept so its commits can be recovered.</Alert
+          : "files"}{entry.status?.unpushed ? " and unpushed commits" : ""}. Removing it deletes the uncommitted files
+        for good. Canopy keeps the local branch, so you can recover its commits.</Alert
       >
     {:else}
       <p class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400">
-        The worker will check for changes and active threads again before removing it. A safe local branch may also be
-        deleted if your policy allows it.
+        The worker checks again for changes and active threads first. Your cleanup settings may also delete a safe local
+        branch.
       </p>
     {/if}
     {#if error}<Alert tone="error">{error}</Alert>{/if}

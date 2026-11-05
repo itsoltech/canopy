@@ -58,7 +58,7 @@ export class DesktopUpdateFeed {
 
     const publishing =
       latest && gt(latest.tag_name, current) && latest.tag_name !== release?.tag_name
-        ? `${valid(latest.tag_name)} is not yet available for ${platform}. Desktop publishing may still be running or need a retry.`
+        ? `${valid(latest.tag_name)} is not ready for ${platform} yet. Check again in a few minutes.`
         : undefined;
 
     return {

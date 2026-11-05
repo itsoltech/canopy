@@ -81,10 +81,7 @@
     <AccentPicker name="accent" bind:value={draft.accentColor} />
   </SettingsSection>
 
-  <SettingsSection
-    title="Connection"
-    description="Applies next turn. Running tasks finish with their current settings; threads keep their sessions."
-  >
+  <SettingsSection title="Connection" description="Applies from the next turn. Threads keep their sessions.">
     <ConnectionFields
       harness={instance.harness}
       bind:kind={draft.kind}

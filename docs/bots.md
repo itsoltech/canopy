@@ -682,7 +682,7 @@ JSON i składanych logów pracy.
   wraca do czatu bota. Odpowiedź bota dla Ciebie pozostaje zwykłym dymkiem.
 - **Błędy** (`ChatErrorLine`, wspólny `FailureNotice` dla botów i wątków): klasa błędu
   określa wyjaśnienie i akcje: **Sign in on that worker** dla native loginu,
-  **Open provider settings**, **Change model**, **Pick another worker (Runs on)**,
+  **Open provider settings**, **Change model**, **Change worker**,
   test proxy i **Retry** (także po naprawieniu konfiguracji). Link logowania wskazuje
   konkretną instancję i przypięty worker. **Show details** pokazuje źródło, kod
   i bezpieczny komunikat z kopiowaniem.

@@ -39,7 +39,7 @@
   let touched = $state(false);
   let customOpen = $state(false);
   const shapes = mascotShapes.map((s) => ({ ...s, value: s.id }));
-  const colors = [...mascotColors, { label: "Custom colour", value: "custom" }];
+  const colors = [...mascotColors, { label: "Custom color", value: "custom" }];
   const selectedColor = $derived(customOpen || !mascotColors.some((c) => c.value === color) ? "custom" : color);
 </script>
 
@@ -47,7 +47,7 @@
   <div class="grid min-w-0 grid-cols-[4rem_minmax(0,1fr)] items-center gap-3">
     <MascotPreview {shape} {color} {name} compact />
     <Field
-      label="Name your Bot"
+      label="Name your bot"
       error={touched || submitted ? nameError(name, existingNames, originalName) : undefined}
     >
       <Input
@@ -64,7 +64,7 @@
   </div>
   {#if collapsible}
     <Disclosure bind:open={expanded}>
-      {#snippet summary()}<span class="text-base/6 font-medium sm:text-sm/6">Customise appearance</span>{/snippet}
+      {#snippet summary()}<span class="text-base/6 font-medium sm:text-sm/6">Customize appearance</span>{/snippet}
       <div class="pt-3">{@render choices()}</div>
     </Disclosure>
   {:else}
@@ -94,9 +94,9 @@
       </ChoiceGrid>
     </div>
     <div class="grid gap-2">
-      <p class="text-base/6 font-medium sm:text-sm/6">Colour</p>
+      <p class="text-base/6 font-medium sm:text-sm/6">Color</p>
       <ChoiceGrid
-        label="Bot colour"
+        label="Bot color"
         options={colors}
         value={selectedColor}
         {disabled}

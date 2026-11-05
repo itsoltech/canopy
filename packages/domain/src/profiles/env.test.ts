@@ -10,7 +10,7 @@ describe("profile env rules", () => {
 
   test("rejects what the worker controls, case-insensitively", () => {
     for (const name of ["HOME", "path", "CLAUDE_CONFIG_DIR", "codex_home", "USERPROFILE", "CLAUDE_CODE_ENTRYPOINT"]) {
-      expect(envNameProblem("native", name)).toContain("Change the home or binary in Runtime instead.");
+      expect(envNameProblem("native", name)).toContain("Change the home or CLI path in Runtime instead.");
     }
 
     expect(envNameProblem("native", "CANOPY_X_API_KEY")).toContain("reserved");

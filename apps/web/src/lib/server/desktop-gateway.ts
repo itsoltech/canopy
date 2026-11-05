@@ -23,7 +23,7 @@ export function desktopGateway(routesJson: string, token: string) {
 
   let snapshot: GatewayCompatibility = {
     state: "unavailable",
-    message: "The gateway is not available",
+    message: "Could not reach the gateway. Check that it is running, then retry.",
     methods: [],
     gatewayVersion: "",
     linkedComputers: false,

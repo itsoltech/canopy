@@ -71,7 +71,7 @@
   <h3 class="text-base font-medium sm:text-sm">Model</h3>
   {#if !instances.some((i) => i.models.length > 0)}
     <Alert title="Set up a model first">
-      Your bot needs an available provider instance with a model before it can be created.
+      Your bot needs a provider instance with a model.
       <a href="/settings/providers" class="rounded-md underline focus-ring">Set up a provider in Settings → Providers</a
       >. Your draft stays here while you configure it.
     </Alert>

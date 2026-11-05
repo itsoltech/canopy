@@ -124,7 +124,7 @@
             </p>{/if}
           <p class="text-[0.8125rem]/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" role="status">
             {session.interaction.asynchronous
-              ? "The agent keeps working — answer any time."
+              ? "The agent keeps working. Answer any time."
               : "The agent is waiting for your answers."}
           </p>
           <fieldset disabled={disabled || session.busy} class="min-w-0">
@@ -219,7 +219,7 @@
                 >{/if}
             </div>
             <p class="text-xs/4 text-zinc-500 dark:text-zinc-400">
-              {#if session.questions.length > 1}Skip leaves this question unanswered; Skip all sends no answers.{:else}Skip
+              {#if session.questions.length > 1}Skip leaves this question unanswered. Skip all sends no answers.{:else}Skip
                 sends no answer.{/if}
               {#if !session.interaction.asynchronous}
                 Dismiss cancels the request.{/if}

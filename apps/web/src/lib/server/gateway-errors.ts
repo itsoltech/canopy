@@ -29,7 +29,7 @@ export function gatewayFailure(cause: unknown) {
     case Code.Unavailable:
       return cause.cause === undefined
         ? { status: 503, message }
-        : { status: 502, message: "The gateway is not available" };
+        : { status: 502, message: "Could not reach the gateway. Check that it is running, then retry." };
     case Code.DeadlineExceeded:
       return { status: 504, message: "The gateway request timed out" };
     default:

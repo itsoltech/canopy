@@ -21,27 +21,24 @@
     {
       value: "",
       label: "Automatic",
-      description: "Prefer the local worker in desktop mode; otherwise use the first eligible online worker.",
+      description: "Uses the local worker in desktop mode, or else the first online worker that can run the bot.",
     },
     ...overview.ownWorkers
       .filter((w) => w.id === value || w.providerInstances.some((i) => instanceKeyOf(i) === instanceId && i.enabled))
       .map((w) => ({
         value: w.id,
         label: w.name,
-        description: w.online ? "Online" : "Offline · messages will wait",
+        description: w.online ? "Online" : "Offline · messages wait",
       })),
   ]);
 </script>
 
-<Field
-  label="Runs on"
-  description="The bot keeps its harness session on this worker. Messages wait while it is offline."
->
+<Field label="Runs on" description="The bot keeps its session on this worker. Messages wait while it is offline.">
   <Select bind:value {options} {disabled} />
   {#if options.length === 1}
     <p class="mt-2 text-sm/6 text-zinc-600 dark:text-zinc-400">
-      No worker has this provider instance enabled. Enable it on a worker in provider settings, install its CLI and sign
-      in. Automatic will wait until an eligible worker is online.
+      No worker has this provider instance enabled. Enable it on a worker in provider settings, install its agent CLI
+      and sign in. Automatic waits until a worker that can run the bot is online.
     </p>
     <ButtonLink size="sm" variant="ghost" href={`/settings/providers?instance=${encodeURIComponent(instanceId)}`}
       >Open provider settings</ButtonLink

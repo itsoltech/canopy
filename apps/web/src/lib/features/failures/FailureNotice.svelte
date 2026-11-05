@@ -60,8 +60,7 @@
     {/if}
     {#if failure.proxy}<ButtonLink size="sm" variant="ghost" href="/settings/proxies">Check proxy</ButtonLink>{/if}
     {#if onretry}<Button size="sm" loading={retrying} disabled={retryDisabled} onclick={onretry}>Retry</Button>{/if}
-    {#if onchangeworker}<Button size="sm" variant="ghost" onclick={onchangeworker}>Pick another worker (Runs on)</Button
-      >{/if}
+    {#if onchangeworker}<Button size="sm" variant="ghost" onclick={onchangeworker}>Change worker</Button>{/if}
   </div>
   <Disclosure class="min-w-0 text-zinc-500 dark:text-zinc-400">
     {#snippet summary()}Show details{/snippet}
