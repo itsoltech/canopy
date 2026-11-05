@@ -11,11 +11,12 @@ import type { BotHarnessContext } from "./types.ts";
 import { BotHarnessFailure } from "./types.ts";
 import { codexErrorCode } from "../providers/codex/status-mapping.ts";
 import { decodeJson } from "../providers/json.ts";
+import { isolatedHomeEnvironment } from "../providers/home.ts";
 
 async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLaunch> {
   const { input, session } = ctx;
 
-  const base = codexAppServerLaunch(
+  const launch = codexAppServerLaunch(
     [ctx.profile],
     process.env,
     ctx.executable,
@@ -26,11 +27,26 @@ async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLau
     [],
   );
 
+  const base = { ...launch, env: { ...launch.env, ...isolatedHomeEnvironment(session.home) } };
   const catalog = join(session.home, "bot-model.json");
   const entry = await codexModelEntry(base, input.model);
   writeFileSync(catalog, JSON.stringify(codexBotCatalog(input.model, input.effort, entry)), { mode: 0o600 });
 
-  return { ...base, command: [...base.command, ...codexTextOverrides(catalog)] };
+  return {
+    ...base,
+    command: [
+      ...base.command,
+      ...codexTextOverrides(catalog),
+      "-c",
+      'cli_auth_credentials_store="file"',
+      "-c",
+      "skills.include_instructions=false",
+      "-c",
+      "skills.bundled.enabled=false",
+      "-c",
+      "features.skip_host_skill_discovery=true",
+    ],
+  };
 }
 
 function codexFailure(error: import("@canopy/codex-protocol").v2.TurnError | null | undefined) {

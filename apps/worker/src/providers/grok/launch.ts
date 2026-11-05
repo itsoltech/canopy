@@ -6,6 +6,7 @@ import type { ResolvedProfile } from "../profiles.ts";
 import { instanceShadowHome } from "../../config/remote.ts";
 import { instructionDirectory } from "../../agent-environment/files.ts";
 import { textOnlyConfig } from "./text-agent.ts";
+import { isolatedHomeEnvironment } from "../home.ts";
 
 interface GrokLaunch {
   options: GrokOptions;
@@ -13,7 +14,9 @@ interface GrokLaunch {
 }
 
 /** Keep optional device capabilities out of hidden bot processes. */
-function isolateBotEnv(env: NodeJS.ProcessEnv): void {
+function isolateBotEnv(env: NodeJS.ProcessEnv, home: string): void {
+  Object.assign(env, isolatedHomeEnvironment(home));
+
   for (const name of [
     "GROK_CLAUDE_AGENTS_ENABLED",
     "GROK_CURSOR_AGENTS_ENABLED",
@@ -105,7 +108,7 @@ export function grokLaunch(options: {
   env["GROK_DEFAULT_SELECTED_PERMISSION"] = "reject";
   env["RUST_LOG"] = "off";
 
-  if (options.bot) isolateBotEnv(env);
+  if (options.bot) isolateBotEnv(env, home);
 
   if (options.readOnly) env["GROK_SANDBOX"] = "read-only";
   else if (options.fullAuto) env["GROK_SANDBOX"] = "workspace";

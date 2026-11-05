@@ -18,6 +18,19 @@ export interface ProviderHome {
   readonly problem?: string;
 }
 
+/** Bot processes must not discover user skills through HOME or cross-provider compatibility paths. */
+export function isolatedHomeEnvironment(home: string) {
+  return {
+    HOME: home,
+    USERPROFILE: home,
+    XDG_CONFIG_HOME: join(home, ".config"),
+    XDG_DATA_HOME: join(home, ".local", "share"),
+    XDG_CACHE_HOME: join(home, ".cache"),
+    CODEX_HOME: home,
+    CLAUDE_CONFIG_DIR: home,
+  };
+}
+
 export interface ProviderHomeOptions {
   /** Directory of the isolated home. */
   readonly path: string;

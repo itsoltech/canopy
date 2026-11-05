@@ -3,8 +3,12 @@ import { create } from "@bufbuild/protobuf";
 import { Provider, RunBotTurnSchema } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
 import { Schema } from "effect";
+import { createHash } from "node:crypto";
+import { mkdirSync, readdirSync, readlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { grokBus } from "../providers/grok/bus.ts";
 import { resolveProfiles } from "../providers/profiles.ts";
+import { grokLaunch } from "../providers/grok/launch.ts";
 import { runClaudeBot } from "./claude.ts";
 import { runCodexBot } from "./codex.ts";
 import { runGrokBot } from "./grok.ts";
@@ -20,14 +24,111 @@ const Tool = Schema.Struct({
 
 const Inference = Schema.Struct({ tools: Schema.optionalKey(Schema.Array(Tool)) });
 
+function userEnvironment(home: string) {
+  const skill = "fixture-private-user-skill";
+  const instruction = "FIXTURE_PRIVATE_USER_INSTRUCTIONS";
+  const roots = [".agents", ".codex", ".claude", ".grok", ".config/codex"];
+
+  for (const root of roots) {
+    const path = join(home, root);
+    const skills = join(path, "skills", skill);
+    mkdirSync(skills, { recursive: true });
+    writeFileSync(
+      join(skills, "SKILL.md"),
+      `---\nname: ${skill}\ndescription: Private user fixture\n---\n${instruction}\n`,
+    );
+
+    for (const file of ["AGENTS.md", "CLAUDE.md"]) writeFileSync(join(path, file), instruction);
+  }
+
+  for (const file of ["AGENTS.md", "CLAUDE.md"]) writeFileSync(join(home, file), instruction);
+
+  return {
+    env: {
+      HOME: home,
+      USERPROFILE: home,
+      XDG_CONFIG_HOME: join(home, ".config"),
+      XDG_DATA_HOME: join(home, ".local", "share"),
+      CODEX_HOME: join(home, ".codex"),
+      CLAUDE_CONFIG_DIR: join(home, ".claude"),
+      GROK_HOME: join(home, ".grok"),
+    },
+    forbidden: [...roots.map((root) => join(home, root, "skills")), skill, instruction],
+  };
+}
+
+test("bot isolation keeps only the selected login and rebuilds pre-isolation sessions", () => {
+  const user = userEnvironment(temp("canopy-bot-login-"));
+
+  for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
+    const sourceHome = provider === Provider.CLAUDE ? user.env.CLAUDE_CONFIG_DIR : user.env.CODEX_HOME;
+    const login = provider === Provider.CLAUDE ? ".credentials.json" : "auth.json";
+    writeFileSync(join(sourceHome, login), "{}");
+
+    const input = create(RunBotTurnSchema, {
+      botId: crypto.randomUUID(),
+      turnId: crypto.randomUUID(),
+      provider,
+      model: "fixture",
+    });
+
+    const options = { dataDir: temp("canopy-bot-login-data-"), sourceHome, linkLogin: true };
+    const session = botSession(input, options);
+
+    expect(readdirSync(session.home)).toEqual([login]);
+    expect(readlinkSync(join(session.home, login))).toBe(join(sourceHome, login));
+
+    const key = createHash("sha256")
+      .update(JSON.stringify({ model: input.model, tools: input.tools }))
+      .digest("hex");
+
+    writeFileSync(join(session.home, "..", "session.json"), JSON.stringify({ id: "old-session", key }));
+    expect(botSession(input, options).id).toBe("");
+    session.save("isolated-session");
+    expect(botSession(input, options).id).toBe("isolated-session");
+  }
+});
+
+test("Grok bot login uses the selected absolute auth path independently of its private HOME", () => {
+  const user = userEnvironment(temp("canopy-bot-grok-login-"));
+  const sourceHome = user.env.GROK_HOME;
+  const auth = join(sourceHome, "auth.json");
+  writeFileSync(auth, "{}");
+
+  for (const linkDeviceLogin of [true, false]) {
+    const launch = grokLaunch({
+      dataDir: temp("canopy-bot-grok-data-"),
+      profile: {
+        kind: "native",
+        id: "fixture",
+        providers: ["grok"],
+        env: { ...user.env, GROK_AUTH_PATH: join(user.env.HOME, "wrong-auth.json") },
+        runtime: { homePath: user.env.HOME },
+      },
+      linkDeviceLogin,
+      bot: { cwd: sourceHome, instructions: "Use only Canopy tools.", sourceHome },
+    });
+
+    try {
+      expect(launch.options.env?.["HOME"]).not.toBe(user.env.HOME);
+      expect(launch.options.env?.["HOME"]).toBe(launch.options.env?.["GROK_HOME"]);
+      expect(launch.options.env?.["GROK_AUTH_PATH"]).toBe(linkDeviceLogin ? auth : undefined);
+    } finally {
+      launch.cleanup();
+    }
+  }
+});
+
 for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
   const name = provider === Provider.CLAUDE ? "claude" : provider === Provider.CODEX ? "codex" : "grok";
   test.skipIf(!Bun.which(name))(
     `${name} offers only Canopy MCP schemas to the model`,
     async () => {
       const dir = temp("canopy-bot-isolation-");
+      const user = userEnvironment(temp("canopy-bot-user-"));
       const seen = Promise.withResolvers<typeof Inference.Type>();
       const requests: (typeof Inference.Type)[] = [];
+      const captured: string[] = [];
       const abort = new AbortController();
 
       const server = Bun.serve({
@@ -41,6 +142,7 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
             const body = await request.json();
             const parsed = Schema.decodeUnknownSync(Inference)(body);
             requests.push(parsed);
+            captured.push(JSON.stringify(body));
 
             if (JSON.stringify(body).includes("Run ls") && parsed.tools?.length) seen.resolve(parsed);
           }
@@ -95,7 +197,7 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
 
       const context = {
         input,
-        profile,
+        profile: { ...profile, env: user.env },
         executable: name,
         signal: abort.signal,
         clientVersion: "test",
@@ -120,6 +222,8 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
 
       try {
         const tools = (await seen.promise).tools ?? [];
+        abort.abort();
+        await done;
         expect(tools.length).toBeGreaterThan(0);
 
         if (provider === Provider.CLAUDE) expect(tools.map((t) => t.name)).toEqual(["mcp__canopy__fixture_only"]);
@@ -148,6 +252,14 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
               ].includes(t.name ?? t.function?.name ?? ""),
             ),
         ).toBe(true);
+
+        expect(captured.some((body) => body.includes("<skills_instructions>"))).toBe(false);
+
+        for (const marker of user.forbidden)
+          expect(
+            captured.some((body) => body.includes(marker)),
+            `User context leaked: ${marker}`,
+          ).toBe(false);
       } finally {
         clearTimeout(timer);
         abort.abort();
