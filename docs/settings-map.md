@@ -73,13 +73,13 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | Providers | Instances; display name; proxy/native; models; favorites; environment; worker enablement; CLI login/install/updates | konto/zasoby: native, wykryty katalog | Dostępność modeli i konfiguracja harnessów; poświadczenia w gateway |
 | Connectors | Accounts; OAuth apps; grants; access targets; test/disconnect | konto/zasoby: brak | Uprawnienia zewnętrznych MCP |
 | Proxies | Name; endpoint; API key; provider transport options | konto/zasoby: brak | Współdzielone połączenia dostawców |
-| Workers | Enrollments; public gateway URL; SSH install; name/tags; CLI updates | konto/worker: automatic URL, konfiguracja workera | Rejestracja i zdalna konfiguracja workerów. Profile workera ustawia Providers; limity `WorkerConfig.limits` nie mają UI, a worker egzekwuje z nich tylko `idleUnloadSeconds` |
+| Workers | Enrollments; public gateway URL; SSH install; name/tags; CLI updates; Updates (ten komputer, połączone komputery, workery i Agent CLIs według komputera) | konto/worker: automatic URL, konfiguracja workera | Rejestracja i zdalna konfiguracja workerów. Profile workera ustawia Providers; limity `WorkerConfig.limits` nie mają UI, a worker egzekwuje z nich tylko `idleUnloadSeconds` |
 | Network access | Enabled; port; hostnames; routes; TLS fingerprint | komputer gatewaya: Off, automatyczny port | Osiągalność gatewaya i przypięty TLS; adres nasłuchu ustawia wyłącznie konfiguracja gatewaya |
 | Network access / Attachments | Per file; per message; file count | konto: 20 MiB, 50 MiB, 10 | Limity uploadu egzekwowane przez gateway |
 | Devices | Pairing code / QR; device list; revoke | konto/zasoby: brak | Dostęp telefonów i klientów desktopowych |
 | Linked computers | Identity; link/pair; rename; onward sharing; unlink; per-item sharing/conflicts | komputer gatewaya: brak linków, lokalne | Wzajemny dostęp i jawne udostępnianie konfiguracji |
 | Desktop | Local/remote mode; worker status; detected CLIs; change mode | urządzenie/store: wybór przy konfiguracji | Wyłącznie topologia uruchomienia i status lokalnych usług; bez ogólnych preferencji zachowania |
-| App updates | Installed version; channel; check frequency; check now; download/restart status; release notes | urządzenie/store: kanał builda, 6 h | Wyłącznie aktualizacje powłoki i runtime |
+| App updates | Installed version; channel; check frequency; check now; download/restart status; release notes; Linked computers (version, target, channel, status, Check now, Update) | urządzenie/store: kanał builda, 6 h; partnerzy: tylko odczyt | Wyłącznie aktualizacje powłoki i runtime; kanał i częstotliwość połączonego komputera zmienia się na nim samym |
 
 Geometria sidebara/panelu i przypięcia/filtry pozostają w istniejącym kontrakcie
 właściciela; nie są usuwane przy resetowaniu nowych preferencji. Udostępnianie między

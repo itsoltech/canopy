@@ -292,13 +292,13 @@ message WorkerRequest { string worker_id = 1; }
 
 message UpdatesRequest {}
 message ManageUpdatesRequest {
-  string action = 1; // check | channel | gateway | worker | all | desktop | update_all | computer
+  string action = 1; // check | channel | gateway | worker | all | desktop | update_all | computer | computer_check
   string channel = 2;
   string worker_id = 3;
   bool force = 4;
   bool allow_downgrade = 5; // explicit user choice only
   string desktop_request_id = 6; // required for desktop force, bound to the current request
-  string node_id = 7; // computer: the directly linked computer whose Canopy app updates
+  string node_id = 7; // computer, computer_check: the directly linked computer whose Canopy app updates or checks
 }
 message WorkerUpdate {
   string worker_id = 1;

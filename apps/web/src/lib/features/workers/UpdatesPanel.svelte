@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -8,16 +8,26 @@
   import { clock } from "#lib/shared/clock.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import ReleaseChannelField from "./ReleaseChannelField.svelte";
-  import CompactGatewayUpdate from "./CompactGatewayUpdate.svelte";
-  import CompactWorkerUpdate from "./CompactWorkerUpdate.svelte";
+  import UpdateRows from "./UpdateRows.svelte";
+  import { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
   import UpdateRun from "./UpdateRun.svelte";
   import { UpdatesState, updateBusy } from "./updates.svelte.ts";
   import TextLink from "#lib/shared/ui/TextLink.svelte";
   import { listedWorkers, updatesAvailable } from "./compact-updates.ts";
   import { updateIndicator } from "./update-indicator.ts";
 
-  let { class: className }: { class?: ClassValue } = $props();
-  const updates = new UpdatesState();
+  let {
+    class: className,
+    fixture,
+  }: {
+    class?: ClassValue;
+    /** Development fixtures (/dev/updates): fixed state, no polling. */
+    fixture?: { updates: UpdatesState; app: DesktopUpdatesState };
+  } = $props();
+
+  const given = untrack(() => fixture);
+  const updates = given?.updates ?? new UpdatesState();
+  const app = given?.app ?? new DesktopUpdatesState();
   const overview = useOverview();
   const snapshot = $derived(updates.snapshot);
   const busy = $derived(updateBusy(snapshot?.gatewayState ?? "") || snapshot?.run?.state === "running");
@@ -55,12 +65,15 @@
       }
     });
 
+    if (given) return unsubscribe;
+    const off = app.connect();
     void updates.reload();
     const timer = setInterval(() => void updates.reload(), 5000);
 
     return () => {
       clearInterval(timer);
       unsubscribe();
+      off?.();
     };
   });
 </script>
@@ -100,20 +113,25 @@
         This computer’s gateway and worker update with the Canopy app in <TextLink href="/settings/app-updates"
           >App updates</TextLink
         >.
-      </p>
-    {:else}
-      <div class="px-3"><CompactGatewayUpdate {updates} /></div>
-      <ReleaseChannelField
-        current={snapshot.channel}
-        version={snapshot.gatewayVersion}
-        disabled={!snapshot.admin || !!updates.pending || busy}
-        pending={updates.pending === "channel"}
-        onsave={(channel) => updates.manage({ action: "channel", channel })}
-      />
-    {/if}
-    {#each listedWorkers(snapshot) as worker (worker.workerId)}
-      <div class="min-w-0 px-3"><CompactWorkerUpdate {worker} {updates} allowForce /></div>
-    {:else}{#if !snapshot.gatewayBundled}<p class="px-3 py-2 text-sm/5 text-muted">No workers yet</p>{/if}{/each}
+      </p>{/if}
+    <!-- The popover's rows (UpdateRows): computers, workers by computer, agent CLIs by computer. -->
+    <div class="min-w-0 px-3">
+      <UpdateRows {updates} {app} allowForce>
+        {#snippet gateway()}<ReleaseChannelField
+            current={snapshot.channel}
+            version={snapshot.gatewayVersion}
+            disabled={!snapshot.admin || !!updates.pending || busy}
+            pending={updates.pending === "channel"}
+            onsave={(channel) => updates.manage({ action: "channel", channel })}
+            class="-mx-3"
+          />{/snippet}
+      </UpdateRows>
+    </div>
+    {#if !snapshot.gatewayBundled && !listedWorkers(snapshot).length && !snapshot.computers.length}<p
+        class="px-3 py-2 text-sm/5 text-muted"
+      >
+        No workers yet
+      </p>{/if}
     {#if snapshot.run && (snapshot.run.steps.length || snapshot.run.state === "running" || snapshot.run.reason)}<UpdateRun
         run={snapshot.run}
         class="px-3 py-2"
