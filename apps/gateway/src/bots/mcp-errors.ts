@@ -1,7 +1,7 @@
 import { Option, Predicate, Schema } from "effect";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 
-export type McpPhase = "initialize" | "tools/list" | "tools/call";
+export type McpPhase = "initialize" | "tools/list" | "tools/call" | "oauth/token";
 
 export type McpFailureKind = "http" | "oauth" | "protocol" | "network" | "timeout";
 
@@ -53,7 +53,10 @@ const errorBody = Schema.decodeUnknownOption(
 );
 
 /** Read at most 16 KiB; HTML, headers and arbitrary JSON fields are never retained. */
-export async function httpMcpFailure(response: Response, phase: McpPhase): Promise<McpFailure> {
+export async function httpMcpFailure(
+  response: Pick<Response, "body" | "status">,
+  phase: McpPhase,
+): Promise<McpFailure> {
   const reader = response.body?.getReader();
   let body = "";
   let bytes = 0;

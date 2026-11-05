@@ -14,7 +14,11 @@
     waiting = false,
     onconnected,
     class: className,
-  }: { waiting?: boolean; onconnected: (account: connectors.ConnectorAccount) => void; class?: ClassValue } = $props();
+  }: {
+    waiting?: boolean;
+    onconnected: (account: connectors.ConnectorAccount, alreadyConnected?: boolean) => void;
+    class?: ClassValue;
+  } = $props();
 
   let manual = $state(false);
 

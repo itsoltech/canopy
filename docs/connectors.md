@@ -138,7 +138,13 @@ Trzy drogi powrotu:
 3. **Ręcznie, zawsze dostępne** — po 3 s strona pokazuje „Copy code”: `state` i `code` jako
    jeden nieprzezroczysty ciąg. Dialog Connect ma pole „Sign-in code” (w desktopie pojawia
    się po 5 s oczekiwania albo na żądanie). Gateway (`pasted_code`) sprawdza state tak samo
-   jak callback i wymienia kod tak samo; obcy lub powtórzony state jest odrzucany.
+   jak callback i wymienia kod tak samo. Powrót przez deep link zamyka otwarty dialog
+   tego konta i odświeża listę. Ponowne wklejenie po udanym powrocie potwierdza
+   „Already connected”; nie wymienia kodu ponownie. Migracja `0081_connector_oauth_completion`
+   zapisuje potwierdzenie dopiero razem z tokenami, więc wcześniejsze połączenie konta
+   nie zamienia nieudanej wymiany w sukces. Potwierdzenie podlega temu samemu właścicielowi,
+   powiązaniu i TTL. Błędy rozróżniają zużycie, wygaśnięcie, inne okno i niepoprawny format;
+   odrzucenie przez dostawcę zachowuje zredagowany powód w „Show details”.
 
 `CANOPY_OAUTH_REDIRECT_URL` zmienia stały adres (HTTPS albo loopback). Instalacja może
 wskazać własny callback i ominąć stronę; wtedy musi go zarejestrować u dostawcy. Zapisana
@@ -247,7 +253,7 @@ typach scopes i zarejestrowana aplikacja oraz własne nagłówki są opcjami Adv
 **Aplikacja Slack jednym kliknięciem.** Slack nie ma DCR, więc każdy workspace potrzebuje
 własnej aplikacji. Gateway buduje jej manifest (`apps/gateway/src/connectors/slack-app.ts`,
 pola `app_manifest` i `app_create_url`): nazwa „Canopy”, opis, kolor z palety, stały
-redirect URL, user scopes narzędzi Slack MCP, bez socket mode, org deploy, token rotation
+redirect URL, user scopes narzędzi Slack MCP i `settings.is_mcp_enabled: true`, bez socket mode, org deploy, token rotation
 i publicznej dystrybucji. Manifest nie zawiera sekretów. „Create the Slack app” otwiera
 `https://api.slack.com/apps?new_app=1&manifest_json=…` z wypełnionym manifestem;
 użytkownik wybiera workspace, klika Create i Install to Workspace, a z Basic Information
@@ -256,7 +262,9 @@ tylko aplikacjom wewnętrznym (albo z Marketplace) — aplikacja niepubliczna (u
 blokowana, więc instaluje się ją wyłącznie we własnym workspace. Token rotation jest
 wyłączone, bo Slack nie pozwala go potem wyłączyć, a tokeny bez rotacji nie wygasają.
 „Use an existing Slack app” służy współpracownikom z tego samego workspace: wklejają
-client ID i secret od właściciela aplikacji, bez dopisywania redirectów. Pole scopes jest
+client ID i secret od właściciela aplikacji, bez dopisywania redirectów. W istniejącej
+aplikacji trzeba włączyć dostęp MCP w ustawieniach Slack albo ustawić
+`settings.is_mcp_enabled: true` w jej manifeście. Pole scopes jest
 wstępnie wypełnione tymi samymi scopes (`default_scope`). Redirect URL jest widoczny tylko
 jako szczegół dla ręcznej konfiguracji.
 Wskazówki są wyłącznie tekstem: nie zawierają poświadczeń i niczego nie weryfikują.
@@ -273,9 +281,13 @@ SDK przechowuje go w zaszyfrowanych poświadczeniach; nie interpretuje `user` ja
 schematu nagłówka. Zwykłe `oauth.v2.access` może zwracać token użytkownika w
 `authed_user.access_token`, ale jest innym endpointem i nie obsługuje naszego flow.
 
-Dokumentacja Slack (sprawdzona 2026-11-05) nie opisuje dodatkowego przełącznika
-„enable MCP” ani obowiązku włączenia Agents & AI apps. Manifest nie potrzebuje
-takiej flagi. Konto po OAuth oznacza otrzymanie tokenu; dopiero Test sprawdza MCP.
+Dokumentacja manifestu Slack (sprawdzona 2026-11-05,
+[Settings](https://docs.slack.dev/reference/app-manifest/#settings)) opisuje
+`settings.is_mcp_enabled`: dostęp MCP musi być włączony dla aplikacji.
+Konto po OAuth oznacza otrzymanie tokenu; dopiero Test sprawdza MCP.
+HTTP 400 z JSON-RPC `-32600` i komunikatem „App is not enabled for Slack MCP server access”
+oznacza wyłączony dostęp MCP. Włącz go w ustawieniach aplikacji lub manifeście i ponów Test;
+UI pokazuje tę wskazówkę, a prywatny URL ustawień pozostaje zredagowany w szczegółach.
 Przy 403 sprawdź instalację i zgodę administratora we własnym workspace,
 wewnętrzną dystrybucję aplikacji oraz jej listę dozwolonych adresów IP.
 Aplikacje unlisted nie mają dostępu do MCP; publikacja w Marketplace jest

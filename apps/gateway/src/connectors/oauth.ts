@@ -3,6 +3,7 @@ import { Predicate, Schema } from "effect";
 import type { Credentials } from "./store.ts";
 import { oauthFetch } from "./catalog.ts";
 import { digest } from "./records.ts";
+import { httpMcpFailure, networkMcpFailure } from "../bots/mcp-errors.ts";
 
 /** Mutable only inside a gateway operation; the complete state is persisted encrypted. */
 export function oauthProvider(value: Credentials, state: string, redirect: (url: URL) => void): OAuthClientProvider {
@@ -70,7 +71,21 @@ export async function authorizeOAuth(
     {
       serverUrl: url,
       fetchFn: async (input, init) => {
-        const response = await oauthFetch(input, init);
+        const exchanging = code !== undefined && init?.method === "POST";
+        const signal = AbortSignal.timeout(20_000);
+
+        const response = await oauthFetch(input, { ...init, signal }).catch((cause: unknown) => {
+          if (exchanging) throw networkMcpFailure(cause, "oauth/token", signal);
+          throw cause;
+        });
+
+        // Capture the provider's reason before SDK recovery replaces invalid_client/invalid_grant.
+        if (exchanging) {
+          const failure = await httpMcpFailure(response.clone(), "oauth/token");
+
+          // Slack can return an OAuth error envelope with HTTP 200.
+          if (!response.ok || failure.serverCode) throw failure;
+        }
 
         if (response.ok && init?.method === "POST") {
           const metadata = await response
@@ -144,8 +159,9 @@ export async function revokeOAuth(value: Credentials): Promise<boolean> {
 }
 
 /** Defense against credential echo in tool/catalog/error responses, before storage or the worker link. */
-export function redactConnector(text: string, value: Credentials): string {
+export function redactConnector(text: string, value: Credentials, additional: readonly string[] = []): string {
   const secrets = [
+    ...additional,
     ...Object.values(value.headers ?? {}),
     value.tokens?.access_token,
     value.tokens?.refresh_token,

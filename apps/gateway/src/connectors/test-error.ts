@@ -18,7 +18,19 @@ export class ConnectorTestFailure extends ConnectorFailure {
 }
 
 function explanation(error: McpFailure, service: string, slack: boolean): string {
+  if (error.phase === "oauth/token") {
+    if (error.kind === "network")
+      return "Could not reach the sign-in provider. Check the connection, then start sign-in again.";
+
+    if (error.kind === "timeout") return "The sign-in provider took too long to respond. Start sign-in again.";
+
+    return `${service} rejected sign-in. Check the app settings, then start sign-in again.`;
+  }
+
   if (error.status === 401) return `${service} rejected the token (401). Reconnect the account.`;
+
+  if (slack && /app is not enabled for slack mcp server access/i.test(error.serverMessage))
+    return "Slack MCP access is off for this app. Turn it on in the app's settings, then test again.";
 
   if (error.status === 403)
     return slack
@@ -43,11 +55,16 @@ function explanation(error: McpFailure, service: string, slack: boolean): string
 }
 
 /** Only this redacted projection may leave the gateway credential boundary. */
-export function connectorTestError(cause: unknown, type: string, value: Credentials): connectors.ConnectorError {
+export function connectorTestError(
+  cause: unknown,
+  type: string,
+  value: Credentials,
+  secrets: readonly string[] = [],
+): connectors.ConnectorError {
   const error = cause instanceof McpFailure ? cause : new McpFailure("protocol", "tools/list", 0, "test_failed");
 
   const safe = (text: string) =>
-    safeFailureDetail(redactConnector(text, value))
+    safeFailureDetail(redactConnector(text, value, secrets))
       // One warning line, even if a server tries to inject log lines or terminal escapes.
       // oxlint-disable-next-line no-control-regex -- diagnostic text must not contain terminal control characters
       .replace(/[\x00-\x1f\x7f]/g, " ")

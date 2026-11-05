@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
+  import { create } from "@bufbuild/protobuf";
   import { bots as botContract, connectors } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
@@ -12,6 +13,7 @@
   import { completeConnectorOAuth, listConnectors } from "#lib/features/connectors/api.ts";
   import type { PageProps } from "./$types";
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
+  import ConnectionError from "#lib/features/connectors/ConnectionError.svelte";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
   let { data }: PageProps = $props();
@@ -38,6 +40,8 @@
 
   let selected = $state("");
   let connecting = $state(false);
+  let oauthCompletion = $state<connectors.CompleteConnectorOAuthResponse>();
+  let oauthError = $state<connectors.ConnectorError>();
   let notice = $state(untrack(() => route.url.searchParams.get("connection")));
   const type = $derived(catalog.types.find((t) => t.id === selected));
 
@@ -55,8 +59,12 @@
       if (!result) return;
       const response = await completeConnectorOAuth(result).catch(() => undefined);
 
-      if (response?.account && !response.error) update(response.account);
-      notice = response?.account && !response.error ? "connected" : "error";
+      oauthError = response?.failure;
+
+      if (response?.account && !response.error) {
+        update(response.account, response.alreadyConnected);
+        oauthCompletion = response;
+      } else notice = "error";
     });
   });
 
@@ -66,20 +74,30 @@
 
   async function reload() {
     const result = await listConnectors();
+
+    const completed = result.accounts.find(
+      (next) =>
+        next.status === "connected" &&
+        accounts.some((previous) => previous.id === next.id && previous.status === "needs_reconnect"),
+    );
+
+    if (completed) oauthCompletion = create(connectors.CompleteConnectorOAuthResponseSchema, { account: completed });
     catalog = result;
     accounts = result.accounts;
   }
 
   onMount(() => {
     const timer = setInterval(() => {
-      if (!document.hidden && !connecting) void reload().catch(() => {});
+      if (!document.hidden) void reload().catch(() => {});
     }, 3000);
 
     return () => clearInterval(timer);
   });
 
-  function update(account: connectors.ConnectorAccount) {
+  function update(account: connectors.ConnectorAccount, alreadyConnected?: boolean) {
     notice = null;
+
+    if (alreadyConnected !== undefined) notice = alreadyConnected ? "already-connected" : "connected";
     accounts = accounts.some((a) => a.id === account.id)
       ? accounts.map((a) => (a.id === account.id ? account : a))
       : [...accounts, account];
@@ -102,8 +120,11 @@
     description="Connect your apps once. Choose which workers and bots can use each account."
   />
   <ConfigNotices match={(n) => n.kind === "connector" || n.kind === "oauth_app"} onchange={() => void reload()} />
-  {#if notice === "connected"}<Alert>Account connected. Choose who can use it below.</Alert
-    >{:else if notice === "error"}<Alert tone="error"
+  {#if notice === "already-connected"}<Alert>Already connected.</Alert>{:else if notice === "connected"}<Alert
+      >Account connected. Choose who can use it below.</Alert
+    >{:else if notice === "error" && oauthError}<ConnectionError
+      error={oauthError}
+    />{:else if notice === "error"}<Alert tone="error"
       >Sign-in could not finish. Reconnect the account to try again.</Alert
     >{/if}
   <section aria-label="Connect an app" class="grid gap-4">
@@ -128,11 +149,19 @@
     {#each accounts as account (account.id)}
       {@const entry = catalog.types.find((t) => t.id === account.connectorType)}
       {#if entry}<div>
-          <AccountDetail {account} type={entry} {workers} {bots} onupdate={update} onremove={remove} />
+          <AccountDetail
+            {account}
+            type={entry}
+            {workers}
+            {bots}
+            {oauthCompletion}
+            onupdate={update}
+            onremove={remove}
+          />
         </div>{/if}
     {:else}<p class="py-4 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         No accounts connected yet. Pick an app above to connect one.
       </p>{/each}
   </section>
 </div>
-{#if connecting && type}<ConnectAccountDialog bind:open={connecting} {type} onsave={update} />{/if}
+{#if connecting && type}<ConnectAccountDialog bind:open={connecting} {type} {oauthCompletion} onsave={update} />{/if}

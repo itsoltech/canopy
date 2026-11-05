@@ -22,6 +22,7 @@
 
   let {
     account,
+    oauthCompletion,
     type,
     workers,
     bots,
@@ -30,10 +31,11 @@
     class: className,
   }: {
     account: connectors.ConnectorAccount;
+    oauthCompletion?: connectors.CompleteConnectorOAuthResponse | undefined;
     type: connectors.ConnectorType;
     workers: readonly { id: string; name: string; group?: string; readOnly?: string }[];
     bots: readonly { id: string; name: string }[];
-    onupdate: (account: connectors.ConnectorAccount) => void;
+    onupdate: (account: connectors.ConnectorAccount, alreadyConnected?: boolean) => void;
     onremove: (id: string) => void;
     class?: ClassValue;
   } = $props();
@@ -198,7 +200,13 @@
   {#if account.status === "error" && account.error}<ConnectionError error={account.error} />{/if}
   {#if error}<Alert tone="error">{error}</Alert>{/if}
 </section>
-{#if reconnecting}<ConnectAccountDialog bind:open={reconnecting} {type} {account} onsave={onupdate} />{/if}
+{#if reconnecting}<ConnectAccountDialog
+    bind:open={reconnecting}
+    {type}
+    {account}
+    {oauthCompletion}
+    onsave={onupdate}
+  />{/if}
 <Dialog
   bind:open={disconnecting}
   title="Disconnect {account.name}?"

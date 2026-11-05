@@ -22,6 +22,10 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    zamiast w cookie Electrona. Gateway sprawdza jednorazowy state, właściciela,
    konto i TTL. Strona wyniku próbuje `canopy://connectors`; ten stały link
    pokazuje aplikację i otwiera ustawienia konektorów bez parametrów dostawcy.
+   Powrót `canopy://oauth/callback` kończy logowanie przez ten sam proces BFF;
+   otwarty dialog tego konta zamyka się po sukcesie. Ponowne wklejenie kodu
+   potwierdza zakończenie bez drugiej wymiany. Restart procesu nadal unieważnia
+   rozpoczęte logowanie, nawet przy zachowanym porcie; trzeba rozpocząć je ponownie.
    Okna odmawiają wszystkich uprawnień przeglądarki poza zapisem do schowka
    (`clipboard-sanitized-write`, potrzebnym dla `navigator.clipboard.writeText`)
    i powiadomieniami (`notifications`), i to tylko stronom z originu setupu albo web UI

@@ -14,7 +14,7 @@ import type { CoreRuntime } from "../core/core.ts";
 import { mcpCall, mcpTools } from "../bots/mcp.ts";
 import type { McpConnection, ToolSpec } from "../bots/types.ts";
 import { connectorCatalog, connectorType, connectorUrl } from "./catalog.ts";
-import { isOAuthState, parsePastedCode } from "@canopy/domain/oauth-return";
+import { completeOAuth } from "./oauth-completion.ts";
 import {
   ConnectorFailure,
   digest,
@@ -119,52 +119,7 @@ export class ConnectorsRuntime {
     }
   }
   async complete(input: connectors.CompleteConnectorOAuthRequest) {
-    const pasted = input.pastedCode ? parsePastedCode(input.pastedCode) : undefined;
-
-    if (input.pastedCode && !pasted)
-      throw new ConnectorFailure("This code is not valid. Copy it again from the sign-in page.");
-    const request = pasted ? { ...input, ...pasted, error: "", issuer: "" } : input;
-
-    if (!isOAuthState(request.state) || !/^[\w-]{32,128}$/.test(request.browserBinding) || request.code.length > 8000)
-      throw new ConnectorFailure("Invalid OAuth session");
-
-    const session = await this.run((s) =>
-      s.consumeState(this.options.userId, request.state, request.browserBinding),
-    ).catch(() => {
-      throw new ConnectorFailure("OAuth session is invalid, expired or already used. Start sign-in again.");
-    });
-
-    if (request.error || !request.code) throw new ConnectorFailure("Authorization was declined. Reconnect when ready.");
-
-    try {
-      const user = this.options.userId;
-
-      return await this.run((s) =>
-        s.transaction(
-          Effect.gen(function* () {
-            const row = yield* s.owned(user, session.accountId, true);
-
-            if (BigInt(row.revision) !== session.revision)
-              return yield* Effect.fail(new ConnectorFailure("Connector changed. Reconnect again."));
-            const issuer = session.value.discovery?.authorizationServerMetadata?.issuer;
-
-            if (request.issuer && request.issuer !== issuer)
-              return yield* Effect.fail(new ConnectorFailure("OAuth issuer mismatch"));
-            yield* Effect.tryPromise({
-              try: () => authorizeOAuth(row.url, session.value, request.state, undefined, request.code),
-              catch: () => new ConnectorFailure("Could not finish authorization. Reconnect again."),
-            });
-            delete session.value.verifier;
-            yield* s.updateCredentials(row, session.value, "connected");
-            yield* s.audit({ userId: user, accountId: row.id }, "oauth", "connected");
-
-            return yield* s.view(yield* s.owned(user, row.id));
-          }),
-        ),
-      );
-    } catch {
-      throw new ConnectorFailure("Could not finish authorization. Reconnect again.");
-    }
+    return completeOAuth(this, this.options.userId, input);
   }
   /** Lock covers rotated refresh tokens across processes; no vendor request starts with stale credentials. */
   async #connection(

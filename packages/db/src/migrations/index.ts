@@ -78,6 +78,7 @@ import configConnectors from "./0077_config_connectors.sql" with { type: "text" 
 import configWorkers from "./0078_config_workers.sql" with { type: "text" };
 import connectorErrors from "./0079_connector_errors.sql" with { type: "text" };
 import fullAccessMode from "./0080_full_access_mode.sql" with { type: "text" };
+import connectorOAuthCompletion from "./0081_connector_oauth_completion.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -172,6 +173,7 @@ export const migrations = Migrator.fromRecord({
   "0078_config_workers": sqlFile(configWorkers),
   "0079_connector_errors": sqlFile(connectorErrors),
   "0080_full_access_mode": sqlFile(fullAccessMode),
+  "0081_connector_oauth_completion": sqlFile(connectorOAuthCompletion),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

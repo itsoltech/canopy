@@ -2,16 +2,18 @@ import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { connectors, ConnectorToolSchema, type ConnectorTool } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
-import { digest, fail, type AccountRow, type Credentials, type ExecutionSource } from "./records.ts";
+import { type AccountRow, type ExecutionSource } from "./records.ts";
 import type { ConnectorBase } from "./accounts.ts";
 import { connectorTransaction } from "../config-sync/connector-records.ts";
 import { removeConnector } from "../config-sync/connector-apply.ts";
+import { connectorOAuthState } from "./store-oauth-state.ts";
 
 /** Tools, OAuth apps and state, disconnecting and the execution log. */
 export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, key: Buffer) {
-  const { owned, opened, seal, credentials, view, audit } = base;
+  const { owned, credentials, view, audit } = base;
 
   return {
+    ...connectorOAuthState(sql, base),
     tools: (row: AccountRow): ConnectorTool[] => row.tools.map((t) => fromJson(ConnectorToolSchema, t)),
     saveTools: (row: AccountRow, tools: ConnectorTool[]) =>
       connectorTransaction(
@@ -21,40 +23,6 @@ export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, ke
       ),
     status: (row: AccountRow, status: string, error?: connectors.ConnectorError) =>
       sql`UPDATE connector_accounts SET status=${status},error=${error ? JSON.stringify(toJson(connectors.ConnectorErrorSchema, error)) : null}::jsonb WHERE id=${row.id}::uuid AND revision=${BigInt(row.revision)}`,
-    saveState: (user: string, row: AccountRow, state: string, binding: string, value: Credentials) =>
-      Effect.gen(function* () {
-        yield* sql`DELETE FROM connector_oauth_states WHERE expires_at < now() OR account_id=${row.id}::uuid`;
-        yield* sql`INSERT INTO connector_oauth_states(state_hash,owner_user_id,account_id,browser_hash,credentials,account_revision,expires_at)
-        VALUES (${digest(state)},${user}::uuid,${row.id}::uuid,${digest(binding)},${seal(value)},${BigInt(row.revision)},now()+interval '10 minutes')`;
-      }),
-    consumeState: (user: string, state: string, binding: string) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          const row = (yield* sql<{
-            account_id: string;
-            credentials: Uint8Array;
-            account_revision: bigint;
-          }>`UPDATE connector_oauth_states SET consumed_at=now()
-        WHERE state_hash=${digest(state)} AND owner_user_id=${user}::uuid AND browser_hash=${digest(binding)} AND consumed_at IS NULL AND expires_at>now() RETURNING account_id,credentials,account_revision`)[0];
-
-          if (!row) {
-            const used =
-              yield* sql`SELECT 1 FROM connector_oauth_states WHERE state_hash=${digest(state)} AND owner_user_id=${user}::uuid AND browser_hash=${digest(binding)} AND consumed_at IS NOT NULL`;
-
-            return yield* fail(
-              used.length
-                ? "OAuth callback was already used. Start sign-in again."
-                : "OAuth session expired or does not match this browser. Reconnect the account.",
-            );
-          }
-
-          return {
-            accountId: row.account_id,
-            revision: BigInt(row.account_revision),
-            value: opened<Credentials>(row.credentials),
-          };
-        }),
-      ),
     disconnect: (user: string, id: string) =>
       connectorTransaction(
         sql,
