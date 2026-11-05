@@ -1,0 +1,18 @@
+/* The sidebar keeps a type scale one step below the pages beside it: titles 13px (15px on phones), meta 11.5px
+   (13px on phones). Rows keep the kit's text-base / text-sm / text-xs, so the scale lives here. */
+.sidebar-density {
+  --text-base: 0.9375rem;
+  --text-sm: 0.8125rem;
+  --text-xs: 0.71875rem;
+}
+
+/* Fields keep 16px on phones (no zoom on focus); menus, cards and dialogs opened from a row keep the app's scale. */
+.sidebar-density :where(input, textarea) {
+  --text-base: 1rem;
+}
+
+.sidebar-density :where([popover], dialog, .canopy-sidebar-header) {
+  --text-base: 1rem;
+  --text-sm: 0.875rem;
+  --text-xs: 0.75rem;
+}

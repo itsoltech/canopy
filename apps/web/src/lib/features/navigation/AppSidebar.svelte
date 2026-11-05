@@ -13,6 +13,7 @@
   import SidebarThreads from "./SidebarThreads.svelte";
   import SidebarProjectFilter from "./SidebarProjectFilter.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import "./sidebar-density.css";
 
   const capabilities = useGatewayCapabilities();
 
@@ -41,7 +42,7 @@
     "relative grid size-9 place-items-center rounded-lg text-icon-muted hover:bg-zinc-950/5 hover:text-icon-emphasis focus-ring sm:size-8 dark:hover:bg-white/5";
 </script>
 
-<div class="flex h-full flex-col">
+<div class="sidebar-density flex h-full flex-col">
   <SidebarHeader>
     {#if section === "threads"}
       <a href="/" class={iconLink} aria-label="New thread" title="New thread">
