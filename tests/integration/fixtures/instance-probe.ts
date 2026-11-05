@@ -16,11 +16,12 @@ export const ProbeRecord = Schema.Struct({
 
 export type ProbeRecord = typeof ProbeRecord.Type;
 
+/** Harness processes append while tests poll: a line without its newline is still being written, not a record yet. */
 export function probeRecords(path: string): ProbeRecord[] {
   return existsSync(path)
     ? readFileSync(path, "utf8")
-        .trim()
         .split("\n")
+        .slice(0, -1)
         .filter(Boolean)
         .map((line) => Schema.decodeSync(Schema.fromJsonString(ProbeRecord))(line))
     : [];
