@@ -21,7 +21,7 @@
 
 <ItemFrame icon="photo" {status} tone={failed ? "rose" : "neutral"}>
   {#snippet title()}
-    <span class="flex min-w-0 gap-1.5"
+    <span class="flex min-w-0 items-baseline gap-1.5"
       ><span class="shrink-0">{label}</span><span class="truncate font-mono text-xs text-zinc-950 dark:text-white"
         >{image.path || image.prompt || "generated"}</span
       ></span
