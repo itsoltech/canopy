@@ -1,6 +1,7 @@
 import type { ui } from "@canopy/contracts";
 import { REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
 import { workerStatus } from "#lib/features/overview/workers.ts";
+import { clockOptions } from "#lib/shared/format.ts";
 
 /**
  * Linked computers in the thread UI (docs/linked-computers.md, stage 2). Their threads stay at home; this
@@ -27,13 +28,21 @@ export const needsThreadUpdate = (computer: ui.LinkedComputer): boolean =>
 export const needsMirrorUpdate = (computer: ui.LinkedComputer): boolean =>
   sharesThreads(computer) && !computer.capabilities.includes(THREAD_MIRROR);
 
-const time = new Intl.DateTimeFormat("en", { timeStyle: "short" });
-const dayTime = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const time = () => new Intl.DateTimeFormat("en", { timeStyle: "short", ...clockOptions() });
+
+const dayTime = () =>
+  new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    ...clockOptions(),
+  });
 
 export function presenceTime(ms: bigint): string {
   const at = new Date(Number(ms));
 
-  return (at.toDateString() === new Date().toDateString() ? time : dayTime).format(at);
+  return (at.toDateString() === new Date().toDateString() ? time : dayTime)().format(at);
 }
 
 /** Short presence labels for read-only threads; `awayReason` keeps the full explanation. */

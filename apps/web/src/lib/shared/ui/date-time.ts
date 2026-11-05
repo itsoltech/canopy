@@ -1,5 +1,7 @@
 export type DateTimeKind = "date" | "time" | "datetime-local";
 
+import { clockOptions } from "#lib/shared/format.ts";
+
 const pad = (value: number) => String(value).padStart(2, "0");
 export const userTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -66,7 +68,7 @@ export function formatDateTime(value: string, kind: DateTimeKind, locale?: strin
 
   if (kind === "time")
     return validTime(value)
-      ? new Intl.DateTimeFormat(locale, { timeStyle: "short", timeZone: "UTC" }).format(
+      ? new Intl.DateTimeFormat(locale, { timeStyle: "short", timeZone: "UTC", ...clockOptions() }).format(
           new Date(`2000-01-01T${value}:00Z`),
         )
       : value;
@@ -80,7 +82,9 @@ export function formatDateTime(value: string, kind: DateTimeKind, locale?: strin
   const date = parseDateTime(value, timeZone);
 
   return date
-    ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone }).format(date)
+    ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone, ...clockOptions() }).format(
+        date,
+      )
     : value;
 }
 
