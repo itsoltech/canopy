@@ -4,6 +4,7 @@ import { ItemStatus, type Item, ui } from "@canopy/contracts";
 import { Markdown } from "./markdown";
 import { Icon } from "./Icon";
 import { styles, useColors } from "./theme";
+import { ShellMessage } from "./ShellMessage";
 
 function workLabel(item: Item) {
   const content = item.content;
@@ -44,7 +45,15 @@ function workDetail(item: Item) {
   return "";
 }
 
-export function UserMessageView({ text, note }: { text: string; note?: string }) {
+export function UserMessageView({
+  text,
+  note,
+  attachments = [],
+}: {
+  text: string;
+  note?: string;
+  attachments?: ui.Attachment[];
+}) {
   const c = useColors();
 
   return (
@@ -60,9 +69,27 @@ export function UserMessageView({ text, note }: { text: string; note?: string })
           backgroundColor: c.userBubble,
         }}
       >
-        <Text selectable style={[styles.body, { color: c.text }]}>
-          {text}
-        </Text>
+        {attachments.length > 0 && (
+          <View style={[styles.row, { flexWrap: "wrap", gap: 4, marginBottom: text ? 6 : 0 }]}>
+            {attachments.map((a) => (
+              <View
+                key={a.id}
+                accessibilityLabel={`Attached ${a.name}`}
+                style={[styles.row, { gap: 4, paddingHorizontal: 6, borderRadius: 6, backgroundColor: c.inset }]}
+              >
+                <Icon name={a.kind === "image" ? "photo" : "document-text"} size={12} />
+                <Text numberOfLines={1} style={[styles.caption, { color: c.body, maxWidth: 180 }]}>
+                  {a.name}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+        {text ? (
+          <Text selectable style={[styles.body, { color: c.text }]}>
+            {text}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -70,15 +97,18 @@ export function UserMessageView({ text, note }: { text: string; note?: string })
 
 export function WorkGroup({ items, duration, working }: { items: Item[]; duration: number; working: boolean }) {
   const c = useColors();
-  const [open, setOpen] = useState(false);
+  // Open while the agent works, folded once the turn ends (the web's default work fold); a tap decides from then on.
+  const [choice, setChoice] = useState<boolean>();
   const running = working || items.some((i) => i.status === ItemStatus.IN_PROGRESS);
+  const open = choice ?? running;
+  const setOpen = setChoice;
 
   const label = running
     ? "Working…"
     : `Worked for ${duration >= 60 ? `${Math.floor(duration / 60)}m ${duration % 60}s` : `${duration}s`}`;
 
   return (
-    <View style={{ gap: 4 }}>
+    <View style={{ gap: 2 }}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
@@ -86,7 +116,7 @@ export function WorkGroup({ items, duration, working }: { items: Item[]; duratio
         style={[styles.row, { minHeight: 44, paddingVertical: 10 }]}
       >
         <Icon name={open ? "chevron-down" : "chevron-right"} color={c.faint} />
-        <Text style={[styles.body, { color: c.muted }]}>{label}</Text>
+        <Text style={[styles.work, { color: c.muted }]}>{label}</Text>
         {items.length > 0 && (
           <Text style={[styles.meta, { color: c.faint }]}>
             {items.length}{" "}
@@ -119,9 +149,9 @@ function ToolRow({ item }: { item: Item }) {
         style={[
           styles.row,
           {
-            minHeight: 44,
+            minHeight: 40,
             paddingHorizontal: 8,
-            backgroundColor: c.inset,
+            backgroundColor: open ? c.inset : "transparent",
             borderRadius: 8,
           },
         ]}
@@ -130,10 +160,11 @@ function ToolRow({ item }: { item: Item }) {
         <Text
           numberOfLines={1}
           style={[
-            styles.meta,
+            styles.workMeta,
             {
               flex: 1,
               color: item.status === ItemStatus.FAILED ? c.danger : c.muted,
+              fontFamily: item.content.case === "commandExecution" ? "monospace" : styles.workMeta.fontFamily,
             },
           ]}
         >
@@ -165,14 +196,24 @@ export function TimelineTurn({ turn, entries }: { turn: ui.Turn; entries: ui.Tim
     Number((turn.completedAt?.seconds ?? turn.startedAt?.seconds ?? 0n) - (turn.startedAt?.seconds ?? 0n)),
   );
 
+  if (turn.shellCommand !== undefined)
+    return (
+      <View style={{ paddingBottom: 28 }}>
+        <ShellMessage command={turn.shellCommand} result={turn.shellResult} status={turn.status} error={turn.error} />
+      </View>
+    );
+
   return (
     <View style={{ gap: 16, paddingBottom: 28 }}>
-      {message ? (
+      {message || turn.attachments.length ? (
         <UserMessageView
           text={message}
+          attachments={turn.attachments}
           note={
             turn.status === "queued"
-              ? "Queued"
+              ? turn.dispatched
+                ? "Starting"
+                : "Queued"
               : turn.sender
                 ? `Message from ${turn.sender.title}`
                 : turn.trigger === "bot"

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Text, View } from "react-native";
-import { Redirect, router } from "expo-router";
+import { Redirect } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
 import { create } from "@bufbuild/protobuf";
@@ -9,7 +9,7 @@ import { ui } from "@canopy/contracts";
 import { applyThread } from "../../api/thread";
 import { useSession } from "../../state/session";
 import { useStream } from "../../state/stream";
-import { Button, ConnectionNotice, LatestButton, Notice } from "../../ui/components";
+import { ConnectionNotice, LatestButton, Notice } from "../../ui/components";
 import { TimelineTurn } from "../../ui/timeline";
 import { styles, useColors } from "../../ui/theme";
 import { MessageComposer } from "./MessageComposer";
@@ -17,6 +17,7 @@ import { ThreadPanel } from "./ThreadPanel";
 import { InteractionCard } from "./InteractionCard";
 import { useOverview } from "../../state/overview";
 import { ThreadHeader } from "./ThreadHeader";
+import { SubagentStrip } from "./SubagentStrip";
 import { useFollowingList } from "../../ui/useFollowingList";
 import { useAttachmentDraft } from "../attachments/useAttachmentDraft";
 
@@ -38,6 +39,13 @@ function visibleTurns(snapshot: ui.ThreadSnapshot | undefined) {
   }
 
   return turns;
+}
+
+/** The gateway refused the message and says why (not delivered: no retry note); otherwise delivery is unknown. */
+function deliveryError(failure: ConnectError) {
+  return [Code.InvalidArgument, Code.FailedPrecondition, Code.ResourceExhausted].includes(failure.code)
+    ? failure.rawMessage
+    : "Could not confirm delivery. Retry with the same text to send it only once.";
 }
 
 function useThreadState(id: string) {
@@ -132,8 +140,7 @@ function useThreadState(id: string) {
       pending.current = null;
     } catch (e) {
       if (ConnectError.from(e).code === Code.Unauthenticated) await expired();
-      else if (!requestController.current.signal.aborted)
-        setError("Could not confirm delivery. Retry with the same text to send it only once.");
+      else if (!requestController.current.signal.aborted) setError(deliveryError(ConnectError.from(e)));
     } finally {
       sending.current = false;
       setBusy(false);
@@ -239,23 +246,7 @@ export function ThreadScreen({ id }: { id: string }) {
           {interactions.length > 1 && (
             <Text style={[styles.meta, { color: c.warning }]}>+{interactions.length - 1} pending</Text>
           )}
-          {subagents.length > 0 && (
-            <View style={[styles.row, { flexWrap: "wrap" }]}>
-              {subagents.map((t) => (
-                <Button
-                  key={t.id}
-                  secondary
-                  title={`${t.title} · ${t.status}`}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/thread/[id]",
-                      params: { id: t.id },
-                    })
-                  }
-                />
-              ))}
-            </View>
-          )}
+          <SubagentStrip subagents={subagents} onFinished={() => setDetails(true)} />
           <MessageComposer
             thread={thread}
             worker={worker}

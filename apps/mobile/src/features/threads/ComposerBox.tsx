@@ -38,8 +38,11 @@ export function ComposerBox({
 }) {
   const c = useColors();
   const empty = !text.trim() && files === 0;
+  // A leading "!" runs the text as a shell command on the worker when it is delivered (docs/ui-api.md).
+  const shell = text.startsWith("!");
+  const shellIssue = shell && (text.trim() === "!" || files > 0);
   const stop = running && empty && Boolean(onStop);
-  const unavailable = disabled || busy || (!stop && empty);
+  const unavailable = disabled || busy || (!stop && empty) || shellIssue;
 
   return (
     <View
@@ -49,10 +52,11 @@ export function ComposerBox({
         flexDirection: compact ? "row" : "column",
         alignItems: compact ? "center" : undefined,
         borderWidth: 1,
-        borderColor: c.line,
+        borderColor: shell ? c.danger : c.line,
       }}
     >
       {top}
+
       <ComposerInput
         text={text}
         onChange={onChange}
@@ -80,44 +84,24 @@ export function ComposerBox({
               contentContainerStyle={[styles.row, { gap: 4, paddingRight: 4 }]}
               style={{ flex: 1 }}
             >
-              {controls}
+              {shell ? (
+                <Text numberOfLines={2} style={[styles.caption, { color: c.danger, flexShrink: 1 }]}>
+                  {files > 0 ? "Remove the files to run a shell command." : "Runs as a shell command when delivered."}
+                </Text>
+              ) : (
+                controls
+              )}
             </ScrollView>
           )}
-          {running && !empty && onQueue ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Queue message"
-              onPress={onQueue}
-              disabled={disabled || busy}
-              style={{ padding: 8, opacity: disabled ? 0.4 : 1 }}
-            >
-              <Icon name="queue-list" />
-            </Pressable>
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={stop ? "Stop the turn" : running ? "Send now" : "Send message"}
-            disabled={unavailable}
-            onPress={stop ? onStop : onSend}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: unavailable ? c.line : stop ? c.text : c.accent,
-            }}
-          >
-            {busy ? (
-              <ActivityIndicator size="small" color={c.onAccent} />
-            ) : (
-              <Icon
-                name={stop ? "stop" : "arrow-up"}
-                color={unavailable ? c.faint : stop ? c.background : c.onAccent}
-                size={18}
-              />
-            )}
-          </Pressable>
+          <SendButtons
+            queue={running && !empty ? onQueue : undefined}
+            onSend={stop ? onStop : onSend}
+            stop={stop}
+            running={running}
+            disabled={disabled}
+            busy={busy}
+            unavailable={unavailable}
+          />
         </View>
       ) : null}
     </View>
@@ -200,5 +184,66 @@ export function ComposerPill({
       </Text>
       <Icon name="chevron-down" size={12} />
     </Pressable>
+  );
+}
+
+/** Queue (while a turn runs), then send, send now or stop. */
+function SendButtons({
+  queue,
+  onSend,
+  stop,
+  running,
+  disabled,
+  busy,
+  unavailable,
+}: {
+  queue?: () => void;
+  onSend?: () => void;
+  stop: boolean;
+  running: boolean;
+  disabled?: boolean;
+  busy?: boolean;
+  unavailable: boolean;
+}) {
+  const c = useColors();
+
+  return (
+    <>
+      {queue ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Queue message"
+          onPress={queue}
+          disabled={disabled || busy}
+          style={{ padding: 8, opacity: disabled ? 0.4 : 1 }}
+        >
+          <Icon name="queue-list" />
+        </Pressable>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={stop ? "Stop the turn" : running ? "Send now" : "Send message"}
+        disabled={unavailable}
+        onPress={onSend}
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: unavailable ? c.line : stop ? c.text : c.accent,
+        }}
+      >
+        {busy ? (
+          <ActivityIndicator size="small" color={c.onAccent} />
+        ) : (
+          <Icon
+            name={stop ? "stop" : "arrow-up"}
+            color={unavailable ? c.faint : stop ? c.background : c.onAccent}
+            size={18}
+          />
+        )}
+      </Pressable>
+    </>
   );
 }
