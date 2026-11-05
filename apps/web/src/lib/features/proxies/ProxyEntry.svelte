@@ -64,7 +64,10 @@
       ? `Used by ${proxy.usedBy.join(", ")}`
       : "No profiles yet"}
   </p>
-  <ProxyMappings kind={proxy.kind} baseUrl={proxy.baseUrl} />
+  <div class="grid gap-2">
+    <h3 class="text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">How agents use this proxy</h3>
+    <ProxyMappings kind={proxy.kind} baseUrl={proxy.baseUrl} />
+  </div>
   {#if result}<Alert tone={result.ok ? "info" : "error"}
       >{result.detail}{result.ok ? ` · ${result.modelCount} models` : ""}</Alert
     >{/if}
