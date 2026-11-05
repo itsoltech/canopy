@@ -196,7 +196,13 @@ Adres Metro i adres gatewaya to dwa różne połączenia. Nie używaj publiczneg
    z linku EAS na tym urządzeniu. Jeśli CLI nie potrafi zapisać projectId w dynamicznym
    configu, wpisz identyfikator podany przez `eas init` w `app.json` jako
    `expo.extra.eas.projectId`; `app.config.ts` zachowuje tę konfigurację.
-3. Dla Android APK użyj `bunx eas-cli build --profile development --platform android`.
+3. Projekt EAS to `@itsol/canopy-mobile` (`owner` i `extra.eas.projectId` w `app.json`); build
+   wymaga konta w organizacji itsol albo jej tokenu `EXPO_TOKEN`, który trzymamy poza repo.
+   Samodzielny APK do testów z nightly (bez Metro, połączenie HTTPS z przypiętym
+   certyfikatem): `bunx eas-cli build --profile preview --platform android`. Profil
+   `preview` buduje na Androidzie APK, a EAS trzyma klucz podpisu, więc kolejne APK
+   instalują się jako aktualizacja.
+   Dla development buildu APK użyj `bunx eas-cli build --profile development --platform android`.
    Profile `development` ma `developmentClient: true` i `distribution: internal` dla
    obu platform. Dla builda EAS do iOS Simulator użyj `development-simulator` i zainstaluj
    wynik na Macu; nie instaluje się go na iPhonie.

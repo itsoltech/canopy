@@ -44,6 +44,8 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": { "eas": { "projectId": "00e078e3-86cf-493e-adac-6fff27d7f803" } },
+    "owner": "itsol"
   }
 }
