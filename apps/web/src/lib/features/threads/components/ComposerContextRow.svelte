@@ -10,6 +10,7 @@
     branchControl,
     permissionControl,
     hasWorkspace = true,
+    stackPlacement = false,
     class: className,
   }: {
     projectControl?: Snippet;
@@ -18,6 +19,8 @@
     branchControl?: Snippet;
     permissionControl: Snippet;
     hasWorkspace?: boolean;
+    /** Give the worker and computer names their own row in a narrow new-thread composer. */
+    stackPlacement?: boolean;
     class?: ClassValue;
   } = $props();
 </script>
@@ -25,7 +28,12 @@
 <div class={["@container/context min-w-0", className]} data-composer-context>
   <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
     <div class="grid min-w-0 items-center gap-x-1 gap-y-1 @min-[44rem]/context:flex pointer-coarse:gap-y-4">
-      <div class={["grid min-w-0 items-center gap-1 @min-[44rem]/context:flex", projectControl && "grid-cols-2"]}>
+      <div
+        class={[
+          "grid min-w-0 items-center gap-1 @min-[44rem]/context:flex",
+          projectControl && (stackPlacement ? "grid-cols-1 @min-[34rem]/context:grid-cols-2" : "grid-cols-2"),
+        ]}
+      >
         {#if projectControl}<div class="min-w-0 @min-[44rem]/context:max-w-48">{@render projectControl()}</div>{/if}
         <div class="flex min-h-8 min-w-0 items-center @min-[44rem]/context:max-w-56">{@render computerControl()}</div>
       </div>

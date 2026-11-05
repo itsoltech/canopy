@@ -1,5 +1,6 @@
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import type { ui } from "@canopy/contracts";
+import type { ProjectChoice } from "@canopy/domain/projects";
 
 /**
  * Where a new thread runs: a project, then one of its workspaces (a directory on a worker the project
@@ -18,14 +19,14 @@ function recentThreads(threads: Iterable<ui.Thread>): ui.Thread[] {
  * project you last started a thread in, No project, the first project that lives on a worker, the first project.
  */
 export function defaultProject(input: {
-  projects: readonly ui.Project[];
+  projects: readonly ProjectChoice[];
   threads: Iterable<ui.Thread>;
   requested?: string | undefined;
   /** Your default workspace (Settings → Threads). */
   defaultWorkspaceId?: string | undefined;
-}): ui.Project | undefined {
+}): ProjectChoice | undefined {
   const { projects, requested, defaultWorkspaceId } = input;
-  const byId = (id: string | undefined) => (id ? projects.find((p) => p.id === id) : undefined);
+  const byId = (id: string | undefined) => (id ? projects.find((p) => p.projectIds.includes(id)) : undefined);
 
   return (
     byId(requested) ??
@@ -57,7 +58,7 @@ export function defaultWorkspace(input: {
   return (
     byId(defaultWorkspaceId) ??
     recentThreads(input.threads)
-      .filter((t) => t.projectId === project.id)
+      .filter((t) => project.workspaces.some((w) => w.id === t.workspaceId))
       .map((t) => byId(t.workspaceId))
       .find((w) => w !== undefined) ??
     project.workspaces.find((w) => online(w.workerId)) ??

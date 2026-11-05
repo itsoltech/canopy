@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import type { ProjectChoice } from "@canopy/domain/projects";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import Popover from "#lib/shared/ui/Popover.svelte";
@@ -17,12 +18,20 @@
   const active = $derived(selected.length > 0);
 
   const projects = $derived(
-    overview.projects.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase())),
+    overview.projectChoices.filter((p) =>
+      [p.name, ...p.aliases].some((name) => name.toLowerCase().includes(search.trim().toLowerCase())),
+    ),
   );
 
-  const choose = (id: string, checked: boolean) =>
+  const count = $derived(
+    overview.projectChoices.filter((p) => p.projectIds.some((id) => selected.includes(id))).length,
+  );
+
+  const choose = (project: ProjectChoice, checked: boolean) =>
     void settings.updateSidebar({
-      projectIds: checked ? [...new Set([...selected, id])] : selected.filter((x) => x !== id),
+      projectIds: checked
+        ? [...new Set([...selected, ...project.projectIds])]
+        : selected.filter((id) => !project.projectIds.includes(id)),
     });
 </script>
 
@@ -32,7 +41,7 @@
       <button
         type="button"
         {...props}
-        aria-label={active ? `Filter projects (${selected.length} selected)` : "Filter projects"}
+        aria-label={active ? `Filter projects (${count} selected)` : "Filter projects"}
         class={[
           "relative flex h-9 items-center gap-1 rounded-lg px-2 text-sm/5 focus-ring sm:h-8",
           active
@@ -41,7 +50,7 @@
         ]}
       >
         <Icon name="bars-3" tone={active ? "inherit" : "muted"} />
-        {#if selected.length}<span class="min-w-3 tabular-nums">{selected.length}</span>{/if}
+        {#if selected.length}<span class="min-w-3 tabular-nums">{count}</span>{/if}
       </button>
     {/snippet}
     <div class="grid gap-2">
@@ -66,8 +75,8 @@
         {#each projects as project (project.id)}
           <SidebarProjectChoice
             {project}
-            checked={selected.includes(project.id)}
-            onchoose={(checked) => choose(project.id, checked)}
+            checked={project.projectIds.some((id) => selected.includes(id))}
+            onchoose={(checked) => choose(project, checked)}
           />
         {:else}<p class="px-2 py-3 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
             No projects found.

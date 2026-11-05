@@ -4,6 +4,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { workerStatus } from "#lib/features/overview/workers.ts";
   import { workerLabel } from "#lib/features/overview/worker-label.ts";
+  import { awayReason } from "#lib/features/computers/computers.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import PickerRow from "#lib/shared/ui/PickerRow.svelte";
   import PillButton from "#lib/shared/ui/PillButton.svelte";
@@ -12,11 +13,7 @@
   import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
-  /**
-   * The new-thread composer's worker pill: only the workers the project lives on (its workspaces), each
-   * with its status and OS. An offline worker stays listed, marked. The footer links to
-   * the project's settings, where the workers are configured.
-   */
+  /** Worker's computer and workspace determine the thread's single home. */
   let {
     project,
     value,
@@ -33,17 +30,58 @@
 
   const overview = useOverview();
   const capabilities = useGatewayCapabilities();
-  const available = $derived(project.nodeId && !capabilities?.linkedComputers ? [] : project.workspaces);
+  const computerOf = (worker: ui.Worker) => overview.machine(worker.nodeId) ?? "This computer";
+  const away = (worker: ui.Worker) => (worker.nodeId ? awayReason(overview.computer(worker.nodeId)) : undefined);
+  const online = (worker: ui.Worker) => worker.online && !away(worker);
 
-  const selected = $derived(available.find((w) => w.id === value));
-  const nameOf = (ws: ui.Workspace) => overview.worker(ws.workerId)?.name ?? "Unknown worker";
-  const online = (ws: ui.Workspace) => overview.worker(ws.workerId)?.online ?? false;
+  const status = (worker: ui.Worker) => {
+    if (!away(worker)) return workerStatus(worker);
+
+    switch (overview.computer(worker.nodeId)?.status) {
+      case "updating":
+        return "Updating…";
+      case "sleeping":
+        return "Going to sleep";
+      case "shutting_down":
+        return "Shutting down";
+      case "needs_update":
+        return "Needs an update";
+      case "pairing_required":
+        return "Pair again";
+      case "connected":
+        return "Reconnecting…";
+      default:
+        return "Unreachable";
+    }
+  };
+
+  const available = $derived(
+    overview.workers
+      .filter((worker) => !worker.nodeId || capabilities?.linkedComputers)
+      .map((worker) => ({
+        worker,
+        workspace:
+          project.workspaces.find((ws) => ws.workerId === worker.id && ws.id === value) ??
+          project.workspaces.find((ws) => ws.workerId === worker.id),
+      }))
+      .filter((choice) => project.kind === "scratch" || choice.workspace)
+      .sort(
+        (a, b) =>
+          Number(Boolean(a.worker.nodeId)) - Number(Boolean(b.worker.nodeId)) ||
+          computerOf(a.worker).localeCompare(computerOf(b.worker)) ||
+          a.worker.name.localeCompare(b.worker.name),
+      ),
+  );
+
+  const selected = $derived(available.find((choice) => choice.workspace?.id === value));
 
   const reason = $derived(
     warning ??
-      (selected && !online(selected)
-        ? `${nameOf(selected)} is offline. Start it or choose another worker to send.`
-        : undefined),
+      (selected &&
+        (away(selected.worker) ??
+          (!selected.worker.online
+            ? `${selected.worker.name} is offline. Start it or choose another worker to send.`
+            : undefined))),
   );
 </script>
 
@@ -53,49 +91,50 @@
     searchLabel="Search workers"
     placeholder="Search workers…"
     items={available}
-    key={(w) => w.id}
-    text={(w) => nameOf(w)}
-    {value}
-    {onselect}
-    link={project.kind === "scratch"
-      ? { href: "/settings/workers", label: "Manage workers" }
-      : {
-          href: `/settings/projects/${project.id}`,
-          label: project.workspaces.length === 0 ? "Add it to a worker" : "Configure workers",
-        }}
+    key={(choice) => choice.worker.id}
+    text={(choice) => `${choice.worker.name} ${computerOf(choice.worker)}`}
+    groupOf={(choice) => computerOf(choice.worker)}
+    disabled={(choice) => !choice.workspace}
+    value={selected?.worker.id}
+    onselect={(choice) => choice.workspace && onselect(choice.workspace)}
+    link={{ href: "/settings/workers", label: "Manage workers" }}
   >
     {#snippet trigger(props)}
       <PillButton
         {...props}
         class="min-w-0 flex-1 pl-1.5"
         aria-label={selected
-          ? `Worker: ${nameOf(selected)}, ${online(selected) ? "online" : "offline"}`
+          ? `Worker: ${selected.worker.name}, ${computerOf(selected.worker)}, ${status(selected.worker)}`
           : "Worker: none"}
       >
         <Icon name="computer-desktop" class="size-3.5" />
         {#if selected}
-          <span class="truncate text-zinc-800 dark:text-zinc-200">{workerLabel(nameOf(selected))}</span>
-          {#if !online(selected)}<StatusDot tone="neutral" /><span class="shrink-0 @max-[34rem]/context:sr-only"
-              >Offline</span
+          <span class="flex min-w-0 flex-1 items-center gap-1 text-zinc-800 dark:text-zinc-200">
+            <span class="min-w-0 flex-1 truncate">{workerLabel(selected.worker.name)}</span>
+            <span class="shrink-0" aria-hidden="true">·</span>
+            <span class="min-w-0 flex-1 truncate">{computerOf(selected.worker)}</span>
+          </span>
+          {#if !online(selected.worker)}<StatusDot tone="neutral" /><span class="shrink-0 @max-[34rem]/context:sr-only"
+              >{status(selected.worker)}</span
             >{/if}
         {:else}
-          <span class="truncate">{project.workspaces.length === 0 ? "No worker" : "Choose a worker"}</span>
+          <span class="truncate">{available.length === 0 ? "No worker" : "Choose a worker"}</span>
         {/if}
       </PillButton>
     {/snippet}
-    {#snippet option(ws, state)}
+    {#snippet option(choice, state)}
       <PickerRow
-        title={nameOf(ws)}
-        detail={project.nodeId ? `On ${overview.machine(project.nodeId)}` : undefined}
-        status={workerStatus(overview.worker(ws.workerId))}
+        title={choice.worker.name}
+        detail={!choice.workspace ? "No scratch directory. Configure this worker." : away(choice.worker)}
+        status={status(choice.worker)}
         selected={state.selected}
       >
-        {#snippet leading()}<StatusDot tone={online(ws) ? "emerald" : "neutral"} />{/snippet}
+        {#snippet leading()}<StatusDot tone={online(choice.worker) ? "emerald" : "neutral"} />{/snippet}
       </PickerRow>
     {/snippet}
     {#snippet empty(query)}
       {#if query}No workers match “{query}”.{:else if project.kind === "scratch"}Connect a worker first.{:else}{project.name}
-        is not on any worker yet.{/if}
+        is not on any worker yet. Add it in project settings.{/if}
     {/snippet}
   </SearchPicker>
   {#if reason}<HintIcon label="Worker needs attention" text={reason} warning />{/if}
