@@ -27,7 +27,7 @@ export const bindingCatalogue: readonly BindingDefinition[] = [
   ]),
   define("toggle-sidebar", "Toggle sidebar", "Navigation", "global", "Outside modal dialogs", ["Mod+B"]),
   define("open-settings", "Open settings", "Navigation", "global", "Outside modal dialogs"),
-  define("new-project", "Create project", "Navigation", "global", "Outside modal dialogs"),
+  define("new-project", "Add project", "Navigation", "global", "Outside modal dialogs"),
   define(
     "new-thread-in",
     "Create thread in project",

@@ -46,7 +46,14 @@
     ]}>{@render body()}</a
   >
 {:else}
-  <div class={["settings-row flex flex-col items-start gap-3 px-4 py-3.5 sm:flex-row sm:items-center", className]}>
+  <!-- A control stacks under the copy on phones; a row without one stays a row. -->
+  <div
+    class={[
+      "settings-row flex gap-3 px-4 py-3.5",
+      control ? "flex-col items-start sm:flex-row sm:items-center" : "items-center",
+      className,
+    ]}
+  >
     {@render body()}
   </div>
 {/if}

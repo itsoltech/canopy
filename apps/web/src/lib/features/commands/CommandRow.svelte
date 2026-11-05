@@ -8,6 +8,7 @@
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import type { PaletteEntry } from "./palette.ts";
+  import { paletteRowClass, paletteRowIconClass } from "./palette-style.ts";
 
   /**
    * One option of the command palette's listbox. A command with `href` is a real link (`<a role="option">`:
@@ -34,18 +35,14 @@
   const command = $derived(entry.command);
   const thread = $derived(command.thread);
 
-  const rowClass =
-    "group/row flex cursor-default items-center gap-3 rounded-lg px-3 py-2.5 text-base/6 text-zinc-800 select-none scroll-my-1 data-active:bg-zinc-950/5 data-active:text-zinc-950 aria-disabled:text-zinc-400 sm:py-2 sm:text-sm/5 dark:text-zinc-200 dark:data-active:bg-white/8 dark:data-active:text-white dark:aria-disabled:text-zinc-600";
+  const rowClass = paletteRowClass;
 </script>
 
 {#snippet body()}
   {#if command.projectName}
     <ProjectMark name={command.projectName} kind={command.projectKind} />
   {:else if command.icon}
-    <Icon
-      name={command.icon}
-      class="fill-zinc-500 group-aria-disabled/row:fill-zinc-300 group-data-active/row:fill-zinc-700 dark:fill-zinc-400 dark:group-aria-disabled/row:fill-zinc-700 dark:group-data-active/row:fill-zinc-200"
-    />
+    <Icon name={command.icon} class={paletteRowIconClass} />
   {:else if !thread}
     <span class="size-4 shrink-0" aria-hidden="true"></span>
   {/if}

@@ -2,9 +2,8 @@
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import { workerStatus } from "#lib/features/overview/workers.ts";
   import { workerLabel } from "#lib/features/overview/worker-label.ts";
-  import { awayReason } from "#lib/features/computers/computers.ts";
+  import { workerPresence } from "#lib/features/computers/computers.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import PickerRow from "#lib/shared/ui/PickerRow.svelte";
   import PillButton from "#lib/shared/ui/PillButton.svelte";
@@ -31,29 +30,10 @@
   const overview = useOverview();
   const capabilities = useGatewayCapabilities();
   const computerOf = (worker: ui.Worker) => overview.machine(worker.nodeId) ?? "This computer";
-  const away = (worker: ui.Worker) => (worker.nodeId ? awayReason(overview.computer(worker.nodeId)) : undefined);
-  const online = (worker: ui.Worker) => worker.online && !away(worker);
-
-  const status = (worker: ui.Worker) => {
-    if (!away(worker)) return workerStatus(worker);
-
-    switch (overview.computer(worker.nodeId)?.status) {
-      case "updating":
-        return "Updating…";
-      case "sleeping":
-        return "Going to sleep";
-      case "shutting_down":
-        return "Shutting down";
-      case "needs_update":
-        return "Needs an update";
-      case "pairing_required":
-        return "Pair again";
-      case "connected":
-        return "Reconnecting…";
-      default:
-        return "Unreachable";
-    }
-  };
+  const presence = (worker: ui.Worker) => workerPresence(worker, overview.computer(worker.nodeId));
+  const away = (worker: ui.Worker) => presence(worker).reason;
+  const online = (worker: ui.Worker) => presence(worker).online;
+  const status = (worker: ui.Worker) => presence(worker).status;
 
   const available = $derived(
     overview.workers

@@ -1,5 +1,6 @@
 import type { ui } from "@canopy/contracts";
 import { REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
+import { workerStatus } from "#lib/features/overview/workers.ts";
 
 /**
  * Linked computers in the thread UI (docs/linked-computers.md, stage 2). Their threads stay at home; this
@@ -117,3 +118,21 @@ export function localCopyNote(
     ? `Deleted on ${who}. This computer keeps its own copy.`
     : `${who} stopped sharing it. This computer keeps its own copy.`;
 }
+
+/** A worker's short presence in pickers ("Online", "Updating…"), counting its computer's link for a linked one. */
+export function workerPresence(worker: ui.Worker, computer: ui.LinkedComputer | undefined) {
+  const reason = worker.nodeId ? awayReason(computer) : undefined;
+
+  if (!reason) return { online: worker.online, status: workerStatus(worker), reason };
+
+  return { online: false, status: awayLabels.get(computer?.status ?? "") ?? "Unreachable", reason };
+}
+
+const awayLabels = new Map([
+  ["updating", "Updating…"],
+  ["sleeping", "Going to sleep"],
+  ["shutting_down", "Shutting down"],
+  ["needs_update", "Needs an update"],
+  ["pairing_required", "Pair again"],
+  ["connected", "Reconnecting…"],
+]);

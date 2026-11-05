@@ -14,6 +14,7 @@ import type { ThreadActions } from "#lib/features/threads/thread-actions.svelte.
 import { awayReason } from "#lib/features/computers/computers.ts";
 import { appearanceCommands } from "./appearance-commands.ts";
 import type { GatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+import type { AddProjectState } from "#lib/features/projects/add/add-project.svelte.ts";
 
 /** New thread in the current project (Mod+N and Mod+Shift+N belong to the browser: new window, private window). */
 export const NEW_THREAD_HOTKEY = "Mod+Shift+O";
@@ -24,6 +25,7 @@ export interface AppCommandContext {
   readonly settings: SettingsState;
   readonly sidebar: SidebarLayout;
   readonly threadActions: ThreadActions;
+  readonly addProject: AddProjectState;
   /** Opens the navigation drawer (narrow screens, where the sidebar is not shown). */
   readonly openMenu: () => void;
   /** The project of the page (a thread's, the new-thread page's pick), if any. */
@@ -57,7 +59,7 @@ const threadCommand = (overview: OverviewState, thread: ui.Thread, suggested: bo
   };
 };
 
-/** The fixed actions: new threads, the sidebar, appearance, settings and a new project. */
+/** The fixed actions: new threads, the sidebar, appearance, settings and adding a project. */
 function actionCommands(context: AppCommandContext, current: ui.Project | undefined): Command[] {
   const { overview, settings, sidebar } = context;
 
@@ -116,12 +118,12 @@ function actionCommands(context: AppCommandContext, current: ui.Project | undefi
     },
     {
       id: "new-project",
-      title: "New project",
+      title: "Add project",
       group: "actions",
       icon: "plus",
-      keywords: "create add project",
-      href: "/settings/projects",
+      keywords: "new create project directory clone git github repository workspace",
       rank: 21,
+      run: () => context.addProject.show(),
     },
   ];
 }
