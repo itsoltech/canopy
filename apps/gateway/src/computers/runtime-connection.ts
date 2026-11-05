@@ -159,13 +159,16 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
       },
       seen: Date.now(),
       ready: false,
+      route: address,
     };
 
     const release = computersTrack(hostContext, peer.node_id, connection);
     let greeted = false;
 
     try {
-      connection.send({ body: { case: "hello", value: hostContext.hello() } });
+      const hello = hostContext.hello();
+      connection.announced = hello.addresses.join();
+      connection.send({ body: { case: "hello", value: hello } });
       // Queued hello is sent only after verification. No heartbeat may precede it.
       const started = performance.now();
       await discoverCertificate(address, peer.fingerprint, hostContext[computersState].identity);

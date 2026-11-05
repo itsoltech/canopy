@@ -6,7 +6,7 @@ import { computerLink as link } from "@canopy/contracts";
 
 import { AsyncChannel } from "@canopy/transport";
 
-import { MOVE_ITEMS, RELAY } from "@canopy/domain/computers";
+import { LAN_ROUTES, MOVE_ITEMS, RELAY } from "@canopy/domain/computers";
 
 import { RemoteCalls } from "./remote.ts";
 
@@ -100,7 +100,7 @@ export async function computersReceive(
     // The partner's addresses changed. Only over a negotiated link; they are routes like any other, used through the pin.
     if (!connection.protocol || body.value.addresses.length > 16)
       throw new ConnectError("Unsupported route announcement", Code.InvalidArgument);
-    await hostContext[computersState].routes.add(nodeId, body.value.addresses.map(linkAddress), "announced");
+    await hostContext[computersState].routes.announce(nodeId, body.value.addresses.map(linkAddress));
     computersEmit(hostContext, nodeId);
   } else if (body.case === "heartbeat") {
     await hostContext.store.query(
@@ -220,7 +220,7 @@ async function receiveHandshake(
       JSON.stringify(hello.capabilities),
     ],
   );
-  await hostContext[computersState].routes.add(nodeId, hello.addresses.map(linkAddress), "announced");
+  await hostContext[computersState].routes.announce(nodeId, hello.addresses.map(linkAddress));
   connection.protocol = protocol;
   connection.capabilities = new Set(hello.capabilities);
   hostContext[computersState].capabilities.set(nodeId, hello.capabilities);
@@ -238,6 +238,7 @@ async function receiveHandshake(
   // Queue the welcome before callers or mirror subscriptions can use this link.
   // Persisting status below can yield to a remote call while the peer still awaits its handshake.
   if (body.case === "hello") {
+    connection.announced = local.addresses.join();
     connection.send({ body: { case: "welcome", value: { hello: local, protocol, updateNodeId } } });
 
     if (hostContext[computersState].announced !== "connected")
@@ -250,6 +251,14 @@ async function receiveHandshake(
   }
 
   connection.ready = true;
+  const addresses = hostContext[computersState].advertised;
+
+  // Addresses that changed during the handshake were not announced: only ready links get announcements.
+  if (protocol && connection.capabilities.has(LAN_ROUTES) && connection.announced !== addresses.join()) {
+    connection.announced = addresses.join();
+    connection.send({ body: { case: "routes", value: { addresses } } });
+  }
+
   await exchangeConfigSharing(hostContext, nodeId, connection);
   // A successful handshake ends the failure streak, including when the
   // eventual disconnect arrives as an exception rather than a clean EOF.

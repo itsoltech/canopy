@@ -981,14 +981,31 @@ to tylko porażka. Settings → Linked computers pokazuje trasy partnera w tej k
 ago · 4 ms” / „Failed … · last worked …” / „Not tried yet”, pozwala dodać trasę ręczną (HTTPS origin)
 i usunąć dowolną (`ManageComputer` akcje `add_route`/`remove_route`, pole `address` 5).
 
+Każda strona może zestawić łącze, więc porażka trasy nie oznacza problemu, dopóki łącze działa.
+Gateway dzwoni do partnera tylko wtedy, gdy nie ma z nim żadnego połączenia; jeżeli partner połączył się
+pierwszy, porażki tras z wcześniejszych prób zostają w bazie bez nowej próby. Dlatego `LinkedComputer`
+podaje `connection_direction` (`outgoing`, `incoming`, `both`, puste bez połączenia), a `ComputerRoute.in_use`
+oznacza trasę, po której działa wychodzące łącze. UI pokazuje „Connected · incoming”, trasę łącza jako
+„In use · 4 ms”, a nieudaną trasę przy działającym łączu neutralnie: „Not needed while connected · failed
+14 minutes ago”. Bursztynowe ostrzeżenie pojawia się tylko wtedy, gdy łącze nie działa. Sukces po
+ponownym połączeniu zapisuje nowy czas, więc trasa przestaje być nieudana.
+
 ### Ogłaszanie adresów przez łącze
 
 Komputer ogłasza adresy dostępu sieciowego: wykryte adresy swoich interfejsów (LAN, Tailscale, VPN,
 publiczne) i dodane nazwy hostów ([network-access.md](network-access.md#adresy)).
 Zmiana listy (nowe IP, listener wł./wył.) jest wysyłana od razu ramką `RouteAnnouncement {addresses}`
-każdemu połączeniu z wynegocjowanym protokołem i capability `lan_routes`. Odbiorca waliduje je jak
-`NodeHello` (najwyżej 16 originów HTTPS) i dopisuje jako `announced`. Ogłoszony adres nie daje
+każdemu połączeniu z wynegocjowanym protokołem i capability `lan_routes`. Połączenie, które w chwili zmiany
+kończyło handshake, dostaje ramkę zaraz po nim, jeżeli lista różni się od tej z hello. Odbiorca waliduje je
+jak `NodeHello` (najwyżej 16 originów HTTPS) i dopisuje jako `announced`. Ogłoszony adres nie daje
 zaufania: używa się go wyłącznie przez przypięty mTLS.
+
+Hello i ramka `routes` niosą pełną listę. Ogłoszony adres, którego nowa niepusta lista nie zawiera
+(np. inny port po zmianie w Settings → Network access), dostaje `computer_routes.withdrawn_at`
+(migracja **0082_computer_route_withdrawn**, `ComputerRoute.withdrawn_at_ms`): jest „Old address”, próbowany
+na końcu i nigdy jako ostrzeżenie. Pusta lista (listener wyłączony, zamykanie) niczego nie oznacza jako stare.
+Ponowne ogłoszenie albo sukces trasy usuwa znacznik. Stary adres znika, gdy aktualna trasa zadziała po jego
+wycofaniu, albo po 7 dniach. Port listenera jest zapisany w bazie i nie zmienia się przy restarcie.
 
 ### Klucz i identyfikatory
 
@@ -1061,7 +1078,10 @@ spoza podsieci, limit jednej próby dla serii powtórzonych ogłoszeń oraz brak
 punktu końcowego, ogłoszenie nowego adresu przez łącze, kolejność i przejęcie przez następną trasę
 po śmierci najlepszej, ręczne dodanie/usunięcie, wyłączone wykrywanie (cisza, usunięte trasy `lan`,
 trwałe ustawienie) i Unlink. `linked-computers.test.ts` sprawdza dalej fałszywą trasę z niezgodnym
-pinem. `schema.test.ts` obejmuje 0052. Sieć na fizycznych urządzeniach wymaga osobnej
+pinem. `linked-routes-status.test.ts` sprawdza łącze przychodzące przy nieudanych trasach wychodzących,
+trasę „in use” i koniec porażki po ponownym połączeniu oraz zmianę portu partnera (stary adres oznaczony,
+próbowany na końcu i usunięty po sukcesie nowej trasy). `config-sync.test.ts` sprawdza, że obie strony
+wskazują starszy komputer jako wymagający aktualizacji. `schema.test.ts` obejmuje 0052. Sieć na fizycznych urządzeniach wymaga osobnej
 kontroli, w tym zgody na sieć lokalną i współistnienia z mDNSResponder na macOS.
 
 ## Konkretny protokół etapu 7
@@ -1775,8 +1795,15 @@ bez materializacji. Publikuje je dalej i nie gubi ich przy własnej zmianie elem
 się zastosować lokalnie (np. nieznany rodzaj proxy), zostaje w rekordzie ze stanem „Not supported on this computer”
 i powodem.
 
-Partner bez `config_sync` nie dostaje ani nie wysyła konfiguracji. Settings → Linked computers pokazuje
-„Needs an update to share configuration”. Nowe gatewaye nie ogłaszają `shared_config` z 0050.
+Partner bez `config_sync` nie dostaje ani nie wysyła konfiguracji. Gateway sprawdza capability obu stron
+(własne hello i ostatnie hello partnera) i podaje w `LinkedComputer.config_update_node_id`, który komputer
+wymaga aktualizacji; przy braku po obu stronach wskazuje siebie. Settings → Linked computers pokazuje
+„Laptop B runs 0.2.0-nightly.65 and needs an update to share configuration.” albo „This computer needs an
+update to share configuration.” Przełącznik Share configuration pokazuje wtedy wybór tej strony i pozostaje
+dostępny; wybór jest zachowany i działa po aktualizacji („Sharing starts after the update.” / „Sharing stays
+off after the update.”). Wyłączenie w tym stanie nie pyta o potwierdzenie, bo nic nie jest jeszcze
+udostępniane. Nowe gatewaye nie ogłaszają `shared_config` z 0050; `config_sync` mają wersje od
+0.2.0-nightly.67.
 
 ### Migracja z 0050
 

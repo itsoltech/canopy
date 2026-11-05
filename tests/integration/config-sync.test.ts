@@ -258,9 +258,13 @@ describe.skipIf(!dockerAvailable)("configuration boundaries", () => {
       expect(configAllowed(b.links, a.node)).toBe(false);
       expect((await b.settings()).timezone).not.toBe("Asia/Tokyo");
       expect((await old.settings()).timezone).not.toBe("Asia/Tokyo");
-      expect((await a.links.snapshot()).peers.find((p) => p.nodeId === old.node)?.configSyncStatus).toBe(
-        "needs_update",
-      );
+      // Both sides name the computer without the capability: the partner on A, this computer on the older one.
+      const onA = (await a.links.snapshot()).peers.find((p) => p.nodeId === old.node)!;
+      expect(onA).toMatchObject({ configSyncStatus: "needs_update", configUpdateNodeId: old.node });
+      expect(onA.appVersion).not.toBe("");
+      const onOld = (await old.links.snapshot()).peers.find((p) => p.nodeId === a.node)!;
+      expect(onOld).toMatchObject({ configSyncStatus: "needs_update", configUpdateNodeId: old.node });
+      expect((await a.links.snapshot()).peers.find((p) => p.nodeId === b.node)?.configUpdateNodeId).toBe("");
       expect(await count(old, "config_peer_cursors")).toBe(0);
       const owner = crypto.randomUUID();
       await a.store.query("INSERT INTO users(id,email,display_name,role) VALUES($1::uuid,$2,'Other owner','user')", [

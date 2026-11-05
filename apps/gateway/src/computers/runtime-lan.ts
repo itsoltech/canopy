@@ -31,8 +31,10 @@ export function computersAdvertise(hostContext: LinkedComputers) {
 
   for (const set of hostContext[computersState].active.values())
     for (const c of set) {
-      if (c.ready && c.protocol && c.capabilities?.has(LAN_ROUTES))
+      if (c.ready && c.protocol && c.capabilities?.has(LAN_ROUTES)) {
+        c.announced = next.join();
         c.send({ body: { case: "routes", value: { addresses: next } } });
+      }
     }
 }
 

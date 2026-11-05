@@ -27,6 +27,10 @@ export type Connection = {
   /** When this link last wrote the peer's last_seen. */
   stored?: number;
   ready: boolean;
+  /** The route this computer dialled; none when the partner dialled this computer. */
+  route?: string;
+  /** The addresses this computer last told the partner on this link (its hello, then announcements). */
+  announced?: string;
   protocol?: number;
   capabilities?: Set<string>;
   remote?: RemoteCalls;
@@ -92,6 +96,7 @@ export const peerMessage = (p: PeerRow, capabilities: string[] = [], routes: Rou
       lastSuccessMs: ms(r.last_success),
       lastFailureMs: ms(r.last_failure),
       latencyMs: r.latency_ms ?? 0,
+      withdrawnAtMs: ms(r.withdrawn_at),
     })),
   });
 

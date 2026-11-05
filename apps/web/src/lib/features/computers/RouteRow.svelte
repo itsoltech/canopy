@@ -3,19 +3,28 @@
   import type { ui } from "@canopy/contracts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
-  import { ROUTE_SOURCES, routeStatus } from "./routes.ts";
+  import { routeSource, routeStatus } from "./routes.ts";
 
   /** One way to reach a linked computer: its address, where it came from and how it last went. */
   let {
     route,
     now,
+    connected = false,
     busy = false,
     onremove,
     class: className,
-  }: { route: ui.ComputerRoute; now: number; busy?: boolean; onremove: () => void; class?: ClassValue } = $props();
+  }: {
+    route: ui.ComputerRoute;
+    now: number;
+    /** The link is up in either direction: a failed route is not a warning then. */
+    connected?: boolean;
+    busy?: boolean;
+    onremove: () => void;
+    class?: ClassValue;
+  } = $props();
 
-  const source = $derived(ROUTE_SOURCES.get(route.source) ?? { label: route.source, tone: "neutral" as const });
-  const status = $derived(routeStatus(route, now));
+  const source = $derived(routeSource(route));
+  const status = $derived(routeStatus(route, connected, now));
 </script>
 
 <li class={["flex items-start gap-3 px-4 py-3", className]}>
@@ -27,7 +36,7 @@
     <p
       class={[
         "text-base/6 tabular-nums sm:text-sm/6",
-        status.failing ? "text-amber-700 dark:text-amber-400" : "text-zinc-500 dark:text-zinc-400",
+        status.warn ? "text-amber-700 dark:text-amber-400" : "text-zinc-500 dark:text-zinc-400",
       ]}
     >
       {status.text}
