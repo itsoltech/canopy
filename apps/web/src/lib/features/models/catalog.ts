@@ -41,6 +41,8 @@ export interface ModelOption {
   readonly profileName: string;
   /** The instance's accent color (#rrggbb, "" = none), a marker in the picker. */
   readonly accent: string;
+  /** The worker has another instance of this provider: labels name the instance ("Claude Opus 5.5 · Proxy"). */
+  readonly sharedProvider: boolean;
   /** Place among the instance's favorites (undefined = not a favorite). */
   readonly favoriteIndex: number | undefined;
   /** Model id sent to the provider ("" = the profile's default model). */
@@ -110,6 +112,10 @@ const aliases: Record<ProviderKey, readonly string[]> = {
 export const modelKey = (provider: ProviderKey, profileId: string, model: string): string =>
   `${provider}:${profileId}:${model}`;
 
+/** Stable id of an option's provider instance (`CLAUDE:cliproxyapi`); the picker has one tab per instance. */
+export const instanceKeyOf = (option: Pick<ModelOption, "provider" | "profileId">): string =>
+  `${option.provider}:${option.profileId}`;
+
 export { providerName };
 
 /**
@@ -164,14 +170,15 @@ const catalogEntry = (list: ProfileModels | undefined, model: string): ModelInfo
       list?.models.find((m) => m.resolvedModel === model || m.aliases.includes(model)))
     : list?.models.find((m) => m.isDefault);
 
-/** What the options of an instance share: its label, accent and favorites. */
+/** What the options of an instance share: its label, accent, favorites and whether the provider has others. */
 interface InstanceMeta {
   readonly name: string;
   readonly accent: string;
   readonly favorites: readonly string[];
+  readonly shared: boolean;
 }
 
-const plainMeta = (name: string): InstanceMeta => ({ name, accent: "", favorites: [] });
+const plainMeta = (name: string): InstanceMeta => ({ name, accent: "", favorites: [], shared: false });
 
 function favoriteIndexOf(meta: InstanceMeta, model: string, aliases: readonly string[] = []): number | undefined {
   const index = meta.favorites.findIndex((id) => id === model || aliases.includes(id));
@@ -192,6 +199,7 @@ function fromCatalog(
     profileId,
     profileName: meta.name,
     accent: meta.accent,
+    sharedProvider: meta.shared,
     favoriteIndex: favoriteIndexOf(meta, info.id, info.aliases),
     model: info.id,
     name: info.displayName && info.displayName !== info.id ? info.displayName : modelDisplayName(info.id),
@@ -225,6 +233,7 @@ function standIn(
     profileId,
     profileName: meta.name,
     accent: meta.accent,
+    sharedProvider: meta.shared,
     favoriteIndex: favoriteIndexOf(meta, model),
     model,
     name: modelDisplayName(model),
@@ -307,10 +316,13 @@ export function modelOptions(sources: ModelSources): ModelOption[] {
 
     if (!available && !sources.only) return [];
 
+    const instances = instancesFor(sources.worker, provider);
+
     const meta = (i: ui.WorkerInstance): InstanceMeta => ({
       name: instanceLabel(i),
       accent: i.accentColor,
       favorites: i.favorites,
+      shared: instances.some((other) => other.id !== i.id),
     });
 
     if (sources.only) {
@@ -324,9 +336,7 @@ export function modelOptions(sources: ModelSources): ModelOption[] {
       );
     }
 
-    return instancesFor(sources.worker, provider).flatMap((instance) =>
-      profileModels(provider, instanceValue(instance), meta(instance), sources),
-    );
+    return instances.flatMap((instance) => profileModels(provider, instanceValue(instance), meta(instance), sources));
   });
 }
 

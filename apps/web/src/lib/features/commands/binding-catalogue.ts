@@ -78,6 +78,8 @@ export const bindingCatalogue: readonly BindingDefinition[] = [
   define("model:favorite", "Toggle favorite model", "Models", "models", "Model picker open with an active model", [
     "Mod+Shift+F",
   ]),
+  define("model:next-tab", "Show next model tab", "Models", "models", "Model picker open", ["Alt+ArrowDown"]),
+  define("model:previous-tab", "Show previous model tab", "Models", "models", "Model picker open", ["Alt+ArrowUp"]),
   ...Array.from({ length: 9 }, (_, i) =>
     define(`model:pick-${i + 1}`, `Choose favorite model ${i + 1}`, "Models", "models", "Model picker open", [
       `Mod+${i + 1}`,

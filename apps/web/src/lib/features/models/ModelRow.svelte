@@ -5,10 +5,12 @@
   import Kbd from "#lib/shared/ui/Kbd.svelte";
   import { duration } from "#lib/shared/ui/motion.ts";
   import { providerName, type ModelOption } from "./catalog.ts";
+  import InstanceTag from "./InstanceTag.svelte";
 
   /**
    * One model in the picker's list: its concrete name, favorite shortcut, star and selection check.
-   * A custom model reads "Use “…” with …".
+   * A custom model reads "Use “…” with …". `instance` names the row's provider instance quietly (favorites that
+   * mix instances of one provider).
    * The star shows on the active row only (always on touch screens and when starred).
    */
   let {
@@ -17,6 +19,7 @@
     selected,
     starred,
     shortcut,
+    instance,
     onstar,
     class: className,
   }: {
@@ -26,6 +29,8 @@
     starred: boolean;
     /** Hotkey of a favorite (`Mod+1`). */
     shortcut?: string | undefined;
+    /** Show the instance (accent dot and name) after the model's name. */
+    instance?: { readonly name: string; readonly accent: string } | undefined;
     onstar: () => void;
     class?: ClassValue;
   } = $props();
@@ -52,10 +57,12 @@
       ></span
     >
   {:else}
-    <span
-      class="min-w-0 flex-1 font-medium [overflow-wrap:anywhere] whitespace-normal"
-      title={option.model || undefined}>{option.name}</span
-    >
+    <span class="flex min-w-0 flex-1 flex-col">
+      <span class="font-medium [overflow-wrap:anywhere] whitespace-normal" title={option.model || undefined}
+        >{option.name}</span
+      >
+      {#if instance}<InstanceTag name={instance.name} accent={instance.accent} class="text-sm/5 sm:text-xs/4" />{/if}
+    </span>
     {#if shortcut}<Kbd hotkey={shortcut} />{/if}
     <IconButton
       icon="star"

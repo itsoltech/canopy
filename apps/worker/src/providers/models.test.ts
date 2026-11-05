@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tempDirs } from "@canopy/testing";
 import { claudeConfiguredEffort, codexConfiguredEffort, readClaudeUserSettings } from "./default-effort.ts";
-import { classifyLegacyModels } from "./model-metadata.ts";
+import { classifyInstanceCatalogs, classifyLegacyModels } from "./model-metadata.ts";
 import {
   claudeAgentModels,
   claudeModel,
@@ -301,6 +301,77 @@ describe("model catalogs", () => {
     expect(claudeModel(row("long-context", "claude-opus-5-5", "Opus (2M context)")).displayName).toBe(
       "Claude Opus 5.5 · 2M context",
     );
+  });
+
+  test("two Claude instances with overlapping models dedupe within each instance, never across", () => {
+    const row = (value: string, resolvedModel: string) => ({
+      value,
+      resolvedModel,
+      displayName: value,
+      description: "",
+      supportedEffortLevels: ["low" as const, "high" as const],
+    });
+
+    // The native login lists SDK aliases; the proxy lists concrete ids of the same models.
+    const native = claudeAgentModels([
+      row("default", "claude-opus-5-5"),
+      row("opus", "claude-opus-5-5"),
+      row("sonnet", "claude-sonnet-5-5"),
+    ]).map((m) => claudeModel(m));
+
+    const viaProxy = claudeAgentModels(
+      [
+        row("default", "claude-opus-5-5"),
+        row("claude-opus-5-5", "claude-opus-5-5"),
+        row("claude-sonnet-5-5", "claude-sonnet-5-5"),
+        row("claude-opus-4-6", "claude-opus-4-6"),
+      ],
+      [
+        { id: "claude-opus-5-5", ownedBy: "anthropic" },
+        { id: "claude-sonnet-5-5", ownedBy: "anthropic" },
+        { id: "claude-opus-4-6", ownedBy: "anthropic" },
+      ],
+    ).map((m) => claudeModel(m));
+
+    const lists = classifyInstanceCatalogs([
+      { provider: "claude", profileId: "native", models: native },
+      { provider: "claude", profileId: "cliproxy", models: viaProxy },
+    ]);
+
+    const rows = lists.map((list) => [
+      list.profileId,
+      list.models.map((m) => [m.id, m.displayName, Boolean(m.isDefault), m.aliases ?? [], m.legacy]),
+    ]);
+
+    expect(rows).toEqual([
+      [
+        "native",
+        [
+          ["opus", "Claude Opus 5.5", true, ["default"], false],
+          ["sonnet", "Claude Sonnet 5.5", false, [], false],
+        ],
+      ],
+      [
+        "cliproxy",
+        [
+          ["claude-opus-5-5", "Claude Opus 5.5", true, ["default"], false],
+          ["claude-sonnet-5-5", "Claude Sonnet 5.5", false, [], false],
+          ["claude-opus-4-6", "Claude Opus 4.6", false, [], true],
+        ],
+      ],
+    ]);
+
+    // Each instance keeps its own ids: none of one instance's rows is folded into the other's aliases.
+    const [own, proxied] = lists;
+    const ids = (list: typeof own) => list?.models.flatMap((m) => [m.id, ...(m.aliases ?? [])]) ?? [];
+
+    expect(ids(own)).not.toContain("claude-opus-5-5");
+    expect(ids(proxied)).not.toContain("opus");
+    // Alone, the native list has no newer Opus to mark 4.6 legacy against: legacy is per instance too.
+    expect(
+      classifyInstanceCatalogs([{ models: [claudeModel(row("claude-opus-4-6", "claude-opus-4-6"))] }])[0]?.models[0]
+        ?.legacy,
+    ).toBe(false);
   });
 
   test("all harness catalogs and proxy additions dedupe before assigning legacy status", () => {

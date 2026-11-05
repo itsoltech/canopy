@@ -144,3 +144,13 @@ export function classifyLegacyModels(models: readonly ModelInit[]): ModelInit[] 
     return { ...model, legacy: Boolean(legacy) };
   });
 }
+
+/**
+ * The lists of the catalog, one per provider + instance: the alias dedupe and the legacy marks run within each
+ * list, never across instances (a native and a proxy instance of one harness both list "Claude Opus 5.5").
+ */
+export function classifyInstanceCatalogs<T extends { readonly models?: readonly ModelInit[] | undefined }>(
+  lists: readonly T[],
+): (T & { models: ModelInit[] })[] {
+  return lists.map((list) => ({ ...list, models: classifyLegacyModels(list.models ?? []) }));
+}
