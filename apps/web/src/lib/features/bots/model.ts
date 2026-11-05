@@ -103,6 +103,7 @@ export interface QuestionOptionView {
 
 /** A bot asks you to pick one of a few options. */
 export interface QuestionView {
+  expiresAt?: Date | undefined;
   id: string;
   askedBy: string;
   at: Date;
@@ -117,6 +118,7 @@ export interface QuestionView {
 
 /** A bot asks before it acts: what it wants to do and the details, as labelled fields (never JSON). */
 export interface ApprovalView {
+  expiresAt?: Date | undefined;
   id: string;
   askedBy: string;
   at: Date;

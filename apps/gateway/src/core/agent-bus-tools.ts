@@ -9,6 +9,7 @@ import { Predicate, type Effect } from "effect";
 import { AgentBusStore, GatewayStore, type CallSource, type ThreadRow } from "../store/index.ts";
 import { busState, callerTarget, scheduleIdOf, WAIT_POLL_MS } from "./agent-bus-context.ts";
 import type { AgentBus } from "./agent-bus.ts";
+import { QUESTION_TIMEOUT_MS } from "../store/questions.ts";
 
 /** A created schedule is announced to the UI before the agent hears back. */
 export async function busAnnounced(hostContext: AgentBus, created: Promise<JsonValue>): Promise<JsonValue> {
@@ -165,16 +166,22 @@ export async function busAnswers(
   id: string,
   wait: boolean,
 ): Promise<JsonValue> {
-  const deadline = Date.now() + (wait ? 120_000 : 0);
+  const deadline = Date.now() + (wait ? QUESTION_TIMEOUT_MS : 0);
 
   for (;;) {
     const result = await hostContext[busState].host.run(AgentBusStore.use((s) => s.getAnswers(source, id, true)));
 
+    const enforcedDeadline =
+      Predicate.isObject(result) && Predicate.isString(result["expires_at"])
+        ? Date.parse(result["expires_at"])
+        : deadline;
+
     if (
+      !wait ||
       !Predicate.isObject(result) ||
       result["status"] !== "pending" ||
       result["waiting"] === false ||
-      Date.now() >= deadline
+      Date.now() >= enforcedDeadline
     ) {
       if (wait && Predicate.isObject(result) && result["status"] === "pending") {
         const expired = await hostContext[busState].host.run(
@@ -183,14 +190,15 @@ export async function busAnswers(
 
         if (expired) {
           await hostContext[busState].host.interaction(expired);
-
-          return hostContext[busState].host.run(AgentBusStore.use((s) => s.getAnswers(source, id, false)));
         }
+
+        // Another waiter/decision may have won the lock. Never return the stale pending snapshot.
+        return hostContext[busState].host.run(AgentBusStore.use((s) => s.getAnswers(source, id, false)));
       }
 
       return result;
     }
 
-    await Bun.sleep(Math.min(250, Math.max(0, deadline - Date.now())));
+    await Bun.sleep(Math.min(250, Math.max(0, enforcedDeadline - Date.now())));
   }
 }

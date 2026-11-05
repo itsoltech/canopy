@@ -53,7 +53,7 @@ export interface ClaudeThreadsOptions {
   /** An event has finished journaling; the host may recheck a pending drain. */
   onActivitySettled?(): void;
   interact(request: InteractionRequest): Promise<InteractionResponse>;
-  callTool(call: AgentToolCall): Promise<AgentToolResult>;
+  callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult>;
   /** The thread's attachments directory: readable without a prompt (additionalDirectories). */
   attachmentsDir?(threadId: string): string;
   secretsDir?(threadId: string): string;

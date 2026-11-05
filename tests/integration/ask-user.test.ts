@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { Code } from "@connectrpc/connect";
 import { create } from "@bufbuild/protobuf";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { claudeBusServer, BUS_TIMEOUT_MS } from "../../apps/worker/src/providers/claude/bus.ts";
 import { AgentToolCallSchema, Provider, TurnOutcome, ui, type AgentToolResult } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
@@ -92,6 +96,7 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
     const source = await start();
     const callId = Bun.randomUUIDv7();
     let resolved = false;
+    const startedAt = Date.now();
 
     const waiting = gw.worker
       .callTool({ ...source, callId, tool: "ask_user", args: { questions, wait: true } })
@@ -108,6 +113,13 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
 
     expect(resolved).toBe(false);
     expect(requests[0]).toMatchObject({ requestId: callId, asynchronous: false, status: "pending" });
+    const deadline = timestampDate(requests[0]!.expiresAt!).getTime();
+    expect(deadline - startedAt).toBeGreaterThanOrEqual(120_000);
+    expect(deadline - startedAt).toBeLessThan(121_000);
+    expect(
+      json(await gw.worker.callTool({ ...source, tool: "get_answers", args: { question_set_id: callId, wait: false } }))
+        .status,
+    ).toBe("pending");
     expect((await gw.api.getThread({ threadId: source.threadId })).thread?.pendingInteractions).toBe(1);
     expect(await failure(gw.api.answerInteraction({ requestId: callId, answerJson: '{"answers":[]}' }))).toContain(
       "answer or explicitly skip",
@@ -134,6 +146,7 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
       outcome: "answered",
       answeredByUserId: gw.userId,
       responseJson: answerJson,
+      expiresAt: new Date(deadline).toISOString(),
     });
     gw.worker.finish(source.threadId, source.turnId);
     await eventually(
@@ -141,6 +154,127 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
       (r) => r[0]?.status === "completed",
     );
     expect(await turns(source.threadId)).toHaveLength(1);
+  });
+
+  test("the transport deadline bounds the stored question, replay and actual expiry", async () => {
+    const source = await start();
+    const callId = Bun.randomUUIDv7();
+    const expiresAt = new Date(Date.now() + 1500);
+    const args = { questions, wait: true };
+    const stop = new AbortController();
+
+    const expired = (async () => {
+      for await (const update of gw.api.watchThread(
+        { threadId: source.threadId },
+        { signal: AbortSignal.any([stop.signal, AbortSignal.timeout(8000)]) },
+      )) {
+        if (
+          update.change.case === "interaction" &&
+          update.change.value.requestId === callId &&
+          update.change.value.status === "expired"
+        )
+          return { interaction: update.change.value, at: Date.now() };
+      }
+
+      throw new Error("Expiry was not broadcast");
+    })();
+
+    const waiting = gw.worker.callTool({ ...source, callId, tool: "ask_user", args, expiresAt });
+
+    try {
+      const requests = await eventually(
+        () => pending(source.threadId),
+        (r) => r.length === 1,
+      );
+
+      expect(timestampDate(requests[0]!.expiresAt!).getTime()).toBe(expiresAt.getTime());
+
+      // A reconnect must use the stored deadline, even if its envelope supplies a later one.
+      const replay = gw.core.bus.handle(
+        create(AgentToolCallSchema, {
+          ...source,
+          callId,
+          toolName: "ask_user",
+          argumentsJson: JSON.stringify(args),
+        }),
+        gw.workerId,
+      );
+
+      expect(json(await waiting).status).toBe("expired");
+      expect(json(await replay).status).toBe("expired");
+      const observed = await expired;
+      expect(timestampDate(observed.interaction.expiresAt!).getTime()).toBe(expiresAt.getTime());
+      expect(observed.at - expiresAt.getTime()).toBeGreaterThanOrEqual(0);
+      expect(observed.at - expiresAt.getTime()).toBeLessThan(1000);
+      await expect(gw.api.answerInteraction({ requestId: callId, answerJson })).rejects.toMatchObject({
+        code: Code.FailedPrecondition,
+      });
+      expect(await query("SELECT status, response FROM interaction_requests WHERE id = $1::uuid", callId)).toEqual([
+        { status: "expired", response: null },
+      ]);
+    } finally {
+      stop.abort();
+      await expired.catch(() => undefined);
+      await waiting;
+      gw.worker.finish(source.threadId, source.turnId);
+    }
+  });
+
+  test("Claude in-process MCP forwards its enforced 330-second bound; ask_user uses the earlier 120-second bound", async () => {
+    const source = await start();
+    let transportDeadline = 0;
+    const startedAt = Date.now();
+
+    const server = claudeBusServer({
+      ...source,
+      depth: 0,
+      agentBus: true,
+      turnId: () => source.turnId,
+      toolUseId: () => "deadline-probe",
+      callTool: (call, signal) => {
+        transportDeadline = timestampDate(call.expiresAt!).getTime();
+        expect(signal?.aborted).toBe(false);
+
+        return gw.worker.callTool({
+          ...source,
+          callId: call.callId,
+          tool: call.toolName,
+          args: { questions, wait: true },
+          expiresAt: timestampDate(call.expiresAt!),
+        });
+      },
+    });
+
+    const client = new Client({ name: "deadline-probe", version: "1" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.instance.connect(serverTransport);
+    await client.connect(clientTransport);
+    const waiting = client.callTool({ name: "ask_user", arguments: { questions, wait: true } });
+
+    try {
+      const requests = await Promise.race([
+        eventually(
+          () => pending(source.threadId),
+          (r) => r.length === 1,
+        ),
+        waiting.then((result) => {
+          throw new Error(`MCP returned before asking: ${JSON.stringify(result)}`);
+        }),
+      ]);
+
+      expect(transportDeadline - startedAt).toBeGreaterThanOrEqual(BUS_TIMEOUT_MS);
+      expect(transportDeadline - startedAt).toBeLessThan(BUS_TIMEOUT_MS + 1000);
+      const deadline = timestampDate(requests[0]!.expiresAt!).getTime();
+      expect(deadline - startedAt).toBeGreaterThanOrEqual(120_000);
+      expect(deadline - startedAt).toBeLessThan(121_000);
+      await gw.api.answerInteraction({ requestId: requests[0]!.requestId, answerJson });
+      expect((await waiting).isError).not.toBe(true);
+    } finally {
+      gw.worker.finish(source.threadId, source.turnId);
+      await waiting;
+      await client.close();
+      await server.instance.close();
+    }
   });
 
   test("async returns immediately; answering steers into the running turn with asking hops + 1", async () => {
@@ -163,6 +297,7 @@ describe.skipIf(!dockerAvailable)("ask_user (gateway + scripted worker)", () => 
     );
     const result = json(await gw.worker.callTool({ ...source, tool: "ask_user", args: { questions, wait: false } }));
     expect(result.status).toBe("pending");
+    expect((await pending(source.threadId))[0]?.expiresAt).toBeUndefined();
     expect((await gw.api.getThread({ threadId: source.threadId })).thread?.pendingInteractions).toBe(0);
     await gw.api.answerInteraction({ requestId: result.question_set_id, answerJson });
 

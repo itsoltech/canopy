@@ -26,6 +26,7 @@ export interface BusCallRow {
 }
 
 export interface CallSource {
+  readonly expiresAt?: Date;
   readonly callId: string;
   readonly threadId: string;
   readonly turnId: string;

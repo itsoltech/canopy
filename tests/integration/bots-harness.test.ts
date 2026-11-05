@@ -1,7 +1,8 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { create, toJson } from "@bufbuild/protobuf";
+import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { AgentToolCallSchema, bots, Provider, ProviderProfileKind } from "@canopy/contracts";
 import { GatewayCore } from "@canopy/gateway/core";
 import { startGrpcServer } from "@canopy/transport";
@@ -88,6 +89,7 @@ describe("bots through official worker harnesses", () => {
       );
 
       expect(pending.approvals).toHaveLength(1);
+      expect(pending.approvals[0]?.expiresAt).toBeUndefined();
       expect(pending.messages).toHaveLength(1);
 
       const denied = await f.gw.core.bots.harnessTools.handle(
@@ -222,6 +224,55 @@ describe("bots through official worker harnesses", () => {
     }
   }, 15_000);
 
+  test("a known harness deadline is persisted and enforced for approvals and questions", async () => {
+    for (const tool of ["create_project", "ask_user"]) {
+      const bot = await add(Provider.CLAUDE, "always");
+      const handle = f.gw.core.bots.harnessTools.handle.bind(f.gw.core.bots.harnessTools);
+      let deadline: Date | undefined;
+
+      // This scripted transport supplies a known bound; ordinary HTTP MCP supplies none.
+      const spy = spyOn(f.gw.core.bots.harnessTools, "handle").mockImplementation((call, workerId) => {
+        if (call.botId === bot.id) {
+          deadline ??= new Date(Date.now() + 1500);
+          call.expiresAt = timestampFromDate(deadline);
+        }
+
+        return handle(call, workerId);
+      });
+
+      try {
+        await send(
+          bot.id,
+          `TOOL:${tool} ARGS:${JSON.stringify(tool === "ask_user" ? { question: "Continue?" } : { name: "Deadline project" })}`,
+        );
+
+        const pending = await eventually(
+          () => read(bot.id),
+          (r) => r.approvals.some((a) => a.status === "pending"),
+        );
+
+        expect(timestampDate(pending.approvals[0]!.expiresAt!).getTime()).toBe(deadline!.getTime());
+
+        const expired = await eventually(
+          () => read(bot.id),
+          (r) => r.approvals[0]?.status === "expired",
+        );
+
+        const observedAt = Date.now();
+        expect(observedAt - deadline!.getTime()).toBeGreaterThanOrEqual(0);
+        expect(observedAt - deadline!.getTime()).toBeLessThan(1000);
+        expect(timestampDate(expired.approvals[0]!.expiresAt!).getTime()).toBe(deadline!.getTime());
+        await expect(
+          f.gw.api.answerBotApproval({ approvalId: pending.approvals[0]!.id, approve: true, answer: "Yes" }),
+        ).rejects.toMatchObject({ code: Code.FailedPrecondition });
+        expect((await f.gw.api.getOverview({})).projects.some((p) => p.name === "Deadline project")).toBe(false);
+        await settled(bot.id);
+      } finally {
+        spy.mockRestore();
+      }
+    }
+  }, 15_000);
+
   test("an offline approval has no age limit and executes once after reconnect", async () => {
     const bot = await add(Provider.CLAUDE, "always");
     await send(bot.id, 'TOOL:create_project ARGS:{"name":"Offline approval project"}');
@@ -239,6 +290,7 @@ describe("bots through official worker harnesses", () => {
       ]);
       await f.gw.core.bots.tick();
       expect((await read(bot.id)).approvals[0]?.status).toBe("pending");
+      expect((await read(bot.id)).approvals[0]?.expiresAt).toBeUndefined();
       await f.gw.api.answerBotApproval({ approvalId: pending.approvals[0]!.id, approve: true });
     } finally {
       closeReconnect = await f.reconnect();

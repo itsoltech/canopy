@@ -5,6 +5,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import {
@@ -205,6 +206,7 @@ export class ScriptedWorker {
     args: JsonValue;
     callId?: string;
     connectorAccountId?: string;
+    expiresAt?: Date;
   }): Promise<AgentToolResult> {
     const callId = input.callId ?? Bun.randomUUIDv7();
 
@@ -220,6 +222,7 @@ export class ScriptedWorker {
           toolName: input.tool,
           argumentsJson: JSON.stringify(input.args),
           connectorAccountId: input.connectorAccountId ?? "",
+          expiresAt: input.expiresAt ? timestampFromDate(input.expiresAt) : undefined,
         },
       });
     });

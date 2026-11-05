@@ -28,6 +28,7 @@ export function toInteraction(row: InteractionRow): ui.Interaction {
     routedTo: row.routed_to,
     createdAt: timestampFromDate(new Date(row.created_at)),
     asynchronous: row.question_wait === false,
+    expiresAt: row.expires_at ? timestampFromDate(new Date(row.expires_at)) : undefined,
   });
 }
 

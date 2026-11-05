@@ -71,7 +71,7 @@ export class ClaudeRuntimes {
           void this.ctx.ops.reconcileRuntimes().catch(() => {});
       },
       interact: (request) => this.ctx.ops.interact(request),
-      callTool: (call) => this.ctx.ops.callTool(call),
+      callTool: (call, signal) => this.ctx.ops.callTool(call, signal),
       attachmentsDir: (threadId) => this.ctx.state.files.threadDir(threadId),
       secretsDir: (threadId) => this.ctx.state.secrets.threadDir(threadId),
       viewImage: (threadId, cwd, path) => this.ctx.ops.viewImage(threadId, cwd, path),

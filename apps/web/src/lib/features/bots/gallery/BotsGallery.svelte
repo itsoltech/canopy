@@ -21,6 +21,7 @@
   import { bots, conversations, directEntries, groupEntries, me, pictureBot, watchEntries } from "./fixtures.ts";
   import GallerySection from "./GallerySection.svelte";
   import ApprovalExpiryGallery from "./ApprovalExpiryGallery.svelte";
+  import ApprovalCountdownGallery from "./ApprovalCountdownGallery.svelte";
   import WizardGallery from "./WizardGallery.svelte";
   import Segmented from "./Segmented.svelte";
   import BehaviourGallery from "./BehaviourGallery.svelte";
@@ -270,6 +271,7 @@
       </GallerySection>
 
       <ApprovalExpiryGallery />
+      <ApprovalCountdownGallery />
 
       <GallerySection
         title="Composer and read-only bar"

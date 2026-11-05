@@ -179,7 +179,7 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
   const { owned, changed, fenced, validate, creationHop } = core;
 
   return {
-    approval: (turn: BotTurn, call: StoredCall, prompt: string, question: boolean) =>
+    approval: (turn: BotTurn, call: StoredCall, prompt: string, question: boolean, expiresAt?: Date) =>
       sql.withTransaction(
         Effect.gen(function* () {
           yield* fenced(turn);
@@ -219,7 +219,7 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
             ].join("\n");
           }
 
-          yield* sql`INSERT INTO bot_approvals(id, bot_id, turn_id, kind, prompt, proposed_bot) VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${question ? "question" : "approval"}, ${prompt}, ${JSON.stringify(proposal)}::jsonb) ON CONFLICT(id) DO NOTHING`;
+          yield* sql`INSERT INTO bot_approvals(id, bot_id, turn_id, kind, prompt, proposed_bot, expires_at) VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${question ? "question" : "approval"}, ${prompt}, ${JSON.stringify(proposal)}::jsonb, ${expiresAt ?? null}) ON CONFLICT(id) DO NOTHING`;
 
           return approvalView((yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${call.id}::uuid`)[0]!);
         }),
@@ -257,6 +257,9 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
 
           // A retried decision returns its durable result even after the turn finishes.
           if (row.status !== "pending") return approvalView(row);
+
+          if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now())
+            return yield* Effect.fail(new RequestExpired());
 
           if (!["running", "waiting", "queued"].includes(turns[0]!.status))
             return yield* Effect.fail(new RequestExpired());

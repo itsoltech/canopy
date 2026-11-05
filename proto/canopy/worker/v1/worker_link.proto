@@ -1157,6 +1157,7 @@ message InteractionPrompt {
   // Gdy odpowiedział agent wątku nadrzędnego (answer_interaction).
   string answered_by_thread_id = 9;
   bool asynchronous = 250;
+  google.protobuf.Timestamp expires_at = 251;
 }
 
 message ProviderItem {
@@ -1203,6 +1204,8 @@ message InteractionRequest {
   string request_json = 7;
   // The provider no longer waits for this request. Replayed until acknowledged.
   bool cancelled = 8;
+  // Only set when the provider enforces a known response deadline.
+  google.protobuf.Timestamp expires_at = 9;
 }
 
 message InteractionResponse {
@@ -1234,6 +1237,8 @@ message AgentToolCall {
   string arguments_json = 5;
   // The provider abandoned this call (timeout/cancellation). Replayed until acknowledged.
   bool cancelled = 831;
+  // Absolute deadline enforced by the calling transport, preserved on replay.
+  google.protobuf.Timestamp expires_at = 832;
 }
 
 message AgentToolResult {

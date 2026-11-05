@@ -11,6 +11,8 @@
   import RawToggle from "./tools/RawToggle.svelte";
   import Section from "./tools/Section.svelte";
   import StructuredView from "./tools/StructuredView.svelte";
+  import RequestCountdown from "#lib/shared/ui/RequestCountdown.svelte";
+  import { timestampDate } from "@bufbuild/protobuf/wkt";
 
   /**
    * Record of a permission request or question on the timeline: what was asked (a command, a change, the
@@ -87,6 +89,9 @@
   {#snippet aside()}
     <StatusBadge status={prompt.outcome || "pending"} />
   {/snippet}
+  {#if prompt.expiresAt}
+    <RequestCountdown expiresAt={timestampDate(prompt.expiresAt)} pending={!prompt.outcome} />
+  {/if}
   {#if prompt.kind === InteractionKind.PERMISSION}
     <PermissionRequest toolName={prompt.toolName} requestJson={prompt.requestJson} related={undefined} />
   {:else if questions.length > 0}

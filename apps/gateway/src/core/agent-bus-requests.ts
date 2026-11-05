@@ -1,4 +1,5 @@
 import { type JsonValue } from "@bufbuild/protobuf";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type AgentToolCall, type AgentToolResult } from "@canopy/contracts";
 import {
   authorizeBusCall,
@@ -26,6 +27,7 @@ export const busRequestsMethods: BusRequestsMethods = {
       threadId: request.threadId,
       turnId: request.turnId,
       itemId: request.itemId,
+      ...(request.expiresAt && { expiresAt: timestampDate(request.expiresAt) }),
     };
 
     if (request.cancelled) {
