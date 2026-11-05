@@ -196,7 +196,7 @@ describe("model catalogs", () => {
 
     const resolvedNames: readonly (readonly [string, string])[] = [
       ["claude-opus-5-5", "Claude Opus 5.5"],
-      ["claude-opus-7-12-20261105[1m]", "Claude Opus 7.12 1M"],
+      ["claude-opus-7-12-20261105[1m]", "Claude Opus 7.12 · 1M context"],
       ["claude-3-7-sonnet-20250219", "Claude Sonnet 3.7"],
     ];
 
@@ -257,6 +257,84 @@ describe("model catalogs", () => {
         defaultReasoningEffort: "low",
       }),
     ).toMatchObject({ id: "old", hidden: false, legacy: true });
+  });
+
+  test("Claude aliases share one row while context variants and older models stay distinct", () => {
+    const row = (value: string, resolvedModel: string, displayName = value) => ({
+      value,
+      resolvedModel,
+      displayName,
+      description: "",
+      supportedEffortLevels: ["low" as const, "high" as const],
+    });
+
+    const catalog = classifyLegacyModels(
+      claudeAgentModels([
+        row("default", "claude-opus-5-5"),
+        row("opus", "claude-opus-5-5"),
+        row("opus[1m]", "claude-opus-5-5", "Opus (1M context)"),
+        row("sonnet", "claude-sonnet-5-5"),
+        row("sonnet[1m]", "claude-sonnet-5-5", "Sonnet (1M context)"),
+        row("haiku", "claude-haiku-5-5"),
+        row("claude-opus-5-5", "claude-opus-5-5"),
+        row("claude-opus-4-6", "claude-opus-4-6"),
+        row("claude-opus-4-6[1m]", "claude-opus-4-6"),
+        row("claude-sonnet-4-6", "claude-sonnet-4-6"),
+        row("claude-haiku-4-5", "claude-haiku-4-5"),
+      ]).map((m) => claudeModel(m, "high")),
+    );
+
+    expect(catalog.map((m) => [m.id, m.displayName, Boolean(m.isDefault), m.legacy])).toEqual([
+      ["opus", "Claude Opus 5.5", true, false],
+      ["opus[1m]", "Claude Opus 5.5 · 1M context", false, false],
+      ["sonnet", "Claude Sonnet 5.5", false, false],
+      ["sonnet[1m]", "Claude Sonnet 5.5 · 1M context", false, false],
+      ["haiku", "Claude Haiku 5.5", false, false],
+      ["claude-opus-4-6", "Claude Opus 4.6", false, true],
+      ["claude-opus-4-6[1m]", "Claude Opus 4.6 · 1M context", false, true],
+      ["claude-sonnet-4-6", "Claude Sonnet 4.6", false, true],
+      ["claude-haiku-4-5", "Claude Haiku 4.5", false, true],
+    ]);
+    expect(catalog[0]).toMatchObject({ aliases: ["default"], efforts: ["low", "high"], defaultEffort: "high" });
+    expect(new Set(catalog.map((m) => m.displayName)).size).toBe(catalog.length);
+    // SDK context metadata can occur in a label, independently of the alias spelling.
+    expect(claudeModel(row("long-context", "claude-opus-5-5", "Opus (2M context)")).displayName).toBe(
+      "Claude Opus 5.5 · 2M context",
+    );
+  });
+
+  test("all harness catalogs and proxy additions dedupe before assigning legacy status", () => {
+    const codex = classifyLegacyModels(
+      codexProxyModels(
+        [
+          { id: "gpt-9.1-sol", displayName: "GPT 9.1 Sol", efforts: ["high"] },
+          { id: "old-alias", displayName: "GPT 9.1 Sol", legacy: true, hidden: true },
+        ],
+        [
+          { id: "gpt-9.1-sol", ownedBy: "openai" },
+          { id: "old-alias", ownedBy: "openai", supportedEndpoints: ["responses"] },
+          { id: "grok-9.1", ownedBy: "xai", displayName: "Grok 9.1" },
+          { id: "grok-alias", ownedBy: "xai", displayName: "Grok 9.1" },
+        ],
+      ),
+    );
+
+    expect(codex.map((m) => [m.id, m.aliases, m.legacy])).toEqual([
+      ["gpt-9.1-sol", ["old-alias"], false],
+      ["grok-9.1", ["grok-alias"], false],
+    ]);
+
+    const grok = classifyLegacyModels([
+      { id: "grok-current", displayName: "Grok 9.1", isDefault: true },
+      { id: "grok-9.1", displayName: "Grok 9.1" },
+      { id: "grok-9", displayName: "Grok 9" },
+    ]);
+
+    expect(grok.map((m) => [m.id, Boolean(m.isDefault), m.legacy])).toEqual([
+      ["grok-current", true, false],
+      ["grok-9", false, true],
+    ]);
+    expect(grok[0]?.aliases).toEqual(["grok-9.1"]);
   });
 
   test("one proxy catalog stays scoped by family and wire protocol for every harness", async () => {

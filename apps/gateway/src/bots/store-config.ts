@@ -80,7 +80,11 @@ function botValidate(
       if (
         (requireCatalog || catalog.some((p) => p.models.length > 0)) &&
         !instances[0].custom_models.includes(config.model) &&
-        !catalog.some((p) => p.models.some((m) => m.id === config.model || m.resolvedModel === config.model))
+        !catalog.some((p) =>
+          p.models.some(
+            (m) => m.id === config.model || m.resolvedModel === config.model || m.aliases.includes(config.model),
+          ),
+        )
       )
         return yield* Effect.fail(
           new Invalid(
@@ -90,7 +94,7 @@ function botValidate(
 
       const efforts = catalog
         .flatMap((p) => p.models)
-        .filter((m) => m.id === config.model || m.resolvedModel === config.model)
+        .filter((m) => m.id === config.model || m.resolvedModel === config.model || m.aliases.includes(config.model))
         .flatMap((m) => m.efforts);
 
       if (config.effort && efforts.length && !efforts.includes(config.effort))

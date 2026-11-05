@@ -1238,6 +1238,8 @@ message ModelInfo {
   // Starsza wersja tej samej rodziny albo model oznaczony przez katalog jako zastąpiony/ukryty.
   // Niezależne od hidden: w pickerze trafia do zwijanej grupy starszych modeli.
   bool legacy = 9;
+  // Inne zapisane id tego samego modelu i wariantu, scalone w jeden wiersz katalogu.
+  repeated string aliases = 10;
 }
 
 // Modele jednej pary dostawca + profil na workerze.

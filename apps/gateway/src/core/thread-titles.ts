@@ -29,7 +29,10 @@ export function titleModel(catalog: ProfileModels | undefined, fallback: string)
   const model = small?.id ?? fallback;
 
   const info =
-    small ?? catalog?.models.find((m) => m.id === model || m.resolvedModel === model || (!model && m.isDefault));
+    small ??
+    catalog?.models.find(
+      (m) => m.id === model || m.resolvedModel === model || m.aliases.includes(model) || (!model && m.isDefault),
+    );
 
   const effort = info
     ? info.efforts.includes("low")

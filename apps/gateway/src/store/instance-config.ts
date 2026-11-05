@@ -274,7 +274,7 @@ export const modelsRule = (row: InstanceRow): InstanceModelsRule => ({
 
 /** A list with the instance's custom models added (not hidden, no effort data); the checks accept them. */
 export function withCustomModels(list: ProfileModels, rule: InstanceModelsRule | undefined): ProfileModels {
-  const custom = (rule?.custom ?? []).filter((id) => !list.models.some((m) => m.id === id));
+  const custom = (rule?.custom ?? []).filter((id) => !list.models.some((m) => m.id === id || m.aliases.includes(id)));
 
   if (custom.length === 0) return list;
 
@@ -305,11 +305,17 @@ export function applyInstanceModels(catalog: ui.WorkerModels, rules: readonly In
 
       const visible = withCustomModels(list, rule).models.map((m) => ({
         ...m,
-        hidden: !(shown.has(m.id) || (!m.hidden && !hidden.has(m.id))),
+        hidden: !(
+          [m.id, ...m.aliases].some((id) => shown.has(id)) ||
+          (!m.hidden && ![m.id, ...m.aliases].some((id) => hidden.has(id)))
+        ),
       }));
 
-      const favorites = rule.favorites.flatMap((id) => visible.filter((m) => m.id === id));
-      const favored = new Set(rule.favorites);
+      const favorites = [
+        ...new Set(rule.favorites.flatMap((id) => visible.filter((m) => m.id === id || m.aliases.includes(id)))),
+      ];
+
+      const favored = new Set(favorites.map((m) => m.id));
 
       return create(ProfileModelsSchema, {
         ...list,
