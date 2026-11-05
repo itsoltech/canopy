@@ -4,7 +4,7 @@
   import type { ClassValue } from "svelte/elements";
   import type { ProviderKey } from "#lib/features/threads/providers.ts";
   import Combobox from "#lib/shared/ui/Combobox.svelte";
-  import { matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
+  import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Kbd from "#lib/shared/ui/Kbd.svelte";
@@ -58,7 +58,7 @@
   } = $props();
 
   const favorites = useFavoriteModels();
-  const FAVORITE_HOTKEY = "Mod+Shift+F";
+  const FAVORITE_HOTKEY = $derived(keybindings.get("model:favorite")[0] ?? "");
 
   let query = $state("");
   let section = $state<"favorites" | ProviderKey>();
@@ -124,7 +124,7 @@
   const shortcutOf = (key: string) => {
     const index = favoriteOptions.findIndex((o) => o.key === key);
 
-    return index >= 0 && index < 9 ? `Mod+${index + 1}` : undefined;
+    return index >= 0 && index < 9 ? keybindings.get(`model:pick-${index + 1}`)[0] : undefined;
   };
 
   const secondary = (o: ModelOption) =>
@@ -139,7 +139,7 @@
 
   function onkeydown(event: KeyboardEvent, active: ModelOption | undefined) {
     for (let n = 1; n <= 9; n++) {
-      if (matchesHotkey(event, `Mod+${n}`)) {
+      if (keybindings.matches(event, `model:pick-${n}`)) {
         event.preventDefault();
         const favorite = favoriteOptions[n - 1];
 
@@ -149,7 +149,7 @@
       }
     }
 
-    if (matchesHotkey(event, FAVORITE_HOTKEY) && active && active.origin !== "custom") {
+    if (keybindings.matches(event, "model:favorite") && active && active.origin !== "custom") {
       event.preventDefault();
       favorites.toggle(active);
     }

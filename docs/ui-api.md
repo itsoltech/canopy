@@ -916,6 +916,15 @@ właściciela; snapshot/reconnect nie alarmuje. Treść alertu systemowego jest 
 użytkownika; desktop używa walidowanego IPC z zaufanej ramki. Częstotliwość
 aktualizacji desktopu pozostaje w store main Electron, poza ustawieniami konta.
 
+Keybindings przechowuje nadpisania w walidowanym `canopy:keybindings:v1`, per profil
+przeglądarki/origin. Rejestr dekoruje komendy rzeczywistymi skrótami, zachowując
+domyślne przypisania do resetowania. Zagnieżdżone komendy mają identyfikator z drogą
+rodzica; osobny katalog opisuje także kompozytor, cytowanie i picker modeli.
+Edytor normalizuje Mod zgodnie z platformą, wykrywa konflikty nakładających się
+kontekstów i blokuje zastrzeżone skróty przeglądarki. Nagrywanie nie wykonuje komend.
+Kompozytor respektuje wybrane skróty po obsłudze nawigacji edytora; bloki kodu
+zachowują zwykły Enter jako nową linię.
+
 - **Jeden użytkownik deweloperski** (`CANOPY_DEV_USER_EMAIL`). Logowanie powstanie w SvelteKit (sesja w cookie `HttpOnly`), a tożsamość użytkownika trafi do gateway w metadanych wywołania z tokenem usługi.
 - **Jedna instancja gateway** (`Hub` w procesie).
 - Workery dodaje kreator Settings → Workers; administracyjny `worker add` pozostaje w CLI. Instancje dostawców (globalne, włączane per worker), ich zmienne i modele są w UI.

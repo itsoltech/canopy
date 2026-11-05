@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { PALETTE_HOTKEY, usePalette } from "#lib/features/commands/commands.svelte.ts";
+  import { usePalette } from "#lib/features/commands/commands.svelte.ts";
+  import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { useShell } from "./shell.ts";
   import SidebarToggle from "./SidebarToggle.svelte";
@@ -34,7 +35,7 @@
           icon="magnifying-glass"
           label="Search and commands"
           aria-haspopup="dialog"
-          tooltipOptions={{ hotkey: PALETTE_HOTKEY }}
+          tooltipOptions={{ hotkey: keybindings.get("command-palette")[0] }}
           class="lg:pointer-fine:hidden"
           onclick={() => palette.show()}
         />

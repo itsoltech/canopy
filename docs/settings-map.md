@@ -2,7 +2,7 @@
 
 ## Nawigacja
 
-General: **General → Appearance → Threads → Text generation → Scheduled tasks**.
+General: **General → Appearance → Keybindings → Threads → Text generation → Scheduled tasks**.
 Code: **Projects → Worktrees → Diffs → Agent environment**.
 Connections: **Providers → Connectors → Proxies → Workers → Network access → Devices → Linked computers → Desktop → App updates**.
 Ostatnie dwie strony tylko w desktopie, Linked computers według capability gatewaya.
@@ -19,6 +19,7 @@ Reset strony przywraca wyłącznie jej preferencje urządzenia, bez cofania zgó
 
 | Strona / sekcja | Ustawienie | Zakres | Domyślnie | Skutek |
 | --- | --- | --- | --- | --- |
+| Keybindings | Skróty komend, kompozytora, cytowania i modeli | urządzenie | przypisania rejestru | Wyszukiwanie, edycja, nagrywanie i dodatkowe przypisania z kontrolą konfliktów kontekstu |
 | General / Notifications | Thread notifications | urządzenie | Off | Alert systemowy przy ukończeniu, błędzie lub pytaniu/zgodzie wątku, tylko gdy aplikacja otwarta; opcjonalny dźwięk; web wymaga zgody Notification API, desktop używa Electron |
 | General / Notifications | In-app notifications | urządzenie | On | Toast o innym wątku przy fokusie aplikacji |
 | General / Sidebar | Group by project | konto | Off | Nagłówki projektów w aktywnym sidebarze, z zachowaniem przypięć i priorytetu pytań |

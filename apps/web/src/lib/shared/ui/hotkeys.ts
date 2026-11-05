@@ -28,7 +28,14 @@ function parse(hotkey: string): Parsed {
   const key = parts.pop() ?? "";
   const has = (name: string) => parts.some((p) => p.toLowerCase() === name);
 
-  return { mod: has("mod"), ctrl: has("ctrl"), meta: has("meta"), shift: has("shift"), alt: has("alt"), key };
+  return {
+    mod: has("mod"),
+    ctrl: has("ctrl"),
+    meta: has("meta"),
+    shift: has("shift"),
+    alt: has("alt"),
+    key: key === "Space" ? " " : key,
+  };
 }
 
 /** The key part of an event comparable with a hotkey's: physical letter/digit, else the key name. */

@@ -41,6 +41,7 @@
   import GatewayCompatibility from "#lib/features/desktop/GatewayCompatibility.svelte";
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import { applyDeviceAppearance } from "#lib/features/settings/device-appearance.ts";
+  import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { watchThreadNotifications } from "#lib/features/settings/thread-notifications.ts";
 
   let { children }: { children: Snippet } = $props();
@@ -67,6 +68,8 @@
   provideSettings(settings);
 
   onMount(() => devicePreferences.connect());
+
+  onMount(() => keybindings.connect());
 
   $effect(() => applyDeviceAppearance(devicePreferences));
 

@@ -6,6 +6,7 @@
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
+  import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
 
   /**
    * Send button of the composer while a turn runs (Codex app style): the main part submits the form, which
@@ -29,6 +30,8 @@
   } = $props();
 
   const steerFirst = $derived(primary === "steer");
+  const primaryShortcut = $derived(keybindings.get("composer:send")[0]);
+  const alternateShortcut = $derived(keybindings.get("composer:alternate")[0]);
 
   const half =
     "relative flex h-9 items-center focus-ring not-disabled:hover:bg-action-hover disabled:opacity-60 sm:h-8";
@@ -40,7 +43,7 @@
     class={[half, "gap-1.5 rounded-l-full pr-2.5 pl-3 text-sm/5 font-medium sm:text-[0.8125rem]/5"]}
     aria-label={steerFirst ? "Steer into the running turn" : "Queue for the next turn"}
     {@attach tooltip(steerFirst ? "Send now, into the turn the agent is working on" : "Wait and run as the next turn", {
-      hotkey: "Enter",
+      hotkey: primaryShortcut,
     })}
     disabled={disabled || sending}
   >
@@ -68,13 +71,13 @@
     {/snippet}
     <MenuItem
       icon="arrow-turn-down-right"
-      shortcut={steerFirst ? "Enter" : "Mod+Enter"}
+      shortcut={steerFirst ? primaryShortcut : alternateShortcut}
       description="Joins the turn the agent is working on now."
       onselect={onsteer}>Steer into this turn</MenuItem
     >
     <MenuItem
       icon="queue-list"
-      shortcut={steerFirst ? "Mod+Enter" : "Enter"}
+      shortcut={steerFirst ? alternateShortcut : primaryShortcut}
       description="Waits and runs as the next turn."
       onselect={onqueue}>Queue for the next turn</MenuItem
     >

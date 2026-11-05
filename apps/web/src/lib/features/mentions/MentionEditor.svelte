@@ -380,10 +380,11 @@
 
   function onkeydown(event: KeyboardEvent) {
     if (event.isComposing || composing) return;
+    const plainKey = !event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey;
 
     if (event.target !== root) {
-      // In a block only Mod+Enter (send, queue) is the composer's; its language search keeps its keys.
-      if (inBlock(event.target) && event.key === "Enter" && (event.metaKey || event.ctrlKey)) forward?.(event);
+      // Code keeps plain Enter for new lines; custom shortcuts work, while language search keeps its keys.
+      if (inBlock(event.target) && (event.key !== "Enter" || !plainKey)) forward?.(event);
 
       return;
     }
@@ -398,7 +399,7 @@
         return;
       }
 
-      if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey && options[active]) {
+      if ((event.key === "Enter" || event.key === "Tab") && plainKey && options[active]) {
         event.preventDefault();
         choose(options[active]!);
 
@@ -413,8 +414,6 @@
         return;
       }
     }
-
-    const plainKey = !event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey;
 
     if (root && plainKey && (event.key === "Backspace" || event.key === "ArrowUp")) {
       // The line after a block: Backspace or ArrowUp goes into it (the browser would delete it whole or skip it).
@@ -459,6 +458,10 @@
       }
     }
 
+    forward?.(event);
+
+    if (event.defaultPrevented) return;
+
     if (event.key === "Enter" && event.shiftKey) {
       event.preventDefault();
       document.execCommand("insertLineBreak");
@@ -466,8 +469,6 @@
 
       return;
     }
-
-    forward?.(event);
   }
 
   function onbeforeinput(event: InputEvent) {

@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import type { Attachment } from "svelte/attachments";
   import type { ClassValue } from "svelte/elements";
-  import { matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
+  import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import Kbd from "#lib/shared/ui/Kbd.svelte";
@@ -172,14 +172,16 @@
   const submit = () => box?.closest("form")?.requestSubmit();
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
-      event.preventDefault();
+    if (event.defaultPrevented || event.isComposing || keybindings.recording) return;
+    const alternate = keybindings.matches(event, "composer:alternate");
 
-      if (sendBlocker || sending) return;
+    if (!alternate && !keybindings.matches(event, "composer:send")) return;
+    event.preventDefault();
 
-      if (onqueue && matchesHotkey(event, "Mod+Enter")) (primary === "queue" ? (onalternate ?? onqueue) : onqueue)();
-      else submit();
-    }
+    if (sendBlocker || sending) return;
+
+    if (onqueue && alternate) (primary === "queue" ? (onalternate ?? onqueue) : onqueue)();
+    else submit();
   }
 </script>
 
@@ -317,7 +319,7 @@
               type="submit"
               class="relative grid size-9 shrink-0 place-items-center rounded-full bg-action text-on-accent focus-ring not-disabled:hover:bg-action-hover not-disabled:active:bg-action-hover disabled:bg-zinc-950/10 disabled:text-zinc-400 sm:size-8 dark:disabled:bg-white/10 dark:disabled:text-zinc-500"
               aria-label={sendLabel}
-              {@attach tooltip(sendLabel, { hotkey: "Enter" })}
+              {@attach tooltip(sendLabel, { hotkey: keybindings.get("composer:send")[0] })}
               disabled={Boolean(sendBlocker) || sending}
             >
               {#if sending}<Spinner class="size-3.5" />{:else}<Icon

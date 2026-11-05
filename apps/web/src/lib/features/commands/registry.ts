@@ -3,6 +3,8 @@ import { SvelteMap } from "svelte/reactivity";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 import type { ProviderKey } from "#lib/features/threads/providers.ts";
+import { bindCommand, flattenCommands, commandDefinitions } from "./command-bindings.ts";
+import type { BindingDefinition } from "./binding-catalogue.ts";
 
 /** Groups of the palette, in the order they are listed. */
 export const commandGroups = ["actions", "threads", "projects", "settings"] as const;
@@ -40,6 +42,9 @@ export interface Command {
   readonly keywords?: string | undefined;
   /** Shortcut shown on the right; the palette binds it globally while the command is available. */
   readonly hotkey?: string | undefined;
+  readonly hotkeys?: readonly string[] | undefined;
+  readonly bindingId?: string | undefined;
+  readonly defaultHotkeys?: readonly string[] | undefined;
   /** Listed (and its hotkey bound) only while this holds. */
   readonly when?: (() => boolean) | undefined;
   /** Shown muted and not chosen (for discoverability: why it is not available now). */
@@ -84,7 +89,15 @@ export class CommandRegistry {
 
   /** Every available command (its `when` holds), in contribution order. */
   list(): Command[] {
-    return [...this.#sources.values()].flatMap((source) => source()).filter(available);
+    return [...this.#sources.values()].flatMap((source) =>
+      source().flatMap((c) => (available(c) ? [bindCommand(c)] : [])),
+    );
+  }
+  bindings(): Command[] {
+    return flattenCommands(this.list(), true);
+  }
+  definitions(): BindingDefinition[] {
+    return commandDefinitions([...this.#sources.values()].flatMap((source) => source()).map((c) => bindCommand(c)));
   }
 }
 
