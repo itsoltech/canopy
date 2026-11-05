@@ -142,10 +142,10 @@ credentiali już zarejestrowanych workerów.
 
 W kreatorze **Over SSH** podaj `login@host[:port]` (IPv6: `login@[adres]:port`).
 **Check host key** zatrzymuje handshake przed uwierzytelnieniem. Sprawdź pokazany fingerprint
-SHA-256 niezależnym kanałem i wybierz **Trust fingerprint and install**. Gateway zapisuje
+SHA-256 niezależnym kanałem i wybierz **Trust and install**. Gateway zapisuje
 pin per właściciel/host/port; późniejsza zmiana klucza jest twardym błędem, bez automatycznej
 akceptacji. Rotacja klucza Canopy nie usuwa pinów hostów. Cel musi być osiągalny z gatewaya
-przez SSH, a z celu muszą być osiągalne web BFF oraz adres gRPC workera (np. przez Tailscale).
+przez SSH, a z celu muszą być osiągalne GitHub Releases oraz adres gatewaya dla workerów (np. przez Tailscale).
 
 Gateway wykonuje wyłącznie ustalony `sh -s`, przesyła skrypt i świeży jednorazowy token
 przez szyfrowane stdin, bez dowolnych komend od klienta. Output ma limit 128 KB,
@@ -155,8 +155,17 @@ zamyka kanał i odwołuje niezużyte zaproszenie. Po aktywacji usługi gateway c
 60 sekund na WorkerLink Hello; sam kod wyjścia instalatora nie oznacza połączenia.
 Usługa już uruchomiona na celu może
 pozostać aktywna po anulowaniu. Operacje są owner-scoped i zapisują audyt bez sekretów.
-Przy braku mirrora SSH może użyć jawnego fallbacku kanału z komunikatem w output;
-skrypt nadal weryfikuje hash manifestu wybranego wydania. Ponowna instalacja zachowuje
+SSH rozwiązuje wydanie po stronie gatewaya: preferuje jego dokładną wersję, także nightly/beta.
+Jeśli jej nie opublikowano, wybiera najnowsze zgodne wydanie kanału (WorkerLink i UpdateService)
+i wypisuje wersję zastępczą. Cel pobiera binarkę bezpośrednio z GitHub przez HTTPS;
+SHA-256 z manifestu dostaje przez uwierzytelnione stdin SSH i sprawdza przed wykonaniem.
+Nie korzysta z originu web desktopu (`127.0.0.1`), dostępnego tylko na komputerze aplikacji.
+Adres enrollmentu pochodzi z Network access lub „Gateway address for workers”; pin TLS jest zachowany.
+Brak adresu lub loopback dla innego komputera blokuje skrypt z komunikatem:
+„Turn on network access or set a gateway address for workers”. Błędy pobierania nie pokazują porad
+dotyczących sesji systemd/GUI; te pojawiają się dopiero przy błędach instalacji usługi.
+Output i fingerprint zawijają się w dialogu i można skopiować ich pełną treść.
+Ponowna instalacja zachowuje
 istniejący config, a SSH wskazuje wtedy istniejący worker zamiast tworzyć drugi enrollment.
 Nie ma obejścia mismatchu w UI: administrator musi niezależnie zweryfikować i usunąć
 nieaktualny pin z `worker_ssh_hosts` dla właściwego właściciela.

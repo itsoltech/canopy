@@ -8,6 +8,8 @@ import { Effect } from "effect";
 import { SqlClient, type SqlConnection } from "effect/sql";
 import { WorkerAdministration } from "../../apps/gateway/src/core/worker-administration.ts";
 import { WorkerSsh } from "../../apps/gateway/src/core/worker-ssh.ts";
+import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
+import { NetworkAccess } from "../../apps/gateway/src/network/network.ts";
 import { failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { Server, utils } from "ssh2";
 import { randomBytes } from "node:crypto";
@@ -21,8 +23,10 @@ let ssh: Server;
 let port: number;
 let authenticated = 0;
 let acceptInstall = false;
+let installerFailure = "";
 let installerInput = "";
 let privateKey = "";
+let network: NetworkAccess;
 const hostKey = utils.generateKeyPairSync("ed25519", {});
 
 async function collect(action: string, extra: MessageInitShape<typeof ui.WorkerSshRequestSchema> = {}) {
@@ -47,6 +51,25 @@ describe.skipIf(!dockerAvailable)("owner-scoped SSH enrollment trust boundary", 
   beforeAll(async () => {
     directory = mkdtempSync(join(tmpdir(), "canopy-ssh-test-"));
     gw = await startTestGateway({ updates: { cacheDir: join(directory, "mirror") } });
+    await gw.core.updates.service.options.mirror.remember({
+      schema: 1,
+      version: gw.core.updates.version,
+      channel: "nightly",
+      commit: "fixture",
+      published_at: "2026-11-05T00:00:00Z",
+      protocol: { worker_link: 1, update: 1 },
+      assets: [
+        {
+          app: "worker",
+          os: "linux",
+          arch: "x64",
+          name: "canopy-worker-linux-x64",
+          url: "https://github.com/itsoltech/canopy/releases/download/v0.2.0-nightly.74/canopy-worker-linux-x64",
+          sha256: "a".repeat(64),
+          size: 42,
+        },
+      ],
+    });
     ssh = new Server({ hostKeys: [hostKey.private] }, (connection) => {
       connection.on("error", () => {});
       connection.on("authentication", (ctx) => {
@@ -64,6 +87,14 @@ describe.skipIf(!dockerAvailable)("owner-scoped SSH enrollment trust boundary", 
             installerInput += chunk.toString();
           });
           stream.on("end", () => {
+            if (installerFailure) {
+              stream.stderr.write(`Canopy: ${installerFailure}`);
+              stream.exit(1);
+              stream.end();
+
+              return;
+            }
+
             void (async () => {
               const token = installerInput.match(/--token '([^']+)'/)?.[1];
 
@@ -91,6 +122,7 @@ describe.skipIf(!dockerAvailable)("owner-scoped SSH enrollment trust boundary", 
   }, 60_000);
   afterAll(async () => {
     ssh?.close();
+    await network?.close();
     await gw?.close();
 
     if (directory) rmSync(directory, { recursive: true, force: true });
@@ -124,22 +156,51 @@ describe.skipIf(!dockerAvailable)("owner-scoped SSH enrollment trust boundary", 
     expect(authenticated).toBeGreaterThan(0);
   });
 
-  test("SSH install stores tags at home, without sending them in the fixed installer", async () => {
+  test("SSH refuses installation before executing when no gateway address is reachable", async () => {
     acceptInstall = true;
+    expect(
+      await failure(
+        collect("install", {
+          target: `canopy@127.0.0.1:${port}`,
+          name: "No route",
+          webOrigin: "http://127.0.0.1:49788",
+        }),
+      ),
+    ).toContain("Turn on network access or set a gateway address for workers");
+    expect(installerInput).toBe("");
+    expect((await gw.api.getWorkerSetup({})).enrollments).toHaveLength(0);
+  });
+
+  test("desktop local SSH uses HTTPS release downloads and a pinned network gateway, preserving tags", async () => {
+    network = new NetworkAccess({
+      store: new ComputerStore(gw.runtime, gw.userId, gw.secretsKey),
+      host: "127.0.0.1",
+      detect: () => [{ host: "192.0.2.20", kind: "lan", interfaceName: "fixture" }],
+      pollMs: 60_000,
+    });
+    gw.core.network = network;
+    await network.start();
+    await network.update(create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }));
     const settings = await gw.api.getSettings({});
-    await gw.api.updateUserSettings({ expectedVersion: settings.user!.version, workerGatewayUrl: gw.grpcUrl });
+    await gw.api.updateUserSettings({ expectedVersion: settings.user!.version, workerGatewayUrl: "" });
     const target = `canopy@127.0.0.1:${port}`;
 
     const events = await collect("install", {
       target,
       name: "SSH tagged worker",
       tags: ["ssh-team"],
-      webOrigin: "http://localhost",
+      webOrigin: "http://127.0.0.1:49788",
     });
 
     const workerId = events.findLast((e) => e.enrollment?.workerId)?.enrollment?.workerId;
     expect(workerId).toBeDefined();
     expect(installerInput.includes("ssh-team")).toBe(false);
+    expect(installerInput).toContain(`--gateway '${network.origins()[0]}'`);
+    expect(installerInput).toContain(`--fingerprint '${network.fingerprint}'`);
+    expect(installerInput).toContain("--release-url 'https://github.com/itsoltech/canopy/releases/download/");
+    expect(installerInput).toContain(`--release-sha256 '${"a".repeat(64)}'`);
+    expect(installerInput).not.toContain("http://127.0.0.1:49788");
+    expect(installerInput).not.toContain("--origin '");
     expect((await gw.api.getAgentEnvironment({})).workers.find((w) => w.workerId === workerId)?.manualTags).toEqual([
       "ssh-team",
     ]);
@@ -151,6 +212,29 @@ describe.skipIf(!dockerAvailable)("owner-scoped SSH enrollment trust boundary", 
     ).toEqual([{ tags: ["ssh-team"] }]);
     acceptInstall = false;
     installerInput = "";
+  });
+
+  test("SSH reports the actual installer failure without an unrelated service-session hint", async () => {
+    acceptInstall = true;
+    installerFailure = "Worker download failed. Check this computer’s access to GitHub Releases and retry";
+
+    try {
+      const message = await failure(
+        collect("install", {
+          target: `canopy@127.0.0.1:${port}`,
+          name: "Download failure",
+          webOrigin: "http://127.0.0.1:49788",
+        }),
+      );
+
+      expect(message).toContain(installerFailure);
+      expect(message).not.toContain("systemd");
+      expect(message).not.toContain("macOS GUI");
+    } finally {
+      installerFailure = "";
+      acceptInstall = false;
+      installerInput = "";
+    }
   });
 
   test("a stored host-key mismatch is a hard error, independent of supplied confirmation", async () => {
@@ -173,7 +257,15 @@ describe.skipIf(!dockerAvailable)("owner-scoped SSH enrollment trust boundary", 
       `${userId}@test`,
     ]);
     const administration = new WorkerAdministration({ ...gw.core.workers.options, userId });
-    const other = new WorkerSsh({ runtime: gw.runtime, userId, workers: administration, secretsKey: randomBytes(32) });
+
+    const other = new WorkerSsh({
+      runtime: gw.runtime,
+      userId,
+      workers: administration,
+      updates: gw.core.updates,
+      secretsKey: randomBytes(32),
+    });
+
     const events: ui.WorkerSshEvent[] = [];
 
     for await (const event of other.run(

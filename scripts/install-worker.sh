@@ -5,16 +5,17 @@ umask 077
 set +x
 
 fail() { printf '%s\n' "Canopy: $*" >&2; exit 1; }
-gateway='' token='' name='' release_url='' checksum_url='' fingerprint=''
+gateway='' token='' name='' release_url='' checksum_url='' fingerprint='' release_sha256=''
 origin='CANOPY_INSTALL_ORIGIN_DEFAULT'
 service=yes force=no channel_fallback=no
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --gateway|--token|--name|--origin|--release-url|--checksum-url|--fingerprint)
+    --gateway|--token|--name|--origin|--release-url|--checksum-url|--fingerprint|--release-sha256)
       [ "$#" -ge 2 ] && [ -n "$2" ] || fail "Missing option value"
       case "$1" in
         --gateway) gateway=$2 ;; --token) token=$2 ;; --name) name=$2 ;;
         --fingerprint) fingerprint=$2 ;;
+        --release-sha256) release_sha256=$2 ;;
         --origin) origin=$2 ;; --release-url) release_url=$2 ;; --checksum-url) checksum_url=$2 ;;
       esac
       shift 2 ;;
@@ -24,7 +25,9 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 [ -n "$gateway" ] && [ -n "$token" ] || fail "--gateway and --token are required"
-case "$origin" in http://*|https://*) ;; *) fail "Download this script from your Canopy web origin or supply --origin URL" ;; esac
+if [ -z "$release_url" ]; then
+  case "$origin" in http://*|https://*) ;; *) fail "Download this script from your Canopy web origin or supply --origin URL" ;; esac
+fi
 command -v curl >/dev/null 2>&1 || fail "Install curl first"
 case "$(uname -s)" in Linux) os=linux ;; Darwin) os=darwin ;; *) fail "Supported systems: Linux x64/arm64 and macOS arm64" ;; esac
 case "$(uname -m)" in x86_64|amd64) arch=x64 ;; aarch64|arm64) arch=arm64 ;; *) fail "Unsupported CPU architecture" ;; esac
@@ -51,10 +54,14 @@ asset="canopy-worker-$os-$arch"
 printf '%s\n' "Downloading Canopy worker ($os/$arch)…"
 if [ -n "$release_url" ]; then
   case "$release_url" in https://github.com/itsoltech/canopy/releases/download/*/"$asset") ;; *) fail "Invalid GitHub release URL" ;; esac
-  [ "$checksum_url" = "${release_url%/*}/checksums.txt" ] || fail "Checksum URL must belong to the same GitHub release as the binary"
-  curl -fsSL --connect-timeout 15 --max-time 300 "$release_url" -o "$tmp/worker" || fail "Release download failed"
-  curl -fsSL --connect-timeout 15 --max-time 60 "$checksum_url" -o "$tmp/checksums" || fail "Checksum download failed"
-  expected=$(awk -v file="$asset" '$2 == file || $2 == "*" file { print $1 }' "$tmp/checksums")
+  if [ -n "$release_sha256" ]; then
+    expected=$release_sha256
+  else
+    [ "$checksum_url" = "${release_url%/*}/checksums.txt" ] || fail "Checksum URL must belong to the same GitHub release as the binary"
+    curl -fsSL --proto '=https' --proto-redir '=https' --connect-timeout 15 --max-time 60 "$checksum_url" -o "$tmp/checksums" || fail "Checksum download failed. Check this computer’s access to GitHub Releases and retry."
+    expected=$(awk -v file="$asset" '$2 == file || $2 == "*" file { print $1 }' "$tmp/checksums")
+  fi
+  curl -fsSL --proto '=https' --proto-redir '=https' --connect-timeout 15 --max-time 300 "$release_url" -o "$tmp/worker" || fail "Worker download failed. Check this computer’s access to GitHub Releases and retry."
 else
   base="${origin%/}/install/worker/$os/$arch"
   if curl -fsSL --connect-timeout 15 --max-time 300 "$base" -o "$tmp/worker"; then
@@ -67,8 +74,8 @@ else
     expected=$(sed -n '2p' "$tmp/release")
     release_version=$(sed -n '3p' "$tmp/release")
     case "$release_url" in https://github.com/itsoltech/canopy/releases/download/*/"$asset") ;; *) fail "Invalid GitHub release URL" ;; esac
-    printf '%s\n' "Mirror unavailable. Using GitHub channel release $release_version; gateway compatibility may require an update."
-    curl -fsSL --connect-timeout 15 --max-time 300 "$release_url" -o "$tmp/worker" || fail "Release download failed"
+    printf '%s\n' "Mirror unavailable. Using compatible GitHub release $release_version."
+    curl -fsSL --proto '=https' --proto-redir '=https' --connect-timeout 15 --max-time 300 "$release_url" -o "$tmp/worker" || fail "Worker download failed. Check this computer’s access to GitHub Releases and retry."
   fi
 fi
 [ "${#expected}" -eq 64 ] || fail "Invalid SHA-256 checksum"
@@ -105,7 +112,7 @@ if command -v npm >/dev/null 2>&1; then
 fi
 export PATH
 if [ "$service" = yes ]; then
-  "$binary" service --config "$config" >"$tmp/service"
+  "$binary" service --config "$config" >"$tmp/service" || fail "Could not prepare the worker service. Copy the installation output to check the failed step."
   if [ "$os" = linux ]; then
     if [ -d "/run/user/$(id -u)" ]; then
       XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
@@ -116,8 +123,8 @@ if [ "$service" = yes ]; then
     mkdir -p "$HOME/.config/systemd/user"
     sed -n '/^\[Unit\]/,$p' "$tmp/service" >"$HOME/.config/systemd/user/canopy-worker.service"
     systemctl --user daemon-reload || fail "User systemd session unavailable; start a user session or use --no-service"
-    systemctl --user enable canopy-worker.service
-    systemctl --user restart canopy-worker.service
+    systemctl --user enable canopy-worker.service || fail "Could not enable the worker service. Check the systemd user session and retry."
+    systemctl --user restart canopy-worker.service || fail "Could not start the worker service. Check the systemd user session and retry."
     systemctl --user --no-pager status canopy-worker.service || true
     if command -v loginctl >/dev/null 2>&1; then
       linger=$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null || true)
@@ -129,7 +136,7 @@ if [ "$service" = yes ]; then
     sed -n '/^<?xml/,$p' "$tmp/service" >"$plist"
     launchctl bootout "gui/$(id -u)/com.canopy.worker" >/dev/null 2>&1 || true
     launchctl bootstrap "gui/$(id -u)" "$plist" || fail "LaunchAgent needs a logged-in macOS user session"
-    launchctl kickstart "gui/$(id -u)/com.canopy.worker"
+    launchctl kickstart "gui/$(id -u)/com.canopy.worker" || fail "Could not start the worker service. Sign in to macOS and retry."
     printf '%s\n' "Canopy LaunchAgent started."
   fi
 else

@@ -284,6 +284,7 @@ export class GatewayCore {
       runtime: options.runtime,
       userId: options.userId,
       workers: this.workers,
+      updates: this.updates,
       ...(options.sshSecretsKey && { secretsKey: options.sshSecretsKey }),
     });
     this.secrets = new ThreadSecrets({

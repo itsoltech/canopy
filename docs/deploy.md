@@ -64,6 +64,9 @@ którymi użytkownik może zarządzać. Klucz prywatny Ed25519 per właściciel 
 sprawdzenia i potwierdzenia; mismatch blokuje dalsze połączenia. Gateway nie przyjmuje
 dowolnego polecenia SSH, tylko ustalony installer. Sesja systemd użytkownika/linger lub
 zalogowana sesja GUI macOS muszą istnieć przed automatycznym startem usługi.
+Cel SSH pobiera worker z GitHub Releases przez HTTPS; gateway dostarcza SHA-256 przez
+szyfrowane stdin. Nie trzeba wystawiać web BFF desktopu. Włącz Network access albo ustaw
+osiągalny „Gateway address for workers” przed instalacją; enrollment zachowuje pin TLS.
 Przy HTTP używaj wyłącznie zaufanej szyfrowanej sieci (np. Tailscale); w publicznej sieci TLS.
 
 Weryfikacja instalatora na Linux x64 (izolowany PostgreSQL i sshd, wolne porty;

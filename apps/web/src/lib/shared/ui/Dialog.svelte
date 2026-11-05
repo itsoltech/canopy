@@ -96,7 +96,7 @@
   data-sheet
   inert={closing || undefined}
   class={[
-    "density-standard t-modal top-(--window-safe-top) m-0 mt-auto max-h-[min(90dvh,var(--window-safe-height))] w-full max-w-none overflow-y-auto rounded-t-2xl bg-surface p-0 text-ink shadow-xl ring-1 ring-divider backdrop:bg-zinc-950/40 sm:m-auto sm:rounded-2xl dark:shadow-none dark:backdrop:bg-black/60",
+    "density-standard t-modal top-(--window-safe-top) m-0 mt-auto max-h-[min(90dvh,var(--window-safe-height))] w-full max-w-none min-w-0 overflow-x-hidden overflow-y-auto rounded-t-2xl bg-surface p-0 text-ink shadow-xl ring-1 ring-divider backdrop:bg-zinc-950/40 sm:m-auto sm:rounded-2xl dark:shadow-none dark:backdrop:bg-black/60",
     size === "output" ? "sm:max-w-[55rem]" : size === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg",
     fullscreen && "max-sm:mt-0 max-sm:h-(--window-safe-height) max-sm:max-h-(--window-safe-height) max-sm:rounded-none",
     className,
@@ -112,7 +112,7 @@
     <h2 id="{id}-title" class="sr-only">{title}</h2>
     {#if open || closing}{@render children()}{/if}
   {:else}
-    <div class="p-5 pb-[max(--spacing(5),env(safe-area-inset-bottom))] sm:p-6">
+    <div class="min-w-0 p-5 pb-[max(--spacing(5),env(safe-area-inset-bottom))] wrap-anywhere sm:p-6">
       <div class="flex items-start justify-between gap-4">
         <div class="min-w-0">
           <h2 id="{id}-title" class="text-lg/7 font-semibold text-balance">{title}</h2>
@@ -132,7 +132,7 @@
           onclick={() => (open = false)}
         />
       </div>
-      <div class="mt-5">
+      <div class="mt-5 min-w-0">
         {#if open || closing}{@render children()}{/if}
       </div>
     </div>

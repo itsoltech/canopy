@@ -6,6 +6,7 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import CommandBlock from "./CommandBlock.svelte";
   import WorkerSshKey from "./WorkerSshKey.svelte";
   import { workerSsh } from "./ssh.ts";
@@ -76,11 +77,15 @@
   }
 </script>
 
+{#snippet installationOutput()}
+  <CommandBlock text={output} label="Installation output" copyLabel="Copy output" wrap />
+{/snippet}
+
 <div class={["grid min-w-0 gap-4", className]}>
   <WorkerSshKey />
   <Field
     label="SSH address"
-    description="The gateway must reach this SSH host. The target must reach Canopy’s web origin and worker gateway address, for example over Tailscale."
+    description="The gateway connects over SSH. This computer needs access to GitHub Releases and the gateway address for workers."
   >
     <Input name="ssh-target" bind:value={target} placeholder="you@100.64.0.10:22" disabled={busy} />
   </Field>
@@ -93,18 +98,25 @@
     <div class="grid min-w-0 gap-3 border-t border-zinc-950/10 pt-4 dark:border-white/10">
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         {trusted
-          ? "This host key matches your saved fingerprint."
-          : "Verify this fingerprint with the host administrator before trusting it. No SSH authentication has happened yet."}
+          ? "This SSH key matches your saved fingerprint."
+          : "Verify this fingerprint with the computer’s administrator before trusting it."}
       </p>
-      <CommandBlock text={fingerprint} label="SSH host key · SHA-256" />
+      <CommandBlock text={fingerprint} label="SSH key fingerprint" copyLabel="Copy fingerprint" wrap />
       <div>
         <Button size="sm" disabled={busy} onclick={() => void run("install")}
-          >{trusted ? "Install on this host" : "Trust fingerprint and install"}</Button
+          >{trusted ? "Install worker" : "Trust and install"}</Button
         >
       </div>
     </div>
   {/if}
-  {#if output}<div aria-live="polite">
-      <CommandBlock text={output} label="Installation output" copyable={false} />
+  {#if output}<div class="min-w-0" aria-live="polite">
+      {#if error}
+        <Disclosure class="min-w-0">
+          {#snippet summary()}Show details{/snippet}
+          <div class="pt-3">{@render installationOutput()}</div>
+        </Disclosure>
+      {:else}
+        {@render installationOutput()}
+      {/if}
     </div>{/if}
 </div>
