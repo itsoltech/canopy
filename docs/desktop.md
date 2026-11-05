@@ -43,6 +43,9 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    `basic_text` jest odrzucany; aplikacja wymaga działającego magazynu kluczy.
    `worker.json` zachowuje istniejący format enrollment i uprawnienia 0600.
 4. **Porty:** losowe wolne porty; Postgres, web i domyślnie gRPC na `127.0.0.1`.
+   Port web jest wybierany raz i zapisywany w `web-port` w katalogu runtime, bo origin
+   `http://127.0.0.1:<port>` wyznacza localStorage z preferencjami urządzenia. Zajęty
+   zapisany port zastępuje nowy, również zapisany.
    Settings → Network access otwiera jeden listener TLS dla telefonów, połączonych komputerów i workerów
    na wszystkich interfejsach, z portem wybieranym i zapisywanym w bazie. Parowanie
    przypina certyfikat komputera; zmiany sieci odświeżają ogłaszane adresy.

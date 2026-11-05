@@ -14,6 +14,7 @@ import { PostgresInstaller, postgresTestOptions, type PostgresTestOptions } from
 import { Logs } from "./log.ts";
 import { Supervisor, until } from "./process.ts";
 import { savedStatus, writeConfiguration } from "./saved-status.ts";
+import { stableWebPort } from "./web-port.ts";
 
 export interface Secrets {
   databasePassword: string;
@@ -137,7 +138,7 @@ export class DesktopRuntime {
   }
   async initialize(restore = true) {
     this.publish(savedStatus(this.directory));
-    this.webPort = await freePort();
+    this.webPort = await stableWebPort(this.directory);
     this.setupOrigin = `http://127.0.0.1:${this.webPort}`;
     await this.startWeb("http://127.0.0.1:1");
     this.statusTimer = setInterval(() => this.readWorkerStatus(), 1000);
