@@ -30,7 +30,7 @@ export function threadTurns(
       const chosen = yield* turnSettings(spec, settings);
       entry.pendingTurns.push(turnId);
 
-      if (input.mentions.length > 0) entry.mentions.set(turnId, input.mentions);
+      if (input.mentions.length > 0) entry.mentions.set(turnId, { text: input.text, mentions: input.mentions });
 
       const response = yield* codex
         .request("turn/start", {
@@ -87,7 +87,7 @@ export function threadTurns(
         });
       }
 
-      if (input.mentions.length > 0) entry.mentions.set(inputId, input.mentions);
+      if (input.mentions.length > 0) entry.mentions.set(inputId, { text: input.text, mentions: input.mentions });
       // expectedTurnId: Codex refuses when another turn (or none) is active by now.
       yield* codex
         .request("turn/steer", {

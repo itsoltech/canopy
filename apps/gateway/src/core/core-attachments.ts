@@ -1,8 +1,8 @@
 import { create } from "@bufbuild/protobuf";
-import { ui, type BlobChunk, type FetchBlob } from "@canopy/contracts";
+import { MentionKind, ui, type BlobChunk, type FetchBlob, type Mention } from "@canopy/contracts";
 import { Effect } from "effect";
 import { type WorkerConnection } from "../worker-link/index.ts";
-import { attachmentPath, attachmentsNote, formatSize, withAttachmentsNote } from "@canopy/domain";
+import { attachmentPath, attachmentsNote, formatSize, orderAttachments, withAttachmentsNote } from "@canopy/domain";
 import { AttachmentRejected, prepareAttachment, sha256Hex } from "../attachments/prepare.ts";
 import { AttachmentStore, toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
 import { NotFound } from "../store/index.ts";
@@ -18,15 +18,45 @@ import {
 import type { GatewayCore } from "./core.ts";
 import { coreLog } from "./core-broadcast.ts";
 
+/** What a badge of a placed file shows: the stored name and kind (image | file). */
+export interface PlacedFile {
+  readonly name: string;
+  readonly kind: string;
+}
+
+/**
+ * The turn input of a message with files: the platform note, then the message. Files the user placed in the text
+ * (ATTACHMENT mentions) come first in their order there and the note numbers them for their markers
+ * (docs/ui-api.md, "Załączniki w tekście"); without placed files the note is as it always was.
+ */
+export function attachmentsInput(
+  attachments: readonly StoredAttachment[],
+  message: string,
+  mentions: readonly Mention[],
+): TurnInputJson {
+  const ordered = orderAttachments(attachments, mentions);
+
+  const note = attachmentsNote(
+    ordered,
+    mentions.some((m) => m.kind === MentionKind.ATTACHMENT),
+  );
+
+  return { text: withAttachmentsNote(note, message), note, message, attachments: ordered };
+}
+
 /**
  * The attachments of a new message: the user's, unsent, within the limits, for a worker that takes attachments.
- * `input` prepares the turn input: the platform note with each file's path on that worker, then the message.
+ * `files`: each file's stored name and kind (placed files' badges are checked against them). `input` prepares the turn
+ * input: the platform note with each file's path on that worker, then the message.
  */
 export async function coreMessageAttachments(
   hostContext: GatewayCore,
   ids: readonly string[],
   workerId: string,
-): Promise<{ input(threadId: string, message: string): TurnInputJson }> {
+): Promise<{
+  files: ReadonlyMap<string, PlacedFile>;
+  input(threadId: string, message: string, mentions?: readonly Mention[]): TurnInputJson;
+}> {
   const limits = await hostContext.attachmentLimits;
 
   if (ids.length > limits.maxFiles)
@@ -46,7 +76,8 @@ export async function coreMessageAttachments(
     );
 
   return {
-    input: (threadId, message) => {
+    files: new Map(rows.map((r) => [r.id, { name: r.name, kind: r.kind }])),
+    input: (threadId, message, mentions = []) => {
       const attachments: StoredAttachment[] = rows.map((r) => ({
         id: r.id,
         name: r.name,
@@ -60,9 +91,7 @@ export async function coreMessageAttachments(
         path: attachmentPath(root, os, threadId, r.id, r.name),
       }));
 
-      const note = attachmentsNote(attachments);
-
-      return { text: withAttachmentsNote(note, message), note, message, attachments };
+      return attachmentsInput(attachments, message, mentions);
     },
   };
 }

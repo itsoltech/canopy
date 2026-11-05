@@ -67,7 +67,8 @@ export interface Entry {
   /** Steered inputs (SteerTurn.input_id) accepted by Codex. */
   readonly steered: Set<string>;
   /** Mentions of the platform's inputs by client id (turn id, steer input id), put on Codex's userMessage echo. */
-  readonly mentions: Map<string, readonly Mention[]>;
+  /** Input text and mentions by client id: the userMessage echo shows the text as sent (one text, its ranges). */
+  readonly mentions: Map<string, { readonly text: string; readonly mentions: readonly Mention[] }>;
   /** Codex turns the platform asked to interrupt (their interruption is the user's). */
   readonly interrupting: Set<string>;
   readonly rolloutPath: string | null;

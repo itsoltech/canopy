@@ -478,6 +478,15 @@ dwóch komputerów albo lokalny uuid w wywołaniu do partnera jest odrzucane (�
 and thread on the same computer”). Wyjątek: załączniki wgrane na A do wiadomości dla wątku B gateway A
 odczytuje i wgrywa na B (`UploadAttachment`), a w żądaniu podmienia na id z B.
 
+#### Załączniki w tekście
+
+Plakietki plików w tekście (`MentionKind.ATTACHMENT`, `name` = id załącznika) idą za plikami: gateway A
+podmienia ich `name` na id z B razem z `attachment_ids`, a przepisywanie id obejmuje ten rodzaj wzmianki
+(jak wątki, boty i konektory). Dom ogłasza capability **`inline_attachments`**. Domowi bez niej A wysyła
+wiadomość bez tych wzmianek: znacznik `[nazwa]` zostaje zwykłym tekstem, a pliki idą jak dotąd.
+Pośrednik (etap 7) nie przekazuje tej capability, bo starszy pośrednik odrzuca nieznane funkcje
+w katalogu; przez pośrednika plakietki też stają się tekstem.
+
 Metody spoza listy z kwalifikowanym id najwyższego poziomu (np. `ListSchedules` dla wątku B) dają
 „This isn't available for threads on another computer yet”. Sekrety wątków nie przechodzą przez łącze.
 Przypięcia i filtr projektów sidebara mogą zawierać id kwalifikowane (walidacja `isEntityId`).

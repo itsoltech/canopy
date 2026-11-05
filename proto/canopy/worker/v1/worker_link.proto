@@ -1332,6 +1332,10 @@ enum MentionKind {
   // Bot gateway tego użytkownika; name = bot_id, label = nazwa w znaczniku @Nazwa.
   MENTION_KIND_BOT = 6;
   MENTION_KIND_CONNECTOR = 7;
+  // Załącznik wiadomości w miejscu, które wybrał użytkownik (docs/protocol.md#załączniki-w-tekście): name = attachment_id
+  // (plik z UserInput.attachments), label = nazwa pliku, source = image | file; znacznik "[nazwa]" w wiadomości, "[Attachment N: nazwa]" dla
+  // dostawcy.
+  MENTION_KIND_ATTACHMENT = 8;
 }
 
 // Jedna wzmianka: fragment tekstu [start, end) (jednostki UTF-16, jak string w JS i w protobuf-es) zajmuje jej

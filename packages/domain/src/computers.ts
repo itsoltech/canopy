@@ -15,6 +15,12 @@ export const LAN_ROUTES = "lan_routes";
 /** Stage 7: opt-in forwarding through exactly one trusted intermediary. */
 export const RELAY = "relay";
 
+/**
+ * Messages may place their attachments in the text (MentionKind.ATTACHMENT). A home without it gets the same message
+ * with the badges left as plain text. Not offered through a relay: older intermediaries refuse unknown features.
+ */
+export const INLINE_ATTACHMENTS = "inline_attachments";
+
 /** Stage 8: two-phase moves of threads and bots between directly linked computers, and redirects. */
 export const MOVE_ITEMS = "move_items";
 export const NODE_REF_LENGTH = 16;

@@ -94,13 +94,14 @@ export interface NotedAttachment {
 /**
  * The platform note before the user's text: one line per file with its absolute path, type, size and (images) its
  * dimensions. No empty line inside: the UI separates the note from the message at the first empty line
- * (turn-origin.ts, "Full text the agent received"). The agent decides what to do with the files.
+ * (turn-origin.ts, "Full text the agent received"). The agent decides what to do with the files. `numbered`: the
+ * user placed files in the text; each line says "Attachment N", the number of its "[Attachment N: name]" marker.
  */
-export function attachmentsNote(attachments: readonly NotedAttachment[]): string {
+export function attachmentsNote(attachments: readonly NotedAttachment[], numbered = false): string {
   const count = attachments.length === 1 ? "a file" : `${attachments.length} files`;
   const images = attachments.some((a) => a.kind === "image");
 
-  const lines = attachments.map((a) => {
+  const lines = attachments.map((a, i) => {
     const details = [
       a.mimeType,
       formatSize(a.sizeBytes),
@@ -109,11 +110,11 @@ export function attachmentsNote(attachments: readonly NotedAttachment[]): string
       .filter(Boolean)
       .join(", ");
 
-    return `- ${a.path} (${details})`;
+    return `- ${numbered ? `Attachment ${i + 1}: ` : ""}${a.path} (${details})`;
   });
 
   return [
-    `[canopy] The user attached ${count} to this message, saved on this machine. Read ${attachments.length === 1 ? "it" : "them"} as needed${images ? "; view_image shows you an image" : ""}:`,
+    `[canopy] The user attached ${count} to this message, saved on this machine.${numbered ? " Each [Attachment N: name] in the message marks where the user put that file." : ""} Read ${attachments.length === 1 ? "it" : "them"} as needed${images ? "; view_image shows you an image" : ""}:`,
     ...lines,
   ].join("\n");
 }

@@ -1,11 +1,13 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { MentionKind, ui } from "@canopy/contracts";
 import { Effect } from "effect";
-import { attachmentsNote, withAttachmentsNote } from "@canopy/domain";
+import { placedAttachmentIds } from "@canopy/domain";
 import { QueueStore, toUiSteer, toUiTurn, type TurnRow } from "../store/index.ts";
 import { coreState, InvalidError, type TurnInputJson } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
+import { attachmentsInput } from "./core-attachments.ts";
 import { coreComposeInput, coreMessageMentions } from "./core-mentions.ts";
+import { mentionsFromJson } from "./mentions.ts";
 import { coreSendSteer, coreSteers } from "./core-messages.ts";
 import { coreRun } from "./core-broadcast.ts";
 import { coreShellInput } from "./core-shell.ts";
@@ -57,7 +59,9 @@ export const coreQueueMethods: CoreQueueMethods = {
 
   /**
    * A queued message's new text, composed like a sent one: the note of its files and its quotes (both stay), its
-   * mentions checked and resolved. The revision guards the rest (the turn may change or start meanwhile).
+   * mentions checked and resolved. A file the message had placed in its text lives with its badge: without the badge
+   * it leaves the message (files never placed stay). The revision guards the rest (the turn may change or start
+   * meanwhile).
    */
   async editQueuedTurn(this: GatewayCore, request: ui.EditQueuedTurnRequest): Promise<ui.Turn> {
     const ownerUserId = this[coreState].options.userId;
@@ -70,15 +74,18 @@ export const coreQueueMethods: CoreQueueMethods = {
       { id: thread.id, cwd: thread.cwd ?? "" },
       text,
       request.mentions,
+      new Map((current.input.attachments ?? []).map((a) => [a.id, { name: a.name, kind: a.kind }])),
     );
 
     if (goal !== undefined) throw new InvalidError("a /goal message does not wait in the queue; send it instead");
-    const attachments = current.input.attachments ?? [];
-    const note = attachments.length > 0 ? attachmentsNote(attachments) : "";
+    const wasPlaced = new Set(placedAttachmentIds(mentionsFromJson(current.input.mentions)));
+    const placed = new Set(mentions.filter((m) => m.kind === MentionKind.ATTACHMENT).map((m) => m.name));
+    const attachments = (current.input.attachments ?? []).filter((a) => !wasPlaced.has(a.id) || placed.has(a.id));
 
-    const base: TurnInputJson = note
-      ? { text: withAttachmentsNote(note, text), note, message: text, attachments }
-      : { text };
+    if (!text.trim() && attachments.length === 0 && !current.input.quotes?.length)
+      throw new InvalidError("message is empty");
+
+    const base: TurnInputJson = attachments.length > 0 ? attachmentsInput(attachments, text, mentions) : { text };
 
     const input =
       coreShellInput(text, Boolean(attachments.length || current.input.quotes?.length || request.mentions.length)) ??

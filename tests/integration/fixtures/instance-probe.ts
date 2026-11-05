@@ -16,6 +16,37 @@ export const ProbeRecord = Schema.Struct({
 
 export type ProbeRecord = typeof ProbeRecord.Type;
 
+export const InputPart = Schema.Struct({
+  type: Schema.String,
+  text: Schema.optional(Schema.String),
+  image: Schema.optional(Schema.String),
+});
+
+export const InputRecord = Schema.Struct({ harness: Schema.String, parts: Schema.Array(InputPart) });
+
+export type InputRecord = typeof InputRecord.Type;
+
+const inputsOf = (trace: string) => join(dirname(trace), "inputs.jsonl");
+
+/** What a harness got as the user's content, in order: texts and images (an image by its type or file name). */
+export function recordInput(harness: string, parts: readonly (typeof InputPart.Type)[]): void {
+  const trace = process.env["INSTANCE_TRACE"];
+
+  if (trace) appendFileSync(inputsOf(trace), JSON.stringify({ harness, parts }) + "\n");
+}
+
+export function inputRecords(trace: string): InputRecord[] {
+  const path = inputsOf(trace);
+
+  return existsSync(path)
+    ? readFileSync(path, "utf8")
+        .split("\n")
+        .slice(0, -1)
+        .filter(Boolean)
+        .map((line) => Schema.decodeSync(Schema.fromJsonString(InputRecord))(line))
+    : [];
+}
+
 /** Harness processes append while tests poll: a line without its newline is still being written, not a record yet. */
 export function probeRecords(path: string): ProbeRecord[] {
   return existsSync(path)

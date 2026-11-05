@@ -73,11 +73,12 @@ export function registerThread(
 
 /**
  * Codex echoes the input as a userMessage item with the platform's client id; the transcript keeps its mentions so the
- * UI shows them as chips (the echo's text is the input text the ranges point into).
+ * UI shows them as chips. The echo's text is the input text the ranges point into: Codex joins split text parts
+ * (placed images between them) with line breaks, so the text as sent replaces it.
  */
 export function withUserMentions(
   init: ThreadEventInit,
-  mentions: ReadonlyMap<string, readonly Mention[]>,
+  mentions: ReadonlyMap<string, { readonly text: string; readonly mentions: readonly Mention[] }>,
 ): ThreadEventInit {
   const body = init.body;
 
@@ -95,7 +96,10 @@ export function withUserMentions(
   if (updated?.case === "itemStarted" || updated?.case === "itemCompleted") {
     const user = updated.value.item?.content;
 
-    if (user?.case === "userMessage") user.value.mentions = [...found];
+    if (user?.case === "userMessage") {
+      user.value.text = found.text;
+      user.value.mentions = [...found.mentions];
+    }
   }
 
   return enriched;

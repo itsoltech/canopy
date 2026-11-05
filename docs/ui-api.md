@@ -592,6 +592,15 @@ Co jest na zrzucie?
 
 **Worker offline.** Wiadomość z załącznikami do istniejącego wątku idzie do kolejki jak każda (bajty czekają w gateway, worker pobiera je przy starcie tury). Nowego wątku na workerze offline kompozytor nie wysyła (jak dotąd). Worker, który nigdy nie zgłosił `attachments_root` (starsza wersja), nie przyjmie załączników: `SendMessage` zwraca powód.
 
+#### Załączniki w tekście
+
+Plik może stać w tekście wiadomości w miejscu, które wybrał użytkownik: wzmianka `MentionKind.ATTACHMENT` (8) w `SendMessage.mentions` / `CreateThread.initial_mentions` / `EditQueuedTurn.mentions`, `name` = id załącznika z `attachment_ids` tej wiadomości, znacznik `[nazwa]` (`[` jako wyzwalacz w `checkMentions`). Gateway sprawdza, że każdy umieszczony plik należy do tej wiadomości (więc do tego samego właściciela) i stoi w tekście raz, a `label` ustawia na zapisaną nazwę pliku, `source` na jego rodzaj (`image` | `file`, ikona plakietki). Do 100 takich wzmianek ponad limit 50 pozostałych.
+
+- **Dla agenta:** pliki w kolejności w tekście, potem pozostałe; notatka: „Each [Attachment N: name] in the message marks where the user put that file.” i linie `- Attachment N: <ścieżka> (…)`; w dostarczonym tekście `[nazwa]` zmienia się w `[Attachment N: nazwa]` (`numberAttachmentMarkers`, `packages/domain/src/mentions/attachments.ts`). Obrazy trafiają do harnessu za swoim znacznikiem ([protocol.md](protocol.md#załączniki-w-tekście)).
+- **Dla UI:** `Turn.message_text` i `Turn.mentions` zostają takie, jak napisał użytkownik; `Turn.attachments` ma kolejność notatki. Fork, historia, wątki boczne i „Full text the agent received” korzystają z tych samych pól.
+- **Edycja w kolejce:** umieszczony plik żyje razem ze swoją plakietką. Bez niej w nowym tekście opuszcza wiadomość (nadal związany z turą, ale nie idzie do agenta). Pliki nigdy nieumieszczone zostają. Nowe pliki nie dochodzą.
+- **Bez pozycji:** wiadomość (np. ze starszego klienta) ma notatkę bez numerów, jak dotąd.
+
 ### Kolejka
 
 `Thread.turn_starting` (162) przenosi ten sam stan startu do overview i aktualizacji wątku. Pozwala pokazać „Starting” także przed zdarzeniem `running`, zamiast poprzedniego wyniku tury.
