@@ -1417,12 +1417,25 @@ harmonogramów, które wskazują lokalny wiersz.
 
 Ładunek nigdy nie zawiera lokalnych id. Odwołania do innych elementów (proxy instancji, instancja w domyślnych
 ustawieniach, konto credentiali źródła skilla, przypięte wątki) są globalnymi kluczami. Odwołanie do rzeczy
-z domem ma postać `uuid@node`. Odbiorca rozwiązuje je przez aliasy do swoich id. Kolizja sluga instancji
-(inny element z tym samym `harness:slug`) dostaje lokalny slug `slug-2` i alias.
+z domem ma postać `uuid@node`. Odbiorca rozwiązuje je przez aliasy do swoich id.
+
+**Kolizja sluga instancji.** Dwa elementy utworzone osobno z tym samym `harness:slug` (żadne pole nie ma
+wspólnej wersji, tożsamości różne albo inny klucz) zostają osobne. Późniejszy z nich (najmniejszy HLC jego pól)
+dostaje globalne id `harness:slug-<8 znaków węzła autora>`; każdy komputer liczy to samo z tych samych dwóch
+rekordów. Komputer autora przenosi swój rekord pod nowe id (lokalny wiersz i wątki zostają), a element,
+który przychodzi, dostaje lokalny slug `slug-2`, gdy `slug` jest zajęty. `config_items.local_id` trzyma lokalne
+id; `config_aliases` służy tylko scaleniom tożsamości. Wbudowane `native` i instancje bez tożsamości
+(native bez własnego logowania) nie kolidują: scalają się per pole.
 
 `api/routed.ts` tłumaczy pola konfiguracji w wywołaniach do partnera (`provider_profile_id`, `proxy_id`,
 `project_id`, id kont connectorów i skilli) przez aliasy, jak dziś kwalifikuje id wątków.
-Bez aliasu tłumaczenie jest tożsamościowe.
+Bez aliasu tłumaczenie jest tożsamościowe. Od etapu 2 dotyczy id instancji: pola `provider_profile_id`,
+`profile_id` i `provider_instance` obok pola `provider` (`api/routed-config.ts`, `config-sync/aliases.ts`).
+Wywołujący zamienia swoje id na globalne, dom na własne, a odpowiedź wraca tą samą drogą. Trasowane metody
+nie przenoszą `proxy_id` (id proxy to uuid bez kwalifikacji komputera, odrzucane jak inne obce uuid).
+Odwołania do instancji w ustawieniach konta (`threadDefaults.providerProfileId`, `textGeneration.profileId`)
+rekord trzyma jako globalne id. `CreateThread` z instancją, której dom nie ma, kończy się komunikatem
+„This instance isn't on “Laptop B”. Choose one of its instances.”
 
 ### Wersje: HLC per pole
 
@@ -1535,6 +1548,10 @@ bo w skali osobistej to kilka bajtów, a stary partner po powrocie nie przywróc
 Odbiorca usuwa element lokalnie tak samo jak przy usunięciu z UI. Wątki i boty, które go wskazują,
 zachowują historię jak dziś.
 
+Usunięta instancja albo proxy to jedna notka u partnerów: „Deleted on Laptop B at 14:02.” z Restore, które
+przywraca wszystkie pola naraz. Komputer, który usunął element, nie pokazuje notki. Odbiorca kasuje wiersz,
+nawet gdy używają go wątki; usunięte proxy zostawia instancjom ich adres i klucz bez powiązania.
+
 Zmiana pola z HLC wyższym niż tombstone przywraca element. UI pokazuje wtedy notkę „Laptop B changed it after
 it was deleted here.” z akcją usunięcia. Usunięcie wygrywa ze zmianami starszymi od niego, a każda nadpisana
 wartość trafia do historii. Archiwizacja projektu jest polem, nie usunięciem: każdy komputer archiwizuje
@@ -1542,10 +1559,18 @@ swoje wątki projektu, jak przy lokalnej archiwizacji.
 
 ### Sekrety
 
-Pole sekretu w rekordzie to token. `ConfigField.secret` niesie wartość tylko w strumieniu łącza i tylko
-dla zmienionego pola albo przy pełnym wysłaniu. Nadawca odszyfrowuje ją swoim `CANOPY_SECRETS_KEY`.
-Odbiorca zapisuje nowy wiersz `secrets` zaszyfrowany **własnym** kluczem, w tej samej transakcji co rekord.
+Pole sekretu w rekordzie to losowy token. Wartość każdej wersji pola leży w `config_secrets`
+(klucz: pole i HLC wersji), zaszyfrowana kluczem tego komputera, także dla rodzajów, których komputer
+nie zna, aby mógł je przekazać dalej. `ConfigField.secret` niesie wartość tylko w strumieniu łącza: dla
+bieżących wersji rekordów z partii, czyli zmienionych od kursora partnera albo przy pełnym wysłaniu.
+Nadawca odszyfrowuje ją swoim `CANOPY_SECRETS_KEY` tylko na czas tej partii. Odbiorca szyfruje ją od razu
+własnym kluczem w tej samej transakcji co rekord. Wiersz `secrets` domeny powstaje przy materializacji
+(`config_secrets.secret_id`), więc lokalna zmiana klucza to nowa wersja, a przyjęta wartość już nie.
+Wygrywająca wersja bez wartości (np. utracona u nadawcy) zostawia rekord ze stanem
+„A key is missing on this computer” i bez materializacji.
 Wartość nie trafia do historii partnera, logów, audytu, BFF, przeglądarki, modeli ani payloadów błędów.
+Przegrana wartość sekretu jest w `config_history.ciphertext` (klucz tego komputera); Restore zapisuje ją
+jako nową wersję z tym samym tokenem.
 Na workery trafia wyłącznie w `WorkerConfig` workerów, które jej używają na danym komputerze.
 Klucz nadpisania instancji na workerze należy do rekordu workera i nie opuszcza domu.
 
@@ -1664,7 +1689,10 @@ tożsamości. Ostatni etap migruje projekty i usuwa tabele `computer_shared_*`, 
   Nie ma osobnego wyboru komputera. Picker grupuje workery po komputerze i pokazuje Offline albo
   Unreachable z powodem z obecności.
 - **Notki:** „Laptop B also changed this at 14:02.” przy elemencie, z Restore i Dismiss, oraz grupa
-  „Changed on two computers” w Settings → Linked computers.
+  „Changed on two computers” w Settings → Linked computers. Instancja pokazuje swoje notki na górze
+  szczegółów, Proxies na górze listy, a usunięte instancje grupa „Deleted on another computer” w Providers.
+  Providers i Proxies nie mają przełącznika udostępniania. Sekcja Runtime instancji mówi
+  „This computer: CLI paths and homes. Launch arguments apply on every linked computer.”
 - **Stan synchronizacji** przy partnerze: „Configuration up to date”, „Syncing configuration…”, „Needs
   an update to share configuration”, „Clock is 12 min ahead”. Przełącznik Share configuration i skład
   grupy: [per łącze](#udostępnianie-per-łącze).
@@ -1706,6 +1734,17 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    scalona w jedną; inny klucz pod tym samym endpointem daje dwie; usunięcie i przywrócenie; wątek z A na
    workerze B używa instancji z aliasem; przez łącze bez Share configuration klucz nie przechodzi, a wątek
    na workerze B używa instancji B.
+   Implementacja etapu 2: migracja **0074_config_providers** (`config_secrets`, `config_history.ciphertext`,
+   pytania 0050 o instancje i modele zamienione na historię; nowsza wartość wygrywa, połączenie zdalne zostaje
+   do Restore, wartości sekretów pytań nie są przenoszone). Rekordy instancji i proxy powstają przy starcie
+   gatewaya i przy każdym lokalnym zapisie w tej samej transakcji (`config-sync/provider-records.ts`); pole
+   bez wersji dostaje HLC z `updated_at` wiersza. Lokalny zapis najpierw blokuje `config_clock`, tak jak
+   przyjmowana partia. Pola instancji: `label`, `kind`, `baseUrl` (bez proxy), `proxy` (globalne id),
+   `accentColor`, `launchArgs`, `ownLogin`, `allWorkers`, `favorites`, `hidden`, `shown`, `custom`, `apiKey`,
+   `env.<NAZWA>`. Pola proxy: `name`, `kind`, `baseUrl`, `codex`, `secret`. Instancje endpoint są i tak
+   zamieniane na zapisane proxy, więc ich klucz zwykle jest sekretem proxy. Nowe zmienne przychodzą
+   w kolejności nazw; potem każdy komputer zachowuje swoją kolejność. Partia przyjmuje proxy przed
+   instancjami, a instancja, której proxy przyszło później, dostaje je po partii.
 3. **Projekty i polityka worktree.** Rekord projektu z `origin`, ustawienia projektu, `worktree_settings` konta
    i projektu, scalanie po origin zgodne z `projectChoices`, migracja projektów z 0050, usunięcie tabel
    i UI 0050 (**0075_config_projects**). Testy: projekty z tym samym origin na A i B scalone bez zmiany lokalnych id;

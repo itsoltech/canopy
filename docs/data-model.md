@@ -35,6 +35,12 @@ przez 90 dni; `config_aliases` rezerwuje mapowanie tożsamości kolejnych rodzaj
 chronią przed opóźnionymi ramkami. Wyłączenie łącza zachowuje wspólne dane, historię i usunięcia.
 [Protokół wspólnej konfiguracji](linked-computers.md#konkretny-protokół-wspólna-konfiguracja).
 
+Migracja `0074_config_providers` dodaje `config_secrets`: wartość każdej wersji pola sekretu (klucz API,
+zmienna sekretna, sekret proxy) zaszyfrowaną kluczem tego komputera, z opcjonalnym `secret_id` wiersza
+`secrets`, który z niej powstał. `config_history.ciphertext` przechowuje przegraną wartość sekretu do Restore.
+Pytania 0050 o instancje i modele stają się wpisami historii; ich wiersze `computer_shared_*` znikają.
+Rekordy `instance` (`harness:slug`) i `proxy` (uuid) powstają przy starcie gatewaya z `updated_at` wierszy.
+
 Migracja `0051_linked_agents` dodaje atomowo zastępowane projekcje rozmów botów
 (`computer_mirror_bots`, `computer_bot_mirror_state`) oraz owner-scoped referencje
 `computer_agent_calls` i deduplikację pytań `computer_agent_events`. Referencje mają

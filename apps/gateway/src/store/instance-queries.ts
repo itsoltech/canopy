@@ -21,6 +21,7 @@ import { Invalid, NotFound } from "./store.ts";
 import { SECRET_PREFIX, checkArgs, checkPath, toUi, type ConfigRow, type WorkerRow } from "./instance-checks.ts";
 import { migrateProxies } from "./proxy-migration.ts";
 import { isCredentialEnv, protectCredentialEnv } from "./credential-env.ts";
+import { recordProviders } from "../config-sync/provider-records.ts";
 
 /** Instances, assignments and workers as stored, and the settings view of them. */
 export function instanceReads(sql: SqlClient.SqlClient) {
@@ -259,6 +260,8 @@ export function instanceSync(sql: SqlClient.SqlClient, reads: InstanceReads, sec
       }
 
       yield* dropUnusedSecrets();
+      // Same transaction: linked computers see the change exactly when it commits here.
+      yield* recordProviders(sql);
 
       return changed;
     });

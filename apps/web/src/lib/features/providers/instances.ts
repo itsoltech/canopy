@@ -1,4 +1,3 @@
-import { sharedKey } from "@canopy/domain/computers";
 import { create, type DescMessage, type MessageInitShape } from "@bufbuild/protobuf";
 import { Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { envListProblems, type ProfileKind } from "@canopy/domain";
@@ -22,13 +21,6 @@ export const harnessName = (harness: Provider): string =>
   harness === Provider.CLAUDE ? "Claude" : harness === Provider.GROK ? "Grok" : "Codex";
 
 export const harnessKey = (harness: Provider): ProviderKey => providerKeyOf(harness) ?? "CODEX";
-
-/** Shared-configuration keys of an instance's definition and of its model lists (linked computers, stage 4). */
-export const sharedInstanceKeys = (instance: Pick<ui.ProviderInstance, "harness" | "id">) => {
-  const harness = harnessKey(instance.harness).toLowerCase();
-
-  return { definition: sharedKey.instance(harness, instance.id), models: sharedKey.models(harness, instance.id) };
-};
 
 /** The label, else the harness's name for the built-in device login ("Codex", "Claude"), else the id. */
 export const instanceName = (instance: Pick<ui.ProviderInstance, "label" | "id" | "builtIn" | "harness">): string =>

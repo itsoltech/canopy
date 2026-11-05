@@ -6,6 +6,7 @@ import { enabledOn, modelsRule, providerOf, type InstanceRow, type StoredOverrid
 import { Invalid, NotFound } from "./store.ts";
 import { MAX_MODELS, checkBaseUrl, harnessOrFail, report, type InstanceApi } from "./instance-checks.ts";
 import type { InstanceCore } from "./instance-queries.ts";
+import { configTransaction, recordProviders } from "../config-sync/provider-records.ts";
 
 /** Model choices, the per-worker view and endpoints registered by the CLI. */
 export function instanceModels(
@@ -16,40 +17,43 @@ export function instanceModels(
 
   return {
     setModels: (request) =>
-      Effect.gen(function* () {
-        const harness = yield* harnessOrFail(request.harness);
-        const models = request.models;
+      configTransaction(
+        sql,
+        Effect.gen(function* () {
+          const harness = yield* harnessOrFail(request.harness);
+          const models = request.models;
 
-        const lists = [models?.favorites ?? [], models?.hidden ?? [], models?.shown ?? [], models?.custom ?? []].map(
-          (l) => [...new Set(l.map((m) => m.trim()).filter(Boolean))],
-        );
+          const lists = [models?.favorites ?? [], models?.hidden ?? [], models?.shown ?? [], models?.custom ?? []].map(
+            (l) => [...new Set(l.map((m) => m.trim()).filter(Boolean))],
+          );
 
-        const [favorites = [], hidden = [], shown = [], custom = []] = lists;
+          const [favorites = [], hidden = [], shown = [], custom = []] = lists;
 
-        if (lists.some((l) => l.length > MAX_MODELS) || lists.flat().some((m) => m.length > 200 || /\s/.test(m)))
-          return yield* Effect.fail(new Invalid("invalid model list"));
+          if (lists.some((l) => l.length > MAX_MODELS) || lists.flat().some((m) => m.length > 200 || /\s/.test(m)))
+            return yield* Effect.fail(new Invalid("invalid model list"));
 
-        if (custom.length > 100) return yield* Effect.fail(new Invalid("at most 100 custom models"));
+          if (custom.length > 100) return yield* Effect.fail(new Invalid("at most 100 custom models"));
 
-        if (request.favoritesOnly) {
-          const updated =
-            yield* sql`UPDATE provider_instances SET favorites = ${favorites}::text[], updated_at = now() WHERE harness = ${harness} AND id = ${request.id} RETURNING id`;
+          if (request.favoritesOnly) {
+            const updated =
+              yield* sql`UPDATE provider_instances SET favorites = ${favorites}::text[], updated_at = now() WHERE harness = ${harness} AND id = ${request.id} RETURNING id`;
 
-          if (updated.length === 0)
-            return yield* Effect.fail(new NotFound(`provider instance ${harness}/${request.id} not found`));
+            if (updated.length === 0)
+              return yield* Effect.fail(new NotFound(`provider instance ${harness}/${request.id} not found`));
 
-          return;
-        }
+            return;
+          }
 
-        const rows = yield* sql`
+          const rows = yield* sql`
                 UPDATE provider_instances
                    SET favorites = ${favorites}::text[], hidden_models = ${hidden}::text[], shown_models = ${shown}::text[], custom_models = ${custom}::text[], updated_at = now()
                  WHERE harness = ${harness} AND id = ${request.id} RETURNING id`;
 
-        if (rows.length === 0)
-          return yield* Effect.fail(new NotFound(`provider instance ${harness}/${request.id} not found`));
-      }),
-    sync: (userId, workerIds) => sql.withTransaction(sync(userId, workerIds)),
+          if (rows.length === 0)
+            return yield* Effect.fail(new NotFound(`provider instance ${harness}/${request.id} not found`));
+        }).pipe(Effect.tap(() => recordProviders(sql))),
+      ),
+    sync: (userId, workerIds) => configTransaction(sql, sync(userId, workerIds)),
     workerInstances: () =>
       Effect.gen(function* () {
         const [all, rows, workerRows] = [yield* instances(), yield* assignments(), yield* workers()];
@@ -89,7 +93,8 @@ export function instanceModels(
       }),
     modelRules: () => instances().pipe(Effect.map((rows) => rows.map(modelsRule))),
     registerEndpoint: ({ userId, workerId, baseUrl, apiKey }) =>
-      sql.withTransaction(
+      configTransaction(
+        sql,
         Effect.gen(function* () {
           const problem = checkBaseUrl(baseUrl);
 
@@ -119,6 +124,8 @@ export function instanceModels(
                     ON CONFLICT (harness, instance_id, worker_id) DO UPDATE SET enabled = true, overrides = EXCLUDED.overrides, updated_at = now()`;
             overrides = {};
           }
+
+          yield* recordProviders(sql);
         }),
       ),
   };

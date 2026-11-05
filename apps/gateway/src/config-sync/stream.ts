@@ -3,12 +3,16 @@ import { computerLink as link } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { setTimeout } from "node:timers/promises";
 import { type ConfigSync } from "./engine.ts";
+import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
 import { wireItem } from "./merge.ts";
+import { SCHEMAS } from "./receive.ts";
+import { outgoingSecrets } from "./secrets.ts";
 import type { ClockRow, ConfigRow } from "./persistence.ts";
 
 export async function* watchConfig(sync: ConfigSync, cursor: string, signal: AbortSignal, allowed: () => boolean) {
   if (!allowed()) throw new ConnectError("Configuration sharing is off", Code.FailedPrecondition);
-  yield create(link.ConfigUpdateSchema, { hello: { schemas: { settings: 1, computer: 1 } } });
+  yield create(link.ConfigUpdateSchema, { hello: { schemas: { ...SCHEMAS } } });
   let checkpoint = cursor;
 
   while (!signal.aborted) {
@@ -34,7 +38,17 @@ export async function* watchConfig(sync: ConfigSync, cursor: string, signal: Abo
 
     if (reset || rows.length || checkpoint !== next) {
       if (!allowed()) throw new ConnectError("Configuration sharing is off", Code.FailedPrecondition);
-      yield create(link.ConfigUpdateSchema, { items: rows.map(wireItem), checkpoint: next, reset });
+
+      // Secret values are decrypted for this batch only and exist nowhere else in plain form.
+      const secrets = await sync.store.runtime.runPromise(
+        Effect.flatMap(SqlClient.SqlClient, (sql) => outgoingSecrets(sql, sync.store.owner, sync.store.key, rows)),
+      );
+
+      yield create(link.ConfigUpdateSchema, {
+        items: rows.map((row) => wireItem(row, secrets)),
+        checkpoint: next,
+        reset,
+      });
       checkpoint = next;
     }
 

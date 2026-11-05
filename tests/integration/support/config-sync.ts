@@ -1,5 +1,5 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { type Provider, ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { remoteServe, sharedHost, uiHandlers } from "@canopy/gateway/api";
 import { ComputerStore } from "../../../apps/gateway/src/computers/store.ts";
@@ -108,4 +108,49 @@ export type ConfigComputer = Awaited<ReturnType<typeof configComputer>>;
 export async function pairConfig(a: ConfigComputer, b: ConfigComputer, shareA = true, shareB = true) {
   const invitation = await a.links.createPairing(shareA);
   await b.links.pair(a.links.addresses[0]!, invitation.code, shareB);
+}
+
+type InstanceInput = Omit<
+  MessageInitShape<typeof ui.SaveProviderInstanceRequestSchema>,
+  "$typeName" | "$unknown" | "create" | "expectedRevision"
+>;
+
+export async function instanceOf(computer: ConfigComputer, harness: Provider, id: string) {
+  return (await computer.gateway.api.listProviderInstances({})).instances.find(
+    (i) => i.harness === harness && i.id === id,
+  );
+}
+
+export const createInstance = (computer: ConfigComputer, input: InstanceInput) =>
+  computer.gateway.api.saveProviderInstance({ allWorkers: true, ...input, create: true });
+
+/** Saves the instance as the settings form does: the whole definition, secrets kept unless replaced. */
+export async function editInstance(
+  computer: ConfigComputer,
+  harness: Provider,
+  id: string,
+  change: Partial<InstanceInput>,
+) {
+  const current = (await instanceOf(computer, harness, id))!;
+
+  return computer.gateway.api.saveProviderInstance({
+    harness,
+    id,
+    label: current.label,
+    kind: current.kind,
+    baseUrl: current.baseUrl,
+    proxyId: current.proxyId,
+    accentColor: current.accentColor,
+    runtime: current.runtime,
+    env: current.env.map((v) => (v.secret ? { name: v.name, secret: true } : { name: v.name, value: v.value })),
+    ...change,
+    expectedRevision: current.revision,
+  });
+}
+
+export async function secretsOf(computer: ConfigComputer) {
+  return computer.store.query<{ id: string; ciphertext: Uint8Array }>(
+    "SELECT id::text,ciphertext FROM secrets WHERE owner_user_id=$1::uuid",
+    [computer.gateway.userId],
+  );
 }

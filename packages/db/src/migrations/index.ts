@@ -71,6 +71,7 @@ import botHarness from "./0070_bot_harness.sql" with { type: "text" };
 import botHarnessErrors from "./0071_bot_harness_errors.sql" with { type: "text" };
 import workspaceOrigin from "./0072_workspace_origin.sql" with { type: "text" };
 import configSync from "./0073_config_sync.sql" with { type: "text" };
+import configProviders from "./0074_config_providers.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -158,6 +159,7 @@ export const migrations = Migrator.fromRecord({
   "0071_bot_harness_errors": sqlFile(botHarnessErrors),
   "0072_workspace_origin": sqlFile(workspaceOrigin),
   "0073_config_sync": sqlFile(configSync),
+  "0074_config_providers": sqlFile(configProviders),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

@@ -5,6 +5,7 @@ import type { SqlClient } from "effect/sql";
 import { Invalid } from "./store.ts";
 import { InstanceConflict, type Fx } from "./instance-checks.ts";
 import type { InstanceCore } from "./instance-queries.ts";
+import { configTransaction, recordProviders } from "../config-sync/provider-records.ts";
 import {
   proxyFingerprint,
   proxyOptions,
@@ -96,7 +97,8 @@ export function proxyStore(sql: SqlClient.SqlClient, key: Buffer, core: Instance
         return yield* Effect.forEach(rows, records.toUi);
       }),
     saveProxy: (userId, request) =>
-      sql.withTransaction(
+      configTransaction(
+        sql,
         Effect.gen(function* () {
           const previous = request.id ? yield* records.get(userId, request.id) : undefined;
 
@@ -158,7 +160,8 @@ export function proxyStore(sql: SqlClient.SqlClient, key: Buffer, core: Instance
         }),
       ),
     deleteProxy: (userId, request) =>
-      sql.withTransaction(
+      configTransaction(
+        sql,
         Effect.gen(function* () {
           const row = yield* records.get(userId, request.id);
           yield* records.checkRevision(row, request.expectedRevision);
@@ -173,6 +176,7 @@ export function proxyStore(sql: SqlClient.SqlClient, key: Buffer, core: Instance
           yield* sql`DELETE FROM proxies WHERE id = ${row.id}::uuid AND owner_user_id = ${userId}::uuid`;
           yield* records.audit(userId, row.id, "proxy.deleted");
           yield* core.dropUnusedSecrets();
+          yield* recordProviders(sql);
         }),
       ),
     testProxy: (userId, request) =>

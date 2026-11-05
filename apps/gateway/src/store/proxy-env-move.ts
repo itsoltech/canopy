@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import { configTransaction } from "../config-sync/provider-records.ts";
 import type { SqlClient } from "effect/sql";
 import { ProviderProfileKind, ui } from "@canopy/contracts";
 import { create } from "@bufbuild/protobuf";
@@ -19,7 +20,8 @@ export function proxyEnvMove(
   const records = proxyRecords(sql, key);
 
   return (userId: string, request: ui.MoveInstanceToProxyRequest) =>
-    sql.withTransaction(
+    configTransaction(
+      sql,
       Effect.gen(function* () {
         const harness = yield* harnessOrFail(request.harness);
         const row = yield* core.lockInstance(harness, request.id);

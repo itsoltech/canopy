@@ -11,6 +11,7 @@
   import ScopeBar from "#lib/features/providers/ScopeBar.svelte";
   import ProviderUpdates from "#lib/features/providers/ProviderUpdates.svelte";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
+  import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import InsetList from "#lib/shared/ui/InsetList.svelte";
@@ -142,6 +143,11 @@
 
 <div class="settings-stack">
   <ProviderUpdates {workers} />
+  <ConfigNotices
+    title="Deleted on another computer"
+    match={(n) => n.kind === "instance" && n.field === "deleted" && !n.localId}
+    onchange={() => void providers.reload().catch(() => {})}
+  />
   {#if failure}<Alert tone="error">{failure}</Alert>{/if}
   {#if providers.skipped.length > 0}<Alert tone="info">Not checked: {providers.skipped.join("; ")}</Alert>{/if}
   {#if worker && !worker.online}<Alert tone="info"
