@@ -13,6 +13,7 @@ import {
   CONFIG_SYNC,
   LAN_ROUTES,
   MOVE_ITEMS,
+  REMOTE_APP_UPDATE,
   RELAY,
   REMOTE_BOTS,
   REMOTE_THREADS,
@@ -71,6 +72,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
           : []),
         ...(this.config ? [CONFIG_SYNC] : []),
         ...(this.moves ? [MOVE_ITEMS] : []),
+        ...(this.options.updates ? [REMOTE_APP_UPDATE] : []),
       ],
     });
   },

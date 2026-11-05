@@ -333,7 +333,7 @@ function startController() {
         broadcast();
       }
     },
-    (command) => acceptRemoteUpdate(remoteUpdate, command, logs),
+    (command) => acceptRemoteUpdate(remoteUpdate, updates, command, logs),
   );
 
   return paths;

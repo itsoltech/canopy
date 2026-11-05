@@ -32,6 +32,7 @@ import { receivedWorkerSetting, receiveWorkerSetting, sendWorkerSetting, settled
 import { splitOverrides } from "./routed-workers-split.ts";
 import { auditHomeAction, receiveHomeAction } from "./routed-execution.ts";
 import { executionLists } from "./routed-execution-lists.ts";
+import { linkedManageUpdates } from "./routed-updates.ts";
 
 export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   // SAFETY: Each entry is invoked with the request decoded by its own GatewayService method descriptor.
@@ -177,6 +178,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
       );
     },
     watchOverview: (request, context) => watchOverview(core, own, request, context),
+    manageUpdates: linkedManageUpdates(core, local),
     ...splitOverrides(core, local),
   };
 

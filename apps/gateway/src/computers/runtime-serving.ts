@@ -4,9 +4,17 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link } from "@canopy/contracts";
 
-import { AGENT_BUS, MOVE_ITEMS, RELAY, REMOTE_BOTS, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
+import {
+  AGENT_BUS,
+  MOVE_ITEMS,
+  RELAY,
+  REMOTE_APP_UPDATE,
+  REMOTE_BOTS,
+  REMOTE_THREADS,
+  THREAD_MIRROR,
+} from "@canopy/domain/computers";
 
-import { BOT_METHODS, linkedMessage, MOVE_METHODS, type RelayRoute } from "./remote.ts";
+import { BOT_METHODS, linkedMessage, MOVE_METHODS, UPDATE_METHODS, type RelayRoute } from "./remote.ts";
 
 import { RELAY_METHODS, relayCallback } from "./relay.ts";
 
@@ -128,6 +136,21 @@ export async function* computersServeHome(
 
   if (method.name === "WatchConfig") {
     yield* serveConfig(hostContext, nodeId, connection, linkedMessage(link.ConfigCursorSchema, request), signal);
+
+    return;
+  }
+
+  if (UPDATE_METHODS.has(method.name)) {
+    const updates = hostContext.options.updates;
+
+    if (
+      !updates ||
+      !hostContext.hello().capabilities.includes(REMOTE_APP_UPDATE) ||
+      !connection.capabilities?.has(REMOTE_APP_UPDATE) ||
+      hostContext.relay.entries.has(nodeId)
+    )
+      throw new ConnectError("Both computers need an update for remote app updates", Code.Unimplemented);
+    yield await updates(nodeId, method, request);
 
     return;
   }

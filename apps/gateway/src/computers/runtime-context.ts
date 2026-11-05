@@ -1,4 +1,4 @@
-import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { create, type DescMethod, type Message, type MessageInitShape } from "@bufbuild/protobuf";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
@@ -64,6 +64,8 @@ export type Options = {
   };
   /** Moving threads and bots to and from directly linked computers (stage 8). Without it the capability is not offered. */
   core?: GatewayCore;
+  /** Serves a directly linked computer's app update calls. Without it the capability is not offered. */
+  updates?: (nodeId: string, method: DescMethod, request: Message) => Promise<Message>;
   /** Tests: interrupts a move at a phase. */
   moveHook?: MoveHost["hook"];
 };

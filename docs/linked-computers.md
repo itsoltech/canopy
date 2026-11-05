@@ -487,6 +487,13 @@ wiadomość bez tych wzmianek: znacznik `[nazwa]` zostaje zwykłym tekstem, a pl
 Pośrednik (etap 7) nie przekazuje tej capability, bo starszy pośrednik odrzuca nieznane funkcje
 w katalogu; przez pośrednika plakietki też stają się tekstem.
 
+#### Aktualizacje aplikacji partnera
+
+Capability **`remote_app_update`** dodaje `ComputerUpdateService` (`GetComputerUpdates`,
+`RequestComputerUpdate`) do listy `SERVED`, wyłącznie na bezpośrednim łączu; relay ich nie
+przenosi. A pokazuje wersję i stan aplikacji B, jego workery i CLI, prosi B o aktualizację,
+a obie strony ją audytują. Szczegóły i kolejność Update all: [updates.md](updates.md#połączone-komputery).
+
 Metody spoza listy z kwalifikowanym id najwyższego poziomu (np. `ListSchedules` dla wątku B) dają
 „This isn't available for threads on another computer yet”. Sekrety wątków nie przechodzą przez łącze.
 Przypięcia i filtr projektów sidebara mogą zawierać id kwalifikowane (walidacja `isEntityId`).

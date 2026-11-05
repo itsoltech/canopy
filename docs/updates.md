@@ -57,7 +57,8 @@ więc panel pokazuje to ograniczenie oraz istniejące wyjście instalatora.
 **Update all** zapisuje kolejkę w prywatnym `user_settings.settings.updateRun`.
 Nie zmienia zamrożonego UpdateService ani nie wymaga migracji. Kolejność:
 gateway → workery binarne na wersję uruchomionego gatewaya → zainstalowane CLI
-→ zdalne aplikacje z nowszą dostępną wersją. Brakujące CLI instaluje się osobnym
+→ zdalne aplikacje z nowszą dostępną wersją → aplikacje połączonych komputerów
+(tryb lokalny, [niżej](#połączone-komputery)). Brakujące CLI instaluje się osobnym
 przyciskiem Install. Własną aplikację desktopową restartuje się niezależnie;
 jej dołączony gateway aktualizuje bundle, nie samodzielna wymiana binarki.
 
@@ -154,14 +155,75 @@ dla poświadczenia desktopu; przerwana próba po restarcie kończy się błędem
 a start docelowej wersji po restarting — sukcesem. Nieczytelna historia blokuje
 zdalne odtwarzanie, zachowując plik i możliwość uruchomienia aplikacji.
 
-Tryb lokalny nie otwiera tego strumienia. Aktualizowanie lokalnego desktopu przez
-relację połączonych komputerów pozostaje możliwym późniejszym krokiem.
+Tryb lokalny nie otwiera tego strumienia; połączone komputery używają osobnego kanału
+aplikacji z dołączonym gatewayem ([niżej](#połączone-komputery)).
 `canopy.update.v1` nie zmienia się. Integracja gateway ↔ desktop zastępuje updater
 na jego granicy; rzeczywisty podpis, instalację i restart trzeba sprawdzić na macOS.
 
 Gateway i worker używają jednej wersji aplikacji z `CANOPY_VERSION` (wstrzykiwanej
 podczas kompilacji; bez niej `0.0.0-dev`). `--version` wypisuje tę wersję bez
 uruchamiania usług. Wersja aplikacji nie jest numerem protokołu.
+
+## Połączone komputery
+
+Dotyczy wyłącznie aplikacji desktopowych w trybie lokalnym połączonych jako
+[połączone komputery](linked-computers.md). Gatewaye serwerowe (Docker, binarka)
+nie mają łącza, więc ta funkcja ich nie dotyczy, a Update all nadal nie działa na gatewayu Docker.
+
+**Kanał aplikacji.** Proces kontrolera desktopu w trybie lokalnym otwiera
+`GatewayService.WatchAppControl` do własnego dołączonego gatewaya (loopback, token serwisowy)
+i raportuje stan przez `ReportAppControl`. Gateway odrzuca te RPC dla ról innych niż `desktop`
+oraz dla każdego tokenu urządzenia (telefon, sparowany desktop). Ten sam `RemoteAppUpdate` co
+w trybie zdalnym wykonuje żądanie: własny updater, własny kanał i ustawienia, ściśle nowszy
+podpisany SemVer, bariera workera, czekanie na koniec tur, generacji i zadań w tle, potem restart.
+Nie ma force ani downgrade'u z zewnątrz; **Restart now…** istnieje tylko lokalnie. Gateway trzyma
+ostatni raport w pamięci (restartuje się razem z aplikacją); źródłem prawdy jest lokalny journal
+aplikacji, który po restarcie zgłasza `succeeded` albo `failed` dla tego samego id żądania.
+`DesktopUpdateState.ready` mówi, że aplikacja pobrała aktualizację i zainstaluje ją przy restarcie.
+Nowe pola `DesktopUpdateCommand`: `requested_by` (nazwa komputera w powiadomieniu „MacBook
+requested an app update…”) i `check` (samo sprawdzenie feedu, bez instalacji).
+
+**Łącze.** Gateway z kanałem aplikacji ogłasza capability **`remote_app_update`** w `NodeHello`.
+`canopy.link.v1.ComputerUpdateService` ma dwie metody przenoszone istniejącym
+`remote_request`: `GetComputerUpdates` (snapshot domu: jego aplikacja w `UpdatesSnapshot.app`,
+workery i CLI, bez jego partnerów i bez przebiegu Update all) oraz `RequestComputerUpdate`
+(`app`, `check`, `worker`). Dom obsługuje je tylko na bezpośrednim łączu, gdy obie strony
+ogłosiły capability; relay ich nie przenosi (`RELAY_METHODS`). `COMPUTER_LINK_PROTOCOL` zostaje 1.
+
+**Weryfikacja u domu.** Wołający musi być bezpośrednio sparowanym komputerem tego właściciela
+(`store.peer`); inaczej `PermissionDenied`. Dom nie ufa wersjom z widoku wołającego: aplikacja
+sama sprawdza feed swojego kanału, a wyłączony updater, brak kanału aplikacji albo trwający
+Update all na domu odrzucają żądanie z czytelnym powodem. `worker` dotyczy wyłącznie binarnego,
+niedołączonego workera domu i przechodzi przez zwykłe, administracyjne `ManageUpdates`. Łączem
+nie przechodzą adresy feedów, binaria, sekrety ani zgody na downgrade.
+
+**Audyt.** A zapisuje `computer.update.sent` (węzeł, akcja, worker). B zapisuje
+`computer.update.received`, a dla aplikacji także `desktop.update.request` (węzeł wołającego,
+id żądania) i jednokrotnie `desktop.update.outcome` (wynik po restarcie).
+
+**Widok na A.** `UpdatesSnapshot.computers` (`ComputerUpdate`) zawiera każdy połączony komputer:
+nazwę, wersję aplikacji z ostatniego handshake'u, obecność łącza i powód, gdy nie da się go
+aktualizować stąd („Update Laptop on that computer.” dla partnera bez capability albo
+pośredniego). Dla bezpośrednich partnerów z capability A dołącza ich snapshot (limit 3 s; partner,
+który nie odpowie, jest pokazywany bez niego). Id workerów są kwalifikowane węzłem domu, więc
+akcje na workerach i CLI B trasują się jak inne wywołania. CLI partnera aktualizuje istniejące
+trasowane `InstallCli` (wymaga wspólnej konfiguracji). Check now na A prosi aplikacje partnerów
+o sprawdzenie ich feedów. Podczas restartu B jego obecność to `updating` (ogłoszona przed
+zamknięciem), więc UI pokazuje „Restarting”, a nie błąd; po powrocie snapshot ma nową wersję.
+
+**Update all.** Plan dodaje krok `computer` dla każdego połączonego, bezpośredniego partnera
+z capability, który jest online, ma aktywny kanał aplikacji i nowszą dostępną wersję. Te kroki
+idą **na końcu**, po wszystkich elementach tego komputera, i po jednym. Dołączony gateway A nigdy
+nie restartuje się w Update all (aktualizuje go tylko jego własna aplikacja), więc łącze A
+przetrwa restart B i A widzi powrót B. Krok zapisuje id żądania u B; kończy się, gdy B wróci
+na łącze z wersją co najmniej planowaną albo zgłosi `succeeded` dla tego id. Offline lub
+`updating` B to oczekiwanie, nie błąd; `failed` B zatrzymuje przebieg z przyczyną. Limit kroku
+to jak dla innych 35 minut, więc długie czekanie na koniec tur u B może skończyć się Retry.
+Workery i CLI partnera nie wchodzą do Update all A: aktualizuje się je pojedynczo albo Update all
+na tamtym komputerze.
+
+**Jednorazowo.** Oba komputery muszą mieć wersję z tą funkcją, zanim zdalna aktualizacja zadziała;
+starszy partner jest pokazywany z wersją i „Update on that computer”, bez akcji.
 
 ## Niezależny kanał ratunkowy
 

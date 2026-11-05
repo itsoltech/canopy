@@ -162,6 +162,7 @@ async function stop(presence = "shutting_down") {
   core.updateCenter.stop();
   core.updates.close();
   core.desktopControl.close();
+  core.appControl.close();
   core.secrets.stop();
   await core.scheduler.stop();
   await core.stopSweep();

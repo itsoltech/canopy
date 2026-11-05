@@ -5,15 +5,18 @@ import { AGENT_BUS, REMOTE_BOTS, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/d
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { ComputerStore, type PeerRow } from "./store.ts";
-import { linkedMessage, SERVED, WORKER_SETTINGS } from "./remote.ts";
+import { linkedMessage, SERVED, UPDATE_METHODS, WORKER_SETTINGS } from "./remote.ts";
 
 // Configuration (which can contain credentials) is deliberately absent, even when
 // every participant supports stage 4. Routes and relay itself are never inherited.
 const FEATURES = new Set([REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS]);
 
-// Configuration and worker settings never cross a relay (docs/linked-computers.md, "Udostępnianie per łącze").
+// Configuration, worker settings and app updates never cross a relay (docs/linked-computers.md, "Udostępnianie per łącze").
 export const RELAY_METHODS = new Set(
-  [...SERVED].filter((name) => name !== "WatchConfig" && name !== "GetConfigBlob" && !WORKER_SETTINGS.has(name)),
+  [...SERVED].filter(
+    (name) =>
+      name !== "WatchConfig" && name !== "GetConfigBlob" && !WORKER_SETTINGS.has(name) && !UPDATE_METHODS.has(name),
+  ),
 );
 
 const NODE = /^[a-f0-9]{64}$/;

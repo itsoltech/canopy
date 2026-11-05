@@ -8,7 +8,37 @@ import { DesktopUpdateStore } from "./store.ts";
 const bearer = (ctx: HandlerContext) =>
   /^Bearer\s+(\S+)$/i.exec(ctx.requestHeader.get("authorization") ?? "")?.[1] ?? "";
 
-const busy = (phase: string) => ["queued", "checking", "downloading", "waiting_idle", "restarting"].includes(phase);
+/** A desktop app's report about itself: bounded text, its own version and channel, a known phase. */
+export function validDesktopState(state: ui.DesktopUpdateState, hello: ui.DesktopHello) {
+  if (
+    state.reason.length > 1000 ||
+    state.disabledReason.length > 500 ||
+    state.availableVersion.length > 128 ||
+    state.targetVersion.length > 128 ||
+    state.version !== hello.version ||
+    state.channel !== hello.channel ||
+    !Number.isFinite(state.progress) ||
+    state.progress < 0 ||
+    state.progress > 100 ||
+    !["idle", "queued", "checking", "downloading", "waiting_idle", "restarting", "failed", "succeeded"].includes(
+      state.phase,
+    )
+  )
+    throw new ConnectError("Invalid desktop state", Code.InvalidArgument);
+}
+
+/** A desktop app's hello: its version, a release channel and a worker id of bounded size. */
+export function validDesktopHello(hello: ui.DesktopHello) {
+  if (
+    hello.version.length > 128 ||
+    !["stable", "beta", "nightly"].includes(hello.channel) ||
+    hello.workerId.length > 100
+  )
+    throw new ConnectError("Invalid desktop hello", Code.InvalidArgument);
+}
+
+export const busy = (phase: string) =>
+  ["queued", "checking", "downloading", "waiting_idle", "restarting"].includes(phase);
 
 type Session = {
   id: string;
@@ -85,12 +115,7 @@ export class DesktopControl {
   async *watch(hello: ui.DesktopHello, ctx: HandlerContext) {
     const identity = await this.identity(ctx);
 
-    if (
-      hello.version.length > 128 ||
-      !["stable", "beta", "nightly"].includes(hello.channel) ||
-      hello.workerId.length > 100
-    )
-      throw new ConnectError("Invalid desktop hello", Code.InvalidArgument);
+    validDesktopHello(hello);
     const channel = new AsyncChannel<ui.DesktopControlEvent>();
     const session: Session = { id: crypto.randomUUID(), deviceId: identity.deviceId, hello, channel, confirmed: false };
     this.sessions.get(identity.deviceId)?.channel.close();
@@ -207,21 +232,7 @@ export class DesktopControl {
     if (!session?.confirmed || session.id !== report.sessionId || !state || state.workerId !== session.hello.workerId)
       throw new ConnectError("Desktop session not confirmed", Code.FailedPrecondition);
 
-    if (
-      state.reason.length > 1000 ||
-      state.disabledReason.length > 500 ||
-      state.availableVersion.length > 128 ||
-      state.targetVersion.length > 128 ||
-      state.version !== session.hello.version ||
-      state.channel !== session.hello.channel ||
-      !Number.isFinite(state.progress) ||
-      state.progress < 0 ||
-      state.progress > 100 ||
-      !["idle", "queued", "checking", "downloading", "waiting_idle", "restarting", "failed", "succeeded"].includes(
-        state.phase,
-      )
-    )
-      throw new ConnectError("Invalid desktop state", Code.InvalidArgument);
+    validDesktopState(state, session.hello);
     session.disabledReason = state.disabledReason;
     const row = (await this.store.list()).find((r) => r.deviceId === deviceId);
 

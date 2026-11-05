@@ -23,6 +23,9 @@ export const INLINE_ATTACHMENTS = "inline_attachments";
 
 /** Stage 8: two-phase moves of threads and bots between directly linked computers, and redirects. */
 export const MOVE_ITEMS = "move_items";
+
+/** Remote app updates: a directly linked computer's Canopy app updates on request (docs/updates.md). */
+export const REMOTE_APP_UPDATE = "remote_app_update";
 export const NODE_REF_LENGTH = 16;
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";

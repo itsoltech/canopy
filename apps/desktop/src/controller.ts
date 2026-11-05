@@ -4,6 +4,7 @@ import type { DesktopStatus } from "@canopy/ui/desktop";
 import { configuration, type ConfigurationInput } from "./runtime/config.ts";
 import type { DesktopClientCredential } from "./remote-client.ts";
 import { RemoteDesktopControl } from "./remote-control.ts";
+import { LocalDesktopControl, localControlTarget } from "./local-control.ts";
 import { toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 
@@ -48,18 +49,28 @@ const send = (message: ControllerResponse) => process.stdout.write(JSON.stringif
 let runtime: DesktopRuntime | undefined;
 let ending = false;
 let queue = Promise.resolve();
-let control: RemoteDesktopControl | undefined;
+let control: RemoteDesktopControl | LocalDesktopControl | undefined;
 let updateState = "";
 
 function connectControl() {
   control?.stop();
   control = undefined;
   const remote = runtime?.remoteControl();
+  const current = runtime;
+  const status = current?.status;
 
-  if (!remote) return;
-  control = new RemoteDesktopControl(remote.client, remote.directory, (command) =>
-    send({ event: "remote-update", command: toJsonString(ui.DesktopUpdateCommandSchema, command) }),
-  );
+  const local =
+    current && status?.mode === "local" && status.phase === "running" && status.gatewayUrl
+      ? localControlTarget(current.directory, () => current.client())
+      : undefined;
+
+  const forward = (command: ui.DesktopUpdateCommand) =>
+    send({ event: "remote-update", command: toJsonString(ui.DesktopUpdateCommandSchema, command) });
+
+  if (remote) control = new RemoteDesktopControl(remote.client, remote.directory, forward);
+  // Local mode: linked computers ask for app updates through this app's own gateway.
+  else if (local) control = new LocalDesktopControl(local.client, local.workerId, forward);
+  else return;
 
   if (updateState) void control.report(updateState).catch(() => {});
   void control.run();

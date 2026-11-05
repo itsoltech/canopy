@@ -65,6 +65,10 @@ service GatewayService {
   rpc WorkerSsh(WorkerSshRequest) returns (stream WorkerSshEvent);
   rpc GetUpdates(UpdatesRequest) returns (UpdatesSnapshot);
   rpc ManageUpdates(ManageUpdatesRequest) returns (UpdatesSnapshot);
+  // Local mode only, service token only: the desktop app's own control channel to its bundled gateway.
+  // Linked computers ask for app updates through it (docs/updates.md, "Połączone komputery").
+  rpc WatchAppControl(DesktopHello) returns (stream DesktopControlEvent);
+  rpc ReportAppControl(DesktopReport) returns (DesktopAck);
   // Device administration is restricted to the web BFF service token.
   rpc GetMobileDevices(GetMobileDevicesRequest) returns (GetMobileDevicesResponse);
   rpc CreateMobilePairing(CreateMobilePairingRequest) returns (CreateMobilePairingResponse);
@@ -288,12 +292,13 @@ message WorkerRequest { string worker_id = 1; }
 
 message UpdatesRequest {}
 message ManageUpdatesRequest {
-  string action = 1; // check | channel | gateway | worker | all | desktop | update_all
+  string action = 1; // check | channel | gateway | worker | all | desktop | update_all | computer
   string channel = 2;
   string worker_id = 3;
   bool force = 4;
   bool allow_downgrade = 5; // explicit user choice only
   string desktop_request_id = 6; // required for desktop force, bound to the current request
+  string node_id = 7; // computer: the directly linked computer whose Canopy app updates
 }
 message WorkerUpdate {
   string worker_id = 1;
@@ -325,6 +330,26 @@ message UpdatesSnapshot {
   string check_error = 14;
   // This gateway is the desktop app's bundled one (local mode): it updates with the app, never by itself.
   bool gateway_bundled = 15;
+  // Local mode: this computer's own Canopy app, as its control channel reports it.
+  DesktopUpdateState app = 16;
+  // Local mode: linked computers, their apps, workers and agent CLIs (docs/updates.md).
+  repeated ComputerUpdate computers = 17;
+}
+// A linked computer's Canopy app and what runs on it. Its ids are qualified with its node.
+message ComputerUpdate {
+  string node_id = 1;
+  string name = 2;
+  // The app version from the link's last handshake.
+  string version = 3;
+  // The link presence: connected, updating, sleeping, shutting_down, unreachable, needs_update, …
+  string presence = 4;
+  int64 presence_since_ms = 5;
+  // Both computers support remote_app_update and the link is direct.
+  bool remote_update = 6;
+  // Why this computer's app can't be updated from here, in the words the UI shows; empty when it can.
+  string reason = 7;
+  // The computer's own snapshot (its app in `app`); absent while it isn't reachable.
+  UpdatesSnapshot updates = 8;
 }
 // Owner-scoped durable orchestration. No URLs, credentials, force or downgrade grants.
 message UpdateRun {
@@ -334,7 +359,7 @@ message UpdateRun {
   repeated UpdateStep steps = 4;
 }
 message UpdateStep {
-  string kind = 1; // gateway | worker | cli | desktop
+  string kind = 1; // gateway | worker | cli | desktop | computer
   string worker_id = 2;
   string label = 3;
   string version = 4;
@@ -343,6 +368,8 @@ message UpdateStep {
   string reason = 7;
   string started_at = 8;
   string from_version = 9;
+  string node_id = 10; // computer: the linked computer
+  string request_id = 11; // computer: the app update request on that computer
 }
 message RenameWorkerRequest { string worker_id = 1; string name = 2; }
 message RotateWorkerCredentialResponse { string credential = 1; }

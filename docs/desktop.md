@@ -268,6 +268,7 @@ secrets.enc                 # ciphertext OS keychain; 0600 na POSIX
 desktop.json                # tryb/adresy; bez tokenu enrollment
 app-updates.json            # wybrany kanał desktopu; zapis atomowy w main, bez gatewaya
 remote-update.json.<hash>    # historia zdalnej aktualizacji per desktop device; bez credentiali
+remote-update.json          # tryb lokalny: historia aktualizacji zleconych przez połączone komputery
 app-shortcuts.json          # quitShortcut; zapis atomowy w main, bez gatewaya
 app-update-checks.json      # częstotliwość i ostatnie sprawdzenie aktualizacji desktopu
 web-port                    # stały port web UI, więc localStorage (preferencje urządzenia) przetrwa restart

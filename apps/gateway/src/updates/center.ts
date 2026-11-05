@@ -10,6 +10,28 @@ export interface UpdateCenterOptions {
   manage(request: ui.ManageUpdatesRequest): Promise<ui.UpdatesSnapshot>;
   install(request: ui.InstallCliRequest): Promise<ui.InstallCliResponse>;
   desktop(request: ui.ManageUpdatesRequest): Promise<void>;
+  /** Asks a linked computer for an app update; returns the request id there. */
+  computer(nodeId: string): Promise<string>;
+}
+
+/**
+ * A linked computer's app is updated when it is back on the link with a version at least the planned one, or reports
+ * its request succeeded. While it restarts (offline, "updating") the step waits; this computer's link never restarts.
+ */
+function computerUpdated(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): boolean {
+  const computer = snapshot.computers.find((c) => c.nodeId === step.nodeId);
+
+  if (!computer) throw new Error("This computer is no longer linked");
+  const app = computer.updates?.app;
+
+  if (computer.presence !== "connected" || !app?.connected) return false;
+
+  if (app.requestId === step.requestId && app.phase === "failed") throw new Error(app.reason || "App update failed");
+
+  return (
+    (app.requestId === step.requestId && app.phase === "succeeded") ||
+    (!!step.version && !newerVersion(step.version, app.version) && app.version !== step.fromVersion)
+  );
 }
 
 /** One serialized, durable chain. Acknowledgement is not completion; reports/version confirm each step. */
@@ -122,6 +144,8 @@ export class UpdateCenter {
       );
     } else if (step.kind === "desktop") {
       await this.options.desktop(create(ui.ManageUpdatesRequestSchema, { action: "desktop", workerId: step.workerId }));
+    } else if (step.kind === "computer") {
+      step.requestId = await this.options.computer(step.nodeId);
     } else throw new Error("Unknown update kind");
   }
 
@@ -134,6 +158,7 @@ export class UpdateCenter {
       return false;
     }
 
+    if (step.kind === "computer") return computerUpdated(step, snapshot);
     const worker = snapshot.workers.find((w) => w.workerId === step.workerId);
 
     if (!worker) throw new Error("Worker no longer belongs to this update scope");

@@ -24,6 +24,10 @@ message DesktopWorkerProof {
 message DesktopUpdateCommand {
   string request_id = 1;
   bool force = 2;
+  // Local mode: the linked computer that asked for this update (its name, for the notification).
+  string requested_by = 3;
+  // Local mode: check for an update with the app's own channel and settings. Installs nothing; no request id.
+  bool check = 4;
 }
 message DesktopControlEvent {
   string session_id = 1;
@@ -43,6 +47,8 @@ message DesktopUpdateState {
   bool connected = 10;
   string disabled_reason = 11;
   string target_version = 12; // immutable attempted version; available_version may advance after restart
+  // The app downloaded an update and installs it at the next restart.
+  bool ready = 13;
 }
 message DesktopReport {
   string session_id = 1;

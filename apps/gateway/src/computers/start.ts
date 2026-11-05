@@ -2,6 +2,7 @@ import { remoteServe, sharedHost, uiHandlers } from "../api/index.ts";
 import type { GatewayCore } from "../core/core.ts";
 import type { NetworkAccess } from "../network/network.ts";
 import { LinkedComputers } from "./runtime.ts";
+import { serveComputerUpdates } from "../updates/linked.ts";
 import type { Options } from "./runtime-context.ts";
 import type { ComputerStore } from "./store.ts";
 
@@ -29,6 +30,7 @@ export async function startComputerLinks(
     serve: remoteServe(own, core),
     shared: sharedHost(core, own),
     core,
+    updates: (nodeId, method, request) => serveComputerUpdates(core, nodeId, method, request),
     zone: async () => (await core.settings()).user?.timezone,
     ...(discovery && { discovery }),
   });

@@ -131,6 +131,18 @@ message ConfigSharing { bool enabled = 1; uint64 revision = 2; }
 
 // Pair is the only RPC open to a certificate without a pin. The invitation
 // authenticates the server certificate before its secret is sent.
+// Capability "remote_app_update": a linked computer's Canopy app and its updates (docs/updates.md).
+// Direct links only, never relayed. The home checks its own feed, channel and settings; the caller's view is a hint.
+service ComputerUpdateService {
+  rpc GetComputerUpdates(ComputerUpdatesRequest) returns (canopy.ui.v1.UpdatesSnapshot);
+  rpc RequestComputerUpdate(ComputerUpdateRequest) returns (canopy.ui.v1.UpdatesSnapshot);
+}
+message ComputerUpdatesRequest {}
+message ComputerUpdateRequest {
+  string action = 1; // app | check | worker
+  string worker_id = 2; // worker: one of the home's binary workers
+}
+
 service ComputerLinkService {
   rpc Pair(PairRequest) returns (PairResponse);
   rpc Connect(stream LinkFrame) returns (stream LinkFrame);
