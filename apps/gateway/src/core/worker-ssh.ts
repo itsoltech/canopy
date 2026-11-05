@@ -10,6 +10,7 @@ import { decryptSecret, encryptSecret, loadSecretsKey, SECRETS_KEY_ID } from "..
 import type { CoreRuntime } from "./core.ts";
 import type { WorkerAdministration } from "./worker-administration.ts";
 import { installWorker, type SshInstallation } from "./worker-ssh-install.ts";
+import type { GatewayUpdates } from "../updates/runtime.ts";
 
 export interface SshTarget {
   username: string;
@@ -40,7 +41,13 @@ type KeyRow = { public_key: string; private_key: Uint8Array };
 export class WorkerSsh {
   #active = false;
   constructor(
-    readonly options: { runtime: CoreRuntime; userId: string; workers: WorkerAdministration; secretsKey?: Buffer },
+    readonly options: {
+      runtime: CoreRuntime;
+      userId: string;
+      workers: WorkerAdministration;
+      updates: GatewayUpdates;
+      secretsKey?: Buffer;
+    },
   ) {}
 
   async #key(rotate = false): Promise<KeyRow> {
@@ -146,6 +153,7 @@ export class WorkerSsh {
       target,
       pinned,
       workers: this.options.workers,
+      updates: this.options.updates,
       pin: (value, fingerprint) => this.#pin(value, fingerprint),
       audit: (action) => this.#audit(action),
     };

@@ -167,8 +167,7 @@
               >{/snippet}</Alert
           >
         {:else if metadata?.fallback}<Alert tone="warning"
-            >This gateway version has no published mirror. Downloading GitHub release {metadata.version} from the {channel}
-            channel instead. It may require a gateway update for compatibility.</Alert
+            >This gateway version is unavailable. Use compatible release {metadata.version} from the {channel} channel.</Alert
           >{/if}
         {#if method === "script"}
           <CommandBlock text={command} copyable={copyable && !!metadata} label="Terminal · run as your regular user" />

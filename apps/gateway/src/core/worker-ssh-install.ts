@@ -8,8 +8,9 @@ import { Client, type ClientChannel } from "ssh2";
 import installer from "../../../../scripts/install-worker.sh" with { type: "text" };
 import type { WorkerAdministration } from "./worker-administration.ts";
 import { sanitizeSshOutput, type SshTarget } from "./worker-ssh.ts";
-
-const quote = (value: string) => `'${value.replaceAll("'", `'"'"'`)}'`;
+import { requireRemoteWorkerAddress, workerSshCommand } from "./worker-ssh-command.ts";
+import { workerInstallManifest } from "../updates/install.ts";
+import type { GatewayUpdates } from "../updates/runtime.ts";
 
 export interface SshInstallation {
   client: Client;
@@ -24,6 +25,7 @@ export interface SshInstallation {
   target: SshTarget;
   pinned: string | undefined;
   workers: WorkerAdministration;
+  updates: GatewayUpdates;
   pin(target: SshTarget, fingerprint?: string): Promise<string | undefined>;
   audit(action: string): Promise<void>;
 }
@@ -35,23 +37,11 @@ export async function installWorker(session: SshInstallation, fail: (message: st
   if ((await session.pin(session.target, session.fingerprint)) !== session.fingerprint)
     throw new ConnectError("SSH host key changed. Installation blocked.", Code.FailedPrecondition);
   await session.audit("worker.ssh.install.start");
-  const origin = new URL(session.request.webOrigin);
-
-  if (
-    !["https:", "http:"].includes(origin.protocol) ||
-    origin.username ||
-    origin.password ||
-    origin.pathname !== "/" ||
-    origin.search ||
-    origin.hash
-  ) {
-    throw new ConnectError("Use the Canopy web origin", Code.InvalidArgument);
-  }
-
   const setup = await session.workers.setup();
+  requireRemoteWorkerAddress(setup.gatewayUrl, session.target.host);
+  const manifest = await workerInstallManifest(session.updates);
   session.signal.throwIfAborted();
 
-  if (!setup.gatewayUrl) throw new ConnectError("Set the worker gateway address first", Code.FailedPrecondition);
   const invitation = await session.workers.create(session.request.name, session.request.tags);
   session.token = invitation.token;
   session.invitationId = invitation.enrollment!.id;
@@ -74,6 +64,7 @@ export async function installWorker(session: SshInstallation, fail: (message: st
     let output = "";
     let bytes = 0;
     let reused = false;
+    let installerError = "";
 
     const emit = (data: Buffer) => {
       bytes += data.length;
@@ -90,6 +81,8 @@ export async function installWorker(session: SshInstallation, fail: (message: st
 
       for (const line of lines) {
         if (line.startsWith("Existing config preserved")) reused = true;
+
+        if (line.startsWith("Canopy: ")) installerError = sanitizeSshOutput(line.slice(8), session.token);
         session.events.push(create(ui.WorkerSshEventSchema, { output: sanitizeSshOutput(line, session.token) + "\n" }));
       }
     };
@@ -97,15 +90,15 @@ export async function installWorker(session: SshInstallation, fail: (message: st
     stream.on("data", emit);
     stream.stderr.on("data", emit);
     stream.on("close", (code: number | null) => {
+      if (output.startsWith("Canopy: ")) installerError = sanitizeSshOutput(output.slice(8), session.token);
+
       if (output)
         session.events.push(
           create(ui.WorkerSshEventSchema, { output: sanitizeSshOutput(output, session.token) + "\n" }),
         );
 
       if (code !== 0) {
-        fail(
-          "Installer failed. Check the output above; an SSH session may need a systemd user session or macOS GUI login.",
-        );
+        fail(installerError || "Worker installation failed. Copy the installation output to check the failed step.");
 
         return;
       }
@@ -154,7 +147,7 @@ export async function installWorker(session: SshInstallation, fail: (message: st
     });
     // Secrets travel through encrypted stdin, never the SSH command, logs or browser.
     stream.end(
-      `set -- --channel-fallback --origin ${quote(origin.origin)} --gateway ${quote(setup.gatewayUrl)}${setup.gatewayFingerprint ? ` --fingerprint ${quote(setup.gatewayFingerprint)}` : ""} --token ${quote(session.token)} --name ${quote(session.request.name)}\n${installer}\n`,
+      `${workerSshCommand(setup, manifest, session.updates.version, session.token, session.request.name)}${installer}\n`,
     );
   });
 }

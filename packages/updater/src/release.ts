@@ -253,12 +253,19 @@ export class ReleaseSource {
       options.allowHttpForTests,
     ).href.replace(/\/$/, "");
   }
-  async resolve(channel: string): Promise<ReleaseManifest> {
+  async resolve(channel: string, accept?: (manifest: ReleaseManifest) => boolean): Promise<ReleaseManifest> {
     channel = normalizeChannel(channel);
 
     if (!validChannel(channel)) throw new Error("Use stable, beta, nightly, vX, vX.Y or vX.Y.Z");
 
-    if (/^v\d+\.\d+\.\d+$/.test(channel)) return this.#exact(channel.slice(1), true);
+    if (/^v\d+\.\d+\.\d+$/.test(channel)) {
+      const manifest = await this.#exact(channel.slice(1), true);
+
+      if (accept && !accept(manifest)) throw new Error("No compatible release for this channel");
+
+      return manifest;
+    }
+
     const candidates: GithubRelease[] = [];
 
     for (let page = 1; ; page++) {
@@ -289,13 +296,15 @@ export class ReleaseSource {
       if (page >= 100) throw new Error("Release list exceeds pagination limit");
     }
 
-    const release = candidates.sort((a, b) =>
-      compareVersions(b.tag_name.replace(/^v/, ""), a.tag_name.replace(/^v/, "")),
-    )[0];
+    candidates.sort((a, b) => compareVersions(b.tag_name.replace(/^v/, ""), a.tag_name.replace(/^v/, "")));
 
-    if (!release) throw new Error("No release for this channel");
+    for (const release of candidates) {
+      const manifest = await this.#manifest(release);
 
-    return this.#manifest(release);
+      if (!accept || accept(manifest)) return manifest;
+    }
+
+    throw new Error(accept ? "No compatible release for this channel" : "No release for this channel");
   }
   async #exact(version: string, stableOnly: boolean): Promise<ReleaseManifest> {
     let release: GithubRelease;

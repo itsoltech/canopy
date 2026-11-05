@@ -348,8 +348,12 @@ Ten sam mirror zasila nową instalację: uwierzytelniony BFF wywołuje dodany
 strumień binarki. `?sha256=1` zwraca hash z manifestu dokładnej wersji gatewaya. Nie zmienia
 to zamrożonego `UpdateService` ani nie wymaga credentialu jeszcze nieutworzonego workera.
 Dozwolone platformy instalatora: Linux x64/arm64 i macOS arm64. Brak wydania/mirrora
-kończy pobieranie błędem HTTP; kreator rozwiązuje wtedy kanał do konkretnego GitHub Release
-i wyświetla jawny fallback. Skrypt zawsze weryfikuje checksum przed wykonaniem binarki.
+kończy pobieranie błędem HTTP; kreator i SSH preferują manifest dokładnej wersji gatewaya,
+także prerelease `vX.Y.Z-nightly.N` i `vX.Y.Z-beta.N`. Brak publikacji uruchamia wybór
+najnowszego wydania kanału zgodnego z WorkerLink i UpdateService oraz z binarką docelowej platformy.
+Kreator i output SSH podają wersję zastępczą. SSH przesyła adres HTTPS GitHub i SHA-256
+przez uwierzytelnione stdin, bez zdalnego dostępu do lokalnego BFF desktopu.
+Skrypt zawsze weryfikuje checksum przed wykonaniem binarki; przekierowania GitHub wymagają HTTPS.
 
 | Ustawienie | Znaczenie |
 |---|---|

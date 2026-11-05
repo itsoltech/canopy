@@ -64,7 +64,7 @@
 
 <div
   class={[
-    "flex items-start gap-3 text-base/6 sm:text-sm/6",
+    "flex min-w-0 items-start gap-3 text-base/6 wrap-anywhere sm:text-sm/6",
     look.box,
     banner ? "px-4 py-2.5 sm:px-6" : "rounded-lg p-3 ring-1 ring-inset",
     className,
@@ -74,7 +74,7 @@
   <div class="flex h-lh items-center"><Icon name={look.icon} class={look.icon_} /></div>
   <div class="min-w-0 flex-1">
     {#if title}<p class={["font-medium", look.title]}>{title}</p>{/if}
-    {#if children}<div class={["text-pretty break-words", look.body]}>{@render children()}</div>{/if}
+    {#if children}<div class={["text-pretty wrap-anywhere", look.body]}>{@render children()}</div>{/if}
   </div>
   {#if actions}<div class="flex shrink-0 items-center gap-2">{@render actions()}</div>{/if}
 </div>
