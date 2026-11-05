@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { ui, ProviderProfileKind } from "@canopy/contracts";
   import { requestJson } from "#lib/shared/http.ts";
@@ -74,12 +75,18 @@
   let busy = $state(false);
   let failure = $state<string>();
 
-  // Back to the stored overrides whenever they change (after a save, or a change elsewhere).
+  // Back to the stored overrides whenever they change (after a save, or a change elsewhere). Compared by value:
+  // reloads swap in equal objects and must keep typed edits; row keys are fresh on every draft.
+  const storedKey = $derived(JSON.stringify(overrideDraftOf(on), (key, value) => (key === "key" ? undefined : value)));
+
   $effect.pre(() => {
-    const stored = overrideDraftOf(on);
-    draft = stored;
-    text = textOf(stored);
-    tried = false;
+    void storedKey;
+    untrack(() => {
+      const stored = overrideDraftOf(on);
+      draft = stored;
+      text = textOf(stored);
+      tried = false;
+    });
   });
 
   const merged = $derived({
