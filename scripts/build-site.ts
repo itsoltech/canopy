@@ -21,18 +21,28 @@ if (!built.success) throw new AggregateError(built.logs, "Could not build the OA
 
 const script = (await built.outputs[0]!.text()).trim();
 const template = await readFile(join(root, "site/oauth/callback.html"), "utf8");
-const style = /<style>([\s\S]*?)<\/style>/.exec(template)?.[1] ?? "";
+
+// The script is inlined first (replacement patterns like `$&` in minified code must not be expanded), then the CSP
+// hashes the exact text between the tags, including the template's indentation, as the browser does.
+const inlined = template.replace("__SCRIPT__", () => script);
+
+const body = (tag: string) => {
+  const match = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(inlined);
+
+  if (!match) throw new Error(`The OAuth redirect page has no <${tag}>`);
+
+  return match[1]!;
+};
 
 const csp = [
   "default-src 'none'",
-  `script-src ${hash(script)}`,
-  `style-src ${hash(style)}`,
+  `script-src ${hash(body("script"))}`,
+  `style-src ${hash(body("style"))}`,
   "base-uri 'none'",
   "form-action 'none'",
 ].join("; ");
 
-// The script is inlined last: replacement patterns like `$&` in minified code must not be expanded.
-const page = template.replace("__CSP__", csp).replace("__SCRIPT__", () => script);
+const page = inlined.replace("__CSP__", csp);
 
 await mkdir(join(out, "oauth"), { recursive: true });
 

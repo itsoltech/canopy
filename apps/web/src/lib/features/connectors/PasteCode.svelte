@@ -37,7 +37,7 @@
 </script>
 
 <div class={["grid gap-3", className]}>
-  <Field label="Sign-in code" description="Copy it from the sign-in page, then paste it here."
+  <Field label="Sign-in code" description="Paste the code from the sign-in page, or that page's whole address."
     ><Input bind:value={pasted} autocomplete="off" spellcheck={false} disabled={busy} /></Field
   >
   {#if error}<Alert tone="error">{error}</Alert>{/if}

@@ -64,7 +64,8 @@
         color: #3f3f46;
         user-select: all;
       }
-      button {
+      button,
+      .open {
         flex: none;
         border: 0;
         border-radius: 0.5rem;
@@ -76,7 +77,12 @@
         font-weight: 500;
         cursor: pointer;
       }
-      button:hover {
+      .open {
+        justify-self: start;
+        text-decoration: none;
+      }
+      button:hover,
+      .open:hover {
         background: #3f3f46;
       }
       button:focus-visible {
@@ -102,11 +108,13 @@
         code {
           color: #d4d4d8;
         }
-        button {
+        button,
+        .open {
           background: #fafafa;
           color: #18181b;
         }
-        button:hover {
+        button:hover,
+        .open:hover {
           background: #d4d4d8;
         }
       }
@@ -116,6 +124,7 @@
     <main>
       <p class="brand">Canopy</p>
       <p id="status" role="status">Returning to Canopy…</p>
+      <a id="open" class="open" hidden>Open Canopy</a>
       <div id="manual" hidden>
         <div class="code"><code id="code"></code><button id="copy" type="button">Copy code</button></div>
       </div>
