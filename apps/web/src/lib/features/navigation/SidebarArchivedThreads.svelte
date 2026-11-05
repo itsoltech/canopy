@@ -145,7 +145,7 @@
     aria-label="Archived"
     data-archived-section
     data-sticky={sticky ? "true" : undefined}
-    class={["pt-2", sticky && "sticky -bottom-3 z-10 bg-zinc-50 pb-4 max-lg:bg-white dark:bg-zinc-950", className]}
+    class={["pt-2", sticky && "sticky -bottom-3 z-10 bg-panel pb-4", className]}
   >
     <h2>
       <button
