@@ -14,6 +14,8 @@ import { ApprovalCard } from "./ApprovalCard";
 import { BotDetailsPanel } from "./BotDetailsPanel";
 import { BotAvatar } from "./BotAvatar";
 import { useFollowingList } from "../../ui/useFollowingList";
+import { useLayout } from "../../state/layout";
+import { SidebarToggle } from "../navigation/SidebarToggle";
 
 function useBotChat(id: string) {
   const { session, client, online } = useSession();
@@ -78,6 +80,7 @@ function useBotChat(id: string) {
 export function BotChatScreen({ id }: { id: string }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
+  const { wide } = useLayout();
 
   const {
     session,
@@ -104,6 +107,7 @@ export function BotChatScreen({ id }: { id: string }) {
     <SafeAreaView style={styles.fill}>
       <ScreenHeader
         title={conversation?.bot?.configuration?.name || "Bot"}
+        left={wide ? <SidebarToggle /> : undefined}
         right={
           <View style={styles.row}>
             {conversation?.bot && <BotAvatar bot={conversation.bot} size={32} />}

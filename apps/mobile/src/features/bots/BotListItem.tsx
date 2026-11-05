@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from "react-native";
-import { router } from "expo-router";
+import { useGlobalSearchParams, usePathname } from "expo-router";
+import { useLayout } from "../../state/layout";
 import type { bots } from "@canopy/contracts";
 import { BotAvatar } from "./BotAvatar";
 import { age } from "../navigation/SidebarThread";
@@ -7,19 +8,24 @@ import { styles, useColors } from "../../ui/theme";
 
 export function BotListItem({ bot }: { bot: bots.Bot }) {
   const c = useColors();
+  const layout = useLayout();
+  const pathname = usePathname();
+  const { id } = useGlobalSearchParams<{ id?: string }>();
+  const active = layout.wide && pathname.startsWith("/bot/") && id === bot.id;
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={bot.configuration?.name ?? "Bot"}
-      onPress={() => router.push({ pathname: "/bot/[id]", params: { id: bot.id } })}
+      accessibilityState={{ selected: active }}
+      onPress={() => layout.open({ pathname: "/bot/[id]", params: { id: bot.id } })}
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
         gap: 12,
         borderRadius: 12,
         padding: 12,
-        backgroundColor: pressed ? c.inset : "transparent",
+        backgroundColor: pressed || active ? c.inset : "transparent",
       })}
     >
       <BotAvatar bot={bot} />

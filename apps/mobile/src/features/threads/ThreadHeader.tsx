@@ -6,6 +6,8 @@ import { useSession } from "../../state/session";
 import { Button, Field, IconButton, Notice, Sheet } from "../../ui/components";
 import { Overlay } from "../../ui/Overlay";
 import { PickerSheet } from "../../ui/Picker";
+import { useLayout } from "../../state/layout";
+import { SidebarToggle } from "../navigation/SidebarToggle";
 import { ProjectMark } from "../../ui/ProjectMark";
 import { styles, useColors } from "../../ui/theme";
 
@@ -62,6 +64,7 @@ export function ThreadHeader({
   onDetails: () => void;
 }) {
   const c = useColors();
+  const { wide } = useLayout();
   const { sheet, setSheet, title, setTitle, query, setQuery, error, busy, action } = useThreadActions(thread);
 
   return (
@@ -78,11 +81,15 @@ export function ThreadHeader({
           },
         ]}
       >
-        <IconButton
-          icon="bars-3"
-          label="Threads"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
-        />
+        {wide ? (
+          <SidebarToggle />
+        ) : (
+          <IconButton
+            icon="bars-3"
+            label="Threads"
+            onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+          />
+        )}
         {project && <ProjectMark name={project.name} kind={project.kind} />}
         <Text numberOfLines={1} style={[styles.body, { color: c.muted, maxWidth: 70, paddingLeft: 8 }]}>
           {project?.name || "Thread"}

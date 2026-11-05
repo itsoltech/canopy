@@ -1,5 +1,6 @@
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { router } from "expo-router";
+import { useGlobalSearchParams, usePathname } from "expo-router";
+import { useLayout } from "../../state/layout";
 import type { ui } from "@canopy/contracts";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
@@ -31,6 +32,11 @@ export function SidebarThread({
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
+  const layout = useLayout();
+  const pathname = usePathname();
+  const { id } = useGlobalSearchParams<{ id?: string }>();
+  // Wide windows show the open thread beside the list: mark it.
+  const active = layout.wide && pathname.startsWith("/thread/") && id === thread.id;
   const needs = thread.pendingInteractions > 0 || thread.status === "waiting_input";
   const busy = ["running", "creating"].includes(thread.status);
   const result = thread.unseenResult || (thread.status === "failed" ? "failed" : "");
@@ -59,14 +65,15 @@ export function SidebarThread({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${thread.title || "Untitled thread"}, ${label}`}
-      onPress={() => router.push({ pathname: "/thread/[id]", params: { id: thread.id } })}
+      accessibilityState={{ selected: active }}
+      onPress={() => layout.open({ pathname: "/thread/[id]", params: { id: thread.id } })}
       style={({ pressed }) => [
         {
           paddingHorizontal: 12,
           paddingVertical: 10,
           gap: 2,
           borderRadius: 12,
-          backgroundColor: pressed ? c.inset : needs ? (c.dark ? "#fbbf240f" : "#f59e0b0f") : "transparent",
+          backgroundColor: pressed || active ? c.inset : needs ? (c.dark ? "#fbbf240f" : "#f59e0b0f") : "transparent",
           borderWidth: needs ? 1 : 0,
           borderColor: `${c.warning}33`,
         },
