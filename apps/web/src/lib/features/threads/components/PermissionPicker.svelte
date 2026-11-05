@@ -8,18 +8,16 @@
   import PermissionModeTitle from "./PermissionModeTitle.svelte";
 
   /**
-   * Composer pill for a permission mode (new thread: the thread's mode; thread composer: the next
-   * messages' mode). `inherited` marks the thread's default in the menu. Full auto never asks before
-   * running anything, so the pill turns amber with a warning shield and says so in the menu.
+   * Composer pill for a thread's permission mode (new thread and side thread: the draft's pick; thread
+   * composer: the thread's stored mode, saved when picked). Full auto never asks before running anything,
+   * so the pill turns amber with a warning shield and says so in the menu.
    */
   let {
     value,
-    inherited,
     onselect,
     class: className,
   }: {
     value: PermissionModeKey;
-    inherited?: PermissionModeKey | undefined;
     onselect: (mode: PermissionModeKey) => void;
     class?: ClassValue;
   } = $props();
@@ -53,7 +51,7 @@
       description={option.description}
       onselect={() => onselect(option.value)}
     >
-      <PermissionModeTitle mode={option.value} note={option.value === inherited ? "Default" : undefined} />
+      <PermissionModeTitle mode={option.value} />
     </MenuCheckItem>
   {/each}
 </DropdownMenu>

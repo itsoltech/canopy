@@ -17,7 +17,8 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
-  import { permissionKey, type PermissionModeKey } from "../labels.ts";
+  import { permissionKey } from "../labels.ts";
+  import { sideThreadDraft, usePermissionDrafts } from "../permission-drafts.svelte.ts";
   import ComposerBox from "./ComposerBox.svelte";
   import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import PermissionPicker from "./PermissionPicker.svelte";
@@ -38,8 +39,10 @@
     option && option.efforts.length > 0 ? (effort ?? effectiveEffort(option, main.effort)) : undefined,
   );
 
-  let permission = $state<PermissionModeKey>();
-  const mode = $derived(permission ?? permissionKey(main.permissionMode));
+  // Your pick stays with this side thread's draft (leave and come back); unset = the main thread's mode.
+  const permissions = usePermissionDrafts();
+  const draftKey = $derived(sideThreadDraft(main.id));
+  const mode = $derived(permissions.get(draftKey) ?? permissionKey(main.permissionMode));
   let fork = $state(true);
   let message = $state("");
   let mentions = $state<Mention[]>([]);
@@ -96,8 +99,10 @@
         use:enhance={({ cancel }) => {
           if (busy || closed || !option || draft.blocker) return cancel();
           busy = true;
-          return async ({ update }) => {
+          const key = draftKey;
+          return async ({ result, update }) => {
             try {
+              if (result.type === "redirect") permissions.clear(key);
               await update({ reset: false });
             } finally {
               busy = false;
@@ -156,7 +161,11 @@
                 label="Computer offline"
                 text="This computer is offline. The side thread starts when it reconnects."
               />{/if}
-            <PermissionPicker value={mode} onselect={(next) => (permission = next)} class="-mr-1.5 shrink-0" />
+            <PermissionPicker
+              value={mode}
+              onselect={(next) => permissions.set(draftKey, next)}
+              class="-mr-1.5 shrink-0"
+            />
           {/snippet}
         </ComposerBox>
       </form>
