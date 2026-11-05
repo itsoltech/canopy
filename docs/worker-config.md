@@ -268,6 +268,10 @@ Wypisuje **sekretny** `worker.json`; przekieruj go do pliku z umask 077, nie do 
 - Dekodowanie jest ścisłe (Effect Schema): nieznany klucz to błąd. Wyjątkiem zgodności są stare `allowedRoots` i `allowed_roots`: są przyjmowane i ignorowane, podobnie jak pole historyczne w zdalnej konfiguracji i bazie. Worker nie ma listy dozwolonych katalogów.
 - Plik zawiera poświadczenie, więc jak klucz SSH nie może być dostępny dla innych użytkowników (POSIX: `chmod 600`). Inaczej worker kończy pracę z kodem 78 (`EX_CONFIG`), żeby supervisor nie restartował go w pętli. Na Windows ACL ustawia instalator.
 - Plik tworzy rejestracja workera (enrollment): token z UI zamieniany na `worker_id` i `credential`.
+- `CANOPY_WORKTREES_ROOT` (zmienna środowiskowa, opcjonalna): absolutny folder nowych worktree bez
+  skonfigurowanego `location`. Bez niej worker używa `~/canopy/worktrees`, a bez używalnego katalogu domowego
+  `<data_dir>/worktrees`. Obraz Docker ustawia ją na folder w wolumenie danych. Istniejące worktree pod
+  `<data_dir>/worktrees` pozostają zarządzane ([worktrees.md](worktrees.md#położenie)).
 
 ## 3. Przepływ
 

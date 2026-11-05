@@ -141,6 +141,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
             profiles: report?.profiles ?? [],
             homeDirectory: r.capabilities?.homeDirectory ?? "",
             worktrees: Boolean(r.capabilities?.worktreesRoot),
+            worktreesRoot: r.capabilities?.worktreesRoot ?? "",
             projectSources: r.capabilities?.projectSources === true,
             configVersion: r.config_version ? BigInt(r.config_version) : 0n,
             appliedVersion: r.applied_version ? BigInt(r.applied_version) : 0n,

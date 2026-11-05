@@ -50,7 +50,7 @@ Projekt wygrywa z komputerem, bo zwykle to repozytorium decyduje o konwencji ga�
 
 | Pole | Domyślnie | Znaczenie |
 |---|---|---|
-| `location` | pusty | Folder nowych worktree na workerze (absolutny). Pusty = zarządzany przez Canopy `<data_dir>/worktrees`. Zmiana dotyczy tylko nowych worktree; istniejące zostają tam, gdzie są. |
+| `location` | pusty | Folder nowych worktree na workerze (absolutny). Pusty = zarządzany korzeń workera (`~/canopy/worktrees`, zob. [Położenie](#położenie)). Zmiana dotyczy tylko nowych worktree; istniejące zostają tam, gdzie są. |
 | `start_from_remote` | `false` | Baza z remote: najnowszy commit gałęzi śledzonej przez gałąź bazową (`base@{upstream}`), inaczej gałąź o tej samej nazwie na `remote`, a gdy nie ma żadnej albo fetch zawiedzie: lokalny ref. |
 | `remote` (Advanced) | `origin` | Remote używany, gdy gałąź bazowa niczego nie śledzi. |
 | `branch_naming` | `SEMANTIC` | `SEMANTIC` (model wybiera `feat/…`, `fix/…`, `refactor/…` z pierwszej wiadomości), `PREFIX` (`<prefix>/<slug>`), `TITLE` (sam slug tytułu). |
@@ -92,7 +92,8 @@ bieżącego checkoutu. `ui.Worker.worktrees` = worker ogłosił capability `work
 
 ## Protokół workera
 
-Capability `worktrees` w `Hello.capabilities` i `Hello.worktrees_root` (`<data_dir>/worktrees`).
+Capability `worktrees` w `Hello.capabilities` i `Hello.worktrees_root` (zarządzany korzeń nowych worktree,
+zob. [Położenie](#położenie)). Gateway zapisuje go w `capabilities` workera i oddaje w `ui.Worker.worktrees_root`.
 Starszy worker jej nie ma: gateway nie wysyła mu komend git, kompozytor nie pokazuje wyboru worktree,
 a `CreateThread` z worktree dostaje czytelny błąd. `WORKER_LINK_PROTOCOL` bez zmian (zmiany addytywne).
 
@@ -105,7 +106,7 @@ Nietrwałe komendy (wysyłane bezpośrednio, nigdy z outboxa, worker ich nie zap
 | `RenameWorktreeBranch` (212) | `git branch -m` gałęzi worktree pod korzeniem, tylko gdy nadal jest wybrana w tym worktree i nie ma upstreamu | `CommandResult.worktree` |
 
 Ścieżka nie przychodzi z gatewaya. Worker liczy ją sam: `<root>/<nazwa repo>/<gałąź z / → ->`, gdzie
-`<root>` = `location` z ustawień albo `<data_dir>/worktrees`; zajęta ścieżka albo gałąź dostaje
+`<root>` = `location` z ustawień albo zarządzany korzeń; zajęta ścieżka albo gałąź dostaje
 przyrostek `-2`, `-3`, … Nazwa gałęzi przechodzi `git check-ref-format --branch`. Git działa bez
 promptów (`GIT_TERMINAL_PROMPT=0`, puste `GIT_ASKPASS`), z limitem czasu, argumentami (nie powłoką)
 i `--` przed ścieżkami.
@@ -115,6 +116,32 @@ oraz trwałe `RemoveWorktree` (214). Starszy worker z samym `worktrees` nadal tw
 ale do ich zarządzania UI prosi o aktualizację. Skan zwraca gałąź, ahead/behind (upstream albo baza),
 liczbę zmienionych plików (również untracked/ignored), niewypchnięte commity, stan merged/unchanged,
 HEAD i czas lokalnej aktywności. Błąd skanu blokuje usunięcie.
+
+### Położenie
+
+Worker ustala zarządzany korzeń raz przy starcie (`resolveWorktreeRoots` w
+`apps/worker/src/git/worktree-roots.ts`), w tej kolejności:
+
+1. `CANOPY_WORKTREES_ROOT`: absolutny folder ze środowiska workera, dla workerów w kontenerach i na
+   serwerach, gdzie katalog domowy nie jest trwały albo nie jest właściwym miejscem. Względna ścieżka albo
+   folder, którego nie da się utworzyć lub zapisać, kończy start kodem 78 (`EX_CONFIG`). Obraz Docker workera
+   ustawia `/home/canopy/.local/share/canopy/worktrees`, czyli dotychczasowy folder w wolumenie danych.
+2. `~/canopy/worktrees` w katalogu domowym użytkownika workera: macOS `/Users/<user>/canopy/worktrees`,
+   Linux `/home/<user>/canopy/worktrees`, Windows `C:\Users\<user>\canopy\worktrees`. Katalog domowy pochodzi
+   z `HOME` (Windows: `USERPROFILE`), a bez nich z `os.homedir()`.
+3. `<data_dir>/worktrees`, gdy katalogu domowego nie ma albo nie da się w nim utworzyć i zapisać folderu.
+   Worker zapisuje wtedy jedno ostrzeżenie w logu (bez sekretów).
+
+Korzeń powstaje z trybem `0700` (tam, gdzie system go obsługuje) i jest brany jako rzeczywista ścieżka.
+Ustawienie `location` wygrywa z każdym z nich dla nowych worktree. Każdy worker (lokalny, zdalny, komputer
+połączony) ustala swój katalog domowy sam; gateway zna tylko zgłoszony `Hello.worktrees_root`.
+
+**Dotychczasowy korzeń.** Do 2026-11 nowe worktree trafiały do `<data_dir>/worktrees` (na desktopie
+`~/Library/Application Support/Canopy/local-worker/data/worktrees`). Nic nie jest przenoszone automatycznie:
+istniejące worktree zostają w starym folderze. Gdy `<data_dir>/worktrees` istnieje, worker traktuje go jako
+drugi zarządzany korzeń. Skan statusu, lista w Settings, polityki sprzątania, Remove, Reveal i zmiana nazwy
+gałęzi akceptują worktree bez `location` pod dowolnym z zarządzanych korzeni, więc żaden stary worktree nie
+staje się niezarządzany ani nieusuwalny. Worktree ze skonfigurowanym `location` nadal sprawdza tylko ten folder.
 
 `RemoveWorktree` ponownie sprawdza status, oczekiwany HEAD, warunki polityki i aktywność wątków.
 `--force` występuje wyłącznie przy ręcznie potwierdzonym odrzuceniu zmian. Worker zapisuje dokładny
@@ -147,7 +174,8 @@ Nagłówek: „Applying settings for **[All projects | projekt]** across **[All 
 (dwa własne pickery z kitu). Grupy:
 
 - **Creation:** Worktree location (pole tekstowe, pusty = zarządzany przez Canopy, opis, że istniejące
-  zostają), Start from remote (przełącznik), Advanced (zwijane): Remote.
+  zostają; w zakresie komputera placeholder i podpowiedź dziedziczenia pokazują zgłoszony
+  `worktrees_root` tego workera, w szerszych zakresach „Managed by Canopy”), Start from remote (przełącznik), Advanced (zwijane): Remote.
 - **Branches:** Branch naming (Semantic prefix / Prefix / Thread title), Branch prefix.
 - **New threads:** Default workspace (Current checkout / New worktree).
 - **Cleanup:** powyższe polityki i ochrona zmian lokalnych.
@@ -251,7 +279,7 @@ o usuniętym worktree i historia wątku. Offline akcje workera są wyłączone z
 
 ## Bezpieczeństwo
 
-- **Konfinacja ścieżek:** worker sam liczy ścieżkę pod `<data_dir>/worktrees` albo skonfigurowanym
+- **Konfinacja ścieżek:** worker sam liczy ścieżkę pod zarządzanym korzeniem albo skonfigurowanym
   absolutnym folderem i sprawdza ją po `realpath`; gateway sprawdza ponownie, że zwrócona ścieżka jest pod
   tym korzeniem, zanim zapisze rekord. Zmiana nazwy i usuwanie działają tylko pod korzeniami.
   Folder repozytorium pod korzeniem nie może być dowiązaniem poza korzeń. Sam skonfigurowany korzeń

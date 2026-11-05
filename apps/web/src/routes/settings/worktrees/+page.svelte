@@ -26,7 +26,8 @@
 
   /** Settings → Worktrees (docs/worktrees.md): creation, branch names and the default for new threads, per scope. */
   const settingsState = new WorktreeSettingsState();
-  const records = workerRecords(useOverview());
+  const overview = useOverview();
+  const records = workerRecords(overview);
 
   setContext("worktree-settings", settingsState);
 
@@ -41,6 +42,11 @@
   const own = $derived(settingsState.current?.settings);
   const inherited = $derived(settingsState.current?.inherited);
   const effective = $derived(settingsState.current?.effective);
+
+  // The computer's own default (Hello.worktrees_root); broader scopes span several computers.
+  const managedRoot = $derived(
+    (scope.workerId && overview.worker(scope.workerId)?.worktreesRoot) || "Managed by Canopy",
+  );
 
   const naming = [
     { value: String(ui.BranchNaming.SEMANTIC), label: "Semantic prefix", description: "feat/…, fix/…, refactor/…" },
@@ -86,12 +92,12 @@
           name="worktreeLocation"
           field="location"
           title="Worktree location"
-          description="An absolute directory path on the computer. Empty: Canopy manages one in the worker's data directory."
-          placeholder="Managed by Canopy"
+          description="An absolute directory path on the computer. Empty: Canopy uses canopy/worktrees in the home directory."
+          placeholder={managedRoot}
           inputClass="w-64"
           value={effective.location ?? ""}
           overridden={is("location")}
-          inherited={inherited.location || "Managed by Canopy"}
+          inherited={inherited.location || managedRoot}
           onsave={(location) => settingsState.update({ location })}
           onreset={() => reset("location")}
         />

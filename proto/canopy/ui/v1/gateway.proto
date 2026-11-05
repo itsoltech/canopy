@@ -377,6 +377,8 @@ message Worker {
   bool worktrees = 804;
   // Worker tworzy katalogi nowych projektów i klony (capability "project_sources").
   bool project_sources = 805;
+  // Domyślny folder nowych worktree zgłoszony przez workera (Hello.worktrees_root); pusty = brak worktrees.
+  string worktrees_root = 806;
   optional uint32 cli_update_check_minutes = 900; // nadpisanie; brak = konto
   uint32 effective_cli_update_check_minutes = 901;
   google.protobuf.Timestamp cli_updates_checked_at = 902;

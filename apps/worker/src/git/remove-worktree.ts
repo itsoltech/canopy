@@ -7,7 +7,7 @@ import { checkedWorktree, scanWorktree } from "./worktree-status.ts";
 
 /** Recheck immediately before removal. Only a manual confirmation permits discarding local files. */
 export async function removeWorktree(
-  managedRoot: string,
+  managedRoots: readonly string[],
   request: RemoveWorktree,
   idle: () => Promise<void>,
   receipt: string,
@@ -15,7 +15,7 @@ export async function removeWorktree(
   const target = request.target;
 
   if (!target) throw new GitError("INVALID_COMMAND", "worktree target missing");
-  const status = await scanWorktree(managedRoot, target, true);
+  const status = await scanWorktree(managedRoots, target, true);
 
   if (status.headCommit !== request.expectedHeadCommit)
     throw new GitError("WORKTREE_CHANGED", "the worktree changed; refresh before removing it");
@@ -26,7 +26,7 @@ export async function removeWorktree(
   if (request.requireMerged && !status.merged) throw new GitError("NOT_MERGED", "the branch is no longer merged");
 
   if (request.requireUnchanged && !status.unchanged) throw new GitError("WORKTREE_CHANGED", "the worktree changed");
-  const { path, repo } = await checkedWorktree(managedRoot, target);
+  const { path, repo } = await checkedWorktree(managedRoots, target);
   await idle();
   mkdirSync(dirname(receipt), { recursive: true, mode: 0o700 });
   // Intent survives a crash between git's removal and the command journal's success record.

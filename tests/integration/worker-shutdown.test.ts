@@ -67,7 +67,12 @@ test("idle worker exits promptly on SIGTERM after the gateway acknowledges its j
   const child = Bun.spawn([process.execPath, "apps/worker/src/main.ts", "--config", config], {
     // The binary watchdog now adds IPC; closing it must not hold a gracefully stopped worker alive.
     ipc: () => {},
-    env: { ...process.env, CODEX_HOME: join(dir, "device-codex"), CLAUDE_CONFIG_DIR: join(dir, "device-claude") },
+    env: {
+      ...process.env,
+      CODEX_HOME: join(dir, "device-codex"),
+      CLAUDE_CONFIG_DIR: join(dir, "device-claude"),
+      CANOPY_WORKTREES_ROOT: join(dir, "worktrees"),
+    },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -144,6 +149,7 @@ test("SIGTERM interrupts a gateway-requested reconnect delay", async () => {
   );
 
   const child = Bun.spawn([process.execPath, "apps/worker/src/main.ts", "--config", config], {
+    env: { ...process.env, CANOPY_WORKTREES_ROOT: join(data, "worktrees") },
     stdout: "pipe",
     stderr: "pipe",
   });

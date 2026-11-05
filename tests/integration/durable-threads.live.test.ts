@@ -100,7 +100,11 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey || !dockerAvailable)(
     /** A worker process like the dev stack runs it (its config file, its data dir); waits until it is configured. */
     const startWorker = async () => {
       const proc = Bun.spawn(["bun", WORKER_MAIN], {
-        env: { ...process.env, CANOPY_WORKER_CONFIG: join(dir, "worker.json") },
+        env: {
+          ...process.env,
+          CANOPY_WORKER_CONFIG: join(dir, "worker.json"),
+          CANOPY_WORKTREES_ROOT: join(dir, "worktrees"),
+        },
         stdout: "pipe",
         stderr: "pipe",
       });

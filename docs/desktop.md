@@ -276,6 +276,9 @@ remote-workers/<hash>/      # osobna tożsamość dla każdego gatewaya
 logs/                       # redakcja sekretów; 5 MiB + 3 rotacje na usługę
 ```
 
+Nowe worktree lokalnego workera nie leżą w tym katalogu, tylko w `~/canopy/worktrees`. Starsze zostają w
+`local-worker/data/worktrees` i pozostają zarządzane ([worktrees.md](worktrees.md#położenie)).
+
 ### Settings → Linked computers
 
 Tryb lokalny może dodatkowo sparować swój gateway z innym własnym komputerem;

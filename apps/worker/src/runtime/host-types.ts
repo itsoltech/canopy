@@ -18,6 +18,7 @@ import type { DeviceProbe } from "../config/remote.ts";
 import { Journal } from "../journal/index.ts";
 import type { ProfileRuntimeConfig, ResolvedProfile } from "../providers/profiles.ts";
 import type { CliProbe } from "../cli-tools/discovery.ts";
+import type { WorktreeRoots } from "../git/worktree-roots.ts";
 import type { CheckClock } from "@canopy/domain/update-checks";
 
 export type CommandResultInit = MessageInitShape<typeof CommandResultSchema>;
@@ -67,6 +68,8 @@ export interface WorkerHostOptions {
     readonly grok?: string;
     readonly agents?: string;
   };
+  /** Managed worktree roots (resolveWorktreeRoots); default: `<data_dir>/worktrees` only. */
+  readonly worktreeRoots?: WorktreeRoots;
   readonly log?: (message: string) => void;
 }
 

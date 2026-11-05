@@ -7,13 +7,16 @@ import { FETCH_TIMEOUT_MS, git, GitError, gitOk } from "./git.ts";
 import { isWithin } from "./worktrees.ts";
 import { githubRepository, mergedInto } from "./merged.ts";
 
-/** Verify both the root boundary and git's registration, including which checkout is the main one. */
-export async function checkedWorktree(managedRoot: string, target: WorktreeTarget) {
-  const root = realpathSync(target.location || managedRoot);
+/**
+ * Verify both the root boundary and git's registration, including which checkout is the main one. Without a
+ * configured location, any managed root counts (the home folder and the legacy `<data_dir>/worktrees`).
+ */
+export async function checkedWorktree(managedRoots: readonly string[], target: WorktreeTarget) {
+  const roots = target.location ? [realpathSync(target.location)] : managedRoots;
   const repo = realpathSync(target.repoRoot);
   const path = existsSync(target.path) ? realpathSync(target.path) : resolve(target.path);
 
-  if (!isAbsolute(target.path) || path === root || !isWithin(root, path))
+  if (!isAbsolute(target.path) || !roots.some((root) => path !== root && isWithin(root, path)))
     throw new GitError("PATH_OUTSIDE_ROOT", "the worktree is outside its creation root");
   const listed = await gitOk(repo, ["worktree", "list", "--porcelain", "-z"], "WORKTREE_NOT_FOUND");
 
@@ -47,8 +50,8 @@ export async function checkedWorktree(managedRoot: string, target: WorktreeTarge
 }
 
 /** A fetch failure is a blocking result: automatic removal must not rely on stale remote refs. */
-export async function scanWorktree(managedRoot: string, target: WorktreeTarget, fetch: boolean) {
-  const { path, repo } = await checkedWorktree(managedRoot, target);
+export async function scanWorktree(managedRoots: readonly string[], target: WorktreeTarget, fetch: boolean) {
+  const { path, repo } = await checkedWorktree(managedRoots, target);
   const remote = target.remote || "origin";
   const remotes = (await gitOk(repo, ["remote"], "GIT_FAILED")).trim().split("\n").filter(Boolean);
 

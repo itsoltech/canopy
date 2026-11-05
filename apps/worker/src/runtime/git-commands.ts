@@ -10,7 +10,7 @@ import { recoverRemoval } from "../git/remove-worktree.ts";
 import { freshGit, gitOk, GitError } from "../git/git.ts";
 import { runProcess, withProcessPriority } from "@canopy/process-governor";
 import { listGitRefs } from "../git/refs.ts";
-import { createWorktree, managedWorktreesRoot, renameWorktreeBranch } from "../git/worktrees.ts";
+import { createWorktree, renameWorktreeBranch } from "../git/worktrees.ts";
 
 import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
@@ -38,9 +38,14 @@ export class GitCommands {
     };
   }
 
-  /** `<data_dir>/worktrees`: the managed root of new worktrees without a configured location. */
+  /** The managed root of new worktrees without a configured location. */
   get worktreesRoot(): string {
-    return managedWorktreesRoot(this.ctx.state.options.dataDir);
+    return this.ctx.state.worktreeRoots.primary;
+  }
+
+  /** Every managed root: worktrees under the legacy `<data_dir>/worktrees` stay managed. */
+  get managedRoots(): readonly string[] {
+    return this.ctx.state.worktreeRoots.managed;
   }
 
   async listGitRefs(kind: Extract<Command["kind"], { case: "listGitRefs" }>): Promise<CommandOutput> {
@@ -79,7 +84,7 @@ export class GitCommands {
   }
 
   async renameWorktreeBranch(kind: Extract<Command["kind"], { case: "renameWorktreeBranch" }>): Promise<CommandOutput> {
-    return { worktree: await gitStep(() => freshGit(() => renameWorktreeBranch(this.worktreesRoot, kind.value))) };
+    return { worktree: await gitStep(() => freshGit(() => renameWorktreeBranch(this.managedRoots, kind.value))) };
   }
 
   async scanWorktrees(kind: Extract<Command["kind"], { case: "scanWorktrees" }>): Promise<CommandOutput> {
@@ -89,7 +94,7 @@ export class GitCommands {
       try {
         statuses.push(
           await withProcessPriority(kind.value.background ? "background" : "user", () =>
-            scanWorktree(this.worktreesRoot, target, kind.value.fetch),
+            scanWorktree(this.managedRoots, target, kind.value.fetch),
           ),
         );
       } catch (error) {
@@ -145,7 +150,7 @@ export class GitCommands {
         await idle();
 
         return {
-          worktreeBranchDeleted: await freshGit(() => removeWorktree(this.worktreesRoot, kind.value, idle, receipt)),
+          worktreeBranchDeleted: await freshGit(() => removeWorktree(this.managedRoots, kind.value, idle, receipt)),
         };
       } finally {
         this.ctx.state.removingPaths.delete(path);
@@ -155,7 +160,7 @@ export class GitCommands {
 
   async revealWorktree(kind: Extract<Command["kind"], { case: "revealWorktree" }>): Promise<CommandOutput> {
     return gitStep(async () => {
-      const { path } = await checkedWorktree(this.worktreesRoot, kind.value);
+      const { path } = await checkedWorktree(this.managedRoots, kind.value);
 
       const args = revealArgs(path);
 
