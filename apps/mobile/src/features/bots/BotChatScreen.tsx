@@ -6,7 +6,7 @@ import * as Crypto from "expo-crypto";
 import type { bots } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useStream } from "../../state/stream";
-import { ConnectionNotice, Button, IconButton, Notice, ScreenHeader } from "../../ui/components";
+import { ConnectionNotice, IconButton, LatestButton, Notice, ScreenHeader } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { ComposerBox } from "../threads/ComposerBox";
 import { ChatBubble } from "./ChatBubble";
@@ -96,7 +96,7 @@ export function BotChatScreen({ id }: { id: string }) {
     send,
   } = useBotChat(id);
 
-  const { list, atBottom, onScroll, onScrollBeginDrag, onContentSizeChange, showLatest } = following;
+  const { atBottom, showLatest } = following;
 
   if (!session) return <Redirect href="/pair" />;
 
@@ -117,25 +117,24 @@ export function BotChatScreen({ id }: { id: string }) {
         style={styles.fill}
       >
         <FlatList
-          ref={list}
-          data={conversation?.messages ?? []}
+          {...following.listProps}
+          data={[...(conversation?.messages ?? [])].reverse()}
           keyExtractor={(m) => m.id}
           contentContainerStyle={[styles.page, { gap: 16, flexGrow: 1 }]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          onScroll={onScroll}
-          onScrollBeginDrag={onScrollBeginDrag}
-          onContentSizeChange={onContentSizeChange}
           renderItem={({ item }) => <ChatBubble message={item} bot={conversation?.bot} />}
-          ListHeaderComponent={<ConnectionNotice {...stream} />}
-          ListEmptyComponent={
-            !conversation ? (
-              <ActivityIndicator />
-            ) : (
-              <Text style={[styles.meta, { color: c.muted }]}>Start a conversation</Text>
-            )
-          }
+          // Inverted: the footer is the top of the chat, the header sits under the latest message.
           ListFooterComponent={
+            <View style={{ gap: 12 }}>
+              <ConnectionNotice {...stream} />
+              {!conversation && <ActivityIndicator accessibilityLabel="Loading conversation" />}
+              {conversation && !conversation.messages.length && (
+                <Text style={[styles.meta, { color: c.muted, textAlign: "center" }]}>Start a conversation</Text>
+              )}
+            </View>
+          }
+          ListHeaderComponent={
             <View style={{ gap: 12 }}>
               {conversation?.approvals
                 .filter((a) => a.status === "pending")
@@ -148,12 +147,8 @@ export function BotChatScreen({ id }: { id: string }) {
             </View>
           }
         />
-        {!atBottom && (
-          <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
-            <Button secondary title="Latest messages" onPress={showLatest} />
-          </View>
-        )}
         <View style={{ padding: 12, gap: 8 }}>
+          <LatestButton visible={!atBottom} onPress={showLatest} />
           {error ? <Notice error>{error}</Notice> : null}
           <ComposerBox
             compact

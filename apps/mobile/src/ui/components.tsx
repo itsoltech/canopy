@@ -280,3 +280,38 @@ export function ConnectionNotice({
     </View>
   );
 }
+
+/** Floats over the feed's bottom edge, so it appears without moving the feed or the composer. */
+export function LatestButton({ visible, onPress }: { visible: boolean; onPress: () => void }) {
+  const c = useColors();
+
+  if (!visible) return null;
+
+  return (
+    <View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, top: -56, alignItems: "center" }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Show latest messages"
+        onPress={onPress}
+        hitSlop={4}
+        style={({ pressed }) => ({
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: pressed ? c.inset : c.surface,
+          borderWidth: 1,
+          borderColor: c.line,
+          shadowColor: "#000000",
+          shadowOpacity: c.dark ? 0.4 : 0.12,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: 3,
+        })}
+      >
+        <Icon name="arrow-down" color={c.text} />
+      </Pressable>
+    </View>
+  );
+}
