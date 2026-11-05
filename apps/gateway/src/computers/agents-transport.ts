@@ -11,6 +11,7 @@ import { SqlClient } from "effect/sql";
 import { fail, qualifyResult, type Actor, type Arguments } from "./agents-context.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { linkedMessage, methodNamed, movedItems, qualify, unqualify } from "./remote.ts";
+import { localAgentSender } from "./agents-senders.ts";
 
 export async function agentsRemoteSnapshot(hostContext: LinkedAgents, id: string): Promise<ui.ThreadSnapshot> {
   const update = await hostContext.ui(
@@ -64,6 +65,9 @@ export const agentsTransportMethods: AgentsTransportMethods = {
 
     if (!computers) return fail("That computer is no longer linked");
 
+    const sender =
+      actor.sender ?? (["spawn", "send"].includes(operation) ? await localAgentSender(this, actor) : undefined);
+
     try {
       for await (const result of computers.remote(
         node,
@@ -74,6 +78,7 @@ export const agentsTransportMethods: AgentsTransportMethods = {
           actorId: actor.id,
           actorKind: actor.kind,
           hops: actor.hops,
+          ...(sender && { sender }),
           argumentsJson: JSON.stringify({ ...args, sender_name: actor.name }),
         }),
         AbortSignal.timeout(10_000),

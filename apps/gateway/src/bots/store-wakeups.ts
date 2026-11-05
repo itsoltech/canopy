@@ -6,6 +6,7 @@ import { originOf } from "./routines.ts";
 import type { BotTurn, StoredCall } from "./types.ts";
 import { requiredString, type WakeupRow } from "./store-views.ts";
 import type { BotCore } from "./store-queue.ts";
+import { threadNotice } from "./thread-notice.ts";
 
 /** Watches of threads and steers, wakeups and reminders. */
 export function botWakeups(sql: SqlClient.SqlClient, core: BotCore) {
@@ -118,7 +119,13 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
                 watch.bot_id,
                 `Thread ${watch.title} (${watch.target_thread_id}) ended: ${watch.status}.\n${text}`,
                 `thread:${watch.call_id}`,
-                { hops: watch.hops, sender: watch.target_thread_id, event: true, ...originOf(source) },
+                {
+                  hops: watch.hops,
+                  sender: watch.target_thread_id,
+                  event: true,
+                  displayText: threadNotice(watch.title, watch.status),
+                  ...originOf(source),
+                },
               );
             yield* sql`UPDATE bot_thread_watches SET delivered = true WHERE call_id = ${watch.call_id}::uuid`;
           }

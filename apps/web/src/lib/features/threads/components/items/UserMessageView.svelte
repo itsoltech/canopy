@@ -76,15 +76,17 @@
     >
       <!-- A steer's note changes as it travels (sending, accepted, delivered): each state swaps in. -->
       {#key note?.text}
-        <span class="flex min-w-0 items-center gap-1" in:swap>
-          {#if note?.icon === "spinner"}<Spinner class="size-3.5" />{:else}<Icon
-              name={note?.icon ?? "sparkles"}
-              class="size-3.5"
-            />{/if}
+        <span class="flex max-w-full min-w-0 flex-wrap items-center justify-end gap-1" in:swap>
           {#if sender}
-            <AgentSenderLabel verb="Message from" threadId={sender.threadId} {sender} />
-            {#if note}<span class="min-w-0 text-zinc-500 dark:text-zinc-400">· {note.text}</span>{/if}
+            <AgentSenderLabel
+              verb="Message from"
+              threadId={sender.threadId}
+              {sender}
+              leading={note || !sender.botId ? noteIcon : undefined}
+              trailing={note ? deliveryNote : undefined}
+            />
           {:else}
+            {@render noteIcon()}
             <span class="min-w-0">{[fromAgent && "From an agent", note?.text].filter(Boolean).join(" · ")}</span>
           {/if}
         </span>
@@ -131,6 +133,17 @@
     />
   {/if}
   {@render details?.()}
+{/snippet}
+
+{#snippet noteIcon()}
+  {#if note?.icon === "spinner"}<Spinner class="size-3.5 shrink-0" />{:else}<Icon
+      name={note?.icon ?? "sparkles"}
+      class="size-3.5 shrink-0"
+    />{/if}
+{/snippet}
+
+{#snippet deliveryNote()}
+  <span class="max-w-[calc(100%-2rem)] shrink-0 truncate whitespace-nowrap" title={note?.text}>· {note?.text}</span>
 {/snippet}
 
 {#snippet chip(index: number)}

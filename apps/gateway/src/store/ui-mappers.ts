@@ -1,4 +1,4 @@
-import { create } from "@bufbuild/protobuf";
+import { create, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { InteractionKind, PermissionMode, UsageSchema, ui } from "@canopy/contracts";
 import { fromJson } from "@bufbuild/protobuf";
@@ -124,7 +124,9 @@ export interface SenderColumns {
   source_worker_id?: string | null;
 }
 
-export function toUiSender(row: SenderColumns): ui.AgentSender | undefined {
+export function toUiSender(row: SenderColumns, snapshot?: JsonValue): ui.AgentSender | undefined {
+  if (snapshot) return fromJson(ui.AgentSenderSchema, snapshot);
+
   if (!row.source_thread_id || row.source_title == null) return undefined;
 
   return create(ui.AgentSenderSchema, {
@@ -140,11 +142,12 @@ export function toUiSender(row: SenderColumns): ui.AgentSender | undefined {
 
 export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
   // Agent-sent input (a task, a message, a report) names its sender; other sources show their own way.
-  const sender =
-    row.source_kind === "task" ||
-    row.source_kind === "message" ||
-    row.source_kind === "report" ||
-    (row.source_kind === "answer" && row.source_thread_id)
+  const sender = row.input?.sender
+    ? toUiSender(row, row.input.sender)
+    : row.source_kind === "task" ||
+        row.source_kind === "message" ||
+        row.source_kind === "report" ||
+        (row.source_kind === "answer" && row.source_thread_id)
       ? toUiSender(row)
       : undefined;
 
@@ -169,13 +172,13 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     fromThreadId: row.inherited ? row.thread_id : "",
     messageText: row.input?.message ?? row.input?.text ?? "",
     platformNote: row.input?.note ?? "",
-    sourceStatus: row.source_status ?? "",
+    sourceStatus: row.input?.sourceStatus ?? row.source_status ?? "",
     questionKind: row.question_kind ?? "",
     questionTool: row.question_tool ?? "",
     backgroundItemIds: row.background_item_ids ?? [],
-    botId: row.bot_id || row.answer_bot_id || "",
-    sourceKind: row.source_kind ?? "",
-    sourceThreadId: row.source_thread_id ?? "",
+    botId: sender?.botId || row.bot_id || row.answer_bot_id || "",
+    sourceKind: row.input?.sourceKind ?? row.source_kind ?? "",
+    sourceThreadId: sender?.threadId || row.source_thread_id || "",
     scheduleId: row.schedule_id ?? "",
     interactionRequestId: row.interaction_request_id ?? "",
     model: row.model ?? "",

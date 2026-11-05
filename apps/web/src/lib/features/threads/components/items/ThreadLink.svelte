@@ -18,6 +18,7 @@
 
 <a
   href="/threads/{threadId}"
+  title={thread?.title || fallback}
   class={[
     "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-md bg-violet-50 px-2 py-0.5 text-sm/5 font-medium text-violet-800 ring-1 ring-violet-600/20 focus-ring ring-inset hover:bg-violet-100 sm:text-xs/5 dark:bg-violet-400/10 dark:text-violet-300 dark:ring-violet-400/20 dark:hover:bg-violet-400/20",
     className,

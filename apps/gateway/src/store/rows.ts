@@ -97,6 +97,9 @@ export interface TurnRow {
     message?: string;
     attachments?: StoredAttachment[];
     quotes?: StoredQuote[];
+    sender?: JsonValue;
+    sourceKind?: string;
+    sourceStatus?: string;
   } & StoredMentions;
   /** The message's override while queued; the values sent to the worker once started ('' = default). */
   model?: string;

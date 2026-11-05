@@ -14,6 +14,14 @@ import { coreCheckModel, coreProfileModels } from "./core-models.ts";
 import { coreAutoTitle, coreUiThread } from "./core-titles.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreRun } from "./core-broadcast.ts";
 import { coreBus } from "./core-schedules.ts";
+import type { TurnRow } from "../store/rows.ts";
+
+/** Internal linked input, prepared by the peer gateway rather than a public UI request. */
+export interface LinkedMessageInput {
+  callId: string;
+  hops: number;
+  input: TurnRow["input"] & { text: string };
+}
 
 /** SteerTurn to the worker (outbox); the result decides between accepted and the queue. */
 export async function coreSendSteer(hostContext: GatewayCore, steerId: string): Promise<void> {
@@ -132,7 +140,10 @@ export function coreSteers<A, E>(
 }
 
 export interface CoreMessagesMethods {
-  sendMessage(request: ui.SendMessageRequest): Promise<{ turn?: ui.Turn; steer?: ui.Steer; goal?: ui.Goal }>;
+  sendMessage(
+    request: ui.SendMessageRequest,
+    linked?: LinkedMessageInput,
+  ): Promise<{ turn?: ui.Turn; steer?: ui.Steer; goal?: ui.Goal }>;
   updateThread(request: ui.UpdateThreadRequest): Promise<ui.Thread>;
   interrupt(threadId: string): Promise<void>;
 }
@@ -145,6 +156,7 @@ export const coreMessagesMethods: CoreMessagesMethods = {
   async sendMessage(
     this: GatewayCore,
     request: ui.SendMessageRequest,
+    linked?: LinkedMessageInput,
   ): Promise<{ turn?: ui.Turn; steer?: ui.Steer; goal?: ui.Goal }> {
     const { threadId, clientRequestId } = request;
     const thread = await coreRun(this, (s) => s.thread(threadId));
@@ -194,7 +206,8 @@ export const coreMessagesMethods: CoreMessagesMethods = {
       const running = await coreRun(this, (s) => s.runningTurn(threadId));
 
       if (running && thread.worker_id) {
-        const steerInput = coreComposeInput(this, thread.provider, request.text, mentions, undefined, quotes);
+        const steerInput =
+          linked?.input ?? coreComposeInput(this, thread.provider, request.text, mentions, undefined, quotes);
 
         const steer = await coreSteers(this, (s) =>
           s.create({
@@ -206,6 +219,7 @@ export const coreMessagesMethods: CoreMessagesMethods = {
             model: request.model,
             effort: request.effort,
             permissionMode,
+            ...(linked && { linked }),
             ...(steerInput && { input: { ...steerInput, text: steerInput.text ?? request.text } }),
           }),
         );
@@ -216,14 +230,9 @@ export const coreMessagesMethods: CoreMessagesMethods = {
       }
     }
 
-    const input = coreComposeInput(
-      this,
-      thread.provider,
-      request.text,
-      mentions,
-      files?.input(threadId, request.text),
-      quotes,
-    );
+    const input =
+      linked?.input ??
+      coreComposeInput(this, thread.provider, request.text, mentions, files?.input(threadId, request.text), quotes);
 
     const turn = await coreRun(this, (s) =>
       s.enqueueTurn({
@@ -234,6 +243,7 @@ export const coreMessagesMethods: CoreMessagesMethods = {
         model: request.model,
         effort: request.effort,
         permissionMode,
+        ...(linked && { linked }),
         ...(input && { input }),
       }),
     );

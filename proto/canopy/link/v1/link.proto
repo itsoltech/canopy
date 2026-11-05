@@ -27,6 +27,8 @@ message LinkedAgentCall {
   // Validated operation arguments, never credentials. No onward routing.
   string arguments_json = 5;
   uint32 hops = 6;
+  // Display snapshot from the actor's gateway; never used for authorization.
+  canopy.ui.v1.AgentSender sender = 7;
 }
 message LinkedAgentResult { string result_json = 1; }
 

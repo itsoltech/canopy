@@ -1,4 +1,5 @@
 import { type JsonObject, type JsonValue } from "@bufbuild/protobuf";
+import type { ui } from "@canopy/contracts";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
@@ -17,6 +18,7 @@ export type Actor = {
   name: string;
   routineId?: string;
   routineTitle?: string;
+  sender?: ui.AgentSender;
 };
 
 export type Reference = {

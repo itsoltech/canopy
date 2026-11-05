@@ -503,6 +503,11 @@ message AgentSender {
   string model = 5;
   string project_id = 6;
   string worker_id = 7;
+  // Linked senders keep their identity even when their home is unavailable.
+  string bot_id = 8;
+  string bot_shape = 9;
+  string bot_color = 10;
+  string computer_name = 11;
 }
 
 // Dokąd dotarło wywołanie spawn_thread / send_message wątku: karta na osi czasu nadawcy śledzi turę docelową.

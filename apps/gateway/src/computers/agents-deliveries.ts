@@ -2,6 +2,7 @@ import { qualifyId } from "@canopy/domain/computers";
 
 import { agentsState, type Reference } from "./agents-context.ts";
 import type { LinkedAgents } from "./agents.ts";
+import { localAgentSender } from "./agents-senders.ts";
 
 export interface AgentsDeliveriesMethods {
   tick(): Promise<void>;
@@ -56,11 +57,14 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
         }
       }
 
-      const due = await this.query<Reference & { status: string; text: string; completed_at: Date }>(
+      const due = await this.query<Reference & { status: string; text: string; title: string; completed_at: Date }>(
         `SELECT c.*,coalesce(t.status,b.status) AS status,coalesce(t.completed_at,b.finished_at) AS completed_at,
         CASE WHEN c.target_kind='bot' THEN (SELECT m.text FROM bot_messages m WHERE m.turn_id=c.target_turn_id AND message_key='answer' LIMIT 1)
         ELSE (SELECT i.content->'agentMessage'->>'text' FROM thread_items i WHERE i.turn_id=c.target_turn_id AND i.type='agent_message' ORDER BY i.last_seq DESC LIMIT 1) END AS text
+        , coalesce(th.title, bot.configuration->>'name', '') AS title
         FROM computer_agent_calls c LEFT JOIN turns t ON c.target_kind='thread' AND t.id=c.target_turn_id
+        LEFT JOIN threads th ON th.id=c.target_id AND th.owner_user_id=c.owner_user_id
+        LEFT JOIN bots bot ON bot.id=c.target_id AND bot.owner_user_id=c.owner_user_id
         LEFT JOIN bot_turns b ON c.target_kind='bot' AND b.id=c.target_turn_id
         WHERE c.owner_user_id=$1::uuid AND c.direction='incoming' AND NOT c.detached AND c.notify AND c.report_status='pending'
         AND coalesce(t.status,b.status) IN ('completed','failed','interrupted','cancelled')`,
@@ -81,11 +85,25 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
           await this.call(
             r.peer_node_id,
             "report",
-            { id: r.actor_id, kind: r.actor_kind, hops: r.hops + 1, name: "" },
+            {
+              id: r.actor_id,
+              kind: r.actor_kind,
+              hops: r.hops + 1,
+              name: "",
+              sender: await localAgentSender(this, {
+                id: r.target_id,
+                kind: r.target_kind,
+                hops: r.hops,
+                name: r.title,
+              }),
+            },
             r.call_id,
             {
               text: `[canopy] ${r.target_kind} ${qualifyId(r.target_id, this.core.computers.hello().nodeId)} on ${this.core.computers.hello().name} ended: ${r.status}.\n${(r.text || "(no message)").slice(0, 20000)}`,
               event: r.target_turn_id,
+              title: r.title,
+              status: r.status,
+              message: (r.text || "(no message)").slice(0, 20000),
             },
           );
           status = "delivered";

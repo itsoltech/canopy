@@ -1,5 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { ItemDeltaField, ItemStatus } from "@canopy/contracts";
+import { ClaudeEventMapper } from "../providers/claude/mapping.ts";
 import { claudeProfileOptions } from "../providers/claude/profile.ts";
 import { claudeExecutable } from "../providers/claude/executable.ts";
 import { transcriptPath } from "../providers/claude/transcript.ts";
@@ -58,51 +58,32 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
     },
   });
 
-  let messageId = "";
+  const mapper = new ClaudeEventMapper(input.turnId);
+  const textItems = new Set<string>();
 
   try {
     for await (const message of q) {
-      if (message.type === "stream_event" && message.event.type === "message_start")
-        messageId = message.event.message.id;
-
-      if (
-        message.type === "stream_event" &&
-        message.event.type === "content_block_delta" &&
-        message.event.delta.type === "text_delta"
-      )
-        await ctx.record({
-          body: {
-            case: "itemDelta",
-            value: {
-              itemId: `${messageId}:${message.event.index}`,
-              field: ItemDeltaField.TEXT,
-              chunk: message.event.delta.text,
-            },
-          },
-        });
-
       if (message.type === "assistant") {
         if (message.error)
           throw new BotHarnessFailure(
             message.error,
             message.message.content.map((block) => (block.type === "text" ? block.text : "")).join(""),
           );
+      }
 
-        for (const [index, block] of message.message.content.entries()) {
-          if (block.type !== "text") continue;
-          await ctx.record({
-            body: {
-              case: "itemCompleted",
-              value: {
-                item: {
-                  itemId: `${message.message.id}:${index}`,
-                  status: ItemStatus.COMPLETED,
-                  content: { case: "agentMessage", value: { text: block.text } },
-                },
-              },
-            },
-          });
-        }
+      // SDK assistant messages may contain only one block: its array index is not the stream index.
+      // The thread mapper matches completed text to the open streamed block, including after thinking/tools.
+      for (const event of mapper.map(message)) {
+        const body = event.body;
+
+        if (body?.case === "itemStarted" && body.value.item?.content?.case === "agentMessage")
+          textItems.add(body.value.item.itemId!);
+
+        if (
+          (body?.case === "itemDelta" && textItems.has(body.value.itemId!)) ||
+          (body?.case === "itemCompleted" && body.value.item?.content?.case === "agentMessage")
+        )
+          await ctx.record(event);
       }
 
       if (message.type === "result") {
