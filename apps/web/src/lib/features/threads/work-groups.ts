@@ -19,6 +19,8 @@ import { describeTool } from "./components/items/tools/registry.ts";
  * - Even message-only turns retain the header and the answer slot at completion.
  * - Empty reasoning and messages add no visible work. Later text deltas can make them visible.
  * - Other turns and background work without a turn keep their own order.
+ * - Consecutive tools form a group under its own header when the work has several such phases. A sole
+ *   group would only repeat the fold's counts: its rows follow the open fold directly (`flat`).
  */
 export type FoldedRow =
   | { readonly kind: "row"; readonly row: TimelineRow; readonly work: boolean }
@@ -28,6 +30,8 @@ export type FoldedRow =
       readonly turn: ui.Turn;
       readonly open: boolean;
       readonly summary: WorkSummary;
+      /** Key of the sole tool group shown without its header; it opens if a live turn adds a second. */
+      readonly flat: string | undefined;
     }
   | {
       readonly kind: "work-group";
@@ -158,49 +162,75 @@ export function foldTurns(
     if (!fold) continue;
     placed.add(turnId);
     const open = isOpen(turnId);
+    const groups = toolGroups(fold.work);
+    const flat = groups.length === 1 ? groupKey(turnId, groups[0]!) : undefined;
     out.push({
       kind: "work",
       key: `work:${turnId}`,
       turn: fold.turn,
       open,
       summary: summarize(fold.turn, fold.work, tasksBySource),
+      flat,
     });
 
-    if (open) {
-      let tools: TimelineRow[] = [];
-
-      const flush = () => {
-        if (!tools.length) return;
-        const key = `group:${turnId}:${tools[0]!.key}`;
-        const expanded = groupOpen(key);
-        out.push({
-          kind: "work-group",
-          key,
-          turn: fold.turn,
-          open: expanded,
-          label: groupSummary(tools),
-          running: tools.some((r) => r.kind === "item" && r.node.entry.item.status === ItemStatus.IN_PROGRESS),
-          items: tools.map((r) => r.key),
-        });
-
-        if (expanded) for (const tool of tools) out.push({ kind: "row", row: tool, work: true });
-        tools = [];
-      };
-
-      for (const work of fold.work) {
-        if (isToolRow(work)) tools.push(work);
-        else {
-          flush();
-          out.push({ kind: "row", row: work, work: true });
-        }
-      }
-
-      flush();
-    }
-
+    if (open) out.push(...workRows(fold.turn, fold.work, groups, groupOpen));
     out.push({ kind: "answer", key: `answer:${turnId}`, turn: fold.turn, row: fold.final });
 
     if (row.kind === "turn-end") out.push({ kind: "row", row, work: false });
+  }
+
+  return out;
+}
+
+const groupKey = (turnId: string, tools: readonly TimelineRow[]): string => `group:${turnId}:${tools[0]!.key}`;
+
+/** Runs of consecutive tool rows, in order. */
+function toolGroups(work: readonly TimelineRow[]): TimelineRow[][] {
+  const groups: TimelineRow[][] = [];
+  let run: TimelineRow[] | undefined;
+
+  for (const row of work) {
+    if (!isToolRow(row)) run = undefined;
+    else if (run) run.push(row);
+    else groups.push((run = [row]));
+  }
+
+  return groups;
+}
+
+/** An open fold's rows: other work as it is, tools under their group's header (a sole group has none). */
+function workRows(
+  turn: ui.Turn,
+  work: readonly TimelineRow[],
+  groups: readonly TimelineRow[][],
+  groupOpen: (key: string) => boolean,
+): FoldedRow[] {
+  const out: FoldedRow[] = [];
+  const groupOf = new Map(groups.flatMap((tools) => tools.map((row) => [row, tools] as const)));
+
+  for (const row of work) {
+    const tools = groupOf.get(row);
+
+    if (!tools || groups.length === 1) {
+      out.push({ kind: "row", row, work: true });
+      continue;
+    }
+
+    const key = groupKey(turn.id, tools);
+    const open = groupOpen(key);
+
+    if (row === tools[0])
+      out.push({
+        kind: "work-group",
+        key,
+        turn,
+        open,
+        label: groupSummary(tools),
+        running: tools.some((r) => r.kind === "item" && r.node.entry.item.status === ItemStatus.IN_PROGRESS),
+        items: tools.map((r) => r.key),
+      });
+
+    if (open) out.push({ kind: "row", row, work: true });
   }
 
   return out;

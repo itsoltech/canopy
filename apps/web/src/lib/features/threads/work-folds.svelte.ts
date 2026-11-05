@@ -1,4 +1,5 @@
 import type { ui } from "@canopy/contracts";
+import type { FeedRow } from "./feed.ts";
 import type { TimelineEntry, TimelineNotice } from "./thread-state.svelte.ts";
 import { isTerminal } from "./timeline.ts";
 import { readWork } from "./work-groups.ts";
@@ -37,6 +38,16 @@ export class WorkFolds {
     if (open) next.add(key);
     else next.delete(key);
     this.groups = next;
+  }
+
+  /**
+   * A live turn's open fold shows its sole tool group without a header. When the turn adds a second
+   * group, that header appears: it stays open, so the rows the reader saw stay. Call outside tracking.
+   */
+  keepFlat(rows: readonly FeedRow[]): void {
+    for (const row of rows)
+      if (row.kind === "work" && !row.history && row.open && row.summary.live && row.flat)
+        this.toggleGroup(row.flat, true);
   }
 
   /** The thread's turns changed: call before the feed renders (`$effect.pre`), outside tracking. */
