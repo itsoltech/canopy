@@ -17,6 +17,7 @@
   import AccessPicker from "./AccessPicker.svelte";
   import ToolCatalog from "./ToolCatalog.svelte";
   import ConnectAccountDialog from "./ConnectAccountDialog.svelte";
+  import ConnectionError from "./ConnectionError.svelte";
   import { accountStatus } from "./api.ts";
 
   let {
@@ -98,7 +99,7 @@
           await requestJson("POST", `/api/connectors/${account.id}/test`, {}, 35000),
         );
 
-        tools = result.tools;
+        tools = result.account?.error ? undefined : result.tools;
 
         if (result.account) onupdate(result.account);
       } else {
@@ -114,6 +115,8 @@
       }
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Could not update this account.";
+
+      if (action === "test") tools = undefined;
     } finally {
       busy = "";
     }
@@ -191,7 +194,8 @@
       </div>
     </div>
   </Disclosure>
-  {#if tools}<ToolCatalog {tools} />{/if}
+  {#if tools && account.status === "connected"}<ToolCatalog {tools} />{/if}
+  {#if account.status === "error" && account.error}<ConnectionError error={account.error} />{/if}
   {#if error}<Alert tone="error">{error}</Alert>{/if}
 </section>
 {#if reconnecting}<ConnectAccountDialog bind:open={reconnecting} {type} {account} onsave={onupdate} />{/if}

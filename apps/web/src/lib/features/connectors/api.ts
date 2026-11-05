@@ -12,7 +12,7 @@ export const accountStatus = (status: string) =>
   ({
     connected: "Connected",
     needs_reconnect: "Needs reconnect",
-    error: "Connection error",
+    error: "Connection error · Tools unavailable",
     disconnected: "Disconnected",
   })[status] ?? status;
 

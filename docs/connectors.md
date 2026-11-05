@@ -22,7 +22,22 @@ Gateway jest jedynym klientem zewnętrznego MCP. Tokeny, refresh tokeny, sekrety
 aplikacji OAuth i PKCE są zaszyfrowane AES-256-GCM kluczem `CANOPY_SECRETS_KEY`.
 Żaden katalog narzędzi ani wynik API nie zawiera tych wartości. Wyniki zdalnych
 narzędzi przechodzą redakcję znanych sekretów przed utrwaleniem i wysłaniem.
-Błędy zewnętrznych serwerów są zastępowane komunikatem bez przyczyny/requestu.
+Test konta klasyfikuje błędy HTTP, OAuth, MCP/JSON-RPC, sieci/TLS i timeout.
+Zapisuje zredagowaną diagnozę z fazą (`initialize` / `tools/list`), statusem HTTP
+i kodem/komunikatem serwera w `connector_accounts.error` (migracja `0079_connector_errors`).
+Gateway zapisuje jedną linię ostrzeżenia, bez surowej przyczyny, nagłówków i URL.
+Znane sekrety redaguje `redactConnector`; adresy i typowe formaty poświadczeń
+usuwa dodatkowy filtr. Odczyt obejmuje najwyżej 16 KiB odpowiedzi i tylko pola
+błędu JSON; HTML i inne pola są pomijane. UI pokazuje przyczynę i działanie,
+a diagnozę za „Show details” z kopiowaniem. Widok jest owner-scoped.
+Negatywny wynik Test wraca jako konto ze stanem `error` i pustą listą narzędzi;
+błędy samego żądania lub zapisu nadal są błędami RPC.
+Udany test, ponowne połączenie lub Disconnect usuwa poprzednią diagnozę.
+Stan `error` wstrzymuje narzędzia; UI pokazuje „Connection error · Tools unavailable”.
+Następne pobranie narzędzi dla uprawnionego workera lub bota ponawia listing,
+także gdy konto ma zapisany katalog. Sukces przywraca `connected` i usuwa diagnozę.
+Niepowodzenie nadal wyklucza narzędzia z tej tury; `disconnected` i `needs_reconnect`
+nie są automatycznie ponawiane i wymagają ponownego połączenia.
 Połączenia MCP nie podążają za redirectami; SSE nie może zmienić origin.
 HTTP jest dozwolone tylko dla loopback do lokalnego developmentu; inne endpointy
 wymagają HTTPS. Custom MCP jest jawną konfiguracją sieciową właściciela, także
@@ -30,10 +45,15 @@ do jego usług prywatnych; nie uruchamia procesów ani transportu stdio.
 
 Konta i aplikacje OAuth są **wspólną konfiguracją** połączonych komputerów. Każdy gateway szyfruje
 poświadczenia własnym kluczem; nie wysyła ich do workerów, modeli ani UI. Łącze z wyłączonym Share
-configuration nie przenosi definicji ani sekretów. Stan połączenia, ostatnie użycie i namespace są lokalne;
+configuration nie przenosi definicji ani sekretów. Stan połączenia, diagnoza `error`, ostatnie użycie i namespace są lokalne;
 UI opisuje je jako „This computer”, a samo konto nie ma znaczka wspólności. `all_workers` i `all_bots`
 są wspólne. Konkretne granty workerów zostają w domu workera (rekordy i edycja zdalna: etap 6),
 a granty botów w domu bota. Przeniesienie bota nadal wymaga nadania mu dostępu w nowym domu.
+Nieudany Test nie publikuje tych lokalnych pól ani nie zwiększa rewizji wspólnej konfiguracji.
+Udany Test publikuje tylko rzeczywistą zmianę katalogu narzędzi; sam powrót do `connected`
+nie zwiększa rewizji. Zmiana nazwy, grantów lub katalogu na innym komputerze zachowuje
+lokalną diagnozę. Dopiero faktyczna zmiana wspólnych poświadczeń usuwa nieaktualny błąd
+i ponownie wyznacza lokalny stan połączenia.
 
 Rekordy `connector` i `oauth_app` inicjalizuje gateway przy starcie; migracja **0077_config_connectors**
 dodaje czas zapisu aplikacji. Zapis najpierw blokuje `config_clock`, a potem konto, i zapisuje rekord
@@ -169,7 +189,11 @@ Rename unieważnia cache opisów; techniczna nazwa narzędzia pozostaje stabilna
 Wywołanie `AgentToolCall` wraca istniejącym linkiem gRPC do gateway. Gateway
 sprawdza worker, właściciela wątku, bieżącą turę, grant i bieżący katalog konta.
 Zmiana grantów odbiera możliwość wykonania natychmiast; katalog harnessu może
-wymagać nowej sesji (Codex utrwala dynamic tools przy `thread/start`).
+wymagać nowej sesji (Codex utrwala dynamic tools przy `thread/start`). Zwykłe wątki
+nie zmieniają automatycznie sesji po zmianie kont lub grantów: nie mają gwarancji
+pełnej odbudowy historii w nowej sesji. Istniejący wątek zachowuje kontekst, ale
+nowe narzędzia Codexa wymagają nowego wątku. Odebrany grant blokuje wykonanie
+również wtedy, gdy stary katalog nadal pokazuje narzędzie.
 
 Boty dostają katalog kont ze swoich grantów i wykonują MCP w gateway. Istniejąca
 polityka `safe` przepuszcza tylko `readOnlyHint=true`, bez `destructiveHint=true`;
@@ -237,14 +261,52 @@ wstępnie wypełnione tymi samymi scopes (`default_scope`). Redirect URL jest wi
 jako szczegół dla ręcznej konfiguracji.
 Wskazówki są wyłącznie tekstem: nie zawierają poświadczeń i niczego nie weryfikują.
 
+### Slack: wymagania i diagnoza
+
+[Slack MCP](https://docs.slack.dev/ai/slack-mcp-server/) używa wyłącznie Streamable
+HTTP, bez SSE i DCR. SDK wysyła `Authorization: Bearer`, Accept dla JSON/SSE oraz
+wynegocjowany `MCP-Protocol-Version` w żądaniach po initialize.
+[User OAuth](https://docs.slack.dev/reference/methods/oauth.v2.user.access/) zwraca
+`access_token` na najwyższym poziomie, `token_type: user` i obiekt `authed_user`
+z identyfikatorem i scopes. To token użytkownika (`xoxp-…`), nie token bota.
+SDK przechowuje go w zaszyfrowanych poświadczeniach; nie interpretuje `user` jako
+schematu nagłówka. Zwykłe `oauth.v2.access` może zwracać token użytkownika w
+`authed_user.access_token`, ale jest innym endpointem i nie obsługuje naszego flow.
+
+Dokumentacja Slack (sprawdzona 2026-11-05) nie opisuje dodatkowego przełącznika
+„enable MCP” ani obowiązku włączenia Agents & AI apps. Manifest nie potrzebuje
+takiej flagi. Konto po OAuth oznacza otrzymanie tokenu; dopiero Test sprawdza MCP.
+Przy 403 sprawdź instalację i zgodę administratora we własnym workspace,
+wewnętrzną dystrybucję aplikacji oraz jej listę dozwolonych adresów IP.
+Aplikacje unlisted nie mają dostępu do MCP; publikacja w Marketplace jest
+alternatywą dla aplikacji wewnętrznej, nie wymogiem dla własnego workspace.
+
+Weryfikacja na koncie Slack: utwórz i zainstaluj aplikację z manifestu, zakończ
+OAuth przez stały redirect i uruchom Test. Potwierdź listę narzędzi i odczyt
+zgodny z przyznanymi user scopes. W razie odmowy odczytaj status, kod i fazę
+za „Show details”; nie kopiuj tokenu ani nagłówków. Atrapy testują odpowiedź
+user OAuth i transport, ale nie dowodzą akceptacji konkretnej aplikacji przez Slack.
+
 Audyt zapisuje konto, właściciela, worker/wątek albo bot, narzędzie, czas i wynik.
 Nie zapisuje tokenów, nagłówków ani argumentów. Wynik potrzebny do deduplikacji
 wykonania jest osobny od audytu i redagowany tak jak wynik na osi czasu.
 
 ## Ograniczenia sesji harnessów
 
-Codex utrwala dynamic tools przy rozpoczęciu sesji. Dodanie konta może wymagać
-nowej sesji/wątku; odebranie grantu jest skuteczne natychmiast w gateway.
+Bot pobiera bieżący zestaw przyznanych narzędzi przed każdą turą. Dodanie konta,
+nadanie/odebranie grantu, usunięcie konta lub zmiana dostępności narzędzi zmienia
+fingerprint, jeżeli zmienia katalog tego bota. Następna wiadomość rozpoczyna nową
+sesję Claude/Codex/Grok w **tej samej rozmowie**. Gateway pobiera całą wcześniejszą
+historię użytkownika i bota dla zwykłej tury; limit 60 wiadomości dotyczy tylko rutyn.
+Przed przekazaniem do harnessu stosuje budżet kontekstu z [bots-harness.md](bots-harness.md#sesja-i-kontekst):
+nadmiar starszych wiadomości zastępuje jawną notatką, a transkrypt pozostaje pełny.
+Worker przekazuje historię nowemu harnessowi jako dane, bez ponawiania narzędzi.
+Sam grant, który nie zmienia katalogu, nie wymusza nowej sesji.
+
+Zwykłe wątki zachowują sesję i jej historię. Codex utrwala dynamic tools przy
+`thread/start`; dodanie konta lub grantu wymaga nowego wątku, aby dostać nowy katalog.
+Nie uruchamiamy pustej sesji w istniejącym wątku. Odebranie grantu jest skuteczne
+natychmiast w gateway, niezależnie od starego katalogu harnessu.
 Claude otrzymuje nazwy narzędzi MCP w `allowedTools`, ponieważ `dontAsk` odmawia
 narzędzi spoza listy przed callbackiem. Każde wykonanie nadal przechodzi przez
 grant i permission mode gateway; READ_ONLY odmawia zapisów.

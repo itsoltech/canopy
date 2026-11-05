@@ -1,5 +1,5 @@
 import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
-import { ConnectorToolSchema, type ConnectorTool } from "@canopy/contracts";
+import { connectors, ConnectorToolSchema, type ConnectorTool } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { digest, fail, type AccountRow, type Credentials, type ExecutionSource } from "./records.ts";
@@ -17,10 +17,10 @@ export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, ke
       connectorTransaction(
         sql,
         key,
-        sql`UPDATE connector_accounts SET tools=${JSON.stringify(tools.map((t) => toJson(ConnectorToolSchema, t)))}::jsonb,status='connected',updated_at=now() WHERE id=${row.id}::uuid AND owner_user_id=${row.owner_user_id}::uuid AND revision=${BigInt(row.revision)}`,
+        sql`UPDATE connector_accounts SET tools=${JSON.stringify(tools.map((t) => toJson(ConnectorToolSchema, t)))}::jsonb,status='connected',error=NULL,updated_at=now() WHERE id=${row.id}::uuid AND owner_user_id=${row.owner_user_id}::uuid AND revision=${BigInt(row.revision)}`,
       ),
-    status: (row: AccountRow, status: string) =>
-      sql`UPDATE connector_accounts SET status=${status} WHERE id=${row.id}::uuid AND revision=${BigInt(row.revision)}`,
+    status: (row: AccountRow, status: string, error?: connectors.ConnectorError) =>
+      sql`UPDATE connector_accounts SET status=${status},error=${error ? JSON.stringify(toJson(connectors.ConnectorErrorSchema, error)) : null}::jsonb WHERE id=${row.id}::uuid AND revision=${BigInt(row.revision)}`,
     saveState: (user: string, row: AccountRow, state: string, binding: string, value: Credentials) =>
       Effect.gen(function* () {
         yield* sql`DELETE FROM connector_oauth_states WHERE expires_at < now() OR account_id=${row.id}::uuid`;
@@ -62,7 +62,7 @@ export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, ke
         Effect.gen(function* () {
           const row = yield* owned(user, id, true);
           const value = yield* credentials(row);
-          yield* sql`UPDATE connector_accounts SET status='disconnected',credentials=NULL,legacy_headers='{}',tools='[]',revision=revision+1,updated_at=now() WHERE id=${row.id}::uuid`;
+          yield* sql`UPDATE connector_accounts SET status='disconnected',error=NULL,credentials=NULL,legacy_headers='{}',tools='[]',revision=revision+1,updated_at=now() WHERE id=${row.id}::uuid`;
           yield* sql`DELETE FROM connector_oauth_states WHERE account_id=${row.id}::uuid`;
 
           // Legacy encrypted headers have been copied by reference. Remove only this account's owned secret rows.

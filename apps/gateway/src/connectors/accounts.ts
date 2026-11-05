@@ -1,4 +1,4 @@
-import { create } from "@bufbuild/protobuf";
+import { create, fromJson } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { connectors } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -40,6 +40,7 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
         transport: row.transport,
         authKind: row.auth_kind,
         status: row.status,
+        ...(row.status === "error" && row.error && { error: fromJson(connectors.ConnectorErrorSchema, row.error) }),
         allWorkers: row.all_workers,
         workerIds: workers.map((w) => w.worker_id),
         allBots: row.all_bots,

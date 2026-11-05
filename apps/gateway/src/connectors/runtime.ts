@@ -27,6 +27,7 @@ import { authorizeOAuth, redactConnector, revokeOAuth } from "./oauth.ts";
 import { beginOAuth } from "./sign-in.ts";
 import { connectorPermission, failed, handleConnectorCall } from "./calls.ts";
 import { worktreeMerged } from "./merged-pr.ts";
+import { connectorTestError, ConnectorTestFailure } from "./test-error.ts";
 
 /** Catalog input schemas are stored as the JSON text of the object the MCP server sent. */
 const inputSchema = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.JsonObject));
@@ -260,9 +261,12 @@ export class ConnectorsRuntime {
       await this.run((s) => s.saveTools(connection.row, tools));
 
       return { tools, account: await this.run((s) => s.owned(user, id).pipe(Effect.flatMap(s.view))) };
-    } catch {
-      await this.run((s) => s.status(connection.row, "error"));
-      throw new ConnectorFailure("Connection failed. Check the endpoint and reconnect the account.");
+    } catch (cause) {
+      const error = connectorTestError(cause, connection.row.connector_type, connection.value);
+      console.warn(`Connector test failed (${connection.row.id}): ${error.detail}`);
+      await this.run((s) => s.status(connection.row, "error", error));
+      const account = await this.run((s) => s.owned(user, id).pipe(Effect.flatMap(s.view)));
+      throw new ConnectorTestFailure(account, error.message);
     }
   }
   async tools(user: string, scope: { workerId?: string; botId?: string }): Promise<ConnectorTool[]> {
@@ -270,10 +274,11 @@ export class ConnectorsRuntime {
     const tools: ConnectorTool[] = [];
 
     for (const row of rows) {
-      if (row.status !== "connected") continue;
+      if (row.status !== "connected" && row.status !== "error") continue;
       let catalog = await this.run((s) => Effect.succeed(s.tools(row)));
 
-      if (!catalog.length) {
+      // A failed test suspends tools until a fresh listing succeeds, including cached catalogs.
+      if (row.status === "error" || !catalog.length) {
         try {
           catalog = (await this.test(row.id, user)).tools;
         } catch {

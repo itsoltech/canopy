@@ -8,6 +8,7 @@ import type { Values } from "./provider-values.ts";
 
 export const CONNECTOR_KINDS = new Set(["connector", "oauth_app"]);
 
+// Connection status, error diagnostics and last use describe this gateway, never shared configuration.
 export const CONNECTOR_FIELDS = new Set([
   "type",
   "name",

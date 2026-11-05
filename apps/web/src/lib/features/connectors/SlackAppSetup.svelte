@@ -67,7 +67,7 @@
       >
     </div>
     <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      Install the app only to your own workspace. Slack lets only internal apps use MCP.
+      Keep distribution internal and install the app in your workspace. Ask your administrator to approve it if needed.
     </p>
   {:else}
     <p class="text-base/6 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-300">

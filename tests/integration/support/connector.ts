@@ -3,7 +3,16 @@ import type { JsonValue } from "@canopy/domain";
 
 /** Real HTTP MCP + OAuth fixture: token validation, one-use codes, S256 and rotating refresh tokens. */
 export function fakeConnector(
-  options: { call?: (name: string, args: JsonValue) => JsonValue; accountId?: string } = {},
+  options: {
+    call?: (name: string, args: JsonValue) => JsonValue;
+    accountId?: string;
+    response?: (
+      method: string,
+      id: number | undefined,
+      request: Request,
+    ) => Response | undefined | Promise<Response | undefined>;
+    userToken?: boolean;
+  } = {},
 ) {
   const secret = `connector-secret-${crypto.randomUUID()}`;
   const clients = new Map<string, { redirect: string; secret?: string }>();
@@ -104,7 +113,7 @@ export function fakeConnector(
           refreshes++;
         }
 
-        const token = `access-${crypto.randomUUID()}`,
+        const token = `${options.userToken ? "xoxp" : "access"}-${crypto.randomUUID()}`,
           renewal = `refresh-${crypto.randomUUID()}`;
 
         access.add(token);
@@ -113,9 +122,10 @@ export function fakeConnector(
         return Response.json({
           access_token: token,
           refresh_token: renewal,
-          token_type: "Bearer",
+          token_type: options.userToken ? "user" : "Bearer",
           expires_in: duration,
           ...(accountId && { workspace_id: accountId }),
+          ...(options.userToken && { ok: true, authed_user: { id: "U12345", scope: "tools" }, team: { id: "T12345" } }),
         });
       }
 
@@ -147,6 +157,9 @@ export function fakeConnector(
       };
 
       if (body.method.startsWith("notifications/")) return new Response(null, { status: 202 });
+      const override = await options.response?.(body.method, body.id, request);
+
+      if (override) return override;
       let result: JsonValue = {};
 
       if (body.method === "initialize")

@@ -1,5 +1,5 @@
 /** Safe configuration evidence and MCP client shared by the fake official CLIs. */
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { Schema } from "effect";
 
 const Mcp = Schema.Struct({
@@ -10,6 +10,22 @@ const Mcp = Schema.Struct({
 
 const McpConfig = Schema.Struct({ mcpServers: Schema.Record(Schema.String, Mcp) });
 const CodexConfig = Schema.Struct({ mcp_servers: Schema.Record(Schema.String, Mcp) });
+
+const ToolList = Schema.Struct({
+  result: Schema.Struct({ tools: Schema.Array(Schema.Struct({ name: Schema.String })) }),
+});
+
+const ContextProbe = Schema.Struct({ prompt: Schema.String, names: Schema.Array(Schema.String) });
+
+/** Controlled fixture prompts only; no environment, configuration, headers or credentials. */
+export function botContexts(trace: string): (typeof ContextProbe.Type)[] {
+  return existsSync(trace)
+    ? readFileSync(trace, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => Schema.decodeSync(Schema.fromJsonString(ContextProbe))(line))
+    : [];
+}
 
 export function arg(name: string): string | undefined {
   const args = process.argv;
@@ -48,7 +64,24 @@ export function codexBotConfig(config: Schema.Json) {
 }
 
 export async function botTool(text: string, server: typeof Mcp.Type | undefined): Promise<string> {
+  const prompt = text;
   text = text.split("\n\nCurrent input:\n").at(-1) ?? text;
+  const trace = process.env["BOT_TRACE"];
+
+  if (server && trace && text.includes("PROBE_CONTEXT")) {
+    const response = await fetch(server.url, {
+      method: "POST",
+      headers: { ...server.headers, ...server.http_headers, "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+
+    const catalog = Schema.decodeUnknownSync(ToolList)(await response.json());
+    appendFileSync(
+      `${trace}.context`,
+      JSON.stringify({ prompt, names: catalog.result.tools.map((t) => t.name) }) + "\n",
+    );
+  }
+
   const name = text.match(/TOOL:([a-z_0-9]+)/i)?.[1];
 
   if (!server || !name) return "FIXTURE_OK";

@@ -44,14 +44,20 @@ gatewaya pozostaje źródłem prawdy, także dla rutyn i handoffów. Nowa sesja 
 historię jako jawnie oznaczone dane oraz bieżące instrukcje, czas i tożsamość modelu.
 Zaginiona lub przeniesiona sesja jest odbudowywana bez powtarzania narzędzi z historii.
 Wznowienie dostaje nowe wejście i aktualny kontekst. Zmiana zestawu narzędzi wymaga
-nowej sesji, żeby odebrany grant nie pozostał w katalogu harnessu.
+nowej sesji, żeby odebrany grant nie pozostał w katalogu harnessu. Gateway pobiera
+narzędzia konektorów z aktualnych grantów przed każdą turą; worker porównuje
+fingerprint modelu i pełnych deskryptorów narzędzi. Dodanie konta (także z „All bots”),
+nadanie lub odebranie grantu i usunięcie konta wymuszają nową sesję na następnej
+wiadomości, jeżeli zmieniają dostępne narzędzia. Rozmowa i identyfikator bota
+pozostają te same; zmienia się wyłącznie ukryta sesja harnessu.
 
 Nie dodajemy osobnego wywołania modelu do streszczania. Długą rozmowę kompaktuje
 harness, tak jak w wątkach: Claude Agent SDK automatycznie, Codex według
 `auto_compact_token_limit` z katalogu modelu bota, Grok według własnego limitu CLI.
 
-Przy odbudowie obowiązują istniejące granice historii bota (ostatnie 60 wiadomości
-dla rutyn, notatka handoffu) oraz budżet historii. Harness nie skompaktuje pierwszego
+Przy odbudowie zwykła tura pobiera całą historię z `store-conversation.ts`, bez limitu
+60 wiadomości; ten limit dotyczy tylko rutyn. Handoff zachowuje osobną notatkę.
+Następnie obowiązuje budżet historii. Harness nie skompaktuje pierwszego
 wejścia, które już się nie mieści. Dlatego gateway daje historii około połowy okna
 kontekstu, liczonego ostrożnie: 3 znaki na token. Katalog workera nie podaje okna
 modelu, więc gateway przyjmuje 128k tokenów, mniej niż każdy obsługiwany model.
@@ -176,7 +182,14 @@ i wiadomości bot–bot. `bots-harness-defaults.test.ts` sprawdza wybór desktop
 i trwałość przypięcia. `bots-harness-context.test.ts` sprawdza limity w katalogu
 Codexa bota oraz odbudowę długiej rozmowy w budżecie: najnowsze wiadomości, notatkę
 o pominięciu, całe bieżące wejście i pełny transkrypt. `codex-catalog.test.ts`
-sprawdza z prawdziwym CLI, że Codex odczytuje okno i limit z katalogu bota. Dotychczasowy `bots-harness.test.ts` nadal obejmuje offline,
+sprawdza z prawdziwym CLI, że Codex odczytuje okno i limit z katalogu bota.
+`bots-connector-refresh.test.ts` sprawdza dla Claude/Codex/Grok
+nową sesję po dodaniu konta, nadaniu/odebraniu grantu i usunięciu konta. Kontrolowane
+CLI potwierdzają rzeczywisty katalog MCP oraz odbudowaną historię tej samej rozmowy,
+w tym ponad 60 wcześniejszych wiadomości i najstarszą parę użytkownik–bot.
+Zwykłe wątki nie rotują automatycznie sesji po zmianie konektorów, ponieważ nie
+gwarantują pełnej odbudowy historii; ograniczenie opisuje [connectors.md](connectors.md).
+Dotychczasowy `bots-harness.test.ts` nadal obejmuje offline,
 reconnect, restarty, owner scoping i izolację.
 `linked-agent-messages.test.ts` łączy dwa gatewaye i kontrolowany harness bota:
 sprawdza autora oraz treść wiadomości i steerów, czytelny event zakończenia,
