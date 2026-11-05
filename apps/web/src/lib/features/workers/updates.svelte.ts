@@ -24,7 +24,7 @@ export class UpdatesState {
   }
   async manage(input: MessageInitShape<typeof ui.ManageUpdatesRequestSchema>): Promise<void> {
     if (this.pending) return;
-    this.pending = input.workerId || input.action || "update";
+    this.pending = input.workerId || input.nodeId || input.action || "update";
     this.error = "";
 
     try {

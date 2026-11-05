@@ -75,7 +75,7 @@
       <IconButton
         size="sm"
         icon="information-circle"
-        label="Update all skips externally managed items. It updates the gateway, binary workers, native agent CLIs, then Canopy apps."
+        label="Update all skips externally managed items. It updates the gateway, binary workers, native agent CLIs, then Canopy apps. Linked computers update last, one at a time."
       />
       <Button
         size="sm"

@@ -12,7 +12,17 @@ Popover ma 352 px szerokości i wysokość zależną od zawartości (maksymalnie
 70% okna / 512 px); przewija się lista między nagłówkiem a odnośnikami.
 Nagłówek zawiera Check now i Update all. Każda pozycja ma zwarty wiersz
 z wersjami, stanem i akcją; postęp to cienki kolorowy pasek, a nie pełne
-wypełnienie udające 100%. Aktualne pozycje zwija „Up to date · N”. Instrukcje
+wypełnienie udające 100%. Kolejność: najpierw komputery („This Canopy app”, w trybie
+serwerowym gateway, potem każdy połączony komputer), potem workery pogrupowane według
+komputera (nagłówek z nazwą, gdy workery są na więcej niż jednym), na końcu zwinięta
+sekcja „Agent CLIs · N” z CLI wszystkich komputerów. Jej podsumowanie ma jedną odznakę:
+„Failed”, „Installing” albo „N available”, wyrównaną z odznakami wierszy. Komputery
+i workery pokazujemy zawsze, także aktualne; dawną grupę „Up to date · N” zastąpiła
+zwinięta sekcja CLI. Wiersz połączonego komputera ma stan Up to date, Available,
+procent pobierania, Ready, Waiting for idle, Restarting, Offline, Failed albo
+Manual update (aplikacja za stara na zdalne aktualizacje lub komputer pośredni), z
+przyczyną pod ikoną informacji. Galeria `/dev/updates` (tylko tryb deweloperski)
+pokazuje centrum i wszystkie stany na danych testowych. Instrukcje
 instalacji i kolejność aktualizacji są pod ikonami informacji. Długie nazwy
 i wersje mają skrót z pełną treścią w podpowiedzi; błędy można rozwinąć.
 Popover nie pokazuje notatek wydań; są w Settings → Workers / App updates razem

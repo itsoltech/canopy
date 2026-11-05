@@ -5,17 +5,13 @@
   import CompactAppUpdate from "#lib/features/desktop/CompactAppUpdate.svelte";
   import type { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
   import CompactWorkerUpdate from "./CompactWorkerUpdate.svelte";
-  import CompactCliUpdate from "./CompactCliUpdate.svelte";
+  import CompactCliSection from "./CompactCliSection.svelte";
+  import CompactComputerUpdate from "./CompactComputerUpdate.svelte";
   import CompactGatewayUpdate from "./CompactGatewayUpdate.svelte";
+  import UpdateGroupLabel from "./UpdateGroupLabel.svelte";
+  import { homes } from "./computer-updates.ts";
   import UpdateProgress from "./UpdateProgress.svelte";
-  import {
-    appCurrent,
-    cliCurrent,
-    gatewayCurrent,
-    listedWorkers,
-    workerCurrent,
-    updatesAvailable,
-  } from "./compact-updates.ts";
+  import { listedWorkers, updatesAvailable } from "./compact-updates.ts";
   import { cliActions } from "./cli-tools.svelte.ts";
   import type { UpdatesState } from "./updates.svelte.ts";
   import { updateIndicator } from "./update-indicator.ts";
@@ -39,21 +35,10 @@
 
   // The bundled gateway and worker ship with this app: "This Canopy app" stands for them; their CLIs stay.
   const bundled = $derived(!!snapshot?.gatewayBundled);
-  const workers = $derived(snapshot ? listedWorkers(snapshot) : []);
+  const groups = $derived(snapshot ? homes(snapshot) : []);
 
-  const clis = $derived(
-    snapshot?.cliWorkers.flatMap((worker) =>
-      worker.cliTools.filter((item) => !!item.tool).map((item) => ({ worker, item })),
-    ) ?? [],
-  );
-
-  const currentGateway = $derived(!!snapshot && !bundled && gatewayCurrent(snapshot));
-  const currentWorkers = $derived(workers.filter((worker) => workerCurrent(worker, snapshot?.gatewayVersion ?? "")));
-  const currentClis = $derived(clis.filter(({ item }) => cliCurrent(item)));
-  const currentApp = $derived(!app.error && appCurrent(app.status));
-
-  const currentCount = $derived(
-    Number(currentGateway) + currentWorkers.length + currentClis.length + Number(currentApp),
+  const workerGroups = $derived(
+    groups.map((g) => ({ ...g, workers: listedWorkers(g.home) })).filter((g) => g.workers.length),
   );
 
   const error = $derived(updates.error || snapshot?.checkError || cli.errors["check/"] || "");
@@ -88,7 +73,7 @@
     <IconButton
       size="sm"
       icon="information-circle"
-      label="Update all skips externally managed items. It updates the gateway, binary workers, native agent CLIs, then Canopy apps."
+      label="Update all skips externally managed items. It updates the gateway, binary workers, native agent CLIs, then Canopy apps. Linked computers update last, one at a time."
     />
     <IconButton
       size="sm"
@@ -124,27 +109,22 @@
           </p>{/if}
       </div>
     {/if}
-    {#if !currentApp && (app.status || app.error)}<CompactAppUpdate updates={app} {bundled} />{/if}
+    <!-- Computers and workers first; agent CLIs collapse below (docs/updates.md). -->
+    {#if snapshot?.computers.length}<UpdateGroupLabel>Computers</UpdateGroupLabel>{/if}
+    {#if app.status || app.error}<CompactAppUpdate updates={app} {bundled} />{/if}
     {#if snapshot}
-      {#if !bundled && !currentGateway}<CompactGatewayUpdate {updates} />{/if}
-      {#each workers.filter((worker) => !workerCurrent(worker, snapshot.gatewayVersion)) as worker (worker.workerId)}
-        <CompactWorkerUpdate {worker} {updates} />
+      {#if !bundled}<CompactGatewayUpdate {updates} />{/if}
+      {#each snapshot.computers as computer (computer.nodeId)}<CompactComputerUpdate {computer} {updates} />{/each}
+      {#if workerGroups.length}<UpdateGroupLabel class="border-t border-divider">Workers</UpdateGroupLabel>{/if}
+      {#each workerGroups as group (group.nodeId)}
+        {#if workerGroups.length > 1 || group.nodeId}<UpdateGroupLabel class="pt-1 font-normal"
+            >{group.name}</UpdateGroupLabel
+          >{/if}
+        {#each group.workers as worker (worker.workerId)}
+          <CompactWorkerUpdate {worker} {updates} home={group.home} />
+        {/each}
       {/each}
-      {#each clis.filter(({ item }) => !cliCurrent(item)) as entry (`${entry.worker.id}/${entry.item.tool?.provider}`)}
-        <CompactCliUpdate {...entry} disabled={busy} />
-      {/each}
-      {#if currentCount}
-        <Disclosure summaryClass="py-2 text-xs/5 text-muted" class="border-divider not-first:border-t">
-          {#snippet summary()}Up to date · {currentCount}{/snippet}
-          {#if currentApp}<CompactAppUpdate updates={app} {bundled} />{/if}
-          {#if currentGateway}<CompactGatewayUpdate {updates} />{/if}
-          {#each currentWorkers as worker (worker.workerId)}<CompactWorkerUpdate {worker} {updates} />{/each}
-          {#each currentClis as entry (`${entry.worker.id}/${entry.item.tool?.provider}`)}<CompactCliUpdate
-              {...entry}
-              disabled={busy}
-            />{/each}
-        </Disclosure>
-      {/if}
+      <CompactCliSection {groups} disabled={busy} class="border-t" />
     {:else}<p class="py-2 text-xs/5 text-muted" role="status">Loading update status…</p>{/if}
   </div>
   <footer class="flex shrink-0 flex-wrap gap-x-4 gap-y-1 border-t border-divider px-3 py-2 text-xs/5 text-muted">

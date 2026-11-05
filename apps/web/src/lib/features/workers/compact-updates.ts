@@ -2,6 +2,7 @@ import type { ui } from "@canopy/contracts";
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import { cliUpdateActionable } from "@canopy/domain/release/update-actions";
 import { updateBusy } from "./updates.svelte.ts";
+import { computerUpdatesAvailable } from "./computer-updates.ts";
 
 export function workerCurrent(worker: ui.WorkerUpdate, gatewayVersion: string): boolean {
   if (worker.state === "failed" || updateBusy(worker.state) || worker.compatibility !== "compatible") return false;
@@ -45,6 +46,7 @@ export const listedWorkers = (snapshot: ui.UpdatesSnapshot): ui.WorkerUpdate[] =
   snapshot.workers.filter((worker) => !worker.bundled);
 
 export const updatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>
+  computerUpdatesAvailable(snapshot) ||
   (!snapshot.gatewayBundled && snapshot.gatewayInstallKind === "binary" && snapshot.gatewayUpdateAvailable) ||
   listedWorkers(snapshot).some((worker) =>
     worker.desktop

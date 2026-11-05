@@ -1,6 +1,7 @@
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import type { ui } from "@canopy/contracts";
 import { listedWorkers, updatesAvailable, externalUpdatesAvailable } from "./compact-updates.ts";
+import { computerUpdate } from "./computer-updates.ts";
 
 export function updateIndicator(
   app: DesktopUpdateStatus | undefined,
@@ -14,6 +15,8 @@ export function updateIndicator(
   const failedWorker = workers.find((w) => w.state === "failed");
   const failedDesktop = workers.find((w) => w.desktop?.phase === "failed")?.desktop;
   const failedCli = clis.find((t) => t.tool?.install?.state === "failed");
+  const computers = snapshot?.computers.map((c) => ({ name: c.name, view: computerUpdate(c) })) ?? [];
+  const failedComputer = computers.find((c) => c.view.failed);
 
   const failed =
     error ||
@@ -25,7 +28,8 @@ export function updateIndicator(
       : "") ||
     (failedWorker ? failedWorker.reason || "Worker update failed" : "") ||
     (failedDesktop ? failedDesktop.reason || "Desktop update failed" : "") ||
-    (failedCli ? failedCli.tool?.install?.error || "Agent CLI update failed" : "");
+    (failedCli ? failedCli.tool?.install?.error || "Agent CLI update failed" : "") ||
+    (failedComputer ? `${failedComputer.name}: ${failedComputer.view.detail || "App update failed"}` : "");
 
   if (failed) return { phase: "error", message: failed, progress: undefined };
 
@@ -38,7 +42,8 @@ export function updateIndicator(
         ["queued", "waiting_idle", "downloading", "restarting"].includes(w.state) ||
         ["queued", "waiting_idle", "downloading", "restarting"].includes(w.desktop?.phase ?? ""),
     ) ||
-    clis.some((t) => t.tool?.install?.state === "running");
+    clis.some((t) => t.tool?.install?.state === "running") ||
+    computers.some((c) => c.view.busy);
 
   if (downloading)
     return {
