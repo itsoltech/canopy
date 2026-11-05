@@ -412,6 +412,7 @@ enum PermissionMode {
   PERMISSION_MODE_ACCEPT_EDITS = 2; // edycje plików bez pytania, reszta pyta
   PERMISSION_MODE_READ_ONLY = 3;
   PERMISSION_MODE_FULL_AUTO = 4;    // tylko świadomie, per agent
+  PERMISSION_MODE_FULL_ACCESS = 5;  // bez sandboxa i bez pytań; tylko jawny wybór, worker z capability full_access
 }
 
 // Pełny opis wątku. Gateway (baza) jest źródłem prawdy i wysyła go w każdej komendzie,

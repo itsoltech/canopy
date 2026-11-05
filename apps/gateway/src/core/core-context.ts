@@ -150,8 +150,8 @@ export function steerOf(event: ThreadEvent): string | undefined {
 
 /**
  * A requested permission mode as stored ('' = UNSPECIFIED: no override / unchanged). Any mode is the user's to
- * choose for their thread (FULL_AUTO too: still sandboxed to the workspace by both harnesses); agents cannot
- * set one, the agent bus has no tool for it.
+ * choose for their thread (FULL_AUTO too: still sandboxed to the workspace by every harness; FULL_ACCESS only on
+ * a worker that announces it, full-access.ts); agents cannot set one, the agent bus has no tool for it.
  */
 export function checkedPermissionMode(mode: PermissionMode): string {
   if (mode !== PermissionMode.UNSPECIFIED && PermissionMode[mode] === undefined)

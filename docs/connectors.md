@@ -204,7 +204,7 @@ natomiast jawne `full_auto` pozwala na zapis. Żaden tryb nie zastępuje grantu.
 Rutyny w tle używają grantów i polityki tego samego bota; uruchomienie rutyny
 nie nadaje dodatkowych uprawnień do kont.
 Wątki: `READ_ONLY` odmawia zapisów, `ASK` i `ACCEPT_EDITS` wymagają istniejącej
-interakcji permission dla narzędzi innych niż tylko odczyt, `FULL_AUTO` przepuszcza.
+interakcji permission dla narzędzi innych niż tylko odczyt, `FULL_AUTO` i `FULL_ACCESS` przepuszczają.
 Zgoda nie zastępuje grantu; grant jest ponownie sprawdzany tuż przed wykonaniem.
 Ponowienie call ID po reconnect nie wykonuje ponownie operacji. Nieznany wynik
 po awarii nie powoduje automatycznego powtórzenia zapisu.

@@ -133,7 +133,7 @@ komputery wybór worktree lub dziedziczenia jest jawnie odrzucany do etapu 5; ch
 
 Reguły (`authorizeBusCall` i gateway):
 - głębokość: dwa poziomy (subagent nie tworzy kolejnych), limity jak w sekcji 6,
-- uprawnienia: `read_only` < `ask` < `accept_edits` < `full_auto`; subagent dostaje uprawnienia wywołującego albo węższe, nigdy szersze. „Uprawnienia wywołującego” to tryb tury, w której padło wywołanie (`turns.permission_mode`: wiadomość może nadpisać domyślny wątku na jedną turę), a bez niego tryb tury w toku, potem domyślny wątku; ten sam tryb dostaje subagent bez `permission_mode`,
+- uprawnienia: `read_only` < `ask` < `accept_edits` < `full_auto`; subagent dostaje uprawnienia wywołującego albo węższe, nigdy szersze. „Uprawnienia wywołującego” to tryb tury, w której padło wywołanie (`turns.permission_mode`: wiadomość może nadpisać domyślny wątku na jedną turę), a bez niego tryb tury w toku, potem domyślny wątku; ten sam tryb dostaje subagent bez `permission_mode`; `FULL_ACCESS` nie jest trybem szyny: wołający w nim liczy się jako `full_auto`, więc jego subagenci i harmonogramy działają w sandboxie ([protocol.md](protocol.md#modele-effort-i-steer)),
 - dostawca, model i wysiłek: patrz [Subagenci dowolnego dostawcy](#subagenci-dowolnego-dostawcy); fork zachowuje dostawcę i instancję,
 - rola (`instructions`) dopisuje się do instrukcji wywołującego.
 

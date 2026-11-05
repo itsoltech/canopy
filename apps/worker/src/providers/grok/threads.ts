@@ -120,6 +120,7 @@ export class GrokThreads {
       effort: chosen.effort,
       readOnly: chosen.permissionMode === PermissionMode.READ_ONLY,
       fullAuto: chosen.permissionMode === PermissionMode.FULL_AUTO,
+      fullAccess: chosen.permissionMode === PermissionMode.FULL_ACCESS,
       linkDeviceLogin: this.options.linkDeviceLogin,
     });
 
@@ -216,7 +217,7 @@ export class GrokThreads {
 
     if (entry.mode === PermissionMode.READ_ONLY) return selected(false);
 
-    if (entry.mode === PermissionMode.FULL_AUTO) return selected(true);
+    if (entry.mode === PermissionMode.FULL_AUTO || entry.mode === PermissionMode.FULL_ACCESS) return selected(true);
 
     if (
       entry.mode === PermissionMode.ACCEPT_EDITS &&

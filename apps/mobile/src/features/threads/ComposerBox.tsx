@@ -148,15 +148,18 @@ export function ComposerPill({
   title,
   onPress,
   warning = false,
+  danger = false,
   leading,
 }: {
   icon: Parameters<typeof Icon>[0]["name"];
   title: string;
   onPress: () => void;
   warning?: boolean;
+  danger?: boolean;
   leading?: ReactNode;
 }) {
   const c = useColors();
+  const tone = danger ? c.danger : warning ? c.warning : c.muted;
 
   return (
     <Pressable
@@ -173,8 +176,8 @@ export function ComposerPill({
         backgroundColor: pressed ? c.inset : "transparent",
       })}
     >
-      {leading ?? <Icon name={icon} size={14} color={warning ? c.warning : c.muted} />}
-      <Text numberOfLines={1} style={[styles.meta, { color: warning ? c.warning : c.muted, maxWidth: 140 }]}>
+      {leading ?? <Icon name={icon} size={14} color={tone} />}
+      <Text numberOfLines={1} style={[styles.meta, { color: tone, maxWidth: 140 }]}>
         {title}
       </Text>
       <Icon name="chevron-down" size={12} />

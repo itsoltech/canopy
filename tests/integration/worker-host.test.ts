@@ -40,7 +40,8 @@ let host: WorkerHost;
 beforeAll(async () => {
   gateway = await startGateway();
   runtime = ManagedRuntime.make(Journal.layer(join(dir, "journal.db")));
-  host = new WorkerHost({ runtime, dataDir: join(dir, "data"), clientVersion: "test" });
+  // Full access turned off in worker.json: its turns are refused before any provider runs.
+  host = new WorkerHost({ runtime, dataDir: join(dir, "data"), clientVersion: "test", fullAccess: false });
 
   const link = await connectWorker(gateway.server.url, {
     hello: { workerId: "worker-1", ...(await runtime.runPromise(journalHello())) },
@@ -148,6 +149,22 @@ describe("worker command handling", () => {
       errorCode: "PROVIDER_UNAVAILABLE",
       errorMessage: "disabled in configuration",
     });
+  });
+
+  test("Full access turned off on the device: its turns are refused, other modes reach the provider", async () => {
+    const turn = (permissionMode: PermissionMode) =>
+      connection.sendCommand({
+        case: "startTurn",
+        value: {
+          thread: thread(join(root, "project-a")),
+          turnId: Bun.randomUUIDv7(),
+          input: { text: "x" },
+          permissionMode,
+        },
+      });
+
+    expect(await turn(PermissionMode.FULL_ACCESS)).toMatchObject({ ok: false, errorCode: "FULL_ACCESS_DISABLED" });
+    expect(await turn(PermissionMode.FULL_AUTO)).toMatchObject({ ok: false, errorCode: "PROVIDER_UNAVAILABLE" });
   });
 
   test("a fork at a turn without its provider ref is refused, never a copy of the whole history", async () => {

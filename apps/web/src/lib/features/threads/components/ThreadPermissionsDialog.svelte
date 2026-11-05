@@ -6,13 +6,20 @@
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import Radio from "#lib/shared/ui/Radio.svelte";
   import { updateThread } from "../api.ts";
-  import { isFullAuto, permissionKey, permissionModes, type PermissionModeKey } from "../labels.ts";
+  import {
+    isFullAccess,
+    isFullAuto,
+    permissionKey,
+    permissionLook,
+    permissionModes,
+    type PermissionModeKey,
+  } from "../labels.ts";
   import PermissionModeTitle from "./PermissionModeTitle.svelte";
 
   /**
    * The thread's default permission mode (UpdateThread): what turns run with when the composer sends no
    * mode of its own. Takes effect from the next turn; approvals a running turn waits for are unchanged.
-   * The new default arrives through the thread's stream.
+   * The new default arrives through the thread's stream. Picking Full access turns Save into its confirmation.
    */
   let { open = $bindable(false), thread }: { open?: boolean; thread: ui.Thread } = $props();
 
@@ -56,12 +63,14 @@
   <form class="grid gap-4" onsubmit={save}>
     <fieldset class="grid gap-1" aria-label="Permission mode">
       {#each permissionModes as option (option.value)}
-        {@const warn = isFullAuto(option.value)}
+        {@const tone = permissionLook(option.value).tone}
         <label
           class={[
             "flex cursor-pointer gap-3 rounded-lg p-3 ring-1 ring-transparent hover:bg-zinc-950/2.5 has-checked:ring-zinc-950/10 dark:hover:bg-white/2.5 dark:has-checked:ring-white/10",
-            warn &&
+            tone === "amber" &&
               "has-checked:bg-amber-50 has-checked:ring-amber-600/25 dark:has-checked:bg-amber-400/5 dark:has-checked:ring-amber-400/20",
+            tone === "rose" &&
+              "has-checked:bg-rose-50 has-checked:ring-rose-600/20 dark:has-checked:bg-rose-400/5 dark:has-checked:ring-rose-400/20",
           ]}
         >
           <span class="flex h-lh items-center text-base/6 sm:text-sm/6">
@@ -89,11 +98,20 @@
         >Every turn without a mode of its own will edit files and run commands without asking. It stays sandboxed to the
         workspace.</Alert
       >
+    {:else if isFullAccess(mode) && mode !== current}
+      <Alert tone="danger"
+        >Every turn without a mode of its own edits files and runs commands without asking. No sandbox keeps it in the
+        workspace.</Alert
+      >
     {/if}
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <DialogActions>
       <Button onclick={() => (open = false)}>Cancel</Button>
-      <Button type="submit" variant="primary" loading={busy}>Save</Button>
+      {#if isFullAccess(mode) && mode !== current}
+        <Button type="submit" variant="danger" loading={busy}>Turn on full access</Button>
+      {:else}
+        <Button type="submit" variant="primary" loading={busy}>Save</Button>
+      {/if}
     </DialogActions>
   </form>
 </Dialog>

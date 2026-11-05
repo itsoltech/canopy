@@ -20,7 +20,7 @@
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { dotTones, textTones } from "#lib/shared/ui/tone.ts";
   import { byActivity, workState } from "./activity.ts";
-  import { isFullAuto, permissionLabel, permissionLook, providerLabel } from "./labels.ts";
+  import { isUnprompted, permissionLabel, permissionLook, providerLabel } from "./labels.ts";
   import { instanceLabel, instanceOf, providerKeyOf } from "./providers.ts";
   import { isSide, sideMark } from "./thread-tree.ts";
   import SummaryRow from "./components/SummaryRow.svelte";
@@ -125,7 +125,7 @@
       </SummaryRow>
       <SummaryRow>
         {#snippet mark()}<Icon name={permission.icon} class={["size-4", permission.iconClass]} />{/snippet}
-        <span class={["truncate", isFullAuto(thread.permissionMode) && permission.textClass]}
+        <span class={["truncate", isUnprompted(thread.permissionMode) && permission.textClass]}
           >{permissionLabel(thread.permissionMode)}</span
         >
       </SummaryRow>

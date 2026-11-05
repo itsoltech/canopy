@@ -14,7 +14,17 @@ export const permissionLabels = {
   2: "Accept edits",
   3: "Read only",
   4: "Full auto",
+  5: "Full access",
 } satisfies Record<PermissionMode, string>;
+
+/** Full auto and Full access never ask; each is confirmed when chosen. */
+const confirmations: Partial<Record<PermissionMode, { message: string; action: string }>> = {
+  [PermissionMode.FULL_AUTO]: { message: "Runs without asking, sandboxed to the workspace.", action: "Use Full auto" },
+  [PermissionMode.FULL_ACCESS]: {
+    message: "Runs without asking and without a sandbox. It can change any file and use the network.",
+    action: "Use Full access",
+  },
+};
 
 function useComposerSettings(thread: ui.Thread | undefined) {
   const { client } = useSession();
@@ -163,9 +173,16 @@ export function MessageComposer({
       >
         <ComposerPill icon="computer-desktop" title={worker?.name ?? "Worker"} onPress={onDetails} />
         <ComposerPill
-          icon={thread?.permissionMode === PermissionMode.FULL_AUTO ? "shield-exclamation" : "shield-check"}
+          icon={
+            thread?.permissionMode === PermissionMode.FULL_ACCESS
+              ? "shield-off"
+              : thread?.permissionMode === PermissionMode.FULL_AUTO
+                ? "shield-exclamation"
+                : "shield-check"
+          }
           title={permissionLabels[thread?.permissionMode ?? 0] ?? "Ask first"}
           warning={thread?.permissionMode === PermissionMode.FULL_AUTO}
+          danger={thread?.permissionMode === PermissionMode.FULL_ACCESS}
           onPress={() => setSheet("permission")}
         />
       </View>
@@ -221,27 +238,36 @@ function ComposerSettingsSheet({
       )}
       {sheet === "permission" && (
         <View style={{ gap: 12 }}>
-          {[PermissionMode.ASK, PermissionMode.ACCEPT_EDITS, PermissionMode.READ_ONLY, PermissionMode.FULL_AUTO].map(
-            (mode) => (
+          {[
+            PermissionMode.ASK,
+            PermissionMode.ACCEPT_EDITS,
+            PermissionMode.READ_ONLY,
+            PermissionMode.FULL_AUTO,
+            PermissionMode.FULL_ACCESS,
+          ].map((mode) => {
+            const confirm = confirmations[mode];
+
+            return (
               <Button
                 key={mode}
-                title={permissionLabels[mode]!}
+                title={permissionLabels[mode]}
                 secondary
                 busy={saving}
                 onPress={() =>
-                  mode === PermissionMode.FULL_AUTO
-                    ? Alert.alert("Full auto", "Runs without asking, sandboxed to the workspace.", [
+                  confirm && mode !== thread?.permissionMode
+                    ? Alert.alert(permissionLabels[mode], confirm.message, [
                         { text: "Cancel", style: "cancel" },
                         {
-                          text: "Use Full auto",
+                          text: confirm.action,
+                          style: mode === PermissionMode.FULL_ACCESS ? "destructive" : "default",
                           onPress: () => void update({ permissionMode: mode }),
                         },
                       ])
                     : void update({ permissionMode: mode })
                 }
               />
-            ),
-          )}
+            );
+          })}
         </View>
       )}
       {sheet === "goal" && (

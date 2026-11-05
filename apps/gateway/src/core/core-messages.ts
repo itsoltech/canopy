@@ -8,6 +8,7 @@ import { titleContext } from "./thread-titles.ts";
 import { coreDispatch } from "./core-commands.ts";
 import { checkedPermissionMode, coreState, InvalidError, TTL } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
+import { coreCheckFullAccess } from "./full-access.ts";
 import { coreMessageAttachments } from "./core-attachments.ts";
 import { coreComposeInput, coreMessageMentions } from "./core-mentions.ts";
 import { coreCheckModel, coreProfileModels } from "./core-models.ts";
@@ -215,6 +216,7 @@ export const coreMessagesMethods: CoreMessagesMethods = {
     // Only the message's own effort is judged: the thread's default falls back when the turn starts (turnEffort).
     await coreCheckModel(this, { thread }, request.model || thread.settings.model || "", request.effort);
     const permissionMode = checkedPermissionMode(request.permissionMode);
+    coreCheckFullAccess(this, thread.worker_id, request.permissionMode);
 
     // A message with attachments is always the next turn: its files go to the worker before the turn starts.
     // Quotes travel in the text (their note), so a message with quotes steers like any other.
@@ -300,8 +302,11 @@ export const coreMessagesMethods: CoreMessagesMethods = {
       effort = turnEffort((await coreProfileModels(this, { thread })).models, model, request.effort ?? current);
     }
 
-    // Only the owner (UI) changes the mode; agents have no bus tool for it (docs/ui-api.md, FULL_AUTO only deliberately).
+    // Only the owner (UI) changes the mode; agents have no bus tool for it (docs/ui-api.md, FULL_AUTO and
+    // FULL_ACCESS only deliberately).
     const permissionMode = request.permissionMode === undefined ? "" : checkedPermissionMode(request.permissionMode);
+
+    if (request.permissionMode !== undefined) coreCheckFullAccess(this, thread.worker_id, request.permissionMode);
 
     if (title !== undefined) await coreRun(this, (s) => s.renameThread(thread.id, title));
 

@@ -61,8 +61,14 @@ export interface ThreadSummary {
 }
 
 /** Thread settings keep the contract's enum key (ASK, READ_ONLY, ...); the bus speaks lower case. */
+/**
+ * A stored mode in bus terms. Full access is not a bus mode: an agent never passes it on, so a Full access
+ * caller counts as full_auto (its side threads and schedules run sandboxed, docs/agent-bus.md).
+ */
 export function busPermissionMode(stored: string | undefined): SpawnPermissionMode {
   const mode = (stored ?? "ASK").toLowerCase();
+
+  if (mode === "full_access") return "full_auto";
 
   return SPAWN_PERMISSION_MODES.find((known) => known === mode) ?? "ask";
 }

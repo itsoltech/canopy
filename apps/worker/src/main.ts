@@ -167,6 +167,7 @@ const host = new WorkerHost({
   clientVersion: WORKER_VERSION,
   worktreeRoots,
   log: (m) => console.info(m),
+  fullAccess: local.full_access !== false,
 });
 
 console.info(
@@ -337,6 +338,8 @@ while (!stopping.signal.aborted) {
           "workspace_origin",
           "worktree_lifecycle",
           "project_sources",
+          // full_access: PERMISSION_MODE_FULL_ACCESS runs unsandboxed; not announced when worker.json turns it off.
+          ...(local.full_access === false ? [] : ["full_access"]),
         ],
         worktreesRoot: host.worktreesRoot,
         attachmentsRoot: host.attachmentsRoot,

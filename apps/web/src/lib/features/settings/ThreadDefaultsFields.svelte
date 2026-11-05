@@ -3,6 +3,7 @@
   import { PermissionMode, Provider, ui } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { permissionLabel, permissionModes, providerLabel } from "#lib/features/threads/labels.ts";
+  import FullAccessConfirm from "#lib/features/threads/components/FullAccessConfirm.svelte";
   import { isProviderKey, instancesFor, providerKeyOf, providerKeys } from "#lib/features/threads/providers.ts";
   import ModelIdField from "#lib/features/models/ModelIdField.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
@@ -28,6 +29,7 @@
   } = $props();
 
   const overview = useOverview();
+  let confirming = $state<() => void>();
   const provider = $derived(providerKeyOf(value.provider));
 
   // Profiles any worker offers for the provider (the thread's worker decides when it starts).
@@ -146,10 +148,12 @@
           : "ASK"
         : PermissionMode[value.permissionMode]}
       onchange={(key) => {
-        set({
-          permissionMode:
-            key in PermissionMode ? PermissionMode[key as keyof typeof PermissionMode] : PermissionMode.UNSPECIFIED,
-        });
+        const permissionMode =
+          key in PermissionMode ? PermissionMode[key as keyof typeof PermissionMode] : PermissionMode.UNSPECIFIED;
+
+        // Full access as a default is confirmed like any other pick of it.
+        if (permissionMode === PermissionMode.FULL_ACCESS) confirming = () => set({ permissionMode });
+        else set({ permissionMode });
       }}
       class="w-56 sm:w-48"
       options={[
@@ -159,3 +163,4 @@
     />
   {/snippet}
 </PreferenceRow>
+<FullAccessConfirm bind:pending={confirming} />

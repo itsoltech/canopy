@@ -27,6 +27,9 @@ export function codexPermissions(mode: PermissionMode): ThreadPermissions {
     case PermissionMode.FULL_AUTO:
       // No prompts, still sandboxed to the workspace (danger-full-access is never chosen implicitly).
       return { approvalPolicy: "never", sandbox: "workspace-write" };
+    case PermissionMode.FULL_ACCESS:
+      // The user's explicit choice: no sandbox, no prompts (the worker's OS user is the only limit).
+      return { approvalPolicy: "never", sandbox: "danger-full-access" };
     default:
       // ASK and unspecified: every write or command outside read-only asks the user.
       return { approvalPolicy: "on-request", sandbox: "read-only" };
@@ -40,17 +43,22 @@ export function codexPermissions(mode: PermissionMode): ThreadPermissions {
 export function codexTurnPermissions(mode: PermissionMode): TurnPermissions {
   const { approvalPolicy, sandbox } = codexPermissions(mode);
 
-  return {
-    approvalPolicy,
-    sandboxPolicy:
-      sandbox === "workspace-write"
-        ? {
-            type: "workspaceWrite",
-            writableRoots: [],
-            networkAccess: false,
-            excludeTmpdirEnvVar: false,
-            excludeSlashTmp: false,
-          }
-        : { type: "readOnly", networkAccess: false },
-  };
+  return { approvalPolicy, sandboxPolicy: sandboxPolicy(sandbox) };
+}
+
+function sandboxPolicy(sandbox: v2.SandboxMode): v2.SandboxPolicy {
+  switch (sandbox) {
+    case "workspace-write":
+      return {
+        type: "workspaceWrite",
+        writableRoots: [],
+        networkAccess: false,
+        excludeTmpdirEnvVar: false,
+        excludeSlashTmp: false,
+      };
+    case "danger-full-access":
+      return { type: "dangerFullAccess" };
+    default:
+      return { type: "readOnly", networkAccess: false };
+  }
 }

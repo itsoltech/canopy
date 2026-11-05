@@ -71,6 +71,8 @@ export interface WorkerHostOptions {
   /** Managed worktree roots (resolveWorktreeRoots); default: `<data_dir>/worktrees` only. */
   readonly worktreeRoots?: WorktreeRoots;
   readonly log?: (message: string) => void;
+  /** Full access turns (no sandbox, no prompts) are allowed unless the device turned them off (worker.json). */
+  readonly fullAccess?: boolean;
 }
 
 export interface ProviderRuntimeHandle<S> {

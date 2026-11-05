@@ -12,7 +12,7 @@ const Body = Schema.Struct({
   effort: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(40))),
   title: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(200))),
   // Enum key; missing = unchanged.
-  permissionMode: Schema.optionalKey(Schema.Literals(["ASK", "ACCEPT_EDITS", "READ_ONLY", "FULL_AUTO"])),
+  permissionMode: Schema.optionalKey(Schema.Literals(["ASK", "ACCEPT_EDITS", "READ_ONLY", "FULL_AUTO", "FULL_ACCESS"])),
 });
 
 /** The thread's default model, effort and permission mode (UpdateThread), for turns without a per-message choice. */

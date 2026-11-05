@@ -17,7 +17,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
-  import { permissionKey } from "../labels.ts";
+  import { inheritedMode, permissionKey } from "../labels.ts";
   import { sideThreadDraft, usePermissionDrafts } from "../permission-drafts.svelte.ts";
   import ComposerBox from "./ComposerBox.svelte";
   import HintIcon from "#lib/shared/ui/HintIcon.svelte";
@@ -42,7 +42,9 @@
   // Your pick stays with this side thread's draft (leave and come back); unset = the main thread's mode.
   const permissions = usePermissionDrafts();
   const draftKey = $derived(sideThreadDraft(main.id));
-  const mode = $derived(permissions.get(draftKey) ?? permissionKey(main.permissionMode));
+
+  // Full access is picked again for a side thread, never taken over from the main thread.
+  const mode = $derived(permissions.get(draftKey) ?? inheritedMode(permissionKey(main.permissionMode)));
   let fork = $state(true);
   let message = $state("");
   let mentions = $state<Mention[]>([]);

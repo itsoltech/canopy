@@ -9,7 +9,7 @@
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import PermissionPicker from "#lib/features/threads/components/PermissionPicker.svelte";
-  import { permissionKey, type PermissionModeKey } from "#lib/features/threads/labels.ts";
+  import { inheritedMode, permissionKey, type PermissionModeKey } from "#lib/features/threads/labels.ts";
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
@@ -67,7 +67,7 @@
 
   let effort = $state<string | undefined>(initial?.effort || undefined);
 
-  let permission = $state<PermissionModeKey>(initial ? permissionKey(initial.permissionMode) : "ASK");
+  let permission = $state<PermissionModeKey>(initial ? inheritedMode(permissionKey(initial.permissionMode)) : "ASK");
 
   let title = $state(initial?.title ?? "");
   const project = $derived(overview.projectChoice(projectId));
@@ -196,7 +196,7 @@
     <legend class="mb-2 text-base/6 font-medium sm:text-sm/6">Agent and permissions</legend>
     <div class="flex min-w-0 flex-wrap items-center gap-2">
       <ModelControls {options} bind:option bind:effort workerId={modelWorker?.id} />
-      <PermissionPicker value={permission} onselect={(next) => (permission = next)} />
+      <PermissionPicker value={permission} fullAccess={false} onselect={(next) => (permission = next)} />
     </div>
     {#if option}<p class="text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400">
         {option.provider === "CLAUDE" ? "Claude" : option.provider === "GROK" ? "Grok" : "Codex"} · {option.profileName}
