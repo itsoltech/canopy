@@ -30,7 +30,7 @@
   }: {
     account: connectors.ConnectorAccount;
     type: connectors.ConnectorType;
-    workers: readonly { id: string; name: string }[];
+    workers: readonly { id: string; name: string; group?: string; readOnly?: string }[];
     bots: readonly { id: string; name: string }[];
     onupdate: (account: connectors.ConnectorAccount) => void;
     onremove: (id: string) => void;

@@ -24,11 +24,33 @@
   let request = 0;
   const overview = useOverview();
   const catalogs = useModelCatalog();
-  const options = $derived(botWizardInstances(instances, [...catalogs.workers.values()]));
+
+  const availableInstances = $derived([
+    ...new Map(
+      [
+        ...instances,
+        ...overview.workers.flatMap((worker) =>
+          worker.providerInstances
+            .filter((p) => !instances.some((i) => instanceKeyOf(i) === instanceKeyOf(p)))
+            .map((p) =>
+              create(ui.ProviderInstanceSchema, {
+                harness: p.harness,
+                id: p.id,
+                label: p.label,
+                kind: p.kind,
+                accentColor: p.accentColor,
+              }),
+            ),
+        ),
+      ].map((i) => [instanceKeyOf(i), i]),
+    ).values(),
+  ]);
+
+  const options = $derived(botWizardInstances(availableInstances, [...catalogs.workers.values()]));
   const requestId = crypto.randomUUID();
 
   const availabilityVersion = $derived(
-    `${overview.resyncs}:${overview.ownWorkers
+    `${overview.resyncs}:${overview.workers
       .map((worker) => `${worker.id}:${worker.configVersion}:${worker.appliedVersion}`)
       .join(",")}`,
   );
@@ -84,7 +106,7 @@
   });
 
   async function oncreate(result: CreateBotDraft) {
-    const instance = instances.find((i) => instanceKeyOf(i) === result.providerInstanceId);
+    const instance = availableInstances.find((i) => instanceKeyOf(i) === result.providerInstanceId);
 
     if (!instance) throw new Error("Provider instance is no longer available");
 

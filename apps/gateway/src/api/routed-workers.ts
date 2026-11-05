@@ -18,7 +18,7 @@ import { forward, peerOf } from "./routed-home.ts";
  * The worker's home applies the edit with its own handlers over a link that carries configuration; nothing is
  * queued for an unreachable home. Both computers audit the edit, without values.
  */
-const READ_ONLY = new Set(["GetWorktreeSettings"]);
+const READ_ONLY = new Set(["GetWorktreeSettings", "GetInstanceWorker", "GetWorkerEnvironment"]);
 
 /** The worker ids a request names at its top level (`worker_id`, `worker_ids`). */
 export function workerIdsOf(desc: DescMessage, message: Message): string[] {

@@ -233,8 +233,8 @@ async function* send(
   const outbound = clone(method.input, request);
   await carryAttachments(core, nodeId, method, outbound, signal);
   const ids = await ConfigIds.for(core, nodeId);
-  unqualify(method.input, outbound, nodeId, (await ids.projects()).known);
-  await ids.map(method.input, outbound, "toGlobal");
+  unqualify(method.input, outbound, nodeId, new Set([...(await ids.projects()).known, ...(await ids.proxies()).known]));
+  await ids.map(method.input, outbound, "toGlobal", true);
 
   for await (const message of computers.remote(nodeId, method, outbound, signal)) {
     await ids.map(method.output, message, "toLocal");

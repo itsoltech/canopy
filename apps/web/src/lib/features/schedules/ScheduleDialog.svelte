@@ -17,6 +17,7 @@
   import SchedulePreview from "./SchedulePreview.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import type { ClassValue } from "svelte/elements";
+  import { computerName } from "#lib/features/computers/computers.ts";
 
   /**
    * New scheduled task: what to tell the agent, once at a time or repeatedly (a preset or a cron) in a
@@ -42,7 +43,7 @@
   const overview = useOverview();
 
   const groups = $derived(
-    overview.ownProjects
+    overview.projects
       .map((project) => ({
         project,
         threads: threads.filter((t) => t.projectId === project.id && t.status !== "archived"),
@@ -255,20 +256,24 @@
       />
     </Field>
     {#if target === "new_thread"}
-      <NewThreadScheduleFields bind:value={newThread} />
+      {#key editing?.id}<NewThreadScheduleFields bind:value={newThread} homeId={editing?.id} />{/key}
     {:else if editing?.target === "thread"}
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         In {overview.threads.get(editing.threadId)?.title || "the original thread"}. To use another existing thread,
         create a separate task.
       </p>
     {:else if !fixedThreadId}
-      <Field label="Thread">
+      <Field label="Thread" class="min-w-0">
         <Select
           name="threadId"
           bind:value={threadId}
           options={groups.length
             ? groups.flatMap((group) =>
-                group.threads.map((thread) => ({ value: thread.id, label: thread.title, group: group.project.name })),
+                group.threads.map((thread) => ({
+                  value: thread.id,
+                  label: thread.title,
+                  group: `${group.project.name} · ${group.project.nodeId ? computerName(overview.computer(group.project.nodeId)) : "This computer"}`,
+                })),
               )
             : [{ value: "", label: "No threads yet" }]}
         />

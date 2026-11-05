@@ -18,6 +18,7 @@
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import { decode } from "#lib/shared/wire.ts";
   import type { PageProps } from "./$types";
+  import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
   /**
    * Settings → Providers: provider instances defined once in the gateway and synced to the workers you
@@ -26,6 +27,7 @@
    */
   let { data }: PageProps = $props();
   const overview = useOverview();
+  const records = workerRecords(overview);
   const route = useSettingsRoute();
   const catalog = useModelCatalog();
 
@@ -53,9 +55,10 @@
     pane = "detail";
   });
 
-  const workers = $derived(overview.ownWorkers);
+  const workers = $derived(records.workers);
+  const instances = $derived(providers.instances.map((i) => records.instance(i)));
   const worker = $derived(workers.find((w) => w.id === scope));
-  const selected = $derived(providers.find(selectedKey) ?? providers.instances[0]);
+  const selected = $derived(instances.find((i) => instanceKeyOf(i) === selectedKey) ?? instances[0]);
 
   // A worker that reports again (applied a configuration, connected, went away): the instances' state follows.
   const reports = $derived(workers.map((w) => `${w.id}:${w.online}:${w.appliedVersion}:${w.configVersion}`).join(","));
@@ -92,16 +95,14 @@
     failure = undefined;
 
     try {
-      providers.put(
-        (
-          await providerCall(
-            worker ? "worker" : "workers",
-            worker
-              ? { harness: instance.harness, id: instance.id, workerId: worker.id, enabled }
-              : { harness: instance.harness, id: instance.id, allWorkers: enabled, workerIds: [] },
-          )
-        ).instance,
+      await providerCall(
+        worker ? "worker" : "workers",
+        worker
+          ? { harness: instance.harness, id: instance.id, workerId: worker.id, enabled }
+          : { harness: instance.harness, id: instance.id, allWorkers: enabled, workerIds: [] },
       );
+      await providers.reload();
+      await records.reload();
       toast(`${instanceName(instance)} turned ${enabled ? "on" : "off"} on ${worker?.name ?? "all workers"}`);
     } catch (error) {
       failure = error instanceof Error ? error.message : String(error);
@@ -150,20 +151,22 @@
   />
   {#if failure}<Alert tone="error">{failure}</Alert>{/if}
   {#if providers.skipped.length > 0}<Alert tone="info">Not checked: {providers.skipped.join("; ")}</Alert>{/if}
-  {#if worker && !worker.online}<Alert tone="info"
+  {#if worker && records.readOnly(worker.id)}<Alert>{records.readOnly(worker.id)}</Alert>
+  {:else if worker && !worker.online}<Alert tone="info"
       >{worker.name} is offline. Changes are saved and reach it when it connects.</Alert
     >{/if}
 
   <div class="grid grid-cols-1 gap-4 md:grid-cols-[15rem_minmax(0,1fr)] md:items-start">
     <nav aria-label="Provider instances" class={["md:sticky md:top-0", pane === "detail" && "max-md:hidden"]}>
       <InsetList>
-        {#each providers.instances as instance (instanceKeyOf(instance))}
+        {#each instances as instance (instanceKeyOf(instance))}
           <li>
             <InstanceRow
               {instance}
               {worker}
               selected={selected !== undefined && instanceKeyOf(selected) === instanceKeyOf(instance)}
               busy={toggling === instanceKeyOf(instance)}
+              disabled={!!worker && !!records.readOnly(worker.id)}
               onselect={() => select(instanceKeyOf(instance))}
               ontoggle={(enabled) => toggle(instance, enabled)}
             />
@@ -186,6 +189,7 @@
               {worker}
               {workers}
               state={providers}
+              {records}
               ondeleted={() => ((selectedKey = undefined), (pane = "list"))}
             />
           </div>

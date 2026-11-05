@@ -14,6 +14,8 @@
   import { setScheduleStatus, type ScheduleStatusChange } from "./api.ts";
   import { scheduleActions } from "./schedules.ts";
   import ScheduleDialog from "./ScheduleDialog.svelte";
+  import { splitId } from "@canopy/domain/computers";
+  import { awayReason } from "#lib/features/computers/computers.ts";
 
   /** Shared by all lists. The editor keeps its opening version while live updates arrive. */
   let {
@@ -29,6 +31,12 @@
   } = $props();
 
   const overview = useOverview();
+  const home = $derived(splitId(schedule.id).node);
+
+  const reason = $derived(
+    home ? awayReason([...overview.computers.values()].find((c) => c.nodeId.startsWith(home))) : undefined,
+  );
+
   const actions = $derived(scheduleActions(schedule.status));
   let busy = $state<ScheduleStatusChange>();
   let confirming = $state(false);
@@ -58,11 +66,13 @@
     <DropdownMenu label="Scheduled task actions" placement="bottom-end">
       {#snippet trigger(props)}
         <IconButton
+          {...props}
           icon="ellipsis-horizontal"
           label="Scheduled task actions"
           size={compact ? "sm" : "md"}
           loading={Boolean(busy)}
-          {...props}
+          disabled={!!reason}
+          title={reason}
         />
       {/snippet}
       <MenuItem
@@ -88,6 +98,7 @@
       >
     </DropdownMenu>
   {/if}
+  {#if reason}<p class="max-w-64 text-sm/5 text-zinc-500 dark:text-zinc-400">{reason}</p>{/if}
   {#if error && !confirming}<p class="text-base/6 text-rose-700 sm:text-sm/5 dark:text-rose-400" role="alert">
       {error}
     </p>{/if}

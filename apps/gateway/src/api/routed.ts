@@ -30,6 +30,8 @@ import { coreConfigsChanged } from "../core/core-providers.ts";
 import { coreModels, corePublishModels } from "../core/core-models.ts";
 import { receivedWorkerSetting, receiveWorkerSetting, sendWorkerSetting, settled } from "./routed-workers.ts";
 import { splitOverrides } from "./routed-workers-split.ts";
+import { auditHomeAction, receiveHomeAction } from "./routed-execution.ts";
+import { executionLists } from "./routed-execution-lists.ts";
 
 export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   // SAFETY: Each entry is invoked with the request decoded by its own GatewayService method descriptor.
@@ -73,15 +75,21 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
 
             refuseRemoteWorktree(method, request);
 
-            return single(
+            const home = await peerOf(core, node, method, request);
+
+            const response = await single(
               forward(
                 core,
-                await peerOf(core, node, method, request),
+                home,
                 method,
                 request,
                 AbortSignal.any([context.signal, AbortSignal.timeout(unaryTimeout(method))]),
               ),
             );
+
+            await auditHomeAction(core, "sent", method, response, home);
+
+            return response;
           }
         : async function* (input, context) {
             const request = redirected(core, method, input);
@@ -156,18 +164,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
 
       return list;
     },
-    listBots: async (request, context) => {
-      const [result, others] = await Promise.all([
-        local.listBots(request, context),
-        gather<bots.ListBotsResponse>(core, "ListBots", request, context.signal),
-      ]);
-
-      const list = create(bots.ListBotsResponseSchema, result);
-
-      for (const other of others) list.bots.push(...other.bots);
-
-      return list;
-    },
+    ...executionLists(core, local, routedOne),
     // The archive is paged per computer; other computers' archived threads stay on them in this stage.
     listArchivedThreads: (request, context) => {
       const projectIds = request.projectIds.filter((id) => !splitId(id).node);
@@ -213,7 +210,9 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
     }
 
     const ids = core && peerNodeId ? await ConfigIds.for(core, peerNodeId) : undefined;
-    await ids?.map(method.input, request, "toLocal");
+    await ids?.map(method.input, request, "toLocal", true);
+
+    if (core && peerNodeId) await receiveHomeAction(core, method, request, peerNodeId);
 
     if (core && peerNodeId && method.name === "CreateThread") {
       const thread = linkedMessage(ui.CreateThreadRequestSchema, request);
@@ -239,6 +238,8 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
 
       if (method.methodKind === "unary") {
         const response = create(method.output, answer || (await unary(own[method.localName]!, request, context)));
+
+        if (core && peerNodeId) await auditHomeAction(core, "received", method, response, peerNodeId);
         await ids?.map(method.output, response, "toGlobal");
 
         if (setting) await receivedWorkerSetting(core!, method, request, setting);

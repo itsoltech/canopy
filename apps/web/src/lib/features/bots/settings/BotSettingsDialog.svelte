@@ -187,7 +187,7 @@
             disabled={busy}
             onchange={() => (modelChanged = true)}
           />
-          {#if !bot.nodeId}<BotWorkerField bind:value={workerId} {instanceId} disabled={busy} />{/if}
+          <BotWorkerField bind:value={workerId} {instanceId} homeNodeId={bot.nodeId} disabled={busy || !!home.reason} />
         </SettingsSection>
         <SettingsSection
           title="Permissions"

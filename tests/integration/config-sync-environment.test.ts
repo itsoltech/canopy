@@ -5,6 +5,7 @@ import { create } from "@bufbuild/protobuf";
 import { computerLink, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
+import { qualifyId } from "@canopy/domain/computers";
 import { configAllowed } from "../../apps/gateway/src/computers/runtime-config.ts";
 import { wireItem } from "../../apps/gateway/src/config-sync/merge.ts";
 import type { ConfigRow } from "../../apps/gateway/src/config-sync/persistence.ts";
@@ -186,6 +187,58 @@ describe.skipIf(!dockerAvailable)("agent environment library across separate lin
         return !!skill?.artifact && skill.artifact.checksum !== winner;
       });
   }, 40_000);
+
+  test("remote machine overrides pin a skill by content hash and keep a plugin's approved version", async () => {
+    const workerId = qualifyId(worker.workerId, b.node);
+    let state = await a.gateway.api.getWorkerEnvironment({ workerId });
+    const skill = state.items.find((i) => i.kind === "skill" && i.name === "Code review")!;
+    const selected = skill.versions[0]!;
+    state = await a.gateway.api.setWorkerEnvironmentOverride({
+      workerId,
+      expectedRevision: state.revision,
+      override: { kind: "skill", item: skill.item, versionHash: selected.hash },
+    });
+    const saved = (await skillNamed(b, "Code review"))!.overrides.find((o) => o.workerId === worker.workerId)!;
+
+    const hash = (
+      await b.store.query<{ content_hash: string }>(
+        "SELECT content_hash FROM agent_skill_versions WHERE owner_user_id=$1::uuid AND skill_id=$2::uuid AND version=$3::bigint",
+        [b.gateway.userId, (await skillNamed(b, "Code review"))!.id, saved.version.toString()],
+      )
+    )[0]!.content_hash;
+
+    expect(hash).toBe(selected.hash);
+    expect((await skillNamed(a, "Code review"))?.overrides).toEqual([]);
+    const plugin = state.items.find((i) => i.kind === "plugin")!;
+    const approved = (await library(b)).plugins[0]!.assignment!.artifact!.checksum;
+    state = await a.gateway.api.setWorkerEnvironmentOverride({
+      workerId,
+      expectedRevision: state.revision,
+      override: { kind: "plugin", item: plugin.item, disabled: true },
+    });
+    const home = (await library(b)).plugins[0]!.assignment!;
+    expect(home.overrides.find((o) => o.workerId === worker.workerId)?.disabled).toBe(true);
+    expect(home.artifact?.checksum).toBe(approved);
+    expect((await library(a)).plugins[0]!.assignment!.overrides).toEqual([]);
+    expect(
+      await failure(
+        a.gateway.api.setWorkerEnvironmentOverride({
+          workerId,
+          expectedRevision: state.revision,
+          override: { kind: "plugin", item: plugin.item, versionHash: selected.hash },
+        }),
+      ),
+    ).toContain("Choose the library version for plugins.");
+
+    const cleared = await a.gateway.api.setWorkerEnvironmentOverride({
+      workerId,
+      expectedRevision: state.revision,
+      remove: true,
+      override: { kind: "plugin", item: plugin.item },
+    });
+
+    expect(cleared.overrides.some((o) => o.item === plugin.item)).toBe(false);
+  }, 45_000);
 
   test("deletion leaves a tombstone with one Restore notice on the other computer", async () => {
     const skill = (await skillNamed(a, "Code review"))!;

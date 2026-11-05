@@ -181,7 +181,7 @@ Od etapu 3 nazwa, rodzaj i archiwizacja projektu, ustawienia projektu bez worksp
 worktree konta i projektu bez `location` są wspólne. `Project.global_id` (801) identyfikuje projekt
 po scaleniu origin; `id` nadal wskazuje lokalny wiersz. Gateway tłumaczy `project_id` przez aliasy
 w wywołaniach trasowanych i zbiera workspace'y partnerów w jednym projekcie. Id workspace'ów i workerów
-zachowują kwalifikator komputera. Ustawienia worktree z workerem zostają lokalne do etapu 6.
+zachowują kwalifikator komputera. Ustawienia worktree z workerem zapisuje jego dom; edycja jest trasowana.
 Settings → Projects i strona projektu używają `ConfigNotice` oraz Restore; sekcja „Workspaces” pokazuje
 nazwę workera i komputera, a katalogi partnera są tylko do odczytu. Opis: „A new thread runs in one of
 these directories on the project's workers.”.
@@ -199,6 +199,15 @@ z obecności. `OverviewUpdate.worker_records_changed` (822) oznacza nową kopię
 z kwalifikowanym workerem trafiają do domu. `SetInstanceWorkers` i `SetConnectorAccess` z workerami
 kilku komputerów gateway rozdziela, a `ListConnectors` pokazuje granty workerów innych komputerów
 z ich rekordów. [Rekordy workerów i edycja zdalna](linked-computers.md#rekordy-workerów-i-edycja-zdalna).
+
+Etap 7 uzupełnia te listy w Providers, Agent environment, Worktrees i Connectors, z grupami komputerów
+i blokadą zmian dla `read_only_reason`. `GetInstanceWorker` (POST `/api/workers/:id/instance`) zwraca
+stan i nadpisania jednej instancji bez sekretów oraz runtime odziedziczony w domu. `proxy_id` wspólnego
+proxy przechodzi przez aliasy; id proxy `worker_scoped` nie wraca do wywołującego.
+`CreateBot` trafia do komputera wybranego workera. `CreateSchedule` trafia do domu wskazanego wątku
+albo konkretnego workspace'u nowego wątku. Edycja i status harmonogramu są trasowane według jego id;
+`ListSchedules` zbiera wyniki z osiągalnych domów. Zdalne utworzenia nie wymagają Share configuration
+i nie trafiają do kolejki, gdy dom jest niedostępny.
 
 ## Workery: kreator i zarządzanie
 
@@ -965,6 +974,12 @@ Settings → Agent environment korzysta z `GetAgentEnvironment`,
 `/api/agent-environment` (GET/POST/DELETE), `/tags`, `/preview`, `/resolve` (POST).
 Skille: `/api/agent-environment/skills` (POST/DELETE), `/skills/resolve` (POST).
 Źródła: `/api/agent-environment/skills/source/{preview,add,check,apply}` (POST).
+Workery innych komputerów grupy: GET `/api/workers/:id/environment` (`GetWorkerEnvironment`)
+zwraca podgląd, raport, wyjątki maszyn, rewizję domu oraz wybór elementów zapisanej biblioteki.
+PUT tego samego adresu (`SetWorkerEnvironmentOverride`) zmienia lub usuwa jeden wyjątek.
+`WorkerEnvironmentOverride.item` jest globalnym kluczem biblioteki; `version_hash` skilla wskazuje
+treść niezależnie od lokalnych numerów wersji. Plugin nie obsługuje przypinania wersji per worker.
+Żądanie wymaga rewizji odczytanej z domu, a gateway po obu stronach sprawdza łącze i właściciela workera.
 Preview/check mają deadline 125 s (resolver 120 s), nie zwykłe 3 s klienta BFF.
 Preview zamraża commit i pliki przez 30 minut; add/apply wymagają jawnego
 zatwierdzenia i bieżącej rewizji. Check zapisuje metadane kandydata i zmienia

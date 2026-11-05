@@ -14,14 +14,22 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import { placementLabels } from "./schedules.ts";
+  import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
+  import { splitId } from "@canopy/domain/computers";
 
-  let { value = $bindable(), class: className }: { value?: ui.NewThreadSchedule | undefined; class?: ClassValue } =
-    $props();
+  let {
+    value = $bindable(),
+    homeId,
+    class: className,
+  }: { value?: ui.NewThreadSchedule | undefined; homeId?: string; class?: ClassValue } = $props();
 
   const overview = useOverview();
   const catalog = useModelCatalog();
+  const records = workerRecords(overview);
+  const home = $derived(homeId === undefined ? undefined : (splitId(homeId).node ?? ""));
+  const projects = $derived(overview.projectChoices);
   const initial = untrack(() => value);
-  let projectId = $state(initial?.projectId ?? overview.ownProjects[0]?.id ?? "");
+  let projectId = $state(initial?.projectId ?? overview.projectChoices[0]?.id ?? "");
 
   let placement = $state(
     initial?.placement || untrack(() => (overview.project(projectId)?.kind === "scratch" ? "specific" : "any")),
@@ -30,7 +38,7 @@
   let workspaceId = $state(initial?.workspaceId ?? "");
 
   const initialWorker = untrack(() => {
-    const candidates = overview.ownWorkers.filter((w) =>
+    const candidates = overview.workers.filter((w) =>
       overview
         .project(projectId)
         ?.workspaces.some((ws) => ws.workerId === w.id && (placement !== "specific" || ws.id === workspaceId)),
@@ -62,12 +70,17 @@
   let permission = $state<PermissionModeKey>(initial ? permissionKey(initial.permissionMode) : "ASK");
 
   let title = $state(initial?.title ?? "");
-  const project = $derived(overview.project(projectId));
-  const workspaces = $derived(project?.workspaces ?? []);
+  const project = $derived(overview.projectChoice(projectId));
+
+  const workspaces = $derived(
+    (project?.workspaces ?? []).filter((ws) => home === undefined || (splitId(ws.workerId).node ?? "") === home),
+  );
 
   const workers = $derived(
-    overview.ownWorkers.filter((w) =>
-      workspaces.some((ws) => ws.workerId === w.id && (placement !== "specific" || ws.id === workspaceId)),
+    overview.workers.filter(
+      (w) =>
+        (placement === "specific" || !w.nodeId) &&
+        workspaces.some((ws) => ws.workerId === w.id && (placement !== "specific" || ws.id === workspaceId)),
     ),
   );
 
@@ -98,7 +111,8 @@
   $effect(() => {
     if (!workspaces.some((w) => w.id === workspaceId)) workspaceId = workspaces[0]?.id ?? "";
 
-    if (project?.kind === "scratch") placement = "specific";
+    if (project?.kind === "scratch" || (workspaces.length && workspaces.every((ws) => !!splitId(ws.workerId).node)))
+      placement = "specific";
   });
 
   $effect(() => {
@@ -121,7 +135,8 @@
 
   $effect(() => {
     value = create(ui.NewThreadScheduleSchema, {
-      projectId,
+      projectId:
+        placement === "specific" ? (workspaces.find((ws) => ws.id === workspaceId)?.projectId ?? projectId) : projectId,
       placement,
       workspaceId: placement === "specific" ? workspaceId : "",
       provider: option ? Provider[option.provider] : Provider.UNSPECIFIED,
@@ -139,12 +154,12 @@
 
 <div class={["grid min-w-0 gap-4", className]}>
   <div class="grid gap-4 sm:grid-cols-2">
-    <Field label="Project">
+    <Field label="Project" class="min-w-0">
       <Select
         name="projectId"
         bind:value={projectId}
-        options={overview.ownProjects.length
-          ? overview.ownProjects.map((project) => ({ value: project.id, label: project.name }))
+        options={projects.length
+          ? projects.map((project) => ({ value: project.id, label: project.name }))
           : [{ value: "", label: "No projects yet" }]}
       />
     </Field>
@@ -152,19 +167,23 @@
         <Select
           name="placement"
           bind:value={placement}
-          options={[...placementLabels].map(([value, label]) => ({ value, label }))}
+          options={[...placementLabels]
+            .filter(([value]) => !home || value === "specific")
+            .map(([value, label]) => ({ value, label }))}
         />
       </Field>{/if}
     {#if placement === "specific"}
-      <Field label="Worker" class="sm:col-span-2">
+      <Field label="Worker" class="min-w-0 sm:col-span-2">
         <Select
           name="workspaceId"
           bind:value={workspaceId}
           options={workspaces.length
-            ? workspaces.map((workspace) => ({
-                value: workspace.id,
-                label: `${overview.worker(workspace.workerId)?.name ?? "Unknown worker"}${overview.worker(workspace.workerId)?.online ? "" : " · Offline"}`,
-              }))
+            ? records
+                .options(
+                  overview.workers.filter((w) => workspaces.some((ws) => ws.workerId === w.id)),
+                  true,
+                )
+                .map((option) => ({ ...option, value: workspaces.find((ws) => ws.workerId === option.value)!.id }))
             : [{ value: "", label: "No workers have this project" }]}
         />
       </Field>

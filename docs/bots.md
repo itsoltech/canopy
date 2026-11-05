@@ -8,6 +8,10 @@ workera; offline wiadomości czekają. Native/device login i proxy są obsługiw
 harness. Gateway nie wywołuje API modelu. Pełna decyzja
 i ograniczenia: [bots-harness.md](bots-harness.md).
 
+Tworzenie z pickera workera połączonego komputera zapisuje bota w gatewayu tego workera.
+Edycja, archiwizacja i usuwanie z pozostałych komputerów są trasowane do tego domu.
+Niedostępny gateway odrzuca zdalną akcję od razu; nic nie czeka na ponowne połączenie.
+
 Kod: `apps/gateway/src/bots`, `apps/worker/src/bots`; kontrakty: boty UI i WorkerLink.
 
 ## Zmiana modelu — ukryte przekazanie kontekstu

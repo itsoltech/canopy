@@ -25,6 +25,12 @@
   $effect(() =>
     overview.subscribe((update) => {
       if (update.change.case === "schedule") upsert(update.change.value);
+
+      if (update.change.case === "computer" || update.change.case === "computerRemoved")
+        void listSchedules({ includeFinished: true }).then(
+          (list) => (schedules = list),
+          () => undefined,
+        );
     }),
   );
 

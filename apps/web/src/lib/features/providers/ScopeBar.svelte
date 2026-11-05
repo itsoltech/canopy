@@ -3,6 +3,8 @@
   import type { ClassValue } from "svelte/elements";
   import Select from "#lib/shared/ui/Select.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
   /**
    * Where the Providers page applies changes: all workers (the global definition, and
@@ -16,7 +18,7 @@
   }: { workers: readonly ui.Worker[]; scope: string | undefined; class?: ClassValue } = $props();
 
   const selected = $derived(workers.find((w) => w.id === scope));
-  const where = (w: ui.Worker) => w.hostname || w.id.slice(-8);
+  const records = workerRecords(useOverview());
 </script>
 
 <div
@@ -30,14 +32,7 @@
     name="provider-scope"
     bind:value={() => scope ?? "", (next: string) => (scope = next || undefined)}
     class="min-w-0 flex-1 basis-40 sm:max-w-56"
-    options={[
-      { value: "", label: "All workers" },
-      ...workers.map((worker) => ({
-        value: worker.id,
-        label: worker.name,
-        description: `${where(worker)}${worker.online ? "" : " · Offline"}`,
-      })),
-    ]}
+    options={[{ value: "", label: "All workers" }, ...records.options(workers)]}
   />
   {#if selected}
     <span class="flex items-center gap-1.5 text-sm/5 text-zinc-500 dark:text-zinc-400">

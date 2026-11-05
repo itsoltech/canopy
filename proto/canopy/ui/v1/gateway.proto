@@ -224,6 +224,9 @@ service GatewayService {
   rpc RestoreThread(RestoreThreadRequest) returns (ListThreadsResponse);
   // Workery innych komputerów grupy konfiguracji z ich rekordów (sekcja na końcu pliku, docs/linked-computers.md).
   rpc ListWorkerRecords(ListWorkerRecordsRequest) returns (ListWorkerRecordsResponse);
+  rpc GetInstanceWorker(GetInstanceWorkerRequest) returns (GetInstanceWorkerResponse);
+  rpc GetWorkerEnvironment(GetWorkerEnvironmentRequest) returns (WorkerEnvironmentResponse);
+  rpc SetWorkerEnvironmentOverride(SetWorkerEnvironmentOverrideRequest) returns (WorkerEnvironmentResponse);
 }
 
 // ---------- Model ----------
@@ -2175,6 +2178,17 @@ message ListGitRefsResponse {
 // workera; edycja to wywołanie do domu (id kwalifikowane). Bez wartości sekretów.
 message ListWorkerRecordsRequest {}
 message ListWorkerRecordsResponse { repeated WorkerRecord records = 1; }
+
+// Odczyt nadpisań bez sekretów, zawsze u domu workera.
+message GetInstanceWorkerRequest {
+  canopy.worker.v1.Provider harness = 1;
+  string id = 2;
+  string worker_id = 3;
+}
+message GetInstanceWorkerResponse {
+  InstanceOnWorker worker = 1;
+  InstanceRuntime inherited_runtime = 2;
+}
 message WorkerRecord {
   // Id kwalifikowane domem (`<uuid>~<node16>`), jak w overview.
   string worker_id = 1;

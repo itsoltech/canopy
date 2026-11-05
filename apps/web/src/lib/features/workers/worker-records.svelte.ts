@@ -3,6 +3,8 @@ import { ui } from "@canopy/contracts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
+import { awayReason, computerName, workerPresence } from "#lib/features/computers/computers.ts";
+import type { SelectOption } from "#lib/shared/ui/listbox.ts";
 
 /** A worker of another computer in Settings → Workers: live when its home answers, its record otherwise. */
 export type LinkedWorker = { worker: ui.Worker; record: ui.WorkerRecord; readOnly: string };
@@ -56,6 +58,79 @@ export class WorkerRecords {
 
   record(workerId: string): ui.WorkerRecord | undefined {
     return this.records.find((r) => r.workerId === workerId);
+  }
+
+  /** Settings include only workers whose home shares its configuration records. */
+  workers: ui.Worker[] = $derived.by(() => [
+    ...this.overview.ownWorkers,
+    ...this.computers.flatMap((group) => group.workers.map((entry) => entry.worker)),
+  ]);
+
+  /** Execution pickers also include linked computers outside the configuration group. */
+  available: ui.Worker[] = $derived.by(() => [
+    ...this.workers,
+    ...this.overview.workers.filter((w) => !this.workers.some((known) => known.id === w.id)),
+  ]);
+
+  name(worker: ui.Worker): string {
+    return (
+      this.record(worker.id)?.computerName ||
+      (worker.nodeId ? computerName(this.overview.computer(worker.nodeId)) : "This computer")
+    );
+  }
+
+  readOnly(workerId: string): string {
+    return this.record(workerId)?.readOnlyReason ?? "";
+  }
+
+  options(workers: readonly ui.Worker[] = this.workers, execution = false): SelectOption[] {
+    return [...workers]
+      .sort(
+        (a, b) =>
+          Number(!!a.nodeId) - Number(!!b.nodeId) ||
+          this.name(a).localeCompare(this.name(b)) ||
+          a.name.localeCompare(b.name),
+      )
+      .map((worker) => {
+        const presence = workerPresence(worker, this.overview.computer(worker.nodeId));
+
+        const reason = execution
+          ? worker.nodeId && awayReason(this.overview.computer(worker.nodeId))
+          : this.readOnly(worker.id);
+
+        return {
+          value: worker.id,
+          label: `${worker.name} · ${this.name(worker)}`,
+          group: this.name(worker),
+          description: reason || presence.status,
+          disabled: execution ? !!reason : false,
+        };
+      });
+  }
+
+  instance(instance: ui.ProviderInstance): ui.ProviderInstance {
+    return create(ui.ProviderInstanceSchema, {
+      ...instance,
+      workers: [
+        ...instance.workers,
+        ...this.records.map((record) => {
+          const on = record.instances.find((i) => i.harness === instance.harness && i.id === instance.id);
+
+          const live = this.overview
+            .worker(record.workerId)
+            ?.providerInstances.find((i) => i.harness === instance.harness && i.id === instance.id);
+
+          return create(ui.InstanceOnWorkerSchema, {
+            workerId: record.workerId,
+            enabled: on?.enabled ?? instance.allWorkers,
+            explicit: on?.enabled !== undefined,
+            available: live?.available ?? false,
+            reported: !!live,
+            overrides: { apiKeySet: on?.keySet ?? false },
+          });
+        }),
+      ],
+    });
   }
 
   linked(record: ui.WorkerRecord): LinkedWorker {

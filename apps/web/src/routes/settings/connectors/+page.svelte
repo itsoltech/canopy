@@ -12,9 +12,16 @@
   import { completeConnectorOAuth, listConnectors } from "#lib/features/connectors/api.ts";
   import type { PageProps } from "./$types";
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
+  import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
   let { data }: PageProps = $props();
   const overview = useOverview();
+  const records = workerRecords(overview);
+
+  const workers = $derived(
+    records.workers.map((w) => ({ id: w.id, name: w.name, group: records.name(w), readOnly: records.readOnly(w.id) })),
+  );
+
   const route = useSettingsRoute();
   let catalog = $state(untrack(() => decode(connectors.ListConnectorsResponseSchema, data.connections)));
 
@@ -121,14 +128,7 @@
     {#each accounts as account (account.id)}
       {@const entry = catalog.types.find((t) => t.id === account.connectorType)}
       {#if entry}<div>
-          <AccountDetail
-            {account}
-            type={entry}
-            workers={overview.ownWorkers}
-            {bots}
-            onupdate={update}
-            onremove={remove}
-          />
+          <AccountDetail {account} type={entry} {workers} {bots} onupdate={update} onremove={remove} />
         </div>{/if}
     {:else}<p class="py-4 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         No accounts connected yet. Pick an app above to connect one.

@@ -8,6 +8,7 @@
   import Textarea from "#lib/shared/ui/Textarea.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import LinkedOverrides from "./LinkedOverrides.svelte";
 
   let {
     overrides = $bindable([]),
@@ -59,4 +60,5 @@
       onchange={(workerId) => (overrides = [...overrides, create(ui.InstructionMachineOverrideSchema, { workerId })])}
     />
   </Field>
+  <LinkedOverrides />
 </div>

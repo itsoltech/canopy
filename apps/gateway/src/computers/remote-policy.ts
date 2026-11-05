@@ -42,6 +42,7 @@ export const SERVED = new Set([
   "WatchConfig",
   "GetConfigBlob",
   "ListBots",
+  "CreateBot",
   "GetBot",
   "WatchBotConversation",
   "SendBotMessage",
@@ -75,6 +76,13 @@ export const SERVED = new Set([
   "InstallCli",
   "CheckCliUpdates",
   "StartProviderLogin",
+  "ListSchedules",
+  "CreateSchedule",
+  "UpdateSchedule",
+  "SetScheduleStatus",
+  "GetInstanceWorker",
+  "GetWorkerEnvironment",
+  "SetWorkerEnvironmentOverride",
 ]);
 
 /**
@@ -83,6 +91,9 @@ export const SERVED = new Set([
  * SetInstanceWorkers and SetConnectorAccess with workers of several computers are split by the caller.
  */
 export const WORKER_SETTINGS = new Set([
+  "GetInstanceWorker",
+  "GetWorkerEnvironment",
+  "SetWorkerEnvironmentOverride",
   "RenameWorker",
   "SetInstanceWorker",
   "SetWorkerCliUpdateSettings",

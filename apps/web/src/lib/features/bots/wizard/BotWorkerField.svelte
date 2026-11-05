@@ -4,18 +4,23 @@
   import Field from "#lib/shared/ui/Field.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
+  import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
   let {
     value = $bindable(""),
     instanceId,
     disabled = false,
+    homeNodeId,
   }: {
     value?: string;
     instanceId: string;
     disabled?: boolean;
+    homeNodeId?: string;
   } = $props();
 
   const overview = useOverview();
+  const records = workerRecords(overview);
+  const workers = $derived(records.available.filter((w) => homeNodeId === undefined || w.nodeId === homeNodeId));
 
   const options = $derived([
     {
@@ -23,18 +28,16 @@
       label: "Automatic",
       description: "Uses the local worker in desktop mode, or else the first online worker that can run the bot.",
     },
-    ...overview.ownWorkers
-      .filter((w) => w.id === value || w.providerInstances.some((i) => instanceKeyOf(i) === instanceId && i.enabled))
-      .map((w) => ({
-        value: w.id,
-        label: w.name,
-        description: w.online ? "Online" : "Offline · messages wait",
-      })),
+    ...records.options(workers, true),
   ]);
 </script>
 
-<Field label="Runs on" description="The bot keeps its session on this worker. Messages wait while it is offline.">
-  <Select bind:value {options} {disabled} />
+<Field
+  class="min-w-0"
+  label="Runs on"
+  description="The bot keeps its session on this worker. Messages wait while it is offline."
+>
+  <Select class="min-w-0" bind:value {options} {disabled} />
   {#if options.length === 1}
     <p class="mt-2 text-sm/6 text-zinc-600 dark:text-zinc-400">
       No worker has this provider instance enabled. Enable it on a worker in provider settings, install its agent CLI
