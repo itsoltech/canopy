@@ -1388,6 +1388,23 @@ enum CliInstallMethod {
   CLI_INSTALL_METHOD_DOCKER = 8;
   // Inna, nierozpoznana instalacja.
   CLI_INSTALL_METHOD_OTHER = 9;
+  // Pakiet Volty (~/.volta/bin → volta-shim, ~/.volta/tools/image/packages).
+  CLI_INSTALL_METHOD_VOLTA = 10;
+  // Globalny pakiet pnpm ($PNPM_HOME, …/pnpm/global/…).
+  CLI_INSTALL_METHOD_PNPM = 11;
+  // Globalny pakiet Yarn (…/yarn/global/node_modules).
+  CLI_INSTALL_METHOD_YARN = 12;
+}
+
+// Inna kopia tego samego CLI znaleziona na urządzeniu (worker jej nie używa).
+message CliAlternative {
+  string path = 1;
+  string resolved_path = 2;
+  CliInstallMethod method = 3;
+  // Wersja, gdy kopia była sprawdzona; pusty = niesprawdzona albo nie działa.
+  string version = 4;
+  // Dlaczego nie została wybrana, np. "points to a missing file", błąd `--version`.
+  string problem = 5;
 }
 
 // Ostatnia albo trwająca instalacja CLI na workerze.
@@ -1421,6 +1438,10 @@ message CliTool {
   // Dodatkowa informacja, np. dlaczego brak przepisu albo "not on PATH".
   string detail = 9;
   CliInstallStatus install = 10;
+  // Dlaczego `<plik> --version` się nie udało (pierwsza linia stderr, limit czasu); pusty = działa albo brak pliku.
+  string version_error = 11;
+  // Pozostałe kopie z PATH powłoki logowania i znanych miejsc menedżerów pakietów (bez wybranej).
+  repeated CliAlternative alternatives = 12;
 }
 
 // Wysyłany po połączeniu, po ProbeProviders, po instalacji i rzadko okresowo; zastępuje poprzedni.

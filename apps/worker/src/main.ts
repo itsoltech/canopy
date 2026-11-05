@@ -20,6 +20,7 @@ import {
   UPDATE_RESTART_EXIT_CODE,
 } from "@canopy/updater";
 import { WorkerUpdates } from "./update-link.ts";
+import { applyShellEnv } from "./cli-tools/shell-env.ts";
 import { endpointOptions, WorkerNetworkRoute } from "./network-route.ts";
 
 const cliArgs = Bun.argv.slice(2);
@@ -135,6 +136,10 @@ if (Result.isFailure(loaded)) {
 }
 
 const local = loaded.success;
+
+// The user's login-shell PATH (bun, Volta, nvm, …) for CLI discovery and harnesses; discovery waits for it.
+if (installKind() !== "docker") void applyShellEnv();
+
 const dataDir = resolve(local.data_dir ?? defaultDataDir(Bun.env, process.platform));
 
 mkdirSync(dataDir, { recursive: true, mode: 0o700 });

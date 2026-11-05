@@ -55,9 +55,10 @@ async function machine(name: string, os: string, capable = true) {
       platform: "linux",
       home,
       docker: false,
+      locate: () => [],
       which: () => null,
       realpath: () => undefined,
-      version: async () => undefined,
+      version: async () => ({ error: "not installed" }),
     },
   });
 

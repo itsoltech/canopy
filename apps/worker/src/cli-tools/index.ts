@@ -11,6 +11,7 @@ import {
 } from "@canopy/contracts";
 import { CLIS, cliOf, discoverCli, type CliName, type CliProbe, type DiscoveredCli } from "./discovery.ts";
 import { runInstall } from "./installer.ts";
+import { shellEnvReady } from "./shell-env.ts";
 import { planRecipe, validTarget, type RecipeTools } from "./recipes.ts";
 
 export { findCli } from "./discovery.ts";
@@ -70,10 +71,17 @@ export class CliTools {
   #tools(): RecipeTools {
     const { probe } = this.#options;
 
-    return { platform: probe.platform, home: probe.home, which: (c) => probe.which(c) };
+    return {
+      platform: probe.platform,
+      home: probe.home,
+      ...(probe.env && { env: probe.env }),
+      which: (c) => probe.which(c),
+    };
   }
 
   async #discover(spec: (typeof CLIS)[number]): Promise<DiscoveredCli> {
+    await shellEnvReady();
+
     return discoverCli(spec, this.#options.configured()[spec.name], this.#options.probe);
   }
 
@@ -123,6 +131,8 @@ export class CliTools {
       installable: Boolean(plan.recipe),
       manualCommand: plan.manualCommand ?? "",
       detail: [cli.detail, plan.detail].filter(Boolean).join(". "),
+      versionError: cli.versionError ?? "",
+      alternatives: (cli.alternatives ?? []).map((a) => ({ ...a })),
       ...(status && { install: status }),
     };
   }

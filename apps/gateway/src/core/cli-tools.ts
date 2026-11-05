@@ -43,6 +43,7 @@ export const MANAGED: Partial<Record<CliInstallMethod, string>> = {
   [CliInstallMethod.HOMEBREW]: "Homebrew",
   [CliInstallMethod.MISE]: "mise",
   [CliInstallMethod.ASDF]: "asdf",
+  [CliInstallMethod.YARN]: "Yarn",
   [CliInstallMethod.DOCKER]: "the image",
 };
 

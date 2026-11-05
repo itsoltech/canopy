@@ -47,13 +47,14 @@ test("real worker applies CLI interval changes, cancels old timers and Never, an
       platform: "linux",
       home: root,
       docker: true,
-      which: () => {
+      locate: () => {
         probes++;
 
-        return null;
+        return [];
       },
+      which: () => null,
       realpath: () => undefined,
-      version: async () => undefined,
+      version: async () => ({ error: "not installed" }),
     },
   });
 

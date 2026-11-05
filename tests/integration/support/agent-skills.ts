@@ -88,9 +88,10 @@ export async function skillMachine(
       platform: "linux",
       home,
       docker: false,
+      locate: () => [],
       which: () => null,
       realpath: () => undefined,
-      version: async () => undefined,
+      version: async () => ({ error: "not installed" }),
     },
   });
 
