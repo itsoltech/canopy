@@ -3,6 +3,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { exitDuration } from "#lib/shared/ui/motion.ts";
+  import { backdropDismiss } from "#lib/shared/ui/backdrop.ts";
   import SettingsBreadcrumb from "./SettingsBreadcrumb.svelte";
   import { useSettings } from "./settings-state.svelte.ts";
   import SettingsNav from "./SettingsNav.svelte";
@@ -64,9 +65,7 @@
     event.preventDefault();
     onclose();
   }}
-  onclick={(event) => {
-    if (event.target === dialog) onclose();
-  }}
+  {...backdropDismiss(() => onclose())}
   class="t-modal fixed inset-x-0 top-(--window-safe-top) bottom-0 m-0 h-(--window-safe-height) max-h-none w-full max-w-none overflow-hidden bg-white p-0 text-zinc-950 backdrop:bg-zinc-950/40 backdrop:backdrop-blur-[2px] sm:m-auto sm:h-[min(var(--window-safe-height)-3rem,60rem)] sm:w-[min(100vw-3rem,76rem)] sm:rounded-2xl sm:shadow-2xl sm:ring-1 sm:ring-zinc-950/10 dark:bg-zinc-950 dark:text-white dark:backdrop:bg-black/70 dark:sm:shadow-none dark:sm:ring-white/10"
 >
   <div class="flex h-full">

@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import IconButton from "./IconButton.svelte";
   import { windowModal } from "./window-modal.ts";
+  import { backdropDismiss } from "./backdrop.ts";
 
   /** Side panel from the left on the native `<dialog>` (mobile navigation); slides in and out (motion.css `t-drawer`). */
   let { open = $bindable(false), label, children }: { open?: boolean; label: string; children: Snippet } = $props();
@@ -22,9 +23,7 @@
   bind:this={dialog}
   aria-label={label}
   onclose={() => (open = false)}
-  onclick={(event) => {
-    if (event.target === dialog) open = false;
-  }}
+  {...backdropDismiss(() => (open = false))}
   class="t-drawer top-(--window-safe-top) m-0 h-(--window-safe-height) max-h-none w-full max-w-88 bg-transparent p-0 backdrop:bg-zinc-950/40 dark:backdrop:bg-black/60"
 >
   <div

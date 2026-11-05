@@ -6,6 +6,7 @@
   import { exitDuration } from "./motion.ts";
   import SheetHandle from "./SheetHandle.svelte";
   import { windowModal } from "./window-modal.ts";
+  import { backdropDismiss } from "./backdrop.ts";
 
   /**
    * Modal dialog on the native `<dialog>` (focus trap, Escape, top layer for free).
@@ -89,9 +90,9 @@
     open = false;
     exit();
   }}
-  onclick={(event) => {
-    if (dismissible && event.target === dialog) open = false; // click on the backdrop
-  }}
+  {...backdropDismiss(() => {
+    if (dismissible) open = false;
+  })}
   data-sheet
   inert={closing || undefined}
   class={[
