@@ -293,7 +293,7 @@
 
 {#if inline}
   <div class={["flex min-h-0 flex-col", className]}>
-    <div class="flex shrink-0 items-center gap-2 border-b border-zinc-950/5 px-3 dark:border-white/8">
+    <div class="flex shrink-0 items-center gap-2 border-b border-zinc-950/5 px-2.5 dark:border-white/8">
       <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
       <Input
         bare

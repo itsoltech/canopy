@@ -1,16 +1,18 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import { useDensity } from "./density.ts";
   import { icons, iconStyle, type IconName } from "./icons.ts";
 
   /**
    * Family-independent SVG from the shared map. Decorative by default; pass `label` for standalone meaning.
    * Neutral icons are muted; semantic colours and contrasting button glyphs can use `tone="inherit"`.
-   * Explicit text colour classes still win over the default colour.
+   * Explicit text colour classes still win over the default colour. Without a `size` it is 16px, and 14px from `sm`
+   * in an overlay (docs/ui-scale.md).
    */
   let {
     name,
     label,
-    size = "md",
+    size,
     tone = "muted",
     class: className,
   }: {
@@ -21,7 +23,18 @@
     class?: ClassValue;
   } = $props();
 
-  const dimensions = $derived(size === "xs" ? "size-3" : size === "sm" ? "size-3.5" : "size-4");
+  const overlay = useDensity() === "overlay";
+
+  const dimensions = $derived(
+    size === "xs"
+      ? "size-3"
+      : size === "sm"
+        ? "size-3.5"
+        : size === "md" || !overlay
+          ? "size-4"
+          : "size-(--icon-standard) sm:size-(--icon-compact)",
+  );
+
   const paths = $derived(icons[name]);
 </script>
 

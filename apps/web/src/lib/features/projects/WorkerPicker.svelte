@@ -90,9 +90,9 @@
         <Icon name="computer-desktop" class="size-3.5" />
         {#if selected}
           <span class="flex min-w-0 flex-1 items-center gap-1 text-zinc-800 dark:text-zinc-200">
-            <span class="min-w-0 flex-1 truncate">{workerLabel(selected.worker.name)}</span>
+            <span class="min-w-0 truncate">{workerLabel(selected.worker.name)}</span>
             <span class="shrink-0" aria-hidden="true">·</span>
-            <span class="min-w-0 flex-1 truncate">{computerOf(selected.worker)}</span>
+            <span class="min-w-0 truncate">{computerOf(selected.worker)}</span>
           </span>
           {#if !online(selected.worker)}<StatusDot tone="neutral" /><span class="shrink-0 @max-[34rem]/context:sr-only"
               >{status(selected.worker)}</span

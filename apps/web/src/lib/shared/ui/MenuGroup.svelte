@@ -15,7 +15,7 @@
 <div role="group" aria-labelledby={label ? id : undefined} class={className}>
   {#if label}<div
       {id}
-      class="truncate px-2.5 pt-2 pb-1 text-sm/5 font-medium text-zinc-500 sm:text-xs/4 dark:text-zinc-400"
+      class="truncate px-2 pt-1.5 pb-0.5 text-sm/5 font-medium text-zinc-500 sm:text-xs/4 dark:text-zinc-400"
     >
       {label}
     </div>{/if}

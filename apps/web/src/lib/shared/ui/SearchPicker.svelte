@@ -92,9 +92,7 @@
       {empty}
     />
     {#if link}
-      <div
-        class="flex shrink-0 border-t border-zinc-950/5 py-1.5 pr-1.5 pl-3 text-sm/5 sm:text-xs/4 dark:border-white/8"
-      >
+      <div class="flex shrink-0 border-t border-zinc-950/5 py-1 pr-1 pl-2.5 text-sm/5 sm:text-xs/4 dark:border-white/8">
         <a
           href={link.href}
           class="min-w-0 flex-1 truncate py-1 font-medium text-zinc-700 focus-ring hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white"

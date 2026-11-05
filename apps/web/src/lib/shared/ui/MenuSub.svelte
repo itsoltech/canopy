@@ -6,6 +6,7 @@
   import {
     focusItem,
     hoverFocus,
+    menuGlyphClasses,
     menuIconClasses,
     menuKeydown,
     menuRowClasses,
@@ -95,9 +96,9 @@
       }}
       {onpointermove}
     >
-      {#if icon}<Icon name={icon} class={menuIconClasses} />{/if}
+      {#if icon}<span class={menuGlyphClasses}><Icon name={icon} class={menuIconClasses} /></span>{/if}
       <span class="min-w-0 flex-1 truncate">{label}</span>
-      <Icon name="chevron-right" class="h-lh fill-zinc-400 dark:fill-zinc-500" />
+      <span class={menuGlyphClasses}><Icon name="chevron-right" class="fill-zinc-400 dark:fill-zinc-500" /></span>
     </button>
   {/snippet}
   {@render children()}

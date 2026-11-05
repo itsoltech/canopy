@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "../lib/shared/ui/motion.css" layer(components);
 @import "../lib/shared/ui/code/syntax.css";
+@import "../lib/shared/ui/scale.css";
 @import "../lib/features/settings/themes.css";
 @import "../lib/features/settings/device-appearance.css";
 @import "katex/dist/katex.min.css";

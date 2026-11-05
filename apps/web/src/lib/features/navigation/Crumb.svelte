@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import { clipped } from "./clipped.ts";
+  import { clipped } from "#lib/shared/ui/clipped.ts";
 
   /**
    * One breadcrumb step; links when `href` is set. A slash separates it from the previous one. The current

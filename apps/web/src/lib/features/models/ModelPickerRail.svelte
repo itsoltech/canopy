@@ -60,7 +60,7 @@
   role="group"
   aria-label="Show models"
   class={[
-    "flex shrink-0 [scrollbar-width:none] flex-col items-center gap-1 overflow-y-auto overscroll-contain border-r border-zinc-950/5 p-1.5 dark:border-white/8",
+    "flex shrink-0 [scrollbar-width:none] flex-col items-center gap-0.5 overflow-y-auto overscroll-contain border-r border-zinc-950/5 p-1 dark:border-white/8",
     className,
   ]}
   {onkeydown}
@@ -69,7 +69,7 @@
     {@const pressed = !searching && current === target}
     <button
       type="button"
-      class="relative grid size-9 shrink-0 place-items-center rounded-lg focus-ring hover:bg-zinc-950/5 aria-pressed:bg-zinc-950/6 sm:size-8 dark:hover:bg-white/5 dark:aria-pressed:bg-white/10"
+      class="relative grid size-9 shrink-0 place-items-center rounded-lg focus-ring hover:bg-zinc-950/5 aria-pressed:bg-zinc-950/6 sm:size-7 dark:hover:bg-white/5 dark:aria-pressed:bg-white/10"
       aria-label={label}
       aria-pressed={pressed}
       onclick={() => onpick(target)}

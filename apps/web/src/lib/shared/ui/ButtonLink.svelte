@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue, HTMLAnchorAttributes } from "svelte/elements";
-  import { buttonClasses, type ButtonSize, type ButtonVariant } from "./button.ts";
+  import { buttonClasses, defaultButtonSize, type ButtonSize, type ButtonVariant } from "./button.ts";
+  import { useDensity } from "./density.ts";
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
 
@@ -9,13 +10,17 @@
   type Props = Omit<HTMLAnchorAttributes, "class" | "children"> & {
     href: string;
     variant?: ButtonVariant;
+    /** Default: `md`, `sm` in an overlay (docs/ui-scale.md). */
     size?: ButtonSize;
     icon?: IconName;
     class?: ClassValue;
     children: Snippet;
   };
 
-  let { variant = "secondary", size = "md", icon, class: className, children, ...rest }: Props = $props();
+  let { variant = "secondary", size: explicitSize, icon, class: className, children, ...rest }: Props = $props();
+
+  const density = useDensity();
+  const size = $derived(explicitSize ?? defaultButtonSize(density));
 </script>
 
 <a class={[buttonClasses(variant, size, Boolean(icon)), className]} {...rest}>

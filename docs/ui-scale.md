@@ -1,0 +1,98 @@
+# Skala typografii i gęstości UI
+
+Jedna skala dla całego web UI. Każdy fragment interfejsu należy do jednego **kontekstu**; kontekst
+wyznacza rozmiar tekstu, wysokość wierszy, odstępy, ikony i kontrolki. Nie ustawiamy rozmiarów
+pojedynczo na ekranach: komponenty kitu (`apps/web/src/lib/shared/ui`) czytają kontekst same.
+
+Wartości podane są jako **telefon / desktop** (desktop od `sm`, 40rem). Wszystkie są w `rem`, więc
+Appearance → Interface size skaluje je razem z korzeniem.
+
+## Konteksty
+
+| Kontekst | Gdzie | Tekst główny | Drugorzędny | Nagłówek sekcji | Wiersz | Ikona |
+| --- | --- | --- | --- | --- | --- | --- |
+| Treść | wiadomości, treść stron | 16 / 14 (linia 24) | 14 / 12 | `text-lg`–`text-2xl` | — | 16 |
+| Kontrolki standardowe | formularze, dialogi | 16 / 14 (linia 24) | 14 / 12 | 14 / 14, medium | pole i przycisk 40 / 36 | 16 |
+| ↳ ustawienia | Settings (`settings-density`) | 15 / 13 (linia 20) | 13 / 13 | 14 / 14 | kontrolka 44 / 32 | 16 |
+| Chrome kompaktowe | sidebar, paski narzędzi, top bar | 15 / 13 | 13 / 11,5 | 13 / 11,5 | kontrolka 36 / 32 | 16 |
+| ↳ wiersz kontekstu composera | pickery pod edytorem | 12 / 12 (linia 16) | — | — | 40 / 32, odstęp 4 | 12 |
+| Nakładki | popovery, menu, dropdowny, pickery, comboboxy, select, hover cardy, paleta poleceń | 15 / 13 (linia 24 / 20) | 13 / 11,5 (linia 20 / 16) | 13 / 11,5, medium | 40 / 28 (44 przy dotyku), `px-2`, odstęp 8 | 16 / 14 |
+| Tooltipy i podpisy | tooltipy, skróty (`Kbd`), kompaktowe badge | 12 / 12 (linia 16) | — | — | — | — |
+
+Skróty klawiszowe (`Kbd`) mają 11 px w każdym kontekście. Pola, w które się pisze, mają na
+telefonie zawsze 16 px (iOS powiększa stronę przy fokusie mniejszego pola), także w nakładkach
+i sidebarze.
+
+## Kontrolki
+
+| Kontrolka | Standard | Nakładka (domyślnie) |
+| --- | --- | --- |
+| Przycisk tekstowy `md` (primary, secondary, ghost, danger) | 40 / 36, `px-3`, tekst 16 / 14, odstęp 6 | — |
+| Przycisk tekstowy `sm` | 32 / 28, `px-2.5`, tekst 14 / 13, odstęp 4 | 32 / 28, `px-2.5` (z ikoną `pl-2`), tekst 13 / 13 |
+| Ikona w przycisku | 16 | 16 / 14 |
+| `IconButton` `md` | 40 / 36 (`p-2.5` / `p-2`) | — |
+| `IconButton` `sm` | 32 / 28 (`p-2` / `p-1.5`) | 32 / 28 (`p-2` / 7 px), ikona 16 / 14 |
+| Checkbox, radio | 20 / 16, odstęp do etykiety 12, wiersz ≥ 48 przy dotyku | 18 / 14, odstęp 8; wysokość wiersza daje wiersz listy (≥ 40) |
+| Switch | 44 × 24 / 36 × 20 | 36 × 20 / 28 × 16 |
+| Pole wyszukiwania (`SearchField`) | 40 / 36 | 36 / 28, tekst 16 / 13 |
+| Pole tekstowe (`Input`) | 40 / 36 | 40 / 28, `px-2.5` |
+| Wyszukiwarka pickera (`Combobox inline`) | — | 40 / 32 |
+| Wiersz menu, opcja listy, select | — | 40 / 28, 44 przy dotyku |
+| Paleta poleceń | — | wiersz 40 / 32, pole 48 / 44 |
+| Segmented control | 32 / 24, tekst 14 / 13 | jak standard |
+
+Primary, secondary, ghost i danger mają te same wymiary; różnią się tylko kolorem. Przyciski `sm`
+i `IconButton` dostają na ekranach dotykowych niewidoczny cel 48 px (`TouchTarget`).
+
+Bez jawnego `size` `Button`, `ButtonLink` i `IconButton` są `md` w kontekście standardowym i `sm`
+w nakładce. Jawny `size` zawsze wygrywa: podawaj go tylko wtedy, gdy kontrolka świadomie odstaje od
+kontekstu (np. `sm` w nagłówku dialogu).
+
+## Kiedy który kontekst
+
+- **Treść**: wszystko, co się czyta: wiadomości, opisy, puste stany na stronie.
+- **Kontrolki standardowe**: miejsca, gdzie się coś wypełnia lub zatwierdza: formularze, dialogi
+  (także otwarte z menu), wiersze ustawień. Ustawienia są gęstszym wariantem z własnym rytmem
+  (`features/settings/density.css`) na tych samych stopniach.
+- **Chrome kompaktowe**: stała nawigacja i paski wokół treści: sidebar, top bar, paski narzędzi,
+  wiersz kontekstu composera. Tekst jest o stopień mniejszy od strony obok.
+- **Nakładki**: wszystko, co otwiera się nad stroną i znika po wyborze. Zawsze kompaktowe: mniejszy
+  tekst, niższe wiersze, mniejsze odstępy, ikony i kontrolki.
+- **Tooltipy i podpisy**: krótkie podpowiedzi i etykiety pomocnicze, zawsze 12 px.
+
+Na telefonie nakładki z `sheet` otwierają się jako dolny arkusz. Zostają przy tekście nakładki
+(15 / 13), ale wiersze mają co najmniej 40 px (menu 44 px przy dotyku), a pola 16 px.
+
+## Implementacja
+
+- `shared/ui/scale.css` definiuje stopnie (`--type-*`), ikony (`--icon-*`) i wysokości
+  (`--control-*`) oraz klasy kontekstu. Kit pisze tekst stopniami Tailwinda (`text-base sm:text-sm`
+  dla tekstu głównego, `text-sm sm:text-xs` dla drugorzędnego), a klasa kontekstu zmienia znaczenie
+  `--text-base`, `--text-sm` i `--text-xs` w swoim poddrzewie:
+  - `density-standard`: 16 / 14 / 12 (domyślne kitu; `Dialog` i nagłówek sidebara),
+  - `density-chrome`: 15 / 13 / 11,5 (sidebar),
+  - `density-overlay`: 15 / 13 / 11,5 (panel `Popover`, paleta poleceń).
+- Każda klasa ustawia wartości na własnym elemencie, więc nakładka otwarta z sidebara albo dialog
+  otwarty z menu bierze własny kontekst, nie rodzica.
+- `shared/ui/density.ts` przekazuje kontekst komponentom (`provideDensity`, `useDensity`). `Popover`
+  owija zawartość w `OverlayScope` (wyzwalacz zostaje w kontekście rodzica), `Dialog` ustawia
+  `standard`. Według kontekstu wymiary wybierają `Button`, `ButtonLink`, `IconButton`, `Icon`,
+  `Checkbox`, `ChoiceControl`, `Switch`, `SearchField` i `Input`. Wiersze menu, list i pickerów
+  są zawsze nakładkowe.
+- W ustawieniach reguły kontrolek z `density.css` pomijają nakładki (`:not(.density-overlay *)`),
+  dlatego select czy menu w Settings ma ten sam rozmiar co wszędzie.
+
+## Zasady
+
+- Nie wpisuj rozmiarów w pikselach ani `text-[…]` dla tekstu interfejsu. Użyj stopnia
+  (`text-base sm:text-sm`, `text-sm sm:text-xs`) albo tokenu (`--type-*`, `--icon-*`,
+  `--control-*`), jeśli komponent ma własny styl.
+- Wiersze nakładek mają jedną linię na pole: nazwy użytkownika (projekty, workery, gałęzie, modele)
+  kończą się wielokropkiem, a pełna nazwa jest w tooltipie (`TruncatedText`; robią to `PickerRow`,
+  `MenuItemText`, opcje `Select` i `Checkbox` w nakładce). Druga linia jest tylko tam, gdzie wiersz ją
+  przewiduje (opis, instancja w Favourites).
+- Nowa nakładka korzysta z `Popover`, `DropdownMenu`, `SearchPicker`, `Select` lub `HoverCard`
+  i dostaje kontekst sama. Własny panel w top layer dostaje klasę `density-overlay`
+  i `provideDensity("overlay")`.
+- Pierścienie fokusu mieszczą się w wierszu: wiersze menu i list mają obrys wewnętrzny
+  (`-outline-offset-2`), a przyciski zewnętrzny 2 px (`focus-ring`) z marginesem panelu `p-1`.

@@ -29,11 +29,11 @@
 </script>
 
 {#if label}
-  <li role="presentation" class={[listboxHeadingClasses, inline ? "-mx-1.5 px-4" : "-mx-1 px-3.5", className]}>
+  <li role="presentation" class={[listboxHeadingClasses, inline ? "-mx-1.5 px-3.5" : "-mx-1 px-3", className]}>
     {#if expanded !== undefined}
       <button
         type="button"
-        class="flex min-h-9 w-full items-center gap-2 rounded-md text-left focus-ring sm:min-h-8"
+        class="flex min-h-9 w-full items-center gap-2 rounded-md text-left focus-ring sm:min-h-7"
         aria-expanded={expanded}
         aria-controls={id}
         onclick={ontoggle}

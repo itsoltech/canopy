@@ -4,7 +4,7 @@
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
   import Kbd from "./Kbd.svelte";
-  import { hoverFocus, menuIconClasses, menuRowClasses, useMenu } from "./menu.ts";
+  import { hoverFocus, menuGlyphClasses, menuIconClasses, menuRowClasses, useMenu } from "./menu.ts";
   import MenuItemText from "./MenuItemText.svelte";
 
   /**
@@ -59,11 +59,14 @@
 
 {#snippet body()}
   {#if icon}
-    <Icon name={icon} class={danger ? "h-lh text-rose-600 dark:text-rose-400" : menuIconClasses} />
+    <span class={menuGlyphClasses}
+      ><Icon name={icon} class={danger ? "text-rose-600 dark:text-rose-400" : menuIconClasses} /></span
+    >
   {/if}
   <MenuItemText {description}>{@render children()}</MenuItemText>
   {#if shortcut}<span class="flex h-lh items-center"><Kbd hotkey={shortcut} /></span>{/if}
-  {#if current}<Icon name="check" class="h-lh text-brand-600 dark:text-brand-400" />{/if}
+  {#if current}<span class={menuGlyphClasses}><Icon name="check" class="text-brand-600 dark:text-brand-400" /></span
+    >{/if}
 {/snippet}
 
 {#if href && !disabled}

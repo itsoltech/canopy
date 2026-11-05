@@ -7,7 +7,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
+  import SearchField from "#lib/shared/ui/SearchField.svelte";
   import SidebarProjectChoice from "./SidebarProjectChoice.svelte";
 
   let { class: className }: { class?: ClassValue } = $props();
@@ -36,7 +36,7 @@
 </script>
 
 <div class={["flex shrink-0 items-center gap-1", className]}>
-  <Popover label="Filter threads" sheet placement="bottom-end" class="w-80 max-w-[calc(100vw-1rem)] p-2">
+  <Popover label="Filter threads" sheet placement="bottom-end" class="w-72 max-w-[calc(100vw-1rem)] p-1.5">
     {#snippet trigger(props)}
       <button
         type="button"
@@ -53,13 +53,13 @@
         {#if selected.length}<span class="min-w-3 tabular-nums">{count}</span>{/if}
       </button>
     {/snippet}
-    <div class="grid gap-2">
-      <Input
-        type="search"
+    <div class="grid gap-1">
+      <SearchField
         name="project-search"
-        aria-label="Search projects"
+        label="Search projects"
         placeholder="Search projects"
         bind:value={search}
+        class="mb-0.5"
         data-autofocus
       />
       <Button
@@ -67,7 +67,7 @@
         icon="folder"
         aria-pressed={selected.length === 0}
         onclick={() => void settings.updateSidebar({ projectIds: [] })}
-        class="justify-start"
+        class="justify-start px-2"
       >
         <span class="min-w-0 flex-1 text-left">All projects</span>{#if !selected.length}<Icon name="check" />{/if}
       </Button>
@@ -78,7 +78,7 @@
             checked={project.projectIds.some((id) => selected.includes(id))}
             onchoose={(checked) => choose(project, checked)}
           />
-        {:else}<p class="px-2 py-3 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+        {:else}<p class="px-2 py-2 text-base/6 text-zinc-500 sm:text-sm/5 dark:text-zinc-400">
             No projects found.
           </p>{/each}
       </div>

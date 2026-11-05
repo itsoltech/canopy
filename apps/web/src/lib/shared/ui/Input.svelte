@@ -1,6 +1,13 @@
 <script lang="ts">
   import type { ClassValue, HTMLInputAttributes } from "svelte/elements";
-  import { bareControlClasses, controlClasses, useField } from "./field.ts";
+  import { useDensity } from "./density.ts";
+  import {
+    bareControlClasses,
+    controlClasses,
+    overlayBareControlClasses,
+    overlayControlClasses,
+    useField,
+  } from "./field.ts";
   import DateTimeControl from "./DateTimeControl.svelte";
   import NumberControl from "./NumberControl.svelte";
   import ChoiceControl from "./ChoiceControl.svelte";
@@ -20,6 +27,7 @@
 
   let { class: className, value = $bindable(), bare = false, choice = false, type = "text", ...rest }: Props = $props();
   const field = useField();
+  const overlay = useDensity() === "overlay";
 </script>
 
 {#if type === "number"}
@@ -42,7 +50,17 @@
     id={field?.id}
     aria-describedby={field?.describedBy}
     aria-invalid={field?.invalid || undefined}
-    class={[!bare && "ui-control", bare ? bareControlClasses : controlClasses, className]}
+    class={[
+      !bare && "ui-control",
+      bare
+        ? overlay
+          ? overlayBareControlClasses
+          : bareControlClasses
+        : overlay
+          ? overlayControlClasses
+          : controlClasses,
+      className,
+    ]}
     bind:value
     {...rest}
   />

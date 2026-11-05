@@ -2,6 +2,7 @@
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import Kbd from "#lib/shared/ui/Kbd.svelte";
   import { duration } from "#lib/shared/ui/motion.ts";
   import { providerName, type ModelOption } from "./catalog.ts";
@@ -58,9 +59,7 @@
     >
   {:else}
     <span class="flex min-w-0 flex-1 flex-col">
-      <span class="font-medium [overflow-wrap:anywhere] whitespace-normal" title={option.model || undefined}
-        >{option.name}</span
-      >
+      <TruncatedText text={option.name} hint={option.model || undefined} class="font-medium" />
       {#if instance}<InstanceTag name={instance.name} accent={instance.accent} class="text-sm/5 sm:text-xs/4" />{/if}
     </span>
     {#if shortcut}<Kbd hotkey={shortcut} />{/if}
@@ -72,7 +71,7 @@
         ? `Remove ${option.name} (${option.profileName}) from favorites`
         : `Add ${option.name} (${option.profileName}) to favorites`}
       aria-pressed={starred}
-      class={popping ? "t-pop" : undefined}
+      class={["-my-1", popping && "t-pop"]}
       iconClass={starred ? "text-amber-500" : ["fill-zinc-300 dark:fill-zinc-600", !active && "pointer-fine:invisible"]}
       onclick={(event) => {
         event.stopPropagation();

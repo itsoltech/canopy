@@ -1,9 +1,9 @@
-/* Settings own their type scale and rhythm; the application keeps the kit defaults. */
+/* Settings own their rhythm on the shared type steps (docs/ui-scale.md, standard controls: settings). */
 .settings-density {
-  --settings-body: 0.9375rem;
-  --settings-label: 0.9375rem;
-  --settings-description: 0.8125rem;
-  --settings-section-heading: 0.875rem;
+  --settings-body: var(--type-compact-touch);
+  --settings-label: var(--type-compact-touch);
+  --settings-description: var(--type-compact);
+  --settings-section-heading: var(--type-standard);
   --settings-page-heading: 1.125rem;
   --settings-line: 1.25rem;
   --settings-section-gap: 1.5rem;
@@ -11,29 +11,35 @@
   --settings-row-y: 0.625rem;
   --settings-row-x: 0.75rem;
   --settings-control-height: 2.75rem;
-  --settings-control-font: 1rem;
+  --settings-control-font: var(--type-touch);
   --settings-target: 2.75rem;
   --settings-content-width: 64rem;
   --settings-nav-width: 13.5rem;
-  --text-base: var(--settings-body);
-  --text-sm: var(--settings-description);
-  --text-xs: 0.75rem;
-  --text-lg: var(--settings-section-heading);
-  --text-xl: 1rem;
-  --text-2xl: var(--settings-page-heading);
   font-size: var(--settings-body);
   /* Focus scroll belongs to the content pane; hidden also lets the outer dialog scroll. */
   overflow: clip;
 }
 
+/* Controls inside overlays (selects, menus) keep the overlay size (docs/ui-scale.md), hence `:not(.density-overlay *)`
+   on the control rules below. Dialogs opened from a settings row keep the settings steps; overlays inside them are compact as everywhere. */
+.settings-density,
+.settings-density .density-standard {
+  --text-base: var(--settings-body);
+  --text-sm: var(--settings-description);
+  --text-xs: var(--type-caption);
+  --text-lg: var(--settings-section-heading);
+  --text-xl: 1rem;
+  --text-2xl: var(--settings-page-heading);
+}
+
 @media (min-width: 640px) and (pointer: fine) {
   .settings-density {
-    --settings-body: 0.8125rem;
-    --settings-label: 0.8125rem;
+    --settings-body: var(--type-compact);
+    --settings-label: var(--type-compact);
     --settings-section-gap: 1.25rem;
     --settings-row-y: 0.5rem;
     --settings-control-height: 2rem;
-    --settings-control-font: 0.8125rem;
+    --settings-control-font: var(--type-compact);
     --settings-target: 2rem;
   }
 }
@@ -94,38 +100,38 @@
   font-size: var(--settings-label);
 }
 
-.settings-density :where(.ui-choice-card) {
+.settings-density :where(.ui-choice-card):not(.density-overlay *) {
   min-height: var(--settings-target);
   gap: 0.625rem;
   padding: 0.5rem 0.625rem;
 }
 
-.settings-density :where(.ui-control, .ui-button) {
+.settings-density :where(.ui-control, .ui-button):not(.density-overlay *) {
   min-height: var(--settings-control-height);
   padding-block: calc((var(--settings-control-height) - var(--settings-line)) / 2);
   font-size: var(--settings-control-font);
   line-height: var(--settings-line);
 }
 
-.settings-density :where(.ui-button) {
+.settings-density :where(.ui-button):not(.density-overlay *) {
   min-width: var(--settings-target);
 }
 
-.settings-density :where(.ui-number-control) {
+.settings-density :where(.ui-number-control):not(.density-overlay *) {
   min-width: calc(var(--settings-control-height) * 3 + 2rem);
 }
 
-.settings-density :where(textarea.ui-control) {
+.settings-density :where(textarea.ui-control):not(.density-overlay *) {
   min-height: 5rem;
 }
 
-.settings-density :where(.ui-touch-target) {
+.settings-density :where(.ui-touch-target):not(.density-overlay *) {
   display: block;
   width: max(100%, var(--settings-target));
   height: max(100%, var(--settings-target));
 }
 
-.settings-density :where(.ui-checkbox) {
+.settings-density :where(.ui-checkbox):not(.density-overlay *) {
   min-height: var(--settings-target);
   align-items: center;
   gap: 0.625rem;
