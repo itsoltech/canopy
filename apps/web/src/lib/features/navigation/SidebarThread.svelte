@@ -14,6 +14,8 @@
   import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
+  import { needsYou } from "#lib/features/threads/activity.ts";
+  import { formatCount } from "#lib/shared/format.ts";
 
   /**
    * One thread in the inbox: project and status, title, then where it runs with its marks
@@ -28,12 +30,14 @@
     worker,
     sides = 0,
     current = false,
+    subagentsNeedingInput = [],
   }: {
     thread: ui.Thread;
     project: ui.Project | undefined;
     worker: ui.Worker | undefined;
     sides?: number;
     current?: boolean;
+    subagentsNeedingInput?: readonly ui.Thread[];
   } = $props();
 
   const provider = $derived(providerKeyOf(thread.provider));
@@ -43,12 +47,17 @@
   const providerName = $derived(provider === "CLAUDE" ? "Claude" : provider === "GROK" ? "Grok" : "Codex");
 </script>
 
-<SidebarThreadLink {thread} {current} class="grid gap-0.5 rounded-xl px-3 py-2.5">
+<SidebarThreadLink
+  {thread}
+  {current}
+  needsAttention={needsYou(thread) || subagentsNeedingInput.length > 0}
+  class="grid gap-0.5 rounded-xl px-3 py-2.5"
+>
   <span class="flex min-w-0 items-center gap-2">
     {#if away}
       <Icon name="link" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" />
     {:else}
-      <ThreadActivityMark {thread}>
+      <ThreadActivityMark thread={subagentsNeedingInput[0] ?? thread}>
         {#snippet idle()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}
       </ThreadActivityMark>
     {/if}
@@ -56,11 +65,17 @@
       class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5 dark:text-zinc-400"
       >{project?.name ?? "Unknown project"}</span
     >
-    <ThreadStatusText
-      {thread}
-      icons={false}
-      class="group-data-calm:opacity-60 pointer-fine:group-focus-within/row:invisible pointer-fine:group-hover/row:invisible"
-    />
+    {#if !needsYou(thread) && subagentsNeedingInput.length}
+      <span role="status" class="shrink-0 text-sm/5 text-amber-700 tabular-nums sm:text-xs/5 dark:text-amber-400"
+        >{subagentsNeedingInput.length === 1
+          ? "Subagent needs input"
+          : `${formatCount(subagentsNeedingInput.length)} subagents need input`}</span
+      >
+    {:else}<ThreadStatusText
+        {thread}
+        icons={false}
+        class="group-data-calm:opacity-60 pointer-fine:group-focus-within/row:invisible pointer-fine:group-hover/row:invisible"
+      />{/if}
   </span>
   <SwapText
     text={thread.title}

@@ -12,16 +12,15 @@
   import { osLabel } from "#lib/features/overview/workers.ts";
   import ScheduleCompactRow from "#lib/features/schedules/ScheduleCompactRow.svelte";
   import { clock } from "#lib/shared/clock.svelte.ts";
-  import { formatCount, formatDateTime, formatRelative, isoDateTime } from "#lib/shared/format.ts";
+  import { formatCount, formatDateTime } from "#lib/shared/format.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import StatusBadge from "#lib/shared/ui/StatusBadge.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { permissionLabel, permissionLook, providerLabel } from "../labels.ts";
   import type { UsageTotals } from "../thread-state.svelte.ts";
   import { instanceLabel, instanceOf, providerKeyOf } from "../providers.ts";
-  import { groupSideThreads, isSide, type ThreadTree } from "../thread-tree.ts";
-  import PreviousAgents from "./PreviousAgents.svelte";
-  import ThreadStatusText from "../ThreadStatusText.svelte";
+  import { isSide, type ThreadTree } from "../thread-tree.ts";
+  import ThreadLineage from "./ThreadLineage.svelte";
   import PanelRow from "./PanelRow.svelte";
   import BackgroundTasksSection from "./BackgroundTasksSection.svelte";
   import type { BackgroundEntry } from "../background-tasks.ts";
@@ -97,11 +96,6 @@
 
   const parent = $derived(thread.parentThreadId ? lookup(thread.parentThreadId) : undefined);
   const hasUsage = $derived(totals.inputTokens > 0n || totals.outputTokens > 0n);
-  const sides = $derived(groupSideThreads(tree.sides));
-
-  const runningSides = $derived(
-    sides.active.filter((t) => t.status === "running" || t.status === "waiting_input").length,
-  );
 </script>
 
 <div
@@ -256,57 +250,5 @@
     </section>
   {/if}
 
-  <section aria-labelledby="lineage-title" class="grid grid-cols-1 px-1.5 pt-1.5">
-    <h2 id="lineage-title" class="px-3 pt-1 pb-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-      Lineage{runningSides ? ` · ${runningSides} running` : ""}
-    </h2>
-    <ul role="list" class="grid grid-cols-1 gap-0.5">
-      <li>
-        <PanelRow icon="chat-bubble-left-right" href="/threads/{tree.main.id}" current={tree.main.id === thread.id}>
-          {tree.main.title}
-          {#snippet aside()}<ThreadStatusText thread={tree.main} />{/snippet}
-        </PanelRow>
-      </li>
-      {#each sides.active as side (side.id)}
-        <li>
-          <PanelRow
-            icon={side.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"}
-            href="/threads/{side.id}"
-            current={side.id === thread.id}
-            class="pl-6"
-          >
-            {#snippet lead()}
-              {@const provider = providerKeyOf(side.provider)}
-              {#if side.spawnedByAgent && provider}<ProviderIcon {provider} class="size-4 shrink-0" />{:else}<Icon
-                  name={side.forkSourceThreadId ? "square-2-stack" : "arrow-turn-down-right"}
-                  class="fill-zinc-400 dark:fill-zinc-500"
-                />{/if}
-            {/snippet}
-            {side.title}{#if side.spawnedByAgent}<span class="sr-only">
-                (started by an agent)</span
-              >{/if}{#if side.forkSourceThreadId}<span class="sr-only"> (fork)</span>{/if}
-            {#snippet aside()}<ThreadStatusText thread={side} />{/snippet}
-          </PanelRow>
-        </li>
-      {/each}
-    </ul>
-    <PreviousAgents threads={sides.previous} class="pl-3">
-      {#snippet row(side)}
-        {@const provider = providerKeyOf(side.provider)}
-        {@const when = side.archivedAt ?? side.lastActivityAt ?? side.createdAt}
-        <PanelRow icon="cpu-chip" href="/threads/{side.id}" current={side.id === thread.id} class="opacity-60">
-          {#snippet lead()}{#if provider}<ProviderIcon {provider} />{:else}<Icon name="cpu-chip" />{/if}{/snippet}
-          {side.title}
-          {#snippet aside()}{#if when}<time
-                datetime={isoDateTime(when)}
-                title={formatDateTime(when)}
-                class="shrink-0 tabular-nums">{formatRelative(when, clock.now)}</time
-              >{/if}{/snippet}
-        </PanelRow>
-      {/snippet}
-    </PreviousAgents>
-    {#if onnewside}
-      <PanelRow icon="plus" onclick={onnewside} class="text-zinc-500 dark:text-zinc-400">New side thread</PanelRow>
-    {/if}
-  </section>
+  <ThreadLineage {tree} currentId={thread.id} {onnewside} />
 </div>

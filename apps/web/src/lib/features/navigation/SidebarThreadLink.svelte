@@ -23,10 +23,18 @@
   let {
     thread,
     current = false,
+    needsAttention = needsYou(thread),
     compact = false,
     class: className,
     children,
-  }: { thread: ui.Thread; current?: boolean; compact?: boolean; class?: ClassValue; children: Snippet } = $props();
+  }: {
+    thread: ui.Thread;
+    current?: boolean;
+    needsAttention?: boolean;
+    compact?: boolean;
+    class?: ClassValue;
+    children: Snippet;
+  } = $props();
 
   const result = lingeringResult(() => thread);
   const overview = useOverview();
@@ -95,13 +103,13 @@
             })}
             href="/threads/{thread.id}"
             aria-current={current ? "page" : undefined}
-            data-calm={isCalm(thread) || undefined}
+            data-calm={(!needsAttention && isCalm(thread)) || undefined}
             data-result={result.current}
             data-unread={thread.markedUnread || undefined}
             class={[
               "group focus-ring [-webkit-touch-callout:none]",
               !away &&
-                needsYou(thread) &&
+                needsAttention &&
                 "bg-amber-500/6 inset-ring inset-ring-amber-500/20 dark:bg-amber-400/6 dark:inset-ring-amber-400/15",
               "hover:bg-zinc-950/4 aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8",
               className,

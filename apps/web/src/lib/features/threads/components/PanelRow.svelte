@@ -44,7 +44,9 @@
 
 {#snippet content()}
   {#if lead}{@render lead()}{:else}<Icon name={icon} class={iconClass} />{/if}
-  <span class={["min-w-0 flex-1", wrap ? "break-words whitespace-normal" : "truncate"]}>{@render children()}</span>
+  <span class={["relative min-w-0 flex-1", wrap ? "break-words whitespace-normal" : "truncate"]}
+    >{@render children()}</span
+  >
   {@render aside?.()}
 {/snippet}
 

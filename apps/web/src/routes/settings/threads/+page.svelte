@@ -9,6 +9,7 @@
   import { sharedKey } from "@canopy/domain/computers";
   import Button from "#lib/shared/ui/Button.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
+  import SubagentDisplaySettings from "#lib/features/settings/SubagentDisplaySettings.svelte";
 
   const overview = useOverview();
   const settings = useSettings();
@@ -16,6 +17,8 @@
 </script>
 
 <svelte:head><title>Threads · Settings · Canopy</title></svelte:head>
+
+<SubagentDisplaySettings />
 
 <SettingsGroup
   title="New threads"

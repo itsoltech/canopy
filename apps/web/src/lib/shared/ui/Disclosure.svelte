@@ -16,6 +16,7 @@
   let {
     open = $bindable(false),
     remember,
+    onchange,
     align = "start",
     class: className,
     summaryClass,
@@ -24,6 +25,7 @@
   }: {
     open?: boolean;
     remember?: string;
+    onchange?: ((open: boolean) => void) | undefined;
     align?: "start" | "center";
     class?: ClassValue;
     summaryClass?: ClassValue;
@@ -39,7 +41,11 @@
   $effect(() => memory?.set(open));
 </script>
 
-<details class={["t-acc group/disclosure", className]} bind:open>
+<details
+  class={["t-acc group/disclosure", className]}
+  bind:open
+  ontoggle={(event) => onchange?.(event.currentTarget.open)}
+>
   <summary
     class={[
       "flex cursor-pointer list-none gap-2 rounded-md focus-ring select-none",
@@ -55,5 +61,5 @@
     </span>
     <span class="min-w-0 flex-1">{@render summary()}</span>
   </summary>
-  {#if open}<div transition:expand>{@render children()}</div>{/if}
+  {#if open}<div transition:expand={{ instantReduced: true }}>{@render children()}</div>{/if}
 </details>

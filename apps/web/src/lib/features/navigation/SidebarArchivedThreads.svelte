@@ -69,7 +69,10 @@
   const roots = $derived(
     pageState.threads
       .map((thread) => overview.liveThread(thread))
-      .filter((thread): thread is ui.Thread => !!thread && !thread.deletedAt && thread.status === "archived"),
+      .filter(
+        (thread): thread is ui.Thread =>
+          !!thread && !thread.spawnedByAgent && !thread.deletedAt && thread.status === "archived",
+      ),
   );
 
   let revision = $state(0);
@@ -186,7 +189,7 @@
               >
                 {#each roots as thread, index (thread.id)}
                   {@const sides = groupSideThreads(
-                    pageState.sideThreads.filter((side) => side.parentThreadId === thread.id),
+                    pageState.sideThreads.filter((side) => !side.spawnedByAgent && side.parentThreadId === thread.id),
                   )}
                   <li
                     class="min-w-0"

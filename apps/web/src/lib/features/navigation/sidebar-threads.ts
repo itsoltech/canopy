@@ -26,6 +26,8 @@ export function sidebarThreads(
     !q || t.title.toLowerCase().includes(q) || projectName(t.projectId).toLowerCase().includes(q);
 
   const roots = eligible.filter((t) => {
+    if (t.spawnedByAgent) return false;
+
     if (t.status === "archived") return false;
 
     // Parent events arrive before their cascade children; never flash those children as active roots.
@@ -59,7 +61,7 @@ export function collapsedArchivedThread(
   query: string,
   projectName: (id: string) => string,
 ): ui.Thread | undefined {
-  if (expanded || !current || current.deletedAt || current.status !== "archived") return;
+  if (expanded || !current || current.spawnedByAgent || current.deletedAt || current.status !== "archived") return;
 
   if (projectIds.length && !projectIds.includes(current.projectId)) return;
   const q = query.trim().toLowerCase();

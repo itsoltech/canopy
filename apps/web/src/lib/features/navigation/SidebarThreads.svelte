@@ -15,6 +15,7 @@
   import { decode } from "#lib/shared/wire.ts";
   import { whenIdle } from "#lib/shared/idle.ts";
   import { sidebarEntries } from "./sidebar-entries.ts";
+  import { needsYou } from "#lib/features/threads/activity.ts";
 
   let {
     currentThreadId,
@@ -129,10 +130,13 @@
         <li animate:reorder in:rise={{ delay: stagger(index), instant: !filled }} out:expand>
           {#if entry?.thread}
             {@const thread = entry.thread}
-            {@const sides = groupSideThreads((filtered.sides.get(thread.id) ?? []).filter((t) => !rootIds.has(t.id)))}
+            {@const children = filtered.sides.get(thread.id) ?? []}
+            {@const sides = groupSideThreads(children.filter((t) => !t.spawnedByAgent && !rootIds.has(t.id)))}
+            {@const subagentsNeedingInput = children.filter((t) => t.spawnedByAgent && needsYou(t))}
             <div class="relative">
               <SidebarThread
                 {thread}
+                {subagentsNeedingInput}
                 project={overview.project(thread.projectId)}
                 worker={overview.worker(thread.workerId)}
                 sides={openTree === thread.id ? 0 : sides.active.length}

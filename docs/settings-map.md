@@ -28,6 +28,7 @@ Reset strony przywraca wyłącznie jej preferencje urządzenia, bez cofania zgó
 | General / Confirmations | Confirm unpin / archive / delete | konto | Off / Off / On | Dialog przed odpowiednią akcją wątku we wszystkich menu i komendach |
 | General / Display | Time format | urządzenie | System | Godziny w znacznikach czasu web/desktop: system, 12h lub 24h |
 | General / Display | Time zone | konto, odczyt z urządzenia | IANA urządzenia, fallback UTC | Istniejąca synchronizacja dla botów i harmonogramów; przeniesiona z Appearance, bez zmiany semantyki |
+| Threads / Thread details | Show finished subagents | urządzenie | Off | Zakończeni tylko w liczniku; On pokazuje ostatnie 10 minut i starszych pod Previous subagents. Reset przywraca Off; sidebar zawsze ukrywa subagentów |
 | Appearance / Colors | Color scheme; Light theme; Dark theme | konto | System; Birch; Birch | Pełne palety, w tym Ash, niezależne dla obu trybów |
 | Appearance / Interface | Contrast | urządzenie | Standard | Wzmocnienie kontrastu tekstu pomocniczego i obrysów w obu schematach |
 | Appearance / Interface | Thread width | konto | Comfortable | Szerokość wątku i kompozytora |
