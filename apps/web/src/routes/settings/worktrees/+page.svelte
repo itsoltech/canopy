@@ -19,15 +19,24 @@
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
+  import { splitId } from "@canopy/domain/computers";
+  import RecordedWorktreeSettings from "#lib/features/worktrees/RecordedWorktreeSettings.svelte";
 
   /** Settings → Worktrees (docs/worktrees.md): creation, branch names and the default for new threads, per scope. */
   const settingsState = new WorktreeSettingsState();
+  const records = workerRecords(useOverview());
 
   setContext("worktree-settings", settingsState);
 
   let scope = $state<WorktreeScope>({ projectId: "", workerId: "" });
 
-  $effect(() => void settingsState.load(scope));
+  const reason = $derived(records.readOnly(scope.workerId));
+
+  $effect(() => {
+    if (!reason) void settingsState.load(scope);
+  });
 
   const own = $derived(settingsState.current?.settings);
   const inherited = $derived(settingsState.current?.inherited);
@@ -58,106 +67,113 @@
     onchange={() => void settingsState.load(scope)}
   />
   {#if settingsState.error}<Alert tone="error">{settingsState.error}</Alert>{/if}
+  {#if reason}<Alert>{reason}</Alert>{/if}
 
-  {#if !effective || !inherited}
-    <Skeleton class="h-64 w-full" />
+  {#if reason}
+    <RecordedWorktreeSettings
+      settings={records.record(scope.workerId)?.worktreeSettings.find((s) => s.projectId === scope.projectId)?.settings}
+    />
   {:else}
-    <SettingsGroup
-      title="Creation"
-      description="Where new worktrees go and what they start from. Existing worktrees stay where they are."
-    >
-      <WorktreeTextSetting
-        name="worktreeLocation"
-        field="location"
-        title="Worktree location"
-        description="An absolute directory path on the computer. Empty: Canopy manages one in the worker's data directory."
-        placeholder="Managed by Canopy"
-        inputClass="w-64"
-        value={effective.location ?? ""}
-        overridden={is("location")}
-        inherited={inherited.location || "Managed by Canopy"}
-        onsave={(location) => settingsState.update({ location })}
-        onreset={() => reset("location")}
-      />
-      <WorktreeSettingRow
-        title="Start from remote"
-        field="startFromRemote"
-        description="New worktrees start from the base branch's latest remote commit, or from the local branch if it has no remote."
-        overridden={is("startFromRemote")}
-        inherited={inherited.startFromRemote ? "On" : "Off"}
-        onreset={() => reset("startFromRemote")}
+    {#if !effective || !inherited}
+      <Skeleton class="h-64 w-full" />
+    {:else}
+      <SettingsGroup
+        title="Creation"
+        description="Where new worktrees go and what they start from. Existing worktrees stay where they are."
       >
-        {#snippet control()}
-          <Switch
-            name="startFromRemote"
-            label="Start from remote"
-            checked={effective.startFromRemote ?? false}
-            onchange={(checked) => settingsState.update({ startFromRemote: checked })}
-          />
-        {/snippet}
-      </WorktreeSettingRow>
-      <div class="px-4 py-3">
-        <Disclosure summaryClass="py-1 text-base/6 sm:text-sm/6">
-          {#snippet summary()}Advanced{/snippet}
-          <WorktreeTextSetting
-            name="worktreeRemote"
-            field="remote"
-            title="Remote"
-            description="Used when the base branch tracks no remote branch."
-            class="-mx-4"
-            value={effective.remote ?? "origin"}
-            overridden={is("remote")}
-            inherited={inherited.remote || "origin"}
-            onsave={(remote) => settingsState.update({ remote: remote || undefined })}
-            onreset={() => reset("remote")}
-          />
-        </Disclosure>
-      </div>
-    </SettingsGroup>
+        <WorktreeTextSetting
+          name="worktreeLocation"
+          field="location"
+          title="Worktree location"
+          description="An absolute directory path on the computer. Empty: Canopy manages one in the worker's data directory."
+          placeholder="Managed by Canopy"
+          inputClass="w-64"
+          value={effective.location ?? ""}
+          overridden={is("location")}
+          inherited={inherited.location || "Managed by Canopy"}
+          onsave={(location) => settingsState.update({ location })}
+          onreset={() => reset("location")}
+        />
+        <WorktreeSettingRow
+          title="Start from remote"
+          field="startFromRemote"
+          description="New worktrees start from the base branch's latest remote commit, or from the local branch if it has no remote."
+          overridden={is("startFromRemote")}
+          inherited={inherited.startFromRemote ? "On" : "Off"}
+          onreset={() => reset("startFromRemote")}
+        >
+          {#snippet control()}
+            <Switch
+              name="startFromRemote"
+              label="Start from remote"
+              checked={effective.startFromRemote ?? false}
+              onchange={(checked) => settingsState.update({ startFromRemote: checked })}
+            />
+          {/snippet}
+        </WorktreeSettingRow>
+        <div class="px-4 py-3">
+          <Disclosure summaryClass="py-1 text-base/6 sm:text-sm/6">
+            {#snippet summary()}Advanced{/snippet}
+            <WorktreeTextSetting
+              name="worktreeRemote"
+              field="remote"
+              title="Remote"
+              description="Used when the base branch tracks no remote branch."
+              class="-mx-4"
+              value={effective.remote ?? "origin"}
+              overridden={is("remote")}
+              inherited={inherited.remote || "origin"}
+              onsave={(remote) => settingsState.update({ remote: remote || undefined })}
+              onreset={() => reset("remote")}
+            />
+          </Disclosure>
+        </div>
+      </SettingsGroup>
 
-    <SettingsGroup title="Branches" description="How the branch of a new worktree is named.">
-      <WorktreeChoiceSetting
-        name="branchNaming"
-        field="branchNaming"
-        title="Branch naming"
-        description="Semantic prefix asks the text-generation model for a type from the first message."
-        options={naming}
-        value={effective.branchNaming}
-        inherited={inherited.branchNaming}
-        overridden={is("branchNaming")}
-        onchange={(branchNaming) => settingsState.update({ branchNaming })}
-        onreset={() => reset("branchNaming")}
-      />
-      <WorktreeTextSetting
-        name="branchPrefix"
-        field="branchPrefix"
-        title="Branch prefix"
-        description="For prefix names, and the first name before a semantic one arrives."
-        value={effective.branchPrefix ?? ""}
-        overridden={is("branchPrefix")}
-        inherited={inherited.branchPrefix || "canopy"}
-        onsave={(branchPrefix) => settingsState.update({ branchPrefix: branchPrefix || undefined })}
-        onreset={() => reset("branchPrefix")}
-      />
-    </SettingsGroup>
+      <SettingsGroup title="Branches" description="How the branch of a new worktree is named.">
+        <WorktreeChoiceSetting
+          name="branchNaming"
+          field="branchNaming"
+          title="Branch naming"
+          description="Semantic prefix asks the text-generation model for a type from the first message."
+          options={naming}
+          value={effective.branchNaming}
+          inherited={inherited.branchNaming}
+          overridden={is("branchNaming")}
+          onchange={(branchNaming) => settingsState.update({ branchNaming })}
+          onreset={() => reset("branchNaming")}
+        />
+        <WorktreeTextSetting
+          name="branchPrefix"
+          field="branchPrefix"
+          title="Branch prefix"
+          description="For prefix names, and the first name before a semantic one arrives."
+          value={effective.branchPrefix ?? ""}
+          overridden={is("branchPrefix")}
+          inherited={inherited.branchPrefix || "canopy"}
+          onsave={(branchPrefix) => settingsState.update({ branchPrefix: branchPrefix || undefined })}
+          onreset={() => reset("branchPrefix")}
+        />
+      </SettingsGroup>
 
-    <SettingsGroup title="New threads">
-      <WorktreeChoiceSetting
-        name="defaultMode"
-        field="defaultMode"
-        title="Default workspace"
-        description="What the new-thread composer starts with on this scope."
-        options={modes}
-        value={effective.defaultMode}
-        inherited={inherited.defaultMode}
-        overridden={is("defaultMode")}
-        onchange={(defaultMode) => settingsState.update({ defaultMode })}
-        onreset={() => reset("defaultMode")}
-      />
-    </SettingsGroup>
-    <WorktreeCleanupSettings />
-    {#key `${scope.projectId}:${scope.workerId}:${settingsState.current?.version}`}
-      <WorktreeManagement {scope} />
-    {/key}
+      <SettingsGroup title="New threads">
+        <WorktreeChoiceSetting
+          name="defaultMode"
+          field="defaultMode"
+          title="Default workspace"
+          description="What the new-thread composer starts with on this scope."
+          options={modes}
+          value={effective.defaultMode}
+          inherited={inherited.defaultMode}
+          overridden={is("defaultMode")}
+          onchange={(defaultMode) => settingsState.update({ defaultMode })}
+          onreset={() => reset("defaultMode")}
+        />
+      </SettingsGroup>
+      <WorktreeCleanupSettings />
+      {#if !splitId(scope.workerId).node}{#key `${scope.projectId}:${scope.workerId}:${settingsState.current?.version}`}
+          <WorktreeManagement {scope} />
+        {/key}{/if}
+    {/if}
   {/if}
 </div>

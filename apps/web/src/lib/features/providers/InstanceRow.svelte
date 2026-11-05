@@ -16,6 +16,7 @@
     worker,
     selected,
     busy = false,
+    disabled = false,
     onselect,
     ontoggle,
     class: className,
@@ -25,6 +26,7 @@
     worker: ui.Worker | undefined;
     selected: boolean;
     busy?: boolean;
+    disabled?: boolean;
     onselect: () => void;
     ontoggle: (enabled: boolean) => void;
     class?: ClassValue;
@@ -72,7 +74,7 @@
       name="instance-{instance.id}-on"
       label="{instanceName(instance)} on {worker?.name ?? 'all workers'}"
       checked={enabled}
-      disabled={busy}
+      disabled={busy || disabled}
       onchange={ontoggle}
     />
   </div>

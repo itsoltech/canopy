@@ -3,6 +3,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Select from "#lib/shared/ui/Select.svelte";
   import type { WorktreeScope } from "./worktree-settings.svelte.ts";
+  import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
   /** "Applying settings for [project] across [computer]": the scope the worktree settings below change. */
   let {
@@ -18,16 +19,14 @@
   } = $props();
 
   const overview = useOverview();
+  const records = workerRecords(overview);
 
   const projects = $derived([
     { value: "", label: "All projects" },
     ...overview.ownProjects.filter((p) => p.kind !== "scratch").map((p) => ({ value: p.id, label: p.name })),
   ]);
 
-  const workers = $derived([
-    { value: "", label: "All computers" },
-    ...overview.ownWorkers.map((w) => ({ value: w.id, label: w.name })),
-  ]);
+  const workers = $derived([{ value: "", label: "All computers" }, ...records.options()]);
 </script>
 
 <p

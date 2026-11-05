@@ -46,6 +46,7 @@ export const READS = new Set([
   "WatchBotConversation",
   "ReadBotExchange",
   "GetBotProviderInstances",
+  "ListSchedules",
   "MarkThreadSeen",
   "SetThreadRead",
   "MarkBotRead",

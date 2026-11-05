@@ -24,6 +24,9 @@ const INSTANCE_REQUESTS = new Set([
   "canopy.ui.v1.SetInstanceWorkersRequest",
   "canopy.ui.v1.StartProviderLoginRequest",
   "canopy.ui.v1.RefreshProvidersRequest",
+  "canopy.ui.v1.GetInstanceWorkerRequest",
+  "canopy.ui.v1.WorkerInstance",
+  "canopy.ui.v1.ProviderInstance",
 ]);
 
 export function instanceIds(sql: SqlClient.SqlClient, owner: string): Effect.Effect<InstanceIds, SqlError.SqlError> {

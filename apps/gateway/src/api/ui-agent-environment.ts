@@ -1,6 +1,7 @@
 import type { GatewayCore } from "../core/core.ts";
 import { workerGuard } from "../core/worker-administration.ts";
 import type { UiHandlers } from "./ui-service.ts";
+import { setWorkerEnvironmentOverride, workerEnvironment } from "../agent-environment/worker-settings.ts";
 
 export function agentEnvironmentHandlers(
   core: GatewayCore,
@@ -25,8 +26,12 @@ export function agentEnvironmentHandlers(
   | "saveLibraryPlugin"
   | "deleteLibraryPlugin"
   | "resolvePluginDrift"
+  | "getWorkerEnvironment"
+  | "setWorkerEnvironmentOverride"
 > {
   return {
+    getWorkerEnvironment: (r) => workerGuard(() => workerEnvironment(core.environment, r.workerId)),
+    setWorkerEnvironmentOverride: (r) => workerGuard(() => setWorkerEnvironmentOverride(core.environment, r)),
     getAgentEnvironment: () => workerGuard(() => core.environment.snapshot()),
     saveInstructionDocument: (r) => workerGuard(() => core.environment.save(r)),
     deleteInstructionDocument: (r) => workerGuard(() => core.environment.remove(r)),

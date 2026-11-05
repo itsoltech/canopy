@@ -74,7 +74,7 @@ export function qualify(desc: DescMessage, message: Message, nodeId: string): vo
   mapIds(
     desc,
     message,
-    (id) => qualifyId(id, nodeId),
+    (id, field) => (field === "proxy_id" ? id : qualifyId(id, nodeId)),
     (d, message) => {
       if (STAMPED.has(d.typeName)) reflect(d, message).set(d.field["nodeId"]!, nodeId);
     },
@@ -125,7 +125,8 @@ export function unqualify(
 
     if (node === nodeRef(nodeId)) return plain;
 
-    if (!node && (field === "project_id" || field === "project_ids") && global.has(id)) return id;
+    if (!node && (field === "project_id" || field === "project_ids" || field === "proxy_id") && global.has(id))
+      return id;
 
     if (node || (field !== "client_request_id" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id)))
       throw new ConnectError("Choose a project, worker and thread on the same computer", Code.InvalidArgument);

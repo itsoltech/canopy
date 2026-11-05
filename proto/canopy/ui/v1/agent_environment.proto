@@ -53,6 +53,37 @@ message EnvironmentWorker {
 }
 
 message AgentEnvironmentRequest {}
+message GetWorkerEnvironmentRequest { string worker_id = 1; }
+// item to globalny klucz biblioteki, a version_hash wskazuje treść, nie lokalny numer wersji.
+message WorkerEnvironmentOverride {
+  string kind = 1;
+  string item = 2;
+  bool disabled = 3;
+  string content = 4;
+  string version_hash = 5;
+}
+message SetWorkerEnvironmentOverrideRequest {
+  string worker_id = 1;
+  WorkerEnvironmentOverride override = 2;
+  bool remove = 3;
+  uint64 expected_revision = 4;
+}
+message WorkerEnvironmentResponse {
+  EnvironmentWorker worker = 1;
+  repeated WorkerEnvironmentOverride overrides = 2;
+  uint64 revision = 3;
+  repeated WorkerEnvironmentItem items = 4;
+}
+message WorkerEnvironmentItem {
+  string kind = 1;
+  string item = 2;
+  string name = 3;
+  repeated WorkerEnvironmentVersion versions = 4;
+}
+message WorkerEnvironmentVersion {
+  uint64 version = 1;
+  string hash = 2;
+}
 message AgentEnvironmentSnapshot {
   uint64 revision = 1;
   repeated InstructionDocument documents = 2;

@@ -18,6 +18,7 @@
   import StatusLine from "./StatusLine.svelte";
   import WorkersField from "./WorkersField.svelte";
   import AccountStatusRow, { hasAccountStatus } from "./AccountStatusRow.svelte";
+  import type { WorkerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
   /**
    * The detail of one instance, for the scope chosen above the list: on one worker its status
@@ -29,6 +30,7 @@
     worker,
     workers,
     state: providers,
+    records,
     ondeleted,
     class: className,
   }: {
@@ -36,6 +38,7 @@
     worker: ui.Worker | undefined;
     workers: readonly ui.Worker[];
     state: ProvidersState;
+    records: WorkerRecords;
     ondeleted: () => void;
     class?: ClassValue;
   } = $props();
@@ -64,9 +67,11 @@
   }
 
   const setWorkers = (next: { allWorkers: boolean; workerIds: string[] }) =>
-    guarded(async () =>
-      providers.put((await providerCall("workers", { harness: instance.harness, id: instance.id, ...next })).instance),
-    );
+    guarded(async () => {
+      await providerCall("workers", { harness: instance.harness, id: instance.id, ...next });
+      await providers.reload();
+      await records.reload();
+    });
 
   const setModels = (models: ui.InstanceModels) =>
     guarded(async () =>
@@ -164,6 +169,7 @@
       </InsetList>
       <WorkersField
         {workers}
+        {records}
         allWorkers={instance.allWorkers}
         workerIds={instance.workers.filter((w) => w.enabled).map((w) => w.workerId)}
         onchange={setWorkers}
@@ -173,7 +179,15 @@
 
   {#if worker}
     {#if on?.enabled}
-      <OverrideForm {instance} {worker} onsaved={(saved) => providers.put(saved)} />
+      <OverrideForm
+        {instance}
+        {worker}
+        readOnly={records.readOnly(worker.id)}
+        onsaved={() => {
+          void providers.reload();
+          void records.reload();
+        }}
+      />
     {:else}
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         Turn the instance on for {worker.name} to set its overrides there. Name, color and models are shared by all workers.

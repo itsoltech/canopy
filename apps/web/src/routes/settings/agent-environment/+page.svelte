@@ -15,10 +15,14 @@
   import Select from "#lib/shared/ui/Select.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import type { PageProps } from "./$types";
+  import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
+  import RemoteEnvironment from "#lib/features/agent-environment/RemoteEnvironment.svelte";
 
   let { data }: PageProps = $props();
   const state = new EnvironmentState(untrack(() => data.environment));
   const overview = useOverview();
+  const records = workerRecords(overview);
+  const selectedWorker = $derived(records.workers.find((w) => w.id === state.workerId) ?? records.workers[0]);
 
   const worker = $derived(
     state.snapshot.workers.find((w) => w.workerId === state.workerId) ?? state.snapshot.workers[0],
@@ -57,24 +61,34 @@
   >
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-lg font-semibold text-balance">Computers & preview</h2>
-      <Button size="sm" variant="ghost" disabled={state.busy} onclick={() => state.refresh()}>Refresh status</Button>
+      {#if !selectedWorker?.nodeId}<Button
+          size="sm"
+          variant="ghost"
+          disabled={state.busy}
+          onclick={() => state.refresh()}>Refresh status</Button
+        >{/if}
     </div>
-    {#if worker}
-      <Field label="Computer"
+    {#if selectedWorker}
+      <Field label="Computer" class="min-w-0"
         ><Select
+          class="min-w-0"
           name="environment-computer"
           bind:value={state.workerId}
-          options={state.snapshot.workers.map((w) => ({
-            value: w.workerId,
-            label: `${w.name}${w.online ? "" : " · Offline"}`,
-          }))}
+          options={records.options()}
         /></Field
       >
-      <div class="flex flex-wrap gap-2">
-        <Badge>{worker.online ? "Online" : "Offline"}</Badge><Badge>This computer's workers</Badge>
-      </div>
-      {#key worker.workerId}<EnvironmentComputer {worker} {state} />{/key}
-      {#key worker.workerId}<ComputerPlugins {worker} environment={state} />{/key}
+      {#if selectedWorker.nodeId}
+        {#key selectedWorker.id}<RemoteEnvironment
+            workerId={selectedWorker.id}
+            readOnly={records.readOnly(selectedWorker.id)}
+          />{/key}
+      {:else if worker}
+        <div class="flex flex-wrap gap-2">
+          <Badge>{worker.online ? "Online" : "Offline"}</Badge><Badge>This computer's workers</Badge>
+        </div>
+        {#key worker.workerId}<EnvironmentComputer {worker} {state} />{/key}
+        {#key worker.workerId}<ComputerPlugins {worker} environment={state} />{/key}
+      {/if}
     {:else}<p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
         Add a worker in Settings → Workers to preview and sync instructions.
       </p>{/if}

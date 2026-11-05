@@ -328,7 +328,8 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     expect(await failure(call("ListProviderInstances", {}))).toContain("does not share");
     expect(await failure(call("GetThread", { threadId: `${id()}~${nodeRef(bNode)}` }))).toContain("another computer");
     expect(await failure(a.api.answerThreadSecret({ requestId: q(id()), value: "secret" }))).toBeTruthy();
-    expect(await failure(a.api.listSchedules({ threadId: thread }))).toContain("another computer");
+    // Schedules of a thread are listed at its home.
+    expect((await a.api.listSchedules({ threadId: thread })).schedules).toEqual([]);
   }, 20_000);
 
   test("after unlink neither side can reach the other's threads, including over a raw pinned stream", async () => {

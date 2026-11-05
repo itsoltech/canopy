@@ -10,5 +10,5 @@
 {#if capabilities?.linkedComputers && overview.computers.size > 0}<p
     class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400"
   >
-    This computer's workers. Linked computers set their own overrides.
+    Overrides stay on each worker's computer. Changes on linked computers save there directly.
   </p>{/if}

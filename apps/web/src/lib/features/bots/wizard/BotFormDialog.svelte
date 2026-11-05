@@ -189,14 +189,14 @@
                 Loading providers and models…
               </p>
             {:else if loadError}<Alert tone="error">{loadError}</Alert><Button onclick={onreload}>Try again</Button>
-            {:else}<ProviderModelFields
+            {:else}<BotWorkerField bind:value={workerId} {instanceId} disabled={busy} />
+              <ProviderModelFields
                 instances={workerInstances}
                 bind:instanceId
                 bind:option
                 bind:effort
                 disabled={busy}
               />{/if}
-            <BotWorkerField bind:value={workerId} {instanceId} disabled={busy} />
           </div>
         {/if}
         <AppearanceFields

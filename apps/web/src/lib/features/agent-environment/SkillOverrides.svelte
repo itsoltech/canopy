@@ -6,6 +6,7 @@
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
+  import LinkedOverrides from "./LinkedOverrides.svelte";
 
   let {
     skill = $bindable(),
@@ -48,4 +49,5 @@
       {/if}
     </div>
   {/each}
+  <LinkedOverrides />
 </div>

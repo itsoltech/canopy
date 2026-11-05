@@ -266,6 +266,20 @@ export function botWizardInstances(
         name,
         provider,
         models: [...models.values()].sort((a, b) => rank(a.model) - rank(b.model)),
+        automaticModels: [...models.values()].filter(
+          (model) =>
+            instance.models?.custom.includes(model.model) ||
+            catalogs.some(
+              (c) =>
+                !c.workerId.includes("~") &&
+                c.profiles.some(
+                  (p) =>
+                    p.provider === instance.harness &&
+                    p.profileId === instance.id &&
+                    p.models.some((m) => !m.hidden && m.id === model.model),
+                ),
+            ),
+        ),
         modelsByWorker: new Map(
           catalogs.map((catalog) => {
             const profile = catalog.profiles.find(
@@ -289,5 +303,7 @@ export function botInstancesOnWorker(
   instances: readonly BotProviderInstance[],
   workerId: string,
 ): readonly BotProviderInstance[] {
-  return workerId ? instances.map((i) => ({ ...i, models: i.modelsByWorker?.get(workerId) ?? [] })) : instances;
+  if (workerId) return instances.map((i) => ({ ...i, models: i.modelsByWorker?.get(workerId) ?? [] }));
+
+  return instances.map((instance) => ({ ...instance, models: instance.automaticModels ?? instance.models }));
 }

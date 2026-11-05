@@ -134,6 +134,7 @@ export function remoteUpdates(update: ui.OverviewUpdate, nodeId: string): ui.Ove
     case "thread":
     case "project":
     case "models":
+    case "schedule":
       return [update];
     default:
       return [];

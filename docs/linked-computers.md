@@ -32,7 +32,7 @@ komputerów w sieci lokalnej. Etap 7: jawne „Share onward”, jeden pośrednik
 lustra i odwołanie dostępu. Etap 8: dwufazowe przeniesienie wątków i botów („Move to…”, „Move
 everything here”) z przekierowaniami starych id. Cały stos PR-ów pozostaje draftem do scalenia naraz.
 Opt-in etapu 4 zastępuje [wspólna konfiguracja](#konkretny-protokół-wspólna-konfiguracja)
-(stos `feat/linked-shared-config-N`, w realizacji).
+(stos `feat/linked-shared-config-N`, wszystkie siedem etapów zaimplementowane).
 
 ## Cel
 
@@ -64,7 +64,7 @@ kopii. Dzięki temu nie ma scalania historii, a nic nie wykonuje się dwa razy.
 | Harmonogramy | dom wątku albo bota | widoczne i edytowalne zdalnie |
 | Worker, workspace (katalog projektu na maszynie) | swoja maszyna | można uruchomić wątek na workerze innego komputera — wątek mieszka wtedy tam |
 | Konto connectora | wspólna konfiguracja konta | poświadczenia replikowane i szyfrowane kluczem każdego komputera; dostęp workerów per worker |
-| Projekt | rekord na każdym komputerze; wspólna tożsamość git origin w pickerach, docelowo globalne id konfiguracji | workspace'y zachowują projekt i komputer domu; aliasy konfiguracji opisano niżej |
+| Projekt | rekord na każdym komputerze; globalne id konfiguracji i wspólna tożsamość git origin w pickerach | workspace'y zachowują projekt i komputer domu; aliasy konfiguracji opisano niżej |
 
 Tworzenie wątku na workerze komputera B z UI komputera A jest wywołaniem do B; B zostaje właścicielem.
 Szyna agentów przekracza granicę tak samo: `spawn_thread` na workerze B tworzy wątek na B z rodzicem
@@ -817,7 +817,8 @@ Starszy partner zachowuje wcześniejsze funkcje; próba nowej operacji daje „n
 `SendBotMessage`, `AnswerBotApproval`, `UpdateBot`, `InterruptBot`, `RetryBot`, `MarkBotRead`,
 `ArchiveBot`, `UnarchiveBot`, `DeleteBot`, `ReadBotExchange`, `SetBotRoutineEnabled`,
 `DeleteBotRoutine`, `CancelBotReminder`, `GetBotProviderInstances` oraz wewnętrzny `WatchBotMirror`.
-Nie udostępnia tworzenia bota na innym komputerze ani administracji connectorów, sekretów czy MCP.
+Tworzenie bota na innym komputerze dodaje etap 7 wspólnej konfiguracji. Administracja connectorów,
+sekretów i MCP nie należy do protokołu botów.
 `GetBotProviderInstances` wymaga odczytu bota i zwraca tylko id, nazwy, typy, kolory i wybory modeli
 instancji jego domu, bez endpointów, env i kluczy. BFF: `GET /api/bots/:botId/providers`.
 
@@ -1433,7 +1434,8 @@ id; `config_aliases` służy tylko scaleniom tożsamości. Wbudowane `native` i 
 Bez aliasu tłumaczenie jest tożsamościowe. Od etapu 2 dotyczy id instancji: pola `provider_profile_id`,
 `profile_id` i `provider_instance` obok pola `provider` (`api/routed-config.ts`, `config-sync/aliases.ts`).
 Wywołujący zamienia swoje id na globalne, dom na własne, a odpowiedź wraca tą samą drogą. Trasowane metody
-nie przenoszą `proxy_id` (id proxy to uuid bez kwalifikacji komputera, odrzucane jak inne obce uuid).
+przenoszą także `proxy_id`: wspólne proxy jest tłumaczone przez globalne id i aliasy, a dom sprawdza
+właściciela. Proxy `worker_scoped` nie jest odwołaniem wspólnym: nie opuszcza domu, nawet jako id w odpowiedzi.
 Odwołania do instancji w ustawieniach konta (`threadDefaults.providerProfileId`, `textGeneration.profileId`)
 rekord trzyma jako globalne id. `CreateThread` z instancją, której dom nie ma, kończy się komunikatem
 „This instance isn't on “Laptop B”. Choose one of its instances.”
@@ -1642,7 +1644,7 @@ i anulują jego lokalne harmonogramy. Lokalny wiersz oraz katalogi zostają do R
 przywrócenie konfiguracji nie uruchamia ponownie anulowanych harmonogramów ani zarchiwizowanych wątków.
 Dodawanie katalogu korzysta również ze znanego origin wspólnego projektu bez lokalnego workspace'u.
 W Settings → Projects nie ma etykiet zakresu. „Workspaces” pokazuje workera i komputer; katalogi innych
-komputerów są tylko do odczytu do etapu 6. Polityka konta i projektu jest wspólna bez `location`, a
+komputerów pozostają przy domu; ustawienia workerów edytuje się zdalnie. Polityka konta i projektu jest wspólna bez `location`, a
 zakres z workerem pozostaje lokalny. Protokół i UI 0050 nie działają po migracji 0075; deklaracje proto
 pozostają zarezerwowane dla zgodności kontraktu.
 
@@ -1666,11 +1668,15 @@ nie kasuje. Numery wersji są lokalne: odbiorca nadaje kolejny numer wersji, kt�
 treść może mieć na dwóch komputerach inny numer. Tożsamością wersji jest hash.
 
 **Lokalne zostaje** to, co opisuje maszynę: nadpisania maszyn (`overrides`), tagi, raporty, drift
-i rozstrzygnięcia (etap 6 przeniesie je do rekordów `worker`) oraz wynik sprawdzenia upstream
+i rozstrzygnięcia oraz wynik sprawdzenia upstream
 (`checkedAt`, kandydat, preview, błąd). Selektor może wskazywać workery innych komputerów po uuid;
 każdy gateway stosuje go tylko do swoich workerów, a zapis z innego komputera zachowuje takie id.
-UI pokazuje je jako „Also assigned to 2 workers on linked computers.”, a nadpisania maszyn opisuje
-„This computer's workers. Linked computers set their own overrides.”
+Tagi są widoczne również w rekordach workerów. „Computers & preview” i „Machine overrides” pokazują
+workery z grupy konfiguracji, pogrupowane według komputera. Podgląd i wyjątki są odczytywane na żądanie
+z domu przez `GetWorkerEnvironment`; nie stanowią replikowanej biblioteki. `SetWorkerEnvironmentOverride`
+zmienia tylko wyjątek wskazanego workera, z rewizją odczytaną z domu. Przypięcie wersji skilla wskazuje
+hash treści zamiast lokalnego numeru wersji; plugin podąża za zatwierdzoną wersją biblioteki.
+Przy niedostępnym domu lista workera pozostaje widoczna, a zmiany są zablokowane z powodem obecności.
 
 **Konto źródła.** `source.credentialAccountId` jest lokalnym id konta connectora. Zapis tłumaczy je na
 globalne id, odbiór na lokalne, a Check upstream ponownie rozwiązuje alias (konto mogło dotrzeć później).
@@ -1721,12 +1727,17 @@ Edycja ustawień workera z innego komputera to wywołanie do domu przez trasę e
 `RenameWorker`, `SetInstanceWorker`, `SetWorkerCliUpdateSettings`,
 `SetEnvironmentTags`, `GetWorktreeSettings` i `UpdateWorktreeSettings` z workerem, `SetConnectorAccess` (część workerów domu),
 `RefreshProviders`, `InstallCli`, `CheckCliUpdates`, `StartProviderLogin` i `ListDirectory`.
+`GetInstanceWorker` odczytuje bez sekretów nadpisania instancji i odziedziczony runtime domu;
+`GetWorkerEnvironment` i `SetWorkerEnvironmentOverride` obsługują podgląd i wyjątki środowiska.
 Dom wykonuje je własnymi handlerami jako właściciel tego gatewaya. Każde id workera i workspace'u musi
 należeć do domu. Żądanie mieszające komputery jest odrzucane. `SetConnectorAccess` z workerami kilku
 komputerów rozdziela gateway wywołujący: część wspólną zapisuje lokalnie, a części workerów wysyła do domów.
 Tak samo `SetInstanceWorkers`: `all_workers` jest polem wspólnym, a workery innych komputerów dostają
 `SetInstanceWorker`. Relay nie przenosi żadnej z tych metod.
 Obie strony zapisują `audit_log` `computer.config.worker.sent` / `.received`.
+Odczyty nie tworzą wpisów audytu. Providers, Agent environment, Worktrees i Connectors używają
+`ListWorkerRecords` do list workerów pogrupowanych według komputera. Offline worktree pokazuje zapisane
+nadpisania bez zgadywania wartości dziedziczonych; pozostałe odczyty szczegółów wymagają połączenia z domem.
 
 Telefony i przeglądarki nie trasują niczego. Metody zarządzania wymagają tokenu serwisowego BFF jak dziś.
 Partner nigdy nie zmienia rekordu wspólnego przez `RemoteRequest`, tylko przez `WatchConfig`. Model nie ma
@@ -1788,7 +1799,8 @@ tożsamości. Etap 3 migruje projekty i usuwa tabele `computer_shared_*`, pętl�
 
 ### Etapy wspólnej konfiguracji
 
-Stos `feat/linked-shared-config-N`. Każdy etap to zamknięty fragment, który przechodzi CI. Bazą etapu 1 jest
+Status: **wszystkie etapy 1–7 zaimplementowane**. Stos `feat/linked-shared-config-N`.
+Każdy etap to zamknięty fragment, który przechodzi CI. Bazą etapu 1 jest
 `dev`. Numery migracji zakładają, że `feat/linked-projects-by-origin` (0072) wejdzie pierwszy. Przy rebase
 nadajemy kolejne numery od najwyższego. Testy: dwa (w etapie 1 także trzy) prawdziwe gatewaye z osobnymi
 bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Bez testów UI.
@@ -1811,7 +1823,7 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
 
    Implementacja etapu 1 używa migracji **0073_config_sync**, po **0072_workspace_origin**.
    `config_sync` nie ogłasza starego `shared_config`; obsługa 0050 dla instancji, modeli i projektów
-   pozostaje do migracji ich rodzajów w następnych etapach. Nieznane rodzaje, pola i wartości zostają
+   została zastąpiona migracjami ich rodzajów w etapach 2–3. Nieznane rodzaje, pola i wartości zostają
    w rekordach i przechodzą dalej; nieznana wersja schematu nie jest materializowana. Usunięcie zachowuje
    sam zegar tombstone oraz nowsze liście przywracające element; przegrane wartości są w lokalnej historii.
 2. **Instancje, modele i proxy.** Materializacja `provider_instances` (bez ścieżek) i `proxies`, sekrety
@@ -1866,7 +1878,7 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    Delete nie odwołuje tokenu: tombstone zachowuje zaszyfrowane poświadczenia do Restore przez 90 dni.
    Disconnect odwołuje dostęp i replikuje usunięcie poświadczeń. Restore nie przywraca indywidualnych grantów.
    UI nie oznacza wspólnego konta; stan lokalny opisuje „This computer”, konflikty i usunięcia mają Restore.
-   `connector_worker_grants` oraz zdalny zapis dostępu zostają do etapu 6; granty botów pozostają w domu.
+   `connector_worker_grants` oraz zdalny zapis dostępu obsługuje etap 6; granty botów pozostają w domu.
 6. **Rekordy workerów i edycja zdalna.** Rekord `worker`, rozszerzony `SERVED`, rozdzielanie `SetConnectorAccess`,
    audyt, listy workerów wszystkich komputerów w ustawieniach (**0078_config_workers**). Testy: zmiana
    nadpisania instancji workera B z A zapisana tylko w bazie B; częstotliwość CLI workera B; niedostępny B
@@ -1890,15 +1902,23 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    wysyła `SetInstanceWorker` z różnicą względem rekordu. `SetConnectorAccess` od partnera zmienia w domu
    wyłącznie granty jego workerów (`workerAccess`). `SetEnvironmentTags` od partnera pomija rewizję
    biblioteki wywołującego: tagi jednego workera nie kolidują z resztą biblioteki. Każdy dom grupy, którego
-   dotyczy zmiana listy, musi być osiągalny, zanim cokolwiek zostanie zapisane. Nadpisanie proxy workera
-   (`proxy_id`) z innego komputera nie jest tłumaczone i kończy się odmową. Worker komputera z grupy,
+   dotyczy zmiana listy, musi być osiągalny, zanim cokolwiek zostanie zapisane. Nadpisanie wspólnego proxy workera
+   (`proxy_id`) jest tłumaczone przez aliasy w etapie 7. Worker komputera z grupy,
    ale bez bezpośredniego łącza, jest tylko do odczytu („Change this worker's settings on “Laptop B”.”).
-   UI etapu 6: Settings → Workers i strona workera. Pozostałe listy z [UI](#ui-wspólnej-konfiguracji)
-   (Providers, Agent environment, Worktrees, Connectors) mają API, a pokazanie w nich workerów innych
-   komputerów należy do kolejnego etapu UI. Testy: `tests/integration/config-sync-workers.test.ts`.
+   UI etapu 6: Settings → Workers i strona workera. Listy z [UI](#ui-wspólnej-konfiguracji)
+   (Providers, Agent environment, Worktrees, Connectors) są uzupełnione w etapie 7.
+   Testy: `tests/integration/config-sync-workers.test.ts`.
 7. **Rzeczy z domem tworzone z dowolnego komputera.** `CreateBot` i `CreateSchedule` trasowane według workera
    z pickera; edycja harmonogramów partnera. Bez migracji. Testy: bot utworzony z A na workerze B mieszka
    w bazie B; harmonogram wątku B edytowany z A; odmowa przy niedostępnym domu.
+   Implementacja etapu 7: `CreateBot` wskazuje konkretny worker, `CreateSchedule` wątek albo konkretny
+   workspace nowego wątku; ten komputer jest domem. Zapis wykonuje własny handler domu po sprawdzeniu
+   capability zdalnych wątków i właściciela. Share configuration nie jest potrzebne. Edycja, archiwizacja
+   i usuwanie bota oraz edycja i status harmonogramu wracają do domu; listy harmonogramów są agregowane,
+   a aktualizacje idą przez overview. Utworzenie jest audytowane po obu stronach bez treści ani sekretów.
+   Picker uruchamiania obejmuje wszystkie połączone komputery; pickery ustawień tylko grupę konfiguracji.
+   Nowe odczyty i zapis wyjątku środowiska są addytywnymi RPC UI; protokół łącza i schemat bazy bez zmian.
+   Testy: `tests/integration/config-sync-execution.test.ts`, z rzeczywistym workerem i testowym harness.
 
 ### Weryfikacja wspólnej konfiguracji
 

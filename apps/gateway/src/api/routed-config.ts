@@ -7,6 +7,7 @@ import { instanceIds, mapInstanceIds, type InstanceIds } from "../config-sync/al
 import type { ComputerStore } from "../computers/store.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { mapProjectIds, projectIds, type ProjectIds } from "../config-sync/project-aliases.ts";
+import { mapProxyIds, proxyIds } from "../config-sync/proxy-aliases.ts";
 
 /**
  * Instance ids across a link that carries configuration: this computer's ids become global on the way out and
@@ -15,6 +16,7 @@ import { mapProjectIds, projectIds, type ProjectIds } from "../config-sync/proje
 export class ConfigIds {
   #ids: Promise<InstanceIds> | undefined;
   #projects: Promise<ProjectIds> | undefined;
+  #proxies: Promise<Effect.Success<ReturnType<typeof proxyIds>>> | undefined;
 
   private constructor(private readonly store: ComputerStore | undefined) {}
 
@@ -36,7 +38,7 @@ export class ConfigIds {
     );
   }
 
-  async map(desc: DescMessage, message: Message, direction: keyof InstanceIds) {
+  async map(desc: DescMessage, message: Message, direction: keyof InstanceIds, request = false) {
     const store = this.store;
 
     if (!store) return;
@@ -51,6 +53,24 @@ export class ConfigIds {
 
     const projects = await this.projects();
     mapProjectIds(desc, message, (id) => (projects.known.has(id.split("~")[0]!) ? projects[direction](id) : id));
+    mapProxyIds(desc, message, await this.proxies(), direction, request);
+  }
+
+  async proxies() {
+    const store = this.store;
+
+    if (!store)
+      return {
+        local: new Set<string>(),
+        known: new Set<string>(),
+        toLocal: (id: string) => id,
+        toGlobal: (id: string) => id,
+      };
+    this.#proxies ??= store.runtime.runPromise(
+      Effect.flatMap(SqlClient.SqlClient, (sql) => proxyIds(sql, store.owner)),
+    );
+
+    return this.#proxies;
   }
 
   async projects(): Promise<ProjectIds> {
@@ -85,10 +105,10 @@ export async function localProjectIds(core: GatewayCore) {
 export async function refuseMissingInstance(core: GatewayCore, harness: string, id: string) {
   if (!id || id === "native" || !core.computers) return;
 
-  const found = await core.computers.store.query("SELECT 1 FROM provider_instances WHERE harness=$1 AND id=$2", [
-    harness,
-    id,
-  ]);
+  const found = await core.computers.store.query(
+    "SELECT 1 FROM provider_instances WHERE harness=$1 AND id=$2 AND (created_by=$3::uuid OR built_in)",
+    [harness, id, core.computers.store.owner],
+  );
 
   if (!found.length)
     throw new ConnectError(

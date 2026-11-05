@@ -14,6 +14,12 @@ przypadkach pierwszy online z włączoną instancją. Po wyborze przypięcie jes
 Wyłączona instancja daje czytelny błąd; worker offline nie unieważnia przypięcia
 i nie powoduje fallbacku do API. UI pokazuje **Waiting for ‹worker›**.
 
+Przy tworzeniu picker obejmuje również workery wszystkich połączonych komputerów. Wybrany komputer
+staje się domem bota: gateway trasuje utworzenie do niego, a rozmowa i wykonanie pozostają tam.
+Share configuration nie jest wymagane. Niedostępny dom daje od razu błąd, bez kolejki utworzeń.
+Późniejsza edycja, archiwizacja i usuwanie z innego komputera wracają do domu. Zmiana Runs on
+istniejącego bota wybiera worker w jego domu; zmianę domu obsługuje przenoszenie bota.
+
 Nie robimy automatycznego failoveru. Ta sama globalna instancja na dwóch workerach
 może używać innych kont, wersji CLI i proxy. Ręczna zmiana Runs on dotyczy następnej
 tury, odtwarza kontekst z gatewaya i nie przenosi plików ani danych logowania.

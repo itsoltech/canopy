@@ -9,6 +9,7 @@ export interface BotProviderInstance {
   readonly provider: ProviderKey;
   readonly models: readonly ModelOption[];
   readonly modelsByWorker?: ReadonlyMap<string, readonly ModelOption[]>;
+  readonly automaticModels?: readonly ModelOption[];
 }
 
 export interface BotAppearanceDraft extends BotAppearance {
