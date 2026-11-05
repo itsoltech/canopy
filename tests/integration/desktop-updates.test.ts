@@ -132,6 +132,7 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
       notify: () => {
         notifications++;
       },
+      prepareRestart: async () => status,
       restart: () => {
         restarts++;
         control.stop();
@@ -172,6 +173,9 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
         idle = true;
       },
       downloaded: () => releaseDownload?.(),
+      stage: (version: string) => {
+        status = { ...status, phase: "downloaded", updateVersion: version };
+      },
       stop: () => control.stop(),
       corruptHistory: () => {
         const path = join(directory, `update.json.${createHash("sha256").update(client.deviceId).digest("hex")}`);
@@ -242,6 +246,20 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
       ).length,
     ).toBe(1);
   }, 15_000);
+
+  test("a newer ready build while waiting for idle becomes the persisted restart target", async () => {
+    const app = await fixture();
+    await manage(app.workerId);
+    await until(async () => app.counts().checks === 1);
+    app.downloaded();
+    await until(async () => (await state(app.workerId))?.phase === "waiting_idle");
+    app.stage("1.2.0-beta.1");
+    app.idle();
+    await until(async () => app.counts().restarts === 1);
+    await app.reconnect("1.2.0-beta.1");
+    await until(async () => (await state(app.workerId))?.phase === "succeeded");
+    expect((await state(app.workerId))?.targetVersion).toBe("1.2.0-beta.1");
+  }, 20_000);
 
   test("unsigned and older releases fail without a restart or changing the desktop channel", async () => {
     for (const result of ["unsigned", "older"] as const) {

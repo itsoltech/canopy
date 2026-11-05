@@ -38,6 +38,9 @@ export interface DesktopUpdateStatus {
   message: string;
   progress?: number | undefined;
   updateVersion?: string | undefined;
+  /** Exact cached version available for explicit installation, including during a newer download. */
+  stagedVersion?: string | undefined;
+  error?: string | undefined;
   changingChannel: boolean;
   releases?: DesktopReleaseNote[] | undefined;
   publishing?: string | undefined;

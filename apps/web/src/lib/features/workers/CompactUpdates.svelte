@@ -63,7 +63,7 @@
     await Promise.all([
       snapshot?.admin ? updates.manage({ action: "check" }) : updates.reload(),
       cli.check(),
-      app.status && app.status.phase !== "downloaded" ? app.run() : Promise.resolve(),
+      app.status ? app.check() : Promise.resolve(),
     ]);
     await updates.reload();
   }

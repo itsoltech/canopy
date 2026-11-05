@@ -37,6 +37,16 @@ Jeśli nowsza wersja jest już w GitHub Releases, ale nie ma paczki platformy,
 updater wyjaśnia, że publikacja może jeszcze trwać lub wymagać ponowienia;
 nie twierdzi, że aplikacja jest aktualna.
 
+Gotowa paczka własnej aplikacji nie zatrzymuje sprawdzania: **Check now** w popoverze,
+**Check for updates** w Settings → App updates oraz timer nadal szukają nowszych wydań.
+Timer zachowuje wybraną częstotliwość; Never wyłącza tylko automatyczne sprawdzanie
+i pobieranie. Ten sam lub starszy cel z feedu nie zastępuje gotowej paczki.
+Podczas pobierania nowszego buildu wiersz pokazuje jego wersję i procent zamiast Ready;
+kolumna akcji pozostaje na miejscu. Restart pozostaje dostępny i czeka na wynik pobierania.
+Po sukcesie Ready wskazuje dokładnie nową paczkę, a po błędzie wraca poprzednia wersja
+z krótkim „Update failed. Check again to retry.”. Restart instaluje wtedy zachowaną paczkę.
+Szczegóły cache i przekazania ZIP do Squirrel: [desktop.md](desktop.md#automatyczne-aktualizacje-desktopu).
+
 Ten sam popover zawiera centrum gatewaya, workerów binarnych, CLI i sparowanych
 zdalnych desktopów. Wersja serwerowa UI pokazuje centrum bez własnej aplikacji.
 Odnośniki prowadzą do Settings → Workers oraz App updates. Gateway/workery i
@@ -130,6 +140,8 @@ pracy przez własnego workera i czeka na zakończenie tur, generacji i zadań w 
 Workers pokazuje „Will restart after the current turns”; **Restart now…** otwiera
 potwierdzenie przerwania pracy. Force wymaga id tego samego oczekującego żądania.
 Restart instaluje cały bundle, uruchamia aplikację i odtwarza połączenie.
+Jeżeli podczas oczekiwania na idle pobrano nowszą paczkę, desktop przed restartem
+kończy bieżące sprawdzanie/pobieranie, blokuje następne i raportuje faktyczny cel instalacji.
 Poświadczenie workera pozostaje osobne; worker nigdy nie wymienia sidecarów.
 
 Overview przekazuje wersję dostępną, procent pobierania, waiting/restarting oraz

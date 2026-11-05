@@ -6,12 +6,15 @@ import { load } from "js-yaml";
 import { tempDir } from "@canopy/testing";
 import { newestRelease, releaseNotes, type DesktopRelease } from "../src/update-releases.ts";
 import { mergeDesktopUpdates } from "../scripts/merge-update-metadata.ts";
-import { AppUpdater, type DownloadUpdateOptions } from "electron-updater/out/AppUpdater.js";
+import { AppUpdater, type DownloadUpdateOptions, type DownloadExecutorTask } from "electron-updater/out/AppUpdater.js";
 import { NodeHttpExecutor } from "builder-util/out/nodeHttpExecutor.js";
 import { UpdateController } from "../src/update-controller.ts";
 import { UpdateSettings } from "../src/update-settings.ts";
 import type { DesktopChannel } from "../src/identity.ts";
 import { channelFeed } from "../src/update-releases.ts";
+import { StagedDownloads } from "../src/staged-downloads.ts";
+import { UpdateCheckTimer } from "@canopy/domain/update-checks";
+import { CancellationError } from "builder-util-runtime";
 
 const { machOFiles } = require("../scripts/macho.cjs") as { machOFiles: (directory: string) => string[] };
 
@@ -87,7 +90,11 @@ test("mac update metadata preserves both runner architectures and rejects mismat
 /** Real electron-updater version checks and GenericProvider HTTP; only binary installation is stubbed. */
 class FeedUpdater extends AppUpdater {
   readonly downloads: { version: string; downgrade: boolean }[] = [];
+  readonly installed: string[] = [];
+  private readonly staged = new StagedDownloads();
+  beforeDownload: () => Promise<void> = async () => {};
   failDownload = false;
+  failAfterDownloaded = false;
   constructor(version: string, directory: string) {
     super(null, {
       version,
@@ -103,19 +110,49 @@ class FeedUpdater extends AppUpdater {
     });
     Object.assign(this, { httpExecutor: new NodeHttpExecutor() });
     this.logger = null;
+    writeFileSync(join(directory, "unused.yml"), JSON.stringify({ updaterCacheDirName: "cache" }));
+  }
+  protected override executeDownload(task: DownloadExecutorTask) {
+    return this.staged.run(
+      this.downloadedUpdateHelper,
+      (helper) => {
+        this.downloadedUpdateHelper = helper;
+      },
+      () => super.executeDownload(task),
+    );
   }
   protected async doDownloadUpdate(options: DownloadUpdateOptions) {
     const info = options.updateInfoAndProvider.info;
+    const file = options.updateInfoAndProvider.provider.resolveFiles(info)[0];
+
+    if (!file) throw new Error("Missing fixture file");
     this.downloads.push({ version: info.version, downgrade: this.allowDowngrade });
 
-    if (this.failDownload) throw new Error("Fixture download failed");
-    this.emit("download-progress", { percent: 50, total: 100, transferred: 50, delta: 50, bytesPerSecond: 50 });
-    this.dispatchUpdateDownloaded({ ...info, downloadedFile: "fixture.AppImage" });
+    return this.executeDownload({
+      fileExtension: "AppImage",
+      fileInfo: file,
+      downloadUpdateOptions: options,
+      task: async (destination) => {
+        await this.beforeDownload();
 
-    return ["fixture.AppImage"];
+        if (options.cancellationToken.cancelled) throw new CancellationError();
+        writeFileSync(destination, `fixture ${info.version}`);
+        this.emit("download-progress", { percent: 50, total: 100, transferred: 50, delta: 50, bytesPerSecond: 50 });
+
+        if (this.failDownload) throw new Error("Fixture download failed");
+      },
+      done: async (event) => {
+        this.dispatchUpdateDownloaded(event);
+
+        if (this.failAfterDownloaded) throw new Error("Fixture finalization failed");
+      },
+    });
   }
   quitAndInstall() {
-    throw new Error("Fixtures must never install an app");
+    const file = this.downloadedUpdateHelper?.file;
+
+    if (!file) throw new Error("No staged fixture");
+    this.installed.push(readFileSync(file, "utf8"));
   }
 }
 
@@ -123,12 +160,8 @@ async function localFeeds() {
   const directory = tempDir("canopy-updater-http-");
   const releases: DesktopRelease[] = [];
 
-  for (const [channel, version] of [
-    ["stable", "0.4.0"],
-    ["beta", "0.5.0-beta.1"],
-    ["nightly", "0.6.0-nightly.1"],
-  ] as const) {
-    const source = join(directory, `${channel}-source`, "desktop-linux-x64");
+  async function publish(channel: DesktopChannel, version: string) {
+    const source = join(directory, `${version}-source`, "desktop-linux-x64");
     mkdirSync(source, { recursive: true });
     const name = `Canopy-${version}-linux-x64.AppImage`;
     const contents = Buffer.from(`fixture ${version}`);
@@ -139,7 +172,7 @@ async function localFeeds() {
       JSON.stringify({ version, files: [{ url: name, sha512, size: contents.length }], path: name, sha512 }),
     );
     const destination = join(directory, `v${version}`);
-    await mergeDesktopUpdates(join(directory, `${channel}-source`), destination, channel, version);
+    await mergeDesktopUpdates(join(directory, `${version}-source`), destination, channel, version);
     releases.push({
       tag_name: `v${version}`,
       draft: false,
@@ -155,6 +188,10 @@ async function localFeeds() {
       ],
     });
   }
+
+  await publish("stable", "0.4.0");
+  await publish("beta", "0.5.0-beta.1");
+  await publish("nightly", "0.6.0-nightly.1");
 
   const requests: string[] = [];
 
@@ -209,8 +246,188 @@ async function localFeeds() {
     return { controller, updater, settings, phases };
   }
 
-  return { server, requests, fixture };
+  return { server, requests, fixture, publish };
 }
+
+test.skipIf(process.platform !== "linux")(
+  "a ready update can be replaced, unchanged feeds keep it, and restart installs the latest staged bytes",
+  async () => {
+    const { server, fixture, publish } = await localFeeds();
+
+    try {
+      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", async () => false);
+      await controller.check();
+      expect(controller.status()).toMatchObject({
+        phase: "downloaded",
+        updateVersion: "0.6.0-nightly.1",
+        stagedVersion: "0.6.0-nightly.1",
+      });
+      await controller.check();
+      expect(updater.downloads).toHaveLength(1);
+      expect(controller.status().phase).toBe("downloaded");
+      await publish("nightly", "0.6.0-nightly.2");
+      const started = Promise.withResolvers<void>();
+      const finish = Promise.withResolvers<void>();
+      updater.beforeDownload = () => {
+        started.resolve();
+
+        return finish.promise;
+      };
+
+      const checking = controller.check();
+      await started.promise;
+      expect(controller.status()).toMatchObject({
+        phase: "downloading",
+        updateVersion: "0.6.0-nightly.2",
+        stagedVersion: "0.6.0-nightly.1",
+      });
+      let restarting = false;
+
+      const restart = controller.prepareInstall().then((ready) => {
+        if (ready) {
+          updater.quitAndInstall();
+          restarting = true;
+        }
+      });
+
+      await Promise.resolve();
+      expect(restarting).toBe(false);
+      finish.resolve();
+      await checking;
+      await restart;
+      expect(controller.status()).toMatchObject({
+        phase: "downloaded",
+        updateVersion: "0.6.0-nightly.2",
+        stagedVersion: "0.6.0-nightly.2",
+      });
+      expect(updater.installed).toEqual(["fixture 0.6.0-nightly.2"]);
+      await controller.checkAutomatically();
+      expect(updater.downloads).toHaveLength(2);
+    } finally {
+      await server.stop(true);
+    }
+  },
+);
+
+test.skipIf(process.platform !== "linux")(
+  "a failed newer download restores the old file and restart remains available",
+  async () => {
+    const { server, fixture, publish } = await localFeeds();
+
+    try {
+      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", async () => false);
+      await controller.check();
+      await publish("nightly", "0.6.0-nightly.2");
+      updater.failDownload = true;
+      const failed = await controller.checkRemote();
+      expect(failed).toMatchObject({
+        phase: "downloaded",
+        updateVersion: "0.6.0-nightly.1",
+        stagedVersion: "0.6.0-nightly.1",
+        error: "Update failed. Check again to retry.",
+      });
+      expect(await controller.prepareInstall()).toBe(true);
+      updater.quitAndInstall();
+      expect(updater.installed).toEqual(["fixture 0.6.0-nightly.1"]);
+    } finally {
+      await server.stop(true);
+    }
+  },
+);
+
+test.skipIf(process.platform !== "linux")(
+  "automatic checks replace ready updates and Never cancels a replacement without losing the old one",
+  async () => {
+    const { server, fixture, publish } = await localFeeds();
+
+    try {
+      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", async () => false);
+      await controller.checkAutomatically();
+      await publish("nightly", "0.6.0-nightly.2");
+      await controller.checkAutomatically();
+      expect(controller.status().stagedVersion).toBe("0.6.0-nightly.2");
+      await publish("nightly", "0.6.0-nightly.3");
+      const started = Promise.withResolvers<void>();
+      const finish = Promise.withResolvers<void>();
+      updater.beforeDownload = () => {
+        started.resolve();
+
+        return finish.promise;
+      };
+
+      const checking = controller.checkAutomatically();
+      await started.promise;
+      controller.setAutomaticUpdates(false);
+      finish.resolve();
+      await checking;
+      expect(controller.status()).toMatchObject({ phase: "downloaded", stagedVersion: "0.6.0-nightly.2" });
+      expect(await controller.prepareInstall()).toBe(true);
+      updater.quitAndInstall();
+      expect(updater.installed).toEqual(["fixture 0.6.0-nightly.2"]);
+    } finally {
+      await server.stop(true);
+    }
+  },
+);
+
+test.skipIf(process.platform !== "linux")(
+  "the timer checks again after downloaded and finalization failures never advertise unstaged bytes",
+  async () => {
+    const { server, fixture, publish } = await localFeeds();
+
+    const timer = new UpdateCheckTimer({
+      now: () => now,
+      schedule: (run, wait) => {
+        pending = run;
+        delay = wait;
+
+        return () => {
+          pending = undefined;
+        };
+      },
+    });
+
+    let now = 1;
+    let pending: (() => void) | undefined;
+    let delay = 0;
+
+    try {
+      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", async () => false);
+      await controller.check();
+      await publish("nightly", "0.6.0-nightly.2");
+      const checked = Promise.withResolvers<void>();
+      timer.start(60, now, async () => {
+        await controller.checkAutomatically();
+        checked.resolve();
+      });
+      now += delay;
+      pending?.();
+      await checked.promise;
+      await Promise.resolve();
+      expect(controller.status().stagedVersion).toBe("0.6.0-nightly.2");
+      expect(delay).toBe(60 * 60_000);
+      await publish("nightly", "0.6.0-nightly.3");
+      updater.failAfterDownloaded = true;
+      const readyVersions: string[] = [];
+      updater.on("update-downloaded", () => {
+        if (controller.status().phase === "downloaded") readyVersions.push(controller.status().updateVersion ?? "");
+      });
+      await controller.check();
+      expect(readyVersions).toEqual([]);
+      expect(controller.status()).toMatchObject({
+        phase: "downloaded",
+        updateVersion: "0.6.0-nightly.2",
+        error: "Update failed. Check again to retry.",
+      });
+      expect(await controller.prepareInstall()).toBe(true);
+      updater.quitAndInstall();
+      expect(updater.installed).toEqual(["fixture 0.6.0-nightly.2"]);
+    } finally {
+      timer.stop();
+      await server.stop(true);
+    }
+  },
+);
 
 test.skipIf(process.platform !== "linux")(
   "real generic feeds select the chosen channel without prereleases leaking to stable",

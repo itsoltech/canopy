@@ -5,6 +5,7 @@ export class DesktopUpdatesState {
   status = $state<DesktopUpdateStatus>();
   pending = $state(false);
   error = $state("");
+  restarting = $state(false);
 
   connect() {
     const bridge = window.canopyDesktop;
@@ -31,6 +32,22 @@ export class DesktopUpdatesState {
   }
 
   async run() {
+    if (!this.status?.stagedVersion && this.status?.phase !== "downloaded") return this.check();
+    const bridge = window.canopyDesktop;
+
+    if (!bridge || this.restarting) return;
+    this.restarting = true;
+
+    try {
+      await bridge.restartToUpdate();
+    } catch {
+      this.error = "The app update failed. Check again to retry.";
+    } finally {
+      this.restarting = false;
+    }
+  }
+
+  async check() {
     const bridge = window.canopyDesktop;
 
     if (!bridge || this.pending) return;
@@ -38,8 +55,7 @@ export class DesktopUpdatesState {
     this.error = "";
 
     try {
-      if (this.status?.phase === "downloaded") await bridge.restartToUpdate();
-      else this.status = await bridge.checkForUpdates();
+      this.status = await bridge.checkForUpdates();
     } catch {
       this.error = "The app update failed. Check again to retry.";
     } finally {
