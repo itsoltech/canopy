@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
+import { cliUpdateActionable } from "@canopy/domain/release/update-actions";
 import { compareVersions } from "@canopy/updater";
 
 export const newerVersion = (target: string, current: string): boolean => {
@@ -14,7 +15,7 @@ export const newerVersion = (target: string, current: string): boolean => {
 export function updatePlan(snapshot: ui.UpdatesSnapshot): ui.UpdateRun {
   const steps: ui.UpdateStep[] = [];
 
-  if (snapshot.gatewayInstallKind !== "desktop" && newerVersion(snapshot.availableVersion, snapshot.gatewayVersion))
+  if (snapshot.gatewayInstallKind === "binary" && newerVersion(snapshot.availableVersion, snapshot.gatewayVersion))
     steps.push(
       create(ui.UpdateStepSchema, {
         kind: "gateway",
@@ -45,7 +46,7 @@ export function updatePlan(snapshot: ui.UpdatesSnapshot): ui.UpdateRun {
 
     for (const cli of worker.cliTools) {
       // Managed installations expose instructions and remain individual decisions.
-      if (!cli.tool || cli.action !== "update" || cli.blockedReason.includes("owner")) continue;
+      if (!cli.tool || !cliUpdateActionable(cli)) continue;
       steps.push(
         create(ui.UpdateStepSchema, {
           kind: "cli",

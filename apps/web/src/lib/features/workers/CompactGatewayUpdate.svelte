@@ -19,16 +19,18 @@
     icon="server"
     current={snapshot.gatewayVersion}
     target={snapshot.gatewayUpdateAvailable ? snapshot.availableVersion : ""}
-    metadata={`${snapshot.channel}${external ? " · Managed externally" : ""}`}
+    metadata={snapshot.channel}
     status={snapshot.checking
       ? "Checking"
       : busy || snapshot.gatewayState === "failed"
         ? updateStateLabel(snapshot.gatewayState, true)
-        : current
-          ? "Up to date"
-          : snapshot.gatewayUpdateAvailable
-            ? "Available"
-            : "Not checked"}
+        : external && snapshot.gatewayUpdateAvailable
+          ? "Managed externally"
+          : current
+            ? "Up to date"
+            : snapshot.gatewayUpdateAvailable
+              ? "Available"
+              : "Not checked"}
     tone={snapshot.gatewayState === "failed" ? "rose" : busy ? "amber" : current ? "emerald" : "neutral"}
     error={snapshot.gatewayState === "failed" ? reason : ""}
     {busy}
@@ -43,7 +45,12 @@
           disabled={!!updates.pending || snapshot.run?.state === "running" || !snapshot.admin}
           onclick={() => void updates.manage({ action: "gateway" })}
         />
-      {:else if reason}<IconButton size="sm" icon="information-circle" label={reason} />{/if}
+      {:else if reason}<IconButton
+          size="sm"
+          icon="information-circle"
+          label={reason}
+          tooltipOptions={{ touch: "tap" }}
+        />{/if}
     {/snippet}
   </UpdateItem>
 {/if}

@@ -27,9 +27,13 @@
   );
 
   const failed = $derived(worker.state === "failed" || desktop?.phase === "failed");
+  const external = $derived(worker.installKind !== "binary" && !desktop);
 
   const reason = $derived(
-    desktop?.disabledReason || desktop?.reason || worker.reason || (!worker.connected ? "Update channel offline" : ""),
+    desktop?.disabledReason ||
+      desktop?.reason ||
+      worker.reason.replace(/^Managed externally\.\s*/, "") ||
+      (!worker.connected ? "Update channel offline" : ""),
   );
 
   const actionable = $derived(
@@ -46,22 +50,24 @@
   );
 
   const label = $derived(
-    current
-      ? "Up to date"
-      : desktop
-        ? ({
-            downloading: `${Math.round(desktop.progress)}%`,
-            waiting_idle: "Waiting for idle",
-            restarting: "Restarting",
-            failed: "Failed",
-            checking: "Checking",
-            queued: "Queued",
-          }[desktop.phase] ?? (actionable ? "Available" : "Unavailable"))
-        : busy || failed || ["managed_externally", "ahead"].includes(worker.state)
-          ? updateStateLabel(worker.state, worker.compatibility === "compatible")
-          : actionable
-            ? "Available"
-            : "Unavailable",
+    external && !current
+      ? "Managed externally"
+      : current
+        ? "Up to date"
+        : desktop
+          ? ({
+              downloading: `${Math.round(desktop.progress)}%`,
+              waiting_idle: "Waiting for idle",
+              restarting: "Restarting",
+              failed: "Failed",
+              checking: "Checking",
+              queued: "Queued",
+            }[desktop.phase] ?? (actionable ? "Available" : "Unavailable"))
+          : busy || failed || ["managed_externally", "ahead"].includes(worker.state)
+            ? updateStateLabel(worker.state, worker.compatibility === "compatible")
+            : actionable
+              ? "Available"
+              : "Unavailable",
   );
 </script>
 
@@ -98,7 +104,12 @@
         disabled={!!updates.pending || snapshot?.run?.state === "running"}
         onclick={() => (confirming = true)}
       />
-    {:else if reason}<IconButton icon="information-circle" size="sm" label={reason} />{/if}
+    {:else if reason}<IconButton
+        icon="information-circle"
+        size="sm"
+        label={reason}
+        tooltipOptions={{ touch: "tap" }}
+      />{/if}
   {/snippet}
 </UpdateItem>
 <Dialog bind:open={confirming} title="Restart Canopy app now?">

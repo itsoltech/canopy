@@ -57,8 +57,16 @@ zgodny protokół workera. Każda akcja ponownie sprawdza dotychczasowe uprawnie
 Błąd lub utrata zgodności zatrzymuje kolejne kroki z przyczyną; Retry update all
 tworzy aktualny plan. Timeout kroku to 35 minut. Nie odtwarzamy w ciemno przerwanej
 instalacji CLI; bez raportu po 60 sekundach należy sprawdzić worker i ponowić akcję.
-Kolejka nie przyznaje force ani downgrade. Gateway Docker/source zatrzymuje ją
-na instrukcji ręcznej aktualizacji; po podmianie obrazu należy ponowić Update all.
+Kolejka nie przyznaje force ani downgrade. Obejmuje tylko gateway binarny,
+workery binarne, natywne CLI i obsługiwane aplikacje Canopy. Gateway Docker/source,
+zewnętrzne workery oraz CLI instalowane przez menedżery pakietów (także npm, Bun,
+Volta i pnpm) są pomijane. Worker przechodzi na wersję działającego gatewaya,
+nawet gdy dla zewnętrznego gatewaya istnieje nowsze wydanie.
+Pusty plan jest odrzucany bez zapisu przebiegu. UI ukrywa wtedy Update all;
+zewnętrzne aktualizacje zachowują wersje i instrukcję pod ikoną informacji,
+ze stanem „Managed externally” i podsumowaniem „Updates available outside Canopy”.
+Stary błąd spowodowany wyłącznie zewnętrznym gatewayem nie jest pokazywany,
+gdy bieżący snapshot nie zawiera aktualizacji obsługiwanych przez Canopy.
 
 Publiczne notatki serwerowego centrum pobiera BFF z ustalonej listy repozytoriów,
 bez tokenów, z cache 60 sekund. Błąd pobierania ma przycisk Retry i nie blokuje

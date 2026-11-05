@@ -29,7 +29,7 @@ export function workersHandlers(
 > {
   const snapshot = async () => {
     const value = await updatesSnapshot(core);
-    value.run = await core.updateCenter.status();
+    value.run = await core.updateCenter.status(value);
 
     return value;
   };

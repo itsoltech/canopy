@@ -10,7 +10,10 @@ wersję, sposób instalacji i dostępną aktualizację, a instalacja albo aktual
 właściciela (jeden worker albo „Update all” dla dostawcy). Nic nie instaluje się samo.
 
 Centrum aktualizacji w stopce sidebara obejmuje te same akcje i logi instalatora.
-Jego „Update all” aktualizuje już zainstalowane CLI po gatewayu i binarnych workerach;
+Jego „Update all” aktualizuje już zainstalowane natywne CLI po gatewayu i binarnych workerach.
+Pomija instalacje zarządzane przez npm, Bun, Volta, pnpm i pozostałe menedżery;
+popover pokazuje „Managed externally” oraz polecenie aktualizacji pod ikoną informacji.
+Indywidualne przepisy menedżerów opisane poniżej pozostają dostępne w szczegółach workera;
 brakujące CLI mają osobne „Install”. Każdy krok ponownie sprawdza właściciela,
 zgodność workera i blokady instalatora. Błąd zatrzymuje dalszą kolejkę. Historia
 Claude Code i Codexa pochodzi z publicznych GitHub Releases; Grok nie ma znanego

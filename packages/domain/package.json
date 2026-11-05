@@ -19,6 +19,7 @@
     "./environment-selectors": "./src/environment-selectors.ts",
     "./background-tasks": "./src/background-tasks/index.ts",
     "./release/protocol": "./src/release/protocol.ts",
+    "./release/update-actions": "./src/release/update-actions.ts",
     "./release/version": "./src/release/version.ts"
   },
   "scripts": {

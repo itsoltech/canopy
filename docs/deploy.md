@@ -54,6 +54,8 @@ w `~/.local/share/canopy/bin`, config `0600` w `~/.config/canopy/worker.json`.
 `--no-service` pozwala uruchomić go bez systemd/launchd; istniejący config zostaje zachowany
 przy reinstalacji, a jego zastąpienie wymaga `--force` i nowego tokenu. Kontenery nadal
 aktualizuje się przez zmianę obrazu i odtworzenie.
+„Update all” pomija gateway i workery zarządzane przez obraz. Ich dostępne wersje
+pozostają widoczne ze stanem „Managed externally” i instrukcją ręcznej aktualizacji.
 
 SSH inicjuje **gateway**, nie przeglądarka. Ogranicz jego ruch wychodzący do hostów,
 którymi użytkownik może zarządzać. Klucz prywatny Ed25519 per właściciel jest szyfrowany

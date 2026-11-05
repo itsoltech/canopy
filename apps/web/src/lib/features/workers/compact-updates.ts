@@ -1,5 +1,6 @@
 import type { ui } from "@canopy/contracts";
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
+import { cliUpdateActionable } from "@canopy/domain/release/update-actions";
 import { updateBusy } from "./updates.svelte.ts";
 
 export function workerCurrent(worker: ui.WorkerUpdate, gatewayVersion: string): boolean {
@@ -40,13 +41,32 @@ export const gatewayCurrent = (snapshot: ui.UpdatesSnapshot): boolean =>
   snapshot.gatewayState !== "failed";
 
 export const updatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>
-  snapshot.gatewayUpdateAvailable ||
+  (snapshot.gatewayInstallKind === "binary" && snapshot.gatewayUpdateAvailable) ||
   snapshot.workers.some((worker) =>
     worker.desktop
-      ? !!worker.desktop.availableVersion && worker.desktop.availableVersion !== worker.desktop.version
+      ? worker.desktop.connected &&
+        !worker.desktop.disabledReason &&
+        !!worker.desktop.availableVersion &&
+        worker.desktop.availableVersion !== worker.desktop.version
       : worker.installKind === "binary" &&
         !!worker.version &&
         worker.version !== snapshot.gatewayVersion &&
         worker.state !== "ahead",
   ) ||
-  snapshot.cliWorkers.some((worker) => worker.cliTools.some((item) => !!item.action));
+  snapshot.cliWorkers.some(
+    (worker) => snapshot.workers.some((w) => w.workerId === worker.id) && worker.cliTools.some(cliUpdateActionable),
+  );
+
+export const externalUpdatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>
+  (snapshot.gatewayInstallKind !== "binary" && snapshot.gatewayUpdateAvailable) ||
+  snapshot.workers.some(
+    (worker) =>
+      worker.installKind !== "binary" &&
+      !worker.desktop &&
+      !!worker.version &&
+      worker.version !== snapshot.gatewayVersion &&
+      worker.state !== "ahead",
+  ) ||
+  snapshot.cliWorkers.some((worker) =>
+    worker.cliTools.some((item) => item.updateAvailable && !cliUpdateActionable(item)),
+  );

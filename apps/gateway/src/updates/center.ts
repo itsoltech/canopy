@@ -42,6 +42,12 @@ export class UpdateCenter {
       const snapshot = await this.options.snapshot();
       const run = updatePlan(snapshot);
 
+      if (!run.steps.length)
+        throw new ConnectError(
+          "No updates Canopy can install. Update externally managed items with their installer.",
+          Code.FailedPrecondition,
+        );
+
       if (run.steps.some((s) => ["gateway", "worker"].includes(s.kind)) && !snapshot.admin)
         throw new ConnectError(
           "An administrator must update the gateway and binary workers first",
@@ -79,9 +85,10 @@ export class UpdateCenter {
           throw new Error("Timed out waiting for completion. Retry Update all after checking this item.");
       } catch (cause) {
         step.state = cause instanceof ConnectError && cause.code === Code.FailedPrecondition ? "blocked" : "failed";
-        step.reason = cause instanceof Error ? cause.message : "Update failed";
+        step.reason =
+          cause instanceof ConnectError ? cause.rawMessage : cause instanceof Error ? cause.message : "Update failed";
         run.state = step.state;
-        run.reason = `${step.label}: ${step.reason}. Later updates have not started.`;
+        run.reason = `${step.label}: ${step.reason.replace(/\.$/, "")}. Later updates have not started.`;
       }
 
       await this.options.write(run);
@@ -92,7 +99,7 @@ export class UpdateCenter {
     if (step.kind === "gateway") {
       if (snapshot.gatewayInstallKind !== "binary")
         throw new ConnectError(
-          `Managed externally — ${snapshot.gatewayReason || "pull the new image and recreate the container"}. Then retry Update all.`,
+          snapshot.gatewayReason || "Update the gateway with its installer.",
           Code.FailedPrecondition,
         );
 
@@ -162,8 +169,23 @@ export class UpdateCenter {
     return false;
   }
 
-  async status() {
+  async status(snapshot?: ui.UpdatesSnapshot) {
     const run = await this.options.read();
+
+    if (run && ["failed", "blocked"].includes(run.state)) {
+      const failed = run.steps.filter((step) => ["failed", "blocked"].includes(step.state));
+      const current = snapshot ?? (await this.options.snapshot());
+
+      // Hide only the obsolete external-gateway failure; real failures keep their history.
+      if (
+        current.gatewayInstallKind !== "binary" &&
+        failed.length === 1 &&
+        failed[0]?.kind === "gateway" &&
+        failed[0].reason.includes("Managed externally") &&
+        !updatePlan(current).steps.length
+      )
+        return undefined;
+    }
 
     return run ? clone(ui.UpdateRunSchema, run) : undefined;
   }
