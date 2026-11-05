@@ -155,11 +155,11 @@ const projectCommands = (overview: OverviewState, threads: readonly ui.Thread[])
     ],
   }));
 
-/** Actions on the thread of the page, as its menu offers them, plus copying its link. */
+/** Actions shared with the thread's row menu; page-only actions live in threadCommands. */
 function currentThreadCommands(context: AppCommandContext, thread: ui.Thread | undefined): Command[] {
   const { overview, settings } = context;
 
-  const currentActions: Command[] = thread
+  return thread
     ? threadActions(
         thread,
         overview.project(thread.projectId)?.name ?? "project",
@@ -176,17 +176,6 @@ function currentThreadCommands(context: AppCommandContext, thread: ui.Thread | u
           run: () => context.threadActions.run(a.id, thread),
         }))
     : [];
-
-  if (thread)
-    currentActions.push({
-      id: "thread-action:copy-link",
-      title: "Copy thread link",
-      icon: "link",
-      group: "actions",
-      run: () => context.threadActions.copy(context.threadActions.link(thread)),
-    });
-
-  return currentActions;
 }
 
 /** Commands of the whole app: new threads, navigation, appearance, settings, every thread and project. */
