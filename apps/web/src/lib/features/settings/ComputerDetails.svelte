@@ -37,7 +37,9 @@
 
   const status = $derived(
     computer.status === "connected"
-      ? "Connected"
+      ? computer.connectionDirection === "incoming"
+        ? "Connected · incoming"
+        : "Connected"
       : computer.status === "needs_update"
         ? computer.updateNodeId === computer.nodeId
           ? `${computer.displayName || computer.name} needs an update`

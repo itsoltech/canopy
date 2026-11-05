@@ -23,29 +23,47 @@
   let open = $state(false);
   let checked = $state(false);
 
+  // Waiting for an update, the switch shows this computer's choice: it is kept and applies after the update.
+  const waiting = $derived(computer.configSyncStatus === "needs_update");
+
   $effect(() => {
-    if (!open) checked = computer.shareConfig && computer.peerShareConfig;
+    if (!open) checked = computer.shareConfig && (waiting || computer.peerShareConfig);
   });
 
   const name = $derived(computer.displayName || computer.name);
-  const stopped = $derived(!computer.peerShareConfig && computer.configSyncStatus !== "needs_update");
+  const stopped = $derived(!computer.peerShareConfig && !waiting);
+
+  // Older gateways do not say which computer needs the update.
+  const outdated = $derived(
+    !computer.configUpdateNodeId
+      ? "Needs an update to share configuration"
+      : computer.configUpdateNodeId !== computer.nodeId
+        ? "This computer needs an update to share configuration."
+        : computer.appVersion
+          ? `${name} runs ${computer.appVersion} and needs an update to share configuration.`
+          : `${name} needs an update to share configuration.`,
+  );
 
   const description = $derived(
     stopped
       ? `${name} stopped sharing configuration. This computer keeps its copy.`
-      : computer.configSyncStatus === "needs_update"
-        ? "Needs an update to share configuration"
+      : waiting
+        ? outdated
         : "Settings, providers and proxies follow changes on computers in the same group.",
   );
 
   const status = $derived(
-    computer.configSyncStatus === "up_to_date"
-      ? "Configuration up to date"
-      : computer.configSyncStatus === "syncing"
-        ? "Syncing configuration…"
-        : computer.configSyncStatus === "unreachable"
-          ? "Configuration sync resumes when this computer reconnects."
-          : "",
+    waiting
+      ? computer.shareConfig
+        ? "Sharing starts after the update."
+        : "Sharing stays off after the update."
+      : computer.configSyncStatus === "up_to_date"
+        ? "Configuration up to date"
+        : computer.configSyncStatus === "syncing"
+          ? "Syncing configuration…"
+          : computer.configSyncStatus === "unreachable"
+            ? "Configuration sync resumes when this computer reconnects."
+            : "",
   );
 </script>
 
@@ -56,10 +74,11 @@
         name="share-config-{computer.nodeId}"
         label="Share configuration with {name}"
         bind:checked
-        disabled={busy || (stopped && computer.shareConfig) || computer.configSyncStatus === "needs_update"}
+        disabled={busy || (stopped && computer.shareConfig)}
         onchange={(enabled) => {
-          if (!enabled) open = true;
-          else void onchange(true);
+          // Nothing is shared yet while an update is needed, so turning it off needs no confirmation.
+          if (!enabled && !waiting) open = true;
+          else void onchange(enabled);
         }}
       />
     {/snippet}

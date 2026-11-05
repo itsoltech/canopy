@@ -32,6 +32,12 @@ message LinkedComputer {
   string config_sync_status = 23;
   uint32 config_clock_ahead_minutes = 24;
   string config_alternative_name = 25;
+  // How the live link runs: outgoing (this computer dialled a route), incoming (the partner dialled this computer),
+  // both; empty while not connected.
+  string connection_direction = 26;
+  // The computer that needs an update before configuration can be shared (this computer's or the partner's node id);
+  // empty when both support it.
+  string config_update_node_id = 27;
 }
 message ComputerRoute {
   string address = 1;
@@ -42,6 +48,10 @@ message ComputerRoute {
   int64 last_failure_ms = 5;
   // Duration of the last successful pinned TLS handshake; 0 when unknown.
   uint32 latency_ms = 6;
+  // A live outgoing link runs over this route now.
+  bool in_use = 7;
+  // When the partner stopped announcing this address (an old address); 0 while announced or for other sources.
+  int64 withdrawn_at_ms = 8;
 }
 message ComputersRequest {}
 message ComputersSnapshot {

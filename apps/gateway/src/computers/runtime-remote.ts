@@ -58,16 +58,22 @@ export async function computersComputerMessage(hostContext: LinkedComputers, pee
   result.configClockAheadMinutes = hostContext.config?.ahead.get(peer.node_id) ?? 0;
 
   if (!peer.via_node_id) result.configAlternativeName = await alternativeConfigPath(hostContext, peer.node_id);
-  result.configSyncStatus =
-    !hostContext.hello().capabilities.includes(CONFIG_SYNC) || !peer.capabilities.includes(CONFIG_SYNC)
-      ? "needs_update"
-      : !peer.share_config || !peer.peer_share_config
-        ? "off"
-        : !configAllowed(hostContext, peer.node_id)
-          ? "unreachable"
-          : hostContext.config?.syncing.get(peer.node_id) !== false
-            ? "syncing"
-            : "up_to_date";
+  computersConnectionState(hostContext, result);
+  // The same negotiation as the link: each side's advertised features. This computer is named first when both lack it.
+  result.configUpdateNodeId = !hostContext.hello().capabilities.includes(CONFIG_SYNC)
+    ? hostContext.hello().nodeId
+    : !peer.capabilities.includes(CONFIG_SYNC)
+      ? peer.node_id
+      : "";
+  result.configSyncStatus = result.configUpdateNodeId
+    ? "needs_update"
+    : !peer.share_config || !peer.peer_share_config
+      ? "off"
+      : !configAllowed(hostContext, peer.node_id)
+        ? "unreachable"
+        : hostContext.config?.syncing.get(peer.node_id) !== false
+          ? "syncing"
+          : "up_to_date";
 
   if (peer.via_node_id) {
     const via = await hostContext.store.peer(peer.via_node_id);
@@ -86,6 +92,17 @@ export async function computersComputerMessage(hostContext: LinkedComputers, pee
   }
 
   return result;
+}
+
+/** Which side dialled the live link, and the route an outgoing link runs over. */
+function computersConnectionState(hostContext: LinkedComputers, result: ui.LinkedComputer) {
+  const ready = [...(hostContext[computersState].active.get(result.nodeId) ?? [])].filter((c) => c.ready);
+  const outgoing = new Set(ready.flatMap((c) => (c.route ? [c.route] : [])));
+  const incoming = ready.some((c) => !c.route);
+  result.connectionDirection =
+    outgoing.size && incoming ? "both" : outgoing.size ? "outgoing" : incoming ? "incoming" : "";
+
+  for (const route of result.routes) route.inUse = outgoing.has(route.address);
 }
 
 export async function computersTime(hostContext: LinkedComputers, since: Date) {

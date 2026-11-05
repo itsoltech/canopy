@@ -41,6 +41,7 @@
           {route}
           {now}
           {busy}
+          connected={computer.status === "connected"}
           onremove={() => onremove(route.address)}
         />{/each}
     </InsetList>
