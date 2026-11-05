@@ -1,5 +1,5 @@
 import { app, dialog, Notification, type MenuItemConstructorOptions } from "electron";
-import { autoUpdater } from "electron-updater";
+import { createAppUpdater } from "./app-updater.ts";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { desktopIdentity, type DesktopChannel } from "./identity.ts";
@@ -19,6 +19,7 @@ export class DesktopUpdates {
   }
   private readonly identity = desktopIdentity();
   private readonly feed = new DesktopUpdateFeed();
+  private readonly updater = createAppUpdater();
 
   constructor(
     private readonly changed: () => void,
@@ -28,8 +29,8 @@ export class DesktopUpdates {
   private get control() {
     if (!this.controller) {
       const settings = new UpdateSettings(app.getPath("userData"));
-      autoUpdater.logger = null;
-      this.controller = new UpdateController(autoUpdater, {
+      this.updater.logger = null;
+      this.controller = new UpdateController(this.updater, {
         version: app.getVersion(),
         buildChannel: this.identity.channel,
         channel: settings.read(this.identity.channel),
@@ -73,7 +74,6 @@ export class DesktopUpdates {
       checkIntervalMinutes: this.schedule.minutes,
       lastCheckedAt: this.schedule.lastChecked,
       ...(this.enabled &&
-        this.control.status().phase !== "downloaded" &&
         this.schedule.minutes !== 0 && {
           nextCheckAt: nextUpdateCheck(this.schedule.lastChecked, this.schedule.minutes, Date.now()),
         }),
@@ -90,11 +90,9 @@ export class DesktopUpdates {
   private reschedule() {
     this.timer.stop();
 
-    if (this.enabled && this.control.status().phase !== "downloaded")
+    if (this.enabled)
       this.timer.start(this.schedule.minutes, this.schedule.lastChecked, async () => {
         await this.control.checkAutomatically();
-
-        if (this.control.status().phase === "downloaded") this.timer.stop();
       });
   }
   async setChannel(channel: string) {
@@ -118,7 +116,13 @@ export class DesktopUpdates {
 
     return this.status();
   }
-  restartIfReady() {
+  async restartIfReady() {
+    if (await this.prepareRestart()) this.restartPrepared();
+  }
+  async prepareRestart() {
+    return (await this.control.prepareInstall()) ? this.status() : undefined;
+  }
+  restartPrepared() {
     if (this.status().phase === "downloaded" && !this.status().changingChannel) this.restart();
   }
 
@@ -126,9 +130,11 @@ export class DesktopUpdates {
     const state = this.status();
 
     return {
-      label: state.phase === "downloaded" ? "Restart to update" : state.message,
-      enabled: !["disabled", "checking", "downloading"].includes(state.phase) && !state.changingChannel,
-      click: () => (state.phase === "downloaded" ? this.restartIfReady() : void this.check()),
+      label: state.stagedVersion ? "Restart to update" : state.message,
+      enabled:
+        (!!state.stagedVersion || !["disabled", "checking", "downloading"].includes(state.phase)) &&
+        !state.changingChannel,
+      click: () => (state.stagedVersion ? void this.restartIfReady() : void this.check()),
     };
   }
 
@@ -188,12 +194,12 @@ export class DesktopUpdates {
       app.quit();
     };
 
-    autoUpdater.once("error", failed);
+    this.updater.once("error", failed);
 
     try {
-      autoUpdater.quitAndInstall(false, true);
+      this.updater.quitAndInstall(false, true);
     } catch {
-      autoUpdater.removeListener("error", failed);
+      this.updater.removeListener("error", failed);
       failed();
     }
   }
@@ -203,7 +209,7 @@ export class DesktopUpdates {
     const { release, feed } = result;
 
     if (!release) return { available: false, releases: result.releases, publishing: result.publishing };
-    autoUpdater.setFeedURL({
+    this.updater.setFeedURL({
       provider: "generic",
       url: `https://github.com/itsoltech/canopy/releases/download/${encodeURIComponent(release.tag_name)}/`,
       channel: feed,

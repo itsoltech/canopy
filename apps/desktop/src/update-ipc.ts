@@ -31,7 +31,8 @@ export function remoteAppUpdate(
           body: "Your gateway owner requested an app update. Canopy will restart after the current turns finish.",
         }).show();
     },
-    restart: () => updates.restartIfReady(),
+    prepareRestart: () => updates.prepareRestart(),
+    restart: () => updates.restartPrepared(),
   });
 }
 
@@ -65,6 +66,6 @@ export function registerUpdateIpc(
   ipcMain.handle("canopy:update-install", (event) => {
     authorize(event);
 
-    if (!remote()?.active) updates.restartIfReady();
+    return remote()?.active ? undefined : updates.restartIfReady();
   });
 }

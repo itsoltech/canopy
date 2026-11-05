@@ -10,6 +10,7 @@ export interface RemoteUpdateBoundary {
   check(): Promise<DesktopUpdateStatus>;
   drain(value: boolean): Promise<boolean>;
   notify(): void;
+  prepareRestart?(): Promise<DesktopUpdateStatus | undefined>;
   restart(): void;
   report(state: ui.DesktopUpdateState): Promise<void>;
 }
@@ -152,6 +153,20 @@ export class RemoteAppUpdate {
       const idle = await this.boundary.drain(true);
 
       if (!idle && !this.force) return;
+      // Periodic/manual checks may have replaced the ready download while the worker drained.
+      // Freeze the updater before reporting the exact version this restart installs.
+      const update = this.boundary.prepareRestart ? await this.boundary.prepareRestart() : this.boundary.status();
+
+      if (
+        !update ||
+        update.phase !== "downloaded" ||
+        !valid(update.updateVersion) ||
+        !valid(update.version) ||
+        !gt(update.updateVersion!, update.version)
+      )
+        throw new Error("No newer app update is ready");
+      this.state.targetVersion = update.updateVersion!;
+      this.state.availableVersion = update.updateVersion!;
       this.state.phase = "restarting";
       this.state.reason = "Restarting Canopy app; it will reconnect automatically.";
       this.persist();

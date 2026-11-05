@@ -729,12 +729,69 @@ najnowszą najpierw, według wybranego kanału. Sprawdzanie respektuje reduced m
 Brak feedu platformy dla nowszego wydania jest wyjaśniony osobnym komunikatem;
 nie oznacza braku nowej wersji serwera. Web bez bridge nie pokazuje sekcji własnej aplikacji.
 
-`electron-updater` **6.8.3** sprawdza publiczne GitHub Releases przy starcie i co
-6 godzin. Settings → **App updates** pokazuje
+`electron-updater` **6.8.3** sprawdza publiczne GitHub Releases przy starcie i domyślnie co
+6 godzin, także po pobraniu gotowej paczki. Settings → **App updates** pozwala zmienić
+częstotliwość (Never wyłącza automatyczne sprawdzanie i pobieranie) i pokazuje
 wersję/kanał buildu, własny combobox Stable/Beta/Nightly, Check for updates,
 procent pobierania i Restart to update. Sekcja istnieje wyłącznie przy obecności
 bridge desktopu. Wybór jest atomowo zapisany w `userData/app-updates.json` przez main;
 bez zapisu domyślny jest kanał zainstalowanego buildu.
+
+**Check now** w centrum aktualizacji i **Check for updates** w ustawieniach działają
+również przy stanie Ready. Najpierw sprawdzamy metadane bez automatycznego pobierania
+(`autoDownload=false`), potem pobieramy tylko cel nowszy od gotowej paczki.
+Brak nowszego wydania zachowuje poprzedni cel. Zgoda na downgrade przy zmianie kanału
+nadal dotyczy tylko jednej próby; zmiana kanału unieważnia poprzednią gotowość w UI.
+
+Wersję gotową do instalacji (`stagedVersion`) przechowujemy osobno od wersji aktualnie
+pobieranej (`updateVersion`). Ready publikujemy dopiero po zdarzeniu `update-downloaded`
+**i zakończeniu całego promise pobierania**, łącznie z zapisem cache. Podczas pobierania
+wiersz pokazuje nowy cel i procent, a przycisk restartu zachowuje miejsce. Restart wybrany
+w tym czasie czeka na zakończenie próby i blokuje następne sprawdzenia. Sukces instaluje
+nowszą paczkę; błąd zachowuje starszą, z krótkim komunikatem i możliwością ponowienia.
+Zdalny restart po idle także blokuje kolejne próby i raportuje dokładnie wybraną wersję.
+
+Zachowanie platform wynika ze źródeł przypiętej biblioteki:
+
+- **macOS:** `MacUpdater.updateDownloaded` zastępuje lokalny serwer proxy i feed ZIP.
+  Przy naszym `autoInstallOnAppQuit=false` nie wywołuje jeszcze natywnego Squirrel.
+  Kolejny ZIP może zastąpić poprzedni; dopiero `quitAndInstall` uruchamia natywne
+  pobranie z aktualnego proxy, walidację podpisu i instalację. Ready oznacza plik
+  w cache electron-updater, nie zakończoną walidację/staging Squirrel. Nie włączamy
+  automatycznej instalacji przy zamknięciu ani nie zmieniamy flag Squirrel.
+- **Windows / NSIS:** `BaseUpdater.install` i `NsisUpdater.doInstall` używają pliku
+  aktualnego `DownloadedUpdateHelper`. Kolejny udany download zastępuje instalator;
+  `quitAndInstall` uruchamia najnowszy zaakceptowany plik.
+- **Linux / AppImage:** ten sam helper wskazuje gotowy AppImage; `doInstall` przenosi
+  go na miejsce uruchomionego obrazu. Kolejny udany download może zastąpić poprzedni.
+- **Linux / deb:** biblioteka ma `DebUpdater`, ale Canopy wyłącza updater bez `APPIMAGE`.
+  Instalację nadal aktualizuje menedżer pakietów; popover pokazuje dotychczasowe wyjaśnienie.
+
+Samo ponowne wywołanie biblioteki nie wystarcza do bezpiecznej podmiany:
+`DownloadedUpdateHelper` usuwa wspólny `pending` przy innym SHA-512, a `executeDownload`
+czyści go po błędzie/anulowaniu. Nasze adaptery używają dwóch naprzemiennych katalogów
+cache (główny i `replacement`) i zachowują poprzedni helper do pełnego sukcesu.
+Błąd przywraca helper i pozostawia poprzedni plik. Na macOS finalizacja cache poprzedza
+podmianę proxy/feedu. Zwykłe zamknięcie i osłona Quit pozostają bez automatycznej instalacji.
+
+Źródła dla **electron-updater 6.8.3**:
+[instrukcja](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/pages/auto-update.md),
+[AppUpdater](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/AppUpdater.ts),
+[DownloadedUpdateHelper](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/DownloadedUpdateHelper.ts),
+[MacUpdater](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/MacUpdater.ts),
+[BaseUpdater](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/BaseUpdater.ts),
+[NSIS](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/NsisUpdater.ts),
+[AppImage](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/AppImageUpdater.ts),
+[deb](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/DebUpdater.ts).
+
+Na podpisanym Macu sprawdź: pobierz nightly A, bez restartu udostępnij nowszy B,
+użyj Check now oraz osobno Check for updates i poczekaj na Ready → B. Powtórz
+z timerem ustawionym na Every hour. Podczas pobierania B wybierz Restart to update:
+aplikacja ma poczekać, zamknąć usługi, przejść walidację Squirrel i uruchomić B.
+Osobno przerwij pobieranie B: Ready ma wrócić do A z błędem, a restart zainstalować A.
+Sprawdź też brak nowszej wersji, Cancel/zgodę na stabilniejszy kanał na kopii danych,
+zwykłe Quit bez instalacji i zdalną aktualizację po idle/force. Testy na Linuxie nie
+potwierdzają podpisu, rzeczywistego staging Squirrel ani restartu macOS.
 
 W trybie zdalnym Workers gatewaya może zażądać **Update Canopy app** przez
 uwierzytelniony kanał desktopu. Main zachowuje powyższy updater i kanał, odmawia

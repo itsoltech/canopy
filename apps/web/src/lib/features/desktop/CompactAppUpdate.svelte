@@ -18,6 +18,7 @@
   } = $props();
 
   const status = $derived(updates.status);
+  const ready = $derived(!!status?.stagedVersion || status?.phase === "downloaded");
 
   const busy = $derived(
     updates.pending || !!status?.changingChannel || ["checking", "downloading"].includes(status?.phase ?? ""),
@@ -25,7 +26,7 @@
 
   // Check now in the header also checks the app, so a settled row explains what it includes instead.
   const info = $derived(
-    bundled && !["downloaded", "error"].includes(status?.phase ?? "")
+    bundled && !ready && !["downloaded", "error"].includes(status?.phase ?? "")
       ? [status?.publishing || status?.message, "Includes this computer’s gateway and worker."]
           .filter(Boolean)
           .join(" ")
@@ -60,7 +61,7 @@
       current: status.phase === "downloaded" || appCurrent(status),
     })}
     detail={status.publishing || status.message}
-    error={updates.error || (status.phase === "error" ? status.message : "")}
+    error={updates.error || status.error || (status.phase === "error" ? status.message : "")}
     {busy}
     progress={status.phase === "downloading" ? status.progress : undefined}
     class={className}
@@ -72,13 +73,15 @@
           label={info}
           tooltipOptions={{ touch: "tap" }}
         />{:else}<IconButton
-          icon={status.phase === "downloaded" ? "arrow-up" : "arrow-path"}
+          icon={ready ? "arrow-up" : "arrow-path"}
           size="sm"
-          label={status.phase === "downloaded"
-            ? "Restart to update Canopy. This stops agents running on this computer."
+          label={ready
+            ? status.phase === "checking" || status.phase === "downloading"
+              ? "Restart after this download. This stops agents running on this computer."
+              : "Restart to update Canopy. This stops agents running on this computer."
             : status.publishing || status.message || "Check for app updates"}
-          disabled={busy || status.phase === "disabled"}
-          loading={updates.pending}
+          disabled={ready ? !!status.changingChannel || updates.restarting : busy || status.phase === "disabled"}
+          loading={ready ? updates.restarting : updates.pending}
           onclick={() => void updates.run()}
         />{/if}
     {/snippet}

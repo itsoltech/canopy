@@ -45,10 +45,17 @@ test("desktop update frequency and last check survive restart; Never cancels sch
   for (let i = 0; i < 5; i++) await Promise.resolve();
   expect(checks).toBe(1);
   expect(delay).toBe(55 * 60_000);
+  // A completed download does not postpone the next automatic check until restart.
+  now += delay;
+  pending?.();
+
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  expect(checks).toBe(2);
+  expect(delay).toBe(55 * 60_000);
   timer.start(0, now, run);
   expect(pending).toBeUndefined();
   // A manual operation is independent of the automatic schedule.
   await run();
-  expect(checks).toBe(2);
+  expect(checks).toBe(3);
   timer.stop();
 });

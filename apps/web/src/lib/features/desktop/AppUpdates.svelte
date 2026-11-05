@@ -19,12 +19,13 @@
   let status = $state<DesktopUpdateStatus>();
   let error = $state("");
   let pending = $state(false);
+  let restarting = $state(false);
 
   // Select previews its value locally. Restore it after a cancelled native confirmation.
   let choice = $state("");
 
   const busy = $derived(
-    pending || status?.changingChannel || status?.phase === "checking" || status?.phase === "downloading",
+    pending || restarting || status?.changingChannel || status?.phase === "checking" || status?.phase === "downloading",
   );
 
   const options = [
@@ -130,9 +131,7 @@
             ? "manual only"
             : current.nextCheckAt
               ? checkedTime(current.nextCheckAt)
-              : current.phase === "downloaded"
-                ? "after restart"
-                : "unavailable in this installation"}
+              : "unavailable in this installation"}
         </p>
         {#if current.checkIntervalMinutes === 0}<p class="mt-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
             Automatic downloads are off. Use Check for updates to check manually.
@@ -163,24 +162,38 @@
           </div>
         {/if}
       </div>
-      {#if status.phase === "downloaded"}
+      {#if status.error}<Alert tone="error">{status.error}</Alert>{/if}
+      {#if status.stagedVersion || status.phase === "downloaded"}
         <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          Restarting stops the agents running on this computer.
+          {status.phase === "checking" || status.phase === "downloading"
+            ? "Restart waits for this download, then stops agents running on this computer."
+            : "Restarting stops the agents running on this computer."}
         </p>
       {/if}
       <div class="flex flex-wrap gap-3">
-        {#if status.phase === "downloaded"}
-          <Button variant="primary" disabled={busy} onclick={() => run(() => window.canopyDesktop!.restartToUpdate())}
-            >Restart to update</Button
-          >
-        {:else}
+        {#if status.stagedVersion || status.phase === "downloaded"}
           <Button
-            disabled={busy || status.phase === "disabled"}
-            loading={status.phase === "checking"}
-            onclick={() => run(async () => receive(await window.canopyDesktop!.checkForUpdates()))}
-            >Check for updates</Button
+            variant="primary"
+            disabled={restarting || status.changingChannel}
+            loading={restarting}
+            onclick={async () => {
+              restarting = true;
+              try {
+                await window.canopyDesktop!.restartToUpdate();
+              } catch {
+                error = "Could not finish this update action. Try again.";
+              } finally {
+                restarting = false;
+              }
+            }}>Restart to update</Button
           >
         {/if}
+        <Button
+          disabled={busy || restarting || status.phase === "disabled"}
+          loading={status.phase === "checking"}
+          onclick={() => run(async () => receive(await window.canopyDesktop!.checkForUpdates()))}
+          >Check for updates</Button
+        >
       </div>
       {#if current.publishing && current.publishing !== current.message}<p
           class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
