@@ -256,6 +256,10 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
     await p1.api.manageComputer({ action: "share_onward", nodeId: n2, shareOnwardNodeIds: [] });
     expect(await eventually(async () => !l2.reachable().includes(wn) && l2.canCall(wn), Boolean)).toBe(true);
     expect(await l2.mirror.state(wn)).toBeUndefined();
+    // A subscription started before the newer catalog arrived cannot recreate the purged mirror.
+    const late = l2.mirror.consume(wn, (async function* () {})(), () => {}, new AbortController().signal);
+    expect(await failure(late)).toContain("superseded");
+    expect(await l2.mirror.state(wn)).toBeUndefined();
     expect((await w.api.getThread({ threadId: q(thread) })).thread?.title).toBe("P2 thread");
   }, 15000);
 

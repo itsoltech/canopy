@@ -90,11 +90,17 @@ export class ThreadMirror {
 
   /** One subscription per peer. Reset frames are staged; only a checkpoint changes visible data. */
   async consume(node: string, updates: AsyncIterable<Message>, notify: () => void, signal: AbortSignal) {
+    // A revoked relay home is re-inserted as a callback-only origin in the same catalog
+    // transaction that purged its mirror. A late subscription must not recreate it.
     await this.store.query(
-      `INSERT INTO computer_mirror_state(owner_user_id,origin_node_id) VALUES($1::uuid,$2) ON CONFLICT DO NOTHING`,
+      `INSERT INTO computer_mirror_state(owner_user_id,origin_node_id) SELECT $1::uuid,$2
+      WHERE EXISTS(SELECT 1 FROM computer_peers WHERE owner_user_id=$1::uuid AND node_id=$2
+        AND (via_node_id IS NULL OR relay_role IN ('home','both')) FOR SHARE) ON CONFLICT DO NOTHING`,
       [this.store.owner, node],
     );
-    const state = (await this.state(node))!;
+    const state = await this.state(node);
+
+    if (!state) throw new ConnectError("Thread mirror subscription superseded", Code.Aborted);
     let generation = state.generation;
     let resetting = false;
     let overview: Uint8Array | null = null;
