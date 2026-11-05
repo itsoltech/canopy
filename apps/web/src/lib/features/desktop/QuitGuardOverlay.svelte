@@ -7,6 +7,18 @@
   let draining = $state(false);
   let drainFrom = $state("1");
   let progress = $state<SVGCircleElement>();
+  let layer = $state<HTMLDivElement>();
+
+  /**
+   * Modal dialogs (settings, confirmations) sit in the top layer, above any z-index. The overlay is a manual popover
+   * so it can join the top layer too; re-showing it moves it above whatever opened since.
+   */
+  function raise() {
+    if (!layer) return;
+
+    if (layer.matches(":popover-open")) layer.hidePopover();
+    layer.showPopover();
+  }
 
   onMount(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -22,6 +34,8 @@
         }, duration("quick"));
       } else {
         draining = false;
+
+        if (value.phase !== "cancel" && !feedbackState) raise();
         feedbackState = value.phase === "cancel" ? undefined : value;
       }
     }, 1);
@@ -34,7 +48,9 @@
 </script>
 
 <div
-  class="pointer-events-none fixed inset-x-0 top-(--window-safe-top) bottom-0 z-[1000] flex items-center justify-center p-6 macos:overflow-y-auto"
+  bind:this={layer}
+  popover="manual"
+  class="pointer-events-none fixed inset-x-0 top-(--window-safe-top) bottom-0 m-0 hidden h-auto max-h-none w-auto max-w-none items-center justify-center overflow-visible border-0 bg-transparent p-6 text-inherit open:flex macos:overflow-y-auto"
 >
   {#if feedbackState}
     {#key feedbackState}
