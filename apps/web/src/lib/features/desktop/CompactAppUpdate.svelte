@@ -2,13 +2,34 @@
   import type { ClassValue } from "svelte/elements";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import UpdateItem from "#lib/features/workers/UpdateItem.svelte";
+  import { updateTone } from "#lib/features/workers/updates.svelte.ts";
+  import { appCurrent } from "#lib/features/workers/compact-updates.ts";
   import type { DesktopUpdatesState } from "./desktop-updates.svelte.ts";
 
-  let { updates, class: className }: { updates: DesktopUpdatesState; class?: ClassValue } = $props();
+  let {
+    updates,
+    bundled = false,
+    class: className,
+  }: {
+    updates: DesktopUpdatesState;
+    /** The gateway reports itself as this app's bundled one (local mode): the app includes it and its worker. */
+    bundled?: boolean;
+    class?: ClassValue;
+  } = $props();
+
   const status = $derived(updates.status);
 
   const busy = $derived(
     updates.pending || !!status?.changingChannel || ["checking", "downloading"].includes(status?.phase ?? ""),
+  );
+
+  // Check now in the header also checks the app, so a settled row explains what it includes instead.
+  const info = $derived(
+    bundled && !["downloaded", "error"].includes(status?.phase ?? "")
+      ? [status?.publishing || status?.message, "Includes this computer’s gateway and worker."]
+          .filter(Boolean)
+          .join(" ")
+      : "",
   );
 </script>
 
@@ -33,7 +54,11 @@
                 : status.updateVersion
                   ? "Available"
                   : "Up to date"}
-    tone={status.phase === "error" ? "rose" : status.phase === "downloaded" ? "emerald" : busy ? "amber" : "neutral"}
+    tone={updateTone({
+      failed: status.phase === "error",
+      busy,
+      current: status.phase === "downloaded" || appCurrent(status),
+    })}
     detail={status.publishing || status.message}
     error={updates.error || (status.phase === "error" ? status.message : "")}
     {busy}
@@ -41,16 +66,21 @@
     class={className}
   >
     {#snippet action()}
-      <IconButton
-        icon={status.phase === "downloaded" ? "arrow-up" : "arrow-path"}
-        size="sm"
-        label={status.phase === "downloaded"
-          ? "Restart to update Canopy. This stops agents running on this computer."
-          : status.publishing || status.message || "Check for app updates"}
-        disabled={busy || status.phase === "disabled"}
-        loading={updates.pending}
-        onclick={() => void updates.run()}
-      />
+      {#if info}<IconButton
+          icon="information-circle"
+          size="sm"
+          label={info}
+          tooltipOptions={{ touch: "tap" }}
+        />{:else}<IconButton
+          icon={status.phase === "downloaded" ? "arrow-up" : "arrow-path"}
+          size="sm"
+          label={status.phase === "downloaded"
+            ? "Restart to update Canopy. This stops agents running on this computer."
+            : status.publishing || status.message || "Check for app updates"}
+          disabled={busy || status.phase === "disabled"}
+          loading={updates.pending}
+          onclick={() => void updates.run()}
+        />{/if}
     {/snippet}
   </UpdateItem>
 {:else if updates.error}<p

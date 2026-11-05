@@ -15,7 +15,12 @@ export const newerVersion = (target: string, current: string): boolean => {
 export function updatePlan(snapshot: ui.UpdatesSnapshot): ui.UpdateRun {
   const steps: ui.UpdateStep[] = [];
 
-  if (snapshot.gatewayInstallKind === "binary" && newerVersion(snapshot.availableVersion, snapshot.gatewayVersion))
+  // A bundled gateway and worker update with the desktop app; their agent CLIs stay separate steps.
+  if (
+    !snapshot.gatewayBundled &&
+    snapshot.gatewayInstallKind === "binary" &&
+    newerVersion(snapshot.availableVersion, snapshot.gatewayVersion)
+  )
     steps.push(
       create(ui.UpdateStepSchema, {
         kind: "gateway",
@@ -28,7 +33,7 @@ export function updatePlan(snapshot: ui.UpdatesSnapshot): ui.UpdateRun {
   const target = steps[0]?.version || snapshot.gatewayVersion;
 
   for (const worker of snapshot.workers) {
-    if (worker.installKind === "binary" && newerVersion(target, worker.version))
+    if (!worker.bundled && worker.installKind === "binary" && newerVersion(target, worker.version))
       steps.push(
         create(ui.UpdateStepSchema, {
           kind: "worker",
@@ -64,6 +69,7 @@ export function updatePlan(snapshot: ui.UpdatesSnapshot): ui.UpdateRun {
   for (const worker of snapshot.workers) {
     if (
       worker.installKind === "desktop" &&
+      !worker.bundled &&
       worker.desktop?.connected &&
       !worker.desktop.disabledReason &&
       newerVersion(worker.desktop.availableVersion, worker.desktop.version)

@@ -1,6 +1,6 @@
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import type { ui } from "@canopy/contracts";
-import { updatesAvailable, externalUpdatesAvailable } from "./compact-updates.ts";
+import { listedWorkers, updatesAvailable, externalUpdatesAvailable } from "./compact-updates.ts";
 
 export function updateIndicator(
   app: DesktopUpdateStatus | undefined,
@@ -8,7 +8,7 @@ export function updateIndicator(
   error: string,
   pending = "",
 ) {
-  const workers = snapshot?.workers ?? [];
+  const workers = snapshot ? listedWorkers(snapshot) : [];
   const clis = snapshot?.cliWorkers.flatMap((w) => w.cliTools) ?? [];
   const run = snapshot?.run;
   const failedWorker = workers.find((w) => w.state === "failed");
@@ -20,7 +20,9 @@ export function updateIndicator(
     snapshot?.checkError ||
     (app?.phase === "error" ? app.message || "App update failed" : "") ||
     (["failed", "blocked"].includes(run?.state ?? "") ? run?.reason || "Updates stopped" : "") ||
-    (snapshot?.gatewayState === "failed" ? snapshot.gatewayReason || "Gateway update failed" : "") ||
+    (snapshot?.gatewayState === "failed" && !snapshot.gatewayBundled
+      ? snapshot.gatewayReason || "Gateway update failed"
+      : "") ||
     (failedWorker ? failedWorker.reason || "Worker update failed" : "") ||
     (failedDesktop ? failedDesktop.reason || "Desktop update failed" : "") ||
     (failedCli ? failedCli.tool?.install?.error || "Agent CLI update failed" : "");

@@ -12,7 +12,8 @@
   import CompactWorkerUpdate from "./CompactWorkerUpdate.svelte";
   import UpdateRun from "./UpdateRun.svelte";
   import { UpdatesState, updateBusy } from "./updates.svelte.ts";
-  import { updatesAvailable } from "./compact-updates.ts";
+  import TextLink from "#lib/shared/ui/TextLink.svelte";
+  import { listedWorkers, updatesAvailable } from "./compact-updates.ts";
   import { updateIndicator } from "./update-indicator.ts";
 
   let { class: className }: { class?: ClassValue } = $props();
@@ -95,17 +96,24 @@
       <Alert tone="error">{updates.error || snapshot?.checkError}</Alert>
     </div>{/if}
   {#if snapshot}
-    <div class="px-3"><CompactGatewayUpdate {updates} /></div>
-    <ReleaseChannelField
-      current={snapshot.channel}
-      version={snapshot.gatewayVersion}
-      disabled={!snapshot.admin || !!updates.pending || busy}
-      pending={updates.pending === "channel"}
-      onsave={(channel) => updates.manage({ action: "channel", channel })}
-    />
-    {#each snapshot.workers as worker (worker.workerId)}
+    {#if snapshot.gatewayBundled}<p class="px-3 py-2 text-sm/5 text-pretty text-muted">
+        This computer’s gateway and worker update with the Canopy app in <TextLink href="/settings/app-updates"
+          >App updates</TextLink
+        >.
+      </p>
+    {:else}
+      <div class="px-3"><CompactGatewayUpdate {updates} /></div>
+      <ReleaseChannelField
+        current={snapshot.channel}
+        version={snapshot.gatewayVersion}
+        disabled={!snapshot.admin || !!updates.pending || busy}
+        pending={updates.pending === "channel"}
+        onsave={(channel) => updates.manage({ action: "channel", channel })}
+      />
+    {/if}
+    {#each listedWorkers(snapshot) as worker (worker.workerId)}
       <div class="min-w-0 px-3"><CompactWorkerUpdate {worker} {updates} allowForce /></div>
-    {:else}<p class="px-3 py-2 text-sm/5 text-muted">No workers yet</p>{/each}
+    {:else}{#if !snapshot.gatewayBundled}<p class="px-3 py-2 text-sm/5 text-muted">No workers yet</p>{/if}{/each}
     {#if snapshot.run && (snapshot.run.steps.length || snapshot.run.state === "running" || snapshot.run.reason)}<UpdateRun
         run={snapshot.run}
         class="px-3 py-2"

@@ -6,7 +6,7 @@
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import UpdateItem from "./UpdateItem.svelte";
   import { workerCurrent } from "./compact-updates.ts";
-  import { updateBusy, updateStateLabel, type UpdatesState } from "./updates.svelte.ts";
+  import { updateBusy, updateStateLabel, updateTone, type UpdatesState } from "./updates.svelte.ts";
 
   let {
     worker,
@@ -79,7 +79,7 @@
     desktop?.availableVersion ||
     (worker.state !== "ahead" ? snapshot?.gatewayVersion : "")}
   status={label}
-  tone={failed ? "rose" : current ? "emerald" : busy ? "amber" : "neutral"}
+  tone={updateTone({ failed, busy, current })}
   detail={reason}
   error={failed ? reason : ""}
   {busy}

@@ -8,7 +8,14 @@
   import CompactCliUpdate from "./CompactCliUpdate.svelte";
   import CompactGatewayUpdate from "./CompactGatewayUpdate.svelte";
   import UpdateProgress from "./UpdateProgress.svelte";
-  import { appCurrent, cliCurrent, gatewayCurrent, workerCurrent, updatesAvailable } from "./compact-updates.ts";
+  import {
+    appCurrent,
+    cliCurrent,
+    gatewayCurrent,
+    listedWorkers,
+    workerCurrent,
+    updatesAvailable,
+  } from "./compact-updates.ts";
   import { cliActions } from "./cli-tools.svelte.ts";
   import type { UpdatesState } from "./updates.svelte.ts";
   import { updateIndicator } from "./update-indicator.ts";
@@ -29,7 +36,10 @@
   );
 
   const summary = $derived(updateIndicator(app.status, snapshot, app.error || updates.error, updates.pending));
-  const workers = $derived(snapshot?.workers ?? []);
+
+  // The bundled gateway and worker ship with this app: "This Canopy app" stands for them; their CLIs stay.
+  const bundled = $derived(!!snapshot?.gatewayBundled);
+  const workers = $derived(snapshot ? listedWorkers(snapshot) : []);
 
   const clis = $derived(
     snapshot?.cliWorkers.flatMap((worker) =>
@@ -37,7 +47,7 @@
     ) ?? [],
   );
 
-  const currentGateway = $derived(!!snapshot && gatewayCurrent(snapshot));
+  const currentGateway = $derived(!!snapshot && !bundled && gatewayCurrent(snapshot));
   const currentWorkers = $derived(workers.filter((worker) => workerCurrent(worker, snapshot?.gatewayVersion ?? "")));
   const currentClis = $derived(clis.filter(({ item }) => cliCurrent(item)));
   const currentApp = $derived(!app.error && appCurrent(app.status));
@@ -114,9 +124,9 @@
           </p>{/if}
       </div>
     {/if}
-    {#if !currentApp && (app.status || app.error)}<CompactAppUpdate updates={app} />{/if}
+    {#if !currentApp && (app.status || app.error)}<CompactAppUpdate updates={app} {bundled} />{/if}
     {#if snapshot}
-      {#if !currentGateway}<CompactGatewayUpdate {updates} />{/if}
+      {#if !bundled && !currentGateway}<CompactGatewayUpdate {updates} />{/if}
       {#each workers.filter((worker) => !workerCurrent(worker, snapshot.gatewayVersion)) as worker (worker.workerId)}
         <CompactWorkerUpdate {worker} {updates} />
       {/each}
@@ -126,7 +136,7 @@
       {#if currentCount}
         <Disclosure summaryClass="py-2 text-xs/5 text-muted" class="border-t border-divider">
           {#snippet summary()}Up to date · {currentCount}{/snippet}
-          {#if currentApp}<CompactAppUpdate updates={app} />{/if}
+          {#if currentApp}<CompactAppUpdate updates={app} {bundled} />{/if}
           {#if currentGateway}<CompactGatewayUpdate {updates} />{/if}
           {#each currentWorkers as worker (worker.workerId)}<CompactWorkerUpdate {worker} {updates} />{/each}
           {#each currentClis as entry (`${entry.worker.id}/${entry.item.tool?.provider}`)}<CompactCliUpdate

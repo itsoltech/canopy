@@ -40,9 +40,13 @@ export const gatewayCurrent = (snapshot: ui.UpdatesSnapshot): boolean =>
   !updateBusy(snapshot.gatewayState) &&
   snapshot.gatewayState !== "failed";
 
+/** Workers with their own row: the desktop app's bundled worker is part of "This Canopy app". */
+export const listedWorkers = (snapshot: ui.UpdatesSnapshot): ui.WorkerUpdate[] =>
+  snapshot.workers.filter((worker) => !worker.bundled);
+
 export const updatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>
-  (snapshot.gatewayInstallKind === "binary" && snapshot.gatewayUpdateAvailable) ||
-  snapshot.workers.some((worker) =>
+  (!snapshot.gatewayBundled && snapshot.gatewayInstallKind === "binary" && snapshot.gatewayUpdateAvailable) ||
+  listedWorkers(snapshot).some((worker) =>
     worker.desktop
       ? worker.desktop.connected &&
         !worker.desktop.disabledReason &&
@@ -58,8 +62,8 @@ export const updatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>
   );
 
 export const externalUpdatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>
-  (snapshot.gatewayInstallKind !== "binary" && snapshot.gatewayUpdateAvailable) ||
-  snapshot.workers.some(
+  (!snapshot.gatewayBundled && snapshot.gatewayInstallKind !== "binary" && snapshot.gatewayUpdateAvailable) ||
+  listedWorkers(snapshot).some(
     (worker) =>
       worker.installKind !== "binary" &&
       !worker.desktop &&

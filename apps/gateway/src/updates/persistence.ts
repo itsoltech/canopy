@@ -10,6 +10,8 @@ export interface WorkerUpdateRow {
   version: string;
   os: string;
   arch: string;
+  /** Reported the desktop_bundled capability: the desktop app's own local-mode worker. */
+  bundled?: boolean;
   status: {
     installKind?: string;
     minWorkerLinkProtocol?: number;
@@ -77,7 +79,7 @@ export class UpdatePersistence {
           version: string;
           os: string;
           arch: string;
-          capabilities: { update?: WorkerUpdateRow["status"]; updateCommand?: JsonValue };
+          capabilities: { update?: WorkerUpdateRow["status"]; updateCommand?: JsonValue; desktopBundled?: boolean };
         }>`
         SELECT id, name, version, os, arch, capabilities FROM workers WHERE archived_at IS NULL AND revoked_at IS NULL
           AND (owner_user_id = ${userId}::uuid OR owner_user_id IS NULL) ORDER BY name`;
@@ -88,6 +90,7 @@ export class UpdatePersistence {
           version: r.version,
           os: r.os,
           arch: r.arch,
+          bundled: r.capabilities.desktopBundled === true,
           status: r.capabilities.update ?? {},
           ...(r.capabilities.updateCommand && {
             command: fromJson(update.UpdateCommandSchema, r.capabilities.updateCommand),

@@ -307,7 +307,8 @@ while (!stopping.signal.aborted) {
           "bot_harness_v1",
           "thread_secrets",
           "cli_install",
-          ...(Bun.env["CANOPY_LOCAL_WORKER"] === "1" ? [] : ["network_route_migration"]),
+          // desktop_bundled: the desktop app's own local-mode worker, updated with the app (docs/updates.md).
+          ...(Bun.env["CANOPY_LOCAL_WORKER"] === "1" ? ["desktop_bundled"] : ["network_route_migration"]),
           "agent_environment_v1",
           "agent_skills_v1",
           "agent_plugins_v1",

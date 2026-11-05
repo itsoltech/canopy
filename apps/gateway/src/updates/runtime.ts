@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { ui, update } from "@canopy/contracts";
-import { CANOPY_VERSION } from "@canopy/domain/release/version";
+import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
 import { UPDATE_PROTOCOL, workerLinkCompatible } from "@canopy/domain/release/protocol";
 import {
   compareVersions,
@@ -35,6 +35,8 @@ export interface GatewayUpdatesOptions {
   channel?: string;
   version?: string;
   kind?: InstallKind;
+  /** The desktop app's bundled gateway (desktop role): it and its own worker update with the app. */
+  bundled?: boolean;
   binaryPath?: string;
   restart?(exitCode?: number): Promise<void>;
   idle?(): Promise<boolean>;
@@ -83,8 +85,12 @@ export class GatewayUpdates {
     });
   }
   async start(): Promise<void> {
-    const stored = await this.options.persistence.channel();
-    this.#channel = normalizeChannel(stored ?? this.#channel);
+    // A bundled gateway reports its build's channel; the app's own setting chooses the next release.
+    const build = releaseChannel(this.version);
+    const stored = this.options.bundled ? undefined : await this.options.persistence.channel();
+    this.#channel = normalizeChannel(
+      stored ?? (this.options.bundled && build !== "development" ? build : this.#channel),
+    );
 
     if (!validChannel(this.#channel)) throw new Error("Invalid update channel");
 
@@ -196,9 +202,11 @@ export class GatewayUpdates {
       checking: !!this.#checking,
       checkedAt: this.#checkedAt,
       checkError: this.#checkError,
+      gatewayBundled: !!this.options.bundled,
       workers: workers.map((w) => ({
         workerId: w.id,
         name: w.name,
+        bundled: !!this.options.bundled && w.bundled === true,
         version: w.version,
         installKind: w.status.installKind ?? "unknown",
         compatibility: workerLinkCompatible(w.status.minWorkerLinkProtocol ?? 0, w.status.workerLinkProtocol ?? 0)
@@ -235,6 +243,11 @@ export class GatewayUpdates {
     if (!this.#ready) throw new ConnectError("Gateway update control is starting or shutting down", Code.Unavailable);
 
     if (request.action === "channel") {
+      if (this.options.bundled)
+        throw new ConnectError(
+          "This gateway updates with the Canopy app. Change the channel in Settings → App updates.",
+          Code.FailedPrecondition,
+        );
       const channel = normalizeChannel(request.channel);
 
       if (!validChannel(channel))

@@ -43,10 +43,11 @@
 </script>
 
 <div class={["min-w-0 py-2", className]}>
-  <div class="flex min-w-0 items-center gap-2">
-    <Icon name={icon} class="shrink-0" />
+  <!-- Icon, badge and action sit on the name line; the action column keeps its width, so badges line up. -->
+  <div class="flex min-w-0 items-start gap-2">
+    <span class="flex h-5 shrink-0 items-center"><Icon name={icon} /></span>
     <div class="min-w-0 flex-1">
-      <div class="flex min-w-0 items-center gap-2">
+      <div class="flex h-5 min-w-0 items-center gap-2">
         <p class="min-w-0 flex-1 truncate text-[0.8125rem]/5 font-medium" title={name}>{name}</p>
         <Badge compact {tone}>{status}</Badge>
       </div>
@@ -60,8 +61,10 @@
       </p>
       {#if metadata}<p class="truncate text-[0.6875rem]/4 text-muted" title={metadata}>{metadata}</p>{/if}
     </div>
-    {#if action}<div class="shrink-0">{@render action()}</div>
-    {:else if detail}<IconButton icon="information-circle" size="sm" label={detail} />{/if}
+    <div class="flex h-5 w-8 shrink-0 items-center justify-center sm:w-7">
+      {#if action}{@render action()}
+      {:else if detail}<IconButton icon="information-circle" size="sm" label={detail} />{/if}
+    </div>
   </div>
   {#if busy}<UpdateProgress label={`${name}: ${status}`} value={progress} class="mt-1.5 ml-6" />{/if}
   {#if error}

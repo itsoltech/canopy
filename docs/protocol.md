@@ -60,6 +60,11 @@ nie dostają tych ramek. `WorkerLinkService.ProbeNetworkRoute` sprawdza credenti
 bez zastępowania aktywnego strumienia. Worker weryfikuje pin przed probe, atomowo zapisuje adres
 z kopią i zachowuje pierwotny endpoint na wypadek utraty nowej trasy także po restarcie.
 Nieosiągalny Network access nie rozłącza starego workera. Szczegóły: [network-access.md](network-access.md).
+
+Capability `desktop_bundled` ogłasza tylko własny worker aplikacji desktopowej w trybie lokalnym
+(`CANOPY_LOCAL_WORKER=1`; zamiast `network_route_migration`). Gateway zapisuje ją w
+`workers.capabilities.desktopBundled`, więc pozostaje znana także offline. Znaczenie ma tylko
+w roli `desktop`: patrz [updates.md](updates.md#dołączony-gateway-i-worker).
 Pola i metoda są addytywne, bez zmiany `WORKER_LINK_PROTOCOL` ani zamrożonego UpdateService.
 
 ```mermaid
