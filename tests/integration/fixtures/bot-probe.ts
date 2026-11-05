@@ -82,6 +82,8 @@ export async function botTool(text: string, server: typeof Mcp.Type | undefined)
     );
   }
 
+  if (text.startsWith("[canopy] Owner shell command result")) return text;
+
   const name = text.match(/TOOL:([a-z_0-9]+)/i)?.[1];
 
   if (!server || !name) return "FIXTURE_OK";

@@ -118,6 +118,7 @@
         {#each draft.ids as id (id)}<input type="hidden" name="attachmentId" value={id} />{/each}
         {#if error}<Alert tone="error">{error}</Alert>{/if}
         <ComposerBox
+          shell
           bind:value={message}
           bind:mentions
           {sources}

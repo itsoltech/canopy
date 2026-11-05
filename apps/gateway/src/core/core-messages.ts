@@ -15,6 +15,8 @@ import { coreAutoTitle, coreUiThread } from "./core-titles.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreRun } from "./core-broadcast.ts";
 import { coreBus } from "./core-schedules.ts";
 import type { TurnRow } from "../store/rows.ts";
+import { coreShellInput } from "./core-shell.ts";
+import { storedShellResult } from "../store/shell-input.ts";
 
 /** Internal linked input, prepared by the peer gateway rather than a public UI request. */
 export interface LinkedMessageInput {
@@ -45,6 +47,9 @@ export async function coreSendSteer(hostContext: GatewayCore, steerId: string): 
           inputId: steer.id,
           input: {
             text: steer.input.text,
+            shellCommand: steer.input.shellCommand,
+            shellInputId: steer.input.shellInputId ?? "",
+            shellResult: storedShellResult(steer.input.shellResult),
             authorUserId: steer.author_user_id ?? "",
             authorAgentId: steer.source_thread_id ?? "",
             mentions: mentionsFromJson(steer.input.delivered),
@@ -64,6 +69,13 @@ export async function coreSteerAnswered(
 ): Promise<void> {
   if (result.ok) {
     await coreSteers(hostContext, (s) => s.accepted(steerId));
+    await corePublishSteer(hostContext, steerId);
+
+    return;
+  }
+
+  if (result.errorCode.startsWith("SHELL_")) {
+    await coreSteers(hostContext, (s) => s.failed(steerId, result.errorMessage));
     await corePublishSteer(hostContext, steerId);
 
     return;
@@ -180,6 +192,10 @@ export const coreMessagesMethods: CoreMessagesMethods = {
 
     if (!request.text.trim() && !files && quotes.length === 0) throw new InvalidError("message is empty");
 
+    const shell = linked
+      ? undefined
+      : coreShellInput(request.text, Boolean(files || quotes.length || request.mentions.length));
+
     const { mentions, goal } = await coreMessageMentions(
       this,
       { id: thread.id, cwd: thread.cwd ?? "" },
@@ -207,7 +223,7 @@ export const coreMessagesMethods: CoreMessagesMethods = {
 
       if (running && thread.worker_id) {
         const steerInput =
-          linked?.input ?? coreComposeInput(this, thread.provider, request.text, mentions, undefined, quotes);
+          linked?.input ?? shell ?? coreComposeInput(this, thread.provider, request.text, mentions, undefined, quotes);
 
         const steer = await coreSteers(this, (s) =>
           s.create({
@@ -232,6 +248,7 @@ export const coreMessagesMethods: CoreMessagesMethods = {
 
     const input =
       linked?.input ??
+      shell ??
       coreComposeInput(this, thread.provider, request.text, mentions, files?.input(threadId, request.text), quotes);
 
     const turn = await coreRun(this, (s) =>

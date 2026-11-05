@@ -8,6 +8,7 @@ import type { GatewayCore } from "./core.ts";
 import { coreComposeInput, coreMessageMentions } from "./core-mentions.ts";
 import { coreSendSteer, coreSteers } from "./core-messages.ts";
 import { coreRun } from "./core-broadcast.ts";
+import { coreShellInput } from "./core-shell.ts";
 
 export async function corePublishQueued(hostContext: GatewayCore, row: TurnRow): Promise<ui.Turn> {
   const turn = toUiTurn(row);
@@ -79,7 +80,10 @@ export const coreQueueMethods: CoreQueueMethods = {
       ? { text: withAttachmentsNote(note, text), note, message: text, attachments }
       : { text };
 
-    const input = coreComposeInput(this, thread.provider, text, mentions, base, current.input.quotes ?? []) ?? base;
+    const input =
+      coreShellInput(text, Boolean(attachments.length || current.input.quotes?.length || request.mentions.length)) ??
+      coreComposeInput(this, thread.provider, text, mentions, base, current.input.quotes ?? []) ??
+      base;
 
     const row = await coreQueue(this, (q) =>
       q.edit({ turnId: request.turnId, ownerUserId, input, expectedRevision: request.expectedRevision }),

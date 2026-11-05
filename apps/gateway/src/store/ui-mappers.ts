@@ -1,6 +1,7 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { InteractionKind, PermissionMode, UsageSchema, ui } from "@canopy/contracts";
+import { storedShellResult } from "./shell-input.ts";
 import { fromJson } from "@bufbuild/protobuf";
 import { Match, Predicate } from "effect";
 import { classifyFailure, safeFailureDetail } from "@canopy/domain";
@@ -157,6 +158,8 @@ export function toUiTurn(row: TurnRow & { inherited?: boolean }): ui.Turn {
     status: row.status,
     trigger: row.trigger,
     inputText: row.input?.text ?? "",
+    shellCommand: row.input?.shellCommand,
+    shellResult: storedShellResult(row.input?.shellResult),
     error: safeFailureDetail(row.error ?? ""),
     interruptReason: row.status === "interrupted" ? (row.interrupt_reason ?? "") : "",
     errorSource: row.status === "failed" ? (row.error_source ?? "") : "",

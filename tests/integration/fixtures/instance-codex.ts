@@ -36,6 +36,7 @@ recordProbe("codex", "spawn");
 
 const providers = new Map<string, string>();
 const botServers = new Map<string, ReturnType<typeof codexBotConfig>>();
+const interrupted = new Set<string>();
 const send = (message: JsonObject) => process.stdout.write(JSON.stringify(message) + "\n");
 const notify = (method: string, params: JsonObject) => send({ method, params });
 
@@ -47,6 +48,8 @@ async function turn(id: number, params: { threadId: string; input: { text?: stri
   notify("turn/started", { threadId, turn: { id: turnId, status: "inProgress", items: [], error: null } });
   recordProbe("codex", "turn", threadId, providers.get(threadId));
   await releaseProbe(text);
+
+  if (interrupted.delete(turnId)) return;
   const failure = process.env["BOT_TRACE"] ? botFailure(text) : undefined;
 
   if (failure) {
@@ -81,8 +84,8 @@ async function turn(id: number, params: { threadId: string; input: { text?: stri
     return;
   }
 
-  if (process.env["BOT_TRACE"]) {
-    writeFileSync(join(home, "bot-input.txt"), text);
+  if (process.env["BOT_TRACE"] || text.startsWith("[canopy] Owner shell command result")) {
+    if (process.env["BOT_TRACE"]) writeFileSync(join(home, "bot-input.txt"), text);
     const answer = await botTool(text, botServers.get(threadId));
     notify("item/completed", {
       threadId,
@@ -139,5 +142,25 @@ for await (const line of createInterface({ input: process.stdin })) {
     recordProbe("codex", request.method, session, params.modelProvider);
     send({ id, result: { thread: { id: session, path: null } } });
   } else if (request.method === "turn/start") void turn(id, params);
-  else send({ id, result: {} });
+  else if (request.method === "turn/interrupt") {
+    interrupted.add(params.turnId);
+    send({ id, result: {} });
+    notify("turn/completed", {
+      threadId: params.threadId,
+      turn: { id: params.turnId, status: "interrupted", items: [], error: null },
+    });
+  } else if (request.method === "turn/steer") {
+    const text = params.input.map((part: { text?: string }) => part.text ?? "").join("\n");
+    send({ id, result: { turnId: params.expectedTurnId } });
+    notify("item/completed", {
+      threadId: params.threadId,
+      turnId: params.expectedTurnId,
+      item: {
+        id: crypto.randomUUID(),
+        type: "userMessage",
+        content: [{ type: "text", text, text_elements: [] }],
+        clientId: params.clientUserMessageId,
+      },
+    });
+  } else send({ id, result: {} });
 }

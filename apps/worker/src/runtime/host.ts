@@ -28,6 +28,7 @@ import {
 } from "./host-types.ts";
 import { HostState } from "./host-state.ts";
 import { HostContext } from "./host-context.ts";
+import { recoverShellInputs } from "./shell-input.ts";
 import { UpdateCheckTimer } from "@canopy/domain/update-checks";
 
 export type { WorkerHostOptions } from "./host-types.ts";
@@ -323,6 +324,9 @@ export class WorkerHost {
 
   async close(): Promise<void> {
     this.#ctx.state.closing = true;
+
+    for (const run of this.#ctx.state.shellRuns.values()) run.controller.abort("worker_shutdown");
+    await Promise.allSettled([...this.#ctx.state.shellRuns.values()].map((r) => r.pending));
     await this.#ctx.state.accounts.close();
     this.#ctx.ops.wakeRuntimes();
     await this.#ctx.state.runtimeReconcile;
@@ -342,6 +346,7 @@ export class WorkerHost {
 
       for (const handle of this.#ctx.state.grok.values()) await handle.runtime.close();
       this.#ctx.state.grok.clear();
+      await Promise.allSettled(this.#commands.values());
     } finally {
       // Keep masking late provider output until its processes have stopped.
       this.#ctx.state.secrets.close();
@@ -383,6 +388,7 @@ export class WorkerHost {
    * Their ends go through the journal like any event.
    */
   async recover(): Promise<{ turns: number; tasks: number; fromTranscript: number }> {
+    await recoverShellInputs(this.#ctx);
     const open = await this.#ctx.state.options.runtime.runPromise(Journal.use((j) => j.openTurns()));
     let fromTranscript = 0;
 

@@ -92,6 +92,9 @@ export interface TurnRow {
    * worker; quotes = the passages of the thread it quotes (shown to the model in the note).
    */
   input: {
+    shellCommand?: string;
+    shellInputId?: string;
+    shellResult?: JsonValue;
     text?: string;
     note?: string;
     message?: string;

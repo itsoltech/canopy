@@ -10,6 +10,7 @@
   import WorkFold from "./WorkFold.svelte";
   import WorkGroup from "./WorkGroup.svelte";
   import AnswerSlot from "./AnswerSlot.svelte";
+  import ShellMessage from "./ShellMessage.svelte";
 
   /**
    * One row of the thread page's feed. Rows space themselves (bottom padding, measured with the row);
@@ -112,18 +113,29 @@
   <p class="pb-3 text-base/6 sm:text-sm/6"><span class="inline-block shimmer py-1 font-medium">Working…</span></p>
 {:else}
   <div class="pb-3">
-    <UserMessageView
-      message={{
-        text: row.steer.text,
-        authorAgentId: row.steer.sourceThreadId,
-        attachments: [],
-        mentions: row.steer.mentions,
-      }}
-      quotes={row.steer.quotes}
-      note={steeringNote(row.steer)}
-      sender={row.steer.sender}
-      pending
-    />
+    {#if row.steer.shellCommand !== undefined}
+      <ShellMessage
+        command={row.steer.shellCommand}
+        result={row.steer.shellResult}
+        text={row.steer.inputText}
+        status={row.steer.status}
+        reason={row.steer.reason}
+        pending={row.steer.status === "pending"}
+      />
+    {:else}
+      <UserMessageView
+        message={{
+          text: row.steer.text,
+          authorAgentId: row.steer.sourceThreadId,
+          attachments: [],
+          mentions: row.steer.mentions,
+        }}
+        quotes={row.steer.quotes}
+        note={steeringNote(row.steer)}
+        sender={row.steer.sender}
+        pending
+      />
+    {/if}
   </div>
 {/if}
 

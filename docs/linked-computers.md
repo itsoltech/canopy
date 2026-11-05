@@ -482,6 +482,12 @@ Metody spoza listy z kwalifikowanym id najwyższego poziomu (np. `ListSchedules`
 „This isn't available for threads on another computer yet”. Sekrety wątków nie przechodzą przez łącze.
 Przypięcia i filtr projektów sidebara mogą zawierać id kwalifikowane (walidacja `isEntityId`).
 
+Komendy `!…` właściciela korzystają z tych samych tras `CreateThread`, `SendMessage`,
+zarządzania kolejką i `InterruptThread`. Wykonuje je wyłącznie worker domu wątku,
+w jego cwd; komputer przeglądający nie uruchamia lokalnej powłoki. Dom nadal sprawdza
+właściciela i lokalizację. Wynik i dokładne wejście agenta wracają przez zwykły
+`WatchThread`, bez nowej metody ani przesyłania poświadczeń do workera.
+
 ### Zsumowany widok
 
 - `GetOverview`: lokalne workery i projekty plus te z każdego partnera, który udostępnia wątki teraz,

@@ -7,7 +7,7 @@ Wymaganie: frontend pokazuje **wszystko**: wiadomości, rozumowanie, każde narz
 ## 1. Zasady
 
 1. **Nic nie ginie.** Każde zdarzenie dostawcy trafia do `thread_events`, także takie, którego jeszcze nie umiemy zmapować. Oryginał zawsze leży w `raw`.
-2. **Nic nie jest przycinane.** Treść większa niż limit wiadomości trafia do `blobs` (adresowane sha256) i jest wskazywana przez `BlobRef`.
+2. **Treść dostawcy nie jest przycinana.** Treść większa niż limit wiadomości trafia do `blobs` (adresowane sha256) i jest wskazywana przez `BlobRef`. Wyjątek dla jawnych komend powłoki właściciela: worker przechwytuje ograniczony początek i koniec outputu, z oznaczeniem pominiętego środka (poniżej).
 3. **Jedna oś czasu na wątek.** `seq` nadaje gateway przy zapisie. Zdarzenia workera i platformy (wejście użytkownika, decyzje o zgodach, szyna agentów, komunikaty) mają jedną, wspólną kolejność.
 4. **Zdarzenia poza turą są pełnoprawne.** `turn_id` jest pusty, gdy zdarzenie nie należy do tury.
 5. **Log + projekcja.** `thread_events` to log tylko do dopisywania (źródło prawdy). `thread_items` to bieżący stan każdego elementu, aktualizowany w tej samej transakcji tym samym reducerem, którego używa frontend.
@@ -89,6 +89,19 @@ Bloby: worker wysyła `BlobChunk` przed zdarzeniem, które je wskazuje. Gateway 
 ### Obrazy
 
 Każdy obraz, który widział model, ma podgląd na osi czasu: `Image.blob` (`view_image`, natywne odczyty, wygenerowane) albo `ToolCall.images` (obrazy w wynikach narzędzi). Worker robi podgląd przed zapisem zdarzenia i wysyła go jako `BlobChunk` przed zdarzeniem ([protocol.md](protocol.md#załączniki)); gateway wiąże blob z wątkiem (`thread_blobs`), a UI czyta go przez `GetThreadBlob` (właściciel, wątek z tego samego drzewa).
+
+### Wynik komendy właściciela
+
+`shell_input_prepared` zapisuje stan `running`, potem jeden końcowy `completed`, `failed`
+albo `interrupted`. Gateway w tej samej transakcji aktualizuje JSONB wejścia tury i steera
+po `shell_input_id`, również tury powstałej po odrzuceniu steera. Końcowy wynik jest niezmienny;
+powtórzone zdarzenia nie nadpisują go. Nie potrzeba migracji PostgreSQL.
+
+Wejście zachowuje komendę, cwd, kod wyjścia, ograniczony wynik i dokładny tekst dostarczony
+harnessowi. Inne urządzenia, przeładowanie strony i replay po reconnect pokazują te same dane.
+UI renderuje je jako komendę z akcentem rose, plakietką kodu i zwiniętym outputem, zamiast
+zwykłej wiadomości `!…`. Pełny tekst wejścia można rozwinąć. Nieudany albo przerwany wynik
+nie jest dostarczany agentowi. Limity i restart opisuje [protocol.md](protocol.md#komendy-powłoki-właściciela).
 
 ## 6. Frontend
 

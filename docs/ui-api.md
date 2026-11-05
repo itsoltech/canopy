@@ -513,6 +513,25 @@ Restart workera i błędy komend (pola od 70):
 - `Turn.interrupt_source` (73): przy `interrupted` kto przerwał — `user` albo `system` (np. `worker restarted mid-turn`). Stopka tury w UI pokazuje „Harness error: …” / „Platform error: …”, „by you”, „by the system: …” i dla przerwania przez system akcję „Continue” (wiadomość wznawiająca sesję). Stany i macierz: [durability.md](durability.md#47-stany-tury-i-wątku). Wątek po każdym końcu tury jest `idle`; `failed` tylko dla wątku, który nie powstał,
 - `Goal.error`, `Goal.error_at`: ostatnia komenda celu nie powiodła się na workerze; status wraca wtedy do ostatniego stanu harnessu ([goals.md](goals.md#3-statusy)). `goalPending` w UI nie pokazuje wtedy „Starting… / Pausing…”, a `GoalBar` pokazuje błąd.
 
+### Komendy powłoki w kompozytorze
+
+Pierwszy znak `!` włącza tryb powłoki w kompozytorze nowego, istniejącego i bocznego wątku.
+Obramowanie zmienia kolor na rose w obu motywach bez zmiany rozmiaru. Zarezerwowany wiersz
+pokazuje „Runs as a shell command when delivered.”. Usunięcie `!` przywraca zwykłą wiadomość;
+Escape zachowuje dotychczasowe działanie. Spacja przed `!` nie włącza trybu. Sam `!` oraz
+komenda z załącznikami, cytatami lub wzmiankami wymagają poprawienia przed wysłaniem.
+
+`SendMessage` zachowuje kolejkę i steer: komenda uruchamia się dopiero przy dostarczeniu wejścia
+na workerze. W kolejce nie wykonuje żadnych efektów. Steer używa istniejącej ścieżki harnessu;
+Grok nadal wraca do kolejki. Jeśli tura skończy się podczas wykonania steera, kolejna tura
+otrzymuje ten sam zapisany wynik, bez ponownego uruchomienia komendy.
+
+`Turn.shell_command` / `shell_result` i analogiczne pola `Steer` pokazują komendę monospace,
+kod wyjścia, pierwsze 4 wiersze wyniku oraz „Show output”. „Full text the agent received”
+ujawnia dokładne wejście harnessu (`Turn.input_text`, `Steer.input_text`). Wyniki niezerowego
+kodu też trafiają do agenta; timeout, Stop i błąd uruchomienia kończą wejście bez startu agenta.
+Nieudany shell steer pozostaje widoczny. Szczegóły wykonania i trwałości: [protocol.md](protocol.md#komendy-powłoki-właściciela).
+
 ### Kompaktowy kompozytor podczas czytania historii
 
 Kompozytor wątku zwija się po celowym przewinięciu w górę o co najmniej 96 px, gdy od końca dzieli co najmniej 192 px. Histereza utrzymuje wąski widok aż do powrotu na dół (wspólny próg feedu: 8 px) albo interakcji z kompozytorem. Nowy fokus, kliknięcie edytora, pisanie, upuszczenie/wklejenie pliku, otwarcie kontrolek i „Jump to latest” rozwijają pole. Celowe przewijanie ma pierwszeństwo przed istniejącym fokusem; edytor pozostaje zamontowany i zachowuje fokus również na telefonie.

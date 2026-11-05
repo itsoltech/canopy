@@ -43,7 +43,9 @@ export function threadsHandlers(
       guard(async () => create(ui.GetThreadResponseSchema, { thread: await core.getThread(request.threadId) })),
 
     createThread: (request) =>
-      guard(async () => create(ui.CreateThreadResponseSchema, { thread: await core.createThread(request) })),
+      guard(async () =>
+        create(ui.CreateThreadResponseSchema, { thread: await core.createThread(request, undefined, true) }),
+      ),
 
     sendMessage: (request) => guard(async () => create(ui.SendMessageResponseSchema, await core.sendMessage(request))),
 

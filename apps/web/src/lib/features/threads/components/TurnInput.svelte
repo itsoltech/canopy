@@ -13,6 +13,7 @@
   import UserMessageView from "./items/UserMessageView.svelte";
   import AgentMessageBubble from "./items/AgentMessageBubble.svelte";
   import AgentSenderLabel from "./AgentSenderLabel.svelte";
+  import ShellMessage from "./ShellMessage.svelte";
 
   /**
    * The input of a turn with where it came from (the turn's source): you (a plain message), another
@@ -61,7 +62,9 @@
   );
 </script>
 
-{#if origin.kind === "background_task"}
+{#if turn.shellCommand !== undefined}
+  <ShellMessage command={turn.shellCommand} result={turn.shellResult} text={turn.inputText} status={turn.status} />
+{:else if origin.kind === "background_task"}
   <!-- The platform's note about ended background tasks: a system line, not a message. -->
   <BackgroundNoteRow itemIds={origin.itemIds} />
 {:else if origin.kind === "user"}

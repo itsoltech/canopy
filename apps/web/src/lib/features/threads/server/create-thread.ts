@@ -38,7 +38,8 @@ export async function createThreadFromForm(
 
   if (!provider) return fail(400, { action, error: "Choose Claude, Codex or Grok" });
   const profileId = parent?.providerProfileId ?? text(form, "profileId");
-  const initialMessage = text(form, "message");
+  const message = String(form.get("message") ?? "");
+  const initialMessage = message.trimStart().startsWith("!") ? message.trimEnd() : message.trim();
 
   if (parent && !initialMessage && form.getAll("attachmentId").length === 0)
     return fail(400, { action, error: "Tell the side thread what to do" });

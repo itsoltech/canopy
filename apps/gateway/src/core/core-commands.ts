@@ -1,4 +1,5 @@
-import { toJson, type MessageInitShape } from "@bufbuild/protobuf";
+import { create, toJson, type MessageInitShape } from "@bufbuild/protobuf";
+import { SHELL_INPUT_CAPABILITY, SHELL_INPUT_TIMEOUT_MS } from "@canopy/domain";
 import { CommandResultSchema, CommandSchema, type Command, type CommandResult } from "@canopy/contracts";
 import { AgentBusStore } from "../store/index.ts";
 import { BotStore } from "../bots/store.ts";
@@ -70,11 +71,23 @@ export async function coreDeliver(hostContext: GatewayCore, workerId: string, co
       body.thread.connectorTools = await hostContext.connectors.tools(thread.owner_user_id, { workerId });
     }
 
-    result = await connection.sendCommand(
-      command.kind,
-      hostContext[coreState].options.commandTimeoutMs ?? 60_000,
-      command.commandId,
-    );
+    const shell =
+      (command.kind.case === "startTurn" || command.kind.case === "steerTurn") &&
+      command.kind.value.input?.shellCommand !== undefined;
+
+    result =
+      shell && !connection.hello.capabilities.includes(SHELL_INPUT_CAPABILITY)
+        ? create(CommandResultSchema, {
+            commandId: command.commandId,
+            ok: false,
+            errorCode: "SHELL_UNSUPPORTED",
+            errorMessage: "This worker cannot run composer shell commands. Update the worker, then send a new message.",
+          })
+        : await connection.sendCommand(
+            command.kind,
+            shell ? SHELL_INPUT_TIMEOUT_MS + 60_000 : (hostContext[coreState].options.commandTimeoutMs ?? 60_000),
+            command.commandId,
+          );
   } catch {
     return; // disconnected or timed out: stays in the outbox, redelivered on reconnect (the worker deduplicates)
   }

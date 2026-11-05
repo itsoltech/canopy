@@ -9,6 +9,7 @@
   import TurnEnd from "./TurnEnd.svelte";
   import TurnInput from "./TurnInput.svelte";
   import TurnStart from "./TurnStart.svelte";
+  import ShellMessage from "./ShellMessage.svelte";
 
   /**
    * One row of a thread's timeline: a turn's start, input or end, an item (with nested items; a message
@@ -35,6 +36,8 @@
     text={row.node.entry.item.content.value.text}
     attachments={row.node.entry.item.content.value.attachments}
   />
+{:else if row.kind === "item" && row.steer && steer?.shellCommand !== undefined}
+  <ShellMessage command={steer.shellCommand} result={steer.shellResult} text={steer.inputText} />
 {:else if row.kind === "item" && row.steer && steer?.backgroundItemIds.length}
   <BackgroundNoteRow itemIds={steer.backgroundItemIds} />
 {:else if row.kind === "item" && row.steer && row.node.entry.item.content.case === "userMessage"}

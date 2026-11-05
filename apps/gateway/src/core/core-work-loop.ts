@@ -27,6 +27,7 @@ import type { GatewayCore } from "./core.ts";
 import { corePublishInteraction } from "./core-interactions.ts";
 import { corePublishSteer, coreQueueSteer, coreSteers } from "./core-messages.ts";
 import { coreProfileModels } from "./core-models.ts";
+import { storedShellResult } from "../store/shell-input.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core-broadcast.ts";
 
 /** Turns that no longer run on their worker end as interrupted; the threads go on with what is queued. */
@@ -155,6 +156,9 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
         turnId: turn.id,
         input: {
           text: turn.input.text ?? "",
+          shellCommand: turn.input.shellCommand,
+          shellInputId: turn.input.shellInputId ?? "",
+          shellResult: storedShellResult(turn.input.shellResult),
           authorUserId: hostContext[coreState].options.userId,
           mentions: mentionsFromJson(turn.input.delivered),
           attachments: (turn.input.attachments ?? []).map((a) => ({

@@ -60,9 +60,9 @@ export class CommandHandlers {
       case "createThread":
         return this.ctx.ops.createThread(kind);
       case "startTurn":
-        return this.ctx.ops.startTurn(kind);
+        return this.ctx.ops.startTurn(kind, command.commandId);
       case "steerTurn":
-        return this.ctx.ops.steerTurn(kind);
+        return this.ctx.ops.steerTurn(kind, command.commandId);
       case "listModels":
         return this.ctx.ops.listModelsCommand(kind);
       case "generateText":

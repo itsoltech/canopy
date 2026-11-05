@@ -237,6 +237,42 @@ Model pusty = model `is_default` katalogu. Tura zapisuje rozstrzygnięte wartoś
 - Tura już się skończyła albo nie działa na tym workerze: `STEER_NOT_RUNNING`; dostawca odmówił: `STEER_REJECTED`. Gateway kolejkuje wtedy wiadomość jako następną turę z powodem.
 - Claude przyjął wiadomość, ale tura skończyła się bez niej (przerwanie, błąd, brak dalszych zdarzeń przez 60 s po wyniku): `Notice` z `code = steer_dropped` i `data_json {"input_id"}`; gateway też ją kolejkuje.
 
+## Komendy powłoki właściciela
+
+Capability `shell_input_v1` rozszerza `WORKER_LINK_PROTOCOL = 1` addytywnie. Gateway odrzuca
+wejście dla starszego workera z `SHELL_UNSUPPORTED` i instrukcją aktualizacji; nigdy nie wysyła
+surowego `!…` jako zwykłego tekstu. `UserInput.shell_command` oznacza komendę bez `!`,
+`shell_input_id` identyfikuje jedno wykonanie, a `shell_result` pozwala ponownie dostarczyć
+już obliczony wynik (np. po odrzuceniu steera). `ThreadEvent.shell_input_prepared` niesie
+identyfikator wejścia i `ShellResult`: komendę, cwd, status, kod wyjścia, wynik, powód,
+znacznik skrócenia i czas. Protokół aktualizacji pozostaje bez zmian.
+
+Worker uruchamia powłokę logowania użytkownika (`$SHELL`, powłoka konta, potem `/bin/sh`;
+Windows: `COMSPEC`) w sprawdzonym cwd wątku, przez istniejący governor procesów i helper
+zabijający grupę procesów. stdin jest zamknięte (EOF). Środowisko pochodzi z urządzenia,
+bez `CANOPY_*`; poświadczenia instancji dostawcy ani gatewaya nie są dodawane.
+Komenda jest jawną akcją właściciela, poza polityką zgód agenta. Wejścia botów i szyny
+agentów nie interpretują prefiksu `!`.
+
+Limit wykonania wynosi **120 s** od startu procesu; Stop przerywa także shell steer.
+Timeout i Stop zabijają całą własną grupę procesów. stdout i stderr są łączone w kolejności
+odczytu; procesy pozostawione w grupie są sprzątane także po zamknięciu komendy. Przechwytywanie działa
+bez stdin i bez logowania komendy lub wyniku. Zachowujemy pierwsze i ostatnie
+32 KiB oraz oznaczamy liczbę pominiętych bajtów środka; pamięć przechwytywania jest ograniczona.
+Niezerowy kod wyjścia to zakończona komenda, której wynik dostaje agent. Błąd startu,
+timeout i przerwanie kończą wejście z powodem, bez uruchamiania nowej tury harnessu.
+
+Przed startem procesu worker zapisuje atomowo roszczenie `shell_input_id`, wynik prowizoryczny
+komendy outboxa i zdarzenie `running` w SQLite. Wynik końcowy trafia najpierw do dziennika,
+potem do gatewaya i harnessu. Restart oznacza niedokończone wejścia jako `interrupted`,
+zatrzymuje ich zapisane grupy procesów po sprawdzeniu tożsamości procesu (ochrona przed
+ponownym użyciem PID) i zamyka otwarte tury. Nie ponawia komend automatycznie.
+Utrata łącza lub restart gatewaya korzysta ze zwykłego replay/ack i idempotencji outboxa.
+
+Harnessy Claude, Codex i Grok dostają identyczny tekst z `shellInputText`: oznaczenie wyniku
+jawnej komendy właściciela i niezaufanego outputu, komendę i cwd zapisane jako ciągi JSON,
+status, kod wyjścia oraz oddzieloną treść stdout/stderr. Surowy prefiks `!` nie trafia do harnessu.
+
 ## Profile dostawców
 
 - Profile są w zdalnej konfiguracji (`WorkerConfig.profiles`): to efektywne **globalne instancje dostawców** włączone na tym workerze, jedna na parę (dostawca, id), z nazwą, zmiennymi, flagą `disabled` i środowiskiem uruchomienia (`executable_path`, `home_path`, `shadow_home_path`, `launch_args`, `own_login`); gateway je wylicza z definicji i nadpisań ([worker-config.md](worker-config.md#9-globalne-instancje-dostawców)). Worker raportuje w `ConfigApplied` dostępność, nazwę, wersję CLI i sposób uwierzytelnienia każdej instancji (`version`, `auth`, `authenticated`; bez kluczy i wartości zmiennych).

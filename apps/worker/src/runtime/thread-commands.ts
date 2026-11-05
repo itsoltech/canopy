@@ -9,6 +9,7 @@ import type { SteerError } from "../providers/turn-input.ts";
 import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import { instanceKey } from "./instance-runtimes.ts";
+import { prepareShellInput } from "./shell-input.ts";
 
 const TURN_NOT_RUNNING = "TURN_NOT_RUNNING";
 
@@ -55,10 +56,10 @@ export class ThreadCommands {
     return {};
   }
 
-  async startTurn(kind: Extract<Command["kind"], { case: "startTurn" }>): Promise<CommandOutput> {
-    const { thread: spec, turnId, input, model, effort, permissionMode } = kind.value;
+  async startTurn(kind: Extract<Command["kind"], { case: "startTurn" }>, commandId: string): Promise<CommandOutput> {
+    const { thread: spec, turnId, input: rawInput, model, effort, permissionMode } = kind.value;
 
-    if (!spec || !input) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
+    if (!spec || !rawInput) throw new CommandError("INVALID_COMMAND", "thread spec or input missing", true);
     this.ctx.ops.checkCwd(spec.cwd);
     this.ctx.state.cwds.set(spec.threadId, spec.cwd);
     this.ctx.state.threadProviders.set(spec.threadId, spec.provider);
@@ -66,6 +67,14 @@ export class ThreadCommands {
       spec.threadId,
       instanceKey(Provider[spec.provider]!.toLowerCase(), spec.providerProfileId),
     );
+
+    const input = await prepareShellInput(this.ctx, spec.threadId, turnId, rawInput, commandId, true).catch((error) => {
+      // Its ordered journal events carry the terminal state; a generic command error would race them.
+      if (error instanceof CommandError && error.code === "SHELL_INTERRUPTED") return undefined;
+      throw error;
+    });
+
+    if (!input) return {};
 
     // The files first: the input already names their paths.
     if (input.attachments.length > 0) await this.ctx.ops.ensureAttachments(spec.threadId, input.attachments);
@@ -92,10 +101,17 @@ export class ThreadCommands {
     return {};
   }
 
-  async steerTurn(kind: Extract<Command["kind"], { case: "steerTurn" }>): Promise<CommandOutput> {
-    const { threadId, turnId, inputId, input } = kind.value;
+  async steerTurn(kind: Extract<Command["kind"], { case: "steerTurn" }>, commandId: string): Promise<CommandOutput> {
+    const { threadId, turnId, inputId, input: rawInput } = kind.value;
 
-    if (!input || !inputId) throw new CommandError("INVALID_COMMAND", "input or input_id missing", true);
+    if (!rawInput || !inputId) throw new CommandError("INVALID_COMMAND", "input or input_id missing", true);
+
+    if ([...this.ctx.state.grok.values()].some((handle) => handle.runtime.running(threadId)))
+      throw new CommandError("STEER_REJECTED", "Grok ACP does not support mid-turn input; queue this message", true);
+
+    if (!this.ctx.state.running.has(`${threadId}/${turnId}`))
+      throw new CommandError("STEER_NOT_RUNNING", "the turn is not running on this worker", true);
+    const input = await prepareShellInput(this.ctx, threadId, turnId, rawInput, commandId, false);
 
     // Like InterruptTurn: the runtime with the running turn takes it.
     const claude = [...this.ctx.state.claude].find(([, handle]) =>
@@ -131,6 +147,18 @@ export class ThreadCommands {
 
   async interruptTurn(kind: Extract<Command["kind"], { case: "interruptTurn" }>): Promise<CommandOutput> {
     const { threadId, turnId } = kind.value;
+
+    const shellRuns = [...this.ctx.state.shellRuns.values()].filter(
+      (r) => r.threadId === threadId && r.turnId === turnId,
+    );
+
+    for (const run of shellRuns) run.controller.abort();
+
+    if (shellRuns.length > 0) {
+      await Promise.allSettled(shellRuns.map((r) => r.pending));
+
+      if (shellRuns.some((run) => run.startTurn)) return {};
+    }
 
     // E.g. the turn died with the previous process: the gateway ends it on its side.
     if (!this.ctx.state.running.has(`${threadId}/${turnId}`))

@@ -173,6 +173,9 @@ for await (const line of createInterface({ input: process.stdin })) {
       },
     });
   else if (message.type === "user") {
+    if (message.uuid)
+      send({ type: "command_lifecycle", command_uuid: message.uuid, state: "started", session_id: session });
+
     const content = Schema.decodeSync(
       Schema.Union([
         Schema.String,

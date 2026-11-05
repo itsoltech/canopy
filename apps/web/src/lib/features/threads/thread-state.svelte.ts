@@ -148,7 +148,11 @@ export class ThreadState {
 
     return this.steers.filter(
       (s) =>
-        (s.status === "pending" || s.status === "accepted") && !echoed.has(s.id) && s.backgroundItemIds.length === 0,
+        (s.status === "pending" ||
+          s.status === "accepted" ||
+          (s.status === "failed" && s.shellCommand !== undefined)) &&
+        !echoed.has(s.id) &&
+        s.backgroundItemIds.length === 0,
     );
   });
   /** Usage of the thread's own turns (from the snapshot, so it survives a reload). */
