@@ -25,7 +25,7 @@
   } = $props();
 </script>
 
-<div class={["@container/context min-w-0", className]} data-composer-context>
+<div class={["composer-context @container/context min-w-0", className]} data-composer-context>
   <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
     <div class="grid min-w-0 items-center gap-x-1 gap-y-1 @min-[44rem]/context:flex pointer-coarse:gap-y-4">
       <div
@@ -51,3 +51,30 @@
     <div class="flex min-h-8 items-center justify-end">{@render permissionControl()}</div>
   </div>
 </div>
+
+<style>
+  /* Only the controls under the editor are dense; top-layer menus keep the app's normal sizing. */
+  .composer-context :global(:is(button, [data-composer-branch]):not([popover] *)) {
+    min-height: 2rem;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .composer-context :global(:is(button, [data-composer-branch]):not([popover] *) > svg) {
+    width: 0.75rem;
+    height: 0.75rem;
+  }
+
+  .composer-context :global([data-project-mark]:not([popover] *)) {
+    width: 1rem;
+    height: 1rem;
+    font-size: 0.5rem;
+  }
+
+  @media (max-width: 39.999rem), (pointer: coarse) {
+    .composer-context :global(:is(button, [data-composer-branch]):not([popover] *)) {
+      min-height: 2.5rem;
+    }
+  }
+</style>
