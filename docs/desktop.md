@@ -217,7 +217,7 @@ PostgreSQL pasek postępu. Błędy udostępniają „Try again” i „Open desk
 Niepoprawny plik konfiguracji również prowadzi do odzyskiwania, zamiast do pierwszego uruchomienia.
 Formularz wyboru trybu pojawia się tylko bez konfiguracji albo po jawnym otwarciu
 wyboru trybu (`/desktop?settings=1`). Ekran zawiera wyłącznie wybór local/remote
-i pola połączenia. Aktualizacje oraz skrót Quit pozostają w Settings → App updates.
+i pola połączenia. Aktualizacje pozostają w Settings → App updates, a skrót Quit w Settings → General → Desktop app.
 „Back to Settings” i Escape zamykają osobne okno wyboru, przywracając poprzedni
 widok Settings bez zapisu ani przeładowania; pierwsze uruchomienie nie ma przycisku powrotu.
 Zapis niezmienionych pól tylko wraca. Main i kontroler również pomijają wtedy
@@ -265,6 +265,8 @@ desktop.json                # tryb/adresy; bez tokenu enrollment
 app-updates.json            # wybrany kanał desktopu; zapis atomowy w main, bez gatewaya
 remote-update.json.<hash>    # historia zdalnej aktualizacji per desktop device; bez credentiali
 app-shortcuts.json          # quitShortcut; zapis atomowy w main, bez gatewaya
+app-update-checks.json      # częstotliwość i ostatnie sprawdzenie aktualizacji desktopu
+web-port                    # stały port web UI, więc localStorage (preferencje urządzenia) przetrwa restart
 window-state.json           # pozycja, rozmiar, maksymalizacja, pełny ekran i ekran głównego okna
 postgres/data/              # pełny klaster PostgreSQL
 postgres/versions/<pin>/    # zweryfikowany runtime; installed.json oznacza pełną instalację
@@ -588,7 +590,7 @@ przez gateway i dopiero potem zamyka WorkerLink. Po flush nie czeka bez końca n
 odpowiedź zdalnego serwera na half-close. Niepotwierdzone zdarzenia zostają w SQLite
 i są wysyłane po kolejnym starcie ([durability.md](durability.md)).
 
-**Settings → App updates → Desktop shortcuts → Quit shortcut**
+**Settings → General → Desktop app → Quit shortcut**
 wybiera zachowanie `⌘Q` na macOS i `Ctrl+Q` na Linux/Windows:
 
 - **Press twice** (domyślnie): wymagane są dwa osobne naciśnięcia w oknie krótszym
