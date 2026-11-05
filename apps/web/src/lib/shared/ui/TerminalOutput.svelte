@@ -65,7 +65,7 @@
     aria-label="Terminal output"
     tabindex="0"
     data-autofocus
-    class="min-h-0 w-full overflow-auto overscroll-contain p-4 font-mono text-sm/5 text-zinc-200 focus-ring [overflow-anchor:none]"
+    class="min-h-0 w-full overflow-auto overscroll-contain p-4 font-mono text-(length:--canopy-mono-size)/[20px] text-zinc-200 focus-ring [overflow-anchor:none]"
     onscroll={() => {
       if (!viewport) return;
       // Resizing can clamp scrollTop upward; that is not a reader scrolling away from the tail.
@@ -91,7 +91,7 @@
       <div style:height="{total}px" class="relative w-max min-w-full">
         <div style:transform="translateY({range[0] * OUTPUT_LINE_HEIGHT}px)" class="absolute inset-x-0 top-0">
           {#each lines.slice(range[0], range[1]) as line, index (range[0] + index)}
-            <div class="h-5 whitespace-pre" data-output-line>
+            <div class="h-[20px] whitespace-pre" data-output-line>
               {#each line as token}<span
                   style:color={token.foreground}
                   style:background-color={token.background}
@@ -107,7 +107,7 @@
         </div>
         <div
           style:top="{lines.length * OUTPUT_LINE_HEIGHT}px"
-          class="absolute inset-x-0 h-5 whitespace-pre text-zinc-400"
+          class="absolute inset-x-0 h-[20px] whitespace-pre text-zinc-400"
         >
           {#if running}<span aria-hidden="true" class="t-pulse inline-block h-4 w-2 translate-y-0.5 bg-zinc-400"
             ></span>{:else}{exitLine}{/if}

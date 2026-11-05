@@ -5,6 +5,19 @@ export const deviceChoices = {
   threadNotifications: ["off", "notifications", "sound"],
   inAppNotifications: ["on", "off"],
   timeFormat: ["system", "12h", "24h"],
+  contrast: ["standard", "strong", "maximum"],
+  effortDisplay: ["name", "bars"],
+  renderMath: ["on", "off"],
+  interfaceFont: ["canopy", "system", "serif"],
+  interfaceSize: ["12", "14", "16", "18"],
+  monoFont: ["system", "menlo", "consolas"],
+  monoSize: ["12", "13", "14", "16"],
+  wrapCode: ["off", "on"],
+  wrapDiffs: ["off", "on"],
+  diffLayout: ["stacked", "split"],
+  hideWhitespace: ["off", "on"],
+  diffFileState: ["expanded", "collapsed"],
+  diffColors: ["red-green", "blue-orange"],
 } as const;
 
 export type DeviceKey = keyof typeof deviceChoices;
@@ -13,6 +26,19 @@ export const deviceDefaults: Record<DeviceKey, string> = {
   threadNotifications: "off",
   inAppNotifications: "on",
   timeFormat: "system",
+  contrast: "standard",
+  effortDisplay: "name",
+  renderMath: "on",
+  interfaceFont: "canopy",
+  interfaceSize: "14",
+  monoFont: "system",
+  monoSize: "13",
+  wrapCode: "off",
+  wrapDiffs: "off",
+  diffLayout: "stacked",
+  hideWhitespace: "off",
+  diffFileState: "expanded",
+  diffColors: "red-green",
 };
 
 const prefix = "canopy:preferences:";
@@ -68,3 +94,17 @@ function validChoice(key: DeviceKey, value: string): boolean {
 
 export const devicePreferences = new DevicePreferences();
 export const generalDeviceKeys = ["threadNotifications", "inAppNotifications", "timeFormat"] as const;
+
+export const appearanceDeviceKeys = [
+  "contrast",
+  "effortDisplay",
+  "renderMath",
+  "interfaceFont",
+  "interfaceSize",
+  "monoFont",
+  "monoSize",
+  "wrapCode",
+  "wrapDiffs",
+] as const;
+
+export const diffDeviceKeys = ["diffLayout", "hideWhitespace", "diffFileState", "diffColors"] as const;

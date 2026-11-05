@@ -15,11 +15,17 @@
   import Select from "#lib/shared/ui/Select.svelte";
   import OptionTile from "#lib/shared/ui/OptionTile.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
-  import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import ShareSetting from "#lib/features/computers/ShareSetting.svelte";
   import SharingGroup from "#lib/features/computers/SharingGroup.svelte";
   import { sharedKey } from "@canopy/domain/computers";
   import AnimatedMascotsSetting from "#lib/features/bots/components/AnimatedMascotsSetting.svelte";
+  import InterfaceSettings from "#lib/features/settings/InterfaceSettings.svelte";
+  import TypographySettings from "#lib/features/settings/TypographySettings.svelte";
+  import PreferenceRow from "#lib/features/settings/PreferenceRow.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
+  import Badge from "#lib/shared/ui/Badge.svelte";
+  import { devicePreferences, appearanceDeviceKeys } from "#lib/features/settings/device-preferences.svelte.ts";
+  import { setAnimatedMascots } from "#lib/features/bots/animated-mascots.ts";
 
   const settings = useSettings();
   const scheme = $derived(schemeOf(settings.appearance));
@@ -29,8 +35,24 @@
 
 <svelte:head><title>Appearance · Settings · Canopy</title></svelte:head>
 
-<SettingsGroup>
-  <SettingsRow title="Color scheme" description="Follow this device or always use your light or dark palette.">
+<div class="mb-4 flex justify-end">
+  <Button
+    size="sm"
+    icon="arrow-path"
+    onclick={() => {
+      devicePreferences.reset(appearanceDeviceKeys);
+      setAnimatedMascots(true);
+    }}>Restore device defaults</Button
+  >
+</div>
+
+<SettingsGroup title="Colors" description="Account">
+  <PreferenceRow
+    title="Color scheme"
+    description="Follow the system or use a fixed light or dark palette."
+    changed={scheme !== "system"}
+    onreset={() => settings.updateAppearance({ colorScheme: schemeNames.system })}
+  >
     {#snippet control()}
       <div class="grid w-80 max-w-full grid-cols-3 gap-2" role="radiogroup" aria-label="Color scheme">
         {#each schemes as mode (mode)}
@@ -54,31 +76,40 @@
         {/each}
       </div>
     {/snippet}
-  </SettingsRow>
+  </PreferenceRow>
 </SettingsGroup>
 
 <ThemePicker />
 
-<SettingsGroup title="Interface">
+<SettingsGroup title="Interface" description="This device unless marked Account">
+  <InterfaceSettings />
   <AnimatedMascotsSetting />
-  <SettingsRow title="Chat width" description="How wide the conversation and the message box are.">
+  <PreferenceRow
+    title="Thread width"
+    description="Set the width of threads and their message boxes."
+    changed={chatWidth !== "comfortable"}
+    onreset={() => settings.updateAppearance({ chatWidth: chatWidthNames.comfortable })}
+  >
     {#snippet control()}
+      <Badge>Account</Badge>
       <Select
         name="chatWidth"
-        aria-label="Chat width"
+        aria-label="Thread width"
         value={chatWidth}
         onchange={(value) => settings.updateAppearance({ chatWidth: chatWidthNames[value as ChatWidthName] })}
         class="w-40"
         options={Object.entries(chatWidthLabels).map(([value, label]) => ({ value, label }))}
       />
     {/snippet}
-  </SettingsRow>
+  </PreferenceRow>
 </SettingsGroup>
+
+<TypographySettings />
 
 <SharingGroup>
   <ShareSetting
     itemKey={sharedKey.settings("appearance")}
     label="Appearance"
-    local="Color scheme, light and dark themes, and chat width. Panel and sidebar layout stay on each computer."
+    local="Color scheme, themes and thread width."
   />
 </SharingGroup>

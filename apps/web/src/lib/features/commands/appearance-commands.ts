@@ -71,7 +71,7 @@ export function appearanceCommands(settings: SettingsState): Command[] {
     },
     {
       id: "chat-width",
-      title: "Chat width",
+      title: "Thread width",
       group: "actions",
       icon: "view-columns",
       keywords: "conversation layout wide narrow",

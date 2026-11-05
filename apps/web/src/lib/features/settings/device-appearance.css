@@ -1,0 +1,57 @@
+:root {
+  --canopy-mono-size: 13px;
+}
+.code-surface {
+  font-size: var(--canopy-mono-size);
+}
+:root[data-wrap-code="on"] .code-fence .code-surface {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+:root[data-wrap-diffs="on"] .diff-surface {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+:root[data-contrast="strong"] {
+  --theme-zinc-500: light-dark(var(--light-zinc-600), var(--dark-zinc-300)) !important;
+  --theme-border: light-dark(var(--light-zinc-400), var(--dark-zinc-400)) !important;
+}
+:root[data-contrast="maximum"] {
+  --theme-zinc-500: light-dark(var(--light-zinc-700), var(--dark-zinc-200)) !important;
+  --theme-zinc-400: light-dark(var(--light-zinc-600), var(--dark-zinc-100)) !important;
+  --theme-border: light-dark(var(--light-zinc-600), var(--dark-zinc-300)) !important;
+}
+.diff-line[data-kind="add"] {
+  background: color-mix(in oklab, var(--color-emerald-500) 10%, transparent);
+}
+.diff-line[data-kind="del"] {
+  background: color-mix(in oklab, var(--color-rose-500) 10%, transparent);
+}
+:root[data-diff-colors="blue-orange"] .diff-line[data-kind="add"] {
+  background: color-mix(in oklab, var(--color-sky-500) 16%, transparent);
+}
+:root[data-diff-colors="blue-orange"] .diff-line[data-kind="del"] {
+  background: color-mix(in oklab, var(--color-orange-500) 16%, transparent);
+}
+:root[data-diff-colors="blue-orange"] .diff-line[data-kind="add"] .diff-sign {
+  color: var(--color-sky-600);
+}
+:root[data-diff-colors="blue-orange"] .diff-line[data-kind="del"] .diff-sign {
+  color: var(--color-orange-600);
+}
+.diff-cell {
+  min-width: 0;
+}
+.diff-line[data-kind="add"] .diff-sign {
+  color: var(--color-emerald-600);
+}
+.diff-line[data-kind="del"] .diff-sign {
+  color: var(--color-rose-600);
+}
+.diff-split {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) minmax(max-content, 1fr);
+}
+:root[data-wrap-diffs="on"] .diff-split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}

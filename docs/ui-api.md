@@ -899,6 +899,16 @@ wersji konfiguracji; brak interwału usuwa nadpisanie i przywraca domyślne kont
 Efektywna wartość trafia do `WorkerConfig.cli_update_check_minutes` (900).
 Metadane workera zawierają ostatni i następny termin sprawdzenia wersji CLI.
 
+Appearance i Diffs zapisują dodatkowe preferencje urządzenia w walidowanym
+`canopy:preferences:*`. Czcionka interfejsu skaluje rem od bazowych 14 px, a rozmiar
+monospace jest niezależny; terminal zachowuje wysokość wiersza zgodną z wirtualizacją.
+Podglądy używają Markdown, Diff i Terminal z wątków. LaTeX renderuje KaTeX z
+`trust: false`, ścisłą walidacją oraz limitami rozwinięć/rozmiaru; nie wykonuje HTML
+wiadomości. Wyłączenie przywraca źródło. Preferencje diffów obejmują rzeczywiste
+FileDiffEntry i bloki diff; układ na toolbarze zapisuje tę samą wartość co Diffs.
+Ukrywanie whitespace pomija wyłącznie całe równoważne ciągi zastąpień; zachowuje
+zmiany mieszające whitespace z treścią. Kopiowanie nadal używa oryginalnego źródła.
+
 General przechowuje powiadomienia i format czasu w localStorage tego profilu.
 Powiadomienia powstają wyłącznie z przejść na żywo istniejących wątków w strumieniu
 właściciela; snapshot/reconnect nie alarmuje. Treść alertu systemowego jest stała

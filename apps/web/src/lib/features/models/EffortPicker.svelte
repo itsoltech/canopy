@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import EffortLabel from "./EffortLabel.svelte";
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -74,7 +75,7 @@
         name="light-bulb"
         class={["size-3.5", value ? "fill-zinc-500 dark:fill-zinc-400" : "fill-zinc-400 dark:fill-zinc-500"]}
       />
-      <SwapText text={pillLabel} rank={pillRank} />
+      <EffortLabel label={pillLabel} rank={pillRank} total={option.efforts.length} />
     </PillButton>
   {/snippet}
 
