@@ -6,6 +6,7 @@
  *
  *   standard (kit default): 16 / 14 / 12 px
  *   chrome (sidebar, toolbars) and overlay (popovers, menus, pickers, palette): 15 / 13 / 11.5 px
+ *   work (activity rows of a turn: tools, commands, file changes): 15 / 13 / 12 px
  *
  * Values are rem, so Appearance → Interface size scales them with the root.
  */
@@ -37,6 +38,13 @@
   --text-base: var(--type-compact-touch);
   --text-sm: var(--type-compact);
   --text-xs: var(--type-meta);
+}
+
+/* A turn's activity rows: a step under the messages, captions kept at 12px so paths and commands stay legible. */
+.density-work {
+  --text-base: var(--type-compact-touch);
+  --text-sm: var(--type-compact);
+  --text-xs: var(--type-caption);
 }
 
 /* Fields that take typing keep 16px on phones: iOS zooms into anything smaller on focus. */

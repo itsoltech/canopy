@@ -11,6 +11,7 @@
   /**
    * One-line activity row (tool, command, file change …) that expands to its details.
    * Always starts collapsed; only the reader opens it. Disclosure remembers that choice per item.
+   * Set in the work context (docs/ui-scale.md): a step smaller than the messages around it.
    */
   let {
     icon,
@@ -49,7 +50,7 @@
       >{#if lead}{@render lead()}{:else}<Icon name={icon} class={iconClass} />{/if}</span
     >
     <span class="min-w-0 flex-1 overflow-hidden text-zinc-700 dark:text-zinc-300">{@render title()}</span>
-    <span class="flex shrink-0 items-center gap-2 text-sm/6 text-zinc-500 tabular-nums sm:text-xs/6 dark:text-zinc-400">
+    <span class="flex shrink-0 items-center gap-2 text-sm/6 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400">
       {@render aside?.()}
       {#if awaiting() && status === ItemStatus.IN_PROGRESS}
         <span class="flex items-center gap-1 text-amber-700 dark:text-amber-400"
@@ -62,7 +63,7 @@
   </span>
 {/snippet}
 
-<div class="text-base/6 sm:text-sm/6">
+<div class="density-work text-base/6 sm:text-sm/5">
   {#if children || nested()}
     <Disclosure
       bind:open
