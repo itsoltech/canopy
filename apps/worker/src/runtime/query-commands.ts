@@ -16,6 +16,7 @@ export class QueryCommands {
   }
 
   async probeProviders(): Promise<CommandOutput> {
+    this.ctx.state.accounts.invalidate();
     await this.ctx.ops.probe();
     void this.ctx.state.cli.report().catch(() => undefined);
 

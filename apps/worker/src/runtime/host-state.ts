@@ -20,10 +20,12 @@ import { CliTools } from "../cli-tools/index.ts";
 import { CatalogCache } from "../mentions/catalog.ts";
 import { AttachmentFiles } from "../attachments/files.ts";
 import { PreviewStore } from "../images/index.ts";
+import { AccountStatuses } from "../providers/account-status.ts";
 
 import type { ProviderRuntimeHandle, ProfileModelsInit, WorkerHostOptions } from "./host-types.ts";
 
 export class HostState {
+  readonly accounts = new AccountStatuses();
   readonly secrets: ThreadSecretFiles;
   /** Provider CLIs on this device: reports and installs on demand (docs/provider-cli.md). */
   cli!: CliTools;

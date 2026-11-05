@@ -1501,6 +1501,7 @@ message InstanceOnWorker {
   google.protobuf.Timestamp checked_at = 12;
   // Worker ma już wersję konfiguracji z bieżącą definicją instancji.
   bool synced = 13;
+  canopy.worker.v1.ProviderAccountStatus account = 14;
 }
 
 message ProviderInstance {
@@ -1540,6 +1541,7 @@ message WorkerInstance {
   string detail = 7;
   repeated string favorites = 8;
   canopy.worker.v1.ProviderProfileKind kind = 9;
+  canopy.worker.v1.ProviderAccountStatus account = 10;
 }
 
 message ListProviderInstancesRequest {}
@@ -1671,6 +1673,9 @@ message SetInstanceModelsResponse {
 message RefreshProvidersRequest {
   // Pusty = wszystkie workery online.
   string worker_id = 1;
+  bool account_only = 2;
+  canopy.worker.v1.Provider harness = 3;
+  string id = 4;
 }
 
 message RefreshProvidersResponse {
