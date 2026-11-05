@@ -27,6 +27,7 @@
   } from "./editor.ts";
   import { formatInlineCode, markTicks } from "./inline-code.ts";
   import { InputSession } from "./input-session.ts";
+  import { breakLine } from "./lists.ts";
   import { INLINE_RENDERERS, type MentionData } from "./kinds.ts";
   import { blockHtml, findFences, openingFence } from "./markdown.ts";
   import MentionList from "./MentionList.svelte";
@@ -464,7 +465,7 @@
 
     if (event.key === "Enter" && event.shiftKey) {
       event.preventDefault();
-      document.execCommand("insertLineBreak");
+      breakLine(root);
       sync();
 
       return;

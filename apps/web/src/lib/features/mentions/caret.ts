@@ -71,6 +71,36 @@ export function chipBeforeCaret(root: HTMLElement): Element | undefined {
   return prev instanceof HTMLElement && elementOf(prev) ? prev : undefined;
 }
 
+/**
+ * The current line before a collapsed caret, back to the previous line break; a chip counts as one U+FFFC.
+ * Undefined inside other markup (a code block, inline code), where list editing does not apply.
+ */
+export function lineBeforeCaret(root: HTMLElement): string | undefined {
+  const current = selection();
+
+  if (!current?.isCollapsed || current.rangeCount === 0) return undefined;
+  const node = current.anchorNode;
+  let line = "";
+  let prev: Node | null;
+
+  if (node?.nodeType === Node.TEXT_NODE && node.parentNode === root) {
+    line = (node.textContent ?? "").slice(0, current.anchorOffset);
+    prev = node.previousSibling;
+  } else if (node === root) {
+    prev = root.childNodes[current.anchorOffset - 1] ?? null;
+  } else {
+    return undefined;
+  }
+
+  for (; prev && prev.nodeName !== "BR"; prev = prev.previousSibling) {
+    if (prev.nodeType === Node.TEXT_NODE) line = (prev.textContent ?? "") + line;
+    else if (prev instanceof HTMLElement && elementOf(prev)) line = `\uFFFC${line}`;
+    else return undefined;
+  }
+
+  return line.slice(line.lastIndexOf("\n") + 1);
+}
+
 /** Selects a whole node (a chip, to delete it as one edit). */
 export function selectNode(node: Node): void {
   const range = document.createRange();
