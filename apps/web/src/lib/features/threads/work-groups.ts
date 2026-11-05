@@ -11,8 +11,8 @@ import { describeTool } from "./components/items/tools/registry.ts";
  * the turn did — tool and command items, reasoning, intermediate messages, steered messages, background
  * tasks, notices — sits under the fold (`work`), shown after it only while it is open.
  *
- * - A running turn has the same fold from the start. Its latest message stays outside only until
- *   the agent starts more work. The stable answer slot can shrink without removing a virtual row.
+ * - A running turn keeps commentary in its work. Without a phase, its latest message stays outside
+ *   until more work arrives. The stable answer slot can shrink without removing a virtual row.
  * - The final message is the turn's last agent message. A turn that did not complete (interrupted,
  *   failed) keeps it only when nothing came after it; otherwise its footer (status, reason, Continue)
  *   is the end the reader sees.
@@ -131,6 +131,14 @@ export function foldTurns(
     let at = body.findLastIndex(isAgentMessage);
 
     if (at >= 0 && turn.status !== "completed" && at !== body.length - 1) at = -1;
+    const candidate = body[at];
+
+    if (!isTerminal(turn.status) && candidate?.kind === "item") {
+      const content = candidate.node.entry.item.content;
+
+      if (content.case === "agentMessage" && content.value.phase && content.value.phase !== "final_answer") at = -1;
+    }
+
     const final = at >= 0 ? body[at] : undefined;
     const work = body.filter((row) => row !== final);
     folds.set(turnId, { turn, final, work });

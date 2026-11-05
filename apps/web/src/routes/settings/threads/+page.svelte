@@ -8,6 +8,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SubagentDisplaySettings from "#lib/features/settings/SubagentDisplaySettings.svelte";
+  import WorkFoldSettings from "#lib/features/settings/WorkFoldSettings.svelte";
 
   const overview = useOverview();
   const settings = useSettings();
@@ -17,6 +18,7 @@
 <svelte:head><title>Threads · Settings · Canopy</title></svelte:head>
 
 <SubagentDisplaySettings />
+<WorkFoldSettings />
 
 <SettingsGroup
   title="New threads"
