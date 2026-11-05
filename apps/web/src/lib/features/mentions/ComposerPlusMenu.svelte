@@ -57,7 +57,7 @@
   {#if onfiles && offered.length > 0}<MenuSeparator />{/if}
   {#each offered as entry (entry.char)}
     <MenuItem
-      icon={kindLook({ kind: entry.kind, isDir: false }).icon}
+      icon={kindLook({ kind: entry.kind, isDir: false, source: "" }).icon}
       shortcut={entry.char}
       description={entry.description}
       onselect={() => ontrigger?.(entry.char)}

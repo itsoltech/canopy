@@ -2,14 +2,15 @@ import { MentionKind, type Mention } from "@canopy/contracts";
 import { mentionLabel } from "@canopy/domain";
 import { connectorMarks } from "#lib/features/connectors/marks.ts";
 import { icons, iconStyle, type IconName } from "#lib/shared/ui/icons.ts";
+import { attachmentChipHtml } from "#lib/features/attachments/inline-chip.ts";
 
 /**
  * Inline elements of the composer (docs/ui-api.md, "Wzmianki"): how each kind looks as a chip, in the editor
  * (DOM built here, `contenteditable=false`) and in the chat (MentionText.svelte), with the same classes.
  *
  * Extension point: an inline element is `InlineElement` (a discriminated union by `type`); a new inline kind adds a
- * member and its entry in `INLINE_RENDERERS` (chip HTML + the text it stands for). Block-level elements of a draft
- * (attachments today, quotes later) do not live in the text: they render above it, in ComposerBox's tray.
+ * member and its entry in `INLINE_RENDERERS` (chip HTML + the text it stands for). Attachments are mentions too
+ * (ATTACHMENT, attachments/inline-chip.ts); block-level elements of a draft (quotes) render above the text.
  */
 
 export type InlineElement = { readonly type: "mention"; readonly mention: MentionData };
@@ -25,7 +26,7 @@ export interface KindLook {
   readonly label: string;
 }
 
-export function kindLook(m: Pick<Mention, "kind" | "isDir">): KindLook {
+export function kindLook(m: Pick<Mention, "kind" | "isDir" | "source">): KindLook {
   switch (m.kind) {
     case MentionKind.COMMAND:
       return { icon: "command-line", label: "Commands" };
@@ -39,6 +40,8 @@ export function kindLook(m: Pick<Mention, "kind" | "isDir">): KindLook {
       return { icon: "chat-bubble-left", label: "Threads" };
     case MentionKind.CONNECTOR:
       return { icon: "link", label: "Connectors" };
+    case MentionKind.ATTACHMENT:
+      return { icon: m.source === "image" ? "photo" : "document-text", label: "Attachments" };
     default:
       return { icon: "link", label: "Mentions" };
   }
@@ -53,13 +56,13 @@ export const CHIP_ICON_CLASS =
 
 export const CHIP_IMAGE_CLASS = "size-4 shrink-0 self-center rounded-sm object-contain";
 
-const escape = (value: string) =>
+export const escape = (value: string) =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-function iconSvg(name: IconName): string {
+export function iconSvg(name: IconName, className = CHIP_ICON_CLASS): string {
   const paths = icons[name].map((d) => `<path d="${d}" fill="none"/>`).join("");
 
-  return `<svg viewBox="${iconStyle.viewBox}" fill="none" stroke="currentColor" stroke-width="${iconStyle.strokeWidth}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${CHIP_ICON_CLASS}">${paths}</svg>`;
+  return `<svg viewBox="${iconStyle.viewBox}" fill="none" stroke="currentColor" stroke-width="${iconStyle.strokeWidth}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${className}">${paths}</svg>`;
 }
 
 /** Only data: images and https URLs are shown (catalog icons); anything else falls back to the kind's icon. */
@@ -70,6 +73,7 @@ export function safeIcon(url: string | undefined): string | undefined {
 export const INLINE_RENDERERS = {
   mention: {
     html: ({ mention }) => {
+      if (mention.kind === MentionKind.ATTACHMENT) return attachmentChipHtml(mention);
       const icon = safeIcon(mention.icon);
       const mark = mention.kind === MentionKind.CONNECTOR ? connectorMarks.get(mention.source) : undefined;
 
@@ -99,6 +103,8 @@ export function chipTitle(m: MentionData): string {
       return `Thread: ${m.label || m.name}`;
     case MentionKind.CONNECTOR:
       return `Connector: ${m.label || m.name}`;
+    case MentionKind.ATTACHMENT:
+      return m.label || m.name;
     default:
       return `$${m.name}`;
   }

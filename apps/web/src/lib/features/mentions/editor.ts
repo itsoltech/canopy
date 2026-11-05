@@ -1,7 +1,9 @@
-import { create } from "@bufbuild/protobuf";
+import { create, toJson } from "@bufbuild/protobuf";
 import { MentionKind, MentionSchema, type Mention } from "@canopy/contracts";
 import { hasPlatformNote, mentionLabel, mentionPlaceholder } from "@canopy/domain";
 import { INLINE_RENDERERS, type InlineElement, type MentionData } from "./kinds.ts";
+import { isJsonArray, isJsonObject, isString, parseJson } from "#lib/shared/json.ts";
+import { decode } from "#lib/shared/wire.ts";
 import { blockHtml, fenceText, findFences, inlineHtml, type CodeBlockData } from "./markdown.ts";
 
 /**
@@ -206,6 +208,45 @@ function runHtml(
 }
 
 export const iconKey = (m: Pick<Mention, "kind" | "name">) => `${m.kind}:${m.name}`;
+
+/** What the composer's "+" menu, drops and pastes use of the text field (MentionEditor's `editor`). */
+export interface EditorControls {
+  insertTrigger(char: TriggerChar): void;
+  focus(): void;
+  /**
+   * Chips at the caret, separated by spaces, as one undoable edit: where the caret was last in the field, at the end
+   * without one; `point`: where something was dropped.
+   */
+  insertChips(chips: readonly MentionData[], point?: { readonly x: number; readonly y: number }): void;
+  /** Takes out the chips `which` picks (undoable). */
+  removeChips(which: (mention: MentionData) => boolean): void;
+  readonly root: HTMLElement | undefined;
+}
+
+/**
+ * Copy and cut within the composer also put the text with its chips on the clipboard under this type, so a paste
+ * into a composer brings the chips back (plain text everywhere else).
+ */
+export const CHIPS_TYPE = "application/x-canopy-chips";
+
+export const chipsToClipboard = (value: EditorValue): string =>
+  JSON.stringify({ text: value.text, mentions: value.mentions.map((m) => toJson(MentionSchema, m)) });
+
+/** The copied value, when `data` is one and its ranges fit its text. */
+export function chipsFromClipboard(data: string): EditorValue | undefined {
+  try {
+    const parsed = parseJson(data);
+    const text = isJsonObject(parsed) ? parsed["text"] : undefined;
+    const list = isJsonObject(parsed) ? parsed["mentions"] : undefined;
+
+    if (!isString(text) || !isJsonArray(list)) return undefined;
+    const mentions = list.map((m) => decode(MentionSchema, m));
+
+    return mentions.every((m) => m.end > m.start && m.end <= text.length) ? { text, mentions } : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export type TriggerChar = "/" | "$" | "@" | "#";
 

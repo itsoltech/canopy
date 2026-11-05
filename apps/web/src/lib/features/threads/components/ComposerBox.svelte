@@ -13,11 +13,14 @@
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
   import DisabledControlHint from "#lib/shared/ui/DisabledControlHint.svelte";
   import HintIcon from "#lib/shared/ui/HintIcon.svelte";
-  import type { Mention } from "@canopy/contracts";
+  import { MentionKind, type Mention } from "@canopy/contracts";
   import { filesOf, type AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
-  import DraftTray from "#lib/features/attachments/DraftTray.svelte";
+  import AttachmentChipCard from "#lib/features/attachments/AttachmentChipCard.svelte";
+  import { chipOf, showUploads } from "#lib/features/attachments/inline-chip.ts";
+  import Lightbox from "#lib/features/attachments/Lightbox.svelte";
   import ComposerPlusMenu from "#lib/features/mentions/ComposerPlusMenu.svelte";
-  import { trimValue, type TriggerChar } from "#lib/features/mentions/editor.ts";
+  import { trimValue, type EditorControls, type TriggerChar } from "#lib/features/mentions/editor.ts";
+  import type { MentionData } from "#lib/features/mentions/kinds.ts";
   import MentionEditor from "#lib/features/mentions/MentionEditor.svelte";
   import type { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import { mentionsToWire } from "#lib/features/mentions/wire.ts";
@@ -35,7 +38,9 @@
    * `canSend = false` keeps the box editable but holds the message (say why next to it); `disabled` locks both.
    * The send slot eases to the width of what it holds (send, stop, steer), so the pills glide aside.
    * Attachments (`draft`): files dropped on the box or pasted into it (screenshots from the clipboard) or picked
-   * from the "+" menu, their tray above the text; with files a message may go without text.
+   * from the "+" menu become badges in the text at the caret (docs/ui-api.md, "Załączniki w tekście"); each badge
+   * shows its upload, a tap previews it (an image in the Lightbox, a file's card), and a file goes with its badge.
+   * With files a message may go without text.
    * Mentions (`sources`, docs/ui-api.md "Wzmianki"): the text field takes "/", "$", "@" and "#" chips
    * (MentionEditor); `mentions` are their ranges in `value`. The "+" menu offers the same triggers.
    * In a form, `name` submits the trimmed text and `mentions` (protobuf JSON) for a plain form post.
@@ -117,17 +122,22 @@
   const trimmed = $derived(trimValue({ text: value, mentions }));
 
   const id = $props.id();
-  const hasFiles = $derived((draft?.files.length ?? 0) > 0);
+  const hasFiles = $derived((draft?.attached.length ?? 0) > 0);
 
   const hasContent = $derived(
     (shellMode ? Boolean(value.slice(1).trim()) : Boolean(value.trim())) || hasFiles || elementCount > 0 || allowEmpty,
   );
 
+  // A shell command goes alone: its badges (files, mentions) and quotes hold it, the hint by "+" says why.
+  const shellBlocker = $derived(
+    shellMode && (hasFiles || elementCount > 0 || mentions.length > 0)
+      ? "Remove attachments, quotes and mentions to send a shell command."
+      : undefined,
+  );
+
   const sendBlocker = $derived(
     blockedReason ??
-      (shellMode && (hasFiles || elementCount > 0 || mentions.length > 0)
-        ? "Remove attachments, quotes and mentions to send a shell command."
-        : undefined) ??
+      shellBlocker ??
       draft?.blocker ??
       (disabled
         ? "Messaging is unavailable for this thread."
@@ -138,7 +148,41 @@
             : undefined),
   );
 
-  const onfiles = $derived(draft ? (files: File[]) => draft.add(files) : undefined);
+  /** Files become badges at the caret (`point`: where they were dropped). */
+  const onfiles = $derived(
+    draft
+      ? (files: File[], point?: { x: number; y: number }) => editor?.insertChips(draft.add(files).map(chipOf), point)
+      : undefined,
+  );
+
+  // A file goes with its badge: the draft follows the badges the text holds.
+  $effect(() => draft?.place(mentions));
+
+  // Each badge shows its file's upload; again after the text is rendered anew.
+  $effect(() => {
+    void value;
+    void mentions;
+    const states = draft?.files.map((f) => `${f.key}:${f.status}:${f.progress}`).join("|");
+    const root = editor?.root;
+
+    if (draft && root && states !== undefined) showUploads(root, (key) => draft.file(key));
+  });
+
+  /** A paste brings back only badges of files this draft has. */
+  const acceptChip = (m: MentionData) => m.kind !== MentionKind.ATTACHMENT || Boolean(draft?.file(m.name));
+
+  let preview = $state<{ key: string; image: boolean; anchor: HTMLElement }>();
+  let previewOpen = $state(false);
+  const previewed = $derived(preview && draft?.file(preview.key));
+
+  function onchipclick(mention: MentionData, chip: HTMLElement) {
+    const file = mention.kind === MentionKind.ATTACHMENT ? draft?.file(mention.name) : undefined;
+
+    if (!file) return;
+    preview = { key: file.key, image: file.image && Boolean(file.localUrl) && file.status !== "failed", anchor: chip };
+    previewOpen = true;
+  }
+
   const stopMode = $derived(Boolean(onstop) && !hasContent);
 
   // Files go with the next turn: a message with them is never steered.
@@ -152,7 +196,7 @@
     if (!onfiles || !carriesFiles(event)) return;
     event.preventDefault();
     onexpand?.("drop");
-    onfiles(filesOf(event.dataTransfer));
+    onfiles(filesOf(event.dataTransfer), { x: event.clientX, y: event.clientY });
   }
 
   function onpaste(event: ClipboardEvent) {
@@ -178,7 +222,7 @@
     return () => observer.disconnect();
   };
 
-  let editor = $state<{ insertTrigger(char: TriggerChar): void; focus(): void }>();
+  let editor = $state<EditorControls>();
   const submit = () => box?.closest("form")?.requestSubmit();
 
   function onkeydown(event: KeyboardEvent) {
@@ -226,7 +270,6 @@
     {ondrop}
   >
     <ComposerFold open={!compact}>
-      {#if draft}<DraftTray {draft} class="px-3 pt-3" />{/if}
       {@render elements?.()}
     </ComposerFold>
     <div class={secret ? undefined : "t-composer-editor"}>
@@ -258,6 +301,8 @@
           anchor={box}
           {onkeydown}
           {onpaste}
+          {acceptChip}
+          {onchipclick}
           singleLine={compact}
           class={["text-base/6 sm:text-sm/6", shellMode && "font-mono", disabled && "cursor-not-allowed"]}
         />
@@ -272,7 +317,7 @@
     {#if trimmed.mentions.length > 0}<input
         type="hidden"
         name="mentions"
-        value={JSON.stringify(mentionsToWire(trimmed.mentions))}
+        value={JSON.stringify(mentionsToWire(draft ? draft.wire(trimmed.mentions) : trimmed.mentions))}
       />{/if}
     <ComposerFold open={!compact}>
       <div
@@ -298,11 +343,11 @@
             ontrigger={sources ? (char) => editor?.insertTrigger(char) : undefined}
           />
         {/if}
-        {#if draft?.notice || draft?.blocker}
+        {#if draft?.notice || shellBlocker || draft?.blocker}
           <HintIcon
             label="Attachment information"
-            text={draft.notice ?? draft.blocker ?? ""}
-            warning={Boolean(draft.notice)}
+            text={draft?.notice ?? shellBlocker ?? draft?.blocker ?? ""}
+            warning={Boolean(draft?.notice || shellBlocker)}
           />
         {/if}
         {@render controls?.()}
@@ -361,3 +406,15 @@
     </ComposerFold>
   {/if}
 </div>
+{#if draft && previewed}
+  {#if preview?.image && previewed.localUrl}
+    <Lightbox bind:open={previewOpen} src={previewed.localUrl} name={previewed.name} />
+  {:else}
+    <AttachmentChipCard
+      bind:open={previewOpen}
+      file={previewed}
+      anchor={preview?.anchor}
+      onremove={() => editor?.removeChips((m) => m.kind === MentionKind.ATTACHMENT && m.name === previewed.key)}
+    />
+  {/if}
+{/if}

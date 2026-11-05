@@ -13,8 +13,9 @@
 <script lang="ts">
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import type { Snippet } from "svelte";
-  import type { UserMessage, ui } from "@canopy/contracts";
+  import { MentionKind, type UserMessage, type ui } from "@canopy/contracts";
   import { hasPlatformNote } from "@canopy/domain";
+  import AttachmentChip from "#lib/features/attachments/AttachmentChip.svelte";
   import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
   import MessageQuotes from "#lib/features/quotes/MessageQuotes.svelte";
   import { withoutPlatformNote } from "#lib/features/mentions/editor.ts";
@@ -29,7 +30,7 @@
   /**
    * A message you (or another agent, over the agent bus) wrote: the input of a turn, or one steered into
    * it while it ran. `note` says what happens to it; `pending` dims it until it reaches the agent. `files`: the
-   * message's attachments (images and file chips under the text); `quotes`: passages of the thread it quotes, in
+   * message's attachments (badges where the user placed them, the rest as images and file chips under the text); `quotes`: passages of the thread it quotes, in
    * the bubble above the text; `details` goes inside the bubble (e.g. the full text the agent received with the
    * platform note). `sender`: the thread whose agent wrote it (send_message), named like a turn from an agent; an
    * agent's message folds to its first line (AgentMessageBubble).
@@ -60,6 +61,13 @@
   );
 
   const body = $derived(shown?.text ?? (hasPlatformNote(message.text) ? withoutIds(message.text) : message.text));
+
+  // Files placed in the text show there; only the others go under the bubble.
+  const placed = $derived(
+    new Set((shown?.mentions ?? []).flatMap((m) => (m.kind === MentionKind.ATTACHMENT ? [m.name] : []))),
+  );
+
+  const loose = $derived(files.filter((f) => !placed.has(f.id)));
 </script>
 
 <div class="flex flex-col items-end gap-1">
@@ -93,8 +101,8 @@
       {/key}
     </p>
   {/if}
-  {#if files.length > 0}
-    <MessageAttachments attachments={files} class={[pending && "opacity-70"]} />
+  {#if loose.length > 0}
+    <MessageAttachments attachments={loose} class={[pending && "opacity-70"]} />
   {/if}
   {#if fromAgent && (message.text.trim() || details || quotes.length > 0)}
     <AgentMessageBubble
@@ -148,5 +156,8 @@
 
 {#snippet chip(index: number)}
   {@const mention = shown?.mentions[index]}
-  {#if mention}<MentionChip {mention} />{/if}
+  {#if mention?.kind === MentionKind.ATTACHMENT}<AttachmentChip
+      {mention}
+      file={files.find((f) => f.id === mention.name)}
+    />{:else if mention}<MentionChip {mention} />{/if}
 {/snippet}

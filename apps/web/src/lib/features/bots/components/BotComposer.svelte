@@ -8,7 +8,7 @@
   import { useConnectorAccounts } from "#lib/features/connectors/accounts.svelte.ts";
   import ConnectorIcon from "#lib/features/connectors/ConnectorIcon.svelte";
   import MentionEditor from "#lib/features/mentions/MentionEditor.svelte";
-  import { trimValue, type TriggerChar } from "#lib/features/mentions/editor.ts";
+  import { trimValue, type EditorControls, type TriggerChar } from "#lib/features/mentions/editor.ts";
   import { kindLook, safeIcon } from "#lib/features/mentions/kinds.ts";
   import { botList } from "../bot-list.svelte.ts";
   import { BOT_MENTION_TRIGGERS, BotMentionSources } from "../mention-sources.svelte.ts";
@@ -55,7 +55,7 @@
 
   const id = $props.id();
   let box = $state<HTMLDivElement>();
-  let editor = $state<{ insertTrigger(char: TriggerChar): void; focus(): void }>();
+  let editor = $state<EditorControls>();
   const connectorCatalog = useConnectorAccounts(() => (splitId(botId).node ? undefined : { botId }));
 
   const sources = new BotMentionSources(
