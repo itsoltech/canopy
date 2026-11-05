@@ -125,6 +125,28 @@ Zmiana schematu ustawia nativeTheme; System reaguje na preferencję systemu.
 Integracja jest sprawdzona typami; wyglądu natywnego okna nie potwierdzono
 w tej sesji na Linux, Windows ani macOS.
 
+### Pozycja i rozmiar okna
+
+Główne okno zapisuje `window-state.json` w userData: normalne bounds
+(`getNormalBounds`), maksymalizację, pełny ekran i id ekranu. Zapis jest atomowy,
+z opóźnieniem 500 ms po przesunięciu, zmianie rozmiaru i zmianie stanu, oraz
+natychmiast przy zamknięciu okna i w `before-quit` (ukryte okno zapisuje ostatni stan sprzed ukrycia).
+Stan ukrytego lub zminimalizowanego okna nie jest zapisywany; minimalizacja nigdy
+nie jest odtwarzana.
+
+Przy tworzeniu okna `restoredBounds` (`window-bounds.ts`, czysta funkcja z testem)
+sprawdza zapis względem obszarów roboczych ekranów. Bounds w całości na jednym
+ekranie zostają. W pozostałych przypadkach (odłączony monitor, mniejsza
+rozdzielczość, okno częściowo poza ekranem) okno trafia na zapisany ekran, a gdy go
+nie ma, na ten, który pokazuje największą część okna, albo na najbliższy. Rozmiar
+mieści się w obszarze roboczym, ale nie spada poniżej minimum okna; pozycja jest
+przycinana tak, by lewy górny róg był widoczny, a okno całkiem poza ekranem jest
+centrowane. Bez ekranów okno dostaje domyślny rozmiar i centrowanie systemu.
+Maksymalizacja i pełny ekran są przywracane po pierwszym `show()` w normalnych
+bounds, więc cofnięcie maksymalizacji wraca do zapisanego rozmiaru. Okno wyboru
+trybu ma stały, domyślny rozmiar. Na Linux pod Waylandem kompozytor może pominąć
+pozycję; rozmiar i stany nadal działają.
+
 ### Paski okna macOS
 
 Okna używają `hiddenInset` i pozycji kontrolek `{ x: 18, y: 18 }`. Regiony przeciągania
@@ -234,6 +256,7 @@ desktop.json                # tryb/adresy; bez tokenu enrollment
 app-updates.json            # wybrany kanał desktopu; zapis atomowy w main, bez gatewaya
 remote-update.json.<hash>    # historia zdalnej aktualizacji per desktop device; bez credentiali
 app-shortcuts.json          # quitShortcut; zapis atomowy w main, bez gatewaya
+window-state.json           # pozycja, rozmiar, maksymalizacja, pełny ekran i ekran głównego okna
 postgres/data/              # pełny klaster PostgreSQL
 postgres/versions/<pin>/    # zweryfikowany runtime; installed.json oznacza pełną instalację
 postgres/versions/*.download/ # częściowe pobranie do wznowienia; nigdy nie służy do startu
