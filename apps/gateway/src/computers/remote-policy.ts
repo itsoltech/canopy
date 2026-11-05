@@ -40,6 +40,7 @@ export const SERVED = new Set([
   "SearchFiles",
   "WatchThreadMirror",
   "PushSharedConfig",
+  "WatchConfig",
   "ListBots",
   "GetBot",
   "WatchBotConversation",
@@ -73,6 +74,7 @@ export const methodNamed = (name: string) =>
   link.ThreadMirrorService.methods.find((m) => m.name === name) ??
   link.SharedConfigService.methods.find((m) => m.name === name) ??
   link.LinkedAgentsService.methods.find((m) => m.name === name) ??
+  link.ConfigSyncService.methods.find((m) => m.name === name) ??
   link.ComputerMoveService.methods.find((m) => m.name === name);
 
 /** Link messages have already been decoded; verify their descriptor before accessing a concrete message. */

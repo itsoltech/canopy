@@ -5,6 +5,7 @@ import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { isUniqueViolation } from "./agent-bus.ts";
 import { NotFound } from "./store.ts";
+import { configLock, configSettingsChanged } from "../config-sync/persistence.ts";
 
 /**
  * User and project settings (docs/ui-api.md): stored by the gateway, the browser only reads and writes
@@ -136,6 +137,8 @@ export class SettingsStore extends Context.Service<
     user(userId: string): Fx<ui.UserSettings>;
     projects(ownerUserId: string): Fx<ui.ProjectSettings[]>;
     updateUser(input: {
+      /** The sync engine already versions this write in the surrounding transaction. */
+      synced?: boolean;
       userId: string;
       appearance?: ui.AppearanceSettings;
       threadDefaults?: ui.ThreadDefaults;
@@ -177,6 +180,7 @@ export class SettingsStore extends Context.Service<
           ),
 
         updateUser: ({
+          synced,
           userId,
           appearance: nextAppearance,
           threadDefaults: nextDefaults,
@@ -193,6 +197,8 @@ export class SettingsStore extends Context.Service<
         }) =>
           sql.withTransaction(
             Effect.gen(function* () {
+              yield* configLock(sql, userId);
+
               const current =
                 (yield* sql<Row>`SELECT settings, version, updated_at FROM user_settings WHERE user_id = ${userId}::uuid FOR UPDATE`)[0];
 
@@ -224,6 +230,8 @@ export class SettingsStore extends Context.Service<
                   UPDATE user_settings SET settings = ${settings}::jsonb, version = version + 1, updated_at = now()
                    WHERE user_id = ${userId}::uuid AND version = ${version} RETURNING settings, version, updated_at`,
               });
+
+              if (!synced) yield* configSettingsChanged(sql, userId, { ...stored }, { ...next });
 
               return toUser(row);
             }),

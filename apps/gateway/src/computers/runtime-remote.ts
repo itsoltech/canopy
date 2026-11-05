@@ -6,6 +6,7 @@ import { ui } from "@canopy/contracts";
 
 import {
   AGENT_BUS,
+  CONFIG_SYNC,
   NODE_REF_LENGTH,
   RELAY,
   REMOTE_BOTS,
@@ -25,6 +26,7 @@ import { computersBroadcast, computersTick } from "./runtime-connection.ts";
 import { computersState, ms, peerMessage, STATE_TEXT } from "./runtime-context.ts";
 import { computersEmit } from "./runtime-mirrors.ts";
 import type { LinkedComputers } from "./runtime.ts";
+import { alternativeConfigPath, configAllowed, stopConfig } from "./runtime-config.ts";
 
 export async function computersStatus(hostContext: LinkedComputers, nodeId: string, status: string, updateNodeId = "") {
   await hostContext.store.status(nodeId, status, updateNodeId);
@@ -51,6 +53,21 @@ export function computersRelayChannel(hostContext: LinkedComputers, nodeId: stri
 export async function computersComputerMessage(hostContext: LinkedComputers, peer: PeerRow, routes: RouteRow[] = []) {
   const result = peerMessage(peer, hostContext.capabilities(peer.node_id), routes);
   result.shareOnwardNodeIds = hostContext.relay.selected(peer.node_id);
+  result.shareConfig = peer.share_config;
+  result.peerShareConfig = peer.peer_share_config;
+  result.configClockAheadMinutes = hostContext.config?.ahead.get(peer.node_id) ?? 0;
+
+  if (!peer.via_node_id) result.configAlternativeName = await alternativeConfigPath(hostContext, peer.node_id);
+  result.configSyncStatus =
+    !hostContext.hello().capabilities.includes(CONFIG_SYNC) || !peer.capabilities.includes(CONFIG_SYNC)
+      ? "needs_update"
+      : !peer.share_config || !peer.peer_share_config
+        ? "off"
+        : !configAllowed(hostContext, peer.node_id)
+          ? "unreachable"
+          : hostContext.config?.syncing.get(peer.node_id) !== false
+            ? "syncing"
+            : "up_to_date";
 
   if (peer.via_node_id) {
     const via = await hostContext.store.peer(peer.via_node_id);
@@ -275,6 +292,8 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     for (const controller of this[computersState].mirroring.values()) controller.abort();
 
     for (const controller of this[computersState].botMirroring.values()) controller.abort();
+
+    for (const node of this[computersState].active.keys()) stopConfig(this, node);
 
     for (const set of this[computersState].active.values()) for (const c of set) c.close();
     this[computersState].unsubscribe?.();

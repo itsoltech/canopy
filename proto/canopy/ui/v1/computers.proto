@@ -26,6 +26,12 @@ message LinkedComputer {
   bool relay_origin = 18;
   repeated string share_onward_node_ids = 19;
   string unavailable_reason = 20;
+  bool share_config = 21;
+  bool peer_share_config = 22;
+  // up_to_date, syncing, needs_update, off, unreachable
+  string config_sync_status = 23;
+  uint32 config_clock_ahead_minutes = 24;
+  string config_alternative_name = 25;
 }
 message ComputerRoute {
   string address = 1;
@@ -51,17 +57,32 @@ message ComputersSnapshot {
   string lan_discovery_state = 6;
   // Why discovery is unavailable or limited, in the words the UI shows.
   string lan_discovery_note = 7;
+  repeated ConfigComputer config_group = 8;
+  repeated ConfigNotice config_notices = 9;
 }
-message CreateComputerPairingRequest {}
+message ConfigComputer { string node_id = 1; string name = 2; }
+message ConfigNotice {
+  string id = 1;
+  string kind = 2;
+  string global_id = 3;
+  string field = 4;
+  string node_name = 5;
+  int64 changed_at_ms = 6;
+  // A display value only. Secret notices always say "A different key".
+  string value = 7;
+  string reason = 8;
+}
+message ConfigNoticeOperation { string id = 1; string action = 2; }
+message CreateComputerPairingRequest { optional bool share_config = 1; }
 message ComputerPairing {
   string id = 1;
   string code = 2;
   int64 expires_at_ms = 3;
   repeated string addresses = 4;
 }
-message LinkComputerRequest { string address = 1; string code = 2; }
+message LinkComputerRequest { string address = 1; string code = 2; optional bool share_config = 3; }
 message ComputerOperationRequest {
-  // rename, unlink, revoke_pairing, presence, lan_discovery, add_route, remove_route.
+  // rename, unlink, revoke_pairing, presence, lan_discovery, add_route, remove_route, share_config.
   // (The former "listener" action is UpdateNetworkAccess set_enabled.)
   // Empty node_id is self.
   string action = 1;

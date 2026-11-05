@@ -19,6 +19,7 @@
   import NetworkAccessSummary from "#lib/features/network/NetworkAccessSummary.svelte";
   import { useNetworkAccess } from "#lib/features/network/network-access.svelte.ts";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
 
   const overview = useOverview();
   const capabilities = useGatewayCapabilities();
@@ -109,6 +110,7 @@
 <SettingsGroup title="Agent CLI updates" description="Account · Workers can override this schedule."
   ><CliCheckSettings /></SettingsGroup
 >
+<AccountConfigNotices section="cliUpdates" />
 {#if pending.length}
   <SettingsGroup title="Pending enrollments">
     {#each pending as enrollment (enrollment.id)}

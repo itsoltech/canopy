@@ -45,6 +45,7 @@ export const isEntityId = (value: string): boolean => ENTITY.test(value);
  * a user settings section, or a project (its identity and name, not its workspaces).
  */
 export const SHARED_CONFIG = "shared_config";
+export const CONFIG_SYNC = "config_sync";
 export const SHARED_SETTINGS = ["appearance", "thread_defaults", "timezone", "text_generation"] as const;
 
 export type SharedSettingsSection = (typeof SHARED_SETTINGS)[number];

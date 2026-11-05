@@ -92,6 +92,37 @@ message SharedItemResult {
 }
 message SharedConfigReply { repeated SharedItemResult results = 1; }
 
+// Account configuration state, republished across consenting direct mTLS links.
+// Internal only: carried by RemoteRequest/RemoteResponse, never registered publicly.
+service ConfigSyncService {
+  rpc WatchConfig(ConfigCursor) returns (stream ConfigUpdate);
+}
+message ConfigCursor { string cursor = 1; }
+message ConfigHello { map<string, uint32> schemas = 1; }
+message ConfigField {
+  string value_json = 1;
+  string hlc = 2;
+  string prev = 3;
+  // Reserved for kinds carrying secrets; never exposed by UI messages.
+  optional string secret = 4;
+}
+message ConfigItem {
+  string kind = 1;
+  string global_id = 2;
+  string home_node_id = 3;
+  string identity = 4;
+  map<string, ConfigField> fields = 5;
+  ConfigField deleted = 6;
+  uint32 schema_version = 7;
+}
+message ConfigUpdate {
+  ConfigHello hello = 1;
+  repeated ConfigItem items = 2;
+  string checkpoint = 3;
+  bool reset = 4;
+}
+message ConfigSharing { bool enabled = 1; uint64 revision = 2; }
+
 // Pair is the only RPC open to a certificate without a pin. The invitation
 // authenticates the server certificate before its secret is sent.
 service ComputerLinkService {
@@ -108,8 +139,8 @@ message NodeHello {
   uint32 max_protocol = 6;
   repeated string capabilities = 7;
 }
-message PairRequest { string secret = 1; NodeHello hello = 2; }
-message PairResponse { NodeHello hello = 1; }
+message PairRequest { string secret = 1; NodeHello hello = 2; optional bool share_config = 3; }
+message PairResponse { NodeHello hello = 1; optional bool share_config = 2; }
 message LinkWelcome {
   NodeHello hello = 1;
   uint32 protocol = 2;
@@ -192,6 +223,7 @@ message LinkFrame {
     RelayCatalog relay_catalog = 10;
     // Stage 8, capability "move_items": where moved threads and bots live now.
     MovedItems moved = 11;
+    ConfigSharing config_sharing = 12;
   }
 }
 

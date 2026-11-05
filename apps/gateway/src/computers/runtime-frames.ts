@@ -21,6 +21,7 @@ import { computersServeRemote } from "./runtime-serving.ts";
 import type { LinkedComputers } from "./runtime.ts";
 import { remoteCertificate } from "./transport.ts";
 import type { PeerRow } from "./store.ts";
+import { exchangeConfigSharing, receiveConfigSharing } from "./runtime-config.ts";
 
 export async function computersReceive(
   hostContext: LinkedComputers,
@@ -66,6 +67,8 @@ export async function computersReceive(
 
   if (body.case === "hello" || body.case === "welcome") {
     return await receiveHandshake(hostContext, nodeId, body, connection, peer);
+  } else if (body.case === "configSharing") {
+    await receiveConfigSharing(hostContext, nodeId, connection, body.value);
   } else if (body.case === "moved") {
     if (!connection.protocol || !connection.capabilities?.has(MOVE_ITEMS) || !hostContext.moves)
       throw new ConnectError("Moves need an update on both computers", Code.FailedPrecondition);
@@ -249,6 +252,7 @@ async function receiveHandshake(
   }
 
   connection.ready = true;
+  await exchangeConfigSharing(hostContext, nodeId, connection);
   // A successful handshake ends the failure streak, including when the
   // eventual disconnect arrives as an exception rather than a clean EOF.
   hostContext[computersState].retry.delete(nodeId);

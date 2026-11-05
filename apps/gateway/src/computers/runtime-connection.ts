@@ -15,6 +15,7 @@ import { computersEmit, computersSyncMirror } from "./runtime-mirrors.ts";
 import { computersStatus } from "./runtime-remote.ts";
 import type { LinkedComputers } from "./runtime.ts";
 import { discoverCertificate, linkClient } from "./transport.ts";
+import { refreshConfigGroup, stopConfig, syncConfig } from "./runtime-config.ts";
 
 export function computersBroadcast(hostContext: LinkedComputers, frame: MessageInitShape<typeof link.LinkFrameSchema>) {
   for (const set of hostContext[computersState].active.values()) for (const c of set) c.send(frame);
@@ -28,6 +29,8 @@ export function computersTrack(hostContext: LinkedComputers, nodeId: string, con
   return async () => {
     connection.remote?.close();
     set.delete(connection);
+
+    if (!set.size) stopConfig(hostContext, nodeId);
 
     if (!set.size) {
       hostContext[computersState].active.delete(nodeId);
@@ -92,6 +95,7 @@ export async function computersTick(hostContext: LinkedComputers) {
 
   try {
     computersAdvertise(hostContext);
+    await refreshConfigGroup(hostContext);
 
     if (hostContext.shared && !hostContext[computersState].sharing) {
       hostContext[computersState].sharing = true;
@@ -103,6 +107,7 @@ export async function computersTick(hostContext: LinkedComputers) {
     for (const peer of await hostContext.store.peers()) {
       if (hostContext[computersState].stopped || hostContext[computersState].paused) break;
       computersSyncMirror(hostContext, peer.node_id);
+      syncConfig(hostContext, peer.node_id);
       const active = hostContext[computersState].active.get(peer.node_id);
 
       if (active?.size) continue;

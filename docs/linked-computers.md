@@ -31,6 +31,8 @@ pytania i raporty). Etap 6: trasy (źródło, ostatni sukces, opóźnienie) i wy
 komputerów w sieci lokalnej. Etap 7: jawne „Share onward”, jeden pośrednik, obecność pośrednia,
 lustra i odwołanie dostępu. Etap 8: dwufazowe przeniesienie wątków i botów („Move to…”, „Move
 everything here”) z przekierowaniami starych id. Cały stos PR-ów pozostaje draftem do scalenia naraz.
+Opt-in etapu 4 zastępuje [wspólna konfiguracja](#konkretny-protokół-wspólna-konfiguracja)
+(stos `feat/linked-shared-config-N`, w realizacji).
 
 ## Cel
 
@@ -61,8 +63,8 @@ kopii. Dzięki temu nie ma scalania historii, a nic nie wykonuje się dwa razy.
 | Bot (rozmowa, rutyny, przypomnienia, notatki handoff) | gateway, na którym go utworzono | rozmowa i edycja zdalnie; wykonuje się tylko u siebie |
 | Harmonogramy | dom wątku albo bota | widoczne i edytowalne zdalnie |
 | Worker, workspace (katalog projektu na maszynie) | swoja maszyna | można uruchomić wątek na workerze innego komputera — wątek mieszka wtedy tam |
-| Konto connectora | każdy komputer osobno | autoryzacja per komputer; UI podpowiada „Not connected on Laptop B — Connect” |
-| Projekt | rekord na każdym komputerze; wspólna tożsamość git origin w pickerach | workspace'y zachowują projekt i komputer domu; jawnie współdzielone projekty nadal mają globalne id |
+| Konto connectora | wspólna konfiguracja konta | poświadczenia replikowane i szyfrowane kluczem każdego komputera; dostęp workerów per worker |
+| Projekt | rekord na każdym komputerze; wspólna tożsamość git origin w pickerach, docelowo globalne id konfiguracji | workspace'y zachowują projekt i komputer domu; aliasy konfiguracji opisano niżej |
 
 Tworzenie wątku na workerze komputera B z UI komputera A jest wywołaniem do B; B zostaje właścicielem.
 Szyna agentów przekracza granicę tak samo: `spawn_thread` na workerze B tworzy wątek na B z rodzicem
@@ -186,24 +188,36 @@ dziennikiem zmian, tak jak dziś strumień do przeglądarki.
 
 ## Konfiguracja
 
-Gateway pozostaje centrum konfiguracji dla swoich workerów. Część konfiguracji jest wspólna dla
-połączonych komputerów:
+Połączone komputery działają jak jedno konto z wieloma workerami. Każdy komputer zachowuje własny
+gateway, bazę i klucz sekretów, ale **konfiguracja konta jest wspólna**: każdy gateway trzyma tę samą
+replikowaną wersję i każdy może ją zmienić. Nie ma przełącznika „Share with linked computers”.
+Wspólne jest wszystko, co nie opisuje konkretnej maszyny. Szczegóły:
+[konkretny protokół](#konkretny-protokół-wspólna-konfiguracja).
 
-1. **Wspólna** (opcja „Share with linked computers” przy elemencie): instancje providerów, ulubione
-   modele, ustawienia użytkownika (wygląd, domyślne ustawienia wątków, strefa, generowanie tekstu),
-   projekty jako tożsamość. Każdy element ma wersję i komputer, który go ostatnio zmienił.
-2. **Lokalna dla maszyny**, nigdy nie synchronizowana: ścieżki CLI, logowanie natywne, workspace'y,
-   adresy, porty, ustawienia desktopowe, konta connectorów.
-3. **Sekrety** (klucze API instancji): przesyłane tylko dla elementów oznaczonych jako wspólne,
-   szyfrowanym łączem; odbiorca szyfruje je własnym kluczem (`CANOPY_SECRETS_KEY` / keychain).
+| Zakres | Co obejmuje | Kto zapisuje |
+|---|---|---|
+| **Wspólne** (domyślnie) | ustawienia konta (wygląd, ogólne, kompozytor, domyślne ustawienia wątków bez workspace'u, generowanie tekstu, strefa, sidebar, domyślna częstotliwość sprawdzania CLI), instancje providerów (nazwa, rodzaj, endpoint, proxy, klucz, zmienne, kolor, modele), proxy, projekty jako tożsamość i ich ustawienia, polityka worktree, biblioteka środowiska agentów (instrukcje, skille, pluginy, marketplace'y), connectory, ich konta i aplikacje OAuth | każdy komputer; wersja per pole |
+| **Komputer** | ścieżki CLI i katalogi domowe instancji, lokalizacja worktree, adresy, porty i dostęp sieciowy, łącza komputerów, sparowane telefony i klienty desktopu, enrollment workerów i klucze SSH, kanał aktualizacji, ustawienia powłoki desktopu, układ paneli i szerokość sidebara | tylko ten komputer |
+| **Worker** | nazwa, tagi, włączenie i nadpisania instancji na workerze, logowania natywne, workspace'y, worktree, nadpisanie częstotliwości sprawdzania CLI, ustawienia worktree workera, dostęp connectorów | tylko dom workera; inne komputery widzą kopię i edytują przez wywołanie do domu |
+| **Urządzenie** | preferencje „This device” w przeglądarce lub aplikacji (localStorage) | ta przeglądarka; nigdy w bazie |
 
-**Konflikty:** ta sama wspólna rzecz zmieniona na dwóch komputerach bez połączenia → przy ponownym
-połączeniu **pytanie** z obiema wersjami („Keep this computer's / Keep Laptop B's”). Zmiany bez konfliktu
-przechodzą same.
+Rzeczy wykonawcze (wątki, boty z konfiguracją i rutynami, harmonogramy, sekrety wątków) nadal mają
+jeden dom ([model](#model-każda-rzecz-ma-dom)). Każdy komputer je widzi i edytuje zdalnie,
+ale nie są replikowane jako druga edytowalna kopia: kopia offline byłaby ukrytą kolejką pracy.
 
-**UI musi zawsze pokazywać, co jest wspólne, a co lokalne**: znaczek „All linked computers” albo
-„This computer” przy ustawieniach, maszyna przy wątkach, botach i workerach, oraz wyjaśnienie, gdy coś
-działa inaczej, niż użytkownik mógłby oczekiwać (np. connector połączony tylko na jednym komputerze).
+- **Edycja wszędzie, bez pytań.** Wersje są per pole z hybrydowym zegarem logicznym; wygrywa
+  późniejsza zmiana. Współbieżnie nadpisana wartość trafia do historii, a UI pokazuje to przy
+  elemencie z akcją „Restore”. Nic nie znika po cichu i nic nie czeka na decyzję.
+- **Per łącze** można wyłączyć Share configuration (np. dla komputera służbowego). Konfiguracja przechodzi
+  tylko łączami z włączonym udostępnianiem, także pośrednio; po wyłączeniu obie strony zachowują swoją kopię.
+- **Ustawienia workera** zapisuje wyłącznie gateway jego domu. Edycja z innego komputera to
+  wywołanie do domu, jak przy zdalnych wątkach. Gdy dom jest niedostępny, zmiana jest odrzucana
+  od razu z powodem z obecności; ostatnia znana wartość pozostaje do odczytu.
+- **Sekrety** (klucze instancji i proxy, zmienne sekretne, tokeny connectorów, aplikacje OAuth)
+  przechodzą wyłącznie przypiętym łączem mTLS. Odbiorca szyfruje je własnym kluczem. Nie trafiają
+  do przeglądarek, modeli, logów ani workerów innych niż te, które ich używają na swoim komputerze.
+- **UI jest ciche.** Wspólne ustawienia nie mają znaczka. Znaczek „This computer” mają tylko
+  ustawienia komputera, a ustawienia workera pokazują nazwę workera i jego komputera.
 
 ## Tożsamość, parowanie, bezpieczeństwo
 
@@ -263,8 +277,9 @@ Telefon i przeglądarka łączą się z jednym gatewayem i widzą przez niego ws
 - Sidebar, lista botów, nagłówek wątku: znaczek maszyny; stonowana ikona dla niedostępnych.
 - Status niedostępnego komputera w pasku nad composerem, obok celu i subagentów; bez bannera u góry.
   Krótki stan, „read only” i czas zmiany obecności; szczegóły pod ikoną informacji, dostępne także dotknięciem.
-  „Last seen” zostaje przy samym komputerze w ustawieniach. Okno konfliktu konfiguracji; stan „needs an update”.
-- Znaczki „This computer” / „All linked computers” w ustawieniach.
+  „Last seen” zostaje przy samym komputerze w ustawieniach; stan „needs an update”.
+- Ustawienia wspólne bez znaczka; znaczek „This computer” tylko przy ustawieniach komputera,
+  a nazwa workera z komputerem przy ustawieniach workera ([UI](#ui-wspólnej-konfiguracji)).
 - Kompozytor: jeden wiersz projektu na wspólny origin i jeden **No project**. Bez znaczków komputerów
   i podpisów per komputer przy projektach. Picker workera grupuje workery wszystkich komputerów;
   jego przycisk pokazuje worker i komputer. Dla projektu pokazuje tylko workery z workspace'em tego
@@ -280,7 +295,8 @@ Telefon i przeglądarka łączą się z jednym gatewayem i widzą przez niego ws
 2. Zsumowany overview i zdalne wątki: lista, odczyt na żywo, pisanie/steer/zgody trasowane do domu,
    tworzenie wątku na workerze partnera.
 3. Lustra osi czasu: odczyt offline, wznowienie od kursora, pełna resynchronizacja.
-4. Wspólna konfiguracja: oznaczanie elementów, sekrety, konflikty, znaczki wspólne/lokalne w UI.
+4. Wspólna konfiguracja: oznaczanie elementów, sekrety, konflikty, znaczki wspólne/lokalne w UI
+   (zastąpione przez [wspólną konfigurację](#konkretny-protokół-wspólna-konfiguracja)).
 5. Boty i szyna agentów przez granicę (rozmowa, bot↔bot, `spawn_thread`, raporty).
 6. Wykrywanie tras w LAN.
 7. Udostępnianie dalej z trasowaniem przez pośrednika.
@@ -628,6 +644,12 @@ Nie dodaje testów UI. `schema.test.ts` obejmuje migrację 0049.
 
 ## Konkretny protokół etapu 4
 
+> **Zastąpione** przez [wspólną konfigurację](#konkretny-protokół-wspólna-konfiguracja).
+> Opt-in per element, wektory wersji, pytania o konflikt, kopie lokalne po wyłączeniu udostępniania
+> i capability `shared_config` znikają. Opis zostaje, bo opisuje dane migrowane z **0050_shared_config**
+> ([migracja](#migracja-z-0050)). Sekrety ponownie szyfrowane kluczem odbiorcy i zapis przez własne
+> handlery odbiorcy przechodzą do nowego projektu.
+
 Implementacja: `apps/gateway/src/computers/shared.ts` (stan, wektory wersji, push/odbiór, konflikty),
 runtime łącza, `api/routed.ts` (wspólna tożsamość projektu), migracja **0050_shared_config**,
 kontrakty `SharedConfigService` w `canopy.link.v1` i `GetSharedConfig`/`ManageSharedConfig` w
@@ -636,7 +658,8 @@ kontrakty `SharedConfigService` w `canopy.link.v1` i `GetSharedConfig`/`ManageSh
 
 ### Elementy i ich pola
 
-Udostępnianie jest **opt-in per element** (przełącznik „Share with linked computers”). Klucze są takie
+*(Zastąpione: wspólne jest wszystko, co nie dotyczy maszyny.)* Udostępnianie jest **opt-in per element**
+(przełącznik „Share with linked computers”). Klucze są takie
 same na każdym komputerze:
 
 | Klucz | Wspólne pola | Zostaje na komputerze |
@@ -709,7 +732,7 @@ a UI widzi wyłącznie „Set”, „Not set” albo „A different key”.
 
 ### Konflikty
 
-Ta sama wspólna rzecz zmieniona na dwóch komputerach bez połączenia daje po ponownym połączeniu
+*(Zastąpione: wersje per pole i historia z „Restore”, bez pytań.)* Ta sama wspólna rzecz zmieniona na dwóch komputerach bez połączenia daje po ponownym połączeniu
 pytanie na obu („Keep this computer’s” / „Keep Laptop B’s”), z różniącymi się polami obu wersji.
 Nie ma last-writer-wins: każdy komputer zachowuje swoją wartość do odpowiedzi. Zmiany różnych
 elementów (np. strefa na A, nazwa projektu na B) przechodzą same. Pytania są trwałe (restart ich
@@ -724,6 +747,9 @@ Gdy obie strony jednocześnie odpowiedzą przeciwnie, wektory znów są współb
 
 ### Wyłączenie, usunięcie, rozłączenie
 
+*(Zastąpione: nie ma wyłączenia udostępniania, usunięcie jest wspólne, a Unlink zachowuje wartości
+na obu komputerach.)*
+
 - **Wyłączenie udostępniania** na jednym komputerze wyłącza je na wszystkich; każdy zachowuje swoją
   bieżącą wartość jako **kopię lokalną** (z kluczem API zaszyfrowanym własnym kluczem). UI: „Laptop A
   stopped sharing it. This computer keeps its own copy.” Wyłączenie wygrywa z równoczesną zmianą bez
@@ -736,8 +762,9 @@ Gdy obie strony jednocześnie odpowiedzą przeciwnie, wektory znów są współb
 
 ### Projekty jako wspólna tożsamość
 
-Ta sekcja opisuje **jawne współdzielenie konfiguracji**, niezależne od scalania pickerów po git origin.
-Samo zgodne origin nie włącza współdzielenia ustawień i nie nadaje wspólnego id.
+*(Zastąpione: [projekty](#projekty-jako-tożsamość) mają globalne id z mapowaniem lokalnych rekordów.)*
+Scalanie pickerów po git origin pozostaje niezależne od konfiguracji: samo zgodne origin nie włącza
+udostępniania. Migrację konfiguracji projektów wprowadza etap 3 wspólnej konfiguracji.
 
 Wspólny projekt ma to samo id na każdym komputerze. Gateway nie kwalifikuje go sufiksem węzła
 (`globalize`), dopuszcza je w wywołaniach do partnera (`unqualify` z listą globalnych id) i pokazuje
@@ -1105,7 +1132,9 @@ Już przyjętej przez dom akcji nie cofamy; nie ponawiamy automatycznie zapisu p
 Offline W poznaje odwołanie przy następnym połączeniu, przed odnowieniem dostępu do domu;
 nie można natychmiast skasować bajtów na nieosiągalnym komputerze.
 
-**Konfiguracja etapu 4 nie jest przesyłana przez relay.** `shared_config` nie występuje w katalogu,
+Wspólna konfiguracja również nie przechodzi przez relay. Obejmuje spójną grupę komputerów połączonych
+bezpośrednio z włączonym Share configuration; każdy gateway publikuje jej członkom swój scalony stan
+([per łącze](#udostępnianie-per-łącze)). **Konfiguracja etapu 4 nie jest przesyłana przez relay.** `shared_config` nie występuje w katalogu,
 `PushSharedConfig` jest odrzucany w obu nogach, a jego pętla korzysta tylko z bezpośrednich pinów.
 Samo „Share onward” nie włącza udostępniania żadnego elementu konfiguracji ani sekretu P2 do W.
 Pozostaje niezależna, dotychczasowa semantyka etapu 4: element przyjęty i oznaczony jako wspólny
@@ -1290,3 +1319,419 @@ i rzeczy innego komputera; „Move everything” z listą elementów lokalnych. 
 Odroczone: przenoszenie przez pośrednika, przeniesienie z powrotem na komputer ze starą kopią,
 przenoszenie samych sekretów wątku, wątki bez workera, przeniesienie zainicjowane z UI innego
 komputera niż dom, strumieniowanie ładunku ponad 40 MiB plików i fork z tury sprzed przeniesienia.
+
+## Konkretny protokół: wspólna konfiguracja
+
+Zastępuje opt-in etapu 4. Połączone komputery mają **jedną wspólną wersję konfiguracji konta**,
+a każdy gateway nadal działa samodzielnie na własnej bazie. Implementacja:
+`apps/gateway/src/config-sync/` (rekordy, zegar, scalanie, materializacja w tabelach domeny),
+runtime łącza, `api/routed.ts` (tłumaczenie id i edycja ustawień workerów), wewnętrzna usługa
+`ConfigSyncService` w `canopy.link.v1`, capability **`config_sync`**.
+Stos PR-ów: `feat/linked-shared-config-N` ([etapy](#etapy-wspólnej-konfiguracji)).
+
+### Zakres i decyzje
+
+- **Domyślnie wspólne.** Wspólna jest każda konfiguracja konta. Lokalne zostaje tylko to, co opisuje
+  komputer albo workera (inny system, inne ścieżki, inne logowania) albo przeglądarkę.
+- **Dwie klasy rekordów w jednym strumieniu.** Rekord **wspólny** zapisuje każdy komputer.
+  Rekord **workera** zapisuje wyłącznie dom workera; partnerzy trzymają jego kopię tylko do odczytu.
+- **Wartości zostają w tabelach domeny** (`provider_instances`, `user_settings`, `proxies`, …).
+  Rekord niesie wersje pól, a każdy zapis UI i każde przyjęcie zmiany partnera aktualizuje oba
+  miejsca w jednej transakcji. Odbiorca stosuje zmianę przez własne walidatory i handlery,
+  z wersją nadawcy. Nigdy nie wybija nowej wersji dla cudzej zmiany.
+- **Bez kolejkowania.** Wspólny rekord zmienia się lokalnie zawsze, także offline; partnerzy
+  nadrabiają po połączeniu. To stan, nie praca do wykonania. Ustawienia workera i rzeczy
+  wykonawcze wymagają osiągalnego domu.
+- **Zbieżność w grupie.** Konfiguracja obejmuje każdy komputer osiągalny łańcuchem bezpośrednich
+  łącz z włączonym Share configuration ([per łącze](#udostępnianie-per-łącze)). Nie przechodzi przez
+  relay etapu 7. „Share onward” nadal dotyczy tylko wątków, botów i luster.
+- **Usuwanie jest wspólne**, z przywracaniem z historii przez 90 dni ([usuwanie](#usuwanie)).
+- **Boty i harmonogramy mają jeden dom** i są edytowane zdalnie, bez replikowanej kopii.
+- **Preferencje przeglądarki** („This device”, skróty klawiszowe) zostają na urządzeniu.
+- **Wyścig odświeżania OAuth** jest akceptowany: przegrany komputer chwilowo pokazuje „needs reconnect”,
+  aż dostanie nowsze poświadczenia od partnera ([sekrety](#sekrety)).
+
+### Inwentarz
+
+| Dane | Źródło | Zakres | Powód |
+|---|---|---|---|
+| wygląd: schemat, akcent, palety Light/Dark, szerokość czatu | `user_settings.appearance` | wspólne | wybór użytkownika, nie ekranu |
+| szerokość i zwinięcie sidebara, zwinięty panel wątku | `user_settings.appearance` | komputer | zależy od ekranu |
+| ogólne (potwierdzenia), kompozytor (Enter w trakcie tury) | `user_settings.general`, `.composer` | wspólne | nawyki użytkownika |
+| domyślne ustawienia wątku | `user_settings.thread_defaults` | wspólne bez `workspace_id` | workspace jest katalogiem jednej maszyny |
+| generowanie tekstu, strefa czasowa | `user_settings.text_generation`, `.timezone` | wspólne | jedno konto, jedna osoba |
+| sidebar: przypięte wątki i boty, filtr i kolejność projektów | `user_settings.sidebar` | wspólne | id jako globalne odwołania |
+| domyślna częstotliwość sprawdzania CLI | `user_settings.cli_updates` | wspólne | wartość domyślna konta |
+| nadpisanie częstotliwości CLI na workerze | `worker_configs.config` | worker | ustawienie maszyny |
+| limity załączników, adres gatewaya dla workerów | `user_settings` | komputer | konfiguracja tego gatewaya |
+| instancja: nazwa, rodzaj, endpoint, proxy, kolor, argumenty, własne logowanie (wybór), `all_workers` | `provider_instances` | wspólne | definicja dostępu |
+| instancja: klucz API, zmienne sekretne | `provider_instances` → `secrets` | wspólne, sekret | ponownie szyfrowane u odbiorcy |
+| instancja: modele (ulubione, ukryte, pokazane, własne) | `provider_instances` | wspólne | wybór użytkownika |
+| instancja: ścieżka CLI, katalog domowy i izolowany | `provider_instances.runtime` | komputer | inny system plików |
+| instancja na workerze: włączenie, nadpisania (także klucz) | `provider_instance_workers` | worker | ustawienie maszyny; klucz workera nie opuszcza domu |
+| proxy: nazwa, rodzaj, adres, opcje Codexa, sekret | `proxies` → `secrets` | wspólne, sekret | wskazywane przez instancje |
+| projekt: nazwa, rodzaj, archiwizacja, tożsamość origin | `projects`, `project_workspaces.git_origin` | wspólne | jeden projekt na wszystkich komputerach |
+| ustawienia projektu | `project_settings` | wspólne bez `workspace_id` | jak domyślne ustawienia wątku |
+| workspace, worktree, katalogi | `project_workspaces`, `worktrees` | worker | katalog na jednej maszynie |
+| polityka worktree konta i projektu | `worktree_settings` bez workera | wspólne bez `location` | lokalizacja jest ścieżką komputera |
+| ustawienia worktree workera | `worktree_settings` z workerem | worker | ustawienie maszyny |
+| instrukcje, skille, pluginy, marketplace'y i ich wersje | `instruction_documents*`, `agent_skills*`, `agent_plugins*`, `agent_marketplaces` | wspólne | biblioteka konta; selektory wskazują workery po uuid |
+| tagi workera | `worker_environments.manual_tags` | worker | opis maszyny |
+| raport środowiska, tagi automatyczne, podglądy | `worker_environments`, `*_previews` | worker / lokalne | stan wykonania |
+| konto connectora: typ, nazwa, adres, transport, `all_workers`, `all_bots`, katalog narzędzi | `connector_accounts` | wspólne | jedno konto zewnętrzne |
+| poświadczenia connectora, nagłówki, aplikacje OAuth | `connector_accounts.credentials`, `connector_oauth_apps` | wspólne, sekret | ponownie szyfrowane u odbiorcy |
+| stan konta connectora, ostatnie użycie, przestrzeń nazw | `connector_accounts` | komputer | wynik użycia na tym komputerze |
+| dostęp connectora dla workera | `connector_worker_grants` | worker | uprawnienie maszyny |
+| dostęp connectora dla bota, granty | `connector_bot_grants` | dom bota | część bota |
+| stan OAuth, wykonania, audyt connectorów | `connector_oauth_states`, `connector_executions`, `connector_audit` | lokalne | stan wykonania |
+| boty, rutyny, przypomnienia | `bots`, `bot_routines`, `bot_wakeups` | dom | rzeczy wykonawcze |
+| harmonogramy i ich uruchomienia | `schedules`, `schedule_runs` | dom | rzeczy wykonawcze |
+| sekrety wątków | `thread_secrets` | dom wątku | nigdy nie opuszczają domu |
+| worker: nazwa, połączenie, konfiguracja wysyłana do workera | `workers`, `worker_connections`, `worker_configs` | worker | składane przez dom |
+| enrollment, klucze i hosty SSH, dostęp sieciowy | `worker_enrollments`, `worker_ssh_*`, `network_access` | komputer | sieć i zaufanie tej maszyny |
+| łącza, trasy, lustra, ruchy | `computer_*` | komputer | stan łącza |
+| telefony, klienty desktopu, aktualizacje desktopu | `mobile_*`, `desktop_*` | komputer | parowanie z tym gatewayem |
+| właściciel | `users` | komputer | lokalny uuid; rekordy go nie zawierają |
+| preferencje „This device”, skróty klawiszowe | localStorage | urządzenie | wybór urządzenia |
+| ustawienia powłoki desktopu | pliki Electron | komputer | aplikacja na tej maszynie |
+
+Przed tą zmianą 0050 udostępniał tylko oznaczone elementy: definicję instancji (bez proxy i `all_workers`),
+listy modeli, wygląd, domyślne ustawienia wątku, strefę, generowanie tekstu oraz tożsamość i nazwę projektu.
+Nie obejmował proxy, ustawień ogólnych, kompozytora, sidebara, CLI, ustawień projektu, polityki worktree,
+środowiska agentów ani connectorów. Zmiana nazwy nieoznaczonej instancji zostawała więc lokalna.
+
+### Rekord, klucze i id
+
+`config_items(owner_user_id, kind, global_id, local_id, home_node_id, identity, fields, deleted, revision)`
+opisuje jeden element. `kind` to rodzaj (`settings`, `instance`, `proxy`, `project`, `project_settings`,
+`worktree_policy`, `instruction`, `skill`, `plugin`, `marketplace`, `connector`, `oauth_app`, `worker`).
+`home_node_id` jest puste dla rekordu wspólnego, a dla rekordu workera wskazuje jego dom.
+`fields` to mapa pole → `{value, hlc, prev}`. Wartość sekretu zastępuje losowy token.
+`identity` to znormalizowany klucz scalania ([bootstrap](#bootstrap-i-scalanie-tożsamości)).
+
+**Id są ujednolicone, a mapowane tylko po scaleniu.** Element utworzony po połączeniu ma to samo id
+wszędzie: uuid albo, dla instancji, `harness:slug`. Odbiorca tworzy wiersz z tym id. Gdy scalenie łączy dwa
+istniejące elementy, oba lokalne wiersze zostają. Kanoniczne id to mniejsze z dwóch, a drugie trafia do
+`config_aliases(owner_user_id, kind, alias_id, global_id)`. Nie przepisujemy więc wątków, botów ani
+harmonogramów, które wskazują lokalny wiersz.
+
+Ładunek nigdy nie zawiera lokalnych id. Odwołania do innych elementów (proxy instancji, instancja w domyślnych
+ustawieniach, konto credentiali źródła skilla, przypięte wątki) są globalnymi kluczami. Odwołanie do rzeczy
+z domem ma postać `uuid@node`. Odbiorca rozwiązuje je przez aliasy do swoich id. Kolizja sluga instancji
+(inny element z tym samym `harness:slug`) dostaje lokalny slug `slug-2` i alias.
+
+`api/routed.ts` tłumaczy pola konfiguracji w wywołaniach do partnera (`provider_profile_id`, `proxy_id`,
+`project_id`, id kont connectorów i skilli) przez aliasy, jak dziś kwalifikuje id wątków.
+Bez aliasu tłumaczenie jest tożsamościowe.
+
+### Wersje: HLC per pole
+
+Każda zmiana pola dostaje **hybrydowy zegar logiczny** `wall_ms.counter.node`: maksimum czasu ściany
+i ostatnio widzianego HLC, licznik dla równych milisekund, id węzła jako ostateczny remis. Porządek jest
+całkowity i ten sam na każdym komputerze. Pola mają granulację wartości, którą użytkownik zmienia jednym
+ruchem: liść ustawień, nazwa instancji, cała lista ulubionych, zmienna po nazwie, nadpisanie selektora
+po uuid workera. Zmiana dwóch różnych pól jednego elementu nigdy nie jest konfliktem.
+
+`prev` to HLC wartości, którą autor widział przed zmianą. Odbiorca porównuje go z lokalnym HLC pola:
+
+- `prev ≥` lokalny HLC: zmiana następcza; stosuje ją bez śladu;
+- przychodzący HLC wyższy, ale `prev` niższy: zmiana współbieżna; stosuje ją, a lokalną wartość
+  zapisuje w historii;
+- przychodzący HLC niższy: wygrywa lokalna; przychodząca wartość trafia do historii.
+
+Druga strona dochodzi do tego samego wyniku, gdy dostanie naszą wartość. Zegar partnera wyprzedzający nasz
+o ponad 5 min nie blokuje scalania. Settings → Linked computers pokazuje wtedy „Clock is 12 min ahead”.
+
+### Propagacja i nadrabianie
+
+`config_clock(owner_user_id, epoch, revision)` nadaje lokalną rewizję przy każdej zmianie rekordu:
+własnej, przyjętej od partnera i scaleniu. Licznik wiersza porządkuje commity jak `computer_thread_clock`.
+Kursor partnera ma postać `<epoka>:<rewizja>`. `config_peer_cursors` ma kaskadę do `computer_peers`.
+
+`ConfigSyncService.WatchConfig(ConfigCursor)` jest wewnętrzną metodą transportu `RemoteRequest`/`RemoteResponse`
+po przypiętym mTLS, tylko przy capability obu stron i aktywnym partnerze. Każda strona subskrybuje
+partnera od swojego kursora. Dom wysyła rekordy z rewizją powyżej kursora w partiach z `checkpoint`.
+Potem utrzymuje strumień i wysyła zmiany na żywo (powiadomienie po commicie, najpóźniej co 250 ms).
+Brak kursora, inna epoka albo kursor z przyszłości oznaczają pełne wysłanie wszystkich rekordów.
+
+Scalanie jest idempotentne, przemienne i łączne (mapa LWW per pole), więc nie potrzebujemy dziennika zmian
+ani naprawy luk: wystarczy stan rekordów. Ponowienie partii po awarii niczego nie psuje, a kursor zapisujemy
+po zastosowaniu partii. Odbiorca przyjmujący zmianę nadaje rekordowi własną rewizję i publikuje go dalej.
+Echo do nadawcy niczego nie zmienia i nie podbija rewizji, więc grupa komputerów dochodzi do jednego stanu.
+
+### Udostępnianie per łącze
+
+Każde łącze ma ustawienie **Share configuration** (domyślnie włączone, także dla łącz istniejących przed
+migracją). Okno „Link computer” pokazuje je przed parowaniem, więc komputer służbowy można połączyć
+od razu bez wspólnej konfiguracji. Łącze przenosi konfigurację tylko wtedy, gdy obie strony mają je
+włączone: każda strona może je wyłączyć, a włączyć z powrotem może tylko ta, która wyłączyła.
+Wartość jest w `computer_peers.share_config` (lokalny wybór) i `computer_peers.peer_share_config`
+(ostatni wybór partnera). Strona przekazuje ją ramką `ConfigSharing` po każdym handshake i od razu
+po zmianie. Do czasu tej wymiany żadna strona nie otwiera `WatchConfig`.
+Ramka zawiera też rosnącą rewizję lokalnego wyboru, zachowywaną w bazie. Odbiorca odrzuca starszą
+rewizję, aby opóźniona ramka z równoległego połączenia nie przywróciła wyłączonej zgody.
+
+**Grupa konfiguracji** to spójna składowa grafu łącz z włączonym udostępnianiem. Każdy komputer należy
+do dokładnie jednej grupy, a w grupie jest jedna wersja konfiguracji. Gateway publikuje rekordy
+wyłącznie partnerom, z którymi łącze przenosi konfigurację, i tylko od nich je przyjmuje. `WatchConfig`
+od innego partnera kończy się `FAILED_PRECONDITION`, zanim cokolwiek wyśle. Dlatego nic nie przechodzi
+przez łącze z wyłączonym udostępnianiem, także pośrednio: W–P1 wyłączone i P1–P2 włączone daje grupy
+{W} i {P1, P2}, a rekordy W nie docierają ani do P1, ani do P2. Gdy W ma też włączone łącze z P2,
+wszystkie trzy komputery tworzą jedną grupę, bo istnieje ścieżka udostępniania. UI pokazuje to wprost.
+
+Każdy komputer publikuje w grupie rekord `computer` (dom = on sam): nazwę i listę partnerów, z którymi
+łącze przenosi konfigurację. Z tych rekordów każdy gateway liczy skład grupy. Rekordy `computer`
+i `worker` komputera spoza grupy są usuwane jako kopie; ich dom ma oryginały.
+Kursor partnera spoza grupy jest wtedy usuwany, aby ponowne połączenie grup wysłało też niezmienione
+rekordy komputerów i workerów, których kopie zostały wcześniej usunięte.
+
+**Bez osobnego „Share secrets”.** Wspólna instancja, proxy albo connector bez klucza nie działa, więc
+podział dawałby połowiczną konfigurację. Sekret bez wartości po jednej stronie łamie też wersje per pole:
+nowszy token z drugiej strony nadpisałby działający klucz wartością, której ten komputer nie dostał.
+Potrzebna byłaby druga grupa i sekrety per komputer. Ochronę komputera służbowego daje wyłączenie
+całego łącza, a sekrety i tak nie opuszczają gatewayów.
+
+**Wyłączenie później nie usuwa danych.** Obie strony zachowują wszystkie rekordy, wartości, sekrety,
+aliasy, tombstony i historię jako zwykłą konfigurację swojej nowej grupy. Od tej chwili zmiany idą osobno.
+Usunięcie byłoby utratą danych, a sekrety, które już dotarły, i tak zostały wysłane. Rekordy zachowują
+globalne id, więc ponowne włączenie to zwykły bootstrap: te same id scalają się per pole bez duplikatów,
+a różnice z czasu rozdzielenia dają notki z Restore.
+
+- Wyłączenie otwiera potwierdzenie „Stop sharing configuration with “Laptop B”?” z opisem „Both computers
+  keep their current configuration. Later changes stay on each computer.” Gdy grupa się nie rozpada:
+  „Laptop B still gets it through “Laptop C”.” Przycisk: „Stop sharing”.
+- Partner pokazuje przy łączu „Laptop A stopped sharing configuration. This computer keeps its copy.”
+  Przełącznik jest tam wyłączony z tym samym wyjaśnieniem.
+- Settings → Linked computers pokazuje skład grupy: „Shares configuration with Laptop B and Laptop C”.
+
+**Relay (etap 7).** Konfiguracja nigdy nie przechodzi przez pośrednika. Komputer widoczny przez
+„Share onward” nie należy do grupy pośrednika i nie ma przełącznika Share configuration. „Share onward”
+i Share configuration są niezależne: pierwsze dotyczy wątków, botów i luster, drugie konfiguracji.
+
+**Aliasy i id.** Scalanie tożsamości używa wyłącznie rekordów grupy. Aliasy są lokalne i zostają po
+rozdzieleniu. Po ponownym włączeniu reguła „mniejsze id” daje ten sam wynik w obu grupach, więc wcześniejsze
+scalenia pozostają zgodne. Wątki, boty i workery komputera spoza grupy nadal działają przez trasę etapu 2.
+Pickery pokazują dla jego workera instancje i projekty jego domu (`GetBotProviderInstances` i overview
+partnera), a `routed.ts` nie tłumaczy id konfiguracji przez takie łącze. Wybór instancji spoza domu kończy
+się komunikatem „This instance isn't on “Laptop B”. Choose one of its instances.” Edycja ustawień workera
+(rekordy `worker`) wymaga łącza przenoszącego konfigurację.
+
+### Konflikty i historia
+
+Pytania o wersję znikają. Edycja wszędzie pozostaje prosta, a dane nie giną po cichu:
+
+- `config_history(owner_user_id, kind, global_id, field, value, hlc, node_id, secret, superseded_at, state)`
+  przechowuje każdą wartość przegraną współbieżnie. Wartość sekretu jest zaszyfrowana kluczem tego komputera.
+- Przy elemencie UI pokazuje notkę: „Laptop B also changed this at 14:02.” z akcjami **Restore** i **Dismiss**.
+  Restore zapisuje starą wartość jako nową zmianę, więc dochodzi do wszystkich komputerów.
+- Settings → Linked computers zbiera notki w grupie „Changed on two computers”. Dismiss na jednym komputerze
+  nie ukrywa notki na innych; historia jest lokalna i wygasa po 90 dniach.
+- Sekret w notce widać wyłącznie jako „A different key”.
+
+### Usuwanie
+
+Usunięcie zapisuje **tombstone**: pole `deleted` z własnym HLC. Rekord bez ładunku pól zostaje na stałe,
+bo w skali osobistej to kilka bajtów, a stary partner po powrocie nie przywróci usuniętego elementu.
+Odbiorca usuwa element lokalnie tak samo jak przy usunięciu z UI. Wątki i boty, które go wskazują,
+zachowują historię jak dziś.
+
+Zmiana pola z HLC wyższym niż tombstone przywraca element. UI pokazuje wtedy notkę „Laptop B changed it after
+it was deleted here.” z akcją usunięcia. Usunięcie wygrywa ze zmianami starszymi od niego, a każda nadpisana
+wartość trafia do historii. Archiwizacja projektu jest polem, nie usunięciem: każdy komputer archiwizuje
+swoje wątki projektu, jak przy lokalnej archiwizacji.
+
+### Sekrety
+
+Pole sekretu w rekordzie to token. `ConfigField.secret` niesie wartość tylko w strumieniu łącza i tylko
+dla zmienionego pola albo przy pełnym wysłaniu. Nadawca odszyfrowuje ją swoim `CANOPY_SECRETS_KEY`.
+Odbiorca zapisuje nowy wiersz `secrets` zaszyfrowany **własnym** kluczem, w tej samej transakcji co rekord.
+Wartość nie trafia do historii partnera, logów, audytu, BFF, przeglądarki, modeli ani payloadów błędów.
+Na workery trafia wyłącznie w `WorkerConfig` workerów, które jej używają na danym komputerze.
+Klucz nadpisania instancji na workerze należy do rekordu workera i nie opuszcza domu.
+
+Tokeny connectorów OAuth odświeża komputer, który ich potrzebuje. Nowe tokeny są zwykłą zmianą pola,
+więc szybko dochodzą do partnerów. Gdy dostawca unieważni stary refresh token po równoległym odświeżeniu,
+przegrany komputer oznacza konto „needs reconnect”. Nowsza wersja poświadczeń od partnera zdejmuje ten stan.
+
+### Bootstrap i scalanie tożsamości
+
+Pierwsza synchronizacja z partnerem to zwykłe pełne wysłanie. Elementy o tym samym globalnym id scalają się
+per pole. Singletony (ustawienia konta, wbudowane instancje `native`, projekt scratch) mają stałe klucze,
+więc też scalają się per pole. Istniejące dane dostają przy migracji HLC z `updated_at` swojego wiersza,
+a w razie jego braku z `created_at`. Bootstrap wybiera więc najnowszą zmianę, a starszą wartość zapisuje
+w historii z notką „Merged with Laptop B”.
+
+Elementy o różnych id, ale tej samej **tożsamości**, stają się jednym elementem. Scalenie jest deterministyczne:
+kanoniczne id to mniejsze, drugie jest aliasem, a pola scalają się per pole. Każdy komputer liczy ten sam
+wynik niezależnie, także później, gdy taki element powstanie offline na dwóch komputerach.
+
+| Rodzaj | Tożsamość |
+|---|---|
+| instancja endpoint | harness, znormalizowany endpoint albo tożsamość proxy, ten sam klucz (porównuje odbiorca po odszyfrowaniu) |
+| instancja native z własnym logowaniem | harness i nazwa bez rozróżniania wielkości liter |
+| proxy | rodzaj, znormalizowany adres i ten sam sekret (porównuje odbiorca) |
+| projekt | jeden znany git origin wszystkich workspace'ów ([projekty](#projekty-jako-tożsamość)) |
+| instrukcja | harness i nazwa |
+| skill | źródło (adres, ref, ścieżka), a bez źródła nazwa |
+| marketplace | znormalizowane repozytorium |
+| plugin | marketplace i nazwa pluginu |
+| konto connectora | typ, adres i nazwa |
+| aplikacja OAuth | typ connectora |
+
+Inny klucz przy tym samym endpoincie oznacza dwa konta, więc elementy pozostają osobne. Różna treść skilla,
+instrukcji albo pluginu o tej samej tożsamości nie ginie: przegrana treść staje się kolejną wersją elementu.
+
+### Projekty jako tożsamość
+
+Projekt jest rekordem wspólnym: nazwa, rodzaj, archiwizacja, ustawienia projektu (bez workspace'u) i pole
+`origin`. Workspace'y są rekordami workera i należą do jego domu. Partner bez workspace'u projektu
+widzi go z workspace'ami innych komputerów. Picker workera wybiera wtedy komputer.
+
+`origin` liczy dom z `project_workspaces.git_origin` (migracja **0072_workspace_origin**,
+`normalizeGitOrigin` w `@canopy/domain/projects`). Wartość jest niepusta tylko wtedy, gdy wszystkie lokalne
+workspace'y projektu mają ten sam znany origin. Scalanie stosuje reguły pickera projektów według git origin: formy HTTPS, SSH i scp to ta sama tożsamość,
+a lokalne ścieżki, `file:` i brak origin nie są tożsamością. Dwa różne projekty z tym samym origin
+na jednym gatewayu blokują scalanie całej grupy, bo nie zgadujemy, do którego dołączyć. Projekt bez origin
+nigdy nie scala się automatycznie. Projekty scratch mają jeden stały klucz.
+
+Po scaleniu `projectChoices` grupuje najpierw po globalnym id (alias wskazuje kanoniczny projekt), a potem,
+jak dotąd, po origin. Lokalne rekordy, wątki i workspace'y zachowują swoje id. Nowy wątek na workerze B
+z projektu kanonicznego dostaje id projektu z B przez alias. Zmiana nazwy na dowolnym komputerze zmienia
+ją wszędzie.
+
+### Rekordy workerów i edycja zdalna
+
+Dom publikuje rekord `worker` każdego swojego workera: nazwę, system, tagi, instancje na workerze
+(włączenie, nadpisania bez wartości sekretów), nadpisanie częstotliwości CLI, ustawienia worktree workera
+i dostęp connectorów. Partnerzy zapisują go jako kopię tylko do odczytu. Rekord z cudzym `home_node_id`
+zmieniony przez kogokolwiek poza domem jest odrzucany.
+
+Edycja ustawień workera z innego komputera to wywołanie do domu przez trasę etapu 2. `SERVED` obejmuje
+`RenameWorker`, `SetInstanceWorker`, `SetInstanceWorkers`, `SetWorkerCliUpdateSettings`,
+`SetEnvironmentTags`, `UpdateWorktreeSettings` z workerem, `SetConnectorAccess` (część workerów domu),
+`RefreshProviders`, `InstallCli`, `CheckCliUpdates`, `StartProviderLogin` i `ListDirectory`.
+Dom wykonuje je własnymi handlerami jako właściciel tego gatewaya. Każde id workera i workspace'u musi
+należeć do domu. Żądanie mieszające komputery jest odrzucane. `SetConnectorAccess` z workerami kilku
+komputerów rozdziela gateway wywołujący: część wspólną zapisuje lokalnie, a części workerów wysyła do domów.
+Obie strony zapisują `audit_log` `computer.config.worker.sent` / `.received`.
+
+Telefony i przeglądarki nie trasują niczego. Metody zarządzania wymagają tokenu serwisowego BFF jak dziś.
+Partner nigdy nie zmienia rekordu wspólnego przez `RemoteRequest`, tylko przez `WatchConfig`. Model nie ma
+dostępu do żadnej z tych metod. Niedostępny dom daje od razu powód z obecności („Laptop B is unreachable
+since 19:42”), a UI zostawia ostatnią znaną wartość tylko do odczytu.
+
+### Rozłączenie
+
+Unlink usuwa kursor partnera i kopie rekordów jego workerów (kaskada do `computer_peers`).
+Wspólne rekordy, wartości, sekrety, aliasy i tombstony zostają na obu komputerach, które dalej działają
+samodzielnie. Ponowne połączenie to bootstrap. Te same globalne id scalają się per pole bez duplikatów,
+a usunięcia z czasu rozłączenia stosują się według HLC, z notką i Restore.
+
+### Zgodność wersji
+
+`COMPUTER_LINK_PROTOCOL` zostaje 1. Capability `config_sync` jest negocjowana jak w etapach 2–8,
+a proto zmienia się wyłącznie addytywnie. Pierwsza wiadomość strumienia (`ConfigHello`) podaje obsługiwane
+rodzaje i wersję schematu każdego z nich. Odbiorca zapisuje rodzaje i pola, których nie zna, w `config_items`
+bez materializacji. Publikuje je dalej i nie gubi ich przy własnej zmianie elementu. Wartość, której nie da
+się zastosować lokalnie (np. nieznany rodzaj proxy), zostaje w rekordzie ze stanem „Not supported on this computer”
+i powodem.
+
+Partner bez `config_sync` nie dostaje ani nie wysyła konfiguracji. Settings → Linked computers pokazuje
+„Needs an update to share configuration”. Nowe gatewaye nie ogłaszają `shared_config` z 0050.
+
+### Migracja z 0050
+
+Migracja każdego etapu nadaje rekordy wszystkim istniejącym elementom swoich rodzajów, z HLC z `updated_at`.
+Elementy oznaczone w `computer_shared_items` jako wspólne mają już te same klucze u partnerów i scalają się
+bez aliasów. Nieoznaczone stają się wspólne i przechodzą bootstrap. Otwarte pytania z
+`computer_shared_conflicts` stają się wpisami historii z notką: wygrywa nowsza wartość, druga zostaje
+do przywrócenia. Kopie lokalne po wyłączeniu udostępniania są zwykłymi elementami i scalają się według
+tożsamości. Ostatni etap migruje projekty i usuwa tabele `computer_shared_*`, pętlę `shared_config`,
+`ShareSetting`, `ShareScope`, `ConflictDialog`, `ConflictHint` i `SharedConfigOverview`.
+`GetSharedConfig`/`ManageSharedConfig` i `SharedConfigService` zostają w proto jako przestarzałe.
+
+### UI wspólnej konfiguracji
+
+- **Wspólne bez znaczka.** Ustawienia konta wyglądają tak samo jak bez połączonych komputerów.
+- **Komputer:** grupy ustawień komputera (Network access, Desktop, aktualizacje, ścieżki CLI instancji,
+  lokalizacja worktree) mają w opisie „This computer”. Preferencje przeglądarki dalej mówią „This device”.
+- **Worker:** listy workerów w Settings → Workers, Providers (instancja na workerach), Agent environment,
+  Worktrees i Connectors (dostęp) obejmują workery wszystkich komputerów, pogrupowane po komputerze:
+  najpierw „This computer”, potem partnerzy po nazwie. Wiersz pokazuje nazwę workera i komputera.
+  Worker niedostępnego komputera jest wyszarzony, z „Unreachable since 19:42”, a kontrolki są wyłączone
+  z tym samym powodem co API.
+- **Picker workera wybiera komputer** w kompozytorze, przy tworzeniu bota i harmonogramu nowego wątku.
+  Nie ma osobnego wyboru komputera. Picker grupuje workery po komputerze i pokazuje Offline albo
+  Unreachable z powodem z obecności.
+- **Notki:** „Laptop B also changed this at 14:02.” przy elemencie, z Restore i Dismiss, oraz grupa
+  „Changed on two computers” w Settings → Linked computers.
+- **Stan synchronizacji** przy partnerze: „Configuration up to date”, „Syncing configuration…”, „Needs
+  an update to share configuration”, „Clock is 12 min ahead”. Przełącznik Share configuration i skład
+  grupy: [per łącze](#udostępnianie-per-łącze).
+- Tekst według [copy.md](copy.md). Każdy etap z UI ma audyt §8 w opisie PR.
+
+### Etapy wspólnej konfiguracji
+
+Stos `feat/linked-shared-config-N`. Każdy etap to zamknięty fragment, który przechodzi CI. Bazą etapu 1 jest
+`dev`. Numery migracji zakładają, że `feat/linked-projects-by-origin` (0072) wejdzie pierwszy. Przy rebase
+nadajemy kolejne numery od najwyższego. Testy: dwa (w etapie 1 także trzy) prawdziwe gatewaye z osobnymi
+bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Bez testów UI.
+
+1. **Silnik i ustawienia konta.** `config_items`, `config_clock`, `config_history`, `config_aliases`,
+   `config_peer_cursors` (**0073_config_sync**), HLC, `ConfigSyncService.WatchConfig` i `ConfigHello`,
+   capability `config_sync`, materializacja `user_settings` (wszystkie sekcje konta) i migracja sekcji
+   z 0050, notki i stan synchronizacji w Settings → Linked computers. Share configuration per łącze
+   (`computer_peers.share_config`, `peer_share_config`, ramka `ConfigSharing`), rekordy `computer`,
+   skład grupy i przełącznik w oknie parowania oraz przy partnerze.
+   Testy: zmiana na A widoczna na B na żywo; zmiany offline obu stron w różnych polach scalone; współbieżne
+   to samo pole: ten sam zwycięzca na obu, przegrana w historii, Restore dochodzi do obu; restart w trakcie
+   partii i ponowienie; kursor z inną epoką; zbieżność A–B–C bez łącza A–C; pola komputera nie wychodzą;
+   rekord innego właściciela nie wychodzi; partner bez capability. Per łącze (trzy gatewaye): W–P1
+   wyłączone i P1–P2 włączone, więc zmiany W nie docierają do P1 ani P2 i odwrotnie, także po restarcie
+   i reconnect; `WatchConfig` przez wyłączone łącze odrzucone przed wysłaniem rekordu; wyłączenie w trakcie
+   strumienia go zamyka; po wyłączeniu obie strony zachowują wartości, a dalsze zmiany idą osobno; kopie
+   rekordów workerów spoza grupy znikają; ponowne włączenie scala bez duplikatów, z notkami; tylko strona,
+   która wyłączyła, może włączyć.
+
+   Implementacja etapu 1 używa migracji **0073_config_sync**, po **0072_workspace_origin**.
+   `config_sync` nie ogłasza starego `shared_config`; obsługa 0050 dla instancji, modeli i projektów
+   pozostaje do migracji ich rodzajów w następnych etapach. Nieznane rodzaje, pola i wartości zostają
+   w rekordach i przechodzą dalej; nieznana wersja schematu nie jest materializowana. Usunięcie zachowuje
+   sam zegar tombstone oraz nowsze liście przywracające element; przegrane wartości są w lokalnej historii.
+2. **Instancje, modele i proxy.** Materializacja `provider_instances` (bez ścieżek) i `proxies`, sekrety
+   z ponownym szyfrowaniem, tożsamość endpointu i proxy, aliasy, kolizja sluga, tłumaczenie
+   `provider_profile_id`/`proxy_id` w `routed.ts`, migracja instancji i modeli z 0050 (**0074_config_providers**).
+   Testy: zmiana nazwy instancji na A widoczna na B (zgłoszony błąd); klucz z innym ciphertextem, B go
+   odszyfrowuje, brak w BFF, logach i na workerze innego komputera; ta sama instancja na obu przed połączeniem
+   scalona w jedną; inny klucz pod tym samym endpointem daje dwie; usunięcie i przywrócenie; wątek z A na
+   workerze B używa instancji z aliasem; przez łącze bez Share configuration klucz nie przechodzi, a wątek
+   na workerze B używa instancji B.
+3. **Projekty i polityka worktree.** Rekord projektu z `origin`, ustawienia projektu, `worktree_settings` konta
+   i projektu, scalanie po origin zgodne z `projectChoices`, migracja projektów z 0050, usunięcie tabel
+   i UI 0050 (**0075_config_projects**). Testy: projekty z tym samym origin na A i B scalone bez zmiany lokalnych id;
+   niejednoznaczny origin bez scalenia; nowy wątek na workerze B w projekcie kanonicznym; archiwizacja
+   na wszystkich; `location` zostaje lokalne.
+4. **Środowisko agentów.** Instrukcje, skille, pluginy i marketplace'y z wersjami, selektory i nadpisania po
+   uuid workera (każdy gateway stosuje tylko swoje workery) (**0076_config_agent_environment**).
+   Testy: skill zapisany na A instalowany na workerze B; ta sama nazwa i inna treść daje dwie wersje;
+   nadpisanie dla workera B nie zmienia workera A.
+5. **Connectory.** Konta, poświadczenia i aplikacje OAuth jako sekrety, stan per komputer, odświeżanie
+   tokenów (**0077_config_connectors**). Testy: konto połączone na A działa w bocie na B; ciphertext inny
+   na B; równoległe odświeżenie z rotacją refresh tokenu kończy się jednym ważnym tokenem na obu;
+   tokeny nie trafiają do logów ani BFF.
+6. **Rekordy workerów i edycja zdalna.** Rekord `worker`, rozszerzony `SERVED`, rozdzielanie `SetConnectorAccess`,
+   audyt, listy workerów wszystkich komputerów w ustawieniach (**0078_config_workers**). Testy: zmiana
+   nadpisania instancji workera B z A zapisana tylko w bazie B; częstotliwość CLI workera B; niedostępny B
+   daje natychmiastowy błąd i nic nie zostaje zastosowane po powrocie; partner nie może zapisać rekordu
+   cudzego workera ani mieszać id; kopia rekordu czytelna offline; edycja ustawień workera przez łącze
+   bez Share configuration odrzucona.
+7. **Rzeczy z domem tworzone z dowolnego komputera.** `CreateBot` i `CreateSchedule` trasowane według workera
+   z pickera; edycja harmonogramów partnera. Bez migracji. Testy: bot utworzony z A na workerze B mieszka
+   w bazie B; harmonogram wątku B edytowany z A; odmowa przy niedostępnym domu.
+
+### Weryfikacja wspólnej konfiguracji
+
+Każdy etap dodaje testy integracyjne `tests/integration/config-sync-*.test.ts` opisane w etapach
+oraz oczekiwane migracje w `packages/db/test/schema.test.ts` (kaskady do `computer_peers`, unikalność
+aliasów, brak `computer_shared_*` po etapie 3). Testy bezpieczeństwa sprawdzają owner scoping, brak wartości
+sekretów poza łączem i odrzucanie zapisów rekordów workera spoza domu.

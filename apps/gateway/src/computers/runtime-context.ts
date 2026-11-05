@@ -31,6 +31,8 @@ export type Connection = {
   capabilities?: Set<string>;
   remote?: RemoteCalls;
   relayReady?: boolean;
+  configReady?: boolean;
+  configReceived?: boolean;
 };
 
 export type Options = {
@@ -158,6 +160,8 @@ export class LinkedComputersState {
   botMirroring = new Map<string, AbortController>();
 
   sharing = false;
+  configWatching = new Map<string, AbortController>();
+  configServing = new Map<string, Set<AbortController>>();
 
   routes!: Routes;
 

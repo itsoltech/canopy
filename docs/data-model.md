@@ -26,6 +26,15 @@ kluczem tego komputera). Potwierdzenia i pytania kasują się z partnerem. Warto
 `provider_instances`, `user_settings` i `projects`; wspólny projekt ma to samo id na każdym komputerze.
 [Etap 4](linked-computers.md#konkretny-protokół-etapu-4).
 
+Migracja `0073_config_sync` przenosi ustawienia konta z protokołu 0050 do `config_items`
+(HLC i poprzednik per liść, tombstone, lokalna rewizja). `config_clock` porządkuje commity
+właściciela, `config_peer_cursors` zapisuje checkpoint razem z przyjętą partią i ma kaskadę
+do partnera. `config_history` zachowuje przegrane wartości oraz lokalny stan Restore/Dismiss
+przez 90 dni; `config_aliases` rezerwuje mapowanie tożsamości kolejnych rodzajów.
+`computer_peers.share_config` i `peer_share_config` przechowują obie zgody, a ich rewizje
+chronią przed opóźnionymi ramkami. Wyłączenie łącza zachowuje wspólne dane, historię i usunięcia.
+[Protokół wspólnej konfiguracji](linked-computers.md#konkretny-protokół-wspólna-konfiguracja).
+
 Migracja `0051_linked_agents` dodaje atomowo zastępowane projekcje rozmów botów
 (`computer_mirror_bots`, `computer_bot_mirror_state`) oraz owner-scoped referencje
 `computer_agent_calls` i deduplikację pytań `computer_agent_events`. Referencje mają

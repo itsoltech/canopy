@@ -23,6 +23,8 @@ import { absorb, gather, watchOverview } from "./routed-overview.ts";
 import { toConnectError } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { refuseRemoteWorktree } from "../worktrees/remote.ts";
+import { validateUserSettings } from "../core/settings-validation.ts";
+import { coreCheckThreadDefaults, coreCliDefaultsChanged } from "../core/core-settings.ts";
 
 export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   // SAFETY: Each entry is invoked with the request decoded by its own GatewayService method descriptor.
@@ -232,6 +234,21 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
 /** What shared configuration needs from this gateway: its own handlers, projects with a given id, live UI updates. */
 export function sharedHost(core: GatewayCore, local: UiHandlers): SharedHost {
   return {
+    validateSettings: async (request) => {
+      validateUserSettings(request);
+
+      if (request.threadDefaults) await coreCheckThreadDefaults(core, request.threadDefaults);
+    },
+    settingsChanged: async (cliChanged) => {
+      const settings = (await core.settings()).user;
+
+      if (settings)
+        core.hub.publishOverview(
+          create(ui.OverviewUpdateSchema, { change: { case: "userSettings", value: settings } }),
+        );
+
+      if (cliChanged) await coreCliDefaultsChanged(core);
+    },
     serve: remoteServe(local),
     createProject: async (id, name) => {
       await core.createProject(name, id);

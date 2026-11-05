@@ -22,6 +22,7 @@ import { computersState, type Connection } from "./runtime-context.ts";
 import { computersSharesConfig } from "./runtime-presence.ts";
 import { computersRelayChannel } from "./runtime-remote.ts";
 import type { LinkedComputers } from "./runtime.ts";
+import { serveConfig } from "./runtime-config.ts";
 
 // ------------------------------------------------------------------ stage 2: remote threads
 
@@ -127,6 +128,12 @@ export async function* computersServeHome(
   request: Message,
   signal: AbortSignal,
 ): AsyncGenerator<Message> {
+  if (method.name === "WatchConfig") {
+    yield* serveConfig(hostContext, nodeId, connection, linkedMessage(link.ConfigCursorSchema, request), signal);
+
+    return;
+  }
+
   if (!hostContext.options.serve) throw new ConnectError("Thread sharing unavailable", Code.Unimplemented);
 
   if (MOVE_METHODS.has(method.name)) {

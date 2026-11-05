@@ -33,6 +33,7 @@ import { computersRemoteMethods, type ComputersRemoteMethods } from "./runtime-r
 import { computersServingMethods, type ComputersServingMethods } from "./runtime-serving.ts";
 import { linkHandler, remoteCertificate, type LinkIdentity } from "./transport.ts";
 import { requireDesktopRole } from "../role.ts";
+import { ConfigSync } from "../config-sync/engine.ts";
 
 export { computerGuard, type ComputerChange } from "./runtime-context.ts";
 
@@ -62,6 +63,7 @@ export class LinkedComputers {
   readonly botMirror: BotMirror;
 
   readonly shared: SharedConfig | undefined;
+  readonly config: ConfigSync | undefined;
 
   readonly relay: ComputerRelay;
 
@@ -77,6 +79,7 @@ export class LinkedComputers {
     options.network.mount("link", linkHandler(this.routes));
     this.mirror = new ThreadMirror(options.store);
     this.botMirror = new BotMirror(options.store);
+    this.config = options.shared ? new ConfigSync(options.store, options.shared, () => this.hello().nodeId) : undefined;
     this.relay = new ComputerRelay(options.store, {
       self: () => this[computersState].identity.node_id,
       enabled: (nodeId) => this.hello().capabilities.includes(RELAY) && this.capabilities(nodeId).includes(RELAY),
@@ -159,13 +162,21 @@ export class LinkedComputers {
         computerGuard(async () => {
           if (!request.hello || request.hello.nodeId === this[computersState].identity.node_id)
             throw new ConnectError("Choose another computer", Code.InvalidArgument);
-          await this.store.pair(request.secret, request.hello, context.values.get(remoteCertificate));
+          await this.store.pair(
+            request.secret,
+            request.hello,
+            context.values.get(remoteCertificate),
+            request.shareConfig ?? true,
+          );
           void this[computersState].lan?.refresh().catch(() => {});
 
           for (const c of this[computersState].active.get(request.hello.nodeId) ?? []) c.close();
           this[computersState].retry.delete(request.hello.nodeId);
 
-          return create(link.PairResponseSchema, { hello: this.hello() });
+          return create(link.PairResponseSchema, {
+            hello: this.hello(),
+            shareConfig: (await this.store.peer(request.hello.nodeId))!.share_config,
+          });
         }),
       connect: (request, context) => computersAccept(this, request, context),
     });

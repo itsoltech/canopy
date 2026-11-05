@@ -55,7 +55,7 @@
 </script>
 
 <div class={["grid min-w-0 gap-4 p-4", className]}>
-  <div class="flex flex-wrap items-start justify-between gap-3">
+  <div class="flex flex-col items-start justify-between gap-3 sm:flex-row">
     <div class="min-w-0 flex-1">
       <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
         <h3 class="text-base font-semibold break-words text-zinc-950 dark:text-white">
@@ -102,8 +102,8 @@
     <div>
       <dt class="text-zinc-500 dark:text-zinc-400">Version</dt>
       <dd class="text-zinc-950 dark:text-white">
-        {computer.appVersion || "Not connected yet"}{#if !computer.viaNodeId}
-          · Link {computer.minProtocol}–{computer.maxProtocol}{/if}
+        {computer.appVersion ||
+          "Not connected yet"}{#if !computer.viaNodeId}{` · Link ${computer.minProtocol}–${computer.maxProtocol}`}{/if}
       </dd>
     </div>
     {#if !computer.viaNodeId}<div class="min-w-0">
