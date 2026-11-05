@@ -36,7 +36,13 @@
 
 <Dialog
   class={className}
-  title={actions.dialog?.kind === "delete" ? "Delete thread?" : "Rename thread"}
+  title={actions.dialog?.kind === "delete"
+    ? "Delete thread?"
+    : actions.dialog?.kind === "unpin"
+      ? "Unpin thread?"
+      : actions.dialog?.kind === "archive"
+        ? "Archive thread?"
+        : "Rename thread"}
   bind:open={
     () => Boolean(actions.dialog),
     (open) => {
@@ -60,6 +66,20 @@
         <Button type="submit" variant="primary" loading={actions.saving} disabled={!title.trim()}>Save</Button>
       </div>
     </form>
+  {:else if actions.dialog?.kind === "unpin" || actions.dialog?.kind === "archive"}
+    <div class="grid gap-4">
+      <p class="text-sm/6 text-pretty text-zinc-500">
+        {actions.dialog.kind === "unpin"
+          ? `Remove “${actions.dialog.thread.title}” from Pinned? The thread stays in the inbox.`
+          : `Archive “${actions.dialog.thread.title}” and its side threads? Running turns will stop and schedules will be cancelled.`}
+      </p>
+      <div class="flex justify-end gap-2">
+        <Button data-autofocus onclick={() => (actions.dialog = undefined)}>Cancel</Button>
+        <Button variant="primary" loading={actions.saving} onclick={() => void actions.confirm()}
+          >{actions.dialog.kind === "unpin" ? "Unpin thread" : "Archive thread"}</Button
+        >
+      </div>
+    </div>
   {:else if actions.dialog}
     <div class="grid gap-4">
       <p class="text-base/6 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-400">

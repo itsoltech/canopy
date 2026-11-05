@@ -42,6 +42,8 @@ interface Stored {
   composer?: JsonValue;
   textGeneration?: JsonValue;
   sidebar?: JsonValue;
+  general?: JsonValue;
+  cliUpdates?: JsonValue;
 }
 
 const appearance = (stored: Stored) =>
@@ -75,6 +77,12 @@ const toUser = (row: Row | undefined) => {
     threadDefaults: threadDefaults(stored),
     modelFavorites: modelFavorites(stored),
     composer: composer(stored),
+    cliUpdates: stored.cliUpdates
+      ? fromJson(ui.CliUpdateSettingsSchema, stored.cliUpdates, { ignoreUnknownFields: true })
+      : create(ui.CliUpdateSettingsSchema),
+    general: stored.general
+      ? fromJson(ui.GeneralSettingsSchema, stored.general, { ignoreUnknownFields: true })
+      : create(ui.GeneralSettingsSchema),
     sidebar: stored.sidebar
       ? fromJson(ui.SidebarSettingsSchema, stored.sidebar, { ignoreUnknownFields: true })
       : create(ui.SidebarSettingsSchema),
@@ -135,6 +143,8 @@ export class SettingsStore extends Context.Service<
       composer?: ui.ComposerSettings;
       textGeneration?: ui.TextGenerationSettings;
       sidebar?: ui.SidebarSettings;
+      general?: ui.GeneralSettings;
+      cliUpdates?: ui.CliUpdateSettings;
       timezone?: string;
       workerGatewayUrl?: string;
       attachmentLimits?: ui.AttachmentLimits;
@@ -174,6 +184,8 @@ export class SettingsStore extends Context.Service<
           composer: nextComposer,
           textGeneration: nextGeneration,
           sidebar: nextSidebar,
+          general,
+          cliUpdates,
           timezone,
           workerGatewayUrl,
           attachmentLimits,
@@ -197,6 +209,8 @@ export class SettingsStore extends Context.Service<
                 ...(nextComposer && { composer: toJson(ui.ComposerSettingsSchema, nextComposer) }),
                 ...(nextGeneration && { textGeneration: toJson(ui.TextGenerationSettingsSchema, nextGeneration) }),
                 ...(nextSidebar && { sidebar: toJson(ui.SidebarSettingsSchema, nextSidebar) }),
+                ...(general && { general: toJson(ui.GeneralSettingsSchema, general) }),
+                ...(cliUpdates && { cliUpdates: toJson(ui.CliUpdateSettingsSchema, cliUpdates) }),
               };
 
               const row = yield* write({

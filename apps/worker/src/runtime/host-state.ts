@@ -29,7 +29,6 @@ export class HostState {
   readonly secrets: ThreadSecretFiles;
   /** Provider CLIs on this device: reports and installs on demand (docs/provider-cli.md). */
   cli!: CliTools;
-  cliTimer!: Timer;
   /** Provider per thread (from the commands' ThreadSpec): running turns per provider. */
   readonly threadProviders = new Map<string, Provider>();
   /** Turns being admitted per provider (between StartTurn and turnStarted). */

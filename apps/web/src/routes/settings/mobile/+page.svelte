@@ -3,6 +3,7 @@
   import { create } from "@bufbuild/protobuf";
   import { toJsonString } from "@bufbuild/protobuf";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
+  import { formatDateTime, formatTime } from "#lib/shared/format.ts";
   import { ui } from "@canopy/contracts";
   import QRCode from "qrcode";
   import { requestJson } from "#lib/shared/http.ts";
@@ -200,7 +201,7 @@
   {#each setup.devices as device (device.id)}
     <SettingsRow
       title={device.name}
-      description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.revokedAt ? "Revoked" : device.lastSeenAt ? `Last seen ${timestampDate(device.lastSeenAt).toLocaleString()}` : "Not connected yet"}`}
+      description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.revokedAt ? "Revoked" : device.lastSeenAt ? `Last seen ${formatDateTime(device.lastSeenAt)}` : "Not connected yet"}`}
     >
       {#snippet control()}{#if device.pairingVersion < 2}<Button size="sm" disabled={busy} onclick={() => void pair()}
             >Pair again</Button
@@ -230,7 +231,7 @@
     {#each pending as p (p.id)}
       <SettingsRow
         title={p.clientKind === "desktop" ? "Waiting for a desktop app" : "Waiting for a phone"}
-        description={`Expires ${p.expiresAt ? timestampDate(p.expiresAt).toLocaleTimeString() : "soon"}`}
+        description={`Expires ${formatTime(p.expiresAt) || "soon"}`}
       >
         {#snippet control()}<Button
             size="sm"

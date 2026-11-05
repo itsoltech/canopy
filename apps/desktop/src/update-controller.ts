@@ -19,6 +19,7 @@ interface Options {
     allowDowngrade: boolean,
   ): Promise<boolean | { available: boolean; releases: DesktopReleaseNote[]; publishing: string | undefined }>;
   changed(): void;
+  checking?(): void;
   downloaded(): void;
 }
 
@@ -27,6 +28,9 @@ export class UpdateController {
   private state: DesktopUpdateStatus;
   private enabled = false;
   private running = false;
+  private automaticEnabled = true;
+  private runningAutomatic = false;
+  private cancelDownload: (() => void) | undefined;
   constructor(
     private readonly updater: Updater,
     private readonly options: Options,
@@ -124,15 +128,30 @@ export class UpdateController {
   check() {
     return this.state.changingChannel ? Promise.resolve(this.status()) : this.runCheck(false);
   }
+  setAutomaticUpdates(enabled: boolean): void {
+    this.automaticEnabled = enabled;
+
+    if (!enabled && this.runningAutomatic) {
+      this.updater.autoDownload = false;
+      this.cancelDownload?.();
+    }
+  }
+  checkAutomatically() {
+    return this.automaticEnabled && !this.state.changingChannel
+      ? this.runCheck(false, true)
+      : Promise.resolve(this.status());
+  }
   checkRemote() {
     if (this.running || this.state.changingChannel)
       throw new Error("Wait for the current app update operation to finish, then retry.");
 
     return this.runCheck(false);
   }
-  private async runCheck(allowDowngrade: boolean) {
+  private async runCheck(allowDowngrade: boolean, automatic = false) {
     if (!this.enabled || this.running || this.state.phase === "downloaded") return this.status();
     this.running = true;
+    this.runningAutomatic = automatic;
+    this.updater.autoDownload = !automatic || this.automaticEnabled;
     this.publish({
       phase: "checking",
       message: "Checking for updates…",
@@ -144,7 +163,15 @@ export class UpdateController {
     this.configure(allowDowngrade);
 
     try {
+      this.options.checking?.();
       const prepared = await this.options.prepare(this.state.channel, allowDowngrade);
+
+      if (automatic && !this.automaticEnabled) {
+        this.publish({ phase: "idle", message: "Automatic checks and downloads are off" });
+
+        return this.status();
+      }
+
       const available = prepared === true || (prepared !== false && prepared.available);
 
       if (prepared !== true && prepared !== false)
@@ -160,6 +187,9 @@ export class UpdateController {
       }
 
       const result = await this.updater.checkForUpdates();
+      this.cancelDownload = () => result?.cancellationToken?.cancel();
+
+      if (automatic && !this.automaticEnabled) this.cancelDownload();
       await result?.downloadPromise;
 
       if (this.state.phase === "checking") this.publish({ phase: "idle", message: "Up to date" });
@@ -168,6 +198,8 @@ export class UpdateController {
     } finally {
       this.updater.allowDowngrade = false;
       this.running = false;
+      this.runningAutomatic = false;
+      this.cancelDownload = undefined;
       this.options.changed();
     }
 

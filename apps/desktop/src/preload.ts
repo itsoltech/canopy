@@ -25,6 +25,8 @@ function subscribe<T>(channel: string, listener: (data: T) => void) {
 
 const bridge: DesktopBridge = {
   platform: process.platform,
+  showThreadNotification: (notice) => ipcRenderer.invoke("canopy:thread-notification", notice),
+  onThreadNotificationClick: (listener) => subscribe<string>("canopy:thread-notification-click", listener),
   startupAppearance: ipcRenderer.sendSync("canopy:appearance-startup"),
   setAppearance: (appearance) => ipcRenderer.invoke("canopy:appearance", appearance),
   windowState: () => ipcRenderer.invoke("canopy:window-state"),
@@ -46,6 +48,7 @@ const bridge: DesktopBridge = {
     }, overlayVersion === 1),
   updates: () => ipcRenderer.invoke("canopy:updates"),
   setUpdateChannel: (channel) => ipcRenderer.invoke("canopy:update-channel", channel),
+  setUpdateCheckInterval: (minutes) => ipcRenderer.invoke("canopy:update-check-interval", minutes),
   checkForUpdates: () => ipcRenderer.invoke("canopy:update-check"),
   restartToUpdate: () => ipcRenderer.invoke("canopy:update-install"),
   onUpdates: (listener) => subscribe<DesktopUpdateStatus>("canopy:updates", listener),

@@ -24,6 +24,7 @@ import {
   type CliLatestOptions,
 } from "./cli-latest.ts";
 import type { CoreRuntime } from "./core.ts";
+import { CliUpdateChecks } from "./cli-update-checks.ts";
 
 export { CLI_CACHE_MS, CLI_LATEST_SOURCES, CliLatestSource, type CliLatestOptions } from "./cli-latest.ts";
 
@@ -63,6 +64,7 @@ export interface WorkerRow {
 }
 
 export class CliTools {
+  readonly checks: CliUpdateChecks;
   readonly latest: CliLatestSource;
   readonly #options: CliToolsOptions;
   /** Redacted progress lines per worker and provider since this gateway started. */
@@ -72,18 +74,19 @@ export class CliTools {
   constructor(options: CliToolsOptions) {
     this.#options = options;
     this.latest = new CliLatestSource(options.latest);
+    this.checks = new CliUpdateChecks(options.runtime, options.userId, options.latest);
   }
 
-  /** Checks latest versions now and every 6 hours (the cache age); a change is broadcast. */
+  /** Polls each worker's durable schedule; registry requests never hold up the worker link. */
   start(): void {
     const run = () =>
-      void this.latest
-        .refresh()
-        .then((changed) => (changed ? this.#options.changed() : undefined))
+      void this.checks
+        .tick()
+        .then(() => this.#options.changed())
         .catch(() => undefined);
 
     run();
-    this.#timer ??= setInterval(run, this.#options.latest?.cacheMs ?? CLI_CACHE_MS);
+    this.#timer ??= setInterval(run, Math.min(this.#options.latest?.cacheMs ?? CLI_CACHE_MS, 60_000));
     this.#timer.unref?.();
   }
 
@@ -105,6 +108,12 @@ export class CliTools {
         yield* sql`UPDATE workers SET capabilities = capabilities || jsonb_build_object('cliTools', ${json}::jsonb) WHERE id = ${workerId}::uuid`;
       }),
     );
+
+    // A registry may take 15 seconds to time out. The same link carries turns, approvals and command replies.
+    void this.checks
+      .tick(workerId)
+      .then(() => this.#options.changed())
+      .catch(() => undefined);
     await this.#options.changed();
   }
 
@@ -155,6 +164,7 @@ export class CliTools {
 
   /** Worker.cli_tools and Worker.arch for the owner's view. */
   async decorate(workers: ui.Worker[]): Promise<void> {
+    await this.checks.decorate(workers);
     const rows = await this.#rows(workers.map((w) => w.id));
 
     for (const worker of workers) {
@@ -175,7 +185,7 @@ export class CliTools {
     capable: boolean,
   ): ui.WorkerCliTool {
     const key = keyOf(tool.provider);
-    const latest = this.latest.get(tool.provider);
+    const latest = this.checks.get(worker.id, tool.provider);
     const running = key ? (row.running.get(key) ?? 0) : 0;
     const updateAvailable = Boolean(latest?.version && tool.version && newer(latest.version, tool.version));
     const installed = tool.method !== CliInstallMethod.NOT_INSTALLED;
@@ -229,7 +239,12 @@ export class CliTools {
     const key = keyOf(request.provider);
 
     if (!key) throw new ConnectError("choose Claude Code, Codex or Grok", Code.InvalidArgument);
-    const version = request.version || this.latest.get(request.provider)?.version || "latest";
+
+    const version =
+      request.version ||
+      this.checks.get(request.workerId, request.provider)?.version ||
+      this.latest.get(request.provider)?.version ||
+      "latest";
 
     if (version !== "latest" && !SEMVER.test(version))
       throw new ConnectError(`"${version}" is not a version (X.Y.Z or latest)`, Code.InvalidArgument);
@@ -263,12 +278,20 @@ export class CliTools {
       // "Update all": only where it is installed and behind.
       if (
         !tool?.version ||
-        !newer(version === "latest" ? (this.latest.get(request.provider)?.version ?? "") : version, tool.version)
+        !newer(
+          version === "latest" ? (this.checks.get(row.id, request.provider)?.version ?? "") : version,
+          tool.version,
+        )
       )
         continue;
 
       try {
-        await this.#installOn(row.id, request.provider, version, true);
+        await this.#installOn(
+          row.id,
+          request.provider,
+          version === "latest" ? this.checks.get(row.id, request.provider)?.version || "latest" : version,
+          true,
+        );
         started.push(row.id);
       } catch (error) {
         skipped.push(`${row.name}: ${error instanceof Error ? error.message.replace(/^\[\w+\] /, "") : String(error)}`);
@@ -352,7 +375,7 @@ export class CliTools {
     const owned = await this.#rows(targets.map((w) => w.id));
     const skipped: string[] = [];
     await Promise.all([
-      this.latest.refresh(),
+      this.checks.tick(request.workerId, true),
       ...targets.map(async (worker) => {
         if (!owned.get(worker.id)?.owned) return;
         const connection = this.#options.link.connections.get(worker.id);
@@ -377,7 +400,7 @@ export class CliTools {
 
     return create(ui.CheckCliUpdatesResponseSchema, {
       latest: KEYS.map(([key, provider]) => {
-        const latest = this.latest.get(provider);
+        const latest = this.checks.get(targets.find((worker) => owned.get(worker.id)?.owned)?.id ?? "", provider);
 
         return {
           provider,

@@ -13,6 +13,7 @@
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
   import { whenIdle } from "#lib/shared/idle.ts";
+  import { sidebarEntries } from "./sidebar-entries.ts";
 
   let {
     currentThreadId,
@@ -53,24 +54,8 @@
   const filtered = $derived(sidebarThreads(all, settings.sidebar, query, (id) => overview.project(id)?.name ?? ""));
   const rootIds = $derived(new Set(filtered.roots.map((t) => t.id)));
 
-  type Entry = { key: string; thread?: ui.Thread; heading?: string };
-
-  const entries = $derived.by(() => {
-    const entries: Entry[] = [];
-    let pinned = false;
-
-    for (const thread of filtered.roots) {
-      const pin = filtered.pins.has(thread.id);
-
-      if (!entries.length && pin) entries.push({ key: "heading:pinned", heading: "Pinned" });
-
-      if (pinned && !pin) entries.push({ key: "heading:threads", heading: "Threads" });
-      entries.push({ key: thread.id, thread });
-      pinned = pin;
-    }
-
-    return entries;
-  });
+  let workingOpen = $state(false);
+  const entries = $derived(sidebarEntries(filtered, settings.sidebar, overview.projects, workingOpen));
 
   // The each below animates reorders, so every update of its list measures all rows and forces a style and
   // layout pass. It iterates the order only, kept while unchanged; rows read their entry from the map, so a
@@ -143,6 +128,13 @@
             {#if openTree === thread.id && (sides.active.length || sides.previous.length)}
               <SidebarThreadChildren {sides} title={thread.title} {currentThreadId} class="mt-0.5 mb-1 ml-5" />
             {/if}
+          {:else if entry?.working}<Button
+              size="sm"
+              variant="ghost"
+              aria-expanded={workingOpen}
+              onclick={() => (workingOpen = !workingOpen)}
+              icon={workingOpen ? "chevron-down" : "chevron-right"}>{entry.heading}</Button
+            >
           {:else if entry}<h2 class="px-3 pt-3 pb-1 text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400">
               {entry.heading}
             </h2>{/if}

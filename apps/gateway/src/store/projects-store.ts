@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -111,8 +112,8 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
           yield* sql`UPDATE project_workspaces SET root_path = ${base} WHERE id = ${current.id}::uuid`;
       }
 
-      const projects = yield* sql<{ id: string; name: string; slug: string; kind: string }>`
-            SELECT id, name, slug, kind FROM projects WHERE owner_user_id = ${ownerUserId}::uuid AND archived_at IS NULL ORDER BY (kind = 'scratch') DESC, created_at`;
+      const projects = yield* sql<{ id: string; name: string; slug: string; kind: string; created_at: Date }>`
+            SELECT id, name, slug, kind, created_at FROM projects WHERE owner_user_id = ${ownerUserId}::uuid AND archived_at IS NULL ORDER BY (kind = 'scratch') DESC, created_at`;
 
       const workspaces = yield* sql<{
         id: string;
@@ -132,6 +133,7 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
       return projects.map((p) =>
         create(ui.ProjectSchema, {
           ...p,
+          createdAt: timestampFromDate(new Date(p.created_at)),
           workspaces: workspaces
             .filter((w) => w.project_id === p.id)
             .map((w) => ({

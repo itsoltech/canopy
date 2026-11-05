@@ -3,9 +3,9 @@
   import type { SelectOption } from "#lib/shared/ui/listbox.ts";
   import type { QuitShortcut } from "@canopy/ui/desktop";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
-  import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import PreferenceRow from "#lib/features/settings/PreferenceRow.svelte";
 
   let saved = $state<QuitShortcut>();
   let choice = $state("");
@@ -17,7 +17,7 @@
     {
       value: "hold",
       label: "Hold",
-      description: "Hold for at least 1 second. Requires key repeat; otherwise press twice.",
+      description: "Hold for 1 second, or press twice if key repeat is unavailable.",
     },
     { value: "immediately", label: "Quit immediately", description: "Quit on the first press." },
   ] as const satisfies readonly SelectOption[];
@@ -36,7 +36,7 @@
       .quitShortcut()
       .then(receive)
       .catch(() => {
-        error = "Could not load the quit shortcut setting.";
+        error = "Could not load the quit shortcut setting. Restart Canopy to retry.";
       });
 
     return off;
@@ -58,15 +58,24 @@
       pending = false;
     }
   }
+
+  export async function resetDefaults(): Promise<void> {
+    if (saved) await change("press-twice");
+  }
 </script>
 
 {#if saved}
-  <SettingsGroup title="Desktop shortcuts" description="Choose how the quit shortcut works on this computer.">
-    <SettingsRow title="Quit shortcut" description="Menu clicks and system shutdown always quit immediately.">
+  <SettingsGroup title="Desktop app" description="This device">
+    <PreferenceRow
+      title="Quit shortcut"
+      description="Set how the keyboard shortcut closes Canopy."
+      changed={choice !== "press-twice"}
+      onreset={() => change("press-twice")}
+    >
       {#snippet control()}<div class="w-48">
           <Select aria-label="Quit shortcut" {options} bind:value={choice} onchange={change} disabled={pending} />
         </div>{/snippet}
-    </SettingsRow>
+    </PreferenceRow>
   </SettingsGroup>
 {/if}
 {#if error}<Alert tone="error">{error}</Alert>{/if}

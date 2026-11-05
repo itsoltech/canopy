@@ -16,7 +16,7 @@ export const provideThreadActions = (actions: ThreadActions) => setContext(KEY, 
 export const useThreadActions = () => getContext<ThreadActions>(KEY);
 
 export class ThreadActions {
-  dialog = $state.raw<{ kind: "rename" | "delete"; thread: ui.Thread }>();
+  dialog = $state.raw<{ kind: "rename" | "delete" | "unpin" | "archive"; thread: ui.Thread }>();
   /** The thread "Move to…" is open for (MoveDialog). */
   moving = $state.raw<ui.Thread>();
   saving = $state(false);
@@ -40,8 +40,21 @@ export class ThreadActions {
     return new URL(`/threads/${thread.id}`, location.origin).href;
   }
 
-  async run(action: ThreadActionId, thread: ui.Thread): Promise<void> {
+  async run(action: ThreadActionId, thread: ui.Thread, confirmed = false): Promise<void> {
     try {
+      const unpin = action === "pin" && this.settings.sidebar.pinnedThreadIds.includes(thread.id);
+
+      const ask =
+        !confirmed &&
+        ((unpin && this.settings.general.confirmUnpin) ||
+          (action === "archive" && thread.status !== "archived" && this.settings.general.confirmArchive));
+
+      if (ask) {
+        this.openDialog(unpin ? "unpin" : "archive", thread);
+
+        return;
+      }
+
       switch (action) {
         case "open":
           window.open(this.link(thread), "_blank", "noopener,noreferrer");
@@ -54,12 +67,9 @@ export class ThreadActions {
           break;
         case "rename":
         case "delete": {
-          const focused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
-          const menu = focused?.closest('[role="menu"]');
-          this.returnFocus = menu?.id
-            ? (document.querySelector<HTMLElement>(`[aria-controls="${CSS.escape(menu.id)}"]`) ?? focused)
-            : focused;
-          this.dialog = { kind: action, thread };
+          this.openDialog(action, thread);
+
+          if (action === "delete" && this.settings.general.confirmDelete === false) await this.confirm();
           break;
         }
 
@@ -108,6 +118,10 @@ export class ThreadActions {
         const thread = await updateThread(dialog.thread.id, { title: title?.trim() ?? "" });
 
         if (thread) this.publish(thread);
+      } else if (dialog.kind === "unpin") {
+        await this.settings.pinThread(dialog.thread.id, false);
+      } else if (dialog.kind === "archive") {
+        await this.lifecycle(dialog.thread.id, "archive");
       } else {
         const id = dialog.thread.id;
         const currentId = this.currentId();
@@ -149,6 +163,14 @@ export class ThreadActions {
 
   private post(id: string, action: string) {
     return requestJson("POST", `/api/threads/${encodeURIComponent(id)}/lifecycle`, { action });
+  }
+  private openDialog(kind: "rename" | "delete" | "unpin" | "archive", thread: ui.Thread): void {
+    const focused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    const menu = focused?.closest('[role="menu"]');
+    this.returnFocus = menu?.id
+      ? (document.querySelector<HTMLElement>(`[aria-controls="${CSS.escape(menu.id)}"]`) ?? focused)
+      : focused;
+    this.dialog = { kind, thread };
   }
   private publish(thread: ui.Thread) {
     this.overview.apply(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: thread } }));

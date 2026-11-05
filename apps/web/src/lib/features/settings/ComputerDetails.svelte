@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import type { ui } from "@canopy/contracts";
+  import { formatLocalDateTime } from "#lib/shared/format.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import RouteList from "#lib/features/computers/RouteList.svelte";
@@ -32,7 +33,7 @@
     class?: ClassValue;
   } = $props();
 
-  const date = (value: bigint) => (value ? new Date(Number(value)).toLocaleString() : "Never");
+  const date = (value: bigint) => (value ? formatLocalDateTime(new Date(Number(value))) : "Never");
 
   const status = $derived(
     computer.status === "connected"

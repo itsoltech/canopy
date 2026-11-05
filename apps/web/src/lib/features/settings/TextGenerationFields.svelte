@@ -8,6 +8,7 @@
   import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
@@ -67,7 +68,7 @@
 </script>
 
 <div class={["settings-stack", className]}>
-  <SettingsGroup title="Text generation">
+  <SettingsGroup title="Text generation" description="Account">
     {#snippet actions()}
       <Button
         size="sm"
@@ -78,7 +79,7 @@
         >Reset to default</Button
       >
     {/snippet}
-    <SettingsRow title="Text generation model" description="Used for thread titles and other generated text">
+    <SettingsRow title="Text generation model" description="Generate thread titles and branch names with this model.">
       <div class="grid min-w-0 gap-2 pt-3">
         <div class="flex min-w-0 flex-wrap items-center gap-2">
           <ModelControls
@@ -90,6 +91,14 @@
             workerId={worker?.id}
             allowCustom={false}
           />
+          {#if value.effort}
+            <IconButton
+              icon="arrow-path"
+              label="Reset text generation effort to default"
+              size="sm"
+              onclick={() => settings.updateTextGeneration({ effort: "" })}
+            />
+          {/if}
           {#if option}<p class="min-w-0 truncate text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
               {option.provider === "CLAUDE" ? "Claude" : option.provider === "GROK" ? "Grok" : "Codex"} · {option.profileName}
             </p>{/if}
@@ -104,12 +113,20 @@
     </SettingsRow>
   </SettingsGroup>
 
-  <SettingsGroup title="Advanced">
+  <SettingsGroup title="Advanced" description="Account">
+    {#snippet actions()}
+      {#if value.threadTitleInstructions}
+        <Button
+          size="sm"
+          icon="arrow-path"
+          onclick={() => settings.updateTextGeneration({ threadTitleInstructions: "" })}
+        >
+          Reset instructions
+        </Button>
+      {/if}
+    {/snippet}
     <div class="p-4">
-      <Field
-        label="Thread title instructions"
-        description="Appended to the prompt for new and regenerated thread titles"
-      >
+      <Field label="Thread title instructions" description="Add guidance for new and regenerated thread titles.">
         <Textarea
           name="threadTitleInstructions"
           rows={3}

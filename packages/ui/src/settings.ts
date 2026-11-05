@@ -11,11 +11,19 @@ export interface SettingsSection {
 
 export const settingsSections: readonly SettingsSection[] = [
   {
+    href: "/settings/general",
+    label: "General",
+    icon: "cog-6-tooth",
+    group: "General",
+    keywords:
+      "notifications sound sidebar grouping projects confirmations unpin archive delete display time zone format",
+  },
+  {
     href: "/settings/appearance",
     label: "Appearance",
     icon: "swatch",
     group: "General",
-    keywords: "theme color scheme dark light accent chat width time zone timezone device",
+    keywords: "theme color scheme dark light accent chat width device",
   },
   {
     href: "/settings/threads",

@@ -236,6 +236,7 @@ message WorkerConfig {
   repeated ProviderProfileConfig profiles = 5;
   NativeToolsConfig native_tools = 6;
   WorkerLimits limits = 7;
+  optional uint32 cli_update_check_minutes = 900; // efektywne z gatewaya; brak = 360; 0 = nigdy
 }
 
 message ProviderConfig {

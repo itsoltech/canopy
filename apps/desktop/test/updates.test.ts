@@ -377,3 +377,21 @@ test("signing discovers extensionless JIT sidecars and nested native libraries w
   symlinkSync("postgres/lib/libpq.dylib", join(directory, "libpq-alias"));
   expect(machOFiles(directory).sort()).toEqual(names.map((name) => join(directory, name)).sort());
 });
+
+test.skipIf(process.platform !== "linux")(
+  "Never blocks automatic downloads and leaves manual checks working",
+  async () => {
+    const { server, fixture } = await localFeeds();
+
+    try {
+      const { controller, updater } = fixture("0.3.0", "stable", async () => false);
+      controller.setAutomaticUpdates(false);
+      await controller.checkAutomatically();
+      expect(updater.downloads).toHaveLength(0);
+      await controller.check();
+      expect(updater.downloads).toEqual([{ version: "0.4.0", downgrade: false }]);
+    } finally {
+      await server.stop(true);
+    }
+  },
+);

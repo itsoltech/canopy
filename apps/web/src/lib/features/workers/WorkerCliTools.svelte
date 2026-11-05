@@ -5,6 +5,7 @@
   import ActionNote from "./ActionNote.svelte";
   import CliToolRow from "./CliToolRow.svelte";
   import { cliActions } from "./cli-tools.svelte.ts";
+  import CliCheckSettings from "./CliCheckSettings.svelte";
 
   /** The agent CLIs on one worker (docs/provider-cli.md): Canopy never bundles them, it installs them on request. */
   let { worker }: { worker: ui.Worker } = $props();
@@ -22,6 +23,7 @@
       onclick={() => void cli.check(worker.id)}>Check for updates</Button
     >
   {/snippet}
+  <CliCheckSettings {worker} />
   {#each worker.cliTools as item (item.tool?.provider)}
     <CliToolRow workerId={worker.id} {item} class="p-4" />
   {:else}

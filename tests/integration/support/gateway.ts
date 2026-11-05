@@ -578,6 +578,12 @@ export async function startTestGateway(
     return added;
   };
 
+  // Non-live worker tests must not depend on public CLI registries or their network timeouts.
+  const cliRegistry =
+    options.cliLatest || process.env["CANOPY_LIVE"] === "1"
+      ? undefined
+      : Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response("0.0.0") });
+
   const core = new GatewayCore({
     ...(options.role && { role: options.role }),
     ...(options.skillSources && { skillSources: options.skillSources }),
@@ -585,6 +591,12 @@ export async function startTestGateway(
     instanceId: "test",
     userId,
     sshSecretsKey: secretsKey,
+    ...(cliRegistry && {
+      cliLatest: {
+        sources: { claude: cliRegistry.url.href, codex: cliRegistry.url.href, grok: cliRegistry.url.href },
+        allowHttpForTests: true,
+      },
+    }),
     ...(options.cliLatest && { cliLatest: options.cliLatest }),
     ...(options.updates && { updates: options.updates }),
     ...(options.secretTtlMs !== undefined && { secretTtlMs: options.secretTtlMs }),
@@ -677,6 +689,7 @@ export async function startTestGateway(
 
       await core.link.shutdown();
       await grpc.close();
+      cliRegistry?.stop(true);
       await runtime.dispose();
       await pg.stop();
     },

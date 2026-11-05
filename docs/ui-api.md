@@ -781,7 +781,7 @@ Web po pierwszym pełnym pobraniu ustawień porównuje je z `userTimeZone()` i p
 różnicy zapisuje strefę urządzenia istniejącą kolejką zapisów. W danym załadowaniu
 aplikacji synchronizuje tylko raz; po 409 pobiera aktualną wersję i ponawia raz,
 bez komunikatów konfliktu. Nie uruchamia synchronizacji ponownie po SSE ani reconnect.
-Settings → General → Appearance pokazuje strefę tylko do odczytu jako
+Settings → General → Display pokazuje strefę tylko do odczytu jako
 „Time zone: Europe/Warsaw (from this device)”. Harmonogramy wątków tworzone w web
 nadal wysyłają strefę przeglądarki bez zmian.
 
@@ -888,6 +888,23 @@ współdzielone workery pozostają poza zakresem plików globalnych. Szczegóły
 [agent-environment.md](agent-environment.md).
 
 ## 6. Ograniczenia na teraz
+
+### Preferencje General i aktualizacje
+
+`UserSettings.general` (900), `sidebar` (nowe pola 900–902) i `cli_updates`
+(901) są zapisywane w istniejącym JSON właściciela, przez `expected_version`.
+Gateway waliduje kolejność projektów oraz częstotliwości CLI (0, 60, 360, 1440,
+10080 minut). `SetWorkerCliUpdateSettings` wymaga właściciela workera i aktualnej
+wersji konfiguracji; brak interwału usuwa nadpisanie i przywraca domyślne konta.
+Efektywna wartość trafia do `WorkerConfig.cli_update_check_minutes` (900).
+Metadane workera zawierają ostatni i następny termin sprawdzenia wersji CLI.
+
+General przechowuje powiadomienia i format czasu w localStorage tego profilu.
+Powiadomienia powstają wyłącznie z przejść na żywo istniejących wątków w strumieniu
+właściciela; snapshot/reconnect nie alarmuje. Treść alertu systemowego jest stała
+(bez nazwy wątku i wiadomości). Web wymaga zgody Notification API po akcji
+użytkownika; desktop używa walidowanego IPC z zaufanej ramki. Częstotliwość
+aktualizacji desktopu pozostaje w store main Electron, poza ustawieniami konta.
 
 - **Jeden użytkownik deweloperski** (`CANOPY_DEV_USER_EMAIL`). Logowanie powstanie w SvelteKit (sesja w cookie `HttpOnly`), a tożsamość użytkownika trafi do gateway w metadanych wywołania z tokenem usługi.
 - **Jedna instancja gateway** (`Hub` w procesie).

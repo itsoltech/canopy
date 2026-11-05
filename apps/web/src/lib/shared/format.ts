@@ -1,9 +1,15 @@
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
+import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-const dateTime = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" });
-const time = new Intl.DateTimeFormat("en", { timeStyle: "short" });
+
+function clockOptions(): Intl.DateTimeFormatOptions {
+  const format = devicePreferences.values.timeFormat;
+
+  return format === "system" ? {} : { hour12: format === "12h" };
+}
+
 const date = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
 
 /** 1234 → "1.2K". */
@@ -75,11 +81,21 @@ export function formatAge(timestamp: Timestamp | undefined, now = Date.now()): s
   return `${Math.floor(seconds / (86400 * 7))}w`;
 }
 
-export const formatDateTime = (timestamp: Timestamp | undefined): string =>
-  timestamp ? dateTime.format(timestampDate(timestamp)) : "";
+export const formatLocalDateTime = (value: Date, timeZone?: string): string =>
+  new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    ...clockOptions(),
+    ...(timeZone && { timeZone }),
+  }).format(value);
+
+export const formatDateTime = (timestamp: Timestamp | undefined, timeZone?: string): string =>
+  timestamp ? formatLocalDateTime(timestampDate(timestamp), timeZone) : "";
 
 export const formatTime = (timestamp: Timestamp | undefined): string =>
-  timestamp ? time.format(timestampDate(timestamp)) : "";
+  timestamp
+    ? new Intl.DateTimeFormat(undefined, { timeStyle: "short", ...clockOptions() }).format(timestampDate(timestamp))
+    : "";
 
 /** The local calendar day of a timestamp ("2026-11-02"), for telling days apart; "" without one. */
 export function dayKey(timestamp: Timestamp | undefined): string {
