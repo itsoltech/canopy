@@ -63,6 +63,8 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           worktreesRoot: hello.capabilities.includes("worktrees") ? hello.worktreesRoot : "",
           // New project directories and clones (InitRepository, CloneRepository).
           projectSources: hello.capabilities.includes("project_sources"),
+          // The desktop app's own local-mode worker: it updates with the app (docs/updates.md).
+          desktopBundled: hello.capabilities.includes("desktop_bundled"),
         });
 
         yield* sql`

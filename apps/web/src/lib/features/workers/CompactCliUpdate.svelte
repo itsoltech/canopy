@@ -7,6 +7,7 @@
   import { cliCurrent } from "./compact-updates.ts";
   import { cliActions, cliLabel, versionProblem } from "./cli-tools.svelte.ts";
   import { cliExternalInstructions } from "./cli-update-instructions.ts";
+  import { updateTone } from "./updates.svelte.ts";
 
   let {
     worker,
@@ -59,7 +60,7 @@
               : item.managedBy
                 ? "Managed externally"
                 : "Unavailable"}
-    tone={error ? "rose" : busy ? "amber" : "neutral"}
+    tone={updateTone({ failed: !!error, busy, current: cliCurrent(item) })}
     {busy}
     {error}
     {detail}

@@ -299,6 +299,8 @@ message WorkerUpdate {
   string reason = 7;
   bool connected = 8;
   DesktopUpdateState desktop = 9;
+  // The desktop app's own local-mode worker: it ships and updates with the app (docs/updates.md).
+  bool bundled = 10;
 }
 message UpdatesSnapshot {
   string gateway_version = 1;
@@ -315,6 +317,8 @@ message UpdatesSnapshot {
   repeated Worker cli_workers = 12;
   bool gateway_update_available = 13;
   string check_error = 14;
+  // This gateway is the desktop app's bundled one (local mode): it updates with the app, never by itself.
+  bool gateway_bundled = 15;
 }
 // Owner-scoped durable orchestration. No URLs, credentials, force or downgrade grants.
 message UpdateRun {

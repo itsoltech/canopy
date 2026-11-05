@@ -12,7 +12,8 @@ export async function updatesSnapshot(core: GatewayCore) {
   value.cliWorkers = await coreWorkers(core);
 
   for (const worker of value.workers) {
-    if (worker.installKind !== "desktop") continue;
+    // The local-mode worker never opens desktop control: the app updates it with itself.
+    if (worker.installKind !== "desktop" || worker.bundled) continue;
     worker.desktop =
       states.find((s) => s.workerId === worker.workerId) ??
       create(ui.DesktopUpdateStateSchema, {

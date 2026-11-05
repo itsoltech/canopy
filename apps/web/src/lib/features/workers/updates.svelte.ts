@@ -2,6 +2,7 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
+import type { Tone } from "#lib/shared/ui/tone.ts";
 
 export class UpdatesState {
   snapshot = $state<ui.UpdatesSnapshot>();
@@ -57,3 +58,7 @@ export const updateStateLabel = (state: string, compatible: boolean) =>
     managed_externally: "Managed externally",
     ahead: "Newer than gateway",
   })[state] ?? (compatible ? "Compatible" : "Update required");
+
+/** One badge tone per update state, like settled statuses (status.ts): up to date is emerald everywhere. */
+export const updateTone = ({ failed = false, busy = false, current = false }): Tone =>
+  failed ? "rose" : busy ? "amber" : current ? "emerald" : "neutral";

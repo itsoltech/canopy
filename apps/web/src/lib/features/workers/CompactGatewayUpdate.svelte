@@ -3,7 +3,7 @@
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import UpdateItem from "./UpdateItem.svelte";
   import { gatewayCurrent } from "./compact-updates.ts";
-  import { updateBusy, updateStateLabel, type UpdatesState } from "./updates.svelte.ts";
+  import { updateBusy, updateStateLabel, updateTone, type UpdatesState } from "./updates.svelte.ts";
 
   let { updates, class: className }: { updates: UpdatesState; class?: ClassValue } = $props();
   const snapshot = $derived(updates.snapshot);
@@ -31,7 +31,7 @@
             : snapshot.gatewayUpdateAvailable
               ? "Available"
               : "Not checked"}
-    tone={snapshot.gatewayState === "failed" ? "rose" : busy ? "amber" : current ? "emerald" : "neutral"}
+    tone={updateTone({ failed: snapshot.gatewayState === "failed", busy, current })}
     error={snapshot.gatewayState === "failed" ? reason : ""}
     {busy}
     class={className}

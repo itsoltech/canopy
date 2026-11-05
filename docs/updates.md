@@ -79,6 +79,35 @@ zdalnym musi być sparowany z gatewayem i obsługiwać kanał sterowania z
 [etapu 2 lokalnego frontendu](desktop-remote-frontend.md#wynik-etapu-2).
 Workery binarne zachowują niezależny mechanizm opisany poniżej.
 
+## Dołączony gateway i worker
+
+W trybie lokalnym aplikacja desktopowa zawiera własny gateway (`CANOPY_GATEWAY_ROLE=desktop`)
+i własny worker. Oba aktualizuje bundle aplikacji, więc nie są osobnymi pozycjami. Snapshot
+oznacza je addytywnymi polami `UpdatesSnapshot.gateway_bundled` i `WorkerUpdate.bundled`.
+O tym decyduje gateway: rola `desktop` oraz capability `desktop_bundled` z WorkerLink Hello
+(zapisana w `workers.capabilities`). UI nie zgaduje po nazwie ani `installKind`.
+
+Popover, licznik „Up to date · N”, podsumowanie w nagłówku i Settings → Workers → Updates
+pomijają oba elementy. Pozycja „This Canopy app” je reprezentuje; jej podpowiedź mówi
+„Includes this computer’s gateway and worker.”. Settings → Workers → Updates pokazuje zamiast
+gatewaya i kanału jedno zdanie z odnośnikiem do App updates. CLI agentów tego workera nadal mają
+własne wiersze i kroki Update all. Update all pomija dołączony gateway i worker; zewnętrzne workery
+podłączone do gatewaya desktopu pokazują się i aktualizują jak dotąd.
+
+Dołączony gateway nie ma własnego kanału: zgłasza kanał swojego buildu (`releaseChannel`
+wersji, np. nightly), ignoruje zapisany `updateChannel` i odrzuca akcję `channel`. Wcześniej
+bez `CANOPY_UPDATE_CHANNEL` zgłaszał domyślne `stable`, choć aplikacja była na nightly.
+Dołączony worker nie otwiera strumienia sterowania desktopu, więc nie dostaje zastępczego
+stanu „Pair this desktop app…”, który dawał etykietę „Unavailable”.
+
+Tryb zdalny i gateway serwerowy się nie zmieniają: rola `server` nie oznacza niczego jako
+dołączonego, nawet gdy worker zgłasza `desktop_bundled`.
+
+Wiersze (`UpdateItem`) mają stałą kolumnę akcji, także bez akcji, więc odznaki tworzą jedną
+kolumnę, a pojawiająca się akcja ich nie przesuwa. Ikona, odznaka i akcja są wyrównane do linii
+nazwy; długa nazwa skraca się przed odznaką. Ton odznaki wynika ze stanu (`updateTone`): błąd
+rose, praca w toku amber, „Up to date” emerald jak inne ustalone statusy, reszta neutralna.
+
 ## Zdalna aktualizacja aplikacji desktopowej
 
 Właściciel gatewaya wysyła żądanie przez Workers; nie wymaga ono administracyjnej
