@@ -24,13 +24,15 @@
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import AgentSenderLabel from "../AgentSenderLabel.svelte";
+  import AgentMessageBubble from "./AgentMessageBubble.svelte";
 
   /**
    * A message you (or another agent, over the agent bus) wrote: the input of a turn, or one steered into
    * it while it ran. `note` says what happens to it; `pending` dims it until it reaches the agent. `files`: the
    * message's attachments (images and file chips under the text); `quotes`: passages of the thread it quotes, in
    * the bubble above the text; `details` goes inside the bubble (e.g. the full text the agent received with the
-   * platform note). `sender`: the thread whose agent wrote it (send_message), named like a turn from an agent.
+   * platform note). `sender`: the thread whose agent wrote it (send_message), named like a turn from an agent; an
+   * agent's message folds to its first line (AgentMessageBubble).
    */
   let {
     message,
@@ -56,6 +58,8 @@
   const shown = $derived(
     message.mentions?.length ? withoutPlatformNote({ text: message.text, mentions: [...message.mentions] }) : undefined,
   );
+
+  const body = $derived(shown?.text ?? (hasPlatformNote(message.text) ? withoutIds(message.text) : message.text));
 </script>
 
 <div class="flex flex-col items-end gap-1">
@@ -90,26 +94,22 @@
   {#if files.length > 0}
     <MessageAttachments attachments={files} class={[pending && "opacity-70"]} />
   {/if}
-  {#if message.text.trim() || details || quotes.length > 0}
+  {#if fromAgent && (message.text.trim() || details || quotes.length > 0)}
+    <AgentMessageBubble
+      text={body.trim() || quotes[0]?.text || ""}
+      rich={quotes.length > 0 || Boolean(details)}
+      class={[pending && "opacity-70"]}
+    >
+      {@render content()}
+    </AgentMessageBubble>
+  {:else if message.text.trim() || details || quotes.length > 0}
     <div
       class={[
-        "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md px-4 py-2.5 text-base/6 break-words sm:text-sm/6",
-        fromAgent
-          ? "bg-violet-50 text-violet-950 ring-1 ring-violet-600/10 ring-inset dark:bg-violet-400/10 dark:text-violet-50 dark:ring-violet-400/20"
-          : "bg-zinc-100 text-zinc-950 dark:bg-white/10 dark:text-white",
+        "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md bg-zinc-100 px-4 py-2.5 text-base/6 break-words text-zinc-950 sm:text-sm/6 dark:bg-white/10 dark:text-white",
         pending && "opacity-70",
       ]}
     >
-      {#if quotes.length > 0}<MessageQuotes {quotes} class={[message.text.trim() && "mb-2"]} />{/if}
-      {#if message.text.trim()}
-        <Markdown
-          text={shown?.text ?? (hasPlatformNote(message.text) ? withoutIds(message.text) : message.text)}
-          breaks
-          elements={shown && { ranges: shown.mentions, render: chip }}
-          class="text-inherit dark:text-inherit"
-        />
-      {/if}
-      {@render details?.()}
+      {@render content()}
     </div>
   {/if}
   {#if files.length === 0 && message.attachments.length > 0}
@@ -119,6 +119,19 @@
     </p>
   {/if}
 </div>
+
+{#snippet content()}
+  {#if quotes.length > 0}<MessageQuotes {quotes} class={[message.text.trim() && "mb-2"]} />{/if}
+  {#if message.text.trim()}
+    <Markdown
+      text={body}
+      breaks
+      elements={shown && { ranges: shown.mentions, render: chip }}
+      class="text-inherit dark:text-inherit"
+    />
+  {/if}
+  {@render details?.()}
+{/snippet}
 
 {#snippet chip(index: number)}
   {@const mention = shown?.mentions[index]}

@@ -6,12 +6,12 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { IconName } from "#lib/shared/ui/icons.ts";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
-  import { useRemembered } from "#lib/shared/ui/memory.ts";
   import { useThreadDirectory } from "../thread-directory.ts";
   import { turnOrigin } from "../turn-origin.ts";
   import BackgroundNoteRow from "./BackgroundNoteRow.svelte";
   import ThreadLink from "./items/ThreadLink.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";
+  import AgentMessageBubble from "./items/AgentMessageBubble.svelte";
   import AgentSenderLabel from "./AgentSenderLabel.svelte";
 
   /**
@@ -45,16 +45,13 @@
     ["goal", "Goal"],
   ]);
 
-  // Long reports (a side thread's whole answer) start folded.
-  const long = $derived(
-    origin.kind === "report" && (parts.message.length > 900 || parts.message.split("\n").length > 14),
+  // A message from another agent (a task, a message, a report, an answer from a thread) folds to its first line.
+  const fromAgent = $derived(
+    origin.kind === "task" ||
+      origin.kind === "message" ||
+      origin.kind === "report" ||
+      (origin.kind === "answer" && Boolean(origin.threadId) && !turn.botId),
   );
-
-  // Remembered while the row is scrolled out of a virtual list.
-  const memory = useRemembered<boolean>("expanded");
-  let expanded = $state(memory?.get() ?? false);
-
-  $effect(() => memory?.set(expanded));
 </script>
 
 {#if origin.kind === "background_task"}
@@ -135,43 +132,43 @@
         </span>
       {/if}
     </p>
-    <div
-      class={[
-        "max-w-[min(85%,42rem)] min-w-0 rounded-2xl rounded-br-md px-4 py-2.5 text-base/6 break-words ring-1 ring-inset sm:text-sm/6",
-        tone === "amber"
-          ? "bg-amber-50 text-amber-950 ring-amber-600/15 dark:bg-amber-400/10 dark:text-amber-50 dark:ring-amber-400/20"
-          : tone === "sky"
-            ? "bg-sky-50 text-sky-950 ring-sky-600/15 dark:bg-sky-400/10 dark:text-sky-50 dark:ring-sky-400/20"
-            : "bg-violet-50 text-violet-950 ring-violet-600/10 dark:bg-violet-400/10 dark:text-violet-50 dark:ring-violet-400/20",
-      ]}
-    >
-      {#if origin.kind === "question"}
-        <p>The agent here answers it; you can answer in the side thread instead.</p>
-      {:else if origin.kind === "report"}
-        <div class={["grid", long && !expanded && "max-h-64 overflow-hidden mask-b-from-50%"]}>
-          <Markdown text={parts.message || "(no message)"} />
-        </div>
-        {#if long}
-          <button
-            type="button"
-            class="mt-1 rounded-md text-sm/6 font-medium text-violet-700 focus-ring hover:text-violet-900 sm:text-xs/6 dark:text-violet-300 dark:hover:text-violet-100"
-            aria-expanded={expanded}
-            onclick={() => (expanded = !expanded)}
-          >
-            {expanded ? "Show less" : "Show the whole report"}
-          </button>
+    {#if fromAgent}
+      <AgentMessageBubble
+        text={parts.message || "(no message)"}
+        label={origin.kind === "report" ? "Show the whole report" : undefined}
+        class="min-w-0"
+      >
+        <Markdown
+          text={parts.message || "(no message)"}
+          breaks={origin.kind !== "report"}
+          class="text-inherit dark:text-inherit"
+        />
+      </AgentMessageBubble>
+    {:else}
+      <div
+        class={[
+          "max-w-[min(85%,42rem)] min-w-0 rounded-2xl rounded-br-md px-4 py-2.5 text-base/6 break-words ring-1 ring-inset sm:text-sm/6",
+          tone === "amber"
+            ? "bg-amber-50 text-amber-950 ring-amber-600/15 dark:bg-amber-400/10 dark:text-amber-50 dark:ring-amber-400/20"
+            : tone === "sky"
+              ? "bg-sky-50 text-sky-950 ring-sky-600/15 dark:bg-sky-400/10 dark:text-sky-50 dark:ring-sky-400/20"
+              : "bg-violet-50 text-violet-950 ring-violet-600/10 dark:bg-violet-400/10 dark:text-violet-50 dark:ring-violet-400/20",
+        ]}
+      >
+        {#if origin.kind === "question"}
+          <p>The agent here answers it; you can answer in the side thread instead.</p>
+        {:else}
+          <Markdown text={parts.message} breaks class="text-inherit dark:text-inherit" />
         {/if}
-      {:else}
-        <Markdown text={parts.message} breaks class="text-inherit dark:text-inherit" />
-      {/if}
-      <!-- What the platform added for the agent (notes on mentions, quotes, files, the source) stays out of
-           sight; only a side thread's question shows its request, since the bubble does not carry it. -->
-      {#if parts.note && origin.kind === "question"}
-        <Disclosure remember="full-text" class="mt-2" summaryClass="text-sm/6 opacity-80 sm:text-xs/6">
-          {#snippet summary()}Request sent to the agent{/snippet}
-          <CodeBlock {text} label="Request sent to the agent" class="mt-2" />
-        </Disclosure>
-      {/if}
-    </div>
+        <!-- What the platform added for the agent (notes on mentions, quotes, files, the source) stays out of
+             sight; only a side thread's question shows its request, since the bubble does not carry it. -->
+        {#if parts.note && origin.kind === "question"}
+          <Disclosure remember="full-text" class="mt-2" summaryClass="text-sm/6 opacity-80 sm:text-xs/6">
+            {#snippet summary()}Request sent to the agent{/snippet}
+            <CodeBlock {text} label="Request sent to the agent" class="mt-2" />
+          </Disclosure>
+        {/if}
+      </div>
+    {/if}
   </div>
 {/if}
