@@ -25,13 +25,27 @@ export function localWorkerAddress(value: string): boolean {
   );
 }
 
-export function requireRemoteWorkerAddress(gatewayUrl: string, targetHost: string): void {
+/** This gateway over Tailscale: the listener's tailnet origin, or only that Tailscale is connected. */
+export type TailnetHint = { origin: string; connected: boolean };
+
+export function requireRemoteWorkerAddress(
+  gatewayUrl: string,
+  targetHost: string,
+  tailnet: TailnetHint = { origin: "", connected: false },
+): void {
   if (
     !gatewayUrl ||
     (localWorkerAddress(gatewayUrl) &&
       !localWorkerAddress(`http://${targetHost.includes(":") ? `[${targetHost}]` : targetHost}`))
   )
-    throw new ConnectError("Turn on network access or set a gateway address for workers.", Code.FailedPrecondition);
+    throw new ConnectError(
+      tailnet.origin
+        ? `Set the gateway address for workers to ${tailnet.origin} (Tailscale), or leave it empty to use it automatically.`
+        : tailnet.connected
+          ? "Turn on network access to reach this computer over Tailscale, or set a gateway address for workers."
+          : "Turn on network access or set a gateway address for workers.",
+      Code.FailedPrecondition,
+    );
 }
 
 /** Fixed stdin only: HTTPS plus a manifest hash delivered through the trusted SSH connection. */

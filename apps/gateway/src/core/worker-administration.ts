@@ -70,6 +70,16 @@ export class WorkerAdministration {
       enroll: (request) => workerGuard(() => this.enroll(request)),
     });
 
+  /** Where a worker on another computer could reach this gateway over Tailscale (an SSH install hint). */
+  tailnet() {
+    const network = this.options.network?.();
+
+    return {
+      origin: network?.tailscaleOrigin() ?? "",
+      connected: network?.options.tailscale?.snapshot.state === "connected",
+    };
+  }
+
   async setup(): Promise<ui.GetWorkerSetupResponse> {
     const { runtime, userId } = this.options;
 

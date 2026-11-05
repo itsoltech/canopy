@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/network.proto.
  */
 export const file_canopy_ui_v1_network: GenFile = /*@__PURE__*/
-  fileDesc("ChpjYW5vcHkvdWkvdjEvbmV0d29yay5wcm90bxIMY2Fub3B5LnVpLnYxIlQKDk5ldHdvcmtBZGRyZXNzEg4KBm9yaWdpbhgBIAEoCRIMCgRob3N0GAIgASgJEgwKBGtpbmQYAyABKAkSFgoOaW50ZXJmYWNlX25hbWUYBCABKAkixwEKDU5ldHdvcmtBY2Nlc3MSDwoHZW5hYmxlZBgBIAEoCBINCgVzdGF0ZRgCIAEoCRINCgVlcnJvchgDIAEoCRIMCgRwb3J0GAQgASgNEhIKCnBvcnRfZml4ZWQYBSABKAgSLwoJYWRkcmVzc2VzGAYgAygLMhwuY2Fub3B5LnVpLnYxLk5ldHdvcmtBZGRyZXNzEhEKCWhvc3RuYW1lcxgHIAMoCRITCgtmaW5nZXJwcmludBgIIAEoCRIMCgRub3RlGAkgASgJIhkKF0dldE5ldHdvcmtBY2Nlc3NSZXF1ZXN0Il4KGlVwZGF0ZU5ldHdvcmtBY2Nlc3NSZXF1ZXN0Eg4KBmFjdGlvbhgBIAEoCRIPCgdlbmFibGVkGAIgASgIEgwKBHBvcnQYAyABKA0SEQoJaG9zdG5hbWVzGAQgAygJYgZwcm90bzM");
+  fileDesc("ChpjYW5vcHkvdWkvdjEvbmV0d29yay5wcm90bxIMY2Fub3B5LnVpLnYxIlQKDk5ldHdvcmtBZGRyZXNzEg4KBm9yaWdpbhgBIAEoCRIMCgRob3N0GAIgASgJEgwKBGtpbmQYAyABKAkSFgoOaW50ZXJmYWNlX25hbWUYBCABKAki8wEKDU5ldHdvcmtBY2Nlc3MSDwoHZW5hYmxlZBgBIAEoCBINCgVzdGF0ZRgCIAEoCRINCgVlcnJvchgDIAEoCRIMCgRwb3J0GAQgASgNEhIKCnBvcnRfZml4ZWQYBSABKAgSLwoJYWRkcmVzc2VzGAYgAygLMhwuY2Fub3B5LnVpLnYxLk5ldHdvcmtBZGRyZXNzEhEKCWhvc3RuYW1lcxgHIAMoCRITCgtmaW5nZXJwcmludBgIIAEoCRIMCgRub3RlGAkgASgJEioKCXRhaWxzY2FsZRgKIAEoCzIXLmNhbm9weS51aS52MS5UYWlsc2NhbGUinwEKCVRhaWxzY2FsZRINCgVzdGF0ZRgBIAEoCRIQCghkbnNfbmFtZRgCIAEoCRIMCgRpcHY0GAMgAygJEgwKBGlwdjYYBCADKAkSDwoHdGFpbG5ldBgFIAEoCRIRCgltYWdpY19kbnMYBiABKAgSGgoSaHR0cHNfY2VydGlmaWNhdGVzGAcgASgIEhUKDWNoZWNrZWRfYXRfbXMYCCABKAMiGQoXR2V0TmV0d29ya0FjY2Vzc1JlcXVlc3QiXgoaVXBkYXRlTmV0d29ya0FjY2Vzc1JlcXVlc3QSDgoGYWN0aW9uGAEgASgJEg8KB2VuYWJsZWQYAiABKAgSDAoEcG9ydBgDIAEoDRIRCglob3N0bmFtZXMYBCADKAliBnByb3RvMw");
 
 /**
  * Network access (docs/network-access.md): one switch per computer lets phones and linked computers
@@ -115,6 +115,13 @@ export type NetworkAccess = Message<"canopy.ui.v1.NetworkAccess"> & {
    * @generated from field: string note = 9;
    */
   note: string;
+
+  /**
+   * This host's Tailscale, read-only (docs/tailscale.md).
+   *
+   * @generated from field: canopy.ui.v1.Tailscale tailscale = 10;
+   */
+  tailscale?: Tailscale | undefined;
 };
 
 /**
@@ -123,6 +130,64 @@ export type NetworkAccess = Message<"canopy.ui.v1.NetworkAccess"> & {
  */
 export const NetworkAccessSchema: GenMessage<NetworkAccess> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_network, 1);
+
+/**
+ * @generated from message canopy.ui.v1.Tailscale
+ */
+export type Tailscale = Message<"canopy.ui.v1.Tailscale"> & {
+  /**
+   * not_installed, not_running, stopped, logged_out, starting, connected
+   *
+   * @generated from field: string state = 1;
+   */
+  state: string;
+
+  /**
+   * This computer's MagicDNS name without the trailing dot; empty without MagicDNS or while not connected.
+   *
+   * @generated from field: string dns_name = 2;
+   */
+  dnsName: string;
+
+  /**
+   * @generated from field: repeated string ipv4 = 3;
+   */
+  ipv4: string[];
+
+  /**
+   * @generated from field: repeated string ipv6 = 4;
+   */
+  ipv6: string[];
+
+  /**
+   * @generated from field: string tailnet = 5;
+   */
+  tailnet: string;
+
+  /**
+   * @generated from field: bool magic_dns = 6;
+   */
+  magicDns: boolean;
+
+  /**
+   * The tailnet issues HTTPS certificates for this computer's name.
+   *
+   * @generated from field: bool https_certificates = 7;
+   */
+  httpsCertificates: boolean;
+
+  /**
+   * @generated from field: int64 checked_at_ms = 8;
+   */
+  checkedAtMs: bigint;
+};
+
+/**
+ * Describes the message canopy.ui.v1.Tailscale.
+ * Use `create(TailscaleSchema)` to create a new message.
+ */
+export const TailscaleSchema: GenMessage<Tailscale> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_network, 2);
 
 /**
  * @generated from message canopy.ui.v1.GetNetworkAccessRequest
@@ -135,14 +200,14 @@ export type GetNetworkAccessRequest = Message<"canopy.ui.v1.GetNetworkAccessRequ
  * Use `create(GetNetworkAccessRequestSchema)` to create a new message.
  */
 export const GetNetworkAccessRequestSchema: GenMessage<GetNetworkAccessRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_network, 2);
+  messageDesc(file_canopy_ui_v1_network, 3);
 
 /**
  * @generated from message canopy.ui.v1.UpdateNetworkAccessRequest
  */
 export type UpdateNetworkAccessRequest = Message<"canopy.ui.v1.UpdateNetworkAccessRequest"> & {
   /**
-   * set_enabled, set_port, choose_port (a new free port), set_hostnames
+   * set_enabled, set_port, choose_port (a new free port), set_hostnames, refresh_tailscale
    *
    * @generated from field: string action = 1;
    */
@@ -169,5 +234,5 @@ export type UpdateNetworkAccessRequest = Message<"canopy.ui.v1.UpdateNetworkAcce
  * Use `create(UpdateNetworkAccessRequestSchema)` to create a new message.
  */
 export const UpdateNetworkAccessRequestSchema: GenMessage<UpdateNetworkAccessRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_network, 3);
+  messageDesc(file_canopy_ui_v1_network, 4);
 

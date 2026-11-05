@@ -162,7 +162,9 @@ SHA-256 z manifestu dostaje przez uwierzytelnione stdin SSH i sprawdza przed wyk
 Nie korzysta z originu web desktopu (`127.0.0.1`), dostępnego tylko na komputerze aplikacji.
 Adres enrollmentu pochodzi z Network access lub „Gateway address for workers”; pin TLS jest zachowany.
 Brak adresu lub loopback dla innego komputera blokuje skrypt z komunikatem:
-„Turn on network access or set a gateway address for workers”. Błędy pobierania nie pokazują porad
+„Turn on network access or set a gateway address for workers”. Gdy Tailscale jest połączony, pusty adres
+oznacza nazwę MagicDNS z Network access, a komunikat błędu podaje adres tailnetu
+([tailscale.md](tailscale.md#automatyczne-użycie-tailnetu)). Błędy pobierania nie pokazują porad
 dotyczących sesji systemd/GUI; te pojawiają się dopiero przy błędach instalacji usługi.
 Output i fingerprint zawijają się w dialogu i można skopiować ich pełną treść.
 Ponowna instalacja zachowuje

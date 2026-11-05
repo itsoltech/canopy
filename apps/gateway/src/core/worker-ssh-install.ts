@@ -38,7 +38,7 @@ export async function installWorker(session: SshInstallation, fail: (message: st
     throw new ConnectError("SSH host key changed. Installation blocked.", Code.FailedPrecondition);
   await session.audit("worker.ssh.install.start");
   const setup = await session.workers.setup();
-  requireRemoteWorkerAddress(setup.gatewayUrl, session.target.host);
+  requireRemoteWorkerAddress(setup.gatewayUrl, session.target.host, session.workers.tailnet());
   const manifest = await workerInstallManifest(session.updates);
   session.signal.throwIfAborted();
 

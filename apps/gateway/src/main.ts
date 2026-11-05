@@ -18,6 +18,7 @@ import { SqlClient } from "effect/sql";
 import { startComputerLinks } from "./computers/start.ts";
 import { lanUnavailable, multicastTransport } from "./computers/lan-transport.ts";
 import { ComputerStore } from "./computers/store.ts";
+import { Tailscale } from "./network/tailscale/tailscale.ts";
 import { NetworkAccess } from "./network/network.ts";
 import { mountMobileNetwork } from "./network/devices.ts";
 import { loadSecretsKey } from "./store/secrets.ts";
@@ -101,10 +102,16 @@ if (installKind() === "binary")
 const computerStore = new ComputerStore(runtime, userId, loadSecretsKey(env));
 const fixedPort = networkPort(env);
 
+// This host's Tailscale, read-only; absent (Docker, most servers) is just a state (docs/tailscale.md).
+const tailscale = new Tailscale({ log: (m) => console.info(m) });
+
+void tailscale.start();
+
 // Phones and linked computers: one pinned TLS listener, switched on in Settings → Network access.
 const network = new NetworkAccess({
   role: core.role,
   store: computerStore,
+  tailscale,
   ...(fixedPort !== undefined && { port: fixedPort }),
   log: (m) => console.info(m),
 });
@@ -159,6 +166,7 @@ async function stop(presence = "shutting_down") {
   await core.computers?.close(presence);
   unmountMobile();
   await network.close();
+  tailscale.close();
   core.updateCenter.stop();
   core.updates.close();
   core.desktopControl.close();

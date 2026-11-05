@@ -21,14 +21,15 @@ export type FakeServe = {
   AllowFunnel?: Record<string, boolean>;
 };
 
-/** Synthetic `tailscale status --json`: the fields Canopy reads plus a peer it must ignore. */
+/** Synthetic `tailscale status --json`: the fields Canopy reads plus a peer it must ignore. Addresses are
+ * documentation ranges (RFC 5737, RFC 3849), so nothing a test dials can reach a real tailnet. */
 export function statusJson(status: FakeStatus = {}) {
   const dnsName = status.dnsName ?? "laptop.example-tailnet.ts.net";
 
   return {
     Version: "1.0.0-test",
     BackendState: status.backend ?? "Running",
-    TailscaleIPs: status.ips ?? ["100.101.102.103", "fd7a:115c:a1e0::1"],
+    TailscaleIPs: status.ips ?? ["192.0.2.10", "2001:db8::10"],
     CertDomains: status.certDomains === undefined ? [dnsName] : status.certDomains,
     MagicDNSSuffix: "example-tailnet.ts.net",
     Self: {
@@ -36,10 +37,10 @@ export function statusJson(status: FakeStatus = {}) {
       DNSName: `${dnsName}.`,
       HostName: "laptop",
       UserID: 7,
-      TailscaleIPs: status.ips ?? ["100.101.102.103", "fd7a:115c:a1e0::1"],
+      TailscaleIPs: status.ips ?? ["192.0.2.10", "2001:db8::10"],
       ...(status.tags && { Tags: status.tags }),
     },
-    Peer: { "nodekey:peer": { DNSName: "phone.example-tailnet.ts.net.", TailscaleIPs: ["100.64.0.9"] } },
+    Peer: { "nodekey:peer": { DNSName: "phone.example-tailnet.ts.net.", TailscaleIPs: ["192.0.2.99"] } },
     User: { "7": { ID: 7, LoginName: status.login ?? "owner@example.com", DisplayName: "Owner" } },
     CurrentTailnet: {
       Name: status.tailnet ?? "owner@example.com",
