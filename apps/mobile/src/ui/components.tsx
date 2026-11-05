@@ -70,12 +70,14 @@ export function IconButton({
   onPress,
   disabled,
   style,
+  color,
 }: {
   icon: IconName;
   label: string;
   onPress: () => void;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  color?: string;
 }) {
   const c = useColors();
 
@@ -99,7 +101,7 @@ export function IconButton({
         style,
       ]}
     >
-      <Icon name={icon} />
+      <Icon name={icon} color={color} />
     </Pressable>
   );
 }
@@ -108,11 +110,14 @@ export function ScreenHeader({
   title,
   subtitle,
   back = true,
+  left,
   right,
 }: {
   title: string;
   subtitle?: string;
   back?: boolean;
+  /** Replaces the back button (the sidebar toggle on wide windows). */
+  left?: ReactNode;
   right?: ReactNode;
 }) {
   const c = useColors();
@@ -129,7 +134,8 @@ export function ScreenHeader({
         },
       ]}
     >
-      {back && (
+      {left}
+      {back && !left && (
         <IconButton
           icon="chevron-left"
           label="Back"

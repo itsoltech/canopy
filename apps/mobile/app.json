@@ -3,7 +3,7 @@
     "name": "Canopy",
     "slug": "canopy-mobile",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "../web/static/icon-512.png",
     "scheme": "canopy",
     "userInterfaceStyle": "automatic",

@@ -1,1 +1,1 @@
-export { default } from "../features/navigation/AppSidebar";
+export { default } from "../features/navigation/HomeScreen";

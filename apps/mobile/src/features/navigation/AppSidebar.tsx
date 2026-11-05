@@ -111,7 +111,7 @@ function useSidebarState() {
 
 function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const c = useColors();
-  const { section, setSection, queries, setQueries, query, setFilterOpen } = state;
+  const { section, setSection, queries, setQueries, query, setFilterOpen, projectId } = state;
 
   return (
     <>
@@ -161,7 +161,12 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
           )}
         </View>
         {section === "threads" && (
-          <IconButton icon="funnel" label="Filter projects" onPress={() => setFilterOpen(true)} />
+          <IconButton
+            icon="funnel"
+            label={projectId ? "Filter projects, filtered" : "Filter projects"}
+            color={projectId ? c.accent : undefined}
+            onPress={() => setFilterOpen(true)}
+          />
         )}
       </View>
     </>
@@ -275,7 +280,8 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
   );
 }
 
-export default function AppSidebar() {
+/** The thread and bot list: a full screen on phones, the persistent sidebar on wide windows. */
+export function AppSidebar() {
   const c = useColors();
   const state = useSidebarState();
   const { ready, session, workers, stream, filterOpen, setFilterOpen, projects, projectId, setProjectId } = state;

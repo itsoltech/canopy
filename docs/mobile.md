@@ -248,7 +248,15 @@ trzeba przenosić do wspólnych tokenów świadomie.
 RN używa StyleSheet i Inter 400/500/600 (pakiet fontu, bez pobierania z sieci), SVG
 z tych samych ścieżek, SafeAreaView, KeyboardAvoidingView i FlatList. Jasny/ciemny motyw
 oraz sześć akcentów są ustawieniami gatewaya, synchronizowanymi między klientami.
-Sidebar jest natywnym ekranem listy; web na telefonie otwiera go jako drawer. Panele
+Na wąskim oknie sidebar jest natywnym ekranem listy (stos lista → wątek); web na telefonie
+otwiera go jako drawer. Od 600 dp szerokości okna (klasa large screen Androida: tablety,
+rozłożony foldable, telefon w poziomie) lista zostaje obok otwartego wątku lub czatu, jak
+w desktopowym web (`src/state/layout.tsx`). Ma 260–320 dp, zaznacza otwarty wątek i chowa się
+przyciskiem listy w nagłówku. Układ zależy od szerokości okna, nie typu urządzenia, więc
+składanie, obrót i zmiana rozmiaru przełączają go na żywo; aplikacja nie blokuje orientacji.
+Safe area każdej kolumny liczy natywny `SafeAreaView`. Zawias: Expo nie udostępnia
+`FoldingFeature`; zawias Galaxy Z Fold po rozłożeniu nie zasłania ekranu, więc nie omijamy go.
+Urządzenie z zasłaniającym zawiasem wymagałoby modułu natywnego (Jetpack WindowManager). Panele
 szczegółów są sheetami. Każdy wybór (model, effort, uprawnienia, projekt, worker, instancja
 dostawcy, menu akcji) używa jednego `PickerSheet` (`src/ui/Picker.tsx`): kompaktowy dolny arkusz
 z zaokrąglonymi rogami, wierszami ≥ 48 dp, nagłówkami sekcji, wyszukiwaniem przy długich listach
