@@ -63,7 +63,7 @@ export class ModelStore extends Context.Service<
 /** The catalog entry a model id names (also by the model an alias resolves to); the default model for "". */
 function findModel(catalog: ProfileModels, model: string): ModelInfo | undefined {
   return model
-    ? catalog.models.find((m) => m.id === model || m.resolvedModel === model)
+    ? catalog.models.find((m) => m.id === model || m.resolvedModel === model || m.aliases.includes(model))
     : catalog.models.find((m) => m.isDefault);
 }
 

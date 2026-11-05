@@ -160,4 +160,33 @@ describe("pickers' catalog (instance model choices)", () => {
     ]);
     expect(other!.models.map((m) => m.id)).toEqual(["m1"]);
   });
+
+  test("saved aliases apply favorites and visibility without adding duplicate custom rows", () => {
+    const merged = create(ui.WorkerModelsSchema, {
+      profiles: [
+        {
+          provider: Provider.CLAUDE,
+          profileId: "native",
+          models: [{ id: "sonnet" }, { id: "opus", aliases: ["default"], isDefault: true }],
+        },
+      ],
+    });
+
+    const rule = {
+      harness: "claude" as const,
+      id: "native",
+      favorites: ["default", "opus"],
+      hidden: ["default"],
+      shown: [],
+      custom: ["default"],
+    };
+
+    const models = applyInstanceModels(merged, [rule]).profiles[0]!.models;
+
+    expect(models.map((m) => [m.id, m.hidden])).toEqual([
+      ["opus", true],
+      ["sonnet", false],
+    ]);
+    expect(applyInstanceModels(merged, [{ ...rule, shown: ["default"] }]).profiles[0]!.models[0]?.hidden).toBe(false);
+  });
 });

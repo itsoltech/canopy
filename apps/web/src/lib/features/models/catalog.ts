@@ -50,6 +50,8 @@ export interface ModelOption {
   readonly description: string;
   /** The model the id runs on when it is an alias (`opus` → `claude-opus-5-5`). */
   readonly resolvedModel: string;
+  /** Saved wire ids folded into this catalog row. */
+  readonly aliases?: readonly string[];
   /** The model the profile uses when none is chosen. */
   readonly isDefault: boolean;
   readonly legacy: boolean;
@@ -158,7 +160,8 @@ export function profileCatalog(
 /** The catalog entry for a model id: by id, else the model an alias resolves to. Hidden ones too. */
 const catalogEntry = (list: ProfileModels | undefined, model: string): ModelInfo | undefined =>
   model
-    ? (list?.models.find((m) => m.id === model) ?? list?.models.find((m) => m.resolvedModel === model))
+    ? (list?.models.find((m) => m.id === model) ??
+      list?.models.find((m) => m.resolvedModel === model || m.aliases.includes(model)))
     : list?.models.find((m) => m.isDefault);
 
 /** What the options of an instance share: its label, accent and favorites. */
@@ -170,8 +173,11 @@ interface InstanceMeta {
 
 const plainMeta = (name: string): InstanceMeta => ({ name, accent: "", favorites: [] });
 
-const favoriteIndexOf = (meta: InstanceMeta, model: string) =>
-  meta.favorites.includes(model) ? meta.favorites.indexOf(model) : undefined;
+function favoriteIndexOf(meta: InstanceMeta, model: string, aliases: readonly string[] = []): number | undefined {
+  const index = meta.favorites.findIndex((id) => id === model || aliases.includes(id));
+
+  return index < 0 ? undefined : index;
+}
 
 function fromCatalog(
   provider: ProviderKey,
@@ -186,11 +192,12 @@ function fromCatalog(
     profileId,
     profileName: meta.name,
     accent: meta.accent,
-    favoriteIndex: favoriteIndexOf(meta, info.id),
+    favoriteIndex: favoriteIndexOf(meta, info.id, info.aliases),
     model: info.id,
     name: info.displayName && info.displayName !== info.id ? info.displayName : modelDisplayName(info.id),
     description: info.description,
     resolvedModel: info.resolvedModel,
+    aliases: info.aliases,
     isDefault: info.isDefault,
     legacy: info.legacy,
     efforts: info.efforts.map(effortLevel),
@@ -252,7 +259,7 @@ export function modelOption(
   const option = fromCatalog(provider, profileId, meta, info, list);
 
   // An alias's resolved id keeps the id it was given (that is what the thread stores and sends).
-  return info.id === model || !model
+  return info.id === model || !model || info.aliases.includes(model)
     ? option
     : { ...option, key: modelKey(provider, profileId, model), model, isDefault: false };
 }
@@ -337,7 +344,10 @@ export function findOption(
 
   if (!model) return onProfile.find((o) => o.isDefault) ?? onProfile[0];
 
-  return onProfile.find((o) => o.model === model) ?? onProfile.find((o) => o.resolvedModel === model);
+  return (
+    onProfile.find((o) => o.model === model) ??
+    onProfile.find((o) => o.resolvedModel === model || o.aliases?.includes(model))
+  );
 }
 
 export interface ThreadModelOptions {
@@ -422,7 +432,7 @@ export function suggestedModels(
 export function nameOfModel(model: string, catalogs: Iterable<ui.WorkerModels>): string {
   for (const catalog of catalogs) {
     for (const list of catalog.profiles) {
-      const info = list.models.find((m) => m.id === model);
+      const info = catalogEntry(list, model);
 
       if (info?.displayName && info.displayName !== info.id) return info.displayName;
     }

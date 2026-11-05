@@ -7,7 +7,7 @@ const catalog = create(ProfileModelsSchema, {
   provider: Provider.CLAUDE,
   profileId: "native",
   models: [
-    { id: "default", isDefault: true, displayName: "Default", efforts: ["low", "medium", "high"] },
+    { id: "opus", aliases: ["default"], isDefault: true, displayName: "Default", efforts: ["low", "medium", "high"] },
     { id: "haiku", resolvedModel: "claude-haiku-5-5", displayName: "Haiku", efforts: ["low", "max"] },
     { id: "claude-3-7-sonnet", displayName: "Claude 3.7 Sonnet", efforts: [] },
     { id: "sonnet", displayName: "Sonnet", efforts: ["low", "medium", "high"], defaultEffort: "medium" },
@@ -17,6 +17,8 @@ const catalog = create(ProfileModelsSchema, {
 describe("model and effort against a catalog", () => {
   test("offered models (also by the model an alias resolves to) and their efforts", () => {
     expect(modelProblem(catalog, Provider.CLAUDE, "native", "haiku", "max")).toBeUndefined();
+    expect(modelProblem(catalog, Provider.CLAUDE, "native", "default", "high")).toBeUndefined();
+    expect(turnEffort(catalog, "default", "max")).toBe("");
     expect(modelProblem(catalog, Provider.CLAUDE, "native", "claude-haiku-5-5", "low")).toBeUndefined();
     expect(modelProblem(catalog, Provider.CLAUDE, "native", "opus-9", "")).toBe(
       'Claude on profile "native" does not offer the model "opus-9"',

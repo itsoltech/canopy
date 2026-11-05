@@ -34,8 +34,10 @@ class InstanceFavorites implements FavoriteModels {
 
     const current = instance?.favorites ?? [];
 
-    const favorites = current.includes(option.model)
-      ? current.filter((m) => m !== option.model)
+    const ids = [option.model, ...(option.aliases ?? [])];
+
+    const favorites = current.some((m) => ids.includes(m))
+      ? current.filter((m) => !ids.includes(m))
       : [...current, option.model];
 
     providerCall("models", { harness, id, favoritesOnly: true, models: { favorites } }).catch((cause: unknown) =>

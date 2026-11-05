@@ -46,7 +46,8 @@ function useComposerSettings(thread: ui.Thread | undefined) {
     )?.models ?? [];
 
   const currentModel =
-    models.find((m) => m.id === thread?.model) ?? (!thread?.model ? models.find((m) => m.isDefault) : undefined);
+    models.find((m) => m.id === thread?.model || m.aliases.includes(thread?.model ?? "")) ??
+    (!thread?.model ? models.find((m) => m.isDefault) : undefined);
 
   const currentEffort = thread?.effort || currentModel?.defaultEffort || "";
 
