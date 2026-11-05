@@ -537,6 +537,8 @@ message BusDelivery {
 
 message Turn {
   string id = 1;
+  optional string shell_command = 240;
+  canopy.worker.v1.ShellResult shell_result = 241;
   uint32 ordinal = 2;
   // queued | running | completed | interrupted | failed | cancelled
   string status = 3;
@@ -1334,6 +1336,9 @@ enum MessageDelivery {
 // w miejscu, w którym weszła.
 message Steer {
   string id = 1;
+  optional string shell_command = 240;
+  canopy.worker.v1.ShellResult shell_result = 241;
+  string input_text = 242;
   string thread_id = 2;
   // Tura, do której ma trafić.
   string turn_id = 3;

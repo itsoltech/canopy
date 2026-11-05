@@ -1,4 +1,5 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { coreShellInput } from "./core-shell.ts";
 import { ForkSpecSchema, Provider, ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -131,6 +132,7 @@ export interface CoreThreadsMethods {
   createThread(
     input: ui.CreateThreadRequest,
     remoteParent?: { ref: string; kind: string; instructions: string; interactions: string },
+    ownerInput?: boolean,
   ): Promise<ui.Thread>;
 }
 
@@ -223,6 +225,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     this: GatewayCore,
     input: ui.CreateThreadRequest,
     remoteParent?: { ref: string; kind: string; instructions: string; interactions: string },
+    ownerInput = false,
   ): Promise<ui.Thread> {
     const asked = input.forkAtTurnId && !input.parentThreadId ? await coreForkRequest(this, input) : input;
     await coreCheckProvider(this, asked);
@@ -243,7 +246,11 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     const nameBranch = (row: ThreadRow) =>
       prepared.nameLater && coreNameBranchLater(this, row, request.initialMessage, prepared.nameLater);
 
-    if (request.initialAttachmentIds.length === 0 && request.initialMentions.length === 0) {
+    if (
+      request.initialAttachmentIds.length === 0 &&
+      request.initialMentions.length === 0 &&
+      !(ownerInput && request.initialMessage.startsWith("!"))
+    ) {
       const row = await coreRun(this, (s) =>
         s.createThread(this[coreState].options.userId, effort === request.effort ? request : { ...request, effort }),
       );
@@ -287,6 +294,10 @@ export const coreThreadsMethods: CoreThreadsMethods = {
 
     if (goal !== undefined && files) throw new InvalidError("a /goal message cannot carry attachments");
 
+    const shell = ownerInput
+      ? coreShellInput(request.initialMessage, Boolean(files || request.initialMentions.length))
+      : undefined;
+
     const row = await coreRun(this, (s) =>
       s.createThread(this[coreState].options.userId, { ...request, effort, initialMessage: "" }),
     );
@@ -294,13 +305,15 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     if (goal === undefined) {
       const provider = harnessOf(request.provider)!;
 
-      const input = coreComposeInput(
-        this,
-        provider,
-        request.initialMessage,
-        mentions,
-        files?.input(row.id, request.initialMessage),
-      );
+      const input =
+        shell ??
+        coreComposeInput(
+          this,
+          provider,
+          request.initialMessage,
+          mentions,
+          files?.input(row.id, request.initialMessage),
+        );
 
       await coreRun(this, (s) =>
         s.enqueueTurn({

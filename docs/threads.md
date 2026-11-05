@@ -231,6 +231,15 @@ stateDiagram-v2
 - `turn_id` generuje gateway przed wysłaniem, więc `StartTurn` jest idempotentne. `client_request_id` deduplikuje ponowione akcje z UI.
 - Każda komenda niesie pełny `ThreadSpec` (placement, ustawienia, `provider_thread_id`). Worker może więc wznowić wątek nawet po utracie lokalnego stanu. Baza jest źródłem prawdy, a SQLite workera to dziennik i cache.
 
+### Komendy właściciela
+
+Kompozytor głównego i bocznego wątku interpretuje pierwszy znak `!` jako jawną komendę
+powłoki. Komenda działa na workerze przypisanym do wątku, w jego cwd workspace'u lub
+worktree, dopiero po opuszczeniu kolejki albo przy dostarczeniu steera. Wątek boczny
+dziedziczy katalog rodzica także dla tych komend. Agent otrzymuje zapisany wynik,
+a nie tekst `!…`; szczegóły: [ui-api.md](ui-api.md#komendy-powłoki-w-kompozytorze).
+Wiadomości agentów i botów nie włączają tego trybu.
+
 ## 5. Zasoby na workerze
 
 - **Załadowany** wątek ma proces dostawcy w pamięci. Claude: jeden proces CLI na aktywny `query()`. Codex: wątki w jednym procesie `codex app-server`.

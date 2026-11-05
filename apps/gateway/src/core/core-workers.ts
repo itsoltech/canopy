@@ -8,7 +8,7 @@ import { coreEndLostTurns, coreSettle } from "./core-work-loop.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreReceiveBlob, coreSendBlob } from "./core-attachments.ts";
 import { corePublishInteraction, coreSendAnswer } from "./core-interactions.ts";
-import { corePublishSteer } from "./core-messages.ts";
+import { corePublishSteer, coreSteers } from "./core-messages.ts";
 import { coreSaveModels } from "./core-models.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreBroadcastWorkers, coreLog, coreRun } from "./core-broadcast.ts";
 import { coreBroadcastGoal } from "./core-goals.ts";
@@ -213,6 +213,15 @@ export async function coreIngest(
       create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: stored.seq, event: stored.event } } }),
     );
     const body = stored.event.body;
+
+    if (body.case === "shellInputPrepared") {
+      for (const turn of await coreRun(hostContext, (s) => s.turnsOf(stored.threadId)))
+        if (turn.input.shellInputId === body.value.inputId)
+          await coreBroadcastTurn(hostContext, stored.threadId, turn.id);
+
+      for (const steer of await coreSteers(hostContext, (s) => s.ofThread(stored.threadId)))
+        if (steer.input.shellInputId === body.value.inputId) await corePublishSteer(hostContext, steer.id);
+    }
 
     if (body.case === "turnStarted" || body.case === "turnFinished")
       await coreBroadcastTurn(hostContext, stored.threadId, stored.event.turnId);

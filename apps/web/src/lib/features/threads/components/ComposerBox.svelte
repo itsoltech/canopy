@@ -68,6 +68,7 @@
     allowEmpty = false,
     sendLabel = "Send",
     secret = false,
+    shell = false,
     compact = false,
     panelsLabel,
     onexpand,
@@ -101,6 +102,8 @@
     allowEmpty?: boolean;
     sendLabel?: string;
     secret?: boolean;
+    /** Owner thread composers only; bots and other text inputs keep their existing semantics. */
+    shell?: boolean;
     compact?: boolean;
     panelsLabel?: string | undefined;
     onexpand?: ((activity?: ComposerActivity) => void) | undefined;
@@ -109,15 +112,22 @@
     class?: ClassValue;
   } = $props();
 
-  const triggers: ReadonlySet<TriggerChar> = new Set(["/", "$", "@", "#"]);
+  const shellMode = $derived(shell && value.startsWith("!"));
+  const triggers: ReadonlySet<TriggerChar> = $derived(new Set(shellMode ? [] : ["/", "$", "@", "#"]));
   const trimmed = $derived(trimValue({ text: value, mentions }));
 
   const id = $props.id();
   const hasFiles = $derived((draft?.files.length ?? 0) > 0);
-  const hasContent = $derived(Boolean(value.trim()) || hasFiles || elementCount > 0 || allowEmpty);
+
+  const hasContent = $derived(
+    (shellMode ? Boolean(value.slice(1).trim()) : Boolean(value.trim())) || hasFiles || elementCount > 0 || allowEmpty,
+  );
 
   const sendBlocker = $derived(
     blockedReason ??
+      (shellMode && (hasFiles || elementCount > 0 || mentions.length > 0)
+        ? "Remove attachments, quotes and mentions to send a shell command."
+        : undefined) ??
       draft?.blocker ??
       (disabled
         ? "Messaging is unavailable for this thread."
@@ -188,14 +198,19 @@
 <div class={["grid grid-cols-1", className]}>
   <div
     class={[
-      "relative rounded-2xl bg-surface shadow-sm ring-1 has-focus-visible:ring-accent dark:shadow-none",
+      "relative rounded-2xl bg-surface shadow-sm ring-1 dark:shadow-none",
       disabled && "*:opacity-70",
-      dragging ? "ring-2 ring-brand-600 dark:ring-brand-500" : "ring-zinc-950/10 dark:ring-white/10",
+      shellMode
+        ? "ring-rose-600 has-focus-visible:ring-rose-600 dark:ring-rose-400 dark:has-focus-visible:ring-rose-400"
+        : dragging
+          ? "ring-2 ring-brand-600 dark:ring-brand-500"
+          : "ring-zinc-950/10 has-focus-visible:ring-accent dark:ring-white/10",
     ]}
     bind:this={box}
     onbeforeinput={() => onexpand?.("typing")}
     onpointerdown={() => onexpand?.("pointer")}
     data-compact={compact || undefined}
+    data-shell-mode={shellMode || undefined}
     style:--composer-send-width="{sendWidth}px"
     role="group"
     aria-label={onfiles ? `${label}, drop files to attach` : undefined}
@@ -238,17 +253,22 @@
           {placeholder}
           {disabled}
           {autofocus}
-          {sources}
+          sources={shellMode ? undefined : sources}
           {triggers}
           anchor={box}
           {onkeydown}
           {onpaste}
           singleLine={compact}
-          class={["text-base/6 sm:text-sm/6", disabled && "cursor-not-allowed"]}
+          class={["text-base/6 sm:text-sm/6", shellMode && "font-mono", disabled && "cursor-not-allowed"]}
         />
       {/if}
     </div>
-    <input type="hidden" {name} value={trimmed.text} />
+    {#if shell}
+      <p class="min-h-5 px-4 text-xs/5 text-rose-700 dark:text-rose-300" role="status">
+        {#if shellMode}Runs as a shell command when delivered.{/if}
+      </p>
+    {/if}
+    <input type="hidden" {name} value={shell && value.trimStart().startsWith("!") ? value.trimEnd() : trimmed.text} />
     {#if trimmed.mentions.length > 0}<input
         type="hidden"
         name="mentions"

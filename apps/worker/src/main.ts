@@ -298,6 +298,7 @@ while (!stopping.signal.aborted) {
         // worktrees: git refs and worktrees of workspaces (docs/worktrees.md), under worktrees_root by default.
         // project_sources: new project directories (git init) and clones (InitRepository, CloneRepository).
         capabilities: [
+          "shell_input_v1",
           "provider_account_status",
           "running_turns",
           "attachments",

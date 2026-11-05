@@ -490,6 +490,11 @@ message StartTurn {
 
 message UserInput {
   string text = 1;
+  // Jawna komenda właściciela, wykonywana dopiero przy dostarczeniu wejścia. Capability shell_input_v1.
+  optional string shell_command = 5;
+  // Stabilny także przy przejściu steer -> kolejka; komendy nie wolno ponowić po restarcie.
+  string shell_input_id = 6;
+  ShellResult shell_result = 7;
   // Autor wiadomości: użytkownik albo inny agent (szyna agentów).
   string author_user_id = 2;
   string author_agent_id = 3;
@@ -500,6 +505,24 @@ message UserInput {
   // Zakresy dotyczą tego tekstu (już z notatką platformy i przepisaniem dla dostawcy, które zrobił gateway).
   // Codex dostaje z nich text_elements oraz itemy skill / mention / localImage; Claude sam tekst.
   repeated Mention mentions = 140;
+}
+
+message ShellResult {
+  string command = 1;
+  string cwd = 2;
+  optional int32 exit_code = 3;
+  // stdout i stderr w kolejności odczytu; ograniczone do początku i końca.
+  string output = 4;
+  // running | completed | failed | interrupted
+  string status = 5;
+  string reason = 6;
+  bool truncated = 7;
+  uint64 duration_ms = 8;
+}
+
+message ShellInputPrepared {
+  string input_id = 1;
+  ShellResult result = 2;
 }
 
 message InputAttachment {
@@ -719,6 +742,7 @@ message ThreadEvent {
     UsageUpdated usage_updated = 17;
     Notice notice = 18;
     GoalState goal_state = 19;
+    ShellInputPrepared shell_input_prepared = 20;
   }
 
   // Oryginalne zdarzenie dostawcy (JSON). Zawsze ustawione dla zdarzeń dostawcy;

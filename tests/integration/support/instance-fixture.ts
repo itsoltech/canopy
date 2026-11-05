@@ -3,9 +3,9 @@ import { join, resolve } from "node:path";
 import { Provider, ProviderProfileKind } from "@canopy/contracts";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDirs } from "@canopy/testing";
-import { journalHello, openGatewayLink } from "@canopy/worker/gateway-link";
+import { journalHello, openGatewayLink, resendPending } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
-import { WorkerHost, serveLink } from "@canopy/worker/runtime";
+import { WorkerHost, serveLink, type WorkerHostOptions } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { Effect } from "effect";
@@ -31,14 +31,19 @@ function isolateProviderEnv(): () => void {
   };
 }
 
-export async function startInstanceFixture(bots = false, gatewayOptions: Parameters<typeof startTestGateway>[0] = {}) {
+export async function startInstanceFixture(
+  bots = false,
+  gatewayOptions: Parameters<typeof startTestGateway>[0] = {},
+  workerOptions: Pick<WorkerHostOptions, "shellTimeoutMs"> = {},
+  shellCapability = true,
+) {
   const restoreEnv = isolateProviderEnv();
   const dir = tempDir("canopy-instance-switch-");
   const dataDir = join(dir, "data");
   const trace = join(dir, "probe.jsonl");
   const repo = join(dir, "repo");
   mkdirSync(repo);
-  const gw = await startTestGateway(gatewayOptions);
+  let gw = await startTestGateway(gatewayOptions);
 
   const added = await gw.addWorker("Instance fixture");
   const executable = (harness: string) => resolve(import.meta.dir, `../fixtures/instance-${harness}.ts`);
@@ -60,6 +65,7 @@ export async function startInstanceFixture(bots = false, gatewayOptions: Paramet
 
   const createHost = () =>
     new WorkerHost({
+      ...workerOptions,
       runtime,
       dataDir,
       clientVersion: "test",
@@ -84,7 +90,7 @@ export async function startInstanceFixture(bots = false, gatewayOptions: Paramet
     credential: added.credential,
     hello: {
       workerId: added.workerId,
-      capabilities: ["bot_harness_v1"],
+      capabilities: ["bot_harness_v1", ...(shellCapability ? ["shell_input_v1"] : [])],
       environmentKind: "desktop",
       ...(await runtime.runPromise(journalHello())),
     },
@@ -214,7 +220,9 @@ export async function startInstanceFixture(bots = false, gatewayOptions: Paramet
   };
 
   return {
-    gw,
+    get gw() {
+      return gw;
+    },
     get host() {
       return host;
     },
@@ -242,17 +250,32 @@ export async function startInstanceFixture(bots = false, gatewayOptions: Paramet
         credential: added.credential,
         hello: {
           workerId: added.workerId,
-          capabilities: ["bot_harness_v1"],
+          capabilities: ["bot_harness_v1", ...(shellCapability ? ["shell_input_v1"] : [])],
           environmentKind: "desktop",
           ...(await runtime.runPromise(journalHello())),
         },
       });
       serving = serveLink(link, host, runtime).catch(() => {});
+      await runtime.runPromise(resendPending(link, (event) => host.sendPreviews(link, event)));
       await eventually(async () => host.config, Boolean);
     },
     disconnect: async () => {
       link.close();
       await serving;
+    },
+    restartGateway: async () => {
+      link.close();
+      await serving;
+
+      const storage = {
+        pg: gw.pg,
+        secretsKey: gw.secretsKey,
+        workerId: gw.workerId,
+        workerCredential: gw.workerCredential,
+      };
+
+      await gw.close(true);
+      gw = await startTestGateway({ ...gatewayOptions, storage });
     },
     reconnect: async (baseUrl = gw.grpcUrl) => {
       const next = await openGatewayLink({
@@ -260,8 +283,9 @@ export async function startInstanceFixture(bots = false, gatewayOptions: Paramet
         credential: added.credential,
         hello: {
           workerId: added.workerId,
-          capabilities: ["bot_harness_v1"],
+          capabilities: ["bot_harness_v1", ...(shellCapability ? ["shell_input_v1"] : [])],
           environmentKind: "desktop",
+          runningTurns: host.runningTurns(),
           ...(await runtime.runPromise(journalHello())),
         },
       });
@@ -269,6 +293,7 @@ export async function startInstanceFixture(bots = false, gatewayOptions: Paramet
       const done = serveLink(next, host, runtime).catch(() => {});
       link = next;
       serving = done;
+      await runtime.runPromise(resendPending(next, (event) => host.sendPreviews(next, event)));
 
       return async () => {
         next.close();

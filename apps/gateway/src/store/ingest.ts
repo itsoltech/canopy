@@ -3,6 +3,7 @@ import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { ENDED, applySideEffects, applySteer, insertEvent, resolveTurn } from "./ingest-events.ts";
 import { settleThread, stuckThread } from "./ingest-settle.ts";
+import { applyShellInput } from "./shell-input.ts";
 
 /**
  * Writes worker events into the thread timeline (docs/transcript.md, "Zapis po stronie gateway").
@@ -81,6 +82,8 @@ export const ingestThread = (
         yield* insertEvent(sql, threadId, seq, event, "worker");
         yield* applySideEffects(sql, threadId, seq, event);
         yield* applySteer(sql, threadId, seq, event);
+
+        if (event.body.case === "shellInputPrepared") yield* applyShellInput(sql, threadId, event.body.value);
         stored.push({ threadId, seq, event });
       }
 

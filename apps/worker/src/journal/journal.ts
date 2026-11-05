@@ -12,6 +12,7 @@ import {
 } from "@canopy/contracts";
 import { Context, Effect, Layer, Schema } from "effect";
 import { turnTracking } from "./turn-tracking.ts";
+import { shellTracking } from "./shell-inputs.ts";
 import { secretEventRedactor } from "../runtime/thread-secrets.ts";
 
 /**
@@ -83,6 +84,11 @@ export class Journal extends Context.Service<
   Journal,
   {
     readonly journalId: string;
+    beginShellInput: ReturnType<typeof shellTracking>["beginShellInput"];
+    shellInput: ReturnType<typeof shellTracking>["shellInput"];
+    shellPid: ReturnType<typeof shellTracking>["shellPid"];
+    finishShellInput: ReturnType<typeof shellTracking>["finishShellInput"];
+    openShellInputs: ReturnType<typeof shellTracking>["openShellInputs"];
     /** Assigns journal_seq and event_id (UUIDv7) and stores the event durably. */
     append(threadId: string, event: ThreadEventInit): Effect.Effect<ThreadEvent, JournalError>;
     /** Atomically accepts a bot command and journals its turn start before any harness effect. */
@@ -311,6 +317,7 @@ function makeJournal(db: Database): Journal["Service"] {
   const admit = botAdmission(db, appendTx);
 
   return Journal.of({
+    ...shellTracking(db, attempt, (threadId, event) => appendTx(threadId, redact(threadId, event))),
     journalId,
     admitBotTurn: (commandId, botId, turnId) => attempt("admitBotTurn", () => admit(commandId, botId, turnId)),
     append: Effect.fn("Journal.append")((threadId: string, event: ThreadEventInit) =>

@@ -6,6 +6,7 @@ import { SqlClient, type SqlError } from "effect/sql";
 import { toUiQuote, type StoredQuote } from "./quotes.ts";
 import { NotFound, toUiSender, type SenderColumns, type TurnRow } from "./store.ts";
 import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
+import { storedShellResult } from "./shell-input.ts";
 
 /**
  * Messages delivered into a running turn (docs/ui-api.md, docs/agent-bus.md): SendMessage with
@@ -23,7 +24,7 @@ export interface SteerRow {
   turn_id: string;
   /** text = what the model gets; with quotes, note (the quotes) + message (the user's text) for the UI. */
   input: { text: string; note?: string; message?: string; quotes?: StoredQuote[] } & StoredMentions &
-    Pick<TurnRow["input"], "sender" | "sourceKind" | "sourceStatus">;
+    Pick<TurnRow["input"], "sender" | "sourceKind" | "sourceStatus" | "shellCommand" | "shellInputId" | "shellResult">;
   author_user_id: string | null;
   agent_call_id: string | null;
   bot_call_id?: string | null;
@@ -73,6 +74,7 @@ export class SteerStore extends Context.Service<
     steer(id: string): Fx<SteerRow>;
     ofThread(threadId: string): Fx<readonly SteerRow[]>;
     accepted(id: string): Fx<SteerRow>;
+    failed(id: string, reason: string): Fx<SteerRow>;
     /** Steers that did not join their turn (dropped) and still wait for their fallback. */
     dropped(threadId: string): Fx<string[]>;
     /**
@@ -148,6 +150,10 @@ export class SteerStore extends Context.Service<
           sql`UPDATE turn_steers SET status = 'accepted', updated_at = now() WHERE id = ${id}::uuid AND status = 'pending'`.pipe(
             Effect.andThen(one(id)),
           ),
+        failed: (id, reason) =>
+          sql`UPDATE turn_steers SET status = 'failed', reason = ${reason}, updated_at = now() WHERE id = ${id}::uuid AND status NOT IN ('delivered', 'queued')`.pipe(
+            Effect.andThen(one(id)),
+          ),
 
         dropped: (threadId) =>
           sql<{
@@ -171,7 +177,7 @@ export class SteerStore extends Context.Service<
               // A message steered from the queue goes back to its place there.
               const back = steer.from_turn_id
                 ? yield* sql<TurnRow>`
-                    UPDATE turns SET status = 'queued', withdrawn = NULL, completed_at = NULL
+                    UPDATE turns SET status = 'queued', withdrawn = NULL, completed_at = NULL, input = ${JSON.stringify(steer.input)}::jsonb
                      WHERE id = ${steer.from_turn_id}::uuid AND status = 'cancelled' AND withdrawn = 'steered'
                     RETURNING *`
                 : [];
@@ -220,6 +226,9 @@ export function toUiSteer(row: SteerRow & SenderColumns): ui.Steer {
 
   return create(ui.SteerSchema, {
     id: row.id,
+    shellCommand: row.input.shellCommand,
+    shellResult: storedShellResult(row.input.shellResult),
+    inputText: row.input.text,
     threadId: row.thread_id,
     turnId: row.turn_id,
     text: row.input.message ?? row.input.text,

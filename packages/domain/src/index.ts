@@ -20,6 +20,8 @@ export * from "./platform.ts";
 
 export * from "./failures.ts";
 
+export * from "./shell-input.ts";
+
 export { isJsonArray, isJsonObject, type JsonObject, type JsonValue } from "./json.ts";
 
 export { PLACEMENTS, scheduleWorkerEligible, selectScheduleWorkspace, type Placement } from "./schedules.ts";

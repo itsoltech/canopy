@@ -126,7 +126,9 @@
   }
 
   async function send(delivery: Delivery) {
-    const { text: message, mentions: sentMentions } = trimValue({ text, mentions });
+    const trimmed = trimValue({ text, mentions });
+    const message = text.trimStart().startsWith("!") ? text.trimEnd() : trimmed.text;
+    const sentMentions = trimmed.mentions;
 
     if ((!message && draft.files.length === 0 && quotes.length === 0) || sending || disabled) return;
 
@@ -207,6 +209,7 @@
 <form class={["grid grid-cols-1 gap-2", className]} onsubmit={submit}>
   {#if error}<Alert tone="error">{error}</Alert>{/if}
   <ComposerBox
+    shell
     {compact}
     {panelsLabel}
     {onexpand}

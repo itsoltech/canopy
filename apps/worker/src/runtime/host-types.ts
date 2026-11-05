@@ -45,6 +45,8 @@ export interface CommandOutput {
 }
 
 export interface WorkerHostOptions {
+  /** Tests can shorten the production two-minute shell deadline. */
+  readonly shellTimeoutMs?: number;
   readonly runtime: ManagedRuntime.ManagedRuntime<Journal, unknown>;
   readonly dataDir: string;
   readonly clientVersion: string;
