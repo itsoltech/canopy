@@ -18,6 +18,8 @@
   import { appCommands } from "#lib/features/commands/app-commands.ts";
   import { PaletteState, providePalette } from "#lib/features/commands/commands.svelte.ts";
   import CommandPalette from "#lib/features/commands/CommandPalette.svelte";
+  import AddProjectDialog from "#lib/features/projects/add/AddProjectDialog.svelte";
+  import { AddProjectState, provideAddProject } from "#lib/features/projects/add/add-project.svelte.ts";
   import { CommandRegistry, provideCommands } from "#lib/features/commands/registry.ts";
   import { OverviewState, provideOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { ModelCatalogState, provideModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
@@ -145,6 +147,10 @@
 
   providePalette(palette);
 
+  const addProject = new AddProjectState();
+
+  provideAddProject(addProject);
+
   commands.add(
     appCommands({
       overview,
@@ -152,6 +158,7 @@
       sidebar,
       threadActions,
       capabilities,
+      addProject,
       openMenu: () => (menuOpen = true),
       currentThreadId: () => page.params.threadId,
       currentProjectId: () =>
@@ -225,6 +232,7 @@
 </div>
 {#if ready && !capabilities.incompatible}<SettingsOverlay route={children} />{/if}
 <CommandPalette registry={commands} {palette} />
+{#if ready && !capabilities.incompatible}<AddProjectDialog state={addProject} />{/if}
 <Toaster />
 <BotSettingsHost />
 {#if capabilities.linkedComputers}<BotMoveHost />{/if}

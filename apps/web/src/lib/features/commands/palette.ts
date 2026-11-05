@@ -173,3 +173,20 @@ export function moveActive(
       return Math.max(0, index - page);
   }
 }
+
+const MOVEMENTS = new Map<string, Parameters<typeof moveActive>[1]>([
+  ["ArrowDown", "next"],
+  ["ArrowUp", "previous"],
+  ["PageDown", "pageDown"],
+  ["PageUp", "pageUp"],
+  ["Home", "first"],
+  ["End", "last"],
+]);
+
+/** How a key moves the active option of a palette-style list; Home/End/Page keys only without modifiers. */
+export function movementOf(event: KeyboardEvent): Parameters<typeof moveActive>[1] | undefined {
+  const plain = !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+  const movement = MOVEMENTS.get(event.key);
+
+  return movement && (plain || event.key.startsWith("Arrow")) ? movement : undefined;
+}

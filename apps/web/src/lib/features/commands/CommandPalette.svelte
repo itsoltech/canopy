@@ -4,13 +4,21 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { windowModal } from "#lib/shared/ui/window-modal.ts";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
-  import KeyHint from "#lib/shared/ui/KeyHint.svelte";
   import { matchesHotkey } from "#lib/shared/ui/hotkeys.ts";
   import { keybindings } from "./keybindings.svelte.ts";
   import { exitDuration, pageIn } from "#lib/shared/ui/motion.ts";
   import type { PaletteState } from "./commands.svelte.ts";
   import CommandCrumb from "./CommandCrumb.svelte";
   import CommandRow from "./CommandRow.svelte";
+  import PaletteFooter from "./PaletteFooter.svelte";
+  import {
+    paletteDialogClass,
+    paletteEmptyClass,
+    paletteGroupLabelClass,
+    paletteHeaderClass,
+    paletteInputClass,
+    paletteListClass,
+  } from "./palette-style.ts";
   import {
     actionOf,
     enterLevel,
@@ -289,15 +297,10 @@
     if (event.target === dialog) close(); // click on the backdrop
   }}
   inert={closing || undefined}
-  class={[
-    "t-modal top-(--window-safe-top) m-0 mb-auto flex max-h-[min(85dvh,var(--window-safe-height))] w-full max-w-none flex-col overflow-hidden rounded-b-2xl bg-white p-0 text-zinc-950 shadow-xl ring-1 ring-zinc-950/10 not-open:hidden backdrop:bg-zinc-950/30 backdrop:backdrop-blur-xs sm:mx-auto sm:mt-[12dvh] sm:max-h-[min(36rem,76dvh,var(--window-safe-height)-12dvh)] sm:w-[calc(100%-2rem)] sm:max-w-160 sm:rounded-2xl dark:bg-zinc-900 dark:text-white dark:shadow-none dark:ring-white/10 dark:backdrop:bg-black/50",
-    className,
-  ]}
+  class={[paletteDialogClass, className]}
 >
   {#if palette.open || closing}
-    <div
-      class="flex shrink-0 items-center gap-2 border-b border-zinc-950/5 px-3 pt-[max(--spacing(0),env(safe-area-inset-top))] dark:border-white/8"
-    >
+    <div class={paletteHeaderClass}>
       {#if level}
         <IconButton icon="arrow-left" label="Back" size="sm" onclick={() => (back(), input?.focus())} />
         <CommandCrumb titles={stack.map((l) => l.command.title)} />
@@ -325,7 +328,7 @@
           movedBy = "key";
         }}
         {onkeydown}
-        class="h-12 min-w-0 flex-1 bg-transparent text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:h-13 sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400"
+        class={paletteInputClass}
       />
       <IconButton icon="x-mark" label="Close" size="sm" class="sm:hidden" onclick={close} />
     </div>
@@ -335,17 +338,13 @@
         id="{id}-list"
         role="listbox"
         aria-label={level?.command.title ?? "Commands"}
-        class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5 pb-[max(--spacing(1.5),env(safe-area-inset-bottom))] sm:pb-1.5"
+        class={paletteListClass}
         in:pageIn={{ from: direction }}
       >
         {#each sections as section, s (section.group ?? s)}
           <div role="group" aria-labelledby={section.label ? `${id}-group-${s}` : undefined}>
             {#if section.label}
-              <div
-                id="{id}-group-{s}"
-                role="presentation"
-                class="px-3 pt-3 pb-1 text-sm/5 font-medium text-zinc-500 first:pt-1.5 sm:text-xs/4 dark:text-zinc-400"
-              >
+              <div id="{id}-group-{s}" role="presentation" class={paletteGroupLabelClass}>
                 {section.label}
               </div>
             {/if}
@@ -365,7 +364,7 @@
           </div>
         {/each}
         {#if entries.length === 0}
-          <p class="px-4 py-10 text-center text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+          <p class={paletteEmptyClass}>
             No results{query.trim() ? ` for “${query.trim()}”` : ""}
           </p>
         {/if}
@@ -375,14 +374,13 @@
       {entries.length === 0 ? "No results" : `${entries.length} ${entries.length === 1 ? "result" : "results"}`}
     </p>
 
-    <div
-      class="flex shrink-0 items-center gap-4 border-t border-zinc-950/5 px-4 py-2.5 text-xs/4 text-zinc-500 dark:border-white/8 dark:text-zinc-400 pointer-coarse:hidden"
-      aria-hidden="true"
-    >
-      <KeyHint hotkeys={["ArrowUp", "ArrowDown"]} label="Navigate" />
-      <KeyHint hotkeys={["Enter"]} label="Select" />
-      {#if level}<KeyHint hotkeys={["Backspace"]} label="Back" />{/if}
-      <KeyHint hotkeys={["Escape"]} label="Close" />
-    </div>
+    <PaletteFooter
+      hints={[
+        { hotkeys: ["ArrowUp", "ArrowDown"], label: "Navigate" },
+        { hotkeys: ["Enter"], label: "Select" },
+        ...(level ? [{ hotkeys: ["Backspace"], label: "Back" }] : []),
+        { hotkeys: ["Escape"], label: "Close" },
+      ]}
+    />
   {/if}
 </dialog>
