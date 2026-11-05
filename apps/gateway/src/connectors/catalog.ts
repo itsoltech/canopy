@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { connectors } from "@canopy/contracts";
+import { AUTH_METHODS } from "./auth-methods.ts";
 
 /** Endpoints checked against vendor documentation, 2026-11-02; never imply a live account check. */
 export const CONNECTOR_TYPES = [
@@ -8,68 +9,72 @@ export const CONNECTOR_TYPES = [
     name: "GitHub",
     url: "https://api.githubcopilot.com/mcp/",
     authKinds: ["headers", "oauth"],
-    requirements:
-      "Personal access token, or a registered GitHub app with OAuth credentials. No dynamic registration is advertised; live authorization required.",
+    requirements: "Repositories, issues and pull requests through GitHub's remote MCP server.",
     documentationUrl: "https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md",
+    authMethods: AUTH_METHODS.github,
   },
   {
     id: "slack",
     name: "Slack",
     url: "https://mcp.slack.com/mcp",
     authKinds: ["oauth"],
-    requirements: "Register a Slack app first. Save its client ID and secret, install it, and choose user scopes.",
+    requirements: "Messages and channels through Slack's MCP server. Needs a Slack app.",
     documentationUrl: "https://docs.slack.dev/ai/slack-mcp-server/",
+    authMethods: AUTH_METHODS.slack,
   },
   {
     id: "notion",
     name: "Notion",
     url: "https://mcp.notion.com/mcp",
     authKinds: ["oauth", "headers"],
-    requirements:
-      "Sign in with OAuth. MCP tokens are available on Business / Enterprise; integration tokens are different.",
+    requirements: "Pages and databases through Notion's MCP server.",
     documentationUrl: "https://developers.notion.com/guides/mcp/get-started-with-mcp",
+    authMethods: AUTH_METHODS.notion,
   },
   {
     id: "linear",
     name: "Linear",
     url: "https://mcp.linear.app/mcp",
     authKinds: ["oauth", "headers"],
-    requirements: "Sign in with OAuth, or use a Linear API key.",
+    requirements: "Issues and projects through Linear's MCP server.",
     documentationUrl: "https://linear.app/docs/mcp",
+    authMethods: AUTH_METHODS.linear,
   },
   {
     id: "atlassian",
     name: "Atlassian",
     url: "https://mcp.atlassian.com/v1/mcp",
     authKinds: ["oauth"],
-    requirements: "Sign in to Jira / Confluence. Your administrator may restrict MCP clients.",
+    requirements: "Jira and Confluence through the Atlassian Rovo MCP server.",
     documentationUrl: "https://support.atlassian.com/atlassian-rovo-mcp-server/",
+    authMethods: AUTH_METHODS.atlassian,
   },
   {
     id: "microsoft",
     name: "Microsoft 365 · Outlook",
     url: "",
     authKinds: ["oauth", "headers"],
-    requirements:
-      "Use the MCP endpoint approved for your tenant (Work IQ / Tools registry). Requires tenant configuration and live verification.",
+    requirements: "Outlook and Microsoft 365 through your tenant's MCP endpoint.",
     documentationUrl: "https://learn.microsoft.com/en-us/microsoft-agent-365/tooling-servers-overview",
+    authMethods: AUTH_METHODS.microsoft,
   },
   {
     id: "google",
     name: "Google Workspace",
     url: "",
     authKinds: ["oauth", "headers"],
-    requirements:
-      "Provide your remote MCP server. A general official Gmail / Calendar remote endpoint has not been verified.",
+    requirements: "Gmail and Calendar through your own remote MCP server.",
     documentationUrl: "https://developers.google.com/workspace",
+    authMethods: AUTH_METHODS.google,
   },
   {
     id: "custom",
     name: "Custom MCP server",
     url: "",
     authKinds: ["headers", "oauth"],
-    requirements: "Remote Streamable HTTP or SSE. Use OAuth discovery, a bearer token, or secret headers.",
+    requirements: "Any remote MCP server over Streamable HTTP or SSE.",
     documentationUrl: "https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization",
+    authMethods: AUTH_METHODS.custom,
   },
 ].map((t) => create(connectors.ConnectorTypeSchema, t));
 

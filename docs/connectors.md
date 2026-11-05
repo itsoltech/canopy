@@ -104,6 +104,16 @@ Sekcja Connections bota pokazuje konta z grantów; `@` ma grupę Connectors i ch
 konta wyłącznie do wejścia modelu. Panel wątku pokazuje dostępne konta, a oś
 narzędzi — logo, typ i nazwę konta.
 
+Dialog Connect prowadzi przez konfigurację: `ConnectorType.auth_methods`
+(`apps/gateway/src/connectors/auth-methods.ts`) opisuje każdą metodę po swojemu
+(np. „Personal access token” i „GitHub OAuth app”), krótkie kroki, link do strony,
+na której powstaje poświadczenie, oraz `documentation_url` typu. Pole tokenu nosi
+nazwę poświadczenia i jest wymagane, gdy usługa go potrzebuje (`token_required`).
+Usługa bez DCR (`oauth_app_required`: GitHub, Slack) pokazuje formularz aplikacji
+z callback URL do skopiowania, dopóki aplikacja nie zostanie zapisana; w innych
+typach scopes i zarejestrowana aplikacja oraz własne nagłówki są opcjami Advanced.
+Wskazówki są wyłącznie tekstem: nie zawierają poświadczeń i niczego nie weryfikują.
+
 Audyt zapisuje konto, właściciela, worker/wątek albo bot, narzędzie, czas i wynik.
 Nie zapisuje tokenów, nagłówków ani argumentów. Wynik potrzebny do deduplikacji
 wykonania jest osobny od audytu i redagowany tak jak wynik na osi czasu.
