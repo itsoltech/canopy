@@ -15,6 +15,7 @@ Appearance → Interface size skaluje je razem z korzeniem.
 | Kontrolki standardowe | formularze, dialogi | 16 / 14 (linia 24) | 14 / 12 | 14 / 14, medium | pole i przycisk 40 / 36 | 16 |
 | ↳ ustawienia | Settings (`settings-density`) | 15 / 13 (linia 20) | 13 / 13 | 14 / 14 | kontrolka 44 / 32 | 16 |
 | Chrome kompaktowe | sidebar, paski narzędzi, top bar | 15 / 13 | 13 / 11,5 | 13 / 11,5 | kontrolka 36 / 32 | 16 |
+| Wiersze pracy | narzędzia, komendy, zmiany plików w turze (`ItemFrame`) i ich szczegóły | 15 / 13 (linia 24 / 20) | 13 / 12 | — | — | 16 |
 | ↳ wiersz kontekstu composera | pickery pod edytorem | 12 / 12 (linia 16) | — | — | 40 / 32, odstęp 4 | 12 |
 | Nakładki | popovery, menu, dropdowny, pickery, comboboxy, select, hover cardy, paleta poleceń | 15 / 13 (linia 24 / 20) | 13 / 11,5 (linia 20 / 16) | 13 / 11,5, medium | 40 / 28 (44 przy dotyku), `px-2`, odstęp 8 | 16 / 14 |
 | Tooltipy i podpisy | tooltipy, skróty (`Kbd`), kompaktowe badge | 12 / 12 (linia 16) | — | — | — | — |
@@ -54,6 +55,8 @@ kontekstu (np. `sm` w nagłówku dialogu).
 - **Kontrolki standardowe**: miejsca, gdzie się coś wypełnia lub zatwierdza: formularze, dialogi
   (także otwarte z menu), wiersze ustawień. Ustawienia są gęstszym wariantem z własnym rytmem
   (`features/settings/density.css`) na tych samych stopniach.
+- **Wiersze pracy**: aktywność tury pod „Working for …” (narzędzia, komendy, zmiany plików). Tekst
+  jest o stopień mniejszy od wiadomości, bo to tło dla odpowiedzi.
 - **Chrome kompaktowe**: stała nawigacja i paski wokół treści: sidebar, top bar, paski narzędzi,
   wiersz kontekstu composera. Tekst jest o stopień mniejszy od strony obok.
 - **Nakładki**: wszystko, co otwiera się nad stroną i znika po wyborze. Zawsze kompaktowe: mniejszy
@@ -71,7 +74,8 @@ Na telefonie nakładki z `sheet` otwierają się jako dolny arkusz. Zostają prz
   `--text-base`, `--text-sm` i `--text-xs` w swoim poddrzewie:
   - `density-standard`: 16 / 14 / 12 (domyślne kitu; `Dialog` i nagłówek sidebara),
   - `density-chrome`: 15 / 13 / 11,5 (sidebar),
-  - `density-overlay`: 15 / 13 / 11,5 (panel `Popover`, paleta poleceń).
+  - `density-overlay`: 15 / 13 / 11,5 (panel `Popover`, paleta poleceń),
+  - `density-work`: 15 / 13 / 12 (wiersze pracy tury, `ItemFrame`; ścieżki i komendy zostają czytelne).
 - Każda klasa ustawia wartości na własnym elemencie, więc nakładka otwarta z sidebara albo dialog
   otwarty z menu bierze własny kontekst, nie rodzica.
 - `shared/ui/density.ts` przekazuje kontekst komponentom (`provideDensity`, `useDensity`). `Popover`
