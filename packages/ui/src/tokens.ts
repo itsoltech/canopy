@@ -21,6 +21,29 @@ export const typography = {
   title: { fontSize: 24, lineHeight: 32 },
 } as const;
 
+/**
+ * Phone values of the context scale (docs/ui-scale.md; web: scale.css). Overlays, chrome and work rows sit a
+ * step under the content text; the composer's context row uses captions.
+ */
+export const contextType = {
+  overlay: { fontSize: 15, lineHeight: 24 },
+  overlaySmall: { fontSize: 13, lineHeight: 20 },
+  chrome: { fontSize: 15, lineHeight: 20 },
+  chromeSmall: { fontSize: 13, lineHeight: 18 },
+  work: { fontSize: 15, lineHeight: 24 },
+  workSmall: { fontSize: 13, lineHeight: 20 },
+  context: { fontSize: 12, lineHeight: 16 },
+} as const;
+
+/** Motion tokens shared with web (motion.css): durations in ms and the smooth-out curve. */
+export const motion = {
+  micro: 80,
+  quick: 150,
+  fast: 250,
+  medium: 350,
+  smoothOut: [0.22, 1, 0.36, 1],
+} as const;
+
 export const radius = {
   sm: 6,
   md: 8,

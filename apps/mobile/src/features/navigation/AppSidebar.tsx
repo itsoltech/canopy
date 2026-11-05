@@ -5,7 +5,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ui, bots as botContract } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
-import { Button, ConnectionNotice, IconButton, Notice, Segmented, Sheet } from "../../ui/components";
+import { ConnectionNotice, IconButton, Notice, Segmented } from "../../ui/components";
+import { PickerSheet } from "../../ui/Picker";
+import { ProjectMark } from "../../ui/ProjectMark";
 import { styles, useColors } from "../../ui/theme";
 import { Icon } from "../../ui/Icon";
 import { SidebarThread } from "./SidebarThread";
@@ -323,19 +325,22 @@ export default function AppSidebar() {
           </Text>
         </View>
       </View>
-      <Sheet title="Projects" visible={filterOpen} onClose={() => setFilterOpen(false)}>
-        {[{ id: "", name: "All projects" }, ...projects].map((p) => (
-          <Button
-            key={p.id}
-            title={`${p.id === projectId ? "✓ " : ""}${p.name}`}
-            secondary
-            onPress={() => {
-              setProjectId(p.id);
-              setFilterOpen(false);
-            }}
-          />
-        ))}
-      </Sheet>
+      <PickerSheet
+        title="Show threads from"
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        search={projects.length > 6 ? "Search projects" : undefined}
+        value={projectId}
+        onSelect={setProjectId}
+        sections={[
+          { options: [{ value: "", label: "All projects", icon: "folder-open" as const }] },
+          {
+            options: projects
+              .filter((p) => !p.archivedAt)
+              .map((p) => ({ value: p.id, label: p.name, leading: <ProjectMark name={p.name} kind={p.kind} /> })),
+          },
+        ]}
+      />
     </SafeAreaView>
   );
 }

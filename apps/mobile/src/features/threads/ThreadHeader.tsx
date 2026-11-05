@@ -4,23 +4,14 @@ import { router } from "expo-router";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { Button, Field, IconButton, Notice, Sheet } from "../../ui/components";
+import { Overlay } from "../../ui/Overlay";
+import { PickerSheet } from "../../ui/Picker";
 import { ProjectMark } from "../../ui/ProjectMark";
 import { styles, useColors } from "../../ui/theme";
 
-export function ThreadHeader({
-  thread,
-  project,
-  turns,
-  onDetails,
-}: {
-  thread?: ui.Thread;
-  project?: ui.Project;
-  turns: ui.Turn[];
-  onDetails: () => void;
-}) {
-  const c = useColors();
+function useThreadActions(thread: ui.Thread | undefined) {
   const { client } = useSession();
-  const [sheet, setSheet] = useState<"actions" | "search" | null>(null);
+  const [sheet, setSheet] = useState<"actions" | "rename" | "search" | null>(null);
   const [title, setTitle] = useState("");
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
@@ -48,12 +39,30 @@ export function ThreadHeader({
 
       if (kind === "unread") await client.api.setThreadRead({ threadId: thread.id, unread: true });
       setSheet(null);
+      setError("");
     } catch {
       setError("Could not update the thread. Try again.");
     } finally {
       setBusy(false);
     }
   }
+
+  return { sheet, setSheet, title, setTitle, query, setQuery, error, busy, action };
+}
+
+export function ThreadHeader({
+  thread,
+  project,
+  turns,
+  onDetails,
+}: {
+  thread?: ui.Thread;
+  project?: ui.Project;
+  turns: ui.Turn[];
+  onDetails: () => void;
+}) {
+  const c = useColors();
+  const { sheet, setSheet, title, setTitle, query, setQuery, error, busy, action } = useThreadActions(thread);
 
   return (
     <>
@@ -93,38 +102,47 @@ export function ThreadHeader({
         />
         <IconButton icon="view-columns" label="Thread details" onPress={onDetails} />
       </View>
-      <Sheet
-        visible={sheet !== null}
-        title={sheet === "search" ? "Search thread" : "Thread actions"}
+      <PickerSheet
+        title="Thread actions"
+        visible={sheet === "actions"}
         onClose={() => setSheet(null)}
-      >
-        {sheet === "search" ? (
-          <>
-            <Field label="Search messages" value={query} onChangeText={setQuery} placeholder="Search" />
-            {query.trim() &&
-              turns
-                .filter((t) => `${t.messageText} ${t.inputText}`.toLowerCase().includes(query.toLowerCase()))
-                .map((t) => (
-                  <Text key={t.id} style={[styles.body, { color: c.body }]}>
-                    {t.messageText || t.inputText}
-                  </Text>
-                ))}
-          </>
-        ) : (
-          <>
-            <Field label="Title" value={title} onChangeText={setTitle} />
-            <Button title="Rename" disabled={!title.trim()} busy={busy} onPress={() => void action("title")} />
-            <Button title="Mark unread" secondary busy={busy} onPress={() => void action("unread")} />
-            <Button
-              title={thread?.archivedAt ? "Unarchive" : "Archive"}
-              secondary
-              busy={busy}
-              onPress={() => void action("archive")}
-            />
-          </>
-        )}
-        {error ? <Notice error>{error}</Notice> : null}
+        onSelect={(kind) => (kind === "rename" ? setSheet("rename") : void action(kind))}
+        sections={[
+          {
+            options: [
+              { value: "rename" as const, label: "Rename", icon: "pencil-square" as const },
+              { value: "unread" as const, label: "Mark as unread", icon: "chat-bubble-left" as const },
+              {
+                value: "archive" as const,
+                label: thread?.archivedAt ? "Unarchive" : "Archive",
+                icon: "archive-box" as const,
+              },
+            ],
+          },
+        ]}
+      />
+      <Overlay visible={sheet === "rename"} onClose={() => setSheet(null)} label="Rename thread">
+        <View style={{ padding: 16, gap: 12 }}>
+          <Field label="Title" value={title} onChangeText={setTitle} autoFocus />
+          <Button title="Rename" disabled={!title.trim()} busy={busy} onPress={() => void action("title")} />
+        </View>
+      </Overlay>
+      <Sheet visible={sheet === "search"} title="Search thread" onClose={() => setSheet(null)}>
+        <Field label="Search messages" value={query} onChangeText={setQuery} placeholder="Search" />
+        {query.trim() &&
+          turns
+            .filter((t) => `${t.messageText} ${t.inputText}`.toLowerCase().includes(query.toLowerCase()))
+            .map((t) => (
+              <Text key={t.id} style={[styles.body, { color: c.body }]}>
+                {t.messageText || t.inputText}
+              </Text>
+            ))}
       </Sheet>
+      {error && sheet === null ? (
+        <View style={{ padding: 8 }}>
+          <Notice error>{error}</Notice>
+        </View>
+      ) : null}
     </>
   );
 }

@@ -249,7 +249,14 @@ RN używa StyleSheet i Inter 400/500/600 (pakiet fontu, bez pobierania z sieci),
 z tych samych ścieżek, SafeAreaView, KeyboardAvoidingView i FlatList. Jasny/ciemny motyw
 oraz sześć akcentów są ustawieniami gatewaya, synchronizowanymi między klientami.
 Sidebar jest natywnym ekranem listy; web na telefonie otwiera go jako drawer. Panele
-szczegółów/menu są sheetami. Nazwy komponentów odpowiadają web, m.in. SidebarThread,
+szczegółów są sheetami. Każdy wybór (model, effort, uprawnienia, projekt, worker, instancja
+dostawcy, menu akcji) używa jednego `PickerSheet` (`src/ui/Picker.tsx`): kompaktowy dolny arkusz
+z zaokrąglonymi rogami, wierszami ≥ 48 dp, nagłówkami sekcji, wyszukiwaniem przy długich listach
+i znacznikiem wyboru; na oknach od 600 dp otwiera się jako karta na środku. Teksty nakładek
+biorą stopnie `contextType` z `packages/ui` (docs/ui-scale.md), ruch tokeny `motion`;
+przy ograniczeniu ruchu nakładki tylko się rozjaśniają. Full access wymaga potwierdzenia
+przy każdym wyborze, jak w web. Feed wątku i czat bota są odwróconymi listami: otwierają się
+na ostatniej wiadomości, podążają za nowymi na dole i trzymają pozycję podczas czytania historii. Nazwy komponentów odpowiadają web, m.in. SidebarThread,
 ThreadHeader, MessageComposer/ComposerBox, ThreadPanel, AppearanceSettings,
 BotAvatar, ChatBubble i BotDetailsPanel. Brand assety pochodzą z `apps/web/static`.
 

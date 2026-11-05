@@ -1,96 +1,45 @@
-import { useEffect, useState } from "react";
-import { Alert, Text, View } from "react-native";
-import { PermissionMode, ui, type ProfileModels } from "@canopy/contracts";
+import { useState } from "react";
+import { Text, View } from "react-native";
+import { PermissionMode, ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { ComposerBox, ComposerPill } from "./ComposerBox";
-import { Button, Field, Notice, Sheet } from "../../ui/components";
+import { Notice } from "../../ui/components";
+import { Overlay } from "../../ui/Overlay";
 import { styles, useColors } from "../../ui/theme";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { useAppearance } from "../../state/appearance";
+import { effortLabel, findChoice, modelSections, useModelCatalog } from "../models/catalog";
+import { EffortPickerSheet, ModelPickerSheet } from "../models/ModelPicker";
+import { permissionLabel, permissionLook, PermissionPickerSheet } from "./permissions";
 
-export const permissionLabels = {
-  0: "Ask first",
-  1: "Ask first",
-  2: "Accept edits",
-  3: "Read only",
-  4: "Full auto",
-  5: "Full access",
-} satisfies Record<PermissionMode, string>;
+type Picker = "model" | "effort" | "permission" | "goal";
 
-/** Full auto and Full access never ask; each is confirmed when chosen. */
-const confirmations: Partial<Record<PermissionMode, { message: string; action: string }>> = {
-  [PermissionMode.FULL_AUTO]: { message: "Runs without asking, sandboxed to the workspace.", action: "Use Full auto" },
-  [PermissionMode.FULL_ACCESS]: {
-    message: "Runs without asking and without a sandbox. It can change any file and use the network.",
-    action: "Use Full access",
-  },
-};
-
-function useComposerSettings(thread: ui.Thread | undefined) {
+/** The thread's model, effort and permission mode: each pick is saved at once and applies from the next turn. */
+function useComposerSettings(thread: ui.Thread | undefined, worker: ui.Worker | undefined) {
   const { client } = useSession();
-  const [sheet, setSheet] = useState<"model" | "permission" | "goal" | null>(null);
-  const [model, setModel] = useState("");
-  const [effort, setEffort] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [picker, setPicker] = useState<Picker | null>(null);
   const [error, setError] = useState("");
-  const [catalog, setCatalog] = useState<ProfileModels[]>([]);
-  useEffect(() => {
-    let active = true;
+  const catalog = useModelCatalog(thread?.workerId);
 
-    if (client && thread?.workerId)
-      void client.api
-        .listModels({ workerId: thread.workerId })
-        .then((r) => {
-          if (active) setCatalog(r.workers.flatMap((w) => w.profiles));
-        })
-        .catch(() => undefined);
+  const section = thread
+    ? modelSections(worker, catalog, { provider: thread.provider, profileId: thread.providerProfileId })[0]
+    : undefined;
 
-    return () => {
-      active = false;
-    };
-  }, [client, thread?.workerId]);
-
-  const models =
-    catalog.find(
-      (p) => p.provider === thread?.provider && (p.profileId || "native") === (thread?.providerProfileId || "native"),
-    )?.models ?? [];
-
-  const currentModel =
-    models.find((m) => m.id === thread?.model || m.aliases.includes(thread?.model ?? "")) ??
-    (!thread?.model ? models.find((m) => m.isDefault) : undefined);
-
-  const currentEffort = thread?.effort || currentModel?.defaultEffort || "";
+  const current = findChoice(section, thread?.model ?? "");
+  const effort = thread?.effort || current?.defaultEffort || "";
 
   async function update(patch: { model?: string; effort?: string; permissionMode?: PermissionMode }) {
     if (!client || !thread) return;
-    setSaving(true);
     setError("");
 
     try {
       await client.api.updateThread({ threadId: thread.id, ...patch });
-      setSheet(null);
     } catch {
       setError("Could not update the thread. Try again.");
-    } finally {
-      setSaving(false);
     }
   }
 
-  return {
-    sheet,
-    setSheet,
-    model,
-    setModel,
-    effort,
-    setEffort,
-    saving,
-    error,
-    setError,
-    models,
-    currentModel,
-    currentEffort,
-    update,
-  };
+  return { picker, setPicker, error, section, current, effort, update };
 }
 
 export function MessageComposer({
@@ -115,11 +64,13 @@ export function MessageComposer({
   onDetails: () => void;
 }) {
   const { user } = useAppearance();
-  const state = useComposerSettings(thread);
-  const { setSheet, setModel, setEffort, setError, currentModel, currentEffort } = state;
+  const state = useComposerSettings(thread, worker);
+  const { setPicker, current, effort, error } = state;
+  const look = permissionLook(thread?.permissionMode);
 
   return (
     <>
+      {error ? <Notice error>{error}</Notice> : null}
       <ComposerBox
         text={text}
         onChange={onChange}
@@ -137,61 +88,35 @@ export function MessageComposer({
         busy={busy}
         controls={
           <>
-            <ComposerPill icon="flag" title="Goal" onPress={() => setSheet("goal")} />
+            <ComposerPill icon="flag" title="Goal" onPress={() => setPicker("goal")} />
             <ComposerPill
               icon="cpu-chip"
               leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}
-              title={currentModel?.displayName || thread?.model || "Default model"}
-              onPress={() => {
-                setModel(thread?.model ?? "");
-                setEffort(thread?.effort ?? "");
-                setError("");
-                setSheet("model");
-              }}
+              title={current?.name || thread?.model || "Default model"}
+              onPress={() => setPicker("model")}
             />
-            {currentEffort && (
-              <ComposerPill
-                icon="light-bulb"
-                title={currentEffort[0]!.toUpperCase() + currentEffort.slice(1)}
-                onPress={() => {
-                  setModel(thread?.model ?? "");
-                  setEffort(thread?.effort ?? "");
-                  setSheet("model");
-                }}
-              />
-            )}
+            {current?.efforts.length ? (
+              <ComposerPill icon="light-bulb" title={effortLabel(effort)} onPress={() => setPicker("effort")} />
+            ) : null}
           </>
         }
       />
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
-          paddingHorizontal: 6,
-        }}
-      >
+      <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6 }]}>
         <ComposerPill icon="computer-desktop" title={worker?.name ?? "Worker"} onPress={onDetails} />
         <ComposerPill
-          icon={
-            thread?.permissionMode === PermissionMode.FULL_ACCESS
-              ? "shield-off"
-              : thread?.permissionMode === PermissionMode.FULL_AUTO
-                ? "shield-exclamation"
-                : "shield-check"
-          }
-          title={permissionLabels[thread?.permissionMode ?? 0] ?? "Ask first"}
-          warning={thread?.permissionMode === PermissionMode.FULL_AUTO}
-          danger={thread?.permissionMode === PermissionMode.FULL_ACCESS}
-          onPress={() => setSheet("permission")}
+          icon={look.icon}
+          title={permissionLabel(thread?.permissionMode)}
+          warning={look.tone === "warning"}
+          danger={look.tone === "danger"}
+          onPress={() => setPicker("permission")}
         />
       </View>
-      <ComposerSettingsSheet state={state} thread={thread} />
+      <ComposerPickers state={state} thread={thread} />
     </>
   );
 }
 
-function ComposerSettingsSheet({
+function ComposerPickers({
   state,
   thread,
 }: {
@@ -199,86 +124,46 @@ function ComposerSettingsSheet({
   thread: ui.Thread | undefined;
 }) {
   const c = useColors();
-  const { sheet, setSheet, models, model, setModel, effort, setEffort, saving, update, error } = state;
+  const { picker, setPicker, section, current, effort, update } = state;
+  const close = () => setPicker(null);
 
   return (
-    <Sheet
-      visible={sheet !== null}
-      title={sheet === "model" ? "Model and effort" : sheet === "permission" ? "Permissions" : "Goal"}
-      onClose={() => setSheet(null)}
-    >
-      {sheet === "model" && (
-        <>
-          {models
-            .filter((m) => !m.hidden)
-            .map((m) => (
-              <Button key={m.id} secondary title={m.displayName || m.id} onPress={() => setModel(m.id)} />
-            ))}
-          <Field
-            label="Model"
-            value={model}
-            onChangeText={setModel}
-            placeholder="Default model"
-            autoCapitalize="none"
-          />
-          <Field
-            label="Effort"
-            value={effort}
-            onChangeText={setEffort}
-            placeholder="Default effort"
-            autoCapitalize="none"
-          />
-          <Text style={[styles.meta, { color: c.muted }]}>These defaults apply to the next turn.</Text>
-          <Button
-            title="Save"
-            busy={saving}
-            onPress={() => void update({ model: model.trim(), effort: effort.trim() })}
-          />
-        </>
-      )}
-      {sheet === "permission" && (
-        <View style={{ gap: 12 }}>
-          {[
-            PermissionMode.ASK,
-            PermissionMode.ACCEPT_EDITS,
-            PermissionMode.READ_ONLY,
-            PermissionMode.FULL_AUTO,
-            PermissionMode.FULL_ACCESS,
-          ].map((mode) => {
-            const confirm = confirmations[mode];
-
-            return (
-              <Button
-                key={mode}
-                title={permissionLabels[mode]}
-                secondary
-                busy={saving}
-                onPress={() =>
-                  confirm && mode !== thread?.permissionMode
-                    ? Alert.alert(permissionLabels[mode], confirm.message, [
-                        { text: "Cancel", style: "cancel" },
-                        {
-                          text: confirm.action,
-                          style: mode === PermissionMode.FULL_ACCESS ? "destructive" : "default",
-                          onPress: () => void update({ permissionMode: mode }),
-                        },
-                      ])
-                    : void update({ permissionMode: mode })
-                }
-              />
-            );
-          })}
-        </View>
-      )}
-      {sheet === "goal" && (
-        <>
-          <Text style={[styles.body, { color: c.text }]}>
+    <>
+      <ModelPickerSheet
+        visible={picker === "model"}
+        onClose={close}
+        sections={section ? [section] : []}
+        value={current?.key}
+        onSelect={(choice) =>
+          void update({
+            model: choice.model,
+            // Keep the effort only when the new model takes it.
+            effort: choice.efforts.includes(thread?.effort ?? "") ? thread?.effort : "",
+          })
+        }
+      />
+      <EffortPickerSheet
+        visible={picker === "effort"}
+        onClose={close}
+        choice={current}
+        value={effort}
+        onSelect={(next) => void update({ effort: next })}
+      />
+      <PermissionPickerSheet
+        visible={picker === "permission"}
+        onClose={close}
+        value={thread?.permissionMode}
+        onSelect={(mode) => void update({ permissionMode: mode })}
+      />
+      <Overlay visible={picker === "goal"} onClose={close} label="Goal">
+        <View style={{ padding: 16, gap: 4 }}>
+          <Text style={[styles.overlayHeading, { color: c.muted }]}>Goal</Text>
+          <Text style={[styles.overlay, { color: c.text }]}>
             {thread?.goalStatus ? `Goal · ${thread.goalStatus}` : "No active goal"}
           </Text>
-          <Text style={[styles.meta, { color: c.muted }]}>Manage goals in Canopy on the web.</Text>
-        </>
-      )}
-      {error ? <Notice error>{error}</Notice> : null}
-    </Sheet>
+          <Text style={[styles.overlayMeta, { color: c.muted }]}>Set and manage goals in Canopy on the web.</Text>
+        </View>
+      </Overlay>
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { accents, palette, typography, type AccentName } from "@canopy/ui";
+import { accents, contextType, palette, typography, type AccentName } from "@canopy/ui";
 import { useAppearance } from "../state/appearance";
 
 export function colorsFor(dark: boolean, accent: AccentName = "default") {
@@ -10,6 +10,8 @@ export function colorsFor(dark: boolean, accent: AccentName = "default") {
     dark,
     background: dark ? "#000000" : "#ffffff",
     surface: dark ? z[950] : "#ffffff",
+    overlay: dark ? z[900] : "#ffffff",
+    scrim: dark ? "#000000a6" : "#09090b66",
     sidebar: dark ? z[950] : z[50],
     inset: dark ? "#ffffff0d" : "#09090b0d",
     text: dark ? "#ffffff" : z[950],
@@ -60,6 +62,14 @@ export const styles = StyleSheet.create({
   label: { ...typography.body, fontFamily: font.medium },
   meta: { ...typography.small, fontFamily: font.regular },
   caption: { ...typography.caption, fontFamily: font.regular },
+  overlay: { ...contextType.overlay, fontFamily: font.regular },
+  overlayMeta: { ...contextType.overlaySmall, fontFamily: font.regular },
+  overlayHeading: { ...contextType.overlaySmall, fontFamily: font.medium },
+  chrome: { ...contextType.chrome, fontFamily: font.regular },
+  chromeMeta: { ...contextType.chromeSmall, fontFamily: font.regular },
+  work: { ...contextType.work, fontFamily: font.regular },
+  workMeta: { ...contextType.workSmall, fontFamily: font.regular },
+  context: { ...contextType.context, fontFamily: font.regular },
   input: {
     borderWidth: 1,
     borderRadius: 8,

@@ -5,7 +5,7 @@ import { useOverview } from "../../state/overview";
 import { Button, Sheet } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
-import { permissionLabels } from "./MessageComposer";
+import { permissionLabel } from "./permissions";
 
 export function PanelRow({
   title,
@@ -82,11 +82,7 @@ export function ThreadPanel({
               icon="cpu-chip"
             />
             <PanelRow title="Status" value={thread.status.replace("_", " ")} icon="check-circle" />
-            <PanelRow
-              title="Permissions"
-              value={permissionLabels[thread.permissionMode] ?? "Ask first"}
-              icon="shield-check"
-            />
+            <PanelRow title="Permissions" value={permissionLabel(thread.permissionMode)} icon="shield-check" />
           </View>
           <Text style={[styles.label, { color: c.text }]}>Scheduled tasks</Text>
           {snapshot?.schedules.length ? (

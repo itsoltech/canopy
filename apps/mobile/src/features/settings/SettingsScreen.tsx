@@ -221,7 +221,7 @@ function SettingsContent({ state }: { state: ReturnType<typeof useSettingsState>
   return (
     <>
       {section === "appearance" && <AppearanceSettings />}
-      {section === "threads" && <ThreadDefaultsSettings settings={settings} projects={projects} />}
+      {section === "threads" && <ThreadDefaultsSettings settings={settings} projects={projects} workers={workers} />}
       {section === "text-generation" && (
         <ThreadTitleSettings settings={settings} instructions={instructions} onChange={setInstructions} />
       )}
