@@ -132,7 +132,8 @@ export function applyConnector(sql: SqlClient.SqlClient, owner: string, key: Buf
       ${columns.authKind},${secret?.ciphertext ?? null},${status},${columns.allWorkers},${columns.allBots},${JSON.stringify(tools)}::jsonb)
       ON CONFLICT(id) DO UPDATE SET connector_type=EXCLUDED.connector_type,name=EXCLUDED.name,url=EXCLUDED.url,
       transport=EXCLUDED.transport,auth_kind=EXCLUDED.auth_kind,credentials=EXCLUDED.credentials,legacy_headers='{}',
-      status=EXCLUDED.status,all_workers=EXCLUDED.all_workers,all_bots=EXCLUDED.all_bots,tools=EXCLUDED.tools,
+      status=EXCLUDED.status,error=CASE WHEN ${changed} THEN NULL ELSE connector_accounts.error END,
+      all_workers=EXCLUDED.all_workers,all_bots=EXCLUDED.all_bots,tools=EXCLUDED.tools,
       revision=connector_accounts.revision+1,updated_at=now() WHERE connector_accounts.owner_user_id=${owner}::uuid`;
 
     if (changed)

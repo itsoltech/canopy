@@ -194,7 +194,7 @@
       </div>
     </div>
   </Disclosure>
-  {#if tools}<ToolCatalog {tools} />{/if}
+  {#if tools && account.status === "connected"}<ToolCatalog {tools} />{/if}
   {#if account.status === "error" && account.error}<ConnectionError error={account.error} />{/if}
   {#if error}<Alert tone="error">{error}</Alert>{/if}
 </section>

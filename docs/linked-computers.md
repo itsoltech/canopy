@@ -1382,7 +1382,7 @@ Stos PR-ów: `feat/linked-shared-config-N` ([etapy](#etapy-wspólnej-konfiguracj
 | raport środowiska, tagi automatyczne, podglądy | `worker_environments`, `*_previews` | worker / lokalne | stan wykonania |
 | konto connectora: typ, nazwa, adres, transport, `all_workers`, `all_bots`, katalog narzędzi | `connector_accounts` | wspólne | jedno konto zewnętrzne |
 | poświadczenia connectora, nagłówki, aplikacje OAuth | `connector_accounts.credentials`, `connector_oauth_apps` | wspólne, sekret | ponownie szyfrowane u odbiorcy |
-| stan konta connectora, ostatnie użycie, przestrzeń nazw | `connector_accounts` | komputer | wynik użycia na tym komputerze |
+| stan konta connectora, diagnoza `error`, ostatnie użycie, przestrzeń nazw | `connector_accounts` | komputer | wynik użycia na tym komputerze |
 | dostęp connectora dla workera | `connector_worker_grants` | worker | uprawnienie maszyny |
 | dostęp connectora dla bota, granty | `connector_bot_grants` | dom bota | część bota |
 | stan OAuth, wykonania, audyt connectorów | `connector_oauth_states`, `connector_executions`, `connector_audit` | lokalne | stan wykonania |
@@ -1874,6 +1874,10 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    `credentials` idzie wyłącznie przez `config_secrets`, nigdy przez `GetConfigBlob`. Odbiór aplikacji
    i kont poprzedza źródła skilli; aliasy zachowują lokalne id oraz granty. Tożsamość dostawcy jest hashem
    metadanych konta, a nie client id ani tokenu. Stan, ostatnie użycie i namespace zostają lokalne.
+   Diagnoza `connector_accounts.error` (migracja **0079_connector_errors**) również zostaje lokalna.
+   Nieudany Test nie zmienia rekordu ani rewizji wspólnej konfiguracji; udany Test publikuje tylko
+   rzeczywistą zmianę narzędzi. Zmiany wspólnej nazwy, dostępu i katalogu nie usuwają lokalnej diagnozy.
+   Odebranie faktycznie nowych poświadczeń usuwa stary błąd, nie kopiuje wyniku testu partnera.
    Nowsze poświadczenia usuwają lokalny stan needs reconnect; starszy zegar ich nie nadpisze.
    Delete nie odwołuje tokenu: tombstone zachowuje zaszyfrowane poświadczenia do Restore przez 90 dni.
    Disconnect odwołuje dostęp i replikuje usunięcie poświadczeń. Restore nie przywraca indywidualnych grantów.

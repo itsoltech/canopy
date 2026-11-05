@@ -207,6 +207,126 @@ describe.skipIf(!dockerAvailable)("shared connectors across separate linked data
     expect(() => decryptSecret(a.gateway.secretsKey, bCipher)).toThrow();
   }, 40_000);
 
+  test("test diagnostics and recovery stay local without publishing configuration revisions", async () => {
+    const saved = (
+      await a.gateway.api.saveConnectorAccount({
+        connectorType: "custom",
+        name: "Local diagnosis",
+        url: fake.url,
+        token: fake.secret,
+      })
+    ).account!;
+
+    const probeId = saved.id;
+    await wait(async () => !!(await account(b, probeId)));
+    expect((await a.gateway.api.testConnector({ accountId: probeId })).tools).toHaveLength(2);
+    await wait(
+      async () =>
+        (
+          await b.store.query<{ count: number }>(
+            "SELECT jsonb_array_length(tools) AS count FROM connector_accounts WHERE id=$1::uuid",
+            [probeId],
+          )
+        )[0]?.count === 2,
+    );
+    expect((await b.gateway.api.testConnector({ accountId: probeId })).tools).toHaveLength(2);
+
+    const state = async (c: ConfigComputer) => {
+      const row = (
+        await c.store.query<ConfigRow>("SELECT * FROM config_items WHERE kind='connector' AND local_id=$1", [probeId])
+      )[0]!;
+
+      return { fields: row.fields, revision: row.revision, localRevision: (await account(c, probeId))!.revision };
+    };
+
+    const beforeA = await state(a);
+    const beforeB = await state(b);
+
+    try {
+      fake.failCatalog = true;
+      const failed = (await a.gateway.api.testConnector({ accountId: probeId })).account!;
+      expect(failed.status).toBe("error");
+      expect(failed.error).toMatchObject({ kind: "http" });
+      const diagnosis = failed.error!;
+      fake.failCatalog = false;
+      // Force the same scan performed at restart; runtime fields must never become shared fields.
+      await a.links.config!.start();
+      await b.links.config!.start();
+      expect(await state(a)).toEqual(beforeA);
+      expect(await state(b)).toEqual(beforeB);
+      expect((await account(b, probeId))?.status).toBe("connected");
+      expect((await account(b, probeId))?.error).toBeUndefined();
+      expect(Object.keys((await state(a)).fields)).not.toContain("error");
+      expect(Object.keys((await state(a)).fields)).not.toContain("status");
+
+      // B can still use the account; the unchanged catalog must not erase A's error or bump revisions.
+      expect((await b.gateway.api.testConnector({ accountId: probeId })).tools).toHaveLength(2);
+      expect(await state(a)).toEqual(beforeA);
+      expect(await state(b)).toEqual(beforeB);
+      expect((await account(a, probeId))?.error).toEqual(diagnosis);
+
+      expect((await a.gateway.api.testConnector({ accountId: probeId })).account?.status).toBe("connected");
+      expect((await account(a, probeId))?.error).toBeUndefined();
+      expect(await state(a)).toEqual(beforeA);
+      expect(await state(b)).toEqual(beforeB);
+      fake.failCatalog = true;
+      expect((await a.gateway.api.testConnector({ accountId: probeId })).account?.status).toBe("error");
+      fake.failCatalog = false;
+
+      // A real shared metadata change is delivered, while the diagnosis stays on its own gateway.
+      await rename(b, probeId, "Renamed diagnostic account");
+      await wait(async () => (await account(a, probeId))?.name === "Renamed diagnostic account");
+      expect((await account(a, probeId))?.status).toBe("error");
+      expect((await account(a, probeId))?.error).toEqual(diagnosis);
+      expect((await account(b, probeId))?.error).toBeUndefined();
+      expect((await a.gateway.api.testConnector({ accountId: probeId })).account?.status).toBe("connected");
+      expect((await account(a, probeId))?.error).toBeUndefined();
+
+      // A new diagnosis survives a remote catalog update, but new credentials invalidate it.
+      fake.failCatalog = true;
+      expect((await a.gateway.api.testConnector({ accountId: probeId })).account?.status).toBe("error");
+      fake.failCatalog = false;
+      const oldToolsClock = (await state(b)).fields["tools"]!.hlc;
+      fake.readOnlyTools = [];
+      await b.gateway.api.testConnector({ accountId: probeId });
+      const newToolsClock = (await state(b)).fields["tools"]!.hlc;
+      expect(newToolsClock).not.toBe(oldToolsClock);
+      await wait(async () => (await state(a)).fields["tools"]?.hlc === newToolsClock);
+      expect((await account(a, probeId))?.error).toBeDefined();
+      await b.gateway.api.saveConnectorAccount({
+        id: probeId,
+        name: "Renamed diagnostic account",
+        expectedRevision: (await account(b, probeId))!.revision,
+        token: fake.secret,
+        headers: { "X-Replacement": "replacement-header-private-fixture" },
+      });
+      await wait(
+        async () => (await credentials(a, probeId)).headers?.["X-Replacement"] === "replacement-header-private-fixture",
+      );
+      expect((await account(a, probeId))?.status).toBe("connected");
+      expect((await account(a, probeId))?.error).toBeUndefined();
+      expect(
+        (
+          await a.store.query<{ cleared: boolean }>(
+            "SELECT error IS NULL AS cleared FROM connector_accounts WHERE id=$1::uuid",
+            [probeId],
+          )
+        )[0]?.cleared,
+      ).toBe(true);
+      const visible = json([await state(a), await state(b), printed]);
+      expect(visible.includes(fake.secret)).toBe(false);
+      expect(visible.includes("replacement-header-private-fixture")).toBe(false);
+    } finally {
+      fake.failCatalog = false;
+      fake.readOnlyTools = ["read_marker"];
+      await a.gateway.api.deleteConnectorAccount({ accountId: probeId });
+      await wait(async () => !(await account(b, probeId)));
+
+      for (const notice of (await b.links.snapshot()).configNotices.filter((n) => n.globalId === probeId))
+        await b.gateway.api.manageConfigNotice({ id: notice.id, action: "dismiss" });
+    }
+  }, 40_000);
+
   test("concurrent rename shows a notice; Restore becomes a new shared change", async () => {
     await a.sharing(b.node, false);
     await wait(() => !configAllowed(b.links, a.node));

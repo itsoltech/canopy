@@ -208,6 +208,42 @@ describe.skipIf(!dockerAvailable)("connector test diagnostics at the gateway bou
     }
   }, 25_000);
 
+  test("automatic scoped listing retries error accounts even with a cached catalog", async () => {
+    const workerId = gw.workerId;
+
+    const saved = (
+      await gw.api.saveConnectorAccount({ connectorType: "custom", name: "recover", url: fake.url, token: fake.secret })
+    ).account!;
+
+    await gw.api.setConnectorAccess({ accountId: saved.id, expectedRevision: saved.revision, workerIds: [workerId] });
+    const before = await gw.api.testConnector({ accountId: saved.id });
+    expect(before.tools).toHaveLength(2);
+    const warnings = spyOn(console, "warn").mockImplementation(() => undefined);
+
+    try {
+      reply = (method) => (method === "tools/list" ? new Response(null, { status: 503 }) : undefined);
+      expect((await gw.api.testConnector({ accountId: saved.id })).account!.status).toBe("error");
+      expect(
+        (await gw.core.connectors.tools(gw.userId, { workerId })).filter((t) => t.accountId === saved.id),
+      ).toHaveLength(0);
+      expect(await stored(saved.id)).toMatchObject({ kind: "http" });
+      reply = () => undefined;
+      const recovered = await gw.core.connectors.tools(gw.userId, { workerId });
+      expect(recovered.filter((t) => t.accountId === saved.id)).toEqual(before.tools);
+      const account = (await gw.api.listConnectors({})).accounts.find((a) => a.id === saved.id)!;
+      expect(account.status).toBe("connected");
+      expect(account.error).toBeUndefined();
+      expect(await stored(saved.id)).toBeNull();
+      await gw.api.disconnectConnector({ accountId: saved.id });
+      expect((await gw.core.connectors.tools(gw.userId, { workerId })).some((t) => t.accountId === saved.id)).toBe(
+        false,
+      );
+    } finally {
+      reply = () => undefined;
+      warnings.mockRestore();
+    }
+  });
+
   test("timeout while listing tools is distinguished from a network failure", async () => {
     const warnings = spyOn(console, "warn").mockImplementation(() => undefined);
     let release: (() => void) | undefined;

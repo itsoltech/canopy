@@ -274,10 +274,11 @@ export class ConnectorsRuntime {
     const tools: ConnectorTool[] = [];
 
     for (const row of rows) {
-      if (row.status !== "connected") continue;
+      if (row.status !== "connected" && row.status !== "error") continue;
       let catalog = await this.run((s) => Effect.succeed(s.tools(row)));
 
-      if (!catalog.length) {
+      // A failed test suspends tools until a fresh listing succeeds, including cached catalogs.
+      if (row.status === "error" || !catalog.length) {
         try {
           catalog = (await this.test(row.id, user)).tools;
         } catch {

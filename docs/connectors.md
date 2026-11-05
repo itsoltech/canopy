@@ -33,6 +33,11 @@ a diagnozę za „Show details” z kopiowaniem. Widok jest owner-scoped.
 Negatywny wynik Test wraca jako konto ze stanem `error` i pustą listą narzędzi;
 błędy samego żądania lub zapisu nadal są błędami RPC.
 Udany test, ponowne połączenie lub Disconnect usuwa poprzednią diagnozę.
+Stan `error` wstrzymuje narzędzia; UI pokazuje „Connection error · Tools unavailable”.
+Następne pobranie narzędzi dla uprawnionego workera lub bota ponawia listing,
+także gdy konto ma zapisany katalog. Sukces przywraca `connected` i usuwa diagnozę.
+Niepowodzenie nadal wyklucza narzędzia z tej tury; `disconnected` i `needs_reconnect`
+nie są automatycznie ponawiane i wymagają ponownego połączenia.
 Połączenia MCP nie podążają za redirectami; SSE nie może zmienić origin.
 HTTP jest dozwolone tylko dla loopback do lokalnego developmentu; inne endpointy
 wymagają HTTPS. Custom MCP jest jawną konfiguracją sieciową właściciela, także
@@ -40,10 +45,15 @@ do jego usług prywatnych; nie uruchamia procesów ani transportu stdio.
 
 Konta i aplikacje OAuth są **wspólną konfiguracją** połączonych komputerów. Każdy gateway szyfruje
 poświadczenia własnym kluczem; nie wysyła ich do workerów, modeli ani UI. Łącze z wyłączonym Share
-configuration nie przenosi definicji ani sekretów. Stan połączenia, ostatnie użycie i namespace są lokalne;
+configuration nie przenosi definicji ani sekretów. Stan połączenia, diagnoza `error`, ostatnie użycie i namespace są lokalne;
 UI opisuje je jako „This computer”, a samo konto nie ma znaczka wspólności. `all_workers` i `all_bots`
 są wspólne. Konkretne granty workerów zostają w domu workera (rekordy i edycja zdalna: etap 6),
 a granty botów w domu bota. Przeniesienie bota nadal wymaga nadania mu dostępu w nowym domu.
+Nieudany Test nie publikuje tych lokalnych pól ani nie zwiększa rewizji wspólnej konfiguracji.
+Udany Test publikuje tylko rzeczywistą zmianę katalogu narzędzi; sam powrót do `connected`
+nie zwiększa rewizji. Zmiana nazwy, grantów lub katalogu na innym komputerze zachowuje
+lokalną diagnozę. Dopiero faktyczna zmiana wspólnych poświadczeń usuwa nieaktualny błąd
+i ponownie wyznacza lokalny stan połączenia.
 
 Rekordy `connector` i `oauth_app` inicjalizuje gateway przy starcie; migracja **0077_config_connectors**
 dodaje czas zapisu aplikacji. Zapis najpierw blokuje `config_clock`, a potem konto, i zapisuje rekord
@@ -179,7 +189,11 @@ Rename unieważnia cache opisów; techniczna nazwa narzędzia pozostaje stabilna
 Wywołanie `AgentToolCall` wraca istniejącym linkiem gRPC do gateway. Gateway
 sprawdza worker, właściciela wątku, bieżącą turę, grant i bieżący katalog konta.
 Zmiana grantów odbiera możliwość wykonania natychmiast; katalog harnessu może
-wymagać nowej sesji (Codex utrwala dynamic tools przy `thread/start`).
+wymagać nowej sesji (Codex utrwala dynamic tools przy `thread/start`). Zwykłe wątki
+nie zmieniają automatycznie sesji po zmianie kont lub grantów: nie mają gwarancji
+pełnej odbudowy historii w nowej sesji. Istniejący wątek zachowuje kontekst, ale
+nowe narzędzia Codexa wymagają nowego wątku. Odebrany grant blokuje wykonanie
+również wtedy, gdy stary katalog nadal pokazuje narzędzie.
 
 Boty dostają katalog kont ze swoich grantów i wykonują MCP w gateway. Istniejąca
 polityka `safe` przepuszcza tylko `readOnlyHint=true`, bez `destructiveHint=true`;
@@ -279,8 +293,20 @@ wykonania jest osobny od audytu i redagowany tak jak wynik na osi czasu.
 
 ## Ograniczenia sesji harnessów
 
-Codex utrwala dynamic tools przy rozpoczęciu sesji. Dodanie konta może wymagać
-nowej sesji/wątku; odebranie grantu jest skuteczne natychmiast w gateway.
+Bot pobiera bieżący zestaw przyznanych narzędzi przed każdą turą. Dodanie konta,
+nadanie/odebranie grantu, usunięcie konta lub zmiana dostępności narzędzi zmienia
+fingerprint, jeżeli zmienia katalog tego bota. Następna wiadomość rozpoczyna nową
+sesję Claude/Codex/Grok w **tej samej rozmowie**. Gateway pobiera całą wcześniejszą
+historię użytkownika i bota dla zwykłej tury; limit 60 wiadomości dotyczy tylko rutyn.
+Przed przekazaniem do harnessu stosuje budżet kontekstu z [bots-harness.md](bots-harness.md#sesja-i-kontekst):
+nadmiar starszych wiadomości zastępuje jawną notatką, a transkrypt pozostaje pełny.
+Worker przekazuje historię nowemu harnessowi jako dane, bez ponawiania narzędzi.
+Sam grant, który nie zmienia katalogu, nie wymusza nowej sesji.
+
+Zwykłe wątki zachowują sesję i jej historię. Codex utrwala dynamic tools przy
+`thread/start`; dodanie konta lub grantu wymaga nowego wątku, aby dostać nowy katalog.
+Nie uruchamiamy pustej sesji w istniejącym wątku. Odebranie grantu jest skuteczne
+natychmiast w gateway, niezależnie od starego katalogu harnessu.
 Claude otrzymuje nazwy narzędzi MCP w `allowedTools`, ponieważ `dontAsk` odmawia
 narzędzi spoza listy przed callbackiem. Każde wykonanie nadal przechodzi przez
 grant i permission mode gateway; READ_ONLY odmawia zapisów.
