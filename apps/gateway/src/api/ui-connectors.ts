@@ -3,6 +3,7 @@ import { connectors } from "@canopy/contracts";
 import { type GatewayCore } from "../core/core.ts";
 import { connectorGuard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
+import { ConnectorTestFailure } from "../connectors/test-error.ts";
 
 export function connectorsHandlers(
   core: GatewayCore,
@@ -44,9 +45,16 @@ export function connectorsHandlers(
       ),
 
     testConnector: (r) =>
-      connectorGuard(async () =>
-        create(connectors.TestConnectorResponseSchema, await core.connectors.test(r.accountId)),
-      ),
+      connectorGuard(async () => {
+        try {
+          return create(connectors.TestConnectorResponseSchema, await core.connectors.test(r.accountId));
+        } catch (cause) {
+          if (cause instanceof ConnectorTestFailure)
+            return create(connectors.TestConnectorResponseSchema, { account: cause.account });
+
+          throw cause;
+        }
+      }),
 
     saveConnectorOAuthApp: (r) =>
       connectorGuard(async () => {

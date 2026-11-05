@@ -101,7 +101,7 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
           yield* sql`INSERT INTO connector_accounts(id,owner_user_id,connector_type,name,namespace,url,transport,auth_kind,credentials,status)
         VALUES (${id}::uuid,${user}::uuid,${type.id},${name},${namespace},${url},${transport},${authKind},${seal(value)},${status})
         ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,url=EXCLUDED.url,transport=EXCLUDED.transport,auth_kind=EXCLUDED.auth_kind,
-        credentials=EXCLUDED.credentials,legacy_headers='{}',status=EXCLUDED.status,tools=CASE WHEN ${replacing || old?.name !== name} THEN '[]'::jsonb ELSE connector_accounts.tools END,
+        credentials=EXCLUDED.credentials,legacy_headers='{}',status=EXCLUDED.status,error=CASE WHEN ${replacing} THEN NULL ELSE connector_accounts.error END,tools=CASE WHEN ${replacing || old?.name !== name} THEN '[]'::jsonb ELSE connector_accounts.tools END,
         revision=connector_accounts.revision+1,updated_at=now()`;
 
           if (replacing) yield* sql`DELETE FROM connector_oauth_states WHERE account_id=${id}::uuid`;

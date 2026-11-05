@@ -31,7 +31,7 @@ export function connectorSealing(sql: SqlClient.SqlClient, key: Buffer) {
     });
 
   const updateCredentials = (row: AccountRow, value: Credentials, status = row.status) =>
-    sql`UPDATE connector_accounts SET credentials=${seal(value)}, legacy_headers='{}', status=${status}, updated_at=now() WHERE id=${row.id}::uuid`;
+    sql`UPDATE connector_accounts SET credentials=${seal(value)}, legacy_headers='{}', status=${status}, error=NULL, updated_at=now() WHERE id=${row.id}::uuid`;
 
   return { opened, unseal, seal, credentials, updateCredentials };
 }

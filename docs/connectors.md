@@ -22,7 +22,17 @@ Gateway jest jedynym klientem zewnętrznego MCP. Tokeny, refresh tokeny, sekrety
 aplikacji OAuth i PKCE są zaszyfrowane AES-256-GCM kluczem `CANOPY_SECRETS_KEY`.
 Żaden katalog narzędzi ani wynik API nie zawiera tych wartości. Wyniki zdalnych
 narzędzi przechodzą redakcję znanych sekretów przed utrwaleniem i wysłaniem.
-Błędy zewnętrznych serwerów są zastępowane komunikatem bez przyczyny/requestu.
+Test konta klasyfikuje błędy HTTP, OAuth, MCP/JSON-RPC, sieci/TLS i timeout.
+Zapisuje zredagowaną diagnozę z fazą (`initialize` / `tools/list`), statusem HTTP
+i kodem/komunikatem serwera w `connector_accounts.error` (migracja `0079_connector_errors`).
+Gateway zapisuje jedną linię ostrzeżenia, bez surowej przyczyny, nagłówków i URL.
+Znane sekrety redaguje `redactConnector`; adresy i typowe formaty poświadczeń
+usuwa dodatkowy filtr. Odczyt obejmuje najwyżej 16 KiB odpowiedzi i tylko pola
+błędu JSON; HTML i inne pola są pomijane. UI pokazuje przyczynę i działanie,
+a diagnozę za „Show details” z kopiowaniem. Widok jest owner-scoped.
+Negatywny wynik Test wraca jako konto ze stanem `error` i pustą listą narzędzi;
+błędy samego żądania lub zapisu nadal są błędami RPC.
+Udany test, ponowne połączenie lub Disconnect usuwa poprzednią diagnozę.
 Połączenia MCP nie podążają za redirectami; SSE nie może zmienić origin.
 HTTP jest dozwolone tylko dla loopback do lokalnego developmentu; inne endpointy
 wymagają HTTPS. Custom MCP jest jawną konfiguracją sieciową właściciela, także
@@ -236,6 +246,32 @@ client ID i secret od właściciela aplikacji, bez dopisywania redirectów. Pole
 wstępnie wypełnione tymi samymi scopes (`default_scope`). Redirect URL jest widoczny tylko
 jako szczegół dla ręcznej konfiguracji.
 Wskazówki są wyłącznie tekstem: nie zawierają poświadczeń i niczego nie weryfikują.
+
+### Slack: wymagania i diagnoza
+
+[Slack MCP](https://docs.slack.dev/ai/slack-mcp-server/) używa wyłącznie Streamable
+HTTP, bez SSE i DCR. SDK wysyła `Authorization: Bearer`, Accept dla JSON/SSE oraz
+wynegocjowany `MCP-Protocol-Version` w żądaniach po initialize.
+[User OAuth](https://docs.slack.dev/reference/methods/oauth.v2.user.access/) zwraca
+`access_token` na najwyższym poziomie, `token_type: user` i obiekt `authed_user`
+z identyfikatorem i scopes. To token użytkownika (`xoxp-…`), nie token bota.
+SDK przechowuje go w zaszyfrowanych poświadczeniach; nie interpretuje `user` jako
+schematu nagłówka. Zwykłe `oauth.v2.access` może zwracać token użytkownika w
+`authed_user.access_token`, ale jest innym endpointem i nie obsługuje naszego flow.
+
+Dokumentacja Slack (sprawdzona 2026-11-05) nie opisuje dodatkowego przełącznika
+„enable MCP” ani obowiązku włączenia Agents & AI apps. Manifest nie potrzebuje
+takiej flagi. Konto po OAuth oznacza otrzymanie tokenu; dopiero Test sprawdza MCP.
+Przy 403 sprawdź instalację i zgodę administratora we własnym workspace,
+wewnętrzną dystrybucję aplikacji oraz jej listę dozwolonych adresów IP.
+Aplikacje unlisted nie mają dostępu do MCP; publikacja w Marketplace jest
+alternatywą dla aplikacji wewnętrznej, nie wymogiem dla własnego workspace.
+
+Weryfikacja na koncie Slack: utwórz i zainstaluj aplikację z manifestu, zakończ
+OAuth przez stały redirect i uruchom Test. Potwierdź listę narzędzi i odczyt
+zgodny z przyznanymi user scopes. W razie odmowy odczytaj status, kod i fazę
+za „Show details”; nie kopiuj tokenu ani nagłówków. Atrapy testują odpowiedź
+user OAuth i transport, ale nie dowodzą akceptacji konkretnej aplikacji przez Slack.
 
 Audyt zapisuje konto, właściciela, worker/wątek albo bot, narzędzie, czas i wynik.
 Nie zapisuje tokenów, nagłówków ani argumentów. Wynik potrzebny do deduplikacji

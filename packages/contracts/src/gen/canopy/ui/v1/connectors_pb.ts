@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/connectors.proto.
  */
 export const file_canopy_ui_v1_connectors: GenFile = /*@__PURE__*/
-  fileDesc("Ch1jYW5vcHkvdWkvdjEvY29ubmVjdG9ycy5wcm90bxIMY2Fub3B5LnVpLnYxIssBCg1Db25uZWN0b3JUeXBlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSCwoDdXJsGAMgASgJEhIKCmF1dGhfa2luZHMYBCADKAkSFAoMcmVxdWlyZW1lbnRzGAUgASgJEhUKDW9hdXRoX2FwcF9zZXQYBiABKAgSGQoRZG9jdW1lbnRhdGlvbl91cmwYByABKAkSNwoMYXV0aF9tZXRob2RzGAggAygLMiEuY2Fub3B5LnVpLnYxLkNvbm5lY3RvckF1dGhNZXRob2Qi+AIKE0Nvbm5lY3RvckF1dGhNZXRob2QSEQoJYXV0aF9raW5kGAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEg0KBXN0ZXBzGAQgAygJEhEKCXNldHVwX3VybBgFIAEoCRITCgtzZXR1cF9sYWJlbBgGIAEoCRITCgt0b2tlbl9sYWJlbBgHIAEoCRIZChF0b2tlbl9kZXNjcmlwdGlvbhgIIAEoCRIWCg50b2tlbl9yZXF1aXJlZBgJIAEoCBIaChJvYXV0aF9hcHBfcmVxdWlyZWQYCiABKAgSGQoRc2NvcGVfZGVzY3JpcHRpb24YCyABKAkSGQoRc2NvcGVfcGxhY2Vob2xkZXIYDCABKAkSFQoNZGVmYXVsdF9zY29wZRgNIAEoCRIUCgxhcHBfbWFuaWZlc3QYDiABKAkSFgoOYXBwX2NyZWF0ZV91cmwYDyABKAkSFAoMcmVkaXJlY3RfdXJsGBAgASgJIsACChBDb25uZWN0b3JBY2NvdW50EgoKAmlkGAEgASgJEhYKDmNvbm5lY3Rvcl90eXBlGAIgASgJEgwKBG5hbWUYAyABKAkSEQoJbmFtZXNwYWNlGAQgASgJEgsKA3VybBgFIAEoCRIRCgl0cmFuc3BvcnQYBiABKAkSEQoJYXV0aF9raW5kGAcgASgJEg4KBnN0YXR1cxgIIAEoCRITCgthbGxfd29ya2VycxgJIAEoCBISCgp3b3JrZXJfaWRzGAogAygJEhAKCGFsbF9ib3RzGAsgASgIEg8KB2JvdF9pZHMYDCADKAkSEAoIcmV2aXNpb24YDSABKAQSMAoMbGFzdF91c2VkX2F0GA4gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIUCgxoZWFkZXJfbmFtZXMYDyADKAkiOgoVTGlzdENvbm5lY3RvcnNSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCRIOCgZib3RfaWQYAiABKAkidgoWTGlzdENvbm5lY3RvcnNSZXNwb25zZRIqCgV0eXBlcxgBIAMoCzIbLmNhbm9weS51aS52MS5Db25uZWN0b3JUeXBlEjAKCGFjY291bnRzGAIgAygLMh4uY2Fub3B5LnVpLnYxLkNvbm5lY3RvckFjY291bnQiwgIKG1NhdmVDb25uZWN0b3JBY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoCRIWCg5jb25uZWN0b3JfdHlwZRgCIAEoCRIMCgRuYW1lGAMgASgJEgsKA3VybBgEIAEoCRIRCgl0cmFuc3BvcnQYBSABKAkSEQoJYXV0aF9raW5kGAYgASgJEg0KBXRva2VuGAcgASgJEkcKB2hlYWRlcnMYCCADKAsyNi5jYW5vcHkudWkudjEuU2F2ZUNvbm5lY3RvckFjY291bnRSZXF1ZXN0LkhlYWRlcnNFbnRyeRIbChNyZXBsYWNlX2NyZWRlbnRpYWxzGAkgASgIEhkKEWV4cGVjdGVkX3JldmlzaW9uGAogASgEGi4KDEhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIksKGENvbm5lY3RvckFjY291bnRSZXNwb25zZRIvCgdhY2NvdW50GAEgASgLMh4uY2Fub3B5LnVpLnYxLkNvbm5lY3RvckFjY291bnQilgEKGVNldENvbm5lY3RvckFjY2Vzc1JlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRITCgthbGxfd29ya2VycxgCIAEoCBISCgp3b3JrZXJfaWRzGAMgAygJEhAKCGFsbF9ib3RzGAQgASgIEg8KB2JvdF9pZHMYBSADKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YBiABKAQiLQoXQ29ubmVjdG9yQWNjb3VudFJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCSIgCh5EZWxldGVDb25uZWN0b3JBY2NvdW50UmVzcG9uc2UieAoVVGVzdENvbm5lY3RvclJlc3BvbnNlEi4KBXRvb2xzGAEgAygLMh8uY2Fub3B5Lndvcmtlci52MS5Db25uZWN0b3JUb29sEi8KB2FjY291bnQYAiABKAsyHi5jYW5vcHkudWkudjEuQ29ubmVjdG9yQWNjb3VudCJwChxTYXZlQ29ubmVjdG9yT0F1dGhBcHBSZXF1ZXN0EhYKDmNvbm5lY3Rvcl90eXBlGAEgASgJEhEKCWNsaWVudF9pZBgCIAEoCRIVCg1jbGllbnRfc2VjcmV0GAMgASgJEg4KBmlzc3VlchgEIAEoCSIfCh1TYXZlQ29ubmVjdG9yT0F1dGhBcHBSZXNwb25zZSJ/ChpCZWdpbkNvbm5lY3Rvck9BdXRoUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhQKDHJlZGlyZWN0X3VyaRgCIAEoCRIXCg9icm93c2VyX2JpbmRpbmcYAyABKAkSDQoFc2NvcGUYBCABKAkSDwoHZGVza3RvcBgFIAEoCCI4ChtCZWdpbkNvbm5lY3Rvck9BdXRoUmVzcG9uc2USGQoRYXV0aG9yaXphdGlvbl91cmwYASABKAkiiQEKHUNvbXBsZXRlQ29ubmVjdG9yT0F1dGhSZXF1ZXN0Eg0KBXN0YXRlGAEgASgJEgwKBGNvZGUYAiABKAkSFwoPYnJvd3Nlcl9iaW5kaW5nGAMgASgJEg0KBWVycm9yGAQgASgJEg4KBmlzc3VlchgFIAEoCRITCgtwYXN0ZWRfY29kZRgGIAEoCSJgCh5Db21wbGV0ZUNvbm5lY3Rvck9BdXRoUmVzcG9uc2USLwoHYWNjb3VudBgBIAEoCzIeLmNhbm9weS51aS52MS5Db25uZWN0b3JBY2NvdW50Eg0KBWVycm9yGAIgASgJYgZwcm90bzM", [file_google_protobuf_timestamp, file_canopy_worker_v1_worker_link]);
+  fileDesc("Ch1jYW5vcHkvdWkvdjEvY29ubmVjdG9ycy5wcm90bxIMY2Fub3B5LnVpLnYxIssBCg1Db25uZWN0b3JUeXBlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSCwoDdXJsGAMgASgJEhIKCmF1dGhfa2luZHMYBCADKAkSFAoMcmVxdWlyZW1lbnRzGAUgASgJEhUKDW9hdXRoX2FwcF9zZXQYBiABKAgSGQoRZG9jdW1lbnRhdGlvbl91cmwYByABKAkSNwoMYXV0aF9tZXRob2RzGAggAygLMiEuY2Fub3B5LnVpLnYxLkNvbm5lY3RvckF1dGhNZXRob2Qi+AIKE0Nvbm5lY3RvckF1dGhNZXRob2QSEQoJYXV0aF9raW5kGAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEg0KBXN0ZXBzGAQgAygJEhEKCXNldHVwX3VybBgFIAEoCRITCgtzZXR1cF9sYWJlbBgGIAEoCRITCgt0b2tlbl9sYWJlbBgHIAEoCRIZChF0b2tlbl9kZXNjcmlwdGlvbhgIIAEoCRIWCg50b2tlbl9yZXF1aXJlZBgJIAEoCBIaChJvYXV0aF9hcHBfcmVxdWlyZWQYCiABKAgSGQoRc2NvcGVfZGVzY3JpcHRpb24YCyABKAkSGQoRc2NvcGVfcGxhY2Vob2xkZXIYDCABKAkSFQoNZGVmYXVsdF9zY29wZRgNIAEoCRIUCgxhcHBfbWFuaWZlc3QYDiABKAkSFgoOYXBwX2NyZWF0ZV91cmwYDyABKAkSFAoMcmVkaXJlY3RfdXJsGBAgASgJIu0CChBDb25uZWN0b3JBY2NvdW50EgoKAmlkGAEgASgJEhYKDmNvbm5lY3Rvcl90eXBlGAIgASgJEgwKBG5hbWUYAyABKAkSEQoJbmFtZXNwYWNlGAQgASgJEgsKA3VybBgFIAEoCRIRCgl0cmFuc3BvcnQYBiABKAkSEQoJYXV0aF9raW5kGAcgASgJEg4KBnN0YXR1cxgIIAEoCRITCgthbGxfd29ya2VycxgJIAEoCBISCgp3b3JrZXJfaWRzGAogAygJEhAKCGFsbF9ib3RzGAsgASgIEg8KB2JvdF9pZHMYDCADKAkSEAoIcmV2aXNpb24YDSABKAQSMAoMbGFzdF91c2VkX2F0GA4gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIUCgxoZWFkZXJfbmFtZXMYDyADKAkSKwoFZXJyb3IYECABKAsyHC5jYW5vcHkudWkudjEuQ29ubmVjdG9yRXJyb3IiPwoOQ29ubmVjdG9yRXJyb3ISDAoEa2luZBgBIAEoCRIPCgdtZXNzYWdlGAIgASgJEg4KBmRldGFpbBgDIAEoCSI6ChVMaXN0Q29ubmVjdG9yc1JlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJEg4KBmJvdF9pZBgCIAEoCSJ2ChZMaXN0Q29ubmVjdG9yc1Jlc3BvbnNlEioKBXR5cGVzGAEgAygLMhsuY2Fub3B5LnVpLnYxLkNvbm5lY3RvclR5cGUSMAoIYWNjb3VudHMYAiADKAsyHi5jYW5vcHkudWkudjEuQ29ubmVjdG9yQWNjb3VudCLCAgobU2F2ZUNvbm5lY3RvckFjY291bnRSZXF1ZXN0EgoKAmlkGAEgASgJEhYKDmNvbm5lY3Rvcl90eXBlGAIgASgJEgwKBG5hbWUYAyABKAkSCwoDdXJsGAQgASgJEhEKCXRyYW5zcG9ydBgFIAEoCRIRCglhdXRoX2tpbmQYBiABKAkSDQoFdG9rZW4YByABKAkSRwoHaGVhZGVycxgIIAMoCzI2LmNhbm9weS51aS52MS5TYXZlQ29ubmVjdG9yQWNjb3VudFJlcXVlc3QuSGVhZGVyc0VudHJ5EhsKE3JlcGxhY2VfY3JlZGVudGlhbHMYCSABKAgSGQoRZXhwZWN0ZWRfcmV2aXNpb24YCiABKAQaLgoMSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiSwoYQ29ubmVjdG9yQWNjb3VudFJlc3BvbnNlEi8KB2FjY291bnQYASABKAsyHi5jYW5vcHkudWkudjEuQ29ubmVjdG9yQWNjb3VudCKWAQoZU2V0Q29ubmVjdG9yQWNjZXNzUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhMKC2FsbF93b3JrZXJzGAIgASgIEhIKCndvcmtlcl9pZHMYAyADKAkSEAoIYWxsX2JvdHMYBCABKAgSDwoHYm90X2lkcxgFIAMoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgGIAEoBCItChdDb25uZWN0b3JBY2NvdW50UmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJIiAKHkRlbGV0ZUNvbm5lY3RvckFjY291bnRSZXNwb25zZSJ4ChVUZXN0Q29ubmVjdG9yUmVzcG9uc2USLgoFdG9vbHMYASADKAsyHy5jYW5vcHkud29ya2VyLnYxLkNvbm5lY3RvclRvb2wSLwoHYWNjb3VudBgCIAEoCzIeLmNhbm9weS51aS52MS5Db25uZWN0b3JBY2NvdW50InAKHFNhdmVDb25uZWN0b3JPQXV0aEFwcFJlcXVlc3QSFgoOY29ubmVjdG9yX3R5cGUYASABKAkSEQoJY2xpZW50X2lkGAIgASgJEhUKDWNsaWVudF9zZWNyZXQYAyABKAkSDgoGaXNzdWVyGAQgASgJIh8KHVNhdmVDb25uZWN0b3JPQXV0aEFwcFJlc3BvbnNlIn8KGkJlZ2luQ29ubmVjdG9yT0F1dGhSZXF1ZXN0EhIKCmFjY291bnRfaWQYASABKAkSFAoMcmVkaXJlY3RfdXJpGAIgASgJEhcKD2Jyb3dzZXJfYmluZGluZxgDIAEoCRINCgVzY29wZRgEIAEoCRIPCgdkZXNrdG9wGAUgASgIIjgKG0JlZ2luQ29ubmVjdG9yT0F1dGhSZXNwb25zZRIZChFhdXRob3JpemF0aW9uX3VybBgBIAEoCSKJAQodQ29tcGxldGVDb25uZWN0b3JPQXV0aFJlcXVlc3QSDQoFc3RhdGUYASABKAkSDAoEY29kZRgCIAEoCRIXCg9icm93c2VyX2JpbmRpbmcYAyABKAkSDQoFZXJyb3IYBCABKAkSDgoGaXNzdWVyGAUgASgJEhMKC3Bhc3RlZF9jb2RlGAYgASgJImAKHkNvbXBsZXRlQ29ubmVjdG9yT0F1dGhSZXNwb25zZRIvCgdhY2NvdW50GAEgASgLMh4uY2Fub3B5LnVpLnYxLkNvbm5lY3RvckFjY291bnQSDQoFZXJyb3IYAiABKAliBnByb3RvMw", [file_google_protobuf_timestamp, file_canopy_worker_v1_worker_link]);
 
 /**
  * Publiczne DTO nigdy nie zwracają poświadczeń ani secretRef.
@@ -250,6 +250,13 @@ export type ConnectorAccount = Message<"canopy.ui.v1.ConnectorAccount"> & {
    * @generated from field: repeated string header_names = 15;
    */
   headerNames: string[];
+
+  /**
+   * Redacted test failure, visible only to the account's owner.
+   *
+   * @generated from field: canopy.ui.v1.ConnectorError error = 16;
+   */
+  error?: ConnectorError | undefined;
 };
 
 /**
@@ -258,6 +265,33 @@ export type ConnectorAccount = Message<"canopy.ui.v1.ConnectorAccount"> & {
  */
 export const ConnectorAccountSchema: GenMessage<ConnectorAccount> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_connectors, 2);
+
+/**
+ * @generated from message canopy.ui.v1.ConnectorError
+ */
+export type ConnectorError = Message<"canopy.ui.v1.ConnectorError"> & {
+  /**
+   * @generated from field: string kind = 1;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string message = 2;
+   */
+  message: string;
+
+  /**
+   * @generated from field: string detail = 3;
+   */
+  detail: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ConnectorError.
+ * Use `create(ConnectorErrorSchema)` to create a new message.
+ */
+export const ConnectorErrorSchema: GenMessage<ConnectorError> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_connectors, 3);
 
 /**
  * @generated from message canopy.ui.v1.ListConnectorsRequest
@@ -279,7 +313,7 @@ export type ListConnectorsRequest = Message<"canopy.ui.v1.ListConnectorsRequest"
  * Use `create(ListConnectorsRequestSchema)` to create a new message.
  */
 export const ListConnectorsRequestSchema: GenMessage<ListConnectorsRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 3);
+  messageDesc(file_canopy_ui_v1_connectors, 4);
 
 /**
  * @generated from message canopy.ui.v1.ListConnectorsResponse
@@ -301,7 +335,7 @@ export type ListConnectorsResponse = Message<"canopy.ui.v1.ListConnectorsRespons
  * Use `create(ListConnectorsResponseSchema)` to create a new message.
  */
 export const ListConnectorsResponseSchema: GenMessage<ListConnectorsResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 4);
+  messageDesc(file_canopy_ui_v1_connectors, 5);
 
 /**
  * @generated from message canopy.ui.v1.SaveConnectorAccountRequest
@@ -365,7 +399,7 @@ export type SaveConnectorAccountRequest = Message<"canopy.ui.v1.SaveConnectorAcc
  * Use `create(SaveConnectorAccountRequestSchema)` to create a new message.
  */
 export const SaveConnectorAccountRequestSchema: GenMessage<SaveConnectorAccountRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 5);
+  messageDesc(file_canopy_ui_v1_connectors, 6);
 
 /**
  * @generated from message canopy.ui.v1.ConnectorAccountResponse
@@ -382,7 +416,7 @@ export type ConnectorAccountResponse = Message<"canopy.ui.v1.ConnectorAccountRes
  * Use `create(ConnectorAccountResponseSchema)` to create a new message.
  */
 export const ConnectorAccountResponseSchema: GenMessage<ConnectorAccountResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 6);
+  messageDesc(file_canopy_ui_v1_connectors, 7);
 
 /**
  * @generated from message canopy.ui.v1.SetConnectorAccessRequest
@@ -424,7 +458,7 @@ export type SetConnectorAccessRequest = Message<"canopy.ui.v1.SetConnectorAccess
  * Use `create(SetConnectorAccessRequestSchema)` to create a new message.
  */
 export const SetConnectorAccessRequestSchema: GenMessage<SetConnectorAccessRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 7);
+  messageDesc(file_canopy_ui_v1_connectors, 8);
 
 /**
  * @generated from message canopy.ui.v1.ConnectorAccountRequest
@@ -441,7 +475,7 @@ export type ConnectorAccountRequest = Message<"canopy.ui.v1.ConnectorAccountRequ
  * Use `create(ConnectorAccountRequestSchema)` to create a new message.
  */
 export const ConnectorAccountRequestSchema: GenMessage<ConnectorAccountRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 8);
+  messageDesc(file_canopy_ui_v1_connectors, 9);
 
 /**
  * @generated from message canopy.ui.v1.DeleteConnectorAccountResponse
@@ -454,7 +488,7 @@ export type DeleteConnectorAccountResponse = Message<"canopy.ui.v1.DeleteConnect
  * Use `create(DeleteConnectorAccountResponseSchema)` to create a new message.
  */
 export const DeleteConnectorAccountResponseSchema: GenMessage<DeleteConnectorAccountResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 9);
+  messageDesc(file_canopy_ui_v1_connectors, 10);
 
 /**
  * @generated from message canopy.ui.v1.TestConnectorResponse
@@ -476,7 +510,7 @@ export type TestConnectorResponse = Message<"canopy.ui.v1.TestConnectorResponse"
  * Use `create(TestConnectorResponseSchema)` to create a new message.
  */
 export const TestConnectorResponseSchema: GenMessage<TestConnectorResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 10);
+  messageDesc(file_canopy_ui_v1_connectors, 11);
 
 /**
  * @generated from message canopy.ui.v1.SaveConnectorOAuthAppRequest
@@ -508,7 +542,7 @@ export type SaveConnectorOAuthAppRequest = Message<"canopy.ui.v1.SaveConnectorOA
  * Use `create(SaveConnectorOAuthAppRequestSchema)` to create a new message.
  */
 export const SaveConnectorOAuthAppRequestSchema: GenMessage<SaveConnectorOAuthAppRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 11);
+  messageDesc(file_canopy_ui_v1_connectors, 12);
 
 /**
  * @generated from message canopy.ui.v1.SaveConnectorOAuthAppResponse
@@ -521,7 +555,7 @@ export type SaveConnectorOAuthAppResponse = Message<"canopy.ui.v1.SaveConnectorO
  * Use `create(SaveConnectorOAuthAppResponseSchema)` to create a new message.
  */
 export const SaveConnectorOAuthAppResponseSchema: GenMessage<SaveConnectorOAuthAppResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 12);
+  messageDesc(file_canopy_ui_v1_connectors, 13);
 
 /**
  * desktop: powrót przez stronę przekierowania otwiera canopy://oauth/callback zamiast callbacku instalacji.
@@ -560,7 +594,7 @@ export type BeginConnectorOAuthRequest = Message<"canopy.ui.v1.BeginConnectorOAu
  * Use `create(BeginConnectorOAuthRequestSchema)` to create a new message.
  */
 export const BeginConnectorOAuthRequestSchema: GenMessage<BeginConnectorOAuthRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 13);
+  messageDesc(file_canopy_ui_v1_connectors, 14);
 
 /**
  * @generated from message canopy.ui.v1.BeginConnectorOAuthResponse
@@ -577,7 +611,7 @@ export type BeginConnectorOAuthResponse = Message<"canopy.ui.v1.BeginConnectorOA
  * Use `create(BeginConnectorOAuthResponseSchema)` to create a new message.
  */
 export const BeginConnectorOAuthResponseSchema: GenMessage<BeginConnectorOAuthResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 14);
+  messageDesc(file_canopy_ui_v1_connectors, 15);
 
 /**
  * pasted_code: kod skopiowany ze strony przekierowania (state i code w jednym ciągu); zastępuje state/code.
@@ -621,7 +655,7 @@ export type CompleteConnectorOAuthRequest = Message<"canopy.ui.v1.CompleteConnec
  * Use `create(CompleteConnectorOAuthRequestSchema)` to create a new message.
  */
 export const CompleteConnectorOAuthRequestSchema: GenMessage<CompleteConnectorOAuthRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 15);
+  messageDesc(file_canopy_ui_v1_connectors, 16);
 
 /**
  * Callback outcomes are explicit, so a declined/expired authorization completes the redirect normally.
@@ -645,5 +679,5 @@ export type CompleteConnectorOAuthResponse = Message<"canopy.ui.v1.CompleteConne
  * Use `create(CompleteConnectorOAuthResponseSchema)` to create a new message.
  */
 export const CompleteConnectorOAuthResponseSchema: GenMessage<CompleteConnectorOAuthResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_connectors, 16);
+  messageDesc(file_canopy_ui_v1_connectors, 17);
 

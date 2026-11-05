@@ -54,6 +54,13 @@ message ConnectorAccount {
   uint64 revision = 13;
   google.protobuf.Timestamp last_used_at = 14;
   repeated string header_names = 15;
+  // Redacted test failure, visible only to the account's owner.
+  ConnectorError error = 16;
+}
+message ConnectorError {
+  string kind = 1;
+  string message = 2;
+  string detail = 3;
 }
 message ListConnectorsRequest { string thread_id = 1; string bot_id = 2; }
 message ListConnectorsResponse { repeated ConnectorType types = 1; repeated ConnectorAccount accounts = 2; }

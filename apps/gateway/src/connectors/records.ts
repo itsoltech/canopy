@@ -34,6 +34,7 @@ export interface AccountRow {
   credentials: Uint8Array | null;
   legacy_headers: Record<string, { secretRef: string }>;
   status: string;
+  error: JsonValue | null;
   all_workers: boolean;
   all_bots: boolean;
   revision: bigint | string;

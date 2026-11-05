@@ -57,6 +57,7 @@ export const AUTH_METHODS = {
       description: "Sign in through a Slack app in your workspace. Slack has no automatic registration.",
       steps: [
         "Create the Slack app, or use an existing one from your workspace.",
+        "Install it in your workspace and keep distribution internal. Ask your administrator to approve it if needed.",
         "Save its client ID and secret here, then continue to sign in.",
       ],
       oauthAppRequired: true,
