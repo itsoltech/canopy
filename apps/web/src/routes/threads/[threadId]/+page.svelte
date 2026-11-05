@@ -26,7 +26,7 @@
   import { ComposerCompaction, type ComposerActivity } from "#lib/features/threads/components/composer-compaction.ts";
   import type { ReaderScroll } from "#lib/shared/ui/virtual/scroll.ts";
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
-  import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
+  import PendingDecisions from "#lib/features/threads/components/interactions/PendingDecisions.svelte";
   import ThreadSecretsPanel from "#lib/features/threads/components/secrets/ThreadSecretsPanel.svelte";
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
   import ThreadPermissionsDialog from "#lib/features/threads/components/ThreadPermissionsDialog.svelte";
@@ -57,7 +57,7 @@
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
-  import { duration, rise } from "#lib/shared/ui/motion.ts";
+  import { duration } from "#lib/shared/ui/motion.ts";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
@@ -613,16 +613,16 @@
               {#if view.pending.some((i) => i.kind !== InteractionKind.QUESTION)}
                 <GrowIn class="pb-3">
                   <div
-                    class={["grid max-h-[40dvh] gap-3 overflow-y-auto p-px", away && "opacity-60"]}
+                    class={["grid gap-3 p-px", away && "opacity-60"]}
                     role="region"
                     aria-label="Waiting for you"
                     inert={Boolean(away)}
                   >
-                    {#each view.pending.filter((i) => i.kind !== InteractionKind.QUESTION) as interaction (interaction.requestId)}
-                      <div in:rise>
-                        <InteractionCard {interaction} related={itemsById.get(interaction.itemId)} {parent} />
-                      </div>
-                    {/each}
+                    <PendingDecisions
+                      interactions={view.pending.filter((i) => i.kind !== InteractionKind.QUESTION)}
+                      items={itemsById}
+                      {parent}
+                    />
                   </div>
                 </GrowIn>
               {/if}
