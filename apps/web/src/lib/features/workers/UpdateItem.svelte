@@ -47,27 +47,27 @@
     <Icon name={icon} class="shrink-0" />
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 items-center gap-2">
-        <p class="min-w-0 flex-1 truncate text-sm/5 font-medium" title={name}>{name}</p>
+        <p class="min-w-0 flex-1 truncate text-[0.8125rem]/5 font-medium" title={name}>{name}</p>
         <Badge compact {tone}>{status}</Badge>
       </div>
       <p
-        class="flex min-w-0 gap-1 font-mono text-xs/5 text-muted"
+        class="flex min-w-0 gap-1 font-mono text-[0.6875rem]/4 text-muted"
         title={`${current || "Version unknown"}${target && target !== current ? ` → ${target}` : ""}`}
       >
         <span class="min-w-0 truncate">{current || "Version unknown"}</span>
         {#if target && target !== current}<span aria-hidden="true">→</span><span class="min-w-0 truncate">{target}</span
           >{/if}
       </p>
-      {#if metadata}<p class="truncate text-xs/4 text-muted" title={metadata}>{metadata}</p>{/if}
+      {#if metadata}<p class="truncate text-[0.6875rem]/4 text-muted" title={metadata}>{metadata}</p>{/if}
     </div>
     {#if action}<div class="shrink-0">{@render action()}</div>
     {:else if detail}<IconButton icon="information-circle" size="sm" label={detail} />{/if}
   </div>
   {#if busy}<UpdateProgress label={`${name}: ${status}`} value={progress} class="mt-1.5 ml-6" />{/if}
   {#if error}
-    <Disclosure class="mt-1 ml-6" summaryClass="text-sm/5 text-rose-600 dark:text-rose-400">
+    <Disclosure class="mt-1 ml-6" summaryClass="text-xs/5 text-rose-600 dark:text-rose-400">
       {#snippet summary()}<span class="break-anywhere line-clamp-2">{error}</span>{/snippet}
-      <p class="break-anywhere max-h-40 overflow-y-auto py-2 text-sm/5 text-rose-600 dark:text-rose-400">{error}</p>
+      <p class="break-anywhere max-h-40 overflow-y-auto py-2 text-xs/5 text-rose-600 dark:text-rose-400">{error}</p>
     </Disclosure>
   {/if}
   {#if children}<div class="ml-6 min-w-0">{@render children()}</div>{/if}

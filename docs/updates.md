@@ -15,8 +15,8 @@ z wersjami, stanem i akcją; postęp to cienki kolorowy pasek, a nie pełne
 wypełnienie udające 100%. Aktualne pozycje zwija „Up to date · N”. Instrukcje
 instalacji i kolejność aktualizacji są pod ikonami informacji. Długie nazwy
 i wersje mają skrót z pełną treścią w podpowiedzi; błędy można rozwinąć.
-„What’s new” otwiera osobno przewijane notatki. Pełne ustawienia, wymuszenie
-restartu i szczegóły instalatorów pozostają w Settings → Workers / App updates.
+Popover nie pokazuje notatek wydań; są w Settings → Workers / App updates razem
+z pełnymi ustawieniami, wymuszeniem restartu i szczegółami instalatorów.
 
 Settings → Workers → Updates używa tych samych zwartych wierszy. Nagłówek
 pokazuje stan i czas sprawdzenia; Update all pojawia się tylko przy dostępnych

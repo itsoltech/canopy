@@ -98,9 +98,9 @@
       />{/if}
   </header>
   <div class="min-h-0 overflow-y-auto overscroll-contain px-3 py-1">
-    {#if error}<p class="break-anywhere py-2 text-sm/5 text-rose-600 dark:text-rose-400" role="status">{error}</p>{/if}
+    {#if error}<p class="break-anywhere py-2 text-xs/5 text-rose-600 dark:text-rose-400" role="status">{error}</p>{/if}
     {#if run && run.state !== "succeeded"}
-      <div class="border-b border-divider py-2 text-sm/5">
+      <div class="border-b border-divider py-2 text-xs/5">
         <p role="status">
           {run.state === "running" ? `Updating · ${completed}/${run.steps.length}` : "Updates stopped"}
         </p>
@@ -124,7 +124,7 @@
         <CompactCliUpdate {...entry} disabled={busy} />
       {/each}
       {#if currentCount}
-        <Disclosure summaryClass="py-2 text-sm/5 text-muted" class="border-t border-divider">
+        <Disclosure summaryClass="py-2 text-xs/5 text-muted" class="border-t border-divider">
           {#snippet summary()}Up to date · {currentCount}{/snippet}
           {#if currentApp}<CompactAppUpdate updates={app} />{/if}
           {#if currentGateway}<CompactGatewayUpdate {updates} />{/if}
@@ -135,9 +135,9 @@
             />{/each}
         </Disclosure>
       {/if}
-    {:else}<p class="py-2 text-sm/5 text-muted" role="status">Loading update status…</p>{/if}
+    {:else}<p class="py-2 text-xs/5 text-muted" role="status">Loading update status…</p>{/if}
   </div>
-  <footer class="flex shrink-0 flex-wrap gap-x-4 gap-y-1 border-t border-divider px-3 py-2 text-sm/5 text-muted">
+  <footer class="flex shrink-0 flex-wrap gap-x-4 gap-y-1 border-t border-divider px-3 py-2 text-xs/5 text-muted">
     <a href="/settings/workers" class="rounded focus-ring hover:text-ink">Update details</a>
     {#if app.status}<a href="/settings/app-updates" class="rounded focus-ring hover:text-ink">App updates</a>{/if}
   </footer>
