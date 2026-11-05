@@ -1586,6 +1586,12 @@ Pytania o wersję znikają. Edycja wszędzie pozostaje prosta, a dane nie giną 
   nie ukrywa notki na innych; historia jest lokalna i wygasa po 90 dniach.
 - Sekret w notce widać wyłącznie jako „A different key”.
 
+Równość dotyczy wartości efektywnych: kolejność kluczy JSON nie ma znaczenia, aliasy tego samego
+proxy wskazują jedną rzecz, a sekret porównywany jest po odszyfrowanej wartości wyłącznie wewnątrz
+gatewaya. Losowy token wersji i szyfrogram odbiorcy nie są różnicą konfiguracji. Jawne wartości
+domyślne potwierdzenia usuwania i częstotliwości CLI odpowiadają brakowi nadpisania. HLC nadal
+rozstrzyga, która wersja pola wygrywa; równoważność usuwa tylko fałszywą notkę.
+
 ### Usuwanie
 
 Usunięcie zapisuje **tombstone**: pole `deleted` z własnym HLC. Rekord bez ładunku pól zostaje na stałe,
