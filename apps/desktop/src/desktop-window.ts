@@ -6,6 +6,7 @@ import { applyWindowAppearance, windowAppearance, windowColors } from "./window-
 import { trackAppRoutes } from "./app-route-ipc.ts";
 import type { AppRoutes } from "./app-routes.ts";
 import type { WindowPlacement } from "./window-state.ts";
+import { allowedPermission } from "./window-permissions.ts";
 
 interface WindowOptions {
   appRoutes: AppRoutes;
@@ -139,8 +140,13 @@ export function createDesktopWindow(options: WindowOptions) {
     external(url);
   });
   target.webContents.on("will-attach-webview", (event) => event.preventDefault());
-  target.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-  target.webContents.session.setPermissionCheckHandler(() => false);
+  const trusted = () => [options.setupOrigin(), options.webUrl()];
+  target.webContents.session.setPermissionRequestHandler((_webContents, permission, callback, details) =>
+    callback(allowedPermission(permission, details.requestingUrl, trusted())),
+  );
+  target.webContents.session.setPermissionCheckHandler((_webContents, permission, requestingOrigin) =>
+    allowedPermission(permission, requestingOrigin, trusted()),
+  );
 
   return target;
 }
