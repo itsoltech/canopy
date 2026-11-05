@@ -134,7 +134,7 @@
         <CompactCliUpdate {...entry} disabled={busy} />
       {/each}
       {#if currentCount}
-        <Disclosure summaryClass="py-2 text-xs/5 text-muted" class="border-t border-divider">
+        <Disclosure summaryClass="py-2 text-xs/5 text-muted" class="border-divider not-first:border-t">
           {#snippet summary()}Up to date · {currentCount}{/snippet}
           {#if currentApp}<CompactAppUpdate updates={app} {bundled} />{/if}
           {#if currentGateway}<CompactGatewayUpdate {updates} />{/if}
