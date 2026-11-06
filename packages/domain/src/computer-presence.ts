@@ -1,6 +1,34 @@
 import type { ui } from "@canopy/contracts";
 import { REMOTE_THREADS, THREAD_MIRROR } from "./computers.ts";
 
+/** A planned update/restart that never comes back becomes an unexplained loss after five minutes. */
+export const DEPARTURE_WINDOW_MS = 5 * 60_000;
+export const RESTART_PRESENCE = "restart_presence";
+
+export const announcedDeparture = (status: string) =>
+  ["updating", "restarting", "sleeping", "shutting_down"].includes(status);
+
+/** Presence timestamps use the local clock, with a date for earlier days. */
+export function formatPresenceTime(ms: bigint, options: Intl.DateTimeFormatOptions = {}): string {
+  const at = new Date(Number(ms));
+
+  return new Intl.DateTimeFormat("en", {
+    ...(at.toDateString() !== new Date().toDateString() && { month: "short", day: "numeric" }),
+    hour: "numeric",
+    minute: "2-digit",
+    ...options,
+  }).format(at);
+}
+
+/** Shared wording for web/mobile settings, pickers, read-only bars and update rows. */
+export function presenceLabel(status: string, since: bigint, time: (ms: bigint) => string): string {
+  const label = status === "connected" ? "Connected" : (awayLabels.get(status) ?? "Unreachable");
+
+  return since && ["sleeping", "shutting_down", "unreachable"].includes(status)
+    ? `${label} since ${time(since)}`
+    : label;
+}
+
 /**
  * Linked computers in the thread UI (docs/linked-computers.md, stage 2), shared by the web and the phone app. Their
  * threads stay at home; this computer keeps a read-only mirror when the peer supports it. Actions always require its
@@ -54,10 +82,12 @@ export function awayReason(
         : `This computer needs an update to work with ${name}.`;
     case "updating":
       return `${name} is updating${at && ` since ${at}`}.`;
+    case "restarting":
+      return `${name} is restarting${at && ` since ${at}`}.`;
     case "sleeping":
-      return `${name} went to sleep${at && ` at ${at}`}.`;
+      return `${name} is asleep${at && ` since ${at}`}.`;
     case "shutting_down":
-      return `${name} shut down${at && ` at ${at}`}.`;
+      return `${name} is offline${at && ` since ${at}`}.`;
     case "pairing_required":
       return `${name} must be paired again.`;
     default:
@@ -71,8 +101,9 @@ export const awayLabel = (computer: ui.LinkedComputer | undefined): string =>
 
 const awayLabels = new Map([
   ["updating", "Updating…"],
-  ["sleeping", "Going to sleep"],
-  ["shutting_down", "Shutting down"],
+  ["restarting", "Restarting…"],
+  ["sleeping", "Asleep"],
+  ["shutting_down", "Offline"],
   ["needs_update", "Needs an update"],
   ["pairing_required", "Pair again"],
   ["connected", "Reconnecting…"],

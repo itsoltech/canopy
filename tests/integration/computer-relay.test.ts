@@ -493,7 +493,8 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
     await l1.close();
     expect(await eventually(async () => !lw.reachable().includes(n2), Boolean)).toBe(true);
     const peer = (await w.api.getComputers({})).peers.find((p) => p.nodeId === n2)!;
-    expect(peer.unavailableReason).toContain("Available through P1, which is unreachable since");
+    expect(peer.status).toBe("shutting_down");
+    expect(peer.unavailableReason).toContain("Available through P1, which is offline since");
     expect((await w.api.getThread({ threadId: q(thread) })).thread?.id).toBe(q(thread));
     const started = Date.now();
     expect(

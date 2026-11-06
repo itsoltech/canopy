@@ -7,11 +7,22 @@
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { splitId } from "@canopy/domain/computers";
+  import { onMount } from "svelte";
 
   // A linked computer's thread while that computer is away: its reason ("Travel laptop is unreachable since …"), not a gateway outage.
   const away = $derived(
-    Boolean(splitId(page.params["threadId"] ?? "").node) && (page.status === 503 || page.status === 409),
+    page.error?.scope === "computer" ||
+      (Boolean(splitId(page.params["threadId"] ?? page.params["botId"] ?? "").node) &&
+        (page.status === 503 || page.status === 409)),
   );
+
+  let reconnecting = $state(true);
+
+  onMount(() => {
+    const timer = setTimeout(() => (reconnecting = false), 12_000);
+
+    return () => clearTimeout(timer);
+  });
 
   const unavailable = $derived(page.status >= 500 || away);
   let retrying = $state(false);
@@ -50,10 +61,15 @@
           {retrying}
           icon="link"
           title={page.error?.message ?? "The other computer is away"}
-          description="This thread lives on that computer and opens here again once it is connected. Retrying automatically."
+          description="This page opens again when that computer reconnects. Retrying automatically."
         />
       {:else}
-        <GatewayUnavailable {retry} {retrying} />
+        <GatewayUnavailable
+          {retry}
+          {retrying}
+          title={reconnecting ? "Reconnecting…" : "Can't reach the gateway"}
+          description={reconnecting ? "Retrying automatically. Your work is kept." : undefined}
+        />
       {/if}
     </div>
   {:else}

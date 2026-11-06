@@ -5,6 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link } from "@canopy/contracts";
 
 import { AsyncChannel } from "@canopy/transport";
+import { DEPARTURE_WINDOW_MS, RESTART_PRESENCE } from "@canopy/domain/computer-presence";
 
 import { type PeerRow } from "./store.ts";
 
@@ -18,7 +19,15 @@ import { discoverCertificate, linkClient } from "./transport.ts";
 import { refreshConfigGroup, stopConfig, syncConfig } from "./runtime-config.ts";
 
 export function computersBroadcast(hostContext: LinkedComputers, frame: MessageInitShape<typeof link.LinkFrameSchema>) {
-  for (const set of hostContext[computersState].active.values()) for (const c of set) c.send(frame);
+  for (const set of hostContext[computersState].active.values())
+    for (const c of set)
+      c.send(
+        frame.body?.case === "presence" &&
+          frame.body.value.state === "restarting" &&
+          !c.capabilities?.has(RESTART_PRESENCE)
+          ? { body: { case: "presence", value: { ...frame.body.value, state: "updating" } } }
+          : frame,
+      );
 }
 
 export function computersTrack(hostContext: LinkedComputers, nodeId: string, connection: Connection) {
@@ -99,6 +108,14 @@ export async function computersTick(hostContext: LinkedComputers) {
 
     for (const peer of await hostContext.store.peers()) {
       if (hostContext[computersState].stopped || hostContext[computersState].paused) break;
+      const now = hostContext.options.presenceNow?.() ?? Date.now();
+
+      if (
+        ["updating", "restarting"].includes(peer.status) &&
+        now - new Date(peer.status_since).getTime() >= DEPARTURE_WINDOW_MS &&
+        !hostContext.canCall(peer.node_id)
+      )
+        await computersStatus(hostContext, peer.node_id, "unreachable");
       computersSyncMirror(hostContext, peer.node_id);
       syncConfig(hostContext, peer.node_id);
       const active = hostContext[computersState].active.get(peer.node_id);
@@ -193,7 +210,13 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
               connection.send({
                 body: {
                   case: "presence",
-                  value: { state: hostContext[computersState].announced, announcedAtMs: BigInt(Date.now()) },
+                  value: {
+                    state:
+                      hostContext[computersState].announced === "restarting"
+                        ? "updating"
+                        : hostContext[computersState].announced,
+                    announcedAtMs: BigInt(Date.now()),
+                  },
                 },
               });
           }

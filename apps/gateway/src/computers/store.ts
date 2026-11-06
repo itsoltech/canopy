@@ -237,12 +237,12 @@ export class ComputerStore {
       }),
     );
   }
-  async status(nodeId: string, status: string, updateNodeId = "") {
+  async status(nodeId: string, status: string, updateNodeId = "", at = new Date()) {
     await this.query(
-      `UPDATE computer_peers SET status=$3, status_since=CASE WHEN status<>$3 THEN now() ELSE status_since END,
-      last_seen=CASE WHEN $3 IN ('connected','needs_update','updating','sleeping','shutting_down') THEN now() ELSE last_seen END,
+      `UPDATE computer_peers SET status=$3, status_since=CASE WHEN status<>$3 THEN $5::timestamptz ELSE status_since END,
+      last_seen=CASE WHEN $3 IN ('connected','needs_update','updating','restarting','sleeping','shutting_down') THEN $5::timestamptz ELSE last_seen END,
       update_node_id=$4 WHERE owner_user_id=$1::uuid AND node_id=$2`,
-      [this.owner, nodeId, status, updateNodeId],
+      [this.owner, nodeId, status, updateNodeId, at],
     );
   }
 }

@@ -62,6 +62,7 @@ export function ThreadHeader({
   onSideThread,
   onGoal,
   goalOpen,
+  readOnly = false,
 }: {
   thread?: ui.Thread;
   project?: ui.Project;
@@ -71,6 +72,7 @@ export function ThreadHeader({
   /** Absent where the thread takes no goals (a gateway thread, Grok). */
   onGoal?: () => void;
   goalOpen: boolean;
+  readOnly?: boolean;
 }) {
   const c = useColors();
   const { wide } = useLayout();
@@ -122,6 +124,7 @@ export function ThreadHeader({
         <IconButton
           icon="ellipsis-horizontal"
           label="Thread actions"
+          disabled={readOnly}
           onPress={() => {
             setTitle(thread?.title ?? "");
             setSheet("actions");
@@ -131,7 +134,7 @@ export function ThreadHeader({
       </View>
       <ThreadActionsSheet
         thread={thread}
-        visible={sheet === "actions"}
+        visible={!readOnly && sheet === "actions"}
         onClose={() => setSheet(null)}
         goalOpen={goalOpen}
         goals={Boolean(onGoal)}
@@ -147,7 +150,7 @@ export function ThreadHeader({
           else void action(kind);
         }}
       />
-      <Overlay visible={sheet === "rename"} onClose={() => setSheet(null)} label="Rename thread">
+      <Overlay visible={!readOnly && sheet === "rename"} onClose={() => setSheet(null)} label="Rename thread">
         <View style={{ padding: 16, gap: 12 }}>
           <Field label="Title" value={title} onChangeText={setTitle} autoFocus />
           <Button title="Rename" disabled={!title.trim()} busy={busy} onPress={() => void action("title")} />

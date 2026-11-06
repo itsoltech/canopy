@@ -4,6 +4,7 @@
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import UpdateItem from "./UpdateItem.svelte";
   import { computerUpdate } from "./computer-updates.ts";
+  import { presenceTime } from "#lib/features/computers/computers.ts";
   import { updateTone, type UpdatesState } from "./updates.svelte.ts";
 
   let {
@@ -12,7 +13,7 @@
     class: className,
   }: { computer: ui.ComputerUpdate; updates: UpdatesState; class?: ClassValue } = $props();
 
-  const view = $derived(computerUpdate(computer));
+  const view = $derived(computerUpdate(computer, presenceTime));
   const app = $derived(computer.updates?.app);
 </script>
 

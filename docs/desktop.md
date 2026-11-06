@@ -245,7 +245,25 @@ Procesy uruchamiają się w kolejności: baza → migracje/start gatewaya → en
 Gotowość sprawdzana jest przez SQL, gRPC i HTTP; potem co 5 sekund przez gRPC/HTTP.
 Kontroler wysyła status do Electron tylko przy zmianie; każde zdarzenie przebudowuje menu
 aplikacji i traya w wątku UI, który dostarcza też wejście; ten sam stan nie jest powtarzany co sekundę.
-Trzy błędy kontroli zdrowia restartują odpowiedni proces. Restart po wyjściu ma
+Nadzorca sprawdza liveness co 5 sekund, z limitem 5 sekund na sondę. Gateway odpowiada
+anonimowym `UpdateService.Check` bez tokenu, zapytań do bazy i odpytywania połączonych
+komputerów. BFF odpowiada istniejącym `/api/health`, bez renderowania strony i wywołań
+gatewaya. `GetOverview` służy danym aplikacji, nigdy kontroli procesu.
+Restart wymaga co najmniej 30 sekund kolejnych nieudanych sond; sukces zeruje ten czas.
+Nowy proces, również po restarcie, musi najpierw odpowiedzieć poprawnie. Nadzorca nie
+zabija procesu, który nadal startuje. `suspend` zatrzymuje sondy, a `resume` i `unlock-screen`
+zerują porażki i dają 30 sekund ochrony. Luka timera powyżej 15 sekund lub sonda
+obejmująca taką lukę daje tę samą ochronę, także bez zdarzenia Electrona. Wynik sprzed
+uśpienia, zmiany konfiguracji lub wymiany procesu jest ignorowany.
+Każda porażka zapisuje timeout, kod gRPC albo status HTTP; restart zapisuje czas
+nieprzerwanej awarii i ostatnią przyczynę. Przejściowy błąd nie zmienia fazy aplikacji
+na startowanie. Przed restartem gatewaya kontroler próbuje ogłosić `restarting`;
+SIGTERM pozwala też gatewayowi zamknąć łącza z zapowiedzią. Po 10 sekundach bez wyjścia
+nadzorca kończy wyłącznie własną grupę procesu. Gdy gateway nie odpowiada ani nie
+obsługuje sygnału, zapowiedź jest niemożliwa i partner widzi nieoczekiwaną utratę.
+Worker raportuje stan plikiem, ale utrata połączenia z gatewayem ani nieświeży status
+nie powodują jego zabicia; własny reconnect przywraca łącze. PostgreSQL również nie
+jest restartowany na podstawie operacji aplikacyjnych. Restart po wyjściu procesu ma
 backoff 1–30 sekund i budżet 8 prób; kod 78 workera nie jest ponawiany.
 
 Zamykanie: worker → gateway → PostgreSQL → BFF. POSIX używa własnych grup procesów
@@ -311,8 +329,15 @@ inne komputery mogły znaleźć ten; przy wyłączonym komputer tylko szuka part
 
 Electron ogłasza sleep/resume oraz quit/update prywatnym kanałem do kontrolera,
 który wywołuje lokalne API gatewaya. Sekrety i klucze pozostają w gatewayu.
-Ogłoszenie sleep jest best effort: system może uśpić proces przed wysłaniem;
-wtedy peer pokaże Unreachable. Implementacja i zakres etapów: [linked-computers.md](linked-computers.md).
+`suspend` wysyła zapowiedź snu od razu, poza kolejką startu, z deadline 500 ms, bez
+blokowania systemu. Jest to best effort: gdy zapowiedź nie zdąży, partner pokaże
+Unreachable since …; gdy dotrze, zachowuje Asleep since … do wznowienia. `resume`
+resetuje nadzór od razu, a online ogłasza po 5 sekundach; ponowny sen anuluje ten timer,
+co ogranicza zmiany stanu podczas krótkich dark wake/Power Nap. `unlock-screen` ogłasza
+powrót od razu. Quit anuluje oczekujące ogłoszenie online. Aktualizacja, również zdalna,
+ogłasza Updating…, zwykłe wyjście Offline since …, a restart nadzorcy Restarting….
+Okno powrotu aktualizacji/restartu wynosi 5 minut; potem partner pokazuje Unreachable.
+Pełna tabela i zgodność starszych partnerów: [linked-computers.md](linked-computers.md#obecność-i-odwołanie).
 
 Menu aplikacji otwiera ustawienia i katalog logów; tray pokazuje stan workera
 i znalezione CLI. macOS używa hidden-inset z miejscem na traffic lights w sidebarze;

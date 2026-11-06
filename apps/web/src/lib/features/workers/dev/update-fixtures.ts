@@ -128,8 +128,14 @@ export const computerStates = () => [
     phase: "waiting_idle",
     ready: true,
   }),
-  computer("Offline", "6", undefined, { presence: "unreachable" }),
-  computer("Restarting", "7", undefined, { presence: "updating" }),
+  computer("Unreachable", "6", undefined, { presence: "unreachable", presenceSinceMs: BigInt(Date.now() - 60_000) }),
+  computer("Updating", "7", undefined, { presence: "updating" }),
+  computer("Restarting", "f1", undefined, { presence: "restarting" }),
+  computer("Offline", "f2", undefined, { presence: "shutting_down", presenceSinceMs: BigInt(Date.now() - 60_000) }),
+  computer("Sleeping computer with a rather long name", "f3", undefined, {
+    presence: "sleeping",
+    presenceSinceMs: BigInt(Date.now() - 24 * 60 * 60_000),
+  }),
   computer("Failed", "8", {
     version: "0.41.0",
     availableVersion: "0.42.0",

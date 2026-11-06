@@ -5,7 +5,8 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import RouteList from "#lib/features/computers/RouteList.svelte";
-  import { needsThreadUpdate, needsMirrorUpdate } from "@canopy/domain/computer-presence";
+  import { needsThreadUpdate, needsMirrorUpdate, presenceLabel } from "@canopy/domain/computer-presence";
+  import { presenceTime } from "#lib/features/computers/computers.ts";
 
   let {
     computer,
@@ -44,15 +45,9 @@
         ? computer.updateNodeId === computer.nodeId
           ? `${computer.displayName || computer.name} needs an update`
           : "This computer needs an update"
-        : computer.status === "updating"
-          ? "Updating…"
-          : computer.status === "sleeping"
-            ? "Going to sleep"
-            : computer.status === "shutting_down"
-              ? "Shutting down"
-              : computer.status === "pairing_required"
-                ? "Certificate changed or pairing was removed. Unlink and pair again."
-                : "Unreachable",
+        : computer.status === "pairing_required"
+          ? "Certificate changed or pairing was removed. Unlink and pair again."
+          : presenceLabel(computer.status, computer.statusSinceMs, presenceTime),
   );
 </script>
 
@@ -82,11 +77,6 @@
           class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
         >
           Needs an update for offline reading. Its threads are available only while connected.
-        </p>{/if}
-      {#if !self && computer.status !== "connected"}<p
-          class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
-        >
-          Since {date(computer.statusSinceMs)}
         </p>{/if}
     </div>
     {#if !computer.viaNodeId}<div class="flex flex-wrap gap-2">

@@ -1054,6 +1054,17 @@ Symlink wybiera wydanie dla **następnego procesu**; działający serwer nadal u
 
 `live-source.ts` sam zamyka uszkodzony EventSource i otwiera nowy z opóźnieniami 1/2/4/8/15 s oraz jitterem 75–100%. Udane otwarcie z resynchronizacją zeruje backoff. Retry czeka w ukrytej/offline karcie; focus, widoczność i online wznawiają je od razu. Zdrowy strumień może działać w tle. Heartbeat ma watchdog 30 s; HTTP 200 bez ramki `ready` nie oznacza połączenia. Overview pobiera świeży stan po przerwie i buforuje równoczesne aktualizacje; wątek dostaje nowy snapshot. Status stopki przechodzi przez Connected / Reconnecting… / Gateway unavailable i wraca sam.
 
+Pierwsza porażka, również jawne SSE `failure` i nieudana resynchronizacja, pokazuje
+Reconnecting… przez 12 sekund ciągłego ponawiania. Dopiero potem status przechodzi
+w Gateway unavailable; udana resynchronizacja zeruje ten czas. Widok błędu trasy
+stosuje to samo początkowe okno. Otwarcie SSE overview sprawdza lekkie capabilities,
+zamiast powtarzać agregację; pełny overview i lista wątków mają deadline 10 sekund,
+większy od 3-sekundowego okna zbierania odpowiedzi partnerów.
+Błąd RPC z `canopy-error-scope: computer` (oraz starsze `UNAVAILABLE` z końcówką
+„… disconnected”) daje HTTP 409 z zakresem komputera albo SSE `away`, bez globalnej
+awarii. UI zachowuje ostatnie dane, a powód pokazuje przy komputerze zgodnie z tabelą
+w [linked-computers.md](linked-computers.md#obecność-i-odwołanie).
+
 Powłoka odpowiada 200 także bez gateway; początkowy HTML zawiera szkielet z właściwym schematem i geometrią. BFF zwraca szybko 502/503 dla niedostępnego gateway, a widoki błędów tras i nakładki ponawiają dane co 3 s w widocznej karcie oraz mają Try again. Przy istniejących danych aplikacja zachowuje ostatni stan i szkic podczas ponawiania SSE. Wywołania celowo czekające na worker, np. odświeżanie modeli i logowanie dostawcy, mają osobne dłuższe deadline'y.
 
 Ustawienia Network access, Linked computers i Devices oddzielają wynik ostatniego

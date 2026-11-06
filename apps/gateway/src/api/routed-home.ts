@@ -11,6 +11,7 @@ import { toConnectError } from "./ui-errors.ts";
 import { ConfigIds } from "./routed-config.ts";
 import { mapProjectIds } from "../config-sync/project-aliases.ts";
 import { mirrorFirst, offlineThread } from "./routed-thread-mirror.ts";
+import { announcedDeparture } from "@canopy/domain/computer-presence";
 
 export async function peerOf(core: GatewayCore, ref: string, method?: DescMethod, request?: Message) {
   if (!core.computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
@@ -55,6 +56,18 @@ export async function* forward(
       yield message;
     }
   } catch (error) {
+    if (error instanceof ConnectError && [Code.Unavailable, Code.DeadlineExceeded].includes(error.code)) {
+      const computer = await core.computers?.computer(nodeId);
+      const announced = computer && announcedDeparture(computer.status);
+      throw new ConnectError(
+        computer?.unavailableReason || error.rawMessage,
+        announced ? Code.FailedPrecondition : error.code,
+        {
+          "canopy-error-scope": "computer",
+        },
+      );
+    }
+
     const moved = movedItems(error);
 
     if (!moved || followed || !core.computers) throw error;

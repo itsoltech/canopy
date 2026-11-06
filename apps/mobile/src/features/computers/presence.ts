@@ -1,15 +1,23 @@
 import type { ui } from "@canopy/contracts";
-import { awayLabel, awayReason, computerName } from "@canopy/domain/computer-presence";
+import { presenceLabel, awayReason, computerName, formatPresenceTime } from "@canopy/domain/computer-presence";
 import { useOverview } from "../../state/overview";
-
-const time = new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" });
-const dayTime = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+import { nodeRef } from "@canopy/domain/computers";
 
 /** "7:42 PM" today, "Nov 5, 7:42 PM" before. */
-function presenceTime(ms: bigint) {
-  const at = new Date(Number(ms));
+export const presenceTime = formatPresenceTime;
 
-  return (at.toDateString() === new Date().toDateString() ? time : dayTime).format(at);
+/** Presence beside a mirrored thread or bot, independent of the phone's gateway connection. */
+export function useComputerHome(nodeId: string | undefined) {
+  const { computers } = useOverview();
+  const computer = nodeId ? computers.find((c) => c.nodeId === nodeId || nodeRef(c.nodeId) === nodeId) : undefined;
+  const reason = nodeId ? awayReason(computer, presenceTime) : undefined;
+
+  return {
+    away: Boolean(reason),
+    reason,
+    name: computerName(computer),
+    status: presenceLabel(computer?.status ?? "unreachable", computer?.statusSinceMs ?? 0n, presenceTime),
+  };
 }
 
 export interface WorkerPresence {
@@ -37,7 +45,13 @@ export function useWorkerPresence() {
 
     if (!reason) return { computer: name, away: false, online: worker.online, status: status(worker) };
 
-    return { computer: name, away: true, online: false, status: awayLabel(computer), reason };
+    return {
+      computer: name,
+      away: true,
+      online: false,
+      status: presenceLabel(computer?.status ?? "unreachable", computer?.statusSinceMs ?? 0n, presenceTime),
+      reason,
+    };
   };
 }
 

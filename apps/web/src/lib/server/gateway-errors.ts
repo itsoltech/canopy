@@ -6,6 +6,8 @@ export function gatewayFailure(cause: unknown) {
 
   const message = publicMessage(cause.rawMessage);
 
+  if (computerFailure(cause)) return { status: 409, message, scope: "computer" as const };
+
   switch (cause.code) {
     case Code.InvalidArgument:
       return { status: 400, message };
@@ -35,6 +37,15 @@ export function gatewayFailure(cause: unknown) {
     default:
       return { status: 500, message: cause.cause === undefined ? message : "The gateway request failed" };
   }
+}
+
+/** Older gateways send only the disconnected detail; newer ones mark all routed availability failures. */
+export function computerFailure(cause: unknown): boolean {
+  return (
+    cause instanceof ConnectError &&
+    (cause.metadata.get("canopy-error-scope") === "computer" ||
+      (cause.code === Code.Unavailable && cause.cause === undefined && /^.+ disconnected$/.test(cause.rawMessage)))
+  );
 }
 
 function publicMessage(message: string): string {
