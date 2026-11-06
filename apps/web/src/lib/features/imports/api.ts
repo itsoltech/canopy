@@ -45,3 +45,13 @@ export async function importRunAction(runId: string, action: "cancel" | "resume"
     await requestJson("POST", `/api/imports/runs/action?action=${action}`, body, 125_000),
   );
 }
+
+/** A new thread that starts with a note about an imported thread's history. */
+export async function continueImportedThread(threadId: string): Promise<ui.Thread | undefined> {
+  const body = encode(
+    ui.ContinueImportedThreadRequestSchema,
+    create(ui.ContinueImportedThreadRequestSchema, { threadId }),
+  );
+
+  return decode(ui.GetThreadResponseSchema, await requestJson("POST", "/api/imports/continue", body, 65_000)).thread;
+}

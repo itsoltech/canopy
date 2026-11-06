@@ -51,3 +51,8 @@ export const ORIGINS = new Map([
   ["app", "App"],
   ["unknown", "Unknown"],
 ]);
+
+/** New threads, and imported ones the CLI added turns to (their thread gets the new turns). */
+export function selectable(status: string): boolean {
+  return status === "new" || status === "has_new_turns";
+}

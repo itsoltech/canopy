@@ -182,6 +182,10 @@ export const coreMessagesMethods: CoreMessagesMethods = {
     // Imported as history (docs/import.md): no provider session to continue in this thread.
     if (thread.imported?.mode === "history")
       throw new InvalidError("This thread was imported as history. Continue it in a new thread.");
+
+    // The import still writes it or adopts its session (the database refuses such a turn from any path, too).
+    if (thread.imported && (await this.imports.importing(threadId)))
+      throw new InvalidError("This thread is still being imported. Try again when it's done.");
     const existingSteer = await coreSteers(this, (s) => s.byClientRequest(threadId, clientRequestId));
 
     if (existingSteer) return { steer: toUiSteer(existingSteer) };

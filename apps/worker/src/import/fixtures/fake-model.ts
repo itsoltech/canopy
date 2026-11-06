@@ -326,6 +326,8 @@ export function startFakeModel(): FakeModel {
         });
       const raw = await request.text();
       requests.push(raw);
+
+      if (process.env["FAKE_MODEL_DEBUG"]) console.error("fake-model", request.method, path, raw.length);
       let body: JsonObject = {};
 
       try {

@@ -11,6 +11,7 @@ import {
   byActivity,
   candidate,
   candidateStatus,
+  selectable,
   estimatedBytes,
   groups,
   matches,
@@ -116,6 +117,16 @@ export class CliImports {
     });
   }
 
+  /** An import is still writing this thread (or adopting its CLI session). */
+  async importing(threadId: string): Promise<boolean> {
+    const rows = await this.sql(
+      (sql) => sql<{ id: string }>`
+        SELECT id FROM import_items WHERE thread_id = ${threadId}::uuid AND status IN ('pending', 'importing') LIMIT 1`,
+    );
+
+    return rows.length > 0;
+  }
+
   /** A scan of this owner's worker, still in memory. */
   stored(scanId: string): StoredScan {
     const stored = this.#scans.get(scanId);
@@ -132,7 +143,7 @@ export class CliImports {
     const context = await this.context(stored);
     const matching = stored.scan.threads.filter((s) => matches(s, request.filter)).sort(byActivity);
     const limit = Math.min(request.limit || 200, 1000);
-    const importable = matching.filter((s) => candidateStatus(s, context) === "new");
+    const importable = matching.filter((s) => selectable(candidateStatus(s, context)));
 
     return create(ui.ListImportCandidatesResponseSchema, {
       candidates: matching.slice(request.offset, request.offset + limit).map((s) => candidate(s, context)),
@@ -169,7 +180,11 @@ export class CliImports {
       known.set(`${t.provider}:${t.provider_thread_id}`, { threadId: t.id, status: "in_canopy" });
 
     for (const i of await this.sql((sql) => knownSources(sql, userId, workerId)))
-      known.set(`${i.agent_cli}:${i.native_id}`, { threadId: i.thread_id ?? "", status: "imported" });
+      known.set(`${i.agent_cli}:${i.native_id}`, {
+        threadId: i.thread_id ?? "",
+        status: "imported",
+        ...(i.status === "done" && i.thread_id && !i.own_turns && { bytesDone: BigInt(i.bytes_done) }),
+      });
 
     return { os: stored.os, workspaces, known };
   }

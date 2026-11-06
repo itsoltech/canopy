@@ -7,8 +7,8 @@ dostanie widok importów później (etap C).
 Stos A (wątki) ma pięć etapów:
 
 1. wykrywanie i podgląd,
-2. silnik importu i historia Claude (ten dokument opisuje stan po etapie 2),
-3. kontynuacja wątków Claude,
+2. silnik importu i historia Claude,
+3. kontynuacja wątków Claude (ten dokument opisuje stan po etapie 3),
 4. Codex,
 5. Grok.
 
@@ -67,10 +67,11 @@ sprawdzony (`newer`) albo nieznany format importuje się najpierw jako historia.
 5. **Projekty.** Każdy katalog ma propozycję: workspace istniejącego projektu, który go zawiera (najgłębszy
    korzeń), nowy projekt, gdy katalog istnieje, albo „Directory no longer exists” (tylko historia).
 
-Wiersz wątku pokazuje stan: *Imported*, *Already in Canopy* (wątek Canopy o tym samym id u dostawcy),
+Wiersz wątku pokazuje stan: *Imported*, *Has new turns* (zaimportowany, bez tur w Canopy, a CLI dopisało
+nowe tury), *Already in Canopy* (wątek Canopy o tym samym id u dostawcy),
 *Not supported yet* (CLI, którego historii worker jeszcze nie czyta: do etapów 4–5 Codex i Grok),
-*History only* z powodem i *Secrets masked*. Zaznaczać można tylko nowe wątki; licznik i szacunek
-rozmiaru dotyczą tylko ich.
+*History only* z powodem i *Secrets masked*. Zaznaczać można nowe wątki i te z nowymi turami; licznik i
+szacunek rozmiaru dotyczą tylko ich.
 
 6. **Import.** Tryb *Continue where possible* albo *History only* i przycisk **Import N threads**.
    Katalog z propozycją „New project” dostaje projekt o nazwie katalogu i workspace w nim (worker sprawdza
@@ -100,6 +101,80 @@ zdarzenia, `threads.last_seq` i kursor pozycji. Stany:
   Usunięcie zaimportowanego wątku ręcznie też zwalnia jego źródło przy następnym imporcie.
 
 Przebieg kończy się jako `completed`, gdy coś się zaimportowało albo żadna pozycja nie zawiodła, inaczej `failed`.
+
+## Kontynuacja
+
+Tryb pozycji (`target.mode`, potem `thread_imports.mode`) wybiera plan: `native`, gdy proszono o kontynuację,
+CLI ją obsługuje (od etapu 3 Claude), katalog istnieje, wątek zostaje w swoim katalogu, format jest sprawdzony
+i nie jest to subagent; inaczej `history`.
+
+- **Native.** Po ostatniej stronie runner wysyła `AdoptImportedSession`. Worker kopiuje prefiks ze skanu
+  (do ostatniej pełnej linii) do prywatnego domu instancji: `<claude-home>/projects/<ta sama nazwa katalogu
+  co u CLI>/<sesja>.jsonl`, razem z katalogiem `<sesja>/` (subagenci, wyniki narzędzi; tylko pliki i katalogi
+  w domu CLI, bez dowiązań). Dom instancji wybiera dostawca i id profilu razem (to samo id może mieć instancja
+  innego dostawcy).
+  - **Maskowanie kopii.** Kopia przechodzi przez to samo maskowanie co oś czasu: każda linia JSONL i każdy plik
+    JSON wartość po wartości (linia bez sekretu zostaje bajt w bajt), inne pliki tekstowe jako tekst, binarne
+    i większe niż 64 MiB zostają pominięte. Model po wznowieniu nie widzi sekretu zamaskowanego w historii.
+    Sesji, której nie da się zamaskować rekord po rekordzie (linia, która nie jest JSON-em), nie kontynuujemy
+    natywnie: wątek zostaje historią z ostrzeżeniem „Continues in a new thread: …” i przyciskiem
+    **Continue in a new thread**.
+  - **Zapis bez dowiązań, z tożsamością.** Dom prywatny musi być katalogiem (nie dowiązaniem). Kopia najpierw
+    powstaje w całości w osobnym katalogu roboczym w domu (nowe pliki `O_CREAT | O_EXCL | O_NOFOLLOW`, `fsync`),
+    więc sesja, której nie da się zamaskować, kończy się błędem, zanim cokolwiek trafi na miejsce. Potem powstają
+    potrzebne katalogi (każdy katalog od domu w dół musi być prawdziwym katalogiem), zapisuje się manifest, a na
+    końcu pliki są przemianowywane na miejsce (rename zachowuje i-węzeł). Błąd w tej fazie cofa to, co ta kopia
+    przeniosła. Istniejący plik, którego nie zapisała wcześniejsza kopia tej sesji (inna tożsamość), nie jest
+    nadpisywany („Canopy already has a different copy”); własny jest nadpisywany przy ponownej próbie.
+  - **Manifest.** `<data_dir>/import/copies/<cli>-<profil>-<sesja>.json` zapisuje tożsamość (urządzenie
+    i i-węzeł) domu, każdego utworzonego katalogu i każdego pliku oraz snapshot. Przed pierwszym przemianowaniem manifest
+    zapisuje też publikację w toku (`pending`: tożsamości nowych plików), a po ostatnim staje się końcowy. Worker
+    zatrzymany w połowie zostawia oba zestawy, więc ponowna próba nadpisuje własne pliki, a Remove je usuwa.
+    Końcowy manifest zachowuje każdy plik wcześniejszych zestawów, który jest nadal na miejscu z zapisaną
+    tożsamością. Ścieżka w manifeście to same zwykłe nazwy (żadnego `.`, `..` ani pustego członu w środku)
+    i musi rozwiązywać się wewnątrz domu. Kopia z tego samego snapshotu,
+    której pliki są nadal na miejscu, zostaje bez zapisu.
+  - **Bramka.** Wątek nie przyjmuje tur, dopóki jego pozycja jest `pending`/`importing`: `SendMessage` odpowiada
+    „This thread is still being imported. Try again when it's done.”, a trigger `turns_import_gate` w bazie
+    odrzuca turę z każdej innej ścieżki (harmonogram, agent), tak samo jak dla wątku-historii. Po udanej kopii
+    gateway w jednej transakcji sprawdza, że import nadal trwa, ustawia `provider_thread_id` = id sesji tylko
+    wtedy, gdy wątek nie ma innej sesji, i kończy pozycję. Pierwsza tura w Canopy uruchamia Claude Code
+    z `resume` w prywatnym domu, a pliki użytkownika zostają nietknięte. „Fork from here” działa na
+    zaimportowanych turach (`provider_turn_ref` = uuid ostatniego wpisu).
+- **Continue in a new thread** (`ContinueImportedThread`, przycisk w miejscu kompozytora wątku-historii):
+  nowy wątek główny w tym samym projekcie, workspace i katalogu (w „No project” nowy katalog scratch),
+  z tytułem „… (continued)”. `settings.handoff` z notatką trafia do instrukcji nowej sesji, jak przy
+  przeniesionym wątku: najnowsze tury (prompt i ostatnia odpowiedź, do 2000 znaków każda, razem do 24 000),
+  liczba pominiętych i zmienione pliki. Bez wywołania modelu.
+- **Has new turns.** Gdy plik CLI urósł, a zaimportowany wątek nie ma tur z Canopy, nowy przebieg kontynuuje
+  ten sam wątek od kursora (stara pozycja dostaje `superseded`, nowa przejmuje wątek, kursor i cel). Kopia
+  natywna jest zastępowana dłuższą (`replace`, tylko pliki z manifestu). Wątek z turami z Canopy rozszedł się
+  z plikiem CLI: zostaje *Imported*; zapis przebiegu sprawdza to ponownie przy zablokowanym wątku. Wzrost
+  porównuje rozmiar pliku historii ze skanu (snapshot) z `bytes_done`, nie łączny rozmiar sesji.
+- **Remove.** Undo usuwa kopie wątków bez tur z Canopy (`RemoveImportedCopy`, najlepsza próba: worker offline
+  zachowuje je w prywatnym domu). Punktem wyjścia jest dom prywatny, którego worker oczekuje teraz (nigdy ścieżka
+  z manifestu): musi to być ten sam katalog co przy kopii (tożsamość), a usuwane są tylko pliki i puste katalogi
+  osiągalne przez prawdziwe katalogi, z zapisaną tożsamością; tuż przed `unlink` plik jest otwierany bez
+  podążania za dowiązaniem i sprawdzany ponownie. Podmieniony dom, dowiązanie po drodze albo cudzy plik zostają.
+  Node nie ma `unlinkat`, więc między sprawdzeniem a usunięciem zostaje okno kilku wywołań systemowych w domu,
+  do którego pisze tylko Canopy. Wątek, który pracował w Canopy, zachowuje kopię, żeby przywrócony wątek mógł dalej
+  wznawiać.
+- **Blokady.** Utworzenie dopisania, Cancel, Undo, strona, koniec pozycji i nieudane przejęcie sesji to każde
+  jedna transakcja `importTransaction` (zob. „Blokady” niżej): pozycja zastępowana i nowa, ich przebiegi i wątek
+  są zablokowane razem, zanim cokolwiek się zmieni. Dopisanie przejmuje wątek tylko od pozycji, która nadal jest
+  `done`.
+- **Anulowanie i Undo dopisania.** Pozycja, która dopisuje tury do wątku wcześniejszego importu, zapisuje
+  `base`: ostatnie zdarzenie wątku i koniec jego ostatniej tury. Cancel albo Undo takiego dopisania usuwa tylko to,
+  co dopisało (zdarzenia, nowe tury, stany itemów odbudowane reduktorem ze zdarzeń sprzed niego), przywraca koniec
+  ostatniej tury i oddaje wątek wcześniejszej pozycji; historia sprzed dopisania zostaje. Undo cofa tak samo
+  dopisania zakończone i nieudane. Wątek jest przy tym zablokowany, a sekwencja nigdy nie cofa się za coś, czego
+  import nie zapisał: gdy po dopisaniu wątek poszedł dalej (tura z Canopy, inne zdarzenie), Undo odmawia
+  („Can't undo: the thread continued after this import.”) i niczego nie usuwa; tak samo, gdy późniejszy import
+  kontynuował jeden z wątków przebiegu (jego pozycja jest `superseded`). Wątek natywny, którego kopia
+  zdążyła wchłonąć dopisane tury, przechodzi na kontynuację w nowym wątku.
+- **Nieudany import natywny.** Wątek natywny bez przejętej sesji nie przyjmuje tur (trigger: brak
+  `provider_thread_id`); nieudana pozycja przełącza go na tryb historii, a udana ponowna próba z powrotem na
+  natywny.
 
 ## Strony i zapis
 
@@ -163,7 +238,7 @@ Treść transakcji zmienia tylko zablokowane wiersze i to, co należy do zabloko
 to jedna transakcja, bez zapisów w trybie autocommit pomiędzy.
 
 Tryb `history` (`thread_imports.mode`): gateway odrzuca `SendMessage`, a miejsce kompozytora zajmuje
-„Imported from … as history” z odnośnikiem do importów.
+„Imported from … as history” z **Continue in a new thread** i odnośnikiem do importów.
 
 ## Claude
 
@@ -203,9 +278,11 @@ z outboxa ani journala ([protocol.md](protocol.md#komendy-gateway--worker)).
 |---|---|---|
 | `ScanImportSources { agent_clis }` | `CommandResult.import_scan`: `ImportRoot[]`, `ImportThreadSummary[]`, `truncated`, `skipped` | 1 |
 | `ReadImportPage { source_key, snapshot, cursor, thread_id, max_bytes }` | `CommandResult.import_page`: `ImportedTurn[]`, `next_cursor`, `done`, `warnings`, `skipped_lines`, `bytes_read`, `title` | 2 |
+| `AdoptImportedSession { source_key, snapshot, profile_id, replace }` | `CommandResult.imported_session_id` | 3 |
+| `RemoveImportedCopy { agent_cli, profile_id, session_id }` | — | 3 |
 
 UI API (`proto/canopy/ui/v1/cli_import.proto`): `ScanImport`, `ListImportCandidates`, `StartImport`,
-`ListImportRuns`, `GetImportRun`, `CancelImportRun`, `ResumeImportRun`, `UndoImportRun`. `ui.Thread.import`
+`ListImportRuns`, `GetImportRun`, `CancelImportRun`, `ResumeImportRun`, `UndoImportRun`, `ContinueImportedThread`. `ui.Thread.import`
 (`agent_cli`, `mode`, `imported_at`) oznacza zaimportowany wątek. Metody nie są trasowane do połączonych
 komputerów.
 
@@ -218,7 +295,7 @@ Migracja `0093_cli_imports`:
   `mode`, `already_imported`, błąd i czasy. Indeks `import_runs_active`: jeden przebieg na workerze.
 - `import_items`: pozycja w przebiegu, CLI, `root_id` i `native_id` (stała tożsamość źródła), `source_key`,
   tytuł, katalog, snapshot, cel (`projectId`, `workspaceId`, `cwd`, `mode`), stan, kursor, wątek, liczby tur
-  i bajtów, ostrzeżenia. Indeks `import_items_source`: jedno żywe źródło
+  i bajtów, ostrzeżenia; `superseded`, gdy późniejszy przebieg kontynuuje ten sam wątek. Indeks `import_items_source`: jedno żywe źródło
   (`pending | importing | done | failed`) na właściciela i workera.
 - `thread_imports`: wątek, pozycja, CLI, `native_id`, `mode` (`native | history`), wersja CLI źródła.
 
@@ -308,6 +385,22 @@ Migracja `0093_cli_imports`:
   ponowny import i ponowne strony bez duplikatów; pauza po odłączeniu workera i dokończenie od kursora;
   Remove; maskowanie kanarka w zdarzeniach, itemach, turach i pozycjach; zmienione źródło psuje tylko swoją
   pozycję; cudzy przebieg niewidoczny; klucz spoza skanu niczego nie wybiera.
+- **Wznowienie z prawdziwym Claude Code** (`apps/worker/src/import/claude-resume.test.ts`, bez loginu):
+  kopia fixture w prywatnym domu, tura przez `ClaudeThreads` z atrapą modelu; żądanie zawiera historię tak,
+  jak Claude ją odtwarza (podsumowanie kompaktowania i tury po nim), pliki CLI są nietknięte, tura trafia
+  do kopii.
+- **Integracja kontynuacji** (`tests/integration/import-claude-continue.test.ts`, atrapa Claude Code
+  `fixtures/instance-claude.ts`): import natywny, tura w Canopy uruchamia `--resume` importowanej sesji
+  w `<data_dir>/claude-home`; Continue in a new thread niesie notatkę w instrukcjach; nowe tury CLI trafiają
+  do tego samego wątku i kopii; Undo usuwa kopie nieużyte i zostawia kopię wątku z turą z Canopy.
+- **Blokady** (`tests/integration/import-locks.test.ts`, PostgreSQL): 40 rund, w każdej naraz i w losowej
+  kolejności utworzenie dopisania, Undo, Cancel, Resume, zapis strony, błąd i koniec pozycji oraz zwolnienie usuniętych
+  wątków na tych samych wątkach; żadnego `40P01`, każdy wątek ma dokładnie jedną żywą pozycję, a `last_seq`
+  zgadza się ze zdarzeniami. Undo przebiegu, którego wątek kontynuował późniejszy import, jest odrzucane bez zmian.
+  `apps/gateway/src/imports/locks.test.ts` pilnuje, że blokady i transakcje biorą się tylko z `importTransaction`.
+- **Live** (`apps/worker/src/import/resume.live.test.ts`, `CANOPY_LIVE=1` z CLIProxyAPI): sesja zrobiona
+  prawdziwym Claude Code poza Canopy zapamiętuje słowo, import kopiuje ją do prywatnego domu, wznowiona tura
+  z prawdziwym modelem je podaje; pliki użytkownika nietknięte.
 - **Wydajność** (`apps/worker/src/import/performance.test.ts`): wygenerowana sesja Claude
   (`CANOPY_IMPORT_PERF_MB`, domyślnie 160 MB, głównie cache żądań): skan poniżej 2 s, kilka stron, przyrost
   pamięci poniżej 400 MB. Lokalnie: 160 MB w 2,5 s, +68 MB (maskowanie z widokami zdekodowanymi i sprawdzaniem złączonych pól).

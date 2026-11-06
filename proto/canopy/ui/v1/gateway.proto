@@ -247,6 +247,7 @@ service GatewayService {
   rpc ResumeImportRun(ImportRunRequest) returns (ImportRun);
   // Usuwa wątki utworzone przez import i ich kopie na workerze.
   rpc UndoImportRun(ImportRunRequest) returns (ImportRun);
+  rpc ContinueImportedThread(ContinueImportedThreadRequest) returns (GetThreadResponse);
 }
 
 // ---------- Model ----------

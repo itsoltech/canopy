@@ -19,8 +19,10 @@ export interface WorkspaceRow {
 /** What Canopy already has for a source (native id), from earlier imports or its own threads. */
 export interface KnownSource {
   readonly threadId: string;
-  /** imported | has_new_turns | in_canopy */
+  /** imported | in_canopy */
   readonly status: string;
+  /** Imported and untouched in Canopy: the source size the import read up to (more = has_new_turns). */
+  readonly bytesDone?: bigint;
 }
 
 export interface CandidateContext {
@@ -113,7 +115,16 @@ export const IMPORTABLE_CLIS: ReadonlySet<string> = new Set<string>(["claude"]);
 export function candidateStatus(summary: ImportThreadSummary, context: CandidateContext): string {
   if (!IMPORTABLE_CLIS.has(summary.agentCli)) return "unsupported";
 
-  return context.known.get(sourceKey(summary))?.status ?? "new";
+  const known = context.known.get(sourceKey(summary));
+
+  if (!known) return "new";
+
+  return known.bytesDone !== undefined && historyBytes(summary) > known.bytesDone ? "has_new_turns" : known.status;
+}
+
+/** Statuses the owner can choose: new threads and imported ones the CLI has added turns to. */
+export function selectable(status: string): boolean {
+  return status === "new" || status === "has_new_turns";
 }
 
 export function candidate(summary: ImportThreadSummary, context: CandidateContext): ui.ImportCandidate {
@@ -182,4 +193,12 @@ export function byActivity(a: ImportThreadSummary, b: ImportThreadSummary): numb
   const at = (s: ImportThreadSummary) => (s.updatedAt ? timestampMs(s.updatedAt) : 0);
 
   return at(b) - at(a) || a.title.localeCompare(b.title);
+}
+
+/**
+ * Size of the file the history is read from (the scan's snapshot): what an import's bytes_done is measured in. A
+ * session's total size can include other files (Grok keeps several per session).
+ */
+export function historyBytes(summary: ImportThreadSummary): bigint {
+  return summary.snapshot?.size ?? summary.bytes;
 }

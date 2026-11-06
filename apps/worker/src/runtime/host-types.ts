@@ -45,6 +45,7 @@ export interface CommandOutput {
   readonly worktree?: MessageInitShape<typeof WorktreeInfoSchema>;
   readonly importScan?: MessageInitShape<typeof CommandResultSchema>["importScan"];
   readonly importPage?: MessageInitShape<typeof CommandResultSchema>["importPage"];
+  readonly importedSessionId?: string;
 }
 
 export interface WorkerHostOptions {
