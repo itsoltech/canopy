@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { BackHandler, Pressable, Text, View } from "react-native";
 import { useEffect } from "react";
 import { router } from "expo-router";
-import { ScreenFrame } from "../../ui/ScreenFrame";
+import { ScreenFrame, usePaneInsets } from "../../ui/ScreenFrame";
 import { ScreenScroll } from "../../ui/ScreenScroll";
 import { KeyboardArea } from "../../ui/KeyboardArea";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
@@ -16,6 +16,8 @@ import { ConnectionBanner } from "../navigation/ConnectionStatus";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 
+const SIDEBAR_WIDTH = 256;
+
 export function SettingsLayout({
   section,
   onSelect,
@@ -27,6 +29,7 @@ export function SettingsLayout({
 }) {
   const c = useColors();
   const { wide } = useLayout();
+  const insets = usePaneInsets();
   const { client } = useSession();
   const [linked, setLinked] = useState(false);
   const [error, setError] = useState("");
@@ -67,30 +70,7 @@ export function SettingsLayout({
   );
 
   return (
-    <ScreenFrame
-      header={
-        <>
-          <View
-            style={[styles.row, { minHeight: 48, paddingHorizontal: 4, borderBottomWidth: 1, borderColor: c.line }]}
-          >
-            {!wide && section && <IconButton icon="chevron-left" label="All settings" onPress={() => onSelect("")} />}
-            <Text style={[styles.chrome, { color: c.muted, paddingLeft: wide || !section ? 16 : 0 }]}>Settings</Text>
-            {current && (
-              <Text numberOfLines={1} style={[styles.chrome, { flex: 1, color: c.text }]}>
-                / {current.label}
-              </Text>
-            )}
-            {!current && <View style={{ flex: 1 }} />}
-            <IconButton
-              icon="x-mark"
-              label="Close Settings"
-              onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
-            />
-          </View>
-          <ConnectionBanner />
-        </>
-      }
-    >
+    <ScreenFrame header={<SettingsHeader section={section} current={current} onSelect={onSelect} />}>
       <KeyboardArea style={{ flexDirection: "row", minWidth: 0 }}>
         {(wide || !section) && (
           <ScreenScroll
@@ -98,7 +78,8 @@ export function SettingsLayout({
             innerRight={wide}
             keyboardShouldPersistTaps="handled"
             style={{
-              width: wide ? 216 : undefined,
+              // The safe-area gutter extends the column; it must not consume the navigation width.
+              width: wide ? SIDEBAR_WIDTH + insets.left : undefined,
               flex: wide ? undefined : 1,
               flexGrow: wide ? 0 : 1,
               borderRightWidth: wide ? 1 : 0,
@@ -138,6 +119,63 @@ export function SettingsLayout({
         )}
       </KeyboardArea>
     </ScreenFrame>
+  );
+}
+
+function SettingsHeader({
+  section,
+  current,
+  onSelect,
+}: {
+  section: string;
+  current: SettingsSection | undefined;
+  onSelect: (section: string) => void;
+}) {
+  const c = useColors();
+  const { wide } = useLayout();
+
+  return (
+    <>
+      <View
+        style={[
+          styles.row,
+          {
+            minHeight: 48,
+            paddingHorizontal: wide ? 0 : 4,
+            gap: wide ? 0 : 8,
+            borderBottomWidth: 1,
+            borderColor: c.line,
+          },
+        ]}
+      >
+        {!wide && section && <IconButton icon="chevron-left" label="All settings" onPress={() => onSelect("")} />}
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.chrome,
+            {
+              color: c.muted,
+              width: wide ? SIDEBAR_WIDTH : undefined,
+              paddingLeft: wide ? 22 : !section ? 16 : 0,
+            },
+          ]}
+        >
+          Settings
+        </Text>
+        {current && (
+          <Text numberOfLines={1} style={[styles.chrome, { flex: 1, color: c.text, paddingLeft: wide ? 20 : 0 }]}>
+            / {current.label}
+          </Text>
+        )}
+        {!current && <View style={{ flex: 1 }} />}
+        <IconButton
+          icon="x-mark"
+          label="Close Settings"
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+        />
+      </View>
+      <ConnectionBanner />
+    </>
   );
 }
 
@@ -185,7 +223,13 @@ function SettingsNavGroup({
             ]}
           >
             <Icon name={s.icon} color={active ? c.text : c.muted} />
-            <Text style={[styles.chrome, { color: active ? c.text : c.muted, flex: 1 }]}>{s.label}</Text>
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={[styles.chrome, { color: active ? c.text : c.muted, flex: 1 }]}
+            >
+              {s.label}
+            </Text>
           </Pressable>
         );
       })}
