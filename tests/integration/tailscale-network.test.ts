@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDirs } from "@canopy/testing";
@@ -27,9 +26,6 @@ const VPN: DetectedAddress = { host: "10.8.0.2", kind: "vpn", interfaceName: "wg
 
 const update = (action: string, extra: { enabled?: boolean; hostnames?: string[] } = {}) =>
   create(ui.UpdateNetworkAccessRequestSchema, { action, ...extra });
-
-// Bun's async rejects matcher can stall Connect calls; settle the RPC before asserting.
-const rejected = (call: Promise<unknown>) => call.catch((cause: unknown) => ConnectError.from(cause));
 
 async function eventually(predicate: () => Promise<boolean>, timeoutMs = 8000) {
   expect(await poll(predicate, Boolean, timeoutMs)).toBe(true);
@@ -103,7 +99,7 @@ describe.skipIf(!dockerAvailable)("tailscale on a gateway", () => {
     await gw?.close();
   }, 15_000);
 
-  test("only the owner reads Tailscale and asks for a new reading; phones are refused", async () => {
+  test("the owner's paired phone reads Tailscale and asks for a new reading", async () => {
     interfaces = [{ host: "127.0.0.1", kind: "lan", interfaceName: "lo-test" }];
     await network.refresh();
     await gw.api.updateNetworkAccess(update("set_enabled", { enabled: true }));
@@ -121,10 +117,9 @@ describe.skipIf(!dockerAvailable)("tailscale on a gateway", () => {
     fake.setStatus({ dnsName: MAGIC });
     const phone = routedMobileClient({ connection, transport, token: paired.deviceToken }).api;
 
-    for (const call of [() => phone.getNetworkAccess({}), () => phone.updateNetworkAccess(update("refresh_tailscale"))])
-      expect(await rejected(call())).toMatchObject({ code: Code.PermissionDenied });
+    expect((await phone.getNetworkAccess({})).fingerprint).toBe(network.fingerprint);
 
-    const owner = await gw.api.updateNetworkAccess(update("refresh_tailscale"));
+    const owner = await phone.updateNetworkAccess(update("refresh_tailscale"));
     expect(owner.tailscale).toMatchObject({
       state: "connected",
       dnsName: MAGIC,

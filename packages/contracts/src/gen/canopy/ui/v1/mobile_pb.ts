@@ -434,7 +434,7 @@ export const MobilePairingService: GenService<{
   serviceDesc(file_canopy_ui_v1_mobile, 0);
 
 /**
- * Separate exchange: a phone invitation can never mint a full UI credential.
+ * Separate exchange: a phone invitation cannot mint a desktop client identity.
  *
  * @generated from service canopy.ui.v1.DesktopPairingService
  */

@@ -61,7 +61,7 @@ export function routedMobileClient(options: {
       const response = await options.transport.fetch(`${address}${source.pathname}${source.search}`, init, fingerprint);
       failed.delete(address);
 
-      if (lastAddress !== address) {
+      if (lastAddress !== address && addresses.includes(address)) {
         lastAddress = address;
         options.changed?.({ fingerprint, addresses, lastAddress });
       }
@@ -75,18 +75,31 @@ export function routedMobileClient(options: {
 
   const client = mobileClient({ gatewayUrl: addresses[0]!, ...(options.token && { token: options.token }), fetch });
 
+  function update(routes: MobileConnection) {
+    // Route announcements may change addresses, never trust. Changing the pin requires pairing again.
+    if (routes.fingerprint !== fingerprint || !routes.addresses.length) return;
+    const next = normalized(routes.addresses);
+
+    if (next.join() === addresses.join()) return;
+    addresses = next;
+
+    if (lastAddress && !addresses.includes(lastAddress)) lastAddress = undefined;
+    options.changed?.({ fingerprint, addresses, ...(lastAddress && { lastAddress }) });
+  }
+
   return {
     ...client,
-    connection: () => ({ fingerprint, addresses, ...(lastAddress && { lastAddress }) }),
-    update(routes: MobileConnection) {
-      // Route announcements may change addresses, never trust. Changing the pin requires pairing again.
-      if (routes.fingerprint !== fingerprint || !routes.addresses.length) return;
-      const next = normalized(routes.addresses);
+    api: {
+      ...client.api,
+      async updateNetworkAccess(request, callOptions?) {
+        const status = await client.api.updateNetworkAccess(request, callOptions);
+        update({ fingerprint: status.fingerprint, addresses: status.addresses.map((address) => address.origin) });
 
-      if (next.join() === addresses.join()) return;
-      addresses = next;
-      options.changed?.({ fingerprint, addresses, ...(lastAddress && { lastAddress }) });
-    },
+        return status;
+      },
+    } satisfies typeof client.api,
+    connection: () => ({ fingerprint, addresses, ...(lastAddress && { lastAddress }) }),
+    update,
   };
 }
 

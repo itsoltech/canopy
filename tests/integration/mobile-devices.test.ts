@@ -104,12 +104,25 @@ describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect cl
     expect((await exchange(valid.code)).deviceToken).toStartWith("canopy_device_");
   });
 
-  test("device authorizes GatewayService, cannot administer pairing; revocation closes existing streams and rejects new RPCs", async () => {
+  test("device has owner settings access; revocation closes existing streams and rejects new RPCs", async () => {
     const paired = await exchange((await invite()).code);
     const phone = client(paired.deviceToken).api;
     expect((await phone.getOverview({})).workers.some((w) => w.id === gw.workerId)).toBe(true);
-    expect(await failure(phone.createMobilePairing({}))).toContain("web Settings");
-    expect(await failure(phone.getMobileDevices({}))).toContain("web Settings");
+    const invitation = await phone.createMobilePairing({});
+    expect((await phone.getMobileDevices({})).pairings.some((p) => p.id === invitation.pairing!.id)).toBe(true);
+    await phone.revokeMobilePairing({ id: invitation.pairing!.id });
+    expect(await failure(exchange(invitation.code))).toContain("revoked");
+    expect((await phone.getNetworkAccess({})).fingerprint).toBe(network.fingerprint);
+    expect((await phone.updateNetworkAccess({ action: "set_hostnames", hostnames: ["localhost"] })).hostnames).toEqual([
+      "localhost",
+    ]);
+    const enrollment = await phone.createWorkerEnrollment({ name: "Phone setup" });
+    expect((await phone.getWorkerSetup({})).enrollments.some((e) => e.id === enrollment.enrollment!.id)).toBe(true);
+    await phone.revokeWorkerEnrollment({ id: enrollment.enrollment!.id });
+    await phone.renameWorker({ workerId: gw.workerId, name: "Phone-managed worker" });
+    expect(await failure(phone.reportAppControl({}))).toContain("Only the Canopy app");
+    expect((await phone.getOverview({})).workers.find((w) => w.id === gw.workerId)?.name).toBe("Phone-managed worker");
+    expect(await failure(phone.rotateWorkerCredential({ workerId: Bun.randomUUIDv7() }))).not.toContain("web Settings");
     const signal = AbortSignal.timeout(5000);
     const watch = phone.watchOverview({ includeSnapshot: true }, { signal })[Symbol.asyncIterator]();
     expect((await watch.next()).value?.change.case).toBe("mobileSnapshot");
@@ -132,6 +145,64 @@ describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect cl
     expect((await client(other.deviceToken).api.getOverview({})).workers.length).toBeGreaterThan(0);
     await client(other.deviceToken).api.unpairMobileDevice({});
     expect(await failure(client(other.deviceToken).api.getOverview({}))).toContain("revoked");
+  });
+
+  test("phone administration cannot list or revoke another owner's devices, codes or workers", async () => {
+    const paired = await exchange((await invite()).code);
+    const phone = client(paired.deviceToken).api;
+    const otherOwner = Bun.randomUUIDv7();
+    await query("INSERT INTO users (id, email, display_name, role) VALUES ($1, $2, 'Other', 'user')", [
+      otherOwner,
+      `${otherOwner}@example.test`,
+    ]);
+    const foreignPairing = await invite();
+    const foreignDevice = await exchange((await invite()).code, "Other owner phone");
+    await query("UPDATE mobile_pairings SET owner_user_id = $1 WHERE id = $2", [
+      otherOwner,
+      foreignPairing.pairing!.id,
+    ]);
+    await query("UPDATE mobile_devices SET owner_user_id = $1 WHERE id = $2", [otherOwner, foreignDevice.device!.id]);
+    const listed = await phone.getMobileDevices({});
+    expect(listed.pairings.some((p) => p.id === foreignPairing.pairing!.id)).toBe(false);
+    expect(listed.devices.some((d) => d.id === foreignDevice.device!.id)).toBe(false);
+    expect(await failure(phone.revokeMobilePairing({ id: foreignPairing.pairing!.id }))).toContain("not found");
+    expect(await failure(phone.revokeMobileDevice({ id: foreignDevice.device!.id }))).toContain("not found");
+    expect(await failure(client(foreignDevice.deviceToken).api.getMobileDevices({}))).toContain("token");
+    expect(
+      (await query("SELECT revoked_at FROM mobile_devices WHERE id = $1", [foreignDevice.device!.id]))[0]?.[
+        "revoked_at"
+      ],
+    ).toBeNull();
+    expect(
+      (await query("SELECT revoked_at FROM mobile_pairings WHERE id = $1", [foreignPairing.pairing!.id]))[0]?.[
+        "revoked_at"
+      ],
+    ).toBeNull();
+    const worker = Bun.randomUUIDv7();
+    await query(
+      "INSERT INTO workers(id,owner_user_id,name,credential_hash) VALUES($1::uuid,$2::uuid,'Other worker','x')",
+      [worker, otherOwner],
+    );
+    expect((await phone.getOverview({})).workers.some((w) => w.id === worker)).toBe(false);
+    expect(await failure(phone.renameWorker({ workerId: worker, name: "Changed" }))).toContain("not found");
+    expect(await failure(phone.rotateWorkerCredential({ workerId: worker }))).toContain("not found");
+    expect(await failure(phone.revokeWorker({ workerId: worker }))).toContain("not found");
+    expect(await failure(phone.archiveWorker({ workerId: worker }))).toContain("not found");
+    expect(
+      (await query("SELECT name, revoked_at, archived_at, credential_hash FROM workers WHERE id = $1", [worker]))[0],
+    ).toMatchObject({ name: "Other worker", revoked_at: null, archived_at: null, credential_hash: "x" });
+    const enrollment = await gw.api.createWorkerEnrollment({ name: "Other owner's pending worker" });
+    await query("UPDATE worker_enrollments SET owner_user_id = $1 WHERE id = $2", [
+      otherOwner,
+      enrollment.enrollment!.id,
+    ]);
+    expect((await phone.getWorkerSetup({})).enrollments.some((e) => e.id === enrollment.enrollment!.id)).toBe(false);
+    expect(await failure(phone.revokeWorkerEnrollment({ id: enrollment.enrollment!.id }))).toContain("not found");
+    expect(
+      (await query("SELECT revoked_at FROM worker_enrollments WHERE id = $1", [enrollment.enrollment!.id]))[0]?.[
+        "revoked_at"
+      ],
+    ).toBeNull();
   });
 
   test("app's pure-TS transport gets overview and receives snapshot + live WatchThread messages via HTTP/1.1", async () => {

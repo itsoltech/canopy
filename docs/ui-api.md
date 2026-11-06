@@ -51,15 +51,16 @@ przeglądarka nadal komunikuje się wyłącznie z BFF. Telefon nigdy nie otrzymu
 Settings → Devices tworzy 10-minutowy kod/QR, listuje urządzenia i odwołuje
 zaproszenia/tokeny przez BFF `/api/mobile-devices` i `/api/mobile-devices/:id`.
 RPC administracyjne to `GetMobileDevices`, `CreateMobilePairing`, `RevokeMobilePairing`
-i `RevokeMobileDevice`; są dostępne z service tokenem lub pełnym poświadczeniem
-desktopu, a niedostępne dla telefonu. Publiczne
+i `RevokeMobileDevice`; są dostępne z service tokenem lub odwoływalnym poświadczeniem
+sparowanego telefonu albo desktopu. Publiczne
 `MobilePairingService.ExchangeMobilePairing` jednorazowo wymienia kod na revocable
 token urządzenia, przechowywany jako hash w DB i w SecureStore na telefonie.
 `UnpairMobileDevice` odwołuje wyłącznie bieżące urządzenie z context auth.
 
-Token telefonu daje dostęp właściciela do pozostałych RPC GatewayService z
-ograniczeniami administracji opisanymi w `mobile.md`; nie pozwala tworzyć enrollmentu
-ani rotować poświadczeń workera, które umożliwiałyby migrację do pełnego zakresu UI.
+Token telefonu daje ten sam dostęp właściciela do RPC GatewayService co BFF,
+w tym administrację workerami, siecią, urządzeniami i aktualizacjami.
+Handler każdej operacji nadal sprawdza właściciela. Lokalny kanał sterowania
+aplikacją desktopową pozostaje dostępny tylko jej własnemu service tokenowi.
 `WatchOverviewRequest.include_snapshot` (762) żąda początkowego
 `OverviewUpdate.mobile_snapshot` (763: overview i wątki), aby odtworzyć stan po
 reconnect. `mobile_device` (760) i `mobile_pairing` (761) zawierają tylko metadane,

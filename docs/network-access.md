@@ -55,8 +55,8 @@ ale go nie wymaga:
 
 Listener nie wystawia BFF ani bazy. Sparowane desktopowe BFF korzystają z UI gRPC
 na tym samym listenerze, z osobnym odwoływalnym tokenem i przypiętym certyfikatem
-([desktop-remote-frontend.md](desktop-remote-frontend.md)); telefony zachowują swój
-ograniczony zakres. DesktopMigrationService emituje poświadczenie wyłącznie tutaj,
+([desktop-remote-frontend.md](desktop-remote-frontend.md)); telefony mają ten sam
+zakres UI właściciela. DesktopMigrationService emituje poświadczenie wyłącznie tutaj,
 po uwierzytelnieniu własnego workera desktopowego; stary endpoint udostępnia jedynie
 uwierzytelnione trasy migracji. Workery bez certyfikatu klienta korzystają z WorkerLink,
 enrollmentu i niezależnego UpdateService (etap 3), które same weryfikują tokeny i właściciela.
@@ -73,7 +73,12 @@ Pierwsze włączenie losuje wolny port z zakresu 20000–31999 (poniżej zakres�
 macOS i Windows) i zapisuje go; kolejne starty i ponowne włączenia używają tego samego portu, więc
 zapisane trasy partnerów i telefonów pozostają ważne. „Change” ustawia własny port (np. otwarty
 w firewallu serwera) albo „Pick a free port”. Zmiana otwiera nowy port **przed** zamknięciem starego:
-zajęty port niczego nie psuje, a dialog pokazuje „Port N is already used by another app. Choose another
+nowe trasy są zapisywane i ogłaszane przez istniejące połączenia, a stary listener przestaje
+przyjmować nowe połączenia. Przez maksymalnie 5 s pozwala dokończyć odpowiedź RPC i przesłać
+ogłoszenia otwartymi strumieniami (HTTP/2 używa GOAWAY), potem zamyka pozostałe sockety.
+Telefon zapisuje trasy także z odpowiedzi `UpdateNetworkAccess`, więc zmiana portu działa
+bez aktywnego overview. Certyfikat i token urządzenia pozostają te same.
+Zajęty port niczego nie psuje, a dialog pokazuje „Port N is already used by another app. Choose another
 port.”. Zapisany port zajęty przy starcie daje stan `error` z tym samym komunikatem i przyciskiem
 „Pick a free port”; gateway startuje normalnie. `EACCES`/`EPERM` → „This computer doesn't allow Canopy
 to use port N. Choose a port above 1024.”.

@@ -96,7 +96,7 @@ describe.skipIf(!dockerAvailable)("server gateways exclude computer links", () =
 
     const phone = routedMobileClient({ connection, transport, token: paired.deviceToken }).api;
     expect((await phone.getOverview({})).workers.some((w) => w.id === gw.workerId)).toBe(true);
-    expect(await rejected(phone.createComputerPairing({}))).toMatchObject({ code: Code.PermissionDenied });
+    expect(await rejected(phone.createComputerPairing({}))).toMatchObject({ code: Code.FailedPrecondition });
   });
 
   test("a paired desktop's local BFF reports the server's disabled linking capability", async () => {

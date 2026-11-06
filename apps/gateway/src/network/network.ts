@@ -49,6 +49,7 @@ export class NetworkAccess {
   #settings: NetworkSettings = { enabled: false, port: null, hostnames: [] };
   #identity: { certificate: string; privateKey: string; fingerprint: string } | undefined;
   #listener: Listener | undefined;
+  readonly #retiring = new Set<Listener>();
   #error = "";
   #detected: DetectedAddress[] = [];
   #published = "";
@@ -238,6 +239,7 @@ export class NetworkAccess {
 
     return this.#serial(async () => {
       await this.#listener?.close();
+      await Promise.all([...this.#retiring].map((listener) => listener.close()));
       await this.#https?.close();
       this.#listener = undefined;
     });
@@ -268,6 +270,7 @@ export class NetworkAccess {
   async #apply() {
     if (!this.#settings.enabled) {
       await this.#listener?.close();
+      await Promise.all([...this.#retiring].map((listener) => listener.close()));
       this.#listener = undefined;
       this.#error = "";
     } else if (!this.#listener) {
@@ -322,6 +325,7 @@ export class NetworkAccess {
     if (requested !== undefined && (!Number.isInteger(requested) || requested < 1 || requested > 65535))
       throw new ConnectError("Enter a port from 1 to 65535", Code.InvalidArgument);
     let port = requested ?? null;
+    let previous: Listener | undefined;
 
     if (this.#settings.enabled) {
       if (requested === undefined || requested !== this.#listener?.port) {
@@ -336,7 +340,7 @@ export class NetworkAccess {
           );
         }
 
-        await this.#listener?.close();
+        previous = this.#listener;
         this.#listener = next;
         this.#error = "";
       }
@@ -347,6 +351,13 @@ export class NetworkAccess {
     this.#settings = { ...this.#settings, port };
     await saveSettings(this.options.store, this.#settings);
     this.#publish();
+
+    if (previous) {
+      const retiring = previous;
+      this.#retiring.add(retiring);
+      // Publish routes first, then let the initiating response and old overview streams flush.
+      void retiring.close(5000).then(() => this.#retiring.delete(retiring));
+    }
   }
 
   #publish() {
