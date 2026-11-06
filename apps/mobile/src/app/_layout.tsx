@@ -9,6 +9,7 @@ import { LayoutProvider, useLayout } from "../state/layout";
 import { PreferencesProvider } from "../state/preferences";
 import { View } from "react-native";
 import { AppSidebar } from "../features/navigation/AppSidebar";
+import { useReducedMotion } from "../ui/motion";
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from "@expo-google-fonts/inter";
 
 /** Wide windows keep the thread list beside the stack (collapsible); phones navigate list → thread. */
@@ -25,19 +26,23 @@ function Navigation() {
           <AppSidebar />
         </View>
       )}
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, overflow: "hidden" }}>
         <Screens />
       </View>
     </View>
   );
 }
 
+/** Beside the sidebar screens swap in place: a slide would carry the old screen over the list. */
 function Screens() {
   const c = useColors();
+  const { wide } = useLayout();
+  const reduced = useReducedMotion();
 
   return (
     <Stack
       screenOptions={{
+        animation: reduced ? "none" : wide ? "fade" : "default",
         headerShown: false,
         headerStyle: { backgroundColor: c.background },
         headerTintColor: c.text,
