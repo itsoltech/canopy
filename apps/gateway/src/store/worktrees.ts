@@ -41,6 +41,12 @@ export interface WorktreeRow {
   location: string;
   /** Detached HEAD: the short commit the worker reported (`branch` keeps the last branch); empty = on `branch`. */
   detached_commit: string;
+  /** provisional | generated | kept | fixed (migration 0087, docs/worktrees.md "Nazwy gałęzi"). */
+  branch_source: string;
+  /** Generations claimed for a provisional name. */
+  branch_attempts: number;
+  /** The name the worktree was created with when it was provisional. */
+  provisional_branch: string;
 }
 
 export interface WorktreeStore {
@@ -59,9 +65,17 @@ export interface WorktreeStore {
     expectedVersion: bigint;
   }): FxConflict<bigint>;
   insertWorktree(
-    row: Omit<WorktreeRow, "created_at" | "last_used_at" | "removed_at" | "location" | "detached_commit"> & {
-      location?: string;
-    },
+    row: Omit<
+      WorktreeRow,
+      | "created_at"
+      | "last_used_at"
+      | "removed_at"
+      | "location"
+      | "detached_commit"
+      | "branch_source"
+      | "branch_attempts"
+      | "provisional_branch"
+    > & { location?: string; provisional?: boolean },
   ): Fx<WorktreeRow>;
   /** A live worktree of the owner's, in the project and workspace. */
   ownWorktree(ownerUserId: string, id: string, projectId: string, workspaceId: string): Fx<WorktreeRow>;
@@ -72,8 +86,17 @@ export interface WorktreeStore {
     workerId: string,
     workspaceId: string,
   ): Fx<readonly WorktreeRow[]>;
-  /** A generated branch name replaces the first one (only while it is still the stored name). */
+  /** A generated branch name replaces the provisional one (unless another name was reported meanwhile). */
   renameWorktree(id: string, from: string, to: string): Fx<string[]>;
+  /**
+   * One generation for a provisional branch name, at most `max` in all. A worktree whose HEAD is no longer on the
+   * provisional name (switched, renamed, detached) is kept instead. Undefined: nothing to name.
+   */
+  claimBranchName(id: string, max: number): Fx<WorktreeRow | undefined>;
+  /** A provisional name stays for good (the worker refused: pushed, switched, renamed by hand). */
+  keepBranch(id: string): Fx<void>;
+  /** The user's requests (first and latest) and the agent's latest answer, bounded, for a branch name. */
+  branchContext(threadId: string): Fx<{ readonly requests: string[]; readonly answer: string }>;
   /**
    * The live HEAD of one checkout of the worker's threads (GitHeads): their worktree's branch, or the workspace's
    * own checkout. Returns the threads that show a changed branch.
@@ -90,6 +113,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function worktreeStore(sql: SqlClient.SqlClient): WorktreeStore {
   return {
+    ...branchStore(sql),
     worktreeScopes: (ownerUserId, projectId, workerId) =>
       sql<WorktreeScopeRow>`
             SELECT project_id, worker_id, settings, version FROM worktree_settings
@@ -124,9 +148,11 @@ export function worktreeStore(sql: SqlClient.SqlClient): WorktreeStore {
 
     insertWorktree: (row) =>
       sql<WorktreeRow>`
-            INSERT INTO worktrees (id, owner_user_id, project_id, workspace_id, worker_id, repo_root, path, branch, base_ref, base_commit, location)
+            INSERT INTO worktrees (id, owner_user_id, project_id, workspace_id, worker_id, repo_root, path, branch, base_ref,
+                                   base_commit, location, branch_source, provisional_branch)
             VALUES (${row.id}::uuid, ${row.owner_user_id}::uuid, ${row.project_id}::uuid, ${row.workspace_id}::uuid,
-                    ${row.worker_id}::uuid, ${row.repo_root}, ${row.path}, ${row.branch}, ${row.base_ref}, ${row.base_commit}, ${row.location ?? ""})
+                    ${row.worker_id}::uuid, ${row.repo_root}, ${row.path}, ${row.branch}, ${row.base_ref}, ${row.base_commit},
+                    ${row.location ?? ""}, ${row.provisional ? "provisional" : "fixed"}, ${row.provisional ? row.branch : ""})
             RETURNING *`.pipe(Effect.flatMap((rows) => one(rows, "worktree"))),
 
     ownWorktree: (ownerUserId, id, projectId, workspaceId) =>
@@ -153,10 +179,56 @@ export function worktreeStore(sql: SqlClient.SqlClient): WorktreeStore {
 
     renameWorktree: (id, from, to) =>
       Effect.gen(function* () {
-        yield* sql`UPDATE worktrees SET branch = ${to} WHERE id = ${id}::uuid AND branch = ${from}`;
+        // The worker's GitHeads may report the new name before the command result arrives.
+        yield* sql`UPDATE worktrees SET branch = ${to}, branch_source = 'generated'
+                    WHERE id = ${id}::uuid AND branch IN (${from}, ${to}) AND branch_source = 'provisional'`;
         const rows = yield* sql<{ id: string }>`SELECT id FROM threads WHERE worktree_id = ${id}::uuid`;
 
         return rows.map((row) => row.id);
+      }),
+  };
+}
+
+/** Live heads and generated names of worktree branches (docs/worktrees.md). */
+function branchStore(
+  sql: SqlClient.SqlClient,
+): Pick<WorktreeStore, "claimBranchName" | "keepBranch" | "branchContext" | "saveGitHead"> {
+  return {
+    claimBranchName: (id, max) =>
+      Effect.gen(function* () {
+        if (!UUID.test(id)) return undefined;
+        yield* sql`UPDATE worktrees SET branch_source = 'kept'
+                    WHERE id = ${id}::uuid AND branch_source = 'provisional'
+                      AND (branch <> provisional_branch OR detached_commit <> '')`;
+
+        const rows = yield* sql<WorktreeRow>`
+              UPDATE worktrees SET branch_attempts = branch_attempts + 1
+               WHERE id = ${id}::uuid AND branch_source = 'provisional' AND removed_at IS NULL AND branch_attempts < ${max}
+              RETURNING *`;
+
+        return rows[0];
+      }),
+
+    keepBranch: (id) =>
+      sql`UPDATE worktrees SET branch_source = 'kept' WHERE id = ${id}::uuid AND branch_source = 'provisional'`.pipe(
+        Effect.asVoid,
+      ),
+
+    branchContext: (threadId) =>
+      Effect.gen(function* () {
+        const requests = yield* sql<{ text: string }>`
+              SELECT left(COALESCE(u.input->>'message', u.input->>'text', ''), 600) AS text FROM turns u
+               WHERE u.thread_id = ${threadId}::uuid AND u.trigger IN ('user', 'goal', 'agent_bus')
+                 AND COALESCE(u.input->>'message', u.input->>'text', '') <> ''
+               ORDER BY u.ordinal`;
+
+        const answer = yield* sql<{ text: string | null }>`
+              SELECT left(m.content->'agentMessage'->>'text', 800) AS text FROM thread_items m
+               WHERE m.thread_id = ${threadId}::uuid AND m.type = 'agent_message' ORDER BY m.first_seq DESC LIMIT 1`;
+
+        const texts = requests.map((r) => r.text);
+
+        return { requests: [...texts.slice(0, 1), ...texts.slice(1).slice(-3)], answer: answer[0]?.text ?? "" };
       }),
 
     saveGitHead: (workerId, threadIds, { branch, detachedCommit }) =>

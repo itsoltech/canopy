@@ -2,6 +2,11 @@
 
 Wszystkie wywołania modeli do generowania tekstu przechodzą przez oficjalne harnessy na workerze: Claude Agent SDK, Codex app-server albo Grok CLI przez ACP. Canopy nie wysyła bezpośrednich żądań inferencji HTTP. Grok obsługuje zarówno natywny login, jak i instancję proxy; CLIProxyAPI jest wyłącznie konfiguracją procesu CLI. [Adapter Grok](grok-adapter.md).
 
+Ta sama ścieżka (`coreGenerateText`, ustawienia Text generation, harness na workerze) nazywa gałęzie nowych
+worktree w trybie `SEMANTIC`: zaraz po utworzeniu i po kolejnych turach, dopóki model odpowiada `unclear`,
+najwyżej 3 razy. Instrukcje tytułów z Advanced nie są dołączane do promptu gałęzi. Szczegóły i reguły zmiany
+nazwy: [worktrees.md](worktrees.md#nazwy-gałęzi).
+
 Tytuł powstaje asynchronicznie po pierwszej wiadomości użytkownika albo pierwszym celu nowego wątku. Gateway wysyła nietrwałą komendę `GenerateText` do połączonego workera z wybraną instancją dostawcy; preferuje worker wątku. Zwykła tura nie czeka na odpowiedź modelu. Wynik aktualizuje istniejące strumienie wątku i overview.
 
 ## Ustawienia i model domyślny

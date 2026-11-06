@@ -112,6 +112,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
         createdAt: timestampFromDate(new Date(row.worktree.created_at)),
         ...(row.worktree.removed_at && { removedAt: timestampFromDate(new Date(row.worktree.removed_at)) }),
         detachedCommit: row.worktree.detached_commit ?? "",
+        provisionalBranch: row.worktree.branch_source === "provisional",
       },
     }),
     ...(row.checkout_head && {

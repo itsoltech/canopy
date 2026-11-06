@@ -7,7 +7,8 @@ import { coreState, InvalidError } from "../core/core-context.ts";
 import { coreLog, coreRun } from "../core/core-broadcast.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { corePrepareWorkspace } from "./core-worktrees.ts";
-import { coreNameBranchLater, coreWorktreeScope } from "./core-worktrees.ts";
+import { coreWorktreeScope } from "./core-worktrees.ts";
+import { coreNameBranchLater } from "./branch-naming.ts";
 import { splitId } from "@canopy/domain/computers";
 import { refuseRemoteAutomation } from "./remote.ts";
 
@@ -119,7 +120,7 @@ export async function nameAutomationBranch(core: GatewayCore, thread: ThreadRow,
       s.ownWorktree(thread.owner_user_id, thread.worktree_id!, thread.project_id, thread.workspace_id!),
     );
 
-    coreNameBranchLater(core, thread, prompt, { worktree, location: settings.location ?? "" });
+    coreNameBranchLater(core, thread, prompt, worktree);
   } catch {
     coreLog(core, `worktree ${thread.worktree_id}: semantic branch name unavailable; kept`);
   }

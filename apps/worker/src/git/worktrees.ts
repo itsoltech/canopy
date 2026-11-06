@@ -61,13 +61,22 @@ async function commitOf(cwd: string, ref: string): Promise<string | undefined> {
   return result.ok ? result.stdout.trim() : undefined;
 }
 
+/** Names of the branches on every remote (`origin/feat/x` → `feat/x`), as this repository last fetched them. */
+async function remoteBranches(cwd: string): Promise<Set<string>> {
+  const listed = await git(cwd, ["for-each-ref", "--format=%(refname:strip=3)", "refs/remotes"]);
+
+  return new Set(listed.ok ? listed.stdout.split("\n").filter((name) => name && name !== "HEAD") : []);
+}
+
+/** `wanted`, else `wanted-2`, `wanted-3`, ...: the first name no local or remote branch has. */
 async function freeBranch(cwd: string, wanted: string): Promise<string> {
   if (!(await validBranch(cwd, wanted))) throw new GitError("BAD_BRANCH", `${wanted} is not a valid branch name`);
+  const remote = await remoteBranches(cwd);
 
   for (let n = 1; n <= MAX_SUFFIX; n++) {
     const name = n === 1 ? wanted : `${wanted}-${n}`;
 
-    if (!(await commitOf(cwd, `refs/heads/${name}`))) return name;
+    if (!remote.has(name) && !(await commitOf(cwd, `refs/heads/${name}`))) return name;
   }
 
   throw new GitError("BRANCH_EXISTS", `${wanted} and its numbered variants already exist`);
@@ -158,6 +167,22 @@ export async function createWorktree(managedRoot: string, request: CreateWorktre
   return { path: visiblePath, branch, repoRoot: repo, baseRef: start, baseCommit: commit };
 }
 
+/**
+ * Why a provisional name must stay, or undefined: it was pushed (a remote has a branch of that name), or HEAD of
+ * this worktree moved to another branch or was renamed since the worktree was made (its own reflog).
+ */
+async function provisionalKept(path: string, branch: string): Promise<string | undefined> {
+  if ((await remoteBranches(path)).has(branch)) return "the branch was pushed";
+  const reflog = await git(path, ["reflog", "show", "--format=%gs", "HEAD", "--"]);
+
+  if (!reflog.ok) return "the branch history is unavailable";
+
+  if (reflog.stdout.split("\n").some((line) => line.startsWith("checkout:") || line.startsWith("Branch: renamed")))
+    return "the worktree switched branches";
+
+  return undefined;
+}
+
 /** Renames the branch of a worktree under a root, while it is still checked out there and has no upstream. */
 export async function renameWorktreeBranch(
   managedRoots: readonly string[],
@@ -196,6 +221,9 @@ export async function renameWorktreeBranch(
 
   if ((await git(path, ["rev-parse", "--abbrev-ref", `${request.fromBranch}@{upstream}`])).ok)
     return unchanged("the branch already has an upstream");
+  const kept = request.provisional ? await provisionalKept(path, request.fromBranch) : undefined;
+
+  if (kept) return unchanged(kept);
   const branch = await freeBranch(path, request.toBranch);
   const moved = await git(path, ["branch", "-m", "--", request.fromBranch, branch]);
 

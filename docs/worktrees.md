@@ -53,7 +53,7 @@ Projekt wygrywa z komputerem, bo zwykle to repozytorium decyduje o konwencji ga�
 | `location` | pusty | Folder nowych worktree na workerze (absolutny). Pusty = zarządzany korzeń workera (`~/canopy/worktrees`, zob. [Położenie](#położenie)). Zmiana dotyczy tylko nowych worktree; istniejące zostają tam, gdzie są. |
 | `start_from_remote` | `false` | Baza z remote: najnowszy commit gałęzi śledzonej przez gałąź bazową (`base@{upstream}`), inaczej gałąź o tej samej nazwie na `remote`, a gdy nie ma żadnej albo fetch zawiedzie: lokalny ref. |
 | `remote` (Advanced) | `origin` | Remote używany, gdy gałąź bazowa niczego nie śledzi. |
-| `branch_naming` | `SEMANTIC` | `SEMANTIC` (model wybiera `feat/…`, `fix/…`, `refactor/…` z pierwszej wiadomości), `PREFIX` (`<prefix>/<slug>`), `TITLE` (sam slug tytułu). |
+| `branch_naming` | `SEMANTIC` | `SEMANTIC` (nazwa tymczasowa, potem model wybiera `feat/…`, `fix/…`, `refactor/…`, gdy zadanie jest jasne), `PREFIX` (`<prefix>/<slug>`), `TITLE` (sam slug tytułu). |
 | `branch_prefix` | `canopy` | Prefiks trybu `PREFIX` i tymczasowej nazwy w trybie `SEMANTIC`. |
 | `default_mode` | `CHECKOUT` | Domyślny tryb nowego wątku w kompozytorze: bieżący checkout albo nowy worktree. |
 
@@ -127,7 +127,7 @@ Nietrwałe komendy (wysyłane bezpośrednio, nigdy z outboxa, worker ich nie zap
 |---|---|---|
 | `ListGitRefs` (210) | `repo_path` → korzeń repo, bieżąca gałąź, domyślna gałąź (`<remote>/HEAD`, inaczej `main`/`master`), lokalne i zdalne gałęzie (`for-each-ref`, od najnowszego commitu, do 500), czy checkout ma zmiany | `CommandResult.git_refs` |
 | `CreateWorktree` (211) | `git worktree add --no-track -b <branch> <path> <start>`; start z remote po `git fetch` (limit 20 s) według ustawień | `CommandResult.worktree` (ścieżka, gałąź, baza, commit) |
-| `RenameWorktreeBranch` (212) | `git branch -m` gałęzi worktree pod korzeniem, tylko gdy nadal jest wybrana w tym worktree i nie ma upstreamu | `CommandResult.worktree` |
+| `RenameWorktreeBranch` (212) | `git branch -m` gałęzi worktree pod korzeniem, tylko gdy nadal jest wybrana w tym worktree i nie ma upstreamu; z `provisional` także nigdy niewypchnięta i bez zmiany gałęzi w reflogu | `CommandResult.worktree` |
 
 Ścieżka nie przychodzi z gatewaya. Worker liczy ją sam: `<root>/<nazwa repo>/<losowa nazwa>`, gdzie
 `<root>` = `location` z ustawień albo zarządzany korzeń, a losowa nazwa to 6 znaków z małych liter i cyfr
@@ -186,18 +186,58 @@ bez menedżera zwraca komunikat z zaleceniem skopiowania ścieżki.
 ## Nazwy gałęzi
 
 - `PREFIX`: `<prefix>/<slug pierwszej linii wiadomości>` (slug: małe litery ASCII, cyfry i `-`, do 48
-  znaków); bez wiadomości `<prefix>/<8 znaków id wątku>`.
-- `TITLE`: slug tytułu przy utworzeniu (jawny tytuł albo tymczasowy z pierwszej linii).
-- `SEMANTIC`: worktree powstaje od razu z nazwą `PREFIX`, a gateway asynchronicznie prosi model
+  znaków); bez wiadomości `<prefix>/<8 znaków id wątku>`. Nazwa jest ostateczna.
+- `TITLE`: slug tytułu przy utworzeniu (jawny tytuł albo tymczasowy z pierwszej linii). Nazwa jest ostateczna.
+- `SEMANTIC`: worktree powstaje od razu z **nazwą tymczasową** `<prefix>/<pierwsze słowa>-<losowe>`: do 3 słów
+  pierwszej linii (do 24 znaków) i 4 losowe znaki (alfabet folderów), a bez słów `<prefix>/<6 losowych>`.
+  Tworzenie wątku nie czeka na model. Gateway (`apps/gateway/src/worktrees/branch-naming.ts`) prosi model
   (`GenerateText`, ten sam wybór instancji i modelu co tytuły, [thread-titles.md](thread-titles.md))
-  o `<typ>/<slug>` z typem z listy `feat|fix|refactor|perf|docs|test|chore|build|ci|style`. Wynik spoza
-  formatu, błąd albo timeout zostawia nazwę tymczasową. Zmiana nazwy (`RenameWorktreeBranch`) nie
-  następuje, gdy gałąź ma już upstream (agent zdążył ją wypchnąć) albo nie jest już wybrana w worktree.
-  Tworzenie wątku nie czeka na model.
+  o `<typ>/<slug>` z typem z listy `feat|fix|refactor|perf|docs|test|chore|build|ci|style` albo o `unclear`,
+  gdy rozmowa nie mówi jeszcze, jaka to praca (powitanie, small talk):
+  1. zaraz po utworzeniu, z pierwszej wiadomości;
+  2. po każdej kolejnej turze (także nieudanej) z rozmowy: pierwsze i ostatnie 3 prośby użytkownika
+     (do 600 znaków każda) i ostatnia odpowiedź agenta (do 800 znaków), jako dane w prompcie;
+  3. łącznie najwyżej 3 próby (`worktrees.branch_attempts`, atomowy claim w bazie, jedna generacja naraz na
+     worktree); ta sama rozmowa nie jest wysyłana dwa razy.
 
-  Generowanie semantycznej nazwy przechodzi wyłącznie przez oficjalny harness workera, także
+  `unclear`, odpowiedź spoza formatu, błąd albo timeout zostawiają nazwę tymczasową; następna tura próbuje
+  ponownie, aż skończą się próby. Żaden błąd generacji ani zmiany nazwy nie przerywa wątku.
+
+  Przykłady (prefiks `canopy`):
+  - „Fix the login redirect loop after sign-out” → `canopy/fix-the-login-k3f9`, kilka sekund później
+    `fix/login-redirect-loop`.
+  - „siema” → `canopy/siema-x7q2`, model odpowiada `unclear`; po turze z prośbą „Napraw niestabilny test
+    uploadu” → `test/fix-flaky-upload`.
+  - Długa polska wiadomość „Implementujesz docelową architekturę agenta AI…” → `canopy/implementujesz-docelowa-m4tc`,
+    potem np. `feat/agent-target-architecture`.
+
+  **Zmiana nazwy** (`RenameWorktreeBranch`, `git branch -m` na workerze) następuje tylko, gdy wszystkie warunki
+  są spełnione; inaczej nazwa zostaje na zawsze (`branch_source = kept`):
+  - gałąź nadal jest wybrana w tym worktree, a gateway nie zgłosił innej gałęzi ani odłączonego HEAD
+    ([Bieżąca gałąź](#bieżąca-gałąź));
+  - gałąź nie ma upstreamu i nigdy nie była wypchnięta (żaden remote nie ma gałęzi o tej nazwie);
+  - HEAD tego worktree nie przechodził na inną gałąź ani nie zmieniał nazwy (reflog worktree bez `checkout:`
+    i `Branch: renamed`), więc agent ani użytkownik nie wybrał innej gałęzi i nie nazwał jej sam;
+  - nazwa jest nadal tymczasowa (nie `PREFIX`/`TITLE`, nie wygenerowana wcześniej).
+
+  Docelowa nazwa przechodzi `check-ref-format`; zajęta lokalnie albo na którymś remote dostaje przyrostek
+  `-2`, `-3`, … Folder worktree się nie zmienia. Nowa nazwa trafia do wątków przez zwykłe strumienie, a tooltip
+  i panel do tego czasu mówią „Canopy renames this branch when the task is clear.”
+  (`ThreadWorktree.provisional_branch`). Ręczną nazwę ustawia się dziś przez git w worktree (`git branch -m`,
+  `git switch -c`); Canopy jej nie nadpisuje.
+
+  Stan w bazie (migracja `0087_worktree_branch_names`): `branch_source` (`provisional`, `generated`, `kept`,
+  `fixed`; dotychczasowe worktree to `fixed`), `branch_attempts`, `provisional_branch` (nazwa z utworzenia).
+
+  **Zgodność:** sprawdzenia „nigdy niewypchnięta” i „bez zmiany gałęzi” wykonuje worker z capability
+  `provisional_branches` (`RenameWorktreeBranch.provisional`). Starszy worker dostaje jedną próbę zaraz po
+  utworzeniu i dotychczasowe sprawdzenia (wybrana, bez upstreamu), bez ponowień po turach.
+  `WORKER_LINK_PROTOCOL` bez zmian.
+
+  Generowanie nazwy przechodzi wyłącznie przez oficjalny harness workera, także
   dla Groka native i proxy (izolowana sesja CLI przez ACP, bez narzędzi i kontekstu repozytorium).
   CLIProxyAPI może być konfiguracją harnessu; gateway ani worker nie wywołuje bezpośrednio API modelu.
+  Prompty i odpowiedzi nie trafiają do logów; log zawiera tylko id worktree i ogólny powód.
 
 ## Przepływy UI
 
@@ -378,6 +418,16 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
   zarejestrowanego worktree bez folderu i nazwy rekordu git oraz błąd `PATH_EXISTS`, gdy wszystko zajęte.
 - `tests/integration/worktrees.test.ts`: nowe worktree pod korzeniem i skonfigurowanym `location` mają losowe,
   różne foldery przy tej samej gałęzi.
+
+## Weryfikacja (nazwy gałęzi)
+
+- `tests/integration/branch-names.test.ts`: gRPC gateway ↔ prawdziwy WorkerHost, PostgreSQL i git, zaślepka
+  `GenerateText` na workerze; jasna pierwsza wiadomość (zmiana nazwy na żywo, ten sam folder), niejasna
+  (`unclear`, zmiana po następnej turze z kontekstem rozmowy), kolizja z gałęzią lokalną i zdalną (`-2`),
+  brak zmiany po wypchnięciu, po przełączeniu tam i z powrotem, po ręcznej zmianie nazwy (bez pytania modelu),
+  błąd generacji bez wpływu na wątek i limit 3 prób.
+- `tests/integration/worktrees.test.ts`: starszy worker bez `provisional_branches` (jedna próba po utworzeniu).
+- `tests/integration/grok-text-generation.test.ts`: semantyczna nazwa przez harness Groka bez zmian.
 
 ## Weryfikacja (etap 3)
 

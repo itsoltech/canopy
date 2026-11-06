@@ -1586,8 +1586,12 @@ message CreateWorktree {
 message RenameWorktreeBranch {
   string path = 1;
   string from_branch = 2;
+  // Zajęta lokalnie albo na remote dostaje przyrostek -2, -3, ...
   string to_branch = 3;
   string location = 4;
+  // Tymczasowa nazwa (capability "provisional_branches"): dodatkowo nigdy niewypchnięta (brak gałęzi na remote)
+  // i HEAD worktree nie przechodził na inną gałąź ani nie zmieniał nazwy (reflog).
+  bool provisional = 5;
 }
 
 // HEAD checkoutów wątków: po zmianie (obserwacja pliku HEAD), na końcu tury i po połączeniu (pełny stan).
