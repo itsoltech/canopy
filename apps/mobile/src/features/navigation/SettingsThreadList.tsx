@@ -4,6 +4,7 @@ import { ui } from "@canopy/contracts";
 import { useAppearance } from "../../state/appearance";
 import { styles, useColors } from "../../ui/theme";
 import { SidebarThread } from "./SidebarThread";
+import { useContentPadding } from "../../ui/ScreenFrame";
 
 export function SettingsThreadList({
   threads,
@@ -19,6 +20,7 @@ export function SettingsThreadList({
   footer: ReactNode;
 }) {
   const { user } = useAppearance();
+  const padding = useContentPadding(8);
   const c = useColors();
   const [workingOpen, setWorkingOpen] = useState(true);
   const sidebar = user?.sidebar;
@@ -54,7 +56,9 @@ export function SettingsThreadList({
       sections={threads.length ? sections : []}
       keyExtractor={(t) => t.id}
       stickySectionHeadersEnabled={false}
-      contentContainerStyle={{ paddingHorizontal: 8, paddingBottom: 12, flexGrow: 1 }}
+      contentInsetAdjustmentBehavior="never"
+      automaticallyAdjustContentInsets={false}
+      contentContainerStyle={[padding, { flexGrow: 1 }]}
       renderSectionHeader={({ section }) =>
         section.title ? (
           <Pressable

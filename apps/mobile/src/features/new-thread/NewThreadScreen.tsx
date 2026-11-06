@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Redirect } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScreenFrame } from "../../ui/ScreenFrame";
+import { ScreenScroll } from "../../ui/ScreenScroll";
 import { KeyboardArea } from "../../ui/KeyboardArea";
 import { useSession } from "../../state/session";
 import { Notice, ScreenHeader } from "../../ui/components";
@@ -37,12 +38,11 @@ export function NewThreadScreen() {
   if (!session) return <Redirect href="/pair" />;
 
   return (
-    <SafeAreaView style={styles.fill} edges={["top", "left", "right"]}>
-      <ScreenHeader title="New thread" subtitle={project?.name} />
+    <ScreenFrame header={<ScreenHeader title="New thread" subtitle={project?.name} />}>
       <KeyboardArea>
-        <ScrollView
+        <ScreenScroll
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[styles.page, { flexGrow: 1, justifyContent: "center", paddingBottom: 48 }]}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
         >
           <Text style={[styles.title, { color: c.text, textAlign: "center", marginBottom: 16 }]}>
             What should we work on?
@@ -114,10 +114,10 @@ export function NewThreadScreen() {
           </SkeletonScope>
           {!state.initialLoading && blocker && blocker !== message.files.blocker ? <Notice>{blocker}</Notice> : null}
           {error ? <Notice error>{error}</Notice> : null}
-        </ScrollView>
+        </ScreenScroll>
       </KeyboardArea>
       <NewThreadPickers state={state} picker={picker} close={() => setPicker(null)} />
-    </SafeAreaView>
+    </ScreenFrame>
   );
 }
 

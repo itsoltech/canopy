@@ -2,9 +2,7 @@ import { createContext, useState, type ReactNode } from "react";
 import {
   Keyboard,
   StyleSheet,
-  Modal,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
@@ -15,7 +13,7 @@ import {
 import { font, styles, useColors, useTypography } from "./theme";
 import { Icon } from "./Icon";
 import { IconButton } from "./Button";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SheetSurface } from "./SheetSurface";
 import { router } from "expo-router";
 import { Skeleton } from "./Skeleton";
 import { useSettingsDensity } from "./density";
@@ -188,22 +186,20 @@ export function Sheet({
   const c = useColors();
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={[styles.fill, { backgroundColor: c.surface }]}>
+    <SheetSurface
+      visible={visible}
+      onClose={onClose}
+      header={
         <View style={[styles.row, { paddingLeft: 20, paddingRight: 12, paddingTop: 16, paddingBottom: 4 }]}>
           <Text accessibilityRole="header" numberOfLines={2} style={[styles.heading, { flex: 1, color: c.text }]}>
             {title}
           </Text>
           <IconButton icon="x-mark" size="sm" label={`Close ${title}`} onPress={onClose} />
         </View>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[styles.page, { maxWidth: 600, paddingHorizontal: 20 }]}
-        >
-          <SheetContent.Provider value={true}>{children}</SheetContent.Provider>
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
+      }
+    >
+      <SheetContent.Provider value={true}>{children}</SheetContent.Provider>
+    </SheetSurface>
   );
 }
 

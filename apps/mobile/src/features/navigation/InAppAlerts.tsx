@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { palette } from "@canopy/ui";
 import { router, useGlobalSearchParams } from "expo-router";
 import { useOverview } from "../../state/overview";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { font, styles, useColors } from "../../ui/theme";
+import { usePaneInsets } from "../../ui/ScreenFrame";
 
 /** Alert only for live changes after the initial snapshot, never replay historical results. */
 export function InAppAlerts() {
@@ -15,7 +15,7 @@ export function InAppAlerts() {
   const previous = useRef<Map<string, string> | null>(null);
   const [alert, setAlert] = useState<{ id: string; title: string; status: string }>();
   const c = useColors();
-  const insets = useSafeAreaInsets();
+  const insets = usePaneInsets();
 
   useEffect(() => {
     if (!loaded) return;
@@ -51,7 +51,13 @@ export function InAppAlerts() {
   return (
     <View
       pointerEvents="box-none"
-      style={{ position: "absolute", top: insets.top + 12, left: 16, right: 16, alignItems: "center" }}
+      style={{
+        position: "absolute",
+        top: insets.top + 12,
+        left: insets.left + 16,
+        right: insets.right + 16,
+        alignItems: "center",
+      }}
     >
       <Pressable
         accessibilityRole="button"

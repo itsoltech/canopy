@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, Platform, Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScreenFrame } from "../../ui/ScreenFrame";
+import { TimelineList } from "../composer/TimelineList";
 import * as Crypto from "expo-crypto";
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { ui } from "@canopy/contracts";
+import { InteractionKind, ui } from "@canopy/contracts";
 import { applyThread } from "../../api/thread";
 import { useSession } from "../../state/session";
 import { useThreadSnapshot } from "../../state/thread";
-import { LatestButton, Notice } from "../../ui/components";
+import { Notice } from "../../ui/components";
 import { TimelineTurn, type TurnContext } from "../timeline/TimelineTurn";
 import { TimelineDirectoryProvider, type TimelineDirectory } from "../timeline/directory";
 import { NoticeRow } from "../timeline/NoticeRows";
@@ -34,30 +35,9 @@ import { SideThreadSheet } from "./SideThreadSheet";
 import { useAppearance } from "../../state/appearance";
 import { useComputerHome } from "../computers/presence";
 import { splitId } from "@canopy/domain/computers";
-
-function visibleTurns(snapshot: ui.ThreadSnapshot | undefined) {
-  const turns = snapshot?.turns.filter((t) => !t.withdrawn).slice() ?? [];
-  const known = new Set(turns.map((turn) => `${turn.fromThreadId}:${turn.id}`));
-
-  // Provider-origin events can arrive before a turn update. Keep those entries visible.
-  for (const item of snapshot?.items ?? []) {
-    const key = `${item.fromThreadId}:${item.turnId}`;
-
-    if (!known.has(key)) {
-      known.add(key);
-      turns.push(
-        create(ui.TurnSchema, {
-          id: item.turnId,
-          fromThreadId: item.fromThreadId,
-          inherited: item.inherited,
-          trigger: "provider",
-        }),
-      );
-    }
-  }
-
-  return turns;
-}
+import { FloatingComposer } from "../composer/FloatingComposer";
+import { useFloatingComposer } from "../composer/useFloatingComposer";
+import { newDays, visibleTurns } from "./thread-turns";
 
 /** The gateway refused the message and says why (not delivered: no retry note); otherwise delivery is unknown. */
 function deliveryError(failure: ConnectError) {
@@ -200,6 +180,13 @@ function useThreadState(id: string) {
 export function ThreadScreen({ id }: { id: string }) {
   const c = useColors();
   const state = useThreadState(id);
+
+  const composer = useFloatingComposer(
+    state.following,
+    Boolean(state.message.value.text.length || state.message.files.files.length || state.message.trigger) ||
+      state.interactions.some((i) => i.kind === InteractionKind.QUESTION && !i.asynchronous),
+  );
+
   const [sheet, setSheet] = useState<"goal" | "side" | null>(null);
 
   const {
@@ -230,59 +217,63 @@ export function ThreadScreen({ id }: { id: string }) {
   if (!session) return <Redirect href="/pair" />;
 
   return (
-    <SafeAreaView style={styles.fill} edges={["top", "left", "right"]}>
-      <ThreadHeader
-        thread={thread}
-        project={projects.find((p) => p.id === thread?.projectId)}
-        turns={turns}
-        onDetails={() => setDetails(true)}
-        onSideThread={() => setSheet("side")}
-        onGoal={thread && takesGoals(thread) ? () => setSheet("goal") : undefined}
-        goalOpen={Boolean(snapshot?.goal && !isFinishedGoal(snapshot.goal.status))}
-        readOnly={state.home.away}
-      />
-      <ConnectionBanner stream={state.home.away ? undefined : state.stream} />
+    <ScreenFrame
+      header={
+        <>
+          <ThreadHeader
+            thread={thread}
+            project={projects.find((p) => p.id === thread?.projectId)}
+            turns={turns}
+            onDetails={() => setDetails(true)}
+            onSideThread={() => setSheet("side")}
+            onGoal={thread && takesGoals(thread) ? () => setSheet("goal") : undefined}
+            goalOpen={Boolean(snapshot?.goal && !isFinishedGoal(snapshot.goal.status))}
+            readOnly={state.home.away}
+          />
+          <ConnectionBanner stream={state.home.away ? undefined : state.stream} />
+        </>
+      }
+    >
       <KeyboardArea>
-        <ThreadTimeline state={state} />
-        <View
-          style={{
-            paddingHorizontal: 12,
-            paddingTop: 8,
-            paddingBottom: 4,
-            gap: 8,
-            backgroundColor: c.background,
-          }}
-        >
-          <LatestButton visible={!atBottom} onPress={showLatest} />
-          {error ? <Notice error>{error}</Notice> : null}
-          {state.home.away && (
-            <Notice>
-              {state.home.name} · {state.home.status}. Read only until it reconnects.
-            </Notice>
-          )}
-          {!state.home.away &&
-            interactions.slice(0, 1).map((i) => <InteractionCard key={i.requestId} interaction={i} />)}
-          {interactions.length > 1 && (
-            <Text style={[styles.meta, { color: c.warning }]}>+{interactions.length - 1} pending</Text>
-          )}
-          <SubagentStrip subagents={subagents} onFinished={() => setDetails(true)} />
-          <SkeletonScope loading={!thread}>
-            <MessageComposer
-              thread={thread}
-              worker={worker}
-              message={state.message}
-              send={(delivery) => void send(delivery)}
-              stop={() =>
-                void client!.api
-                  .interruptThread({ threadId: id })
-                  .catch(() => setError("Could not stop the turn. Try again."))
-              }
-              disabled={blocked}
-              busy={busy}
-              onDetails={() => setDetails(true)}
-              onGoal={() => setSheet("goal")}
-            />
-          </SkeletonScope>
+        <View style={styles.fill}>
+          <ThreadTimeline state={state} composer={composer} />
+          <FloatingComposer
+            onLayout={composer.measure}
+            onExpand={composer.expand}
+            onLatest={atBottom ? undefined : showLatest}
+          >
+            {error ? <Notice error>{error}</Notice> : null}
+            {state.home.away && (
+              <Notice>
+                {state.home.name} · {state.home.status}. Read only until it reconnects.
+              </Notice>
+            )}
+            {!state.home.away &&
+              interactions.slice(0, 1).map((i) => <InteractionCard key={i.requestId} interaction={i} />)}
+            {interactions.length > 1 && (
+              <Text style={[styles.meta, { color: c.warning }]}>+{interactions.length - 1} pending</Text>
+            )}
+            <SubagentStrip subagents={subagents} onFinished={() => setDetails(true)} />
+            <SkeletonScope loading={!thread}>
+              <MessageComposer
+                compact={composer.compact}
+                onExpand={composer.expand}
+                thread={thread}
+                worker={worker}
+                message={state.message}
+                send={(delivery) => void send(delivery)}
+                stop={() =>
+                  void client!.api
+                    .interruptThread({ threadId: id })
+                    .catch(() => setError("Could not stop the turn. Try again."))
+                }
+                disabled={blocked}
+                busy={busy}
+                onDetails={() => setDetails(true)}
+                onGoal={() => setSheet("goal")}
+              />
+            </SkeletonScope>
+          </FloatingComposer>
         </View>
       </KeyboardArea>
       <ThreadPanel snapshot={snapshot} visible={details} onClose={() => setDetails(false)} />
@@ -303,27 +294,8 @@ export function ThreadScreen({ id }: { id: string }) {
         turn={!state.home.away && state.queued?.editing ? state.queued.turn : undefined}
         onClose={() => state.setQueued(undefined)}
       />
-    </SafeAreaView>
+    </ScreenFrame>
   );
-}
-
-/** The new-day flag of each turn: it starts a calendar day the turns before it did not (web: buildTimeline). */
-function newDays(turns: readonly ui.Turn[]): ReadonlySet<ui.Turn> {
-  const days = new Set<ui.Turn>();
-  let last = "";
-
-  for (const turn of turns) {
-    const at = turn.startedAt ?? turn.queuedAt;
-
-    if (!at) continue;
-    const date = new Date(Number(at.seconds) * 1000);
-    const day = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-
-    if (day !== last) days.add(turn);
-    last = day;
-  }
-
-  return days;
 }
 
 /** What the timeline's items look up: other threads, items, deliveries, and its tasks by their command. */
@@ -361,7 +333,13 @@ function useTimelineData(state: ReturnType<typeof useThreadState>) {
   return { directory, context };
 }
 
-function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> }) {
+function ThreadTimeline({
+  state,
+  composer,
+}: {
+  state: ReturnType<typeof useThreadState>;
+  composer: ReturnType<typeof useFloatingComposer<ui.Turn>>;
+}) {
   const c = useColors();
   const { appearance } = useAppearance();
 
@@ -393,12 +371,12 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
   return (
     <TimelineDirectoryProvider value={directory}>
       <FeedAnchorProvider value={anchor}>
-        <FlatList
-          {...following.listProps}
+        <TimelineList
+          {...composer.listProps}
           data={latestFirst}
           keyExtractor={(turn) => `${turn.fromThreadId}:${turn.id}`}
           style={styles.fill}
-          contentContainerStyle={[styles.page, { maxWidth, paddingTop: 24, flexGrow: 1, gap: 0 }]}
+          contentContainerStyle={{ maxWidth, paddingTop: 24, flexGrow: 1, gap: 0 }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           // Inverted: the footer is the top of the feed, the header sits under the latest turn.
@@ -419,22 +397,25 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
             />
           )}
           ListHeaderComponent={
-            <View style={{ gap: 12, paddingBottom: steering.length || loose.length ? 12 : 0 }}>
-              <Text accessibilityLiveRegion="polite" style={[styles.caption, { color: c.muted, height: 20 }]}>
-                {snapshot && !state.home.away && stream.connection !== "live" ? "Syncing…" : ""}
-              </Text>
-              {loose.map((n) => (n.notice ? <NoticeRow key={String(n.seq)} notice={n.notice} /> : null))}
-              {steering.map((s) => (
-                <UserMessageView
-                  key={s.id}
-                  text={s.text}
-                  mentions={s.mentions}
-                  note={steeringNote(s)}
-                  sender={s.sender}
-                  pending
-                />
-              ))}
-            </View>
+            <>
+              <View style={{ gap: 12, paddingBottom: steering.length || loose.length ? 12 : 0 }}>
+                <Text accessibilityLiveRegion="polite" style={[styles.caption, { color: c.muted, height: 20 }]}>
+                  {snapshot && !state.home.away && stream.connection !== "live" ? "Syncing…" : ""}
+                </Text>
+                {loose.map((n) => (n.notice ? <NoticeRow key={String(n.seq)} notice={n.notice} /> : null))}
+                {steering.map((s) => (
+                  <UserMessageView
+                    key={s.id}
+                    text={s.text}
+                    mentions={s.mentions}
+                    note={steeringNote(s)}
+                    sender={s.sender}
+                    pending
+                  />
+                ))}
+              </View>
+              <View style={{ height: composer.height }} />
+            </>
           }
         />
       </FeedAnchorProvider>

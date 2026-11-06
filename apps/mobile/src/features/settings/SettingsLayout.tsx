@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from "react";
-import { BackHandler, Pressable, ScrollView, Text, View } from "react-native";
+import { BackHandler, Pressable, Text, View } from "react-native";
 import { useEffect } from "react";
 import { router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScreenFrame } from "../../ui/ScreenFrame";
+import { ScreenScroll } from "../../ui/ScreenScroll";
+import { KeyboardArea } from "../../ui/KeyboardArea";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { settingsGroups, settingsSections, type SettingsSection } from "@canopy/ui/settings";
 import { useLayout } from "../../state/layout";
@@ -65,26 +67,35 @@ export function SettingsLayout({
   );
 
   return (
-    <SafeAreaView style={[styles.fill, { backgroundColor: c.background }]}>
-      <View style={[styles.row, { minHeight: 48, paddingHorizontal: 4, borderBottomWidth: 1, borderColor: c.line }]}>
-        {!wide && section && <IconButton icon="chevron-left" label="All settings" onPress={() => onSelect("")} />}
-        <Text style={[styles.chrome, { color: c.muted, paddingLeft: wide || !section ? 16 : 0 }]}>Settings</Text>
-        {current && (
-          <Text numberOfLines={1} style={[styles.chrome, { flex: 1, color: c.text }]}>
-            / {current.label}
-          </Text>
-        )}
-        {!current && <View style={{ flex: 1 }} />}
-        <IconButton
-          icon="x-mark"
-          label="Close Settings"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
-        />
-      </View>
-      <ConnectionBanner />
-      <View style={{ flex: 1, flexDirection: "row", minWidth: 0 }}>
+    <ScreenFrame
+      header={
+        <>
+          <View
+            style={[styles.row, { minHeight: 48, paddingHorizontal: 4, borderBottomWidth: 1, borderColor: c.line }]}
+          >
+            {!wide && section && <IconButton icon="chevron-left" label="All settings" onPress={() => onSelect("")} />}
+            <Text style={[styles.chrome, { color: c.muted, paddingLeft: wide || !section ? 16 : 0 }]}>Settings</Text>
+            {current && (
+              <Text numberOfLines={1} style={[styles.chrome, { flex: 1, color: c.text }]}>
+                / {current.label}
+              </Text>
+            )}
+            {!current && <View style={{ flex: 1 }} />}
+            <IconButton
+              icon="x-mark"
+              label="Close Settings"
+              onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+            />
+          </View>
+          <ConnectionBanner />
+        </>
+      }
+    >
+      <KeyboardArea style={{ flexDirection: "row", minWidth: 0 }}>
         {(wide || !section) && (
-          <ScrollView
+          <ScreenScroll
+            space={12}
+            innerRight={wide}
             keyboardShouldPersistTaps="handled"
             style={{
               width: wide ? 216 : undefined,
@@ -94,7 +105,7 @@ export function SettingsLayout({
               borderColor: c.line,
               backgroundColor: c.sidebar,
             }}
-            contentContainerStyle={{ padding: 12, gap: 16 }}
+            contentContainerStyle={{ maxWidth: undefined, gap: 16 }}
           >
             <SearchField label="Search settings" placeholder="Search" value={query} onChange={setQuery} />
             {settingsGroups.map((group) => (
@@ -109,22 +120,24 @@ export function SettingsLayout({
             {!sections.length && <Text style={[styles.chrome, { color: c.muted }]}>No setting matches “{query}”.</Text>}
             {error && <Notice error>{error}</Notice>}
             <Text style={[styles.chromeMeta, { color: c.muted, paddingHorizontal: 10 }]}>Canopy {CANOPY_VERSION}</Text>
-          </ScrollView>
+          </ScreenScroll>
         )}
         {(wide || section) && (
-          <ScrollView
+          <ScreenScroll
+            space={20}
+            innerLeft={wide}
             key={section}
             keyboardShouldPersistTaps="handled"
             style={{ flex: 1, minWidth: 0 }}
-            contentContainerStyle={{ width: "100%", maxWidth: 1024, alignSelf: "center", padding: 20, gap: 24 }}
+            contentContainerStyle={{ maxWidth: 1024, gap: 24 }}
           >
             <SettingsDensity.Provider value={true}>
               {current ? children : <Text style={[styles.chrome, { color: c.muted }]}>Choose a section.</Text>}
             </SettingsDensity.Provider>
-          </ScrollView>
+          </ScreenScroll>
         )}
-      </View>
-    </SafeAreaView>
+      </KeyboardArea>
+    </ScreenFrame>
   );
 }
 

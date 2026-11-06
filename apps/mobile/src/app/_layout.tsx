@@ -1,6 +1,6 @@
 import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "../state/session";
 import { useColors } from "../ui/theme";
 import { AppearanceProvider } from "../state/appearance";
@@ -22,6 +22,7 @@ import {
 import { DevicePreferencesProvider } from "../features/settings/device-preferences";
 import { InAppAlerts } from "../features/navigation/InAppAlerts";
 import { ConfirmHost } from "../ui/Confirm";
+import { PaneInsets } from "../ui/ScreenFrame";
 
 /** Wide windows keep the thread list beside the stack (collapsible); phones navigate list → thread. */
 function Navigation() {
@@ -29,19 +30,25 @@ function Navigation() {
   const { session } = useSession();
   const { sidebarOpen, sidebarWidth } = useLayout();
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
+  const showSidebar = session && sidebarOpen && pathname !== "/settings";
 
   return (
     <View style={{ flex: 1, flexDirection: "row", backgroundColor: c.background }}>
       <StatusBar style={c.dark ? "light" : "dark"} />
-      {session && sidebarOpen && pathname !== "/settings" && (
-        <View style={{ width: sidebarWidth, borderRightWidth: 1, borderRightColor: c.line }}>
-          <AppSidebar />
-        </View>
+      {showSidebar && (
+        <PaneInsets.Provider value={{ left: insets.left, right: 0 }}>
+          <View style={{ width: sidebarWidth, borderRightWidth: 1, borderRightColor: c.line }}>
+            <AppSidebar />
+          </View>
+        </PaneInsets.Provider>
       )}
-      <View style={{ flex: 1, overflow: "hidden" }}>
-        <Screens />
-        <InAppAlerts />
-      </View>
+      <PaneInsets.Provider value={{ left: showSidebar ? 0 : insets.left, right: insets.right }}>
+        <View style={{ flex: 1, overflow: "hidden" }}>
+          <Screens />
+          <InAppAlerts />
+        </View>
+      </PaneInsets.Provider>
       <ConfirmHost />
     </View>
   );

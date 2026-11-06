@@ -16,6 +16,7 @@ import { AttachButton, AttachmentChips } from "../attachments/Attachments";
 import type { MessageDraft } from "../composer/useMessageDraft";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { Skeleton } from "../../ui/Skeleton";
+import { ComposerFold } from "../composer/ComposerFold";
 
 type Picker = "model" | "effort" | "permission";
 
@@ -57,6 +58,8 @@ export function MessageComposer({
   busy,
   onDetails,
   onGoal,
+  compact = false,
+  onExpand,
 }: {
   thread?: ui.Thread;
   worker?: ui.Worker;
@@ -67,6 +70,8 @@ export function MessageComposer({
   busy: boolean;
   onDetails: () => void;
   onGoal: () => void;
+  compact?: boolean;
+  onExpand?: () => void;
 }) {
   const { user } = useAppearance();
   const state = useComposerSettings(thread, worker);
@@ -84,6 +89,8 @@ export function MessageComposer({
         onPick={(option) => message.pickMention(option.mention)}
       />
       <ComposerBox
+        compact={compact}
+        onExpand={onExpand}
         text={message.value.text}
         onChange={message.setText}
         badges={message.badges}
@@ -122,20 +129,22 @@ export function MessageComposer({
           </>
         }
       />
-      <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6 }]}>
-        {worker ? (
-          <ComposerPill icon="computer-desktop" title={worker.name} onPress={onDetails} />
-        ) : (
-          <Skeleton style={{ width: 100, height: 24 }} />
-        )}
-        <ComposerPill
-          icon={look.icon}
-          title={permissionLabel(thread?.permissionMode)}
-          warning={look.tone === "warning"}
-          danger={look.tone === "danger"}
-          onPress={() => setPicker("permission")}
-        />
-      </View>
+      <ComposerFold open={!compact}>
+        <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6 }]}>
+          {worker ? (
+            <ComposerPill icon="computer-desktop" title={worker.name} onPress={onDetails} />
+          ) : (
+            <Skeleton style={{ width: 100, height: 24 }} />
+          )}
+          <ComposerPill
+            icon={look.icon}
+            title={permissionLabel(thread?.permissionMode)}
+            warning={look.tone === "warning"}
+            danger={look.tone === "danger"}
+            onPress={() => setPicker("permission")}
+          />
+        </View>
+      </ComposerFold>
       <ComposerPickers state={state} thread={thread} />
     </>
   );
