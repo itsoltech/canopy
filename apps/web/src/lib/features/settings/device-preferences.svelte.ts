@@ -3,6 +3,7 @@ import { toast } from "#lib/shared/ui/toast.svelte.ts";
 /** Values are strings at the storage boundary; only declared choices are accepted. */
 export const deviceChoices = {
   threadNotifications: ["off", "notifications", "sound"],
+  botNotifications: ["off", "notifications", "sound"],
   inAppNotifications: ["on", "off"],
   showFinishedSubagents: ["off", "on"],
   subagentsExpanded: ["off", "on"],
@@ -28,6 +29,7 @@ export type DeviceKey = keyof typeof deviceChoices;
 
 export const deviceDefaults: Record<DeviceKey, string> = {
   threadNotifications: "off",
+  botNotifications: "off",
   inAppNotifications: "on",
   showFinishedSubagents: "off",
   subagentsExpanded: "off",
@@ -101,7 +103,13 @@ function validChoice(key: DeviceKey, value: string): boolean {
 }
 
 export const devicePreferences = new DevicePreferences();
-export const generalDeviceKeys = ["threadNotifications", "inAppNotifications", "timeFormat"] as const;
+
+export const generalDeviceKeys = [
+  "threadNotifications",
+  "botNotifications",
+  "inAppNotifications",
+  "timeFormat",
+] as const;
 
 export const appearanceDeviceKeys = [
   "contrast",

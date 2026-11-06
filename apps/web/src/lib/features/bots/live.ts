@@ -44,7 +44,7 @@ const dateOf = (at: Timestamp | undefined) => (at ? timestampDate(at) : new Date
 const relayed = /^Message from [^:\n]{1,80}: /;
 
 /** Text of a stored message as people read it: relays without their prefix, thread results by their first line. */
-function displayText(message: bots.BotMessage): string {
+export function displayText(message: bots.BotMessage): string {
   if (message.exchangeId && relayed.test(message.text)) return message.text.replace(relayed, "");
 
   if (message.kind === "event") return message.text.split("\n", 1)[0]!.replace(/ \([0-9a-f-]{36}\)/, "");

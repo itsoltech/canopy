@@ -3,6 +3,9 @@ import { DISPATCHED } from "./turn-select.ts";
 /** Characters of a side thread's last message in ui.Thread (the subagent card in the parent's timeline). */
 const LAST_MESSAGE_PREVIEW = 600;
 
+/** Characters read for a notification preview, before markdown and secrets are removed (thread-notice.ts). */
+const NOTICE_SOURCE = 2000;
+
 /** The thread columns (ThreadRow) with the joined ones, for `FROM threads t` and the given clauses. */
 export const threadSelect = (where: string, extraColumns = "") => `
           -- An asynchronous question (wait=false) needs the user only once the agent has stopped working.
@@ -12,10 +15,17 @@ export const threadSelect = (where: string, extraColumns = "") => `
                                            FROM turns u WHERE u.thread_id = t.id)) AS last_activity_at,
                  (SELECT g.status FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled') LIMIT 1) AS goal_status,
                  (SELECT count(*) FROM thread_items b WHERE b.thread_id = t.id AND b.type = 'background_task' AND b.status = 'in_progress') AS background_tasks,
-                 (SELECT u.status FROM turns u
+                 -- The unseen result with what a notification shows: the turn's last answer or its error.
+                 (SELECT json_build_object('status', u.status, 'interrupt_source', u.interrupt_source, 'error', left(u.error, ${NOTICE_SOURCE}),
+                         'message', (SELECT left(m.content->'agentMessage'->>'text', ${NOTICE_SOURCE}) FROM thread_items m
+                                      WHERE m.thread_id = t.id AND m.turn_id = u.id AND m.type = 'agent_message' ORDER BY m.first_seq DESC LIMIT 1))
+                    FROM turns u
                    WHERE u.thread_id = t.id AND u.status IN ('completed', 'failed', 'interrupted')
                      AND u.last_seq > coalesce((SELECT r.seen_seq FROM thread_reads r WHERE r.user_id = t.owner_user_id AND r.thread_id = t.id), 0)
-                   ORDER BY u.last_seq DESC LIMIT 1) AS unseen_result,
+                   ORDER BY u.last_seq DESC LIMIT 1) AS unseen_turn,
+                 (SELECT json_build_object('kind', i.kind, 'tool', i.tool_name, 'request', i.request) FROM interaction_requests i
+                   WHERE i.thread_id = t.id AND i.status = 'pending' AND (i.question_wait IS DISTINCT FROM false OR t.status NOT IN ('running', 'creating'))
+                   ORDER BY i.created_at DESC LIMIT 1) AS notice_interaction,
                  (SELECT u.status FROM turns u WHERE u.thread_id = t.id AND u.status IN ('completed', 'failed', 'interrupted')
                    ORDER BY u.ordinal DESC LIMIT 1) AS last_turn_status,
                  coalesce((SELECT r.marked_unread FROM thread_reads r WHERE r.user_id = t.owner_user_id AND r.thread_id = t.id), false) AS marked_unread,

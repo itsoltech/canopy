@@ -40,6 +40,8 @@ message Bot {
   // Stage 8: the bot moved here from another computer; accounts and servers to connect again here.
   string moved_from_name = 801;
   repeated string reconnect = 802;
+  // Powiadomienia (docs/notifications.md): najnowsza oczekująca zgoda lub pytanie (bez pól i propozycji); brak = nic nie czeka.
+  BotApproval pending_approval = 1000;
 }
 message BotMessage {
   string id = 1;

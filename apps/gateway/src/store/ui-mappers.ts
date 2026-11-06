@@ -9,6 +9,7 @@ import { toUiAttachment } from "./attachments.ts";
 import { toUiQuote } from "./quotes.ts";
 import { mentionsFromJson } from "../core/mentions.ts";
 import { providerOf } from "./instance-config.ts";
+import { threadNotice } from "./thread-notice.ts";
 import type { InteractionRow, ThreadRow, TurnRow } from "./rows.ts";
 
 export function toInteraction(row: InteractionRow): ui.Interaction {
@@ -93,7 +94,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
     backgroundTasks: Number(row.background_tasks ?? 0),
     runtime: row.runtime,
     lastMessage: row.last_message ?? "",
-    unseenResult: row.unseen_result ?? "",
+    ...threadNotice(row),
     markedUnread: row.marked_unread ?? false,
     ...(row.archived_at && { archivedAt: timestampFromDate(new Date(row.archived_at)) }),
     archivedBy: row.archived_by ?? "",

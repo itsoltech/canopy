@@ -165,7 +165,8 @@ wyłącznie widoczne wiadomości bota do użytkownika powyżej tego numeru, w ty
 `message_user`; ukryta tura nie zwiększa licznika. `MarkBotRead` przyjmuje `through_seq`,
 sprawdza właściciela i monotonicznie potwierdza najwyżej istniejącą wiadomość.
 Otwarta rozmowa potwierdza odebrany snapshot tylko w widocznej karcie przeglądarki.
-Nie dodaje to systemowych powiadomień push.
+Alerty systemowe web i desktop o wiadomościach, zgodach i pytaniach botów opisuje
+[notifications.md](notifications.md); push na telefon nie istnieje.
 
 `BotConversation` przenosi aktualne rutyny i niedostarczone, nieanulowane jednorazowe
 przypomnienia. Zmiana rewizji aktualizuje istniejący strumień `/api/bots/:id/events`,

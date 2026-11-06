@@ -67,6 +67,10 @@ export async function* forward(
   }
 }
 
+/** A listed bot from the offline mirror carries its waiting card like ListBots on its home. */
+const mirroredBot = (conversation: bots.BotConversation, bot: bots.Bot) =>
+  create(bots.BotSchema, { ...bot, pendingApproval: conversation.approvals.findLast((a) => a.status === "pending") });
+
 /** Ids become the home's, attachments uploaded here travel with the message; offline, the mirror answers reads. */
 export async function* home(
   core: GatewayCore,
@@ -87,7 +91,7 @@ export async function* home(
         yield create(bots.ListBotsResponseSchema, {
           bots: snapshots.flatMap((c) =>
             c.bot && (linkedMessage(bots.ListBotsRequestSchema, request).includeArchived || !c.bot.archived)
-              ? [c.bot]
+              ? [mirroredBot(c, c.bot)]
               : [],
           ),
         });

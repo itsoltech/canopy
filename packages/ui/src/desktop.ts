@@ -128,13 +128,19 @@ export function sameDesktopConfiguration(
 }
 
 export interface DesktopBridge {
-  /** Fixed status-only alerts; no message text, paths or arbitrary navigation. */
-  showThreadNotification?(notice: {
-    threadId: string;
-    event: "completed" | "failed" | "input";
+  /**
+   * A native thread or bot alert. Main checks lengths, opens only `/threads/<id>` or `/bots/<id>`
+   * and shows each key once across windows (docs/desktop.md).
+   */
+  showNotification?(notice: {
+    key: string;
+    title: string;
+    body: string;
+    path: string;
     sound: boolean;
   }): Promise<boolean>;
-  onThreadNotificationClick?(listener: (threadId: string) => void): () => void;
+  /** The path of a clicked notification, after main has focused this window. */
+  onNotificationClick?(listener: (path: string) => void): () => void;
   /** Main requests Settings navigation after the application has mounted. */
   onOpenRoute?(listener: (path: string) => void): () => void;
   readyForRoutes?(): Promise<void>;

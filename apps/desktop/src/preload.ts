@@ -26,8 +26,8 @@ function subscribe<T>(channel: string, listener: (data: T) => void) {
 
 const bridge: DesktopBridge = {
   platform: process.platform,
-  showThreadNotification: (notice) => ipcRenderer.invoke("canopy:thread-notification", notice),
-  onThreadNotificationClick: (listener) => subscribe<string>("canopy:thread-notification-click", listener),
+  showNotification: (notice) => ipcRenderer.invoke("canopy:notification", notice),
+  onNotificationClick: (listener) => subscribe<string>("canopy:notification-click", listener),
   onOpenRoute: (listener) =>
     subscribe<string>("canopy:open-route", (path) => {
       if (isDesktopRoute(path)) listener(path);

@@ -536,6 +536,13 @@ message Thread {
   ThreadWorktree worktree = 900;
   // Wątek bez worktree: HEAD checkoutu workspace'u (gałąź na żywo).
   GitHead checkout_head = 901;
+  // Numery od 1000: powiadomienia (docs/notifications.md). Krótki, oczyszczony tekst bez markdownu i sekretów:
+  // pytanie lub zgoda czekająca na użytkownika, inaczej odpowiedź nieobejrzanej tury; pusty, gdy nie ma czego pokazać.
+  string notice_preview = 1000;
+  // pending_interactions > 0: rodzaj najnowszego żądania do człowieka (permission | question | elicitation).
+  string notice_interaction_kind = 1001;
+  // unseen_result = interrupted: turę zatrzymał użytkownik (nie system).
+  bool interrupted_by_user = 1002;
 }
 
 // Wątek agenta, od którego przyszło wejście tury albo steer (zadanie, wiadomość, raport): do oznaczenia wiadomości

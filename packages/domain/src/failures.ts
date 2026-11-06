@@ -81,15 +81,18 @@ export function safeFailureDetail(message: string, secrets: readonly string[] = 
 
   for (const secret of secrets) if (secret) text = text.split(secret).join("[redacted]");
 
+  return redactCredentials(text.replace(/https?:\/\/[^\s"'<>]+/gi, "[endpoint]")).slice(0, 8000);
+}
+
+/** Bearer tokens, `key=value` credentials and common API key formats. */
+export function redactCredentials(text: string): string {
   return text
-    .replace(/https?:\/\/[^\s"'<>]+/gi, "[endpoint]")
     .replace(/\bBearer\s+[^\s,"'}]+/gi, "Bearer [redacted]")
     .replace(
       /((?:[\w-]*(?:api[_-]?key|token|password|secret|credential)[\w-]*)["']?\s*[:=]\s*["']?)[^\s,"'}]+/gi,
       "$1[redacted]",
     )
-    .replace(/\b(?:xai-|sk-)[\w-]+/g, "[redacted]")
-    .slice(0, 8000);
+    .replace(/\b(?:xai-|sk-)[\w-]+/g, "[redacted]");
 }
 
 export class ProviderFailure extends Error {

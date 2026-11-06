@@ -340,7 +340,7 @@ function startController() {
 }
 
 function registerIpc() {
-  registerWindowPreferencesIpc(authorize);
+  registerWindowPreferencesIpc(authorize, iconPath);
   registerAppRouteIpc(appRoutes, authorize, () => window);
   ipcMain.handle("canopy:status", (event) => {
     authorize(event);

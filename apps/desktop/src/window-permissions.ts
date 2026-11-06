@@ -1,6 +1,6 @@
 /**
  * Permissions the app's own pages may use: `clipboard-sanitized-write` for `navigator.clipboard.writeText`
- * (copy actions) and `notifications` for thread alerts.
+ * (copy actions) and `notifications`, a fallback for the page's Notification API (alerts use native IPC).
  */
 const ALLOWED = new Set(["clipboard-sanitized-write", "notifications"]);
 

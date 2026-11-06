@@ -325,6 +325,34 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
     }
   }, 15_000);
 
+  test("ListBots carries the newest waiting card for notifications, only to its owner", async () => {
+    const bot = await add("Notices");
+    suite.model = async (i) =>
+      i.messages.at(-1)?.role === "tool"
+        ? reply("Thanks")
+        : tool("ask_user", { question: "Ship the **release** now?", options: ["Yes", "No"] });
+    await send(bot.id, "ask me");
+
+    const listed = await eventually(
+      async () => (await suite.gw.api.listBots({})).bots.find((b) => b.id === bot.id),
+      (b) => b?.pendingApproval?.status === "pending",
+    );
+
+    expect(listed?.pendingApproval).toMatchObject({
+      kind: "question",
+      prompt: "Ship the **release** now?",
+      fields: [],
+    });
+    const otherUser = Bun.randomUUIDv7();
+    expect(await suite.gw.runtime.runPromise(BotStore.use((s) => s.list(otherUser)))).toEqual([]);
+
+    await suite.current.bots.answer(
+      create(bots.AnswerBotApprovalRequestSchema, { approvalId: listed!.pendingApproval!.id, answer: "Yes" }),
+    );
+    await settled(bot.id);
+    expect((await suite.gw.api.listBots({})).bots.find((b) => b.id === bot.id)?.pendingApproval).toBeUndefined();
+  });
+
   test("questions persist and approvals resume after a gateway restart; interrupt and delete work", async () => {
     const bot = await add("Questions");
     suite.model = async (i) =>
