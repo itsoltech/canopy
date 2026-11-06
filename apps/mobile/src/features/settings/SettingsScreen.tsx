@@ -13,6 +13,7 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { PanelRow } from "../threads/ThreadPanel";
 import { ThreadDefaultsSettings, ThreadTitleSettings } from "./ThreadSettings";
 import { TurnActivitySettings } from "./TurnActivitySettings";
+import { ConnectorList, useConnectors } from "../connectors/Connectors";
 
 function useSettingsState() {
   const { session, client, forget } = useSession();
@@ -45,14 +46,7 @@ function useSettingsState() {
                 value: `${p.workers.filter((w) => w.enabled).length} workers`,
               })),
             )
-          : section === "connectors"
-            ? client.api.listConnectors({}).then((r) =>
-                r.accounts.map((p) => ({
-                  title: p.name || p.id,
-                  value: p.status,
-                })),
-              )
-            : null;
+          : null;
 
     if (request)
       void request
@@ -203,21 +197,7 @@ function SettingsLayout({ state, children }: { state: ReturnType<typeof useSetti
 function SettingsContent({ state }: { state: ReturnType<typeof useSettingsState> }) {
   const c = useColors();
 
-  const {
-    section,
-    settings,
-    projects,
-    workers,
-    rows,
-    current,
-    error,
-    session,
-    busy,
-    unpair,
-    removeLocal,
-    instructions,
-    setInstructions,
-  } = state;
+  const { section, settings, projects, workers, rows, current, error, instructions, setInstructions } = state;
 
   return (
     <>
@@ -258,7 +238,8 @@ function SettingsContent({ state }: { state: ReturnType<typeof useSettingsState>
           </Text>
         </View>
       )}
-      {["schedules", "providers", "connectors"].includes(section) && (
+      {section === "connectors" && <ConnectorsSection />}
+      {["schedules", "providers"].includes(section) && (
         <View style={{ gap: 16 }}>
           {rows.length ? (
             rows.map((r, i) => <PanelRow key={i} title={r.title} value={r.value} icon={current.icon} />)
@@ -275,50 +256,7 @@ function SettingsContent({ state }: { state: ReturnType<typeof useSettingsState>
           Manage {current.label.toLowerCase()} in Canopy on the web.
         </Text>
       )}
-      {section === "mobile" && (
-        <View style={{ gap: 20 }}>
-          <PanelRow title="Gateway" value={session!.gatewayUrl} icon="link" />
-          <PanelRow title="Device name" value={session!.deviceName} icon="computer-desktop" />
-          <Text style={[styles.meta, { color: c.muted }]}>
-            To change gateway or device name, unpair and pair again.
-          </Text>
-          <Button
-            title="Unpair this phone"
-            danger
-            busy={busy}
-            onPress={() =>
-              Alert.alert("Unpair this phone?", "This revokes access on the gateway and removes the saved key.", [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Unpair",
-                  style: "destructive",
-                  onPress: () => void unpair(),
-                },
-              ])
-            }
-          />
-          {error ? (
-            <Button
-              title="Forget pairing locally"
-              secondary
-              onPress={() =>
-                Alert.alert(
-                  "Forget this pairing?",
-                  "This removes the local key only. Revoke this phone in web Settings to end its gateway access.",
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Forget",
-                      style: "destructive",
-                      onPress: () => void removeLocal(),
-                    },
-                  ],
-                )
-              }
-            />
-          ) : null}
-        </View>
-      )}
+      {section === "mobile" && <DeviceSection state={state} />}
     </>
   );
 }
@@ -328,6 +266,70 @@ function ThreadsSection(props: Parameters<typeof ThreadDefaultsSettings>[0]) {
     <View style={{ gap: 32 }}>
       <ThreadDefaultsSettings {...props} />
       <TurnActivitySettings />
+    </View>
+  );
+}
+
+function ConnectorsSection() {
+  const c = useColors();
+  const { list, error } = useConnectors();
+
+  return (
+    <View style={{ gap: 16 }}>
+      {list?.accounts.length ? (
+        <ConnectorList list={list} />
+      ) : (
+        <Text style={[styles.body, { color: c.muted }]}>{error || (list ? "No connectors." : "")}</Text>
+      )}
+      <Text style={[styles.meta, { color: c.muted }]}>Manage connectors in Canopy on the web.</Text>
+    </View>
+  );
+}
+
+function DeviceSection({ state }: { state: ReturnType<typeof useSettingsState> }) {
+  const c = useColors();
+  const { session, busy, unpair, removeLocal, error } = state;
+
+  return (
+    <View style={{ gap: 20 }}>
+      <PanelRow title="Gateway" value={session!.gatewayUrl} icon="link" />
+      <PanelRow title="Device name" value={session!.deviceName} icon="computer-desktop" />
+      <Text style={[styles.meta, { color: c.muted }]}>To change gateway or device name, unpair and pair again.</Text>
+      <Button
+        title="Unpair this phone"
+        danger
+        busy={busy}
+        onPress={() =>
+          Alert.alert("Unpair this phone?", "This revokes access on the gateway and removes the saved key.", [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Unpair",
+              style: "destructive",
+              onPress: () => void unpair(),
+            },
+          ])
+        }
+      />
+      {error ? (
+        <Button
+          title="Forget pairing locally"
+          secondary
+          onPress={() =>
+            Alert.alert(
+              "Forget this pairing?",
+              "This removes the local key only. Revoke this phone in web Settings to end its gateway access.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Forget",
+                  style: "destructive",
+                  onPress: () => void removeLocal(),
+                },
+              ],
+            )
+          }
+        />
+      ) : null}
     </View>
   );
 }

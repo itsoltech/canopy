@@ -22,6 +22,8 @@ import { SubagentStrip } from "./SubagentStrip";
 import { useFollowingList } from "../../ui/useFollowingList";
 import { useMessageDraft } from "../composer/useMessageDraft";
 import { QueuedMessageMenu, QueueEditor } from "./QueuedMessage";
+import { GoalSheet, isFinishedGoal, takesGoals } from "./GoalSheet";
+import { SideThreadSheet } from "./SideThreadSheet";
 
 function visibleTurns(snapshot: ui.ThreadSnapshot | undefined) {
   const turns = snapshot?.turns.filter((t) => !t.withdrawn).slice() ?? [];
@@ -187,6 +189,7 @@ function useThreadState(id: string) {
 export function ThreadScreen({ id }: { id: string }) {
   const c = useColors();
   const state = useThreadState(id);
+  const [sheet, setSheet] = useState<"goal" | "side" | null>(null);
 
   const {
     session,
@@ -222,6 +225,9 @@ export function ThreadScreen({ id }: { id: string }) {
         project={projects.find((p) => p.id === thread?.projectId)}
         turns={turns}
         onDetails={() => setDetails(true)}
+        onSideThread={() => setSheet("side")}
+        onGoal={thread && takesGoals(thread) ? () => setSheet("goal") : undefined}
+        goalOpen={Boolean(snapshot?.goal && !isFinishedGoal(snapshot.goal.status))}
       />
       <KeyboardArea>
         <ThreadTimeline state={state} />
@@ -256,6 +262,7 @@ export function ThreadScreen({ id }: { id: string }) {
             disabled={blocked}
             busy={busy}
             onDetails={() => setDetails(true)}
+            onGoal={() => setSheet("goal")}
           />
         </View>
       </KeyboardArea>
@@ -266,6 +273,8 @@ export function ThreadScreen({ id }: { id: string }) {
         onEdit={(turn) => state.setQueued({ turn, editing: true })}
         onError={setError}
       />
+      <GoalSheet thread={thread} goal={snapshot?.goal} visible={sheet === "goal"} onClose={() => setSheet(null)} />
+      <SideThreadSheet main={thread} visible={sheet === "side"} onClose={() => setSheet(null)} />
       <QueueEditor
         turn={state.queued?.editing ? state.queued.turn : undefined}
         onClose={() => state.setQueued(undefined)}

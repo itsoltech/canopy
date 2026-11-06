@@ -34,7 +34,7 @@ const moved = (m: Mention, by: number) => create(MentionSchema, { ...m, start: m
 export function insertMention(
   value: MessageValue,
   selection: { start: number; end: number },
-  mention: Pick<Mention, "kind" | "name" | "label">,
+  mention: Pick<Mention, "kind" | "name" | "label"> & Partial<Pick<Mention, "path" | "source" | "isDir">>,
 ): Placed {
   // Never inside another badge: the insertion point moves past it.
   const inside = value.mentions.find((m) => m.start < selection.start && selection.start < m.end);

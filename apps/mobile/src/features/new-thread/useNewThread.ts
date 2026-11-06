@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
+import { create as createMessage } from "@bufbuild/protobuf";
 import { router } from "expo-router";
 import * as Crypto from "expo-crypto";
-import { PermissionMode } from "@canopy/contracts";
+import { PermissionMode, ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
@@ -60,6 +61,17 @@ export function useNewThread() {
 
   const picked = choices.find((c) => c.key === picks.model);
   const selected = picked ?? fromDefaults ?? findChoice(sections[0], "");
+
+  // A new message each render is fine: the suggestions key their requests by the scope's values.
+  const mentionScope =
+    workspace && selected
+      ? createMessage(ui.MentionScopeSchema, {
+          workspaceId: workspace.id,
+          provider: selected.provider,
+          providerProfileId: selected.profileId,
+        })
+      : undefined;
+
   const permissionMode = permission ?? (defaults.permissionMode || PermissionMode.ASK);
 
   const blocker = !project
@@ -124,6 +136,7 @@ export function useNewThread() {
     permissionMode,
     message,
     workspaceDraft,
+    mentionScope,
     /** The worker's presence, with its computer when that is a linked one. */
     workerPresence: presence(worker),
     busy,

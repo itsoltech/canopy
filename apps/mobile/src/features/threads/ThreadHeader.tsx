@@ -57,11 +57,18 @@ export function ThreadHeader({
   project,
   turns,
   onDetails,
+  onSideThread,
+  onGoal,
+  goalOpen,
 }: {
   thread?: ui.Thread;
   project?: ui.Project;
   turns: ui.Turn[];
   onDetails: () => void;
+  onSideThread: () => void;
+  /** Absent where the thread takes no goals (a gateway thread, Grok). */
+  onGoal?: () => void;
+  goalOpen: boolean;
 }) {
   const c = useColors();
   const { wide } = useLayout();
@@ -109,24 +116,21 @@ export function ThreadHeader({
         />
         <IconButton icon="view-columns" label="Thread details" onPress={onDetails} />
       </View>
-      <PickerSheet
-        title="Thread actions"
+      <ThreadActionsSheet
+        thread={thread}
         visible={sheet === "actions"}
         onClose={() => setSheet(null)}
-        onSelect={(kind) => (kind === "rename" ? setSheet("rename") : void action(kind))}
-        sections={[
-          {
-            options: [
-              { value: "rename" as const, label: "Rename", icon: "pencil-square" as const },
-              { value: "unread" as const, label: "Mark as unread", icon: "chat-bubble-left" as const },
-              {
-                value: "archive" as const,
-                label: thread?.archivedAt ? "Unarchive" : "Archive",
-                icon: "archive-box" as const,
-              },
-            ],
-          },
-        ]}
+        goalOpen={goalOpen}
+        onSelect={(kind) =>
+          kind === "rename"
+            ? setSheet("rename")
+            : kind === "side"
+              ? onSideThread()
+              : kind === "goal"
+                ? onGoal?.()
+                : void action(kind)
+        }
+        goals={Boolean(onGoal)}
       />
       <Overlay visible={sheet === "rename"} onClose={() => setSheet(null)} label="Rename thread">
         <View style={{ padding: 16, gap: 12 }}>
@@ -151,5 +155,59 @@ export function ThreadHeader({
         </View>
       ) : null}
     </>
+  );
+}
+
+type ThreadAction = "side" | "goal" | "rename" | "unread" | "archive";
+
+function ThreadActionsSheet({
+  thread,
+  visible,
+  onClose,
+  onSelect,
+  goals,
+  goalOpen,
+}: {
+  thread: ui.Thread | undefined;
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (action: ThreadAction) => void;
+  goals: boolean;
+  goalOpen: boolean;
+}) {
+  return (
+    <PickerSheet
+      title="Thread actions"
+      visible={visible}
+      onClose={onClose}
+      onSelect={onSelect}
+      sections={[
+        {
+          options: [
+            { value: "side" as const, label: "New side thread", icon: "arrows-right-left" as const },
+            ...(goals
+              ? [
+                  {
+                    value: "goal" as const,
+                    label: goalOpen ? "Replace the goal…" : "Set a goal…",
+                    icon: "flag" as const,
+                  },
+                ]
+              : []),
+          ],
+        },
+        {
+          options: [
+            { value: "rename" as const, label: "Rename", icon: "pencil-square" as const },
+            { value: "unread" as const, label: "Mark as unread", icon: "chat-bubble-left" as const },
+            {
+              value: "archive" as const,
+              label: thread?.archivedAt ? "Unarchive" : "Archive",
+              icon: "archive-box" as const,
+            },
+          ],
+        },
+      ]}
+    />
   );
 }

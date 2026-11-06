@@ -296,7 +296,16 @@ z „Expired. The bot no longer needs an answer.” bez akcji; spóźnioną odpo
 odrzuca, a karta pokazuje „This request expired. No answer was sent.”. Picker modeli
 pokazuje same nazwy, bez opisów modeli.
 Kompozytor oferuje Queue, Send now/steer, stop, wybór modelu/effort i permissions;
-respektuje ustawienie zachowania podczas trwającej tury. Goal jest read-only.
+respektuje ustawienie zachowania podczas trwającej tury. Wzmianki działają jak w web:
+`/` komendy, `$` skille i pluginy z `ListMentionCatalog` (raz na zakres), `@` pliki
+(`SearchFiles`) i `#` wątki (`SearchThreads`) pokazują listę nad kompozytorem, a wybór wstawia
+plakietkę w miejsce wpisanego zapytania (`features/composer/useMentionSuggestions.ts`).
+Menu akcji wątku ma „New side thread” (ten sam projekt, worker, folder, agent i model; opcjonalnie
+historia wątku głównego; full access przechodzi w full auto) oraz „Set a goal…” / „Replace the
+goal…” poza Grokiem i wątkami gatewaya. Pigułka Goal otwiera cel z Pause, Resume i Clear
+(z potwierdzeniem) jak pasek celu w web; Codex przyjmuje budżet tokenów (`SetGoal`).
+Settings → Connectors i panel wątku pokazują status kont jak web; konto z błędem testu
+ma jego komunikat i „Show details” z technicznym opisem.
 New thread to jeden ekran jak w web: kompozytor z modelem, effort i plikami, pod nim projekt,
 worker (offline z notą, która blokuje wysyłkę) i uprawnienia. Wartości startowe biorą domyślne
 projektu nad Settings → Threads, potem ostatnio użyte (`features/new-thread/placement.ts`).

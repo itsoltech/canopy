@@ -5,6 +5,7 @@ import { useOverview } from "../../state/overview";
 import { Button, Sheet } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
+import { ConnectorList, useConnectors } from "../connectors/Connectors";
 import { permissionLabel } from "./permissions";
 
 export function PanelRow({
@@ -112,9 +113,21 @@ export function ThreadPanel({
             <Text style={[styles.meta, { color: c.muted }]}>Main thread</Text>
           )}
           <Text style={[styles.label, { color: c.text }]}>Connectors</Text>
+          <ThreadConnectors threadId={thread.id} />
           <Text style={[styles.meta, { color: c.muted }]}>Manage thread connectors in Canopy on the web.</Text>
         </>
       )}
     </Sheet>
+  );
+}
+
+function ThreadConnectors({ threadId }: { threadId: string }) {
+  const c = useColors();
+  const { list, error } = useConnectors(threadId);
+
+  if (list?.accounts.length) return <ConnectorList list={list} />;
+
+  return (
+    <Text style={[styles.meta, { color: c.muted }]}>{error || (list ? "No connectors" : "Loading connections…")}</Text>
   );
 }
