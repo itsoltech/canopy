@@ -35,6 +35,7 @@ import { discoverCertificate, linkClient } from "./transport.ts";
 import { refreshConfigGroup, setConfigSharing } from "./runtime-config.ts";
 import { configNotices } from "../config-sync/notices.ts";
 import { followWorkerRecords } from "./runtime-workers.ts";
+import { RESTART_PRESENCE } from "@canopy/domain/computer-presence";
 
 /** A direct partner connected now that receives moves (never through a relay). */
 export function computersMovable(hostContext: LinkedComputers, nodeId: string) {
@@ -67,6 +68,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
       capabilities: this.options.capabilities ?? [
         "presence",
         "unlink",
+        RESTART_PRESENCE,
         LAN_ROUTES,
         ...(this.options.serve
           ? [REMOTE_THREADS, THREAD_MIRROR, THREAD_MIRROR_DELTA, REMOTE_BOTS, AGENT_BUS, RELAY, INLINE_ATTACHMENTS]

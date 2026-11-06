@@ -5,6 +5,8 @@ import { Redirect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
 import type { bots } from "@canopy/contracts";
+import { splitId } from "@canopy/domain/computers";
+import { useComputerHome } from "../computers/presence";
 import { botParticipant, type ChatRow } from "@canopy/domain/bot-chat";
 import { useSession } from "../../state/session";
 import { useStream } from "../../state/stream";
@@ -126,6 +128,8 @@ export function BotChatScreen({ id }: { id: string }) {
     known,
   } = useBotChat(id);
 
+  const home = useComputerHome(conversation?.bot?.nodeId || splitId(id).node);
+
   const approvals =
     conversation?.approvals.filter((a) => a.status === "pending" || (a.status === "expired" && seen.has(a.id))) ?? [];
 
@@ -156,11 +160,11 @@ export function BotChatScreen({ id }: { id: string }) {
           contentContainerStyle={[styles.page, { gap: 0, flexGrow: 1 }]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          renderItem={({ item }) => <ChatRowView row={item} approvals={approvals} />}
+          renderItem={({ item }) => <ChatRowView row={item} approvals={approvals} readOnly={home.away} />}
           // Inverted: the footer is the top of the chat, the header sits under the latest message.
           ListFooterComponent={
             <View style={{ gap: 12 }}>
-              {(conversation || stream.connection !== "connecting") && <ConnectionNotice {...stream} />}
+              {!home.away && (conversation || stream.connection !== "connecting") && <ConnectionNotice {...stream} />}
               {!conversation && <ConversationSkeleton />}
               {conversation && !conversation.messages.length && (
                 <Text style={[styles.meta, { color: c.muted, textAlign: "center" }]}>Start a conversation</Text>
@@ -182,6 +186,11 @@ export function BotChatScreen({ id }: { id: string }) {
         <View style={{ padding: 12, gap: 8 }}>
           <LatestButton visible={!atBottom} onPress={showLatest} />
           {error ? <Notice error>{error}</Notice> : null}
+          {home.away && (
+            <Notice>
+              {home.name} · {home.status}. Read only until it reconnects.
+            </Notice>
+          )}
           <ComposerBox
             compact
             placeholder={`Message ${conversation?.bot?.configuration?.name || "bot"}`}
@@ -190,7 +199,7 @@ export function BotChatScreen({ id }: { id: string }) {
             onSend={() => void send()}
             running={conversation?.working}
             onStop={() => void client!.api.interruptBot({ botId: id }).catch(() => setError("Could not stop the bot."))}
-            disabled={!online || !conversation || stream.connection !== "live"}
+            disabled={home.away || !online || !conversation || stream.connection !== "live"}
             busy={busy}
           />
         </View>

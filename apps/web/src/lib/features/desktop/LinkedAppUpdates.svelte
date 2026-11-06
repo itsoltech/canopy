@@ -8,6 +8,7 @@
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import { computerUpdate } from "#lib/features/workers/computer-updates.ts";
+  import { presenceTime } from "#lib/features/computers/computers.ts";
   import { UpdatesState, updateTone } from "#lib/features/workers/updates.svelte.ts";
 
   /**
@@ -53,7 +54,7 @@
     class={className}
   >
     {#each computers as computer (computer.nodeId)}
-      {@const view = computerUpdate(computer)}
+      {@const view = computerUpdate(computer, presenceTime)}
       {@const app = computer.updates?.app}
       {@const version = app?.version || computer.version}
       {@const channel = CHANNELS.get(app?.channel ?? "")}

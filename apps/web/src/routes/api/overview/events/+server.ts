@@ -6,7 +6,7 @@ import type { RequestHandler } from "./$types";
 
 /** Live overview (workers, projects, thread statuses) as SSE. */
 export const GET: RequestHandler = async ({ request }) => {
-  await call((api) => api.getOverview({}, { signal: request.signal }));
+  await call((api) => api.getClientCapabilities({}, { signal: request.signal }));
 
   return sseResponse(
     request,

@@ -8,6 +8,9 @@ export interface LiveSourceHandlers {
   readonly onfailure?: () => void;
 }
 
+/** A resync was refused by a linked computer; the local gateway answered. */
+export class ComputerAway extends Error {}
+
 export interface LiveSourceEnvironment {
   readonly source: (url: string) => EventSource;
   readonly hidden: () => boolean;
@@ -45,6 +48,7 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
   let connection: AbortController | undefined;
   let cancelRetry: (() => void) | undefined;
   let cancelWatchdog: (() => void) | undefined;
+  let cancelFailure: (() => void) | undefined;
   let stopped = false;
   let opens = 0;
   let attempt = 0;
@@ -59,12 +63,17 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
     cancelWatchdog = undefined;
   };
 
-  const retry = (failed = false) => {
+  const retry = (away = false) => {
     if (stopped || cancelRetry) return;
     close();
-    handlers.ondrop?.();
 
-    if (failed || attempt >= 2) handlers.onfailure?.();
+    if (away) {
+      cancelFailure?.();
+      cancelFailure = undefined;
+    } else {
+      handlers.ondrop?.();
+      cancelFailure ??= environment.schedule(() => handlers.onfailure?.(), 12_000);
+    }
 
     if (environment.hidden() || !environment.online()) return;
     cancelRetry = environment.schedule(
@@ -98,11 +107,15 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
       const opened = async () => {
         await handlers.onopen?.(opens++ > 0, abort.signal);
 
-        if (active()) attempt = 0;
+        if (active()) {
+          attempt = 0;
+          cancelFailure?.();
+          cancelFailure = undefined;
+        }
       };
 
-      void opened().catch(() => {
-        if (active()) retry(true);
+      void opened().catch((cause: unknown) => {
+        if (active()) retry(cause instanceof ComputerAway);
       });
     });
     current.addEventListener("heartbeat", () => {
@@ -113,6 +126,9 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
     };
 
     current.addEventListener("failure", () => {
+      if (active()) retry();
+    });
+    current.addEventListener("away", () => {
       if (active()) retry(true);
     });
     current.onmessage = (message) => {
@@ -122,7 +138,7 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
       try {
         handlers.onmessage(message.data);
       } catch {
-        retry(true);
+        retry();
       }
     };
   };
@@ -154,6 +170,7 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
 
   return () => {
     stopped = true;
+    cancelFailure?.();
     cancelRetry?.();
     close();
 

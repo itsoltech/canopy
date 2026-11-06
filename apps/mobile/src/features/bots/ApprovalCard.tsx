@@ -8,7 +8,7 @@ import { Icon } from "../../ui/Icon";
 import { RequestCountdown } from "../../ui/RequestCountdown";
 import { styles, useColors } from "../../ui/theme";
 
-export function ApprovalCard({ approval }: { approval: bots.BotApproval }) {
+export function ApprovalCard({ approval, readOnly = false }: { approval: bots.BotApproval; readOnly?: boolean }) {
   const c = useColors();
   const { client } = useSession();
   const [answer, setAnswer] = useState("");
@@ -20,6 +20,7 @@ export function ApprovalCard({ approval }: { approval: bots.BotApproval }) {
   const expired = late || approval.status === "expired";
 
   async function respond(approve: boolean, text = answer) {
+    if (readOnly) return;
     setBusy(true);
     setError("");
 
@@ -61,9 +62,9 @@ export function ApprovalCard({ approval }: { approval: bots.BotApproval }) {
       {question && !expired && (
         <>
           {approval.options.map((o) => (
-            <Button key={o} secondary title={o} busy={busy} onPress={() => void respond(true, o)} />
+            <Button key={o} secondary title={o} busy={busy} disabled={readOnly} onPress={() => void respond(true, o)} />
           ))}
-          <Field label="Your answer" value={answer} onChangeText={setAnswer} multiline />
+          <Field label="Your answer" value={answer} onChangeText={setAnswer} editable={!readOnly} multiline />
         </>
       )}
       {error ? <Notice error>{error}</Notice> : null}
@@ -79,13 +80,14 @@ export function ApprovalCard({ approval }: { approval: bots.BotApproval }) {
               title={question ? "Dismiss" : "Decline"}
               secondary
               busy={busy}
+              disabled={readOnly}
               onPress={() => void respond(false)}
             />
           </View>
           <View style={{ flex: 1 }}>
             <Button
               title={question ? "Send answer" : "Approve"}
-              disabled={question && !answer.trim()}
+              disabled={readOnly || (question && !answer.trim())}
               busy={busy}
               onPress={() => void respond(true)}
             />

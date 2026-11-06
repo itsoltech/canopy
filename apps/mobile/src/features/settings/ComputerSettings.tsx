@@ -11,6 +11,8 @@ import { ComputerPairing } from "./ComputerPairing";
 import { ComputerMove } from "./ComputerMove";
 import { SharedConfiguration } from "./SharedConfiguration";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
+import { presenceLabel } from "@canopy/domain/computer-presence";
+import { presenceTime } from "../computers/presence";
 
 type Operation = MessageInitShape<typeof ui.ComputerOperationRequestSchema>;
 
@@ -111,7 +113,7 @@ function ComputerDetails({
     <SettingsRow
       title={name}
       description={[
-        computer.status,
+        presenceLabel(computer.status, computer.statusSinceMs, presenceTime),
         computer.connectionDirection,
         computer.viaName && `Via ${computer.viaName}`,
         computer.unavailableReason,

@@ -21,6 +21,7 @@ import type { LinkedComputers } from "./runtime.ts";
 import { remoteCertificate } from "./transport.ts";
 import type { PeerRow } from "./store.ts";
 import { exchangeConfigSharing, receiveConfigSharing } from "./runtime-config.ts";
+import { RESTART_PRESENCE } from "@canopy/domain/computer-presence";
 
 export async function computersReceive(
   hostContext: LinkedComputers,
@@ -87,7 +88,7 @@ export async function computersReceive(
     for (const p of hostContext.relay.entries.values())
       if (p.via_node_id === nodeId) computersEmit(hostContext, p.node_id);
   } else if (body.case === "presence") {
-    if (!["updating", "sleeping", "shutting_down", "connected"].includes(body.value.state))
+    if (!["updating", "restarting", "sleeping", "shutting_down", "connected"].includes(body.value.state))
       throw new ConnectError("Unknown presence state", Code.InvalidArgument);
     await computersStatus(
       hostContext,
@@ -95,6 +96,9 @@ export async function computersReceive(
       body.value.state === "connected" && peer.update_node_id ? "needs_update" : body.value.state,
       peer.update_node_id,
     );
+
+    for (const active of hostContext[computersState].active.get(nodeId) ?? [])
+      active.remote?.presence(body.value.state);
     await hostContext.relay.refresh();
   } else if (body.case === "routes") {
     // The partner's addresses changed. Only over a negotiated link; they are routes like any other, used through the pin.
@@ -135,6 +139,10 @@ export async function* computersAccept(
 
   if (peer.fingerprint !== remote.fingerprint)
     throw new ConnectError("Computer certificate changed. Unlink and pair again.", Code.Unauthenticated);
+
+  // A short background wake must not complete a handshake and advertise online.
+  // The desktop clears this pause only after its wake grace (or an explicit unlock).
+  if (hostContext[computersState].paused) return;
   const output = new AsyncChannel<link.LinkFrame>();
 
   const connection: Connection = {
@@ -245,7 +253,13 @@ async function receiveHandshake(
       connection.send({
         body: {
           case: "presence",
-          value: { state: hostContext[computersState].announced, announcedAtMs: BigInt(Date.now()) },
+          value: {
+            state:
+              hostContext[computersState].announced === "restarting" && !connection.capabilities?.has(RESTART_PRESENCE)
+                ? "updating"
+                : hostContext[computersState].announced,
+            announcedAtMs: BigInt(Date.now()),
+          },
         },
       });
   }

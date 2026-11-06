@@ -9,7 +9,12 @@ export const GET: RequestHandler = async ({ url }) => {
   return json(
     encode(
       ui.ListThreadsResponseSchema,
-      await call((api) => api.listThreads({ projectId: url.searchParams.get("projectId") ?? "", sidebarOnly: true })),
+      await call((api) =>
+        api.listThreads(
+          { projectId: url.searchParams.get("projectId") ?? "", sidebarOnly: true },
+          { timeoutMs: 10_000 },
+        ),
+      ),
     ),
   );
 };

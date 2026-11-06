@@ -1,4 +1,5 @@
 import { create, type DescMethod, type Message } from "@bufbuild/protobuf";
+import { RESTART_PRESENCE } from "@canopy/domain/computer-presence";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link } from "@canopy/contracts";
 import { AGENT_BUS, REMOTE_BOTS, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
@@ -25,6 +26,7 @@ const STATES = new Set([
   "connected",
   "unreachable",
   "updating",
+  "restarting",
   "sleeping",
   "shutting_down",
   "needs_update",
@@ -212,7 +214,8 @@ export class ComputerRelay {
             nodeId: id,
             name: p.name,
             appVersion: p.app_version,
-            status: p.status,
+            status:
+              p.status === "restarting" && !partner.capabilities.includes(RESTART_PRESENCE) ? "updating" : p.status,
             statusSinceMs: BigInt(new Date(p.status_since).getTime()),
             lastSeenMs: p.last_seen ? BigInt(new Date(p.last_seen).getTime()) : 0n,
             capabilities: role === "origin" ? [AGENT_BUS] : p.capabilities.filter((c) => FEATURES.has(c)),

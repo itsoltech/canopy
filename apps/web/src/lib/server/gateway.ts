@@ -80,7 +80,7 @@ export function failWith(cause: unknown): never {
   const failure = gatewayFailure(cause);
 
   if (failure.status >= 500) console.error("gateway call failed", failure);
-  error(failure.status, failure.message);
+  error(failure.status, { message: failure.message, ...("scope" in failure && { scope: failure.scope }) });
 }
 
 export async function call<A>(run: (api: Client<typeof ui.GatewayService>) => Promise<A>): Promise<A> {

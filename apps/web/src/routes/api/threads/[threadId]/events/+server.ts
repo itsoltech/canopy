@@ -1,6 +1,6 @@
 import { ui } from "@canopy/contracts";
 import { coalesceDeltas } from "#lib/server/coalesce.ts";
-import { call, gateway } from "#lib/server/gateway.ts";
+import { gateway } from "#lib/server/gateway.ts";
 import { sseResponse } from "#lib/server/sse.ts";
 import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
@@ -11,12 +11,11 @@ import type { RequestHandler } from "./$types";
  * deltas go out merged per line (`coalesceDeltas`), not per token.
  */
 export const GET: RequestHandler = async ({ request, params, url }) => {
-  await call((api) => api.getThread({ threadId: params.threadId }, { signal: request.signal }));
-
   return sseResponse(
     request,
-    (signal) =>
-      coalesceDeltas(
+    async function* (signal) {
+      await gateway().getThread({ threadId: params.threadId }, { signal });
+      yield* coalesceDeltas(
         gateway().watchThread(
           {
             threadId: params.threadId,
@@ -25,7 +24,8 @@ export const GET: RequestHandler = async ({ request, params, url }) => {
           },
           { signal, timeoutMs: 0 },
         ),
-      ),
+      );
+    },
     (update) => encode(ui.ThreadUpdateSchema, update),
   );
 };

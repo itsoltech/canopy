@@ -5,6 +5,8 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { AsyncChannel } from "@canopy/transport";
+import { presenceLabel } from "@canopy/domain/computer-presence";
+import { computersTick } from "../../apps/gateway/src/computers/runtime-connection.ts";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { linkedComputers, listenLink } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
@@ -23,6 +25,7 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
   let sb: ComputerStore;
   let la: LinkedComputers;
   let lb: LinkedComputers;
+  let presenceNow: number | undefined;
   const status = async (gw: TestGateway) => (await gw.api.getComputers({})).peers[0]?.status;
 
   const online = () =>
@@ -56,7 +59,12 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
     b = await startTestGateway({ role: "desktop" });
     sa = new ComputerStore(a.runtime, a.userId, randomBytes(32));
     sb = new ComputerStore(b.runtime, b.userId, randomBytes(32));
-    la = linkedComputers({ store: sa, host: "127.0.0.1", heartbeatMs: 100 });
+    la = linkedComputers({
+      store: sa,
+      host: "127.0.0.1",
+      heartbeatMs: 100,
+      presenceNow: () => presenceNow ?? Date.now(),
+    });
     lb = linkedComputers({ store: sb, host: "127.0.0.1", heartbeatMs: 100 });
     a.core.computers = la;
     a.core.network = la.options.network;
@@ -185,7 +193,13 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
       await mitm.close();
     }
 
-    la = linkedComputers({ store: sa, host: "127.0.0.1", port, heartbeatMs: 100 });
+    la = linkedComputers({
+      store: sa,
+      host: "127.0.0.1",
+      port,
+      heartbeatMs: 100,
+      presenceNow: () => presenceNow ?? Date.now(),
+    });
     a.core.computers = la;
     a.core.network = la.options.network;
     await la.start();
@@ -204,6 +218,9 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
   test("announced states are preserved on disconnect; unannounced loss becomes unreachable; reconnect is durable", async () => {
     await lb.announce("updating");
     await eventually(async () => (await status(a)) === "updating");
+    await lb.announce("restarting");
+    await eventually(async () => (await status(a)) === "restarting");
+    expect(presenceLabel((await a.api.getComputers({})).peers[0]!.status, 0n, () => "")).toBe("Restarting…");
     await lb.announce("sleeping");
     await eventually(async () => (await status(a)) === "sleeping");
     await lb.announce("connected");
@@ -222,6 +239,75 @@ describe.skipIf(!dockerAvailable)("two independent gateways with pinned computer
     await a.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
     await b.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
     await online();
+  }, 35_000);
+
+  test("updates expire after five minutes; intentional offline and asleep persist; unannounced loss is unreachable", async () => {
+    presenceNow = Date.now();
+    const peer = async () => (await a.api.getComputers({})).peers[0]!;
+
+    try {
+      await lb.announce("updating");
+      await eventually(async () => (await status(a)) === "updating");
+      await lb.close();
+      expect((await peer()).status).toBe("updating");
+      presenceNow += 5 * 60_000 - 1;
+      await computersTick(la);
+      expect((await peer()).status).toBe("updating");
+      presenceNow += 1;
+      await eventually(async () => (await status(a)) === "unreachable");
+      expect(presenceLabel((await peer()).status, (await peer()).statusSinceMs, () => "12:00")).toBe(
+        "Unreachable since 12:00",
+      );
+      await restartB();
+      await online();
+
+      await lb.close("shutting_down");
+      await eventually(async () => (await status(a)) === "shutting_down");
+      presenceNow += 24 * 60 * 60_000;
+      await computersTick(la);
+      expect(presenceLabel((await peer()).status, (await peer()).statusSinceMs, () => "12:00")).toBe(
+        "Offline since 12:00",
+      );
+      await restartB();
+      await online();
+
+      await lb.announce("sleeping");
+      await eventually(async () => (await status(a)) === "sleeping");
+      await lb.close("sleeping");
+      presenceNow += 24 * 60 * 60_000;
+      await computersTick(la);
+      expect(presenceLabel((await peer()).status, (await peer()).statusSinceMs, () => "12:00")).toBe(
+        "Asleep since 12:00",
+      );
+      await restartB();
+      await online();
+
+      await lb.announce("sleeping");
+      await eventually(async () => (await status(a)) === "sleeping");
+
+      // A new inbound link during a short background wake cannot advertise online.
+      const inbound = linkClient(lb.addresses[0]!, lb.identity.certificate, la.identity).connect(new AsyncChannel(), {
+        timeoutMs: 2000,
+      });
+
+      expect((await inbound[Symbol.asyncIterator]().next()).done).toBe(true);
+      expect((await peer()).status).toBe("sleeping");
+      await lb.announce("connected");
+      await online();
+
+      await b.api.updateNetworkAccess({ action: "set_enabled", enabled: false });
+      await a.api.updateNetworkAccess({ action: "set_enabled", enabled: false });
+      await eventually(async () => (await status(a)) === "unreachable");
+      expect(presenceLabel((await peer()).status, (await peer()).statusSinceMs, () => "12:00")).toBe(
+        "Unreachable since 12:00",
+      );
+    } finally {
+      presenceNow = undefined;
+      await restartB();
+      await a.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
+      await b.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
+      await online();
+    }
   }, 35_000);
 
   test("rename propagates self name; peer aliases stay local; unlink removes both records", async () => {

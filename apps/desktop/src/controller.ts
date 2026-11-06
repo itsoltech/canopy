@@ -105,13 +105,31 @@ const lines = createInterface({ input: process.stdin });
 lines.once("close", () => void stop()); // Electron died or closed its pipe: no orphan services.
 
 lines.on("line", (line) => {
+  let request: ControllerRequest;
+
+  try {
+    // SAFETY: stdin is the private pipe from bundled Electron main, which constructs ControllerRequest.
+    request = JSON.parse(line) as ControllerRequest;
+  } catch {
+    send({ error: "Invalid controller request" });
+
+    return;
+  }
+
+  // Sleep cannot wait behind enrollment, a download or another queued configuration operation.
+  if (request.action === "presence" && runtime && !ending) {
+    void runtime
+      .presence(request.state)
+      .then(() => send({ id: request.id, result: {} }))
+      .catch(() => send({ id: request.id, error: "Presence announcement did not complete" }));
+
+    return;
+  }
+
   queue = queue.then(async () => {
     let id: number | undefined;
 
     try {
-      // SAFETY: stdin is a private pipe from the bundled Electron main process, which constructs ControllerRequest.
-      const request = JSON.parse(line) as ControllerRequest;
-
       id = request.id;
 
       if (ending) throw new Error("Desktop is stopping");

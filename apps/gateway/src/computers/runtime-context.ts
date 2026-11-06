@@ -46,6 +46,8 @@ export type Options = {
   minProtocol?: number;
   maxProtocol?: number;
   heartbeatMs?: number;
+  /** Clock for persisted presence and expiry; transport heartbeat timing stays independent. */
+  presenceNow?: () => number;
   /** Serves linked computers' calls on this computer's threads (stage 2). Without it the capability is not offered. */
   serve?: RemoteServe;
   /** Configuration shared with linked computers. Without it the capability is not offered. */
@@ -110,8 +112,9 @@ export const LAST_SEEN_WRITE_MS = 5000;
 export const STATE_TEXT = new Map(
   Object.entries({
     updating: "is updating",
-    sleeping: "went to sleep",
-    shutting_down: "shut down",
+    restarting: "is restarting",
+    sleeping: "is asleep",
+    shutting_down: "is offline",
     unreachable: "is unreachable",
     pairing_required: "must be paired again",
   }),

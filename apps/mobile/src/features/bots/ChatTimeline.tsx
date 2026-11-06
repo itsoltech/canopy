@@ -37,7 +37,15 @@ export function useChatRows(
 }
 
 /** One laid-out row; spacing follows the web's (`pt-3` before a run or card, `pt-0.5` inside a run, dates `pt-6`). */
-export function ChatRowView({ row, approvals }: { row: ChatRow; approvals: readonly bots.BotApproval[] }) {
+export function ChatRowView({
+  row,
+  approvals,
+  readOnly = false,
+}: {
+  row: ChatRow;
+  approvals: readonly bots.BotApproval[];
+  readOnly?: boolean;
+}) {
   switch (row.kind) {
     case "date":
       return (
@@ -72,7 +80,7 @@ export function ChatRowView({ row, approvals }: { row: ChatRow; approvals: reado
 
       return approval ? (
         <View style={{ paddingTop: 12 }}>
-          <ApprovalCard approval={approval} />
+          <ApprovalCard approval={approval} readOnly={readOnly} />
         </View>
       ) : null;
     }

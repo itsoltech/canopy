@@ -2,6 +2,7 @@ import { fromBinary, toBinary, type DescMethod, type Message, type MessageInitSh
 import { computerLink as link } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError } from "@connectrpc/connect";
+import { Match } from "effect";
 import { nodesOf } from "./remote-ids.ts";
 import { methodNamed, MovedError, movedItems, SERVED } from "./remote-policy.ts";
 
@@ -90,7 +91,7 @@ function wireError(cause: unknown) {
   return { code: Code.Internal, message: "internal error" };
 }
 
-type Outgoing = { channel: AsyncChannel<Uint8Array>; parts: Uint8Array[]; size: number };
+type Outgoing = { channel: AsyncChannel<Uint8Array>; parts: Uint8Array[]; size: number; streaming: boolean };
 
 type Served = { method: string; route: RelayRoute; parts: Uint8Array[]; size: number; abort?: AbortController };
 
@@ -100,6 +101,7 @@ export class RemoteCalls {
   #outgoing = new Map<bigint, Outgoing>();
   #served = new Map<bigint, Served>();
   #closed = false;
+  #departure: string | undefined;
   constructor(
     private readonly options: {
       send: (frame: Frame) => void;
@@ -110,7 +112,32 @@ export class RemoteCalls {
   ) {}
 
   get closed() {
-    return this.#closed;
+    return this.#closed || Boolean(this.#departure);
+  }
+
+  /** An announced departure ends subscriptions normally; commands receive a scoped, expected refusal. */
+  presence(state: string) {
+    this.#departure = state === "connected" ? undefined : state;
+
+    if (!this.#departure) return;
+
+    for (const call of this.#outgoing.values()) call.channel.close(call.streaming ? undefined : this.#away());
+  }
+
+  #away() {
+    const state = Match.value(this.#departure).pipe(
+      Match.when("sleeping", () => "asleep"),
+      Match.when("shutting_down", () => "offline"),
+      Match.orElse((value) => value),
+    );
+
+    return new ConnectError(
+      `${this.options.name()} is ${state}. Available when it reconnects.`,
+      Code.FailedPrecondition,
+      {
+        "canopy-error-scope": "computer",
+      },
+    );
   }
 
   async *call(
@@ -119,10 +146,12 @@ export class RemoteCalls {
     signal: AbortSignal,
     route: RelayRoute = DIRECT_ROUTE,
   ): AsyncGenerator<Message> {
+    if (this.#departure) throw this.#away();
+
     if (this.#closed) throw new ConnectError(`${this.options.name()} disconnected`, Code.Unavailable);
     const id = this.#next++;
     const channel = new AsyncChannel<Uint8Array>();
-    this.#outgoing.set(id, { channel, parts: [], size: 0 });
+    this.#outgoing.set(id, { channel, parts: [], size: 0, streaming: method.methodKind !== "unary" });
 
     const stop = () =>
       channel.close(

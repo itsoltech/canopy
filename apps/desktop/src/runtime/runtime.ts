@@ -15,20 +15,11 @@ import { Logs } from "./log.ts";
 import { Supervisor, until } from "./process.ts";
 import { savedStatus, writeConfiguration } from "./saved-status.ts";
 import { stableWebPort } from "./web-port.ts";
+import { HealthChecks } from "./health.ts";
+import { gatewayLiveness, livenessProbes, type LivenessProbe } from "./liveness.ts";
+import type { Secrets, RuntimePaths } from "./config.ts";
 
-export interface Secrets {
-  databasePassword: string;
-  secretsKey: string;
-  serviceToken: string;
-}
-
-export interface RuntimePaths {
-  bun: string;
-  gateway: string;
-  worker: string;
-  web: string;
-  postgres: string;
-}
+export type { Secrets, RuntimePaths } from "./config.ts";
 
 export class DesktopRuntime {
   readonly logs: Logs;
@@ -50,7 +41,8 @@ export class DesktopRuntime {
   private configured = false;
   private activeClient: DesktopClientCredential | undefined;
   private generation = 0;
-  private healthFailures = new Map<string, number>();
+  private health: HealthChecks;
+  private probes: LivenessProbe[] = [];
   private state = initialStatus();
   private setupOrigin = "";
   private installing: AbortController | undefined;
@@ -66,6 +58,7 @@ export class DesktopRuntime {
   ) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.logs = new Logs(join(directory, "logs"));
+    this.health = new HealthChecks((name, message) => this.logs.write(name, message));
     this.logs.protect(...Object.values(secrets));
     this.env["PATH"] = `${dirname(paths.bun)}${delimiter}${this.env["PATH"]}`;
     // Sidecars live in the signed app bundle: the app's own updater replaces them, never gateway/worker self-update.
@@ -93,6 +86,8 @@ export class DesktopRuntime {
   }
   private makeSupervisor() {
     return new Supervisor(this.logs, (name, running, failed) => {
+      if (running) this.health.started(name);
+
       if (name === "worker" && !running) this.publish({ worker: "offline" });
 
       if (!running && this.state.phase === "running" && ["gateway", "postgres", "web"].includes(name))
@@ -134,7 +129,7 @@ export class DesktopRuntime {
       restart: true,
       stopSignal: "SIGKILL",
     });
-    await until(async () => (await fetch(`${this.setupOrigin}/desktop`, { signal: AbortSignal.timeout(1000) })).ok);
+    await until(async () => (await fetch(`${this.setupOrigin}/api/health`, { signal: AbortSignal.timeout(5000) })).ok);
   }
   async initialize(restore = true) {
     this.publish(savedStatus(this.directory));
@@ -180,51 +175,45 @@ export class DesktopRuntime {
     }
   }
   private async checkHealth() {
-    if (!this.configured || this.checkingHealth || this.state.phase === "error" || this.state.phase === "stopping")
+    if (
+      !this.configured ||
+      this.checkingHealth ||
+      this.state.phase === "error" ||
+      this.state.phase === "stopping" ||
+      !this.health.poll()
+    )
       return;
     this.checkingHealth = true;
     const generation = this.generation;
 
-    const checks = [
-      {
-        name: "web",
-        supervisor: this.web,
-        probe: async () => (await fetch(`${this.setupOrigin}/desktop`, { signal: AbortSignal.timeout(2000) })).ok,
-      },
-    ];
-
-    if (this.state.mode === "local")
-      checks.push({
-        name: "gateway",
-        supervisor: this.services,
-        probe: async () => {
-          await this.client().getOverview({}, { timeoutMs: 2000 });
-
-          return true;
-        },
-      });
-
     try {
       const healthy = await Promise.all(
-        checks.map(async ({ name, supervisor, probe }) => {
-          const ok = await probe().catch(() => false);
+        this.probes.map(async ({ name, probe }) => {
+          const supervisor = name === "web" ? this.web : this.services;
 
-          if (generation !== this.generation) return false;
-          const failures = ok ? 0 : (this.healthFailures.get(name) ?? 0) + 1;
-          this.healthFailures.set(name, failures);
+          if (!supervisor.alive(name)) return false;
 
-          if (failures >= 3 && supervisor.alive(name)) {
-            this.logs.write(name, "Health check failed three times; restarting owned process");
-            supervisor.restart(name);
-            this.healthFailures.set(name, 0);
-          }
+          return this.health.check(name, probe, async (current) => {
+            if (name === "gateway")
+              await this.presence("restarting").catch(() => {
+                this.logs.write(name, "Could not announce the health restart; gateway did not answer");
+              });
 
-          return ok;
+            if (generation === this.generation && current()) {
+              this.logs.write(name, "Restarting owned process after sustained liveness failure");
+              supervisor.restart(name, name === "gateway");
+            } else this.logs.write(name, "Liveness restart canceled after a lifecycle change");
+          });
         }),
       );
 
-      if (generation === this.generation && this.configured && !["stopping", "error"].includes(this.state.phase))
-        this.publish({ phase: healthy.every(Boolean) ? "running" : "starting" });
+      if (
+        generation === this.generation &&
+        this.configured &&
+        healthy.every(Boolean) &&
+        !["stopping", "error"].includes(this.state.phase)
+      )
+        this.publish({ phase: "running" });
     } finally {
       this.checkingHealth = false;
     }
@@ -266,8 +255,9 @@ export class DesktopRuntime {
       restart: true,
     });
     const client = this.client(gatewayUrl);
+    const probe = gatewayLiveness(gatewayUrl);
     await until(async () => {
-      await client.getOverview({}, { timeoutMs: 1000 });
+      await probe();
 
       return true;
     });
@@ -293,7 +283,7 @@ export class DesktopRuntime {
     this.generation++;
     this.configured = false;
     this.remoteConnection = undefined;
-    this.healthFailures.clear();
+    this.health.reset();
     this.cancelStartup();
     const installing = new AbortController();
     this.installing = installing;
@@ -393,6 +383,7 @@ export class DesktopRuntime {
 
       writeConfiguration(this.directory, saved);
       this.configured = true;
+      this.probes = livenessProbes(this.setupOrigin, config.mode === "local" ? gatewayUrl : undefined);
       this.activeClient = client;
 
       if (config.mode === "remote" && client && this.workerStatusFile)
@@ -433,12 +424,22 @@ export class DesktopRuntime {
     this.installing?.abort();
   }
   async presence(state: string) {
+    if (["sleeping", "shutting_down", "updating"].includes(state)) this.health.suspend();
+
+    if (state === "connected" || state === "waking") this.health.resume();
+
+    if (state === "waking") return;
+
     if (this.state.mode === "local" && this.state.gatewayUrl)
-      await this.client().manageComputer({ action: "presence", name: state });
+      await this.client().manageComputer(
+        { action: "presence", name: state },
+        { timeoutMs: state === "sleeping" ? 500 : 2000 },
+      );
   }
   async stop() {
     this.cancelStartup();
     this.generation++;
+    this.health.reset();
     this.configured = false;
     this.publish({ phase: "stopping" });
 

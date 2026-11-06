@@ -1,4 +1,5 @@
 import type { JsonValue } from "@bufbuild/protobuf";
+import { computerFailure } from "./gateway-errors.ts";
 
 /**
  * Server-Sent Events from a gRPC stream (docs/ui-api.md): one `data:` line of JSON per update,
@@ -34,8 +35,11 @@ export function sseResponse<T>(
         for await (const value of source(upstream.signal)) send(`data: ${JSON.stringify(encode(value))}\n\n`);
       } catch (cause) {
         if (!upstream.signal.aborted) {
-          console.error("event stream failed", cause);
-          send(`event: failure\ndata: ${JSON.stringify({ message: "stream interrupted" })}\n\n`);
+          if (computerFailure(cause)) send("event: away\ndata: {}\n\n");
+          else {
+            console.error("event stream failed", cause);
+            send(`event: failure\ndata: ${JSON.stringify({ message: "stream interrupted" })}\n\n`);
+          }
         }
       } finally {
         clearInterval(heartbeat);

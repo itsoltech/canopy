@@ -116,10 +116,25 @@ export class Supervisor {
   killOwned() {
     for (const { child } of this.children.values()) this.signal(child, "SIGKILL");
   }
-  restart(name: string) {
+  restart(name: string, graceful = false) {
     const entry = this.children.get(name);
 
-    if (entry && !this.stopping) this.signal(entry.child, "SIGKILL");
+    if (!entry || this.stopping) return;
+    this.signal(entry.child, graceful ? "SIGTERM" : "SIGKILL");
+
+    if (graceful) {
+      const timer = setTimeout(() => {
+        this.timers.delete(timer);
+
+        if (this.children.get(name) === entry) this.signal(entry.child, "SIGKILL");
+      }, 10_000);
+
+      this.timers.add(timer);
+      entry.closed.then(() => {
+        clearTimeout(timer);
+        this.timers.delete(timer);
+      });
+    }
   }
   async stop() {
     this.stopping = true;

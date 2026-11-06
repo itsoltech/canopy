@@ -104,7 +104,7 @@ export function MessageComposer({
         top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
         controls={
           <>
-            <AttachButton draft={message.files} disabled={busy} />
+            <AttachButton draft={message.files} disabled={disabled || busy} />
             {thread?.goalStatus ? <ComposerPill icon="flag" title="Goal" onPress={onGoal} /> : null}
             {thread ? (
               <ComposerPill

@@ -118,7 +118,7 @@ describe.skipIf(!dockerAvailable)("linked projects by Git origin", () => {
       await failure(
         a.gw.api.createThread({ projectId: remote.projectId, workspaceId: remote.id, provider: Provider.CODEX }),
       ),
-    ).toContain("shut down");
+    ).toContain("is offline since");
     expect(Date.now() - start).toBeLessThan(1_500);
     expect((await b.gw.api.listThreads({})).threads).toHaveLength(before);
   }, 20_000);

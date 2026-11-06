@@ -162,11 +162,11 @@ i worker offline bez kolejki). Bez testów UI.
 
 ## Dostępność: bez kolejkowania
 
-Gdy komputer jest niedostępny, **nie da się do niego nic wysłać** — nie wiemy, czy śpi, stracił sieć,
-działa dalej, czy właśnie aktualizuje aplikację. Wiadomości nie czekają w kolejce wychodzącej.
+Gdy komputer jest niedostępny, **nie da się do niego nic wysłać**. Powód znamy tylko wtedy,
+gdy wcześniej go ogłosił. Wiadomości nie czekają w kolejce wychodzącej.
 
-- Stan partnera: **Connected**, stan ogłoszony przed zniknięciem (**Updating…**, **Going to sleep**,
-  **Shutting down**, z czasem ogłoszenia) albo **Unreachable since 19:42** — bez zgadywania przyczyny.
+- Stan partnera: **Connected**, **Updating…**, **Restarting…**, **Offline since …**,
+  **Asleep since …** albo **Unreachable since …**, według reguł obecności poniżej.
 - Wątki i boty niedostępnego komputera zostają na liście ze stonowanym oznaczeniem komputera. Wiersze
   wątków zachowują zwykły czas aktywności, bez powtarzania „Last seen”. Da się w nie
   wejść i czytać wszystko, co było zsynchronizowane do chwili rozłączenia. Composer, zgody i akcje są
@@ -284,7 +284,7 @@ Telefon i przeglądarka łączą się z jednym gatewayem i widzą przez niego ws
   i podpisów per komputer przy projektach. Picker workera grupuje workery wszystkich komputerów;
   jego przycisk pokazuje worker i komputer. Dla projektu pokazuje tylko workery z workspace'em tego
   projektu, a dla No project wszystkie workery (brak katalogu scratch oznacza wybór wyłączony).
-  Offline pozostaje Offline; nieosiągalny dom pokazuje ogłoszony stan (np. Going to sleep) lub Unreachable,
+  Offline pozostaje Offline; nieosiągalny dom pokazuje ogłoszony stan (np. Asleep since …) lub Unreachable,
   z rzeczywistym powodem obecności w szczegółach.
   Wysyłanie wymaga osiągalnego domu i workera online. Wybór workspace'u workera przekazuje oryginalne
   `workspace.project_id` i id workspace'u do istniejącej ścieżki zdalnego tworzenia wątku.
@@ -395,15 +395,50 @@ ogłoszone przez partnera. Nie ma outboxu pracy ani zdalnych akcji w etapie 1.
 
 ### Obecność i odwołanie
 
-Obecność zapisuje stan, czas lokalnego zaobserwowania zmiany i last seen. Tylko udany handshake
-przywraca `connected`; niezgodność daje `needs_update`. Zanik bez ogłoszenia daje `unreachable`.
-Peer może wcześniej wysłać `Presence {state, announced_at_ms}`: `updating`, `sleeping`,
-`shutting_down`, a po wznowieniu `connected`. UI zachowuje ogłoszony stan i jego czas po utracie
-łącza; nie zgaduje bieżącej przyczyny. Heartbeat nie zamienia ogłoszenia w Connected.
-Restart lokalnego procesu resetuje stare stany aktywnego połączenia, ale zachowuje ogłoszenia
-partnera. Desktop korzysta z `powerMonitor` suspend/resume, quit i restartu aktualizacji;
-lokalny gateway ogłasza graceful shutdown lub restart aktualizatora. Awaria/SIGKILL/wyłączenie
-systemu bez czasu na wysłanie ramki nie dają gwarancji ogłoszenia.
+Obecność zapisuje stan, czas lokalnego zaobserwowania zmiany i last seen. Udany handshake
+lub jawne `connected` po wznowieniu przywraca połączenie; niezgodność daje `needs_update`.
+Heartbeat nie zmienia przyczyny odejścia. Te same etykiety i czas obowiązują na webie i mobile:
+w Linked computers, pickerach, aktualizacjach i paskach read only wątków oraz botów.
+
+| Zdarzenie | Stan protokołu | Etykieta | Czas obowiązywania |
+| --- | --- | --- | --- |
+| Działające łącze | `connected` | Connected | Do zmiany obecności lub utraty łącza |
+| Zapowiedziany restart aktualizacji | `updating` | Updating… | Najwyżej 5 minut bez powrotu |
+| Zapowiedziany restart gatewaya przez nadzorcę | `restarting` | Restarting… | Najwyżej 5 minut bez powrotu |
+| Zwykłe Quit, Cmd+Q, quit guard lub zamknięcie systemu z czasem na wysłanie | `shutting_down` | Offline since … | Do ponownego połączenia, bez automatycznej eskalacji |
+| Otrzymana zapowiedź snu | `sleeping` | Asleep since … | Do wznowienia, bez automatycznej eskalacji |
+| Utrata sieci, crash, kill lub brak dostarczonej zapowiedzi | `unreachable` | Unreachable since … | Do ponownego połączenia |
+
+Okno 5 minut liczy odbiorca od zapisania zapowiedzi, według swojego zegara. Tick łącza
+(domyślnie co 5 sekund) zmienia niepowracające `updating`/`restarting` na `unreachable`;
+„since” oznacza wtedy czas stwierdzenia nieudanego powrotu. Restart gatewaya odbiorcy nie
+zeruje okna ani stanów Offline/Asleep: są zapisane w bazie. Reconnect działa automatycznie
+również dla tych stanów. Capability `restart_presence` oznacza obsługę `restarting`;
+starszy partner dostaje zgodne `updating` z tym samym limitem czasu.
+
+Wszystkie ścieżki instalacji aktualizacji desktopu (automatyczna, przycisk, zdalne żądanie
+partnera) dochodzą do wspólnego `before-quit` z `updating`. Zwykłe wyjście dochodzi tam
+z `shutting_down`. Kontroler czeka na próbę wysłania przed EOF; gateway zachowuje wcześniejszą
+zapowiedź przy graceful shutdown. Nadzorca przed restartem próbuje `restarting`, a potem
+SIGTERM; zawieszony proces, który nie obsłuży ani RPC, ani sygnału przed SIGKILL, nie może
+zagwarantować zapowiedzi.
+
+Desktop otrzymuje `powerMonitor.suspend` i od razu wysyła `sleeping` prywatnym kanałem
+do kontrolera, poza kolejką startu/enrollmentu. RPC ma deadline 500 ms; Electron nie czeka
+na wynik i nie opóźnia snu. Jest to best effort: jeśli system wcześniej zatrzyma proces
+lub sieć, partner pokaże Unreachable since …, bez zgadywania, że komputer śpi.
+`resume` od razu resetuje ochronę nadzorcy; ogłoszenie `connected` czeka 5 sekund.
+Kolejny `suspend` anuluje je, więc krótki macOS dark wake/Power Nap zachowuje Asleep.
+W tym oknie gateway nie kończy nowych handshake'ów przychodzących; partner nie zobaczy
+chwilowego Connected tylko dlatego, że sieć wstała przed użytkownikiem.
+`unlock-screen` oznacza powrót użytkownika i ogłasza `connected` od razu. Gateway bez
+desktopu i `powerMonitor` sam nie ogłasza snu.
+
+Zapowiedziane odejście kończy otwarte subskrypcje normalnie. Oczekujące komendy otrzymują
+`FAILED_PRECONDITION` z zakresem komputera, bez kolejki. Nieoczekiwane zerwanie może
+zwrócić `UNAVAILABLE`, również oznaczone `canopy-error-scope: computer`. BFF mapuje taki
+wynik na lokalną odmowę HTTP 409, a strumień na ciche SSE `away`; nie loguje awarii gatewaya
+i nie zmienia jego globalnego stanu. UI pokazuje obecność i read only przy danym komputerze.
 
 Unlink usuwa aktywny rekord partnera, trasy i certyfikat, a następnie zamyka jego strumienie.
 Online peer otrzymuje `Unlinked` i usuwa swój rekord. Gdy był offline, baza zachowuje wyłącznie
@@ -458,10 +493,11 @@ zawierające id innego komputera jest odrzucane. Błędy przechodzą wyłącznie
 domeny; nieznany błąd to „internal error” bez szczegółów.
 
 Wywołanie przed wysłaniem sprawdza, czy partner nadal jest sparowany. Unlink zamyka połączenie,
-a wraz z nim przerywa wszystkie wywołania w obu kierunkach. Utrata połączenia kończy otwarte wywołania
-błędem `UNAVAILABLE` („Laptop B disconnected”). **Nic nie jest kolejkowane**: brak gotowego połączenia
+a wraz z nim przerywa wszystkie wywołania w obu kierunkach. Nieoczekiwana utrata połączenia kończy
+otwarte wywołania błędem `UNAVAILABLE` („Laptop B disconnected”); zapowiedziane odejście stosuje
+ciche reguły z tabeli obecności. **Nic nie jest kolejkowane**: brak gotowego połączenia
 to natychmiastowy błąd z powodem z obecności etapu 1 — „Laptop B is unreachable since 19:42”,
-„is updating since …”, „went to sleep at …”, „shut down at …”, „needs an update”, „must be paired again”
+„is updating since …”, „is asleep since …”, „is offline since …”, „needs an update”, „must be paired again”
 (godzina w strefie użytkownika). Unary ma limit 30 s, zbieranie overview/list z partnerów 3 s;
 partner, który nie odpowie, jest pomijany, a nie oczekiwany.
 

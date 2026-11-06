@@ -31,6 +31,8 @@ import { QueuedMessageMenu, QueueEditor } from "./QueuedMessage";
 import { GoalSheet, isFinishedGoal, takesGoals } from "./GoalSheet";
 import { SideThreadSheet } from "./SideThreadSheet";
 import { useAppearance } from "../../state/appearance";
+import { useComputerHome } from "../computers/presence";
+import { splitId } from "@canopy/domain/computers";
 
 function visibleTurns(snapshot: ui.ThreadSnapshot | undefined) {
   const turns = snapshot?.turns.filter((t) => !t.withdrawn).slice() ?? [];
@@ -89,6 +91,7 @@ function useThreadState(id: string) {
   }, [id, client]);
 
   const thread = snapshot?.thread ?? threads.find((t) => t.id === id);
+  const home = useComputerHome(thread?.nodeId || splitId(id).node);
   const worker = workers.find((w) => w.id === thread?.workerId);
   const subagents = threads.filter((t) => t.parentThreadId === id && !t.archivedAt && !t.deletedAt);
   const interactions = snapshot?.interactions.filter((i) => i.status === "pending") ?? [];
@@ -158,6 +161,7 @@ function useThreadState(id: string) {
   }
 
   const blocked =
+    home.away ||
     !online ||
     !thread ||
     Boolean(thread.archivedAt || thread.deletedAt) ||
@@ -185,6 +189,7 @@ function useThreadState(id: string) {
     turns,
     send,
     blocked,
+    home,
     message,
     queued,
     setQueued,
@@ -233,6 +238,7 @@ export function ThreadScreen({ id }: { id: string }) {
         onSideThread={() => setSheet("side")}
         onGoal={thread && takesGoals(thread) ? () => setSheet("goal") : undefined}
         goalOpen={Boolean(snapshot?.goal && !isFinishedGoal(snapshot.goal.status))}
+        readOnly={state.home.away}
       />
       <KeyboardArea>
         <ThreadTimeline state={state} />
@@ -247,9 +253,13 @@ export function ThreadScreen({ id }: { id: string }) {
         >
           <LatestButton visible={!atBottom} onPress={showLatest} />
           {error ? <Notice error>{error}</Notice> : null}
-          {interactions.slice(0, 1).map((i) => (
-            <InteractionCard key={i.requestId} interaction={i} />
-          ))}
+          {state.home.away && (
+            <Notice>
+              {state.home.name} · {state.home.status}. Read only until it reconnects.
+            </Notice>
+          )}
+          {!state.home.away &&
+            interactions.slice(0, 1).map((i) => <InteractionCard key={i.requestId} interaction={i} />)}
           {interactions.length > 1 && (
             <Text style={[styles.meta, { color: c.warning }]}>+{interactions.length - 1} pending</Text>
           )}
@@ -275,15 +285,20 @@ export function ThreadScreen({ id }: { id: string }) {
       </KeyboardArea>
       <ThreadPanel snapshot={snapshot} visible={details} onClose={() => setDetails(false)} />
       <QueuedMessageMenu
-        turn={state.queued?.editing ? undefined : state.queued?.turn}
+        turn={state.home.away || state.queued?.editing ? undefined : state.queued?.turn}
         onClose={() => state.setQueued(undefined)}
         onEdit={(turn) => state.setQueued({ turn, editing: true })}
         onError={setError}
       />
-      <GoalSheet thread={thread} goal={snapshot?.goal} visible={sheet === "goal"} onClose={() => setSheet(null)} />
-      <SideThreadSheet main={thread} visible={sheet === "side"} onClose={() => setSheet(null)} />
+      <GoalSheet
+        thread={thread}
+        goal={snapshot?.goal}
+        visible={!state.home.away && sheet === "goal"}
+        onClose={() => setSheet(null)}
+      />
+      <SideThreadSheet main={thread} visible={!state.home.away && sheet === "side"} onClose={() => setSheet(null)} />
       <QueueEditor
-        turn={state.queued?.editing ? state.queued.turn : undefined}
+        turn={!state.home.away && state.queued?.editing ? state.queued.turn : undefined}
         onClose={() => state.setQueued(undefined)}
       />
     </SafeAreaView>
@@ -328,7 +343,7 @@ function useTimelineData(state: ReturnType<typeof useThreadState>) {
 
   const directory: TimelineDirectory = {
     currentId: thread?.id ?? "",
-    readOnly: !thread || Boolean(thread.archivedAt || thread.deletedAt),
+    readOnly: state.home.away || !thread || Boolean(thread.archivedAt || thread.deletedAt),
     thread: (id) => threads.find((t) => t.id === id) ?? (id === thread?.id ? thread : undefined),
     item: (id) => items.get(id),
     delivery: (callId) => snapshot?.busDeliveries.find((d) => d.callId === callId),
@@ -387,7 +402,7 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
           // Inverted: the footer is the top of the feed, the header sits under the latest turn.
           ListFooterComponent={
             <View style={{ gap: 16, paddingBottom: 16 }}>
-              {stream.connection === "error" || stream.connection === "offline" ? (
+              {!state.home.away && (stream.connection === "error" || stream.connection === "offline") ? (
                 <ConnectionNotice {...stream} />
               ) : null}
               {!snapshot && <ConversationSkeleton />}
@@ -407,7 +422,7 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
           ListHeaderComponent={
             <View style={{ gap: 12, paddingBottom: steering.length || loose.length ? 12 : 0 }}>
               <Text accessibilityLiveRegion="polite" style={[styles.caption, { color: c.muted, height: 20 }]}>
-                {snapshot && stream.connection !== "live" ? "Syncing…" : ""}
+                {snapshot && !state.home.away && stream.connection !== "live" ? "Syncing…" : ""}
               </Text>
               {loose.map((n) => (n.notice ? <NoticeRow key={String(n.seq)} notice={n.notice} /> : null))}
               {steering.map((s) => (

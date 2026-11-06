@@ -723,11 +723,11 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
     const start = Date.now();
     const failed = await tool("send_message", { thread_id: q(child), prompt: "must never run later" });
     expect(failed.isError).toBe(true);
-    expect(failed.content).toMatch(/unreachable|shut down/);
+    expect(failed.content).toContain("is offline since");
     expect(Date.now() - start).toBeLessThan(1500);
     expect(
       await failure(a.api.sendBotMessage({ botId: q(botB), text: "must never reach bot", clientRequestId: id() })),
-    ).toMatch(/unreachable|shut down/);
+    ).toContain("is offline since");
     lb = linkedComputers({
       store: new ComputerStore(b.runtime, b.userId, b.secretsKey),
       host: "127.0.0.1",

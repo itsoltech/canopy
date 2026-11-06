@@ -1,7 +1,8 @@
 import { getContext, setContext } from "svelte";
 import { ui } from "@canopy/contracts";
 import { decode } from "#lib/shared/wire.ts";
-import { liveSource } from "#lib/shared/live-source.ts";
+import { ComputerAway, liveSource } from "#lib/shared/live-source.ts";
+import { bodyJson, isJsonObject } from "#lib/shared/json.ts";
 import { computerName, listsThreads, sharesThreads } from "@canopy/domain/computer-presence";
 import { projectChoices } from "@canopy/domain/projects";
 
@@ -174,10 +175,15 @@ export class OverviewState {
     const get = async (path: string) => {
       const response = await fetch(path, {
         headers: { accept: "application/json" },
-        signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
       });
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const failure = await bodyJson(response).catch(() => null);
+
+        if (isJsonObject(failure) && failure["scope"] === "computer") throw new ComputerAway();
+        throw new Error(`HTTP ${response.status}`);
+      }
 
       return response.json();
     };
@@ -194,7 +200,6 @@ export class OverviewState {
       this.resyncs += 1;
     } catch (cause) {
       if (signal.aborted) return;
-      this.connection = "unavailable";
       throw cause;
     }
   }

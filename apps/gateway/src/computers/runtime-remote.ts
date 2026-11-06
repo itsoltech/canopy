@@ -29,7 +29,12 @@ import type { LinkedComputers } from "./runtime.ts";
 import { alternativeConfigPath, configAllowed, stopConfig } from "./runtime-config.ts";
 
 export async function computersStatus(hostContext: LinkedComputers, nodeId: string, status: string, updateNodeId = "") {
-  await hostContext.store.status(nodeId, status, updateNodeId);
+  await hostContext.store.status(
+    nodeId,
+    status,
+    updateNodeId,
+    new Date(hostContext.options.presenceNow?.() ?? Date.now()),
+  );
   computersEmit(hostContext, nodeId);
 }
 
@@ -87,7 +92,7 @@ export async function computersComputerMessage(hostContext: LinkedComputers, pee
       result.unavailableReason =
         via?.status === "connected"
           ? `Available through ${result.viaName}, which is reconnecting.`
-          : `Available through ${result.viaName}, which is unreachable since ${await computersTime(hostContext, new Date(Number(result.statusSinceMs)))}`;
+          : `Available through ${result.viaName}, which ${STATE_TEXT.get(result.status) ?? "is unreachable"} since ${await computersTime(hostContext, new Date(Number(result.statusSinceMs)))}`;
     }
   }
 
@@ -245,7 +250,13 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     if (peer.via_node_id && !computersRelayChannel(this, peer.via_node_id)) {
       const computer = await computersComputerMessage(this, peer);
 
-      return new ConnectError(computer.unavailableReason, Code.Unavailable);
+      return new ConnectError(
+        computer.unavailableReason,
+        ["updating", "restarting", "sleeping", "shutting_down"].includes(computer.status)
+          ? Code.FailedPrecondition
+          : Code.Unavailable,
+        { "canopy-error-scope": "computer" },
+      );
     }
 
     const name = peer.display_name || peer.name;
@@ -269,20 +280,23 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     const time = await computersTime(this, new Date(peer.status_since));
 
     return new ConnectError(
-      `${name} ${STATE_TEXT.get(peer.status) ?? "is unreachable"} ${peer.status === "unreachable" || peer.status === "updating" ? "since" : "at"} ${time}`,
-      Code.Unavailable,
+      `${name} ${STATE_TEXT.get(peer.status) ?? "is unreachable"} since ${time}`,
+      ["updating", "restarting", "sleeping", "shutting_down"].includes(peer.status)
+        ? Code.FailedPrecondition
+        : Code.Unavailable,
+      { "canopy-error-scope": "computer" },
     );
   },
 
   async announce(this: LinkedComputers, state: string) {
-    if (!["updating", "sleeping", "shutting_down", "connected"].includes(state))
+    if (!["updating", "restarting", "sleeping", "shutting_down", "connected"].includes(state))
       throw new ConnectError("Unknown presence state", Code.InvalidArgument);
     this[computersState].announced = state;
+
+    if (state === "sleeping") this[computersState].paused = true;
     computersBroadcast(this, { body: { case: "presence", value: { state, announcedAtMs: BigInt(Date.now()) } } });
     // Allow queued control frames to reach the socket before a lifecycle stop.
     await new Promise((resolve) => setTimeout(resolve, 100));
-
-    if (state === "sleeping") this[computersState].paused = true;
 
     if (state === "connected") {
       this[computersState].paused = false;
@@ -295,9 +309,8 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     this[computersState].stopped = true;
     // No move starts settling while the presence goes out: a stopping computer only finishes what runs.
     const moves = this.moves?.close();
-    await this.announce(
-      state === "shutting_down" && this[computersState].announced === "updating" ? "updating" : state,
-    );
+    const announced = this[computersState].announced;
+    await this.announce(state === "shutting_down" && announced !== "connected" ? announced : state);
     clearInterval(this[computersState].timer);
     this.relay.close();
     await this[computersState].lan?.close();

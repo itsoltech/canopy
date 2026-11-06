@@ -4,7 +4,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Popover from "#lib/shared/ui/Popover.svelte";
-  import { awayStatus, presenceTime } from "./computers.ts";
+  import { awayStatus } from "./computers.ts";
   import { computerName } from "@canopy/domain/computer-presence";
 
   /** A quiet status in the composer's shared strip; connection rules stay with the thread. */
@@ -13,8 +13,6 @@
     reason,
     class: className,
   }: { computer: ui.LinkedComputer | undefined; reason: string; class?: ClassValue } = $props();
-
-  const at = $derived(computer?.statusSinceMs ? presenceTime(computer.statusSinceMs) : undefined);
 </script>
 
 <div
@@ -25,12 +23,11 @@
 >
   <Icon name="link" size="xs" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" />
   <p role="status" aria-atomic="true" class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1">
-    <span class="flex max-w-full min-w-0 items-baseline gap-1">
+    <span class="flex max-w-full min-w-0 flex-wrap items-baseline gap-x-1">
       <span class="truncate" title={computerName(computer)}>{computerName(computer)}</span>
-      <span class="shrink-0">· {awayStatus(computer)}</span>
+      <span>· {awayStatus(computer)}</span>
     </span>
     <span>· read only</span>
-    {#if at}<span class="whitespace-nowrap tabular-nums">· since {at}</span>{/if}
   </p>
   <Popover label="Connection details" placement="top-end" class="w-72">
     {#snippet trigger(props)}<IconButton

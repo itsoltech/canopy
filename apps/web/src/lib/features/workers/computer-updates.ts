@@ -1,5 +1,6 @@
 import type { ui } from "@canopy/contracts";
 import { compareVersions } from "@canopy/updater/release";
+import { presenceLabel, formatPresenceTime } from "@canopy/domain/computer-presence";
 
 const newerVersion = (target: string, current: string): boolean => {
   try {
@@ -25,7 +26,7 @@ const UNREACHABLE = "It's unreachable. Its status shows when it's back.";
 
 const PRESENCE = new Map([
   ["sleeping", "It's asleep. Its status shows when it wakes."],
-  ["shutting_down", "It's shut down. Its status shows when it starts."],
+  ["shutting_down", "Its status shows when it reconnects."],
   ["needs_update", "Its Canopy app is too old for this link. Update it on that computer."],
   ["pairing_required", "Link it again in Settings → Linked computers."],
 ]);
@@ -41,18 +42,26 @@ const PHASE = new Map([
   ["failed", "Failed"],
 ]);
 
-export function computerUpdate(computer: ui.ComputerUpdate): ComputerUpdateView {
+export function computerUpdate(computer: ui.ComputerUpdate, time = formatPresenceTime): ComputerUpdateView {
   const app = computer.updates?.app;
   const base = { current: false, busy: false, failed: false, actionable: false, target: "", progress: undefined };
 
   // Announced before it quit for an update: it comes back by itself.
-  if (computer.presence === "updating")
-    return { ...base, status: "Restarting", busy: true, detail: "It restarts to install the update." };
+  if (computer.presence === "updating" || computer.presence === "restarting")
+    return {
+      ...base,
+      status: presenceLabel(computer.presence, computer.presenceSinceMs, time),
+      busy: true,
+      detail: "It reconnects automatically.",
+    };
 
   if (computer.presence !== "connected")
     return {
       ...base,
-      status: computer.presence === "needs_update" ? "Manual update" : "Offline",
+      status:
+        computer.presence === "needs_update"
+          ? "Manual update"
+          : presenceLabel(computer.presence, computer.presenceSinceMs, time),
       detail: PRESENCE.get(computer.presence) ?? UNREACHABLE,
     };
 

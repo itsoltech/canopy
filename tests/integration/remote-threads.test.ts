@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { JsonObject } from "@canopy/domain";
 import { randomBytes } from "node:crypto";
 import { createServer, type AddressInfo } from "node:net";
-import { create } from "@bufbuild/protobuf";
+import { create, toJson } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { InteractionKind, MentionKind, PermissionMode, Provider, ui, computerLink as link } from "@canopy/contracts";
 import { INLINE_ATTACHMENTS, nodeRef, REMOTE_THREADS } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -13,6 +14,9 @@ import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { methodNamed } from "../../apps/gateway/src/computers/remote.ts";
 import { linkClient } from "../../apps/gateway/src/computers/transport.ts";
+import { gatewayFailure } from "../../apps/web/src/lib/server/gateway-errors.ts";
+import { sseResponse } from "../../apps/web/src/lib/server/sse.ts";
+import { awayLabel } from "@canopy/domain/computer-presence";
 import {
   answers,
   eventually as poll,
@@ -62,7 +66,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     });
 
   async function restartB(extra: Partial<ConstructorParameters<typeof LinkedComputers>[0]> = {}) {
-    const port = Number(new URL(lb.addresses[0]!).port);
+    const port = lb.options.network.status().port;
     await lb.close();
     lb = linkedB(extra, port);
     b.core.computers = lb;
@@ -202,6 +206,87 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
       b.worker.holdTurns = false;
     }
   }, 25_000);
+
+  test("announced update closes BFF streams quietly, keeps A live, and reconnects automatically", async () => {
+    const abort = new AbortController();
+    const states: string[] = [];
+    let overviewError: unknown;
+
+    const overview = (async () => {
+      try {
+        for await (const update of a.api.watchOverview({}, { signal: abort.signal, timeoutMs: 0 }))
+          if (update.change.case === "computer" && update.change.value.nodeId === bNode)
+            states.push(update.change.value.status);
+      } catch (cause) {
+        if (!abort.signal.aborted) overviewError = cause;
+      }
+    })();
+
+    const response = sseResponse(
+      new Request("http://localhost/events", { signal: abort.signal }),
+      (signal) => a.api.watchThread({ threadId: thread }, { signal, timeoutMs: 0 }),
+      (value) => toJson(ui.ThreadUpdateSchema, value),
+    );
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+
+    try {
+      expect(decoder.decode((await reader.read()).value)).toContain("event: ready");
+      expect(decoder.decode((await reader.read()).value)).toContain("data:");
+
+      const remaining = (async () => {
+        let text = "";
+
+        for (;;) {
+          const value = await reader.read();
+
+          if (value.done) return text;
+          text += decoder.decode(value.value);
+        }
+      })();
+
+      await lb.announce("updating");
+      await eventually(async () => states.includes("updating"));
+      await lb.close();
+      await eventually(async () => !la.reachable().includes(bNode));
+      const computer = (await a.api.getComputers({})).peers.find((peer) => peer.nodeId === bNode)!;
+      expect(computer.status).toBe("updating");
+      expect(awayLabel(computer)).toBe("Updating…");
+      expect(await remaining).not.toContain("event: failure");
+      expect(overviewError).toBeUndefined();
+      expect((await a.api.getOverview({})).workers.some((worker) => worker.id === a.workerId)).toBe(true);
+
+      try {
+        await a.api.sendMessage({ threadId: thread, text: "do not queue", clientRequestId: id() });
+        throw new Error("Expected an away refusal");
+      } catch (cause) {
+        expect(cause).toBeInstanceOf(ConnectError);
+        expect(ConnectError.from(cause).code).toBe(Code.FailedPrecondition);
+        expect(gatewayFailure(cause)).toMatchObject({ status: 409, scope: "computer" });
+      }
+
+      const away = sseResponse(
+        new Request("http://localhost/events"),
+        (signal) => a.api.watchThread({ threadId: thread }, { signal, timeoutMs: 0 }),
+        (value) => toJson(ui.ThreadUpdateSchema, value),
+      );
+
+      const awayFrames = await away.text();
+      expect(awayFrames).toContain("event: away");
+      expect(awayFrames).not.toContain("event: failure");
+
+      await restartB();
+      await reachable();
+      await eventually(async () => states.at(-1) === "connected");
+      expect(overviewError).toBeUndefined();
+      expect((await a.api.getThread({ threadId: thread })).thread?.id).toBe(thread);
+    } finally {
+      abort.abort();
+      await reader.cancel();
+      await overview;
+    }
+  }, 35_000);
 
   test("approvals asked on B are answered from A and reach B's worker", async () => {
     const plain = thread.split("~")[0]!;

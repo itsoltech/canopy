@@ -6,6 +6,20 @@ import type { JsonObject, JsonValue } from "@canopy/domain";
 import { fromJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 
+export interface Secrets {
+  databasePassword: string;
+  secretsKey: string;
+  serviceToken: string;
+}
+
+export interface RuntimePaths {
+  bun: string;
+  gateway: string;
+  worker: string;
+  web: string;
+  postgres: string;
+}
+
 export function isWorkerStatus(value: unknown): value is { status?: string; time?: number } {
   return (
     !!value &&

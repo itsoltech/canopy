@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { presenceLabel } from "@canopy/domain/computer-presence";
+import { presenceTime } from "../computers/presence";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Button } from "../../ui/components";
@@ -149,7 +151,11 @@ function RemoteUpdateRows({ data, busy, change }: UpdateRowsProps) {
         <SettingsRow
           key={computer.nodeId}
           title={`${computer.name} · ${computer.version}`}
-          description={computer.reason || computer.presence}
+          description={
+            computer.presence === "connected"
+              ? computer.reason || "Connected"
+              : presenceLabel(computer.presence, computer.presenceSinceMs, presenceTime)
+          }
           control={
             <Button
               secondary

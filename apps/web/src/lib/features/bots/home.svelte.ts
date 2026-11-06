@@ -17,6 +17,9 @@ export function useBotHome(node: () => string | undefined) {
   );
 
   return {
+    get computer() {
+      return computer;
+    },
     get reason() {
       return reason;
     },

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, powerMonitor, Tray } from "electron";
+import { monitorPower } from "./power-events.ts";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { join, resolve } from "node:path";
@@ -63,6 +64,7 @@ let quitting = false;
 let stopped = false;
 let busy = false;
 let installingUpdate = false;
+let stopPower = () => {};
 let startupError = "";
 
 const updates = new DesktopUpdates(broadcast, () => {
@@ -271,6 +273,7 @@ app.on("before-quit", (event) => {
 
   if (quitting) return;
   quitting = true;
+  stopPower();
   quitGuard.cancel();
 
   for (const target of BrowserWindow.getAllWindows()) target.hide();
@@ -427,11 +430,8 @@ function registerIpc() {
 }
 
 async function start() {
-  powerMonitor.on("suspend", () => {
-    void rpc("presence", { state: "sleeping" }).catch(() => {});
-  });
-  powerMonitor.on("resume", () => {
-    void rpc("presence", { state: "connected" }).catch(() => {});
+  stopPower = monitorPower(powerMonitor, async (state) => {
+    await rpc("presence", { state });
   });
   const secrets = await loadSecrets(app.getPath("userData"));
   logs.protect(...Object.values(secrets));
