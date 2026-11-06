@@ -4,14 +4,29 @@
   import { botParticipant, exchangeEntries } from "#lib/features/bots/live.ts";
   import type { BotView, ConversationView } from "@canopy/domain/bot-chat";
   import type { PageProps } from "./$types";
+  import { watchExchange } from "#lib/features/bots/exchange.svelte.ts";
+  import { botList } from "#lib/features/bots/bot-list.svelte.ts";
+  import Alert from "#lib/shared/ui/Alert.svelte";
 
   /** Two bots talking to each other ("Grok Bot ⇄ FIXme CRM"): you read along and close it. */
   let { data, params }: PageProps = $props();
-  const directory = $derived(data.bots.map(botParticipant));
+  const history = watchExchange(() => params.exchangeId);
+
+  $effect(() => botList.use());
+
+  const messages = $derived(history.snapshot?.messages ?? data.exchange?.messages ?? []);
+
+  const directory = $derived(
+    [
+      ...new Map(
+        [...data.bots, ...botList.list, ...(history.snapshot?.participants ?? [])].map((bot) => [bot.id, bot]),
+      ).values(),
+    ].map(botParticipant),
+  );
 
   const pair = $derived.by((): BotView[] => {
     const ids = [
-      ...new Set([params.botId, ...data.messages.map((m) => m.senderId), ...data.messages.map((m) => m.recipientId)]),
+      ...new Set([params.botId, ...messages.map((m) => m.senderId), ...messages.map((m) => m.recipientId)]),
     ].filter((id) => !["user", "system", "self"].includes(id));
 
     return ids.slice(0, 2).map(
@@ -34,7 +49,7 @@
     pinned: false,
   });
 
-  const entries = $derived(exchangeEntries(data.messages));
+  const entries = $derived(exchangeEntries(messages));
   const close = () => goto(`/bots/${params.botId}`);
 </script>
 
@@ -52,10 +67,15 @@
 <ChatView
   {conversation}
   {entries}
+  loading={!history.snapshot && !data.exchange}
+  syncing={history.syncing}
   me={{ id: "me", kind: "user", name: "You" }}
   {directory}
   subtitle="Bot conversation"
   onsend={() => {}}
   onclose={close}
   class="h-full"
-/>
+>
+  {#snippet notice()}{#if history.error}<Alert tone="warning" banner title="Sync interrupted">{history.error}</Alert
+      >{/if}{/snippet}
+</ChatView>

@@ -2,6 +2,19 @@
 
 ## Historia na urządzeniu i odczyt przyrostowy
 
+Web przechowuje rozmowy i wymiany w pamięci bieżącej sesji SPA: łącznie 16 widoków,
+32 MiB, najwyżej 8 MiB na wpis, LRU. Jest to osobny budżet od wątków; brak
+IndexedDB i innych trwałych kopii w przeglądarce. Zamknięcie powłoki lub `pagehide`
+usuwa cache. Lista botów usuwa wpisy zarchiwizowanych, usuniętych i przeniesionych
+botów. Zimny widok pokazuje szkielet; nagłówek bierze nazwę i awatar z listy.
+Przy ponownym otwarciu snapshot jest widoczny przed odczytem sieciowym, z cichym
+„Syncing…”. Composer i karty są nieaktywne do potwierdzenia bieżącej subskrypcji.
+
+Web otwiera ostatnie 100 wpisów rozmowy lub wymiany. „Show earlier messages”
+odsłania po 100 starszych wpisów z już posiadanego snapshotu, zachowując kotwicę
+przewijania. Zmiana stanu na żywo zachowuje zamontowany widok i pozycję historii.
+Wymiany odświeżają przyrost po otwarciu, powrocie do okna i co 5 s widocznego okna.
+
 Rozmowa i podgląd wymiany bot–bot obsługują opt-in `incremental` oraz kursor
 widoku. Gateway używa osobnego dziennika kluczy tabel botów, według tego samego
 modelu epoki, rewizji w kolejności commitów i wykrywania luk co lustra wątków.

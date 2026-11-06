@@ -2,6 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { bots } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
+import { botCache } from "./cache.ts";
 
 /**
  * Your bots with their last messages, shared by the sidebar and the chats (names, avatars, mentions):
@@ -40,6 +41,7 @@ class BotList {
         (bot) => (this.#saving.has(bot.id) ? (this.list.find((b) => b.id === bot.id) ?? bot) : bot),
       );
       this.error = "";
+      botCache.reconcile(this.list);
     } catch {
       this.error = "Could not load bots";
     } finally {

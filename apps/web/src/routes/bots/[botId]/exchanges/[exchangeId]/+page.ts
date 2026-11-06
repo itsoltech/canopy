@@ -1,18 +1,23 @@
-import { error } from "@sveltejs/kit";
+import type { PageLoad } from "./$types";
+import { botCache } from "#lib/features/bots/cache.ts";
+import { botList } from "#lib/features/bots/bot-list.svelte.ts";
+import { botViewKey } from "@canopy/domain/bot-cache";
 import { bots } from "@canopy/contracts";
 import { decode } from "#lib/shared/wire.ts";
-import type { PageLoad } from "./$types";
+import { bodyJson } from "#lib/shared/json.ts";
 
-export const load: PageLoad = async ({ fetch, params }) => {
-  const [exchange, list] = await Promise.all([
-    fetch(`/api/bot-exchanges/${params.exchangeId}`),
-    fetch("/api/bots?archived=1"),
-  ]);
+export const load: PageLoad = async ({ params, fetch }) => {
+  const exchange = botCache.get(botViewKey("exchange", params.exchangeId))?.exchange;
+  const known = [...botList.list, ...(exchange?.participants ?? [])];
 
-  if (!exchange.ok || !list.ok) error(exchange.ok ? list.status : exchange.status, "Could not load this conversation");
+  if (!known.some((bot) => bot.id === params.botId)) {
+    const response = await fetch(`/api/bots/${params.botId}`);
 
-  return {
-    messages: decode(bots.ReadBotExchangeResponseSchema, await exchange.json()).messages,
-    bots: decode(bots.ListBotsResponseSchema, await list.json()).bots,
-  };
+    if (!response.ok) throw new Error("Could not load this bot");
+    const result = decode(bots.GetBotResponseSchema, await bodyJson(response));
+
+    if (result.bot) known.push(result.bot);
+  }
+
+  return { exchange, bots: known };
 };

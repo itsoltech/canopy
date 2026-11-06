@@ -19,7 +19,8 @@
   import ChangeModelDialog, { type BotModelChoice } from "#lib/features/bots/wizard/ChangeModelDialog.svelte";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { requestJson } from "#lib/shared/http.ts";
-  import { liveSource } from "#lib/shared/live-source.ts";
+  import { watchBot } from "#lib/features/bots/watch.svelte.ts";
+  import { canAnswerBotApproval } from "@canopy/domain/bot-snapshot";
   import Button from "#lib/shared/ui/Button.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -39,6 +40,12 @@
   const capabilities = useGatewayCapabilities();
   const catalogs = useModelCatalog();
   let snapshot = $state.raw(create(bots.BotConversationSchema));
+
+  const history = watchBot(
+    () => data.bot,
+    (next) => (snapshot = next),
+  );
+
   let connection = $state("");
   const expiredNotice = $derived(connection === "This request expired. No answer was sent.");
   let sending = $state(false);
@@ -70,7 +77,7 @@
 
   const bot = $derived(botList.list.find((b) => b.id === data.bot.id) ?? snapshot.bot ?? data.bot);
   const home = useBotHome(() => bot.nodeId);
-  const canAct = $derived(!bot.archived && !home.reason);
+  const canAct = $derived(history.live && !bot.archived && !home.reason);
   const config = $derived(bot.configuration ?? create(bots.BotConfigurationSchema));
   const conversation = $derived(botConversation(bot, settings.sidebar.pinnedBotIds));
   const directory = $derived(botList.list.filter((b) => b.id !== bot.id).map(botParticipant));
@@ -141,6 +148,7 @@
 
     if (
       !home.reason &&
+      history.live &&
       snapshot.bot &&
       last &&
       last > snapshot.bot.lastReadSeq &&
@@ -169,18 +177,12 @@
 
   $effect(() => {
     const id = data.bot.id;
-    snapshot = create(bots.BotConversationSchema, { bot: data.bot });
     pending = [];
+    connection = "";
 
-    return liveSource(`/api/bots/${id}/events`, {
-      onmessage: (json) => {
-        snapshot = decode(bots.BotConversationSchema, JSON.parse(json));
-
-        if (snapshot.bot) botList.upsert(snapshot.bot);
-        connection = "";
-      },
-      onfailure: () => (connection = "Connection interrupted. Reconnecting…"),
-    });
+    return () => {
+      if (observedBotId === id) observedBotId = undefined;
+    };
   });
 
   async function deliver(item: { id: string; text: string; mentions: Mention[]; quotes: ui.Quote[] }) {
@@ -226,7 +228,7 @@
   }
 
   async function reply(id: string, body: { approve: boolean; answer: string; ruleOptionId?: string }, mark: string) {
-    if (!canAct) return;
+    if (!canAct || !canAnswerBotApproval(snapshot, id, history.live)) return;
     answering = { ...answering, [id]: mark };
 
     try {
@@ -370,7 +372,9 @@
         {answering}
         {retrying}
         {policy}
-        composerDisabledReason={home.reason}
+        composerDisabledReason={home.reason || (!history.live ? "Syncing…" : undefined)}
+        loading={!history.loaded}
+        syncing={!history.live}
         onanswer={canAct ? answer : undefined}
         onapprove={canAct ? approve : undefined}
         onpolicy={canAct ? setPolicy : undefined}
