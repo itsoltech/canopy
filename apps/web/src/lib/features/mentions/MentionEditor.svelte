@@ -66,6 +66,7 @@
     id,
     label,
     placeholder = "",
+    hint,
     disabled = false,
     autofocus = false,
     singleLine = false,
@@ -87,6 +88,8 @@
     id: string;
     label: string;
     placeholder?: string;
+    /** A second placeholder line (what the trigger characters do); it wraps between items, never inside one. */
+    hint?: readonly string[] | undefined;
     disabled?: boolean;
     autofocus?: boolean;
     /** Clip an unfocused draft to its first line without remounting the editor or losing undo. */
@@ -579,12 +582,15 @@
   {#if !value && !composing && placeholder}
     <p
       aria-hidden="true"
-      class={[
-        "pointer-events-none col-start-1 row-start-1 truncate text-zinc-400 select-none dark:text-zinc-500",
-        className,
-      ]}
+      class={["pointer-events-none col-start-1 row-start-1 text-zinc-400 select-none dark:text-zinc-500", className]}
     >
-      {placeholder}
+      <span class="block truncate">{placeholder}</span>
+      {#if hint?.length}
+        <span class="block">
+          {#each hint as item, index (item)}{#if index > 0}{" · "}{/if}<span class="whitespace-nowrap">{item}</span
+            >{/each}
+        </span>
+      {/if}
     </p>
   {/if}
   <div
@@ -593,7 +599,7 @@
     role="textbox"
     aria-label={label}
     aria-multiline="true"
-    aria-placeholder={placeholder || undefined}
+    aria-placeholder={[placeholder, ...(hint ?? [])].filter(Boolean).join(", ") || undefined}
     aria-disabled={disabled || undefined}
     aria-autocomplete={sources ? "list" : undefined}
     aria-controls={sources ? `${id}-popup-list` : undefined}

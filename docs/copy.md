@@ -173,6 +173,10 @@ An example of the format, not an instruction: `https://gateway.example.com`,
 `my-project`. Instructions go in the label or the field description, because a
 placeholder disappears as soon as the user types.
 
+The one exception is the empty thread composer. Its second line lists the trigger
+characters (`/ commands · $ skills · @ files · # threads · ! shell`), because they
+are the input format and each app uses them differently.
+
 ### 4.10 First run (onboarding)
 
 One sentence on what the screen is for, then the choice. State the dependencies a
