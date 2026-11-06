@@ -37,7 +37,6 @@ export function ModelPickerSheet({
         options: section.choices.map((c) => ({
           value: c.key,
           label: c.name,
-          description: c.description || undefined,
           badge: c.isDefault ? "Default" : undefined,
           leading: <ProviderIcon provider={c.provider} size={18} />,
           keywords: `${c.model} ${section.title}`,

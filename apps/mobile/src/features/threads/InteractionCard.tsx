@@ -1,6 +1,7 @@
 import { Text, View } from "react-native";
 import { InteractionKind, ui } from "@canopy/contracts";
 import { Icon } from "../../ui/Icon";
+import { RequestCountdown } from "../../ui/RequestCountdown";
 import { styles, useColors } from "../../ui/theme";
 
 interface InteractionRequest {
@@ -89,9 +90,14 @@ export function InteractionCard({ interaction }: { interaction: ui.Interaction }
         ]}
       >
         <Icon name={permission ? "shield-exclamation" : "hand-raised"} color={c.warning} />
-        <Text style={[styles.meta, { color: c.text }]}>
+        <Text numberOfLines={1} style={[styles.meta, { flex: 1, color: c.text }]}>
           {permission ? "Approval required" : questions[0]?.header || "Question"}
         </Text>
+        <RequestCountdown
+          expiresAt={interaction.expiresAt}
+          pending={interaction.status === "pending"}
+          style={{ textAlign: "right" }}
+        />
       </View>
       <View style={{ padding: 16, gap: 8 }}>
         <Text style={[styles.caption, { color: c.muted }]}>

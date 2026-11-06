@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ItemStatus, type Item, ui } from "@canopy/contracts";
+import { workFoldOpen } from "@canopy/domain/work-fold";
+import { useDevicePreferences } from "../state/preferences";
 import { Markdown } from "./markdown";
 import { Icon } from "./Icon";
 import { styles, useColors } from "./theme";
@@ -95,13 +97,29 @@ export function UserMessageView({
   );
 }
 
-export function WorkGroup({ items, duration, working }: { items: Item[]; duration: number; working: boolean }) {
+/** The final answer has started: Codex marks it with a `final_answer` phase (others only end the turn). */
+const answerStarted = (items: Item[]) =>
+  items.some(
+    (i) => i.content.case === "agentMessage" && i.content.value.phase === "final_answer" && i.content.value.text.trim(),
+  );
+
+export function WorkGroup({
+  items,
+  duration,
+  working,
+  answering,
+}: {
+  items: Item[];
+  duration: number;
+  working: boolean;
+  answering: boolean;
+}) {
   const c = useColors();
-  // Open while the agent works, folded once the turn ends (the web's default work fold); a tap decides from then on.
-  const [choice, setChoice] = useState<boolean>();
+  const { workFold } = useDevicePreferences();
+  // Settings → Threads → Turn activity decides until the reader taps; the tap wins for the rest of the visit.
+  const [choice, setOpen] = useState<boolean>();
   const running = working || items.some((i) => i.status === ItemStatus.IN_PROGRESS);
-  const open = choice ?? running;
-  const setOpen = setChoice;
+  const open = workFoldOpen(running, answering, workFold, choice);
 
   const label = running
     ? "Working…"
@@ -225,6 +243,7 @@ export function TimelineTurn({ turn, entries }: { turn: ui.Turn; entries: ui.Tim
       {(work.length > 0 || duration > 0) && (
         <WorkGroup
           items={work}
+          answering={answerStarted(items)}
           duration={duration}
           working={turn.status === "running" || items.some((i) => i.status === ItemStatus.IN_PROGRESS)}
         />

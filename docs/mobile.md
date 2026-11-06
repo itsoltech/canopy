@@ -271,15 +271,25 @@ BotAvatar, ChatBubble i BotDetailsPanel. Brand assety pochodzą z `apps/web/stat
 Markdown renderujemy natywnym Text/View po tokenizacji, bez HTML/WebView i automatycznego
 pobierania obrazów. Linki otwierają tylko HTTP(S) po tapnięciu. Narzędzia/praca są domyślnie
 zwinięte; bardzo długi output ma jawny limit podglądu 12 tys. znaków i odsyłacz opisowy do web.
-Oś czasu nadąża za web: grupa pracy jest otwarta, gdy agent pracuje, i zwija się po
-turze (domyślne ustawienie fold z web; tapnięcie decyduje dalej), wiersze pracy mają
+Oś czasu nadąża za web: grupę pracy otwiera i zwija Settings → Threads → Turn activity
+(„While working”, „After the turn”, z resetem), według tej samej reguły `workFoldOpen`
+z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Preferencje dotyczą tego
+telefonu i leżą w `device-preferences.json` w katalogu dokumentów aplikacji
+(`src/storage/preferences.ts`), nie w ustawieniach gatewaya. Wiersze pracy mają
 stopień `work` (15/13), komendy są monospace. Tura powłoki (`Turn.shell_command`) ma kartę
 z kodem wyjścia, 4 wierszami wyniku i „Show output”; `!` na początku kompozytora włącza tryb
 powłoki (obramowanie rose, nota w miejscu kontrolek). Tura w kolejce pokazuje „Queued”,
 a po `dispatched` „Starting”; pliki tury są odznakami w dymku. Nad kompozytorem są tylko
 subagenty w toku, zakończone zwija liczba otwierająca panel z lineage. Odrzucona przez
 gateway wiadomość pokazuje jego powód zamiast ogólnej noty o ponowieniu.
-Pytania/zgody w wątkach są widoczne **read-only** i odpowiada się na nie w web.
+Pytania/zgody w wątkach są widoczne **read-only** i odpowiada się na nie w web. Karty
+ze znanym terminem (`Interaction.expires_at`, `BotApproval.expires_at`) pokazują
+„Expires in m:ss” (bursztynowe przez ostatnie 25 s), a przy zerze „Expiring…”, dopóki
+gateway nie oznaczy prośby jako wygasłej; licznik używa zegara telefonu. Wygasła prośba
+wątku znika jak w web. Karta bota widziana w czasie oczekiwania zostaje do końca wizyty
+z „Expired. The bot no longer needs an answer.” bez akcji; spóźnioną odpowiedź gateway
+odrzuca, a karta pokazuje „This request expired. No answer was sent.”. Picker modeli
+pokazuje same nazwy, bez opisów modeli.
 Kompozytor oferuje Queue, Send now/steer, stop, wybór modelu/effort i permissions;
 respektuje ustawienie zachowania podczas trwającej tury. Goal jest read-only.
 New thread to jeden ekran jak w web: kompozytor z modelem, effort i plikami, pod nim projekt,
