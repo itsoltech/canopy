@@ -10,6 +10,7 @@ import { redirected, single, target } from "./routed-context.ts";
 import { toConnectError } from "./ui-errors.ts";
 import { ConfigIds } from "./routed-config.ts";
 import { mapProjectIds } from "../config-sync/project-aliases.ts";
+import { mirrorFirst, offlineThread } from "./routed-thread-mirror.ts";
 
 export async function peerOf(core: GatewayCore, ref: string, method?: DescMethod, request?: Message) {
   if (!core.computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
@@ -83,6 +84,8 @@ export async function* home(
 
   if (!computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
 
+  if (yield* mirrorFirst(computers, nodeId, method, request)) return;
+
   if (!computers.reachable().includes(nodeId) && computers.capabilities(nodeId).includes(REMOTE_BOTS)) {
     if (method.name === "ListBots" || method.name === "GetBot" || method.name === "WatchBotConversation") {
       const snapshots = await computers.botMirror.conversations(nodeId);
@@ -139,48 +142,7 @@ export async function* home(
   }
 
   if (!computers.reachable().includes(nodeId) && computers.capabilities(nodeId).includes(THREAD_MIRROR)) {
-    if (method.name === "GetThread" || method.name === "WatchThread") {
-      const threadId = splitId(
-        method.name === "GetThread"
-          ? linkedMessage(ui.GetThreadRequestSchema, request).threadId
-          : linkedMessage(ui.WatchThreadRequestSchema, request).threadId,
-      ).id;
-
-      const snapshot = await computers.mirror.snapshot(nodeId, threadId);
-
-      if (!snapshot?.thread)
-        throw new ConnectError(
-          "This thread has not been synced yet. Connect its computer to read it.",
-          Code.Unavailable,
-        );
-
-      if (method.name === "GetThread") yield create(ui.GetThreadResponseSchema, { thread: snapshot.thread });
-      else {
-        // End on any peer/mirror change. The normal UI reconnect opens the live home stream again.
-        const changes = new AsyncChannel<void>();
-
-        const unsubscribe = computers.subscribe((c) => {
-          if (c.nodeId === nodeId) changes.close();
-        });
-
-        const abort = () => changes.close();
-        signal.addEventListener("abort", abort, { once: true });
-
-        try {
-          yield create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: snapshot } });
-
-          if (!signal.aborted && !computers.reachable().includes(nodeId))
-            for await (const _ of changes) {
-              /* closed by a change */
-            }
-        } finally {
-          unsubscribe();
-          signal.removeEventListener("abort", abort);
-        }
-      }
-
-      return;
-    }
+    if (yield* offlineThread(computers, nodeId, method, request, signal)) return;
 
     if (method.name === "ListThreads") {
       const input = linkedMessage(ui.ListThreadsRequestSchema, request);

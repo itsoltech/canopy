@@ -25,8 +25,12 @@ test.skipIf(!dockerAvailable)(
       expect(done.shellResult?.output).toBe("linked-home");
       expect(done.shellResult?.cwd).toBe(thread.cwd);
       expect(done.inputText).toBe(shellInputText(done.shellResult!));
-      const updates = await watchUntil(f.a.gateway.api, remote, (u) => u.length > 0);
-      const first = updates[0]!;
+
+      const updates = await watchUntil(f.a.gateway.api, remote, (u) =>
+        u.some((update) => !update.syncing && update.change.case === "snapshot"),
+      );
+
+      const first = updates.find((update) => !update.syncing && update.change.case === "snapshot")!;
       expect(first.change.case).toBe("snapshot");
 
       if (first.change.case === "snapshot") expect(first.change.value.turns[0]?.shellResult).toEqual(done.shellResult);
