@@ -7,9 +7,10 @@
   import { UiMemory } from "../memory.ts";
   import { captureAnchor, rowsOnScreen, type FeedAnchor } from "./feed-anchor.ts";
   import { FeedEntrances } from "./feed-entrances.ts";
+  import { EndScroll } from "./end-scroll.ts";
   import { publishViewport, rowAttachment } from "./feed-measure.ts";
   import { COLD_OVERSCAN, initialHeight, keepMounted, OVERSCAN_STEP } from "./feed-range.ts";
-  import { footerField, pagedRow } from "./feed-keys.ts";
+  import { feedRowKey, focusFeedRow, footerField, pagedRow } from "./feed-keys.ts";
   import { SizeIndex } from "./size-index.ts";
   import VirtualRow from "./VirtualRow.svelte";
   import { FEED_END_THRESHOLD, ScrollIntent, type ReaderScroll } from "./scroll.ts";
@@ -177,6 +178,8 @@
     return at === undefined ? 0 : Math.max(0, viewport - footerHeight - (layout.total - index.offset(at)));
   });
 
+  const footerSpace = $derived(Math.max(reservedFooter, footerHeight + alignmentSpace));
+
   let rowTarget: string | undefined;
   let rowTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -258,6 +261,7 @@
     observer?.disconnect();
     cancelAnimationFrame(commitFrame);
     entrances.dispose();
+    endScroll.cancel();
     clearTimeout(rowTimer);
   });
 
@@ -266,7 +270,7 @@
     void padTop;
     void padBottom;
     void visible;
-    void reservedFooter;
+    void footerSpace;
     untrack(settle);
   });
 
@@ -274,6 +278,7 @@
   const scrollIntent = new ScrollIntent();
   let lastTop = 0;
   let smoothUntil = 0;
+  const endScroll = new EndScroll();
 
   function setTop(value: number) {
     if (!scroller) return;
@@ -290,7 +295,7 @@
     // would undo the scroll.
     if (Math.abs(scroller.scrollTop - lastTop) >= 1) onscroll();
 
-    if (performance.now() < smoothUntil) return;
+    if (endScroll.active || performance.now() < smoothUntil) return;
 
     if (rowTarget) {
       const element = elements.get(rowTarget);
@@ -338,7 +343,7 @@
     // Multiple observer/effect passes may consume the same pending native scroll event. An
     // unchanged position is neither fresh reader intent nor a reason to recapture the anchor.
     if (Math.abs(top - lastTop) < 0.5) return;
-    const origin = scrollIntent.origin(top, smoothUntil);
+    const origin = scrollIntent.origin(top, endScroll.active ? Infinity : smoothUntil);
 
     if (origin !== "programmatic") {
       const distance = scroller.scrollHeight - top - scroller.clientHeight;
@@ -370,6 +375,7 @@
   }
 
   function readerGesture() {
+    endScroll.cancel();
     rowTarget = undefined;
     clearTimeout(rowTimer);
 
@@ -385,6 +391,9 @@
   }
 
   function onscrollend() {
+    // Frame-driven end navigation writes scrollTop itself, which also emits scrollend.
+    if (endScroll.active) return;
+    onscroll();
     const wasSmooth = smoothUntil > 0;
     smoothUntil = 0;
 
@@ -397,6 +406,8 @@
 
   function jump() {
     if (!scroller) return;
+    endScroll.cancel();
+    smoothUntil = 0;
     rowTarget = undefined;
     clearTimeout(rowTimer);
     alignedKey = undefined;
@@ -406,8 +417,7 @@
     const smooth = distance < viewport * 2 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     if (smooth) {
-      smoothUntil = performance.now() + 1000;
-      scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+      endScroll.start(scroller, setTop, settle);
     } else setTop(scroller.scrollHeight);
   }
 
@@ -427,6 +437,7 @@
     const rowKey = index.keyAt(at);
 
     if (!scroller || rowKey === undefined) return false;
+    endScroll.cancel();
     stuck = false;
     anchor = undefined;
     alignedKey = rowKey;
@@ -455,15 +466,10 @@
     const rowKey = index.keyAt(at);
 
     if (rowKey === undefined || !scroller) return;
+    endScroll.cancel();
     focusedKey = rowKey;
     await tick();
-    const element = elements.get(rowKey);
-
-    if (!element) return;
-    element.focus({ preventScroll: true });
-    element.scrollIntoView({
-      block: element.offsetHeight > scroller.clientHeight - footerHeight ? "start" : "nearest",
-    });
+    focusFeedRow(elements.get(rowKey), scroller, footerHeight);
   }
 
   /**
@@ -474,6 +480,7 @@
     const at = positions.get(rowKey);
 
     if (at === undefined || !scroller) return false;
+    endScroll.cancel();
     rowTarget = undefined;
     alignedKey = undefined;
     smoothUntil = 0;
@@ -500,6 +507,7 @@
     const box = element.getBoundingClientRect();
 
     if (box.height <= scroller.clientHeight - footerHeight - 16) return false;
+    endScroll.cancel();
     const top = scroller.scrollTop + box.top - scroller.getBoundingClientRect().top - 8;
     stuck = false;
     anchor = { key: rowKey, element, top: 8 };
@@ -545,6 +553,7 @@
     const element = elements.get(rowKey);
 
     if (!scroller || !element) return;
+    endScroll.cancel();
     stuck = false;
     rowTarget = undefined;
     anchor = { key: rowKey, element, top: element.getBoundingClientRect().top - scroller.getBoundingClientRect().top };
@@ -574,11 +583,6 @@
     if (at === undefined) return;
     event.preventDefault();
     void focusRow(at + (event.key === "PageDown" ? 1 : -1));
-  }
-
-  function onfocusin(event: FocusEvent) {
-    focusedKey =
-      event.target instanceof Element ? event.target.closest<HTMLElement>("article[data-key]")?.dataset.key : undefined;
   }
 
   function onfocusout(event: FocusEvent) {
@@ -627,7 +631,7 @@
           style:padding-top="{padTop}px"
           style:padding-bottom="{padBottom}px"
           {onkeydown}
-          {onfocusin}
+          onfocusin={(event) => (focusedKey = feedRowKey(event.target))}
           {onfocusout}
         >
           {#each visible as item, offset (key(item))}
@@ -645,11 +649,7 @@
         </div>
       </div>
       <!-- Rail alignment includes the overlay's height: the footer no longer adds flow space. -->
-      <div
-        aria-hidden="true"
-        style:height="{Math.max(reservedFooter, footerHeight + alignmentSpace)}px"
-        class="shrink-0"
-      ></div>
+      <div aria-hidden="true" style:height="{footerSpace}px" class="shrink-0"></div>
     </div>
   </div>
   <!-- The footer and its fade are siblings of the scroller. Resizing them cannot move a row,
