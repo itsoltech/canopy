@@ -11,8 +11,9 @@ on:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
   schedule:
-    # At :40, away from the busy :00 and :30 marks. Scheduled workflows run on the default branch (dev).
-    - cron: "40 * * * *"
+    # Every 4 hours from 08:40 to 20:40 Polish winter time (UTC+1), at :40, away from the busy :00 and
+    # :30 marks. Cron is UTC, so in summer (UTC+2) the runs fall at 09:40–21:40. Runs on the default branch (dev).
+    - cron: "40 7,11,15,19 * * *"
   workflow_dispatch:
     inputs:
       expected_sha:
