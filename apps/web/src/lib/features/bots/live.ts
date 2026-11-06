@@ -26,6 +26,7 @@ export function botConversation(bot: bots.Bot, pinnedIds: readonly string[] = []
     archived: bot.archived,
     pinned: !bot.archived && pinnedIds.includes(bot.id),
     pinOrder: pinnedIds.indexOf(bot.id),
+    createdAt: bot.createdAt ? dateOf(bot.createdAt) : undefined,
     ...(last && {
       lastMessage: {
         senderId: last.senderId === "user" ? "me" : last.senderId,

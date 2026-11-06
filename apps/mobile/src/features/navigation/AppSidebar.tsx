@@ -4,7 +4,10 @@ import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ui, bots as botContract } from "@canopy/contracts";
+import { timestampMs } from "@bufbuild/protobuf/wkt";
+import { compareConversations } from "@canopy/domain/bot-chat";
 import { useSession } from "../../state/session";
+import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
 import { ConnectionNotice, IconButton, Notice, Segmented } from "../../ui/components";
 import { PickerSheet } from "../../ui/Picker";
@@ -193,8 +196,24 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
   );
 }
 
+/** Pinned bots first in pin order, then the latest conversation first, as on the web. */
+function orderBots(list: readonly botContract.Bot[], pinned: readonly string[]): botContract.Bot[] {
+  const key = (bot: botContract.Bot) => {
+    const at = bot.lastMessage?.createdAt ?? bot.createdAt;
+
+    return {
+      pinIndex: pinned.indexOf(bot.id),
+      activeAt: at ? timestampMs(at) : 0,
+      name: bot.configuration?.name ?? "",
+    };
+  };
+
+  return [...list].sort((a, b) => compareConversations(key(a), key(b)));
+}
+
 function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const c = useColors();
+  const pinned = useAppearance().user?.sidebar?.pinnedBotIds ?? [];
 
   const {
     section,
@@ -270,8 +289,11 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
         />
       ) : (
         <FlatList
-          data={bots.filter(
-            (b) => !b.archived && `${b.configuration?.name} ${b.lastMessage?.text}`.toLowerCase().includes(query),
+          data={orderBots(
+            bots.filter(
+              (b) => !b.archived && `${b.configuration?.name} ${b.lastMessage?.text}`.toLowerCase().includes(query),
+            ),
+            pinned,
           )}
           keyExtractor={(b) => b.id}
           contentContainerStyle={{ paddingHorizontal: 8 }}
