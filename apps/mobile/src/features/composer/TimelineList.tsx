@@ -1,17 +1,21 @@
-import type { Ref } from "react";
-import { FlatList, type FlatListProps } from "react-native";
+import type { ComponentProps, Ref } from "react";
+import type { FlatList } from "react-native";
+import Animated from "react-native-reanimated";
 import { useContentInsets } from "../../ui/ScreenFrame";
 import { styles } from "../../ui/theme";
 
-/** Inverted: the oldest end gets the floating header inset; the latest end has its measured composer spacer. */
+/**
+ * Inverted: the oldest end gets the floating header inset; the latest end has its composer reserve. A Reanimated
+ * list, so scroll handlers (following, the composer's fold) run on the UI thread.
+ */
 export function TimelineList<Item>({
   contentContainerStyle,
   ...props
-}: FlatListProps<Item> & { ref?: Ref<FlatList<Item>> }) {
+}: ComponentProps<typeof Animated.FlatList<Item>> & { ref?: Ref<FlatList<Item>> }) {
   const insets = useContentInsets();
 
   return (
-    <FlatList
+    <Animated.FlatList
       {...props}
       contentInsetAdjustmentBehavior="never"
       automaticallyAdjustContentInsets={false}

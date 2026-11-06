@@ -5,6 +5,7 @@ import { useMotion } from "../../ui/motion";
 import { useColors } from "../../ui/theme";
 import { IconButton } from "../../ui/components";
 import { useContentInsets } from "../../ui/ScreenFrame";
+import { ComposerMotionContext, type ComposerMotion } from "./ComposerFold";
 
 /** Web VirtualFeed's bottom overlay: canvas fading over 32 points, with the timeline continuing underneath. */
 export function FloatingComposer({
@@ -12,8 +13,11 @@ export function FloatingComposer({
   onLayout,
   onExpand,
   onLatest,
+  motion,
 }: {
   children: ReactNode;
+  /** The fold and writing motion its composer parts follow (useFloatingComposer). */
+  motion: ComposerMotion;
   onLayout: (event: LayoutChangeEvent) => void;
   onExpand: () => void;
   onLatest?: (() => void) | undefined;
@@ -23,52 +27,54 @@ export function FloatingComposer({
   const { pop } = useMotion();
 
   return (
-    <View pointerEvents="box-none" style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
-      {onLatest && (
-        // It pops in and out above the composer (web `pop`) without moving it.
-        <Animated.View
-          entering={pop.entering}
-          exiting={pop.exiting}
-          pointerEvents="box-none"
-          style={{ height: 56, alignItems: "center" }}
+    <ComposerMotionContext.Provider value={motion}>
+      <View pointerEvents="box-none" style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
+        {onLatest && (
+          // It pops in and out above the composer (web `pop`) without moving it.
+          <Animated.View
+            entering={pop.entering}
+            exiting={pop.exiting}
+            pointerEvents="box-none"
+            style={{ height: 56, alignItems: "center" }}
+          >
+            <View
+              style={{
+                borderRadius: 22,
+                backgroundColor: c.surface,
+                borderWidth: 1,
+                borderColor: c.line,
+                boxShadow: "0px 2px 8px #0000001a",
+              }}
+            >
+              <IconButton icon="arrow-down" label="Show latest messages" onPress={onLatest} />
+            </View>
+          </Animated.View>
+        )}
+        <View
+          onLayout={onLayout}
+          onTouchStart={onExpand}
+          style={{
+            paddingLeft: 12 + insets.left,
+            paddingRight: 12 + insets.right,
+            paddingTop: 8,
+            paddingBottom: 12 + insets.bottom,
+            gap: 8,
+          }}
         >
           <View
+            pointerEvents="none"
             style={{
-              borderRadius: 22,
-              backgroundColor: c.surface,
-              borderWidth: 1,
-              borderColor: c.line,
-              boxShadow: "0px 2px 8px #0000001a",
+              position: "absolute",
+              top: -32,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundImage: `linear-gradient(to bottom, ${c.background}00, ${c.background} 32px)`,
             }}
-          >
-            <IconButton icon="arrow-down" label="Show latest messages" onPress={onLatest} />
-          </View>
-        </Animated.View>
-      )}
-      <View
-        onLayout={onLayout}
-        onTouchStart={onExpand}
-        style={{
-          paddingLeft: 12 + insets.left,
-          paddingRight: 12 + insets.right,
-          paddingTop: 8,
-          paddingBottom: 12 + insets.bottom,
-          gap: 8,
-        }}
-      >
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            top: -32,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            backgroundImage: `linear-gradient(to bottom, ${c.background}00, ${c.background} 32px)`,
-          }}
-        />
-        {children}
+          />
+          {children}
+        </View>
       </View>
-    </View>
+    </ComposerMotionContext.Provider>
   );
 }

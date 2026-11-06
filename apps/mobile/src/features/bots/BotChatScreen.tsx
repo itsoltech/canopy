@@ -190,6 +190,7 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
             }
           />
           <FloatingComposer
+            motion={composer.motion}
             onLayout={composer.measure}
             onExpand={composer.expand}
             onLatest={atBottom ? undefined : showLatest}
