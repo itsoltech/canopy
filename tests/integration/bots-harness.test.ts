@@ -7,7 +7,7 @@ import { AgentToolCallSchema, bots, Provider, ProviderProfileKind } from "@canop
 import { GatewayCore } from "@canopy/gateway/core";
 import { startGrpcServer } from "@canopy/transport";
 import { startInstanceFixture, type InstanceFixture } from "./support/instance-fixture.ts";
-import { eventually } from "./support/gateway.ts";
+import { eventually, failure } from "./support/gateway.ts";
 import { Code } from "@connectrpc/connect";
 
 describe("bots through official worker harnesses", () => {
@@ -306,6 +306,16 @@ describe("bots through official worker harnesses", () => {
 
   test("gateway restart preserves a pending approval and never reruns inference", async () => {
     const bot = await add(Provider.GROK, "always");
+    const handle = f.gw.core.bots.harnessTools.handle.bind(f.gw.core.bots.harnessTools);
+    let toolOutcome: Promise<string> | undefined;
+
+    const capture = spyOn(f.gw.core.bots.harnessTools, "handle").mockImplementation((call, workerId) => {
+      const task = handle(call, workerId);
+      toolOutcome = failure(task);
+
+      return task;
+    });
+
     await send(bot.id, "TOOL:create_project");
 
     const pending = await eventually(
@@ -313,8 +323,11 @@ describe("bots through official worker harnesses", () => {
       (r) => r.approvals.some((a) => a.status === "pending"),
     );
 
+    capture.mockRestore();
     expect(pending.approvals).toHaveLength(1);
     await f.gw.core.bots.stop();
+    expect(await toolOutcome).toContain("Gateway stopping");
+    expect((await read(bot.id)).approvals[0]?.status).toBe("pending");
     await f.disconnect();
     const restarted = new GatewayCore({ runtime: f.gw.runtime, userId: f.gw.userId, instanceId: crypto.randomUUID() });
     const grpc = await startGrpcServer({ routes: (router) => restarted.link.routes(router) });

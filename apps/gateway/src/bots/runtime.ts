@@ -50,6 +50,7 @@ export class BotsRuntime {
       this.run.bind(this),
       (id) => [...this.#active.values()].find((task) => task.turn.id === id),
       (id, waiting) => this.waiting(id, waiting),
+      () => this.stopping,
     );
     this.#model =
       options.model ?? options.harness ?? (() => Promise.reject(new Error("Bot worker runtime is unavailable")));
