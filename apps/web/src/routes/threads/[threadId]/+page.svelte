@@ -383,7 +383,9 @@
 
     if (inherited && !historyOpen) historyOpen = true;
 
-    if (top.turnId && !folds.open.has(top.turnId)) folds.toggle(top.turnId, true);
+    const fold = folds.foldOf(top.id);
+
+    if (fold && !folds.open.has(fold)) folds.toggle(fold, true);
     await tick();
     const group = rows.find((row) => row.kind === "work-group" && row.items.includes(`item:${top.id}`));
 
@@ -599,7 +601,7 @@
             <FeedRowView
               {row}
               ontoggle={() => (historyOpen = !historyOpen)}
-              onwork={(turnId) => folds.toggle(turnId)}
+              onwork={(fold) => folds.toggle(fold)}
               ongroup={(key) => folds.toggleGroup(key)}
             />
           {/snippet}

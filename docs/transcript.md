@@ -105,7 +105,7 @@ nie jest dostarczany agentowi. Limity i restart opisuje [protocol.md](protocol.m
 
 ## 6. Frontend
 
-1. **Snapshot:** `thread_items_view(thread_id)` zwraca itemy w kolejności `first_seq`, z odziedziczonymi z forków (`inherited`). Treść dużych pól pobiera się leniwie po `sha256`.
+1. **Snapshot:** `thread_items_view(thread_id)` zwraca itemy w kolejności `first_seq`, z odziedziczonymi z forków (`inherited`). Zakończona wiadomość agenta dostaje `completed_at`: `occurred_at` zdarzenia o jej `last_seq` (granica segmentów tury, docs/timeline-folding.md). Treść dużych pól pobiera się leniwie po `sha256`.
 2. **Na żywo:** subskrypcja zdarzeń z `seq > max(last_seq)` i ten sam `reduceItem` po stronie przeglądarki.
 3. **Wznowienie** po zerwaniu: od ostatniego `seq`.
 4. **Pełna historia surowa** (debug, audyt): `thread_timeline(thread_id)`.

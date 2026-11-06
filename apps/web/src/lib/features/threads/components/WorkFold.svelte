@@ -5,7 +5,6 @@
   import type { ClassValue } from "svelte/elements";
   import type { WorkSummary } from "../work-groups.ts";
   import type { ui } from "@canopy/contracts";
-  import { timestampMs } from "@bufbuild/protobuf/wkt";
 
   /**
    * Stable live/ended work header. A mounted live fold owns a one-second clock; historical folds have
@@ -30,7 +29,7 @@
   });
 
   const span = $derived(
-    summary.live && turn.startedAt ? Math.max(0, now - timestampMs(turn.startedAt)) : summary.spanMs,
+    summary.live && summary.startMs !== undefined ? Math.max(0, now - summary.startMs) : summary.spanMs,
   );
 
   const starting = $derived(turn.status === "queued" && turn.dispatched);

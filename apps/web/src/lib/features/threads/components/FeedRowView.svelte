@@ -15,7 +15,7 @@
   /**
    * One row of the thread page's feed. Rows space themselves (bottom padding, measured with the row);
    * the rows of a fork's inherited history share a well, folded under its header (`ontoggle`). An ended
-   * turn's work is one "Worked for …" row (`onwork` opens or closes it, by turn id); the rows it opened
+   * turn's work is one "Worked for …" row per segment (`onwork` opens or closes it, by fold id); the rows it opened
    * hang off a rule under its chevron. A turn's rows carry its id (`data-turn`): hovering or focusing any
    * of them reveals the turn's quiet details (turn-reveal).
    */
@@ -24,8 +24,7 @@
     ontoggle,
     onwork,
     ongroup,
-  }: { row: FeedRow; ontoggle: () => void; onwork: (turnId: string) => void; ongroup: (key: string) => void } =
-    $props();
+  }: { row: FeedRow; ontoggle: () => void; onwork: (fold: string) => void; ongroup: (key: string) => void } = $props();
 
   const directory = useThreadDirectory();
   const well = "bg-zinc-950/2.5 px-3 dark:bg-white/4";
@@ -148,7 +147,7 @@
 
 {#snippet body(row: Extract<FeedRow, { kind: "timeline" | "work" | "work-group" | "answer" }>)}
   {#if row.kind === "work"}
-    <WorkFold summary={row.summary} turn={row.turn} open={row.open} ontoggle={() => onwork(row.turn.id)} />
+    <WorkFold summary={row.summary} turn={row.turn} open={row.open} ontoggle={() => onwork(row.fold)} />
   {:else if row.kind === "work-group"}
     <div class="-mb-1 ml-2 border-l border-zinc-950/10 pb-1 pl-4 dark:border-white/10">
       <WorkGroup

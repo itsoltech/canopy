@@ -13,10 +13,12 @@ import { migrate } from "@canopy/db";
 import { dockerAvailable, startPostgres, type TestPostgres } from "@canopy/db/testing";
 import { Layer, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
-import { Ingest } from "../src/store/index.ts";
+import { randomBytes } from "node:crypto";
+import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { GatewayStore, Ingest } from "../src/store/index.ts";
 
 let pg: TestPostgres;
-let runtime: ManagedRuntime.ManagedRuntime<Ingest | SqlClient.SqlClient, unknown>;
+let runtime: ManagedRuntime.ManagedRuntime<Ingest | GatewayStore | SqlClient.SqlClient, unknown>;
 const id = () => Bun.randomUUIDv7();
 
 const query = <A extends object>(text: string, params: unknown[] = []) =>
@@ -70,7 +72,9 @@ const event = (threadId: string, journalSeq: number, turnId: string, body?: Body
 describe.skipIf(!dockerAvailable)("Ingest on PostgreSQL", () => {
   beforeAll(async () => {
     pg = await startPostgres({ migrated: true });
-    runtime = ManagedRuntime.make(Ingest.layer.pipe(Layer.provideMerge(pg.layer)));
+    runtime = ManagedRuntime.make(
+      Layer.mergeAll(Ingest.layer, GatewayStore.layer(randomBytes(32))).pipe(Layer.provideMerge(pg.layer)),
+    );
     await runtime.runPromise(migrate);
   }, 60_000);
   afterAll(async () => {
@@ -177,6 +181,40 @@ describe.skipIf(!dockerAvailable)("Ingest on PostgreSQL", () => {
     );
 
     expect(cursor?.acked_seq).toBe(7n);
+  });
+
+  test("snapshot: a completed agent message brings its end (a shown answer's segment boundary), items in order", async () => {
+    const ids = await seed();
+    const at = (s: number) => timestampFromDate(new Date(Date.UTC(2026, 10, 6, 12, 0, s)));
+
+    const message = (itemId: string, status: ItemStatus) => ({
+      item: {
+        itemId,
+        status,
+        content: { case: "agentMessage" as const, value: { text: itemId, phase: "final_answer" } },
+      },
+    });
+
+    const timed = (seq: number, body: Body, s: number) => ({
+      ...event(ids.thread, seq, ids.turn, body),
+      occurredAt: at(s),
+    });
+
+    await runtime.runPromise(
+      Ingest.use((i) =>
+        i.ingest(ids.worker, "j-snapshot", [
+          timed(1, { case: "turnStarted", value: { providerTurnRef: "t", origin: TurnOrigin.COMMAND } }, 0),
+          timed(2, { case: "itemStarted", value: message("answer", ItemStatus.IN_PROGRESS) }, 1),
+          timed(3, { case: "itemCompleted", value: message("answer", ItemStatus.COMPLETED) }, 4),
+          timed(4, { case: "itemStarted", value: message("next", ItemStatus.IN_PROGRESS) }, 9),
+        ]),
+      ),
+    );
+
+    const snapshot = await runtime.runPromise(GatewayStore.use((s) => s.snapshot(ids.thread)));
+    expect(snapshot.items.map((i) => i.item?.itemId)).toEqual(["answer", "next"]);
+    expect(snapshot.items[0]?.completedAt && timestampDate(snapshot.items[0].completedAt).getUTCSeconds()).toBe(4);
+    expect(snapshot.items[1]?.completedAt).toBeUndefined();
   });
 
   test("resent events are ignored but still acked; new ones continue the sequence", async () => {

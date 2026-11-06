@@ -72,11 +72,16 @@ export function applyThread(state: ui.ThreadSnapshot | undefined, update: ui.Thr
 
       if (!item) return { ...previous, lastSeq: seq };
 
+      // A completed message's end starts the turn's next segment, as the snapshot's `completed_at`.
+      const completedAt =
+        body.case === "itemCompleted" && item.content.case === "agentMessage" ? event.occurredAt : old?.completedAt;
+
       const entry = create(ui.TimelineItemSchema, {
         item,
         turnId: old?.turnId || event.turnId,
         firstSeq: old?.firstSeq ?? seq,
         lastSeq: seq,
+        ...(completedAt && { completedAt }),
       });
 
       const items = [...previous.items];

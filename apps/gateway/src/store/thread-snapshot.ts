@@ -47,8 +47,13 @@ export function threadSnapshot(
           first_seq: bigint;
           last_seq: bigint;
           inherited: boolean;
+          completed_at: Date | null;
         }>`
-                SELECT thread_id, content, turn_id, first_seq, last_seq, inherited FROM thread_items_view(${threadId}::uuid)`;
+                SELECT v.thread_id, v.content, v.turn_id, v.first_seq, v.last_seq, v.inherited, e.occurred_at AS completed_at
+                  FROM thread_items_view(${threadId}::uuid) WITH ORDINALITY v
+                  LEFT JOIN thread_events e ON v.type = 'agent_message' AND v.status = 'completed'
+                       AND e.thread_id = v.thread_id AND e.seq = v.last_seq
+                 ORDER BY v.ordinality`;
 
         const items = itemRows.map((r) =>
           create(ui.TimelineItemSchema, {
@@ -58,6 +63,8 @@ export function threadSnapshot(
             lastSeq: BigInt(r.last_seq),
             inherited: r.inherited,
             fromThreadId: r.inherited ? r.thread_id : "",
+            // When a shown answer ended: the start of the turn's next segment (docs/timeline-folding.md).
+            ...(r.completed_at && { completedAt: timestampFromDate(new Date(r.completed_at)) }),
           }),
         );
 
