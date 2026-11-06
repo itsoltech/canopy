@@ -14,6 +14,7 @@ export interface ThreadSnapshotStore {
   snapshot(
     threadId: string,
     mirrorCursor?: string,
+    includeCursor?: boolean,
   ): Fx<{
     thread: ThreadRow;
     turns: (TurnRow & { inherited?: boolean })[];
@@ -22,6 +23,7 @@ export interface ThreadSnapshotStore {
     notices: ui.ThreadNotice[];
     lastSeq: bigint;
     selection: MirrorSelection | undefined;
+    cursor: string;
   }>;
   /** Current state of one of the thread's own items. */
   threadItem(threadId: string, itemId: string): Fx<Item | undefined>;
@@ -32,9 +34,14 @@ export function threadSnapshot(
   self: () => Pick<ThreadStore, "thread"> & Pick<TurnStore, "turnsOf"> & Pick<InteractionStore, "pendingInteractions">,
 ): ThreadSnapshotStore {
   return {
-    snapshot: (threadId, mirrorCursor) => {
+    snapshot: (threadId, mirrorCursor, includeCursor) => {
       const read = Effect.gen(function* () {
         const thread = yield* self().thread(threadId);
+
+        const clock = includeCursor
+          ? (yield* sql<{ cursor: string }>`SELECT epoch::text || ':' || revision::text AS cursor
+                FROM computer_thread_clock WHERE owner_user_id=${thread.owner_user_id}::uuid`)[0]
+          : undefined;
 
         const selection = mirrorCursor
           ? yield* mirrorSelection(sql, thread.owner_user_id, threadId, mirrorCursor)
@@ -125,11 +132,12 @@ export function threadSnapshot(
           notices,
           lastSeq: BigInt(thread.last_seq),
           selection,
+          cursor: clock?.cursor ?? "",
         };
       });
 
       // Ordinary snapshots also run inside writable bot actions; preserve their transaction.
-      return mirrorCursor
+      return mirrorCursor || includeCursor
         ? sql.withTransaction(
             Effect.gen(function* () {
               yield* sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`;

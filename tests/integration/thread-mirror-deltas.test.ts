@@ -3,6 +3,7 @@ import { create, toBinary, toJson } from "@bufbuild/protobuf";
 import { CommandSchema, ItemSchema, ItemStatus, Provider, computerLink as link, ui } from "@canopy/contracts";
 import { qualifyId, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
+import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { linkedComputers } from "./support/computers.ts";
@@ -97,10 +98,10 @@ describe.skipIf(!dockerAvailable)("incremental mirrors over two real gateway lin
     );
     await sb.query("UPDATE threads SET last_seq=3000 WHERE id=$1::uuid", [thread]);
     const watch = b.core.watchThread.bind(b.core);
-    b.core.watchThread = async function* (id, signal, cursor) {
+    b.core.watchThread = async function* (id, signal, cursor, includeCursor) {
       let first = true;
 
-      for await (const update of watch(id, signal, cursor)) {
+      for await (const update of watch(id, signal, cursor, includeCursor)) {
         if (id === thread && first) opens.push(update);
         first = false;
         yield update;
@@ -146,6 +147,40 @@ describe.skipIf(!dockerAvailable)("incremental mirrors over two real gateway lin
     expect(updates.at(-1)?.change.case === "snapshot" && updates.at(-1)!.change.value?.$typeName).toBe(
       ui.ThreadSnapshotSchema.typeName,
     );
+  });
+
+  test("a UI checkpoint resumes at the remote home without retransmitting the gateway mirror", async () => {
+    const threadId = qualifyId(thread, node);
+    const cold = new AbortController();
+    let snapshot: ui.ThreadSnapshot | undefined;
+
+    try {
+      for await (const update of a.api.watchThread({ threadId, incremental: true }, { signal: cold.signal })) {
+        snapshot = applyThreadUpdate(snapshot, update);
+
+        if (!update.syncing) break;
+      }
+    } finally {
+      cold.abort();
+    }
+
+    expect(snapshot?.cursor).not.toBe("");
+    expect(snapshot?.items).toHaveLength(3000);
+    const warm = new AbortController();
+
+    try {
+      for await (const update of a.api.watchThread(
+        { threadId, incremental: true, cursor: snapshot!.cursor },
+        { signal: warm.signal },
+      )) {
+        expect(update.change.case).toBe("delta");
+        expect(toBinary(ui.ThreadUpdateSchema, update).length).toBeLessThan(4000);
+        expect(applyThreadUpdate(snapshot, update).items).toHaveLength(3000);
+        break;
+      }
+    } finally {
+      warm.abort();
+    }
   });
 
   test("the cursor handoff continues into native live events without another snapshot", async () => {

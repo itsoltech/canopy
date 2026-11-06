@@ -989,9 +989,14 @@ message WatchThreadRequest {
   string thread_id = 1;
   // Internal linked read, negotiated by thread_mirror_delta; empty keeps full snapshots.
   string mirror_cursor = 800;
+  // UI cache checkpoint. Ignored unless incremental is true; unsupported peers send snapshots.
+  string cursor = 801;
+  bool incremental = 802;
 }
 
 message ThreadSnapshot {
+  // Owner journal checkpoint read atomically with history. Empty on older gateways.
+  string cursor = 800;
   repeated ThreadSecret secrets = 500;
   Thread thread = 1;
   repeated Turn turns = 2;

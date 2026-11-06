@@ -42,6 +42,29 @@ Dekoracyjne potwierdzenia nie używają krzywych z przeregulowaniem.
 
 ## Canopy mobile
 
+### Przyrostowy odczyt wątku
+
+`WatchThreadRequest.incremental` (802) włącza checkpointy UI. Pierwsze otwarcie bez
+`cursor` otrzymuje pełny `ThreadSnapshot` z `cursor` (800): `<uuid-epoki>:<rewizja>`
+istniejącego dziennika właściciela. Odczyt kursora i historii odbywa się w tej samej
+transakcji repeatable-read. Kolejne otwarcie lub reconnect przekazuje ten kursor w
+`WatchThreadRequest.cursor` (801). Gateway sprawdza właściciela przed emisją danych,
+a następnie wysyła `ThreadUpdate.delta` (801) z bazowym kursorem, nowym checkpointem,
+upsertami itemów/tur, tombstone'ami i zastępowanymi metadanymi (w tym interakcjami,
+kolejką, steerami i celem). Klienci współdzielą reducer `applyThreadUpdate`.
+
+Zdarzenia na żywo aktualizują kopię, lecz nie przesuwają jej atomowego checkpointu.
+Przy ponownym otwarciu projekcje od ostatniego checkpointu są stosowane idempotentnie.
+Brak ciągłości, nieznany/za stary/przyszły kursor, inna epoka, zmiana historii forka
+lub przeniesiona historia wymuszają pełny snapshot. Zachowane są też konserwatywne
+fallbacki dziennika dla tur ze zmiennymi joinami źródłowymi.
+
+Starszy klient nie ustawia `incremental` i otrzymuje dotychczasowe snapshoty.
+Starszy gateway ignoruje nowe pola; pusty kursor w odpowiedzi wyłącza wznowienie.
+UI ze zdalną kopią przekazuje kursor bezpośrednio do domu online. Zimny klient nadal
+dostaje lustro lokalnego gatewaya, a następnie stan domu. Szczegóły:
+[odczyt połączonych komputerów](linked-computers.md#odczyt-i-dostępność).
+
 Natywny klient `apps/mobile` korzysta z tego samego `GatewayService` przez Connect
 z binarnym protobuf i natywnym streamingiem HTTPS przypiętym do certyfikatu komputera.
 Wspólny listener Network access obsługuje telefony i połączone komputery;
