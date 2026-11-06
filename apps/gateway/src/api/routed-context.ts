@@ -42,6 +42,8 @@ export const READS = new Set([
   "SearchFiles",
   "ListGitRefs",
   "ListBots",
+  "ListBotApprovalRules",
+  "ListThreadApprovals",
   "GetBot",
   "WatchBotConversation",
   "ReadBotExchange",

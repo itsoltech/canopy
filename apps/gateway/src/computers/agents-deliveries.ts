@@ -15,9 +15,9 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
 
     try {
       const questions = await this.query<
-        Reference & { request_id: string; request: unknown; tool_name: string; created_at: Date }
+        Reference & { request_id: string; request: unknown; tool_name: string; kind: string; created_at: Date }
       >(
-        `SELECT c.*,i.id AS request_id,i.request,i.tool_name,i.created_at FROM computer_agent_calls c
+        `SELECT c.*,i.id AS request_id,i.request,i.tool_name,i.kind,i.created_at FROM computer_agent_calls c
         JOIN interaction_requests i ON i.thread_id=c.target_id AND i.status='pending' AND i.routed_to='parent'
         WHERE c.owner_user_id=$1::uuid AND c.direction='incoming' AND c.parent_link AND NOT c.detached
         AND NOT EXISTS(SELECT 1 FROM computer_agent_events e WHERE e.owner_user_id=c.owner_user_id AND e.peer_node_id=c.peer_node_id AND e.call_id=c.call_id AND e.event_id=i.id)`,
@@ -49,6 +49,7 @@ export const agentsDeliveriesMethods: AgentsDeliveriesMethods = {
             q.call_id,
             {
               event: q.request_id,
+              kind: q.kind,
               text: `[canopy] Your child on ${this.core.computers.hello().name} asks (${q.tool_name}).\nthread_id: ${qualifyId(q.target_id, this.core.computers.hello().nodeId)}\nrequest_id: ${requestId}\n${JSON.stringify(q.request).slice(0, 8000)}\nAnswer with answer_interaction using these ids. The user can answer in the UI instead.`,
             },
           );

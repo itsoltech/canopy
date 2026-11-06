@@ -20,6 +20,9 @@ export function botsHandlers(
   | "watchBotConversation"
   | "readBotExchange"
   | "answerBotApproval"
+  | "listBotApprovalRules"
+  | "listThreadApprovals"
+  | "deleteBotApprovalRule"
   | "interruptBot"
   | "retryBot"
   | "setBotRoutineEnabled"
@@ -84,6 +87,15 @@ export function botsHandlers(
 
     answerBotApproval: (r) =>
       guard(async () => create(bots.AnswerBotApprovalResponseSchema, { approval: await core.bots.answer(r) })),
+    listBotApprovalRules: (r) =>
+      guard(async () => create(bots.ListBotApprovalRulesResponseSchema, { rules: await core.bots.rules(r.botId) })),
+    ...threadApprovalHandlers(core),
+    deleteBotApprovalRule: (r) =>
+      guard(async () => {
+        await core.bots.deleteRule(r);
+
+        return create(bots.DeleteBotApprovalRuleResponseSchema);
+      }),
 
     interruptBot: (r) =>
       guard(async () => {
@@ -136,6 +148,17 @@ export function botsHandlers(
     testBotMcpServer: (r) =>
       connectorGuard(async () =>
         create(bots.TestBotMcpServerResponseSchema, { tools: await core.bots.testServer(r.serverId) }),
+      ),
+  };
+}
+
+function threadApprovalHandlers(core: GatewayCore): Pick<UiHandlers, "listThreadApprovals"> {
+  return {
+    listThreadApprovals: (r) =>
+      guard(async () =>
+        create(bots.ListThreadApprovalsResponseSchema, {
+          approvals: await core.bots.pendingThreadApprovals(r),
+        }),
       ),
   };
 }

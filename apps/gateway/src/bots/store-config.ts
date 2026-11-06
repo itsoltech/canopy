@@ -53,6 +53,9 @@ function botValidate(
 
       if (
         !["safe", "always", "full_auto", ""].includes(config.approvalPolicy) ||
+        !["", "same_bot", "user_default", "ask", "read_only", "accept_edits", "full_auto"].includes(
+          config.threadPermission ?? "",
+        ) ||
         config.mcpServerIds.length > 32 ||
         new Set(config.mcpServerIds).size !== config.mcpServerIds.length
       )
@@ -145,7 +148,14 @@ export function botConfig(sql: SqlClient.SqlClient, access: BotAccess) {
               : botView(previous);
         }
 
-        const checked = yield* validate(user, config, !options.id);
+        const checked = yield* validate(
+          user,
+          create(bots.BotConfigurationSchema, {
+            ...config,
+            threadPermission: config.threadPermission ?? before?.threadPermission ?? (before ? "ask" : "same_bot"),
+          }),
+          !options.id,
+        );
 
         const existing = yield* sql<{
           name: string;

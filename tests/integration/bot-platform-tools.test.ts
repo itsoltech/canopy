@@ -152,34 +152,46 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     });
     projectId = (await invoke<{ id: string }>("create_project", { name: "Bot provisioned" })).id;
     expect(
-      await invoke("add_workspace", { project_id: projectId, worker_id: gw.workerId, root_path: "/missing-workspace" }),
+      await invoke(
+        "add_workspace",
+        { project_id: projectId, worker_id: gw.workerId, root_path: "/missing-workspace" },
+        true,
+      ),
     ).toMatchObject({ error: expect.stringContaining("does not exist") });
     expect(
-      await invoke("add_workspace", { project_id: projectId, worker_id: gw.workerId, root_path: "relative" }),
+      await invoke("add_workspace", { project_id: projectId, worker_id: gw.workerId, root_path: "relative" }, true),
     ).toMatchObject({ error: expect.stringContaining("absolute") });
     expect(
-      await invoke("add_workspace", { project_id: projectId, worker_id: gw.workerId, root_path: "/elsewhere" }),
+      await invoke("add_workspace", { project_id: projectId, worker_id: gw.workerId, root_path: "/elsewhere" }, true),
     ).toHaveProperty("id");
     workspaceId = (
-      await invoke<{ id: string }>("add_workspace", {
-        project_id: projectId,
-        worker_id: gw.workerId,
-        root_path: "/repo",
-        label: "Primary",
-      })
+      await invoke<{ id: string }>(
+        "add_workspace",
+        {
+          project_id: projectId,
+          worker_id: gw.workerId,
+          root_path: "/repo",
+          label: "Primary",
+        },
+        true,
+      )
     ).id;
     await invoke("rename_project", { project_id: projectId, name: "Provisioned renamed" });
-    await invoke("update_workspace", { workspace_id: workspaceId, label: "Renamed workspace" });
+    await invoke("update_workspace", { workspace_id: workspaceId, label: "Renamed workspace" }, true);
 
-    const started = await invoke<{ thread_id: string; turn_id: string }>("start_thread", {
-      project_id: projectId,
-      workspace_id: workspaceId,
-      provider: "codex",
-      provider_instance: "platform-test",
-      prompt: "pwd",
-      title: "Find Me Across Projects",
-      permission: "read_only",
-    });
+    const started = await invoke<{ thread_id: string; turn_id: string }>(
+      "start_thread",
+      {
+        project_id: projectId,
+        workspace_id: workspaceId,
+        provider: "codex",
+        provider_instance: "platform-test",
+        prompt: "pwd",
+        title: "Find Me Across Projects",
+        permission: "read_only",
+      },
+      true,
+    );
 
     threadId = started.thread_id;
     // threadReady also makes the thread idle, before the initial turn starts.
@@ -600,8 +612,8 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
       })
     ).thread!;
 
-    // Full auto: the destructive action runs with no card.
-    await invoke("delete_thread", { thread_id: autoDisposable.id }, false, "full_auto");
+    // Full auto still asks before protected destructive actions.
+    await invoke("delete_thread", { thread_id: autoDisposable.id }, true, "full_auto");
     expect((await gw.api.listThreads({ includeArchived: true })).threads.some((t) => t.id === autoDisposable.id)).toBe(
       false,
     );
@@ -688,7 +700,7 @@ describe.skipIf(!dockerAvailable)("bot platform tools through the UI core", () =
     expect((await invoke<{ id: string }[]>("list_workers")).some((r) => r.id === worker.workerId)).toBe(false);
     expect(await invoke("rename_project", { project_id: p.id, name: "Stolen" })).toHaveProperty("error");
     expect(
-      await invoke("add_workspace", { project_id: p.id, worker_id: gw.workerId, root_path: "/repo" }),
+      await invoke("add_workspace", { project_id: p.id, worker_id: gw.workerId, root_path: "/repo" }, true),
     ).toHaveProperty("error");
     expect(await invoke("list_directory", { worker_id: worker.workerId, path: "/foreign" })).toHaveProperty("error");
     expect(await invoke("interrupt_thread", { thread_id: thread.id })).toHaveProperty("error");

@@ -22,14 +22,14 @@ describe("bot capability policy", () => {
         "safe",
       ),
     ).toBe(true);
-    // Full auto: no approval cards, even for destructive or remote writes; a question to the user stays a question.
+    // Full auto keeps the protected platform actions and questions behind owner approval.
     expect(needsApproval({ ...remote, dangerous: true }, "full_auto")).toBe(false);
     expect(
       needsApproval(
         PLATFORM_TOOLS.find((t) => t.name === "archive_thread")!,
         "full_auto",
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       needsApproval(
         PLATFORM_TOOLS.find((t) => t.name === "ask_user")!,

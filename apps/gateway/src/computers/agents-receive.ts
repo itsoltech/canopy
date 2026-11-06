@@ -58,6 +58,10 @@ export async function agentsDeliverAtHome(
       ? threadNotice(text(args, "title", true), text(args, "status", true), await hostContext.machine(node))
       : undefined;
 
+  // The owner answers the original permission request from the bot's chat.
+  if (ref.actor_kind === "bot" && call.operation === "question" && args["kind"] === "permission")
+    return { delivered: true };
+
   if (ref.actor_kind === "bot")
     await hostContext.scope.run(
       BotStore.use((s) =>

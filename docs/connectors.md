@@ -207,6 +207,14 @@ pozostałe wywołania mają kartę zgody. `always` pyta także o odczyty,
 `full_auto` przepuszcza narzędzia bez kart; pytania do użytkownika pozostają.
 Zmiana adnotacji zdalnego narzędzia na zapis nadal wymaga zgody w `safe`,
 natomiast jawne `full_auto` pozwala na zapis. Żaden tryb nie zastępuje grantu.
+Stała reguła bota może pozwalać na konkretne konto albo pojedyncze narzędzie tego konta.
+Gateway zapisuje ją wyłącznie po wyborze „Always allow…” przez właściciela, sprawdza
+przy każdym kolejnym żądaniu i zachowuje kopię w historii zgód. Cofnięcie działa od
+następnego żądania. W lokalnych wątkach uruchomionych przez bota zweryfikowana ścieżka
+connectora czyta bieżące ustawienie wątków bota przy każdym żądaniu. Tylko aktualne
+`same_bot` pozwala użyć tej reguły; wybór nie jest zamrożony przy starcie wątku.
+Reguły bota archiwalnego lub przeniesionego nie obowiązują. Payload permission workera
+nie może sam zadeklarować konta lub użytej reguły. `READ_ONLY` nadal odmawia zapisów.
 Rutyny w tle używają grantów i polityki tego samego bota; uruchomienie rutyny
 nie nadaje dodatkowych uprawnień do kont.
 Wątki: `READ_ONLY` odmawia zapisów, `ASK` i `ACCEPT_EDITS` wymagają istniejącej

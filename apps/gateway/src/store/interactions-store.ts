@@ -4,7 +4,7 @@ import { ThreadEventSchema, ui, type InteractionRequest, type ThreadEvent } from
 import { decodeUserAnswers } from "@canopy/domain";
 import { Effect, Result } from "effect";
 import type { SqlClient } from "effect/sql";
-import { Invalid, one, type Fx } from "./errors.ts";
+import { Invalid, NotFound, one, type Fx } from "./errors.ts";
 import { writeInteractionTimeline } from "./interaction-timeline.ts";
 import { storedQuestions } from "./questions.ts";
 import type { InteractionRow } from "./rows.ts";
@@ -153,6 +153,11 @@ export function interactionStore(sql: SqlClient.SqlClient, self: () => Pick<Thre
               yield* sql<InteractionRow>`SELECT * FROM interaction_requests WHERE id = ${requestId}::uuid`,
               "interaction",
             );
+
+            const target = yield* self().thread(found.thread_id);
+
+            if ("userId" in by && target.owner_user_id !== by.userId)
+              return yield* Effect.fail(new NotFound("interaction not found"));
 
             yield* sql`SELECT id FROM threads WHERE id = ${found.thread_id}::uuid FOR UPDATE`;
 

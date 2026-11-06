@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/bots.proto.
  */
 export const file_canopy_ui_v1_bots: GenFile = /*@__PURE__*/
-  fileDesc("ChdjYW5vcHkvdWkvdjEvYm90cy5wcm90bxIMY2Fub3B5LnVpLnYxIoECChBCb3RDb25maWd1cmF0aW9uEgwKBG5hbWUYASABKAkSDQoFc2hhcGUYAiABKAkSDQoFY29sb3IYAyABKAkSLAoIcHJvdmlkZXIYBCABKA4yGi5jYW5vcHkud29ya2VyLnYxLlByb3ZpZGVyEhkKEXByb3ZpZGVyX2luc3RhbmNlGAUgASgJEg0KBW1vZGVsGAYgASgJEg4KBmVmZm9ydBgHIAEoCRIUCgxpbnN0cnVjdGlvbnMYCCABKAkSFgoObWNwX3NlcnZlcl9pZHMYCSADKAkSFwoPYXBwcm92YWxfcG9saWN5GAogASgJEhIKCXdvcmtlcl9pZBi+BiABKAki4wMKA0JvdBIKCgJpZBgBIAEoCRI1Cg1jb25maWd1cmF0aW9uGAIgASgLMh4uY2Fub3B5LnVpLnYxLkJvdENvbmZpZ3VyYXRpb24SLgoKY3JlYXRlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoMbGFzdF9tZXNzYWdlGN4CIAEoCzIYLmNhbm9weS51aS52MS5Cb3RNZXNzYWdlEhEKCGFyY2hpdmVkGK4DIAEoCBIaChFjcmVhdGVkX2J5X2JvdF9pZBjYBCABKAkSHAoTY3JlYXRlZF9ieV9ib3RfbmFtZRjZBCABKAkSFgoNb3duZXJfdXNlcl9pZBiwBCABKAkSFQoMdW5yZWFkX2NvdW50GLEEIAEoDRIWCg1sYXN0X3JlYWRfc2VxGLIEIAEoBBIQCgdub2RlX2lkGKAGIAEoCRIYCg9tb3ZlZF9mcm9tX25hbWUYoQYgASgJEhIKCXJlY29ubmVjdBiiBiADKAkSNAoQcGVuZGluZ19hcHByb3ZhbBjoByABKAsyGS5jYW5vcHkudWkudjEuQm90QXBwcm92YWwiiQMKCkJvdE1lc3NhZ2USCgoCaWQYASABKAkSCwoDc2VxGAIgASgEEg4KBmJvdF9pZBgDIAEoCRIRCglzZW5kZXJfaWQYBCABKAkSFAoMcmVjaXBpZW50X2lkGAUgASgJEgwKBGtpbmQYBiABKAkSDAoEdGV4dBgHIAEoCRITCgtleGNoYW5nZV9pZBgIIAEoCRIuCgpjcmVhdGVkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZmYWlsZWQYCiABKAgSEwoKZXJyb3JfY29kZRi2BiABKAkSFQoMZXJyb3Jfc291cmNlGLcGIAEoCRI4Cg9zZXR0aW5nX2NoYW5nZXMYrgMgAygLMh4uY2Fub3B5LnVpLnYxLkJvdFNldHRpbmdDaGFuZ2USLAoIbWVudGlvbnMYwgMgAygLMhkuY2Fub3B5Lndvcmtlci52MS5NZW50aW9uEiQKBnF1b3RlcxjDAyADKAsyEy5jYW5vcHkudWkudjEuUXVvdGUiQAoQQm90U2V0dGluZ0NoYW5nZRINCgVmaWVsZBgBIAEoCRIOCgZiZWZvcmUYAiABKAkSDQoFYWZ0ZXIYAyABKAki6gIKC0JvdEFwcHJvdmFsEgoKAmlkGAEgASgJEg4KBmJvdF9pZBgCIAEoCRIPCgd0dXJuX2lkGAMgASgJEgwKBGtpbmQYBCABKAkSDgoGcHJvbXB0GAUgASgJEg4KBnN0YXR1cxgGIAEoCRIOCgZhbnN3ZXIYByABKAkSLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHb3B0aW9ucxgJIAMoCRIvCgZmaWVsZHMY2QQgAygLMh4uY2Fub3B5LnVpLnYxLkJvdEFwcHJvdmFsRmllbGQSLwoKZXhwaXJlc19hdBjaBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjUKDHByb3Bvc2VkX2JvdBjYBCABKAsyHi5jYW5vcHkudWkudjEuQm90Q29uZmlndXJhdGlvbhIWCg1yb3V0aW5lX3RpdGxlGLAEIAEoCSIwChBCb3RBcHByb3ZhbEZpZWxkEg0KBWxhYmVsGAEgASgJEg0KBXZhbHVlGAIgASgJIrgCCg9Cb3RDb252ZXJzYXRpb24SHgoDYm90GAEgASgLMhEuY2Fub3B5LnVpLnYxLkJvdBIqCghtZXNzYWdlcxgCIAMoCzIYLmNhbm9weS51aS52MS5Cb3RNZXNzYWdlEiwKCWFwcHJvdmFscxgDIAMoCzIZLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbBITCgtzdGF0dXNfbGluZRgEIAEoCRIPCgd3b3JraW5nGAUgASgIEhAKCHJldmlzaW9uGAYgASgEEisKCHJvdXRpbmVzGLAEIAMoCzIYLmNhbm9weS51aS52MS5Cb3RSb3V0aW5lEi0KCXJlbWluZGVycxixBCADKAsyGS5jYW5vcHkudWkudjEuQm90UmVtaW5kZXISFwoOc3RyZWFtaW5nX3RleHQYvgYgASgJIoADCgpCb3RSb3V0aW5lEgoKAmlkGAEgASgJEg4KBmJvdF9pZBgCIAEoCRINCgV0aXRsZRgDIAEoCRIUCgxpbnN0cnVjdGlvbnMYBCABKAkSDAoEY3JvbhgFIAEoCRIQCgh0aW1lem9uZRgGIAEoCRIVCg1zY2hlZHVsZV90ZXh0GAcgASgJEg8KB2VuYWJsZWQYCCABKAgSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLbGFzdF9ydW5fYXQYCyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC25leHRfcnVuX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIUCgxsYXN0X291dGNvbWUYDSABKAkSEQoJcnVuX2NvdW50GA4gASgNIlUKC0JvdFJlbWluZGVyEgoKAmlkGAEgASgJEg4KBnByb21wdBgCIAEoCRIqCgZydW5fYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIlIKG1NldEJvdFJvdXRpbmVFbmFibGVkUmVxdWVzdBIOCgZib3RfaWQYASABKAkSEgoKcm91dGluZV9pZBgCIAEoCRIPCgdlbmFibGVkGAMgASgIIj0KF0RlbGV0ZUJvdFJvdXRpbmVSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRISCgpyb3V0aW5lX2lkGAIgASgJIj8KEkJvdFJvdXRpbmVSZXNwb25zZRIpCgdyb3V0aW5lGAEgASgLMhguY2Fub3B5LnVpLnYxLkJvdFJvdXRpbmUiGgoYRGVsZXRlQm90Um91dGluZVJlc3BvbnNlIj8KGENhbmNlbEJvdFJlbWluZGVyUmVxdWVzdBIOCgZib3RfaWQYASABKAkSEwoLcmVtaW5kZXJfaWQYAiABKAkiGwoZQ2FuY2VsQm90UmVtaW5kZXJSZXNwb25zZSI5ChJNYXJrQm90UmVhZFJlcXVlc3QSDgoGYm90X2lkGAEgASgJEhMKC3Rocm91Z2hfc2VxGAIgASgEImQKEENyZWF0ZUJvdFJlcXVlc3QSNQoNY29uZmlndXJhdGlvbhgBIAEoCzIeLmNhbm9weS51aS52MS5Cb3RDb25maWd1cmF0aW9uEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAIgASgJIlkKEFVwZGF0ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJEjUKDWNvbmZpZ3VyYXRpb24YAiABKAsyHi5jYW5vcHkudWkudjEuQm90Q29uZmlndXJhdGlvbiIfCg1HZXRCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSIwCg5HZXRCb3RSZXNwb25zZRIeCgNib3QYASABKAsyES5jYW5vcHkudWkudjEuQm90IiwKD0xpc3RCb3RzUmVxdWVzdBIZChBpbmNsdWRlX2FyY2hpdmVkGK4DIAEoCCIzChBMaXN0Qm90c1Jlc3BvbnNlEh8KBGJvdHMYASADKAsyES5jYW5vcHkudWkudjEuQm90IiIKEERlbGV0ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIhMKEURlbGV0ZUJvdFJlc3BvbnNlIiMKEUFyY2hpdmVCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSIlChNVbmFyY2hpdmVCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSKkAQoVU2VuZEJvdE1lc3NhZ2VSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRIMCgR0ZXh0GAIgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAMgASgJEiwKCG1lbnRpb25zGMIDIAMoCzIZLmNhbm9weS53b3JrZXIudjEuTWVudGlvbhIkCgZxdW90ZXMYwwMgAygLMhMuY2Fub3B5LnVpLnYxLlF1b3RlIikKFlNlbmRCb3RNZXNzYWdlUmVzcG9uc2USDwoHdHVybl9pZBgBIAEoCSItChtXYXRjaEJvdENvbnZlcnNhdGlvblJlcXVlc3QSDgoGYm90X2lkGAEgASgJIi0KFlJlYWRCb3RFeGNoYW5nZVJlcXVlc3QSEwoLZXhjaGFuZ2VfaWQYASABKAkiRQoXUmVhZEJvdEV4Y2hhbmdlUmVzcG9uc2USKgoIbWVzc2FnZXMYASADKAsyGC5jYW5vcHkudWkudjEuQm90TWVzc2FnZSJQChhBbnN3ZXJCb3RBcHByb3ZhbFJlcXVlc3QSEwoLYXBwcm92YWxfaWQYASABKAkSDwoHYXBwcm92ZRgCIAEoCBIOCgZhbnN3ZXIYAyABKAkiSAoZQW5zd2VyQm90QXBwcm92YWxSZXNwb25zZRIrCghhcHByb3ZhbBgBIAEoCzIZLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbCIlChNJbnRlcnJ1cHRCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSIWChRJbnRlcnJ1cHRCb3RSZXNwb25zZSIhCg9SZXRyeUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIhIKEFJldHJ5Qm90UmVzcG9uc2UigAEKDEJvdE1jcFNlcnZlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgsKA3VybBgDIAEoCRIRCgl0cmFuc3BvcnQYBCABKAkSDwoHZW5hYmxlZBgFIAEoCBIUCgxoZWFkZXJfbmFtZXMYBiADKAkSDwoHYm90X2lkcxgHIAMoCSLwAQoXU2F2ZUJvdE1jcFNlcnZlclJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRILCgN1cmwYAyABKAkSEQoJdHJhbnNwb3J0GAQgASgJEg8KB2VuYWJsZWQYBSABKAgSQwoHaGVhZGVycxgGIAMoCzIyLmNhbm9weS51aS52MS5TYXZlQm90TWNwU2VydmVyUmVxdWVzdC5IZWFkZXJzRW50cnkSFQoNY2xlYXJfaGVhZGVycxgHIAEoCBouCgxIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJGChhTYXZlQm90TWNwU2VydmVyUmVzcG9uc2USKgoGc2VydmVyGAEgASgLMhouY2Fub3B5LnVpLnYxLkJvdE1jcFNlcnZlciIaChhMaXN0Qm90TWNwU2VydmVyc1JlcXVlc3QiSAoZTGlzdEJvdE1jcFNlcnZlcnNSZXNwb25zZRIrCgdzZXJ2ZXJzGAEgAygLMhouY2Fub3B5LnVpLnYxLkJvdE1jcFNlcnZlciIuChlEZWxldGVCb3RNY3BTZXJ2ZXJSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSIcChpEZWxldGVCb3RNY3BTZXJ2ZXJSZXNwb25zZSIsChdUZXN0Qm90TWNwU2VydmVyUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiQgoKQm90TWNwVG9vbBIMCgRuYW1lGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEhEKCXJlYWRfb25seRgDIAEoCCJDChhUZXN0Qm90TWNwU2VydmVyUmVzcG9uc2USJwoFdG9vbHMYASADKAsyGC5jYW5vcHkudWkudjEuQm90TWNwVG9vbGIGcHJvdG8z", [file_google_protobuf_timestamp, file_canopy_worker_v1_worker_link, file_canopy_ui_v1_quotes]);
+  fileDesc("ChdjYW5vcHkvdWkvdjEvYm90cy5wcm90bxIMY2Fub3B5LnVpLnYxIrgCChBCb3RDb25maWd1cmF0aW9uEgwKBG5hbWUYASABKAkSDQoFc2hhcGUYAiABKAkSDQoFY29sb3IYAyABKAkSLAoIcHJvdmlkZXIYBCABKA4yGi5jYW5vcHkud29ya2VyLnYxLlByb3ZpZGVyEhkKEXByb3ZpZGVyX2luc3RhbmNlGAUgASgJEg0KBW1vZGVsGAYgASgJEg4KBmVmZm9ydBgHIAEoCRIUCgxpbnN0cnVjdGlvbnMYCCABKAkSFgoObWNwX3NlcnZlcl9pZHMYCSADKAkSFwoPYXBwcm92YWxfcG9saWN5GAogASgJEhIKCXdvcmtlcl9pZBi+BiABKAkSHwoRdGhyZWFkX3Blcm1pc3Npb24Y6QcgASgJSACIAQFCFAoSX3RocmVhZF9wZXJtaXNzaW9uIuMDCgNCb3QSCgoCaWQYASABKAkSNQoNY29uZmlndXJhdGlvbhgCIAEoCzIeLmNhbm9weS51aS52MS5Cb3RDb25maWd1cmF0aW9uEi4KCmNyZWF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KDGxhc3RfbWVzc2FnZRjeAiABKAsyGC5jYW5vcHkudWkudjEuQm90TWVzc2FnZRIRCghhcmNoaXZlZBiuAyABKAgSGgoRY3JlYXRlZF9ieV9ib3RfaWQY2AQgASgJEhwKE2NyZWF0ZWRfYnlfYm90X25hbWUY2QQgASgJEhYKDW93bmVyX3VzZXJfaWQYsAQgASgJEhUKDHVucmVhZF9jb3VudBixBCABKA0SFgoNbGFzdF9yZWFkX3NlcRiyBCABKAQSEAoHbm9kZV9pZBigBiABKAkSGAoPbW92ZWRfZnJvbV9uYW1lGKEGIAEoCRISCglyZWNvbm5lY3QYogYgAygJEjQKEHBlbmRpbmdfYXBwcm92YWwY6AcgASgLMhkuY2Fub3B5LnVpLnYxLkJvdEFwcHJvdmFsIokDCgpCb3RNZXNzYWdlEgoKAmlkGAEgASgJEgsKA3NlcRgCIAEoBBIOCgZib3RfaWQYAyABKAkSEQoJc2VuZGVyX2lkGAQgASgJEhQKDHJlY2lwaWVudF9pZBgFIAEoCRIMCgRraW5kGAYgASgJEgwKBHRleHQYByABKAkSEwoLZXhjaGFuZ2VfaWQYCCABKAkSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGZmFpbGVkGAogASgIEhMKCmVycm9yX2NvZGUYtgYgASgJEhUKDGVycm9yX3NvdXJjZRi3BiABKAkSOAoPc2V0dGluZ19jaGFuZ2VzGK4DIAMoCzIeLmNhbm9weS51aS52MS5Cb3RTZXR0aW5nQ2hhbmdlEiwKCG1lbnRpb25zGMIDIAMoCzIZLmNhbm9weS53b3JrZXIudjEuTWVudGlvbhIkCgZxdW90ZXMYwwMgAygLMhMuY2Fub3B5LnVpLnYxLlF1b3RlIkAKEEJvdFNldHRpbmdDaGFuZ2USDQoFZmllbGQYASABKAkSDgoGYmVmb3JlGAIgASgJEg0KBWFmdGVyGAMgASgJIoIECgtCb3RBcHByb3ZhbBIKCgJpZBgBIAEoCRIOCgZib3RfaWQYAiABKAkSDwoHdHVybl9pZBgDIAEoCRIMCgRraW5kGAQgASgJEg4KBnByb21wdBgFIAEoCRIOCgZzdGF0dXMYBiABKAkSDgoGYW5zd2VyGAcgASgJEi4KCmNyZWF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB29wdGlvbnMYCSADKAkSLwoGZmllbGRzGNkEIAMoCzIeLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbEZpZWxkEi8KCmV4cGlyZXNfYXQY2gQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBI1Cgxwcm9wb3NlZF9ib3QY2AQgASgLMh4uY2Fub3B5LnVpLnYxLkJvdENvbmZpZ3VyYXRpb24SFgoNcm91dGluZV90aXRsZRiwBCABKAkSNAoMcnVsZV9vcHRpb25zGOkHIAMoCzIdLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbFJ1bGUSNwoPYWxsb3dlZF9ieV9ydWxlGOoHIAEoCzIdLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbFJ1bGUSEgoJdGhyZWFkX2lkGOsHIAEoCRITCgpyZXF1ZXN0X2lkGOwHIAEoCSKwAQoPQm90QXBwcm92YWxSdWxlEgoKAmlkGAEgASgJEg4KBmJvdF9pZBgCIAEoCRIMCgRraW5kGAMgASgJEhEKCXRhcmdldF9pZBgEIAEoCRIRCgl0b29sX25hbWUYBSABKAkSDQoFbGFiZWwYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGc291cmNlGAggASgJIi0KG0xpc3RCb3RBcHByb3ZhbFJ1bGVzUmVxdWVzdBIOCgZib3RfaWQYASABKAkiTAocTGlzdEJvdEFwcHJvdmFsUnVsZXNSZXNwb25zZRIsCgVydWxlcxgBIAMoCzIdLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbFJ1bGUiPwocRGVsZXRlQm90QXBwcm92YWxSdWxlUmVxdWVzdBIOCgZib3RfaWQYASABKAkSDwoHcnVsZV9pZBgCIAEoCSIfCh1EZWxldGVCb3RBcHByb3ZhbFJ1bGVSZXNwb25zZSJJChpMaXN0VGhyZWFkQXBwcm92YWxzUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSGAoQb3RoZXJfdGhyZWFkX2lkcxgCIAMoCSJLChtMaXN0VGhyZWFkQXBwcm92YWxzUmVzcG9uc2USLAoJYXBwcm92YWxzGAEgAygLMhkuY2Fub3B5LnVpLnYxLkJvdEFwcHJvdmFsIjAKEEJvdEFwcHJvdmFsRmllbGQSDQoFbGFiZWwYASABKAkSDQoFdmFsdWUYAiABKAkiuAIKD0JvdENvbnZlcnNhdGlvbhIeCgNib3QYASABKAsyES5jYW5vcHkudWkudjEuQm90EioKCG1lc3NhZ2VzGAIgAygLMhguY2Fub3B5LnVpLnYxLkJvdE1lc3NhZ2USLAoJYXBwcm92YWxzGAMgAygLMhkuY2Fub3B5LnVpLnYxLkJvdEFwcHJvdmFsEhMKC3N0YXR1c19saW5lGAQgASgJEg8KB3dvcmtpbmcYBSABKAgSEAoIcmV2aXNpb24YBiABKAQSKwoIcm91dGluZXMYsAQgAygLMhguY2Fub3B5LnVpLnYxLkJvdFJvdXRpbmUSLQoJcmVtaW5kZXJzGLEEIAMoCzIZLmNhbm9weS51aS52MS5Cb3RSZW1pbmRlchIXCg5zdHJlYW1pbmdfdGV4dBi+BiABKAkigAMKCkJvdFJvdXRpbmUSCgoCaWQYASABKAkSDgoGYm90X2lkGAIgASgJEg0KBXRpdGxlGAMgASgJEhQKDGluc3RydWN0aW9ucxgEIAEoCRIMCgRjcm9uGAUgASgJEhAKCHRpbWV6b25lGAYgASgJEhUKDXNjaGVkdWxlX3RleHQYByABKAkSDwoHZW5hYmxlZBgIIAEoCBIuCgpjcmVhdGVkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgtsYXN0X3J1bl9hdBgLIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLbmV4dF9ydW5fYXQYDCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDGxhc3Rfb3V0Y29tZRgNIAEoCRIRCglydW5fY291bnQYDiABKA0iVQoLQm90UmVtaW5kZXISCgoCaWQYASABKAkSDgoGcHJvbXB0GAIgASgJEioKBnJ1bl9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiUgobU2V0Qm90Um91dGluZUVuYWJsZWRSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRISCgpyb3V0aW5lX2lkGAIgASgJEg8KB2VuYWJsZWQYAyABKAgiPQoXRGVsZXRlQm90Um91dGluZVJlcXVlc3QSDgoGYm90X2lkGAEgASgJEhIKCnJvdXRpbmVfaWQYAiABKAkiPwoSQm90Um91dGluZVJlc3BvbnNlEikKB3JvdXRpbmUYASABKAsyGC5jYW5vcHkudWkudjEuQm90Um91dGluZSIaChhEZWxldGVCb3RSb3V0aW5lUmVzcG9uc2UiPwoYQ2FuY2VsQm90UmVtaW5kZXJSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRITCgtyZW1pbmRlcl9pZBgCIAEoCSIbChlDYW5jZWxCb3RSZW1pbmRlclJlc3BvbnNlIjkKEk1hcmtCb3RSZWFkUmVxdWVzdBIOCgZib3RfaWQYASABKAkSEwoLdGhyb3VnaF9zZXEYAiABKAQiZAoQQ3JlYXRlQm90UmVxdWVzdBI1Cg1jb25maWd1cmF0aW9uGAEgASgLMh4uY2Fub3B5LnVpLnYxLkJvdENvbmZpZ3VyYXRpb24SGQoRY2xpZW50X3JlcXVlc3RfaWQYAiABKAkiWQoQVXBkYXRlQm90UmVxdWVzdBIOCgZib3RfaWQYASABKAkSNQoNY29uZmlndXJhdGlvbhgCIAEoCzIeLmNhbm9weS51aS52MS5Cb3RDb25maWd1cmF0aW9uIh8KDUdldEJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIjAKDkdldEJvdFJlc3BvbnNlEh4KA2JvdBgBIAEoCzIRLmNhbm9weS51aS52MS5Cb3QiLAoPTGlzdEJvdHNSZXF1ZXN0EhkKEGluY2x1ZGVfYXJjaGl2ZWQYrgMgASgIIjMKEExpc3RCb3RzUmVzcG9uc2USHwoEYm90cxgBIAMoCzIRLmNhbm9weS51aS52MS5Cb3QiIgoQRGVsZXRlQm90UmVxdWVzdBIOCgZib3RfaWQYASABKAkiEwoRRGVsZXRlQm90UmVzcG9uc2UiIwoRQXJjaGl2ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIiUKE1VuYXJjaGl2ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIqQBChVTZW5kQm90TWVzc2FnZVJlcXVlc3QSDgoGYm90X2lkGAEgASgJEgwKBHRleHQYAiABKAkSGQoRY2xpZW50X3JlcXVlc3RfaWQYAyABKAkSLAoIbWVudGlvbnMYwgMgAygLMhkuY2Fub3B5Lndvcmtlci52MS5NZW50aW9uEiQKBnF1b3RlcxjDAyADKAsyEy5jYW5vcHkudWkudjEuUXVvdGUiKQoWU2VuZEJvdE1lc3NhZ2VSZXNwb25zZRIPCgd0dXJuX2lkGAEgASgJIi0KG1dhdGNoQm90Q29udmVyc2F0aW9uUmVxdWVzdBIOCgZib3RfaWQYASABKAkiLQoWUmVhZEJvdEV4Y2hhbmdlUmVxdWVzdBITCgtleGNoYW5nZV9pZBgBIAEoCSJFChdSZWFkQm90RXhjaGFuZ2VSZXNwb25zZRIqCghtZXNzYWdlcxgBIAMoCzIYLmNhbm9weS51aS52MS5Cb3RNZXNzYWdlImkKGEFuc3dlckJvdEFwcHJvdmFsUmVxdWVzdBITCgthcHByb3ZhbF9pZBgBIAEoCRIPCgdhcHByb3ZlGAIgASgIEg4KBmFuc3dlchgDIAEoCRIXCg5ydWxlX29wdGlvbl9pZBjpByABKAkiSAoZQW5zd2VyQm90QXBwcm92YWxSZXNwb25zZRIrCghhcHByb3ZhbBgBIAEoCzIZLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbCIlChNJbnRlcnJ1cHRCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSIWChRJbnRlcnJ1cHRCb3RSZXNwb25zZSIhCg9SZXRyeUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIhIKEFJldHJ5Qm90UmVzcG9uc2UigAEKDEJvdE1jcFNlcnZlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgsKA3VybBgDIAEoCRIRCgl0cmFuc3BvcnQYBCABKAkSDwoHZW5hYmxlZBgFIAEoCBIUCgxoZWFkZXJfbmFtZXMYBiADKAkSDwoHYm90X2lkcxgHIAMoCSLwAQoXU2F2ZUJvdE1jcFNlcnZlclJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRILCgN1cmwYAyABKAkSEQoJdHJhbnNwb3J0GAQgASgJEg8KB2VuYWJsZWQYBSABKAgSQwoHaGVhZGVycxgGIAMoCzIyLmNhbm9weS51aS52MS5TYXZlQm90TWNwU2VydmVyUmVxdWVzdC5IZWFkZXJzRW50cnkSFQoNY2xlYXJfaGVhZGVycxgHIAEoCBouCgxIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJGChhTYXZlQm90TWNwU2VydmVyUmVzcG9uc2USKgoGc2VydmVyGAEgASgLMhouY2Fub3B5LnVpLnYxLkJvdE1jcFNlcnZlciIaChhMaXN0Qm90TWNwU2VydmVyc1JlcXVlc3QiSAoZTGlzdEJvdE1jcFNlcnZlcnNSZXNwb25zZRIrCgdzZXJ2ZXJzGAEgAygLMhouY2Fub3B5LnVpLnYxLkJvdE1jcFNlcnZlciIuChlEZWxldGVCb3RNY3BTZXJ2ZXJSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSIcChpEZWxldGVCb3RNY3BTZXJ2ZXJSZXNwb25zZSIsChdUZXN0Qm90TWNwU2VydmVyUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiQgoKQm90TWNwVG9vbBIMCgRuYW1lGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEhEKCXJlYWRfb25seRgDIAEoCCJDChhUZXN0Qm90TWNwU2VydmVyUmVzcG9uc2USJwoFdG9vbHMYASADKAsyGC5jYW5vcHkudWkudjEuQm90TWNwVG9vbGIGcHJvdG8z", [file_google_protobuf_timestamp, file_canopy_worker_v1_worker_link, file_canopy_ui_v1_quotes]);
 
 /**
  * @generated from message canopy.ui.v1.BotConfiguration
@@ -82,6 +82,16 @@ export type BotConfiguration = Message<"canopy.ui.v1.BotConfiguration"> & {
    * @generated from field: string worker_id = 830;
    */
   workerId: string;
+
+  /**
+   * Omitted: preserve on update, same_bot on create. Owner-only setting.
+   * Empty/same_bot: ASK for safe/always, FULL_AUTO for full_auto.
+   *
+   * same_bot | user_default | ask | read_only | accept_edits | full_auto
+   *
+   * @generated from field: optional string thread_permission = 1001;
+   */
+  threadPermission?: string | undefined;
 };
 
 /**
@@ -392,6 +402,30 @@ export type BotApproval = Message<"canopy.ui.v1.BotApproval"> & {
    * @generated from field: string routine_title = 560;
    */
   routineTitle: string;
+
+  /**
+   * Gateway-produced choices, durably bound to this request. Never model-supplied.
+   *
+   * @generated from field: repeated canopy.ui.v1.BotApprovalRule rule_options = 1001;
+   */
+  ruleOptions: BotApprovalRule[];
+
+  /**
+   * @generated from field: canopy.ui.v1.BotApprovalRule allowed_by_rule = 1002;
+   */
+  allowedByRule?: BotApprovalRule | undefined;
+
+  /**
+   * A projection of the existing thread interaction, not a second approval.
+   *
+   * @generated from field: string thread_id = 1003;
+   */
+  threadId: string;
+
+  /**
+   * @generated from field: string request_id = 1004;
+   */
+  requestId: string;
 };
 
 /**
@@ -400,6 +434,178 @@ export type BotApproval = Message<"canopy.ui.v1.BotApproval"> & {
  */
 export const BotApprovalSchema: GenMessage<BotApproval> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_bots, 4);
+
+/**
+ * @generated from message canopy.ui.v1.BotApprovalRule
+ */
+export type BotApprovalRule = Message<"canopy.ui.v1.BotApprovalRule"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string bot_id = 2;
+   */
+  botId: string;
+
+  /**
+   * start_thread | connector | send_bot_message | reversible platform tool name
+   *
+   * @generated from field: string kind = 3;
+   */
+  kind: string;
+
+  /**
+   * project, connector account, or destination bot; empty = all projects/bots
+   *
+   * @generated from field: string target_id = 4;
+   */
+  targetId: string;
+
+  /**
+   * connector remote tool; empty = all tools of this account
+   *
+   * @generated from field: string tool_name = 5;
+   */
+  toolName: string;
+
+  /**
+   * gateway-resolved, plain language
+   *
+   * @generated from field: string label = 6;
+   */
+  label: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 7;
+   */
+  createdAt?: Timestamp | undefined;
+
+  /**
+   * approval_card
+   *
+   * @generated from field: string source = 8;
+   */
+  source: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.BotApprovalRule.
+ * Use `create(BotApprovalRuleSchema)` to create a new message.
+ */
+export const BotApprovalRuleSchema: GenMessage<BotApprovalRule> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_bots, 5);
+
+/**
+ * @generated from message canopy.ui.v1.ListBotApprovalRulesRequest
+ */
+export type ListBotApprovalRulesRequest = Message<"canopy.ui.v1.ListBotApprovalRulesRequest"> & {
+  /**
+   * @generated from field: string bot_id = 1;
+   */
+  botId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ListBotApprovalRulesRequest.
+ * Use `create(ListBotApprovalRulesRequestSchema)` to create a new message.
+ */
+export const ListBotApprovalRulesRequestSchema: GenMessage<ListBotApprovalRulesRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_bots, 6);
+
+/**
+ * @generated from message canopy.ui.v1.ListBotApprovalRulesResponse
+ */
+export type ListBotApprovalRulesResponse = Message<"canopy.ui.v1.ListBotApprovalRulesResponse"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.BotApprovalRule rules = 1;
+   */
+  rules: BotApprovalRule[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.ListBotApprovalRulesResponse.
+ * Use `create(ListBotApprovalRulesResponseSchema)` to create a new message.
+ */
+export const ListBotApprovalRulesResponseSchema: GenMessage<ListBotApprovalRulesResponse> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_bots, 7);
+
+/**
+ * @generated from message canopy.ui.v1.DeleteBotApprovalRuleRequest
+ */
+export type DeleteBotApprovalRuleRequest = Message<"canopy.ui.v1.DeleteBotApprovalRuleRequest"> & {
+  /**
+   * @generated from field: string bot_id = 1;
+   */
+  botId: string;
+
+  /**
+   * @generated from field: string rule_id = 2;
+   */
+  ruleId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.DeleteBotApprovalRuleRequest.
+ * Use `create(DeleteBotApprovalRuleRequestSchema)` to create a new message.
+ */
+export const DeleteBotApprovalRuleRequestSchema: GenMessage<DeleteBotApprovalRuleRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_bots, 8);
+
+/**
+ * @generated from message canopy.ui.v1.DeleteBotApprovalRuleResponse
+ */
+export type DeleteBotApprovalRuleResponse = Message<"canopy.ui.v1.DeleteBotApprovalRuleResponse"> & {
+};
+
+/**
+ * Describes the message canopy.ui.v1.DeleteBotApprovalRuleResponse.
+ * Use `create(DeleteBotApprovalRuleResponseSchema)` to create a new message.
+ */
+export const DeleteBotApprovalRuleResponseSchema: GenMessage<DeleteBotApprovalRuleResponse> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_bots, 9);
+
+/**
+ * Batch pending permission requests only; thread_id also selects the linked home.
+ *
+ * @generated from message canopy.ui.v1.ListThreadApprovalsRequest
+ */
+export type ListThreadApprovalsRequest = Message<"canopy.ui.v1.ListThreadApprovalsRequest"> & {
+  /**
+   * @generated from field: string thread_id = 1;
+   */
+  threadId: string;
+
+  /**
+   * @generated from field: repeated string other_thread_ids = 2;
+   */
+  otherThreadIds: string[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.ListThreadApprovalsRequest.
+ * Use `create(ListThreadApprovalsRequestSchema)` to create a new message.
+ */
+export const ListThreadApprovalsRequestSchema: GenMessage<ListThreadApprovalsRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_bots, 10);
+
+/**
+ * @generated from message canopy.ui.v1.ListThreadApprovalsResponse
+ */
+export type ListThreadApprovalsResponse = Message<"canopy.ui.v1.ListThreadApprovalsResponse"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.BotApproval approvals = 1;
+   */
+  approvals: BotApproval[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.ListThreadApprovalsResponse.
+ * Use `create(ListThreadApprovalsResponseSchema)` to create a new message.
+ */
+export const ListThreadApprovalsResponseSchema: GenMessage<ListThreadApprovalsResponse> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_bots, 11);
 
 /**
  * @generated from message canopy.ui.v1.BotApprovalField
@@ -421,7 +627,7 @@ export type BotApprovalField = Message<"canopy.ui.v1.BotApprovalField"> & {
  * Use `create(BotApprovalFieldSchema)` to create a new message.
  */
 export const BotApprovalFieldSchema: GenMessage<BotApprovalField> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 5);
+  messageDesc(file_canopy_ui_v1_bots, 12);
 
 /**
  * @generated from message canopy.ui.v1.BotConversation
@@ -480,7 +686,7 @@ export type BotConversation = Message<"canopy.ui.v1.BotConversation"> & {
  * Use `create(BotConversationSchema)` to create a new message.
  */
 export const BotConversationSchema: GenMessage<BotConversation> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 6);
+  messageDesc(file_canopy_ui_v1_bots, 13);
 
 /**
  * @generated from message canopy.ui.v1.BotRoutine
@@ -562,7 +768,7 @@ export type BotRoutine = Message<"canopy.ui.v1.BotRoutine"> & {
  * Use `create(BotRoutineSchema)` to create a new message.
  */
 export const BotRoutineSchema: GenMessage<BotRoutine> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 7);
+  messageDesc(file_canopy_ui_v1_bots, 14);
 
 /**
  * @generated from message canopy.ui.v1.BotReminder
@@ -589,7 +795,7 @@ export type BotReminder = Message<"canopy.ui.v1.BotReminder"> & {
  * Use `create(BotReminderSchema)` to create a new message.
  */
 export const BotReminderSchema: GenMessage<BotReminder> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 8);
+  messageDesc(file_canopy_ui_v1_bots, 15);
 
 /**
  * @generated from message canopy.ui.v1.SetBotRoutineEnabledRequest
@@ -616,7 +822,7 @@ export type SetBotRoutineEnabledRequest = Message<"canopy.ui.v1.SetBotRoutineEna
  * Use `create(SetBotRoutineEnabledRequestSchema)` to create a new message.
  */
 export const SetBotRoutineEnabledRequestSchema: GenMessage<SetBotRoutineEnabledRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 9);
+  messageDesc(file_canopy_ui_v1_bots, 16);
 
 /**
  * @generated from message canopy.ui.v1.DeleteBotRoutineRequest
@@ -638,7 +844,7 @@ export type DeleteBotRoutineRequest = Message<"canopy.ui.v1.DeleteBotRoutineRequ
  * Use `create(DeleteBotRoutineRequestSchema)` to create a new message.
  */
 export const DeleteBotRoutineRequestSchema: GenMessage<DeleteBotRoutineRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 10);
+  messageDesc(file_canopy_ui_v1_bots, 17);
 
 /**
  * @generated from message canopy.ui.v1.BotRoutineResponse
@@ -655,7 +861,7 @@ export type BotRoutineResponse = Message<"canopy.ui.v1.BotRoutineResponse"> & {
  * Use `create(BotRoutineResponseSchema)` to create a new message.
  */
 export const BotRoutineResponseSchema: GenMessage<BotRoutineResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 11);
+  messageDesc(file_canopy_ui_v1_bots, 18);
 
 /**
  * @generated from message canopy.ui.v1.DeleteBotRoutineResponse
@@ -668,7 +874,7 @@ export type DeleteBotRoutineResponse = Message<"canopy.ui.v1.DeleteBotRoutineRes
  * Use `create(DeleteBotRoutineResponseSchema)` to create a new message.
  */
 export const DeleteBotRoutineResponseSchema: GenMessage<DeleteBotRoutineResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 12);
+  messageDesc(file_canopy_ui_v1_bots, 19);
 
 /**
  * @generated from message canopy.ui.v1.CancelBotReminderRequest
@@ -690,7 +896,7 @@ export type CancelBotReminderRequest = Message<"canopy.ui.v1.CancelBotReminderRe
  * Use `create(CancelBotReminderRequestSchema)` to create a new message.
  */
 export const CancelBotReminderRequestSchema: GenMessage<CancelBotReminderRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 13);
+  messageDesc(file_canopy_ui_v1_bots, 20);
 
 /**
  * @generated from message canopy.ui.v1.CancelBotReminderResponse
@@ -703,7 +909,7 @@ export type CancelBotReminderResponse = Message<"canopy.ui.v1.CancelBotReminderR
  * Use `create(CancelBotReminderResponseSchema)` to create a new message.
  */
 export const CancelBotReminderResponseSchema: GenMessage<CancelBotReminderResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 14);
+  messageDesc(file_canopy_ui_v1_bots, 21);
 
 /**
  * @generated from message canopy.ui.v1.MarkBotReadRequest
@@ -725,7 +931,7 @@ export type MarkBotReadRequest = Message<"canopy.ui.v1.MarkBotReadRequest"> & {
  * Use `create(MarkBotReadRequestSchema)` to create a new message.
  */
 export const MarkBotReadRequestSchema: GenMessage<MarkBotReadRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 15);
+  messageDesc(file_canopy_ui_v1_bots, 22);
 
 /**
  * @generated from message canopy.ui.v1.CreateBotRequest
@@ -747,7 +953,7 @@ export type CreateBotRequest = Message<"canopy.ui.v1.CreateBotRequest"> & {
  * Use `create(CreateBotRequestSchema)` to create a new message.
  */
 export const CreateBotRequestSchema: GenMessage<CreateBotRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 16);
+  messageDesc(file_canopy_ui_v1_bots, 23);
 
 /**
  * @generated from message canopy.ui.v1.UpdateBotRequest
@@ -769,7 +975,7 @@ export type UpdateBotRequest = Message<"canopy.ui.v1.UpdateBotRequest"> & {
  * Use `create(UpdateBotRequestSchema)` to create a new message.
  */
 export const UpdateBotRequestSchema: GenMessage<UpdateBotRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 17);
+  messageDesc(file_canopy_ui_v1_bots, 24);
 
 /**
  * @generated from message canopy.ui.v1.GetBotRequest
@@ -786,7 +992,7 @@ export type GetBotRequest = Message<"canopy.ui.v1.GetBotRequest"> & {
  * Use `create(GetBotRequestSchema)` to create a new message.
  */
 export const GetBotRequestSchema: GenMessage<GetBotRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 18);
+  messageDesc(file_canopy_ui_v1_bots, 25);
 
 /**
  * @generated from message canopy.ui.v1.GetBotResponse
@@ -803,7 +1009,7 @@ export type GetBotResponse = Message<"canopy.ui.v1.GetBotResponse"> & {
  * Use `create(GetBotResponseSchema)` to create a new message.
  */
 export const GetBotResponseSchema: GenMessage<GetBotResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 19);
+  messageDesc(file_canopy_ui_v1_bots, 26);
 
 /**
  * @generated from message canopy.ui.v1.ListBotsRequest
@@ -820,7 +1026,7 @@ export type ListBotsRequest = Message<"canopy.ui.v1.ListBotsRequest"> & {
  * Use `create(ListBotsRequestSchema)` to create a new message.
  */
 export const ListBotsRequestSchema: GenMessage<ListBotsRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 20);
+  messageDesc(file_canopy_ui_v1_bots, 27);
 
 /**
  * @generated from message canopy.ui.v1.ListBotsResponse
@@ -837,7 +1043,7 @@ export type ListBotsResponse = Message<"canopy.ui.v1.ListBotsResponse"> & {
  * Use `create(ListBotsResponseSchema)` to create a new message.
  */
 export const ListBotsResponseSchema: GenMessage<ListBotsResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 21);
+  messageDesc(file_canopy_ui_v1_bots, 28);
 
 /**
  * @generated from message canopy.ui.v1.DeleteBotRequest
@@ -854,7 +1060,7 @@ export type DeleteBotRequest = Message<"canopy.ui.v1.DeleteBotRequest"> & {
  * Use `create(DeleteBotRequestSchema)` to create a new message.
  */
 export const DeleteBotRequestSchema: GenMessage<DeleteBotRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 22);
+  messageDesc(file_canopy_ui_v1_bots, 29);
 
 /**
  * @generated from message canopy.ui.v1.DeleteBotResponse
@@ -867,7 +1073,7 @@ export type DeleteBotResponse = Message<"canopy.ui.v1.DeleteBotResponse"> & {
  * Use `create(DeleteBotResponseSchema)` to create a new message.
  */
 export const DeleteBotResponseSchema: GenMessage<DeleteBotResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 23);
+  messageDesc(file_canopy_ui_v1_bots, 30);
 
 /**
  * @generated from message canopy.ui.v1.ArchiveBotRequest
@@ -884,7 +1090,7 @@ export type ArchiveBotRequest = Message<"canopy.ui.v1.ArchiveBotRequest"> & {
  * Use `create(ArchiveBotRequestSchema)` to create a new message.
  */
 export const ArchiveBotRequestSchema: GenMessage<ArchiveBotRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 24);
+  messageDesc(file_canopy_ui_v1_bots, 31);
 
 /**
  * @generated from message canopy.ui.v1.UnarchiveBotRequest
@@ -901,7 +1107,7 @@ export type UnarchiveBotRequest = Message<"canopy.ui.v1.UnarchiveBotRequest"> & 
  * Use `create(UnarchiveBotRequestSchema)` to create a new message.
  */
 export const UnarchiveBotRequestSchema: GenMessage<UnarchiveBotRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 25);
+  messageDesc(file_canopy_ui_v1_bots, 32);
 
 /**
  * @generated from message canopy.ui.v1.SendBotMessageRequest
@@ -938,7 +1144,7 @@ export type SendBotMessageRequest = Message<"canopy.ui.v1.SendBotMessageRequest"
  * Use `create(SendBotMessageRequestSchema)` to create a new message.
  */
 export const SendBotMessageRequestSchema: GenMessage<SendBotMessageRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 26);
+  messageDesc(file_canopy_ui_v1_bots, 33);
 
 /**
  * @generated from message canopy.ui.v1.SendBotMessageResponse
@@ -955,7 +1161,7 @@ export type SendBotMessageResponse = Message<"canopy.ui.v1.SendBotMessageRespons
  * Use `create(SendBotMessageResponseSchema)` to create a new message.
  */
 export const SendBotMessageResponseSchema: GenMessage<SendBotMessageResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 27);
+  messageDesc(file_canopy_ui_v1_bots, 34);
 
 /**
  * @generated from message canopy.ui.v1.WatchBotConversationRequest
@@ -972,7 +1178,7 @@ export type WatchBotConversationRequest = Message<"canopy.ui.v1.WatchBotConversa
  * Use `create(WatchBotConversationRequestSchema)` to create a new message.
  */
 export const WatchBotConversationRequestSchema: GenMessage<WatchBotConversationRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 28);
+  messageDesc(file_canopy_ui_v1_bots, 35);
 
 /**
  * @generated from message canopy.ui.v1.ReadBotExchangeRequest
@@ -989,7 +1195,7 @@ export type ReadBotExchangeRequest = Message<"canopy.ui.v1.ReadBotExchangeReques
  * Use `create(ReadBotExchangeRequestSchema)` to create a new message.
  */
 export const ReadBotExchangeRequestSchema: GenMessage<ReadBotExchangeRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 29);
+  messageDesc(file_canopy_ui_v1_bots, 36);
 
 /**
  * @generated from message canopy.ui.v1.ReadBotExchangeResponse
@@ -1006,7 +1212,7 @@ export type ReadBotExchangeResponse = Message<"canopy.ui.v1.ReadBotExchangeRespo
  * Use `create(ReadBotExchangeResponseSchema)` to create a new message.
  */
 export const ReadBotExchangeResponseSchema: GenMessage<ReadBotExchangeResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 30);
+  messageDesc(file_canopy_ui_v1_bots, 37);
 
 /**
  * @generated from message canopy.ui.v1.AnswerBotApprovalRequest
@@ -1026,6 +1232,13 @@ export type AnswerBotApprovalRequest = Message<"canopy.ui.v1.AnswerBotApprovalRe
    * @generated from field: string answer = 3;
    */
   answer: string;
+
+  /**
+   * One of the gateway-produced rule_options ids on this exact card.
+   *
+   * @generated from field: string rule_option_id = 1001;
+   */
+  ruleOptionId: string;
 };
 
 /**
@@ -1033,7 +1246,7 @@ export type AnswerBotApprovalRequest = Message<"canopy.ui.v1.AnswerBotApprovalRe
  * Use `create(AnswerBotApprovalRequestSchema)` to create a new message.
  */
 export const AnswerBotApprovalRequestSchema: GenMessage<AnswerBotApprovalRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 31);
+  messageDesc(file_canopy_ui_v1_bots, 38);
 
 /**
  * @generated from message canopy.ui.v1.AnswerBotApprovalResponse
@@ -1050,7 +1263,7 @@ export type AnswerBotApprovalResponse = Message<"canopy.ui.v1.AnswerBotApprovalR
  * Use `create(AnswerBotApprovalResponseSchema)` to create a new message.
  */
 export const AnswerBotApprovalResponseSchema: GenMessage<AnswerBotApprovalResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 32);
+  messageDesc(file_canopy_ui_v1_bots, 39);
 
 /**
  * @generated from message canopy.ui.v1.InterruptBotRequest
@@ -1067,7 +1280,7 @@ export type InterruptBotRequest = Message<"canopy.ui.v1.InterruptBotRequest"> & 
  * Use `create(InterruptBotRequestSchema)` to create a new message.
  */
 export const InterruptBotRequestSchema: GenMessage<InterruptBotRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 33);
+  messageDesc(file_canopy_ui_v1_bots, 40);
 
 /**
  * @generated from message canopy.ui.v1.InterruptBotResponse
@@ -1080,7 +1293,7 @@ export type InterruptBotResponse = Message<"canopy.ui.v1.InterruptBotResponse"> 
  * Use `create(InterruptBotResponseSchema)` to create a new message.
  */
 export const InterruptBotResponseSchema: GenMessage<InterruptBotResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 34);
+  messageDesc(file_canopy_ui_v1_bots, 41);
 
 /**
  * Ponawia ostatnią turę, jeśli zakończyła się błędem: ta sama wiadomość użytkownika, bez nowego wpisu w czacie.
@@ -1099,7 +1312,7 @@ export type RetryBotRequest = Message<"canopy.ui.v1.RetryBotRequest"> & {
  * Use `create(RetryBotRequestSchema)` to create a new message.
  */
 export const RetryBotRequestSchema: GenMessage<RetryBotRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 35);
+  messageDesc(file_canopy_ui_v1_bots, 42);
 
 /**
  * @generated from message canopy.ui.v1.RetryBotResponse
@@ -1112,7 +1325,7 @@ export type RetryBotResponse = Message<"canopy.ui.v1.RetryBotResponse"> & {
  * Use `create(RetryBotResponseSchema)` to create a new message.
  */
 export const RetryBotResponseSchema: GenMessage<RetryBotResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 36);
+  messageDesc(file_canopy_ui_v1_bots, 43);
 
 /**
  * @generated from message canopy.ui.v1.BotMcpServer
@@ -1163,7 +1376,7 @@ export type BotMcpServer = Message<"canopy.ui.v1.BotMcpServer"> & {
  * Use `create(BotMcpServerSchema)` to create a new message.
  */
 export const BotMcpServerSchema: GenMessage<BotMcpServer> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 37);
+  messageDesc(file_canopy_ui_v1_bots, 44);
 
 /**
  * @generated from message canopy.ui.v1.SaveBotMcpServerRequest
@@ -1214,7 +1427,7 @@ export type SaveBotMcpServerRequest = Message<"canopy.ui.v1.SaveBotMcpServerRequ
  * Use `create(SaveBotMcpServerRequestSchema)` to create a new message.
  */
 export const SaveBotMcpServerRequestSchema: GenMessage<SaveBotMcpServerRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 38);
+  messageDesc(file_canopy_ui_v1_bots, 45);
 
 /**
  * @generated from message canopy.ui.v1.SaveBotMcpServerResponse
@@ -1231,7 +1444,7 @@ export type SaveBotMcpServerResponse = Message<"canopy.ui.v1.SaveBotMcpServerRes
  * Use `create(SaveBotMcpServerResponseSchema)` to create a new message.
  */
 export const SaveBotMcpServerResponseSchema: GenMessage<SaveBotMcpServerResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 39);
+  messageDesc(file_canopy_ui_v1_bots, 46);
 
 /**
  * @generated from message canopy.ui.v1.ListBotMcpServersRequest
@@ -1244,7 +1457,7 @@ export type ListBotMcpServersRequest = Message<"canopy.ui.v1.ListBotMcpServersRe
  * Use `create(ListBotMcpServersRequestSchema)` to create a new message.
  */
 export const ListBotMcpServersRequestSchema: GenMessage<ListBotMcpServersRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 40);
+  messageDesc(file_canopy_ui_v1_bots, 47);
 
 /**
  * @generated from message canopy.ui.v1.ListBotMcpServersResponse
@@ -1261,7 +1474,7 @@ export type ListBotMcpServersResponse = Message<"canopy.ui.v1.ListBotMcpServersR
  * Use `create(ListBotMcpServersResponseSchema)` to create a new message.
  */
 export const ListBotMcpServersResponseSchema: GenMessage<ListBotMcpServersResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 41);
+  messageDesc(file_canopy_ui_v1_bots, 48);
 
 /**
  * @generated from message canopy.ui.v1.DeleteBotMcpServerRequest
@@ -1278,7 +1491,7 @@ export type DeleteBotMcpServerRequest = Message<"canopy.ui.v1.DeleteBotMcpServer
  * Use `create(DeleteBotMcpServerRequestSchema)` to create a new message.
  */
 export const DeleteBotMcpServerRequestSchema: GenMessage<DeleteBotMcpServerRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 42);
+  messageDesc(file_canopy_ui_v1_bots, 49);
 
 /**
  * @generated from message canopy.ui.v1.DeleteBotMcpServerResponse
@@ -1291,7 +1504,7 @@ export type DeleteBotMcpServerResponse = Message<"canopy.ui.v1.DeleteBotMcpServe
  * Use `create(DeleteBotMcpServerResponseSchema)` to create a new message.
  */
 export const DeleteBotMcpServerResponseSchema: GenMessage<DeleteBotMcpServerResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 43);
+  messageDesc(file_canopy_ui_v1_bots, 50);
 
 /**
  * @generated from message canopy.ui.v1.TestBotMcpServerRequest
@@ -1308,7 +1521,7 @@ export type TestBotMcpServerRequest = Message<"canopy.ui.v1.TestBotMcpServerRequ
  * Use `create(TestBotMcpServerRequestSchema)` to create a new message.
  */
 export const TestBotMcpServerRequestSchema: GenMessage<TestBotMcpServerRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 44);
+  messageDesc(file_canopy_ui_v1_bots, 51);
 
 /**
  * @generated from message canopy.ui.v1.BotMcpTool
@@ -1335,7 +1548,7 @@ export type BotMcpTool = Message<"canopy.ui.v1.BotMcpTool"> & {
  * Use `create(BotMcpToolSchema)` to create a new message.
  */
 export const BotMcpToolSchema: GenMessage<BotMcpTool> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 45);
+  messageDesc(file_canopy_ui_v1_bots, 52);
 
 /**
  * @generated from message canopy.ui.v1.TestBotMcpServerResponse
@@ -1352,5 +1565,5 @@ export type TestBotMcpServerResponse = Message<"canopy.ui.v1.TestBotMcpServerRes
  * Use `create(TestBotMcpServerResponseSchema)` to create a new message.
  */
 export const TestBotMcpServerResponseSchema: GenMessage<TestBotMcpServerResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 46);
+  messageDesc(file_canopy_ui_v1_bots, 53);
 

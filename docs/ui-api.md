@@ -362,6 +362,22 @@ Obie operacje są dostępne również botom z tą samą walidacją; archiwizacja
 
 Sekcja Bots korzysta z tego samego `GatewayService` i uwierzytelnienia BFF. Osobny
 kontrakt `bots.proto` opisuje CRUD botów, rozmowy i ich stream, zgody oraz zdalne MCP.
+`ListBotApprovalRules` i `DeleteBotApprovalRule` są owner-scoped i trasowane do domowego
+gatewaya bota. BFF: `GET /api/bots/:botId/rules` oraz
+`DELETE /api/bots/:botId/rules/:ruleId`. Reguły powstają wyłącznie z utrwalonej opcji karty:
+`AnswerBotApproval.rule_option_id` (1001) zapisuje dokładnie wybrany zakres i zatwierdza
+bieżącą akcję w jednej transakcji. `BotApproval.rule_options`, `allowed_by_rule`, `thread_id`
+i `request_id` (1001–1004) przenoszą opcje, kopię użytej reguły lub widok oryginalnej zgody
+narzędzia w wątku. Odpowiedź na taki widok jest kierowana do tego samego żądania lokalnie
+lub przez istniejącą trasę połączonego komputera; nie tworzy drugiej decyzji.
+`BotConfiguration.thread_permission` (1001) wybiera domyślne uprawnienia nowych wątków bota.
+Pole jest opcjonalne: brak przy aktualizacji zachowuje zapisany wybór, przy tworzeniu
+oznacza `same_bot`. Migracja istniejących botów zachowuje Ask first, także dla full_auto.
+`ListThreadApprovals` pobiera tylko oczekujące zgody narzędzi aktywnych tur właściciela,
+bez snapshotów wątków. `thread_id` jest kotwicą trasowania; `other_thread_ids` uzupełnia
+partię do 512 wątków tego samego domu. Zdalne karty używają kwalifikowanego id oryginalnego
+żądania, więc odpowiedź nie wyszukuje karty na innych komputerach. Szczegóły i zestaw
+chronionych akcji: [bots.md](bots.md).
 `SidebarSettings.pinned_bot_ids` ma numer 350. Pełny zakres: [bots.md](bots.md).
 
 ## Git worktrees

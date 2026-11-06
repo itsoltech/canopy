@@ -76,7 +76,7 @@ export async function runToolCall(
           : (prepared?.prompt ?? approvalPrompt(tool, requested.arguments, phrase));
 
         const approval = await ctx
-          .run((s) => s.approval(turn, call, prompt, question, ctx.expiresAt))
+          .run((s) => s.approval(turn, call, prompt, question, ctx.expiresAt, phrase))
           .catch((cause: unknown) => {
             result = platformError(cause);
 

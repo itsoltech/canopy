@@ -10,6 +10,7 @@ import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import type { BotModel, ModelInput } from "../../apps/gateway/src/bots/types.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { answerWithoutWaitingForPeer, checkLinkedBotApproval } from "./support/bot-approval-linked.ts";
 
 const id = () => crypto.randomUUID();
 const reply = (text: string) => ({ text, calls: [] });
@@ -349,7 +350,8 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
     expect(card).toBeDefined();
     expect(b.worker.created.length).toBe(before);
     expect(card.prompt).toContain("Laptop B");
-    await a.api.answerBotApproval({ approvalId: card.id, approve: true });
+    expect(card.ruleOptions[0]?.targetId).toBe(q(project));
+    await answerWithoutWaitingForPeer(a, card);
     expect(await eventually(async () => b.worker.created.length > before, Boolean)).toBe(true);
     expect(
       await eventually(
@@ -367,6 +369,7 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
       )[0]?.remote_parent_ref,
     ).toBe(qualifyId(botA, aNode));
     await settle(a, botA);
+    await checkLinkedBotApproval(a, b, botA, project, bNode);
     await a.api.updateBot({ botId: botA, configuration: original });
     modelA = async (i) => reply(`A: ${input(i)}`);
   }, 20000);

@@ -3,12 +3,13 @@ import { bots, Provider } from "@canopy/contracts";
 import { type JsonObject } from "@canopy/domain";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { Invalid, NotFound } from "../store/store.ts";
+import { Invalid } from "../store/store.ts";
 import { RequestExpired } from "../store/errors.ts";
 import { proposedBot } from "./creation.ts";
 import type { BotRow, BotTurn, ModelMessage, StoredCall, ToolResult, ToolSpec } from "./types.ts";
 import { approvalView, botConfiguration, uuid, type ApprovalRow } from "./store-views.ts";
 import type { BotCore } from "./store-queue.ts";
+import { botRules } from "./store-rules.ts";
 
 function requireWaitingHarness(sql: SqlClient.SqlClient, turnId: string) {
   return Effect.gen(function* () {
@@ -177,9 +178,10 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
 /** Approvals and questions a turn waits on. */
 export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
   const { owned, changed, fenced, validate, creationHop } = core;
+  const rules = botRules(sql, core);
 
   return {
-    approval: (turn: BotTurn, call: StoredCall, prompt: string, question: boolean, expiresAt?: Date) =>
+    approval: (turn: BotTurn, call: StoredCall, prompt: string, question: boolean, expiresAt?: Date, phrase = "") =>
       sql.withTransaction(
         Effect.gen(function* () {
           yield* fenced(turn);
@@ -219,7 +221,14 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
             ].join("\n");
           }
 
-          yield* sql`INSERT INTO bot_approvals(id, bot_id, turn_id, kind, prompt, proposed_bot, expires_at) VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${question ? "question" : "approval"}, ${prompt}, ${JSON.stringify(proposal)}::jsonb, ${expiresAt ?? null}) ON CONFLICT(id) DO NOTHING`;
+          const bot = (yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${turn.bot_id}::uuid`)[0]!;
+          const { options, matched } = yield* rules.matchingRule(bot.owner_user_id, turn.bot_id, call, phrase);
+          yield* sql`INSERT INTO bot_approvals(id, bot_id, turn_id, kind, prompt, proposed_bot, expires_at, rule_options, allowed_by_rule, status)
+            VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${question ? "question" : "approval"}, ${prompt}, ${JSON.stringify(proposal)}::jsonb, ${expiresAt ?? null},
+              ${JSON.stringify(options.map((o) => toJson(bots.BotApprovalRuleSchema, o)))}::jsonb,
+              ${matched ? JSON.stringify(toJson(bots.BotApprovalRuleSchema, matched)) : null}::jsonb, ${matched ? "approved" : "pending"}) ON CONFLICT(id) DO NOTHING`;
+
+          if (matched) yield* changed(turn.bot_id);
 
           return approvalView((yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${call.id}::uuid`)[0]!);
         }),
@@ -243,7 +252,7 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
           const candidates =
             yield* sql<ApprovalRow>`SELECT a.* FROM bot_approvals a JOIN bots b ON b.id = a.bot_id WHERE a.id = ${request.approvalId}::uuid AND b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL`;
 
-          if (!candidates[0]) return yield* Effect.fail(new NotFound("approval not found"));
+          if (!candidates[0]) return undefined;
           yield* owned(user, candidates[0].bot_id, true);
 
           // Same turn -> approval lock order as wait().
@@ -270,6 +279,12 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
           if (ended.length) return yield* Effect.fail(new RequestExpired());
 
           if (request.answer.length > 32_000) return yield* Effect.fail(new Invalid("answer too long"));
+
+          if (request.ruleOptionId) {
+            if (!request.approve || row.kind !== "approval" || request.answer)
+              return yield* Effect.fail(new Invalid("A standing rule needs an explicit approval without edits."));
+            yield* rules.saveCardRule(user, row.bot_id, row.rule_options ?? [], request.ruleOptionId);
+          }
 
           const updated =
             (yield* sql<ApprovalRow>`UPDATE bot_approvals SET status = ${request.approve ? "approved" : "discarded"}, answer = ${request.answer}, answered_at = now() WHERE id = ${row.id}::uuid RETURNING *`)[0]!;

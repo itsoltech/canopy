@@ -155,6 +155,7 @@ describe.skipIf(!dockerAvailable)("create_bot through the durable gateway loop",
       effort: args.effort,
       approvalPolicy: "safe",
       mcpServerIds: [],
+      threadPermission: "same_bot",
     });
     expect((await core.bots.list()).some((b) => b.configuration?.name === args.name)).toBe(false);
     await core.bots.stop();
@@ -208,6 +209,7 @@ describe.skipIf(!dockerAvailable)("create_bot through the durable gateway loop",
       effort: "high",
       approvalPolicy: "safe",
     });
+    expect(card.proposedBot?.threadPermission).toBe("same_bot");
     expect(card.proposedBot?.shape).toMatch(
       /^(round|cloud|diamond|spark|clover|blob|flower|droplet|pill|triangle|square|star|hexagon|pumpkin)$/,
     );
@@ -289,7 +291,7 @@ describe.skipIf(!dockerAvailable)("create_bot through the durable gateway loop",
     ).rejects.toThrow(/name/);
   }, 20_000);
 
-  test("full auto creates the bot without a card, validated like the card", async () => {
+  test("full auto still asks before creating a bot", async () => {
     const parent = await add("Auto creator");
     await gw.api.updateBot({
       botId: parent.id,
@@ -301,7 +303,10 @@ describe.skipIf(!dockerAvailable)("create_bot through the durable gateway loop",
     expect((await core.bots.list()).some((b) => b.configuration?.name === "Auto child")).toBe(false);
     propose({ name: "Auto child" });
     await send(parent.id);
-    expect((await settled(parent.id)).approvals).toHaveLength(0);
+    const card = (await waiting(parent.id)).approvals.find((a) => a.status === "pending")!;
+    expect(card.ruleOptions).toHaveLength(0);
+    await answer(card.id, true);
+    await settled(parent.id);
     const child = (await core.bots.list()).filter((b) => b.configuration?.name === "Auto child");
     expect(child).toHaveLength(1);
     expect(child[0]!.configuration).toMatchObject({ model: "gpt-parent", approvalPolicy: "full_auto" });

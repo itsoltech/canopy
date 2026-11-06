@@ -340,16 +340,77 @@ rundy modelu. Lista nie zawiera narzędzi lokalnych ani edycji innych botów; w�
 
 Legenda zgód: **R** — odczyt platformy, nigdy nie wymaga karty, także przy `always`;
 **P** — dotychczasowa polityka platformy (`safe`: odwracalna akcja bez karty,
-`always`: karta przed wykonaniem); **A** — karta zawsze, niezależnie od polityki.
+`always`: karta przed wykonaniem); **A** — karta zawsze, niezależnie od polityki;
+**C** — karta w safe/always, z możliwością stałej reguły.
 Zdalne MCP zachowuje dotychczasowe reguły: `safe` przepuszcza wyłącznie deklarowane
 odczyty bez flagi destrukcyjnej, pozostałe operacje wymagają zgody; `always` pyta także
 o odczyty MCP. `ask_user` zawsze tworzy kartę pytania.
 
-**Full auto** (`full_auto`): żadnych kart zgody — także dla **A**, zapisów MCP, `create_bot`
-(konfiguracja walidowana jak przy karcie) i zmian własnego modelu/polityki przez `update_self`.
-Zostają tylko pytania do użytkownika (`ask_user`). Przejście na `full_auto` z innej polityki
-przez `update_self` nadal wymaga karty; użytkownik włącza je w ustawieniach bota albo z menu
-„Needs approval ⌄” na karcie — wtedy oczekujące karty tego bota są od razu zatwierdzane.
+**Full auto** (`full_auto`, „Only protected actions (full auto)”): zwykłe akcje i wywołania
+MCP działają bez karty. Chronione akcje **A**, zmiany modelu i uprawnień nadal pytają.
+Zmiana polityki w ustawieniach lub menu karty nie odpowiada na oczekujące karty.
+
+### Stałe reguły zgody
+
+„Always allow…” na karcie zatwierdza tę akcję i zapisuje dokładnie wybraną regułę.
+Gateway wylicza i utrwala opcje karty; klient przesyła jedynie identyfikator opcji.
+Treść promptu, odpowiedź modelu ani wiadomość innego bota nie tworzy reguły.
+Reguły są osobną, przypisaną właścicielowi relacją `bot_approval_rules`, poza konfiguracją
+edytowalną przez model. Nie nadają dostępu do konta: istniejące granty connectorów nadal
+obowiązują. Gateway sprawdza aktualne reguły przy następnym żądaniu, także przy obsłudze
+bota przez jego domowy gateway z połączonego komputera.
+
+Zakresy: `start_thread` dla konkretnego projektu albo wszystkich projektów;
+`connector` dla konkretnego konta, wszystkich narzędzi albo jednej nazwy narzędzia;
+`send_bot_message` dla konkretnego bota. Pozostałe zakresy to pojedyncze rodzaje akcji:
+`create_project`, `rename_project`, `send_message`,
+`rename_thread`, `interrupt_thread`, `set_goal`, `regenerate_title`, `create_schedule`,
+`update_schedule`, `set_schedule_status`, `schedule_wakeup`, `update_settings` (generowanie tekstu),
+`update_self` (nazwa, wygląd i instrukcje). Odczyty platformy i obsługa własnych routines
+nie wymagają kart, więc nie potrzebują reguł.
+
+Zestaw **zawsze pytaj**, niezależny od reguł i full auto: `create_bot`, `archive_project`,
+`add_workspace`, `update_workspace`, `remove_workspace`, `set_project_defaults`, `set_instance_worker`, `set_instance_models`,
+`set_thread_model`, `archive_thread`, `delete_thread`, `fork_thread`, `set_thread_permission`,
+`answer_interaction`, `stop_background_task`, `cancel_schedule`. `update_self` zawsze pyta
+o model, effort, dostawcę, instancję i politykę; nie przyjmuje reguł ani ustawień uprawnień
+wątków. Jawne `start_thread.permission` powyżej Ask first/Read only, podniesione uprawnienia
+w `create_schedule`/`update_schedule.new_thread` i `update_settings.thread_defaults` też pytają.
+`ask_user` pozostaje pytaniem. Nieznane narzędzie nie dostaje opcji stałej reguły.
+Dodanie lub zmiana workspace’u zawsze pyta, także przy zmianie samej etykiety;
+reguła projektu nie może posłużyć do przekierowania pracy do innego katalogu.
+
+W ustawieniach obok „Ask for approval” lista „Allowed actions” pokazuje zakres, czas i źródło
+(„Added from an approval card”). „Remove rule” cofa zgodę od następnego żądania; historia
+zachowuje kopię reguły. Każda akcja przepuszczona regułą zostawia w czacie zwięzłą linię
+„Allowed by rule: …” z odnośnikiem do zarządzania regułą.
+Już utrwalona zgoda pozostaje ważna po cofnięciu reguły i restarcie gatewaya:
+zatwierdzona akcja wykona się raz. Cofnięcie dotyczy nowych żądań, nie cofa przyjętych decyzji.
+Reguły bota archiwalnego lub przeniesionego nie zatwierdzają nowych żądań.
+
+Nowe boty mają „Threads started by this bot” ustawione na „Same as the bot’s approvals”:
+Ask first dla safe/always, Full auto dla full_auto. Migracja **0090** ustawia istniejącym
+botom bez tego wyboru **Ask first**, także botom full_auto, zachowując zachowanie sprzed
+aktualizacji bez cichego podniesienia uprawnień. Starszy klient, który pomija pole przy
+zapisie, zachowuje zapisany wybór. Zweryfikowane w gatewayu wywołania connectorów czytają
+bieżący wybór bota przy każdym żądaniu: tylko aktualne `same_bot` pozwala dziedziczyć
+reguły kont, również w wcześniej uruchomionych wątkach. Pozostałe opcje to domyślne
+ustawienie użytkownika, Ask first, Read only, Accept edits lub Full auto. Jawne uprawnienie
+w żądaniu bota może zawęzić tryb właściciela, nigdy go podnieść (Read only < Ask first <
+Accept edits < Full auto). Dotyczy to też konfiguracji `new_thread` tworzonego lub
+aktualizowanego harmonogramu. Chronione prośby nadal wymagają zgody. Karty narzędzi uruchomionych wątków pojawiają się
+również w czacie bota, także przez istniejącą trasę UI połączonego komputera. To widok tego
+samego `interaction_requests`, a nie druga zgoda: odpowiedź w dowolnym miejscu rozwiązuje
+jedno żądanie i wysyła jedną odpowiedź do workera. Reguły kont są dziedziczone tylko przez
+lokalne wątki; konto na innym gatewayu ma odrębny grant i wymaga jego własnej zgody.
+Odpowiedź najpierw sprawdza lokalną kartę bota; zdalna karta niesie kwalifikowane id
+oryginalnego żądania i trafia bezpośrednio do jego domu. Otwarty czat pobiera z połączonych
+komputerów tylko oczekujące zgody aktywnych tur, bez snapshotów i historii zakończonych
+wątków. Archiwalne i przeniesione boty nie są odpytywane; lista botów liczy tylko oczekujące zgody.
+
+Przeniesienie bota na inny komputer zachowuje historię kart, ale nie przenosi stałych
+reguł ani powiązań z wcześniej uruchomionymi wątkami. Na nowym komputerze trzeba
+ponownie zatwierdzić zakresy; istniejące wątki pozostają obsługiwane w swoim widoku.
 
 ### Projekty i workspaces
 
@@ -359,8 +420,8 @@ przez `update_self` nadal wymaga karty; użytkownik włącza je w ustawieniach b
 | `create_project` | Nowy projekt; katalog na workerze dodaje się osobno | P |
 | `rename_project` | Nazwa projektu, bez zmiany ścieżek | P |
 | `archive_project` | Miękka archiwizacja projektu i workspace'ów, archiwizacja wątków i anulowanie harmonogramów; historia i pliki pozostają | A |
-| `add_workspace` | Projekt na połączonym workerze w dowolnym istniejącym katalogu absolutnym; walidacja katalogu, duplikatów i właściciela jak w UI | P |
-| `update_workspace` | Katalog na tym samym workerze lub etykieta; istniejące wątki zachowują cwd | P |
+| `add_workspace` | Projekt na połączonym workerze w dowolnym istniejącym katalogu absolutnym; walidacja katalogu, duplikatów i właściciela jak w UI | A |
+| `update_workspace` | Katalog na tym samym workerze lub etykieta; istniejące wątki zachowują cwd | A |
 | `remove_workspace` | Usunięcie z miejsc dla nowych wątków, bez kasowania plików i istniejących rozmów | A |
 | `set_project_defaults` | Domyślne miejsce, dostawca, instancja, model per dostawca i permissions z kontrolą wersji | A |
 
@@ -393,7 +454,7 @@ opis `list_workers` mówi o tym wprost. Brak narzędzia do logowania lub rejestr
 | `list_threads` | Wszystkie projekty lub jeden projekt, wyszukiwanie fragmentu tytułu, statusy, archiwum i limit | R |
 | `get_thread` | Stan, miejsce, model, effort, permission | R |
 | `read_thread` | Ostatnie 100 wiadomości, widoczne turn ids (również odziedziczone) i oczekujące interakcje | R |
-| `start_thread` | Nowy wątek i prompt, atomowy watch wyniku | P; A dla `accept_edits`/`full_auto` |
+| `start_thread` | Nowy wątek i prompt, atomowy watch wyniku | C; A dla jawnego `accept_edits`/`full_auto` |
 | `send_message` | Kolejka lub steer z fallbackiem, watch zakończenia | P |
 | `rename_thread` | Jawny tytuł | P |
 | `set_thread_model` | Model i effort | A |

@@ -15,6 +15,7 @@ import type { CoreRuntime } from "../core/core.ts";
 import { connectorType } from "./catalog.ts";
 import { ConnectorFailure, type ConnectorStore, type ExecutionSource } from "./store.ts";
 import { redactConnector } from "./oauth.ts";
+import { allowThreadConnector } from "../bots/thread-connector-rules.ts";
 
 /** MCP tool results report failure in-band. */
 export const failed = (result: JsonValue) => isJsonObject(result) && Boolean(result["isError"]);
@@ -63,7 +64,7 @@ export async function connectorPermission(
     s.owned(source.userId, source.accountId).pipe(Effect.flatMap(s.credentials)),
   );
 
-  const interaction = await context.runtime.runPromise(
+  let interaction = await context.runtime.runPromise(
     GatewayStore.use((s) =>
       s.recordInteraction(
         create(InteractionRequestSchema, {
@@ -87,6 +88,7 @@ export async function connectorPermission(
     ),
   );
 
+  interaction = await allowThreadConnector(context.runtime, source.userId, interaction, tool);
   await context.interaction(interaction);
 
   for (;;) {

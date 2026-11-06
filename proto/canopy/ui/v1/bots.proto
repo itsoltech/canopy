@@ -20,6 +20,9 @@ message BotConfiguration {
   string approval_policy = 10;
   // Worker harnessu; puste = dobierz i zapamiętaj przy pierwszej turze.
   string worker_id = 830;
+  // Omitted: preserve on update, same_bot on create. Owner-only setting.
+  // Empty/same_bot: ASK for safe/always, FULL_AUTO for full_auto.
+  optional string thread_permission = 1001; // same_bot | user_default | ask | read_only | accept_edits | full_auto
 }
 message Bot {
   string id = 1;
@@ -87,7 +90,30 @@ message BotApproval {
   // Pełny, trwały podgląd create_bot, bez sekretów i MCP. Wykonanie używa tego snapshotu.
   BotConfiguration proposed_bot = 600;
   string routine_title = 560;
+  // Gateway-produced choices, durably bound to this request. Never model-supplied.
+  repeated BotApprovalRule rule_options = 1001;
+  BotApprovalRule allowed_by_rule = 1002;
+  // A projection of the existing thread interaction, not a second approval.
+  string thread_id = 1003;
+  string request_id = 1004;
 }
+message BotApprovalRule {
+  string id = 1;
+  string bot_id = 2;
+  string kind = 3; // start_thread | connector | send_bot_message | reversible platform tool name
+  string target_id = 4; // project, connector account, or destination bot; empty = all projects/bots
+  string tool_name = 5; // connector remote tool; empty = all tools of this account
+  string label = 6; // gateway-resolved, plain language
+  google.protobuf.Timestamp created_at = 7;
+  string source = 8; // approval_card
+}
+message ListBotApprovalRulesRequest { string bot_id = 1; }
+message ListBotApprovalRulesResponse { repeated BotApprovalRule rules = 1; }
+message DeleteBotApprovalRuleRequest { string bot_id = 1; string rule_id = 2; }
+message DeleteBotApprovalRuleResponse {}
+// Batch pending permission requests only; thread_id also selects the linked home.
+message ListThreadApprovalsRequest { string thread_id = 1; repeated string other_thread_ids = 2; }
+message ListThreadApprovalsResponse { repeated BotApproval approvals = 1; }
 message BotApprovalField { string label = 1; string value = 2; }
 message BotConversation {
   Bot bot = 1;
@@ -150,7 +176,13 @@ message SendBotMessageResponse { string turn_id = 1; }
 message WatchBotConversationRequest { string bot_id = 1; }
 message ReadBotExchangeRequest { string exchange_id = 1; }
 message ReadBotExchangeResponse { repeated BotMessage messages = 1; }
-message AnswerBotApprovalRequest { string approval_id = 1; bool approve = 2; string answer = 3; }
+message AnswerBotApprovalRequest {
+  string approval_id = 1;
+  bool approve = 2;
+  string answer = 3;
+  // One of the gateway-produced rule_options ids on this exact card.
+  string rule_option_id = 1001;
+}
 message AnswerBotApprovalResponse { BotApproval approval = 1; }
 message InterruptBotRequest { string bot_id = 1; }
 message InterruptBotResponse {}

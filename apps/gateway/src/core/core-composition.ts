@@ -21,6 +21,8 @@ import { corePublishSchedule } from "./core-schedules.ts";
 import type { GatewayCore } from "./core.ts";
 import { nameAutomationBranch, prepareScheduledWorkspace, prepareSpawnWorkspace } from "../worktrees/automation.ts";
 import { runBotHarness } from "./bot-harness.ts";
+import { answerBotThreadApproval } from "./bot-thread-approval.ts";
+import { linkedBotThreadApprovals } from "../computers/bot-thread-approvals.ts";
 
 export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): BotsRuntime {
   return new BotsRuntime({
@@ -36,6 +38,8 @@ export function createCoreBots(core: GatewayCore, options: GatewayCoreOptions): 
     describeTool: (tool, args) => describeBotTool(core, tool, args),
     prepareTool: (turn, call) => prepareBotTool(core, options, turn, call),
     linkedTick: () => core.linkedAgents.tick(),
+    answerThreadApproval: (request) => answerBotThreadApproval(core, request),
+    linkedThreadApprovals: (botId) => linkedBotThreadApprovals(core.linkedAgents, botId),
   });
 }
 
