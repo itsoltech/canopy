@@ -3,6 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
+  import { headLabel } from "@canopy/domain/git-heads";
 
   /** The branch of a thread's git worktree, in the thread's header; the path in the tooltip (docs/worktrees.md). */
   let { worktree, class: className }: { worktree: ui.ThreadWorktree; class?: ClassValue } = $props();
@@ -16,5 +17,5 @@
   {@attach tooltip(`Worktree ${worktree.path}`)}
 >
   <Icon name="git-fork" size="sm" />
-  <code class="truncate font-mono">{worktree.branch}</code>
+  <code class="truncate font-mono">{headLabel(worktree)}</code>
 </span>

@@ -27,6 +27,7 @@
   import { useThreadDirectory } from "../thread-directory.ts";
   import ThreadTitleActions from "./ThreadTitleActions.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { headLabel } from "@canopy/domain/git-heads";
 
   /**
    * Context of a thread: where it runs, which agent, who answers its approvals,
@@ -130,13 +131,21 @@
       <!-- A git worktree (docs/worktrees.md): its branch and what it started from; opens Manage worktree. -->
       <PanelRow icon="git-fork" onclick={onworktree}>
         <code class="font-mono text-xs/6" {@attach tooltip(`Worktree ${thread.worktree.path}`)}
-          >{thread.worktree.branch}</code
+          >{headLabel(thread.worktree)}</code
         >
         {#snippet aside()}{#if thread.worktree?.baseRef}<span
               class="max-w-1/2 min-w-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
               {@attach tooltip(`Started from ${thread.worktree.baseRef}`)}
               >from <code class="font-mono">{thread.worktree.baseRef}</code></span
             >{/if}{/snippet}
+      </PanelRow>
+    {:else if thread.checkoutHead && headLabel(thread.checkoutHead)}
+      <!-- The workspace's own checkout: its live branch, as the worker reports it. -->
+      <PanelRow icon="git-fork">
+        <code class="font-mono text-xs/6">{headLabel(thread.checkoutHead)}</code>
+        {#snippet aside()}<span class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+            >Current checkout</span
+          >{/snippet}
       </PanelRow>
     {/if}
   </section>

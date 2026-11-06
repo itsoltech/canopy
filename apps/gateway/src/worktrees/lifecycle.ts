@@ -15,7 +15,8 @@ export function worktreeTarget(row: WorktreeLifecycleRow, settings: ui.WorktreeS
     id: row.id,
     path: row.path,
     repoRoot: row.repo_root,
-    branch: row.branch,
+    // Detached: the worker expects no branch checked out there (the last branch stays in the record).
+    branch: row.detached_commit ? "" : row.branch,
     baseRef: row.base_ref,
     baseCommit: row.base_commit,
     location: row.location,

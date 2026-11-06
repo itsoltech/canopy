@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { headLabel } from "@canopy/domain/git-heads";
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { formatRelative } from "#lib/shared/format.ts";
@@ -18,7 +19,7 @@
 <article class={["grid min-w-0 gap-3 py-4", className]}>
   <div class="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
     <h3 class="min-w-0 font-mono text-base font-medium break-all sm:text-sm">
-      {status?.branch || entry.worktree?.branch}
+      {status?.branch || (entry.worktree && headLabel(entry.worktree))}
     </h3>
     <span class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400"
       >{overview.worker(entry.worktree?.workerId ?? "")?.name ?? "Computer"}</span

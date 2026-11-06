@@ -51,6 +51,8 @@ export class TaskCommands {
   }
 
   async unloadThread(kind: Extract<Command["kind"], { case: "unloadThread" }>): Promise<CommandOutput> {
+    this.ctx.state.heads.untrack(kind.value.threadId);
+
     for (const handle of this.ctx.state.grok.values()) await handle.runtime.unload(kind.value.threadId);
 
     return {}; // nothing to free yet: Codex threads share their group's app-server process, Claude turns end with their query

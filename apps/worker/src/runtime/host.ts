@@ -27,6 +27,7 @@ import {
 } from "./host-types.ts";
 import { HostState } from "./host-state.ts";
 import { HostContext } from "./host-context.ts";
+import { HeadTracker } from "../git/heads.ts";
 import { recoverShellInputs } from "./shell-input.ts";
 import { UpdateCheckTimer } from "@canopy/domain/update-checks";
 
@@ -102,6 +103,7 @@ export class WorkerHost {
       sendPreviews: (link, event) => this.sendPreviews(link, event),
     });
     this.secrets = state.secrets;
+    state.heads = new HeadTracker((heads) => this.#ctx.ops.send({ case: "gitHeads", value: { heads } }));
     this.environment = new WorkerAgentEnvironment({
       homes: () => ({ dataDir: options.dataDir, deviceHomes: state.deviceHomes, config: state.config }),
       send: (report) => this.#ctx.ops.send({ case: "agentEnvironment", value: report }),
@@ -162,6 +164,7 @@ export class WorkerHost {
       this.#ctx.ops.send({ case: "agentToolCall", value: call });
 
     if (this.#ctx.state.catalog) this.#ctx.ops.send({ case: "modelCatalog", value: this.#ctx.state.catalog });
+    this.#ctx.state.heads.snapshot();
     void this.#ctx.state.cli.report().catch(() => undefined);
   }
 
@@ -331,6 +334,7 @@ export class WorkerHost {
     await this.#ctx.state.runtimeReconcile;
     this.#cliChecks.stop();
     this.environment.stop();
+    this.#ctx.state.heads.close();
 
     try {
       await this.#ctx.ops.closeBots();

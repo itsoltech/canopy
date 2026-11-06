@@ -33,7 +33,10 @@ export async function checkedWorktree(managedRoots: readonly string[], target: W
 
   if (!record || !existsSync(path)) throw new GitError("WORKTREE_NOT_FOUND", "the registered worktree is missing");
 
-  if (!record.includes(`branch refs/heads/${target.branch}`) || record.some((line) => line.startsWith("locked")))
+  // An empty branch is a detached HEAD, as the worker last reported it (GitHeads).
+  const head = target.branch ? `branch refs/heads/${target.branch}` : "detached";
+
+  if (!record.includes(head) || record.some((line) => line.startsWith("locked")))
     throw new GitError("WORKTREE_CHANGED", "the worktree branch changed or the worktree is locked");
 
   const actual = realpathSync((await gitOk(path, ["rev-parse", "--show-toplevel"], "NOT_A_REPOSITORY")).trim());

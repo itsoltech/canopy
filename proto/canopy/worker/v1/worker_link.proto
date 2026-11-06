@@ -66,6 +66,8 @@ message WorkerMessage {
     CliInstallProgress cli_install_progress = 801;
     NetworkRouteStatus network_route_status = 802;
     AgentEnvironmentReport agent_environment = 820;
+    // Bieżąca gałąź checkoutów wątków (capability "git_heads", docs/worktrees.md).
+    GitHeads git_heads = 840;
   }
 }
 
@@ -1586,6 +1588,20 @@ message RenameWorktreeBranch {
   string from_branch = 2;
   string to_branch = 3;
   string location = 4;
+}
+
+// HEAD checkoutów wątków: po zmianie (obserwacja pliku HEAD), na końcu tury i po połączeniu (pełny stan).
+message GitHeads {
+  repeated ThreadGitHead heads = 1;
+}
+
+message ThreadGitHead {
+  // Wątki pracujące w tym checkoucie (ten sam katalog git).
+  repeated string thread_ids = 1;
+  // Pusty przy odłączonym HEAD.
+  string branch = 2;
+  // Skrócony commit odłączonego HEAD.
+  string detached_commit = 3;
 }
 
 // Rekord znany gatewayowi; location to korzeń utrwalony przy tworzeniu.

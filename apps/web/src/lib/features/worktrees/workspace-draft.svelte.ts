@@ -1,5 +1,6 @@
 import { ui, type GitRefs } from "@canopy/contracts";
 import { listGitRefs } from "./api.ts";
+import { headLabel } from "@canopy/domain/git-heads";
 
 /** Where a new thread works (docs/worktrees.md): the checkout, a new worktree or an earlier one. */
 export type WorkspaceChoice =
@@ -112,7 +113,7 @@ export class WorkspaceDraft {
   get branch(): string {
     const choice = this.choice;
 
-    if (choice.kind === "existing") return choice.worktree.branch;
+    if (choice.kind === "existing") return headLabel(choice.worktree);
 
     if (choice.kind === "new") return this.baseRef;
 

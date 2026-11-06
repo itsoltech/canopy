@@ -111,7 +111,11 @@ export function toUiThread(row: ThreadRow): ui.Thread {
         workerId: row.worktree.worker_id,
         createdAt: timestampFromDate(new Date(row.worktree.created_at)),
         ...(row.worktree.removed_at && { removedAt: timestampFromDate(new Date(row.worktree.removed_at)) }),
+        detachedCommit: row.worktree.detached_commit ?? "",
       },
+    }),
+    ...(row.checkout_head && {
+      checkoutHead: { branch: row.checkout_head.branch, detachedCommit: row.checkout_head.detached_commit },
     }),
   });
 }

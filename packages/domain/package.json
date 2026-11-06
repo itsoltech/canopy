@@ -13,6 +13,7 @@
     "./computers": "./src/computers.ts",
     "./computer-presence": "./src/computer-presence.ts",
     "./projects": "./src/projects.ts",
+    "./git-heads": "./src/git-heads.ts",
     "./json": "./src/json.ts",
     "./oauth-return": "./src/oauth-return.ts",
     "./agent-environment": "./src/agent-environment.ts",

@@ -22,6 +22,12 @@ Brak origin daje pustą tożsamość; błąd komendy zachowuje poprzedni odczyt 
 Bez outboxa i journala. Starszy worker nie dostaje komendy; `WORKER_LINK_PROTOCOL` pozostaje 1.
 Reguły scalania wyborów: [linked-computers.md](linked-computers.md#tożsamość-projektu-według-git-origin).
 
+Nietrwałe `WorkerMessage.git_heads = 840` (`GitHeads`, capability `git_heads`): bieżąca gałąź albo odłączony
+HEAD checkoutów wątków, wysyłane po zmianie pliku `HEAD`, na końcu tury i w pełnym stanie po połączeniu. Gateway
+przyjmuje je tylko dla wątków tego workera i rozsyła zmienione wątki. Starszy gateway ignoruje wiadomość,
+starszy worker jej nie wysyła; `WORKER_LINK_PROTOCOL` pozostaje 1. Szczegóły:
+[worktrees.md](worktrees.md#bieżąca-gałąź).
+
 Nietrwałe `InitRepository` (`Command.init_repository = 217`) i `CloneRepository`
 (`Command.clone_repository = 218`), capability `project_sources`: nowy katalog `name` (jeden segment)
 w istniejącym bezwzględnym `parent_path`, potem `git init` albo `git clone` z `url` przez process

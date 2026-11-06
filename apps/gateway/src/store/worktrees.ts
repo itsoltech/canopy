@@ -39,6 +39,8 @@ export interface WorktreeRow {
   last_used_at: Date;
   removed_at: Date | null;
   location: string;
+  /** Detached HEAD: the short commit the worker reported (`branch` keeps the last branch); empty = on `branch`. */
+  detached_commit: string;
 }
 
 export interface WorktreeStore {
@@ -57,7 +59,9 @@ export interface WorktreeStore {
     expectedVersion: bigint;
   }): FxConflict<bigint>;
   insertWorktree(
-    row: Omit<WorktreeRow, "created_at" | "last_used_at" | "removed_at" | "location"> & { location?: string },
+    row: Omit<WorktreeRow, "created_at" | "last_used_at" | "removed_at" | "location" | "detached_commit"> & {
+      location?: string;
+    },
   ): Fx<WorktreeRow>;
   /** A live worktree of the owner's, in the project and workspace. */
   ownWorktree(ownerUserId: string, id: string, projectId: string, workspaceId: string): Fx<WorktreeRow>;
@@ -70,6 +74,16 @@ export interface WorktreeStore {
   ): Fx<readonly WorktreeRow[]>;
   /** A generated branch name replaces the first one (only while it is still the stored name). */
   renameWorktree(id: string, from: string, to: string): Fx<string[]>;
+  /**
+   * The live HEAD of one checkout of the worker's threads (GitHeads): their worktree's branch, or the workspace's
+   * own checkout. Returns the threads that show a changed branch.
+   */
+  saveGitHead(workerId: string, threadIds: readonly string[], head: GitHeadValue): Fx<string[]>;
+}
+
+export interface GitHeadValue {
+  readonly branch: string;
+  readonly detachedCommit: string;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -141,6 +155,40 @@ export function worktreeStore(sql: SqlClient.SqlClient): WorktreeStore {
       Effect.gen(function* () {
         yield* sql`UPDATE worktrees SET branch = ${to} WHERE id = ${id}::uuid AND branch = ${from}`;
         const rows = yield* sql<{ id: string }>`SELECT id FROM threads WHERE worktree_id = ${id}::uuid`;
+
+        return rows.map((row) => row.id);
+      }),
+
+    saveGitHead: (workerId, threadIds, { branch, detachedCommit }) =>
+      Effect.gen(function* () {
+        const ids = threadIds.filter((id) => UUID.test(id));
+
+        if (ids.length === 0) return [];
+
+        // A thread in a subfolder may be in another repository: only threads at the workspace root report its checkout.
+        const rows = yield* sql<{ id: string }>`
+              WITH reported AS (
+                SELECT t.worktree_id, t.workspace_id, (t.cwd IS NULL OR t.cwd = ws.root_path) AS at_root
+                  FROM threads t JOIN project_workspaces ws ON ws.id = t.workspace_id
+                 WHERE t.id = ANY(${ids}::uuid[]) AND t.worker_id = ${workerId}::uuid AND ws.worker_id = t.worker_id
+              ), worktree AS (
+                UPDATE worktrees w SET branch = coalesce(nullif(${branch}, ''), w.branch), detached_commit = ${detachedCommit}
+                 WHERE w.id IN (SELECT worktree_id FROM reported) AND w.worker_id = ${workerId}::uuid
+                   AND w.removed_at IS NULL
+                   AND (w.branch, w.detached_commit) IS DISTINCT FROM (coalesce(nullif(${branch}, ''), w.branch), ${detachedCommit})
+                RETURNING w.id
+              ), checkout AS (
+                INSERT INTO checkout_heads (workspace_id, branch, detached_commit)
+                SELECT DISTINCT workspace_id, ${branch}, ${detachedCommit} FROM reported WHERE worktree_id IS NULL AND at_root
+                ON CONFLICT (workspace_id) DO UPDATE SET branch = EXCLUDED.branch,
+                       detached_commit = EXCLUDED.detached_commit, updated_at = now()
+                 WHERE (checkout_heads.branch, checkout_heads.detached_commit)
+                       IS DISTINCT FROM (EXCLUDED.branch, EXCLUDED.detached_commit)
+                RETURNING workspace_id
+              )
+              SELECT t.id FROM threads t
+               WHERE t.worktree_id IN (SELECT id FROM worktree)
+                  OR (t.worktree_id IS NULL AND t.workspace_id IN (SELECT workspace_id FROM checkout))`;
 
         return rows.map((row) => row.id);
       }),
