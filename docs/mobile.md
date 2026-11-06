@@ -471,6 +471,19 @@ szczegółów/routines/reminders (zarządzanie w web). Lista botów odświeża s
 Brak push i wysyłania offline. Cache obejmuje wątki, nie rozmowy botów. To pierwsza iteracja zgodności z web,
 nie pełna równoważność wszystkich jego funkcji.
 
+## Markdown
+
+Wiadomości agentów, botów i ludzi renderuje `src/ui/markdown/` natywnymi widokami, bez HTML i WebView.
+Drzewo tokenów, matematykę (`$…$`, `$$…$$`), bezpieczne linki (`safeHref`: tylko http, https, mailto)
+i znaczniki elementów wstawianych w tekst (plakietki wzmianek) dzieli z web `@canopy/domain/markdown`.
+Obrazy nie są pobierane (link do nich), surowy HTML jest tekstem, matematyka pokazuje źródło TeX.
+Tabele nie mają układu tabeli w React Native: szerokości kolumn liczy się z długości tekstu, długie
+komórki się zawijają, a szeroka tabela przewija się w poziomie.
+
+Poziomy `ScrollView` w dymku zawsze dostaje `flexGrow: 0`. Domyślne `flexGrow: 1` w kontenerze
+dopasowanym do treści (`alignItems: "flex-start"`, jak dymek czatu) daje mu na iOS i Androidzie
+niekończącą się wysokość: blok kodu był wysokim pustym prostokątem.
+
 ## Sprawdzanie aplikacji
 
 Przy `INSTALL_FAILED_INSUFFICIENT_STORAGE` na AVD użyj

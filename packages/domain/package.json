@@ -41,7 +41,8 @@
     "./first-line": "./src/first-line.ts",
     "./platform": "./src/platform.ts",
     "./failure-presentation": "./src/failure-presentation.ts",
-    "./failures": "./src/failures.ts"
+    "./failures": "./src/failures.ts",
+    "./markdown": "./src/markdown/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
@@ -50,6 +51,7 @@
     "@bufbuild/protobuf": "2.16.0",
     "@canopy/contracts": "workspace:*",
     "@canopy/ui": "workspace:*",
-    "effect": "4.1.1"
+    "effect": "4.1.1",
+    "marked": "18.1.2"
   }
 }

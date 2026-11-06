@@ -212,6 +212,7 @@
         "@canopy/contracts": "workspace:*",
         "@canopy/ui": "workspace:*",
         "effect": "4.1.1",
+        "marked": "18.1.2",
       },
     },
     "packages/grok-acp": {

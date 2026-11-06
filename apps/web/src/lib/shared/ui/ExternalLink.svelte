@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { safeHref } from "./markdown/safe-url.ts";
+  import { safeHref } from "@canopy/domain/markdown";
 
   /**
    * A link to a page outside the app (a fetched URL, a search result): new tab, no referrer, underlined in

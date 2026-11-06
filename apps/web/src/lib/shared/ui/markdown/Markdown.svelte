@@ -4,7 +4,8 @@
   import { LineReveal } from "../streaming/line-reveal.svelte.ts";
   import MarkdownBlocks from "./MarkdownBlocks.svelte";
   import { provideInlineElements, withSentinels, type InlineElements } from "./inline-elements.ts";
-  import { lexMarkdown, shareTokens } from "./tokens.ts";
+  import { lexMarkdown } from "@canopy/domain/markdown";
+  import { shareTokens } from "./tokens.ts";
 
   /**
    * Markdown from agents, rendered from marked's token tree by Svelte components. Nothing is

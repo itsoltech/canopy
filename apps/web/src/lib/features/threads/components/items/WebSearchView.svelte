@@ -3,7 +3,7 @@
   import { prettyJson } from "#lib/shared/format.ts";
   import { objectsOf, parseJson, str } from "#lib/shared/json.ts";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
-  import { safeHref } from "#lib/shared/ui/markdown/safe-url.ts";
+  import { safeHref } from "@canopy/domain/markdown";
   import ItemFrame from "./ItemFrame.svelte";
 
   /** Web search: the query, and the results as links when they have a recognisable shape. */

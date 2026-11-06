@@ -10,7 +10,15 @@ import { PreferencesProvider } from "../state/preferences";
 import { View } from "react-native";
 import { AppSidebar } from "../features/navigation/AppSidebar";
 import { useReducedMotion } from "../ui/motion";
-import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from "@expo-google-fonts/inter";
+import {
+  useFonts,
+  Inter_400Regular,
+  Inter_400Regular_Italic,
+  Inter_500Medium,
+  Inter_500Medium_Italic,
+  Inter_600SemiBold,
+  Inter_600SemiBold_Italic,
+} from "@expo-google-fonts/inter";
 import { DevicePreferencesProvider } from "../features/settings/device-preferences";
 import { InAppAlerts } from "../features/navigation/InAppAlerts";
 
@@ -79,8 +87,11 @@ function SessionUI() {
 export default function Layout() {
   const [loaded, error] = useFonts({
     Inter_400Regular,
+    Inter_400Regular_Italic,
     Inter_500Medium,
+    Inter_500Medium_Italic,
     Inter_600SemiBold,
+    Inter_600SemiBold_Italic,
   });
 
   if (!loaded && !error) return null;

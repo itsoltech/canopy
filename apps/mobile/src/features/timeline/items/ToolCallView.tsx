@@ -11,6 +11,7 @@ import {
 import { Diff } from "../../../ui/Diff";
 import { CodeBlock, OutputBlock } from "../CodeBlock";
 import { ItemFrame } from "../ItemFrame";
+import { MarkdownBody } from "./MarkdownBody";
 import { Aside, DiffCounts, RawToggle, RowTitle, Section, useRoomyRows } from "./parts";
 
 /**
@@ -60,6 +61,8 @@ export function ToolCallView({ call, status }: { call: ToolCall; status: ItemSta
             empty={status === ItemStatus.IN_PROGRESS ? "Waiting for output…" : "No output."}
           />
         </>
+      ) : look.body === "markdown" && !failed && status !== ItemStatus.IN_PROGRESS ? (
+        <MarkdownBody input={input} result={result} />
       ) : (
         <Section label="Result">
           <OutputBlock

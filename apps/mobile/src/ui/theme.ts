@@ -111,6 +111,9 @@ export const font = {
   regular: "Inter_400Regular",
   medium: "Inter_500Medium",
   semibold: "Inter_600SemiBold",
+  regularItalic: "Inter_400Regular_Italic",
+  mediumItalic: "Inter_500Medium_Italic",
+  semiboldItalic: "Inter_600SemiBold_Italic",
 };
 
 export const styles = StyleSheet.create({
