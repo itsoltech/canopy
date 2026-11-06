@@ -303,6 +303,10 @@ starcie zapisuje jako `stable`. Zmienna środowiskowa `latest` i żądania stars
 także są normalizowane do stable. Nie publikujemy już rolling GitHub release/tagu `latest`
 ani buildów `X.Y.Z-main.<sha7>`. Settings → Workers → Updates pozwala wybrać trzy kanały
 lub wpisać stabilny pin. Nightly z dev, beta z next i stable z main opisuje [release.md](release.md).
+Nightly powstaje w cyklu godzinowym, o minucie 17 UTC, tylko dla zmian releasowalnych
+(lub po ręcznym dispatchu). Push do `dev` nie publikuje aktualizacji; cron, kolejka i buildy mogą
+opóźnić jej dostępność. Wybór kanału, porównanie SemVer, feedy desktopu i wymóg manifestu
+pozostają takie same.
 
 Resolver pobiera asset `manifest.json`, schemat 1:
 

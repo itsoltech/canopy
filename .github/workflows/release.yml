@@ -1,19 +1,22 @@
-# Releases pushes to main/next/dev, manual stable tags and Promote/back-merge dispatches (docs/release.md).
-# `plan` decides the version with a semantic-release dry run, so builds start next to the checks; nothing is
+# Releases main/next pushes, hourly dev snapshots, manual stable tags and dispatches (docs/release.md).
+# `plan` decides whether to release before dev checks/builds; nothing is
 # tagged, pushed to GHCR or uploaded before `checks` pass. Server artifacts are published first; desktop builds
-# (macOS notarization) publish later. Dev push bursts keep the active run and only the newest pending run;
+# (macOS notarization) publish later. All dev events share one active run and only the newest pending run;
 # beta/stable keep independent runs. GITHUB_TOKEN tags do not trigger another workflow.
 name: Release
 
 on:
   push:
-    branches: [main, next, dev]
+    branches: [main, next]
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
+  schedule:
+    # Off the hour to reduce contention. Scheduled workflows run on the default branch (dev).
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: Commit pushed by Promote/back-merge (reject a moved branch)
+        description: Expected branch HEAD (manual release or Promote/back-merge; reject a moved branch)
         required: true
         type: string
       desktop_all_targets:
@@ -26,9 +29,9 @@ permissions:
   contents: read
 
 # GitHub replaces an older pending run in this group, but never cancels its active run (which may be
-# publishing). Unique groups preserve the existing beta/stable/tag/dispatch behavior.
+# publishing). Dev schedule and dispatch share the lock; beta/stable/tags keep independent runs.
 concurrency:
-  group: release-${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' && github.ref || github.run_id }}
+  group: release-${{ github.ref == 'refs/heads/dev' && github.ref || github.run_id }}
   cancel-in-progress: false
 
 env:
@@ -38,12 +41,17 @@ env:
 
 jobs:
   checks:
+    needs: plan
+    # Keep main/next/tag checks even for no-release runs; dev pays for CI only for a planned nightly.
+    if: needs.plan.outputs.published == 'true' || github.ref != 'refs/heads/dev'
     uses: ./.github/workflows/ci.yml
 
   # Dry run: the version this run will release. Shares the per-branch group with `release`, so it never plans
   # while another run of the branch is tagging.
   plan:
-    if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["main", "next", "dev"]'), github.ref_name)
+    if: >-
+      (github.event_name != 'schedule' || github.ref == 'refs/heads/dev') &&
+      (github.event_name != 'workflow_dispatch' || contains(fromJSON('["main", "next", "dev"]'), github.ref_name))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
@@ -125,8 +133,8 @@ jobs:
             exit 1
           fi
 
-  # Nothing of this run will be published: the checks failed, or a newer push to the branch superseded it
-  # (that run releases these commits). Stop the builds instead of holding runners for macOS notarization.
+  # Nothing of this run will be published: the checks failed, or the branch moved meanwhile.
+  # A later scheduled/dispatched dev run picks up the commits. Stop builds, including macOS notarization.
   stop-builds:
     needs: [plan, checks, release]
     if: always() && needs.plan.outputs.published == 'true' && (needs.checks.result == 'failure' || needs.release.result == 'cancelled' || (needs.release.result == 'success' && needs.release.outputs.published != 'true'))
@@ -142,7 +150,7 @@ jobs:
           if [ "$CHECKS" = failure ]; then
             echo "::error::Checks failed; nothing is published and the builds are stopped."
           else
-            echo "::notice::Superseded by a newer push; that run releases these commits."
+            echo "::notice::Branch moved; a later Release run must pick up these commits."
           fi
           gh run cancel "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY"
 
