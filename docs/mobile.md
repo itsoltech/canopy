@@ -432,7 +432,11 @@ Timeline wątku i bota ma odwrócone końce: górny inset jest na najstarszym ko
 a dolny rezerwuje zmierzony kompozytor wraz z safe area. Tło kompozytora sięga pod
 home indicator; padding kontrolek znika pod klawiaturą, zastąpiony jej rzeczywistym overlapem.
 W podziale na kolumny tylko sidebar dostaje lewy inset, a główny panel prawy; po ukryciu
-sidebara główny panel dostaje obie krawędzie. Settings stosuje tę samą regułę do własnych kolumn.
+sidebara główny panel dostaje obie krawędzie. Lewy inset powiększa szerokość kolumny sidebara,
+zamiast zabierać miejsce jej treści. Settings stosuje tę samą regułę do własnych kolumn:
+nawigacja ma 256 dp użytecznej szerokości, a długie etykiety przy większym rozmiarze tekstu
+kończą się wielokropkiem. W szerokim układzie brak wyboru otwiera General; wąski nadal
+zaczyna od listy sekcji. Nagłówek wyrównuje tytuły do kolumn i chroni zamknięcie prawym insetem.
 Pełne arkusze mierzą safe area we własnym `SafeAreaProvider`; dolne pickery chronią
 akcje insetem dolnym i bocznymi, także w poziomie. Zawias: Expo nie udostępnia
 `FoldingFeature`; zawias Galaxy Z Fold po rozłożeniu nie zasłania ekranu, więc nie omijamy go.

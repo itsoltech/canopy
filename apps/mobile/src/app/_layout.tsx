@@ -45,7 +45,7 @@ function Navigation() {
     <View style={{ flex: 1, flexDirection: "row", backgroundColor: c.background }}>
       <StatusBar style={c.dark ? "light" : "dark"} />
       <PaneInsets.Provider value={{ left: insets.left, right: 0 }}>
-        <SidebarColumn open={showSidebar} width={sidebarWidth} instant={last !== context} />
+        <SidebarColumn open={showSidebar} width={sidebarWidth + insets.left} instant={last !== context} />
       </PaneInsets.Provider>
       <PaneInsets.Provider value={{ left: showSidebar ? 0 : insets.left, right: insets.right }}>
         <View style={{ flex: 1, overflow: "hidden" }}>

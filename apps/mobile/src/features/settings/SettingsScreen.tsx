@@ -27,6 +27,7 @@ import { ConnectorSettings } from "./ConnectorSettings";
 import { ProviderSettings } from "./ProviderSettings";
 import { AgentEnvironmentSettings } from "./AgentEnvironmentSettings";
 import { useDevicePreferences } from "./device-preferences";
+import { useLayout } from "../../state/layout";
 
 export default function SettingsScreen() {
   const params = useLocalSearchParams<{ section?: string }>();
@@ -40,7 +41,9 @@ function SettingsContent({ initialSection }: { initialSection: string }) {
   const { reload: reloadSettings } = settings;
   const { projects, workers, reload } = useOverview();
   const device = useDevicePreferences();
-  const [section, setSection] = useState(initialSection);
+  const { wide } = useLayout();
+  const [selectedSection, setSection] = useState(initialSection);
+  const section = selectedSection || (wide ? "general" : "");
 
   useEffect(() => {
     void reloadSettings();
