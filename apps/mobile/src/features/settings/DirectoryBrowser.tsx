@@ -19,13 +19,12 @@ export function DirectoryBrowser({
   return (
     <ResourceState resource={resource}>
       <Field label="Directory path" value={value} onChangeText={onChange} autoCapitalize="none" autoCorrect={false} />
-      <Button secondary title="Browse directory" disabled={!workerId} onPress={() => setPath(value)} />
+      <Button title="Browse directory" disabled={!workerId} onPress={() => setPath(value)} />
       <SettingsSkeletonRows rows={4} />
       {resource.data && (
         <>
-          <Button secondary title="Use this directory" onPress={() => onChange(resource.data!.path)} />
+          <Button title="Use this directory" onPress={() => onChange(resource.data!.path)} />
           <Button
-            secondary
             title="Parent directory"
             onPress={() => setPath(resource.data!.path.replace(/[\\/][^\\/]+[\\/]?$/, "/"))}
           />

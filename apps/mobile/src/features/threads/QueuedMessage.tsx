@@ -130,8 +130,14 @@ function EditorBody({ turn, onClose }: { turn: ui.Turn; onClose: () => void }) {
         </Text>
       ) : null}
       <View style={[styles.row, { justifyContent: "flex-end" }]}>
-        <Button title="Cancel" secondary onPress={onClose} />
-        <Button title="Save" busy={saving} disabled={!allowEmpty && !value.text.trim()} onPress={() => void save()} />
+        <Button title="Cancel" onPress={onClose} />
+        <Button
+          variant="primary"
+          title="Save"
+          busy={saving}
+          disabled={!allowEmpty && !value.text.trim()}
+          onPress={() => void save()}
+        />
       </View>
     </View>
   );

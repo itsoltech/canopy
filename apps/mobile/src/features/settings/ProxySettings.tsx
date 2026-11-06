@@ -25,15 +25,17 @@ export function ProxySettings() {
           {test.detail}
         </Notice>
       )}
-      <SettingsGroup title="Proxies" actions={<Button title="Add proxy" onPress={() => setEditing("new")} />}>
+      <SettingsGroup
+        title="Proxies"
+        actions={<Button variant="primary" title="Add proxy" onPress={() => setEditing("new")} />}
+      >
         {proxies.map((proxy) => (
           <SettingsRow key={proxy.id} title={proxy.name} description={`${proxy.kind} · ${proxy.baseUrl}`}>
             <SettingsValue title="Secret" value={proxy.secretSet ? "Set" : "Not set"} />
             <SettingsValue title="Used by" value={proxy.usedBy.join("\n") || "No providers"} />
             <SettingsActions>
-              <Button secondary title="Edit proxy" onPress={() => setEditing(proxy)} />
+              <Button title="Edit proxy" onPress={() => setEditing(proxy)} />
               <Button
-                secondary
                 title="Test connection"
                 busy={resource.busy}
                 onPress={() =>
@@ -45,7 +47,7 @@ export function ProxySettings() {
                 }
               />
               <Button
-                danger
+                variant="danger"
                 title="Delete proxy"
                 disabled={resource.busy || proxy.usedBy.length > 0}
                 onPress={() =>
@@ -203,6 +205,7 @@ function ProxyForm({ proxy, onSaved }: { proxy?: ui.Proxy; onSaved: () => void }
       <ProxyMappings kind={kind} baseUrl={baseUrl} />
       {error ? <Notice error>{error}</Notice> : null}
       <Button
+        variant="primary"
         title={proxy ? "Save proxy" : "Add proxy"}
         busy={resource.busy}
         disabled={!name.trim() || !baseUrl.trim() || (replace && !secret)}

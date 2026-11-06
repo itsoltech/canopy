@@ -89,7 +89,7 @@ export function BotSettings({
         <Text style={[styles.meta, { color: c.muted }]}>Thread tool requests also appear in this bot’s chat.</Text>
       </View>
       {error ? <Notice error>{error}</Notice> : null}
-      <Button title="Save changes" busy={busy} onPress={() => void save()} />
+      <Button variant="primary" title="Save changes" busy={busy} onPress={() => void save()} />
       <BotSettingsExtras bot={bot} onClose={onClose} disabled={busy} />
       <PickerSheet
         title={picker === "policy" ? "Ask for approval" : "Threads started by this bot"}

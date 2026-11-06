@@ -110,6 +110,7 @@ export function ScheduleEditor({ schedule, onSaved }: { schedule?: ui.Schedule; 
         />
       )}
       <Button
+        variant="primary"
         title={schedule ? "Save schedule" : "Create schedule"}
         busy={resource.busy}
         disabled={
@@ -215,11 +216,7 @@ function ScheduleThread({
           change({ provider: c.provider, providerProfileId: c.profileId, model: c.model, effort })
         }
       />
-      <Button
-        secondary
-        title={`Permissions: ${permissionLabel(draft.permissionMode)}`}
-        onPress={() => setPermission(true)}
-      />
+      <Button title={`Permissions: ${permissionLabel(draft.permissionMode)}`} onPress={() => setPermission(true)} />
       <PermissionPickerSheet
         visible={permission}
         onClose={() => setPermission(false)}

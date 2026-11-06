@@ -79,7 +79,6 @@ export function ScheduleRecurrence({
         </Notice>
       )}
       <Button
-        secondary
         title="Preview occurrences"
         busy={resource.busy}
         disabled={!cron || !timezone}

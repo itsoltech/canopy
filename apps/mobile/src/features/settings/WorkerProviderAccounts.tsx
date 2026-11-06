@@ -108,12 +108,7 @@ function AccountActions({
       {account.configDir && <SettingsValue title="Configuration directory" value={account.configDir} />}
       {instance.harness !== Provider.GROK && (
         <SettingsActions>
-          <Button
-            secondary
-            title={`Refresh ${instance.label || instance.id} account`}
-            disabled={disabled}
-            onPress={refresh}
-          />
+          <Button title={`Refresh ${instance.label || instance.id} account`} disabled={disabled} onPress={refresh} />
         </SettingsActions>
       )}
       {signIn && (

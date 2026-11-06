@@ -37,7 +37,6 @@ export function WorkerCliSettings({
         <View style={{ gap: 12 }}>
           <SettingsActions>
             <Button
-              secondary
               title="Check for updates"
               disabled={!current.online || !!readOnly}
               busy={resource.busy}

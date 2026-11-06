@@ -33,7 +33,7 @@ export default function HomeScreen() {
           Choose a thread or a bot, or start a new thread.
         </Text>
         <View>
-          <Button title="New thread" onPress={() => layout.open("/new-thread")} />
+          <Button variant="primary" title="New thread" onPress={() => layout.open("/new-thread")} />
         </View>
       </View>
     </SafeAreaView>

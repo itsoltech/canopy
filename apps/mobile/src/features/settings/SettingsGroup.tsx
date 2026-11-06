@@ -1,11 +1,13 @@
 import { Children, createContext, useContext, useState, type ReactNode } from "react";
-import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { contextType } from "@canopy/ui";
 import { PickerSheet, SelectField, type PickerOption } from "../../ui/Picker";
 import { Icon } from "../../ui/Icon";
 import { SheetContent } from "../../ui/components";
 import { font, styles, useColors, useTypography } from "../../ui/theme";
 import { Skeleton, useSkeleton } from "../../ui/Skeleton";
+import { Switch } from "../../ui/Switch";
+import { CompactControls } from "../../ui/density";
 
 const GroupRow = createContext(false);
 const WideGroup = createContext(false);
@@ -50,7 +52,7 @@ export function SettingsSection({
             </Skeleton>
           )}
         </View>
-        {actions}
+        <CompactControls.Provider value={true}>{actions}</CompactControls.Provider>
       </View>
       <GroupRow.Provider value={true}>{children}</GroupRow.Provider>
     </View>
@@ -80,7 +82,7 @@ export function SettingsGroup({
           <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
             {title && (
               <Skeleton>
-                <Text accessibilityRole="header" style={[styles.meta, { fontFamily: font.semibold, color: c.text }]}>
+                <Text accessibilityRole="header" style={[styles.label, { fontFamily: font.semibold, color: c.text }]}>
                   {title}
                 </Text>
               </Skeleton>
@@ -91,14 +93,14 @@ export function SettingsGroup({
               </Skeleton>
             )}
           </View>
-          {actions}
+          <CompactControls.Provider value={true}>{actions}</CompactControls.Provider>
         </View>
       )}
       <View
         onLayout={(event) => setWide(event.nativeEvent.layout.width >= 560)}
         style={{
           borderWidth: 1,
-          borderColor: c.line,
+          borderColor: c.ring,
           borderRadius: 12,
           overflow: "hidden",
           backgroundColor: c.surface,
@@ -108,7 +110,15 @@ export function SettingsGroup({
           <GroupRow.Provider value={true}>
             {Children.map(children, (child, index) =>
               child ? (
-                <View style={{ padding: 12, gap: 12, borderTopWidth: index ? 0.5 : 0, borderColor: c.line }}>
+                <View
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    gap: 8,
+                    borderTopWidth: index ? StyleSheet.hairlineWidth : 0,
+                    borderColor: c.ring,
+                  }}
+                >
                   {child}
                 </View>
               ) : null,
@@ -155,7 +165,7 @@ export function SettingsRow({
       <View style={{ flexDirection: "row", alignItems: beside ? "center" : "flex-start", gap: 12 }}>
         <View style={{ minWidth: 0, flex: 1, gap: 3 }}>
           <Skeleton>
-            <Text style={[type.chrome, { color: c.text }]}>
+            <Text style={[type.chrome, { fontFamily: font.medium, color: c.text }]}>
               {title}
               {soon ? " · Soon" : ""}
             </Text>
@@ -269,8 +279,6 @@ export function SettingToggle({
   disabled?: boolean;
   accessory?: ReactNode;
 }) {
-  const c = useColors();
-
   return (
     <SettingsRow
       title={title}
@@ -278,37 +286,9 @@ export function SettingToggle({
       inlineControl
       accessory={accessory}
       control={
-        <Pressable
-          accessibilityRole="switch"
-          accessibilityLabel={title}
-          accessibilityState={{ checked: value, disabled }}
-          disabled={disabled}
-          onPress={() => onChange(!value)}
-          hitSlop={8}
-          style={{ minHeight: 44, justifyContent: "center", opacity: disabled ? 0.5 : 1 }}
-        >
-          <View
-            style={{
-              width: 44,
-              height: 24,
-              padding: 2,
-              borderRadius: 12,
-              backgroundColor: value ? c.action : c.inset,
-              borderWidth: 1,
-              borderColor: c.line,
-            }}
-          >
-            <View
-              style={{
-                width: 18,
-                height: 18,
-                borderRadius: 9,
-                backgroundColor: value ? c.onControl : c.surface,
-                alignSelf: value ? "flex-end" : "flex-start",
-              }}
-            />
-          </View>
-        </Pressable>
+        <View style={{ minHeight: 44, justifyContent: "center" }}>
+          <Switch label={title} value={value} onChange={onChange} disabled={disabled} />
+        </View>
       }
     />
   );

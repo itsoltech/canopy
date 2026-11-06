@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Alert, Text, View } from "react-native";
+import { Text, View } from "react-native";
+import { confirm } from "../../ui/Confirm";
 import { router } from "expo-router";
 import type { bots } from "@canopy/contracts";
 import { useSession } from "../../state/session";
@@ -53,7 +54,6 @@ export function BotSettingsExtras({
       )}
       {connectionsError ? <Notice error>{connectionsError}</Notice> : null}
       <Button
-        secondary
         title="Manage connector access"
         disabled={disabled || busy}
         onPress={() => {
@@ -63,25 +63,22 @@ export function BotSettingsExtras({
       />
       <Text style={[styles.heading, { color: c.text }]}>Danger zone</Text>
       <Button
-        secondary
         title={bot.archived ? "Unarchive bot" : "Archive bot"}
         busy={busy}
         disabled={disabled}
         onPress={() => void act(false)}
       />
       <Button
-        danger
+        variant="danger"
         title="Delete bot…"
         disabled={disabled || busy}
         onPress={() =>
-          Alert.alert(
-            "Delete bot",
-            `Delete “${bot.configuration?.name || "Bot"}” and its conversation? This cannot be undone.`,
-            [
-              { text: "Cancel", style: "cancel" },
-              { text: "Delete bot", style: "destructive", onPress: () => void act(true) },
-            ],
-          )
+          confirm({
+            title: "Delete bot?",
+            description: `This deletes “${bot.configuration?.name || "Bot"}” and its conversation. You cannot undo this.`,
+            confirm: "Delete bot",
+            action: () => void act(true),
+          })
         }
       />
       {error ? <Notice error>{error}</Notice> : null}

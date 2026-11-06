@@ -26,7 +26,12 @@ export function ComputerSettings() {
   return (
     <ResourceState resource={resource}>
       <Notice>Connect your own computers. Each keeps its own gateway and data.</Notice>
-      <Button title="Link a computer" disabled={!data || resource.busy} onPress={() => setPairing(true)} />
+      <Button
+        variant="primary"
+        title="Link a computer"
+        disabled={!data || resource.busy}
+        onPress={() => setPairing(true)}
+      />
       <SettingsGroup title="This computer">
         {resource.initialLoading && (
           <ComputerDetails computer={create(ui.LinkedComputerSchema, { name: " " })} self busy change={change} />
@@ -164,13 +169,13 @@ function ComputerDetails({
             }
           />
           {(computer.capabilities.includes("relay") || computer.shareOnwardNodeIds.length > 0) && (
-            <Button secondary title="Share onward" onPress={() => setSharing(true)} />
+            <Button title="Share onward" onPress={() => setSharing(true)} />
           )}
           {computer.capabilities.includes("move_items") && (
-            <Button secondary title="Move everything here" onPress={() => onMove?.()} />
+            <Button title="Move everything here" onPress={() => onMove?.()} />
           )}
           <Button
-            danger
+            variant="danger"
             title="Unlink computer"
             disabled={busy}
             onPress={() =>
@@ -237,7 +242,6 @@ function ComputerRoutes({
           />
           {direct && route.source === "manual" && (
             <Button
-              secondary
               title="Remove address"
               disabled={busy}
               onPress={() => void change({ action: "remove_route", nodeId: computer.nodeId, address: route.address })}

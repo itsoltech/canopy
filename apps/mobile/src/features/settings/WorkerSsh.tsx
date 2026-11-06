@@ -62,14 +62,12 @@ export function WorkerSsh({ name = "", tags = [] }: { name?: string; tags?: stri
       {error ? <Notice error>{error}</Notice> : null}
       {publicKey ? <SettingsValue title="Canopy SSH public key" value={publicKey} /> : null}
       <Button
-        secondary
         title={publicKey ? "Refresh public key" : "Show public key"}
         busy={busy}
         onPress={() => void run("key")}
       />
       {publicKey ? (
         <Button
-          secondary
           title="Rotate SSH key"
           disabled={busy}
           onPress={() =>
@@ -96,13 +94,7 @@ export function WorkerSsh({ name = "", tags = [] }: { name?: string; tags?: stri
             The gateway connects over SSH. This computer needs access to GitHub Releases and the gateway address for
             workers.
           </Notice>
-          <Button
-            secondary
-            title="Check host key"
-            disabled={!target.trim()}
-            busy={busy}
-            onPress={() => void run("probe")}
-          />
+          <Button title="Check host key" disabled={!target.trim()} busy={busy} onPress={() => void run("probe")} />
           {fingerprint && checked === target && (
             <>
               <SettingsValue
@@ -115,13 +107,14 @@ export function WorkerSsh({ name = "", tags = [] }: { name?: string; tags?: stri
                 }
               />
               <Button
+                variant="primary"
                 title={trusted ? "Install worker" : "Trust and install"}
                 disabled={busy}
                 onPress={() => void run("install")}
               />
             </>
           )}
-          {busy && <Button secondary title="Cancel installation" onPress={() => controller.current?.abort()} />}
+          {busy && <Button title="Cancel installation" onPress={() => controller.current?.abort()} />}
         </>
       )}
       {output ? <SettingsValue title="Installation output" value={output} /> : null}

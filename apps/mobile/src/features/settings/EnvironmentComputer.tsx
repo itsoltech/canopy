@@ -188,11 +188,14 @@ function DriftActions({
 }) {
   return (
     <>
-      <Button secondary title="Keep mine" disabled={disabled} onPress={() => onResolve("keep")} />
-      <Button danger title="Overwrite local changes" disabled={disabled} onPress={() => onResolve("overwrite")} />
-      {importable && (
-        <Button secondary title="Import local changes" disabled={disabled} onPress={() => onResolve("import")} />
-      )}
+      <Button title="Keep mine" disabled={disabled} onPress={() => onResolve("keep")} />
+      <Button
+        variant="danger"
+        title="Overwrite local changes"
+        disabled={disabled}
+        onPress={() => onResolve("overwrite")}
+      />
+      {importable && <Button title="Import local changes" disabled={disabled} onPress={() => onResolve("import")} />}
     </>
   );
 }

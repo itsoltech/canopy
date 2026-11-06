@@ -50,7 +50,8 @@ export function SettingsThreadList({
 
   return (
     <SectionList
-      sections={sections}
+      // SectionList shows its empty view only without sections, not for one empty section.
+      sections={threads.length ? sections : []}
       keyExtractor={(t) => t.id}
       stickySectionHeadersEnabled={false}
       contentContainerStyle={{ paddingHorizontal: 8, paddingBottom: 12, flexGrow: 1 }}

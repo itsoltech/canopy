@@ -34,6 +34,7 @@ export function ComputerPairing({ onClose }: { onClose: () => void }) {
         <Notice>Both computers belong to you and will have full access to each other.</Notice>
         <SettingToggle title="Share configuration" value={shareConfig} disabled={resource.busy} onChange={setShare} />
         <Button
+          variant="primary"
           title={data?.listenerEnabled ? "Generate pairing code" : "Enable network access and generate code"}
           busy={resource.busy}
           onPress={() =>
@@ -55,7 +56,6 @@ export function ComputerPairing({ onClose }: { onClose: () => void }) {
             />
             <SettingsValue title="Computer addresses" value={invitation.addresses.join("\n")} />
             <Button
-              secondary
               title="Revoke code"
               busy={resource.busy}
               onPress={() =>
@@ -80,7 +80,6 @@ export function ComputerPairing({ onClose }: { onClose: () => void }) {
           Settings.
         </Notice>
         <Button
-          secondary
           title="Link computers"
           disabled={!address.trim() || !code.trim()}
           busy={resource.busy}

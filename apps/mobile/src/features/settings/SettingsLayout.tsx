@@ -7,7 +7,10 @@ import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { settingsGroups, settingsSections, type SettingsSection } from "@canopy/ui/settings";
 import { useLayout } from "../../state/layout";
 import { useSession } from "../../state/session";
-import { Field, IconButton, Notice } from "../../ui/components";
+import { IconButton, Notice } from "../../ui/components";
+import { SearchField } from "../../ui/SearchField";
+import { SettingsDensity } from "../../ui/density";
+import { ConnectionBanner } from "../navigation/ConnectionStatus";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 
@@ -78,6 +81,7 @@ export function SettingsLayout({
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
         />
       </View>
+      <ConnectionBanner />
       <View style={{ flex: 1, flexDirection: "row", minWidth: 0 }}>
         {(wide || !section) && (
           <ScrollView
@@ -92,13 +96,7 @@ export function SettingsLayout({
             }}
             contentContainerStyle={{ padding: 12, gap: 16 }}
           >
-            <Field
-              label="Search settings"
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search"
-              autoCapitalize="none"
-            />
+            <SearchField label="Search settings" placeholder="Search" value={query} onChange={setQuery} />
             {settingsGroups.map((group) => (
               <SettingsNavGroup
                 key={group}
@@ -120,7 +118,9 @@ export function SettingsLayout({
             style={{ flex: 1, minWidth: 0 }}
             contentContainerStyle={{ width: "100%", maxWidth: 1024, alignSelf: "center", padding: 20, gap: 24 }}
           >
-            {current ? children : <Text style={[styles.chrome, { color: c.muted }]}>Choose a section.</Text>}
+            <SettingsDensity.Provider value={true}>
+              {current ? children : <Text style={[styles.chrome, { color: c.muted }]}>Choose a section.</Text>}
+            </SettingsDensity.Provider>
           </ScrollView>
         )}
       </View>

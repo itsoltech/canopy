@@ -25,8 +25,9 @@ export function GeneralSettings() {
         Account preferences follow your configuration group. “This device” stays here.
       </Text>
       <Button
-        secondary
         title="Restore device defaults"
+        icon="arrow-path"
+        style={{ alignSelf: "flex-start" }}
         onPress={() => device.reset(["inAppNotifications", "timeFormat"])}
       />
       <SettingsGroup title="Notifications" description="This device · Only while a Canopy window is open.">

@@ -62,11 +62,10 @@ export function EnvironmentFields({
             />
           )}
           {row.keep && <Notice>Saved secret · unchanged</Notice>}
-          <Button secondary title="Remove variable" onPress={() => onChange(value.filter((v) => v.key !== row.key))} />
+          <Button title="Remove variable" onPress={() => onChange(value.filter((v) => v.key !== row.key))} />
         </SettingsGroup>
       ))}
       <Button
-        secondary
         title="Add variable"
         onPress={() => {
           onChange([...value, { key: next, name: "", value: "", secret: false, keep: false }]);

@@ -10,7 +10,8 @@ import { useComputerHome } from "../computers/presence";
 import { botParticipant, type ChatRow } from "@canopy/domain/bot-chat";
 import { useSession } from "../../state/session";
 import { useStream } from "../../state/stream";
-import { ConnectionNotice, IconButton, LatestButton, Notice, ScreenHeader } from "../../ui/components";
+import { ConnectionBanner } from "../navigation/ConnectionStatus";
+import { IconButton, LatestButton, Notice, ScreenHeader } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { KeyboardArea } from "../../ui/KeyboardArea";
 import { ComposerBox } from "../threads/ComposerBox";
@@ -154,6 +155,7 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
           </View>
         }
       />
+      <ConnectionBanner stream={home.away ? undefined : stream} />
       <KeyboardArea>
         <FlatList
           {...following.listProps}
@@ -166,7 +168,6 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
           // Inverted: the footer is the top of the chat, the header sits under the latest message.
           ListFooterComponent={
             <View style={{ gap: 12 }}>
-              {!home.away && (conversation || stream.connection !== "connecting") && <ConnectionNotice {...stream} />}
               {!conversation && <ConversationSkeleton />}
               {conversation && !conversation.messages.length && (
                 <Text style={[styles.meta, { color: c.muted, textAlign: "center" }]}>Start a conversation</Text>

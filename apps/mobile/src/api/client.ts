@@ -95,7 +95,7 @@ export function readPairingQr(raw: string) {
   const value: unknown = JSON.parse(raw);
 
   if (!isPairingQr(value)) {
-    throw new Error("Create a new pairing QR code in Settings → Mobile devices and pair again.");
+    throw new Error("Create a new pairing QR code in Settings → Devices and pair again.");
   }
 
   return {

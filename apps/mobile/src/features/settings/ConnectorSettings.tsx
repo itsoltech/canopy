@@ -26,7 +26,7 @@ export function ConnectorSettings() {
             key={type.id}
             title={type.name}
             description={type.requirements}
-            control={<Button secondary title="Add account" onPress={() => setEditing({ type })} />}
+            control={<Button title="Add account" onPress={() => setEditing({ type })} />}
           />
         ))}
       </SettingsGroup>
@@ -60,7 +60,6 @@ export function ConnectorSettings() {
               }
             />
             <Button
-              secondary
               title="Reconnect"
               onPress={() => {
                 const type = resource.data?.types.find((t) => t.id === account.connectorType);
@@ -69,7 +68,6 @@ export function ConnectorSettings() {
               }}
             />
             <Button
-              secondary
               title="Test connection"
               busy={resource.busy}
               onPress={() =>
@@ -83,7 +81,6 @@ export function ConnectorSettings() {
             {tools?.account?.id === account.id && <ConnectorTools tools={tools} />}
             <ConnectorAccess account={account} onChanged={() => void resource.reload()} />
             <Button
-              secondary
               title="Disconnect account"
               disabled={resource.busy}
               onPress={() =>
@@ -95,7 +92,7 @@ export function ConnectorSettings() {
               }
             />
             <Button
-              danger
+              variant="danger"
               title="Delete account"
               disabled={resource.busy}
               onPress={() =>
@@ -140,7 +137,7 @@ function ConnectorError({ error }: { error?: connectors.ConnectorError }) {
   return (
     <>
       <Notice error>{error.message}</Notice>
-      <Button secondary title={details ? "Hide details" : "Show details"} onPress={() => setDetails(!details)} />
+      <Button title={details ? "Hide details" : "Show details"} onPress={() => setDetails(!details)} />
       {details && <SettingsValue title="Connection details" value={error.detail} />}
     </>
   );

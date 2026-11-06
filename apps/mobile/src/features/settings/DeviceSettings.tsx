@@ -85,8 +85,8 @@ export function DeviceSettings() {
   return (
     <ResourceState resource={resource}>
       <Notice>Your Canopy, with you. Pair once and connect on any Wi-Fi or VPN you share with this computer.</Notice>
-      <Button title="Pair a phone" busy={resource.busy} onPress={() => void pair(false)} />
-      <Button secondary title="Pair a desktop app" disabled={resource.busy} onPress={() => void pair(true)} />
+      <Button variant="primary" title="Pair a phone" busy={resource.busy} onPress={() => void pair(false)} />
+      <Button title="Pair a desktop app" disabled={resource.busy} onPress={() => void pair(true)} />
       <SettingsGroup title="Paired devices">
         <SettingsSkeletonRows controls />
         {data?.devices.map((device) => (
@@ -97,14 +97,12 @@ export function DeviceSettings() {
             control={
               device.pairingVersion < 2 ? (
                 <Button
-                  secondary
                   title="Pair again"
                   disabled={resource.busy}
                   onPress={() => void pair(device.clientKind === "desktop")}
                 />
               ) : !device.revokedAt ? (
                 <Button
-                  secondary
                   title="Revoke access"
                   disabled={resource.busy}
                   onPress={() =>
@@ -136,7 +134,6 @@ export function DeviceSettings() {
               description={`Expires ${format(p.expiresAt?.seconds)}`}
               control={
                 <Button
-                  secondary
                   title="Revoke code"
                   disabled={resource.busy}
                   onPress={() => void resource.run((api) => api.revokeMobilePairing({ id: p.id }))}
@@ -166,7 +163,7 @@ function ThisPhone({ state }: { state: ReturnType<typeof useDeviceSettings> }) {
         title="Unpair this phone"
         control={
           <Button
-            danger
+            variant="danger"
             title="Unpair this phone"
             disabled={resource.busy}
             onPress={() =>
@@ -185,7 +182,6 @@ function ThisPhone({ state }: { state: ReturnType<typeof useDeviceSettings> }) {
           description="This only removes the local key. Revoke this phone from another paired client to end its gateway access."
           control={
             <Button
-              secondary
               title="Forget pairing locally"
               onPress={() =>
                 confirmAction(

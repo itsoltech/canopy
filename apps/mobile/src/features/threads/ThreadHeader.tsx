@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Alert, Text, View } from "react-native";
+import { Text, View } from "react-native";
+import { confirm } from "../../ui/Confirm";
 import { useAppearance } from "../../state/appearance";
 import { router } from "expo-router";
 import type { ui } from "@canopy/contracts";
@@ -12,12 +13,12 @@ import { SidebarToggle } from "../navigation/SidebarToggle";
 import { ProjectMark } from "../../ui/ProjectMark";
 import { styles, useColors } from "../../ui/theme";
 import { Skeleton } from "../../ui/Skeleton";
+import { SearchField } from "../../ui/SearchField";
 
 function useThreadActions(thread: ui.Thread | undefined) {
   const { client } = useSession();
   const [sheet, setSheet] = useState<"actions" | "rename" | "search" | null>(null);
   const [title, setTitle] = useState("");
-  const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -51,7 +52,7 @@ function useThreadActions(thread: ui.Thread | undefined) {
     }
   }
 
-  return { sheet, setSheet, title, setTitle, query, setQuery, error, busy, action };
+  return { sheet, setSheet, title, setTitle, error, busy, action };
 }
 
 export function ThreadHeader({
@@ -77,7 +78,7 @@ export function ThreadHeader({
   const c = useColors();
   const { wide } = useLayout();
   const { user } = useAppearance();
-  const { sheet, setSheet, title, setTitle, query, setQuery, error, busy, action } = useThreadActions(thread);
+  const { sheet, setSheet, title, setTitle, error, busy, action } = useThreadActions(thread);
 
   return (
     <>
@@ -143,36 +144,55 @@ export function ThreadHeader({
           else if (kind === "side") onSideThread();
           else if (kind === "goal") onGoal?.();
           else if (kind === "archive" && !thread?.archivedAt && user?.general?.confirmArchive)
-            Alert.alert("Archive thread?", "This also archives its side threads.", [
-              { text: "Cancel", style: "cancel" },
-              { text: "Archive", onPress: () => void action(kind) },
-            ]);
+            confirm({
+              title: "Archive thread?",
+              description: "This also archives its side threads.",
+              confirm: "Archive thread",
+              danger: false,
+              action: () => void action(kind),
+            });
           else void action(kind);
         }}
       />
       <Overlay visible={!readOnly && sheet === "rename"} onClose={() => setSheet(null)} label="Rename thread">
         <View style={{ padding: 16, gap: 12 }}>
           <Field label="Title" value={title} onChangeText={setTitle} autoFocus />
-          <Button title="Rename" disabled={!title.trim()} busy={busy} onPress={() => void action("title")} />
+          <Button
+            variant="primary"
+            title="Rename"
+            disabled={!title.trim()}
+            busy={busy}
+            onPress={() => void action("title")}
+          />
         </View>
       </Overlay>
-      <Sheet visible={sheet === "search"} title="Search thread" onClose={() => setSheet(null)}>
-        <Field label="Search messages" value={query} onChangeText={setQuery} placeholder="Search" />
-        {query.trim() &&
-          turns
-            .filter((t) => `${t.messageText} ${t.inputText}`.toLowerCase().includes(query.toLowerCase()))
-            .map((t) => (
-              <Text key={t.id} style={[styles.body, { color: c.body }]}>
-                {t.messageText || t.inputText}
-              </Text>
-            ))}
-      </Sheet>
+      <ThreadSearchSheet visible={sheet === "search"} turns={turns} onClose={() => setSheet(null)} />
       {error && sheet === null ? (
         <View style={{ padding: 8 }}>
           <Notice error>{error}</Notice>
         </View>
       ) : null}
     </>
+  );
+}
+
+/** Finds messages in this thread's loaded turns. */
+function ThreadSearchSheet({ visible, turns, onClose }: { visible: boolean; turns: ui.Turn[]; onClose: () => void }) {
+  const c = useColors();
+  const [query, setQuery] = useState("");
+
+  return (
+    <Sheet visible={visible} title="Search thread" onClose={onClose}>
+      <SearchField label="Search messages" value={query} onChange={setQuery} />
+      {query.trim() &&
+        turns
+          .filter((t) => `${t.messageText} ${t.inputText}`.toLowerCase().includes(query.toLowerCase()))
+          .map((t) => (
+            <Text key={t.id} style={[styles.body, { color: c.body }]}>
+              {t.messageText || t.inputText}
+            </Text>
+          ))}
+    </Sheet>
   );
 }
 

@@ -122,7 +122,6 @@ export function ThreadPanel({
             lineage.map((t) => (
               <Button
                 key={t.id}
-                secondary
                 title={t.title}
                 onPress={() => {
                   onClose();

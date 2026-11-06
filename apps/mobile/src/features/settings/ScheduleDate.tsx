@@ -79,6 +79,7 @@ export function ScheduleDate({
           />
           <SettingsActions>
             <Button
+              variant="primary"
               title="Choose date"
               disabled={!valid}
               onPress={() => {

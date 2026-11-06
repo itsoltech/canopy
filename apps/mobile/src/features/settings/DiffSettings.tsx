@@ -10,7 +10,12 @@ export function DiffSettings() {
 
   return (
     <View style={{ gap: 24 }}>
-      <Button secondary title="Restore device defaults" onPress={() => device.reset(diffDeviceKeys)} />
+      <Button
+        title="Restore device defaults"
+        icon="arrow-path"
+        style={{ alignSelf: "flex-start" }}
+        onPress={() => device.reset(diffDeviceKeys)}
+      />
       <SettingsGroup title="Diff viewer" description="This device · Applies to file changes and diff code blocks.">
         <DeviceChoiceRow
           preference="diffLayout"

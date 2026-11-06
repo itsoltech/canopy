@@ -21,6 +21,7 @@ import {
 } from "@expo-google-fonts/inter";
 import { DevicePreferencesProvider } from "../features/settings/device-preferences";
 import { InAppAlerts } from "../features/navigation/InAppAlerts";
+import { ConfirmHost } from "../ui/Confirm";
 
 /** Wide windows keep the thread list beside the stack (collapsible); phones navigate list → thread. */
 function Navigation() {
@@ -41,6 +42,7 @@ function Navigation() {
         <Screens />
         <InAppAlerts />
       </View>
+      <ConfirmHost />
     </View>
   );
 }

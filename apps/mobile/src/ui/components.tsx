@@ -1,7 +1,7 @@
-import { createContext, type ReactNode } from "react";
+import { createContext, useState, type ReactNode } from "react";
 import {
-  ActivityIndicator,
   Keyboard,
+  StyleSheet,
   Modal,
   Pressable,
   ScrollView,
@@ -12,113 +12,19 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { styles, useColors, useTypography } from "./theme";
-import type { Connection } from "../state/stream";
+import { font, styles, useColors, useTypography } from "./theme";
 import { Icon } from "./Icon";
-import type { IconName } from "@canopy/ui/icons";
+import { IconButton } from "./Button";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { Skeleton, useSkeleton } from "./Skeleton";
+import { Skeleton } from "./Skeleton";
+import { useSettingsDensity } from "./density";
 
 export const SheetContent = createContext(false);
 
-export function Button({
-  title,
-  onPress,
-  disabled,
-  busy,
-  secondary,
-  danger,
-}: {
-  title: string;
-  onPress: () => void;
-  disabled?: boolean;
-  busy?: boolean;
-  secondary?: boolean;
-  danger?: boolean;
-}) {
-  const c = useColors();
-  const type = useTypography();
+export { Button, IconButton } from "./Button";
 
-  return (
-    <Skeleton>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={title}
-        accessibilityState={{ disabled: disabled || busy, busy }}
-        disabled={disabled || busy}
-        onPress={onPress}
-        style={({ pressed }) => ({
-          minHeight: 44,
-          paddingHorizontal: 12,
-          paddingVertical: 8,
-          borderRadius: 8,
-          borderWidth: secondary || danger ? 1 : 0,
-          borderColor: c.line,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
-          opacity: disabled || busy ? 0.45 : pressed ? 0.75 : 1,
-          backgroundColor: secondary || danger ? c.inset : c.action,
-        })}
-      >
-        {busy && <ActivityIndicator color={secondary ? c.text : c.onAccent} />}
-        <Text
-          style={[
-            type.body,
-            { color: danger ? c.danger : secondary ? c.text : c.onAccent, flexShrink: 1, textAlign: "center" },
-          ]}
-        >
-          {title}
-        </Text>
-      </Pressable>
-    </Skeleton>
-  );
-}
-
-export function IconButton({
-  icon,
-  label,
-  onPress,
-  disabled,
-  style,
-  color,
-}: {
-  icon: IconName;
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-  style?: StyleProp<ViewStyle>;
-  color?: string;
-}) {
-  const c = useColors();
-  const loading = useSkeleton();
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      disabled={disabled || loading}
-      onPress={onPress}
-      hitSlop={4}
-      style={({ pressed }) => [
-        {
-          width: 44,
-          height: 44,
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 8,
-          backgroundColor: pressed ? c.inset : "transparent",
-          opacity: disabled ? 0.4 : 1,
-        },
-        style,
-      ]}
-    >
-      <Icon name={icon} color={color} />
-    </Pressable>
-  );
-}
+export { Alert, EmptyState, Notice } from "./Alert";
 
 export function ScreenHeader({
   title,
@@ -184,67 +90,84 @@ export function Segmented<T extends string>({
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
+  const type = useTypography();
 
   return (
-    <View style={[styles.row, { backgroundColor: c.inset, padding: 2, gap: 2, borderRadius: 8 }, style]}>
-      {options.map((option) => (
-        <Pressable
-          key={option.value}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: value === option.value }}
-          onPress={() => onChange(option.value)}
-          style={{
-            flex: 1,
-            minHeight: 36,
-            paddingHorizontal: 12,
-            paddingVertical: 6,
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 6,
-            backgroundColor: value === option.value ? c.surface : "transparent",
-            borderWidth: value === option.value ? 1 : 0,
-            borderColor: c.line,
-          }}
-        >
-          {/* The badge sits beside the label, outside its flow: the label stays put when it appears. */}
-          <View>
-            <Text style={[styles.meta, { color: value === option.value ? c.text : c.muted }]}>{option.label}</Text>
-            {value !== option.value && !!option.badge && (
-              <View
-                accessibilityLabel={`${option.badge} unread`}
-                style={{
-                  position: "absolute",
-                  left: "100%",
-                  top: 0,
-                  bottom: 0,
-                  marginLeft: 6,
-                  justifyContent: "center",
-                }}
-              >
-                <Text
-                  style={[
-                    styles.caption,
-                    {
-                      color: c.onAccent,
-                      backgroundColor: c.accent,
-                      borderRadius: 999,
-                      overflow: "hidden",
-                      paddingHorizontal: 6,
-                      fontVariant: ["tabular-nums"],
-                    },
-                  ]}
+    <View style={[styles.row, { backgroundColor: c.recess, padding: 2, gap: 2, borderRadius: 8 }, style]}>
+      {options.map((option) => {
+        const active = value === option.value;
+
+        return (
+          <Pressable
+            key={option.value}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            onPress={() => onChange(option.value)}
+            hitSlop={{ top: 6, bottom: 6 }}
+            style={{
+              flex: 1,
+              minHeight: 32,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 6,
+              backgroundColor: active ? (c.dark ? "#ffffff1a" : "#ffffff") : "transparent",
+              ...(active &&
+                !c.dark && {
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: c.ring,
+                  shadowColor: "#000000",
+                  shadowOpacity: 0.05,
+                  shadowRadius: 1,
+                  shadowOffset: { width: 0, height: 1 },
+                  elevation: 1,
+                }),
+            }}
+          >
+            {/* The badge sits beside the label, outside its flow: the label stays put when it appears. */}
+            <View>
+              <Text style={[type.small, { fontFamily: font.medium, color: active ? c.text : c.muted }]}>
+                {option.label}
+              </Text>
+              {!active && !!option.badge && (
+                <View
+                  accessibilityLabel={`${option.badge} unread`}
+                  style={{
+                    position: "absolute",
+                    left: "100%",
+                    top: 0,
+                    bottom: 0,
+                    marginLeft: 6,
+                    justifyContent: "center",
+                  }}
                 >
-                  {option.badge > 99 ? "99+" : option.badge}
-                </Text>
-              </View>
-            )}
-          </View>
-        </Pressable>
-      ))}
+                  <Text
+                    style={[
+                      styles.caption,
+                      {
+                        color: c.onAccent,
+                        backgroundColor: c.accent,
+                        borderRadius: 999,
+                        overflow: "hidden",
+                        paddingHorizontal: 6,
+                        fontVariant: ["tabular-nums"],
+                      },
+                    ]}
+                  >
+                    {option.badge > 99 ? "99+" : option.badge}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
 
+/** A full-height sheet (web: Dialog): a semibold title, a small close button, the content below. */
 export function Sheet({
   title,
   visible,
@@ -261,12 +184,16 @@ export function Sheet({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={[styles.fill, { backgroundColor: c.surface }]}>
-        <ScreenHeader
-          title={title}
-          back={false}
-          right={<IconButton icon="x-mark" label={`Close ${title}`} onPress={onClose} />}
-        />
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { maxWidth: 600 }]}>
+        <View style={[styles.row, { paddingLeft: 20, paddingRight: 12, paddingTop: 16, paddingBottom: 4 }]}>
+          <Text accessibilityRole="header" numberOfLines={2} style={[styles.heading, { flex: 1, color: c.text }]}>
+            {title}
+          </Text>
+          <IconButton icon="x-mark" size="sm" label={`Close ${title}`} onPress={onClose} />
+        </View>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[styles.page, { maxWidth: 600, paddingHorizontal: 20 }]}
+        >
           <SheetContent.Provider value={true}>{children}</SheetContent.Provider>
         </ScrollView>
       </SafeAreaView>
@@ -274,13 +201,17 @@ export function Sheet({
   );
 }
 
+/** A labelled text field (web: Field + Input): 40 dp, a 1 dp divider outline that turns accent and 2 dp on focus. */
 export function Field({ label, ...props }: TextInputProps & { label: string }) {
   const c = useColors();
   const type = useTypography();
+  const [focused, setFocused] = useState(false);
+  const settings = useSettingsDensity();
+  const disabled = props.editable === false;
 
   return (
-    <View style={{ gap: 8 }}>
-      <Text style={[type.chrome, { color: c.text }]}>{label}</Text>
+    <View style={{ gap: 6 }}>
+      <Text style={[type.body, { fontFamily: font.medium, color: c.text }]}>{label}</Text>
       <Skeleton>
         <TextInput
           accessibilityLabel={label}
@@ -288,57 +219,29 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
           returnKeyType="done"
           onSubmitEditing={Keyboard.dismiss}
           {...props}
+          onFocus={(event) => {
+            setFocused(true);
+            props.onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            props.onBlur?.(event);
+          }}
           style={[
             styles.input,
             type.body,
-            { color: c.text, borderColor: c.line, backgroundColor: c.surface },
+            {
+              color: disabled ? c.muted : c.text,
+              backgroundColor: disabled ? c.sidebar : c.surface,
+              borderColor: focused ? c.accent : c.line,
+            },
+            settings && { minHeight: 44 },
+            // The 2 dp focus outline takes its extra width from the padding, so the text does not move.
+            focused && { borderWidth: 2, paddingHorizontal: 11, paddingVertical: 7 },
             props.style,
           ]}
         />
       </Skeleton>
-    </View>
-  );
-}
-
-export function Notice({ children, error = false }: { children: ReactNode; error?: boolean }) {
-  const c = useColors();
-  const type = useTypography();
-
-  return (
-    <View
-      accessibilityRole={error ? "alert" : "text"}
-      accessibilityLiveRegion="polite"
-      style={{ padding: 16, borderRadius: 12, backgroundColor: c.inset }}
-    >
-      <Text style={[type.body, { color: error ? c.danger : c.muted }]}>{children}</Text>
-    </View>
-  );
-}
-
-export function ConnectionNotice({
-  connection,
-  retry,
-  issue,
-}: {
-  connection: Connection;
-  retry: () => void;
-  issue?: string;
-}) {
-  if (connection === "live") return null;
-
-  return (
-    <View style={{ gap: 10 }}>
-      <Notice error={connection === "error"}>
-        {issue ||
-          (connection === "offline"
-            ? "You’re offline. Your conversation will reconnect when the network returns."
-            : connection === "paused"
-              ? "Updates paused while Canopy is in the background."
-              : connection === "reconnecting"
-                ? "Connection lost. Reconnecting automatically…"
-                : "Connecting to your Canopy…")}
-      </Notice>
-      {["reconnecting", "error"].includes(connection) && <Button title="Reconnect now" secondary onPress={retry} />}
     </View>
   );
 }

@@ -39,7 +39,7 @@ export function AgentEnvironmentSettings() {
 
   return (
     <ResourceState resource={resource}>
-      <Button secondary title="Refresh status" busy={resource.busy} onPress={() => void resource.reload()} />
+      <Button title="Refresh status" busy={resource.busy} onPress={() => void resource.reload()} />
       {resource.initialLoading && (
         <SettingsSkeletonGroups titles={["Instructions", "Skills", "Marketplaces", "Computers"]} />
       )}
@@ -69,7 +69,7 @@ export function AgentEnvironmentSettings() {
             ))}
           </SettingsGroup>
           <SettingsGroup title="Skills" actions={<Button title="Add skill" onPress={() => add("skill")} />}>
-            <Button secondary title="Add from Git" onPress={() => add("source")} />
+            <Button title="Add from Git" onPress={() => add("source")} />
             {!snapshot.skills.length && (
               <SettingsRow title="No skills yet" description="Add a skill folder, ZIP or Git source." />
             )}
@@ -80,7 +80,6 @@ export function AgentEnvironmentSettings() {
                 description={`${item.harnesses.join(" · ")} · Version ${item.version} · ${item.artifact?.files.length ?? 0} files${item.source?.pinned ? " · Pinned" : item.source?.autoUpdate ? " · Automatic updates" : ""}`}
               >
                 <Button
-                  secondary
                   title="Edit skill"
                   onPress={() => {
                     setSkill(item);
@@ -89,7 +88,6 @@ export function AgentEnvironmentSettings() {
                 />
                 {item.source && (
                   <Button
-                    secondary
                     title="Check upstream"
                     onPress={() => {
                       setSkill(item);
@@ -149,8 +147,8 @@ function InstructionRow({
       description={`${document.harness} · ${document.fragments.length} ${document.fragments.length === 1 ? "fragment" : "fragments"} · ${document.selector?.everyone ? "All computers" : "Selected computers and tags"}`}
     >
       <SettingsActions>
-        <Button secondary title="Edit instructions" onPress={onEdit} />
-        <Button danger title="Delete instructions" disabled={busy} onPress={onDelete} />
+        <Button title="Edit instructions" onPress={onEdit} />
+        <Button variant="danger" title="Delete instructions" disabled={busy} onPress={onDelete} />
       </SettingsActions>
     </SettingsRow>
   );
@@ -167,7 +165,7 @@ function DeleteEnvironmentItem({
 }) {
   return (
     <Button
-      danger
+      variant="danger"
       title={title}
       disabled={disabled}
       onPress={() =>

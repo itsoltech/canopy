@@ -38,7 +38,6 @@ export function WorkerCliRow({
         item.action ? (
           <SettingsActions>
             <Button
-              secondary
               title={item.action === "install" ? "Install" : "Update"}
               disabled={disabled || !!item.blockedReason || installing}
               busy={installing}

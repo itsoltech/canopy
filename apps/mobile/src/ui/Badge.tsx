@@ -46,10 +46,43 @@ export function Badge({
   );
 }
 
-/** 6 dp status dot (web: StatusDot); always paired with text. */
-export function StatusDot({ tone }: { tone: Tone }) {
+/** 6 dp status dot (web: StatusDot); always paired with text. `active` adds a soft ping, still under reduced motion. */
+export function StatusDot({ tone, active = false }: { tone: Tone; active?: boolean }) {
+  const color = useTone(tone).dot;
+  const reduced = useReducedMotion();
+  const [ping] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (!active || reduced) {
+      ping.setValue(0);
+
+      return;
+    }
+
+    const loop = Animated.loop(Animated.timing(ping, { toValue: 1, duration: 1000, useNativeDriver: true }));
+
+    loop.start();
+
+    return () => loop.stop();
+  }, [active, reduced, ping]);
+
   return (
-    <View accessible={false} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: useTone(tone).dot }} />
+    <View accessible={false} style={{ width: 6, height: 6 }}>
+      {active && !reduced && (
+        <Animated.View
+          style={{
+            position: "absolute",
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: color,
+            opacity: ping.interpolate({ inputRange: [0, 1], outputRange: [0.75, 0] }),
+            transform: [{ scale: ping.interpolate({ inputRange: [0, 1], outputRange: [1, 2] }) }],
+          }}
+        />
+      )}
+      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
+    </View>
   );
 }
 

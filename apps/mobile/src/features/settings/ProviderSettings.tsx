@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
-import { Button, Notice, Sheet } from "../../ui/components";
+import { Button, Sheet } from "../../ui/components";
 import { SettingsActions, SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { providerName } from "../models/catalog";
@@ -41,7 +41,6 @@ export function ProviderSettings() {
         ]}
       />
       <Button
-        secondary
         title="Refresh providers"
         busy={resource.busy}
         onPress={() => void resource.run((api) => api.refreshProviders({ workerId: scope }))}
@@ -57,7 +56,7 @@ export function ProviderSettings() {
       />
       <SettingsGroup
         title="Provider instances"
-        actions={<Button title="Add instance" onPress={() => setEditing("new")} />}
+        actions={<Button variant="primary" title="Add instance" onPress={() => setEditing("new")} />}
       >
         {instances
           .filter((i) => i.harness === harness)
@@ -69,19 +68,18 @@ export function ProviderSettings() {
             >
               <SettingsActions>
                 <Button
-                  secondary
                   title={scope ? "Edit worker settings" : "Edit definition"}
                   onPress={() => (scope ? setSelected(instance) : setEditing(instance))}
                 />
                 {!scope &&
                   (resource.initialLoading ? (
-                    <Button secondary title="Manage models" disabled onPress={changed} />
+                    <Button title="Manage models" disabled onPress={changed} />
                   ) : (
                     <ProviderModels instance={instance} onChanged={changed} />
                   ))}
                 {!instance.builtIn && !scope && (
                   <Button
-                    danger
+                    variant="danger"
                     title="Delete instance"
                     disabled={resource.busy || instance.threadCount > 0}
                     onPress={() =>
@@ -104,7 +102,7 @@ export function ProviderSettings() {
             </SettingsRow>
           ))}
         {resource.data && !resource.data.instances.some((i) => i.harness === harness) && (
-          <Notice>No instances for this agent yet.</Notice>
+          <SettingsRow title="No instances for this agent yet" />
         )}
       </SettingsGroup>
       <Sheet

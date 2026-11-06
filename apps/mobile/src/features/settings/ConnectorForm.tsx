@@ -199,6 +199,7 @@ export function ConnectorForm({
       )}
       {error ? <Notice error>{error}</Notice> : null}
       <Button
+        variant="primary"
         title={authKind === "oauth" ? "Sign in" : "Save account"}
         busy={resource.busy}
         disabled={!name.trim() || !url.trim()}
@@ -216,7 +217,6 @@ export function ConnectorForm({
             secureTextEntry
           />
           <Button
-            secondary
             title="Complete sign-in"
             disabled={!pasted.trim()}
             busy={resource.busy}
@@ -246,7 +246,6 @@ function ConnectorSetup({ method }: { method?: connectors.ConnectorAuthMethod })
       ))}
       {method?.setupUrl && (
         <Button
-          secondary
           title={method.setupLabel || "Open setup instructions"}
           onPress={() => void Linking.openURL(method.setupUrl)}
         />
@@ -329,7 +328,7 @@ function ConnectorOAuthApp({
       <ResourceState resource={resource}>
         {method?.appManifest ? <SettingsValue title="App manifest" value={method.appManifest} /> : null}
         {method?.appCreateUrl && (
-          <Button secondary title="Create OAuth app" onPress={() => void Linking.openURL(method.appCreateUrl)} />
+          <Button title="Create OAuth app" onPress={() => void Linking.openURL(method.appCreateUrl)} />
         )}
         <SettingsValue
           title="Redirect URL"
@@ -346,7 +345,6 @@ function ConnectorOAuthApp({
           autoCorrect={false}
         />
         <Button
-          secondary
           title="Save OAuth app"
           busy={resource.busy}
           disabled={!clientId.trim()}

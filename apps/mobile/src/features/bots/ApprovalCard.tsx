@@ -82,7 +82,7 @@ export function ApprovalCard({ approval, readOnly = false }: { approval: bots.Bo
       {question && !expired && (
         <>
           {approval.options.map((o) => (
-            <Button key={o} secondary title={o} busy={busy} disabled={readOnly} onPress={() => void respond(true, o)} />
+            <Button key={o} title={o} busy={busy} disabled={readOnly} onPress={() => void respond(true, o)} />
           ))}
           <Field label="Your answer" value={answer} onChangeText={setAnswer} editable={!readOnly} multiline />
         </>
@@ -91,13 +91,12 @@ export function ApprovalCard({ approval, readOnly = false }: { approval: bots.Bo
       {late && <Notice>This request expired. No answer was sent.</Notice>}
       {approval.threadId && (
         <Button
-          secondary
           title="Open thread"
           onPress={() => router.push({ pathname: "/thread/[id]", params: { id: approval.threadId } })}
         />
       )}
       {!expired && approval.ruleOptions.length > 0 && (
-        <Button secondary title="Always allow…" disabled={readOnly || busy} onPress={() => setRules(true)} />
+        <Button title="Always allow…" disabled={readOnly || busy} onPress={() => setRules(true)} />
       )}
       <ApprovalRulePicker
         approval={approval}
@@ -114,7 +113,6 @@ export function ApprovalCard({ approval, readOnly = false }: { approval: bots.Bo
           <View style={{ flex: 1 }}>
             <Button
               title={question ? "Skip" : "Discard"}
-              secondary
               busy={busy}
               disabled={readOnly}
               onPress={() => void respond(false)}
@@ -122,6 +120,7 @@ export function ApprovalCard({ approval, readOnly = false }: { approval: bots.Bo
           </View>
           <View style={{ flex: 1 }}>
             <Button
+              variant="primary"
               title={question ? "Send answer" : "Approve"}
               disabled={readOnly || (question && !answer.trim())}
               busy={busy}

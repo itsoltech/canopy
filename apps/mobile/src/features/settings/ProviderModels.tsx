@@ -50,7 +50,7 @@ export function ProviderModels({ instance, onChanged }: { instance: ui.ProviderI
 
   return (
     <>
-      <Button secondary title="Manage models" onPress={() => setOpen(true)} />
+      <Button title="Manage models" onPress={() => setOpen(true)} />
       <Sheet title="Models" visible={open} onClose={() => setOpen(false)}>
         <ResourceState resource={resource}>
           <Field label="Search models" value={query} onChangeText={setQuery} />

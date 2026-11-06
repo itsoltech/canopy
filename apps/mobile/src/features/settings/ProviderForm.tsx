@@ -197,6 +197,7 @@ export function ProviderForm({
       </SettingsGroup>
       <SettingsValue title="Saved key" value={instance?.apiKeySet ? "Set · write-only" : "Not set"} />
       <Button
+        variant="primary"
         title={instance ? "Save definition" : "Add instance"}
         busy={resource.busy}
         disabled={!id.trim() || (kind === ProviderProfileKind.CLIPROXYAPI && !proxyId)}
