@@ -4,6 +4,8 @@ import type { bots } from "@canopy/contracts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useSession } from "../../state/session";
 import { Button, Notice } from "../../ui/components";
+import Animated from "react-native-reanimated";
+import { useMotion } from "../../ui/motion";
 import { styles, useColors } from "../../ui/theme";
 
 export function BotApprovalRules({ botId, selectedRule = "" }: { botId: string; selectedRule?: string }) {
@@ -13,6 +15,7 @@ export function BotApprovalRules({ botId, selectedRule = "" }: { botId: string; 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const { reveal, rise, layout } = useMotion();
   useEffect(() => {
     if (!client) return;
     let active = true;
@@ -53,9 +56,13 @@ export function BotApprovalRules({ botId, selectedRule = "" }: { botId: string; 
       {loading ? (
         <Text style={[styles.meta, { color: c.muted }]}>Loading allowed actions…</Text>
       ) : rules.length ? (
+        // Loaded rules resolve in; a removed rule fades out and the rest glide up (web `t-reveal`, `reorder`).
         rules.map((rule) => (
-          <View
+          <Animated.View
             key={rule.id}
+            entering={reveal.entering}
+            exiting={rise.exiting}
+            layout={layout}
             style={{
               gap: 6,
               padding: 12,
@@ -74,7 +81,7 @@ export function BotApprovalRules({ botId, selectedRule = "" }: { botId: string; 
               busy={busy === rule.id}
               onPress={() => void remove(rule.id)}
             />
-          </View>
+          </Animated.View>
         ))
       ) : (
         <Text style={[styles.meta, { color: c.muted }]}>

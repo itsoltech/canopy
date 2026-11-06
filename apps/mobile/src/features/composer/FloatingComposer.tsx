@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
+import Animated from "react-native-reanimated";
+import { useMotion } from "../../ui/motion";
 import { useColors } from "../../ui/theme";
 import { IconButton } from "../../ui/components";
 import { useContentInsets } from "../../ui/ScreenFrame";
@@ -18,11 +20,18 @@ export function FloatingComposer({
 }) {
   const c = useColors();
   const insets = useContentInsets();
+  const { pop } = useMotion();
 
   return (
     <View pointerEvents="box-none" style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
       {onLatest && (
-        <View pointerEvents="box-none" style={{ height: 56, alignItems: "center" }}>
+        // It pops in and out above the composer (web `pop`) without moving it.
+        <Animated.View
+          entering={pop.entering}
+          exiting={pop.exiting}
+          pointerEvents="box-none"
+          style={{ height: 56, alignItems: "center" }}
+        >
           <View
             style={{
               borderRadius: 22,
@@ -34,7 +43,7 @@ export function FloatingComposer({
           >
             <IconButton icon="arrow-down" label="Show latest messages" onPress={onLatest} />
           </View>
-        </View>
+        </Animated.View>
       )}
       <View
         onLayout={onLayout}

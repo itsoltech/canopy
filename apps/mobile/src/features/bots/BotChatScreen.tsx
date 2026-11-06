@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Platform, Text, View } from "react-native";
+import { ArrivingCell, useArrivals } from "../../ui/MotionViews";
 import { ConversationSkeleton, Skeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
 import { ScreenFrame } from "../../ui/ScreenFrame";
@@ -25,6 +26,8 @@ import { useLayout } from "../../state/layout";
 import { SidebarToggle } from "../navigation/SidebarToggle";
 import { FloatingComposer } from "../composer/FloatingComposer";
 import { useFloatingComposer } from "../composer/useFloatingComposer";
+
+const chatRowId = (row: ChatRow) => row.id;
 
 function useBotChat(id: string) {
   const { session, client, online, bots: known, updateBots } = useSession();
@@ -98,9 +101,21 @@ function useBotChat(id: string) {
   };
 }
 
-export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) {
+/** The top of the chat: its skeleton while it loads, or a prompt to start it. */
+function ChatStart({ conversation }: { conversation: bots.BotConversation | undefined }) {
   const c = useColors();
 
+  return (
+    <View style={{ gap: 12 }}>
+      {!conversation && <ConversationSkeleton />}
+      {conversation && !conversation.messages.length && (
+        <Text style={[styles.meta, { color: c.muted, textAlign: "center" }]}>Start a conversation</Text>
+      )}
+    </View>
+  );
+}
+
+export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) {
   const {
     session,
     client,
@@ -134,6 +149,9 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
   const waiting = approvals.some((a) => a.status === "pending");
 
   const { atBottom, showLatest } = following;
+  const latestFirst = [...rows].reverse();
+  const arrival = useArrivals(latestFirst.map(chatRowId), Boolean(conversation));
+
   const composer = useFloatingComposer(following, Boolean(text.length));
 
   if (!session) return <Redirect href="/pair" />;
@@ -152,23 +170,18 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
           <TimelineList
             {...composer.listProps}
             style={styles.fill}
-            data={[...rows].reverse()}
-            keyExtractor={(row) => row.id}
+            data={latestFirst}
+            keyExtractor={chatRowId}
             contentContainerStyle={[styles.page, { gap: 0, flexGrow: 1 }]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
             renderItem={({ item }) => (
-              <ChatRowView row={item} approvals={approvals} readOnly={!live} onAnswer={answer} />
+              <ArrivingCell entering={arrival(item.id)}>
+                <ChatRowView row={item} approvals={approvals} readOnly={!live} onAnswer={answer} />
+              </ArrivingCell>
             )}
             // Inverted: the footer is the top of the chat, the header sits under the latest message.
-            ListFooterComponent={
-              <View style={{ gap: 12 }}>
-                {!conversation && <ConversationSkeleton />}
-                {conversation && !conversation.messages.length && (
-                  <Text style={[styles.meta, { color: c.muted, textAlign: "center" }]}>Start a conversation</Text>
-                )}
-              </View>
-            }
+            ListFooterComponent={<ChatStart conversation={conversation} />}
             ListHeaderComponent={
               <>
                 {conversation?.working && conversation.bot ? (

@@ -10,6 +10,9 @@ import { Icon } from "../../ui/Icon";
 import { RequestCountdown } from "../../ui/RequestCountdown";
 import { PickerSheet } from "../../ui/Picker";
 import { styles, useColors } from "../../ui/theme";
+import Animated from "react-native-reanimated";
+import { useMotion } from "../../ui/motion";
+import { Swap } from "../../ui/MotionViews";
 
 type ApprovalCardProps = {
   approval: bots.BotApproval;
@@ -56,6 +59,7 @@ export function ApprovalCard({ approval, readOnly = false, onAnswer }: ApprovalC
   const [rules, setRules] = useState(false);
   const question = approval.kind === "question";
   const expired = late || approval.status === "expired";
+  const { rise } = useMotion();
 
   if (approval.allowedByRule)
     return (
@@ -95,12 +99,12 @@ export function ApprovalCard({ approval, readOnly = false, onAnswer }: ApprovalC
         {approval.prompt}
       </Text>
       {question && !expired && (
-        <>
+        <Animated.View exiting={rise.exiting} style={{ gap: 12 }}>
           {approval.options.map((o) => (
             <Button key={o} title={o} busy={busy} disabled={readOnly} onPress={() => void respond(true, o)} />
           ))}
           <Field label="Your answer" value={answer} onChangeText={setAnswer} editable={!readOnly} multiline />
-        </>
+        </Animated.View>
       )}
       {error ? <Notice error>{error}</Notice> : null}
       {late && <Notice>This request expired. No answer was sent.</Notice>}
@@ -119,6 +123,38 @@ export function ApprovalCard({ approval, readOnly = false, onAnswer }: ApprovalC
         onClose={() => setRules(false)}
         onSelect={(id) => void respond(true, "", id)}
       />
+      <ApprovalActions
+        expired={expired}
+        question={question}
+        busy={busy}
+        readOnly={readOnly}
+        canSend={!question || Boolean(answer.trim())}
+        respond={(approve) => void respond(approve)}
+      />
+    </View>
+  );
+}
+
+/** The card's answer buttons; expiry swaps them for its note (web `swap`). */
+function ApprovalActions({
+  expired,
+  question,
+  busy,
+  readOnly,
+  canSend,
+  respond,
+}: {
+  expired: boolean;
+  question: boolean;
+  busy: boolean;
+  readOnly: boolean;
+  canSend: boolean;
+  respond: (approve: boolean) => void;
+}) {
+  const c = useColors();
+
+  return (
+    <Swap value={expired ? "expired" : "open"}>
       {expired ? (
         <Text accessibilityRole="text" style={[styles.meta, { minHeight: 44, paddingVertical: 12, color: c.muted }]}>
           Expired. The bot no longer needs an answer.
@@ -130,21 +166,21 @@ export function ApprovalCard({ approval, readOnly = false, onAnswer }: ApprovalC
               title={question ? "Skip" : "Discard"}
               busy={busy}
               disabled={readOnly}
-              onPress={() => void respond(false)}
+              onPress={() => respond(false)}
             />
           </View>
           <View style={{ flex: 1 }}>
             <Button
               variant="primary"
               title={question ? "Send answer" : "Approve"}
-              disabled={readOnly || (question && !answer.trim())}
+              disabled={readOnly || !canSend}
               busy={busy}
-              onPress={() => void respond(true)}
+              onPress={() => respond(true)}
             />
           </View>
         </View>
       )}
-    </View>
+    </Swap>
   );
 }
 

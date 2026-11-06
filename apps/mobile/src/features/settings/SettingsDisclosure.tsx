@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
-import { Icon } from "../../ui/Icon";
+import { Chevron, Expand } from "../../ui/MotionViews";
 import { styles, useColors } from "../../ui/theme";
 
 export function SettingsDisclosure({
@@ -23,12 +23,13 @@ export function SettingsDisclosure({
         onPress={() => setOpen((value) => !value)}
         style={[styles.row, { minHeight: 44 }]}
       >
-        <View style={{ transform: [{ rotate: open ? "90deg" : "0deg" }] }}>
-          <Icon name="chevron-right" />
-        </View>
+        <Chevron open={open} />
         <Text style={[styles.workMeta, { flex: 1, color: c.muted }]}>{title}</Text>
       </Pressable>
-      {open && children}
+      {/* Accordion (web `expand`): the content grows from its header and shrinks back. */}
+      <Expand open={open} style={{ gap: 8 }}>
+        {children}
+      </Expand>
     </View>
   );
 }

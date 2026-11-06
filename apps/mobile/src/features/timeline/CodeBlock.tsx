@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { BlobRef } from "@canopy/contracts";
 import { formatBytes } from "@canopy/domain/format";
-import { Icon } from "../../ui/Icon";
 import { styles, useColors, useTypography } from "../../ui/theme";
+import { Chevron } from "../../ui/MotionViews";
 
 /** Longer text stays on the web: the phone shows this much of an output or a diff. */
 const PREVIEW = 12_000;
@@ -52,7 +52,7 @@ export function MoreButton({
       hitSlop={8}
       style={[styles.row, { gap: 6, minHeight: 32 }]}
     >
-      <Icon name={expanded ? "chevron-down" : "chevron-right"} size={14} color={c.faint} />
+      <Chevron open={expanded} size={14} color={c.faint} />
       <Text style={[styles.workMeta, { color: c.soft }]}>{children}</Text>
       {note ? <Text style={[styles.workMeta, { color: c.muted }]}>{note}</Text> : null}
     </Pressable>

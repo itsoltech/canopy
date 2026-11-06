@@ -5,6 +5,7 @@ import type { Connection } from "../../state/stream";
 import { useOverview } from "../../state/overview";
 import { Alert } from "../../ui/Alert";
 import { StatusDot } from "../../ui/Badge";
+import { Swap } from "../../ui/MotionViews";
 import { Button } from "../../ui/Button";
 import { Overlay } from "../../ui/Overlay";
 import { font, useColors, useTypography } from "../../ui/theme";
@@ -73,9 +74,12 @@ export function ConnectionStatus({ stream }: { stream: StreamState }) {
           tone={look.tone}
           active={stream.connection === "reconnecting" || stream.connection === "connecting"}
         />
-        <Text numberOfLines={1} style={[type.small, { color: c.muted }]}>
-          {look.label}
-        </Text>
+        {/* A new state swaps in beside its dot (web `swap`). */}
+        <Swap value={stream.connection} style={{ flexShrink: 1 }}>
+          <Text numberOfLines={1} style={[type.small, { color: c.muted }]}>
+            {look.label}
+          </Text>
+        </Swap>
       </Pressable>
       <ConnectionDetails stream={stream} visible={open} onClose={() => setOpen(false)} />
     </>

@@ -7,6 +7,7 @@ import { useAnchoredToggle } from "../../ui/feed-anchor";
 import { styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { ItemStatusIcon } from "./ItemStatusIcon";
+import { Chevron } from "../../ui/MotionViews";
 
 /** The nested items of the item a frame shows (web: item-context.ts); a frame shows them inside its details. */
 export const ItemChildren = createContext<ReactNode>(undefined);
@@ -55,7 +56,7 @@ export function ItemFrame({
     <View style={[styles.row, { alignItems: "flex-start", minHeight: 24 }]}>
       {body && (
         <View style={{ height: 24, justifyContent: "center" }}>
-          <Icon name={open ? "chevron-down" : "chevron-right"} color={c.faint} />
+          <Chevron open={open} color={c.faint} />
         </View>
       )}
       <View style={{ height: 24, justifyContent: "center" }}>{lead ?? <Icon name={icon} color={iconColor} />}</View>

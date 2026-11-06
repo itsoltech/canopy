@@ -6,6 +6,7 @@ import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { ProjectMark } from "../../ui/ProjectMark";
+import { Swap } from "../../ui/MotionViews";
 
 export function age(seconds?: bigint) {
   if (!seconds) return "";
@@ -98,7 +99,10 @@ export function SidebarThread({
         <Text numberOfLines={1} style={[styles.meta, { flex: 1, color: c.muted }]}>
           {project?.name ?? "Unknown project"}
         </Text>
-        <Text style={[styles.meta, { color: tone }]}>{label}</Text>
+        {/* A new state (working, needs input, a result) swaps in; the age ticking over does not. */}
+        <Swap value={needs ? "needs" : busy ? thread.status : result || "age"}>
+          <Text style={[styles.meta, { color: tone }]}>{label}</Text>
+        </Swap>
       </View>
       <Text numberOfLines={1} style={[styles.body, { color: c.body, opacity: busy ? 0.6 : 1 }]}>
         {thread.title || "Untitled thread"}

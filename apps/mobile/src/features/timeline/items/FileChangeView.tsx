@@ -7,11 +7,11 @@ import { basename } from "@canopy/domain/humanize";
 import { diffCounts } from "@canopy/domain/tools";
 import { Badge } from "../../../ui/Badge";
 import { Diff } from "../../../ui/Diff";
-import { Icon } from "../../../ui/Icon";
 import { styles, useColors, useTypography } from "../../../ui/theme";
 import { useDevicePreferences } from "../../settings/device-preferences";
 import { ItemFrame } from "../ItemFrame";
 import { Aside, DiffCounts, RowTitle } from "./parts";
+import { Chevron } from "../../../ui/MotionViews";
 
 /** Files the agent added, edited, moved or deleted, each with its diff (web: FileChangeView). */
 export function FileChangeView({ change, status }: { change: FileChange; status: ItemStatus }) {
@@ -75,7 +75,7 @@ function FileDiffEntry({
         onPress={() => setExpanded(!shown)}
         style={[styles.row, { minHeight: 40 }]}
       >
-        <Icon name={shown ? "chevron-down" : "chevron-right"} color={c.faint} />
+        <Chevron open={shown} color={c.faint} />
         <Badge tone={look.tone}>{look.label}</Badge>
         <Text numberOfLines={1} style={[type.mono, { flex: 1, fontSize: 12, color: c.text }]}>
           {path}

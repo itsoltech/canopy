@@ -7,9 +7,12 @@ import { AppearanceProvider } from "../state/appearance";
 import { OverviewProvider } from "../state/overview";
 import { LayoutProvider, useLayout } from "../state/layout";
 import { PreferencesProvider } from "../state/preferences";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
+import Animated, { LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { AppSidebar } from "../features/navigation/AppSidebar";
-import { useReducedMotion } from "../ui/motion";
+import { motion, smoothOut, useReducedMotion } from "../ui/motion";
 import {
   useFonts,
   Inter_400Regular,
@@ -28,21 +31,22 @@ import { PaneInsets } from "../ui/ScreenFrame";
 function Navigation() {
   const c = useColors();
   const { session } = useSession();
-  const { sidebarOpen, sidebarWidth } = useLayout();
+  const { wide, sidebarOpen, sidebarWidth } = useLayout();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  const showSidebar = session && sidebarOpen && pathname !== "/settings";
+  const showSidebar = Boolean(session) && sidebarOpen && pathname !== "/settings";
+  // Only the toggle animates; a rotation, a fold, sign-in or Settings (which has its own list) switch at once.
+  const context = `${wide}:${Boolean(session)}:${pathname === "/settings"}`;
+  const [last, setLast] = useState(context);
+
+  if (last !== context) setLast(context);
 
   return (
     <View style={{ flex: 1, flexDirection: "row", backgroundColor: c.background }}>
       <StatusBar style={c.dark ? "light" : "dark"} />
-      {showSidebar && (
-        <PaneInsets.Provider value={{ left: insets.left, right: 0 }}>
-          <View style={{ width: sidebarWidth, borderRightWidth: 1, borderRightColor: c.line }}>
-            <AppSidebar />
-          </View>
-        </PaneInsets.Provider>
-      )}
+      <PaneInsets.Provider value={{ left: insets.left, right: 0 }}>
+        <SidebarColumn open={showSidebar} width={sidebarWidth} instant={last !== context} />
+      </PaneInsets.Provider>
       <PaneInsets.Provider value={{ left: showSidebar ? 0 : insets.left, right: insets.right }}>
         <View style={{ flex: 1, overflow: "hidden" }}>
           <Screens />
@@ -50,6 +54,54 @@ function Navigation() {
         </View>
       </PaneInsets.Provider>
       <ConfirmHost />
+    </View>
+  );
+}
+
+/**
+ * Panel reveal (web `t-sidebar`): the list slides in from the window's edge and fades, opening on `slow` and closing
+ * on `medium`. The column takes its width before the slide in and gives it up after the slide out, so the screen
+ * beside it lays out once, never during the motion (a long thread re-wraps all its text, which would stall the
+ * frames). Instant with reduced motion.
+ */
+function SidebarColumn({ open, width, instant }: { open: boolean; width: number; instant: boolean }) {
+  const c = useColors();
+  const reduced = useReducedMotion();
+  const [mounted, setMounted] = useState(open);
+  // The column has laid out at its width: the slide may start.
+  const [placed, setPlaced] = useState(open);
+  const progress = useSharedValue(open ? 1 : 0);
+
+  const panel = useAnimatedStyle(() => ({
+    opacity: progress.get(),
+    transform: [{ translateX: (progress.get() - 1) * width }],
+  }));
+
+  if (open && !mounted) setMounted(true);
+
+  if (!mounted && placed) setPlaced(false);
+  useEffect(() => {
+    if (open && !placed) return;
+    const duration = reduced || instant ? 0 : open ? motion.slow : motion.medium;
+    progress.set(
+      withTiming(open ? 1 : 0, { duration, easing: smoothOut }, (finished) => {
+        if (finished && !open) scheduleOnRN(setMounted, false);
+      }),
+    );
+  }, [open, placed, instant, reduced, progress]);
+
+  if (!mounted) return null;
+
+  return (
+    <View onLayout={() => setPlaced(true)} style={{ width, overflow: "hidden" }}>
+      <Animated.View
+        pointerEvents={open ? "auto" : "none"}
+        style={[{ flex: 1, width, borderRightWidth: 1, borderRightColor: c.line }, panel]}
+      >
+        <LayoutAnimationConfig skipEntering skipExiting>
+          <AppSidebar />
+        </LayoutAnimationConfig>
+      </Animated.View>
     </View>
   );
 }
@@ -62,6 +114,12 @@ function Screens() {
 
   return (
     <Stack
+      // A screen's first render and its removal do not animate its rows and notices; later changes do.
+      screenLayout={({ children }) => (
+        <LayoutAnimationConfig skipEntering skipExiting>
+          {children}
+        </LayoutAnimationConfig>
+      )}
       screenOptions={{
         animation: reduced ? "none" : wide ? "fade" : "default",
         headerShown: false,

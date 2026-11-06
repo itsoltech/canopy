@@ -122,6 +122,18 @@ export function useArrivals(keys: readonly string[], ready = true): (key: string
 }
 
 /**
+ * A virtualized list's cell that rises in with `entering` (from `useArrivals`); the rows it mounts with appear at
+ * once, and rows added inside it later animate themselves.
+ */
+export function ArrivingCell({ entering, children }: { entering: Preset["entering"]; children: ReactNode }) {
+  return (
+    <Animated.View entering={entering}>
+      <LayoutAnimationConfig skipEntering>{children}</LayoutAnimationConfig>
+    </Animated.View>
+  );
+}
+
+/**
  * A list cell that glides to its new place when rows above it arrive, leave or move (web `reorder`); pass it as
  * `CellRendererComponent` of a SectionList or FlatList.
  */
