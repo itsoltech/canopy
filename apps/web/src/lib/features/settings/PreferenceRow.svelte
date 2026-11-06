@@ -12,6 +12,7 @@
     changed,
     onreset,
     soon = false,
+    flush = false,
     control: rowControl,
     class: className,
   }: {
@@ -22,11 +23,12 @@
     onreset: () => void;
     control: Snippet;
     soon?: boolean;
+    flush?: boolean;
     class?: ClassValue;
   } = $props();
 </script>
 
-<SettingsRow {title} {description} {soon} class={className}>
+<SettingsRow {title} {description} {soon} {flush} class={className}>
   {@render children?.()}
   {#snippet control()}
     <ResettableControl changed={changed && !soon}>

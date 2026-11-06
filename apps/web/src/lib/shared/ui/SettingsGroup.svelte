@@ -1,15 +1,27 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
+  import SettingsCard from "./SettingsCard.svelte";
 
-  /** Titled group of settings rows on one card; `actions` sit right of the title. */
+  /**
+   * Titled group of settings rows on one card; `actions` sit right of the title. `cards`: the items are cards
+   * of their own (workers), stacked with a gap instead of rows on one card.
+   */
   let {
     title,
     description,
+    cards = false,
     class: className,
     actions,
     children,
-  }: { title?: string; description?: string; class?: ClassValue; actions?: Snippet; children: Snippet } = $props();
+  }: {
+    title?: string;
+    description?: string | undefined;
+    cards?: boolean;
+    class?: ClassValue;
+    actions?: Snippet;
+    children: Snippet;
+  } = $props();
 
   const id = $props.id();
 </script>
@@ -26,9 +38,6 @@
       {#if actions}<div class="flex shrink-0 items-center gap-2">{@render actions()}</div>{/if}
     </div>
   {/if}
-  <div
-    class="settings-group-body divide-y divide-zinc-950/5 overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:ring-white/10"
-  >
-    {@render children()}
-  </div>
+  {#if cards}<div class="grid grid-cols-1 gap-3">{@render children()}</div>
+  {:else}<SettingsCard class="divide-y divide-zinc-950/5 dark:divide-white/8">{@render children()}</SettingsCard>{/if}
 </section>

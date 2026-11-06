@@ -77,6 +77,10 @@
   padding: var(--settings-row-y) var(--settings-row-x);
 }
 
+.settings-density :where(.settings-row-flush) {
+  padding: 0;
+}
+
 .settings-density :where(.settings-row-copy, .settings-row-control) {
   min-width: 0;
   max-width: 100%;

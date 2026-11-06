@@ -70,7 +70,10 @@ przypisane instrukcje, skille i pluginy na podstawie tagów ręcznych i automaty
 Ponowna instalacja SSH istniejącego workera zachowuje jego konfigurację i tagi;
 zmiany wykonuje się w jego szczegółach w Workers.
 
-W **Settings → Workers** rozwiń maszynę albo otwórz jej szczegóły. **Worker tags**
+W **Settings → Workers** rozwiń maszynę albo otwórz jej szczegóły. Każdy worker jest
+osobną kartą pod nagłówkiem swojego komputera: nagłówek karty pokazuje nazwę, host, system,
+wersję i stan, a rozwinięcie płaskie sekcje **Agent CLIs**, **Configuration**,
+**Provider accounts** i **Tags**. Sekcja **Tags**
 pokazuje wykryte OS/architekturę i pozostałe automatyczne fakty tylko do odczytu,
 oraz edytowalne **Manual tags**. **Save tags** zapisuje zmianę z kontrolą rewizji,
 audytuje ją i uruchamia ponowne uzgodnienie przypisań. Worker offline odbierze

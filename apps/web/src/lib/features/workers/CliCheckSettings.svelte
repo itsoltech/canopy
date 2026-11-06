@@ -10,7 +10,8 @@
   import { encode } from "#lib/shared/wire.ts";
   import { formatDateTime } from "#lib/shared/format.ts";
 
-  let { worker, readOnly = "" }: { worker?: ui.Worker; readOnly?: string } = $props();
+  /** `flush`: inside a worker's section, with no row padding of its own. */
+  let { worker, readOnly = "", flush = false }: { worker?: ui.Worker; readOnly?: string; flush?: boolean } = $props();
   const settings = useSettings();
   const account = $derived(settings.user.cliUpdates?.intervalMinutes ?? 360);
 
@@ -54,9 +55,10 @@
 </script>
 
 <PreferenceRow
-  title={worker ? "CLI update checks on this worker" : "Agent CLI update check frequency"}
+  {flush}
+  title={worker ? "Update checks" : "Agent CLI update check frequency"}
   description={worker
-    ? "Override how often this worker checks for agent CLI releases."
+    ? "Override how often this worker checks for new releases."
     : "Set how often your workers check for agent CLI releases."}
   changed={worker ? worker.cliUpdateCheckMinutes !== undefined : account !== 360}
   onreset={() => change(worker ? "inherit" : "360")}

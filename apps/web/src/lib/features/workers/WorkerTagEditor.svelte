@@ -11,6 +11,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import { requestJson } from "#lib/shared/http.ts";
   import type { LinkedWorker } from "./worker-records.svelte.ts";
+  import WorkerSection from "./WorkerSection.svelte";
 
   let {
     worker,
@@ -97,8 +98,7 @@
   }
 </script>
 
-<section class={["grid min-w-0 gap-3", className]} aria-label={`Tags for ${worker.name}`}>
-  <h3 class="text-base/6 font-semibold sm:text-sm/6">Worker tags</h3>
+<WorkerSection title="Tags" class={className}>
   {#if worker.nodeId && !linked}
     <Alert>Edit tags in Workers on this worker's home computer.</Alert>
   {:else if saved}
@@ -144,4 +144,4 @@
           : "Loading worker tags…"}
     </p>
   {/if}
-</section>
+</WorkerSection>
