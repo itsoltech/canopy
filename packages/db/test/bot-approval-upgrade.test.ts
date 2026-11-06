@@ -33,7 +33,7 @@ test.skipIf(!dockerAvailable)(
           }
         }),
       );
-      expect(await runtime.runPromise(migrate)).toEqual([[90, "bot_approval_defaults"]]);
+      expect(await runtime.runPromise(migrate)).toContainEqual([90, "bot_approval_defaults"]);
 
       const rows = await runtime.runPromise(
         Effect.gen(function* () {

@@ -3,6 +3,7 @@
 import { Effect } from "effect";
 import { Migrator, SqlClient } from "effect/sql";
 import init from "./0001_init.sql" with { type: "text" };
+import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
 import agentBusRuntime from "./0004_agent_bus_runtime.sql" with { type: "text" };
@@ -192,6 +193,7 @@ export const migrations = Migrator.fromRecord({
   "0088_thread_mirror_delta": sqlFile(threadMirrorDelta),
   "0089_bot_approval_rules": sqlFile(botApprovalRules),
   "0090_bot_approval_defaults": sqlFile(botApprovalDefaults),
+  "0091_bot_view_delta": sqlFile(botViewDelta),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

@@ -944,6 +944,14 @@ maszyny. Odpowiedź normalizuje odwołania powrotne do własnych lokalnych id.
 
 ### Rozmowa i odczyt offline
 
+Klient UI może zachować snapshot rozmowy lub wymiany wraz z kursorem
+`bot_view_changes`. Online kursor przechodzi bez zmiany przez trasę stage 2 do
+domu bota; identyfikatory wiadomości nadal podlegają kwalifikacji. Cache urządzenia
+pokazuje treść natychmiast, a dom potwierdza stan sterowania i wysyła przyrost
+historii. Inny dom po przeniesieniu ma inną epokę, więc wysyła pełny stan.
+Starsze domy ignorują opt-in i odpowiadają pełną historią. Offline pozostaje pełny
+odczyt lustra; lokalny cache nie nadaje praw do wysyłania ani odpowiadania na karty.
+
 Online rozmowa i karty idą na żywo do domu; edycja, rutyny, przypomnienia, granty connectorów,
 wnioskowanie i ukryte notatki przekazania wykonują się wyłącznie tam. Nagłówek rozmowy pokazuje
 `MachineBadge`, a panel szczegółów wyjaśnia „Runs on Laptop B. Routines and reminders stay there.”.

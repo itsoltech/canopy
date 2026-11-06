@@ -21,6 +21,7 @@ export class LinkedAgents {
   declare snapshot: AgentsTransportMethods["snapshot"];
   declare thread: AgentsTransportMethods["thread"];
   declare exchange: AgentsTransportMethods["exchange"];
+  declare exchangeView: AgentsTransportMethods["exchangeView"];
   declare catalog: AgentsCatalogMethods["catalog"];
   declare overview: AgentsCatalogMethods["overview"];
   declare botTool: AgentsBotToolsMethods["botTool"];

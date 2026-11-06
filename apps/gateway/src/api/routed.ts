@@ -107,9 +107,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
 
   const overrides: Partial<UiHandlers> = {
     readBotExchange: async (request) => {
-      const response = create(bots.ReadBotExchangeResponseSchema, {
-        messages: await core.linkedAgents.exchange(request.exchangeId),
-      });
+      const response = await core.linkedAgents.exchangeView(create(bots.ReadBotExchangeRequestSchema, request));
 
       const self = core.computers && nodeRef(core.computers.hello().nodeId);
 

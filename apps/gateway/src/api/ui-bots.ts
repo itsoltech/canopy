@@ -78,12 +78,9 @@ export function botsHandlers(
     sendBotMessage: (r) =>
       guard(async () => create(bots.SendBotMessageResponseSchema, { turnId: await core.bots.send(r) })),
 
-    watchBotConversation: (r, context) => core.bots.watch(r.botId, context.signal),
+    watchBotConversation: (r, context) => core.bots.watch(r.botId, context.signal, r.incremental, r.cursor),
 
-    readBotExchange: (r) =>
-      guard(async () =>
-        create(bots.ReadBotExchangeResponseSchema, { messages: await core.bots.exchange(r.exchangeId) }),
-      ),
+    readBotExchange: (r) => guard(async () => await core.bots.exchangeView(r)),
 
     answerBotApproval: (r) =>
       guard(async () => create(bots.AnswerBotApprovalResponseSchema, { approval: await core.bots.answer(r) })),

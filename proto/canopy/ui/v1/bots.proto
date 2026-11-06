@@ -126,6 +126,13 @@ message BotConversation {
   repeated BotReminder reminders = 561;
   // Bieżąca odpowiedź harnessu, jeszcze bez końcowego wpisu rozmowy.
   string streaming_text = 830;
+  // Atomic UI checkpoint. With delta=true, messages are upserts; other fields replace current state.
+  string cursor = 1100;
+  string base_cursor = 1101;
+  bool delta = 1102;
+  repeated string removed_message_ids = 1103;
+  // Control state hash matches the client's checkpoint; retain all non-history fields.
+  bool controls_unchanged = 1104;
 }
 message BotRoutine {
   string id = 1;
@@ -173,9 +180,32 @@ message SendBotMessageRequest {
   repeated Quote quotes = 451;
 }
 message SendBotMessageResponse { string turn_id = 1; }
-message WatchBotConversationRequest { string bot_id = 1; }
-message ReadBotExchangeRequest { string exchange_id = 1; }
-message ReadBotExchangeResponse { repeated BotMessage messages = 1; }
+message WatchBotConversationRequest {
+  string bot_id = 1;
+  bool incremental = 1100;
+  string cursor = 1101;
+}
+message ReadBotExchangeRequest {
+  string exchange_id = 1;
+  bool incremental = 1100;
+  string cursor = 1101;
+}
+message ReadBotExchangeResponse {
+  repeated BotMessage messages = 1;
+  string cursor = 1100;
+  string base_cursor = 1101;
+  bool delta = 1102;
+  repeated string removed_message_ids = 1103;
+  repeated Bot participants = 1104;
+  // Keep the cached participants/configuration when their digest still matches.
+  bool controls_unchanged = 1105;
+}
+// Device-local representation; never accepted by a gateway mutation.
+message BotCachedView {
+  string key = 1;
+  BotConversation conversation = 2;
+  ReadBotExchangeResponse exchange = 3;
+}
 message AnswerBotApprovalRequest {
   string approval_id = 1;
   bool approve = 2;

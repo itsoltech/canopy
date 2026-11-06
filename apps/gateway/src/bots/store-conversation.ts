@@ -19,31 +19,14 @@ import {
 } from "./store-views.ts";
 import type { BotCore } from "./store-queue.ts";
 import { botThreadApprovals } from "./thread-approvals.ts";
+import { botViewCursor } from "./view-cursor.ts";
 
 /** Conversations: messages, reads, exchanges and bot-to-bot sends. */
 export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
   const { owned, changed, active, enqueue, routines } = core;
 
   return {
-    markRead: (user: string, id: string, throughSeq: bigint) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          yield* owned(user, id, true);
-
-          if (throughSeq < 0n || throughSeq > 9223372036854775807n)
-            return yield* Effect.fail(new Invalid("invalid read sequence"));
-          // A stale tab can only acknowledge messages it observed, never future messages.
-          yield* sql`UPDATE bots SET last_read_seq = greatest(last_read_seq, least(${throughSeq}, coalesce((SELECT max(seq) FROM bot_messages WHERE bot_id = ${id}::uuid), 0))), revision = revision + 1 WHERE id = ${id}::uuid`;
-
-          const latest =
-            (yield* sql<MessageRow>`SELECT m.*, t.status AS turn_status FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id WHERE m.bot_id = ${id}::uuid ORDER BY m.seq DESC LIMIT 1`)[0];
-
-          return create(bots.BotSchema, {
-            ...botView(yield* owned(user, id)),
-            lastMessage: latest ? messageView(latest) : undefined,
-          });
-        }),
-      ),
+    markRead: (user: string, id: string, throughSeq: bigint) => markBotRead(sql, core, user, id, throughSeq),
     messageUser: (turn: BotTurn, call: StoredCall) =>
       Effect.gen(function* () {
         if (!turn.routine_id)
@@ -57,16 +40,29 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
 
         return { delivered: true };
       }),
-    conversation: (user: string, id: string) =>
+    conversation: (user: string, id: string, cursor?: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
-          // Taking the bot lock synchronizes snapshot revisions with all conversation writers.
-          const bot = yield* owned(user, id, true);
+          if (cursor !== undefined) yield* sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`;
+          // Legacy callers may already be inside a writable bot action. UI checkpoints use one MVCC snapshot.
+          const bot = yield* owned(user, id, cursor === undefined);
+
+          const checkpoint =
+            cursor !== undefined ? yield* botViewCursor(sql, user, `chat:${id}`, cursor, id) : undefined;
+
+          const selection = checkpoint?.selection;
 
           const messages =
             yield* sql<MessageRow>`SELECT m.*, t.status AS turn_status, c.result -> 'changes' AS setting_changes
         FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id LEFT JOIN bot_tool_calls c ON m.message_key = 'self:' || c.id::text
-        WHERE m.bot_id = ${id}::uuid ORDER BY m.seq`;
+        WHERE m.bot_id = ${id}::uuid AND (${!selection} OR m.id=ANY(${selection?.ids ?? []}::uuid[])
+          OR m.turn_id=ANY(${selection?.turns ?? []}::uuid[])) ORDER BY m.seq`;
+
+          const latest = selection
+            ? (yield* sql<MessageRow>`SELECT m.*,t.status AS turn_status,c.result -> 'changes' AS setting_changes
+                FROM bot_messages m JOIN bot_turns t ON t.id=m.turn_id LEFT JOIN bot_tool_calls c ON m.message_key='self:' || c.id::text
+                WHERE m.bot_id=${id}::uuid ORDER BY m.seq DESC LIMIT 1`)[0]
+            : messages.at(-1);
 
           // A question's options are the arguments of its ask_user call (the approval id is the call id).
           const approvals = yield* sql<ApprovalRow>`SELECT a.*, c.arguments,
@@ -92,7 +88,7 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
           return create(bots.BotConversationSchema, {
             bot: create(bots.BotSchema, {
               ...botView(bot),
-              lastMessage: messages.length ? messageView(messages.at(-1)!) : undefined,
+              lastMessage: latest ? messageView(latest) : undefined,
             }),
             messages: messages.map(messageView),
             approvals: [...approvals.map(approvalView), ...(yield* botThreadApprovals(sql).threadApprovals(user, id))],
@@ -100,6 +96,10 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
             working: active.length > 0,
             streamingText: streaming,
             revision: BigInt(bot.revision),
+            cursor: checkpoint?.cursor ?? "",
+            baseCursor: selection ? (cursor ?? "") : "",
+            delta: !!selection,
+            removedMessageIds: selection?.ids ?? [],
             routines: yield* routines.routines(user, id),
             reminders: reminders.map((r) =>
               create(bots.BotReminderSchema, {
@@ -153,6 +153,27 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
         return { bot_id: target, exchange_id: call.id, status: "queued" };
       }),
   };
+}
+
+function markBotRead(sql: SqlClient.SqlClient, core: BotCore, user: string, id: string, throughSeq: bigint) {
+  return sql.withTransaction(
+    Effect.gen(function* () {
+      yield* core.owned(user, id, true);
+
+      if (throughSeq < 0n || throughSeq > 9223372036854775807n)
+        return yield* Effect.fail(new Invalid("invalid read sequence"));
+      // A stale tab can only acknowledge messages it observed, never future messages.
+      yield* sql`UPDATE bots SET last_read_seq = greatest(last_read_seq, least(${throughSeq}, coalesce((SELECT max(seq) FROM bot_messages WHERE bot_id = ${id}::uuid), 0))), revision = revision + 1 WHERE id = ${id}::uuid`;
+
+      const latest =
+        (yield* sql<MessageRow>`SELECT m.*, t.status AS turn_status FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id WHERE m.bot_id = ${id}::uuid ORDER BY m.seq DESC LIMIT 1`)[0];
+
+      return create(bots.BotSchema, {
+        ...botView(yield* core.owned(user, id)),
+        lastMessage: latest ? messageView(latest) : undefined,
+      });
+    }),
+  );
 }
 
 /** Connector connections and credentials stay in the gateway. */
