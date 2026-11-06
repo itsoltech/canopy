@@ -85,6 +85,7 @@ appear only as the literal name used by an external tool).
 | worktree | a git worktree that Canopy creates | branch copy, checkout |
 | bot | a conversational partner on the gateway that remembers the conversation | assistant, agent |
 | connected account | an external app account from Settings → Connectors | integration, service, app login |
+| allowed action | a standing bot approval rule explicitly saved by the owner | trusted prompt, automatic grant |
 | schedule | a scheduled message or wake-up | cron, job, timer |
 | skill, plugin, marketplace | items in Agent environment | extension, add-on |
 | update channel | Stable, Beta, Nightly | track, ring, branch |

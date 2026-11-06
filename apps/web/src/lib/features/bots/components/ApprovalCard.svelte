@@ -4,11 +4,12 @@
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
+  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
   import RequestField from "#lib/shared/ui/RequestField.svelte";
   import RequestText from "#lib/shared/ui/RequestText.svelte";
   import RequestCountdown from "#lib/shared/ui/RequestCountdown.svelte";
-  import type { ApprovalView } from "@canopy/domain/bot-chat";
+  import { BOT_APPROVAL_OPTIONS, type ApprovalView } from "@canopy/domain/bot-chat";
   import ChatCard from "./ChatCard.svelte";
   import CreateBotPreview from "./CreateBotPreview.svelte";
 
@@ -19,7 +20,9 @@
    * "Needs approval ⌄" chooses when this bot asks at all (`policy`), when the caller can save it.
    * Without `onanswer` (a watched chat, or answered) the card is read-only.
    */
-  export type ApprovalAnswer = { approve: true } | { approve: false; edited?: string | undefined };
+  export type ApprovalAnswer =
+    | { approve: true; ruleOptionId?: string }
+    | { approve: false; edited?: string | undefined };
 
   export type ApprovalPolicy = "safe" | "always" | "full_auto";
 
@@ -69,113 +72,137 @@
   }
 </script>
 
-<ChatCard labelledby="{id}-title" class={className}>
-  <header class="flex items-center justify-between gap-3 px-4 pt-3">
-    {#if onpolicy && policy && !approval.botProposal && approval.status === "pending"}
-      <DropdownMenu label="When this bot asks">
-        {#snippet trigger(props)}
-          <button
-            type="button"
-            {...props}
-            class="relative -ml-1.5 flex items-center gap-1 rounded-md py-0.5 pr-1 pl-1.5 text-sm/5 font-medium text-amber-700 focus-ring hover:bg-amber-500/10 sm:text-xs/5 dark:text-amber-400"
-          >
-            Needs approval<Icon name="chevron-down" tone="inherit" class="size-3.5 fill-current" />
-          </button>
-        {/snippet}
-        <MenuCheckItem
-          checked={policy === "safe"}
-          description="Reversible platform actions run directly; destructive actions and connected service writes ask first."
-          onselect={() => onpolicy("safe")}>Ask before changes</MenuCheckItem
-        >
-        <MenuCheckItem
-          checked={policy === "always"}
-          description="Changes and connected service actions ask first. Platform reads run directly."
-          onselect={() => onpolicy("always")}>Ask before every action</MenuCheckItem
-        >
-        <MenuCheckItem
-          checked={policy === "full_auto"}
-          description="Approves what is waiting and runs everything from now on without asking. Questions to you still appear."
-          onselect={() => onpolicy("full_auto")}>Full auto</MenuCheckItem
-        >
-      </DropdownMenu>
-    {:else if approval.status === "pending"}
-      <p class="text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400">Needs approval</p>
-    {:else}
-      <p class="text-sm/5 font-medium text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Approval request</p>
-    {/if}
-    <RequestCountdown expiresAt={approval.expiresAt} pending={approval.status === "pending"} class="text-right" />
-  </header>
-  {#if approval.routineTitle}<p class="px-4 pt-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-      From routine “{approval.routineTitle}”
-    </p>{/if}
-  <h3 id="{id}-title" class="px-4 pt-1 text-base/6 font-medium text-pretty text-zinc-950 sm:text-sm/6 dark:text-white">
-    {approval.action}
-  </h3>
-
-  {#if approval.botProposal}
-    <CreateBotPreview proposal={approval.botProposal} class="px-4 pt-3" />
-  {:else if approval.fields.length > 0}
-    <dl class="grid min-w-0 gap-2 px-4 pt-2 text-base/6 sm:text-sm/6">
-      {#each approval.fields as field, index (index)}
-        {@const path = /path|ref|directory|branch/i.test(field.label)}
-        {@const long = field.value.includes("\n") || field.value.length > 50}
-        <RequestField label={field.label || "Detail"} stacked={long}>
-          {#if path}<code class="font-mono wrap-anywhere">{field.value}</code>
-          {:else if long}<RequestText text={field.value} />
-          {:else}{field.value}{/if}
-        </RequestField>
-      {/each}
-    </dl>
-  {/if}
-
-  {#if editing && open}
-    <form
-      class="grid gap-2 px-4 pt-3"
-      onsubmit={(event) => {
-        event.preventDefault();
-        if (draft.trim()) onanswer?.({ approve: false, edited: draft.trim() });
-      }}
+{#if approval.allowedByRule}
+  <p class={["px-4 py-2 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400", className]}>
+    {approval.action} ·
+    <a
+      class="underline underline-offset-2 focus-ring"
+      href="/bots/{approval.askedBy}?rule={encodeURIComponent(approval.allowedByRule.id)}"
+      >Allowed by rule: {approval.allowedByRule.label}</a
     >
-      <label for="{id}-edit" class="sr-only">Your version</label>
-      <!-- svelte-ignore a11y_autofocus -->
-      <Textarea id="{id}-edit" name="edited" bind:value={draft} rows={4} autofocus maxlength={32000} />
-      <div class="flex justify-end gap-2 pb-3">
-        <Button size="sm" variant="ghost" onclick={() => (editing = false)}>Cancel</Button>
-        <Button size="sm" type="submit" variant="primary" disabled={!draft.trim()}>Send edits</Button>
-      </div>
-    </form>
-  {:else}
-    {#if approval.status === "pending" && onanswer}
-      <div class="flex min-h-16 flex-wrap items-center justify-end gap-2 px-4 pt-3 pb-3 sm:min-h-13">
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={!open}
-          loading={answering === "discard"}
-          onclick={() => onanswer({ approve: false })}>Discard</Button
-        >
-        <Button size="sm" icon="pencil-square" disabled={!open} loading={answering === "edit"} onclick={edit}
-          >Edit</Button
-        >
-        <Button
-          size="sm"
-          variant="primary"
-          disabled={!open}
-          loading={answering === "approve"}
-          onclick={() => onanswer({ approve: true })}>Approve</Button
-        >
-      </div>
-    {:else}
-      <p
-        role="status"
-        class="flex min-h-16 items-center gap-1.5 px-4 pt-3 pb-3 text-sm/5 text-zinc-500 sm:min-h-13 sm:text-xs/5 dark:text-zinc-400"
-      >
-        {#if approval.status === "approved"}<Icon
-            name="check"
-            class="size-4 text-emerald-600 dark:text-emerald-400"
-          />{/if}
-        {approval.status === "pending" ? "Waiting for approval." : outcome[approval.status]}
-      </p>
+  </p>
+{:else}
+  <ChatCard labelledby="{id}-title" class={className}>
+    <header class="flex items-center justify-between gap-3 px-4 pt-3">
+      {#if onpolicy && policy && !approval.botProposal && approval.status === "pending"}
+        <DropdownMenu label="When this bot asks">
+          {#snippet trigger(props)}
+            <button
+              type="button"
+              {...props}
+              class="relative -ml-1.5 flex items-center gap-1 rounded-md py-0.5 pr-1 pl-1.5 text-sm/5 font-medium text-amber-700 focus-ring hover:bg-amber-500/10 sm:text-xs/5 dark:text-amber-400"
+            >
+              Needs approval<Icon name="chevron-down" tone="inherit" class="size-3.5 fill-current" />
+            </button>
+          {/snippet}
+          {#each BOT_APPROVAL_OPTIONS as option (option.value)}
+            <MenuCheckItem
+              checked={policy === option.value}
+              description={option.description}
+              onselect={() => onpolicy(option.value)}>{option.label}</MenuCheckItem
+            >
+          {/each}
+        </DropdownMenu>
+      {:else if approval.status === "pending"}
+        <p class="text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400">Needs approval</p>
+      {:else}
+        <p class="text-sm/5 font-medium text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Approval request</p>
+      {/if}
+      <RequestCountdown expiresAt={approval.expiresAt} pending={approval.status === "pending"} class="text-right" />
+    </header>
+    {#if approval.routineTitle}<p class="px-4 pt-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+        From routine “{approval.routineTitle}”
+      </p>{/if}
+    <h3
+      id="{id}-title"
+      class="px-4 pt-1 text-base/6 font-medium text-pretty text-zinc-950 sm:text-sm/6 dark:text-white"
+    >
+      {approval.action}
+    </h3>
+    {#if approval.threadId}<a
+        class="mx-4 mt-1 inline-block text-sm text-zinc-500 underline focus-ring sm:text-xs dark:text-zinc-400"
+        href="/threads/{approval.threadId}">Open thread</a
+      >{/if}
+
+    {#if approval.botProposal}
+      <CreateBotPreview proposal={approval.botProposal} class="px-4 pt-3" />
+    {:else if approval.fields.length > 0}
+      <dl class="grid min-w-0 gap-2 px-4 pt-2 text-base/6 sm:text-sm/6">
+        {#each approval.fields as field, index (index)}
+          {@const path = /path|ref|directory|branch/i.test(field.label)}
+          {@const long = field.value.includes("\n") || field.value.length > 50}
+          <RequestField label={field.label || "Detail"} stacked={long}>
+            {#if path}<code class="font-mono wrap-anywhere">{field.value}</code>
+            {:else if long}<RequestText text={field.value} />
+            {:else}{field.value}{/if}
+          </RequestField>
+        {/each}
+      </dl>
     {/if}
-  {/if}
-</ChatCard>
+
+    {#if editing && open}
+      <form
+        class="grid gap-2 px-4 pt-3"
+        onsubmit={(event) => {
+          event.preventDefault();
+          if (draft.trim()) onanswer?.({ approve: false, edited: draft.trim() });
+        }}
+      >
+        <label for="{id}-edit" class="sr-only">Your version</label>
+        <!-- svelte-ignore a11y_autofocus -->
+        <Textarea id="{id}-edit" name="edited" bind:value={draft} rows={4} autofocus maxlength={32000} />
+        <div class="flex justify-end gap-2 pb-3">
+          <Button size="sm" variant="ghost" onclick={() => (editing = false)}>Cancel</Button>
+          <Button size="sm" type="submit" variant="primary" disabled={!draft.trim()}>Send edits</Button>
+        </div>
+      </form>
+    {:else}
+      {#if approval.status === "pending" && onanswer}
+        <div class="flex min-h-16 flex-wrap items-center justify-end gap-2 px-4 pt-3 pb-3 sm:min-h-13">
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!open}
+            loading={answering === "discard"}
+            onclick={() => onanswer({ approve: false })}>Discard</Button
+          >
+          {#if !approval.threadId}<Button
+              size="sm"
+              icon="pencil-square"
+              disabled={!open}
+              loading={answering === "edit"}
+              onclick={edit}>Edit</Button
+            >{/if}
+          {#if approval.ruleOptions?.length}
+            <DropdownMenu label="Always allow an action">
+              {#snippet trigger(props)}<Button {...props} size="sm" disabled={!open}>Always allow…</Button>{/snippet}
+              {#each approval.ruleOptions as rule (rule.id)}
+                <MenuItem onselect={() => onanswer({ approve: true, ruleOptionId: rule.id })}
+                  ><span class="wrap-anywhere whitespace-normal">Always allow {rule.label}</span></MenuItem
+                >
+              {/each}
+            </DropdownMenu>
+          {/if}
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={!open}
+            loading={answering === "approve"}
+            onclick={() => onanswer({ approve: true })}>Approve</Button
+          >
+        </div>
+      {:else}
+        <p
+          role="status"
+          class="flex min-h-16 items-center gap-1.5 px-4 pt-3 pb-3 text-sm/5 text-zinc-500 sm:min-h-13 sm:text-xs/5 dark:text-zinc-400"
+        >
+          {#if approval.status === "approved"}<Icon
+              name="check"
+              class="size-4 text-emerald-600 dark:text-emerald-400"
+            />{/if}
+          {approval.status === "pending" ? "Waiting for approval." : outcome[approval.status]}
+        </p>
+      {/if}
+    {/if}
+  </ChatCard>
+{/if}

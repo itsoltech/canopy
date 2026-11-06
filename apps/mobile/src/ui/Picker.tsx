@@ -19,6 +19,8 @@ export interface PickerOption<T> {
   disabled?: boolean;
   /** Extra words the search matches (paths, ids). */
   keywords?: string;
+  /** Permission scopes must remain fully visible before the owner chooses one. */
+  wrapLabel?: boolean;
 }
 
 export interface PickerSection<T> {
@@ -171,7 +173,7 @@ function PickerRow<T>({
       <View style={{ flex: 1, gap: 2 }}>
         <View style={[styles.row, { gap: 6 }]}>
           <Text
-            numberOfLines={1}
+            numberOfLines={option.wrapLabel ? undefined : 1}
             style={[styles.overlay, { color: tone ?? c.text, flexShrink: 1 }, selected && styles.label]}
           >
             {option.label}

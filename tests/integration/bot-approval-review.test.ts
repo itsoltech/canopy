@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { create, fromJson, toJson } from "@bufbuild/protobuf";
+import { create } from "@bufbuild/protobuf";
 import { bots, PermissionMode } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -9,6 +9,7 @@ import type { JsonObject } from "@canopy/domain";
 import { describeBotTool } from "../../apps/gateway/src/bots/platform.ts";
 import { PLATFORM_TOOLS } from "../../apps/gateway/src/bots/policy.ts";
 import { ruleOptions } from "../../apps/gateway/src/bots/approval-rules.ts";
+import { decode, encode } from "../../apps/web/src/lib/shared/wire.ts";
 import { botsSuite, lastInput, reply, tool } from "./support/bots.ts";
 import { eventually } from "./support/gateway.ts";
 
@@ -38,8 +39,8 @@ describe.skipIf(!dockerAvailable)("approval review regressions through the gatew
     const bot = await add("Old client", { threadPermission: "read_only" });
     const older = create(bots.BotConfigurationSchema, bot.configuration);
     older.threadPermission = undefined;
-    const wire = toJson(bots.BotConfigurationSchema, older);
-    const configuration = fromJson(bots.BotConfigurationSchema, wire);
+    const wire = encode(bots.BotConfigurationSchema, older);
+    const configuration = decode(bots.BotConfigurationSchema, wire);
     expect(configuration.threadPermission).toBeUndefined();
     configuration.instructions = "An old client edits instructions";
     const saved = (await suite.gw.api.updateBot({ botId: bot.id, configuration })).bot!;

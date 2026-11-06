@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { ConnectError } from "@connectrpc/connect";
+import { router } from "expo-router";
 import type { bots } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { Button, Field, Notice } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { RequestCountdown } from "../../ui/RequestCountdown";
+import { PickerSheet } from "../../ui/Picker";
 import { styles, useColors } from "../../ui/theme";
 
 export function ApprovalCard({ approval, readOnly = false }: { approval: bots.BotApproval; readOnly?: boolean }) {
@@ -16,10 +18,11 @@ export function ApprovalCard({ approval, readOnly = false }: { approval: bots.Bo
   const [error, setError] = useState("");
   // The gateway refused a late answer: the request expired before its update arrived.
   const [late, setLate] = useState(false);
+  const [rules, setRules] = useState(false);
   const question = approval.kind === "question";
   const expired = late || approval.status === "expired";
 
-  async function respond(approve: boolean, text = answer) {
+  async function respond(approve: boolean, text = answer, ruleOptionId = "") {
     if (readOnly) return;
     setBusy(true);
     setError("");
@@ -29,6 +32,7 @@ export function ApprovalCard({ approval, readOnly = false }: { approval: bots.Bo
         approvalId: approval.id,
         approve,
         answer: text,
+        ruleOptionId,
       });
     } catch (cause: unknown) {
       if (ConnectError.from(cause).rawMessage.includes("This request expired.")) setLate(true);
@@ -37,6 +41,22 @@ export function ApprovalCard({ approval, readOnly = false }: { approval: bots.Bo
       setBusy(false);
     }
   }
+
+  if (approval.allowedByRule)
+    return (
+      <Text style={[styles.meta, { color: c.muted, paddingVertical: 8 }]}>
+        {approval.prompt.split("\n")[0]?.replace(/^Needs approval · /, "")} ·{" "}
+        <Text
+          accessibilityRole="link"
+          style={{ color: c.accent }}
+          onPress={() =>
+            router.push({ pathname: "/bot/[id]", params: { id: approval.botId, rule: approval.allowedByRule!.id } })
+          }
+        >
+          Allowed by rule: {approval.allowedByRule.label}
+        </Text>
+      </Text>
+    );
 
   return (
     <View
@@ -69,6 +89,22 @@ export function ApprovalCard({ approval, readOnly = false }: { approval: bots.Bo
       )}
       {error ? <Notice error>{error}</Notice> : null}
       {late && <Notice>This request expired. No answer was sent.</Notice>}
+      {approval.threadId && (
+        <Button
+          secondary
+          title="Open thread"
+          onPress={() => router.push({ pathname: "/thread/[id]", params: { id: approval.threadId } })}
+        />
+      )}
+      {!expired && approval.ruleOptions.length > 0 && (
+        <Button secondary title="Always allow…" disabled={readOnly || busy} onPress={() => setRules(true)} />
+      )}
+      <ApprovalRulePicker
+        approval={approval}
+        visible={rules}
+        onClose={() => setRules(false)}
+        onSelect={(id) => void respond(true, "", id)}
+      />
       {expired ? (
         <Text accessibilityRole="text" style={[styles.meta, { minHeight: 44, paddingVertical: 12, color: c.muted }]}>
           Expired. The bot no longer needs an answer.
@@ -77,7 +113,7 @@ export function ApprovalCard({ approval, readOnly = false }: { approval: bots.Bo
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
             <Button
-              title={question ? "Dismiss" : "Decline"}
+              title={question ? "Skip" : "Discard"}
               secondary
               busy={busy}
               disabled={readOnly}
@@ -95,5 +131,35 @@ export function ApprovalCard({ approval, readOnly = false }: { approval: bots.Bo
         </View>
       )}
     </View>
+  );
+}
+
+function ApprovalRulePicker({
+  approval,
+  visible,
+  onClose,
+  onSelect,
+}: {
+  approval: bots.BotApproval;
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <PickerSheet
+      title="Always allow an action"
+      visible={visible}
+      onClose={onClose}
+      sections={[
+        {
+          options: approval.ruleOptions.map((rule) => ({
+            value: rule.id,
+            label: `Always allow ${rule.label}`,
+            wrapLabel: true,
+          })),
+        },
+      ]}
+      onSelect={onSelect}
+    />
   );
 }

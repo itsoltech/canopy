@@ -118,6 +118,9 @@ export interface QuestionView {
 
 /** A bot asks before it acts: what it wants to do and the details, as labelled fields (never JSON). */
 export interface ApprovalView {
+  ruleOptions?: readonly { id: string; label: string }[] | undefined;
+  allowedByRule?: { id: string; label: string } | undefined;
+  threadId?: string | undefined;
   expiresAt?: Date | undefined;
   id: string;
   askedBy: string;

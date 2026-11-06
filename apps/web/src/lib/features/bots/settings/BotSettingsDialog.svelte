@@ -28,6 +28,8 @@
   import SettingsSection from "./SettingsSection.svelte";
   import BotHome from "../components/BotHome.svelte";
   import { useBotHome } from "../home.svelte.ts";
+  import { BOT_APPROVAL_OPTIONS, BOT_THREAD_PERMISSION_OPTIONS } from "@canopy/domain/bot-chat";
+  import BotApprovalRules from "./BotApprovalRules.svelte";
 
   let {
     open = $bindable(false),
@@ -57,6 +59,7 @@
   let effort = $state<string>();
   let modelChanged = $state(false);
   let policy = $state("safe");
+  let threadPermission = $state("same_bot");
   let busy = $state(false);
   let error = $state("");
   let wasOpen = false;
@@ -77,6 +80,7 @@
         option = instances.find((i) => i.id === instanceId)?.models.find((m) => m.model === c.model);
         effort = c.effort || undefined;
         policy = c.approvalPolicy || "safe";
+        threadPermission = c.threadPermission || "same_bot";
         error = "";
         session++;
       });
@@ -104,6 +108,7 @@
       instructions,
       workerId,
       approvalPolicy: policy,
+      threadPermission,
       ...(modelChanged &&
         provider &&
         option && {
@@ -191,28 +196,16 @@
         </SettingsSection>
         <SettingsSection
           title="Permissions"
-          description="You decide when your bot needs approval. Outside full auto, changing its own model or permissions always asks first."
+          description="Protected actions and changes to the bot’s model or permissions always ask first."
         >
           <Field label="Ask for approval"
-            ><Select
-              bind:value={policy}
-              disabled={busy}
-              options={[
-                {
-                  value: "safe",
-                  label: "For actions that need care",
-                  description: "External writes and sensitive platform actions ask first. Read-only tools can run.",
-                },
-                { value: "always", label: "For every tool", description: "Every tool action waits for your approval." },
-                {
-                  value: "full_auto",
-                  label: "Never (full auto)",
-                  description:
-                    "Every action runs right away, including changes, external writes and its own settings. Questions to you still appear.",
-                },
-              ]}
-            /></Field
+            ><Select bind:value={policy} disabled={busy} options={BOT_APPROVAL_OPTIONS} /></Field
           >
+          <BotApprovalRules botId={bot.id} disabled={busy || !!home.reason} />
+          <Field label="Threads started by this bot">
+            <Select bind:value={threadPermission} disabled={busy} options={BOT_THREAD_PERMISSION_OPTIONS} />
+          </Field>
+          <p class="text-sm text-zinc-500 dark:text-zinc-400">Thread tool requests also appear in this bot’s chat.</p>
         </SettingsSection>
         <SettingsSection
           title="Connections"

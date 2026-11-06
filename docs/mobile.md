@@ -467,7 +467,13 @@ Katalog stref IANA w `packages/ui/src/timezones.json` jest wspólny z web, bo He
 udostępnia `Intl.supportedValuesOf`. Wybór daty sprawdza też nieistniejące godziny przy zmianie czasu.
 Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
 listę, czat ze streamem, wysyłanie/stop, karty pytań/zgód z odpowiedziami oraz sheet
-szczegółów/routines/reminders (zarządzanie w web). Lista botów odświeża się co 10 sekund.
+szczegółów/routines/reminders (zarządzanie routines/reminders w web). „Bot settings”
+pozwala edytować nazwę, instrukcje, wygląd, model, effort, worker i politykę zgód;
+lista „Allowed actions” pokazuje czas i źródło reguły oraz „Remove rule”. „Always allow…”
+na karcie przesyła identyfikator opcji wyliczonej w gatewayu. Automatyczna zgoda zostaje
+jako „Allowed by rule: …”, z odnośnikiem do ustawień. „Threads started by this bot”
+używa tych samych opcji co web; karty narzędzi takich wątków można rozstrzygać również
+w czacie bota. Są też połączenia, archiwizacja i usuwanie bota. Lista botów odświeża się co 10 sekund.
 Brak push i wysyłania offline. Cache obejmuje wątki, nie rozmowy botów. To pierwsza iteracja zgodności z web,
 nie pełna równoważność wszystkich jego funkcji.
 

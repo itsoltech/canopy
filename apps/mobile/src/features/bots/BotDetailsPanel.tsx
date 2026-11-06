@@ -1,6 +1,8 @@
 import { Text } from "react-native";
+import { useState } from "react";
 import type { bots } from "@canopy/contracts";
-import { Sheet } from "../../ui/components";
+import { Button, Sheet } from "../../ui/components";
+import { BotSettings } from "./BotSettings";
 import { PanelRow } from "../threads/ThreadPanel";
 import { styles, useColors } from "../../ui/theme";
 import { BotAvatar } from "./BotAvatar";
@@ -9,13 +11,30 @@ export function BotDetailsPanel({
   conversation,
   visible,
   onClose,
+  selectedRule = "",
 }: {
   conversation?: bots.BotConversation;
   visible: boolean;
   onClose: () => void;
+  selectedRule?: string;
 }) {
   const c = useColors();
   const bot = conversation?.bot;
+  const [settings, setSettings] = useState(false);
+
+  if (bot && visible && (settings || selectedRule))
+    return (
+      <BotSettings
+        key={bot.id}
+        bot={bot}
+        selectedRule={selectedRule}
+        onClose={() => {
+          setSettings(false);
+
+          if (selectedRule) onClose();
+        }}
+      />
+    );
 
   return (
     <Sheet title="Bot details" visible={visible} onClose={onClose}>
@@ -51,7 +70,7 @@ export function BotDetailsPanel({
           ) : (
             <Text style={[styles.meta, { color: c.muted }]}>No reminders</Text>
           )}
-          <Text style={[styles.meta, { color: c.muted }]}>Manage routines and bot settings in Canopy on the web.</Text>
+          <Button title="Bot settings" secondary onPress={() => setSettings(true)} />
         </>
       )}
     </Sheet>

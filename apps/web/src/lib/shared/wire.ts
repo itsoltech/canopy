@@ -1,9 +1,10 @@
 import { fromJson, toJson, type DescMessage, type JsonValue as ProtoJson, type MessageShape } from "@bufbuild/protobuf";
-import type { JsonValue } from "./json.ts";
+import type { JsonValue } from "@canopy/domain";
 
 /**
  * Protobuf messages cross the BFF <-> browser boundary as protobuf JSON and are decoded with the
  * same generated schemas on both sides, so the browser works with the typed contract too.
+ * Keep optional fields absent: older clients must not reset owner settings they do not send.
  */
 export const encode = <D extends DescMessage>(schema: D, message: MessageShape<D>): ProtoJson =>
   toJson(schema, message);
