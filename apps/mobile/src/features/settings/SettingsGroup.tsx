@@ -159,6 +159,8 @@ export function SettingsRow({
   const wide = useContext(WideGroup);
   const beside = inlineControl || wide;
   const loading = useSkeleton();
+  // Reset sits on the control's inner side, as on the web: its space stays reserved, so nothing moves.
+  const reset = accessory ?? scope.accessory ?? scope.reset?.(title);
 
   const body = (
     <>
@@ -176,16 +178,20 @@ export function SettingsRow({
             </Skeleton>
           )}
         </View>
+        {beside && control && reset}
         {beside && control && (
           <View style={inlineControl ? undefined : { width: 240, maxWidth: "50%" }}>
             <Skeleton>{control}</Skeleton>
           </View>
         )}
-        {accessory ?? scope.accessory ?? scope.reset?.(title)}
+        {!control && reset}
       </View>
       {!beside && control && (
-        <View style={{ minWidth: 0, maxWidth: "100%", opacity: soon ? 0.5 : 1 }}>
-          <Skeleton>{control}</Skeleton>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, opacity: soon ? 0.5 : 1 }}>
+          {reset}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Skeleton>{control}</Skeleton>
+          </View>
         </View>
       )}
       {children}

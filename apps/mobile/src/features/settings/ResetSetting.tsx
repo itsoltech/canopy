@@ -18,7 +18,7 @@ export function ResetSetting({
       accessibilityElementsHidden={!changed}
       importantForAccessibility={changed ? "auto" : "no-hide-descendants"}
     >
-      <IconButton icon="arrow-path" label={label} disabled={!changed || disabled} onPress={onReset} />
+      <IconButton icon="arrow-path" size="sm" label={label} disabled={!changed || disabled} onPress={onReset} />
     </View>
   );
 }
