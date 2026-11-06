@@ -3,7 +3,8 @@ import { ui } from "@canopy/contracts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
-import { awayReason, computerName, workerPresence } from "#lib/features/computers/computers.ts";
+import { awayReason, workerPresence } from "#lib/features/computers/computers.ts";
+import { computerName } from "@canopy/domain/computer-presence";
 import type { SelectOption } from "#lib/shared/ui/listbox.ts";
 
 /** A worker of another computer in Settings → Workers: live when its home answers, its record otherwise. */

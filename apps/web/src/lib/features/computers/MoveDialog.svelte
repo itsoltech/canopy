@@ -11,7 +11,7 @@
   import Field from "#lib/shared/ui/Field.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
-  import { computerName } from "./computers.ts";
+  import { computerName } from "@canopy/domain/computer-presence";
   import {
     finished,
     getMoves,

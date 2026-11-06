@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { splitId } from "@canopy/domain/computers";
-  import { computerName, sharesThreads } from "#lib/features/computers/computers.ts";
+  import { computerName, sharesThreads } from "@canopy/domain/computer-presence";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import FileChip from "./FileChip.svelte";
 

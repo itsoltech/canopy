@@ -17,7 +17,7 @@
   import SchedulePreview from "./SchedulePreview.svelte";
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import type { ClassValue } from "svelte/elements";
-  import { computerName } from "#lib/features/computers/computers.ts";
+  import { computerName } from "@canopy/domain/computer-presence";
 
   /**
    * New scheduled task: what to tell the agent, once at a time or repeatedly (a preset or a cron) in a
