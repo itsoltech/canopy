@@ -49,6 +49,15 @@ message DesktopUpdateState {
   string target_version = 12; // immutable attempted version; available_version may advance after restart
   // The app downloaded an update and installs it at the next restart.
   bool ready = 13;
+  // The app's own updater, apart from any requested update (docs/updates.md). Empty from older apps.
+  // idle | checking | downloading | downloaded | error | disabled
+  string updater_phase = 14;
+  // The version the updater downloads or has downloaded; empty when none.
+  string updater_version = 15;
+  // Download progress, 0–100, while updater_phase is downloading.
+  double updater_progress = 16;
+  // Why the updater's last check or download failed.
+  string updater_error = 17;
 }
 message DesktopReport {
   string session_id = 1;

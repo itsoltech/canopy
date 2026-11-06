@@ -55,7 +55,8 @@ export function updateIndicator(
       progress:
         app?.phase === "downloading"
           ? app.progress
-          : workers.find((w) => w.desktop?.phase === "downloading")?.desktop?.progress,
+          : (workers.find((w) => w.desktop?.phase === "downloading")?.desktop?.progress ??
+            computers.find((c) => c.view.progress !== undefined)?.view.progress),
     };
 
   if (app?.phase === "downloaded")

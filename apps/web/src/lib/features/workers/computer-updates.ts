@@ -30,6 +30,9 @@ const PRESENCE = new Map([
   ["pairing_required", "Link it again in Settings → Linked computers."],
 ]);
 
+/** Phases of an update this or another computer requested; the app's own updater shows while none runs. */
+const REQUESTED = ["queued", "checking", "downloading", "waiting_idle", "restarting"];
+
 const PHASE = new Map([
   ["queued", "Queued"],
   ["checking", "Checking"],
@@ -58,32 +61,61 @@ export function computerUpdate(computer: ui.ComputerUpdate): ComputerUpdateView 
   if (!app) return { ...base, status: "Unavailable", detail: "It didn't answer. Check again in a moment." };
 
   if (!app.connected || app.disabledReason) return { ...base, status: "Unavailable", detail: app.disabledReason };
-  const newer = newerVersion(app.availableVersion, app.version);
-  const target = app.targetVersion || (newer ? app.availableVersion : "");
-  const busy = ["queued", "checking", "downloading", "waiting_idle", "restarting"].includes(app.phase);
-  const failed = app.phase === "failed";
+  const requested = REQUESTED.includes(app.phase);
+  // Its own updater, unless a requested update runs or failed; empty from apps that don't report it.
+  const own = requested || app.phase === "failed" ? "" : app.updaterPhase;
+  const downloading = app.phase === "downloading" || own === "downloading";
+  const ready = app.ready || own === "downloaded";
+
+  // A finished request keeps the version it installed; only a running or failed one still aims at it.
+  const target = [
+    requested || app.phase === "failed" ? app.targetVersion : "",
+    app.updaterVersion,
+    app.availableVersion,
+  ]
+    .filter(Boolean)
+    .find((version) => newerVersion(version, app.version));
+
+  const busy = requested || own === "checking" || own === "downloading";
+  const failed = app.phase === "failed" || own === "error";
+  const progress = app.phase === "downloading" ? app.progress : own === "downloading" ? app.updaterProgress : 0;
 
   return {
-    status:
-      app.phase === "downloading"
-        ? `${Math.round(app.progress)}%`
-        : (PHASE.get(app.phase) ?? (app.ready ? "Ready" : newer ? "Available" : "Up to date")),
-    current: !busy && !failed && !newer && !app.ready,
+    // The same words as "This Canopy app" (CompactAppUpdate.svelte).
+    status: downloading
+      ? `${Math.round(progress)}%`
+      : (PHASE.get(app.phase) ??
+        (own === "error"
+          ? "Failed"
+          : own === "checking"
+            ? "Checking"
+            : ready
+              ? "Ready"
+              : target
+                ? "Available"
+                : "Up to date")),
+    current: !busy && !failed && !target && !ready,
     busy,
     failed,
-    actionable: !busy && (newer || app.ready),
-    target,
+    actionable: !busy && (!!target || ready),
+    target: target ?? "",
     detail:
       app.phase === "waiting_idle"
         ? "It restarts after its current turns end."
-        : failed
+        : app.phase === "failed"
           ? app.reason
-          : app.ready && !busy
-            ? "The update is downloaded. Update restarts it after its current turns end."
-            : "",
-    progress: app.phase === "downloading" ? app.progress : undefined,
+          : own === "error"
+            ? app.updaterError || "Its app update failed. Check again to retry."
+            : ready && !busy
+              ? "The update is downloaded. Update restarts it after its current turns end."
+              : "",
+    progress: downloading ? progress : undefined,
   };
 }
+
+/** A linked computer's app is downloading: the updates center reloads faster, so its bar moves. */
+export const linkedDownloading = (snapshot: ui.UpdatesSnapshot | undefined): boolean =>
+  !!snapshot?.computers.some((c) => computerUpdate(c).progress !== undefined);
 
 /** Linked computers whose app Update all or the row's action can update now. */
 export const computerUpdatesAvailable = (snapshot: ui.UpdatesSnapshot): boolean =>

@@ -15,6 +15,12 @@ export function validDesktopState(state: ui.DesktopUpdateState, hello: ui.Deskto
     state.disabledReason.length > 500 ||
     state.availableVersion.length > 128 ||
     state.targetVersion.length > 128 ||
+    state.updaterVersion.length > 128 ||
+    state.updaterError.length > 1000 ||
+    !Number.isFinite(state.updaterProgress) ||
+    state.updaterProgress < 0 ||
+    state.updaterProgress > 100 ||
+    !["", "idle", "checking", "downloading", "downloaded", "error", "disabled"].includes(state.updaterPhase) ||
     state.version !== hello.version ||
     state.channel !== hello.channel ||
     !Number.isFinite(state.progress) ||
@@ -241,7 +247,16 @@ export class DesktopControl {
     if (!row || (state.requestId && state.requestId !== row.command.requestId)) return;
 
     if (state.requestId && state.revision <= row.state.revision && state.requestId === row.state.requestId) return;
-    const value = { ...state, connected: true };
+
+    // The row keeps the requested update; the updater's live state is for linked computers (local.ts).
+    const value = {
+      ...state,
+      connected: true,
+      updaterPhase: "",
+      updaterVersion: "",
+      updaterProgress: 0,
+      updaterError: "",
+    };
 
     const outcome =
       state.requestId &&

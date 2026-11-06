@@ -67,11 +67,10 @@
 
     if (given) return unsubscribe;
     const off = app.connect();
-    void updates.reload();
-    const timer = setInterval(() => void updates.reload(), 5000);
+    const stop = updates.poll();
 
     return () => {
-      clearInterval(timer);
+      stop();
       unsubscribe();
       off?.();
     };

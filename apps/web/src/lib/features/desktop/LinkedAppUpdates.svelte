@@ -36,10 +36,8 @@
 
   onMount(() => {
     if (given) return;
-    void updates.reload();
-    const timer = setInterval(() => void updates.reload(), 5000);
 
-    return () => clearInterval(timer);
+    return updates.poll();
   });
 
   function run(kind: "computer" | "computer_check", computer: ui.ComputerUpdate) {

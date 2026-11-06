@@ -199,6 +199,14 @@ Nie ma force ani downgrade'u z zewnątrz; **Restart now…** istnieje tylko loka
 ostatni raport w pamięci (restartuje się razem z aplikacją); źródłem prawdy jest lokalny journal
 aplikacji, który po restarcie zgłasza `succeeded` albo `failed` dla tego samego id żądania.
 `DesktopUpdateState.ready` mówi, że aplikacja pobrała aktualizację i zainstaluje ją przy restarcie.
+Pola `updater_phase`, `updater_version`, `updater_progress` i `updater_error` niosą stan własnego
+updatera aplikacji (sprawdzanie, pobieranie z postępem, pobrana wersja, błąd) niezależnie od żądania,
+więc wiersz połączonego komputera pokazuje to samo co „This Canopy app”. Journal ich nie zapisuje,
+a sam postęp aplikacja raportuje najwyżej raz na sekundę (ostatnią wartość zawsze). Gateway w trybie
+zdalnym zeruje je przed zapisem do `desktop_updates`. Starsza aplikacja ich nie wysyła: wiersz wygląda
+wtedy jak wcześniej (wersja docelowa z `available_version`). `target_version` zakończonego żądania nie
+jest już celem wiersza; liczy się tylko wersja nowsza od bieżącej. Centrum aktualizacji odświeża się co
+5 s, a co 2 s, gdy któryś połączony komputer pobiera aktualizację.
 Nowe pola `DesktopUpdateCommand`: `requested_by` (nazwa komputera w powiadomieniu „MacBook
 requested an app update…”) i `check` (samo sprawdzenie feedu, bez instalacji).
 
