@@ -5,6 +5,11 @@ import { Icon } from "../../ui/Icon";
 import type { Mention } from "@canopy/contracts";
 import { MessageSpans, type BadgeTone } from "../composer/MessageText";
 
+/** What each trigger character does, as on the web; no-break spaces keep each item on one line. */
+const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell"]
+  .map((item) => item.replace(" ", "\u00a0"))
+  .join(" · ");
+
 /** Badges in the text (the message draft's files); without it the field is plain text. */
 export interface ComposerBadges {
   mentions: readonly Mention[];
@@ -28,6 +33,7 @@ export function ComposerBox({
   files = 0,
   label = "Message to your agent",
   badges,
+  triggers = false,
 }: {
   text: string;
   onChange: (text: string) => void;
@@ -46,6 +52,8 @@ export function ComposerBox({
   files?: number;
   label?: string;
   badges?: ComposerBadges;
+  /** The composer takes mentions and shell commands: the empty field lists their trigger characters. */
+  triggers?: boolean;
 }) {
   const c = useColors();
   const empty = !text.trim() && files === 0;
@@ -73,7 +81,7 @@ export function ComposerBox({
         onChange={onChange}
         busy={busy}
         compact={compact}
-        placeholder={placeholder}
+        placeholder={triggers && !compact ? `${placeholder}\n${TRIGGER_HINT}` : placeholder}
         label={label}
         badges={badges}
       />

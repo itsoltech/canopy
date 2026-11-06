@@ -84,6 +84,7 @@ export function MessageComposer({
         text={message.value.text}
         onChange={message.setText}
         badges={message.badges}
+        triggers
         onSend={() =>
           send(
             thread?.status === "running"

@@ -54,6 +54,7 @@ export function NewThreadScreen() {
             text={message.value.text}
             onChange={message.setText}
             badges={message.badges}
+            triggers
             onSend={() => void state.create()}
             disabled={Boolean(blocker)}
             busy={state.busy}
