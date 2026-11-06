@@ -160,6 +160,11 @@ odczytuje zapisany transkrypt harnessu, jak dla tur wątków. Zapisany koniec wy
 bez niego tura kończy się jako przerwana przez system. Nie odtwarzamy automatycznie
 niepewnych efektów MCP. Przerwanie/anulowanie unieważnia możliwość nowych efektów.
 
+Zatrzymywanie gatewaya nie odsyła błędu przerwania do oczekującego narzędzia bota.
+Obsługa wywołania kończy się bez odpowiedzi na łączu; worker ponawia ten sam identyfikator
+po reconnect, a nowy gateway odczytuje zachowaną zgodę. Dotyczy to także wywołania,
+które czekało na przejęcie lease albo kończyło odczyt podczas shutdownu.
+
 Istniejący snapshot rozmowy dostaje tekst bieżącej odpowiedzi i status, bez
 technicznych itemów narzędzi. Rutyny i handoffy zachowują niewidoczność. Końcowa
 odpowiedź ma jeden wpis czatu. Błąd używa `TurnOutcome`, `TurnEndSource` i

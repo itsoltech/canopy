@@ -101,7 +101,7 @@ type Options = {
   /** Where this computer's link listener can be reached on the local network, or nothing to announce. */
   listener: () => { port: number; host: string } | undefined;
   /** A partner announced an address in this computer's subnet. Not trusted until a pinned handshake. */
-  found: (nodeId: string, address: string) => void;
+  found: (nodeId: string, address: string) => void | Promise<void>;
   now?: () => number;
   queryIntervalMs?: number;
 };
@@ -112,6 +112,7 @@ export class LanDiscovery {
   #timer: ReturnType<typeof setInterval> | undefined;
   #window = -1;
   #closed = false;
+  #discovering = new Set<Promise<void>>();
   // Names of the current and adjacent windows: clocks of two computers may differ by a few minutes.
   #expected = new Map<string, { nodeId: string; instance: string }>();
   #own = new Map<string, LanNames>();
@@ -271,7 +272,14 @@ export class LanDiscovery {
         if (a.type !== "A" || a.name.toLowerCase() !== target.toLowerCase() || !isIPv4(a.data)) continue;
 
         // Only an address in a subnet of this computer: never a path to elsewhere on the internet.
-        if (local.check(a.data, "ipv4")) this.options.found(expected.nodeId, `https://${a.data}:${port}`);
+        if (local.check(a.data, "ipv4")) {
+          const task = Promise.resolve(this.options.found(expected.nodeId, `https://${a.data}:${port}`)).catch(
+            () => {},
+          );
+
+          this.#discovering.add(task);
+          void task.finally(() => this.#discovering.delete(task));
+        }
       }
     }
   }
@@ -280,5 +288,7 @@ export class LanDiscovery {
     clearInterval(this.#timer);
     await this.#transport?.close();
     this.#transport = undefined;
+    // Closing the socket alone leaves certificate checks and their database writes in flight.
+    await Promise.allSettled(this.#discovering);
   }
 }

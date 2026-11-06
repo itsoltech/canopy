@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { chmodSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
-import { CliInstallMethod, Provider, WorkerConfigSchema } from "@canopy/contracts";
+import { CliInstallMethod, InstallCliSchema, Provider, WorkerConfigSchema } from "@canopy/contracts";
 import { processGovernor } from "@canopy/process-governor";
 import { tempDir } from "@canopy/testing";
 import { CLIS, deviceCliProbe, discoverCli, type CliProbe } from "../../apps/worker/src/cli-tools/discovery.ts";
@@ -255,6 +255,60 @@ describe("login shell environment", () => {
 });
 
 describe("one source of truth", () => {
+  test("an install finishing during discovery never reports success with the old version", async () => {
+    const { home, env, probe } = device();
+    const executable = join(home, ".bun/install/global/node_modules/@openai/codex/bin/codex.js");
+    file(executable, fakeCli("0.166.0"));
+    link(executable, join(home, ".bun/bin/codex"));
+    file(join(home, "updated-codex"), fakeCli("0.170.0"));
+    file(join(home, ".bun/bin/bun"), `#!/bin/sh\n/bin/cp '${home}/updated-codex' '${executable}'\n`);
+    const captured = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const installed = Promise.withResolvers<void>();
+    const base = probe();
+    let hold = true;
+
+    const tools = new CliTools({
+      dataDir: join(home, "data"),
+      probe: {
+        ...base,
+        version: async (path) => {
+          const result = await base.version(path);
+
+          if (hold) {
+            hold = false;
+            captured.resolve();
+            await release.promise;
+          }
+
+          return result;
+        },
+      },
+      env,
+      configured: () => ({}),
+      send: () => {},
+      progress: () => {},
+      busy: () => 0,
+      installed: async () => installed.resolve(),
+      log: () => {},
+    });
+
+    const report = tools.report();
+
+    try {
+      await captured.promise;
+      await tools.start(
+        create(InstallCliSchema, { installId: crypto.randomUUID(), provider: Provider.CODEX, version: "0.170.0" }),
+      );
+      await installed.promise;
+    } finally {
+      release.resolve();
+    }
+
+    const entry = (await report).tools?.find((t) => t.provider === Provider.CODEX);
+    expect(entry).toMatchObject({ version: "0.170.0", install: { state: "succeeded" } });
+  });
+
   test("the CLI report and the applied configuration name the same copy and version", async () => {
     const { home, probe } = device(["~/homebrew/bin"]);
     file(join(home, "homebrew/Caskroom/codex/0.100.0/codex"), "#!/bin/sh\nexit 1\n");

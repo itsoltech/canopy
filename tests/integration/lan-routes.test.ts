@@ -360,8 +360,13 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
     expect(snapshot.lanDiscoveryState).toBe("off");
     expect(snapshot.peers[0]!.routes.some((r) => r.source === "lan")).toBe(false);
     const sent = lan.from("b").length;
-    await sa.query("DELETE FROM computer_routes WHERE owner_user_id=$1::uuid AND source='lan'", [a.userId]);
-    await Bun.sleep(1200);
+    // Drain A's checks of packets received before B switched off, then test fresh discovery traffic.
+    await restartA(async () => {
+      await sa.query("DELETE FROM computer_routes WHERE owner_user_id=$1::uuid AND source='lan'", [a.userId]);
+    });
+    const queries = () => lan.from("a").filter(({ packet }) => dns.decode(packet).type === "query").length;
+    const before = queries();
+    await eventually(async () => queries() >= before + 2);
     expect(lan.from("b").length).toBe(sent);
     expect((await routesOf(a)).some((r) => r.source === "lan")).toBe(false);
     // The setting is durable and turning it back on resumes discovery.

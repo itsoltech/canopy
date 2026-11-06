@@ -152,47 +152,55 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     expect(created.nodeId).toBe(bNode);
     const plain = thread.split("~")[0]!;
     expect((await b.api.getThread({ threadId: plain })).thread?.title).toBe("From A");
-    expect(b.worker.created.some((c) => c.threadId === plain)).toBe(true);
+    await eventually(async () => b.worker.created.some((c) => c.threadId === plain));
     // A's own database holds no copy.
     expect(await failure(a.core.getThread(plain))).toBeTruthy();
     const updates = await watchUntil(a.api, thread, (u) => answers(u).includes("Echo: hello from A"));
+    expect(answers(updates)).toContain("Echo: hello from A");
     const snapshot = updates[0]?.change.case === "snapshot" ? updates[0].change.value : undefined;
     expect(snapshot?.thread?.id).toBe(thread);
     expect(
       (await a.api.listThreads({ sidebarOnly: true })).threads.some((t) => t.id === thread && t.nodeId === bNode),
     ).toBe(true);
     expect((await a.api.listThreads({ projectId: q(project) })).threads.map((t) => t.id)).toEqual([thread]);
+    // The echo precedes turnFinished; settle it before the next test holds new turns.
+    await eventually(async () => (await b.api.getThread({ threadId: plain })).thread?.status === "idle");
   }, 25_000);
 
   test("send, steer, queue and interrupt from A are applied on B; effects come back through the stream", async () => {
-    b.worker.holdTurns = true;
     const plain = thread.split("~")[0]!;
-    const sent = await a.api.sendMessage({ threadId: thread, text: "long task", clientRequestId: id() });
-    const running = sent.turn!.id;
-    expect(running.endsWith(`~${nodeRef(bNode)}`)).toBe(true);
-    await eventually(async () => (await b.api.getThread({ threadId: plain })).thread?.status === "running");
+    b.worker.holdTurns = true;
 
-    const steer = await a.api.sendMessage({
-      threadId: thread,
-      text: "also this",
-      clientRequestId: id(),
-      delivery: ui.MessageDelivery.STEER,
-    });
+    try {
+      const sent = await a.api.sendMessage({ threadId: thread, text: "long task", clientRequestId: id() });
+      const running = sent.turn!.id;
+      expect(running.endsWith(`~${nodeRef(bNode)}`)).toBe(true);
+      await eventually(async () => (await b.api.getThread({ threadId: plain })).thread?.status === "running");
 
-    expect(steer.steer).toBeDefined();
-    await eventually(async () => [...b.worker.steered.values()].includes("also this"));
-    const queued = (await a.api.sendMessage({ threadId: thread, text: "later", clientRequestId: id() })).turn!;
-    expect(queued.status).toBe("queued");
-    await a.api.deleteQueuedTurn({ turnId: queued.id });
-    const watched = await watchUntil(a.api, thread, (u) => u.some((x) => x.change.case === "snapshot"));
-    const turns = watched[0]?.change.case === "snapshot" ? watched[0].change.value.turns : [];
-    expect(turns.find((t) => t.id === queued.id)?.withdrawn).toBe("deleted");
-    await a.api.interruptThread({ threadId: thread });
-    await eventually(async () =>
-      b.worker.commands.some((c) => c.case === "interruptTurn" && c.value.threadId === plain),
-    );
-    b.worker.finish(plain, running.split("~")[0]!);
-    b.worker.holdTurns = false;
+      const steer = await a.api.sendMessage({
+        threadId: thread,
+        text: "also this",
+        clientRequestId: id(),
+        delivery: ui.MessageDelivery.STEER,
+      });
+
+      expect(steer.steer).toBeDefined();
+      await eventually(async () => [...b.worker.steered.values()].includes("also this"));
+      const queued = (await a.api.sendMessage({ threadId: thread, text: "later", clientRequestId: id() })).turn!;
+      expect(queued.status).toBe("queued");
+      await a.api.deleteQueuedTurn({ turnId: queued.id });
+      const watched = await watchUntil(a.api, thread, (u) => u.some((x) => x.change.case === "snapshot"));
+      const turns = watched[0]?.change.case === "snapshot" ? watched[0].change.value.turns : [];
+      expect(turns.find((t) => t.id === queued.id)?.withdrawn).toBe("deleted");
+      await a.api.interruptThread({ threadId: thread });
+      await eventually(async () =>
+        b.worker.commands.some((c) => c.case === "interruptTurn" && c.value.threadId === plain),
+      );
+      b.worker.finish(plain, running.split("~")[0]!);
+      await eventually(async () => (await b.api.getThread({ threadId: plain })).thread?.status === "idle");
+    } finally {
+      b.worker.holdTurns = false;
+    }
   }, 25_000);
 
   test("approvals asked on B are answered from A and reach B's worker", async () => {
@@ -257,6 +265,8 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
         async () => b.worker.started.get(turn.id.split("~")[0]!),
         (input) => input !== undefined,
       );
+
+      expect(started).toBeDefined();
 
       return { turn, started: started! };
     };

@@ -400,6 +400,12 @@ describe.skipIf(!dockerAvailable)("bots, schedules and worker settings at their 
   }, 45_000);
 
   test("an unreachable home fails immediately, keeps records read-only and queues nothing", async () => {
+    // Re-enabling sharing starts a new bootstrap. Connectivity alone does not mean records arrived.
+    await wait(async () =>
+      (await f.a.gateway.api.listWorkerRecords({})).records.some(
+        (r) => r.workerId === worker() && r.worktreeSettings.some((s) => s.settings?.branchPrefix === "studio"),
+      ),
+    );
     await f.links.close();
     await wait(() => !f.a.links.reachable().includes(f.node));
     const started = Date.now();

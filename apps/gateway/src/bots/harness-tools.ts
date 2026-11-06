@@ -16,6 +16,7 @@ export class HarnessTools {
     readonly run: BotsRuntime["run"],
     readonly active: (id: string) => { turn: BotTurn; abort: AbortController } | undefined,
     readonly waiting: (turnId: string, waiting: boolean) => void,
+    readonly stopping: () => boolean,
   ) {}
   handle(call: AgentToolCall, workerId: string): Promise<AgentToolResult> {
     if (call.cancelled)
@@ -26,10 +27,23 @@ export class HarnessTools {
     const pending = this.#pending.get(key);
 
     if (pending) return pending;
-    const task = this.#handle(call, workerId).finally(() => this.#pending.delete(key));
+
+    const task = this.#handle(call, workerId)
+      .then((result) => {
+        this.#checkRunning();
+
+        return result;
+      })
+      .finally(() => this.#pending.delete(key));
+
     this.#pending.set(key, task);
 
     return task;
+  }
+  #checkRunning(): void {
+    // Shutdown releases the lease, not the user's approval. Leave the worker's call unanswered
+    // so it resends the same id to the next gateway instead of recording an interruption.
+    if (this.stopping()) throw new Error("Gateway stopping; resend the bot tool call after reconnect");
   }
   async #handle(call: AgentToolCall, workerId: string): Promise<AgentToolResult> {
     const expiresAt = call.expiresAt ? timestampDate(call.expiresAt) : undefined;
@@ -45,6 +59,8 @@ export class HarnessTools {
     if (!call.botId || call.threadId !== call.botId) return reply("Bot turn unavailable", true);
 
     for (;;) {
+      this.#checkRunning();
+
       if (expiresAt && Date.now() >= expiresAt.getTime()) {
         await this.run((s) => s.abandonHarnessCall(this.options.userId, workerId, call));
 

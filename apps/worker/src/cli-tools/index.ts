@@ -59,6 +59,7 @@ export class CliTools {
   #installing: { provider: Provider; done: Promise<void> } | undefined;
   #last: ReportInit | undefined;
   #discovering: Promise<ReportInit> | undefined;
+  #installRevision = 0;
 
   constructor(options: CliToolsOptions) {
     this.#options = options;
@@ -89,7 +90,15 @@ export class CliTools {
   async report(): Promise<ReportInit> {
     this.#discovering ??= (async () => {
       try {
-        const found = await Promise.all(CLIS.map((spec) => this.#discover(spec)));
+        let revision;
+        let found;
+
+        do {
+          revision = this.#installRevision;
+          found = await Promise.all(CLIS.map((spec) => this.#discover(spec)));
+          // An overlapping install can finish after a probe captured the previous executable.
+          // Never combine that stale discovery with the new terminal installation status.
+        } while (revision !== this.#installRevision);
 
         const report: ReportInit = {
           tools: found.map((cli) => this.#entry(cli)),
@@ -244,6 +253,7 @@ export class CliTools {
       } finally {
         clearInterval(timer);
         flush();
+        this.#installRevision++;
         this.#installing = undefined;
       }
 

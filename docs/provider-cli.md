@@ -43,6 +43,8 @@ UI (`ui/v1`): `Worker.cli_tools` (`WorkerCliTool`: raport + `latest`, `update_av
 `InstallCli` (`worker_id` albo `all_workers`) i `CheckCliUpdates`. BFF: `POST /api/workers/cli/install|check`.
 Raport gateway trzyma w istniejącym JSONB `workers.capabilities.cliTools` (bez migracji), więc wersje offline
 workerów pozostają widoczne. Linie postępu są tylko w pamięci gatewaya (ostatnie 200 na workera i dostawcę).
+Jeżeli instalacja kończy się podczas wykrywania CLI, worker odrzuca wynik rozpoczęty przed jej końcem
+i ponownie odczytuje wersje. Status zakończonej instalacji nie może trafić do raportu ze starą wersją.
 
 ## Wykrywanie na workerze
 
