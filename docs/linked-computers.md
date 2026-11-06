@@ -884,7 +884,11 @@ udostępniania. Migrację konfiguracji projektów wprowadza etap 3 wspólnej kon
 
 Wspólny projekt ma to samo id na każdym komputerze. Gateway nie kwalifikuje go sufiksem węzła
 (`globalize`), dopuszcza je w wywołaniach do partnera (`unqualify` z listą globalnych id) i pokazuje
-projekt raz, z workspace'ami wszystkich połączonych komputerów (kwalifikowanymi). Wątki partnera
+projekt raz, z workspace'ami wszystkich połączonych komputerów (kwalifikowanymi). Dotyczy to też
+strumienia overview: każda aktualizacja wiersza wspólnego projektu, także własna (zmiana nazwy,
+zmiana workera, synchronizacja konfiguracji), wychodzi ze scalonymi workspace'ami; seria aktualizacji
+czyta overview raz. Sam wiersz tego komputera schowałby workspace'y partnera i picker nowego wątku
+pokazałby „No worker”. Wątki partnera
 w tym projekcie są w nim na liście; nowy wątek na workerze B w projekcie wspólnym trafia do B
 z tym samym id projektu.
 

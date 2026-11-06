@@ -37,7 +37,8 @@
 
   const available = $derived(
     overview.workers
-      .filter((worker) => !worker.nodeId || capabilities?.linkedComputers)
+      // Until the capabilities load, a linked computer's worker stays listed (only a desktop gateway has them).
+      .filter((worker) => !worker.nodeId || !capabilities?.methods || capabilities.linkedComputers)
       .map((worker) => ({
         worker,
         workspace:
@@ -74,7 +75,7 @@
     key={(choice) => choice.worker.id}
     text={(choice) => `${choice.worker.name} ${computerOf(choice.worker)}`}
     groupOf={(choice) => computerOf(choice.worker)}
-    disabled={(choice) => !choice.workspace}
+    disabled={(choice) => !choice.workspace || Boolean(away(choice.worker))}
     value={selected?.worker.id}
     onselect={(choice) => choice.workspace && onselect(choice.workspace)}
     link={{ href: "/settings/workers", label: "Manage workers" }}
@@ -113,7 +114,8 @@
       </PickerRow>
     {/snippet}
     {#snippet empty(query)}
-      {#if query}No workers match “{query}”.{:else if project.kind === "scratch"}Connect a worker first.{:else}{project.name}
+      {#if query}No workers match “{query}”.{:else if project.kind === "scratch"}Connect a worker first.{:else if project.workspaces.length}{project.name}'s
+        workers are not connected.{:else}{project.name}
         is not on any worker yet. Add it in project settings.{/if}
     {/snippet}
   </SearchPicker>
