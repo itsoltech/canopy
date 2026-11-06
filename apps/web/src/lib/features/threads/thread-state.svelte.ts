@@ -27,7 +27,10 @@ export interface TimelineEntry {
   readonly inherited: boolean;
   /** Inherited: the thread it belongs to (along a chain of forks, not always the direct source). */
   readonly fromThreadId: string;
-  /** Item times observed on the live stream; snapshots currently omit these. */
+  /**
+   * Item times observed on the live stream (`completedAt`: a message's latest completion). Snapshots bring only a
+   * completed agent message's end: it starts the turn's next segment (docs/timeline-folding.md).
+   */
   readonly startedAt?: number | undefined;
   readonly completedAt?: number | undefined;
 }
@@ -208,7 +211,7 @@ export class ThreadState {
                   inherited: i.inherited,
                   fromThreadId: i.fromThreadId,
                   startedAt: previous?.startedAt,
-                  completedAt: previous?.completedAt,
+                  completedAt: previous?.completedAt ?? (i.completedAt ? timestampMs(i.completedAt) : undefined),
                 },
               ]
             : [];
@@ -349,7 +352,11 @@ export class ThreadState {
       inherited: false,
       fromThreadId: "",
       startedAt: previous?.startedAt ?? (body.case === "itemStarted" ? at : undefined),
-      completedAt: previous?.completedAt ?? (body.case === "itemCompleted" ? at : undefined),
+      // A message's latest completion counts (Claude marks its answer final with a second one), as in snapshots.
+      completedAt:
+        body.case === "itemCompleted" && (!previous?.completedAt || next.content.case === "agentMessage")
+          ? (at ?? previous?.completedAt)
+          : previous?.completedAt,
     };
 
     this.entries = index >= 0 ? this.entries.with(index, entry) : [...this.entries, entry];

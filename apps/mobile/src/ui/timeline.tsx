@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ItemStatus, MentionKind, type Item, type Mention, ui } from "@canopy/contracts";
-import { answerIndex, turnProgress, workFoldOpen } from "@canopy/domain/work-fold";
+import { turnProgress, workFoldOpen, workSegments } from "@canopy/domain/work-fold";
 import { useDevicePreferences } from "../state/preferences";
 import { Markdown } from "./markdown";
 import { Icon } from "./Icon";
@@ -128,12 +128,6 @@ export function UserMessageView({
   );
 }
 
-/** The final answer has started: Codex and Claude mark it with a `final_answer` phase (Grok only ends the turn). */
-const answerStarted = (items: Item[]) =>
-  items.some(
-    (i) => i.content.case === "agentMessage" && i.content.value.phase === "final_answer" && i.content.value.text.trim(),
-  );
-
 /** The turn's tool work counted in the header, and everything the open fold shows, in order. */
 /** Messages and reasoning with no text yet add nothing to the turn. */
 const isEmpty = (item: Item) =>
@@ -154,7 +148,8 @@ export function WorkGroup({
 }: {
   items: Item[];
   rows: Item[];
-  duration: number;
+  /** Seconds; undefined when a segment's bounds are unknown (an older gateway's snapshot). */
+  duration: number | undefined;
   running: boolean;
   open: boolean;
   onToggle: () => void;
@@ -163,7 +158,9 @@ export function WorkGroup({
 
   const label = running
     ? "Working…"
-    : `Worked for ${duration >= 60 ? `${Math.floor(duration / 60)}m ${duration % 60}s` : `${duration}s`}`;
+    : duration === undefined
+      ? "Work"
+      : `Worked for ${duration >= 60 ? `${Math.floor(duration / 60)}m ${duration % 60}s` : `${duration}s`}`;
 
   return (
     <View style={{ gap: 2 }}>
@@ -262,32 +259,32 @@ export function TimelineTurn({
 }) {
   const c = useColors();
   const { workFold } = useDevicePreferences();
-  // Settings → Threads → Turn activity decides until the reader taps; the tap wins for the rest of the visit.
-  const [choice, setChoice] = useState<boolean>();
+  // Settings → Threads → Turn activity decides until the reader taps; the tap wins for the rest of the visit (per segment).
+  const [choices, setChoices] = useState<ReadonlyMap<number, boolean>>(new Map());
   const items = entries.flatMap((e) => (e.item ? [e.item] : []));
-
-  const work = items.filter(
-    (i) => !["agentMessage", "userMessage", "interactionPrompt"].includes(i.content.case ?? ""),
-  );
-
   const message = turn.messageText || turn.inputText;
   const working = turn.status === "running" || items.some((i) => i.status === ItemStatus.IN_PROGRESS);
-  const open = workFoldOpen(working, answerStarted(items), workFold, choice);
-  // Work, steers and messages in order; only a confirmed answer shows outside the fold (docs/timeline-folding.md).
-  const body = items.filter((i) => i.content.case !== "interactionPrompt" && !isEmpty(i) && !isInput(i, message));
 
-  const at = answerIndex(
-    body.map((i) => (i.content.case === "agentMessage" && !i.parentItemId ? i.content.value.phase : undefined)),
-    turnProgress(turn.status),
-    open,
+  // Work, steers and messages in order; only a confirmed answer shows outside a fold, and work after a shown
+  // answer starts the next segment (docs/timeline-folding.md).
+  const body = entries.filter(
+    (e): e is ui.TimelineItem & { item: Item } =>
+      !!e.item && e.item.content.case !== "interactionPrompt" && !isEmpty(e.item) && !isInput(e.item, message),
   );
 
-  const answer = body[at];
+  const rows = body.map(({ item }) => ({
+    phase: item.content.case === "agentMessage" && !item.parentItemId ? item.content.value.phase : undefined,
+    steer: item.content.case === "userMessage",
+  }));
 
-  const duration = Math.max(
-    0,
-    Number((turn.completedAt?.seconds ?? turn.startedAt?.seconds ?? 0n) - (turn.startedAt?.seconds ?? 0n)),
-  );
+  const progress = turnProgress(turn.status);
+  const plan = workSegments(rows, progress, () => false);
+
+  const open = (index: number) =>
+    workFoldOpen(index === plan.length - 1 && working, plan[index]?.answered ?? false, workFold, choices.get(index));
+
+  const segments = workSegments(rows, progress, open);
+  const seconds = (time: ui.Turn["startedAt"]) => (time ? Number(time.seconds) : undefined);
 
   if (turn.shellCommand !== undefined)
     return (
@@ -321,29 +318,55 @@ export function TimelineTurn({
           }
         />
       ) : null}
-      {(body.length > (answer ? 1 : 0) || duration > 0) && (
-        <WorkGroup
-          items={work}
-          rows={body.filter((i) => i !== answer)}
-          duration={duration}
-          running={working}
-          open={open}
-          onToggle={() => setChoice(!open)}
-        />
-      )}
-      {answer?.content.case === "agentMessage" && (
-        <View style={{ gap: 8 }}>
-          {turn.sourceKind === "report" && (
-            <Text style={[styles.meta, { color: c.muted }]}>Answer from {turn.sender?.title || "another thread"}</Text>
-          )}
-          <Markdown text={answer.content.value.text} />
-          {answer.status === ItemStatus.IN_PROGRESS && (
-            <Text accessibilityLiveRegion="polite" style={[styles.meta, { color: c.muted }]}>
-              Working…
-            </Text>
-          )}
-        </View>
-      )}
+      {segments.map((segment, index) => {
+        const answer = body[segment.answer]?.item;
+        const start = index ? seconds(body[segments[index - 1]!.answer]?.completedAt) : seconds(turn.startedAt);
+
+        const end =
+          index < segments.length - 1 ? seconds(body[segment.answer]?.completedAt) : seconds(turn.completedAt);
+
+        const duration = start !== undefined && end !== undefined ? Math.max(0, end - start) : undefined;
+        const inputs = body.slice(segment.start, segment.start + segment.inputs).map((e) => e.item);
+
+        const work = body
+          .slice(segment.start + segment.inputs, segment.end)
+          .flatMap((e) => (e.item === answer ? [] : [e.item]));
+
+        return (
+          <View key={index} style={{ gap: 16 }}>
+            {inputs.map((item) =>
+              item.content.case === "userMessage" ? (
+                <UserMessageView key={item.itemId} text={item.content.value.text} />
+              ) : null,
+            )}
+            {(work.length > 0 || !!duration || index > 0) && (
+              <WorkGroup
+                items={work.filter((i) => !["agentMessage", "userMessage"].includes(i.content.case ?? ""))}
+                rows={work}
+                duration={duration}
+                running={index === segments.length - 1 && working}
+                open={open(index)}
+                onToggle={() => setChoices(new Map(choices).set(index, !open(index)))}
+              />
+            )}
+            {answer?.content.case === "agentMessage" && (
+              <View style={{ gap: 8 }}>
+                {turn.sourceKind === "report" && (
+                  <Text style={[styles.meta, { color: c.muted }]}>
+                    Answer from {turn.sender?.title || "another thread"}
+                  </Text>
+                )}
+                <Markdown text={answer.content.value.text} />
+                {answer.status === ItemStatus.IN_PROGRESS && (
+                  <Text accessibilityLiveRegion="polite" style={[styles.meta, { color: c.muted }]}>
+                    Working…
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        );
+      })}
       {turn.error ? (
         <Text selectable accessibilityRole="alert" style={[styles.body, { color: c.danger }]}>
           {turn.error}

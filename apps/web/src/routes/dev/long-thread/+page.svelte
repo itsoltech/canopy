@@ -130,10 +130,10 @@
           <FeedRowView
             {row}
             ontoggle={() => (historyOpen = !historyOpen)}
-            onwork={(turnId) =>
-              (openWork = openWork.has(turnId)
-                ? new Set([...openWork].filter((id) => id !== turnId))
-                : new Set([...openWork, turnId]))}
+            onwork={(fold) =>
+              (openWork = openWork.has(fold)
+                ? new Set([...openWork].filter((id) => id !== fold))
+                : new Set([...openWork, fold]))}
             ongroup={(key) =>
               (openGroups = openGroups.has(key)
                 ? new Set([...openGroups].filter((id) => id !== key))

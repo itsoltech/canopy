@@ -1,10 +1,11 @@
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { ItemStatus } from "@canopy/contracts";
 import type { ui } from "@canopy/contracts";
-import type { TimelineEntry, TimelineNotice } from "./thread-state.svelte.ts";
-import { isSteerMessage, isTerminal, type ItemNode, type TimelineRow } from "./timeline.ts";
+import type { TimelineEntry } from "./thread-state.svelte.ts";
+import type { ItemNode, TimelineRow } from "./timeline.ts";
 import { describeTool } from "./components/items/tools/registry.ts";
-import { answerIndex, turnProgress, type BodyPhase } from "@canopy/domain/work-fold";
+import { blank } from "./work-segments.ts";
+import { foldId, turnProgress, workSegments, type BodyRow, type WorkSegment } from "@canopy/domain/work-fold";
 
 /**
  * Each turn's work under a stable "Working for …" / "Worked for …" row:
@@ -19,6 +20,9 @@ import { answerIndex, turnProgress, type BodyPhase } from "@canopy/domain/work-f
  *   failed) keeps it only when nothing came after it; otherwise its footer (status, reason, Continue)
  *   is the end the reader sees.
  * - Even message-only turns retain the header and the answer slot at completion.
+ * - A message marked final that more work follows stays shown: the work after it forms the turn's next
+ *   segment (`workSegments`), its leading steers above a fold and answer slot of its own (`fold`: the
+ *   segment's fold id, `foldId`).
  * - Empty reasoning and messages add no visible work. Later text deltas can make them visible.
  * - Other turns and background work without a turn keep their own order.
  * - Consecutive tools form a group under its own header when the work has several such phases. A sole
@@ -29,6 +33,7 @@ export type FoldedRow =
   | {
       readonly kind: "work";
       readonly key: string;
+      readonly fold: string;
       readonly turn: ui.Turn;
       readonly open: boolean;
       readonly summary: WorkSummary;
@@ -44,10 +49,18 @@ export type FoldedRow =
       readonly running: boolean;
       readonly items: readonly string[];
     }
-  | { readonly kind: "answer"; readonly key: string; readonly turn: ui.Turn; readonly row: TimelineRow | undefined };
+  | {
+      readonly kind: "answer";
+      readonly key: string;
+      readonly fold: string;
+      readonly turn: ui.Turn;
+      readonly row: TimelineRow | undefined;
+    };
 
 export interface WorkSummary {
-  /** Turn start to end, ms; undefined without both timestamps. */
+  /** The segment's start (the turn's, or its previous answer's end), ms; a live fold counts from it. */
+  readonly startMs: number | undefined;
+  /** Segment start to end (the turn's end, or its answer's), ms; undefined without both timestamps. */
   readonly spanMs: number | undefined;
   /** What the fold holds, e.g. "3 commands, 1 edit" (the most telling kinds, at most three). */
   readonly counts: string;
@@ -73,27 +86,34 @@ export function turnIdOf(row: TimelineRow): string {
 /** Rows of the turn that are its work or its final message (not its frame or input). */
 const isBody = (row: TimelineRow): boolean => (row.kind === "item" && !row.inputOf) || row.kind === "notice";
 
-const bodyPhase = (row: TimelineRow): BodyPhase => {
+const bodyRow = (row: TimelineRow): BodyRow => {
   const content = row.kind === "item" ? row.node.entry.item.content : undefined;
 
-  return content?.case === "agentMessage" ? content.value.phase : undefined;
+  return {
+    phase: content?.case === "agentMessage" ? content.value.phase : undefined,
+    steer: row.kind === "item" && row.steer,
+  };
 };
 
 /** An item with nothing to show, without children. */
-export function isEmpty(row: TimelineRow): boolean {
-  if (row.kind !== "item" || row.node.children.length > 0) return false;
-  const content = row.node.entry.item.content;
+export const isEmpty = (row: TimelineRow): boolean =>
+  row.kind === "item" && row.node.children.length === 0 && blank(row.node.entry.item.content);
 
-  if (content.case === "reasoning") return !content.value.text.trim() && !content.value.summary.trim();
+interface SegmentTimes {
+  readonly startMs: number | undefined;
+  readonly endMs: number | undefined;
+  readonly live: boolean;
+}
 
-  if (content.case === "agentMessage") return !content.value.text.trim();
-
-  return false;
+interface TurnFold {
+  readonly turn: ui.Turn;
+  readonly body: readonly TimelineRow[];
+  readonly segments: readonly WorkSegment[];
 }
 
 export function foldTurns(
   rows: readonly TimelineRow[],
-  isOpen: (turnId: string) => boolean,
+  isOpen: (fold: string) => boolean,
   groupOpen: (key: string) => boolean = () => false,
 ): FoldedRow[] {
   // A background task owns its source command's lifecycle after the turn ends. System stops can
@@ -129,14 +149,12 @@ export function foldTurns(
     else bodies.set(turnId, [row]);
   }
 
-  const folds = new Map<string, { turn: ui.Turn; final: TimelineRow | undefined; work: TimelineRow[] }>();
+  const folds = new Map<string, TurnFold>();
 
   for (const [turnId, turn] of turns) {
     const body = bodies.get(turnId) ?? [];
-    const at = answerIndex(body.map(bodyPhase), turnProgress(turn.status), isOpen(turnId));
-    const final = at >= 0 ? body[at] : undefined;
-    const work = body.filter((row) => row !== final);
-    folds.set(turnId, { turn, final, work });
+    const segments = workSegments(body.map(bodyRow), turnProgress(turn.status), (i) => isOpen(foldId(turnId, i)));
+    folds.set(turnId, { turn, body, segments });
   }
 
   const out: FoldedRow[] = [];
@@ -164,25 +182,66 @@ export function foldTurns(
 
     if (!fold) continue;
     placed.add(turnId);
-    const open = isOpen(turnId);
-    const groups = toolGroups(fold.work);
-    const flat = groups.length === 1 ? groupKey(turnId, groups[0]!) : undefined;
-    out.push({
-      kind: "work",
-      key: `work:${turnId}`,
-      turn: fold.turn,
-      open,
-      summary: summarize(fold.turn, fold.work, tasksBySource),
-      flat,
-    });
 
-    if (open) out.push(...workRows(fold.turn, fold.work, groups, groupOpen));
-    out.push({ kind: "answer", key: `answer:${turnId}`, turn: fold.turn, row: fold.final });
+    for (let index = 0; index < fold.segments.length; index++)
+      out.push(...segmentRows(fold, index, isOpen, groupOpen, tasksBySource));
 
     if (row.kind === "turn-end") out.push({ kind: "row", row, work: false });
   }
 
   return out;
+}
+
+/** A segment's leading steers (as the conversation shows them), its fold, the open fold's rows and its answer slot. */
+function segmentRows(
+  fold: TurnFold,
+  index: number,
+  isOpen: (fold: string) => boolean,
+  groupOpen: (key: string) => boolean,
+  tasksBySource: ReadonlyMap<string, TimelineEntry>,
+): FoldedRow[] {
+  const { turn, body, segments } = fold;
+  const segment = segments[index]!;
+  const id = foldId(turn.id, index);
+  const final = segment.answer >= 0 ? body[segment.answer] : undefined;
+  const rows = body.slice(segment.start, segment.end);
+  const work = rows.slice(segment.inputs).filter((row) => row !== final);
+  const open = isOpen(id);
+  const groups = toolGroups(work);
+  const out: FoldedRow[] = rows.slice(0, segment.inputs).map((row) => ({ kind: "row", row, work: false }));
+  out.push({
+    kind: "work",
+    key: `work:${id}`,
+    fold: id,
+    turn,
+    open,
+    summary: summarize(turn, work, tasksBySource, segmentTimes(fold, index)),
+    flat: groups.length === 1 ? groupKey(turn.id, groups[0]!) : undefined,
+  });
+
+  if (open) out.push(...workRows(turn, work, groups, groupOpen));
+  out.push({ kind: "answer", key: `answer:${id}`, fold: id, turn, row: final });
+
+  return out;
+}
+
+/** When a segment ran: from the turn's start or the previous answer's end, to its own answer's end or the turn's. */
+function segmentTimes(fold: TurnFold, index: number): SegmentTimes {
+  const { turn, body, segments } = fold;
+
+  const answerEnd = (at: number | undefined) => {
+    const row = at === undefined ? undefined : body[at];
+
+    return row?.kind === "item" ? row.node.entry.completedAt : undefined;
+  };
+
+  const ms = (time: ui.Turn["startedAt"]) => (time ? timestampMs(time) : undefined);
+
+  return {
+    startMs: index === 0 ? ms(turn.startedAt) : answerEnd(segments[index - 1]?.answer),
+    endMs: index === segments.length - 1 ? ms(turn.completedAt) : answerEnd(segments[index]?.answer),
+    live: segments[index]?.live ?? false,
+  };
 }
 
 const groupKey = (turnId: string, tools: readonly TimelineRow[]): string => `group:${turnId}:${tools[0]!.key}`;
@@ -255,6 +314,7 @@ function summarize(
   turn: ui.Turn,
   work: readonly TimelineRow[],
   tasksBySource: ReadonlyMap<string, TimelineEntry>,
+  { startMs, endMs, live }: SegmentTimes,
 ): WorkSummary {
   const counts = new Map<string, number>();
   const running = new Set<string>();
@@ -281,14 +341,14 @@ function summarize(
       return `${n} ${n === 1 ? one : many}`;
     });
 
-  const spanMs =
-    turn.startedAt && turn.completedAt ? timestampMs(turn.completedAt) - timestampMs(turn.startedAt) : undefined;
+  const spanMs = startMs !== undefined && endMs !== undefined ? endMs - startMs : undefined;
 
   return {
+    startMs,
     spanMs: spanMs !== undefined && spanMs >= 0 ? spanMs : undefined,
     counts: parts.join(", "),
     running: running.size,
-    live: !isTerminal(turn.status),
+    live,
     hint: currentWorkHint(work, tasksBySource),
     size: work.length,
   };
@@ -411,40 +471,4 @@ export function currentWorkHint(
     return content.value.routedTo === "parent" ? "Waiting for the parent agent…" : "Waiting for your answer…";
 
   return "Thinking…";
-}
-
-/**
- * Of the turns that just ended, the ones the reader is in: one of the turn's work rows (not its input,
- * not its last agent message — those stay when it folds) among `reading` (row keys on screen or focused,
- * in order). For each, the first such row: it keeps its place when the fold row appears above it.
- */
-export function readWork(
-  ended: readonly string[],
-  reading: readonly string[],
-  entries: readonly TimelineEntry[],
-  notices: readonly TimelineNotice[],
-): Map<string, string> {
-  const turnOfKey = new Map<string, string>();
-  const finals = new Map<string, TimelineEntry>();
-
-  for (const entry of entries)
-    if (entry.item.content.case === "agentMessage" && !entry.item.parentItemId) finals.set(entry.turnId, entry);
-
-  for (const entry of entries) {
-    const content = entry.item.content;
-    const work = content.case === "userMessage" ? isSteerMessage(entry) : finals.get(entry.turnId) !== entry;
-
-    if (work) turnOfKey.set(`item:${entry.id}`, entry.turnId);
-  }
-
-  for (const notice of notices) turnOfKey.set(`notice:${notice.seq}`, notice.turnId);
-  const held = new Map<string, string>();
-
-  for (const key of reading) {
-    const turnId = turnOfKey.get(key);
-
-    if (turnId && ended.includes(turnId) && !held.has(turnId)) held.set(turnId, key);
-  }
-
-  return held;
 }

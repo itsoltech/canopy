@@ -677,6 +677,9 @@ message TimelineItem {
   bool inherited = 5;
   // Odziedziczony item: wątek, do którego należy.
   string from_thread_id = 6;
+  // Zakończona wiadomość agenta: czas jej ostatniego zdarzenia (last_seq). Wyznacza czas segmentów tury
+  // po pokazanej odpowiedzi także po ponownym otwarciu wątku (docs/timeline-folding.md); inne itemy bez.
+  google.protobuf.Timestamp completed_at = 7;
 }
 
 // Komunikat dostawcy albo platformy na osi czasu (np. ponowienie po błędzie API).

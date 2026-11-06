@@ -54,7 +54,7 @@ export interface FeedInput {
   readonly inheritedEntries: readonly TimelineEntry[];
   readonly inheritedTurns: readonly ui.Turn[];
   readonly historyOpen: boolean;
-  /** Turns whose work the reader opened (by turn id), live or ended. */
+  /** Folds open (by fold id: a turn's, or its later segment's, `foldId`), live or ended. */
   readonly openWork: ReadonlySet<string>;
   readonly openGroups?: ReadonlySet<string>;
 }
@@ -108,7 +108,7 @@ export class FeedBuilder {
 
   build(input: FeedInput): FeedRow[] {
     const next: FeedRow[] = [];
-    const open = (turnId: string) => input.openWork.has(turnId);
+    const open = (fold: string) => input.openWork.has(fold);
     const groupOpen = (key: string) => input.openGroups?.has(key) ?? false;
     const sourceId = input.forkSourceId;
 
