@@ -46,6 +46,8 @@ export function ProviderModels({ instance, onChanged }: { instance: ui.ProviderI
     ]),
   ];
 
+  const listed = catalog.length ? catalog : resource.initialLoading ? [" "] : [];
+
   return (
     <>
       <Button secondary title="Manage models" onPress={() => setOpen(true)} />
@@ -66,7 +68,7 @@ export function ProviderModels({ instance, onChanged }: { instance: ui.ProviderI
               })
             }
           />
-          {catalog.flatMap((id) =>
+          {listed.flatMap((id) =>
             id.toLowerCase().includes(query.toLowerCase())
               ? [
                   <SettingsGroup key={id} title={id}>

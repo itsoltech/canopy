@@ -1,5 +1,6 @@
 import { View } from "react-native";
 import { ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Button, Notice } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingToggle } from "./SettingsGroup";
@@ -16,7 +17,7 @@ type Change = (
 export function NetworkSettings() {
   const resource = useSettingsResource("network", (api) => api.getNetworkAccess({}));
   const { data: capabilities } = useSettingsResource("capabilities", (api) => api.getClientCapabilities({}));
-  const status = resource.data;
+  const status = resource.data ?? (resource.initialLoading ? create(ui.NetworkAccessSchema) : undefined);
 
   const change = async (action: string, patch: MessageInitShape<typeof ui.UpdateNetworkAccessRequestSchema> = {}) =>
     !!(await resource.run((api) => api.updateNetworkAccess({ ...patch, action })));

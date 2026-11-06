@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { Skeleton } from "../../ui/Skeleton";
 import type { ui } from "@canopy/contracts";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
@@ -71,6 +72,7 @@ export function MentionSuggestions({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={[option.title, option.detail].filter(Boolean).join(", ")}
+              disabled={loading}
               onPress={() => onPick(option)}
               style={({ pressed }) => [
                 styles.row,
@@ -97,10 +99,16 @@ export function MentionSuggestions({
         ))}
         {!options.length && (
           <View style={[styles.row, { minHeight: 44, paddingHorizontal: 12 }]}>
-            {loading ? <ActivityIndicator size="small" color={c.muted} /> : null}
-            <Text style={[styles.overlayMeta, { color: error ? c.danger : c.muted, flex: 1 }]}>
-              {error || (loading ? "Searching…" : emptyText[trigger.char])}
-            </Text>
+            {loading ? (
+              <>
+                <Skeleton style={{ width: 16, height: 16 }} />
+                <Skeleton style={{ width: "70%", height: 16 }} />
+              </>
+            ) : (
+              <Text style={[styles.overlayMeta, { color: error ? c.danger : c.muted, flex: 1 }]}>
+                {error || emptyText[trigger.char]}
+              </Text>
+            )}
           </View>
         )}
       </ScrollView>

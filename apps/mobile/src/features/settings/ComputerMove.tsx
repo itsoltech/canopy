@@ -6,6 +6,7 @@ import { useOverview } from "../../state/overview";
 import { SettingsGroup, SettingChoice } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
+import { SettingsSkeletonRows } from "./SettingsSkeleton";
 
 export function ComputerMove({ nodeId }: { nodeId: string }) {
   const resource = useSettingsResource(`move:${nodeId}`, (api) => api.previewMove({ nodeId, everything: true }));
@@ -43,6 +44,7 @@ export function ComputerMove({ nodeId }: { nodeId: string }) {
     <ResourceState resource={resource}>
       {data?.unavailable ? <Notice>{data.unavailable}</Notice> : null}
       <SettingsGroup title="Move preview">
+        <SettingsSkeletonRows rows={3} />
         {data?.items.map((item) => (
           <SettingsValue
             key={item.id}
@@ -51,7 +53,7 @@ export function ComputerMove({ nodeId }: { nodeId: string }) {
             description={item.redo.length ? `Set up again: ${item.redo.join(", ")}` : undefined}
           />
         ))}
-        {!data?.items.length && <Notice>No threads or bots to move.</Notice>}
+        {data && !data.items.length && <Notice>No threads or bots to move.</Notice>}
         {data?.shared.length ? <SettingsValue title="Stays shared" value={data.shared.join("\n")} /> : null}
         {data?.localOnly.length ? (
           <SettingsValue title="Stays on this computer" value={data.localOnly.join("\n")} />

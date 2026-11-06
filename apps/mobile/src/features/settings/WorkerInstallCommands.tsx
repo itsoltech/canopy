@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Button, Notice } from "../../ui/components";
 import { SettingChoice } from "./SettingsGroup";
@@ -29,7 +30,10 @@ export function WorkerInstallCommands({
     throw new Error("No release metadata");
   });
 
-  const metadata = resource.data;
+  const metadata =
+    resource.data ??
+    (resource.initialLoading ? create(ui.WorkerInstallChunkSchema, { version: setup.gatewayVersion }) : undefined);
+
   const asset = `canopy-worker-${platform.replace("/", "-")}`;
   const enroll = `enroll --gateway ${quote(gateway)}${setup.gatewayFingerprint ? ` --fingerprint ${quote(setup.gatewayFingerprint)}` : ""} --token ${quote(token)}`;
   const tag = metadata?.version || setup.gatewayVersion;
@@ -52,7 +56,7 @@ export function WorkerInstallCommands({
           { value: "darwin/arm64", label: "macOS Apple Silicon" },
         ]}
       />
-      {metadata && metadata.version !== setup.gatewayVersion && (
+      {resource.data && metadata && metadata.version !== setup.gatewayVersion && (
         <Notice>
           This gateway version is unavailable. Use compatible release {metadata.version} from the {setup.channel}{" "}
           channel.
@@ -74,7 +78,9 @@ export function WorkerInstallCommands({
           value={`# Enroll using docker run above first\nservices:\n  worker:\n    image: ${image}\n    restart: unless-stopped\n    volumes:\n      - canopy-worker:/home/canopy\nvolumes:\n  canopy-worker:\n    external: true`}
         />
       )}
-      {!metadata && <Button secondary title="Retry release lookup" onPress={() => void resource.reload()} />}
+      {!metadata && resource.error && (
+        <Button secondary title="Retry release lookup" onPress={() => void resource.reload()} />
+      )}
     </ResourceState>
   );
 }

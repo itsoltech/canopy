@@ -5,16 +5,20 @@ import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
 import { Button, Field, Notice, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
-import { SettingsInput } from "./SettingsInput";
+import { SettingsTextInput } from "./SettingsTextInput";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { DirectoryBrowser } from "./DirectoryBrowser";
 import { DefaultModels } from "./SettingsModels";
 import { DefaultResets } from "./DefaultResets";
 import { SelectField } from "../../ui/Picker";
 import { PermissionPickerSheet, permissionLabel } from "../threads/permissions";
+import { SkeletonScope } from "../../ui/Skeleton";
+import { SettingsSkeletonGroups } from "./SettingsSkeleton";
+
+type ProjectResource = ReturnType<typeof useSettingsResource<ui.GetSettingsResponse>>;
 
 export function ProjectSettings() {
-  const { projects, workers } = useOverview();
+  const { projects, workers, loaded } = useOverview();
   const resource = useSettingsResource("projects", (api) => api.getSettings({}));
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ui.Project>();
@@ -22,14 +26,19 @@ export function ProjectSettings() {
   return (
     <ResourceState resource={resource}>
       <Button title="Add project" onPress={() => setAdding(true)} />
-      {!projects.some((p) => p.kind !== "scratch") && (
+      {!loaded && (
+        <SkeletonScope loading>
+          <SettingsSkeletonGroups titles={[" "]} />
+        </SkeletonScope>
+      )}
+      {loaded && !projects.some((p) => p.kind !== "scratch" && !p.archivedAt) && (
         <Notice>No projects yet. Add a directory or clone a repository on a worker.</Notice>
       )}
       {projects
         .filter((p) => p.kind !== "scratch" && !p.archivedAt)
         .map((project) => (
           <SettingsGroup key={project.id} title={project.name}>
-            <SettingsInput
+            <SettingsTextInput
               title="Project name"
               value={project.name}
               busy={resource.busy}
@@ -41,65 +50,69 @@ export function ProjectSettings() {
               <WorkspaceSettings
                 key={ws.id}
                 workspace={ws}
+                resource={resource}
                 workerName={workers.find((w) => w.id === ws.workerId)?.name ?? "Unknown worker"}
               />
             ))}
             <Button secondary title="Add workspace" onPress={() => setEditing(project)} />
-            <ProjectDefaults project={project} />
+            <ProjectDefaults project={project} resource={resource} />
           </SettingsGroup>
         ))}
       <Sheet title="Add project" visible={adding} onClose={() => setAdding(false)}>
-        {adding && <AddProject onSaved={() => setAdding(false)} />}
+        {adding && <AddProject resource={resource} onSaved={() => setAdding(false)} />}
       </Sheet>
       <Sheet title="Add workspace" visible={!!editing} onClose={() => setEditing(undefined)}>
-        {editing && <AddWorkspace project={editing} onSaved={() => setEditing(undefined)} />}
+        {editing && <AddWorkspace project={editing} resource={resource} onSaved={() => setEditing(undefined)} />}
       </Sheet>
     </ResourceState>
   );
 }
 
-function WorkspaceSettings({ workspace, workerName }: { workspace: ui.Workspace; workerName: string }) {
-  const resource = useSettingsResource(`workspace:${workspace.id}`, (api) => api.getSettings({}));
-
+function WorkspaceSettings({
+  workspace,
+  workerName,
+  resource,
+}: {
+  workspace: ui.Workspace;
+  workerName: string;
+  resource: ProjectResource;
+}) {
   return (
-    <ResourceState resource={resource}>
-      <SettingsRow title={workerName} description={workspace.rootPath}>
-        <SettingsInput
-          title="Label"
-          value={workspace.label}
-          busy={resource.busy}
-          onSave={async (label) =>
-            !!(await resource.run((api) => api.updateWorkspace({ workspaceId: workspace.id, label })))
-          }
-        />
-        <SettingsInput
-          title="Root path"
-          value={workspace.rootPath}
-          busy={resource.busy}
-          onSave={async (rootPath) =>
-            !!(await resource.run((api) => api.updateWorkspace({ workspaceId: workspace.id, rootPath })))
-          }
-        />
-        <Button
-          danger
-          title="Remove workspace"
-          busy={resource.busy}
-          onPress={() =>
-            confirmAction(
-              "Remove workspace",
-              "New threads cannot use this workspace. Existing threads and files stay.",
-              () => void resource.run((api) => api.removeWorkspace({ workspaceId: workspace.id })),
-            )
-          }
-        />
-      </SettingsRow>
-    </ResourceState>
+    <SettingsRow title={workerName} description={workspace.rootPath}>
+      <SettingsTextInput
+        title="Label"
+        value={workspace.label}
+        busy={resource.busy}
+        onSave={async (label) =>
+          !!(await resource.run((api) => api.updateWorkspace({ workspaceId: workspace.id, label })))
+        }
+      />
+      <SettingsTextInput
+        title="Root path"
+        value={workspace.rootPath}
+        busy={resource.busy}
+        onSave={async (rootPath) =>
+          !!(await resource.run((api) => api.updateWorkspace({ workspaceId: workspace.id, rootPath })))
+        }
+      />
+      <Button
+        danger
+        title="Remove workspace"
+        busy={resource.busy}
+        onPress={() =>
+          confirmAction(
+            "Remove workspace",
+            "New threads cannot use this workspace. Existing threads and files stay.",
+            () => void resource.run((api) => api.removeWorkspace({ workspaceId: workspace.id })),
+          )
+        }
+      />
+    </SettingsRow>
   );
 }
 
-function AddProject({ onSaved }: { onSaved: () => void }) {
+function AddProject({ onSaved, resource }: { onSaved: () => void; resource: ProjectResource }) {
   const { workers } = useOverview();
-  const resource = useSettingsResource("add-project", (api) => api.getOverview({}));
   const [workerId, setWorker] = useState(workers[0]?.id ?? "");
   const [kind, setKind] = useState("directory");
   const [path, setPath] = useState("");
@@ -182,9 +195,16 @@ function AddProject({ onSaved }: { onSaved: () => void }) {
   );
 }
 
-function AddWorkspace({ project, onSaved }: { project: ui.Project; onSaved: () => void }) {
+function AddWorkspace({
+  project,
+  onSaved,
+  resource,
+}: {
+  project: ui.Project;
+  onSaved: () => void;
+  resource: ProjectResource;
+}) {
   const { workers } = useOverview();
-  const resource = useSettingsResource("add-workspace", (api) => api.getSettings({}));
   const [workerId, setWorker] = useState(workers[0]?.id ?? "");
   const [rootPath, setPath] = useState("");
   const [label, setLabel] = useState("");
@@ -215,9 +235,8 @@ function AddWorkspace({ project, onSaved }: { project: ui.Project; onSaved: () =
   );
 }
 
-function ProjectDefaults({ project }: { project: ui.Project }) {
+function ProjectDefaults({ project, resource }: { project: ui.Project; resource: ProjectResource }) {
   const settings = useAppearance();
-  const resource = useSettingsResource(`project-defaults:${project.id}`, (api) => api.getSettings({}));
   const [permission, setPermission] = useState(false);
   const row = resource.data?.projects.find((p) => p.projectId === project.id);
   const value = create(ui.ThreadDefaultsSchema, row?.threadDefaults);
@@ -232,70 +251,65 @@ function ProjectDefaults({ project }: { project: ui.Project }) {
     );
 
   return (
-    <ResourceState resource={resource}>
-      <DefaultResets value={value} onChange={save} inherited disabled={resource.busy}>
-        <SettingsGroup
-          title="New thread defaults"
-          description="Use account defaults unless this project overrides them."
-        >
-          <SettingChoice
-            title="Worker"
-            value={value.workspaceId}
-            onChange={(workspaceId) => save({ workspaceId })}
-            options={[
-              { value: "", label: "Use my default" },
-              ...project.workspaces.map((w) => ({ value: w.id, label: w.label || w.rootPath })),
-            ]}
-          />
-          <SettingChoice
-            title="Agent"
-            value={value.provider}
-            onChange={(provider) => save({ provider, providerProfileId: "" })}
-            options={[
-              { value: Provider.UNSPECIFIED, label: "Use my default" },
-              { value: Provider.CLAUDE, label: "Claude" },
-              { value: Provider.CODEX, label: "Codex" },
-              { value: Provider.GROK, label: "Grok" },
-            ]}
-          />
-          {!!value.provider && <DefaultModels value={value} onChange={save} />}
-          <SettingsRow
-            title="Permissions"
-            description="New threads of this project use this approval policy."
-            control={
-              <SelectField
-                label="Permissions"
-                hideLabel
-                value={
-                  value.permissionMode
-                    ? permissionLabel(value.permissionMode)
-                    : `Use my default (${permissionLabel(settings.user?.threadDefaults?.permissionMode)})`
-                }
-                onPress={() => setPermission(true)}
-              />
-            }
-          />
-          <PermissionPickerSheet
-            visible={permission}
-            onClose={() => setPermission(false)}
-            value={value.permissionMode}
-            onSelect={(permissionMode) => save({ permissionMode })}
-          />
-          <Button
-            secondary
-            title="Restore account defaults"
-            onPress={() =>
-              void resource.run((api) =>
-                api.updateProjectSettings({
-                  projectId: project.id,
-                  threadDefaults: create(ui.ThreadDefaultsSchema),
-                  expectedVersion: row?.version ?? 0n,
-                }),
-              )
-            }
-          />
-        </SettingsGroup>
-      </DefaultResets>
-    </ResourceState>
+    <DefaultResets value={value} onChange={save} inherited disabled={resource.busy}>
+      <SettingsGroup title="New thread defaults" description="Use account defaults unless this project overrides them.">
+        <SettingChoice
+          title="Worker"
+          value={value.workspaceId}
+          onChange={(workspaceId) => save({ workspaceId })}
+          options={[
+            { value: "", label: "Use my default" },
+            ...project.workspaces.map((w) => ({ value: w.id, label: w.label || w.rootPath })),
+          ]}
+        />
+        <SettingChoice
+          title="Agent"
+          value={value.provider}
+          onChange={(provider) => save({ provider, providerProfileId: "" })}
+          options={[
+            { value: Provider.UNSPECIFIED, label: "Use my default" },
+            { value: Provider.CLAUDE, label: "Claude" },
+            { value: Provider.CODEX, label: "Codex" },
+            { value: Provider.GROK, label: "Grok" },
+          ]}
+        />
+        {!!value.provider && <DefaultModels value={value} onChange={save} />}
+        <SettingsRow
+          title="Permissions"
+          description="New threads of this project use this approval policy."
+          control={
+            <SelectField
+              label="Permissions"
+              hideLabel
+              value={
+                value.permissionMode
+                  ? permissionLabel(value.permissionMode)
+                  : `Use my default (${permissionLabel(settings.user?.threadDefaults?.permissionMode)})`
+              }
+              onPress={() => setPermission(true)}
+            />
+          }
+        />
+        <PermissionPickerSheet
+          visible={permission}
+          onClose={() => setPermission(false)}
+          value={value.permissionMode}
+          onSelect={(permissionMode) => save({ permissionMode })}
+        />
+        <Button
+          secondary
+          title="Restore account defaults"
+          onPress={() =>
+            void resource.run((api) =>
+              api.updateProjectSettings({
+                projectId: project.id,
+                threadDefaults: create(ui.ThreadDefaultsSchema),
+                expectedVersion: row?.version ?? 0n,
+              }),
+            )
+          }
+        />
+      </SettingsGroup>
+    </DefaultResets>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Field, Notice } from "../../ui/components";
 import { SettingsRow } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
+import { SettingsSkeletonRows } from "./SettingsSkeleton";
 
 export function DirectoryBrowser({
   workerId,
@@ -19,6 +20,7 @@ export function DirectoryBrowser({
     <ResourceState resource={resource}>
       <Field label="Directory path" value={value} onChangeText={onChange} autoCapitalize="none" autoCorrect={false} />
       <Button secondary title="Browse directory" disabled={!workerId} onPress={() => setPath(value)} />
+      <SettingsSkeletonRows rows={4} />
       {resource.data && (
         <>
           <Button secondary title="Use this directory" onPress={() => onChange(resource.data!.path)} />

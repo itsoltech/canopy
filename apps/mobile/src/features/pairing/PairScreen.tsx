@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { ActivityIndicator, Image, Platform, ScrollView, Text, View } from "react-native";
+import { Image, Platform, ScrollView, Text, View } from "react-native";
+import { SkeletonScope } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Device from "expo-device";
@@ -166,93 +167,93 @@ export default function PairScreen() {
     connect,
   } = usePairing();
 
-  if (!ready) return <ActivityIndicator accessibilityLabel="Opening secure storage" />;
-
   if (session) return <Redirect href="/" />;
 
   return (
     <SafeAreaView style={styles.fill} edges={["top", "left", "right"]}>
       <KeyboardArea>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          contentContainerStyle={styles.page}
-        >
-          <Image
-            source={require("../../../../web/static/icon-512.png")}
-            accessibilityLabel="Canopy"
-            style={{ width: 72, height: 72, borderRadius: 18, marginTop: 16 }}
-          />
-          <View style={{ gap: 10 }}>
-            <Text style={[styles.title, { color: c.text }]}>Canopy</Text>
-            <Text style={[styles.body, { color: c.muted }]}>Connect to your gateway</Text>
-          </View>
-          <View style={{ gap: 12 }}>
-            <Text style={[styles.heading, { color: c.text }]}>Pair with your Canopy</Text>
-            <Text style={[styles.body, { color: c.muted }]}>
-              On your computer, open Settings → Mobile devices → Pair a phone. Use the same Wi-Fi or VPN.
-            </Text>
-          </View>
-          {(error || sessionError) && <Notice error>{error || sessionError}</Notice>}
-          {scanning ? (
-            <View style={{ gap: 12 }}>
-              <CameraView
-                style={{ height: 280, borderRadius: 16, overflow: "hidden" }}
-                facing="back"
-                barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-                onBarcodeScanned={({ data }) => scanned(data)}
-                onMountError={() => {
-                  setScanning(false);
-                  setError("Camera unavailable. Enter the pairing code below.");
-                }}
-              />
-              <Button title="Cancel scan" secondary onPress={() => setScanning(false)} />
+        <SkeletonScope loading={!ready}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+            contentContainerStyle={styles.page}
+          >
+            <Image
+              source={require("../../../../web/static/icon-512.png")}
+              accessibilityLabel="Canopy"
+              style={{ width: 72, height: 72, borderRadius: 18, marginTop: 16 }}
+            />
+            <View style={{ gap: 10 }}>
+              <Text style={[styles.title, { color: c.text }]}>Canopy</Text>
+              <Text style={[styles.body, { color: c.muted }]}>Connect to your gateway</Text>
             </View>
-          ) : (
-            <Button title="Scan pairing QR code" onPress={() => void scan()} disabled={busy} />
-          )}
-          <Text style={[styles.body, { color: c.muted, textAlign: "center" }]}>or enter the details</Text>
-          <Field
-            label="Gateway HTTPS address"
-            value={gatewayUrl}
-            onChangeText={setUrl}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            placeholder="https://computer:port"
-            editable={!busy}
-          />
-          <Field
-            label="Certificate fingerprint"
-            value={fingerprint}
-            onChangeText={setFingerprint}
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholder="Scan QR or paste the SHA-256 fingerprint"
-            editable={!busy}
-          />
-          <Field
-            label="Pairing code"
-            value={code}
-            onChangeText={setCode}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            placeholder="ABCD-EF23-4567-89AB"
-            maxLength={24}
-            editable={!busy}
-          />
-          <Field label="Device name" value={name} onChangeText={setName} maxLength={100} editable={!busy} />
-          <Button
-            title="Pair this phone"
-            secondary
-            onPress={() => void connect()}
-            disabled={!gatewayUrl.trim() || !fingerprint.trim() || !code.trim() || !name.trim()}
-            busy={busy}
-          />
-          <Text style={[styles.meta, { color: c.muted }]}>
-            Your device key stays in encrypted storage. You can revoke access at any time in web Settings.
-          </Text>
-        </ScrollView>
+            <View style={{ gap: 12 }}>
+              <Text style={[styles.heading, { color: c.text }]}>Pair with your Canopy</Text>
+              <Text style={[styles.body, { color: c.muted }]}>
+                On your computer, open Settings → Mobile devices → Pair a phone. Use the same Wi-Fi or VPN.
+              </Text>
+            </View>
+            {(error || sessionError) && <Notice error>{error || sessionError}</Notice>}
+            {scanning ? (
+              <View style={{ gap: 12 }}>
+                <CameraView
+                  style={{ height: 280, borderRadius: 16, overflow: "hidden" }}
+                  facing="back"
+                  barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                  onBarcodeScanned={({ data }) => scanned(data)}
+                  onMountError={() => {
+                    setScanning(false);
+                    setError("Camera unavailable. Enter the pairing code below.");
+                  }}
+                />
+                <Button title="Cancel scan" secondary onPress={() => setScanning(false)} />
+              </View>
+            ) : (
+              <Button title="Scan pairing QR code" onPress={() => void scan()} disabled={busy} />
+            )}
+            <Text style={[styles.body, { color: c.muted, textAlign: "center" }]}>or enter the details</Text>
+            <Field
+              label="Gateway HTTPS address"
+              value={gatewayUrl}
+              onChangeText={setUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              placeholder="https://computer:port"
+              editable={!busy}
+            />
+            <Field
+              label="Certificate fingerprint"
+              value={fingerprint}
+              onChangeText={setFingerprint}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="Scan QR or paste the SHA-256 fingerprint"
+              editable={!busy}
+            />
+            <Field
+              label="Pairing code"
+              value={code}
+              onChangeText={setCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="ABCD-EF23-4567-89AB"
+              maxLength={24}
+              editable={!busy}
+            />
+            <Field label="Device name" value={name} onChangeText={setName} maxLength={100} editable={!busy} />
+            <Button
+              title="Pair this phone"
+              secondary
+              onPress={() => void connect()}
+              disabled={!gatewayUrl.trim() || !fingerprint.trim() || !code.trim() || !name.trim()}
+              busy={busy}
+            />
+            <Text style={[styles.meta, { color: c.muted }]}>
+              Your device key stays in encrypted storage. You can revoke access at any time in web Settings.
+            </Text>
+          </ScrollView>
+        </SkeletonScope>
       </KeyboardArea>
     </SafeAreaView>
   );

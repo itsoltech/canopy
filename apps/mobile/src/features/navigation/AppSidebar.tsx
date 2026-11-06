@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, Text, TextInput, View } from "react-native";
+import { FlatList, Image, Pressable, Text, TextInput, View } from "react-native";
+import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ui, bots as botContract } from "@canopy/contracts";
@@ -22,8 +23,10 @@ function useSidebarState() {
   const [archived, setArchived] = useState<ui.Thread[]>([]);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveError, setArchiveError] = useState("");
+  const [archiveLoaded, setArchiveLoaded] = useState(false);
   const [bots, setBots] = useState<botContract.Bot[]>([]);
   const [botError, setBotError] = useState("");
+  const [botsLoaded, setBotsLoaded] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [projectId, setProjectId] = useState("");
   useEffect(() => {
@@ -37,6 +40,7 @@ function useSidebarState() {
           if (active) {
             setBots(r.bots);
             setBotError("");
+            setBotsLoaded(true);
           }
         })
         .catch(() => {
@@ -57,7 +61,11 @@ function useSidebarState() {
     void client.api
       .listArchivedThreads({})
       .then((r) => {
-        if (active) setArchived(r.threads);
+        if (active) {
+          setArchived(r.threads);
+          setArchiveError("");
+          setArchiveLoaded(true);
+        }
       })
       .catch(() => {
         if (active) setArchiveError("Could not load archived threads.");
@@ -98,8 +106,10 @@ function useSidebarState() {
     archiveOpen,
     setArchiveOpen,
     archiveError,
+    archiveLoaded,
     bots,
     botError,
+    botsLoaded,
     filterOpen,
     setFilterOpen,
     projectId,
@@ -191,10 +201,12 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
     archiveOpen,
     setArchiveOpen,
     archiveError,
+    archiveLoaded,
     archived,
     match,
     bots,
     botError,
+    botsLoaded,
   } = state;
 
   return (
@@ -206,7 +218,7 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
           workers={workers}
           empty={
             !loaded ? (
-              <ActivityIndicator accessibilityLabel="Loading threads" />
+              <ListSkeleton lines={3} />
             ) : (
               <Text style={[styles.meta, { color: c.muted, padding: 12 }]}>
                 {query
@@ -232,21 +244,17 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
               </Pressable>
               {archiveOpen && (
                 <View>
-                  {archiveError ? (
-                    <Notice error>{archiveError}</Notice>
-                  ) : (
-                    archived
-                      .filter(match)
-                      .map((t) => (
-                        <SidebarThread
-                          key={t.id}
-                          thread={t}
-                          project={projects.find((p) => p.id === t.projectId)}
-                          worker={workers.find((w) => w.id === t.workerId)}
-                        />
-                      ))
-                  )}
-                  {!archiveError && archived.length === 0 && (
+                  {archiveError && <Notice error>{archiveError}</Notice>}
+                  {archived.filter(match).map((t) => (
+                    <SidebarThread
+                      key={t.id}
+                      thread={t}
+                      project={projects.find((p) => p.id === t.projectId)}
+                      worker={workers.find((w) => w.id === t.workerId)}
+                    />
+                  ))}
+                  {!archiveError && !archiveLoaded && <ListSkeleton rows={2} lines={3} />}
+                  {!archiveError && archiveLoaded && archived.length === 0 && (
                     <Text style={[styles.meta, { color: c.muted, padding: 12 }]}>No archived threads.</Text>
                   )}
                 </View>
@@ -263,7 +271,11 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
           contentContainerStyle={{ paddingHorizontal: 8 }}
           renderItem={({ item }) => <BotListItem bot={item} />}
           ListEmptyComponent={
-            <Notice error={Boolean(botError)}>{botError || "No bots yet. Create a bot in Canopy on the web."}</Notice>
+            !botsLoaded && !botError ? (
+              <ListSkeleton avatar />
+            ) : (
+              <Notice error={Boolean(botError)}>{botError || "No bots yet. Create a bot in Canopy on the web."}</Notice>
+            )
           }
         />
       )}
@@ -277,14 +289,14 @@ export function AppSidebar() {
   const state = useSidebarState();
   const { ready, session, workers, stream, filterOpen, setFilterOpen, projects, projectId, setProjectId } = state;
 
-  if (!ready) return <ActivityIndicator accessibilityLabel="Opening Canopy" />;
+  if (!ready) return <ListSkeleton />;
 
   if (!session) return <Redirect href="/pair" />;
 
   return (
     <SafeAreaView style={[styles.fill, { backgroundColor: c.sidebar }]}>
       <SidebarHeader state={state} />
-      {stream.connection !== "live" && (
+      {stream.connection !== "live" && stream.connection !== "connecting" && (
         <View style={{ padding: 12 }}>
           <ConnectionNotice {...stream} />
         </View>

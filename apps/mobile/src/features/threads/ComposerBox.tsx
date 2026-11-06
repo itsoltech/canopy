@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Skeleton } from "../../ui/Skeleton";
 import { styles, useColors } from "../../ui/theme";
 import { Icon } from "../../ui/Icon";
 import type { Mention } from "@canopy/contracts";
@@ -192,26 +193,28 @@ export function ComposerPill({
   const tone = danger ? c.danger : warning ? c.warning : c.muted;
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        minHeight: 36,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 4,
-        paddingHorizontal: 6,
-        borderRadius: 6,
-        backgroundColor: pressed ? c.inset : "transparent",
-      })}
-    >
-      {leading ?? <Icon name={icon} size={14} color={tone} />}
-      <Text numberOfLines={1} style={[styles.meta, { color: tone, maxWidth: 140 }]}>
-        {title}
-      </Text>
-      <Icon name="chevron-down" size={12} />
-    </Pressable>
+    <Skeleton>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        onPress={onPress}
+        style={({ pressed }) => ({
+          minHeight: 36,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 4,
+          paddingHorizontal: 6,
+          borderRadius: 6,
+          backgroundColor: pressed ? c.inset : "transparent",
+        })}
+      >
+        {leading ?? <Icon name={icon} size={14} color={tone} />}
+        <Text numberOfLines={1} style={[styles.meta, { color: tone, maxWidth: 140 }]}>
+          {title}
+        </Text>
+        <Icon name="chevron-down" size={12} />
+      </Pressable>
+    </Skeleton>
   );
 }
 

@@ -29,6 +29,7 @@ export function useNewThread() {
   const message = useMessageDraft();
   const requestId = useRef(Crypto.randomUUID());
   const sending = useRef(false);
+  const initialLoading = !overview.loaded || (!settings.user && !settings.error);
 
   const projects = overview.projects.filter((p) => !p.archivedAt);
   const presence = useWorkerPresence();
@@ -89,7 +90,7 @@ export function useNewThread() {
             : message.files.blocker;
 
   async function create() {
-    if (!client || !workspace || !selected || blocker || sending.current) return;
+    if (!client || !workspace || !selected || initialLoading || blocker || sending.current) return;
     sending.current = true;
     setBusy(true);
     setError("");
@@ -140,6 +141,7 @@ export function useNewThread() {
     /** The worker's presence, with its computer when that is a linked one. */
     workerPresence: presence(worker),
     busy,
+    initialLoading,
     error,
     blocker,
     pickProject: (projectId: string) => setPicks({ ...picks, projectId, workspaceId: undefined }),

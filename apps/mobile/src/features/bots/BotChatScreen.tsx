@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Platform, Text, View } from "react-native";
+import { FlatList, Platform, Text, View } from "react-native";
+import { ConversationSkeleton } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
@@ -135,8 +136,8 @@ export function BotChatScreen({ id }: { id: string }) {
           // Inverted: the footer is the top of the chat, the header sits under the latest message.
           ListFooterComponent={
             <View style={{ gap: 12 }}>
-              <ConnectionNotice {...stream} />
-              {!conversation && <ActivityIndicator accessibilityLabel="Loading conversation" />}
+              {(conversation || stream.connection !== "connecting") && <ConnectionNotice {...stream} />}
+              {!conversation && <ConversationSkeleton />}
               {conversation && !conversation.messages.length && (
                 <Text style={[styles.meta, { color: c.muted, textAlign: "center" }]}>Start a conversation</Text>
               )}

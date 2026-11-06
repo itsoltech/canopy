@@ -4,6 +4,7 @@ import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "./Icon";
 import { Overlay } from "./Overlay";
 import { styles, useColors, useTypography, type Colors } from "./theme";
+import { Skeleton } from "./Skeleton";
 
 export interface PickerOption<T> {
   value: T;
@@ -264,32 +265,34 @@ export function SelectField({
   return (
     <View style={{ gap: 8 }}>
       {!hideLabel && <Text style={[type.chrome, { color: c.text }]}>{label}</Text>}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${label}: ${value}`}
-        accessibilityState={{ disabled }}
-        disabled={disabled}
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.row,
-          {
-            minHeight: 44,
-            paddingVertical: 8,
-            paddingHorizontal: 12,
-            borderRadius: 10,
-            borderWidth: 1,
-            borderColor: c.line,
-            backgroundColor: pressed ? c.inset : c.surface,
-            opacity: disabled ? 0.45 : 1,
-          },
-        ]}
-      >
-        {leading}
-        <Text numberOfLines={1} style={[type.body, { flex: 1, color: toneColor(c, tone) ?? c.text }]}>
-          {value}
-        </Text>
-        <Icon name="chevron-up-down" color={c.faint} />
-      </Pressable>
+      <Skeleton>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${label}: ${value}`}
+          accessibilityState={{ disabled }}
+          disabled={disabled}
+          onPress={onPress}
+          style={({ pressed }) => [
+            styles.row,
+            {
+              minHeight: 44,
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: c.line,
+              backgroundColor: pressed ? c.inset : c.surface,
+              opacity: disabled ? 0.45 : 1,
+            },
+          ]}
+        >
+          {leading}
+          <Text numberOfLines={1} style={[type.body, { flex: 1, color: toneColor(c, tone) ?? c.text }]}>
+            {value}
+          </Text>
+          <Icon name="chevron-up-down" color={c.faint} />
+        </Pressable>
+      </Skeleton>
     </View>
   );
 }

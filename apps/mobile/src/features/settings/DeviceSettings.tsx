@@ -10,6 +10,7 @@ import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { useDateTime } from "./display";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
+import { SettingsSkeletonRows } from "./SettingsSkeleton";
 
 function useDeviceSettings() {
   const resource = useSettingsResource("devices", (api) => api.getMobileDevices({}));
@@ -87,6 +88,7 @@ export function DeviceSettings() {
       <Button title="Pair a phone" busy={resource.busy} onPress={() => void pair(false)} />
       <Button secondary title="Pair a desktop app" disabled={resource.busy} onPress={() => void pair(true)} />
       <SettingsGroup title="Paired devices">
+        <SettingsSkeletonRows controls />
         {data?.devices.map((device) => (
           <SettingsRow
             key={device.id}

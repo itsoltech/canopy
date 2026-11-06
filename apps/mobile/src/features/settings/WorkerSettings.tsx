@@ -16,8 +16,12 @@ import { WorkerEnrollment } from "./WorkerEnrollment";
 import { WorkerSsh } from "./WorkerSsh";
 import { UpdateSettings } from "./UpdateSettings";
 import { useDateTime } from "./display";
+import { useOverview } from "../../state/overview";
+import { SettingsSkeletonGroups } from "./SettingsSkeleton";
 
 export function WorkerSettings() {
+  const overview = useOverview();
+
   const resource = useSettingsResource("workers", async (api) => {
     const [overview, setup, environment, records, network] = await Promise.all([
       api.getOverview({}),
@@ -34,7 +38,7 @@ export function WorkerSettings() {
   const [expanded, setExpanded] = useState<string[]>([]);
   const format = useDateTime();
   const data = resource.data;
-  const groups = workerGroups(data?.overview.workers ?? [], data?.records.records ?? []);
+  const groups = workerGroups(data?.overview.workers ?? overview.workers, data?.records.records ?? []);
   const pending = data?.setup.enrollments.filter((e) => !e.usedAt && !e.revokedAt) ?? [];
 
   return (
@@ -42,11 +46,11 @@ export function WorkerSettings() {
       <SettingsActions>
         <Button title="Add worker" disabled={!data} onPress={() => setAdding(true)} />
       </SettingsActions>
-      {data && (
+      {(data || resource.initialLoading) && (
         <SettingsGroup title="Network access">
           <SettingsRow
-            title={data.network.enabled ? "Remote access is on" : "Remote access is off"}
-            description={data.network.note || "Connect paired devices and remote workers to this gateway."}
+            title={data?.network.enabled ? "Remote access is on" : "Remote access is off"}
+            description={data?.network.note || "Connect paired devices and remote workers to this gateway."}
             control={
               <Button
                 secondary
@@ -57,6 +61,7 @@ export function WorkerSettings() {
           />
         </SettingsGroup>
       )}
+      {resource.initialLoading && !groups.length && <SettingsSkeletonGroups titles={["This computer"]} />}
       {groups.map((group) => (
         <View key={group.id} style={{ gap: 12 }}>
           <ComputerHeading title={group.name} />

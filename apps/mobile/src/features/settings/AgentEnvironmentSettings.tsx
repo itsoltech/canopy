@@ -8,6 +8,7 @@ import { SkillEditor } from "./SkillEditor";
 import { SkillSourceEditor } from "./SkillSourceEditor";
 import { MarketplaceSettings } from "./MarketplaceSettings";
 import { EnvironmentComputer } from "./EnvironmentComputer";
+import { SettingsSkeletonGroups } from "./SettingsSkeleton";
 
 export function AgentEnvironmentSettings() {
   const resource = useSettingsResource("agent-environment", (api) => api.getAgentEnvironment({}));
@@ -39,6 +40,9 @@ export function AgentEnvironmentSettings() {
   return (
     <ResourceState resource={resource}>
       <Button secondary title="Refresh status" busy={resource.busy} onPress={() => void resource.reload()} />
+      {resource.initialLoading && (
+        <SettingsSkeletonGroups titles={["Instructions", "Skills", "Marketplaces", "Computers"]} />
+      )}
       {snapshot && (
         <>
           <SettingsGroup

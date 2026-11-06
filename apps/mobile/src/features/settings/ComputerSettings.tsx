@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { create } from "@bufbuild/protobuf";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Button, Notice, Sheet } from "../../ui/components";
@@ -9,6 +10,7 @@ import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { ComputerPairing } from "./ComputerPairing";
 import { ComputerMove } from "./ComputerMove";
 import { SharedConfiguration } from "./SharedConfiguration";
+import { SettingsSkeletonRows } from "./SettingsSkeleton";
 
 type Operation = MessageInitShape<typeof ui.ComputerOperationRequestSchema>;
 
@@ -24,6 +26,9 @@ export function ComputerSettings() {
       <Notice>Connect your own computers. Each keeps its own gateway and data.</Notice>
       <Button title="Link a computer" disabled={!data || resource.busy} onPress={() => setPairing(true)} />
       <SettingsGroup title="This computer">
+        {resource.initialLoading && (
+          <ComputerDetails computer={create(ui.LinkedComputerSchema, { name: " " })} self busy change={change} />
+        )}
         {data?.self && <ComputerDetails computer={data.self} self busy={resource.busy} change={change} />}
         <SettingToggle
           title="Find linked computers on this network"
@@ -43,6 +48,7 @@ export function ComputerSettings() {
         title="Linked computers"
         description="Pairing grants full access between your computers. Only link computers you own."
       >
+        <SettingsSkeletonRows controls />
         {data?.peers.map((computer) => (
           <ComputerDetails
             key={computer.nodeId}

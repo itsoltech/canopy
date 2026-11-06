@@ -10,6 +10,7 @@ import { permissionLabel } from "./permissions";
 import { headLabel, PROVISIONAL_BRANCH_HINT } from "@canopy/domain/git-heads";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { isActiveSubagent } from "./SubagentStrip";
+import { ListSkeleton } from "../../ui/Skeleton";
 
 export function PanelRow({
   title,
@@ -150,7 +151,7 @@ function ThreadConnectors({ threadId }: { threadId: string }) {
 
   if (list?.accounts.length) return <ConnectorList list={list} />;
 
-  return (
-    <Text style={[styles.meta, { color: c.muted }]}>{error || (list ? "No connectors" : "Loading connections…")}</Text>
-  );
+  if (!list && !error) return <ListSkeleton rows={2} inset={false} />;
+
+  return <Text style={[styles.meta, { color: c.muted }]}>{error || "No connectors"}</Text>;
 }

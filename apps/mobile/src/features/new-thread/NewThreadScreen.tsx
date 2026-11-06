@@ -18,6 +18,7 @@ import { useNewThread } from "./useNewThread";
 import { WorkerPickerSheet } from "./WorkerPickerSheet";
 import { WorkspacePills } from "./WorkspacePickers";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
+import { SkeletonScope } from "../../ui/Skeleton";
 
 type State = ReturnType<typeof useNewThread>;
 
@@ -51,65 +52,67 @@ export function NewThreadScreen() {
             trigger={message.trigger}
             onPick={(option) => message.pickMention(option.mention)}
           />
-          <ComposerBox
-            text={message.value.text}
-            onChange={message.setText}
-            badges={message.badges}
-            triggers
-            onSend={() => void state.create()}
-            disabled={Boolean(blocker)}
-            busy={state.busy}
-            files={message.files.ids.length}
-            label="Task for the agent"
-            top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
-            controls={
-              <>
-                <AttachButton draft={message.files} disabled={state.busy} />
-                {selected && (
-                  <ComposerPill
-                    icon="cpu-chip"
-                    leading={<ProviderIcon provider={selected.provider} />}
-                    title={selected.name}
-                    onPress={() => setPicker("model")}
-                  />
-                )}
-                {selected?.efforts.length ? (
-                  <ComposerPill icon="light-bulb" title={effortLabel(effort)} onPress={() => setPicker("effort")} />
-                ) : null}
-              </>
-            }
-          />
-          <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6, flexWrap: "wrap" }]}>
-            <View style={[styles.row, { gap: 0, flexShrink: 1 }]}>
+          <SkeletonScope loading={state.initialLoading}>
+            <ComposerBox
+              text={message.value.text}
+              onChange={message.setText}
+              badges={message.badges}
+              triggers
+              onSend={() => void state.create()}
+              disabled={state.initialLoading || Boolean(blocker)}
+              busy={state.busy}
+              files={message.files.ids.length}
+              label="Task for the agent"
+              top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
+              controls={
+                <>
+                  <AttachButton draft={message.files} disabled={state.busy} />
+                  {selected && (
+                    <ComposerPill
+                      icon="cpu-chip"
+                      leading={<ProviderIcon provider={selected.provider} />}
+                      title={selected.name}
+                      onPress={() => setPicker("model")}
+                    />
+                  )}
+                  {selected?.efforts.length ? (
+                    <ComposerPill icon="light-bulb" title={effortLabel(effort)} onPress={() => setPicker("effort")} />
+                  ) : null}
+                </>
+              }
+            />
+            <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6, flexWrap: "wrap" }]}>
+              <View style={[styles.row, { gap: 0, flexShrink: 1 }]}>
+                <ComposerPill
+                  icon="folder-open"
+                  leading={project ? <ProjectMark name={project.name} kind={project.kind} /> : undefined}
+                  title={project?.name ?? "No project"}
+                  onPress={() => setPicker("project")}
+                />
+                <ComposerPill
+                  icon="computer-desktop"
+                  title={
+                    worker
+                      ? worker.nodeId
+                        ? `${worker.name} · ${state.workerPresence.computer}`
+                        : worker.name
+                      : "Choose a worker"
+                  }
+                  warning={!state.workerPresence.online}
+                  onPress={() => setPicker("worker")}
+                />
+              </View>
               <ComposerPill
-                icon="folder-open"
-                leading={project ? <ProjectMark name={project.name} kind={project.kind} /> : undefined}
-                title={project?.name ?? "No project"}
-                onPress={() => setPicker("project")}
-              />
-              <ComposerPill
-                icon="computer-desktop"
-                title={
-                  worker
-                    ? worker.nodeId
-                      ? `${worker.name} · ${state.workerPresence.computer}`
-                      : worker.name
-                    : "Choose a worker"
-                }
-                warning={!state.workerPresence.online}
-                onPress={() => setPicker("worker")}
+                icon={look.icon}
+                title={permissionLabel(permissionMode)}
+                warning={look.tone === "warning"}
+                danger={look.tone === "danger"}
+                onPress={() => setPicker("permission")}
               />
             </View>
-            <ComposerPill
-              icon={look.icon}
-              title={permissionLabel(permissionMode)}
-              warning={look.tone === "warning"}
-              danger={look.tone === "danger"}
-              onPress={() => setPicker("permission")}
-            />
-          </View>
-          <WorkspacePills draft={state.workspaceDraft} />
-          {blocker && blocker !== message.files.blocker ? <Notice>{blocker}</Notice> : null}
+            <WorkspacePills draft={state.workspaceDraft} />
+          </SkeletonScope>
+          {!state.initialLoading && blocker && blocker !== message.files.blocker ? <Notice>{blocker}</Notice> : null}
           {error ? <Notice error>{error}</Notice> : null}
         </ScrollView>
       </KeyboardArea>
