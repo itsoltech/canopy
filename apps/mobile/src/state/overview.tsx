@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ui } from "@canopy/contracts";
 import { useSession } from "./session";
 import { useStream } from "./stream";
@@ -17,6 +17,29 @@ function useOverviewState() {
   const [workers, setWorkers] = useState<ui.Worker[]>([]);
   const [computers, setComputers] = useState<ui.LinkedComputer[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const generation = useRef(0);
+
+  const reload = useCallback(async () => {
+    if (!client) return;
+    const requested = ++generation.current;
+    const [overview, list] = await Promise.all([client.api.getOverview({}), client.api.listThreads({})]);
+
+    if (requested !== generation.current) return;
+    setProjects(overview.projects);
+    setWorkers(overview.workers);
+    setComputers(overview.computers);
+    setThreads(list.threads);
+    setLoaded(true);
+  }, [client]);
+
+  useEffect(() => {
+    const requests = generation;
+    void reload().catch(() => undefined);
+
+    return () => {
+      requests.current++;
+    };
+  }, [reload]);
 
   const forget = (nodeId: string) => {
     setWorkers((rows) => rows.filter((r) => r.nodeId !== nodeId));
@@ -29,7 +52,13 @@ function useOverviewState() {
     (update: ui.OverviewUpdate) => {
       const change = update.change;
 
-      if (change.case === "mobileRoutes") client?.update(change.value);
+      if (change.case === "mobileRoutes") {
+        client?.update(change.value);
+
+        return;
+      }
+
+      generation.current++;
 
       if (change.case === "mobileSnapshot") {
         setProjects(change.value.overview?.projects ?? []);
@@ -68,12 +97,18 @@ function useOverviewState() {
     `overview:${session?.deviceId}`,
   );
 
-  return { threads: client ? threads : [], projects, workers, computers, loaded, stream };
+  return { threads: client ? threads : [], projects, workers, computers, loaded, stream, reload };
 }
 
 const Context = createContext<ReturnType<typeof useOverviewState> | null>(null);
 
 export function OverviewProvider({ children }: { children: ReactNode }) {
+  const { session } = useSession();
+
+  return <OverviewSession key={session?.deviceId}>{children}</OverviewSession>;
+}
+
+function OverviewSession({ children }: { children: ReactNode }) {
   return <Context.Provider value={useOverviewState()}>{children}</Context.Provider>;
 }
 

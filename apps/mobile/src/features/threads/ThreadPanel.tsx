@@ -8,6 +8,8 @@ import { styles, useColors } from "../../ui/theme";
 import { ConnectorList, useConnectors } from "../connectors/Connectors";
 import { permissionLabel } from "./permissions";
 import { headLabel, PROVISIONAL_BRANCH_HINT } from "@canopy/domain/git-heads";
+import { useDevicePreferences } from "../settings/device-preferences";
+import { isActiveSubagent } from "./SubagentStrip";
 
 export function PanelRow({
   title,
@@ -63,13 +65,19 @@ export function ThreadPanel({
   onClose: () => void;
 }) {
   const { threads, workers } = useOverview();
+  const { values } = useDevicePreferences();
   const c = useColors();
   const thread = snapshot?.thread;
   const worker = workers.find((w) => w.id === thread?.workerId);
 
   const lineage = thread
     ? threads.filter(
-        (t) => t.parentThreadId === thread.id || t.id === thread.parentThreadId || t.id === thread.forkSourceThreadId,
+        (t) =>
+          !t.deletedAt &&
+          ((t.parentThreadId === thread.id &&
+            (!t.spawnedByAgent || values.showFinishedSubagents === "on" || isActiveSubagent(t))) ||
+            t.id === thread.parentThreadId ||
+            t.id === thread.forkSourceThreadId),
       )
     : [];
 

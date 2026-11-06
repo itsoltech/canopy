@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Alert, View } from "react-native";
 import type { Client } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
-import { Button, Notice } from "../../ui/components";
+import { useOverview } from "../../state/overview";
+import { Button, Notice, SheetContent } from "../../ui/components";
 
 export type SettingsApi = Client<typeof ui.GatewayService>;
 
 /** Refetch after mutations, including rejected stale revisions. Never display raw transport diagnostics. */
 export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) => Promise<T>) {
   const { client } = useSession();
+  const overview = useOverview();
   const fetchRef = useRef(fetch);
   useEffect(() => {
     fetchRef.current = fetch;
@@ -65,7 +67,7 @@ export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) =>
 
     try {
       const result = await action(client.api);
-      await reload();
+      await Promise.all([reload(), overview.reload().catch(() => undefined)]);
       setMessage(success);
 
       return result;
@@ -86,12 +88,16 @@ export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) =>
 export function ResourceState({
   resource,
   children,
+  gap,
 }: {
   resource: { loading: boolean; error: string; message: string; reload: () => Promise<void> };
   children: ReactNode;
+  gap?: number;
 }) {
+  const inSheet = useContext(SheetContent);
+
   return (
-    <View style={{ gap: 24 }}>
+    <View style={{ gap: gap ?? (inSheet ? 16 : 24) }}>
       {resource.loading && <Notice>Loading settings…</Notice>}
       {resource.error ? (
         <View style={{ gap: 8 }}>

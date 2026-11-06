@@ -384,6 +384,12 @@ Keybindings jest wyszukiwalną referencją dla klawiatur sprzętowych, bez edycj
 przeglądarki. Kontrolki lokalnego procesu Electron i jego updatera są ukryte jak w web
 remote; aktualizacje gatewaya/workera pozostają w Workers. Powiadomienia systemowe są
 oznaczone jako niedostępne w tym buildzie, bez pozornego przełącznika push.
+Pierwszy stan projektów, workerów i wątków pobierają także unary GetOverview i ListThreads,
+bez oczekiwania na pierwszy pakiet WatchOverview. Udany zapis formularza odświeża te dane;
+generacja żądania chroni przed nadpisaniem nowszych danych starszą odpowiedzią.
+Formularz harmonogramu ma własny kalendarz, godzinę i gotowe częstotliwości oraz tryb cron.
+Katalog stref IANA w `packages/ui/src/timezones.json` jest wspólny z web, bo Hermes nie
+udostępnia `Intl.supportedValuesOf`. Wybór daty sprawdza też nieistniejące godziny przy zmianie czasu.
 Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
 listę, czat ze streamem, wysyłanie/stop, karty pytań/zgód z odpowiedziami oraz sheet
 szczegółów/routines/reminders (zarządzanie w web). Lista botów odświeża się co 10 sekund.
@@ -424,7 +430,9 @@ Gradle/Xcode ani nie wykonuje CocoaPods. `export` buduje JS/assets do bytecode H
 nie APK/IPA. `tests/integration/mobile-devices.test.ts` sprawdza jednorazową i współbieżną
 wymianę, expiry/revoke/reuse, owner/hash metadata, aktywne streamy po revoke, self-unpair,
 administrację właściciela i izolację kont, zachowanie service tokenu, limit prób i natywny moduł klienta
-z prawdziwym HTTP/1.1 GetOverview + WatchThread. Wymaga throwaway PostgreSQL w Dockerze.
+z prawdziwym HTTP/1.1 GetOverview + WatchThread oraz snapshot WatchOverview przez HTTP/2
+z weryfikacją przypiętego certyfikatu. Test transportu Node nie potwierdza działania streamów
+w natywnym kliencie Android. Wymaga throwaway PostgreSQL w Dockerze.
 
 ## Źródła sprawdzone dla tego wdrożenia
 

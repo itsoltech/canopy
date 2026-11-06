@@ -3,10 +3,11 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
 import { Button, Notice } from "../../ui/components";
-import { SettingsGroup, SettingsRow, SettingChoice, SettingToggle } from "./SettingsGroup";
+import { SettingsGroup, SettingsRow, SettingsRowScope, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { SettingsInput } from "./SettingsInput";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
+import { ResetSetting } from "./ResetSetting";
 
 export function WorktreeSettings() {
   const { projects, workers } = useOverview();
@@ -107,13 +108,20 @@ function WorktreeField({
     : "Canopy default";
 
   return (
-    <>
+    <SettingsRowScope.Provider
+      value={{
+        caption: changed ? "Overridden here" : `Inherited: ${from}`,
+        accessory: (
+          <ResetSetting
+            label={`Reset ${field.replace(/[A-Z]/g, " $&").toLowerCase()} to inherited`}
+            changed={changed}
+            onReset={onReset}
+          />
+        ),
+      }}
+    >
       {children}
-      <SettingsRow
-        title={changed ? "Overridden here" : `Inherited: ${from}`}
-        control={<Button secondary title="Reset to inherited" disabled={!changed} onPress={onReset} />}
-      />
-    </>
+    </SettingsRowScope.Provider>
   );
 }
 

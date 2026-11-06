@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "./Icon";
 import { Overlay } from "./Overlay";
-import { styles, useColors, type Colors } from "./theme";
+import { styles, useColors, useTypography, type Colors } from "./theme";
 
 export interface PickerOption<T> {
   value: T;
@@ -259,10 +259,11 @@ export function SelectField({
   hideLabel?: boolean;
 }) {
   const c = useColors();
+  const type = useTypography();
 
   return (
     <View style={{ gap: 8 }}>
-      {!hideLabel && <Text style={[styles.label, { color: c.text }]}>{label}</Text>}
+      {!hideLabel && <Text style={[type.chrome, { color: c.text }]}>{label}</Text>}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${value}`}
@@ -272,7 +273,8 @@ export function SelectField({
         style={({ pressed }) => [
           styles.row,
           {
-            minHeight: 48,
+            minHeight: 44,
+            paddingVertical: 8,
             paddingHorizontal: 12,
             borderRadius: 10,
             borderWidth: 1,
@@ -283,7 +285,7 @@ export function SelectField({
         ]}
       >
         {leading}
-        <Text numberOfLines={1} style={[styles.body, { flex: 1, color: toneColor(c, tone) ?? c.text }]}>
+        <Text numberOfLines={1} style={[type.body, { flex: 1, color: toneColor(c, tone) ?? c.text }]}>
           {value}
         </Text>
         <Icon name="chevron-up-down" color={c.faint} />

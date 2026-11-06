@@ -3,11 +3,11 @@ import { Provider, type ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
 import { ModelPickerSheet, EffortPickerSheet } from "../models/ModelPicker";
 import { modelSections, providerName, type ModelChoice } from "../models/catalog";
-import { Button } from "../../ui/components";
 import { SelectField } from "../../ui/Picker";
 import { ResourceState, useSettingsResource } from "./resource";
-import { SettingChoice } from "./SettingsGroup";
+import { SettingChoice, SettingsRowScope } from "./SettingsGroup";
 import { SettingsInput } from "./SettingsInput";
+import { ResetSetting } from "./ResetSetting";
 
 export function SettingsModel({
   value,
@@ -15,12 +15,14 @@ export function SettingsModel({
   provider,
   workerId,
   effort = true,
+  hideLabel = false,
 }: {
   value: { provider: Provider; profileId: string; model: string; effort?: string };
   onChange: (v: ModelChoice, effort: string) => void;
   provider?: Provider;
   workerId?: string;
   effort?: boolean;
+  hideLabel?: boolean;
 }) {
   const { workers } = useOverview();
 
@@ -55,9 +57,10 @@ export function SettingsModel({
     .find((c) => c.provider === value.provider && c.profileId === value.profileId && c.model === value.model);
 
   return (
-    <ResourceState resource={resource}>
+    <ResourceState resource={resource} gap={12}>
       <SelectField
         label="Model"
+        hideLabel={hideLabel}
         value={choice?.name || value.model || "Default model"}
         onPress={() => setPicker("model")}
       />
@@ -106,21 +109,29 @@ export function DefaultModels({
     ).values(),
   ];
 
+  if (!value.provider) return null;
+
   return (
     <>
       <SettingChoice
         title="Profile"
+        description="New threads use this profile to reach the provider."
+        accessory={
+          <ResetSetting
+            label="Reset profile"
+            changed={!!value.providerProfileId}
+            onReset={() => onChange({ providerProfileId: "" })}
+          />
+        }
         value={value.providerProfileId}
         disabled={!value.provider}
         options={[
-          { value: "", label: "Device login" },
+          { value: "", label: "First available" },
           ...instances.flatMap((i) => (i.id === "native" ? [] : [{ value: i.id, label: i.label || i.id }])),
         ]}
         onChange={(providerProfileId) => onChange({ providerProfileId })}
       />
-      {[Provider.CLAUDE, Provider.CODEX, Provider.GROK].map((provider) => (
-        <DefaultModel key={provider} provider={provider} value={value} onChange={onChange} />
-      ))}
+      <DefaultModel provider={value.provider} value={value} onChange={onChange} />
     </>
   );
 }
@@ -134,7 +145,21 @@ function DefaultModel({
   value: ui.ThreadDefaults;
   onChange: (patch: Partial<ui.ThreadDefaults>) => void;
 }) {
+  const { workers } = useOverview();
+  const resource = useSettingsResource("default-model-suggestions", (api) => api.listModels({}));
   const model = value.models.find((m) => m.provider === provider)?.model ?? "";
+
+  const suggestions = [
+    ...new Map(
+      workers
+        .flatMap((worker) =>
+          modelSections(worker, resource.data?.workers.find((w) => w.workerId === worker.id)?.profiles ?? []),
+        )
+        .filter((s) => s.provider === provider)
+        .flatMap((s) => s.choices)
+        .map((c) => [c.model, { value: c.model, label: c.name, keywords: c.model }]),
+    ).values(),
+  ];
 
   const save = (model: string) =>
     onChange({
@@ -145,23 +170,24 @@ function DefaultModel({
     });
 
   return (
-    <>
-      <SettingsModel
-        provider={provider}
-        effort={false}
-        value={{ provider, profileId: value.providerProfileId, model }}
-        onChange={(c) => save(c.model)}
-      />
-      <Button secondary title={`Reset ${providerName(provider)} model`} disabled={!model} onPress={() => save("")} />
+    <SettingsRowScope.Provider
+      value={{
+        accessory: (
+          <ResetSetting label={`Reset ${providerName(provider)} model`} changed={!!model} onReset={() => save("")} />
+        ),
+      }}
+    >
       <SettingsInput
-        title={`${providerName(provider)} model ID`}
+        title="Model"
+        description="Leave empty to use the profile's default for new threads."
         value={model}
+        suggestions={suggestions}
         onSave={async (value) => {
           save(value);
 
           return true;
         }}
       />
-    </>
+    </SettingsRowScope.Provider>
   );
 }

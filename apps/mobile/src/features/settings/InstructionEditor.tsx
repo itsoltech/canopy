@@ -2,8 +2,8 @@ import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import * as Crypto from "expo-crypto";
 import { ui } from "@canopy/contracts";
-import { Button, Field } from "../../ui/components";
-import { SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
+import { Button, Field, IconButton } from "../../ui/components";
+import { SettingsActions, SettingsGroup, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, useSettingsResource } from "./resource";
 import { EnvironmentAssignment } from "./EnvironmentAssignment";
@@ -173,18 +173,25 @@ function InstructionFragments({
               onChange={(selector) => fragment(index, { selector })}
             />
           )}
-          <Button secondary title="Move up" disabled={index === 0} onPress={() => move(index, -1)} />
-          <Button
-            secondary
-            title="Move down"
-            disabled={index === draft.fragments.length - 1}
-            onPress={() => move(index, 1)}
-          />
-          <Button
-            secondary
-            title="Remove fragment"
-            onPress={() => change({ fragments: draft.fragments.filter((v) => v.id !== f.id) })}
-          />
+          <SettingsActions>
+            <IconButton
+              icon="arrow-up"
+              label="Move fragment up"
+              disabled={index === 0}
+              onPress={() => move(index, -1)}
+            />
+            <IconButton
+              icon="arrow-down"
+              label="Move fragment down"
+              disabled={index === draft.fragments.length - 1}
+              onPress={() => move(index, 1)}
+            />
+            <Button
+              secondary
+              title="Remove fragment"
+              onPress={() => change({ fragments: draft.fragments.filter((v) => v.id !== f.id) })}
+            />
+          </SettingsActions>
         </SettingsGroup>
       ))}
       <Button

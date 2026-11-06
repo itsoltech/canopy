@@ -3,10 +3,12 @@ import { create } from "@bufbuild/protobuf";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
-import { Button, Field, Notice } from "../../ui/components";
+import { Button, Field } from "../../ui/components";
 import { SettingChoice } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
 import { SettingsModel } from "./SettingsModels";
+import { ScheduleDate } from "./ScheduleDate";
+import { ScheduleRecurrence } from "./ScheduleRecurrence";
 import { PermissionPickerSheet, permissionLabel } from "../threads/permissions";
 
 export function ScheduleEditor({ schedule, onSaved }: { schedule?: ui.Schedule; onSaved: () => void }) {
@@ -43,7 +45,8 @@ export function ScheduleEditor({ schedule, onSaved }: { schedule?: ui.Schedule; 
         kind === "recurring"
           ? { case: "cron", value: cron }
           : { case: "runAt", value: timestampFromDate(new Date(date)) },
-      until: until ? timestampFromDate(new Date(until)) : undefined,
+      until: kind === "recurring" && until ? timestampFromDate(new Date(until)) : undefined,
+      maxRuns: kind === "recurring" ? draft.maxRuns : 0,
     });
 
     void resource
@@ -68,17 +71,11 @@ export function ScheduleEditor({ schedule, onSaved }: { schedule?: ui.Schedule; 
         onChange={setKind}
         options={[
           { value: "once", label: "Once" },
-          { value: "recurring", label: "Recurring" },
+          { value: "recurring", label: "Repeat" },
         ]}
       />
       {kind === "once" ? (
-        <Field
-          label="Date and time (ISO 8601, with time zone)"
-          value={date}
-          onChangeText={setDate}
-          placeholder="2026-12-01T09:00:00+01:00"
-          autoCapitalize="none"
-        />
+        <ScheduleDate title="Run at" value={date} onChange={setDate} />
       ) : (
         <ScheduleRecurrence
           cron={cron}
@@ -92,29 +89,33 @@ export function ScheduleEditor({ schedule, onSaved }: { schedule?: ui.Schedule; 
         />
       )}
       <SettingChoice
-        title="After downtime"
+        title="If a run is missed"
+        description="After a gateway outage, or after 2 minutes without an eligible worker for a pool."
         value={draft.missedPolicy}
         onChange={(missedPolicy) => change({ missedPolicy })}
         options={[
-          { value: "run_once", label: "Run once" },
-          { value: "skip", label: "Skip missed messages" },
+          { value: "run_once", label: "Run once when back" },
+          { value: "skip", label: "Skip it" },
         ]}
       />
-      <SettingChoice
-        title="When the previous run is active"
-        value={draft.concurrency}
-        onChange={(concurrency) => change({ concurrency })}
-        options={[
-          { value: "skip_if_running", label: "Skip this run" },
-          { value: "allow", label: "Allow another run" },
-        ]}
-      />
+      {draft.target === "new_thread" && kind === "recurring" && (
+        <SettingChoice
+          title="While a previous run is working"
+          value={draft.concurrency}
+          onChange={(concurrency) => change({ concurrency })}
+          options={[
+            { value: "skip_if_running", label: "Skip the next run" },
+            { value: "allow", label: "Start another thread" },
+          ]}
+        />
+      )}
       <Button
         title={schedule ? "Save schedule" : "Create schedule"}
         busy={resource.busy}
         disabled={
           !draft.prompt.trim() ||
           (kind === "once" && !validDate(date)) ||
+          (kind === "recurring" && !cron) ||
           (!!until && !validDate(until)) ||
           (draft.target === "thread" && !draft.threadId)
         }
@@ -160,74 +161,6 @@ function ScheduleTarget({
   );
 }
 
-function ScheduleRecurrence({
-  cron,
-  setCron,
-  timezone,
-  setTimezone,
-  until,
-  setUntil,
-  maxRuns,
-  setMaxRuns,
-}: {
-  cron: string;
-  setCron: (v: string) => void;
-  timezone: string;
-  setTimezone: (v: string) => void;
-  until: string;
-  setUntil: (v: string) => void;
-  maxRuns: number;
-  setMaxRuns: (v: number) => void;
-}) {
-  const resource = useSettingsResource("schedule-preview", (api) => api.listSchedules({}));
-  const [preview, setPreview] = useState<ui.PreviewScheduleResponse>();
-
-  return (
-    <ResourceState resource={resource}>
-      <Field
-        label="Cron expression"
-        value={cron}
-        onChangeText={(v) => {
-          setCron(v);
-          setPreview(undefined);
-        }}
-        autoCapitalize="none"
-      />
-      <Field
-        label="Time zone"
-        value={timezone}
-        onChangeText={(v) => {
-          setTimezone(v);
-          setPreview(undefined);
-        }}
-        autoCapitalize="none"
-      />
-      <Button
-        secondary
-        title="Preview occurrences"
-        busy={resource.busy}
-        onPress={() =>
-          void resource
-            .run((api) => api.previewSchedule({ cron, timezone, count: 5 }))
-            .then((r) => {
-              if (r) setPreview(r);
-            })
-        }
-      />
-      {preview?.nextRuns.map((v, index) => (
-        <Notice key={index}>{timestampDate(v).toLocaleString()}</Notice>
-      ))}
-      <Field label="End date (optional ISO 8601)" value={until} onChangeText={setUntil} autoCapitalize="none" />
-      <Field
-        label="Maximum runs (0 means no limit)"
-        value={String(maxRuns)}
-        keyboardType="number-pad"
-        onChangeText={(v) => setMaxRuns(Number(v))}
-      />
-    </ResourceState>
-  );
-}
-
 function ScheduleThread({
   value,
   onChange,
@@ -260,7 +193,7 @@ function ScheduleThread({
           { value: "any", label: "Any available computer" },
           { value: "least_busy", label: "Least busy" },
           { value: "round_robin", label: "Round robin" },
-          { value: "specific", label: "Specific computer" },
+          { value: "specific", label: "Specific worker" },
         ]}
       />
       {draft.placement === "specific" && (

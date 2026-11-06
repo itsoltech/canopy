@@ -71,7 +71,7 @@ export function AppearanceSettings() {
         </SettingsRow>
       </SettingsGroup>
       <SettingsGroup title="Themes" description="Account · Your color scheme decides which palette Canopy shows.">
-        <View style={{ flexDirection: "row", padding: 12, gap: 12 }}>
+        <View style={{ flexDirection: "row", gap: 12 }}>
           <ThemeColumn mode="light" />
           <ThemeColumn mode="dark" />
         </View>

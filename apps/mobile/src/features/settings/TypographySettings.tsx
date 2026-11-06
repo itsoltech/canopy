@@ -59,7 +59,7 @@ export function TypographySettings() {
         />
       </SettingsGroup>
       <SettingsGroup title="Previews">
-        <View style={{ padding: 12 }}>
+        <View>
           <Markdown
             text={
               'The agent can explain **changes**.\n\n```ts\nconst message = "A long code line follows your code wrapping preference without changing the saved source.";\n```\n\n```diff\n--- a/settings.ts\n+++ b/settings.ts\n@@ -1 +1 @@\n-const theme = "light";\n+const theme = "system";\n```\n\n```sh\n$ bun run build\nBuilt successfully in 1.2s\nReady.\n```'

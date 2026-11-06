@@ -60,7 +60,9 @@ export function ComputerSettings() {
           />
         )}
       </SettingsGroup>
-      {data && <SharedConfiguration notices={data.configNotices} onChanged={() => void resource.reload()} />}
+      {!!data?.configNotices.length && (
+        <SharedConfiguration notices={data.configNotices} onChanged={() => void resource.reload()} />
+      )}
       {pairing && (
         <ComputerPairing
           onClose={() => {
