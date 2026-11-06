@@ -16,6 +16,7 @@ import { KeybindingSettings } from "./KeybindingSettings";
 import { DiffSettings } from "./DiffSettings";
 import { NetworkSettings } from "./NetworkSettings";
 import { DeviceSettings } from "./DeviceSettings";
+import { WorkerSettings } from "./WorkerSettings";
 import { useDevicePreferences } from "./device-preferences";
 
 export default function SettingsScreen() {
@@ -50,8 +51,8 @@ export default function SettingsScreen() {
       )}
       {section === "network" && <NetworkSettings />}
       {section === "mobile" && <DeviceSettings />}
+      {section === "workers" && <WorkerSettings />}
       {[
-        "workers",
         "projects",
         "schedules",
         "providers",
