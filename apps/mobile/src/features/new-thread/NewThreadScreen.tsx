@@ -17,6 +17,7 @@ import { permissionLabel, permissionLook, PermissionPickerSheet } from "../threa
 import { useNewThread } from "./useNewThread";
 import { WorkerPickerSheet } from "./WorkerPickerSheet";
 import { WorkspacePills } from "./WorkspacePickers";
+import { MentionSuggestions } from "../composer/MentionSuggestions";
 
 type State = ReturnType<typeof useNewThread>;
 
@@ -44,6 +45,11 @@ export function NewThreadScreen() {
           <Text style={[styles.title, { color: c.text, textAlign: "center", marginBottom: 16 }]}>
             What should we work on?
           </Text>
+          <MentionSuggestions
+            scope={state.mentionScope}
+            trigger={message.trigger}
+            onPick={(option) => message.pickMention(option.mention)}
+          />
           <ComposerBox
             text={message.value.text}
             onChange={message.setText}

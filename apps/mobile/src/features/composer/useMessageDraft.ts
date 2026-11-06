@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
 import { create } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema } from "@canopy/contracts";
+import { MentionKind, MentionSchema, type Mention } from "@canopy/contracts";
 import { useAttachmentDraft } from "../attachments/useAttachmentDraft";
 import type { ComposerBadges } from "../threads/ComposerBox";
 import type { BadgeTone } from "./MessageText";
+import { activeTrigger } from "./useMentionSuggestions";
 import {
   editText,
   emptyValue,
@@ -21,6 +22,8 @@ import {
  */
 export function useMessageDraft() {
   const [value, setValue] = useState<MessageValue>(emptyValue);
+  // The collapsed caret, for the mention trigger before it (undefined while text is selected).
+  const [caret, setCaret] = useState<number>();
   // Read at once by picks that land in one tick (several photos at a time).
   const current = useRef<MessageValue>(emptyValue);
   const selection = useRef({ start: 0, end: 0 });
@@ -49,14 +52,29 @@ export function useMessageDraft() {
     mentions: value.mentions,
     onSelect: (next) => {
       selection.current = next;
+      setCaret(next.start === next.end ? next.start : undefined);
     },
     tone: (m) => (isAttachment(m) ? status.get(m.name) : undefined),
   };
+
+  const inBadge = caret !== undefined && value.mentions.some((m) => m.start < caret && caret <= m.end);
+  const trigger = caret === undefined || inBadge ? undefined : activeTrigger(value.text.slice(0, caret));
 
   return {
     value,
     files,
     badges,
+    /** The mention trigger the caret is in ("/rev", "@src/ap"). */
+    trigger,
+    /** Replaces the trigger and its query with the picked mention's badge. */
+    pickMention(mention: Pick<Mention, "kind" | "name" | "label" | "path" | "source" | "isDir">) {
+      if (!trigger || caret === undefined) return;
+      const placed = insertMention(current.current, { start: caret - trigger.length, end: caret }, mention);
+
+      selection.current = { start: placed.caret, end: placed.caret };
+      setCaret(placed.caret);
+      apply(placed.value);
+    },
     setText(next: string) {
       const edited = editText(current.current, next);
 
@@ -72,6 +90,7 @@ export function useMessageDraft() {
     clear() {
       files.clear();
       selection.current = { start: 0, end: 0 };
+      setCaret(undefined);
       apply(emptyValue);
     },
     /** What the gateway gets: trimmed text, mentions with stored attachment ids, the files' ids. */

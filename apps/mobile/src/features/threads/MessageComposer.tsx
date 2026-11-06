@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { create } from "@bufbuild/protobuf";
+import { View } from "react-native";
 import { PermissionMode, ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { ComposerBox, ComposerPill } from "./ComposerBox";
 import { Notice } from "../../ui/components";
-import { Overlay } from "../../ui/Overlay";
-import { styles, useColors } from "../../ui/theme";
+import { styles } from "../../ui/theme";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { useAppearance } from "../../state/appearance";
 import { effortLabel, findChoice, modelSections, useModelCatalog } from "../models/catalog";
@@ -13,8 +13,9 @@ import { EffortPickerSheet, ModelPickerSheet } from "../models/ModelPicker";
 import { permissionLabel, permissionLook, PermissionPickerSheet } from "./permissions";
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
 import type { MessageDraft } from "../composer/useMessageDraft";
+import { MentionSuggestions } from "../composer/MentionSuggestions";
 
-type Picker = "model" | "effort" | "permission" | "goal";
+type Picker = "model" | "effort" | "permission";
 
 /** The thread's model, effort and permission mode: each pick is saved at once and applies from the next turn. */
 function useComposerSettings(thread: ui.Thread | undefined, worker: ui.Worker | undefined) {
@@ -53,6 +54,7 @@ export function MessageComposer({
   disabled,
   busy,
   onDetails,
+  onGoal,
 }: {
   thread?: ui.Thread;
   worker?: ui.Worker;
@@ -62,15 +64,22 @@ export function MessageComposer({
   disabled: boolean;
   busy: boolean;
   onDetails: () => void;
+  onGoal: () => void;
 }) {
   const { user } = useAppearance();
   const state = useComposerSettings(thread, worker);
   const { setPicker, current, effort, error } = state;
   const look = permissionLook(thread?.permissionMode);
+  const scope = thread ? create(ui.MentionScopeSchema, { threadId: thread.id }) : undefined;
 
   return (
     <>
       {error ? <Notice error>{error}</Notice> : null}
+      <MentionSuggestions
+        scope={scope}
+        trigger={message.trigger}
+        onPick={(option) => message.pickMention(option.mention)}
+      />
       <ComposerBox
         text={message.value.text}
         onChange={message.setText}
@@ -92,7 +101,7 @@ export function MessageComposer({
         controls={
           <>
             <AttachButton draft={message.files} disabled={busy} />
-            {thread?.goalStatus ? <ComposerPill icon="flag" title="Goal" onPress={() => setPicker("goal")} /> : null}
+            {thread?.goalStatus ? <ComposerPill icon="flag" title="Goal" onPress={onGoal} /> : null}
             <ComposerPill
               icon="cpu-chip"
               leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}
@@ -127,7 +136,6 @@ function ComposerPickers({
   state: ReturnType<typeof useComposerSettings>;
   thread: ui.Thread | undefined;
 }) {
-  const c = useColors();
   const { picker, setPicker, section, current, effort, update } = state;
   const close = () => setPicker(null);
 
@@ -159,15 +167,6 @@ function ComposerPickers({
         value={thread?.permissionMode}
         onSelect={(mode) => void update({ permissionMode: mode })}
       />
-      <Overlay visible={picker === "goal"} onClose={close} label="Goal">
-        <View style={{ padding: 16, gap: 4 }}>
-          <Text style={[styles.overlayHeading, { color: c.muted }]}>Goal</Text>
-          <Text style={[styles.overlay, { color: c.text }]}>
-            {thread?.goalStatus ? `Goal · ${thread.goalStatus}` : "No active goal"}
-          </Text>
-          <Text style={[styles.overlayMeta, { color: c.muted }]}>Set and manage goals in Canopy on the web.</Text>
-        </View>
-      </Overlay>
     </>
   );
 }
