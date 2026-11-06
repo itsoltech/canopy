@@ -1331,8 +1331,10 @@ wpis tylko od starego albo nowego domu i nigdy nie „przenosi” rzeczy, która
 
 ### Bezpieczeństwo, audyt, UI
 
-Wyłącznie właściciel: zapytania są ograniczone do jego `owner_user_id` (cudzy bot: „Bot not found”),
-metody UI wymagają tokenu serwisowego BFF, a strona łącza przyjmuje ruch tylko od przypiętego,
+Wyłącznie właściciel: zapytania są ograniczone do jego `owner_user_id` (cudzy bot: „Bot not found”).
+Odmowa przeniesienia nie odczytuje nazwy cudzego bota ani tytułu cudzego wątku; odpowiedź
+`StartMove` i późniejsza historia `GetMoves` mają dla nich pusty tytuł.
+Metody UI wymagają tokenu serwisowego BFF, a strona łącza przyjmuje ruch tylko od przypiętego,
 bezpośredniego partnera; decyzję o ruchu może podjąć wyłącznie komputer, który go przygotował. Obie
 strony zapisują `audit_log` (`computer.move.<kind>.sent` / `.received` / `.restored`).
 

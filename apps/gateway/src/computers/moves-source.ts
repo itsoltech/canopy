@@ -35,14 +35,15 @@ export async function movesRefused(
     ref.kind === "bot"
       ? (
           await hostContext[movesState].store.query<{ t: string }>(
-            `SELECT configuration ->> 'name' AS t FROM bots WHERE id=$1::uuid`,
-            [ref.id],
+            `SELECT configuration ->> 'name' AS t FROM bots WHERE id=$1::uuid AND owner_user_id=$2::uuid`,
+            [ref.id, hostContext[movesState].store.owner],
           )
         )[0]?.t
       : (
-          await hostContext[movesState].store.query<{ t: string }>(`SELECT title AS t FROM threads WHERE id=$1::uuid`, [
-            ref.id,
-          ])
+          await hostContext[movesState].store.query<{ t: string }>(
+            `SELECT title AS t FROM threads WHERE id=$1::uuid AND owner_user_id=$2::uuid`,
+            [ref.id, hostContext[movesState].store.owner],
+          )
         )[0]?.t;
 
   await hostContext[movesState].store.query(
