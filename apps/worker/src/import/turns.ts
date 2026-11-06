@@ -28,7 +28,7 @@ type ItemInit = MessageInitShape<typeof ItemSchema>;
 
 type Content = NonNullable<ItemInit["content"]>;
 
-/** One text field of an imported item; readers shorten longer text with a note. */
+/** One text field of an imported item: longer text is cut, after masking, with a note (maskedText). */
 export const MAX_FIELD = 1024 ** 2;
 
 /**
@@ -117,6 +117,12 @@ export function setItem(
   });
 
   if (at !== undefined) turn.endedMs = Math.max(turn.endedMs ?? at, at);
+}
+
+/** A whole item from an adapter's mapper (Codex, Grok), in its latest state. */
+export function putItem(turn: TurnDraft, item: ItemInit, at: number | undefined): void {
+  if (!item.itemId || !item.content) return;
+  setItem(turn, item.itemId, item.content, item.status ?? ItemStatus.COMPLETED, at, item.parentItemId ?? "");
 }
 
 /** The final turn: unfinished items end as interrupted, ids are derived, text is masked and bounded. */

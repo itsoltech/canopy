@@ -47,14 +47,14 @@ async function setup() {
   const adopt = (replace = false, current = summary) =>
     adoptImportedSession(
       service,
-      { claudeHome: () => privateHome },
+      { claudeHome: () => privateHome, codexHome: () => join(dataDir, "codex-home") },
       create(AdoptImportedSessionSchema, { sourceKey: current.sourceKey, snapshot: current.snapshot, replace }),
     );
 
   const remove = (sessionId: string) =>
     removeImportedCopy(
       service,
-      { claudeHome: () => privateHome },
+      { claudeHome: () => privateHome, codexHome: () => privateHome },
       create(RemoveImportedCopySchema, { agentCli: "claude", sessionId }),
     );
 

@@ -21,6 +21,8 @@ import { Effect, Layer } from "effect";
 import { mkdirSync } from "node:fs";
 import { Journal } from "../journal/index.ts";
 import { ClaudeThreads } from "../providers/claude/threads.ts";
+import { codexAppServerLaunch } from "../providers/codex/launch.ts";
+import { CodexThreads } from "../providers/codex/threads.ts";
 import { DEFAULT_NATIVE_TOOL_POLICY } from "../providers/native-tools.ts";
 import { resolveProfiles } from "../providers/profiles.ts";
 import { adoptImportedSession } from "./adopt.ts";
@@ -95,7 +97,110 @@ async function claudeTurn(home: string, cwd: string, sessionId: string, text: st
   return events;
 }
 
+/** One Codex turn with the real app-server in `home` (a CODEX_HOME); a new thread when `threadId` is empty. */
+async function codexTurn(home: string, cwd: string, threadId: string, text: string, dataDir: string) {
+  const events: ThreadEvent[] = [];
+  const ended = Promise.withResolvers<void>();
+  let started = threadId;
+  const profile = liveProfile("codex");
+  const env = { PATH: process.env["PATH"] ?? "", HOME: join(dataDir, "os-home"), TMPDIR: dataDir };
+  mkdirSync(env.HOME, { recursive: true });
+
+  const spec = create(ThreadSpecSchema, {
+    threadId: crypto.randomUUID(),
+    provider: Provider.CODEX,
+    providerProfileId: "live",
+    providerThreadId: threadId,
+    cwd,
+    model: process.env["CANOPY_LIVE_CODEX_MODEL"] ?? "gpt-6.1-sol",
+    permissionMode: PermissionMode.READ_ONLY,
+  });
+
+  const program = Effect.gen(function* () {
+    const threads = yield* CodexThreads;
+
+    if (!started) started = yield* threads.create(spec);
+    yield* threads.startTurn(
+      create(ThreadSpecSchema, { ...spec, providerThreadId: started }),
+      crypto.randomUUID(),
+      create(UserInputSchema, { text }),
+    );
+    yield* Effect.promise(() => Promise.race([ended.promise, Bun.sleep(180_000)]));
+  }).pipe(
+    Effect.provide(
+      CodexThreads.layer({
+        profile: () => profile,
+        publish: (event: ThreadEvent) => {
+          events.push(event);
+
+          if (event.body.case === "turnFinished") ended.resolve();
+        },
+        interact: async () => create(InteractionResponseSchema, { allow: false }),
+        callTool: async () => create(AgentToolResultSchema, { isError: true }),
+        launch: codexAppServerLaunch([profile], env, Bun.which("codex")!, undefined, home),
+        clientVersion: "live",
+      }).pipe(Layer.provide(Journal.layer(join(dataDir, `journal-${crypto.randomUUID()}.db`)))),
+    ),
+  );
+
+  await Effect.runPromise(program);
+
+  return { events, threadId: started };
+}
+
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("live: imported sessions resume", () => {
+  test.skipIf(!Bun.which("codex"))(
+    "Codex: a rollout from the user's CODEX_HOME continues in Canopy and remembers its history",
+    async () => {
+      const root = temp("canopy-import-live-codex-");
+      const userHome = join(root, "user");
+      const cwd = join(root, "project");
+      mkdirSync(join(userHome, ".codex"), { recursive: true });
+      mkdirSync(cwd, { recursive: true });
+      const word = `otter-${crypto.randomUUID().slice(0, 6)}`;
+
+      const first = await codexTurn(
+        join(userHome, ".codex"),
+        cwd,
+        "",
+        `Remember the code word ${word}. Reply only: OK.`,
+        join(root, "a"),
+      );
+
+      const service = new WorkerImport({
+        dataDir: join(root, "worker"),
+        homes: () => ({
+          claude: join(userHome, ".claude"),
+          codex: join(userHome, ".codex"),
+          grok: join(userHome, ".grok"),
+        }),
+        config: () => undefined,
+      });
+
+      const summary = (await service.scan(["codex"])).threads.find((t) => t.nativeId === first.threadId)!;
+      const before = treeFingerprint(join(userHome, ".codex", "sessions"));
+      const privateHome = join(root, "worker", "codex-home");
+
+      const adopted = adoptImportedSession(
+        service,
+        { claudeHome: () => privateHome, codexHome: () => privateHome },
+        create(AdoptImportedSessionSchema, { sourceKey: summary.sourceKey, snapshot: summary.snapshot }),
+      );
+
+      const second = await codexTurn(
+        privateHome,
+        cwd,
+        adopted,
+        "What was the code word? Reply with the word only.",
+        join(root, "b"),
+      );
+
+      expect(agentText(second.events).toLowerCase()).toContain(word);
+      expect(treeFingerprint(join(userHome, ".codex", "sessions"))).toBe(before);
+    },
+    400_000,
+  );
+
   test.skipIf(!Bun.which("claude"))(
     "Claude Code: a session from the user's CLI home continues in Canopy and remembers its history",
     async () => {
@@ -131,7 +236,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("live: imported sessions resume
 
       const adopted = adoptImportedSession(
         service,
-        { claudeHome: () => privateHome },
+        { claudeHome: () => privateHome, codexHome: () => privateHome },
         create(AdoptImportedSessionSchema, { sourceKey: summary.sourceKey, snapshot: summary.snapshot }),
       );
 

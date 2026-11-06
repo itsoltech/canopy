@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /** Codex wire fixture with real durable session files and independently releasable turns. */
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
@@ -138,7 +138,12 @@ for await (const line of createInterface({ input: process.stdin })) {
     const session = params.threadId ?? crypto.randomUUID();
     const file = join(home, "sessions", `${session}.json`);
 
-    if (request.method === "thread/resume" && !existsSync(file)) {
+    // A real rollout (sessions/YYYY/MM/DD/rollout-<time>-<id>.jsonl, e.g. an imported one) resumes too.
+    const rollout = existsSync(join(home, "sessions"))
+      ? readdirSync(join(home, "sessions"), { recursive: true }).some((p) => String(p).endsWith(`-${session}.jsonl`))
+      : false;
+
+    if (request.method === "thread/resume" && !existsSync(file) && !rollout) {
       send({ id, error: { code: -32000, message: "Session missing from CODEX_HOME" } });
       continue;
     }

@@ -3,6 +3,7 @@ import { ImportPageSchema, type ImportPage, type ReadImportPage } from "@canopy/
 import { CommandError } from "../runtime/host-types.ts";
 import { indexClaude, MalformedSessionError, type ClaudeIndex } from "./claude-index.ts";
 import { readClaudePage, type PageResult } from "./claude-history.ts";
+import { readCodexPage } from "./codex-history.ts";
 import { ConfinementError, prefixSha, sourceStat, type SourceFile } from "./read.ts";
 import type { WorkerImport } from "./service.ts";
 import { maskedText, MAX_TURN } from "./turns.ts";
@@ -78,6 +79,10 @@ function readPage(
 
       if (index.inlineSidechains > 0) warnings.push("Subagent steps in an older format are not imported");
     }
+  } else if (cli === "codex") {
+    // rollout-<time>-<thread id>.jsonl
+    const sessionId = file.path.slice(-".jsonl".length - 36, -".jsonl".length);
+    result = readCodexPage({ file, end, cursor, threadId: command.threadId, sessionId, masker, maxBytes });
   } else throw new CommandError("IMPORT_UNSUPPORTED", `importing ${cli} threads needs a newer worker`, false);
 
   if (result.skipped > 0)

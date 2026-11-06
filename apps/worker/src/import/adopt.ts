@@ -17,8 +17,9 @@ import { resolveSourceKey, SourceKeyError } from "./source-key.ts";
 const SESSION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface ImportHomesForProfiles {
-  /** The private home of an instance's harness ("" = native). */
+  /** The private homes of an instance's harnesses ("" = native). */
   claudeHome(profileId: string): string;
+  codexHome(profileId: string): string;
 }
 
 export function adoptImportedSession(
@@ -28,11 +29,11 @@ export function adoptImportedSession(
 ): string {
   const cli = service.agentCliOf(command.sourceKey);
 
-  if (cli !== "claude")
+  if (cli !== "claude" && cli !== "codex")
     throw new CommandError("IMPORT_UNSUPPORTED", `continuing ${cli} threads needs a newer worker`, false);
 
   try {
-    return adoptClaude(service, homes, command);
+    return cli === "codex" ? adoptCodex(service, homes, command) : adoptClaude(service, homes, command);
   } catch (error) {
     if (error instanceof SourceKeyError || error instanceof ConfinementError)
       throw new CommandError("IMPORT_SOURCE", error.message, false);
@@ -79,6 +80,43 @@ function adoptClaude(service: WorkerImport, homes: ImportHomesForProfiles, comma
   }
 }
 
+/** Codex finds a thread's rollout under sessions/YYYY/MM/DD by its file name (archived ones too). */
+function adoptCodex(service: WorkerImport, homes: ImportHomesForProfiles, command: AdoptImportedSession): string {
+  const { roots } = service.roots();
+  const resolved = resolveSourceKey(service.key, roots, command.sourceKey, "file");
+  const source: SourceFile = { root: resolved.root.path, path: resolved.path };
+  const snapshot = checkedSnapshot(source, command);
+  const file = basename(source.path);
+  // rollout-<time>-<thread id>.jsonl
+  const sessionId = basename(file, ".jsonl").slice(-36);
+  const date = /^rollout-(\d{4})-(\d{2})-(\d{2})T/.exec(file);
+
+  if (!SESSION.test(sessionId) || !date)
+    throw new CommandError("IMPORT_SOURCE", "the rollout name is not valid", false);
+
+  const copy = new PrivateCopy(
+    homes.codexHome(command.profileId),
+    service.copyManifest("codex", command.profileId, sessionId),
+  );
+
+  try {
+    if (copy.sameAs(snapshot)) return sessionId;
+    const end = completeLines(source, Number(snapshot.size));
+    copy.write(join("sessions", date[1]!, date[2]!, date[3]!, file), maskedLines(source, end, service.masker(roots)));
+    copy.commit(snapshot);
+
+    return sessionId;
+  } finally {
+    copy.abort();
+  }
+}
+
+/** The private home each CLI's copies live in. */
+const HOMES = new Map<string, (homes: ImportHomesForProfiles, profileId: string) => string>([
+  ["claude", (homes, profileId) => homes.claudeHome(profileId)],
+  ["codex", (homes, profileId) => homes.codexHome(profileId)],
+]);
+
 /** The source still starts as it did at the scan; the snapshot as the manifest records it. */
 export function checkedSnapshot(source: SourceFile, command: AdoptImportedSession) {
   const size = Number(command.snapshot?.size ?? 0n);
@@ -95,12 +133,11 @@ export function removeImportedCopy(
   homes: ImportHomesForProfiles,
   command: RemoveImportedCopy,
 ): void {
-  if (command.agentCli !== "claude" || !SESSION.test(command.sessionId)) return;
+  if (!SESSION.test(command.sessionId)) return;
   // The home the worker expects now, never one a manifest names.
-  removeCopy(
-    service.copyManifest(command.agentCli, command.profileId, command.sessionId),
-    homes.claudeHome(command.profileId),
-  );
+  const home = HOMES.get(command.agentCli)?.(homes, command.profileId);
+
+  if (home) removeCopy(service.copyManifest(command.agentCli, command.profileId, command.sessionId), home);
 }
 
 /** Length of the prefix that ends at a complete line (a line the CLI was still writing is left out). */

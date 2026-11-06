@@ -49,7 +49,7 @@ test.skipIf(!Bun.which("claude"))(
     const before = treeFingerprint(join(home, ".claude"));
     const summary = (await service.scan(["claude"])).threads.find((t) => t.cwd === join(home, "project"))!;
     const privateHome = join(dataDir, "claude-home");
-    const homes = { claudeHome: () => privateHome };
+    const homes = { claudeHome: () => privateHome, codexHome: () => privateHome };
 
     const adopt = () =>
       adoptImportedSession(

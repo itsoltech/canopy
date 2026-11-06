@@ -14,7 +14,7 @@ import type { ImportTargetJson, NewItem } from "./store.ts";
  */
 
 /** Agent CLIs whose imported threads can continue natively (later stages add the others). */
-export const NATIVE_CLIS: ReadonlySet<string> = new Set<string>(["claude"]);
+export const NATIVE_CLIS: ReadonlySet<string> = new Set<string>(["claude", "codex"]);
 
 export interface Scratch {
   readonly projectId: string;
