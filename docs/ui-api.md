@@ -1156,6 +1156,15 @@ Zdalne boty i wymiany przekazują kursor do domu przez istniejącą trasę stage
 Nie zmienia to wersji łącza. Starszy dom ignoruje nowe pola i wysyła pełną historię;
 offline odczyt nadal korzysta z lustra, bez prawa do wykonywania akcji.
 
+Web utrzymuje rozmowy i wymiany w pamięci SPA, bez IndexedDB. Mobile zapisuje
+`BotCachedView` (projekcję oraz kursor) w prywatnych atomowych plikach protobuf.
+Oba używają wspólnego reducera, który odrzuca deltę bez dokładnej bazy; po błędzie
+klient ponawia odczyt bez kursora. Osobny budżet botów wynosi 16 widoków / 32 MiB,
+8 MiB na wpis; mobile ma dodatkowo 6 widoków / 16 MiB w pamięci. Odpowiedzi na
+zgody wymagają live oraz pending karty w bieżącej projekcji, również w granicy
+wywołania mutacji. Unpair/revocation czyści oba cache; lista botów usuwa chat i
+wymiany botów niedostępnych, zarchiwizowanych albo przeniesionych.
+
 ### Preferencje General i aktualizacje
 
 `UserSettings.general` (900), `sidebar` (nowe pola 900–902) i `cli_updates`

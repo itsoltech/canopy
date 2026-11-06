@@ -22,7 +22,10 @@ export interface ThreadCacheStorage {
 export const cacheLimits = { count: 16, bytes: 64 * 1024 * 1024, entry: 16 * 1024 * 1024 };
 
 /** Shared unpair/revocation path; close fences stream callbacks before either deletion awaits I/O. */
-export async function clearPairingCache(cache: PersistentThreadCache | null, forget: () => Promise<void>) {
+export async function clearPairingCache(
+  cache: Pick<PersistentThreadCache, "close"> | null,
+  forget: () => Promise<void>,
+) {
   const results = await Promise.allSettled([cache?.close(), forget()]);
 
   return results.every((result) => result.status === "fulfilled");

@@ -1,8 +1,7 @@
 import { Directory, File, Paths } from "expo-file-system";
 import { PersistentThreadCache, type CacheFile, type ThreadCacheStorage } from "./thread-cache";
 
-const root = () => new Directory(Paths.cache, "thread-snapshots-v1");
-const filename = /^(\d+)-([a-f0-9-]{36})\.bin$/;
+const filename = /^(\d+)-([a-z0-9_~-]+)\.bin$/;
 
 class NativeThreadStorage implements ThreadCacheStorage {
   #time = Date.now();
@@ -63,7 +62,17 @@ class NativeThreadStorage implements ThreadCacheStorage {
 
 /** Device id and pinned certificate isolate pairings; orphaned scopes are removed before mounting screens. */
 export async function prepareThreadCache(session: { deviceId: string; fingerprint: string } | null) {
-  const parent = root();
+  const storage = await prepareSnapshotStorage("thread-snapshots-v1", session);
+
+  return storage ? new PersistentThreadCache(storage) : null;
+}
+
+/** Both caches use the existing app-private atomic file adapter, with independent versioned namespaces. */
+export async function prepareSnapshotStorage(
+  namespace: string,
+  session: { deviceId: string; fingerprint: string } | null,
+) {
+  const parent = new Directory(Paths.cache, namespace);
   parent.create({ idempotent: true, intermediates: true });
   const scope = session ? `${session.deviceId}-${session.fingerprint}` : "";
 
@@ -71,5 +80,5 @@ export async function prepareThreadCache(session: { deviceId: string; fingerprin
 
   for (const entry of parent.list()) if (entry.name !== scope) entry.delete();
 
-  return session ? new PersistentThreadCache(new NativeThreadStorage(new Directory(parent, scope))) : null;
+  return session ? new NativeThreadStorage(new Directory(parent, scope)) : null;
 }

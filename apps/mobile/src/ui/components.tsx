@@ -28,12 +28,14 @@ export { Alert, EmptyState, Notice } from "./Alert";
 
 export function ScreenHeader({
   title,
+  loading = false,
   subtitle,
   back = true,
   left,
   right,
 }: {
   title: string;
+  loading?: boolean;
   subtitle?: string;
   back?: boolean;
   /** Replaces the back button (the sidebar toggle on wide windows). */
@@ -68,9 +70,13 @@ export function ScreenHeader({
             {subtitle} /
           </Text>
         )}
-        <Text numberOfLines={1} style={[styles.label, { color: c.text }]}>
-          {title}
-        </Text>
+        {loading ? (
+          <Skeleton style={{ width: "60%", height: 20 }} />
+        ) : (
+          <Text numberOfLines={1} style={[styles.label, { color: c.text }]}>
+            {title}
+          </Text>
+        )}
       </View>
       {right}
     </View>

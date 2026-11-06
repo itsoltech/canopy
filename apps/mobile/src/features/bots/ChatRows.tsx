@@ -24,7 +24,7 @@ export function ChatDateLine({ at }: { at: Date }) {
 }
 
 /** A bot's avatar and name in its colour; opens its chat when it is known (web: BotChip). */
-export function BotChip({ bot }: { bot: ParticipantView | undefined }) {
+export function BotChip({ bot, exchangeId }: { bot: ParticipantView | undefined; exchangeId?: string }) {
   const c = useColors();
   const ink = botInk(bot?.color, c.dark, c.soft);
   const name = bot?.name ?? "a deleted bot";
@@ -41,7 +41,13 @@ export function BotChip({ bot }: { bot: ParticipantView | undefined }) {
   return bot ? (
     <Pressable
       accessibilityRole="link"
-      onPress={() => router.push({ pathname: "/bot/[id]", params: { id: bot.id } })}
+      onPress={() =>
+        router.push(
+          exchangeId
+            ? { pathname: "/bot-exchange/[id]", params: { id: exchangeId, botId: bot.id } }
+            : { pathname: "/bot/[id]", params: { id: bot.id } },
+        )
+      }
       hitSlop={8}
     >
       {content}
@@ -68,19 +74,19 @@ export function ExchangeLine({ segments }: { segments: readonly ExchangeSegment[
               {phrase.segments.map((segment, i) => (
                 <View key={segment.exchangeId + segment.botId} style={[styles.row, { gap: 6 }]}>
                   {i > 0 && <Text style={quiet}>{i === phrase.segments.length - 1 ? "and" : ","}</Text>}
-                  <BotChip bot={segment.bot} />
+                  <BotChip bot={segment.bot} exchangeId={segment.exchangeId} />
                 </View>
               ))}
             </>
           ) : phrase.kind === "received" ? (
             <>
               <Text style={quiet}>Message from</Text>
-              <BotChip bot={phrase.segment.bot} />
+              <BotChip bot={phrase.segment.bot} exchangeId={phrase.segment.exchangeId} />
             </>
           ) : (
             <>
               <Text style={quiet}>{phrase.count} messages with</Text>
-              <BotChip bot={phrase.segment.bot} />
+              <BotChip bot={phrase.segment.bot} exchangeId={phrase.segment.exchangeId} />
             </>
           )}
         </View>

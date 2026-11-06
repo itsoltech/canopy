@@ -348,6 +348,27 @@ zapis. Bez sieci urządzenie nie może wykryć zdalnego cofnięcia dostępu. Zap
 zmiany w okna 2 s (także przy ciągłym streamingu) i jest wykonywany też przy wyjściu
 z ekranu lub przejściu w tło.
 Nie ma kolejki wysyłania offline.
+
+Rozmowy botów i wymiany „Message from…” / „N messages with…” mają osobny wspólny
+LRU: 16 widoków / 32 MiB na dysku, najwyżej 8 MiB na wpis, oraz 6 widoków / 16 MiB
+w pamięci. Używają tego samego adaptera atomowych plików w prywatnym
+`Paths.cache/bot-snapshots-v1`, izolowanego przez urządzenie i pin certyfikatu.
+System może usunąć te pliki. Nie wymagają nowych modułów natywnych. Cache zapisuje
+wyłącznie publiczne `BotConversation` i `ReadBotExchangeResponse`, nigdy tokeny,
+poświadczenia connectorów, konfigurację providera ani checkpoint modelu. Zwykła treść
+rozmowy pozostaje prywatnymi danymi użytkownika.
+
+Przed połączeniem widoczna jest kopia z pamięci lub dysku i ciche „Syncing…”.
+Brak kopii daje współdzielony `ConversationSkeleton`; nazwa i awatar pochodzą z listy
+botów lub zapisanej projekcji. `WatchBotConversation` oraz `ReadBotExchange` wysyłają
+ostatni atomowy kursor. Wymiany odświeżają przyrost co 5 s na aktywnym ekranie;
+rozmowa używa strumienia. Kursor obejmuje również edycje i stan kart, nie tylko `seq`.
+Wysyłka, stop i wszystkie odpowiedzi na zgody (także „Always allow…”) czekają na live.
+Granica mutacji ponownie sprawdza, czy karta jest nadal pending w potwierdzonym stanie.
+Unpair i revocation jednocześnie zamykają oba cache przed usunięciem poświadczeń;
+spóźnione zapisy nie mogą ich odtworzyć. Lista usuwa kopie botów zarchiwizowanych,
+usuniętych lub przeniesionych oraz wymiany, w których te boty uczestniczyły.
+
 Wysłanie po timeout używa tego samego client_request_id do czasu zmiany treści/trybu,
 więc ręczny retry nie dubluje tury.
 

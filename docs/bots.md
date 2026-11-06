@@ -15,6 +15,13 @@ odsłania po 100 starszych wpisów z już posiadanego snapshotu, zachowując kot
 przewijania. Zmiana stanu na żywo zachowuje zamontowany widok i pozycję historii.
 Wymiany odświeżają przyrost po otwarciu, powrocie do okna i co 5 s widocznego okna.
 
+Mobile utrwala oba rodzaje widoków w prywatnym cache aplikacji: osobny od wątków
+budżet 16 widoków / 32 MiB na dysku (8 MiB na wpis), 6 widoków / 16 MiB w pamięci.
+Odczyt dysku poprzedza watch, aby wysłany kursor miał dokładną lokalną bazę. Unpair,
+revocation i zmiany dostępności botów usuwają kopie. Karty z cache są tylko do odczytu
+do potwierdzenia live; również granica wywołania odpowiedzi wymaga aktualnej pending
+karty. Szczegóły trwałości i storage: [mobile.md](mobile.md).
+
 Rozmowa i podgląd wymiany bot–bot obsługują opt-in `incremental` oraz kursor
 widoku. Gateway używa osobnego dziennika kluczy tabel botów, według tego samego
 modelu epoki, rewizji w kolejności commitów i wykrywania luk co lustra wątków.
@@ -685,9 +692,10 @@ harmonogramu użytkownika, a nie automatycznego łańcucha pobudek bota.
 Metody są częścią uwierzytelnionego `GatewayService` (ten sam interceptor usługi i BFF):
 
 - `CreateBot`, `UpdateBot`, `ArchiveBot`, `UnarchiveBot`, `DeleteBot`, `ListBots`, `GetBot`, `SendBotMessage`.
-- `WatchBotConversation`: od razu snapshot, następnie nowy snapshot po zmianie rewizji,
+- `WatchBotConversation`: snapshot albo przyrost od kursora, następnie zmiany,
   włącznie ze statusem i kartami. Odczyt PostgreSQL co 250 ms umożliwia odbiór zmian
-  także z innej instancji gateway; po reconnect pełny snapshot uzupełnia przerwę.
+  także z innej instancji gateway; reconnect uzupełnia przerwę dziennikiem, z pełnym
+  stanem jako fallback. Starszy klient nadal dostaje pełne snapshoty.
 - `ReadBotExchange` (BFF `GET /api/bot-exchanges/{id}`), `AnswerBotApproval`, `InterruptBot`.
 - `RetryBot` (BFF `POST /api/bots/{id}/retry`): ponawia **ostatnią** turę, jeśli zakończyła
   się błędem. Usuwa notatkę o błędzie i wznawia tę samą wiadomość od checkpointu; nie tworzy
