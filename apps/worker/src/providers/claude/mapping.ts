@@ -29,6 +29,8 @@ import type { ThreadEventInit } from "../../journal/index.ts";
  *
  * - Text and thinking stream as deltas of an item opened at content_block_start
  *   (id `<message id>:<block index>`); the full assistant message completes it.
+ * - A top-level message whose message_delta stops with `end_turn` (no tool use) ends the turn's work: its
+ *   last text completes again with phase `final_answer` (docs/timeline-folding.md).
  * - Tool calls start with the assistant's tool_use block (id = tool_use id) and complete with the
  *   tool_result in the following user message.
  * - The result message carries usage and the outcome (turn_finished).
@@ -69,6 +71,10 @@ export class ClaudeEventMapper {
   readonly #tools = new Map<string, { readonly parentItemId: string; readonly content: Content }>();
   #lastUuid: string | undefined;
   #interrupted = false;
+  /** Last top-level text of the streamed message, re-completed as the answer when the message ends the turn. */
+  #lastText: { readonly messageId: string; readonly itemId: string; readonly text: string } | undefined;
+  /** Top-level message that stopped with `end_turn`, when its full content arrives after the stop reason. */
+  #finalMessage = "";
   /** Fallback ids for text blocks that were not streamed. */
   #unstreamed = 0;
   /** Not-met evaluator verdicts of the current goal. */
@@ -170,7 +176,9 @@ export class ClaudeEventMapper {
 
     switch (message.type) {
       case "stream_event":
-        return this.#stream(Schema.decodeUnknownSync(StreamEvent)(message.event)).map((body) => event(body));
+        return this.#stream(Schema.decodeUnknownSync(StreamEvent)(message.event), message.parent_tool_use_id).map(
+          (body) => event(body),
+        );
       case "assistant": {
         const blocks = decodeBlocks(message.message.content);
         const goal = message.message.model === "<synthetic>" ? goalAnswer(blocks) : undefined;
@@ -273,8 +281,10 @@ export class ClaudeEventMapper {
     }
   }
 
-  #stream(e: StreamEvent): NonNullable<ThreadEventInit["body"]>[] {
+  #stream(e: StreamEvent, parentToolUseId: string | null): NonNullable<ThreadEventInit["body"]>[] {
     switch (e.type) {
+      case "message_delta":
+        return e.delta?.stop_reason === "end_turn" && !parentToolUseId ? this.#endTurn() : [];
       case "message_start":
         this.#messageId = e.message?.id ?? this.#messageId;
         this.#open.clear();
@@ -338,14 +348,13 @@ export class ClaudeEventMapper {
 
           if (!text) return []; // redacted thinking: nothing to show
           const itemId = open?.itemId ?? `${messageId}:${block["type"]}:${++this.#unstreamed}`;
+          const top = block["type"] === "text" && !parentItemId;
+
+          if (top) this.#lastText = { messageId, itemId, text };
+          const content = textContent(block["type"], text, top && messageId === this.#finalMessage);
 
           return [
-            {
-              case: "itemCompleted",
-              value: {
-                item: { itemId, parentItemId, status: ItemStatus.COMPLETED, content: textContent(block["type"], text) },
-              },
-            },
+            { case: "itemCompleted", value: { item: { itemId, parentItemId, status: ItemStatus.COMPLETED, content } } },
           ];
         }
 
@@ -372,6 +381,17 @@ export class ClaudeEventMapper {
           return [];
       }
     });
+  }
+
+  /** The streamed top-level message stopped with `end_turn`: its last completed text is the turn's answer. */
+  #endTurn(): NonNullable<ThreadEventInit["body"]>[] {
+    this.#finalMessage = this.#messageId;
+    const last = this.#lastText;
+
+    if (!last || last.messageId !== this.#messageId) return [];
+    const content = textContent("text", last.text, true);
+
+    return [{ case: "itemCompleted", value: { item: { itemId: last.itemId, status: ItemStatus.COMPLETED, content } } }];
   }
 
   #toolResults(blocks: readonly Block[]): NonNullable<ThreadEventInit["body"]>[] {
@@ -479,6 +499,7 @@ const StreamEvent = Schema.Struct({
       type: Schema.optionalKey(Schema.String),
       text: Schema.optionalKey(Schema.String),
       thinking: Schema.optionalKey(Schema.String),
+      stop_reason: Schema.optionalKey(Schema.NullOr(Schema.String)),
     }),
   ),
 });

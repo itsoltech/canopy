@@ -46,6 +46,7 @@ Status: **działa** (2026-11-01):
 | start tury (adapter) | `turn_started` + item `user_message` z treścią wejścia |
 | `stream_event` `content_block_start/delta` (text, thinking) | `item_started` + `item_delta` (item `<message id>:<index>`) |
 | `assistant` text / thinking | `item_completed` (`agent_message` / `reasoning`); pusty, zredagowany thinking nie tworzy itemu |
+| `stream_event` `message_delta` z `stop_reason: "end_turn"` (wiadomość główna, nie subagenta) | ponowne `item_completed` ostatniego tekstu tej wiadomości z `phase: "final_answer"` (docs/timeline-folding.md) |
 | `assistant` `tool_use` | `item_started`: `Bash` → `command_execution`, `Write`/`Edit`/`MultiEdit`/`NotebookEdit` → `file_change`, `WebSearch` → `web_search`, `TodoWrite` → `todo_list`, `mcp__canopy__*` → `agent_bus_call`, inne → `tool_call` |
 | `user` `tool_result` | `item_completed` tego narzędzia z wynikiem (`is_error` → `failed`) |
 | `result` | `turn_finished` (wynik, przyczyna, zużycie tokenów i koszt) |
