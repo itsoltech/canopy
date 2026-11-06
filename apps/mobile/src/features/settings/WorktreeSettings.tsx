@@ -8,6 +8,7 @@ import { SettingsInput } from "./SettingsInput";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { ResetSetting } from "./ResetSetting";
+import { SettingsSkeletonRows } from "./SettingsSkeleton";
 
 export function WorktreeSettings() {
   const { projects, workers } = useOverview();
@@ -19,7 +20,7 @@ export function WorktreeSettings() {
     api.getWorktreeSettings(scope),
   );
 
-  const response = resource.data;
+  const response = resource.data ?? (resource.initialLoading ? create(ui.WorktreeSettingsResponseSchema) : undefined);
 
   const save = async (patch: Partial<ui.WorktreeSettings>) =>
     !!(
@@ -307,6 +308,7 @@ function WorktreeList({ scope }: { scope: { projectId: string; workerId: string 
   return (
     <ResourceState resource={resource}>
       <SettingsGroup title="Worktrees">
+        <SettingsSkeletonRows controls />
         <Button
           secondary
           title="Refresh status"

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Platform, Text, View } from "react-native";
+import { FlatList, Platform, Text, View } from "react-native";
+import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
@@ -215,7 +216,7 @@ export function ThreadScreen({ id }: { id: string }) {
 
   const { atBottom, showLatest } = following;
 
-  if (!ready) return <ActivityIndicator accessibilityLabel="Opening Canopy" />;
+  if (!ready) return <ConversationSkeleton />;
 
   if (!session) return <Redirect href="/pair" />;
 
@@ -250,21 +251,23 @@ export function ThreadScreen({ id }: { id: string }) {
             <Text style={[styles.meta, { color: c.warning }]}>+{interactions.length - 1} pending</Text>
           )}
           <SubagentStrip subagents={subagents} onFinished={() => setDetails(true)} />
-          <MessageComposer
-            thread={thread}
-            worker={worker}
-            message={state.message}
-            send={(delivery) => void send(delivery)}
-            stop={() =>
-              void client!.api
-                .interruptThread({ threadId: id })
-                .catch(() => setError("Could not stop the turn. Try again."))
-            }
-            disabled={blocked}
-            busy={busy}
-            onDetails={() => setDetails(true)}
-            onGoal={() => setSheet("goal")}
-          />
+          <SkeletonScope loading={!thread}>
+            <MessageComposer
+              thread={thread}
+              worker={worker}
+              message={state.message}
+              send={(delivery) => void send(delivery)}
+              stop={() =>
+                void client!.api
+                  .interruptThread({ threadId: id })
+                  .catch(() => setError("Could not stop the turn. Try again."))
+              }
+              disabled={blocked}
+              busy={busy}
+              onDetails={() => setDetails(true)}
+              onGoal={() => setSheet("goal")}
+            />
+          </SkeletonScope>
         </View>
       </KeyboardArea>
       <ThreadPanel snapshot={snapshot} visible={details} onClose={() => setDetails(false)} />
@@ -285,7 +288,6 @@ export function ThreadScreen({ id }: { id: string }) {
 }
 
 function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> }) {
-  const c = useColors();
   const { appearance } = useAppearance();
 
   const maxWidth =
@@ -306,8 +308,8 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
       // Inverted: the footer is the top of the feed, the header sits under the latest turn.
       ListFooterComponent={
         <View style={{ gap: 16, paddingBottom: 16 }}>
-          <ConnectionNotice {...stream} />
-          {!snapshot && <ActivityIndicator accessibilityLabel="Loading conversation" color={c.accent} />}
+          {(snapshot || stream.connection !== "connecting") && <ConnectionNotice {...stream} />}
+          {!snapshot && <ConversationSkeleton />}
           {snapshot && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
         </View>
       }

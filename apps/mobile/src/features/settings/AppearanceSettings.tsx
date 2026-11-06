@@ -11,6 +11,7 @@ import { TypographySettings } from "./TypographySettings";
 import { DeviceChoiceRow } from "./DeviceChoiceRow";
 import { appearanceDeviceKeys, useDevicePreferences } from "./device-preferences";
 import { Button } from "../../ui/components";
+import { Skeleton } from "../../ui/Skeleton";
 
 export function AppearanceSettings() {
   const c = useColors();
@@ -22,52 +23,54 @@ export function AppearanceSettings() {
       <Button title="Restore device defaults" secondary onPress={() => device.reset(appearanceDeviceKeys)} />
       <SettingsGroup title="Colors" description="Account">
         <SettingsRow title="Color scheme" description="Follow the system or use a fixed light or dark palette.">
-          <View style={[styles.row, { alignItems: "stretch" }]}>
-            {(
-              [
-                { label: "System", value: ui.ColorScheme.SYSTEM },
-                { label: "Light", value: ui.ColorScheme.LIGHT },
-                { label: "Dark", value: ui.ColorScheme.DARK },
-              ] as const
-            ).map(({ label, value }) => (
-              <Pressable
-                key={value}
-                accessibilityRole="radio"
-                accessibilityLabel={label}
-                accessibilityState={{
-                  checked: (settings.appearance?.colorScheme || ui.ColorScheme.SYSTEM) === value,
-                  disabled: settings.saving,
-                }}
-                disabled={settings.saving}
-                onPress={() => void settings.updateAppearance({ colorScheme: value })}
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  padding: 6,
-                  gap: 6,
-                  borderWidth: 1,
-                  borderRadius: 8,
-                  borderColor:
-                    (settings.appearance?.colorScheme || ui.ColorScheme.SYSTEM) === value ? c.accent : c.line,
-                }}
-              >
-                <View style={{ overflow: "hidden", borderRadius: 6 }}>
-                  <ThemePreview
-                    theme={themeOf(settings.appearance, value === ui.ColorScheme.DARK ? "dark" : "light")}
-                    mode={value === ui.ColorScheme.DARK ? "dark" : "light"}
-                  />
-                  {value === ui.ColorScheme.SYSTEM && (
-                    <View
-                      style={{ position: "absolute", left: "50%", right: 0, top: 0, bottom: 0, overflow: "hidden" }}
-                    >
-                      <ThemePreview theme={themeOf(settings.appearance, "dark")} mode="dark" />
-                    </View>
-                  )}
-                </View>
-                <Text style={[styles.chrome, { textAlign: "center", color: c.text }]}>{label}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <Skeleton>
+            <View style={[styles.row, { alignItems: "stretch" }]}>
+              {(
+                [
+                  { label: "System", value: ui.ColorScheme.SYSTEM },
+                  { label: "Light", value: ui.ColorScheme.LIGHT },
+                  { label: "Dark", value: ui.ColorScheme.DARK },
+                ] as const
+              ).map(({ label, value }) => (
+                <Pressable
+                  key={value}
+                  accessibilityRole="radio"
+                  accessibilityLabel={label}
+                  accessibilityState={{
+                    checked: (settings.appearance?.colorScheme || ui.ColorScheme.SYSTEM) === value,
+                    disabled: settings.saving,
+                  }}
+                  disabled={settings.saving}
+                  onPress={() => void settings.updateAppearance({ colorScheme: value })}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    padding: 6,
+                    gap: 6,
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    borderColor:
+                      (settings.appearance?.colorScheme || ui.ColorScheme.SYSTEM) === value ? c.accent : c.line,
+                  }}
+                >
+                  <View style={{ overflow: "hidden", borderRadius: 6 }}>
+                    <ThemePreview
+                      theme={themeOf(settings.appearance, value === ui.ColorScheme.DARK ? "dark" : "light")}
+                      mode={value === ui.ColorScheme.DARK ? "dark" : "light"}
+                    />
+                    {value === ui.ColorScheme.SYSTEM && (
+                      <View
+                        style={{ position: "absolute", left: "50%", right: 0, top: 0, bottom: 0, overflow: "hidden" }}
+                      >
+                        <ThemePreview theme={themeOf(settings.appearance, "dark")} mode="dark" />
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.chrome, { textAlign: "center", color: c.text }]}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </Skeleton>
         </SettingsRow>
       </SettingsGroup>
       <SettingsGroup title="Themes" description="Account · Your color scheme decides which palette Canopy shows.">
@@ -135,32 +138,33 @@ function ThemeColumn({ mode }: { mode: ThemeMode }) {
         {mode === "light" ? "Light" : "Dark"} · {themes[selected].label}
       </Text>
       {themeNames.map((name) => (
-        <Pressable
-          key={name}
-          accessibilityRole="radio"
-          accessibilityLabel={`${themes[name].label}, ${mode} theme`}
-          accessibilityState={{ checked: selected === name, disabled: settings.saving }}
-          disabled={settings.saving}
-          onPress={() =>
-            void settings.updateAppearance(
-              mode === "light" ? { lightTheme: colorThemes[name] } : { darkTheme: colorThemes[name] },
-            )
-          }
-          style={{
-            minWidth: 0,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: selected === name ? c.accent : c.line,
-            padding: 6,
-            gap: 4,
-          }}
-        >
-          <ThemePreview theme={name} mode={mode} />
-          <View style={[styles.row, { justifyContent: "space-between" }]}>
-            <Text style={[styles.chrome, { flexShrink: 1, color: c.text }]}>{themes[name].label}</Text>
-            <View style={{ width: 16 }}>{selected === name && <Icon name="check" size={14} color={c.accent} />}</View>
-          </View>
-        </Pressable>
+        <Skeleton key={name}>
+          <Pressable
+            accessibilityRole="radio"
+            accessibilityLabel={`${themes[name].label}, ${mode} theme`}
+            accessibilityState={{ checked: selected === name, disabled: settings.saving }}
+            disabled={settings.saving}
+            onPress={() =>
+              void settings.updateAppearance(
+                mode === "light" ? { lightTheme: colorThemes[name] } : { darkTheme: colorThemes[name] },
+              )
+            }
+            style={{
+              minWidth: 0,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: selected === name ? c.accent : c.line,
+              padding: 6,
+              gap: 4,
+            }}
+          >
+            <ThemePreview theme={name} mode={mode} />
+            <View style={[styles.row, { justifyContent: "space-between" }]}>
+              <Text style={[styles.chrome, { flexShrink: 1, color: c.text }]}>{themes[name].label}</Text>
+              <View style={{ width: 16 }}>{selected === name && <Icon name="check" size={14} color={c.accent} />}</View>
+            </View>
+          </Pressable>
+        </Skeleton>
       ))}
     </View>
   );

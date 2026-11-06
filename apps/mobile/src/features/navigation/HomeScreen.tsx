@@ -1,4 +1,5 @@
-import { ActivityIndicator, Text, View } from "react-native";
+import { Text, View } from "react-native";
+import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLayout } from "../../state/layout";
@@ -15,7 +16,7 @@ export default function HomeScreen() {
   const layout = useLayout();
   const { ready, session } = useSession();
 
-  if (!ready) return <ActivityIndicator accessibilityLabel="Opening Canopy" />;
+  if (!ready) return <ListSkeleton />;
 
   if (!session) return <Redirect href="/pair" />;
 

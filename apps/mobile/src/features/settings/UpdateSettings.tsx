@@ -5,6 +5,7 @@ import { Button } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
+import { SettingsSkeletonRows } from "./SettingsSkeleton";
 
 export function UpdateSettings() {
   const resource = useSettingsResource("updates", (api) => api.getUpdates({}));
@@ -32,6 +33,7 @@ export function UpdateSettings() {
       }
     >
       <ResourceState resource={resource}>
+        <SettingsSkeletonRows rows={3} controls />
         {data && (
           <>
             {!data.gatewayBundled && <GatewayUpdate data={data} busy={resource.busy} change={change} />}

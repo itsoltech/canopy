@@ -5,6 +5,7 @@ import { PickerSheet, SelectField, type PickerOption } from "../../ui/Picker";
 import { Icon } from "../../ui/Icon";
 import { SheetContent } from "../../ui/components";
 import { font, styles, useColors, useTypography } from "../../ui/theme";
+import { Skeleton, useSkeleton } from "../../ui/Skeleton";
 
 const GroupRow = createContext(false);
 const WideGroup = createContext(false);
@@ -43,7 +44,11 @@ export function SettingsSection({
           <Text accessibilityRole="header" style={[styles.chrome, { fontFamily: font.semibold, color: c.text }]}>
             {title}
           </Text>
-          {description && <Text style={[styles.workMeta, { color: c.muted }]}>{description}</Text>}
+          {description && (
+            <Skeleton>
+              <Text style={[styles.workMeta, { color: c.muted }]}>{description}</Text>
+            </Skeleton>
+          )}
         </View>
         {actions}
       </View>
@@ -74,11 +79,17 @@ export function SettingsGroup({
         <View style={[styles.row, { flexWrap: "wrap", justifyContent: "space-between", paddingHorizontal: 4 }]}>
           <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
             {title && (
-              <Text accessibilityRole="header" style={[styles.meta, { fontFamily: font.semibold, color: c.text }]}>
-                {title}
-              </Text>
+              <Skeleton>
+                <Text accessibilityRole="header" style={[styles.meta, { fontFamily: font.semibold, color: c.text }]}>
+                  {title}
+                </Text>
+              </Skeleton>
             )}
-            {description && <Text style={[styles.workMeta, { color: c.muted }]}>{description}</Text>}
+            {description && (
+              <Skeleton>
+                <Text style={[styles.workMeta, { color: c.muted }]}>{description}</Text>
+              </Skeleton>
+            )}
           </View>
           {actions}
         </View>
@@ -137,25 +148,42 @@ export function SettingsRow({
   const scope = useContext(SettingsRowScope);
   const wide = useContext(WideGroup);
   const beside = inlineControl || wide;
+  const loading = useSkeleton();
 
   const body = (
     <>
       <View style={{ flexDirection: "row", alignItems: beside ? "center" : "flex-start", gap: 12 }}>
         <View style={{ minWidth: 0, flex: 1, gap: 3 }}>
-          <Text style={[type.chrome, { color: c.text }]}>
-            {title}
-            {soon ? " · Soon" : ""}
-          </Text>
-          {description && <Text style={[type.meta, { color: c.muted }]}>{description}</Text>}
+          <Skeleton>
+            <Text style={[type.chrome, { color: c.text }]}>
+              {title}
+              {soon ? " · Soon" : ""}
+            </Text>
+          </Skeleton>
+          {description && (
+            <Skeleton>
+              <Text style={[type.meta, { color: c.muted }]}>{description}</Text>
+            </Skeleton>
+          )}
         </View>
         {beside && control && (
-          <View style={inlineControl ? undefined : { width: 240, maxWidth: "50%" }}>{control}</View>
+          <View style={inlineControl ? undefined : { width: 240, maxWidth: "50%" }}>
+            <Skeleton>{control}</Skeleton>
+          </View>
         )}
         {accessory ?? scope.accessory ?? scope.reset?.(title)}
       </View>
-      {!beside && control && <View style={{ minWidth: 0, maxWidth: "100%", opacity: soon ? 0.5 : 1 }}>{control}</View>}
+      {!beside && control && (
+        <View style={{ minWidth: 0, maxWidth: "100%", opacity: soon ? 0.5 : 1 }}>
+          <Skeleton>{control}</Skeleton>
+        </View>
+      )}
       {children}
-      {scope.caption && <Text style={[type.meta, { color: c.muted }]}>{scope.caption}</Text>}
+      {scope.caption && (
+        <Skeleton>
+          <Text style={[type.meta, { color: c.muted }]}>{scope.caption}</Text>
+        </Skeleton>
+      )}
       {onPress && <Icon name="chevron-right" />}
     </>
   );
@@ -165,6 +193,7 @@ export function SettingsRow({
   return onPress ? (
     <Pressable
       accessibilityRole="button"
+      disabled={loading}
       onPress={onPress}
       style={({ pressed }) => [rowStyle, { backgroundColor: pressed ? c.inset : "transparent" }]}
     >

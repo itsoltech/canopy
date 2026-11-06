@@ -5,6 +5,7 @@ import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
 import { Button, Notice } from "../../ui/components";
+import { SkeletonScope } from "../../ui/Skeleton";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { TurnActivitySettings } from "./TurnActivitySettings";
 import { ThreadDefaultsSettings } from "./ThreadSettings";
@@ -57,30 +58,35 @@ function SettingsContent({ initialSection }: { initialSection: string }) {
           <Button secondary title="Retry settings" onPress={() => void settings.reload()} />
         </View>
       ) : null}
-      {!settings.user && !settings.error ? <Notice>Loading settings…</Notice> : null}
-      {section === "general" && <GeneralSettings />}
-      {section === "keybindings" && <KeybindingSettings />}
-      {section === "diffs" && <DiffSettings />}
-      {section === "appearance" && <AppearanceSettings />}
-      {section === "threads" && (
-        <>
-          <ThreadDisplaySettings />
-          <TurnActivitySettings />
-          <ThreadDefaultsSettings settings={settings} projects={projects} workers={workers} />
-        </>
-      )}
-      {section === "text-generation" && <TextGenerationSettings />}
-      {section === "network" && <NetworkSettings />}
-      {section === "mobile" && <DeviceSettings />}
-      {section === "workers" && <WorkerSettings />}
-      {section === "computers" && <ComputerSettings />}
-      {section === "proxies" && <ProxySettings />}
-      {section === "connectors" && <ConnectorSettings />}
-      {section === "providers" && <ProviderSettings />}
-      {section === "agent-environment" && <AgentEnvironmentSettings />}
-      {section === "projects" && <ProjectSettings />}
-      {section === "schedules" && <ScheduleSettings />}
-      {section === "worktrees" && <WorktreeSettings />}
+      <SkeletonScope
+        loading={
+          !settings.user && !settings.error && ["general", "appearance", "threads", "text-generation"].includes(section)
+        }
+      >
+        {section === "general" && <GeneralSettings />}
+        {section === "keybindings" && <KeybindingSettings />}
+        {section === "diffs" && <DiffSettings />}
+        {section === "appearance" && <AppearanceSettings />}
+        {section === "threads" && (
+          <>
+            <ThreadDisplaySettings />
+            <TurnActivitySettings />
+            <ThreadDefaultsSettings settings={settings} projects={projects} workers={workers} />
+          </>
+        )}
+        {section === "text-generation" && <TextGenerationSettings />}
+        {section === "network" && <NetworkSettings />}
+        {section === "mobile" && <DeviceSettings />}
+        {section === "workers" && <WorkerSettings />}
+        {section === "computers" && <ComputerSettings />}
+        {section === "proxies" && <ProxySettings />}
+        {section === "connectors" && <ConnectorSettings />}
+        {section === "providers" && <ProviderSettings />}
+        {section === "agent-environment" && <AgentEnvironmentSettings />}
+        {section === "projects" && <ProjectSettings />}
+        {section === "schedules" && <ScheduleSettings />}
+        {section === "worktrees" && <WorktreeSettings />}
+      </SkeletonScope>
     </SettingsLayout>
   );
 }

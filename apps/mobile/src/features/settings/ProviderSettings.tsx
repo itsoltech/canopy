@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Provider, type ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { Provider, ui } from "@canopy/contracts";
 import { Button, Notice, Sheet } from "../../ui/components";
 import { SettingsActions, SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
@@ -20,6 +21,12 @@ export function ProviderSettings() {
   const [editing, setEditing] = useState<ui.ProviderInstance | "new">();
   const [selected, setSelected] = useState<ui.ProviderInstance>();
   const changed = () => void resource.reload();
+
+  const instances =
+    resource.data?.instances ??
+    (resource.initialLoading
+      ? [create(ui.ProviderInstanceSchema, { id: "native", label: " ", harness, builtIn: true })]
+      : []);
 
   return (
     <ResourceState resource={resource}>
@@ -52,7 +59,7 @@ export function ProviderSettings() {
         title="Provider instances"
         actions={<Button title="Add instance" onPress={() => setEditing("new")} />}
       >
-        {resource.data?.instances
+        {instances
           .filter((i) => i.harness === harness)
           .map((instance) => (
             <SettingsRow
@@ -66,7 +73,12 @@ export function ProviderSettings() {
                   title={scope ? "Edit worker settings" : "Edit definition"}
                   onPress={() => (scope ? setSelected(instance) : setEditing(instance))}
                 />
-                {!scope && <ProviderModels instance={instance} onChanged={changed} />}
+                {!scope &&
+                  (resource.initialLoading ? (
+                    <Button secondary title="Manage models" disabled onPress={changed} />
+                  ) : (
+                    <ProviderModels instance={instance} onChanged={changed} />
+                  ))}
                 {!instance.builtIn && !scope && (
                   <Button
                     danger

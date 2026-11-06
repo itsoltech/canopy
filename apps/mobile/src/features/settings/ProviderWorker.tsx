@@ -1,6 +1,7 @@
 import { useState } from "react";
 import * as Linking from "expo-linking";
-import type { ui } from "@canopy/contracts";
+import { ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
 import { Button, Field, Notice } from "../../ui/components";
 import { SettingsGroup, SettingToggle } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
@@ -21,7 +22,10 @@ export function ProviderWorker({
   );
 
   const [login, setLogin] = useState<ui.StartProviderLoginResponse>();
-  const worker = resource.data?.worker;
+
+  const worker =
+    resource.data?.worker ?? (resource.initialLoading ? create(ui.InstanceOnWorkerSchema, { workerId }) : undefined);
+
   const request = { workerId, harness: instance.harness, id: instance.id };
 
   return (

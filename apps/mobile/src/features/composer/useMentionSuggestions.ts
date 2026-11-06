@@ -184,5 +184,7 @@ export function useMentionSuggestions(scope: ui.MentionScope | undefined, trigge
 
   const ready = found?.key === searchKey;
 
-  return { options: ready ? found.options : [], loading: !ready, error: ready ? found.error : undefined };
+  const previous = found?.key.startsWith(`${scopeKey}|${trigger.char}|`) ? found.options : [];
+
+  return { options: ready ? found.options : previous, loading: !ready, error: ready ? found.error : undefined };
 }

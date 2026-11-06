@@ -5,6 +5,7 @@ import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
 import { Button, Notice, SheetContent } from "../../ui/components";
+import { SkeletonScope } from "../../ui/Skeleton";
 
 export type SettingsApi = Client<typeof ui.GatewayService>;
 
@@ -82,7 +83,9 @@ export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) =>
     }
   }
 
-  return { data: result?.key === key ? result.data : undefined, loading, busy, error, message, reload, run };
+  const data = result?.key === key ? result.data : undefined;
+
+  return { data, loading, initialLoading: data === undefined && !error, busy, error, message, reload, run };
 }
 
 export function ResourceState({
@@ -90,15 +93,18 @@ export function ResourceState({
   children,
   gap,
 }: {
-  resource: { loading: boolean; error: string; message: string; reload: () => Promise<void> };
+  resource: { initialLoading: boolean; error: string; message: string; reload: () => Promise<void> };
   children: ReactNode;
   gap?: number;
 }) {
   const inSheet = useContext(SheetContent);
 
   return (
-    <View style={{ gap: gap ?? (inSheet ? 16 : 24) }}>
-      {resource.loading && <Notice>Loading settings…</Notice>}
+    <View
+      style={{ gap: gap ?? (inSheet ? 16 : 24) }}
+      pointerEvents={resource.initialLoading ? "none" : "auto"}
+      accessibilityState={{ busy: resource.initialLoading }}
+    >
       {resource.error ? (
         <View style={{ gap: 8 }}>
           <Notice error>{resource.error}</Notice>
@@ -106,7 +112,7 @@ export function ResourceState({
         </View>
       ) : null}
       {resource.message ? <Notice>{resource.message}</Notice> : null}
-      {children}
+      <SkeletonScope loading={resource.initialLoading}>{children}</SkeletonScope>
     </View>
   );
 }

@@ -7,6 +7,7 @@ import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { ConnectorForm } from "./ConnectorForm";
 import { ConnectorAccess } from "./ConnectorAccess";
+import { SettingsSkeletonRows } from "./SettingsSkeleton";
 
 export function ConnectorSettings() {
   const resource = useSettingsResource("connectors", (api) => api.listConnectors({}));
@@ -19,6 +20,7 @@ export function ConnectorSettings() {
         Connect accounts and choose which workers and bots can use them. Credentials stay encrypted in the gateway.
       </Notice>
       <SettingsGroup title="Connectors">
+        <SettingsSkeletonRows controls />
         {resource.data?.types.map((type) => (
           <SettingsRow
             key={type.id}
@@ -29,6 +31,7 @@ export function ConnectorSettings() {
         ))}
       </SettingsGroup>
       <SettingsGroup title="Accounts">
+        <SettingsSkeletonRows controls />
         {resource.data?.accounts.map((account) => (
           <SettingsRow
             key={account.id}

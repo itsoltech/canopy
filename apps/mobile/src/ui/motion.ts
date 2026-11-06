@@ -6,7 +6,7 @@ export const smoothOut = Easing.bezier(...motion.smoothOut);
 
 /** The system's reduce-motion setting, kept live: overlays then fade only, without sliding. */
 export function useReducedMotion() {
-  const [reduced, setReduced] = useState(false);
+  const [reduced, setReduced] = useState(true);
   useEffect(() => {
     let active = true;
     void AccessibilityInfo.isReduceMotionEnabled().then((value) => {

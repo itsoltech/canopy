@@ -262,6 +262,14 @@ Ręczne uruchomienie (`workflow_dispatch`) z `force` buduje bez sprawdzania zmia
 
 ## Interfejs zgodny z web
 
+Pierwszy odczyt danych pokazuje szkielety z `src/ui/Skeleton.tsx`, zgodne z web:
+zaokrąglone pola o niskim kontraście i delikatny puls, wyłączony przez systemowe
+ograniczenie ruchu. Znane formularze zachowują zamontowane wiersze i wymiary kontrolek;
+listy przed poznaniem ich długości używają szkieletów wierszy. `ResourceState` pokazuje
+szkielety tylko bez pierwszego wyniku, a podczas odświeżania zachowuje dane. Błędy
+i puste stany pozostają tekstem. Workspace’y i domyślne ustawienia projektu współdzielą
+jeden zasób z Projects; nie pobierają ustawień osobno dla każdej karty.
+
 Pair → Threads/Bots → Thread/Chat, plus Settings i New thread. Lista pokazuje projekt,
 worker/katalog, ikonę providera, czas i stan jak web; aktualizuje się przez WatchOverview.
 Są wyszukiwanie, filtr projektów i Archived. WatchThread składa

@@ -18,6 +18,7 @@ import { Icon } from "./Icon";
 import type { IconName } from "@canopy/ui/icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { Skeleton, useSkeleton } from "./Skeleton";
 
 export const SheetContent = createContext(false);
 
@@ -40,37 +41,39 @@ export function Button({
   const type = useTypography();
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      accessibilityState={{ disabled: disabled || busy, busy }}
-      disabled={disabled || busy}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        minHeight: 44,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 8,
-        borderWidth: secondary || danger ? 1 : 0,
-        borderColor: c.line,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        opacity: disabled || busy ? 0.45 : pressed ? 0.75 : 1,
-        backgroundColor: secondary || danger ? c.inset : c.action,
-      })}
-    >
-      {busy && <ActivityIndicator color={secondary ? c.text : c.onAccent} />}
-      <Text
-        style={[
-          type.body,
-          { color: danger ? c.danger : secondary ? c.text : c.onAccent, flexShrink: 1, textAlign: "center" },
-        ]}
+    <Skeleton>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled: disabled || busy, busy }}
+        disabled={disabled || busy}
+        onPress={onPress}
+        style={({ pressed }) => ({
+          minHeight: 44,
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          borderRadius: 8,
+          borderWidth: secondary || danger ? 1 : 0,
+          borderColor: c.line,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          opacity: disabled || busy ? 0.45 : pressed ? 0.75 : 1,
+          backgroundColor: secondary || danger ? c.inset : c.action,
+        })}
       >
-        {title}
-      </Text>
-    </Pressable>
+        {busy && <ActivityIndicator color={secondary ? c.text : c.onAccent} />}
+        <Text
+          style={[
+            type.body,
+            { color: danger ? c.danger : secondary ? c.text : c.onAccent, flexShrink: 1, textAlign: "center" },
+          ]}
+        >
+          {title}
+        </Text>
+      </Pressable>
+    </Skeleton>
   );
 }
 
@@ -90,12 +93,13 @@ export function IconButton({
   color?: string;
 }) {
   const c = useColors();
+  const loading = useSkeleton();
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      disabled={disabled}
+      disabled={disabled || loading}
       onPress={onPress}
       hitSlop={4}
       style={({ pressed }) => [
@@ -244,19 +248,21 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
   return (
     <View style={{ gap: 8 }}>
       <Text style={[type.chrome, { color: c.text }]}>{label}</Text>
-      <TextInput
-        accessibilityLabel={label}
-        placeholderTextColor={c.muted}
-        returnKeyType="done"
-        onSubmitEditing={Keyboard.dismiss}
-        {...props}
-        style={[
-          styles.input,
-          type.body,
-          { color: c.text, borderColor: c.line, backgroundColor: c.surface },
-          props.style,
-        ]}
-      />
+      <Skeleton>
+        <TextInput
+          accessibilityLabel={label}
+          placeholderTextColor={c.muted}
+          returnKeyType="done"
+          onSubmitEditing={Keyboard.dismiss}
+          {...props}
+          style={[
+            styles.input,
+            type.body,
+            { color: c.text, borderColor: c.line, backgroundColor: c.surface },
+            props.style,
+          ]}
+        />
+      </Skeleton>
     </View>
   );
 }

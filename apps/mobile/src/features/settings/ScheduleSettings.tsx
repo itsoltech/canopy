@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import type { ui } from "@canopy/contracts";
+import { ui } from "@canopy/contracts";
 import { Button, Notice, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
@@ -13,7 +14,12 @@ export function ScheduleSettings() {
   const [editing, setEditing] = useState<ui.Schedule | "new">();
   const upcoming = resource.data?.schedules.filter((s) => ["active", "paused"].includes(s.status)) ?? [];
   const finished = resource.data?.schedules.filter((s) => !["active", "paused"].includes(s.status)) ?? [];
-  const rows = tab === "upcoming" ? upcoming : finished;
+
+  const rows = resource.initialLoading
+    ? [create(ui.ScheduleSchema, { name: " ", status: "active" })]
+    : tab === "upcoming"
+      ? upcoming
+      : finished;
 
   return (
     <ResourceState resource={resource}>
@@ -27,7 +33,7 @@ export function ScheduleSettings() {
           { value: "finished", label: `Finished (${finished.length})` },
         ]}
       />
-      {!rows.length && <Notice>No {tab} schedules. Add a schedule to send a message later.</Notice>}
+      {resource.data && !rows.length && <Notice>No {tab} schedules. Add a schedule to send a message later.</Notice>}
       {rows.map((s) => (
         <SettingsGroup key={s.id} title={s.name} description={s.status}>
           <SettingsValue title="Message" value={s.prompt} />
