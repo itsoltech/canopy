@@ -23,6 +23,8 @@
   import ConversationHeader from "./ConversationHeader.svelte";
   import RoundButton from "./RoundButton.svelte";
   import WatchBar from "./WatchBar.svelte";
+  import ConversationSkeleton from "./ConversationSkeleton.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
 
   /**
    * A whole bot chat: header, the scrolling conversation (opens at the "New" divider, else at the end) and
@@ -32,6 +34,8 @@
    */
   let {
     conversation,
+    loading = false,
+    syncing = false,
     entries,
     me,
     directory = [],
@@ -60,6 +64,8 @@
     class: className,
   }: {
     conversation: ConversationView;
+    loading?: boolean;
+    syncing?: boolean;
     entries: readonly ChatEntry[];
     me: ParticipantView;
     directory?: readonly ParticipantView[];
@@ -116,6 +122,27 @@
   let content = $state<HTMLElement>();
   let composer = $state<ReturnType<typeof BotComposer>>();
   let following = $state(true);
+  let startIndex = $state<number>();
+  let openedHistory = false;
+  const historyStart = $derived(startIndex ?? Math.max(0, entries.length - 100));
+  const visibleEntries = $derived(entries.slice(historyStart));
+
+  $effect(() => {
+    if (!loading && !openedHistory && entries.length) {
+      openedHistory = true;
+      startIndex = Math.max(0, entries.length - 100);
+    }
+  });
+
+  async function showEarlier() {
+    if (!log) return;
+    const top = log.scrollTop;
+    const height = log.scrollHeight;
+    following = false;
+    startIndex = Math.max(0, historyStart - 100);
+    await tick();
+    log.scrollTop = top + log.scrollHeight - height;
+  }
 
   // Living mascots: the header's bot reacts to a new message (`event`) and shows what it is doing.
   let messageEvent = $state(0);
@@ -203,11 +230,19 @@
     <ConversationHeader
       {conversation}
       {subtitle}
-      {actions}
       state={mascotState}
       event={messageEvent}
       class="absolute inset-x-0 top-0 z-10 bg-white/75 backdrop-blur-md backdrop-saturate-150 dark:bg-black/70"
-    />
+    >
+      {#snippet actions()}
+        <span
+          role="status"
+          class="w-16 shrink-0 text-right text-xs text-zinc-500 dark:text-zinc-400"
+          class:invisible={!syncing}>Syncing…</span
+        >
+        {@render actions?.()}
+      {/snippet}
+    </ConversationHeader>
     <!-- `relative`: screen-reader labels positioned inside messages stay inside the scroller. -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
@@ -225,27 +260,34 @@
     >
       <div bind:this={content}>
         {@render notice?.()}
-        <ChatTimeline
-          {conversation}
-          {entries}
-          {me}
-          {directory}
-          {firstUnreadId}
-          {status}
-          {answering}
-          {retrying}
-          {policy}
-          {exchangeHref}
-          {onanswer}
-          {onapprove}
-          {onpolicy}
-          {onretry}
-          {onchangemodel}
-          {onchangeworker}
-          {onreact}
-          onreply={conversation.kind === "watch" || conversation.archived ? undefined : reply}
-          class="mx-auto w-full max-w-(--chat-width) px-3 pt-4 pb-6 sm:px-6"
-        />
+        {#if loading}
+          <ConversationSkeleton />
+        {:else}
+          {#if historyStart > 0}<div class="flex justify-center py-3">
+              <Button size="sm" variant="ghost" onclick={() => void showEarlier()}>Show earlier messages</Button>
+            </div>{/if}
+          <ChatTimeline
+            {conversation}
+            entries={visibleEntries}
+            {me}
+            {directory}
+            {firstUnreadId}
+            {status}
+            {answering}
+            {retrying}
+            {policy}
+            {exchangeHref}
+            {onanswer}
+            {onapprove}
+            {onpolicy}
+            {onretry}
+            {onchangemodel}
+            {onchangeworker}
+            {onreact}
+            onreply={conversation.kind === "watch" || conversation.archived ? undefined : reply}
+            class="mx-auto w-full max-w-(--chat-width) px-3 pt-4 pb-6 sm:px-6"
+          />
+        {/if}
       </div>
     </div>
     {#if !following}

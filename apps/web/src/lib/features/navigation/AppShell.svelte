@@ -6,6 +6,7 @@
   import { page } from "$app/state";
   import { onMount, onDestroy } from "svelte";
   import { threadCache } from "#lib/features/threads/thread-cache.ts";
+  import { botCache } from "#lib/features/bots/cache.ts";
   import { MediaQuery } from "svelte/reactivity";
   import AppSidebar from "#lib/features/navigation/AppSidebar.svelte";
   import { appearanceFromDocument, applyAppearance } from "#lib/features/settings/appearance.ts";
@@ -48,10 +49,17 @@
 
   let { children }: { children: Snippet } = $props();
 
-  onDestroy(() => threadCache.clear());
+  onDestroy(() => {
+    threadCache.clear();
+    botCache.clear();
+  });
 
   onMount(() => {
-    const clear = () => threadCache.clear();
+    const clear = () => {
+      threadCache.clear();
+      botCache.clear();
+    };
+
     window.addEventListener("pagehide", clear);
 
     return () => window.removeEventListener("pagehide", clear);

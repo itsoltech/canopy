@@ -93,7 +93,7 @@
         class="flex min-w-0 items-center gap-1.5 text-base/5 font-semibold text-zinc-950 sm:text-sm/5 dark:text-white"
       >
         {#if conversation.kind === "watch" && conversation.bots.length === 2}
-          <span class="truncate">{conversation.bots[0]!.name}</span>
+          <span class="max-w-[45%] shrink-0 truncate">{conversation.bots[0]!.name}</span>
           <Icon name="arrows-right-left" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" label="and" />
           <span class="truncate">{conversation.bots[1]!.name}</span>
         {:else}
