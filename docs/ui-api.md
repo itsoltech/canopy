@@ -1209,3 +1209,38 @@ zachowują zwykły Enter jako nową linię.
 - **Jeden użytkownik deweloperski** (`CANOPY_DEV_USER_EMAIL`). Logowanie powstanie w SvelteKit (sesja w cookie `HttpOnly`), a tożsamość użytkownika trafi do gateway w metadanych wywołania z tokenem usługi.
 - **Jedna instancja gateway** (`Hub` w procesie).
 - Workery dodaje kreator Settings → Workers; administracyjny `worker add` pozostaje w CLI. Instancje dostawców (globalne, włączane per worker), ich zmienne i modele są w UI.
+
+## Strony historii i trwałe kursory
+
+Nowy klient ustawia `page_size` w `WatchThread`, `WatchBotConversation` i
+`ReadBotExchange`. Zero zachowuje pełną historię dla starszych klientów;
+starszy gateway ignoruje nowe pola i nadal zwraca pełny stan. Gateway ogranicza
+stronę do 100 tur lub wiadomości. Aktualne karty, kolejka, cel i konfiguracja
+nagłówka pozostają kompletne, niezależnie od strony historii.
+
+Wątki zwracają całe tury, łącznie z odziedziczonymi itemami, segmentami pracy
+i stopkami. `history_before_turn_id` jest stabilną granicą następnej strony,
+`history_has_more` informuje o starszej treści. Kolejne otwarcie watcha z
+`before_turn_id` pobiera poprzednią stronę; klient odbiera pierwszą odpowiedź
+i zamyka ten pomocniczy watch. `target_item_id` pobiera okno od tury wskazanego
+itemu do końca. `history_version` identyfikuje łańcuch forków i przeniesioną
+historię; niezgodna wersja lub brak granicznej tury daje świeży ogon
+z `history_reset`, zamiast doklejenia obcej historii.
+
+Boty i wymiany używają `before_seq` z `history_before_seq`. Numery wiadomości
+nie przesuwają się po nowej wiadomości ani edycji. Strona czyta jeden snapshot
+MVCC razem z checkpointem. Przy prośbie o starszą stronę klient przekazuje
+także swój kursor; luka dziennika, inna epoka lub reset historii zwracają
+świeży ogon z `history_reset`. Aprobaty nie są stronicowane ani aktywowane
+przez odczyt pomocniczej strony: wymagają potwierdzonego głównego watcha.
+
+Cache utrzymuje ciągłe załadowane okno i atomowy kursor. Dołożenie starszej
+strony nie przesuwa kursora głównego watcha i nie zastępuje już otrzymanych
+nowszych wierszy. Delty poza załadowanym oknem są pomijane; starszą treść
+klient odczyta z gatewaya, gdy do niej dojdzie. Reconnect używa dotychczasowego
+kursora dziennika, a niemożliwa resynchronizacja zastępuje okno nowym ogonem.
+Wszystkie odczyty, granice i itemy pozostają w zakresie właściciela w gatewayu.
+
+Zwykła przeglądarka trzyma historię tylko w pamięci SPA. Electron ma prywatny
+cache na dysku przez preload ([desktop.md](desktop.md)); BFF nigdy nie
+współdzieli snapshotów między sesjami właścicieli.

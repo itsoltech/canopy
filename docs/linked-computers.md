@@ -2111,7 +2111,18 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    Nowe odczyty i zapis wyjątku środowiska są addytywnymi RPC UI; protokół łącza i schemat bazy bez zmian.
    Testy: `tests/integration/config-sync-execution.test.ts`, z rzeczywistym workerem i testowym harness.
 
-### Weryfikacja wspólnej konfiguracji
+### Strony historii klientów
+
+Klient z `page_size` przechodzi bezpośrednio do domu wątku przez istniejącą
+trasę stage 2, zamiast otrzymywać całe lustro jako pierwszy snapshot.
+Załadowane okno klienta pokazuje się lokalnie; jego kursor i granice stron
+przechodzą do domu. Boty i wymiany również przekazują żądanie strony i kursor.
+Identyfikatory tur i itemów podlegają temu samemu kwalifikowaniu co pozostałe
+odpowiedzi. Starszy dom ignoruje addytywne pola stron i zwraca pełną historię.
+Bez sieci pozostaje dotychczasowy odczyt lustra; lustro partnera nadal jest
+pełne, niezależnie od okna klienta. Nie powstaje drugi dziennik synchronizacji.
+
+### Testy wspólnej konfiguracji
 
 Każdy etap dodaje testy integracyjne `tests/integration/config-sync-*.test.ts` opisane w etapach
 oraz oczekiwane migracje w `packages/db/test/schema.test.ts` (kaskady do `computer_peers`, unikalność

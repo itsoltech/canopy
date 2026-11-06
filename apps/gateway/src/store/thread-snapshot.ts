@@ -9,12 +9,14 @@ import type { InteractionStore } from "./interactions-store.ts";
 import type { ThreadStore } from "./threads-store.ts";
 import type { TurnStore } from "./turns-store.ts";
 import { mirrorSelection, type MirrorSelection } from "./mirror-selection.ts";
+import { threadWindow, type ThreadHistoryQuery } from "./thread-window.ts";
 
 export interface ThreadSnapshotStore {
   snapshot(
     threadId: string,
     mirrorCursor?: string,
     includeCursor?: boolean,
+    history?: ThreadHistoryQuery,
   ): Fx<{
     thread: ThreadRow;
     turns: (TurnRow & { inherited?: boolean })[];
@@ -24,6 +26,8 @@ export interface ThreadSnapshotStore {
     lastSeq: bigint;
     selection: MirrorSelection | undefined;
     cursor: string;
+    historyVersion: string;
+    window: Effect.Success<ReturnType<typeof threadWindow>>;
   }>;
   /** Current state of one of the thread's own items. */
   threadItem(threadId: string, itemId: string): Fx<Item | undefined>;
@@ -34,9 +38,15 @@ export function threadSnapshot(
   self: () => Pick<ThreadStore, "thread"> & Pick<TurnStore, "turnsOf"> & Pick<InteractionStore, "pendingInteractions">,
 ): ThreadSnapshotStore {
   return {
-    snapshot: (threadId, mirrorCursor, includeCursor) => {
+    snapshot: (threadId, mirrorCursor, includeCursor, historyQuery) => {
       const read = Effect.gen(function* () {
         const thread = yield* self().thread(threadId);
+
+        const history = (yield* sql<{ version: string }>`SELECT md5(
+          coalesce((SELECT string_agg(c.thread_id::text || ':' || coalesce(c.upto_seq::text,''), ',' ORDER BY c.level)
+            FROM thread_fork_chain(${threadId}::uuid) c),'') || ':' ||
+          coalesce((SELECT md5(history) FROM computer_moved_threads WHERE thread_id=${threadId}::uuid),'')
+        ) AS version`)[0]!;
 
         const clock = includeCursor
           ? (yield* sql<{ cursor: string }>`SELECT epoch::text || ':' || revision::text AS cursor
@@ -47,6 +57,8 @@ export function threadSnapshot(
           ? yield* mirrorSelection(sql, thread.owner_user_id, threadId, mirrorCursor)
           : undefined;
 
+        const window = selection ? undefined : yield* threadWindow(sql, threadId, history.version, historyQuery);
+
         // A fork shows the history it inherits (thread_items_view / thread_fork_chain), marked as inherited.
         const inheritedTurns = selection
           ? []
@@ -54,9 +66,10 @@ export function threadSnapshot(
                 SELECT u.*, s.*, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id FROM thread_fork_chain(${threadId}::uuid) c
                   JOIN turns u ON u.thread_id = c.thread_id LEFT JOIN turn_sources s ON s.turn_id = u.id
                  WHERE c.level > 0 AND u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
+                   AND (${!window} OR u.id=ANY(${window?.ids ?? []}::uuid[]))
                  ORDER BY c.level DESC, u.ordinal`;
 
-        const turns = yield* self().turnsOf(threadId, selection?.turnIds);
+        const turns = yield* self().turnsOf(threadId, selection?.turnIds ?? window?.ids);
 
         type ItemRow = {
           thread_id: string;
@@ -79,7 +92,8 @@ export function threadSnapshot(
                   e.occurred_at AS completed_at
                 FROM thread_items_view(${threadId}::uuid) WITH ORDINALITY v
                 LEFT JOIN thread_events e ON v.type='agent_message' AND v.status='completed'
-                  AND e.thread_id=v.thread_id AND e.seq=v.last_seq ORDER BY v.ordinality`;
+                  AND e.thread_id=v.thread_id AND e.seq=v.last_seq
+                WHERE ${!window} OR v.turn_id IS NULL OR v.turn_id=ANY(${window?.ids ?? []}::uuid[]) ORDER BY v.ordinality`;
 
         const items = itemRows.map((r) =>
           create(ui.TimelineItemSchema, {
@@ -133,6 +147,8 @@ export function threadSnapshot(
           lastSeq: BigInt(thread.last_seq),
           selection,
           cursor: clock?.cursor ?? "",
+          historyVersion: history.version,
+          window,
         };
       });
 

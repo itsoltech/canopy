@@ -14,6 +14,7 @@
     "./thread-mirror": "./src/thread-mirror.ts",
     "./thread-snapshot": "./src/thread-snapshot.ts",
     "./thread-cache": "./src/thread-cache.ts",
+    "./history-pages": "./src/history-pages.ts",
     "./bot-snapshot": "./src/bot-snapshot.ts",
     "./bot-cache": "./src/bot-cache.ts",
     "./computer-presence": "./src/computer-presence.ts",

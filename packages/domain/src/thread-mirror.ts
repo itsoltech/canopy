@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { loadedThreadDelta } from "./history-pages.ts";
 
 export const MIRROR_CURSOR = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):(\d+)$/;
 
@@ -34,18 +35,24 @@ export function applyThreadDelta(base: ui.ThreadSnapshot, delta: ui.ThreadSnapsh
   for (const notice of next.notices) notices.set(notice.seq, notice);
 
   // Inherited chains retain their original order; own upserts follow the home's seq/ordinal.
-  return create(ui.ThreadSnapshotSchema, {
-    ...next,
-    items: [...items.values()]
-      .filter((i) => i.inherited)
-      .concat(
-        [...items.values()]
-          .filter((i) => !i.inherited)
-          .sort((a, b) => (a.firstSeq < b.firstSeq ? -1 : a.firstSeq > b.firstSeq ? 1 : 0)),
-      ),
-    turns: [...turns.values()]
-      .filter((t) => t.inherited)
-      .concat([...turns.values()].filter((t) => !t.inherited).sort((a, b) => a.ordinal - b.ordinal)),
-    notices: [...notices.values()].sort((a, b) => (a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0)),
-  });
+  return loadedThreadDelta(
+    base,
+    create(ui.ThreadSnapshotSchema, {
+      ...next,
+      historyBeforeTurnId: base.historyBeforeTurnId,
+      historyHasMore: base.historyHasMore,
+      historyVersion: base.historyVersion,
+      items: [...items.values()]
+        .filter((i) => i.inherited)
+        .concat(
+          [...items.values()]
+            .filter((i) => !i.inherited)
+            .sort((a, b) => (a.firstSeq < b.firstSeq ? -1 : a.firstSeq > b.firstSeq ? 1 : 0)),
+        ),
+      turns: [...turns.values()]
+        .filter((t) => t.inherited)
+        .concat([...turns.values()].filter((t) => !t.inherited).sort((a, b) => a.ordinal - b.ordinal)),
+      notices: [...notices.values()].sort((a, b) => (a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0)),
+    }),
+  );
 }

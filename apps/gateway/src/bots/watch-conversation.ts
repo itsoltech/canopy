@@ -24,6 +24,9 @@ export async function* watchConversation(
       baseCursor: "",
       delta: false,
       removedMessageIds: [],
+      historyBeforeSeq: 0n,
+      historyHasMore: false,
+      historyReset: false,
     });
 
     const digest = createHash("sha256").update(toBinary(bots.BotConversationSchema, controls)).digest("hex");
