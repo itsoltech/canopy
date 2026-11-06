@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FlatList, Platform, Text, View } from "react-native";
 import { ConversationSkeleton } from "../../ui/Skeleton";
-import { Redirect } from "expo-router";
+import { Redirect, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
 import type { bots } from "@canopy/contracts";
@@ -105,7 +105,7 @@ function useBotChat(id: string) {
   };
 }
 
-export function BotChatScreen({ id }: { id: string }) {
+export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) {
   const c = useColors();
   const { wide } = useLayout();
 
@@ -131,7 +131,9 @@ export function BotChatScreen({ id }: { id: string }) {
   const home = useComputerHome(conversation?.bot?.nodeId || splitId(id).node);
 
   const approvals =
-    conversation?.approvals.filter((a) => a.status === "pending" || (a.status === "expired" && seen.has(a.id))) ?? [];
+    conversation?.approvals.filter(
+      (a) => a.allowedByRule || a.status === "pending" || (a.status === "expired" && seen.has(a.id)),
+    ) ?? [];
 
   const rows = useChatRows(conversation, approvals, known);
   const waiting = approvals.some((a) => a.status === "pending");
@@ -204,7 +206,16 @@ export function BotChatScreen({ id }: { id: string }) {
           />
         </View>
       </KeyboardArea>
-      <BotDetailsPanel conversation={conversation} visible={details} onClose={() => setDetails(false)} />
+      <BotDetailsPanel
+        conversation={conversation}
+        visible={details || !!rule}
+        selectedRule={rule}
+        onClose={() => {
+          setDetails(false);
+
+          if (rule) router.setParams({ rule: "" });
+        }}
+      />
     </SafeAreaView>
   );
 }

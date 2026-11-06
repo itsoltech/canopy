@@ -18,7 +18,7 @@
         proposal.approvalPolicy === "always"
           ? "Ask before every action"
           : proposal.approvalPolicy === "full_auto"
-            ? "Full auto: never asks"
+            ? "Full auto: protected actions ask"
             : "Ask before sensitive actions",
     },
   ]);

@@ -1,5 +1,8 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
+  import { page } from "$app/state";
+  import Dialog from "#lib/shared/ui/Dialog.svelte";
+  import BotApprovalRules from "#lib/features/bots/settings/BotApprovalRules.svelte";
   import { bots, Provider, ui, type Mention } from "@canopy/contracts";
   import { mentionsToWire } from "#lib/features/mentions/wire.ts";
   import { create } from "@bufbuild/protobuf";
@@ -41,6 +44,11 @@
   let sending = $state(false);
   let retrying = $state(false);
   let answering = $state<Record<string, string>>({});
+  let ruleDialog = $state(false);
+
+  $effect(() => {
+    ruleDialog = !!page.url.searchParams.get("rule");
+  });
 
   /** Your messages until the conversation has them; a failed one keeps its request id for Retry. */
   let pending = $state<
@@ -217,7 +225,7 @@
     void deliver(failed);
   }
 
-  async function reply(id: string, body: { approve: boolean; answer: string }, mark: string) {
+  async function reply(id: string, body: { approve: boolean; answer: string; ruleOptionId?: string }, mark: string) {
     if (!canAct) return;
     answering = { ...answering, [id]: mark };
 
@@ -259,7 +267,7 @@
   }
 
   function approve(id: string, choice: ApprovalAnswer) {
-    if (choice.approve) return reply(id, { approve: true, answer: "" }, "approve");
+    if (choice.approve) return reply(id, { approve: true, answer: "", ruleOptionId: choice.ruleOptionId }, "approve");
 
     return reply(id, { approve: false, answer: choice.edited ?? "" }, choice.edited ? "edit" : "discard");
   }
@@ -276,11 +284,6 @@
 
       return;
     }
-
-    // Switching to full auto from a card means "stop asking": the actions already waiting go ahead too.
-    if (next === "full_auto")
-      for (const a of snapshot.approvals)
-        if (a.status === "pending" && a.kind === "approval") approve(a.id, { approve: true });
   }
 
   async function changeModel(choice: BotModelChoice) {
@@ -332,6 +335,18 @@
 </script>
 
 <svelte:head><title>{config.name || "Bot"} · Canopy</title></svelte:head>
+<Dialog
+  bind:open={ruleDialog}
+  title="Allowed actions"
+  description="Removing a rule makes the next matching request follow the bot’s approval setting."
+>
+  <BotApprovalRules
+    botId={bot.id}
+    selectedRule={page.url.searchParams.get("rule") ?? ""}
+    disabled={!canAct}
+    showHeading={false}
+  />
+</Dialog>
 <div class="flex h-full min-h-0 flex-col">
   {#key data.bot.id}
     <BotDetailsLayout bind:this={detailsLayout} bind:open={detailsOpen} ownerId={bot.ownerUserId}>

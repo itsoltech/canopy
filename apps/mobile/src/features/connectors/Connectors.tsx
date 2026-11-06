@@ -18,7 +18,7 @@ const accountLabel = (account: connectors.ConnectorAccount, types: readonly conn
   `${types.find((t) => t.id === account.connectorType)?.name ?? account.connectorType} · ${account.name}`;
 
 /** Your connector accounts, or the ones a thread can use (`threadId`); `list` is undefined while loading. */
-export function useConnectors(threadId?: string) {
+export function useConnectors(threadId?: string, botId?: string) {
   const { client } = useSession();
   const [list, setList] = useState<connectors.ListConnectorsResponse>();
   const [error, setError] = useState("");
@@ -28,7 +28,7 @@ export function useConnectors(threadId?: string) {
 
     if (client)
       void client.api
-        .listConnectors({ threadId: threadId ?? "" })
+        .listConnectors({ threadId: threadId ?? "", botId: botId ?? "" })
         .then((r) => {
           if (active) setList(r);
         })
@@ -39,7 +39,7 @@ export function useConnectors(threadId?: string) {
     return () => {
       active = false;
     };
-  }, [client, threadId]);
+  }, [client, threadId, botId]);
 
   return { list, error };
 }
