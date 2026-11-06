@@ -15,7 +15,8 @@ import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { methodNamed } from "../../apps/gateway/src/computers/remote.ts";
 import { serveComputerUpdates } from "../../apps/gateway/src/updates/linked.ts";
 import { LocalDesktopControl } from "../../apps/desktop/src/local-control.ts";
-import { RemoteAppUpdate } from "../../apps/desktop/src/remote-app-update.ts";
+import { PROGRESS_REPORT_MS, RemoteAppUpdate } from "../../apps/desktop/src/remote-app-update.ts";
+import { computerUpdate } from "../../apps/web/src/lib/features/workers/computer-updates.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { eventually as poll, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
@@ -50,6 +51,9 @@ class FakeApp {
   restarted = false;
   checks = 0;
   notified: string[] = [];
+  reports = 0;
+  /** Reports like an app from before the updater fields: the gateway gets none of them. */
+  legacy = false;
   readonly control: LocalDesktopControl;
   readonly coordinator: RemoteAppUpdate;
   private readonly loop: Promise<void>;
@@ -79,7 +83,15 @@ class FakeApp {
       restart: () => {
         this.restarted = true;
       },
-      report: (state) => this.control.report(toJsonString(ui.DesktopUpdateStateSchema, state)),
+      report: (state) => {
+        this.reports++;
+
+        const sent = this.legacy
+          ? { ...state, updaterPhase: "", updaterVersion: "", updaterProgress: 0, updaterError: "" }
+          : state;
+
+        return this.control.report(toJsonString(ui.DesktopUpdateStateSchema, sent));
+      },
     });
     void this.coordinator.publish();
     this.loop = this.control.run();
@@ -111,6 +123,12 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
       ...(capable && { updates: (nodeId, method, request) => serveComputerUpdates(b.core, nodeId, method, request) }),
       capabilities: ["presence", "unlink", REMOTE_THREADS, ...(capable ? [REMOTE_APP_UPDATE] : [])],
     });
+
+  /** B's updater moves by itself (an automatic check); the app reports it like its main process does. */
+  function updater(change: Partial<DesktopUpdateStatus>) {
+    app.status = { ...app.status, ...change };
+    void app.coordinator.publish();
+  }
 
   /** B quits for its update (presence "updating") and starts again on the same port. */
   async function restartB(capable = true) {
@@ -180,6 +198,55 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     expect(b1.updates?.computers).toEqual([]);
   }, 20_000);
 
+  test("B's own download reaches A with its progress and target, a report at most once a second", async () => {
+    updater({ phase: "downloading", progress: 12, updateVersion: "1.1.0", message: "Downloading" });
+    await eventually(async () => (await computer())?.updates?.app?.updaterProgress === 12);
+    expect((await computer())?.updates?.app).toMatchObject({ updaterPhase: "downloading", updaterVersion: "1.1.0" });
+    expect(computerUpdate((await computer())!)).toMatchObject({
+      status: "12%",
+      target: "1.1.0",
+      progress: 12,
+      busy: true,
+      actionable: false,
+    });
+
+    // Progress events come fast; the gateway gets one report now and the last one after the interval.
+    const before = app.reports;
+
+    for (let progress = 13; progress <= 60; progress++) updater({ progress });
+    expect(app.reports - before).toBeLessThanOrEqual(1);
+    await eventually(async () => (await computer())?.updates?.app?.updaterProgress === 60);
+    expect(app.reports - before).toBeLessThanOrEqual(2);
+    await Bun.sleep(PROGRESS_REPORT_MS);
+    expect(app.reports - before).toBeLessThanOrEqual(2);
+
+    // Downloaded: Ready with the version it installs, and Update restarts it on A's request.
+    updater({ phase: "downloaded", progress: 100, stagedVersion: "1.1.0", message: "Restart to update" });
+    await eventually(async () => computerUpdate((await computer())!).status === "Ready");
+    expect(computerUpdate((await computer())!)).toMatchObject({ target: "1.1.0", actionable: true, busy: false });
+
+    updater({ phase: "error", progress: undefined, error: "The download was interrupted." });
+    await eventually(async () => computerUpdate((await computer())!).status === "Failed");
+    expect(computerUpdate((await computer())!).detail).toBe("The download was interrupted.");
+    updater({ phase: "idle", error: undefined, stagedVersion: undefined, message: "Update available" });
+    await eventually(async () => (await computer())?.updates?.app?.updaterPhase === "idle");
+  }, 20_000);
+
+  test("an older B without the updater fields shows the row it showed before", async () => {
+    app.legacy = true;
+    updater({ phase: "downloading", progress: 40, message: "Downloading" });
+    await eventually(async () => (await computer())?.updates?.app?.updaterPhase === "");
+    expect(computerUpdate((await computer())!)).toMatchObject({
+      status: "Available",
+      target: "1.1.0",
+      progress: undefined,
+      actionable: true,
+    });
+    app.legacy = false;
+    updater({ phase: "idle", progress: undefined, message: "Update available" });
+    await eventually(async () => (await computer())?.updates?.app?.updaterPhase === "idle");
+  }, 20_000);
+
   test("Check now on A asks B's app to check its own feed", async () => {
     // The test gateway's own release check isn't running; the linked computers' checks go out anyway.
     await a.api.manageUpdates({ action: "check" }).catch(() => undefined);
@@ -219,6 +286,9 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     app = new FakeApp(b, journal, "1.1.0", "1.2.0");
     app.idle = true;
     await eventually(async () => (await computer())?.updates?.app?.availableVersion === "1.2.0");
+    // The finished request still names 1.1.0; the row aims at the newer release.
+    expect((await computer())?.updates?.app).toMatchObject({ phase: "succeeded", targetVersion: "1.1.0" });
+    expect(computerUpdate((await computer())!).target).toBe("1.2.0");
     await a.api.manageUpdates({ action: "update_all" });
     const steps = async () => (await a.api.getUpdates({})).run?.steps ?? [];
     const computerStep = async () => (await steps()).find((s) => s.kind === "computer");

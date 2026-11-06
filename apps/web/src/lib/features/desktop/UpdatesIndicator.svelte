@@ -24,12 +24,11 @@
 
   onMount(() => {
     const off = updates.connect();
-    void center.reload();
-    const timer = setInterval(() => void center.reload(), 5000);
+    const stop = center.poll();
 
     return () => {
       off?.();
-      clearInterval(timer);
+      stop();
       clearTimeout(closeTimer);
     };
   });

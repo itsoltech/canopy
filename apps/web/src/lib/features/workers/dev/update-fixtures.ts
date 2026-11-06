@@ -137,4 +137,34 @@ export const computerStates = () => [
     reason: "Remote updates need a strictly newer signed release.",
   }),
   computer("Too old", "9", undefined, { remoteUpdate: false, reason: "Update Too old on that computer." }),
+  // Its own updater, apart from any requested update; the last finished request still names the version it installed.
+  computer("Downloading by itself", "a", {
+    version: "0.41.0",
+    availableVersion: "0.42.0",
+    updaterPhase: "downloading",
+    updaterVersion: "0.42.0",
+    updaterProgress: 63,
+  }),
+  computer("Downloaded by itself", "b", {
+    version: "0.41.0",
+    targetVersion: "0.41.0",
+    phase: "succeeded",
+    availableVersion: "0.42.0",
+    updaterPhase: "downloaded",
+    updaterVersion: "0.42.0",
+    ready: true,
+  }),
+  computer("Checking by itself", "c", { version: "0.41.0", updaterPhase: "checking" }),
+  computer("Check failed", "d", {
+    version: "0.41.0",
+    updaterPhase: "error",
+    updaterError: "Update failed. Check again to retry.",
+  }),
+  computer("Mac-Studio-in-the-render-room-on-the-third-floor.local", "e", {
+    version: "0.42.0-nightly.20261106.1234+build.0123456789abcdef",
+    availableVersion: "0.42.0-nightly.20261107.5678+build.fedcba9876543210",
+    updaterPhase: "downloading",
+    updaterVersion: "0.42.0-nightly.20261107.5678+build.fedcba9876543210",
+    updaterProgress: 7,
+  }),
 ];

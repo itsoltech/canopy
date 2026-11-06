@@ -16,6 +16,17 @@ export interface RemoteUpdateBoundary {
   report(state: ui.DesktopUpdateState): Promise<void>;
 }
 
+/** Download progress alone goes to the gateway at most this often; any other change goes at once. */
+export const PROGRESS_REPORT_MS = 1000;
+
+/** The app's own updater as linked computers see it, apart from any requested update (docs/updates.md). */
+const updater = (update: DesktopUpdateStatus) => ({
+  updaterPhase: update.phase,
+  updaterVersion: update.updateVersion ?? "",
+  updaterProgress: update.phase === "downloading" ? Math.max(0, Math.min(100, update.progress ?? 0)) : 0,
+  updaterError: (update.error || (update.phase === "error" ? update.message : "")).slice(0, 1000),
+});
+
 /** Main-process policy around the normal updater. The file survives lost replies and app restarts. */
 export class RemoteAppUpdate {
   get active() {
@@ -27,6 +38,8 @@ export class RemoteAppUpdate {
   private timer?: ReturnType<typeof setInterval>;
   private path: string;
   private historyError = "";
+  private reported = { at: 0, key: "" };
+  private trailing: ReturnType<typeof setTimeout> | undefined;
   constructor(
     private readonly basePath: string,
     private readonly boundary: RemoteUpdateBoundary,
@@ -67,7 +80,8 @@ export class RemoteAppUpdate {
     writeFileSync(`${this.path}.new`, toJsonString(ui.DesktopUpdateStateSchema, this.state), { mode: 0o600 });
     renameSync(`${this.path}.new`, this.path);
   }
-  snapshot() {
+  /** What the journal keeps: the requested update. The updater's live state is never written. */
+  private durable() {
     const update = this.boundary.status();
 
     return {
@@ -81,15 +95,39 @@ export class RemoteAppUpdate {
       ready: update.phase === "downloaded",
     };
   }
+  snapshot() {
+    return { ...this.durable(), ...updater(this.boundary.status()) };
+  }
   async publish() {
-    const next = this.snapshot();
+    const next = this.durable();
 
     if (JSON.stringify(next) !== JSON.stringify(this.state)) {
       this.state = create(ui.DesktopUpdateStateSchema, next);
       this.persist();
     }
 
-    await this.boundary.report(this.snapshot());
+    await this.report();
+  }
+  /** Reports the current state; while only the progress moves, at most once per PROGRESS_REPORT_MS, then the last. */
+  private report(): Promise<void> {
+    const state = this.snapshot();
+    const key = JSON.stringify({ ...state, progress: 0, updaterProgress: 0 });
+    const wait = this.reported.at + PROGRESS_REPORT_MS - Date.now();
+
+    if (key === this.reported.key && wait > 0) {
+      this.trailing ??= setTimeout(() => {
+        this.trailing = undefined;
+        void this.report().catch(() => {});
+      }, wait);
+
+      return Promise.resolve();
+    }
+
+    clearTimeout(this.trailing);
+    this.trailing = undefined;
+    this.reported = { at: Date.now(), key };
+
+    return this.boundary.report(state);
   }
   changed() {
     if (!this.running || !["checking", "downloading"].includes(this.state.phase)) return;
@@ -101,7 +139,7 @@ export class RemoteAppUpdate {
     this.state.availableVersion = update.updateVersion ?? this.state.availableVersion;
     this.state.targetVersion = this.state.availableVersion;
     this.persist();
-    void this.boundary.report({ ...this.snapshot(), phase: "downloading" }).catch(() => {});
+    void this.report().catch(() => {});
   }
   async command(command: ui.DesktopUpdateCommand) {
     // Fail closed without overwriting unreadable history or replaying an unknown completed request.
@@ -193,5 +231,7 @@ export class RemoteAppUpdate {
   }
   stop() {
     if (this.timer) clearInterval(this.timer);
+    clearTimeout(this.trailing);
+    this.trailing = undefined;
   }
 }

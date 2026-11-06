@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/desktop.proto.
  */
 export const file_canopy_ui_v1_desktop: GenFile = /*@__PURE__*/
-  fileDesc("ChpjYW5vcHkvdWkvdjEvZGVza3RvcC5wcm90bxIMY2Fub3B5LnVpLnYxIgwKCkRlc2t0b3BBY2siWgoMRGVza3RvcEhlbGxvEhEKCXdvcmtlcl9pZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEg8KB2NoYW5uZWwYAyABKAkSFQoNcmVtb3RlX3VwZGF0ZRgEIAEoCCI7ChJEZXNrdG9wV29ya2VyUHJvb2YSEQoJZGV2aWNlX2lkGAEgASgJEhIKCnNlc3Npb25faWQYAiABKAkiXgoURGVza3RvcFVwZGF0ZUNvbW1hbmQSEgoKcmVxdWVzdF9pZBgBIAEoCRINCgVmb3JjZRgCIAEoCBIUCgxyZXF1ZXN0ZWRfYnkYAyABKAkSDQoFY2hlY2sYBCABKAgicQoTRGVza3RvcENvbnRyb2xFdmVudBISCgpzZXNzaW9uX2lkGAEgASgJEhEKCWNvbmZpcm1lZBgCIAEoCBIzCgdjb21tYW5kGAMgASgLMiIuY2Fub3B5LnVpLnYxLkRlc2t0b3BVcGRhdGVDb21tYW5kIo4CChJEZXNrdG9wVXBkYXRlU3RhdGUSEQoJd29ya2VyX2lkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSDwoHY2hhbm5lbBgDIAEoCRIZChFhdmFpbGFibGVfdmVyc2lvbhgEIAEoCRINCgVwaGFzZRgFIAEoCRIOCgZyZWFzb24YBiABKAkSEAoIcHJvZ3Jlc3MYByABKAESEgoKcmVxdWVzdF9pZBgIIAEoCRIQCghyZXZpc2lvbhgJIAEoDRIRCgljb25uZWN0ZWQYCiABKAgSFwoPZGlzYWJsZWRfcmVhc29uGAsgASgJEhYKDnRhcmdldF92ZXJzaW9uGAwgASgJEg0KBXJlYWR5GA0gASgIIlQKDURlc2t0b3BSZXBvcnQSEgoKc2Vzc2lvbl9pZBgBIAEoCRIvCgVzdGF0ZRgCIAEoCzIgLmNhbm9weS51aS52MS5EZXNrdG9wVXBkYXRlU3RhdGUyogEKFURlc2t0b3BDb250cm9sU2VydmljZRJICgVXYXRjaBIaLmNhbm9weS51aS52MS5EZXNrdG9wSGVsbG8aIS5jYW5vcHkudWkudjEuRGVza3RvcENvbnRyb2xFdmVudDABEj8KBlJlcG9ydBIbLmNhbm9weS51aS52MS5EZXNrdG9wUmVwb3J0GhguY2Fub3B5LnVpLnYxLkRlc2t0b3BBY2syXQoURGVza3RvcFdvcmtlclNlcnZpY2USRQoHQ29uZmlybRIgLmNhbm9weS51aS52MS5EZXNrdG9wV29ya2VyUHJvb2YaGC5jYW5vcHkudWkudjEuRGVza3RvcEFja2IGcHJvdG8z");
+  fileDesc("ChpjYW5vcHkvdWkvdjEvZGVza3RvcC5wcm90bxIMY2Fub3B5LnVpLnYxIgwKCkRlc2t0b3BBY2siWgoMRGVza3RvcEhlbGxvEhEKCXdvcmtlcl9pZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEg8KB2NoYW5uZWwYAyABKAkSFQoNcmVtb3RlX3VwZGF0ZRgEIAEoCCI7ChJEZXNrdG9wV29ya2VyUHJvb2YSEQoJZGV2aWNlX2lkGAEgASgJEhIKCnNlc3Npb25faWQYAiABKAkiXgoURGVza3RvcFVwZGF0ZUNvbW1hbmQSEgoKcmVxdWVzdF9pZBgBIAEoCRINCgVmb3JjZRgCIAEoCBIUCgxyZXF1ZXN0ZWRfYnkYAyABKAkSDQoFY2hlY2sYBCABKAgicQoTRGVza3RvcENvbnRyb2xFdmVudBISCgpzZXNzaW9uX2lkGAEgASgJEhEKCWNvbmZpcm1lZBgCIAEoCBIzCgdjb21tYW5kGAMgASgLMiIuY2Fub3B5LnVpLnYxLkRlc2t0b3BVcGRhdGVDb21tYW5kIu8CChJEZXNrdG9wVXBkYXRlU3RhdGUSEQoJd29ya2VyX2lkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSDwoHY2hhbm5lbBgDIAEoCRIZChFhdmFpbGFibGVfdmVyc2lvbhgEIAEoCRINCgVwaGFzZRgFIAEoCRIOCgZyZWFzb24YBiABKAkSEAoIcHJvZ3Jlc3MYByABKAESEgoKcmVxdWVzdF9pZBgIIAEoCRIQCghyZXZpc2lvbhgJIAEoDRIRCgljb25uZWN0ZWQYCiABKAgSFwoPZGlzYWJsZWRfcmVhc29uGAsgASgJEhYKDnRhcmdldF92ZXJzaW9uGAwgASgJEg0KBXJlYWR5GA0gASgIEhUKDXVwZGF0ZXJfcGhhc2UYDiABKAkSFwoPdXBkYXRlcl92ZXJzaW9uGA8gASgJEhgKEHVwZGF0ZXJfcHJvZ3Jlc3MYECABKAESFQoNdXBkYXRlcl9lcnJvchgRIAEoCSJUCg1EZXNrdG9wUmVwb3J0EhIKCnNlc3Npb25faWQYASABKAkSLwoFc3RhdGUYAiABKAsyIC5jYW5vcHkudWkudjEuRGVza3RvcFVwZGF0ZVN0YXRlMqIBChVEZXNrdG9wQ29udHJvbFNlcnZpY2USSAoFV2F0Y2gSGi5jYW5vcHkudWkudjEuRGVza3RvcEhlbGxvGiEuY2Fub3B5LnVpLnYxLkRlc2t0b3BDb250cm9sRXZlbnQwARI/CgZSZXBvcnQSGy5jYW5vcHkudWkudjEuRGVza3RvcFJlcG9ydBoYLmNhbm9weS51aS52MS5EZXNrdG9wQWNrMl0KFERlc2t0b3BXb3JrZXJTZXJ2aWNlEkUKB0NvbmZpcm0SIC5jYW5vcHkudWkudjEuRGVza3RvcFdvcmtlclByb29mGhguY2Fub3B5LnVpLnYxLkRlc2t0b3BBY2tiBnByb3RvMw");
 
 /**
  * @generated from message canopy.ui.v1.DesktopAck
@@ -214,6 +214,35 @@ export type DesktopUpdateState = Message<"canopy.ui.v1.DesktopUpdateState"> & {
    * @generated from field: bool ready = 13;
    */
   ready: boolean;
+
+  /**
+   * The app's own updater, apart from any requested update (docs/updates.md). Empty from older apps.
+   * idle | checking | downloading | downloaded | error | disabled
+   *
+   * @generated from field: string updater_phase = 14;
+   */
+  updaterPhase: string;
+
+  /**
+   * The version the updater downloads or has downloaded; empty when none.
+   *
+   * @generated from field: string updater_version = 15;
+   */
+  updaterVersion: string;
+
+  /**
+   * Download progress, 0–100, while updater_phase is downloading.
+   *
+   * @generated from field: double updater_progress = 16;
+   */
+  updaterProgress: number;
+
+  /**
+   * Why the updater's last check or download failed.
+   *
+   * @generated from field: string updater_error = 17;
+   */
+  updaterError: string;
 };
 
 /**

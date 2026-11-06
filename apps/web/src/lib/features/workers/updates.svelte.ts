@@ -3,6 +3,11 @@ import { ui } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 import type { Tone } from "#lib/shared/ui/tone.ts";
+import { linkedDownloading } from "./computer-updates.ts";
+
+/** Reload intervals: settled, and while a linked computer downloads (its progress arrives with each reload). */
+const RELOAD_MS = 5000;
+const DOWNLOAD_RELOAD_MS = 2000;
 
 export class UpdatesState {
   snapshot = $state<ui.UpdatesSnapshot>();
@@ -21,6 +26,25 @@ export class UpdatesState {
     } finally {
       this.#loading = false;
     }
+  }
+  /** Reloads now and then periodically until the returned stop function runs. */
+  poll(): () => void {
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const tick = async () => {
+      await this.reload();
+
+      if (!stopped)
+        timer = setTimeout(() => void tick(), linkedDownloading(this.snapshot) ? DOWNLOAD_RELOAD_MS : RELOAD_MS);
+    };
+
+    void tick();
+
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
   }
   async manage(input: MessageInitShape<typeof ui.ManageUpdatesRequestSchema>): Promise<void> {
     if (this.pending) return;
