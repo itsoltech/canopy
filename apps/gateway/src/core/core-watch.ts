@@ -16,7 +16,12 @@ import { coreUiThread } from "./core-titles.ts";
 export interface CoreWatchMethods {
   movedHistory(threadId: string): Promise<ui.ThreadSnapshot | undefined>;
   createMovedThread(request: ui.CreateThreadRequest, id: string, prepare: () => Promise<void>): Promise<void>;
-  watchThread(threadId: string, signal: AbortSignal, mirrorCursor?: string): AsyncGenerator<ui.ThreadUpdate>;
+  watchThread(
+    threadId: string,
+    signal: AbortSignal,
+    mirrorCursor?: string,
+    includeCursor?: boolean,
+  ): AsyncGenerator<ui.ThreadUpdate>;
   watchOverview(signal: AbortSignal, includeSnapshot?: boolean): AsyncGenerator<ui.OverviewUpdate>;
 }
 
@@ -84,12 +89,13 @@ export const coreWatchMethods: CoreWatchMethods = {
     threadId: string,
     signal: AbortSignal,
     mirrorCursor = "",
+    includeCursor = false,
   ): AsyncGenerator<ui.ThreadUpdate> {
     const subscription = this.hub.subscribeThread(threadId);
     signal.addEventListener("abort", () => subscription.close(), { once: true });
 
     try {
-      const snapshot = await coreRun(this, (s) => s.snapshot(threadId, mirrorCursor));
+      const snapshot = await coreRun(this, (s) => s.snapshot(threadId, mirrorCursor, includeCursor));
 
       if (snapshot.thread.owner_user_id !== this[coreState].options.userId) throw new NotFound("thread not found");
       // A thread moved here from a linked computer shows its history there first (stage 8).
@@ -97,6 +103,7 @@ export const coreWatchMethods: CoreWatchMethods = {
       const goal = await coreGoals(this, (s) => s.latest(threadId)).then((goal) => goal && toUiGoal(goal));
 
       const value = create(ui.ThreadSnapshotSchema, {
+        cursor: snapshot.cursor,
         thread: coreUiThread(this, snapshot.thread),
         turns: [...(moved?.turns ?? []), ...snapshot.turns.map(toUiTurn)],
         items: [...(moved?.items ?? []), ...snapshot.items],

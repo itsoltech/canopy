@@ -37,6 +37,10 @@ export async function* mirrorFirst(
     return true;
   }
 
+  const input = linkedMessage(ui.WatchThreadRequestSchema, request);
+
+  // A UI with its own base resumes directly at the home; a cold UI still gets the mirror first.
+  if (input.incremental && input.cursor) return false;
   const held = await computers.mirror.read(nodeId, threadId);
   const snapshot = held?.snapshot;
 
@@ -45,6 +49,7 @@ export async function* mirrorFirst(
   yield create(ui.ThreadUpdateSchema, { syncing: true, change: { case: "snapshot", value: snapshot } });
 
   const outbound = create(ui.WatchThreadRequestSchema, {
+    incremental: input.incremental,
     threadId: linkedMessage(ui.WatchThreadRequestSchema, request).threadId,
     mirrorCursor:
       computers.hello().capabilities.includes(THREAD_MIRROR_DELTA) &&

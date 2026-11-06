@@ -656,6 +656,14 @@ capability, a starszy dom lub partner nadal używa dotychczasowych snapshotów.
 
 ### Odczyt i dostępność
 
+Klient UI z własną kopią i `WatchThreadRequest.incremental` przekazuje jej `cursor`
+bezpośrednio do domu online. Pozwala to uniknąć ponownej transmisji lokalnego lustra
+gatewaya do telefonu/przeglądarki. Dom korzysta z tego samego owner-scoped dziennika
+i reguł fallbacku co lustra. Nowy checkpoint jest odczytany atomowo z historią;
+zwykłe zdarzenia na żywo go nie przesuwają. Klient bez kursora nadal korzysta ze
+ścieżki mirror-first opisanej poniżej; starszy dom ignoruje nowe pola i wysyła pełny
+snapshot. Offline odczyt nadal korzysta z pełnego lustra lokalnego gatewaya.
+
 Online `GetThread` odpowiada z lokalnego lustra, jeśli ma wątek. `WatchThread` najpierw emituje
 ten sam snapshot z addytywnym `ThreadUpdate.syncing` (800), a następnie przechodzi na żywy
 strumień etapu 2, z przyrostowym pierwszym odczytem, gdy oba końce go obsługują.
