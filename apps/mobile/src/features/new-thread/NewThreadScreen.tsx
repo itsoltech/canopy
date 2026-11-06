@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { Redirect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardArea } from "../../ui/KeyboardArea";
 import { useSession } from "../../state/session";
 import { Notice, ScreenHeader } from "../../ui/components";
 import { PickerSheet } from "../../ui/Picker";
@@ -25,15 +26,15 @@ export function NewThreadScreen() {
   const { session } = useSession();
   const state = useNewThread();
   const [picker, setPicker] = useState<Picker | null>(null);
-  const { project, worker, selected, effort, permissionMode, draft, blocker, error } = state;
+  const { project, worker, selected, effort, permissionMode, message, blocker, error } = state;
   const look = permissionLook(permissionMode);
 
   if (!session) return <Redirect href="/pair" />;
 
   return (
-    <SafeAreaView style={styles.fill}>
+    <SafeAreaView style={styles.fill} edges={["top", "left", "right"]}>
       <ScreenHeader title="New thread" subtitle={project?.name} />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.fill}>
+      <KeyboardArea>
         <ScrollView
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[styles.page, { flexGrow: 1, justifyContent: "center", paddingBottom: 48 }]}
@@ -42,17 +43,18 @@ export function NewThreadScreen() {
             What should we work on?
           </Text>
           <ComposerBox
-            text={state.text}
-            onChange={state.setText}
+            text={message.value.text}
+            onChange={message.setText}
+            badges={message.badges}
             onSend={() => void state.create()}
             disabled={Boolean(blocker)}
             busy={state.busy}
-            files={draft.ids.length}
+            files={message.files.ids.length}
             label="Task for the agent"
-            top={<AttachmentChips draft={draft} />}
+            top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
             controls={
               <>
-                <AttachButton draft={draft} disabled={state.busy} />
+                <AttachButton draft={message.files} disabled={state.busy} />
                 {selected && (
                   <ComposerPill
                     icon="cpu-chip"
@@ -90,10 +92,10 @@ export function NewThreadScreen() {
               onPress={() => setPicker("permission")}
             />
           </View>
-          {blocker && blocker !== draft.blocker ? <Notice>{blocker}</Notice> : null}
+          {blocker && blocker !== message.files.blocker ? <Notice>{blocker}</Notice> : null}
           {error ? <Notice error>{error}</Notice> : null}
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardArea>
       <NewThreadPickers state={state} picker={picker} close={() => setPicker(null)} />
     </SafeAreaView>
   );

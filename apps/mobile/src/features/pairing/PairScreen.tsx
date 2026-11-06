@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Image, Platform, ScrollView, Text, View } from "react-native";
 import { Redirect, router } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Device from "expo-device";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardArea } from "../../ui/KeyboardArea";
 import { readPairingQr } from "../../api/client";
 import { routedMobileClient } from "../../api/routes";
 import { pinnedTransport } from "../../api/pinned";
@@ -170,8 +171,8 @@ export default function PairScreen() {
   if (session) return <Redirect href="/" />;
 
   return (
-    <SafeAreaView style={styles.fill}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.fill}>
+    <SafeAreaView style={styles.fill} edges={["top", "left", "right"]}>
+      <KeyboardArea>
         <ScrollView
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
@@ -252,7 +253,7 @@ export default function PairScreen() {
             Your device key stays in encrypted storage. You can revoke access at any time in web Settings.
           </Text>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardArea>
     </SafeAreaView>
   );
 }

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { ItemStatus, type Item, ui } from "@canopy/contracts";
+import { ItemStatus, MentionKind, type Item, type Mention, ui } from "@canopy/contracts";
 import { workFoldOpen } from "@canopy/domain/work-fold";
 import { useDevicePreferences } from "../state/preferences";
 import { Markdown } from "./markdown";
 import { Icon } from "./Icon";
 import { styles, useColors } from "./theme";
 import { ShellMessage } from "./ShellMessage";
+import { MessageSpans } from "../features/composer/MessageText";
 
 function workLabel(item: Item) {
   const content = item.content;
@@ -51,16 +52,46 @@ export function UserMessageView({
   text,
   note,
   attachments = [],
+  mentions = [],
+  onActions,
 }: {
   text: string;
   note?: string;
+  /** A queued message's "…": edit or delete it. */
+  onActions?: () => void;
   attachments?: ui.Attachment[];
+  /** Badges in the text (files placed there, other mentions); files not placed stay as chips above it. */
+  mentions?: readonly Mention[];
 }) {
   const c = useColors();
+  const placed = new Set(mentions.flatMap((m) => (m.kind === MentionKind.ATTACHMENT ? [m.name] : [])));
+  const loose = attachments.filter((a) => !placed.has(a.id));
 
   return (
     <View style={{ alignItems: "flex-end", gap: 4 }}>
-      {note ? <Text style={[styles.meta, { color: c.muted }]}>{note}</Text> : null}
+      {note || onActions ? (
+        <View style={[styles.row, { gap: 2 }]}>
+          {note ? <Text style={[styles.meta, { color: c.muted }]}>{note}</Text> : null}
+          {onActions ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Queued message actions"
+              onPress={onActions}
+              hitSlop={8}
+              style={({ pressed }) => ({
+                width: 32,
+                height: 32,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 8,
+                backgroundColor: pressed ? c.inset : "transparent",
+              })}
+            >
+              <Icon name="ellipsis-horizontal" size={16} color={c.muted} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
       <View
         style={{
           maxWidth: "85%",
@@ -71,9 +102,9 @@ export function UserMessageView({
           backgroundColor: c.userBubble,
         }}
       >
-        {attachments.length > 0 && (
+        {loose.length > 0 && (
           <View style={[styles.row, { flexWrap: "wrap", gap: 4, marginBottom: text ? 6 : 0 }]}>
-            {attachments.map((a) => (
+            {loose.map((a) => (
               <View
                 key={a.id}
                 accessibilityLabel={`Attached ${a.name}`}
@@ -89,7 +120,7 @@ export function UserMessageView({
         )}
         {text ? (
           <Text selectable style={[styles.body, { color: c.text }]}>
-            {text}
+            {mentions.length ? <MessageSpans value={{ text, mentions }} /> : text}
           </Text>
         ) : null}
       </View>
@@ -199,7 +230,16 @@ function ToolRow({ item }: { item: Item }) {
   );
 }
 
-export function TimelineTurn({ turn, entries }: { turn: ui.Turn; entries: ui.TimelineItem[] }) {
+export function TimelineTurn({
+  turn,
+  entries,
+  onQueued,
+}: {
+  turn: ui.Turn;
+  entries: ui.TimelineItem[];
+  /** Actions of this thread's own queued message that has not started. */
+  onQueued?: (turn: ui.Turn) => void;
+}) {
   const c = useColors();
   const items = entries.flatMap((e) => (e.item ? [e.item] : []));
 
@@ -227,6 +267,12 @@ export function TimelineTurn({ turn, entries }: { turn: ui.Turn; entries: ui.Tim
         <UserMessageView
           text={message}
           attachments={turn.attachments}
+          mentions={turn.messageText ? turn.mentions : []}
+          onActions={
+            onQueued && turn.status === "queued" && !turn.dispatched && !turn.fromThreadId
+              ? () => onQueued(turn)
+              : undefined
+          }
           note={
             turn.status === "queued"
               ? turn.dispatched

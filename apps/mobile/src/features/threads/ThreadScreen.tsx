@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Platform, Text, View } from "react-native";
 import { Redirect } from "expo-router";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -12,6 +12,7 @@ import { useStream } from "../../state/stream";
 import { ConnectionNotice, LatestButton, Notice } from "../../ui/components";
 import { TimelineTurn } from "../../ui/timeline";
 import { styles, useColors } from "../../ui/theme";
+import { KeyboardArea } from "../../ui/KeyboardArea";
 import { MessageComposer } from "./MessageComposer";
 import { ThreadPanel } from "./ThreadPanel";
 import { InteractionCard } from "./InteractionCard";
@@ -19,7 +20,8 @@ import { useOverview } from "../../state/overview";
 import { ThreadHeader } from "./ThreadHeader";
 import { SubagentStrip } from "./SubagentStrip";
 import { useFollowingList } from "../../ui/useFollowingList";
-import { useAttachmentDraft } from "../attachments/useAttachmentDraft";
+import { useMessageDraft } from "../composer/useMessageDraft";
+import { QueuedMessageMenu, QueueEditor } from "./QueuedMessage";
 
 function visibleTurns(snapshot: ui.ThreadSnapshot | undefined) {
   const turns = snapshot?.turns.filter((t) => !t.withdrawn).slice() ?? [];
@@ -51,14 +53,14 @@ function deliveryError(failure: ConnectError) {
 function useThreadState(id: string) {
   const { session, client, ready, online, expired } = useSession();
   const [snapshot, setSnapshot] = useState<ui.ThreadSnapshot>();
-  const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const following = useFollowingList<ui.Turn>();
   const [details, setDetails] = useState(false);
+  const [queued, setQueued] = useState<{ turn: ui.Turn; editing: boolean }>();
   const { projects, workers, threads } = useOverview();
   const sending = useRef(false);
-  const draft = useAttachmentDraft();
+  const message = useMessageDraft();
 
   const pending = useRef<{
     text: string;
@@ -86,13 +88,14 @@ function useThreadState(id: string) {
   const turns = visibleTurns(snapshot);
 
   async function send(requested: ui.MessageDelivery) {
-    if (!client || (!text.trim() && !draft.ids.length) || draft.blocker || sending.current) return;
+    const outgoing = message.outgoing();
+    const { text: value, attachmentIds, mentions } = outgoing;
+
+    if (!client || (!value && !attachmentIds.length) || message.files.blocker || sending.current) return;
     sending.current = true;
     following.resumeFollowing();
     setBusy(true);
     setError("");
-    const value = text.trim();
-    const attachmentIds = draft.ids;
 
     // A message with files always waits in the queue (it never joins a running turn).
     const delivery = attachmentIds.length ? ui.MessageDelivery.QUEUE : requested;
@@ -107,6 +110,7 @@ function useThreadState(id: string) {
           text: value,
           delivery,
           attachmentIds,
+          mentions,
           clientRequestId: pending.current.id,
         },
         { signal: requestController.current.signal, timeoutMs: 20_000 },
@@ -135,8 +139,7 @@ function useThreadState(id: string) {
                 }),
               ),
         );
-      setText("");
-      draft.clear();
+      message.clear();
       pending.current = null;
     } catch (e) {
       if (ConnectError.from(e).code === Code.Unauthenticated) await expired();
@@ -160,8 +163,6 @@ function useThreadState(id: string) {
     client,
     ready,
     snapshot,
-    text,
-    setText,
     busy,
     error,
     setError,
@@ -177,13 +178,14 @@ function useThreadState(id: string) {
     turns,
     send,
     blocked,
-    draft,
+    message,
+    queued,
+    setQueued,
   };
 }
 
 export function ThreadScreen({ id }: { id: string }) {
   const c = useColors();
-  const insets = useSafeAreaInsets();
   const state = useThreadState(id);
 
   const {
@@ -191,8 +193,6 @@ export function ThreadScreen({ id }: { id: string }) {
     client,
     ready,
     snapshot,
-    text,
-    setText,
     busy,
     error,
     setError,
@@ -216,18 +216,14 @@ export function ThreadScreen({ id }: { id: string }) {
   if (!session) return <Redirect href="/pair" />;
 
   return (
-    <SafeAreaView style={styles.fill}>
+    <SafeAreaView style={styles.fill} edges={["top", "left", "right"]}>
       <ThreadHeader
         thread={thread}
         project={projects.find((p) => p.id === thread?.projectId)}
         turns={turns}
         onDetails={() => setDetails(true)}
       />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={insets.top}
-        style={styles.fill}
-      >
+      <KeyboardArea>
         <ThreadTimeline state={state} />
         <View
           style={{
@@ -250,9 +246,7 @@ export function ThreadScreen({ id }: { id: string }) {
           <MessageComposer
             thread={thread}
             worker={worker}
-            text={text}
-            onChange={setText}
-            draft={state.draft}
+            message={state.message}
             send={(delivery) => void send(delivery)}
             stop={() =>
               void client!.api
@@ -264,8 +258,18 @@ export function ThreadScreen({ id }: { id: string }) {
             onDetails={() => setDetails(true)}
           />
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardArea>
       <ThreadPanel snapshot={snapshot} visible={details} onClose={() => setDetails(false)} />
+      <QueuedMessageMenu
+        turn={state.queued?.editing ? undefined : state.queued?.turn}
+        onClose={() => state.setQueued(undefined)}
+        onEdit={(turn) => state.setQueued({ turn, editing: true })}
+        onError={setError}
+      />
+      <QueueEditor
+        turn={state.queued?.editing ? state.queued.turn : undefined}
+        onClose={() => state.setQueued(undefined)}
+      />
     </SafeAreaView>
   );
 }
@@ -296,6 +300,7 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
         <TimelineTurn
           turn={item}
           entries={snapshot?.items.filter((i) => i.turnId === item.id && i.fromThreadId === item.fromThreadId) ?? []}
+          onQueued={(turn) => state.setQueued({ turn, editing: false })}
         />
       )}
       ListHeaderComponent={

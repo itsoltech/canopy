@@ -38,7 +38,7 @@ export const fileSize = (bytes: number) =>
  * Files of the next message: each is uploaded as soon as it is picked; the message sends their ids.
  * Limits are checked before the upload, as the web composer does.
  */
-export function useAttachmentDraft() {
+export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
   const { client } = useSession();
   const { limits } = useAppearance();
   const [files, setFiles] = useState<DraftFile[]>([]);
@@ -74,7 +74,10 @@ export function useAttachmentDraft() {
             ? `A message can carry up to ${fileSize(max.maxMessageBytes)}.`
             : undefined;
 
-    apply((rows) => [...rows, { key, name: picked.name, size: picked.size, kind: picked.kind, error }]);
+    const file: DraftFile = { key, name: picked.name, size: picked.size, kind: picked.kind, error };
+
+    apply((rows) => [...rows, file]);
+    onAdd?.(file);
 
     if (error || !client) return;
 

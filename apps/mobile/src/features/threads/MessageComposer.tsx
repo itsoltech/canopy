@@ -12,7 +12,7 @@ import { effortLabel, findChoice, modelSections, useModelCatalog } from "../mode
 import { EffortPickerSheet, ModelPickerSheet } from "../models/ModelPicker";
 import { permissionLabel, permissionLook, PermissionPickerSheet } from "./permissions";
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
-import type { useAttachmentDraft } from "../attachments/useAttachmentDraft";
+import type { MessageDraft } from "../composer/useMessageDraft";
 
 type Picker = "model" | "effort" | "permission" | "goal";
 
@@ -47,9 +47,7 @@ function useComposerSettings(thread: ui.Thread | undefined, worker: ui.Worker | 
 export function MessageComposer({
   thread,
   worker,
-  text,
-  onChange,
-  draft,
+  message,
   send,
   stop,
   disabled,
@@ -58,9 +56,7 @@ export function MessageComposer({
 }: {
   thread?: ui.Thread;
   worker?: ui.Worker;
-  text: string;
-  onChange: (text: string) => void;
-  draft: ReturnType<typeof useAttachmentDraft>;
+  message: MessageDraft;
   send: (delivery: ui.MessageDelivery) => void;
   stop: () => void;
   disabled: boolean;
@@ -76,8 +72,9 @@ export function MessageComposer({
     <>
       {error ? <Notice error>{error}</Notice> : null}
       <ComposerBox
-        text={text}
-        onChange={onChange}
+        text={message.value.text}
+        onChange={message.setText}
+        badges={message.badges}
         onSend={() =>
           send(
             thread?.status === "running"
@@ -88,13 +85,13 @@ export function MessageComposer({
         onQueue={() => send(ui.MessageDelivery.QUEUE)}
         onStop={stop}
         running={thread?.status === "running"}
-        disabled={disabled || Boolean(draft.blocker)}
+        disabled={disabled || Boolean(message.files.blocker)}
         busy={busy}
-        files={draft.ids.length}
-        top={<AttachmentChips draft={draft} />}
+        files={message.files.ids.length}
+        top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
         controls={
           <>
-            <AttachButton draft={draft} disabled={busy} />
+            <AttachButton draft={message.files} disabled={busy} />
             {thread?.goalStatus ? <ComposerPill icon="flag" title="Goal" onPress={() => setPicker("goal")} /> : null}
             <ComposerPill
               icon="cpu-chip"

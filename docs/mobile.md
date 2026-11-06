@@ -246,7 +246,12 @@ i wersji Tailwind. CSS web nadal używa Tailwind; zmiany jego skali typografii/r
 trzeba przenosić do wspólnych tokenów świadomie.
 
 RN używa StyleSheet i Inter 400/500/600 (pakiet fontu, bez pobierania z sieci), SVG
-z tych samych ścieżek, SafeAreaView, KeyboardAvoidingView i FlatList. Jasny/ciemny motyw
+z tych samych ścieżek, SafeAreaView i FlatList. Aplikacja działa edge-to-edge, więc okno nie
+zmienia rozmiaru przy klawiaturze. Ekrany z kompozytorem lub formularzem (wątek, czat bota,
+New thread, Pair) i `Overlay` nie używają `KeyboardAvoidingView`: `ui/KeyboardArea.tsx` liczy,
+ile klawiatura zasłania od dołu okna (wysokość okna minus jej `screenY`; na Androidzie `height`
+pomija pasek nawigacji pod nią). Przy otwartej klawiaturze dół kompozytora leży na niej, przy
+zamkniętej zostaje dolny inset safe area; SafeAreaView tych ekranów pomija dolną krawędź. Jasny/ciemny motyw
 oraz sześć akcentów są ustawieniami gatewaya, synchronizowanymi między klientami.
 Na wąskim oknie sidebar jest natywnym ekranem listy (stos lista → wątek); web na telefonie
 otwiera go jako drawer. Od 600 dp szerokości okna (klasa large screen Androida: tablety,
@@ -297,7 +302,16 @@ worker (offline z notą, która blokuje wysyłkę) i uprawnienia. Wartości star
 projektu nad Settings → Threads, potem ostatnio użyte (`features/new-thread/placement.ts`).
 Pliki (zdjęcia z `expo-image-picker`, dokumenty z `expo-document-picker`, odczyt przez
 `expo-file-system`) trafiają do `UploadAttachment` od razu po wyborze, z limitami gatewaya
-z GetSettings; wiadomość z plikami zawsze idzie do kolejki. Settings → Threads edytuje
+z GetSettings; wiadomość z plikami zawsze idzie do kolejki. Jak w web, wybrany plik wstawia
+plakietkę `[nazwa]` w miejscu kursora (wzmianka ATTACHMENT, `features/composer/message-value.ts`):
+TextInput dostaje fragmenty tekstu jako dzieci, więc plakietka jest zabarwionym zakresem.
+Edycja dotykająca plakietki usuwa ją w całości razem z plikiem; tekst wpisany w jej środek
+trafia za nią. Pole tekstowe nie pokazuje postępu, dlatego pliki wysyłane lub odrzucone mają
+nad tekstem chip ze stanem i przyciskiem Remove; zapisany plik ma już tylko plakietkę. Wysłana
+wiadomość pokazuje plakietki w tych samych miejscach (`Turn.mentions`), a chipy tylko dla plików
+spoza tekstu. Własna wiadomość w kolejce ma „…” obok „Queued”: Edit message otwiera edytor
+z tymi samymi plakietkami (`EditQueuedTurn` z `mentions_complete`, linia „‹name› leaves the
+message when you save.”), Delete usuwa ją (`DeleteQueuedTurn`). Settings → Threads edytuje
 domyślny workspace, agenta i uprawnienia.
 Są tworzenie wątku, rename/archive/unread, wyszukiwanie treści, zwinięta praca/narzędzia,
 subagents i panel worker/cwd/model/status/schedules/lineage/connectors.

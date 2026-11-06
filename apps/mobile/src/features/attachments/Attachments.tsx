@@ -3,15 +3,19 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-nati
 import { Icon } from "../../ui/Icon";
 import { PickerSheet } from "../../ui/Picker";
 import { styles, useColors } from "../../ui/theme";
-import { fileSize, type useAttachmentDraft } from "./useAttachmentDraft";
+import { fileSize, type DraftFile, type useAttachmentDraft } from "./useAttachmentDraft";
 
 type Draft = ReturnType<typeof useAttachmentDraft>;
 
-/** The draft's files as removable chips above the message text. */
-export function AttachmentChips({ draft }: { draft: Draft }) {
+/**
+ * Files still uploading or that failed, as removable chips above the text: their badges sit in the text, which
+ * cannot show progress or a reason. A stored file has only its badge.
+ */
+export function AttachmentChips({ files, onRemove }: { files: DraftFile[]; onRemove: (key: string) => void }) {
   const c = useColors();
+  const shown = files.filter((f) => !f.attachment);
 
-  if (!draft.files.length) return null;
+  if (!shown.length) return null;
 
   return (
     <ScrollView
@@ -20,7 +24,7 @@ export function AttachmentChips({ draft }: { draft: Draft }) {
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ gap: 6, paddingHorizontal: 12, paddingTop: 12 }}
     >
-      {draft.files.map((f) => (
+      {shown.map((f) => (
         <View
           key={f.key}
           style={[
@@ -57,7 +61,7 @@ export function AttachmentChips({ draft }: { draft: Draft }) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Remove ${f.name}`}
-            onPress={() => draft.remove(f.key)}
+            onPress={() => onRemove(f.key)}
             hitSlop={6}
             style={{ width: 32, height: 36, alignItems: "center", justifyContent: "center" }}
           >

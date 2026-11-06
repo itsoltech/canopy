@@ -1,13 +1,14 @@
 import { useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Platform, Text, View } from "react-native";
 import { Redirect } from "expo-router";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
 import type { bots } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useStream } from "../../state/stream";
 import { ConnectionNotice, IconButton, LatestButton, Notice, ScreenHeader } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
+import { KeyboardArea } from "../../ui/KeyboardArea";
 import { ComposerBox } from "../threads/ComposerBox";
 import { ChatBubble } from "./ChatBubble";
 import { ApprovalCard } from "./ApprovalCard";
@@ -86,7 +87,6 @@ function useBotChat(id: string) {
 
 export function BotChatScreen({ id }: { id: string }) {
   const c = useColors();
-  const insets = useSafeAreaInsets();
   const { wide } = useLayout();
 
   const {
@@ -112,7 +112,7 @@ export function BotChatScreen({ id }: { id: string }) {
   if (!session) return <Redirect href="/pair" />;
 
   return (
-    <SafeAreaView style={styles.fill}>
+    <SafeAreaView style={styles.fill} edges={["top", "left", "right"]}>
       <ScreenHeader
         title={conversation?.bot?.configuration?.name || "Bot"}
         left={wide ? <SidebarToggle /> : undefined}
@@ -123,11 +123,7 @@ export function BotChatScreen({ id }: { id: string }) {
           </View>
         }
       />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={insets.top}
-        style={styles.fill}
-      >
+      <KeyboardArea>
         <FlatList
           {...following.listProps}
           data={[...(conversation?.messages ?? [])].reverse()}
@@ -174,7 +170,7 @@ export function BotChatScreen({ id }: { id: string }) {
             busy={busy}
           />
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardArea>
       <BotDetailsPanel conversation={conversation} visible={details} onClose={() => setDetails(false)} />
     </SafeAreaView>
   );
