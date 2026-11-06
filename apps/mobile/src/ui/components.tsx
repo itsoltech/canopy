@@ -55,7 +55,7 @@ export function Button({
         justifyContent: "center",
         gap: 8,
         opacity: disabled || busy ? 0.45 : pressed ? 0.75 : 1,
-        backgroundColor: secondary || danger ? c.inset : c.accent,
+        backgroundColor: secondary || danger ? c.inset : c.action,
       })}
     >
       {busy && <ActivityIndicator color={secondary ? c.text : c.onAccent} />}
@@ -186,7 +186,7 @@ export function Segmented<T extends string>({
             alignItems: "center",
             justifyContent: "center",
             borderRadius: 6,
-            backgroundColor: value === option.value ? (c.dark ? "#ffffff1a" : "#ffffff") : "transparent",
+            backgroundColor: value === option.value ? c.surface : "transparent",
             borderWidth: value === option.value ? 1 : 0,
             borderColor: c.line,
           }}

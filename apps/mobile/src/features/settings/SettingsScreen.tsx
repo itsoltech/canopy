@@ -1,26 +1,25 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, Text, View } from "react-native";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { settingsSections } from "@canopy/ui/settings";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
-import { Button, IconButton, Notice } from "../../ui/components";
-import { Icon } from "../../ui/Icon";
+import { Button, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { PanelRow } from "../threads/ThreadPanel";
 import { ThreadDefaultsSettings, ThreadTitleSettings } from "./ThreadSettings";
 import { TurnActivitySettings } from "./TurnActivitySettings";
 import { ConnectorList, useConnectors } from "../connectors/Connectors";
+import { SettingsLayout } from "./SettingsLayout";
 
 function useSettingsState() {
   const { session, client, forget } = useSession();
   const { projects, workers } = useOverview();
   const settings = useAppearance();
   const params = useLocalSearchParams<{ section?: string }>();
-  const [section, setSection] = useState(params.section ?? "appearance");
+  const [section, setSection] = useState(params.section ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [rows, setRows] = useState<{ title: string; value: string }[]>([]);
@@ -113,84 +112,11 @@ export default function SettingsScreen() {
   if (!state.session) return <Redirect href="/pair" />;
 
   return (
-    <SettingsLayout state={state}>
+    <SettingsLayout section={state.section} onSelect={state.setSection}>
+      {state.error || state.settings.error ? <Notice error>{state.error || state.settings.error}</Notice> : null}
+      {!state.settings.user && !state.settings.error ? <Notice>Loading settings…</Notice> : null}
       <SettingsContent state={state} />
     </SettingsLayout>
-  );
-}
-
-function SettingsLayout({ state, children }: { state: ReturnType<typeof useSettingsState>; children: ReactNode }) {
-  const c = useColors();
-  const { section, setRows, setError, setSection, current, settings, error } = state;
-
-  return (
-    <SafeAreaView style={[styles.fill, { backgroundColor: c.background }]}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0, borderBottomWidth: 1, borderBottomColor: c.line }}
-        contentContainerStyle={{ gap: 4, padding: 12 }}
-      >
-        {settingsSections.map((s) => {
-          const key = s.href.split("/").pop()!;
-
-          return (
-            <Pressable
-              key={key}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: section === key }}
-              onPress={() => {
-                setRows([]);
-                setError("");
-                setSection(key);
-              }}
-              style={[
-                styles.row,
-                {
-                  minHeight: 44,
-                  paddingHorizontal: 10,
-                  paddingVertical: 8,
-                  borderRadius: 8,
-                  backgroundColor: section === key ? c.inset : "transparent",
-                },
-              ]}
-            >
-              <Icon name={s.icon} color={section === key ? c.text : c.muted} />
-              <Text style={[styles.meta, { color: section === key ? c.text : c.muted }]}>{s.label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-      <View
-        style={[
-          styles.row,
-          {
-            minHeight: 48,
-            paddingLeft: 20,
-            paddingRight: 4,
-            borderBottomWidth: 1,
-            borderBottomColor: c.line,
-          },
-        ]}
-      >
-        <Text style={[styles.meta, { color: c.muted }]}>Settings</Text>
-        <Text style={[styles.meta, { color: c.faint }]}>/</Text>
-        <Text style={[styles.meta, { color: c.text, flex: 1 }]}>{current.label}</Text>
-        <IconButton
-          icon="x-mark"
-          label="Close Settings"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
-        />
-      </View>
-      <ScrollView
-        key={section}
-        contentContainerStyle={[styles.page, { padding: 20, paddingTop: 28, gap: 24 }]}
-        keyboardShouldPersistTaps="handled"
-      >
-        {settings.error || error ? <Notice error>{error || settings.error}</Notice> : null}
-        {children}
-      </ScrollView>
-    </SafeAreaView>
   );
 }
 

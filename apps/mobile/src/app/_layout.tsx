@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "../state/session";
@@ -17,11 +17,12 @@ function Navigation() {
   const c = useColors();
   const { session } = useSession();
   const { sidebarOpen, sidebarWidth } = useLayout();
+  const pathname = usePathname();
 
   return (
     <View style={{ flex: 1, flexDirection: "row", backgroundColor: c.background }}>
       <StatusBar style={c.dark ? "light" : "dark"} />
-      {session && sidebarOpen && (
+      {session && sidebarOpen && pathname !== "/settings" && (
         <View style={{ width: sidebarWidth, borderRightWidth: 1, borderRightColor: c.line }}>
           <AppSidebar />
         </View>

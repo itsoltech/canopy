@@ -1,43 +1,46 @@
 import { StyleSheet } from "react-native";
-import { accents, contextType, palette, typography, type AccentName } from "@canopy/ui";
+import { contextType, palette, typography } from "@canopy/ui";
+import { themeVariables, type ThemeName } from "@canopy/ui/themes";
 import { useAppearance } from "../state/appearance";
+import { themeOf } from "../features/settings/appearance";
 
-export function colorsFor(dark: boolean, accent: AccentName = "default") {
-  const z = palette.zinc;
-  const brand = palette[accents.find((a) => a.name === accent)?.palette ?? "blue"];
+export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
+  const v = themeVariables(theme, dark ? "dark" : "light");
 
   return {
     dark,
-    background: dark ? "#000000" : "#ffffff",
-    surface: dark ? z[950] : "#ffffff",
-    overlay: dark ? z[900] : "#ffffff",
+    background: v.canvas,
+    surface: v.surface,
+    overlay: v.panel,
     scrim: dark ? "#000000a6" : "#09090b66",
-    sidebar: dark ? z[950] : z[50],
-    inset: dark ? "#ffffff0d" : "#09090b0d",
-    text: dark ? "#ffffff" : z[950],
-    body: dark ? z[200] : z[800],
-    muted: dark ? z[400] : z[500],
-    faint: dark ? z[600] : z[400],
-    line: dark ? "#ffffff1a" : "#09090b1a",
-    accent: brand[600],
-    onAccent: "#ffffff",
-    softAccent: dark ? `${brand[400]}1a` : brand[50],
+    sidebar: v.panel,
+    inset: v.hover,
+    text: v.ink,
+    body: v.ink,
+    muted: v.muted,
+    faint: v.muted,
+    line: v.border,
+    accent: v.accent,
+    action: v.action,
+    onAccent: v["on-accent"],
+    onControl: v["on-control"],
+    softAccent: `${v.accent}1a`,
     warning: dark ? palette.amber[400] : palette.amber[700],
     danger: dark ? palette.rose[400] : palette.rose[700],
     sky: dark ? palette.sky[400] : palette.sky[700],
     success: dark ? palette.emerald[400] : palette.emerald[700],
-    userBubble: dark ? "#ffffff1a" : z[100],
-    botUserBubble: dark ? z[100] : z[900],
-    botUserText: dark ? z[950] : "#ffffff",
+    userBubble: v.hover,
+    botUserBubble: v.ink,
+    botUserText: v.canvas,
   };
 }
 
 export type Colors = ReturnType<typeof colorsFor>;
 
 export function useColors() {
-  const { dark, accent } = useAppearance();
+  const { dark, appearance } = useAppearance();
 
-  return colorsFor(dark, accent);
+  return colorsFor(dark, themeOf(appearance, dark ? "dark" : "light"));
 }
 
 export const font = {

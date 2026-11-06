@@ -248,6 +248,7 @@ export function SelectField({
   onPress,
   disabled,
   tone,
+  hideLabel = false,
 }: {
   label: string;
   value: string;
@@ -255,12 +256,13 @@ export function SelectField({
   onPress: () => void;
   disabled?: boolean;
   tone?: PickerOption<unknown>["tone"];
+  hideLabel?: boolean;
 }) {
   const c = useColors();
 
   return (
     <View style={{ gap: 8 }}>
-      <Text style={[styles.label, { color: c.text }]}>{label}</Text>
+      {!hideLabel && <Text style={[styles.label, { color: c.text }]}>{label}</Text>}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${value}`}
