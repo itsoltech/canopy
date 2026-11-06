@@ -11,7 +11,7 @@
   import { modelDisplayName } from "#lib/features/models/catalog.ts";
   import { describeWhen, isFinished, placementLabels, runsLabel } from "./schedules.ts";
   import { splitId } from "@canopy/domain/computers";
-  import { computerName } from "#lib/features/computers/computers.ts";
+  import { computerName } from "@canopy/domain/computer-presence";
 
   /** One scheduled task: its message, when it runs, the next run, runs so far, its thread and who set it. */
   let {

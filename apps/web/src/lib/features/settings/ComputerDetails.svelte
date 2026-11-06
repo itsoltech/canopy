@@ -5,7 +5,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import RouteList from "#lib/features/computers/RouteList.svelte";
-  import { needsThreadUpdate, needsMirrorUpdate } from "#lib/features/computers/computers.ts";
+  import { needsThreadUpdate, needsMirrorUpdate } from "@canopy/domain/computer-presence";
 
   let {
     computer,

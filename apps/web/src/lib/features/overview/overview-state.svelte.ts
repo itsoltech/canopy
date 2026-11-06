@@ -2,7 +2,7 @@ import { getContext, setContext } from "svelte";
 import { ui } from "@canopy/contracts";
 import { decode } from "#lib/shared/wire.ts";
 import { liveSource } from "#lib/shared/live-source.ts";
-import { computerName, listsThreads, sharesThreads } from "#lib/features/computers/computers.ts";
+import { computerName, listsThreads, sharesThreads } from "@canopy/domain/computer-presence";
 import { projectChoices } from "@canopy/domain/projects";
 
 /** live: stream open and in sync; reconnecting: dropped, retrying; unavailable: the gateway does not answer. */

@@ -7,6 +7,8 @@ import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
 import { findChoice, modelSections, useModelCatalog } from "../models/catalog";
 import { useMessageDraft } from "../composer/useMessageDraft";
+import { useWorkerPresence } from "../computers/presence";
+import { useWorkspaceDraft } from "./useWorkspaceDraft";
 import { defaultProject, defaultWorkspace, effectiveDefaults, modelFor } from "./placement";
 
 /**
@@ -28,7 +30,9 @@ export function useNewThread() {
   const sending = useRef(false);
 
   const projects = overview.projects.filter((p) => !p.archivedAt);
-  const online = (workerId: string) => overview.workers.some((w) => w.id === workerId && w.online);
+  const presence = useWorkerPresence();
+  // A worker on a linked computer this one cannot reach counts as offline.
+  const online = (workerId: string) => presence(overview.workers.find((w) => w.id === workerId)).online;
   const userDefaults = settings.user?.threadDefaults;
 
   const project =
@@ -44,6 +48,7 @@ export function useNewThread() {
 
   const worker = overview.workers.find((w) => w.id === workspace?.workerId);
   const sections = modelSections(worker, useModelCatalog(worker?.id));
+  const workspaceDraft = useWorkspaceDraft(workspace?.id, presence(worker).online);
   const choices = sections.flatMap((s) => s.choices);
 
   const fromDefaults = (() => {
@@ -63,11 +68,13 @@ export function useNewThread() {
       ? project.kind === "scratch"
         ? "Choose a worker with an allowed directory to start a scratch thread."
         : `${project.name} is not on any worker yet. Add it to a worker in Canopy on the web.`
-      : !worker?.online
-        ? `${worker?.name ?? "This worker"} is offline. Start it or choose another worker.`
-        : !selected
-          ? `${worker.name} reports no available agents. Check the worker in Settings.`
-          : message.files.blocker;
+      : presence(worker).reason
+        ? presence(worker).reason
+        : !worker?.online
+          ? `${worker?.name ?? "This worker"} is offline. Start it or choose another worker.`
+          : !selected
+            ? `${worker.name} reports no available agents. Check the worker in Settings.`
+            : message.files.blocker;
 
   async function create() {
     if (!client || !workspace || !selected || blocker || sending.current) return;
@@ -90,6 +97,7 @@ export function useNewThread() {
           initialMessage: outgoing.text,
           initialAttachmentIds: outgoing.attachmentIds,
           initialMentions: outgoing.mentions,
+          ...workspaceDraft.form,
           clientRequestId: requestId.current,
         },
         { timeoutMs: 20_000 },
@@ -115,6 +123,9 @@ export function useNewThread() {
     effort: selected?.efforts.includes(effort) ? effort : selected?.defaultEffort || "",
     permissionMode,
     message,
+    workspaceDraft,
+    /** The worker's presence, with its computer when that is a linked one. */
+    workerPresence: presence(worker),
     busy,
     error,
     blocker,

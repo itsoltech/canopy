@@ -1,6 +1,7 @@
 import { REMOTE_BOTS } from "@canopy/domain/computers";
 import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-import { awayReason, computerName } from "#lib/features/computers/computers.ts";
+import { awayReason } from "#lib/features/computers/computers.ts";
+import { computerName } from "@canopy/domain/computer-presence";
 
 /** The same availability rule for bot lists, chats, details and editors. */
 export function useBotHome(node: () => string | undefined) {

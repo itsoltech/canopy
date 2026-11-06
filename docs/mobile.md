@@ -300,6 +300,16 @@ respektuje ustawienie zachowania podczas trwającej tury. Goal jest read-only.
 New thread to jeden ekran jak w web: kompozytor z modelem, effort i plikami, pod nim projekt,
 worker (offline z notą, która blokuje wysyłkę) i uprawnienia. Wartości startowe biorą domyślne
 projektu nad Settings → Threads, potem ostatnio użyte (`features/new-thread/placement.ts`).
+Picker workera grupuje workspace'y według komputera jak w web: najpierw „This computer”, potem
+połączone komputery po nazwie. Snapshot telefonu zawiera już ich workery, projekty i wątki
+oraz `computers`; zdarzenia `computer`, `computer_removed` i `computer_snapshot` je odświeżają
+(`state/overview.tsx`). Worker na komputerze, z którym ten nie ma teraz połączenia, jest
+wyszarzony z powodem z web („Studio Mac is unreachable since 6:45 AM.”); reguły obecności są
+wspólne w `@canopy/domain/computer-presence`. Gdy worker obsługuje worktree, a katalog jest
+repozytorium (`ListGitRefs`), pod pickerami są „Current checkout” / „New worktree” / wcześniejsze
+worktree oraz gałąź; dla nowego worktree to wybór ref bazowego (Branches, Remote branches).
+Domyślny tryb pochodzi z ustawień worktree, a `CreateThread` dostaje `workspace_mode`,
+`base_ref` i `worktree_id` jak z web.
 Pliki (zdjęcia z `expo-image-picker`, dokumenty z `expo-document-picker`, odczyt przez
 `expo-file-system`) trafiają do `UploadAttachment` od razu po wyborze, z limitami gatewaya
 z GetSettings; wiadomość z plikami zawsze idzie do kolejki. Jak w web, wybrany plik wstawia

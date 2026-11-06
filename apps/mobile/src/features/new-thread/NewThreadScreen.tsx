@@ -15,6 +15,8 @@ import { EffortPickerSheet, ModelPickerSheet } from "../models/ModelPicker";
 import { effortLabel } from "../models/catalog";
 import { permissionLabel, permissionLook, PermissionPickerSheet } from "../threads/permissions";
 import { useNewThread } from "./useNewThread";
+import { WorkerPickerSheet } from "./WorkerPickerSheet";
+import { WorkspacePills } from "./WorkspacePickers";
 
 type State = ReturnType<typeof useNewThread>;
 
@@ -79,8 +81,14 @@ export function NewThreadScreen() {
               />
               <ComposerPill
                 icon="computer-desktop"
-                title={worker?.name ?? "Choose a worker"}
-                warning={!worker?.online}
+                title={
+                  worker
+                    ? worker.nodeId
+                      ? `${worker.name} · ${state.workerPresence.computer}`
+                      : worker.name
+                    : "Choose a worker"
+                }
+                warning={!state.workerPresence.online}
                 onPress={() => setPicker("worker")}
               />
             </View>
@@ -92,6 +100,7 @@ export function NewThreadScreen() {
               onPress={() => setPicker("permission")}
             />
           </View>
+          <WorkspacePills draft={state.workspaceDraft} />
           {blocker && blocker !== message.files.blocker ? <Notice>{blocker}</Notice> : null}
           {error ? <Notice error>{error}</Notice> : null}
         </ScrollView>
@@ -103,7 +112,6 @@ export function NewThreadScreen() {
 
 function NewThreadPickers({ state, picker, close }: { state: State; picker: Picker | null; close: () => void }) {
   const { projects, workers, project, workspace, sections, selected, effort, permissionMode } = state;
-  const workerOf = (id: string) => workers.find((w) => w.id === id);
 
   return (
     <>
@@ -125,25 +133,13 @@ function NewThreadPickers({ state, picker, close }: { state: State; picker: Pick
           },
         ]}
       />
-      <PickerSheet
-        title="Worker"
+      <WorkerPickerSheet
         visible={picker === "worker"}
         onClose={close}
+        project={project}
+        workers={workers}
         value={workspace?.id}
         onSelect={state.pickWorkspace}
-        note={project?.workspaces.length ? undefined : "This project is not on any worker yet."}
-        sections={[
-          {
-            options: (project?.workspaces ?? []).map((w) => ({
-              value: w.id,
-              label: workerOf(w.workerId)?.name ?? "Unknown worker",
-              description: project?.kind === "scratch" ? "Scratch folder" : w.label || w.rootPath,
-              icon: "computer-desktop" as const,
-              badge: workerOf(w.workerId)?.online ? undefined : "Offline",
-              tone: workerOf(w.workerId)?.online ? undefined : ("warning" as const),
-            })),
-          },
-        ]}
       />
       <ModelPickerSheet
         visible={picker === "model"}

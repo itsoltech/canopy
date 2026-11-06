@@ -4,7 +4,8 @@ import type { SelectOption } from "#lib/shared/ui/listbox.ts";
 import type { Tone } from "#lib/shared/ui/tone.ts";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
-import { awayReason, computerName } from "./computers.ts";
+import { awayReason } from "./computers.ts";
+import { computerName } from "@canopy/domain/computer-presence";
 
 /**
  * Stage 8 of docs/linked-computers.md: "Move to…" for this computer's threads and bots. This computer

@@ -11,6 +11,7 @@
     "./provider-accounts": "./src/provider-accounts.ts",
     "./update-checks": "./src/update-checks.ts",
     "./computers": "./src/computers.ts",
+    "./computer-presence": "./src/computer-presence.ts",
     "./projects": "./src/projects.ts",
     "./json": "./src/json.ts",
     "./oauth-return": "./src/oauth-return.ts",

@@ -4,7 +4,8 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Popover from "#lib/shared/ui/Popover.svelte";
-  import { computerName, awayStatus, presenceTime } from "./computers.ts";
+  import { awayStatus, presenceTime } from "./computers.ts";
+  import { computerName } from "@canopy/domain/computer-presence";
 
   /** A quiet status in the composer's shared strip; connection rules stay with the thread. */
   let {
