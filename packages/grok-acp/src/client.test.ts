@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { waitForProcessStopped } from "@canopy/testing";
 import { GrokClient, type PromptEvent } from "./index.ts";
 
 const args = [import.meta.dir + "/fixtures/agent.ts"];
@@ -29,7 +30,7 @@ test("NDJSON framing, Unicode, consecutive turns, persisted session and process 
     await client.dispose();
   }
 
-  expect(() => process.kill(pid, 0)).toThrow();
+  await waitForProcessStopped(pid);
 });
 
 test("bidirectional permissions complete the blocked prompt", async () => {
@@ -126,5 +127,5 @@ test("an agent ignoring cancellation is terminated; waiting permission callbacks
     await client.dispose();
   }
 
-  expect(() => process.kill(client.pid!, 0)).toThrow();
+  await waitForProcessStopped(client.pid!);
 });

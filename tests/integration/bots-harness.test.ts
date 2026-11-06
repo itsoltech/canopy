@@ -316,14 +316,18 @@ describe("bots through official worker harnesses", () => {
       return task;
     });
 
-    await send(bot.id, "TOOL:create_project");
+    let pending: Awaited<ReturnType<typeof read>>;
 
-    const pending = await eventually(
-      () => read(bot.id),
-      (r) => r.approvals.some((a) => a.status === "pending"),
-    );
+    try {
+      await send(bot.id, "TOOL:create_project");
+      pending = await eventually(
+        () => read(bot.id),
+        (r) => r.approvals.some((a) => a.status === "pending"),
+      );
+    } finally {
+      capture.mockRestore();
+    }
 
-    capture.mockRestore();
     expect(pending.approvals).toHaveLength(1);
     await f.gw.core.bots.stop();
     expect(await toolOutcome).toContain("Gateway stopping");

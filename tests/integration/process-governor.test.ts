@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tempDir } from "@canopy/testing";
+import { tempDir, waitForProcessStopped } from "@canopy/testing";
 import {
   ProcessGovernor,
   PROCESS_LIMITS,
@@ -110,12 +110,7 @@ describe("process governor with owned subprocesses", () => {
       ).rejects.toBeInstanceOf(ProcessTimeoutError);
       const pid = Number(readFileSync(pidFile, "utf8"));
 
-      // A killed orphan may briefly remain a zombie; it cannot execute the delayed write.
-      const status = existsSync(`/proc/${pid}/stat`)
-        ? readFileSync(`/proc/${pid}/stat`, "utf8").split(" ")[2]
-        : undefined;
-
-      expect(status === undefined || status === "Z").toBe(true);
+      await waitForProcessStopped(pid);
       expect(existsSync(marker)).toBe(false);
     },
   );

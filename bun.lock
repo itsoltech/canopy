@@ -217,6 +217,9 @@
       "dependencies": {
         "@canopy/process-governor": "workspace:*",
       },
+      "devDependencies": {
+        "@canopy/testing": "workspace:*",
+      },
     },
     "packages/process-governor": {
       "name": "@canopy/process-governor",

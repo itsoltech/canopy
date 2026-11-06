@@ -6,6 +6,7 @@ import { create } from "@bufbuild/protobuf";
 import { GatewayCore } from "@canopy/gateway/core";
 import { dockerAvailable } from "@canopy/db/testing";
 import { SHELL_INPUT_OUTPUT_BYTES, shellInputText } from "@canopy/domain";
+import { waitForProcessStopped } from "@canopy/testing";
 import { startInstanceFixture, type InstanceFixture } from "./support/instance-fixture.ts";
 import { eventually, failure, watchUntil } from "./support/gateway.ts";
 
@@ -22,7 +23,7 @@ const snapshot = async (id: string) => {
 
 describe.skipIf(!dockerAvailable)("composer shell input over gRPC and scripted harnesses", () => {
   beforeAll(async () => {
-    fixture = await startInstanceFixture(false, {}, { shellTimeoutMs: 1_500 });
+    fixture = await startInstanceFixture();
 
     for (const provider of [Provider.CODEX, Provider.CLAUDE, Provider.GROK]) await fixture.save(provider, "shell");
   }, 60_000);
@@ -269,20 +270,44 @@ describe.skipIf(!dockerAvailable)("composer shell input over gRPC and scripted h
 
   test("timeout and Stop kill the process group and settle the turn without starting a harness", async () => {
     for (const stop of [false, true]) {
-      const thread = await fixture.thread(Provider.CODEX);
-      const marker = join(fixture.dir, `shell-pid-${stop}`);
-      const turn = await fixture.send(thread.id, `!sleep 60 & child=$!; printf '%s' "$child" > '${marker}'; wait`);
-      await eventually(async () => existsSync(marker), Boolean);
-      const pid = Number(readFileSync(marker, "utf8"));
+      // Only the timeout case gets a short deadline. Stop must exercise cancellation, even on busy CI.
+      const current = stop ? fixture : await startInstanceFixture(false, {}, { shellTimeoutMs: 1_500 });
 
-      if (stop) await fixture.gw.api.interruptThread({ threadId: thread.id });
-      const done = await fixture.finished(thread.id, turn.id);
-      expect(done.status).toBe(stop ? "interrupted" : "failed");
-      expect(done.shellResult?.status).toBe(stop ? "interrupted" : "failed");
+      try {
+        if (!stop) await current.save(Provider.CODEX, "shell-timeout");
+        const thread = await current.thread(Provider.CODEX);
+        const marker = join(current.dir, `shell-pid-${thread.id}`);
 
-      if (stop) expect(done.interruptSource).toBe("user");
-      expect(() => process.kill(pid, 0)).toThrow();
-      expect(fixture.records().some((r) => r.event === "turn" && r.session === thread.providerThreadId)).toBe(false);
+        const turn = await current.send(
+          thread.id,
+          `!sleep 60 & child=$!; printf '%s' "$child" > '${marker}.tmp'; mv '${marker}.tmp' '${marker}'; wait`,
+        );
+
+        expect(await eventually(async () => existsSync(marker), Boolean)).toBe(true);
+        const pid = Number(readFileSync(marker, "utf8"));
+
+        if (stop) {
+          // The local PID can be published before the gateway applies turnStarted. Stop targets a running turn.
+          await watchUntil(current.gw.api, thread.id, (updates) =>
+            updates.some((u) =>
+              u.change.case === "snapshot"
+                ? u.change.value.turns.some((t) => t.id === turn.id && t.status === "running")
+                : u.change.case === "turn" && u.change.value.id === turn.id && u.change.value.status === "running",
+            ),
+          );
+          await current.gw.api.interruptThread({ threadId: thread.id });
+        }
+
+        const done = await current.finished(thread.id, turn.id);
+        expect(done.status).toBe(stop ? "interrupted" : "failed");
+        expect(done.shellResult?.status).toBe(stop ? "interrupted" : "failed");
+
+        if (stop) expect(done.interruptSource).toBe("user");
+        await waitForProcessStopped(pid);
+        expect(current.records().some((r) => r.event === "turn" && r.session === thread.providerThreadId)).toBe(false);
+      } finally {
+        if (!stop) await current.close();
+      }
     }
   }, 15_000);
 
@@ -321,7 +346,7 @@ describe.skipIf(!dockerAvailable)("composer shell input over gRPC and scripted h
 
     const sent = await fixture.gw.api.sendMessage({
       threadId: thread.id,
-      text: `!sleep 60 & child=$!; printf '%s' "$child" > '${marker}'; wait`,
+      text: `!sleep 60 & child=$!; printf '%s' "$child" > '${marker}.tmp'; mv '${marker}.tmp' '${marker}'; wait`,
       clientRequestId: crypto.randomUUID(),
       delivery: ui.MessageDelivery.STEER,
     });
@@ -337,7 +362,7 @@ describe.skipIf(!dockerAvailable)("composer shell input over gRPC and scripted h
     );
 
     expect(view.steers.find((s) => s.id === sent.steer?.id)?.shellResult?.status).toBe("interrupted");
-    expect(() => process.kill(pid, 0)).toThrow();
+    await waitForProcessStopped(pid);
     await fixture.release("shell-stop-steer");
   }, 15_000);
 
