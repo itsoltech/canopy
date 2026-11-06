@@ -29,6 +29,7 @@ const bridge: DesktopBridge = {
     read: (key) => ipcRenderer.invoke("canopy:history-read", key),
     write: (generation, key, bytes) => ipcRenderer.invoke("canopy:history-write", generation, key, bytes),
     remove: (key) => ipcRenderer.invoke("canopy:history-remove", key),
+    reconcileBots: (generation, ids) => ipcRenderer.invoke("canopy:history-reconcile-bots", generation, ids),
     clear: () => ipcRenderer.invoke("canopy:history-clear"),
   },
   platform: process.platform,

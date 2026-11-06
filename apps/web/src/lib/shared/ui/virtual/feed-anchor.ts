@@ -17,6 +17,15 @@ export function captureAnchor(rows: HTMLCollection, edge: number): FeedAnchor | 
     else low = middle + 1;
   }
 
+  // Prepending a same-day turn moves the day label out of the old first start row.
+  // Anchor message content instead, so its position survives that header shrinking.
+  while (low < rows.length - 1) {
+    const row = rows[low];
+
+    if (!(row instanceof HTMLElement) || !/(^|:)(start|end):/.test(row.dataset.key ?? "")) break;
+    low++;
+  }
+
   const element = rows[low];
 
   return element instanceof HTMLElement && element.dataset.key

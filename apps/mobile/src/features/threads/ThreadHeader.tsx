@@ -5,7 +5,7 @@ import { useAppearance } from "../../state/appearance";
 import { router } from "expo-router";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
-import { Button, Field, IconButton, Notice, Sheet } from "../../ui/components";
+import { Button, Field, IconButton, Notice } from "../../ui/components";
 import { Overlay } from "../../ui/Overlay";
 import { PickerSheet } from "../../ui/Picker";
 import { useLayout } from "../../state/layout";
@@ -13,7 +13,7 @@ import { SidebarToggle } from "../navigation/SidebarToggle";
 import { ProjectMark } from "../../ui/ProjectMark";
 import { styles, useColors } from "../../ui/theme";
 import { Skeleton } from "../../ui/Skeleton";
-import { SearchField } from "../../ui/SearchField";
+import { ThreadSearchSheet } from "./ThreadSearchSheet";
 
 function useThreadActions(thread: ui.Thread | undefined) {
   const { client } = useSession();
@@ -59,21 +59,25 @@ export function ThreadHeader({
   thread,
   project,
   turns,
+  snapshot,
   onDetails,
   onSideThread,
   onGoal,
   goalOpen,
   readOnly = false,
+  history,
 }: {
   thread?: ui.Thread;
   project?: ui.Project;
   turns: ui.Turn[];
+  snapshot?: ui.ThreadSnapshot;
   onDetails: () => void;
   onSideThread: () => void;
   /** Absent where the thread takes no goals (a gateway thread, Grok). */
   onGoal?: () => void;
   goalOpen: boolean;
   readOnly?: boolean;
+  history: { loading: boolean; error: string; load: () => Promise<void> };
 }) {
   const c = useColors();
   const { wide } = useLayout();
@@ -103,24 +107,7 @@ export function ThreadHeader({
             onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
           />
         )}
-        {project && <ProjectMark name={project.name} kind={project.kind} />}
-        {project ? (
-          <Text numberOfLines={1} style={[styles.body, { color: c.muted, maxWidth: 110, paddingLeft: 8 }]}>
-            {project.name}
-          </Text>
-        ) : (
-          <Skeleton style={{ width: 70, height: 16 }} />
-        )}
-        <Text style={[styles.body, { color: c.faint, paddingHorizontal: 8 }]}>/</Text>
-        <View style={{ flex: 1 }}>
-          {thread ? (
-            <Text numberOfLines={1} style={[styles.body, { color: c.text }]}>
-              {thread.title}
-            </Text>
-          ) : (
-            <Skeleton style={{ width: "80%", height: 16 }} />
-          )}
-        </View>
+        <ThreadIdentity thread={thread} project={project} />
         <IconButton icon="magnifying-glass" label="Search thread" onPress={() => setSheet("search")} />
         <IconButton
           icon="ellipsis-horizontal"
@@ -166,7 +153,14 @@ export function ThreadHeader({
           />
         </View>
       </Overlay>
-      <ThreadSearchSheet visible={sheet === "search"} turns={turns} onClose={() => setSheet(null)} />
+      <ThreadSearchSheet
+        visible={sheet === "search"}
+        turns={turns}
+        items={snapshot?.items ?? []}
+        onClose={() => setSheet(null)}
+        history={history}
+        hasMore={snapshot?.historyHasMore ?? false}
+      />
       {error && sheet === null ? (
         <View style={{ padding: 8 }}>
           <Notice error>{error}</Notice>
@@ -176,27 +170,34 @@ export function ThreadHeader({
   );
 }
 
-/** Finds messages in this thread's loaded turns. */
-function ThreadSearchSheet({ visible, turns, onClose }: { visible: boolean; turns: ui.Turn[]; onClose: () => void }) {
+type ThreadAction = "side" | "goal" | "rename" | "unread" | "archive";
+
+function ThreadIdentity({ thread, project }: { thread?: ui.Thread; project?: ui.Project }) {
   const c = useColors();
-  const [query, setQuery] = useState("");
 
   return (
-    <Sheet visible={visible} title="Search thread" onClose={onClose}>
-      <SearchField label="Search messages" value={query} onChange={setQuery} />
-      {query.trim() &&
-        turns
-          .filter((t) => `${t.messageText} ${t.inputText}`.toLowerCase().includes(query.toLowerCase()))
-          .map((t) => (
-            <Text key={t.id} style={[styles.body, { color: c.body }]}>
-              {t.messageText || t.inputText}
-            </Text>
-          ))}
-    </Sheet>
+    <>
+      {project && <ProjectMark name={project.name} kind={project.kind} />}
+      {project ? (
+        <Text numberOfLines={1} style={[styles.body, { color: c.muted, maxWidth: 110, paddingLeft: 8 }]}>
+          {project.name}
+        </Text>
+      ) : (
+        <Skeleton style={{ width: 70, height: 16 }} />
+      )}
+      <Text style={[styles.body, { color: c.faint, paddingHorizontal: 8 }]}>/</Text>
+      <View style={{ flex: 1 }}>
+        {thread ? (
+          <Text numberOfLines={1} style={[styles.body, { color: c.text }]}>
+            {thread.title}
+          </Text>
+        ) : (
+          <Skeleton style={{ width: "80%", height: 16 }} />
+        )}
+      </View>
+    </>
   );
 }
-
-type ThreadAction = "side" | "goal" | "rename" | "unread" | "archive";
 
 function ThreadActionsSheet({
   thread,

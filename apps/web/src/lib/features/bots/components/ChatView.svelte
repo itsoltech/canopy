@@ -36,6 +36,10 @@
     conversation,
     loading = false,
     syncing = false,
+    hasMore = false,
+    loadingOlder = false,
+    historyError = "",
+    onloadOlder,
     entries,
     me,
     directory = [],
@@ -66,6 +70,10 @@
     conversation: ConversationView;
     loading?: boolean;
     syncing?: boolean;
+    hasMore?: boolean;
+    loadingOlder?: boolean;
+    historyError?: string;
+    onloadOlder?: (() => Promise<void>) | undefined;
     entries: readonly ChatEntry[];
     me: ParticipantView;
     directory?: readonly ParticipantView[];
@@ -135,11 +143,13 @@
   });
 
   async function showEarlier() {
-    if (!log) return;
+    if (!log || loadingOlder) return;
     const top = log.scrollTop;
     const height = log.scrollHeight;
     following = false;
-    startIndex = Math.max(0, historyStart - 100);
+
+    if (historyStart > 0) startIndex = Math.max(0, historyStart - 100);
+    else await onloadOlder?.();
     await tick();
     log.scrollTop = top + log.scrollHeight - height;
   }
@@ -255,6 +265,7 @@
       bind:this={log}
       onscroll={() => {
         if (log) following = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+        if (log && log.scrollTop < 80 && !following && (historyStart > 0 || hasMore)) void showEarlier();
       }}
       {@attach openAtUnread}
     >
@@ -263,9 +274,14 @@
         {#if loading}
           <ConversationSkeleton />
         {:else}
-          {#if historyStart > 0}<div class="flex justify-center py-3">
-              <Button size="sm" variant="ghost" onclick={() => void showEarlier()}>Show earlier messages</Button>
+          {#if historyStart > 0 || hasMore}<div class="flex justify-center py-3">
+              <Button size="sm" variant="ghost" disabled={loadingOlder} onclick={() => void showEarlier()}
+                >{loadingOlder ? "Loading earlier messages…" : "Show earlier messages"}</Button
+              >
             </div>{/if}
+          {#if historyError}<p class="px-4 py-2 text-center text-sm text-zinc-500 dark:text-zinc-400">
+              {historyError}
+            </p>{/if}
           <ChatTimeline
             {conversation}
             entries={visibleEntries}

@@ -132,6 +132,7 @@ export interface DesktopBridge {
     read(key: string): Promise<{ generation: string; bytes?: Uint8Array }>;
     write(generation: string, key: string, bytes: Uint8Array): Promise<void>;
     remove(key: string): Promise<void>;
+    reconcileBots?(generation: string, availableIds: string[]): Promise<void>;
     clear(): Promise<void>;
   };
   /**

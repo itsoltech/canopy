@@ -940,6 +940,9 @@ Zmiana trybu lub unpair/revocation usuwa katalog i pamięć; fence generacji
 odrzuca spóźnione zapisy poprzedniej sesji. Zmiana wersji aplikacji sama nie
 czyści historii. Zwykły web pozostaje wyłącznie w pamięci SPA: bez preloadu
 nie zapisuje treści w IndexedDB, localStorage ani na serwerze BFF.
+Odświeżenie listy botów usuwa z dysku także nieotwarte wpisy botów usuniętych,
+zarchiwizowanych lub przeniesionych. Starsze strony powiększają zapisane okno
+razem z jego checkpointem; restart zachowuje miejsce początku załadowanej historii.
 
 ## Sprawdzanie runtime i paczek
 

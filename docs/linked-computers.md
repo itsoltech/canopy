@@ -2119,8 +2119,11 @@ Załadowane okno klienta pokazuje się lokalnie; jego kursor i granice stron
 przechodzą do domu. Boty i wymiany również przekazują żądanie strony i kursor.
 Identyfikatory tur i itemów podlegają temu samemu kwalifikowaniu co pozostałe
 odpowiedzi. Starszy dom ignoruje addytywne pola stron i zwraca pełną historię.
-Bez sieci pozostaje dotychczasowy odczyt lustra; lustro partnera nadal jest
-pełne, niezależnie od okna klienta. Nie powstaje drugi dziennik synchronizacji.
+Bez sieci strony są wycinane z pełnego lustra partnera. Odczyt ma `syncing=true`;
+lokalny kursor `offline:…` pozwala wznowić to samo okno bez powtórzenia treści,
+ale nigdy nie jest akceptowany jako checkpoint domu. Po powrocie domu klient
+dostaje świeży ogon. Lustro partnera nadal jest pełne, niezależnie od okna
+klienta. Nie powstaje drugi dziennik synchronizacji.
 
 ### Testy wspólnej konfiguracji
 

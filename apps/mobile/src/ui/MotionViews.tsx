@@ -101,24 +101,43 @@ class ShownRows {
   has(key: string) {
     return this.keys.has(key);
   }
+
+  /** Newest-first histories only gain live rows before their first known row. Older pages extend the other end. */
+  latest(keys: readonly string[]) {
+    const boundary = keys.findIndex((key) => this.has(key));
+
+    return new Set(keys.slice(0, boundary < 0 ? (this.keys.size ? 0 : keys.length) : boundary));
+  }
 }
 
 /**
  * How rows of a virtualized list enter: the first rows after a skeleton resolve in (`reveal`), rows added later rise
  * in (`rise`), and rows already shown once (scrolled back into view, remounted) appear at once. Lists that are ready
- * on their first render show their rows at once.
+ * on their first render show their rows at once. `newestFirst` keeps older pages quiet at the other end.
  */
-export function useArrivals(keys: readonly string[], ready = true): (key: string) => Preset["entering"] {
+export function useArrivals(
+  keys: readonly string[],
+  ready = true,
+  { newestFirst = false }: { newestFirst?: boolean } = {},
+): (key: string) => Preset["entering"] {
   const { rise, reveal } = useMotion();
   const [waited, setWaited] = useState(!ready);
   const [shown] = useState(() => new ShownRows());
+  const latest = newestFirst ? shown.latest(keys) : undefined;
 
   if (!ready && !waited) setWaited(true);
   useEffect(() => {
     if (ready) shown.commit(keys);
   }, [keys, ready, shown]);
 
-  return (key) => (!shown.primed ? (waited ? reveal.entering : undefined) : shown.has(key) ? undefined : rise.entering);
+  return (key) =>
+    !shown.primed
+      ? waited
+        ? reveal.entering
+        : undefined
+      : shown.has(key) || (latest && !latest.has(key))
+        ? undefined
+        : rise.entering;
 }
 
 /**

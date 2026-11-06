@@ -5,6 +5,8 @@ import { applyBotExchange } from "@canopy/domain/bot-snapshot";
 import { botViewKey } from "@canopy/domain/bot-cache";
 import { useSession } from "./session";
 import { useStream } from "./stream";
+import { prependBotPage } from "@canopy/domain/history-pages";
+import { useHistoryPage } from "./history-page";
 
 /** Exchanges are read-only; unary checkpoints share the live retry/foreground lifecycle. */
 export function useBotExchange(id: string) {
@@ -35,7 +37,7 @@ export function useBotExchange(id: string) {
       ? async function* (signal) {
           while (!signal.aborted) {
             yield await client.api.readBotExchange(
-              { exchangeId: id, incremental: true, cursor: current.current?.cursor ?? "" },
+              { exchangeId: id, pageSize: 50, incremental: true, cursor: current.current?.cursor ?? "" },
               { signal },
             );
             await pause(signal);
@@ -58,7 +60,26 @@ export function useBotExchange(id: string) {
     `bot-exchange:${session?.deviceId}:${id}`,
   );
 
-  return { snapshot, stream };
+  const history = useHistoryPage(id, {
+    current,
+    read: async (base, signal) => {
+      if (!client) throw new Error("Gateway unavailable");
+
+      return client.api.readBotExchange(
+        { exchangeId: id, pageSize: 50, incremental: true, beforeSeq: base.historyBeforeSeq, cursor: base.cursor },
+        { signal },
+      );
+    },
+    merge: prependBotPage,
+    receive: (value) => {
+      current.current = value;
+      setSnapshot(value);
+      void botCache?.save(create(bots.BotCachedViewSchema, { key, exchange: value })).catch(() => {});
+    },
+    restart: stream.retry,
+  });
+
+  return { snapshot, stream, history };
 }
 
 function pause(signal: AbortSignal) {

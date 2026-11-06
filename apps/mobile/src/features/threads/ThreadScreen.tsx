@@ -45,7 +45,7 @@ export type ThreadState = ReturnType<typeof useThreadState>;
 
 function useThreadState(id: string) {
   const { session, client, ready, online, expired } = useSession();
-  const { snapshot, setSnapshot, stream } = useThreadSnapshot(id);
+  const { snapshot, setSnapshot, stream, history } = useThreadSnapshot(id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const following = useFollowingList<ui.Turn>();
@@ -160,6 +160,7 @@ function useThreadState(id: string) {
     setDetails,
     projects,
     stream,
+    history,
     thread,
     worker,
     subagents,
@@ -219,6 +220,8 @@ export function ThreadScreen({ id }: { id: string }) {
       header={
         <>
           <ThreadHeader
+            history={state.history}
+            snapshot={snapshot}
             thread={thread}
             project={projects.find((p) => p.id === thread?.projectId)}
             turns={turns}

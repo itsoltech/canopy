@@ -360,6 +360,10 @@
           onclose={closeDetails}
         />{/snippet}
       <ChatView
+        hasMore={history.hasMore}
+        historyError={history.historyError}
+        loadingOlder={history.loadingOlder}
+        onloadOlder={history.loadOlder}
         {conversation}
         {entries}
         me={{ id: "me", kind: "user", name: "You" }}

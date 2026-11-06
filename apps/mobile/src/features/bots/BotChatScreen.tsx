@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Platform, Text, View } from "react-native";
+import { Platform, View } from "react-native";
 import { ArrivingCell, useArrivals } from "../../ui/MotionViews";
-import { ConversationSkeleton, Skeleton } from "../../ui/Skeleton";
+import { Skeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
 import { ScreenFrame } from "../../ui/ScreenFrame";
 import { TimelineList } from "../composer/TimelineList";
@@ -12,9 +12,10 @@ import { useComputerHome } from "../computers/presence";
 import { botParticipant, type ChatRow } from "@canopy/domain/bot-chat";
 import { useSession } from "../../state/session";
 import { useBotSnapshot } from "../../state/bot";
+import { HistoryFooter } from "../../ui/HistoryFooter";
 import { ConnectionBanner } from "../navigation/ConnectionStatus";
 import { IconButton, Notice, ScreenHeader } from "../../ui/components";
-import { styles, useColors } from "../../ui/theme";
+import { styles } from "../../ui/theme";
 import { KeyboardArea } from "../../ui/KeyboardArea";
 import { ComposerBox } from "../threads/ComposerBox";
 import { ChatRowView, useChatRows } from "./ChatTimeline";
@@ -96,23 +97,10 @@ function useBotChat(id: string) {
     stream,
     send,
     seen: history.seen,
+    history: history.history,
     known,
     answer: history.answer,
   };
-}
-
-/** The top of the chat: its skeleton while it loads, or a prompt to start it. */
-function ChatStart({ conversation }: { conversation: bots.BotConversation | undefined }) {
-  const c = useColors();
-
-  return (
-    <View style={{ gap: 12 }}>
-      {!conversation && <ConversationSkeleton />}
-      {conversation && !conversation.messages.length && (
-        <Text style={[styles.meta, { color: c.muted, textAlign: "center" }]}>Start a conversation</Text>
-      )}
-    </View>
-  );
 }
 
 export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) {
@@ -132,6 +120,7 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
     stream,
     send,
     seen,
+    history,
     known,
     answer,
   } = useBotChat(id);
@@ -150,7 +139,7 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
 
   const { atBottom, showLatest } = following;
   const latestFirst = [...rows].reverse();
-  const arrival = useArrivals(latestFirst.map(chatRowId), Boolean(conversation));
+  const arrival = useArrivals(latestFirst.map(chatRowId), Boolean(conversation), { newestFirst: true });
 
   const composer = useFloatingComposer(following, Boolean(text.length));
 
@@ -169,6 +158,10 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
         <View style={styles.fill}>
           <TimelineList
             {...composer.listProps}
+            onEndReached={() => {
+              if (!following.isFollowing()) void history.load();
+            }}
+            onEndReachedThreshold={0.3}
             style={styles.fill}
             data={latestFirst}
             keyExtractor={chatRowId}
@@ -181,18 +174,17 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
               </ArrivingCell>
             )}
             // Inverted: the footer is the top of the chat, the header sits under the latest message.
-            ListFooterComponent={<ChatStart conversation={conversation} />}
+            ListFooterComponent={
+              <HistoryFooter
+                hasMore={conversation?.historyHasMore}
+                history={history}
+                skeleton={!conversation}
+                empty={!!conversation && !conversation.messages.length}
+              />
+            }
             ListHeaderComponent={
               <>
-                {conversation?.working && conversation.bot ? (
-                  <View style={{ paddingTop: 12 }}>
-                    <BotStatusRow
-                      bot={botParticipant(conversation.bot)}
-                      text={conversation.statusLine || (waiting ? "Waiting for you" : "Typing…")}
-                      waiting={waiting}
-                    />
-                  </View>
-                ) : null}
+                <BotTyping conversation={conversation} waiting={waiting} />
                 <View style={{ height: composer.height }} />
               </>
             }
@@ -238,6 +230,18 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
       />
     </ScreenFrame>
   );
+}
+
+function BotTyping({ conversation, waiting }: { conversation?: bots.BotConversation; waiting: boolean }) {
+  return conversation?.working && conversation.bot ? (
+    <View style={{ paddingTop: 12 }}>
+      <BotStatusRow
+        bot={botParticipant(conversation.bot)}
+        text={conversation.statusLine || (waiting ? "Waiting for you" : "Typing…")}
+        waiting={waiting}
+      />
+    </View>
+  ) : null;
 }
 
 function BotChatHeader({

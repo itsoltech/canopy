@@ -40,6 +40,7 @@
     worker,
     usage,
     totals,
+    partialUsage = false,
     schedules,
     secrets = [],
     onsecretchange,
@@ -60,6 +61,7 @@
     usage: Usage | undefined;
     /** Usage of the thread's own turns. */
     totals: UsageTotals;
+    partialUsage?: boolean;
     /** Active and paused schedules of the thread. */
     schedules: readonly ui.Schedule[];
     /** The thread's secrets; the saved, unexpired ones are listed (pending requests stay above the composer). */
@@ -193,7 +195,9 @@
          arrive), so the sections below don't move down when they do. -->
     {#if hasUsage || thread.lastSeq > 0n}
       <PanelRow icon="bolt">
-        {#if hasUsage}<span class="tabular-nums" title="Tokens of this thread's turns"
+        {#if hasUsage}<span
+            class="tabular-nums"
+            title={partialUsage ? "Tokens of loaded turns" : "Tokens of this thread's turns"}
             >{formatCount(totals.inputTokens)} in · {formatCount(totals.outputTokens)} out</span
           >{:else}<span class="text-zinc-400 dark:text-zinc-500" aria-label="Token usage loading">–</span>{/if}
         {#snippet aside()}

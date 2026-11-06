@@ -3,6 +3,8 @@ import type { ui } from "@canopy/contracts";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { useSession } from "./session";
 import { useStream } from "./stream";
+import { prependThreadPage } from "@canopy/domain/history-pages";
+import { firstHistoryPage, useHistoryPage } from "./history-page";
 
 /** Read the durable base before subscribing; every retry uses the latest atomic checkpoint. */
 export function useThreadSnapshot(id: string) {
@@ -30,7 +32,10 @@ export function useThreadSnapshot(id: string) {
   const stream = useStream(
     client && loaded
       ? (signal) =>
-          client.api.watchThread({ threadId: id, incremental: true, cursor: current.current?.cursor ?? "" }, { signal })
+          client.api.watchThread(
+            { threadId: id, pageSize: 24, incremental: true, cursor: current.current?.cursor ?? "" },
+            { signal },
+          )
       : null,
     (update: ui.ThreadUpdate) => {
       try {
@@ -46,6 +51,32 @@ export function useThreadSnapshot(id: string) {
     },
     `${session?.deviceId}:${id}`,
   );
+
+  const history = useHistoryPage(id, {
+    current,
+    read: async (base, signal) => {
+      if (!client) throw new Error("Gateway unavailable");
+
+      const update = await firstHistoryPage(
+        (signal) =>
+          client.api.watchThread(
+            { threadId: id, pageSize: 24, beforeTurnId: base.historyBeforeTurnId, historyVersion: base.historyVersion },
+            { signal },
+          ),
+        signal,
+      );
+
+      if (update.change.case !== "snapshot") throw new Error("History unavailable");
+
+      return update.change.value;
+    },
+    merge: prependThreadPage,
+    receive: (next) => {
+      current.current = next;
+      setSnapshot(next);
+    },
+    restart: stream.retry,
+  });
 
   useEffect(() => {
     if (!snapshot || !threadCache || saving.current) return;
@@ -70,6 +101,7 @@ export function useThreadSnapshot(id: string) {
 
   return {
     snapshot,
+    history,
     stream,
     setSnapshot(update: (previous: ui.ThreadSnapshot | undefined) => ui.ThreadSnapshot | undefined) {
       current.current = update(current.current);

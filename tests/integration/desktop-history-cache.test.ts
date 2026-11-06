@@ -116,6 +116,10 @@ describe.skipIf(!dockerAvailable)("desktop private history across restarts", () 
     expect(botDelta.delta).toBe(true);
     expect(botDelta.messages).toHaveLength(0);
     expect(applyBotConversation(botState, botDelta)).toEqual(await openBot(bot.id));
+    const freshGeneration = (await restarted.read(key)).generation;
+    await restarted.reconcileBots(freshGeneration, []);
+    expect((await restarted.read(`chat_${bot.id}`)).bytes).toBeUndefined();
+    expect((await restarted.read(key)).bytes).toBeDefined();
     await restarted.clear();
     await restarted.write(generation, key, toBinary(ui.ThreadSnapshotSchema, snapshot));
     expect((await restarted.read(key)).bytes).toBeUndefined();

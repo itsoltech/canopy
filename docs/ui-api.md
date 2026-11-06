@@ -1239,7 +1239,21 @@ strony nie przesuwa kursora głównego watcha i nie zastępuje już otrzymanych
 nowszych wierszy. Delty poza załadowanym oknem są pomijane; starszą treść
 klient odczyta z gatewaya, gdy do niej dojdzie. Reconnect używa dotychczasowego
 kursora dziennika, a niemożliwa resynchronizacja zastępuje okno nowym ogonem.
+Po zakończeniu odczytu strony klient cofa checkpoint do kursora sprzed jej
+rozpoczęcia i wznawia główny watch. Dzięki temu edycja starszego wiersza, która
+przyszła live podczas odczytu, zostaje powtórzona już w powiększonym oknie.
 Wszystkie odczyty, granice i itemy pozostają w zakresie właściciela w gatewayu.
+
+Web i mobile proszą domyślnie o 24 pełne tury lub 50 wiadomości. W web pomocnicze
+`GET /api/threads/:id/history?before=…&version=…` i `/api/bots/:id/history?before=…&cursor=…`
+zamykają watch po pierwszym stanie; wymiany używają `GET /api/bot-exchanges/:id?before=…&incremental=1&cursor=…`.
+VirtualFeed kotwiczy istniejące klucze przy dołączaniu starszych wierszy; czat bota
+kompensuje wzrost wysokości scrolla. Cytat do niezaładowanego itemu pobiera okno przez
+`target_item_id` przed rozwinięciem folda i przewinięciem do celu.
+Wyszukiwanie w wątku po wpisaniu zapytania doczytuje wcześniejsze strony aż do
+początku; obejmuje wejścia użytkownika i tekst odpowiedzi agenta, także dziedziczony.
+Wynik w web otwiera właściwy fold i przewija do tury lub itemu. Liczniki zużycia
+w panelu oznaczają sumę załadowanych tur, dopóki okno nie obejmuje całej historii.
 
 Zwykła przeglądarka trzyma historię tylko w pamięci SPA. Electron ma prywatny
 cache na dysku przez preload ([desktop.md](desktop.md)); BFF nigdy nie

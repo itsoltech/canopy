@@ -9,6 +9,7 @@ import { Notice } from "../../ui/components";
 import { useMotion } from "../../ui/motion";
 import { ArrivingCell, useArrivals } from "../../ui/MotionViews";
 import { ConversationSkeleton } from "../../ui/Skeleton";
+import { HistoryFooter } from "../../ui/HistoryFooter";
 import { styles, useColors } from "../../ui/theme";
 import { TimelineList } from "../composer/TimelineList";
 import type { useFloatingComposer } from "../composer/useFloatingComposer";
@@ -72,7 +73,7 @@ export function ThreadTimeline({
   const anchor = useFeedAnchor(following.list, following.offset, following.isFollowing);
   const latestFirst = [...turns].reverse();
   const turnKey = (turn: ui.Turn) => `${turn.fromThreadId}:${turn.id}`;
-  const arrival = useArrivals(latestFirst.map(turnKey), Boolean(snapshot));
+  const arrival = useArrivals(latestFirst.map(turnKey), Boolean(snapshot), { newestFirst: true });
   const { rise } = useMotion();
   const days = newDays(turns);
   const turnIds = new Set(turns.map((t) => t.id));
@@ -97,6 +98,10 @@ export function ThreadTimeline({
       <FeedAnchorProvider value={anchor}>
         <TimelineList
           {...composer.listProps}
+          onEndReached={() => {
+            if (!following.isFollowing()) void state.history.load();
+          }}
+          onEndReachedThreshold={0.3}
           data={latestFirst}
           keyExtractor={turnKey}
           style={styles.fill}
@@ -106,6 +111,7 @@ export function ThreadTimeline({
           // Inverted: the footer is the top of the feed, the header sits under the latest turn.
           ListFooterComponent={
             <View style={{ gap: 16, paddingBottom: 16 }}>
+              <HistoryFooter hasMore={snapshot?.historyHasMore} history={state.history} />
               {!snapshot && <ConversationSkeleton />}
               {snapshot && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
             </View>

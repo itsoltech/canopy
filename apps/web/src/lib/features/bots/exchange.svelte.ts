@@ -6,12 +6,15 @@ import { botViewKey } from "@canopy/domain/bot-cache";
 import { bodyJson } from "#lib/shared/json.ts";
 import { decode } from "#lib/shared/wire.ts";
 import { botCache } from "./cache.ts";
+import { prependBotPage } from "@canopy/domain/history-pages";
 
 /** Exchanges are read-only projections; refresh on open, focus and while visible, with the latest cursor. */
 export function watchExchange(id: () => string) {
   let snapshot = $state.raw<bots.ReadBotExchangeResponse>();
   let syncing = $state(true);
   let error = $state("");
+  let loadingOlder = $state(false);
+  let loadOlder = async () => {};
 
   $effect(() => {
     const exchangeId = id();
@@ -58,6 +61,43 @@ export function watchExchange(id: () => string) {
     };
 
     untrack(() => void refresh());
+    loadOlder = async () => {
+      if (!snapshot?.historyHasMore || fetching || loadingOlder) return;
+      loadingOlder = true;
+      fetching = true;
+      const checkpoint = snapshot.cursor;
+
+      try {
+        const query = new URLSearchParams({
+          incremental: "1",
+          before: String(snapshot.historyBeforeSeq),
+          cursor: checkpoint,
+        });
+
+        const response = await fetch(`/api/bot-exchanges/${exchangeId}?${query}`, { signal: abort.signal });
+
+        if (!response.ok) throw new Error("History unavailable");
+        const page = decode(bots.ReadBotExchangeResponseSchema, await bodyJson(response));
+
+        if (abort.signal.aborted) return;
+
+        try {
+          snapshot = prependBotPage(snapshot, page, checkpoint);
+        } catch {
+          snapshot = { ...snapshot, cursor: "" };
+        }
+
+        botCache.set(create(bots.BotCachedViewSchema, { key, exchange: snapshot }));
+      } catch {
+        if (!abort.signal.aborted) error = "Could not load earlier messages. Try again.";
+      } finally {
+        fetching = false;
+        loadingOlder = false;
+      }
+
+      await refresh();
+    };
+
     const timer = setInterval(() => void refresh(), 5000);
     const resume = () => void refresh();
     window.addEventListener("focus", resume);
@@ -72,6 +112,13 @@ export function watchExchange(id: () => string) {
   });
 
   return {
+    loadOlder: () => loadOlder(),
+    get hasMore() {
+      return snapshot?.historyHasMore ?? false;
+    },
+    get loadingOlder() {
+      return loadingOlder;
+    },
     get snapshot() {
       return snapshot;
     },
