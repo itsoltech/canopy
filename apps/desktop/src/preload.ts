@@ -25,6 +25,12 @@ function subscribe<T>(channel: string, listener: (data: T) => void) {
 }
 
 const bridge: DesktopBridge = {
+  history: {
+    read: (key) => ipcRenderer.invoke("canopy:history-read", key),
+    write: (generation, key, bytes) => ipcRenderer.invoke("canopy:history-write", generation, key, bytes),
+    remove: (key) => ipcRenderer.invoke("canopy:history-remove", key),
+    clear: () => ipcRenderer.invoke("canopy:history-clear"),
+  },
   platform: process.platform,
   showNotification: (notice) => ipcRenderer.invoke("canopy:notification", notice),
   onNotificationClick: (listener) => subscribe<string>("canopy:notification-click", listener),

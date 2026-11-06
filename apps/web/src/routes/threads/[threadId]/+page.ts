@@ -6,7 +6,7 @@ import { ui } from "@canopy/contracts";
 import type { PageLoad } from "./$types";
 
 export const load = (async ({ fetch, params }) => {
-  const cached = threadCache.get(params.threadId)?.thread;
+  const cached = (await threadCache.load(params.threadId))?.thread;
 
   if (cached) return { thread: encode(ui.ThreadSchema, cached) };
   const response = objectOf(await loadJson(fetch, `/api/threads/${encodeURIComponent(params.threadId)}`));

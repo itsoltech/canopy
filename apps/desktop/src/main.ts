@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, powerMonitor, Tray } from "electron";
+import { app, BrowserWindow, ipcMain, nativeImage, powerMonitor, Tray } from "electron";
 import { monitorPower } from "./power-events.ts";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
@@ -29,6 +29,8 @@ import { windowPlacement } from "./window-state.ts";
 import { DocumentPolicy } from "./document-policy.ts";
 import type { RemoteAppUpdate } from "./remote-app-update.ts";
 import { acceptRemoteUpdate, remoteAppUpdate, registerUpdateIpc } from "./update-ipc.ts";
+import { desktopHistory, registerHistoryIpc } from "./history-ipc.ts";
+import { startupFailure } from "./startup-error.ts";
 
 const identity = desktopIdentity();
 
@@ -85,6 +87,7 @@ const iconPath = app.isPackaged
   : resolve(app.getAppPath(), `build/${identity.channel}/icon.png`);
 
 const logs = new Logs(join(app.getPath("userData"), "logs"));
+const history = desktopHistory();
 const quitSettings = new QuitSettings(app.getPath("userData"));
 const quitLog = (decision: string) => logs.write("desktop", `quit-guard ${decision}`);
 const quitKey = quitKeyEvent(quitLog);
@@ -325,6 +328,7 @@ function startController() {
     controller,
     logs,
     (next) => {
+      if (next.needsPairing && !status.needsPairing) void history.clear();
       status = startupError ? { ...next, phase: "error", error: startupError } : next;
       broadcast();
     },
@@ -343,6 +347,7 @@ function startController() {
 }
 
 function registerIpc() {
+  registerHistoryIpc(history, authorize, () => status.phase === "running" && !status.needsPairing);
   registerWindowPreferencesIpc(authorize, iconPath);
   registerAppRouteIpc(appRoutes, authorize, () => window);
   ipcMain.handle("canopy:status", (event) => {
@@ -411,6 +416,7 @@ function registerIpc() {
         logs,
         closeSettings: () => closeModeChooser(settingsWindow, window),
         apply: async (config, client) => {
+          await history.clear();
           startupError = "";
           await rpc("configure", { configuration: config, remoteClient: client });
 
@@ -482,13 +488,4 @@ async function start() {
   }
 }
 
-if (ownsInstance)
-  void app
-    .whenReady()
-    .then(start)
-    .catch((cause: unknown) => {
-      const message = logs.redact(cause instanceof Error ? cause.message : "Canopy startup failed");
-      logs.write("desktop", message);
-      dialog.showErrorBox("Canopy could not start", message);
-      app.quit();
-    });
+if (ownsInstance) void app.whenReady().then(start).catch(startupFailure(logs));

@@ -1,6 +1,9 @@
 import { getContext, setContext } from "svelte";
 import { isJsonObject, isString } from "#lib/shared/json.ts";
 import { requestJson } from "#lib/shared/http.ts";
+import { clearHistory } from "./history.ts";
+import { threadCache } from "../threads/thread-cache.ts";
+import { botCache } from "../bots/cache.ts";
 
 const sections = {
   "/bots": ["ListBots", "GetBot", "SendBotMessage"],
@@ -52,6 +55,13 @@ export class GatewayCapabilities {
       )
         return;
       this.state = value["state"];
+
+      if (this.state === "pairing") {
+        threadCache.clear();
+        botCache.clear();
+        clearHistory();
+      }
+
       this.message = value["message"];
 
       // An outage says nothing about feature support. Keep the last successful negotiation.
