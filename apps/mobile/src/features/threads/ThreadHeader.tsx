@@ -11,6 +11,7 @@ import { useLayout } from "../../state/layout";
 import { SidebarToggle } from "../navigation/SidebarToggle";
 import { ProjectMark } from "../../ui/ProjectMark";
 import { styles, useColors } from "../../ui/theme";
+import { Skeleton } from "../../ui/Skeleton";
 
 function useThreadActions(thread: ui.Thread | undefined) {
   const { client } = useSession();
@@ -100,13 +101,23 @@ export function ThreadHeader({
           />
         )}
         {project && <ProjectMark name={project.name} kind={project.kind} />}
-        <Text numberOfLines={1} style={[styles.body, { color: c.muted, maxWidth: 70, paddingLeft: 8 }]}>
-          {project?.name || "Thread"}
-        </Text>
+        {project ? (
+          <Text numberOfLines={1} style={[styles.body, { color: c.muted, maxWidth: 110, paddingLeft: 8 }]}>
+            {project.name}
+          </Text>
+        ) : (
+          <Skeleton style={{ width: 70, height: 16 }} />
+        )}
         <Text style={[styles.body, { color: c.faint, paddingHorizontal: 8 }]}>/</Text>
-        <Text numberOfLines={1} style={[styles.body, { color: c.text, flex: 1 }]}>
-          {thread?.title || "Thread"}
-        </Text>
+        <View style={{ flex: 1 }}>
+          {thread ? (
+            <Text numberOfLines={1} style={[styles.body, { color: c.text }]}>
+              {thread.title}
+            </Text>
+          ) : (
+            <Skeleton style={{ width: "80%", height: 16 }} />
+          )}
+        </View>
         <IconButton icon="magnifying-glass" label="Search thread" onPress={() => setSheet("search")} />
         <IconButton
           icon="ellipsis-horizontal"

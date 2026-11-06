@@ -304,9 +304,40 @@ jeden zasób z Projects; nie pobierają ustawień osobno dla każdej karty.
 Pair → Threads/Bots → Thread/Chat, plus Settings i New thread. Lista pokazuje projekt,
 worker/katalog, ikonę providera, czas i stan jak web; aktualizuje się przez WatchOverview.
 Są wyszukiwanie, filtr projektów i Archived. WatchThread składa
-snapshot i delty współdzielonym reducerem itemów. Po utracie połączenia backoff
-z jitterem rośnie od około 1 do 30 sekund; powrót z tła lub odzyskanie sieci uruchamia
-świeży snapshot. Stan pozostaje tylko w pamięci, bez obietnicy offline wysyłania.
+snapshot i delty współdzielonym reducerem `thread-snapshot`. Przełączenie wątku od razu
+pokazuje kopię z pamięci, a po restarcie odczytuje ją z prywatnego katalogu
+`expo-file-system` (`Paths.cache/thread-snapshots-v1`). System może usunąć cache;
+wtedy aplikacja pobiera pełny snapshot. Nie używa współdzielonego storage ani nie
+dodaje zależności natywnych. LRU mieści 16 wątków / 64 MiB protobuf na dysku,
+maksymalnie 16 MiB na wpis, oraz 6 wątków / 24 MiB w pamięci. Wpisy przekraczające
+limit nadal działają online, ale nie są utrwalane. Zapis pliku tymczasowego i rename
+chronią przed częściowym odczytem; uszkodzony wpis jest usuwany.
+
+`WatchThread` wysyła `incremental=true` i ostatni atomowy `cursor`. Gateway odpowiada
+deltą dziennika albo pełnym stanem według reguł w `ui-api.md`. Zdarzenia live nie
+przesuwają kursora; ponowny odczyt idempotentnie nakłada projekcje od checkpointu.
+Po utracie połączenia backoff z jitterem rośnie od około 1 do 30 sekund;
+powrót z tła lub odzyskanie sieci używa tego samego kursora. Cichy napis `Syncing…`
+zajmuje stałe miejsce przy końcu timeline. Wysyłka i stop czekają na stan live;
+pozostałe operacje, w tym odpowiedzi na zgody i edycja kolejki, nadal trafiają do
+autorytatywnego gatewaya. Brak kopii oznacza skeleton timeline; nagłówek, model i
+worker korzystają z overview/listy zamiast tymczasowych nazw.
+
+Androidowy build deweloperski wyłącza `expo-build-properties.android.networkInspector`.
+Inspektor Expo podgląda do 1 MiB odpowiedzi HTTP/2 przed przekazaniem jej aplikacji;
+dla cichego, otwartego strumienia Connect oznacza to blokadę małych delt i overview.
+Nie zmienia to transportu, pinowania TLS ani autoryzacji; wyłącza tylko podgląd sieci
+w narzędziach deweloperskich.
+
+Cache zawiera wyłącznie `ThreadSnapshot`: metadane `ThreadSecret`, nigdy wartości
+sekretów, ciphertext, token urządzenia ani ustawienia providera. Zwykły tekst historii
+pozostaje prywatnymi danymi rozmowy. Katalog jest izolowany przez id urządzenia i pin
+certyfikatu. Unpair i wykryte `Unauthenticated` po revocation zamykają cache i usuwają
+pamięć oraz pliki; fence i serializacja uniemożliwiają przywrócenie ich przez spóźniony
+zapis. Bez sieci urządzenie nie może wykryć zdalnego cofnięcia dostępu. Zapis łączy
+zmiany w okna 2 s (także przy ciągłym streamingu) i jest wykonywany też przy wyjściu
+z ekranu lub przejściu w tło.
+Nie ma kolejki wysyłania offline.
 Wysłanie po timeout używa tego samego client_request_id do czasu zmiany treści/trybu,
 więc ręczny retry nie dubluje tury.
 
@@ -433,7 +464,7 @@ udostępnia `Intl.supportedValuesOf`. Wybór daty sprawdza też nieistniejące g
 Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
 listę, czat ze streamem, wysyłanie/stop, karty pytań/zgód z odpowiedziami oraz sheet
 szczegółów/routines/reminders (zarządzanie w web). Lista botów odświeża się co 10 sekund.
-Brak push i trwałego offline cache. To pierwsza iteracja zgodności z web,
+Brak push i wysyłania offline. Cache obejmuje wątki, nie rozmowy botów. To pierwsza iteracja zgodności z web,
 nie pełna równoważność wszystkich jego funkcji.
 
 ## Sprawdzanie aplikacji

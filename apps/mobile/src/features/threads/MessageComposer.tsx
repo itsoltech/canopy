@@ -15,6 +15,7 @@ import { permissionLabel, permissionLook, PermissionPickerSheet } from "./permis
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
 import type { MessageDraft } from "../composer/useMessageDraft";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
+import { Skeleton } from "../../ui/Skeleton";
 
 type Picker = "model" | "effort" | "permission";
 
@@ -105,12 +106,16 @@ export function MessageComposer({
           <>
             <AttachButton draft={message.files} disabled={busy} />
             {thread?.goalStatus ? <ComposerPill icon="flag" title="Goal" onPress={onGoal} /> : null}
-            <ComposerPill
-              icon="cpu-chip"
-              leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}
-              title={current?.name || thread?.model || "Default model"}
-              onPress={() => setPicker("model")}
-            />
+            {thread ? (
+              <ComposerPill
+                icon="cpu-chip"
+                leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}
+                title={current?.name || thread.model || "Model"}
+                onPress={() => setPicker("model")}
+              />
+            ) : (
+              <Skeleton style={{ width: 110, height: 24 }} />
+            )}
             {current?.efforts.length ? (
               <ComposerPill icon="light-bulb" title={effortLabel(effort)} onPress={() => setPicker("effort")} />
             ) : null}
@@ -118,7 +123,11 @@ export function MessageComposer({
         }
       />
       <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6 }]}>
-        <ComposerPill icon="computer-desktop" title={worker?.name ?? "Worker"} onPress={onDetails} />
+        {worker ? (
+          <ComposerPill icon="computer-desktop" title={worker.name} onPress={onDetails} />
+        ) : (
+          <Skeleton style={{ width: 100, height: 24 }} />
+        )}
         <ComposerPill
           icon={look.icon}
           title={permissionLabel(thread?.permissionMode)}

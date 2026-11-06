@@ -19,6 +19,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     ...(config.plugins ?? []),
-    ["expo-build-properties", { android: { usesCleartextTraffic: process.env.CANOPY_DEV_HTTP === "1" } }],
+    [
+      "expo-build-properties",
+      {
+        android: {
+          usesCleartextTraffic: process.env.CANOPY_DEV_HTTP === "1",
+          // Expo's inspector peeks 1 MiB before delivering HTTP/2 bodies, blocking quiet Connect streams.
+          networkInspector: false,
+        },
+      },
+    ],
   ],
 });
