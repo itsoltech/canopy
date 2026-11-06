@@ -10,6 +10,7 @@ Ostatnie dwie strony tylko w desktopie, Linked computers według capability gate
 „Account” oznacza ustawienia właściciela w DB aktualnego gatewaya, wspólne dla jego
 klientów web/desktop. Nie oznacza automatycznej synchronizacji niezależnych gatewayów.
 „This device” oznacza profil przeglądarki/origin lub lokalną powłokę Electron.
+Aplikacja mobilna trzyma Turn activity dla samego telefonu (docs/mobile.md).
 Każda nowa preferencja ma opis zakresu i działania oraz reset po zmianie.
 Istniejące domyślne wartości wątków i generowania tekstu otrzymują również reset
 pojedynczych pól; reset agenta zeruje jego zależny profil, zachowując modele innych agentów.

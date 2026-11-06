@@ -12,6 +12,7 @@ import { styles, useColors } from "../../ui/theme";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { PanelRow } from "../threads/ThreadPanel";
 import { ThreadDefaultsSettings, ThreadTitleSettings } from "./ThreadSettings";
+import { TurnActivitySettings } from "./TurnActivitySettings";
 
 function useSettingsState() {
   const { session, client, forget } = useSession();
@@ -221,7 +222,7 @@ function SettingsContent({ state }: { state: ReturnType<typeof useSettingsState>
   return (
     <>
       {section === "appearance" && <AppearanceSettings />}
-      {section === "threads" && <ThreadDefaultsSettings settings={settings} projects={projects} workers={workers} />}
+      {section === "threads" && <ThreadsSection settings={settings} projects={projects} workers={workers} />}
       {section === "text-generation" && (
         <ThreadTitleSettings settings={settings} instructions={instructions} onChange={setInstructions} />
       )}
@@ -319,5 +320,14 @@ function SettingsContent({ state }: { state: ReturnType<typeof useSettingsState>
         </View>
       )}
     </>
+  );
+}
+
+function ThreadsSection(props: Parameters<typeof ThreadDefaultsSettings>[0]) {
+  return (
+    <View style={{ gap: 32 }}>
+      <ThreadDefaultsSettings {...props} />
+      <TurnActivitySettings />
+    </View>
   );
 }

@@ -28,9 +28,15 @@ function useBotChat(id: string) {
   const sending = useRef(false);
   const pending = useRef({ text: "", id: "" });
 
+  // Cards seen waiting stay on this visit when they expire, so the answer is not lost silently.
+  const [seen, setSeen] = useState<ReadonlySet<string>>(new Set());
+
   const stream = useStream(
     client ? (signal) => client.api.watchBotConversation({ botId: id }, { signal }) : null,
-    setConversation,
+    (next: bots.BotConversation) => {
+      setConversation(next);
+      setSeen((ids) => new Set([...ids, ...next.approvals.flatMap((a) => (a.status === "pending" ? [a.id] : []))]));
+    },
     `bot:${session?.deviceId}:${id}`,
   );
 
@@ -74,6 +80,7 @@ function useBotChat(id: string) {
     following,
     stream,
     send,
+    seen,
   };
 }
 
@@ -97,6 +104,7 @@ export function BotChatScreen({ id }: { id: string }) {
     following,
     stream,
     send,
+    seen,
   } = useBotChat(id);
 
   const { atBottom, showLatest } = following;
@@ -141,7 +149,7 @@ export function BotChatScreen({ id }: { id: string }) {
           ListHeaderComponent={
             <View style={{ gap: 12 }}>
               {conversation?.approvals
-                .filter((a) => a.status === "pending")
+                .filter((a) => a.status === "pending" || (a.status === "expired" && seen.has(a.id)))
                 .map((a) => (
                   <ApprovalCard key={a.id} approval={a} />
                 ))}

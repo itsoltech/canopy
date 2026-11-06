@@ -3,7 +3,7 @@ import type { FeedRow } from "./feed.ts";
 import type { TimelineEntry, TimelineNotice } from "./thread-state.svelte.ts";
 import { isTerminal } from "./timeline.ts";
 import { readWork } from "./work-groups.ts";
-import { workFoldOpen, type WorkFoldPreferences } from "./work-fold-state.ts";
+import { workFoldOpen, type WorkFoldPreferences } from "@canopy/domain/work-fold";
 
 /** The feed as the folds need it (VirtualFeed's `reading` and `hold`). */
 export interface FoldReader {

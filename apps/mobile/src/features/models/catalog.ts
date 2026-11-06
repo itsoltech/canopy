@@ -14,7 +14,6 @@ export interface ModelChoice {
   profileId: string;
   model: string;
   name: string;
-  description: string;
   efforts: string[];
   defaultEffort: string;
   isDefault: boolean;
@@ -67,7 +66,6 @@ function choice(provider: Provider, profileId: string, m: ModelInfo): ModelChoic
     profileId,
     model: m.id,
     name: m.displayName || m.id,
-    description: m.description,
     efforts: m.efforts,
     defaultEffort: m.defaultEffort,
     isDefault: m.isDefault,

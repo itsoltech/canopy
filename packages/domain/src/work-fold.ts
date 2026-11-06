@@ -1,3 +1,4 @@
+/** When a turn's "Working for …" fold is open (web and mobile timelines, docs/timeline-folding.md). */
 export interface WorkFoldPreferences {
   readonly expandWhileWorking: boolean;
   readonly keepAfterTurn: boolean;

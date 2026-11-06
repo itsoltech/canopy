@@ -6,6 +6,7 @@ import { useColors } from "../ui/theme";
 import { AppearanceProvider } from "../state/appearance";
 import { OverviewProvider } from "../state/overview";
 import { LayoutProvider, useLayout } from "../state/layout";
+import { PreferencesProvider } from "../state/preferences";
 import { View } from "react-native";
 import { AppSidebar } from "../features/navigation/AppSidebar";
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from "@expo-google-fonts/inter";
@@ -77,9 +78,11 @@ export default function Layout() {
 
   return (
     <SafeAreaProvider>
-      <SessionProvider>
-        <SessionUI />
-      </SessionProvider>
+      <PreferencesProvider>
+        <SessionProvider>
+          <SessionUI />
+        </SessionProvider>
+      </PreferencesProvider>
     </SafeAreaProvider>
   );
 }

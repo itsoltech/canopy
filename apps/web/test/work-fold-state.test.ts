@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { workFoldOpen, type WorkFoldPreferences } from "../src/lib/features/threads/work-fold-state.ts";
+import { workFoldOpen, type WorkFoldPreferences } from "@canopy/domain/work-fold";
 
 describe("turn activity preferences", () => {
   test("the final answer closes expanded work before completion, unless kept open", () => {
