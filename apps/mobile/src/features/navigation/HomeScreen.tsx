@@ -1,7 +1,8 @@
 import { Text, View } from "react-native";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScreenFrame } from "../../ui/ScreenFrame";
+import { ScreenScroll } from "../../ui/ScreenScroll";
 import { useLayout } from "../../state/layout";
 import { useSession } from "../../state/session";
 import { Button } from "../../ui/components";
@@ -23,11 +24,17 @@ export default function HomeScreen() {
   if (!layout.wide) return <AppSidebar />;
 
   return (
-    <SafeAreaView style={styles.fill}>
-      <View style={[styles.row, { height: 48, paddingHorizontal: 4 }]}>
-        <SidebarToggle />
-      </View>
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24 }}>
+    <ScreenFrame
+      header={
+        <View style={[styles.row, { height: 48, paddingHorizontal: 4 }]}>
+          <SidebarToggle />
+        </View>
+      }
+    >
+      <ScreenScroll
+        space={24}
+        contentContainerStyle={{ flexGrow: 1, alignItems: "center", justifyContent: "center", gap: 12 }}
+      >
         <Icon name="chat-bubble-left-right" size={32} color={c.faint} />
         <Text style={[styles.body, { color: c.muted, textAlign: "center" }]}>
           Choose a thread or a bot, or start a new thread.
@@ -35,7 +42,7 @@ export default function HomeScreen() {
         <View>
           <Button variant="primary" title="New thread" onPress={() => layout.open("/new-thread")} />
         </View>
-      </View>
-    </SafeAreaView>
+      </ScreenScroll>
+    </ScreenFrame>
   );
 }

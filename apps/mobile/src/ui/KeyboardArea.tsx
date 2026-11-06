@@ -9,8 +9,8 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useReducedMotion } from "./motion";
+import { ContentInsets, useContentInsets } from "./ScreenFrame";
 
 /**
  * How far the keyboard reaches up from the window's bottom edge; 0 while it is hidden. The app runs edge-to-edge,
@@ -51,12 +51,16 @@ export function useKeyboardOverlap() {
 
 /**
  * The lower part of a full-height screen that holds a composer or a form: its bottom sits on the keyboard while it
- * is open (with no gap) and keeps the bottom safe-area inset while it is closed. Use it inside a SafeAreaView that
- * leaves out the bottom edge.
+ * is open (with no gap). With the keyboard closed, backgrounds and scrollers reach the screen bottom;
+ * scroll-content and floating controls consume the bottom safe-area inset themselves.
  */
 export function KeyboardArea({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  const insets = useSafeAreaInsets();
+  const insets = useContentInsets();
   const overlap = useKeyboardOverlap();
 
-  return <View style={[{ flex: 1, paddingBottom: Math.max(overlap, insets.bottom) }, style]}>{children}</View>;
+  return (
+    <ContentInsets.Provider value={{ ...insets, bottom: overlap ? 0 : insets.bottom }}>
+      <View style={[{ flex: 1, paddingBottom: overlap }, style]}>{children}</View>
+    </ContentInsets.Provider>
+  );
 }

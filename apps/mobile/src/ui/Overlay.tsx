@@ -65,7 +65,10 @@ export function Overlay({
       <View
         style={{
           flex: 1,
-          paddingBottom: keyboard,
+          paddingTop: wide ? insets.top : 0,
+          paddingBottom: wide ? Math.max(keyboard, insets.bottom) : keyboard,
+          paddingLeft: wide ? insets.left : 0,
+          paddingRight: wide ? insets.right : 0,
           justifyContent: wide ? "center" : "flex-end",
           alignItems: "center",
         }}
@@ -85,10 +88,14 @@ export function Overlay({
           accessibilityViewIsModal
           accessibilityLabel={label}
           style={{
-            width: wide ? Math.min(420, width - 48) : "100%",
-            maxHeight: wide ? (height - keyboard) * 0.7 : (height - keyboard) * 0.85 - insets.top,
+            width: wide ? Math.min(420, width - insets.left - insets.right - 48) : "100%",
+            maxHeight: wide
+              ? (height - Math.max(keyboard, insets.bottom) - insets.top) * 0.7
+              : (height - keyboard) * 0.85 - insets.top,
             marginHorizontal: wide ? 24 : 0,
             paddingBottom: wide || keyboard ? 8 : insets.bottom + 8,
+            paddingLeft: wide ? 0 : insets.left,
+            paddingRight: wide ? 0 : insets.right,
             borderRadius: 16,
             borderBottomLeftRadius: wide ? 16 : 0,
             borderBottomRightRadius: wide ? 16 : 0,

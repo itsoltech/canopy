@@ -388,12 +388,13 @@ potwierdzenia `confirm()` zamiast natywnego `Alert.alert`. Cel dotyku 44 dp daje
 wymiary widoczne zostają jak w web.
 
 RN używa StyleSheet i Inter 400/500/600 (pakiet fontu, bez pobierania z sieci), SVG
-z tych samych ścieżek, SafeAreaView i FlatList. Aplikacja działa edge-to-edge, więc okno nie
+z tych samych ścieżek i FlatList. Aplikacja działa edge-to-edge, więc okno nie
 zmienia rozmiaru przy klawiaturze. Ekrany z kompozytorem lub formularzem (wątek, czat bota,
 New thread, Pair) i `Overlay` nie używają `KeyboardAvoidingView`: `ui/KeyboardArea.tsx` liczy,
 ile klawiatura zasłania od dołu okna (wysokość okna minus jej `screenY`; na Androidzie `height`
-pomija pasek nawigacji pod nią). Przy otwartej klawiaturze dół kompozytora leży na niej, przy
-zamkniętej zostaje dolny inset safe area; SafeAreaView tych ekranów pomija dolną krawędź. Jasny/ciemny motyw
+pomija pasek nawigacji pod nią). Przy otwartej klawiaturze dół kompozytora leży na niej.
+Przy zamkniętej tło i feed sięgają dolnej krawędzi, a kontrolki i końce przewijanej treści
+dostają dolny inset z `useSafeAreaInsets`. Jasny/ciemny motyw
 oraz niezależne palety Light/Dark są ustawieniami gatewaya, synchronizowanymi między klientami.
 Settings korzysta ze wspólnych tokenów tematów Birch, Fern, Lagoon, Cedar, Heather,
 Blossom i Ash. Preferencje urządzenia (typografia, kontrast, diffy i format czasu)
@@ -404,7 +405,19 @@ rozłożony foldable, telefon w poziomie) lista zostaje obok otwartego wątku lu
 w desktopowym web (`src/state/layout.tsx`). Ma 260–320 dp, zaznacza otwarty wątek i chowa się
 przyciskiem listy w nagłówku. Układ zależy od szerokości okna, nie typu urządzenia, więc
 składanie, obrót i zmiana rozmiaru przełączają go na żywo; aplikacja nie blokuje orientacji.
-Safe area każdej kolumny liczy natywny `SafeAreaView`. Zawias: Expo nie udostępnia
+`ui/ScreenFrame.tsx` stosuje insets do kontrolek, bez obcinania tła ani viewportu listy.
+Nagłówki i stopka sidebara są półprzezroczystymi nakładkami; ich zmierzona wysokość
+powiększa padding końców list, więc pierwszy i ostatni wiersz są dostępne w całości.
+Podczas przewijania wiersze przechodzą pod nagłówkiem i paskiem stanu. Ikony paska stanu
+zmieniają jasność wraz z motywem, a powierzchnia nagłówka utrzymuje ich kontrast.
+`ScreenScroll` stosuje padding treści w New thread, Pair, Settings i arkuszach szczegółów.
+Timeline wątku i bota ma odwrócone końce: górny inset jest na najstarszym końcu,
+a dolny rezerwuje zmierzony kompozytor wraz z safe area. Tło kompozytora sięga pod
+home indicator; padding kontrolek znika pod klawiaturą, zastąpiony jej rzeczywistym overlapem.
+W podziale na kolumny tylko sidebar dostaje lewy inset, a główny panel prawy; po ukryciu
+sidebara główny panel dostaje obie krawędzie. Settings stosuje tę samą regułę do własnych kolumn.
+Pełne arkusze mierzą safe area we własnym `SafeAreaProvider`; dolne pickery chronią
+akcje insetem dolnym i bocznymi, także w poziomie. Zawias: Expo nie udostępnia
 `FoldingFeature`; zawias Galaxy Z Fold po rozłożeniu nie zasłania ekranu, więc nie omijamy go.
 Urządzenie z zasłaniającym zawiasem wymagałoby modułu natywnego (Jetpack WindowManager). Panele
 szczegółów są sheetami. Każdy wybór (model, effort, uprawnienia, projekt, worker, instancja
@@ -417,6 +430,25 @@ przy każdym wyborze, jak w web. Feed wątku i czat bota są odwróconymi listam
 na ostatniej wiadomości, podążają za nowymi na dole i trzymają pozycję podczas czytania historii. Nazwy komponentów odpowiadają web, m.in. SidebarThread,
 ThreadHeader, MessageComposer/ComposerBox, ThreadPanel, AppearanceSettings,
 BotAvatar, ChatBubble i BotDetailsPanel. Brand assety pochodzą z `apps/web/static`.
+
+Kompozytor wątku (także bocznego) i czatu bota jest nakładką nad feedem, z powierzchnią,
+obramowaniem i cieniem w jasnym motywie oraz wygaszeniem tła na 32 dp jak w web.
+`features/composer/FloatingComposer.tsx` leży wewnątrz `KeyboardArea`, więc zachowuje
+obsługę klawiatury i safe area. Zmierzona wysokość nakładki rezerwuje miejsce pod ostatnią
+wiadomością w nagłówku odwróconej listy. Podczas czytania historii rezerwa nie maleje
+(jak `VirtualFeed.reservedFooter` w web), a kotwica listy pomija ten nagłówek; zwijanie
+nie przesuwa czytanej wiadomości. Na dole rezerwa podąża za zmianami wysokości.
+„Jump to latest” pozostaje nad nakładką.
+
+Reguły zwijania pochodzą z webowego `ComposerCompaction`: co najmniej 192 dp od końca
+i 96 dp ruchu ku starszym wiadomościom, rozwinięcie do 8 dp od końca albo po tapnięciu,
+fokusie lub pisaniu. Liczą się tylko gesty czytelnika, bez aktualizacji streamu i zmian
+klawiatury. Synchroniczne pytanie utrzymuje kompozytor otwarty. Mobile dodatkowo nie zwija
+niepustego szkicu, załączników ani otwartej listy wzmianek. Pole i kontrolki pozostają
+zamontowane; `ComposerFold` animuje wysokość i przezroczystość według wspólnych tokenów
+`motion.slow` / `motion.medium` i `smoothOut`, a ograniczenie ruchu wyłącza animację.
+Bot zachowuje jednorzędową pigułkę z rosnącym polem tekstowym. New thread i formularz
+tworzenia wątku bocznego pozostają rozwinięte: przewijają formularz, nie historię rozmowy.
 
 Markdown renderujemy natywnym Text/View po tokenizacji, bez HTML/WebView i automatycznego
 pobierania obrazów. Linki otwierają tylko HTTP(S) po tapnięciu. Narzędzia/praca są domyślnie

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { FlatList, Image, Pressable, Text, View } from "react-native";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScreenFrame, useContentPadding } from "../../ui/ScreenFrame";
+import { SidebarFooter } from "./SidebarFooter";
 import { ui, bots as botContract } from "@canopy/contracts";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { compareConversations } from "@canopy/domain/bot-chat";
@@ -10,7 +11,7 @@ import { useSession } from "../../state/session";
 import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
 import { Button, EmptyState, IconButton, Notice, Segmented } from "../../ui/components";
-import { ConnectionBanner, ConnectionStatus } from "./ConnectionStatus";
+import { ConnectionBanner } from "./ConnectionStatus";
 import { PickerSheet } from "../../ui/Picker";
 import { ProjectMark } from "../../ui/ProjectMark";
 import { styles, useColors } from "../../ui/theme";
@@ -208,6 +209,7 @@ function orderBots(list: readonly botContract.Bot[], pinned: readonly string[]):
 
 function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const c = useColors();
+  const padding = useContentPadding(8);
   const pinned = useAppearance().user?.sidebar?.pinnedBotIds ?? [];
 
   const {
@@ -300,7 +302,9 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
             pinned,
           )}
           keyExtractor={(b) => b.id}
-          contentContainerStyle={{ paddingHorizontal: 8 }}
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustContentInsets={false}
+          contentContainerStyle={padding}
           renderItem={({ item }) => <BotListItem bot={item} />}
           ListEmptyComponent={
             !botsLoaded && !botError ? (
@@ -336,32 +340,17 @@ export function AppSidebar() {
   if (!session) return <Redirect href="/pair" />;
 
   return (
-    <SafeAreaView style={[styles.fill, { backgroundColor: c.sidebar }]}>
-      <SidebarHeader state={state} />
-      <ConnectionBanner />
+    <ScreenFrame
+      backgroundColor={c.sidebar}
+      header={
+        <>
+          <SidebarHeader state={state} />
+          <ConnectionBanner />
+        </>
+      }
+      footer={<SidebarFooter workers={workers} stream={stream} />}
+    >
       <SidebarLists state={state} />
-      <View style={[styles.row, { borderTopWidth: 1, borderTopColor: c.line, padding: 8 }]}>
-        <IconButton icon="cog-6-tooth" label="Settings" onPress={() => router.push("/settings")} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Workers online"
-          onPress={() =>
-            router.push({
-              pathname: "/settings",
-              params: { section: "workers" },
-            })
-          }
-          style={styles.row}
-        >
-          <Icon name="server" size={14} />
-          <Text style={[styles.meta, { color: c.muted }]}>
-            {workers.filter((w) => w.online).length}/{workers.length}
-          </Text>
-        </Pressable>
-        <View style={[styles.row, { flex: 1, justifyContent: "flex-end" }]}>
-          <ConnectionStatus stream={stream} />
-        </View>
-      </View>
       <PickerSheet
         title="Show threads from"
         visible={filterOpen}
@@ -378,6 +367,6 @@ export function AppSidebar() {
           },
         ]}
       />
-    </SafeAreaView>
+    </ScreenFrame>
   );
 }

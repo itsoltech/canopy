@@ -41,6 +41,7 @@ export const motion = {
   quick: 150,
   fast: 250,
   medium: 350,
+  slow: 400,
   smoothOut: [0.22, 1, 0.36, 1],
 } as const;
 

@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { FlatList, Platform, Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { ConversationSkeleton, Skeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScreenFrame } from "../../ui/ScreenFrame";
+import { TimelineList } from "../composer/TimelineList";
 import * as Crypto from "expo-crypto";
+import type { bots } from "@canopy/contracts";
 import { splitId } from "@canopy/domain/computers";
 import { useComputerHome } from "../computers/presence";
 import { botParticipant, type ChatRow } from "@canopy/domain/bot-chat";
 import { useSession } from "../../state/session";
 import { useBotSnapshot } from "../../state/bot";
 import { ConnectionBanner } from "../navigation/ConnectionStatus";
-import { IconButton, LatestButton, Notice, ScreenHeader } from "../../ui/components";
+import { IconButton, Notice, ScreenHeader } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { KeyboardArea } from "../../ui/KeyboardArea";
 import { ComposerBox } from "../threads/ComposerBox";
@@ -21,6 +23,8 @@ import { BotAvatar } from "./BotAvatar";
 import { useFollowingList } from "../../ui/useFollowingList";
 import { useLayout } from "../../state/layout";
 import { SidebarToggle } from "../navigation/SidebarToggle";
+import { FloatingComposer } from "../composer/FloatingComposer";
+import { useFloatingComposer } from "../composer/useFloatingComposer";
 
 function useBotChat(id: string) {
   const { session, client, online, bots: known, updateBots } = useSession();
@@ -96,7 +100,6 @@ function useBotChat(id: string) {
 
 export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) {
   const c = useColors();
-  const { wide } = useLayout();
 
   const {
     session,
@@ -131,75 +134,83 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
   const waiting = approvals.some((a) => a.status === "pending");
 
   const { atBottom, showLatest } = following;
+  const composer = useFloatingComposer(following, Boolean(text.length));
 
   if (!session) return <Redirect href="/pair" />;
 
   return (
-    <SafeAreaView style={styles.fill} edges={["top", "left", "right"]}>
-      <ScreenHeader
-        title={bot?.configuration?.name ?? ""}
-        loading={!bot}
-        subtitle={conversation && !live ? "Syncing…" : undefined}
-        left={wide ? <SidebarToggle /> : undefined}
-        right={
-          <View style={styles.row}>
-            {bot ? <BotAvatar bot={bot} size={32} /> : <Skeleton style={{ width: 32, height: 32, borderRadius: 16 }} />}
-            <IconButton icon="ellipsis-horizontal" label="Bot details" onPress={() => setDetails(true)} />
-          </View>
-        }
-      />
-      <ConnectionBanner stream={home.away ? undefined : stream} />
+    <ScreenFrame
+      header={
+        <>
+          <BotChatHeader bot={bot} syncing={Boolean(conversation && !live)} onDetails={() => setDetails(true)} />
+          <ConnectionBanner stream={home.away ? undefined : stream} />
+        </>
+      }
+    >
       <KeyboardArea>
-        <FlatList
-          {...following.listProps}
-          data={[...rows].reverse()}
-          keyExtractor={(row) => row.id}
-          contentContainerStyle={[styles.page, { gap: 0, flexGrow: 1 }]}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          renderItem={({ item }) => <ChatRowView row={item} approvals={approvals} readOnly={!live} onAnswer={answer} />}
-          // Inverted: the footer is the top of the chat, the header sits under the latest message.
-          ListFooterComponent={
-            <View style={{ gap: 12 }}>
-              {!conversation && <ConversationSkeleton />}
-              {conversation && !conversation.messages.length && (
-                <Text style={[styles.meta, { color: c.muted, textAlign: "center" }]}>Start a conversation</Text>
-              )}
-            </View>
-          }
-          ListHeaderComponent={
-            conversation?.working && conversation.bot ? (
-              <View style={{ paddingTop: 12 }}>
-                <BotStatusRow
-                  bot={botParticipant(conversation.bot)}
-                  text={conversation.statusLine || (waiting ? "Waiting for you" : "Typing…")}
-                  waiting={waiting}
-                />
+        <View style={styles.fill}>
+          <TimelineList
+            {...composer.listProps}
+            style={styles.fill}
+            data={[...rows].reverse()}
+            keyExtractor={(row) => row.id}
+            contentContainerStyle={[styles.page, { gap: 0, flexGrow: 1 }]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+            renderItem={({ item }) => (
+              <ChatRowView row={item} approvals={approvals} readOnly={!live} onAnswer={answer} />
+            )}
+            // Inverted: the footer is the top of the chat, the header sits under the latest message.
+            ListFooterComponent={
+              <View style={{ gap: 12 }}>
+                {!conversation && <ConversationSkeleton />}
+                {conversation && !conversation.messages.length && (
+                  <Text style={[styles.meta, { color: c.muted, textAlign: "center" }]}>Start a conversation</Text>
+                )}
               </View>
-            ) : undefined
-          }
-        />
-        <View style={{ padding: 12, gap: 8 }}>
-          <LatestButton visible={!atBottom} onPress={showLatest} />
-          {error ? <Notice error>{error}</Notice> : null}
-          {home.away && (
-            <Notice>
-              {home.name} · {home.status}. Read only until it reconnects.
-            </Notice>
-          )}
-          <ComposerBox
-            compact
-            placeholder={bot?.configuration?.name ? `Message ${bot.configuration.name}` : ""}
-            text={text}
-            onChange={setText}
-            onSend={() => void send()}
-            running={conversation?.working}
-            onStop={() => {
-              if (live) void client!.api.interruptBot({ botId: id }).catch(() => setError("Could not stop the bot."));
-            }}
-            disabled={home.away || !online || !conversation || stream.connection !== "live"}
-            busy={busy}
+            }
+            ListHeaderComponent={
+              <>
+                {conversation?.working && conversation.bot ? (
+                  <View style={{ paddingTop: 12 }}>
+                    <BotStatusRow
+                      bot={botParticipant(conversation.bot)}
+                      text={conversation.statusLine || (waiting ? "Waiting for you" : "Typing…")}
+                      waiting={waiting}
+                    />
+                  </View>
+                ) : null}
+                <View style={{ height: composer.height }} />
+              </>
+            }
           />
+          <FloatingComposer
+            onLayout={composer.measure}
+            onExpand={composer.expand}
+            onLatest={atBottom ? undefined : showLatest}
+          >
+            {error ? <Notice error>{error}</Notice> : null}
+            {home.away && (
+              <Notice>
+                {home.name} · {home.status}. Read only until it reconnects.
+              </Notice>
+            )}
+            <ComposerBox
+              compact={composer.compact}
+              inline
+              onExpand={composer.expand}
+              placeholder={bot?.configuration?.name ? `Message ${bot.configuration.name}` : ""}
+              text={text}
+              onChange={setText}
+              onSend={() => void send()}
+              running={conversation?.working}
+              onStop={() => {
+                if (live) void client!.api.interruptBot({ botId: id }).catch(() => setError("Could not stop the bot."));
+              }}
+              disabled={home.away || !online || !conversation || stream.connection !== "live"}
+              busy={busy}
+            />
+          </FloatingComposer>
         </View>
       </KeyboardArea>
       <BotDetailsPanel
@@ -212,6 +223,33 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
           if (rule) router.setParams({ rule: "" });
         }}
       />
-    </SafeAreaView>
+    </ScreenFrame>
+  );
+}
+
+function BotChatHeader({
+  bot,
+  syncing,
+  onDetails,
+}: {
+  bot: bots.Bot | undefined;
+  syncing: boolean;
+  onDetails: () => void;
+}) {
+  const { wide } = useLayout();
+
+  return (
+    <ScreenHeader
+      title={bot?.configuration?.name ?? ""}
+      loading={!bot}
+      subtitle={syncing ? "Syncing…" : undefined}
+      left={wide ? <SidebarToggle /> : undefined}
+      right={
+        <View style={styles.row}>
+          {bot ? <BotAvatar bot={bot} size={32} /> : <Skeleton style={{ width: 32, height: 32, borderRadius: 16 }} />}
+          <IconButton icon="ellipsis-horizontal" label="Bot details" onPress={onDetails} />
+        </View>
+      }
+    />
   );
 }

@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Animated, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Skeleton } from "../../ui/Skeleton";
 import { styles, useColors } from "../../ui/theme";
 import { Icon } from "../../ui/Icon";
 import type { Mention } from "@canopy/contracts";
 import { MessageSpans, type BadgeTone } from "../composer/MessageText";
+import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
+
+const AnimatedInput = Animated.createAnimatedComponent(TextInput);
 
 /** What each trigger character does, as on the web; no-break spaces keep each item on one line. */
 const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell"]
@@ -29,6 +32,8 @@ export function ComposerBox({
   busy,
   controls,
   compact = false,
+  inline = false,
+  onExpand,
   placeholder = "Ask anything…",
   top,
   files = 0,
@@ -46,6 +51,9 @@ export function ComposerBox({
   busy?: boolean;
   controls?: ReactNode;
   compact?: boolean;
+  /** Bot chats keep their one-row pill when expanded; long drafts still grow. */
+  inline?: boolean;
+  onExpand?: () => void;
   placeholder?: string;
   /** Above the text (attachment chips). */
   top?: ReactNode;
@@ -63,16 +71,19 @@ export function ComposerBox({
   const shellIssue = shell && (text.trim() === "!" || files > 0);
   const stop = running && empty && Boolean(onStop);
   const unavailable = disabled || busy || (!stop && empty) || shellIssue;
+  const progress = useComposerMotion(!compact);
 
   return (
-    <View
+    <Animated.View
+      onTouchStart={onExpand}
       style={{
         backgroundColor: c.surface,
-        borderRadius: compact ? 24 : 16,
-        flexDirection: compact ? "row" : "column",
-        alignItems: compact ? "center" : undefined,
+        borderRadius: inline ? 24 : 16,
+        flexDirection: inline ? "row" : "column",
+        alignItems: inline ? "center" : undefined,
         borderWidth: 1,
         borderColor: shell ? c.danger : c.line,
+        boxShadow: c.dark ? undefined : "0px 1px 3px #0000001a",
       }}
     >
       {top}
@@ -82,38 +93,33 @@ export function ComposerBox({
         onChange={onChange}
         busy={busy}
         compact={compact}
+        inline={inline}
+        onExpand={onExpand}
         placeholder={triggers && !compact ? `${placeholder}\n${TRIGGER_HINT}` : placeholder}
         label={label}
         badges={badges}
       />
-      {!compact || !empty || running ? (
-        <View
+      {!inline && (
+        <ComposerFold open={!compact}>
+          <ComposerControls shell={shell} files={files} sendWidth={running && !empty && onQueue ? 92 : 60}>
+            {controls}
+          </ComposerControls>
+        </ComposerFold>
+      )}
+      {!inline || !empty || running ? (
+        <Animated.View
           style={[
             styles.row,
-            {
-              minHeight: compact ? 44 : 52,
-              padding: compact ? 4 : 10,
-              paddingLeft: compact ? 0 : 12,
-              gap: 4,
-            },
+            inline
+              ? { padding: 4, paddingLeft: 0 }
+              : {
+                  position: "absolute",
+                  right: 10,
+                  bottom: progress.interpolate({ inputRange: [0, 1], outputRange: [4, 10] }),
+                },
+            { gap: 4 },
           ]}
         >
-          {!compact && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={[styles.row, { gap: 4, paddingRight: 4 }]}
-              style={{ flex: 1 }}
-            >
-              {shell ? (
-                <Text numberOfLines={2} style={[styles.caption, { color: c.danger, flexShrink: 1 }]}>
-                  {files > 0 ? "Remove the files to run a shell command." : "Runs as a shell command when delivered."}
-                </Text>
-              ) : (
-                controls
-              )}
-            </ScrollView>
-          )}
           <SendButtons
             queue={running && !empty ? onQueue : undefined}
             onSend={stop ? onStop : onSend}
@@ -123,8 +129,43 @@ export function ComposerBox({
             busy={busy}
             unavailable={unavailable}
           />
-        </View>
+        </Animated.View>
       ) : null}
+    </Animated.View>
+  );
+}
+
+/** The toolbar folds without unmounting its attachment and model pickers. */
+function ComposerControls({
+  shell,
+  files,
+  sendWidth,
+  children,
+}: {
+  shell: boolean;
+  files: number;
+  sendWidth: number;
+  children: ReactNode;
+}) {
+  const c = useColors();
+
+  return (
+    <View style={[styles.row, { minHeight: 52, padding: 10, paddingLeft: 12, paddingRight: sendWidth }]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[styles.row, { gap: 4, paddingRight: 4 }]}
+        style={{ flex: 1 }}
+      >
+        {shell ? (
+          <Text numberOfLines={2} style={[styles.caption, { color: c.danger, flexShrink: 1 }]}>
+            {files > 0 ? "Remove the files to run a shell command." : "Runs as a shell command when delivered."}
+          </Text>
+        ) : (
+          children
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -134,21 +175,28 @@ function ComposerInput({
   onChange,
   busy,
   compact,
+  inline,
+  onExpand,
   placeholder,
   label,
   badges,
 }: Pick<
   Parameters<typeof ComposerBox>[0],
-  "text" | "onChange" | "busy" | "compact" | "placeholder" | "label" | "badges"
+  "text" | "onChange" | "busy" | "compact" | "inline" | "onExpand" | "placeholder" | "label" | "badges"
 >) {
   const c = useColors();
+  const progress = useComposerMotion(!compact);
 
   return (
-    <TextInput
+    <AnimatedInput
       accessibilityLabel={label}
       // With badges the spans carry the text; a TextInput takes either children or a value.
       value={badges ? undefined : text}
-      onChangeText={onChange}
+      onChangeText={(next) => {
+        onExpand?.();
+        onChange(next);
+      }}
+      onFocus={onExpand}
       onSelectionChange={badges ? (event) => badges.onSelect(event.nativeEvent.selection) : undefined}
       editable={!busy}
       multiline
@@ -158,19 +206,20 @@ function ComposerInput({
       style={[
         styles.body,
         {
-          minHeight: compact ? 44 : 64,
-          flex: compact ? 1 : undefined,
-          maxHeight: 160,
+          minHeight: inline ? 44 : progress.interpolate({ inputRange: [0, 1], outputRange: [44, 64] }),
+          flex: inline ? 1 : undefined,
+          maxHeight: progress.interpolate({ inputRange: [0, 1], outputRange: [44, 160] }),
           paddingHorizontal: 16,
-          paddingTop: 14,
-          paddingBottom: 12,
+          paddingRight: inline ? 16 : progress.interpolate({ inputRange: [0, 1], outputRange: [60, 16] }),
+          paddingTop: progress.interpolate({ inputRange: [0, 1], outputRange: [10, 14] }),
+          paddingBottom: progress.interpolate({ inputRange: [0, 1], outputRange: [10, 12] }),
           color: c.text,
           textAlignVertical: "top",
         },
       ]}
     >
       {badges ? <MessageSpans value={{ text, mentions: badges.mentions }} tone={badges.tone} /> : null}
-    </TextInput>
+    </AnimatedInput>
   );
 }
 
