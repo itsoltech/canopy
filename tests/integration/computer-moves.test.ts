@@ -773,7 +773,21 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
       "Bot not found",
     );
     const refused = await move([{ kind: "bot", id: foreign }]);
-    expect(refused.moves[0]).toMatchObject({ state: "aborted", error: "Bot not found" });
+    expect(refused.moves[0]).toMatchObject({ state: "aborted", error: "Bot not found", title: "" });
+    const foreignThread = id();
+    await sql(
+      a,
+      `INSERT INTO threads (id, root_thread_id, project_id, owner_user_id, kind, runtime, provider, title, status)
+       VALUES ($1::uuid,$1::uuid,$2::uuid,$3::uuid,'main','gateway','anthropic','Their private thread','idle')`,
+      [foreignThread, aProject, other],
+    );
+    const refusedThread = await move([{ kind: "thread", id: foreignThread }]);
+    expect(refusedThread.moves[0]).toMatchObject({ state: "aborted", title: "" });
+    const history = await a.api.getMoves({});
+
+    for (const result of [refused, refusedThread])
+      expect(history.moves.find((m) => m.id === result.moves[0]!.id)).toMatchObject({ state: "aborted", title: "" });
+    expect((await sql(c, "SELECT 1 FROM threads WHERE id=$1::uuid", [foreignThread])).length).toBe(0);
     expect((await sql(c, "SELECT 1 FROM bots WHERE id=$1::uuid", [foreign])).length).toBe(0);
     expect(await failure(a.api.startMove({ nodeId: "f".repeat(64), items: [{ kind: "bot", id: foreign }] }))).toContain(
       "directly linked",
