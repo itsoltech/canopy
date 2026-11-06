@@ -1,6 +1,15 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { Animated, Easing, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
-import { useReducedMotion } from "./motion";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import Animated, {
+  Easing,
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
+import { inOut, motion, useMotion, useReducedMotion, useTween } from "./motion";
 import { useColors } from "./theme";
 
 const Loading = createContext(false);
@@ -14,7 +23,10 @@ export function useSkeleton() {
   return useContext(Loading);
 }
 
-/** Web's rounded, translucent pulse. Children reserve their exact measured size on both sides of loading. */
+/**
+ * Web's rounded, translucent pulse. Children reserve their exact measured size on both sides of loading; when it
+ * ends they resolve in where the pulse was (skeleton reveal: `slow`, `inOut`; instant with reduced motion).
+ */
 export function Skeleton({
   children,
   loading,
@@ -27,6 +39,8 @@ export function Skeleton({
   const inherited = useSkeleton();
   const active = loading ?? (children ? inherited : true);
   const c = useColors();
+  const shown = useTween(active ? 0 : 1, { duration: motion.slow, easing: inOut });
+  const reveal = useAnimatedStyle(() => ({ opacity: shown.get() }));
 
   return (
     <View
@@ -35,7 +49,7 @@ export function Skeleton({
       accessibilityElementsHidden={active}
       importantForAccessibility={active ? "no-hide-descendants" : "auto"}
     >
-      {children && <View style={{ opacity: active ? 0 : 1 }}>{children}</View>}
+      {children && <Animated.View style={reveal}>{children}</Animated.View>}
       {active && <SkeletonPulse dark={c.dark} />}
     </View>
   );
@@ -44,45 +58,32 @@ export function Skeleton({
 /** Mounted only while loading: ordinary controls do not subscribe to accessibility or start animation loops. */
 function SkeletonPulse({ dark }: { dark: boolean }) {
   const reduced = useReducedMotion();
-  const [opacity] = useState(() => new Animated.Value(1));
+  const { reveal } = useMotion();
+  const opacity = useSharedValue(1);
+  const pulse = useAnimatedStyle(() => ({ opacity: opacity.get() }));
 
   useEffect(() => {
     if (reduced) {
-      opacity.setValue(1);
+      opacity.set(1);
 
       return;
     }
 
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 0.5,
-          duration: 1000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-          isInteraction: false,
-        }),
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 1000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-          isInteraction: false,
-        }),
-      ]),
-    );
+    // Web `t-pulse`: down to half and back over two `verySlow`.
+    const half = { duration: motion.verySlow, easing: Easing.linear };
+    opacity.set(withRepeat(withSequence(withTiming(0.5, half), withTiming(1, half)), -1));
 
-    pulse.start();
-
-    return () => pulse.stop();
+    return () => cancelAnimation(opacity);
   }, [reduced, opacity]);
 
   return (
     <Animated.View
       pointerEvents="none"
+      exiting={reveal.exiting}
       style={[
         StyleSheet.absoluteFill,
-        { borderRadius: 6, backgroundColor: dark ? "rgba(255,255,255,0.1)" : "rgba(9,9,11,0.05)", opacity },
+        { borderRadius: 6, backgroundColor: dark ? "rgba(255,255,255,0.1)" : "rgba(9,9,11,0.05)" },
+        pulse,
       ]}
     />
   );

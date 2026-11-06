@@ -3,7 +3,8 @@ import { ActivityIndicator, Animated, Text, View, type StyleProp, type TextStyle
 import type { Tone } from "@canopy/domain/status-look";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "./Icon";
-import { useReducedMotion } from "./motion";
+import Reanimated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
+import { motion, smoothOut, useReducedMotion } from "./motion";
 import { font, styles, useColors } from "./theme";
 import { useTone } from "./tone";
 
@@ -46,7 +47,10 @@ export function Badge({
   );
 }
 
-/** 6 dp status dot (web: StatusDot); always paired with text. `active` adds a soft ping, still under reduced motion. */
+/**
+ * 6 dp status dot (web: StatusDot); always paired with text. `active` adds a soft ping, still under reduced motion;
+ * a new state cross-fades its colour (`fast`).
+ */
 export function StatusDot({ tone, active = false }: { tone: Tone; active?: boolean }) {
   const color = useTone(tone).dot;
   const reduced = useReducedMotion();
@@ -81,9 +85,20 @@ export function StatusDot({ tone, active = false }: { tone: Tone; active?: boole
           }}
         />
       )}
-      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
+      <Dot color={color} />
     </View>
   );
+}
+
+/** A 6 dp dot whose colour eases to each new one (status and presence changes); instant with reduced motion. */
+export function Dot({ color }: { color: string }) {
+  const reduced = useReducedMotion();
+
+  const style = useAnimatedStyle(() => ({
+    backgroundColor: reduced ? color : withTiming(color, { duration: motion.fast, easing: smoothOut }),
+  }));
+
+  return <Reanimated.View accessible={false} style={[{ width: 6, height: 6, borderRadius: 3 }, style]} />;
 }
 
 /** A hairline that fills the rest of a row (after a label: "Worked for …", "Forked from …"). */
