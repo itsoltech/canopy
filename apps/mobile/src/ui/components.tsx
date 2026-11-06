@@ -177,7 +177,8 @@ export function Segmented<T extends string>({
   onChange,
   style,
 }: {
-  options: readonly { value: T; label: string }[];
+  /** `badge`: a count beside the label of a segment that is not selected (unread items there). */
+  options: readonly { value: T; label: string; badge?: number }[];
   value: T;
   onChange: (value: T) => void;
   style?: StyleProp<ViewStyle>;
@@ -205,7 +206,39 @@ export function Segmented<T extends string>({
             borderColor: c.line,
           }}
         >
-          <Text style={[styles.meta, { color: value === option.value ? c.text : c.muted }]}>{option.label}</Text>
+          {/* The badge sits beside the label, outside its flow: the label stays put when it appears. */}
+          <View>
+            <Text style={[styles.meta, { color: value === option.value ? c.text : c.muted }]}>{option.label}</Text>
+            {value !== option.value && !!option.badge && (
+              <View
+                accessibilityLabel={`${option.badge} unread`}
+                style={{
+                  position: "absolute",
+                  left: "100%",
+                  top: 0,
+                  bottom: 0,
+                  marginLeft: 6,
+                  justifyContent: "center",
+                }}
+              >
+                <Text
+                  style={[
+                    styles.caption,
+                    {
+                      color: c.onAccent,
+                      backgroundColor: c.accent,
+                      borderRadius: 999,
+                      overflow: "hidden",
+                      paddingHorizontal: 6,
+                      fontVariant: ["tabular-nums"],
+                    },
+                  ]}
+                >
+                  {option.badge > 99 ? "99+" : option.badge}
+                </Text>
+              </View>
+            )}
+          </View>
         </Pressable>
       ))}
     </View>

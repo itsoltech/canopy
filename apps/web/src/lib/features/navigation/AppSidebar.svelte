@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from "$app/state";
   import LiveBotsNav from "#lib/features/bots/components/LiveBotsNav.svelte";
+  import { botList } from "#lib/features/bots/bot-list.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { needsYou, unseenResult } from "#lib/features/threads/activity.ts";
@@ -36,6 +37,13 @@
     return threads.some(needsYou) ? "needs" : threads.some((t) => unseenResult(t) !== undefined) ? "unseen" : undefined;
   });
 
+  // Bots: unread messages as a number on the Bots segment; a card waiting for you without unread ones as a dot.
+  $effect(() => botList.use());
+
+  const liveBots = $derived(botList.list.filter((bot) => !bot.archived));
+  const botsUnread = $derived(liveBots.reduce((sum, bot) => sum + bot.unreadCount, 0));
+  const botsAttention = $derived(liveBots.some((bot) => bot.pendingApproval) ? "needs" : undefined);
+
   const online = $derived(overview.workers.filter((w) => w.online).length);
 
   // Settings as a page (loaded on its own) or over the current one.
@@ -61,7 +69,8 @@
 
   {#if capabilities?.supports("/bots") ?? true}<SectionSwitch
       active={section}
-      attention={{ threads: threadsAttention }}
+      attention={{ threads: threadsAttention, bots: botsAttention }}
+      counts={{ bots: botsUnread }}
       class="px-3 pb-2"
     />{/if}
 
