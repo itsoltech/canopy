@@ -141,6 +141,47 @@ export function remoteUpdates(update: ui.OverviewUpdate, nodeId: string): ui.Ove
   }
 }
 
+const BURST_MS = 50;
+
+/**
+ * Sends shared projects with every computer's workspaces. A burst (a worker change republishes every project)
+ * reads the overview once; if that fails, this computer's own row still goes out.
+ */
+function sharedProjects(
+  core: GatewayCore,
+  own: Record<string, Handler>,
+  signal: AbortSignal,
+  push: (project: ui.Project) => void,
+) {
+  let pending: Map<string, ui.Project | undefined> | undefined;
+
+  return (ids: Iterable<string>, fallback?: ui.Project) => {
+    const batch = pending ?? new Map<string, ui.Project | undefined>();
+
+    for (const id of ids) batch.set(id, fallback ?? batch.get(id));
+
+    if (pending) return;
+    pending = batch;
+
+    setTimeout(async () => {
+      pending = undefined;
+
+      const projects = await ownOverview(core, own, signal).then(
+        (overview) => overview.projects,
+        () => [],
+      );
+
+      if (signal.aborted) return;
+
+      for (const [id, local] of batch) {
+        const value = projects.find((p) => p.id === id) ?? local;
+
+        if (value) push(value);
+      }
+    }, BURST_MS);
+  };
+}
+
 /** This computer's overview stream, plus a stream from every connected computer and their presence. */
 export async function* watchOverview(
   core: GatewayCore,
@@ -185,16 +226,7 @@ export async function* watchOverview(
           for (const value of remoteUpdates(update, nodeId)) out.push(value);
 
           // A shared project is this computer's row: send it again with the other computer's workspaces.
-          if (merged.size)
-            void ownOverview(core, own, signal)
-              .then((overview) => {
-                if (signal.aborted || controller.signal.aborted || watchers.get(nodeId) !== controller) return;
-
-                for (const value of overview.projects)
-                  if (merged.has(value.id))
-                    out.push(create(ui.OverviewUpdateSchema, { change: { case: "project", value } }));
-              })
-              .catch(() => {});
+          if (merged.size) resend(merged);
         }
       } catch {
         /* the link dropped; its presence change follows */
@@ -206,6 +238,10 @@ export async function* watchOverview(
       }
     })();
   };
+
+  const resend = sharedProjects(core, own, signal, (value) =>
+    out.push(create(ui.OverviewUpdateSchema, { change: { case: "project", value } })),
+  );
 
   function sync() {
     if (signal.aborted) return;
@@ -240,18 +276,29 @@ export async function* watchOverview(
     try {
       for await (const message of stream(own["watchOverview"]!, request, withSignal(context, signal))) {
         const update = linkedMessage(ui.OverviewUpdateSchema, message);
+        const change = update.change;
 
-        if (update.change.case === "mobileSnapshot" && update.change.value.overview) {
+        // This computer's row of a shared project alone would hide the other computers' workspaces.
+        if (
+          change.case === "project" &&
+          !change.value.archivedAt &&
+          (await localProjectIds(core)).has(change.value.id)
+        ) {
+          resend([change.value.id], change.value);
+          continue;
+        }
+
+        if (change.case === "mobileSnapshot" && change.value.overview) {
           // A phone's reconnect snapshot covers every connected computer too.
           const [overviews, lists] = await Promise.all([
             gather<ui.GetOverviewResponse>(core, "GetOverview", create(ui.GetOverviewRequestSchema), signal),
             gather<ui.ListThreadsResponse>(core, "ListThreads", create(ui.ListThreadsRequestSchema), signal),
           ]);
 
-          absorb(update.change.value.overview, overviews, await localProjectIds(core));
-          update.change.value.overview.computers = (await computers.snapshot()).peers;
+          absorb(change.value.overview, overviews, await localProjectIds(core));
+          change.value.overview.computers = (await computers.snapshot()).peers;
 
-          for (const other of lists) update.change.value.threads.push(...other.threads);
+          for (const other of lists) change.value.threads.push(...other.threads);
         }
 
         out.push(update);
