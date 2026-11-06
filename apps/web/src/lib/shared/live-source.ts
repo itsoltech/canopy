@@ -1,4 +1,6 @@
 export interface LiveSourceHandlers {
+  /** Compute a fresh checkpoint on every retry. */
+  readonly url?: () => string;
   /** The BFF confirmed gateway availability; every reopen needs a resync. */
   readonly onopen?: (reconnected: boolean, signal: AbortSignal) => void | Promise<void>;
   readonly onmessage: (data: string) => void;
@@ -81,7 +83,7 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
 
   const open = () => {
     if (stopped || environment.hidden() || !environment.online()) return;
-    const current = environment.source(url);
+    const current = environment.source(handlers.url?.() ?? url);
     const abort = new AbortController();
     source = current;
     connection = abort;
@@ -116,7 +118,12 @@ export function liveSource(url: string, handlers: LiveSourceHandlers, environmen
     current.onmessage = (message) => {
       if (!active()) return;
       heartbeat();
-      handlers.onmessage(message.data);
+
+      try {
+        handlers.onmessage(message.data);
+      } catch {
+        retry(true);
+      }
     };
   };
 

@@ -65,6 +65,16 @@ UI ze zdalną kopią przekazuje kursor bezpośrednio do domu online. Zimny klien
 dostaje lustro lokalnego gatewaya, a następnie stan domu. Szczegóły:
 [odczyt połączonych komputerów](linked-computers.md#odczyt-i-dostępność).
 
+Web przechowuje ostatnie kopie w pamięci jednej sesji SPA: LRU do 12 wątków i 64 MiB
+zakodowanych snapshotów (bieżący otwarty ekran jest liczony osobno). Nie używa IndexedDB
+ani localStorage. Powrót do wątku od razu odtwarza nagłówek, composer i oś z tej kopii,
+pokazuje ciche „Syncing…” i otwiera SSE z kursorem. BFF przekazuje go do gatewaya;
+nie przechowuje kopii użytkowników na serwerze. Reconnect wylicza URL z ostatniego
+checkpointu. Cache znika po opuszczeniu dokumentu albo zniszczeniu powłoki aplikacji,
+w tym przejściu do wyboru połączenia desktopu. Akcje nadal idą do autorytatywnego
+gatewaya, który sprawdza ich aktualny stan. Zimny odczyt pokazuje istniejący skeleton
+osi czasu bez komunikatu „Connecting…”.
+
 Natywny klient `apps/mobile` korzysta z tego samego `GatewayService` przez Connect
 z binarnym protobuf i natywnym streamingiem HTTPS przypiętym do certyfikatu komputera.
 Wspólny listener Network access obsługuje telefony i połączone komputery;

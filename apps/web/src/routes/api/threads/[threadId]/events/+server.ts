@@ -10,12 +10,22 @@ import type { RequestHandler } from "./$types";
  * automatically) the browser receives a fresh snapshot, so it never has to replay gaps itself. Text
  * deltas go out merged per line (`coalesceDeltas`), not per token.
  */
-export const GET: RequestHandler = async ({ request, params }) => {
+export const GET: RequestHandler = async ({ request, params, url }) => {
   await call((api) => api.getThread({ threadId: params.threadId }, { signal: request.signal }));
 
   return sseResponse(
     request,
-    (signal) => coalesceDeltas(gateway().watchThread({ threadId: params.threadId }, { signal, timeoutMs: 0 })),
+    (signal) =>
+      coalesceDeltas(
+        gateway().watchThread(
+          {
+            threadId: params.threadId,
+            incremental: url.searchParams.get("incremental") === "1",
+            cursor: (url.searchParams.get("cursor") ?? "").slice(0, 128),
+          },
+          { signal, timeoutMs: 0 },
+        ),
+      ),
     (update) => encode(ui.ThreadUpdateSchema, update),
   );
 };

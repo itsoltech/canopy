@@ -533,9 +533,10 @@
         <Crumb><Skeleton class="h-4 w-48" /></Crumb>
       {/if}
       {#snippet actions()}
-        {#if thread?.nodeId}
-          <ThreadSyncStatus syncing={view.connection === "syncing"} class="hidden w-16 shrink-0 text-right sm:block" />
-        {/if}
+        <ThreadSyncStatus
+          syncing={view.connection === "syncing"}
+          class={["w-16 shrink-0 text-right", thread?.nodeId && "max-sm:hidden"]}
+        />
         {#if thread}
           <DropdownMenu label="Thread actions" placement="bottom-end">
             {#snippet trigger(props)}<IconButton
@@ -587,7 +588,7 @@
           }}
         >
           {#snippet placeholder()}
-            {#if !view.loaded}<TimelineSkeleton connecting={view.connection === "connecting"} />{/if}
+            {#if !view.loaded}<TimelineSkeleton />{/if}
           {/snippet}
           {#snippet top()}
             {#if thread?.scheduleId}<ScheduleOrigin {thread} class="pt-4" />{/if}
