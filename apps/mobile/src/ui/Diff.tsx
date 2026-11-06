@@ -73,7 +73,14 @@ export function Diff({ diff, label = "File changes", bare = false }: { diff: str
             onChange={(value) => set("diffLayout", value)}
           />
           <View style={{ borderRadius: 8, overflow: "hidden", paddingVertical: 8, backgroundColor: c.inset }}>
-            {wrapped ? content : <ScrollView horizontal>{content}</ScrollView>}
+            {wrapped ? (
+              content
+            ) : (
+              // Not growing: in a fit-content parent (a chat bubble) a growing sideways scroller takes a runaway height on iOS.
+              <ScrollView horizontal style={{ flexGrow: 0 }}>
+                {content}
+              </ScrollView>
+            )}
           </View>
         </>
       )}

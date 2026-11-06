@@ -1,7 +1,7 @@
 <script lang="ts">
   import ChoiceControl from "../ChoiceControl.svelte";
   import MathView from "./Math.svelte";
-  import { isMathToken } from "./math-token.ts";
+  import { isMathToken } from "@canopy/domain/markdown";
   import type { Token, Tokens } from "marked";
   import CodeFence from "../code/CodeFence.svelte";
   import MarkdownBlocks from "./MarkdownBlocks.svelte";

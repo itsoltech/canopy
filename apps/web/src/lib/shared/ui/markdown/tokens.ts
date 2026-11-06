@@ -1,12 +1,6 @@
-import { Marked, type Token, type Tokens } from "marked";
-import { mathExtensions } from "./math-token.ts";
+import type { Token, Tokens } from "marked";
+import { isToken, lexMarkdown } from "@canopy/domain/markdown";
 import { isString } from "#lib/shared/json.ts";
-
-/** `breaks`: a single newline is a line break (people's messages), not a soft wrap (agents' markdown). */
-const markdown = new Marked({ extensions: mathExtensions });
-
-export const lexMarkdown = (text: string, breaks = false): Token[] =>
-  markdown.lexer(text, { ...markdown.defaults, gfm: true, breaks });
 
 /**
  * The new token tree with every block, list item and table row that did not change replaced by the
@@ -46,19 +40,6 @@ function share<T extends Token>(before: T, after: T): T {
 
   return after;
 }
-
-/** The marked tokens read here by their `type`. */
-interface TokenTypes {
-  readonly list: Tokens.List;
-  readonly table: Tokens.Table;
-  readonly link: Tokens.Link;
-  readonly image: Tokens.Image;
-  readonly code: Tokens.Code;
-  readonly blockquote: Tokens.Blockquote;
-}
-
-/** marked's token of a `type` is that type's interface (a `list` token is a `Tokens.List`). */
-const isToken = <K extends keyof TokenTypes>(token: Token, type: K): token is TokenTypes[K] => token.type === type;
 
 const textToken = (raw: string, text = raw): Tokens.Text => ({ type: "text", raw, text });
 

@@ -1,10 +1,9 @@
 <script lang="ts">
   import type { Token, Tokens } from "marked";
   import Math from "./Math.svelte";
-  import { isMathToken } from "./math-token.ts";
+  import { isMathToken, safeHref } from "@canopy/domain/markdown";
   import MarkdownInline from "./MarkdownInline.svelte";
   import { splitSentinels, useInlineElements } from "./inline-elements.ts";
-  import { safeHref } from "./safe-url.ts";
 
   let { tokens }: { tokens: Token[] } = $props();
   const elements = useInlineElements();

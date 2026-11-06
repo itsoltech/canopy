@@ -5,9 +5,10 @@ import { withoutIds } from "@canopy/domain/humanize";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "../../ui/Icon";
 import { Spinner } from "../../ui/Badge";
-import { styles, useColors, useTypography } from "../../ui/theme";
+import { styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
-import { MessageSpans } from "../composer/MessageText";
+import { mentionElements } from "../composer/MessageText";
+import { Markdown } from "../../ui/markdown";
 import { AgentMessageBubble } from "./AgentMessageBubble";
 import { SenderLabel } from "./SenderLabel";
 
@@ -55,7 +56,6 @@ export function UserMessageView({
   onActions?: () => void;
 }) {
   const c = useColors();
-  const type = useTypography();
   const violet = useTone("violet").text;
   const amber = useTone("amber").text;
   const agent = fromAgent || Boolean(sender);
@@ -72,9 +72,7 @@ export function UserMessageView({
     ) : null;
 
   const content = body.trim() ? (
-    <Text selectable style={[type.body, { color: agent ? undefined : c.text }]}>
-      {mentions.length ? <MessageSpans value={{ text: body, mentions: [...mentions] }} /> : body}
-    </Text>
+    <Markdown text={body} breaks color={c.text} elements={mentionElements(body, mentions)} />
   ) : null;
 
   return (
@@ -158,12 +156,7 @@ export function UserMessageView({
 }
 
 function AgentText({ text, mentions }: { text: string; mentions: readonly Mention[] }) {
-  const type = useTypography();
   const violet = useTone("violet").panel.text;
 
-  return (
-    <Text selectable style={[type.body, { color: violet }]}>
-      {mentions.length ? <MessageSpans value={{ text, mentions: [...mentions] }} /> : text}
-    </Text>
-  );
+  return <Markdown text={text} breaks color={violet} elements={mentionElements(text, mentions)} />;
 }

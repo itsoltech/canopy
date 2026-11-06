@@ -2,7 +2,7 @@
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { IconName } from "#lib/shared/ui/icons.ts";
-  import { safeHref } from "#lib/shared/ui/markdown/safe-url.ts";
+  import { safeHref } from "@canopy/domain/markdown";
   import type { LinkView } from "@canopy/domain/bot-chat";
 
   /** A link a bot posted (pull request, issue, commit, web page) as a compact chip; unsafe URLs stay text. */
