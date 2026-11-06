@@ -79,8 +79,8 @@ export class WorkFolds {
     const ended: string[] = [];
     const answers = new Map<string, boolean>();
 
-    // Only the explicit phase is reliable before completion. Claude and Grok can resume tools after
-    // any unphased message; their provisional answer slot must not trigger an early collapse.
+    // Only the explicit phase is reliable before completion (Codex, and Claude once a message ends its turn).
+    // Tools can resume after any unphased message; a provisional answer slot must not trigger an early collapse.
     for (const entry of entries) {
       if (entry.item.parentItemId) continue;
       const content = entry.item.content;

@@ -128,6 +128,43 @@ describe("Claude event mapping on recorded turns", () => {
     );
   });
 
+  test("only the text of a message that stops with end_turn is marked final_answer, once it ends", () => {
+    const phases = (messages: SDKMessage[]) =>
+      replay(messages).items.flatMap((i) => (i.content.case === "agentMessage" ? [i.content.value.phase] : []));
+
+    const isStop = (m: SDKMessage) => m.type === "stream_event" && m.event.type === "message_delta";
+    const turn = fixture("text-turn");
+    expect(phases(turn)).toEqual(["final_answer"]);
+    // Until the stop reason arrives the message is unconfirmed.
+    expect(phases(turn.slice(0, turn.findIndex(isStop)))).toEqual([""]);
+    // Same answer when the full message arrives after its stop reason.
+    const full = turn.find((m) => m.type === "assistant")!;
+    expect(phases([...turn.filter((m) => m !== full), full])).toEqual(["final_answer"]);
+    // Text before tool use (stop_reason tool_use) stays unmarked; a subagent's end_turn marks nothing.
+
+    const textFirst = (m: SDKMessage): SDKMessage =>
+      m.type === "assistant" && m.message.content.some((b) => b.type === "tool_use")
+        ? {
+            ...m,
+            message: {
+              ...m.message,
+              content: [{ type: "text", text: "Checking.", citations: null }, ...m.message.content],
+            },
+          }
+        : m;
+
+    const withTools = fixture("tools-turn").map(textFirst);
+
+    expect(phases(withTools).length).toBeGreaterThan(1);
+    expect(phases(withTools).at(-1)).toBe("final_answer");
+    expect(
+      phases(withTools)
+        .slice(0, -1)
+        .every((p) => p === ""),
+    ).toBe(true);
+    expect(phases(turn.map((m) => (isStop(m) ? { ...m, parent_tool_use_id: "toolu_1" } : m)))).toEqual([""]);
+  });
+
   test("agent bus tools become agent_bus_call items; failed tools are failed items", () => {
     expect(toolContent("mcp__canopy__spawn_thread", { title: "x", prompt: "y" })).toEqual({
       case: "agentBusCall",

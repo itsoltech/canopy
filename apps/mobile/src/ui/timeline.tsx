@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ItemStatus, MentionKind, type Item, type Mention, ui } from "@canopy/contracts";
-import { workFoldOpen } from "@canopy/domain/work-fold";
+import { answerIndex, turnProgress, workFoldOpen } from "@canopy/domain/work-fold";
 import { useDevicePreferences } from "../state/preferences";
 import { Markdown } from "./markdown";
 import { Icon } from "./Icon";
@@ -128,29 +128,38 @@ export function UserMessageView({
   );
 }
 
-/** The final answer has started: Codex marks it with a `final_answer` phase (others only end the turn). */
+/** The final answer has started: Codex and Claude mark it with a `final_answer` phase (Grok only ends the turn). */
 const answerStarted = (items: Item[]) =>
   items.some(
     (i) => i.content.case === "agentMessage" && i.content.value.phase === "final_answer" && i.content.value.text.trim(),
   );
 
+/** The turn's tool work counted in the header, and everything the open fold shows, in order. */
+/** Messages and reasoning with no text yet add nothing to the turn. */
+const isEmpty = (item: Item) =>
+  (item.content.case === "agentMessage" && !item.content.value.text.trim()) ||
+  (item.content.case === "reasoning" && !item.content.value.text.trim() && !item.content.value.summary.trim());
+
+/** The turn's own input, shown above the fold; other user messages are steers inside it. */
+const isInput = (item: Item, message: string) =>
+  item.content.case === "userMessage" && item.content.value.text === message;
+
 export function WorkGroup({
   items,
+  rows,
   duration,
-  working,
-  answering,
+  running,
+  open,
+  onToggle,
 }: {
   items: Item[];
+  rows: Item[];
   duration: number;
-  working: boolean;
-  answering: boolean;
+  running: boolean;
+  open: boolean;
+  onToggle: () => void;
 }) {
   const c = useColors();
-  const { workFold } = useDevicePreferences();
-  // Settings → Threads → Turn activity decides until the reader taps; the tap wins for the rest of the visit.
-  const [choice, setOpen] = useState<boolean>();
-  const running = working || items.some((i) => i.status === ItemStatus.IN_PROGRESS);
-  const open = workFoldOpen(running, answering, workFold, choice);
 
   const label = running
     ? "Working…"
@@ -161,7 +170,7 @@ export function WorkGroup({
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        onPress={() => setOpen(!open)}
+        onPress={onToggle}
         style={[styles.row, { minHeight: 44, paddingVertical: 10 }]}
       >
         <Icon name={open ? "chevron-down" : "chevron-right"} color={c.faint} />
@@ -180,7 +189,18 @@ export function WorkGroup({
         )}
         <View style={{ flex: 1, height: 1, backgroundColor: c.line }} />
       </Pressable>
-      {open && items.map((item) => <ToolRow key={item.itemId} item={item} />)}
+      {open &&
+        rows.map((item) =>
+          item.content.case === "agentMessage" ? (
+            <View key={item.itemId} style={{ paddingVertical: 8 }}>
+              <Markdown text={item.content.value.text} />
+            </View>
+          ) : item.content.case === "userMessage" ? (
+            <UserMessageView key={item.itemId} text={item.content.value.text} />
+          ) : (
+            <ToolRow key={item.itemId} item={item} />
+          ),
+        )}
     </View>
   );
 }
@@ -241,6 +261,9 @@ export function TimelineTurn({
   onQueued?: (turn: ui.Turn) => void;
 }) {
   const c = useColors();
+  const { workFold } = useDevicePreferences();
+  // Settings → Threads → Turn activity decides until the reader taps; the tap wins for the rest of the visit.
+  const [choice, setChoice] = useState<boolean>();
   const items = entries.flatMap((e) => (e.item ? [e.item] : []));
 
   const work = items.filter(
@@ -248,6 +271,18 @@ export function TimelineTurn({
   );
 
   const message = turn.messageText || turn.inputText;
+  const working = turn.status === "running" || items.some((i) => i.status === ItemStatus.IN_PROGRESS);
+  const open = workFoldOpen(working, answerStarted(items), workFold, choice);
+  // Work, steers and messages in order; only a confirmed answer shows outside the fold (docs/timeline-folding.md).
+  const body = items.filter((i) => i.content.case !== "interactionPrompt" && !isEmpty(i) && !isInput(i, message));
+
+  const at = answerIndex(
+    body.map((i) => (i.content.case === "agentMessage" && !i.parentItemId ? i.content.value.phase : undefined)),
+    turnProgress(turn.status),
+    open,
+  );
+
+  const answer = body[at];
 
   const duration = Math.max(
     0,
@@ -286,32 +321,28 @@ export function TimelineTurn({
           }
         />
       ) : null}
-      {(work.length > 0 || duration > 0) && (
+      {(body.length > (answer ? 1 : 0) || duration > 0) && (
         <WorkGroup
           items={work}
-          answering={answerStarted(items)}
+          rows={body.filter((i) => i !== answer)}
           duration={duration}
-          working={turn.status === "running" || items.some((i) => i.status === ItemStatus.IN_PROGRESS)}
+          running={working}
+          open={open}
+          onToggle={() => setChoice(!open)}
         />
       )}
-      {items.map((item) =>
-        item.content.case === "agentMessage" ? (
-          <View key={item.itemId} style={{ gap: 8 }}>
-            {turn.sourceKind === "report" && (
-              <Text style={[styles.meta, { color: c.muted }]}>
-                Answer from {turn.sender?.title || "another thread"}
-              </Text>
-            )}
-            <Markdown text={item.content.value.text} />
-            {item.status === ItemStatus.IN_PROGRESS && (
-              <Text accessibilityLiveRegion="polite" style={[styles.meta, { color: c.muted }]}>
-                Working…
-              </Text>
-            )}
-          </View>
-        ) : item.content.case === "userMessage" && item.content.value.text !== message ? (
-          <UserMessageView key={item.itemId} text={item.content.value.text} />
-        ) : null,
+      {answer?.content.case === "agentMessage" && (
+        <View style={{ gap: 8 }}>
+          {turn.sourceKind === "report" && (
+            <Text style={[styles.meta, { color: c.muted }]}>Answer from {turn.sender?.title || "another thread"}</Text>
+          )}
+          <Markdown text={answer.content.value.text} />
+          {answer.status === ItemStatus.IN_PROGRESS && (
+            <Text accessibilityLiveRegion="polite" style={[styles.meta, { color: c.muted }]}>
+              Working…
+            </Text>
+          )}
+        </View>
       )}
       {turn.error ? (
         <Text selectable accessibilityRole="alert" style={[styles.body, { color: c.danger }]}>

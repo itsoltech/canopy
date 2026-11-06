@@ -4,6 +4,7 @@ import type { ui } from "@canopy/contracts";
 import type { TimelineEntry, TimelineNotice } from "./thread-state.svelte.ts";
 import { isSteerMessage, isTerminal, type ItemNode, type TimelineRow } from "./timeline.ts";
 import { describeTool } from "./components/items/tools/registry.ts";
+import { answerIndex, turnProgress, type BodyPhase } from "@canopy/domain/work-fold";
 
 /**
  * Each turn's work under a stable "Working for …" / "Worked for …" row:
@@ -11,8 +12,9 @@ import { describeTool } from "./components/items/tools/registry.ts";
  * the turn did — tool and command items, reasoning, intermediate messages, steered messages, background
  * tasks, notices — sits under the fold (`work`), shown after it only while it is open.
  *
- * - A running turn keeps commentary in its work. Without a phase, its latest message stays outside
- *   until more work arrives. The stable answer slot can shrink without removing a virtual row.
+ * - A running turn keeps commentary in its work. An unmarked latest message stays outside only while
+ *   the fold is open, until more work arrives; a collapsed fold keeps it until it is marked final or the
+ *   turn ends (`answerIndex`). The stable answer slot can shrink without removing a virtual row.
  * - The final message is the turn's last agent message. A turn that did not complete (interrupted,
  *   failed) keeps it only when nothing came after it; otherwise its footer (status, reason, Continue)
  *   is the end the reader sees.
@@ -71,8 +73,11 @@ export function turnIdOf(row: TimelineRow): string {
 /** Rows of the turn that are its work or its final message (not its frame or input). */
 const isBody = (row: TimelineRow): boolean => (row.kind === "item" && !row.inputOf) || row.kind === "notice";
 
-const isAgentMessage = (row: TimelineRow): boolean =>
-  row.kind === "item" && row.node.entry.item.content.case === "agentMessage";
+const bodyPhase = (row: TimelineRow): BodyPhase => {
+  const content = row.kind === "item" ? row.node.entry.item.content : undefined;
+
+  return content?.case === "agentMessage" ? content.value.phase : undefined;
+};
 
 /** An item with nothing to show, without children. */
 export function isEmpty(row: TimelineRow): boolean {
@@ -128,17 +133,7 @@ export function foldTurns(
 
   for (const [turnId, turn] of turns) {
     const body = bodies.get(turnId) ?? [];
-    let at = body.findLastIndex(isAgentMessage);
-
-    if (at >= 0 && turn.status !== "completed" && at !== body.length - 1) at = -1;
-    const candidate = body[at];
-
-    if (!isTerminal(turn.status) && candidate?.kind === "item") {
-      const content = candidate.node.entry.item.content;
-
-      if (content.case === "agentMessage" && content.value.phase && content.value.phase !== "final_answer") at = -1;
-    }
-
+    const at = answerIndex(body.map(bodyPhase), turnProgress(turn.status), isOpen(turnId));
     const final = at >= 0 ? body[at] : undefined;
     const work = body.filter((row) => row !== final);
     folds.set(turnId, { turn, final, work });
@@ -408,6 +403,9 @@ export function currentWorkHint(
   if (content.case === "agentBusCall") return `Calling ${content.value.toolName}…`;
 
   if (content.case === "subagent") return content.value.description || "Waiting for a subagent…";
+
+  // A message still streaming inside a collapsed fold: its text shows only once it is the answer.
+  if (content.case === "agentMessage") return "Writing…";
 
   if (content.case === "interactionPrompt")
     return content.value.routedTo === "parent" ? "Waiting for the parent agent…" : "Waiting for your answer…";

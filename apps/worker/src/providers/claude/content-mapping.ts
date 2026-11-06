@@ -17,8 +17,11 @@ export function emptyContent(kind: "text" | "thinking"): Content {
   return kind === "text" ? { case: "agentMessage", value: { text: "" } } : { case: "reasoning", value: { text: "" } };
 }
 
-export function textContent(kind: "text" | "thinking", text: string): Content {
-  return kind === "text" ? { case: "agentMessage", value: { text } } : { case: "reasoning", value: { text } };
+/** `final_answer` marks text of a message that ended its turn (stop reason `end_turn`, no tool use). */
+export function textContent(kind: "text" | "thinking", text: string, final = false): Content {
+  return kind === "text"
+    ? { case: "agentMessage", value: { text, ...(final && { phase: "final_answer" }) } }
+    : { case: "reasoning", value: { text } };
 }
 
 /** Claude Code tools as platform items; anything unknown is a generic tool call. */
