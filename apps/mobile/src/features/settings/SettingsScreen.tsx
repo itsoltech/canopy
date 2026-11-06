@@ -18,15 +18,23 @@ import { NetworkSettings } from "./NetworkSettings";
 import { DeviceSettings } from "./DeviceSettings";
 import { WorkerSettings } from "./WorkerSettings";
 import { ComputerSettings } from "./ComputerSettings";
+import { ProxySettings } from "./ProxySettings";
+import { ConnectorSettings } from "./ConnectorSettings";
+import { ProviderSettings } from "./ProviderSettings";
 import { useDevicePreferences } from "./device-preferences";
 
 export default function SettingsScreen() {
+  const params = useLocalSearchParams<{ section?: string }>();
+
+  return <SettingsContent key={params.section} initialSection={params.section ?? ""} />;
+}
+
+function SettingsContent({ initialSection }: { initialSection: string }) {
   const { session } = useSession();
   const settings = useAppearance();
   const { projects, workers } = useOverview();
   const device = useDevicePreferences();
-  const params = useLocalSearchParams<{ section?: string }>();
-  const [section, setSection] = useState(params.section ?? "");
+  const [section, setSection] = useState(initialSection);
   const [draftInstructions, setInstructions] = useState<string>();
   const instructions = draftInstructions ?? settings.user?.textGeneration?.threadTitleInstructions ?? "";
 
@@ -54,9 +62,12 @@ export default function SettingsScreen() {
       {section === "mobile" && <DeviceSettings />}
       {section === "workers" && <WorkerSettings />}
       {section === "computers" && <ComputerSettings />}
-      {["projects", "schedules", "providers", "connectors", "proxies", "agent-environment", "worktrees"].includes(
-        section,
-      ) && <RemainingSettings section={section} />}
+      {section === "proxies" && <ProxySettings />}
+      {section === "connectors" && <ConnectorSettings />}
+      {section === "providers" && <ProviderSettings />}
+      {["projects", "schedules", "agent-environment", "worktrees"].includes(section) && (
+        <RemainingSettings section={section} />
+      )}
     </SettingsLayout>
   );
 }
