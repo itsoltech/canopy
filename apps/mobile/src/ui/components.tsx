@@ -12,7 +12,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { styles, useColors } from "./theme";
+import { styles, useColors, useTypography } from "./theme";
 import type { Connection } from "../state/stream";
 import { Icon } from "./Icon";
 import type { IconName } from "@canopy/ui/icons";
@@ -229,17 +229,23 @@ export function Sheet({
 
 export function Field({ label, ...props }: TextInputProps & { label: string }) {
   const c = useColors();
+  const type = useTypography();
 
   return (
     <View style={{ gap: 8 }}>
-      <Text style={[styles.label, { color: c.text }]}>{label}</Text>
+      <Text style={[type.chrome, { color: c.text }]}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
         placeholderTextColor={c.muted}
         returnKeyType="done"
         onSubmitEditing={Keyboard.dismiss}
         {...props}
-        style={[styles.input, { color: c.text, borderColor: c.line, backgroundColor: c.surface }, props.style]}
+        style={[
+          styles.input,
+          type.body,
+          { color: c.text, borderColor: c.line, backgroundColor: c.surface },
+          props.style,
+        ]}
       />
     </View>
   );

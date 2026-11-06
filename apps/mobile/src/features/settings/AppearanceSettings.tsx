@@ -7,13 +7,19 @@ import { font, styles, useColors } from "../../ui/theme";
 import { SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
 import { colorThemes, themeOf } from "./appearance";
 import { ThemePreview } from "./ThemePreview";
+import { TypographySettings } from "./TypographySettings";
+import { DeviceChoiceRow } from "./DeviceChoiceRow";
+import { appearanceDeviceKeys, useDevicePreferences } from "./device-preferences";
+import { Button } from "../../ui/components";
 
 export function AppearanceSettings() {
   const c = useColors();
   const settings = useAppearance();
+  const device = useDevicePreferences();
 
   return (
     <View style={{ gap: 24 }}>
+      <Button title="Restore device defaults" secondary onPress={() => device.reset(appearanceDeviceKeys)} />
       <SettingsGroup title="Colors" description="Account">
         <SettingsRow title="Color scheme" description="Follow the system or use a fixed light or dark palette.">
           <View style={[styles.row, { alignItems: "stretch" }]}>
@@ -71,6 +77,31 @@ export function AppearanceSettings() {
         </View>
       </SettingsGroup>
       <SettingsGroup title="Interface" description="This device unless marked Account">
+        <DeviceChoiceRow
+          preference="contrast"
+          title="Contrast"
+          description="Strengthen muted text and borders in both color schemes."
+          options={[
+            { value: "standard", label: "Standard" },
+            { value: "strong", label: "Strong" },
+            { value: "maximum", label: "Maximum" },
+          ]}
+        />
+        <DeviceChoiceRow
+          preference="effortDisplay"
+          title="Effort display"
+          description="Show reasoning effort as names or bars in model controls."
+          options={[
+            { value: "name", label: "Name" },
+            { value: "bars", label: "Bars" },
+          ]}
+        />
+        <SettingsRow title="Render math" description="Show LaTeX formulas in messages and previews.">
+          <Text style={[styles.chrome, { color: c.muted }]}>Unavailable on mobile · Formulas show their source.</Text>
+        </SettingsRow>
+        <SettingsRow title="Animated mascots" description="Animate bot mascots in lists and chats.">
+          <Text style={[styles.chrome, { color: c.muted }]}>Unavailable on mobile · Mascots stay still.</Text>
+        </SettingsRow>
         <SettingChoice
           title="Thread width"
           description="Set the width of threads and their message boxes."
@@ -84,6 +115,7 @@ export function AppearanceSettings() {
           onChange={(chatWidth) => void settings.updateAppearance({ chatWidth })}
         />
       </SettingsGroup>
+      <TypographySettings />
     </View>
   );
 }

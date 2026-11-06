@@ -24,6 +24,7 @@ import { useMessageDraft } from "../composer/useMessageDraft";
 import { QueuedMessageMenu, QueueEditor } from "./QueuedMessage";
 import { GoalSheet, isFinishedGoal, takesGoals } from "./GoalSheet";
 import { SideThreadSheet } from "./SideThreadSheet";
+import { useAppearance } from "../../state/appearance";
 
 function visibleTurns(snapshot: ui.ThreadSnapshot | undefined) {
   const turns = snapshot?.turns.filter((t) => !t.withdrawn).slice() ?? [];
@@ -285,6 +286,11 @@ export function ThreadScreen({ id }: { id: string }) {
 
 function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> }) {
   const c = useColors();
+  const { appearance } = useAppearance();
+
+  const maxWidth =
+    appearance?.chatWidth === ui.ChatWidth.FULL ? undefined : appearance?.chatWidth === ui.ChatWidth.WIDE ? 1024 : 768;
+
   const { turns, following, stream, snapshot } = state;
   const latestFirst = [...turns].reverse();
 
@@ -294,7 +300,7 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
       data={latestFirst}
       keyExtractor={(turn) => `${turn.fromThreadId}:${turn.id}`}
       style={styles.fill}
-      contentContainerStyle={[styles.page, { paddingTop: 24, flexGrow: 1 }]}
+      contentContainerStyle={[styles.page, { maxWidth, paddingTop: 24, flexGrow: 1 }]}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
       // Inverted: the footer is the top of the feed, the header sits under the latest turn.

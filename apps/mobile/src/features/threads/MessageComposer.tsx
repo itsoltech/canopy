@@ -8,7 +8,8 @@ import { Notice } from "../../ui/components";
 import { styles } from "../../ui/theme";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { useAppearance } from "../../state/appearance";
-import { effortLabel, findChoice, modelSections, useModelCatalog } from "../models/catalog";
+import { findChoice, modelSections, useModelCatalog } from "../models/catalog";
+import { useEffortLabel } from "../settings/display";
 import { EffortPickerSheet, ModelPickerSheet } from "../models/ModelPicker";
 import { permissionLabel, permissionLook, PermissionPickerSheet } from "./permissions";
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
@@ -69,6 +70,7 @@ export function MessageComposer({
   const { user } = useAppearance();
   const state = useComposerSettings(thread, worker);
   const { setPicker, current, effort, error } = state;
+  const effortLabel = useEffortLabel();
   const look = permissionLook(thread?.permissionMode);
   const scope = thread ? create(ui.MentionScopeSchema, { threadId: thread.id }) : undefined;
 

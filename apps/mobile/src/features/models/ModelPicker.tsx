@@ -1,6 +1,7 @@
 import { PickerSheet } from "../../ui/Picker";
 import { ProviderIcon } from "../../ui/ProviderIcon";
-import { effortLabel, type ModelChoice, type ModelSection } from "./catalog";
+import { type ModelChoice, type ModelSection } from "./catalog";
+import { useEffortLabel } from "../settings/display";
 
 /** Models grouped by provider instance, with search once the list gets long. */
 export function ModelPickerSheet({
@@ -60,6 +61,8 @@ export function EffortPickerSheet({
   value: string;
   onSelect: (effort: string) => void;
 }) {
+  const effortLabel = useEffortLabel();
+
   return (
     <PickerSheet
       title="Reasoning effort"

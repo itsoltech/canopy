@@ -13,6 +13,10 @@ import { ThreadDefaultsSettings, ThreadTitleSettings } from "./ThreadSettings";
 import { TurnActivitySettings } from "./TurnActivitySettings";
 import { ConnectorList, useConnectors } from "../connectors/Connectors";
 import { SettingsLayout } from "./SettingsLayout";
+import { GeneralSettings } from "./GeneralSettings";
+import { KeybindingSettings } from "./KeybindingSettings";
+import { DiffSettings } from "./DiffSettings";
+import { useDevicePreferences } from "./device-preferences";
 
 function useSettingsState() {
   const { session, client, forget } = useSession();
@@ -108,11 +112,13 @@ function useSettingsState() {
 
 export default function SettingsScreen() {
   const state = useSettingsState();
+  const device = useDevicePreferences();
 
   if (!state.session) return <Redirect href="/pair" />;
 
   return (
     <SettingsLayout section={state.section} onSelect={state.setSection}>
+      {device.error ? <Notice error>{device.error}</Notice> : null}
       {state.error || state.settings.error ? <Notice error>{state.error || state.settings.error}</Notice> : null}
       {!state.settings.user && !state.settings.error ? <Notice>Loading settings…</Notice> : null}
       <SettingsContent state={state} />
@@ -127,6 +133,9 @@ function SettingsContent({ state }: { state: ReturnType<typeof useSettingsState>
 
   return (
     <>
+      {section === "general" && <GeneralSettings />}
+      {section === "keybindings" && <KeybindingSettings />}
+      {section === "diffs" && <DiffSettings />}
       {section === "appearance" && <AppearanceSettings />}
       {section === "threads" && <ThreadsSection settings={settings} projects={projects} workers={workers} />}
       {section === "text-generation" && (
@@ -182,7 +191,7 @@ function SettingsContent({ state }: { state: ReturnType<typeof useSettingsState>
           Manage {current.label.toLowerCase()} in Canopy on the web.
         </Text>
       )}
-      {section === "mobile" && <DeviceSection state={state} />}
+      {section === "mobile" && <CurrentDeviceSettings state={state} />}
     </>
   );
 }
@@ -212,9 +221,9 @@ function ConnectorsSection() {
   );
 }
 
-function DeviceSection({ state }: { state: ReturnType<typeof useSettingsState> }) {
+function CurrentDeviceSettings({ state }: { state: ReturnType<typeof useSettingsState> }) {
   const c = useColors();
-  const { session, busy, unpair, removeLocal, error } = state;
+  const { session, busy, error, unpair, removeLocal } = state;
 
   return (
     <View style={{ gap: 20 }}>

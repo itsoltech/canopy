@@ -10,7 +10,8 @@
     "./mascot": "./src/mascot.ts",
     "./settings": "./src/settings.ts",
     "./desktop": "./src/desktop.ts",
-    "./themes": "./src/themes.ts"
+    "./themes": "./src/themes.ts",
+    "./keybindings": "./src/keybindings.ts"
   },
   "scripts": {
     "gen": "bun scripts/palette.ts",
