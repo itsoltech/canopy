@@ -47,6 +47,22 @@ func matches(_ fingerprint: String, _ pin: String) -> Bool {
   pin.count == 64 && fingerprint == pin
 }
 
+/// Domain and code only (`NSURLErrorDomain -1200 / -9802`): enough to diagnose, never an address.
+func code(_ error: Error) -> String {
+  let value = error as NSError
+  let stream = value.userInfo["_kCFStreamErrorCodeKey"] as? Int
+  return "\(value.domain) \(value.code)" + (stream.map { " / \($0)" } ?? "")
+}
+
+func code(_ error: NWError) -> String {
+  switch error {
+  case .posix(let value): return "POSIX \(value.rawValue)"
+  case .dns(let value): return "DNS \(value)"
+  case .tls(let value): return "TLS \(value)"
+  @unknown default: return "\(error)"
+  }
+}
+
 func leaf(_ trust: SecTrust) -> SecCertificate? {
   (SecTrustCopyCertificateChain(trust) as? [SecCertificate])?.first
 }
@@ -82,14 +98,16 @@ private func probe(host: String, port: Int, pin: String, timeoutMs: Int, promise
     switch state {
     case .ready:
       finish(["ok": true, "fingerprint": matched, "latencyMs": Int(Date().timeIntervalSince(started) * 1000)])
-    case .failed, .waiting:
+    case .failed(let error), .waiting(let error):
       // .waiting: no route now (or the local network permission was refused).
-      finish(["ok": false, "kind": mismatch ? "pin" : "connect"])
+      finish(["ok": false, "kind": mismatch ? "pin" : "connect", "code": code(error)])
     default: break
     }
   }
   connection.start(queue: queue)
-  queue.asyncAfter(deadline: .now() + .milliseconds(timeoutMs)) { finish(["ok": false, "kind": "connect"]) }
+  queue.asyncAfter(deadline: .now() + .milliseconds(timeoutMs)) {
+    finish(["ok": false, "kind": "connect", "code": "timeout"])
+  }
 }
 
 /// Requests share one session (its connections are reused per route); delegate callbacks are serial.
@@ -165,6 +183,8 @@ final class PinnedCalls: NSObject, URLSessionDataDelegate {
     let value = fingerprint(certificate)
     if matches(value, call.pin) {
       call.fingerprint = value
+      // Only honored because ATS is relaxed (app.config.ts): with ATS on, CFNetwork evaluates this trust
+      // again against the system roots and host name, and the self-signed certificate fails (-1200 / -9802).
       completionHandler(.useCredential, URLCredential(trust: trust))
     } else {
       call.pinFailed = true
@@ -213,6 +233,6 @@ final class PinnedCalls: NSObject, URLSessionDataDelegate {
     }
     // connect: nothing reached the computer's app, another route may work; io: the response broke off.
     let kind = call.pinFailed ? "pin" : call.responded ? "io" : "connect"
-    emit("onError", ["id": call.id, "kind": kind, "message": error.localizedDescription])
+    emit("onError", ["id": call.id, "kind": kind, "message": error.localizedDescription, "code": code(error)])
   }
 }

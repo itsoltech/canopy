@@ -12,6 +12,13 @@ export interface PinnedTransport {
   fetch: (input: string, init: RequestInit | undefined, fingerprint: string) => Promise<Response>;
 }
 
+/** A route failed its TLS check; `code` is the native reason (`POSIX 61`, `TLS -9806`, `timeout`). */
+export class ProbeError extends Error {
+  constructor(readonly code: string) {
+    super(`Secure route unavailable (${code})`);
+  }
+}
+
 /** Try routes before sending a request. Never replay an RPC after it may have reached the computer. */
 export function routedMobileClient(options: {
   connection: MobileConnection;
@@ -34,6 +41,8 @@ export function routedMobileClient(options: {
       return rank(a) - rank(b);
     });
 
+    const codes = new Set<string>();
+
     for (const address of order) {
       signal?.throwIfAborted();
 
@@ -41,14 +50,17 @@ export function routedMobileClient(options: {
         await options.transport.probe(address, fingerprint, signal);
 
         return address;
-      } catch {
+      } catch (error) {
         signal?.throwIfAborted();
         failed.set(address, Date.now() + 10_000);
+
+        if (error instanceof ProbeError) codes.add(error.code);
       }
     }
 
+    const reasons = codes.size ? ` (${[...codes].join(", ")})` : "";
     throw new Error(
-      "Cannot reach this computer securely. Connect to a shared Wi-Fi or VPN, or scan a new pairing code if its addresses changed.",
+      `Cannot reach this computer securely. Connect to a shared Wi-Fi or VPN, or scan a new pairing code if its addresses changed.${reasons}`,
     );
   }
 
