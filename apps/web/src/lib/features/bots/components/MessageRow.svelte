@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { botTextTone } from "../mascot.ts";
-  import type { ParticipantView } from "../model.ts";
+  import type { ParticipantView } from "@canopy/domain/bot-chat";
   import BotAvatar from "./BotAvatar.svelte";
   import type { MascotState } from "../behaviour.ts";
 

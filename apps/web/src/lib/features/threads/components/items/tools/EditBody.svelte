@@ -1,7 +1,7 @@
 <script lang="ts">
   import FileDiffEntry from "../FileDiffEntry.svelte";
   import type { ToolBodyProps } from "./body.ts";
-  import { toolChanges } from "./changes.ts";
+  import { toolChanges } from "@canopy/domain/tools";
   import ResultText from "./ResultText.svelte";
 
   /**

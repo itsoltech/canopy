@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ItemStatus, type AgentBusCall } from "@canopy/contracts";
   import { isString, listOf, parseObject, str } from "#lib/shared/json.ts";
-  import { humanizeSeconds, plural } from "#lib/shared/humanize.ts";
+  import { humanizeSeconds, plural } from "@canopy/domain/humanize";
   import { structure, structureJson } from "#lib/shared/structure.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -20,11 +20,10 @@
     busLook,
     deliveryOf,
     interactionsOf,
-    scheduleOf,
-    schedulesOf,
     summariesOf,
     transcriptOf,
-  } from "./tools/agent-bus.ts";
+  } from "@canopy/domain/tools";
+  import { scheduleOf, schedulesOf } from "./tools/bus-schedules.ts";
   import MiniTranscript from "./tools/bus/MiniTranscript.svelte";
   import ScheduleSummary from "./tools/bus/ScheduleSummary.svelte";
   import ThreadSummaryList from "./tools/bus/ThreadSummaryList.svelte";

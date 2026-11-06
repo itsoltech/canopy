@@ -1,7 +1,7 @@
 import type { ui } from "@canopy/contracts";
 import type { UserAnswer } from "@canopy/domain";
 import { answerInteraction } from "../../api.ts";
-import { currentAnswer, encodeAnswers, parseQuestions } from "./questions.ts";
+import { currentAnswer, encodeAnswers, parseQuestions } from "@canopy/domain/questions";
 
 /** Drafts belong to the set, so Back, collapse and messaging never discard an answer. */
 export class QuestionSession {

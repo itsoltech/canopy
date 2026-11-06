@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from "react";
+import { createContext, Fragment, useContext, useMemo } from "react";
 import { Linking, ScrollView, Text, View } from "react-native";
 import { marked, type Token, type Tokens } from "marked";
 import { font, styles, useColors, useTypography } from "./theme";
@@ -68,8 +68,12 @@ function Inline({ tokens }: { tokens: Token[] }) {
   );
 }
 
+/** Text colour of a whole message (commentary, reasoning and agent bubbles are quieter or tinted). */
+const Ink = createContext<string | undefined>(undefined);
+
 function Block({ token }: { token: Token }) {
   const c = useColors();
+  const ink = useContext(Ink) ?? c.body;
   const type = useTypography();
   const { values } = useDevicePreferences();
 
@@ -154,7 +158,7 @@ function Block({ token }: { token: Token }) {
       accessibilityRole={token.type === "heading" ? "header" : undefined}
       style={[
         type.body,
-        { color: c.body },
+        { color: ink },
         token.type === "heading"
           ? {
               fontSize: token.depth === 1 ? 18 : 16,
@@ -169,14 +173,16 @@ function Block({ token }: { token: Token }) {
   );
 }
 
-export function Markdown({ text }: { text: string }) {
+export function Markdown({ text, color }: { text: string; color?: string }) {
   const tokens = useMemo(() => marked.lexer(text, { gfm: true }), [text]);
 
   return (
-    <View style={{ gap: 12 }}>
-      {tokens.map((token, i) => (
-        <Block key={i} token={token} />
-      ))}
-    </View>
+    <Ink.Provider value={color}>
+      <View style={{ gap: 12 }}>
+        {tokens.map((token, i) => (
+          <Block key={i} token={token} />
+        ))}
+      </View>
+    </Ink.Provider>
   );
 }

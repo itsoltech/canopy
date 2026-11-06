@@ -3,7 +3,7 @@
   import CodeView from "#lib/shared/ui/code/CodeView.svelte";
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
   import type { ToolBodyProps } from "./body.ts";
-  import { parseNumberedLines } from "./parse.ts";
+  import { parseNumberedLines } from "@canopy/domain/tools";
   import ResultText from "./ResultText.svelte";
 
   /** Claude Read: the full path, then the lines it read, highlighted by file type and numbered as in the file. */

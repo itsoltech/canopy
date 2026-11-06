@@ -1,0 +1,62 @@
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import { safeFailureDetail } from "@canopy/domain/failures";
+import { failurePresentation } from "@canopy/domain/failure-presentation";
+import { Icon } from "../../ui/Icon";
+import { font, styles, useColors, useTypography } from "../../ui/theme";
+import { useTone } from "../../ui/tone";
+
+/**
+ * A failed turn or bot reply (web: FailureNotice): a heading, what it means in words, a hint for a login and the
+ * technical details behind "Show details". Retrying and changing the model happen on the web.
+ */
+export function FailureNotice({
+  message,
+  code = "",
+  source = "",
+  classification = "",
+  authHint = "",
+  heading = "Could not finish this turn",
+}: {
+  message: string;
+  code?: string;
+  source?: string;
+  classification?: string;
+  authHint?: string;
+  heading?: string;
+}) {
+  const c = useColors();
+  const type = useTypography();
+  const rose = useTone("rose").text;
+  const [open, setOpen] = useState(false);
+  const failure = failurePresentation(message, classification || code, false);
+
+  const details = safeFailureDetail(
+    [source && `Source: ${source}`, code && `Code: ${code}`, message].filter(Boolean).join("\n"),
+  );
+
+  return (
+    <View accessibilityRole="alert" style={{ gap: 8 }}>
+      <Text style={[styles.body, { fontFamily: font.medium, color: rose }]}>{heading}</Text>
+      <Text style={[styles.body, { color: c.muted }]}>{failure.explanation}</Text>
+      {failure.kind === "auth_required" && authHint ? (
+        <Text style={[styles.body, { color: c.muted }]}>{authHint}</Text>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen(!open)}
+        hitSlop={8}
+        style={[styles.row, { gap: 6, minHeight: 32 }]}
+      >
+        <Icon name={open ? "chevron-down" : "chevron-right"} size={14} color={c.faint} />
+        <Text style={[styles.body, { color: c.muted }]}>Show details</Text>
+      </Pressable>
+      {open && (
+        <Text selectable style={[type.mono, { color: c.muted }]}>
+          {details}
+        </Text>
+      )}
+    </View>
+  );
+}

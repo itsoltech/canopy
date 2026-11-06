@@ -37,3 +37,10 @@ Przed automatycznym zamknięciem `WorkFolds` sprawdza `VirtualFeed.reading()`. J
 `VirtualFeed.scrollRowToTop(key)` po zakończeniu tury przewija długą odpowiedź do początku, 8 px poniżej góry feedu. Działa tylko, jeśli czytelnik nadal śledzi dół i odpowiedź jest wyższa niż dostępny obszar nad kompozytorem. Krótka odpowiedź ani czytelnik, który przewinął w górę, nie są przesuwani. Zwykły ruch jest płynny, reduced motion natychmiastowy; „Jump to latest” przywraca śledzenie końca. API nie zmienia fokusu ani reguł paddingu kompozytora.
 
 Grupy i itemy są osobnymi wirtualnymi wierszami; zamknięte grupy nie montują dzieci. `ResizeObserver` mierzy zmiany wysokości `AnswerSlot`, a obecne kotwiczenie utrzymuje czytany wiersz. Klucze foldu, grupy (pierwszy item) i odpowiedzi pozostają stabilne między deltami. „Pokaż źródło” cytatu otwiera historię, fold oraz właściwą grupę przed przewinięciem do itemu; rozpoznaje też stały wiersz odpowiedzi.
+
+## Pozycja przy ręcznym przełączaniu
+
+Rozwinięcie albo zwinięcie foldu, grupy narzędzi czy itemu ręcznie trzyma kliknięty nagłówek w tym samym miejscu ekranu: rośnie i maleje to, co jest pod nim, a treść nad nim się nie przesuwa. Czytelnik śledzący koniec zostaje na końcu tylko wtedy, gdy przełącza fold ostatniej tury (jej wiersze są końcem osi); każdy inny fold przestaje śledzić koniec i trzyma swój nagłówek.
+
+- Web: `FeedRowView` podaje klucz wiersza nagłówka, strona wątku woła `VirtualFeed.keep(key)` przed `WorkFolds.toggle`, chyba że to ostatni fold, a czytelnik jest na końcu. Automatyczne zmiany (odpowiedź wychodzi z foldu, nowy segment, koniec tury) trzymają dotychczasową kotwicę `VirtualFeed` i `hold(key)`.
+- Mobile: oś jest odwróconą `FlatList`, w której wiersz tury rośnie w stronę starszej treści, więc nagłówek by uciekał w górę. `ui/feed-anchor.tsx` mierzy nagłówek (`measureInWindow`) przed zmianą i po układzie (dwie klatki, potem drugi raz po 180 ms dla późnego układu) i przesuwa listę o tyle, o ile przesunął się nagłówek. Zmiany automatyczne trzyma `maintainVisibleContentPosition` listy. Fold w najnowszej turze przy czytelniku na dole nie przesuwa listy: zostaje na dole.

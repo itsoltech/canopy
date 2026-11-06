@@ -4,7 +4,7 @@
  * opaque ids (uuids, provider call ids), which the UI keeps out of sight (tooltips, copy actions).
  * One module, so every view says the same thing for the same value.
  */
-import { isPlatformServer } from "@canopy/domain";
+import { isPlatformServer } from "./platform.ts";
 
 /** Words that keep their own spelling inside a label. */
 const SPELLING = new Map<string, string>([
@@ -217,3 +217,6 @@ export function withoutIds(text: string): string {
     .replace(new RegExp(` ?\\(\\w+_id: ${id}\\)`, "gi"), "")
     .replace(new RegExp(`\\(\\w+_id: ${id}, `, "gi"), "(");
 }
+
+/** Last segment of a path in either separator style. */
+export const basename = (path: string): string => path.split(/[/\\]/).filter(Boolean).at(-1) ?? path;

@@ -210,6 +210,7 @@
       "dependencies": {
         "@bufbuild/protobuf": "2.16.0",
         "@canopy/contracts": "workspace:*",
+        "@canopy/ui": "workspace:*",
         "effect": "4.1.1",
       },
     },

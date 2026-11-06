@@ -3,7 +3,7 @@
   import { isEmptyNode, structureJson } from "#lib/shared/structure.ts";
   import OutputBlock from "../OutputBlock.svelte";
   import ErrorText from "./ErrorText.svelte";
-  import { stripReminders, unwrapContent } from "./parse.ts";
+  import { stripReminders, unwrapContent } from "@canopy/domain/tools";
   import StructuredView from "./StructuredView.svelte";
 
   /**

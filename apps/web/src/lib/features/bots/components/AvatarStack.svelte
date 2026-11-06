@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { avatarRing } from "../avatar-ring.ts";
-  import type { ParticipantView } from "../model.ts";
+  import type { ParticipantView } from "@canopy/domain/bot-chat";
   import BotAvatar from "./BotAvatar.svelte";
   import type { MascotState } from "../behaviour.ts";
 

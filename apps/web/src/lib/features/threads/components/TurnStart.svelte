@@ -5,7 +5,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { useThreadDirectory } from "../thread-directory.ts";
-  import { silentTriggerLabel } from "../turn-origin.ts";
+  import { silentTriggerLabel } from "@canopy/domain/turn-origin";
   import { turnReveal } from "../turn-reveal.svelte.ts";
 
   /**

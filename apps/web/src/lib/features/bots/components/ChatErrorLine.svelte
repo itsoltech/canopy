@@ -4,7 +4,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import FailureNotice from "#lib/features/failures/FailureNotice.svelte";
   import { botList } from "../bot-list.svelte.ts";
-  import type { ChatErrorView, ParticipantView } from "../model.ts";
+  import type { ChatErrorView, ParticipantView } from "@canopy/domain/bot-chat";
 
   let {
     error,

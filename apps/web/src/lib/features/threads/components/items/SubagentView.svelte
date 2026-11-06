@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import { ItemStatus, type Subagent } from "@canopy/contracts";
   import Badge from "#lib/shared/ui/Badge.svelte";
-  import { humanizeToolName } from "#lib/shared/humanize.ts";
+  import { humanizeToolName } from "@canopy/domain/humanize";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import ItemFrame from "./ItemFrame.svelte";
   import TaskProgressText from "./TaskProgressText.svelte";

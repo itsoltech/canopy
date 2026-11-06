@@ -5,7 +5,7 @@
   import { conversationMenu, type ConversationHandlers } from "../actions.ts";
   import { avatarRing } from "../avatar-ring.ts";
   import { contextMenu } from "../context-menu.ts";
-  import { conversationTitle, type ConversationView } from "../model.ts";
+  import { conversationTitle, type ConversationView } from "@canopy/domain/bot-chat";
   import AvatarBadge from "./AvatarBadge.svelte";
   import AvatarStack from "./AvatarStack.svelte";
   import BotAvatar from "./BotAvatar.svelte";

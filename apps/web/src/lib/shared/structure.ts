@@ -1,5 +1,5 @@
 import { isJsonArray, isJsonObject, isNumber, isString, parseJson, type JsonObject, type JsonValue } from "./json.ts";
-import { humanizeEnum, humanizeKey, isEnumToken, isIdKey, isIsoDateTime, isOpaqueId } from "./humanize.ts";
+import { humanizeEnum, humanizeKey, isEnumToken, isIdKey, isIsoDateTime, isOpaqueId } from "@canopy/domain/humanize";
 
 /**
  * Any JSON value as something to show rather than to parse: fields with readable labels, ids set apart

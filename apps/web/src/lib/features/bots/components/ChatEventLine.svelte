@@ -3,7 +3,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { IconName } from "#lib/shared/ui/icons.ts";
   import { fullDateLabel } from "../chat-timeline.ts";
-  import type { ChatEventView } from "../model.ts";
+  import type { ChatEventView } from "@canopy/domain/bot-chat";
   import Button from "#lib/shared/ui/Button.svelte";
   import BotSettingChangesDialog from "../settings/BotSettingChangesDialog.svelte";
 

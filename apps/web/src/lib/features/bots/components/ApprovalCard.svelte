@@ -8,7 +8,7 @@
   import RequestField from "#lib/shared/ui/RequestField.svelte";
   import RequestText from "#lib/shared/ui/RequestText.svelte";
   import RequestCountdown from "#lib/shared/ui/RequestCountdown.svelte";
-  import type { ApprovalView } from "../model.ts";
+  import type { ApprovalView } from "@canopy/domain/bot-chat";
   import ChatCard from "./ChatCard.svelte";
   import CreateBotPreview from "./CreateBotPreview.svelte";
 

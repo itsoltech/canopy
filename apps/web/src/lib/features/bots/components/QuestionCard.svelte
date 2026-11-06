@@ -6,7 +6,7 @@
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import RequestCountdown from "#lib/shared/ui/RequestCountdown.svelte";
   import { timeLabel } from "../chat-timeline.ts";
-  import type { QuestionView } from "../model.ts";
+  import type { QuestionView } from "@canopy/domain/bot-chat";
   import ChatCard from "./ChatCard.svelte";
 
   /**

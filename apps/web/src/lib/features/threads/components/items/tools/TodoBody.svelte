@@ -2,7 +2,7 @@
   import { str } from "#lib/shared/json.ts";
   import ChecklistSteps from "../ChecklistSteps.svelte";
   import type { ToolBodyProps } from "./body.ts";
-  import { todos } from "./registry.ts";
+  import { todos } from "@canopy/domain/tools";
   import ResultText from "./ResultText.svelte";
 
   /** TodoWrite and Codex update_plan: the list as a checklist (done, in progress, to do) and its note. */

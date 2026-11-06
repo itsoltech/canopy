@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import type { ConversationHandlers } from "../actions.ts";
-  import { arrangeConversations, byLatest, conversationTitle, type ConversationView } from "../model.ts";
+  import { arrangeConversations, byLatest, conversationTitle, type ConversationView } from "@canopy/domain/bot-chat";
   import BotListItem from "./BotListItem.svelte";
   import GroupListItem from "./GroupListItem.svelte";
   import PinnedConversations from "./PinnedConversations.svelte";

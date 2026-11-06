@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { humanizeKey } from "#lib/shared/humanize.ts";
+  import { humanizeKey } from "@canopy/domain/humanize";
   import { fieldsOf, isEmptyNode } from "#lib/shared/structure.ts";
   import LongText from "#lib/shared/ui/LongText.svelte";
   import type { ToolBodyProps } from "./body.ts";
-  import { stripReminders, unwrapContent } from "./parse.ts";
+  import { stripReminders, unwrapContent } from "@canopy/domain/tools";
   import ResultText from "./ResultText.svelte";
   import Section from "./Section.svelte";
   import StructuredView from "./StructuredView.svelte";

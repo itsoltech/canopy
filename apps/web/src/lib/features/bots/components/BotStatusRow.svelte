@@ -2,7 +2,7 @@
   import type { ClassValue } from "svelte/elements";
   import { swap } from "#lib/shared/ui/motion.ts";
   import { stateForStatus } from "../behaviour-math.ts";
-  import type { ParticipantView } from "../model.ts";
+  import type { ParticipantView } from "@canopy/domain/bot-chat";
   import BotAvatar from "./BotAvatar.svelte";
 
   /**

@@ -20,7 +20,7 @@
   import MessageQuotes from "#lib/features/quotes/MessageQuotes.svelte";
   import { withoutPlatformNote } from "#lib/features/mentions/editor.ts";
   import MentionChip from "#lib/features/mentions/MentionChip.svelte";
-  import { withoutIds } from "#lib/shared/humanize.ts";
+  import { withoutIds } from "@canopy/domain/humanize";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";

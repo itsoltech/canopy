@@ -363,9 +363,21 @@
   let feed = $state<
     FoldReader & {
       reveal: (key: string) => Promise<boolean>;
+      keep: (key: string) => void;
       scrollToRow: (index: number, options: { align: "start"; smooth?: boolean }) => Promise<boolean>;
     }
   >();
+
+  /**
+   * A fold or tool group the reader opens or closes keeps its header on screen (docs/timeline-folding.md). A reader
+   * following the end stays at the end only when it is the last fold's (its rows are the feed's end).
+   */
+  function keepToggled(rowKey: string) {
+    const at = rows.findIndex((row) => row.key === rowKey);
+    const last = rows.findLastIndex((row) => row.kind === "work");
+
+    if (at < last || !atEnd) feed?.keep(rowKey);
+  }
 
   // A quote in a message shows where it came from: its item (in folded work or the inherited history: opened
   // first) scrolls into view and flashes (motion.css `data-flash`).
@@ -612,8 +624,14 @@
             <FeedRowView
               {row}
               ontoggle={() => (historyOpen = !historyOpen)}
-              onwork={(fold) => folds.toggle(fold)}
-              ongroup={(key) => folds.toggleGroup(key)}
+              onwork={(fold, rowKey) => {
+                keepToggled(rowKey);
+                folds.toggle(fold);
+              }}
+              ongroup={(key, rowKey) => {
+                keepToggled(rowKey);
+                folds.toggleGroup(key);
+              }}
             />
           {/snippet}
           {#snippet footer()}

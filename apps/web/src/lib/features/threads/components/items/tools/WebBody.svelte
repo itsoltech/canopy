@@ -3,7 +3,7 @@
   import LongText from "#lib/shared/ui/LongText.svelte";
   import ExternalLink from "#lib/shared/ui/ExternalLink.svelte";
   import type { ToolBodyProps } from "./body.ts";
-  import { parseWebResults, shortUrl, stripReminders } from "./parse.ts";
+  import { parseWebResults, shortUrl, stripReminders } from "@canopy/domain/tools";
   import ResultText from "./ResultText.svelte";
   import Section from "./Section.svelte";
 

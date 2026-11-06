@@ -7,7 +7,7 @@
   import QuestionCard from "../components/QuestionCard.svelte";
   import InteractionCard from "#lib/features/threads/components/interactions/InteractionCard.svelte";
   import GallerySection from "./GallerySection.svelte";
-  import type { ApprovalView } from "../model.ts";
+  import type { ApprovalView } from "@canopy/domain/bot-chat";
 
   let expiresAt = $state(new Date(Date.now() + 35_000));
   let expired = $state(false);

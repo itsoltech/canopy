@@ -1,5 +1,7 @@
+import type { Tone } from "@canopy/domain/status-look";
+
 /** Semantic colours (see layout.css). Full class strings, so Tailwind can see them. */
-export type Tone = "neutral" | "sky" | "amber" | "emerald" | "rose" | "orange" | "violet";
+export type { Tone };
 
 export const badgeTones: Record<Tone, string> = {
   neutral: "bg-zinc-50 text-zinc-700 ring-zinc-950/10 dark:bg-white/5 dark:text-zinc-300 dark:ring-white/10",

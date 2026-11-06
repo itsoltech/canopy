@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import MoreButton from "#lib/shared/ui/MoreButton.svelte";
-  import { withoutIds } from "#lib/shared/humanize.ts";
+  import { withoutIds } from "@canopy/domain/humanize";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
-  import type { TranscriptLine } from "../agent-bus.ts";
+  import type { TranscriptLine } from "@canopy/domain/tools";
 
   /**
    * What read_thread returned, as a small transcript: the user's messages as bubbles on the right, the

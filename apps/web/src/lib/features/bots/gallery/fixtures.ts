@@ -1,4 +1,4 @@
-import type { BotView, ChatEntry, ConversationView, ParticipantView } from "../model.ts";
+import type { BotView, ChatEntry, ConversationView, ParticipantView } from "@canopy/domain/bot-chat";
 
 /**
  * Made-up bots and chats for the dev-only gallery (`/dev/bots`). Never imported by production code:

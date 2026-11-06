@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import type { ConversationHandlers } from "../actions.ts";
-  import type { ConversationView } from "../model.ts";
+  import type { ConversationView } from "@canopy/domain/bot-chat";
   import AvatarStack from "./AvatarStack.svelte";
   import ConversationRow from "./ConversationRow.svelte";
 

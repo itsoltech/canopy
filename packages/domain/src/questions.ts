@@ -1,5 +1,6 @@
-import { isJsonArray, isJsonObject, isString, listOf, objectsOf, parseObject, str } from "#lib/shared/json.ts";
-import type { UserAnswer } from "@canopy/domain";
+/** Questions of a QUESTION interaction (requests and answers as harnesses send them), read the same on every client. */
+import { isJsonArray, isJsonObject, isString, listOf, objectsOf, parseObject, str } from "./json.ts";
+import type { UserAnswer } from "./agent-bus/questions.ts";
 
 /** A question in a QUESTION interaction (Codex request_user_input shape; Claude maps onto it). */
 export interface Question {

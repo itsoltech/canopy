@@ -1,11 +1,11 @@
 <script lang="ts">
   import { InteractionKind, type InteractionPrompt, type ItemStatus } from "@canopy/contracts";
   import { parseObject } from "#lib/shared/json.ts";
-  import { humanizeToolName } from "#lib/shared/humanize.ts";
+  import { humanizeToolName } from "@canopy/domain/humanize";
   import { isEmptyNode, structureJson } from "#lib/shared/structure.ts";
   import StatusBadge from "#lib/shared/ui/StatusBadge.svelte";
   import PermissionRequest from "../interactions/PermissionRequest.svelte";
-  import { answerText, parseQuestions } from "../interactions/questions.ts";
+  import { answerText, parseQuestions } from "@canopy/domain/questions";
   import ItemFrame from "./ItemFrame.svelte";
   import ThreadLink from "./ThreadLink.svelte";
   import RawToggle from "./tools/RawToggle.svelte";

@@ -4,7 +4,7 @@
   import ExternalLink from "#lib/shared/ui/ExternalLink.svelte";
   import { timestampFromDate } from "@bufbuild/protobuf/wkt";
   import type { Node } from "#lib/shared/structure.ts";
-  import { shortUrl } from "./parse.ts";
+  import { shortUrl } from "@canopy/domain/tools";
   import IdValue from "./IdValue.svelte";
 
   /** One value of a structured view, as people read it (structure.ts kinds); lists and objects are StructuredView's. */

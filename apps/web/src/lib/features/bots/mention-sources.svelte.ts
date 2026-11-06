@@ -7,7 +7,7 @@ import { INLINE_RENDERERS } from "#lib/features/mentions/kinds.ts";
 import type { MentionData } from "#lib/features/mentions/kinds.ts";
 import { botParticipant } from "./live.ts";
 import { botMentionHtml } from "./mention-chip.ts";
-import type { ParticipantView } from "./model.ts";
+import type { ParticipantView } from "@canopy/domain/bot-chat";
 
 export const BOT_MENTION_TRIGGERS: ReadonlySet<TriggerChar> = new Set(["@"]);
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ItemStatus, ProviderItem } from "@canopy/contracts";
-  import { humanizeEnum } from "#lib/shared/humanize.ts";
+  import { humanizeEnum } from "@canopy/domain/humanize";
   import { structureJson } from "#lib/shared/structure.ts";
   import ItemFrame from "./ItemFrame.svelte";
   import RawToggle from "./tools/RawToggle.svelte";

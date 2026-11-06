@@ -1,7 +1,7 @@
 <script lang="ts">
   import CodeView from "#lib/shared/ui/code/CodeView.svelte";
   import type { ToolBodyProps } from "./body.ts";
-  import { shellCommand } from "./registry.ts";
+  import { shellCommand } from "@canopy/domain/tools";
   import ResultText from "./ResultText.svelte";
 
   /** A shell command that arrives as a tool call: the command (highlighted), then its output streaming in. */

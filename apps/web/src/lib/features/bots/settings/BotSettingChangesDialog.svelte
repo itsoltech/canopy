@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
-  import type { ChatEventView } from "../model.ts";
+  import type { ChatEventView } from "@canopy/domain/bot-chat";
 
   let {
     open = $bindable(false),

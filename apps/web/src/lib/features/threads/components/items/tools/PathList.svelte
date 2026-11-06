@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import MoreButton from "#lib/shared/ui/MoreButton.svelte";
-  import { plural } from "#lib/shared/humanize.ts";
+  import { plural } from "@canopy/domain/humanize";
 
   /**
    * Files a search or listing found, relative to `base` when they are inside it (full path in the

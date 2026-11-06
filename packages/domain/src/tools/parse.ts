@@ -4,16 +4,7 @@
  * undefined (or an empty result) when the text has another shape; the view then shows the text itself.
  */
 
-import {
-  isJsonArray,
-  isJsonObject,
-  isNumber,
-  isString,
-  objectsOf,
-  parseJson,
-  str,
-  type JsonValue,
-} from "#lib/shared/json.ts";
+import { isJsonArray, isJsonObject, isNumber, isString, objectsOf, parseJson, str, type JsonValue } from "../json.ts";
 
 /** Claude adds reminders for the model to some results and wraps errors in a tag; neither is for people. */
 export function stripReminders(text: string): string {

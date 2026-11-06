@@ -1,4 +1,3 @@
-import { basename } from "#lib/shared/format.ts";
 import {
   isJsonArray,
   isNumber,
@@ -9,9 +8,9 @@ import {
   str,
   type JsonObject,
   type JsonValue,
-} from "#lib/shared/json.ts";
-import { humanizeEnum, humanizeServer, humanizeToolName, isOpaqueId, plural } from "#lib/shared/humanize.ts";
-import type { IconName } from "#lib/shared/ui/icons.ts";
+} from "../json.ts";
+import { basename, humanizeEnum, humanizeServer, humanizeToolName, isOpaqueId, plural } from "../humanize.ts";
+import type { IconName } from "@canopy/ui/icons";
 import {
   parseFileList,
   parseGrepOutput,

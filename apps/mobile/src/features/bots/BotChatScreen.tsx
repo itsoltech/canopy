@@ -1,18 +1,19 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FlatList, Platform, Text, View } from "react-native";
 import { ConversationSkeleton } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
 import type { bots } from "@canopy/contracts";
+import { botParticipant, type ChatRow } from "@canopy/domain/bot-chat";
 import { useSession } from "../../state/session";
 import { useStream } from "../../state/stream";
 import { ConnectionNotice, IconButton, LatestButton, Notice, ScreenHeader } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { KeyboardArea } from "../../ui/KeyboardArea";
 import { ComposerBox } from "../threads/ComposerBox";
-import { ChatBubble } from "./ChatBubble";
-import { ApprovalCard } from "./ApprovalCard";
+import { ChatRowView, useChatRows } from "./ChatTimeline";
+import { BotStatusRow } from "./ChatRows";
 import { BotDetailsPanel } from "./BotDetailsPanel";
 import { BotAvatar } from "./BotAvatar";
 import { useFollowingList } from "../../ui/useFollowingList";
@@ -26,7 +27,8 @@ function useBotChat(id: string) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [details, setDetails] = useState(false);
-  const following = useFollowingList<bots.BotMessage>();
+  const following = useFollowingList<ChatRow>();
+  const [known, setKnown] = useState<bots.Bot[]>([]);
   const sending = useRef(false);
   const pending = useRef({ text: "", id: "" });
 
@@ -41,6 +43,20 @@ function useBotChat(id: string) {
     },
     `bot:${session?.deviceId}:${id}`,
   );
+
+  // Your other bots name the counterparts of bot ⇄ bot exchanges.
+  useEffect(() => {
+    if (!client) return;
+    let active = true;
+    client.api
+      .listBots({})
+      .then((result) => active && setKnown(result.bots))
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, [client]);
 
   async function send() {
     if (!text.trim() || sending.current || !client) return;
@@ -83,6 +99,7 @@ function useBotChat(id: string) {
     stream,
     send,
     seen,
+    known,
   };
 }
 
@@ -106,7 +123,14 @@ export function BotChatScreen({ id }: { id: string }) {
     stream,
     send,
     seen,
+    known,
   } = useBotChat(id);
+
+  const approvals =
+    conversation?.approvals.filter((a) => a.status === "pending" || (a.status === "expired" && seen.has(a.id))) ?? [];
+
+  const rows = useChatRows(conversation, approvals, known);
+  const waiting = approvals.some((a) => a.status === "pending");
 
   const { atBottom, showLatest } = following;
 
@@ -127,12 +151,12 @@ export function BotChatScreen({ id }: { id: string }) {
       <KeyboardArea>
         <FlatList
           {...following.listProps}
-          data={[...(conversation?.messages ?? [])].reverse()}
-          keyExtractor={(m) => m.id}
-          contentContainerStyle={[styles.page, { gap: 16, flexGrow: 1 }]}
+          data={[...rows].reverse()}
+          keyExtractor={(row) => row.id}
+          contentContainerStyle={[styles.page, { gap: 0, flexGrow: 1 }]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          renderItem={({ item }) => <ChatBubble message={item} bot={conversation?.bot} />}
+          renderItem={({ item }) => <ChatRowView row={item} approvals={approvals} />}
           // Inverted: the footer is the top of the chat, the header sits under the latest message.
           ListFooterComponent={
             <View style={{ gap: 12 }}>
@@ -144,16 +168,15 @@ export function BotChatScreen({ id }: { id: string }) {
             </View>
           }
           ListHeaderComponent={
-            <View style={{ gap: 12 }}>
-              {conversation?.approvals
-                .filter((a) => a.status === "pending" || (a.status === "expired" && seen.has(a.id)))
-                .map((a) => (
-                  <ApprovalCard key={a.id} approval={a} />
-                ))}
-              {conversation?.working && (
-                <Text style={[styles.meta, { color: c.muted }]}>{conversation.statusLine || "Working…"}</Text>
-              )}
-            </View>
+            conversation?.working && conversation.bot ? (
+              <View style={{ paddingTop: 12 }}>
+                <BotStatusRow
+                  bot={botParticipant(conversation.bot)}
+                  text={conversation.statusLine || (waiting ? "Waiting for you" : "Typing…")}
+                  waiting={waiting}
+                />
+              </View>
+            ) : undefined
           }
         />
         <View style={{ padding: 12, gap: 8 }}>

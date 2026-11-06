@@ -5,7 +5,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { useRemembered } from "#lib/shared/ui/memory.ts";
   import { duration } from "#lib/shared/ui/motion.ts";
-  import { firstLine } from "./first-line.ts";
+  import { firstLine } from "@canopy/domain/first-line";
 
   /**
    * The violet bubble of a message one agent sent another (a steer, a task, a message, a report). Long messages

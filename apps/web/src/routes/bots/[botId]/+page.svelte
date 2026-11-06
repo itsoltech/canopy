@@ -12,7 +12,7 @@
   import BotDetailsLayout from "#lib/features/bots/details/BotDetailsLayout.svelte";
   import BotDetailsPanel from "#lib/features/bots/details/BotDetailsPanel.svelte";
   import { botConversation, botEntries, botParticipant, botWizardInstances } from "#lib/features/bots/live.ts";
-  import type { ChatEntry } from "#lib/features/bots/model.ts";
+  import type { ChatEntry } from "@canopy/domain/bot-chat";
   import ChangeModelDialog, { type BotModelChoice } from "#lib/features/bots/wizard/ChangeModelDialog.svelte";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { requestJson } from "#lib/shared/http.ts";
