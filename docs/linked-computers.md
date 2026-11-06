@@ -619,8 +619,16 @@ instancji gatewaya, także gdy resync zachował ten sam kursor.
 
 ### Odczyt i dostępność
 
-Online używamy nadal **żywej trasy etapu 2** dla list, odczytu i subskrypcji UI: zmiana w domu
-jest widoczna bez czekania na cykl lustra. Lustro synchronizuje się niezależnie od otwartych kart.
+Online `GetThread` odpowiada z lokalnego lustra, jeśli ma wątek. `WatchThread` najpierw emituje
+ten sam snapshot z addytywnym `ThreadUpdate.syncing` (800), a następnie przechodzi na żywy
+strumień etapu 2. Bez kopii w lustrze oba odczyty korzystają z domu jak dotąd. Listy nadal
+korzystają z domu; lustro synchronizuje się niezależnie od otwartych kart.
+Web pokazuje ciche „Syncing…” w zarezerwowanym miejscu paska; na telefonie pod etykietą komputera.
+Identyczne itemy i tury zachowują
+tożsamość przy zastąpieniu kopii stanem domu; wirtualizowana oś zachowuje kotwicę czytelnika.
+Wszystkie akcje (także kolejka, zgody i zatrzymanie) nadal idą do domu, który sprawdza bieżący
+stan i właściciela; lustro nigdy nie podejmuje decyzji wykonawczych. Starszy klient pomija
+nowe pole i nadal może wykonywać te same trasowane akcje.
 Po reconnect overview emituje addytywny `OverviewUpdate.computer_snapshot` (pole 802):
 pełną widoczną listę wątków i metadane jednego partnera. UI zastępuje jego wiersze, więc usunięty
 offline wątek nie zostaje na liście jako stara aktualizacja. Pojedyncze upserty nadal są emitowane

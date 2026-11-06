@@ -223,6 +223,61 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     expect(snapshot.schedules).toEqual([]);
   });
 
+  test("online opens show the mirror while the home snapshot is blocked, then hand over to live updates", async () => {
+    await caughtUp();
+    const original = b.core.watchThread.bind(b.core);
+    const entered = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<void>();
+    b.core.watchThread = async function* (id, signal) {
+      if (id === thread) {
+        entered.resolve();
+        await resume.promise;
+      }
+
+      yield* original(id, signal);
+    };
+
+    const abort = new AbortController();
+    const stream = a.api.watchThread({ threadId: q(thread) }, { signal: abort.signal })[Symbol.asyncIterator]();
+
+    try {
+      const first = await stream.next();
+      expect(first.value?.syncing).toBe(true);
+      expect(first.value?.change.case).toBe("snapshot");
+      expect(first.value?.change.case === "snapshot" && first.value.change.value.items.length).toBeGreaterThan(0);
+      const next = stream.next();
+      await entered.promise;
+      // GetThread, including the BFF's preflight, must not wait for the home either.
+      expect((await a.api.getThread({ threadId: q(thread) })).thread?.id).toBe(q(thread));
+      resume.resolve();
+      const live = await next;
+      expect(live.value?.syncing).toBe(false);
+      expect(live.value?.change.case).toBe("snapshot");
+    } finally {
+      resume.resolve();
+      abort.abort();
+      await stream.return?.();
+      b.core.watchThread = original;
+    }
+  }, 15_000);
+
+  test("an online thread absent from the mirror opens from home", async () => {
+    await caughtUp();
+    await sa.query("DELETE FROM computer_mirror_threads WHERE origin_node_id=$1 AND thread_id=$2::uuid", [
+      node,
+      thread,
+    ]);
+
+    try {
+      const updates = await watchUntil(a.api, q(thread), (u) => u.length > 0);
+      expect(updates[0]?.syncing).toBe(false);
+      expect(updates[0]?.change.case).toBe("snapshot");
+    } finally {
+      await sb.query("UPDATE threads SET title=title WHERE id=$1::uuid", [thread]);
+      await caughtUp();
+    }
+  });
+
   test("the mirror subscription excludes another owner's threads and platform secrets", async () => {
     const owner = id();
     const projectId = id();

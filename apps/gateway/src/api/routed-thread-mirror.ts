@@ -1,0 +1,90 @@
+import { create, type DescMethod, type Message } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
+import { splitId, THREAD_MIRROR } from "@canopy/domain/computers";
+import { AsyncChannel } from "@canopy/transport";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { linkedMessage } from "../computers/remote.ts";
+import type { LinkedComputers } from "../computers/runtime.ts";
+
+/** Seed online reads locally; actions always continue to the owner-scoped home handlers. */
+export async function* mirrorFirst(
+  computers: LinkedComputers,
+  nodeId: string,
+  method: DescMethod,
+  request: Message,
+): AsyncGenerator<Message, boolean> {
+  if (
+    !computers.reachable().includes(nodeId) ||
+    !computers.capabilities(nodeId).includes(THREAD_MIRROR) ||
+    (method.name !== "GetThread" && method.name !== "WatchThread")
+  )
+    return false;
+
+  const threadId = splitId(
+    method.name === "GetThread"
+      ? linkedMessage(ui.GetThreadRequestSchema, request).threadId
+      : linkedMessage(ui.WatchThreadRequestSchema, request).threadId,
+  ).id;
+
+  const snapshot = await computers.mirror.snapshot(nodeId, threadId);
+
+  if (!snapshot?.thread) return false;
+
+  if (method.name === "GetThread") {
+    yield create(ui.GetThreadResponseSchema, { thread: snapshot.thread });
+
+    return true;
+  }
+
+  yield create(ui.ThreadUpdateSchema, { syncing: true, change: { case: "snapshot", value: snapshot } });
+
+  return false;
+}
+
+/** Offline watches stay readable until presence changes and the client reconnects. */
+export async function* offlineThread(
+  computers: LinkedComputers,
+  nodeId: string,
+  method: DescMethod,
+  request: Message,
+  signal: AbortSignal,
+): AsyncGenerator<Message, boolean> {
+  if (method.name !== "GetThread" && method.name !== "WatchThread") return false;
+
+  const threadId = splitId(
+    method.name === "GetThread"
+      ? linkedMessage(ui.GetThreadRequestSchema, request).threadId
+      : linkedMessage(ui.WatchThreadRequestSchema, request).threadId,
+  ).id;
+
+  const snapshot = await computers.mirror.snapshot(nodeId, threadId);
+
+  if (!snapshot?.thread)
+    throw new ConnectError("This thread has not been synced yet. Connect its computer to read it.", Code.Unavailable);
+
+  if (method.name === "GetThread") yield create(ui.GetThreadResponseSchema, { thread: snapshot.thread });
+  else {
+    const changes = new AsyncChannel<void>();
+
+    const unsubscribe = computers.subscribe((c) => {
+      if (c.nodeId === nodeId) changes.close();
+    });
+
+    const abort = () => changes.close();
+    signal.addEventListener("abort", abort, { once: true });
+
+    try {
+      yield create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: snapshot } });
+
+      if (!signal.aborted && !computers.reachable().includes(nodeId))
+        for await (const _ of changes) {
+          /* closed by a change */
+        }
+    } finally {
+      unsubscribe();
+      signal.removeEventListener("abort", abort);
+    }
+  }
+
+  return true;
+}

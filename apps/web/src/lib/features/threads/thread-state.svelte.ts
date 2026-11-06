@@ -1,6 +1,7 @@
-import { create } from "@bufbuild/protobuf";
+import { create, equals } from "@bufbuild/protobuf";
 import {
   ItemStatus,
+  ItemSchema,
   TurnEndSource,
   TurnOrigin,
   TurnOutcome,
@@ -61,7 +62,7 @@ export interface UsageTotals {
 }
 
 /** connecting: first snapshot pending; live: stream open; reconnecting: dropped, EventSource retries. */
-export type Connection = "connecting" | "live" | "reconnecting";
+export type Connection = "connecting" | "syncing" | "live" | "reconnecting";
 
 /**
  * Client state of one thread, fed by the SSE stream of WatchThread.
@@ -194,12 +195,29 @@ export class ThreadState {
       case "snapshot": {
         const snapshot = change.value;
         this.thread = snapshot.thread;
-        this.turns = snapshot.turns;
+        const turns = new Map(this.turns.map((turn) => [turn.id, turn]));
+        this.turns = snapshot.turns.map((turn) => {
+          const previous = turns.get(turn.id);
+
+          return previous && equals(ui.TurnSchema, previous, turn) ? previous : turn;
+        });
         this.interactions = snapshot.interactions;
         this.secrets = snapshot.secrets;
         const known = new Map(this.entries.map((entry) => [`${entry.fromThreadId}:${entry.id}`, entry]));
         this.entries = snapshot.items.flatMap((i) => {
           const previous = known.get(`${i.fromThreadId}:${i.item?.itemId}`);
+          const completedAt = i.completedAt ? timestampMs(i.completedAt) : previous?.completedAt;
+
+          if (
+            previous &&
+            i.item &&
+            equals(ItemSchema, previous.item, i.item) &&
+            previous.turnId === i.turnId &&
+            previous.firstSeq === i.firstSeq &&
+            previous.inherited === i.inherited &&
+            previous.completedAt === completedAt
+          )
+            return [previous];
 
           return i.item
             ? [
@@ -211,7 +229,7 @@ export class ThreadState {
                   inherited: i.inherited,
                   fromThreadId: i.fromThreadId,
                   startedAt: previous?.startedAt,
-                  completedAt: previous?.completedAt ?? (i.completedAt ? timestampMs(i.completedAt) : undefined),
+                  completedAt,
                 },
               ]
             : [];
@@ -416,8 +434,9 @@ export class ThreadState {
         this.failure = "Lost the connection to the gateway. Reconnecting…";
       },
       onmessage: (data) => {
-        this.apply(decode(ui.ThreadUpdateSchema, JSON.parse(data)));
-        this.connection = "live";
+        const update = decode(ui.ThreadUpdateSchema, JSON.parse(data));
+        this.apply(update);
+        this.connection = update.syncing ? "syncing" : "live";
         this.failure = undefined;
       },
     });

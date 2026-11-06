@@ -1015,6 +1015,8 @@ message ThreadEventUpdate {
 }
 
 message ThreadUpdate {
+  // The snapshot is a local mirror; the home's current state is still pending.
+  bool syncing = 800;
   oneof change {
     ThreadSnapshot snapshot = 1;
     ThreadEventUpdate event = 2;
