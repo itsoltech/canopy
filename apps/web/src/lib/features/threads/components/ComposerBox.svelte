@@ -117,9 +117,13 @@
     class?: ClassValue;
   } = $props();
 
+  const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell"];
   const shellMode = $derived(shell && value.startsWith("!"));
   const triggers: ReadonlySet<TriggerChar> = $derived(new Set(shellMode ? [] : ["/", "$", "@", "#"]));
   const trimmed = $derived(trimValue({ text: value, mentions }));
+
+  // The empty composer lists what each trigger character does.
+  const hint = $derived(shell && sources && !compact ? TRIGGER_HINT : undefined);
 
   const id = $props.id();
   const hasFiles = $derived((draft?.attached.length ?? 0) > 0);
@@ -294,6 +298,7 @@
           bind:mentions
           bind:editor
           {placeholder}
+          {hint}
           {disabled}
           {autofocus}
           sources={shellMode ? undefined : sources}
