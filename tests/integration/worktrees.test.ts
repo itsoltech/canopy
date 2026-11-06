@@ -194,7 +194,8 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
     const thread = await newWorktreeThread("Fix the login bug\nmore detail");
     expect(thread.worktree?.branch).toBe("wt/fix-the-login-bug");
     const managed = realpathSync(join(dataDir, "worktrees"));
-    expect(thread.cwd).toBe(join(managed, "repo", "wt-fix-the-login-bug"));
+    // The folder is a short random name, not the branch (docs/worktrees.md, "Położenie").
+    expect(thread.cwd).toMatch(new RegExp(`^${join(managed, "repo")}/[0-9a-hjkmnp-tv-z]{6}$`));
     expect(thread.worktree).toMatchObject({ path: thread.cwd, baseRef: "main", repoRoot: realpathSync(repo) });
     await idle(thread.id);
     expect(readFileSync(join(thread.cwd, "worker-started.txt"), "utf8")).toBe(thread.cwd);
@@ -205,7 +206,8 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
 
     const again = await newWorktreeThread("Fix the login bug", "feature/old");
     expect(again.worktree?.branch).toBe("wt/fix-the-login-bug-2");
-    expect(again.cwd).toBe(join(managed, "repo", "wt-fix-the-login-bug-2"));
+    expect(again.cwd).toMatch(new RegExp(`^${join(managed, "repo")}/[0-9a-hjkmnp-tv-z]{6}$`));
+    expect(again.cwd).not.toBe(thread.cwd);
     expect(again.worktree?.baseRef).toBe("feature/old");
 
     const listed = await gw.api.listGitRefs({ workspaceId: workspace.id });
@@ -404,7 +406,7 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
     const location = join(dir, "custom-worktrees");
     await settings("", { location, branchNaming: ui.BranchNaming.PREFIX, branchPrefix: "loc" });
     const thread = await newWorktreeThread("Use the configured folder");
-    expect(thread.cwd).toBe(join(realpathSync(location), "repo", "loc-use-the-configured-folder"));
+    expect(thread.cwd).toMatch(new RegExp(`^${join(realpathSync(location), "repo")}/[0-9a-hjkmnp-tv-z]{6}$`));
     await settings("", { location: undefined });
 
     const command = (kind: NonNullable<MessageInitShape<typeof CommandSchema>["kind"]>) =>

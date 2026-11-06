@@ -1568,7 +1568,7 @@ message GitRefs {
   bool dirty = 6;
 }
 
-// Nowy worktree z nową gałęzią. Ścieżkę liczy worker: <location | worktrees_root>/<repo>/<gałąź>.
+// Nowy worktree z nową gałęzią. Ścieżkę liczy worker: <location | worktrees_root>/<repo>/<losowa nazwa>.
 message CreateWorktree {
   string repo_path = 1;
   // Ref bazowy (gałąź lokalna albo zdalna); pusty = gałąź domyślna.
