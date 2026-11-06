@@ -2,6 +2,15 @@ import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { styles, useColors } from "../../ui/theme";
 import { Icon } from "../../ui/Icon";
+import type { Mention } from "@canopy/contracts";
+import { MessageSpans, type BadgeTone } from "../composer/MessageText";
+
+/** Badges in the text (the message draft's files); without it the field is plain text. */
+export interface ComposerBadges {
+  mentions: readonly Mention[];
+  onSelect: (selection: { start: number; end: number }) => void;
+  tone?: (mention: Mention) => BadgeTone;
+}
 
 export function ComposerBox({
   text,
@@ -18,6 +27,7 @@ export function ComposerBox({
   top,
   files = 0,
   label = "Message to your agent",
+  badges,
 }: {
   text: string;
   onChange: (text: string) => void;
@@ -35,6 +45,7 @@ export function ComposerBox({
   /** Attached files: a message may be files only. */
   files?: number;
   label?: string;
+  badges?: ComposerBadges;
 }) {
   const c = useColors();
   const empty = !text.trim() && files === 0;
@@ -64,6 +75,7 @@ export function ComposerBox({
         compact={compact}
         placeholder={placeholder}
         label={label}
+        badges={badges}
       />
       {!compact || !empty || running ? (
         <View
@@ -115,14 +127,20 @@ function ComposerInput({
   compact,
   placeholder,
   label,
-}: Pick<Parameters<typeof ComposerBox>[0], "text" | "onChange" | "busy" | "compact" | "placeholder" | "label">) {
+  badges,
+}: Pick<
+  Parameters<typeof ComposerBox>[0],
+  "text" | "onChange" | "busy" | "compact" | "placeholder" | "label" | "badges"
+>) {
   const c = useColors();
 
   return (
     <TextInput
       accessibilityLabel={label}
-      value={text}
+      // With badges the spans carry the text; a TextInput takes either children or a value.
+      value={badges ? undefined : text}
       onChangeText={onChange}
+      onSelectionChange={badges ? (event) => badges.onSelect(event.nativeEvent.selection) : undefined}
       editable={!busy}
       multiline
       maxLength={32000}
@@ -141,7 +159,9 @@ function ComposerInput({
           textAlignVertical: "top",
         },
       ]}
-    />
+    >
+      {badges ? <MessageSpans value={{ text, mentions: badges.mentions }} tone={badges.tone} /> : null}
+    </TextInput>
   );
 }
 

@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, View, useWindowDimensions } from "react-native";
+import { Animated, Modal, Pressable, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { motion } from "@canopy/ui";
 import { smoothOut, useReducedMotion } from "./motion";
 import { useColors } from "./theme";
+import { useKeyboardOverlap } from "./KeyboardArea";
 
 /** Window width from which overlays open as a centered card instead of a bottom sheet (tablets, unfolded phones). */
 export const WIDE_OVERLAY = 600;
@@ -30,6 +31,8 @@ export function Overlay({
   const [progress] = useState(() => new Animated.Value(0));
   const [mounted, setMounted] = useState(visible);
   const wide = width >= WIDE_OVERLAY;
+  // The sheet sits on the keyboard while it is open; its own bottom inset is then under the keyboard.
+  const keyboard = useKeyboardOverlap();
 
   if (visible && !mounted) setMounted(true);
   useEffect(() => {
@@ -59,9 +62,13 @@ export function Overlay({
       navigationBarTranslucent
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1, justifyContent: wide ? "center" : "flex-end", alignItems: "center" }}
+      <View
+        style={{
+          flex: 1,
+          paddingBottom: keyboard,
+          justifyContent: wide ? "center" : "flex-end",
+          alignItems: "center",
+        }}
       >
         <Animated.View
           style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, opacity: progress }}
@@ -79,9 +86,9 @@ export function Overlay({
           accessibilityLabel={label}
           style={{
             width: wide ? Math.min(420, width - 48) : "100%",
-            maxHeight: wide ? height * 0.7 : height * 0.85 - insets.top,
+            maxHeight: wide ? (height - keyboard) * 0.7 : (height - keyboard) * 0.85 - insets.top,
             marginHorizontal: wide ? 24 : 0,
-            paddingBottom: wide ? 8 : insets.bottom + 8,
+            paddingBottom: wide || keyboard ? 8 : insets.bottom + 8,
             borderRadius: 16,
             borderBottomLeftRadius: wide ? 16 : 0,
             borderBottomRightRadius: wide ? 16 : 0,
@@ -104,7 +111,7 @@ export function Overlay({
           )}
           {children}
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

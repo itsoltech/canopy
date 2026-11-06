@@ -6,7 +6,7 @@ import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
 import { findChoice, modelSections, useModelCatalog } from "../models/catalog";
-import { useAttachmentDraft } from "../attachments/useAttachmentDraft";
+import { useMessageDraft } from "../composer/useMessageDraft";
 import { defaultProject, defaultWorkspace, effectiveDefaults, modelFor } from "./placement";
 
 /**
@@ -21,10 +21,9 @@ export function useNewThread() {
   const [picks, setPicks] = useState<{ projectId?: string; workspaceId?: string; model?: string }>({});
   const [effort, setEffort] = useState("");
   const [permission, setPermission] = useState<PermissionMode>();
-  const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const draft = useAttachmentDraft();
+  const message = useMessageDraft();
   const requestId = useRef(Crypto.randomUUID());
   const sending = useRef(false);
 
@@ -68,13 +67,14 @@ export function useNewThread() {
         ? `${worker?.name ?? "This worker"} is offline. Start it or choose another worker.`
         : !selected
           ? `${worker.name} reports no available agents. Check the worker in Settings.`
-          : draft.blocker;
+          : message.files.blocker;
 
   async function create() {
     if (!client || !workspace || !selected || blocker || sending.current) return;
     sending.current = true;
     setBusy(true);
     setError("");
+    const outgoing = message.outgoing();
 
     try {
       const result = await client.api.createThread(
@@ -87,8 +87,9 @@ export function useNewThread() {
           model: !picked && selected.isDefault ? "" : selected.model,
           effort: selected.efforts.includes(effort) ? effort : "",
           permissionMode,
-          initialMessage: text.trim(),
-          initialAttachmentIds: draft.ids,
+          initialMessage: outgoing.text,
+          initialAttachmentIds: outgoing.attachmentIds,
+          initialMentions: outgoing.mentions,
           clientRequestId: requestId.current,
         },
         { timeoutMs: 20_000 },
@@ -113,9 +114,7 @@ export function useNewThread() {
     selected,
     effort: selected?.efforts.includes(effort) ? effort : selected?.defaultEffort || "",
     permissionMode,
-    text,
-    setText,
-    draft,
+    message,
     busy,
     error,
     blocker,
