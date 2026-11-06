@@ -1,8 +1,9 @@
 import { Text, View } from "react-native";
 import { useDevicePreferences } from "../../state/preferences";
 import { deviceDefaults, type DeviceValues } from "../../storage/preferences";
-import { IconButton, Segmented } from "../../ui/components";
+import { Segmented } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
+import { ResetSetting } from "./ResetSetting";
 
 const choices = [
   {
@@ -38,28 +39,25 @@ export function TurnActivitySettings() {
       </View>
       {choices.map((choice) => (
         <View key={choice.preference} style={{ gap: 8 }}>
-          {/* The reset button keeps its row height, so showing it moves nothing. */}
-          <View style={[styles.row, { minHeight: 32 }]}>
-            <Text style={[styles.label, { flex: 1, color: c.text }]}>{choice.title}</Text>
-            {preferences.values[choice.preference] !== deviceDefaults[choice.preference] && (
-              <ResetButton
-                label={`Reset ${choice.title} to default`}
-                onPress={() => preferences.set(choice.preference, deviceDefaults[choice.preference])}
-              />
-            )}
-          </View>
+          <Text style={[styles.label, { color: c.text }]}>{choice.title}</Text>
           <Text style={[styles.meta, { color: c.muted }]}>{choice.description}</Text>
-          <Segmented<DeviceValues[typeof choice.preference]>
-            value={preferences.values[choice.preference]}
-            options={choice.options}
-            onChange={(value) => preferences.set(choice.preference, value)}
-          />
+          {/* Reset sits on the control's inner side with its space reserved, as on the web: nothing moves. */}
+          <View style={[styles.row, { gap: 8 }]}>
+            <ResetSetting
+              label={`Reset ${choice.title} to default`}
+              changed={preferences.values[choice.preference] !== deviceDefaults[choice.preference]}
+              onReset={() => preferences.set(choice.preference, deviceDefaults[choice.preference])}
+            />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Segmented<DeviceValues[typeof choice.preference]>
+                value={preferences.values[choice.preference]}
+                options={choice.options}
+                onChange={(value) => preferences.set(choice.preference, value)}
+              />
+            </View>
+          </View>
         </View>
       ))}
     </View>
   );
-}
-
-function ResetButton({ label, onPress }: { label: string; onPress: () => void }) {
-  return <IconButton icon="arrow-path" size="sm" label={label} onPress={onPress} />;
 }
