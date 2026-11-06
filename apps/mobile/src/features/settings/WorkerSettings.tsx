@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { useAppearance } from "../../state/appearance";
-import { Button, Notice } from "../../ui/components";
+import { Button } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { font, styles, useColors } from "../../ui/theme";
 import { SettingsGroup, SettingsRow, SettingsActions } from "./SettingsGroup";
@@ -44,20 +44,14 @@ export function WorkerSettings() {
   return (
     <ResourceState resource={resource}>
       <SettingsActions>
-        <Button title="Add worker" disabled={!data} onPress={() => setAdding(true)} />
+        <Button variant="primary" title="Add worker" disabled={!data} onPress={() => setAdding(true)} />
       </SettingsActions>
       {(data || resource.initialLoading) && (
         <SettingsGroup title="Network access">
           <SettingsRow
             title={data?.network.enabled ? "Remote access is on" : "Remote access is off"}
             description={data?.network.note || "Connect paired devices and remote workers to this gateway."}
-            control={
-              <Button
-                secondary
-                title="Manage network access"
-                onPress={() => router.push("/settings?section=network")}
-              />
-            }
+            control={<Button title="Manage network access" onPress={() => router.push("/settings?section=network")} />}
           />
         </SettingsGroup>
       )}
@@ -92,7 +86,12 @@ export function WorkerSettings() {
         </View>
       ))}
       {data && !groups.length && (
-        <Notice>No workers yet. Add a worker to run Claude, Codex or Grok on a computer you control.</Notice>
+        <SettingsGroup>
+          <SettingsRow
+            title="No workers yet"
+            description="Add a worker to run Claude, Codex or Grok on a computer you control."
+          />
+        </SettingsGroup>
       )}
       {!!pending.length && (
         <SettingsGroup title="Pending enrollments">
@@ -103,7 +102,6 @@ export function WorkerSettings() {
               description={`Waiting for enrollment · expires ${format(e.expiresAt?.seconds)}`}
               control={
                 <Button
-                  secondary
                   title="Revoke"
                   disabled={resource.busy}
                   onPress={() => void resource.run((api) => api.revokeWorkerEnrollment({ id: e.id }))}

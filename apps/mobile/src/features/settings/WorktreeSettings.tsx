@@ -59,7 +59,6 @@ export function WorktreeSettings() {
           <WorktreeCreation response={response} busy={resource.busy} save={save} />
           <WorktreeCleanup response={response} busy={resource.busy} save={save} />
           <Button
-            secondary
             title="Restore inherited settings"
             busy={resource.busy}
             onPress={() =>
@@ -310,7 +309,6 @@ function WorktreeList({ scope }: { scope: { projectId: string; workerId: string 
       <SettingsGroup title="Worktrees">
         <SettingsSkeletonRows controls />
         <Button
-          secondary
           title="Refresh status"
           busy={resource.busy}
           onPress={() => {
@@ -319,7 +317,6 @@ function WorktreeList({ scope }: { scope: { projectId: string; workerId: string 
           }}
         />
         <Button
-          secondary
           title="Preview cleanup"
           busy={resource.busy}
           onPress={() =>
@@ -334,7 +331,7 @@ function WorktreeList({ scope }: { scope: { projectId: string; workerId: string 
           <>
             <Notice>{preview.entries.filter((e) => e.wouldRemove).length} worktrees qualify for cleanup.</Notice>
             <Button
-              danger
+              variant="danger"
               title="Clean up worktrees"
               disabled={!preview.entries.some((e) => e.wouldRemove)}
               busy={resource.busy}
@@ -370,7 +367,7 @@ function WorktreeList({ scope }: { scope: { projectId: string; workerId: string 
               value={`${entry.status?.dirtyFiles ?? 0} files · ${entry.status?.ahead ?? 0} ahead · ${entry.status?.behind ?? 0} behind${entry.status?.unpushed ? " · Unpushed commits" : ""}`}
             />
             <Button
-              danger
+              variant="danger"
               title="Remove worktree"
               disabled={resource.busy || !entry.online || entry.busy || entry.removed || !entry.status?.headCommit}
               onPress={() => remove(entry)}
@@ -378,7 +375,7 @@ function WorktreeList({ scope }: { scope: { projectId: string; workerId: string 
           </SettingsRow>
         ))}
         {resource.data && !resource.data.entries.length && (
-          <Notice>No worktrees yet. Start a thread in a new worktree to add one.</Notice>
+          <SettingsRow title="No worktrees yet" description="Start a thread in a new worktree to add one." />
         )}
       </SettingsGroup>
     </ResourceState>

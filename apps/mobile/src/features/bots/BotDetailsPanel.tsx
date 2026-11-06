@@ -70,7 +70,7 @@ export function BotDetailsPanel({
           ) : (
             <Text style={[styles.meta, { color: c.muted }]}>No reminders</Text>
           )}
-          <Button title="Bot settings" secondary onPress={() => setSettings(true)} />
+          <Button title="Bot settings" onPress={() => setSettings(true)} />
         </>
       )}
     </Sheet>

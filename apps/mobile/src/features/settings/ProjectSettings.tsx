@@ -25,14 +25,19 @@ export function ProjectSettings() {
 
   return (
     <ResourceState resource={resource}>
-      <Button title="Add project" onPress={() => setAdding(true)} />
+      <Button variant="primary" title="Add project" onPress={() => setAdding(true)} />
       {!loaded && (
         <SkeletonScope loading>
           <SettingsSkeletonGroups titles={[" "]} />
         </SkeletonScope>
       )}
       {loaded && !projects.some((p) => p.kind !== "scratch" && !p.archivedAt) && (
-        <Notice>No projects yet. Add a directory or clone a repository on a worker.</Notice>
+        <SettingsGroup>
+          <SettingsRow
+            title="No projects yet"
+            description="A project groups threads. Its workspaces are directories on your workers."
+          />
+        </SettingsGroup>
       )}
       {projects
         .filter((p) => p.kind !== "scratch" && !p.archivedAt)
@@ -54,7 +59,7 @@ export function ProjectSettings() {
                 workerName={workers.find((w) => w.id === ws.workerId)?.name ?? "Unknown worker"}
               />
             ))}
-            <Button secondary title="Add workspace" onPress={() => setEditing(project)} />
+            <Button title="Add workspace" onPress={() => setEditing(project)} />
             <ProjectDefaults project={project} resource={resource} />
           </SettingsGroup>
         ))}
@@ -96,7 +101,7 @@ function WorkspaceSettings({
         }
       />
       <Button
-        danger
+        variant="danger"
         title="Remove workspace"
         busy={resource.busy}
         onPress={() =>
@@ -164,6 +169,7 @@ function AddProject({ onSaved, resource }: { onSaved: () => void; resource: Proj
       {kind !== "directory" && <Field label="Directory name" value={name} onChangeText={setName} />}
       {workerId && <DirectoryBrowser workerId={workerId} value={path} onChange={setPath} />}
       <Button
+        variant="primary"
         title="Add project"
         busy={resource.busy}
         disabled={
@@ -220,6 +226,7 @@ function AddWorkspace({
       <Field label="Label" value={label} onChangeText={setLabel} />
       {workerId && <DirectoryBrowser workerId={workerId} value={rootPath} onChange={setPath} />}
       <Button
+        variant="primary"
         title="Add workspace"
         busy={resource.busy}
         disabled={!workerId || !rootPath.trim()}
@@ -297,7 +304,6 @@ function ProjectDefaults({ project, resource }: { project: ui.Project; resource:
           onSelect={(permissionMode) => save({ permissionMode })}
         />
         <Button
-          secondary
           title="Restore account defaults"
           onPress={() =>
             void resource.run((api) =>

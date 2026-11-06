@@ -90,7 +90,6 @@ export function InstructionEditor({
                 }}
               />
               <Button
-                secondary
                 title="Preview instructions"
                 disabled={!workerId}
                 onPress={() =>
@@ -187,7 +186,6 @@ function InstructionFragments({
               onPress={() => move(index, 1)}
             />
             <Button
-              secondary
               title="Remove fragment"
               onPress={() => change({ fragments: draft.fragments.filter((v) => v.id !== f.id) })}
             />
@@ -195,7 +193,6 @@ function InstructionFragments({
         </SettingsGroup>
       ))}
       <Button
-        secondary
         title="Add fragment"
         onPress={() =>
           change({ fragments: [...draft.fragments, create(ui.InstructionFragmentSchema, { id: Crypto.randomUUID() })] })

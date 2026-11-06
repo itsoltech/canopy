@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "./Icon";
 import { Overlay } from "./Overlay";
-import { styles, useColors, useTypography, type Colors } from "./theme";
+import { font, styles, useColors, useTypography, type Colors } from "./theme";
 import { Skeleton } from "./Skeleton";
 
 export interface PickerOption<T> {
@@ -98,13 +98,13 @@ export function PickerSheet<T>({
                 numberOfLines={1}
                 style={[
                   styles.overlayHeading,
-                  { color: c.faint, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4 },
+                  { color: c.muted, paddingHorizontal: 8, paddingTop: 6, paddingBottom: 2 },
                 ]}
               >
                 {section.title}
               </Text>
             ) : index > 0 ? (
-              <View style={{ height: 1, marginVertical: 4, marginHorizontal: 12, backgroundColor: c.line }} />
+              <View style={{ height: 1, marginVertical: 4, marginHorizontal: 8, backgroundColor: c.rule }} />
             ) : null}
             {section.options.map((option) => (
               <PickerRow
@@ -158,23 +158,24 @@ function PickerRow<T>({
       disabled={option.disabled}
       onPress={onPress}
       style={({ pressed }) => ({
-        minHeight: 48,
+        // Web: a listbox option. Touch rows stay 44 dp; the check, not a fill, marks the choice.
+        minHeight: 44,
         flexDirection: "row",
         alignItems: "center",
-        gap: 12,
-        paddingHorizontal: 12,
+        gap: 8,
+        paddingHorizontal: 8,
         paddingVertical: 8,
-        borderRadius: 10,
-        backgroundColor: pressed ? c.inset : selected ? c.softAccent : "transparent",
-        opacity: option.disabled ? 0.45 : 1,
+        borderRadius: 8,
+        backgroundColor: pressed ? c.pressed : "transparent",
+        opacity: option.disabled ? 0.4 : 1,
       })}
     >
-      {option.leading ?? (option.icon ? <Icon name={option.icon} size={18} color={tone ?? c.muted} /> : null)}
+      {option.leading ?? (option.icon ? <Icon name={option.icon} color={tone ?? c.icon} /> : null)}
       <View style={{ flex: 1, gap: 2 }}>
         <View style={[styles.row, { gap: 6 }]}>
           <Text
             numberOfLines={option.wrapLabel ? undefined : 1}
-            style={[styles.overlay, { color: tone ?? c.text, flexShrink: 1 }, selected && styles.label]}
+            style={[styles.overlay, { color: tone ?? c.strong, flexShrink: 1 }]}
           >
             {option.label}
           </Text>
@@ -190,7 +191,7 @@ function PickerRow<T>({
           </Text>
         ) : null}
       </View>
-      {checkable && <View style={{ width: 18 }}>{selected && <Icon name="check" size={18} color={c.accent} />}</View>}
+      {checkable && <View style={{ width: 16 }}>{selected && <Icon name="check" color={c.accent} />}</View>}
     </Pressable>
   );
 }
@@ -265,8 +266,8 @@ export function SelectField({
   const type = useTypography();
 
   return (
-    <View style={{ gap: 8 }}>
-      {!hideLabel && <Text style={[type.chrome, { color: c.text }]}>{label}</Text>}
+    <View style={{ gap: 6 }}>
+      {!hideLabel && <Text style={[type.body, { fontFamily: font.medium, color: c.text }]}>{label}</Text>}
       <Skeleton>
         <Pressable
           accessibilityRole="button"
@@ -280,19 +281,21 @@ export function SelectField({
               minHeight: 44,
               paddingVertical: 8,
               paddingHorizontal: 12,
-              borderRadius: 10,
+              borderRadius: 8,
               borderWidth: 1,
               borderColor: c.line,
-              backgroundColor: pressed ? c.inset : c.surface,
-              opacity: disabled ? 0.45 : 1,
+              backgroundColor: disabled ? c.sidebar : pressed ? c.inset : c.surface,
             },
           ]}
         >
           {leading}
-          <Text numberOfLines={1} style={[type.body, { flex: 1, color: toneColor(c, tone) ?? c.text }]}>
+          <Text
+            numberOfLines={1}
+            style={[type.body, { flex: 1, color: disabled ? c.muted : (toneColor(c, tone) ?? c.text) }]}
+          >
             {value}
           </Text>
-          <Icon name="chevron-up-down" color={c.faint} />
+          <Icon name="chevron-up-down" color={c.icon} />
         </Pressable>
       </Skeleton>
     </View>

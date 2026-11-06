@@ -69,7 +69,6 @@ export function BotApprovalRules({ botId, selectedRule = "" }: { botId: string; 
               Added from an approval card{rule.createdAt ? ` · ${timestampDate(rule.createdAt).toLocaleString()}` : ""}
             </Text>
             <Button
-              secondary
               title="Remove rule"
               disabled={!!busy}
               busy={busy === rule.id}

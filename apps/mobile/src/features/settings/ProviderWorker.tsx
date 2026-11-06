@@ -54,13 +54,11 @@ export function ProviderWorker({
             }
           />
           <Button
-            secondary
             title="Refresh account"
             busy={resource.busy}
             onPress={() => void resource.run((api) => api.refreshProviders({ ...request, accountOnly: true }))}
           />
           <Button
-            secondary
             title="Sign in"
             busy={resource.busy}
             onPress={() =>
@@ -74,7 +72,7 @@ export function ProviderWorker({
           {login && (
             <>
               <SettingsValue title="Sign-in code" value={login.userCode} />
-              <Button secondary title="Open sign-in page" onPress={() => void Linking.openURL(login.verificationUrl)} />
+              <Button title="Open sign-in page" onPress={() => void Linking.openURL(login.verificationUrl)} />
             </>
           )}
           <WorkerOverrides
@@ -210,8 +208,8 @@ function WorkerOverrides({
         )}
         <Notice>{worker.overrides?.apiKeySet ? "Worker key set · never returned" : "Uses the definition key"}</Notice>
         <EnvironmentFields value={env} onChange={setEnv} />
-        <Button title="Save overrides" busy={resource.busy} onPress={() => void save()} />
-        <Button secondary title="Use definition" busy={resource.busy} onPress={() => void save(true)} />
+        <Button variant="primary" title="Save overrides" busy={resource.busy} onPress={() => void save()} />
+        <Button title="Use definition" busy={resource.busy} onPress={() => void save(true)} />
       </SettingsGroup>
     </ResourceState>
   );

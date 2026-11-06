@@ -92,7 +92,6 @@ export function SkillSourceEditor({
           {preview.skills.map((item) => (
             <Fragment key={item.path}>
               <SettingToggle
-                key={item.path}
                 title={item.artifact?.name || item.path}
                 value={paths.includes(item.path)}
                 onChange={(on) => setPaths(on ? [...paths, item.path] : paths.filter((p) => p !== item.path))}
@@ -107,6 +106,7 @@ export function SkillSourceEditor({
           />
           <EnvironmentDestinations value={assignment} workers={snapshot.workers} onChange={setAssignment} />
           <Button
+            variant="primary"
             title={skill ? "Apply reviewed update" : "Add and sync"}
             disabled={!paths.length}
             busy={resource.busy}

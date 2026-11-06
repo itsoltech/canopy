@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import * as Crypto from "expo-crypto";
 import { ConnectError } from "@connectrpc/connect";
 import { PermissionMode, type ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useLayout } from "../../state/layout";
 import { Button, Field } from "../../ui/components";
-import { Icon } from "../../ui/Icon";
 import { Overlay } from "../../ui/Overlay";
+import { Checkbox } from "../../ui/Checkbox";
 import { styles, useColors } from "../../ui/theme";
 
 const hint = "The side thread starts from the main thread's last completed turn.";
@@ -93,41 +93,21 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
         placeholder="Ask anything…"
         style={{ minHeight: 96, maxHeight: 160, textAlignVertical: "top" }}
       />
-      <Pressable
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: fork }}
-        accessibilityHint={hint}
-        onPress={() => setFork(!fork)}
-        style={[styles.row, { minHeight: 48, gap: 12, alignItems: "flex-start", paddingVertical: 4 }]}
-      >
-        <View
-          style={{
-            width: 20,
-            height: 20,
-            marginTop: 2,
-            borderRadius: 6,
-            borderWidth: fork ? 0 : 1.5,
-            borderColor: c.faint,
-            backgroundColor: fork ? c.accent : "transparent",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {fork ? <Icon name="check" size={14} color={c.onAccent} /> : null}
-        </View>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={[styles.label, { color: c.text }]}>Use main thread history</Text>
-          <Text style={[styles.meta, { color: c.muted }]}>{hint}</Text>
-        </View>
-      </Pressable>
+      <Checkbox label="Use main thread history" description={hint} checked={fork} onChange={setFork} />
       {closed || error ? (
         <Text accessibilityRole="alert" style={[styles.meta, { color: closed ? c.muted : c.danger }]}>
           {closed ? "Reopen the main thread to start a side thread." : error}
         </Text>
       ) : null}
       <View style={[styles.row, { justifyContent: "flex-end" }]}>
-        <Button title="Cancel" secondary onPress={onClose} />
-        <Button title="Start side thread" busy={busy} disabled={closed || !text.trim()} onPress={() => void start()} />
+        <Button title="Cancel" onPress={onClose} />
+        <Button
+          variant="primary"
+          title="Start side thread"
+          busy={busy}
+          disabled={closed || !text.trim()}
+          onPress={() => void start()}
+        />
       </View>
     </View>
   );

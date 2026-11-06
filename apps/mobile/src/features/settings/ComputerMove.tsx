@@ -71,6 +71,7 @@ export function ComputerMove({ nodeId }: { nodeId: string }) {
           />
         ))}
         <Button
+          variant="primary"
           title="Move everything"
           disabled={!ready || resource.busy || moves.length > 0}
           onPress={() =>

@@ -10,7 +10,7 @@ import { ui } from "@canopy/contracts";
 import { applyThread } from "../../api/thread";
 import { useSession } from "../../state/session";
 import { useThreadSnapshot } from "../../state/thread";
-import { ConnectionNotice, LatestButton, Notice } from "../../ui/components";
+import { LatestButton, Notice } from "../../ui/components";
 import { TimelineTurn, type TurnContext } from "../timeline/TimelineTurn";
 import { TimelineDirectoryProvider, type TimelineDirectory } from "../timeline/directory";
 import { NoticeRow } from "../timeline/NoticeRows";
@@ -24,6 +24,7 @@ import { ThreadPanel } from "./ThreadPanel";
 import { InteractionCard } from "./InteractionCard";
 import { useOverview } from "../../state/overview";
 import { ThreadHeader } from "./ThreadHeader";
+import { ConnectionBanner } from "../navigation/ConnectionStatus";
 import { SubagentStrip } from "./SubagentStrip";
 import { useFollowingList } from "../../ui/useFollowingList";
 import { useMessageDraft } from "../composer/useMessageDraft";
@@ -240,6 +241,7 @@ export function ThreadScreen({ id }: { id: string }) {
         goalOpen={Boolean(snapshot?.goal && !isFinishedGoal(snapshot.goal.status))}
         readOnly={state.home.away}
       />
+      <ConnectionBanner stream={state.home.away ? undefined : state.stream} />
       <KeyboardArea>
         <ThreadTimeline state={state} />
         <View
@@ -402,9 +404,6 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
           // Inverted: the footer is the top of the feed, the header sits under the latest turn.
           ListFooterComponent={
             <View style={{ gap: 16, paddingBottom: 16 }}>
-              {!state.home.away && (stream.connection === "error" || stream.connection === "offline") ? (
-                <ConnectionNotice {...stream} />
-              ) : null}
               {!snapshot && <ConversationSkeleton />}
               {snapshot && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
             </View>

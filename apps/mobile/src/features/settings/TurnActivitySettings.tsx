@@ -1,8 +1,7 @@
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useDevicePreferences } from "../../state/preferences";
 import { deviceDefaults, type DeviceValues } from "../../storage/preferences";
-import { Segmented } from "../../ui/components";
-import { Icon } from "../../ui/Icon";
+import { IconButton, Segmented } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 
 const choices = [
@@ -62,24 +61,5 @@ export function TurnActivitySettings() {
 }
 
 function ResetButton({ label, onPress }: { label: string; onPress: () => void }) {
-  const c = useColors();
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      hitSlop={8}
-      style={({ pressed }) => ({
-        width: 32,
-        height: 32,
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: 8,
-        backgroundColor: pressed ? c.inset : "transparent",
-      })}
-    >
-      <Icon name="arrow-path" size={16} color={c.muted} />
-    </Pressable>
-  );
+  return <IconButton icon="arrow-path" size="sm" label={label} onPress={onPress} />;
 }

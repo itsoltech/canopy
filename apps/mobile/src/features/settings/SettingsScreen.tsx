@@ -55,7 +55,7 @@ function SettingsContent({ initialSection }: { initialSection: string }) {
       {settings.error ? (
         <View style={{ gap: 8 }}>
           <Notice error>{settings.error}</Notice>
-          <Button secondary title="Retry settings" onPress={() => void settings.reload()} />
+          <Button title="Retry settings" onPress={() => void settings.reload()} />
         </View>
       ) : null}
       <SkeletonScope

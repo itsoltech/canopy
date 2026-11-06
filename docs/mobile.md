@@ -55,8 +55,9 @@ Lokalne HTTP z `CANOPY_DEV_HTTP=1` omija tę ścieżkę.
 Błędy transportu niosą natywną domenę i kod, bez adresu: na iOS `NSURLErrorDomain -1200 / -9802`
 (drugi to kod błędu TLS strumienia), z probe `POSIX 61`, `TLS -9808` albo `timeout`; na Androidzie
 klasę wyjątku i jego przyczyny (`SSLHandshakeException / CertPathValidatorException`). Aplikacja
-dopisuje kod w nawiasie do komunikatu: przy parowaniu, w „Cannot reach this computer securely”
-po nieudanym probe i w banerze „Connection lost” streamów. Zrzut ekranu wystarcza do diagnozy.
+dopisuje kod w nawiasie do komunikatu przy parowaniu i w „Cannot reach this computer securely”
+po nieudanym probe. Kod ostatniego błędu streamu („Last error: …”) pokazuje arkusz statusu połączenia
+(stopka listy lub „Details” w banerze). Zrzut ekranu tego arkusza wystarcza do diagnozy.
 
 ## Wersje i Bun workspace
 
@@ -319,6 +320,12 @@ chronią przed częściowym odczytem; uszkodzony wpis jest usuwany.
 `WatchThread` wysyła `incremental=true` i ostatni atomowy `cursor`. Gateway odpowiada
 deltą dziennika albo pełnym stanem według reguł w `ui-api.md`. Zdarzenia live nie
 przesuwają kursora; ponowny odczyt idempotentnie nakłada projekcje od checkpointu.
+Stan połączenia wygląda jak w web: stopka listy pokazuje kropkę i „Connected”, „Reconnecting…”
+albo „Gateway unavailable” (stream bez odpowiedzi dłużej niż 12 s, jak `live-source.ts` w web);
+tapnięcie otwiera arkusz ze zdaniem o stanie, kodem ostatniego błędu i małym „Reconnect now”.
+Pod nagłówkiem ekranu (lista, wątek, czat bota, Settings) pojawia się wąski baner: ostrzeżenie
+„The gateway is not responding…” albo „You’re offline…”, a w wątku i czacie bota informacja
+„Reconnecting to live updates…”, gdy gateway odpowiada, ale stream tego ekranu się zerwał.
 Po utracie połączenia backoff z jitterem rośnie od około 1 do 30 sekund;
 powrót z tła lub odzyskanie sieci używa tego samego kursora. Cichy napis `Syncing…`
 zajmuje stałe miejsce przy końcu timeline. Wysyłka i stop czekają na stan live;
@@ -351,6 +358,13 @@ z dokładnie tej samej wersji Tailwind co web: `bun --cwd packages/ui gen`. Konw
 OKLCH → sRGB jest konieczna dla natywnego parsera kolorów; `gen:check` wykrywa rozjazd palety
 i wersji Tailwind. CSS web nadal używa Tailwind; zmiany jego skali typografii/radii
 trzeba przenosić do wspólnych tokenów świadomie.
+
+Kit `src/ui` odpowiada `apps/web/src/lib/shared/ui`: `Button` (primary, secondary, ghost, danger;
+`md` 40 dp, `sm` 32 dp, w Settings 44 dp; nagłówki grup i banery dają `sm`), `IconButton`,
+`Alert` (info, warning, danger, error, wariant banner), `Notice` (wyciszony tekst, błąd jako `Alert`),
+`EmptyState`, `Switch`, `Checkbox`, `SearchField`, `Segmented`, `Field`, `Sheet` i jedno okno
+potwierdzenia `confirm()` zamiast natywnego `Alert.alert`. Cel dotyku 44 dp daje `hitSlop`,
+wymiary widoczne zostają jak w web.
 
 RN używa StyleSheet i Inter 400/500/600 (pakiet fontu, bez pobierania z sieci), SVG
 z tych samych ścieżek, SafeAreaView i FlatList. Aplikacja działa edge-to-edge, więc okno nie

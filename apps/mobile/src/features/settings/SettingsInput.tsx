@@ -72,6 +72,7 @@ export function SettingsInput({
         {error ? <Notice error>{error}</Notice> : null}
         <View>
           <Button
+            variant="primary"
             title="Save"
             busy={busy}
             onPress={() => {

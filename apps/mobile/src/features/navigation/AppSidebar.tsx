@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import { FlatList, Image, Pressable, Text, TextInput, View } from "react-native";
+import { FlatList, Image, Pressable, Text, View } from "react-native";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ui, bots as botContract } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
-import { ConnectionNotice, IconButton, Notice, Segmented } from "../../ui/components";
+import { Button, EmptyState, IconButton, Notice, Segmented } from "../../ui/components";
+import { ConnectionBanner, ConnectionStatus } from "./ConnectionStatus";
 import { PickerSheet } from "../../ui/Picker";
 import { ProjectMark } from "../../ui/ProjectMark";
 import { styles, useColors } from "../../ui/theme";
 import { Icon } from "../../ui/Icon";
+import { SearchField } from "../../ui/SearchField";
 import { SidebarThread } from "./SidebarThread";
 import { BotListItem } from "../bots/BotListItem";
 import { SettingsThreadList } from "./SettingsThreadList";
@@ -123,7 +125,7 @@ function useSidebarState() {
 
 function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const c = useColors();
-  const { section, setSection, queries, setQueries, query, setFilterOpen, projectId, projects, bots } = state;
+  const { section, setSection, queries, setQueries, setFilterOpen, projectId, projects, bots } = state;
   const unread = bots.reduce((sum, bot) => sum + (bot.archived ? 0 : bot.unreadCount), 0);
   // The project filter is named in words, not only by the tinted funnel.
   const filtered = section === "threads" ? projects.find((p) => p.id === projectId) : undefined;
@@ -165,21 +167,13 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
         style={{ marginHorizontal: 12, marginBottom: 8 }}
       />
       <View style={[styles.row, { paddingHorizontal: 12, paddingBottom: 8 }]}>
-        <View style={[styles.row, { flex: 1, paddingHorizontal: 10, minHeight: 44 }]}>
-          <Icon name="magnifying-glass" color={c.faint} />
-          <TextInput
-            accessibilityLabel={searchLabel}
-            placeholder={searchLabel}
-            placeholderTextColor={c.muted}
-            value={queries[section]}
-            onChangeText={(value) => setQueries({ ...queries, [section]: value })}
-            style={[styles.body, { color: c.text, flex: 1, paddingVertical: 8 }]}
-            returnKeyType="search"
-          />
-          {query && (
-            <IconButton icon="x-mark" label="Clear search" onPress={() => setQueries({ ...queries, [section]: "" })} />
-          )}
-        </View>
+        <SearchField
+          bare
+          label={searchLabel}
+          value={queries[section]}
+          onChange={(value) => setQueries({ ...queries, [section]: value })}
+          style={{ flex: 1 }}
+        />
         {section === "threads" && (
           <IconButton
             icon="funnel"
@@ -204,6 +198,8 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
     loaded,
     query,
     projectId,
+    setProjectId,
+    stream,
     archiveOpen,
     setArchiveOpen,
     archiveError,
@@ -226,13 +222,20 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
             !loaded ? (
               <ListSkeleton lines={3} />
             ) : (
-              <Text style={[styles.meta, { color: c.muted, padding: 12 }]}>
-                {query
-                  ? `No thread matches “${query}”.`
-                  : projectId
-                    ? "No threads in the selected projects"
-                    : "No threads yet. Start one with the pencil above."}
-              </Text>
+              <View style={{ alignItems: "flex-start", gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+                <Text style={[styles.meta, { color: c.muted }]}>
+                  {projectId
+                    ? "No threads in the selected projects."
+                    : query
+                      ? `No thread matches “${query}”.`
+                      : stream.connection === "unavailable"
+                        ? "Threads appear when the gateway connects."
+                        : "No threads yet. Select New thread above to start one."}
+                </Text>
+                {projectId ? (
+                  <Button size="sm" variant="ghost" title="Clear filters" onPress={() => setProjectId("")} />
+                ) : null}
+              </View>
             )
           }
           footer={
@@ -280,7 +283,17 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
             !botsLoaded && !botError ? (
               <ListSkeleton avatar />
             ) : (
-              <Notice error={Boolean(botError)}>{botError || "No bots yet. Create a bot in Canopy on the web."}</Notice>
+              <View style={{ padding: 8 }}>
+                {botError ? (
+                  <Notice error>{botError}</Notice>
+                ) : (
+                  <EmptyState
+                    icon="chat-bubble-left-right"
+                    title="No bots yet"
+                    description="Create a bot in Canopy on the web."
+                  />
+                )}
+              </View>
             )
           }
         />
@@ -302,11 +315,7 @@ export function AppSidebar() {
   return (
     <SafeAreaView style={[styles.fill, { backgroundColor: c.sidebar }]}>
       <SidebarHeader state={state} />
-      {stream.connection !== "live" && stream.connection !== "connecting" && (
-        <View style={{ padding: 12 }}>
-          <ConnectionNotice {...stream} />
-        </View>
-      )}
+      <ConnectionBanner />
       <SidebarLists state={state} />
       <View style={[styles.row, { borderTopWidth: 1, borderTopColor: c.line, padding: 8 }]}>
         <IconButton icon="cog-6-tooth" label="Settings" onPress={() => router.push("/settings")} />
@@ -326,18 +335,8 @@ export function AppSidebar() {
             {workers.filter((w) => w.online).length}/{workers.length}
           </Text>
         </Pressable>
-        <View style={[styles.row, { flex: 1, justifyContent: "flex-end", paddingRight: 8 }]}>
-          <View
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 3,
-              backgroundColor: stream.connection === "live" ? c.success : c.warning,
-            }}
-          />
-          <Text style={[styles.meta, { color: c.muted }]}>
-            {stream.connection === "live" ? "Connected" : "Reconnecting"}
-          </Text>
+        <View style={[styles.row, { flex: 1, justifyContent: "flex-end" }]}>
+          <ConnectionStatus stream={stream} />
         </View>
       </View>
       <PickerSheet

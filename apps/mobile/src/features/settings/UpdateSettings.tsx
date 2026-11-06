@@ -26,12 +26,7 @@ export function UpdateSettings() {
     <SettingsGroup
       title="Updates"
       actions={
-        <Button
-          secondary
-          title="Check now"
-          busy={resource.busy || data?.checking}
-          onPress={() => change({ action: "check" })}
-        />
+        <Button title="Check now" busy={resource.busy || data?.checking} onPress={() => change({ action: "check" })} />
       }
     >
       <ResourceState resource={resource}>
@@ -52,6 +47,7 @@ export function UpdateSettings() {
               description={data.run?.reason}
               control={
                 <Button
+                  size="sm"
                   title={data.run?.state === "failed" ? "Retry update all" : "Update all"}
                   disabled={resource.busy || !data.admin || data.run?.state === "running"}
                   onPress={() => change({ action: "update_all" })}
@@ -90,6 +86,7 @@ function GatewayUpdate({ data, busy, change }: UpdateRowsProps) {
         control={
           data.gatewayUpdateAvailable ? (
             <Button
+              variant="primary"
               title={`Update to ${data.availableVersion}`}
               disabled={busy || !data.admin}
               onPress={() =>
@@ -134,7 +131,6 @@ function RemoteUpdateRows({ data, busy, change }: UpdateRowsProps) {
             description={[worker.state, worker.reason, worker.compatibility].filter(Boolean).join(" · ")}
             control={
               <Button
-                secondary
                 title={worker.installKind === "desktop" ? "Update Canopy app" : "Update worker"}
                 disabled={busy || !worker.connected || !data.admin || !!worker.reason}
                 onPress={() =>
@@ -158,7 +154,6 @@ function RemoteUpdateRows({ data, busy, change }: UpdateRowsProps) {
           }
           control={
             <Button
-              secondary
               title="Check now"
               disabled={busy || !computer.remoteUpdate}
               onPress={() => change({ action: "computer_check", nodeId: computer.nodeId })}
@@ -166,7 +161,6 @@ function RemoteUpdateRows({ data, busy, change }: UpdateRowsProps) {
           }
         >
           <Button
-            secondary
             title="Update"
             disabled={busy || !computer.remoteUpdate}
             onPress={() => change({ action: "computer", nodeId: computer.nodeId })}

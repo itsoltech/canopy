@@ -39,9 +39,7 @@ export function WorkerDetails({
       </SettingsSection>
       <SettingsSection
         title="Configuration"
-        actions={
-          <Button secondary title="Manage providers" onPress={() => router.push("/settings?section=providers")} />
-        }
+        actions={<Button title="Manage providers" onPress={() => router.push("/settings?section=providers")} />}
       >
         <SettingsValue
           title="Providers"
@@ -132,7 +130,6 @@ function WorkerAccess({
           description="Disconnect this worker and replace its credential. The new credential is shown once."
           control={
             <Button
-              secondary
               title="Rotate credential"
               disabled={disabled || !!worker.revokedAt}
               onPress={() =>
@@ -163,7 +160,7 @@ function WorkerAccess({
           description="Workspaces, threads and files stay. Processes already running may continue."
           control={
             <Button
-              danger
+              variant="danger"
               title="Revoke worker"
               disabled={disabled || !!worker.revokedAt}
               onPress={() =>
@@ -181,7 +178,7 @@ function WorkerAccess({
           description="Archives its workspaces. Its threads remain readable. Files stay on the computer."
           control={
             <Button
-              danger
+              variant="danger"
               title="Archive worker"
               disabled={disabled}
               onPress={() =>

@@ -85,6 +85,7 @@ export function TextGenerationSettings() {
           />
           <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
             <Button
+              variant="primary"
               title="Save instructions"
               busy={settings.saving}
               disabled={!settings.user || instructions === undefined || instructions === value.threadTitleInstructions}

@@ -68,7 +68,6 @@ export function NetworkSettings() {
                 control={
                   address.kind === "hostname" ? (
                     <Button
-                      secondary
                       title={`Remove ${address.host}`}
                       disabled={resource.busy}
                       onPress={() =>
@@ -137,9 +136,7 @@ function NetworkAdvanced({ status, busy, change }: { status: ui.NetworkAccess; b
           />
           <SettingsRow
             title="Choose automatically"
-            control={
-              <Button secondary title="Pick a free port" disabled={busy} onPress={() => void change("choose_port")} />
-            }
+            control={<Button title="Pick a free port" disabled={busy} onPress={() => void change("choose_port")} />}
           />
         </>
       )}
@@ -155,9 +152,7 @@ function TailscaleSettings({ status, busy, change }: { status: ui.NetworkAccess;
     <View style={{ gap: 24 }}>
       <SettingsGroup
         title="Tailscale"
-        actions={
-          <Button secondary title="Check again" disabled={busy} onPress={() => void change("refresh_tailscale")} />
-        }
+        actions={<Button title="Check again" disabled={busy} onPress={() => void change("refresh_tailscale")} />}
       >
         <SettingsValue title="Status" value={ts?.state.replaceAll("_", " ") || "Unavailable"} />
         {ts?.dnsName ? <SettingsValue title="MagicDNS name" value={ts.dnsName} /> : null}

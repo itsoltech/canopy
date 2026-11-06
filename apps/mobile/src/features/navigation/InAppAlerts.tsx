@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Pressable, Text } from "react-native";
+import { Pressable, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { palette } from "@canopy/ui";
 import { router, useGlobalSearchParams } from "expo-router";
 import { useOverview } from "../../state/overview";
 import { useDevicePreferences } from "../settings/device-preferences";
-import { styles, useColors } from "../../ui/theme";
+import { font, styles, useColors } from "../../ui/theme";
 
 /** Alert only for live changes after the initial snapshot, never replay historical results. */
 export function InAppAlerts() {
@@ -13,6 +15,7 @@ export function InAppAlerts() {
   const previous = useRef<Map<string, string> | null>(null);
   const [alert, setAlert] = useState<{ id: string; title: string; status: string }>();
   const c = useColors();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!loaded) return;
@@ -44,30 +47,48 @@ export function InAppAlerts() {
 
   if (!alert || values.inAppNotifications !== "on") return null;
 
+  // Web: Toaster. A dark pill under the top edge: what happened and one action.
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLiveRegion="polite"
-      onPress={() => {
-        router.push({ pathname: "/thread/[id]", params: { id: alert.id } });
-        setAlert(undefined);
-      }}
-      style={{
-        position: "absolute",
-        top: 52,
-        left: 16,
-        right: 16,
-        borderWidth: 1,
-        borderColor: c.line,
-        borderRadius: 12,
-        padding: 16,
-        backgroundColor: c.overlay,
-        elevation: 8,
-      }}
+    <View
+      pointerEvents="box-none"
+      style={{ position: "absolute", top: insets.top + 12, left: 16, right: 16, alignItems: "center" }}
     >
-      <Text style={[styles.body, { color: c.text }]} numberOfLines={2}>
-        {alert.title} · {alert.status}
-      </Text>
-    </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLiveRegion="polite"
+        accessibilityLabel={`${alert.title}, ${alert.status}. Open thread`}
+        onPress={() => {
+          router.push({ pathname: "/thread/[id]", params: { id: alert.id } });
+          setAlert(undefined);
+        }}
+        style={({ pressed }) => [
+          styles.row,
+          {
+            maxWidth: 480,
+            minHeight: 44,
+            paddingLeft: 14,
+            paddingRight: 8,
+            paddingVertical: 6,
+            borderRadius: 22,
+            backgroundColor: c.dark ? palette.zinc[800] : palette.zinc[950],
+            borderWidth: c.dark ? 1 : 0,
+            borderColor: "#ffffff1a",
+            shadowColor: "#000000",
+            shadowOpacity: c.dark ? 0 : 0.18,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 8,
+            opacity: pressed ? 0.9 : 1,
+          },
+        ]}
+      >
+        <Text numberOfLines={1} style={[styles.meta, { flexShrink: 1, fontFamily: font.medium, color: "#ffffff" }]}>
+          {alert.title} · {alert.status}
+        </Text>
+        <Text style={[styles.meta, { fontFamily: font.semibold, color: c.brandOnInk, paddingHorizontal: 6 }]}>
+          Open
+        </Text>
+      </Pressable>
+    </View>
   );
 }

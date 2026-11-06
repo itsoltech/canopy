@@ -73,6 +73,7 @@ export function WorkerEnrollment({ setup, onClose }: { setup: ui.GetWorkerSetupR
         ) : (
           <>
             <Button
+              variant={invitation ? "secondary" : "primary"}
               title={invitation ? "Generate new token" : "Generate enrollment token"}
               disabled={!name.trim() || !gateway.trim()}
               busy={resource.busy}
@@ -85,17 +86,12 @@ export function WorkerEnrollment({ setup, onClose }: { setup: ui.GetWorkerSetupR
                   machine.
                 </Notice>
                 <WorkerInstallCommands method={method} setup={setup} gateway={gateway} token={invitation.token} />
-                <Button
-                  secondary
-                  title="Check connection"
-                  busy={resource.loading}
-                  onPress={() => void resource.reload()}
-                />
+                <Button title="Check connection" busy={resource.loading} onPress={() => void resource.reload()} />
                 <SettingsValue
                   title="Connection"
                   value={active?.usedAt ? "Connected" : active?.revokedAt ? "Revoked" : "Waiting for enrollment"}
                 />
-                {active?.usedAt && <Button title="Finish" onPress={onClose} />}
+                {active?.usedAt && <Button variant="primary" title="Finish" onPress={onClose} />}
               </View>
             )}
           </>

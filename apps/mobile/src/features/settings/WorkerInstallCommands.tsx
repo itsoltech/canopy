@@ -78,9 +78,7 @@ export function WorkerInstallCommands({
           value={`# Enroll using docker run above first\nservices:\n  worker:\n    image: ${image}\n    restart: unless-stopped\n    volumes:\n      - canopy-worker:/home/canopy\nvolumes:\n  canopy-worker:\n    external: true`}
         />
       )}
-      {!metadata && resource.error && (
-        <Button secondary title="Retry release lookup" onPress={() => void resource.reload()} />
-      )}
+      {!metadata && resource.error && <Button title="Retry release lookup" onPress={() => void resource.reload()} />}
     </ResourceState>
   );
 }

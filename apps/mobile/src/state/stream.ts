@@ -2,7 +2,18 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useSession } from "./session";
 
-export type Connection = "connecting" | "syncing" | "live" | "reconnecting" | "offline" | "paused" | "error";
+export type Connection =
+  | "connecting"
+  | "syncing"
+  | "live"
+  | "reconnecting"
+  | "unavailable"
+  | "offline"
+  | "paused"
+  | "error";
+
+/** How long a stream stays down before the gateway counts as unavailable (web: live-source.ts). */
+const UNAVAILABLE_AFTER = 12_000;
 
 /** Backoff with jitter, fresh snapshots, cancellation, and foreground/network resubscription. */
 export function useStream<T>(
@@ -15,12 +26,13 @@ export function useStream<T>(
   const onReceive = useEffectEvent(receive);
   const onExpired = useEffectEvent(expired);
 
-  const [state, setState] = useState<{ key: string; connection: Connection; issue?: string }>({
+  const [state, setState] = useState<{ key: string; connection: Connection; issue?: string; detail?: string }>({
     key: "",
     connection: "connecting",
   });
 
   const [attempt, setAttempt] = useState(0);
+  const [stale, setStale] = useState("");
   const enabled = Boolean(watch);
   const subscriptionKey = `${key}:${attempt}`;
   useEffect(() => {
@@ -65,11 +77,7 @@ export function useStream<T>(
         }
 
         if (controller.signal.aborted) return;
-        setState({
-          key: subscriptionKey,
-          connection: "reconnecting",
-          ...(reason && { issue: `Connection lost. Reconnecting automatically… ${reason}` }),
-        });
+        setState({ key: subscriptionKey, connection: "reconnecting", ...(reason && { detail: reason.slice(1, -1) }) });
         const delay = Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5)) * (0.8 + Math.random() * 0.4);
         await new Promise<void>((resolve) => {
           const done = () => {
@@ -92,17 +100,33 @@ export function useStream<T>(
     };
   }, [subscriptionKey, active, online, enabled]);
 
+  // A stream that stays down past the threshold means the gateway does not answer, not a brief drop.
+  const down = state.key === subscriptionKey && state.connection === "reconnecting";
+  useEffect(() => {
+    if (!down) return;
+    const timer = setTimeout(() => setStale(subscriptionKey), UNAVAILABLE_AFTER);
+
+    return () => {
+      clearTimeout(timer);
+      setStale("");
+    };
+  }, [down, subscriptionKey]);
+
   const connection: Connection = !online
     ? "offline"
     : !active || !enabled
       ? "paused"
       : state.key !== subscriptionKey
         ? "connecting"
-        : state.connection;
+        : down && stale === subscriptionKey
+          ? "unavailable"
+          : state.connection;
 
   return {
     connection,
     issue: state.key === subscriptionKey ? state.issue : undefined,
+    /** The native transport code of the last failure (`timeout`, `POSIX 50`, `NSURLErrorDomain -1200`). */
+    detail: state.key === subscriptionKey ? state.detail : undefined,
     retry: () => setAttempt((n) => n + 1),
   };
 }

@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
+import { confirm } from "../../ui/Confirm";
 import type { Client } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
@@ -108,7 +109,7 @@ export function ResourceState({
       {resource.error ? (
         <View style={{ gap: 8 }}>
           <Notice error>{resource.error}</Notice>
-          <Button secondary title="Retry" onPress={() => void resource.reload()} />
+          <Button title="Retry" onPress={() => void resource.reload()} />
         </View>
       ) : null}
       {resource.message ? <Notice>{resource.message}</Notice> : null}
@@ -118,8 +119,5 @@ export function ResourceState({
 }
 
 export function confirmAction(title: string, description: string, action: () => void) {
-  Alert.alert(`${title}?`, description, [
-    { text: "Cancel", style: "cancel" },
-    { text: title, style: "destructive", onPress: action },
-  ]);
+  confirm({ title: `${title}?`, description, confirm: title, action });
 }

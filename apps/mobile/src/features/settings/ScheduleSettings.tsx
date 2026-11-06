@@ -2,7 +2,7 @@ import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
-import { Button, Notice, Sheet } from "../../ui/components";
+import { Button, EmptyState, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
@@ -23,7 +23,7 @@ export function ScheduleSettings() {
 
   return (
     <ResourceState resource={resource}>
-      <Button title="Add schedule" onPress={() => setEditing("new")} />
+      <Button variant="primary" title="Add schedule" onPress={() => setEditing("new")} />
       <SettingChoice
         title="Schedules"
         value={tab}
@@ -33,7 +33,17 @@ export function ScheduleSettings() {
           { value: "finished", label: `Finished (${finished.length})` },
         ]}
       />
-      {resource.data && !rows.length && <Notice>No {tab} schedules. Add a schedule to send a message later.</Notice>}
+      {resource.data && !rows.length && (
+        <EmptyState
+          icon="clock"
+          title={tab === "upcoming" ? "Nothing scheduled" : "No finished tasks"}
+          description={
+            tab === "upcoming"
+              ? "Send a message to a thread later, once or on repeat. Agents can schedule their own wake-ups too."
+              : "Tasks that ran once or were cancelled appear here."
+          }
+        />
+      )}
       {rows.map((s) => (
         <SettingsGroup key={s.id} title={s.name} description={s.status}>
           <SettingsValue title="Message" value={s.prompt} />
@@ -62,9 +72,8 @@ export function ScheduleSettings() {
           ))}
           {["active", "paused"].includes(s.status) && (
             <>
-              <Button secondary title="Edit schedule" onPress={() => setEditing(s)} />
+              <Button title="Edit schedule" onPress={() => setEditing(s)} />
               <Button
-                secondary
                 title={s.status === "paused" ? "Resume schedule" : "Pause schedule"}
                 busy={resource.busy}
                 onPress={() =>
@@ -74,7 +83,7 @@ export function ScheduleSettings() {
                 }
               />
               <Button
-                danger
+                variant="danger"
                 title="Cancel schedule"
                 busy={resource.busy}
                 onPress={() =>

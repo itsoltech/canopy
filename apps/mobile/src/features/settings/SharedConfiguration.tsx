@@ -33,12 +33,11 @@ export function SharedConfiguration({ notices, onChanged }: { notices: ui.Config
             <SettingsValue title="Change" value={notice.value} />
             <SettingsActions>
               <Button
-                secondary
                 title={notice.reason === "resurrected" ? "Delete" : "Restore"}
                 disabled={resource.busy}
                 onPress={() => act(notice.id, "restore")}
               />
-              <Button secondary title="Dismiss" disabled={resource.busy} onPress={() => act(notice.id, "dismiss")} />
+              <Button title="Dismiss" disabled={resource.busy} onPress={() => act(notice.id, "dismiss")} />
             </SettingsActions>
           </SettingsRow>
         ))}

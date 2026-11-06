@@ -28,11 +28,11 @@ export function EnvironmentWizard({
       </Text>
       {children(step)}
       <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
-        {step > 0 && <Button secondary title="Back" disabled={busy} onPress={() => setStep(step - 1)} />}
+        {step > 0 && <Button title="Back" disabled={busy} onPress={() => setStep(step - 1)} />}
         {step < steps.length - 1 ? (
-          <Button title="Next" disabled={busy} onPress={() => setStep(step + 1)} />
+          <Button variant="primary" title="Next" disabled={busy} onPress={() => setStep(step + 1)} />
         ) : (
-          <Button title={title} disabled={disabled} busy={busy} onPress={onSave} />
+          <Button variant="primary" title={title} disabled={disabled} busy={busy} onPress={onSave} />
         )}
       </View>
     </View>

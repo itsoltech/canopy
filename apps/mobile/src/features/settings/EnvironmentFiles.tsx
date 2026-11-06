@@ -16,7 +16,7 @@ export function EnvironmentFiles({ artifact, before }: { artifact?: SkillArtifac
           key={f.path}
           title={f.path}
           description={`${f.content.length} bytes${f.executable ? " · Executable" : ""}`}
-          control={<Button secondary title="Review file" onPress={() => setPath(f.path)} />}
+          control={<Button title="Review file" onPress={() => setPath(f.path)} />}
         />
       ))}
       {before?.files

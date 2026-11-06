@@ -43,6 +43,7 @@ export function AttachmentSettings() {
         ))}
         {!valid && <Notice error>Use whole numbers: 1–30 MiB per file, 1–1024 MiB per message and 1–100 files.</Notice>}
         <Button
+          variant="primary"
           title="Save limits"
           disabled={!limits || !valid}
           busy={settings.saving}

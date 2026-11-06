@@ -80,8 +80,8 @@ export function SkillEditor({
           step === 0 ? (
             <>
               <Field label="Library name" value={draft.name} onChangeText={(name) => change({ name })} />
-              <Button secondary title="Choose folder" onPress={() => void upload(true)} />
-              <Button secondary title="Choose ZIP" onPress={() => void upload(false)} />
+              <Button title="Choose folder" onPress={() => void upload(true)} />
+              <Button title="Choose ZIP" onPress={() => void upload(false)} />
               {skill && (
                 <SettingChoice
                   title="Library version"

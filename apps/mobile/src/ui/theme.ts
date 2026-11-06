@@ -8,6 +8,7 @@ import { useDevicePreferences } from "../features/settings/device-preferences";
 export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
   const v = themeVariables(theme, dark ? "dark" : "light");
   const neutral = themes[theme][dark ? "dark" : "light"];
+  const hue = themes[theme].accent;
   const zinc = (step: (typeof neutralSteps)[number]) => neutral[neutralSteps.indexOf(step)] ?? v.muted;
 
   return {
@@ -32,13 +33,32 @@ export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
     /** Recessed wells (code, prompts, forks): zinc-950/2.5, white/5. */
     well: dark ? "#ffffff0d" : "#09090b06",
     line: v.border,
+    /** Control and card rings: zinc-950/10, white/10. */
+    ring: dark ? "#ffffff1a" : `${zinc(950)}1a`,
+    /** Recessed tracks (segmented controls): zinc-950/5, white/5. */
+    recess: dark ? "#ffffff0d" : `${zinc(950)}0d`,
+    /** Pressed rows and ghost controls: zinc-950/5, white/10. */
+    pressed: dark ? "#ffffff1a" : `${zinc(950)}0d`,
+    /** Icons at rest (web: icon-muted) and pressed (icon-emphasis). */
+    icon: dark ? zinc(400) : zinc(500),
+    iconStrong: dark ? zinc(300) : zinc(700),
+    /** Secondary buttons: white, white/5; pressed zinc-50, white/10. */
+    control: dark ? "#ffffff0d" : "#ffffff",
+    controlPressed: dark ? "#ffffff1a" : zinc(50),
+    /** Switch track: zinc-200, white/5; checked brand-600, brand-500. */
+    track: dark ? "#ffffff0d" : zinc(200),
+    /** Actions on dark toasts: brand-400. */
+    brandOnInk: hue === "neutral" ? "#ffffff" : palette[hue][400],
+    brand: hue === "neutral" ? v.action : palette[hue][dark ? 500 : 600],
     accent: v.accent,
     action: v.action,
+    actionPressed: v["action-hover"],
     onAccent: v["on-accent"],
     onControl: v["on-control"],
     softAccent: `${v.accent}1a`,
     warning: dark ? palette.amber[400] : palette.amber[700],
     danger: dark ? palette.rose[400] : palette.rose[700],
+    dangerPressed: dark ? `${palette.rose[500]}1a` : palette.rose[50],
     sky: dark ? palette.sky[400] : palette.sky[700],
     success: dark ? palette.emerald[400] : palette.emerald[700],
     userBubble: v.hover,
@@ -90,6 +110,13 @@ export function useTypography() {
       fontFamily: family,
       fontSize: typography.body.fontSize * scale,
       lineHeight: typography.body.lineHeight * scale,
+    },
+    /** Secondary text a step under the body: 14 (web: text-sm on phones). */
+    small: {
+      ...styles.meta,
+      fontFamily: family,
+      fontSize: typography.small.fontSize * scale,
+      lineHeight: typography.small.lineHeight * scale,
     },
     chrome: {
       ...styles.chrome,
@@ -148,7 +175,7 @@ export const styles = StyleSheet.create({
     fontFamily: font.regular,
     fontSize: 16,
     lineHeight: 24,
-    minHeight: 44,
+    minHeight: 40,
   },
   divider: { borderBottomWidth: StyleSheet.hairlineWidth },
 });

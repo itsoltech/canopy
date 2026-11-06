@@ -54,7 +54,7 @@ function usePairing() {
       setCode(qr.code);
       setError("");
     } catch {
-      setError("Scan the pairing QR code from Canopy → Settings → Mobile devices.");
+      setError("Scan the pairing QR code from Canopy → Settings → Devices.");
     }
   }
 
@@ -190,7 +190,7 @@ export default function PairScreen() {
             <View style={{ gap: 12 }}>
               <Text style={[styles.heading, { color: c.text }]}>Pair with your Canopy</Text>
               <Text style={[styles.body, { color: c.muted }]}>
-                On your computer, open Settings → Mobile devices → Pair a phone. Use the same Wi-Fi or VPN.
+                On your computer, open Settings → Devices → Pair a phone. Use the same Wi-Fi or VPN.
               </Text>
             </View>
             {(error || sessionError) && <Notice error>{error || sessionError}</Notice>}
@@ -206,10 +206,10 @@ export default function PairScreen() {
                     setError("Camera unavailable. Enter the pairing code below.");
                   }}
                 />
-                <Button title="Cancel scan" secondary onPress={() => setScanning(false)} />
+                <Button title="Cancel scan" onPress={() => setScanning(false)} />
               </View>
             ) : (
-              <Button title="Scan pairing QR code" onPress={() => void scan()} disabled={busy} />
+              <Button variant="primary" title="Scan pairing QR code" onPress={() => void scan()} disabled={busy} />
             )}
             <Text style={[styles.body, { color: c.muted, textAlign: "center" }]}>or enter the details</Text>
             <Field
@@ -244,7 +244,6 @@ export default function PairScreen() {
             <Field label="Device name" value={name} onChangeText={setName} maxLength={100} editable={!busy} />
             <Button
               title="Pair this phone"
-              secondary
               onPress={() => void connect()}
               disabled={!gatewayUrl.trim() || !fingerprint.trim() || !code.trim() || !name.trim()}
               busy={busy}

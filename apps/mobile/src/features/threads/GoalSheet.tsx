@@ -107,18 +107,18 @@ function OpenGoal({ thread, goal, onReplace }: { thread: ui.Thread; goal: ui.Goa
       ) : null}
       {confirming ? (
         <View style={[styles.row, { justifyContent: "flex-end" }]}>
-          <Button title="Keep" secondary disabled={Boolean(busy)} onPress={() => setConfirming(false)} />
-          <Button title="Clear goal" danger busy={busy === "clear"} onPress={() => void act("clear")} />
+          <Button title="Keep" disabled={Boolean(busy)} onPress={() => setConfirming(false)} />
+          <Button title="Clear goal" variant="danger" busy={busy === "clear"} onPress={() => void act("clear")} />
         </View>
       ) : (
         <View style={[styles.row, { justifyContent: "flex-end", flexWrap: "wrap" }]}>
-          <Button title="Clear the goal…" secondary disabled={Boolean(busy)} onPress={() => setConfirming(true)} />
+          <Button title="Clear the goal…" disabled={Boolean(busy)} onPress={() => setConfirming(true)} />
           {goal.status === "active" ? (
-            <Button title="Pause" secondary busy={busy === "pause"} onPress={() => void act("pause")} />
+            <Button title="Pause" busy={busy === "pause"} onPress={() => void act("pause")} />
           ) : (
-            <Button title="Resume" secondary busy={busy === "resume"} onPress={() => void act("resume")} />
+            <Button title="Resume" busy={busy === "resume"} onPress={() => void act("resume")} />
           )}
-          <Button title="Replace the goal…" disabled={Boolean(busy)} onPress={onReplace} />
+          <Button variant="primary" title="Replace the goal…" disabled={Boolean(busy)} onPress={onReplace} />
         </View>
       )}
     </View>
@@ -216,8 +216,9 @@ function GoalForm({
         </Text>
       ) : null}
       <View style={[styles.row, { justifyContent: "flex-end" }]}>
-        <Button title="Cancel" secondary onPress={onDone} />
+        <Button title="Cancel" onPress={onDone} />
         <Button
+          variant="primary"
           title={replacing ? "Replace goal" : "Set goal"}
           busy={busy}
           disabled={!objective.trim() || budgetError}

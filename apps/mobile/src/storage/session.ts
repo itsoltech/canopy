@@ -42,7 +42,7 @@ export async function loadSession(): Promise<DeviceSession | null> {
 
   if (!isDeviceSession(value))
     throw new Error(
-      "This pairing needs a computer certificate. Open Settings → Mobile devices on your computer and pair this phone again.",
+      "This pairing needs a computer certificate. Open Settings → Devices on your computer and pair this phone again.",
     );
 
   return value;

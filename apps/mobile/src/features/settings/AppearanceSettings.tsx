@@ -20,7 +20,12 @@ export function AppearanceSettings() {
 
   return (
     <View style={{ gap: 24 }}>
-      <Button title="Restore device defaults" secondary onPress={() => device.reset(appearanceDeviceKeys)} />
+      <Button
+        title="Restore device defaults"
+        icon="arrow-path"
+        style={{ alignSelf: "flex-start" }}
+        onPress={() => device.reset(appearanceDeviceKeys)}
+      />
       <SettingsGroup title="Colors" description="Account">
         <SettingsRow title="Color scheme" description="Follow the system or use a fixed light or dark palette.">
           <Skeleton>

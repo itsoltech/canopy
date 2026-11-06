@@ -2,7 +2,7 @@ import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { pluginComponents } from "@canopy/domain/plugin-components";
-import { Button, Field, Notice, Sheet } from "../../ui/components";
+import { Button, EmptyState, Field, Notice, Sheet } from "../../ui/components";
 import { SettingChoice, SettingToggle, SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
@@ -23,12 +23,14 @@ export function MarketplaceSettings({
 
   return (
     <ResourceState resource={resource}>
-      <Button title="Add marketplace" onPress={() => setAdding("new")} />
-      {!snapshot.marketplaces.length && <Notice>No marketplaces yet. Add a repository to review its plugins.</Notice>}
+      <Button variant="primary" title="Add marketplace" onPress={() => setAdding("new")} />
+      {!snapshot.marketplaces.length && (
+        <EmptyState title="No marketplaces yet" description="Add a repository to review its plugins." />
+      )}
       {snapshot.marketplaces.map((market) => (
         <SettingsGroup key={market.id} title={market.name} description={market.source?.url}>
           <SettingsValue title="Catalog commit" value={market.source?.commit} />
-          <Button secondary title="Check upstream" onPress={() => setAdding(market)} />
+          <Button title="Check upstream" onPress={() => setAdding(market)} />
           {market.plugins.map((candidate) => (
             <SettingsRow
               key={candidate.artifact?.name}
@@ -36,7 +38,6 @@ export function MarketplaceSettings({
               description={candidate.unavailableReason || candidate.harnesses.join(" · ")}
             >
               <Button
-                secondary
                 title="Review plugin"
                 disabled={!!candidate.unavailableReason}
                 onPress={() => setPlugin({ market, candidate })}
@@ -56,7 +57,6 @@ export function MarketplaceSettings({
                 description="No longer in the catalog. The approved version remains available."
               >
                 <Button
-                  secondary
                   title="Edit plugin"
                   onPress={() =>
                     setPlugin({
@@ -71,7 +71,7 @@ export function MarketplaceSettings({
               </SettingsRow>
             ))}
           <Button
-            danger
+            variant="danger"
             title="Delete marketplace"
             busy={resource.busy}
             onPress={() =>
@@ -155,6 +155,7 @@ function MarketplaceImport({
         ]}
       />
       <Button
+        variant={preview ? "secondary" : "primary"}
         title="Preview marketplace"
         busy={resource.busy}
         onPress={() => {
@@ -181,6 +182,7 @@ function MarketplaceImport({
           ))}
           <Notice>Saving the catalog keeps enabled plugins on their approved versions.</Notice>
           <Button
+            variant="primary"
             title={market ? "Save updated catalog" : "Save marketplace"}
             busy={resource.busy}
             onPress={() =>
@@ -319,7 +321,7 @@ function PluginEditor({
           )
         }
       </EnvironmentWizard>
-      {previous?.assignment && <Button danger title="Delete plugin" busy={resource.busy} onPress={remove} />}
+      {previous?.assignment && <Button variant="danger" title="Delete plugin" busy={resource.busy} onPress={remove} />}
     </ResourceState>
   );
 }
