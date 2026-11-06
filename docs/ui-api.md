@@ -1126,6 +1126,36 @@ współdzielone workery pozostają poza zakresem plików globalnych. Szczegóły
 
 ## 6. Ograniczenia na teraz
 
+### Przyrostowy odczyt historii botów
+
+`WatchBotConversationRequest` i `ReadBotExchangeRequest` przyjmują opcjonalne
+`incremental` (1100) oraz nieprzezroczysty `cursor` (1101). Bez opt-in odpowiedź
+pozostaje pełna. Nowy klient starego gatewaya otrzymuje pełną odpowiedź bez kursora.
+Kursor obejmuje właściciela (przez osobną epokę), rodzaj i identyfikator widoku oraz
+rewizję trwałego dziennika kluczy `bot_view_changes`. Sam `seq` nie wystarcza:
+wiadomość może zostać poprawiona, usunięta albo zmienić prezentację po błędzie tury.
+
+Gateway czyta historię i zegar w jednej transakcji repeatable read. Delta zawiera
+upserty `messages`, `removed_message_ids`, `base_cursor` i nowy `cursor`; klient
+sprawdza zgodność bazy przed atomowym zastosowaniem. Usunięcia wykonuje przed
+upsertami. Brak ciągłości (retencja 10 000 zmian, luka), obca epoka, inny widok lub
+przeniesienie bota dają pełny stan. Autoryzacja właściciela jest sprawdzana przed
+wyborem delty; kursor nigdy nie stanowi uprawnienia.
+
+Stan sterowania rozmowy (bot i jego konfiguracja, read/unread, karty, rutyny,
+przypomnienia, tekst bieżący i status) ma digest SHA-256 w kursorze. Przy zgodności
+`controls_unchanged` potwierdza zachowanie tych pól; przy zmianie zastępuje je pełny
+aktualny zestaw. Dotyczy to również kart z wątków lokalnych i z połączonych domów,
+które mają własne źródła prawdy. Żadna karta z cache nie jest aktywna przed
+potwierdzeniem bieżącej subskrypcji. Dziennik przechowuje wyłącznie identyfikatory;
+nie kopiuje checkpointów modelu, konfiguracji dostawców ani sekretów connectorów.
+Wymiany analogicznie potwierdzają digest konfiguracji `participants`; pole
+`controls_unchanged` (1105) zachowuje ten zestaw bez ponownego przesyłania.
+
+Zdalne boty i wymiany przekazują kursor do domu przez istniejącą trasę stage 2.
+Nie zmienia to wersji łącza. Starszy dom ignoruje nowe pola i wysyła pełną historię;
+offline odczyt nadal korzysta z lustra, bez prawa do wykonywania akcji.
+
 ### Preferencje General i aktualizacje
 
 `UserSettings.general` (900), `sidebar` (nowe pola 900–902) i `cli_updates`

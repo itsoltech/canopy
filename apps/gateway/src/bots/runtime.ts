@@ -13,6 +13,7 @@ import type { BotModel, BotTurn, ModelInput, StoredCall, ToolResult, ToolSpec } 
 import type { ConnectorsRuntime } from "../connectors/runtime.ts";
 import { runToolCall, turnInstructions, WAITING } from "./turn-steps.ts";
 import { HarnessTools } from "./harness-tools.ts";
+import { watchConversation } from "./watch-conversation.ts";
 
 /** Model implementations are pluggable; whatever they return becomes stored JSON only as an object. */
 const toolArguments = Schema.decodeUnknownSync(Schema.JsonObject);
@@ -378,33 +379,19 @@ export class BotsRuntime {
 
     for (const task of this.#active.values()) if (task.turn.bot_id === id) task.abort.abort();
   }
-  async *watch(id: string, signal: AbortSignal): AsyncGenerator<bots.BotConversation> {
-    let revision = "";
-
-    while (!signal.aborted) {
-      const snapshot = await this.run((s) => s.conversation(this.#options.userId, id));
-      snapshot.approvals.push(...((await this.#options.linkedThreadApprovals?.(id)) ?? []));
-
-      const nextRevision = `${snapshot.revision}:${snapshot.approvals.map((a) => `${a.id}:${a.status}`).join(",")}`;
-
-      if (revision !== nextRevision) {
-        revision = nextRevision;
-        yield snapshot;
-      }
-
-      await new Promise<void>((resolve) => {
-        const done = () => {
-          clearTimeout(timer);
-          signal.removeEventListener("abort", done);
-          resolve();
-        };
-
-        const timer = setTimeout(done, 250);
-        signal.addEventListener("abort", done, { once: true });
-
-        if (signal.aborted) done();
-      });
-    }
+  async *watch(
+    id: string,
+    signal: AbortSignal,
+    incremental = false,
+    cursor = "",
+  ): AsyncGenerator<bots.BotConversation> {
+    yield* watchConversation(
+      (checkpoint) => this.run((s) => s.conversation(this.#options.userId, id, checkpoint)),
+      async () => (await this.#options.linkedThreadApprovals?.(id)) ?? [],
+      signal,
+      incremental,
+      cursor,
+    );
   }
   async retry(id: string) {
     await this.run((s) => s.retry(this.#options.userId, id));
@@ -412,6 +399,11 @@ export class BotsRuntime {
   }
   exchange(id: string) {
     return this.run((s) => s.exchange(this.#options.userId, id));
+  }
+  exchangeView(request: bots.ReadBotExchangeRequest) {
+    return this.run((s) =>
+      s.exchangeView(this.#options.userId, request.exchangeId, request.incremental ? request.cursor : undefined),
+    );
   }
   markRead(request: bots.MarkBotReadRequest) {
     return this.run((s) => s.markRead(this.#options.userId, request.botId, request.throughSeq));

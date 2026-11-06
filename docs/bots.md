@@ -1,5 +1,20 @@
 # Boty
 
+## Historia na urządzeniu i odczyt przyrostowy
+
+Rozmowa i podgląd wymiany bot–bot obsługują opt-in `incremental` oraz kursor
+widoku. Gateway używa osobnego dziennika kluczy tabel botów, według tego samego
+modelu epoki, rewizji w kolejności commitów i wykrywania luk co lustra wątków.
+`seq` porządkuje wiadomości; dziennik obejmuje również edycje, usunięcia i zmianę
+prezentacji po zakończeniu tury. Stan kart, read/unread i konfiguracji jest
+potwierdzany digestem i zastępowany w całości, gdy się zmieni. Szczegóły protokołu:
+[ui-api.md](ui-api.md#przyrostowy-odczyt-historii-botów).
+
+Kursor nie daje uprawnień. Dom sprawdza właściciela przed odczytem, a przy luce,
+obcej epoce, innym widoku albo przeniesieniu bota wysyła pełny stan. Stare klienty
+i gatewaye nadal używają pełnych odpowiedzi. Cache zawiera wyłącznie publiczną
+projekcję rozmowy, bez ukrytych checkpointów modelu i danych połączeń connectorów.
+
 Claude, Codex i Grok wykonują inferencję na przypiętym workerze przez oficjalne
 CLI/SDK: Claude Agent SDK, Codex app-server i Grok CLI przez ACP. Każdy bot ma
 izolowaną sesję i wyłącznie narzędzia Canopy. Gateway

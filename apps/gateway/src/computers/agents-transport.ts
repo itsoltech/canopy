@@ -35,6 +35,7 @@ export interface AgentsTransportMethods {
   snapshot(id: string): Promise<ui.ThreadSnapshot>;
   thread(id: string): Promise<ui.Thread>;
   exchange(id: string): Promise<bots.BotMessage[]>;
+  exchangeView(request: bots.ReadBotExchangeRequest): Promise<bots.ReadBotExchangeResponse>;
 }
 
 export const agentsTransportMethods: AgentsTransportMethods = {
@@ -201,6 +202,11 @@ export const agentsTransportMethods: AgentsTransportMethods = {
   },
 
   async exchange(this: LinkedAgents, id: string): Promise<bots.BotMessage[]> {
+    return (await this.exchangeView(create(bots.ReadBotExchangeRequestSchema, { exchangeId: id }))).messages;
+  },
+
+  async exchangeView(this: LinkedAgents, request: bots.ReadBotExchangeRequest): Promise<bots.ReadBotExchangeResponse> {
+    const id = request.exchangeId;
     const ref = splitId(id);
     let node = ref.node ? await this.peer(id) : "";
 
@@ -213,19 +219,19 @@ export const agentsTransportMethods: AgentsTransportMethods = {
           )
         )[0]?.peer_node_id ?? "";
 
-    if (!node) return this.core.bots.exchange(id);
+    if (!node) return this.core.bots.exchangeView(request);
 
     if (!this.core.computers!.reachable().includes(node))
-      return (await this.core.computers!.botMirror.conversations(node)).flatMap((c) =>
-        c.messages.filter((m) => m.exchangeId === qualifyId(ref.id, node)),
-      );
+      return create(bots.ReadBotExchangeResponseSchema, {
+        messages: (await this.core.computers!.botMirror.conversations(node)).flatMap((c) =>
+          c.messages.filter((m) => m.exchangeId === qualifyId(ref.id, node)),
+        ),
+      });
 
-    return (
-      await this.ui(
-        "ReadBotExchange",
-        create(bots.ReadBotExchangeRequestSchema, { exchangeId: qualifyId(ref.id, node) }),
-        bots.ReadBotExchangeResponseSchema,
-      )
-    ).messages;
+    return await this.ui(
+      "ReadBotExchange",
+      create(bots.ReadBotExchangeRequestSchema, { ...request, exchangeId: qualifyId(ref.id, node) }),
+      bots.ReadBotExchangeResponseSchema,
+    );
   },
 };
