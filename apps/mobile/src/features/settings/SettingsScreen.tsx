@@ -21,6 +21,7 @@ import { ComputerSettings } from "./ComputerSettings";
 import { ProxySettings } from "./ProxySettings";
 import { ConnectorSettings } from "./ConnectorSettings";
 import { ProviderSettings } from "./ProviderSettings";
+import { AgentEnvironmentSettings } from "./AgentEnvironmentSettings";
 import { useDevicePreferences } from "./device-preferences";
 
 export default function SettingsScreen() {
@@ -65,9 +66,8 @@ function SettingsContent({ initialSection }: { initialSection: string }) {
       {section === "proxies" && <ProxySettings />}
       {section === "connectors" && <ConnectorSettings />}
       {section === "providers" && <ProviderSettings />}
-      {["projects", "schedules", "agent-environment", "worktrees"].includes(section) && (
-        <RemainingSettings section={section} />
-      )}
+      {section === "agent-environment" && <AgentEnvironmentSettings />}
+      {["projects", "schedules", "worktrees"].includes(section) && <RemainingSettings section={section} />}
     </SettingsLayout>
   );
 }
