@@ -17,6 +17,7 @@ import { DiffSettings } from "./DiffSettings";
 import { NetworkSettings } from "./NetworkSettings";
 import { DeviceSettings } from "./DeviceSettings";
 import { WorkerSettings } from "./WorkerSettings";
+import { ComputerSettings } from "./ComputerSettings";
 import { useDevicePreferences } from "./device-preferences";
 
 export default function SettingsScreen() {
@@ -52,16 +53,10 @@ export default function SettingsScreen() {
       {section === "network" && <NetworkSettings />}
       {section === "mobile" && <DeviceSettings />}
       {section === "workers" && <WorkerSettings />}
-      {[
-        "projects",
-        "schedules",
-        "providers",
-        "connectors",
-        "proxies",
-        "agent-environment",
-        "worktrees",
-        "computers",
-      ].includes(section) && <RemainingSettings section={section} />}
+      {section === "computers" && <ComputerSettings />}
+      {["projects", "schedules", "providers", "connectors", "proxies", "agent-environment", "worktrees"].includes(
+        section,
+      ) && <RemainingSettings section={section} />}
     </SettingsLayout>
   );
 }
