@@ -207,8 +207,8 @@ procesu testowego. Każdy fixture dostaje osobną bazę. Gatewaye klonują niemo
 zmigrowany szablon; testy migracji nadal zaczynają od pustej bazy i wykonują prawdziwe migracje.
 Bezpośrednie `bun test <plik>` nadal działa z własnym kontenerem fixture'a.
 
-`.github/workflows/release.yml` uruchamia nightly z `dev` **co godzinę, o minucie 17 UTC**
-(`17 * * * *`). Najpierw `plan` wykonuje dry run semantic-release: brak nowych commitów lub
+`.github/workflows/release.yml` uruchamia nightly z `dev` **co godzinę, o minucie 40 UTC**
+(`40 * * * *`). Najpierw `plan` wykonuje dry run semantic-release: brak nowych commitów lub
 wyłącznie commity bez wpływu na wersję (`docs`, `ci`, `chore`, `test`, `refactor`, `style`, `build`
 bez `BREAKING CHANGE`) daje `published=false`. Wtedy nie startują ani CI (w tym shardy testów),
 ani buildy, publikacja czy retencja po wydaniu; nie powstaje tag. Pozostaje koszt checkoutu,

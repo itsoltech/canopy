@@ -11,8 +11,8 @@ on:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
   schedule:
-    # Off the hour to reduce contention. Scheduled workflows run on the default branch (dev).
-    - cron: "17 * * * *"
+    # At :40, away from the busy :00 and :30 marks. Scheduled workflows run on the default branch (dev).
+    - cron: "40 * * * *"
   workflow_dispatch:
     inputs:
       expected_sha:
