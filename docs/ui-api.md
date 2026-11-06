@@ -607,6 +607,8 @@ Panel subagentów filtruje wyłącznie pracujących i oczekujących na odpowied�
 
 Przy nawigacji TurnRail rezerwa do wyrównania ostatniego wiersza jest liczona razem z wysokością nakładki (`footerHeight + alignmentSpace`). `scrollend` odświeża kotwicę tylko po nawigacji smooth; własne korekty całkowitoliczbowego `scrollTop` zachowują pierwotny offset ułamkowy, aby streaming nie kumulował błędu zaokrągleń.
 
+„Jump to latest” animuje pozostałą odległość do aktualnego końca na każdej klatce (`EndScroll`, `--duration-slow`, `smoothOut`). Pomiar wierszy i rozwijanie kompozytora mogą zmieniać cel podczas ruchu. Zakończenie animacji uruchamia zwykłe przypinanie dołu bez oczekiwania na natywne `scrollend` ani okno czasowe blokujące korekty. Każda zmiana rzeczywistej rezerwy stopki, także po opóźnionym zatwierdzeniu `footerHeight`, ponownie wyrównuje pozycję po aktualizacji DOM. Gest czytelnika, nawigacja do wiersza i otwarcie foldu przerywają animację; reduced motion i dalekie skoki używają ścieżki natychmiastowej.
+
 ### Pytania nad kompozytorem
 
 `Interaction.asynchronous` i `InteractionPrompt.asynchronous` (pole **250** w odpowiednich wiadomościach) oznaczają pytanie, przy którym agent pracuje dalej. Domyślne `false` zachowuje zachowanie natywnych interakcji. Async pozostaje w `snapshot.interactions` i strumieniu interakcji, lecz nie zwiększa `Thread.pending_interactions` ani komunikatu czytnika ekranu „waiting for you”.
