@@ -5407,7 +5407,7 @@ export const GitRefsSchema: GenMessage<GitRefs> = /*@__PURE__*/
   messageDesc(file_canopy_worker_v1_worker_link, 119);
 
 /**
- * Nowy worktree z nową gałęzią. Ścieżkę liczy worker: <location | worktrees_root>/<repo>/<gałąź>.
+ * Nowy worktree z nową gałęzią. Ścieżkę liczy worker: <location | worktrees_root>/<repo>/<losowa nazwa>.
  *
  * @generated from message canopy.worker.v1.CreateWorktree
  */

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import { basename } from "#lib/shared/format.ts";
+  import { headLabel } from "@canopy/domain/git-heads";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
@@ -95,7 +96,9 @@
       >{worker?.name ?? "Unknown worker"}<span class="text-zinc-400 dark:text-zinc-600">{" · "}</span>{project?.kind ===
       "scratch"
         ? "scratch folder"
-        : basename(thread.cwd)}</span
+        : thread.worktree
+          ? headLabel(thread.worktree)
+          : basename(thread.cwd)}</span
     >
     <MachineBadge nodeId={thread.nodeId} compact class="max-w-28" />
     <span class="flex shrink-0 items-center gap-2">

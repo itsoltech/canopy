@@ -7,8 +7,17 @@ import { listGitRefs, repoRoot } from "./refs.ts";
 
 export type WorktreeInfoInit = MessageInitShape<typeof WorktreeInfoSchema>;
 
-/** Attempts at a free branch name or folder (`name-2`, `name-3`, ...). */
+/** Attempts at a free branch name (`name-2`, `name-3`, ...) or a free random folder. */
 const MAX_SUFFIX = 50;
+
+/** Lower-case letters and digits without i, l, o and u: 32 symbols, so every byte maps without bias. */
+const FOLDER_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
+const FOLDER_LENGTH = 6;
+
+/** A short random folder name for a new worktree (about 10⁹ values), e.g. `k3f9x2`. */
+export function randomFolder(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(FOLDER_LENGTH)), (b) => FOLDER_ALPHABET[b % 32]).join("");
+}
 
 /** `path` is `root` or below it (both real paths). */
 export function isWithin(root: string, path: string): boolean {
@@ -64,14 +73,34 @@ async function freeBranch(cwd: string, wanted: string): Promise<string> {
   throw new GitError("BRANCH_EXISTS", `${wanted} and its numbered variants already exist`);
 }
 
-function freeFolder(parent: string, wanted: string): string {
-  for (let n = 1; n <= MAX_SUFFIX; n++) {
-    const path = join(parent, n === 1 ? wanted : `${wanted}-${n}`);
+/**
+ * A folder no file, worktree or git registration uses: not on disk, not a registered worktree path (also one whose
+ * folder is gone but not pruned) and not a name in git's own worktree records.
+ */
+export async function freeFolder(repo: string, parent: string, draw: () => string = randomFolder): Promise<string> {
+  const listed = await gitOk(repo, ["worktree", "list", "--porcelain", "-z"], "WORKTREE_FAILED");
 
-    if (!existsSync(path) && !lstatSync(path, { throwIfNoEntry: false })) return path;
+  const registered = new Set(
+    listed.split("\0").flatMap((line) => (line.startsWith("worktree ") ? [line.slice(9)] : [])),
+  );
+
+  const common = (
+    await gitOk(repo, ["rev-parse", "--path-format=absolute", "--git-common-dir"], "NOT_A_REPOSITORY")
+  ).trim();
+
+  for (let n = 1; n <= MAX_SUFFIX; n++) {
+    const name = draw();
+    const path = join(parent, name);
+
+    if (
+      !lstatSync(path, { throwIfNoEntry: false }) &&
+      !registered.has(path) &&
+      !lstatSync(join(common, "worktrees", name), { throwIfNoEntry: false })
+    )
+      return path;
   }
 
-  throw new GitError("PATH_EXISTS", `${join(parent, wanted)} and its numbered variants already exist`);
+  throw new GitError("PATH_EXISTS", `no free worktree folder in ${parent}`);
 }
 
 /**
@@ -114,7 +143,7 @@ export async function createWorktree(managedRoot: string, request: CreateWorktre
 
   if (!isWithin(root, realpathSync(parent)))
     throw new GitError("PATH_OUTSIDE_ROOT", "the worktree repository folder is outside its root");
-  const path = freeFolder(parent, folderName(branch));
+  const path = await freeFolder(repo, parent);
 
   if (!isWithin(root, path)) throw new GitError("PATH_OUTSIDE_ROOT", "the worktree path is outside its root");
   // The commit (not the ref name) is the start point: nothing from the request reaches git as an option.

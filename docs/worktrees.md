@@ -129,9 +129,18 @@ Nietrwałe komendy (wysyłane bezpośrednio, nigdy z outboxa, worker ich nie zap
 | `CreateWorktree` (211) | `git worktree add --no-track -b <branch> <path> <start>`; start z remote po `git fetch` (limit 20 s) według ustawień | `CommandResult.worktree` (ścieżka, gałąź, baza, commit) |
 | `RenameWorktreeBranch` (212) | `git branch -m` gałęzi worktree pod korzeniem, tylko gdy nadal jest wybrana w tym worktree i nie ma upstreamu | `CommandResult.worktree` |
 
-Ścieżka nie przychodzi z gatewaya. Worker liczy ją sam: `<root>/<nazwa repo>/<gałąź z / → ->`, gdzie
-`<root>` = `location` z ustawień albo zarządzany korzeń; zajęta ścieżka albo gałąź dostaje
-przyrostek `-2`, `-3`, … Nazwa gałęzi przechodzi `git check-ref-format --branch`. Git działa bez
+Ścieżka nie przychodzi z gatewaya. Worker liczy ją sam: `<root>/<nazwa repo>/<losowa nazwa>`, gdzie
+`<root>` = `location` z ustawień albo zarządzany korzeń, a losowa nazwa to 6 znaków z małych liter i cyfr
+bez `i`, `l`, `o`, `u` (np. `~/canopy/worktrees/wrk-ai/k3f9x2`, około 10⁹ wartości). Nazwa nie zależy od
+gałęzi ani od wiadomości: jest krótka, nie zdradza treści zadania i zostaje taka sama po zmianie gałęzi.
+Worker losuje ponownie (do 50 razy), gdy nazwa jest zajęta na dysku, jest zarejestrowanym worktree (także
+takim, którego folder zniknął bez `git worktree prune`) albo nazwą rekordu w `.git/worktrees`; ścieżka nie
+jest więc ponownie użyta, dopóki git albo dysk ją pamięta. Zajęta gałąź dostaje przyrostek `-2`, `-3`, …
+Nazwa gałęzi przechodzi `git check-ref-format --branch`.
+
+Worktree utworzone wcześniej zachowują swoje ścieżki z nazwą gałęzi (`wt-fix-the-login-bug`); nic nie jest
+przenoszone, a rekordy, status, sprzątanie i usuwanie działają po zapisanej ścieżce. Ustawienie `location`
+i zarządzany korzeń działają bez zmian. Git działa bez
 promptów (`GIT_TERMINAL_PROMPT=0`, puste `GIT_ASKPASS`), z limitem czasu, argumentami (nie powłoką)
 i `--` przed ścieżkami.
 
@@ -362,6 +371,13 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
   agenta w worktree na żywo w strumieniu wątku, baza bez zmian, status po zmianie gałęzi, odłączony HEAD,
   gałąź checkoutu workspace'u, nadrobienie zmiany po ponownym połączeniu oraz odrzucenie zgłoszeń dla wątków
   innego workera i niepoprawnych nazw.
+
+## Weryfikacja (nazwy folderów)
+
+- `apps/worker/src/git/worktrees.test.ts`: prawdziwy git; losowe nazwy, pominięcie zajętego pliku,
+  zarejestrowanego worktree bez folderu i nazwy rekordu git oraz błąd `PATH_EXISTS`, gdy wszystko zajęte.
+- `tests/integration/worktrees.test.ts`: nowe worktree pod korzeniem i skonfigurowanym `location` mają losowe,
+  różne foldery przy tej samej gałęzi.
 
 ## Weryfikacja (etap 3)
 
