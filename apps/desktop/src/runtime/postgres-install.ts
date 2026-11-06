@@ -13,6 +13,7 @@ import { chmod, cp, mkdir, open, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { DesktopStatus } from "@canopy/ui/desktop";
+import { checkPostgres, PostgresCheckError, type CheckOptions } from "./postgres-check.ts";
 
 // SAFETY: Our repository-owned CommonJS packaging module exports this two-string entry point.
 const { preparePostgres } = require("../../scripts/postgres.cjs") as {
@@ -100,6 +101,8 @@ export class PostgresInstaller {
     readonly dataDirectory: string,
     private readonly progress: (value: DatabaseProgress) => void = () => {},
     testing?: PostgresTestOptions,
+    private readonly log: (line: string) => void = () => {},
+    private readonly check?: CheckOptions,
   ) {
     const value: unknown = JSON.parse(readFileSync(manifest, "utf8"));
 
@@ -215,20 +218,17 @@ export class PostgresInstaller {
 
         if (!lstatSync(path).isFile()) throw new Error("PostgreSQL distribution contains an invalid executable");
         await chmod(path, 0o755);
-
-        const child = Bun.spawn([path, "--version"], {
-          stdout: "pipe",
-          stderr: "pipe",
-          signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
-        });
-
-        const text = await new Response(child.stdout).text();
-
-        if ((await child.exited) !== 0 || !new RegExp(`PostgreSQL\\)? ${this.pin.major}\\.`).test(text))
-          throw new Error(
-            "Downloaded PostgreSQL could not run on this computer. Check the desktop logs and OS security policy, then try again.",
-          );
       }
+
+      this.log(
+        await checkPostgres(
+          stage,
+          this.pin.major,
+          signal,
+          (message) => this.progress({ phase: "installing", message }),
+          this.check,
+        ),
+      );
 
       writeFileSync(
         join(stage, "installed.json"),
@@ -245,7 +245,10 @@ export class PostgresInstaller {
     } catch (error) {
       if (signal.aborted) throw new Error("PostgreSQL setup was cancelled. The download can resume next time.");
 
+      if (error instanceof PostgresCheckError) this.log(error.detail);
+
       if (error instanceof DownloadError || (error instanceof Error && /PostgreSQL/.test(error.message))) throw error;
+      this.log(`PostgreSQL setup failed: ${error instanceof Error ? error.message : "unknown error"}`);
       throw new Error(
         "PostgreSQL could not be installed. Check your connection, available disk space and OS security policy, then try again.",
         { cause: error },

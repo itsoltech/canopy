@@ -115,7 +115,11 @@
       enrollmentToken = "";
       pairingInvitation = "";
     } catch (error) {
-      message = error instanceof Error ? error.message : "Canopy could not connect. Check the addresses and try again.";
+      // Electron prefixes errors from the main process; the user needs only the sentence after it.
+      message =
+        error instanceof Error
+          ? error.message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, "")
+          : "Canopy could not connect. Check the addresses and try again.";
     } finally {
       busy = false;
     }

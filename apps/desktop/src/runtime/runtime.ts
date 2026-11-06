@@ -224,6 +224,7 @@ export class DesktopRuntime {
       join(this.directory, "postgres"),
       (database) => this.publish({ database }),
       this.testing ?? postgresTestOptions(),
+      (line) => this.logs.write("desktop", line),
     );
 
     const binaries = await installer.ensure(signal);

@@ -88,6 +88,11 @@ function preparePostgres(directory, target) {
     const { machOFiles, thinMachOFilesPortable } = require("./macho.cjs");
     thinMachOFilesPortable(directory, target.split("-")[1]);
 
+    // The caller verified the pinned SHA-512 before extraction. A quarantined, ad-hoc signed
+    // binary started without a visible app waits in syspolicyd until killed, so remove it.
+    // `-r` also exits 0 when no file carries the attribute.
+    execFileSync("/usr/bin/xattr", ["-dr", "com.apple.quarantine", directory], { stdio: "pipe", timeout: 30_000 });
+
     // These are standalone children, not plugins loaded into hardened Bun. They
     // need no JIT entitlement or inherited Developer ID. Re-sign after thinning.
     // codesign ships with macOS; unlike lipo this does not require Xcode/CLT.

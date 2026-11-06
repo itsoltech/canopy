@@ -36,7 +36,10 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
 2. **Baza:** pełny PostgreSQL 18.6 z binariów `@embedded-postgres`, pobieranych tylko
    po wybraniu trybu lokalnego. Aplikacja nie zawiera PostgreSQL. Pierwszy lokalny start
    wymaga internetu; gotowy cache działa offline. Nie wymaga ręcznej instalacji ani
-   działającego serwera PostgreSQL na komputerze.
+   działającego serwera PostgreSQL na komputerze. Inna instalacja (Homebrew, Postgres.app,
+   `PATH`, serwer na 5432) nie przeszkadza: binarki są uruchamiane po ścieżce bezwzględnej,
+   środowisko usług pomija zmienne `PG*`, serwer słucha na losowym porcie `127.0.0.1`
+   bez gniazda Unix, a klaster leży we własnym katalogu danych.
    Decyzja użytkownika wyklucza PGlite i SQLite: ten sam silnik co na serwerze zachowuje
    transakcje, blokady, LISTEN/NOTIFY, typy i istniejące migracje bez zmian. Nie dodajemy
    drugiego drivera Effect SQL ani wariantów zapytań. Aktualny checkout zawiera już
@@ -457,6 +460,25 @@ wybieramy slice arm64 plików universal bez wymagania Xcode/lipo u użytkownika,
 podpisujemy Mach-O ad-hoc i sprawdzamy `codesign --verify --strict`. Przed atomowym
 opublikowaniem wszystkie trzy narzędzia PG muszą wykonać `--version`.
 
+Pierwsze uruchomienie świeżo zapisanego pliku wykonywalnego macOS sprawdza
+(syspolicyd/XProtect). Pomiar na macOS 27.0.1 (Mac Studio, bez obciążenia):
+pierwsze `postgres --version` trwa 3–3,6 s, kolejne ok. 20 ms; `pg_ctl` i `initdb`
+0,15–0,45 s. Ocena dotyczy nowych plików, a nie treści: każda próba rozpakowuje
+runtime od nowa i znów płaci ten koszt, także gdy ten sam pin jest już zainstalowany
+gdzie indziej. Na świeżo zainstalowanym, zajętym Macu przekraczało to dawny limit
+10 s na binarkę i kończyło się ogólnym błędem. Teraz trzy sprawdzenia mają wspólny,
+twardy budżet 3 min (`postgres-check.ts`). Po 5 s ekran pokazuje „Checking PostgreSQL
+with macOS security…”. Po przekroczeniu budżetu proces dostaje SIGKILL, a oczekiwanie
+na jego wyjście i stdout/stderr jest dodatkowo ograniczone, więc ponowienie nie może
+zawisnąć. Błąd rozróżnia przekroczenie czasu, zablokowanie przez system (sygnał),
+nieudane uruchomienie i złą wersję. Do `logs/desktop.log` trafia binarka, kod wyjścia
+lub sygnał, czy zadziałał limit, czas oraz przycięte stdout/stderr ze ścieżką runtime
+zastąpioną `<runtime>`. Udana instalacja zapisuje czasy pierwszych uruchomień.
+
+Ponowienie po błędzie używa zweryfikowanego `package.tgz.partial` (SHA-512 jest liczone
+ponownie przed użyciem), więc nie pobiera pakietu jeszcze raz. Katalogi `extracted/`
+i `install/` są usuwane po każdej nieudanej próbie i przed następną.
+
 Adres rejestru można nadpisać tylko testowym argumentem albo
 `NODE_ENV=test CANOPY_TEST_POSTGRES_REGISTRY=http://127.0.0.1:<port>/` w procesie
 testowego kontrolera. Produkcyjne środowisko i konfiguracja UI nie mają takiego pola.
@@ -514,9 +536,14 @@ nie decydują o wykryciu. Nic nie jest zmieniane po podpisaniu.
 
 Pobrany PostgreSQL jest osobnym procesem potomnym, nie biblioteką ładowaną przez
 hardened Bun. Jego podpis ad-hoc nie wymaga dziedziczenia Developer ID ani uprawnień
-JIT aplikacji. Fetch Bun i rozpakowanie nie dodają quarantine; Canopy nie usuwa
-quarantine, nie wyłącza Gatekeepera i nie zmienia polityki systemu. Jeśli system
-zablokuje wykonanie, instalacja zgłasza błąd i nie publikuje runtime.
+JIT aplikacji. Fetch Bun i rozpakowanie nie dodają quarantine; pliki dostają tylko
+`com.apple.provenance` przypisane do Canopy. Mimo to `preparePostgres` usuwa
+`com.apple.quarantine` z rozpakowanego katalogu (`xattr -dr`), bo plik z quarantine
+uruchomiony bez widocznej aplikacji czeka w syspolicyd do zabicia: w teście
+`postgres --version` z quarantine wisiało 180 s, a bez niego kończyło się w 3 s.
+Integralność zapewnia przypięte SHA-512 sprawdzane przed rozpakowaniem, więc nie
+osłabiamy kontroli pochodzenia. Canopy nie wyłącza Gatekeepera i nie zmienia polityki
+systemu. Jeśli system zablokuje wykonanie, instalacja zgłasza błąd i nie publikuje runtime.
 [Apple opisuje](https://support.apple.com/guide/security/gatekeeper-and-runtime-protection-sec5599b66df/web)
 także śledzenie pochodzenia plików zapisanych przez pobrane aplikacje. Dlatego Linux
 ani sam terminal CI nie potwierdzają zachowania app z quarantine: konieczny jest
