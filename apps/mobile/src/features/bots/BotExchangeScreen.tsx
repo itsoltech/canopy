@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { FlatList, View } from "react-native";
+import { View } from "react-native";
+import Animated from "react-native-reanimated";
 import { Redirect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -59,7 +60,7 @@ export function BotExchangeScreen({ id, botId }: { id: string; botId?: string })
         }
       />
       <ConnectionBanner stream={stream} />
-      <FlatList
+      <Animated.FlatList
         {...following.listProps}
         onEndReached={() => {
           if (!following.isFollowing()) void history.load();

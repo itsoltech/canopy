@@ -16,7 +16,7 @@ import { AttachButton, AttachmentChips } from "../attachments/Attachments";
 import type { MessageDraft } from "../composer/useMessageDraft";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { Skeleton } from "../../ui/Skeleton";
-import { ComposerFold } from "../composer/ComposerFold";
+import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
 
 type Picker = "model" | "effort" | "permission";
 
@@ -74,6 +74,7 @@ export function MessageComposer({
   onExpand?: () => void;
 }) {
   const { user } = useAppearance();
+  const { focused } = useComposerMotion();
   const state = useComposerSettings(thread, worker);
   const { setPicker, current, effort, error } = state;
   const effortLabel = useEffortLabel();
@@ -129,7 +130,8 @@ export function MessageComposer({
           </>
         }
       />
-      <ComposerFold open={!compact}>
+      {/* The worker and permission row folds with the toolbar, and gives way while writing. */}
+      <ComposerFold open={!compact && !focused}>
         <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6 }]}>
           {worker ? (
             <ComposerPill icon="computer-desktop" title={worker.name} onPress={onDetails} />

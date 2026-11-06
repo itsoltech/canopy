@@ -455,19 +455,36 @@ BotAvatar, ChatBubble i BotDetailsPanel. Brand assety pochodzą z `apps/web/stat
 Kompozytor wątku (także bocznego) i czatu bota jest nakładką nad feedem, z powierzchnią,
 obramowaniem i cieniem w jasnym motywie oraz wygaszeniem tła na 32 dp jak w web.
 `features/composer/FloatingComposer.tsx` leży wewnątrz `KeyboardArea`, więc zachowuje
-obsługę klawiatury i safe area. Zmierzona wysokość nakładki rezerwuje miejsce pod ostatnią
-wiadomością w nagłówku odwróconej listy. Podczas czytania historii rezerwa nie maleje
-(jak `VirtualFeed.reservedFooter` w web), a kotwica listy pomija ten nagłówek; zwijanie
-nie przesuwa czytanej wiadomości. Na dole rezerwa podąża za zmianami wysokości.
-„Jump to latest” pozostaje nad nakładką.
+obsługę klawiatury i safe area. Pod ostatnią wiadomością (w nagłówku odwróconej listy) stoi
+stała rezerwa: wysokość rozwiniętego kompozytora. Zwijanie, rozwijanie i chowanie kontrolek
+przy pisaniu są wyłącznie ruchem nakładki, więc żadna wiadomość się nie przesuwa; rezerwa
+zmienia się tylko po ustaleniu się otwartego kompozytora, gdy naprawdę zmienia się jego treść
+(dłuższy szkic, załącznik, lista wzmianek), a podczas pisania tylko rośnie. Kotwica listy
+pomija ten nagłówek. „Jump to latest” pozostaje nad nakładką.
 
 Reguły zwijania pochodzą z webowego `ComposerCompaction`: co najmniej 192 dp od końca
 i 96 dp ruchu ku starszym wiadomościom, rozwinięcie do 8 dp od końca albo po tapnięciu,
-fokusie lub pisaniu. Liczą się tylko gesty czytelnika, bez aktualizacji streamu i zmian
-klawiatury. Synchroniczne pytanie utrzymuje kompozytor otwarty. Mobile dodatkowo nie zwija
-niepustego szkicu, załączników ani otwartej listy wzmianek. Pole i kontrolki pozostają
-zamontowane; `ComposerFold` animuje wysokość i przezroczystość według wspólnych tokenów
-`motion.slow` / `motion.medium` i `smoothOut`, a ograniczenie ruchu wyłącza animację.
+fokusie lub pisaniu. Liczą się tylko gesty czytelnika (od początku przeciągnięcia do końca
+jego rozpędu), bez aktualizacji streamu, korekt kotwicy i zmian klawiatury. Synchroniczne
+pytanie utrzymuje kompozytor otwarty. Mobile dodatkowo nie zwija niepustego szkicu,
+załączników ani otwartej listy wzmianek. Decyzję podejmuje worklet przewijania
+(`useAnimatedScrollHandler` w `useFloatingComposer`) na wątku UI i w tej samej klatce
+uruchamia animację; React dostaje tylko zmianę stanu (zwinięty/otwarty, na dole/nie).
+Pozycja przewijania żyje we wspólnej wartości (`useFollowingList`), więc listy rozmów
+to listy Reanimated (`TimelineList`, `Animated.FlatList`). Wszystkie części kompozytora
+czytają jedną wartość postępu (`ComposerMotionContext`): `ComposerFold` animuje własną
+przyciętą wysokość i przezroczystość, a pole tekstowe i przycisk wysyłania swoje rozmiary
+i położenie (tokeny `motion.slow` / `motion.medium`, `smoothOut`); ograniczenie ruchu
+przełącza od razu. Androidowe pole tekstowe nie przyjmuje animowanych rozmiarów, więc
+animuje się ramka wokół niego.
+
+Podczas pisania (fokus pola) kontrolki pod polem chowają się: przycisk załączników, model,
+effort, cel, worker i tryb uprawnień (`motion.fast`, przy ograniczeniu ruchu od razu).
+Pole przejmuje ich zmierzone miejsce, więc kompozytor zachowuje wysokość, a tekst ma kilka
+wierszy więcej. Wysyłanie i stop pozostają widoczne; podglądy dodanych załączników też.
+Wybory i załączniki zostają, bo kontrolki pozostają zamontowane. Po utracie fokusu albo
+zamknięciu klawiatury kontrolki wracają (Android po zamknięciu klawiatury zostawia fokus
+w polu, więc kompozytor sam je wtedy zdejmuje).
 Bot zachowuje jednorzędową pigułkę z rosnącym polem tekstowym. New thread i formularz
 tworzenia wątku bocznego pozostają rozwinięte: przewijają formularz, nie historię rozmowy.
 

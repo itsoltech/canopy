@@ -1,13 +1,12 @@
-import type { ReactNode } from "react";
-import { ActivityIndicator, Animated, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, type ComponentRef, type ReactNode } from "react";
+import { ActivityIndicator, Keyboard, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import Animated, { interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { Skeleton } from "../../ui/Skeleton";
 import { styles, useColors } from "../../ui/theme";
 import { Icon } from "../../ui/Icon";
 import type { Mention } from "@canopy/contracts";
 import { MessageSpans, type BadgeTone } from "../composer/MessageText";
-import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
-
-const AnimatedInput = Animated.createAnimatedComponent(TextInput);
+import { ComposerFold, controlsShown, useComposerMotion } from "../composer/ComposerFold";
 
 /** What each trigger character does, as on the web; no-break spaces keep each item on one line. */
 const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell"]
@@ -71,10 +70,16 @@ export function ComposerBox({
   const shellIssue = shell && (text.trim() === "!" || files > 0);
   const stop = running && empty && Boolean(onStop);
   const unavailable = disabled || busy || (!stop && empty) || shellIssue;
-  const progress = useComposerMotion(!compact);
+  const composerMotion = useComposerMotion();
+  const { progress, writing, focused } = composerMotion;
+
+  // The send buttons ride the composer's bottom edge as the controls fold or make room for writing (UI thread).
+  const sendPosition = useAnimatedStyle(() => ({
+    bottom: interpolate(controlsShown({ progress, writing }), [0, 1], [4, 10]),
+  }));
 
   return (
-    <Animated.View
+    <View
       onTouchStart={onExpand}
       style={{
         backgroundColor: c.surface,
@@ -92,7 +97,6 @@ export function ComposerBox({
         text={text}
         onChange={onChange}
         busy={busy}
-        compact={compact}
         inline={inline}
         onExpand={onExpand}
         placeholder={triggers && !compact ? `${placeholder}\n${TRIGGER_HINT}` : placeholder}
@@ -100,7 +104,7 @@ export function ComposerBox({
         badges={badges}
       />
       {!inline && (
-        <ComposerFold open={!compact}>
+        <ComposerFold open={!compact && !focused}>
           <ComposerControls shell={shell} files={files} sendWidth={running && !empty && onQueue ? 92 : 60}>
             {controls}
           </ComposerControls>
@@ -110,13 +114,7 @@ export function ComposerBox({
         <Animated.View
           style={[
             styles.row,
-            inline
-              ? { padding: 4, paddingLeft: 0 }
-              : {
-                  position: "absolute",
-                  right: 10,
-                  bottom: progress.interpolate({ inputRange: [0, 1], outputRange: [4, 10] }),
-                },
+            inline ? { padding: 4, paddingLeft: 0 } : [{ position: "absolute", right: 10 }, sendPosition],
             { gap: 4 },
           ]}
         >
@@ -131,7 +129,7 @@ export function ComposerBox({
           />
         </Animated.View>
       ) : null}
-    </Animated.View>
+    </View>
   );
 }
 
@@ -174,7 +172,6 @@ function ComposerInput({
   text,
   onChange,
   busy,
-  compact,
   inline,
   onExpand,
   placeholder,
@@ -182,44 +179,101 @@ function ComposerInput({
   badges,
 }: Pick<
   Parameters<typeof ComposerBox>[0],
-  "text" | "onChange" | "busy" | "compact" | "inline" | "onExpand" | "placeholder" | "label" | "badges"
+  "text" | "onChange" | "busy" | "inline" | "onExpand" | "placeholder" | "label" | "badges"
 >) {
   const c = useColors();
-  const progress = useComposerMotion(!compact);
+  const { progress, writing, room, focused, onFocus } = useComposerMotion();
+  const input = useRef<ComponentRef<typeof TextInput>>(null);
+
+  // Android keeps the field focused when the back gesture closes the keyboard: closing it ends writing, so the
+  // controls come back. Only a keyboard that showed during this focus counts (a hardware keyboard shows none).
+  useEffect(() => {
+    if (!focused) return;
+    let shown = false;
+
+    const show = Keyboard.addListener("keyboardDidShow", () => {
+      shown = true;
+    });
+
+    const hide = Keyboard.addListener("keyboardDidHide", () => {
+      if (shown) input.current?.blur();
+    });
+
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [focused]);
+
+  // The text's own height, for the field's natural size; and the field's height when writing began (a multi-line
+  // placeholder is taller than an empty text), which it keeps at least while writing.
+  const lines = useSharedValue(0);
+  const resting = useSharedValue(0);
+  const laidOut = useRef(0);
+
+  // Folding shortens the field; writing hands it the controls' room, so the composer keeps its height and nothing
+  // above it moves while the text gets about four more lines. The send button sits beside the text whenever the toolbar is away. All on the UI thread,
+  // on a frame around the field: Android's text input does not take animated sizes itself.
+  const fold = useAnimatedStyle(() => {
+    const t = progress.get();
+    const shown = controlsShown({ progress, writing });
+    const writes = inline ? 0 : writing.get() * t;
+    const padTop = interpolate(t, [0, 1], [10, 14]);
+    const padBottom = interpolate(t, [0, 1], [10, 12]);
+    const max = interpolate(t, [0, 1], [44, 160]);
+
+    const natural = Math.min(
+      max,
+      Math.max(inline ? 44 : interpolate(t, [0, 1], [44, 64]), lines.get() + padTop + padBottom),
+    );
+
+    // Writing: the field fills the room it was given (its height when writing began plus the controls' room) and
+    // grows past it only when the text does.
+    const writingSize = Math.max(natural, resting.get() + room.get());
+
+    return {
+      minHeight: natural + (writingSize - natural) * writes,
+      maxHeight: max + room.get() * writes,
+      paddingRight: inline ? 16 : interpolate(shown, [0, 1], [60, 16]),
+      paddingTop: padTop,
+      paddingBottom: padBottom,
+    };
+  });
 
   return (
-    <AnimatedInput
-      accessibilityLabel={label}
-      // With badges the spans carry the text; a TextInput takes either children or a value.
-      value={badges ? undefined : text}
-      onChangeText={(next) => {
-        onExpand?.();
-        onChange(next);
+    <Animated.View
+      onLayout={(event) => {
+        laidOut.current = event.nativeEvent.layout.height;
       }}
-      onFocus={onExpand}
-      onSelectionChange={badges ? (event) => badges.onSelect(event.nativeEvent.selection) : undefined}
-      editable={!busy}
-      multiline
-      maxLength={32000}
-      placeholder={placeholder}
-      placeholderTextColor={c.faint}
-      style={[
-        styles.body,
-        {
-          minHeight: inline ? 44 : progress.interpolate({ inputRange: [0, 1], outputRange: [44, 64] }),
-          flex: inline ? 1 : undefined,
-          maxHeight: progress.interpolate({ inputRange: [0, 1], outputRange: [44, 160] }),
-          paddingHorizontal: 16,
-          paddingRight: inline ? 16 : progress.interpolate({ inputRange: [0, 1], outputRange: [60, 16] }),
-          paddingTop: progress.interpolate({ inputRange: [0, 1], outputRange: [10, 14] }),
-          paddingBottom: progress.interpolate({ inputRange: [0, 1], outputRange: [10, 12] }),
-          color: c.text,
-          textAlignVertical: "top",
-        },
-      ]}
+      style={[{ flex: inline ? 1 : undefined, paddingLeft: 16 }, fold]}
     >
-      {badges ? <MessageSpans value={{ text, mentions: badges.mentions }} tone={badges.tone} /> : null}
-    </AnimatedInput>
+      <TextInput
+        ref={input}
+        onContentSizeChange={(event) => lines.set(event.nativeEvent.contentSize.height)}
+        accessibilityLabel={label}
+        // With badges the spans carry the text; a TextInput takes either children or a value.
+        value={badges ? undefined : text}
+        onChangeText={(next) => {
+          onExpand?.();
+          onChange(next);
+        }}
+        onFocus={() => {
+          resting.set(laidOut.current);
+          onExpand?.();
+          onFocus(true);
+        }}
+        onBlur={() => onFocus(false)}
+        onSelectionChange={badges ? (event) => badges.onSelect(event.nativeEvent.selection) : undefined}
+        editable={!busy}
+        multiline
+        maxLength={32000}
+        placeholder={placeholder}
+        placeholderTextColor={c.faint}
+        style={[styles.body, { flexGrow: 1, flexShrink: 1, padding: 0, color: c.text, textAlignVertical: "top" }]}
+      >
+        {badges ? <MessageSpans value={{ text, mentions: badges.mentions }} tone={badges.tone} /> : null}
+      </TextInput>
+    </Animated.View>
   );
 }
 

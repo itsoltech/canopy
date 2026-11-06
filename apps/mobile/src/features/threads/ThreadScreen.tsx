@@ -175,15 +175,21 @@ function useThreadState(id: string) {
   };
 }
 
+/** The thread's floating composer: a draft, files, a mention list or a synchronous question keep it open. */
+function useThreadComposer(state: ThreadState) {
+  const { message, interactions } = state;
+
+  return useFloatingComposer(
+    state.following,
+    Boolean(message.value.text.length || message.files.files.length || message.trigger) ||
+      interactions.some((i) => i.kind === InteractionKind.QUESTION && !i.asynchronous),
+  );
+}
+
 export function ThreadScreen({ id }: { id: string }) {
   const c = useColors();
   const state = useThreadState(id);
-
-  const composer = useFloatingComposer(
-    state.following,
-    Boolean(state.message.value.text.length || state.message.files.files.length || state.message.trigger) ||
-      state.interactions.some((i) => i.kind === InteractionKind.QUESTION && !i.asynchronous),
-  );
+  const composer = useThreadComposer(state);
 
   const [sheet, setSheet] = useState<"goal" | "side" | null>(null);
   const { pop } = useMotion();
@@ -239,6 +245,7 @@ export function ThreadScreen({ id }: { id: string }) {
         <View style={styles.fill}>
           <ThreadTimeline state={state} composer={composer} />
           <FloatingComposer
+            motion={composer.motion}
             onLayout={composer.measure}
             onExpand={composer.expand}
             onLatest={atBottom ? undefined : showLatest}
