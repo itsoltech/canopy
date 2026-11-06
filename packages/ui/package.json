@@ -11,7 +11,8 @@
     "./settings": "./src/settings.ts",
     "./desktop": "./src/desktop.ts",
     "./themes": "./src/themes.ts",
-    "./keybindings": "./src/keybindings.ts"
+    "./keybindings": "./src/keybindings.ts",
+    "./timezones": "./src/timezones.json"
   },
   "scripts": {
     "gen": "bun scripts/palette.ts",

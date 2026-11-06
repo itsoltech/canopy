@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useColorScheme } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
@@ -14,46 +14,62 @@ function useAppearanceState() {
   const [limits, setLimits] = useState<ui.AttachmentLimits>();
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const requests = useRef(0);
 
-  const loaded = (r: ui.GetSettingsResponse) => {
+  const loaded = useCallback((r: ui.GetSettingsResponse) => {
+    requests.current++;
     setUser(r.user);
     setProjects(r.projects);
     setLimits(r.attachmentLimits);
     setError("");
-  };
+  }, []);
+
+  const reload = useCallback(async () => {
+    if (!client) return;
+    const version = requests.current;
+
+    try {
+      const response = await client.api.getSettings({});
+
+      if (requests.current === version) loaded(response);
+    } catch {
+      if (requests.current === version) setError("Could not load settings. Check the connection and retry.");
+    }
+  }, [client, loaded]);
 
   useEffect(() => {
     let active = true;
+    const version = requests.current;
 
     if (client)
       void client.api
         .getSettings({})
         .then((r) => {
-          if (active) loaded(r);
+          if (active && requests.current === version) loaded(r);
         })
         .catch(() => {
-          if (active) setError("Could not load settings.");
+          if (active && requests.current === version)
+            setError("Could not load settings. Check the connection and retry.");
         });
 
     return () => {
       active = false;
     };
-  }, [client]);
+  }, [client, loaded]);
   useStream(
     client ? (signal) => client.api.watchOverview({ includeSnapshot: true }, { signal }) : null,
     (update: ui.OverviewUpdate) => {
       const change = update.change;
 
-      if (change.case === "userSettings") setUser(change.value);
+      if (change.case === "userSettings") {
+        requests.current++;
+        setUser(change.value);
+      }
 
       if (change.case === "projectSettings")
         setProjects((rows) => [...rows.filter((r) => r.projectId !== change.value.projectId), change.value]);
 
-      if (update.change.case === "mobileSnapshot")
-        void client?.api
-          .getSettings({})
-          .then(loaded)
-          .catch(() => setError("Could not load settings."));
+      if (update.change.case === "mobileSnapshot") void reload();
     },
     `appearance:${session?.deviceId}`,
   );
@@ -73,8 +89,10 @@ function useAppearanceState() {
     accent: accents[Math.max(0, (appearance?.accent ?? 1) - 1)]?.name ?? "default",
     error,
     saving,
+    reload,
     async update(patch: Partial<ui.UpdateUserSettingsRequest>) {
       if (!client || !user || saving) return;
+      requests.current++;
       setSaving(true);
       setError("");
 
@@ -84,6 +102,7 @@ function useAppearanceState() {
           expectedVersion: user.version,
         });
 
+        requests.current++;
         setUser(result.settings);
       } catch {
         setError("Could not save settings. Settings were refreshed; please try again.");
@@ -106,6 +125,12 @@ function useAppearanceState() {
 const Context = createContext<ReturnType<typeof useAppearanceState> | null>(null);
 
 export function AppearanceProvider({ children }: { children: ReactNode }) {
+  const { session } = useSession();
+
+  return <AppearanceSession key={session?.deviceId}>{children}</AppearanceSession>;
+}
+
+function AppearanceSession({ children }: { children: ReactNode }) {
   return <Context.Provider value={useAppearanceState()}>{children}</Context.Provider>;
 }
 

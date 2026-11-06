@@ -84,6 +84,12 @@ export function useTypography() {
       fontSize: contextType.chrome.fontSize * scale,
       lineHeight: contextType.chrome.lineHeight * scale,
     },
+    meta: {
+      ...styles.workMeta,
+      fontFamily: family,
+      fontSize: contextType.workSmall.fontSize * scale,
+      lineHeight: contextType.workSmall.lineHeight * scale,
+    },
     mono: { fontFamily: mono, fontSize: Number(values.monoSize), lineHeight: Number(values.monoSize) + 7 },
   };
 }

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { createContext, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Keyboard,
@@ -19,6 +19,8 @@ import type { IconName } from "@canopy/ui/icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
+export const SheetContent = createContext(false);
+
 export function Button({
   title,
   onPress,
@@ -35,6 +37,7 @@ export function Button({
   danger?: boolean;
 }) {
   const c = useColors();
+  const type = useTypography();
 
   return (
     <Pressable
@@ -59,7 +62,14 @@ export function Button({
       })}
     >
       {busy && <ActivityIndicator color={secondary ? c.text : c.onAccent} />}
-      <Text style={[styles.label, { color: danger ? c.danger : secondary ? c.text : c.onAccent }]}>{title}</Text>
+      <Text
+        style={[
+          type.body,
+          { color: danger ? c.danger : secondary ? c.text : c.onAccent, flexShrink: 1, textAlign: "center" },
+        ]}
+      >
+        {title}
+      </Text>
     </Pressable>
   );
 }
@@ -219,8 +229,8 @@ export function Sheet({
           back={false}
           right={<IconButton icon="x-mark" label={`Close ${title}`} onPress={onClose} />}
         />
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
-          {children}
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { maxWidth: 600 }]}>
+          <SheetContent.Provider value={true}>{children}</SheetContent.Provider>
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -253,6 +263,7 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
 
 export function Notice({ children, error = false }: { children: ReactNode; error?: boolean }) {
   const c = useColors();
+  const type = useTypography();
 
   return (
     <View
@@ -260,7 +271,7 @@ export function Notice({ children, error = false }: { children: ReactNode; error
       accessibilityLiveRegion="polite"
       style={{ padding: 16, borderRadius: 12, backgroundColor: c.inset }}
     >
-      <Text style={[styles.body, { color: error ? c.danger : c.muted }]}>{children}</Text>
+      <Text style={[type.body, { color: error ? c.danger : c.muted }]}>{children}</Text>
     </View>
   );
 }

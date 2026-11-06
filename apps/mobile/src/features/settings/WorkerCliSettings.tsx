@@ -1,19 +1,28 @@
-import { View } from "react-native";
+import { Text, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { updateCheckChoices } from "@canopy/domain/update-checks";
 import { useAppearance } from "../../state/appearance";
 import { Button } from "../../ui/components";
-import { providerName } from "../models/catalog";
-import { SettingsRow, SettingChoice } from "./SettingsGroup";
-import { SettingsValue } from "./SettingsValue";
+import { styles, useColors } from "../../ui/theme";
+import { SettingsRow, SettingChoice, SettingsActions } from "./SettingsGroup";
+import { WorkerCliRow } from "./WorkerCliRow";
 import { ResourceState, useSettingsResource } from "./resource";
 import { useDateTime } from "./display";
 
-export function WorkerCliSettings({ worker, readOnly = "" }: { worker?: ui.Worker; readOnly?: string }) {
+export function WorkerCliSettings({
+  worker,
+  readOnly = "",
+  onChanged,
+}: {
+  worker?: ui.Worker;
+  readOnly?: string;
+  onChanged?: () => void;
+}) {
   const settings = useAppearance();
   const resource = useSettingsResource(`cli:${worker?.id ?? "account"}`, (api) => api.getOverview({}));
   const format = useDateTime();
+  const c = useColors();
   const current = resource.data?.workers.find((w) => w.id === worker?.id) ?? worker;
 
   const interval = worker
@@ -24,87 +33,28 @@ export function WorkerCliSettings({ worker, readOnly = "" }: { worker?: ui.Worke
 
   return (
     <ResourceState resource={resource}>
-      <SettingChoice
-        title={worker ? "CLI update checks on this worker" : "Agent CLI update check frequency"}
-        description={
-          worker
-            ? "Override how often this worker checks for agent CLI releases."
-            : "Set how often your workers check for agent CLI releases. Checks never install updates."
-        }
-        value={interval}
-        disabled={resource.busy || settings.saving || !!readOnly}
-        options={[...(worker ? [{ value: "inherit", label: "Use account" }] : []), ...updateCheckChoices]}
-        onChange={(value) => {
-          if (!worker)
-            void settings.update({
-              cliUpdates: create(ui.CliUpdateSettingsSchema, { intervalMinutes: Number(value) }),
-            });
-          else
-            void resource.run((api) =>
-              api.setWorkerCliUpdateSettings({
-                workerId: worker.id,
-                expectedConfigVersion: current!.configVersion,
-                ...(value !== "inherit" && { intervalMinutes: Number(value) }),
-              }),
-            );
-        }}
-      />
       {current && (
         <View style={{ gap: 12 }}>
-          <SettingsValue
-            title="Update checks"
-            value={`Last checked ${format(current.cliUpdatesCheckedAt?.seconds)} · Next check ${current.effectiveCliUpdateCheckMinutes === 0 ? "manual only" : format(current.cliUpdatesNextCheckAt?.seconds)}`}
-          />
-          <Button
-            secondary
-            title="Check for updates"
-            disabled={!current.online || !!readOnly}
-            busy={resource.busy}
-            onPress={() => void resource.run((api) => api.checkCliUpdates({ workerId: current.id }))}
-          />
+          <SettingsActions>
+            <Button
+              secondary
+              title="Check for updates"
+              disabled={!current.online || !!readOnly}
+              busy={resource.busy}
+              onPress={() => void resource.run((api) => api.checkCliUpdates({ workerId: current.id })).then(onChanged)}
+            />
+          </SettingsActions>
           {current.cliTools.map((item) => (
-            <SettingsRow
+            <WorkerCliRow
               key={item.tool?.provider}
-              title={`${providerName(item.tool?.provider ?? 0)} · ${item.tool?.version || "Not installed"}`}
-              description={[
-                item.tool?.path,
-                item.tool?.detail,
-                item.managedBy,
-                item.blockedReason,
-                item.latest?.error,
-                item.tool?.versionError,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-              control={
-                item.action ? (
-                  <Button
-                    secondary
-                    title={item.action === "install" ? "Install" : "Update"}
-                    disabled={
-                      resource.busy || !!readOnly || !!item.blockedReason || item.tool?.install?.state === "running"
-                    }
-                    onPress={() =>
-                      void resource.run((api) =>
-                        api.installCli({ workerId: current.id, provider: item.tool!.provider }),
-                      )
-                    }
-                  />
-                ) : undefined
+              item={item}
+              disabled={resource.busy || !!readOnly || !current.online}
+              onInstall={() =>
+                void resource
+                  .run((api) => api.installCli({ workerId: current.id, provider: item.tool!.provider }))
+                  .then(onChanged)
               }
-            >
-              {item.tool?.manualCommand ? (
-                <SettingsValue title="Run on this computer" value={item.tool.manualCommand} />
-              ) : null}
-              {item.tool?.alternatives.map((alternative) => (
-                <SettingsValue
-                  key={alternative.path}
-                  title="Alternative installation"
-                  value={`${alternative.path} · ${alternative.version}`}
-                />
-              ))}
-              {item.log.length ? <SettingsValue title="Installer output" value={item.log.join("\n")} /> : null}
-            </SettingsRow>
+            />
           ))}
           {!current.cliTools.length && (
             <SettingsRow
@@ -116,6 +66,41 @@ export function WorkerCliSettings({ worker, readOnly = "" }: { worker?: ui.Worke
             />
           )}
         </View>
+      )}
+      <SettingChoice
+        title={worker ? "Update checks" : "Agent CLI update check frequency"}
+        description={
+          worker
+            ? "Override how often this worker checks for new releases."
+            : "Set how often your workers check for agent CLI releases. Checks never install updates."
+        }
+        value={interval}
+        disabled={resource.busy || settings.saving || !!readOnly}
+        options={[...(worker ? [{ value: "inherit", label: "Use account" }] : []), ...updateCheckChoices]}
+        onChange={(value) => {
+          if (!worker)
+            void settings.update({
+              cliUpdates: create(ui.CliUpdateSettingsSchema, { intervalMinutes: Number(value) }),
+            });
+          else
+            void resource
+              .run((api) =>
+                api.setWorkerCliUpdateSettings({
+                  workerId: worker.id,
+                  expectedConfigVersion: current!.configVersion,
+                  ...(value !== "inherit" && { intervalMinutes: Number(value) }),
+                }),
+              )
+              .then(onChanged);
+        }}
+      />
+      {current && (
+        <Text style={[styles.workMeta, { color: c.muted }]}>
+          Last checked {format(current.cliUpdatesCheckedAt?.seconds)} · Next check{" "}
+          {current.effectiveCliUpdateCheckMinutes === 0
+            ? "manual only"
+            : format(current.cliUpdatesNextCheckAt?.seconds)}
+        </Text>
       )}
     </ResourceState>
   );

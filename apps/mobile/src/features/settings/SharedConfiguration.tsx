@@ -1,14 +1,23 @@
 import type { ui } from "@canopy/contracts";
+import { useAppearance } from "../../state/appearance";
 import { Button } from "../../ui/components";
-import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { SettingsActions, SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, useSettingsResource } from "./resource";
 
 export function SharedConfiguration({ notices, onChanged }: { notices: ui.ConfigNotice[]; onChanged: () => void }) {
   const resource = useSettingsResource("configuration-notices", (api) => api.getComputers({}));
+  const settings = useAppearance();
 
   const act = (id: string, action: string) =>
-    void resource.run((api) => api.manageConfigNotice({ id, action })).then(onChanged);
+    void resource
+      .run((api) => api.manageConfigNotice({ id, action }))
+      .then((result) => {
+        if (result) {
+          onChanged();
+          void settings.reload();
+        }
+      });
 
   if (!notices.length) return null;
 
@@ -22,13 +31,15 @@ export function SharedConfiguration({ notices, onChanged }: { notices: ui.Config
             description={`${notice.nodeName} · ${notice.reason}`}
           >
             <SettingsValue title="Change" value={notice.value} />
-            <Button
-              secondary
-              title={notice.reason === "resurrected" ? "Delete" : "Restore"}
-              disabled={resource.busy}
-              onPress={() => act(notice.id, "restore")}
-            />
-            <Button secondary title="Dismiss" disabled={resource.busy} onPress={() => act(notice.id, "dismiss")} />
+            <SettingsActions>
+              <Button
+                secondary
+                title={notice.reason === "resurrected" ? "Delete" : "Restore"}
+                disabled={resource.busy}
+                onPress={() => act(notice.id, "restore")}
+              />
+              <Button secondary title="Dismiss" disabled={resource.busy} onPress={() => act(notice.id, "dismiss")} />
+            </SettingsActions>
           </SettingsRow>
         ))}
       </SettingsGroup>

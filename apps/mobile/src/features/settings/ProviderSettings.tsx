@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Provider, type ui } from "@canopy/contracts";
 import { Button, Notice, Sheet } from "../../ui/components";
-import { SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
+import { SettingsActions, SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { providerName } from "../models/catalog";
 import { ProviderForm } from "./ProviderForm";
@@ -48,43 +48,47 @@ export function ProviderSettings() {
           label: providerName(value),
         }))}
       />
-      <Button title="Add instance" onPress={() => setEditing("new")} />
-      <SettingsGroup title="Provider instances">
+      <SettingsGroup
+        title="Provider instances"
+        actions={<Button title="Add instance" onPress={() => setEditing("new")} />}
+      >
         {resource.data?.instances
           .filter((i) => i.harness === harness)
           .map((instance) => (
             <SettingsRow
               key={instance.id}
               title={instance.label || instance.id}
-              description={`${providerName(instance.harness)} · ${instance.id} · ${instance.workers.filter((w) => w.enabled).length} workers`}
+              description={`${providerName(instance.harness)} · ${instance.id} · ${instance.workers.filter((w) => w.enabled).length} ${instance.workers.filter((w) => w.enabled).length === 1 ? "worker" : "workers"}`}
             >
-              <Button
-                secondary
-                title={scope ? "Edit worker settings" : "Edit definition"}
-                onPress={() => (scope ? setSelected(instance) : setEditing(instance))}
-              />
-              {!scope && <ProviderModels instance={instance} onChanged={changed} />}
-              {!instance.builtIn && !scope && (
+              <SettingsActions>
                 <Button
-                  danger
-                  title="Delete instance"
-                  disabled={resource.busy || instance.threadCount > 0}
-                  onPress={() =>
-                    confirmAction(
-                      "Delete instance",
-                      "Threads keep their saved instance. Remove unused instances only.",
-                      () =>
-                        void resource.run((api) =>
-                          api.deleteProviderInstance({
-                            harness: instance.harness,
-                            id: instance.id,
-                            expectedRevision: instance.revision,
-                          }),
-                        ),
-                    )
-                  }
+                  secondary
+                  title={scope ? "Edit worker settings" : "Edit definition"}
+                  onPress={() => (scope ? setSelected(instance) : setEditing(instance))}
                 />
-              )}
+                {!scope && <ProviderModels instance={instance} onChanged={changed} />}
+                {!instance.builtIn && !scope && (
+                  <Button
+                    danger
+                    title="Delete instance"
+                    disabled={resource.busy || instance.threadCount > 0}
+                    onPress={() =>
+                      confirmAction(
+                        "Delete instance",
+                        "Threads keep their saved instance. Remove unused instances only.",
+                        () =>
+                          void resource.run((api) =>
+                            api.deleteProviderInstance({
+                              harness: instance.harness,
+                              id: instance.id,
+                              expectedRevision: instance.revision,
+                            }),
+                          ),
+                      )
+                    }
+                  />
+                )}
+              </SettingsActions>
             </SettingsRow>
           ))}
         {resource.data && !resource.data.instances.some((i) => i.harness === harness) && (

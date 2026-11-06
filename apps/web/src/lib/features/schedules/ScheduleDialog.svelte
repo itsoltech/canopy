@@ -2,6 +2,7 @@
   import { create, isMessage } from "@bufbuild/protobuf";
   import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
   import { ui } from "@canopy/contracts";
+  import timeZones from "@canopy/ui/timezones";
   import { untrack } from "svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -64,9 +65,7 @@
   const ownZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const zones = $derived.by(() => {
-    const all = Intl.supportedValuesOf("timeZone");
-
-    return [...new Set([ownZone, timezone, ...all])];
+    return [...new Set([ownZone, timezone, ...timeZones])];
   });
 
   const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];

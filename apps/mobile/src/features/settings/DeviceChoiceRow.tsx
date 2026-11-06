@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { Button } from "../../ui/components";
+import { ResetSetting } from "./ResetSetting";
 import { SettingChoice } from "./SettingsGroup";
 import { deviceDefaults, useDevicePreferences, type DeviceKey } from "./device-preferences";
 
@@ -25,22 +25,14 @@ export function DeviceChoiceRow({
         options={options}
         disabled={!device.loaded}
         onChange={(value) => device.set(preference, value)}
+        accessory={
+          <ResetSetting
+            label={`Reset ${title.toLowerCase()}`}
+            changed={device.values[preference] !== deviceDefaults[preference]}
+            onReset={() => device.set(preference, deviceDefaults[preference])}
+          />
+        }
       />
-      <View
-        style={{
-          paddingHorizontal: 12,
-          paddingBottom: 8,
-          alignItems: "flex-end",
-          opacity: device.values[preference] === deviceDefaults[preference] ? 0 : 1,
-        }}
-      >
-        <Button
-          secondary
-          disabled={device.values[preference] === deviceDefaults[preference]}
-          title={`Reset ${title.toLowerCase()}`}
-          onPress={() => device.set(preference, deviceDefaults[preference])}
-        />
-      </View>
     </View>
   );
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ui } from "@canopy/contracts";
 import { Button, Field, Notice, Sheet } from "../../ui/components";
-import { SettingsGroup, SettingsRow, SettingChoice, SettingToggle } from "./SettingsGroup";
+import { SettingsActions, SettingsGroup, SettingsRow, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 
@@ -15,7 +15,6 @@ export function ProxySettings() {
       <Notice>
         Shared connections for your agent providers. Secrets are encrypted in the gateway and never shown again.
       </Notice>
-      <Button title="Add proxy" onPress={() => setEditing("new")} />
       {test && (
         <Notice>
           {test.ok
@@ -24,36 +23,39 @@ export function ProxySettings() {
           {test.detail}
         </Notice>
       )}
-      <SettingsGroup title="Proxies">
+      <SettingsGroup title="Proxies" actions={<Button title="Add proxy" onPress={() => setEditing("new")} />}>
         {resource.data?.proxies.map((proxy) => (
           <SettingsRow key={proxy.id} title={proxy.name} description={`${proxy.kind} · ${proxy.baseUrl}`}>
             <SettingsValue title="Secret" value={proxy.secretSet ? "Set" : "Not set"} />
             <SettingsValue title="Used by" value={proxy.usedBy.join("\n") || "No providers"} />
-            <Button secondary title="Edit proxy" onPress={() => setEditing(proxy)} />
-            <Button
-              secondary
-              title="Test connection"
-              busy={resource.busy}
-              onPress={() =>
-                void resource
-                  .run((api) => api.testProxy({ id: proxy.id }))
-                  .then((r) => {
-                    if (r) setTest(r);
-                  })
-              }
-            />
-            <Button
-              danger
-              title="Delete proxy"
-              disabled={resource.busy || proxy.usedBy.length > 0}
-              onPress={() =>
-                confirmAction(
-                  "Delete proxy",
-                  "This removes the saved connection and its secret. Remove it from providers first.",
-                  () => void resource.run((api) => api.deleteProxy({ id: proxy.id, expectedRevision: proxy.revision })),
-                )
-              }
-            />
+            <SettingsActions>
+              <Button secondary title="Edit proxy" onPress={() => setEditing(proxy)} />
+              <Button
+                secondary
+                title="Test connection"
+                busy={resource.busy}
+                onPress={() =>
+                  void resource
+                    .run((api) => api.testProxy({ id: proxy.id }))
+                    .then((r) => {
+                      if (r) setTest(r);
+                    })
+                }
+              />
+              <Button
+                danger
+                title="Delete proxy"
+                disabled={resource.busy || proxy.usedBy.length > 0}
+                onPress={() =>
+                  confirmAction(
+                    "Delete proxy",
+                    "This removes the saved connection and its secret. Remove it from providers first.",
+                    () =>
+                      void resource.run((api) => api.deleteProxy({ id: proxy.id, expectedRevision: proxy.revision })),
+                  )
+                }
+              />
+            </SettingsActions>
           </SettingsRow>
         ))}
         {resource.data && !resource.data.proxies.length && (

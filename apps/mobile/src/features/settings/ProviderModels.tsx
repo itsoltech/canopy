@@ -37,7 +37,9 @@ export function ProviderModels({ instance, onChanged }: { instance: ui.ProviderI
     ...new Set([
       ...(resource.data?.workers.flatMap((w) =>
         w.profiles
-          .filter((p) => p.provider === instance.harness && p.profileId === instance.id)
+          .filter(
+            (p) => p.provider === instance.harness && p.profileId === (instance.id === "native" ? "" : instance.id),
+          )
           .flatMap((p) => p.models.map((m) => m.id)),
       ) ?? []),
       ...models.custom,

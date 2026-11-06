@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { createClient } from "@connectrpc/connect";
-import { createGrpcTransport } from "@connectrpc/connect-node";
+import { createConnectTransport, createGrpcTransport } from "@connectrpc/connect-node";
 import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
@@ -103,6 +103,55 @@ describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect cl
     ).toContain("platform");
     expect((await exchange(valid.code)).deviceToken).toStartWith("canopy_device_");
   });
+
+  test("a paired HTTP/2 client receives its overview snapshot before the stream closes", async () => {
+    const paired = await exchange((await invite()).code);
+    const identity = await new ComputerStore(gw.runtime, gw.userId, gw.secretsKey).identity();
+
+    const phone = createClient(
+      ui.GatewayService,
+      createConnectTransport({
+        baseUrl: network.origins()[0]!,
+        httpVersion: "2",
+        acceptCompression: [],
+        nodeOptions: {
+          ca: identity.certificate,
+          checkServerIdentity: (_host, certificate) =>
+            createHash("sha256").update(certificate.raw).digest("hex") === network.fingerprint
+              ? undefined
+              : new Error("Certificate mismatch"),
+        },
+        interceptors: [
+          (next) => (request) => {
+            request.header.set("authorization", `Bearer ${paired.deviceToken}`);
+
+            return next(request);
+          },
+        ],
+      }),
+    );
+
+    const controller = new AbortController();
+    let received = false;
+
+    try {
+      for await (const update of phone.watchOverview(
+        { includeSnapshot: true },
+        { signal: controller.signal, timeoutMs: 3000 },
+      )) {
+        received = true;
+        expect(update.change.case).toBe("mobileSnapshot");
+
+        if (update.change.case === "mobileSnapshot")
+          expect(update.change.value.overview?.workers.some((w) => w.id === gw.workerId)).toBe(true);
+        break;
+      }
+
+      expect(received).toBe(true);
+    } finally {
+      controller.abort();
+    }
+  }, 10000);
 
   test("device has owner settings access; revocation closes existing streams and rejects new RPCs", async () => {
     const paired = await exchange((await invite()).code);

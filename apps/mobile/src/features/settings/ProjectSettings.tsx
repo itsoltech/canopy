@@ -9,6 +9,8 @@ import { SettingsInput } from "./SettingsInput";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { DirectoryBrowser } from "./DirectoryBrowser";
 import { DefaultModels } from "./SettingsModels";
+import { DefaultResets } from "./DefaultResets";
+import { SelectField } from "../../ui/Picker";
 import { PermissionPickerSheet, permissionLabel } from "../threads/permissions";
 
 export function ProjectSettings() {
@@ -103,6 +105,15 @@ function AddProject({ onSaved }: { onSaved: () => void }) {
   const [path, setPath] = useState("");
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const worker = workers.find((w) => w.id === workerId);
+
+  const repository = url
+    .trim()
+    .replace(/^https:\/\/github\.com\//i, "")
+    .replace(/\.git$/i, "");
+
+  const cloneUrl =
+    kind === "github" && /^[\w.-]+\/[\w.-]+$/.test(repository) ? `https://github.com/${repository}.git` : url.trim();
 
   return (
     <ResourceState resource={resource}>
@@ -118,25 +129,37 @@ function AddProject({ onSaved }: { onSaved: () => void }) {
         onChange={setKind}
         options={[
           { value: "directory", label: "Existing directory" },
-          { value: "init", label: "New directory" },
-          { value: "clone", label: "Git repository" },
+          { value: "init", label: "New project", disabled: !worker?.projectSources },
+          { value: "clone", label: "Git URL", disabled: !worker?.projectSources },
+          { value: "github", label: "GitHub repository", disabled: !worker?.projectSources },
         ]}
       />
-      {kind === "clone" && (
-        <Field
-          label="Git URL or GitHub owner/repo"
-          value={url}
-          onChangeText={setUrl}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+      {(kind === "clone" || kind === "github") && (
+        <>
+          <Field
+            label={kind === "github" ? "GitHub repository" : "Git URL"}
+            value={url}
+            onChangeText={setUrl}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Notice>
+            {worker?.name || "This computer"} clones with its own Git sign-in. Private repositories need access there.
+          </Notice>
+        </>
       )}
       {kind !== "directory" && <Field label="Directory name" value={name} onChangeText={setName} />}
       {workerId && <DirectoryBrowser workerId={workerId} value={path} onChange={setPath} />}
       <Button
         title="Add project"
         busy={resource.busy}
-        disabled={!workerId || !path || (kind !== "directory" && !name.trim())}
+        disabled={
+          !workerId ||
+          !path ||
+          (kind !== "directory" && (!name.trim() || !worker?.projectSources)) ||
+          (kind === "github" && !/^[\w.-]+\/[\w.-]+$/.test(repository)) ||
+          (kind === "clone" && !/^(?:[\w.-]+@[\w.-]+:\S+|(?:https?|ssh|git|file):\/\/\S+)$/i.test(cloneUrl))
+        }
         onPress={() =>
           void resource
             .run((api) =>
@@ -147,7 +170,7 @@ function AddProject({ onSaved }: { onSaved: () => void }) {
                     ? { case: "directoryPath", value: path }
                     : kind === "init"
                       ? { case: "init", value: { parentPath: path, name } }
-                      : { case: "clone", value: { parentPath: path, name, url } },
+                      : { case: "clone", value: { parentPath: path, name, url: cloneUrl } },
               }),
             )
             .then((r) => {
@@ -210,53 +233,69 @@ function ProjectDefaults({ project }: { project: ui.Project }) {
 
   return (
     <ResourceState resource={resource}>
-      <SettingsGroup title="New thread defaults" description="Use account defaults unless this project overrides them.">
-        <SettingChoice
-          title="Worker"
-          value={value.workspaceId}
-          onChange={(workspaceId) => save({ workspaceId })}
-          options={[
-            { value: "", label: "Use my default" },
-            ...project.workspaces.map((w) => ({ value: w.id, label: w.label || w.rootPath })),
-          ]}
-        />
-        <SettingChoice
-          title="Agent"
-          value={value.provider}
-          onChange={(provider) => save({ provider, providerProfileId: "" })}
-          options={[
-            { value: Provider.UNSPECIFIED, label: "Use my default" },
-            { value: Provider.CLAUDE, label: "Claude" },
-            { value: Provider.CODEX, label: "Codex" },
-            { value: Provider.GROK, label: "Grok" },
-          ]}
-        />
-        <DefaultModels value={value} onChange={save} />
-        <Button
-          secondary
-          title={`Permissions: ${permissionLabel(value.permissionMode || settings.user?.threadDefaults?.permissionMode)}`}
-          onPress={() => setPermission(true)}
-        />
-        <PermissionPickerSheet
-          visible={permission}
-          onClose={() => setPermission(false)}
-          value={value.permissionMode}
-          onSelect={(permissionMode) => save({ permissionMode })}
-        />
-        <Button
-          secondary
-          title="Restore account defaults"
-          onPress={() =>
-            void resource.run((api) =>
-              api.updateProjectSettings({
-                projectId: project.id,
-                threadDefaults: create(ui.ThreadDefaultsSchema),
-                expectedVersion: row?.version ?? 0n,
-              }),
-            )
-          }
-        />
-      </SettingsGroup>
+      <DefaultResets value={value} onChange={save} inherited disabled={resource.busy}>
+        <SettingsGroup
+          title="New thread defaults"
+          description="Use account defaults unless this project overrides them."
+        >
+          <SettingChoice
+            title="Worker"
+            value={value.workspaceId}
+            onChange={(workspaceId) => save({ workspaceId })}
+            options={[
+              { value: "", label: "Use my default" },
+              ...project.workspaces.map((w) => ({ value: w.id, label: w.label || w.rootPath })),
+            ]}
+          />
+          <SettingChoice
+            title="Agent"
+            value={value.provider}
+            onChange={(provider) => save({ provider, providerProfileId: "" })}
+            options={[
+              { value: Provider.UNSPECIFIED, label: "Use my default" },
+              { value: Provider.CLAUDE, label: "Claude" },
+              { value: Provider.CODEX, label: "Codex" },
+              { value: Provider.GROK, label: "Grok" },
+            ]}
+          />
+          {!!value.provider && <DefaultModels value={value} onChange={save} />}
+          <SettingsRow
+            title="Permissions"
+            description="New threads of this project use this approval policy."
+            control={
+              <SelectField
+                label="Permissions"
+                hideLabel
+                value={
+                  value.permissionMode
+                    ? permissionLabel(value.permissionMode)
+                    : `Use my default (${permissionLabel(settings.user?.threadDefaults?.permissionMode)})`
+                }
+                onPress={() => setPermission(true)}
+              />
+            }
+          />
+          <PermissionPickerSheet
+            visible={permission}
+            onClose={() => setPermission(false)}
+            value={value.permissionMode}
+            onSelect={(permissionMode) => save({ permissionMode })}
+          />
+          <Button
+            secondary
+            title="Restore account defaults"
+            onPress={() =>
+              void resource.run((api) =>
+                api.updateProjectSettings({
+                  projectId: project.id,
+                  threadDefaults: create(ui.ThreadDefaultsSchema),
+                  expectedVersion: row?.version ?? 0n,
+                }),
+              )
+            }
+          />
+        </SettingsGroup>
+      </DefaultResets>
     </ResourceState>
   );
 }

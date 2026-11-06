@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ui } from "@canopy/contracts";
 import { Button, Notice, Sheet } from "../../ui/components";
-import { SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
+import { SettingsActions, SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { InstructionEditor } from "./InstructionEditor";
 import { SkillEditor } from "./SkillEditor";
@@ -46,34 +46,29 @@ export function AgentEnvironmentSettings() {
             actions={<Button title="Add instructions" onPress={() => add("instruction")} />}
           >
             {!snapshot.documents.length && (
-              <Notice>No instructions yet. Add a document to share instructions across your computers.</Notice>
+              <SettingsRow
+                title="No instructions yet"
+                description="Add a document to share instructions across your computers."
+              />
             )}
             {snapshot.documents.map((doc) => (
-              <SettingsRow
+              <InstructionRow
                 key={doc.id}
-                title={doc.name}
-                description={`${doc.harness} · ${doc.fragments.length} fragments · ${doc.selector?.everyone ? "All computers" : "Selected computers and tags"}`}
-              >
-                <Button
-                  secondary
-                  title="Edit instructions"
-                  onPress={() => {
-                    setDocument(doc);
-                    setEditor("instruction");
-                  }}
-                />
-                <Button
-                  danger
-                  title="Delete instructions"
-                  disabled={resource.busy}
-                  onPress={() => removeDocument(doc.id)}
-                />
-              </SettingsRow>
+                document={doc}
+                busy={resource.busy}
+                onEdit={() => {
+                  setDocument(doc);
+                  setEditor("instruction");
+                }}
+                onDelete={() => removeDocument(doc.id)}
+              />
             ))}
           </SettingsGroup>
           <SettingsGroup title="Skills" actions={<Button title="Add skill" onPress={() => add("skill")} />}>
             <Button secondary title="Add from Git" onPress={() => add("source")} />
-            {!snapshot.skills.length && <Notice>No skills yet. Add a skill folder, ZIP or Git source.</Notice>}
+            {!snapshot.skills.length && (
+              <SettingsRow title="No skills yet" description="Add a skill folder, ZIP or Git source." />
+            )}
             {snapshot.skills.map((item) => (
               <SettingsRow
                 key={item.id}
@@ -133,6 +128,30 @@ export function AgentEnvironmentSettings() {
   );
 }
 
+function InstructionRow({
+  document,
+  busy,
+  onEdit,
+  onDelete,
+}: {
+  document: ui.InstructionDocument;
+  busy: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <SettingsRow
+      title={document.name}
+      description={`${document.harness} · ${document.fragments.length} ${document.fragments.length === 1 ? "fragment" : "fragments"} · ${document.selector?.everyone ? "All computers" : "Selected computers and tags"}`}
+    >
+      <SettingsActions>
+        <Button secondary title="Edit instructions" onPress={onEdit} />
+        <Button danger title="Delete instructions" disabled={busy} onPress={onDelete} />
+      </SettingsActions>
+    </SettingsRow>
+  );
+}
+
 function DeleteEnvironmentItem({
   title,
   disabled,
@@ -178,7 +197,9 @@ function EnvironmentComputers({
             description: w.online ? "Online" : "Offline",
           }))}
         />
-        {!snapshot.workers.length && <Notice>No computers yet. Add a worker to sync its agent environment.</Notice>}
+        {!snapshot.workers.length && (
+          <SettingsRow title="No computers yet" description="Add a worker to sync its agent environment." />
+        )}
       </SettingsGroup>
       {snapshot.workers.flatMap((w) =>
         w.workerId === workerId

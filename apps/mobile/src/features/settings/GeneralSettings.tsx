@@ -7,6 +7,7 @@ import { styles, useColors } from "../../ui/theme";
 import { SettingsGroup, SettingsRow, SettingChoice, SettingToggle } from "./SettingsGroup";
 import { DeviceChoiceRow } from "./DeviceChoiceRow";
 import { useDevicePreferences } from "./device-preferences";
+import { ResetSetting } from "./ResetSetting";
 
 export function GeneralSettings() {
   const settings = useAppearance();
@@ -62,6 +63,14 @@ export function GeneralSettings() {
           value={sidebar?.groupByProject ?? false}
           disabled={disabled}
           onChange={(groupByProject) => saveSidebar({ groupByProject })}
+          accessory={
+            <ResetSetting
+              label="Reset group by project"
+              changed={!!sidebar?.groupByProject}
+              disabled={disabled}
+              onReset={() => saveSidebar({ groupByProject: false })}
+            />
+          }
         />
         <SettingChoice
           title="Project order"
@@ -74,6 +83,14 @@ export function GeneralSettings() {
             { value: ui.ProjectOrder.CREATED, label: "Newest project" },
           ]}
           onChange={(projectOrder) => saveSidebar({ projectOrder })}
+          accessory={
+            <ResetSetting
+              label="Reset project order"
+              changed={(sidebar?.projectOrder ?? ui.ProjectOrder.ACTIVITY) !== ui.ProjectOrder.ACTIVITY}
+              disabled={disabled}
+              onReset={() => saveSidebar({ projectOrder: ui.ProjectOrder.ACTIVITY })}
+            />
+          }
         />
         <SettingToggle
           title="Working section"
@@ -81,6 +98,14 @@ export function GeneralSettings() {
           value={sidebar?.workingSection ?? false}
           disabled={disabled}
           onChange={(workingSection) => saveSidebar({ workingSection })}
+          accessory={
+            <ResetSetting
+              label="Reset working section"
+              changed={!!sidebar?.workingSection}
+              disabled={disabled}
+              onReset={() => saveSidebar({ workingSection: false })}
+            />
+          }
         />
       </SettingsGroup>
       <ConfirmationSettings />
@@ -141,6 +166,18 @@ function ConfirmationSettings() {
           description={field.description}
           value={general?.[field.key] ?? field.fallback}
           disabled={disabled}
+          accessory={
+            <ResetSetting
+              label={`Reset ${field.title.toLowerCase()}`}
+              changed={(general?.[field.key] ?? field.fallback) !== field.fallback}
+              disabled={disabled}
+              onReset={() =>
+                void settings.update({
+                  general: Object.assign(create(ui.GeneralSettingsSchema, general), { [field.key]: field.fallback }),
+                })
+              }
+            />
+          }
           onChange={(value) =>
             void settings.update({
               general: Object.assign(create(ui.GeneralSettingsSchema, general), { [field.key]: value }),

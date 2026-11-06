@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { View } from "react-native";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
-import { Notice } from "../../ui/components";
+import { Button, Notice } from "../../ui/components";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { TurnActivitySettings } from "./TurnActivitySettings";
 import { ThreadDefaultsSettings } from "./ThreadSettings";
+import { ThreadDisplaySettings } from "./ThreadDisplaySettings";
 import { TextGenerationSettings } from "./TextGenerationSettings";
 import { ProjectSettings } from "./ProjectSettings";
 import { ScheduleSettings } from "./ScheduleSettings";
@@ -34,16 +36,27 @@ export default function SettingsScreen() {
 function SettingsContent({ initialSection }: { initialSection: string }) {
   const { session } = useSession();
   const settings = useAppearance();
-  const { projects, workers } = useOverview();
+  const { reload: reloadSettings } = settings;
+  const { projects, workers, reload } = useOverview();
   const device = useDevicePreferences();
   const [section, setSection] = useState(initialSection);
+
+  useEffect(() => {
+    void reloadSettings();
+    void reload().catch(() => undefined);
+  }, [section, reloadSettings, reload]);
 
   if (!session) return <Redirect href="/pair" />;
 
   return (
     <SettingsLayout section={section} onSelect={setSection}>
       {device.error ? <Notice error>{device.error}</Notice> : null}
-      {settings.error ? <Notice error>{settings.error}</Notice> : null}
+      {settings.error ? (
+        <View style={{ gap: 8 }}>
+          <Notice error>{settings.error}</Notice>
+          <Button secondary title="Retry settings" onPress={() => void settings.reload()} />
+        </View>
+      ) : null}
       {!settings.user && !settings.error ? <Notice>Loading settings…</Notice> : null}
       {section === "general" && <GeneralSettings />}
       {section === "keybindings" && <KeybindingSettings />}
@@ -51,8 +64,9 @@ function SettingsContent({ initialSection }: { initialSection: string }) {
       {section === "appearance" && <AppearanceSettings />}
       {section === "threads" && (
         <>
-          <ThreadDefaultsSettings settings={settings} projects={projects} workers={workers} />
+          <ThreadDisplaySettings />
           <TurnActivitySettings />
+          <ThreadDefaultsSettings settings={settings} projects={projects} workers={workers} />
         </>
       )}
       {section === "text-generation" && <TextGenerationSettings />}

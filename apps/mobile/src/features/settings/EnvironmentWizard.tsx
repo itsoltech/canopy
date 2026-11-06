@@ -27,7 +27,7 @@ export function EnvironmentWizard({
         {step + 1} / {steps.length} · {steps[step]}
       </Text>
       {children(step)}
-      <View style={{ gap: 8 }}>
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
         {step > 0 && <Button secondary title="Back" disabled={busy} onPress={() => setStep(step - 1)} />}
         {step < steps.length - 1 ? (
           <Button title="Next" disabled={busy} onPress={() => setStep(step + 1)} />
