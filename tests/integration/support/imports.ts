@@ -8,7 +8,7 @@ import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { installFixtureHome, type FixtureCli } from "../../../apps/worker/src/import/fixtures/install.ts";
-import { eventually, startTestGateway, type TestGateway } from "./gateway.ts";
+import { eventually, startTestGateway, watchUntil, type TestGateway } from "./gateway.ts";
 
 /**
  * CLI import end to end (docs/import.md): PostgreSQL, the gateway and a real WorkerHost whose device CLI homes are
@@ -44,8 +44,11 @@ export async function importFixture(
   });
 
   let link: GatewayLink | undefined;
+  let closed = false;
 
   const connect = async () => {
+    if (link && !closed) return;
+    closed = false;
     link = await openGatewayLink({
       baseUrl: gw.grpcUrl,
       credential: worker.credential,
@@ -54,6 +57,7 @@ export async function importFixture(
         host: { os: process.platform },
         homeDirectory: homedir(),
         capabilities: ["cli_import_v1"],
+        scratchRoot: join(data, "scratch"),
         ...(await runtime.runPromise(journalHello())),
       },
     });
@@ -66,7 +70,18 @@ export async function importFixture(
 
   await connect();
 
+  /** The thread as the UI first gets it (WatchThread snapshot): thread, turns and items. */
+  const snapshot = async (threadId: string) => {
+    const updates = await watchUntil(gw.api, threadId, (u) => u.some((x) => x.change.case === "snapshot"));
+    const change = updates.find((u) => u.change.case === "snapshot")?.change;
+
+    if (change?.case !== "snapshot") throw new Error(`no snapshot of ${threadId}`);
+
+    return change.value;
+  };
+
   return {
+    snapshot,
     gw,
     home,
     data,
@@ -75,7 +90,31 @@ export async function importFixture(
     connect,
     sql: <A, E>(use: (sql: SqlClient.SqlClient) => Effect.Effect<A, E>) =>
       gw.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, use)),
-    disconnect: () => link?.close(),
+    disconnect: () => {
+      closed = true;
+      link?.close();
+    },
+    /**
+     * After each test (afterEach): the worker is online again and pages have their usual size, whatever the test did
+     * or where it failed, so no test starts with another one's state.
+     */
+    /** The worker goes away right before the runner asks for its `page`-th page (counted from now). */
+    offlineAtPage(page: number) {
+      let pages = 0;
+
+      gw.core.imports.runner.beforePage = () => {
+        if (++pages === page) {
+          closed = true;
+          link?.close();
+        }
+      };
+    },
+    async restore() {
+      gw.core.imports.runner.pageBytes = 4 * 1024 ** 2;
+      gw.core.imports.runner.beforePage = () => {};
+
+      await connect();
+    },
     async close() {
       link?.close();
       await host.close();

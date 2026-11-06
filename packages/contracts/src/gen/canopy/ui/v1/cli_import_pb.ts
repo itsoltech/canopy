@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/cli_import.proto.
  */
 export const file_canopy_ui_v1_cli_import: GenFile = /*@__PURE__*/
-  fileDesc("Ch1jYW5vcHkvdWkvdjEvY2xpX2ltcG9ydC5wcm90bxIMY2Fub3B5LnVpLnYxIiYKEVNjYW5JbXBvcnRSZXF1ZXN0EhEKCXdvcmtlcl9pZBgBIAEoCSLpAQoOSW1wb3J0T3ZlcnZpZXcSEQoJYWdlbnRfY2xpGAEgASgJEg8KB3RocmVhZHMYAiABKA0SDQoFYnl0ZXMYAyABKAQSKgoGb2xkZXN0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIqCgZuZXdlc3QYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC2RpcmVjdG9yaWVzGAYgASgNEhEKCXJvb3RfcGF0aBgHIAEoCRITCgtjbGlfdmVyc2lvbhgIIAEoCRIPCgdwcm9ibGVtGAkgASgJIrwBChJTY2FuSW1wb3J0UmVzcG9uc2USDwoHc2Nhbl9pZBgBIAEoCRIRCgl3b3JrZXJfaWQYAiABKAkSLgoIb3ZlcnZpZXcYAyADKAsyHC5jYW5vcHkudWkudjEuSW1wb3J0T3ZlcnZpZXcSEQoJdHJ1bmNhdGVkGAQgASgIEi4KCnNjYW5uZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB3NraXBwZWQYBiABKA0i0AEKFUltcG9ydENhbmRpZGF0ZUZpbHRlchISCgphZ2VudF9jbGlzGAEgAygJEikKBXNpbmNlGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIpCgV1bnRpbBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJZGlyZWN0b3J5GAQgASgJEg4KBnNlYXJjaBgFIAEoCRIPCgdvcmlnaW5zGAYgAygJEhkKEWluY2x1ZGVfc3ViYWdlbnRzGAcgASgIIoIBChtMaXN0SW1wb3J0Q2FuZGlkYXRlc1JlcXVlc3QSDwoHc2Nhbl9pZBgBIAEoCRIzCgZmaWx0ZXIYAiABKAsyIy5jYW5vcHkudWkudjEuSW1wb3J0Q2FuZGlkYXRlRmlsdGVyEg4KBm9mZnNldBgDIAEoDRINCgVsaW1pdBgEIAEoDSJpCgxJbXBvcnRUYXJnZXQSDAoEa2luZBgBIAEoCRISCgpwcm9qZWN0X2lkGAIgASgJEhQKDHdvcmtzcGFjZV9pZBgDIAEoCRIUCgxwcm9qZWN0X25hbWUYBCABKAkSCwoDY3dkGAUgASgJIsoDCg9JbXBvcnRDYW5kaWRhdGUSEgoKc291cmNlX2tleRgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSEQoJbmF0aXZlX2lkGAMgASgJEg0KBXRpdGxlGAQgASgJEg8KB3ByZXZpZXcYBSABKAkSCwoDY3dkGAYgASgJEhIKCmN3ZF9leGlzdHMYByABKAgSLgoKc3RhcnRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDQoFYnl0ZXMYCiABKAQSDQoFdHVybnMYCyABKA0SDgoGb3JpZ2luGAwgASgJEhMKC2NsaV92ZXJzaW9uGA0gASgJEg4KBnN0YXR1cxgOIAEoCRIVCg1jb250aW51ZV9tb2RlGA8gASgJEg4KBnJlYXNvbhgQIAEoCRIQCghzdWJhZ2VudBgRIAEoCBIXCg9mbGFnZ2VkX3NlY3JldHMYEiABKA0SEQoJdGhyZWFkX2lkGBMgASgJEhIKCmdpdF9icmFuY2gYFCABKAkSEAoIYXJjaGl2ZWQYFSABKAgiiQEKFEltcG9ydERpcmVjdG9yeUdyb3VwEhEKCWRpcmVjdG9yeRgBIAEoCRIPCgd0aHJlYWRzGAIgASgNEg0KBWJ5dGVzGAMgASgEEg4KBmV4aXN0cxgEIAEoCBIuCgpzdWdnZXN0aW9uGAUgASgLMhouY2Fub3B5LnVpLnYxLkltcG9ydFRhcmdldCLCAQocTGlzdEltcG9ydENhbmRpZGF0ZXNSZXNwb25zZRIxCgpjYW5kaWRhdGVzGAEgAygLMh0uY2Fub3B5LnVpLnYxLkltcG9ydENhbmRpZGF0ZRINCgV0b3RhbBgCIAEoDRITCgt0b3RhbF9ieXRlcxgDIAEoBBIyCgZncm91cHMYBCADKAsyIi5jYW5vcHkudWkudjEuSW1wb3J0RGlyZWN0b3J5R3JvdXASFwoPZXN0aW1hdGVkX2J5dGVzGAUgASgEYgZwcm90bzM", [file_google_protobuf_timestamp]);
+  fileDesc("Ch1jYW5vcHkvdWkvdjEvY2xpX2ltcG9ydC5wcm90bxIMY2Fub3B5LnVpLnYxIiYKEVNjYW5JbXBvcnRSZXF1ZXN0EhEKCXdvcmtlcl9pZBgBIAEoCSLpAQoOSW1wb3J0T3ZlcnZpZXcSEQoJYWdlbnRfY2xpGAEgASgJEg8KB3RocmVhZHMYAiABKA0SDQoFYnl0ZXMYAyABKAQSKgoGb2xkZXN0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIqCgZuZXdlc3QYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC2RpcmVjdG9yaWVzGAYgASgNEhEKCXJvb3RfcGF0aBgHIAEoCRITCgtjbGlfdmVyc2lvbhgIIAEoCRIPCgdwcm9ibGVtGAkgASgJIrwBChJTY2FuSW1wb3J0UmVzcG9uc2USDwoHc2Nhbl9pZBgBIAEoCRIRCgl3b3JrZXJfaWQYAiABKAkSLgoIb3ZlcnZpZXcYAyADKAsyHC5jYW5vcHkudWkudjEuSW1wb3J0T3ZlcnZpZXcSEQoJdHJ1bmNhdGVkGAQgASgIEi4KCnNjYW5uZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB3NraXBwZWQYBiABKA0i0AEKFUltcG9ydENhbmRpZGF0ZUZpbHRlchISCgphZ2VudF9jbGlzGAEgAygJEikKBXNpbmNlGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIpCgV1bnRpbBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJZGlyZWN0b3J5GAQgASgJEg4KBnNlYXJjaBgFIAEoCRIPCgdvcmlnaW5zGAYgAygJEhkKEWluY2x1ZGVfc3ViYWdlbnRzGAcgASgIIoIBChtMaXN0SW1wb3J0Q2FuZGlkYXRlc1JlcXVlc3QSDwoHc2Nhbl9pZBgBIAEoCRIzCgZmaWx0ZXIYAiABKAsyIy5jYW5vcHkudWkudjEuSW1wb3J0Q2FuZGlkYXRlRmlsdGVyEg4KBm9mZnNldBgDIAEoDRINCgVsaW1pdBgEIAEoDSJpCgxJbXBvcnRUYXJnZXQSDAoEa2luZBgBIAEoCRISCgpwcm9qZWN0X2lkGAIgASgJEhQKDHdvcmtzcGFjZV9pZBgDIAEoCRIUCgxwcm9qZWN0X25hbWUYBCABKAkSCwoDY3dkGAUgASgJIsoDCg9JbXBvcnRDYW5kaWRhdGUSEgoKc291cmNlX2tleRgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSEQoJbmF0aXZlX2lkGAMgASgJEg0KBXRpdGxlGAQgASgJEg8KB3ByZXZpZXcYBSABKAkSCwoDY3dkGAYgASgJEhIKCmN3ZF9leGlzdHMYByABKAgSLgoKc3RhcnRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDQoFYnl0ZXMYCiABKAQSDQoFdHVybnMYCyABKA0SDgoGb3JpZ2luGAwgASgJEhMKC2NsaV92ZXJzaW9uGA0gASgJEg4KBnN0YXR1cxgOIAEoCRIVCg1jb250aW51ZV9tb2RlGA8gASgJEg4KBnJlYXNvbhgQIAEoCRIQCghzdWJhZ2VudBgRIAEoCBIXCg9mbGFnZ2VkX3NlY3JldHMYEiABKA0SEQoJdGhyZWFkX2lkGBMgASgJEhIKCmdpdF9icmFuY2gYFCABKAkSEAoIYXJjaGl2ZWQYFSABKAgiiQEKFEltcG9ydERpcmVjdG9yeUdyb3VwEhEKCWRpcmVjdG9yeRgBIAEoCRIPCgd0aHJlYWRzGAIgASgNEg0KBWJ5dGVzGAMgASgEEg4KBmV4aXN0cxgEIAEoCBIuCgpzdWdnZXN0aW9uGAUgASgLMhouY2Fub3B5LnVpLnYxLkltcG9ydFRhcmdldCL6AQocTGlzdEltcG9ydENhbmRpZGF0ZXNSZXNwb25zZRIxCgpjYW5kaWRhdGVzGAEgAygLMh0uY2Fub3B5LnVpLnYxLkltcG9ydENhbmRpZGF0ZRINCgV0b3RhbBgCIAEoDRITCgt0b3RhbF9ieXRlcxgDIAEoBBIyCgZncm91cHMYBCADKAsyIi5jYW5vcHkudWkudjEuSW1wb3J0RGlyZWN0b3J5R3JvdXASFwoPZXN0aW1hdGVkX2J5dGVzGAUgASgEEhIKCmltcG9ydGFibGUYBiABKA0SIgoaaW1wb3J0YWJsZV9lc3RpbWF0ZWRfYnl0ZXMYByABKAQigAEKD0ltcG9ydFNlbGVjdGlvbhIUCgxhbGxfbWF0Y2hpbmcYASABKAgSMwoGZmlsdGVyGAIgASgLMiMuY2Fub3B5LnVpLnYxLkltcG9ydENhbmRpZGF0ZUZpbHRlchIQCghpbmNsdWRlZBgDIAMoCRIQCghleGNsdWRlZBgEIAMoCSJOCg1JbXBvcnRNYXBwaW5nEhEKCWRpcmVjdG9yeRgBIAEoCRIqCgZ0YXJnZXQYAiABKAsyGi5jYW5vcHkudWkudjEuSW1wb3J0VGFyZ2V0IpQBChJTdGFydEltcG9ydFJlcXVlc3QSDwoHc2Nhbl9pZBgBIAEoCRIwCglzZWxlY3Rpb24YAiABKAsyHS5jYW5vcHkudWkudjEuSW1wb3J0U2VsZWN0aW9uEi0KCG1hcHBpbmdzGAMgAygLMhsuY2Fub3B5LnVpLnYxLkltcG9ydE1hcHBpbmcSDAoEbW9kZRgEIAEoCSLaAQoKSW1wb3J0SXRlbRIKCgJpZBgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSDQoFdGl0bGUYAyABKAkSDgoGc3RhdHVzGAQgASgJEhEKCXRocmVhZF9pZBgFIAEoCRINCgVlcnJvchgGIAEoCRINCgV0dXJucxgHIAEoDRITCgtieXRlc190b3RhbBgIIAEoBBISCgpieXRlc19kb25lGAkgASgEEhAKCHdhcm5pbmdzGAogAygJEgsKA2N3ZBgLIAEoCRIVCg1jb250aW51ZV9tb2RlGAwgASgJIooDCglJbXBvcnRSdW4SCgoCaWQYASABKAkSEQoJd29ya2VyX2lkGAIgASgJEhMKC3dvcmtlcl9uYW1lGAMgASgJEg4KBnN0YXR1cxgEIAEoCRIMCgRtb2RlGAUgASgJEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2ZpbmlzaGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgV0b3RhbBgIIAEoDRIMCgRkb25lGAkgASgNEg4KBmZhaWxlZBgKIAEoDRIRCgljYW5jZWxsZWQYCyABKA0SGAoQYWxyZWFkeV9pbXBvcnRlZBgMIAEoDRITCgtieXRlc190b3RhbBgNIAEoBBISCgpieXRlc19kb25lGA4gASgEEg0KBWVycm9yGA8gASgJEg8KB2N1cnJlbnQYECABKAkSJwoFaXRlbXMYESADKAsyGC5jYW5vcHkudWkudjEuSW1wb3J0SXRlbSIXChVMaXN0SW1wb3J0UnVuc1JlcXVlc3QiPwoWTGlzdEltcG9ydFJ1bnNSZXNwb25zZRIlCgRydW5zGAEgAygLMhcuY2Fub3B5LnVpLnYxLkltcG9ydFJ1biI0ChNHZXRJbXBvcnRSdW5SZXF1ZXN0Eg4KBnJ1bl9pZBgBIAEoCRINCgVpdGVtcxgCIAEoCCIiChBJbXBvcnRSdW5SZXF1ZXN0Eg4KBnJ1bl9pZBgBIAEoCWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message canopy.ui.v1.ScanImportRequest
@@ -336,7 +336,7 @@ export type ImportCandidate = Message<"canopy.ui.v1.ImportCandidate"> & {
   cliVersion: string;
 
   /**
-   * new | imported | has_new_turns | in_canopy
+   * new | imported | has_new_turns | in_canopy | unsupported (CLI, którego worker jeszcze nie importuje)
    *
    * @generated from field: string status = 14;
    */
@@ -460,6 +460,18 @@ export type ListImportCandidatesResponse = Message<"canopy.ui.v1.ListImportCandi
    * @generated from field: uint64 estimated_bytes = 5;
    */
   estimatedBytes: bigint;
+
+  /**
+   * Pasujące wątki, które można zaimportować teraz (status new); tylko one są zaznaczane.
+   *
+   * @generated from field: uint32 importable = 6;
+   */
+  importable: number;
+
+  /**
+   * @generated from field: uint64 importable_estimated_bytes = 7;
+   */
+  importableEstimatedBytes: bigint;
 };
 
 /**
@@ -468,4 +480,348 @@ export type ListImportCandidatesResponse = Message<"canopy.ui.v1.ListImportCandi
  */
 export const ListImportCandidatesResponseSchema: GenMessage<ListImportCandidatesResponse> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_cli_import, 8);
+
+/**
+ * Co importować: wszystko, co pasuje do filtra, poza `excluded`, albo dokładnie `included`.
+ *
+ * @generated from message canopy.ui.v1.ImportSelection
+ */
+export type ImportSelection = Message<"canopy.ui.v1.ImportSelection"> & {
+  /**
+   * @generated from field: bool all_matching = 1;
+   */
+  allMatching: boolean;
+
+  /**
+   * @generated from field: canopy.ui.v1.ImportCandidateFilter filter = 2;
+   */
+  filter?: ImportCandidateFilter | undefined;
+
+  /**
+   * @generated from field: repeated string included = 3;
+   */
+  included: string[];
+
+  /**
+   * @generated from field: repeated string excluded = 4;
+   */
+  excluded: string[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.ImportSelection.
+ * Use `create(ImportSelectionSchema)` to create a new message.
+ */
+export const ImportSelectionSchema: GenMessage<ImportSelection> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 9);
+
+/**
+ * Cel katalogu źródłowego; kind: workspace | create_project | no_project | skip.
+ *
+ * @generated from message canopy.ui.v1.ImportMapping
+ */
+export type ImportMapping = Message<"canopy.ui.v1.ImportMapping"> & {
+  /**
+   * @generated from field: string directory = 1;
+   */
+  directory: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.ImportTarget target = 2;
+   */
+  target?: ImportTarget | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ImportMapping.
+ * Use `create(ImportMappingSchema)` to create a new message.
+ */
+export const ImportMappingSchema: GenMessage<ImportMapping> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 10);
+
+/**
+ * @generated from message canopy.ui.v1.StartImportRequest
+ */
+export type StartImportRequest = Message<"canopy.ui.v1.StartImportRequest"> & {
+  /**
+   * @generated from field: string scan_id = 1;
+   */
+  scanId: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.ImportSelection selection = 2;
+   */
+  selection?: ImportSelection | undefined;
+
+  /**
+   * Katalogi bez wpisu dostają propozycję z listy.
+   *
+   * @generated from field: repeated canopy.ui.v1.ImportMapping mappings = 3;
+   */
+  mappings: ImportMapping[];
+
+  /**
+   * continue (domyślnie: kontynuacja tam, gdzie się da) | history
+   *
+   * @generated from field: string mode = 4;
+   */
+  mode: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.StartImportRequest.
+ * Use `create(StartImportRequestSchema)` to create a new message.
+ */
+export const StartImportRequestSchema: GenMessage<StartImportRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 11);
+
+/**
+ * @generated from message canopy.ui.v1.ImportItem
+ */
+export type ImportItem = Message<"canopy.ui.v1.ImportItem"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string agent_cli = 2;
+   */
+  agentCli: string;
+
+  /**
+   * @generated from field: string title = 3;
+   */
+  title: string;
+
+  /**
+   * pending | importing | done | failed | cancelled | undone
+   *
+   * @generated from field: string status = 4;
+   */
+  status: string;
+
+  /**
+   * @generated from field: string thread_id = 5;
+   */
+  threadId: string;
+
+  /**
+   * @generated from field: string error = 6;
+   */
+  error: string;
+
+  /**
+   * @generated from field: uint32 turns = 7;
+   */
+  turns: number;
+
+  /**
+   * @generated from field: uint64 bytes_total = 8;
+   */
+  bytesTotal: bigint;
+
+  /**
+   * @generated from field: uint64 bytes_done = 9;
+   */
+  bytesDone: bigint;
+
+  /**
+   * @generated from field: repeated string warnings = 10;
+   */
+  warnings: string[];
+
+  /**
+   * @generated from field: string cwd = 11;
+   */
+  cwd: string;
+
+  /**
+   * native | history
+   *
+   * @generated from field: string continue_mode = 12;
+   */
+  continueMode: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ImportItem.
+ * Use `create(ImportItemSchema)` to create a new message.
+ */
+export const ImportItemSchema: GenMessage<ImportItem> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 12);
+
+/**
+ * @generated from message canopy.ui.v1.ImportRun
+ */
+export type ImportRun = Message<"canopy.ui.v1.ImportRun"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string worker_id = 2;
+   */
+  workerId: string;
+
+  /**
+   * @generated from field: string worker_name = 3;
+   */
+  workerName: string;
+
+  /**
+   * running | paused | completed | failed | cancelled | undone
+   *
+   * @generated from field: string status = 4;
+   */
+  status: string;
+
+  /**
+   * @generated from field: string mode = 5;
+   */
+  mode: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 6;
+   */
+  createdAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp finished_at = 7;
+   */
+  finishedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: uint32 total = 8;
+   */
+  total: number;
+
+  /**
+   * @generated from field: uint32 done = 9;
+   */
+  done: number;
+
+  /**
+   * @generated from field: uint32 failed = 10;
+   */
+  failed: number;
+
+  /**
+   * @generated from field: uint32 cancelled = 11;
+   */
+  cancelled: number;
+
+  /**
+   * Wybrane, ale już zaimportowane wcześniej.
+   *
+   * @generated from field: uint32 already_imported = 12;
+   */
+  alreadyImported: number;
+
+  /**
+   * @generated from field: uint64 bytes_total = 13;
+   */
+  bytesTotal: bigint;
+
+  /**
+   * @generated from field: uint64 bytes_done = 14;
+   */
+  bytesDone: bigint;
+
+  /**
+   * @generated from field: string error = 15;
+   */
+  error: string;
+
+  /**
+   * Tytuł wątku importowanego teraz.
+   *
+   * @generated from field: string current = 16;
+   */
+  current: string;
+
+  /**
+   * Tylko w GetImportRun z items = true.
+   *
+   * @generated from field: repeated canopy.ui.v1.ImportItem items = 17;
+   */
+  items: ImportItem[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.ImportRun.
+ * Use `create(ImportRunSchema)` to create a new message.
+ */
+export const ImportRunSchema: GenMessage<ImportRun> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 13);
+
+/**
+ * @generated from message canopy.ui.v1.ListImportRunsRequest
+ */
+export type ListImportRunsRequest = Message<"canopy.ui.v1.ListImportRunsRequest"> & {
+};
+
+/**
+ * Describes the message canopy.ui.v1.ListImportRunsRequest.
+ * Use `create(ListImportRunsRequestSchema)` to create a new message.
+ */
+export const ListImportRunsRequestSchema: GenMessage<ListImportRunsRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 14);
+
+/**
+ * @generated from message canopy.ui.v1.ListImportRunsResponse
+ */
+export type ListImportRunsResponse = Message<"canopy.ui.v1.ListImportRunsResponse"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.ImportRun runs = 1;
+   */
+  runs: ImportRun[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.ListImportRunsResponse.
+ * Use `create(ListImportRunsResponseSchema)` to create a new message.
+ */
+export const ListImportRunsResponseSchema: GenMessage<ListImportRunsResponse> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 15);
+
+/**
+ * @generated from message canopy.ui.v1.GetImportRunRequest
+ */
+export type GetImportRunRequest = Message<"canopy.ui.v1.GetImportRunRequest"> & {
+  /**
+   * @generated from field: string run_id = 1;
+   */
+  runId: string;
+
+  /**
+   * @generated from field: bool items = 2;
+   */
+  items: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.GetImportRunRequest.
+ * Use `create(GetImportRunRequestSchema)` to create a new message.
+ */
+export const GetImportRunRequestSchema: GenMessage<GetImportRunRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 16);
+
+/**
+ * @generated from message canopy.ui.v1.ImportRunRequest
+ */
+export type ImportRunRequest = Message<"canopy.ui.v1.ImportRunRequest"> & {
+  /**
+   * @generated from field: string run_id = 1;
+   */
+  runId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ImportRunRequest.
+ * Use `create(ImportRunRequestSchema)` to create a new message.
+ */
+export const ImportRunRequestSchema: GenMessage<ImportRunRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 17);
 

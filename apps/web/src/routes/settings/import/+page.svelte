@@ -1,9 +1,12 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { page } from "$app/state";
   import ImportFilters from "#lib/features/imports/ImportFilters.svelte";
   import ImportOverview from "#lib/features/imports/ImportOverview.svelte";
   import ImportSelectionBar from "#lib/features/imports/ImportSelectionBar.svelte";
   import ImportThreadList from "#lib/features/imports/ImportThreadList.svelte";
+  import ImportRunRow from "#lib/features/imports/ImportRunRow.svelte";
+  import { ImportRunsState } from "#lib/features/imports/import-runs.svelte.ts";
   import { ImportState } from "#lib/features/imports/import-state.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -18,6 +21,15 @@
    */
   const overview = useOverview();
   const imports = new ImportState();
+
+  // When a run ends, the list shows the new states (Imported).
+  const runs = new ImportRunsState(() => void imports.load());
+
+  onMount(() => {
+    void runs.load();
+
+    return () => runs.stop();
+  });
 
   const workers = $derived(overview.workers.filter((w) => !w.nodeId));
 
@@ -76,6 +88,17 @@
     {/if}
   </SettingsGroup>
 
+  {#if runs.runs.length > 0}
+    <SettingsGroup title="Imports">
+      {#if runs.error}<Alert class="mx-4 mt-3" tone="error">{runs.error}</Alert>{/if}
+      <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/5">
+        {#each runs.runs as run (run.id)}
+          <ImportRunRow {run} {runs} />
+        {/each}
+      </ul>
+    </SettingsGroup>
+  {/if}
+
   {#if imports.error}<Alert tone="error">{imports.error}</Alert>{/if}
 
   {#if imports.scanning}
@@ -93,7 +116,7 @@
 
     <SettingsGroup title="Threads" description="Choose the threads to import. Each directory maps to a project.">
       <ImportFilters {imports} />
-      <ImportSelectionBar {imports} />
+      <ImportSelectionBar {imports} onstart={() => void runs.load()} />
       {#if imports.result}
         <ImportThreadList {imports} />
       {:else}

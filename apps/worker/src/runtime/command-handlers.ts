@@ -2,6 +2,7 @@ import type { Command } from "@canopy/contracts";
 import { CliRefused } from "../cli-tools/index.ts";
 
 import { CommandError, type CommandOutput } from "./host-types.ts";
+import { readImportPage } from "../import/pages.ts";
 import type { HostContext } from "./host-context.ts";
 import { providerAccounts } from "./account-commands.ts";
 import { withProcessPriority } from "@canopy/process-governor";
@@ -40,6 +41,8 @@ export class CommandHandlers {
 
     if (kind.case === "scanImportSources")
       return { importScan: await this.ctx.state.imports.scan(kind.value.agentClis) };
+
+    if (kind.case === "readImportPage") return { importPage: readImportPage(this.ctx.state.imports, kind.value) };
 
     if (kind.case === "installCli") {
       try {

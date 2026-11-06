@@ -1,15 +1,32 @@
 <script lang="ts">
+  import Button from "#lib/shared/ui/Button.svelte";
   import ChoiceControl from "#lib/shared/ui/ChoiceControl.svelte";
+  import SegmentedChoice from "#lib/shared/ui/SegmentedChoice.svelte";
   import type { ImportState } from "./import-state.svelte.ts";
   import { size } from "./labels.ts";
 
   /** Select all that match, and what the selection costs in Canopy's database (docs/import.md). */
-  let { imports }: { imports: ImportState } = $props();
+  let { imports, onstart }: { imports: ImportState; onstart: () => void } = $props();
 
-  const total = $derived(imports.result?.total ?? 0);
+  const modes = [
+    { value: "continue", label: "Continue where possible" },
+    { value: "history", label: "History only" },
+  ];
+
+  let mode = $state("continue");
+
+  $effect(() => {
+    imports.mode = mode === "history" ? "history" : "continue";
+  });
+
+  async function start() {
+    if (await imports.start()) onstart();
+  }
+
+  const total = $derived(imports.selectable);
   const count = $derived(imports.selectedCount);
   const share = $derived(total ? count / total : 0);
-  const estimate = $derived(Number(imports.result?.estimatedBytes ?? 0n) * share);
+  const estimate = $derived(Number(imports.result?.importableEstimatedBytes ?? 0n) * share);
 </script>
 
 <div
@@ -32,4 +49,10 @@
   {#if count > 0}
     <span class="text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">About {size(estimate)} in Canopy</span>
   {/if}
+  <div class="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+    <SegmentedChoice label="After import" options={modes} bind:value={mode} />
+    <Button variant="primary" icon="arrow-down-tray" disabled={count === 0} loading={imports.starting} onclick={start}>
+      Import {count === 1 ? "1 thread" : `${count.toLocaleString("en")} threads`}
+    </Button>
+  </div>
 </div>

@@ -3,6 +3,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import ChoiceControl from "#lib/shared/ui/ChoiceControl.svelte";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
+  import ImportDirectoryTarget from "./ImportDirectoryTarget.svelte";
   import ImportThreadRow from "./ImportThreadRow.svelte";
   import type { ImportState } from "./import-state.svelte.ts";
   import { counted, size } from "./labels.ts";
@@ -21,18 +22,13 @@
     return [...byDirectory].map(([directory, candidates]) => ({ directory, candidates, group: groups.get(directory) }));
   });
 
-  function target(group: ui.ImportDirectoryGroup | undefined): string {
-    const s = group?.suggestion;
+  const open = (candidates: readonly ui.ImportCandidate[]) => candidates.filter((c) => c.status === "new");
+  const chosen = (c: ui.ImportCandidate) => c.status === "new" && imports.isSelected(c.sourceKey);
 
-    if (!s || s.kind === "missing") return "Directory no longer exists. Threads import as history.";
+  const all = (candidates: readonly ui.ImportCandidate[]) =>
+    open(candidates).length > 0 && open(candidates).every(chosen);
 
-    if (s.kind === "workspace") return `Project ${s.projectName}`;
-
-    return "New project";
-  }
-
-  const all = (candidates: readonly ui.ImportCandidate[]) => candidates.every((c) => imports.isSelected(c.sourceKey));
-  const some = (candidates: readonly ui.ImportCandidate[]) => candidates.some((c) => imports.isSelected(c.sourceKey));
+  const some = (candidates: readonly ui.ImportCandidate[]) => candidates.some(chosen);
 </script>
 
 {#each sections as section (section.directory)}
@@ -45,8 +41,9 @@
           aria-label={`Import all threads in ${section.directory || "an unknown directory"}`}
           checked={all(section.candidates)}
           indeterminate={!all(section.candidates) && some(section.candidates)}
+          disabled={open(section.candidates).length === 0}
           onchange={(event) => {
-            for (const c of section.candidates) imports.toggle(c.sourceKey, event.currentTarget.checked);
+            for (const c of open(section.candidates)) imports.toggle(c.sourceKey, event.currentTarget.checked);
           }}
         />
       </div>
@@ -54,17 +51,22 @@
         <h3 {id} class="min-w-0 font-mono text-zinc-950 dark:text-white">
           <TruncatedText text={section.directory || "Unknown directory"} />
         </h3>
-        <p class="text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
-          {target(section.group)} · {counted(section.group?.threads ?? section.candidates.length, "thread")} ·
-          {size(section.group?.bytes ?? 0n)}
-        </p>
+        <div class="flex flex-col gap-2 pt-0.5 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
+            {counted(section.group?.threads ?? section.candidates.length, "thread")} · {size(
+              section.group?.bytes ?? 0n,
+            )}
+            {#if section.group && !section.group.exists}· Directory no longer exists{/if}
+          </p>
+          {#if section.group}<ImportDirectoryTarget {imports} group={section.group} />{/if}
+        </div>
       </div>
     </div>
     <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/5">
       {#each section.candidates as candidate (candidate.sourceKey)}
         <ImportThreadRow
           {candidate}
-          selected={imports.isSelected(candidate.sourceKey)}
+          selected={chosen(candidate)}
           onselect={(selected) => imports.toggle(candidate.sourceKey, selected)}
         />
       {/each}

@@ -1,7 +1,7 @@
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import type { MessageInitShape } from "@bufbuild/protobuf";
-import type { ImportRootSchema, ImportScanSchema } from "@canopy/contracts";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { ImportScanSchema, type ImportRootSchema, type ImportScan } from "@canopy/contracts";
 import type { AppliedConfig } from "../config/remote.ts";
 import { loadMasker, type Masker } from "./masking.ts";
 import { scanClaude } from "./scan-claude.ts";
@@ -38,8 +38,15 @@ export class WorkerImport {
   readonly #config: () => AppliedConfig | undefined;
   #key: Buffer | undefined;
 
-  constructor(options: { dataDir: string; homes: () => ImportHomes; config: () => AppliedConfig | undefined }) {
+  constructor(options: {
+    dataDir: string;
+    homes: () => ImportHomes;
+    config: () => AppliedConfig | undefined;
+    /** A key kept in memory only (read-only checks); default: `<data_dir>/import/key`. */
+    key?: Buffer;
+  }) {
     this.#dataDir = options.dataDir;
+    this.#key = options.key;
     this.#homes = options.homes;
     this.#config = options.config;
   }
@@ -92,13 +99,20 @@ export class WorkerImport {
     return { roots, listed };
   }
 
+  /** The CLI of the root a source key names ("" when the root is unknown here). */
+  agentCliOf(sourceKey: string): AgentCli | "" {
+    const id = sourceKey.split(".")[0];
+
+    return this.roots().roots.find((r) => r.id === id)?.agentCli ?? "";
+  }
+
   masker(roots: readonly ImportRootPath[]): Masker {
     const extra = (this.#config()?.profiles ?? []).flatMap((p) => (p.config.env ?? []).map((v) => v.value));
 
     return loadMasker(roots, extra, homedir());
   }
 
-  async scan(agentClis: readonly string[], now = Date.now): Promise<MessageInitShape<typeof ImportScanSchema>> {
+  async scan(agentClis: readonly string[], now = Date.now): Promise<ImportScan> {
     const { roots, listed } = this.roots(agentClis);
     // Secrets of every CLI home count: a Codex token may appear in a Claude session.
     const masker = this.masker(this.roots().roots);
@@ -144,7 +158,7 @@ export class WorkerImport {
       skipped += context.skipped;
     }
 
-    return { roots: listed, threads, truncated, skipped };
+    return create(ImportScanSchema, { roots: listed, threads, truncated, skipped });
   }
 }
 

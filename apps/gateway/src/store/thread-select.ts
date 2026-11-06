@@ -40,5 +40,7 @@ export const threadSelect = (where: string, extraColumns = "") => `
                                            'detached_commit', wt.detached_commit, 'branch_source', wt.branch_source, 'external', wt.external)
                     FROM worktrees wt WHERE wt.id = t.worktree_id) AS worktree,
                  (SELECT json_build_object('branch', h.branch, 'detached_commit', h.detached_commit)
-                    FROM checkout_heads h WHERE t.worktree_id IS NULL AND h.workspace_id = t.workspace_id) AS checkout_head
+                    FROM checkout_heads h WHERE t.worktree_id IS NULL AND h.workspace_id = t.workspace_id) AS checkout_head,
+                 (SELECT json_build_object('agent_cli', ti.agent_cli, 'mode', ti.mode, 'imported_at', ti.imported_at)
+                    FROM thread_imports ti WHERE ti.thread_id = t.id) AS imported
             FROM threads t ${where}`;

@@ -62,6 +62,9 @@
   </div>
   <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
     <SearchField label="Search titles" placeholder="Search titles" bind:value={search} class="w-full sm:w-72" />
-    <Switch name="includeSubagents" label="Include subagent threads" bind:checked={subagents} />
+    <div class="flex items-center gap-3 text-base/6 text-zinc-700 sm:text-sm/6 dark:text-zinc-300">
+      <Switch name="includeSubagents" label="Include subagent threads" bind:checked={subagents} />
+      <span aria-hidden="true">Subagent threads</span>
+    </div>
   </div>
 </div>

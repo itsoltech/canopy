@@ -44,6 +44,7 @@ export interface CommandOutput {
   readonly gitRefs?: MessageInitShape<typeof GitRefsSchema>;
   readonly worktree?: MessageInitShape<typeof WorktreeInfoSchema>;
   readonly importScan?: MessageInitShape<typeof CommandResultSchema>["importScan"];
+  readonly importPage?: MessageInitShape<typeof CommandResultSchema>["importPage"];
 }
 
 export interface WorkerHostOptions {

@@ -10,6 +10,7 @@ import { coreWorkers } from "../core/core-providers.ts";
 import {
   byActivity,
   candidate,
+  candidateStatus,
   estimatedBytes,
   groups,
   matches,
@@ -17,6 +18,9 @@ import {
   type KnownSource,
   type WorkspaceRow,
 } from "./candidates.ts";
+import { ImportRunner } from "./runner.ts";
+import { ImportRuns } from "./runs.ts";
+import { knownSources } from "./store.ts";
 
 /** Capability of workers that can scan and read CLI homes (docs/import.md). */
 export const CLI_IMPORT = "cli_import_v1";
@@ -26,7 +30,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_SCANS = 8;
 const SCAN_TIMEOUT_MS = 120_000;
 
-interface StoredScan {
+export interface StoredScan {
   readonly id: string;
   readonly workerId: string;
   readonly os: string;
@@ -41,9 +45,17 @@ interface StoredScan {
 export class CliImports {
   readonly #core: GatewayCore;
   readonly #scans = new Map<string, StoredScan>();
+  readonly runner: ImportRunner;
+  readonly runs: ImportRuns;
 
   constructor(core: GatewayCore) {
     this.#core = core;
+    this.runner = new ImportRunner(core, (use) => this.sql(use));
+    this.runs = new ImportRuns(this, this.runner, () => this.#userId);
+  }
+
+  get core(): GatewayCore {
+    return this.#core;
   }
 
   get #userId(): string {
@@ -120,6 +132,7 @@ export class CliImports {
     const context = await this.context(stored);
     const matching = stored.scan.threads.filter((s) => matches(s, request.filter)).sort(byActivity);
     const limit = Math.min(request.limit || 200, 1000);
+    const importable = matching.filter((s) => candidateStatus(s, context) === "new");
 
     return create(ui.ListImportCandidatesResponseSchema, {
       candidates: matching.slice(request.offset, request.offset + limit).map((s) => candidate(s, context)),
@@ -127,6 +140,8 @@ export class CliImports {
       totalBytes: matching.reduce((sum, s) => sum + s.bytes, 0n),
       groups: groups(matching, context),
       estimatedBytes: estimatedBytes(matching),
+      importable: importable.length,
+      importableEstimatedBytes: estimatedBytes(importable),
     });
   }
 
@@ -152,6 +167,9 @@ export class CliImports {
 
     for (const t of threads)
       known.set(`${t.provider}:${t.provider_thread_id}`, { threadId: t.id, status: "in_canopy" });
+
+    for (const i of await this.sql((sql) => knownSources(sql, userId, workerId)))
+      known.set(`${i.agent_cli}:${i.native_id}`, { threadId: i.thread_id ?? "", status: "imported" });
 
     return { os: stored.os, workspaces, known };
   }

@@ -38,7 +38,10 @@ export function turnOrigin(turn: ui.Turn): TurnOrigin {
     case "background_task":
       return { kind: "background_task", itemIds: turn.backgroundItemIds };
     default:
-      return turn.trigger === "user" || !turn.trigger ? { kind: "user" } : { kind: "other", trigger: turn.trigger };
+      // Imported turns (docs/import.md) are the user's own prompts from an agent CLI.
+      return turn.trigger === "user" || turn.trigger === "import" || !turn.trigger
+        ? { kind: "user" }
+        : { kind: "other", trigger: turn.trigger };
   }
 }
 

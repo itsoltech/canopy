@@ -107,6 +107,15 @@ export function historyReason(summary: ImportThreadSummary): string {
   return "";
 }
 
+/** Agent CLIs whose history the workers can read (later stages add the others). */
+export const IMPORTABLE_CLIS: ReadonlySet<string> = new Set<string>(["claude"]);
+
+export function candidateStatus(summary: ImportThreadSummary, context: CandidateContext): string {
+  if (!IMPORTABLE_CLIS.has(summary.agentCli)) return "unsupported";
+
+  return context.known.get(sourceKey(summary))?.status ?? "new";
+}
+
 export function candidate(summary: ImportThreadSummary, context: CandidateContext): ui.ImportCandidate {
   const known = context.known.get(sourceKey(summary));
   const reason = historyReason(summary);
@@ -125,7 +134,7 @@ export function candidate(summary: ImportThreadSummary, context: CandidateContex
     turns: summary.turns,
     origin: summary.origin,
     cliVersion: summary.cliVersion,
-    status: known?.status ?? "new",
+    status: candidateStatus(summary, context),
     continueMode: reason ? "history" : "native",
     reason,
     subagent: summary.subagent,
