@@ -25,6 +25,7 @@ export function useWorkspaceDraft(workspaceId: string | undefined, ready: boolea
   const key = ready && workspaceId ? workspaceId : "";
   const [loaded, setLoaded] = useState<{ workspaceId: string; refs: ui.ListGitRefsResponse }>();
   const [picks, setPicks] = useState<Picks>({ workspaceId: "" });
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -41,7 +42,7 @@ export function useWorkspaceDraft(workspaceId: string | undefined, ready: boolea
     return () => {
       active = false;
     };
-  }, [client, key]);
+  }, [client, key, refreshKey]);
 
   const refs = loaded?.workspaceId === key ? loaded.refs : undefined;
   const available = Boolean(key && refs?.supported && refs.refs?.isRepo);
@@ -57,6 +58,7 @@ export function useWorkspaceDraft(workspaceId: string | undefined, ready: boolea
 
   return {
     available,
+    refresh: () => setRefreshKey((value) => value + 1),
     gitRefs,
     worktrees: available ? (refs?.worktrees ?? []) : [],
     choice,

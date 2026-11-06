@@ -1,29 +1,12 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
-import { timestampMs } from "@bufbuild/protobuf/wkt";
 import type { GitRef } from "@canopy/contracts";
-import { headLabel } from "@canopy/domain/git-heads";
+import { headLabel, shortWorktreePath } from "@canopy/domain/git-heads";
 import { PickerSheet } from "../../ui/Picker";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 import { ComposerPill } from "../threads/ComposerBox";
 import type { WorkspaceChoice, WorkspaceDraft } from "./useWorkspaceDraft";
-
-const ago = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"} ago`;
-
-/** "just now", "5 minutes ago", "yesterday" (Hermes has no Intl.RelativeTimeFormat). */
-function formatRelative(ms: number) {
-  const seconds = Math.max(0, (Date.now() - ms) / 1000);
-
-  if (seconds < 45) return "just now";
-
-  if (seconds < 3600) return ago(Math.max(1, Math.round(seconds / 60)), "minute");
-
-  if (seconds < 86400) return ago(Math.round(seconds / 3600), "hour");
-  const days = Math.round(seconds / 86400);
-
-  return days === 1 ? "yesterday" : ago(days, "day");
-}
 
 const choiceIcon = (choice: WorkspaceChoice) =>
   choice.kind === "checkout" ? "folder-open" : choice.kind === "new" ? "square-2-stack" : "git-fork";
@@ -49,7 +32,10 @@ export function WorkspacePills({ draft }: { draft: WorkspaceDraft }) {
       <ComposerPill
         icon={choiceIcon(draft.choice)}
         title={choiceLabel(draft.choice)}
-        onPress={() => setPicker("workspace")}
+        onPress={() => {
+          draft.refresh();
+          setPicker("workspace");
+        }}
       />
       {draft.choice.kind === "new" ? (
         <ComposerPill icon="git-fork" title={draft.branch || "Default branch"} onPress={() => setPicker("ref")} />
@@ -92,15 +78,28 @@ export function WorkspacePills({ draft }: { draft: WorkspaceDraft }) {
               },
             ],
           },
-          {
-            title: "Previous worktrees",
-            options: draft.worktrees.map((w) => ({
-              value: w.id,
-              label: headLabel(w),
-              description: w.createdAt ? `Created ${formatRelative(timestampMs(w.createdAt))}` : undefined,
-              icon: "git-fork" as const,
-            })),
-          },
+          ...[false, true].map((external) => ({
+            title: external ? "Created outside Canopy" : "Managed by Canopy",
+            options: draft.worktrees
+              .filter((w) => w.external === external)
+              .map((w) => ({
+                value: w.id,
+                label: headLabel(w),
+                description: shortWorktreePath(w.path),
+                keywords: w.path,
+                badge: w.locked
+                  ? "Locked"
+                  : w.prunable
+                    ? "Prunable"
+                    : w.missing
+                      ? "Missing"
+                      : w.unavailableReason
+                        ? "Unavailable"
+                        : undefined,
+                disabled: Boolean(w.unavailableReason),
+                icon: "git-fork" as const,
+              })),
+          })),
         ]}
       />
       <RefPickerSheet visible={picker === "ref"} onClose={close} draft={draft} />

@@ -16,7 +16,9 @@ export function refuseRemoteAutomation(mode: string | undefined, fork = false): 
 }
 
 /** Until linked gateways negotiate worktree support, never let an older home ignore the requested placement. */
-export function refuseRemoteWorktree(method: DescMethod, request: Message): void {
+export function refuseRemoteWorktree(method: DescMethod, request: Message, supported = false): void {
+  if (supported) return;
+
   // A new-thread schedule places its runs like CreateThread does.
   const scheduled = (schedule: ui.CreateScheduleRequest | undefined) =>
     schedule?.target === "new_thread" ? schedule.newThread?.workspaceMode : undefined;

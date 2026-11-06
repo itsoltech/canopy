@@ -390,8 +390,13 @@ zwraca listę „would remove / kept” albo wyniki usunięć. `RemoveWorktree` 
 `confirm_local_changes` oznacza jawne potwierdzenie utraty lokalnych plików. `RevealWorktree` otwiera
 folder na workerze. BFF: `/api/worktrees` (POST lista, DELETE usunięcie),
 `/api/worktrees/cleanup` i `/api/worktrees/reveal` (POST). Wszystkie operacje są owner-scoped,
-zdalne przez linked computers pozostają niedostępne. `Thread.worktree.removed_at` zachowuje historię
+zdalne przez linked computers wymagają capability `remote_worktrees`. `Thread.worktree.removed_at` zachowuje historię
 i wyłącza akcje usuniętego katalogu. Pola Cleanup dziedziczą zakresy ustawień Creation/Branches.
+
+`ThreadWorktree.external`, `locked`, `prunable`, `missing`, `unavailable_reason` opisują pochodzenie
+i dostępność. Lista łączy git z rejestrem; wybór odkrytego id rejestruje wpis jako zewnętrzny
+dopiero przy tworzeniu wątku. Wpisy zewnętrzne są tylko do odczytu w ustawieniach.
+Discovery, weryfikacja wyboru i zgodność starszych workerów: [worktrees.md](worktrees.md#worktree-utworzone-poza-canopy).
 
 ## Pasek boczny i cykl życia wątku
 

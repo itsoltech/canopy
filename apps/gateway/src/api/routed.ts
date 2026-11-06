@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots, computerLink as link, ui } from "@canopy/contracts";
-import { nodeRef, splitId } from "@canopy/domain/computers";
+import { nodeRef, splitId, REMOTE_WORKTREES } from "@canopy/domain/computers";
 import { Code, ConnectError, createHandlerContext } from "@connectrpc/connect";
 import { linkedMessage, mapIds, methodNamed, SERVED, WORKER_SETTINGS, type RemoteServe } from "../computers/remote.ts";
 import type { SharedHost } from "../config-sync/host.ts";
@@ -74,9 +74,8 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
 
             if (WORKER_SETTINGS.has(method.name)) return sendWorkerSetting(core, method, request, node, context.signal);
 
-            refuseRemoteWorktree(method, request);
-
             const home = await peerOf(core, node, method, request);
+            refuseRemoteWorktree(method, request, core.computers?.capabilities(home).includes(REMOTE_WORKTREES));
 
             const response = await single(
               forward(
@@ -189,7 +188,8 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
   const own = local as Record<string, Handler>;
 
   return async function* (method, request, signal, peerNodeId) {
-    if (peerNodeId) refuseRemoteWorktree(method, request);
+    if (peerNodeId)
+      refuseRemoteWorktree(method, request, core?.computers?.hello().capabilities.includes(REMOTE_WORKTREES));
 
     if (core) await refuseFrozen(core, method, request);
 

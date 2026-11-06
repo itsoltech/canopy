@@ -5,6 +5,8 @@ import { coreRun } from "../core/core-broadcast.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { deliverRemoval, pendingRemoval, removeEntry, scanEntry, worktreeTarget } from "./lifecycle.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
+import { appendDiscovered } from "./discovery.ts";
+import { toUiWorktree } from "./core-worktrees.ts";
 
 export interface CoreWorktreeLifecycleMethods {
   listWorktrees(request: ui.ListWorktreesRequest): Promise<ui.ListWorktreesResponse>;
@@ -22,6 +24,8 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
     const row = rows[0];
 
     if (!row) throw new InvalidError("worktree not found");
+
+    if (row.external) throw new InvalidError("Copy the path to open this external worktree.");
     const { entry, settings } = await scanEntry(this, row, false);
 
     if (!entry.status || entry.status.detail) throw new InvalidError(entry.detail);
@@ -46,10 +50,14 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
         entries.push(
           create(ui.WorktreeEntrySchema, {
             detail: "Status unavailable; refresh to retry",
-            worktree: { id: row.id, branch: row.branch, path: row.path, workerId: row.worker_id },
+            worktree: toUiWorktree(row),
           }),
         );
       }
+    }
+
+    if (!request.worktreeId) {
+      await appendDiscovered(this, entries, rows, request.projectId, request.workerId);
     }
 
     return create(ui.ListWorktreesResponseSchema, { entries });
@@ -99,12 +107,14 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
       } catch (error) {
         entries.push(
           create(ui.WorktreeEntrySchema, {
-            worktree: { id: row.id, branch: row.branch, path: row.path },
+            worktree: toUiWorktree(row),
             detail: error instanceof Error ? error.message : "Cleanup failed; will retry later",
           }),
         );
       }
     }
+
+    await appendDiscovered(this, entries, rows, request.projectId, request.workerId);
 
     return create(ui.ListWorktreesResponseSchema, { entries });
   },
@@ -117,6 +127,8 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
     const row = rows[0];
 
     if (!row) throw new InvalidError("worktree not found");
+
+    if (row.external) throw new InvalidError("Canopy cannot remove worktrees created outside Canopy.");
     const { entry, settings } = await scanEntry(this, row, true);
 
     if (!entry.status || entry.status.detail) throw new InvalidError(entry.detail);

@@ -70,6 +70,24 @@ export class WorkspaceDraft {
     }
   }
 
+  /** Opening the picker re-reads Git; keep the current choices visible while refreshing. */
+  async refresh(): Promise<void> {
+    const workspaceId = this.#loaded;
+
+    if (!workspaceId) return;
+
+    try {
+      const refs = await listGitRefs(workspaceId);
+
+      if (workspaceId === this.#loaded) {
+        this.refs = refs;
+        this.error = undefined;
+      }
+    } catch {
+      if (workspaceId === this.#loaded) this.error = "Could not refresh worktrees. Reopen the picker to retry.";
+    }
+  }
+
   /** Worktrees can be made here: a worker that supports them and a git repository. */
   get available(): boolean {
     return Boolean(this.refs?.supported && this.refs.refs?.isRepo);

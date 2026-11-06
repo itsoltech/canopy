@@ -24,13 +24,15 @@
   const unavailable = $derived(offline || !entry.status || Boolean(entry.status.detail) || entry.removed);
 
   const reason = $derived(
-    offline
-      ? "Worker offline. Reconnect it to manage this worktree."
-      : unavailable
-        ? entry.detail
-        : entry.busy
-          ? "A thread is still using this worktree."
-          : "",
+    entry.worktree?.external
+      ? ""
+      : offline
+        ? "Worker offline. Reconnect it to manage this worktree."
+        : unavailable
+          ? entry.detail
+          : entry.busy
+            ? "A thread is still using this worktree."
+            : "",
   );
 
   async function remove() {
@@ -68,16 +70,18 @@
   <div class="flex flex-wrap items-center gap-2">
     <span class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400">Open in…</span>
     <CopyButton text={entry.worktree?.path ?? ""} label="Copy worktree path" />
-    <Button size="sm" variant="ghost" disabled={unavailable || working} onclick={reveal}>Reveal on computer</Button>
-    <Button
-      size="sm"
-      variant="ghost"
-      disabled={unavailable || entry.busy || working}
-      onclick={() => {
-        error = "";
-        confirm = true;
-      }}>Remove…</Button
-    >
+    {#if !entry.worktree?.external}
+      <Button size="sm" variant="ghost" disabled={unavailable || working} onclick={reveal}>Reveal on computer</Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={unavailable || entry.busy || working}
+        onclick={() => {
+          error = "";
+          confirm = true;
+        }}>Remove…</Button
+      >
+    {/if}
   </div>
   {#if reason}<p class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400">{reason}</p>{/if}
   {#if error && !confirm}<Alert tone="error">{error}</Alert>{/if}

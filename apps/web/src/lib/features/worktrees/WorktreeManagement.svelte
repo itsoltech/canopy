@@ -75,9 +75,7 @@
     </p>{/if}
   {#if loading && !loaded}<Skeleton class="mt-4 h-32 w-full" />
   {:else if !entries.length && !error}<p class="mt-4 text-base text-zinc-500 sm:text-sm dark:text-zinc-400">
-      {worktreeId
-        ? "This worktree was removed. Thread history stays available."
-        : "No managed worktrees in this scope."}
+      {worktreeId ? "This worktree was removed. Thread history stays available." : "No worktrees in this scope."}
     </p>
   {:else}
     <div class="mt-2 divide-y divide-zinc-950/10 dark:divide-white/10">

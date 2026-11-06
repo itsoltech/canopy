@@ -1899,6 +1899,15 @@ Odczyty nie tworzą wpisów audytu. Providers, Agent environment, Worktrees i Co
 `ListWorkerRecords` do list workerów pogrupowanych według komputera. Offline worktree pokazuje zapisane
 nadpisania bez zgadywania wartości dziedziczonych; pozostałe odczyty szczegółów wymagają połączenia z domem.
 
+Capability `remote_worktrees` pozwala kompozytorowi pobrać `ListGitRefs` i wybrać worktree
+na komputerze workspace'u. `ListWorktrees` zbiera listy z dostępnych domów; żądanie ze wskazanym
+workerem, projektem lub worktree trafia do jego domu. `CleanupWorktrees`, `RemoveWorktree`
+i `RevealWorktree` także wykonuje dom, z jego kontrolą właściciela i polityką.
+Discovery git odbywa się wyłącznie na workerze trzymającym checkout; ścieżki nie są odtwarzane
+na komputerze wywołującym. Wpisy utworzone poza Canopy są tylko do odczytu i rejestrowane
+dopiero przy pierwszym użyciu przez wątek. Starszy dom bez capability odrzuca wybór worktree.
+Reguły odkrywania, rejestracji i zgodności workerów opisuje [worktrees.md](worktrees.md#worktree-utworzone-poza-canopy).
+
 Status instancji providera pochodzi z domu workera: `Worker.provider_instances.status` w `GetOverview`
 i `WatchOverview` przenosi pełny `InstanceOnWorker` (uwierzytelnienie, wersję CLI, raportowany rodzaj
 połączenia, czas sprawdzenia i zgodność konfiguracji). Dom buduje go z `ConfigApplied` danego workera,

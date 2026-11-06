@@ -86,7 +86,7 @@
   // Checkout, new worktree or a previous one, and the base ref (docs/worktrees.md): when the worker offers worktrees.
   const place = new WorkspaceDraft(() =>
     workspace && project?.kind !== "scratch"
-      ? { workspaceId: workspace.id, ready: Boolean(worker?.online && worker.worktrees && !worker.nodeId) }
+      ? { workspaceId: workspace.id, ready: Boolean(worker?.online && worker.worktrees) }
       : undefined,
   );
 
@@ -190,13 +190,7 @@
   );
 
   const workspaceNote = $derived(
-    place.loading
-      ? "Loading workspace options…"
-      : place.error
-        ? `${place.error}. Using the current checkout.`
-        : worker?.nodeId && project?.kind !== "scratch"
-          ? "Worktrees on linked computers are not supported yet. Open Canopy on the workspace's home computer to use one."
-          : undefined,
+    place.loading ? "Loading workspace options…" : place.error ? place.error : place.refs?.detail || undefined,
   );
 
   const blockedReason = $derived(workerNote ?? (place.loading ? workspaceNote : undefined) ?? draft.blocker);
@@ -315,6 +309,7 @@
                     <WorkspacePicker
                       choice={place.choice}
                       worktrees={place.worktrees}
+                      onopen={() => void place.refresh()}
                       onselect={(choice) => place.choose(choice)}
                       class="w-full max-w-full"
                       note={workspaceNote}

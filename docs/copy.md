@@ -82,7 +82,7 @@ appear only as the literal name used by an external tool).
 | project | a set of directories (workspaces) on workers | repo, repository |
 | workspace | a project's directory on one worker | folder, path |
 | directory | a directory on disk | folder (exception: a "skill folder" picked in the file manager) |
-| worktree | a git worktree that Canopy creates | branch copy, checkout |
+| worktree | a git worktree, managed by Canopy or created outside it | branch copy, checkout |
 | bot | a conversational partner on the gateway that remembers the conversation | assistant, agent |
 | connected account | an external app account from Settings → Connectors | integration, service, app login |
 | allowed action | a standing bot approval rule explicitly saved by the owner | trusted prompt, automatic grant |

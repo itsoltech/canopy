@@ -2155,6 +2155,12 @@ message ThreadWorktree {
   string detached_commit = 9;
   // Tymczasowa nazwa gałęzi: Canopy może ją zmienić na wygenerowaną, gdy zadanie stanie się jasne.
   bool provisional_branch = 10;
+  // External worktrees are never removed, moved or renamed by Canopy.
+  bool external = 11;
+  bool locked = 12;
+  bool prunable = 13;
+  bool missing = 14;
+  string unavailable_reason = 15;
 }
 
 // Bieżący HEAD checkoutu zgłoszony przez worker; detached_commit niepusty = odłączony HEAD.

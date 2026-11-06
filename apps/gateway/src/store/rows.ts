@@ -86,6 +86,7 @@ export interface NoticeInteractionColumns {
 
 /** The thread's worktree as joined by threadSelect (json_build_object: timestamps are strings). */
 export interface ThreadWorktreeColumns {
+  external?: boolean;
   id: string;
   branch: string;
   path: string;

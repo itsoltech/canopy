@@ -251,7 +251,7 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
     expect((await f.callTool(foreignThread.id, { title: "Foreign", prompt: "Code task" })).isError).toBe(true);
   });
 
-  test("settled scheduled threads can be cleaned up and linked worktree schedules are refused", async () => {
+  test("settled scheduled threads can be cleaned up and unknown linked computers are refused", async () => {
     const thread = await fire(await schedule({ workspaceMode: ui.WorkspaceMode.NEW_WORKTREE }));
     await idle(thread);
     rmSync(join(thread.cwd, "worker-started.txt"));
@@ -266,6 +266,6 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
           workspaceMode: ui.WorkspaceMode.NEW_WORKTREE,
         }),
       ),
-    ).toContain("Worktrees on linked computers are not supported yet");
+    ).toContain("That computer is no longer linked");
   });
 });

@@ -10,7 +10,7 @@ import { linkedMessage, SERVED, UPDATE_METHODS, WORKER_SETTINGS } from "./remote
 
 // Configuration (which can contain credentials) is deliberately absent, even when
 // every participant supports stage 4. Routes and relay itself are never inherited.
-const FEATURES = new Set([REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS]);
+const FEATURES = new Set([REMOTE_THREADS, "remote_worktrees", THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS]);
 
 // Configuration, worker settings and app updates never cross a relay (docs/linked-computers.md, "Udostępnianie per łącze").
 export const RELAY_METHODS = new Set(

@@ -114,6 +114,7 @@ export function toUiThread(row: ThreadRow): ui.Thread {
         ...(row.worktree.removed_at && { removedAt: timestampFromDate(new Date(row.worktree.removed_at)) }),
         detachedCommit: row.worktree.detached_commit ?? "",
         provisionalBranch: row.worktree.branch_source === "provisional",
+        external: row.worktree.external ?? false,
       },
     }),
     ...(row.checkout_head && {

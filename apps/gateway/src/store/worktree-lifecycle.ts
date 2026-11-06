@@ -72,6 +72,8 @@ export function worktreeLifecycleStore(sql: SqlClient.SqlClient) {
 
           if (tree.removal_token) return yield* Effect.fail(new Invalid("worktree cleanup already in progress"));
 
+          if (tree.external) return yield* Effect.fail(new Invalid("external worktrees cannot be removed"));
+
           const state = yield* one(
             yield* sql.unsafe<WorktreeLifecycleRow>(`${snapshot} WHERE w.id = $1::uuid`, [id]),
             "worktree",

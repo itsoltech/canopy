@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { headLabel } from "@canopy/domain/git-heads";
+  import { headLabel, shortWorktreePath } from "@canopy/domain/git-heads";
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { formatRelative } from "#lib/shared/format.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import PickerRow from "#lib/shared/ui/PickerRow.svelte";
   import PillButton from "#lib/shared/ui/PillButton.svelte";
@@ -22,6 +21,7 @@
     class: className,
     note,
     warning = false,
+    onopen,
   }: {
     class?: ClassValue;
     note?: string | undefined;
@@ -29,6 +29,7 @@
     choice: WorkspaceChoice;
     worktrees: readonly ui.ThreadWorktree[];
     onselect: (choice: WorkspaceChoice) => void;
+    onopen?: () => void;
   } = $props();
 
   interface Item {
@@ -50,11 +51,16 @@
       key: w.id,
       choice: { kind: "existing", worktree: w } as const,
       title: headLabel(w),
-      detail: `Created ${formatRelative(w.createdAt)}`,
+      detail: w.path,
     })),
   ]);
 
   const value = $derived(choice.kind === "existing" ? choice.worktree.id : choice.kind);
+  let open = $state(false);
+
+  $effect(() => {
+    if (open) onopen?.();
+  });
 
   const label = $derived(
     choice.kind === "existing"
@@ -71,11 +77,18 @@
     searchLabel="Search worktrees"
     placeholder="Search worktrees…"
     {items}
+    bind:open
     key={(item) => item.key}
-    text={(item) => item.title}
+    text={(item) => `${item.title} ${item.detail}`}
+    disabled={(item) => item.choice.kind === "existing" && Boolean(item.choice.worktree.unavailableReason)}
     {value}
     onselect={(item) => onselect(item.choice)}
-    groupOf={(item) => (item.choice.kind === "existing" ? "Previous worktrees" : "Workspace")}
+    groupOf={(item) =>
+      item.choice.kind === "existing"
+        ? item.choice.worktree.external
+          ? "Created outside Canopy"
+          : "Managed by Canopy"
+        : "Workspace"}
     link={{ href: "/settings/worktrees", label: "Worktree settings" }}
   >
     {#snippet trigger(props)}
@@ -90,16 +103,19 @@
       </PillButton>
     {/snippet}
     {#snippet option(item, state)}
-      <PickerRow
-        title={item.title}
-        detail={item.detail}
-        selected={state.selected}
-        detailClass={item.choice.kind === "existing" ? "font-mono" : undefined}
-      >
-        {#snippet leading()}
-          <Icon name={choiceIcon(item.choice)} />
-        {/snippet}
-      </PickerRow>
+      <div title={item.choice.kind === "existing" ? item.detail : undefined}>
+        <PickerRow
+          title={item.title}
+          detail={item.choice.kind === "existing" ? shortWorktreePath(item.detail) : item.detail}
+          status={item.choice.kind === "existing" ? item.choice.worktree.unavailableReason : undefined}
+          selected={state.selected}
+          detailClass={item.choice.kind === "existing" ? "font-mono" : undefined}
+        >
+          {#snippet leading()}
+            <Icon name={choiceIcon(item.choice)} />
+          {/snippet}
+        </PickerRow>
+      </div>
     {/snippet}
     {#snippet empty(query)}No worktrees match “{query}”.{/snippet}
   </SearchPicker>
