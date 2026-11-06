@@ -35,7 +35,14 @@
     });
 </script>
 
+<!-- The clear button sits left of the trigger, so the trigger's right edge (the popover's anchor) never moves. -->
 <div class={["flex shrink-0 items-center gap-1", className]}>
+  {#if active}<IconButton
+      size="sm"
+      icon="x-mark"
+      label="Clear filters"
+      onclick={() => void settings.updateSidebar({ projectIds: [] })}
+    />{/if}
   <Popover label="Filter threads" sheet placement="bottom-end" class="w-72 max-w-[calc(100vw-1rem)] p-1.5">
     {#snippet trigger(props)}
       <button
@@ -82,15 +89,6 @@
             No projects found.
           </p>{/each}
       </div>
-      {#if active}<Button variant="ghost" onclick={() => void settings.updateSidebar({ projectIds: [] })}
-          >Clear filters</Button
-        >{/if}
     </div>
   </Popover>
-  {#if active}<IconButton
-      size="sm"
-      icon="x-mark"
-      label="Clear filters"
-      onclick={() => void settings.updateSidebar({ projectIds: [] })}
-    />{/if}
 </div>
