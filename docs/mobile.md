@@ -29,8 +29,8 @@ VPN jest opcjonalną trasą między sieciami; TLS musi kończyć sam Canopy.
 
 ## Wersje i Bun workspace
 
-Zależności aplikacji: Expo **58.0.22**, React Native **0.88.1**,
-React **19.3.0**, Expo Router **58.0.29**. Wersje przypina `apps/mobile/package.json`.
+Zależności aplikacji: Expo **58.0.23**, React Native **0.88.1**,
+React **19.3.0**, Expo Router **58.0.30**. Wersje przypina `apps/mobile/package.json`.
 Zachowane są `src/app`, Router, Hermes, domyślna New Architecture i CNG.
 Bez `react-native-web`, Expo web, NativeWind i dodatkowego systemu komponentów.
 
