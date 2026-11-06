@@ -10,6 +10,7 @@ import { PickerSheet, SelectField } from "../../ui/Picker";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { providerName } from "../models/catalog";
 import { permissionLabel, permissionLook, PermissionPickerSheet } from "../threads/permissions";
+import { DefaultModels } from "./SettingsModels";
 
 type Settings = ReturnType<typeof useAppearance>;
 
@@ -58,11 +59,7 @@ export function ThreadDefaultsSettings({
         onPress={() => setPicker("permission")}
         disabled={!settings.user}
       />
-      <PanelRow
-        title="Model"
-        value={defaults?.models.map((m) => m.model).join(" · ") || "Default model"}
-        icon="cpu-chip"
-      />
+      <DefaultModels value={create(ui.ThreadDefaultsSchema, defaults)} onChange={save} />
       <Text style={[styles.label, { color: c.text }]}>While a turn runs</Text>
       <Segmented
         value={String(settings.user?.composer?.runningDelivery || ui.MessageDelivery.STEER)}
@@ -74,7 +71,6 @@ export function ThreadDefaultsSettings({
           void settings.update({ composer: create(ui.ComposerSettingsSchema, { runningDelivery: Number(v) }) })
         }
       />
-      <Text style={[styles.meta, { color: c.muted }]}>Choose default models per agent in Canopy on the web.</Text>
       <PickerSheet
         title="Workspace"
         visible={picker === "workspace"}

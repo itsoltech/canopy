@@ -1,15 +1,16 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
 import { Notice } from "../../ui/components";
-import { styles, useColors } from "../../ui/theme";
 import { AppearanceSettings } from "./AppearanceSettings";
-import { PanelRow } from "../threads/ThreadPanel";
-import { ThreadDefaultsSettings, ThreadTitleSettings } from "./ThreadSettings";
 import { TurnActivitySettings } from "./TurnActivitySettings";
+import { ThreadDefaultsSettings } from "./ThreadSettings";
+import { TextGenerationSettings } from "./TextGenerationSettings";
+import { ProjectSettings } from "./ProjectSettings";
+import { ScheduleSettings } from "./ScheduleSettings";
+import { WorktreeSettings } from "./WorktreeSettings";
 import { SettingsLayout } from "./SettingsLayout";
 import { GeneralSettings } from "./GeneralSettings";
 import { KeybindingSettings } from "./KeybindingSettings";
@@ -36,8 +37,6 @@ function SettingsContent({ initialSection }: { initialSection: string }) {
   const { projects, workers } = useOverview();
   const device = useDevicePreferences();
   const [section, setSection] = useState(initialSection);
-  const [draftInstructions, setInstructions] = useState<string>();
-  const instructions = draftInstructions ?? settings.user?.textGeneration?.threadTitleInstructions ?? "";
 
   if (!session) return <Redirect href="/pair" />;
 
@@ -56,9 +55,7 @@ function SettingsContent({ initialSection }: { initialSection: string }) {
           <TurnActivitySettings />
         </>
       )}
-      {section === "text-generation" && (
-        <ThreadTitleSettings settings={settings} instructions={instructions} onChange={setInstructions} />
-      )}
+      {section === "text-generation" && <TextGenerationSettings />}
       {section === "network" && <NetworkSettings />}
       {section === "mobile" && <DeviceSettings />}
       {section === "workers" && <WorkerSettings />}
@@ -67,40 +64,9 @@ function SettingsContent({ initialSection }: { initialSection: string }) {
       {section === "connectors" && <ConnectorSettings />}
       {section === "providers" && <ProviderSettings />}
       {section === "agent-environment" && <AgentEnvironmentSettings />}
-      {["projects", "schedules", "worktrees"].includes(section) && <RemainingSettings section={section} />}
+      {section === "projects" && <ProjectSettings />}
+      {section === "schedules" && <ScheduleSettings />}
+      {section === "worktrees" && <WorktreeSettings />}
     </SettingsLayout>
-  );
-}
-
-function RemainingSettings({ section }: { section: string }) {
-  const { projects, workers } = useOverview();
-  const c = useColors();
-
-  return (
-    <View>
-      {section === "projects" &&
-        projects
-          .filter((p) => p.kind !== "scratch")
-          .map((p) => (
-            <PanelRow
-              key={p.id}
-              title={p.name}
-              value={p.workspaces.map((w) => w.rootPath).join("\n") || "No workspaces"}
-              icon="folder"
-            />
-          ))}
-      {section === "workers" &&
-        workers.map((w) => (
-          <PanelRow
-            key={w.id}
-            title={w.name}
-            value={`${w.online ? "Online" : "Offline"} · ${w.hostname} · ${w.os}`}
-            icon="server"
-          />
-        ))}
-      <Text style={[styles.meta, { color: c.muted, paddingVertical: 16 }]}>
-        Manage {section.replaceAll("-", " ")} in Canopy on the web.
-      </Text>
-    </View>
   );
 }
