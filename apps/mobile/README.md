@@ -1,7 +1,7 @@
 # Canopy mobile
 
 Natywna aplikacja iOS/Android: Expo SDK 58, TypeScript, Expo Router i development client.
-Expo web i Expo Go nie są wspierane. Bundle ID iOS: `tech.itsol.canopy-remote`; Android package: `app.canopy.mobile`.
+Expo web i Expo Go nie są wspierane. Bundle ID iOS: `tech.itsol.canopy-remote`; Android package: `tech.itsol.canopy_remote` (Android nie dopuszcza myślnika).
 
 Z root wykonaj `bun install`, potem z tego katalogu:
 

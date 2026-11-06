@@ -17,7 +17,7 @@
       }
     },
     "android": {
-      "package": "app.canopy.mobile",
+      "package": "tech.itsol.canopy_remote",
       "predictiveBackGestureEnabled": true
     },
     "platforms": ["ios", "android"],

@@ -1,7 +1,7 @@
 # Canopy na iOS i Android
 
 Pierwsza wersja to **development build** Expo, nie Expo Go ani Expo web.
-Identyfikatory: iOS `tech.itsol.canopy-remote`, Android `app.canopy.mobile`; scheme: `canopy`.
+Identyfikatory: iOS `tech.itsol.canopy-remote`, Android `tech.itsol.canopy_remote` (Android nie dopuszcza myślnika w identyfikatorze); scheme: `canopy`.
 Konfiguracja: `apps/mobile/app.json`, `app.config.ts`, `eas.json`.
 
 ## Transport: czy React Native obsługuje gRPC?
@@ -241,7 +241,8 @@ Ręczne uruchomienie (`workflow_dispatch`) z `force` buduje bez sprawdzania zmia
 
 - **Aplikacja:** w App Store Connect nazywa się „Canopy Remote”. Ma bundle id
   `tech.itsol.canopy-remote`, ASC app id `6768351426` i zespół `5XWLF3YKWM`.
-  Android zostaje przy `app.canopy.mobile`.
+  Android używa `tech.itsol.canopy_remote`, bo nie dopuszcza myślnika. Zmiana z dawnego
+  `app.canopy.mobile` tworzy nową aplikację: stary APK trzeba odinstalować i sparować telefon ponownie.
 - **Wersja:** App Store przyjmuje trzy liczby, więc `0.2.0-nightly.84` trafia jako `0.2.0`.
   Workflow wpisuje ją do `app.json` tylko w kopii roboczej. EAS kopiuje drzewo robocze, więc nic nie
   jest commitowane. Numer buildu prowadzi EAS (`cli.appVersionSource: remote`, `autoIncrement`).
