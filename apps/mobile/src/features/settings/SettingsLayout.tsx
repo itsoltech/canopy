@@ -66,6 +66,8 @@ export function SettingsLayout({
   const sections = settingsSections.filter(
     (s) =>
       (linked || s.href !== "/settings/computers") &&
+      // Import is chosen on web and desktop; the phone gets its own view later (docs/import.md).
+      s.href !== "/settings/import" &&
       `${s.label} ${s.keywords}`.toLowerCase().includes(query.trim().toLowerCase()),
   );
 

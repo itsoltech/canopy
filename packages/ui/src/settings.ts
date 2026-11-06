@@ -89,6 +89,13 @@ export const settingsSections: readonly SettingsSection[] = [
     keywords: "instructions claude.md agents.md fragments skills plugins tags machines sync drift",
   },
   {
+    href: "/settings/import",
+    label: "Import",
+    icon: "arrow-down-tray",
+    group: "Code",
+    keywords: "import claude code codex grok cli sessions history resume migrate",
+  },
+  {
     href: "/settings/connectors",
     label: "Connectors",
     icon: "link",

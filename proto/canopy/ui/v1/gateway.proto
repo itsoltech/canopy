@@ -16,6 +16,7 @@ import "canopy/ui/v1/computers.proto";
 import "canopy/ui/v1/network.proto";
 import "canopy/ui/v1/agent_environment.proto";
 import "canopy/ui/v1/desktop.proto";
+import "canopy/ui/v1/cli_import.proto";
 
 service GatewayService {
   rpc GetAgentEnvironment(AgentEnvironmentRequest) returns (AgentEnvironmentSnapshot);
@@ -234,6 +235,9 @@ service GatewayService {
   rpc GetInstanceWorker(GetInstanceWorkerRequest) returns (GetInstanceWorkerResponse);
   rpc GetWorkerEnvironment(GetWorkerEnvironmentRequest) returns (WorkerEnvironmentResponse);
   rpc SetWorkerEnvironmentOverride(SetWorkerEnvironmentOverrideRequest) returns (WorkerEnvironmentResponse);
+  // Import z CLI agentów (cli_import.proto, docs/import.md): tylko workery tego komputera.
+  rpc ScanImport(ScanImportRequest) returns (ScanImportResponse);
+  rpc ListImportCandidates(ListImportCandidatesRequest) returns (ListImportCandidatesResponse);
 }
 
 // ---------- Model ----------

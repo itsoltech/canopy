@@ -1,0 +1,10 @@
+{
+  "agentType": "general-purpose",
+  "launchedWithDefaults": true,
+  "description": "Fixture subtask",
+  "toolUseId": "toolu_fixture_4",
+  "spawnDepth": 1,
+  "requestShape": "background",
+  "requestNonInteractive": true,
+  "finished": true
+}

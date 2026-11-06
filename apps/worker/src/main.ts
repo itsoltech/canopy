@@ -343,6 +343,8 @@ while (!stopping.signal.aborted) {
           // provisional_branches: RenameWorktreeBranch.provisional keeps pushed or switched branches.
           "provisional_branches",
           "project_sources",
+          // cli_import_v1: Settings → Import reads the device's CLI homes on request (docs/import.md).
+          "cli_import_v1",
           // full_access: PERMISSION_MODE_FULL_ACCESS runs unsandboxed; not announced when worker.json turns it off.
           ...(local.full_access === false ? [] : ["full_access"]),
         ],

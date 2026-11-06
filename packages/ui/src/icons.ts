@@ -92,6 +92,7 @@ export const icons = {
   "arrow-path": ["M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4m-4 4a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"],
   // arrow-down
   "arrow-down": ["M12 5v14m6-6l-6 6m-6-6l6 6"],
+  "arrow-down-tray": ["M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2", "m7 11l5 5l5-5", "M12 4v12"],
   // arrow-left
   "arrow-left": ["M5 12h14M5 12l6 6m-6-6l6-6"],
   // player-stop

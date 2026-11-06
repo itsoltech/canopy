@@ -38,6 +38,9 @@ export class CommandHandlers {
 
     if (kind.case === "revealWorktree") return this.ctx.ops.revealWorktree(kind);
 
+    if (kind.case === "scanImportSources")
+      return { importScan: await this.ctx.state.imports.scan(kind.value.agentClis) };
+
     if (kind.case === "installCli") {
       try {
         await this.ctx.state.cli.start(kind.value);

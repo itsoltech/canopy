@@ -12,3 +12,5 @@ export * from "./gen/canopy/ui/v1/computers_pb.ts";
 export * from "./gen/canopy/ui/v1/network_pb.ts";
 
 export * from "./gen/canopy/ui/v1/desktop_pb.ts";
+
+export * from "./gen/canopy/ui/v1/cli_import_pb.ts";

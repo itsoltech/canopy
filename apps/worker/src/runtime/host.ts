@@ -73,6 +73,7 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "renameWorktreeBranch",
   "scanWorktrees",
   "revealWorktree",
+  "scanImportSources",
 ]);
 
 export class WorkerHost {
@@ -293,6 +294,7 @@ export class WorkerHost {
         ...(output.worktree && { worktree: output.worktree }),
         ...(output.worktreeStatuses && { worktreeStatuses: output.worktreeStatuses }),
         ...(output.worktreeBranchDeleted !== undefined && { worktreeBranchDeleted: output.worktreeBranchDeleted }),
+        ...(output.importScan && { importScan: output.importScan }),
       };
 
       if (!NOT_REMEMBERED.has(command.kind.case)) await this.#remember(result);
