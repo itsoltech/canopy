@@ -48,6 +48,15 @@ private fun context(pin: String): Pair<SSLContext, PinTrust> {
   return context to trust
 }
 
+/** The exception class and its root cause (`SSLHandshakeException / CertPathValidatorException`):
+ * enough to diagnose, never an address. */
+private fun code(error: Throwable): String {
+  var root = error
+  while (root.cause != null && root.cause !== root) root = root.cause!!
+  val name = error.javaClass.simpleName
+  return if (root === error) name else "$name / ${root.javaClass.simpleName}"
+}
+
 private fun pinFailure(error: Throwable?): Boolean {
   var cause = error
   while (cause != null) {
@@ -123,7 +132,7 @@ class CanopyPinnedFetchModule : Module() {
           }
         }
       } catch (error: IOException) {
-        promise.resolve(mapOf("ok" to false, "kind" to if (pinFailure(error)) "pin" else "connect"))
+        promise.resolve(mapOf("ok" to false, "kind" to if (pinFailure(error)) "pin" else "connect", "code" to code(error)))
       }
     }
   }
@@ -132,7 +141,10 @@ class CanopyPinnedFetchModule : Module() {
     override fun onFailure(call: Call, e: IOException) {
       calls.remove(id)
       // connect: the computer's app never answered, another route may work.
-      sendEvent("onError", mapOf("id" to id, "kind" to if (pinFailure(e)) "pin" else "connect", "message" to (e.message ?: "")))
+      sendEvent(
+        "onError",
+        mapOf("id" to id, "kind" to if (pinFailure(e)) "pin" else "connect", "message" to (e.message ?: ""), "code" to code(e)),
+      )
     }
 
     override fun onResponse(call: Call, response: Response) {
@@ -153,7 +165,7 @@ class CanopyPinnedFetchModule : Module() {
         }
         sendEvent("onEnd", mapOf("id" to id))
       } catch (e: IOException) {
-        sendEvent("onError", mapOf("id" to id, "kind" to "io", "message" to (e.message ?: "")))
+        sendEvent("onError", mapOf("id" to id, "kind" to "io", "message" to (e.message ?: ""), "code" to code(e)))
       } finally {
         calls.remove(id)
         response.close()

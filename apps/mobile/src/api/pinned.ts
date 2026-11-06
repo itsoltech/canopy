@@ -1,5 +1,5 @@
 import { NativeModule, requireNativeModule } from "expo";
-import type { PinnedTransport } from "./routes";
+import { ProbeError, type PinnedTransport } from "./routes";
 
 type ResponseEvent = { id: string; status: number; headers: Record<string, string>; fingerprint: string };
 
@@ -7,7 +7,7 @@ type DataEvent = { id: string; data: string };
 
 type EndEvent = { id: string };
 
-type ErrorEvent = { id: string; kind: string; message: string };
+type ErrorEvent = { id: string; kind: string; message: string; code?: string };
 
 type Events = {
   onResponse: (event: ResponseEvent) => void;
@@ -26,7 +26,12 @@ declare class PinnedModule extends NativeModule<Events> {
     pin: string,
   ): Promise<void>;
   cancel(id: string): void;
-  probe(host: string, port: number, pin: string, timeoutMs: number): Promise<{ ok: boolean; fingerprint?: string }>;
+  probe(
+    host: string,
+    port: number,
+    pin: string,
+    timeoutMs: number,
+  ): Promise<{ ok: boolean; fingerprint?: string; code?: string }>;
 }
 
 const native = requireNativeModule<PinnedModule>("CanopyPinnedFetch");
@@ -84,7 +89,7 @@ function fetchPinned(url: string, init: RequestInit | undefined, fingerprint: st
         if (event.id !== id || finished) return;
 
         if (event.fingerprint && event.fingerprint !== fingerprint) {
-          fail(new Error("Computer certificate changed. Pair this phone again."));
+          fail(new Error(PIN_CHANGED));
 
           return;
         }
@@ -100,14 +105,7 @@ function fetchPinned(url: string, init: RequestInit | undefined, fingerprint: st
         controller.close();
       }),
       native.addListener("onError", (event) => {
-        if (event.id === id)
-          fail(
-            new Error(
-              event.kind === "pin"
-                ? "Computer certificate changed. Pair this phone again."
-                : "Connection interrupted. Try again.",
-            ),
-          );
+        if (event.id === id) fail(new Error(failure(event)));
       }),
     );
     init?.signal?.addEventListener("abort", abort, { once: true });
@@ -122,6 +120,19 @@ function fetchPinned(url: string, init: RequestInit | undefined, fingerprint: st
       .start(id, url, init?.method ?? "POST", headers, bytes, fingerprint)
       .catch(() => fail(new Error("Could not start secure request.")));
   });
+}
+
+const PIN_CHANGED = "Computer certificate changed. Pair this phone again.";
+
+/** The native domain and code stay in the text, so a screenshot is enough to diagnose a failure. */
+const withCode = (text: string, code?: string) => (code ? `${text} (${code})` : text);
+
+function failure(event: ErrorEvent) {
+  if (event.kind === "pin") return PIN_CHANGED;
+
+  if (event.kind === "io") return withCode("Connection interrupted. Try again.", event.code);
+
+  return withCode("Could not connect to this computer. Check the network, then try again.", event.code);
 }
 
 /** React Native's Response constructor doesn't accept streams. Connect consumes body, arrayBuffer or json. */
@@ -172,7 +183,8 @@ export const pinnedTransport: PinnedTransport = {
     const result = await native.probe(url.hostname.replace(/^\[|\]$/g, ""), Number(url.port || 443), fingerprint, 2000);
     signal?.throwIfAborted();
 
-    if (!result.ok || result.fingerprint !== fingerprint) throw new Error("Secure route unavailable");
+    if (!result.ok || result.fingerprint !== fingerprint)
+      throw new ProbeError(result.ok ? "pin" : (result.code ?? "unknown"));
   },
   fetch: fetchPinned,
 };

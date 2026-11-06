@@ -27,6 +27,37 @@ i MobilePairingService. Żądania z `Origin` są odrzucane; przeglądarka używa
 Nie wymaga Tailscale Serve, systemowego CA, konfiguracji portu mobilnego ani proxy HTTPS.
 VPN jest opcjonalną trasą między sieciami; TLS musi kończyć sam Canopy.
 
+### iOS: ATS i przypięty certyfikat
+
+Na iOS moduł używa URLSession; delegat porównuje SHA-256 certyfikatu z pinem i odpowiada
+`.useCredential`. Przy włączonym ATS CFNetwork po tej odpowiedzi ocenia zaufanie jeszcze raz:
+polityką SSL z nazwą hosta i systemowymi CA, niezależnie od kotwic i polityki ustawionych na
+obiekcie zaufania. Samopodpisany certyfikat komputera tej oceny nie przechodzi (`AnchorTrusted`,
+`SSLHostname`, `ServerAuthEKU`, `OtherTrustValidityPeriod`). Log CFNetwork pokazuje wtedy
+`ATS failed system trust`, a żądanie kończy się `NSURLErrorDomain -1200` (błąd TLS `-9802`), także
+dla adresów IP. `probe` używa Network.framework, którego ATS nie dotyczy, więc handshake
+przechodził i błąd pojawiał się dopiero przy pierwszym RPC.
+
+Dlatego `app.config.ts` ustawia `NSAllowsArbitraryLoads: true`. Wyjątek per domena nie wystarczy:
+`NSExceptionDomains` nie przyjmuje adresów IP, a nazwy hostów ustawia użytkownik. Klucz
+`NSAllowsLocalNetworking` nie może być ustawiony, bo iOS ignoruje wtedy `NSAllowsArbitraryLoads`.
+Granicą zaufania jest pin, nie ATS. Aplikacja łączy się z komputerem tylko przez ten moduł, który
+przyjmuje wyłącznie HTTPS i ufa tylko przypiętemu certyfikatowi. HTTP poza adresami lokalnymi blokuje
+kod klienta (wyłącznie JS development), linki otwiera przeglądarka systemowa, a Markdown nie pobiera obrazów.
+
+App Store: `NSAllowsArbitraryLoads` wymaga uzasadnienia przy przeglądzie. Uzasadnienie: aplikacja
+łączy się z serwerem hostowanym przez użytkownika (adres IP lub własna nazwa) z certyfikatem
+samopodpisanym, weryfikowanym przez przypięty odcisk SHA-256 przekazany przy parowaniu.
+
+Połączenie z iOS sprawdzaj buildem `bunx expo run:ios --configuration Release` z HTTPS i pinem.
+Lokalne HTTP z `CANOPY_DEV_HTTP=1` omija tę ścieżkę.
+
+Błędy transportu niosą natywną domenę i kod, bez adresu: na iOS `NSURLErrorDomain -1200 / -9802`
+(drugi to kod błędu TLS strumienia), z probe `POSIX 61`, `TLS -9808` albo `timeout`; na Androidzie
+klasę wyjątku i jego przyczyny (`SSLHandshakeException / CertPathValidatorException`). Aplikacja
+dopisuje kod w nawiasie do komunikatu: przy parowaniu, w „Cannot reach this computer securely”
+po nieudanym probe i w banerze „Connection lost” streamów. Zrzut ekranu wystarcza do diagnozy.
+
 ## Wersje i Bun workspace
 
 Zależności aplikacji: Expo **58.0.23**, React Native **0.88.1**,
@@ -186,7 +217,7 @@ Adres Metro i adres gatewaya to dwa różne połączenia. Nie używaj publiczneg
    Wybierz podłączony iPhone i skonfiguruj signing, jeśli Xcode o to poprosi.
    Dla simulatora na Macu użyj `bunx expo run:ios`. Przy lokalnym gatewayu HTTP:
    `CANOPY_DEV_HTTP=1 bunx expo run:ios`, adres `http://127.0.0.1:7444`.
-   Flaga włącza `NSAllowsLocalNetworking`; `NSAllowsArbitraryLoads` pozostaje false.
+   Na iOS flaga nie zmienia ATS (`NSAllowsArbitraryLoads: true`, patrz wyżej); HTTP dopuszcza kod klienta.
    SDK 58 generuje deployment target iOS 16.4.
 2. Bez lokalnego Maca można zbudować klienta w EAS. Potrzebne są konto Expo i
    Apple Developer do wewnętrznej dystrybucji na fizyczny iPhone. Z `apps/mobile`:

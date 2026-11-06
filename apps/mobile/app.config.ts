@@ -10,10 +10,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ...config.ios,
     infoPlist: {
       ...config.ios?.infoPlist,
-      NSAppTransportSecurity: {
-        NSAllowsArbitraryLoads: false,
-        NSAllowsLocalNetworking: true,
-      },
+      // The paired computer has a self-signed certificate, trusted only through its pinned SHA-256
+      // (modules/canopy-pinned-fetch). With ATS on, URLSession re-checks it against the system roots
+      // after the pin check and fails (-1200 / -9802); IP hosts can't get a per-domain exception.
+      // NSAllowsLocalNetworking must stay unset: iOS ignores NSAllowsArbitraryLoads when it is present.
+      NSAppTransportSecurity: { NSAllowsArbitraryLoads: true },
     },
   },
   plugins: [

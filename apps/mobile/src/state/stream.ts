@@ -32,6 +32,8 @@ export function useStream<T>(
       let failures = 0;
 
       while (!controller.signal.aborted) {
+        let reason: string | undefined;
+
         try {
           for await (const value of start(controller.signal)) {
             if (controller.signal.aborted) return;
@@ -41,7 +43,9 @@ export function useStream<T>(
           }
         } catch (error) {
           if (controller.signal.aborted) return;
-          const code = ConnectError.from(error).code;
+          const { code, rawMessage } = ConnectError.from(error);
+          // The transport ends its messages with the native code, e.g. "(NSURLErrorDomain -1200)".
+          reason = /\(([^()]+)\)$/.exec(rawMessage)?.[0];
 
           if (code === Code.Unauthenticated) {
             await onExpired();
@@ -61,7 +65,11 @@ export function useStream<T>(
         }
 
         if (controller.signal.aborted) return;
-        setState({ key: subscriptionKey, connection: "reconnecting" });
+        setState({
+          key: subscriptionKey,
+          connection: "reconnecting",
+          ...(reason && { issue: `Connection lost. Reconnecting automatically… ${reason}` }),
+        });
         const delay = Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5)) * (0.8 + Math.random() * 0.4);
         await new Promise<void>((resolve) => {
           const done = () => {
