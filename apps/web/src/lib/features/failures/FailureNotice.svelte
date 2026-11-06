@@ -4,7 +4,7 @@
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
-  import { failurePresentation } from "./presentation.ts";
+  import { failurePresentation } from "@canopy/domain/failure-presentation";
 
   let {
     message,

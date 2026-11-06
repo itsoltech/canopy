@@ -1,12 +1,14 @@
 import { Platform, StyleSheet } from "react-native";
 import { contextType, palette, typography } from "@canopy/ui";
-import { themes, themeVariables, type ThemeName } from "@canopy/ui/themes";
+import { neutralSteps, themes, themeVariables, type ThemeName } from "@canopy/ui/themes";
 import { useAppearance } from "../state/appearance";
 import { themeOf } from "../features/settings/appearance";
 import { useDevicePreferences } from "../features/settings/device-preferences";
 
 export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
   const v = themeVariables(theme, dark ? "dark" : "light");
+  const neutral = themes[theme][dark ? "dark" : "light"];
+  const zinc = (step: (typeof neutralSteps)[number]) => neutral[neutralSteps.indexOf(step)] ?? v.muted;
 
   return {
     dark,
@@ -19,7 +21,16 @@ export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
     text: v.ink,
     body: v.ink,
     muted: v.muted,
-    faint: v.muted,
+    /** zinc-400 / zinc-500: chevrons and quiet icons. */
+    faint: dark ? zinc(500) : zinc(400),
+    /** zinc-700 / zinc-300: secondary text a step under the ink. */
+    soft: dark ? zinc(300) : zinc(700),
+    /** zinc-800 / zinc-200: titles inside work rows. */
+    strong: dark ? zinc(200) : zinc(800),
+    /** Hairlines and rails: zinc-950/5, white/10. */
+    rule: dark ? "#ffffff1a" : "#09090b0d",
+    /** Recessed wells (code, prompts, forks): zinc-950/2.5, white/5. */
+    well: dark ? "#ffffff0d" : "#09090b06",
     line: v.border,
     accent: v.accent,
     action: v.action,
@@ -31,6 +42,8 @@ export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
     sky: dark ? palette.sky[400] : palette.sky[700],
     success: dark ? palette.emerald[400] : palette.emerald[700],
     userBubble: v.hover,
+    /** A bot's chat bubble: zinc-100, zinc-800/80. */
+    botBubble: dark ? `${zinc(800)}cc` : zinc(100),
     botUserBubble: v.ink,
     botUserText: v.canvas,
   };

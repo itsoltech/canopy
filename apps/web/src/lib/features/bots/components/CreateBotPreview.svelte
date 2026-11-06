@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import type { ApprovalView } from "../model.ts";
+  import type { ApprovalView } from "@canopy/domain/bot-chat";
   import BotAvatar from "./BotAvatar.svelte";
 
   let { proposal, class: className }: { proposal: NonNullable<ApprovalView["botProposal"]>; class?: ClassValue } =

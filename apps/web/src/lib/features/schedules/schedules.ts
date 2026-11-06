@@ -1,7 +1,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import type { ui } from "@canopy/contracts";
 import { formatDateTime } from "#lib/shared/format.ts";
-import { humanizeEnum } from "#lib/shared/humanize.ts";
+import { humanizeEnum } from "@canopy/domain/humanize";
 import type { Tone } from "#lib/shared/ui/tone.ts";
 
 /** A schedule that will not run again (it ran out or was cancelled). */

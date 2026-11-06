@@ -8,7 +8,7 @@
   import type { Tone } from "#lib/shared/ui/tone.ts";
   import Diff from "../Diff.svelte";
   import DiffCounts from "./DiffCounts.svelte";
-  import { diffCounts } from "./tools/changes.ts";
+  import { diffCounts } from "@canopy/domain/tools";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
 

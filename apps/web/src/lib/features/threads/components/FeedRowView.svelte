@@ -24,7 +24,13 @@
     ontoggle,
     onwork,
     ongroup,
-  }: { row: FeedRow; ontoggle: () => void; onwork: (fold: string) => void; ongroup: (key: string) => void } = $props();
+  }: {
+    row: FeedRow;
+    ontoggle: () => void;
+    /** `rowKey`: the toggled header's row, which keeps its place on screen. */
+    onwork: (fold: string, rowKey: string) => void;
+    ongroup: (key: string, rowKey: string) => void;
+  } = $props();
 
   const directory = useThreadDirectory();
   const well = "bg-zinc-950/2.5 px-3 dark:bg-white/4";
@@ -147,14 +153,14 @@
 
 {#snippet body(row: Extract<FeedRow, { kind: "timeline" | "work" | "work-group" | "answer" }>)}
   {#if row.kind === "work"}
-    <WorkFold summary={row.summary} turn={row.turn} open={row.open} ontoggle={() => onwork(row.fold)} />
+    <WorkFold summary={row.summary} turn={row.turn} open={row.open} ontoggle={() => onwork(row.fold, row.key)} />
   {:else if row.kind === "work-group"}
     <div class="-mb-1 ml-2 border-l border-zinc-950/10 pb-1 pl-4 dark:border-white/10">
       <WorkGroup
         label={row.label}
         open={row.open}
         running={row.running}
-        ontoggle={() => ongroup(row.key.replace(/^history:[^:]+:/, ""))}
+        ontoggle={() => ongroup(row.key.replace(/^history:[^:]+:/, ""), row.key)}
       />
     </div>
   {:else if row.kind === "answer"}

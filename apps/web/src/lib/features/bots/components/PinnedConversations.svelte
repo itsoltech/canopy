@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import type { ConversationHandlers } from "../actions.ts";
-  import type { ConversationView } from "../model.ts";
+  import type { ConversationView } from "@canopy/domain/bot-chat";
   import PinnedTile from "./PinnedTile.svelte";
 
   /** Pinned bots and groups as a grid of large avatars, in pin order: tiles at least 5 rem wide (the avatar and a

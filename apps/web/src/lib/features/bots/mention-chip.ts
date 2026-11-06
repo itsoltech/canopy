@@ -1,6 +1,6 @@
 import type { MentionData } from "#lib/features/mentions/kinds.ts";
 import { botTextTone, defaultAppearance, eyeColor, mascotFor, mascotShapes, normalizeColor } from "./mascot.ts";
-import type { ParticipantView } from "./model.ts";
+import type { ParticipantView } from "@canopy/domain/bot-chat";
 
 const escape = (value: string) =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

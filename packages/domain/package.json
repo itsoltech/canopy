@@ -29,7 +29,19 @@
     "./background-tasks": "./src/background-tasks/index.ts",
     "./release/protocol": "./src/release/protocol.ts",
     "./release/update-actions": "./src/release/update-actions.ts",
-    "./release/version": "./src/release/version.ts"
+    "./release/version": "./src/release/version.ts",
+    "./humanize": "./src/humanize.ts",
+    "./tools": "./src/tools/index.ts",
+    "./turn-origin": "./src/turn-origin.ts",
+    "./work-summary": "./src/work-summary.ts",
+    "./status-look": "./src/status-look.ts",
+    "./format": "./src/format.ts",
+    "./bot-chat": "./src/bot-chat/index.ts",
+    "./questions": "./src/questions.ts",
+    "./first-line": "./src/first-line.ts",
+    "./platform": "./src/platform.ts",
+    "./failure-presentation": "./src/failure-presentation.ts",
+    "./failures": "./src/failures.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
@@ -37,6 +49,7 @@
   "dependencies": {
     "@bufbuild/protobuf": "2.16.0",
     "@canopy/contracts": "workspace:*",
+    "@canopy/ui": "workspace:*",
     "effect": "4.1.1"
   }
 }

@@ -4,7 +4,7 @@
   import LongText from "#lib/shared/ui/LongText.svelte";
   import { scheduleStatusLook } from "#lib/features/schedules/schedules.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";
-  import type { ScheduleView } from "../agent-bus.ts";
+  import type { ScheduleView } from "../bus-schedules.ts";
 
   /** A schedule in words: when it runs, the next run, its limits and the prompt it will deliver. */
   let { schedule, class: className }: { schedule: ScheduleView; class?: ClassValue } = $props();

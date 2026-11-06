@@ -4,7 +4,7 @@
   import FileDiffEntry from "./FileDiffEntry.svelte";
   import ItemFrame from "./ItemFrame.svelte";
   import DiffCounts from "./DiffCounts.svelte";
-  import { diffCounts } from "./tools/changes.ts";
+  import { diffCounts } from "@canopy/domain/tools";
 
   /** Files the agent added, edited, moved or deleted, each with its diff. */
   let { change, status }: { change: FileChange; status: ItemStatus } = $props();

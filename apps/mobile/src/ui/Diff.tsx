@@ -5,7 +5,8 @@ import { Segmented } from "./components";
 import { styles, useColors, useTypography } from "./theme";
 import { diffRows } from "./diff-lines";
 
-export function Diff({ diff, label = "File changes" }: { diff: string; label?: string }) {
+/** `bare`: always open, without its own header (the row above it names the file and opens or folds it). */
+export function Diff({ diff, label = "File changes", bare = false }: { diff: string; label?: string; bare?: boolean }) {
   const c = useColors();
   const type = useTypography();
   const { values, set } = useDevicePreferences();
@@ -49,17 +50,19 @@ export function Diff({ diff, label = "File changes" }: { diff: string; label?: s
 
   return (
     <View accessibilityLabel={label} style={{ gap: 8 }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        onPress={() => setOpen(!open)}
-        style={{ minHeight: 44, justifyContent: "center" }}
-      >
-        <Text style={[styles.chrome, { color: c.text }]}>
-          {open ? "▾" : "▸"} {label}
-        </Text>
-      </Pressable>
-      {open && (
+      {!bare && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          onPress={() => setOpen(!open)}
+          style={{ minHeight: 44, justifyContent: "center" }}
+        >
+          <Text style={[styles.chrome, { color: c.text }]}>
+            {open ? "▾" : "▸"} {label}
+          </Text>
+        </Pressable>
+      )}
+      {(open || bare) && (
         <>
           <Segmented
             value={values.diffLayout}

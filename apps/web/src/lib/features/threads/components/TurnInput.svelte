@@ -7,7 +7,7 @@
   import type { IconName } from "#lib/shared/ui/icons.ts";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import { useThreadDirectory } from "../thread-directory.ts";
-  import { turnOrigin } from "../turn-origin.ts";
+  import { turnOrigin } from "@canopy/domain/turn-origin";
   import BackgroundNoteRow from "./BackgroundNoteRow.svelte";
   import ThreadLink from "./items/ThreadLink.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";

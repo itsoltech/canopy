@@ -1,0 +1,79 @@
+import { Text, View } from "react-native";
+import { ItemStatus, NoticeLevel, type Notice } from "@canopy/contracts";
+import { backgroundHeadline, backgroundOutcome, backgroundTitle } from "@canopy/domain/background-tasks";
+import { humanizeEnum } from "@canopy/domain/humanize";
+import { Icon } from "../../ui/Icon";
+import { font, styles, useColors } from "../../ui/theme";
+import { useTone } from "../../ui/tone";
+import { useTimelineDirectory } from "./directory";
+
+/** Platform or provider notice (rate limit, retry, restart, provider error) (web: NoticeRow). */
+export function NoticeRow({ notice }: { notice: Notice }) {
+  const c = useColors();
+  const rose = useTone("rose").panel;
+  const amber = useTone("amber").panel;
+  const error = notice.level === NoticeLevel.ERROR;
+  const warning = notice.level === NoticeLevel.WARNING;
+  const look = error ? rose : warning ? amber : { background: c.well, text: c.soft };
+
+  return (
+    <View
+      accessibilityRole={error ? "alert" : undefined}
+      style={[
+        styles.row,
+        {
+          alignItems: "flex-start",
+          borderRadius: 8,
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          backgroundColor: look.background,
+        },
+      ]}
+    >
+      <View style={{ height: 24, justifyContent: "center", opacity: 0.7 }}>
+        <Icon
+          name={error ? "exclamation-circle" : warning ? "exclamation-triangle" : "information-circle"}
+          color={look.text}
+        />
+      </View>
+      <Text selectable style={[styles.body, { flex: 1, color: look.text }]}>
+        {notice.message || humanizeEnum(notice.code)}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * The platform told the agent how background tasks of this thread ended (a turn of its own, or a note steered into
+ * the running turn): one compact system line per task (web: BackgroundNoteRow).
+ */
+export function BackgroundNoteRow({ itemIds }: { itemIds: readonly string[] }) {
+  const c = useColors();
+  const directory = useTimelineDirectory();
+
+  return (
+    <View style={{ gap: 4 }}>
+      {itemIds.map((id) => {
+        const item = directory.item(id);
+        const task = item?.content.case === "backgroundTask" ? item.content.value : undefined;
+        const title = task ? backgroundTitle(task, id) : id;
+
+        const outcome =
+          task && item
+            ? backgroundHeadline(backgroundOutcome(ItemStatus[item.status]), task.stopReason, task.exitCode)
+            : "Background task ended";
+
+        return (
+          <View key={id} style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ height: 20, justifyContent: "center" }}>
+              <Icon name="bolt" size={14} color={c.muted} />
+            </View>
+            <Text style={[styles.meta, { flex: 1, color: c.muted }]}>
+              {outcome} · <Text style={{ fontFamily: font.medium, color: c.soft }}>{title}</Text>
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}

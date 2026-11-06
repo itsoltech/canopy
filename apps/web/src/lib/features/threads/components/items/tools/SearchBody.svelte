@@ -3,7 +3,7 @@
   import Badge from "#lib/shared/ui/Badge.svelte";
   import MoreButton from "#lib/shared/ui/MoreButton.svelte";
   import type { ToolBodyProps } from "./body.ts";
-  import { parseFileList, parseGrepOutput, type FileMatches } from "./parse.ts";
+  import { parseFileList, parseGrepOutput, type FileMatches } from "@canopy/domain/tools";
   import EmptyNote from "./EmptyNote.svelte";
   import PathList from "./PathList.svelte";
   import ResultText from "./ResultText.svelte";

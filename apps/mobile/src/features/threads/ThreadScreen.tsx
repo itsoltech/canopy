@@ -11,7 +11,12 @@ import { applyThread } from "../../api/thread";
 import { useSession } from "../../state/session";
 import { useThreadSnapshot } from "../../state/thread";
 import { ConnectionNotice, LatestButton, Notice } from "../../ui/components";
-import { TimelineTurn } from "../../ui/timeline";
+import { TimelineTurn, type TurnContext } from "../timeline/TimelineTurn";
+import { TimelineDirectoryProvider, type TimelineDirectory } from "../timeline/directory";
+import { NoticeRow } from "../timeline/NoticeRows";
+import { steeringNote, UserMessageView } from "../timeline/UserMessageView";
+import { FeedAnchorProvider, useFeedAnchor } from "../../ui/feed-anchor";
+import type { Item } from "@canopy/contracts";
 import { styles, useColors } from "../../ui/theme";
 import { KeyboardArea } from "../../ui/KeyboardArea";
 import { MessageComposer } from "./MessageComposer";
@@ -285,6 +290,60 @@ export function ThreadScreen({ id }: { id: string }) {
   );
 }
 
+/** The new-day flag of each turn: it starts a calendar day the turns before it did not (web: buildTimeline). */
+function newDays(turns: readonly ui.Turn[]): ReadonlySet<ui.Turn> {
+  const days = new Set<ui.Turn>();
+  let last = "";
+
+  for (const turn of turns) {
+    const at = turn.startedAt ?? turn.queuedAt;
+
+    if (!at) continue;
+    const date = new Date(Number(at.seconds) * 1000);
+    const day = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+
+    if (day !== last) days.add(turn);
+    last = day;
+  }
+
+  return days;
+}
+
+/** What the timeline's items look up: other threads, items, deliveries, and its tasks by their command. */
+function useTimelineData(state: ReturnType<typeof useThreadState>) {
+  const { threads } = useOverview();
+  const { snapshot, thread } = state;
+
+  const items = new Map(
+    (snapshot?.items ?? []).flatMap((e): [string, Item][] => (e.item ? [[e.item.itemId, e.item]] : [])),
+  );
+
+  const tasks = new Map(
+    [...items.values()].flatMap((item): [string, Item][] =>
+      item.content.case === "backgroundTask" && item.content.value.sourceItemId
+        ? [[item.content.value.sourceItemId, item]]
+        : [],
+    ),
+  );
+
+  const directory: TimelineDirectory = {
+    currentId: thread?.id ?? "",
+    readOnly: !thread || Boolean(thread.archivedAt || thread.deletedAt),
+    thread: (id) => threads.find((t) => t.id === id) ?? (id === thread?.id ? thread : undefined),
+    item: (id) => items.get(id),
+    delivery: (callId) => snapshot?.busDeliveries.find((d) => d.callId === callId),
+  };
+
+  const context: TurnContext = {
+    notices: snapshot?.notices ?? [],
+    steers: snapshot?.steers ?? [],
+    tasks,
+    provider: thread?.provider,
+  };
+
+  return { directory, context };
+}
+
 function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> }) {
   const c = useColors();
   const { appearance } = useAppearance();
@@ -293,7 +352,13 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
     appearance?.chatWidth === ui.ChatWidth.FULL ? undefined : appearance?.chatWidth === ui.ChatWidth.WIDE ? 1024 : 768;
 
   const { turns, following, stream, snapshot } = state;
+  const { directory, context } = useTimelineData(state);
+  const anchor = useFeedAnchor(following.list, following.offset, following.isFollowing);
   const latestFirst = [...turns].reverse();
+  const days = newDays(turns);
+  const turnIds = new Set(turns.map((t) => t.id));
+  const loose = snapshot?.notices.filter((n) => !turnIds.has(n.turnId)).slice(-3) ?? [];
+  const steering = snapshot?.steers.filter((s) => ["pending", "accepted"].includes(s.status)) ?? [];
 
   const entries = useMemo(() => {
     const grouped = new Map<string, ui.TimelineItem[]>();
@@ -309,44 +374,56 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
   }, [snapshot?.items]);
 
   return (
-    <FlatList
-      {...following.listProps}
-      data={latestFirst}
-      keyExtractor={(turn) => `${turn.fromThreadId}:${turn.id}`}
-      style={styles.fill}
-      contentContainerStyle={[styles.page, { maxWidth, paddingTop: 24, flexGrow: 1 }]}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-      // Inverted: the footer is the top of the feed, the header sits under the latest turn.
-      ListFooterComponent={
-        <View style={{ gap: 16, paddingBottom: 16 }}>
-          {stream.connection === "error" || stream.connection === "offline" ? <ConnectionNotice {...stream} /> : null}
-          {!snapshot && <ConversationSkeleton />}
-          {snapshot && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
-        </View>
-      }
-      renderItem={({ item }) => (
-        <TimelineTurn
-          turn={item}
-          entries={entries.get(`${item.fromThreadId}:${item.id}`) ?? []}
-          onQueued={(turn) => state.setQueued({ turn, editing: false })}
+    <TimelineDirectoryProvider value={directory}>
+      <FeedAnchorProvider value={anchor}>
+        <FlatList
+          {...following.listProps}
+          data={latestFirst}
+          keyExtractor={(turn) => `${turn.fromThreadId}:${turn.id}`}
+          style={styles.fill}
+          contentContainerStyle={[styles.page, { maxWidth, paddingTop: 24, flexGrow: 1, gap: 0 }]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          // Inverted: the footer is the top of the feed, the header sits under the latest turn.
+          ListFooterComponent={
+            <View style={{ gap: 16, paddingBottom: 16 }}>
+              {stream.connection === "error" || stream.connection === "offline" ? (
+                <ConnectionNotice {...stream} />
+              ) : null}
+              {!snapshot && <ConversationSkeleton />}
+              {snapshot && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
+            </View>
+          }
+          renderItem={({ item, index }) => (
+            <TimelineTurn
+              turn={item}
+              entries={entries.get(`${item.fromThreadId}:${item.id}`) ?? []}
+              context={context}
+              newDay={days.has(item)}
+              latest={index === 0}
+              onQueued={(turn) => state.setQueued({ turn, editing: false })}
+            />
+          )}
+          ListHeaderComponent={
+            <View style={{ gap: 12, paddingBottom: steering.length || loose.length ? 12 : 0 }}>
+              <Text accessibilityLiveRegion="polite" style={[styles.caption, { color: c.muted, height: 20 }]}>
+                {snapshot && stream.connection !== "live" ? "Syncing…" : ""}
+              </Text>
+              {loose.map((n) => (n.notice ? <NoticeRow key={String(n.seq)} notice={n.notice} /> : null))}
+              {steering.map((s) => (
+                <UserMessageView
+                  key={s.id}
+                  text={s.text}
+                  mentions={s.mentions}
+                  note={steeringNote(s)}
+                  sender={s.sender}
+                  pending
+                />
+              ))}
+            </View>
+          }
         />
-      )}
-      ListHeaderComponent={
-        <View style={{ gap: 12 }}>
-          <Text accessibilityLiveRegion="polite" style={[styles.caption, { color: c.muted, height: 20 }]}>
-            {snapshot && stream.connection !== "live" ? "Syncing…" : ""}
-          </Text>
-          {snapshot?.steers
-            .filter((s) => ["pending", "accepted"].includes(s.status))
-            .map((s) => (
-              <Notice key={s.id}>Sending to the current turn: {s.text}</Notice>
-            ))}
-          {snapshot?.notices.slice(-3).map((n) => (
-            <Notice key={String(n.seq)}>{n.notice?.message}</Notice>
-          ))}
-        </View>
-      }
-    />
+      </FeedAnchorProvider>
+    </TimelineDirectoryProvider>
   );
 }

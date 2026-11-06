@@ -10,7 +10,7 @@
   import { fullDateLabel, timeLabel } from "../chat-timeline.ts";
   import { contextMenu } from "../context-menu.ts";
   import { mentionRanges, structuredMentionRanges } from "../mentions.ts";
-  import type { ChatMessageView, ParticipantView } from "../model.ts";
+  import type { ChatMessageView, ParticipantView } from "@canopy/domain/bot-chat";
   import ActionItems from "./ActionItems.svelte";
   import BotChip from "./BotChip.svelte";
   import LinkChip from "./LinkChip.svelte";

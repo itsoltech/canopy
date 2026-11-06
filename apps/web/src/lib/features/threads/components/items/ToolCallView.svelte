@@ -8,14 +8,14 @@
   import { useThreadDirectory } from "../../thread-directory.ts";
   import ItemFrame from "./ItemFrame.svelte";
   import DiffCounts from "./DiffCounts.svelte";
-  import { diffCounts, toolChanges } from "./tools/changes.ts";
+  import { diffCounts, toolChanges } from "@canopy/domain/tools";
   import type { ToolBodyProps } from "./tools/body.ts";
   import EditBody from "./tools/EditBody.svelte";
   import GenericBody from "./tools/GenericBody.svelte";
   import MarkdownBody from "./tools/MarkdownBody.svelte";
   import RawToggle from "./tools/RawToggle.svelte";
   import ReadBody from "./tools/ReadBody.svelte";
-  import { describeTool, type ToolBody } from "./tools/registry.ts";
+  import { describeTool, type ToolBody } from "@canopy/domain/tools";
   import ScriptBody from "./tools/ScriptBody.svelte";
   import SearchBody from "./tools/SearchBody.svelte";
   import ShellBody from "./tools/ShellBody.svelte";

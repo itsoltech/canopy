@@ -2,7 +2,7 @@
   import { goto } from "$app/navigation";
   import ChatView from "#lib/features/bots/components/ChatView.svelte";
   import { botParticipant, exchangeEntries } from "#lib/features/bots/live.ts";
-  import type { BotView, ConversationView } from "#lib/features/bots/model.ts";
+  import type { BotView, ConversationView } from "@canopy/domain/bot-chat";
   import type { PageProps } from "./$types";
 
   /** Two bots talking to each other ("Grok Bot ⇄ FIXme CRM"): you read along and close it. */

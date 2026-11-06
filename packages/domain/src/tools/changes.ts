@@ -1,4 +1,4 @@
-import { isJsonArray, objectOf, str, type JsonObject } from "#lib/shared/json.ts";
+import { isJsonArray, objectOf, str, type JsonObject } from "../json.ts";
 import { parsePatch, replacementDiff, type PatchFile } from "./parse.ts";
 
 /** Shared by edit headers and their lazily mounted diff body. */

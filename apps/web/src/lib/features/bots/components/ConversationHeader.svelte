@@ -5,7 +5,7 @@
   import SidebarToggle from "#lib/features/navigation/SidebarToggle.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
-  import { conversationTitle, type ConversationView } from "../model.ts";
+  import { conversationTitle, type ConversationView } from "@canopy/domain/bot-chat";
   import AvatarStack from "./AvatarStack.svelte";
   import BotAvatar from "./BotAvatar.svelte";
   import type { MascotState } from "../behaviour.ts";

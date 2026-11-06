@@ -1,5 +1,5 @@
 import type { IconName } from "#lib/shared/ui/icons.ts";
-import type { ConversationView } from "./model.ts";
+import type { ConversationView } from "@canopy/domain/bot-chat";
 
 /** An action in a menu of the Bots section (rendered by `ActionItems`). */
 export interface BotAction {

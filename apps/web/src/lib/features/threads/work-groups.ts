@@ -3,7 +3,7 @@ import { ItemStatus } from "@canopy/contracts";
 import type { ui } from "@canopy/contracts";
 import type { TimelineEntry } from "./thread-state.svelte.ts";
 import type { ItemNode, TimelineRow } from "./timeline.ts";
-import { describeTool } from "./components/items/tools/registry.ts";
+import { currentWorkHint, groupSummary, isToolItem, workCounts } from "@canopy/domain/work-summary";
 import { blank } from "./work-segments.ts";
 import { foldId, turnProgress, workSegments, type BodyRow, type WorkSegment } from "@canopy/domain/work-fold";
 
@@ -287,7 +287,7 @@ function workRows(
         key,
         turn,
         open,
-        label: groupSummary(tools),
+        label: groupSummary(itemsOf(tools)),
         running: tools.some((r) => r.kind === "item" && r.node.entry.item.status === ItemStatus.IN_PROGRESS),
         items: tools.map((r) => r.key),
       });
@@ -298,25 +298,12 @@ function workRows(
   return out;
 }
 
-const KINDS: readonly (readonly [string, string, string])[] = [
-  ["commandExecution", "command", "commands"],
-  ["fileChange", "edit", "edits"],
-  ["toolCall", "tool call", "tool calls"],
-  ["agentBusCall", "agent call", "agent calls"],
-  ["subagent", "subagent", "subagents"],
-  ["webSearch", "search", "searches"],
-  ["backgroundTask", "background task", "background tasks"],
-  ["agentMessage", "message", "messages"],
-  ["userMessage", "steered message", "steered messages"],
-];
-
 function summarize(
   turn: ui.Turn,
   work: readonly TimelineRow[],
   tasksBySource: ReadonlyMap<string, TimelineEntry>,
   { startMs, endMs, live }: SegmentTimes,
 ): WorkSummary {
-  const counts = new Map<string, number>();
   const running = new Set<string>();
 
   const visit = (node: ItemNode) => {
@@ -326,149 +313,24 @@ function summarize(
     node.children.forEach(visit);
   };
 
-  for (const row of work) {
-    if (row.kind !== "item") continue;
-    const kind = row.node.entry.item.content.case ?? "";
-    counts.set(kind, (counts.get(kind) ?? 0) + 1);
-    visit(row.node);
-  }
-
-  const parts = KINDS.filter(([kind]) => counts.has(kind))
-    .slice(0, 3)
-    .map(([kind, one, many]) => {
-      const n = counts.get(kind)!;
-
-      return `${n} ${n === 1 ? one : many}`;
-    });
+  for (const row of work) if (row.kind === "item") visit(row.node);
 
   const spanMs = startMs !== undefined && endMs !== undefined ? endMs - startMs : undefined;
 
   return {
     startMs,
     spanMs: spanMs !== undefined && spanMs >= 0 ? spanMs : undefined,
-    counts: parts.join(", "),
+    counts: workCounts(itemsOf(work)),
     running: running.size,
     live,
-    hint: currentWorkHint(work, tasksBySource),
+    hint: currentWorkHint(
+      itemsOf(work),
+      (item) => (tasksBySource.get(item.itemId)?.item ?? item).status === ItemStatus.IN_PROGRESS,
+    ),
     size: work.length,
   };
 }
 
-const isToolRow = (row: TimelineRow): boolean =>
-  row.kind === "item" && !["agentMessage", "userMessage", "reasoning"].includes(row.node.entry.item.content.case ?? "");
+const isToolRow = (row: TimelineRow): boolean => row.kind === "item" && isToolItem(row.node.entry.item);
 
-type Activity =
-  | "read"
-  | "command"
-  | "edit"
-  | "search"
-  | "tool"
-  | "agent call"
-  | "subagent"
-  | "background task"
-  | "item";
-
-/** Items other than tool calls, by their content case. */
-const ITEM_ACTIVITIES = new Map<string, Activity>([
-  ["commandExecution", "command"],
-  ["fileChange", "edit"],
-  ["webSearch", "search"],
-  ["agentBusCall", "agent call"],
-  ["subagent", "subagent"],
-  ["backgroundTask", "background task"],
-]);
-
-function activity(row: TimelineRow): Activity | undefined {
-  if (row.kind !== "item") return undefined;
-  const content = row.node.entry.item.content;
-
-  if (content.case === "toolCall") {
-    const call = content.value;
-    const body = describeTool({ ...call, running: true }).body;
-
-    if (body === "read") return "read";
-
-    if (body === "shell") return "command";
-
-    if (body === "edit" || body === "patch") return "edit";
-
-    if (body === "search" || body === "files" || body === "web-search") return "search";
-
-    return "tool";
-  }
-
-  return ITEM_ACTIVITIES.get(content.case ?? "") ?? "item";
-}
-
-const VERBS = {
-  read: ["Read", "file", "files"],
-  command: ["Ran", "command", "commands"],
-  edit: ["Made", "edit", "edits"],
-  search: ["Ran", "search", "searches"],
-  tool: ["Made", "tool call", "tool calls"],
-  "agent call": ["Made", "agent call", "agent calls"],
-  subagent: ["Started", "subagent", "subagents"],
-  "background task": ["Started", "background task", "background tasks"],
-  item: ["Updated", "item", "items"],
-} satisfies Record<Activity, readonly [string, string, string]>;
-
-/** Consecutive tools form one stable group, until a progress message/reasoning/notice separates them. */
-export function groupSummary(rows: readonly TimelineRow[]): string {
-  const counts = new Map<Activity, number>();
-
-  for (const row of rows) {
-    const kind = activity(row) ?? "item";
-    counts.set(kind, (counts.get(kind) ?? 0) + 1);
-  }
-
-  return [...counts]
-    .map(([kind, n], i) => {
-      const [verb, one, many] = VERBS[kind];
-
-      return `${i ? verb.toLowerCase() : verb} ${n} ${n === 1 ? one : many}`;
-    })
-    .join(" and ");
-}
-
-/** Only active work supplies a live hint; finished calls never masquerade as still running. */
-export function currentWorkHint(
-  rows: readonly TimelineRow[],
-  tasksBySource: ReadonlyMap<string, TimelineEntry> = new Map(),
-): string {
-  const active = rows.filter(
-    (r) =>
-      r.kind === "item" && (tasksBySource.get(r.node.entry.id) ?? r.node.entry).item.status === ItemStatus.IN_PROGRESS,
-  );
-
-  const reads = active.filter((r) => activity(r) === "read");
-  const row = active.at(-1);
-
-  if (!row || row.kind !== "item") return "Thinking…";
-
-  if (activity(row) === "read" && reads.length > 1) return `Reading ${reads.length} files…`;
-  const content = row.node.entry.item.content;
-
-  if (content.case === "commandExecution") return `Running ${content.value.command.split("\n")[0]}…`;
-
-  if (content.case === "toolCall") {
-    const look = describeTool({ ...content.value, running: true });
-
-    return `${look.title}${look.subject ? ` ${look.subject}` : ""}…`;
-  }
-
-  if (content.case === "fileChange") return `Editing ${content.value.changes.length} files…`;
-
-  if (content.case === "backgroundTask") return content.value.description || "Running a background task…";
-
-  if (content.case === "agentBusCall") return `Calling ${content.value.toolName}…`;
-
-  if (content.case === "subagent") return content.value.description || "Waiting for a subagent…";
-
-  // A message still streaming inside a collapsed fold: its text shows only once it is the answer.
-  if (content.case === "agentMessage") return "Writing…";
-
-  if (content.case === "interactionPrompt")
-    return content.value.routedTo === "parent" ? "Waiting for the parent agent…" : "Waiting for your answer…";
-
-  return "Thinking…";
-}
+const itemsOf = (rows: readonly TimelineRow[]) => rows.flatMap((r) => (r.kind === "item" ? [r.node.entry.item] : []));

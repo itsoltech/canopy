@@ -1,7 +1,7 @@
 <script lang="ts">
   import { NoticeLevel } from "@canopy/contracts";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import { humanizeEnum } from "#lib/shared/humanize.ts";
+  import { humanizeEnum } from "@canopy/domain/humanize";
   import type { TimelineNotice } from "../thread-state.svelte.ts";
 
   /** Platform or provider notice (rate limit, retry, restart, provider error). */

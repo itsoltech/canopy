@@ -1,4 +1,4 @@
-import type { ParticipantView } from "./model.ts";
+import type { ParticipantView } from "@canopy/domain/bot-chat";
 import { MentionKind, type Mention } from "@canopy/contracts";
 
 /** Explicit ids/ranges for user messages, including bots renamed or removed since sending. */

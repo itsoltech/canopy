@@ -537,6 +537,19 @@
     anchor = { key: rowKey, element, top: element.getBoundingClientRect().top - scroller.getBoundingClientRect().top };
   }
 
+  /**
+   * Keeps this row (a header the reader just opened or closed) where it is on screen: what is below it grows or
+   * shrinks, what is above stays. A reader following the end stops following, so the end does not pull it up.
+   */
+  export function keep(rowKey: string): void {
+    const element = elements.get(rowKey);
+
+    if (!scroller || !element) return;
+    stuck = false;
+    rowTarget = undefined;
+    anchor = { key: rowKey, element, top: element.getBoundingClientRect().top - scroller.getBoundingClientRect().top };
+  }
+
   function onkeydown(event: KeyboardEvent) {
     if (event.defaultPrevented) return;
 

@@ -8,7 +8,13 @@
   import type { ClassValue } from "svelte/elements";
   import { rise } from "#lib/shared/ui/motion.ts";
   import type { ExchangeSegment } from "../chat-timeline.ts";
-  import type { BotStatusView, ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
+  import type {
+    BotStatusView,
+    ChatEntry,
+    ChatMessageView,
+    ConversationView,
+    ParticipantView,
+  } from "@canopy/domain/bot-chat";
   import type { MascotState } from "../behaviour.ts";
   import { stateForStatus } from "../behaviour-math.ts";
   import type { ApprovalAnswer, ApprovalPolicy } from "./ApprovalCard.svelte";

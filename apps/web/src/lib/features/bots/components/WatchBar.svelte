@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
-  import type { BotView } from "../model.ts";
+  import type { BotView } from "@canopy/domain/bot-chat";
 
   /** Replaces the composer in a bot ⇄ bot chat: you read along (only they write here) and close it. */
   let {

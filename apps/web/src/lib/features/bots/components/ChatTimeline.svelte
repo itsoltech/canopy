@@ -3,7 +3,13 @@
   import type { ClassValue } from "svelte/elements";
   import { rise } from "#lib/shared/ui/motion.ts";
   import { layoutChat, type ExchangeSegment } from "../chat-timeline.ts";
-  import type { BotStatusView, ChatEntry, ChatMessageView, ConversationView, ParticipantView } from "../model.ts";
+  import type {
+    BotStatusView,
+    ChatEntry,
+    ChatMessageView,
+    ConversationView,
+    ParticipantView,
+  } from "@canopy/domain/bot-chat";
   import ApprovalCard, { type ApprovalAnswer, type ApprovalPolicy } from "./ApprovalCard.svelte";
   import BotStatusRow from "./BotStatusRow.svelte";
   import Button from "#lib/shared/ui/Button.svelte";

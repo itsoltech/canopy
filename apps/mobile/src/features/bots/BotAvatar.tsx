@@ -9,19 +9,35 @@ function isPaletteTone(tone: string | undefined): tone is keyof typeof palette {
 
 export function BotAvatar({ bot, size = 40 }: { bot: bots.Bot; size?: number }) {
   const config = bot.configuration;
-  const legacy = !config?.color ? mascotFor(bot.id, config?.shape) : undefined;
-  const body = legacy?.shape ?? mascotShapes.find((s) => s.id === config?.shape) ?? mascotShapes[0];
+
+  return <MascotAvatar id={bot.id} name={config?.name} shape={config?.shape} color={config?.color} size={size} />;
+}
+
+/** A bot's mascot from its shape and colour (a chat participant, the sender of a thread message). */
+export function MascotAvatar({
+  id,
+  name,
+  shape,
+  color,
+  size = 40,
+}: {
+  id: string;
+  name?: string | undefined;
+  shape?: string | undefined;
+  color?: string | undefined;
+  size?: number;
+}) {
+  const legacy = !color ? mascotFor(id, shape) : undefined;
+  const body = legacy?.shape ?? mascotShapes.find((s) => s.id === shape) ?? mascotShapes[0];
   const tone = legacy?.tone.body.split("-")[1];
 
   const fill =
-    normalizeColor(config?.color ?? "") ??
-    (isPaletteTone(tone) ? palette[tone]?.[400] : undefined) ??
-    defaultAppearance.color;
+    normalizeColor(color ?? "") ?? (isPaletteTone(tone) ? palette[tone]?.[400] : undefined) ?? defaultAppearance.color;
 
   const eyes = eyeColor(fill);
 
   return (
-    <Svg width={size} height={size} viewBox="0 0 40 40" accessibilityLabel={config?.name}>
+    <Svg width={size} height={size} viewBox="0 0 40 40" accessibilityLabel={name}>
       <Path d={body.body} fill={fill} />
       {[16, 24].map((x) =>
         legacy?.eyes === "happy" ? (

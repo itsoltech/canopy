@@ -4,7 +4,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
-  import type { ChatEntry, ChatMessageView, ConversationView } from "../model.ts";
+  import type { ChatEntry, ChatMessageView, ConversationView } from "@canopy/domain/bot-chat";
   import AvatarStack from "../components/AvatarStack.svelte";
   import BotAvatar, { type AvatarSize } from "../components/BotAvatar.svelte";
   import BotComposer from "../components/BotComposer.svelte";

@@ -1,14 +1,14 @@
 <script lang="ts">
   import { str } from "#lib/shared/json.ts";
-  import { humanizeToolName, plural } from "#lib/shared/humanize.ts";
+  import { humanizeToolName, plural } from "@canopy/domain/humanize";
   import { structure } from "#lib/shared/structure.ts";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
   import CodeView from "#lib/shared/ui/code/CodeView.svelte";
   import OutputBlock from "../OutputBlock.svelte";
   import type { ToolBodyProps } from "./body.ts";
-  import { isBusTool } from "./agent-bus.ts";
-  import { parseScriptCalls, parseScriptOutput } from "./parse.ts";
+  import { isBusTool } from "@canopy/domain/tools";
+  import { parseScriptCalls, parseScriptOutput } from "@canopy/domain/tools";
   import ResultText from "./ResultText.svelte";
   import Section from "./Section.svelte";
   import StructuredView from "./StructuredView.svelte";

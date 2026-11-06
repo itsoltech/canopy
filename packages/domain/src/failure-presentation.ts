@@ -1,4 +1,4 @@
-import { classifyFailure, type FailureCode } from "@canopy/domain";
+import { classifyFailure, type FailureCode } from "./failures.ts";
 
 const explanations: Record<FailureCode, string> = {
   auth_required: "Your provider login was rejected or has expired.",
@@ -17,6 +17,7 @@ const explanations: Record<FailureCode, string> = {
   internal: "Canopy had an internal error. Retry. If it happens again, copy the details and report them.",
 };
 
+/** How a turn or bot failure reads for people, from its message and code (web: FailureNotice, mobile: FailureNotice). */
 export function failurePresentation(message: string, code: string, proxy: boolean) {
   const kind = classifyFailure(message, code);
 

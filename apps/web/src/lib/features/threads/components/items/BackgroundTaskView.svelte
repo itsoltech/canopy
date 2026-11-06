@@ -1,7 +1,7 @@
 <script lang="ts">
   import { BackgroundTaskKind, ItemStatus, type BackgroundTask } from "@canopy/contracts";
   import Badge from "#lib/shared/ui/Badge.svelte";
-  import { humanizeEnum } from "#lib/shared/humanize.ts";
+  import { humanizeEnum } from "@canopy/domain/humanize";
   import Button from "#lib/shared/ui/Button.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import { stopBackgroundTask } from "../../api.ts";

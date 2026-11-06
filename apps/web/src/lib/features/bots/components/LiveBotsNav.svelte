@@ -8,7 +8,7 @@
   import { openBotSettings } from "../settings/open.ts";
   import { archiveBot, reportLifecycleError } from "../settings/lifecycle.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import type { ConversationView } from "../model.ts";
+  import type { ConversationView } from "@canopy/domain/bot-chat";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
   /** The Bots section of the sidebar with your real bots (pinned first), or the way to create the first one. */

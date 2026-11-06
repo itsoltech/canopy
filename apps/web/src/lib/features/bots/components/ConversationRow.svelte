@@ -7,7 +7,7 @@
   import { conversationMenu, type ConversationHandlers } from "../actions.ts";
   import { listTimeLabel } from "../chat-timeline.ts";
   import { contextMenu } from "../context-menu.ts";
-  import { conversationTitle, type ConversationView } from "../model.ts";
+  import { conversationTitle, type ConversationView } from "@canopy/domain/bot-chat";
   import BotHome from "./BotHome.svelte";
   import { useBotHome } from "../home.svelte.ts";
   import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";

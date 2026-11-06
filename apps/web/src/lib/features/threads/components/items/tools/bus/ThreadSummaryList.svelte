@@ -1,11 +1,11 @@
 <script lang="ts">
   import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";
   import type { ClassValue } from "svelte/elements";
-  import { plural } from "#lib/shared/humanize.ts";
+  import { plural } from "@canopy/domain/humanize";
   import { statusLook } from "#lib/shared/ui/status.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { useThreadDirectory } from "../../../../thread-directory.ts";
-  import type { ThreadSummary } from "../agent-bus.ts";
+  import type { ThreadSummary } from "@canopy/domain/tools";
 
   /**
    * Threads as a bus call saw them (get_thread, wait_threads, list_threads): a status dot, the title linking

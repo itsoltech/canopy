@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { humanizeEnum, isEnumToken } from "#lib/shared/humanize.ts";
+  import { humanizeEnum, isEnumToken } from "@canopy/domain/humanize";
   import type { ui } from "@canopy/contracts";
   import { Provider, ProviderProfileKind } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";

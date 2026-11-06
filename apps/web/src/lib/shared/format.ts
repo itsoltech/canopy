@@ -1,7 +1,11 @@
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
+
+export { formatBytes, formatCount, formatDuration, formatSpan, prettyJson } from "@canopy/domain/format";
+
+export { basename } from "@canopy/domain/humanize";
+
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 
-const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 /** The 12/24-hour clock of General → Time format, for any formatter that shows a time. */
@@ -12,44 +16,6 @@ export function clockOptions(): Intl.DateTimeFormatOptions {
 }
 
 const date = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
-
-/** 1234 → "1.2K". */
-export const formatCount = (value: bigint | number): string => compact.format(Number(value));
-
-/** 3500 → "3.5s", 125000 → "2m 5s". */
-export function formatDuration(ms: bigint | number): string {
-  const total = Number(ms);
-
-  if (total < 1000) return `${total}ms`;
-  const seconds = total / 1000;
-
-  if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
-  const minutes = Math.floor(seconds / 60);
-
-  return `${minutes}m ${Math.round(seconds % 60)}s`;
-}
-
-/** A span of time for "Worked for …": 12000 → "12s", 134000 → "2m 14s", 3780000 → "1h 3m" (whole units, at least 1s). */
-export function formatSpan(ms: bigint | number): string {
-  const seconds = Math.max(1, Math.floor(Number(ms) / 1000));
-
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-
-  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
-
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-
-export function formatBytes(bytes: bigint | number): string {
-  const value = Number(bytes);
-
-  if (value < 1024) return `${value} B`;
-
-  if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)} KB`;
-
-  return `${(value / 1024 ** 2).toFixed(1)} MB`;
-}
 
 /** "5 minutes ago"; `now` is passed in so callers can tick it. */
 export function formatRelative(timestamp: Timestamp | undefined, now = Date.now()): string {
@@ -126,17 +92,3 @@ export function formatDay(timestamp: Timestamp | undefined, now = new Date()): s
 
 export const isoDateTime = (timestamp: Timestamp | undefined): string =>
   timestamp ? timestampDate(timestamp).toISOString() : "";
-
-/** Pretty-prints JSON; returns the input unchanged when it is not JSON. */
-export function prettyJson(json: string): string {
-  if (!json) return "";
-
-  try {
-    return JSON.stringify(JSON.parse(json), null, 2);
-  } catch {
-    return json;
-  }
-}
-
-/** Last segment of a path in either separator style. */
-export const basename = (path: string): string => path.split(/[/\\]/).filter(Boolean).at(-1) ?? path;
