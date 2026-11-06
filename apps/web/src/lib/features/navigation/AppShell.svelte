@@ -171,9 +171,11 @@
 <ThreadActionDialogs />
 
 <!-- `data-sidebar`: whether the sidebar clears the page header from the native window controls. While the column
-     eases (`data-sidebar-settling`), the header's clearance eases with it (layout.css), so the toggle never jumps. -->
+     eases (`data-sidebar-settling`), the header's clearance eases with it (layout.css), so the toggle never jumps.
+     The shell fills the window and clips: only its own panes scroll, so nothing inside (a live region, an easing
+     panel) can give the window a page scrollbar. -->
 <div
-  class="isolate flex h-dvh bg-canvas text-ink"
+  class="relative isolate flex h-dvh overflow-clip bg-canvas text-ink"
   data-sidebar={wide.current && !sidebar.collapsed ? "shown" : "hidden"}
   data-sidebar-settling={sidebar.settling || undefined}
 >
