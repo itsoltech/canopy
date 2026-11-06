@@ -12,6 +12,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
+  import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
   import UpdatesPanel from "#lib/features/workers/UpdatesPanel.svelte";
   import CliUpdatesSummary from "#lib/features/workers/CliUpdatesSummary.svelte";
   import CliCheckSettings from "#lib/features/workers/CliCheckSettings.svelte";
@@ -88,24 +89,31 @@
     >{error || setup.error}{#snippet actions()}<Button size="sm" onclick={() => void setup.reload()}>Retry</Button
       >{/snippet}</Alert
   >{/if}
-<SettingsGroup title={records.computers.length ? "This computer" : undefined}>
-  {#each overview.ownWorkers as worker (worker.id)}<WorkerRow
-      {worker}
-      {setup}
-      {environment}
-      computer={records.computers.length ? "This computer" : undefined}
-    />
-  {:else}<SettingsRow
-      title="No workers yet"
-      description="Add a worker to run Claude, Codex or Grok on a computer you control."
-    />{/each}
+<NetworkAccessSummary
+  {network}
+  busy={network.busy}
+  onenable={() =>
+    void network
+      .update("set_enabled", { enabled: true })
+      .then(() => setup.reload())
+      .catch((e) => {
+        error = e instanceof Error ? e.message : "Could not enable network access";
+      })}
+/>
+<SettingsGroup title="This computer" cards>
+  {#each overview.ownWorkers as worker (worker.id)}<WorkerRow {worker} {setup} {environment} />
+  {:else}<SettingsCard
+      ><SettingsRow
+        title="No workers yet"
+        description="Add a worker to run Claude, Codex or Grok on a computer you control."
+      /></SettingsCard
+    >{/each}
 </SettingsGroup>
 {#each records.computers as computer (computer.nodeId)}
-  <SettingsGroup title={computer.name} description={computer.readOnly || undefined}>
+  <SettingsGroup title={computer.name} description={computer.readOnly || undefined} cards>
     {#each computer.workers as item (item.record.workerId)}<WorkerRow
         worker={item.worker}
         linked={item}
-        computer={computer.name}
         {setup}
         {environment}
         onchanged={() => void records.reload()}
@@ -126,17 +134,6 @@
     Workers from linked computers are managed in Settings → Workers on their home computer.
   </p>
 {/if}
-<NetworkAccessSummary
-  {network}
-  busy={network.busy}
-  onenable={() =>
-    void network
-      .update("set_enabled", { enabled: true })
-      .then(() => setup.reload())
-      .catch((e) => {
-        error = e instanceof Error ? e.message : "Could not enable network access";
-      })}
-/>
 <CliUpdatesSummary workers={overview.workers} />
 <SettingsGroup title="Agent CLI updates" description="Account · Workers can override this schedule."
   ><CliCheckSettings /></SettingsGroup

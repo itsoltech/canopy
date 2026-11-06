@@ -50,7 +50,7 @@ bez zmian. Opcja wyboru bez działania jest wyłączona z opisem „Soon”.
 | General / Desktop app | Quit shortcut | urządzenie, store Electron | Press twice | Tylko desktop: sposób reagowania na skrót zamykania (dwukrotne naciśnięcie, przytrzymanie, natychmiast); reset pojedynczy i całej strony General |
 | App updates / App updates | Update check frequency | urządzenie/store Electron | Every 6 hours | Rzeczywisty timer procesu main; Hourly / 6h / Daily / Weekly / Never. Never wyłącza automatyczne sprawdzanie i pobieranie, ręczne sprawdzanie działa; ostatni/następny termin i trwałość po restarcie |
 | Workers / Agent CLI updates | Agent CLI update check frequency | konto/DB | Every 6 hours | Pobieranie najnowszych wersji Claude Code, Codex i Grok przez gateway; te same interwały i Never; nigdy nie instaluje CLI |
-| Workers / Agent CLIs | CLI update checks on this worker | konto, nadpisanie workera | Use account | Efektywna częstotliwość w WorkerConfig, raporty workera i oddzielny trwały stan dostępności aktualizacji; Last checked / Next check; ręczny Check for updates działa również przy Never |
+| Workers / Agent CLIs | Update checks (rozwinięty worker) | konto, nadpisanie workera | Use account | Efektywna częstotliwość w WorkerConfig, raporty workera i oddzielny trwały stan dostępności aktualizacji; Last checked / Next check; ręczny Check for updates działa również przy Never |
 
 ## Istniejące ustawienia zachowane kontekstowo
 

@@ -37,7 +37,8 @@
 
 <div class={["grid grid-cols-1 gap-3", className]}>
   <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-    <div class="min-w-0 flex-1">
+    <!-- Stacked on phones, the copy still takes the full width so the path truncates instead of overflowing. -->
+    <div class="min-w-0 flex-1 self-stretch sm:self-auto">
       <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
         <p class="text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">
           {cliLabel(tool.provider)}

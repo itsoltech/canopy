@@ -8,6 +8,7 @@
    * One row of a settings card: title, description, and a control on the right. With `href` the whole
    * row is a link with a chevron (lists of projects, workers). With `soon` the feature behind the setting
    * does not exist yet: the title gets a "Soon" badge and the control is disabled, so the stored value stays.
+   * `flush`: no padding, for a row inside a section that pads its content already (an expanded worker).
    */
   let {
     title,
@@ -18,6 +19,7 @@
     control,
     children,
     soon = false,
+    flush = false,
   }: {
     title: string;
     description?: string | undefined;
@@ -27,6 +29,7 @@
     control?: Snippet;
     children?: Snippet;
     soon?: boolean;
+    flush?: boolean;
   } = $props();
 </script>
 
@@ -59,7 +62,8 @@
   <!-- A control stacks under the copy on phones; a row without one stays a row. -->
   <div
     class={[
-      "settings-row flex gap-3 px-4 py-3.5",
+      "settings-row flex gap-3",
+      flush ? "settings-row-flush" : "px-4 py-3.5",
       control ? "flex-col items-start sm:flex-row sm:items-center" : "items-center",
       className,
     ]}
