@@ -38,7 +38,10 @@ export function coreSettings<A, E>(
 
 export interface CoreSettingsMethods {
   settings(): Promise<ui.GetSettingsResponse>;
-  updateUserSettings(request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings>;
+  updateUserSettings(
+    request: ui.UpdateUserSettingsRequest,
+    options?: { readonly receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void> },
+  ): Promise<ui.UserSettings>;
   updateProjectSettings(request: ui.UpdateProjectSettingsRequest): Promise<ui.ProjectSettings>;
 }
 
@@ -87,7 +90,11 @@ export const coreSettingsMethods: CoreSettingsMethods = {
   },
 
   /** The sidebar width is held within its limits instead of refused (a drag past them is not an error). */
-  async updateUserSettings(this: GatewayCore, request: ui.UpdateUserSettingsRequest): Promise<ui.UserSettings> {
+  async updateUserSettings(
+    this: GatewayCore,
+    request: ui.UpdateUserSettingsRequest,
+    options?: { readonly receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void> },
+  ): Promise<ui.UserSettings> {
     validateUserSettings(request);
 
     if (request.threadDefaults) await coreCheckThreadDefaults(this, request.threadDefaults);
@@ -116,6 +123,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
           },
         }),
         expectedVersion: request.expectedVersion,
+        ...(options?.receipt && { receipt: options.receipt }),
       }),
     );
 

@@ -105,6 +105,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "91_bot_view_delta",
       "92_external_worktrees",
       "93_cli_imports",
+      "94_cli_import_library",
     ]);
   }, 60_000);
 

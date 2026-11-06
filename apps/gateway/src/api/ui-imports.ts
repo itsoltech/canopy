@@ -17,6 +17,7 @@ export function importsHandlers(
   | "resumeImportRun"
   | "undoImportRun"
   | "continueImportedThread"
+  | "listImportLibrary"
 > {
   const runs = core.imports.runs;
 
@@ -29,6 +30,7 @@ export function importsHandlers(
     cancelImportRun: (request) => guard(() => runs.cancel(request)),
     resumeImportRun: (request) => guard(() => runs.resume(request)),
     undoImportRun: (request) => guard(() => runs.undo(request)),
+    listImportLibrary: (request) => guard(() => core.imports.listLibrary(request)),
     continueImportedThread: (request) => guard(() => continueImportedThread(core.imports, request.threadId)),
   };
 }

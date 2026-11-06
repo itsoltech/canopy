@@ -6,6 +6,8 @@ import { coreLog } from "../core/core-broadcast.ts";
 import { coreState, describeError, UnavailableError } from "../core/core-context.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
 import { ensureThread, ingestPage } from "./ingest.ts";
+import { LibraryApply } from "./library-apply.ts";
+import { failLibraryItem, nextLibraryItem, type LibraryRow } from "./library-store.ts";
 import { nextItem, runs, type ItemRow } from "./store.ts";
 import {
   adoptionFailed,
@@ -43,6 +45,7 @@ export class ImportRunner {
   readonly #active = new Map<string, Promise<void>>();
   readonly #sql: <A, E>(use: (sql: import("effect/sql").SqlClient.SqlClient) => Effect.Effect<A, E>) => Promise<A>;
   #timer: ReturnType<typeof setInterval> | undefined;
+  readonly #library: LibraryApply;
   /** Soft size of one page; tests make it tiny to get one turn per page. */
   pageBytes = PAGE_BYTES;
   /** Runs before each page is asked for; tests take the worker away at an exact page with it. */
@@ -54,6 +57,7 @@ export class ImportRunner {
   ) {
     this.#core = core;
     this.#sql = sql;
+    this.#library = new LibraryApply(core);
   }
 
   start(): void {
@@ -106,12 +110,20 @@ export class ImportRunner {
       const run = (await this.#sql((sql) => runs(sql, ownerId, runId)))[0];
 
       if (!run || run.status !== "running") return;
+      // Settings and library first: they are quick, and threads may take long.
+      const setting = (await this.#sql((sql) => nextLibraryItem(sql, runId)))[0];
+
+      if (setting) {
+        if (!(await this.#applyLibrary(setting, run.worker_name))) return;
+        continue;
+      }
+
       const item = (await this.#sql((sql) => nextItem(sql, runId)))[0];
 
       if (!item) {
-        await this.#sql((sql) =>
-          runnerRunStatus(sql, runId, run.done > 0 || run.failed === 0 ? "completed" : "failed"),
-        );
+        const done = run.done + run.library_done;
+        const failed = run.failed + run.library_failed;
+        await this.#sql((sql) => runnerRunStatus(sql, runId, done > 0 || failed === 0 ? "completed" : "failed"));
 
         return;
       }
@@ -240,5 +252,29 @@ export class ImportRunner {
 
       return "";
     }
+  }
+
+  /**
+   * One setting or library item (docs/import.md, "Ustawienia i biblioteka"). False when the run pauses (the worker
+   * went away while its file was read).
+   */
+  async #applyLibrary(row: LibraryRow, workerName: string): Promise<boolean> {
+    try {
+      // The change and its receipt (what Undo needs) commit together, whatever happened to the run meanwhile.
+      await this.#library.apply(row);
+    } catch (cause) {
+      if (cause instanceof UnavailableError || !this.#core.link.connections.get(row.worker_id)?.isOpen) {
+        await this.#sql((sql) =>
+          runnerRunStatus(sql, row.run_id, "paused", `${workerName} is offline. The import continues when it is back.`),
+        );
+
+        return false;
+      }
+
+      // Only while the run is running: a cancelled run keeps its items as they are.
+      await this.#sql((sql) => failLibraryItem(sql, row, describeError(cause)));
+    }
+
+    return true;
   }
 }

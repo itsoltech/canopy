@@ -8,7 +8,11 @@ import { Journal } from "@canopy/worker/journal";
 import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
-import { installFixtureHome, type FixtureCli } from "../../../apps/worker/src/import/fixtures/install.ts";
+import {
+  installFixtureHome,
+  installLibraryFixture,
+  type FixtureCli,
+} from "../../../apps/worker/src/import/fixtures/install.ts";
 import { eventually, startTestGateway, watchUntil, type TestGateway } from "./gateway.ts";
 
 /**
@@ -26,12 +30,16 @@ export async function importFixture(
     codex?: boolean;
     /** Run threads with the fake Grok ACP agent (fixtures/instance-grok.ts). */
     grok?: boolean;
+    /** Settings and library files of the CLIs (fixtures/library). */
+    library?: boolean;
   } = {},
 ) {
   const home = join(dir, "home");
   const data = join(dir, "data");
   mkdirSync(data, { recursive: true });
   installFixtureHome(home, options.clis);
+
+  if (options.library) installLibraryFixture(home);
   const gw = options.gateway ?? (await startTestGateway());
   const trace = join(dir, "probe.jsonl");
   // In place: the fixture imports its neighbours.
@@ -101,7 +109,7 @@ export async function importFixture(
         workerId,
         host: { os: process.platform },
         homeDirectory: homedir(),
-        capabilities: ["cli_import_v1"],
+        capabilities: ["cli_import_v1", "cli_import_library_v1"],
         scratchRoot: join(data, "scratch"),
         ...(await runtime.runPromise(journalHello())),
       },

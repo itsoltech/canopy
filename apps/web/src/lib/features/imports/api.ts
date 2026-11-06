@@ -19,6 +19,13 @@ export async function listImportCandidates(
   return decode(ui.ListImportCandidatesResponseSchema, await requestJson("POST", "/api/imports/candidates", body));
 }
 
+/** Settings and library items of a scan, compared with Canopy. */
+export async function listImportLibrary(scanId: string): Promise<ui.ListImportLibraryResponse> {
+  const body = encode(ui.ListImportLibraryRequestSchema, create(ui.ListImportLibraryRequestSchema, { scanId }));
+
+  return decode(ui.ListImportLibraryResponseSchema, await requestJson("POST", "/api/imports/library", body));
+}
+
 export async function startImport(
   request: MessageInitShape<typeof ui.StartImportRequestSchema>,
 ): Promise<ui.ImportRun> {

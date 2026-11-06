@@ -4,6 +4,8 @@
  * masker replaces their union. No regular expression here can backtrack: every input costs time in its length.
  */
 
+import { urlCredentialSpans } from "./url-masking.ts";
+
 export type Span = readonly [start: number, end: number];
 
 /** Many fixed strings, found in one pass: at each position the longest value that ends there. */
@@ -220,8 +222,8 @@ export function pems(text: string, found: Span[]): void {
   if (open !== undefined) found.push([open, text.length]);
 }
 
-/** Token formats in one pass over runs of token characters, plus private key blocks. */
-export function tokenSpans(text: string): Span[] {
+/** Token formats in one pass over runs of token characters, plus private key blocks and URL credentials. */
+export function tokenSpans(text: string, sensitive: (value: string) => boolean = () => false): Span[] {
   const found: Span[] = [];
   let i = 0;
 
@@ -259,6 +261,7 @@ export function tokenSpans(text: string): Span[] {
   }
 
   pems(text, found);
+  found.push(...urlCredentialSpans(text, sensitive));
 
   return found;
 }

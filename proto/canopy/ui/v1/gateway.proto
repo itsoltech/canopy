@@ -248,6 +248,8 @@ service GatewayService {
   // Usuwa wątki utworzone przez import i ich kopie na workerze.
   rpc UndoImportRun(ImportRunRequest) returns (ImportRun);
   rpc ContinueImportedThread(ContinueImportedThreadRequest) returns (GetThreadResponse);
+  // Ustawienia i biblioteka ze skanu (stos B): lista z porównaniem do Canopy.
+  rpc ListImportLibrary(ListImportLibraryRequest) returns (ListImportLibraryResponse);
 }
 
 // ---------- Model ----------

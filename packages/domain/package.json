@@ -21,6 +21,7 @@
     "./projects": "./src/projects.ts",
     "./git-heads": "./src/git-heads.ts",
     "./json": "./src/json.ts",
+    "./import-url": "./src/import-url.ts",
     "./notice-preview": "./src/notice-preview.ts",
     "./oauth-return": "./src/oauth-return.ts",
     "./agent-environment": "./src/agent-environment.ts",

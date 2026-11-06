@@ -86,9 +86,11 @@ export class EnvironmentDatabase {
     return result.success;
   }
 
+  /** `receipt` runs last in the same transaction (an import records what it changed, docs/import.md "Blokady"). */
   mutate<A, E>(
     expected: bigint,
     action: (sql: SqlClient.SqlClient, next: bigint) => Effect.Effect<A, E, SqlClient.SqlClient>,
+    receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>,
   ): Promise<A> {
     const owner = this.owner;
 
@@ -115,6 +117,8 @@ export class EnvironmentDatabase {
             const next = current + 1n;
             const result = yield* action(sql, next);
             yield* sql`UPDATE agent_environments SET revision = ${next} WHERE owner_user_id = ${owner}::uuid`;
+
+            if (receipt) yield* receipt(sql);
 
             return result;
           }),

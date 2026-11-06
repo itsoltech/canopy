@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/worker/v1/cli_import.proto.
  */
 export const file_canopy_worker_v1_cli_import: GenFile = /*@__PURE__*/
-  fileDesc("CiFjYW5vcHkvd29ya2VyL3YxL2NsaV9pbXBvcnQucHJvdG8SEGNhbm9weS53b3JrZXIudjEiJwoRU2NhbkltcG9ydFNvdXJjZXMSEgoKYWdlbnRfY2xpcxgBIAMoCSJfCgpJbXBvcnRSb290EgoKAmlkGAEgASgJEhEKCWFnZW50X2NsaRgCIAEoCRIMCgRwYXRoGAMgASgJEhMKC2NsaV92ZXJzaW9uGAQgASgJEg8KB3Byb2JsZW0YBSABKAkifwoOSW1wb3J0U25hcHNob3QSDAoEc2l6ZRgBIAEoBBITCgttb2RpZmllZF9tcxgCIAEoAxIVCg1wcmVmaXhfc2hhMjU2GAMgASgJEhQKDGhpc3Rvcnlfc2l6ZRgEIAEoBBIdChVoaXN0b3J5X3ByZWZpeF9zaGEyNTYYBSABKAki8wMKE0ltcG9ydFRocmVhZFN1bW1hcnkSEgoKc291cmNlX2tleRgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSEQoJbmF0aXZlX2lkGAMgASgJEg8KB3Jvb3RfaWQYBCABKAkSCwoDY3dkGAUgASgJEhIKCmN3ZF9leGlzdHMYBiABKAgSDQoFdGl0bGUYByABKAkSDwoHcHJldmlldxgIIAEoCRIuCgpzdGFydGVkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVieXRlcxgLIAEoBBINCgV0dXJucxgMIAEoDRIOCgZvcmlnaW4YDSABKAkSEwoLY2xpX3ZlcnNpb24YDiABKAkSDgoGZm9ybWF0GA8gASgJEhgKEHBhcmVudF9uYXRpdmVfaWQYECABKAkSEAoIc3ViYWdlbnQYESABKAgSFwoPZmxhZ2dlZF9zZWNyZXRzGBIgASgNEhIKCmdpdF9icmFuY2gYEyABKAkSMgoIc25hcHNob3QYFCABKAsyIC5jYW5vcHkud29ya2VyLnYxLkltcG9ydFNuYXBzaG90EhAKCGFyY2hpdmVkGBUgASgIIpUBCgpJbXBvcnRTY2FuEisKBXJvb3RzGAEgAygLMhwuY2Fub3B5Lndvcmtlci52MS5JbXBvcnRSb290EjYKB3RocmVhZHMYAiADKAsyJS5jYW5vcHkud29ya2VyLnYxLkltcG9ydFRocmVhZFN1bW1hcnkSEQoJdHJ1bmNhdGVkGAMgASgIEg8KB3NraXBwZWQYBCABKA1iBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("CiFjYW5vcHkvd29ya2VyL3YxL2NsaV9pbXBvcnQucHJvdG8SEGNhbm9weS53b3JrZXIudjEiJwoRU2NhbkltcG9ydFNvdXJjZXMSEgoKYWdlbnRfY2xpcxgBIAMoCSJfCgpJbXBvcnRSb290EgoKAmlkGAEgASgJEhEKCWFnZW50X2NsaRgCIAEoCRIMCgRwYXRoGAMgASgJEhMKC2NsaV92ZXJzaW9uGAQgASgJEg8KB3Byb2JsZW0YBSABKAkifwoOSW1wb3J0U25hcHNob3QSDAoEc2l6ZRgBIAEoBBITCgttb2RpZmllZF9tcxgCIAEoAxIVCg1wcmVmaXhfc2hhMjU2GAMgASgJEhQKDGhpc3Rvcnlfc2l6ZRgEIAEoBBIdChVoaXN0b3J5X3ByZWZpeF9zaGEyNTYYBSABKAki8wMKE0ltcG9ydFRocmVhZFN1bW1hcnkSEgoKc291cmNlX2tleRgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSEQoJbmF0aXZlX2lkGAMgASgJEg8KB3Jvb3RfaWQYBCABKAkSCwoDY3dkGAUgASgJEhIKCmN3ZF9leGlzdHMYBiABKAgSDQoFdGl0bGUYByABKAkSDwoHcHJldmlldxgIIAEoCRIuCgpzdGFydGVkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVieXRlcxgLIAEoBBINCgV0dXJucxgMIAEoDRIOCgZvcmlnaW4YDSABKAkSEwoLY2xpX3ZlcnNpb24YDiABKAkSDgoGZm9ybWF0GA8gASgJEhgKEHBhcmVudF9uYXRpdmVfaWQYECABKAkSEAoIc3ViYWdlbnQYESABKAgSFwoPZmxhZ2dlZF9zZWNyZXRzGBIgASgNEhIKCmdpdF9icmFuY2gYEyABKAkSMgoIc25hcHNob3QYFCABKAsyIC5jYW5vcHkud29ya2VyLnYxLkltcG9ydFNuYXBzaG90EhAKCGFyY2hpdmVkGBUgASgIIssBCgpJbXBvcnRTY2FuEisKBXJvb3RzGAEgAygLMhwuY2Fub3B5Lndvcmtlci52MS5JbXBvcnRSb290EjYKB3RocmVhZHMYAiADKAsyJS5jYW5vcHkud29ya2VyLnYxLkltcG9ydFRocmVhZFN1bW1hcnkSEQoJdHJ1bmNhdGVkGAMgASgIEg8KB3NraXBwZWQYBCABKA0SNAoHbGlicmFyeRgFIAMoCzIjLmNhbm9weS53b3JrZXIudjEuSW1wb3J0TGlicmFyeUl0ZW0ixwEKEUltcG9ydExpYnJhcnlJdGVtEhIKCnNvdXJjZV9rZXkYASABKAkSEQoJYWdlbnRfY2xpGAIgASgJEg8KB3Jvb3RfaWQYAyABKAkSDAoEa2luZBgEIAEoCRIMCgRuYW1lGAUgASgJEg0KBXZhbHVlGAYgASgJEg4KBmRldGFpbBgHIAEoCRIOCgZkaWdlc3QYCCABKAkSDQoFYnl0ZXMYCSABKAQSDgoGcmVhc29uGAogASgJEhAKCHdhcm5pbmdzGAsgAygJIjsKFVJlYWRJbXBvcnRMaWJyYXJ5SXRlbRISCgpzb3VyY2Vfa2V5GAEgASgJEg4KBmRpZ2VzdBgCIAEoCSI0ChRJbXBvcnRMaWJyYXJ5Q29udGVudBIMCgR0ZXh0GAEgASgJEg4KBmRpZ2VzdBgCIAEoCWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message canopy.worker.v1.ScanImportSources
@@ -282,6 +282,13 @@ export type ImportScan = Message<"canopy.worker.v1.ImportScan"> & {
    * @generated from field: uint32 skipped = 4;
    */
   skipped: number;
+
+  /**
+   * Ustawienia i biblioteka CLI (cli_import_library_v1); starszy worker zostawia puste.
+   *
+   * @generated from field: repeated canopy.worker.v1.ImportLibraryItem library = 5;
+   */
+  library: ImportLibraryItem[];
 };
 
 /**
@@ -290,4 +297,134 @@ export type ImportScan = Message<"canopy.worker.v1.ImportScan"> & {
  */
 export const ImportScanSchema: GenMessage<ImportScan> = /*@__PURE__*/
   messageDesc(file_canopy_worker_v1_cli_import, 4);
+
+/**
+ * Ustawienie, dokument instrukcji, skill albo inna pozycja konfiguracji CLI. Bez sekretów: wartość
+ * ustawienia to nazwa modelu albo tryb uprawnień, treść dokumentu czyta dopiero ReadImportLibraryItem.
+ *
+ * @generated from message canopy.worker.v1.ImportLibraryItem
+ */
+export type ImportLibraryItem = Message<"canopy.worker.v1.ImportLibraryItem"> & {
+  /**
+   * Podpisany przez workera; wskazuje wyłącznie stałe miejsca konfiguracji CLI w jego katalogu.
+   *
+   * @generated from field: string source_key = 1;
+   */
+  sourceKey: string;
+
+  /**
+   * @generated from field: string agent_cli = 2;
+   */
+  agentCli: string;
+
+  /**
+   * @generated from field: string root_id = 3;
+   */
+  rootId: string;
+
+  /**
+   * setting | instruction
+   *
+   * @generated from field: string kind = 4;
+   */
+  kind: string;
+
+  /**
+   * Stała nazwa w katalogu CLI: model, permissions, CLAUDE.md, AGENTS.md.
+   *
+   * @generated from field: string name = 5;
+   */
+  name: string;
+
+  /**
+   * setting: wartość w Canopy (id modelu; ask | accept_edits | read_only | full_auto); pusta, gdy brak odpowiednika.
+   *
+   * @generated from field: string value = 6;
+   */
+  value: string;
+
+  /**
+   * Co zapisało CLI (np. bypassPermissions albo nazwa pliku); do wyświetlenia.
+   *
+   * @generated from field: string detail = 7;
+   */
+  detail: string;
+
+  /**
+   * sha256 treści (dokument) albo wartości (ustawienie).
+   *
+   * @generated from field: string digest = 8;
+   */
+  digest: string;
+
+  /**
+   * @generated from field: uint64 bytes = 9;
+   */
+  bytes: bigint;
+
+  /**
+   * Pusty = można importować; inaczej jednozdaniowy powód.
+   *
+   * @generated from field: string reason = 10;
+   */
+  reason: string;
+
+  /**
+   * @generated from field: repeated string warnings = 11;
+   */
+  warnings: string[];
+};
+
+/**
+ * Describes the message canopy.worker.v1.ImportLibraryItem.
+ * Use `create(ImportLibraryItemSchema)` to create a new message.
+ */
+export const ImportLibraryItemSchema: GenMessage<ImportLibraryItem> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_cli_import, 5);
+
+/**
+ * Treść jednej pozycji biblioteki, po maskowaniu sekretów. digest z ImportLibraryItem: zmieniony plik = błąd.
+ *
+ * @generated from message canopy.worker.v1.ReadImportLibraryItem
+ */
+export type ReadImportLibraryItem = Message<"canopy.worker.v1.ReadImportLibraryItem"> & {
+  /**
+   * @generated from field: string source_key = 1;
+   */
+  sourceKey: string;
+
+  /**
+   * @generated from field: string digest = 2;
+   */
+  digest: string;
+};
+
+/**
+ * Describes the message canopy.worker.v1.ReadImportLibraryItem.
+ * Use `create(ReadImportLibraryItemSchema)` to create a new message.
+ */
+export const ReadImportLibraryItemSchema: GenMessage<ReadImportLibraryItem> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_cli_import, 6);
+
+/**
+ * @generated from message canopy.worker.v1.ImportLibraryContent
+ */
+export type ImportLibraryContent = Message<"canopy.worker.v1.ImportLibraryContent"> & {
+  /**
+   * @generated from field: string text = 1;
+   */
+  text: string;
+
+  /**
+   * @generated from field: string digest = 2;
+   */
+  digest: string;
+};
+
+/**
+ * Describes the message canopy.worker.v1.ImportLibraryContent.
+ * Use `create(ImportLibraryContentSchema)` to create a new message.
+ */
+export const ImportLibraryContentSchema: GenMessage<ImportLibraryContent> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_cli_import, 7);
 

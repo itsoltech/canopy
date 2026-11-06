@@ -59,3 +59,8 @@ export function treeFingerprint(dir: string): string {
 
   return hash.digest("hex");
 }
+
+/** Settings and library files of the three CLIs (`library/`, written by hand after their documented formats). */
+export function installLibraryFixture(home: string): void {
+  cpSync(join(import.meta.dir, "library"), home, { recursive: true });
+}

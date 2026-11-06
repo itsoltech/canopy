@@ -93,7 +93,10 @@ export class Masker {
 
   /** Where secrets are in the text (known values and token formats), merged. */
   spans(text: string): Span[] {
-    return mergeSpans([...this.#exact.spans(text), ...tokenSpans(text)]);
+    return mergeSpans([
+      ...this.#exact.spans(text),
+      ...tokenSpans(text, (value) => this.#exact.spans(value).length > 0 || tokenSpans(value).length > 0),
+    ]);
   }
 
   /**
@@ -132,7 +135,7 @@ export class Masker {
 
       if (decoded === view) return true;
 
-      if (this.#exact.spans(decoded).length > 0 || tokenSpans(decoded).length > 0) return false;
+      if (this.spans(decoded).length > 0) return false;
       view = decoded;
     }
 
@@ -351,7 +354,7 @@ export function maskedRecord(
 
 /** Secret values the worker can read for these roots, plus extra values (instance environment). */
 export function loadMasker(roots: readonly ImportRootPath[], extra: Iterable<string>, userHome: string): Masker {
-  const values = new Set<string>(extra);
+  const values = new Set<string>([...extra].flatMap(credentialForms));
 
   for (const root of roots) {
     for (const file of SECRET_FILES[root.agentCli])
@@ -387,9 +390,33 @@ const SENSITIVE_KEY = /env|header|token|secret|key|auth|password|credential|bear
 /** Settings that hold the name of a variable, not its value (Codex env_key, bearer_token_env_var, env_vars). */
 const VARIABLE_NAME_KEY = /(?:^|_)env_(?:key|var|vars)$|^env_vars$/i;
 
+/** Prefixes a stored credential may carry (`Bearer <token>`, `Basic <base64>`): the bare value counts too. */
+const SCHEME = /^\s*(?:bearer|basic|token|apikey|api-key)\s+(.+)$/i;
+
+/** A credential as stored and its bare forms: without quotes, without its scheme, Basic user:password and password. */
+export function credentialForms(value: string): string[] {
+  const forms = [value];
+  const unquoted = value.trim().replace(/^(["'`])(.*)\1$/s, "$2");
+  forms.push(unquoted);
+  const bare = SCHEME.exec(unquoted)?.[1]?.trim();
+
+  if (bare) {
+    forms.push(bare);
+
+    if (/^basic\s/i.test(unquoted) && /^[A-Za-z0-9+/=]+$/.test(bare)) {
+      const decoded = Buffer.from(bare, "base64").toString("utf8");
+      const colon = decoded.indexOf(":");
+
+      if (colon >= 0) forms.push(decoded, decoded.slice(colon + 1));
+    }
+  }
+
+  return forms;
+}
+
 function walk(value: JsonValue | undefined, sensitive: boolean, into: Set<string>): void {
   if (isString(value)) {
-    if (sensitive) into.add(value);
+    if (sensitive) for (const form of credentialForms(value)) into.add(form);
 
     return;
   }

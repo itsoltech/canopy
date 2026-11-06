@@ -46,6 +46,7 @@ export interface CommandOutput {
   readonly importScan?: MessageInitShape<typeof CommandResultSchema>["importScan"];
   readonly importPage?: MessageInitShape<typeof CommandResultSchema>["importPage"];
   readonly importedSessionId?: string;
+  readonly importLibraryContent?: MessageInitShape<typeof CommandResultSchema>["importLibraryContent"];
 }
 
 export interface WorkerHostOptions {
