@@ -594,7 +594,7 @@
       <Alert tone="info" banner>{view.failure ?? "Reconnecting to live updates…"}</Alert>
     {/if}
 
-    <div class={["relative min-h-0 flex-1", turnsOnRail.length >= 3 && "md:pl-9"]} bind:this={feedRegion}>
+    <div class="relative min-h-0 flex-1 md:pl-9" bind:this={feedRegion}>
       {#key threadId}
         {#if turnsOnRail.length >= 3}
           <div class="absolute inset-y-6 left-1 z-20 w-8 max-md:hidden">
