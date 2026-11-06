@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Platform, Text, View } from "react-native";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
@@ -9,7 +9,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { applyThread } from "../../api/thread";
 import { useSession } from "../../state/session";
-import { useStream } from "../../state/stream";
+import { useThreadSnapshot } from "../../state/thread";
 import { ConnectionNotice, LatestButton, Notice } from "../../ui/components";
 import { TimelineTurn } from "../../ui/timeline";
 import { styles, useColors } from "../../ui/theme";
@@ -29,10 +29,14 @@ import { useAppearance } from "../../state/appearance";
 
 function visibleTurns(snapshot: ui.ThreadSnapshot | undefined) {
   const turns = snapshot?.turns.filter((t) => !t.withdrawn).slice() ?? [];
+  const known = new Set(turns.map((turn) => `${turn.fromThreadId}:${turn.id}`));
 
   // Provider-origin events can arrive before a turn update. Keep those entries visible.
   for (const item of snapshot?.items ?? []) {
-    if (!turns.some((t) => t.id === item.turnId && t.fromThreadId === item.fromThreadId)) {
+    const key = `${item.fromThreadId}:${item.turnId}`;
+
+    if (!known.has(key)) {
+      known.add(key);
       turns.push(
         create(ui.TurnSchema, {
           id: item.turnId,
@@ -56,7 +60,7 @@ function deliveryError(failure: ConnectError) {
 
 function useThreadState(id: string) {
   const { session, client, ready, online, expired } = useSession();
-  const [snapshot, setSnapshot] = useState<ui.ThreadSnapshot>();
+  const { snapshot, setSnapshot, stream } = useThreadSnapshot(id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const following = useFollowingList<ui.Turn>();
@@ -79,17 +83,11 @@ function useThreadState(id: string) {
     return () => requestController.current.abort();
   }, [id, client]);
 
-  const stream = useStream(
-    client ? (signal) => client.api.watchThread({ threadId: id }, { signal }) : null,
-    (update: ui.ThreadUpdate) => setSnapshot((s) => applyThread(s, update)),
-    `${session?.deviceId}:${id}`,
-  );
-
-  const thread = snapshot?.thread;
+  const thread = snapshot?.thread ?? threads.find((t) => t.id === id);
   const worker = workers.find((w) => w.id === thread?.workerId);
   const subagents = threads.filter((t) => t.parentThreadId === id && !t.archivedAt && !t.deletedAt);
   const interactions = snapshot?.interactions.filter((i) => i.status === "pending") ?? [];
-  const turns = visibleTurns(snapshot);
+  const turns = useMemo(() => visibleTurns(snapshot), [snapshot]);
 
   async function send(requested: ui.MessageDelivery) {
     const outgoing = message.outgoing();
@@ -288,6 +286,7 @@ export function ThreadScreen({ id }: { id: string }) {
 }
 
 function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> }) {
+  const c = useColors();
   const { appearance } = useAppearance();
 
   const maxWidth =
@@ -295,6 +294,19 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
 
   const { turns, following, stream, snapshot } = state;
   const latestFirst = [...turns].reverse();
+
+  const entries = useMemo(() => {
+    const grouped = new Map<string, ui.TimelineItem[]>();
+
+    for (const item of snapshot?.items ?? []) {
+      const key = `${item.fromThreadId}:${item.turnId}`;
+      const group = grouped.get(key) ?? [];
+      group.push(item);
+      grouped.set(key, group);
+    }
+
+    return grouped;
+  }, [snapshot?.items]);
 
   return (
     <FlatList
@@ -308,7 +320,7 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
       // Inverted: the footer is the top of the feed, the header sits under the latest turn.
       ListFooterComponent={
         <View style={{ gap: 16, paddingBottom: 16 }}>
-          {(snapshot || stream.connection !== "connecting") && <ConnectionNotice {...stream} />}
+          {stream.connection === "error" || stream.connection === "offline" ? <ConnectionNotice {...stream} /> : null}
           {!snapshot && <ConversationSkeleton />}
           {snapshot && !turns.length && <Notice>This thread is ready for your first message.</Notice>}
         </View>
@@ -316,12 +328,15 @@ function ThreadTimeline({ state }: { state: ReturnType<typeof useThreadState> })
       renderItem={({ item }) => (
         <TimelineTurn
           turn={item}
-          entries={snapshot?.items.filter((i) => i.turnId === item.id && i.fromThreadId === item.fromThreadId) ?? []}
+          entries={entries.get(`${item.fromThreadId}:${item.id}`) ?? []}
           onQueued={(turn) => state.setQueued({ turn, editing: false })}
         />
       )}
       ListHeaderComponent={
         <View style={{ gap: 12 }}>
+          <Text accessibilityLiveRegion="polite" style={[styles.caption, { color: c.muted, height: 20 }]}>
+            {snapshot && stream.connection !== "live" ? "Syncing…" : ""}
+          </Text>
           {snapshot?.steers
             .filter((s) => ["pending", "accepted"].includes(s.status))
             .map((s) => (

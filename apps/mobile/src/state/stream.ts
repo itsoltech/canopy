@@ -2,12 +2,12 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useSession } from "./session";
 
-export type Connection = "connecting" | "live" | "reconnecting" | "offline" | "paused" | "error";
+export type Connection = "connecting" | "syncing" | "live" | "reconnecting" | "offline" | "paused" | "error";
 
 /** Backoff with jitter, fresh snapshots, cancellation, and foreground/network resubscription. */
 export function useStream<T>(
   watch: ((signal: AbortSignal) => AsyncIterable<T>) | null,
-  receive: (value: T) => void,
+  receive: (value: T) => void | boolean,
   key: string,
 ) {
   const { active, online, expired } = useSession();
@@ -37,9 +37,9 @@ export function useStream<T>(
         try {
           for await (const value of start(controller.signal)) {
             if (controller.signal.aborted) return;
-            setState({ key: subscriptionKey, connection: "live" });
+            const live = onReceive(value) !== false;
+            setState({ key: subscriptionKey, connection: live ? "live" : "syncing" });
             failures = 0;
-            onReceive(value);
           }
         } catch (error) {
           if (controller.signal.aborted) return;

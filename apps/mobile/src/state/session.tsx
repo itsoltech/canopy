@@ -4,10 +4,13 @@ import { useNetworkState } from "expo-network";
 import { routedMobileClient } from "../api/routes";
 import { pinnedTransport } from "../api/pinned";
 import { SessionPersistence, type DeviceSession } from "../storage/session";
+import { prepareThreadCache } from "../storage/thread-cache-native";
+import { clearPairingCache, type PersistentThreadCache } from "../storage/thread-cache";
 
 function useSessionState() {
   const [session, setSession] = useState<DeviceSession | null>(null);
   const [ready, setReady] = useState(false);
+  const [threadCache, setThreadCache] = useState<PersistentThreadCache | null>(null);
   const [error, setError] = useState("");
   const [persistence] = useState(() => new SessionPersistence());
   const [active, setActive] = useState(AppState.currentState !== "background");
@@ -15,7 +18,10 @@ function useSessionState() {
   useEffect(() => {
     void persistence
       .load()
-      .then(setSession)
+      .then(async (value) => {
+        setThreadCache(await prepareThreadCache(value));
+        setSession(value);
+      })
       .catch((cause) =>
         setError(cause instanceof Error ? cause.message : "Could not read secure storage. Pair this phone again."),
       )
@@ -47,30 +53,35 @@ function useSessionState() {
   return {
     session,
     client,
+    threadCache,
     ready,
     error,
     active,
     // A private tailnet gateway may be reachable even when public internet probes fail.
     online: network.isConnected !== false,
     async pair(value: DeviceSession) {
+      await threadCache?.close();
+      const cache = await prepareThreadCache(value);
       await persistence.save(value);
+      setThreadCache(cache);
       setSession(value);
       setError("");
     },
     async forget() {
-      await persistence.forget();
+      const cleared = await clearPairingCache(threadCache, () => persistence.forget());
+      setThreadCache(null);
       setSession(null);
-      setError("");
+      setError(cleared ? "" : "Could not clear local storage. Clear Canopy’s app data before pairing again.");
     },
     async expired() {
-      try {
-        await persistence.forget();
-      } catch {
-        /* The revoked credential cannot authorize another RPC. */
-      }
-
+      const cleared = await clearPairingCache(threadCache, () => persistence.forget());
+      setThreadCache(null);
       setSession(null);
-      setError("This device was revoked. Pair it again in web Settings.");
+      setError(
+        !cleared
+          ? "This device was revoked. Could not clear local storage. Clear Canopy’s app data before pairing again."
+          : "This device was revoked. Pair it again in web Settings.",
+      );
     },
   };
 }

@@ -1,0 +1,79 @@
+import { useEffect, useRef, useState } from "react";
+import type { ui } from "@canopy/contracts";
+import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
+import { useSession } from "./session";
+import { useStream } from "./stream";
+
+/** Read the durable base before subscribing; every retry uses the latest atomic checkpoint. */
+export function useThreadSnapshot(id: string) {
+  const { client, session, threadCache, active } = useSession();
+  const [snapshot, setSnapshot] = useState(() => threadCache?.peek(id));
+  const current = useRef(snapshot);
+  const saving = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void (threadCache?.load(id) ?? Promise.resolve(undefined))
+      .catch(() => undefined)
+      .then((cached) => {
+        if (cancelled) return;
+        current.current = cached ?? current.current;
+        setSnapshot(current.current);
+        setLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, threadCache]);
+
+  const stream = useStream(
+    client && loaded
+      ? (signal) =>
+          client.api.watchThread({ threadId: id, incremental: true, cursor: current.current?.cursor ?? "" }, { signal })
+      : null,
+    (update: ui.ThreadUpdate) => {
+      try {
+        current.current = applyThreadUpdate(current.current, update);
+      } catch {
+        if (current.current) current.current = { ...current.current, cursor: "" };
+        throw new Error("Thread resynchronization required");
+      }
+
+      setSnapshot(current.current);
+
+      return !update.syncing;
+    },
+    `${session?.deviceId}:${id}`,
+  );
+
+  useEffect(() => {
+    if (!snapshot || !threadCache || saving.current) return;
+    saving.current = setTimeout(() => {
+      saving.current = undefined;
+
+      if (current.current) void threadCache.save(current.current).catch(() => {});
+    }, 2000);
+  }, [snapshot, threadCache]);
+  useEffect(() => {
+    const save = () => {
+      clearTimeout(saving.current);
+      saving.current = undefined;
+
+      if (current.current) void threadCache?.save(current.current).catch(() => {});
+    };
+
+    if (!active) save();
+
+    return save;
+  }, [active, threadCache]);
+
+  return {
+    snapshot,
+    stream,
+    setSnapshot(update: (previous: ui.ThreadSnapshot | undefined) => ui.ThreadSnapshot | undefined) {
+      current.current = update(current.current);
+      setSnapshot(current.current);
+    },
+  };
+}
