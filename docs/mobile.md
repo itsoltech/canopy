@@ -285,7 +285,10 @@ New thread, Pair) i `Overlay` nie używają `KeyboardAvoidingView`: `ui/Keyboard
 ile klawiatura zasłania od dołu okna (wysokość okna minus jej `screenY`; na Androidzie `height`
 pomija pasek nawigacji pod nią). Przy otwartej klawiaturze dół kompozytora leży na niej, przy
 zamkniętej zostaje dolny inset safe area; SafeAreaView tych ekranów pomija dolną krawędź. Jasny/ciemny motyw
-oraz sześć akcentów są ustawieniami gatewaya, synchronizowanymi między klientami.
+oraz niezależne palety Light/Dark są ustawieniami gatewaya, synchronizowanymi między klientami.
+Settings korzysta ze wspólnych tokenów tematów Birch, Fern, Lagoon, Cedar, Heather,
+Blossom i Ash. Preferencje urządzenia (typografia, kontrast, diffy i format czasu)
+pozostają w SecureStore telefonu i nie zmieniają preferencji przeglądarki.
 Na wąskim oknie sidebar jest natywnym ekranem listy (stos lista → wątek); web na telefonie
 otwiera go jako drawer. Od 600 dp szerokości okna (klasa large screen Androida: tablety,
 rozłożony foldable, telefon w poziomie) lista zostaje obok otwartego wątku lub czatu, jak
@@ -368,10 +371,20 @@ domyślny workspace, agenta i uprawnienia.
 Są tworzenie wątku, rename/archive/unread, wyszukiwanie treści, zwinięta praca/narzędzia,
 subagents i panel worker/cwd/model/status/schedules/lineage/connectors.
 
-Settings ma kolejność web: Appearance, Threads, Text generation, Scheduled tasks,
-Projects, Providers, Connectors, Workers, Devices. Edytowalne są Appearance,
-running delivery i instrukcje tytułów; pozostałe sekcje prezentują dane i odsyłają do web
-po zarządzanie. Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
+Settings używa rejestru sekcji web, z General, Keybindings, Diffs, Agent environment,
+Proxies, Network access i capability-gated Linked computers. Na telefonie otwiera
+listę sekcji i osobny ekran; od 600 dp pokazuje listę obok treści. Zmiany konta zapisuje
+bezpośrednio przez owner-scoped GatewayService. Formularze obejmują projekty/workspace'y,
+harmonogramy, polityki worktree, instrukcje/skille/pluginy, instancje dostawców, proxy,
+konektory, workery, urządzenia i połączone komputery. Zapis używa wersji/revizji gatewaya;
+po konflikcie odświeża dane i zachowuje szkic do poprawienia. Sekrety połączeń pozostają
+write-only; UI pokazuje obecność i pozwala zastąpić/usunąć wartość. Plugin wymaga osobnego
+potwierdzenia dokładnego checksumu. Rozwiązywanie driftu używa obejrzanego checksumu.
+Keybindings jest wyszukiwalną referencją dla klawiatur sprzętowych, bez edycji skrótów
+przeglądarki. Kontrolki lokalnego procesu Electron i jego updatera są ukryte jak w web
+remote; aktualizacje gatewaya/workera pozostają w Workers. Powiadomienia systemowe są
+oznaczone jako niedostępne w tym buildzie, bez pozornego przełącznika push.
+Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
 listę, czat ze streamem, wysyłanie/stop, karty pytań/zgód z odpowiedziami oraz sheet
 szczegółów/routines/reminders (zarządzanie w web). Lista botów odświeża się co 10 sekund.
 Brak push i trwałego offline cache. To pierwsza iteracja zgodności z web,
