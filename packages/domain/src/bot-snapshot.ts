@@ -1,6 +1,9 @@
 import { bots } from "@canopy/contracts";
 
-type History = Pick<bots.BotConversation, "messages" | "cursor" | "baseCursor" | "delta" | "removedMessageIds">;
+type History = Pick<
+  bots.BotConversation,
+  "messages" | "cursor" | "baseCursor" | "delta" | "removedMessageIds" | "historyBeforeSeq" | "historyHasMore"
+>;
 
 /** Atomic cursor validation comes before merging: a missed checkpoint must reopen without a cursor. */
 function merge(previous: History | undefined, next: History) {
@@ -13,9 +16,11 @@ function merge(previous: History | undefined, next: History) {
 
   if (!next.messages.length && messages.length === previous.messages.length) return previous.messages;
 
-  return [...messages, ...next.messages].sort((a, b) =>
-    a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : a.id.localeCompare(b.id),
-  );
+  const loaded = previous.historyHasMore
+    ? next.messages.filter((message) => message.seq >= previous.historyBeforeSeq)
+    : next.messages;
+
+  return [...messages, ...loaded].sort((a, b) => (a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : a.id.localeCompare(b.id)));
 }
 
 export function applyBotConversation(
@@ -37,6 +42,8 @@ export function applyBotConversation(
     baseCursor: "",
     removedMessageIds: [],
     controlsUnchanged: false,
+    historyBeforeSeq: next.delta ? previous!.historyBeforeSeq : next.historyBeforeSeq,
+    historyHasMore: next.delta ? previous!.historyHasMore : next.historyHasMore,
   };
 }
 
@@ -57,6 +64,8 @@ export function applyBotExchange(
     delta: false,
     baseCursor: "",
     removedMessageIds: [],
+    historyBeforeSeq: next.delta ? previous!.historyBeforeSeq : next.historyBeforeSeq,
+    historyHasMore: next.delta ? previous!.historyHasMore : next.historyHasMore,
   };
 }
 

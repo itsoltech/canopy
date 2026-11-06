@@ -995,11 +995,22 @@ message WatchThreadRequest {
   // UI cache checkpoint. Ignored unless incremental is true; unsupported peers send snapshots.
   string cursor = 801;
   bool incremental = 802;
+  // Opt-in tail paging. Zero preserves the legacy full-history watch.
+  uint32 page_size = 803;
+  string before_turn_id = 804;
+  string target_item_id = 805;
+  // A page must belong to the same fork/move history as the held window.
+  string history_version = 806;
 }
 
 message ThreadSnapshot {
   // Owner journal checkpoint read atomically with history. Empty on older gateways.
   string cursor = 800;
+  string history_before_turn_id = 803;
+  bool history_has_more = 804;
+  string history_version = 805;
+  // Older-page requests whose history changed return a fresh tail instead.
+  bool history_reset = 806;
   repeated ThreadSecret secrets = 500;
   Thread thread = 1;
   repeated Turn turns = 2;

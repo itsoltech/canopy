@@ -12,6 +12,7 @@ import { coreSteers } from "./core-messages.ts";
 import { coreCheckModel, coreProfileModels } from "./core-models.ts";
 import { coreBus } from "./core-schedules.ts";
 import { coreUiThread } from "./core-titles.ts";
+import { threadHistory, type ThreadHistoryQuery } from "./thread-history.ts";
 
 export interface CoreWatchMethods {
   movedHistory(threadId: string): Promise<ui.ThreadSnapshot | undefined>;
@@ -21,6 +22,7 @@ export interface CoreWatchMethods {
     signal: AbortSignal,
     mirrorCursor?: string,
     includeCursor?: boolean,
+    history?: ThreadHistoryQuery,
   ): AsyncGenerator<ui.ThreadUpdate>;
   watchOverview(signal: AbortSignal, includeSnapshot?: boolean): AsyncGenerator<ui.OverviewUpdate>;
 }
@@ -90,12 +92,17 @@ export const coreWatchMethods: CoreWatchMethods = {
     signal: AbortSignal,
     mirrorCursor = "",
     includeCursor = false,
+    history?: ThreadHistoryQuery,
   ): AsyncGenerator<ui.ThreadUpdate> {
     const subscription = this.hub.subscribeThread(threadId);
     signal.addEventListener("abort", () => subscription.close(), { once: true });
 
     try {
-      const snapshot = await coreRun(this, (s) => s.snapshot(threadId, mirrorCursor, includeCursor));
+      const paging = !!history?.pageSize && (!!history.beforeTurnId || !!history.targetItemId);
+
+      const snapshot = await coreRun(this, (s) =>
+        s.snapshot(threadId, paging ? "" : mirrorCursor, includeCursor, history),
+      );
 
       if (snapshot.thread.owner_user_id !== this[coreState].options.userId) throw new NotFound("thread not found");
       // A thread moved here from a linked computer shows its history there first (stage 8).
@@ -104,6 +111,10 @@ export const coreWatchMethods: CoreWatchMethods = {
 
       const value = create(ui.ThreadSnapshotSchema, {
         cursor: snapshot.cursor,
+        historyVersion: snapshot.historyVersion,
+        historyBeforeTurnId: snapshot.window?.before ?? "",
+        historyHasMore: snapshot.window?.hasMore ?? false,
+        historyReset: snapshot.window?.reset ?? false,
         thread: coreUiThread(this, snapshot.thread),
         turns: [...(moved?.turns ?? []), ...snapshot.turns.map(toUiTurn)],
         items: [...(moved?.items ?? []), ...snapshot.items],
@@ -142,7 +153,7 @@ export const coreWatchMethods: CoreWatchMethods = {
                 removedNoticeSeqs: selection.noticeSeqs.map(BigInt).filter((seq) => !noticeSeqs.has(seq)),
               },
             }
-          : { case: "snapshot", value },
+          : { case: "snapshot", value: snapshot.window ? value : threadHistory(value, history) },
       });
 
       for await (const update of subscription.updates) {

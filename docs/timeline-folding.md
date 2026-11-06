@@ -40,6 +40,12 @@ Grupy i itemy są osobnymi wirtualnymi wierszami; zamknięte grupy nie montują 
 
 ## Pozycja przy ręcznym przełączaniu
 
+Strona historii kończy się wyłącznie między turami. Wejście, segmenty
+„Worked for…”, odpowiedzi i stopka jednej tury przychodzą razem; dotyczy to
+również tur odziedziczonych przez fork. Dołożenie starszych tur zachowuje
+klucze istniejących wierszy i kotwicę czytelnika. Protokół opisuje
+[ui-api.md](ui-api.md#strony-historii-i-trwałe-kursory).
+
 Rozwinięcie albo zwinięcie foldu, grupy narzędzi czy itemu ręcznie trzyma kliknięty nagłówek w tym samym miejscu ekranu: rośnie i maleje to, co jest pod nim, a treść nad nim się nie przesuwa. Czytelnik śledzący koniec zostaje na końcu tylko wtedy, gdy przełącza fold ostatniej tury (jej wiersze są końcem osi); każdy inny fold przestaje śledzić koniec i trzyma swój nagłówek.
 
 - Web: `FeedRowView` podaje klucz wiersza nagłówka, strona wątku woła `VirtualFeed.keep(key)` przed `WorkFolds.toggle`, chyba że to ostatni fold, a czytelnik jest na końcu. Automatyczne zmiany (odpowiedź wychodzi z foldu, nowy segment, koniec tury) trzymają dotychczasową kotwicę `VirtualFeed` i `hold(key)`.

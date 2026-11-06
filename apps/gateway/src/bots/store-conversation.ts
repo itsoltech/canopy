@@ -27,20 +27,8 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
 
   return {
     markRead: (user: string, id: string, throughSeq: bigint) => markBotRead(sql, core, user, id, throughSeq),
-    messageUser: (turn: BotTurn, call: StoredCall) =>
-      Effect.gen(function* () {
-        if (!turn.routine_id)
-          return yield* Effect.fail(
-            new Invalid("message_user is only available during background routines; reply normally in conversation"),
-          );
-        yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text)
-        VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${`user:${call.id}`}, ${turn.bot_id}, 'user', 'message', ${requiredString(call.arguments, "text")})
-        ON CONFLICT(turn_id, message_key) DO NOTHING`;
-        yield* changed(turn.bot_id);
-
-        return { delivered: true };
-      }),
-    conversation: (user: string, id: string, cursor?: string) =>
+    messageUser: (turn: BotTurn, call: StoredCall) => messageUser(sql, core, turn, call),
+    conversation: (user: string, id: string, cursor?: string, pageSize = 0, beforeSeq = 0n) =>
       sql.withTransaction(
         Effect.gen(function* () {
           if (cursor !== undefined) yield* sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`;
@@ -50,19 +38,27 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
           const checkpoint =
             cursor !== undefined ? yield* botViewCursor(sql, user, `chat:${id}`, cursor, id) : undefined;
 
-          const selection = checkpoint?.selection;
+          const reset = beforeSeq > 0n && !checkpoint?.selection;
+          const before = reset ? 0n : beforeSeq;
+          const selection = beforeSeq > 0n ? undefined : checkpoint?.selection;
+          const limit = !selection && pageSize ? Math.min(pageSize, 100) : 0;
 
-          const messages =
-            yield* sql<MessageRow>`SELECT m.*, t.status AS turn_status, c.result -> 'changes' AS setting_changes
+          const rows =
+            yield* sql<MessageRow>`SELECT * FROM (SELECT m.*, t.status AS turn_status, c.result -> 'changes' AS setting_changes
         FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id LEFT JOIN bot_tool_calls c ON m.message_key = 'self:' || c.id::text
         WHERE m.bot_id = ${id}::uuid AND (${!selection} OR m.id=ANY(${selection?.ids ?? []}::uuid[])
-          OR m.turn_id=ANY(${selection?.turns ?? []}::uuid[])) ORDER BY m.seq`;
+          OR m.turn_id=ANY(${selection?.turns ?? []}::uuid[]))
+          AND (${before === 0n} OR m.seq<${before}) ORDER BY m.seq DESC LIMIT ${limit ? limit + 1 : null}) recent ORDER BY seq`;
 
-          const latest = selection
-            ? (yield* sql<MessageRow>`SELECT m.*,t.status AS turn_status,c.result -> 'changes' AS setting_changes
+          const hasMore = !!limit && rows.length > limit;
+          const messages = hasMore ? rows.slice(1) : rows;
+
+          const latest =
+            selection || before > 0n
+              ? (yield* sql<MessageRow>`SELECT m.*,t.status AS turn_status,c.result -> 'changes' AS setting_changes
                 FROM bot_messages m JOIN bot_turns t ON t.id=m.turn_id LEFT JOIN bot_tool_calls c ON m.message_key='self:' || c.id::text
                 WHERE m.bot_id=${id}::uuid ORDER BY m.seq DESC LIMIT 1`)[0]
-            : messages.at(-1);
+              : messages.at(-1);
 
           // A question's options are the arguments of its ask_user call (the approval id is the call id).
           const approvals = yield* sql<ApprovalRow>`SELECT a.*, c.arguments,
@@ -97,6 +93,9 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
             streamingText: streaming,
             revision: BigInt(bot.revision),
             cursor: checkpoint?.cursor ?? "",
+            historyBeforeSeq: messages[0]?.seq ?? 0n,
+            historyHasMore: hasMore,
+            historyReset: reset,
             baseCursor: selection ? (cursor ?? "") : "",
             delta: !!selection,
             removedMessageIds: selection?.ids ?? [],
@@ -153,6 +152,21 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
         return { bot_id: target, exchange_id: call.id, status: "queued" };
       }),
   };
+}
+
+function messageUser(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn, call: StoredCall) {
+  return Effect.gen(function* () {
+    if (!turn.routine_id)
+      return yield* Effect.fail(
+        new Invalid("message_user is only available during background routines; reply normally in conversation"),
+      );
+    yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text)
+      VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${`user:${call.id}`}, ${turn.bot_id}, 'user', 'message', ${requiredString(call.arguments, "text")})
+      ON CONFLICT(turn_id, message_key) DO NOTHING`;
+    yield* core.changed(turn.bot_id);
+
+    return { delivered: true };
+  });
 }
 
 function markBotRead(sql: SqlClient.SqlClient, core: BotCore, user: string, id: string, throughSeq: bigint) {

@@ -133,6 +133,9 @@ message BotConversation {
   repeated string removed_message_ids = 1103;
   // Control state hash matches the client's checkpoint; retain all non-history fields.
   bool controls_unchanged = 1104;
+  uint64 history_before_seq = 1110;
+  bool history_has_more = 1111;
+  bool history_reset = 1112;
 }
 message BotRoutine {
   string id = 1;
@@ -184,11 +187,15 @@ message WatchBotConversationRequest {
   string bot_id = 1;
   bool incremental = 1100;
   string cursor = 1101;
+  uint32 page_size = 1110;
+  uint64 before_seq = 1111;
 }
 message ReadBotExchangeRequest {
   string exchange_id = 1;
   bool incremental = 1100;
   string cursor = 1101;
+  uint32 page_size = 1110;
+  uint64 before_seq = 1111;
 }
 message ReadBotExchangeResponse {
   repeated BotMessage messages = 1;
@@ -199,6 +206,9 @@ message ReadBotExchangeResponse {
   repeated Bot participants = 1104;
   // Keep the cached participants/configuration when their digest still matches.
   bool controls_unchanged = 1105;
+  uint64 history_before_seq = 1110;
+  bool history_has_more = 1111;
+  bool history_reset = 1112;
 }
 // Device-local representation; never accepted by a gateway mutation.
 message BotCachedView {

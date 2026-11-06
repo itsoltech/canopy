@@ -81,6 +81,7 @@ export function threadsHandlers(
         context.signal,
         request.incremental ? request.cursor || request.mirrorCursor : request.mirrorCursor,
         request.incremental,
+        request,
       ),
 
     updateThread: (request) =>

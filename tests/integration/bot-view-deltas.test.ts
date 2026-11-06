@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { toBinary } from "@bufbuild/protobuf";
+import { create, toBinary } from "@bufbuild/protobuf";
 import { bots, Provider } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { qualifyId } from "@canopy/domain/computers";
@@ -148,7 +148,14 @@ describe.skipIf(!dockerAvailable)("bot UI checkpoints on real gateways", () => {
     expect(renamed.messages).toHaveLength(0);
     expect(renamed.controlsUnchanged).toBe(false);
     expect(applyBotExchange(result, renamed).participants[0]?.configuration?.name).toBe("Renamed bot");
-    const foreign = await a.core.bots.run((s) => s.exchangeView(crypto.randomUUID(), exchangeId, full.cursor));
+
+    const foreign = await a.core.bots.run((s) =>
+      s.exchangeView(
+        crypto.randomUUID(),
+        create(bots.ReadBotExchangeRequestSchema, { exchangeId, cursor: full.cursor, incremental: true }),
+      ),
+    );
+
     expect(foreign.messages).toHaveLength(0);
     expect(foreign.delta).toBe(false);
     const unknown = await a.api.readBotExchange({ exchangeId, incremental: true, cursor: "old" });

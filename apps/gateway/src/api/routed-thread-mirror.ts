@@ -40,7 +40,7 @@ export async function* mirrorFirst(
   const input = linkedMessage(ui.WatchThreadRequestSchema, request);
 
   // A UI with its own base resumes directly at the home; a cold UI still gets the mirror first.
-  if (input.incremental && input.cursor) return false;
+  if ((input.incremental && input.cursor) || input.pageSize) return false;
   const held = await computers.mirror.read(nodeId, threadId);
   const snapshot = held?.snapshot;
 

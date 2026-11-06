@@ -384,9 +384,11 @@ export class BotsRuntime {
     signal: AbortSignal,
     incremental = false,
     cursor = "",
+    history?: bots.WatchBotConversationRequest,
   ): AsyncGenerator<bots.BotConversation> {
     yield* watchConversation(
-      (checkpoint) => this.run((s) => s.conversation(this.#options.userId, id, checkpoint)),
+      (checkpoint) =>
+        this.run((s) => s.conversation(this.#options.userId, id, checkpoint, history?.pageSize, history?.beforeSeq)),
       async () => (await this.#options.linkedThreadApprovals?.(id)) ?? [],
       signal,
       incremental,
@@ -397,13 +399,11 @@ export class BotsRuntime {
     await this.run((s) => s.retry(this.#options.userId, id));
     void this.tick().catch(() => undefined);
   }
+  exchangeView(request: bots.ReadBotExchangeRequest) {
+    return this.run((s) => s.exchangeView(this.#options.userId, request));
+  }
   exchange(id: string) {
     return this.run((s) => s.exchange(this.#options.userId, id));
-  }
-  exchangeView(request: bots.ReadBotExchangeRequest) {
-    return this.run((s) =>
-      s.exchangeView(this.#options.userId, request.exchangeId, request.incremental ? request.cursor : undefined),
-    );
   }
   markRead(request: bots.MarkBotReadRequest) {
     return this.run((s) => s.markRead(this.#options.userId, request.botId, request.throughSeq));
