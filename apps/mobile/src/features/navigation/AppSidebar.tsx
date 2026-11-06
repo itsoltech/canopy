@@ -29,8 +29,9 @@ function useSidebarState() {
   const [botsLoaded, setBotsLoaded] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [projectId, setProjectId] = useState("");
+  // Bots load in both sections: the Bots tab shows their unread count while you read threads.
   useEffect(() => {
-    if (!client || section !== "bots") return;
+    if (!client) return;
     let active = true;
 
     const load = () =>
@@ -54,7 +55,7 @@ function useSidebarState() {
       active = false;
       clearInterval(timer);
     };
-  }, [client, section]);
+  }, [client]);
   useEffect(() => {
     if (!client || !archiveOpen) return;
     let active = true;
@@ -122,7 +123,8 @@ function useSidebarState() {
 
 function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const c = useColors();
-  const { section, setSection, queries, setQueries, query, setFilterOpen, projectId, projects } = state;
+  const { section, setSection, queries, setQueries, query, setFilterOpen, projectId, projects, bots } = state;
+  const unread = bots.reduce((sum, bot) => sum + (bot.archived ? 0 : bot.unreadCount), 0);
   // The project filter is named in words, not only by the tinted funnel.
   const filtered = section === "threads" ? projects.find((p) => p.id === projectId) : undefined;
   const searchLabel = filtered ? `Search ${filtered.name} threads` : `Search ${section}`;
@@ -152,7 +154,11 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
       <Segmented
         options={[
           { value: "threads", label: "Threads" },
-          { value: "bots", label: "Bots" },
+          {
+            value: "bots",
+            label: "Bots",
+            badge: unread,
+          },
         ]}
         value={section}
         onChange={setSection}

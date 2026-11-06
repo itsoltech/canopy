@@ -7,16 +7,19 @@
   /**
    * Segmented "Threads | Bots" switch at the top of the sidebar. Each segment links to the last page
    * of its section; `attention` puts a dot on a segment you are not in: amber when something there needs
-   * you, emerald when something there finished and you have not seen it. The raised pill slides to the
-   * active segment (sliding tabs, motion.css `t-tabs-pill`).
+   * you, emerald when something there finished and you have not seen it. `counts` shows a number instead (unread
+   * bot messages). Markers sit beside the label, outside its flow, so the label never moves when one appears.
+   * The raised pill slides to the active segment (sliding tabs, motion.css `t-tabs-pill`).
    */
   let {
     active,
     attention = {},
+    counts = {},
     class: className,
   }: {
     active: Section;
     attention?: Partial<Record<Section, "needs" | "unseen" | undefined>>;
+    counts?: Partial<Record<Section, number>>;
     class?: ClassValue;
   } = $props();
 
@@ -38,7 +41,8 @@
     {/if}
     {#each sections as section (section.id)}
       {@const current = section.id === active}
-      {@const dot = !current && attention[section.id]}
+      {@const count = current ? 0 : (counts[section.id] ?? 0)}
+      {@const dot = !current && !count && attention[section.id]}
       <li>
         <a
           href={sectionMemory.href(section.id)}
@@ -46,12 +50,20 @@
           data-active={current || undefined}
           class={segmentedLabel}
         >
-          {section.label}
-          {#if dot === "needs"}
-            <StatusDot tone="amber" /><span class="sr-only">, needs you</span>
-          {:else if dot === "unseen"}
-            <StatusDot tone="emerald" /><span class="sr-only">, new results</span>
-          {/if}
+          <span class="relative">
+            {section.label}
+            <span class="absolute top-0 bottom-0 left-full ml-1.5 flex items-center">
+              {#if count > 0}
+                <span class="rounded-full bg-action px-1.5 text-xs/4 font-medium text-on-accent tabular-nums">
+                  {count > 99 ? "99+" : count}
+                </span><span class="sr-only">, {count} unread</span>
+              {:else if dot === "needs"}
+                <StatusDot tone="amber" /><span class="sr-only">, needs you</span>
+              {:else if dot === "unseen"}
+                <StatusDot tone="emerald" /><span class="sr-only">, new results</span>
+              {/if}
+            </span>
+          </span>
         </a>
       </li>
     {/each}
