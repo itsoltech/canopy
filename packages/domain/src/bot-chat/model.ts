@@ -52,6 +52,8 @@ export interface ConversationView {
   archived?: boolean | undefined;
   /** Position among the pinned ones (ascending); ignored when not pinned. */
   pinOrder?: number | undefined;
+  /** When the conversation started; orders conversations that have no message yet. */
+  createdAt?: Date | undefined;
 }
 
 /** A link a bot posted, rendered as a chip under the message. */
@@ -214,9 +216,35 @@ export function conversationTitle(conversation: ConversationView): string {
   return conversation.kind === "watch" ? names.join(" ⇄ ") : names.join(", ");
 }
 
-/** Latest message first. */
+/** Where a conversation sits in the list: pinned ones first in pin order (`pinIndex` ≥ 0), then by activity. */
+export interface ConversationOrder {
+  readonly pinIndex: number;
+  /** Time of the newest message either way, or of creation when there is none (ms). */
+  readonly activeAt: number;
+  readonly name: string;
+}
+
+/** Chat-app order shared by web, desktop and mobile: pinned on top, then the most recent conversation first. */
+export function compareConversations(a: ConversationOrder, b: ConversationOrder): number {
+  const pinnedA = a.pinIndex >= 0;
+  const pinnedB = b.pinIndex >= 0;
+
+  if (pinnedA !== pinnedB) return pinnedA ? -1 : 1;
+
+  if (pinnedA) return a.pinIndex - b.pinIndex;
+
+  return b.activeAt - a.activeAt || a.name.localeCompare(b.name);
+}
+
+const orderOf = (c: ConversationView): ConversationOrder => ({
+  pinIndex: -1,
+  activeAt: (c.lastMessage?.at ?? c.createdAt)?.getTime() ?? 0,
+  name: conversationTitle(c),
+});
+
+/** Latest activity first. */
 export const byLatest = (conversations: readonly ConversationView[]): ConversationView[] =>
-  [...conversations].sort((a, b) => (b.lastMessage?.at.getTime() ?? 0) - (a.lastMessage?.at.getTime() ?? 0));
+  [...conversations].sort((a, b) => compareConversations(orderOf(a), orderOf(b)));
 
 export interface ArrangedConversations {
   pinned: ConversationView[];
