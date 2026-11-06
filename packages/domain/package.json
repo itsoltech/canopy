@@ -13,6 +13,7 @@
     "./computers": "./src/computers.ts",
     "./thread-mirror": "./src/thread-mirror.ts",
     "./thread-snapshot": "./src/thread-snapshot.ts",
+    "./thread-cache": "./src/thread-cache.ts",
     "./computer-presence": "./src/computer-presence.ts",
     "./projects": "./src/projects.ts",
     "./git-heads": "./src/git-heads.ts",

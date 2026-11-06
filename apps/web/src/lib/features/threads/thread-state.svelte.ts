@@ -13,6 +13,8 @@ import {
   type Usage,
 } from "@canopy/contracts";
 import { eventItemId, reduceItem } from "@canopy/domain/items";
+import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
+import { threadCache } from "./thread-cache.ts";
 import { classifyFailure, safeFailureDetail } from "@canopy/domain";
 import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
@@ -103,6 +105,7 @@ function endFields(status: string | undefined, finished: TurnFinished) {
 }
 
 export class ThreadState {
+  #snapshot: ui.ThreadSnapshot | undefined;
   thread = $state.raw<ui.Thread | undefined>(undefined);
   turns = $state.raw<ui.Turn[]>([]);
   entries = $state.raw<TimelineEntry[]>([]);
@@ -184,12 +187,18 @@ export class ThreadState {
    */
   constructor(thread?: ui.Thread | undefined, snapshot?: ui.ThreadSnapshot | undefined) {
     this.thread = thread;
+    snapshot ??= thread && threadCache.get(thread.id);
 
     if (snapshot) this.apply(create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: snapshot } }));
+
+    if (snapshot) this.connection = "syncing";
   }
 
   apply(update: ui.ThreadUpdate): void {
-    const change = update.change;
+    this.#snapshot = applyThreadUpdate(this.#snapshot, update);
+
+    const change =
+      update.change.case === "delta" ? { case: "snapshot" as const, value: this.#snapshot } : update.change;
 
     switch (change.case) {
       case "snapshot": {
@@ -422,10 +431,14 @@ export class ThreadState {
 
   /** Subscribes to the BFF event stream; returns the cleanup for $effect. */
   connect(threadId: string): () => void {
-    this.connection = "connecting";
+    this.connection = this.#snapshot?.thread ? "syncing" : "connecting";
 
-    // Every (re)connect starts with a fresh snapshot from the server, so nothing needs reconciling here.
-    return liveSource(`/api/threads/${encodeURIComponent(threadId)}/events`, {
+    const disconnect = liveSource(`/api/threads/${encodeURIComponent(threadId)}/events`, {
+      url: () => {
+        const query = new URLSearchParams({ incremental: "1", cursor: this.#snapshot?.cursor ?? "" });
+
+        return `/api/threads/${encodeURIComponent(threadId)}/events?${query}`;
+      },
       ondrop: () => {
         if (this.loaded) this.connection = "reconnecting";
       },
@@ -435,10 +448,23 @@ export class ThreadState {
       },
       onmessage: (data) => {
         const update = decode(ui.ThreadUpdateSchema, JSON.parse(data));
-        this.apply(update);
+
+        try {
+          this.apply(update);
+        } catch {
+          if (this.#snapshot) this.#snapshot = { ...this.#snapshot, cursor: "" };
+          throw new Error("Thread resynchronization required");
+        }
+
         this.connection = update.syncing ? "syncing" : "live";
         this.failure = undefined;
       },
     });
+
+    return () => {
+      disconnect();
+
+      if (this.#snapshot?.thread) threadCache.set(this.#snapshot);
+    };
   }
 }

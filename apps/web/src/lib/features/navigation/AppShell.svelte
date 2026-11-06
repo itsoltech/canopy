@@ -4,7 +4,8 @@
   import { create } from "@bufbuild/protobuf";
   import { afterNavigate, beforeNavigate } from "$app/navigation";
   import { page } from "$app/state";
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
+  import { threadCache } from "#lib/features/threads/thread-cache.ts";
   import { MediaQuery } from "svelte/reactivity";
   import AppSidebar from "#lib/features/navigation/AppSidebar.svelte";
   import { appearanceFromDocument, applyAppearance } from "#lib/features/settings/appearance.ts";
@@ -46,6 +47,16 @@
   import { watchNotifications } from "#lib/features/notifications/watch.svelte.ts";
 
   let { children }: { children: Snippet } = $props();
+
+  onDestroy(() => threadCache.clear());
+
+  onMount(() => {
+    const clear = () => threadCache.clear();
+    window.addEventListener("pagehide", clear);
+
+    return () => window.removeEventListener("pagehide", clear);
+  });
+
   const capabilities = new GatewayCapabilities();
 
   provideGatewayCapabilities(capabilities);

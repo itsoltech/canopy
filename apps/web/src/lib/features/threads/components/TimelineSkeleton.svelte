@@ -5,9 +5,8 @@
   /**
    * The end of a thread before its snapshot arrives, shaped like the rows that replace it: a turn's
    * message (bubble on the right), the agent's lines, a tool row and the turn's footer, each with the
-   * rows' own bottom spacing. `connecting` says so while the stream is not open yet.
+   * rows' own bottom spacing.
    */
-  let { connecting = false }: { connecting?: boolean } = $props();
 </script>
 
 <!-- Only a slow load shows it: a snapshot within 300 ms never meets a skeleton whose shapes differ. -->
@@ -23,6 +22,5 @@
       <Skeleton class="size-4 rounded-full" /><Skeleton class="h-4 w-1/3" />
     </div>
     <div class="flex items-center gap-3 pb-3"><Skeleton class="h-3 w-14" /><Skeleton class="h-3 w-24" /></div>
-    <p class={["h-5 text-sm/5 text-zinc-500 dark:text-zinc-400", !connecting && "invisible"]}>Connecting…</p>
   </div>
 </Delayed>
