@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { FlatList, Platform, Text, View } from "react-native";
-import { ConversationSkeleton } from "../../ui/Skeleton";
+import { ConversationSkeleton, Skeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
-import type { bots } from "@canopy/contracts";
 import { splitId } from "@canopy/domain/computers";
 import { useComputerHome } from "../computers/presence";
 import { botParticipant, type ChatRow } from "@canopy/domain/bot-chat";
 import { useSession } from "../../state/session";
-import { useStream } from "../../state/stream";
+import { useBotSnapshot } from "../../state/bot";
 import { ConnectionBanner } from "../navigation/ConnectionStatus";
 import { IconButton, LatestButton, Notice, ScreenHeader } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
@@ -24,28 +23,16 @@ import { useLayout } from "../../state/layout";
 import { SidebarToggle } from "../navigation/SidebarToggle";
 
 function useBotChat(id: string) {
-  const { session, client, online } = useSession();
-  const [conversation, setConversation] = useState<bots.BotConversation>();
+  const { session, client, online, bots: known, updateBots } = useSession();
+  const history = useBotSnapshot(id);
+  const { snapshot: conversation, stream } = history;
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [details, setDetails] = useState(false);
   const following = useFollowingList<ChatRow>();
-  const [known, setKnown] = useState<bots.Bot[]>([]);
   const sending = useRef(false);
   const pending = useRef({ text: "", id: "" });
-
-  // Cards seen waiting stay on this visit when they expire, so the answer is not lost silently.
-  const [seen, setSeen] = useState<ReadonlySet<string>>(new Set());
-
-  const stream = useStream(
-    client ? (signal) => client.api.watchBotConversation({ botId: id }, { signal }) : null,
-    (next: bots.BotConversation) => {
-      setConversation(next);
-      setSeen((ids) => new Set([...ids, ...next.approvals.flatMap((a) => (a.status === "pending" ? [a.id] : []))]));
-    },
-    `bot:${session?.deviceId}:${id}`,
-  );
 
   // Your other bots name the counterparts of bot ⇄ bot exchanges.
   useEffect(() => {
@@ -53,16 +40,16 @@ function useBotChat(id: string) {
     let active = true;
     client.api
       .listBots({})
-      .then((result) => active && setKnown(result.bots))
+      .then((result) => active && updateBots(result.bots))
       .catch(() => undefined);
 
     return () => {
       active = false;
     };
-  }, [client]);
+  }, [client, updateBots]);
 
   async function send() {
-    if (!text.trim() || sending.current || !client) return;
+    if (!text.trim() || sending.current || !client || stream.connection !== "live") return;
     sending.current = true;
     following.resumeFollowing();
     setBusy(true);
@@ -101,8 +88,9 @@ function useBotChat(id: string) {
     following,
     stream,
     send,
-    seen,
+    seen: history.seen,
     known,
+    answer: history.answer,
   };
 }
 
@@ -127,9 +115,12 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
     send,
     seen,
     known,
+    answer,
   } = useBotChat(id);
 
   const home = useComputerHome(conversation?.bot?.nodeId || splitId(id).node);
+  const bot = conversation?.bot ?? known.find((bot) => bot.id === id);
+  const live = stream.connection === "live" && !home.away;
 
   const approvals =
     conversation?.approvals.filter(
@@ -146,11 +137,13 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
   return (
     <SafeAreaView style={styles.fill} edges={["top", "left", "right"]}>
       <ScreenHeader
-        title={conversation?.bot?.configuration?.name || "Bot"}
+        title={bot?.configuration?.name ?? ""}
+        loading={!bot}
+        subtitle={conversation && !live ? "Syncing…" : undefined}
         left={wide ? <SidebarToggle /> : undefined}
         right={
           <View style={styles.row}>
-            {conversation?.bot && <BotAvatar bot={conversation.bot} size={32} />}
+            {bot ? <BotAvatar bot={bot} size={32} /> : <Skeleton style={{ width: 32, height: 32, borderRadius: 16 }} />}
             <IconButton icon="ellipsis-horizontal" label="Bot details" onPress={() => setDetails(true)} />
           </View>
         }
@@ -164,7 +157,7 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
           contentContainerStyle={[styles.page, { gap: 0, flexGrow: 1 }]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          renderItem={({ item }) => <ChatRowView row={item} approvals={approvals} readOnly={home.away} />}
+          renderItem={({ item }) => <ChatRowView row={item} approvals={approvals} readOnly={!live} onAnswer={answer} />}
           // Inverted: the footer is the top of the chat, the header sits under the latest message.
           ListFooterComponent={
             <View style={{ gap: 12 }}>
@@ -196,12 +189,14 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
           )}
           <ComposerBox
             compact
-            placeholder={`Message ${conversation?.bot?.configuration?.name || "bot"}`}
+            placeholder={bot?.configuration?.name ? `Message ${bot.configuration.name}` : ""}
             text={text}
             onChange={setText}
             onSend={() => void send()}
             running={conversation?.working}
-            onStop={() => void client!.api.interruptBot({ botId: id }).catch(() => setError("Could not stop the bot."))}
+            onStop={() => {
+              if (live) void client!.api.interruptBot({ botId: id }).catch(() => setError("Could not stop the bot."));
+            }}
             disabled={home.away || !online || !conversation || stream.connection !== "live"}
             busy={busy}
           />

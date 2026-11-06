@@ -69,3 +69,16 @@ export function canAnswerBotApproval(conversation: bots.BotConversation | undefi
     conversation.approvals.some((a) => a.id === id && a.status === "pending")
   );
 }
+
+/** Shared mutation boundary: UI disabling is supplemented by a fresh subscription check. */
+export async function answerLiveBotApproval<T>(
+  conversation: bots.BotConversation | undefined,
+  request: bots.AnswerBotApprovalRequest,
+  live: boolean,
+  send: (request: bots.AnswerBotApprovalRequest) => Promise<T>,
+) {
+  if (!canAnswerBotApproval(conversation, request.approvalId, live))
+    throw new Error("This conversation is still syncing.");
+
+  return send(request);
+}

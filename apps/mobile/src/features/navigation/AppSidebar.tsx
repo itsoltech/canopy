@@ -21,7 +21,7 @@ import { BotListItem } from "../bots/BotListItem";
 import { SettingsThreadList } from "./SettingsThreadList";
 
 function useSidebarState() {
-  const { session, client, ready } = useSession();
+  const { session, client, ready, updateBots } = useSession();
   const { threads, projects, workers, loaded, stream } = useOverview();
   const [section, setSection] = useState<"threads" | "bots">("threads");
   const [queries, setQueries] = useState({ threads: "", bots: "" });
@@ -45,6 +45,7 @@ function useSidebarState() {
         .then((r) => {
           if (active) {
             setBots(r.bots);
+            updateBots(r.bots);
             setBotError("");
             setBotsLoaded(true);
           }
@@ -60,7 +61,7 @@ function useSidebarState() {
       active = false;
       clearInterval(timer);
     };
-  }, [client]);
+  }, [client, updateBots]);
   useEffect(() => {
     if (!client || !archiveOpen) return;
     let active = true;

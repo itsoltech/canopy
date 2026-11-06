@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 import { ConnectError } from "@connectrpc/connect";
 import { router } from "expo-router";
-import type { bots } from "@canopy/contracts";
+import { bots } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
 import { useSession } from "../../state/session";
 import { Button, Field, Notice } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
@@ -10,30 +11,34 @@ import { RequestCountdown } from "../../ui/RequestCountdown";
 import { PickerSheet } from "../../ui/Picker";
 import { styles, useColors } from "../../ui/theme";
 
-export function ApprovalCard({ approval, readOnly = false }: { approval: bots.BotApproval; readOnly?: boolean }) {
-  const c = useColors();
+type ApprovalCardProps = {
+  approval: bots.BotApproval;
+  readOnly?: boolean;
+  onAnswer?: ((request: bots.AnswerBotApprovalRequest) => Promise<bots.AnswerBotApprovalResponse>) | undefined;
+};
+
+function useApprovalResponse({ approval, readOnly = false, onAnswer }: ApprovalCardProps) {
   const { client } = useSession();
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // The gateway refused a late answer: the request expired before its update arrived.
   const [late, setLate] = useState(false);
-  const [rules, setRules] = useState(false);
-  const question = approval.kind === "question";
-  const expired = late || approval.status === "expired";
 
   async function respond(approve: boolean, text = answer, ruleOptionId = "") {
-    if (readOnly) return;
+    if (readOnly || approval.status !== "pending") return;
     setBusy(true);
     setError("");
 
     try {
-      await client!.api.answerBotApproval({
+      const request = create(bots.AnswerBotApprovalRequestSchema, {
         approvalId: approval.id,
         approve,
         answer: text,
         ruleOptionId,
       });
+
+      await (onAnswer ? onAnswer(request) : client!.api.answerBotApproval(request));
     } catch (cause: unknown) {
       if (ConnectError.from(cause).rawMessage.includes("This request expired.")) setLate(true);
       else setError("Could not send your response. Try again.");
@@ -41,6 +46,16 @@ export function ApprovalCard({ approval, readOnly = false }: { approval: bots.Bo
       setBusy(false);
     }
   }
+
+  return { answer, setAnswer, busy, error, late, respond };
+}
+
+export function ApprovalCard({ approval, readOnly = false, onAnswer }: ApprovalCardProps) {
+  const c = useColors();
+  const { answer, setAnswer, busy, error, late, respond } = useApprovalResponse({ approval, readOnly, onAnswer });
+  const [rules, setRules] = useState(false);
+  const question = approval.kind === "question";
+  const expired = late || approval.status === "expired";
 
   if (approval.allowedByRule)
     return (

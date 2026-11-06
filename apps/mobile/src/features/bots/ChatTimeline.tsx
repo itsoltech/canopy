@@ -41,10 +41,12 @@ export function ChatRowView({
   row,
   approvals,
   readOnly = false,
+  onAnswer,
 }: {
   row: ChatRow;
   approvals: readonly bots.BotApproval[];
   readOnly?: boolean;
+  onAnswer?: (request: bots.AnswerBotApprovalRequest) => Promise<bots.AnswerBotApprovalResponse>;
 }) {
   switch (row.kind) {
     case "date":
@@ -80,7 +82,7 @@ export function ChatRowView({
 
       return approval ? (
         <View style={{ paddingTop: 12 }}>
-          <ApprovalCard approval={approval} readOnly={readOnly} />
+          <ApprovalCard approval={approval} readOnly={readOnly} onAnswer={onAnswer} />
         </View>
       ) : null;
     }
