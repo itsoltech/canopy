@@ -1,24 +1,17 @@
 import { createContext, useState, type ReactNode } from "react";
-import {
-  Keyboard,
-  StyleSheet,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-  type TextInputProps,
-  type StyleProp,
-  type ViewStyle,
-} from "react-native";
+import { Keyboard, Pressable, Text, TextInput, View, type TextInputProps } from "react-native";
 import { font, styles, useColors, useTypography } from "./theme";
 import { Icon } from "./Icon";
 import { IconButton } from "./Button";
 import { SheetSurface } from "./SheetSurface";
 import { router } from "expo-router";
+import { LayoutAnimationConfig } from "react-native-reanimated";
 import { Skeleton } from "./Skeleton";
 import { useSettingsDensity } from "./density";
 
 export const SheetContent = createContext(false);
+
+export { Segmented } from "./Segmented";
 
 export { Button, IconButton } from "./Button";
 
@@ -81,96 +74,6 @@ export function ScreenHeader({
   );
 }
 
-export function Segmented<T extends string>({
-  options,
-  value,
-  onChange,
-  style,
-}: {
-  /** `badge`: a count beside the label of a segment that is not selected (unread items there). */
-  options: readonly { value: T; label: string; badge?: number }[];
-  value: T;
-  onChange: (value: T) => void;
-  style?: StyleProp<ViewStyle>;
-}) {
-  const c = useColors();
-  const type = useTypography();
-
-  return (
-    <View style={[styles.row, { backgroundColor: c.recess, padding: 2, gap: 2, borderRadius: 8 }, style]}>
-      {options.map((option) => {
-        const active = value === option.value;
-
-        return (
-          <Pressable
-            key={option.value}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            onPress={() => onChange(option.value)}
-            hitSlop={{ top: 6, bottom: 6 }}
-            style={{
-              flex: 1,
-              minHeight: 32,
-              paddingHorizontal: 12,
-              paddingVertical: 6,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 6,
-              backgroundColor: active ? (c.dark ? "#ffffff1a" : "#ffffff") : "transparent",
-              ...(active &&
-                !c.dark && {
-                  borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: c.ring,
-                  shadowColor: "#000000",
-                  shadowOpacity: 0.05,
-                  shadowRadius: 1,
-                  shadowOffset: { width: 0, height: 1 },
-                  elevation: 1,
-                }),
-            }}
-          >
-            {/* The badge sits beside the label, outside its flow: the label stays put when it appears. */}
-            <View>
-              <Text style={[type.small, { fontFamily: font.medium, color: active ? c.text : c.muted }]}>
-                {option.label}
-              </Text>
-              {!active && !!option.badge && (
-                <View
-                  accessibilityLabel={`${option.badge} unread`}
-                  style={{
-                    position: "absolute",
-                    left: "100%",
-                    top: 0,
-                    bottom: 0,
-                    marginLeft: 6,
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.caption,
-                      {
-                        color: c.onAccent,
-                        backgroundColor: c.accent,
-                        borderRadius: 999,
-                        overflow: "hidden",
-                        paddingHorizontal: 6,
-                        fontVariant: ["tabular-nums"],
-                      },
-                    ]}
-                  >
-                    {option.badge > 99 ? "99+" : option.badge}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 /** A full-height sheet (web: Dialog): a semibold title, a small close button, the content below. */
 export function Sheet({
   title,
@@ -198,7 +101,9 @@ export function Sheet({
         </View>
       }
     >
-      <SheetContent.Provider value={true}>{children}</SheetContent.Provider>
+      <LayoutAnimationConfig skipEntering skipExiting>
+        <SheetContent.Provider value={true}>{children}</SheetContent.Provider>
+      </LayoutAnimationConfig>
     </SheetSurface>
   );
 }

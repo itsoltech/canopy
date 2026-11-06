@@ -35,14 +35,22 @@ export const contextType = {
   context: { fontSize: 12, lineHeight: 16 },
 } as const;
 
-/** Motion tokens shared with web (motion.css): durations in ms and the smooth-out curve. */
+/**
+ * Motion tokens shared with web (routes/layout.css `--duration-*`, `--distance-*`, `--scale-*`, `--ease-*`):
+ * durations in ms, distances in px (dp on mobile), scales as factors and the curves as cubic-bezier points.
+ */
 export const motion = {
+  stagger: 40,
   micro: 80,
   quick: 150,
   fast: 250,
   medium: 350,
   slow: 400,
+  verySlow: 500,
+  distance: { micro: 4, small: 6, base: 8, medium: 12, large: 30 },
+  scale: { large: 0.96, medium: 0.97, small: 0.98, tiny: 0.99 },
   smoothOut: [0.22, 1, 0.36, 1],
+  inOut: [0.42, 0, 0.58, 1],
 } as const;
 
 export const radius = {

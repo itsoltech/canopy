@@ -79,6 +79,12 @@ Po `bun install` z hoisted Doctor przechodzi. Pakiety wymagające JS API TypeScr
 zachowuje binarkę `tsc` 7 dla pozostałych workspace'ów. Web/mobile mają własny TS 6.0.3.
 ESLint 9.39.5 jest przypięty, bo obecny eslint-plugin-react nie obsługuje ESLint 10.
 
+Animacje stanu UI robi `react-native-reanimated` **4.7.1** z `react-native-worklets` **0.13.0**
+(wersje z `bunx expo install`). Wtyczkę Babel worklets konfiguruje sam `babel-preset-expo`,
+więc aplikacja nie ma `babel.config.js`. To moduły natywne: po ich dodaniu potrzebny jest nowy
+development build (lokalny `expo run:*` albo `eas build --profile development`); stary build
+z nowym bundlem JS kończy się błędem braku modułu. Nightly TestFlight i buildy EAS budują je same.
+
 Hermes obsługuje BigInt wymagany przez protobuf-es (`uint64`, m.in. seq).
 SDK 58 / RN 0.88 udostępnia TextEncoder i TextDecoder; Expo inicjalizuje
 `structuredClone` oraz ReadableStream przed wejściem Routera. Nie dodajemy konkurencyjnych
@@ -425,7 +431,7 @@ dostawcy, menu akcji) używa jednego `PickerSheet` (`src/ui/Picker.tsx`): kompak
 z zaokrąglonymi rogami, wierszami ≥ 48 dp, nagłówkami sekcji, wyszukiwaniem przy długich listach
 i znacznikiem wyboru; na oknach od 600 dp otwiera się jako karta na środku. Teksty nakładek
 biorą stopnie `contextType` z `packages/ui` (docs/ui-scale.md), ruch tokeny `motion`;
-przy ograniczeniu ruchu nakładki tylko się rozjaśniają. Full access wymaga potwierdzenia
+przy ograniczeniu ruchu nakładki tylko się rozjaśniają (sekcja „Ruch”). Full access wymaga potwierdzenia
 przy każdym wyborze, jak w web. Feed wątku i czat bota są odwróconymi listami: otwierają się
 na ostatniej wiadomości, podążają za nowymi na dole i trzymają pozycję podczas czytania historii. Nazwy komponentów odpowiadają web, m.in. SidebarThread,
 ThreadHeader, MessageComposer/ComposerBox, ThreadPanel, AppearanceSettings,
@@ -543,6 +549,33 @@ używa tych samych opcji co web; karty narzędzi takich wątków można rozstrzy
 w czacie bota. Są też połączenia, archiwizacja i usuwanie bota. Lista botów odświeża się co 10 sekund.
 Brak push i wysyłania offline. Cache obejmuje wątki, nie rozmowy botów. To pierwsza iteracja zgodności z web,
 nie pełna równoważność wszystkich jego funkcji.
+
+## Ruch
+
+Przejścia stanu UI idą przez warstwę `src/ui/motion.ts` (tokeny, presety, `useReducedMotion`,
+`useTween`) i `src/ui/MotionViews.tsx` (`Expand`, `Swap`, `Chevron`, `useArrivals`, `GlidingCell`,
+`usePressScale`). Czasy, odległości, skale i krzywe pochodzą z `motion` w `@canopy/ui`, tych samych
+co tokeny CSS web (`routes/layout.css`): otwarcie `fast` (250 ms), zamknięcie `quick` (150 ms), panele
+i arkusze `slow` / `medium` (400 / 350 ms), `smoothOut` dla powierzchni, pozycji i rozmiaru, `inOut`
+dla tekstu i odsłonięcia szkieletu. Bez liczb ad hoc w komponentach. React Native nie ma `filter: blur`,
+więc przejścia web z rozmyciem są tu bez niego.
+
+Presety (`useMotion()`): `rise` (nowy wiersz, tylko przezroczystość), `pop` (coś dodanego, rośnie
+od `scale.medium`), `toast` (komunikat: wjeżdża o `distance.medium`, `slow` / `medium`), `swap`
+(zmieniony tekst wchodzi o `distance.micro`), `reveal` (treść w miejscu szkieletu), `layout`
+(sąsiednie wiersze przesuwają się na nowe miejsce). Animacje biegną na wątku UI (Reanimated).
+
+Ograniczenie ruchu w systemie: nic nie jedzie ani nie skaluje. Wiersze, nakładki i komunikaty tylko
+się rozjaśniają; zmiana tekstu, przesunięcia (pigułka, przełącznik, panel boczny), układ listy
+i odsłonięcie szkieletu są natychmiastowe. `useReducedMotion` ma jedną subskrypcję na aplikację
+i do pierwszej odpowiedzi systemu bierze wartość, którą Reanimated odczytał przy starcie.
+
+Pierwsze renderowanie ekranu, arkusza i nakładki nie animuje wierszy ani komunikatów
+(`LayoutAnimationConfig skipEntering skipExiting` w `screenLayout` Stacka, `Overlay` i `Sheet`);
+animują się dopiero późniejsze zmiany. Listy wirtualne (`useArrivals`) animują tylko wiersze, które
+naprawdę doszły; wiersz zamontowany ponownie przy przewijaniu pojawia się od razu. Oś czasu wątku
+nie animuje wysokości (odwrócona lista z kotwicą foldu, `feed-anchor.tsx`): nowe wiersze i otwarta
+praca tylko się rozjaśniają, jak `t-rise` w web.
 
 ## Markdown
 

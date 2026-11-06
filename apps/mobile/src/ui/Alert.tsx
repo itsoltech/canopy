@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 import { Text, View } from "react-native";
 import { palette } from "@canopy/ui";
 import type { IconName } from "@canopy/ui/icons";
+import Animated from "react-native-reanimated";
 import { Icon } from "./Icon";
+import { useMotion } from "./motion";
 import { CompactControls } from "./density";
 import { font, useColors, useTypography, type Colors } from "./theme";
 
@@ -51,9 +53,13 @@ export function Alert({
   const c = useColors();
   const type = useTypography();
   const look = alertLook(tone, c);
+  const { toast } = useMotion();
 
+  // A message that comes or goes with a state change enters and leaves like a toast (web `t-toast`).
   return (
-    <View
+    <Animated.View
+      entering={toast.entering}
+      exiting={toast.exiting}
       accessibilityRole={tone === "error" ? "alert" : "text"}
       accessibilityLiveRegion={tone === "error" ? "assertive" : "polite"}
       style={[
@@ -75,7 +81,7 @@ export function Alert({
           <CompactControls.Provider value={true}>{actions}</CompactControls.Provider>
         </View>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -86,13 +92,19 @@ export function Alert({
 export function Notice({ children, error = false }: { children: ReactNode; error?: boolean }) {
   const c = useColors();
   const type = useTypography();
+  const { rise } = useMotion();
 
   if (error) return <Alert tone="error">{children}</Alert>;
 
   return (
-    <Text accessibilityLiveRegion="polite" style={[type.small, { color: c.muted }]}>
+    <Animated.Text
+      entering={rise.entering}
+      exiting={rise.exiting}
+      accessibilityLiveRegion="polite"
+      style={[type.small, { color: c.muted }]}
+    >
       {children}
-    </Text>
+    </Animated.Text>
   );
 }
 
