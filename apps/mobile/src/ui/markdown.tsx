@@ -1,7 +1,9 @@
 import { Fragment, useMemo } from "react";
 import { Linking, ScrollView, Text, View } from "react-native";
 import { marked, type Token, type Tokens } from "marked";
-import { font, styles, useColors } from "./theme";
+import { font, styles, useColors, useTypography } from "./theme";
+import { useDevicePreferences } from "../features/settings/device-preferences";
+import { Diff } from "./Diff";
 
 // Native text only: no HTML/WebView, embedded remote images, or executable URL schemes.
 function openLink(url: string) {
@@ -68,18 +70,23 @@ function Inline({ tokens }: { tokens: Token[] }) {
 
 function Block({ token }: { token: Token }) {
   const c = useColors();
+  const type = useTypography();
+  const { values } = useDevicePreferences();
 
   if (token.type === "space") return null;
 
+  if (token.type === "code" && token.lang === "diff") return <Diff diff={token.text} />;
+
   if (token.type === "code")
     return (
-      <ScrollView horizontal style={{ padding: 14, borderRadius: 10, backgroundColor: c.inset }}>
+      <ScrollView
+        horizontal={values.wrapCode !== "on"}
+        style={{ padding: 14, borderRadius: 10, backgroundColor: c.inset }}
+      >
         <Text
           selectable
           style={{
-            fontFamily: "monospace",
-            fontSize: 14,
-            lineHeight: 22,
+            ...type.mono,
             color: c.text,
           }}
         >
@@ -146,8 +153,8 @@ function Block({ token }: { token: Token }) {
       selectable
       accessibilityRole={token.type === "heading" ? "header" : undefined}
       style={[
-        styles.body,
-        { color: c.body, lineHeight: 28 },
+        type.body,
+        { color: c.body },
         token.type === "heading"
           ? {
               fontSize: token.depth === 1 ? 18 : 16,

@@ -12,7 +12,7 @@ import { styles, useColors } from "../../ui/theme";
 import { ComposerBox, ComposerPill } from "../threads/ComposerBox";
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
 import { EffortPickerSheet, ModelPickerSheet } from "../models/ModelPicker";
-import { effortLabel } from "../models/catalog";
+import { useEffortLabel } from "../settings/display";
 import { permissionLabel, permissionLook, PermissionPickerSheet } from "../threads/permissions";
 import { useNewThread } from "./useNewThread";
 import { WorkerPickerSheet } from "./WorkerPickerSheet";
@@ -30,6 +30,7 @@ export function NewThreadScreen() {
   const state = useNewThread();
   const [picker, setPicker] = useState<Picker | null>(null);
   const { project, worker, selected, effort, permissionMode, message, blocker, error } = state;
+  const effortLabel = useEffortLabel();
   const look = permissionLook(permissionMode);
 
   if (!session) return <Redirect href="/pair" />;

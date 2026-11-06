@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { Alert, Text, View } from "react-native";
+import { useAppearance } from "../../state/appearance";
 import { router } from "expo-router";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
@@ -72,6 +73,7 @@ export function ThreadHeader({
 }) {
   const c = useColors();
   const { wide } = useLayout();
+  const { user } = useAppearance();
   const { sheet, setSheet, title, setTitle, query, setQuery, error, busy, action } = useThreadActions(thread);
 
   return (
@@ -121,16 +123,18 @@ export function ThreadHeader({
         visible={sheet === "actions"}
         onClose={() => setSheet(null)}
         goalOpen={goalOpen}
-        onSelect={(kind) =>
-          kind === "rename"
-            ? setSheet("rename")
-            : kind === "side"
-              ? onSideThread()
-              : kind === "goal"
-                ? onGoal?.()
-                : void action(kind)
-        }
         goals={Boolean(onGoal)}
+        onSelect={(kind) => {
+          if (kind === "rename") setSheet("rename");
+          else if (kind === "side") onSideThread();
+          else if (kind === "goal") onGoal?.();
+          else if (kind === "archive" && !thread?.archivedAt && user?.general?.confirmArchive)
+            Alert.alert("Archive thread?", "This also archives its side threads.", [
+              { text: "Cancel", style: "cancel" },
+              { text: "Archive", onPress: () => void action(kind) },
+            ]);
+          else void action(kind);
+        }}
       />
       <Overlay visible={sheet === "rename"} onClose={() => setSheet(null)} label="Rename thread">
         <View style={{ padding: 16, gap: 12 }}>

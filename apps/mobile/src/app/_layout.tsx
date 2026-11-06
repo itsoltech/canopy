@@ -11,6 +11,8 @@ import { View } from "react-native";
 import { AppSidebar } from "../features/navigation/AppSidebar";
 import { useReducedMotion } from "../ui/motion";
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from "@expo-google-fonts/inter";
+import { DevicePreferencesProvider } from "../features/settings/device-preferences";
+import { InAppAlerts } from "../features/navigation/InAppAlerts";
 
 /** Wide windows keep the thread list beside the stack (collapsible); phones navigate list → thread. */
 function Navigation() {
@@ -29,6 +31,7 @@ function Navigation() {
       )}
       <View style={{ flex: 1, overflow: "hidden" }}>
         <Screens />
+        <InAppAlerts />
       </View>
     </View>
   );
@@ -85,9 +88,11 @@ export default function Layout() {
   return (
     <SafeAreaProvider>
       <PreferencesProvider>
-        <SessionProvider>
-          <SessionUI />
-        </SessionProvider>
+        <DevicePreferencesProvider>
+          <SessionProvider>
+            <SessionUI />
+          </SessionProvider>
+        </DevicePreferencesProvider>
       </PreferencesProvider>
     </SafeAreaProvider>
   );

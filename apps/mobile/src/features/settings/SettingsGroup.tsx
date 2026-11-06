@@ -3,7 +3,7 @@ import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-nat
 import { contextType } from "@canopy/ui";
 import { PickerSheet, SelectField, type PickerOption } from "../../ui/Picker";
 import { Icon } from "../../ui/Icon";
-import { font, styles, useColors } from "../../ui/theme";
+import { font, styles, useColors, useTypography } from "../../ui/theme";
 
 export function SettingsGroup({
   title,
@@ -68,11 +68,12 @@ export function SettingsRow({
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
+  const type = useTypography();
 
   const body = (
     <>
       <View style={{ minWidth: 0, flexShrink: 1, gap: 3 }}>
-        <Text style={[styles.chrome, { fontFamily: font.medium, color: c.text }]}>
+        <Text style={[type.chrome, { color: c.text }]}>
           {title}
           {soon ? " · Soon" : ""}
         </Text>

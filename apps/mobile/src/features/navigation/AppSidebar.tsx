@@ -12,6 +12,7 @@ import { styles, useColors } from "../../ui/theme";
 import { Icon } from "../../ui/Icon";
 import { SidebarThread } from "./SidebarThread";
 import { BotListItem } from "../bots/BotListItem";
+import { SettingsThreadList } from "./SettingsThreadList";
 
 function useSidebarState() {
   const { session, client, ready } = useSession();
@@ -199,23 +200,11 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
   return (
     <>
       {section === "threads" ? (
-        <FlatList
-          data={visible}
-          keyExtractor={(t) => t.id}
-          contentContainerStyle={{
-            paddingHorizontal: 8,
-            paddingBottom: 12,
-            flexGrow: 1,
-          }}
-          ItemSeparatorComponent={() => <View style={{ height: 2 }} />}
-          renderItem={({ item }) => (
-            <SidebarThread
-              thread={item}
-              project={projects.find((p) => p.id === item.projectId)}
-              worker={workers.find((w) => w.id === item.workerId)}
-            />
-          )}
-          ListEmptyComponent={
+        <SettingsThreadList
+          threads={visible}
+          projects={projects}
+          workers={workers}
+          empty={
             !loaded ? (
               <ActivityIndicator accessibilityLabel="Loading threads" />
             ) : (
@@ -228,7 +217,7 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
               </Text>
             )
           }
-          ListFooterComponent={
+          footer={
             <View style={{ flex: 1, justifyContent: "flex-end", paddingTop: 24 }}>
               <Pressable
                 accessibilityRole="button"
@@ -264,7 +253,6 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
               )}
             </View>
           }
-          ListFooterComponentStyle={{ flexGrow: 1 }}
         />
       ) : (
         <FlatList

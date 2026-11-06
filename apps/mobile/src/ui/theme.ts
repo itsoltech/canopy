@@ -1,8 +1,9 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { contextType, palette, typography } from "@canopy/ui";
-import { themeVariables, type ThemeName } from "@canopy/ui/themes";
+import { themes, themeVariables, type ThemeName } from "@canopy/ui/themes";
 import { useAppearance } from "../state/appearance";
 import { themeOf } from "../features/settings/appearance";
+import { useDevicePreferences } from "../features/settings/device-preferences";
 
 export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
   const v = themeVariables(theme, dark ? "dark" : "light");
@@ -39,8 +40,52 @@ export type Colors = ReturnType<typeof colorsFor>;
 
 export function useColors() {
   const { dark, appearance } = useAppearance();
+  const { values } = useDevicePreferences();
+  const theme = themeOf(appearance, dark ? "dark" : "light");
+  const colors = colorsFor(dark, theme);
+  const neutral = themes[theme][dark ? "dark" : "light"];
 
-  return colorsFor(dark, themeOf(appearance, dark ? "dark" : "light"));
+  if (values.contrast === "standard") return colors;
+
+  return {
+    ...colors,
+    muted: values.contrast === "maximum" ? colors.text : dark ? neutral[3] : neutral[8],
+    line: dark ? neutral[5] : neutral[7],
+  };
+}
+
+export function useTypography() {
+  const { values } = useDevicePreferences();
+  const scale = Number(values.interfaceSize) / 14;
+
+  const family =
+    values.interfaceFont === "serif"
+      ? Platform.OS === "ios"
+        ? "Georgia"
+        : "serif"
+      : values.interfaceFont === "system"
+        ? Platform.OS === "ios"
+          ? "System"
+          : "sans-serif"
+        : font.regular;
+
+  const mono = Platform.OS === "ios" ? (values.monoFont === "consolas" ? "Courier" : "Menlo") : "monospace";
+
+  return {
+    body: {
+      ...styles.body,
+      fontFamily: family,
+      fontSize: typography.body.fontSize * scale,
+      lineHeight: typography.body.lineHeight * scale,
+    },
+    chrome: {
+      ...styles.chrome,
+      fontFamily: family,
+      fontSize: contextType.chrome.fontSize * scale,
+      lineHeight: contextType.chrome.lineHeight * scale,
+    },
+    mono: { fontFamily: mono, fontSize: Number(values.monoSize), lineHeight: Number(values.monoSize) + 7 },
+  };
 }
 
 export const font = {

@@ -5,7 +5,7 @@ import { turnProgress, workFoldOpen, workSegments } from "@canopy/domain/work-fo
 import { useDevicePreferences } from "../state/preferences";
 import { Markdown } from "./markdown";
 import { Icon } from "./Icon";
-import { styles, useColors } from "./theme";
+import { styles, useColors, useTypography } from "./theme";
 import { ShellMessage } from "./ShellMessage";
 import { MessageSpans } from "../features/composer/MessageText";
 
@@ -67,6 +67,8 @@ export function UserMessageView({
   const placed = new Set(mentions.flatMap((m) => (m.kind === MentionKind.ATTACHMENT ? [m.name] : [])));
   const loose = attachments.filter((a) => !placed.has(a.id));
 
+  const type = useTypography();
+
   return (
     <View style={{ alignItems: "flex-end", gap: 4 }}>
       {note || onActions ? (
@@ -119,7 +121,7 @@ export function UserMessageView({
           </View>
         )}
         {text ? (
-          <Text selectable style={[styles.body, { color: c.text }]}>
+          <Text selectable style={[type.body, { color: c.text }]}>
             {mentions.length ? <MessageSpans value={{ text, mentions }} /> : text}
           </Text>
         ) : null}
