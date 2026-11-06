@@ -7,7 +7,7 @@ import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 import { ConnectorList, useConnectors } from "../connectors/Connectors";
 import { permissionLabel } from "./permissions";
-import { headLabel } from "@canopy/domain/git-heads";
+import { headLabel, PROVISIONAL_BRANCH_HINT } from "@canopy/domain/git-heads";
 
 export function PanelRow({
   title,
@@ -48,8 +48,9 @@ function BranchRow({ thread }: { thread: ui.Thread }) {
 
   if (!label) return null;
   const detail = worktree ? (worktree.baseRef ? `Worktree from ${worktree.baseRef}` : "Worktree") : "Current checkout";
+  const value = worktree?.provisionalBranch ? `${label}\n${PROVISIONAL_BRANCH_HINT}` : label;
 
-  return <PanelRow title={`Branch · ${detail}`} value={label} icon="git-fork" />;
+  return <PanelRow title={`Branch · ${detail}`} value={value} icon="git-fork" />;
 }
 
 export function ThreadPanel({

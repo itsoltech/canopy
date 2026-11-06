@@ -339,6 +339,8 @@ while (!stopping.signal.aborted) {
           "worktree_lifecycle",
           // git_heads: the live branch of thread checkouts (GitHeads).
           "git_heads",
+          // provisional_branches: RenameWorktreeBranch.provisional keeps pushed or switched branches.
+          "provisional_branches",
           "project_sources",
           // full_access: PERMISSION_MODE_FULL_ACCESS runs unsandboxed; not announced when worker.json turns it off.
           ...(local.full_access === false ? [] : ["full_access"]),

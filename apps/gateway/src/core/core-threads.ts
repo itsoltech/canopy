@@ -16,7 +16,8 @@ import { coreWorkers } from "./core-providers.ts";
 import { coreAutoTitle, coreUiThread } from "./core-titles.ts";
 import { coreBroadcastThread, coreRun } from "./core-broadcast.ts";
 import { coreAnnounceSchedule } from "./core-schedules.ts";
-import { coreNameBranchLater, corePrepareWorkspace } from "../worktrees/core-worktrees.ts";
+import { corePrepareWorkspace } from "../worktrees/core-worktrees.ts";
+import { coreNameBranchLater } from "../worktrees/branch-naming.ts";
 
 /**
  * The worker's last report (ConfigApplied) must offer the provider and the profile for it. A worker that
@@ -247,7 +248,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     const request = prepared.request;
 
     const nameBranch = (row: ThreadRow) =>
-      prepared.nameLater && coreNameBranchLater(this, row, request.initialMessage, prepared.nameLater);
+      prepared.nameLater && coreNameBranchLater(this, row, request.initialMessage, prepared.nameLater.worktree);
 
     if (
       request.initialAttachmentIds.length === 0 &&

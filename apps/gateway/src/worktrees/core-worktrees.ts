@@ -1,15 +1,14 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
-import type { ThreadRow, WorktreeRow } from "../store/index.ts";
+import type { WorktreeRow } from "../store/index.ts";
 import { isAbsolutePath, isWithinWorkspace, normalizePath, pathStyle } from "../store/paths.ts";
 import { coreState, InvalidError, UnavailableError } from "../core/core-context.ts";
 import type { GatewayCore } from "../core/core.ts";
-import { coreBroadcastThread, coreLog, coreRun } from "../core/core-broadcast.ts";
+import { coreRun } from "../core/core-broadcast.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
 import { coreWorkers } from "../core/core-providers.ts";
-import { coreGenerateText } from "../core/core-titles.ts";
-import { branchPrompt, initialBranch, semanticBranch } from "./branch-names.ts";
+import { initialBranch } from "./branch-names.ts";
 import { resolveScope, settingsJson, settingsProblem, type ResolvedScope } from "./settings.ts";
 
 /** Git worktrees in the gateway (docs/worktrees.md): settings scopes, refs for the composer, new worktrees. */
@@ -80,6 +79,7 @@ export function toUiWorktree(row: WorktreeRow): ui.ThreadWorktree {
     createdAt: timestampFromDate(new Date(row.created_at)),
     ...(row.removed_at && { removedAt: timestampFromDate(new Date(row.removed_at)) }),
     detachedCommit: row.detached_commit,
+    provisionalBranch: row.branch_source === "provisional",
   });
 }
 
@@ -111,6 +111,8 @@ async function createWorktree(hostContext: GatewayCore, request: ui.CreateThread
     title: request.title,
     shortId: id.slice(-8),
   });
+
+  const semantic = settings.branchNaming === ui.BranchNaming.SEMANTIC;
 
   const result = await coreWorkerQuery(
     hostContext,
@@ -156,15 +158,16 @@ async function createWorktree(hostContext: GatewayCore, request: ui.CreateThread
       base_ref: info.baseRef,
       base_commit: info.baseCommit,
       location: settings.location ?? "",
+      provisional: semantic,
     }),
   );
 
-  return { row, semantic: settings.branchNaming === ui.BranchNaming.SEMANTIC, location: settings.location ?? "" };
+  return { row, semantic, location: settings.location ?? "" };
 }
 
 export interface PreparedWorkspace {
   readonly request: ui.CreateThreadRequest;
-  /** After the thread exists: ask the model for a semantic branch name. */
+  /** After the thread exists: ask the model for a semantic branch name (branch-naming.ts). */
   readonly nameLater?: { worktree: WorktreeRow; location: string };
 }
 
@@ -221,42 +224,6 @@ export async function corePrepareWorkspace(
     ...(made.semantic &&
       request.initialMessage.trim() && { nameLater: { worktree: made.row, location: made.location } }),
   };
-}
-
-/** The semantic branch name, in the background: the thread is already running on the first name. */
-export function coreNameBranchLater(
-  hostContext: GatewayCore,
-  thread: ThreadRow,
-  message: string,
-  later: NonNullable<PreparedWorkspace["nameLater"]>,
-): void {
-  const { worktree, location } = later;
-
-  const run = async () => {
-    const name = semanticBranch(await coreGenerateText(hostContext, thread, () => branchPrompt(message)));
-
-    if (!name || name === worktree.branch) return;
-    const connection = hostContext.link.connections.get(worktree.worker_id);
-
-    if (!connection?.isOpen) return;
-
-    const result = await connection.sendCommand(
-      {
-        case: "renameWorktreeBranch",
-        value: { path: worktree.path, fromBranch: worktree.branch, toBranch: name, location },
-      },
-      20_000,
-    );
-
-    const renamed = result.ok && result.worktree?.renamed ? result.worktree.branch : undefined;
-
-    if (!renamed) return;
-    const threads = await coreRun(hostContext, (s) => s.renameWorktree(worktree.id, worktree.branch, renamed));
-
-    for (const id of threads) await coreBroadcastThread(hostContext, id);
-  };
-
-  void run().catch(() => coreLog(hostContext, `worktree ${worktree.id}: semantic branch name unavailable; kept`));
 }
 
 export interface CoreWorktreesMethods {

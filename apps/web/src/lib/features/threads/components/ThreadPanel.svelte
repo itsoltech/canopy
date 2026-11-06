@@ -27,7 +27,7 @@
   import { useThreadDirectory } from "../thread-directory.ts";
   import ThreadTitleActions from "./ThreadTitleActions.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import { headLabel } from "@canopy/domain/git-heads";
+  import { headLabel, worktreeTooltip } from "@canopy/domain/git-heads";
 
   /**
    * Context of a thread: where it runs, which agent, who answers its approvals,
@@ -130,7 +130,7 @@
     {#if thread.worktree}
       <!-- A git worktree (docs/worktrees.md): its branch and what it started from; opens Manage worktree. -->
       <PanelRow icon="git-fork" onclick={onworktree}>
-        <code class="font-mono text-xs/6" {@attach tooltip(`Worktree ${thread.worktree.path}`)}
+        <code class="font-mono text-xs/6" {@attach tooltip(worktreeTooltip(thread.worktree))}
           >{headLabel(thread.worktree)}</code
         >
         {#snippet aside()}{#if thread.worktree?.baseRef}<span

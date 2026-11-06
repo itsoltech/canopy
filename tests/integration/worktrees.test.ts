@@ -301,12 +301,13 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
     await settings(project.id, { startFromRemote: false, branchNaming: ui.BranchNaming.UNSPECIFIED });
   });
 
-  test("semantic names: the thread starts at once on the prefix name, the model's type/slug replaces it", async () => {
+  test("semantic names: the thread starts at once on a provisional name, the model's type/slug replaces it", async () => {
     await settings("", { branchNaming: ui.BranchNaming.SEMANTIC, branchPrefix: "canopy" });
     generatedText = "`feat/Add dark mode`";
     const count = generated.length;
     const thread = await newWorktreeThread("Please add a dark mode toggle to settings");
-    expect(thread.worktree?.branch).toBe("canopy/please-add-a-dark-mode-toggle-to-settings");
+    // Provisional: the first words and a random part (this worker has no provisional_branches: one attempt).
+    expect(thread.worktree?.branch).toMatch(/^canopy\/please-add-a-[0-9a-hjkmnp-tv-z]{4}$/);
 
     const renamed = await eventually(
       () => gw.api.getThread({ threadId: thread.id }),
@@ -325,9 +326,8 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
       (n) => n > 0,
     );
     await Bun.sleep(300);
-    expect((await gw.api.getThread({ threadId: kept.id })).thread?.worktree?.branch).toBe(
-      "canopy/another-dark-mode-pass",
-    );
+    expect((await gw.api.getThread({ threadId: kept.id })).thread?.worktree?.branch).toBe(kept.worktree!.branch);
+    expect(kept.worktree?.branch).toMatch(/^canopy\/another-dark-mode-[0-9a-hjkmnp-tv-z]{4}$/);
   });
 
   test("remote bases prefer a differently named upstream, use same-named origin, and fall back when fetch fails", async () => {

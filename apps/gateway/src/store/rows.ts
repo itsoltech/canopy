@@ -79,6 +79,7 @@ export interface ThreadWorktreeColumns {
   created_at: string;
   removed_at?: string | null;
   detached_commit?: string;
+  branch_source?: string;
 }
 
 export interface TurnRow {

@@ -1,4 +1,5 @@
 import { create, toJson, type MessageInitShape } from "@bufbuild/protobuf";
+import { coreNameBranchAfterTurn } from "../worktrees/branch-naming.ts";
 import { SHELL_INPUT_CAPABILITY, SHELL_INPUT_TIMEOUT_MS } from "@canopy/domain";
 import { CommandResultSchema, CommandSchema, type Command, type CommandResult } from "@canopy/contracts";
 import { AgentBusStore } from "../store/index.ts";
@@ -131,6 +132,8 @@ export async function coreDeliver(hostContext: GatewayCore, workerId: string, co
       await coreBroadcastTurn(hostContext, thread?.threadId ?? "", turnId);
       await coreBroadcastThread(hostContext, thread?.threadId ?? "");
       await coreSettle(hostContext, thread?.threadId ?? "", SETTLE_TURN_ENDED);
+      // The request still says what the work is, also when its turn did not start.
+      coreNameBranchAfterTurn(hostContext, thread?.threadId ?? "");
 
       // A Claude /goal turn: the goal shows why it did not start.
       if (await coreGoals(hostContext, (s) => s.turnFailed(turnId, `${result.errorCode}: ${reason}`)))

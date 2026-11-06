@@ -2103,7 +2103,7 @@ enum WorkspaceMode {
 
 enum BranchNaming {
   BRANCH_NAMING_UNSPECIFIED = 0;
-  // Model wybiera feat/..., fix/..., refactor/... z pierwszej wiadomości.
+  // Tymczasowa nazwa, potem model wybiera feat/..., fix/..., refactor/..., gdy zadanie jest jasne.
   BRANCH_NAMING_SEMANTIC = 1;
   // <prefix>/<slug pierwszej wiadomości>.
   BRANCH_NAMING_PREFIX = 2;
@@ -2122,6 +2122,8 @@ message ThreadWorktree {
   google.protobuf.Timestamp removed_at = 8;
   // Odłączony HEAD: skrócony commit (branch zostaje ostatnią gałęzią). Gałąź i HEAD pochodzą z workera na żywo.
   string detached_commit = 9;
+  // Tymczasowa nazwa gałęzi: Canopy może ją zmienić na wygenerowaną, gdy zadanie stanie się jasne.
+  bool provisional_branch = 10;
 }
 
 // Bieżący HEAD checkoutu zgłoszony przez worker; detached_commit niepusty = odłączony HEAD.

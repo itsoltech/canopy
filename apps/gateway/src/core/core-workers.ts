@@ -14,6 +14,7 @@ import { coreBroadcastThread, coreBroadcastTurn, coreBroadcastWorkers, coreLog, 
 import { coreBroadcastGoal } from "./core-goals.ts";
 import { offerWorkerRoutes } from "../network/workers.ts";
 import { coreGitHeads } from "../worktrees/heads.ts";
+import { coreNameBranchAfterTurn } from "../worktrees/branch-naming.ts";
 
 // ------------------------------------------------------------------ workers
 
@@ -272,6 +273,8 @@ export async function coreIngest(
     result.stored.filter((s) => s.event.body.case === "turnFinished").map((s) => s.threadId),
   )) {
     await coreSettle(hostContext, threadId, SETTLE_TURN_ENDED, { publishThread: false });
+    // A provisional branch name may be named now that the turn says more about the work.
+    coreNameBranchAfterTurn(hostContext, threadId);
   }
 
   for (const threadId of touched) {
