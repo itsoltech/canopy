@@ -15,6 +15,7 @@ import {
 import { eventItemId, reduceItem } from "@canopy/domain/items";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { threadCache } from "./thread-cache.ts";
+import { saveHistory } from "../desktop/history.ts";
 import { classifyFailure, safeFailureDetail } from "@canopy/domain";
 import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
@@ -451,6 +452,8 @@ export class ThreadState {
 
         try {
           this.apply(update);
+
+          if (this.#snapshot?.thread) saveHistory(ui.ThreadSnapshotSchema, `thread_${threadId}`, this.#snapshot);
         } catch {
           if (this.#snapshot) this.#snapshot = { ...this.#snapshot, cursor: "" };
           throw new Error("Thread resynchronization required");

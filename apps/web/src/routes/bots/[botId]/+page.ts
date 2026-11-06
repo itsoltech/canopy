@@ -7,6 +7,8 @@ import { botList } from "#lib/features/bots/bot-list.svelte.ts";
 import { botViewKey } from "@canopy/domain/bot-cache";
 
 export const load: PageLoad = async ({ fetch, params }) => {
+  await botCache.load(botViewKey("chat", params.botId));
+
   const bot =
     botList.list.find((bot) => bot.id === params.botId) ??
     botCache.get(botViewKey("chat", params.botId))?.conversation?.bot;

@@ -921,6 +921,26 @@ Wycofanie wadliwego wydania wymaga nowszego wydania naprawczego tego samego kana
 aplikacja nie wykonuje rollbacku bazy. Jawny downgrade desktopu nie sprawdza zgodności
 danych i nie daje gwarancji uruchomienia. Wcześniej wykonaj backup.
 
+## Prywatna kopia historii
+
+Powłoka Electron utrwala ostatnie snapshoty wątków, rozmów botów i wymian
+w `userData/history-v1`. Dostęp prowadzi przez wąski, typowany preload i IPC,
+sprawdzający zaufane okno oraz aktywne połączenie. Katalog ma uprawnienia 0700,
+pliki 0600. To dane profilu aplikacji bieżącego użytkownika systemu; nie jest
+to ochrona przed innym procesem działającym jako ten sam użytkownik.
+
+Wspólny LRU mieści 32 widoki / 96 MiB, najwyżej 16 MiB na wpis. Zapis używa
+pliku tymczasowego i atomowego rename. Odczyt odrzuca uszkodzone i nieznane
+pola protobuf. Przechowujemy publiczne projekcje, bez wartości sekretów,
+tokenów, poświadczeń konektorów i konfiguracji providerów. Zwykła treść rozmowy
+pozostaje prywatnymi danymi użytkownika.
+
+Przed pierwszym watchem renderer odczytuje kopię i wysyła jej trwały kursor.
+Zmiana trybu lub unpair/revocation usuwa katalog i pamięć; fence generacji
+odrzuca spóźnione zapisy poprzedniej sesji. Zmiana wersji aplikacji sama nie
+czyści historii. Zwykły web pozostaje wyłącznie w pamięci SPA: bez preloadu
+nie zapisuje treści w IndexedDB, localStorage ani na serwerze BFF.
+
 ## Sprawdzanie runtime i paczek
 
 `apps/desktop/test/runtime.integration.test.ts` kopiuje finalny runtime poza repo,

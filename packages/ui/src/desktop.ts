@@ -128,6 +128,12 @@ export function sameDesktopConfiguration(
 }
 
 export interface DesktopBridge {
+  history?: {
+    read(key: string): Promise<{ generation: string; bytes?: Uint8Array }>;
+    write(generation: string, key: string, bytes: Uint8Array): Promise<void>;
+    remove(key: string): Promise<void>;
+    clear(): Promise<void>;
+  };
   /**
    * A native thread or bot alert. Main checks lengths, opens only `/threads/<id>` or `/bots/<id>`
    * and shows each key once across windows (docs/desktop.md).
