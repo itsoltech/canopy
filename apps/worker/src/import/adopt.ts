@@ -3,7 +3,16 @@ import type { AdoptImportedSession, RemoveImportedCopy } from "@canopy/contracts
 import { CommandError } from "../runtime/host-types.ts";
 import { CopyError, PrivateCopy, removeCopy } from "./copy.ts";
 import type { Masker } from "./masking.ts";
-import { ConfinementError, directoryEntries, lines, prefixSha, type SourceFile } from "./read.ts";
+import { grokHistoryFile } from "./grok-history.ts";
+import {
+  ConfinementError,
+  directoryEntries,
+  lines,
+  prefixSha,
+  sourceExists,
+  sourceStat,
+  type SourceFile,
+} from "./read.ts";
 import { maskedFile, maskedLines, UnsafeCopy } from "./sanitize.ts";
 import type { WorkerImport } from "./service.ts";
 import { resolveSourceKey, SourceKeyError } from "./source-key.ts";
@@ -20,6 +29,8 @@ export interface ImportHomesForProfiles {
   /** The private homes of an instance's harnesses ("" = native). */
   claudeHome(profileId: string): string;
   codexHome(profileId: string): string;
+  /** Grok: the durable sessions root every process of the instance links as GROK_HOME/sessions. */
+  grokSessions(profileId: string): string;
 }
 
 export function adoptImportedSession(
@@ -29,11 +40,10 @@ export function adoptImportedSession(
 ): string {
   const cli = service.agentCliOf(command.sourceKey);
 
-  if (cli !== "claude" && cli !== "codex")
-    throw new CommandError("IMPORT_UNSUPPORTED", `continuing ${cli} threads needs a newer worker`, false);
+  if (!cli) throw new CommandError("IMPORT_SOURCE", "the source is no longer on this worker", false);
 
   try {
-    return cli === "codex" ? adoptCodex(service, homes, command) : adoptClaude(service, homes, command);
+    return ADOPT[cli](service, homes, command);
   } catch (error) {
     if (error instanceof SourceKeyError || error instanceof ConfinementError)
       throw new CommandError("IMPORT_SOURCE", error.message, false);
@@ -115,7 +125,86 @@ function adoptCodex(service: WorkerImport, homes: ImportHomesForProfiles, comman
 const HOMES = new Map<string, (homes: ImportHomesForProfiles, profileId: string) => string>([
   ["claude", (homes, profileId) => homes.claudeHome(profileId)],
   ["codex", (homes, profileId) => homes.codexHome(profileId)],
+  ["grok", (homes, profileId) => homes.grokSessions(profileId)],
 ]);
+
+/** Files of a Grok session a session/load needs (the rest, such as events, rewind points and terminal logs, stays). */
+const GROK_FILES = ["summary.json", "prompt_context.json", "system_prompt.txt", "tool_definitions.json"];
+
+/**
+ * Grok keeps a session in a directory under `sessions/<encoded cwd>/<id>/`; `chat_history.jsonl` is what the model
+ * gets back on session/load. The copy holds the session exactly as the scan saw it: the ACP log up to its snapshot
+ * and the chat history up to its own snapshot (size and first bytes, recorded by the scan), both cut at complete
+ * records. Without a snapshot of the chat history the copy is not made: the thread continues in a new one.
+ */
+function adoptGrok(service: WorkerImport, homes: ImportHomesForProfiles, command: AdoptImportedSession): string {
+  const { roots } = service.roots();
+  const resolved = resolveSourceKey(service.key, roots, command.sourceKey, "directory");
+  const dir: SourceFile = { root: resolved.root.path, path: resolved.path };
+  const sessionId = basename(dir.path);
+
+  if (!SESSION.test(sessionId)) throw new CommandError("IMPORT_SOURCE", "the session id is not valid", false);
+  const main = grokHistoryFile(dir);
+  const chat: SourceFile = { root: dir.root, path: join(dir.path, "chat_history.jsonl") };
+
+  if (!main || !sourceExists(chat)) throw new UnsafeCopy("this session has no chat history to continue from");
+  const snapshot = checkedSnapshot(main, command);
+  const chatEnd = main.path === chat.path ? Number(snapshot.size) : chatSnapshot(chat, command);
+
+  // A copy is the same only for the same scan of both files: the ACP log's and the chat history's snapshot.
+  const both = {
+    size: `${snapshot.size}/${chatEnd}`,
+    prefixSha256: `${snapshot.prefixSha256}/${command.snapshot?.historyPrefixSha256 ?? ""}`,
+  };
+
+  const group = join(basename(dirname(dir.path)), sessionId);
+
+  const copy = new PrivateCopy(
+    homes.grokSessions(command.profileId),
+    service.copyManifest("grok", command.profileId, sessionId),
+  );
+
+  try {
+    if (copy.sameAs(both)) return sessionId;
+    const masker = service.masker(roots);
+    copy.write(join(group, "chat_history.jsonl"), maskedLines(chat, completeLines(chat, chatEnd), masker));
+
+    if (main.path !== chat.path)
+      copy.write(
+        join(group, basename(main.path)),
+        maskedLines(main, completeLines(main, Number(snapshot.size)), masker),
+      );
+
+    for (const name of GROK_FILES) {
+      const file: SourceFile = { root: dir.root, path: join(dir.path, name) };
+      const content = sourceExists(file) ? maskedFile(file, masker) : undefined;
+
+      if (content) copy.write(join(group, name), content);
+    }
+
+    copy.commit(both);
+
+    return sessionId;
+  } finally {
+    copy.abort();
+  }
+}
+
+/** The chat history as the scan saw it: its recorded size, and the same first bytes. */
+function chatSnapshot(chat: SourceFile, command: AdoptImportedSession): number {
+  const snapshot = command.snapshot;
+  const size = Number(snapshot?.historySize ?? 0n);
+
+  if (!snapshot?.historyPrefixSha256)
+    throw new UnsafeCopy("the scan did not record the chat history; scan again to continue natively");
+
+  if (sourceStat(chat).size < size || prefixSha(chat, size) !== snapshot.historyPrefixSha256)
+    throw new CommandError("IMPORT_SOURCE_CHANGED", "the source changed since the scan; scan again", false);
+
+  return size;
+}
+
+const ADOPT = { claude: adoptClaude, codex: adoptCodex, grok: adoptGrok } as const;
 
 /** The source still starts as it did at the scan; the snapshot as the manifest records it. */
 export function checkedSnapshot(source: SourceFile, command: AdoptImportedSession) {

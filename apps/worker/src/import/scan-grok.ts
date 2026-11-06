@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { JsonObject, JsonValue } from "@canopy/domain";
 import { decodeJson, isJsonObject, isNumber, jsonObject, jsonString } from "../providers/json.ts";
+import { grokHistoryFile } from "./grok-history.ts";
 import {
   directoryEntries,
   headLines,
@@ -48,6 +49,15 @@ export function* scanGrok(root: ImportRootPath, context: ScanContext): Generator
 }
 
 const HISTORY = "chat_history.jsonl";
+
+const CONTENT: ReadonlySet<string> = new Set([
+  "user_message_chunk",
+  "agent_message_chunk",
+  "agent_thought_chunk",
+  "tool_call",
+  "tool_call_update",
+]);
+
 const UPDATES = "updates.jsonl";
 
 /** User text without the tags Grok wraps a prompt in. */
@@ -59,41 +69,75 @@ export function grokPromptText(text: string): string {
 
 function grokSummary(root: ImportRootPath, context: ScanContext, dir: string, group: string): SummaryInit {
   const at = (name: string): SourceFile => ({ root: root.path, path: join(dir, name) });
-  const main = sourceExists(at(HISTORY)) ? at(HISTORY) : at(UPDATES);
+  // The file the import reads (and the snapshot covers): the ACP log, else the chat history.
+  const main = grokHistoryFile({ root: root.path, path: dir }) ?? at(UPDATES);
   const files = directoryEntries({ root: root.path, path: dir }).filter((f) => f.isFile() && !f.name.endsWith(".lock"));
   const bytes = files.reduce((sum, f) => sum + sourceStat(at(f.name)).size, 0);
   const meta = readJson(at("summary.json"));
   const context0 = readJson(at("prompt_context.json"));
-  const empty = !sourceExists(main);
-  const size = empty ? 0 : sourceStat(main).size;
+  const missing = !sourceExists(main);
+  const size = missing ? 0 : sourceStat(main).size;
   let preview = "";
   let flagged = 0;
   let turns = 0;
+  // Interactive sessions log no prompt in updates.jsonl; their turns end with turn_completed.
+  let ends = 0;
+  let content = false;
 
-  if (!empty) {
+  if (!missing) {
     const lines = headLines(main, size <= SMALL_FILE ? size : HEAD_BYTES, size);
+    const chatLog = main.path.endsWith(HISTORY);
+
+    // The ACP log streams the first prompt in chunks: they are joined raw and masked as one text (a chunk masked
+    // alone could cut a secret apart). The chat history has whole prompts.
+    const first: string[] = [];
+    let streaming = true;
 
     for (const line of lines) {
       const entry = parseLine(line);
-      const history = main.path.endsWith(HISTORY);
+      const kind = jsonString(jsonObject(jsonObject(entry?.["params"])?.["update"])?.["sessionUpdate"]);
 
-      if (promptOf(entry, history) === undefined) continue;
+      if (kind === "turn_completed") ends += 1;
+
+      if (CONTENT.has(kind) || entry?.["type"] === "assistant") content = true;
+      const prompt = promptOf(entry, chatLog);
+
+      if (!chatLog && first.length > 0 && kind !== "user_message_chunk") streaming = false;
+
+      if (prompt === undefined) continue;
       turns += 1;
 
-      if (!preview) {
-        const masked = previewOf(context.masker, entry, (e) => promptOf(e, history));
+      if (!chatLog && streaming) first.push(chunkText(entry));
+      else if (chatLog && !preview) {
+        const masked = previewOf(context.masker, entry, (e) => promptOf(e, chatLog));
         flagged += masked.found;
         preview = masked.text;
       }
     }
+
+    if (first.length > 0) {
+      const masked = previewOf(context.masker, { prompt: first.join("") }, (r) => jsonString(r["prompt"]));
+      flagged += masked.found;
+      preview = masked.text;
+    }
   }
 
+  // A small session without any conversation (seen on real machines) has nothing to import.
+  const empty = missing || (size <= SMALL_FILE && !content && turns === 0);
+  turns = Math.max(turns, ends);
   const cwd = jsonString(context0?.["working_directory"]) || decodeGroup(group);
   const nonInteractive = context0?.["is_non_interactive"] === true || meta?.["session_kind"] === "headless";
 
+  const chat = at(HISTORY);
+  // The chat history (what session/load gives back) as it is now: a native copy ends exactly here.
+  const history = !empty && main.path !== chat.path && sourceExists(chat) ? snapshotOf(chat) : undefined;
+
   const snapshot = empty
     ? { size: 0n, modifiedMs: BigInt(Math.trunc(modifiedMs(at("summary.json")))), prefixSha256: "" }
-    : snapshotOf(main);
+    : {
+        ...snapshotOf(main),
+        ...(history && { historySize: history.size, historyPrefixSha256: history.prefixSha256 }),
+      };
 
   return summary(root, context, {
     nativeId: dir.slice(dir.lastIndexOf("/") + 1),
@@ -113,6 +157,11 @@ function grokSummary(root: ImportRootPath, context: ScanContext, dir: string, gr
     flagged,
     gitBranch: jsonString(meta?.["head_branch"]),
   });
+}
+
+/** A streamed prompt chunk as written (not trimmed: the chunks are joined). */
+function chunkText(entry: JsonObject | undefined): string {
+  return jsonString(jsonObject(jsonObject(jsonObject(entry?.["params"])?.["update"])?.["content"])?.["text"]);
 }
 
 function promptOf(entry: JsonObject | undefined, history: boolean): string | undefined {

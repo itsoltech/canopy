@@ -79,7 +79,7 @@ message ImportCandidate {
   uint32 turns = 11;
   string origin = 12;
   string cli_version = 13;
-  // new | imported | has_new_turns | in_canopy | unsupported (CLI, którego worker jeszcze nie importuje)
+  // new | imported | has_new_turns | in_canopy
   string status = 14;
   // native | history: co będzie możliwe po imporcie.
   string continue_mode = 15;

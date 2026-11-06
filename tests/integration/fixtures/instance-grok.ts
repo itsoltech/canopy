@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /** ACP fixture with durable sessions behind disposable process homes. */
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
@@ -109,7 +109,14 @@ for await (const line of createInterface({ input: process.stdin })) {
     const session = params.sessionId ?? crypto.randomUUID();
     const file = join(process.env["GROK_HOME"]!, "sessions", `${session}.json`);
 
-    if (message.method === "session/load" && !existsSync(file)) {
+    // A real session directory (sessions/<encoded cwd>/<id>/, e.g. an imported one) loads too.
+    const sessions = join(process.env["GROK_HOME"]!, "sessions");
+
+    const real =
+      existsSync(sessions) &&
+      readdirSync(sessions).some((group) => existsSync(join(sessions, group, session, "chat_history.jsonl")));
+
+    if (message.method === "session/load" && !existsSync(file) && !real) {
       send({ id, error: { code: -32000, message: "Session missing" } });
       continue;
     }

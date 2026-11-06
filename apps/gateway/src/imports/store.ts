@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { ui } from "@canopy/contracts";
+import { ui, type ImportSnapshot } from "@canopy/contracts";
 import type { JsonValue } from "@bufbuild/protobuf";
 import { Effect, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -23,6 +23,27 @@ export const ImportTargetJson = Schema.Struct({
 
 export type ImportTargetJson = typeof ImportTargetJson.Type;
 
+/** ImportSnapshot as an item keeps it (JSON): the import reads, and a copy holds, exactly this. */
+export interface StoredSnapshot {
+  readonly size: string;
+  readonly modifiedMs: string;
+  readonly prefixSha256: string;
+  readonly historySize?: string;
+  readonly historyPrefixSha256?: string;
+}
+
+export function storedSnapshot(snapshot: ImportSnapshot | undefined): StoredSnapshot {
+  return {
+    size: String(snapshot?.size ?? 0n),
+    modifiedMs: String(snapshot?.modifiedMs ?? 0n),
+    prefixSha256: snapshot?.prefixSha256 ?? "",
+    ...(snapshot?.historyPrefixSha256 && {
+      historySize: String(snapshot.historySize),
+      historyPrefixSha256: snapshot.historyPrefixSha256,
+    }),
+  };
+}
+
 export interface ItemRow {
   readonly id: string;
   readonly run_id: string;
@@ -35,7 +56,7 @@ export interface ItemRow {
   readonly source_key: string;
   readonly title: string;
   readonly cwd: string;
-  readonly snapshot: { size: string; modifiedMs: string; prefixSha256: string };
+  readonly snapshot: StoredSnapshot;
   readonly target: ImportTargetJson;
   readonly status: string;
   readonly cursor: string;
@@ -77,7 +98,7 @@ export interface NewItem {
   readonly sourceKey: string;
   readonly title: string;
   readonly cwd: string;
-  readonly snapshot: { size: string; modifiedMs: string; prefixSha256: string };
+  readonly snapshot: StoredSnapshot;
   readonly target: ImportTargetJson;
   readonly bytes: bigint;
   /** Turns the CLI added after an earlier import: this item continues that item's thread from its cursor. */

@@ -12,16 +12,18 @@ import {
   InteractionResponseSchema,
   PermissionMode,
   Provider,
+  ThreadEventSchema,
   ThreadSpecSchema,
   UserInputSchema,
   type ThreadEvent,
 } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
 import { Effect, Layer } from "effect";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { Journal } from "../journal/index.ts";
 import { ClaudeThreads } from "../providers/claude/threads.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
+import { GrokThreads } from "../providers/grok/threads.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { DEFAULT_NATIVE_TOOL_POLICY } from "../providers/native-tools.ts";
 import { resolveProfiles } from "../providers/profiles.ts";
@@ -148,7 +150,128 @@ async function codexTurn(home: string, cwd: string, threadId: string, text: stri
   return { events, threadId: started };
 }
 
+/** A Grok model the proxy serves (CANOPY_LIVE_GROK_MODEL, else a fast or mini one). */
+async function grokModel(): Promise<string> {
+  if (process.env["CANOPY_LIVE_GROK_MODEL"]) return process.env["CANOPY_LIVE_GROK_MODEL"];
+
+  const response = await fetch(new URL("v1/models", `${(proxyUrl ?? "").replace(/\/$/, "")}/`), {
+    headers: { Authorization: `Bearer ${proxyKey ?? ""}` },
+  });
+
+  const ids = ((await response.json()) as { data: { id: string }[] }).data
+    .map((m) => m.id)
+    .filter((id) => /grok/i.test(id));
+
+  return ids.find((id) => /fast|mini/i.test(id)) ?? ids[0] ?? "grok-4.7";
+}
+
 describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("live: imported sessions resume", () => {
+  test.skipIf(!Bun.which("grok"))(
+    "Grok: a session from the user's GROK_HOME continues in Canopy and remembers its history",
+    async () => {
+      const root = temp("canopy-import-live-grok-");
+      const userHome = join(root, "user");
+      const grokHome = join(userHome, ".grok");
+      const cwd = join(root, "project");
+      mkdirSync(grokHome, { recursive: true });
+      mkdirSync(cwd, { recursive: true });
+      const model = await grokModel();
+      const base = `${(proxyUrl ?? "").replace(/\/$/, "").replace(/\/v1$/, "")}/v1`;
+      // The user's own CLI, with its model behind the proxy; the key stays in the process environment.
+      writeFileSync(
+        join(grokHome, "config.toml"),
+        `[cli]\nauto_update = false\nuse_leader = false\n\n[model.${JSON.stringify(model)}]\nmodel = ${JSON.stringify(model)}\nbase_url = ${JSON.stringify(base)}\nenv_key = "LIVE_GROK_KEY"\napi_backend = "chat_completions"\n`,
+      );
+      const word = `heron-${crypto.randomUUID().slice(0, 6)}`;
+
+      const first = Bun.spawn(["grok", "-p", `Remember the code word ${word}. Reply only: OK.`, "-m", model], {
+        cwd,
+        env: {
+          PATH: process.env["PATH"] ?? "",
+          HOME: userHome,
+          GROK_HOME: grokHome,
+          LIVE_GROK_KEY: proxyKey ?? "",
+          XAI_API_KEY: proxyKey ?? "",
+          GROK_TELEMETRY_ENABLED: "0",
+          GROK_FOLDER_TRUST: "0",
+        },
+        stdin: "ignore",
+        stdout: "ignore",
+        stderr: "ignore",
+      });
+
+      expect(await first.exited).toBe(0);
+
+      const service = new WorkerImport({
+        dataDir: join(root, "worker"),
+        homes: () => ({ claude: join(userHome, ".claude"), codex: join(userHome, ".codex"), grok: grokHome }),
+        config: () => undefined,
+      });
+
+      const summary = (await service.scan(["grok"])).threads.find((t) => t.format !== "empty")!;
+      const before = treeFingerprint(join(grokHome, "sessions"));
+      const dataDir = join(root, "worker");
+      const sessions = join(dataDir, "grok", "live", "sessions");
+
+      const adopted = adoptImportedSession(
+        service,
+        { claudeHome: () => "", codexHome: () => "", grokSessions: () => sessions },
+        create(AdoptImportedSessionSchema, {
+          sourceKey: summary.sourceKey,
+          snapshot: summary.snapshot,
+          profileId: "live",
+        }),
+      );
+
+      const events: ThreadEvent[] = [];
+      const profile = liveProfile("grok");
+
+      const threads = new GrokThreads({
+        profile: () => ({ ...profile, env: { ...profile.env, GROK_FOLDER_TRUST: "0" } }),
+        interact: async () => create(InteractionResponseSchema, { allow: false }),
+        callTool: async () => create(AgentToolResultSchema, { isError: true }),
+        dataDir,
+        executable: Bun.which("grok")!,
+        linkDeviceLogin: false,
+        record: async (_thread, event) => {
+          const stored = create(ThreadEventSchema, {
+            turnId: event.turnId ?? "",
+            ...(event.body && { body: event.body }),
+          });
+
+          events.push(stored);
+
+          return stored;
+        },
+      });
+
+      try {
+        await threads.startTurn(
+          create(ThreadSpecSchema, {
+            threadId: crypto.randomUUID(),
+            provider: Provider.GROK,
+            providerProfileId: "live",
+            providerThreadId: adopted,
+            cwd,
+            model,
+            permissionMode: PermissionMode.READ_ONLY,
+          }),
+          crypto.randomUUID(),
+          create(UserInputSchema, { text: "What was the code word? Reply with the word only." }),
+        );
+        const deadline = Date.now() + 180_000;
+
+        while (!events.some((e) => e.body.case === "turnFinished") && Date.now() < deadline) await Bun.sleep(250);
+      } finally {
+        await threads.close();
+      }
+
+      expect(agentText(events).toLowerCase()).toContain(word);
+      expect(treeFingerprint(join(grokHome, "sessions"))).toBe(before);
+    },
+    400_000,
+  );
+
   test.skipIf(!Bun.which("codex"))(
     "Codex: a rollout from the user's CODEX_HOME continues in Canopy and remembers its history",
     async () => {
@@ -183,7 +306,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("live: imported sessions resume
 
       const adopted = adoptImportedSession(
         service,
-        { claudeHome: () => privateHome, codexHome: () => privateHome },
+        { claudeHome: () => privateHome, codexHome: () => privateHome, grokSessions: () => privateHome },
         create(AdoptImportedSessionSchema, { sourceKey: summary.sourceKey, snapshot: summary.snapshot }),
       );
 
@@ -236,7 +359,7 @@ describe.skipIf(!LIVE || !proxyUrl || !proxyKey)("live: imported sessions resume
 
       const adopted = adoptImportedSession(
         service,
-        { claudeHome: () => privateHome, codexHome: () => privateHome },
+        { claudeHome: () => privateHome, codexHome: () => privateHome, grokSessions: () => privateHome },
         create(AdoptImportedSessionSchema, { sourceKey: summary.sourceKey, snapshot: summary.snapshot }),
       );
 

@@ -4,6 +4,7 @@ import { CommandError } from "../runtime/host-types.ts";
 import { indexClaude, MalformedSessionError, type ClaudeIndex } from "./claude-index.ts";
 import { readClaudePage, type PageResult } from "./claude-history.ts";
 import { readCodexPage } from "./codex-history.ts";
+import { grokHistoryFile, readGrokPage } from "./grok-history.ts";
 import { ConfinementError, prefixSha, sourceStat, type SourceFile } from "./read.ts";
 import type { WorkerImport } from "./service.ts";
 import { maskedText, MAX_TURN } from "./turns.ts";
@@ -45,7 +46,7 @@ function readPage(
   file: SourceFile,
   end: number,
 ): ImportPage {
-  checkSnapshot(file, command);
+  checkSnapshot(file, command, cli);
   const cursor = command.cursor ? Number(command.cursor) : 0;
 
   if (!Number.isInteger(cursor) || cursor < 0 || cursor > end)
@@ -83,6 +84,9 @@ function readPage(
     // rollout-<time>-<thread id>.jsonl
     const sessionId = file.path.slice(-".jsonl".length - 36, -".jsonl".length);
     result = readCodexPage({ file, end, cursor, threadId: command.threadId, sessionId, masker, maxBytes });
+  } else if (cli === "grok") {
+    const sessionId = file.path.slice(file.path.lastIndexOf("/") + 1);
+    result = readGrokPage({ dir: file, end, cursor, threadId: command.threadId, sessionId, masker, maxBytes });
   } else throw new CommandError("IMPORT_UNSUPPORTED", `importing ${cli} threads needs a newer worker`, false);
 
   if (result.skipped > 0)
@@ -115,12 +119,16 @@ function resolve(service: WorkerImport, sourceKey: string, kind: "file" | "direc
 }
 
 /** The file must still be at least as long and start the same way as at the scan (appending is fine). */
-function checkSnapshot(file: SourceFile, command: ReadImportPage): void {
+function checkSnapshot(file: SourceFile, command: ReadImportPage, cli: string): void {
   const snapshot = command.snapshot;
 
   if (!snapshot) throw new CommandError("IMPORT_SNAPSHOT", "the import has no snapshot of its source", false);
-  const size = sourceStat(file).size;
+  // A Grok session is a directory: its history file carries the snapshot.
+  const history = cli === "grok" ? grokHistoryFile(file) : file;
 
-  if (size < snapshot.size || prefixSha(file, Number(snapshot.size)) !== snapshot.prefixSha256)
+  if (!history) return;
+  const size = sourceStat(history).size;
+
+  if (size < snapshot.size || prefixSha(history, Number(snapshot.size)) !== snapshot.prefixSha256)
     throw new CommandError("IMPORT_SOURCE_CHANGED", "the source changed since the scan; scan again", false);
 }

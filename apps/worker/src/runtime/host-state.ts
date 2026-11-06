@@ -91,6 +91,11 @@ export class HostState {
   /** The isolated Claude config dir per instance (skills and commands). */
   readonly claudeHomes = new Map<string, string>();
 
+  /** Durable Grok sessions of an instance ("" = native): `<data_dir>/grok/<instance>/sessions` (grok/launch.ts). */
+  grokSessions(profileId: string): string {
+    return join(this.options.dataDir, "grok", profileId || "native", "sessions");
+  }
+
   /** The private Codex home of an instance ("" = native): its shadow home, else `<data_dir>/codex-home`. */
   codexHome(profileId: string): string {
     const id = profileId || "native";

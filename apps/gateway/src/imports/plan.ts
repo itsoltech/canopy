@@ -3,8 +3,8 @@ import { ui, type ImportThreadSummary } from "@canopy/contracts";
 import type { GatewayCore } from "../core/core.ts";
 import { InvalidError } from "../core/core-context.ts";
 import { isWithinWorkspace, pathStyle } from "../store/paths.ts";
-import { historyReason, IMPORTABLE_CLIS, matches, suggestion, type CandidateContext } from "./candidates.ts";
-import type { ImportTargetJson, NewItem } from "./store.ts";
+import { historyReason, matches, suggestion, type CandidateContext } from "./candidates.ts";
+import { storedSnapshot, type ImportTargetJson, type NewItem } from "./store.ts";
 
 /**
  * What StartImport creates (docs/import.md, "Plan"): the selected threads of a scan, without the ones this owner
@@ -13,8 +13,8 @@ import type { ImportTargetJson, NewItem } from "./store.ts";
  * or "No project". Directories that no longer exist always go to "No project" as history.
  */
 
-/** Agent CLIs whose imported threads can continue natively (later stages add the others). */
-export const NATIVE_CLIS: ReadonlySet<string> = new Set<string>(["claude", "codex"]);
+/** Agent CLIs whose imported threads can continue natively. */
+export const NATIVE_CLIS: ReadonlySet<string> = new Set<string>(["claude", "codex", "grok"]);
 
 export interface Scratch {
   readonly projectId: string;
@@ -112,7 +112,7 @@ export function newItems(
   return threads.flatMap((t) => {
     const target = targets.get(t.cwd);
 
-    if (!target || target === "skip" || !IMPORTABLE_CLIS.has(t.agentCli)) return [];
+    if (!target || target === "skip") return [];
     const native = mode === "continue" && !historyReason(t) && NATIVE_CLIS.has(t.agentCli) && target.cwd === t.cwd;
 
     return [
@@ -123,11 +123,7 @@ export function newItems(
         sourceKey: t.sourceKey,
         title: t.title || t.preview,
         cwd: t.cwd,
-        snapshot: {
-          size: String(t.snapshot?.size ?? 0n),
-          modifiedMs: String(t.snapshot?.modifiedMs ?? 0n),
-          prefixSha256: t.snapshot?.prefixSha256 ?? "",
-        },
+        snapshot: storedSnapshot(t.snapshot),
         target: { ...target, mode: native ? "native" : "history", cliVersion: t.cliVersion },
         bytes: t.bytes,
       },

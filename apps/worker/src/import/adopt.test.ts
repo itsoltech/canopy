@@ -13,7 +13,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
-import { AdoptImportedSessionSchema, RemoveImportedCopySchema } from "@canopy/contracts";
+import { AdoptImportedSessionSchema, RemoveImportedCopySchema, type ImportSnapshot } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
 import { adoptImportedSession, removeImportedCopy } from "./adopt.ts";
 import { installFixtureHome } from "./fixtures/install.ts";
@@ -47,14 +47,18 @@ async function setup() {
   const adopt = (replace = false, current = summary) =>
     adoptImportedSession(
       service,
-      { claudeHome: () => privateHome, codexHome: () => join(dataDir, "codex-home") },
+      {
+        claudeHome: () => privateHome,
+        codexHome: () => join(dataDir, "codex-home"),
+        grokSessions: () => join(dataDir, "grok", "native", "sessions"),
+      },
       create(AdoptImportedSessionSchema, { sourceKey: current.sourceKey, snapshot: current.snapshot, replace }),
     );
 
   const remove = (sessionId: string) =>
     removeImportedCopy(
       service,
-      { claudeHome: () => privateHome, codexHome: () => privateHome },
+      { claudeHome: () => privateHome, codexHome: () => privateHome, grokSessions: () => privateHome },
       create(RemoveImportedCopySchema, { agentCli: "claude", sessionId }),
     );
 
@@ -257,4 +261,115 @@ test("a tampered manifest with `..` inside a path deletes nothing outside the pr
 
   remove(sessionId);
   expect(readFileSync(outside, "utf8")).toBe("keep");
+});
+
+test("a Grok copy holds the session as the scan saw it: a prompt added later stays out", async () => {
+  const root = temp("canopy-import-adopt-grok-");
+  const home = join(root, "home");
+  const dataDir = join(root, "data");
+  installFixtureHome(home, ["grok"]);
+
+  const service = new WorkerImport({
+    dataDir,
+    homes: () => ({ claude: join(home, ".claude"), codex: join(home, ".codex"), grok: join(home, ".grok") }),
+    config: () => undefined,
+  });
+
+  const summary = (await service.scan(["grok"])).threads[0]!;
+  const group = join(home, ".grok", "sessions", encodeURIComponent(join(home, "project")));
+  const session = join(group, summary.nativeId);
+  // After the scan the CLI goes on: a new prompt in both logs.
+  appendFileSync(
+    join(session, "updates.jsonl"),
+    `${JSON.stringify({ method: "session/update", params: { update: { sessionUpdate: "user_message_chunk", content: { type: "text", text: "LATER_PROMPT" } } } })}\n`,
+  );
+  appendFileSync(
+    join(session, "chat_history.jsonl"),
+    `${JSON.stringify({ type: "user", prompt_index: 9, content: "LATER_PROMPT" })}\n`,
+  );
+  // And an answer that grew after the scan without any new prompt (an interactive session logs none).
+  appendFileSync(
+    join(session, "chat_history.jsonl"),
+    `${JSON.stringify({ type: "assistant", content: "LATER_ANSWER" })}\n`,
+  );
+  const sessions = join(dataDir, "grok", "native", "sessions");
+
+  const sessionId = adoptImportedSession(
+    service,
+    { claudeHome: () => "", codexHome: () => "", grokSessions: () => sessions },
+    create(AdoptImportedSessionSchema, { sourceKey: summary.sourceKey, snapshot: summary.snapshot }),
+  );
+
+  const copied = join(sessions, encodeURIComponent(join(home, "project")), sessionId);
+
+  expect(readFileSync(join(copied, "chat_history.jsonl"), "utf8")).not.toContain("LATER_PROMPT");
+  expect(readFileSync(join(copied, "chat_history.jsonl"), "utf8")).not.toContain("LATER_ANSWER");
+  expect(readFileSync(join(copied, "updates.jsonl"), "utf8")).not.toContain("LATER_PROMPT");
+  expect(readFileSync(join(copied, "chat_history.jsonl"), "utf8")).toContain("FIXTURE_TOOL");
+  expect(readdirSync(copied).some((f) => f.endsWith(".lock"))).toBe(false);
+});
+
+test("without a snapshot of the chat history a Grok session is not continued natively", async () => {
+  const root = temp("canopy-import-adopt-grok-old-");
+  const home = join(root, "home");
+  installFixtureHome(home, ["grok"]);
+
+  const service = new WorkerImport({
+    dataDir: join(root, "data"),
+    homes: () => ({ claude: join(home, ".claude"), codex: join(home, ".codex"), grok: join(home, ".grok") }),
+    config: () => undefined,
+  });
+
+  const summary = (await service.scan(["grok"])).threads[0]!;
+  expect(summary.snapshot?.historyPrefixSha256).toBeTruthy();
+  const snapshot = { ...summary.snapshot!, historySize: 0n, historyPrefixSha256: "" };
+
+  expect(() =>
+    adoptImportedSession(
+      service,
+      {
+        claudeHome: () => "",
+        codexHome: () => "",
+        grokSessions: () => join(root, "data", "grok", "native", "sessions"),
+      },
+      create(AdoptImportedSessionSchema, { sourceKey: summary.sourceKey, snapshot }),
+    ),
+  ).toThrow("scan again to continue natively");
+});
+
+test("a Grok copy is reused only for the same scan of both files", async () => {
+  const root = temp("canopy-import-adopt-grok-reuse-");
+  const home = join(root, "home");
+  installFixtureHome(home, ["grok"]);
+
+  const service = new WorkerImport({
+    dataDir: join(root, "data"),
+    homes: () => ({ claude: join(home, ".claude"), codex: join(home, ".codex"), grok: join(home, ".grok") }),
+    config: () => undefined,
+  });
+
+  const sessions = join(root, "data", "grok", "native", "sessions");
+
+  const adopt = (summary: { sourceKey: string; snapshot?: ImportSnapshot | undefined }) =>
+    adoptImportedSession(
+      service,
+      { claudeHome: () => "", codexHome: () => "", grokSessions: () => sessions },
+      create(AdoptImportedSessionSchema, { sourceKey: summary.sourceKey, snapshot: summary.snapshot }),
+    );
+
+  const older = (await service.scan(["grok"])).threads[0]!;
+  const session = join(home, ".grok", "sessions", encodeURIComponent(join(home, "project")), older.nativeId);
+  // The chat history grows (an answer, no new ACP record): a newer scan, a newer copy.
+  appendFileSync(
+    join(session, "chat_history.jsonl"),
+    `${JSON.stringify({ type: "assistant", content: "NEWER_ANSWER" })}\n`,
+  );
+  const newer = (await service.scan(["grok"])).threads[0]!;
+  const id = adopt(newer);
+  const chat = join(sessions, encodeURIComponent(join(home, "project")), id, "chat_history.jsonl");
+  expect(readFileSync(chat, "utf8")).toContain("NEWER_ANSWER");
+
+  // The older scan's copy is made again, not the newer one reused.
+  adopt(older);
+  expect(readFileSync(chat, "utf8")).not.toContain("NEWER_ANSWER");
 });
