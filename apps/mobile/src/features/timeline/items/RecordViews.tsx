@@ -2,13 +2,13 @@ import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ItemStatus, type ContextCompaction, type Image, type ProviderItem } from "@canopy/contracts";
 import { humanizeEnum } from "@canopy/domain/humanize";
-import { Icon } from "../../../ui/Icon";
 import { Markdown } from "../../../ui/markdown";
 import { styles, useColors } from "../../../ui/theme";
 import { ItemFrame } from "../ItemFrame";
 import { CodeBlock } from "../CodeBlock";
 import { prettyJson } from "@canopy/domain/format";
 import { EmptyNote, ErrorText, RowTitle } from "./parts";
+import { Chevron } from "../../../ui/MotionViews";
 
 /** An image the agent looked at or generated (web: ImageView). The phone does not load the preview. */
 export function ImageView({ image, status }: { image: Image; status: ItemStatus }) {
@@ -59,7 +59,7 @@ export function CompactionView({ compaction }: { compaction: ContextCompaction }
             hitSlop={8}
           >
             <View style={[styles.row, { gap: 4, paddingHorizontal: 4 }]}>
-              <Icon name={open ? "chevron-down" : "chevron-right"} size={14} color={c.faint} />
+              <Chevron open={open} size={14} color={c.faint} />
               <Text style={[styles.meta, { color: c.muted }]}>Context compacted</Text>
             </View>
           </Pressable>

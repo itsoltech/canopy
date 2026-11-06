@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, View, type HostInstance } from "react-native";
 import { formatSpan } from "@canopy/domain/format";
-import { Icon } from "../../ui/Icon";
 import { LiveText, Rule } from "../../ui/Badge";
 import { useAnchoredToggle } from "../../ui/feed-anchor";
 import { font, styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
+import { Chevron } from "../../ui/MotionViews";
 
 /** What a fold says about its work (web: work-groups.ts WorkSummary). */
 export interface WorkSummary {
@@ -74,7 +74,7 @@ export function WorkFold({
   const content = (
     <View style={[styles.row, { flex: 1, minWidth: 0, alignItems: "flex-start" }]}>
       <View style={{ width: 16, height: 24, justifyContent: "center" }}>
-        {!empty && <Icon name={open ? "chevron-down" : "chevron-right"} color={c.faint} />}
+        {!empty && <Chevron open={open} color={c.faint} />}
       </View>
       <Text numberOfLines={1} style={[styles.body, { flexShrink: 1, color: c.faint }]}>
         {summary.live ? (
@@ -138,7 +138,7 @@ export function WorkGroup({
         style={[styles.row, { alignItems: "flex-start", minHeight: 44, paddingVertical: 10 }]}
       >
         <View style={{ height: 24, justifyContent: "center" }}>
-          <Icon name={open ? "chevron-down" : "chevron-right"} color={c.faint} />
+          <Chevron open={open} color={c.faint} />
         </View>
         {running ? (
           <LiveText style={[styles.body, { flex: 1, color: c.muted }]}>{label}</LiveText>

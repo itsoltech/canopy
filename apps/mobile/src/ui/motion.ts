@@ -96,6 +96,13 @@ function to(style: { opacity: number; scale?: number; translateY?: number }, ms:
   }).duration(ms);
 }
 
+function toast(reduced: boolean, translateY: number): Preset {
+  if (reduced) return { entering: fadeIn(motion.slow), exiting: fadeOut(motion.medium) };
+  const hidden = { opacity: 0, scale: motion.scale.medium, translateY };
+
+  return { entering: from(hidden, motion.slow), exiting: to(hidden, motion.medium) };
+}
+
 const rise: Preset = { entering: fadeIn(motion.fast), exiting: fadeOut(motion.quick) };
 
 function presets(reduced: boolean) {
@@ -110,12 +117,9 @@ function presets(reduced: boolean) {
           exiting: to({ opacity: 0, scale: motion.scale.medium }, motion.quick),
         },
     /** A notice or toast (web `t-toast`): rises from `distance.medium` and grows, in on `slow`, out on `medium`. */
-    toast: reduced
-      ? { entering: fadeIn(motion.slow), exiting: fadeOut(motion.medium) }
-      : {
-          entering: from({ opacity: 0, scale: motion.scale.medium, translateY: motion.distance.medium }, motion.slow),
-          exiting: to({ opacity: 0, scale: motion.scale.medium, translateY: motion.distance.medium }, motion.medium),
-        },
+    toast: toast(reduced, motion.distance.medium),
+    /** The same for a banner at the top edge (in-app alerts): it comes down from above. */
+    banner: toast(reduced, -motion.distance.medium),
     /** Text states swap, entering half (web `swap`): a changed label rises in from `distance.micro`. */
     swap: {
       entering: reduced ? undefined : from({ opacity: 0, translateY: motion.distance.micro }, motion.quick, inOut),

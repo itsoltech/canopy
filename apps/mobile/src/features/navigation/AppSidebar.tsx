@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { FlatList, Image, Pressable, Text, View } from "react-native";
+import { Image, Pressable, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
+import { useMotion } from "../../ui/motion";
+import { Chevron, Expand, useArrivals } from "../../ui/MotionViews";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
 import { ScreenFrame, useContentPadding } from "../../ui/ScreenFrame";
@@ -209,8 +212,6 @@ function orderBots(list: readonly botContract.Bot[], pinned: readonly string[]):
 
 function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const c = useColors();
-  const padding = useContentPadding(8);
-  const pinned = useAppearance().user?.sidebar?.pinnedBotIds ?? [];
 
   const {
     section,
@@ -228,16 +229,17 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
     archiveLoaded,
     archived,
     match,
-    bots,
-    botError,
-    botsLoaded,
   } = state;
 
+  const { rise } = useMotion();
+
+  // Threads and Bots cross-fade as the segmented pill slides.
   return (
-    <>
+    <Animated.View key={section} entering={rise.entering} style={styles.fill}>
       {section === "threads" ? (
         <SettingsThreadList
           threads={visible}
+          loaded={loaded}
           projects={projects}
           workers={workers}
           empty={
@@ -269,63 +271,84 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
                 onPress={() => setArchiveOpen(!archiveOpen)}
                 style={[styles.row, { padding: 12, minHeight: 44 }]}
               >
-                <Icon name={archiveOpen ? "chevron-down" : "chevron-right"} size={14} />
+                <Chevron open={archiveOpen} size={14} />
                 <Icon name="archive-box" />
                 <Text style={[styles.meta, { color: c.muted }]}>Archived</Text>
               </Pressable>
-              {archiveOpen && (
-                <View>
-                  {archiveError && <Notice error>{archiveError}</Notice>}
-                  {archived.filter(match).map((t) => (
-                    <SidebarThread
-                      key={t.id}
-                      thread={t}
-                      project={projects.find((p) => p.id === t.projectId)}
-                      worker={workers.find((w) => w.id === t.workerId)}
-                    />
-                  ))}
-                  {!archiveError && !archiveLoaded && <ListSkeleton rows={2} lines={3} />}
-                  {!archiveError && archiveLoaded && archived.length === 0 && (
-                    <Text style={[styles.meta, { color: c.muted, padding: 12 }]}>No archived threads.</Text>
-                  )}
-                </View>
-              )}
+              <Expand open={archiveOpen}>
+                {archiveError && <Notice error>{archiveError}</Notice>}
+                {archived.filter(match).map((t) => (
+                  <SidebarThread
+                    key={t.id}
+                    thread={t}
+                    project={projects.find((p) => p.id === t.projectId)}
+                    worker={workers.find((w) => w.id === t.workerId)}
+                  />
+                ))}
+                {!archiveError && !archiveLoaded && <ListSkeleton rows={2} lines={3} />}
+                {!archiveError && archiveLoaded && archived.length === 0 && (
+                  <Text style={[styles.meta, { color: c.muted, padding: 12 }]}>No archived threads.</Text>
+                )}
+              </Expand>
             </View>
           }
         />
       ) : (
-        <FlatList
-          data={orderBots(
-            bots.filter(
-              (b) => !b.archived && `${b.configuration?.name} ${b.lastMessage?.text}`.toLowerCase().includes(query),
-            ),
-            pinned,
-          )}
-          keyExtractor={(b) => b.id}
-          contentInsetAdjustmentBehavior="never"
-          automaticallyAdjustContentInsets={false}
-          contentContainerStyle={padding}
-          renderItem={({ item }) => <BotListItem bot={item} />}
-          ListEmptyComponent={
-            !botsLoaded && !botError ? (
-              <ListSkeleton avatar />
-            ) : (
-              <View style={{ padding: 8 }}>
-                {botError ? (
-                  <Notice error>{botError}</Notice>
-                ) : (
-                  <EmptyState
-                    icon="chat-bubble-left-right"
-                    title="No bots yet"
-                    description="Create a bot in Canopy on the web."
-                  />
-                )}
-              </View>
-            )
-          }
-        />
+        <BotList state={state} />
       )}
-    </>
+    </Animated.View>
+  );
+}
+
+/** Bot chats, pinned first then the latest conversation; one that gets a message moves up and the rest glide. */
+function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
+  const padding = useContentPadding(8);
+  const pinned = useAppearance().user?.sidebar?.pinnedBotIds ?? [];
+  const { layout } = useMotion();
+  const { query, bots, botError, botsLoaded } = state;
+
+  const shownBots = orderBots(
+    bots.filter((b) => !b.archived && `${b.configuration?.name} ${b.lastMessage?.text}`.toLowerCase().includes(query)),
+    pinned,
+  );
+
+  const botArrival = useArrivals(
+    shownBots.map((b) => b.id),
+    botsLoaded,
+  );
+
+  return (
+    <Animated.FlatList
+      data={shownBots}
+      keyExtractor={(b) => b.id}
+      // A chat that gets a message moves up and the rest glide; a new bot rises in.
+      itemLayoutAnimation={layout}
+      contentInsetAdjustmentBehavior="never"
+      automaticallyAdjustContentInsets={false}
+      contentContainerStyle={padding}
+      renderItem={({ item }) => (
+        <Animated.View entering={botArrival(item.id)}>
+          <BotListItem bot={item} />
+        </Animated.View>
+      )}
+      ListEmptyComponent={
+        !botsLoaded && !botError ? (
+          <ListSkeleton avatar />
+        ) : (
+          <View style={{ padding: 8 }}>
+            {botError ? (
+              <Notice error>{botError}</Notice>
+            ) : (
+              <EmptyState
+                icon="chat-bubble-left-right"
+                title="No bots yet"
+                description="Create a bot in Canopy on the web."
+              />
+            )}
+          </View>
+        )
+      }
+    />
   );
 }
 

@@ -5,15 +5,20 @@ import { useAppearance } from "../../state/appearance";
 import { styles, useColors } from "../../ui/theme";
 import { SidebarThread } from "./SidebarThread";
 import { useContentPadding } from "../../ui/ScreenFrame";
+import Animated from "react-native-reanimated";
+import { Chevron, GlidingCell, useArrivals } from "../../ui/MotionViews";
 
 export function SettingsThreadList({
   threads,
   projects,
   workers,
+  loaded,
   empty,
   footer,
 }: {
   threads: ui.Thread[];
+  /** The list has its first data: rows that come after it rise in. */
+  loaded: boolean;
   projects: ui.Project[];
   workers: ui.Worker[];
   empty: ReactNode;
@@ -24,6 +29,11 @@ export function SettingsThreadList({
   const c = useColors();
   const [workingOpen, setWorkingOpen] = useState(true);
   const sidebar = user?.sidebar;
+
+  const arrival = useArrivals(
+    threads.map((t) => t.id),
+    loaded,
+  );
 
   const working = sidebar?.workingSection
     ? threads.filter((t) => ["running", "creating", "monitoring"].includes(t.status))
@@ -55,6 +65,8 @@ export function SettingsThreadList({
       // SectionList shows its empty view only without sections, not for one empty section.
       sections={threads.length ? sections : []}
       keyExtractor={(t) => t.id}
+      // Rows glide to their new place when a thread moves up, arrives or leaves.
+      CellRendererComponent={GlidingCell}
       stickySectionHeadersEnabled={false}
       contentInsetAdjustmentBehavior="never"
       automaticallyAdjustContentInsets={false}
@@ -65,21 +77,22 @@ export function SettingsThreadList({
             accessibilityRole={section.working ? "button" : "header"}
             accessibilityState={section.working ? { expanded: workingOpen } : {}}
             onPress={section.working ? () => setWorkingOpen(!workingOpen) : undefined}
-            style={{ padding: 12, minHeight: 44, justifyContent: "center" }}
+            style={[styles.row, { padding: 12, minHeight: 44, gap: 4 }]}
           >
-            <Text style={[styles.meta, { color: c.muted }]}>
-              {section.working ? `${workingOpen ? "▾" : "▸"} ` : ""}
-              {section.title}
-            </Text>
+            {section.working && <Chevron open={workingOpen} size={14} color={c.muted} />}
+            <Text style={[styles.meta, { color: c.muted }]}>{section.title}</Text>
           </Pressable>
         ) : null
       }
       renderItem={({ item }) => (
-        <SidebarThread
-          thread={item}
-          project={projects.find((p) => p.id === item.projectId)}
-          worker={workers.find((w) => w.id === item.workerId)}
-        />
+        // No exit: virtualization unmounts rows too. A row that leaves goes at once and the rest glide up.
+        <Animated.View entering={arrival(item.id)}>
+          <SidebarThread
+            thread={item}
+            project={projects.find((p) => p.id === item.projectId)}
+            worker={workers.find((w) => w.id === item.workerId)}
+          />
+        </Animated.View>
       )}
       ListEmptyComponent={<>{empty}</>}
       ListFooterComponent={<>{footer}</>}

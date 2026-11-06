@@ -5,9 +5,13 @@ import type { bots } from "@canopy/contracts";
 import { BotAvatar } from "./BotAvatar";
 import { age } from "../navigation/SidebarThread";
 import { styles, useColors } from "../../ui/theme";
+import Animated from "react-native-reanimated";
+import { useMotion } from "../../ui/motion";
+import { Swap } from "../../ui/MotionViews";
 
 export function BotListItem({ bot }: { bot: bots.Bot }) {
   const c = useColors();
+  const { pop } = useMotion();
   const layout = useLayout();
   const pathname = usePathname();
   const { id } = useGlobalSearchParams<{ id?: string }>();
@@ -40,7 +44,14 @@ export function BotListItem({ bot }: { bot: bots.Bot }) {
           {bot.lastMessage?.text || "Start a conversation"}
         </Text>
       </View>
-      {bot.unreadCount > 0 && <Text style={[styles.caption, { color: c.accent }]}>{bot.unreadCount}</Text>}
+      {/* The unread count pops in and swaps as it grows (web `pop`, `swap`). */}
+      {bot.unreadCount > 0 && (
+        <Animated.View entering={pop.entering} exiting={pop.exiting}>
+          <Swap value={String(bot.unreadCount)}>
+            <Text style={[styles.caption, { color: c.accent }]}>{bot.unreadCount}</Text>
+          </Swap>
+        </Animated.View>
+      )}
     </Pressable>
   );
 }

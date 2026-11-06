@@ -577,6 +577,12 @@ naprawdę doszły; wiersz zamontowany ponownie przy przewijaniu pojawia się od 
 nie animuje wysokości (odwrócona lista z kotwicą foldu, `feed-anchor.tsx`): nowe wiersze i otwarta
 praca tylko się rozjaśniają, jak `t-rise` w web.
 
+Ruch nie zmienia układu długich treści klatka po klatce. Panel boczny na szerokim oknie wjeżdża
+i odjeżdża (`translateX` i przezroczystość), a kolumna bierze szerokość przed wjazdem i oddaje ją
+po odjeździe: ekran obok układa się raz, a nie w każdej klatce (długi wątek przelicza wtedy cały tekst).
+Przejścia układu (`layout`) mają tylko krótkie listy i wiersze listy wątków; wiersze list wirtualnych
+nie mają animacji wyjścia, bo wirtualizacja też je odmontowuje.
+
 ## Markdown
 
 Wiadomości agentów, botów i ludzi renderuje `src/ui/markdown/` natywnymi widokami, bez HTML i WebView.

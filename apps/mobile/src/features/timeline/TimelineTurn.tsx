@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { View } from "react-native";
+import Animated, { LayoutAnimationConfig } from "react-native-reanimated";
 import type { Item, Provider, ui } from "@canopy/contracts";
 import { foldId, workFoldOpen } from "@canopy/domain/work-fold";
 import { LatestScope } from "../../ui/feed-anchor";
 import { ShellMessage } from "../../ui/ShellMessage";
+import { useMotion } from "../../ui/motion";
 import { useColors } from "../../ui/theme";
 import { useDevicePreferences } from "../../state/preferences";
 import { ItemView } from "./ItemView";
@@ -24,8 +26,24 @@ export interface TurnContext {
   readonly provider: Provider | undefined;
 }
 
-/** One body row: an item (a steer as the message it is), or a notice (web: TimelineRowView). */
+/**
+ * One body row (web: TimelineRowView). A row that arrives after its turn is on screen (a new item, an answer leaving
+ * the fold) fades in (web `t-rise`); the rows a turn mounts with appear at once (the cell's LayoutAnimationConfig).
+ */
 function BodyRowView({ row, steers, ended }: { row: BodyRow; steers: readonly ui.Steer[]; ended: boolean }) {
+  const { rise } = useMotion();
+
+  if (row.kind === "notice" && !row.notice.notice) return null;
+
+  return (
+    <Animated.View entering={rise.entering}>
+      <BodyRowContent row={row} steers={steers} ended={ended} />
+    </Animated.View>
+  );
+}
+
+/** What a body row shows: an item (a steer as the message it is), or a notice. */
+function BodyRowContent({ row, steers, ended }: { row: BodyRow; steers: readonly ui.Steer[]; ended: boolean }) {
   if (row.kind === "notice") return row.notice.notice ? <NoticeRow notice={row.notice.notice} /> : null;
   const content = row.node.item.content;
 
@@ -66,28 +84,35 @@ function WorkRail({
   onGroup: (key: string) => void;
 }) {
   const c = useColors();
+  const { rise } = useMotion();
 
+  // The feed is an inverted list held by the fold's anchor: an opened fold fades in without animating its height.
   return (
-    <View style={{ marginLeft: 8, paddingLeft: 16, borderLeftWidth: 1, borderColor: c.rule, gap: 4 }}>
-      {rows.map((row) =>
-        row.kind === "row" ? (
-          <BodyRowView key={row.row.key} row={row.row} steers={steers} ended={ended} />
-        ) : (
-          // A group's rows hang off the same rail as its header (web: work-group rows).
-          <View key={row.key} style={{ gap: 4 }}>
-            <WorkGroup
-              label={row.label}
-              open={groups(row.key)}
-              running={row.running}
-              onToggle={() => onGroup(row.key)}
-            />
-            {row.rows.map((inner) => (
-              <BodyRowView key={inner.key} row={inner} steers={steers} ended={ended} />
-            ))}
-          </View>
-        ),
-      )}
-    </View>
+    <Animated.View
+      entering={rise.entering}
+      style={{ marginLeft: 8, paddingLeft: 16, borderLeftWidth: 1, borderColor: c.rule, gap: 4 }}
+    >
+      <LayoutAnimationConfig skipEntering>
+        {rows.map((row) =>
+          row.kind === "row" ? (
+            <BodyRowView key={row.row.key} row={row.row} steers={steers} ended={ended} />
+          ) : (
+            // A group's rows hang off the same rail as its header (web: work-group rows).
+            <View key={row.key} style={{ gap: 4 }}>
+              <WorkGroup
+                label={row.label}
+                open={groups(row.key)}
+                running={row.running}
+                onToggle={() => onGroup(row.key)}
+              />
+              {row.rows.map((inner) => (
+                <BodyRowView key={inner.key} row={inner} steers={steers} ended={ended} />
+              ))}
+            </View>
+          ),
+        )}
+      </LayoutAnimationConfig>
+    </Animated.View>
   );
 }
 
@@ -183,6 +208,7 @@ export function TimelineTurn({
                     />
                   )}
                 </View>
+                {/* Out of the fold the answer mounts anew, so it fades in where it lands (web: the answer slot). */}
                 {answer && <BodyRowView row={answer} steers={context.steers} ended={ended} />}
               </View>
             );

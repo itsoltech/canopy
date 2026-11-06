@@ -3,9 +3,9 @@ import { Pressable, Text, View, type HostInstance } from "react-native";
 import type { Reasoning } from "@canopy/contracts";
 import { LiveText } from "../../../ui/Badge";
 import { useAnchoredToggle } from "../../../ui/feed-anchor";
-import { Icon } from "../../../ui/Icon";
 import { Markdown } from "../../../ui/markdown";
 import { font, styles, useColors } from "../../../ui/theme";
+import { Chevron } from "../../../ui/MotionViews";
 
 /** Reasoning, folded: the first line of the summary as a preview, the rest on demand (web: ReasoningView). */
 export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; streaming: boolean }) {
@@ -40,7 +40,7 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
           },
         ]}
       >
-        <Icon name={open ? "chevron-down" : "chevron-right"} color={c.faint} />
+        <Chevron open={open} color={c.faint} />
         {streaming ? (
           <LiveText style={[styles.work, label, { color: c.text }]}>Thinking</LiveText>
         ) : (

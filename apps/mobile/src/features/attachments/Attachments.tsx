@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { Icon } from "../../ui/Icon";
+import { useMotion } from "../../ui/motion";
 import { PickerSheet } from "../../ui/Picker";
 import { styles, useColors } from "../../ui/theme";
 import { fileSize, type DraftFile, type useAttachmentDraft } from "./useAttachmentDraft";
@@ -14,6 +16,7 @@ type Draft = ReturnType<typeof useAttachmentDraft>;
 export function AttachmentChips({ files, onRemove }: { files: DraftFile[]; onRemove: (key: string) => void }) {
   const c = useColors();
   const shown = files.filter((f) => !f.attachment);
+  const { pop, layout } = useMotion();
 
   if (!shown.length) return null;
 
@@ -24,9 +27,13 @@ export function AttachmentChips({ files, onRemove }: { files: DraftFile[]; onRem
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ gap: 6, paddingHorizontal: 12, paddingTop: 12 }}
     >
+      {/* A chip pops in when added and out when removed; its neighbours glide aside (web `pop`, `reorder`). */}
       {shown.map((f) => (
-        <View
+        <Animated.View
           key={f.key}
+          entering={pop.entering}
+          exiting={pop.exiting}
+          layout={layout}
           style={[
             styles.row,
             {
@@ -67,7 +74,7 @@ export function AttachmentChips({ files, onRemove }: { files: DraftFile[]; onRem
           >
             <Icon name="x-mark" size={14} />
           </Pressable>
-        </View>
+        </Animated.View>
       ))}
     </ScrollView>
   );

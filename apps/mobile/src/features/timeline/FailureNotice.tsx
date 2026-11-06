@@ -2,9 +2,9 @@ import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { safeFailureDetail } from "@canopy/domain/failures";
 import { failurePresentation } from "@canopy/domain/failure-presentation";
-import { Icon } from "../../ui/Icon";
 import { font, styles, useColors, useTypography } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
+import { Chevron } from "../../ui/MotionViews";
 
 /**
  * A failed turn or bot reply (web: FailureNotice): a heading, what it means in words, a hint for a login and the
@@ -49,7 +49,7 @@ export function FailureNotice({
         hitSlop={8}
         style={[styles.row, { gap: 6, minHeight: 32 }]}
       >
-        <Icon name={open ? "chevron-down" : "chevron-right"} size={14} color={c.faint} />
+        <Chevron open={open} size={14} color={c.faint} />
         <Text style={[styles.body, { color: c.muted }]}>Show details</Text>
       </Pressable>
       {open && (

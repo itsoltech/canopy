@@ -4,6 +4,7 @@ import type { connectors } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
+import { Chevron, Expand } from "../../ui/MotionViews";
 
 /** Status labels as on the web (apps/web features/connectors/api.ts). */
 const accountStatus = (status: string) =>
@@ -99,14 +100,14 @@ function ConnectionError({ error }: { error: connectors.ConnectorError }) {
             onPress={() => setOpen(!open)}
             style={[styles.row, { gap: 4, minHeight: 32 }]}
           >
-            <Icon name={open ? "chevron-down" : "chevron-right"} size={14} color={c.muted} />
+            <Chevron open={open} size={14} color={c.muted} />
             <Text style={[styles.meta, { color: c.muted }]}>Show details</Text>
           </Pressable>
-          {open && (
+          <Expand open={open}>
             <Text selectable style={[styles.caption, { color: c.body, fontFamily: "monospace" }]}>
               {error.detail}
             </Text>
-          )}
+          </Expand>
         </>
       ) : null}
     </View>

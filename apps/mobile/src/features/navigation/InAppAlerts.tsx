@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text } from "react-native";
+import Animated from "react-native-reanimated";
 import { palette } from "@canopy/ui";
 import { router, useGlobalSearchParams } from "expo-router";
 import { useOverview } from "../../state/overview";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { font, styles, useColors } from "../../ui/theme";
 import { usePaneInsets } from "../../ui/ScreenFrame";
+import { useMotion } from "../../ui/motion";
 
 /** Alert only for live changes after the initial snapshot, never replay historical results. */
 export function InAppAlerts() {
@@ -16,6 +18,7 @@ export function InAppAlerts() {
   const [alert, setAlert] = useState<{ id: string; title: string; status: string }>();
   const c = useColors();
   const insets = usePaneInsets();
+  const { banner } = useMotion();
 
   useEffect(() => {
     if (!loaded) return;
@@ -47,9 +50,13 @@ export function InAppAlerts() {
 
   if (!alert || values.inAppNotifications !== "on") return null;
 
-  // Web: Toaster. A dark pill under the top edge: what happened and one action.
+  // Web: Toaster. A dark pill under the top edge: what happened and one action. It comes down and leaves the same
+  // way; a newer alert replaces it (web `t-toast`, from the top edge).
   return (
-    <View
+    <Animated.View
+      key={`${alert.id}:${alert.status}`}
+      entering={banner.entering}
+      exiting={banner.exiting}
       pointerEvents="box-none"
       style={{
         position: "absolute",
@@ -95,6 +102,6 @@ export function InAppAlerts() {
           Open
         </Text>
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }
