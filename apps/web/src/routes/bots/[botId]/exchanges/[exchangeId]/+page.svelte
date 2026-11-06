@@ -65,6 +65,9 @@
   }}
 />
 <ChatView
+  hasMore={history.hasMore}
+  loadingOlder={history.loadingOlder}
+  onloadOlder={history.loadOlder}
   {conversation}
   {entries}
   loading={!history.snapshot && !data.exchange}

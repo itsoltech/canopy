@@ -241,6 +241,20 @@ describe.skipIf(!dockerAvailable)("tail pages and journal checkpoints on real ga
     expect(legacy.messages).toHaveLength(80);
   });
 
+  test("growing a window replays edits made while its older page was in flight", async () => {
+    let state = await openBot();
+    const checkpoint = state.cursor;
+    const page = await openBot({ beforeSeq: state.historyBeforeSeq, cursor: checkpoint });
+    const older = page.messages[0]!;
+    await query("UPDATE bot_messages SET text='edited during paging' WHERE id=$1::uuid", [older.id]);
+    state = applyBotConversation(state, await openBot({ cursor: checkpoint }));
+    expect(state.messages.some((m) => m.id === older.id)).toBe(false);
+    state = prependBotPage(state, page, checkpoint);
+    expect(state.messages.find((m) => m.id === older.id)?.text).not.toBe("edited during paging");
+    state = applyBotConversation(state, await openBot({ cursor: state.cursor }));
+    expect(state.messages.find((m) => m.id === older.id)?.text).toBe("edited during paging");
+  });
+
   test("loaded tails resume after a gateway restart without downloading history", async () => {
     const threadState = applyThreadUpdate(undefined, await openThread());
     const botState = await openBot();
@@ -305,5 +319,34 @@ describe.skipIf(!dockerAvailable)("tail pages and journal checkpoints on real ga
     const chat = await openBot({ botId: remoteBot }, partner);
     expect(chat.messages).toHaveLength(12);
     expect((await openBot({ botId: remoteBot, cursor: chat.cursor }, partner)).messages).toHaveLength(0);
+    await eventually(
+      () => partnerLink!.mirror.read(homeLink!.hello().nodeId, thread),
+      (held) => !!held?.snapshot.thread,
+      15000,
+    );
+    await homeLink.close();
+    await eventually(
+      async () => partnerLink!.reachable().includes(homeLink!.hello().nodeId),
+      (online) => !online,
+      15000,
+    );
+    const offline = await openThread({ threadId: remoteThread }, partner);
+    expect(offline.syncing).toBe(true);
+    const tail = applyThreadUpdate(undefined, offline);
+    expect(tail.turns).toHaveLength(12);
+
+    const older = applyThreadUpdate(
+      undefined,
+      await openThread(
+        { threadId: remoteThread, beforeTurnId: tail.historyBeforeTurnId, historyVersion: tail.historyVersion },
+        partner,
+      ),
+    );
+
+    const grown = prependThreadPage(tail, older);
+    expect(grown.turns).toHaveLength(24);
+    const resumed = await openThread({ threadId: remoteThread, cursor: grown.cursor }, partner);
+    expect(resumed.change.case).toBe("delta");
+    expect(applyThreadUpdate(grown, resumed).turns).toEqual(grown.turns);
   }, 30000);
 });

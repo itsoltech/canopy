@@ -12,6 +12,7 @@ export const GET: RequestHandler = async ({ params, request, url }) => {
       yield* gateway().watchBotConversation(
         {
           botId: params.botId,
+          pageSize: 50,
           incremental: url.searchParams.get("incremental") === "1",
           cursor: url.searchParams.get("cursor") ?? "",
         },

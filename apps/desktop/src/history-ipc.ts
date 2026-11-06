@@ -30,6 +30,11 @@ export function registerHistoryIpc(
 
     return cache.remove(key);
   });
+  ipcMain.handle("canopy:history-reconcile-bots", (event, generation: string, ids: string[]) => {
+    check(event);
+
+    return cache.reconcileBots(generation, ids);
+  });
   ipcMain.handle("canopy:history-clear", (event) => {
     authorize(event);
 

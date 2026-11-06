@@ -6,6 +6,7 @@ import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { linkedMessage } from "../computers/remote.ts";
 import type { LinkedComputers } from "../computers/runtime.ts";
+import { threadHistory } from "../core/thread-history.ts";
 
 /** Seed online reads locally; actions always continue to the owner-scoped home handlers. */
 export async function* mirrorFirst(
@@ -92,7 +93,8 @@ export async function* offlineThread(
       : linkedMessage(ui.WatchThreadRequestSchema, request).threadId,
   ).id;
 
-  const snapshot = await computers.mirror.snapshot(nodeId, threadId);
+  const held = await computers.mirror.read(nodeId, threadId);
+  const snapshot = held?.snapshot;
 
   if (!snapshot?.thread)
     throw new ConnectError("This thread has not been synced yet. Connect its computer to read it.", Code.Unavailable);
@@ -109,7 +111,19 @@ export async function* offlineThread(
     signal.addEventListener("abort", abort, { once: true });
 
     try {
-      yield create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: snapshot } });
+      const input = linkedMessage(ui.WatchThreadRequestSchema, request);
+      const cursor = input.pageSize && held ? `offline:${held.cursor}` : snapshot.cursor;
+      const value = threadHistory(create(ui.ThreadSnapshotSchema, { ...snapshot, cursor }), input);
+
+      const unchanged =
+        !!cursor && input.incremental && input.cursor === cursor && !input.beforeTurnId && !input.targetItemId;
+
+      yield create(ui.ThreadUpdateSchema, {
+        syncing: true,
+        change: unchanged
+          ? { case: "delta", value: { baseCursor: cursor, snapshot: { ...value, turns: [], items: [], notices: [] } } }
+          : { case: "snapshot", value },
+      });
 
       if (!signal.aborted && !computers.reachable().includes(nodeId))
         for await (const _ of changes) {

@@ -45,6 +45,10 @@ Strona historii kończy się wyłącznie między turami. Wejście, segmenty
 również tur odziedziczonych przez fork. Dołożenie starszych tur zachowuje
 klucze istniejących wierszy i kotwicę czytelnika. Protokół opisuje
 [ui-api.md](ui-api.md#strony-historii-i-trwałe-kursory).
+Kotwicą web jest treść wiadomości, z pominięciem wierszy początku i końca tury:
+dołożenie wcześniejszej tury z tego samego dnia przenosi etykietę daty i nie może
+przesunąć czytanego tekstu. Wyszukiwanie oraz cytat mogą doładować starsze strony;
+po ich odczycie nadal obowiązują te same klucze foldów i segmentów.
 
 Rozwinięcie albo zwinięcie foldu, grupy narzędzi czy itemu ręcznie trzyma kliknięty nagłówek w tym samym miejscu ekranu: rośnie i maleje to, co jest pod nim, a treść nad nim się nie przesuwa. Czytelnik śledzący koniec zostaje na końcu tylko wtedy, gdy przełącza fold ostatniej tury (jej wiersze są końcem osi); każdy inny fold przestaje śledzić koniec i trzyma swój nagłówek.
 

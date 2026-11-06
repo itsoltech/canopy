@@ -19,6 +19,7 @@ export const GET: RequestHandler = async ({ request, params, url }) => {
         gateway().watchThread(
           {
             threadId: params.threadId,
+            pageSize: 24,
             incremental: url.searchParams.get("incremental") === "1",
             cursor: (url.searchParams.get("cursor") ?? "").slice(0, 128),
           },

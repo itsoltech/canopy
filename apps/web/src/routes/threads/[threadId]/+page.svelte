@@ -55,6 +55,7 @@
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
@@ -69,6 +70,8 @@
   import ThreadComposerSlot from "#lib/features/threads/components/ThreadComposerSlot.svelte";
   import ThreadSyncStatus from "#lib/features/threads/components/ThreadSyncStatus.svelte";
   import ThreadMenuItems from "#lib/features/threads/components/ThreadMenuItems.svelte";
+  import ThreadSearch from "#lib/features/threads/components/ThreadSearch.svelte";
+  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
   import ComputerAwayBar from "#lib/features/computers/ComputerAwayBar.svelte";
   import { awayReason } from "#lib/features/computers/computers.ts";
@@ -184,6 +187,8 @@
   function readerScroll(scroll: ReaderScroll) {
     compaction.scroll(scroll);
     compact = compaction.compact;
+
+    if (scroll.up && feedViewport.start < 4) void view.history.load();
   }
 
   $effect(() => {
@@ -217,6 +222,7 @@
   // The feed: inherited history (folded), the thread's own timeline, the working indicator, steers on
   // their way (queued inputs are in the queue panel above the composer). One builder per thread keeps unchanged rows identical, so a delta re-renders one row.
   let historyOpen = $state(false);
+  let searchOpen = $state(false);
 
   // Ended turns fold their work into "Worked for …"; which folds are open, per thread.
   const folds = $derived((void threadId, new WorkFolds()));
@@ -387,6 +393,7 @@
   let feedFooter = $state<HTMLElement>();
 
   async function revealQuote(itemId: string): Promise<boolean> {
+    if (!view.entries.some((entry) => entry.id === itemId)) await view.history.load(itemId);
     const own = view.ownEntries.find((e) => e.id === itemId);
     const inherited = own ? undefined : view.inheritedEntries.find((e) => e.id === itemId);
     const entry = own ?? inherited;
@@ -557,11 +564,28 @@
                 {...props}
               />{/snippet}
             <ThreadMenuItems {thread} omit={panelOpen ? ["open", "rename", "regenerate"] : ["open"]} />
+            <MenuItem icon="magnifying-glass" onselect={() => (searchOpen = true)}>Search thread</MenuItem>
           </DropdownMenu>
         {/if}
         <IconButton icon="panel-right" label="Thread details" aria-pressed={panelOpen} onclick={togglePanel} />
       {/snippet}
     </TopBar>
+    <ThreadSearch
+      bind:open={searchOpen}
+      {view}
+      reveal={async (turnId, itemId) => {
+        if (itemId) {
+          await revealQuote(itemId);
+          return;
+        }
+        historyOpen = true;
+        await tick();
+        const row = rows.find(
+          (row) => row.kind === "timeline" && row.row.kind === "turn-start" && row.row.turn.id === turnId,
+        );
+        if (row) await feed?.reveal(row.key);
+      }}
+    />
 
     {#if thread?.status === "failed" && thread.statusDetail}
       <Alert tone="error" banner title="The thread failed">{thread.statusDetail}</Alert>
@@ -603,6 +627,20 @@
             {#if !view.loaded}<TimelineSkeleton />{/if}
           {/snippet}
           {#snippet top()}
+            {#if view.hasMore}
+              <div class="flex justify-center py-3">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={view.history.loading}
+                  onclick={() => void view.history.load()}
+                  >{view.history.loading ? "Loading earlier messages…" : "Show earlier messages"}</Button
+                >
+                {#if view.history.error}<p role="status" class="text-sm text-red-600 dark:text-red-400">
+                    {view.history.error}
+                  </p>{/if}
+              </div>
+            {/if}
             {#if thread?.scheduleId}<ScheduleOrigin {thread} class="pt-4" />{/if}
             {#if thread?.spawnedByAgent && thread.parentThreadId}
               <SubagentOrigin parentThreadId={thread.parentThreadId} parentTitle={parent?.title} class="mt-4" />
@@ -761,6 +799,7 @@
             {worker}
             usage={view.usage}
             totals={view.totals}
+            partialUsage={view.hasMore}
             schedules={view.upcomingSchedules}
             backgroundTasks={allBackgroundTasks}
             items={itemsById}
@@ -794,6 +833,7 @@
       {worker}
       usage={view.usage}
       totals={view.totals}
+      partialUsage={view.hasMore}
       schedules={view.upcomingSchedules}
       backgroundTasks={allBackgroundTasks}
       items={itemsById}

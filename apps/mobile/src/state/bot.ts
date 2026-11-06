@@ -5,6 +5,8 @@ import { applyBotConversation, answerLiveBotApproval } from "@canopy/domain/bot-
 import { botViewKey } from "@canopy/domain/bot-cache";
 import { useSession } from "./session";
 import { useStream } from "./stream";
+import { prependBotPage } from "@canopy/domain/history-pages";
+import { firstHistoryPage, useHistoryPage } from "./history-page";
 
 /** Load disk before opening the watch. A ref keeps retries on the last atomically applied checkpoint. */
 export function useBotSnapshot(id: string) {
@@ -42,7 +44,7 @@ export function useBotSnapshot(id: string) {
           live.current = false;
 
           return client.api.watchBotConversation(
-            { botId: id, incremental: true, cursor: current.current?.cursor ?? "" },
+            { botId: id, pageSize: 50, incremental: true, cursor: current.current?.cursor ?? "" },
             { signal },
           );
         }
@@ -62,6 +64,31 @@ export function useBotSnapshot(id: string) {
     },
     `bot:${session?.deviceId}:${id}`,
   );
+
+  const history = useHistoryPage(id, {
+    current,
+    read: async (base, signal) => {
+      if (!client) throw new Error("Gateway unavailable");
+
+      return firstHistoryPage(
+        (signal) =>
+          client.api.watchBotConversation(
+            { botId: id, pageSize: 50, incremental: true, beforeSeq: base.historyBeforeSeq, cursor: base.cursor },
+            { signal },
+          ),
+        signal,
+      );
+    },
+    merge: prependBotPage,
+    receive: (next) => {
+      current.current = next;
+      setSnapshot(next);
+    },
+    restart: () => {
+      live.current = false;
+      stream.retry();
+    },
+  });
 
   useEffect(() => {
     if (!snapshot || !botCache || saving.current) return;
@@ -88,6 +115,7 @@ export function useBotSnapshot(id: string) {
 
   return {
     snapshot,
+    history,
     seen,
     stream,
     answer(request: bots.AnswerBotApprovalRequest) {

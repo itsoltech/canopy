@@ -52,6 +52,10 @@ export function removeHistory(key: string) {
   void window.canopyDesktop?.history?.remove(key).catch(() => {});
 }
 
+export function reconcileBotHistory(ids: string[]) {
+  if (generation) void window.canopyDesktop?.history?.reconcileBots?.(generation, ids).catch(() => {});
+}
+
 export function clearHistory() {
   lifetime++;
   generation = "";

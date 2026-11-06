@@ -1,6 +1,6 @@
 import { BotViewCache } from "@canopy/domain/bot-cache";
 import { bots } from "@canopy/contracts";
-import { loadHistory, saveHistory } from "../desktop/history.ts";
+import { loadHistory, saveHistory, reconcileBotHistory } from "../desktop/history.ts";
 
 /** SPA memory, with private Electron persistence when the preload bridge is available. */
 class ClientBotCache extends BotViewCache {
@@ -15,6 +15,10 @@ class ClientBotCache extends BotViewCache {
     super.set(view, bytes);
 
     if (this.get(view.key)) saveHistory(bots.BotCachedViewSchema, view.key, view);
+  }
+  override reconcile(list: readonly bots.Bot[]) {
+    super.reconcile(list);
+    reconcileBotHistory(list.flatMap((bot) => (bot.archived ? [] : [bot.id])));
   }
 }
 

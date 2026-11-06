@@ -317,7 +317,7 @@ Są wyszukiwanie, filtr projektów i Archived. WatchThread składa
 snapshot i delty współdzielonym reducerem `thread-snapshot`. Przełączenie wątku od razu
 pokazuje kopię z pamięci, a po restarcie odczytuje ją z prywatnego katalogu
 `expo-file-system` (`Paths.cache/thread-snapshots-v1`). System może usunąć cache;
-wtedy aplikacja pobiera pełny snapshot. Nie używa współdzielonego storage ani nie
+wtedy aplikacja pobiera ostatnie 24 pełne tury. Nie używa współdzielonego storage ani nie
 dodaje zależności natywnych. LRU mieści 16 wątków / 64 MiB protobuf na dysku,
 maksymalnie 16 MiB na wpis, oraz 6 wątków / 24 MiB w pamięci. Wpisy przekraczające
 limit nadal działają online, ale nie są utrwalane. Zapis pliku tymczasowego i rename
@@ -326,6 +326,17 @@ chronią przed częściowym odczytem; uszkodzony wpis jest usuwany.
 `WatchThread` wysyła `incremental=true` i ostatni atomowy `cursor`. Gateway odpowiada
 deltą dziennika albo pełnym stanem według reguł w `ui-api.md`. Zdarzenia live nie
 przesuwają kursora; ponowny odczyt idempotentnie nakłada projekcje od checkpointu.
+Zimny odczyt prosi o 24 pełne tury, czat bota i wymiana o 50 wiadomości.
+Przewinięcie do starszego końca odwróconej listy pobiera poprzednią stronę;
+„Show earlier messages” pozwala też ponowić odczyt lub rozwinąć krótką listę.
+`maintainVisibleContentPosition` utrzymuje widoczny element przy dopisaniu historii.
+Wyszukiwanie obejmuje wejścia i odpowiedzi agenta; wpisane zapytanie doczytuje
+strony do początku historii. Zwykłe otwarcie ani restart nie uruchamia tego odczytu.
+Cache zachowuje całe dotąd załadowane okno z granicą strony i kursorem.
+Po dołączeniu strony watch wznawia się od checkpointu sprzed odczytu, żeby odtworzyć
+również równoległe edycje starszych wiadomości. Karty zgód pozostają nieaktywne do
+potwierdzenia live. Wyjście z ekranu anuluje odczyt.
+Starszy gateway ignoruje pola stronicowania i zwraca całość.
 Stan połączenia wygląda jak w web: stopka listy pokazuje kropkę i „Connected”, „Reconnecting…”
 albo „Gateway unavailable” (stream bez odpowiedzi dłużej niż 12 s, jak `live-source.ts` w web);
 tapnięcie otwiera arkusz ze zdaniem o stanie, kodem ostatniego błędu i małym „Reconnect now”.
@@ -574,6 +585,9 @@ Pierwsze renderowanie ekranu, arkusza i nakładki nie animuje wierszy ani komuni
 (`LayoutAnimationConfig skipEntering skipExiting` w `screenLayout` Stacka, `Overlay` i `Sheet`);
 animują się dopiero późniejsze zmiany. Listy wirtualne (`useArrivals`) animują tylko wiersze, które
 naprawdę doszły; wiersz zamontowany ponownie przy przewijaniu pojawia się od razu. Oś czasu wątku
+oraz czat bota używają trybu `newestFirst`: animują nowe klucze przed pierwszym
+znanym wierszem, a doczytane starsze strony na drugim końcu listy pokazują od razu.
+Zastąpienie całego okna bez wspólnych kluczy również nie animuje historii. Oś czasu wątku
 nie animuje wysokości (odwrócona lista z kotwicą foldu, `feed-anchor.tsx`): nowe wiersze i otwarta
 praca tylko się rozjaśniają, jak `t-rise` w web.
 

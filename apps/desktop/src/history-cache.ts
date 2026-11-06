@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, rename, rm, stat, utimes, writeFile } from "n
 import { join } from "node:path";
 import { fromBinary, toBinary } from "@bufbuild/protobuf";
 import { bots, ui } from "@canopy/contracts";
+import { botViewOwners } from "@canopy/domain/bot-cache";
 
 export const historyLimits = { count: 32, bytes: 96 * 1024 * 1024, entry: 16 * 1024 * 1024 };
 const keyPattern = /^(thread|chat|exchange)_([a-f0-9-]{36}(?:~[a-f0-9]{16})?)$/;
@@ -75,6 +76,30 @@ export class DesktopHistoryCache {
     if (!keyPattern.test(key)) throw new Error("Invalid history key");
 
     return this.#serial(() => rm(join(this.directory, `${key}.bin`), { force: true }));
+  }
+
+  reconcileBots(generation: string, availableIds: string[]) {
+    return this.#serial(async () => {
+      if (generation !== this.#generation) return;
+      await this.#trim();
+      const available = new Set(availableIds);
+
+      for (const name of await readdir(this.directory)) {
+        const key = name.replace(/\.bin$/, "");
+
+        if (!/^(chat|exchange)_/.test(key) || !keyPattern.test(key)) continue;
+        let keep = false;
+
+        try {
+          const view = fromBinary(bots.BotCachedViewSchema, await readFile(join(this.directory, name)));
+          keep = botViewOwners(view).every((id) => available.has(id));
+        } catch {
+          // Corrupt projections are removed with unavailable bots.
+        }
+
+        if (!keep) await rm(join(this.directory, name), { force: true });
+      }
+    });
   }
 
   clear() {

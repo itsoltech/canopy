@@ -18,11 +18,12 @@ import { styles } from "../../ui/theme";
 import { useFollowingList } from "../../ui/useFollowingList";
 import { ChatRowView } from "./ChatTimeline";
 import { BotAvatar } from "./BotAvatar";
+import { HistoryFooter } from "../../ui/HistoryFooter";
 
 /** The same history behind “Message from” and grouped exchanges, with a persistent read-only snapshot. */
 export function BotExchangeScreen({ id, botId }: { id: string; botId?: string }) {
   const { session, bots } = useSession();
-  const { snapshot, stream } = useBotExchange(id);
+  const { snapshot, stream, history } = useBotExchange(id);
   const following = useFollowingList<ChatRow>();
 
   const participants = useMemo(
@@ -60,11 +61,20 @@ export function BotExchangeScreen({ id, botId }: { id: string; botId?: string })
       <ConnectionBanner stream={stream} />
       <FlatList
         {...following.listProps}
+        onEndReached={() => {
+          if (!following.isFollowing()) void history.load();
+        }}
+        onEndReachedThreshold={0.3}
         data={[...rows].reverse()}
         keyExtractor={(row) => row.id}
         contentContainerStyle={[styles.page, { gap: 0, flexGrow: 1 }]}
         renderItem={({ item }) => <ChatRowView row={item} approvals={[]} readOnly />}
-        ListFooterComponent={<View style={{ gap: 12 }}>{!snapshot && <ConversationSkeleton />}</View>}
+        ListFooterComponent={
+          <View style={{ gap: 12 }}>
+            <HistoryFooter hasMore={snapshot?.historyHasMore} history={history} />
+            {!snapshot && <ConversationSkeleton />}
+          </View>
+        }
       />
     </SafeAreaView>
   );
