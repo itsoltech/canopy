@@ -351,27 +351,38 @@ function WorktreeList({ scope }: { scope: { projectId: string; workerId: string 
         {(preview ?? resource.data)?.entries.map((entry) => (
           <SettingsRow
             key={entry.worktree?.id}
-            title={entry.worktree?.branch || "Worktree"}
+            title={
+              entry.worktree?.detachedCommit
+                ? `Detached HEAD · ${entry.worktree.detachedCommit}`
+                : entry.worktree?.branch || "Worktree"
+            }
             description={entry.worktree?.path}
           >
             <SettingsValue
               title="Status"
               value={
-                entry.detail ||
-                entry.status?.detail ||
-                (entry.removed ? "Removed" : entry.busy ? "Busy" : entry.online ? "Online" : "Offline")
+                entry.worktree?.external
+                  ? entry.worktree.unavailableReason || (entry.online ? "Available" : "Offline")
+                  : entry.detail ||
+                    entry.status?.detail ||
+                    (entry.removed ? "Removed" : entry.busy ? "Busy" : entry.online ? "Online" : "Offline")
               }
             />
-            <SettingsValue
-              title="Changes"
-              value={`${entry.status?.dirtyFiles ?? 0} files · ${entry.status?.ahead ?? 0} ahead · ${entry.status?.behind ?? 0} behind${entry.status?.unpushed ? " · Unpushed commits" : ""}`}
-            />
-            <Button
-              variant="danger"
-              title="Remove worktree"
-              disabled={resource.busy || !entry.online || entry.busy || entry.removed || !entry.status?.headCommit}
-              onPress={() => remove(entry)}
-            />
+            {entry.worktree?.external && <SettingsValue title="Management" value="Created outside Canopy" />}
+            {!entry.worktree?.external && (
+              <>
+                <SettingsValue
+                  title="Changes"
+                  value={`${entry.status?.dirtyFiles ?? 0} files · ${entry.status?.ahead ?? 0} ahead · ${entry.status?.behind ?? 0} behind${entry.status?.unpushed ? " · Unpushed commits" : ""}`}
+                />
+                <Button
+                  variant="danger"
+                  title="Remove worktree"
+                  disabled={resource.busy || !entry.online || entry.busy || entry.removed || !entry.status?.headCommit}
+                  onPress={() => remove(entry)}
+                />
+              </>
+            )}
           </SettingsRow>
         ))}
         {resource.data && !resource.data.entries.length && (

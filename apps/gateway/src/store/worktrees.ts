@@ -25,6 +25,7 @@ export interface WorktreeScopeRow {
 }
 
 export interface WorktreeRow {
+  external: boolean;
   id: string;
   owner_user_id: string;
   project_id: string;
@@ -75,7 +76,8 @@ export interface WorktreeStore {
       | "branch_source"
       | "branch_attempts"
       | "provisional_branch"
-    > & { location?: string; provisional?: boolean },
+      | "external"
+    > & { location?: string; provisional?: boolean; external?: boolean; detachedCommit?: string },
   ): Fx<WorktreeRow>;
   /** A live worktree of the owner's, in the project and workspace. */
   ownWorktree(ownerUserId: string, id: string, projectId: string, workspaceId: string): Fx<WorktreeRow>;
@@ -149,10 +151,14 @@ export function worktreeStore(sql: SqlClient.SqlClient): WorktreeStore {
     insertWorktree: (row) =>
       sql<WorktreeRow>`
             INSERT INTO worktrees (id, owner_user_id, project_id, workspace_id, worker_id, repo_root, path, branch, base_ref,
-                                   base_commit, location, branch_source, provisional_branch)
+                                   base_commit, location, branch_source, provisional_branch, external, detached_commit)
             VALUES (${row.id}::uuid, ${row.owner_user_id}::uuid, ${row.project_id}::uuid, ${row.workspace_id}::uuid,
                     ${row.worker_id}::uuid, ${row.repo_root}, ${row.path}, ${row.branch}, ${row.base_ref}, ${row.base_commit},
-                    ${row.location ?? ""}, ${row.provisional ? "provisional" : "fixed"}, ${row.provisional ? row.branch : ""})
+                    ${row.location ?? ""}, ${row.provisional && !row.external ? "provisional" : "fixed"}, ${row.provisional ? row.branch : ""},
+                    ${row.external ?? false}, ${row.detachedCommit ?? ""})
+            ON CONFLICT (worker_id, path) WHERE removed_at IS NULL DO UPDATE SET last_used_at = now()
+              WHERE worktrees.owner_user_id = EXCLUDED.owner_user_id
+                AND worktrees.project_id = EXCLUDED.project_id AND worktrees.workspace_id = EXCLUDED.workspace_id
             RETURNING *`.pipe(Effect.flatMap((rows) => one(rows, "worktree"))),
 
     ownWorktree: (ownerUserId, id, projectId, workspaceId) =>
@@ -175,7 +181,7 @@ export function worktreeStore(sql: SqlClient.SqlClient): WorktreeStore {
              WHERE owner_user_id = ${ownerUserId}::uuid AND project_id = ${projectId}::uuid
                AND worker_id = ${workerId}::uuid AND removed_at IS NULL
                AND workspace_id = ${workspaceId}::uuid
-             ORDER BY last_used_at DESC LIMIT 20`,
+             ORDER BY last_used_at DESC`,
 
     renameWorktree: (id, from, to) =>
       Effect.gen(function* () {
@@ -203,7 +209,7 @@ function branchStore(
 
         const rows = yield* sql<WorktreeRow>`
               UPDATE worktrees SET branch_attempts = branch_attempts + 1
-               WHERE id = ${id}::uuid AND branch_source = 'provisional' AND removed_at IS NULL AND branch_attempts < ${max}
+               WHERE id = ${id}::uuid AND NOT external AND branch_source = 'provisional' AND removed_at IS NULL AND branch_attempts < ${max}
               RETURNING *`;
 
         return rows[0];

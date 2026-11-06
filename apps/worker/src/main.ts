@@ -337,6 +337,7 @@ while (!stopping.signal.aborted) {
           "worktrees",
           "workspace_origin",
           "worktree_lifecycle",
+          "git_worktree_discovery",
           // git_heads: the live branch of thread checkouts (GitHeads).
           "git_heads",
           // provisional_branches: RenameWorktreeBranch.provisional keeps pushed or switched branches.

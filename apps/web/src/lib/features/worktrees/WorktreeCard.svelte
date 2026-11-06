@@ -33,7 +33,8 @@
     </p>
   {/if}
   <p class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400">
-    Last activity {formatRelative(entry.lastActivityAt)} · {entry.detail}
+    {#if entry.worktree?.external}{`Created outside Canopy${entry.worktree.unavailableReason ? ` · ${entry.worktree.unavailableReason}` : ""}`}
+    {:else}Managed by Canopy · Last activity {formatRelative(entry.lastActivityAt)} · {entry.detail}{/if}
   </p>
   <WorktreeActions {entry} {onchange} />
 </article>

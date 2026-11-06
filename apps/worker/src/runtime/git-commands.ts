@@ -16,10 +16,12 @@ import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import { workspaceOrigin } from "../git/origin.ts";
 import { cloneRepository, initRepository } from "../git/project-sources.ts";
+import { WorktreeDiscovery, withKnownPaths } from "../git/discovery.ts";
 
 /** Git worktrees (docs/worktrees.md): refs of a workspace, new worktrees and their branch names. */
 export class GitCommands {
   readonly #creating = new Map<string, Promise<void>>();
+  readonly #discovery = new WorktreeDiscovery();
   constructor(readonly ctx: HostContext) {}
 
   async readWorkspaceOrigin(kind: Extract<Command["kind"], { case: "readWorkspaceOrigin" }>): Promise<CommandOutput> {
@@ -51,7 +53,23 @@ export class GitCommands {
   async listGitRefs(kind: Extract<Command["kind"], { case: "listGitRefs" }>): Promise<CommandOutput> {
     this.ctx.ops.checkCwd(kind.value.repoPath);
 
-    return { gitRefs: await gitStep(() => listGitRefs(kind.value.repoPath, kind.value.remote || "origin")) };
+    return gitStep(async () => {
+      const discovery = await this.#discovery
+        .list(kind.value.repoPath, kind.value.freshWorktrees)
+        .catch(() => undefined);
+
+      const refs = kind.value.worktreesOnly
+        ? { isRepo: Boolean(discovery), repoRoot: discovery?.repoRoot ?? "" }
+        : await listGitRefs(kind.value.repoPath, kind.value.remote || "origin");
+
+      return {
+        gitRefs: {
+          ...refs,
+          worktrees: withKnownPaths(discovery?.worktrees ?? [], kind.value.knownPaths),
+          worktreesDetail: discovery ? "" : "Worktrees unavailable. Refresh to retry.",
+        },
+      };
+    });
   }
 
   async createWorktree(kind: Extract<Command["kind"], { case: "createWorktree" }>): Promise<CommandOutput> {
@@ -78,13 +96,19 @@ export class GitCommands {
       try {
         return { worktree: await next };
       } finally {
+        this.#discovery.clear();
+
         if (this.#creating.get(key) === settled) this.#creating.delete(key);
       }
     });
   }
 
   async renameWorktreeBranch(kind: Extract<Command["kind"], { case: "renameWorktreeBranch" }>): Promise<CommandOutput> {
-    return { worktree: await gitStep(() => freshGit(() => renameWorktreeBranch(this.managedRoots, kind.value))) };
+    try {
+      return { worktree: await gitStep(() => freshGit(() => renameWorktreeBranch(this.managedRoots, kind.value))) };
+    } finally {
+      this.#discovery.clear();
+    }
   }
 
   async scanWorktrees(kind: Extract<Command["kind"], { case: "scanWorktrees" }>): Promise<CommandOutput> {
@@ -153,6 +177,7 @@ export class GitCommands {
           worktreeBranchDeleted: await freshGit(() => removeWorktree(this.managedRoots, kind.value, idle, receipt)),
         };
       } finally {
+        this.#discovery.clear();
         this.ctx.state.removingPaths.delete(path);
       }
     });

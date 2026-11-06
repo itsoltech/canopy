@@ -14,7 +14,12 @@ import { refuseRemoteWorktree } from "../worktrees/remote.ts";
 export const UNARY_TIMEOUT_MS = 30_000;
 
 /** Calls that may outlast the usual limit at their home: a clone waits for git (docs/linked-computers.md). */
-const LONG_CALLS = new Map([["AddProject", 6 * 60_000]]);
+const LONG_CALLS = new Map([
+  ["AddProject", 6 * 60_000],
+  ["CreateThread", 120_000],
+  ["ListWorktrees", 120_000],
+  ["CleanupWorktrees", 300_000],
+]);
 
 export const unaryTimeout = (method: DescMethod): number => LONG_CALLS.get(method.name) ?? UNARY_TIMEOUT_MS;
 
@@ -41,6 +46,7 @@ export const READS = new Set([
   "ListMentionCatalog",
   "SearchFiles",
   "ListGitRefs",
+  "ListWorktrees",
   "ListBots",
   "ListBotApprovalRules",
   "ListThreadApprovals",

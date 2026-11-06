@@ -32,6 +32,46 @@ Zasady podziału odpowiedzialności:
 
 ## Model danych
 
+### Worktree utworzone poza Canopy
+
+Lista kompozytora (web i mobile) oraz Settings → Worktrees łączy rejestr z rzeczywistą
+listą git na workerze workspace'u. Nie wymaga wcześniejszego utworzenia worktree przez Canopy.
+Bieżący checkout workspace'u pozostaje pozycją „Current checkout” i nie występuje drugi raz.
+Każda pozycja pokazuje gałąź albo odłączony HEAD, ścieżkę oraz pochodzenie
+„Managed by Canopy” / „Created outside Canopy”. Pełna ścieżka w web ma tooltip;
+długie wartości są obcinane w pickerze i zawijane w ustawieniach.
+
+**Odkrywanie jest tylko odczytem.** Worker z capability `git_worktree_discovery` wykonuje
+`git worktree list --porcelain -z`; format NUL zachowuje spacje, cudzysłowy i znaki nowej linii
+w ścieżkach. Sprawdza rzeczywistą ścieżkę, top-level checkoutu i wspólny katalog git każdej
+istniejącej pozycji. Podmieniony symlink, inne repozytorium i podkatalog nie dają prawa wyboru.
+Brakujący katalog, wpis prunable i zablokowany worktree pozostają widoczne, ale są nieaktywne.
+Odczyt nie wykonuje hooków, skryptów ani programów z odkrywanych katalogów.
+
+Gateway przyjmuje wyłącznie id workspace'u projektu właściciela. Nie przyjmuje ścieżki
+repozytorium od klienta. Discovery używa istniejącego `ListGitRefs` (`worktrees_only` pomija
+refy i status), ma wspólny limit 3 s oraz cache 2 s na workerze (maksymalnie 64 workspace'y).
+Otwarcie pickera odświeża listę; poprzedni snapshot pozostaje widoczny podczas odczytu.
+Id odkrytego wpisu jest deterministycznym skrótem id workspace'u i ścieżki, a nie uprawnieniem.
+Przed wyborem gateway ponawia discovery bez cache (`fresh_worktrees`) i sprawdza wpis od nowa.
+
+**Rejestracja przy pierwszym użyciu.** Sam odczyt nie zapisuje worktree. Dopiero utworzenie
+wątku rejestruje go z trwałym `external = true` (migracja `0092_external_worktrees`), stałym
+`branch_source = fixed` i pustą bazą. Kolejne wątki używają tego samego rekordu. Odłączony HEAD
+może mieć pustą gałąź; bieżące zmiany HEAD płyną zwykłym mechanizmem `git_heads`.
+Canopy nigdy nie przejmuje własności takiego katalogu: nie usuwa, nie przenosi ani nie zmienia
+nazwy katalogu lub gałęzi. Cleanup go pomija, ręczne Remove jest odrzucane w gatewayu,
+a trigger bazy blokuje zmianę pochodzenia, ścieżki i rezerwację usunięcia. Ustawienia pokazują
+go tylko do odczytu (z kopiowaniem ścieżki).
+
+**Zgodność i komputery połączone.** Pola protobuf są addytywne; `WORKER_LINK_PROTOCOL = 1`
+pozostaje bez zmian. Worker bez nowej capability nadal daje dotychczasową listę z rejestru;
+nie można na nim wybierać wcześniej zarejestrowanych zewnętrznych worktree bez aktualizacji.
+Gatewaye ogłaszają `remote_worktrees`: odczyt i wybór przechodzą istniejącą trasą workspace'u
+do jego domu, tam do właściwego workera. Id wpisów dostają zwykły sufiks komputera.
+Starszy dom odrzuca nowe położenie zamiast uruchamiać wątek w bieżącym checkoutcie.
+Lista ustawień zbiera także wpisy z dostępnych domów; brak połączenia nie kolejkuje operacji.
+
 ### Ustawienia i zakresy
 
 Tabela `worktree_settings` (migracja `0066_worktrees`): jeden wiersz na zakres

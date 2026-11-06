@@ -71,7 +71,16 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         RESTART_PRESENCE,
         LAN_ROUTES,
         ...(this.options.serve
-          ? [REMOTE_THREADS, THREAD_MIRROR, THREAD_MIRROR_DELTA, REMOTE_BOTS, AGENT_BUS, RELAY, INLINE_ATTACHMENTS]
+          ? [
+              REMOTE_THREADS,
+              "remote_worktrees",
+              THREAD_MIRROR,
+              THREAD_MIRROR_DELTA,
+              REMOTE_BOTS,
+              AGENT_BUS,
+              RELAY,
+              INLINE_ATTACHMENTS,
+            ]
           : []),
         ...(this.config ? [CONFIG_SYNC] : []),
         ...(this.moves ? [MOVE_ITEMS] : []),

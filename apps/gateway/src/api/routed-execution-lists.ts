@@ -13,6 +13,21 @@ export function executionLists(
   routed: Record<string, Handler>,
 ): Partial<UiHandlers> {
   return {
+    listWorktrees: async (request, context) => {
+      if (target(methodNamed("ListWorktrees")!, request))
+        return linkedMessage(ui.ListWorktreesResponseSchema, await unary(routed["listWorktrees"]!, request, context));
+
+      const [result, others] = await Promise.all([
+        local.listWorktrees(request, context),
+        request.worktreeId || request.workerId
+          ? []
+          : gather<ui.ListWorktreesResponse>(core, "ListWorktrees", request, context.signal),
+      ]);
+
+      return create(ui.ListWorktreesResponseSchema, {
+        entries: [...(result.entries ?? []), ...others.flatMap((response) => response.entries)],
+      });
+    },
     listBots: async (request, context) => {
       const [result, others] = await Promise.all([
         local.listBots(request, context),

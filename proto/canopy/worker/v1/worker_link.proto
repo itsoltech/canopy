@@ -1547,6 +1547,12 @@ message ListGitRefs {
   string repo_path = 1;
   // Remote gałęzi domyślnej, gdy brak <remote>/HEAD (pusty = origin).
   string remote = 2;
+  // Discovery only, without status or branch refs. Capability git_worktree_discovery.
+  bool worktrees_only = 3;
+  // Bypass the short discovery cache when validating a selection.
+  bool fresh_worktrees = 4;
+  // Registry paths may use a configured symlink spelling. Metadata only; never traversed recursively.
+  repeated string known_paths = 5;
 }
 
 message GitRef {
@@ -1569,6 +1575,21 @@ message GitRefs {
   repeated GitRef refs = 5;
   // Checkout ma niezatwierdzone zmiany.
   bool dirty = 6;
+  repeated GitWorktree worktrees = 7;
+  string worktrees_detail = 8;
+}
+
+// Metadata only, validated against the configured repository's common git directory.
+message GitWorktree {
+  string path = 1;
+  string branch = 2;
+  string head_commit = 3;
+  bool detached = 4;
+  bool locked = 5;
+  bool prunable = 6;
+  bool missing = 7;
+  string unavailable_reason = 8;
+  repeated string aliases = 9;
 }
 
 // Nowy worktree z nową gałęzią. Ścieżkę liczy worker: <location | worktrees_root>/<repo>/<losowa nazwa>.

@@ -9,6 +9,8 @@ import { coreWorkerQuery } from "../core/core-mentions.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { coreWorktreeScope, toUiWorktree } from "./core-worktrees.ts";
 import { cleanupReason, lastActivity, matchesCleanup } from "./cleanup-policy.ts";
+import { discoverWorkspace, mergeWorktrees } from "./discovery.ts";
+import { ownWorkspace } from "./core-worktrees.ts";
 
 export function worktreeTarget(row: WorktreeLifecycleRow, settings: ui.WorktreeSettings, status?: WorktreeStatus) {
   return create(WorktreeTargetSchema, {
@@ -28,6 +30,7 @@ export function worktreeTarget(row: WorktreeLifecycleRow, settings: ui.WorktreeS
 
 /** Complete a reserved removal, preserving its command id across disconnects and gateway restarts. */
 export async function deliverRemoval(core: GatewayCore, row: WorktreeLifecycleRow, command: Command) {
+  if (row.external) throw new InvalidError("Canopy cannot remove worktrees created outside Canopy.");
   const owner = core[coreState].options.userId;
   const connection = core.link.connections.get(row.worker_id);
 
@@ -63,6 +66,16 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
   });
 
   const settings = (await coreWorktreeScope(core, row.project_id, row.worker_id)).effective;
+
+  if (row.external) {
+    const { workspace } = await ownWorkspace(core, row.workspace_id);
+    const discovered = await discoverWorkspace(core, workspace).catch(() => undefined);
+    entry.worktree =
+      mergeWorktrees([row], discovered, workspace).find((tree) => tree.id === row.id) ?? toUiWorktree(row);
+    entry.detail = entry.worktree.unavailableReason || "Created outside Canopy";
+
+    return { entry, settings };
+  }
 
   if (row.removed_at) {
     entry.removed = true;
@@ -133,6 +146,8 @@ export async function removeEntry(
   expectedHead = status.headCommit,
   policy = false,
 ) {
+  if (row.external) throw new InvalidError("Canopy cannot remove worktrees created outside Canopy.");
+
   if (row.busy) throw new InvalidError("a thread is still using this worktree");
 
   if ((status.dirtyFiles || status.unpushed) && !confirmation)

@@ -89,6 +89,7 @@ import worktreeBranchNames from "./0087_worktree_branch_names.sql" with { type: 
 import threadMirrorDelta from "./0088_thread_mirror_delta.sql" with { type: "text" };
 import botApprovalRules from "./0089_bot_approval_rules.sql" with { type: "text" };
 import botApprovalDefaults from "./0090_bot_approval_defaults.sql" with { type: "text" };
+import externalWorktrees from "./0092_external_worktrees.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -194,6 +195,7 @@ export const migrations = Migrator.fromRecord({
   "0089_bot_approval_rules": sqlFile(botApprovalRules),
   "0090_bot_approval_defaults": sqlFile(botApprovalDefaults),
   "0091_bot_view_delta": sqlFile(botViewDelta),
+  "0092_external_worktrees": sqlFile(externalWorktrees),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

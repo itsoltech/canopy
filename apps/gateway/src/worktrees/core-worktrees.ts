@@ -10,6 +10,7 @@ import { coreWorkerQuery } from "../core/core-mentions.ts";
 import { coreWorkers } from "../core/core-providers.ts";
 import { initialBranch } from "./branch-names.ts";
 import { resolveScope, settingsJson, settingsProblem, type ResolvedScope } from "./settings.ts";
+import { selectWorktree, mergeWorktrees } from "./discovery.ts";
 
 /** Git worktrees in the gateway (docs/worktrees.md): settings scopes, refs for the composer, new worktrees. */
 
@@ -19,7 +20,7 @@ const REFS_TIMEOUT_MS = 20_000;
 const CREATE_TIMEOUT_MS = 90_000;
 
 /** The owner's workspace and its project; a workspace of someone else's project is not found. */
-async function ownWorkspace(hostContext: GatewayCore, workspaceId: string) {
+export async function ownWorkspace(hostContext: GatewayCore, workspaceId: string) {
   const projects = await coreRun(hostContext, (s) => s.listProjects(hostContext[coreState].options.userId));
   const project = projects.find((p) => p.workspaces.some((w) => w.id === workspaceId));
   const workspace = project?.workspaces.find((w) => w.id === workspaceId);
@@ -80,6 +81,7 @@ export function toUiWorktree(row: WorktreeRow): ui.ThreadWorktree {
     ...(row.removed_at && { removedAt: timestampFromDate(new Date(row.removed_at)) }),
     detachedCommit: row.detached_commit,
     provisionalBranch: row.branch_source === "provisional",
+    external: row.external,
   });
 }
 
@@ -208,11 +210,9 @@ export async function corePrepareWorkspace(
     request = create(ui.CreateThreadRequestSchema, { ...request, cwd: "", worktreeId: "" });
 
   if (request.workspaceMode === ui.WorkspaceMode.EXISTING_WORKTREE) {
-    const row = await coreRun(hostContext, (s) =>
-      s.ownWorktree(hostContext[coreState].options.userId, request.worktreeId, request.projectId, request.workspaceId),
-    );
+    const row = await selectWorktree(hostContext, request);
 
-    return { request: create(ui.CreateThreadRequestSchema, { ...request, cwd: row.path }) };
+    return { request: create(ui.CreateThreadRequestSchema, { ...request, worktreeId: row.id, cwd: row.path }) };
   }
 
   if (request.workspaceMode !== ui.WorkspaceMode.NEW_WORKTREE) return { request };
@@ -277,24 +277,37 @@ export const coreWorktreesMethods: CoreWorktreesMethods = {
 
     if (detail) return create(ui.ListGitRefsResponseSchema, { supported: false, detail, settings });
 
-    const [result, worktrees] = await Promise.all([
-      coreWorkerQuery(
-        this,
-        workspace.workerId,
-        { case: "listGitRefs", value: { repoPath: workspace.rootPath, remote: settings.remote ?? "origin" } },
-        REFS_TIMEOUT_MS,
-      ),
-      coreRun(this, (s) =>
-        s.listWorktrees(this[coreState].options.userId, project.id, workspace.workerId, workspace.id),
-      ),
-    ]);
+    const worktrees = await coreRun(this, (s) =>
+      s.listWorktrees(this[coreState].options.userId, project.id, workspace.workerId, workspace.id),
+    );
+
+    const result = await coreWorkerQuery(
+      this,
+      workspace.workerId,
+      {
+        case: "listGitRefs",
+        value: {
+          repoPath: workspace.rootPath,
+          remote: settings.remote ?? "origin",
+          knownPaths: worktrees.map((row) => row.path),
+        },
+      },
+      REFS_TIMEOUT_MS,
+    );
 
     if (!result.gitRefs) throw new UnavailableError("the worker did not list the refs");
+
+    const discovered = this.link.connections
+      .get(workspace.workerId)
+      ?.hello.capabilities.includes("git_worktree_discovery")
+      ? result.gitRefs
+      : undefined;
 
     return create(ui.ListGitRefsResponseSchema, {
       supported: true,
       refs: result.gitRefs,
-      worktrees: worktrees.map(toUiWorktree),
+      worktrees: mergeWorktrees(worktrees, discovered, workspace),
+      detail: discovered?.worktreesDetail ?? "",
       settings,
     });
   },

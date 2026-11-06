@@ -611,11 +611,11 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
     expect(await failure(settings(scoped.id, { branchPrefix: "bad..prefix" }))).toContain("branch prefix");
   });
 
-  test("linked computer worktrees are explicitly refused before routing to an older home", async () => {
+  test("worktree requests cannot route to a computer that is not linked", async () => {
     const nodeId = "ab".repeat(32);
     const remoteWorkspace = qualifyId(workspace.id, nodeId);
     expect(await failure(gw.api.listGitRefs({ workspaceId: remoteWorkspace }))).toContain(
-      "Worktrees on linked computers are not supported yet",
+      "That computer is no longer linked",
     );
 
     for (const mode of [
@@ -632,7 +632,7 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
             workspaceMode: mode,
           }),
         ),
-      ).toContain("Worktrees on linked computers are not supported yet");
+      ).toContain("That computer is no longer linked");
     }
   });
 });

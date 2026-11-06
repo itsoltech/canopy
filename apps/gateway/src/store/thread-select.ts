@@ -37,7 +37,7 @@ export const threadSelect = (where: string, extraColumns = "") => `
                     FROM turns ft WHERE ft.id = t.fork_after_turn_id) AS fork_after_turn_ordinal,
                  (SELECT json_build_object('id', wt.id, 'branch', wt.branch, 'path', wt.path, 'base_ref', wt.base_ref,
                                            'repo_root', wt.repo_root, 'worker_id', wt.worker_id, 'created_at', wt.created_at, 'removed_at', wt.removed_at,
-                                           'detached_commit', wt.detached_commit, 'branch_source', wt.branch_source)
+                                           'detached_commit', wt.detached_commit, 'branch_source', wt.branch_source, 'external', wt.external)
                     FROM worktrees wt WHERE wt.id = t.worktree_id) AS worktree,
                  (SELECT json_build_object('branch', h.branch, 'detached_commit', h.detached_commit)
                     FROM checkout_heads h WHERE t.worktree_id IS NULL AND h.workspace_id = t.workspace_id) AS checkout_head
