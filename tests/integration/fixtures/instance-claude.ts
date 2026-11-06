@@ -30,6 +30,7 @@ const send = (message: JsonObject) => process.stdout.write(JSON.stringify(messag
 recordProbe("claude", resume ? "resume" : "spawn", session);
 
 const botMcp = claudeBotConfig();
+let instructions = "";
 
 async function turn(text: string): Promise<void> {
   recordProbe("claude", "turn", session);
@@ -74,7 +75,7 @@ async function turn(text: string): Promise<void> {
     return;
   }
 
-  const answer = await botTool(text, botMcp);
+  const answer = await botTool(text, botMcp, instructions);
 
   const user = {
     type: "user",
@@ -163,7 +164,11 @@ async function turn(text: string): Promise<void> {
 for await (const line of createInterface({ input: process.stdin })) {
   const message = JSON.parse(line);
 
-  if (message.type === "control_request")
+  if (message.type === "control_request") {
+    if (message.request.subtype === "initialize")
+      instructions = Schema.decodeUnknownSync(Schema.Array(Schema.String))(message.request.systemPrompt ?? []).join(
+        "\n",
+      );
     send({
       type: "control_response",
       response: {
@@ -172,7 +177,7 @@ for await (const line of createInterface({ input: process.stdin })) {
         response: { commands: [], models: [], agents: [] },
       },
     });
-  else if (message.type === "user") {
+  } else if (message.type === "user") {
     if (message.uuid)
       send({ type: "command_lifecycle", command_uuid: message.uuid, state: "started", session_id: session });
 

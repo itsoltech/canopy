@@ -84,6 +84,48 @@ nadanie lub odebranie grantu i usunięcie konta wymuszają nową sesję na nast�
 wiadomości, jeżeli zmieniają dostępne narzędzia. Rozmowa i identyfikator bota
 pozostają te same; zmienia się wyłącznie ukryta sesja harnessu.
 
+### Edycja instrukcji i ustawień
+
+`UpdateBot` zapisuje `BotConfiguration.instructions` w `bots.configuration` w Postgresie.
+Runtime odczytuje konfigurację przed rozpoczęciem każdej nowej tury; `RunBotTurn`
+przenosi aktualny prompt i historię do workera. Nie jest to cache ustawień UI ani
+konfiguracji workera. Wcześniej trwały `session.json` porównywał tylko model,
+narzędzia i wersję izolacji. Edycja nazwy lub persony nie zmieniała klucza, więc
+restart UI, gatewaya albo workera nadal wybierał tę samą sesję i jej dawny kontekst.
+
+| Harness | Przekazanie instrukcji | Zachowanie po edycji |
+| --- | --- | --- |
+| Claude | `query.options.systemPrompt`; kontynuacja przez `resume` | Nowy `sessionId`, aktualny system prompt i historia gatewaya |
+| Codex | `baseInstructions` w `thread/start` i `thread/resume` | Nowy `thread/start`; nie polegamy na przepisaniu wcześniejszego kontekstu przez override resume |
+| Grok | Treść curated profilu `--agent-profile` oraz bieżącego promptu; `session/load` odtwarza sesję | Nowe `session/new` z aktualnym profilem i historią |
+
+Gateway przesyła stabilny SHA-256 nazwy, standing instructions i polityki zgód
+w addytywnym `RunBotTurn.configuration_key` (11). Worker włącza go oraz effort
+do trwałego fingerprintu obok modelu i pełnych deskryptorów narzędzi. Zmiana
+tych wartości unieważnia wyłącznie identyfikator ukrytej sesji. Sam czas, hops,
+treść wiadomości, kolor, kształt i ponowny zapis tych samych ustawień jej nie rotują.
+Dostawca/instancja mają osobną przestrzeń sesji; Runs on wybiera workera.
+Skille i pluginy urządzenia/biblioteki nadal są wyłączone dla botów.
+
+Nowa sesja korzysta z istniejącej odbudowy: bieżące instrukcje, ostatnia trwała
+notatka handoff i historia rozmowy w dotychczasowym budżecie. Nie kasujemy
+transkryptów, notatek, rutyn, przypomnień ani watchów i nie wykonujemy narzędzi
+z historii. Nie tworzymy drugiego czatu ani dodatkowego wywołania streszczającego.
+Odbudowane wejście wskazuje pierwszeństwo bieżących standing instructions przed
+sprzecznymi dawnymi instrukcjami lub preferencjami w historii.
+Nie przenosimy prywatnego rozumowania harnessu; duża historia nadal podlega
+opisanemu niżej budżetowi. Edycja podczas aktywnej tury obowiązuje od następnej
+nowo rozpoczynanej tury. Zapisana już komenda zachowuje swój snapshot także po
+reconnect i restarcie gatewaya; nie powtarzamy rozpoczętej inferencji.
+
+Pole jest addytywne, więc `WORKER_LINK_PROTOCOL` pozostaje 1, bez migracji bazy.
+Starszy worker ignoruje pole i zachowuje dotychczasowe działanie; dla gwarancji
+odświeżania trzeba zaktualizować worker. Nowy worker przy komendzie starszego
+gatewaya używa pełnego promptu jako klucza awaryjnego: może częściej odbudować
+sesję z powodu czasu/kontekstu, ale nie zachowa nieaktualnych instrukcji.
+Pierwsza tura po aktualizacji workera odbudowuje też sesje ze starszym formatem
+fingerprintu. Nie zmieniamy zamrożonego UpdateService.
+
 Nie dodajemy osobnego wywołania modelu do streszczania. Długą rozmowę kompaktuje
 harness, tak jak w wątkach: Claude Agent SDK automatycznie, Codex według
 `auto_compact_token_limit` z katalogu modelu bota, Grok według własnego limitu CLI.
@@ -238,6 +280,15 @@ Zwykłe wątki nie rotują automatycznie sesji po zmianie konektorów, ponieważ
 gwarantują pełnej odbudowy historii; ograniczenie opisuje [connectors.md](connectors.md).
 Dotychczasowy `bots-harness.test.ts` nadal obejmuje offline,
 reconnect, restarty, owner scoping i izolację.
+`bots-instructions-refresh.test.ts` sprawdza przez prawdziwy WorkerLink i kontrolowane
+CLI wszystkich trzech dostawców: edycję i wyczyszczenie instrukcji po wznowieniu,
+restart workera/gatewaya, zmianę w trakcie tury, nazwę, effort, model i politykę,
+brak rotacji po zmianie wyglądu lub zapisie bez zmian, historię tego samego czatu
+i zachowanie zapisanej notatki handoff. Fixture odczytuje system prompt z inicjalizacji
+SDK Claude, `baseInstructions` Codexa i pliku profilu Groka; odpowiedź kontrolna
+pochodzi z tych instrukcji, nie z treści wiadomości użytkownika. Testy te dowodzą
+kontraktu adapterów, nie zachowania płatnych modeli ani ignorowania override przez
+konkretną wersję CLI. Nie wymagają logowania ani zewnętrznej inferencji.
 `linked-agent-messages.test.ts` łączy dwa gatewaye i kontrolowany harness bota:
 sprawdza autora oraz treść wiadomości i steerów, czytelny event zakończenia,
 wznowienie bota i pojedynczy tekst po strumieniu z blokiem rozumowania.

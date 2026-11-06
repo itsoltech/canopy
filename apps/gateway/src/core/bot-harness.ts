@@ -1,4 +1,5 @@
 import { create, fromJson } from "@bufbuild/protobuf";
+import { createHash } from "node:crypto";
 import { CommandSchema, CommandResultSchema, TurnOutcome } from "@canopy/contracts";
 import { classifyFailure, ProviderFailure } from "@canopy/domain";
 import { budgetedHistory } from "../bots/history-budget.ts";
@@ -99,6 +100,15 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
               model: input.configuration.model,
               effort: input.configuration.effort,
               instructions: input.instructions,
+              configurationKey: createHash("sha256")
+                .update(
+                  JSON.stringify({
+                    name: input.configuration.name,
+                    instructions: input.configuration.instructions,
+                    approvalPolicy: input.configuration.approvalPolicy,
+                  }),
+                )
+                .digest("hex"),
               historyJson: JSON.stringify(budgetedHistory(input.messages)),
               input: input.messages.findLast((m) => m.role === "user")?.text ?? "",
               tools: input.tools.map((t) => ({

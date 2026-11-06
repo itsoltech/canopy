@@ -515,7 +515,15 @@ również przy `safe`. Warstwa zapisu sprawdza zatwierdzenie. Konfiguracja, wyni
 i wpis w rozmowie zatwierdzają się atomowo; ponowienie checkpointu nie powiela zmiany.
 UI pokazuje spokojną linię, np. „Main bot changed its name to Kropka”, i **View** z wartościami
 przed/po, bez JSON. Maskotka reaguje istniejącą animacją. Instrukcje są trwałą częścią system
-promptu i obowiązują od następnej tury; linia zmiany nie wchodzi do historii wysyłanej modelowi.
+promptu i obowiązują od następnej nowo rozpoczynanej tury; linia zmiany nie wchodzi do historii
+wysyłanej modelowi. Dotyczy to także edycji w ustawieniach oraz wyczyszczenia instrukcji.
+Worker porównuje trwały fingerprint nazwy, instrukcji, polityki zgód, modelu, effortu
+i narzędzi. Po zmianie rozpoczyna nową ukrytą sesję Claude/Codex/Grok z historią
+gatewaya i ostatnią notatką handoff; identyfikator bota, jego czat, rutyny i przypomnienia
+pozostają. Zmiana wyglądu lub zapis bez zmian nie rotuje sesji. Restart aplikacji,
+gatewaya ani workera nie przywraca wcześniejszych instrukcji. Rozpoczęta już tura
+i jej trwała komenda zachowują dotychczasowy snapshot. Zasady zgodności ze starszym
+workerem, budżet historii i szczegóły adapterów: [bots-harness.md](bots-harness.md#edycja-instrukcji-i-ustawień).
 
 Rejestr zastępują konta [Connectors](connectors.md), z grantami konkretnych botów.
 Migracja 0041 zachowuje serwery i przypięcia jako Custom MCP server. Nowe poświadczenia

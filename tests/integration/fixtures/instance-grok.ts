@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /** ACP fixture with durable sessions behind disposable process homes. */
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
@@ -9,6 +9,8 @@ import { arg, botEvidence, botFailure, botTool } from "./bot-probe.ts";
 
 const servers = new Map<string, { url: string; headers: Record<string, string> }>();
 const permissions = new Map<string, (denied: boolean) => void>();
+const profile = arg("--agent-profile");
+const instructions = profile ? readFileSync(profile, "utf8") : "";
 
 function transcript(session: string, update: JsonObject) {
   const dir = join(process.env["GROK_HOME"]!, "sessions", "fixture", session);
@@ -72,7 +74,7 @@ async function turn(
       },
     });
     answer = (await denied) ? "BUILTIN_DENIED" : "BUILTIN_ALLOWED";
-  } else answer = await botTool(text, servers.get(params.sessionId));
+  } else answer = await botTool(text, servers.get(params.sessionId), instructions);
   transcript(params.sessionId, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: answer } });
   transcript(params.sessionId, { sessionUpdate: "turn_completed", stop_reason: "end_turn" });
 

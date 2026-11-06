@@ -15,7 +15,11 @@ const ToolList = Schema.Struct({
   result: Schema.Struct({ tools: Schema.Array(Schema.Struct({ name: Schema.String })) }),
 });
 
-const ContextProbe = Schema.Struct({ prompt: Schema.String, names: Schema.Array(Schema.String) });
+const ContextProbe = Schema.Struct({
+  prompt: Schema.String,
+  instructions: Schema.String,
+  names: Schema.Array(Schema.String),
+});
 
 /** Controlled fixture prompts only; no environment, configuration, headers or credentials. */
 export function botContexts(trace: string): (typeof ContextProbe.Type)[] {
@@ -63,7 +67,7 @@ export function codexBotConfig(config: Schema.Json) {
   return parsed.mcp_servers["canopy"];
 }
 
-export async function botTool(text: string, server: typeof Mcp.Type | undefined): Promise<string> {
+export async function botTool(text: string, server: typeof Mcp.Type | undefined, instructions = ""): Promise<string> {
   const prompt = text;
   text = text.split("\n\nCurrent input:\n").at(-1) ?? text;
   const trace = process.env["BOT_TRACE"];
@@ -78,9 +82,12 @@ export async function botTool(text: string, server: typeof Mcp.Type | undefined)
     const catalog = Schema.decodeUnknownSync(ToolList)(await response.json());
     appendFileSync(
       `${trace}.context`,
-      JSON.stringify({ prompt, names: catalog.result.tools.map((t) => t.name) }) + "\n",
+      JSON.stringify({ prompt, instructions, names: catalog.result.tools.map((t) => t.name) }) + "\n",
     );
   }
+
+  // Answer only from the actual system/profile instructions supplied to the controlled CLI.
+  if (text.includes("PROBE_INSTRUCTIONS")) return instructions.match(/FIXTURE_REPLY:(\w+)/)?.[1] ?? "FIXTURE_OK";
 
   if (text.startsWith("[canopy] Owner shell command result")) return text;
 

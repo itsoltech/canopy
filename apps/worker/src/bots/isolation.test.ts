@@ -78,14 +78,21 @@ test("bot isolation keeps only the selected login and rebuilds pre-isolation ses
     expect(readdirSync(session.home)).toEqual([login]);
     expect(readlinkSync(join(session.home, login))).toBe(join(sourceHome, login));
 
-    const key = createHash("sha256")
-      .update(JSON.stringify({ model: input.model, tools: input.tools }))
-      .digest("hex");
+    for (const configuration of [
+      { model: input.model, tools: input.tools },
+      { isolation: 2, model: input.model, tools: input.tools },
+    ]) {
+      const key = createHash("sha256").update(JSON.stringify(configuration)).digest("hex");
+      writeFileSync(join(session.home, "..", "session.json"), JSON.stringify({ id: "old-session", key }));
+      expect(botSession(input, options).id).toBe("");
+    }
 
-    writeFileSync(join(session.home, "..", "session.json"), JSON.stringify({ id: "old-session", key }));
-    expect(botSession(input, options).id).toBe("");
     session.save("isolated-session");
     expect(botSession(input, options).id).toBe("isolated-session");
+
+    // Older gateways omit configuration_key; edited prompts must still invalidate the session.
+    input.instructions = "Updated standing instructions";
+    expect(botSession(input, options).id).toBe("");
   }
 });
 
