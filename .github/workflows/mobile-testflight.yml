@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: mobile-testflight
@@ -36,7 +37,8 @@ jobs:
   testflight:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+      (github.event.workflow_run.conclusion == 'success' &&
+       contains(fromJSON('["push", "schedule", "workflow_dispatch"]'), github.event.workflow_run.event))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -47,11 +49,17 @@ jobs:
         with:
           ref: ${{ env.HEAD_SHA }}
           fetch-depth: 0
-      - uses: ./.github/actions/setup-bun
-
-      # The nightly this commit was released as; a dev run that published nothing (docs only) builds nothing.
+      # A repeated hourly run can point at an existing nightly. Require its release job to have run too.
       - id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            released=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID/jobs?per_page=100" \
+              --jq '.jobs[] | select(.name == "release" and .conclusion == "success") | .id')
+            if [ -z "$released" ]; then echo "Release skipped publication; nothing to build."; exit 0; fi
+          fi
           tag=$(git tag --points-at HEAD --list 'v*-nightly.*' --sort=-v:refname | head -n1)
           if [ -z "$tag" ] && [ "${{ github.event_name }}" = workflow_dispatch ]; then
             tag=$(git describe --tags --match 'v*' --abbrev=0)
@@ -60,6 +68,9 @@ jobs:
           # App Store versions are three numbers: 0.2.0-nightly.84 ships as 0.2.0, EAS raises the build number.
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "marketing=$(echo "${tag#v}" | cut -d- -f1)" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/setup-bun
+        if: steps.version.outputs.tag
 
       # The commit of the last iOS build that did not fail or get cancelled. A missing or unknown commit builds.
       - id: changes

@@ -186,7 +186,8 @@ przekierowania OAuth trafia pod `https://itsoltech.github.io/canopy/oauth/callba
 ([konektory](connectors.md#stały-redirect-zarejestrowanych-aplikacji)).
 Zmiany `.github/**` zawsze wymagają całości, również przy rozszerzeniu `.md`.
 Porównanie obejmuje oba końce rename; błąd odczytu zmian nie daje zielonego wyniku.
-Release zawsze uruchamia cały zestaw. Testy live są opt-in (`CANOPY_LIVE`, prywatne klucze)
+Release z zaplanowanym nightly oraz przebiegi `main`/`next`/tagowe uruchamiają cały zestaw.
+Nightly bez wydania pomija CI. Testy live są opt-in (`CANOPY_LIVE`, prywatne klucze)
 i nie mają sekretów w CI. Nowy push do PR anuluje cały stary CI, łącznie z shardami;
 wywołania z Release mają osobne grupy (`run_id`). Bun, cache pakietów i zamrożona instalacja
 są we wspólnej akcji `.github/actions/setup-bun`.
@@ -206,28 +207,54 @@ procesu testowego. Każdy fixture dostaje osobną bazę. Gatewaye klonują niemo
 zmigrowany szablon; testy migracji nadal zaczynają od pustej bazy i wykonują prawdziwe migracje.
 Bezpośrednie `bun test <plik>` nadal działa z własnym kontenerem fixture'a.
 
-`.github/workflows/release.yml` (push do `main`/`next`/`dev`, ręczne stabilne tagi `vX.Y.Z`,
-oraz dispatch po promocji/back-merge). Pushe do `dev` mają wspólną grupę całego workflow
+`.github/workflows/release.yml` uruchamia nightly z `dev` **co godzinę, o minucie 17 UTC**
+(`17 * * * *`). Najpierw `plan` wykonuje dry run semantic-release: brak nowych commitów lub
+wyłącznie commity bez wpływu na wersję (`docs`, `ci`, `chore`, `test`, `refactor`, `style`, `build`
+bez `BREAKING CHANGE`) daje `published=false`. Wtedy nie startują ani CI (w tym shardy testów),
+ani buildy, publikacja czy retencja po wydaniu; nie powstaje tag. Pozostaje koszt checkoutu,
+instalacji zależności i dry runu. To ten sam analyzer i historia kanałów co przy publikacji,
+bez osobnego przybliżania reguł commitów lub porównywania wyłącznie plików.
+
+| Zdarzenie / ref | Zachowanie |
+| --- | --- |
+| push do `dev` | bez Release i dodatkowego CI; CI każdego PR pozostaje bez zmian |
+| schedule na domyślnej gałęzi `dev` | plan; CI i buildy tylko dla nowego nightly |
+| dispatch na `dev` | wydanie od razu, przez tę samą bramkę; wymagany `expected_sha` = HEAD |
+| push / dispatch na `next` lub `main` | beta / stable jak wcześniej; dispatch zachowuje `expected_sha` |
+| push stabilnego tagu `vX.Y.Z` | ręczne stable z historii `main`, z CI i publikacją jak wcześniej |
+
+Nie dodajemy CI po każdym pushu do `dev`: duplikowałoby pełne shardy CI z PR i późniejszego
+wydania. Oznacza to brak natychmiastowego sygnału o błędzie wynikającym z połączenia zmian;
+pełne CI uruchomi się przed publikacją releasowalnego nightly. Sam PR nadal wymaga CI.
+Dispatch po Promote/back-merge zachowuje walidację `expected_sha`, także na `dev`.
+
+Wszystkie przebiegi `dev` (schedule i dispatch) mają wspólną grupę całego workflow
 z `cancel-in-progress: false`: aktywny przebieg kończy się bez anulowania, a spośród oczekujących
-pozostaje tylko najnowszy. Seria squash commitów nie tworzy kolejki pełnych nightly dla każdego
-commita. Ceną jest oczekiwanie nowego nightly także na desktop/notaryzację aktywnego nightly.
+pozostaje tylko najnowszy. Kolejny cykl czeka lub zostaje zastąpiony nowszym oczekującym,
+nigdy nie publikuje równolegle. Ceną jest oczekiwanie także na desktop/notaryzację aktywnego nightly.
 Nie wolno włączyć `cancel-in-progress: true`: aktywny przebieg może już publikować.
-Beta, stable, tagi i ręczny dispatch mają odrębne grupy przebiegów i zachowują równoległe buildy.
+Beta, stable i tagi mają odrębne grupy przebiegów i zachowują równoległe buildy.
 Joby ustalające i publikujące wersję zachowują dotychczasowe blokady per gałąź.
+GitHub uruchamia schedule wyłącznie z domyślnej gałęzi; musi nią pozostać `dev`.
+Guard nie pozwala schedule wydać beta/stable po zmianie gałęzi domyślnej.
+Cron może się opóźnić lub zostać pominięty; następny cykl zbiera wszystkie niewydane zmiany.
+Godzina nie jest gwarancją czasu dostępności aktualizacji. Pilne wydanie uruchamia maintainer
+przez dispatch na `dev` z aktualnym SHA (również czeka na aktywny nightly).
 Desktop przywraca cache Electron/electron-builder przed instalacją zależności;
 cache pakietów Bun pozostaje rozdzielony według OS, architektury i lockfile.
 
 ```text
-plan ─┬─ binaries ── smoke ──────────────────────────┐
+plan ─┬─ checks ────────────────────────────────────┐
+      ├─ binaries ── smoke ─────────────────────────┤
       ├─ images-build ─────────────┐                 │
       ├─ desktop (macierz) ────────┼─────────────────┼──────────────┐
-checks┴─ release ──────────────────┴─ images ─ publish-server ─ publish-desktop
+      └─ release (po checks) ──────┴─ images ─ publish-server ─ publish-desktop
                 └─ stop-builds (checki czerwone / przebieg wyprzedzony)   ├─ nightly-hygiene / backmerge
 ```
 
 | Job | Co robi | Kiedy startuje | Publikuje |
 | --- | --- | --- | --- |
-| `checks` | `ci.yml` | od razu | — |
+| `checks` | `ci.yml` | po `plan`; na `dev` tylko gdy `published=true` | — |
 | `plan` | semantic-release **`--dry-run`**: `version`, `tag`, `channel`, macierz desktop | od razu; grupa `release-version-<ref>` | nic (sprawdza tylko prawo pushu) |
 | `binaries`, `smoke` | cross-compile wszystkich celów; `--version` każdej binarki na jej OS/arch | po `plan`, równolegle z checkami | — (artefakt Actions) |
 | `images-build` | buildx amd64+arm64 do cache GHA (`mode=max`), bez pushu i atestacji | po `plan` | — |
@@ -237,9 +264,9 @@ checks┴─ release ──────────────────┴�
 | `publish-server` | binaria, `checksums.txt`, `manifest.json` (ostatni), potem aliasy obrazów | po `checks`, `release`, `binaries`, `smoke`, `images`; grupa `release-publish-<ref>` | etap 1 |
 | `publish-desktop` | instalatory, blockmapy, scalone feedy, nowe `checksums.txt`/`manifest.json` | po `publish-server` i końcu macierzy desktop | etap 2 |
 | `stop-builds` | `gh run cancel` własnego przebiegu | checki czerwone albo `release` bez wydania/anulowany | — |
-| `nightly-hygiene`, `backmerge` | jak wcześniej | po `publish-server` | — |
+| `nightly-hygiene`, `backmerge` | jak wcześniej | po `publish-server`; brak wydania pomija oba | — |
 
-**Nic nie jest publikowane przed zielonymi testami.** Przed `checks` powstają wyłącznie artefakty
+**Nic nie jest publikowane przed zielonymi testami.** Równolegle z `checks` powstają wyłącznie artefakty
 Actions i cache buildx (prywatne dla repozytorium). Tag, GitHub Release, obraz w GHCR, assety
 release i aliasy obrazów zależą od `release`, a ten od `checks`. Dry run nie tworzy tagu ani notes;
 wymaga tylko `contents: write`, bo semantic-release sprawdza prawo pushu (`git push --dry-run`).
@@ -252,7 +279,8 @@ dzielą grupę `release-version-<ref>`, więc plan nie liczy wersji w trakcie ta
 
 **Wyprzedzony przebieg.** semantic-release nie wydaje, gdy gałąź przesunęła się w trakcie
 przebiegu („local branch … is behind the remote one”). Wtedy `stop-builds` anuluje własny przebieg
-(m.in. budowę i notaryzację macOS), a nowszy przebieg wydaje wszystkie commity od ostatniego tagu.
+(m.in. budowę i notaryzację macOS). Na `dev` commity zbiera następny cykl godzinowy lub dispatch,
+nie sam push. Ciągłe zmiany gałęzi podczas checków mogą odsuwać nightly do spokojniejszego cyklu.
 GitHub w grupie `concurrency` trzyma jeden job oczekujący: nowszy anuluje starszy oczekujący — to też
 oznacza wyprzedzony przebieg. Przy czerwonych checkach `stop-builds` także zatrzymuje buildy;
 nic nie zostało otagowane, więc ponowienie (**Re-run all jobs**) jest bezpieczne.
@@ -295,7 +323,7 @@ Bundla web nie współdzielimy między jobami desktop: osobny job buildu opóźn
 
 ### Oczekiwane czasy
 
-| Etap | Od pushu |
+| Etap | Od startu aktywnego Release (bez oczekiwania na cron/kolejkę) |
 | --- | --- |
 | `plan` gotowy, start buildów | ~1 min |
 | `checks` zielone | ~4,5–5 min |
@@ -305,8 +333,9 @@ Bundla web nie współdzielimy między jobami desktop: osobny job buildu opóźn
 | desktop Linux w release | ~12–14 min |
 | desktop macOS (podpis + notaryzacja) w release | ~30–35 min |
 
-Następny merge do `dev` startuje od razu; czeka jedynie na krótkie joby `plan`/`release`
-poprzedniego przebiegu (~1 min każdy) i ewentualnie na jego `publish-server`.
+Czasy są orientacyjne; CI startujące po planie wymaga potwierdzenia na GitHubie.
+Merge do `dev` czeka na najbliższy cykl godzinowy, a nowy przebieg dodatkowo na zakończenie
+całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie blokadę przebiegów.
 
 ### Ponowienia i błąd notaryzacji
 
@@ -329,7 +358,9 @@ GitHub Actions nie da się uruchomić lokalnie. Na pierwszych przebiegach `dev` 
 aliasu (log `stays at`/`→`), a `imagetools create` zachowuje obie platformy i SBOM; `release-upload.ts`
 podmienia `manifest.json`/`checksums.txt` przez `.next` (brak pozostałych plików `.next`);
 `publish-desktop` widzi artefakty z poprzedniej próby po **Re-run failed jobs**; `stop-builds`
-anuluje wyprzedzony przebieg; dwa merge'e w odstępie kilku minut dają jeden nightly z obu commitów.
+anuluje wyprzedzony przebieg. Dwa merge'e przed cyklem dają jeden nightly z obu commitów;
+kolejny cykl na tym samym SHA albo po samych `docs` pomija `checks` i buildy.
+Sprawdź też wspólną kolejkę schedule/dispatch i wywołanie TestFlight tylko po rzeczywistej publikacji.
 
 Podpisywanie desktop jest warunkowe: bez certyfikatu macOS otrzymuje podpis ad-hoc,
 Windows pozostaje niepodpisany. Konfiguracja certyfikatu macOS włącza obowiązkowy signing,
@@ -469,9 +500,14 @@ Po zmianie układu runtime i pobieraniu PostgreSQL sprawdź dodatkowo:
 
 ## Promocja i okres stabilizacji („burn-in”)
 
-Nightly powstaje po każdej zmianie `feat`/`fix`/`perf` na `dev` (zmiany bez wpływu na wersję
-nie publikują buildu). Beta to wybrany nightly; stable to beta po okresie obserwacji.
+Nightly zbiera niewydane zmiany `feat`/`fix`/`perf` na `dev` w cyklu godzinowym lub po dispatchu
+(zmiany bez wpływu na wersję nie publikują buildu). Beta to wybrany nightly; stable to beta po okresie obserwacji.
 Promocja przebudowuje ten sam commit z nowym numerem wersji, nie kopiuje binariów między kanałami.
+Soak `dev → next` nadal wynosi **24 h od daty commitera każdego commita**, nie od publikacji nightly.
+Nie zmieniają się `landedAt` (`git show --format=%ct`) ani polityka w `promotion-policy.ts`.
+Godzinowe grupowanie oznacza mniej commitów z własnym zielonym Release; promocja może wybrać
+starszy ukończony nightly lub poczekać, aż cały nowszy prefiks dojrzeje i przejdzie Release.
+Pominięty plan bez CI/smoke sam nie potwierdza gotowości nieotagowanego commita.
 
 **Automatic promotion** (`promotion-review.yml`) działa co **3 h**, o `0 */3 * * *` UTC.
 Najpierw wykonuje **next → main**, potem **dev → next**, w jednej grupie
@@ -598,6 +634,9 @@ Po stable **Back-merge** (bez zmian) przenosi hotfix `main` → `next` → `dev`
 nightly i codziennie o 04:30 UTC; grupa `nightly-hygiene` nie dopuszcza dwóch przebiegów naraz. Nic, co
 powstało lub zmieniło się w ciągu ostatnich **6 h**, nie jest usuwane (publikacja w toku albo do
 „Re-run failed jobs”).
+Harmonogram publikacji nie zmienia tej polityki: przebieg bez wydania pomija wywołanie retencji,
+a codzienny cron sprząta także wtedy, gdy nie powstają nowe nightly. Limit 10 ukończonych wydań
+oznacza liczbę wersji, nie gwarantowane 10 godzin historii.
 
 1. **GitHub Releases.** Zachowuje 10 najnowszych ukończonych (z `manifest.json`) prereleases nightly
    i usuwa starsze. Nieukończony nightly (bez `manifest.json`: publikacja nieudana/anulowana, niewidoczny

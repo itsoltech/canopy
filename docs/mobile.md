@@ -266,10 +266,13 @@ nawet jeżeli sam obraz AVD jest już zainstalowany.
 ## Nightly w TestFlight
 
 Workflow `Mobile TestFlight` (`.github/workflows/mobile-testflight.yml`) uruchamia się po udanym
-przebiegu `Release` na `dev`. Buduje iOS w EAS profilem `production` i wysyła build do TestFlight
+przebiegu `Release` na `dev`: z harmonogramu godzinowego (`17 * * * *`), dispatchu
+(także po back-merge) lub pushu dla starszych przebiegów. Buduje iOS w EAS profilem `production` i wysyła build do TestFlight
 (`--auto-submit`). Robi to tylko wtedy, gdy:
 
-- commit dostał tag nightly (`v…-nightly.N`); przebieg bez wydania niczego nie buduje,
+- job `release` zakończył się sukcesem i commit dostał tag nightly (`v…-nightly.N`);
+  workflow czyta joby źródłowego przebiegu przez API (`actions: read`). Sam stary tag na HEAD
+  nie wystarcza: kolejny cykl bez publikacji pomija EAS i instalację zależności,
 - od ostatniego buildu iOS, który nie zakończył się błędem ani anulowaniem, zmieniło się coś,
   z czego składa się aplikacja: `apps/mobile`, pakiety `contracts`, `domain` i `ui`,
   `package.json`, `bun.lock` albo sam workflow.
