@@ -5,13 +5,13 @@ import { Schema } from "effect";
 import { BotStore, type WakeupRow } from "../store.ts";
 import { Invalid, NotFound } from "../../store/store.ts";
 import { automationMode } from "../../worktrees/automation.ts";
+import { requestedThreadPermission } from "../thread-permission.ts";
 import {
   bool,
   decoded,
   define,
   json,
   object,
-  permission,
   permissionSchema,
   provider,
   providerSchema,
@@ -79,6 +79,8 @@ async function configuration(c: ToolContext) {
   if (Boolean(c.optional("run_at")) === Boolean(c.optional("cron")))
     throw new Invalid("provide exactly one of run_at or cron");
   const n = c.args["new_thread"] === undefined ? undefined : decoded(NewThread, c.args["new_thread"]);
+  const bot = n ? await c.core.bots.get(c.turn.bot_id) : undefined;
+  const defaults = n ? await c.core.settings() : undefined;
 
   return create(ui.CreateScheduleRequestSchema, {
     threadId: c.optional("thread_id"),
@@ -102,7 +104,11 @@ async function configuration(c: ToolContext) {
         providerProfileId: n.provider_instance,
         model: n.model ?? "",
         effort: n.effort ?? "",
-        permissionMode: permission(n.permission ?? "ask"),
+        permissionMode: requestedThreadPermission(
+          bot!.configuration!,
+          n.permission === undefined ? "" : Schema.decodeUnknownSync(Schema.String)(n.permission),
+          defaults?.user?.threadDefaults?.permissionMode,
+        ),
         title: n.title ?? "",
         workspaceMode: automationMode(n.workspace_mode ?? ""),
         baseRef: n.base_ref ?? "",

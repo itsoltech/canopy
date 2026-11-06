@@ -104,6 +104,9 @@ service GatewayService {
   rpc WatchBotConversation(WatchBotConversationRequest) returns (stream BotConversation);
   rpc ReadBotExchange(ReadBotExchangeRequest) returns (ReadBotExchangeResponse);
   rpc AnswerBotApproval(AnswerBotApprovalRequest) returns (AnswerBotApprovalResponse);
+  rpc ListBotApprovalRules(ListBotApprovalRulesRequest) returns (ListBotApprovalRulesResponse);
+  rpc ListThreadApprovals(ListThreadApprovalsRequest) returns (ListThreadApprovalsResponse);
+  rpc DeleteBotApprovalRule(DeleteBotApprovalRuleRequest) returns (DeleteBotApprovalRuleResponse);
   rpc InterruptBot(InterruptBotRequest) returns (InterruptBotResponse);
   rpc RetryBot(RetryBotRequest) returns (RetryBotResponse);
   rpc SetBotRoutineEnabled(SetBotRoutineEnabledRequest) returns (BotRoutineResponse);

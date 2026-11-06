@@ -18,6 +18,7 @@ import {
   type MessageRow,
 } from "./store-views.ts";
 import type { BotCore } from "./store-queue.ts";
+import { botThreadApprovals } from "./thread-approvals.ts";
 
 /** Conversations: messages, reads, exchanges and bot-to-bot sends. */
 export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
@@ -94,7 +95,7 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
               lastMessage: messages.length ? messageView(messages.at(-1)!) : undefined,
             }),
             messages: messages.map(messageView),
-            approvals: approvals.map(approvalView),
+            approvals: [...approvals.map(approvalView), ...(yield* botThreadApprovals(sql).threadApprovals(user, id))],
             statusLine: active.length ? bot.status_line : "",
             working: active.length > 0,
             streamingText: streaming,

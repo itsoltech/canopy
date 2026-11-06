@@ -8,6 +8,8 @@ import { botConversation, botMcp } from "./store-conversation.ts";
 import { botApprovals, botTurns } from "./store-turns.ts";
 import { botDeliveries, botWakeups } from "./store-wakeups.ts";
 import { botHarnessStore } from "./store-harness.ts";
+import { botRules } from "./store-rules.ts";
+import { botThreadApprovals } from "./thread-approvals.ts";
 
 export {
   botConfiguration,
@@ -44,6 +46,8 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     ...botMcp(sql, core),
     ...botTurns(sql, core),
     ...botApprovals(sql, core),
+    ...botRules(sql, core),
+    ...botThreadApprovals(sql),
     ...botWakeups(sql, core),
     ...botDeliveries(sql, core),
     ...botHarnessStore(sql, core),

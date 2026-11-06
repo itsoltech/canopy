@@ -8,6 +8,7 @@ import { coreState, InvalidError, TTL } from "./core-context.ts";
 import { corePublishSteer } from "./core-messages.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreBroadcastThread } from "./core-broadcast.ts";
+import { SqlClient } from "effect/sql";
 
 export interface CoreBotThreadsMethods {
   startBotThread(
@@ -41,6 +42,12 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
   async startBotThread(this: GatewayCore, turn: BotTurn, call: StoredCall, request: ui.CreateThreadRequest) {
     return this.botAction(turn, call, async () => {
       const thread = await this.createThread(request);
+      await this[coreState].actions.run(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`INSERT INTO bot_started_threads(thread_id, bot_id) VALUES (${thread.id}::uuid, ${turn.bot_id}::uuid) ON CONFLICT DO NOTHING`;
+        }),
+      );
       const turnId = await this.watchBotThread(turn, call, thread.id);
 
       return { thread_id: thread.id, turn_id: turnId, worker_id: thread.workerId };

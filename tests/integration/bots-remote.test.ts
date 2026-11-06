@@ -111,6 +111,18 @@ describe.skipIf(!dockerAvailable)("gateway bots: remote MCP capabilities and wor
     };
 
     await send(bot.id, "start worker");
+
+    const startCard = await eventually(
+      () => read(bot.id),
+      (s) => s.approvals.some((a) => a.status === "pending"),
+    );
+
+    await suite.current.bots.answer(
+      create(bots.AnswerBotApprovalRequestSchema, {
+        approvalId: startCard.approvals.find((a) => a.status === "pending")!.id,
+        approve: true,
+      }),
+    );
     await modelWaiting.promise;
     await suite.current.bots.stop();
     // The worker finishes while bot execution is stopped. Its result must be in
@@ -189,6 +201,18 @@ describe.skipIf(!dockerAvailable)("gateway bots: remote MCP capabilities and wor
 
     await send(bot.id, "start without a project");
 
+    const startCard = await eventually(
+      () => read(bot.id),
+      (s) => s.approvals.some((a) => a.status === "pending"),
+    );
+
+    await suite.current.bots.answer(
+      create(bots.AnswerBotApprovalRequestSchema, {
+        approvalId: startCard.approvals.find((a) => a.status === "pending")!.id,
+        approve: true,
+      }),
+    );
+
     const snapshot = await eventually(
       () => read(bot.id),
       (s) => !s.working && s.messages.some((m) => m.text === "Scratch worker finished"),
@@ -241,6 +265,18 @@ describe.skipIf(!dockerAvailable)("gateway bots: remote MCP capabilities and wor
 
     try {
       await send(bot.id, "start once");
+
+      const startCard = await eventually(
+        () => read(bot.id),
+        (s) => s.approvals.some((a) => a.status === "pending"),
+      );
+
+      await suite.current.bots.answer(
+        create(bots.AnswerBotApprovalRequestSchema, {
+          approvalId: startCard.approvals.find((a) => a.status === "pending")!.id,
+          approve: true,
+        }),
+      );
 
       const snapshot = await eventually(
         () => read(bot.id),

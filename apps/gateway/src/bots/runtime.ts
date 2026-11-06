@@ -3,7 +3,8 @@ import { bots, Provider } from "@canopy/contracts";
 import { classifyFailure, ProviderFailure, safeFailureDetail, type JsonObject } from "@canopy/domain";
 import { Effect, Schema } from "effect";
 import type { CoreRuntime } from "../core/core.ts";
-import { Invalid } from "../store/store.ts";
+import { Invalid, NotFound } from "../store/store.ts";
+import { splitId } from "@canopy/domain/computers";
 import { SettingsStore } from "../store/settings.ts";
 import { HANDOFF_PROMPT } from "./handoffs.ts";
 import { PLATFORM_TOOLS } from "./policy.ts";
@@ -30,6 +31,8 @@ export interface BotRuntimeOptions {
   log?: (message: string) => void;
   draining?: () => boolean;
   linkedTick?: () => Promise<void>;
+  answerThreadApproval?: (request: bots.AnswerBotApprovalRequest) => Promise<bots.BotApproval | undefined>;
+  linkedThreadApprovals?: (botId: string) => Promise<bots.BotApproval[]>;
 }
 
 /** PostgreSQL is the queue and event source; this object only owns cancellable inference. */
@@ -376,13 +379,16 @@ export class BotsRuntime {
     for (const task of this.#active.values()) if (task.turn.bot_id === id) task.abort.abort();
   }
   async *watch(id: string, signal: AbortSignal): AsyncGenerator<bots.BotConversation> {
-    let revision = -1n;
+    let revision = "";
 
     while (!signal.aborted) {
       const snapshot = await this.run((s) => s.conversation(this.#options.userId, id));
+      snapshot.approvals.push(...((await this.#options.linkedThreadApprovals?.(id)) ?? []));
 
-      if (revision !== snapshot.revision) {
-        revision = snapshot.revision;
+      const nextRevision = `${snapshot.revision}:${snapshot.approvals.map((a) => `${a.id}:${a.status}`).join(",")}`;
+
+      if (revision !== nextRevision) {
+        revision = nextRevision;
         yield snapshot;
       }
 
@@ -421,8 +427,27 @@ export class BotsRuntime {
   cancelReminder(request: bots.CancelBotReminderRequest) {
     return this.run((s) => s.cancelReminder(this.#options.userId, request.botId, request.reminderId));
   }
-  answer(request: bots.AnswerBotApprovalRequest) {
-    return this.run((s) => s.answer(this.#options.userId, request));
+  async answer(request: bots.AnswerBotApprovalRequest) {
+    if (!splitId(request.approvalId).node) {
+      const approval = await this.run((s) => s.answer(this.#options.userId, request));
+
+      if (approval) return approval;
+    }
+
+    const thread = await this.#options.answerThreadApproval?.(request);
+
+    if (thread) return thread;
+
+    throw new NotFound("approval not found");
+  }
+  rules(botId: string) {
+    return this.run((s) => s.rules(this.#options.userId, botId));
+  }
+  pendingThreadApprovals(request: bots.ListThreadApprovalsRequest) {
+    return this.run((s) => s.pendingThreadApprovals(this.#options.userId, request));
+  }
+  deleteRule(request: bots.DeleteBotApprovalRuleRequest) {
+    return this.run((s) => s.deleteRule(this.#options.userId, request.botId, request.ruleId));
   }
   servers() {
     return this.run((s) => s.servers(this.#options.userId));

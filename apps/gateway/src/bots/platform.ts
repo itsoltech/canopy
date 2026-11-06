@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { bots, PermissionMode, Provider, ui } from "@canopy/contracts";
+import { bots, Provider, ui } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
 import { splitId } from "@canopy/domain/computers";
 import { Effect, Match, Predicate } from "effect";
@@ -14,6 +14,8 @@ import { context, validate, type ToolResult } from "./tools/shared.ts";
 import { wakeupView } from "./tools/schedules.ts";
 import { automationMode, inheritedWorkspace } from "../worktrees/automation.ts";
 import { coreState } from "../core/core-context.ts";
+import { requestedThreadPermission } from "./thread-permission.ts";
+import { SettingsStore } from "../store/settings.ts";
 
 /** Legacy tools: an unknown provider name keeps meaning Codex, as before. */
 const legacyProvider = (name: string) =>
@@ -23,18 +25,10 @@ const legacyProvider = (name: string) =>
     Match.orElse(() => Provider.CODEX),
   );
 
-const legacyPermission = (name: string) =>
-  Match.value(name).pipe(
-    Match.when("ask", () => PermissionMode.ASK),
-    Match.when("read_only", () => PermissionMode.READ_ONLY),
-    Match.when("accept_edits", () => PermissionMode.ACCEPT_EDITS),
-    Match.when("full_auto", () => PermissionMode.FULL_AUTO),
-    Match.orElse(() => undefined),
-  );
-
 /** Resolve display labels through the same owner-scoped paths as the action. */
 export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: JsonObject): Promise<string> {
   if (tool.source !== "platform") return statusPhrase(tool, args);
+  args = Object.fromEntries(Object.entries(args).filter(([key]) => !key.endsWith("_name")));
   const ref = Object.values(args).find((v) => Predicate.isString(v) && splitId(v).node);
   const node = Predicate.isString(ref) ? await core.linkedAgents.peer(ref).catch(() => "") : "";
   const machine = node ? ` on ${await core.linkedAgents.machine(node)}` : "";
@@ -54,8 +48,8 @@ export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: J
 
     args = {
       ...args,
-      ...(projectName !== undefined && { project_name: projectName }),
-      ...(workerName !== undefined && { worker_name: workerName }),
+      ...(Predicate.isString(projectId) && { project_name: projectName ?? `a project (${projectId})` }),
+      ...(Predicate.isString(workerId) && { worker_name: workerName ?? `a worker (${workerId})` }),
     };
 
     if (tool.name === "start_thread" && Predicate.isString(projectId)) {
@@ -73,13 +67,19 @@ export async function describeBotTool(core: GatewayCore, tool: ToolSpec, args: J
 
       const botName = bot?.configuration?.name;
 
-      return phrase({ ...args, ...(botName !== undefined && { bot_name: botName }) });
+      return phrase({ ...args, bot_name: botName ?? `a bot (${botId})` });
     }
   } catch {
     /* A missing label must not bypass validation of the actual action. */
   }
 
-  return phrase(args);
+  return phrase({
+    ...args,
+    ...(Predicate.isString(args["project_id"]) && {
+      project_name: args["project_name"] ?? `a project (${args["project_id"]})`,
+    }),
+    ...(Predicate.isString(args["bot_id"]) && { bot_name: `a bot (${args["bot_id"]})` }),
+  });
 }
 
 /** A tool's own pre-approval check (see PlatformTool.prepare); throws errors the model can act on. */
@@ -273,7 +273,11 @@ async function listBotModels(core: GatewayCore, turn: BotTurn, { string, optiona
 
 /** start_thread: a thread the bot starts in a workspace, with the instance's default model when none is given. */
 async function startThread(core: GatewayCore, turn: BotTurn, call: StoredCall, { string, optional }: Args) {
-  const permission = legacyPermission(optional("permission") || "ask");
+  const owner = core[coreState].options.userId;
+  const config = (await core.bots.get(turn.bot_id)).configuration!;
+  const defaults = await core[coreState].options.runtime.runPromise(SettingsStore.use((s) => s.user(owner)));
+
+  const permission = requestedThreadPermission(config, optional("permission"), defaults.threadDefaults?.permissionMode);
 
   if (!permission || !["claude", "codex", "grok"].includes(string("provider")))
     throw new Invalid("unknown provider or permission");

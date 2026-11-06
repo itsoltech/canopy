@@ -13,6 +13,8 @@ import { BotStore } from "../bots/store.ts";
 import { fail, isToolArguments, record, text, type Actor, type Arguments } from "./agents-context.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { linkedMessage, methodNamed, qualify } from "./remote.ts";
+import { requestedThreadPermission } from "../bots/thread-permission.ts";
+import { SettingsStore } from "../store/settings.ts";
 
 export interface AgentsBotToolsMethods {
   botTool(
@@ -85,9 +87,9 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
             "Worktrees on linked computers are not supported yet. Open Canopy on the workspace's home computer to use a worktree.",
           );
 
-        return action(() =>
+        return action(async () =>
           this.send(node, "spawn", actor, call.id, {
-            request: toJson(ui.CreateThreadRequestSchema, botThreadRequest(args, call.id)),
+            request: toJson(ui.CreateThreadRequestSchema, await botDefaultThreadRequest(this, args, call.id, ownBot)),
             instructions: "",
             interactions: "parent",
             notify: true,
@@ -202,6 +204,19 @@ function botThreadRequest(args: Arguments, callId: string): ui.CreateThreadReque
         full_auto: PermissionMode.FULL_AUTO,
       }[String(args["permission"] ?? "ask")] ?? PermissionMode.ASK,
   });
+}
+
+async function botDefaultThreadRequest(host: LinkedAgents, args: Arguments, callId: string, bot: bots.Bot) {
+  const request = botThreadRequest(args, callId);
+
+  const defaults = await host.scope.run(SettingsStore.use((s) => s.user(host.owner)));
+  request.permissionMode = requestedThreadPermission(
+    bot.configuration!,
+    text(args, "permission", true),
+    defaults.threadDefaults?.permissionMode,
+  );
+
+  return request;
 }
 
 async function readBotThread(hostContext: LinkedAgents, args: Arguments) {

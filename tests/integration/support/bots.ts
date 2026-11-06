@@ -151,6 +151,12 @@ export function botsSuite() {
                 inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
                 annotations: { readOnlyHint: false },
               },
+              {
+                name: "update_external_view",
+                description: "Update another view",
+                inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
+                annotations: { readOnlyHint: false },
+              },
             ],
           };
 

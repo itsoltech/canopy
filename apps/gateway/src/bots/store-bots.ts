@@ -4,7 +4,6 @@ import { Effect, Predicate } from "effect";
 import { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
 import { harnessOf, providerOf, type InstanceRow } from "../store/instance-config.ts";
-import { proposedBot } from "./creation.ts";
 import type { BotRow, BotTurn, StoredCall } from "./types.ts";
 import {
   MOVE_RECONNECT,
@@ -17,10 +16,11 @@ import {
   type MessageRow,
 } from "./store-views.ts";
 import type { BotCore } from "./store-queue.ts";
+import { botThreadApprovals } from "./thread-approvals.ts";
 
 /** Bots: handoffs, models, lifecycle and creation by another bot. */
 export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
-  const { owned, active, unpin, stopTurns, fenced, validate, catalogs, save, creationHop } = core;
+  const { owned, active, unpin, stopTurns, fenced, catalogs, save, creationHop } = core;
 
   return {
     finishHandoff: (turn: BotTurn, model: string, note: string, reason = "") =>
@@ -94,19 +94,9 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
         const approved =
           (yield* sql<ApprovalRow>`SELECT * FROM bot_approvals WHERE id = ${call.id}::uuid AND bot_id = ${turn.bot_id}::uuid AND turn_id = ${turn.id}::uuid AND status = 'approved'`)[0];
 
-        let proposal = approved?.proposed_bot
+        const proposal = approved?.proposed_bot
           ? fromJson(bots.BotConfigurationSchema, approved.proposed_bot)
           : undefined;
-
-        // Full auto: no card was shown, so validate the proposal here exactly as the card would have.
-        if (!proposal && botConfiguration(creator).approvalPolicy === "full_auto") {
-          const draft = yield* Effect.try({
-            try: () => proposedBot(call.arguments, botConfiguration(creator)),
-            catch: (error) => (error instanceof Invalid ? error : new Invalid("invalid bot configuration")),
-          });
-
-          proposal = yield* validate(user, draft, true);
-        }
 
         if (!proposal)
           return yield* Effect.fail(new Invalid("creating a bot requires user approval of its configuration"));
@@ -136,6 +126,9 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
 
         const byBot = new Map(latest.map((m) => [m.bot_id, messageView(m)]));
         const waiting = new Map(pending.map((a) => [a.bot_id, approvalView(a)]));
+
+        for (const card of yield* botThreadApprovals(sql).threadApprovals(user, "", true))
+          if (card.status === "pending" && !waiting.has(card.botId)) waiting.set(card.botId, card);
 
         return rows.map((r) =>
           create(bots.BotSchema, { ...botView(r), lastMessage: byBot.get(r.id), pendingApproval: waiting.get(r.id) }),

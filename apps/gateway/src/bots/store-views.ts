@@ -8,6 +8,7 @@ import { toUiQuote, type StoredQuote } from "../store/quotes.ts";
 import { storedMentions } from "./mentions.ts";
 import { approvalFields } from "./approval-fields.ts";
 import type { BotRow } from "./types.ts";
+import { decodedRules } from "./store-rules.ts";
 
 export interface WakeupRow {
   id: string;
@@ -37,6 +38,8 @@ export interface MessageRow {
 }
 
 export interface ApprovalRow {
+  rule_options?: JsonValue[];
+  allowed_by_rule?: JsonValue | null;
   expires_at?: Date | null;
   id: string;
   bot_id: string;
@@ -120,6 +123,8 @@ export const approvalView = (row: ApprovalRow) =>
       : [],
     proposedBot: row.proposed_bot ? fromJson(bots.BotConfigurationSchema, row.proposed_bot) : undefined,
     routineTitle: row.routine_title ?? "",
+    ruleOptions: decodedRules(row.rule_options),
+    allowedByRule: row.allowed_by_rule ? fromJson(bots.BotApprovalRuleSchema, row.allowed_by_rule) : undefined,
   });
 
 export const uuid = () => Bun.randomUUIDv7();
