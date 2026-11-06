@@ -13,6 +13,7 @@ import { coreSaveModels } from "./core-models.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreBroadcastWorkers, coreLog, coreRun } from "./core-broadcast.ts";
 import { coreBroadcastGoal } from "./core-goals.ts";
 import { offerWorkerRoutes } from "../network/workers.ts";
+import { coreGitHeads } from "../worktrees/heads.ts";
 
 // ------------------------------------------------------------------ workers
 
@@ -57,6 +58,9 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           break;
         case "agentEnvironment":
           await hostContext.environment.report(workerId, message.payload.value);
+          break;
+        case "gitHeads":
+          await coreGitHeads(hostContext, workerId, message.payload.value);
           break;
         case "threadSecretReceipt":
           await hostContext.secrets.receipt(workerId, message.payload.value);

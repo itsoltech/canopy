@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { headLabel } from "@canopy/domain/git-heads";
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { formatRelative } from "#lib/shared/format.ts";
@@ -48,7 +49,7 @@
     ...worktrees.map((w) => ({
       key: w.id,
       choice: { kind: "existing", worktree: w } as const,
-      title: w.branch,
+      title: headLabel(w),
       detail: `Created ${formatRelative(w.createdAt)}`,
     })),
   ]);
@@ -56,7 +57,11 @@
   const value = $derived(choice.kind === "existing" ? choice.worktree.id : choice.kind);
 
   const label = $derived(
-    choice.kind === "existing" ? choice.worktree.branch : choice.kind === "new" ? "New worktree" : "Current checkout",
+    choice.kind === "existing"
+      ? headLabel(choice.worktree)
+      : choice.kind === "new"
+        ? "New worktree"
+        : "Current checkout",
   );
 </script>
 

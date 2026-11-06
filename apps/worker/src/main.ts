@@ -337,6 +337,8 @@ while (!stopping.signal.aborted) {
           "worktrees",
           "workspace_origin",
           "worktree_lifecycle",
+          // git_heads: the live branch of thread checkouts (GitHeads).
+          "git_heads",
           "project_sources",
           // full_access: PERMISSION_MODE_FULL_ACCESS runs unsandboxed; not announced when worker.json turns it off.
           ...(local.full_access === false ? [] : ["full_access"]),

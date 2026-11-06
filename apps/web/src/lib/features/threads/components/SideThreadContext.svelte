@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { headLabel } from "@canopy/domain/git-heads";
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -18,7 +19,7 @@
       project?.name,
       `Computer: ${computer}`,
       main.cwd && `Directory: ${main.cwd}`,
-      main.worktree?.branch && `Branch: ${main.worktree.branch}`,
+      main.worktree && `Branch: ${headLabel(main.worktree)}`,
       "Uses the main thread's workspace, including its worktree.",
     ]
       .filter(Boolean)

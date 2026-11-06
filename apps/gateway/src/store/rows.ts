@@ -64,6 +64,8 @@ export interface ThreadRow {
   worktree_id?: string | null;
   /** Joined: that worktree. */
   worktree?: ThreadWorktreeColumns | null;
+  /** Joined for a thread without a worktree: the workspace checkout's live HEAD (checkout_heads). */
+  checkout_head?: { branch: string; detached_commit: string } | null;
 }
 
 /** The thread's worktree as joined by threadSelect (json_build_object: timestamps are strings). */
@@ -76,6 +78,7 @@ export interface ThreadWorktreeColumns {
   worker_id: string;
   created_at: string;
   removed_at?: string | null;
+  detached_commit?: string;
 }
 
 export interface TurnRow {

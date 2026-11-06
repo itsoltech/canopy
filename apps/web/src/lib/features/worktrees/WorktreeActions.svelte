@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { headLabel } from "@canopy/domain/git-heads";
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -85,7 +86,8 @@
 <Dialog bind:open={confirm} title="Remove worktree?" dismissible={!working}>
   <div class="grid gap-4">
     <p class="text-base text-zinc-600 sm:text-sm dark:text-zinc-300">
-      Remove <code class="font-mono break-all">{entry.worktree?.branch}</code> from this computer. Thread history stays available.
+      Remove <code class="font-mono break-all">{entry.worktree && headLabel(entry.worktree)}</code> from this computer. Thread
+      history stays available.
     </p>
     {#if entry.confirmationRequired}
       <Alert tone="warning"

@@ -87,8 +87,32 @@ Tabela `worktrees`: `id`, `owner_user_id`, `project_id`, `workspace_id`, `worker
 
 ### Thread w API
 
-`ui.Thread.worktree` (`ThreadWorktree`: `id`, `branch`, `path`, `base_ref`, `repo_root`, `removed_at`), puste dla
-bieżącego checkoutu. `ui.Worker.worktrees` = worker ogłosił capability `worktrees`.
+`ui.Thread.worktree` (`ThreadWorktree`: `id`, `branch`, `path`, `base_ref`, `repo_root`, `removed_at`,
+`detached_commit`), puste dla bieżącego checkoutu; wtedy `ui.Thread.checkout_head` (`GitHead`) niesie bieżącą
+gałąź checkoutu workspace'u. `ui.Worker.worktrees` = worker ogłosił capability `worktrees`.
+
+### Bieżąca gałąź
+
+Gałąź wątku to gałąź, na której checkout **jest teraz**, a nie ta z chwili utworzenia. Agent albo użytkownik
+może w worktree utworzyć i wybrać inną gałąź (`git switch -c …`); nagłówek, panel, karta hover i aplikacja
+mobilna pokazują ją na żywo. „Started from ‹ref›” (`base_ref`) się nie zmienia.
+
+- **Worker** (capability `git_heads`, `apps/worker/src/git/heads.ts`) śledzi każdy katalog git wątków, które
+  zna (CreateThread, StartTurn): jedna obserwacja pliku `HEAD` w katalogu git checkoutu
+  (`rev-parse --absolute-git-dir`, dla worktree `.git/worktrees/<nazwa>`), odczyt na końcu każdej tury
+  (obserwacja niedostępna albo pominięta) i pełny stan po każdym połączeniu z gatewayem. Wysyła tylko zmiany:
+  `WorkerMessage.git_heads` (`GitHeads`: wątki checkoutu, gałąź albo skrócony commit odłączonego HEAD).
+  Nieudany odczyt (git zajęty) jest ponawiany kilka razy. UnloadThread i zamknięcie zwalniają obserwacje.
+- **Gateway** (`apps/gateway/src/worktrees/heads.ts`) przyjmuje zgłoszenie tylko dla wątków tego workera
+  i odrzuca nazwę ze znakami sterującymi albo dłuższą niż 255 znaków. Worktree: `worktrees.branch`
+  (gałąź) i `worktrees.detached_commit` (migracja `0086_git_heads`; przy odłączonym HEAD `branch` zostaje
+  ostatnią gałęzią). Checkout workspace'u: tabela `checkout_heads`, tylko z wątków pracujących w katalogu
+  głównym workspace'u (podkatalog może być innym repozytorium). Zmiana rozsyła wszystkie wątki tego worktree
+  albo checkoutu przez zwykłe strumienie wątku i overview, więc dociera też do połączonych komputerów (lustro
+  i trasy wątków niosą cały `ui.Thread`).
+- Status, sprzątanie, Reveal i Remove używają bieżącej gałęzi; przy odłączonym HEAD worker oczekuje
+  worktree bez wybranej gałęzi. Starszy worker niczego nie zgłasza: wątek pokazuje gałąź z utworzenia.
+  `WORKER_LINK_PROTOCOL` bez zmian (pole addytywne; starszy gateway ignoruje nieznaną wiadomość).
 
 ## Protokół workera
 
@@ -206,11 +230,13 @@ tryb pochodzi z efektywnych ustawień (projekt × komputer).
 
 ### Wątek
 
-Nagłówek wątku: chip z gałęzią (tooltip: ścieżka worktree); chip i akcja w panelu szczegółów
+Nagłówek wątku: chip z bieżącą gałęzią albo „Detached at ‹commit›” (tooltip: ścieżka worktree); chip i akcja w panelu szczegółów
 otwierają wspólny dialog statusu i zarządzania. Karta pokazuje ahead/behind, zmienione pliki,
 niewypchnięte commity, ostatnią aktywność i akcje jak w Settings. Po usunięciu pozostaje informacja
 o usuniętym worktree i historia wątku. Offline akcje workera są wyłączone z przyczyną;
-ścieżkę nadal można skopiować. Karta hover w sidebarze pokazuje gałąź.
+ścieżkę nadal można skopiować. Karta hover w sidebarze pokazuje gałąź. Wątek w bieżącym checkoutcie ma
+w panelu wiersz z gałęzią checkoutu i dopiskiem „Current checkout”. W aplikacji mobilnej szczegóły wątku
+pokazują wiersz „Branch · Worktree from ‹ref›” albo „Branch · Current checkout”.
 
 ## Interakcje
 
@@ -329,6 +355,13 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
   i niewypchniętych commitów, zachowanie/usuwanie gałęzi, offline/reconnect, utracone potwierdzenie,
   pojedynczy audyt, aktywne tury/interakcje/zadania, rezerwacja kontra nowa tura, pierwotny folder,
   błąd fetch, owner scoping i konfinacja ścieżek. Lista migracji zawiera `0067`.
+
+## Weryfikacja (bieżąca gałąź)
+
+- `tests/integration/git-heads.test.ts`: gRPC gateway ↔ prawdziwy WorkerHost i git; gałąź utworzona przez
+  agenta w worktree na żywo w strumieniu wątku, baza bez zmian, status po zmianie gałęzi, odłączony HEAD,
+  gałąź checkoutu workspace'u, nadrobienie zmiany po ponownym połączeniu oraz odrzucenie zgłoszeń dla wątków
+  innego workera i niepoprawnych nazw.
 
 ## Weryfikacja (etap 3)
 

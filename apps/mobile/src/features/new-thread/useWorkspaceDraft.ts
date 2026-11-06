@@ -1,3 +1,4 @@
+import { headLabel } from "@canopy/domain/git-heads";
 import { useEffect, useState } from "react";
 import { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
@@ -62,7 +63,11 @@ export function useWorkspaceDraft(workspaceId: string | undefined, ready: boolea
     baseRef,
     /** The branch shown next to the workspace pill (editable only for a new worktree). */
     branch:
-      choice.kind === "existing" ? choice.worktree.branch : choice.kind === "new" ? baseRef : gitRefs?.currentBranch,
+      choice.kind === "existing"
+        ? headLabel(choice.worktree)
+        : choice.kind === "new"
+          ? baseRef
+          : gitRefs?.currentBranch,
     choose: (next: WorkspaceChoice) => setPicks({ ...own, workspaceId: key, choice: next }),
     chooseBase: (ref: string) => setPicks({ ...own, workspaceId: key, baseRef: ref }),
     /** CreateThread's workspace fields. */

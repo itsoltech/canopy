@@ -83,6 +83,7 @@ import computerRouteWithdrawn from "./0082_computer_route_withdrawn.sql" with { 
 import tailscaleHttps from "./0083_tailscale_https.sql" with { type: "text" };
 import botApprovalExpiry from "./0084_bot_approval_expiry.sql" with { type: "text" };
 import interactionDeadlines from "./0085_interaction_deadlines.sql" with { type: "text" };
+import gitHeads from "./0086_git_heads.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -182,6 +183,7 @@ export const migrations = Migrator.fromRecord({
   "0083_tailscale_https": sqlFile(tailscaleHttps),
   "0084_bot_approval_expiry": sqlFile(botApprovalExpiry),
   "0085_interaction_deadlines": sqlFile(interactionDeadlines),
+  "0086_git_heads": sqlFile(gitHeads),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

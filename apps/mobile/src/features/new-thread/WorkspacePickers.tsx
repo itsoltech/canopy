@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import type { GitRef } from "@canopy/contracts";
+import { headLabel } from "@canopy/domain/git-heads";
 import { PickerSheet } from "../../ui/Picker";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
@@ -28,7 +29,7 @@ const choiceIcon = (choice: WorkspaceChoice) =>
   choice.kind === "checkout" ? "folder-open" : choice.kind === "new" ? "square-2-stack" : "git-fork";
 
 const choiceLabel = (choice: WorkspaceChoice) =>
-  choice.kind === "existing" ? choice.worktree.branch : choice.kind === "new" ? "New worktree" : "Current checkout";
+  choice.kind === "existing" ? headLabel(choice.worktree) : choice.kind === "new" ? "New worktree" : "Current checkout";
 
 /**
  * The new thread's workspace pill and, next to it, the branch (docs/worktrees.md): the project's checkout, a new git
@@ -95,7 +96,7 @@ export function WorkspacePills({ draft }: { draft: WorkspaceDraft }) {
             title: "Previous worktrees",
             options: draft.worktrees.map((w) => ({
               value: w.id,
-              label: w.branch,
+              label: headLabel(w),
               description: w.createdAt ? `Created ${formatRelative(timestampMs(w.createdAt))}` : undefined,
               icon: "git-fork" as const,
             })),

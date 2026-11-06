@@ -534,6 +534,8 @@ message Thread {
   string node_id = 800;
   // Numery od 900: git worktree wątku (docs/worktrees.md); nieustawione = bieżący checkout workspace'u.
   ThreadWorktree worktree = 900;
+  // Wątek bez worktree: HEAD checkoutu workspace'u (gałąź na żywo).
+  GitHead checkout_head = 901;
 }
 
 // Wątek agenta, od którego przyszło wejście tury albo steer (zadanie, wiadomość, raport): do oznaczenia wiadomości
@@ -2118,6 +2120,14 @@ message ThreadWorktree {
   google.protobuf.Timestamp created_at = 6;
   string worker_id = 7;
   google.protobuf.Timestamp removed_at = 8;
+  // Odłączony HEAD: skrócony commit (branch zostaje ostatnią gałęzią). Gałąź i HEAD pochodzą z workera na żywo.
+  string detached_commit = 9;
+}
+
+// Bieżący HEAD checkoutu zgłoszony przez worker; detached_commit niepusty = odłączony HEAD.
+message GitHead {
+  string branch = 1;
+  string detached_commit = 2;
 }
 
 // Nieustawione pole (UNSPECIFIED / brak optional) = dziedziczone z szerszego zakresu.

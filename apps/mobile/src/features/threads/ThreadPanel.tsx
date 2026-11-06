@@ -7,6 +7,7 @@ import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 import { ConnectorList, useConnectors } from "../connectors/Connectors";
 import { permissionLabel } from "./permissions";
+import { headLabel } from "@canopy/domain/git-heads";
 
 export function PanelRow({
   title,
@@ -37,6 +38,18 @@ export function PanelRow({
       </Text>
     </View>
   );
+}
+
+/** The live branch: of the thread's worktree (with its base), else of the workspace's own checkout. */
+function BranchRow({ thread }: { thread: ui.Thread }) {
+  const worktree = thread.worktree;
+  const head = worktree ?? thread.checkoutHead;
+  const label = head ? headLabel(head) : "";
+
+  if (!label) return null;
+  const detail = worktree ? (worktree.baseRef ? `Worktree from ${worktree.baseRef}` : "Worktree") : "Current checkout";
+
+  return <PanelRow title={`Branch · ${detail}`} value={label} icon="git-fork" />;
 }
 
 export function ThreadPanel({
@@ -77,6 +90,7 @@ export function ThreadPanel({
               icon="computer-desktop"
             />
             <PanelRow title="Working directory" value={thread.cwd} icon="folder" />
+            <BranchRow thread={thread} />
             <PanelRow
               title="Model"
               value={[thread.model || "Default model", thread.effort].filter(Boolean).join(" · ")}

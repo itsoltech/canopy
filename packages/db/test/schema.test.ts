@@ -97,6 +97,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "83_tailscale_https",
       "84_bot_approval_expiry",
       "85_interaction_deadlines",
+      "86_git_heads",
     ]);
   }, 60_000);
 

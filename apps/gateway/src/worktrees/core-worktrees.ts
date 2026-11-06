@@ -79,6 +79,7 @@ export function toUiWorktree(row: WorktreeRow): ui.ThreadWorktree {
     workerId: row.worker_id,
     createdAt: timestampFromDate(new Date(row.created_at)),
     ...(row.removed_at && { removedAt: timestampFromDate(new Date(row.removed_at)) }),
+    detachedCommit: row.detached_commit,
   });
 }
 

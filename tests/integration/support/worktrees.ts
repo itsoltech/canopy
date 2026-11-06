@@ -47,6 +47,8 @@ export async function worktreeFixture(
     role?: "desktop" | "server";
     originUrl?: string;
     worktreeRoots?: WorktreeRoots;
+    /** Announced besides the worktree ones (e.g. git_heads). */
+    capabilities?: readonly string[];
   } = {},
 ) {
   const data = join(dir, "data");
@@ -105,7 +107,13 @@ export async function worktreeFixture(
         workerId,
         host: { os: process.platform },
         homeDirectory: homedir(),
-        capabilities: ["worktrees", "worktree_lifecycle", "workspace_origin", "project_sources"],
+        capabilities: [
+          "worktrees",
+          "worktree_lifecycle",
+          "workspace_origin",
+          "project_sources",
+          ...(options.capabilities ?? []),
+        ],
         worktreesRoot: host.worktreesRoot,
         ...(await runtime.runPromise(journalHello())),
       },
@@ -195,6 +203,8 @@ export async function worktreeFixture(
     cleanup,
     connect,
     disconnect: () => link.close(),
+    /** A message on the worker's link, as a worker could send it. */
+    send: (payload: Parameters<GatewayLink["send"]>[0]) => link.send(payload),
     /** A new worker process on the same data directory (an upgrade), with other worktree roots. */
     restart: async (worktreeRoots?: WorktreeRoots) => {
       link.close();

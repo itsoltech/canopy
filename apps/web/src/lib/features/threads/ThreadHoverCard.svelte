@@ -6,6 +6,7 @@
 </script>
 
 <script lang="ts">
+  import { headLabel } from "@canopy/domain/git-heads";
   import type { ui } from "@canopy/contracts";
   import type { Snippet } from "svelte";
   import { goalLook } from "#lib/features/goals/goals.ts";
@@ -105,7 +106,7 @@
       {#if thread.worktree}
         <SummaryRow>
           {#snippet mark()}<Icon name="git-fork" class={muted} />{/snippet}
-          <code class="truncate font-mono" title={thread.worktree.path}>{thread.worktree.branch}</code>
+          <code class="truncate font-mono" title={thread.worktree.path}>{headLabel(thread.worktree)}</code>
           {#snippet aside()}<span class="text-zinc-500">Worktree</span>{/snippet}
         </SummaryRow>
       {/if}
