@@ -926,6 +926,14 @@ Wiersz kontekstu pod polem wiadomości (`ComposerContextRow`) ma tekst 12 px, ik
 telefonie i przy obsłudze dotykowej 40 px. Menu, pola tekstowe oraz wybór modelu
 i wysiłku zachowują standardowe rozmiary aplikacji.
 
+Online zdalny wątek z kopią w lustrze pokazuje ją jako pierwszy snapshot SSE z `syncing=true`.
+Pasek zachowuje miejsce na ciche „Syncing…”. Dom potwierdza aktualny stan, a gateway lokalny
+scala przyrost z lustrem lub odbiera pełny snapshot, jeśli kursor nie jest poprawny.
+Klient dostaje następnie zwykły snapshot z `syncing=false`; identyczne itemy i tury zachowują
+tożsamość, żeby wirtualizowany feed nie zmieniał kotwicy. Akcje podczas synchronizacji nadal
+wykonuje dom ze sprawdzeniem właściciela i bieżącego stanu. Brak lustra zachowuje dotychczasowe
+otwarcie z domu. Szczegóły: [linked-computers.md](linked-computers.md#przyrostowe-otwarcie-i-publikacja).
+
 ### Strefa czasowa użytkownika
 
 `UserSettings.timezone` (pole **620**) to nazwa strefy IANA; brak zapisanej wartości

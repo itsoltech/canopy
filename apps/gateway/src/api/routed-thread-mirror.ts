@@ -1,6 +1,7 @@
 import { create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { splitId, THREAD_MIRROR } from "@canopy/domain/computers";
+import { splitId, THREAD_MIRROR, THREAD_MIRROR_DELTA } from "@canopy/domain/computers";
+import { applyThreadDelta } from "@canopy/domain/thread-mirror";
 import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { linkedMessage } from "../computers/remote.ts";
@@ -12,6 +13,7 @@ export async function* mirrorFirst(
   nodeId: string,
   method: DescMethod,
   request: Message,
+  send: (request: Message) => AsyncIterable<Message>,
 ): AsyncGenerator<Message, boolean> {
   if (
     !computers.reachable().includes(nodeId) ||
@@ -26,19 +28,47 @@ export async function* mirrorFirst(
       : linkedMessage(ui.WatchThreadRequestSchema, request).threadId,
   ).id;
 
-  const snapshot = await computers.mirror.snapshot(nodeId, threadId);
-
-  if (!snapshot?.thread) return false;
-
   if (method.name === "GetThread") {
-    yield create(ui.GetThreadResponseSchema, { thread: snapshot.thread });
+    const thread = await computers.mirror.thread(nodeId, threadId);
+
+    if (!thread) return false;
+    yield create(ui.GetThreadResponseSchema, { thread });
 
     return true;
   }
 
+  const held = await computers.mirror.read(nodeId, threadId);
+  const snapshot = held?.snapshot;
+
+  if (!held || !snapshot?.thread) return false;
+
   yield create(ui.ThreadUpdateSchema, { syncing: true, change: { case: "snapshot", value: snapshot } });
 
-  return false;
+  const outbound = create(ui.WatchThreadRequestSchema, {
+    threadId: linkedMessage(ui.WatchThreadRequestSchema, request).threadId,
+    mirrorCursor:
+      computers.hello().capabilities.includes(THREAD_MIRROR_DELTA) &&
+      computers.capabilities(nodeId).includes(THREAD_MIRROR_DELTA)
+        ? held.cursor
+        : "",
+  });
+
+  let initial = true;
+
+  for await (const message of send(outbound)) {
+    const update = linkedMessage(ui.ThreadUpdateSchema, message);
+
+    if (update.change.case === "delta") {
+      if (!initial || update.change.value.baseCursor !== held.cursor)
+        throw new ConnectError("Thread mirror cursor mismatch", Code.DataLoss);
+      yield create(ui.ThreadUpdateSchema, {
+        change: { case: "snapshot", value: applyThreadDelta(snapshot, update.change.value) },
+      });
+    } else yield update;
+    initial = false;
+  }
+
+  return true;
 }
 
 /** Offline watches stay readable until presence changes and the client reconnects. */

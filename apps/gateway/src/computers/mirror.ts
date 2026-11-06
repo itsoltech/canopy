@@ -3,9 +3,10 @@ import { computerLink as link, ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { setTimeout as delay } from "node:timers/promises";
 import { commitMirrorUpdate, type State } from "./mirror-persistence.ts";
-import { mirrorThreadSnapshot, safeOverview, snapshotFrames } from "./mirror-projection.ts";
+import { deltaFrames, mirrorThreadSnapshot, safeOverview, snapshotFrames } from "./mirror-projection.ts";
 import { linkedMessage, methodNamed, qualify, type RemoteServe } from "./remote.ts";
 import type { ComputerStore } from "./store.ts";
+import { MirrorFrames } from "./mirror-frames.ts";
 
 export { commitMirrorUpdate, type State } from "./mirror-persistence.ts";
 
@@ -21,14 +22,32 @@ export class ThreadMirror {
   async state(node: string): Promise<State | undefined> {
     return (
       await this.store.query<State>(
-        "SELECT cursor,generation,overview FROM computer_mirror_state WHERE owner_user_id=$1::uuid AND origin_node_id=$2",
+        "SELECT cursor,generation,overview,subscription_id FROM computer_mirror_state WHERE owner_user_id=$1::uuid AND origin_node_id=$2",
         [this.store.owner, node],
       )
     )[0];
   }
   async snapshot(node: string, thread: string): Promise<ui.ThreadSnapshot | undefined> {
-    const rows = await this.store.query<{ snapshot: Uint8Array }>(
-      `SELECT t.snapshot FROM computer_mirror_threads t JOIN computer_mirror_state s
+    return (await this.read(node, thread))?.snapshot;
+  }
+  /** Route/BFF header reads do not decode the complete timeline. Old projections fall back until refreshed. */
+  async thread(node: string, thread: string): Promise<ui.Thread | undefined> {
+    const rows = await this.store.query<{ metadata: Uint8Array | null }>(
+      `SELECT t.thread_metadata AS metadata FROM computer_mirror_threads t JOIN computer_mirror_state s
+      USING(owner_user_id,origin_node_id,generation) WHERE t.owner_user_id=$1::uuid AND t.origin_node_id=$2 AND t.thread_id=$3::uuid`,
+      [this.store.owner, node, thread],
+    );
+
+    if (!rows[0]?.metadata) return (await this.snapshot(node, thread))?.thread;
+    const value = fromBinary(ui.ThreadSchema, rows[0].metadata);
+    qualify(ui.ThreadSchema, value, node);
+
+    return value;
+  }
+  /** Snapshot and cursor must come from the same committed generation/read. */
+  async read(node: string, thread: string): Promise<{ snapshot: ui.ThreadSnapshot; cursor: string } | undefined> {
+    const rows = await this.store.query<{ snapshot: Uint8Array; cursor: string }>(
+      `SELECT t.snapshot,s.cursor FROM computer_mirror_threads t JOIN computer_mirror_state s
       USING(owner_user_id,origin_node_id,generation) WHERE t.owner_user_id=$1::uuid AND t.origin_node_id=$2 AND t.thread_id=$3::uuid`,
       [this.store.owner, node, thread],
     );
@@ -37,7 +56,7 @@ export class ThreadMirror {
     const value = fromBinary(ui.ThreadSnapshotSchema, rows[0].snapshot);
     qualify(ui.ThreadSnapshotSchema, value, node);
 
-    return value;
+    return { snapshot: value, cursor: rows[0].cursor };
   }
   async threads(node: string, request: ui.ListThreadsRequest): Promise<ui.Thread[]> {
     const rows = await this.store.query<{ snapshot: Uint8Array }>(
@@ -98,29 +117,40 @@ export class ThreadMirror {
         AND (via_node_id IS NULL OR relay_role IN ('home','both')) FOR SHARE) ON CONFLICT DO NOTHING`,
       [this.store.owner, node],
     );
-    const state = await this.state(node);
+
+    // A new consumer fences an older stream even before either reaches a checkpoint.
+    const state = (
+      await this.store.query<State>(
+        `UPDATE computer_mirror_state SET subscription_id=gen_random_uuid()
+      WHERE owner_user_id=$1::uuid AND origin_node_id=$2 RETURNING cursor,generation,overview,subscription_id`,
+        [this.store.owner, node],
+      )
+    )[0];
 
     if (!state) throw new ConnectError("Thread mirror subscription superseded", Code.Aborted);
     let generation = state.generation;
     let resetting = false;
     let overview: Uint8Array | null = null;
-    let pending: ui.ThreadSnapshot | undefined;
+    const frames = new MirrorFrames();
 
     try {
       for await (const message of updates) {
         if (signal.aborted) return;
-        const update = linkedMessage(link.MirrorUpdateSchema, message);
+        let update = linkedMessage(link.MirrorUpdateSchema, message);
 
         if (update.reset) {
           if (
             resetting ||
-            pending ||
+            frames.pending ||
             update.commit ||
             update.snapshot ||
             update.snapshotStart ||
             update.snapshotEnd ||
             update.removedThreadId ||
-            update.overview
+            update.overview ||
+            update.delta ||
+            update.deltaStart ||
+            update.deltaEnd
           )
             throw mismatch();
           generation = crypto.randomUUID();
@@ -141,41 +171,21 @@ export class ThreadMirror {
             throw mismatch();
         } else if (update.cursor) throw mismatch();
 
-        if (update.snapshotStart) {
-          if (
-            pending ||
-            !update.snapshot?.thread ||
-            update.commit ||
-            update.snapshotEnd ||
-            update.removedThreadId ||
-            update.overview
-          )
-            throw mismatch();
-          pending = update.snapshot;
-          continue;
-        }
+        if (update.deltaStart && (resetting || update.delta?.baseCursor !== state.cursor)) throw mismatch();
+        const projection = frames.accept(update);
 
-        if (pending) {
-          if (update.reset || update.commit || update.removedThreadId || update.overview) throw mismatch();
-
-          if (update.snapshot) {
-            pending.turns.push(...update.snapshot.turns);
-            pending.items.push(...update.snapshot.items);
-            pending.interactions.push(...update.snapshot.interactions);
-            pending.notices.push(...update.snapshot.notices);
-            pending.steers.push(...update.snapshot.steers);
-            pending.busDeliveries.push(...update.snapshot.busDeliveries);
-          }
-
-          if (!update.snapshotEnd) continue;
-          update.snapshot = pending;
-          pending = undefined;
-        } else if (update.snapshotEnd) throw mismatch();
+        if (!projection) continue;
+        update = projection;
 
         // Do not accept secret metadata even from a malformed peer.
         if (update.snapshot) {
           update.snapshot.secrets = [];
           update.snapshot.schedules = [];
+        }
+
+        if (update.delta?.snapshot) {
+          update.delta.snapshot.secrets = [];
+          update.delta.snapshot.schedules = [];
         }
 
         if (update.overview) overview = toBinary(ui.GetOverviewResponseSchema, safeOverview(update.overview));
@@ -240,7 +250,7 @@ export class ThreadMirror {
         linkedMessage(ui.GetOverviewResponseSchema, await one("GetOverview", create(ui.GetOverviewRequestSchema))),
       );
 
-    const snapshot = (id: string) => mirrorThreadSnapshot(this, one, owner, id);
+    const snapshot = (id: string, cursor = "") => mirrorThreadSnapshot(this, one, owner, id, cursor);
 
     let cursor = request.cursor;
 
@@ -277,7 +287,7 @@ export class ThreadMirror {
           if (signal.aborted) return;
           const value = await snapshot(id);
 
-          if (value) yield* snapshotFrames(value);
+          if (value?.case === "snapshot") yield* snapshotFrames(value.value);
         }
 
         cursor = cursorOf(head);
@@ -301,9 +311,10 @@ export class ThreadMirror {
           if (signal.aborted) return;
 
           if (threadId) {
-            const value = await snapshot(threadId);
+            const value = await snapshot(threadId, request.incremental ? cursor : "");
 
-            if (value) yield* snapshotFrames(value, cursor);
+            if (value?.case === "snapshot") yield* snapshotFrames(value.value, cursor);
+            else if (value?.case === "delta") yield* deltaFrames(value.value, cursor);
             else yield create(link.MirrorUpdateSchema, { previousCursor: cursor, removedThreadId: threadId });
           } else yield create(link.MirrorUpdateSchema, { previousCursor: cursor, overview: await overview() });
         }

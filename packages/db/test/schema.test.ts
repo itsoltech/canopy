@@ -99,6 +99,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "85_interaction_deadlines",
       "86_git_heads",
       "87_worktree_branch_names",
+      "88_thread_mirror_delta",
     ]);
   }, 60_000);
 

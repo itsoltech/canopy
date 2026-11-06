@@ -5,7 +5,7 @@ import { Invalid, one, type Fx } from "./errors.ts";
 import { writeInteractionTimeline } from "./interaction-timeline.ts";
 import type { InteractionRow, TurnRow } from "./rows.ts";
 import { toInteraction } from "./ui-mappers.ts";
-import { DISPATCHED, nextTurn, steerTarget } from "./turn-select.ts";
+import { DISPATCHED, nextTurn, steerTarget, turnsOf } from "./turn-select.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -47,7 +47,7 @@ export interface TurnStore {
   runningTurn(threadId: string): Fx<TurnRow | undefined>;
   /** The worker may already run a dispatched turn before turn_started reaches the gateway. */
   steerTarget(threadId: string): Fx<TurnRow | undefined>;
-  turnsOf(threadId: string): Fx<ReadonlyArray<TurnRow>>;
+  turnsOf(threadId: string, ids?: readonly string[]): Fx<ReadonlyArray<TurnRow>>;
   /** First task in the visible history, including the fork's inherited prefix. */
   titleInput(threadId: string): Fx<TurnRow | undefined>;
   /** A queued or running turn fails here (e.g. it could not start): the error, where it came from, its code. */
@@ -147,16 +147,7 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
 
     steerTarget: (threadId) => steerTarget(sql, threadId),
 
-    turnsOf: (threadId) =>
-      sql.unsafe<TurnRow>(
-        `
-            SELECT u.*, s.*, ${DISPATCHED} AS dispatched, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id
-             WHERE u.thread_id = $1::uuid
-               -- The placeholder holding a moved thread's history numbers is no turn of its own.
-               AND NOT EXISTS (SELECT 1 FROM computer_moved_threads m WHERE m.ordinal_turn_id = u.id)
-             ORDER BY u.ordinal`,
-        [threadId],
-      ),
+    turnsOf: (threadId, ids) => turnsOf(sql, threadId, ids),
 
     titleInput: (threadId) =>
       sql<TurnRow>`

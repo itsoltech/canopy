@@ -85,6 +85,7 @@ import botApprovalExpiry from "./0084_bot_approval_expiry.sql" with { type: "tex
 import interactionDeadlines from "./0085_interaction_deadlines.sql" with { type: "text" };
 import gitHeads from "./0086_git_heads.sql" with { type: "text" };
 import worktreeBranchNames from "./0087_worktree_branch_names.sql" with { type: "text" };
+import threadMirrorDelta from "./0088_thread_mirror_delta.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -186,6 +187,7 @@ export const migrations = Migrator.fromRecord({
   "0085_interaction_deadlines": sqlFile(interactionDeadlines),
   "0086_git_heads": sqlFile(gitHeads),
   "0087_worktree_branch_names": sqlFile(worktreeBranchNames),
+  "0088_thread_mirror_delta": sqlFile(threadMirrorDelta),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

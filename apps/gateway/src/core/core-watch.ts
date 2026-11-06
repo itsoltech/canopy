@@ -16,7 +16,7 @@ import { coreUiThread } from "./core-titles.ts";
 export interface CoreWatchMethods {
   movedHistory(threadId: string): Promise<ui.ThreadSnapshot | undefined>;
   createMovedThread(request: ui.CreateThreadRequest, id: string, prepare: () => Promise<void>): Promise<void>;
-  watchThread(threadId: string, signal: AbortSignal): AsyncGenerator<ui.ThreadUpdate>;
+  watchThread(threadId: string, signal: AbortSignal, mirrorCursor?: string): AsyncGenerator<ui.ThreadUpdate>;
   watchOverview(signal: AbortSignal, includeSnapshot?: boolean): AsyncGenerator<ui.OverviewUpdate>;
 }
 
@@ -79,43 +79,63 @@ export const coreWatchMethods: CoreWatchMethods = {
   },
 
   /** Snapshot first, then live updates after it (subscribe before reading, skip what the snapshot has). */
-  async *watchThread(this: GatewayCore, threadId: string, signal: AbortSignal): AsyncGenerator<ui.ThreadUpdate> {
+  async *watchThread(
+    this: GatewayCore,
+    threadId: string,
+    signal: AbortSignal,
+    mirrorCursor = "",
+  ): AsyncGenerator<ui.ThreadUpdate> {
     const subscription = this.hub.subscribeThread(threadId);
     signal.addEventListener("abort", () => subscription.close(), { once: true });
 
     try {
-      const snapshot = await coreRun(this, (s) => s.snapshot(threadId));
+      const snapshot = await coreRun(this, (s) => s.snapshot(threadId, mirrorCursor));
 
       if (snapshot.thread.owner_user_id !== this[coreState].options.userId) throw new NotFound("thread not found");
       // A thread moved here from a linked computer shows its history there first (stage 8).
-      const moved = await this.movedHistory(threadId);
+      const moved = snapshot.selection ? undefined : await this.movedHistory(threadId);
       const goal = await coreGoals(this, (s) => s.latest(threadId)).then((goal) => goal && toUiGoal(goal));
+
+      const value = create(ui.ThreadSnapshotSchema, {
+        thread: coreUiThread(this, snapshot.thread),
+        turns: [...(moved?.turns ?? []), ...snapshot.turns.map(toUiTurn)],
+        items: [...(moved?.items ?? []), ...snapshot.items],
+        interactions: snapshot.interactions,
+        secrets: await coreRun(this, (s) => s.threadSecrets(this[coreState].options.userId, threadId)),
+        notices: [...(moved?.notices ?? []), ...snapshot.notices],
+        schedules: (
+          await coreBus(this, (s) =>
+            s.schedulesFor({ ownerUserId: this[coreState].options.userId, threadId, includeFinished: false }),
+          )
+        ).map(toUiSchedule),
+        steers: [...(moved?.steers ?? []), ...(await coreSteers(this, (s) => s.ofThread(threadId))).map(toUiSteer)],
+        busDeliveries: [
+          ...(moved?.busDeliveries ?? []),
+          ...(await coreBus(this, (s) => s.deliveries({ sourceThreadId: threadId }))).map(toUiDelivery),
+        ],
+        ...(goal
+          ? { goal }
+          : moved?.goal && ["achieved", "cancelled"].includes(moved.goal.status) && { goal: moved.goal }),
+        lastSeq: snapshot.lastSeq,
+      });
+
+      const selection = snapshot.selection;
+      const itemIds = new Set(value.items.map((item) => item.item?.itemId));
+      const turnIds = new Set(value.turns.map((turn) => turn.id));
+      const noticeSeqs = new Set(value.notices.map((notice) => notice.seq));
       yield create(ui.ThreadUpdateSchema, {
-        change: {
-          case: "snapshot",
-          value: {
-            thread: coreUiThread(this, snapshot.thread),
-            turns: [...(moved?.turns ?? []), ...snapshot.turns.map(toUiTurn)],
-            items: [...(moved?.items ?? []), ...snapshot.items],
-            interactions: snapshot.interactions,
-            secrets: await coreRun(this, (s) => s.threadSecrets(this[coreState].options.userId, threadId)),
-            notices: [...(moved?.notices ?? []), ...snapshot.notices],
-            schedules: (
-              await coreBus(this, (s) =>
-                s.schedulesFor({ ownerUserId: this[coreState].options.userId, threadId, includeFinished: false }),
-              )
-            ).map(toUiSchedule),
-            steers: [...(moved?.steers ?? []), ...(await coreSteers(this, (s) => s.ofThread(threadId))).map(toUiSteer)],
-            busDeliveries: [
-              ...(moved?.busDeliveries ?? []),
-              ...(await coreBus(this, (s) => s.deliveries({ sourceThreadId: threadId }))).map(toUiDelivery),
-            ],
-            ...(goal
-              ? { goal }
-              : moved?.goal && ["achieved", "cancelled"].includes(moved.goal.status) && { goal: moved.goal }),
-            lastSeq: snapshot.lastSeq,
-          },
-        },
+        change: selection
+          ? {
+              case: "delta",
+              value: {
+                baseCursor: mirrorCursor,
+                snapshot: value,
+                removedItemIds: selection.itemIds.filter((id) => !itemIds.has(id)),
+                removedTurnIds: selection.turnIds.filter((id) => !turnIds.has(id)),
+                removedNoticeSeqs: selection.noticeSeqs.map(BigInt).filter((seq) => !noticeSeqs.has(seq)),
+              },
+            }
+          : { case: "snapshot", value },
       });
 
       for await (const update of subscription.updates) {

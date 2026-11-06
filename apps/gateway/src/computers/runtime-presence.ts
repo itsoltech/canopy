@@ -18,6 +18,7 @@ import {
   REMOTE_BOTS,
   REMOTE_THREADS,
   THREAD_MIRROR,
+  THREAD_MIRROR_DELTA,
   INLINE_ATTACHMENTS,
 } from "@canopy/domain/computers";
 
@@ -68,7 +69,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         "unlink",
         LAN_ROUTES,
         ...(this.options.serve
-          ? [REMOTE_THREADS, THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS, RELAY, INLINE_ATTACHMENTS]
+          ? [REMOTE_THREADS, THREAD_MIRROR, THREAD_MIRROR_DELTA, REMOTE_BOTS, AGENT_BUS, RELAY, INLINE_ATTACHMENTS]
           : []),
         ...(this.config ? [CONFIG_SYNC] : []),
         ...(this.moves ? [MOVE_ITEMS] : []),

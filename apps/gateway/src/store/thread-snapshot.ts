@@ -8,15 +8,20 @@ import type { ThreadRow, TurnRow } from "./rows.ts";
 import type { InteractionStore } from "./interactions-store.ts";
 import type { ThreadStore } from "./threads-store.ts";
 import type { TurnStore } from "./turns-store.ts";
+import { mirrorSelection, type MirrorSelection } from "./mirror-selection.ts";
 
 export interface ThreadSnapshotStore {
-  snapshot(threadId: string): Fx<{
+  snapshot(
+    threadId: string,
+    mirrorCursor?: string,
+  ): Fx<{
     thread: ThreadRow;
     turns: (TurnRow & { inherited?: boolean })[];
     items: ui.TimelineItem[];
     interactions: ui.Interaction[];
     notices: ui.ThreadNotice[];
     lastSeq: bigint;
+    selection: MirrorSelection | undefined;
   }>;
   /** Current state of one of the thread's own items. */
   threadItem(threadId: string, itemId: string): Fx<Item | undefined>;
@@ -27,20 +32,26 @@ export function threadSnapshot(
   self: () => Pick<ThreadStore, "thread"> & Pick<TurnStore, "turnsOf"> & Pick<InteractionStore, "pendingInteractions">,
 ): ThreadSnapshotStore {
   return {
-    snapshot: (threadId) =>
-      Effect.gen(function* () {
+    snapshot: (threadId, mirrorCursor) => {
+      const read = Effect.gen(function* () {
         const thread = yield* self().thread(threadId);
 
+        const selection = mirrorCursor
+          ? yield* mirrorSelection(sql, thread.owner_user_id, threadId, mirrorCursor)
+          : undefined;
+
         // A fork shows the history it inherits (thread_items_view / thread_fork_chain), marked as inherited.
-        const inheritedTurns = yield* sql<TurnRow>`
+        const inheritedTurns = selection
+          ? []
+          : yield* sql<TurnRow>`
                 SELECT u.*, s.*, (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id = bc.turn_id WHERE bc.id = u.bot_call_id) AS bot_id FROM thread_fork_chain(${threadId}::uuid) c
                   JOIN turns u ON u.thread_id = c.thread_id LEFT JOIN turn_sources s ON s.turn_id = u.id
                  WHERE c.level > 0 AND u.status <> 'queued' AND (c.upto_seq IS NULL OR u.last_seq <= c.upto_seq)
                  ORDER BY c.level DESC, u.ordinal`;
 
-        const turns = yield* self().turnsOf(threadId);
+        const turns = yield* self().turnsOf(threadId, selection?.turnIds);
 
-        const itemRows = yield* sql<{
+        type ItemRow = {
           thread_id: string;
           content: JsonValue;
           turn_id: string | null;
@@ -48,12 +59,20 @@ export function threadSnapshot(
           last_seq: bigint;
           inherited: boolean;
           completed_at: Date | null;
-        }>`
-                SELECT v.thread_id, v.content, v.turn_id, v.first_seq, v.last_seq, v.inherited, e.occurred_at AS completed_at
-                  FROM thread_items_view(${threadId}::uuid) WITH ORDINALITY v
-                  LEFT JOIN thread_events e ON v.type = 'agent_message' AND v.status = 'completed'
-                       AND e.thread_id = v.thread_id AND e.seq = v.last_seq
-                 ORDER BY v.ordinality`;
+        };
+
+        const itemRows = selection
+          ? yield* sql<ItemRow>`SELECT v.thread_id,v.content,v.turn_id,v.first_seq,v.last_seq,false AS inherited,
+                  e.occurred_at AS completed_at
+                FROM thread_items v LEFT JOIN thread_events e ON v.type='agent_message' AND v.status='completed'
+                  AND e.thread_id=v.thread_id AND e.seq=v.last_seq
+                WHERE v.thread_id=${threadId}::uuid AND v.item_id=ANY(${selection.itemIds}::text[])
+                ORDER BY v.first_seq`
+          : yield* sql<ItemRow>`SELECT v.thread_id,v.content,v.turn_id,v.first_seq,v.last_seq,v.inherited,
+                  e.occurred_at AS completed_at
+                FROM thread_items_view(${threadId}::uuid) WITH ORDINALITY v
+                LEFT JOIN thread_events e ON v.type='agent_message' AND v.status='completed'
+                  AND e.thread_id=v.thread_id AND e.seq=v.last_seq ORDER BY v.ordinality`;
 
         const items = itemRows.map((r) =>
           create(ui.TimelineItemSchema, {
@@ -76,7 +95,9 @@ export function threadSnapshot(
         }>`
                 SELECT seq, turn_id, payload, occurred_at FROM (
                   SELECT seq, turn_id, payload, occurred_at FROM thread_events
-                   WHERE thread_id = ${threadId}::uuid AND kind = 'notice' ORDER BY seq DESC LIMIT 200) n
+                   WHERE thread_id = ${threadId}::uuid AND kind = 'notice'
+                     AND (${selection === undefined} OR seq=ANY(${selection?.noticeSeqs ?? []}::bigint[]))
+                   ORDER BY seq DESC LIMIT ${selection ? null : 200}) n
                  ORDER BY seq`;
 
         const notices = noticeRows.flatMap((r) => {
@@ -103,8 +124,21 @@ export function threadSnapshot(
           interactions,
           notices,
           lastSeq: BigInt(thread.last_seq),
+          selection,
         };
-      }),
+      });
+
+      // Ordinary snapshots also run inside writable bot actions; preserve their transaction.
+      return mirrorCursor
+        ? sql.withTransaction(
+            Effect.gen(function* () {
+              yield* sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`;
+
+              return yield* read;
+            }),
+          )
+        : read;
+    },
 
     threadItem: (threadId, itemId) =>
       sql<{

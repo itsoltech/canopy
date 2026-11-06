@@ -5,6 +5,17 @@ import type { TurnRow } from "./rows.ts";
 /** A live worker command owns the turn before the worker reports it running. */
 export const DISPATCHED = `EXISTS (SELECT 1 FROM worker_commands c WHERE c.turn_id = u.id AND c.status IN ('pending', 'delivered', 'completed'))`;
 
+/** Only changed turns for mirror deltas; ordinary snapshots keep the complete visible turn list. */
+export const turnsOf = (sql: SqlClient.SqlClient, threadId: string, ids?: readonly string[]) =>
+  sql.unsafe<TurnRow>(
+    `SELECT u.*, s.*, ${DISPATCHED} AS dispatched,
+      (SELECT bt.bot_id FROM bot_tool_calls bc JOIN bot_turns bt ON bt.id=bc.turn_id WHERE bc.id=u.bot_call_id) AS bot_id
+      FROM turns u LEFT JOIN turn_sources s ON s.turn_id=u.id WHERE u.thread_id=$1::uuid
+      AND ($2::uuid[] IS NULL OR u.id=ANY($2::uuid[]))
+      AND NOT EXISTS (SELECT 1 FROM computer_moved_threads m WHERE m.ordinal_turn_id=u.id) ORDER BY u.ordinal`,
+    [threadId, ids ?? null],
+  );
+
 /** Let the worker validate a steer even while its turn_started is still in flight. */
 export const steerTarget = (sql: SqlClient.SqlClient, threadId: string) =>
   sql

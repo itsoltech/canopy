@@ -84,7 +84,14 @@ export async function* home(
 
   if (!computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
 
-  if (yield* mirrorFirst(computers, nodeId, method, request)) return;
+  if (method.name === "WatchThread") linkedMessage(ui.WatchThreadRequestSchema, request).mirrorCursor = "";
+
+  if (
+    yield* mirrorFirst(computers, nodeId, method, request, (input) =>
+      send(core, computers, nodeId, method, input, signal),
+    )
+  )
+    return;
 
   if (!computers.reachable().includes(nodeId) && computers.capabilities(nodeId).includes(REMOTE_BOTS)) {
     if (method.name === "ListBots" || method.name === "GetBot" || method.name === "WatchBotConversation") {

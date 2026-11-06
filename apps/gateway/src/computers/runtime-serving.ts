@@ -12,6 +12,7 @@ import {
   REMOTE_BOTS,
   REMOTE_THREADS,
   THREAD_MIRROR,
+  THREAD_MIRROR_DELTA,
 } from "@canopy/domain/computers";
 
 import { BOT_METHODS, linkedMessage, MOVE_METHODS, UPDATE_METHODS, type RelayRoute } from "./remote.ts";
@@ -177,11 +178,11 @@ export async function* computersServeHome(
   if (method.name === "WatchThreadMirror") {
     if (!hostContext.hello().capabilities.includes(THREAD_MIRROR) || !connection.capabilities?.has(THREAD_MIRROR))
       throw new ConnectError("Thread mirrors need an update on both computers", Code.Unimplemented);
-    yield* hostContext.mirror.publish(
-      linkedMessage(link.MirrorRequestSchema, request),
-      hostContext.options.serve,
-      signal,
-    );
+    const input = linkedMessage(link.MirrorRequestSchema, request);
+    input.incremental &&=
+      hostContext.hello().capabilities.includes(THREAD_MIRROR_DELTA) &&
+      connection.capabilities.has(THREAD_MIRROR_DELTA);
+    yield* hostContext.mirror.publish(input, hostContext.options.serve, signal);
   } else if (method.name === "WatchBotMirror")
     yield* hostContext.botMirror.publish(
       linkedMessage(link.MirrorRequestSchema, request),

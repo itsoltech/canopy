@@ -1,4 +1,4 @@
-import { toBinary } from "@bufbuild/protobuf";
+import { fromBinary, toBinary } from "@bufbuild/protobuf";
 
 import { computerLink as link, ui } from "@canopy/contracts";
 
@@ -7,8 +7,10 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 
 import type { ComputerStore } from "./store.ts";
+import { applyThreadDelta } from "@canopy/domain/thread-mirror";
+import { mismatch } from "./mirror.ts";
 
-export type State = { cursor: string; generation: string; overview: Uint8Array | null };
+export type State = { cursor: string; generation: string; overview: Uint8Array | null; subscription_id: string };
 
 export async function commitMirrorUpdate(
   runtime: ComputerStore["runtime"],
@@ -29,17 +31,36 @@ export async function commitMirrorUpdate(
           const rows = yield* sql<{
             cursor: string;
             generation: string;
-          }>`SELECT cursor,generation FROM computer_mirror_state
+            subscription_id: string;
+          }>`SELECT cursor,generation,subscription_id FROM computer_mirror_state
               WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node} FOR UPDATE`;
 
           if (!rows[0]) return false;
 
-          if (rows[0].cursor !== state.cursor || rows[0].generation !== state.generation) return false;
+          if (
+            rows[0].cursor !== state.cursor ||
+            rows[0].generation !== state.generation ||
+            rows[0].subscription_id !== state.subscription_id
+          )
+            return false;
+
+          if (update.delta) {
+            const delta = update.delta;
+
+            if (delta.baseCursor !== state.cursor || !delta.snapshot?.thread) return yield* Effect.fail(mismatch());
+
+            const saved = yield* sql<{ snapshot: Uint8Array }>`SELECT snapshot FROM computer_mirror_threads
+              WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node} AND generation=${generation}::uuid
+                AND thread_id=${delta.snapshot.thread.id}::uuid`;
+
+            if (!saved[0]) return yield* Effect.fail(mismatch());
+            update.snapshot = applyThreadDelta(fromBinary(ui.ThreadSnapshotSchema, saved[0].snapshot), delta);
+          }
 
           if (update.snapshot?.thread) {
-            yield* sql`INSERT INTO computer_mirror_threads(owner_user_id,origin_node_id,generation,thread_id,snapshot)
-                VALUES(${owner}::uuid,${node},${generation}::uuid,${update.snapshot.thread.id}::uuid,${toBinary(ui.ThreadSnapshotSchema, update.snapshot)})
-                ON CONFLICT(owner_user_id,origin_node_id,generation,thread_id) DO UPDATE SET snapshot=excluded.snapshot`;
+            yield* sql`INSERT INTO computer_mirror_threads(owner_user_id,origin_node_id,generation,thread_id,snapshot,thread_metadata)
+                VALUES(${owner}::uuid,${node},${generation}::uuid,${update.snapshot.thread.id}::uuid,${toBinary(ui.ThreadSnapshotSchema, update.snapshot)},${toBinary(ui.ThreadSchema, update.snapshot.thread)})
+                ON CONFLICT(owner_user_id,origin_node_id,generation,thread_id) DO UPDATE SET snapshot=excluded.snapshot,thread_metadata=excluded.thread_metadata`;
           }
 
           if (update.removedThreadId)
