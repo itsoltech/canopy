@@ -5,7 +5,7 @@ import type { TLSSocket } from "node:tls";
 
 export type Handler = (request: http2.Http2ServerRequest, response: http2.Http2ServerResponse) => void | Promise<void>;
 
-export type Listener = { host: string; port: number; close: () => Promise<void> };
+export type Listener = { host: string; port: number; close: (graceMs?: number) => Promise<void> };
 
 /** One TLS port for phones and linked computers. TLS proves this computer's pinned certificate to
  * both; a linked computer also presents its own certificate, so `route` sends it to the link service,
@@ -40,6 +40,11 @@ export async function openListener(options: {
   );
 
   const sockets = new Set<Socket>();
+  const sessions = new Set<http2.ServerHttp2Session>();
+  server.on("session", (session) => {
+    sessions.add(session);
+    session.once("close", () => sessions.delete(session));
+  });
   server.on("secureConnection", (socket: Socket) => {
     sockets.add(socket);
     socket.once("close", () => sockets.delete(socket));
@@ -53,16 +58,35 @@ export async function openListener(options: {
     });
   });
 
+  let closing: Promise<void> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const destroy = () => {
+    clearTimeout(timer);
+
+    for (const socket of sockets) socket.destroy();
+  };
+
   return {
     host: options.host,
     // SAFETY: listen completed on a TCP host/port, so address() is an AddressInfo.
     port: (server.address() as AddressInfo).port,
-    close: () =>
-      new Promise<void>((resolve) => {
-        server.close(() => resolve());
+    close: (graceMs = 0) => {
+      closing ??= new Promise<void>((resolve) => {
+        server.close(() => {
+          clearTimeout(timer);
+          resolve();
+        });
 
-        for (const socket of sockets) socket.destroy();
-      }),
+        // GOAWAY keeps existing RPCs/streams alive while new connections use the new port.
+        for (const session of sessions) session.close();
+      });
+
+      if (graceMs > 0) timer ??= setTimeout(destroy, graceMs);
+      else destroy();
+
+      return closing;
+    },
   };
 }
 

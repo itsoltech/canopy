@@ -8936,7 +8936,7 @@ export const GatewayService: GenService<{
     output: typeof ComputersSnapshotSchema;
   },
   /**
-   * Network access for phones and linked computers (restricted to the web BFF).
+   * Owner-scoped Network access for phones, desktop clients and the web BFF.
    *
    * @generated from rpc canopy.ui.v1.GatewayService.GetNetworkAccess
    */
@@ -8970,7 +8970,7 @@ export const GatewayService: GenService<{
     output: typeof SharedConfigSnapshotSchema;
   },
   /**
-   * Stage 8: "Move to…" for threads and bots of this computer (restricted to the web BFF).
+   * Stage 8: owner-scoped "Move to…" for threads and bots of this computer.
    *
    * @generated from rpc canopy.ui.v1.GatewayService.PreviewMove
    */
@@ -9047,7 +9047,7 @@ export const GatewayService: GenService<{
     output: typeof DesktopAckSchema;
   },
   /**
-   * Device administration is restricted to the web BFF service token.
+   * Device administration uses the authenticated gateway owner.
    *
    * @generated from rpc canopy.ui.v1.GatewayService.GetMobileDevices
    */

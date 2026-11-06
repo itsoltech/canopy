@@ -117,14 +117,14 @@ describe.skipIf(!dockerAvailable)("desktop client: owner-scoped pairing and pinn
       platform: "ios",
     });
 
-    expect(await failure(api(phone.deviceToken).createDesktopPairing({}))).toContain("web Settings");
-    expect(await failure(api(phone.deviceToken).getNetworkAccess({}))).toContain("web Settings");
-    expect(await failure(api(phone.deviceToken).createWorkerEnrollment({ name: "Escalation" }))).toContain(
-      "web Settings",
-    );
-    expect(await failure(api(phone.deviceToken).rotateWorkerCredential({ workerId: gw.workerId }))).toContain(
-      "web Settings",
-    );
+    const phoneApi = api(phone.deviceToken);
+    const desktopInvite = await phoneApi.createDesktopPairing({});
+    expect(desktopInvite.pairing?.clientKind).toBe("desktop");
+    await phoneApi.revokeMobilePairing({ id: desktopInvite.pairing!.id });
+    expect((await phoneApi.getNetworkAccess({})).enabled).toBe(true);
+    const enrollment = await phoneApi.createWorkerEnrollment({ name: "Owner setup" });
+    await phoneApi.revokeWorkerEnrollment({ id: enrollment.enrollment!.id });
+    expect(await failure(phoneApi.rotateWorkerCredential({ workerId: Bun.randomUUIDv7() }))).toContain("not found");
   });
 
   test("foreign-owner tokens and objects are inaccessible; revoke closes streams and rejects further access", async () => {

@@ -8,7 +8,7 @@ service MobilePairingService {
   rpc ExchangeMobilePairing(ExchangeMobilePairingRequest) returns (ExchangeMobilePairingResponse);
 }
 
-// Separate exchange: a phone invitation can never mint a full UI credential.
+// Separate exchange: a phone invitation cannot mint a desktop client identity.
 service DesktopPairingService {
   rpc ExchangeDesktopPairing(ExchangeMobilePairingRequest) returns (ExchangeMobilePairingResponse);
 }

@@ -52,12 +52,12 @@ service GatewayService {
   rpc LinkComputer(LinkComputerRequest) returns (ComputersSnapshot);
   rpc ManageComputer(ComputerOperationRequest) returns (ComputersSnapshot);
   rpc ManageConfigNotice(ConfigNoticeOperation) returns (ComputersSnapshot);
-  // Network access for phones and linked computers (restricted to the web BFF).
+  // Owner-scoped Network access for phones, desktop clients and the web BFF.
   rpc GetNetworkAccess(GetNetworkAccessRequest) returns (NetworkAccess);
   rpc UpdateNetworkAccess(UpdateNetworkAccessRequest) returns (NetworkAccess);
   rpc GetSharedConfig(SharedConfigRequest) returns (SharedConfigSnapshot);
   rpc ManageSharedConfig(SharedConfigOperation) returns (SharedConfigSnapshot);
-  // Stage 8: "Move to…" for threads and bots of this computer (restricted to the web BFF).
+  // Stage 8: owner-scoped "Move to…" for threads and bots of this computer.
   rpc PreviewMove(MovePreviewRequest) returns (MovePreview);
   rpc StartMove(StartMoveRequest) returns (MovesSnapshot);
   rpc GetMoves(MovesRequest) returns (MovesSnapshot);
@@ -69,7 +69,7 @@ service GatewayService {
   // Linked computers ask for app updates through it (docs/updates.md, "Połączone komputery").
   rpc WatchAppControl(DesktopHello) returns (stream DesktopControlEvent);
   rpc ReportAppControl(DesktopReport) returns (DesktopAck);
-  // Device administration is restricted to the web BFF service token.
+  // Device administration uses the authenticated gateway owner.
   rpc GetMobileDevices(GetMobileDevicesRequest) returns (GetMobileDevicesResponse);
   rpc CreateMobilePairing(CreateMobilePairingRequest) returns (CreateMobilePairingResponse);
   rpc RevokeMobilePairing(MobileIdRequest) returns (MobileOperationResponse);

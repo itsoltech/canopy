@@ -81,18 +81,24 @@ na ekran ponownego parowania. Nowe urządzenia mają `pairing_version=2`.
 `OverviewUpdate.mobile_routes` (764) ogłasza nowe adresy i nazwy hostów. Telefon zapisuje
 je wyłącznie przy zgodnym pinie. Próbuje trasy według ostatniego sukcesu, sprawdzając TLS
 bez HTTP przed wybraniem trasy. Nie ponawia RPC po wysłaniu, aby nie dublować komend.
+Po zmianie portu zapisuje nowe trasy również z odpowiedzi `UpdateNetworkAccess`, nawet
+bez strumienia overview. Usuwa nieaktualną ostatnią trasę; restart telefonu korzysta
+z nowych adresów, zachowując ten sam pin i token urządzenia.
 Bez żadnej znanej działającej trasy potrzebny jest wspólny VPN lub nowy QR — sama aplikacja
 nie zapewnia relaya ani przejścia przez NAT.
 
 Token urządzenia autoryzuje GatewayService jako **obecnego pojedynczego właściciela**.
+Token urządzenia nie ma terminu ważności — działa do odwołania. Termin ważności dotyczy
+jednorazowego kodu parowania, nie tokenu.
 To pełny dostęp właściciela, nie osobna rola read-only. Interceptor zapisuje identity
 urządzenia w context i porównuje właściciela w DB z użytkownikiem core. Zarządzanie
-urządzeniami i zaproszeniami (`GetMobileDevices`, create/revoke) jest dostępne BFF
-z service tokenem i sparowanemu desktopowi, a niedostępne telefonowi;
-telefon ma osobne `UnpairMobileDevice`, odnoszące się do jego własnej identity.
-Telefon nie tworzy enrollmentu ani nie rotuje poświadczeń workera: taki credential
-mógłby posłużyć do migracji desktopu do pełnego zakresu UI. Rodzaj `desktop` ustala
-gateway podczas tworzenia zaproszenia; kod telefonu nie działa w wymianie desktopowej.
+urządzeniami, workerami, siecią, komputerami i aktualizacjami jest dostępne również
+telefonowi przez te same owner-scoped RPC co BFF. Telefon jest zdalnym interfejsem
+właściciela, bez własnej bazy i bez osobnej roli administracyjnej.
+`UnpairMobileDevice` odnosi się wyłącznie do identity wywołującego urządzenia.
+Rodzaj `desktop` ustala gateway podczas tworzenia zaproszenia; kod telefonu nie
+działa w wymianie desktopowej. Lokalny kanał sterowania aplikacją desktopową
+nadal wymaga własnego uwierzytelnienia i nie należy do mobilnego klienta.
 Przyszłe logowanie/multi-user musi zastąpić to mapowanie, nie rozszerzyć współdzielony token.
 
 Web pokazuje metadane i pozwala odwołać kod lub token. Revoke kończy otwarte streamy
@@ -404,7 +410,7 @@ bunx expo export --platform ios --output-dir dist/ios
 Gradle/Xcode ani nie wykonuje CocoaPods. `export` buduje JS/assets do bytecode Hermes,
 nie APK/IPA. `tests/integration/mobile-devices.test.ts` sprawdza jednorazową i współbieżną
 wymianę, expiry/revoke/reuse, owner/hash metadata, aktywne streamy po revoke, self-unpair,
-ograniczenia administracji, zachowanie service tokenu, limit prób i natywny moduł klienta
+administrację właściciela i izolację kont, zachowanie service tokenu, limit prób i natywny moduł klienta
 z prawdziwym HTTP/1.1 GetOverview + WatchThread. Wymaga throwaway PostgreSQL w Dockerze.
 
 ## Źródła sprawdzone dla tego wdrożenia

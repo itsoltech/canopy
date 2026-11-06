@@ -5,8 +5,8 @@ import { mobileIdentity, type MobileDevices } from "../core/mobile-devices.ts";
 
 /**
  * The web BFF uses a service token. Paired devices use their own revocable bearer
- * token, scoped to the single owner. Desktop clients have full owner UI scope;
- * phones retain their restricted administration scope.
+ * token, scoped to the single owner. Phones and desktop clients have the same
+ * owner UI scope; each core service enforces ownership independently.
  * WorkerLinkService authenticates workers itself and is not affected.
  */
 export function serviceTokenAuth(token: string, mobile?: MobileDevices): Interceptor {
@@ -22,35 +22,6 @@ export function serviceTokenAuth(token: string, mobile?: MobileDevices): Interce
       const identity = await mobile?.authenticate(bearer);
 
       if (!identity || !mobile) throw new ConnectError("Invalid or revoked device token", Code.Unauthenticated);
-
-      if (
-        identity.clientKind !== "desktop" &&
-        [
-          "CreateDesktopPairing",
-          // Worker credentials can migrate an existing desktop to full UI scope.
-          "CreateWorkerEnrollment",
-          "RotateWorkerCredential",
-          "GetMobileDevices",
-          "CreateMobilePairing",
-          "RevokeMobilePairing",
-          "RevokeMobileDevice",
-          "ManageUpdates",
-          "WorkerSsh",
-          "FetchWorkerInstall",
-          "GetComputers",
-          "CreateComputerPairing",
-          "LinkComputer",
-          "ManageComputer",
-          "ManageConfigNotice",
-          "GetNetworkAccess",
-          "UpdateNetworkAccess",
-          "PreviewMove",
-          "StartMove",
-          "GetMoves",
-        ].includes(request.method.name)
-      ) {
-        throw new ConnectError("Manage mobile devices in web Settings", Code.PermissionDenied);
-      }
 
       request.contextValues.set(mobileIdentity, identity);
       const controller = new AbortController();

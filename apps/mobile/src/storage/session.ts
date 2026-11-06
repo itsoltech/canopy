@@ -78,7 +78,14 @@ export class SessionPersistence {
       const current = this.#current;
 
       if (!current || current.deviceId !== deviceId) return;
-      const next = { ...current, ...connection, gatewayUrl: connection.lastAddress ?? current.gatewayUrl };
+
+      const next = {
+        ...current,
+        ...connection,
+        lastAddress: connection.lastAddress,
+        gatewayUrl: connection.lastAddress ?? connection.addresses[0] ?? current.gatewayUrl,
+      };
+
       await saveSession(next);
       this.#current = next;
     });
