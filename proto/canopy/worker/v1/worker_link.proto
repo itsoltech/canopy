@@ -711,6 +711,9 @@ message RunBotTurn {
   string history_json = 8;
   string input = 9;
   repeated ConnectorTool tools = 10;
+  // Stabilny fingerprint ustawień bota; bez czasu i kontekstu bieżącej tury.
+  // Starszy worker ignoruje pole; puste pole oznacza komendę starszego gatewaya.
+  string configuration_key = 11;
 }
 
 message DirectoryEntry {

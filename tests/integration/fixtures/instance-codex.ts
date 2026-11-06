@@ -36,6 +36,7 @@ recordProbe("codex", "spawn");
 
 const providers = new Map<string, string>();
 const botServers = new Map<string, ReturnType<typeof codexBotConfig>>();
+const instructions = new Map<string, string>();
 const interrupted = new Set<string>();
 const send = (message: JsonObject) => process.stdout.write(JSON.stringify(message) + "\n");
 const notify = (method: string, params: JsonObject) => send({ method, params });
@@ -93,7 +94,7 @@ async function turn(
 
   if (process.env["BOT_TRACE"] || text.startsWith("[canopy] Owner shell command result")) {
     if (process.env["BOT_TRACE"]) writeFileSync(join(home, "bot-input.txt"), text);
-    const answer = await botTool(text, botServers.get(threadId));
+    const answer = await botTool(text, botServers.get(threadId), instructions.get(threadId));
     notify("item/completed", {
       threadId,
       turnId,
@@ -144,6 +145,7 @@ for await (const line of createInterface({ input: process.stdin })) {
 
     writeFileSync(file, "{}");
     providers.set(session, params.modelProvider);
+    instructions.set(session, params.baseInstructions ?? "");
 
     if (params.config) botServers.set(session, codexBotConfig(params.config));
     recordProbe("codex", request.method, session, params.modelProvider);

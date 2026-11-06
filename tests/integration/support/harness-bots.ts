@@ -63,7 +63,21 @@ export async function harnessBots() {
     );
   };
 
-  return { ...f, add, read, send, settled, tool, executable };
+  return {
+    ...f,
+    get gw() {
+      return f.gw;
+    },
+    get host() {
+      return f.host;
+    },
+    add,
+    read,
+    send,
+    settled,
+    tool,
+    executable,
+  };
 }
 
 export type HarnessBots = Awaited<ReturnType<typeof harnessBots>>;
