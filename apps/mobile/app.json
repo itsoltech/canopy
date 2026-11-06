@@ -8,7 +8,7 @@
     "scheme": "canopy",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "app.canopy.mobile",
+      "bundleIdentifier": "tech.itsol.canopy-remote",
       "supportsTablet": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,

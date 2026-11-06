@@ -1,0 +1,93 @@
+# Nightly iOS builds of the mobile app go to TestFlight (docs/mobile.md). After a dev Release run publishes a
+# nightly, EAS builds the app and submits it, but only when the mobile app or code it uses changed since the
+# last iOS build: apps/mobile, the workspace packages it imports, the lockfile or this workflow.
+name: Mobile TestFlight
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Build even if nothing the mobile app uses changed
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-testflight
+  cancel-in-progress: false
+
+env:
+  # Keep in sync with mise.toml.
+  BUN_VERSION: 1.4.4
+  EAS_CLI: eas-cli@27.4.1
+  # Workspace paths the mobile app is built from (apps/mobile/package.json imports contracts, domain and ui).
+  MOBILE_PATHS: >-
+    apps/mobile packages/contracts packages/domain packages/ui package.json bun.lock
+    .github/workflows/mobile-testflight.yml
+
+jobs:
+  testflight:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-bun
+
+      # The nightly this commit was released as; a dev run that published nothing (docs only) builds nothing.
+      - id: version
+        run: |
+          tag=$(git tag --points-at HEAD --list 'v*-nightly.*' --sort=-v:refname | head -n1)
+          if [ -z "$tag" ] && [ "${{ github.event_name }}" = workflow_dispatch ]; then
+            tag=$(git describe --tags --match 'v*' --abbrev=0)
+          fi
+          if [ -z "$tag" ]; then echo "No nightly on $HEAD_SHA; nothing to build."; exit 0; fi
+          # App Store versions are three numbers: 0.2.0-nightly.84 ships as 0.2.0, EAS raises the build number.
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "marketing=$(echo "${tag#v}" | cut -d- -f1)" >> "$GITHUB_OUTPUT"
+
+      # The commit of the last iOS build that did not fail or get cancelled. A missing or unknown commit builds.
+      - id: changes
+        if: steps.version.outputs.tag
+        working-directory: apps/mobile
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          last=$(bunx "$EAS_CLI" build:list --platform ios --build-profile production --limit 10 --json --non-interactive \
+            | jq -r '[.[] | select(.status != "ERRORED" and .status != "CANCELED")][0].gitCommitHash // empty')
+          if [ "$FORCE" = true ] || [ -z "$last" ] || ! git cat-file -e "$last^{commit}" 2>/dev/null; then
+            echo "build=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          cd "$GITHUB_WORKSPACE"
+          # shellcheck disable=SC2086 # MOBILE_PATHS is a list of paths.
+          if git diff --quiet "$last" HEAD -- $MOBILE_PATHS; then
+            echo "Nothing the mobile app uses changed since ${last:0:8}; skipping."
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # EAS copies the working tree, so the version set here reaches the build without a commit.
+      - if: steps.changes.outputs.build == 'true'
+        working-directory: apps/mobile
+        env:
+          MARKETING: ${{ steps.version.outputs.marketing }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          jq --arg v "$MARKETING" '.expo.version = $v' app.json > app.json.tmp && mv app.json.tmp app.json
+          bunx "$EAS_CLI" build --platform ios --profile production --non-interactive --no-wait --auto-submit \
+            --message "Canopy $TAG (${HEAD_SHA:0:8})"

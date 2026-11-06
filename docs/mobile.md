@@ -1,7 +1,7 @@
 # Canopy na iOS i Android
 
 Pierwsza wersja to **development build** Expo, nie Expo Go ani Expo web.
-Identyfikator obu aplikacji: `app.canopy.mobile`, scheme: `canopy`.
+Identyfikatory: iOS `tech.itsol.canopy-remote`, Android `app.canopy.mobile`; scheme: `canopy`.
 Konfiguracja: `apps/mobile/app.json`, `app.config.ts`, `eas.json`.
 
 ## Transport: czy React Native obsługuje gRPC?
@@ -225,6 +225,33 @@ Przy buildzie iOS ustaw locale UTF-8 (`LANG=en_US.UTF-8`, `LC_ALL=en_US.UTF-8`)
 i używaj zgodnych wersji CocoaPods, Ruby i `ffi`. Błąd `avdmanager ENOENT`
 oznacza brak Command-line Tools pod `$ANDROID_HOME/cmdline-tools/latest/bin`,
 nawet jeżeli sam obraz AVD jest już zainstalowany.
+
+## Nightly w TestFlight
+
+Workflow `Mobile TestFlight` (`.github/workflows/mobile-testflight.yml`) uruchamia się po udanym
+przebiegu `Release` na `dev`. Buduje iOS w EAS profilem `production` i wysyła build do TestFlight
+(`--auto-submit`). Robi to tylko wtedy, gdy:
+
+- commit dostał tag nightly (`v…-nightly.N`); przebieg bez wydania niczego nie buduje,
+- od ostatniego buildu iOS, który nie zakończył się błędem ani anulowaniem, zmieniło się coś,
+  z czego składa się aplikacja: `apps/mobile`, pakiety `contracts`, `domain` i `ui`,
+  `package.json`, `bun.lock` albo sam workflow.
+
+Ręczne uruchomienie (`workflow_dispatch`) z `force` buduje bez sprawdzania zmian.
+
+- **Aplikacja:** w App Store Connect nazywa się „Canopy Remote”. Ma bundle id
+  `tech.itsol.canopy-remote`, ASC app id `6768351426` i zespół `5XWLF3YKWM`.
+  Android zostaje przy `app.canopy.mobile`.
+- **Wersja:** App Store przyjmuje trzy liczby, więc `0.2.0-nightly.84` trafia jako `0.2.0`.
+  Workflow wpisuje ją do `app.json` tylko w kopii roboczej. EAS kopiuje drzewo robocze, więc nic nie
+  jest commitowane. Numer buildu prowadzi EAS (`cli.appVersionSource: remote`, `autoIncrement`).
+- **Konto:** sekret repozytorium `EXPO_TOKEN` daje dostęp do organizacji `itsol`.
+- **Poświadczenia:** certyfikat dystrybucyjny i profil provisioningowy trzyma EAS. Pierwszy raz
+  tworzy je interaktywnie ktoś z dostępem do zespołu Apple:
+  `bunx eas-cli credentials -p ios` w `apps/mobile`, profil `production`. Wysyłkę do App Store
+  Connect obsługuje klucz API podpięty do aplikacji w Expo. Gdy certyfikat albo profil wygaśnie,
+  build w CI kończy się błędem `Credentials are not set up`. Wtedy trzeba je odnowić tą samą
+  komendą.
 
 ## Interfejs zgodny z web
 
