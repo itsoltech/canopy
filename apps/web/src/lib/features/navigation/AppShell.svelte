@@ -43,7 +43,7 @@
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import { applyDeviceAppearance } from "#lib/features/settings/device-appearance.ts";
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
-  import { watchThreadNotifications } from "#lib/features/settings/thread-notifications.ts";
+  import { watchNotifications } from "#lib/features/notifications/watch.svelte.ts";
 
   let { children }: { children: Snippet } = $props();
   const capabilities = new GatewayCapabilities();
@@ -74,7 +74,7 @@
 
   $effect(() => applyDeviceAppearance(devicePreferences));
 
-  onMount(() => watchThreadNotifications(overview, () => page.params.threadId));
+  onMount(() => watchNotifications(overview, () => page.url.pathname));
 
   const threadActions = new ThreadActions(overview, settings, () => page.params.threadId);
 

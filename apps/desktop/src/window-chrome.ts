@@ -2,11 +2,11 @@ import { BrowserWindow, type MenuItemConstructorOptions, type IpcMainInvokeEvent
 import type { DesktopWindowState } from "@canopy/ui/desktop";
 
 import { registerAppearanceIpc } from "./window-appearance.ts";
-import { registerThreadNotifications } from "./thread-notifications.ts";
+import { registerNotifications } from "./notifications.ts";
 
-export function registerWindowPreferencesIpc(authorize: (event: IpcMainInvokeEvent) => void): void {
+export function registerWindowPreferencesIpc(authorize: (event: IpcMainInvokeEvent) => void, iconPath: string): void {
   registerAppearanceIpc(authorize);
-  registerThreadNotifications(authorize);
+  registerNotifications(authorize, iconPath);
 }
 
 export function windowState(target: BrowserWindow): DesktopWindowState {

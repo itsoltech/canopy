@@ -24,8 +24,9 @@ bez zmian. Opcja wyboru bez działania jest wyłączona z opisem „Soon”.
 | Strona / sekcja | Ustawienie | Zakres | Domyślnie | Skutek |
 | --- | --- | --- | --- | --- |
 | Keybindings | Skróty komend, kompozytora, cytowania i modeli | urządzenie | przypisania rejestru | Wyszukiwanie, edycja, nagrywanie i dodatkowe przypisania z kontrolą konfliktów kontekstu |
-| General / Notifications | Thread notifications | urządzenie | Off | Alert systemowy przy ukończeniu, błędzie lub pytaniu/zgodzie wątku, tylko gdy otwarte jest okno Canopy (na macOS zamknięte okno nie wysyła alertów); opcjonalny dźwięk; web wymaga zgody Notification API i pokazuje odmowę lub zamknięty monit, desktop używa natywnego `Notification` przez IPC |
-| General / Notifications | In-app notifications | urządzenie | On | Toast o innym wątku przy fokusie aplikacji |
+| General / Notifications | Thread notifications | urządzenie | Off | Alert systemowy, gdy wątek kończy turę, ma błąd, zatrzymuje go system albo czeka na zgodę/odpowiedź; tytuł wątku, projekt/komputer i krótki podgląd; tylko gdy otwarte jest okno Canopy (na macOS zamknięte okno nie wysyła alertów); z dźwiękiem oglądany wątek gra tylko dźwięk; web wymaga zgody Notification API i pokazuje odmowę lub zamknięty monit, desktop używa natywnego `Notification` przez IPC ([notifications.md](notifications.md)) |
+| General / Notifications | Bot notifications | urządzenie | Off | Alert systemowy o wiadomości bota do użytkownika, karcie zgody lub pytaniu; nazwa bota i krótki podgląd; te same zasady zgody, fokusu, dźwięku i duplikatów co dla wątków |
+| General / Notifications | In-app notifications | urządzenie | On | Toast o innym wątku lub rozmowie bota przy fokusie aplikacji |
 | General / Sidebar | Group by project | konto | Off | Nagłówki projektów w aktywnym sidebarze, z zachowaniem przypięć i priorytetu pytań |
 | General / Sidebar | Project order | konto | Latest activity | Kolejność grup według aktywności, nazwy lub utworzenia projektu; bez obietnicy ostatniej wiadomości użytkownika, której indeks nie udostępnia |
 | General / Sidebar | Working section | konto | Off | Osobna zwijana sekcja pracujących wątków/drzew; pytania i nowe wyniki wracają do głównej listy |

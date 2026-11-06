@@ -9,6 +9,7 @@ import type { BotRow, BotTurn, StoredCall } from "./types.ts";
 import {
   MOVE_RECONNECT,
   botConfiguration,
+  approvalView,
   botView,
   messageView,
   uuid,
@@ -126,9 +127,19 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
           yield* sql<MessageRow>`SELECT DISTINCT ON(m.bot_id) m.*, t.status AS turn_status FROM bot_messages m JOIN bots b ON b.id = m.bot_id JOIN bot_turns t ON t.id = m.turn_id
         WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL ORDER BY m.bot_id, m.seq DESC`;
 
-        const byBot = new Map(latest.map((m) => [m.bot_id, messageView(m)]));
+        // Notifications: the newest card waiting for the owner, without its fields or proposal.
+        const pending =
+          yield* sql<ApprovalRow>`SELECT DISTINCT ON(a.bot_id) a.id, a.bot_id, a.turn_id, a.kind, left(a.prompt, 2000) AS prompt, a.status, '' AS answer,
+          a.created_at, a.expires_at, t.routine_title, NULL AS proposed_bot
+        FROM bot_approvals a JOIN bots b ON b.id = a.bot_id JOIN bot_turns t ON t.id = a.turn_id
+        WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND a.status = 'pending' ORDER BY a.bot_id, a.created_at DESC, a.id DESC`;
 
-        return rows.map((r) => create(bots.BotSchema, { ...botView(r), lastMessage: byBot.get(r.id) }));
+        const byBot = new Map(latest.map((m) => [m.bot_id, messageView(m)]));
+        const waiting = new Map(pending.map((a) => [a.bot_id, approvalView(a)]));
+
+        return rows.map((r) =>
+          create(bots.BotSchema, { ...botView(r), lastMessage: byBot.get(r.id), pendingApproval: waiting.get(r.id) }),
+        );
       }),
     remove: (user: string, id: string) =>
       sql.withTransaction(

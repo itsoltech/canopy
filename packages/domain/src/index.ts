@@ -20,6 +20,8 @@ export * from "./platform.ts";
 
 export * from "./failures.ts";
 
+export * from "./notice-preview.ts";
+
 export * from "./shell-input.ts";
 
 export { isJsonArray, isJsonObject, type JsonObject, type JsonValue } from "./json.ts";

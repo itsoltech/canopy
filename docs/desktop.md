@@ -30,8 +30,9 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    (`clipboard-sanitized-write`, potrzebnym dla `navigator.clipboard.writeText`)
    i powiadomieniami (`notifications`), i to tylko stronom z originu setupu albo web UI
    (`window-permissions.ts`). Odczyt schowka, media i reszta pozostają zablokowane.
-   Alerty wątków idą przez IPC `canopy:thread-notification` do natywnego `Notification`
-   procesu main; uprawnienie `notifications` jest rezerwą dla Notification API strony.
+   Alerty wątków i botów idą przez IPC `canopy:notification` do natywnego `Notification`
+   procesu main (tylko ścieżki wątku lub bota, każdy klucz raz; [notifications.md](notifications.md));
+   uprawnienie `notifications` jest rezerwą dla Notification API strony.
 2. **Baza:** pełny PostgreSQL 18.6 z binariów `@embedded-postgres`, pobieranych tylko
    po wybraniu trybu lokalnego. Aplikacja nie zawiera PostgreSQL. Pierwszy lokalny start
    wymaga internetu; gotowy cache działa offline. Nie wymaga ręcznej instalacji ani

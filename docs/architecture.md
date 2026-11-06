@@ -18,6 +18,7 @@ Powiązane dokumenty:
 - [mobile.md](mobile.md) — Canopy iOS/Android, Connect przez przypięty TLS, parowanie i automatyczne trasy
 - [tailscale.md](tailscale.md) — wykrywanie Tailscale, nazwa MagicDNS jako pierwszy adres i opcjonalne HTTPS over Tailscale dla web UI
 - [threads.md](threads.md) — projekty, wątki, wątki boczne i forki
+- [notifications.md](notifications.md) — alerty systemowe wątków i botów: teksty, podglądy, fokus, dźwięk i brak duplikatów
 - [worktrees.md](worktrees.md) — git worktrees: ustawienia w zakresach, tworzenie, status, bezpieczne sprzątanie i zarządzanie
 - [transcript.md](transcript.md) — zapis wszystkich zdarzeń, itemy, oś czasu dla frontendu
 - [execution.md](execution.md) — tury, praca w tle, subagenci, interakcje, limity

@@ -57,7 +57,10 @@ export interface ThreadRow {
   background_tasks?: bigint | number;
   /** Joined for side threads: the start of the last agent message (a subagent's result). */
   last_message?: string | null;
-  unseen_result?: string | null;
+  /** Joined: the latest ended turn the owner has not seen, with its last answer and error. */
+  unseen_turn?: UnseenTurnColumns | null;
+  /** Joined: the newest pending request routed to a person. */
+  notice_interaction?: NoticeInteractionColumns | null;
   /** Joined: how the latest ended turn ended. */
   last_turn_status?: string | null;
   /** The git worktree the thread works in (docs/worktrees.md); NULL = the workspace's checkout. */
@@ -66,6 +69,19 @@ export interface ThreadRow {
   worktree?: ThreadWorktreeColumns | null;
   /** Joined for a thread without a worktree: the workspace checkout's live HEAD (checkout_heads). */
   checkout_head?: { branch: string; detached_commit: string } | null;
+}
+
+export interface UnseenTurnColumns {
+  status: string;
+  interrupt_source: string | null;
+  error: string | null;
+  message: string | null;
+}
+
+export interface NoticeInteractionColumns {
+  kind: string;
+  tool: string;
+  request: JsonValue;
 }
 
 /** The thread's worktree as joined by threadSelect (json_build_object: timestamps are strings). */
