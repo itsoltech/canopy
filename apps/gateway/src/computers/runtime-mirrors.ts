@@ -4,7 +4,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link } from "@canopy/contracts";
 
-import { REMOTE_BOTS, THREAD_MIRROR } from "@canopy/domain/computers";
+import { REMOTE_BOTS, THREAD_MIRROR, THREAD_MIRROR_DELTA } from "@canopy/domain/computers";
 
 import { computersState, type ComputerChange } from "./runtime-context.ts";
 import type { LinkedComputers } from "./runtime.ts";
@@ -67,7 +67,17 @@ export function computersSyncMirror(hostContext: LinkedComputers, nodeId: string
       const method = link.ThreadMirrorService.method.watchThreadMirror;
       await hostContext.mirror.consume(
         nodeId,
-        hostContext.remote(nodeId, method, create(link.MirrorRequestSchema, { cursor }), controller.signal),
+        hostContext.remote(
+          nodeId,
+          method,
+          create(link.MirrorRequestSchema, {
+            cursor,
+            incremental:
+              hostContext.hello().capabilities.includes(THREAD_MIRROR_DELTA) &&
+              hostContext.capabilities(nodeId).includes(THREAD_MIRROR_DELTA),
+          }),
+          controller.signal,
+        ),
         () => {
           for (const listener of hostContext[computersState].listeners) {
             try {

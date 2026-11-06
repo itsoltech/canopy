@@ -35,6 +35,33 @@ export function* snapshotFrames(snapshot: ui.ThreadSnapshot, previousCursor = ""
   yield create(link.MirrorUpdateSchema, { previousCursor, snapshotEnd: true });
 }
 
+export function* deltaFrames(delta: ui.ThreadSnapshotDelta, previousCursor: string): Generator<link.MirrorUpdate> {
+  const snapshot = delta.snapshot;
+
+  if (!snapshot?.thread) throw new ConnectError("Missing thread delta", Code.Internal);
+  yield create(link.MirrorUpdateSchema, {
+    previousCursor,
+    deltaStart: true,
+    delta: {
+      ...delta,
+      snapshot: create(ui.ThreadSnapshotSchema, {
+        thread: snapshot.thread,
+        lastSeq: snapshot.lastSeq,
+        goal: snapshot.goal,
+      }),
+    },
+  });
+
+  for (const field of SNAPSHOT_LISTS)
+    for (const value of snapshot[field])
+      yield create(link.MirrorUpdateSchema, {
+        previousCursor,
+        delta: { snapshot: create(ui.ThreadSnapshotSchema, { [field]: [value] }) },
+      });
+
+  yield create(link.MirrorUpdateSchema, { previousCursor, deltaEnd: true });
+}
+
 export function safeOverview(value: ui.GetOverviewResponse): ui.GetOverviewResponse {
   // Explicit allowlist: settings, provider config and credentials never enter mirror storage.
   return create(ui.GetOverviewResponseSchema, {
@@ -57,18 +84,23 @@ export async function mirrorThreadSnapshot(
   one: (name: string, request: Message) => Promise<Message>,
   owner: string,
   id: string,
-): Promise<ui.ThreadSnapshot | undefined> {
+  cursor = "",
+): Promise<ui.ThreadUpdate["change"] | undefined> {
   try {
     const value = linkedMessage(
       ui.ThreadUpdateSchema,
-      await one("WatchThread", create(ui.WatchThreadRequestSchema, { threadId: id })),
+      await one("WatchThread", create(ui.WatchThreadRequestSchema, { threadId: id, mirrorCursor: cursor })),
     ).change;
 
-    if (value.case !== "snapshot") throw new ConnectError("Missing thread snapshot", Code.Internal);
+    if (value.case !== "snapshot" && value.case !== "delta")
+      throw new ConnectError("Missing thread snapshot", Code.Internal);
+    const snapshot = value.case === "snapshot" ? value.value : value.value.snapshot;
 
-    if (value.value.thread?.deletedAt) return undefined;
-    value.value.secrets = [];
-    value.value.schedules = [];
+    if (!snapshot?.thread || snapshot.thread.deletedAt) return undefined;
+    snapshot.secrets = [];
+    snapshot.schedules = [];
+
+    if (value.case === "delta") return value;
 
     // Live UI snapshots cap diagnostics at 200; durable mirrors retain the whole timeline.
     const notices = await hostContext.store.query<{
@@ -83,7 +115,7 @@ export async function mirrorThreadSnapshot(
       [id, owner],
     );
 
-    value.value.notices = notices.flatMap((row) => {
+    snapshot.notices = notices.flatMap((row) => {
       const event = fromJson(ThreadEventSchema, row.payload);
 
       return event.body.case === "notice"
@@ -98,7 +130,7 @@ export async function mirrorThreadSnapshot(
         : [];
     });
 
-    return value.value;
+    return value;
   } catch (error) {
     if (error instanceof ConnectError && error.code === Code.NotFound) return undefined;
     throw error;

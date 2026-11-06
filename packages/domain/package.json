@@ -11,6 +11,7 @@
     "./provider-accounts": "./src/provider-accounts.ts",
     "./update-checks": "./src/update-checks.ts",
     "./computers": "./src/computers.ts",
+    "./thread-mirror": "./src/thread-mirror.ts",
     "./computer-presence": "./src/computer-presence.ts",
     "./projects": "./src/projects.ts",
     "./git-heads": "./src/git-heads.ts",

@@ -987,6 +987,8 @@ message AnswerInteractionResponse {
 
 message WatchThreadRequest {
   string thread_id = 1;
+  // Internal linked read, negotiated by thread_mirror_delta; empty keeps full snapshots.
+  string mirror_cursor = 800;
 }
 
 message ThreadSnapshot {
@@ -1029,7 +1031,19 @@ message ThreadUpdate {
     // Zmiana statusu tury, do której trafiło wywołanie szyny tego wątku.
     BusDelivery bus_delivery = 210;
     ThreadSecret secret = 500;
+    // Internal response to mirror_cursor. Routed gateways reconstruct the UI snapshot.
+    ThreadSnapshotDelta delta = 801;
   }
+}
+
+// Items and turns are upserts plus tombstones. Other snapshot fields replace metadata;
+// notices append by seq. Secrets and schedules are excluded by the mirror publisher.
+message ThreadSnapshotDelta {
+  string base_cursor = 1;
+  ThreadSnapshot snapshot = 2;
+  repeated string removed_item_ids = 3;
+  repeated string removed_turn_ids = 4;
+  repeated uint64 removed_notice_seqs = 5;
 }
 
 // Metadane bez wartości; osobny kontrakt nie pozwala echo sekretu w interakcji.

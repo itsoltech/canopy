@@ -75,7 +75,7 @@ export function threadsHandlers(
         create(ui.ThreadSecretResponseSchema, { secret: await core.secrets.revoke(request.requestId) }),
       ),
 
-    watchThread: (request, context) => core.watchThread(request.threadId, context.signal),
+    watchThread: (request, context) => core.watchThread(request.threadId, context.signal, request.mirrorCursor),
 
     updateThread: (request) =>
       guard(async () => create(ui.UpdateThreadResponseSchema, { thread: await core.updateThread(request) })),

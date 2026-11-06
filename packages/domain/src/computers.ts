@@ -6,6 +6,7 @@
  */
 export const REMOTE_THREADS = "remote_threads";
 export const THREAD_MIRROR = "thread_mirror";
+export const THREAD_MIRROR_DELTA = "thread_mirror_delta";
 export const REMOTE_BOTS = "remote_bots";
 export const AGENT_BUS = "agent_bus";
 

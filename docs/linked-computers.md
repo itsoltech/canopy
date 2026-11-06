@@ -577,8 +577,9 @@ Dziennik zawiera identyfikatory, nigdy wiersze sekretów ani payloady komend.
 
 Subskrypcja odczytuje zmiany co 250 ms i scala wielokrotne unieważnienia tego samego wątku.
 Zmiana źródła forka unieważnia też jego potomków, którzy pokazują odziedziczone itemy i tury.
-Publikuje jego bieżący `ThreadSnapshot` (wszystkie itemy i tury, kolejka, interakcje, steery,
-cel, komunikaty zgodne ze snapshotem UI) i minimalne metadane workerów/projektów.
+Publikuje pełny `ThreadSnapshot` przy pierwszej synchronizacji, a przy wspólnej capability
+`thread_mirror_delta` — przyrost względem zapisanego kursora. Starsi partnerzy nadal dostają
+pełne projekcje przy każdej zmianie. Metadane workerów/projektów pozostają minimalne.
 Zwykły żywy snapshot UI zachowuje do 200 komunikatów diagnostycznych; publisher lustra
 uzupełnia je pełną historią z dziennika domu. Nie przycinamy itemów, tur ani komunikatów.
 Sekrety wątku i harmonogramy są usuwane z projekcji; konfiguracja
@@ -608,20 +609,57 @@ przy przyroście chroni przed pominięciem/niezgodnością partii; błąd urucha
 Pełny resync przygotowuje osobną generację. Stara pozostaje widoczna aż do końcowego `commit`;
 przełączenie generacji, metadanych i kursora jest jedną transakcją. Zamknięcie subskrypcji usuwa
 niedokończoną generację, zachowując poprzedni czytelny stan. Po SIGKILL osierocone generacje
-pozostają niewidoczne i są usuwane przy kolejnym zatwierdzonym checkpointcie. Przyrosty zastępują pełne projekcje po kluczu
-wątku; końcowy checkpoint zapisuje kursor, więc ponowienie po awarii jest idempotentne.
+pozostają niewidoczne i są usuwane przy kolejnym zatwierdzonym checkpointcie. Przyrosty aktualizują
+projekcje po kluczu wątku; końcowy checkpoint zapisuje kursor, więc ponowienie po awarii jest idempotentne.
 Cursor jest pobierany **przed** projekcjami: zmiany współbieżne zostaną ponownie objęte kolejną
 partią. Usunięcie daje tombstone (`removed_thread_id`); pełny resync usuwa brakujące wątki.
 Archiwizacja i przywrócenie zmieniają wiersz/status, kolejność itemów pozostaje z domu.
 Każdy fragment sprawdza poprzedni kursor, a checkpoint także format, epokę i postęp rewizji.
 Blokada wiersza i porównanie kursora oraz generacji odrzucają opóźnioną subskrypcję innej
 instancji gatewaya, także gdy resync zachował ten sam kursor.
+`subscription_id` nadawane przy starcie receivera odcina starszą subskrypcję również przed
+pierwszym checkpointem, gdy obie wystartowały z tej samej generacji i kursora.
+
+### Przyrostowe otwarcie i publikacja
+
+Migracja **0088_thread_mirror_delta** rozszerza istniejący dziennik o `entity_kind` i `entity_id`.
+Nie tworzy drugiego kursora ani dziennika. Dom odczytuje w jednej transakcji repeatable-read
+zegar, ciągły zakres dziennika, wątek oraz wybrane itemy, tury i komunikaty. Każdy odczyt
+pozostaje ograniczony do właściciela. Klucze itemów i tur wybierają aktualne projekcje, a brak
+wiersza daje tombstone; komunikaty są scalane po seq. Pozostałe pola snapshotu (m.in. kolejka
+w turach, interakcje, steery, dostarczenia i cel) przenoszą bieżący stan.
+
+Przy wspólnej capability `thread_mirror_delta` partner przekazuje zapisany kursor w wewnętrznym
+`WatchThreadRequest.mirror_cursor` (800). Pierwszą odpowiedzią jest `ThreadUpdate.delta` (801):
+`base_cursor`, częściowy snapshot, usunięte identyfikatory itemów/tur i seq komunikatów.
+Gateway partnera scala go z kopią odczytaną razem z tym kursorem i przekazuje klientowi zwykły
+pełny snapshot; później płyną dotychczasowe żywe zdarzenia. Historia nie przechodzi ponownie
+przez łącze komputerów, ale lokalna odpowiedź BFF nadal zawiera pełną oś czasu.
+
+Publisher lustra używa tego samego wyboru zmian z `MirrorRequest.incremental` (2).
+`delta_start`, fragmenty kolekcji i `delta_end` zastępują pełne snapshoty aktywnych wątków.
+Receiver składa całą deltę, sprawdza bazowy kursor i aktualną generację pod blokadą wiersza,
+a następnie zapisuje pełną lokalną projekcję. Przerwana delta nie zmienia historii. Brak bazy
+lub niezgodny poprzednik wymusza pełną resynchronizację. Sekrety i harmonogramy są usuwane
+również z przyrostów przed zapisem.
+
+Pełny snapshot wraca przy luce, innej epoce, przyszłym kursorze, wpisach dziennika sprzed
+migracji lub zmianie źródła/granicy forka. Zmiana odziedziczonej historii także wymaga pełnej
+projekcji potomka. Wątki z historią przeniesioną z innego komputera konserwatywnie korzystają
+z pełnych snapshotów. Relaye nie reklamują jeszcze nowej capability i zachowują pełny protokół.
+Tak samo traktowane są wątki z turami opartymi na zmiennych rekordach źródłowych (agent bus,
+interakcja, harmonogram, bot lub zadanie w tle): sam klucz tury nie opisuje zmian pól z joinów.
+Zmiana outboxa z `turn_id` zapisuje natomiast klucz tej tury w dzienniku, aby stan `dispatched`
+pozostawał aktualny także przed pierwszym zdarzeniem workera.
+Numer protokołu łącza pozostaje bez zmian: nowe pola są addytywne, oba końce muszą reklamować
+capability, a starszy dom lub partner nadal używa dotychczasowych snapshotów.
 
 ### Odczyt i dostępność
 
 Online `GetThread` odpowiada z lokalnego lustra, jeśli ma wątek. `WatchThread` najpierw emituje
 ten sam snapshot z addytywnym `ThreadUpdate.syncing` (800), a następnie przechodzi na żywy
-strumień etapu 2. Bez kopii w lustrze oba odczyty korzystają z domu jak dotąd. Listy nadal
+strumień etapu 2, z przyrostowym pierwszym odczytem, gdy oba końce go obsługują.
+Bez kopii w lustrze oba odczyty korzystają z domu jak dotąd. Listy nadal
 korzystają z domu; lustro synchronizuje się niezależnie od otwartych kart.
 Web pokazuje ciche „Syncing…” w zarezerwowanym miejscu paska; na telefonie pod etykietą komputera.
 Identyczne itemy i tury zachowują
@@ -670,7 +708,10 @@ blokad przez dziennik. Test kolejności handshake wstrzymuje zapis statusu poł�
 wywołuje `ListThreads`: pierwszą odpowiedzią musi być `welcome`, zanim łącze udostępni zdalne
 wywołania lub subskrypcje luster. Test bezpieczeństwa tworzy rzeczywiste metadane sekretu w domu
 i sprawdza ich brak w zapisanej binarnej projekcji partnera.
-Nie dodaje testów UI. `schema.test.ts` obejmuje migrację 0049.
+`thread-mirror-deltas.test.ts` sprawdza na 3000 itemów ograniczony transfer przy otwarciu
+i publikacji, edycje/usunięcia, nieaktualną kopię, reconnect, przerwaną deltę, brak bazy,
+lukę, zmianę epoki i starsze końce łącza. Nie dodaje testów UI.
+`schema.test.ts` obejmuje migracje 0049 i 0088.
 
 ## Konkretny protokół etapu 4
 

@@ -64,6 +64,14 @@ Nagłówki i tokeny nigdy nie są wartościami JSON w `config_items` ani w histo
 trzyma przegrane sekrety wyłącznie jako lokalny ciphertext. Stan, ostatnie użycie, namespace i granty
 workerów/botów zostają w tabelach domeny danego komputera.
 
+Migracja `0088_thread_mirror_delta` rozszerza commit-ordered dziennik `computer_thread_changes`
+o rodzaj i klucz zmienionej projekcji. Itemy są wskazywane przez `item_id`, tury przez `id`,
+komunikaty przez `seq`; pozostałe wpisy unieważniają metadane. `history_reset` oznacza zmianę
+granicy odziedziczonej/przeniesionej historii. Kursor, retencja i owner scoping pozostają wspólne
+z pełnym lustrem. `computer_mirror_threads.thread_metadata` przechowuje mały nagłówek protobuf,
+żeby `GetThread` nie dekodował całej osi. Stare projekcje bez nagłówka korzystają ze snapshotu
+do pierwszego odświeżenia. Protokół przyrostów opisuje [linked-computers.md](linked-computers.md).
+
 Migracja `0051_linked_agents` dodaje atomowo zastępowane projekcje rozmów botów
 (`computer_mirror_bots`, `computer_bot_mirror_state`) oraz owner-scoped referencje
 `computer_agent_calls` i deduplikację pytań `computer_agent_events`. Referencje mają
