@@ -1066,6 +1066,9 @@ nazw.
 `computer_identity.lan_discovery` (domyślnie włączone) — przełącznik „Find linked computers on this
 network” w Settings → Linked computers (`ManageComputer` `lan_discovery`). Wyłączenie zamyka gniazdo:
 brak ogłoszeń, pytań i odpowiedzi, lokalne adresy LAN znikają z ogłaszanych, a trasy `lan` są usuwane.
+Zamknięcie wykrywania czeka również na rozpoczęte sprawdzenia certyfikatów i zapisy tras.
+Handshake zakończony po wyłączeniu wykrywania lub rozpoczęciu shutdownu nie dodaje trasy;
+po zakończeniu zamknięcia wcześniejsze pakiety nie mogą już zmienić bazy.
 `ComputersSnapshot` ma `lan_discovery_enabled`, `lan_discovery_state` (`active`, `off`, `unavailable`)
 i `lan_discovery_note`. „Unavailable”: zajęte/niedostępne gniazdo UDP 5353 lub diagnostyczne
 wyłączenie wykrywania runtime desktopu. Gateway serwerowy nigdy nie uruchamia wykrywania.

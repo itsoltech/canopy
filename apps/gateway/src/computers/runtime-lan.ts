@@ -67,7 +67,7 @@ export async function computersDiscovery(hostContext: LinkedComputers) {
 
         return port && host ? { port, host } : undefined;
       },
-      found: (nodeId, address) => void computersFound(hostContext, nodeId, address).catch(() => {}),
+      found: (nodeId, address) => computersFound(hostContext, nodeId, address),
     });
 
     hostContext[computersState].lan = lan;
@@ -163,6 +163,14 @@ export async function computersFound(hostContext: LinkedComputers, nodeId: strin
 
     return;
   }
+
+  // A pinned handshake may finish after discovery was disabled or this gateway started closing.
+  if (
+    hostContext[computersState].stopped ||
+    hostContext[computersState].paused ||
+    !hostContext[computersState].identity.lan_discovery
+  )
+    return;
 
   await hostContext[computersState].routes.add(nodeId, [address], "lan");
   await hostContext[computersState].routes.success(nodeId, address, performance.now() - started);
