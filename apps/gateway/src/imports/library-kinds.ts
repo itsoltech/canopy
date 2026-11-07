@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { ui, type ImportLibraryItem } from "@canopy/contracts";
 import { inspectImportUrl } from "@canopy/domain/import-url";
+import { importName } from "@canopy/domain/import-name";
 import { cliName, liveKey, type LibraryContext } from "./library.ts";
 
 /**
@@ -193,6 +194,7 @@ function connectorCandidate(
 ): ui.ImportLibraryCandidate {
   const common = {
     ...base([item]),
+    name: importName(item.name.normalize("NFC"), 80),
     detail: displayImportUrl(item.detail),
     transport: item.transport,
     slots: [...item.slots],

@@ -9,6 +9,7 @@ import {
   ENVIRONMENT_BEGIN,
   ENVIRONMENT_END,
   ENVIRONMENT_CONTENT_BYTES,
+  INSTRUCTION_DOCUMENT_NAME_LENGTH,
   environmentDigest,
 } from "@canopy/domain/agent-environment";
 
@@ -128,7 +129,8 @@ export function checkDocument(
 ): void {
   if (document.id && !uuid(document.id)) invalid("Invalid document ID.");
 
-  if (!document.name.trim() || document.name.length > 120) invalid("Name the document using up to 120 characters.");
+  if (!document.name.trim() || document.name.length > INSTRUCTION_DOCUMENT_NAME_LENGTH)
+    invalid("Name the document using up to 120 characters.");
 
   if (!harnesses.some((h) => h === document.harness)) invalid("Choose Claude or Codex.");
 

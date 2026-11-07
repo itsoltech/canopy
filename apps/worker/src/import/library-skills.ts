@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { SkillFileSchema, type SkillArtifact, type SkillFile } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
+import { importName } from "@canopy/domain/import-name";
 import {
   SKILL_FILE_BYTES,
   SKILL_FILE_COUNT,
@@ -121,14 +122,14 @@ function frontmatter(text: string): Frontmatter {
 
 /** A command file's skill name: its path in lowercase words joined by hyphens (`git/commit.md` → `git-commit`). */
 export function commandSkillName(rel: string): string {
-  return rel
+  const name = rel
     .replace(/^(?:commands|prompts)\//, "")
     .replace(/\.md$/i, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64)
-    .replace(/-+$/, "");
+    .replace(/^-+|-+$/g, "");
+
+  return importName(name, 64, { portable: true });
 }
 
 /**

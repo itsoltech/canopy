@@ -1,10 +1,12 @@
 import { clone, create, fromJson, toJson } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui } from "@canopy/contracts";
+import { INSTRUCTION_DOCUMENT_NAME_LENGTH } from "@canopy/domain/agent-environment";
+import { importName } from "@canopy/domain/import-name";
 import { Effect, Option, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { GatewayCore } from "../core/core.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
-import { MODE_LABELS, MODES, PROVIDERS } from "./library.ts";
+import { cliName, documentName, MODE_LABELS, MODES, PROVIDERS } from "./library.ts";
 import { documents } from "../agent-environment/database.ts";
 import { applyConnector, undoConnector, type Sql } from "./library-apply-connectors.ts";
 import { applyMarketplace, applySkill, undoMarketplace, undoSkill, type Applied } from "./library-apply-skills.ts";
@@ -147,7 +149,10 @@ export class LibraryApply {
     if (content === undefined) throw new Error("The worker did not return the file.");
     const environment = this.#core.environment;
     const snapshot = await environment.snapshot();
-    const existing = snapshot.documents.find((d) => d.name === row.label && d.harness === row.agent_cli);
+    // Failed imports from before names were bounded can still carry an oversized label on Resume.
+    const prefix = `${cliName(row.agent_cli)} ${row.name} (`;
+    const label = documentName({ agentCli: row.agent_cli, name: row.name }, row.label.slice(prefix.length, -1));
+    const existing = snapshot.documents.find((d) => d.name === label && d.harness === row.agent_cli);
     const fragment = create(ui.InstructionFragmentSchema, { id: crypto.randomUUID(), name: row.name, content });
     const owner = row.owner_user_id;
 
@@ -178,7 +183,7 @@ export class LibraryApply {
       return;
     }
 
-    const name = existing ? freeName(row.label, snapshot.documents) : row.label;
+    const name = snapshot.documents.some((d) => d.name === label) ? freeName(label, snapshot.documents) : label;
 
     const document = create(ui.InstructionDocumentSchema, {
       name,
@@ -194,7 +199,7 @@ export class LibraryApply {
       create(ui.SaveInstructionDocumentRequestSchema, { document, expectedRevision: snapshot.revision }),
       receipt((saved) => ({
         target: { documentId: saved.id, revision: String(saved.revision) },
-        detail: name === row.label ? "Added to Agent environment" : `Added to Agent environment as ${name}`,
+        detail: name === label ? "Added to Agent environment" : `Added to Agent environment as ${name}`,
       })),
     );
   }
@@ -229,5 +234,9 @@ export class LibraryApply {
 function freeName(name: string, documents: readonly ui.InstructionDocument[]): string {
   const taken = new Set(documents.map((d) => d.name));
 
-  for (let n = 2; ; n++) if (!taken.has(`${name} (${n})`)) return `${name} (${n})`;
+  for (let n = 2; ; n++) {
+    const candidate = importName(name.slice(0, -1), INSTRUCTION_DOCUMENT_NAME_LENGTH, { suffix: `) (${n})` });
+
+    if (!taken.has(candidate)) return candidate;
+  }
 }

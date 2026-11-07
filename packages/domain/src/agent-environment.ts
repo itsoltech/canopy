@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 export const ENVIRONMENT_BEGIN = "<!-- canopy:agent-environment:begin -->";
 export const ENVIRONMENT_END = "<!-- canopy:agent-environment:end -->";
 export const ENVIRONMENT_CONTENT_BYTES = 24 * 1024;
+export const INSTRUCTION_DOCUMENT_NAME_LENGTH = 120;
 export const ENVIRONMENT_FILE_BYTES = 256 * 1024;
 
 export const environmentDigest = (content: string): string => createHash("sha256").update(content).digest("hex");
