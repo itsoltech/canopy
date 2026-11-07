@@ -63,7 +63,9 @@ export function WorkFold({
   const label = starting
     ? "Starting"
     : summary.live
-      ? "Working for"
+      ? span === undefined
+        ? "Working"
+        : "Working for"
       : summary.spanMs === undefined
         ? "Work"
         : "Worked for";
@@ -81,7 +83,7 @@ export function WorkFold({
         <View style={{ flexDirection: "row", flexShrink: 1, minWidth: 0 }}>
           <LiveText
             containerStyle={{ flexShrink: 0, maxWidth: "100%" }}
-            style={[styles.body, { fontFamily: font.medium }]}
+            style={[styles.body, { fontFamily: font.medium, fontVariant: ["tabular-nums"] }]}
           >
             {title}
           </LiveText>
@@ -92,7 +94,7 @@ export function WorkFold({
           ) : null}
         </View>
       ) : (
-        <Text numberOfLines={1} style={[styles.body, { flexShrink: 1, color: c.faint }]}>
+        <Text numberOfLines={1} style={[styles.body, { flexShrink: 1, color: c.faint, fontVariant: ["tabular-nums"] }]}>
           <Text style={{ fontFamily: font.medium, color: c.muted }}>{title}</Text>
           {detail ? `  ${detail}` : null}
         </Text>

@@ -23,7 +23,7 @@ import { useOverview } from "../../state/overview";
 import { ThreadHeader } from "./ThreadHeader";
 import { ThreadTimeline } from "./ThreadTimeline";
 import { ConnectionBanner } from "../navigation/ConnectionStatus";
-import { SubagentStrip } from "./SubagentStrip";
+import { SubagentPanel, SubagentSummary } from "./SubagentPanel";
 import { useFollowingList } from "../../ui/useFollowingList";
 import { useMessageDraft } from "../composer/useMessageDraft";
 import { QueuedMessageMenu, QueueEditor } from "./QueuedMessage";
@@ -35,7 +35,6 @@ import { FloatingComposer } from "../composer/FloatingComposer";
 import { useFloatingComposer } from "../composer/useFloatingComposer";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { visibleTurns } from "./thread-turns";
-import { SubagentSheet } from "./SubagentSheet";
 
 /** The gateway refused the message and says why (not delivered: no retry note); otherwise delivery is unknown. */
 function deliveryError(failure: ConnectError) {
@@ -194,7 +193,7 @@ export function ThreadScreen({ id }: { id: string }) {
   const state = useThreadState(id);
   const composer = useThreadComposer(state);
 
-  const [sheet, setSheet] = useState<"goal" | "side" | "subagents" | null>(null);
+  const [sheet, setSheet] = useState<"goal" | "side" | null>(null);
   const { pop } = useMotion();
 
   const {
@@ -270,7 +269,7 @@ export function ThreadScreen({ id }: { id: string }) {
             {interactions.length > 1 && (
               <Text style={[styles.meta, { color: c.warning }]}>+{interactions.length - 1} pending</Text>
             )}
-            <SubagentStrip subagents={subagents} onFinished={() => setSheet("subagents")} />
+            <SubagentSummary threads={subagents} obscured={Boolean(state.message.trigger)} />
             <SkeletonScope loading={!thread}>
               <MessageComposer
                 compact={composer.compact}
@@ -294,7 +293,6 @@ export function ThreadScreen({ id }: { id: string }) {
         </DropZone>
       </KeyboardArea>
       <ThreadPanel snapshot={snapshot} visible={details} onClose={() => setDetails(false)} />
-      <SubagentSheet threads={subagents} visible={sheet === "subagents"} onClose={() => setSheet(null)} />
       <QueuedMessageMenu
         turn={state.home.away || state.queued?.editing ? undefined : state.queued?.turn}
         onClose={() => state.setQueued(undefined)}
@@ -318,6 +316,9 @@ export function ThreadScreen({ id }: { id: string }) {
 
 function ThreadSuggestions({ state }: { state: ThreadState }) {
   const { thread, message } = state;
+
+  // A typed trigger temporarily takes the same overlay slot; the remembered subagent choice stays intact.
+  if (!message.trigger) return <SubagentPanel threads={state.subagents} />;
 
   return (
     <MentionSuggestions

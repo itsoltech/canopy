@@ -1,23 +1,12 @@
 import type { ui } from "@canopy/contracts";
-import type { StatusLook } from "#lib/shared/ui/status.ts";
 import { isActiveSubagent, subagentState, type SubagentState } from "@canopy/domain/subagents";
 
-export { isActiveSubagent, subagentState, type SubagentState };
+export { isActiveSubagent, subagentLook, subagentState, type SubagentState } from "@canopy/domain/subagents";
 
 /**
  * The subagents of a thread (docs/agent-bus.md): side threads its agent started with spawn_thread, on any
  * provider, as the panel above the composer sums them up. From the live thread index, so it follows them.
  */
-const looks: Record<SubagentState, StatusLook> = {
-  working: { label: "Working", tone: "sky", active: true },
-  waiting: { label: "Waiting for an answer", tone: "amber", active: true },
-  completed: { label: "Completed", tone: "emerald" },
-  failed: { label: "Failed", tone: "rose" },
-  interrupted: { label: "Interrupted", tone: "orange" },
-};
-
-export const subagentLook = (state: SubagentState): StatusLook => looks[state];
-
 export interface Subagent {
   readonly thread: ui.Thread;
   readonly state: SubagentState;

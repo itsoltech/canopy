@@ -2,6 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { eventItemId, reduceItem } from "./items.ts";
 import { applyThreadDelta } from "./thread-mirror.ts";
+import { applyTurnEvent } from "./thread-turn-events.ts";
 
 const upsert = <T>(rows: T[], value: T, key: (row: T) => string) => [
   ...rows.filter((row) => key(row) !== key(value)),
@@ -56,6 +57,9 @@ function applyEvent(previous: ui.ThreadSnapshot, change: ui.ThreadEventUpdate): 
 
   if (!event || seq <= previous.lastSeq) return previous;
   const body = event.body;
+
+  if (body.case === "turnStarted" || body.case === "turnFinished")
+    return { ...previous, lastSeq: seq, turns: applyTurnEvent(previous.turns, event) };
 
   if (body.case === "notice")
     return {
