@@ -30,6 +30,10 @@ message ImportSnapshot {
   int64 modified_ms = 2;
   // sha256 pierwszych 64 KiB: wykrywa podmieniony plik o tej samej nazwie.
   string prefix_sha256 = 3;
+  // Grok: chat_history.jsonl w chwili skanu (rozmiar i sha256 pierwszych 64 KiB), gdy importowany jest log ACP;
+  // kopia do kontynuacji kończy się dokładnie tu.
+  uint64 history_size = 4;
+  string history_prefix_sha256 = 5;
 }
 
 // Metadane jednego wątku CLI, bez treści rozmowy (tytuł i podgląd po maskowaniu sekretów).

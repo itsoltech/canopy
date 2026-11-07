@@ -147,6 +147,32 @@ export const finishItem = (
     ),
   );
 
+/**
+ * At the end of the source: an item whose thread got no turns (a session without conversation) is done with a
+ * warning and its empty thread goes, in one transaction. `empty` is false when the thread has turns (the caller
+ * finishes it as usual) or the run was stopped meanwhile.
+ */
+export const finishEmpty = (sql: SqlClient.SqlClient, itemId: string, threadId: string) =>
+  importTransaction(sql, { items: [itemId], threads: [threadId] }, (locks) =>
+    Effect.gen(function* () {
+      yield* fenceItem(locks, itemId);
+      const turns = yield* sql`SELECT 1 FROM turns WHERE thread_id = ${threadId}::uuid LIMIT 1`;
+
+      if (turns.length > 0) return { empty: false, dropped: undefined };
+      yield* sql`
+        UPDATE import_items SET warnings = warnings || '["Nothing to import"]'::jsonb, status = 'done', error = NULL,
+               updated_at = now()
+         WHERE id = ${itemId}::uuid`;
+
+      return { empty: true, dropped: yield* dropEmpty(sql, itemId, threadId) };
+    }),
+  ).pipe(
+    Effect.catchIf(
+      (e) => e instanceof ImportStopped,
+      () => Effect.succeed({ empty: true, dropped: undefined }),
+    ),
+  );
+
 /** The session could not be adopted: the thread stays as history (it continues in a new thread), with the reason. */
 export const adoptionFailed = (sql: SqlClient.SqlClient, itemId: string, threadId: string, reason: string) =>
   importTransaction(sql, { items: [itemId], threads: [threadId] }, () =>

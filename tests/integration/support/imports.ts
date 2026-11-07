@@ -24,6 +24,8 @@ export async function importFixture(
     claude?: boolean;
     /** Run threads with the fake Codex app-server (fixtures/instance-codex.ts). */
     codex?: boolean;
+    /** Run threads with the fake Grok ACP agent (fixtures/instance-grok.ts). */
+    grok?: boolean;
   } = {},
 ) {
   const home = join(dir, "home");
@@ -35,8 +37,11 @@ export async function importFixture(
   // In place: the fixture imports its neighbours.
   const claude = fileURLToPath(new URL("../fixtures/instance-claude.ts", import.meta.url));
   const codex = fileURLToPath(new URL("../fixtures/instance-codex.ts", import.meta.url));
+  const grok = fileURLToPath(new URL("../fixtures/instance-grok.ts", import.meta.url));
 
-  if (options.claude || options.codex) process.env["INSTANCE_TRACE"] = trace;
+  if (options.claude || options.codex || options.grok) process.env["INSTANCE_TRACE"] = trace;
+
+  if (options.grok) writeFileSync(join(home, ".grok", "auth.json"), JSON.stringify({ token: "fixture" }));
 
   // The device login the Codex instance links (a fixture token, like the worktree fixture's).
   if (options.codex)
@@ -59,7 +64,7 @@ export async function importFixture(
         {
           codex: options.codex ? { enabled: true, executablePath: codex } : { enabled: false },
           claude: options.claude ? { enabled: true, executablePath: claude } : { enabled: false },
-          grok: { enabled: false },
+          grok: options.grok ? { enabled: true, executablePath: grok } : { enabled: false },
         },
         gw.userId,
       ),
@@ -72,6 +77,15 @@ export async function importFixture(
     dataDir: data,
     clientVersion: "test",
     deviceHomes: { claude: join(home, ".claude"), codex: join(home, ".codex"), grok: join(home, ".grok") },
+    // The fake Grok CLI has no login of its own to probe (like the instance fixture's probe).
+    ...(options.grok && {
+      probe: {
+        which: (name: string) => Bun.which(name),
+        version: () => "1.0.70",
+        realDirectory: (path: string) => path,
+        login: () => "fixture login",
+      },
+    }),
   });
 
   let link: GatewayLink | undefined;

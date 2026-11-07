@@ -7,7 +7,16 @@ import { historyBytes } from "./candidates.ts";
 import type { CliImports } from "./index.ts";
 import { directoryTargets, newItems, selected, type Scratch } from "./plan.ts";
 import type { ImportRunner } from "./runner.ts";
-import { createRun, items, knownSources, runs, toUiRun, type KnownSourceRow, type NewItem } from "./store.ts";
+import {
+  createRun,
+  items,
+  knownSources,
+  runs,
+  toUiRun,
+  storedSnapshot,
+  type KnownSourceRow,
+  type NewItem,
+} from "./store.ts";
 import { cancelRun, releaseDeleted, resumeRun, undoRun } from "./transitions.ts";
 
 /**
@@ -214,11 +223,7 @@ function appendItem(t: ImportThreadSummary, k: KnownSourceRow): NewItem {
     sourceKey: t.sourceKey,
     title: t.title || t.preview,
     cwd: t.cwd,
-    snapshot: {
-      size: String(t.snapshot?.size ?? 0n),
-      modifiedMs: String(t.snapshot?.modifiedMs ?? 0n),
-      prefixSha256: t.snapshot?.prefixSha256 ?? "",
-    },
+    snapshot: storedSnapshot(t.snapshot),
     target: k.target,
     bytes: t.bytes,
     continues: { itemId: k.id, threadId: k.thread_id ?? "", cursor: k.cursor, bytesDone: k.bytes_done },

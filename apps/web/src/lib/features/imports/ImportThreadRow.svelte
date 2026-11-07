@@ -19,7 +19,6 @@
     ["imported", "Imported"],
     ["has_new_turns", "Has new turns"],
     ["in_canopy", "Already in Canopy"],
-    ["unsupported", "Not supported yet"],
   ]);
 
   const title = $derived(candidate.title || candidate.preview || "Untitled thread");

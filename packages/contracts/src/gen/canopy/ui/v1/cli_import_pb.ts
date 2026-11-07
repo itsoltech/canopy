@@ -336,7 +336,7 @@ export type ImportCandidate = Message<"canopy.ui.v1.ImportCandidate"> & {
   cliVersion: string;
 
   /**
-   * new | imported | has_new_turns | in_canopy | unsupported (CLI, którego worker jeszcze nie importuje)
+   * new | imported | has_new_turns | in_canopy
    *
    * @generated from field: string status = 14;
    */

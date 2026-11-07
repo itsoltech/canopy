@@ -10,6 +10,7 @@ import { nextItem, runs, type ItemRow } from "./store.ts";
 import {
   adoptionFailed,
   failItem,
+  finishEmpty,
   finishItem,
   ImportStopped,
   resumePaused,
@@ -32,6 +33,8 @@ function snapshotOf(item: ItemRow) {
     size: BigInt(item.snapshot.size),
     modifiedMs: BigInt(item.snapshot.modifiedMs),
     prefixSha256: item.snapshot.prefixSha256,
+    historySize: BigInt(item.snapshot.historySize ?? "0"),
+    historyPrefixSha256: item.snapshot.historyPrefixSha256 ?? "",
   });
 }
 
@@ -180,6 +183,15 @@ export class ImportRunner {
       cursor = page.nextCursor;
 
       if (page.done) {
+        // Nothing to import (a session without conversation): no empty thread in the sidebar.
+        const empty = await this.#sql((sql) => finishEmpty(sql, item.id, threadId));
+
+        if (empty.empty) {
+          if (empty.dropped) await this.#core.threadsChanged([empty.dropped]);
+
+          return;
+        }
+
         const sessionId = item.target.mode === "native" ? await this.#adopt(item, threadId) : "";
 
         const finished = await this.#sql((sql) =>

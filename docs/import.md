@@ -9,8 +9,8 @@ Stos A (wątki) ma pięć etapów:
 1. wykrywanie i podgląd,
 2. silnik importu i historia Claude,
 3. kontynuacja wątków Claude,
-4. Codex (ten dokument opisuje stan po etapie 4),
-5. Grok.
+4. Codex,
+5. Grok (ten dokument opisuje stan po etapie 5, czyli cały stos A).
 
 Ustawienia, biblioteki (skille, pluginy, marketplace), instrukcje i serwery MCP to stos B; onboarding
 i aplikacja mobilna to stos C.
@@ -69,7 +69,6 @@ sprawdzony (`newer`) albo nieznany format importuje się najpierw jako historia.
 
 Wiersz wątku pokazuje stan: *Imported*, *Has new turns* (zaimportowany, bez tur w Canopy, a CLI dopisało
 nowe tury), *Already in Canopy* (wątek Canopy o tym samym id u dostawcy),
-*Not supported yet* (CLI, którego historii worker jeszcze nie czyta: do etapu 5 Grok),
 *History only* z powodem i *Secrets masked*. Zaznaczać można nowe wątki i te z nowymi turami; licznik i
 szacunek rozmiaru dotyczą tylko ich.
 
@@ -105,7 +104,7 @@ Przebieg kończy się jako `completed`, gdy coś się zaimportowało albo żadna
 ## Kontynuacja
 
 Tryb pozycji (`target.mode`, potem `thread_imports.mode`) wybiera plan: `native`, gdy proszono o kontynuację,
-CLI ją obsługuje (Claude, Codex), katalog istnieje, wątek zostaje w swoim katalogu, format jest sprawdzony
+katalog istnieje, wątek zostaje w swoim katalogu, format jest sprawdzony
 i nie jest to subagent; inaczej `history`.
 
 - **Native.** Po ostatniej stronie runner wysyła `AdoptImportedSession`. Worker kopiuje prefiks ze skanu
@@ -206,7 +205,8 @@ więc sekret z `\` albo `"` nie ucieka przez escape. Limity liczone na kodowaniu
 razem z kopertami zdarzeń. Kolejność jest stała: tekst jest najpierw maskowany w całości (JSON zdekodowany
 w całości), a dopiero potem skracany, w jednej funkcji (`maskedText`); czytniki nie skracają niczego same.
 Co więcej, każdy rekord źródła jest maskowany jako zdekodowane wartości zaraz po odczycie (`maskedRecord`), zanim
-czytnik zrobi z niego cokolwiek (diff z treści `Write`, podgląd komendy, listę zmian plików).
+czytnik zrobi z niego cokolwiek (diff z treści `Write`, podgląd komendy, patch Codexa, diff i wynik
+terminala Groka): dotyczy to czytników Claude, Codexa i Groka.
 Pole do 1 MB z dopiskiem „[… N KB shortened on import]”; metadane tury (model, `provider_turn_ref`) do 1 KiB,
 błąd do 4000 znaków; zdarzenie itemu do 1,5 MiB
 (pola maleją do 16 KiB, potem 1 KiB, a krok nadal za duży, np. z bardzo długą listą zmian, zostaje na swoim
@@ -321,6 +321,39 @@ mapowanie z testem na syntetycznym rolloucie; wynik jest deterministyczny i nie 
 Sprawdzone na prawdziwych rolloutach (bez zapisu i bez wypisywania treści): ten komputer 366 wątków, 1093 tury,
 165 632 itemy, 317 kompaktowań, 0 błędów; Mac Studio 30 wątków, 295 tur, 18 916 itemów, 0 błędów.
 
+## Grok
+
+`apps/worker/src/import/grok-history.ts`:
+
+- **Źródło.** `updates.jsonl` (log ACP sesji) przez mapper adaptera Groka (`GrokEventMapper`, ten sam co na
+  żywo), z pełnymi aktualizacjami narzędzi (wejście, wynik, diff, stan). Bez tego logu: `chat_history.jsonl`
+  (prompty z `prompt_index`, odpowiedzi, wywołania narzędzi z wynikiem z `tool_result`; zaszyfrowane
+  rozumowanie pomijane). Snapshot skanu dotyczy tego samego pliku.
+- **Tury.** `user_message_chunk` otwiera turę (prompt z kolejnych fragmentów, model z `_meta.modelId`);
+  `_x.ai/session/update turn_completed` kończy ją: `end_turn` → `completed`, `cancelled` → `interrupted`,
+  inne → `failed`. Sesje interaktywne nie logują promptów w `updates.jsonl`: treść przed promptem tworzy
+  turę bez promptu, a koniec wyznacza `turn_completed`. `provider_turn_ref` = id sesji (ACP Groka nie forkuje).
+- **Puste sesje.** Mała sesja bez żadnej treści rozmowy jest w skanie `empty`; import, który nie dał żadnej
+  tury, nie zostawia pustego wątku (ostrzeżenie „Nothing to import”).
+- **Natywnie.** Kopia trafia do trwałego katalogu sesji instancji
+  `<data_dir>/grok/<instancja>/sessions/<zakodowany cwd>/<id>/`, który każdy proces Groka podpina jako
+  `GROK_HOME/sessions`. Kopia to sesja dokładnie w chwili skanu: skan zapisuje snapshot logu ACP i osobno
+  snapshot `chat_history.jsonl` (rozmiar i sha256 pierwszych 64 KiB); kopia obu plików kończy się na tych
+  rozmiarach (pełne rekordy), więc ani prompt, ani dłuższa odpowiedź dopisana po skanie do niej nie trafia. Manifest
+  zapisuje oba snapshoty: kopia z innego skanu (choćby tylko dłuższa historia czatu) jest tworzona od nowa. Do
+  tego `summary.json`, `prompt_context.json`, `system_prompt.txt`, `tool_definitions.json`; wszystko zamaskowane
+  jak u Claude, zapis i manifest też. Pozostałe pliki (zdarzenia, punkty cofania, logi terminala, `*.lock`) zostają. Sesja
+  bez `chat_history.jsonl` albo bez jego snapshotu (skan starszego workera) kontynuuje w nowym wątku.
+  `provider_thread_id` = id sesji; pierwsza tura w Canopy
+  robi `session/load`. Każdy plik sesji czyta się w domu Groka bez dowiązań (także `chat_history.jsonl`).
+- **Has new turns** porównuje rozmiar pliku historii ze snapshotu, a nie sumę plików sesji.
+
+Odstępstwo od projektu: historia pochodzi z odczytu `updates.jsonl` przez mapper adaptera, a nie z odtworzenia
+`session/load` w pomocniczym procesie; wynik jest ten sam, bez uruchamiania CLI na danych użytkownika.
+
+Sprawdzone na prawdziwych sesjach (bez zapisu i bez wypisywania treści): Mac Studio 22 sesje, 6 tur,
+391 itemów, 0 błędów (pozostałe sesje bez treści rozmowy); na tym komputerze jedna sesja bez historii.
+
 ## Model danych
 
 Migracja `0093_cli_imports`:
@@ -404,6 +437,12 @@ Migracja `0093_cli_imports`:
   `\uXXXX`, pary surogatów, `\/`) w komendach i diffach, całe pole ukryte, gdy sekret jest tylko w widoku
   zdekodowanym, PEM bez końca, limit wartości, tytuły i podglądy trzech CLI maskowane przed łączeniem białych
   znaków, koszt liniowy (1 MiB znaczników bez końca i prefiksów tokenów przy 10 000 wartości).
+- **Klucz w częściach** (`apps/worker/src/import/split-secrets.test.ts`): wygenerowany klucz RSA podzielony
+  na nagłówek, treść pociętą w przypadkowych miejscach i stopkę, w kawałkach promptu, odpowiedzi i rozumowania
+  Groka, w częściach treści historii Groka, w częściach promptu i w osobnych wpisach jednej wiadomości Claude
+  (tekst i rozumowanie), w częściach wiadomości i rozumowania Codexa oraz w rekordzie kopii natywnej; nigdzie
+  w skanie ani w stronach nie ma 16 kolejnych znaków treści klucza. Także dane logowania jako klucz obiektu
+  i sekret za escape'em obok zamaskowanego pola.
 - **Środowisko testów integracyjnych** (`tests/integration/support/imports.ts`): fixture ma własny syntetyczny
   login każdego CLI (Claude `.credentials.json`, Codex i Grok `auth.json`) i nie zależy od loginu ani kluczy API
   maszyny. Po każdym teście `restore()` przywraca worker online i zwykły rozmiar strony, także gdy test padł.
@@ -445,7 +484,16 @@ Migracja `0093_cli_imports`:
   w Canopy.
 - **Live** (`apps/worker/src/import/resume.live.test.ts`, `CANOPY_LIVE=1` z CLIProxyAPI): sesja zrobiona
   prawdziwym CLI poza Canopy zapamiętuje słowo, import kopiuje ją do prywatnego domu, wznowiona tura
-  z prawdziwym modelem je podaje; pliki użytkownika nietknięte. Claude Code i Codex.
+  z prawdziwym modelem je podaje; pliki użytkownika nietknięte. Claude Code, Codex i Grok.
+- **Adapter Grok** (`apps/worker/src/import/grok-history.test.ts`): tury, polecenie terminala z wynikiem,
+  rozumowanie i te same id przy podziale; sesja interaktywna bez promptów (koniec po `turn_completed`,
+  anulowana tura, niepoprawna linia); sesja tylko z `chat_history.jsonl`.
+- **Wznowienie z prawdziwym Grokiem** (`apps/worker/src/import/grok-resume.test.ts`, bez loginu): kopia
+  w katalogu sesji instancji, `session/load` przez ACP z atrapą modelu; żądanie zawiera oba wcześniejsze
+  prompty i odpowiedź.
+- **Integracja Grok** (`tests/integration/import-grok.test.ts`, atrapa ACP `fixtures/instance-grok.ts`, która
+  ładuje też prawdziwy układ katalogów sesji): historia z poleceniem i wynikiem, nietknięte sesje; import
+  natywny z kopią i `session/load` przy turze w Canopy.
 - **Wydajność** (`apps/worker/src/import/performance.test.ts`): wygenerowana sesja Claude
   (`CANOPY_IMPORT_PERF_MB`, domyślnie 160 MB, głównie cache żądań): skan poniżej 2 s, kilka stron, przyrost
   pamięci poniżej 400 MB. Lokalnie: 160 MB w 2,5 s, +68 MB (maskowanie z widokami zdekodowanymi i sprawdzaniem złączonych pól).

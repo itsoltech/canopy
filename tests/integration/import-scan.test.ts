@@ -53,11 +53,8 @@ describe.skipIf(!dockerAvailable)("CLI import: discovery and preview", () => {
     expect(all.groups.map((g) => g.directory).sort()).toEqual([join(f.home, "other"), join(f.home, "project")]);
     expect(all.groups.every((g) => g.suggestion?.kind === "create_project")).toBe(true);
     expect(all.candidates.every((c) => c.continueMode === "native")).toBe(true);
-    // Stage 5 reads Grok history too; until then Grok threads cannot be chosen.
-    expect(all.candidates.map((c) => [c.agentCli, c.status]).sort()).toEqual(
-      all.candidates.map((c) => [c.agentCli, c.agentCli === "grok" ? "unsupported" : "new"]).sort(),
-    );
-    expect(all.importable).toBe(5);
+    expect(all.candidates.every((c) => c.status === "new")).toBe(true);
+    expect(all.importable).toBe(6);
     const planted = all.candidates.find((c) => c.flaggedSecrets > 0)!;
     expect(planted.preview).toContain("[redacted]");
     expect(toJsonString(ui.ListImportCandidatesResponseSchema, all)).not.toContain(CANARY);
