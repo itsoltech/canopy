@@ -5,10 +5,11 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { createHash } from "node:crypto";
-import { Client, utils } from "ssh2";
+import { Client } from "ssh2";
 import { decryptSecret, encryptSecret, loadSecretsKey, SECRETS_KEY_ID } from "../store/secrets.ts";
 import type { CoreRuntime } from "./core.ts";
 import type { WorkerAdministration } from "./worker-administration.ts";
+import { ed25519KeyPair } from "./ssh-keys.ts";
 import { installWorker, type SshInstallation } from "./worker-ssh-install.ts";
 import type { GatewayUpdates } from "../updates/runtime.ts";
 
@@ -66,7 +67,7 @@ export class WorkerSsh {
               yield* sql<KeyRow>`SELECT public_key, private_key FROM worker_ssh_keys WHERE owner_user_id = ${userId}::uuid`;
 
             if (existing[0] && !rotate) return existing[0];
-            const pair = utils.generateKeyPairSync("ed25519", { comment: "canopy-worker-install" });
+            const pair = ed25519KeyPair("canopy-worker-install");
             const encrypted = encryptSecret(master, pair.private);
             yield* sql`INSERT INTO worker_ssh_keys (owner_user_id, public_key, private_key, key_id)
           VALUES (${userId}::uuid, ${pair.public}, ${encrypted}, ${SECRETS_KEY_ID})
