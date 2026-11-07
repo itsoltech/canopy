@@ -592,6 +592,33 @@ w czacie bota. Są też połączenia, archiwizacja i usuwanie bota. Lista botów
 Brak push i wysyłania offline. Cache obejmuje wątki, nie rozmowy botów. To pierwsza iteracja zgodności z web,
 nie pełna równoważność wszystkich jego funkcji.
 
+### Wklejanie i upuszczanie
+
+Wklejanie plików (`features/attachments/FileIntake.tsx`, lokalny moduł Expo
+`modules/canopy-file-intake`) idzie tą samą drogą co wybór: `UploadAttachment` z limitami gatewaya.
+Menu spinacza pokazuje „Paste image”, gdy schowek ma obraz. `expo-clipboard` `hasImageAsync`
+sprawdza tylko typ zawartości, bez odczytu, więc iOS nie pyta o zgodę. Obraz czyta dopiero wybór
+„Paste image” (`getImageAsync`, PNG); iOS może wtedy pokazać systemowe pytanie o wklejenie.
+Aplikacja nigdy nie czyta schowka bez akcji użytkownika.
+
+`CanopyPasteView` otacza kompozytor i podpina się do pola tekstowego w środku.
+- **Android:** `ViewCompat.setOnReceiveContentListener` na `ReactEditText` (`AppCompatEditText`).
+  Systemowe Paste (React Native zamienia je na „paste as plain text”), obrazek z klawiatury
+  (commitContent, np. pasek schowka Gboard) i upuszczenie na pole dają elementy z URI. Moduł kopiuje
+  je do `cacheDir/canopy-intake`, a tekst wkleja się jak dotąd. Uprawnieniem klawiatury do URI
+  zarządza system. Moduł utrzymuje silną referencję do odebranej zawartości do końca asynchronicznego
+  kopiowania, aby system nie zwolnił dostępu do URI przed odczytem.
+- **iOS:** `RCTUITextView`/`RCTUITextField` wklejają tylko tekst, więc moduł podmienia
+  `canPerformAction:withSender:` i `paste:` na ich klasach. Zmiana działa tylko dla pól
+  zarejestrowanych przez `CanopyPasteView`. Gdy schowek ma pliki lub obrazy (sprawdzane po typach,
+  bez odczytu), menu pola pokazuje Paste. Wklejenie bez tekstu czyta `itemProviders` i kopiuje pliki
+  do `tmp/canopy-intake`. To systemowe Paste użytkownika, więc iOS nie pyta o zgodę. Wklejenie
+  z tekstem (np. tekst z obrazem z Safari) zostaje zwykłym wklejeniem tekstu.
+
+Plik większy niż `maxFileBytes` z GetSettings nie jest kopiowany: chip mówi, dlaczego nie został
+dodany. Kopia jest usuwana po odczycie do wysłania, a folder czyści się przy starcie modułu. Klient
+dev zbudowany bez modułu działa dalej, tylko bez natywnego wklejania (`requireOptionalNativeModule`).
+
 ## Ruch
 
 Przejścia stanu UI idą przez warstwę `src/ui/motion.ts` (tokeny, presety, `useReducedMotion`,

@@ -13,6 +13,7 @@ import { useEffortLabel } from "../settings/display";
 import { EffortPickerSheet, ModelPickerSheet } from "../models/ModelPicker";
 import { permissionLabel, permissionLook, PermissionPickerSheet } from "./permissions";
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
+import { PasteTarget } from "../attachments/FileIntake";
 import type { MessageDraft } from "../composer/useMessageDraft";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { Skeleton } from "../../ui/Skeleton";
@@ -89,47 +90,49 @@ export function MessageComposer({
         trigger={message.trigger}
         onPick={(option) => message.pickMention(option.mention)}
       />
-      <ComposerBox
-        compact={compact}
-        onExpand={onExpand}
-        text={message.value.text}
-        onChange={message.setText}
-        badges={message.badges}
-        triggers
-        onSend={() =>
-          send(
-            thread?.status === "running"
-              ? user?.composer?.runningDelivery || ui.MessageDelivery.STEER
-              : ui.MessageDelivery.QUEUE,
-          )
-        }
-        onQueue={() => send(ui.MessageDelivery.QUEUE)}
-        onStop={stop}
-        running={thread?.status === "running"}
-        disabled={disabled || Boolean(message.files.blocker)}
-        busy={busy}
-        files={message.files.ids.length}
-        top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
-        controls={
-          <>
-            <AttachButton draft={message.files} disabled={disabled || busy} />
-            {thread?.goalStatus ? <ComposerPill icon="flag" title="Goal" onPress={onGoal} /> : null}
-            {thread ? (
-              <ComposerPill
-                icon="cpu-chip"
-                leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}
-                title={current?.name || thread.model || "Model"}
-                onPress={() => setPicker("model")}
-              />
-            ) : (
-              <Skeleton style={{ width: 110, height: 24 }} />
-            )}
-            {current?.efforts.length ? (
-              <ComposerPill icon="light-bulb" title={effortLabel(effort)} onPress={() => setPicker("effort")} />
-            ) : null}
-          </>
-        }
-      />
+      <PasteTarget draft={message.files}>
+        <ComposerBox
+          compact={compact}
+          onExpand={onExpand}
+          text={message.value.text}
+          onChange={message.setText}
+          badges={message.badges}
+          triggers
+          onSend={() =>
+            send(
+              thread?.status === "running"
+                ? user?.composer?.runningDelivery || ui.MessageDelivery.STEER
+                : ui.MessageDelivery.QUEUE,
+            )
+          }
+          onQueue={() => send(ui.MessageDelivery.QUEUE)}
+          onStop={stop}
+          running={thread?.status === "running"}
+          disabled={disabled || Boolean(message.files.blocker)}
+          busy={busy}
+          files={message.files.ids.length}
+          top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
+          controls={
+            <>
+              <AttachButton draft={message.files} disabled={disabled || busy} />
+              {thread?.goalStatus ? <ComposerPill icon="flag" title="Goal" onPress={onGoal} /> : null}
+              {thread ? (
+                <ComposerPill
+                  icon="cpu-chip"
+                  leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}
+                  title={current?.name || thread.model || "Model"}
+                  onPress={() => setPicker("model")}
+                />
+              ) : (
+                <Skeleton style={{ width: 110, height: 24 }} />
+              )}
+              {current?.efforts.length ? (
+                <ComposerPill icon="light-bulb" title={effortLabel(effort)} onPress={() => setPicker("effort")} />
+              ) : null}
+            </>
+          }
+        />
+      </PasteTarget>
       {/* The worker and permission row folds with the toolbar, and gives way while writing. */}
       <ComposerFold open={!compact && !focused}>
         <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6 }]}>
