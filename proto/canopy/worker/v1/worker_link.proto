@@ -402,6 +402,8 @@ message Command {
     // Import z CLI agentów (cli_import.proto, docs/import.md). Nietrwałe: nigdy z outboxa.
     ScanImportSources scan_import_sources = 850;
     ReadImportPage read_import_page = 851;
+    AdoptImportedSession adopt_imported_session = 852;
+    RemoveImportedCopy remove_imported_copy = 853;
   }
 }
 
@@ -647,6 +649,8 @@ message CommandResult {
   ImportScan import_scan = 850;
   // Wynik ReadImportPage.
   ImportPage import_page = 851;
+  // Wynik AdoptImportedSession: sesja do wznowienia w prywatnym domu instancji.
+  string imported_session_id = 852;
 }
 
 message GetProviderAccounts {
@@ -1743,4 +1747,22 @@ message ImportPage {
   uint64 bytes_read = 6;
   // Tytuł z CLI, gdy go znaleziono (po maskowaniu).
   string title = 7;
+}
+
+// Kopia sesji CLI (prefiks ze skanu) w prywatnym domu instancji, z której wątek Canopy wznawia pracę.
+// Pliki użytkownika zostają nietknięte; ta sama kopia przy powtórzeniu nie jest zapisywana drugi raz.
+message AdoptImportedSession {
+  string source_key = 1;
+  ImportSnapshot snapshot = 2;
+  // Instancja dostawcy (pusty = native); jej dom dostaje kopię.
+  string profile_id = 3;
+  // Nowe tury dopisane w CLI po wcześniejszym imporcie: kopia może zostać zastąpiona dłuższą.
+  bool replace = 4;
+}
+
+// Usuwa kopię sesji z prywatnego domu instancji (Undo importu).
+message RemoveImportedCopy {
+  string agent_cli = 1;
+  string profile_id = 2;
+  string session_id = 3;
 }

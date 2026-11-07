@@ -1,8 +1,11 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
+import type { JsonValue } from "@bufbuild/protobuf";
 import { Effect, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
+import { InvalidError } from "../core/core-context.ts";
+import { appendBase } from "./append.ts";
 import { importTransaction } from "./locks.ts";
 
 /**
@@ -43,6 +46,8 @@ export interface ItemRow {
   readonly attempts: number;
   readonly error: string | null;
   readonly warnings: readonly string[];
+  /** Set for an append to an earlier import's thread (append.ts). */
+  readonly base: JsonValue | null;
 }
 
 export interface RunRow {
@@ -75,6 +80,13 @@ export interface NewItem {
   readonly snapshot: { size: string; modifiedMs: string; prefixSha256: string };
   readonly target: ImportTargetJson;
   readonly bytes: bigint;
+  /** Turns the CLI added after an earlier import: this item continues that item's thread from its cursor. */
+  readonly continues?: {
+    readonly itemId: string;
+    readonly threadId: string;
+    readonly cursor: string;
+    readonly bytesDone: string;
+  };
 }
 
 export const createRun = (
@@ -88,18 +100,40 @@ export const createRun = (
     items: readonly NewItem[];
   },
 ) =>
-  importTransaction(sql, {}, () =>
+  // Appends lock the threads they continue and those threads' items (the one they supersede, too).
+  importTransaction(sql, { threads: run.items.flatMap((i) => (i.continues ? [i.continues.threadId] : [])) }, () =>
     Effect.gen(function* () {
       yield* sql`INSERT INTO import_runs (id, owner_user_id, worker_id, status, mode, already_imported)
                  VALUES (${run.id}::uuid, ${run.ownerId}::uuid, ${run.workerId}::uuid, 'running', ${run.mode}, ${run.alreadyImported})`;
 
       for (const [position, item] of run.items.entries()) {
+        const continues = item.continues;
+
+        if (continues) {
+          // With the thread locked, a message sent meanwhile either landed first (the append is refused) or waits.
+          const own = yield* sql<{ own: boolean }>`
+            SELECT EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.trigger <> 'import') AS own
+              FROM threads t WHERE t.id = ${continues.threadId}::uuid`;
+
+          const superseded = yield* sql`
+            UPDATE import_items SET status = 'superseded', updated_at = now()
+             WHERE id = ${continues.itemId}::uuid AND status = 'done' RETURNING id`;
+
+          if (own[0]?.own !== false || superseded.length === 0)
+            return yield* Effect.fail(new InvalidError("Some of these threads continued in Canopy. Scan again."));
+        }
+
+        const base = continues ? yield* appendBase(sql, continues.threadId) : null;
+
         yield* sql`
           INSERT INTO import_items (id, run_id, owner_user_id, worker_id, position, agent_cli, root_id, native_id, source_key,
-                                    title, cwd, snapshot, target, status, bytes_total)
+                                    title, cwd, snapshot, target, status, bytes_total, thread_id, cursor, bytes_done, base)
           VALUES (${Bun.randomUUIDv7()}::uuid, ${run.id}::uuid, ${run.ownerId}::uuid, ${run.workerId}::uuid, ${position},
                   ${item.agentCli}, ${item.rootId}, ${item.nativeId}, ${item.sourceKey}, ${item.title}, ${item.cwd},
-                  ${JSON.stringify(item.snapshot)}::jsonb, ${JSON.stringify(item.target)}::jsonb, 'pending', ${item.bytes})`;
+                  ${JSON.stringify(item.snapshot)}::jsonb, ${JSON.stringify(item.target)}::jsonb,
+                  ${continues ? "importing" : "pending"}, ${item.bytes}, ${continues?.threadId ?? null}::uuid,
+                  ${continues?.cursor ?? ""}, ${continues?.bytesDone ?? "0"},
+                  ${base === null ? null : JSON.stringify(base)}::jsonb)`;
       }
     }),
   );
@@ -133,16 +167,25 @@ export const setRunStatus = (sql: SqlClient.SqlClient, runId: string, status: st
        WHERE id = ${runId}::uuid`;
 
 /** Live imports of this owner on a worker, by `${agent_cli}:${native_id}` (a deleted thread frees its source). */
+export interface KnownSourceRow {
+  readonly id: string;
+  readonly agent_cli: string;
+  readonly native_id: string;
+  readonly root_id: string;
+  readonly thread_id: string | null;
+  readonly status: string;
+  readonly bytes_done: string;
+  readonly cursor: string;
+  readonly target: ImportTargetJson;
+  /** The thread took turns in Canopy: its copy and the CLI's file went separate ways. */
+  readonly own_turns: boolean;
+}
+
 export const knownSources = (sql: SqlClient.SqlClient, ownerId: string, workerId: string) =>
-  sql<{
-    agent_cli: string;
-    native_id: string;
-    root_id: string;
-    thread_id: string | null;
-    status: string;
-    bytes_done: string;
-  }>`
-    SELECT i.agent_cli, i.native_id, i.root_id, i.thread_id, i.status, i.bytes_done FROM import_items i
+  sql<KnownSourceRow>`
+    SELECT i.id, i.agent_cli, i.native_id, i.root_id, i.thread_id, i.status, i.bytes_done, i.cursor, i.target,
+           EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = i.thread_id AND u.trigger <> 'import') AS own_turns
+      FROM import_items i
       LEFT JOIN threads t ON t.id = i.thread_id
      WHERE i.owner_user_id = ${ownerId}::uuid AND i.worker_id = ${workerId}::uuid
        AND i.status IN ('pending', 'importing', 'done', 'failed') AND (t.id IS NULL OR t.deleted_at IS NULL)`;

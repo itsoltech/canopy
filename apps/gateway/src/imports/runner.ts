@@ -7,7 +7,15 @@ import { coreState, describeError, UnavailableError } from "../core/core-context
 import { coreWorkerQuery } from "../core/core-mentions.ts";
 import { ensureThread, ingestPage } from "./ingest.ts";
 import { nextItem, runs, type ItemRow } from "./store.ts";
-import { failItem, finishItem, ImportStopped, resumePaused, runnerRunStatus } from "./transitions.ts";
+import {
+  adoptionFailed,
+  failItem,
+  finishItem,
+  ImportStopped,
+  resumePaused,
+  runnerRunStatus,
+  threadToHistory,
+} from "./transitions.ts";
 
 /**
  * Drives import runs (docs/import.md, "Przebieg"): one thread at a time per run, one page at a time per thread,
@@ -18,6 +26,14 @@ import { failItem, finishItem, ImportStopped, resumePaused, runnerRunStatus } fr
 const PAGE_BYTES = 4 * 1024 ** 2;
 const PAGE_TIMEOUT_MS = 120_000;
 const CHECK_MS = 10_000;
+
+function snapshotOf(item: ItemRow) {
+  return create(ImportSnapshotSchema, {
+    size: BigInt(item.snapshot.size),
+    modifiedMs: BigInt(item.snapshot.modifiedMs),
+    prefixSha256: item.snapshot.prefixSha256,
+  });
+}
 
 export class ImportRunner {
   readonly #core: GatewayCore;
@@ -148,11 +164,7 @@ export class ImportRunner {
           case: "readImportPage",
           value: {
             sourceKey: item.source_key,
-            snapshot: create(ImportSnapshotSchema, {
-              size: BigInt(item.snapshot.size),
-              modifiedMs: BigInt(item.snapshot.modifiedMs),
-              prefixSha256: item.snapshot.prefixSha256,
-            }),
+            snapshot: snapshotOf(item),
             cursor,
             threadId,
             maxBytes: this.pageBytes,
@@ -168,11 +180,53 @@ export class ImportRunner {
       cursor = page.nextCursor;
 
       if (page.done) {
-        await this.#sql((sql) => finishItem(sql, item.id));
+        const sessionId = item.target.mode === "native" ? await this.#adopt(item, threadId) : "";
+
+        const finished = await this.#sql((sql) =>
+          finishItem(sql, item.id, sessionId ? { threadId, sessionId } : undefined),
+        );
+
+        // Stopped while its copy grew: the copy is ahead of the timeline the cancellation put back.
+        if (!finished && sessionId && item.base !== null)
+          await this.#sql((sql) =>
+            threadToHistory(sql, threadId, "Continues in a new thread: its CLI copy has turns that were removed."),
+          );
         await this.#core.threadsChanged([threadId]);
 
         return;
       }
+    }
+  }
+
+  /**
+   * Native continue (docs/import.md, "Kontynuacja"): the worker copies the session into the instance's private home
+   * and the thread resumes it. When that is not possible the thread stays as history, with the reason (it continues
+   * in a new thread). The thread takes turns only once the item is done (finishItem sets its session atomically).
+   */
+  async #adopt(item: ItemRow, threadId: string): Promise<string> {
+    try {
+      const result = await coreWorkerQuery(
+        this.#core,
+        item.worker_id,
+        {
+          case: "adoptImportedSession",
+          value: {
+            sourceKey: item.source_key,
+            snapshot: snapshotOf(item),
+            profileId: "",
+            replace: item.status === "importing" && item.bytes_done !== "0",
+          },
+        },
+        PAGE_TIMEOUT_MS,
+      );
+
+      return result.importedSessionId;
+    } catch (cause) {
+      if (cause instanceof UnavailableError) throw cause;
+      const reason = `Continues in a new thread: ${describeError(cause)}`;
+      await this.#sql((sql) => adoptionFailed(sql, item.id, threadId, reason));
+
+      return "";
     }
   }
 }

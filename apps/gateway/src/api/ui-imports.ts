@@ -1,4 +1,5 @@
 import { type GatewayCore } from "../core/core.ts";
+import { continueImportedThread } from "../imports/handoff.ts";
 import { guard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 
@@ -15,6 +16,7 @@ export function importsHandlers(
   | "cancelImportRun"
   | "resumeImportRun"
   | "undoImportRun"
+  | "continueImportedThread"
 > {
   const runs = core.imports.runs;
 
@@ -27,5 +29,6 @@ export function importsHandlers(
     cancelImportRun: (request) => guard(() => runs.cancel(request)),
     resumeImportRun: (request) => guard(() => runs.resume(request)),
     undoImportRun: (request) => guard(() => runs.undo(request)),
+    continueImportedThread: (request) => guard(() => continueImportedThread(core.imports, request.threadId)),
   };
 }

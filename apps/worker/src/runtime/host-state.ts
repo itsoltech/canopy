@@ -1,3 +1,4 @@
+import { providersOf } from "../providers/profiles.ts";
 import { ThreadSecretFiles } from "./thread-secrets.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -9,7 +10,7 @@ import {
   type InteractionResponse,
   type WorkerConfig,
 } from "@canopy/contracts";
-import type { AppliedConfig } from "../config/remote.ts";
+import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 import { deviceClaudeHome } from "../providers/claude/home.ts";
 import { ClaudeThreads } from "../providers/claude/threads.ts";
@@ -89,6 +90,25 @@ export class HostState {
   readonly catalogs = new CatalogCache();
   /** The isolated Claude config dir per instance (skills and commands). */
   readonly claudeHomes = new Map<string, string>();
+
+  /** The private Claude home of an instance ("" = native), also before its runtime started (docs/import.md). */
+  claudeHome(profileId: string): string {
+    const id = profileId || "native";
+    const known = this.claudeHomes.get(id);
+
+    if (known) return known;
+
+    return (
+      instanceShadowHome(this.options.dataDir, "claude", id, this.#runtimeOf(id, "claude")) ??
+      join(this.options.dataDir, "claude-home")
+    );
+  }
+
+  /** The instance's runtime settings for this harness (an id may name instances of other harnesses, too). */
+  #runtimeOf(id: string, harness: "claude" | "codex" | "grok") {
+    return this.config?.profiles.find((p) => p.config.id === id && providersOf(p.config).includes(harness))?.config
+      .runtime;
+  }
   readonly files: AttachmentFiles;
   readonly previews: PreviewStore;
   /** CLI import (docs/import.md): scans and reads the device's CLI homes on the owner's request. */

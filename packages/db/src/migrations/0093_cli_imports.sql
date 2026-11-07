@@ -45,7 +45,8 @@ CREATE TABLE import_items (
   snapshot      jsonb NOT NULL,
   -- Project, workspace and directory of the thread; mode native | history.
   target        jsonb NOT NULL,
-  status        text NOT NULL CHECK (status IN ('pending', 'importing', 'done', 'failed', 'cancelled', 'undone')),
+  -- superseded: a later run continues the same thread with turns the CLI added since.
+  status        text NOT NULL CHECK (status IN ('pending', 'importing', 'done', 'failed', 'cancelled', 'undone', 'superseded')),
   cursor        text NOT NULL DEFAULT '',
   thread_id     uuid REFERENCES threads (id),
   turns         integer NOT NULL DEFAULT 0,
@@ -54,6 +55,9 @@ CREATE TABLE import_items (
   attempts      integer NOT NULL DEFAULT 0,
   error         text,
   warnings      jsonb NOT NULL DEFAULT '[]',
+  -- An append to a thread an earlier import made: where that thread stood (its last event and last turn's end),
+  -- so cancelling or undoing the append restores it. NULL for a new thread.
+  base          jsonb,
   updated_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (run_id, position)
 );
@@ -74,3 +78,21 @@ CREATE TABLE thread_imports (
   source_cli_version text NOT NULL DEFAULT '',
   imported_at   timestamptz NOT NULL DEFAULT now()
 );
+
+-- An imported thread takes turns of its own only when its import is done and it continues natively from its adopted
+-- session: history threads, threads whose import is still writing (or adopting their session), and native threads
+-- without a session (an import that failed) refuse every other turn, from any path (messages, schedules, agents).
+CREATE FUNCTION import_turn_gate() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.trigger <> 'import' AND EXISTS (SELECT 1 FROM thread_imports ti WHERE ti.thread_id = NEW.thread_id) AND (
+       EXISTS (SELECT 1 FROM thread_imports ti WHERE ti.thread_id = NEW.thread_id AND ti.mode = 'history')
+       OR EXISTS (SELECT 1 FROM import_items i WHERE i.thread_id = NEW.thread_id AND i.status IN ('pending', 'importing'))
+       -- A native thread continues only its adopted CLI session; without one a turn would start a new conversation.
+       OR EXISTS (SELECT 1 FROM threads t WHERE t.id = NEW.thread_id AND t.provider_thread_id IS NULL)) THEN
+    RAISE EXCEPTION 'this imported thread takes no turns now' USING ERRCODE = 'check_violation', CONSTRAINT = 'import_turn_gate';
+  END IF;
+
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER turns_import_gate BEFORE INSERT ON turns FOR EACH ROW EXECUTE FUNCTION import_turn_gate();

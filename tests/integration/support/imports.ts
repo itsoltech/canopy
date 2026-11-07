@@ -1,4 +1,5 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { GatewayStore } from "@canopy/gateway/store";
@@ -16,20 +17,43 @@ import { eventually, startTestGateway, watchUntil, type TestGateway } from "./ga
  */
 export async function importFixture(
   dir: string,
-  options: { clis?: readonly FixtureCli[]; gateway?: TestGateway } = {},
+  options: {
+    clis?: readonly FixtureCli[];
+    gateway?: TestGateway;
+    /** Run threads with the fake Claude Code executable (fixtures/instance-claude.ts); its probes go to `trace`. */
+    claude?: boolean;
+  } = {},
 ) {
   const home = join(dir, "home");
   const data = join(dir, "data");
   mkdirSync(data, { recursive: true });
   installFixtureHome(home, options.clis);
   const gw = options.gateway ?? (await startTestGateway());
+  const trace = join(dir, "probe.jsonl");
+  // In place: the fixture imports its neighbours.
+  const claude = fileURLToPath(new URL("../fixtures/instance-claude.ts", import.meta.url));
+
+  if (options.claude) process.env["INSTANCE_TRACE"] = trace;
+
+  // Claude Code's login in the fixture's own home (shape only, a fixture token): the instance never depends on a
+  // login or an API key of the machine the tests run on.
+  if (options.claude)
+    writeFileSync(
+      join(home, ".claude", ".credentials.json"),
+      JSON.stringify({ claudeAiOauth: { accessToken: "fixture", refreshToken: "fixture", expiresAt: 4102444800000 } }),
+    );
+
   const worker = await gw.addWorker("Import laptop");
   const workerId = worker.workerId;
   await gw.runtime.runPromise(
     GatewayStore.use((s) =>
       s.setWorkerConfig(
         workerId,
-        { codex: { enabled: false }, claude: { enabled: false }, grok: { enabled: false } },
+        {
+          codex: { enabled: false },
+          claude: options.claude ? { enabled: true, executablePath: claude } : { enabled: false },
+          grok: { enabled: false },
+        },
         gw.userId,
       ),
     ),
@@ -82,6 +106,7 @@ export async function importFixture(
 
   return {
     snapshot,
+    trace,
     gw,
     home,
     data,

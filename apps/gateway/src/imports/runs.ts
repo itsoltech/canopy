@@ -1,10 +1,13 @@
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { ui, type ImportThreadSummary } from "@canopy/contracts";
 import { InvalidError, violates } from "../core/core-context.ts";
+import { coreWorkerQuery } from "../core/core-mentions.ts";
+import { ThreadContinued } from "./append.ts";
+import { historyBytes } from "./candidates.ts";
 import type { CliImports } from "./index.ts";
 import { directoryTargets, newItems, selected, type Scratch } from "./plan.ts";
 import type { ImportRunner } from "./runner.ts";
-import { createRun, items, knownSources, runs, toUiRun, type NewItem } from "./store.ts";
+import { createRun, items, knownSources, runs, toUiRun, type KnownSourceRow, type NewItem } from "./store.ts";
 import { cancelRun, releaseDeleted, resumeRun, undoRun } from "./transitions.ts";
 
 /**
@@ -31,15 +34,26 @@ export class ImportRuns {
     if (chosen.length === 0) throw new InvalidError("Choose at least one thread to import.");
     await this.#imports.sql((sql) => releaseDeleted(sql, ownerId, worker.id));
 
-    const known = new Set(
-      (await this.#imports.sql((sql) => knownSources(sql, ownerId, worker.id))).map(
-        (k) => `${k.root_id}:${k.agent_cli}:${k.native_id}`,
-      ),
+    const known = new Map(
+      (await this.#imports.sql((sql) => knownSources(sql, ownerId, worker.id))).map((k) => [
+        `${k.root_id}:${k.agent_cli}:${k.native_id}`,
+        k,
+      ]),
     );
 
-    const fresh = chosen.filter((t) => !known.has(`${t.rootId}:${t.agentCli}:${t.nativeId}`));
+    const keyOf = (t: ImportThreadSummary) => `${t.rootId}:${t.agentCli}:${t.nativeId}`;
+    const fresh = chosen.filter((t) => !known.has(keyOf(t)));
 
-    if (fresh.length === 0) throw new InvalidError("These threads are already imported.");
+    // Imported, untouched in Canopy, and the CLI added turns since: the same thread gets them.
+    const grown = chosen.flatMap((t) => {
+      const k = known.get(keyOf(t));
+
+      return k && k.status === "done" && k.thread_id && !k.own_turns && historyBytes(t) > BigInt(k.bytes_done)
+        ? [appendItem(t, k)]
+        : [];
+    });
+
+    if (fresh.length === 0 && grown.length === 0) throw new InvalidError("These threads are already imported.");
     const context = await this.#imports.context(stored);
     const directories = new Map(fresh.map((t) => [t.cwd, t.cwdExists]));
 
@@ -48,7 +62,7 @@ export class ImportRuns {
     );
 
     const mode = request.mode === "history" ? "history" : "continue";
-    const planned: NewItem[] = newItems(fresh, targets, mode);
+    const planned: NewItem[] = [...newItems(fresh, targets, mode), ...grown];
 
     if (planned.length === 0) throw new InvalidError("Every chosen directory is skipped. Choose a target for one.");
     const id = Bun.randomUUIDv7();
@@ -60,7 +74,7 @@ export class ImportRuns {
           ownerId,
           workerId: worker.id,
           mode,
-          alreadyImported: chosen.length - fresh.length,
+          alreadyImported: chosen.length - fresh.length - grown.length,
           items: planned,
         }),
       );
@@ -126,12 +140,51 @@ export class ImportRuns {
     if (run.status === "running" || run.status === "paused") run = await this.cancel(request);
     await this.#runner.drive(run.id);
 
-    // The run is undone in one transaction first (nothing can resume it after); then its threads go.
-    const undone = await this.#imports.sql((sql) => undoRun(sql, this.#ownerId(), run.id));
+    // The run is undone in one transaction first (nothing can resume it after): threads it appended to go back to
+    // what the earlier import left, or nothing changes when one went on after it. Then the threads it created go.
+    const undone = await this.#imports
+      .sql((sql) => undoRun(sql, this.#ownerId(), run.id))
+      .catch((cause: unknown) => {
+        throw cause instanceof ThreadContinued ? new InvalidError(cause.message) : cause;
+      });
+
+    if (undone.undone) await this.#removeCopies(run.id, run.workerId);
 
     for (const threadId of undone.created) await this.#imports.core.deleteThread(threadId);
 
+    if (undone.reverted.length > 0) await this.#imports.core.threadsChanged(undone.reverted);
+
     return this.get(request);
+  }
+
+  /**
+   * The private copies native threads resumed from; a thread that took turns in Canopy keeps its copy (restoring
+   * the deleted thread continues it). Best effort: an offline worker keeps them in its private home.
+   */
+  async #removeCopies(runId: string, workerId: string): Promise<void> {
+    const copies = await this.#imports.sql(
+      (sql) => sql<{ agent_cli: string; provider_thread_id: string; provider_profile_id: string | null }>`
+        SELECT ti.agent_cli, t.provider_thread_id, t.provider_profile_id FROM import_items i
+          JOIN thread_imports ti ON ti.thread_id = i.thread_id JOIN threads t ON t.id = i.thread_id
+         WHERE i.run_id = ${runId}::uuid AND i.base IS NULL AND t.provider_thread_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.trigger <> 'import')`,
+    );
+
+    for (const copy of copies) {
+      await coreWorkerQuery(
+        this.#imports.core,
+        workerId,
+        {
+          case: "removeImportedCopy",
+          value: {
+            agentCli: copy.agent_cli,
+            profileId: copy.provider_profile_id ?? "",
+            sessionId: copy.provider_thread_id,
+          },
+        },
+        30_000,
+      ).catch(() => undefined);
+    }
   }
 
   /** This worker's place for threads without a project (Hello.scratch_root). */
@@ -151,6 +204,25 @@ export class ImportRuns {
 
     return { projectId: place.project_id, workspaceId: place.id };
   }
+}
+
+function appendItem(t: ImportThreadSummary, k: KnownSourceRow): NewItem {
+  return {
+    agentCli: t.agentCli,
+    rootId: t.rootId,
+    nativeId: t.nativeId,
+    sourceKey: t.sourceKey,
+    title: t.title || t.preview,
+    cwd: t.cwd,
+    snapshot: {
+      size: String(t.snapshot?.size ?? 0n),
+      modifiedMs: String(t.snapshot?.modifiedMs ?? 0n),
+      prefixSha256: t.snapshot?.prefixSha256 ?? "",
+    },
+    target: k.target,
+    bytes: t.bytes,
+    continues: { itemId: k.id, threadId: k.thread_id ?? "", cursor: k.cursor, bytesDone: k.bytes_done },
+  };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

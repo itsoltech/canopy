@@ -1,5 +1,6 @@
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { ImportScanSchema, type ImportRootSchema, type ImportScan } from "@canopy/contracts";
 import type { AppliedConfig } from "../config/remote.ts";
@@ -49,6 +50,11 @@ export class WorkerImport {
     this.#key = options.key;
     this.#homes = options.homes;
     this.#config = options.config;
+  }
+
+  /** Manifest of a native copy: what an import wrote into a private home (docs/import.md, "Kontynuacja"). */
+  copyManifest(agentCli: string, profileId: string, sessionId: string): string {
+    return join(this.#dataDir, "import", "copies", `${agentCli}-${profileId || "native"}-${sessionId}.json`);
   }
 
   get key(): Buffer {

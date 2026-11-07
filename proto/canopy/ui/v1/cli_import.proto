@@ -194,3 +194,8 @@ message GetImportRunRequest {
 message ImportRunRequest {
   string run_id = 1;
 }
+
+// Nowy wątek w miejscu zaimportowanego: pierwsza wiadomość dostaje notatkę z jego historią (bez modelu).
+message ContinueImportedThreadRequest {
+  string thread_id = 1;
+}

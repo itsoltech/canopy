@@ -6,7 +6,7 @@
   import ImportDirectoryTarget from "./ImportDirectoryTarget.svelte";
   import ImportThreadRow from "./ImportThreadRow.svelte";
   import type { ImportState } from "./import-state.svelte.ts";
-  import { counted, size } from "./labels.ts";
+  import { counted, selectable, size } from "./labels.ts";
 
   /** Matching threads grouped by their directory, with where each directory goes (docs/import.md). */
   let { imports }: { imports: ImportState } = $props();
@@ -22,8 +22,8 @@
     return [...byDirectory].map(([directory, candidates]) => ({ directory, candidates, group: groups.get(directory) }));
   });
 
-  const open = (candidates: readonly ui.ImportCandidate[]) => candidates.filter((c) => c.status === "new");
-  const chosen = (c: ui.ImportCandidate) => c.status === "new" && imports.isSelected(c.sourceKey);
+  const open = (candidates: readonly ui.ImportCandidate[]) => candidates.filter((c) => selectable(c.status));
+  const chosen = (c: ui.ImportCandidate) => selectable(c.status) && imports.isSelected(c.sourceKey);
 
   const all = (candidates: readonly ui.ImportCandidate[]) =>
     open(candidates).length > 0 && open(candidates).every(chosen);

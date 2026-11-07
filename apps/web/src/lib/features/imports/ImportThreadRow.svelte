@@ -6,7 +6,7 @@
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { formatRelative } from "#lib/shared/format.ts";
-  import { counted, ORIGINS, providerKey, size } from "./labels.ts";
+  import { counted, ORIGINS, providerKey, selectable, size } from "./labels.ts";
 
   /** One CLI thread of the scan: what it is, how big, and what it becomes after import. */
   let {
@@ -33,7 +33,7 @@
       name="importThread"
       aria-label={`Import ${title}`}
       checked={selected}
-      disabled={candidate.status !== "new"}
+      disabled={!selectable(candidate.status)}
       onchange={(event) => onselect(event.currentTarget.checked)}
     />
   </div>

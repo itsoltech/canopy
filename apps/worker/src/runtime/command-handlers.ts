@@ -2,6 +2,7 @@ import type { Command } from "@canopy/contracts";
 import { CliRefused } from "../cli-tools/index.ts";
 
 import { CommandError, type CommandOutput } from "./host-types.ts";
+import { adoptImportedSession, removeImportedCopy } from "../import/adopt.ts";
 import { readImportPage } from "../import/pages.ts";
 import type { HostContext } from "./host-context.ts";
 import { providerAccounts } from "./account-commands.ts";
@@ -43,6 +44,15 @@ export class CommandHandlers {
       return { importScan: await this.ctx.state.imports.scan(kind.value.agentClis) };
 
     if (kind.case === "readImportPage") return { importPage: readImportPage(this.ctx.state.imports, kind.value) };
+
+    if (kind.case === "adoptImportedSession")
+      return { importedSessionId: adoptImportedSession(this.ctx.state.imports, this.ctx.state, kind.value) };
+
+    if (kind.case === "removeImportedCopy") {
+      removeImportedCopy(this.ctx.state.imports, this.ctx.state, kind.value);
+
+      return {};
+    }
 
     if (kind.case === "installCli") {
       try {
