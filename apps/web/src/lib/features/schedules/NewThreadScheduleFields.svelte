@@ -159,7 +159,12 @@
         name="projectId"
         bind:value={projectId}
         options={projects.length
-          ? projects.map((project) => ({ value: project.id, label: project.name }))
+          ? projects.map((project) => ({
+              value: project.id,
+              label: project.name,
+              disabled: Boolean(overview.projectAway(project)),
+              description: overview.projectAway(project),
+            }))
           : [{ value: "", label: "No projects yet" }]}
       />
     </Field>

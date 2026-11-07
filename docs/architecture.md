@@ -60,6 +60,14 @@ Network access nadal przyjmuje telefony, klienty desktopowe i workery, odrzucaj�
 handshake komputerów. `GetClientCapabilities` ogłasza rolę i `linked_computers`;
 web oraz desktop remote chowają linkowanie zgodnie z capability podłączonego gatewaya.
 
+Lokalny odczyt nie czeka na I/O połączonego komputera. Listy korzystają z zatwierdzonych
+luster i ostatnich odpowiedzi, a odświeżanie partnerów działa w tle z ograniczeniem
+współbieżności i backoffem. Obecność jest oddzielona od danych: utrata łącza wyłącza
+akcje wymagające domu, ale nie usuwa jego wątków, workerów ani projektów. Web/desktop
+i mobile stosują wspólne reguły `domain/linked-snapshot.ts`. BFF ma oddzielne pule
+HTTP/2 dla lokalnych i zdalnych unary oraz lokalnych i zdalnych subskrypcji, więc wisząca zdalna
+akcja lub stream nie zajmuje lokalnych slotów. Szczegóły i czasy: [linked-computers.md](linked-computers.md#zsumowany-widok).
+
 ## 3. Diagram komponentów i połączeń
 
 ```mermaid

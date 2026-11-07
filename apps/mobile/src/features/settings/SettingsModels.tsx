@@ -26,8 +26,10 @@ export function SettingsModel({
 }) {
   const { workers } = useOverview();
 
-  const resource = useSettingsResource(`settings-models:${workerId ?? "all"}`, (api) =>
-    api.listModels({ workerId: workerId ?? "" }),
+  const resource = useSettingsResource(
+    `settings-models:${workerId ?? "all"}`,
+    (api) => api.listModels({ workerId: workerId ?? "" }),
+    "ListModels",
   );
 
   const [picker, setPicker] = useState<"model" | "effort">();
@@ -146,7 +148,7 @@ function DefaultModel({
   onChange: (patch: Partial<ui.ThreadDefaults>) => void;
 }) {
   const { workers } = useOverview();
-  const resource = useSettingsResource("default-model-suggestions", (api) => api.listModels({}));
+  const resource = useSettingsResource("default-model-suggestions", (api) => api.listModels({}), "ListModels");
   const model = value.models.find((m) => m.provider === provider)?.model ?? "";
 
   const suggestions = [

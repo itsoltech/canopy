@@ -5,6 +5,8 @@ import { ui } from "@canopy/contracts";
 import { GATEWAY_SERVICE_TOKEN, GATEWAY_URL } from "$app/env/private";
 import { desktopGateway, type GatewayCompatibility } from "./desktop-gateway.ts";
 import { gatewayFailure } from "./gateway-errors.ts";
+import { logGatewayFailures } from "./gateway-logging.ts";
+import { isolatedGatewayTransport } from "./gateway-transport.ts";
 
 const desktop = process.env["CANOPY_DESKTOP_CLIENT_TOKEN"]
   ? desktopGateway(process.env["CANOPY_DESKTOP_GATEWAY_ROUTES"] ?? "", process.env["CANOPY_DESKTOP_CLIENT_TOKEN"])
@@ -55,21 +57,25 @@ export function gateway(): Client<typeof ui.GatewayService> {
   const token = requireServiceToken();
   client ??= createClient(
     ui.GatewayService,
-    desktop?.transport ??
-      createGrpcTransport({
-        baseUrl: GATEWAY_URL,
-        defaultTimeoutMs: 3000,
-        connectTimeoutMs: 3000,
-        pingIntervalMs: 10_000,
-        pingTimeoutMs: 3000,
-        interceptors: [
-          (next) => (request) => {
-            request.header.set("authorization", `Bearer ${token}`);
+    logGatewayFailures(
+      desktop?.transport ??
+        isolatedGatewayTransport(() =>
+          createGrpcTransport({
+            baseUrl: GATEWAY_URL,
+            defaultTimeoutMs: 3000,
+            connectTimeoutMs: 3000,
+            pingIntervalMs: 10_000,
+            pingTimeoutMs: 3000,
+            interceptors: [
+              (next) => (request) => {
+                request.header.set("authorization", `Bearer ${token}`);
 
-            return next(request);
-          },
-        ],
-      }),
+                return next(request);
+              },
+            ],
+          }),
+        ),
+    ),
   );
 
   return client;
@@ -79,7 +85,6 @@ export function gateway(): Client<typeof ui.GatewayService> {
 export function failWith(cause: unknown): never {
   const failure = gatewayFailure(cause);
 
-  if (failure.status >= 500) console.error("gateway call failed", failure);
   error(failure.status, { message: failure.message, ...("scope" in failure && { scope: failure.scope }) });
 }
 

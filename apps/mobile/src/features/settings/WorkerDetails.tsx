@@ -9,6 +9,7 @@ import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { WorkerCliSettings } from "./WorkerCliSettings";
 import { WorkerProviderAccounts } from "./WorkerProviderAccounts";
 import { providerName } from "../models/catalog";
+import { useWorkerPresence } from "../computers/presence";
 
 export function WorkerDetails({
   worker,
@@ -27,7 +28,12 @@ export function WorkerDetails({
 }) {
   const resource = useSettingsResource(`worker:${worker.id}`, (api) => api.getWorkerSetup({}));
   const tags = record ?? environment.workers.find((w) => w.workerId === worker.id);
-  const readOnly = record?.readOnlyReason || "";
+
+  const readOnly =
+    useWorkerPresence()(worker).reason ||
+    record?.readOnlyReason ||
+    (worker.nodeId && !record ? "Manage this worker on its own computer. Configuration is not shared." : "");
+
   const disabled = resource.busy || !!readOnly;
   const own = !worker.nodeId;
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Provider, type ModelInfo, type ProfileModels, type ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
+import { useOverview } from "../../state/overview";
 
 /**
  * Model choices of a worker, as the web composers offer them: one section per provider instance turned on and
@@ -104,8 +105,7 @@ export function modelSections(
   }
 
   return providers.flatMap((provider) => {
-    if (!worker?.providers.some((p) => p.provider === provider && p.available)) return [];
-    const instances = worker.providerInstances.filter((i) => i.harness === provider && i.enabled && i.available);
+    const instances = worker?.providerInstances.filter((i) => i.harness === provider && i.enabled && i.available) ?? [];
 
     return instances.map((instance) => ({
       key: `${provider}:${profileValue(instance.id)}`,
@@ -126,14 +126,15 @@ export function findChoice(section: ModelSection | undefined, model: string) {
   return choices.find((c) => c.model === model || c.aliases.includes(model));
 }
 
-/** The worker's model catalog, loaded when the worker changes. */
+/** The worker's model catalog, loaded on selection and again when its home reconnects. */
 export function useModelCatalog(workerId: string | undefined) {
   const { client } = useSession();
+  const online = useOverview().workers.find((worker) => worker.id === workerId)?.online;
   const [catalog, setCatalog] = useState<{ workerId: string; profiles: ProfileModels[] }>();
   useEffect(() => {
     let active = true;
 
-    if (client && workerId)
+    if (client && workerId && online)
       void client.api
         .listModels({ workerId })
         .then((r) => {
@@ -144,7 +145,7 @@ export function useModelCatalog(workerId: string | undefined) {
     return () => {
       active = false;
     };
-  }, [client, workerId]);
+  }, [client, workerId, online]);
 
   return catalog && catalog.workerId === workerId ? catalog.profiles : [];
 }

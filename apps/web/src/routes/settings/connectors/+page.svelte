@@ -15,6 +15,7 @@
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import ConnectionError from "#lib/features/connectors/ConnectionError.svelte";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
+  import { requestJson } from "#lib/shared/http.ts";
 
   let { data }: PageProps = $props();
   const overview = useOverview();
@@ -31,12 +32,18 @@
     untrack(() => decode(connectors.ListConnectorsResponseSchema, data.connections).accounts),
   );
 
+  let botCatalog = $state(untrack(() => decode(botContract.ListBotsResponseSchema, data.bots)));
+  let reloading = false;
+
   const bots = $derived(
-    decode(botContract.ListBotsResponseSchema, data.bots).bots.map((b) => ({
+    botCatalog.bots.map((b) => ({
       id: b.id,
       name: b.configuration?.name ?? "Bot",
     })),
   );
+
+  const unavailable = $derived(botCatalog.unavailableComputers);
+  const refreshing = $derived(botCatalog.refreshingComputers);
 
   let selected = $state("");
   let connecting = $state(false);
@@ -49,6 +56,7 @@
     const next = decode(connectors.ListConnectorsResponseSchema, data.connections);
     catalog = next;
     accounts = next.accounts;
+    botCatalog = decode(botContract.ListBotsResponseSchema, data.bots);
   });
 
   // Route data refreshes on desktop returns, including when this page is already open.
@@ -73,17 +81,25 @@
   }
 
   async function reload() {
-    const result = await listConnectors();
+    if (reloading) return;
+    reloading = true;
 
-    const completed = result.accounts.find(
-      (next) =>
-        next.status === "connected" &&
-        accounts.some((previous) => previous.id === next.id && previous.status === "needs_reconnect"),
-    );
+    try {
+      const [result, nextBots] = await Promise.all([listConnectors(), requestJson("GET", "/api/bots")]);
+      botCatalog = decode(botContract.ListBotsResponseSchema, nextBots);
 
-    if (completed) oauthCompletion = create(connectors.CompleteConnectorOAuthResponseSchema, { account: completed });
-    catalog = result;
-    accounts = result.accounts;
+      const completed = result.accounts.find(
+        (next) =>
+          next.status === "connected" &&
+          accounts.some((previous) => previous.id === next.id && previous.status === "needs_reconnect"),
+      );
+
+      if (completed) oauthCompletion = create(connectors.CompleteConnectorOAuthResponseSchema, { account: completed });
+      catalog = result;
+      accounts = result.accounts;
+    } finally {
+      reloading = false;
+    }
   }
 
   onMount(() => {
@@ -120,6 +136,14 @@
     description="Connect your apps once. Choose which workers and bots can use each account."
   />
   <ConfigNotices match={(n) => n.kind === "connector" || n.kind === "oauth_app"} onchange={() => void reload()} />
+  {#each unavailable as computer (computer.nodeId)}
+    <Alert>
+      {computer.unavailableReason}{computer.unavailableReason.endsWith(".") ? "" : "."} Its bot list may be incomplete.
+    </Alert>
+  {/each}
+  {#each refreshing as computer (computer.nodeId)}
+    <Alert>{computer.unavailableReason}</Alert>
+  {/each}
   {#if notice === "already-connected"}<Alert>Already connected.</Alert>{:else if notice === "connected"}<Alert
       >Account connected. Choose who can use it below.</Alert
     >{:else if notice === "error" && oauthError}<ConnectionError

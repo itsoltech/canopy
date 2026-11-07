@@ -11,9 +11,10 @@ import { SkeletonScope } from "../../ui/Skeleton";
 export type SettingsApi = Client<typeof ui.GatewayService>;
 
 /** Refetch after mutations, including rejected stale revisions. Never display raw transport diagnostics. */
-export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) => Promise<T>) {
+export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) => Promise<T>, linkedMethod = "") {
   const { client } = useSession();
   const overview = useOverview();
+  const linkedRevision = overview.linkedReads[linkedMethod] ?? 0;
   const fetchRef = useRef(fetch);
   useEffect(() => {
     fetchRef.current = fetch;
@@ -58,7 +59,7 @@ export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) =>
     void load();
 
     return invalidate;
-  }, [load, invalidate]);
+  }, [load, invalidate, linkedRevision]);
 
   async function run<R>(action: (api: SettingsApi) => Promise<R>, success = "") {
     if (!client || running.current) return undefined;

@@ -148,7 +148,9 @@ function NewThreadPickers({ state, picker, close }: { state: State; picker: Pick
               value: p.id,
               label: p.name,
               leading: <ProjectMark name={p.name} kind={p.kind} />,
-              badge: p.workspaces.length ? undefined : "Not on a worker",
+              badge: state.projectAway(p) ? "Offline" : p.workspaces.length ? undefined : "Not on a worker",
+              description: state.projectAway(p),
+              disabled: Boolean(state.projectAway(p)),
             })),
           },
         ]}

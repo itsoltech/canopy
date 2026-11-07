@@ -3,6 +3,7 @@ import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import type { GatewayCore } from "../core/core.ts";
 import { mapIds, nodesOf } from "../computers/remote.ts";
 import { refuseRemoteWorktree } from "../worktrees/remote.ts";
+import { PEER_READ_TIMEOUT_MS, PEER_MUTATION_TIMEOUT_MS, PEER_LONG_CALL_TIMEOUTS } from "../computers/timing.ts";
 
 /**
  * Threads of linked computers in this gateway's API (docs/linked-computers.md, stage 2). A request whose
@@ -11,17 +12,11 @@ import { refuseRemoteWorktree } from "../worktrees/remote.ts";
  * list and model catalog add every connected computer's own. The home applies every action; this
  * gateway keeps a read-only mirror for offline reads and never queues a call for a disconnected peer.
  */
-export const UNARY_TIMEOUT_MS = 30_000;
+export const UNARY_TIMEOUT_MS = PEER_MUTATION_TIMEOUT_MS;
 
 /** Calls that may outlast the usual limit at their home: a clone waits for git (docs/linked-computers.md). */
-const LONG_CALLS = new Map([
-  ["AddProject", 6 * 60_000],
-  ["CreateThread", 120_000],
-  ["ListWorktrees", 120_000],
-  ["CleanupWorktrees", 300_000],
-]);
-
-export const unaryTimeout = (method: DescMethod): number => LONG_CALLS.get(method.name) ?? UNARY_TIMEOUT_MS;
+export const unaryTimeout = (method: DescMethod): number =>
+  PEER_LONG_CALL_TIMEOUTS.get(method.name) ?? (READS.has(method.name) ? PEER_READ_TIMEOUT_MS : UNARY_TIMEOUT_MS);
 
 /** Administration stays on this computer; worktree errors explain where to open the workspace. */
 export function refuseForeignAdministration(method: DescMethod, request: Message): void {
@@ -29,8 +24,6 @@ export function refuseForeignAdministration(method: DescMethod, request: Message
   refuseRemoteWorktree(method, request);
   throw new ConnectError("This isn't available for threads on another computer yet", Code.FailedPrecondition);
 }
-
-export const GATHER_TIMEOUT_MS = 3_000;
 
 /** Calls that only read: allowed on a thread or bot frozen for a move (stage 8). */
 export const READS = new Set([

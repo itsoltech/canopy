@@ -14,15 +14,16 @@
 
   const overview = useOverview();
   const status = $derived(entry.status);
+  const offline = $derived(!entry.online || !overview.worker(entry.worktree?.workerId ?? "")?.online);
 </script>
 
-<article class={["grid min-w-0 gap-3 py-4", className]}>
+<article class={["grid min-w-0 gap-3 py-4", offline && "opacity-50", className]}>
   <div class="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
     <h3 class="min-w-0 font-mono text-base font-medium break-all sm:text-sm">
       {status?.branch || (entry.worktree && headLabel(entry.worktree))}
     </h3>
     <span class="text-base text-zinc-500 sm:text-sm dark:text-zinc-400"
-      >{overview.worker(entry.worktree?.workerId ?? "")?.name ?? "Computer"}</span
+      >{overview.worker(entry.worktree?.workerId ?? "")?.name ?? "Computer"}{offline ? " · Offline" : ""}</span
     >
   </div>
   <code class="font-mono text-base break-all text-zinc-500 sm:text-sm dark:text-zinc-400">{entry.worktree?.path}</code>

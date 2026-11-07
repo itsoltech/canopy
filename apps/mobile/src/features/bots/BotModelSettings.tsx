@@ -6,6 +6,7 @@ import { useOverview } from "../../state/overview";
 import { PickerSheet, SelectField } from "../../ui/Picker";
 import { useModelCatalog, modelSections } from "../models/catalog";
 import { ModelPickerSheet, EffortPickerSheet } from "../models/ModelPicker";
+import { useWorkerPresence } from "../computers/presence";
 
 export function BotModelSettings({
   bot,
@@ -19,6 +20,7 @@ export function BotModelSettings({
   disabled: boolean;
 }) {
   const { workers } = useOverview();
+  const presence = useWorkerPresence();
   const [picker, setPicker] = useState("");
   const homeWorkers = workers.filter((w) => splitId(w.id).node === (bot.nodeId ? nodeRef(bot.nodeId) : undefined));
 
@@ -67,7 +69,13 @@ export function BotModelSettings({
           {
             options: [
               { value: "", label: "Automatic", badge: undefined },
-              ...homeWorkers.map((w) => ({ value: w.id, label: w.name, badge: w.online ? undefined : "Offline" })),
+              ...homeWorkers.map((w) => ({
+                value: w.id,
+                label: w.name,
+                badge: presence(w).online ? undefined : presence(w).status,
+                disabled: presence(w).away,
+                description: presence(w).reason,
+              })),
             ],
           },
         ]}

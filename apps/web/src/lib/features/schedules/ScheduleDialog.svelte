@@ -19,6 +19,7 @@
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import type { ClassValue } from "svelte/elements";
   import { computerName } from "@canopy/domain/computer-presence";
+  import { awayReason } from "#lib/features/computers/computers.ts";
 
   /**
    * New scheduled task: what to tell the agent, once at a time or repeatedly (a preset or a cron) in a
@@ -271,6 +272,8 @@
                 group.threads.map((thread) => ({
                   value: thread.id,
                   label: thread.title,
+                  disabled: Boolean(thread.nodeId && awayReason(overview.computer(thread.nodeId))),
+                  description: thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined,
                   group: `${group.project.name} · ${group.project.nodeId ? computerName(overview.computer(group.project.nodeId)) : "This computer"}`,
                 })),
               )

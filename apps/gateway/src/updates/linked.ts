@@ -5,10 +5,16 @@ import { computerLink as link, ui } from "@canopy/contracts";
 import { REMOTE_APP_UPDATE } from "@canopy/domain/computers";
 import { linkedMessage, methodNamed } from "../computers/remote.ts";
 import type { GatewayCore } from "../core/core.ts";
-import { GATHER_TIMEOUT_MS, single } from "../api/routed-context.ts";
+import { single } from "../api/routed-context.ts";
+import {
+  PEER_READ_TIMEOUT_MS,
+  PEER_UPDATE_CHECK_TIMEOUT_MS,
+  PEER_UPDATE_INSTALL_TIMEOUT_MS,
+} from "../computers/timing.ts";
 import { forward } from "../api/routed-home.ts";
 import { ConfigIds } from "../api/routed-config.ts";
 import { updatesSnapshot } from "./center-composition.ts";
+import { Match } from "effect";
 
 /**
  * Updates of linked computers' Canopy apps (docs/updates.md, "Połączone komputery"). The caller sees each
@@ -102,16 +108,40 @@ export async function linkedUpdates(core: GatewayCore): Promise<ui.ComputerUpdat
         reason: capable ? "" : `Update ${name} on that computer.`,
       });
 
-      if (capable && computers.reachable().includes(peer.nodeId))
-        item.updates = await single<ui.UpdatesSnapshot>(
-          forward(
-            core,
-            peer.nodeId,
-            method,
-            create(link.ComputerUpdatesRequestSchema),
-            AbortSignal.timeout(GATHER_TIMEOUT_MS),
-          ),
-        ).catch(() => undefined);
+      if (capable) {
+        const request = create(link.ComputerUpdatesRequestSchema);
+        const reachable = computers.reachable().includes(peer.nodeId);
+
+        item.updates = computers.reads.read(
+          peer.nodeId,
+          method,
+          request,
+          (signal) => single<ui.UpdatesSnapshot>(forward(core, peer.nodeId, method, request, signal)),
+          PEER_READ_TIMEOUT_MS,
+          reachable,
+        );
+        item.readState = reachable ? computers.reads.state(peer.nodeId, method, request) : "unavailable";
+        item.reason = Match.value(item.readState).pipe(
+          Match.when("unavailable", () => `${name} is unavailable. Trying again automatically.`),
+          Match.when("fresh", () => ""),
+          Match.orElse(() => `Waiting for ${name}. Local updates are ready.`),
+        );
+
+        if (!reachable && item.updates) {
+          if (item.updates.app) item.updates.app.connected = false;
+
+          for (const worker of item.updates.workers) {
+            worker.connected = false;
+            worker.reason = item.reason;
+          }
+
+          for (const worker of item.updates.cliWorkers) {
+            worker.online = false;
+
+            for (const tool of worker.cliTools) tool.blockedReason = item.reason;
+          }
+        }
+      }
 
       return item;
     }),
@@ -124,6 +154,7 @@ export async function requestComputerUpdate(
   nodeId: string,
   action: "app" | "check" | "worker",
   workerId = "",
+  signal?: AbortSignal,
 ): Promise<ui.UpdatesSnapshot> {
   const computers = core.computers;
 
@@ -148,11 +179,39 @@ export async function requestComputerUpdate(
       nodeId,
       methodNamed("RequestComputerUpdate")!,
       create(link.ComputerUpdateRequestSchema, { action, workerId }),
-      AbortSignal.timeout(30_000),
+      AbortSignal.any([
+        ...(signal ? [signal] : []),
+        AbortSignal.timeout(action === "check" ? PEER_UPDATE_CHECK_TIMEOUT_MS : PEER_UPDATE_INSTALL_TIMEOUT_MS),
+      ]),
     ),
   );
 
   if (action !== "check") await audit(core, "computer.update.sent", { node: nodeId, action, worker: workerId });
 
   return snapshot;
+}
+
+/** Feed checks are idempotent, single-flight background work; local Check now never waits for a peer. */
+export async function checkLinkedUpdates(core: GatewayCore) {
+  const computers = core.computers;
+
+  if (!computers) return;
+  const method = methodNamed("RequestComputerUpdate")!;
+  const request = create(link.ComputerUpdateRequestSchema, { action: "check" });
+
+  for (const peer of (await computers.snapshot()).peers) {
+    if (
+      peer.viaNodeId ||
+      !computers.reachable().includes(peer.nodeId) ||
+      !computers.capabilities(peer.nodeId).includes(REMOTE_APP_UPDATE)
+    )
+      continue;
+    computers.reads.read(
+      peer.nodeId,
+      method,
+      request,
+      (signal) => requestComputerUpdate(core, peer.nodeId, "check", "", signal),
+      PEER_UPDATE_CHECK_TIMEOUT_MS,
+    );
+  }
 }

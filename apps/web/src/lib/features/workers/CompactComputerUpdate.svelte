@@ -41,11 +41,14 @@
         loading={updates.pending === computer.nodeId}
         onclick={() => void updates.manage({ action: "computer", nodeId: computer.nodeId })}
       />
-    {:else if view.detail && !view.failed}<IconButton
+    {:else if view.detail && !view.failed && !computer.reason}<IconButton
         icon="information-circle"
         size="sm"
         label={view.detail}
         tooltipOptions={{ touch: "tap" }}
       />{/if}
   {/snippet}
+  {#if computer.reason && computer.readState && computer.readState !== "fresh"}
+    <p class="mt-1 text-xs/5 wrap-anywhere text-muted" role="status">{computer.reason}</p>
+  {/if}
 </UpdateItem>

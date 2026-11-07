@@ -149,6 +149,9 @@ export class RemoteCalls {
     if (this.#departure) throw this.#away();
 
     if (this.#closed) throw new ConnectError(`${this.options.name()} disconnected`, Code.Unavailable);
+
+    if (this.#outgoing.size >= MAX_SERVED)
+      throw new ConnectError("Too many calls to this computer at once", Code.ResourceExhausted);
     const id = this.#next++;
     const channel = new AsyncChannel<Uint8Array>();
     this.#outgoing.set(id, { channel, parts: [], size: 0, streaming: method.methodKind !== "unary" });

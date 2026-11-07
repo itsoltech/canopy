@@ -12,7 +12,8 @@ import { BotStore } from "../bots/store.ts";
 
 import { fail, isToolArguments, record, text, type Actor, type Arguments } from "./agents-context.ts";
 import type { LinkedAgents } from "./agents.ts";
-import { linkedMessage, methodNamed, qualify } from "./remote.ts";
+import { gather } from "../api/routed-overview.ts";
+import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
 import { requestedThreadPermission } from "../bots/thread-permission.ts";
 import { SettingsStore } from "../store/settings.ts";
 
@@ -250,24 +251,21 @@ async function listBotThreads(hostContext: LinkedAgents, args: Arguments): Promi
     ? (await hostContext.ui("ListThreads", request, ui.ListThreadsResponseSchema)).threads
     : await hostContext.core.listThreads(project, request.includeArchived);
 
-  if (!project)
-    for (const node of hostContext.core.computers?.reachable() ?? []) {
-      if (!hostContext.core.computers!.capabilities(node).includes(AGENT_BUS)) continue;
+  if (!project) {
+    const others = await gather<ui.ListThreadsResponse>(
+      hostContext.core,
+      "ListThreads",
+      request,
+      AbortSignal.timeout(PEER_READ_TIMEOUT_MS),
+    );
 
-      try {
-        for await (const result of hostContext.core.computers!.remote(
-          node,
-          methodNamed("ListThreads")!,
-          request,
-          AbortSignal.timeout(3000),
-        )) {
-          qualify(ui.ListThreadsResponseSchema, result, node);
-          threads.push(...linkedMessage(ui.ListThreadsResponseSchema, result).threads);
-        }
-      } catch {
-        /* optional catalog entry */
-      }
-    }
+    for (const response of others)
+      threads.push(
+        ...response.threads.filter((thread) =>
+          hostContext.core.computers?.capabilities(thread.nodeId).includes(AGENT_BUS),
+        ),
+      );
+  }
 
   const query = String(args["query"] ?? "").toLowerCase();
 
@@ -296,30 +294,19 @@ async function listLinkedBots(hostContext: LinkedAgents) {
     machine: "This computer",
   }));
 
-  for (const node of hostContext.core.computers?.reachable() ?? []) {
-    if (!hostContext.core.computers!.capabilities(node).includes(REMOTE_BOTS)) continue;
+  const others = await gather<bots.ListBotsResponse>(
+    hostContext.core,
+    "ListBots",
+    create(bots.ListBotsRequestSchema),
+    AbortSignal.timeout(PEER_READ_TIMEOUT_MS),
+  );
 
-    try {
-      for await (const response of hostContext.core.computers!.remote(
-        node,
-        methodNamed("ListBots")!,
-        create(bots.ListBotsRequestSchema),
-        AbortSignal.timeout(3000),
-      )) {
-        qualify(bots.ListBotsResponseSchema, response, node);
-        const peer = await hostContext.core.computers!.computer(node);
-        own.push(
-          ...linkedMessage(bots.ListBotsResponseSchema, response).bots.map((b) => ({
-            id: b.id,
-            name: b.configuration?.name,
-            machine: peer?.displayName || peer?.name,
-          })),
-        );
-      }
-    } catch {
-      /* optional catalog entry */
+  for (const response of others)
+    for (const bot of response.bots) {
+      if (!hostContext.core.computers?.capabilities(bot.nodeId).includes(REMOTE_BOTS)) continue;
+      const peer = await hostContext.core.computers.computer(bot.nodeId);
+      own.push({ id: bot.id, name: bot.configuration?.name, machine: peer?.displayName || peer?.name });
     }
-  }
 
   return own;
 }

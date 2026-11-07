@@ -26,7 +26,11 @@
     overview.subscribe((update) => {
       if (update.change.case === "schedule") upsert(update.change.value);
 
-      if (update.change.case === "computer" || update.change.case === "computerRemoved")
+      if (
+        update.change.case === "computer" ||
+        update.change.case === "computerRemoved" ||
+        (update.change.case === "linkedReadCompleted" && update.change.value === "ListSchedules")
+      )
         void listSchedules({ includeFinished: true }).then(
           (list) => (schedules = list),
           () => undefined,

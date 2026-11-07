@@ -109,6 +109,12 @@ Revoke kończy otwarte streamy w procesie gatewaya. Starsze parowania wymagają 
 
 ## Connectors
 
+Strona odczytuje `/api/connectors` (lokalne rekordy) oraz `/api/bots` (lista z domów).
+Odczyty nie czekają na partnera: zwracają lokalne konta i ostatnią listę botów, a peer
+odświeża się w tle. `ListBotsResponse.unavailable_computers` oraz `refreshing_computers`
+pozwalają odróżnić utracone łącze od powolnego odczytu bez błędu całej strony.
+Odświeżanie jest single-flight, z cooldownem/backoffem po stronie gatewaya.
+
 Arkusz „Thread details” ma stały nagłówek; tytuł wątku i menu zmiany nazwy są
 pokazane raz, we wspólnym `ThreadPanel` używanym też na desktopie. Pełny tytuł
 jest dostępny w tooltipie (na telefonie po przytrzymaniu) i w dialogu zmiany nazwy.
@@ -488,6 +494,7 @@ flowchart LR
 - **SvelteKit jest BFF.** Przeglądarka rozmawia tylko z nim, po HTTP/1.1. Serwer SvelteKit woła gateway po gRPC z prywatnym tokenem usługi, a zmiany na żywo przekazuje przeglądarce przez **SSE**. Prywatny adres BFF i token usługi zostają na serwerze. UI pokazuje publiczny adres gRPC dla workerów, token enrollment i nowy credential rotacji (sekrety jednorazowo), bez klienta gRPC.
 - **Frontend jest SPA (`ssr = false` w głównym `+layout.ts`).** adapter-node podaje powłokę i pliki statyczne, przekazuje `/api/*` do gateway i obsługuje istniejące akcje formularzy. Dane tras pobierają klientowe `+page.ts` przez `/api/*`; overview, ustawienia i katalog modeli pobierają stany funkcji. Akcje tworzenia wątku i workspace pozostają po stronie BFF: `enhance` zachowuje walidację, błędy pól i przekierowania bez SSR. Projekt dodaje dialog Add project przez `POST /api/projects`.
 - Gateway podaje `GatewayService` na tym samym serwerze HTTP/2 co `WorkerLinkService`, a opcjonalnie także na mobilnym HTTP/1.1 listenerze. Interceptor (`serviceTokenAuth`) przyjmuje token usługi BFF (`CANOPY_UI_SERVICE_TOKEN`, porównanie odporne na pomiar czasu) lub aktywny token urządzenia, mapowany na obecnego pojedynczego właściciela. Administracja parowaniem wymaga tokenu usługi. Workery uwierzytelniają się osobno, w handlerze `WorkerLinkService`.
+- BFF zapisuje błędy unary RPC o statusie HTTP 5xx jako `gateway call failed`: nazwa metody (`method`), czas wywołania (`durationMs`), status i oczyszczony komunikat. Log nie zawiera payloadu, metadanych uwierzytelnienia ani przyczyny transportowej.
 
 ## 2. `GatewayService`
 
@@ -1101,7 +1108,9 @@ Reconnecting… przez 12 sekund ciągłego ponawiania. Dopiero potem status prze
 w Gateway unavailable; udana resynchronizacja zeruje ten czas. Widok błędu trasy
 stosuje to samo początkowe okno. Otwarcie SSE overview sprawdza lekkie capabilities,
 zamiast powtarzać agregację; pełny overview i lista wątków mają deadline 10 sekund,
-większy od 3-sekundowego okna zbierania odpowiedzi partnerów.
+ale czytają wyłącznie lokalne rekordy, zatwierdzone lustra i cache. Żaden lokalny
+odczyt nie czeka na I/O partnera. Pule HTTP/2 lokalnych i zdalnych unary oraz lokalnych i zdalnych streamów
+są oddzielone. BFF loguje nazwę nieudanego RPC i czas, bez danych żądania.
 Błąd RPC z `canopy-error-scope: computer` (oraz starsze `UNAVAILABLE` z końcówką
 „… disconnected”) daje HTTP 409 z zakresem komputera albo SSE `away`, bez globalnej
 awarii. UI zachowuje ostatnie dane, a powód pokazuje przy komputerze zgodnie z tabelą

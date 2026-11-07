@@ -21,6 +21,7 @@ export function* snapshotFrames(snapshot: ui.ThreadSnapshot, previousCursor = ""
       thread: snapshot.thread,
       lastSeq: snapshot.lastSeq,
       goal: snapshot.goal,
+      historyVersion: snapshot.historyVersion,
     },
   });
 
@@ -48,6 +49,7 @@ export function* deltaFrames(delta: ui.ThreadSnapshotDelta, previousCursor: stri
         thread: snapshot.thread,
         lastSeq: snapshot.lastSeq,
         goal: snapshot.goal,
+        historyVersion: snapshot.historyVersion,
       }),
     },
   });
@@ -63,7 +65,7 @@ export function* deltaFrames(delta: ui.ThreadSnapshotDelta, previousCursor: stri
 }
 
 export function safeOverview(value: ui.GetOverviewResponse): ui.GetOverviewResponse {
-  // Explicit allowlist: settings, provider config and credentials never enter mirror storage.
+  // Explicit allowlist: public picker/update metadata only; provider config and credentials never enter mirrors.
   return create(ui.GetOverviewResponseSchema, {
     workers: value.workers.map((w) => ({
       id: w.id,
@@ -72,8 +74,36 @@ export function safeOverview(value: ui.GetOverviewResponse): ui.GetOverviewRespo
       os: w.os,
       version: w.version,
       online: w.online,
+      providers: w.providers.map((provider) => ({
+        provider: provider.provider,
+        available: provider.available,
+        version: provider.version,
+        detail: provider.detail,
+      })),
       lastSeenAt: w.lastSeenAt,
       revokedAt: w.revokedAt,
+      arch: w.arch,
+      configVersion: w.configVersion,
+      appliedVersion: w.appliedVersion,
+      cliUpdateCheckMinutes: w.cliUpdateCheckMinutes,
+      effectiveCliUpdateCheckMinutes: w.effectiveCliUpdateCheckMinutes,
+      cliUpdatesCheckedAt: w.cliUpdatesCheckedAt,
+      cliUpdatesNextCheckAt: w.cliUpdatesNextCheckAt,
+      cliTools: w.cliTools,
+      providerInstances: w.providerInstances.map((instance) => ({
+        harness: instance.harness,
+        id: instance.id,
+        label: instance.label,
+        accentColor: instance.accentColor,
+        enabled: instance.enabled,
+        available: instance.available,
+        detail: instance.detail,
+        favorites: instance.favorites,
+        kind: instance.kind,
+      })),
+      worktrees: w.worktrees,
+      projectSources: w.projectSources,
+      cliImport: w.cliImport,
     })),
     projects: value.projects,
   });

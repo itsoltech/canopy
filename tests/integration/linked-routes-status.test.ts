@@ -6,6 +6,7 @@ import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { eventually as poll, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { PEER_BACKOFF_MS } from "../../apps/gateway/src/computers/timing.ts";
 
 async function eventually(predicate: () => Promise<boolean>, timeoutMs = 15_000) {
   expect(await poll(predicate, Boolean, timeoutMs)).toBe(true);
@@ -67,8 +68,8 @@ describe.skipIf(!dockerAvailable)("route status of two linked gateways", () => {
     }
   }
 
-  const online = () =>
-    eventually(async () => (await peer(a)).status === "connected" && (await peer(b)).status === "connected");
+  const online = (timeoutMs = 15_000) =>
+    eventually(async () => (await peer(a)).status === "connected" && (await peer(b)).status === "connected", timeoutMs);
 
   beforeAll(async () => {
     a = await startTestGateway({ role: "desktop" });
@@ -107,7 +108,7 @@ describe.skipIf(!dockerAvailable)("route status of two linked gateways", () => {
   test("failed outbound routes stay recorded while the partner keeps the link up from its side", async () => {
     // B goes away: A dials B's only announced address and fails.
     await lb.close();
-    await eventually(async () => (await peer(a)).routes[0]!.lastFailureMs > 0n);
+    await eventually(async () => (await peer(a)).routes[0]!.lastFailureMs > 0n, PEER_BACKOFF_MS + 15_000);
     await restart("b");
     await online();
     // B announces its addresses again; they are current, and A still could not dial them.
@@ -118,7 +119,7 @@ describe.skipIf(!dockerAvailable)("route status of two linked gateways", () => {
     const [route] = onA.routes;
     expect(route!.lastFailureMs).toBeGreaterThan(route!.lastSuccessMs);
     expect(route!.inUse).toBe(false);
-  }, 30_000);
+  }, 70_000);
 
   test("a reconnect over a route clears its failure and puts it in use", async () => {
     const address = la.addresses[0]!;
@@ -128,16 +129,17 @@ describe.skipIf(!dockerAvailable)("route status of two linked gateways", () => {
       const route = (await peer(b)).routes.find((r) => r.address === address)!;
 
       return route.lastFailureMs > route.lastSuccessMs;
-    });
+    }, PEER_BACKOFF_MS + 15_000);
     await restart("a");
-    await online();
+    // No discovery/announcement can reach B here. The failed dial has opened the next circuit window.
+    await online(PEER_BACKOFF_MS * 2 + 15_000);
     await eventually(async () => {
       const route = (await peer(b)).routes.find((r) => r.address === address)!;
 
       return route.inUse && route.lastSuccessMs > route.lastFailureMs;
     });
     expect((await peer(b)).connectionDirection).toBe("outgoing");
-  }, 30_000);
+  }, 120_000);
 
   test("a re-announce on a new port makes the stale address old, and a working new route removes it", async () => {
     const stale = `https://${UNREACHABLE}:${portB}`;

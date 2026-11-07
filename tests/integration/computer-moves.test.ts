@@ -355,7 +355,13 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
       ),
     ).toContain("from the old laptop");
     expect(a.worker.inputs.get(t)).not.toContain("from the old laptop");
-    expect((await a.api.listThreads({})).threads.find((x) => splitPlain(x.id) === t)?.nodeId).toBe(cNode);
+    expect(
+      await eventually(
+        async () => (await a.api.listThreads({})).threads.find((x) => splitPlain(x.id) === t)?.nodeId,
+        (node) => node === cNode,
+        15_000,
+      ),
+    ).toBe(cNode);
     // B: the mirror and list update the owner, and A's qualified id follows the redirect.
     expect(
       await eventually(
@@ -852,7 +858,13 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     expect(await homes(t)).toEqual({ a: 0, c: 1 });
     expect((await c.api.getBot({ botId: bot })).bot?.configuration?.name).toBe("Last bot");
     // A's lists now show everything as C's.
-    expect((await a.api.listBots({})).bots.find((x) => splitPlain(x.id) === bot)?.nodeId).toBe(cNode);
+    expect(
+      await eventually(
+        async () => (await a.api.listBots({})).bots.find((x) => splitPlain(x.id) === bot)?.nodeId,
+        (node) => node === cNode,
+        15_000,
+      ),
+    ).toBe(cNode);
   }, 90000);
 });
 

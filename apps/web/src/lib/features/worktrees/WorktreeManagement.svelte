@@ -7,6 +7,7 @@
   import { listWorktrees, cleanupWorktrees } from "./api.ts";
   import WorktreeCard from "./WorktreeCard.svelte";
   import type { WorktreeScope } from "./worktree-settings.svelte.ts";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 
   let {
     scope = { projectId: "", workerId: "" },
@@ -24,6 +25,19 @@
   let previewed = $state(false);
   let loaded = $state(false);
   const count = $derived(entries.filter((e) => e.wouldRemove && !e.removed).length);
+  const overview = useOverview();
+
+  $effect(() =>
+    overview.subscribe((update) => {
+      if (
+        update.change.case === "linkedReadCompleted" &&
+        update.change.value === "ListWorktrees" &&
+        !loading &&
+        !previewed
+      )
+        void load();
+    }),
+  );
 
   async function load(action: "list" | "preview" | "execute" = "list") {
     loading = true;

@@ -81,7 +81,12 @@ export class WorkerRecords {
   }
 
   readOnly(workerId: string): string {
-    return this.record(workerId)?.readOnlyReason ?? "";
+    const worker = this.overview.worker(workerId);
+
+    return (
+      this.record(workerId)?.readOnlyReason ??
+      (worker?.nodeId ? "Manage this worker on its own computer. Configuration is not shared." : "")
+    );
   }
 
   options(workers: readonly ui.Worker[] = this.workers, execution = false): SelectOption[] {
@@ -146,7 +151,22 @@ export class WorkerRecords {
   computers: WorkerComputer[] = $derived.by(() => {
     const groups = new Map<string, WorkerComputer>();
 
-    for (const record of this.records) {
+    const records = [
+      ...this.records,
+      ...this.overview.workers
+        .filter((worker) => worker.nodeId && !this.record(worker.id))
+        .map((worker) =>
+          create(ui.WorkerRecordSchema, {
+            workerId: worker.id,
+            nodeId: worker.nodeId,
+            name: worker.name,
+            computerName: computerName(this.overview.computer(worker.nodeId)),
+            readOnlyReason: awayReason(this.overview.computer(worker.nodeId)) ?? this.readOnly(worker.id),
+          }),
+        ),
+    ];
+
+    for (const record of records) {
       const group = groups.get(record.nodeId) ?? {
         nodeId: record.nodeId,
         name: record.computerName,

@@ -7,9 +7,10 @@ import { sidebarThreads } from "@canopy/domain/sidebar-threads";
 import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
 import { useSession } from "../../state/session";
+import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 
 export function useSidebarThreads(query: string) {
-  const { threads, projects } = useOverview();
+  const { threads, projects, workers, computers } = useOverview();
   const { user, update } = useAppearance();
   const { client } = useSession();
   const { id } = useGlobalSearchParams<{ id?: string }>();
@@ -44,6 +45,7 @@ export function useSidebarThreads(query: string) {
   return {
     current,
     choices,
+    projectAway: (project: ui.Project) => projectAwayReason(project, workers, computers),
     settings,
     filtered: sidebarThreads(threads, settings, query, projectName),
     projectName,

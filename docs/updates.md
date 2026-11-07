@@ -185,6 +185,15 @@ uruchamiania usług. Wersja aplikacji nie jest numerem protokołu.
 
 ## Połączone komputery
 
+Lokalny status nigdy nie czeka na partnera. Jego ostatni snapshot pozostaje widoczny,
+a zwykłe odświeżenie w tle ma limit 10 s. Loading/Waiting i „Waiting for {name}.
+Local updates are ready.” nie oznaczają awarii łącza. Dopiero utrata liveness daje
+Unavailable i „{name} is unavailable. Trying again automatically.”. Check now
+sprawdza lokalnie i osobno planuje idempotentne sprawdzenia partnerów (120 s),
+bez czekania na nie. Jawna instalacja u partnera ma limit 15 min; nie jest ponawiana
+automatycznie. Czasy, limity współbieżności i circuit breaker opisuje
+[zsumowany widok](linked-computers.md#zsumowany-widok).
+
 Dotyczy wyłącznie aplikacji desktopowych w trybie lokalnym połączonych jako
 [połączone komputery](linked-computers.md). Gatewaye serwerowe (Docker, binarka)
 nie mają łącza, więc ta funkcja ich nie dotyczy, a Update all nadal nie działa na gatewayu Docker.

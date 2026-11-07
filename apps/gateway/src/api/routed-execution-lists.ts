@@ -29,12 +29,26 @@ export function executionLists(
       });
     },
     listBots: async (request, context) => {
+      const unavailableComputers: ui.LinkedComputer[] = [];
+      const refreshingComputers: ui.LinkedComputer[] = [];
+
       const [result, others] = await Promise.all([
         local.listBots(request, context),
-        gather<bots.ListBotsResponse>(core, "ListBots", request, context.signal),
+        gather<bots.ListBotsResponse>(
+          core,
+          "ListBots",
+          request,
+          context.signal,
+          unavailableComputers,
+          refreshingComputers,
+        ),
       ]);
 
-      return create(bots.ListBotsResponseSchema, { bots: [...(result.bots ?? []), ...others.flatMap((r) => r.bots)] });
+      return create(bots.ListBotsResponseSchema, {
+        bots: [...(result.bots ?? []), ...others.flatMap((r) => r.bots)],
+        unavailableComputers,
+        refreshingComputers,
+      });
     },
     listSchedules: async (request, context) => {
       if (target(methodNamed("ListSchedules")!, request))

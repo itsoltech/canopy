@@ -27,6 +27,8 @@ export type Connection = {
   /** When this link last wrote the peer's last_seen. */
   stored?: number;
   ready: boolean;
+  /** An intentional wake/address rotation must not count as a failed liveness probe. */
+  retiring?: boolean;
   /** The route this computer dialled; none when the partner dialled this computer. */
   route?: string;
   /** The addresses this computer last told the partner on this link (its hello, then announcements). */

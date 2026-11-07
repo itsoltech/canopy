@@ -47,24 +47,26 @@
     icon="command-line"
     current={tool.version || (installed ? "" : "Not installed")}
     target={item.latest?.version}
-    status={busy
-      ? "Installing"
-      : error
-        ? "Failed"
-        : cliCurrent(item)
-          ? "Up to date"
-          : external
-            ? "Managed externally"
-            : item.action
-              ? "Available"
-              : item.managedBy
-                ? "Managed externally"
-                : "Unavailable"}
+    status={!worker.online
+      ? "Offline"
+      : busy
+        ? "Installing"
+        : error
+          ? "Failed"
+          : cliCurrent(item)
+            ? "Up to date"
+            : external
+              ? "Managed externally"
+              : item.action
+                ? "Available"
+                : item.managedBy
+                  ? "Managed externally"
+                  : "Unavailable"}
     tone={updateTone({ failed: !!error, busy, current: cliCurrent(item) })}
     {busy}
     {error}
     {detail}
-    class={className}
+    class={[!worker.online && "opacity-50", className]}
   >
     {#snippet action()}
       {#if item.action && !external && !busy}
@@ -72,7 +74,7 @@
           icon={item.action === "install" ? "plus" : "arrow-up"}
           size="sm"
           label={`${item.action === "install" ? "Install" : "Update"} ${cliLabel(tool.provider)} on ${worker.name}${detail ? `: ${detail}` : ""}`}
-          disabled={disabled || !!item.blockedReason}
+          disabled={disabled || !worker.online || !!item.blockedReason}
           onclick={() => void cli.install(worker.id, tool.provider)}
         />
       {:else if detail}<IconButton

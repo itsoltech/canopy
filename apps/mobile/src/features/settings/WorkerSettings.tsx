@@ -18,6 +18,7 @@ import { UpdateSettings } from "./UpdateSettings";
 import { useDateTime } from "./display";
 import { useOverview } from "../../state/overview";
 import { SettingsSkeletonGroups } from "./SettingsSkeleton";
+import { useWorkerPresence } from "../computers/presence";
 
 export function WorkerSettings() {
   const overview = useOverview();
@@ -38,7 +39,13 @@ export function WorkerSettings() {
   const [expanded, setExpanded] = useState<string[]>([]);
   const format = useDateTime();
   const data = resource.data;
-  const groups = workerGroups(data?.overview.workers ?? overview.workers, data?.records.records ?? []);
+
+  const groups = workerGroups(
+    overview.loaded ? overview.workers : (data?.overview.workers ?? []),
+    data?.records.records ?? [],
+    overview.computers,
+  );
+
   const pending = data?.setup.enrollments.filter((e) => !e.usedAt && !e.revokedAt) ?? [];
 
   return (
@@ -184,12 +191,16 @@ function WorkerCard({
   const c = useColors();
   const format = useDateTime();
 
+  const presence = useWorkerPresence()(worker);
+
   const status =
     worker.revokedAt || record?.revoked
       ? "Revoked"
       : worker.online && !record?.readOnlyReason
         ? "Connected"
-        : "Disconnected";
+        : presence.away
+          ? presence.status
+          : "Disconnected";
 
   const updates = worker.cliTools.filter((tool) => tool.action === "update").length;
   const route = worker.networkRouteStatus;
@@ -218,6 +229,7 @@ function WorkerCard({
           gap: 12,
           alignItems: "center",
           backgroundColor: pressed ? c.inset : "transparent",
+          opacity: presence.away ? 0.5 : 1,
         })}
       >
         <Icon name="computer-desktop" />
@@ -248,11 +260,11 @@ function WorkerCard({
   );
 }
 
-function workerGroups(workers: ui.Worker[], records: ui.WorkerRecord[]) {
+function workerGroups(workers: ui.Worker[], records: ui.WorkerRecord[], computers: ui.LinkedComputer[]) {
   const groups = new Map<string, { id: string; name: string; workers: ui.Worker[] }>();
 
   const entries = [
-    ...workers.filter((w) => !w.nodeId),
+    ...workers.filter((w) => !w.nodeId || !records.some((record) => record.workerId === w.id)),
     ...records.map(
       (r) =>
         workers.find((w) => w.id === r.workerId) ??
@@ -273,7 +285,11 @@ function workerGroups(workers: ui.Worker[], records: ui.WorkerRecord[]) {
 
     const group = groups.get(id) ?? {
       id,
-      name: records.find((r) => r.workerId === worker.id)?.computerName || "This computer",
+      name:
+        records.find((r) => r.workerId === worker.id)?.computerName ||
+        computers.find((computer) => computer.nodeId === id)?.displayName ||
+        computers.find((computer) => computer.nodeId === id)?.name ||
+        "This computer",
       workers: [],
     };
 

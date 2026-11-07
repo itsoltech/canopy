@@ -344,6 +344,12 @@ ogłasza Updating…, zwykłe wyjście Offline since …, a restart nadzorcy Res
 Okno powrotu aktualizacji/restartu wynosi 5 minut; potem partner pokazuje Unreachable.
 Pełna tabela i zgodność starszych partnerów: [linked-computers.md](linked-computers.md#obecność-i-odwołanie).
 
+Wake oraz zmiana sieci wymuszają nowe sesje partnerów z tymi samymi pinami; przed
+zamknięciem starych sesji gateway wysyła nowe trasy. Niedostępność partnera nie blokuje
+lokalnych Settings ani list. Wspólny overview zachowuje ostatnie workery, projekty i wątki;
+zdalne akcje są wyłączone z powodem, a treść lustra pozostaje do czytania. BFF rozdziela
+sesje lokalnych i zdalnych unary oraz lokalnych i zdalnych streamów.
+
 Menu aplikacji otwiera ustawienia i katalog logów; tray pokazuje stan workera
 i znalezione CLI. macOS używa hidden-inset z miejscem na traffic lights w sidebarze;
 Linux i Windows zachowują natywną ramkę. Jedna instancja przypada na katalog danych.

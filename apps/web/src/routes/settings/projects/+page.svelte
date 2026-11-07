@@ -45,7 +45,12 @@
   {/snippet}
   {#each projects as project (project.id)}
     {@const id = localId(project)}
-    <SettingsRow title={project.name} description={places(project)} href={id && `/settings/projects/${id}`}>
+    <SettingsRow
+      title={project.name}
+      description={overview.projectAway(project) ?? places(project)}
+      class={overview.projectAway(project) ? "opacity-50" : undefined}
+      href={id && `/settings/projects/${id}`}
+    >
       {#snippet leading()}<ProjectAvatar name={project.name} />{/snippet}
     </SettingsRow>
   {:else}

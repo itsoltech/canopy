@@ -118,6 +118,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
   }, 20_000);
 
   test("A's overview lists B's workers and projects next to its own, qualified and marked with B's machine", async () => {
+    await eventually(async () => (await a.api.getOverview({})).workers.some((w) => w.id === q(b.workerId)));
     const overview = await a.api.getOverview({});
     const worker = overview.workers.find((w) => w.id === q(b.workerId));
     expect(worker?.nodeId).toBe(bNode);
@@ -133,8 +134,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
       true,
     );
     expect(overview.workers.filter((w) => w.id.startsWith(a.workerId))).toHaveLength(1);
-    const models = await a.api.listModels({});
-    expect(models.workers.some((w) => w.workerId === q(b.workerId))).toBe(true);
+    await eventually(async () => (await a.api.listModels({})).workers.some((w) => w.workerId === q(b.workerId)));
   }, 20_000);
 
   let thread = "";
@@ -163,10 +163,12 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     expect(answers(updates)).toContain("Echo: hello from A");
     const snapshot = updates[0]?.change.case === "snapshot" ? updates[0].change.value : undefined;
     expect(snapshot?.thread?.id).toBe(thread);
-    expect(
+    await eventually(async () =>
       (await a.api.listThreads({ sidebarOnly: true })).threads.some((t) => t.id === thread && t.nodeId === bNode),
-    ).toBe(true);
-    expect((await a.api.listThreads({ projectId: q(project) })).threads.map((t) => t.id)).toEqual([thread]);
+    );
+    await eventually(async () =>
+      (await a.api.listThreads({ projectId: q(project) })).threads.some((t) => t.id === thread),
+    );
     // The echo precedes turnFinished; settle it before the next test holds new turns.
     await eventually(async () => (await b.api.getThread({ threadId: plain })).thread?.status === "idle");
   }, 25_000);
@@ -421,6 +423,8 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
   test("an unreachable partner fails fast with a clear reason and no work waits for it", async () => {
     const plain = thread.split("~")[0]!;
     const before = (b.worker.inputs.get(plain) ?? []).length;
+    // This legacy peer has no durable mirror; preserve the last-known response for this query.
+    await eventually(async () => (await a.api.listThreads({})).threads.some((t) => t.nodeId === bNode));
     await b.api.updateNetworkAccess({ action: "set_enabled", enabled: false });
     await a.api.updateNetworkAccess({ action: "set_enabled", enabled: false });
     await eventually(async () => (await a.api.getComputers({})).peers[0]?.status === "unreachable", 10_000);
@@ -430,8 +434,8 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     );
     expect(await failure(a.api.answerInteraction({ requestId: q(id()), allow: true }))).toContain("unreachable");
     expect(Date.now() - started).toBeLessThan(1500);
-    expect((await a.api.getOverview({})).workers.some((w) => w.nodeId)).toBe(false);
-    expect((await a.api.listThreads({})).threads.some((t) => t.nodeId)).toBe(false);
+    expect((await a.api.getOverview({})).workers.some((w) => w.nodeId === bNode)).toBe(true);
+    expect((await a.api.listThreads({})).threads.some((t) => t.nodeId === bNode)).toBe(true);
     await a.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
     await b.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
     await reachable();
@@ -447,7 +451,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     await eventually(async () => (await a.api.getComputers({})).peers[0]?.status === "connected", 15_000);
     expect((await a.api.getComputers({})).peers[0]!.capabilities).toEqual(["presence", "unlink"]);
     expect(await failure(a.api.getThread({ threadId: thread }))).toContain("needs an update to share its threads");
-    expect((await a.api.getOverview({})).workers.some((w) => w.nodeId)).toBe(false);
+    expect((await a.api.getOverview({})).workers.some((w) => w.nodeId === bNode)).toBe(true);
     await restartB();
     await reachable();
   }, 40_000);

@@ -304,7 +304,14 @@ export function AppSidebar() {
           {
             options: projects
               .filter((p) => !p.archivedAt)
-              .map((p) => ({ value: p.id, label: p.name, leading: <ProjectMark name={p.name} kind={p.kind} /> })),
+              .map((p) => ({
+                value: p.id,
+                label: p.name,
+                leading: <ProjectMark name={p.name} kind={p.kind} />,
+                badge: navigation.projectAway(p) ? "Offline" : undefined,
+                description: navigation.projectAway(p),
+                muted: Boolean(navigation.projectAway(p)),
+              })),
           },
         ]}
       />

@@ -28,6 +28,9 @@ export class ModelCatalogState {
 
   apply(update: ui.OverviewUpdate): void {
     if (update.change.case === "models") this.#set(update.change.value);
+
+    if (update.change.case === "linkedReadCompleted" && update.change.value === "ListModels")
+      void this.reload().catch(() => {});
   }
 
   async reload(): Promise<void> {

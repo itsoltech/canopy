@@ -45,6 +45,8 @@ const threadCommand = (overview: OverviewState, thread: ui.Thread, suggested: bo
   return {
     id: `thread:${thread.id}`,
     title: thread.title || "New thread",
+    muted: Boolean(thread.nodeId && awayReason(overview.computer(thread.nodeId))),
+    detail: thread.nodeId && awayReason(overview.computer(thread.nodeId)) ? "Read-only" : undefined,
     group: "threads",
     href: `/threads/${thread.id}`,
     keywords: [project?.name, worker?.name, basename(thread.cwd)].filter(Boolean).join(" "),
@@ -87,6 +89,8 @@ function actionCommands(context: AppCommandContext, current: ui.Project | undefi
         overview.projectChoices.map((project) => ({
           id: project.id,
           title: project.name,
+          disabled: Boolean(overview.projectAway(project)),
+          detail: overview.projectAway(project),
           group: "actions",
           projectName: project.name,
           projectKind: project.kind,
@@ -133,6 +137,8 @@ const projectCommands = (overview: OverviewState, threads: readonly ui.Thread[])
   overview.projectChoices.map((project) => ({
     id: `project:${project.id}`,
     title: project.name,
+    muted: Boolean(overview.projectAway(project)),
+    detail: overview.projectAway(project),
     group: "projects",
     projectName: project.name,
     projectKind: project.kind,
@@ -143,6 +149,8 @@ const projectCommands = (overview: OverviewState, threads: readonly ui.Thread[])
       {
         id: "new-thread",
         title: `New thread in ${project.name}`,
+        disabled: Boolean(overview.projectAway(project)),
+        detail: overview.projectAway(project),
         group: "actions",
         icon: "pencil-square",
         href: newThreadHref(project),

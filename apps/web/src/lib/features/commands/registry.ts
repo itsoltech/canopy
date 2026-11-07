@@ -36,6 +36,8 @@ export interface Command {
   /** Unique among the commands listed together. */
   readonly id: string;
   readonly title: string;
+  readonly detail?: string | undefined;
+  readonly muted?: boolean | undefined;
   readonly group: CommandGroup;
   readonly icon?: IconName | undefined;
   /** Extra words it is found by (matched, not shown). */

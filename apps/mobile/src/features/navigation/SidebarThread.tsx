@@ -8,6 +8,7 @@ import { ProviderIcon } from "../../ui/ProviderIcon";
 import { ProjectMark } from "../../ui/ProjectMark";
 import { Swap } from "../../ui/MotionViews";
 import { needsYou } from "@canopy/domain/thread-activity";
+import { useComputerHome } from "../computers/presence";
 
 export function age(seconds?: bigint) {
   if (!seconds) return "";
@@ -36,43 +37,48 @@ export function SidebarThread({
   subagentsNeedingInput?: readonly ui.Thread[];
 }) {
   const c = useColors();
+  const home = useComputerHome(thread.nodeId);
   const layout = useLayout();
   const pathname = usePathname();
   const { id } = useGlobalSearchParams<{ id?: string }>();
   // Wide windows show the open thread beside the list: mark it.
   const active = layout.wide && pathname.startsWith("/thread/") && id === thread.id;
-  const needs = needsYou(thread) || subagentsNeedingInput.length > 0;
-  const busy = !needs && ["running", "creating"].includes(thread.status);
+  const needs = !home.away && (needsYou(thread) || subagentsNeedingInput.length > 0);
+  const busy = !home.away && !needs && ["running", "creating"].includes(thread.status);
   const result = thread.unseenResult || (thread.status === "failed" ? "failed" : "");
 
-  const label = needs
-    ? needsYou(thread)
-      ? "Needs input"
-      : subagentsNeedingInput.length === 1
-        ? "Subagent needs input"
-        : `${subagentsNeedingInput.length} subagents need input`
-    : busy
-      ? thread.status === "creating"
-        ? "Starting"
-        : "Working"
-      : result
-        ? result[0]!.toUpperCase() + result.slice(1)
-        : age(thread.lastActivityAt?.seconds ?? thread.createdAt?.seconds);
+  const label = home.away
+    ? "Read-only"
+    : needs
+      ? needsYou(thread)
+        ? "Needs input"
+        : subagentsNeedingInput.length === 1
+          ? "Subagent needs input"
+          : `${subagentsNeedingInput.length} subagents need input`
+      : busy
+        ? thread.status === "creating"
+          ? "Starting"
+          : "Working"
+        : result
+          ? result[0]!.toUpperCase() + result.slice(1)
+          : age(thread.lastActivityAt?.seconds ?? thread.createdAt?.seconds);
 
-  const tone = needs
-    ? c.warning
-    : busy
-      ? c.sky
-      : result === "completed"
-        ? c.success
-        : result === "failed"
-          ? c.danger
-          : c.muted;
+  const tone = home.away
+    ? c.muted
+    : needs
+      ? c.warning
+      : busy
+        ? c.sky
+        : result === "completed"
+          ? c.success
+          : result === "failed"
+            ? c.danger
+            : c.muted;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${thread.title || "Untitled thread"}, ${label}`}
+      accessibilityLabel={`${thread.title || "Untitled thread"}, ${label}${home.away ? `, ${home.reason}` : ""}`}
       accessibilityState={{ selected: active }}
       onPress={() => layout.open({ pathname: "/thread/[id]", params: { id: thread.id } })}
       style={({ pressed }) => [
@@ -84,6 +90,7 @@ export function SidebarThread({
           backgroundColor: pressed || active ? c.inset : needs ? (c.dark ? "#fbbf240f" : "#f59e0b0f") : "transparent",
           borderWidth: needs ? 1 : 0,
           borderColor: `${c.warning}33`,
+          opacity: home.away ? 0.55 : 1,
         },
         style,
       ]}

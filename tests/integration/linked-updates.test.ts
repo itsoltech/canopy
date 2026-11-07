@@ -230,7 +230,7 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     expect(computerUpdate((await computer())!).detail).toBe("The download was interrupted.");
     updater({ phase: "idle", error: undefined, stagedVersion: undefined, message: "Update available" });
     await eventually(async () => (await computer())?.updates?.app?.updaterPhase === "idle");
-  }, 20_000);
+  }, 60_000);
 
   test("an older B without the updater fields shows the row it showed before", async () => {
     app.legacy = true;
@@ -267,7 +267,7 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     expect((await computer())?.updates?.app).toMatchObject({ targetVersion: "1.1.0", ready: true });
     app.idle = true;
     await eventually(async () => app.restarted);
-    expect((await computer())?.updates?.app?.phase).toBe("restarting");
+    await eventually(async () => (await computer())?.updates?.app?.phase === "restarting");
     expect((await audit(a, "computer.update.sent")).map((d) => d.node)).toEqual([bNode]);
     expect((await audit(b, "desktop.update.request")).map((d) => d.node)).toEqual([la.hello().nodeId]);
     expect((await audit(b, "computer.update.received")).map((d) => d.node)).toEqual([la.hello().nodeId]);

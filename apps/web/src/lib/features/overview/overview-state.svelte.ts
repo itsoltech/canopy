@@ -3,7 +3,14 @@ import { ui } from "@canopy/contracts";
 import { decode } from "#lib/shared/wire.ts";
 import { ComputerAway, liveSource } from "#lib/shared/live-source.ts";
 import { bodyJson, isJsonObject } from "#lib/shared/json.ts";
-import { computerName, listsThreads, sharesThreads } from "@canopy/domain/computer-presence";
+import { computerName } from "@canopy/domain/computer-presence";
+import {
+  retainProjects,
+  retainLinkedRows,
+  forgetComputerProjects,
+  workersWithAvailability,
+  projectAwayReason,
+} from "@canopy/domain/linked-snapshot";
 import { projectChoices } from "@canopy/domain/projects";
 
 /** live: stream open and in sync; reconnecting: dropped, retrying; unavailable: the gateway does not answer. */
@@ -15,13 +22,14 @@ export type OverviewConnection = "live" | "reconnecting" | "unavailable";
  * so every reconnect reloads the full overview and thread index to pick up what happened in between.
  */
 export class OverviewState {
-  workers = $state.raw<ui.Worker[]>([]);
+  #workers = $state.raw<ui.Worker[]>([]);
   projects = $state.raw<ui.Project[]>([]);
   projectChoices = $derived(projectChoices(this.projects));
   /** Active threads and Previous agents, plus archived rows observed live or fetched on demand. */
   threads = $state.raw<ReadonlyMap<string, ui.Thread>>(new Map());
   /** Linked computers by node id. Mirror-capable peers remain listed while offline. */
   computers = $state.raw<ReadonlyMap<string, ui.LinkedComputer>>(new Map());
+  workers = $derived(workersWithAvailability(this.#workers, [...this.computers.values()]));
   /** This computer's own: settings, schedules and workspaces are configured per computer. */
   ownWorkers = $derived(this.workers.filter((w) => !w.nodeId));
   ownProjects = $derived(this.projects.filter((p) => !p.nodeId));
@@ -30,6 +38,7 @@ export class OverviewState {
   /** Grows with every reload after a gap in the stream: state kept elsewhere (settings, schedules) reloads too. */
   resyncs = $state(0);
   #synced = false;
+  #refreshing = false;
   #listeners = new Set<(update: ui.OverviewUpdate) => void>();
 
   constructor(initial: ui.GetOverviewResponse | undefined, threads: readonly ui.Thread[] = []) {
@@ -46,6 +55,10 @@ export class OverviewState {
 
   projectChoice(id: string) {
     return this.projectChoices.find((project) => project.projectIds.includes(id));
+  }
+
+  projectAway(project: ui.Project) {
+    return projectAwayReason(project, this.workers, [...this.computers.values()]);
   }
 
   computer(nodeId: string): ui.LinkedComputer | undefined {
@@ -87,6 +100,19 @@ export class OverviewState {
     for (const listener of this.#listeners) listener(update);
     const change = update.change;
 
+    if (
+      change.case === "linkedReadCompleted" &&
+      ["GetOverview", "ListThreads"].includes(change.value) &&
+      !this.#refreshing
+    ) {
+      this.#refreshing = true;
+      void this.#resync(AbortSignal.timeout(12_000))
+        .catch(() => {})
+        .finally(() => {
+          this.#refreshing = false;
+        });
+    }
+
     if (change.case === "computerSnapshot") {
       const { nodeId, overview, threads } = change.value;
       const visible = new Set(threads.map((t) => t.id));
@@ -97,7 +123,7 @@ export class OverviewState {
       }
 
       this.#forget(nodeId);
-      this.workers = [...this.workers, ...(overview?.workers ?? [])];
+      this.#workers = [...this.#workers, ...(overview?.workers ?? [])];
       this.projects = [...this.projects, ...(overview?.projects ?? [])];
       const next = new Map(this.threads);
 
@@ -110,9 +136,9 @@ export class OverviewState {
       this.threads = next;
     }
 
-    if (change.case === "worker") this.workers = upsert(this.workers, change.value, (w) => w.id);
+    if (change.case === "worker") this.#workers = upsert(this.#workers, change.value, (w) => w.id);
 
-    if (change.case === "workerRemoved") this.workers = this.workers.filter((w) => w.id !== change.value);
+    if (change.case === "workerRemoved") this.#workers = this.#workers.filter((w) => w.id !== change.value);
 
     if (change.case === "project")
       this.projects = change.value.archivedAt
@@ -121,10 +147,6 @@ export class OverviewState {
 
     if (change.case === "computer") {
       this.computers = new Map(this.computers).set(change.value.nodeId, change.value);
-
-      if (!listsThreads(change.value)) this.#forget(change.value.nodeId);
-      else if (!sharesThreads(change.value))
-        this.workers = this.workers.map((w) => (w.nodeId === change.value.nodeId ? { ...w, online: false } : w));
     }
 
     if (change.case === "computerRemoved") {
@@ -149,18 +171,19 @@ export class OverviewState {
     }
   }
 
-  /** A computer that stopped sharing: its things leave the lists (stage 2 keeps no offline copy). */
+  /** An authoritative home snapshot or unlink replaces that home's rows. */
   #forget(nodeId: string): void {
-    this.workers = this.workers.filter((w) => w.nodeId !== nodeId);
-    this.projects = this.projects.filter((p) => p.nodeId !== nodeId);
+    this.#workers = this.#workers.filter((w) => w.nodeId !== nodeId);
+    this.projects = forgetComputerProjects(this.projects, nodeId);
     this.threads = new Map([...this.threads].filter(([, t]) => t.nodeId !== nodeId));
   }
 
   #replace(overview: ui.GetOverviewResponse, threads: readonly ui.Thread[]): void {
     this.computers = new Map(overview.computers.map((c) => [c.nodeId, c]));
-    this.workers = overview.workers;
-    this.projects = overview.projects;
-    const visible = new Map(threads.flatMap((t) => (t.deletedAt ? [] : [[t.id, t] as const])));
+    this.#workers = retainLinkedRows(this.#workers, overview.workers, overview.computers);
+    this.projects = retainProjects(this.projects, overview.projects, overview.computers);
+    const retained = retainLinkedRows([...this.threads.values()], threads, overview.computers);
+    const visible = new Map(retained.flatMap((t) => (t.deletedAt ? [] : [[t.id, t] as const])));
 
     // Reconcile deletions and restores that happened while the overview stream was disconnected.
     for (const [id, thread] of this.threads)

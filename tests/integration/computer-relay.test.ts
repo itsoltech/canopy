@@ -243,8 +243,20 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
     expect(origin.name).toBe("W");
     expect(l2.reachable()).not.toContain(wn);
     expect(await l2.store.peer(wn)).toBeUndefined(); // never an mTLS trust pin
-    expect((await w.api.listThreads({})).threads.find((t) => t.id === q(thread))?.nodeId).toBe(n2);
-    expect((await w.api.getOverview({})).projects.find((p) => p.id === q(project))?.nodeId).toBe(n2);
+    expect(
+      await eventually(
+        async () => (await w.api.listThreads({})).threads.find((t) => t.id === q(thread))?.nodeId,
+        (node) => node === n2,
+        15_000,
+      ),
+    ).toBe(n2);
+    expect(
+      await eventually(
+        async () => (await w.api.getOverview({})).projects.find((p) => p.id === q(project))?.nodeId,
+        (node) => node === n2,
+        15_000,
+      ),
+    ).toBe(n2);
   });
 
   test("explicit reciprocal sharing permits both directions without a routing loop", async () => {
@@ -327,7 +339,9 @@ describe.skipIf(!dockerAvailable)("Share onward: three real gateways and indepen
   }, 20000);
 
   test("P2 bots and agent spawn use the originating W identity; callbacks return via P1", async () => {
-    expect((await w.api.listBots({})).bots.some((b) => b.id === q(bot))).toBe(true);
+    expect(
+      await eventually(async () => (await w.api.listBots({})).bots.some((b) => b.id === q(bot)), Boolean, 15_000),
+    ).toBe(true);
     await w.api.sendBotMessage({ botId: q(bot), text: "relay bot message", clientRequestId: id() });
     expect(
       await eventually(

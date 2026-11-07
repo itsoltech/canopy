@@ -11,6 +11,7 @@ import { useMessageDraft } from "../composer/useMessageDraft";
 import { useWorkerPresence } from "../computers/presence";
 import { useWorkspaceDraft } from "./useWorkspaceDraft";
 import { defaultProject, defaultWorkspace, effectiveDefaults, modelFor } from "./placement";
+import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 
 /**
  * New thread: the project and the worker it runs on, the model and effort, the permission mode, files and the
@@ -127,6 +128,7 @@ export function useNewThread() {
 
   return {
     projects,
+    projectAway: (project: ui.Project) => projectAwayReason(project, overview.workers, overview.computers),
     workers: overview.workers,
     project,
     workspace,

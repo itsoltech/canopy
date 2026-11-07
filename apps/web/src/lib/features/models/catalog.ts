@@ -312,7 +312,11 @@ export function modelOptions(sources: ModelSources): ModelOption[] {
   const providers = sources.only ? [sources.only.provider] : providerKeys;
 
   return providers.flatMap((provider) => {
-    const available = sources.worker?.providers.some((p) => providerKeyOf(p.provider) === provider && p.available);
+    const available =
+      sources.worker?.providers.some((p) => providerKeyOf(p.provider) === provider && p.available) ||
+      sources.worker?.providerInstances.some(
+        (instance) => providerKeyOf(instance.harness) === provider && instance.enabled && instance.available,
+      );
 
     if (!available && !sources.only) return [];
 
