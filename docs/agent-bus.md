@@ -23,7 +23,7 @@ Zestaw narzędzi wątku Codexa jest ustalany przy `thread/start`. Wątki utworzo
 |---|---|
 | `spawn_thread` (z `fork`, `notify`, `interactions`), `send_message`, `wait_threads`, `get_thread`, `read_thread`, `list_threads`, `interrupt_thread`, `close_thread`, `list_interactions`, `answer_interaction` | działa |
 | `list_agents`, `spawn_thread.provider` | działa: subagent na dowolnej instancji dostawcy workera (Claude ↔ Codex), z modelem i wysiłkiem z jej katalogu ([Subagenci dowolnego dostawcy](#subagenci-dowolnego-dostawcy)). Katalogu ról agentów nadal nie ma: pole `agent` zniknęło ze schematu (`instructions` daje rolę) |
-| `send_message` / `get_thread` / `read_thread` do dowolnego wątku właściciela | działa: także poza drzewem (inny projekt, inny worker), jak wiadomość człowieka; `list_threads` `scope: all` szuka po tytule ([Wiadomości między dowolnymi wątkami](#wiadomości-między-dowolnymi-wątkami)) |
+| `send_message` / `get_thread` / `read_thread` do dowolnego wątku właściciela | działa: także poza drzewem (inny projekt, inny worker); `list_threads` `scope: all` szuka po tytule. Domyślnie wiadomość do pracującego rodzica/przodka jest steerem; pozostałe trafiają do kolejki ([Wiadomości między dowolnymi wątkami](#wiadomości-między-dowolnymi-wątkami)) |
 | `send_message.delivery = steer` | działa: gdy cel ma turę w toku, wiadomość (z notatką o nadawcy) trafia do niej (`turn_steers`, `SteerTurn`; Codex `turn/steer`, Claude strumień wejścia). Wynik narzędzia: `delivery: "steer"` i `turn_id` tury w toku. Powiadomienie przychodzi, gdy skończy się tura, do której wiadomość weszła (wywołanie wskazuje ją dopiero po wejściu). Nie weszła (tura skończyła się wcześniej, odmowa dostawcy): następna tura `agent_bus` z tym samym wywołaniem i `hops`, powiadomienie po niej. Bez tury w toku: kolejka (`delivery: "queue"`) |
 | `list_background_tasks`, `get_background_task`, `stop_background_task` | działa (2026-11-02): zadania w tle wątku, sekcja „Zadania w tle” niżej |
 | `schedule_wakeup`, `schedule_recurring`, `list_schedules`, `cancel_schedule` | działa (użytkownik ma to samo w UI API: `ListSchedules`, `CreateSchedule`, `SetScheduleStatus`): `Scheduler` w gateway (`apps/gateway/src/core/scheduler.ts`, co 5 s), cron Buna ze strefą czasową (`core/cron.ts`); minimalny odstęp sprawdzany na rzeczywistych terminach |
@@ -80,7 +80,7 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 | `list_agents` | ✓ | ✓ | na czym można uruchomić subagenta: instancje dostawców workera (`claude/native`, `codex/cliproxyapi`, ...) z modelami, wysiłkami i domyślnymi; plus własne ustawienia wywołującego |
 | `spawn_thread` | ✓ | | subagent = nowy wątek boczny: `title`, `prompt`, `instructions?` (rola), `provider?`, `model?`, `effort?`, `permission_mode?`, `fork?`, `notify?`, `interactions?` (`parent` domyślnie, `human`), `workspace_mode?` i `base_ref?`; zwraca od razu `thread_id`, `turn_id` i ustawienia dziecka (`provider`, `model`, `effort`, `permission_mode`) |
 | `send_message` | ✓ | ✓ | wiadomość do wątku z drzewa albo dowolnego wątku właściciela: `delivery` `queue`/`steer`, `notify?` |
-| `wait_threads` | ✓ | ✓ | czekanie na wątki (`any`/`all`, ≤ 300 s, ponawialne); zwraca status, wynik ostatniej tury i ostatnią wiadomość każdego |
+| `wait_threads` | ✓ | ✓ | czekanie na wątki (`any`/`all`, ≤ 300 s, ponawialne); zwraca status i wynik ostatniej tury każdego, wcześniej także pytania lub skierowane do wywołującego wiadomości (`messages`) |
 | `get_thread` / `read_thread` / `list_threads` | ✓ | ✓ | status (z dostawcą, modelem, wysiłkiem, uprawnieniami, `last_turn`, projektem i workerem), transkrypt, lista (`children`, `tree`, `all` z `query` i `limit`) |
 | `interrupt_thread` / `close_thread` | ✓ | | sterowanie potomkami |
 | `list_interactions` / `answer_interaction` | ✓ | | pytania i prośby o zgodę od wątków bocznych |
@@ -110,6 +110,8 @@ Narzędzia do sprawdzania własnej pracy w tle ([execution.md](execution.md#4-za
 ### Subagenci platformy zamiast natywnych
 
 Każdy subagent to prawdziwy wątek platformy: widoczny w drzewie i na osi czasu rodzica, sterowalny przez użytkownika, z pełnym transkryptem. Opisy narzędzi mówią modelowi, że `spawn_thread` jest narzędziem do delegowania (nie ma `spawn_agent` ani `Task`).
+
+Opisy `spawn_thread`, `send_message`, `wait_threads`, instrukcje systemowe dziecka oraz notatka zadania mówią krótko: końcowa wiadomość jest wynikiem przekazywanym rodzicowi automatycznie (domyślne `notify`). Dziecko używa `send_message` do rodzica tylko do informacji wymagających działania w trakcie zadania; pytania kieruje przez `ask_user`. Nie wysyła osobno końcowego przekazania wyników.
 
 `spawn_thread` domyślnie dziedziczy katalog i worktree rodzica, również gdy zakres projektu × workera
 domyślnie tworzy nowe worktree. `workspace_mode` pozwala wybrać `inherit_parent`, `checkout`,
@@ -167,7 +169,7 @@ Agent może napisać do **dowolnego wątku tego samego właściciela**, jak czł
 - Znalezienie celu: `list_threads` z `scope: "all"` (wszystkie niezarchiwizowane wątki właściciela, najnowsza aktywność najpierw; `query` dopasowuje tytuł rozmyto jak `SearchThreads`, `limit` do 50; każdy z `project`, `worker`, `provider`), albo wątek wspomniany przez użytkownika (`#`).
 - `wait_threads` i **sterowanie** (`interrupt_thread`, `close_thread`, `answer_interaction`, harmonogramy innych) bez zmian: tylko drzewo / potomkowie.
 - **Przeskoki** działają między drzewami: tura celu ma `hops` wywołującego + 1, odpowiedź (`notify`, domyślnie włączone) + 1 dalej; limit zatrzymuje dwa agenty piszące do siebie w kółko.
-- Notatka dla modelu celu spoza drzewa: `[canopy] Message from the thread "<tytuł>" (thread_id: …), an agent outside your thread tree; your final message of this turn is reported back to it:` (część o odpowiedzi tylko z `notify`); w drzewie bez zmian.
+- Wiadomość zawiera czas wysłania UTC, np. `[canopy] Message from the thread "<tytuł>" (thread_id: …), sent at 2026-11-07T10:15:00.000Z:`. Jeśli czekała podczas pracy odbiorcy, notatka dodaje `queued while your previous turn was running`; dotyczy to też fallbacku steera. Czas bezwzględny pozostaje prawdziwy niezależnie od długości kolejki i restartu. Poza drzewem pozostaje dopisek `an agent outside your thread tree; your final message of this turn is reported back to it` (część o odpowiedzi tylko z `notify`).
 - Worker mówi tylko za swoje wątki: wywołanie szyny z `thread_id` wątku innego workera jest odrzucane (`thread … not found`), bo wiadomość może teraz dotrzeć na inny worker.
 
 **Oznaczenie nadawcy** (UI): tura od agenta (`source_kind` `task` / `message` / `report`) i steer agenta mają `sender` (`AgentSender`: wątek nadawcy, tytuł, dostawca, instancja, model tury, która wysłała, projekt, worker; widok `turn_sources` z migracji `0023` i zapytanie steerów). Dymek jest fioletowy (fiolet = od agenta) z linią „Message from ‹wątek› ‹znak dostawcy› model · N hops” prowadzącą do nadawcy (`AgentSenderLabel`); tak samo zadanie subagenta, raport i steer agenta (dostarczony: tylko jego treść, bez notatki platformy). Dymek jest domyślnie zwinięty do pierwszej linii (`AgentMessageBubble`, `@canopy/domain/first-line`): zwykły tekst bez znaczników markdown, ucięty wielokropkiem, z chevronem; kliknięcie wiersza albo chevronu (Enter / Spacja, `aria-expanded`) rozwija pełny markdown i zwija go z powrotem (akordeon `t-acc-panel`, reduced motion bez ruchu). Wiadomość mieszcząca się w jednej linii jest pokazana w całości, bez chevronu; mierzy to sama linia (`ResizeObserver`), więc węższe okno zwija ją ponownie. Zwinięta treść ma `hidden="until-found"`: wyszukiwanie w przeglądarce rozwija wiadomość przy trafieniu (`beforematch`). Stan rozwinięcia jest w pamięci wiersza (`useRemembered`). Linia nadawcy nad dymkiem zostaje bez zmian.
@@ -178,8 +180,11 @@ Na żywo: `tests/integration/platform-subagents.live.test.ts` — Codex (`gpt-6.
 
 ### Asynchroniczność
 
+- `send_message` bez `delivery`: do rodzica/przodka z trwającą turą — steer; do bezczynnego przodka, rodzeństwa, potomka lub innego drzewa — kolejka. Jawne `delivery: "queue"` zachowuje kolejkę; jawne `"steer"` próbuje wejść do aktywnej tury niezależnie od relacji. Odmowa albo koniec tury zachowuje istniejący fallback kolejki.
+- Gdy odbiorca jest w `wait_threads` na nadawcę, wiadomość wraca przez wynik oczekiwania, bez dodatkowego steera. Do czasu odbioru jest trwałą turą oczekującą za trwającą turą rodzica. Przerwane lub wygasłe oczekiwanie pozostawia ją w kolejce do zwykłego dostarczenia.
+- Raport zakończenia także pozostaje `pending`, gdy rodzic ma aktywne oczekiwanie na ten wątek. Oczekiwanie odbiera go przez podsumowanie; po wygaśnięciu lub przerwaniu oczekiwania zwykłe dostarczenie wznawia `sweep`.
 - `spawn_thread` i `send_message` nie blokują. Wynik przychodzi jako **powiadomienie** (`notify`, domyślnie włączone): po zakończeniu wskazanej tury docelowej gateway wstrzykuje raport do trwającej tury wywołującego jako steer platformy z oznaczeniem nadawcy (wątku docelowego). Korzysta ze ścieżki `SteerTurn` i fallbacku notatek platformy opisanej w [execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania). Bez trwającej tury albo gdy steer nie wejdzie (odmowa dostawcy, tura skończyła się wcześniej), powstaje tura `trigger = agent_bus`. Raport zawiera status i ostatnią wiadomość **tej tury docelowej**, a nie późniejszej tury tego wątku. Przeskoki pozostają takie same: `hops` wywołania + 1 (zarówno steer, jak i jego fallback).
-- `wait_threads` jest dla orkiestracji synchronicznej i jest **ograniczone w czasie oraz ponawialne**. Claude SDK ma twardy limit czasu wywołania narzędzia MCP, a limit narzędzi dynamicznych Codexa nie jest udokumentowany. `wait_threads` zwraca też wcześniej, gdy wątek boczny czeka na odpowiedź rodzica.
+- `wait_threads` jest dla orkiestracji synchronicznej i jest **ograniczone w czasie oraz ponawialne**. Claude SDK ma twardy limit czasu wywołania narzędzia MCP, a limit narzędzi dynamicznych Codexa nie jest udokumentowany. Zwraca wcześniej, gdy wątek czeka na odpowiedź rodzica albo wysłał do wywołującego wiadomość. `messages` zawiera `call_id`, `thread_id` nadawcy, jego `turn_id`, `text` i `sent_at`; `done` nadal mówi o zakończeniu pracy według `any`/`all`, więc sam komunikat może dać `done: false`. Reguła wiadomości działa dla każdego oczekiwanego wątku drzewa, również rodzeństwa.
 
 #### Kiedy wynik został już odebrany
 
@@ -193,6 +198,19 @@ Zapis pomyślnego wywołania odczytu zużywa niedostarczone powiadomienia **tego
 Zużycie obejmuje `pending`, steer jeszcze bez potwierdzonego wejścia do transkryptu (`steering`) oraz raport już zapisany jako tura oczekująca, jeśli nie wysłano jeszcze jej `StartTurn`. Taka tura jest anulowana. Raz dostarczonego wejścia nie da się wycofać: raport, który już wszedł do tury, pozostaje w jej historii. Komenda steera wysłana przed odczytem może jeszcze dotrzeć, lecz jej spóźniona odmowa lub upuszczenie nie tworzy dodatkowej tury.
 
 Panel kolejki nad kompozytorem pokazuje wyłącznie wiadomości użytkownika (`trigger = user`, bez źródła platformowego). Oczekujące raporty, ich fallbacki i inne wejścia platformy nie są w nim wiadomościami do edycji lub wysłania. Dostarczony raport ma nadawcę w historii wątku.
+
+#### Jawne wiadomości agentów
+
+Migracja `0095_bus_message_consumption` dodaje niezależne `agent_bus_calls.message_consumed`. `notify_status` nadal opisuje raport zwrotny z tury odbiorcy; po wycofaniu wejścia oczekujący raport zwrotny zostaje anulowany.
+
+1. `wait_threads` zwraca i zużywa oczekujące wiadomości adresowane do wywołującego od faktycznie oczekiwanych wątków: `consumed_by_wait`.
+2. `get_thread` zwraca takie wiadomości od wskazanego wątku w `messages` obok podsumowania, także gdy nadawca jeszcze pracuje: `consumed_by_read`. Sam status bez zwróconej treści niczego nie zużywa.
+3. `read_thread` zwraca w `messages` tylko wiadomości pokryte stroną: itemem wywołania `send_message` (`items`) albo wiadomością agenta tej samej tury o dokładnie tej treści (`messages`/`items`). Pusta lub wcześniejsza strona niczego nie zużywa. Pełna treść w `messages` usuwa niejednoznaczność skróconego itemu.
+4. Zużycie dotyczy komunikacji w drzewie. `list_threads` i odczyty UI niczego nie zużywają. Odczyt jest kierunkowy: tylko adresat może odebrać wiadomość wysłaną do niego.
+
+Snapshot odczytu, anulowanie nierozpoczętej tury lub steera i zapis wyniku narzędzia są jedną transakcją pod blokadą wiersza odbiorcy. Dostarczenie, tworzenie outboxa steera i fallback używają tej samej blokady. Tura z `StartTurn` już w outboxie oraz steer z potwierdzonym itemem `user_message` pozostają w historii. Spóźnione potwierdzenie lub odmowa wycofanego steera nie odtwarza kolejki. Zapisany wynik narzędzia przeżywa restart i jest zwracany przy ponowieniu `call_id`.
+
+**Deduplikacja z raportem:** dokładnie ten sam tekst jawnej wiadomości do rodzica i końcowej wiadomości tej samej tury dziecka jest dostarczany raz. Gdy jawna wiadomość została już odebrana lub weszła do tury, raport jest `superseded`. Jeśli nadal czeka, jest wycofywana jako `deduplicated`, a odbiorca dostaje raport zakończenia. Inny tekst albo inna tura pozostają osobnymi informacjami.
 
 ### Pytania platformy: ask_user i get_answers
 
@@ -384,10 +402,13 @@ sequenceDiagram
 - **Powiadomienia** to outbox (`notify_status`, migracja `0030`). Wybór dostarczenia blokuje wiersz wątku wywołującego i wywołania: `pending` → `steering` → `delivered` albo `pending` → `delivered` z `notified_turn_id`. Steer ma osobne, unikalne `notification_call_id` i powiązanie zwrotne `agent_bus_calls.notified_steer_id` (nie zmienia `target_turn_id` pierwotnego wywołania). Baza wymaga wskazania steera dla `steering` i steera lub tury dla `delivered`. Steer i komenda workera zapisują się w jednej transakcji. Fallback zapisuje turę, `notified_turn_id` i stan steera w jednej transakcji; powtórzony callback niczego nie tworzy. Ponowne wysłanie komendy zachowuje jej ID dla trwałej deduplikacji w dzienniku workera.
 - **Restart gateway:** początkowy i okresowy `sweep` wznawia zaległe raporty zakończonych tur i fallbacki, także po awarii pomiędzy zapisem odmowy komendy a utworzeniem tury raportu. Outbox wznawia niewysłane komendy po połączeniu workera. Zużycie raportu i zapis wyniku odczytu są jedną transakcją; zużyty raport nie wraca po restarcie. Harmonogramy także żyją w bazie.
 - **Restart w trakcie `wait_threads`:** niezakończone czekanie nie zużywa raportu. Po wznowieniu agent ponawia odczyt albo dostaje powiadomienie, jeśli nie odebrał wcześniej wyniku.
+- **Wiadomości w oczekiwaniu:** rozpoczęte `wait_threads` ma trwały rekord `requested` z argumentami i czasem początku; `send_message` sprawdza także trwającą turę i termin oczekiwania. Dopiero zapis wyniku kończy oczekiwanie i zużywa zwrócone wiadomości. Restart nie traci wiadomości ani nie wskrzesza już odebranych wejść.
 
 Regresje: `tests/integration/agent-bus-notify.test.ts` (skryptowany worker, wynik podczas `ask_user`, odczyty, fallback i nowa instancja gateway na tej samej bazie), `apps/gateway/src/store/notification-observation.test.ts` (reguły odczytów), `apps/web/src/lib/features/threads/queue/queue.test.ts` (kolejka bez powiadomień) oraz opt-in `agent-bus-notify.live.test.ts` (Codex przez CLIProxyAPI: `spawn_thread` z `notify` → `wait_threads` → `close_thread`, jedna tura rodzica).
 
 ## 9. Udostępnienie narzędzi dostawcom
+
+Regresje wiadomości: `tests/integration/agent-bus-messages.test.ts` — przerwanie i anulowanie oczekiwania, domyślny steer, kolejka i czas wysłania, fallback, odczyt pokrywający treść, deduplikacja wyniku, rodzeństwo oraz odczyt po restarcie. Opt-in `agent-bus-notify.live.test.ts` obejmuje też komunikat dziecka w trakcie pracy i ponawianie oczekiwania do końcowego wyniku.
 
 - **Claude:** serwer MCP w procesie workera (`createSdkMcpServer`, nazwy `mcp__canopy__*`) z `timeout` większym niż maksymalne `wait_threads`.
 - **Codex:** `thread/start { dynamicTools }` ze specyfikacji `agentBusToolSpecs(agentBusToolsFor(depth))`. Pole jest eksperymentalne; plan B to lokalny serwer MCP.

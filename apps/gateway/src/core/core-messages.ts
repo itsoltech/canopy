@@ -59,7 +59,7 @@ export async function coreSendSteer(hostContext: GatewayCore, steerId: string): 
         },
       },
     },
-    { threadId: steer.thread_id, ttlSeconds: TTL.steerTurn },
+    { threadId: steer.thread_id, ttlSeconds: TTL.steerTurn, steerId },
   );
 }
 

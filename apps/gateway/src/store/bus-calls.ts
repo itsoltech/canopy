@@ -7,14 +7,18 @@ import {
   type ThreadNode,
 } from "@canopy/domain";
 import { Effect } from "effect";
-import type { SqlClient } from "effect/sql";
+import type { SqlClient, SqlError } from "effect/sql";
 import { type ThreadRow } from "./store.ts";
-import { observedSummaryTurns } from "./notification-observation.ts";
+import type { AgentBusArgs } from "@canopy/domain";
+import { recordBusCall } from "./bus-call-record.ts";
 
-import { isUniqueViolation, type BusCallRow, type CallSource, type Fx } from "./agent-bus-types.ts";
-import { callerMode, consumeNotifications, insertCall, isUuid, node, thread, turnRef } from "./agent-bus-queries.ts";
+import { type BusCallRow, type CallSource, type Fx } from "./agent-bus-types.ts";
+import { callerMode, consumeNotifications, isUuid, node, thread, turnRef } from "./agent-bus-queries.ts";
 
 export interface BusCallStore {
+  /** Serialize the returned snapshot and its durable observation with input delivery. */
+  observe<A, E, R>(recipient: string, read: Effect.Effect<A, E, R>): Effect.Effect<A, E | SqlError.SqlError, R>;
+  beginWait(source: CallSource, args: AgentBusArgs["wait_threads"]): Fx<Date>;
   storedCall(callId: string): Fx<BusCallRow | undefined>;
   /** Loads the caller, the addressed threads and the counts `authorizeBusCall` needs. */
   facts(input: {
@@ -43,6 +47,29 @@ export interface BusCallStore {
 
 export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
   const store: BusCallStore = {
+    observe: (recipient, read) =>
+      sql.withTransaction(
+        Effect.gen(function* () {
+          yield* sql`SELECT id FROM threads WHERE id = ${recipient}::uuid FOR UPDATE`;
+
+          return yield* read;
+        }),
+      ),
+    beginWait: (source, args) =>
+      sql.withTransaction(
+        Effect.gen(function* () {
+          yield* sql`SELECT id FROM threads WHERE id = ${source.threadId}::uuid FOR UPDATE`;
+          yield* sql`INSERT INTO agent_bus_calls (id, source_thread_id, source_turn_id, source_item_id, tool, arguments, status)
+        VALUES (${source.callId}::uuid, ${source.threadId}::uuid, ${turnRef(sql, source)}, ${source.itemId || null},
+          'wait_threads', ${JSON.stringify(args)}::jsonb, 'requested') ON CONFLICT (id) DO NOTHING`;
+
+          const rows = yield* sql<{ deadline: Date }>`SELECT created_at +
+            coalesce((arguments->>'timeout_seconds')::int, 120) * interval '1 second' AS deadline
+            FROM agent_bus_calls WHERE id = ${source.callId}::uuid`;
+
+          return rows[0]!.deadline;
+        }),
+      ),
     storedCall: (callId) =>
       isUuid(callId)
         ? sql<BusCallRow>`SELECT * FROM agent_bus_calls WHERE id = ${callId}::uuid`.pipe(Effect.map((rows) => rows[0]))
@@ -136,41 +163,7 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
         return { caller, facts };
       }),
 
-    recordCall: ({ source, tool, args, ok, result, error, observedTurnIds }) =>
-      sql
-        .withTransaction(
-          Effect.gen(function* () {
-            const observed = observedTurnIds ?? observedSummaryTurns(tool, result);
-
-            if (ok && observed.length > 0)
-              yield* consumeNotifications(
-                sql,
-                source.threadId,
-                tool === "wait_threads" ? "consumed_by_wait" : "consumed_by_read",
-                { turnIds: observed },
-              );
-            yield* insertCall(sql, {
-              source,
-              tool,
-              args,
-              status: ok ? "completed" : "failed",
-              ...(result !== undefined && { result }),
-              ...(error !== undefined && { error }),
-              ...(ok &&
-                (tool === "spawn_thread" || tool === "send_message") && {
-                  // Linked actions persist their executable reference at the remote home.
-                  hops:
-                    ((yield* sql<{ hops: number }>`SELECT hops FROM turns WHERE id=${turnRef(sql, source)}`)[0]?.hops ??
-                      0) + 1,
-                }),
-            });
-          }),
-        )
-        .pipe(
-          // A concurrent duplicate stored it first: same call, same outcome.
-          Effect.catchTag("SqlError", (e) => (isUniqueViolation(e) ? Effect.void : Effect.fail(e))),
-          Effect.asVoid,
-        ),
+    recordCall: (input) => recordBusCall(sql, input),
 
     supersedeNotifications: (callerId, targetId) =>
       sql.withTransaction(consumeNotifications(sql, callerId, "superseded", { targetId })),

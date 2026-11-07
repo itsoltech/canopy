@@ -429,7 +429,7 @@ describe.skipIf(!dockerAvailable)("models, effort and steering (gateway + script
       (s) => s[0]?.status === "delivered",
     );
     const steered = [...gw.worker.steered.values()].at(-1)!;
-    expect(steered).toContain(`[canopy] Message from the thread "orchestrator" (thread_id: ${main.id}):`);
+    expect(steered).toContain(`[canopy] Message from the thread "orchestrator" (thread_id: ${main.id}), sent at `);
     expect(steered).toContain("focus on tests");
 
     // One report for the spawn and the steer: both target the side thread's running turn.

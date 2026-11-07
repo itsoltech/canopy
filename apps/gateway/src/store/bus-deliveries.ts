@@ -14,6 +14,7 @@ import {
   type TurnInput,
 } from "./agent-bus-types.ts";
 import { lastMessage, queueTurn, thread } from "./agent-bus-queries.ts";
+import { deduplicateMessageReport, waitingForMessage } from "./bus-messages.ts";
 
 export interface BusDeliveryStore {
   /** Pending interactions routed to the caller (from its side threads). */
@@ -65,11 +66,27 @@ const deliverNotification = (sql: SqlClient.SqlClient, callId: string, input: Tu
         return undefined;
       }
 
-      const hops = Math.min((call.hops ?? 0) + 1, 16);
-
       const running = (yield* sql<{
         id: string;
       }>`SELECT id FROM turns WHERE thread_id = ${call.source_thread_id}::uuid AND status = 'running' LIMIT 1`)[0];
+
+      if (running && (yield* waitingForMessage(sql, caller.id, running.id, call.target_thread_id!))) return undefined;
+
+      if (
+        yield* deduplicateMessageReport(
+          sql,
+          caller.id,
+          call.target_thread_id!,
+          call.target_turn_id!,
+          yield* lastMessage(sql, call.target_thread_id!, call.target_turn_id!),
+        )
+      ) {
+        yield* sql`UPDATE agent_bus_calls SET notify_status = 'superseded' WHERE id = ${callId}::uuid`;
+
+        return undefined;
+      }
+
+      const hops = Math.min((call.hops ?? 0) + 1, 16);
 
       if (running && caller.worker_id) {
         const steerId = Bun.randomUUIDv7();

@@ -93,7 +93,9 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || 
           permissionMode: PermissionMode.ASK,
           initialMessage:
             "Perform exactly this tool sequence: (1) spawn_thread with notify=true, title='Notify child', " +
-            "prompt='Compute 17 * 23. Reply only with the number.' (2) wait_threads for that child, until='all', timeout_seconds=120; " +
+            "prompt='First use send_message with notify=false to your parent from the task note: CHECK: start checking the calculation now. " +
+            "Then compute 17 * 23 and end with only the number; do not send the final result separately.' " +
+            "(2) wait_threads for that child, until='all', timeout_seconds=120; " +
             "repeat wait_threads if needed until the child's final result is returned. " +
             "(3) close_thread for that child. (4) Reply 'RESULT: 391'. Keep your current turn running until these steps are done. " +
             "Do not use other tools. A platform report may also enter your running turn; still finish the wait and close steps.",
@@ -121,17 +123,25 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !proxyUrl || !proxyKey || 
         parent.id,
       );
 
-      expect(calls.filter((c) => c.status === "completed").map((c) => c.tool)).toEqual([
-        "spawn_thread",
-        "wait_threads",
-        "close_thread",
-      ]);
+      const tools = calls.filter((c) => c.status === "completed").map((c) => c.tool);
+      expect(tools[0]).toBe("spawn_thread");
+      expect(tools.slice(1, -1).every((tool) => tool === "wait_threads")).toBe(true);
+      expect(tools.at(-1)).toBe("close_thread");
       expect(calls[0]?.notify).toBe(true);
       expect(["delivered", "consumed_by_wait"]).toContain(calls[0]?.notify_status ?? "");
-      expect(calls[1]?.result).toMatchObject({
+      expect(calls.filter((call) => call.tool === "wait_threads").at(-1)?.result).toMatchObject({
         done: true,
         threads: [expect.objectContaining({ last_message: expect.stringContaining("391") })],
       });
+
+      const messages = await query<{ message_consumed: string | null; entered: boolean }>(
+        `SELECT c.message_consumed, EXISTS (SELECT 1 FROM turn_steers s WHERE s.agent_call_id = c.id AND s.status = 'delivered') AS entered
+          FROM agent_bus_calls c WHERE c.target_thread_id = $1::uuid AND c.tool = 'send_message' AND c.status = 'completed'`,
+        parent.id,
+      );
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0]?.entered || messages[0]?.message_consumed === "consumed_by_wait").toBe(true);
       await gw.core.sweep();
 
       const turns = await query<{ trigger: string; status: string }>(

@@ -2,7 +2,7 @@ import { create, toJson, type MessageInitShape } from "@bufbuild/protobuf";
 import { coreNameBranchAfterTurn } from "../worktrees/branch-naming.ts";
 import { SHELL_INPUT_CAPABILITY, SHELL_INPUT_TIMEOUT_MS } from "@canopy/domain";
 import { CommandResultSchema, CommandSchema, type Command, type CommandResult } from "@canopy/contracts";
-import { AgentBusStore } from "../store/index.ts";
+import { AgentBusStore, GatewayStore, SteerStore } from "../store/index.ts";
 import { BotStore } from "../bots/store.ts";
 import { coreState, HARNESS_ERROR_CODES, SETTLE_TURN_ENDED } from "./core-context.ts";
 import { coreEndLostTurns, coreSettle } from "./core-work-loop.ts";
@@ -24,9 +24,9 @@ export async function coreDispatch(
   hostContext: GatewayCore,
   workerId: string,
   command: MessageInitShape<typeof CommandSchema>,
-  meta: { threadId?: string; turnId?: string; ttlSeconds: number },
+  meta: { threadId?: string; turnId?: string; ttlSeconds: number; steerId?: string },
 ): Promise<void> {
-  const stored = await coreRun(hostContext, (s) =>
+  const enqueue = GatewayStore.use((s) =>
     s.enqueueCommand({
       workerId,
       command,
@@ -35,6 +35,14 @@ export async function coreDispatch(
       ...(meta.turnId && { turnId: meta.turnId }),
     }),
   );
+
+  const steerId = meta.steerId;
+
+  const stored = await hostContext[coreState].actions.run(
+    steerId ? SteerStore.use((s) => s.whilePending(steerId, enqueue)) : enqueue,
+  );
+
+  if (!stored) return;
 
   void coreDeliver(hostContext, workerId, stored);
 }

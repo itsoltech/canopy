@@ -1,5 +1,13 @@
 # Model danych (PostgreSQL)
 
+Migracja `0095_bus_message_consumption` dodaje `agent_bus_calls.message_consumed`
+(`consumed_by_wait`, `consumed_by_read`, `deduplicated`, domyślnie `NULL`) wyłącznie
+dla `send_message` oraz indeks oczekujących wiadomości według adresata i nadawcy.
+Odczyt treści i wycofanie nierozpoczętego wejścia są atomowe z zapisem wyniku narzędzia;
+blokada wątku adresata porządkuje je z dostarczeniem, outboxem steera i fallbackiem.
+`notify_status` pozostaje niezależnym stanem raportu zwrotnego.
+Semantyka i granice obserwacji: [agent-bus.md](agent-bus.md#jawne-wiadomości-agentów).
+
 Migracja `0084_bot_approval_expiry` dodaje `expired` do stanów `bot_approvals`
 i naprawia oczekujące karty zakończonych tur. Zakończenie tury, anulowanie
 wywołania i odpowiedź blokują te same wiersze bota i tury; spóźniona decyzja nie
