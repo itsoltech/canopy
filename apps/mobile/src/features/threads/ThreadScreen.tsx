@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { Text } from "react-native";
 import Animated from "react-native-reanimated";
 import { useMotion } from "../../ui/motion";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
@@ -16,6 +16,7 @@ import { Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { KeyboardArea } from "../../ui/KeyboardArea";
 import { MessageComposer } from "./MessageComposer";
+import { DropZone } from "../attachments/FileIntake";
 import { ThreadPanel } from "./ThreadPanel";
 import { InteractionCard } from "./InteractionCard";
 import { useOverview } from "../../state/overview";
@@ -243,7 +244,7 @@ export function ThreadScreen({ id }: { id: string }) {
       }
     >
       <KeyboardArea>
-        <View style={styles.fill}>
+        <DropZone draft={state.message.files} disabled={blocked || state.home.away}>
           <ThreadTimeline state={state} composer={composer} />
           <FloatingComposer
             motion={composer.motion}
@@ -288,7 +289,7 @@ export function ThreadScreen({ id }: { id: string }) {
               />
             </SkeletonScope>
           </FloatingComposer>
-        </View>
+        </DropZone>
       </KeyboardArea>
       <ThreadPanel snapshot={snapshot} visible={details} onClose={() => setDetails(false)} />
       <SubagentSheet threads={subagents} visible={sheet === "subagents"} onClose={() => setSheet(null)} />
