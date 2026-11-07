@@ -12,6 +12,7 @@ import { ProviderIcon } from "../../ui/ProviderIcon";
 import { styles, useColors } from "../../ui/theme";
 import { ComposerBox, ComposerPill } from "../threads/ComposerBox";
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
+import { PasteTarget } from "../attachments/FileIntake";
 import { EffortPickerSheet, ModelPickerSheet } from "../models/ModelPicker";
 import { useEffortLabel } from "../settings/display";
 import { permissionLabel, permissionLook, PermissionPickerSheet } from "../threads/permissions";
@@ -53,34 +54,36 @@ export function NewThreadScreen() {
             onPick={(option) => message.pickMention(option.mention)}
           />
           <SkeletonScope loading={state.initialLoading}>
-            <ComposerBox
-              text={message.value.text}
-              onChange={message.setText}
-              badges={message.badges}
-              triggers
-              onSend={() => void state.create()}
-              disabled={state.initialLoading || Boolean(blocker)}
-              busy={state.busy}
-              files={message.files.ids.length}
-              label="Task for the agent"
-              top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
-              controls={
-                <>
-                  <AttachButton draft={message.files} disabled={state.busy} />
-                  {selected && (
-                    <ComposerPill
-                      icon="cpu-chip"
-                      leading={<ProviderIcon provider={selected.provider} />}
-                      title={selected.name}
-                      onPress={() => setPicker("model")}
-                    />
-                  )}
-                  {selected?.efforts.length ? (
-                    <ComposerPill icon="light-bulb" title={effortLabel(effort)} onPress={() => setPicker("effort")} />
-                  ) : null}
-                </>
-              }
-            />
+            <PasteTarget draft={message.files}>
+              <ComposerBox
+                text={message.value.text}
+                onChange={message.setText}
+                badges={message.badges}
+                triggers
+                onSend={() => void state.create()}
+                disabled={state.initialLoading || Boolean(blocker)}
+                busy={state.busy}
+                files={message.files.ids.length}
+                label="Task for the agent"
+                top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
+                controls={
+                  <>
+                    <AttachButton draft={message.files} disabled={state.busy} />
+                    {selected && (
+                      <ComposerPill
+                        icon="cpu-chip"
+                        leading={<ProviderIcon provider={selected.provider} />}
+                        title={selected.name}
+                        onPress={() => setPicker("model")}
+                      />
+                    )}
+                    {selected?.efforts.length ? (
+                      <ComposerPill icon="light-bulb" title={effortLabel(effort)} onPress={() => setPicker("effort")} />
+                    ) : null}
+                  </>
+                }
+              />
+            </PasteTarget>
             <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6, flexWrap: "wrap" }]}>
               <View style={[styles.row, { gap: 0, flexShrink: 1 }]}>
                 <ComposerPill

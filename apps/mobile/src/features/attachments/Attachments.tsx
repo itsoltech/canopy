@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as Clipboard from "expo-clipboard";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { Icon } from "../../ui/Icon";
@@ -80,10 +81,24 @@ export function AttachmentChips({ files, onRemove }: { files: DraftFile[]; onRem
   );
 }
 
-/** Paper clip in the composer: choose photos or files. */
+type Source = "photos" | "files" | "paste";
+
+/**
+ * Paper clip in the composer: choose photos or files, or paste the clipboard's image. Whether the clipboard holds
+ * one is asked as the menu opens (no content is read, so no paste prompt); reading it waits for "Paste image".
+ */
 export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boolean }) {
   const c = useColors();
   const [open, setOpen] = useState(false);
+  const [image, setImage] = useState(false);
+
+  async function show() {
+    setImage(await Clipboard.hasImageAsync().catch(() => false));
+    setOpen(true);
+  }
+
+  const pick = (source: Source) =>
+    void (source === "photos" ? draft.pickPhotos() : source === "files" ? draft.pickFiles() : draft.pasteImage());
 
   return (
     <>
@@ -91,7 +106,7 @@ export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boo
         accessibilityRole="button"
         accessibilityLabel="Attach files"
         disabled={disabled}
-        onPress={() => setOpen(true)}
+        onPress={() => void show()}
         style={({ pressed }) => ({
           width: 36,
           height: 36,
@@ -108,12 +123,15 @@ export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boo
         title="Attach"
         visible={open}
         onClose={() => setOpen(false)}
-        onSelect={(source) => void (source === "photos" ? draft.pickPhotos() : draft.pickFiles())}
+        onSelect={pick}
         sections={[
           {
             options: [
               { value: "photos" as const, label: "Photos", icon: "photo" as const },
               { value: "files" as const, label: "Files", icon: "document-text" as const },
+              ...(image
+                ? [{ value: "paste" as const, label: "Paste image", icon: "clipboard-document" as const }]
+                : []),
             ],
           },
         ]}
