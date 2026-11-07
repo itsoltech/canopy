@@ -7,7 +7,9 @@ import { ui } from "@canopy/contracts";
 import { agentCatalog, type AgentBusCall, type SpawnTarget } from "@canopy/domain";
 import { Predicate, type Effect } from "effect";
 import { AgentBusStore, GatewayStore, type CallSource, type ThreadRow } from "../store/index.ts";
-import { busState, callerTarget, scheduleIdOf, WAIT_POLL_MS } from "./agent-bus-context.ts";
+import { busState, callerTarget, scheduleIdOf } from "./agent-bus-context.ts";
+import { busWait } from "./agent-bus-waiting.ts";
+import { busRead } from "./agent-bus-reads.ts";
 import type { AgentBus } from "./agent-bus.ts";
 import { QUESTION_TIMEOUT_MS } from "../store/questions.ts";
 
@@ -72,37 +74,12 @@ export async function busExecute(
       return sent.result;
     }
 
-    case "wait_threads": {
-      const ids = call.args.thread_ids;
-      const all = call.args.until === "all";
-      const deadline = Date.now() + (call.args.timeout_seconds ?? 120) * 1000;
-
-      for (;;) {
-        const threads = await Promise.all(ids.map((id) => store((s) => s.summary(id))));
-        const ready = threads.map((t) => t.settled || t.waiting_for_parent > 0);
-        const done = all ? ready.every(Boolean) : ready.some(Boolean);
-
-        if (done || Date.now() >= deadline) return { done, threads: threads.map((thread) => ({ ...thread })) };
-        await Bun.sleep(Math.min(WAIT_POLL_MS, Math.max(0, deadline - Date.now())));
-      }
-    }
+    case "wait_threads":
+      return busWait(hostContext, source, call.args);
 
     case "get_thread":
-      return { ...(await store((s) => s.summary(call.args.thread_id))) };
-    case "read_thread": {
-      const { result, observedTurnIds } = await store((s) =>
-        s.readThread({
-          threadId: call.args.thread_id,
-          afterSeq: call.args.after_seq ?? 0,
-          limit: call.args.limit ?? 50,
-          view: call.args.view ?? "messages",
-        }),
-      );
-
-      await store((s) => s.recordCall({ source, tool: call.tool, args: call.args, ok: true, result, observedTurnIds }));
-
-      return result;
-    }
+    case "read_thread":
+      return busRead(hostContext, source, call);
 
     case "list_threads": {
       const options = {

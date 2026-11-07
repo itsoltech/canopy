@@ -14,6 +14,7 @@ import { AgentBusStore, GatewayStore, type CallSource } from "../store/index.ts"
 import { busState, callerTarget, failure, ok, safeJson, STORES_ITS_CALL, targetsOf } from "./agent-bus-context.ts";
 import type { AgentBus } from "./agent-bus.ts";
 import { busExecute } from "./agent-bus-tools.ts";
+import { busCancel } from "./agent-bus-cancellation.ts";
 
 export interface BusRequestsMethods {
   handle(request: AgentToolCall, workerId?: string): Promise<AgentToolResult>;
@@ -30,29 +31,7 @@ export const busRequestsMethods: BusRequestsMethods = {
       ...(request.expiresAt && { expiresAt: timestampDate(request.expiresAt) }),
     };
 
-    if (request.cancelled) {
-      const caller = await this[busState].host.run(GatewayStore.use((s) => s.thread(request.threadId)));
-
-      if (workerId === undefined || caller.worker_id === workerId) {
-        const decoded = decodeAgentBusCall(request.toolName, request.argumentsJson);
-
-        if (Result.isFailure(decoded)) return failure(request.callId, "This request expired.");
-        const call = decoded.success;
-
-        const expired =
-          call.tool === "ask_user" && call.args.wait
-            ? await this[busState].host.run(AgentBusStore.use((s) => s.askUser(source, call.args, 0, true)))
-            : call.tool === "get_answers"
-              ? await this[busState].host.run(
-                  GatewayStore.use((s) => s.expireInteraction(call.args.question_set_id, request.threadId)),
-                )
-              : undefined;
-
-        if (expired) await this[busState].host.interaction(expired);
-      }
-
-      return failure(request.callId, "This request expired.");
-    }
+    if (request.cancelled) return busCancel(this, request, source, workerId);
 
     const stored = await this[busState].host.run(AgentBusStore.use((s) => s.storedCall(request.callId)));
 

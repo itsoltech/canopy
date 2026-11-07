@@ -82,6 +82,11 @@ export class SteerStore extends Context.Service<
      * that was already delivered or queued is returned unchanged, without a turn.
      */
     queue(id: string, reason: string): Fx<{ steer: SteerRow; turn?: TurnRow }>;
+    /** Serialize steer outbox creation with recipient observation and fallback. */
+    whilePending<A, E, R>(
+      id: string,
+      action: Effect.Effect<A, E, R>,
+    ): Effect.Effect<A | undefined, E | SqlError.SqlError, R>;
   }
 >()("canopy/gateway/SteerStore") {
   static readonly layer = Layer.effect(
@@ -114,6 +119,15 @@ export class SteerStore extends Context.Service<
           );
 
       const store: SteerStore["Service"] = {
+        whilePending: (id, action) =>
+          sql.withTransaction(
+            Effect.gen(function* () {
+              yield* sql`SELECT id FROM threads WHERE id = (SELECT thread_id FROM turn_steers WHERE id = ${id}::uuid) FOR UPDATE`;
+              const rows = yield* sql`SELECT id FROM turn_steers WHERE id = ${id}::uuid AND status = 'pending'`;
+
+              return rows.length > 0 ? yield* action : undefined;
+            }),
+          ),
         create: ({ threadId, turnId, text, userId, clientRequestId, model, effort, permissionMode, input, linked }) =>
           Effect.gen(function* () {
             const id = Bun.randomUUIDv7();
@@ -173,6 +187,15 @@ export class SteerStore extends Context.Service<
 
               if (steer.status === "delivered" || steer.status === "queued" || steer.status === "failed")
                 return { steer: yield* one(id) };
+
+              const calls = yield* sql<{
+                tool: string;
+              }>`SELECT tool FROM agent_bus_calls WHERE id = ${steer.agent_call_id}::uuid`;
+
+              if (calls[0]?.tool === "send_message" && steer.input.note && !steer.input.note.includes("queued while")) {
+                const note = `${steer.input.note.slice(0, -1)}, queued while your previous turn was running:`;
+                steer.input = { ...steer.input, note, text: `${note}\n\n${steer.input.message ?? ""}` };
+              }
 
               // A message steered from the queue goes back to its place there.
               const back = steer.from_turn_id

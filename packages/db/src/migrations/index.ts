@@ -92,6 +92,7 @@ import botApprovalDefaults from "./0090_bot_approval_defaults.sql" with { type: 
 import externalWorktrees from "./0092_external_worktrees.sql" with { type: "text" };
 import cliImports from "./0093_cli_imports.sql" with { type: "text" };
 import cliImportLibrary from "./0094_cli_import_library.sql" with { type: "text" };
+import busMessageConsumption from "./0095_bus_message_consumption.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -200,6 +201,7 @@ export const migrations = Migrator.fromRecord({
   "0092_external_worktrees": sqlFile(externalWorktrees),
   "0093_cli_imports": sqlFile(cliImports),
   "0094_cli_import_library": sqlFile(cliImportLibrary),
+  "0095_bus_message_consumption": sqlFile(busMessageConsumption),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

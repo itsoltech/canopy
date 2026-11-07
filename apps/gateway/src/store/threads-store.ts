@@ -147,7 +147,15 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
         scratch: row.project_kind === "scratch",
         model: row.settings.model ?? "",
         // A thread moved from a linked computer continues with its handoff note (stage 8).
-        instructions: [row.settings.instructions, row.settings.handoff].filter(Boolean).join("\n\n"),
+        instructions: [
+          row.settings.instructions,
+          row.settings.handoff,
+          row.origin === "agent" && (row.depth > 0 || row.remote_parent_ref)
+            ? "Your final message is reported to your parent automatically. Use send_message to your parent only for updates it must act on mid-task; use ask_user for questions."
+            : undefined,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
         permissionMode: permissionModeOf(row.settings.permissionMode || "ASK"),
         // Agent bus tools for every worker thread: Codex dynamicTools, Claude MCP (docs/agent-bus.md).
         enableAgentBus: row.runtime === "worker",

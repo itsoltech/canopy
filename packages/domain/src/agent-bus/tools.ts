@@ -128,7 +128,8 @@ export const SendMessage = Schema.Struct({
   prompt: Prompt.annotate({ description: "Follow-up message for the target thread." }),
   delivery: Schema.optionalKey(
     Schema.Literals(["queue", "steer"]).annotate({
-      description: "queue (default): runs as the next turn. steer: joins the turn that is running now.",
+      description:
+        "Defaults to steer for a running parent/ancestor, otherwise queue. queue explicitly waits for the next turn; steer joins the running turn, with queue fallback. A waiting recipient receives it through wait_threads.",
     }),
   ),
   notify: Schema.optionalKey(Notify),
@@ -275,7 +276,7 @@ export const AGENT_BUS_TOOLS = {
       "another provider, model and effort (any Claude, Codex or Grok instance from list_agents), with its own instructions " +
       "and permissions. Use this whenever you want to delegate, parallelize or get a second opinion; it is the subagent tool here " +
       "(there is no spawn_agent or Task tool). The user sees the thread and can steer it. Returns at once with thread_id and turn_id; " +
-      "its final message comes back to you as a new message when it finishes, or call wait_threads to block for it.",
+      "its final message is reported to you automatically when it finishes, or call wait_threads to wait for it.",
     args: SpawnThread,
     mutates: true,
   }),
@@ -284,7 +285,9 @@ export const AGENT_BUS_TOOLS = {
     description:
       "Send a message to another thread's agent, as the user would: a subagent you spawned, your parent, a sibling, or any other thread " +
       "of the user (find it with list_threads scope all, or one the user mentioned). queue runs it as the target's next turn, steer joins " +
-      "its running turn. The target sees it comes from your thread. Returns turn_id; with notify you get its reply when that turn ends.",
+      "its running turn. A running parent/ancestor defaults to steer; a waiting recipient receives it in wait_threads. " +
+      "Your final message is reported to your parent automatically: message it only for updates it must act on mid-task. Use ask_user for questions. " +
+      "The target sees your thread as sender; with notify you get its reply when that turn ends.",
     args: SendMessage,
     mutates: true,
   }),
@@ -292,7 +295,8 @@ export const AGENT_BUS_TOOLS = {
     name: "wait_threads",
     description:
       "Wait for subagents (side threads) to finish their current work: until any (default) or all are done, bounded by timeout_seconds. " +
-      "Returns each thread's status, its last turn's outcome and its final message (the result). Call again to keep waiting.",
+      "Returns each thread's status, last turn's outcome and final message (reported automatically). Returns early for questions or messages " +
+      "from a waited-on thread; messages are included in messages and consumed without another input. Call again to keep waiting.",
     args: WaitThreads,
     mutates: false,
   }),
@@ -300,13 +304,14 @@ export const AGENT_BUS_TOOLS = {
     name: "get_thread",
     description:
       "Status of a thread (yours, in your tree or any other of the user's): running or queued work, pending questions, provider, model and " +
-      "permissions, last turn's outcome and final message.",
+      "permissions, last turn's outcome and final message. Also returns and consumes pending messages addressed to you from that thread in messages.",
     args: GetThread,
     mutates: false,
   }),
   read_thread: define({
     name: "read_thread",
-    description: "Read part of a thread's transcript.",
+    description:
+      "Read part of a thread's transcript. Pending messages addressed to you that the page covers are included in messages and consumed.",
     args: ReadThread,
     mutates: false,
   }),

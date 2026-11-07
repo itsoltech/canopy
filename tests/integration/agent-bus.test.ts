@@ -621,7 +621,9 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect([result.model, result.effort, result.permission_mode]).toEqual(["gpt-5.5", "low", "read_only"]);
     expect(await gw.worker.createdThread(result.thread_id)).toMatchObject({
       model: "gpt-5.5",
-      instructions: "You are a strict reviewer.",
+      instructions: expect.stringContaining(
+        "You are a strict reviewer.\n\nYour final message is reported to your parent automatically.",
+      ),
       permissionMode: PermissionMode.READ_ONLY,
     });
 

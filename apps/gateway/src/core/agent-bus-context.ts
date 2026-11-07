@@ -64,6 +64,8 @@ export const STORES_ITS_CALL = new Set([
   "schedule_recurring",
   "ask_user",
   "read_thread",
+  "get_thread",
+  "wait_threads",
 ]);
 
 /** What the calling thread runs on: a subagent's default. */

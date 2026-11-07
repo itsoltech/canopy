@@ -5,6 +5,17 @@ import { isJsonArray, isJsonObject } from "../bots/json.ts";
 export const finishedTurn = (status: string): boolean =>
   ["completed", "interrupted", "failed", "cancelled"].includes(status);
 
+/** Explicit messages returned alongside a wait, summary or transcript page. */
+export function observedMessageCalls(result: JsonValue | undefined): string[] {
+  const messages = isJsonObject(result) ? result["messages"] : undefined;
+
+  return isJsonArray(messages)
+    ? messages.flatMap((message) =>
+        isJsonObject(message) && Predicate.isString(message["call_id"]) ? [message["call_id"]] : [],
+      )
+    : [];
+}
+
 /** Only explicit result reads consume reports. Listing threads and unfinished/partial reads do not. */
 export function observedSummaryTurns(tool: string, result: JsonValue | undefined): string[] {
   const object = (value: JsonValue | undefined) => (isJsonObject(value) ? value : undefined);

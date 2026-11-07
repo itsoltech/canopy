@@ -268,7 +268,7 @@ sequenceDiagram
 
 Natywni subagenci i harmonogramy Claude i Codexa są domyślnie wyłączeni. Zastępuje je **szyna agentów** platformy, dostępna dla obu dostawców: wątki boczne (`spawn_thread`, `send_message`, `wait_threads`, `get_thread`, `read_thread`, `list_threads`, `interrupt_thread`, `close_thread`, `list_agents`), odpowiadanie na pytania wątków bocznych (`list_interactions`, `answer_interaction`) i harmonogram (`schedule_wakeup`, `schedule_recurring`, `list_schedules`, `cancel_schedule`). Dwa poziomy: wątek główny orkiestruje, wątki boczne wykonują pracę. Użytkownik może pisać w każdym wątku.
 
-- `spawn_thread` i `send_message` nie blokują; wynik przychodzi jako powiadomienie (nowa tura wywołującego) albo przez ograniczone w czasie `wait_threads`.
+- `spawn_thread` i `send_message` nie blokują; wynik przychodzi jako powiadomienie (steer do trwającej tury, inaczej nowa tura) albo przez ograniczone w czasie `wait_threads`. Wiadomość dziecka do pracującego rodzica domyślnie dołącza do jego tury; gdy rodzic czeka na dziecko, kończy oczekiwanie z treścią wiadomości. Odczytane wejścia oczekujące są wycofywane transakcyjnie.
 - Domena komunikacji to drzewo wątków; sterowanie tylko nad potomkami; limity liczby wątków, harmonogramów i przeskoków (`hops`) bez udziału człowieka.
 - Narzędzia trafiają do Claude jako serwer MCP w procesie workera, do Codexa jako `dynamicTools`; wykonuje je gateway.
 

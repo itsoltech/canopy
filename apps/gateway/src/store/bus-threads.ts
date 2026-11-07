@@ -5,6 +5,8 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { type ThreadRow, type TurnRow } from "./store.ts";
 import { finishedTurn } from "./notification-observation.ts";
+import { pendingMessages, waitingForMessage, type BusMessage } from "./bus-messages.ts";
+import { isJsonObject } from "../bots/json.ts";
 
 import {
   busPermissionMode,
@@ -15,7 +17,7 @@ import {
   type ThreadSummary,
   type TurnInput,
 } from "./agent-bus-types.ts";
-import { callerMode, insertCall, queueTurn, summary, thread } from "./agent-bus-queries.ts";
+import { callerMode, insertCall, node, queueTurn, summary, thread } from "./agent-bus-queries.ts";
 
 export interface BusThreadStore {
   spawn(input: {
@@ -28,8 +30,8 @@ export interface BusThreadStore {
     placement?: ui.CreateThreadRequest;
   }): Fx<{ thread: ThreadRow; turn: TurnRow; result: JsonValue }>;
   /**
-   * Queues the message as the next turn, or, with delivery = steer while the target runs a turn, stores it as a
-   * steer of that turn (turn_steers; the caller hears back when the turn it joined finishes).
+   * A running ancestor defaults to steer; an active wait receives the message through its result. Explicit
+   * queue and other targets queue a turn. Unentered inputs can be consumed by a result read.
    */
   send(input: {
     source: CallSource;
@@ -40,6 +42,7 @@ export interface BusThreadStore {
     { turn: TurnRow; result: JsonValue; steerId?: undefined } | { turn?: undefined; steerId: string; result: JsonValue }
   >;
   summary(threadId: string): Fx<ThreadSummary>;
+  messages(recipient: string, senders: readonly string[]): Fx<readonly BusMessage[]>;
   /**
    * Threads of the caller's tree: its children, or the whole tree (without the caller); or (all) any thread of the
    * caller's owner, by title (fuzzy) when `query` is given, the most recent activity first.
@@ -50,11 +53,12 @@ export interface BusThreadStore {
     options?: { query?: string; limit?: number },
   ): Fx<ThreadSummary[]>;
   readThread(input: {
+    recipient?: string;
     threadId: string;
     afterSeq: number;
     limit: number;
     view: "messages" | "items";
-  }): Fx<{ result: { entries: JsonValue[]; nextSeq: number }; observedTurnIds: string[] }>;
+  }): Fx<{ result: { entries: JsonValue[]; nextSeq: number; messages: JsonValue[] }; observedTurnIds: string[] }>;
   /** The thread could not be created: its queued turns fail (so callers waiting on them hear back). */
   failQueuedTurns(threadId: string, reason: string): Fx<ReadonlyArray<string>>;
   /** Archives a thread, cancels its queued turns, its schedules and pending notifications about it. */
@@ -111,7 +115,7 @@ const spawn = (
       const input: TurnInput = {
         note:
           `[canopy] Task from the thread "${caller.title}" (thread_id: ${caller.id}). ` +
-          "End your turn with a final message that reports your result; it is delivered to that thread.",
+          "Your final message is reported to that thread automatically. Use send_message to your parent only for updates it must act on mid-task; use ask_user for questions.",
         message: args.prompt,
       };
 
@@ -147,11 +151,20 @@ const spawn = (
 const send = (sql: SqlClient.SqlClient, { source, caller, args, hops }: Parameters<BusThreadStore["send"]>[0]) =>
   sql.withTransaction(
     Effect.gen(function* () {
+      yield* sql`SELECT id FROM threads WHERE id = ${args.thread_id}::uuid FOR UPDATE`;
       const notify = args.notify ?? true;
       yield* insertCall(sql, { source, tool: "send_message", args, status: "completed", hops, notify });
       // From another tree (any thread of the same owner, like the user writing there): the target learns who wrote.
       const target = yield* thread(sql, args.thread_id);
       const outside = target.root_thread_id !== caller.root_thread_id;
+      const ancestor = node(caller).ancestorIds.includes(target.id);
+
+      const running = (yield* sql<{ id: string }>`SELECT id FROM turns
+        WHERE thread_id = ${target.id}::uuid AND status = 'running' LIMIT 1`)[0];
+
+      const waiting = running && (yield* waitingForMessage(sql, target.id, running.id, caller.id));
+
+      const steer = running && !waiting && (args.delivery === "steer" || (ancestor && args.delivery !== "queue"));
 
       const input: TurnInput = {
         note:
@@ -159,18 +172,11 @@ const send = (sql: SqlClient.SqlClient, { source, caller, args, hops }: Paramete
           (outside
             ? `, an agent outside your thread tree${notify ? "; your final message of this turn is reported back to it" : ""}`
             : "") +
-          ":",
+          `, sent at ${new Date().toISOString()}${running && !steer ? ", queued while your previous turn was running" : ""}:`,
         message: args.prompt,
       };
 
-      const running =
-        args.delivery === "steer"
-          ? (yield* sql<{
-              id: string;
-            }>`SELECT id FROM turns WHERE thread_id = ${args.thread_id}::uuid AND status = 'running' LIMIT 1`)[0]
-          : undefined;
-
-      if (running) {
+      if (steer) {
         // The call reports the turn once the message is in it (Ingest binds target_turn_id), or the turn it
         // falls back to.
         const steerId = Bun.randomUUIDv7();
@@ -203,10 +209,15 @@ const send = (sql: SqlClient.SqlClient, { source, caller, args, hops }: Paramete
       const result = {
         thread_id: args.thread_id,
         turn_id: turn.id,
-        ...(args.delivery === "steer" && {
-          delivery: "queue",
-          note: "No turn is running there: the message runs as the next turn.",
-        }),
+        ...(waiting
+          ? {
+              delivery: "queue",
+              note: "The waiting thread receives this message through wait_threads; otherwise it remains queued.",
+            }
+          : args.delivery === "steer" && {
+              delivery: "queue",
+              note: "No turn is running there: the message runs as the next turn.",
+            }),
       };
 
       yield* sql`
@@ -224,6 +235,7 @@ export function busThreadStore(sql: SqlClient.SqlClient): BusThreadStore {
     send: (input) => send(sql, input),
 
     summary: (threadId) => summary(sql, threadId),
+    messages: (recipient, senders) => pendingMessages(sql, recipient, senders),
 
     listThreads: (caller, scope, options) =>
       Effect.gen(function* () {
@@ -256,7 +268,7 @@ export function busThreadStore(sql: SqlClient.SqlClient): BusThreadStore {
         return yield* Effect.forEach(rows, (r) => summary(sql, r.id));
       }),
 
-    readThread: ({ threadId, afterSeq, limit, view }) =>
+    readThread: ({ recipient, threadId, afterSeq, limit, view }) =>
       Effect.gen(function* () {
         const rows = yield* sql<{
           type: string;
@@ -265,8 +277,9 @@ export function busThreadStore(sql: SqlClient.SqlClient): BusThreadStore {
           turn_id: string | null;
           turn_status: string | null;
           final: boolean;
+          item_id: string;
         }>`
-              SELECT i.type, i.content, i.last_seq, i.turn_id, u.status AS turn_status,
+              SELECT i.item_id, i.type, i.content, i.last_seq, i.turn_id, u.status AS turn_status,
                      i.type = 'agent_message' AND NOT EXISTS (
                        SELECT 1 FROM thread_items later WHERE later.thread_id = i.thread_id AND later.turn_id = i.turn_id
                          AND later.type = 'agent_message' AND later.first_seq > i.first_seq) AS final
@@ -281,8 +294,29 @@ export function busThreadStore(sql: SqlClient.SqlClient): BusThreadStore {
           return { seq: Number(r.last_seq), type: r.type, ...truncateJson(content) };
         });
 
+        const messages = recipient ? yield* pendingMessages(sql, recipient, [threadId]) : [];
+
+        const covered = yield* sql<{ id: string; source_item_id: string | null }>`SELECT id, source_item_id
+          FROM agent_bus_calls WHERE id = ANY(${messages.map((message) => message.call_id)}::uuid[])`;
+
+        const observed = messages.filter((message) =>
+          rows.some(
+            (row) =>
+              (row.type === "tool_call" &&
+                row.item_id === covered.find((call) => call.id === message.call_id)?.source_item_id) ||
+              (row.type === "agent_message" &&
+                row.turn_id === message.turn_id &&
+                isJsonObject(row.content["agentMessage"]) &&
+                row.content["agentMessage"]["text"] === message.text),
+          ),
+        );
+
         return {
-          result: { entries, nextSeq: rows.length > 0 ? Number(rows[rows.length - 1]!.last_seq) : afterSeq },
+          result: {
+            entries,
+            nextSeq: rows.length > 0 ? Number(rows[rows.length - 1]!.last_seq) : afterSeq,
+            messages: observed.map((message) => ({ ...message })),
+          },
           observedTurnIds: rows.flatMap((r) =>
             r.final && r.turn_id && finishedTurn(r.turn_status ?? "") ? [r.turn_id] : [],
           ),
