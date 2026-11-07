@@ -174,9 +174,11 @@ An example of the format, not an instruction: `https://gateway.example.com`,
 `my-project`. Instructions go in the label or the field description, because a
 placeholder disappears as soon as the user types.
 
-The one exception is the empty thread composer. Its second line lists the trigger
-characters (`/ commands · $ skills · @ files · # threads · ! shell`), because they
-are the input format and each app uses them differently.
+The one exception is the empty thread composer. On web, its second line lists the
+trigger characters (`/ commands · $ skills · @ files · # threads · ! shell`), because
+they are the input format and each app uses them differently. On mobile, that hint
+is the entire placeholder: one line with tail truncation, unchanged when the composer
+compacts or expands. Mobile composers without triggers keep their own placeholder.
 
 ### 4.10 First run (onboarding)
 

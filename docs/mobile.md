@@ -507,6 +507,13 @@ w polu, więc kompozytor sam je wtedy zdejmuje).
 Bot zachowuje jednorzędową pigułkę z rosnącym polem tekstowym. New thread i formularz
 tworzenia wątku bocznego pozostają rozwinięte: przewijają formularz, nie historię rozmowy.
 
+Pusty kompozytor obsługujący triggery pokazuje tylko `/ commands · $ skills · @ files · # threads · ! shell`.
+Podpowiedź jest zawsze jednym wierszem z wielokropkiem na końcu, poza pomiarem tekstu pola;
+nie zmienia treści ani wysokości podczas zwijania i rozwijania. Kompozytory bez triggerów
+zachowują własny placeholder. Wszystkie pola korzystają z `ui/TextInput`: na iOS usuwa
+odziedziczone `lineHeight`, aby UIKit używał metryk fontu dla tekstu i placeholdera.
+Zwykłe `Text` oraz style pól na Androidzie zachowują dotychczasową interlinię.
+
 Markdown renderujemy natywnym Text/View po tokenizacji, bez HTML/WebView i automatycznego
 pobierania obrazów. Linki otwierają tylko HTTP(S) po tapnięciu. Narzędzia/praca są domyślnie
 zwinięte; bardzo długi output ma jawny limit podglądu 12 tys. znaków i odsyłacz opisowy do web.

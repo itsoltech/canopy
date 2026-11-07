@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { Text, View } from "react-native";
+import { TextInput } from "../../ui/TextInput";
 import { ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";

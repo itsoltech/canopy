@@ -1,5 +1,6 @@
 import { createContext, useState, type ReactNode } from "react";
-import { Keyboard, Pressable, Text, TextInput, View, type TextInputProps } from "react-native";
+import { Keyboard, Pressable, Text, View, type TextInputProps } from "react-native";
+import { TextInput } from "./TextInput";
 import { font, styles, useColors, useTypography } from "./theme";
 import { Icon } from "./Icon";
 import { IconButton } from "./Button";
