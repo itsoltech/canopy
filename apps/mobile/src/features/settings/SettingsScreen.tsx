@@ -26,6 +26,7 @@ import { ProxySettings } from "./ProxySettings";
 import { ConnectorSettings } from "./ConnectorSettings";
 import { ProviderSettings } from "./ProviderSettings";
 import { AgentEnvironmentSettings } from "./AgentEnvironmentSettings";
+import { ImportSettings } from "./ImportSettings";
 import { useDevicePreferences } from "./device-preferences";
 import { useLayout } from "../../state/layout";
 
@@ -86,6 +87,7 @@ function SettingsContent({ initialSection }: { initialSection: string }) {
         {section === "connectors" && <ConnectorSettings />}
         {section === "providers" && <ProviderSettings />}
         {section === "agent-environment" && <AgentEnvironmentSettings />}
+        {section === "import" && <ImportSettings />}
         {section === "projects" && <ProjectSettings />}
         {section === "schedules" && <ScheduleSettings />}
         {section === "worktrees" && <WorktreeSettings />}

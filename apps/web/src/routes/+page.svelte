@@ -33,6 +33,7 @@
   import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import RefPicker from "#lib/features/worktrees/RefPicker.svelte";
   import WorkspacePicker from "#lib/features/worktrees/WorkspacePicker.svelte";
+  import ImportSuggestion from "#lib/features/imports/ImportSuggestion.svelte";
   import ComposerContextRow from "#lib/features/threads/components/ComposerContextRow.svelte";
   import { WorkspaceDraft } from "#lib/features/worktrees/workspace-draft.svelte.ts";
   import type { PageProps } from "./$types";
@@ -214,7 +215,7 @@
     <Crumb>New thread</Crumb>
   </TopBar>
 
-  <div class="grid min-h-0 flex-1 place-items-center overflow-y-auto px-4 pb-16 sm:px-6">
+  <div class="relative grid min-h-0 flex-1 place-items-center overflow-y-auto px-4 pb-16 sm:px-6">
     <div class="w-full max-w-(--chat-width)">
       <div class="mb-8 text-center">
         <h1 class="text-3xl font-medium tracking-tight text-balance text-zinc-950 dark:text-white">
@@ -342,6 +343,7 @@
         </form>
       {/if}
     </div>
+    <ImportSuggestion />
   </div>
   <FileDropOverlay {intake} />
 </div>

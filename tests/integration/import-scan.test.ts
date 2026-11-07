@@ -98,8 +98,11 @@ describe.skipIf(!dockerAvailable)("CLI import: discovery and preview", () => {
     await f.sql((sql) => sql`UPDATE workers SET owner_user_id = ${other}::uuid WHERE id = ${foreign.workerId}::uuid`);
     expect(await failure(f.gw.api.scanImport({ workerId: foreign.workerId }))).toContain("Worker not found");
     expect(await failure(f.gw.api.scanImport({ workerId: "not-a-uuid" }))).toContain("Worker not found");
-    // The fixture gateway's scripted worker does not announce cli_import_v1.
+    // The fixture gateway's scripted worker does not announce cli_import_v1; the UI offers import only on one that does.
     expect(await failure(f.gw.api.scanImport({ workerId: f.gw.workerId }))).toContain("Update the worker");
+    const workers = (await f.gw.api.getOverview({})).workers;
+    expect(workers.find((w) => w.id === f.workerId)?.cliImport).toBe(true);
+    expect(workers.find((w) => w.id === f.gw.workerId)?.cliImport).toBe(false);
     expect(await failure(f.gw.api.listImportCandidates({ scanId: crypto.randomUUID() }))).toContain("expired");
   });
 

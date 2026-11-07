@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { page } from "$app/state";
+  import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import ImportFilters from "#lib/features/imports/ImportFilters.svelte";
   import ImportLibrary from "#lib/features/imports/ImportLibrary.svelte";
   import ImportOverview from "#lib/features/imports/ImportOverview.svelte";
@@ -21,6 +21,7 @@
    * Linked computers import on their own Canopy.
    */
   const overview = useOverview();
+  const route = useSettingsRoute();
   const imports = new ImportState();
 
   // When a run ends, the list shows the new states (Imported).
@@ -45,7 +46,7 @@
 
   $effect(() => {
     if (imports.workerId) return;
-    const wanted = page.url.searchParams.get("worker");
+    const wanted = route.url.searchParams.get("worker");
     const first = workers.find((w) => w.id === wanted) ?? workers.find((w) => w.online);
 
     if (first) imports.workerId = first.id;

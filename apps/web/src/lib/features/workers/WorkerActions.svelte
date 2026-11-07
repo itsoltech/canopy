@@ -83,6 +83,10 @@
         label={`Actions for ${worker.name}`}
         {...props}
       />{/snippet}
+    {#if !linked && !worker.nodeId && worker.cliImport}<MenuItem
+        href={`/settings/import?worker=${encodeURIComponent(worker.id)}`}
+        disabled={!worker.online || Boolean(worker.revokedAt)}>Import from this computer</MenuItem
+      >{/if}
     <MenuItem disabled={Boolean(linked?.readOnly)} onselect={() => choose("rename")}>Rename</MenuItem>
     {#if !linked}<MenuItem disabled={Boolean(worker.revokedAt) || !setup.gatewayUrl} onselect={() => choose("rotate")}
         >Rotate credential</MenuItem
