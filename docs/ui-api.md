@@ -414,9 +414,14 @@ nadal prowadzą do subagentów. Wątki boczne utworzone przez użytkownika zacho
 Lineage w panelu szczegółów pozostawia wątki boczne użytkownika widoczne. Subagenci mają jeden
 domyślnie zwinięty nagłówek „Subagents” z licznikami pracujących, oczekujących na odpowiedź
 i zakończonych. Rozwinięcie zapamiętuje profil urządzenia (`canopy:preferences:subagentsExpanded`).
-Settings → Threads → Thread details zawiera „Show finished subagents” (urządzenie, domyślnie Off,
-reset pojedynczej preferencji). Off usuwa wszystkie zakończone wiersze z Lineage, pozostawiając ich
-licznik. On pokazuje aktywnych oraz zakończonych w ciągu ostatnich 10 minut według `last_activity_at`
+Settings → Threads → Thread details zawiera „Keep finished subagents in the list” (urządzenie,
+domyślnie Off, reset pojedynczej preferencji). Off przenosi zakończone wiersze do osobnego nagłówka
+„N finished”, domyślnie zwiniętego. Rozwinięcie zapamiętuje urządzenie
+(`canopy:preferences:finishedSubagentsExpanded`). Grupa pozostaje dostępna także bez aktywnych
+subagentów; wiersze pokazują dostawcę, tytuł, wynik ostatniej tury i względny czas aktywności.
+Kliknięcie otwiera pełną historię i kompozytor subagenta. Zakończenie tury nie blokuje wiadomości
+właściciela; archiwizacja wymaga najpierw „Unarchive”, jak w innych wątkach.
+On pokazuje aktywnych oraz zakończonych w ciągu ostatnich 10 minut według `last_activity_at`
 (fallback `created_at`, bez odmładzania przez archiwizację). Starsze zakończone trafiają do jednego
 zwijanego wiersza „Previous subagents · N” z liczbą nieudanych; rozwinięta lista przewija się w miejscu.
 Pracujący i oczekujący nie wygasają po 10 minutach. Usunięte wątki nie wchodzą do list ani liczników.
@@ -603,7 +608,7 @@ Wąski widok pozostawia pierwszą linię tego samego edytora i przycisk wysyłan
 
 `ComposerPanelHeader` współdzieli nagłówki subagentów, kolejki i pytań (32 px desktop / 36 px telefon; 28 px w kompakcie). `ComposerPanelBody` utrzymuje ich treść zamontowaną i `inert` po zwinięciu. Ring `ComposerTop` jest poza przycinanym body; nie przechodzi przez `ComposerFold`. Kolejka ma wiersze 36 px, a subagent z podglądem ostatniej wiadomości 40 px. Tytuły mają 14/13 px, tekst pomocniczy 13/12 px, ikony dostawców 14 px, chevrony 12 px. `Icon`/`ProviderIcon` mają jawny `size`, a `TouchTarget size="sm"` zachowuje co najmniej 40 px obszaru dotyku.
 
-Panel subagentów filtruje wyłącznie pracujących i oczekujących na odpowiedź/zgodę (`subagentsOf`). Podsumowanie liczy tylko aktywnych; przy pustej liście znika cały panel, także w kompakcie. Zakończony wiersz wychodzi przez `--duration-quick`; wejście panelu używa `t-rise` / `--duration-fast`, również przy pierwszym montowaniu stosu. Reduced motion wyłącza oba przejścia. Ustawienie „Show finished subagents” zmienia wyłącznie Lineage, bez wpływu na ten panel i karty na osi czasu.
+Panel subagentów filtruje wyłącznie pracujących i oczekujących na odpowiedź/zgodę (`subagentsOf`). Podsumowanie liczy tylko aktywnych; przy pustej liście znika cały panel, także w kompakcie. Zakończony wiersz wychodzi przez `--duration-quick`; wejście panelu używa `t-rise` / `--duration-fast`, również przy pierwszym montowaniu stosu. Reduced motion wyłącza oba przejścia. Ustawienie „Keep finished subagents in the list” zmienia wyłącznie Lineage, bez wpływu na ten panel i karty na osi czasu.
 
 Przy nawigacji TurnRail rezerwa do wyrównania ostatniego wiersza jest liczona razem z wysokością nakładki (`footerHeight + alignmentSpace`). `scrollend` odświeża kotwicę tylko po nawigacji smooth; własne korekty całkowitoliczbowego `scrollTop` zachowują pierwotny offset ułamkowy, aby streaming nie kumulował błędu zaokrągleń.
 

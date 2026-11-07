@@ -33,6 +33,7 @@ import { splitId } from "@canopy/domain/computers";
 import { FloatingComposer } from "../composer/FloatingComposer";
 import { useFloatingComposer } from "../composer/useFloatingComposer";
 import { visibleTurns } from "./thread-turns";
+import { SubagentSheet } from "./SubagentSheet";
 
 /** The gateway refused the message and says why (not delivered: no retry note); otherwise delivery is unknown. */
 function deliveryError(failure: ConnectError) {
@@ -71,7 +72,7 @@ function useThreadState(id: string) {
   const thread = snapshot?.thread ?? threads.find((t) => t.id === id);
   const home = useComputerHome(thread?.nodeId || splitId(id).node);
   const worker = workers.find((w) => w.id === thread?.workerId);
-  const subagents = threads.filter((t) => t.spawnedByAgent && t.parentThreadId === id && !t.archivedAt && !t.deletedAt);
+  const subagents = threads.filter((t) => t.spawnedByAgent && t.parentThreadId === id && !t.deletedAt);
   const interactions = snapshot?.interactions.filter((i) => i.status === "pending") ?? [];
   const turns = useMemo(() => visibleTurns(snapshot), [snapshot]);
 
@@ -191,7 +192,7 @@ export function ThreadScreen({ id }: { id: string }) {
   const state = useThreadState(id);
   const composer = useThreadComposer(state);
 
-  const [sheet, setSheet] = useState<"goal" | "side" | null>(null);
+  const [sheet, setSheet] = useState<"goal" | "side" | "subagents" | null>(null);
   const { pop } = useMotion();
 
   const {
@@ -266,7 +267,7 @@ export function ThreadScreen({ id }: { id: string }) {
             {interactions.length > 1 && (
               <Text style={[styles.meta, { color: c.warning }]}>+{interactions.length - 1} pending</Text>
             )}
-            <SubagentStrip subagents={subagents} onFinished={() => setDetails(true)} />
+            <SubagentStrip subagents={subagents} onFinished={() => setSheet("subagents")} />
             <SkeletonScope loading={!thread}>
               <MessageComposer
                 compact={composer.compact}
@@ -290,6 +291,7 @@ export function ThreadScreen({ id }: { id: string }) {
         </View>
       </KeyboardArea>
       <ThreadPanel snapshot={snapshot} visible={details} onClose={() => setDetails(false)} />
+      <SubagentSheet threads={subagents} visible={sheet === "subagents"} onClose={() => setSheet(null)} />
       <QueuedMessageMenu
         turn={state.home.away || state.queued?.editing ? undefined : state.queued?.turn}
         onClose={() => state.setQueued(undefined)}

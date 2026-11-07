@@ -18,6 +18,7 @@ export const deviceChoices = {
   diffFileState: ["expanded", "collapsed"],
   diffColors: ["red-green", "blue-orange"],
   showFinishedSubagents: ["off", "on"],
+  finishedSubagentsExpanded: ["off", "on"],
 } as const;
 
 export type DeviceKey = keyof typeof deviceChoices;
@@ -38,6 +39,7 @@ export const deviceDefaults: Record<DeviceKey, string> = {
   diffFileState: "expanded",
   diffColors: "red-green",
   showFinishedSubagents: "off",
+  finishedSubagentsExpanded: "off",
 };
 
 export const appearanceDeviceKeys: DeviceKey[] = [

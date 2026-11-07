@@ -8,8 +8,7 @@ import { styles, useColors } from "../../ui/theme";
 import { ConnectorList, useConnectors } from "../connectors/Connectors";
 import { permissionLabel } from "./permissions";
 import { headLabel, PROVISIONAL_BRANCH_HINT } from "@canopy/domain/git-heads";
-import { useDevicePreferences } from "../settings/device-preferences";
-import { isActiveSubagent } from "./SubagentStrip";
+import { SubagentLineage } from "./SubagentLineage";
 import { ListSkeleton } from "../../ui/Skeleton";
 
 export function PanelRow({
@@ -66,7 +65,6 @@ export function ThreadPanel({
   onClose: () => void;
 }) {
   const { threads, workers } = useOverview();
-  const { values } = useDevicePreferences();
   const c = useColors();
   const thread = snapshot?.thread;
   const worker = workers.find((w) => w.id === thread?.workerId);
@@ -75,12 +73,18 @@ export function ThreadPanel({
     ? threads.filter(
         (t) =>
           !t.deletedAt &&
-          ((t.parentThreadId === thread.id &&
-            (!t.spawnedByAgent || values.showFinishedSubagents === "on" || isActiveSubagent(t))) ||
+          ((t.parentThreadId === thread.id && !t.spawnedByAgent) ||
             t.id === thread.parentThreadId ||
             t.id === thread.forkSourceThreadId),
       )
     : [];
+
+  const subagents = threads.filter((t) => t.parentThreadId === thread?.id && t.spawnedByAgent && !t.deletedAt);
+
+  function openThread(id: string) {
+    onClose();
+    router.push({ pathname: "/thread/[id]", params: { id } });
+  }
 
   return (
     <Sheet title="Thread details" visible={visible} onClose={onClose}>
@@ -118,23 +122,12 @@ export function ThreadPanel({
             <Text style={[styles.meta, { color: c.muted }]}>No scheduled tasks</Text>
           )}
           <Text style={[styles.label, { color: c.text }]}>Lineage</Text>
-          {lineage.length ? (
-            lineage.map((t) => (
-              <Button
-                key={t.id}
-                title={t.title}
-                onPress={() => {
-                  onClose();
-                  router.push({
-                    pathname: "/thread/[id]",
-                    params: { id: t.id },
-                  });
-                }}
-              />
-            ))
+          {lineage.length || subagents.length ? (
+            lineage.map((t) => <Button key={t.id} title={t.title} onPress={() => openThread(t.id)} />)
           ) : (
             <Text style={[styles.meta, { color: c.muted }]}>Main thread</Text>
           )}
+          <SubagentLineage threads={subagents} onOpen={openThread} />
           <Text style={[styles.label, { color: c.text }]}>Connectors</Text>
           <ThreadConnectors threadId={thread.id} />
           <Text style={[styles.meta, { color: c.muted }]}>Manage thread connectors in Canopy on the web.</Text>

@@ -8,6 +8,7 @@
     "./sidebar-entries": "./src/sidebar-entries.ts",
     "./archived-threads": "./src/archived-threads.ts",
     "./thread-activity": "./src/thread-activity.ts",
+    "./subagents": "./src/subagents.ts",
     "./thread-tree": "./src/thread-tree.ts",
     ".": "./src/index.ts",
     "./items": "./src/items.ts",
