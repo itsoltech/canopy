@@ -190,6 +190,27 @@ a pierwsza tura w Canopy wznawia go przez `thread/resume` (app-server znajduje r
 `CODEX_HOME`). Zapis i Undo działają jak dla Claude: losowa nazwa tymczasowa, bez dowiązań, manifest;
 Undo usuwa tylko pliki z manifestu.
 
+Kontynuacja używa połączenia instancji Canopy, nie `model_provider` z CLI źródłowego. `thread/resume`
+nadal dostaje jawne `modelProvider`. Codex 0.166 sprawdza jednak także zapisany provider przed nadpisaniem:
+przed zimnym wznowieniem worker normalizuje `session_meta.model_provider` i własne wpisy
+`thread_settings_applied.model_provider_id` w kopii potwierdzonej manifestem. Zapis jest atomowy,
+aktualizuje tożsamość w manifeście i zachowuje całą historię, id sesji oraz referencje tur.
+Ponieważ paginowany magazyn Codexa czyta provider z indeksu nawet przy wznowieniu po ścieżce,
+worker aktualizuje też wyłącznie `threads.model_provider` w prywatnym `state_*.sqlite`: wiersz musi
+pasować jednocześnie do id sesji i zweryfikowanej ścieżki kopii. Nie tworzy bazy ani nie zmienia jej schematu;
+nieznany schemat pozostawia bez zmian. Odrzuca dowiązania i pliki specjalne indeksu oraz jego plików pomocniczych.
+Bazy i pliki źródłowego CLI pozostają tylko do odczytu.
+
+Naprawa działa również dla wcześniej zaimportowanych wątków: następna tura przygotowuje istniejącą kopię,
+bez ponownego importu. Odmowa „which is no longer configured” ma klasę `connection_changed`, istniejący
+opis odzyskania połączenia i akcję **Open provider settings**; oryginalny błąd zostaje w **Show details**.
+Wymagania zarządzane Codexa pozostają egzekwowane przez harness.
+
+Claude przy wznowieniu dostaje model oraz środowisko połączenia instancji; globalne ustawienia źródłowego
+CLI, w tym `ANTHROPIC_BASE_URL`, nie są kopiowane. Grok uruchamia się z konfiguracją instancji i po
+`session/load` jawnie wybiera model wątku, gdy sesja wskazuje inny. Testy z prawdziwymi CLI i lokalnymi
+atrapami API sprawdzają oba przypadki z zachowaniem historii.
+
 ## Ustawienia i biblioteka
 
 Capability `cli_import_library_v1`: skan (`ImportScan.library`) wymienia też ustawienia i bibliotekę każdego

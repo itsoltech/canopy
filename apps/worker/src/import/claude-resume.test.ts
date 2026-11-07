@@ -37,6 +37,14 @@ test.skipIf(!Bun.which("claude"))(
     const home = join(root, "home");
     const dataDir = join(root, "data");
     installFixtureHome(home, ["claude"]);
+    // The source CLI used a different endpoint and model; neither config should route Canopy's resumed turn.
+    writeFileSync(
+      join(home, ".claude", "settings.json"),
+      JSON.stringify({
+        env: { ANTHROPIC_BASE_URL: "http://127.0.0.1:1" },
+        model: "retired-source-model",
+      }),
+    );
     // A value the worker knows as a secret, which the session contains: the resumed model must not see it.
     writeFileSync(join(home, ".claude", ".credentials.json"), JSON.stringify({ token: "with FIXTURE_AFTER" }));
 

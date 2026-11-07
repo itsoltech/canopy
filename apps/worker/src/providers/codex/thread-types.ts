@@ -33,6 +33,8 @@ export interface CodexThreadsOptions {
   readonly clientVersion: string;
   /** Resolved provider profile by id ("" = native). */
   profile(id: string): ResolvedProfile | undefined;
+  /** Repair an imported copy for the selected connection; returns its verified private rollout path. */
+  importedResumePath?(spec: ThreadSpec, modelProvider: string): string | undefined;
   /** Called after an event is safely in the journal (e.g. send it to the gateway when connected). */
   publish(event: ThreadEvent): void;
   /** A notification has finished journaling; the host may recheck a pending drain. */

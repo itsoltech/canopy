@@ -4,6 +4,7 @@ import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import { prepareCodexHome } from "../providers/codex/home.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
+import { prepareImportedCodexResume } from "../import/codex-provider.ts";
 import { readCodexConfiguredEffort } from "../providers/default-effort.ts";
 import { type ProfileRuntimeConfig, type ResolvedProfile } from "../providers/profiles.ts";
 
@@ -148,6 +149,13 @@ export class CodexRuntimes {
       clientVersion: this.ctx.state.options.clientVersion,
       configuredEffort: () => readCodexConfiguredEffort(deviceHome),
       profile: (id) => profiles.find((p) => p.id === (id || "native")),
+      importedResumePath: (spec, provider) =>
+        prepareImportedCodexResume(
+          this.ctx.state.imports.copyManifest("codex", spec.providerProfileId, spec.providerThreadId),
+          home.path,
+          spec.providerThreadId,
+          provider,
+        ),
       publish: (event) => this.ctx.ops.publish(event),
       onActivitySettled: () => {
         if (this.ctx.state.staleRuntimes.has(`codex/${name}`)) void this.ctx.ops.reconcileRuntimes().catch(() => {});

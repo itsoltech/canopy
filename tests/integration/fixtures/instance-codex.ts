@@ -1,11 +1,12 @@
 #!/usr/bin/env bun
 /** Codex wire fixture with real durable session files and independently releasable turns. */
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
 import { recordInput, recordProbe, releaseProbe } from "./instance-probe.ts";
 import { botFailure, botTool, codexBotConfig } from "./bot-probe.ts";
+import { decodeJsonObject, jsonObject } from "../../../apps/worker/src/providers/json.ts";
 
 if (process.argv.includes("--version")) {
   console.log("codex-cli 0.164.0");
@@ -157,13 +158,30 @@ for await (const line of createInterface({ input: process.stdin })) {
     const file = join(home, "sessions", `${session}.json`);
 
     // A real rollout (sessions/YYYY/MM/DD/rollout-<time>-<id>.jsonl, e.g. an imported one) resumes too.
-    const rollout = existsSync(join(home, "sessions"))
-      ? readdirSync(join(home, "sessions"), { recursive: true }).some((p) => String(p).endsWith(`-${session}.jsonl`))
-      : false;
+    const rollout = readdirSync(join(home, "sessions"), { recursive: true })
+      .map(String)
+      .find((p) => p.endsWith(`-${session}.jsonl`));
 
     if (request.method === "thread/resume" && !existsSync(file) && !rollout) {
       send({ id, error: { code: -32000, message: "Session missing from CODEX_HOME" } });
       continue;
+    }
+
+    if (request.method === "thread/resume" && rollout) {
+      const meta = decodeJsonObject(JSON.parse(readFileSync(join(home, "sessions", rollout), "utf8").split("\n")[0]!));
+      const saved = jsonObject(meta["payload"])?.["model_provider"];
+
+      // Codex 0.166 validates the saved route before applying modelProvider, even on cold resume.
+      if (saved !== currentProvider || existsSync(join(home, "refuse-import-resume"))) {
+        send({
+          id,
+          error: {
+            code: -32600,
+            message: `This chat uses model provider "${saved}", which is no longer configured. Restore this provider's configuration to continue.`,
+          },
+        });
+        continue;
+      }
     }
 
     writeFileSync(file, "{}");

@@ -319,6 +319,23 @@ function readManifest(path: string): Manifest | undefined {
   return Option.getOrUndefined(decodeManifest(text));
 }
 
+/** Files still owned by a completed import, confined to the expected private home. */
+export function copiedFiles(manifestPath: string, home: string) {
+  const manifest = readManifest(manifestPath);
+  const root = lstat(home);
+
+  if (!manifest || manifest.pending || !root?.isDirectory() || root.isSymbolicLink() || !same(root, manifest.home))
+    return undefined;
+
+  const files = manifest.files.filter((file) => {
+    const stat = walk(home, file.rel, "file");
+
+    return stat !== undefined && same(stat, file) && openedSame(join(home, file.rel), file);
+  });
+
+  return { files: files.map((file) => file.rel), size: manifest.size, prefixSha256: manifest.prefixSha256 };
+}
+
 function writeManifest(path: string, manifest: Manifest): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${randomUUID()}.tmp`;

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import {
@@ -35,6 +35,21 @@ test.skipIf(!Bun.which("grok"))(
     const home = join(root, "home");
     const dataDir = join(root, "data");
     installFixtureHome(home, ["grok"]);
+    // A source model absent from Canopy's connection must be replaced after session/load.
+    const sourceSessions = join(home, ".grok", "sessions");
+
+    for (const rel of readdirSync(sourceSessions, { recursive: true })
+      .map(String)
+      .filter((p) => p.endsWith("summary.json"))) {
+      const file = join(sourceSessions, rel);
+      writeFileSync(
+        file,
+        readFileSync(file, "utf8").replace(
+          '"current_model_id": "fixture-grok"',
+          '"current_model_id": "retired-source-model"',
+        ),
+      );
+    }
 
     const service = new WorkerImport({
       dataDir,
