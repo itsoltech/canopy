@@ -150,7 +150,13 @@
           ]
         }
       ],
-      "icon": "../web/static/icon-512.png"
+      "icon": "../web/static/icon-512.png",
+      "azureSignOptions": {
+        "publisherName": "IT SOL SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+        "endpoint": "https://plc.codesigning.azure.net/",
+        "certificateProfileName": "canopy",
+        "codeSigningAccountName": "ITSOL"
+      }
     },
     "nsis": {
       "oneClick": false,

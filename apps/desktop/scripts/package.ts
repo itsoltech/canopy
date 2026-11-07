@@ -34,6 +34,12 @@ const base = JSON.parse(readFileSync(resolve(desktop, "package.json"), "utf8")).
 const icon = `build/${identity.channel}/icon.png`;
 const signed = Boolean(process.env["CSC_LINK"]);
 
+const windowsSigned = ["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"].every((name) =>
+  Boolean(process.env[name]),
+);
+
+const { azureSignOptions, ...windows } = base.win;
+
 const notarize =
   signed &&
   Boolean(
@@ -60,7 +66,8 @@ const configuration = {
   protocols: [{ name: `${identity.productName} enrollment`, schemes: [identity.scheme] }],
   linux: { ...base.linux, icon, desktop: { entry: { StartupWMClass: identity.productName } } },
   mac: { ...base.mac, icon, ...(!signed && { identity: "-" }), notarize },
-  win: { ...base.win, icon },
+  // Omit Azure configuration completely for unsigned builds; its presence selects the signing provider.
+  win: { ...windows, icon, signExecutable: windowsSigned, ...(windowsSigned && { azureSignOptions }) },
   // Never advertise an ad-hoc macOS build to already signed clients.
   publish:
     process.platform === "darwin" && !signed
@@ -76,7 +83,7 @@ const configuration = {
         ],
   detectUpdateChannel: false,
   generateUpdatesFilesForAllChannels: false,
-  forceCodeSigning: process.platform === "darwin" && signed,
+  forceCodeSigning: (process.platform === "darwin" && signed) || (process.platform === "win32" && windowsSigned),
 };
 
 const version = process.env["CANOPY_VERSION"];

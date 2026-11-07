@@ -1,6 +1,7 @@
 /** Behavioral dry-runs of the real config against a throwaway local clone; no GitHub or app services. */
 import { afterEach, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   copyFileSync,
   mkdirSync,
@@ -17,6 +18,7 @@ import { pathToFileURL } from "node:url";
 import { resolveVersion } from "./version.ts";
 import { releaseManifest, writeReleaseFiles } from "./release-manifest.ts";
 import { mergeDesktopUpdates } from "../apps/desktop/scripts/merge-update-metadata.ts";
+import { newestRelease } from "../apps/desktop/src/update-releases.ts";
 
 const root = resolve(import.meta.dir, "..");
 const temporaryDirectories: string[] = [];
@@ -172,6 +174,68 @@ test("manifest preserves the exact version/channel and rejects contradictory rel
   await expect(releaseManifest(directory, env)).rejects.toThrow("Not a release asset");
   await expect(releaseManifest(directory, { ...env, CANOPY_CHANNEL: "stable" })).rejects.toThrow("must match");
 });
+
+test.each([
+  { channel: "stable", version: "0.2.0", feeds: ["latest", "beta", "nightly"] },
+  { channel: "beta", version: "0.2.0-beta.1", feeds: ["beta", "nightly"] },
+  { channel: "nightly", version: "0.2.0-nightly.1", feeds: ["nightly"] },
+] as const)(
+  "Windows $channel publication preserves installer, feeds, blockmap and updater eligibility",
+  async ({ channel, version, feeds }) => {
+    const directory = mkdtempSync(join(tmpdir(), "canopy-release-windows-unit-"));
+    temporaryDirectories.push(directory);
+    const artifact = join(directory, "artifacts/desktop-windows-x64");
+    const assets = join(directory, "assets");
+    mkdirSync(artifact, { recursive: true });
+    const name = `Canopy-${version}-windows-x64.exe`;
+    const installer = Buffer.from(`Windows installer ${version}`);
+    const sha512 = createHash("sha512").update(installer).digest("base64");
+    writeFileSync(join(artifact, name), installer);
+    writeFileSync(join(artifact, `${name}.blockmap`), "Windows installer blockmap");
+    writeFileSync(
+      join(artifact, `${feeds[0]}.yml`),
+      JSON.stringify({ version, files: [{ url: name, sha512, size: installer.length }], path: name, sha512 }),
+    );
+
+    await mergeDesktopUpdates(join(directory, "artifacts"), assets, channel, version);
+
+    const manifest = await writeReleaseFiles(assets, {
+      CANOPY_VERSION: version,
+      CANOPY_CHANNEL: channel,
+      CANOPY_RELEASE_TAG: `v${version}`,
+      GITHUB_SHA: "abc123456789",
+    });
+
+    expect(manifest.assets).toEqual([expect.objectContaining({ app: "desktop", os: "windows", arch: "x64", name })]);
+    expect(readFileSync(join(assets, name))).toEqual(installer);
+
+    const checksums = readFileSync(join(assets, "checksums.txt"), "utf8");
+
+    for (const file of [name, `${name}.blockmap`, ...feeds.map((feed) => `${feed}.yml`)]) {
+      const contents = readFileSync(join(assets, file));
+      expect(checksums).toContain(`${createHash("sha256").update(contents).digest("hex")}  ${file}\n`);
+    }
+
+    for (const feed of feeds) {
+      expect(readFileSync(join(assets, `${feed}.yml`), "utf8")).toContain(sha512);
+      expect(
+        newestRelease(
+          [
+            {
+              tag_name: `v${version}`,
+              draft: false,
+              prerelease: channel !== "stable",
+              assets: readdirSync(assets).map((name) => ({ name })),
+            },
+          ],
+          "0.1.0",
+          feed === "latest" ? "stable" : feed,
+          `${feed}.yml`,
+        )?.tag_name,
+      ).toBe(`v${version}`);
+    }
+  },
+);
 
 test("fast-forward promotions retain the base version, and docs-only changes produce no release", async () => {
   const repo = fixture();

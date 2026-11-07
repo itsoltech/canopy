@@ -21,7 +21,7 @@ on:
         required: true
         type: string
       desktop_all_targets:
-        description: Nightly also builds the experimental desktop targets (linux-arm64, windows-x64)
+        description: Nightly also builds the experimental linux-arm64 desktop target
         required: false
         default: false
         type: boolean
@@ -86,9 +86,9 @@ jobs:
           CHANNEL: ${{ steps.plan.outputs.channel }}
           ALL_TARGETS: ${{ inputs.desktop_all_targets }}
         run: |
-          targets='{"target":"linux-x64","runner":"ubuntu-24.04","package":"package:linux","experimental":false},{"target":"darwin-arm64","runner":"macos-15","package":"package:mac","experimental":false}'
+          targets='{"target":"linux-x64","runner":"ubuntu-24.04","package":"package:linux","experimental":false},{"target":"darwin-arm64","runner":"macos-15","package":"package:mac","experimental":false},{"target":"windows-x64","runner":"windows-2025","package":"package:windows","experimental":false}'
           if [ "$CHANNEL" != nightly ] || [ "$ALL_TARGETS" = true ]; then
-            targets="$targets"',{"target":"linux-arm64","runner":"ubuntu-24.04-arm","package":"package:linux","experimental":true},{"target":"windows-x64","runner":"windows-2025","package":"package:windows","experimental":true}'
+            targets="$targets"',{"target":"linux-arm64","runner":"ubuntu-24.04-arm","package":"package:linux","experimental":true}'
           fi
           echo "value={\"include\":[$targets]}" >> "$GITHUB_OUTPUT"
 
@@ -340,8 +340,6 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: |
           case "${{ matrix.target }}" in
             darwin-*)
@@ -368,19 +366,46 @@ jobs:
                 echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
                 echo "macOS: ad-hoc signed; Gatekeeper override required; automatic updates disabled"
               fi ;;
-            windows-*)
-              if [ -n "$WIN_CSC_LINK" ]; then
-                { echo "WIN_CSC_LINK=$WIN_CSC_LINK"; echo "WIN_CSC_KEY_PASSWORD=$WIN_CSC_KEY_PASSWORD"; } >> "$GITHUB_ENV"
-                echo "Windows: signed"
-              else
-                echo "Windows: unsigned (no WIN_CSC_LINK secret)"
-              fi ;;
           esac
+      - name: Windows signing credentials
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        env:
+          CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          $missing = @('AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET') | Where-Object {
+            -not [Environment]::GetEnvironmentVariable($_)
+          }
+          if ($missing.Count -eq 0) {
+            'CANOPY_WINDOWS_SIGNED=true' >> $env:GITHUB_ENV
+            Write-Output 'Windows: Azure Trusted Signing required; signature verification will gate upload.'
+          } elseif ($env:CANOPY_CHANNEL -ne 'nightly') {
+            throw "Windows $env:CANOPY_CHANNEL requires Azure Trusted Signing. Missing repository secrets: $($missing -join ', ')"
+          } else {
+            'CANOPY_WINDOWS_SIGNED=false' >> $env:GITHUB_ENV
+            Write-Output "::notice::Windows nightly will be unsigned. Missing repository secrets: $($missing -join ', ')"
+          }
       - name: Package
         env:
           CANOPY_VERSION: ${{ needs.plan.outputs.version }}
           CANOPY_CHANNEL: ${{ needs.plan.outputs.channel }}
+          AZURE_TENANT_ID: ${{ matrix.target == 'windows-x64' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ matrix.target == 'windows-x64' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ matrix.target == 'windows-x64' && secrets.AZURE_CLIENT_SECRET || '' }}
         run: bun run --cwd apps/desktop ${{ matrix.package }}
+      - name: Verify Windows signatures
+        if: matrix.target == 'windows-x64' && env.CANOPY_WINDOWS_SIGNED == 'true'
+        shell: pwsh
+        run: ./apps/desktop/scripts/verify-windows.ps1 -ReleaseDirectory apps/desktop/release/${{ needs.plan.outputs.channel }}
+      - name: Install Windows package and smoke sidecars
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        env:
+          CANOPY_VERSION: ${{ needs.plan.outputs.version }}
+        run: ./apps/desktop/scripts/smoke-windows.ps1 -ReleaseDirectory apps/desktop/release/${{ needs.plan.outputs.channel }}
       - name: Verify macOS signatures and notarization
         if: startsWith(matrix.target, 'darwin-')
         env:

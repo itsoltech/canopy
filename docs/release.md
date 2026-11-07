@@ -312,9 +312,9 @@ zbudowały; brakujący cel jest widoczny jako czerwony job i ewentualne ostrzeż
 aż do skutecznego ponowienia. Ponowny upload manifestu przesuwa jego `updated_at`, od którego liczy się
 burn-in bety — to zamierzone: liczy się od kompletu assetów.
 
-**Nightly bez celów eksperymentalnych.** Kanał nightly buduje desktop tylko dla linux-x64 i darwin-arm64
-(podpisany nightly dla maintainera). linux-arm64 i windows-x64 (eksperymentalne, `continue-on-error`)
-buduje beta i stable, a nightly tylko przy ręcznym dispatchu z `desktop_all_targets: true`
+**Cele desktopu.** linux-x64, darwin-arm64 i windows-x64 są pełnymi, wymaganymi celami
+nightly, beta i stable. Tylko linux-arm64 pozostaje eksperymentalny (`continue-on-error`):
+buduje go beta i stable, a nightly tylko przy ręcznym dispatchu z `desktop_all_targets: true`
 (dispatch wymaga `expected_sha` = HEAD gałęzi i wydaje tylko, gdy są niewydane commity).
 
 **Cache.** Pakiety Bun (`~/.bun/install/cache`, klucz z `bun.lock`) we wszystkich jobach z instalacją;
@@ -363,8 +363,16 @@ anuluje wyprzedzony przebieg. Dwa merge'e przed cyklem dają jeden nightly z obu
 kolejny cykl na tym samym SHA albo po samych `docs` pomija `checks` i buildy.
 Sprawdź też wspólną kolejkę schedule/dispatch i wywołanie TestFlight tylko po rzeczywistej publikacji.
 
-Podpisywanie desktop jest warunkowe: bez certyfikatu macOS otrzymuje podpis ad-hoc,
-Windows pozostaje niepodpisany. Konfiguracja certyfikatu macOS włącza obowiązkowy signing,
+Bez certyfikatu macOS otrzymuje podpis ad-hoc. Windows beta/stable wymagają Azure
+Trusted Signing; nightly podpisuje przy komplecie trzech sekretów Azure, a bez
+niego buduje unsigned z notice. Podjęta próba podpisania zawsze wymaga poprawnego
+wyniku. Instalator i wszystkie `.exe` paczki (w tym aplikacja i Bun sidecarów)
+muszą przejść `Get-AuthenticodeSignature` ze statusem `Valid` i wydawcą ITSOL;
+błąd blokuje upload Windows. Szczegóły: [desktop.md](desktop.md#podpisywanie-windows).
+PR-only `desktop-windows.yml` buduje unsigned na `windows-2025`, instaluje NSIS,
+sprawdza `--version` zainstalowanych gatewaya/workera i zachowuje artefakt przez
+3 dni, bez publikacji wydania. Nie potwierdza podpisu ani zachowania SmartScreen.
+Konfiguracja certyfikatu macOS włącza obowiązkowy signing,
 a kompletny zestaw notaryzacji włącza wbudowane `mac.notarize` i stapling przed zip/dmg.
 Kontrola CI sprawdza app przez `codesign --verify --deep --strict`, każdy runtime Mach-O
 oddzielnie, Developer ID przez requirement i `spctl -a -vv` dla podpisanych buildów.
@@ -410,8 +418,12 @@ Nie jest to potwierdzenie, że zadanie CI nadal działa.
    wygenerowane na account.apple.com → Sign-In and Security (`APPLE_APP_SPECIFIC_PASSWORD`)
    oraz Team ID z Apple Developer Membership (`APPLE_TEAM_ID`). Nie używaj zwykłego hasła
    konta. Pełny zestaw API ma pierwszeństwo; Apple ID nie jest wtedy przekazywane do buildera.
-5. Opcjonalne podpisywanie Windows pozostaje przy `WIN_CSC_LINK` i `WIN_CSC_KEY_PASSWORD`.
-   Bez tych sekretów NSIS jest niepodpisany i może pokazać SmartScreen.
+5. Windows: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` należą do
+   service principal Azure konta Trusted Signing **ITSOL**, z rolą **Trusted Signing
+   Certificate Profile Signer** na profilu `canopy`. Wszystkie trzy są obowiązkowe
+   dla beta/stable; nightly bez pełnego kompletu jest unsigned. Jawne pola
+   `publisherName`, `endpoint`, `certificateProfileName` i `codeSigningAccountName`
+   są w `build.win.azureSignOptions`; [wartości i kontrola podpisu](desktop.md#podpisywanie-windows).
 
 Dokładna lista sekretów (wartości wprowadzaj przez bezpieczny prompt `gh`, nigdy do repo):
 
@@ -430,9 +442,10 @@ gh secret set APPLE_ID
 gh secret set APPLE_APP_SPECIFIC_PASSWORD
 gh secret set APPLE_TEAM_ID
 
-# Opcjonalnie Windows, bez zmiany istniejącego mechanizmu.
-gh secret set WIN_CSC_LINK
-gh secret set WIN_CSC_KEY_PASSWORD
+# Windows Azure Trusted Signing: obowiązkowe dla beta/stable, opcjonalne dla nightly.
+gh secret set AZURE_TENANT_ID
+gh secret set AZURE_CLIENT_ID
+gh secret set AZURE_CLIENT_SECRET
 ```
 
 `AuthKey.p8.base64` przygotuj tak samo jak `.p12`, z pliku `.p8`. Do pełnej dystrybucji
