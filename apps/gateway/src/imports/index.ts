@@ -19,6 +19,8 @@ import {
   type KnownSource,
   type WorkspaceRow,
 } from "./candidates.ts";
+import { CLI_IMPORT_LIBRARY, libraryCandidates, type LibraryContext } from "./library.ts";
+import { liveLibraryItems } from "./library-store.ts";
 import { ImportRunner } from "./runner.ts";
 import { ImportRuns } from "./runs.ts";
 import { knownSources } from "./store.ts";
@@ -156,6 +158,41 @@ export class CliImports {
     });
   }
 
+  /** Settings and library of the scan, compared with Canopy (docs/import.md, "Ustawienia i biblioteka"). */
+  async listLibrary(request: ui.ListImportLibraryRequest): Promise<ui.ListImportLibraryResponse> {
+    const stored = this.stored(request.scanId);
+    const context = await this.libraryContext(stored);
+
+    return create(ui.ListImportLibraryResponseSchema, {
+      items: libraryCandidates(stored.scan.library, context),
+    });
+  }
+
+  async libraryContext(stored: StoredScan): Promise<LibraryContext> {
+    const worker = await this.worker(stored.workerId);
+
+    if (!this.#core.link.connections.get(worker.id)?.hello.capabilities.includes(CLI_IMPORT_LIBRARY))
+      throw new UnavailableError(`Update the worker on ${worker.name} to import its settings.`);
+
+    const [settings, catalogs, environment, live] = await Promise.all([
+      this.#core.settings(),
+      this.#core.listModels(create(ui.ListModelsRequestSchema, { workerId: worker.id, unfiltered: true })),
+      this.#core.environment.snapshot(),
+      this.sql((sql) => liveLibraryItems(sql, this.#userId, worker.id)),
+    ]);
+
+    // The worker's own instance (native profile) per provider.
+    const native = (catalogs[0]?.profiles ?? []).filter((p) => !p.profileId || p.profileId === "native");
+
+    return {
+      workerName: worker.name,
+      defaults: settings.user?.threadDefaults ?? create(ui.ThreadDefaultsSchema),
+      catalogs: new Map(native.map((p) => [p.provider, p.models])),
+      documents: environment.documents,
+      live,
+    };
+  }
+
   async context(stored: StoredScan): Promise<CandidateContext> {
     const userId = this.#userId;
     const workerId = stored.workerId;
@@ -213,6 +250,7 @@ function overview(scan: ImportScan): ui.ImportOverview[] {
       rootPath: root.path,
       cliVersion: root.cliVersion,
       problem: root.problem,
+      library: scan.library.filter((i) => i.rootId === root.id && root.id).length,
     });
   });
 }

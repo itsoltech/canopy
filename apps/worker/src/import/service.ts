@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { ImportScanSchema, type ImportRootSchema, type ImportScan } from "@canopy/contracts";
 import type { AppliedConfig } from "../config/remote.ts";
+import { scanLibrary, type LibraryItemInit } from "./library-scan.ts";
 import { loadMasker, type Masker } from "./masking.ts";
 import { scanClaude } from "./scan-claude.ts";
 import { scanCodex } from "./scan-codex.ts";
@@ -123,6 +124,7 @@ export class WorkerImport {
     // Secrets of every CLI home count: a Codex token may appear in a Claude session.
     const masker = this.masker(this.roots().roots);
     const threads: SummaryInit[] = [];
+    const library: LibraryItemInit[] = roots.flatMap((root) => scanLibrary(root, this.key, masker));
     let truncated = false;
     let skipped = 0;
     // Many sessions share a directory: each is checked once per scan.
@@ -164,7 +166,7 @@ export class WorkerImport {
       skipped += context.skipped;
     }
 
-    return create(ImportScanSchema, { roots: listed, threads, truncated, skipped });
+    return create(ImportScanSchema, { roots: listed, threads, truncated, skipped, library });
   }
 }
 

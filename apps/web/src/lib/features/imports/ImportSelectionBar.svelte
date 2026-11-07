@@ -3,7 +3,7 @@
   import ChoiceControl from "#lib/shared/ui/ChoiceControl.svelte";
   import SegmentedChoice from "#lib/shared/ui/SegmentedChoice.svelte";
   import type { ImportState } from "./import-state.svelte.ts";
-  import { size } from "./labels.ts";
+  import { counted, size } from "./labels.ts";
 
   /** Select all that match, and what the selection costs in Canopy's database (docs/import.md). */
   let { imports, onstart }: { imports: ImportState; onstart: () => void } = $props();
@@ -27,6 +27,13 @@
   const count = $derived(imports.selectedCount);
   const share = $derived(total ? count / total : 0);
   const estimate = $derived(Number(imports.result?.importableEstimatedBytes ?? 0n) * share);
+  const settings = $derived(imports.library.count);
+
+  const label = $derived(
+    [count > 0 && counted(count, "thread"), settings > 0 && counted(settings, "setting")]
+      .filter(Boolean)
+      .join(" and ") || "0 threads",
+  );
 </script>
 
 <div
@@ -51,8 +58,14 @@
   {/if}
   <div class="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
     <SegmentedChoice label="After import" options={modes} bind:value={mode} />
-    <Button variant="primary" icon="arrow-down-tray" disabled={count === 0} loading={imports.starting} onclick={start}>
-      Import {count === 1 ? "1 thread" : `${count.toLocaleString("en")} threads`}
+    <Button
+      variant="primary"
+      icon="arrow-down-tray"
+      disabled={count === 0 && settings === 0}
+      loading={imports.starting}
+      onclick={start}
+    >
+      Import {label}
     </Button>
   </div>
 </div>

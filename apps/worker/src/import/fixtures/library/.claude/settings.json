@@ -1,0 +1,13 @@
+{
+  "model": "opus",
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": ["Bash(git status)"]
+  },
+  "effortLevel": "high",
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "echo fixture" }] }]
+  },
+  "statusLine": { "type": "command", "command": "echo fixture" },
+  "theme": "dark"
+}

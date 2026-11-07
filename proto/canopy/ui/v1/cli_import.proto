@@ -20,6 +20,8 @@ message ImportOverview {
   string root_path = 7;
   string cli_version = 8;
   string problem = 9;
+  // Pozycje ustawień i biblioteki znalezione w tym CLI (także te, których nie da się zaimportować).
+  uint32 library = 10;
 }
 
 message ScanImportResponse {
@@ -137,6 +139,8 @@ message StartImportRequest {
   repeated ImportMapping mappings = 3;
   // continue (domyślnie: kontynuacja tam, gdzie się da) | history
   string mode = 4;
+  // Wybrane ustawienia i pozycje biblioteki; wątki mogą być wtedy puste.
+  repeated ImportLibraryChoice library = 5;
 }
 
 message ImportItem {
@@ -178,6 +182,8 @@ message ImportRun {
   string current = 16;
   // Tylko w GetImportRun z items = true.
   repeated ImportItem items = 17;
+  // Ustawienia i biblioteka tego importu (zawsze, jest ich mało).
+  repeated ImportLibraryResult library = 18;
 }
 
 message ListImportRunsRequest {}
@@ -198,4 +204,57 @@ message ImportRunRequest {
 // Nowy wątek w miejscu zaimportowanego: pierwsza wiadomość dostaje notatkę z jego historią (bez modelu).
 message ContinueImportedThreadRequest {
   string thread_id = 1;
+}
+
+// ---------- Ustawienia i biblioteka (stos B) ----------
+
+message ListImportLibraryRequest {
+  string scan_id = 1;
+}
+
+// Pozycja z CLI porównana ze stanem Canopy.
+message ImportLibraryCandidate {
+  // source_key workera.
+  string key = 1;
+  string agent_cli = 2;
+  // setting | instruction
+  string kind = 3;
+  // Nazwa do wyświetlenia (Default model, CLAUDE.md).
+  string name = 4;
+  // Wartość w Canopy teraz i po imporcie (Default → claude-opus-5-5); puste, gdy nie dotyczy.
+  string current = 5;
+  string proposed = 6;
+  // new | same | conflict | imported | unavailable
+  string status = 7;
+  // Dlaczego unavailable (albo uwaga do conflict).
+  string reason = 8;
+  repeated string warnings = 9;
+  // Zaznaczone na start.
+  bool suggested = 10;
+  // Wybory przy conflict: replace | keep_both; pusta lista = tylko import albo pominięcie.
+  repeated string actions = 11;
+  string detail = 12;
+  uint64 bytes = 13;
+}
+
+message ListImportLibraryResponse {
+  repeated ImportLibraryCandidate items = 1;
+}
+
+// action: import (nowa pozycja) | replace | keep_both
+message ImportLibraryChoice {
+  string key = 1;
+  string action = 2;
+}
+
+message ImportLibraryResult {
+  string id = 1;
+  string agent_cli = 2;
+  string kind = 3;
+  string name = 4;
+  // pending | done | failed | cancelled | undone | kept (cofnięcie pominięte: zmienione po imporcie)
+  string status = 5;
+  string error = 6;
+  // Co powstało albo się zmieniło (Default model for Claude: claude-opus-5-5).
+  string detail = 7;
 }

@@ -3,6 +3,7 @@ import { CliRefused } from "../cli-tools/index.ts";
 
 import { CommandError, type CommandOutput } from "./host-types.ts";
 import { adoptImportedSession, removeImportedCopy } from "../import/adopt.ts";
+import { readImportLibraryItem } from "../import/library-read.ts";
 import { readImportPage } from "../import/pages.ts";
 import type { HostContext } from "./host-context.ts";
 import { providerAccounts } from "./account-commands.ts";
@@ -42,6 +43,9 @@ export class CommandHandlers {
 
     if (kind.case === "scanImportSources")
       return { importScan: await this.ctx.state.imports.scan(kind.value.agentClis) };
+
+    if (kind.case === "readImportLibraryItem")
+      return { importLibraryContent: readImportLibraryItem(this.ctx.state.imports, kind.value) };
 
     if (kind.case === "readImportPage") return { importPage: readImportPage(this.ctx.state.imports, kind.value) };
 

@@ -153,6 +153,8 @@ export class SettingsStore extends Context.Service<
       workerGatewayUrl?: string;
       attachmentLimits?: ui.AttachmentLimits;
       expectedVersion: bigint;
+      /** Runs last in the same transaction (an import records what it changed, docs/import.md "Blokady"). */
+      receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>;
     }): Fx<ui.UserSettings>;
     updateProject(input: {
       userId: string;
@@ -195,6 +197,7 @@ export class SettingsStore extends Context.Service<
           workerGatewayUrl,
           attachmentLimits,
           expectedVersion,
+          receipt,
         }) =>
           sql.withTransaction(
             Effect.gen(function* () {
@@ -233,6 +236,8 @@ export class SettingsStore extends Context.Service<
               });
 
               if (!synced) yield* configSettingsChanged(sql, userId, { ...stored }, { ...next });
+
+              if (receipt) yield* receipt(sql);
 
               return toUser(row);
             }),

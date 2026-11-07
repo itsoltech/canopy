@@ -7,6 +7,7 @@ import type { SqlClient } from "effect/sql";
 import { InvalidError } from "../core/core-context.ts";
 import { appendBase } from "./append.ts";
 import { importTransaction } from "./locks.ts";
+import { insertLibraryItems, toUiLibrary, type LibraryRow, type NewLibraryItem } from "./library-store.ts";
 
 /**
  * Runs and items of the CLI import (docs/import.md, "Model danych"); every query is owner-scoped. What changes them
@@ -89,6 +90,8 @@ export interface RunRow {
   readonly bytes_total: string;
   readonly bytes_done: string;
   readonly current: string | null;
+  readonly library_done: number;
+  readonly library_failed: number;
 }
 
 export interface NewItem {
@@ -119,6 +122,7 @@ export const createRun = (
     mode: string;
     alreadyImported: number;
     items: readonly NewItem[];
+    library?: readonly NewLibraryItem[];
   },
 ) =>
   // Appends lock the threads they continue and those threads' items (the one they supersede, too).
@@ -126,6 +130,7 @@ export const createRun = (
     Effect.gen(function* () {
       yield* sql`INSERT INTO import_runs (id, owner_user_id, worker_id, status, mode, already_imported)
                  VALUES (${run.id}::uuid, ${run.ownerId}::uuid, ${run.workerId}::uuid, 'running', ${run.mode}, ${run.alreadyImported})`;
+      yield* insertLibraryItems(sql, run, run.library ?? []);
 
       for (const [position, item] of run.items.entries()) {
         const continues = item.continues;
@@ -168,7 +173,9 @@ const RUN_COLUMNS = `
   (SELECT coalesce(sum(i.bytes_total), 0)::text FROM import_items i WHERE i.run_id = r.id AND i.status <> 'cancelled') AS bytes_total,
   (SELECT coalesce(sum(CASE WHEN i.status = 'done' THEN i.bytes_total ELSE i.bytes_done END), 0)::text
      FROM import_items i WHERE i.run_id = r.id) AS bytes_done,
-  (SELECT i.title FROM import_items i WHERE i.run_id = r.id AND i.status = 'importing' ORDER BY i.position LIMIT 1) AS current`;
+  (SELECT i.title FROM import_items i WHERE i.run_id = r.id AND i.status = 'importing' ORDER BY i.position LIMIT 1) AS current,
+  (SELECT count(*)::int FROM import_library_items l WHERE l.run_id = r.id AND l.status = 'done') AS library_done,
+  (SELECT count(*)::int FROM import_library_items l WHERE l.run_id = r.id AND l.status = 'failed') AS library_failed`;
 
 export const runs = (sql: SqlClient.SqlClient, ownerId: string, runId?: string) =>
   sql<RunRow>`SELECT ${sql.literal(RUN_COLUMNS)} FROM import_runs r JOIN workers w ON w.id = r.worker_id
@@ -211,7 +218,7 @@ export const knownSources = (sql: SqlClient.SqlClient, ownerId: string, workerId
      WHERE i.owner_user_id = ${ownerId}::uuid AND i.worker_id = ${workerId}::uuid
        AND i.status IN ('pending', 'importing', 'done', 'failed') AND (t.id IS NULL OR t.deleted_at IS NULL)`;
 
-export function toUiRun(row: RunRow, rows: readonly ItemRow[] = []): ui.ImportRun {
+export function toUiRun(row: RunRow, rows: readonly ItemRow[] = [], library: readonly LibraryRow[] = []): ui.ImportRun {
   return create(ui.ImportRunSchema, {
     id: row.id,
     workerId: row.worker_id,
@@ -229,6 +236,7 @@ export function toUiRun(row: RunRow, rows: readonly ItemRow[] = []): ui.ImportRu
     bytesDone: BigInt(row.bytes_done),
     error: row.error ?? "",
     current: row.current ?? "",
+    library: library.map(toUiLibrary),
     items: rows.map((i) =>
       create(ui.ImportItemSchema, {
         id: i.id,

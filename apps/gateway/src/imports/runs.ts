@@ -1,10 +1,14 @@
 import { create } from "@bufbuild/protobuf";
 import { ui, type ImportThreadSummary } from "@canopy/contracts";
-import { InvalidError, violates } from "../core/core-context.ts";
+import { describeError, InvalidError, violates } from "../core/core-context.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
+import type { CliImports } from "./index.ts";
 import { ThreadContinued } from "./append.ts";
 import { historyBytes } from "./candidates.ts";
-import type { CliImports } from "./index.ts";
+import type { StoredScan } from "./index.ts";
+import { planLibrary } from "./library-plan.ts";
+import { LibraryApply } from "./library-apply.ts";
+import { libraryItems, libraryItemsOf, setLibraryStatus } from "./library-store.ts";
 import { directoryTargets, newItems, selected, type Scratch } from "./plan.ts";
 import type { ImportRunner } from "./runner.ts";
 import {
@@ -12,8 +16,8 @@ import {
   items,
   knownSources,
   runs,
-  toUiRun,
   storedSnapshot,
+  toUiRun,
   type KnownSourceRow,
   type NewItem,
 } from "./store.ts";
@@ -27,11 +31,13 @@ export class ImportRuns {
   readonly #imports: CliImports;
   readonly #runner: ImportRunner;
   readonly #ownerId: () => string;
+  readonly #library: LibraryApply;
 
   constructor(imports: CliImports, runner: ImportRunner, ownerId: () => string) {
     this.#imports = imports;
     this.#runner = runner;
     this.#ownerId = ownerId;
+    this.#library = new LibraryApply(imports.core);
   }
 
   async start(request: ui.StartImportRequest): Promise<ui.ImportRun> {
@@ -40,11 +46,77 @@ export class ImportRuns {
     const ownerId = this.#ownerId();
     const chosen = selected(stored.scan.threads, request.selection);
 
-    if (chosen.length === 0) throw new InvalidError("Choose at least one thread to import.");
-    await this.#imports.sql((sql) => releaseDeleted(sql, ownerId, worker.id));
+    if (chosen.length === 0 && request.library.length === 0)
+      throw new InvalidError("Choose at least one thread or setting to import.");
+
+    const library =
+      request.library.length > 0
+        ? planLibrary(
+            stored.scan.library,
+            await this.#imports
+              .listLibrary(create(ui.ListImportLibraryRequestSchema, { scanId: stored.id }))
+              .then((r) => r.items),
+            request.library,
+          )
+        : [];
+
+    const mode = request.mode === "history" ? "history" : "continue";
+
+    const { planned, alreadyImported } = await this.#planThreads(
+      stored,
+      worker.id,
+      chosen,
+      request,
+      mode,
+      library.length > 0,
+    );
+
+    const id = Bun.randomUUIDv7();
+
+    try {
+      await this.#imports.sql((sql) =>
+        createRun(sql, {
+          id,
+          ownerId,
+          workerId: worker.id,
+          mode,
+          alreadyImported,
+          items: planned,
+          library,
+        }),
+      );
+    } catch (cause) {
+      if (violates(cause, "import_runs_active"))
+        throw new InvalidError(`An import is already running on ${worker.name}. Wait for it, or cancel it.`);
+
+      if (violates(cause, "import_items_source"))
+        throw new InvalidError("Some of these threads are being imported already. Scan again.");
+
+      if (violates(cause, "import_library_source"))
+        throw new InvalidError("Some of these settings are imported already. Scan again.");
+      throw cause;
+    }
+
+    void this.#runner.drive(id);
+
+    return this.get(create(ui.ImportRunRequestSchema, { runId: id }));
+  }
+
+  /** Thread items of a run: new threads with their targets, and threads the CLI added turns to. */
+  async #planThreads(
+    stored: StoredScan,
+    workerId: string,
+    chosen: readonly ImportThreadSummary[],
+    request: ui.StartImportRequest,
+    mode: "continue" | "history",
+    withLibrary: boolean,
+  ): Promise<{ planned: NewItem[]; alreadyImported: number }> {
+    if (chosen.length === 0) return { planned: [], alreadyImported: 0 };
+    const ownerId = this.#ownerId();
+    await this.#imports.sql((sql) => releaseDeleted(sql, ownerId, workerId));
 
     const known = new Map(
-      (await this.#imports.sql((sql) => knownSources(sql, ownerId, worker.id))).map((k) => [
+      (await this.#imports.sql((sql) => knownSources(sql, ownerId, workerId))).map((k) => [
         `${k.root_id}:${k.agent_cli}:${k.native_id}`,
         k,
       ]),
@@ -62,49 +134,44 @@ export class ImportRuns {
         : [];
     });
 
-    if (fresh.length === 0 && grown.length === 0) throw new InvalidError("These threads are already imported.");
+    const alreadyImported = chosen.length - fresh.length - grown.length;
+
+    if (fresh.length === 0 && grown.length === 0) {
+      if (withLibrary) return { planned: [], alreadyImported };
+      throw new InvalidError("These threads are already imported.");
+    }
+
     const context = await this.#imports.context(stored);
     const directories = new Map(fresh.map((t) => [t.cwd, t.cwdExists]));
 
-    const targets = await directoryTargets(this.#imports.core, worker.id, directories, request.mappings, context, () =>
-      this.#scratch(worker.id),
+    const targets = await directoryTargets(this.#imports.core, workerId, directories, request.mappings, context, () =>
+      this.#scratch(workerId),
     );
 
-    const mode = request.mode === "history" ? "history" : "continue";
     const planned: NewItem[] = [...newItems(fresh, targets, mode), ...grown];
 
-    if (planned.length === 0) throw new InvalidError("Every chosen directory is skipped. Choose a target for one.");
-    const id = Bun.randomUUIDv7();
+    if (planned.length === 0 && !withLibrary)
+      throw new InvalidError("Every chosen directory is skipped. Choose a target for one.");
 
-    try {
-      await this.#imports.sql((sql) =>
-        createRun(sql, {
-          id,
-          ownerId,
-          workerId: worker.id,
-          mode,
-          alreadyImported: chosen.length - fresh.length - grown.length,
-          items: planned,
-        }),
-      );
-    } catch (cause) {
-      if (violates(cause, "import_runs_active"))
-        throw new InvalidError(`An import is already running on ${worker.name}. Wait for it, or cancel it.`);
-
-      if (violates(cause, "import_items_source"))
-        throw new InvalidError("Some of these threads are being imported already. Scan again.");
-      throw cause;
-    }
-
-    void this.#runner.drive(id);
-
-    return this.get(create(ui.ImportRunRequestSchema, { runId: id }));
+    return { planned, alreadyImported };
   }
 
   async list(): Promise<ui.ListImportRunsResponse> {
     const rows = await this.#imports.sql((sql) => runs(sql, this.#ownerId()));
 
-    return create(ui.ListImportRunsResponseSchema, { runs: rows.map((r) => toUiRun(r)) });
+    const library = Map.groupBy(
+      await this.#imports.sql((sql) =>
+        libraryItemsOf(
+          sql,
+          rows.map((r) => r.id),
+        ),
+      ),
+      (l) => l.run_id,
+    );
+
+    return create(ui.ListImportRunsResponseSchema, {
+      runs: rows.map((r) => toUiRun(r, [], library.get(r.id) ?? [])),
+    });
   }
 
   async get(request: ui.GetImportRunRequest | ui.ImportRunRequest): Promise<ui.ImportRun> {
@@ -113,7 +180,11 @@ export class ImportRuns {
     if (!run) throw new InvalidError("Import not found");
     const withItems = "items" in request && request.items;
 
-    return toUiRun(run, withItems ? await this.#imports.sql((sql) => items(sql, run.id)) : []);
+    return toUiRun(
+      run,
+      withItems ? await this.#imports.sql((sql) => items(sql, run.id)) : [],
+      await this.#imports.sql((sql) => libraryItems(sql, run.id)),
+    );
   }
 
   async cancel(request: ui.ImportRunRequest): Promise<ui.ImportRun> {
@@ -144,7 +215,12 @@ export class ImportRuns {
   async undo(request: ui.ImportRunRequest): Promise<ui.ImportRun> {
     let run = await this.get(request);
 
-    if (run.status === "undone") return run;
+    // Undone already: settings and library items whose removal failed are tried again.
+    if (run.status === "undone") {
+      await this.#undoLibrary(run.id);
+
+      return this.get(request);
+    }
 
     if (run.status === "running" || run.status === "paused") run = await this.cancel(request);
     await this.#runner.drive(run.id);
@@ -163,7 +239,34 @@ export class ImportRuns {
 
     if (undone.reverted.length > 0) await this.#imports.core.threadsChanged(undone.reverted);
 
+    await this.#undoLibrary(run.id);
+
     return this.get(request);
+  }
+
+  /**
+   * Settings and library items, newest first: each goes back to what it was, unless it changed after the import
+   * (then it stays and is marked kept). The restore and the item's state commit together. One that fails stays done
+   * with the reason, the others go on, and Undo of the undone run tries it again.
+   */
+  async #undoLibrary(runId: string): Promise<void> {
+    const rows = (await this.#imports.sql((sql) => libraryItems(sql, runId))).filter((r) => r.status === "done");
+    let failed = 0;
+
+    for (const row of rows.toReversed()) {
+      try {
+        await this.#library.undo(row);
+      } catch (cause) {
+        failed += 1;
+        const error = `Could not put this back: ${describeError(cause)}`;
+        await this.#imports.sql((sql) => setLibraryStatus(sql, row, "done", { error }));
+      }
+    }
+
+    if (failed > 0)
+      throw new InvalidError(
+        `${failed === 1 ? "1 setting" : `${failed} settings`} could not be put back. Choose Remove imported items again.`,
+      );
   }
 
   /**

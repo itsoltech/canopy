@@ -2,6 +2,7 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { listImportCandidates, scanImport, startImport } from "./api.ts";
+import { ImportLibraryState } from "./import-library.svelte.ts";
 
 export type Period = "7d" | "30d" | "90d" | "all";
 
@@ -46,6 +47,8 @@ export class ImportState {
   /** Directory → the owner's choice: `workspace:<id>`, `create_project`, `no_project` or `skip` (else the suggestion). */
   targets = $state(new Map<string, string>());
   starting = $state(false);
+  /** Settings and library of the scan. */
+  readonly library = new ImportLibraryState();
 
   #request = 0;
 
@@ -67,11 +70,12 @@ export class ImportState {
     this.error = "";
     this.scan = undefined;
     this.result = undefined;
+    this.library.clear();
 
     try {
       this.scan = await scanImport(this.workerId);
       this.resetSelection();
-      await this.load();
+      await Promise.all([this.load(), this.library.load(this.scan.scanId)]);
     } catch (error) {
       this.error = errorText(error);
     } finally {
@@ -157,12 +161,17 @@ export class ImportState {
     try {
       const run = await startImport({
         scanId: scan.scanId,
-        selection: {
-          allMatching: this.allMatching,
-          filter: this.filter(),
-          included: [...this.included],
-          excluded: [...this.excluded],
-        },
+        // No thread chosen: settings only.
+        selection:
+          this.selectedCount === 0
+            ? { allMatching: false, included: [] }
+            : {
+                allMatching: this.allMatching,
+                filter: this.filter(),
+                included: [...this.included],
+                excluded: [...this.excluded],
+              },
+        library: this.library.choices(),
         mappings: [...this.targets].flatMap(([directory, choice]) =>
           choice ? [{ directory, target: targetOf(choice) }] : [],
         ),
@@ -171,7 +180,7 @@ export class ImportState {
 
       this.resetSelection();
       this.selectAll(false);
-      await this.load();
+      await Promise.all([this.load(), this.library.load(scan.scanId)]);
 
       return run;
     } catch (error) {

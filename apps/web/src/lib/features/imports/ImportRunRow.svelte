@@ -31,7 +31,19 @@
     ["failed", "Failed"],
     ["cancelled", "Cancelled"],
     ["undone", "Removed"],
+    ["kept", "Kept: changed since"],
   ]);
+
+  const settingsDone = $derived(run.library.filter((l) => l.status === "done").length);
+
+  // An undone run whose settings could not all be put back offers the removal again (docs/import.md, "Przebieg").
+  const removable = $derived(run.status === "undone" ? settingsDone > 0 : run.done > 0 || settingsDone > 0);
+
+  const title = $derived(
+    [run.total > 0 && counted(run.total, "thread"), run.library.length > 0 && counted(run.library.length, "setting")]
+      .filter(Boolean)
+      .join(", ") || "Nothing",
+  );
 
   const look = $derived(looks.get(run.status) ?? { label: run.status, tone: "neutral" as const });
   const open = $derived(runs.details.get(run.id));
@@ -44,7 +56,7 @@
 <li class="flex flex-col gap-2 px-4 py-3">
   <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
     <p class="min-w-0 flex-1 font-medium text-zinc-950 dark:text-white">
-      <TruncatedText text={`${run.workerName} · ${counted(run.total, "thread")}`} />
+      <TruncatedText text={`${run.workerName} · ${title}`} />
     </p>
     <Badge compact tone={look.tone}>{look.label}</Badge>
   </div>
@@ -54,11 +66,11 @@
   <p class="text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
     {[
       formatRelative(run.createdAt),
-      `${run.done} imported`,
+      `${run.done + settingsDone} imported`,
       run.failed > 0 && `${run.failed} failed`,
       run.cancelled > 0 && `${run.cancelled} cancelled`,
       run.alreadyImported > 0 && `${run.alreadyImported} imported before`,
-      `${size(run.bytesDone)} of ${size(run.bytesTotal)}`,
+      run.bytesTotal > 0n && `${size(run.bytesDone)} of ${size(run.bytesTotal)}`,
     ]
       .filter(Boolean)
       .join(" · ")}
@@ -76,11 +88,11 @@
         {run.status === "paused" ? "Resume" : "Retry failed"}
       </Button>
     {/if}
-    {#if run.status !== "undone" && run.done > 0}
-      <Button size="sm" variant="ghost" onclick={() => (confirm = true)}>Remove imported threads</Button>
+    {#if removable}
+      <Button size="sm" variant="ghost" onclick={() => (confirm = true)}>Remove imported items</Button>
     {/if}
     <Button size="sm" variant="ghost" onclick={() => (open ? runs.close(run.id) : void runs.open(run.id))}>
-      {open ? "Hide threads" : "Show threads"}
+      {open ? "Hide details" : "Show details"}
     </Button>
   </div>
   {#if open}
@@ -88,6 +100,20 @@
       role="list"
       class="divide-y divide-zinc-950/5 rounded-lg ring-1 ring-zinc-950/5 dark:divide-white/5 dark:ring-white/5"
     >
+      {#each open.library as setting (setting.id)}
+        <li class="flex flex-col gap-0.5 px-3 py-2 text-base/6 sm:text-sm/6">
+          <div class="flex min-w-0 items-center gap-2">
+            <span class="min-w-0 flex-1 text-zinc-700 dark:text-zinc-300"><TruncatedText text={setting.name} /></span>
+            <span class="shrink-0 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
+              {agentCliName(setting.agentCli)} · {itemLabels.get(setting.status) ?? setting.status}
+            </span>
+          </div>
+          {#if setting.detail && setting.status === "done"}
+            <p class="text-sm text-zinc-500 sm:text-xs dark:text-zinc-400"><TruncatedText text={setting.detail} /></p>
+          {/if}
+          {#if setting.error}<p class="text-sm text-rose-700 sm:text-xs dark:text-rose-400">{setting.error}</p>{/if}
+        </li>
+      {/each}
       {#each open.items as item (item.id)}
         <li class="flex flex-col gap-0.5 px-3 py-2 text-base/6 sm:text-sm/6">
           <div class="flex min-w-0 items-center gap-2">
@@ -114,11 +140,14 @@
   {/if}
 </li>
 
-<Dialog bind:open={confirm} title="Remove imported threads?" dismissible={!busy("undo")}>
+<Dialog bind:open={confirm} title="Remove imported items?" dismissible={!busy("undo")}>
   <div class="grid gap-4">
     <p class="text-base text-zinc-600 sm:text-sm dark:text-zinc-300">
-      Canopy deletes the {counted(run.done, "thread")} this import created. The CLI files stay as they are, so you can import
-      them again.
+      {#if run.done > 0}Canopy deletes the {counted(run.done, "thread")} this import created.{/if}
+      {#if settingsDone > 0}
+        Settings and documents go back to what they were, except the ones you changed since.
+      {/if}
+      The CLI files stay as they are, so you can import them again.
     </p>
     {#if runs.error}<Alert tone="error">{runs.error}</Alert>{/if}
     <DialogActions>
@@ -129,7 +158,7 @@
         onclick={async () => {
           await runs.act(run.id, "undo");
           confirm = false;
-        }}>Remove threads</Button
+        }}>Remove</Button
       >
     </DialogActions>
   </div>

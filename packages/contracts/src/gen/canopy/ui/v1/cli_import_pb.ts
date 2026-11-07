@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/cli_import.proto.
  */
 export const file_canopy_ui_v1_cli_import: GenFile = /*@__PURE__*/
-  fileDesc("Ch1jYW5vcHkvdWkvdjEvY2xpX2ltcG9ydC5wcm90bxIMY2Fub3B5LnVpLnYxIiYKEVNjYW5JbXBvcnRSZXF1ZXN0EhEKCXdvcmtlcl9pZBgBIAEoCSLpAQoOSW1wb3J0T3ZlcnZpZXcSEQoJYWdlbnRfY2xpGAEgASgJEg8KB3RocmVhZHMYAiABKA0SDQoFYnl0ZXMYAyABKAQSKgoGb2xkZXN0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIqCgZuZXdlc3QYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC2RpcmVjdG9yaWVzGAYgASgNEhEKCXJvb3RfcGF0aBgHIAEoCRITCgtjbGlfdmVyc2lvbhgIIAEoCRIPCgdwcm9ibGVtGAkgASgJIrwBChJTY2FuSW1wb3J0UmVzcG9uc2USDwoHc2Nhbl9pZBgBIAEoCRIRCgl3b3JrZXJfaWQYAiABKAkSLgoIb3ZlcnZpZXcYAyADKAsyHC5jYW5vcHkudWkudjEuSW1wb3J0T3ZlcnZpZXcSEQoJdHJ1bmNhdGVkGAQgASgIEi4KCnNjYW5uZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB3NraXBwZWQYBiABKA0i0AEKFUltcG9ydENhbmRpZGF0ZUZpbHRlchISCgphZ2VudF9jbGlzGAEgAygJEikKBXNpbmNlGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIpCgV1bnRpbBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJZGlyZWN0b3J5GAQgASgJEg4KBnNlYXJjaBgFIAEoCRIPCgdvcmlnaW5zGAYgAygJEhkKEWluY2x1ZGVfc3ViYWdlbnRzGAcgASgIIoIBChtMaXN0SW1wb3J0Q2FuZGlkYXRlc1JlcXVlc3QSDwoHc2Nhbl9pZBgBIAEoCRIzCgZmaWx0ZXIYAiABKAsyIy5jYW5vcHkudWkudjEuSW1wb3J0Q2FuZGlkYXRlRmlsdGVyEg4KBm9mZnNldBgDIAEoDRINCgVsaW1pdBgEIAEoDSJpCgxJbXBvcnRUYXJnZXQSDAoEa2luZBgBIAEoCRISCgpwcm9qZWN0X2lkGAIgASgJEhQKDHdvcmtzcGFjZV9pZBgDIAEoCRIUCgxwcm9qZWN0X25hbWUYBCABKAkSCwoDY3dkGAUgASgJIsoDCg9JbXBvcnRDYW5kaWRhdGUSEgoKc291cmNlX2tleRgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSEQoJbmF0aXZlX2lkGAMgASgJEg0KBXRpdGxlGAQgASgJEg8KB3ByZXZpZXcYBSABKAkSCwoDY3dkGAYgASgJEhIKCmN3ZF9leGlzdHMYByABKAgSLgoKc3RhcnRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDQoFYnl0ZXMYCiABKAQSDQoFdHVybnMYCyABKA0SDgoGb3JpZ2luGAwgASgJEhMKC2NsaV92ZXJzaW9uGA0gASgJEg4KBnN0YXR1cxgOIAEoCRIVCg1jb250aW51ZV9tb2RlGA8gASgJEg4KBnJlYXNvbhgQIAEoCRIQCghzdWJhZ2VudBgRIAEoCBIXCg9mbGFnZ2VkX3NlY3JldHMYEiABKA0SEQoJdGhyZWFkX2lkGBMgASgJEhIKCmdpdF9icmFuY2gYFCABKAkSEAoIYXJjaGl2ZWQYFSABKAgiiQEKFEltcG9ydERpcmVjdG9yeUdyb3VwEhEKCWRpcmVjdG9yeRgBIAEoCRIPCgd0aHJlYWRzGAIgASgNEg0KBWJ5dGVzGAMgASgEEg4KBmV4aXN0cxgEIAEoCBIuCgpzdWdnZXN0aW9uGAUgASgLMhouY2Fub3B5LnVpLnYxLkltcG9ydFRhcmdldCL6AQocTGlzdEltcG9ydENhbmRpZGF0ZXNSZXNwb25zZRIxCgpjYW5kaWRhdGVzGAEgAygLMh0uY2Fub3B5LnVpLnYxLkltcG9ydENhbmRpZGF0ZRINCgV0b3RhbBgCIAEoDRITCgt0b3RhbF9ieXRlcxgDIAEoBBIyCgZncm91cHMYBCADKAsyIi5jYW5vcHkudWkudjEuSW1wb3J0RGlyZWN0b3J5R3JvdXASFwoPZXN0aW1hdGVkX2J5dGVzGAUgASgEEhIKCmltcG9ydGFibGUYBiABKA0SIgoaaW1wb3J0YWJsZV9lc3RpbWF0ZWRfYnl0ZXMYByABKAQigAEKD0ltcG9ydFNlbGVjdGlvbhIUCgxhbGxfbWF0Y2hpbmcYASABKAgSMwoGZmlsdGVyGAIgASgLMiMuY2Fub3B5LnVpLnYxLkltcG9ydENhbmRpZGF0ZUZpbHRlchIQCghpbmNsdWRlZBgDIAMoCRIQCghleGNsdWRlZBgEIAMoCSJOCg1JbXBvcnRNYXBwaW5nEhEKCWRpcmVjdG9yeRgBIAEoCRIqCgZ0YXJnZXQYAiABKAsyGi5jYW5vcHkudWkudjEuSW1wb3J0VGFyZ2V0IpQBChJTdGFydEltcG9ydFJlcXVlc3QSDwoHc2Nhbl9pZBgBIAEoCRIwCglzZWxlY3Rpb24YAiABKAsyHS5jYW5vcHkudWkudjEuSW1wb3J0U2VsZWN0aW9uEi0KCG1hcHBpbmdzGAMgAygLMhsuY2Fub3B5LnVpLnYxLkltcG9ydE1hcHBpbmcSDAoEbW9kZRgEIAEoCSLaAQoKSW1wb3J0SXRlbRIKCgJpZBgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSDQoFdGl0bGUYAyABKAkSDgoGc3RhdHVzGAQgASgJEhEKCXRocmVhZF9pZBgFIAEoCRINCgVlcnJvchgGIAEoCRINCgV0dXJucxgHIAEoDRITCgtieXRlc190b3RhbBgIIAEoBBISCgpieXRlc19kb25lGAkgASgEEhAKCHdhcm5pbmdzGAogAygJEgsKA2N3ZBgLIAEoCRIVCg1jb250aW51ZV9tb2RlGAwgASgJIooDCglJbXBvcnRSdW4SCgoCaWQYASABKAkSEQoJd29ya2VyX2lkGAIgASgJEhMKC3dvcmtlcl9uYW1lGAMgASgJEg4KBnN0YXR1cxgEIAEoCRIMCgRtb2RlGAUgASgJEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2ZpbmlzaGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgV0b3RhbBgIIAEoDRIMCgRkb25lGAkgASgNEg4KBmZhaWxlZBgKIAEoDRIRCgljYW5jZWxsZWQYCyABKA0SGAoQYWxyZWFkeV9pbXBvcnRlZBgMIAEoDRITCgtieXRlc190b3RhbBgNIAEoBBISCgpieXRlc19kb25lGA4gASgEEg0KBWVycm9yGA8gASgJEg8KB2N1cnJlbnQYECABKAkSJwoFaXRlbXMYESADKAsyGC5jYW5vcHkudWkudjEuSW1wb3J0SXRlbSIXChVMaXN0SW1wb3J0UnVuc1JlcXVlc3QiPwoWTGlzdEltcG9ydFJ1bnNSZXNwb25zZRIlCgRydW5zGAEgAygLMhcuY2Fub3B5LnVpLnYxLkltcG9ydFJ1biI0ChNHZXRJbXBvcnRSdW5SZXF1ZXN0Eg4KBnJ1bl9pZBgBIAEoCRINCgVpdGVtcxgCIAEoCCIiChBJbXBvcnRSdW5SZXF1ZXN0Eg4KBnJ1bl9pZBgBIAEoCSIyCh1Db250aW51ZUltcG9ydGVkVGhyZWFkUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAliBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("Ch1jYW5vcHkvdWkvdjEvY2xpX2ltcG9ydC5wcm90bxIMY2Fub3B5LnVpLnYxIiYKEVNjYW5JbXBvcnRSZXF1ZXN0EhEKCXdvcmtlcl9pZBgBIAEoCSL6AQoOSW1wb3J0T3ZlcnZpZXcSEQoJYWdlbnRfY2xpGAEgASgJEg8KB3RocmVhZHMYAiABKA0SDQoFYnl0ZXMYAyABKAQSKgoGb2xkZXN0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIqCgZuZXdlc3QYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC2RpcmVjdG9yaWVzGAYgASgNEhEKCXJvb3RfcGF0aBgHIAEoCRITCgtjbGlfdmVyc2lvbhgIIAEoCRIPCgdwcm9ibGVtGAkgASgJEg8KB2xpYnJhcnkYCiABKA0ivAEKElNjYW5JbXBvcnRSZXNwb25zZRIPCgdzY2FuX2lkGAEgASgJEhEKCXdvcmtlcl9pZBgCIAEoCRIuCghvdmVydmlldxgDIAMoCzIcLmNhbm9weS51aS52MS5JbXBvcnRPdmVydmlldxIRCgl0cnVuY2F0ZWQYBCABKAgSLgoKc2Nhbm5lZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHc2tpcHBlZBgGIAEoDSLQAQoVSW1wb3J0Q2FuZGlkYXRlRmlsdGVyEhIKCmFnZW50X2NsaXMYASADKAkSKQoFc2luY2UYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEikKBXVudGlsGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIRCglkaXJlY3RvcnkYBCABKAkSDgoGc2VhcmNoGAUgASgJEg8KB29yaWdpbnMYBiADKAkSGQoRaW5jbHVkZV9zdWJhZ2VudHMYByABKAgiggEKG0xpc3RJbXBvcnRDYW5kaWRhdGVzUmVxdWVzdBIPCgdzY2FuX2lkGAEgASgJEjMKBmZpbHRlchgCIAEoCzIjLmNhbm9weS51aS52MS5JbXBvcnRDYW5kaWRhdGVGaWx0ZXISDgoGb2Zmc2V0GAMgASgNEg0KBWxpbWl0GAQgASgNImkKDEltcG9ydFRhcmdldBIMCgRraW5kGAEgASgJEhIKCnByb2plY3RfaWQYAiABKAkSFAoMd29ya3NwYWNlX2lkGAMgASgJEhQKDHByb2plY3RfbmFtZRgEIAEoCRILCgNjd2QYBSABKAkiygMKD0ltcG9ydENhbmRpZGF0ZRISCgpzb3VyY2Vfa2V5GAEgASgJEhEKCWFnZW50X2NsaRgCIAEoCRIRCgluYXRpdmVfaWQYAyABKAkSDQoFdGl0bGUYBCABKAkSDwoHcHJldmlldxgFIAEoCRILCgNjd2QYBiABKAkSEgoKY3dkX2V4aXN0cxgHIAEoCBIuCgpzdGFydGVkX2F0GAggASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVieXRlcxgKIAEoBBINCgV0dXJucxgLIAEoDRIOCgZvcmlnaW4YDCABKAkSEwoLY2xpX3ZlcnNpb24YDSABKAkSDgoGc3RhdHVzGA4gASgJEhUKDWNvbnRpbnVlX21vZGUYDyABKAkSDgoGcmVhc29uGBAgASgJEhAKCHN1YmFnZW50GBEgASgIEhcKD2ZsYWdnZWRfc2VjcmV0cxgSIAEoDRIRCgl0aHJlYWRfaWQYEyABKAkSEgoKZ2l0X2JyYW5jaBgUIAEoCRIQCghhcmNoaXZlZBgVIAEoCCKJAQoUSW1wb3J0RGlyZWN0b3J5R3JvdXASEQoJZGlyZWN0b3J5GAEgASgJEg8KB3RocmVhZHMYAiABKA0SDQoFYnl0ZXMYAyABKAQSDgoGZXhpc3RzGAQgASgIEi4KCnN1Z2dlc3Rpb24YBSABKAsyGi5jYW5vcHkudWkudjEuSW1wb3J0VGFyZ2V0IvoBChxMaXN0SW1wb3J0Q2FuZGlkYXRlc1Jlc3BvbnNlEjEKCmNhbmRpZGF0ZXMYASADKAsyHS5jYW5vcHkudWkudjEuSW1wb3J0Q2FuZGlkYXRlEg0KBXRvdGFsGAIgASgNEhMKC3RvdGFsX2J5dGVzGAMgASgEEjIKBmdyb3VwcxgEIAMoCzIiLmNhbm9weS51aS52MS5JbXBvcnREaXJlY3RvcnlHcm91cBIXCg9lc3RpbWF0ZWRfYnl0ZXMYBSABKAQSEgoKaW1wb3J0YWJsZRgGIAEoDRIiChppbXBvcnRhYmxlX2VzdGltYXRlZF9ieXRlcxgHIAEoBCKAAQoPSW1wb3J0U2VsZWN0aW9uEhQKDGFsbF9tYXRjaGluZxgBIAEoCBIzCgZmaWx0ZXIYAiABKAsyIy5jYW5vcHkudWkudjEuSW1wb3J0Q2FuZGlkYXRlRmlsdGVyEhAKCGluY2x1ZGVkGAMgAygJEhAKCGV4Y2x1ZGVkGAQgAygJIk4KDUltcG9ydE1hcHBpbmcSEQoJZGlyZWN0b3J5GAEgASgJEioKBnRhcmdldBgCIAEoCzIaLmNhbm9weS51aS52MS5JbXBvcnRUYXJnZXQiyAEKElN0YXJ0SW1wb3J0UmVxdWVzdBIPCgdzY2FuX2lkGAEgASgJEjAKCXNlbGVjdGlvbhgCIAEoCzIdLmNhbm9weS51aS52MS5JbXBvcnRTZWxlY3Rpb24SLQoIbWFwcGluZ3MYAyADKAsyGy5jYW5vcHkudWkudjEuSW1wb3J0TWFwcGluZxIMCgRtb2RlGAQgASgJEjIKB2xpYnJhcnkYBSADKAsyIS5jYW5vcHkudWkudjEuSW1wb3J0TGlicmFyeUNob2ljZSLaAQoKSW1wb3J0SXRlbRIKCgJpZBgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSDQoFdGl0bGUYAyABKAkSDgoGc3RhdHVzGAQgASgJEhEKCXRocmVhZF9pZBgFIAEoCRINCgVlcnJvchgGIAEoCRINCgV0dXJucxgHIAEoDRITCgtieXRlc190b3RhbBgIIAEoBBISCgpieXRlc19kb25lGAkgASgEEhAKCHdhcm5pbmdzGAogAygJEgsKA2N3ZBgLIAEoCRIVCg1jb250aW51ZV9tb2RlGAwgASgJIr4DCglJbXBvcnRSdW4SCgoCaWQYASABKAkSEQoJd29ya2VyX2lkGAIgASgJEhMKC3dvcmtlcl9uYW1lGAMgASgJEg4KBnN0YXR1cxgEIAEoCRIMCgRtb2RlGAUgASgJEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2ZpbmlzaGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgV0b3RhbBgIIAEoDRIMCgRkb25lGAkgASgNEg4KBmZhaWxlZBgKIAEoDRIRCgljYW5jZWxsZWQYCyABKA0SGAoQYWxyZWFkeV9pbXBvcnRlZBgMIAEoDRITCgtieXRlc190b3RhbBgNIAEoBBISCgpieXRlc19kb25lGA4gASgEEg0KBWVycm9yGA8gASgJEg8KB2N1cnJlbnQYECABKAkSJwoFaXRlbXMYESADKAsyGC5jYW5vcHkudWkudjEuSW1wb3J0SXRlbRIyCgdsaWJyYXJ5GBIgAygLMiEuY2Fub3B5LnVpLnYxLkltcG9ydExpYnJhcnlSZXN1bHQiFwoVTGlzdEltcG9ydFJ1bnNSZXF1ZXN0Ij8KFkxpc3RJbXBvcnRSdW5zUmVzcG9uc2USJQoEcnVucxgBIAMoCzIXLmNhbm9weS51aS52MS5JbXBvcnRSdW4iNAoTR2V0SW1wb3J0UnVuUmVxdWVzdBIOCgZydW5faWQYASABKAkSDQoFaXRlbXMYAiABKAgiIgoQSW1wb3J0UnVuUmVxdWVzdBIOCgZydW5faWQYASABKAkiMgodQ29udGludWVJbXBvcnRlZFRocmVhZFJlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJIisKGExpc3RJbXBvcnRMaWJyYXJ5UmVxdWVzdBIPCgdzY2FuX2lkGAEgASgJIuwBChZJbXBvcnRMaWJyYXJ5Q2FuZGlkYXRlEgsKA2tleRgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSDAoEa2luZBgDIAEoCRIMCgRuYW1lGAQgASgJEg8KB2N1cnJlbnQYBSABKAkSEAoIcHJvcG9zZWQYBiABKAkSDgoGc3RhdHVzGAcgASgJEg4KBnJlYXNvbhgIIAEoCRIQCgh3YXJuaW5ncxgJIAMoCRIRCglzdWdnZXN0ZWQYCiABKAgSDwoHYWN0aW9ucxgLIAMoCRIOCgZkZXRhaWwYDCABKAkSDQoFYnl0ZXMYDSABKAQiUAoZTGlzdEltcG9ydExpYnJhcnlSZXNwb25zZRIzCgVpdGVtcxgBIAMoCzIkLmNhbm9weS51aS52MS5JbXBvcnRMaWJyYXJ5Q2FuZGlkYXRlIjIKE0ltcG9ydExpYnJhcnlDaG9pY2USCwoDa2V5GAEgASgJEg4KBmFjdGlvbhgCIAEoCSJ/ChNJbXBvcnRMaWJyYXJ5UmVzdWx0EgoKAmlkGAEgASgJEhEKCWFnZW50X2NsaRgCIAEoCRIMCgRraW5kGAMgASgJEgwKBG5hbWUYBCABKAkSDgoGc3RhdHVzGAUgASgJEg0KBWVycm9yGAYgASgJEg4KBmRldGFpbBgHIAEoCWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message canopy.ui.v1.ScanImportRequest
@@ -81,6 +81,13 @@ export type ImportOverview = Message<"canopy.ui.v1.ImportOverview"> & {
    * @generated from field: string problem = 9;
    */
   problem: string;
+
+  /**
+   * Pozycje ustawień i biblioteki znalezione w tym CLI (także te, których nie da się zaimportować).
+   *
+   * @generated from field: uint32 library = 10;
+   */
+  library: number;
 };
 
 /**
@@ -566,6 +573,13 @@ export type StartImportRequest = Message<"canopy.ui.v1.StartImportRequest"> & {
    * @generated from field: string mode = 4;
    */
   mode: string;
+
+  /**
+   * Wybrane ustawienia i pozycje biblioteki; wątki mogą być wtedy puste.
+   *
+   * @generated from field: repeated canopy.ui.v1.ImportLibraryChoice library = 5;
+   */
+  library: ImportLibraryChoice[];
 };
 
 /**
@@ -747,6 +761,13 @@ export type ImportRun = Message<"canopy.ui.v1.ImportRun"> & {
    * @generated from field: repeated canopy.ui.v1.ImportItem items = 17;
    */
   items: ImportItem[];
+
+  /**
+   * Ustawienia i biblioteka tego importu (zawsze, jest ich mało).
+   *
+   * @generated from field: repeated canopy.ui.v1.ImportLibraryResult library = 18;
+   */
+  library: ImportLibraryResult[];
 };
 
 /**
@@ -843,4 +864,208 @@ export type ContinueImportedThreadRequest = Message<"canopy.ui.v1.ContinueImport
  */
 export const ContinueImportedThreadRequestSchema: GenMessage<ContinueImportedThreadRequest> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_cli_import, 18);
+
+/**
+ * @generated from message canopy.ui.v1.ListImportLibraryRequest
+ */
+export type ListImportLibraryRequest = Message<"canopy.ui.v1.ListImportLibraryRequest"> & {
+  /**
+   * @generated from field: string scan_id = 1;
+   */
+  scanId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ListImportLibraryRequest.
+ * Use `create(ListImportLibraryRequestSchema)` to create a new message.
+ */
+export const ListImportLibraryRequestSchema: GenMessage<ListImportLibraryRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 19);
+
+/**
+ * Pozycja z CLI porównana ze stanem Canopy.
+ *
+ * @generated from message canopy.ui.v1.ImportLibraryCandidate
+ */
+export type ImportLibraryCandidate = Message<"canopy.ui.v1.ImportLibraryCandidate"> & {
+  /**
+   * source_key workera.
+   *
+   * @generated from field: string key = 1;
+   */
+  key: string;
+
+  /**
+   * @generated from field: string agent_cli = 2;
+   */
+  agentCli: string;
+
+  /**
+   * setting | instruction
+   *
+   * @generated from field: string kind = 3;
+   */
+  kind: string;
+
+  /**
+   * Nazwa do wyświetlenia (Default model, CLAUDE.md).
+   *
+   * @generated from field: string name = 4;
+   */
+  name: string;
+
+  /**
+   * Wartość w Canopy teraz i po imporcie (Default → claude-opus-5-5); puste, gdy nie dotyczy.
+   *
+   * @generated from field: string current = 5;
+   */
+  current: string;
+
+  /**
+   * @generated from field: string proposed = 6;
+   */
+  proposed: string;
+
+  /**
+   * new | same | conflict | imported | unavailable
+   *
+   * @generated from field: string status = 7;
+   */
+  status: string;
+
+  /**
+   * Dlaczego unavailable (albo uwaga do conflict).
+   *
+   * @generated from field: string reason = 8;
+   */
+  reason: string;
+
+  /**
+   * @generated from field: repeated string warnings = 9;
+   */
+  warnings: string[];
+
+  /**
+   * Zaznaczone na start.
+   *
+   * @generated from field: bool suggested = 10;
+   */
+  suggested: boolean;
+
+  /**
+   * Wybory przy conflict: replace | keep_both; pusta lista = tylko import albo pominięcie.
+   *
+   * @generated from field: repeated string actions = 11;
+   */
+  actions: string[];
+
+  /**
+   * @generated from field: string detail = 12;
+   */
+  detail: string;
+
+  /**
+   * @generated from field: uint64 bytes = 13;
+   */
+  bytes: bigint;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ImportLibraryCandidate.
+ * Use `create(ImportLibraryCandidateSchema)` to create a new message.
+ */
+export const ImportLibraryCandidateSchema: GenMessage<ImportLibraryCandidate> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 20);
+
+/**
+ * @generated from message canopy.ui.v1.ListImportLibraryResponse
+ */
+export type ListImportLibraryResponse = Message<"canopy.ui.v1.ListImportLibraryResponse"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.ImportLibraryCandidate items = 1;
+   */
+  items: ImportLibraryCandidate[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.ListImportLibraryResponse.
+ * Use `create(ListImportLibraryResponseSchema)` to create a new message.
+ */
+export const ListImportLibraryResponseSchema: GenMessage<ListImportLibraryResponse> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 21);
+
+/**
+ * action: import (nowa pozycja) | replace | keep_both
+ *
+ * @generated from message canopy.ui.v1.ImportLibraryChoice
+ */
+export type ImportLibraryChoice = Message<"canopy.ui.v1.ImportLibraryChoice"> & {
+  /**
+   * @generated from field: string key = 1;
+   */
+  key: string;
+
+  /**
+   * @generated from field: string action = 2;
+   */
+  action: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ImportLibraryChoice.
+ * Use `create(ImportLibraryChoiceSchema)` to create a new message.
+ */
+export const ImportLibraryChoiceSchema: GenMessage<ImportLibraryChoice> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 22);
+
+/**
+ * @generated from message canopy.ui.v1.ImportLibraryResult
+ */
+export type ImportLibraryResult = Message<"canopy.ui.v1.ImportLibraryResult"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string agent_cli = 2;
+   */
+  agentCli: string;
+
+  /**
+   * @generated from field: string kind = 3;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string name = 4;
+   */
+  name: string;
+
+  /**
+   * pending | done | failed | cancelled | undone | kept (cofnięcie pominięte: zmienione po imporcie)
+   *
+   * @generated from field: string status = 5;
+   */
+  status: string;
+
+  /**
+   * @generated from field: string error = 6;
+   */
+  error: string;
+
+  /**
+   * Co powstało albo się zmieniło (Default model for Claude: claude-opus-5-5).
+   *
+   * @generated from field: string detail = 7;
+   */
+  detail: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.ImportLibraryResult.
+ * Use `create(ImportLibraryResultSchema)` to create a new message.
+ */
+export const ImportLibraryResultSchema: GenMessage<ImportLibraryResult> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_cli_import, 23);
 

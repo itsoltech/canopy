@@ -64,6 +64,8 @@ export const resumeRun = (sql: SqlClient.SqlClient, ownerId: string, runId: stri
         UPDATE import_items SET status = CASE WHEN thread_id IS NULL THEN 'pending' ELSE 'importing' END, error = NULL,
                updated_at = now()
          WHERE run_id = ${runId}::uuid AND status = 'failed'`;
+      yield* sql`UPDATE import_library_items SET status = 'pending', error = NULL, updated_at = now()
+                  WHERE run_id = ${runId}::uuid AND status = 'failed'`;
       yield* setRunStatus(sql, runId, "running");
 
       return true;
@@ -200,6 +202,7 @@ export const cancelRun = (sql: SqlClient.SqlClient, ownerId: string, runId: stri
       if (run?.owner_user_id !== ownerId || !["running", "paused"].includes(run.status)) return [];
       yield* setRunStatus(sql, runId, "cancelled");
       yield* sql`UPDATE import_items SET status = 'cancelled', updated_at = now() WHERE run_id = ${runId}::uuid AND status = 'pending'`;
+      yield* sql`UPDATE import_library_items SET status = 'cancelled', updated_at = now() WHERE run_id = ${runId}::uuid AND status = 'pending'`;
 
       const removed = yield* sql<{ id: string; thread_id: string | null; base: JsonValue | null }>`
         UPDATE import_items SET status = 'cancelled', updated_at = now()

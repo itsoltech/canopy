@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import ImportFilters from "#lib/features/imports/ImportFilters.svelte";
+  import ImportLibrary from "#lib/features/imports/ImportLibrary.svelte";
   import ImportOverview from "#lib/features/imports/ImportOverview.svelte";
   import ImportSelectionBar from "#lib/features/imports/ImportSelectionBar.svelte";
   import ImportThreadList from "#lib/features/imports/ImportThreadList.svelte";
@@ -112,6 +113,13 @@
       {#if imports.scan.truncated}
         <Alert class="mx-4 mb-3" tone="warning">The scan stopped at its limit. Some threads are not listed.</Alert>
       {/if}
+    </SettingsGroup>
+
+    <SettingsGroup
+      title="Settings and library"
+      description="Defaults for new threads and instructions. Undo puts back what was there, unless you changed it since."
+    >
+      <ImportLibrary library={imports.library} />
     </SettingsGroup>
 
     <SettingsGroup title="Threads" description="Choose the threads to import. Each directory maps to a project.">

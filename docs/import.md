@@ -12,8 +12,13 @@ Stos A (wątki) ma pięć etapów:
 4. Codex,
 5. Grok (ten dokument opisuje stan po etapie 5, czyli cały stos A).
 
-Ustawienia, biblioteki (skille, pluginy, marketplace), instrukcje i serwery MCP to stos B; onboarding
-i aplikacja mobilna to stos C.
+Stos B (ustawienia i biblioteka) ma trzy etapy:
+
+6. domyślne ustawienia nowych wątków i instrukcje,
+7. skille, pluginy i marketplace,
+8. serwery MCP jako połączone konta.
+
+Onboarding i aplikacja mobilna to stos C.
 
 ## Domy CLI i izolacja
 
@@ -185,6 +190,53 @@ a pierwsza tura w Canopy wznawia go przez `thread/resume` (app-server znajduje r
 `CODEX_HOME`). Zapis i Undo działają jak dla Claude: losowa nazwa tymczasowa, bez dowiązań, manifest;
 Undo usuwa tylko pliki z manifestu.
 
+## Ustawienia i biblioteka
+
+Capability `cli_import_library_v1`: skan (`ImportScan.library`) wymienia też ustawienia i bibliotekę każdego
+domu CLI, bez treści i bez sekretów. `ListImportLibrary` porównuje je ze stanem Canopy, `StartImport.library`
+wybiera pozycje, a przebieg stosuje je przed wątkami (są szybkie). Starszy worker pokazuje „Update the worker on
+… to import its settings.”.
+
+- **Klucze.** Każda pozycja ma własny podpisany `source_key`: plik w stałym miejscu domu CLI (`CLAUDE.md`,
+  `AGENTS.md`, `AGENTS.override.md`) albo ustawienie w pliku (`settings.json#model`). Worker czyta przez klucz
+  wyłącznie pliki instrukcji (`ReadImportLibraryItem`, przez ten sam czytnik bez dowiązań co wątki), z digestem
+  ze skanu: zmieniony plik to błąd. Klucz ustawienia albo sesji nie czyta nic. Tekst wychodzi zamaskowany.
+- **Ustawienia.** Model nowych wątków per dostawca (`ThreadDefaults.models`): Claude `model`, Codex `model`
+  (z aktywnego `profile`), Grok `model`/`[model] default`; tylko gdy model jest w katalogu własnej instancji
+  workera (inaczej „… is not available on …”). Uprawnienia nowych wątków (`ThreadDefaults.permission_mode`, jedna
+  wartość): Claude `default` → Ask first, `acceptEdits` → Accept edits, `plan` → Read only. Codex: `sandbox_mode`
+  i `approval_policy` razem, zawsze tryb nie szerszy niż źródło (najbliższy ostrzejszy, gdy równego nie ma):
+  `read-only` + `never` → Read only, `read-only` z pytaniem → Ask first, `workspace-write` + `never` → Full auto,
+  `workspace-write` + `on-request`/`on-failure`/domyślne → Accept edits. `untrusted` i strukturalne polityki
+  zatwierdzania są niedostępne: Canopy nie ma trybu zachowującego ich bramki zgody;
+  nieznana wartość nie ustawia nic. **`bypassPermissions`,
+  `danger-full-access` i `approval_policy = never` bez sandboxa nie ustawiają nic** („An import never sets Full
+  access.”), a gateway odrzuca Full access niezależnie od źródła. Gdy CLI proponują różne tryby, żaden nie jest
+  zaznaczony („The CLIs differ here. Choose one.”), a wybór jednego odznacza drugi; gateway przyjmuje najwyżej
+  jeden. Effort nie ma domyślnej wartości w Canopy: pozycja jest pokazana z powodem.
+- **Instrukcje.** `~/.claude/CLAUDE.md` i `~/.codex/AGENTS.override.md` (pierwszeństwo) albo `AGENTS.md` stają
+  się dokumentem instrukcji „<CLI> <plik> (<worker>)” w Agent environment: jeden fragment, przypisany tylko do
+  workera źródłowego, **tylko do domów platformy Canopy** (`platform_home`), nigdy do plików CLI urządzenia.
+  `@` importy nie są rozwijane (ostrzeżenie), limit 24 KiB jak w bibliotece. Dokument o tej samej nazwie to
+  konflikt: **Keep both** tworzy „… (2)”, **Replace** podmienia fragmenty. Grok: lista z powodem, dopóki
+  biblioteka nie obsługuje Groka.
+- **Poza importem, z powodem:** hooks i `notify`, status line, `env`, reguły uprawnień, loginy, pamięć CLI.
+- **Zapis i Undo.** `import_library_items` (migracja `0094_cli_import_library`) zapisuje każdą pozycję z tym,
+  co zmieniła: ustawienie z poprzednią i nową wartością, dokument z id i rewizją (przy Replace także poprzednią
+  wersją). Zmiana i ten zapis (pokwitowanie) są jedną transakcją: magazyn ustawień i Agent environment
+  przyjmują `receipt`, który zapisuje stan pozycji przez `importTransaction` na końcu ich własnej transakcji
+  (kolejność blokad: najpierw wiersz magazynu, potem przebieg), a synchronizacja z workerami idzie po commicie.
+  Pokwitowanie bez pozycji wycofuje zmianę. Undo, od najnowszej, przywraca poprzedni stan tylko wtedy, gdy nikt go
+  od tamtej pory nie zmienił; inaczej pozycja zostaje (`kept`, „Kept: changed since”). Przywrócenie i nowy stan
+  pozycji też są jedną transakcją. Przebieg zostaje `undone`, ale pozycja, której nie udało się przywrócić, zostaje
+  `done` z powodem; kolejne Undo („Remove imported items” jest wtedy znowu dostępne) próbuje tylko takich pozycji. Ta sama pozycja (korzeń, CLI, rodzaj, nazwa, digest)
+  jest importowana raz, dopóki żyje (indeks `import_library_source`); skan pokazuje ją jako *Imported* albo
+  *Same in Canopy*.
+- **UI.** Sekcja „Settings and library” nad wątkami: pozycje do importu z tym, co zmienią („Default → opus”,
+  „New instruction document”), konflikty z wyborem Keep both / Replace, a pod rozwijaną listą „In Canopy or
+  not imported” reszta z powodami. Przycisk importu liczy wątki i ustawienia; sam import ustawień jest możliwy.
+  Wiersz przebiegu pokazuje ustawienia i ich wynik, „Remove imported items” cofa wątki i ustawienia.
+
 ## Strony i zapis
 
 Worker (`apps/worker/src/import/pages.ts`) przy każdej stronie: rozwiązuje `source_key`, sprawdza, że plik
@@ -244,7 +296,8 @@ innej drogi nie ma (`locks.test.ts` sprawdza, że `FOR UPDATE` i `withTransactio
    transakcję od nowa (do 5 razy).
 
 Treść transakcji zmienia tylko zablokowane wiersze i to, co należy do zablokowanego wątku (tury, zdarzenia,
-`thread_imports`). Wieloetapowe zmiany stanu (wznowienie, błąd pozycji z usunięciem pustego wątku, cofnięcie)
+`thread_imports`) oraz ustawienia i elementy biblioteki zablokowanego przebiegu (`import_library_items`): każdy
+zapis do nich (`setLibraryStatus`, `failLibraryItem`) blokuje najpierw swój przebieg. Wieloetapowe zmiany stanu (wznowienie, błąd pozycji z usunięciem pustego wątku, cofnięcie)
 to jedna transakcja, bez zapisów w trybie autocommit pomiędzy.
 
 Tryb `history` (`thread_imports.mode`): gateway odrzuca `SendMessage`, a miejsce kompozytora zajmuje
@@ -387,13 +440,32 @@ Migracja `0093_cli_imports`:
   - dokładne wartości, które worker widzi w plikach logowania (`.credentials.json`, `auth.json`: wszystkie
     wartości) oraz wartości pod kluczami typu `env`, `token`, `key`, `header`, `auth`, `secret` w ustawieniach
     i konfiguracji CLI (`settings.json`, `settings.local.json`, `config.toml`, `settings.json` Groka, MCP
-    z `~/.claude.json`), plus zmienne instancji; od 12 znaków, najwyżej 10 000 wartości (więcej: komenda kończy
+    z `~/.claude.json`), plus zmienne instancji; każda także bez cudzysłowów i schematu (`Bearer …`, `Basic …`
+    z rozkodowanym `user:hasło` i hasłem, `token …`); od 12 znaków, najwyżej 10 000 wartości (więcej: komenda kończy
     się błędem `IMPORT_TOO_MANY_SECRETS` bez żadnej wartości w treści, nic nie jest maskowane częściowo);
     każda wartość także w postaci z tekstu JSON (raz i dwa razy z escape). Szuka ich jeden automat
     Aho–Corasick w jednym liniowym przejściu;
   - formaty tokenów z charakterystycznym prefiksem (klucze `sk-ant-`, `sk-`, `xai-`, tokeny GitHub, AWS, Slack,
     Google, GitLab, npm, JWT) skanem liniowym po ciągach znaków tokenu, klucze prywatne PEM parowaniem znaczników
-    `BEGIN`/`END`; `BEGIN` bez `END` maskuje resztę pola, `END` bez `BEGIN` wszystko przed nim;
+    `BEGIN`/`END`; `BEGIN` bez `END` maskuje resztę pola, `END` bez `BEGIN` wszystko przed nim; w URL-ach dane
+    użytkownika i wartości parametrów o nazwach typu `token`, `key`, `secret`, `auth`, `sig`, `code`.
+    Wspólny parser WHATWG sprawdza kanoniczną postać oraz zdekodowane nazwy i wartości parametrów
+    (także `%74oken` i `%2574oken`), query i fragment. Nazwy i wartości są ściśle dekodowane do czterech razy;
+    błędne kodowanie lub dalsze zakodowane warstwy wykluczają URL z importu. Sekret w nazwie parametru ukrywa też nazwę.
+    Klasyfikacja dotyczy tylko par `nazwa=wartość` i pełnych członów nazwy (podkreślenie, myślnik, kropka,
+    camelCase), więc `#authentication`, `#code-quality` i `?design=compact` zostają czytelne. `code` jest
+    zawsze traktowany jak poświadczenie, także dla krótkich wartości i wartości z kropką; znane sekrety
+    w wartościach są zawsze sprawdzane. Obejmuje skrócone HTTPS,
+    tabulatory i podziały wiersza ignorowane przez parser, odwrotne ukośniki, długie userinfo
+    i adresy git/SSH; stały użytkownik `git` bez hasła jest dozwolony. Przy niejednoznacznych offsetach
+    lub błędnym adresie z podejrzanym authority/parametrem maskowany jest cały adres. Authority jest sprawdzane
+    przed podziałem na tokeny: niepoprawny token hosta bez `@` ukrywa adres od schematu do następnego `@`
+    w polu, także przez podziały wiersza, a bez `@` do końca wiersza. Poprawny host nie uruchamia tej reguły,
+    więc adres dokumentacji przed kontaktem e-mail w prozie zostaje czytelny. Wartość parametru poświadczenia
+    kończy dopiero `&` lub `#`; spacja lub cudzysłów rozszerza maskowanie do końca wiersza, a podział wiersza
+    do końca pola. Te same reguły dotyczą Markdown i JSON;
+  - wszystkie teksty pozycji ustawień i biblioteki (nazwa, wartość, szczegół, powód, ostrzeżenia) przechodzą
+    przez to samo wejście, także pozycje pokazane jako nieimportowalne;
   - widoki zdekodowane: każde pole jest też sprawdzane po zdjęciu escape'ów JSON (`\"`, `\\`, `\/`, `\n` itd.,
     `\uXXXX` z parami surogatów) do 3 razy. Sekret znaleziony tylko tam nie ma pewnego miejsca w oryginale,
     więc całe pole zastępuje `[hidden: contained a credential]` (fail closed);

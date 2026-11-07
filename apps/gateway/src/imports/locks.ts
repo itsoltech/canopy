@@ -5,8 +5,11 @@ import type { SqlClient } from "effect/sql";
  * Row locks of the CLI import (docs/import.md, "Blokady"). Every import transaction goes through importTransaction:
  * it names the rows it starts from, the helper widens that to every row the transaction may change and locks them
  * all before the body writes anything, in one order for every transaction — runs, then items, then threads, each
- * table in one statement in id order. The body changes only locked rows and rows that belong to a locked thread
- * (turns, events, thread_imports). No two import transactions can then wait for each other.
+ * table in one statement in id order. The body changes only locked rows, rows that belong to a locked thread
+ * (turns, events, thread_imports) and settings and library items of a locked run (import_library_items). No two
+ * import transactions can then wait for each other. An import's change in another store (settings, Agent
+ * environment, connected accounts) records its receipt last in that store's transaction: that store's row first,
+ * then the run, an order no import transaction reverses.
  *
  * `FOR UPDATE` and `withTransaction` appear nowhere else in apps/gateway/src/imports (locks.test.ts).
  */

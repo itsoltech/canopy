@@ -67,6 +67,12 @@ export function resolveSourceKey(
   const root = roots.find((r) => r.id === id);
 
   if (!root) throw new SourceKeyError("the source is no longer on this worker");
+
+  return { root, path: confinedPath(root, rel, kind) };
+}
+
+/** `rel` inside the root, as a real path: no `..`, no symbolic link on the way, and the expected kind. */
+export function confinedPath(root: ImportRootPath, rel: string, kind: "file" | "directory"): string {
   const parts = rel.split("/");
 
   if (!rel || isAbsolute(rel) || parts.some((p) => p === ".." || p === "" || p === "."))
@@ -90,7 +96,12 @@ export function resolveSourceKey(
 
   if (kind === "file" ? !stat.isFile() : !stat.isDirectory()) throw new SourceKeyError(`the source is not a ${kind}`);
 
-  return { root, path: real };
+  return real;
+}
+
+/** The path a valid key names, relative to its root (for keys that may only name fixed places). */
+export function sourceKeyPath(sourceKey: string): string {
+  return Buffer.from(sourceKey.split(".")[1] ?? "", "base64url").toString();
 }
 
 function lstatOrUndefined(path: string) {

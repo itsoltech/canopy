@@ -75,4 +75,42 @@ message ImportScan {
   bool truncated = 3;
   // Plików, których nie dało się odczytać.
   uint32 skipped = 4;
+  // Ustawienia i biblioteka CLI (cli_import_library_v1); starszy worker zostawia puste.
+  repeated ImportLibraryItem library = 5;
+}
+
+// ---------- Ustawienia i biblioteka (stos B, capability cli_import_library_v1) ----------
+
+// Ustawienie, dokument instrukcji, skill albo inna pozycja konfiguracji CLI. Bez sekretów: wartość
+// ustawienia to nazwa modelu albo tryb uprawnień, treść dokumentu czyta dopiero ReadImportLibraryItem.
+message ImportLibraryItem {
+  // Podpisany przez workera; wskazuje wyłącznie stałe miejsca konfiguracji CLI w jego katalogu.
+  string source_key = 1;
+  string agent_cli = 2;
+  string root_id = 3;
+  // setting | instruction
+  string kind = 4;
+  // Stała nazwa w katalogu CLI: model, permissions, CLAUDE.md, AGENTS.md.
+  string name = 5;
+  // setting: wartość w Canopy (id modelu; ask | accept_edits | read_only | full_auto); pusta, gdy brak odpowiednika.
+  string value = 6;
+  // Co zapisało CLI (np. bypassPermissions albo nazwa pliku); do wyświetlenia.
+  string detail = 7;
+  // sha256 treści (dokument) albo wartości (ustawienie).
+  string digest = 8;
+  uint64 bytes = 9;
+  // Pusty = można importować; inaczej jednozdaniowy powód.
+  string reason = 10;
+  repeated string warnings = 11;
+}
+
+// Treść jednej pozycji biblioteki, po maskowaniu sekretów. digest z ImportLibraryItem: zmieniony plik = błąd.
+message ReadImportLibraryItem {
+  string source_key = 1;
+  string digest = 2;
+}
+
+message ImportLibraryContent {
+  string text = 1;
+  string digest = 2;
 }

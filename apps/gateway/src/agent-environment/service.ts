@@ -106,19 +106,30 @@ export class AgentEnvironment {
     return snapshot;
   }
 
-  async save(request: ui.SaveInstructionDocumentRequest): Promise<ui.AgentEnvironmentSnapshot> {
+  /** `receipt` runs in the same transaction, after the document is saved (imports, docs/import.md "Blokady"). */
+  async save(
+    request: ui.SaveInstructionDocumentRequest,
+    receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>,
+  ): Promise<ui.AgentEnvironmentSnapshot> {
     if (!request.document) throw new ConnectError("Add an instruction document.", Code.InvalidArgument);
     const document = request.document;
-    await this.db.mutate(request.expectedRevision, (sql, next) =>
-      putDocument(sql, this.options.userId, next, document),
+    await this.db.mutate(
+      request.expectedRevision,
+      (sql, next) => putDocument(sql, this.options.userId, next, document),
+      receipt,
     );
 
     return this.changed();
   }
 
-  async remove(request: ui.DeleteInstructionDocumentRequest): Promise<ui.AgentEnvironmentSnapshot> {
-    await this.db.mutate(request.expectedRevision, (sql, next) =>
-      removeDocument(sql, this.options.userId, next, request.id),
+  async remove(
+    request: ui.DeleteInstructionDocumentRequest,
+    receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>,
+  ): Promise<ui.AgentEnvironmentSnapshot> {
+    await this.db.mutate(
+      request.expectedRevision,
+      (sql, next) => removeDocument(sql, this.options.userId, next, request.id),
+      receipt,
     );
 
     return this.changed();

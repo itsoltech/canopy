@@ -404,6 +404,8 @@ message Command {
     ReadImportPage read_import_page = 851;
     AdoptImportedSession adopt_imported_session = 852;
     RemoveImportedCopy remove_imported_copy = 853;
+    // Ustawienia i biblioteka (capability cli_import_library_v1).
+    ReadImportLibraryItem read_import_library_item = 854;
   }
 }
 
@@ -651,6 +653,8 @@ message CommandResult {
   ImportPage import_page = 851;
   // Wynik AdoptImportedSession: sesja do wznowienia w prywatnym domu instancji.
   string imported_session_id = 852;
+  // Wynik ReadImportLibraryItem.
+  ImportLibraryContent import_library_content = 853;
 }
 
 message GetProviderAccounts {
