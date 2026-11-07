@@ -1,7 +1,7 @@
 # Canopy Desktop
 
-Implementacja: `apps/desktop`. Zweryfikowany cel: **Linux x64**. Pozostałe cele mają
-konfigurację i układ zasobów, ale nie zostały tutaj zbudowane ani uruchomione.
+Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
+macOS arm64 i Windows x64**. Linux arm64 pozostaje eksperymentalny.
 Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji.
 
 ## Decyzje
