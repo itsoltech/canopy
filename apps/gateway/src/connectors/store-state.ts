@@ -41,15 +41,38 @@ export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, ke
           return { row, value, account: yield* view(yield* owned(user, id)) };
         }),
       ),
-    /** Drop the account without revoking its recoverable credentials; audit stays, unlinked. */
-    remove: (user: string, id: string) =>
+    /**
+     * Drop the account without revoking its recoverable credentials; audit stays, unlinked. With `expectedRevision`
+     * an account changed since stays ("changed"); the check holds the account's lock until the delete commits.
+     * `receipt` runs last in the same transaction (imports, docs/import.md "Blokady").
+     */
+    remove: (
+      user: string,
+      id: string,
+      options: {
+        readonly expectedRevision?: bigint;
+        readonly receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>;
+        readonly changedReceipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>;
+      } = {},
+    ) =>
       connectorTransaction(
         sql,
         key,
         Effect.gen(function* () {
           const row = yield* owned(user, id, true);
+
+          if (options.expectedRevision !== undefined && BigInt(row.revision) !== options.expectedRevision) {
+            if (options.changedReceipt) yield* options.changedReceipt(sql);
+
+            return "changed" as const;
+          }
+
           yield* removeConnector(sql, user, row.id);
           yield* sql`INSERT INTO connector_audit(owner_user_id,tool,outcome) VALUES (${user}::uuid,'delete','deleted')`;
+
+          if (options.receipt) yield* options.receipt(sql);
+
+          return "removed" as const;
         }),
       ),
     execution: (id: string) =>

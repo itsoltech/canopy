@@ -28,6 +28,7 @@
     ["command", "Command"],
     ["marketplace", "Marketplace"],
     ["plugin", "Plugin"],
+    ["connector", "MCP server"],
   ]);
 
   const actions = $derived(item.actions.map((value) => ({ value, label: labels.get(value) ?? value })));
@@ -87,6 +88,30 @@
     {#each item.warnings as warning (warning)}
       <p class="text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">{warning}</p>
     {/each}
+    {#if item.kind === "connector" && item.slots.length > 0 && item.status !== "unavailable"}
+      <ul role="list" class="mt-1.5 flex flex-col gap-1">
+        {#each item.slots as slot (slot.name)}
+          <li class="flex items-start gap-2 text-sm text-zinc-600 sm:text-xs dark:text-zinc-300">
+            {#if slot.kind === "literal"}
+              <span class="flex h-lh items-center">
+                <ChoiceControl
+                  id={`${id}-${slot.name}`}
+                  name="importSecret"
+                  checked={library.hasSecret(item.key, slot.name)}
+                  disabled={!chosen}
+                  onchange={(event) => library.toggleSecret(item.key, slot.name, event.currentTarget.checked)}
+                />
+              </span>
+              <label for={`${id}-${slot.name}`} class="min-w-0">
+                Bring the value of {slot.name} from the CLI file. Canopy keeps it encrypted.
+              </label>
+            {:else}
+              <span class="min-w-0">{slot.name}: enter the value of {slot.variable} in Connectors.</span>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
     {#if item.status === "conflict" && chosen && actions.length > 1}
       <div class="mt-1.5">
         <SegmentedChoice label={`What to do with ${item.name}`} options={actions} bind:value={action} />

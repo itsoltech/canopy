@@ -16,7 +16,7 @@ Stos B (ustawienia i biblioteka) ma trzy etapy:
 
 6. domyślne ustawienia nowych wątków i instrukcje,
 7. skille, pluginy i marketplace,
-8. serwery MCP jako połączone konta.
+8. serwery MCP jako połączone konta (ten dokument opisuje stan po etapie 8).
 
 Onboarding i aplikacja mobilna to stos C.
 
@@ -276,6 +276,41 @@ Etap 7 dokłada do skanu biblioteki (`ImportLibraryItem.kind`: `skill`, `command
   „Plugins run code. Approve each one in Agent environment.” Import nigdy nie aktywuje kodu: zgoda na dokładne
   pliki zostaje w Agent environment.
 - **Grok:** skille tak; pluginy Groka nie są jeszcze wymieniane.
+
+## Serwery MCP
+
+Etap 8 (`ImportLibraryItem.kind = connector`):
+
+- **Źródła.** Claude: `~/.claude.json` (`mcpServers` całego użytkownika i `projects[ścieżka].mcpServers`; przy
+  domyślnym domu plik leży obok niego, w `~`, przy `CLAUDE_CONFIG_DIR` w nim). Codex: `[mcp_servers.*]`
+  w `config.toml` (`url`, `http_headers`, `env_http_headers`, `bearer_token_env_var`). Klucz pozycji wskazuje
+  serwer w pliku (`.claude.json#mcp/<zakres i nazwa>`); katalog `~` jest korzeniem tylko dla serwerów MCP.
+- **Skan bez wartości.** Pozycja niesie URL, transport (`http`/`sse`) i miejsca na sekrety: nazwę nagłówka
+  i rodzaj, `literal` (wartość jest w pliku) albo `env` (plik wskazuje zmienną, np. `${TOKEN}`; nigdy nie jest
+  odczytywana). Serwer stdio jest pokazany z powodem („Runs a command on this computer…”): gateway jest jedynym
+  klientem MCP i nie uruchamia procesów. URL z użytkownikiem, hasłem albo parametrami zapytania też zostaje
+  poza importem; taki URL jest pokazany zamaskowany (dane użytkownika i wartości parametrów typu `token`), a gateway
+  odrzuca go niezależnie od workera przed zapisem planu, na podstawie postaci kanonicznej i zdekodowanych
+  parametrów (także fragmentu), z tym samym ścisłym dekodowaniem do czterech warstw co marketplace.
+  Zwykłe kotwice dokumentacji pozostają czytelne. Nazwy nagłówków, nazwy zmiennych i pozostały zagnieżdżony tekst metadanych
+  przechodzą przez ten sam konstruktor maskujący, również dla serwerów niedostępnych.
+  Dostawcy modeli z własnym `base_url` (Codex `model_providers`, Grok `[model.*]`) są pokazani
+  z „Add it in Proxies, with its key.”
+- **Sekret tylko na potwierdzenie.** Przy nagłówku `literal` właściciel może zaznaczyć „Bring the value of …”
+  (domyślnie nie). Gateway zapisuje w pozycji sha256 jednorazowego tokenu (kolumna `confirmation`), wysyła
+  `ReadImportSecret` z tokenem, a worker sprawdza klucz, miejsce `mcp`, digest definicji ze skanu i rodzaj
+  nagłówka, i odsyła wartość z tym samym tokenem. Gateway przyjmuje ją tylko wtedy, gdy token wraca, a hash,
+  który w tej samej transakcji odczytuje i zdejmuje z pozycji (z zablokowanym przebiegiem, jak każdy zapis
+  do pozycji biblioteki), się zgadza. Komenda nie trafia do journala ani do pamięci
+  powtórek workera, a błędy nie zawierają wartości.
+- **Konto.** Wartość od razu trafia do zaszyfrowanych poświadczeń konta `custom` (`SaveConnectorAccount`,
+  `CANOPY_SECRETS_KEY`); nigdy do wiersza importu, logu, UI, workera ani modelu. Konto nie ma żadnego dostępu
+  (workery, boty), dopóki właściciel go nie nada. Nagłówki bez przeniesionej wartości są wymienione („Enter …
+  there.”). Konto z tym samym URL to *Same in Canopy*. Undo usuwa konto, chyba że od importu się zmieniło
+  (np. nadano dostęp): wtedy `kept`. Rewizja jest sprawdzana przy zablokowanym koncie w tej samej transakcji,
+  która je usuwa i zapisuje pozycję jako `undone`. Gdy rewizja się zmieniła, wynik `kept` zapisuje ta sama
+  transakcja sprawdzająca rewizję, przed zwolnieniem blokady konta; błąd pokwitowania cofa wynik.
+  Utworzenie konta i pokwitowanie pozycji też są jedną transakcją.
 
 ## Strony i zapis
 

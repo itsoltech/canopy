@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
-import { PermissionMode, Provider, ui, type ImportLibraryItem, type ModelInfo } from "@canopy/contracts";
-import { marketplaceCandidates, pluginCandidates, skillCandidates } from "./library-kinds.ts";
+import { connectors, PermissionMode, Provider, ui, type ImportLibraryItem, type ModelInfo } from "@canopy/contracts";
+import { connectorCandidates, marketplaceCandidates, pluginCandidates, skillCandidates } from "./library-kinds.ts";
 import type { LibraryRow } from "./library-store.ts";
 
 /**
@@ -46,6 +46,7 @@ export interface LibraryContext {
   readonly documents: readonly ui.InstructionDocument[];
   readonly skills: readonly ui.LibrarySkill[];
   readonly marketplaces: readonly ui.EnvironmentMarketplace[];
+  readonly connectors: readonly connectors.ConnectorAccount[];
   readonly live: readonly LibraryRow[];
 }
 
@@ -94,6 +95,7 @@ export function libraryCandidates(
     ...skillCandidates(items, context, live),
     ...marketplaceCandidates(items, context, live),
     ...pluginCandidates(items),
+    ...connectorCandidates(items, context, live),
   ];
 }
 

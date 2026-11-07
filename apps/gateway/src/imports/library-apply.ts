@@ -6,6 +6,7 @@ import type { GatewayCore } from "../core/core.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
 import { MODE_LABELS, MODES, PROVIDERS } from "./library.ts";
 import { documents } from "../agent-environment/database.ts";
+import { applyConnector, undoConnector, type Sql } from "./library-apply-connectors.ts";
 import { applyMarketplace, applySkill, undoMarketplace, undoSkill, type Applied } from "./library-apply-skills.ts";
 import { libraryReceipt, type LibraryRow } from "./library-store.ts";
 
@@ -39,8 +40,11 @@ const decodeDocument = Schema.decodeUnknownOption(DocumentTarget);
 export class LibraryApply {
   readonly #core: GatewayCore;
 
-  constructor(core: GatewayCore) {
+  readonly #sql: Sql;
+
+  constructor(core: GatewayCore, sql: Sql) {
     this.#core = core;
+    this.#sql = sql;
   }
 
   /** Makes the change; the item becomes done with its receipt in the same transaction. */
@@ -50,6 +54,8 @@ export class LibraryApply {
     if (row.kind === "skill" || row.kind === "command") return applySkill(this.#core, row);
 
     if (row.kind === "marketplace") return applyMarketplace(this.#core, row);
+
+    if (row.kind === "connector") return applyConnector(this.#core, this.#sql, row);
 
     return this.#setting(row);
   }
@@ -64,6 +70,8 @@ export class LibraryApply {
     if (row.kind === "skill" || row.kind === "command") return undoSkill(this.#core, row);
 
     if (row.kind === "marketplace") return undoMarketplace(this.#core, row);
+
+    if (row.kind === "connector") return undoConnector(this.#core, this.#sql, row);
     const target = Option.getOrUndefined(decodeSetting(row.target));
 
     if (!target) return this.#mark(row, "undone");

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import type { ImportLibraryItemSchema } from "@canopy/contracts";
+import type { ImportLibraryItemSchema, ImportSecretSlot } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
 import { decodeJsonObject } from "../providers/json.ts";
 import { leftOut, SETTINGS } from "./library-settings.ts";
@@ -31,6 +31,8 @@ export interface ItemFields {
   readonly files?: number;
   readonly source?: string;
   readonly version?: string;
+  readonly transport?: string;
+  readonly slots?: ImportSecretSlot[];
 }
 
 export type MakeItem = (rel: string, fields: ItemFields) => LibraryItemInit;
@@ -52,6 +54,15 @@ export function maskedFields(fields: ItemFields, masker: Masker): ItemFields {
     ...(fields.warnings && { warnings: fields.warnings.map(masked) }),
     ...(fields.source !== undefined && { source: masked(fields.source) }),
     ...(fields.version !== undefined && { version: masked(fields.version) }),
+    ...(fields.transport !== undefined && { transport: masked(fields.transport) }),
+    ...(fields.slots && {
+      slots: fields.slots.map((slot) => ({
+        ...slot,
+        name: masked(slot.name),
+        kind: masked(slot.kind),
+        variable: masked(slot.variable),
+      })),
+    }),
   };
 }
 
@@ -89,8 +100,12 @@ export const LIBRARY_PLACES: Readonly<Record<AgentCli, Place>> = {
 };
 
 /** Where a library key may point in a root of this CLI: a file, a skill directory, or nothing. */
-export function libraryPlace(cli: AgentCli, rel: string): "file" | "skill" | "command" | undefined {
+export function libraryPlace(cli: AgentCli, rel: string): "file" | "skill" | "command" | "mcp" | undefined {
   const place = LIBRARY_PLACES[cli];
+
+  if (cli === "claude" && /^\.claude\.json#mcp\/[A-Za-z0-9_-]+$/.test(rel)) return "mcp";
+
+  if (cli === "codex" && /^config\.toml#mcp\/[A-Za-z0-9_-]+$/.test(rel)) return "mcp";
 
   if (place.instructions.includes(rel)) return "file";
 

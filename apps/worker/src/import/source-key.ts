@@ -50,6 +50,27 @@ export interface ResolvedSource {
   readonly path: string;
 }
 
+export interface VerifiedKey {
+  readonly root: ImportRootPath;
+  readonly rel: string;
+}
+
+/** A key this worker signed, for one of `roots`: its root and the relative path it names (nothing is read). */
+export function verifySourceKey(key: Buffer, roots: readonly ImportRootPath[], sourceKey: string): VerifiedKey {
+  const [id = "", encoded = "", mac = ""] = sourceKey.split(".");
+  const rel = Buffer.from(encoded, "base64url").toString();
+  const given = Buffer.from(mac, "base64url");
+  const expected = signature(key, id, rel);
+
+  if (given.length !== expected.length || !timingSafeEqual(given, expected))
+    throw new SourceKeyError("the source key is not valid on this worker");
+  const root = roots.find((r) => r.id === id);
+
+  if (!root) throw new SourceKeyError("the source is no longer on this worker");
+
+  return { root, rel };
+}
+
 /** Resolves a key to a path inside one of `roots`; throws SourceKeyError for anything else. */
 export function resolveSourceKey(
   key: Buffer,

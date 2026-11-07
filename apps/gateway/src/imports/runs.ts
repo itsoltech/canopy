@@ -37,7 +37,7 @@ export class ImportRuns {
     this.#imports = imports;
     this.#runner = runner;
     this.#ownerId = ownerId;
-    this.#library = new LibraryApply(imports.core);
+    this.#library = new LibraryApply(imports.core, (use) => imports.sql(use));
   }
 
   async start(request: ui.StartImportRequest): Promise<ui.ImportRun> {

@@ -10,7 +10,7 @@ CREATE TABLE import_library_items (
   agent_cli     text NOT NULL CHECK (agent_cli IN ('claude', 'codex', 'grok')),
   -- Stable source identity: the CLI root on the worker, the kind and its name there (model, CLAUDE.md).
   root_id       text NOT NULL,
-  kind          text NOT NULL CHECK (kind IN ('setting', 'instruction', 'skill', 'command', 'marketplace')),
+  kind          text NOT NULL CHECK (kind IN ('setting', 'instruction', 'skill', 'command', 'marketplace', 'connector')),
   name          text NOT NULL,
   -- sha256 of the value or content the scan saw; the worker refuses a changed file.
   digest        text NOT NULL,
@@ -25,6 +25,8 @@ CREATE TABLE import_library_items (
   -- What the import changed: the setting with its previous value, or the library item and its revision.
   target        jsonb NOT NULL DEFAULT '{}',
   detail        text NOT NULL DEFAULT '',
+  -- connector: sha256 of the one-time token a secret read carries, while it is on its way; never the secret.
+  confirmation  text,
   error         text,
   updated_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (run_id, position)

@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromMs, timestampMs } from "@bufbuild/protobuf/wkt";
-import { ui, type ImportScan } from "@canopy/contracts";
+import { connectors, ui, type ImportScan } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { GatewayCore } from "../core/core.ts";
@@ -174,11 +174,12 @@ export class CliImports {
     if (!this.#core.link.connections.get(worker.id)?.hello.capabilities.includes(CLI_IMPORT_LIBRARY))
       throw new UnavailableError(`Update the worker on ${worker.name} to import its settings.`);
 
-    const [settings, catalogs, environment, live] = await Promise.all([
+    const [settings, catalogs, environment, live, accounts] = await Promise.all([
       this.#core.settings(),
       this.#core.listModels(create(ui.ListModelsRequestSchema, { workerId: worker.id, unfiltered: true })),
       this.#core.environment.snapshot(),
       this.sql((sql) => liveLibraryItems(sql, this.#userId, worker.id)),
+      this.#core.connectors.list(create(connectors.ListConnectorsRequestSchema, {})),
     ]);
 
     // The worker's own instance (native profile) per provider.
@@ -191,6 +192,7 @@ export class CliImports {
       documents: environment.documents,
       skills: environment.skills,
       marketplaces: environment.marketplaces,
+      connectors: accounts.accounts,
       live,
     };
   }

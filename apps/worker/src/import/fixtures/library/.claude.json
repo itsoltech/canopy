@@ -1,0 +1,16 @@
+{
+  "numStartups": 3,
+  "mcpServers": {
+    "fixture-remote": {
+      "type": "http",
+      "url": "https://mcp.example.invalid/mcp",
+      "headers": { "Authorization": "Bearer ${FIXTURE_TOKEN}", "X-Team": "fixture-team-value-0001" }
+    },
+    "fixture-local": { "type": "stdio", "command": "fixture-mcp", "args": ["--serve"] }
+  },
+  "projects": {
+    "/home/user/project": {
+      "mcpServers": { "fixture-project": { "type": "sse", "url": "https://sse.example.invalid/sse" } }
+    }
+  }
+}

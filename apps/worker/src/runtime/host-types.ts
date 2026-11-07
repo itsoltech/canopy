@@ -47,6 +47,7 @@ export interface CommandOutput {
   readonly importPage?: MessageInitShape<typeof CommandResultSchema>["importPage"];
   readonly importedSessionId?: string;
   readonly importLibraryContent?: MessageInitShape<typeof CommandResultSchema>["importLibraryContent"];
+  readonly importSecret?: MessageInitShape<typeof CommandResultSchema>["importSecret"];
 }
 
 export interface WorkerHostOptions {
@@ -71,6 +72,8 @@ export interface WorkerHostOptions {
     readonly codex: string;
     readonly grok?: string;
     readonly agents?: string;
+    /** The directory of Claude's `.claude.json` when it is not the Claude home (the default home: `~`). */
+    readonly claudeAccount?: string;
   };
   /** Managed worktree roots (resolveWorktreeRoots); default: `<data_dir>/worktrees` only. */
   readonly worktreeRoots?: WorktreeRoots;

@@ -17,6 +17,25 @@ function activeWorkers(sql: SqlClient.SqlClient, user: string, ids: readonly str
   });
 }
 
+/** Why these headers can't be stored, or "" when they can. */
+function headerProblem(headers: Readonly<Record<string, string>>): string {
+  if (Object.keys(headers).length > 32) return "Too many connector headers";
+
+  for (const [header, text] of Object.entries(headers))
+    if (
+      !/^[a-zA-Z0-9_-]{1,100}$/.test(header) ||
+      /^(host|content-length|connection|accept|content-type|mcp-session-id)$/i.test(header) ||
+      /[\r\n]/.test(text) ||
+      text.length > 32_000
+    )
+      return "Invalid connector header";
+
+  if (new Set(Object.keys(headers).map((h) => h.toLowerCase())).size !== Object.keys(headers).length)
+    return "Duplicate connector header";
+
+  return "";
+}
+
 /** Saving accounts and their worker and bot access. */
 export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, key: Buffer) {
   const { owned, seal, credentials, view, audit } = base;
@@ -24,7 +43,12 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
   const checkWorkers = (user: string, ids: readonly string[]) => activeWorkers(sql, user, ids);
 
   return {
-    save: (user: string, request: connectors.SaveConnectorAccountRequest) =>
+    /** `receipt` runs last in the same transaction with the saved account (imports, docs/import.md "Blokady"). */
+    save: (
+      user: string,
+      request: connectors.SaveConnectorAccountRequest,
+      receipt?: (sql: SqlClient.SqlClient, account: connectors.ConnectorAccount) => Effect.Effect<void>,
+    ) =>
       connectorTransaction(
         sql,
         key,
@@ -73,19 +97,9 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
 
             if (request.token) headers["Authorization"] = `Bearer ${request.token}`;
 
-            if (Object.keys(headers).length > 32) return yield* fail("Too many connector headers");
+            const invalid = headerProblem(headers);
 
-            for (const [header, text] of Object.entries(headers))
-              if (
-                !/^[a-zA-Z0-9_-]{1,100}$/.test(header) ||
-                /^(host|content-length|connection|accept|content-type|mcp-session-id)$/i.test(header) ||
-                /[\r\n]/.test(text) ||
-                text.length > 32_000
-              )
-                return yield* fail("Invalid connector header");
-
-            if (new Set(Object.keys(headers).map((h) => h.toLowerCase())).size !== Object.keys(headers).length)
-              return yield* fail("Duplicate connector header");
+            if (invalid) return yield* fail(invalid);
             // Reconnect clears tokens, but a DCR client for the same endpoint can be reused after discovery.
             value = {
               headers,
@@ -105,8 +119,11 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
         revision=connector_accounts.revision+1,updated_at=now()`;
 
           if (replacing) yield* sql`DELETE FROM connector_oauth_states WHERE account_id=${id}::uuid`;
+          const saved = yield* view(yield* owned(user, id));
 
-          return yield* view(yield* owned(user, id));
+          if (receipt) yield* receipt(sql, saved);
+
+          return saved;
         }),
       ),
     access: (user: string, request: connectors.SetConnectorAccessRequest) =>

@@ -14,3 +14,15 @@ source = "https://github.com/fixture/market.git"
 
 [plugins."review@fixture-market"]
 enabled = true
+
+[mcp_servers.fixture-codex]
+url = "https://codex-mcp.example.invalid/mcp"
+bearer_token_env_var = "FIXTURE_CODEX_TOKEN"
+
+[mcp_servers.fixture-stdio]
+command = "fixture-codex-mcp"
+
+[model_providers.fixture-proxy]
+name = "Fixture proxy"
+base_url = "https://proxy.example.invalid/v1"
+env_key = "FIXTURE_PROXY_KEY"

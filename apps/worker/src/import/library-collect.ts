@@ -1,4 +1,5 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import { claudeServers, codexServers, MCP_FILES, serverDigest, serverFragment } from "./library-mcp.ts";
 import { pluginFacts } from "./library-plugins.ts";
 import { itemMaker, readConfig, scanLibrary, sha256, type LibraryItemInit, type MakeItem } from "./library-scan.ts";
 import { readCommand, readSkill, shortDescription, skillOrigins, type SkillRead } from "./library-skills.ts";
@@ -9,16 +10,25 @@ import type { ImportRootPath } from "./source-key.ts";
 /**
  * Everything the library scan lists for one root (docs/import.md, "Ustawienia i biblioteka", "Skille i pluginy"):
  * settings and instructions, skills, commands and prompts (as skills, chosen by the owner), marketplaces and
- * plugins. `~/.agents` (the device's shared skills, read by Codex) holds skills only.
+ * plugins, MCP servers. `~/.agents` (the device's shared skills, read by Codex) holds skills only; the directory of
+ * `~/.claude.json` (`account`) its MCP servers only.
  */
-export function collectLibrary(root: ImportRootPath, key: Buffer, masker: Masker, agents = false): LibraryItemInit[] {
+export function collectLibrary(
+  root: ImportRootPath,
+  key: Buffer,
+  masker: Masker,
+  kind: "home" | "agents" | "account" = "home",
+): LibraryItemInit[] {
   const item = itemMaker(root, key, masker);
+
+  if (kind === "account") return connectors(root, item);
+  const agents = kind === "agents";
   const origins = agents ? skillOrigins(readConfig(root, ".skill-lock.json")) : new Map<string, string>();
   const items = agents ? [] : scanLibrary(root, key, masker);
   items.push(...skills(root, masker, item, origins));
 
   if (agents) return items;
-  items.push(...commands(root, masker, item));
+  items.push(...commands(root, masker, item), ...connectors(root, item));
 
   for (const fact of pluginFacts(root.agentCli, (rel) => readConfig(root, rel)))
     items.push(
@@ -34,6 +44,27 @@ export function collectLibrary(root: ImportRootPath, key: Buffer, masker: Masker
     );
 
   return items;
+}
+
+/** MCP servers in the root's MCP file: URL, transport and secret slots (names and kinds, never values). */
+function connectors(root: ImportRootPath, item: MakeItem): LibraryItemInit[] {
+  const file = MCP_FILES.get(root.agentCli);
+
+  if (!file) return [];
+  const config = readConfig(root, file);
+  const servers = root.agentCli === "claude" ? claudeServers(config) : codexServers(config);
+
+  return servers.map((server) =>
+    item(`${file}#mcp/${serverFragment(server.scope, server.name)}`, {
+      kind: "connector",
+      name: server.scope ? `${server.name} (${basename(server.scope)})` : server.name,
+      detail: server.url,
+      transport: server.transport,
+      slots: server.slots,
+      digest: serverDigest(server),
+      reason: server.reason,
+    }),
+  );
 }
 
 function secretsWarning(read: SkillRead): string[] {

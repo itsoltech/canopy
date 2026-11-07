@@ -2,12 +2,32 @@ import type { ImportLibraryItem, ui } from "@canopy/contracts";
 import { InvalidError } from "../core/core-context.ts";
 import { choosable } from "./library.ts";
 import type { NewLibraryItem } from "./library-store.ts";
-import { unsafeMarketplaceSource } from "./library-kinds.ts";
+import { unsafeConnectorUrl, unsafeMarketplaceSource } from "./library-kinds.ts";
 
 /**
  * The settings and library items of StartImport (docs/import.md, "Ustawienia i biblioteka"): only keys of the scan
  * that can be imported now, with an action they allow, and one permission mode at most.
  */
+/**
+ * What a row keeps about its item (never a secret): a skill its CLIs (harnesses), a marketplace its source, a
+ * connector its endpoint, transport, header slots and the secrets the owner chose to bring.
+ */
+function valueOf(item: ImportLibraryItem, candidate: ui.ImportLibraryCandidate, secrets: readonly string[]): string {
+  if (SKILLS.has(item.kind)) return candidate.agentClis.join(",");
+
+  if (item.kind === "marketplace") return item.source;
+
+  if (item.kind === "connector")
+    return JSON.stringify({
+      url: item.detail,
+      transport: item.transport,
+      secrets,
+      slots: item.slots.map((s) => ({ name: s.name, kind: s.kind, variable: s.variable })),
+    });
+
+  return item.value;
+}
+
 /** Kinds that become library skills. */
 const SKILLS: ReadonlySet<string> = new Set(["skill", "command"]);
 
@@ -30,11 +50,19 @@ export function planLibrary(
 
     if (item.kind === "marketplace" && unsafeMarketplaceSource(item.source))
       throw new InvalidError("The marketplace URL cannot be imported. Add it in Agent environment.");
+
+    if (item.kind === "connector" && unsafeConnectorUrl(item.detail))
+      throw new InvalidError("The server URL cannot be imported. Add it in Connectors.");
     const conflict = candidate.status === "conflict";
     const action = conflict ? choice.action : "import";
 
     if (conflict && !candidate.actions.includes(action))
       throw new InvalidError(`Choose Replace or Keep both for ${candidate.name}.`);
+    const literal = new Set(candidate.slots.flatMap((slot) => (slot.kind === "literal" ? [slot.name] : [])));
+
+    // A secret is read only for a header with its value in the file, and only one the owner chose.
+    if (choice.secrets.some((name) => !literal.has(name)) || new Set(choice.secrets).size !== choice.secrets.length)
+      throw new InvalidError(`Choose only headers of ${candidate.name} that have a value in the CLI file.`);
 
     return {
       agentCli: item.agentCli,
@@ -43,12 +71,7 @@ export function planLibrary(
       name: item.name,
       digest: item.digest,
       sourceKey: item.sourceKey,
-      // A skill keeps the CLIs it was found in (its harnesses); a marketplace its source.
-      value: SKILLS.has(item.kind)
-        ? candidate.agentClis.join(",")
-        : item.kind === "marketplace"
-          ? item.source
-          : item.value,
+      value: valueOf(item, candidate, choice.secrets),
       label: candidate.name,
       action,
     };

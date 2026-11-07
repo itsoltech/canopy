@@ -76,6 +76,8 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "scanImportSources",
   "readImportPage",
   "readImportLibraryItem",
+  // A secret header's value: never written to the journal or remembered for a retry.
+  "readImportSecret",
   "adoptImportedSession",
   "removeImportedCopy",
 ]);
@@ -302,6 +304,7 @@ export class WorkerHost {
         ...(output.importPage && { importPage: output.importPage }),
         ...(output.importedSessionId && { importedSessionId: output.importedSessionId }),
         ...(output.importLibraryContent && { importLibraryContent: output.importLibraryContent }),
+        ...(output.importSecret && { importSecret: output.importSecret }),
       };
 
       if (!NOT_REMEMBERED.has(command.kind.case)) await this.#remember(result);

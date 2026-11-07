@@ -85,6 +85,8 @@ export class HostState {
     readonly codex: string;
     readonly grok?: string;
     readonly agents?: string;
+    /** The directory of Claude's `.claude.json` when it is not the Claude home (the default home: `~`). */
+    readonly claudeAccount?: string;
   };
   /** Claude's mention catalogs (a listing starts Claude Code); Codex answers skills/list from its own cache. */
   readonly catalogs = new CatalogCache();
@@ -142,11 +144,15 @@ export class HostState {
   constructor(options: WorkerHostOptions) {
     this.options = options;
     this.secrets = new ThreadSecretFiles(options.dataDir);
+    const claude = deviceClaudeHome(process.env);
+
     this.deviceHomes = options.deviceHomes ?? {
-      claude: deviceClaudeHome(process.env),
+      claude,
       codex: deviceCodexHome(process.env),
       grok: process.env["GROK_HOME"] || join(homedir(), ".grok"),
       agents: join(homedir(), ".agents", "skills"),
+      // Claude keeps `.claude.json` beside its default home (`~`); with CLAUDE_CONFIG_DIR it is inside that.
+      ...(claude === join(homedir(), ".claude") && { claudeAccount: homedir() }),
     };
     this.worktreeRoots = options.worktreeRoots ?? resolveWorktreeRoots({ dataDir: options.dataDir, home: "" });
     this.files = new AttachmentFiles(options.dataDir);
@@ -160,6 +166,7 @@ export class HostState {
         grok: this.deviceHomes.grok ?? join(homedir(), ".grok"),
         // `~/.agents` of the device (its `skills/` is deviceHomes.agents); none when the homes are given (tests).
         ...(this.deviceHomes.agents && { agents: dirname(this.deviceHomes.agents) }),
+        ...(this.deviceHomes.claudeAccount && { claudeAccount: this.deviceHomes.claudeAccount }),
       }),
       config: () => this.config,
     });

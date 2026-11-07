@@ -57,7 +57,7 @@ export class ImportRunner {
   ) {
     this.#core = core;
     this.#sql = sql;
-    this.#library = new LibraryApply(core);
+    this.#library = new LibraryApply(core, sql);
   }
 
   start(): void {

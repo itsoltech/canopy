@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/worker/v1/cli_import.proto.
  */
 export const file_canopy_worker_v1_cli_import: GenFile = /*@__PURE__*/
-  fileDesc("CiFjYW5vcHkvd29ya2VyL3YxL2NsaV9pbXBvcnQucHJvdG8SEGNhbm9weS53b3JrZXIudjEiJwoRU2NhbkltcG9ydFNvdXJjZXMSEgoKYWdlbnRfY2xpcxgBIAMoCSJfCgpJbXBvcnRSb290EgoKAmlkGAEgASgJEhEKCWFnZW50X2NsaRgCIAEoCRIMCgRwYXRoGAMgASgJEhMKC2NsaV92ZXJzaW9uGAQgASgJEg8KB3Byb2JsZW0YBSABKAkifwoOSW1wb3J0U25hcHNob3QSDAoEc2l6ZRgBIAEoBBITCgttb2RpZmllZF9tcxgCIAEoAxIVCg1wcmVmaXhfc2hhMjU2GAMgASgJEhQKDGhpc3Rvcnlfc2l6ZRgEIAEoBBIdChVoaXN0b3J5X3ByZWZpeF9zaGEyNTYYBSABKAki8wMKE0ltcG9ydFRocmVhZFN1bW1hcnkSEgoKc291cmNlX2tleRgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSEQoJbmF0aXZlX2lkGAMgASgJEg8KB3Jvb3RfaWQYBCABKAkSCwoDY3dkGAUgASgJEhIKCmN3ZF9leGlzdHMYBiABKAgSDQoFdGl0bGUYByABKAkSDwoHcHJldmlldxgIIAEoCRIuCgpzdGFydGVkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVieXRlcxgLIAEoBBINCgV0dXJucxgMIAEoDRIOCgZvcmlnaW4YDSABKAkSEwoLY2xpX3ZlcnNpb24YDiABKAkSDgoGZm9ybWF0GA8gASgJEhgKEHBhcmVudF9uYXRpdmVfaWQYECABKAkSEAoIc3ViYWdlbnQYESABKAgSFwoPZmxhZ2dlZF9zZWNyZXRzGBIgASgNEhIKCmdpdF9icmFuY2gYEyABKAkSMgoIc25hcHNob3QYFCABKAsyIC5jYW5vcHkud29ya2VyLnYxLkltcG9ydFNuYXBzaG90EhAKCGFyY2hpdmVkGBUgASgIIssBCgpJbXBvcnRTY2FuEisKBXJvb3RzGAEgAygLMhwuY2Fub3B5Lndvcmtlci52MS5JbXBvcnRSb290EjYKB3RocmVhZHMYAiADKAsyJS5jYW5vcHkud29ya2VyLnYxLkltcG9ydFRocmVhZFN1bW1hcnkSEQoJdHJ1bmNhdGVkGAMgASgIEg8KB3NraXBwZWQYBCABKA0SNAoHbGlicmFyeRgFIAMoCzIjLmNhbm9weS53b3JrZXIudjEuSW1wb3J0TGlicmFyeUl0ZW0i9wEKEUltcG9ydExpYnJhcnlJdGVtEhIKCnNvdXJjZV9rZXkYASABKAkSEQoJYWdlbnRfY2xpGAIgASgJEg8KB3Jvb3RfaWQYAyABKAkSDAoEa2luZBgEIAEoCRIMCgRuYW1lGAUgASgJEg0KBXZhbHVlGAYgASgJEg4KBmRldGFpbBgHIAEoCRIOCgZkaWdlc3QYCCABKAkSDQoFYnl0ZXMYCSABKAQSDgoGcmVhc29uGAogASgJEhAKCHdhcm5pbmdzGAsgAygJEg0KBWZpbGVzGAwgASgNEg4KBnNvdXJjZRgNIAEoCRIPCgd2ZXJzaW9uGA4gASgJIjsKFVJlYWRJbXBvcnRMaWJyYXJ5SXRlbRISCgpzb3VyY2Vfa2V5GAEgASgJEg4KBmRpZ2VzdBgCIAEoCSJgChRJbXBvcnRMaWJyYXJ5Q29udGVudBIMCgR0ZXh0GAEgASgJEg4KBmRpZ2VzdBgCIAEoCRIqCgVmaWxlcxgDIAMoCzIbLmNhbm9weS53b3JrZXIudjEuU2tpbGxGaWxlYgZwcm90bzM", [file_canopy_worker_v1_agent_environment, file_google_protobuf_timestamp]);
+  fileDesc("CiFjYW5vcHkvd29ya2VyL3YxL2NsaV9pbXBvcnQucHJvdG8SEGNhbm9weS53b3JrZXIudjEiJwoRU2NhbkltcG9ydFNvdXJjZXMSEgoKYWdlbnRfY2xpcxgBIAMoCSJfCgpJbXBvcnRSb290EgoKAmlkGAEgASgJEhEKCWFnZW50X2NsaRgCIAEoCRIMCgRwYXRoGAMgASgJEhMKC2NsaV92ZXJzaW9uGAQgASgJEg8KB3Byb2JsZW0YBSABKAkifwoOSW1wb3J0U25hcHNob3QSDAoEc2l6ZRgBIAEoBBITCgttb2RpZmllZF9tcxgCIAEoAxIVCg1wcmVmaXhfc2hhMjU2GAMgASgJEhQKDGhpc3Rvcnlfc2l6ZRgEIAEoBBIdChVoaXN0b3J5X3ByZWZpeF9zaGEyNTYYBSABKAki8wMKE0ltcG9ydFRocmVhZFN1bW1hcnkSEgoKc291cmNlX2tleRgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSEQoJbmF0aXZlX2lkGAMgASgJEg8KB3Jvb3RfaWQYBCABKAkSCwoDY3dkGAUgASgJEhIKCmN3ZF9leGlzdHMYBiABKAgSDQoFdGl0bGUYByABKAkSDwoHcHJldmlldxgIIAEoCRIuCgpzdGFydGVkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVieXRlcxgLIAEoBBINCgV0dXJucxgMIAEoDRIOCgZvcmlnaW4YDSABKAkSEwoLY2xpX3ZlcnNpb24YDiABKAkSDgoGZm9ybWF0GA8gASgJEhgKEHBhcmVudF9uYXRpdmVfaWQYECABKAkSEAoIc3ViYWdlbnQYESABKAgSFwoPZmxhZ2dlZF9zZWNyZXRzGBIgASgNEhIKCmdpdF9icmFuY2gYEyABKAkSMgoIc25hcHNob3QYFCABKAsyIC5jYW5vcHkud29ya2VyLnYxLkltcG9ydFNuYXBzaG90EhAKCGFyY2hpdmVkGBUgASgIIssBCgpJbXBvcnRTY2FuEisKBXJvb3RzGAEgAygLMhwuY2Fub3B5Lndvcmtlci52MS5JbXBvcnRSb290EjYKB3RocmVhZHMYAiADKAsyJS5jYW5vcHkud29ya2VyLnYxLkltcG9ydFRocmVhZFN1bW1hcnkSEQoJdHJ1bmNhdGVkGAMgASgIEg8KB3NraXBwZWQYBCABKA0SNAoHbGlicmFyeRgFIAMoCzIjLmNhbm9weS53b3JrZXIudjEuSW1wb3J0TGlicmFyeUl0ZW0ivQIKEUltcG9ydExpYnJhcnlJdGVtEhIKCnNvdXJjZV9rZXkYASABKAkSEQoJYWdlbnRfY2xpGAIgASgJEg8KB3Jvb3RfaWQYAyABKAkSDAoEa2luZBgEIAEoCRIMCgRuYW1lGAUgASgJEg0KBXZhbHVlGAYgASgJEg4KBmRldGFpbBgHIAEoCRIOCgZkaWdlc3QYCCABKAkSDQoFYnl0ZXMYCSABKAQSDgoGcmVhc29uGAogASgJEhAKCHdhcm5pbmdzGAsgAygJEg0KBWZpbGVzGAwgASgNEg4KBnNvdXJjZRgNIAEoCRIPCgd2ZXJzaW9uGA4gASgJEhEKCXRyYW5zcG9ydBgPIAEoCRIxCgVzbG90cxgQIAMoCzIiLmNhbm9weS53b3JrZXIudjEuSW1wb3J0U2VjcmV0U2xvdCJAChBJbXBvcnRTZWNyZXRTbG90EgwKBG5hbWUYASABKAkSDAoEa2luZBgCIAEoCRIQCgh2YXJpYWJsZRgDIAEoCSJaChBSZWFkSW1wb3J0U2VjcmV0EhIKCnNvdXJjZV9rZXkYASABKAkSDAoEc2xvdBgCIAEoCRIUCgxjb25maXJtYXRpb24YAyABKAkSDgoGZGlnZXN0GAQgASgJIjgKEUltcG9ydFNlY3JldFZhbHVlEhQKDGNvbmZpcm1hdGlvbhgBIAEoCRINCgV2YWx1ZRgCIAEoCSI7ChVSZWFkSW1wb3J0TGlicmFyeUl0ZW0SEgoKc291cmNlX2tleRgBIAEoCRIOCgZkaWdlc3QYAiABKAkiYAoUSW1wb3J0TGlicmFyeUNvbnRlbnQSDAoEdGV4dBgBIAEoCRIOCgZkaWdlc3QYAiABKAkSKgoFZmlsZXMYAyADKAsyGy5jYW5vcHkud29ya2VyLnYxLlNraWxsRmlsZWIGcHJvdG8z", [file_canopy_worker_v1_agent_environment, file_google_protobuf_timestamp]);
 
 /**
  * @generated from message canopy.worker.v1.ScanImportSources
@@ -325,7 +325,7 @@ export type ImportLibraryItem = Message<"canopy.worker.v1.ImportLibraryItem"> & 
   rootId: string;
 
   /**
-   * setting | instruction | skill | command | marketplace | plugin
+   * setting | instruction | skill | command | marketplace | plugin | connector
    *
    * @generated from field: string kind = 4;
    */
@@ -392,6 +392,18 @@ export type ImportLibraryItem = Message<"canopy.worker.v1.ImportLibraryItem"> & 
    * @generated from field: string version = 14;
    */
   version: string;
+
+  /**
+   * connector: http | sse, i miejsca na sekrety (nazwy i rodzaj, nigdy wartości).
+   *
+   * @generated from field: string transport = 15;
+   */
+  transport: string;
+
+  /**
+   * @generated from field: repeated canopy.worker.v1.ImportSecretSlot slots = 16;
+   */
+  slots: ImportSecretSlot[];
 };
 
 /**
@@ -400,6 +412,100 @@ export type ImportLibraryItem = Message<"canopy.worker.v1.ImportLibraryItem"> & 
  */
 export const ImportLibraryItemSchema: GenMessage<ImportLibraryItem> = /*@__PURE__*/
   messageDesc(file_canopy_worker_v1_cli_import, 5);
+
+/**
+ * Nagłówek serwera MCP, który niesie sekret. Wartość zostaje na workerze, dopóki właściciel jej nie wybierze.
+ *
+ * @generated from message canopy.worker.v1.ImportSecretSlot
+ */
+export type ImportSecretSlot = Message<"canopy.worker.v1.ImportSecretSlot"> & {
+  /**
+   * Nazwa nagłówka (Authorization dla bearer).
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * literal: wartość jest w pliku CLI; env: plik wskazuje zmienną środowiskową (nigdy odczytywaną).
+   *
+   * @generated from field: string kind = 2;
+   */
+  kind: string;
+
+  /**
+   * Zmienna środowiskowa przy env (do wyświetlenia).
+   *
+   * @generated from field: string variable = 3;
+   */
+  variable: string;
+};
+
+/**
+ * Describes the message canopy.worker.v1.ImportSecretSlot.
+ * Use `create(ImportSecretSlotSchema)` to create a new message.
+ */
+export const ImportSecretSlotSchema: GenMessage<ImportSecretSlot> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_cli_import, 6);
+
+/**
+ * Wartość jednego nagłówka z wartością w pliku, tylko na potwierdzenie właściciela (jednorazowy token gatewaya).
+ * Nietrwała: nigdy z outboxa ani journala.
+ *
+ * @generated from message canopy.worker.v1.ReadImportSecret
+ */
+export type ReadImportSecret = Message<"canopy.worker.v1.ReadImportSecret"> & {
+  /**
+   * @generated from field: string source_key = 1;
+   */
+  sourceKey: string;
+
+  /**
+   * @generated from field: string slot = 2;
+   */
+  slot: string;
+
+  /**
+   * @generated from field: string confirmation = 3;
+   */
+  confirmation: string;
+
+  /**
+   * @generated from field: string digest = 4;
+   */
+  digest: string;
+};
+
+/**
+ * Describes the message canopy.worker.v1.ReadImportSecret.
+ * Use `create(ReadImportSecretSchema)` to create a new message.
+ */
+export const ReadImportSecretSchema: GenMessage<ReadImportSecret> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_cli_import, 7);
+
+/**
+ * @generated from message canopy.worker.v1.ImportSecretValue
+ */
+export type ImportSecretValue = Message<"canopy.worker.v1.ImportSecretValue"> & {
+  /**
+   * Token z żądania: gateway sprawdza go i zużywa.
+   *
+   * @generated from field: string confirmation = 1;
+   */
+  confirmation: string;
+
+  /**
+   * @generated from field: string value = 2;
+   */
+  value: string;
+};
+
+/**
+ * Describes the message canopy.worker.v1.ImportSecretValue.
+ * Use `create(ImportSecretValueSchema)` to create a new message.
+ */
+export const ImportSecretValueSchema: GenMessage<ImportSecretValue> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_cli_import, 8);
 
 /**
  * Treść jednej pozycji biblioteki, po maskowaniu sekretów. digest z ImportLibraryItem: zmieniony plik = błąd.
@@ -423,7 +529,7 @@ export type ReadImportLibraryItem = Message<"canopy.worker.v1.ReadImportLibraryI
  * Use `create(ReadImportLibraryItemSchema)` to create a new message.
  */
 export const ReadImportLibraryItemSchema: GenMessage<ReadImportLibraryItem> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_cli_import, 6);
+  messageDesc(file_canopy_worker_v1_cli_import, 9);
 
 /**
  * @generated from message canopy.worker.v1.ImportLibraryContent
@@ -452,5 +558,5 @@ export type ImportLibraryContent = Message<"canopy.worker.v1.ImportLibraryConten
  * Use `create(ImportLibraryContentSchema)` to create a new message.
  */
 export const ImportLibraryContentSchema: GenMessage<ImportLibraryContent> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_cli_import, 7);
+  messageDesc(file_canopy_worker_v1_cli_import, 10);
 
