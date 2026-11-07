@@ -65,6 +65,18 @@ UI ze zdalną kopią przekazuje kursor bezpośrednio do domu online. Zimny klien
 dostaje lustro lokalnego gatewaya, a następnie stan domu. Szczegóły:
 [odczyt połączonych komputerów](linked-computers.md#odczyt-i-dostępność).
 
+Każdy `WatchThread` i `WatchOverview` ma własny kanał subskrypcji, także gdy desktop
+i sparowany telefon oglądają ten sam lokalny wątek. Zamknięcie jest idempotentne:
+abort i późniejsze sprzątanie generatora usuwają wyłącznie własną subskrypcję,
+nigdy zestaw utworzony już przez reconnect. Handler abort jest odpinany przy końcu
+generatora. Heartbeat SSE potwierdza transport BFF, nie kompletność transkryptu.
+
+Regresje `tests/integration/thread-multiclient.test.ts` obejmują obie kolejności
+abort/sprzątanie, gRPC z koalescencją BFF obok telefonu Connect przez przypięty TLS,
+steer, pytanie dziecka do rodzica, anulowanie i wznowienie z dyskowej kopii desktopu.
+Po przerwaniu dostarczania live ponowne otwarcie wątku odtwarza zmiany od zapisanego
+checkpointu; czyszczenie prywatnej kopii historii nie jest potrzebne.
+
 Web przechowuje ostatnie kopie w pamięci jednej sesji SPA: LRU do 12 wątków i 64 MiB
 zakodowanych snapshotów (bieżący otwarty ekran jest liczony osobno). Nie używa IndexedDB
 ani localStorage. Powrót do wątku od razu odtwarza nagłówek, composer i oś z tej kopii,

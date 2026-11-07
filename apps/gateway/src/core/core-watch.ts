@@ -95,7 +95,10 @@ export const coreWatchMethods: CoreWatchMethods = {
     history?: ThreadHistoryQuery,
   ): AsyncGenerator<ui.ThreadUpdate> {
     const subscription = this.hub.subscribeThread(threadId);
-    signal.addEventListener("abort", () => subscription.close(), { once: true });
+    const close = () => subscription.close();
+    signal.addEventListener("abort", close, { once: true });
+
+    if (signal.aborted) close();
 
     try {
       const paging = !!history?.pageSize && (!!history.beforeTurnId || !!history.targetItemId);
@@ -161,6 +164,7 @@ export const coreWatchMethods: CoreWatchMethods = {
         yield update;
       }
     } finally {
+      signal.removeEventListener("abort", close);
       subscription.close();
     }
   },
@@ -171,7 +175,10 @@ export const coreWatchMethods: CoreWatchMethods = {
     includeSnapshot = false,
   ): AsyncGenerator<ui.OverviewUpdate> {
     const subscription = this.hub.subscribeOverview();
-    signal.addEventListener("abort", () => subscription.close(), { once: true });
+    const close = () => subscription.close();
+    signal.addEventListener("abort", close, { once: true });
+
+    if (signal.aborted) close();
 
     try {
       if (includeSnapshot) {
@@ -182,6 +189,7 @@ export const coreWatchMethods: CoreWatchMethods = {
 
       yield* subscription.updates;
     } finally {
+      signal.removeEventListener("abort", close);
       subscription.close();
     }
   },
