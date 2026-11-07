@@ -8,6 +8,7 @@ import { ImageError, viewImage, type ViewImageResult } from "../images/index.ts"
 
 import { CommandError } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
+import { resolveDirectoryPath } from "./directory-path.ts";
 
 const FETCH_TIMEOUT_MS = 120_000;
 
@@ -48,13 +49,13 @@ export class HostFiles {
     };
 
     path ||= homedir();
-    this.ctx.ops.checkCwd(path);
-    const directoryPath = realpathSync(path);
+    const directoryPath = resolveDirectoryPath(path);
+    this.ctx.ops.checkCwd(directoryPath);
 
     const entries = readdirSync(directoryPath)
       .sort()
       .slice(0, 1000)
-      .map((name) => entry(realpathSync(path), name));
+      .map((name) => entry(directoryPath, name));
 
     return { entries, directoryPath };
   }

@@ -34,6 +34,26 @@ describe.skipIf(!dockerAvailable)("add projects on a linked computer", () => {
     expect(listed.entries.find((entry) => entry.name === "repo")).toMatchObject({ isDir: true, isGitRepo: true });
   });
 
+  test("resolves directory spelling on a linked worker and adds the real path", async () => {
+    const path = join(fixture.b.dir, "CASE", "Project");
+    mkdirSync(path, { recursive: true });
+    const typed = join(fixture.b.dir, "case", "project");
+
+    expect(await fixture.a.gw.api.listDirectory({ workerId: remoteWorker, path: typed })).toMatchObject({
+      path: realpathSync(path),
+    });
+
+    const added = await fixture.a.gw.api.addProject({
+      workerId: remoteWorker,
+      source: { case: "directoryPath", value: typed },
+    });
+
+    expect(added.workspace?.rootPath).toBe(realpathSync(path));
+    expect(
+      await failure(fixture.a.gw.api.listDirectory({ workerId: remoteWorker, path: join(path, "missing") })),
+    ).toContain("No such directory");
+  });
+
   test("a local folder there becomes a project at its home, with the right workspace", async () => {
     const folder = join(fixture.b.dir, "Notes with a rather long folder name");
     mkdirSync(folder);

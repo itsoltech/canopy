@@ -57,7 +57,8 @@
 
   const style: PathStyle = $derived({ sep: pathSeparator(worker.os), homes: [worker.homeDirectory, realHome] });
   const typed = $derived(parsePath(text, style));
-  const loaded = $derived(listing.current?.path === typed.dir ? listing.current : undefined);
+  const loaded = $derived(!listing.loading && listing.requestedPath === typed.dir ? listing.current : undefined);
+  const listingError = $derived(listing.requestedPath === typed.dir ? listing.error : undefined);
   const names = $derived(loaded ? matching(loaded.names, typed.filter) : []);
 
   const showUp = $derived(
@@ -65,7 +66,7 @@
   );
 
   const rows = $derived([...(showUp ? [".."] : []), ...names]);
-  const target = $derived(browseTarget(mode, typed, loaded?.names, style.sep));
+  const target = $derived(browseTarget(mode, { ...typed, dir: loaded?.path ?? typed.dir }, loaded?.names, style.sep));
   const ready = $derived(target && "dir" in target ? target : undefined);
   const notice = $derived(error ?? (target && "reason" in target ? target.reason : ""));
 
@@ -83,6 +84,10 @@
 
   $effect(() => {
     if (typed.dir) void listing.open(typed.dir);
+  });
+
+  $effect(() => {
+    if (loaded && loaded.path !== typed.dir) setText(`${directoryText(loaded.path, style)}${typed.filter}`);
   });
 
   $effect(() => input?.focus());
@@ -175,7 +180,7 @@
   {/snippet}
 </StepHeader>
 
-<p id="{id}-status" class="sr-only" role="status">{notice}</p>
+<p id="{id}-status" class="sr-only" role="status">{listingError ?? notice}</p>
 {#if notice}
   <p
     aria-hidden="true"
@@ -190,13 +195,13 @@
 
 <div id="{id}-list" role="listbox" aria-label="Directories" class={paletteListClass}>
   <div role="presentation" class={paletteGroupLabelClass}>Directories</div>
-  {#if listing.error && !loaded}
-    <p class={paletteEmptyClass}>{listing.error}</p>
-  {:else if !loaded}
+  {#if listingError && !loaded}
+    <p class={[paletteEmptyClass, "wrap-anywhere"]}>{listingError}</p>
+  {:else if typed.dir && listing.loading}
     <div class="grid gap-1 px-3 py-2" aria-hidden="true">
       {#each [0, 1, 2, 3] as row (row)}<Skeleton class="h-6 w-full max-w-64" />{/each}
     </div>
-  {:else}
+  {:else if loaded}
     {#each rows as row, index (row)}
       <PaletteOption
         id="{id}-row-{index}"
@@ -215,6 +220,8 @@
           >{:else if typed.filter}No directories match “{typed.filter}”{:else}No directories here{/if}
       </p>
     {/if}
+  {:else}
+    <p class={paletteEmptyClass}>Enter a directory path</p>
   {/if}
 </div>
 

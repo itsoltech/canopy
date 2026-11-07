@@ -3,7 +3,7 @@
  * No provider processes: Codex and Claude are disabled in the configuration.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { create } from "@bufbuild/protobuf";
@@ -100,6 +100,54 @@ describe("worker command handling", () => {
       ok: false,
       errorCode: "CWD_NOT_ABSOLUTE",
     });
+  });
+
+  test("directory queries resolve every unambiguous segment and return disk spelling", async () => {
+    const home = join(dir, "case-home");
+    const apps = join(home, "GIT", "Canopy", "Apps");
+    mkdirSync(apps, { recursive: true });
+    mkdirSync(join(apps, "Web"));
+    const list = (path: string) => connection.sendCommand({ case: "listDirectory", value: { path } });
+
+    for (const path of [apps, join(home, "git", "canopy", "apps") + "/"]) {
+      const result = await list(path);
+      expect(result).toMatchObject({ ok: true, directoryPath: realpathSync(apps) });
+      expect(result.entries).toMatchObject([{ name: "Web", isDir: true }]);
+    }
+
+    expect(await list(join(home, "git", "missing"))).toMatchObject({
+      ok: false,
+      errorCode: "CWD_NOT_FOUND",
+      errorMessage: "No such directory. Check the path or choose a directory.",
+    });
+    writeFileSync(join(home, "file"), "not a directory");
+    expect(await list(join(home, "file"))).toMatchObject({ ok: false, errorCode: "CWD_NOT_DIRECTORY" });
+
+    const privateParent = join(home, "private");
+    const accessible = join(privateParent, "accessible");
+    mkdirSync(accessible, { recursive: true });
+
+    try {
+      chmodSync(privateParent, 0o111);
+      expect(await list(accessible)).toMatchObject({ ok: true, directoryPath: realpathSync(accessible) });
+    } finally {
+      chmodSync(privateParent, 0o700);
+    }
+
+    // Case-insensitive volumes cannot hold these two siblings; the queries above cover their native behavior.
+    mkdirSync(join(home, "Git"), { recursive: true });
+
+    if (!readdirSync(home).includes("Git")) return;
+
+    for (const name of ["Git", "GIT"])
+      expect(await list(join(home, name))).toMatchObject({
+        ok: true,
+        directoryPath: realpathSync(join(home, name)),
+      });
+    const ambiguous = await list(join(home, "git", "canopy", "apps"));
+    expect(ambiguous).toMatchObject({ ok: false, errorCode: "CWD_AMBIGUOUS" });
+    expect(ambiguous.errorMessage).toContain("“GIT”, “Git”");
+    expect(ambiguous.errorMessage).toContain("Type an exact name.");
   });
 
   test("update draining leaves new work unacknowledged and retryable while reads remain available", async () => {
