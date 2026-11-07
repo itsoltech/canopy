@@ -220,7 +220,7 @@ describe.skipIf(!dockerAvailable)("full access mode (gateway + scripted workers)
     );
 
     expect(child.permission_mode).toBe("full_auto");
-    expect(modern.created.find((c) => c.threadId === child.thread_id)?.permissionMode).toBe(PermissionMode.FULL_AUTO);
+    expect((await modern.createdThread(child.thread_id))?.permissionMode).toBe(PermissionMode.FULL_AUTO);
 
     // Asked for: not a bus mode at all.
     const asked = await modern.callTool({

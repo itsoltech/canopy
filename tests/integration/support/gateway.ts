@@ -228,6 +228,14 @@ export class ScriptedWorker {
     });
   }
 
+  /** The createThread this worker got for `threadId`. The gateway sends it after the call that stored the thread. */
+  createdThread(threadId: string): Promise<ScriptedWorker["created"][number] | undefined> {
+    return eventually(
+      async () => this.created.find((c) => c.threadId === threadId),
+      (c) => c !== undefined,
+    );
+  }
+
   /** Ends a held turn like the provider would. */
   finish(threadId: string, turnId: string, text = "done"): void {
     this.#running.delete(threadId);

@@ -79,7 +79,7 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
 
     const side = (await gw.api.listThreads({ projectId })).threads.find((t) => t.id === sideId)!;
     expect([side.kind, side.parentThreadId, side.spawnedByAgent, side.cwd]).toEqual([2, mainId, true, "/repo/app"]);
-    expect(gw.worker.created.find((c) => c.threadId === sideId)).toMatchObject({ depth: 1, enableAgentBus: true });
+    expect(await gw.worker.createdThread(sideId)).toMatchObject({ depth: 1, enableAgentBus: true });
 
     // The side thread ran its task...
     const sideTurns = await eventually(
@@ -619,7 +619,7 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     expect([spawned.isError, spawned.content]).toEqual([false, expect.any(String)]);
     const result = json(spawned) as { thread_id: string; model: string; effort: string; permission_mode: string };
     expect([result.model, result.effort, result.permission_mode]).toEqual(["gpt-5.5", "low", "read_only"]);
-    expect(gw.worker.created.find((c) => c.threadId === result.thread_id)).toMatchObject({
+    expect(await gw.worker.createdThread(result.thread_id)).toMatchObject({
       model: "gpt-5.5",
       instructions: "You are a strict reviewer.",
       permissionMode: PermissionMode.READ_ONLY,
@@ -725,9 +725,7 @@ describe.skipIf(!dockerAvailable)("agent bus (gateway + scripted worker)", () =>
     };
 
     expect(child.permission_mode).toBe("read_only");
-    expect(gw.worker.created.find((c) => c.threadId === child.thread_id)?.permissionMode).toBe(
-      PermissionMode.READ_ONLY,
-    );
+    expect((await gw.worker.createdThread(child.thread_id))?.permissionMode).toBe(PermissionMode.READ_ONLY);
     gw.worker.holdTurns = false;
     gw.worker.finish(thread.id, turnId);
     await eventually(
