@@ -88,9 +88,13 @@ const ENUM_PREFIXES = [
   "PROVIDER_",
 ];
 
+/** Brand names spelled in mixed case (`GitHub`, `OpenAI`) stay one word when they sit inside camelCase. */
+const BRANDS = new RegExp([...SPELLING.values()].filter((spelled) => /[a-z][A-Z]/.test(spelled)).join("|"), "gi");
+
 /** Splits snake_case, kebab-case, camelCase, PascalCase, SCREAMING_CASE and `mcp__server__tool` into words. */
 export function words(value: string): string[] {
   return value
+    .replace(BRANDS, (brand) => ` ${brand.toLowerCase()} `)
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
     .split(/[\s_\-.:/]+/)
