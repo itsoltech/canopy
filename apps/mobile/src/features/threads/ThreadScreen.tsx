@@ -33,6 +33,7 @@ import { useComputerHome } from "../computers/presence";
 import { splitId } from "@canopy/domain/computers";
 import { FloatingComposer } from "../composer/FloatingComposer";
 import { useFloatingComposer } from "../composer/useFloatingComposer";
+import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { visibleTurns } from "./thread-turns";
 import { SubagentSheet } from "./SubagentSheet";
 
@@ -251,6 +252,7 @@ export function ThreadScreen({ id }: { id: string }) {
             onLayout={composer.measure}
             onExpand={composer.expand}
             onLatest={atBottom ? undefined : showLatest}
+            overlay={<ThreadSuggestions state={state} />}
           >
             {error ? <Notice error>{error}</Notice> : null}
             {state.home.away && (
@@ -311,5 +313,17 @@ export function ThreadScreen({ id }: { id: string }) {
         onClose={() => state.setQueued(undefined)}
       />
     </ScreenFrame>
+  );
+}
+
+function ThreadSuggestions({ state }: { state: ThreadState }) {
+  const { thread, message } = state;
+
+  return (
+    <MentionSuggestions
+      scope={thread ? create(ui.MentionScopeSchema, { threadId: thread.id }) : undefined}
+      trigger={message.trigger}
+      onPick={(option) => message.pickMention(option.mention)}
+    />
   );
 }

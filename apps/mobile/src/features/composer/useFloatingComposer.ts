@@ -40,7 +40,7 @@ function animate({ progress, moving, instant }: Fold, compact: boolean, settle: 
  *
  * The timeline keeps a fixed reserve under its latest message: the expanded composer's height. Folding and opening
  * are overlay motion only, so no message moves; the reserve follows the composer only when it is open and settled
- * (a longer draft, an attachment, the mention list).
+ * (a longer draft or an attachment). Popovers are outside the measured box and never change the reserve.
  */
 export function useFloatingComposer<Item>(
   following: ReturnType<typeof useFollowingList<Item>>,

@@ -14,8 +14,11 @@ export function FloatingComposer({
   onExpand,
   onLatest,
   motion,
+  overlay,
 }: {
   children: ReactNode;
+  /** Popovers never participate in the measured composer or the feed's reserve. */
+  overlay?: ReactNode;
   /** The fold and writing motion its composer parts follow (useFloatingComposer). */
   motion: ComposerMotion;
   onLayout: (event: LayoutChangeEvent) => void;
@@ -28,14 +31,17 @@ export function FloatingComposer({
 
   return (
     <ComposerMotionContext.Provider value={motion}>
-      <View pointerEvents="box-none" style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
+      <View
+        pointerEvents="box-none"
+        style={{ position: "absolute", top: insets.top, bottom: 0, left: 0, right: 0, justifyContent: "flex-end" }}
+      >
         {onLatest && (
           // It pops in and out above the composer (web `pop`) without moving it.
           <Animated.View
             entering={pop.entering}
             exiting={pop.exiting}
             pointerEvents="box-none"
-            style={{ height: 56, alignItems: "center" }}
+            style={{ height: 56, flexShrink: 1, alignItems: "center" }}
           >
             <View
               style={{
@@ -51,9 +57,22 @@ export function FloatingComposer({
           </Animated.View>
         )}
         <View
+          pointerEvents="box-none"
+          style={{
+            zIndex: 1,
+            flexShrink: 1,
+            minHeight: 0,
+            marginLeft: 12 + insets.left,
+            marginRight: 12 + insets.right,
+          }}
+        >
+          {overlay}
+        </View>
+        <View
           onLayout={onLayout}
           onTouchStart={onExpand}
           style={{
+            flexShrink: 0,
             paddingLeft: 12 + insets.left,
             paddingRight: 12 + insets.right,
             paddingTop: 8,

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { create } from "@bufbuild/protobuf";
 import { View } from "react-native";
 import { PermissionMode, ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
@@ -15,7 +14,6 @@ import { permissionLabel, permissionLook, PermissionPickerSheet } from "./permis
 import { AttachButton, AttachmentChips } from "../attachments/Attachments";
 import { PasteTarget } from "../attachments/FileIntake";
 import type { MessageDraft } from "../composer/useMessageDraft";
-import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { Skeleton } from "../../ui/Skeleton";
 import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
 
@@ -80,16 +78,10 @@ export function MessageComposer({
   const { setPicker, current, effort, error } = state;
   const effortLabel = useEffortLabel();
   const look = permissionLook(thread?.permissionMode);
-  const scope = thread ? create(ui.MentionScopeSchema, { threadId: thread.id }) : undefined;
 
   return (
     <>
       {error ? <Notice error>{error}</Notice> : null}
-      <MentionSuggestions
-        scope={scope}
-        trigger={message.trigger}
-        onPick={(option) => message.pickMention(option.mention)}
-      />
       <PasteTarget draft={message.files}>
         <ComposerBox
           compact={compact}
