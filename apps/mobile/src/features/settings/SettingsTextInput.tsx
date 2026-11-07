@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { TextInput, View } from "react-native";
+import { View } from "react-native";
+import { TextInput } from "../../ui/TextInput";
 import { IconButton } from "../../ui/components";
 import { Skeleton } from "../../ui/Skeleton";
 import { styles, useColors } from "../../ui/theme";

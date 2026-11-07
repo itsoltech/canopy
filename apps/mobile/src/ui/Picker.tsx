@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { TextInput } from "./TextInput";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "./Icon";
 import { Overlay } from "./Overlay";

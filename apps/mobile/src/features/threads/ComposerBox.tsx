@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ComponentRef, type ReactNode } from "react";
-import { ActivityIndicator, Keyboard, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Keyboard, Pressable, ScrollView, Text, View } from "react-native";
+import { inputTypography, TextInput } from "../../ui/TextInput";
 import Animated, { interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { Skeleton } from "../../ui/Skeleton";
 import { styles, useColors } from "../../ui/theme";
@@ -99,7 +100,8 @@ export function ComposerBox({
         busy={busy}
         inline={inline}
         onExpand={onExpand}
-        placeholder={triggers && !compact ? `${placeholder}\n${TRIGGER_HINT}` : placeholder}
+        placeholder={triggers ? TRIGGER_HINT : placeholder}
+        triggers={triggers}
         label={label}
         badges={badges}
       />
@@ -177,9 +179,10 @@ function ComposerInput({
   placeholder,
   label,
   badges,
+  triggers,
 }: Pick<
   Parameters<typeof ComposerBox>[0],
-  "text" | "onChange" | "busy" | "inline" | "onExpand" | "placeholder" | "label" | "badges"
+  "text" | "onChange" | "busy" | "inline" | "onExpand" | "placeholder" | "label" | "badges" | "triggers"
 >) {
   const c = useColors();
   const { progress, writing, room, focused, onFocus } = useComposerMotion();
@@ -205,8 +208,7 @@ function ComposerInput({
     };
   }, [focused]);
 
-  // The text's own height, for the field's natural size; and the field's height when writing began (a multi-line
-  // placeholder is taller than an empty text), which it keeps at least while writing.
+  // Measure the draft's natural height and retain at least the field's height when writing began.
   const lines = useSharedValue(0);
   const resting = useSharedValue(0);
   const laidOut = useRef(0);
@@ -247,32 +249,47 @@ function ComposerInput({
       }}
       style={[{ flex: inline ? 1 : undefined, paddingLeft: 16 }, fold]}
     >
-      <TextInput
-        ref={input}
-        onContentSizeChange={(event) => lines.set(event.nativeEvent.contentSize.height)}
-        accessibilityLabel={label}
-        // With badges the spans carry the text; a TextInput takes either children or a value.
-        value={badges ? undefined : text}
-        onChangeText={(next) => {
-          onExpand?.();
-          onChange(next);
-        }}
-        onFocus={() => {
-          resting.set(laidOut.current);
-          onExpand?.();
-          onFocus(true);
-        }}
-        onBlur={() => onFocus(false)}
-        onSelectionChange={badges ? (event) => badges.onSelect(event.nativeEvent.selection) : undefined}
-        editable={!busy}
-        multiline
-        maxLength={32000}
-        placeholder={placeholder}
-        placeholderTextColor={c.faint}
-        style={[styles.body, { flexGrow: 1, flexShrink: 1, padding: 0, color: c.text, textAlignVertical: "top" }]}
-      >
-        {badges ? <MessageSpans value={{ text, mentions: badges.mentions }} tone={badges.tone} /> : null}
-      </TextInput>
+      <View style={{ flexGrow: 1, flexShrink: 1 }}>
+        <TextInput
+          ref={input}
+          onContentSizeChange={(event) => lines.set(event.nativeEvent.contentSize.height)}
+          accessibilityLabel={label}
+          // With badges the spans carry the text; a TextInput takes either children or a value.
+          value={badges ? undefined : text}
+          onChangeText={(next) => {
+            onExpand?.();
+            onChange(next);
+          }}
+          onFocus={() => {
+            resting.set(laidOut.current);
+            onExpand?.();
+            onFocus(true);
+          }}
+          onBlur={() => onFocus(false)}
+          onSelectionChange={badges ? (event) => badges.onSelect(event.nativeEvent.selection) : undefined}
+          editable={!busy}
+          multiline
+          maxLength={32000}
+          placeholder={triggers ? undefined : placeholder}
+          accessibilityHint={triggers ? placeholder : undefined}
+          placeholderTextColor={c.faint}
+          style={[styles.body, { flexGrow: 1, flexShrink: 1, padding: 0, color: c.text, textAlignVertical: "top" }]}
+        >
+          {badges ? <MessageSpans value={{ text, mentions: badges.mentions }} tone={badges.tone} /> : null}
+        </TextInput>
+        {/* Native multiline placeholders wrap and affect content size; the hint must do neither. */}
+        {triggers && !text ? (
+          <Text
+            pointerEvents="none"
+            accessible={false}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={[styles.body, inputTypography, { position: "absolute", top: 0, left: 0, right: 0, color: c.faint }]}
+          >
+            {placeholder}
+          </Text>
+        ) : null}
+      </View>
     </Animated.View>
   );
 }
