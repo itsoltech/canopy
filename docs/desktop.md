@@ -1,7 +1,7 @@
 # Canopy Desktop
 
-Implementacja: `apps/desktop`. Zweryfikowany cel: **Linux x64**. Pozostałe cele mają
-konfigurację i układ zasobów, ale nie zostały tutaj zbudowane ani uruchomione.
+Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
+macOS arm64 i Windows x64**. Linux arm64 pozostaje eksperymentalny.
 Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji.
 
 ## Decyzje
@@ -394,7 +394,17 @@ Skrypt pakowania w razie zmiany kanału odświeża shell i ikonę, zachowując z
 | Linux x64 | `ubuntu-24.04` | `linux-x64` | AppImage, deb | build + run AppImage |
 | Linux arm64 | `ubuntu-24.04-arm` lub natywny self-hosted ARM64 | `linux-arm64` | AppImage, deb | niewykonana |
 | macOS arm64 | `macos-15` lub self-hosted Apple Silicon | `darwin-arm64` | dmg, zip | niewykonana |
-| Windows x64 | `windows-2025` | `windows-x64` | NSIS | niewykonana |
+| Windows x64 | `windows-2025` | `windows-x64` | NSIS `.exe` + `.blockmap`, feed kanału; Azure Trusted Signing | build, instalacja i smoke sidecarów w PR CI |
+
+Linux x64, macOS arm64 i Windows x64 są pełnymi celami każdego kanału: nightly,
+beta i stable. Linux arm64 pozostaje eksperymentalny (`continue-on-error`): beta
+i stable budują go zawsze, nightly tylko z `desktop_all_targets: true`.
+Workflow `desktop-windows.yml` przy zmianach kodu lub pakowania buduje
+`package:windows` na `windows-2025`: PR z tego repo wymaga sekretów Azure i kontroli
+podpisów, a PR z forka buduje unsigned i sprawdza odrzucenie przez kontrolę podpisu.
+Instaluje NSIS i uruchamia zainstalowane
+sidecary gateway/worker z `--version` (ten sam zakres co binarny smoke wydania).
+Nie publikuje tagów ani wydań; artefakt Actions przechowuje przez 3 dni.
 
 Te joby realizuje `desktop` w `.github/workflows/release.yml` ([release.md](release.md)):
 z `CANOPY_VERSION` i `CANOPY_CHANNEL` nazwy plików to `Canopy[-Beta|-Nightly]-<wersja>-<linux|darwin|windows>-<x64|arm64>.<ext>`,
@@ -524,6 +534,48 @@ Stare `Canopy Beta` / `Canopy Nightly` userData nie jest odczytywane, przenoszon
 kasowane. Zachowaj jego kopię przy zamkniętej starej aplikacji. Dla nowej instalacji
 skonfiguruj tryb i enrollment; przeniesienie danych wymaga osobnego eksportu/odtworzenia
 i sprawdzenia dostępu do kluczy. Nie kopiuj w ciemno samego `secrets.enc`.
+
+## Podpisywanie Windows
+
+electron-builder korzysta z Azure Trusted Signing (Artifact Signing), bez pliku
+PFX. Maintainer dodaje repository secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`
+i `AZURE_CLIENT_SECRET`: tenant, identyfikator aplikacji i sekret service principal
+z rolą **Trusted Signing Certificate Profile Signer** na profilu `canopy` konta
+ITSOL. Wartości nie są kopiowane z innego repozytorium ani zapisywane w kodzie.
+
+Jawna konfiguracja `build.win.azureSignOptions` w `apps/desktop/package.json`:
+
+| Pole | Wartość |
+| --- | --- |
+| `publisherName` | `IT SOL SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ` |
+| `endpoint` | `https://plc.codesigning.azure.net/` |
+| `certificateProfileName` | `canopy` |
+| `codeSigningAccountName` | `ITSOL` |
+
+Beta i stable wymagają pełnego kompletu trzech sekretów; brak któregokolwiek
+kończy job Windows czytelnym błędem przed pakowaniem. Nightly używa podpisu przy
+pełnym komplecie, a bez niego buduje niepodpisaną paczkę z notice w logu.
+Przy próbie podpisania `forceCodeSigning` odrzuca niepodpisany wynik. Błąd Azure
+nie powoduje przejścia na unsigned.
+
+Builder podpisuje instalator i deinstalator NSIS, aplikację `canopy.exe`, helpery
+Electron oraz pliki `.exe` z `extraResources`, w tym `resources/runtime/bun.exe`.
+Gateway, worker, web i kontroler są bundlami JS uruchamianymi tym Bunem, a nie
+osobnymi kompilowanymi `.exe`. PostgreSQL jest pobierany dopiero w trybie lokalnym
+i nie jest częścią podpisywanej paczki.
+
+Po pakowaniu workflow uruchamia `verify-windows.ps1`: instalator i wszystkie
+`.exe` w `win-unpacked` muszą mieć `Get-AuthenticodeSignature.Status = Valid`
+oraz dokładnie powyższego wydawcę. Kontrola obowiązuje przy każdej wymaganej lub
+podjętej próbie podpisania i blokuje upload artefaktu. Podpis identyfikuje wydawcę;
+wyświetlenie SmartScreen zależy też od polityk Windows i reputacji pliku.
+
+Updater NSIS działa we wszystkich kanałach: stable publikuje `latest.yml`,
+`beta.yml` i `nightly.yml`, beta dwa ostatnie, nightly tylko `nightly.yml`.
+Podpisany build zapisuje nazwę wydawcy do konfiguracji electron-updater, który
+weryfikuje podpis pobranego instalatora; nie wyłączamy tej kontroli dla unsigned
+nightly. Instalator ma wpis `desktop/windows/x64` w `manifest.json`, a sumy
+instalatora, feedów i blockmap są w `checksums.txt`.
 
 ## Podpisywanie macOS i Gatekeeper
 
