@@ -1,8 +1,8 @@
 # Import z CLI agentów
 
 Settings → Code → **Import** przenosi do Canopy wątki, które użytkownik prowadził wcześniej w Claude Code,
-Codexie i Groku, tak żeby mógł je czytać i kontynuować. Strona działa w webie i desktopie; telefon
-dostanie widok importów później (etap C).
+Codexie i Groku, tak żeby mógł je czytać i kontynuować. Wybór źródeł działa w webie i desktopie;
+telefon pokazuje postęp i akcje przebiegów (sekcja „Wejścia i telefon”).
 
 Stos A (wątki) ma pięć etapów:
 
@@ -18,7 +18,7 @@ Stos B (ustawienia i biblioteka) ma trzy etapy:
 7. skille, pluginy i marketplace,
 8. serwery MCP jako połączone konta (ten dokument opisuje stan po etapie 8).
 
-Onboarding i aplikacja mobilna to stos C.
+Stos C (etap 9): wejścia do importu i aplikacja mobilna, opisane w „Wejścia i telefon”.
 
 ## Domy CLI i izolacja
 
@@ -311,6 +311,27 @@ Etap 8 (`ImportLibraryItem.kind = connector`):
   która je usuwa i zapisuje pozycję jako `undone`. Gdy rewizja się zmieniła, wynik `kept` zapisuje ta sama
   transakcja sprawdzająca rewizję, przed zwolnieniem blokady konta; błąd pokwitowania cofa wynik.
   Utworzenie konta i pokwitowanie pozycji też są jedną transakcją.
+
+## Wejścia i telefon
+
+Etap 9:
+
+- **Pierwsze uruchomienie.** Pusty ekran nowego wątku (żadnych wątków) z workerem tego komputera, który jest
+  online i potrafi importować (`ui.Worker.cli_import`, capability `cli_import_v1`), raz na załadowanie strony
+  skanuje tego workera w tle. Gdy skan znajdzie wątki, na dole widoku pojawia się karta „Claude Code and Codex on
+  {worker} have {n} threads.” z **Import** (Settings → Import z tym workerem) i przyciskiem zamknięcia. Karta jest
+  pozycjonowana absolutnie, więc wyśrodkowany kompozytor się nie przesuwa. Zamknięcie zapamiętuje przeglądarka
+  (`localStorage`); nieudany skan (worker zajęty, offline) nie pokazuje nic. Na telefonie przyciski zajmują
+  osobny wiersz. Przy wysokości ekranu poniżej 600 px karta jest ukryta.
+- **Workers.** Menu akcji workera tego komputera ma **Import from this computer** (tylko worker z capability,
+  nieaktywne offline albo po odwołaniu): otwiera Settings → Import z tym workerem.
+- **Telefon.** Settings → Import w aplikacji mobilnej pokazuje przebiegi: postęp (pasek bajtów), podsumowanie,
+  bieżący wątek, błąd oraz **Cancel**, **Resume** / **Retry failed** i **Remove imported items** (z potwierdzeniem).
+  Lista odświeża się co 3 s, dopóki któryś przebieg trwa albo czeka. Wybór wątków i mapowanie katalogów (gęsta
+  lista) zostają w aplikacji web i desktop. Nieudane pozycje biblioteki też pozwalają ponowić import; przebieg
+  anulowany lub cofnięty nie oferuje wznowienia. Po nieudanym przywróceniu **Remove imported items** pojawia się
+  ponownie tylko dla pozycji, które pozostały. Etykiety, odcienie i dostępność akcji są wspólne
+  (`@canopy/domain/import-look`). Data jest osobnym wierszem, aby długie formaty nie ściskały liczników.
 
 ## Strony i zapis
 

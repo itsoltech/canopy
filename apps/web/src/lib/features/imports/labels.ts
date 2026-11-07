@@ -1,11 +1,5 @@
 /** Words of Settings → Import (docs/copy.md): agent CLI names, counts and sizes. */
 
-const NAMES = new Map([
-  ["claude", "Claude Code"],
-  ["codex", "Codex"],
-  ["grok", "Grok"],
-]);
-
 const KEYS = new Map<string, "CLAUDE" | "CODEX" | "GROK">([
   ["claude", "CLAUDE"],
   ["codex", "CODEX"],
@@ -17,9 +11,7 @@ export function providerKey(agentCli: string): "CLAUDE" | "CODEX" | "GROK" {
   return KEYS.get(agentCli) ?? "GROK";
 }
 
-export function agentCliName(agentCli: string): string {
-  return NAMES.get(agentCli) ?? agentCli;
-}
+export { agentCliName } from "@canopy/domain/import-look";
 
 export function counted(value: number, one: string, many = `${one}s`): string {
   return `${value.toLocaleString("en")} ${value === 1 ? one : many}`;

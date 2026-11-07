@@ -598,6 +598,10 @@ Keybindings jest wyszukiwalną referencją dla klawiatur sprzętowych, bez edycj
 przeglądarki. Kontrolki lokalnego procesu Electron i jego updatera są ukryte jak w web
 remote; aktualizacje gatewaya/workera pozostają w Workers. Powiadomienia systemowe są
 oznaczone jako niedostępne w tym buildzie, bez pozornego przełącznika push.
+Settings → Import pokazuje przebiegi importu CLI: postęp, datę, liczniki, bieżący wątek i akcje
+Cancel, Resume / Retry failed oraz Remove imported items z potwierdzeniem. Aktywny przebieg
+odświeża listę co 3 s, gdy aplikacja jest na pierwszym planie. Nieudane przywrócenie pozwala
+ponowić usuwanie pozostałych pozycji; wybór źródeł zostaje w web i desktop ([import.md](import.md#wejścia-i-telefon)).
 Pierwszy stan projektów, workerów i wątków pobierają także unary GetOverview i ListThreads,
 bez oczekiwania na pierwszy pakiet WatchOverview. Udany zapis formularza odświeża te dane;
 generacja żądania chroni przed nadpisaniem nowszych danych starszą odpowiedzią.

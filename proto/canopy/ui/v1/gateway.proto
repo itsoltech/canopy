@@ -425,6 +425,8 @@ message Worker {
   bool project_sources = 805;
   // Domyślny folder nowych worktree zgłoszony przez workera (Hello.worktrees_root); pusty = brak worktrees.
   string worktrees_root = 806;
+  // Worker importuje dane CLI (capability "cli_import_v1", docs/import.md).
+  bool cli_import = 807;
   optional uint32 cli_update_check_minutes = 900; // nadpisanie; brak = konto
   uint32 effective_cli_update_check_minutes = 901;
   google.protobuf.Timestamp cli_updates_checked_at = 902;

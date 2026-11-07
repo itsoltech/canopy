@@ -63,6 +63,8 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           worktreesRoot: hello.capabilities.includes("worktrees") ? hello.worktreesRoot : "",
           // New project directories and clones (InitRepository, CloneRepository).
           projectSources: hello.capabilities.includes("project_sources"),
+          // Threads, settings and libraries of the device's CLIs (docs/import.md).
+          cliImport: hello.capabilities.includes("cli_import_v1"),
           // The desktop app's own local-mode worker: it updates with the app (docs/updates.md).
           desktopBundled: hello.capabilities.includes("desktop_bundled"),
         });
@@ -102,7 +104,13 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           name: string;
           os: string;
           version: string;
-          capabilities: { hostname?: string; homeDirectory?: string; worktreesRoot?: string; projectSources?: boolean };
+          capabilities: {
+            hostname?: string;
+            homeDirectory?: string;
+            worktreesRoot?: string;
+            projectSources?: boolean;
+            cliImport?: boolean;
+          };
           last_seen_at: Date | null;
           revoked_at: Date | null;
           config: JsonValue | null;
@@ -143,6 +151,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
             worktrees: Boolean(r.capabilities?.worktreesRoot),
             worktreesRoot: r.capabilities?.worktreesRoot ?? "",
             projectSources: r.capabilities?.projectSources === true,
+            cliImport: r.capabilities?.cliImport === true,
             configVersion: r.config_version ? BigInt(r.config_version) : 0n,
             appliedVersion: r.applied_version ? BigInt(r.applied_version) : 0n,
             configIssues: report?.issues ?? [],

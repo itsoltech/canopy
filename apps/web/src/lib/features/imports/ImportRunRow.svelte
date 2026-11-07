@@ -8,36 +8,15 @@
   import ProgressBar from "#lib/shared/ui/ProgressBar.svelte";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import { formatRelative } from "#lib/shared/format.ts";
-  import type { Tone } from "#lib/shared/ui/tone.ts";
+  import { importItemLabel, importRunActions, importRunLook } from "@canopy/domain/import-look";
   import type { ImportRunsState } from "./import-runs.svelte.ts";
   import { agentCliName, counted, size } from "./labels.ts";
 
   /** One import run: progress, counts, actions and, when opened, its threads (docs/import.md, "Przebieg"). */
   let { run, runs }: { run: ui.ImportRun; runs: ImportRunsState } = $props();
 
-  const looks = new Map<string, { label: string; tone: Tone }>([
-    ["running", { label: "Importing", tone: "sky" }],
-    ["paused", { label: "Paused", tone: "amber" }],
-    ["completed", { label: "Done", tone: "emerald" }],
-    ["failed", { label: "Failed", tone: "rose" }],
-    ["cancelled", { label: "Cancelled", tone: "neutral" }],
-    ["undone", { label: "Removed", tone: "neutral" }],
-  ]);
-
-  const itemLabels = new Map([
-    ["pending", "Waiting"],
-    ["importing", "Importing"],
-    ["done", "Imported"],
-    ["failed", "Failed"],
-    ["cancelled", "Cancelled"],
-    ["undone", "Removed"],
-    ["kept", "Kept: changed since"],
-  ]);
-
-  const settingsDone = $derived(run.library.filter((l) => l.status === "done").length);
-
-  // An undone run whose settings could not all be put back offers the removal again (docs/import.md, "Przebieg").
-  const removable = $derived(run.status === "undone" ? settingsDone > 0 : run.done > 0 || settingsDone > 0);
+  const actions = $derived(importRunActions(run));
+  const settingsDone = $derived(actions.settingsDone);
 
   const title = $derived(
     [run.total > 0 && counted(run.total, "thread"), run.library.length > 0 && counted(run.library.length, "setting")]
@@ -45,11 +24,10 @@
       .join(", ") || "Nothing",
   );
 
-  const look = $derived(looks.get(run.status) ?? { label: run.status, tone: "neutral" as const });
+  const look = $derived(importRunLook(run.status));
   const open = $derived(runs.details.get(run.id));
   const percent = $derived(run.bytesTotal > 0n ? (Number(run.bytesDone) / Number(run.bytesTotal)) * 100 : 0);
   const busy = (action: string) => runs.busy === `${run.id}:${action}`;
-  const active = $derived(run.status === "running" || run.status === "paused");
   let confirm = $state(false);
 </script>
 
@@ -60,14 +38,14 @@
     </p>
     <Badge compact tone={look.tone}>{look.label}</Badge>
   </div>
-  {#if active}
+  {#if actions.active}
     <ProgressBar value={percent} label="Import progress" />
   {/if}
   <p class="text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
     {[
       formatRelative(run.createdAt),
       `${run.done + settingsDone} imported`,
-      run.failed > 0 && `${run.failed} failed`,
+      actions.failed > 0 && `${actions.failed} failed`,
       run.cancelled > 0 && `${run.cancelled} cancelled`,
       run.alreadyImported > 0 && `${run.alreadyImported} imported before`,
       run.bytesTotal > 0n && `${size(run.bytesDone)} of ${size(run.bytesTotal)}`,
@@ -80,15 +58,15 @@
   {/if}
   {#if run.error}<p class="text-sm text-amber-700 sm:text-xs dark:text-amber-400">{run.error}</p>{/if}
   <div class="flex flex-wrap gap-2">
-    {#if active}
+    {#if actions.active}
       <Button size="sm" loading={busy("cancel")} onclick={() => runs.act(run.id, "cancel")}>Cancel</Button>
     {/if}
-    {#if run.status === "paused" || run.failed > 0}
+    {#if actions.retry}
       <Button size="sm" icon="arrow-path" loading={busy("resume")} onclick={() => runs.act(run.id, "resume")}>
         {run.status === "paused" ? "Resume" : "Retry failed"}
       </Button>
     {/if}
-    {#if removable}
+    {#if actions.removable}
       <Button size="sm" variant="ghost" onclick={() => (confirm = true)}>Remove imported items</Button>
     {/if}
     <Button size="sm" variant="ghost" onclick={() => (open ? runs.close(run.id) : void runs.open(run.id))}>
@@ -105,7 +83,7 @@
           <div class="flex min-w-0 items-center gap-2">
             <span class="min-w-0 flex-1 text-zinc-700 dark:text-zinc-300"><TruncatedText text={setting.name} /></span>
             <span class="shrink-0 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
-              {agentCliName(setting.agentCli)} · {itemLabels.get(setting.status) ?? setting.status}
+              {agentCliName(setting.agentCli)} · {importItemLabel(setting.status)}
             </span>
           </div>
           {#if setting.detail && setting.status === "done"}
@@ -127,7 +105,7 @@
               </span>
             {/if}
             <span class="shrink-0 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
-              {agentCliName(item.agentCli)} · {itemLabels.get(item.status) ?? item.status}
+              {agentCliName(item.agentCli)} · {importItemLabel(item.status)}
             </span>
           </div>
           {#if item.error}<p class="text-sm text-rose-700 sm:text-xs dark:text-rose-400">{item.error}</p>{/if}
@@ -145,7 +123,7 @@
     <p class="text-base text-zinc-600 sm:text-sm dark:text-zinc-300">
       {#if run.done > 0}Canopy deletes the {counted(run.done, "thread")} this import created.{/if}
       {#if settingsDone > 0}
-        Settings and documents go back to what they were, except the ones you changed since.
+        Canopy restores settings and library items, except ones changed since.
       {/if}
       The CLI files stay as they are, so you can import them again.
     </p>

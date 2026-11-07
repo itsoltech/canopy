@@ -45,6 +45,7 @@
     "./turn-origin": "./src/turn-origin.ts",
     "./work-summary": "./src/work-summary.ts",
     "./status-look": "./src/status-look.ts",
+    "./import-look": "./src/import-look.ts",
     "./format": "./src/format.ts",
     "./bot-chat": "./src/bot-chat/index.ts",
     "./questions": "./src/questions.ts",
