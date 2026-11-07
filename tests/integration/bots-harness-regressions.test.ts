@@ -201,5 +201,6 @@ describe.skipIf(!dockerAvailable)("bot capabilities on the harness runtime", () 
       );
       await f.settled(source.id);
     }
-  });
+    // Three bots on three harnesses and two bot-to-bot exchanges: about 4 s locally, more on a loaded CI runner.
+  }, 20_000);
 });
