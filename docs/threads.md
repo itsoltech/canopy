@@ -100,9 +100,11 @@ Samodzielna archiwizacja bocznego nie zmienia rodzica ani rodzeństwa. Najpierw 
 rodzica, aby niezależnie przywrócić jego dziecko. W Archived główny ma jeden wiersz, a boczne są
 pod nim w „Previous agents”; nie powielają się jako osobne wyniki ani na aktywnej liście.
 
-Pasek i Lineage pokazują aktywnych subagentów; archiwalni trafiają do zwijanej grupy „Previous agents · N”
-z ikoną dostawcy, tytułem i czasem. Gdy wszystkie dzieci są archiwalne, pod otwartym rodzicem
-pozostaje ta zwinięta grupa. Lineage podaje liczbę pracujących subagentów. Przypięcia używają FLIP,
+Subagenci są dostępni w szczegółach rodzica, bez własnych wierszy w sidebarze. Domyślna preferencja
+urządzenia grupuje zakończonych pod rozwijanym „N finished”, także gdy nie ma aktywnych.
+Wiersz pokazuje dostawcę, tytuł, wynik i czas; otwiera historię oraz kompozytor subagenta.
+Archiwalny subagent wymaga najpierw „Unarchive”. Szczegóły preferencji: [ui-api.md](ui-api.md#pasek-boczny-i-cykl-życia-wątku).
+Przypięcia używają FLIP,
 archiwizacja/usunięcie zwija wiersz; menu i grupy respektują wspólne tokeny oraz ograniczenie ruchu.
 Wspólny `SidebarThreadChildren` utrzymuje ten sam układ dzieci w obu listach; kompaktowy
 `SidebarArchivedThread` korzysta ze wspólnego `SidebarThreadLink`, więc obsługa menu pozostaje jedna.

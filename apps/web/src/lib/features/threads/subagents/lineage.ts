@@ -21,6 +21,7 @@ export function subagentLineage(threads: readonly ui.Thread[], now: number, show
     running: active.filter((thread) => subagentState(thread) === "working").length,
     waiting: active.filter((thread) => subagentState(thread) === "waiting").length,
     finished: finished.length,
+    collapsed: showFinished ? [] : finished,
     current: [...active, ...(showFinished ? finished.filter(recent) : [])],
     previous: showFinished ? finished.filter((thread) => !recent(thread)) : [],
   };

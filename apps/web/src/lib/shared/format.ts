@@ -1,6 +1,6 @@
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 
-export { formatBytes, formatCount, formatDuration, formatSpan, prettyJson } from "@canopy/domain/format";
+export { formatAge, formatBytes, formatCount, formatDuration, formatSpan, prettyJson } from "@canopy/domain/format";
 
 export { basename } from "@canopy/domain/humanize";
 
@@ -30,22 +30,6 @@ export function formatRelative(timestamp: Timestamp | undefined, now = Date.now(
   if (abs < 86400) return relative.format(Math.round(diff / 3600), "hour");
 
   return relative.format(Math.round(diff / 86400), "day");
-}
-
-/** Compact age for lists: "now", "5m", "3h", "2d", "4w". */
-export function formatAge(timestamp: Timestamp | undefined, now = Date.now()): string {
-  if (!timestamp) return "";
-  const seconds = Math.max(0, (now - timestampDate(timestamp).getTime()) / 1000);
-
-  if (seconds < 60) return "now";
-
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-
-  if (seconds < 86400 * 14) return `${Math.floor(seconds / 86400)}d`;
-
-  return `${Math.floor(seconds / (86400 * 7))}w`;
 }
 
 export const formatLocalDateTime = (value: Date, timeZone?: string): string =>

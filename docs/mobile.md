@@ -519,8 +519,13 @@ stopień `work` (15/13), komendy są monospace. Tura powłoki (`Turn.shell_comma
 z kodem wyjścia, 4 wierszami wyniku i „Show output”; `!` na początku kompozytora włącza tryb
 powłoki (obramowanie rose, nota w miejscu kontrolek). Tura w kolejce pokazuje „Queued”,
 a po `dispatched` „Starting”; pliki tury są odznakami w dymku. Nad kompozytorem są tylko
-subagenty w toku, zakończone zwija liczba otwierająca panel z lineage. Odrzucona przez
-gateway wiadomość pokazuje jego powód zamiast ogólnej noty o ponowieniu.
+subagenty w toku, zakończone zwija liczba otwierająca arkusz subagentów. Arkusz i panel
+szczegółów współdzielą listę: przy „Keep finished subagents in the list” = Off zakończeni,
+także archiwalni, są pod rozwijanym „N finished”. Rozwinięcie zapisuje preferencja urządzenia
+`finishedSubagentsExpanded` (domyślnie Off). On pozostawia ich na głównej liście. Wiersz ma
+ikonę dostawcy, ucięty tytuł, wynik ostatniej tury i względny czas aktywności. Dotknięcie otwiera
+wątek z historią i możliwością dalszej wiadomości; archiwalny wymaga najpierw „Unarchive”.
+Odrzucona przez gateway wiadomość pokazuje jego powód zamiast ogólnej noty o ponowieniu.
 Wiersze osi czasu wyglądają jak w web (`src/features/timeline`): każdy rodzaj itemu ma widok jak `components/items` w web (komendy z kodem wyjścia, narzędzia z tytułem z rejestru, zmiany plików z diffem, rozumowanie, wyszukiwanie, plan/to do, obraz, kompakcja, zdarzenie dostawcy, zapis zgody lub pytania, subagent z zagnieżdżoną pracą, zadanie w tle ze Stop i ogonem wyjścia, wywołania magistrali agentów na fioletowo z kartą subagenta i dostarczenia). Wejście tury pokazuje jego pochodzenie (zadanie, wiadomość, raport od agenta z nadawcą i modelem, pytanie wątku bocznego, harmonogram, bot, notatka o zakończonych zadaniach w tle), steery mają notę, komunikaty dostawcy są wierszami, a nieudana tura pokazuje wyjaśnienie błędu ze szczegółami. Fold „Working for …” / „Worked for …” ma czas, liczniki albo bieżącą czynność, „N still running” i grupy narzędzi („Read 1 file and ran 5 commands”). Etykiety, liczniki i opisy narzędzi pochodzą ze wspólnych modułów `@canopy/domain` (`tools`, `work-summary`, `turn-origin`, `status-look`, `humanize`, `format`, `questions`, `failure-presentation`, `first-line`), tak jak w web. Czat bota używa tego samego układu co web (`@canopy/domain/bot-chat`: `botEntries`, `layoutChat`): linie dat, serie dymków z ciaśniejszymi rogami, linie wymian bot ⇄ bot, zdarzenia, błędy odpowiedzi i karty w kolejności czasu oraz wiersz statusu bota. Ręczne przełączanie foldu trzyma nagłówek w miejscu (timeline-folding.md, „Pozycja przy ręcznym przełączaniu”).
 Pytania/zgody w wątkach są widoczne **read-only** i odpowiada się na nie w web. Karty
 ze znanym terminem (`Interaction.expires_at`, `BotApproval.expires_at`) pokazują
