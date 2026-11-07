@@ -1,6 +1,6 @@
 /** Read-only forecast using the same Angular analyzer as Release; never invokes semantic-release or push. */
 import { analyzeCommits } from "./release-analyzer.mjs";
-import { selectPromotion } from "./promotion-policy.ts";
+import { promotionHoldCap, selectPromotion } from "./promotion-policy.ts";
 
 function compare(a, b) {
   const left = a.replace(/^v/, "").split(/[.-]/).map(Number);
@@ -78,6 +78,9 @@ export async function forecastPromotionWindow(input, plan, git) {
   const thresholds = input.commits.map(
     (commit) => (input.path === "dev-next" ? commit.landedAt : (commit.release?.readyAt ?? Infinity)) + input.soakMs,
   );
+
+  // Expiry is strict (> cap), so the first eligible instant is one millisecond past the boundary.
+  thresholds.push(...plan.holds.map((hold) => hold.since + promotionHoldCap(input) + 1));
 
   const times = [...new Set(thresholds)].filter((at) => Number.isFinite(at) && at > input.now).sort((a, b) => a - b);
 

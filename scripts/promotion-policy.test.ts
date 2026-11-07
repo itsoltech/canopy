@@ -53,12 +53,15 @@ test("soak picks an ancestor; feature and its one-hour-later fix wait until both
   );
 });
 
-test("explicit footers link across files and beyond the seven-day file lookback", () => {
+test("explicit footers link across files and beyond the lookback, but automatic holds expire", () => {
   for (const body of ["Fixes: #68", "Refs #68", "follow-up to #68", `Refs: ${commit(68, 240).sha.slice(0, 10)}`]) {
     const feature = commit(68, 240, "feat: original", ["a.ts"]);
     const fix = commit(69, 1, "fix: follow-up", ["b.ts"]);
     fix.prs[0]!.body = body;
-    expect(selectPromotion(input([feature, fix])).sha).toBe(target);
+    const data = input([feature, fix]);
+    expect(selectPromotion({ ...data, holdCapMs: Infinity }).sha).toBe(target);
+    expect(selectPromotion(data).sha).toBe(feature.sha);
+    expect(selectPromotion(data).expiredHolds[0]?.reason).toContain(fix.sha);
   }
 
   expect(selectPromotion(input([commit(68, 240), commit(69, 1, "fix: unrelated same file after 7 days")])).sha).toBe(
@@ -193,8 +196,8 @@ test("a revert holds its original SHA even without overlapping files", () => {
 });
 
 test("fixpoint handles chains, readiness fallback, and promotion-hold without splitting old fixes", () => {
-  const feature = commit(1, 100, "feat: original", ["a.ts"]);
-  const fix1 = commit(2, 70, "fix: follow-up\n\nRefs: #1", ["b.ts"]);
+  const feature = commit(1, 60, "feat: original", ["a.ts"]);
+  const fix1 = commit(2, 50, "fix: follow-up\n\nRefs: #1", ["b.ts"]);
   const fix2 = commit(3, 1, "fix: follow-up\n\nFixes: #2", ["c.ts"]);
   expect(selectPromotion(input([feature, fix1, fix2])).sha).toBe(target);
   const heldFix = { ...fix1, prs: [{ number: 2, body: "", hold: true }] };
@@ -205,13 +208,87 @@ test("fixpoint handles chains, readiness fallback, and promotion-hold without sp
   expect(selectPromotion(input([{ ...feature, green: false }, untaggedFix])).sha).toBe(fix1.sha);
 });
 
-test("pause and release-blocker prevent advancement; eligible waiting for seven days raises starvation", () => {
+test("pause, labels and release-blockers never expire; only active holds raise starvation", () => {
   const feature = commit(1, 240);
   const fix = commit(2, 1, "fix: follow-up\n\nRefs: #1");
   expect(selectPromotion({ ...input([feature]), paused: true }).reason).toBe("AUTO_PROMOTION=off");
   expect(selectPromotion({ ...input([feature]), blockers: [7] }).sha).toBe(target);
+  expect(selectPromotion({ ...input([feature]), blockers: [7] }).starved).toBe(true);
+  expect(selectPromotion(input([feature, fix])).starved).toBe(false);
+  feature.prs[0]!.hold = true;
+  expect(selectPromotion(input([feature, fix])).sha).toBe(target);
   expect(selectPromotion(input([feature, fix])).starved).toBe(true);
+  expect(selectPromotion(input([feature, fix])).expiredHolds).toEqual([]);
   expect(selectPromotion(input([commit(1, 30), fix])).starved).toBe(false);
+});
+
+test("automatic links, blame and reverts hold through the cap and expire strictly after eligibility plus two days", () => {
+  for (const message of ["fix: repair", "perf: repair\n\nFixes: #1", "revert: feature"]) {
+    const feature = commit(1, 72);
+
+    const fix = commit(
+      2,
+      1,
+      message.startsWith("revert") ? `${message}\n\nThis reverts commit ${feature.sha}.` : message,
+    );
+
+    const data = input([feature, fix]);
+    const held = selectPromotion(data);
+
+    expect(held.sha).toBe(target);
+    expect(held.holds[0]?.since).toBe(feature.landedAt + DAY);
+    expect(held.expiredHolds).toEqual([]);
+    const expired = selectPromotion({ ...data, now: now + 1 });
+
+    expect(expired.sha).toBe(feature.sha);
+    expect(expired.holds).toEqual([]);
+    expect(expired.expiredHolds).toEqual(held.holds);
+  }
+});
+
+test("stable pending dev fixes expire strictly after three days of beta eligibility, including untagged ancestors", () => {
+  const feature = commit(1, 500);
+  delete feature.release;
+  const beta = commit(2, 200, "feat: beta", ["beta.ts"]);
+  beta.release = { tag: "v0.2.0-beta.1", readyAt: now - 6 * DAY };
+  const fix = commit(3, 1, "fix: pending repair\n\nRefs: #1");
+  const data: PromotionInput = { ...input([feature, beta]), path: "next-main", soakMs: 3 * DAY, pendingFixes: [fix] };
+  const held = selectPromotion(data);
+  expect(held.sha).toBe(target);
+  expect(held.holds[0]?.since).toBe(now - 3 * DAY);
+  const expired = selectPromotion({ ...data, now: now + 1 });
+  expect(expired.sha).toBe(beta.sha);
+  expect(expired.expiredHolds).toEqual(held.holds);
+});
+
+test("chains cannot restart the cap of the held change, and expired evidence is not duplicated", () => {
+  const feature = commit(1, 100);
+  const fix1 = commit(2, 70, "fix: first repair\n\nRefs: #1");
+  const fix2 = commit(3, 1, "fix: second repair\n\nRefs: #2");
+  const plan = selectPromotion(input([feature, fix1, fix2]));
+  expect(plan.sha).toBe(feature.sha);
+  expect(plan.holds.map((hold) => hold.sha)).toEqual([fix1.sha]);
+  expect(plan.expiredHolds.map((hold) => hold.sha)).toEqual([feature.sha]);
+  expect(selectPromotion({ ...input([feature, fix1, fix2]), now: now + 3 * 3_600_000 }).sha).toBe(fix1.sha);
+});
+
+test("a qualifying revert never lets its original ship alone after a hold or readiness fallback", () => {
+  const feature = commit(1, 240);
+  const revert = commit(2, 200, `revert: feature\n\nThis reverts commit ${feature.sha}.`);
+  expect(selectPromotion(input([feature, revert])).sha).toBe(revert.sha);
+  expect(selectPromotion(input([feature, { ...revert, green: false }])).sha).toBe(target);
+  revert.prs[0]!.hold = true;
+  expect(selectPromotion(input([feature, revert])).sha).toBe(target);
+});
+
+test("expiry cannot bypass exact-commit Release success or the beta burn-in", () => {
+  const feature = commit(1, 500);
+  const fix = commit(2, 1, "fix: pending repair\n\nRefs: #1");
+  expect(selectPromotion(input([{ ...feature, green: false }, fix])).sha).toBe(target);
+  feature.release = { tag: "v0.2.0-beta.1", readyAt: now - DAY };
+  expect(
+    selectPromotion({ ...input([feature]), path: "next-main", soakMs: 3 * DAY, pendingFixes: [fix], holdCapMs: 0 }).sha,
+  ).toBe(target);
 });
 
 test("stable only picks beta-tagged commits with manifests aged 72 hours; a newer beta does not reset an older one", () => {

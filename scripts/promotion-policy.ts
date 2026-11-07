@@ -30,6 +30,8 @@ export interface PromotionInput {
   blockers: number[];
   pendingFixes?: PromotionCommit[];
   minimumIndex?: number;
+  /** Automatic policy by default; manual Promote supplies Infinity. */
+  holdCapMs?: number;
 }
 
 export interface PromotionHold {
@@ -43,11 +45,22 @@ export interface PromotionPlan {
   sha: string;
   included: PromotionCommit[];
   holds: PromotionHold[];
+  expiredHolds: PromotionHold[];
   reason: string;
   starved: boolean;
 }
 
 export const DAY = 86_400_000;
+export const DEV_NEXT_HOLD_CAP_DAYS = 2;
+export const NEXT_MAIN_HOLD_CAP_DAYS = 3;
+
+export function promotionHoldCap(input: PromotionInput): number {
+  return input.holdCapMs ?? (input.path === "dev-next" ? DEV_NEXT_HOLD_CAP_DAYS : NEXT_MAIN_HOLD_CAP_DAYS) * DAY;
+}
+
+function isRevert(commit: PromotionCommit): boolean {
+  return /^revert\b/i.test(commit.message) || /^This reverts commit [a-f0-9]{7,40}/im.test(commit.message);
+}
 
 /** These shared files cannot establish a relationship; explicit links still can. */
 export function sharedPromotionFile(path: string): boolean {
@@ -132,6 +145,7 @@ function readyIndex(input: PromotionInput, ceiling: number): number {
 export function selectPromotion(input: PromotionInput): PromotionPlan {
   let cutoff = -1;
   const holds: PromotionHold[] = [];
+  const expiredHolds = new Map<string, PromotionHold>();
 
   for (const [i, commit] of input.commits.entries()) {
     const since = input.path === "dev-next" ? commit.landedAt : commit.release?.readyAt;
@@ -144,6 +158,8 @@ export function selectPromotion(input: PromotionInput): PromotionPlan {
 
   if (cutoff < (input.minimumIndex ?? 0)) cutoff = -1;
   const initial = input.commits[cutoff]?.sha ?? input.target;
+  // A qualifying revert must accompany its original even if readiness or another hold shrinks the prefix.
+  const qualifyingReverts = new Set(input.commits.slice(0, cutoff + 1).filter(isRevert));
   const held = input.commits.findIndex((commit) => commit.prs.some((pr) => pr.hold));
 
   if (held >= 0 && held <= cutoff) {
@@ -167,7 +183,14 @@ export function selectPromotion(input: PromotionInput): PromotionPlan {
         const reason = relationship(fix, original);
 
         if (!reason) continue;
-        holds.push({ sha: original.sha, reason, since: eligibleSince(input, i) });
+        const hold = { sha: original.sha, reason, since: eligibleSince(input, i) };
+
+        if (!qualifyingReverts.has(fix) && input.now - hold.since > promotionHoldCap(input)) {
+          expiredHolds.set(`${original.sha}:${fix.sha}`, hold);
+          continue;
+        }
+
+        holds.push(hold);
         cutoff = i - 1;
         break;
       }
@@ -186,7 +209,10 @@ export function selectPromotion(input: PromotionInput): PromotionPlan {
     sha: blocked ? input.target : (input.commits[cutoff]?.sha ?? input.target),
     included: blocked ? [] : input.commits.slice(0, cutoff + 1),
     holds,
+    expiredHolds: [...expiredHolds.values()],
     reason,
-    starved: holds.some((hold) => input.now - hold.since >= 7 * DAY),
+    starved:
+      holds.some((hold) => input.now - hold.since >= 7 * DAY) ||
+      (input.blockers.length > 0 && initial !== input.target && input.now - eligibleSince(input, 0) >= 7 * DAY),
   };
 }

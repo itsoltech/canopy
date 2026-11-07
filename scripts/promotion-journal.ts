@@ -66,6 +66,7 @@ export function resumePromotion(
   if (!previousTarget) throw new Error("Pending promotion journal has no previous target");
   // A new fix/hold may have landed after the push. Re-evaluate the original range before releasing it.
   const rechecked = loadPromotion(repo, input.path, input.soakMs, adapters, input.now, previousTarget);
+  rechecked.holdCapMs = input.holdCapMs ?? Infinity;
 
   if (override) for (const commit of rechecked.commits) commit.prs = commit.prs.map((pr) => ({ ...pr, hold: false }));
   const selected = selectPromotion(rechecked).sha;
