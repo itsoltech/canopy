@@ -71,14 +71,21 @@ export function threadSessions(ctx: CodexThreadContext) {
         catch: (cause) => fail(spec.threadId, "resume")(cause instanceof Error ? cause : new Error(String(cause))),
       });
 
-      const resumed = yield* codex.request("thread/resume", { threadId: spec.providerThreadId, ...params }).pipe(
-        Effect.map((response) => response.thread),
-        Effect.catch((error) =>
-          NO_ROLLOUT.test(error.message)
-            ? Effect.succeed(undefined)
-            : Effect.fail(fail(spec.threadId, "resume")(error)),
-        ),
-      );
+      const path = yield* Effect.try({
+        try: () => options.importedResumePath?.(spec, params.modelProvider),
+        catch: (cause) => fail(spec.threadId, "resume")(cause instanceof Error ? cause : new Error(String(cause))),
+      });
+
+      const resumed = yield* codex
+        .request("thread/resume", { threadId: spec.providerThreadId, ...params, ...(path && { path }) })
+        .pipe(
+          Effect.map((response) => response.thread),
+          Effect.catch((error) =>
+            NO_ROLLOUT.test(error.message)
+              ? Effect.succeed(undefined)
+              : Effect.fail(fail(spec.threadId, "resume")(error)),
+          ),
+        );
 
       if (resumed) return register(spec.threadId, resumed.id, resumed.path);
       // Codex writes a thread's rollout with its first turn: a thread that never had one is gone with the

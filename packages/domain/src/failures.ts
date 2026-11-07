@@ -22,7 +22,12 @@ export function classifyFailure(message: string, code = ""): FailureCode {
   if (explicit) return explicit;
   const text = `${code.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)} ${message}`;
 
-  if (/This chat uses .+, but your current provider is .+\. Switch to .+ to continue\./i.test(message))
+  if (
+    /This chat uses .+, but your current provider is .+\. Switch to .+ to continue\./i.test(message) ||
+    /This chat uses model provider .+, which is no longer configured\. Restore this provider['’]s configuration to continue\./i.test(
+      message,
+    )
+  )
     return "connection_changed";
 
   if (

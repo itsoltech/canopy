@@ -1,8 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { readdirSync } from "node:fs";
+import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
+import { failurePresentation } from "@canopy/domain/failure-presentation";
 import { probeRecords } from "./fixtures/instance-probe.ts";
 import { treeFingerprint } from "../../apps/worker/src/import/fixtures/install.ts";
 import { eventually } from "./support/gateway.ts";
@@ -91,6 +92,50 @@ describe.skipIf(!dockerAvailable)("CLI import: Codex", () => {
       (s) => s.turns.some((t) => t.trigger === "user" && t.status === "completed"),
       20_000,
     );
-    expect(probeRecords(f.trace).some((r) => r.event === "thread/resume" && r.session === sessionId)).toBe(true);
+    expect(probeRecords(f.trace).find((r) => r.event === "thread/resume" && r.session === sessionId)?.provider).toBe(
+      "openai",
+    );
+    const continued = await f.snapshot(main.threadId);
+    expect(continued.turns.filter((turn) => turn.trigger === "import")).toHaveLength(2);
+
+    const stored = await f.sql(
+      (sql) =>
+        sql<{ provider_thread_id: string }>`SELECT provider_thread_id FROM threads WHERE id = ${main.threadId}::uuid`,
+    );
+
+    expect(stored[0]?.provider_thread_id).toBe(sessionId);
+
+    // The other imported session has not been loaded: exercise a refused cold resume too.
+    const other = done.items.find((i) => i.cwd.endsWith("other"))!;
+    const marker = join(f.data, "codex-home", "refuse-import-resume");
+    writeFileSync(marker, "fixture refusal");
+
+    try {
+      await f.gw.api.sendMessage({ threadId: other.threadId, text: "Continue", clientRequestId: "refused" });
+
+      const snapshot = await eventually(
+        () => f.snapshot(other.threadId),
+        (s) => s.turns.some((turn) => turn.trigger === "user" && turn.status === "failed"),
+        20_000,
+      );
+
+      const failed = snapshot.turns.find((turn) => turn.trigger === "user")!;
+      expect(failed).toMatchObject({
+        errorCode: "HARNESS_ERROR",
+        errorClass: "connection_changed",
+        errorSource: "harness",
+      });
+      expect(failed.error).toContain("thread/resume:");
+      expect(failed.error).toContain("which is no longer configured");
+      expect(failurePresentation(failed.error, failed.errorClass, false)).toMatchObject({
+        kind: "connection_changed",
+        settings: true,
+        explanation:
+          "Codex could not use this thread with the current connection. Restore its previous connection in provider settings, then retry.",
+      });
+    } finally {
+      rmSync(marker, { force: true });
+      await f.gw.api.undoImportRun({ runId: done.id });
+    }
   }, 60_000);
 });
