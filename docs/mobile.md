@@ -117,8 +117,27 @@ Migracja **0056_mobile_network** odwołuje starsze tokeny i niewykorzystane kody
 z `pairing_version=1` mają w Settings jasne „Pair again”; zapis telefonu bez pinu prowadzi
 na ekran ponownego parowania. Nowe urządzenia mają `pairing_version=2`.
 `OverviewUpdate.mobile_routes` (764) ogłasza nowe adresy i nazwy hostów. Telefon zapisuje
-je wyłącznie przy zgodnym pinie. Próbuje trasy według ostatniego sukcesu, sprawdzając TLS
-bez HTTP przed wybraniem trasy. Nie ponawia RPC po wysłaniu, aby nie dublować komend.
+je wyłącznie przy zgodnym pinie. Nie ponawia RPC po wysłaniu, aby nie dublować komend.
+
+Wybór trasy (`src/api/routes.ts`): handshake TLS bez HTTP (`probe`, 2 s) sprawdza trasy w kolejności
+ostatni sukces → pozostałe → trasy, które zawiodły w ostatnich 10 s. Kolejna próba startuje 250 ms po
+poprzedniej albo od razu po jej błędzie; wygrywa pierwsza ze zgodnym pinem. Martwa trasa na początku
+kosztuje więc chwilę, nie cały timeout, a brak jakiejkolwiek trasy telefon zgłasza po jednym timeoucie.
+Wszystkie żądania czekające na trasę dzielą jeden wyścig; anulowane żądanie go nie przerywa.
+Trasa, która właśnie odpowiedziała, jest używana bez nowego handshake'u przez 30 s od ostatniego
+sukcesu; błąd żądania ją unieważnia. Na Androidzie `probe` działa na własnych wątkach: Expo wykonuje
+`AsyncFunction` wszystkich modułów na jednym wątku, a blokujący connect wstrzymywał inne wywołania.
+
+Martwe połączenia: po powrocie z tła i po zmianie sieci (typ lub łączność z `expo-network`) aplikacja
+woła `reset()` w samym zdarzeniu, zanim React wznowi strumienie. Kolejne żądania idą przez nowe
+połączenia (iOS: nowa `URLSession`, Android: `evictAll()` puli OkHttp), wyścig tras startuje od nowa,
+a po zmianie sieci strumienie subskrybują się ponownie. URLSession nie wysyła HTTP/2 PING, więc bez tego
+iOS wysyłał żądania w połączenie zerwane podczas uśpienia (np. wygasłe mapowanie NAT), a pusta
+odpowiedź wisiała do 24 h. OkHttp wysyła PING co 15 s i zamyka połączenie bez odpowiedzi. Strumień bez
+nagłówków odpowiedzi po 20 s kończy się błędem `timeout` i łączy ponownie (każdy obserwowany strumień
+zaczyna się od snapshotu, z którym idą nagłówki); żądania unary nie mają takiego limitu. Status
+połączenia po wznowieniu pokazuje „Reconnecting…” do pierwszej odpowiedzi, a „Gateway unavailable”
+po 12 s bez odpowiedzi, także gdy połączenie wisi bez błędu.
 Po zmianie portu zapisuje nowe trasy również z odpowiedzi `UpdateNetworkAccess`, nawet
 bez strumienia overview. Usuwa nieaktualną ostatnią trasę; restart telefonu korzysta
 z nowych adresów, zachowując ten sam pin i token urządzenia.

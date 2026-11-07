@@ -28,6 +28,9 @@ public class CanopyPinnedFetchModule: Module {
 
     Function("cancel") { (id: String) in self.calls.cancel(id: id) }
 
+    // After the app was suspended or the network changed, pooled connections may be dead without knowing it.
+    Function("reset") { self.calls.reset() }
+
     // A TLS handshake only: is this route the paired computer, and how fast? Nothing is sent.
     AsyncFunction("probe") { (host: String, port: Int, pin: String, timeoutMs: Int, promise: Promise) in
       probe(host: host, port: port, pin: pin.lowercased(), timeoutMs: timeoutMs, promise: promise)
@@ -164,6 +167,16 @@ final class PinnedCalls: NSObject, URLSessionDataDelegate {
 
   func cancel(id: String) {
     queue.addOperation { self.byId[id]?.cancel() }
+  }
+
+  /// Requests queued after this one use a new session, so a new connection. URLSession has no HTTP/2 PING to
+  /// notice a connection that died while the app was suspended, and would send new requests into it.
+  /// Running tasks finish on the old session, which then releases its connections.
+  func reset() {
+    queue.addOperation {
+      for session in self.sessions.values { session.finishTasksAndInvalidate() }
+      self.sessions.removeAll()
+    }
   }
 
   func urlSession(

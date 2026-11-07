@@ -26,6 +26,7 @@ declare class PinnedModule extends NativeModule<Events> {
     pin: string,
   ): Promise<void>;
   cancel(id: string): void;
+  reset(): void;
   probe(
     host: string,
     port: number,
@@ -36,6 +37,10 @@ declare class PinnedModule extends NativeModule<Events> {
 
 const native = requireNativeModule<PinnedModule>("CanopyPinnedFetch");
 let sequence = 0;
+
+/** Every watched stream starts with a snapshot, which brings its headers; none in this time means a dead connection. */
+const STREAM_RESPONSE_TIMEOUT = 20_000;
+const PROBE_TIMEOUT = 2000;
 
 /** Streaming Fetch adapter for Connect. TLS pinning runs natively before request bytes leave the phone. */
 function fetchPinned(url: string, init: RequestInit | undefined, fingerprint: string): Promise<Response> {
@@ -57,6 +62,7 @@ function fetchPinned(url: string, init: RequestInit | undefined, fingerprint: st
 
     const cleanup = () => {
       finished = true;
+      clearTimeout(waiting);
       init?.signal?.removeEventListener("abort", abort);
 
       for (const subscription of subscriptions) subscription.remove();
@@ -71,6 +77,13 @@ function fetchPinned(url: string, init: RequestInit | undefined, fingerprint: st
     };
 
     const abort = () => fail(new Error("Request canceled"));
+
+    // Only a stream is safe to give up on early: unary calls may run long, and they are never replayed anyway.
+    const streaming = headers["content-type"]?.startsWith("application/connect+");
+
+    const waiting = streaming
+      ? setTimeout(() => fail(new Error(withCode(UNREACHABLE, "timeout"))), STREAM_RESPONSE_TIMEOUT)
+      : undefined;
 
     const stream = new ReadableStream<Uint8Array>({
       start(value) {
@@ -94,6 +107,7 @@ function fetchPinned(url: string, init: RequestInit | undefined, fingerprint: st
           return;
         }
 
+        clearTimeout(waiting);
         resolve(streamResponse(stream, event));
       }),
       native.addListener("onData", (event) => {
@@ -124,6 +138,8 @@ function fetchPinned(url: string, init: RequestInit | undefined, fingerprint: st
 
 const PIN_CHANGED = "Computer certificate changed. Pair this phone again.";
 
+const UNREACHABLE = "Could not connect to this computer. Check the network, then try again.";
+
 /** The native domain and code stay in the text, so a screenshot is enough to diagnose a failure. */
 const withCode = (text: string, code?: string) => (code ? `${text} (${code})` : text);
 
@@ -132,7 +148,7 @@ function failure(event: ErrorEvent) {
 
   if (event.kind === "io") return withCode("Connection interrupted. Try again.", event.code);
 
-  return withCode("Could not connect to this computer. Check the network, then try again.", event.code);
+  return withCode(UNREACHABLE, event.code);
 }
 
 /** React Native's Response constructor doesn't accept streams. Connect consumes body, arrayBuffer or json. */
@@ -180,11 +196,23 @@ export const pinnedTransport: PinnedTransport = {
   async probe(origin, fingerprint, signal) {
     signal?.throwIfAborted();
     const url = new URL(origin);
-    const result = await native.probe(url.hostname.replace(/^\[|\]$/g, ""), Number(url.port || 443), fingerprint, 2000);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    // The native timeout covers connect and handshake; this one also covers a name lookup that never ends.
+    const late = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new ProbeError("timeout")), PROBE_TIMEOUT + 1000);
+    });
+
+    const result = await Promise.race([
+      native.probe(url.hostname.replace(/^\[|\]$/g, ""), Number(url.port || 443), fingerprint, PROBE_TIMEOUT),
+      late,
+    ]).finally(() => clearTimeout(timer));
+
     signal?.throwIfAborted();
 
     if (!result.ok || result.fingerprint !== fingerprint)
       throw new ProbeError(result.ok ? "pin" : (result.code ?? "unknown"));
   },
   fetch: fetchPinned,
+  reset: () => native.reset(),
 };

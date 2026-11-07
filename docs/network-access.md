@@ -45,7 +45,10 @@ a zapisany w bazie wybór zostaje na start bez tej zmiennej. Niepoprawna wartoś
 
 Jeden port, HTTP/2 i HTTP/1.1 (ALPN), TLS z certyfikatem tożsamości komputera z
 [etapu 1 połączonych komputerów](linked-computers.md#tożsamość-i-certyfikaty). Gateway słucha na `::`
-(IPv6 z mapowaniem IPv4), a bez IPv6 w systemie na `0.0.0.0`. Serwer prosi o certyfikat klienta,
+(IPv6 z mapowaniem IPv4), a bez IPv6 w systemie na `0.0.0.0`. Telefon uśpiony w tle albo za NAT-em,
+który zapomniał mapowanie, nie zamyka połączenia; jego strumienie (i subskrypcje overview) zostawałyby
+otwarte na zawsze. Dlatego listener wysyła każdej sesji HTTP/2 PING co 20 s i niszczy sesję bez
+odpowiedzi w 10 s; połączenia HTTP/1.1 mają systemowy keepalive TCP. Serwer prosi o certyfikat klienta,
 ale go nie wymaga:
 
 - połączenie **z certyfikatem** w roli `desktop` trafia wyłącznie do `ComputerLinkService` i dodatkowo musi być TLS 1.3
