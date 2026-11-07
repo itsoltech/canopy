@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Pressable, Text, View, type HostInstance } from "react-native";
 import type { Reasoning } from "@canopy/contracts";
-import { LiveText } from "../../../ui/Badge";
+import { LiveText } from "../../../ui/LiveText";
 import { useAnchoredToggle } from "../../../ui/feed-anchor";
 import { Markdown } from "../../../ui/markdown";
 import { font, styles, useColors } from "../../../ui/theme";
@@ -42,7 +42,7 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
       >
         <Chevron open={open} color={c.faint} />
         {streaming ? (
-          <LiveText style={[styles.work, label, { color: c.text }]}>Thinking</LiveText>
+          <LiveText style={[styles.work, label]}>Thinking</LiveText>
         ) : (
           <Text style={[styles.work, label]}>Thought</Text>
         )}
