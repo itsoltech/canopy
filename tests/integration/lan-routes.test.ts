@@ -273,6 +273,16 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
       (await routesOf(a)).some((r) => r.address === `https://127.0.5.2:${portB}` && r.source === "announced"),
     );
     ifaceB.pop();
+    // Loopback still reaches B there. Left behind, it is the newest route a later dial tries, and B's next
+    // advertisement withdraws it before or after that dial records its success.
+    await eventually(async () =>
+      (await routesOf(a)).some((r) => r.address === `https://127.0.5.2:${portB}` && r.withdrawnAtMs > 0n),
+    );
+    await a.api.manageComputer({
+      action: "remove_route",
+      nodeId: lb.hello().nodeId,
+      address: `https://127.0.5.2:${portB}`,
+    });
   }, 15_000);
 
   test("routes are tried in order of last success and the next one takes over when the best route dies", async () => {

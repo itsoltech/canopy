@@ -296,6 +296,9 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
     const bot = await add("Fenced");
     await send(bot.id, "take over");
     await entered.promise;
+    // The old gateway stalls like one handing over: it keeps its running turn but claims nothing. Otherwise its own
+    // 250 ms queue tick can re-claim the expired lease before the competitor ticks, and the turn never settles.
+    Object.defineProperty(suite.current.updates, "draining", { value: true, configurable: true });
     await suite.gw.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
@@ -321,6 +324,7 @@ describe.skipIf(!dockerAvailable)("gateway bots: durable conversations, exchange
     } finally {
       release.resolve();
       await competitor.bots.stop();
+      Reflect.deleteProperty(suite.current.updates, "draining");
       suite.current.bots.start();
     }
   }, 15_000);

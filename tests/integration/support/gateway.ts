@@ -6,7 +6,7 @@
 import { randomBytes } from "node:crypto";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { createClient, type Client } from "@connectrpc/connect";
+import { Code, ConnectError, createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 import {
   ItemStatus,
@@ -174,7 +174,10 @@ export class ScriptedWorker {
   ) {
     this.models = options.models ?? SCRIPTED_MODELS;
     this.secrets = options.secretsDataDir ? new ThreadSecretFiles(options.secretsDataDir) : undefined;
-    void this.#loop();
+    void this.#loop().catch((error) => {
+      // The test closed the link while a command was on its way: like a worker that went away, the reply is lost.
+      if (ConnectError.from(error).code !== Code.Unavailable) throw error;
+    });
   }
 
   emit(
@@ -226,6 +229,14 @@ export class ScriptedWorker {
         },
       });
     });
+  }
+
+  /** The createThread this worker got for `threadId`. The gateway sends it after the call that stored the thread. */
+  createdThread(threadId: string): Promise<ScriptedWorker["created"][number] | undefined> {
+    return eventually(
+      async () => this.created.find((c) => c.threadId === threadId),
+      (c) => c !== undefined,
+    );
   }
 
   /** Ends a held turn like the provider would. */

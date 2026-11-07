@@ -6,12 +6,13 @@ import { createGrpcTransport } from "@connectrpc/connect-node";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient, type SqlConnection } from "effect/sql";
+import { ed25519KeyPair } from "../../apps/gateway/src/core/ssh-keys.ts";
 import { WorkerAdministration } from "../../apps/gateway/src/core/worker-administration.ts";
 import { WorkerSsh } from "../../apps/gateway/src/core/worker-ssh.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { NetworkAccess } from "../../apps/gateway/src/network/network.ts";
 import { failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
-import { Server, utils } from "ssh2";
+import { Server } from "ssh2";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -27,7 +28,7 @@ let installerFailure = "";
 let installerInput = "";
 let privateKey = "";
 let network: NetworkAccess;
-const hostKey = utils.generateKeyPairSync("ed25519", {});
+const hostKey = ed25519KeyPair("");
 
 async function collect(action: string, extra: MessageInitShape<typeof ui.WorkerSshRequestSchema> = {}) {
   const output: ui.WorkerSshEvent[] = [];

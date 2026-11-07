@@ -181,7 +181,7 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
     expect(spawned.isError).toBe(false);
     const result = json(spawned) as { thread_id: string; provider: string; model: string; effort: string };
     expect([result.provider, result.model, result.effort]).toEqual(["claude/native", "opus", "high"]);
-    expect(studio.created.find((c) => c.threadId === result.thread_id)).toMatchObject({
+    expect(await studio.createdThread(result.thread_id)).toMatchObject({
       provider: Provider.CLAUDE,
       providerProfileId: "",
       model: "opus",
@@ -239,7 +239,7 @@ describe.skipIf(!dockerAvailable)("agent bus across providers and trees (gateway
     );
 
     expect([codex["provider"], codex["model"], codex["effort"]]).toEqual(["codex/native", "gpt-6.1-sol", "low"]);
-    expect(studio.created.find((c) => c.threadId === codex["thread_id"])).toMatchObject({
+    expect(await studio.createdThread(String(codex["thread_id"]))).toMatchObject({
       provider: Provider.CODEX,
       model: "gpt-6.1-sol",
     });

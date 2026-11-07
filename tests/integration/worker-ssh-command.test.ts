@@ -71,6 +71,11 @@ describe("SSH installer command and shell adapter", () => {
           '#!/bin/sh\nwhile [ "$#" -gt 0 ]; do\nif [ "$1" = "-o" ]; then cp "$HOME/download" "$2"; exit; fi\nshift\ndone\nexit 1\n',
         );
         chmodSync(join(directory, "bin/curl"), 0o755);
+        // After enrollment the installer asks npm for its global prefix. The runner's real npm cold-starts Node and
+        // took up to 5 s on a loaded CI runner; the installer searches $HOME/.local/bin before the system paths.
+        mkdirSync(join(directory, ".local/bin"), { recursive: true });
+        await Bun.write(join(directory, ".local/bin/npm"), '#!/bin/sh\nprintf "%s\\n" "$HOME/.npm-global"\n');
+        chmodSync(join(directory, ".local/bin/npm"), 0o755);
 
         const input =
           workerSshCommand(setup, manifest, "0.2.0-nightly.75", "fixture-enrollment", "Worker's computer") +
