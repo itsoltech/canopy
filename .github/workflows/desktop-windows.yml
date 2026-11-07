@@ -1,4 +1,4 @@
-# Builds and installs the Windows package without signing, tags, releases or publication.
+# Builds and installs Windows without publication; repository PRs also verify Azure signing.
 name: Windows desktop package
 
 on:
@@ -39,11 +39,29 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - name: Package unsigned Windows desktop
+      - name: Require signing credentials for repository PRs
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          $missing = @('AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET') | Where-Object {
+            -not [Environment]::GetEnvironmentVariable($_)
+          }
+          if ($missing.Count -gt 0) { throw "Missing Azure signing secrets: $($missing -join ', ')" }
+      - name: Package Windows desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: bun run --cwd apps/desktop package:windows
+      - name: Verify Windows signatures
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        run: ./apps/desktop/scripts/verify-windows.ps1 -ReleaseDirectory apps/desktop/release/nightly
       - name: Unsigned installer must fail the signature gate
+        if: github.event.pull_request.head.repo.full_name != github.repository
         run: |
           try {
             ./apps/desktop/scripts/verify-windows.ps1 -ReleaseDirectory apps/desktop/release/nightly
