@@ -16,5 +16,11 @@ class CanopyFileIntakeModule : Module() {
       Prop("maxBytes") { view: CanopyPasteView, bytes: Double -> view.maxBytes = bytes.toLong() }
     }
 
+    View(CanopyDropView::class) {
+      Name("CanopyDropView")
+      Events("onFiles", "onDragState")
+      Prop("maxBytes") { view: CanopyDropView, bytes: Double -> view.maxBytes = bytes.toLong() }
+      Prop("enabled") { view: CanopyDropView, enabled: Boolean -> view.accepting = enabled }
+    }
   }
 }

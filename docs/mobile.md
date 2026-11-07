@@ -594,7 +594,7 @@ nie pełna równoważność wszystkich jego funkcji.
 
 ### Wklejanie i upuszczanie
 
-Wklejanie plików (`features/attachments/FileIntake.tsx`, lokalny moduł Expo
+Wklejanie i upuszczanie plików (`features/attachments/FileIntake.tsx`, lokalny moduł Expo
 `modules/canopy-file-intake`) idzie tą samą drogą co wybór: `UploadAttachment` z limitami gatewaya.
 Menu spinacza pokazuje „Paste image”, gdy schowek ma obraz. `expo-clipboard` `hasImageAsync`
 sprawdza tylko typ zawartości, bez odczytu, więc iOS nie pyta o zgodę. Obraz czyta dopiero wybór
@@ -614,6 +614,22 @@ Aplikacja nigdy nie czyta schowka bez akcji użytkownika.
   bez odczytu), menu pola pokazuje Paste. Wklejenie bez tekstu czyta `itemProviders` i kopiuje pliki
   do `tmp/canopy-intake`. To systemowe Paste użytkownika, więc iOS nie pyta o zgodę. Wklejenie
   z tekstem (np. tekst z obrazem z Safari) zostaje zwykłym wklejeniem tekstu.
+
+Upuszczanie z innych aplikacji działa na dużych ekranach: iPad, Android w podzielonym ekranie,
+składane telefony po rozłożeniu, DeX. Ekran wątku i nowego wątku otacza `CanopyDropView`, a gdy
+pliki wiszą nad nim, nakładka jak w web pokazuje przerywaną ramkę i „Drop files to attach”.
+Nakładka zajmuje miejsce tylko absolutnie, pojawia się z `rise`, a etykieta z `pop`. Nie ma tu
+rozmycia tła, więc kolor płótna przesłania wątek. Przy ograniczonym ruchu zostaje samo przenikanie.
+- **iOS:** `UIDropInteraction`. Pliki ładuje `loadFileRepresentation`. Przeciągnięcia zaczęte
+  w aplikacji (`localDragSession`) i sam tekst lub link nie są plikami.
+- **Android:** `OnDragListener`. Uprawnienie do URI daje `requestDragAndDropPermissions` tylko
+  dla upuszczonych elementów i jest zwalniane po skopiowaniu. Upuszczenie na samo pole tekstowe
+  obsługuje `CanopyPasteView`: plakietki trafiają w miejsce kursora. Androidowy `ExpoView`
+  dziedziczy po `LinearLayout`, dlatego zawartość i nakładka mają jeden niezwijany kontener
+  React Native; to on układa nakładkę absolutnie nad treścią.
+
+Wyłączony kompozytor (komputer poza siecią, zablokowany wątek) odrzuca upuszczenie
+(`enabled` widoku). Widok zostaje ten sam, więc wyłączenie nie montuje ekranu od nowa.
 
 Plik większy niż `maxFileBytes` z GetSettings nie jest kopiowany: chip mówi, dlaczego nie został
 dodany. Kopia jest usuwana po odczycie do wysłania, a folder czyści się przy starcie modułu. Klient
