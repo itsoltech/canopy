@@ -20,9 +20,11 @@ export class Hub {
       updates: channel,
       close: () => {
         channel.close();
-        set.delete(channel);
 
-        if (set.size === 0) this.#threads.delete(threadId);
+        // Abort and generator cleanup can both close this subscription. An old set must never
+        // remove the replacement set created by a reconnect between those two calls.
+        if (set.delete(channel) && set.size === 0 && this.#threads.get(threadId) === set)
+          this.#threads.delete(threadId);
       },
     };
   }
