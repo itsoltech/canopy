@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui, type ImportLibraryItem, type ModelInfo } from "@canopy/contracts";
+import { marketplaceCandidates, pluginCandidates, skillCandidates } from "./library-kinds.ts";
 import type { LibraryRow } from "./library-store.ts";
 
 /**
@@ -43,6 +44,8 @@ export interface LibraryContext {
   /** Models of the worker's own instance per provider; absent = no catalog reported yet. */
   readonly catalogs: ReadonlyMap<Provider, readonly ModelInfo[]>;
   readonly documents: readonly ui.InstructionDocument[];
+  readonly skills: readonly ui.LibrarySkill[];
+  readonly marketplaces: readonly ui.EnvironmentMarketplace[];
   readonly live: readonly LibraryRow[];
 }
 
@@ -84,26 +87,39 @@ export function libraryCandidates(
 ): ui.ImportLibraryCandidate[] {
   const live = new Set(context.live.map(rowKey));
   const permissions = new Set(items.flatMap((i) => (i.name === "permissions" && !i.reason ? [i.value] : [])));
+  const settings = items.filter((i) => i.kind === "setting" || i.kind === "instruction");
 
-  return items.map((item) => {
-    if (item.kind === "instruction") return instruction(item, context, live);
+  return [
+    ...settings.map((item) => settingOrInstruction(item, context, live, permissions)),
+    ...skillCandidates(items, context, live),
+    ...marketplaceCandidates(items, context, live),
+    ...pluginCandidates(items),
+  ];
+}
 
-    if (item.name === "model") return model(item, context);
+function settingOrInstruction(
+  item: ImportLibraryItem,
+  context: LibraryContext,
+  live: ReadonlySet<string>,
+  permissions: ReadonlySet<string>,
+): ui.ImportLibraryCandidate {
+  if (item.kind === "instruction") return instruction(item, context, live);
 
-    if (item.name === "permissions") {
-      const result = permission(item, context);
+  if (item.name === "model") return model(item, context);
 
-      // Two CLIs propose different modes for the one default: the owner chooses.
-      if (permissions.size > 1 && result.status === "new") {
-        result.suggested = false;
-        result.warnings.push("The CLIs differ here. Choose one.");
-      }
+  if (item.name === "permissions") {
+    const result = permission(item, context);
 
-      return result;
+    // Two CLIs propose different modes for the one default: the owner chooses.
+    if (permissions.size > 1 && result.status === "new") {
+      result.suggested = false;
+      result.warnings.push("The CLIs differ here. Choose one.");
     }
 
-    return unavailable(item, item.name === "effort" ? "Default effort" : item.name, item.reason);
-  });
+    return result;
+  }
+
+  return unavailable(item, item.name === "effort" ? "Default effort" : item.name, item.reason);
 }
 
 function model(item: ImportLibraryItem, context: LibraryContext): ui.ImportLibraryCandidate {

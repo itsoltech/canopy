@@ -6,8 +6,23 @@
   },
   "effortLevel": "high",
   "hooks": {
-    "SessionStart": [{ "hooks": [{ "type": "command", "command": "echo fixture" }] }]
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo fixture"
+          }
+        ]
+      }
+    ]
   },
-  "statusLine": { "type": "command", "command": "echo fixture" },
-  "theme": "dark"
+  "statusLine": {
+    "type": "command",
+    "command": "echo fixture"
+  },
+  "theme": "dark",
+  "enabledPlugins": {
+    "review@fixture-market": true
+  }
 }

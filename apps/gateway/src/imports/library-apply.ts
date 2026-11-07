@@ -1,4 +1,4 @@
-import { clone, create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { clone, create, fromJson, toJson } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui } from "@canopy/contracts";
 import { Effect, Option, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -6,6 +6,7 @@ import type { GatewayCore } from "../core/core.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
 import { MODE_LABELS, MODES, PROVIDERS } from "./library.ts";
 import { documents } from "../agent-environment/database.ts";
+import { applyMarketplace, applySkill, undoMarketplace, undoSkill, type Applied } from "./library-apply-skills.ts";
 import { libraryReceipt, type LibraryRow } from "./library-store.ts";
 
 /**
@@ -17,10 +18,7 @@ import { libraryReceipt, type LibraryRow } from "./library-store.ts";
 
 const READ_TIMEOUT_MS = 60_000;
 
-export interface Applied {
-  readonly target: { readonly [key: string]: JsonValue };
-  readonly detail: string;
-}
+export type { Applied };
 
 const SettingTarget = Schema.Struct({
   setting: Schema.Literals(["model", "permissions"]),
@@ -49,6 +47,10 @@ export class LibraryApply {
   async apply(row: LibraryRow): Promise<void> {
     if (row.kind === "instruction") return this.#document(row);
 
+    if (row.kind === "skill" || row.kind === "command") return applySkill(this.#core, row);
+
+    if (row.kind === "marketplace") return applyMarketplace(this.#core, row);
+
     return this.#setting(row);
   }
 
@@ -58,6 +60,10 @@ export class LibraryApply {
    */
   async undo(row: LibraryRow): Promise<void> {
     if (row.kind === "instruction") return this.#undoDocument(row);
+
+    if (row.kind === "skill" || row.kind === "command") return undoSkill(this.#core, row);
+
+    if (row.kind === "marketplace") return undoMarketplace(this.#core, row);
     const target = Option.getOrUndefined(decodeSetting(row.target));
 
     if (!target) return this.#mark(row, "undone");

@@ -1,6 +1,9 @@
 import type { ui } from "@canopy/contracts";
 import { listImportLibrary } from "./api.ts";
 
+/** Kinds that become library skills (a skill name is one skill). */
+const SKILLS: ReadonlySet<string> = new Set(["skill", "command"]);
+
 const errorText = (cause: unknown) => (cause instanceof Error ? cause.message : "Something went wrong. Try again.");
 
 /**
@@ -53,12 +56,14 @@ export class ImportLibraryState {
   toggle(item: ui.ImportLibraryCandidate, on: boolean): void {
     const next = new Map(this.chosen);
 
-    if (on) next.set(item.key, item.status === "conflict" ? "keep_both" : "import");
+    if (on) next.set(item.key, item.status === "conflict" ? (item.actions[0] ?? "replace") : "import");
     else next.delete(item.key);
 
-    // One permission mode for new threads: choosing one leaves the other.
-    if (on && item.name === "Permissions of new threads")
-      for (const other of this.items) if (other.key !== item.key && other.name === item.name) next.delete(other.key);
+    // One permission mode for new threads, one version of a skill name: choosing one leaves the others.
+    if (on && (item.name === "Permissions of new threads" || SKILLS.has(item.kind)))
+      for (const other of this.items)
+        if (other.key !== item.key && other.name === item.name && (other.kind === item.kind || SKILLS.has(other.kind)))
+          next.delete(other.key);
     this.chosen = next;
   }
 
@@ -69,7 +74,7 @@ export class ImportLibraryState {
   }
 
   actionOf(key: string): string {
-    return this.chosen.get(key) ?? "keep_both";
+    return this.chosen.get(key) ?? "";
   }
 
   choices(): { key: string; action: string }[] {

@@ -4,6 +4,8 @@
 
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { SkillFile } from "./agent_environment_pb.ts";
+import { file_canopy_worker_v1_agent_environment } from "./agent_environment_pb.ts";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
@@ -12,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/worker/v1/cli_import.proto.
  */
 export const file_canopy_worker_v1_cli_import: GenFile = /*@__PURE__*/
-  fileDesc("CiFjYW5vcHkvd29ya2VyL3YxL2NsaV9pbXBvcnQucHJvdG8SEGNhbm9weS53b3JrZXIudjEiJwoRU2NhbkltcG9ydFNvdXJjZXMSEgoKYWdlbnRfY2xpcxgBIAMoCSJfCgpJbXBvcnRSb290EgoKAmlkGAEgASgJEhEKCWFnZW50X2NsaRgCIAEoCRIMCgRwYXRoGAMgASgJEhMKC2NsaV92ZXJzaW9uGAQgASgJEg8KB3Byb2JsZW0YBSABKAkifwoOSW1wb3J0U25hcHNob3QSDAoEc2l6ZRgBIAEoBBITCgttb2RpZmllZF9tcxgCIAEoAxIVCg1wcmVmaXhfc2hhMjU2GAMgASgJEhQKDGhpc3Rvcnlfc2l6ZRgEIAEoBBIdChVoaXN0b3J5X3ByZWZpeF9zaGEyNTYYBSABKAki8wMKE0ltcG9ydFRocmVhZFN1bW1hcnkSEgoKc291cmNlX2tleRgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSEQoJbmF0aXZlX2lkGAMgASgJEg8KB3Jvb3RfaWQYBCABKAkSCwoDY3dkGAUgASgJEhIKCmN3ZF9leGlzdHMYBiABKAgSDQoFdGl0bGUYByABKAkSDwoHcHJldmlldxgIIAEoCRIuCgpzdGFydGVkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVieXRlcxgLIAEoBBINCgV0dXJucxgMIAEoDRIOCgZvcmlnaW4YDSABKAkSEwoLY2xpX3ZlcnNpb24YDiABKAkSDgoGZm9ybWF0GA8gASgJEhgKEHBhcmVudF9uYXRpdmVfaWQYECABKAkSEAoIc3ViYWdlbnQYESABKAgSFwoPZmxhZ2dlZF9zZWNyZXRzGBIgASgNEhIKCmdpdF9icmFuY2gYEyABKAkSMgoIc25hcHNob3QYFCABKAsyIC5jYW5vcHkud29ya2VyLnYxLkltcG9ydFNuYXBzaG90EhAKCGFyY2hpdmVkGBUgASgIIssBCgpJbXBvcnRTY2FuEisKBXJvb3RzGAEgAygLMhwuY2Fub3B5Lndvcmtlci52MS5JbXBvcnRSb290EjYKB3RocmVhZHMYAiADKAsyJS5jYW5vcHkud29ya2VyLnYxLkltcG9ydFRocmVhZFN1bW1hcnkSEQoJdHJ1bmNhdGVkGAMgASgIEg8KB3NraXBwZWQYBCABKA0SNAoHbGlicmFyeRgFIAMoCzIjLmNhbm9weS53b3JrZXIudjEuSW1wb3J0TGlicmFyeUl0ZW0ixwEKEUltcG9ydExpYnJhcnlJdGVtEhIKCnNvdXJjZV9rZXkYASABKAkSEQoJYWdlbnRfY2xpGAIgASgJEg8KB3Jvb3RfaWQYAyABKAkSDAoEa2luZBgEIAEoCRIMCgRuYW1lGAUgASgJEg0KBXZhbHVlGAYgASgJEg4KBmRldGFpbBgHIAEoCRIOCgZkaWdlc3QYCCABKAkSDQoFYnl0ZXMYCSABKAQSDgoGcmVhc29uGAogASgJEhAKCHdhcm5pbmdzGAsgAygJIjsKFVJlYWRJbXBvcnRMaWJyYXJ5SXRlbRISCgpzb3VyY2Vfa2V5GAEgASgJEg4KBmRpZ2VzdBgCIAEoCSI0ChRJbXBvcnRMaWJyYXJ5Q29udGVudBIMCgR0ZXh0GAEgASgJEg4KBmRpZ2VzdBgCIAEoCWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("CiFjYW5vcHkvd29ya2VyL3YxL2NsaV9pbXBvcnQucHJvdG8SEGNhbm9weS53b3JrZXIudjEiJwoRU2NhbkltcG9ydFNvdXJjZXMSEgoKYWdlbnRfY2xpcxgBIAMoCSJfCgpJbXBvcnRSb290EgoKAmlkGAEgASgJEhEKCWFnZW50X2NsaRgCIAEoCRIMCgRwYXRoGAMgASgJEhMKC2NsaV92ZXJzaW9uGAQgASgJEg8KB3Byb2JsZW0YBSABKAkifwoOSW1wb3J0U25hcHNob3QSDAoEc2l6ZRgBIAEoBBITCgttb2RpZmllZF9tcxgCIAEoAxIVCg1wcmVmaXhfc2hhMjU2GAMgASgJEhQKDGhpc3Rvcnlfc2l6ZRgEIAEoBBIdChVoaXN0b3J5X3ByZWZpeF9zaGEyNTYYBSABKAki8wMKE0ltcG9ydFRocmVhZFN1bW1hcnkSEgoKc291cmNlX2tleRgBIAEoCRIRCglhZ2VudF9jbGkYAiABKAkSEQoJbmF0aXZlX2lkGAMgASgJEg8KB3Jvb3RfaWQYBCABKAkSCwoDY3dkGAUgASgJEhIKCmN3ZF9leGlzdHMYBiABKAgSDQoFdGl0bGUYByABKAkSDwoHcHJldmlldxgIIAEoCRIuCgpzdGFydGVkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBINCgVieXRlcxgLIAEoBBINCgV0dXJucxgMIAEoDRIOCgZvcmlnaW4YDSABKAkSEwoLY2xpX3ZlcnNpb24YDiABKAkSDgoGZm9ybWF0GA8gASgJEhgKEHBhcmVudF9uYXRpdmVfaWQYECABKAkSEAoIc3ViYWdlbnQYESABKAgSFwoPZmxhZ2dlZF9zZWNyZXRzGBIgASgNEhIKCmdpdF9icmFuY2gYEyABKAkSMgoIc25hcHNob3QYFCABKAsyIC5jYW5vcHkud29ya2VyLnYxLkltcG9ydFNuYXBzaG90EhAKCGFyY2hpdmVkGBUgASgIIssBCgpJbXBvcnRTY2FuEisKBXJvb3RzGAEgAygLMhwuY2Fub3B5Lndvcmtlci52MS5JbXBvcnRSb290EjYKB3RocmVhZHMYAiADKAsyJS5jYW5vcHkud29ya2VyLnYxLkltcG9ydFRocmVhZFN1bW1hcnkSEQoJdHJ1bmNhdGVkGAMgASgIEg8KB3NraXBwZWQYBCABKA0SNAoHbGlicmFyeRgFIAMoCzIjLmNhbm9weS53b3JrZXIudjEuSW1wb3J0TGlicmFyeUl0ZW0i9wEKEUltcG9ydExpYnJhcnlJdGVtEhIKCnNvdXJjZV9rZXkYASABKAkSEQoJYWdlbnRfY2xpGAIgASgJEg8KB3Jvb3RfaWQYAyABKAkSDAoEa2luZBgEIAEoCRIMCgRuYW1lGAUgASgJEg0KBXZhbHVlGAYgASgJEg4KBmRldGFpbBgHIAEoCRIOCgZkaWdlc3QYCCABKAkSDQoFYnl0ZXMYCSABKAQSDgoGcmVhc29uGAogASgJEhAKCHdhcm5pbmdzGAsgAygJEg0KBWZpbGVzGAwgASgNEg4KBnNvdXJjZRgNIAEoCRIPCgd2ZXJzaW9uGA4gASgJIjsKFVJlYWRJbXBvcnRMaWJyYXJ5SXRlbRISCgpzb3VyY2Vfa2V5GAEgASgJEg4KBmRpZ2VzdBgCIAEoCSJgChRJbXBvcnRMaWJyYXJ5Q29udGVudBIMCgR0ZXh0GAEgASgJEg4KBmRpZ2VzdBgCIAEoCRIqCgVmaWxlcxgDIAMoCzIbLmNhbm9weS53b3JrZXIudjEuU2tpbGxGaWxlYgZwcm90bzM", [file_canopy_worker_v1_agent_environment, file_google_protobuf_timestamp]);
 
 /**
  * @generated from message canopy.worker.v1.ScanImportSources
@@ -323,7 +325,7 @@ export type ImportLibraryItem = Message<"canopy.worker.v1.ImportLibraryItem"> & 
   rootId: string;
 
   /**
-   * setting | instruction
+   * setting | instruction | skill | command | marketplace | plugin
    *
    * @generated from field: string kind = 4;
    */
@@ -373,6 +375,23 @@ export type ImportLibraryItem = Message<"canopy.worker.v1.ImportLibraryItem"> & 
    * @generated from field: repeated string warnings = 11;
    */
   warnings: string[];
+
+  /**
+   * skill, command: liczba plików; marketplace, plugin: źródło (owner/repo, URL) i wersja albo commit.
+   *
+   * @generated from field: uint32 files = 12;
+   */
+  files: number;
+
+  /**
+   * @generated from field: string source = 13;
+   */
+  source: string;
+
+  /**
+   * @generated from field: string version = 14;
+   */
+  version: string;
 };
 
 /**
@@ -419,6 +438,13 @@ export type ImportLibraryContent = Message<"canopy.worker.v1.ImportLibraryConten
    * @generated from field: string digest = 2;
    */
   digest: string;
+
+  /**
+   * skill, command: pliki skilla (komenda jako wygenerowany SKILL.md), tekst zamaskowany.
+   *
+   * @generated from field: repeated canopy.worker.v1.SkillFile files = 3;
+   */
+  files: SkillFile[];
 };
 
 /**

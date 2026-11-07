@@ -2,7 +2,8 @@ import { create } from "@bufbuild/protobuf";
 import { ImportLibraryContentSchema, type ImportLibraryContent, type ReadImportLibraryItem } from "@canopy/contracts";
 import { CommandError } from "../runtime/host-types.ts";
 import { INSTRUCTION_BYTES, libraryPlace, sha256 } from "./library-scan.ts";
-import { readSourceText } from "./read.ts";
+import { readCommand, readSkill } from "./library-skills.ts";
+import { ConfinementError, readSourceText } from "./read.ts";
 import type { WorkerImport } from "./service.ts";
 import { resolveSourceKey, SourceKeyError, sourceKeyPath } from "./source-key.ts";
 import { maskText } from "./masking.ts";
@@ -13,13 +14,33 @@ import { maskText } from "./masking.ts";
  * the worker masked.
  */
 export function readImportLibraryItem(service: WorkerImport, request: ReadImportLibraryItem): ImportLibraryContent {
-  const { roots } = service.roots();
+  const roots = service.libraryRoots();
+  const masker = service.masker(service.roots().roots);
 
   try {
-    const { root, path } = resolveSourceKey(service.key, roots, request.sourceKey, "file");
+    const rel = sourceKeyPath(request.sourceKey);
+    const id = request.sourceKey.split(".")[0];
+    const place = libraryPlace(roots.find((r) => r.id === id)?.agentCli ?? "claude", rel);
 
-    if (!libraryPlace(root.agentCli, sourceKeyPath(request.sourceKey)))
-      throw new SourceKeyError("the source is not a library item");
+    if (!place) throw new SourceKeyError("the source is not a library item");
+
+    const { root, path } = resolveSourceKey(
+      service.key,
+      roots,
+      request.sourceKey,
+      place === "skill" ? "directory" : "file",
+    );
+
+    if (place !== "file") {
+      const read = place === "skill" ? readSkill(root, rel, masker) : readCommand(root, rel, masker);
+
+      if (!read.artifact) throw new CommandError("IMPORT_SOURCE", read.problem || "the skill is not valid", false);
+
+      if (request.digest && read.artifact.checksum !== request.digest)
+        throw new CommandError("IMPORT_CHANGED", "the skill changed since the scan; scan again", false);
+
+      return create(ImportLibraryContentSchema, { digest: read.artifact.checksum, files: read.files });
+    }
 
     const text = readSourceText({ root: root.path, path }, INSTRUCTION_BYTES * 4);
 
@@ -29,9 +50,10 @@ export function readImportLibraryItem(service: WorkerImport, request: ReadImport
     if (request.digest && digest !== request.digest)
       throw new CommandError("IMPORT_CHANGED", "the file changed since the scan; scan again", false);
 
-    return create(ImportLibraryContentSchema, { text: maskText(text, service.masker(roots)), digest });
+    return create(ImportLibraryContentSchema, { text: maskText(text, masker), digest });
   } catch (cause) {
-    if (cause instanceof SourceKeyError) throw new CommandError("IMPORT_SOURCE", cause.message, false);
+    if (cause instanceof SourceKeyError || cause instanceof ConfinementError)
+      throw new CommandError("IMPORT_SOURCE", cause.message, false);
     throw cause;
   }
 }

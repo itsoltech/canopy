@@ -1,0 +1,7 @@
+{
+  "fixture-market": {
+    "source": { "source": "github", "repo": "fixture/market" },
+    "installLocation": "/home/user/.claude/plugins/marketplaces/fixture-market"
+  },
+  "local-market": { "source": { "source": "directory", "path": "/home/user/market" } }
+}

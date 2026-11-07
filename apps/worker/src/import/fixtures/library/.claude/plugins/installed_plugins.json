@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "plugins": {
+    "review@fixture-market": [
+      { "scope": "user", "version": "1.2.0", "gitCommitSha": "0123456789abcdef0123456789abcdef01234567" }
+    ]
+  }
+}

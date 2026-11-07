@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { ui } from "@canopy/contracts";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
@@ -17,10 +18,19 @@
     ["unavailable", "Not imported"],
   ]);
 
-  const actions = [
-    { value: "keep_both", label: "Keep both" },
-    { value: "replace", label: "Replace" },
-  ];
+  const labels = new Map([
+    ["keep_both", "Keep both"],
+    ["replace", "Replace"],
+  ]);
+
+  const kinds = new Map([
+    ["skill", "Skill"],
+    ["command", "Command"],
+    ["marketplace", "Marketplace"],
+    ["plugin", "Plugin"],
+  ]);
+
+  const actions = $derived(item.actions.map((value) => ({ value, label: labels.get(value) ?? value })));
 
   const choosable = $derived(item.status === "new" || item.status === "conflict");
   const chosen = $derived(library.isChosen(item.key));
@@ -33,7 +43,7 @@
 
   const id = $props.id();
 
-  let action = $state("keep_both");
+  let action = $state(untrack(() => item.actions[0] ?? ""));
 
   $effect(() => {
     if (chosen && item.status === "conflict") library.setAction(item.key, action);
@@ -61,9 +71,13 @@
     <label for={`${id}-choose`} class="flex min-w-0 items-center gap-2">
       <ProviderIcon provider={providerKey(item.agentCli)} size="sm" class="shrink-0" />
       <TruncatedText text={item.name} class="min-w-0 text-zinc-950 dark:text-white" />
+      {#if kinds.get(item.kind)}<Badge compact tone="sky">{kinds.get(item.kind)}</Badge>{/if}
       {#if statuses.get(item.status)}<Badge compact>{statuses.get(item.status)}</Badge>{/if}
       {#if item.status === "conflict"}<Badge compact tone="amber">Name taken</Badge>{/if}
     </label>
+    {#if item.detail && kinds.has(item.kind)}
+      <p class="text-sm text-zinc-500 sm:text-xs dark:text-zinc-400"><TruncatedText text={item.detail} /></p>
+    {/if}
     {#if change && item.status !== "unavailable"}
       <p class="text-sm text-zinc-600 sm:text-xs dark:text-zinc-300"><TruncatedText text={change} /></p>
     {/if}
@@ -73,7 +87,7 @@
     {#each item.warnings as warning (warning)}
       <p class="text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">{warning}</p>
     {/each}
-    {#if item.status === "conflict" && chosen}
+    {#if item.status === "conflict" && chosen && actions.length > 1}
       <div class="mt-1.5">
         <SegmentedChoice label={`What to do with ${item.name}`} options={actions} bind:value={action} />
       </div>
