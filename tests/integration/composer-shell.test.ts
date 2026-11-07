@@ -91,21 +91,23 @@ describe.skipIf(!dockerAvailable)("composer shell input over gRPC and scripted h
       delivery: ui.MessageDelivery.STEER,
     });
 
-    const view = await eventually(
-      () => snapshot(thread.id),
-      (s) => s.steers.some((s) => s.id === sent.steer?.id && s.status === "delivered"),
-    );
-
-    const steer = view.steers.find((s) => s.id === sent.steer?.id)!;
-    expect(steer.shellResult?.output).toBe("steered");
-    expect(
-      view.items.some(
+    const echoed = (s: ui.ThreadSnapshot, steer: ui.Steer) =>
+      s.items.some(
         (i) =>
           i.item?.content.case === "userMessage" &&
           i.item.content.value.clientId === steer.id &&
           i.item.content.value.text === steer.inputText,
-      ),
-    ).toBe(true);
+      );
+
+    // A watch snapshot reads items before steers, so it can show the steer delivered without its item yet.
+    const view = await eventually(
+      () => snapshot(thread.id),
+      (s) => s.steers.some((steer) => steer.id === sent.steer?.id && steer.status === "delivered" && echoed(s, steer)),
+    );
+
+    const steer = view.steers.find((s) => s.id === sent.steer?.id)!;
+    expect(steer.shellResult?.output).toBe("steered");
+    expect(echoed(view, steer)).toBe(true);
     await fixture.release("shell-steer");
     await fixture.finished(thread.id, first.id);
   }, 15_000);
