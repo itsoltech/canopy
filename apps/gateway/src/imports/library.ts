@@ -1,5 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { connectors, PermissionMode, Provider, ui, type ImportLibraryItem, type ModelInfo } from "@canopy/contracts";
+import { INSTRUCTION_DOCUMENT_NAME_LENGTH } from "@canopy/domain/agent-environment";
+import { importName } from "@canopy/domain/import-name";
 import { connectorCandidates, marketplaceCandidates, pluginCandidates, skillCandidates } from "./library-kinds.ts";
 import type { LibraryRow } from "./library-store.ts";
 
@@ -54,7 +56,10 @@ export const cliName = (cli: string) => CLI_NAMES.get(cli) ?? cli;
 
 /** The instruction document an import creates for a CLI's file on a worker. */
 export function documentName(item: Pick<ImportLibraryItem, "agentCli" | "name">, workerName: string): string {
-  return `${cliName(item.agentCli)} ${item.name} (${workerName})`;
+  return importName(workerName, INSTRUCTION_DOCUMENT_NAME_LENGTH, {
+    prefix: `${cliName(item.agentCli)} ${item.name} (`,
+    suffix: ")",
+  });
 }
 
 export const liveKey = (i: { rootId: string; agentCli: string; kind: string; name: string; digest: string }) =>

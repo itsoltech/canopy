@@ -220,6 +220,12 @@ wybiera pozycje, a przebieg stosuje je przed wątkami (są szybkie). Starszy wor
   `@` importy nie są rozwijane (ostrzeżenie), limit 24 KiB jak w bibliotece. Dokument o tej samej nazwie to
   konflikt: **Keep both** tworzy „… (2)”, **Replace** podmienia fragmenty. Grok: lista z powodem, dopóki
   biblioteka nie obsługuje Groka.
+  Nazwa mieści się w limicie 120 jednostek UTF-16: zbyt długa nazwa workera jest skracana na granicy grafemu,
+  z wielokropkiem i stabilnym skrótem SHA-256 odróżniającym wspólne prefiksy; CLI i nazwa pliku zostają.
+  **Keep both** rezerwuje miejsce na licznik i sprawdza zajęte nazwy właściciela. Istniejące dokumenty nie są
+  przemianowywane. Ta sama zasada obejmuje nazwy kont (limit 80); generowane nazwy skilli z komend zachowują
+  format przenośny (limit 64, myślnik i skrót zamiast wielokropka). Nazwy skilli i marketplace z manifestów
+  przechodzą walidację źródła, bez generowania nowych nazw.
 - **Poza importem, z powodem:** hooks i `notify`, status line, `env`, reguły uprawnień, loginy, pamięć CLI.
 - **Zapis i Undo.** `import_library_items` (migracja `0094_cli_import_library`) zapisuje każdą pozycję z tym,
   co zmieniła: ustawienie z poprzednią i nową wartością, dokument z id i rewizją (przy Replace także poprzednią

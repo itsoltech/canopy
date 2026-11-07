@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { connectors } from "@canopy/contracts";
+import { importName } from "@canopy/domain/import-name";
 import { Effect, Option, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { GatewayCore } from "../core/core.ts";
@@ -91,12 +92,18 @@ export async function applyConnector(core: GatewayCore, sql: Sql, row: LibraryRo
   for (const slot of value.secrets) headers[slot] = await secretOf(core, sql, row, slot);
 
   const missing = value.slots.filter((slot) => !value.secrets.includes(slot.name)).map((slot) => slot.name);
+  const { accounts } = await core.connectors.list(create(connectors.ListConnectorsRequestSchema));
+  const taken = new Set(accounts.map((account) => account.name));
+  const label = row.label.normalize("NFC");
+  let name = importName(label, 80);
+
+  for (let n = 2; taken.has(name); n++) name = importName(label, 80, { suffix: ` (${n})` });
 
   // The account and the item's receipt (its id and revision, what Undo checks) commit together.
   await core.connectors.save(
     create(connectors.SaveConnectorAccountRequestSchema, {
       connectorType: "custom",
-      name: row.label.slice(0, 80),
+      name,
       url: value.url,
       transport: value.transport,
       authKind: "headers",

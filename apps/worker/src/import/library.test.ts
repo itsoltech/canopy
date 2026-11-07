@@ -139,6 +139,25 @@ test("every item has its own key; a setting's key reads nothing", async () => {
   expect(() => read(service, model.sourceKey)).toThrow();
 });
 
+test("long command paths become distinct portable skills whose scanned names match the imported artifact", async () => {
+  const { service, home } = setup();
+  const names = ["review-" + "a".repeat(90) + "one", "review-" + "a".repeat(90) + "two"];
+
+  for (const name of names) writeFileSync(join(home, ".claude", "commands", `${name}.md`), "Review this change.\n");
+  const scan = await service.scan(["claude"]);
+  const commands = scan.library.filter((item) => item.kind === "command" && item.detail.startsWith("/review-"));
+  expect(commands).toHaveLength(2);
+  expect(new Set(commands.map((item) => item.name)).size).toBe(2);
+
+  for (const command of commands) {
+    expect(command.reason).toBe("");
+    expect(command.name.length).toBeLessThanOrEqual(64);
+    expect(command.name).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+    const content = read(service, command.sourceKey, command.digest);
+    expect(Buffer.from(content.files[0]!.content).toString()).toContain(`name: ${command.name}\n`);
+  }
+});
+
 test("Codex sandbox and approval policy map together to a mode that is never broader", async () => {
   const { codexSettings } = await import("./library-settings.ts");
 
