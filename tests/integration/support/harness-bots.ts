@@ -4,8 +4,8 @@ import { startInstanceFixture } from "./instance-fixture.ts";
 import { eventually } from "./gateway.ts";
 
 /** Real WorkerHost and gRPC; only the provider CLIs are scripted. */
-export async function harnessBots() {
-  const f = await startInstanceFixture(true);
+export async function harnessBots(gatewayOptions: Parameters<typeof startInstanceFixture>[1] = {}) {
+  const f = await startInstanceFixture(true, gatewayOptions);
 
   for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
     await f.save(provider, "bot-native");

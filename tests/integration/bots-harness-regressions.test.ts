@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { fromBinary } from "@bufbuild/protobuf";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { CommandSchema, MentionKind, Provider } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { harnessBots, type HarnessBots } from "./support/harness-bots.ts";
@@ -8,9 +9,10 @@ import { fakeConnector } from "./support/connector.ts";
 
 describe.skipIf(!dockerAvailable)("bot capabilities on the harness runtime", () => {
   let f: HarnessBots;
+  let clock = new Date("2030-01-07T08:14:59.999Z");
   const connector = fakeConnector({ call: (_name, args) => ({ received: args }) });
   beforeAll(async () => {
-    f = await harnessBots();
+    f = await harnessBots({ botClock: () => clock });
   }, 30_000);
   afterAll(async () => {
     await connector.close();
@@ -19,6 +21,7 @@ describe.skipIf(!dockerAvailable)("bot capabilities on the harness runtime", () 
 
   for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
     test(`${Provider[provider]} routine and wakeup use the harness and preserve visibility`, async () => {
+      clock = new Date("2030-01-07T08:14:59.999Z");
       const bot = await f.add(provider);
       await f.tool(bot.id, "create_routine", {
         title: "Background check",
@@ -29,7 +32,9 @@ describe.skipIf(!dockerAvailable)("bot capabilities on the harness runtime", () 
       const baseline = await f.settled(bot.id);
       expect(baseline.routines).toHaveLength(1);
       const routine = baseline.routines[0]!;
-      await f.query("UPDATE bot_routines SET next_run_at = now() - interval '1 minute' WHERE id=$1", [routine.id]);
+      // Cross the quarter hour explicitly, then keep background ticks on the same clock.
+      clock = timestampDate(routine.nextRunAt!);
+      expect(clock.toISOString()).toBe("2030-01-07T08:15:00.000Z");
       await f.gw.core.bots.tick();
 
       const hidden = await eventually(
@@ -39,6 +44,7 @@ describe.skipIf(!dockerAvailable)("bot capabilities on the harness runtime", () 
 
       expect(hidden.messages).toEqual(baseline.messages);
       expect(hidden.routines[0]?.lastOutcome).toBe("Nothing to report");
+      expect(timestampDate(hidden.routines[0]!.nextRunAt!).toISOString()).toBe("2030-01-07T08:30:00.000Z");
       await f.tool(bot.id, "schedule_wakeup", {
         prompt: "Wakeup marker",
         run_at: new Date(Date.now() + 60_000).toISOString(),

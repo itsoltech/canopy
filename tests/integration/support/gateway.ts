@@ -537,6 +537,7 @@ export async function startTestGateway(
     attachmentLimits?: AttachmentLimits;
     backgroundGraceMs?: number;
     botModel?: BotModel;
+    botClock?: GatewayCoreOptions["botClock"];
     worker?: ScriptedWorkerOptions;
     secretTtlMs?: number;
     storage?: { pg: TestPostgres; secretsKey: Buffer; workerId: string; workerCredential: string };
@@ -605,6 +606,7 @@ export async function startTestGateway(
     ...(options.updates && { updates: options.updates }),
     ...(options.secretTtlMs !== undefined && { secretTtlMs: options.secretTtlMs }),
     ...(options.botModel && { botModel: options.botModel }),
+    ...(options.botClock && { botClock: options.botClock }),
     ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }),
     ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }),
     log: (m) => (process.env["CANOPY_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m),
