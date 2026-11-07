@@ -593,8 +593,8 @@ Grok nadal wraca do kolejki. Jeśli tura skończy się podczas wykonania steera,
 otrzymuje ten sam zapisany wynik, bez ponownego uruchomienia komendy.
 
 `Turn.shell_command` / `shell_result` i analogiczne pola `Steer` pokazują komendę monospace,
-kod wyjścia, pierwsze 4 wiersze wyniku oraz „Show output”. „Full text the agent received”
-ujawnia dokładne wejście harnessu (`Turn.input_text`, `Steer.input_text`). Wyniki niezerowego
+kod wyjścia, pierwsze 4 wiersze wyniku oraz „Show output”, bez osobnego podglądu wejścia
+harnessu. Zapisane wejście agenta pozostaje bez zmian. Wyniki niezerowego
 kodu też trafiają do agenta; timeout, Stop i błąd uruchomienia kończą wejście bez startu agenta.
 Nieudany shell steer pozostaje widoczny. Szczegóły wykonania i trwałości: [protocol.md](protocol.md#komendy-powłoki-właściciela).
 

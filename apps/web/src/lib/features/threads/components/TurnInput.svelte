@@ -63,7 +63,7 @@
 </script>
 
 {#if turn.shellCommand !== undefined}
-  <ShellMessage command={turn.shellCommand} result={turn.shellResult} text={turn.inputText} status={turn.status} />
+  <ShellMessage command={turn.shellCommand} result={turn.shellResult} status={turn.status} />
 {:else if origin.kind === "background_task"}
   <!-- The platform's note about ended background tasks: a system line, not a message. -->
   <BackgroundNoteRow itemIds={origin.itemIds} />

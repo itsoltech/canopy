@@ -516,7 +516,9 @@ z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Preferencje doty
 telefonu i leżą w `device-preferences.json` w katalogu dokumentów aplikacji
 (`src/storage/preferences.ts`), nie w ustawieniach gatewaya. Wiersze pracy mają
 stopień `work` (15/13), komendy są monospace. Tura powłoki (`Turn.shell_command`) ma kartę
-z kodem wyjścia, 4 wierszami wyniku i „Show output”; `!` na początku kompozytora włącza tryb
+z kodem wyjścia, 4 wierszami wyniku i „Show output”. Po karcie pokazuje tę samą pracę
+i odpowiedź agenta co zwykła tura; odpowiedź pozostaje poza foldem, a zakończona praca
+bez wierszy ma nieinteraktywny nagłówek „Worked for …”. `!` na początku kompozytora włącza tryb
 powłoki (obramowanie rose, nota w miejscu kontrolek). Tura w kolejce pokazuje „Queued”,
 a po `dispatched` „Starting”; pliki tury są odznakami w dymku. Nad kompozytorem są tylko
 subagenty w toku, zakończone zwija liczba otwierająca arkusz subagentów. Arkusz i panel

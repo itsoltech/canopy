@@ -167,52 +167,51 @@ export function TimelineTurn({
         ) : hasInput ? (
           <TurnInput turn={turn} onActions={queued ? () => onQueued(turn) : undefined} />
         ) : null}
-        {turn.shellCommand === undefined &&
-          segments.map((segment, index) => {
-            const id = foldId(turn.id, index);
-            const answer = segment.answer >= 0 ? body[segment.answer] : undefined;
-            const work = body.slice(segment.start + segment.inputs, segment.end).filter((row) => row !== answer);
-            const isOpen = open(index);
+        {segments.map((segment, index) => {
+          const id = foldId(turn.id, index);
+          const answer = segment.answer >= 0 ? body[segment.answer] : undefined;
+          const work = body.slice(segment.start + segment.inputs, segment.end).filter((row) => row !== answer);
+          const isOpen = open(index);
 
-            const summary = summarize(
-              work,
-              {
-                startMs: index === 0 ? timestampMs(turn.startedAt) : answerEnd(segments[index - 1]?.answer),
-                endMs: index === segments.length - 1 ? timestampMs(turn.completedAt) : answerEnd(segment.answer),
-                live: segment.live,
-              },
-              context.tasks,
-            );
+          const summary = summarize(
+            work,
+            {
+              startMs: index === 0 ? timestampMs(turn.startedAt) : answerEnd(segments[index - 1]?.answer),
+              endMs: index === segments.length - 1 ? timestampMs(turn.completedAt) : answerEnd(segment.answer),
+              live: segment.live,
+            },
+            context.tasks,
+          );
 
-            const groupOpen = (key: string) => groups.get(key) ?? (segment.live && workFold.expandWhileWorking);
+          const groupOpen = (key: string) => groups.get(key) ?? (segment.live && workFold.expandWhileWorking);
 
-            return (
-              <View key={id} style={{ gap: 12 }}>
-                {body.slice(segment.start, segment.start + segment.inputs).map((row) => (
-                  <BodyRowView key={row.key} row={row} steers={context.steers} ended={ended} />
-                ))}
-                <View style={{ gap: 4 }}>
-                  <WorkFold
-                    summary={summary}
-                    starting={turn.status === "queued" && turn.dispatched}
-                    open={isOpen}
-                    onToggle={() => setFolds(new Map(folds).set(index, !isOpen))}
+          return (
+            <View key={id} style={{ gap: 12 }}>
+              {body.slice(segment.start, segment.start + segment.inputs).map((row) => (
+                <BodyRowView key={row.key} row={row} steers={context.steers} ended={ended} />
+              ))}
+              <View style={{ gap: 4 }}>
+                <WorkFold
+                  summary={summary}
+                  starting={turn.status === "queued" && turn.dispatched}
+                  open={isOpen}
+                  onToggle={() => setFolds(new Map(folds).set(index, !isOpen))}
+                />
+                {isOpen && work.length > 0 && (
+                  <WorkRail
+                    rows={workRows(work, groupOpen)}
+                    steers={context.steers}
+                    ended={ended}
+                    groups={groupOpen}
+                    onGroup={(key) => setGroups(new Map(groups).set(key, !groupOpen(key)))}
                   />
-                  {isOpen && work.length > 0 && (
-                    <WorkRail
-                      rows={workRows(work, groupOpen)}
-                      steers={context.steers}
-                      ended={ended}
-                      groups={groupOpen}
-                      onGroup={(key) => setGroups(new Map(groups).set(key, !groupOpen(key)))}
-                    />
-                  )}
-                </View>
-                {/* Out of the fold the answer mounts anew, so it fades in where it lands (web: the answer slot). */}
-                {answer && <BodyRowView row={answer} steers={context.steers} ended={ended} />}
+                )}
               </View>
-            );
-          })}
+              {/* Out of the fold the answer mounts anew, so it fades in where it lands (web: the answer slot). */}
+              {answer && <BodyRowView row={answer} steers={context.steers} ended={ended} />}
+            </View>
+          );
+        })}
         {ended && (
           <View style={{ gap: 4 }}>
             <TurnEnd turn={turn} provider={context.provider} />

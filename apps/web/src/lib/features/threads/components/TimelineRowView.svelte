@@ -37,7 +37,7 @@
     attachments={row.node.entry.item.content.value.attachments}
   />
 {:else if row.kind === "item" && row.steer && steer?.shellCommand !== undefined}
-  <ShellMessage command={steer.shellCommand} result={steer.shellResult} text={steer.inputText} />
+  <ShellMessage command={steer.shellCommand} result={steer.shellResult} />
 {:else if row.kind === "item" && row.steer && steer?.backgroundItemIds.length}
   <BackgroundNoteRow itemIds={steer.backgroundItemIds} />
 {:else if row.kind === "item" && row.steer && row.node.entry.item.content.case === "userMessage"}
