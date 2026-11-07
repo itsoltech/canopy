@@ -531,14 +531,29 @@ z kodem wyjścia, 4 wierszami wyniku i „Show output”. Po karcie pokazuje tę
 i odpowiedź agenta co zwykła tura; odpowiedź pozostaje poza foldem, a zakończona praca
 bez wierszy ma nieinteraktywny nagłówek „Worked for …”. `!` na początku kompozytora włącza tryb
 powłoki (obramowanie rose, nota w miejscu kontrolek). Tura w kolejce pokazuje „Queued”,
-a po `dispatched` „Starting”; pliki tury są odznakami w dymku. Nad kompozytorem są tylko
-subagenty w toku, zakończone zwija liczba otwierająca arkusz subagentów. Arkusz i panel
-szczegółów współdzielą listę: przy „Keep finished subagents in the list” = Off zakończeni,
-także archiwalni, są pod rozwijanym „N finished”. Rozwinięcie zapisuje preferencja urządzenia
-`finishedSubagentsExpanded` (domyślnie Off). On pozostawia ich na głównej liście. Wiersz ma
-ikonę dostawcy, ucięty tytuł, wynik ostatniej tury i względny czas aktywności. Dotknięcie otwiera
+a po `dispatched` „Starting”; pliki tury są odznakami w dymku. Nad kompozytorem jest jeden
+wiersz „Subagents · N running · N finished” z wyróżnionym tekstem „N needs input”. Jego
+miejsce (44 dp) jest zarezerwowane także bez subagentów; start i koniec pracy nie przesuwają
+kompozytora ani feedu. Podsumowanie pozostaje widoczne podczas pisania. Dotknięcie rozwija
+listę w nakładce nad tym wierszem, poza pomiarem kompozytora: maksymalnie 240 dp, własne
+przewijanie, bez zamykania klawiatury. Nakładka mieści się między nagłówkiem a kompozytorem
+nawet przy otwartej klawiaturze. To pozwala zachować pole pisania i jego fokus bez dodatkowego
+arkusza. Preferencja urządzenia `subagentsExpanded` zapamiętuje rozwinięcie (domyślnie Off).
+Podpowiedzi wzmianek tymczasowo zajmują to samo miejsce, zachowując tę preferencję.
+
+Nakładka i panel szczegółów współdzielą listę oraz webowe grupowanie z `@canopy/domain/subagents`:
+przy „Keep finished subagents in the list” = Off zakończeni, także archiwalni, są pod rozwijanym
+„N finished”. Rozwinięcie zapisuje `finishedSubagentsExpanded` (domyślnie Off). On pozostawia
+ostatnie 10 minut na głównej liście, a starszych pod „Previous subagents” z liczbą nieudanych.
+Wiersz ma ucięty tytuł, stan (w tym „Waiting for an answer”), ikonę dostawcy i model oraz pierwszą
+linię ostatniej wiadomości bez znaczników markdown. Zakończeni mają też względny czas aktywności.
+Wejście i wyjście nakładki używa `pop`, grupy `Expand`, chevron `useTween`; ograniczenie ruchu
+przełącza panel i grupy natychmiast. Dotknięcie otwiera
 wątek z historią i możliwością dalszej wiadomości; archiwalny wymaga najpierw „Unarchive”.
 Odrzucona przez gateway wiadomość pokazuje jego powód zamiast ogólnej noty o ponowieniu.
+Zdarzenia `turnStarted` / `turnFinished` od dostawcy lub wznowienia odtwarzają w reduktorze
+mobile turę z czasem początku i końca, zanim nadejdzie jej projekcja. „Working for …” zachowuje
+dzięki temu czas także dla tur rozpoczętych przez dostawcę; zapis cache zachowuje te czasy.
 Wiersze osi czasu wyglądają jak w web (`src/features/timeline`): każdy rodzaj itemu ma widok jak `components/items` w web (komendy z kodem wyjścia, narzędzia z tytułem z rejestru, zmiany plików z diffem, rozumowanie, wyszukiwanie, plan/to do, obraz, kompakcja, zdarzenie dostawcy, zapis zgody lub pytania, subagent z zagnieżdżoną pracą, zadanie w tle ze Stop i ogonem wyjścia, wywołania magistrali agentów na fioletowo z kartą subagenta i dostarczenia). Wejście tury pokazuje jego pochodzenie (zadanie, wiadomość, raport od agenta z nadawcą i modelem, pytanie wątku bocznego, harmonogram, bot, notatka o zakończonych zadaniach w tle), steery mają notę, komunikaty dostawcy są wierszami, a nieudana tura pokazuje wyjaśnienie błędu ze szczegółami. Fold „Working for …” / „Worked for …” ma czas, liczniki albo bieżącą czynność, „N still running” i grupy narzędzi („Read 1 file and ran 5 commands”). Etykiety, liczniki i opisy narzędzi pochodzą ze wspólnych modułów `@canopy/domain` (`tools`, `work-summary`, `turn-origin`, `status-look`, `humanize`, `format`, `questions`, `failure-presentation`, `first-line`), tak jak w web. Czat bota używa tego samego układu co web (`@canopy/domain/bot-chat`: `botEntries`, `layoutChat`): linie dat, serie dymków z ciaśniejszymi rogami, linie wymian bot ⇄ bot, zdarzenia, błędy odpowiedzi i karty w kolejności czasu oraz wiersz statusu bota. Ręczne przełączanie foldu trzyma nagłówek w miejscu (timeline-folding.md, „Pozycja przy ręcznym przełączaniu”).
 Pytania/zgody w wątkach są widoczne **read-only** i odpowiada się na nie w web. Karty
 ze znanym terminem (`Interaction.expires_at`, `BotApproval.expires_at`) pokazują

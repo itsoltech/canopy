@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, toBinary } from "@bufbuild/protobuf";
-import { Provider, ui } from "@canopy/contracts";
+import { Provider, TurnOrigin, TurnOutcome, ui } from "@canopy/contracts";
+import { timestampFromMs, timestampMs } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -76,6 +77,70 @@ describe("durable bounded thread snapshots", () => {
     await cache.save(state);
     expect(await cache.load("thread")).toBeUndefined();
     expect(await storage.list()).toHaveLength(0);
+  });
+
+  test("provider and recovery turn times survive live events, disk restart and authoritative upserts", async () => {
+    const storage = new DiskThreadStorage(directory("canopy-cache-provider-turn-"));
+    const startedAt = timestampFromMs(1_800_000_000_000);
+    const completedAt = timestampFromMs(timestampMs(startedAt) + 120_000);
+
+    for (const origin of [TurnOrigin.PROVIDER, TurnOrigin.RECOVERY]) {
+      const id = `thread-${origin}`;
+      const turnId = `turn-${origin}`;
+      let state = snapshot(id);
+      // An inherited turn may share a provider turn id; the live event belongs to the fork's own history.
+      state.turns.push(
+        create(ui.TurnSchema, { id: turnId, inherited: true, fromThreadId: "source", status: "completed" }),
+      );
+
+      const started = create(ui.ThreadUpdateSchema, {
+        change: {
+          case: "event",
+          value: {
+            seq: 1n,
+            event: { turnId, occurredAt: startedAt, body: { case: "turnStarted", value: { origin } } },
+          },
+        },
+      });
+
+      state = applyThreadUpdate(state, started);
+      state = applyThreadUpdate(state, started);
+      await new PersistentThreadCache(storage).save(state);
+      state = (await new PersistentThreadCache(storage).load(id))!;
+      expect(state.turns).toHaveLength(2);
+      const running = state.turns.find((turn) => !turn.inherited)!;
+      expect(running.status).toBe("running");
+      expect(running.startedAt).toEqual(startedAt);
+      expect(running.trigger).toBe(origin === TurnOrigin.PROVIDER ? "provider" : "recovery");
+
+      state = applyThreadUpdate(
+        state,
+        create(ui.ThreadUpdateSchema, {
+          change: {
+            case: "event",
+            value: {
+              seq: 2n,
+              event: {
+                turnId,
+                occurredAt: completedAt,
+                body: { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED } },
+              },
+            },
+          },
+        }),
+      );
+      await new PersistentThreadCache(storage).save(state);
+      state = (await new PersistentThreadCache(storage).load(id))!;
+      const ended = state.turns.find((turn) => !turn.inherited)!;
+      expect(ended.status).toBe("completed");
+      expect(timestampMs(ended.completedAt!) - timestampMs(ended.startedAt!)).toBe(120_000);
+      expect(state.turns.find((turn) => turn.inherited)?.completedAt).toBeUndefined();
+
+      const stored = create(ui.TurnSchema, { ...ended, inputText: "Stored provider input" });
+      state = applyThreadUpdate(state, create(ui.ThreadUpdateSchema, { change: { case: "turn", value: stored } }));
+      expect(state.turns).toHaveLength(2);
+      expect(state.turns.find((turn) => !turn.inherited)).toEqual(stored);
+    }
   });
 });
 
