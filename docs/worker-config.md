@@ -452,7 +452,7 @@ Status: **zaimplementowane** (migracja `0018_global_providers`; gateway `store/i
 
 Wbudowane instancje `claude/native`, `codex/native` i `grok/native` istnieją zawsze; można im nadać nazwę, zmienne i ścieżki, wyłączyć na wybranym workerze oraz przełączać Device login ↔ Proxy. Id `native` pozostaje stałe, także dla instancji z istniejącymi wątkami. Nie można ich usunąć.
 
-Przełączenie połączenia zachowuje katalog sesji: Claude używa tego samego `CLAUDE_CONFIG_DIR`, Codex tego samego `CODEX_HOME` z wpisem `model_providers` przekazanym przez `-c`, a Grok tego samego trwałego katalogu `sessions`. `own_login` zostaje zachowane jako wybór katalogu także podczas używania proxy. Powrót Codexa do Device login jawnie ustawia `modelProvider = openai` przy wznowieniu, żeby nie odziedziczyć proxy z poprzedniej sesji. Jawna zmiana ścieżki katalogu lub `own_login` jest osobną operacją i może wskazać magazyn bez poprzednich sesji.
+Przełączenie połączenia zachowuje katalog sesji: Claude używa tego samego `CLAUDE_CONFIG_DIR`, Codex tego samego `CODEX_HOME` z wpisem `model_providers` przekazanym przez `-c`, a Grok tego samego trwałego katalogu `sessions`. `own_login` zostaje zachowane jako wybór katalogu także podczas używania proxy. Codex wybiera provider również na poziomie procesu (`-c model_provider=…`), zgodnie z `modelProvider` przy tworzeniu i wznowieniu; Device login to `openai`, a proxy instancji `native` to `canopy_native`. Jawne nadpisanie przy wznowieniu zachowuje pełną historię bez tworzenia nowej sesji ([adapter](codex-adapter.md#runtime-wątków)). Claude wznawia sesję przez SDK, a Grok przez `session/load`; oba używają bieżącego połączenia i tego samego magazynu historii, bez wiązania z identyfikatorem providera Codexa. Test gateway↔worker przełącza wszystkie trzy harnessy Device login → proxy → Device login. Jawna zmiana ścieżki katalogu lub `own_login` jest osobną operacją i może wskazać magazyn bez poprzednich sesji; ta operacja nie przenosi historii automatycznie.
 
 ### 9.2. Synchronizacja
 
@@ -475,7 +475,7 @@ sequenceDiagram
 - Gateway synchronizuje wszystkie workery przy starcie (`syncProviderInstances`, np. zaraz po migracji) i po każdej zmianie; CLI (`worker add --cliproxy-url`) zakłada instancje `cliproxyapi` obu dostawców (albo nadpisania istniejących) i synchronizuje nowego workera.
 - **Sekrety**: klucz proxy i zmienne-sekrety w `secrets` (nazwa `instance-<uuid>`), w definicji, nadpisaniach i konfiguracjach tylko `{"secretRef"}`. Sekrety `instance-*` i `profile-*`, do których nie odwołuje się żadne proxy, definicja, nadpisanie ani konfiguracja, są usuwane po każdej zmianie. Do UI wracają tylko flagi (`secret_set`, `api_key_set`, zmienna-sekret z pustą wartością); sekret bez nowej wartości zostaje (zmienna po nazwie).
 - **Współbieżność**: `expected_revision` w `SaveProviderInstanceRequest` / `DeleteProviderInstanceRequest`; inna = `FailedPrecondition` (BFF 409).
-- Instancji, której używają wątki, nie da się usunąć ani zmienić jej rodzaju połączenia (`FailedPrecondition`); można ją wyłączyć.
+- Instancji, której używają wątki, nie da się usunąć (`FailedPrecondition`); można ją wyłączyć albo zmienić jej połączenie, z zachowaniem id i katalogu sesji.
 
 ### 9.3. Modele w pickerach
 
