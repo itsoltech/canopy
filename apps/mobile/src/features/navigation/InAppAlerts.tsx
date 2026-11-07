@@ -8,6 +8,8 @@ import { useDevicePreferences } from "../settings/device-preferences";
 import { font, styles, useColors } from "../../ui/theme";
 import { usePaneInsets } from "../../ui/ScreenFrame";
 import { useMotion } from "../../ui/motion";
+import { needsYou } from "@canopy/domain/thread-activity";
+import { sidebarChildren } from "@canopy/domain/sidebar-threads";
 
 /** Alert only for live changes after the initial snapshot, never replay historical results. */
 export function InAppAlerts() {
@@ -22,23 +24,41 @@ export function InAppAlerts() {
 
   useEffect(() => {
     if (!loaded) return;
-    const current = new Map(threads.map((t) => [t.id, `${t.status}:${t.unseenResult}:${t.pendingInteractions}`]));
 
-    const changed = threads.find(
-      (t) =>
-        t.id !== id &&
-        previous.current?.has(t.id) &&
-        previous.current.get(t.id) !== current.get(t.id) &&
-        (t.unseenResult || t.pendingInteractions > 0),
+    // A subagent's result belongs inside its parent. Questions routed to the user alert once on that parent.
+    const notices = threads
+      .filter((t) => !t.spawnedByAgent && !t.deletedAt && t.status !== "archived")
+      .map((t) => {
+        const { subagentsNeedingInput } = sidebarChildren(threads.filter((child) => child.parentThreadId === t.id));
+        const needs = needsYou(t) || subagentsNeedingInput.length > 0;
+
+        return {
+          thread: t,
+          status: needs ? "Needs input" : t.unseenResult,
+          revision: `${t.status}:${t.unseenResult}:${needsYou(t) ? t.pendingInteractions : 0}:${subagentsNeedingInput
+            .map((child) => child.id)
+            .sort()
+            .join(",")}`,
+        };
+      });
+
+    const current = new Map(notices.map((notice) => [notice.thread.id, notice.revision]));
+
+    const changed = notices.find(
+      (notice) =>
+        notice.thread.id !== id &&
+        previous.current?.has(notice.thread.id) &&
+        previous.current.get(notice.thread.id) !== notice.revision &&
+        notice.status,
     );
 
     previous.current = current;
 
     if (changed && values.inAppNotifications === "on")
       setAlert({
-        id: changed.id,
-        title: changed.title || "Untitled thread",
-        status: changed.pendingInteractions ? "Needs input" : changed.unseenResult,
+        id: changed.thread.id,
+        title: changed.thread.title || "Untitled thread",
+        status: changed.status,
       });
   }, [threads, loaded, id, values.inAppNotifications]);
   useEffect(() => {

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import { Image, Pressable, Text, View } from "react-native";
+import { Image, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { useMotion } from "../../ui/motion";
-import { Chevron, Expand, useArrivals } from "../../ui/MotionViews";
+import { useArrivals } from "../../ui/MotionViews";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
 import { ScreenFrame, useContentPadding } from "../../ui/ScreenFrame";
 import { SidebarFooter } from "./SidebarFooter";
-import { ui, bots as botContract } from "@canopy/contracts";
+import { bots as botContract } from "@canopy/contracts";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { compareConversations } from "@canopy/domain/bot-chat";
 import { useSession } from "../../state/session";
@@ -18,26 +18,28 @@ import { ConnectionBanner } from "./ConnectionStatus";
 import { PickerSheet } from "../../ui/Picker";
 import { ProjectMark } from "../../ui/ProjectMark";
 import { styles, useColors } from "../../ui/theme";
-import { Icon } from "../../ui/Icon";
 import { SearchField } from "../../ui/SearchField";
-import { SidebarThread } from "./SidebarThread";
 import { BotListItem } from "../bots/BotListItem";
 import { SettingsThreadList } from "./SettingsThreadList";
+import { SidebarArchivedThreads } from "./SidebarArchivedThreads";
+import { useSidebarThreads } from "./useSidebarThreads";
 
 function useSidebarState() {
   const { session, client, ready, updateBots } = useSession();
-  const { threads, projects, workers, loaded, stream } = useOverview();
+  const { projects, workers, loaded, stream } = useOverview();
   const [section, setSection] = useState<"threads" | "bots">("threads");
   const [queries, setQueries] = useState({ threads: "", bots: "" });
-  const [archived, setArchived] = useState<ui.Thread[]>([]);
-  const [archiveOpen, setArchiveOpen] = useState(false);
-  const [archiveError, setArchiveError] = useState("");
-  const [archiveLoaded, setArchiveLoaded] = useState(false);
   const [bots, setBots] = useState<botContract.Bot[]>([]);
   const [botError, setBotError] = useState("");
   const [botsLoaded, setBotsLoaded] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [projectId, setProjectId] = useState("");
+  const navigation = useSidebarThreads(queries.threads);
+  const selectedProjectId = navigation.settings.projectIds[0];
+
+  const projectId =
+    navigation.choices.find((p) => p.projectIds.includes(selectedProjectId ?? ""))?.id ?? selectedProjectId ?? "";
+
+  const { setProjectId } = navigation;
   // Bots load in both sections: the Bots tab shows their unread count while you read threads.
   useEffect(() => {
     if (!client) return;
@@ -66,41 +68,7 @@ function useSidebarState() {
       clearInterval(timer);
     };
   }, [client, updateBots]);
-  useEffect(() => {
-    if (!client || !archiveOpen) return;
-    let active = true;
-    void client.api
-      .listArchivedThreads({})
-      .then((r) => {
-        if (active) {
-          setArchived(r.threads);
-          setArchiveError("");
-          setArchiveLoaded(true);
-        }
-      })
-      .catch(() => {
-        if (active) setArchiveError("Could not load archived threads.");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [client, archiveOpen]);
-
   const query = queries[section].trim().toLowerCase();
-
-  const match = (t: ui.Thread) =>
-    (!projectId || t.projectId === projectId) &&
-    `${t.title} ${projects.find((p) => p.id === t.projectId)?.name ?? ""} ${t.cwd}`.toLowerCase().includes(query);
-
-  const visible = threads
-    .filter((t) => !t.archivedAt && !t.deletedAt && t.status !== "archived" && match(t))
-    .sort((a, b) =>
-      Number(
-        (b.lastActivityAt?.seconds ?? b.createdAt?.seconds ?? 0n) -
-          (a.lastActivityAt?.seconds ?? a.createdAt?.seconds ?? 0n),
-      ),
-    );
 
   return {
     session,
@@ -113,11 +81,6 @@ function useSidebarState() {
     setSection,
     queries,
     setQueries,
-    archived,
-    archiveOpen,
-    setArchiveOpen,
-    archiveError,
-    archiveLoaded,
     bots,
     botError,
     botsLoaded,
@@ -126,17 +89,16 @@ function useSidebarState() {
     projectId,
     setProjectId,
     query,
-    match,
-    visible,
+    navigation,
   };
 }
 
 function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const c = useColors();
-  const { section, setSection, queries, setQueries, setFilterOpen, projectId, projects, bots } = state;
+  const { section, setSection, queries, setQueries, setFilterOpen, projectId, navigation, bots } = state;
   const unread = bots.reduce((sum, bot) => sum + (bot.archived ? 0 : bot.unreadCount), 0);
   // The project filter is named in words, not only by the tinted funnel.
-  const filtered = section === "threads" ? projects.find((p) => p.id === projectId) : undefined;
+  const filtered = section === "threads" ? navigation.choices.find((p) => p.id === projectId) : undefined;
   const searchLabel = filtered ? `Search ${filtered.name} threads` : `Search ${section}`;
 
   return (
@@ -213,23 +175,7 @@ function orderBots(list: readonly botContract.Bot[], pinned: readonly string[]):
 function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const c = useColors();
 
-  const {
-    section,
-    visible,
-    projects,
-    workers,
-    loaded,
-    query,
-    projectId,
-    setProjectId,
-    stream,
-    archiveOpen,
-    setArchiveOpen,
-    archiveError,
-    archiveLoaded,
-    archived,
-    match,
-  } = state;
+  const { section, navigation, projects, workers, loaded, query, projectId, setProjectId, stream } = state;
 
   const { rise } = useMotion();
 
@@ -238,7 +184,7 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
     <Animated.View key={section} entering={rise.entering} style={styles.fill}>
       {section === "threads" ? (
         <SettingsThreadList
-          threads={visible}
+          navigation={navigation}
           loaded={loaded}
           projects={projects}
           workers={workers}
@@ -262,36 +208,7 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
               </View>
             )
           }
-          footer={
-            <View style={{ flex: 1, justifyContent: "flex-end", paddingTop: 24 }}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Archived"
-                accessibilityState={{ expanded: archiveOpen }}
-                onPress={() => setArchiveOpen(!archiveOpen)}
-                style={[styles.row, { padding: 12, minHeight: 44 }]}
-              >
-                <Chevron open={archiveOpen} size={14} />
-                <Icon name="archive-box" />
-                <Text style={[styles.meta, { color: c.muted }]}>Archived</Text>
-              </Pressable>
-              <Expand open={archiveOpen}>
-                {archiveError && <Notice error>{archiveError}</Notice>}
-                {archived.filter(match).map((t) => (
-                  <SidebarThread
-                    key={t.id}
-                    thread={t}
-                    project={projects.find((p) => p.id === t.projectId)}
-                    worker={workers.find((w) => w.id === t.workerId)}
-                  />
-                ))}
-                {!archiveError && !archiveLoaded && <ListSkeleton rows={2} lines={3} />}
-                {!archiveError && archiveLoaded && archived.length === 0 && (
-                  <Text style={[styles.meta, { color: c.muted, padding: 12 }]}>No archived threads.</Text>
-                )}
-              </Expand>
-            </View>
-          }
+          footer={<SidebarArchivedThreads navigation={navigation} query={state.queries.threads} />}
         />
       ) : (
         <BotList state={state} />
@@ -356,7 +273,8 @@ function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
 export function AppSidebar() {
   const c = useColors();
   const state = useSidebarState();
-  const { ready, session, workers, stream, filterOpen, setFilterOpen, projects, projectId, setProjectId } = state;
+  const { ready, session, workers, stream, filterOpen, setFilterOpen, navigation, projectId, setProjectId } = state;
+  const projects = navigation.choices;
 
   if (!ready) return <ListSkeleton />;
 

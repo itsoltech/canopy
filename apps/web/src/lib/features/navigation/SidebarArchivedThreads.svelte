@@ -13,10 +13,9 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import SidebarArchivedSkeleton from "./SidebarArchivedSkeleton.svelte";
   import SidebarArchivedThread from "./SidebarArchivedThread.svelte";
-  import { ArchivedThreadsPager, type ArchivedPageState } from "./archived-threads.ts";
-  import { groupSideThreads } from "#lib/features/threads/thread-tree.ts";
+  import { ArchivedThreadsPager, type ArchivedPageState } from "@canopy/domain/archived-threads";
   import SidebarThreadChildren from "./SidebarThreadChildren.svelte";
-  import { collapsedArchivedThread } from "./sidebar-threads.ts";
+  import { collapsedArchivedThread, isArchivedSidebarThread, sidebarChildren } from "@canopy/domain/sidebar-threads";
 
   let {
     current,
@@ -67,12 +66,7 @@
   let pageState: ArchivedPageState = $state.raw(pager.state);
 
   const roots = $derived(
-    pageState.threads
-      .map((thread) => overview.liveThread(thread))
-      .filter(
-        (thread): thread is ui.Thread =>
-          !!thread && !thread.spawnedByAgent && !thread.deletedAt && thread.status === "archived",
-      ),
+    pageState.threads.map((thread) => overview.liveThread(thread)).filter(isArchivedSidebarThread),
   );
 
   let revision = $state(0);
@@ -188,8 +182,8 @@
                 class="grid grid-cols-1 gap-0.5"
               >
                 {#each roots as thread, index (thread.id)}
-                  {@const sides = groupSideThreads(
-                    pageState.sideThreads.filter((side) => !side.spawnedByAgent && side.parentThreadId === thread.id),
+                  {@const { sides } = sidebarChildren(
+                    pageState.sideThreads.filter((side) => side.parentThreadId === thread.id),
                   )}
                   <li
                     class="min-w-0"

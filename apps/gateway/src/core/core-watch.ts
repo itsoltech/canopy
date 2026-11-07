@@ -175,7 +175,7 @@ export const coreWatchMethods: CoreWatchMethods = {
 
     try {
       if (includeSnapshot) {
-        const [overview, threads] = await Promise.all([this.overview(), this.listThreads("", false, false)]);
+        const [overview, threads] = await Promise.all([this.overview(), this.listThreads("", false, true)]);
         yield create(ui.OverviewUpdateSchema, { change: { case: "mobileSnapshot", value: { overview, threads } } });
         yield create(ui.OverviewUpdateSchema, { change: { case: "mobileRoutes", value: this.mobile.networkRoutes() } });
       }

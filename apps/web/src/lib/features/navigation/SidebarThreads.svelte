@@ -4,18 +4,17 @@
   import type { ClassValue } from "svelte/elements";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
-  import { groupSideThreads, isSide } from "#lib/features/threads/thread-tree.ts";
+  import { isSide } from "@canopy/domain/thread-tree";
   import { expand, reorder, rise, stagger } from "#lib/shared/ui/motion.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import SidebarThreadChildren from "./SidebarThreadChildren.svelte";
   import SidebarThread from "./SidebarThread.svelte";
-  import { sidebarThreads } from "./sidebar-threads.ts";
+  import { sidebarThreads, sidebarChildren } from "@canopy/domain/sidebar-threads";
   import SidebarArchivedThreads from "./SidebarArchivedThreads.svelte";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
   import { whenIdle } from "#lib/shared/idle.ts";
-  import { sidebarEntries } from "./sidebar-entries.ts";
-  import { needsYou } from "#lib/features/threads/activity.ts";
+  import { sidebarEntries } from "@canopy/domain/sidebar-entries";
 
   let {
     currentThreadId,
@@ -131,8 +130,7 @@
           {#if entry?.thread}
             {@const thread = entry.thread}
             {@const children = filtered.sides.get(thread.id) ?? []}
-            {@const sides = groupSideThreads(children.filter((t) => !t.spawnedByAgent && !rootIds.has(t.id)))}
-            {@const subagentsNeedingInput = children.filter((t) => t.spawnedByAgent && needsYou(t))}
+            {@const { sides, subagentsNeedingInput } = sidebarChildren(children, rootIds)}
             <div class="relative">
               <SidebarThread
                 {thread}

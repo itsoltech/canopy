@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./sidebar-threads": "./src/sidebar-threads.ts",
+    "./sidebar-entries": "./src/sidebar-entries.ts",
+    "./archived-threads": "./src/archived-threads.ts",
+    "./thread-activity": "./src/thread-activity.ts",
+    "./thread-tree": "./src/thread-tree.ts",
     ".": "./src/index.ts",
     "./items": "./src/items.ts",
     "./work-fold": "./src/work-fold.ts",
