@@ -7,6 +7,7 @@
   import SearchPicker from "#lib/shared/ui/SearchPicker.svelte";
   import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 
   /**
    * One choice per linked project identity, with alternate names kept searchable and visible.
@@ -24,7 +25,11 @@
   } = $props();
 
   const capabilities = useGatewayCapabilities();
-  const available = $derived(projects.filter((project) => !project.nodeId || capabilities?.linkedComputers));
+  const overview = useOverview();
+
+  const available = $derived(
+    projects.filter((project) => !project.nodeId || !capabilities?.methods || capabilities.linkedComputers),
+  );
 
   const selected = $derived(available.find((p) => p.id === value));
 
@@ -47,6 +52,7 @@
     text={(p) => `${p.name} ${p.aliases.join(" ")}`}
     {value}
     {onselect}
+    disabled={(project) => Boolean(overview.projectAway(project))}
     link={{ href: "/settings/projects", label: "Manage projects" }}
   >
     {#snippet trigger(props)}
@@ -56,7 +62,12 @@
       </PillButton>
     {/snippet}
     {#snippet option(project, state)}
-      <PickerRow title={project.name} detail={detailOf(project)} selected={state.selected}>
+      <PickerRow
+        title={project.name}
+        detail={overview.projectAway(project) ?? detailOf(project)}
+        status={overview.projectAway(project) ? "Offline" : undefined}
+        selected={state.selected}
+      >
         {#snippet leading()}<ProjectMark name={project.name} kind={project.kind} />{/snippet}
       </PickerRow>
     {/snippet}

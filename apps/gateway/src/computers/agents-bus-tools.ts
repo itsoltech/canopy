@@ -14,7 +14,8 @@ import { AgentBusStore, type ThreadRow } from "../store/index.ts";
 
 import { fail, record, text, type Actor, type Arguments, type Reference } from "./agents-context.ts";
 import type { LinkedAgents } from "./agents.ts";
-import { linkedMessage, methodNamed, qualify } from "./remote.ts";
+import { gather } from "../api/routed-overview.ts";
+import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
 import { refuseRemoteAutomation } from "../worktrees/remote.ts";
 
 export interface AgentsBusToolsMethods {
@@ -34,32 +35,26 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
     if (!Array.isArray(threads)) return fail("Invalid linked thread list");
 
     if (call.args.scope === "all") {
-      for (const node of this.core.computers.reachable()) {
-        if (!this.core.computers.capabilities(node).includes(AGENT_BUS)) continue;
+      const others = await gather<ui.ListThreadsResponse>(
+        this.core,
+        "ListThreads",
+        create(ui.ListThreadsRequestSchema),
+        AbortSignal.timeout(PEER_READ_TIMEOUT_MS),
+      );
 
-        try {
-          for await (const response of this.core.computers.remote(
-            node,
-            methodNamed("ListThreads")!,
-            create(ui.ListThreadsRequestSchema),
-            AbortSignal.timeout(3000),
-          )) {
-            qualify(ui.ListThreadsResponseSchema, response, node);
-            const machine = await this.core.computers.computer(node);
+      for (const response of others)
+        for (const t of response.threads) {
+          if (!this.core.computers.capabilities(t.nodeId).includes(AGENT_BUS)) continue;
 
-            for (const t of linkedMessage(ui.ListThreadsResponseSchema, response).threads)
-              if (!call.args.query || t.title.toLowerCase().includes(call.args.query.toLowerCase()))
-                threads.push({
-                  thread_id: t.id,
-                  title: t.title,
-                  status: t.status,
-                  machine: machine?.displayName || machine?.name || "Linked computer",
-                });
-          }
-        } catch {
-          /* disconnected while gathering */
+          if (call.args.query && !t.title.toLowerCase().includes(call.args.query.toLowerCase())) continue;
+          const machine = await this.core.computers.computer(t.nodeId);
+          threads.push({
+            thread_id: t.id,
+            title: t.title,
+            status: t.status,
+            machine: machine?.displayName || machine?.name || "Linked computer",
+          });
         }
-      }
     } else {
       const refs = await this.query<Reference>(
         "SELECT * FROM computer_agent_calls WHERE owner_user_id=$1::uuid AND direction='outgoing' AND actor_id=$2::uuid AND parent_link AND NOT detached",

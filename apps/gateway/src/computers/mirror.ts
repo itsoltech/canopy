@@ -88,14 +88,14 @@ export class ThreadMirror {
         return t;
       });
   }
-  async overview(node: string): Promise<ui.GetOverviewResponse> {
+  async overview(node: string, reachable = false): Promise<ui.GetOverviewResponse> {
     const state = await this.state(node);
 
     const value = state?.overview
       ? fromBinary(ui.GetOverviewResponseSchema, state.overview)
       : create(ui.GetOverviewResponseSchema);
 
-    for (const worker of value.workers) worker.online = false;
+    if (!reachable) for (const worker of value.workers) worker.online = false;
     qualify(ui.GetOverviewResponseSchema, value, node);
 
     return value;

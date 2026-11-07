@@ -13,6 +13,8 @@ import type { LinkedAgents } from "./agents.ts";
 import { linkedMessage, methodNamed, movedItems, qualify, unqualify } from "./remote.ts";
 import { ConfigIds } from "../api/routed-config.ts";
 import { localAgentSender } from "./agents-senders.ts";
+import { PEER_MUTATION_TIMEOUT_MS } from "./timing.ts";
+import { unaryTimeout } from "../api/routed-context.ts";
 
 export async function agentsRemoteSnapshot(hostContext: LinkedAgents, id: string): Promise<ui.ThreadSnapshot> {
   const update = await hostContext.ui(
@@ -83,7 +85,7 @@ export const agentsTransportMethods: AgentsTransportMethods = {
           ...(sender && { sender }),
           argumentsJson: JSON.stringify({ ...args, sender_name: actor.name }),
         }),
-        AbortSignal.timeout(10_000),
+        AbortSignal.timeout(PEER_MUTATION_TIMEOUT_MS),
       ))
         return qualifyResult(
           Schema.decodeUnknownSync(Schema.MutableJson)(
@@ -167,7 +169,12 @@ export const agentsTransportMethods: AgentsTransportMethods = {
     unqualify(method.input, outbound, node, (await ids.projects()).known);
     await ids.map(method.input, outbound, "toGlobal");
 
-    for await (const result of this.core.computers!.remote(node, method, outbound, AbortSignal.timeout(10_000))) {
+    for await (const result of this.core.computers!.remote(
+      node,
+      method,
+      outbound,
+      AbortSignal.timeout(unaryTimeout(method)),
+    )) {
       qualify(output, result, node);
       await ids.map(output, result, "toLocal");
 

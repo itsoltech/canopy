@@ -41,11 +41,23 @@ export async function* mirrorFirst(
   const input = linkedMessage(ui.WatchThreadRequestSchema, request);
 
   // A UI with its own base resumes directly at the home; a cold UI still gets the mirror first.
-  if ((input.incremental && input.cursor) || input.pageSize) return false;
+  if (input.incremental && input.cursor && !input.pageSize) return false;
   const held = await computers.mirror.read(nodeId, threadId);
   const snapshot = held?.snapshot;
 
   if (!held || !snapshot?.thread) return false;
+
+  // Phone history windows must be readable before a live-looking dead socket times out.
+  // The home then sends a fresh window; its cursor cannot be resumed from the mirror's local seed.
+  if (input.pageSize) {
+    // An older/stale mirror cannot extend a window from a different authoritative history.
+    if (input.historyVersion && input.historyVersion !== snapshot.historyVersion) return false;
+    yield mirroredPage(snapshot, input, `offline:${held.cursor}`);
+
+    yield* send(create(ui.WatchThreadRequestSchema, { ...input, cursor: "", mirrorCursor: "" }));
+
+    return true;
+  }
 
   yield create(ui.ThreadUpdateSchema, { syncing: true, change: { case: "snapshot", value: snapshot } });
 
@@ -75,6 +87,20 @@ export async function* mirrorFirst(
   }
 
   return true;
+}
+
+function mirroredPage(snapshot: ui.ThreadSnapshot, input: ui.WatchThreadRequest, cursor: string) {
+  const value = threadHistory(create(ui.ThreadSnapshotSchema, { ...snapshot, cursor }), input);
+
+  const unchanged =
+    !!cursor && input.incremental && input.cursor === cursor && !input.beforeTurnId && !input.targetItemId;
+
+  return create(ui.ThreadUpdateSchema, {
+    syncing: true,
+    change: unchanged
+      ? { case: "delta", value: { baseCursor: cursor, snapshot: { ...value, turns: [], items: [], notices: [] } } }
+      : { case: "snapshot", value },
+  });
 }
 
 /** Offline watches stay readable until presence changes and the client reconnects. */
@@ -113,17 +139,7 @@ export async function* offlineThread(
     try {
       const input = linkedMessage(ui.WatchThreadRequestSchema, request);
       const cursor = input.pageSize && held ? `offline:${held.cursor}` : snapshot.cursor;
-      const value = threadHistory(create(ui.ThreadSnapshotSchema, { ...snapshot, cursor }), input);
-
-      const unchanged =
-        !!cursor && input.incremental && input.cursor === cursor && !input.beforeTurnId && !input.targetItemId;
-
-      yield create(ui.ThreadUpdateSchema, {
-        syncing: true,
-        change: unchanged
-          ? { case: "delta", value: { baseCursor: cursor, snapshot: { ...value, turns: [], items: [], notices: [] } } }
-          : { case: "snapshot", value },
-      });
+      yield mirroredPage(snapshot, input, cursor);
 
       if (!signal.aborted && !computers.reachable().includes(nodeId))
         for await (const _ of changes) {

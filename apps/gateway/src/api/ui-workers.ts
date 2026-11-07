@@ -6,7 +6,7 @@ import { workerGuard } from "../core/worker-administration.ts";
 import { workerInstall } from "../updates/install.ts";
 import { updatesSnapshot } from "../updates/center-composition.ts";
 import { guard } from "./ui-errors.ts";
-import { linkedUpdates, requestComputerUpdate } from "../updates/linked.ts";
+import { checkLinkedUpdates, requestComputerUpdate } from "../updates/linked.ts";
 import { mobileIdentity } from "../core/mobile-devices.ts";
 
 /** The app control channel belongs to the desktop app's own bundled gateway and its service token, never a device. */
@@ -83,21 +83,8 @@ export function workersHandlers(
         return snapshot();
       }
 
-      // Linked computers' apps check their own feeds too; one that doesn't answer is left out.
-      const linked =
-        request.action === "check"
-          ? linkedUpdates(core).then((computers) =>
-              Promise.allSettled(
-                computers.filter((c) => c.updates).map((c) => requestComputerUpdate(core, c.nodeId, "check")),
-              ),
-            )
-          : undefined;
-
-      try {
-        await core.updates.manage(request);
-      } finally {
-        await linked;
-      }
+      if (request.action === "check") await checkLinkedUpdates(core);
+      await core.updates.manage(request);
 
       return snapshot();
     },

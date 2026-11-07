@@ -1,13 +1,14 @@
 import { create, type Message } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { bots, ui } from "@canopy/contracts";
 import { qualifyId, REMOTE_BOTS, THREAD_MIRROR } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 import { createHandlerContext, type HandlerContext } from "@connectrpc/connect";
 import { linkedMessage, methodNamed } from "../computers/remote.ts";
 import type { GatewayCore } from "../core/core.ts";
-import { GATHER_TIMEOUT_MS, single, stream, unary, withSignal, type Handler } from "./routed-context.ts";
+import { single, stream, unary, unaryTimeout, withSignal, type Handler } from "./routed-context.ts";
 import { localProjectIds } from "./routed-config.ts";
 import { forward } from "./routed-home.ts";
+import { PEER_BACKOFF_MS, PEER_READ_REFRESH_MS } from "../computers/timing.ts";
 
 /** Other computers' overviews in this one. A shared project is listed once, with every computer's workspaces. */
 export function absorb(
@@ -29,12 +30,14 @@ export function absorb(
   }
 }
 
-/** The same call on every reachable computer; one that does not answer quickly is left out, not waited for. */
+/** Local projections and last-known responses only. Live peer reads refresh in the background. */
 export async function gather<A extends Message>(
   core: GatewayCore,
   name: string,
   request: Message,
   signal: AbortSignal,
+  unavailable?: ui.LinkedComputer[],
+  refreshing?: ui.LinkedComputer[],
 ): Promise<A[]> {
   const computers = core.computers;
   const method = methodNamed(name)!;
@@ -42,19 +45,106 @@ export async function gather<A extends Message>(
   if (!computers) return [];
   const nodes = new Set(computers.reachable());
 
-  if (name === "GetOverview" || name === "ListThreads" || name === "ListBots")
-    for (const peer of (await computers.snapshot()).peers)
-      if (peer.capabilities.includes(name === "ListBots" ? REMOTE_BOTS : THREAD_MIRROR)) nodes.add(peer.nodeId);
+  for (const peer of (await computers.snapshot()).peers) if (!peer.relayOrigin) nodes.add(peer.nodeId);
+
+  const ordered = [...nodes];
+
+  const reachable = new Set(computers.reachable());
 
   const results = await Promise.allSettled(
-    [...nodes].map((nodeId) =>
-      single<A>(
-        forward(core, nodeId, method, request, AbortSignal.any([signal, AbortSignal.timeout(GATHER_TIMEOUT_MS)])),
-      ),
-    ),
+    ordered.map(async (nodeId) => {
+      // Committed local projections stay authoritative through reconnects and partial mirror resets.
+      if (
+        (name === "GetOverview" || name === "ListThreads") &&
+        computers.capabilities(nodeId).includes(THREAD_MIRROR)
+      ) {
+        const projection = await single<A>(forward(core, nodeId, method, request, signal));
+
+        if (name === "GetOverview") {
+          // Older mirror publishers omit picker capabilities. Enrich those fields asynchronously.
+          const cached = computers.reads.read<ui.GetOverviewResponse>(
+            nodeId,
+            method,
+            request,
+            (background) => single(forward(core, nodeId, method, request, background, false, true)),
+            unaryTimeout(method),
+            reachable.has(nodeId),
+          );
+
+          const overview = linkedMessage(ui.GetOverviewResponseSchema, projection);
+
+          for (const worker of overview.workers) {
+            const known = cached?.workers.find((item) => item.id === worker.id);
+
+            if (known) {
+              worker.providers = known.providers;
+              worker.providerInstances = known.providerInstances;
+            }
+
+            // Older mirrors omit public update metadata, including the revision required by edits.
+            if (known && known.configVersion > worker.configVersion) {
+              worker.configVersion = known.configVersion;
+              worker.appliedVersion = known.appliedVersion;
+              worker.cliUpdateCheckMinutes = known.cliUpdateCheckMinutes;
+              worker.effectiveCliUpdateCheckMinutes = known.effectiveCliUpdateCheckMinutes;
+              worker.cliUpdatesCheckedAt = known.cliUpdatesCheckedAt;
+              worker.cliUpdatesNextCheckAt = known.cliUpdatesNextCheckAt;
+              worker.cliTools = known.cliTools;
+            }
+          }
+        }
+
+        return projection;
+      }
+
+      if (!reachable.has(nodeId) && name === "ListBots" && computers.capabilities(nodeId).includes(REMOTE_BOTS)) {
+        const projection = await single<A>(forward(core, nodeId, method, request, signal));
+        const mirrored = linkedMessage(bots.ListBotsResponseSchema, projection);
+
+        const cached = computers.reads.read<bots.ListBotsResponse>(
+          nodeId,
+          method,
+          request,
+          (background) => single(forward(core, nodeId, method, request, background)),
+          unaryTimeout(method),
+          false,
+        );
+
+        const ids = new Set(mirrored.bots.map((bot) => bot.id));
+        mirrored.bots.push(...(cached?.bots.filter((bot) => !ids.has(bot.id)) ?? []));
+
+        return projection;
+      }
+
+      return computers.reads.read(
+        nodeId,
+        method,
+        request,
+        (background) => single<A>(forward(core, nodeId, method, request, background)),
+        unaryTimeout(method),
+        reachable.has(nodeId),
+      );
+    }),
   );
 
-  return results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+  if (unavailable || refreshing)
+    for (const [index, result] of results.entries()) {
+      const node = ordered[index]!;
+      const absent = !reachable.has(node) || computers.reads.blocked(node);
+      const state = computers.reads.state(node, method, request);
+
+      if (!absent && result.status === "fulfilled" && state === "fresh") continue;
+      const computer = await computers.computer(node);
+
+      if (computer) {
+        computer.unavailableReason = absent
+          ? (await computers.unavailable(node)).rawMessage
+          : `Waiting for ${computer.displayName || computer.name}. Its bot list may be incomplete.`;
+        (absent ? unavailable : refreshing)?.push(computer);
+      }
+    }
+
+  return results.flatMap((r) => (r.status === "fulfilled" && r.value ? [r.value] : []));
 }
 
 /** Takes shared projects out of another computer's update; returns their ids. */
@@ -205,6 +295,10 @@ export async function* watchOverview(
   const revisions = new Map<string, number>();
   const watchMethod = methodNamed("WatchOverview")!;
 
+  const unsubscribeReads = computers.reads.subscribe((method) =>
+    out.push(create(ui.OverviewUpdateSchema, { change: { case: "linkedReadCompleted", value: method } })),
+  );
+
   const watch = (nodeId: string) => {
     const controller = new AbortController();
     watchers.set(nodeId, controller);
@@ -234,7 +328,8 @@ export async function* watchOverview(
         if (watchers.get(nodeId) === controller) watchers.delete(nodeId);
 
         // Another connection to the same computer may still be up.
-        if (!signal.aborted && !controller.signal.aborted) setTimeout(sync, 1000);
+        if (!signal.aborted && !controller.signal.aborted)
+          setTimeout(sync, computers.reads.blocked(nodeId) ? PEER_BACKOFF_MS : PEER_READ_REFRESH_MS);
       }
     })();
   };
@@ -253,7 +348,7 @@ export async function* watchOverview(
         watchers.delete(nodeId);
       }
 
-    for (const nodeId of reachable) if (!watchers.has(nodeId)) watch(nodeId);
+    for (const nodeId of reachable) if (!watchers.has(nodeId) && !computers!.reads.blocked(nodeId)) watch(nodeId);
   }
 
   const unsubscribe = computers.subscribe(({ nodeId, removed }) => {
@@ -317,6 +412,7 @@ export async function* watchOverview(
   } finally {
     stop.abort();
     unsubscribe();
+    unsubscribeReads();
 
     for (const controller of watchers.values()) controller.abort();
   }

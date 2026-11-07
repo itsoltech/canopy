@@ -52,6 +52,7 @@
           >{entry.parent.title}<span aria-hidden="true">{" › "}</span><span class="sr-only">{": "}</span></span
         >{/if}<HighlightedText text={command.title} indices={entry.indices} />
     </span>
+    {#if command.detail}<span class="truncate text-xs/5 text-zinc-500 dark:text-zinc-400">{command.detail}</span>{/if}
     {#if thread}
       <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
         <ProjectMark name={thread.projectName} kind={thread.projectKind} class="size-3.5 text-[0.5rem]/none" />
@@ -81,7 +82,7 @@
     tabindex="-1"
     aria-selected={active}
     data-active={active || undefined}
-    class={[rowClass, className]}
+    class={[rowClass, command.muted && "opacity-50", className]}
     onpointerdown={(event) => event.preventDefault()}
     onpointermove={onpoint}
     onclick={onchoose}
@@ -97,7 +98,7 @@
     aria-selected={active}
     aria-disabled={command.disabled || undefined}
     data-active={active || undefined}
-    class={[rowClass, className]}
+    class={[rowClass, command.muted && "opacity-50", className]}
     onpointerdown={(event) => event.preventDefault()}
     onpointermove={onpoint}
     onclick={onchoose}

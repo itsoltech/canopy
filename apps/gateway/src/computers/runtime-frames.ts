@@ -15,6 +15,7 @@ import { certificateIdentity, linkAddress } from "./identity.ts";
 import { computersHeartbeat, computersTrack } from "./runtime-connection.ts";
 import { computersState, type Connection } from "./runtime-context.ts";
 import { computersEmit } from "./runtime-mirrors.ts";
+import { PEER_ROUTE_ROTATION_WINDOW_MS } from "./timing.ts";
 import { computersStatus } from "./runtime-remote.ts";
 import { computersServeRemote } from "./runtime-serving.ts";
 import type { LinkedComputers } from "./runtime.ts";
@@ -105,6 +106,13 @@ export async function computersReceive(
     if (!connection.protocol || body.value.addresses.length > 16)
       throw new ConnectError("Unsupported route announcement", Code.InvalidArgument);
     await hostContext[computersState].routes.announce(nodeId, body.value.addresses.map(linkAddress));
+    // Authenticated route changes precede an intentional socket rotation, not a liveness failure.
+    connection.retiring = true;
+    setTimeout(() => {
+      connection.retiring = false;
+    }, PEER_ROUTE_ROTATION_WINDOW_MS).unref();
+    hostContext.reads.connected(nodeId);
+    hostContext[computersState].retry.delete(nodeId);
     computersEmit(hostContext, nodeId);
   } else if (body.case === "heartbeat") {
     await hostContext.store.query(
@@ -265,6 +273,7 @@ async function receiveHandshake(
   }
 
   connection.ready = true;
+  hostContext.reads.connected(nodeId);
   const addresses = hostContext[computersState].advertised;
 
   // Addresses that changed during the handshake were not announced: only ready links get announcements.

@@ -1,5 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ui } from "@canopy/contracts";
+import {
+  forgetComputerProjects,
+  retainProjects,
+  retainLinkedRows,
+  workersWithAvailability,
+} from "@canopy/domain/linked-snapshot";
 import { useSession } from "./session";
 import { useStream } from "./stream";
 
@@ -17,6 +23,7 @@ function useOverviewState() {
   const [workers, setWorkers] = useState<ui.Worker[]>([]);
   const [computers, setComputers] = useState<ui.LinkedComputer[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [linkedReads, setLinkedReads] = useState<Record<string, number>>({});
   const generation = useRef(0);
 
   const reload = useCallback(async () => {
@@ -29,10 +36,10 @@ function useOverviewState() {
     ]);
 
     if (requested !== generation.current) return;
-    setProjects(overview.projects);
-    setWorkers(overview.workers);
+    setProjects((rows) => retainProjects(rows, overview.projects, overview.computers));
+    setWorkers((rows) => retainLinkedRows(rows, overview.workers, overview.computers));
     setComputers(overview.computers);
-    setThreads(list.threads);
+    setThreads((rows) => retainLinkedRows(rows, list.threads, overview.computers));
     setLoaded(true);
   }, [client]);
 
@@ -47,7 +54,7 @@ function useOverviewState() {
 
   const forget = (nodeId: string) => {
     setWorkers((rows) => rows.filter((r) => r.nodeId !== nodeId));
-    setProjects((rows) => rows.filter((r) => r.nodeId !== nodeId));
+    setProjects((rows) => forgetComputerProjects(rows, nodeId));
     setThreads((rows) => rows.filter((r) => r.nodeId !== nodeId));
   };
 
@@ -64,11 +71,19 @@ function useOverviewState() {
 
       generation.current++;
 
+      if (change.case === "linkedReadCompleted")
+        setLinkedReads((revisions) => ({ ...revisions, [change.value]: (revisions[change.value] ?? 0) + 1 }));
+
+      if (change.case === "linkedReadCompleted" && ["GetOverview", "ListThreads"].includes(change.value))
+        void reload().catch(() => undefined);
+
       if (change.case === "mobileSnapshot") {
-        setProjects(change.value.overview?.projects ?? []);
-        setWorkers(change.value.overview?.workers ?? []);
-        setThreads(change.value.threads);
-        setComputers(change.value.overview?.computers ?? []);
+        const next = change.value.overview;
+        const peers = next?.computers ?? [];
+        setProjects((rows) => retainProjects(rows, next?.projects ?? [], peers));
+        setWorkers((rows) => retainLinkedRows(rows, next?.workers ?? [], peers));
+        setThreads((rows) => retainLinkedRows(rows, change.value.threads, peers));
+        setComputers(peers);
         setLoaded(true);
       }
 
@@ -101,7 +116,16 @@ function useOverviewState() {
     `overview:${session?.deviceId}`,
   );
 
-  return { threads: client ? threads : [], projects, workers, computers, loaded, stream, reload };
+  return {
+    threads: client ? threads : [],
+    projects,
+    workers: workersWithAvailability(workers, computers),
+    computers,
+    loaded,
+    linkedReads,
+    stream,
+    reload,
+  };
 }
 
 const Context = createContext<ReturnType<typeof useOverviewState> | null>(null);

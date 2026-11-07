@@ -179,6 +179,17 @@ LAN i VPN odświeżają się automatycznie. Nazwy DNS i porty przekierowane doda
 [deploy.md](deploy.md#dostęp-sieciowy-telefony-i-połączone-komputery).
 Na telefonie i komputerze musi istnieć przynajmniej jedna wspólna trasa sieciowa.
 
+Overview i listy połączonych komputerów korzystają z lokalnej projekcji gatewaya,
+tak samo jak web/desktop. Reconnect nie usuwa ostatnich workerów, projektów, workspace'ów
+ani wątków niedostępnego domu (`domain/linked-snapshot.ts`). Wątki pozostają przygaszone
+i Read-only, otwierają się z lustra; wysyłanie i steering są wyłączone z powodem.
+Pickery zachowują opcje offline: akcje wymagające partnera są wyłączone, a filtr projektu
+nadal pozwala czytać jego wątki. Jawny snapshot domu, usunięcie i unlink uzgadniają
+usunięcia. Okno historii `WatchThread.page_size` także wysyła lokalny seed od razu,
+zanim liveness rozpozna nieodpowiadające łącze. Katalogi modeli, botów i harmonogramów
+odświeżają zainteresowane ustawienia po `linked_read_completed`; katalog wybranego workera
+jest pobierany ponownie po odzyskaniu połączenia z jego domem.
+
 ## Android emulator: lokalny development build
 
 1. Zainstaluj Android Studio, JDK 17 oraz Android SDK Platform 37 i Build Tools 37

@@ -27,10 +27,12 @@ import { linkHandler, remoteCertificate, type LinkIdentity } from "./transport.t
 import { requireDesktopRole } from "../role.ts";
 import { fetchConfigBlob } from "./runtime-blobs.ts";
 import { ConfigSync } from "../config-sync/engine.ts";
+import { PeerReads } from "./reads.ts";
 
 export { computerGuard, type ComputerChange } from "./runtime-context.ts";
 
 export class LinkedComputers {
+  readonly reads = new PeerReads();
   declare hello: ComputersPresenceMethods["hello"];
   declare start: ComputersPresenceMethods["start"];
   declare snapshot: ComputersPresenceMethods["snapshot"];
@@ -144,7 +146,12 @@ export class LinkedComputers {
           );
           void this[computersState].lan?.refresh().catch(() => {});
 
-          for (const c of this[computersState].active.get(request.hello.nodeId) ?? []) c.close();
+          for (const c of this[computersState].active.get(request.hello.nodeId) ?? []) {
+            c.retiring = true;
+            c.close();
+          }
+
+          this.reads.connected(request.hello.nodeId);
           this[computersState].retry.delete(request.hello.nodeId);
 
           return create(link.PairResponseSchema, {

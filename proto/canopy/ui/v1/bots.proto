@@ -5,6 +5,7 @@ package canopy.ui.v1;
 import "google/protobuf/timestamp.proto";
 import "canopy/worker/v1/worker_link.proto";
 import "canopy/ui/v1/quotes.proto";
+import "canopy/ui/v1/computers.proto";
 
 message BotConfiguration {
   string name = 1;
@@ -170,7 +171,13 @@ message UpdateBotRequest { string bot_id = 1; BotConfiguration configuration = 2
 message GetBotRequest { string bot_id = 1; }
 message GetBotResponse { Bot bot = 1; }
 message ListBotsRequest { bool include_archived = 430; }
-message ListBotsResponse { repeated Bot bots = 1; }
+message ListBotsResponse {
+  repeated Bot bots = 1;
+  // Homes whose live list could not be read; offline mirrors may still contribute bots.
+  repeated LinkedComputer unavailable_computers = 2;
+  // Live reads still loading or stale; a slow read is not evidence of a dead connection.
+  repeated LinkedComputer refreshing_computers = 3;
+}
 message DeleteBotRequest { string bot_id = 1; }
 message DeleteBotResponse {}
 message ArchiveBotRequest { string bot_id = 1; }

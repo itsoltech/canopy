@@ -10,7 +10,7 @@ export function ConnectorAccess({
   account: connectors.ConnectorAccount;
   onChanged: () => void;
 }) {
-  const resource = useSettingsResource(`connector-access:${account.id}`, (api) => api.listBots({}));
+  const resource = useSettingsResource(`connector-access:${account.id}`, (api) => api.listBots({}), "ListBots");
   const { workers } = useOverview();
 
   const change = (patch: { allWorkers?: boolean; workerIds?: string[]; allBots?: boolean; botIds?: string[] }) =>

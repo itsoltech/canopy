@@ -218,6 +218,11 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     expect(snapshot.turns[0]?.inputText).toBe("initial history");
     expect(snapshot.turns[0]?.status).toBe("completed");
     expect((await la.mirror.overview(node)).projects.some((p) => p.id === q(project))).toBe(true);
+    const worker = (await la.mirror.overview(node)).workers.find((w) => w.id === q(b.workerId));
+    expect(worker?.providers).toContainEqual(expect.objectContaining({ provider: Provider.CODEX, available: true }));
+    expect(worker?.providerInstances).toContainEqual(
+      expect.objectContaining({ harness: Provider.CODEX, enabled: true, available: true }),
+    );
     expect(await failure(a.core.getThread(thread))).toContain("not found");
     expect(snapshot.secrets).toEqual([]);
     expect(snapshot.schedules).toEqual([]);
@@ -747,16 +752,16 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     await reconnect();
   }, 40_000);
 
-  test("a peer without thread_mirror uses stage-2 behavior and stops listing when disconnected", async () => {
+  test("a peer without thread_mirror keeps its last list offline but requires its home for reading", async () => {
     await lb.close();
     lb = newB(["presence", "unlink", REMOTE_THREADS]);
     b.core.computers = lb;
     b.core.network = lb.options.network;
     await lb.start();
     await online();
-    expect((await a.api.listThreads({})).threads.some((t) => t.id === q(thread))).toBe(true);
+    await eventually(async () => (await a.api.listThreads({})).threads.some((t) => t.id === q(thread)));
     await offline();
-    expect((await a.api.listThreads({})).threads.some((t) => t.nodeId === node)).toBe(false);
+    expect((await a.api.listThreads({})).threads.some((t) => t.nodeId === node)).toBe(true);
     expect(await failure(a.api.getThread({ threadId: q(thread) }))).toContain("since");
     await lb.close();
     lb = newB();

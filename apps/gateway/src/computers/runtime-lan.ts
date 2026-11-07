@@ -2,11 +2,12 @@ import { LAN_ROUTES } from "@canopy/domain/computers";
 
 import { LanDiscovery } from "./lan.ts";
 
-import { computersTick } from "./runtime-connection.ts";
+import { computersReconnect, computersTick } from "./runtime-connection.ts";
 import { computersState, WILDCARD } from "./runtime-context.ts";
 import { computersEmit } from "./runtime-mirrors.ts";
 import type { LinkedComputers } from "./runtime.ts";
 import { discoverCertificate } from "./transport.ts";
+import { PEER_ROUTE_FLUSH_MS } from "./timing.ts";
 
 // ------------------------------------------------------------------ stage 6: routes and LAN discovery
 
@@ -20,13 +21,21 @@ export function computersAdvertise(hostContext: LinkedComputers) {
 
   // A new network or listener: announce on the local network at once, not at the next window.
   const key = `${port ?? ""}|${interfaces.map((i) => i.address).join()}`;
+  const knownNetwork = Boolean(hostContext[computersState].network);
+  const changedInterfaces = Boolean(hostContext[computersState].network) && key !== hostContext[computersState].network;
 
   if (key !== hostContext[computersState].network) {
     hostContext[computersState].network = key;
     void hostContext[computersState].lan?.tick(true).catch(() => {});
   }
 
-  if (next.join() === hostContext[computersState].advertised.join()) return;
+  if (next.join() === hostContext[computersState].advertised.join()) {
+    if (changedInterfaces) computersReconnect(hostContext);
+
+    return;
+  }
+
+  const changedNetwork = knownNetwork;
   hostContext[computersState].advertised = next;
 
   for (const set of hostContext[computersState].active.values())
@@ -36,6 +45,10 @@ export function computersAdvertise(hostContext: LinkedComputers) {
         c.send({ body: { case: "routes", value: { addresses: next } } });
       }
     }
+
+  // An incoming-only partner needs the new route before its old link ends.
+  // As with lifecycle presence, give queued control frames time to reach the socket.
+  if (changedNetwork) computersReconnect(hostContext, PEER_ROUTE_FLUSH_MS);
 }
 
 export async function computersDiscovery(hostContext: LinkedComputers) {
@@ -174,6 +187,7 @@ export async function computersFound(hostContext: LinkedComputers, nodeId: strin
 
   await hostContext[computersState].routes.add(nodeId, [address], "lan");
   await hostContext[computersState].routes.success(nodeId, address, performance.now() - started);
+  hostContext.reads.connected(nodeId);
   computersEmit(hostContext, nodeId);
 
   if (!hostContext[computersState].active.get(nodeId)?.size) {

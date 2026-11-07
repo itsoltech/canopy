@@ -149,9 +149,9 @@ describe.skipIf(!dockerAvailable)("projects and worktree policy across separate 
     ]);
 
     expect(row[0]?.project_id).toBe(pb.project.id);
-    expect(
+    await wait(async () =>
       (await a.gateway.api.listThreads({ projectId: pa.project.id })).threads.some((t) => t.id === response.thread?.id),
-    ).toBe(true);
+    );
   }, 30_000);
 
   test("account and project policies propagate; locations and worker policy stay local", async () => {

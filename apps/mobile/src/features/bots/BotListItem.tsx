@@ -8,9 +8,11 @@ import { styles, useColors } from "../../ui/theme";
 import Animated from "react-native-reanimated";
 import { useMotion } from "../../ui/motion";
 import { Swap } from "../../ui/MotionViews";
+import { useComputerHome } from "../computers/presence";
 
 export function BotListItem({ bot }: { bot: bots.Bot }) {
   const c = useColors();
+  const home = useComputerHome(bot.nodeId);
   const { pop } = useMotion();
   const layout = useLayout();
   const pathname = usePathname();
@@ -20,7 +22,7 @@ export function BotListItem({ bot }: { bot: bots.Bot }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={bot.configuration?.name ?? "Bot"}
+      accessibilityLabel={`${bot.configuration?.name ?? "Bot"}${home.away ? `, Read-only, ${home.reason}` : ""}`}
       accessibilityState={{ selected: active }}
       onPress={() => layout.open({ pathname: "/bot/[id]", params: { id: bot.id } })}
       style={({ pressed }) => ({
@@ -30,6 +32,7 @@ export function BotListItem({ bot }: { bot: bots.Bot }) {
         borderRadius: 12,
         padding: 12,
         backgroundColor: pressed || active ? c.inset : "transparent",
+        opacity: home.away ? 0.55 : 1,
       })}
     >
       <BotAvatar bot={bot} />
@@ -38,7 +41,9 @@ export function BotListItem({ bot }: { bot: bots.Bot }) {
           <Text style={[styles.label, { color: c.text, flex: 1 }]} numberOfLines={1}>
             {bot.configuration?.name}
           </Text>
-          <Text style={[styles.caption, { color: c.muted }]}>{age(bot.lastMessage?.createdAt?.seconds)}</Text>
+          <Text style={[styles.caption, { color: c.muted }]}>
+            {home.away ? "Read-only" : age(bot.lastMessage?.createdAt?.seconds)}
+          </Text>
         </View>
         <Text numberOfLines={1} style={[styles.meta, { color: c.muted }]}>
           {bot.lastMessage?.text || "Start a conversation"}

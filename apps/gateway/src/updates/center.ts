@@ -38,6 +38,7 @@ function computerUpdated(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot): boo
 export class UpdateCenter {
   private operation: Promise<void> = Promise.resolve();
   private timer: ReturnType<typeof setInterval> | undefined;
+  private ticking: Promise<void> | undefined;
   constructor(readonly options: UpdateCenterOptions) {}
 
   start() {
@@ -79,7 +80,7 @@ export class UpdateCenter {
     }).then(() => this.tick());
   }
   tick() {
-    return this.serialize(async () => {
+    return (this.ticking ??= this.serialize(async () => {
       const run = await this.options.read();
 
       if (run?.state !== "running") return;
@@ -114,7 +115,9 @@ export class UpdateCenter {
       }
 
       await this.options.write(run);
-    });
+    }).finally(() => {
+      this.ticking = undefined;
+    }));
   }
 
   private async launch(step: ui.UpdateStep, snapshot: ui.UpdatesSnapshot) {

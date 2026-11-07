@@ -17,6 +17,7 @@ import { computersStatus } from "./runtime-remote.ts";
 import type { LinkedComputers } from "./runtime.ts";
 import { discoverCertificate, linkClient } from "./transport.ts";
 import { refreshConfigGroup, stopConfig, syncConfig } from "./runtime-config.ts";
+import { PEER_HANDSHAKE_TIMEOUT_MS, PEER_HEARTBEAT_MS } from "./timing.ts";
 
 export function computersBroadcast(hostContext: LinkedComputers, frame: MessageInitShape<typeof link.LinkFrameSchema>) {
   for (const set of hostContext[computersState].active.values())
@@ -28,6 +29,26 @@ export function computersBroadcast(hostContext: LinkedComputers, frame: MessageI
           ? { body: { case: "presence", value: { ...frame.body.value, state: "updating" } } }
           : frame,
       );
+}
+
+/** Wake and network changes retire the old sockets; the next dial still verifies the saved pin. */
+export function computersReconnect(hostContext: LinkedComputers, flushMs = 0) {
+  hostContext[computersState].retry.clear();
+
+  for (const node of hostContext[computersState].capabilities.keys()) hostContext.reads.connected(node);
+
+  for (const controller of hostContext[computersState].dialing.values()) controller.abort();
+
+  const connections = [...hostContext[computersState].active.values()].flatMap((set) => [...set]);
+
+  for (const connection of connections) connection.retiring = true;
+
+  const retire = () => {
+    for (const connection of connections) connection.close();
+  };
+
+  if (flushMs && connections.length) setTimeout(retire, flushMs).unref();
+  else retire();
 }
 
 export function computersTrack(hostContext: LinkedComputers, nodeId: string, connection: Connection) {
@@ -43,6 +64,8 @@ export function computersTrack(hostContext: LinkedComputers, nodeId: string, con
 
     if (!set.size) {
       hostContext[computersState].active.delete(nodeId);
+
+      if (!connection.retiring) hostContext.reads.disconnected(nodeId);
 
       if (hostContext[computersState].stopped) return;
       const peer = await hostContext.store.peer(nodeId);
@@ -79,7 +102,7 @@ export async function computersHeartbeat(hostContext: LinkedComputers, nodeId: s
  * link. A late interval means this process stalled, and the peer's frames may still wait unread: no verdict then.
  */
 export function computersPulse(hostContext: LinkedComputers) {
-  const heartbeat = hostContext.options.heartbeatMs ?? 5000;
+  const heartbeat = hostContext.options.heartbeatMs ?? PEER_HEARTBEAT_MS;
   const now = Date.now();
   const stalled = hostContext[computersState].pulsed > 0 && now - hostContext[computersState].pulsed > heartbeat * 2;
   hostContext[computersState].pulsed = now;
@@ -123,6 +146,7 @@ export async function computersTick(hostContext: LinkedComputers) {
       if (active?.size) continue;
 
       if (
+        hostContext.reads.blocked(peer.node_id) ||
         hostContext[computersState].dialing.has(peer.node_id) ||
         (hostContext[computersState].retry.get(peer.node_id)?.at ?? 0) > Date.now()
       )
@@ -152,6 +176,8 @@ export async function computersTick(hostContext: LinkedComputers) {
 }
 
 export async function computersDial(hostContext: LinkedComputers, peer: PeerRow, controller: AbortController) {
+  let retired = false;
+
   for (const route of await hostContext[computersState].routes.list(peer.node_id)) {
     const { address } = route;
 
@@ -164,6 +190,7 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
       return;
     const output = new AsyncChannel<link.LinkFrame>();
     const routeController = new AbortController();
+    const client = linkClient(address, peer.certificate, hostContext[computersState].identity);
 
     const connection: Connection = {
       send: (f) => {
@@ -173,6 +200,7 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
         output.close();
         routeController.abort();
         connection.remote?.close();
+        client.close();
       },
       seen: Date.now(),
       ready: false,
@@ -193,15 +221,12 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
 
       const deadline = setTimeout(() => {
         if (!greeted) routeController.abort();
-      }, 8000);
+      }, PEER_HANDSHAKE_TIMEOUT_MS);
 
       try {
-        for await (const frame of linkClient(address, peer.certificate, hostContext[computersState].identity).connect(
-          output,
-          {
-            signal: AbortSignal.any([controller.signal, routeController.signal]),
-          },
-        )) {
+        for await (const frame of client.connect(output, {
+          signal: AbortSignal.any([controller.signal, routeController.signal]),
+        })) {
           if (!greeted && !["welcome", "unlinked"].includes(frame.body.case ?? ""))
             throw new ConnectError("Handshake required", Code.FailedPrecondition);
 
@@ -249,11 +274,16 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
       else if (!greeted && !controller.signal.aborted)
         await hostContext[computersState].routes.failure(peer.node_id, address);
     } finally {
+      retired ||= connection.retiring ?? false;
+      client.close();
       output.close();
       await release();
     }
   }
 
   const delay = Math.min(30_000, (hostContext[computersState].retry.get(peer.node_id)?.delay ?? 500) * 2);
+
+  if (!retired && !controller.signal.aborted && !hostContext.canCall(peer.node_id))
+    hostContext.reads.disconnected(peer.node_id);
   hostContext[computersState].retry.set(peer.node_id, { delay, at: Date.now() + delay + (Math.random() * delay) / 4 });
 }

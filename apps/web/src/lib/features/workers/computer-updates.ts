@@ -1,6 +1,7 @@
 import type { ui } from "@canopy/contracts";
 import { compareVersions } from "@canopy/updater/release";
 import { presenceLabel, formatPresenceTime } from "@canopy/domain/computer-presence";
+import { Match } from "effect";
 
 const newerVersion = (target: string, current: string): boolean => {
   try {
@@ -67,7 +68,16 @@ export function computerUpdate(computer: ui.ComputerUpdate, time = formatPresenc
 
   if (!computer.remoteUpdate) return { ...base, status: "Manual update", detail: computer.reason };
 
-  if (!app) return { ...base, status: "Unavailable", detail: "It didn't answer. Check again in a moment." };
+  if (!app)
+    return {
+      ...base,
+      status: Match.value(computer.readState).pipe(
+        Match.when("loading", () => "Loading"),
+        Match.when("stale", () => "Waiting"),
+        Match.orElse(() => "Unavailable"),
+      ),
+      detail: computer.reason || `Waiting for ${computer.name}. Local updates are ready.`,
+    };
 
   if (!app.connected || app.disabledReason) return { ...base, status: "Unavailable", detail: app.disabledReason };
   const requested = REQUESTED.includes(app.phase);

@@ -367,8 +367,10 @@ message ComputerUpdate {
   bool remote_update = 6;
   // Why this computer's app can't be updated from here, in the words the UI shows; empty when it can.
   string reason = 7;
-  // The computer's own snapshot (its app in `app`); absent while it isn't reachable.
+  // The computer's own snapshot (its app in `app`); retained while it isn't reachable.
   UpdatesSnapshot updates = 8;
+  // loading | fresh | stale | unavailable; the snapshot may be last-known while refreshing.
+  string read_state = 9;
 }
 // Owner-scoped durable orchestration. No URLs, credentials, force or downgrade grants.
 message UpdateRun {
@@ -808,6 +810,8 @@ message OverviewUpdate {
     bool provider_instances_changed = 821;
     // Rekordy workerów innych komputerów się zmieniły (ListWorkerRecords).
     bool worker_records_changed = 822;
+    // A background aggregate read settled. Clients may refresh only the named catalog.
+    string linked_read_completed = 823;
   }
 }
 

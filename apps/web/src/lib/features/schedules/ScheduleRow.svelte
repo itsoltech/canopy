@@ -11,7 +11,7 @@
   import { modelDisplayName } from "#lib/features/models/catalog.ts";
   import { describeWhen, isFinished, placementLabels, runsLabel } from "./schedules.ts";
   import { splitId } from "@canopy/domain/computers";
-  import { computerName } from "@canopy/domain/computer-presence";
+  import { awayReason, computerName, formatPresenceTime } from "@canopy/domain/computer-presence";
 
   /** One scheduled task: its message, when it runs, the next run, runs so far, its thread and who set it. */
   let {
@@ -23,6 +23,7 @@
   const overview = useOverview();
   const home = $derived(splitId(schedule.id).node);
   const computer = $derived(home ? [...overview.computers.values()].find((c) => c.nodeId.startsWith(home)) : undefined);
+  const reason = $derived(home ? awayReason(computer, formatPresenceTime) : undefined);
   const thread = $derived(overview.threads.get(schedule.threadId));
   const creator = $derived(schedule.createdByThreadId ? overview.threads.get(schedule.createdByThreadId) : undefined);
 
@@ -30,10 +31,11 @@
     "font-medium text-zinc-700 underline decoration-zinc-950/15 underline-offset-2 hover:text-zinc-950 hover:decoration-zinc-950/40 focus-ring dark:text-zinc-300 dark:decoration-white/20 dark:hover:text-white dark:hover:decoration-white/40";
 </script>
 
-<div class={["flex items-start gap-3 px-4 py-3.5", className]}>
+<div class={["flex items-start gap-3 px-4 py-3.5", reason && "opacity-50", className]}>
   <div class="@container grid min-w-0 flex-1 gap-1.5">
     <ScheduleText {schedule} />
     {#if home}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{computerName(computer)}</p>{/if}
+    {#if reason}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{reason} Read-only</p>{/if}
     <dl class="flex flex-wrap gap-x-4 gap-y-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
       <div class="flex min-w-0 items-center gap-1.5">
         <dt>

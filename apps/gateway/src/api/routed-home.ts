@@ -44,11 +44,12 @@ export async function* forward(
   request: Message,
   signal: AbortSignal,
   followed = false,
+  live = false,
 ): AsyncGenerator<Message> {
   const projects = await (await ConfigIds.for(core, nodeId)).projects();
 
   try {
-    for await (const message of home(core, nodeId, method, request, signal)) {
+    for await (const message of home(core, nodeId, method, request, signal, live)) {
       mapProjectIds(method.output, message, (id) => (projects.known.has(splitId(id).id) ? projects.toLocal(id) : id));
       const self = core.computers && nodeRef(core.computers.hello().nodeId);
 
@@ -77,7 +78,7 @@ export async function* forward(
 
     // Moved here (it came back) or nowhere this computer knows: the caller sees where it went.
     if (!node) throw error;
-    yield* forward(core, await peerOf(core, node, method, next), method, next, signal, true);
+    yield* forward(core, await peerOf(core, node, method, next), method, next, signal, true, live);
   }
 }
 
@@ -92,6 +93,7 @@ export async function* home(
   method: DescMethod,
   request: Message,
   signal: AbortSignal,
+  live = false,
 ): AsyncGenerator<Message> {
   const computers = core.computers;
 
@@ -161,10 +163,11 @@ export async function* home(
     }
   }
 
-  if (!computers.reachable().includes(nodeId) && computers.capabilities(nodeId).includes(THREAD_MIRROR)) {
-    if (yield* offlineThread(computers, nodeId, method, request, signal)) return;
+  if (computers.capabilities(nodeId).includes(THREAD_MIRROR)) {
+    if (!computers.reachable().includes(nodeId) && (yield* offlineThread(computers, nodeId, method, request, signal)))
+      return;
 
-    if (method.name === "ListThreads") {
+    if (!live && method.name === "ListThreads") {
       const input = linkedMessage(ui.ListThreadsRequestSchema, request);
       const projects = await (await ConfigIds.for(core, nodeId)).projects();
       const shared = projects.known.has(splitId(input.projectId).id);
@@ -189,13 +192,16 @@ export async function* home(
       return;
     }
 
-    if (method.name === "GetOverview") {
-      yield await computers.mirror.overview(nodeId);
+    if (!live && method.name === "GetOverview") {
+      yield await computers.mirror.overview(nodeId, computers.reachable().includes(nodeId));
 
       return;
     }
 
-    if (method.name === "GetAttachment" || method.name === "GetThreadBlob") {
+    if (
+      !computers.reachable().includes(nodeId) &&
+      (method.name === "GetAttachment" || method.name === "GetThreadBlob")
+    ) {
       const peer = await computers.computer(nodeId);
       throw new ConnectError(
         `Available when ${peer?.displayName || peer?.name || "the other computer"} is connected`,

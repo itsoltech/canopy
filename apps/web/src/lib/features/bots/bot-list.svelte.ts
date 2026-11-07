@@ -15,11 +15,15 @@ class BotList {
   #users = 0;
   #saving = new Set<string>();
   #stop: (() => void) | undefined;
+  #refreshing = false;
 
   /** Keeps the list fresh until the returned function is called (use it from an `$effect`). */
   use(): () => void {
     if (this.#users++ === 0) {
-      const refresh = () => void this.refresh();
+      const refresh = () => {
+        if (!document.hidden) void this.refresh();
+      };
+
       const timer = setInterval(refresh, 5000);
       window.addEventListener("bots-changed", refresh);
       this.#stop = () => {
@@ -36,6 +40,9 @@ class BotList {
   }
 
   async refresh(): Promise<void> {
+    if (this.#refreshing) return;
+    this.#refreshing = true;
+
     try {
       this.list = decode(bots.ListBotsResponseSchema, await requestJson("GET", "/api/bots?archived=1")).bots.map(
         (bot) => (this.#saving.has(bot.id) ? (this.list.find((b) => b.id === bot.id) ?? bot) : bot),
@@ -45,6 +52,7 @@ class BotList {
     } catch {
       this.error = "Could not load bots";
     } finally {
+      this.#refreshing = false;
       this.loaded = true;
     }
   }

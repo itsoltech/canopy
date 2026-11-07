@@ -53,7 +53,8 @@
           !desktop.disabledReason &&
           !!desktop.availableVersion &&
           desktop.availableVersion !== desktop.version
-      : worker.installKind === "binary" &&
+      : worker.connected &&
+          worker.installKind === "binary" &&
           !!snapshot?.admin &&
           !!worker.version &&
           worker.version !== snapshot.gatewayVersion &&
@@ -61,24 +62,26 @@
   );
 
   const label = $derived(
-    external && !current
-      ? "Managed externally"
-      : current
-        ? "Up to date"
-        : desktop
-          ? ({
-              downloading: `${Math.round(desktop.progress)}%`,
-              waiting_idle: "Waiting for idle",
-              restarting: "Restarting",
-              failed: "Failed",
-              checking: "Checking",
-              queued: "Queued",
-            }[desktop.phase] ?? (actionable ? "Available" : "Unavailable"))
-          : busy || failed || ["managed_externally", "ahead"].includes(worker.state)
-            ? updateStateLabel(worker.state, worker.compatibility === "compatible")
-            : actionable
-              ? "Available"
-              : "Unavailable",
+    !worker.connected
+      ? "Offline"
+      : external && !current
+        ? "Managed externally"
+        : current
+          ? "Up to date"
+          : desktop
+            ? ({
+                downloading: `${Math.round(desktop.progress)}%`,
+                waiting_idle: "Waiting for idle",
+                restarting: "Restarting",
+                failed: "Failed",
+                checking: "Checking",
+                queued: "Queued",
+              }[desktop.phase] ?? (actionable ? "Available" : "Unavailable"))
+            : busy || failed || ["managed_externally", "ahead"].includes(worker.state)
+              ? updateStateLabel(worker.state, worker.compatibility === "compatible")
+              : actionable
+                ? "Available"
+                : "Unavailable",
   );
 </script>
 
@@ -95,7 +98,7 @@
   error={failed ? reason : ""}
   {busy}
   progress={desktop?.phase === "downloading" ? desktop.progress : undefined}
-  class={className}
+  class={[!worker.connected && "opacity-50", className]}
 >
   {#snippet action()}
     {#if actionable && !busy && !current}

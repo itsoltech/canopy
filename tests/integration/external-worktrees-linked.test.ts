@@ -80,7 +80,13 @@ describe.skipIf(!dockerAvailable)("external worktrees on a linked computer", () 
     expect(readFileSync(join(external, "worker-started.txt"), "utf8")).toBe(external);
     const entries = (await caller.api.listWorktrees({ workerId: q(home.workerId) })).entries;
     expect(entries.find((entry) => entry.worktree?.id === tree.id)?.worktree?.external).toBe(true);
-    expect((await caller.api.listWorktrees({})).entries.some((entry) => entry.worktree?.id === tree.id)).toBe(true);
+    expect(
+      await eventually(
+        async () => (await caller.api.listWorktrees({})).entries.some((entry) => entry.worktree?.id === tree.id),
+        Boolean,
+        15_000,
+      ),
+    ).toBe(true);
     expect(await failure(caller.api.removeWorktree({ worktreeId: tree.id }))).toContain("outside Canopy");
     const cleanup = await caller.api.cleanupWorktrees({ workerId: q(home.workerId), dryRun: false });
     expect(cleanup.entries.find((entry) => entry.worktree?.id === tree.id)).toMatchObject({

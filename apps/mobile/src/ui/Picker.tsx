@@ -18,6 +18,8 @@ export interface PickerOption<T> {
   badge?: string;
   tone?: "warning" | "danger";
   disabled?: boolean;
+  /** An offline item that can still be selected for reading or filtering. */
+  muted?: boolean;
   /** Extra words the search matches (paths, ids). */
   keywords?: string;
   /** Permission scopes must remain fully visible before the owner chooses one. */
@@ -168,7 +170,7 @@ function PickerRow<T>({
         paddingVertical: 8,
         borderRadius: 8,
         backgroundColor: pressed ? c.pressed : "transparent",
-        opacity: option.disabled ? 0.4 : 1,
+        opacity: option.disabled || option.muted ? 0.4 : 1,
       })}
     >
       {option.leading ?? (option.icon ? <Icon name={option.icon} color={tone ?? c.icon} /> : null)}

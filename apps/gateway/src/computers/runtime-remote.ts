@@ -22,7 +22,7 @@ import { type PeerRow } from "./store.ts";
 
 import { type RouteRow } from "./routes.ts";
 
-import { computersBroadcast, computersTick } from "./runtime-connection.ts";
+import { computersBroadcast, computersReconnect, computersTick } from "./runtime-connection.ts";
 import { computersState, ms, peerMessage, STATE_TEXT } from "./runtime-context.ts";
 import { computersEmit } from "./runtime-mirrors.ts";
 import type { LinkedComputers } from "./runtime.ts";
@@ -193,6 +193,7 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     request: Message,
     signal: AbortSignal,
   ): AsyncGenerator<Message> {
+    if (this.reads.blocked(nodeId)) throw await this.unavailable(nodeId);
     const indirect = this.relay.entries.get(nodeId);
 
     if (indirect) {
@@ -291,6 +292,7 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
   async announce(this: LinkedComputers, state: string) {
     if (!["updating", "restarting", "sleeping", "shutting_down", "connected"].includes(state))
       throw new ConnectError("Unknown presence state", Code.InvalidArgument);
+    const waking = state === "connected" && this[computersState].paused;
     this[computersState].announced = state;
 
     if (state === "sleeping") this[computersState].paused = true;
@@ -300,6 +302,8 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
 
     if (state === "connected") {
       this[computersState].paused = false;
+
+      if (waking) computersReconnect(this);
       await computersTick(this);
     }
   },
@@ -307,6 +311,7 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
   async close(this: LinkedComputers, state = "shutting_down") {
     if (this[computersState].stopped) return;
     this[computersState].stopped = true;
+    const reads = this.reads.close();
     // No move starts settling while the presence goes out: a stopping computer only finishes what runs.
     const moves = this.moves?.close();
     const announced = this[computersState].announced;
@@ -329,6 +334,7 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     this[computersState].workerRecords?.();
     this.options.network.mount("link", undefined);
     await moves;
+    await reads;
     await Promise.allSettled(this[computersState].tasks);
   },
 };

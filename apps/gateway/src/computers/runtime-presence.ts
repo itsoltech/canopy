@@ -36,6 +36,7 @@ import { refreshConfigGroup, setConfigSharing } from "./runtime-config.ts";
 import { configNotices } from "../config-sync/notices.ts";
 import { followWorkerRecords } from "./runtime-workers.ts";
 import { RESTART_PRESENCE } from "@canopy/domain/computer-presence";
+import { PEER_HEARTBEAT_MS } from "./timing.ts";
 
 /** A direct partner connected now that receives moves (never through a relay). */
 export function computersMovable(hostContext: LinkedComputers, nodeId: string) {
@@ -111,7 +112,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
     this[computersState].timer = setInterval(() => {
       computersPulse(this);
       void computersTick(this).catch(() => {});
-    }, this.options.heartbeatMs ?? 5000);
+    }, this.options.heartbeatMs ?? PEER_HEARTBEAT_MS);
     await computersTick(this);
   },
 
@@ -210,6 +211,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
       [this.store.owner, response.hello.nodeId, shareConfig, response.shareConfig ?? true],
     );
     this[computersState].retry.delete(response.hello.nodeId);
+    this.reads.connected(response.hello.nodeId);
     void this[computersState].lan?.refresh().catch(() => {});
     void computersTick(this).catch(() => {});
 
@@ -284,6 +286,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
       if (action === "add_route") {
         await this[computersState].routes.add(nodeId, [address], "manual");
         this[computersState].retry.delete(nodeId);
+        this.reads.connected(nodeId);
       } else if (!(await this[computersState].routes.remove(nodeId, address)))
         throw new ConnectError("Route not found", Code.NotFound);
       computersEmit(this, nodeId);

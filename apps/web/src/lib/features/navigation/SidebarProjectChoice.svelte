@@ -21,7 +21,14 @@
   );
 </script>
 
-<div class={["flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 sm:py-0", className]}>
+<div
+  title={overview.projectAway(project)}
+  class={[
+    "flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 sm:py-0",
+    overview.projectAway(project) && "opacity-50",
+    className,
+  ]}
+>
   <ProjectMark name={project.name} kind={project.kind} />
   <Checkbox
     name="project-{project.id}"
@@ -29,6 +36,7 @@
     class="min-w-0 flex-1"
     bind:checked={() => checked, onchoose}
   />
+  {#if overview.projectAway(project)}<span class="text-xs/4 text-zinc-500 dark:text-zinc-400">Offline</span>{/if}
   <Icon name="computer-desktop" label={workers || "No workers"} class="fill-zinc-400 dark:fill-zinc-500" />
   <ButtonLink
     href={project.kind === "scratch" ? "/settings/threads" : `/settings/projects/${project.id}`}

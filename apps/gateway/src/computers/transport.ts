@@ -7,10 +7,16 @@ import {
   createContextValues,
   type ConnectRouter,
 } from "@connectrpc/connect";
-import { connectNodeAdapter, createGrpcTransport } from "@connectrpc/connect-node";
+import { connectNodeAdapter, createGrpcTransport, Http2SessionManager } from "@connectrpc/connect-node";
 import { computerLink as link } from "@canopy/contracts";
 import type { Handler } from "../network/listener.ts";
 import { certificateIdentity, linkAddress } from "./identity.ts";
+import {
+  PEER_CONNECT_TIMEOUT_MS,
+  PEER_IDLE_CONNECTION_TIMEOUT_MS,
+  PEER_PING_INTERVAL_MS,
+  PEER_PING_TIMEOUT_MS,
+} from "./timing.ts";
 
 export const remoteCertificate = createContextKey("");
 
@@ -32,7 +38,7 @@ export function discoverCertificate(address: string, fingerprint: string, identi
       ALPNProtocols: ["h2"],
     });
 
-    socket.setTimeout(5000, () => socket.destroy(new Error("Computer link timed out")));
+    socket.setTimeout(PEER_CONNECT_TIMEOUT_MS, () => socket.destroy(new Error("Computer link timed out")));
     socket.once("error", (cause) =>
       reject(
         new ConnectError(
@@ -67,29 +73,35 @@ export function discoverCertificate(address: string, fingerprint: string, identi
  * CAs are replaced, hostname validation is replaced by the stronger exact pin. */
 export function linkClient(address: string, certificate: string, identity: LinkIdentity) {
   const pin = certificateIdentity(certificate).fingerprint;
+  const baseUrl = linkAddress(address);
 
-  return createClient(
-    link.ComputerLinkService,
-    createGrpcTransport({
-      baseUrl: linkAddress(address),
-      readMaxBytes: 64 * 1024,
-      writeMaxBytes: 64 * 1024,
-      connectTimeoutMs: 5000,
-      pingIntervalMs: 10_000,
-      pingTimeoutMs: 5000,
-      idleConnectionTimeoutMs: 1000,
-      nodeOptions: {
-        cert: identity.certificate,
-        key: identity.privateKey,
-        ca: certificate,
-        rejectUnauthorized: true,
-        minVersion: "TLSv1.3",
-        checkServerIdentity: (_hostname, cert) =>
-          certificateIdentity(cert.raw).fingerprint === pin
-            ? undefined
-            : new Error("Computer certificate does not match its pin"),
-      },
-    }),
+  const session = new Http2SessionManager(
+    baseUrl,
+    {
+      connectTimeoutMs: PEER_CONNECT_TIMEOUT_MS,
+      pingIntervalMs: PEER_PING_INTERVAL_MS,
+      pingTimeoutMs: PEER_PING_TIMEOUT_MS,
+      idleConnectionTimeoutMs: PEER_IDLE_CONNECTION_TIMEOUT_MS,
+    },
+    {
+      cert: identity.certificate,
+      key: identity.privateKey,
+      ca: certificate,
+      rejectUnauthorized: true,
+      minVersion: "TLSv1.3",
+      checkServerIdentity: (_hostname, cert) =>
+        certificateIdentity(cert.raw).fingerprint === pin
+          ? undefined
+          : new Error("Computer certificate does not match its pin"),
+    },
+  );
+
+  return Object.assign(
+    createClient(
+      link.ComputerLinkService,
+      createGrpcTransport({ baseUrl, readMaxBytes: 64 * 1024, writeMaxBytes: 64 * 1024, sessionManager: session }),
+    ),
+    { close: () => session.abort() },
   );
 }
 

@@ -60,9 +60,14 @@ describe.skipIf(!dockerAvailable)("linked provider reports come from the worker'
     ]) {
       const local = (await instanceOf(home!, Provider.CLAUDE, "native"))!.workers[0]!;
 
-      const remote = (await viewer!.gateway.api.getOverview({})).workers
-        .find((w) => w.id === qualifyId(home!.gateway.workerId, home!.node))
-        ?.providerInstances.find((i) => i.harness === Provider.CLAUDE && i.id === "native");
+      const remote = await eventually(
+        async () =>
+          (await viewer!.gateway.api.getOverview({})).workers
+            .find((w) => w.id === qualifyId(home!.gateway.workerId, home!.node))
+            ?.providerInstances.find((i) => i.harness === Provider.CLAUDE && i.id === "native"),
+        (instance) => instance?.status?.version === local.version,
+        20_000,
+      );
 
       expect(remote?.status).toEqual({ ...local, workerId: qualifyId(home!.gateway.workerId, home!.node) });
       expect(remote?.status).toMatchObject({
@@ -103,9 +108,14 @@ describe.skipIf(!dockerAvailable)("linked provider reports come from the worker'
     );
     await report(b, "2.1.320");
 
-    const remote = (await a.gateway.api.getOverview({})).workers
-      .find((w) => w.nodeId === b.node)
-      ?.providerInstances.find((i) => i.harness === Provider.CLAUDE && i.id === "native")?.status;
+    const remote = await eventually(
+      async () =>
+        (await a.gateway.api.getOverview({})).workers
+          .find((w) => w.nodeId === b.node)
+          ?.providerInstances.find((i) => i.harness === Provider.CLAUDE && i.id === "native")?.status,
+      (status) => status?.version === "2.1.320",
+      20_000,
+    );
 
     expect(remote?.overrides?.proxyId).toBe(proxy.id);
     expect(remote?.version).toBe("2.1.320");

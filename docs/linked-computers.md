@@ -498,8 +498,8 @@ otwarte wywołania błędem `UNAVAILABLE` („Laptop B disconnected”); zapowie
 ciche reguły z tabeli obecności. **Nic nie jest kolejkowane**: brak gotowego połączenia
 to natychmiastowy błąd z powodem z obecności etapu 1 — „Laptop B is unreachable since 19:42”,
 „is updating since …”, „is asleep since …”, „is offline since …”, „needs an update”, „must be paired again”
-(godzina w strefie użytkownika). Unary ma limit 30 s, zbieranie overview/list z partnerów 3 s;
-partner, który nie odpowie, jest pomijany, a nie oczekiwany.
+(godzina w strefie użytkownika). Akcje unary mają zwykle limit 30 s; listy lokalne nie czekają na partnerów
+i zachowują ich ostatnie znane dane.
 
 ### Id i trasowanie w gatewayu
 
@@ -542,7 +542,60 @@ właściciela i lokalizację. Wynik i dokładne wejście agenta wracają przez z
 
 ### Zsumowany widok
 
-- `GetOverview`: lokalne workery i projekty plus te z każdego partnera, który udostępnia wątki teraz,
+Odczyty zbiorcze zwracają lokalne dane i ostatni znany stan partnerów bez oczekiwania
+na sieć. `GetOverview` i `ListThreads` dla `thread_mirror` czytają zatwierdzone lokalne
+lustro również podczas pozornie zdrowego połączenia i ponownego zestawiania. Reset
+lustra nie zastępuje poprzedniej generacji przed checkpointem. Pozostałe listy
+odświeża `PeerReads`: jedno wywołanie na klucz komputer/metoda/request, najwyżej cztery
+aktywne na komputer, 128 kluczy i 16 MiB odpowiedzi w całym cache. Nieudany odczyt
+zachowuje poprzednią odpowiedź. Snapshoty są dekodowane osobno dla każdego odbiorcy.
+`linked_read_completed` odświeża zainteresowane widoki bez czekania w pierwotnym RPC.
+
+Wszystkie czasy I/O partnera są nazwane w `computers/timing.ts`: zwykły odczyt 10 s,
+sprawdzenie aktualizacji 120 s, żądanie instalacji 15 min. Limit RPC nie oznacza,
+że komputer jest martwy: ten klucz staje się stale i ma 30 s przerwy przed następną
+próbą. Zdrowe wyniki można odświeżyć po 5 s. UI pokazuje Loading/Waiting, zachowując
+lokalne dane. Utrata łącza otwiera circuit breaker: 30 s, 60 s, 120 s, najwyżej 3 min;
+w tym czasie pomijane są wywołania i próby dial. Udany handshake, zweryfikowane
+ogłoszenie LAN, wake lub zmiana sieci zerują go od razu. Żadna wysłana akcja nie jest
+automatycznie powtarzana. Dłuższe limity operacji celowych opisuje ta sama tabela stałych.
+
+`PEER_LONG_CALL_TIMEOUTS`: AddProject 6 min (klonowanie), CreateThread 120 s,
+ListWorktrees 120 s (operacje Git), CleanupWorktrees 5 min. Zestawienie TLS ma 5 s,
+handshake aplikacyjny 8 s; zwykła celowa mutacja 30 s. To limity jawnej pracy zdalnej,
+nie budżety oczekiwania lokalnej strony.
+
+Liveness korzysta z HTTP/2 PING co 15 s i limitu pong 10 s oraz heartbeat aplikacyjnego
+co 5 s (cztery pominięte, z tolerancją zatrzymania lokalnego event loop). Wybudzenie
+i zmiana interfejsów/adresów niszczą starą sesję HTTP/2; nowe zestawienie ponownie
+sprawdza zapisany pin TLS 1.3. Nowe trasy idą starym łączem przed jego zamknięciem
+(okno 100 ms), również dla partnera bez listenera.
+
+`ListBotsResponse.unavailable_computers` wskazuje utracone domy, a
+`refreshing_computers` — powolne odświeżenia. Connectors pokazuje notkę przy lokalnych
+kontach zamiast błędu strony. Updates zachowuje ostatni snapshot partnera i osobne
+`read_state` loading/fresh/stale/unavailable. Polling nie nakłada wywołań; timeout
+odczytu nie powoduje kolejnej próby na każdym pollu. Tick Update all też jest single-flight.
+
+| Powierzchnia / RPC | Źródło i zachowanie bez partnera |
+| --- | --- |
+| Sidebar, overview, listy i pickery workerów/projektów, nowy wątek, filtr projektu, paleta poleceń | Lokalne lustro / ostatni snapshot; wiersze pozostają, offline jest przygaszone. Filtry i czytanie działają; start na niedostępnym workerze jest wyłączony z powodem. |
+| Mobile reconnect `mobile_snapshot`, `computer_snapshot` | Ta sama projekcja i wspólne `retainLinkedRows`, `retainProjects`, `workersWithAvailability`; brak pustej listy w trakcie flappingu, również przed wykryciem utraty łącza. Jawny snapshot domu, usuwanie i unlink nadal uzgadniają usunięcia. |
+| `GetThread`, `WatchThread`, historia i wyszukiwanie w otwartym wątku | Lokalny mirror seed, odczyt offline; wysyłanie, steer i edycje wymagają domu. |
+| `ListModels`, `ListSchedules`, `ListWorktrees`, cele botów/harmonogramów | Ostatnia odpowiedź i odświeżenie w tle; pickery zachowują workery/projekty i wyjaśniają wyłączone akcje. |
+| `ListBots`, Updates, Connectors | Cache / lustro bota i stan dostępności; rekordy kont konektorów są lokalne. |
+| Settings: projekty, providers, connectors, proxies, workers, agent environment, Devices | Lokalne rekordy i współdzielona konfiguracja; edycja zdalnego workera ma osobny jawny RPC i owner-scoping. Pobieranie blobów config-sync jest poza transakcją DB. |
+| Search i wzmianki | Paleta/sidebar przeszukują zachowany overview; `SearchThreads` oraz wzmianki `#` są nadal ograniczone do lokalnego domu. Pliki/katalogi są jawnie przypisane do wybranego workera, nie są zbiorczą listą. |
+| Linked agent catalog/overview oraz narzędzia `list_agents`, `list_threads`, `list_bots` | Ten sam cache i lustra; odpowiedzi w tle, lokalne dane i stan loading/ostatni stan partnera. Narzędzia lokalnego agenta nie czekają na zbieranie list partnerów. |
+
+Brak oczekiwania na partnera w lokalnym RPC ogranicza zajęte streamy/fibers. BFF ma
+osobne sesje lokalnych i zdalnych unary oraz lokalnych i zdalnych subskrypcji; limit zdalnych wywołań
+wychodzących wynosi 64, niezależnie od limitu przychodzących. I/O partnera nie zajmuje
+slotów process governor workera. Sam komunikat `active=5` nie dowodzi przyczyny timeoutów.
+Log `gateway call failed` zawiera metodę RPC, czas w ms, status i bezpieczny komunikat;
+nie zapisuje payloadu, nagłówków uwierzytelniania ani transportowego cause.
+
+- `GetOverview`: lokalne workery i projekty plus ostatnie znane projekcje partnerów,
   oraz `computers` (800): wszyscy partnerzy z obecnością i capabilities.
 - `ListThreads` bez projektu i `ListModels` bez workera: lokalne plus partnerzy; z kwalifikowanym
   projektem/workerem — tylko dom.
@@ -575,7 +628,7 @@ skryptowany worker na B, łącze mTLS. Sprawdza zsumowany overview i modele (bez
 utworzenie wątku z A na workerze B (wątek tylko w bazie B) i strumień na żywo, wiadomość, steer,
 kolejkę (usunięcie tury po kwalifikowanym id) i przerwanie wykonane na B, zgodę z B odpowiedzianą z A,
 załącznik wgrany na A dostarczony na B, overview na żywo (wątek utworzony na B, obecność „updating”),
-niedostępnego partnera (błąd „unreachable since HH:MM” w < 1,5 s, brak partnera w overview, po
+niedostępnego partnera (szybka odmowa akcji „unreachable since HH:MM”, zachowany ostatni overview, po
 powrocie brak dostarczonej wiadomości), partnera bez capability („needs an update”), odmowę metod
 spoza listy i żądań przez inny komputer oraz brak dostępu po Unlink w obie strony, także surowym
 przypiętym strumieniem z `remote_request` (odpowiedź wyłącznie `unlinked`).
@@ -734,8 +787,8 @@ tekstowych blobów nadal mają ograniczenia podglądu opisane w UI. Załączniki
 na A nie stają się automatycznie zawartością lustra B.
 
 Capabilities partnera są trwale zapisywane, żeby restart A zachował możliwość odczytu offline.
-Partner bez `thread_mirror` zachowuje zachowanie etapu 2: tylko online; Settings → Linked
-computers wyjaśnia „Needs an update for offline reading”. Kolejny handshake zastępuje capability,
+Partner bez `thread_mirror` zachowuje ostatnią listę w cache procesu, ale odczyt treści wymaga domu;
+Settings → Linked computers wyjaśnia „Needs an update for offline reading”. Kolejny handshake zastępuje capability,
 więc downgrade nie odsłania starego lustra offline. Unlink usuwa partnera, wszystkie generacje,
 metadane i kursor na tej stronie; lokalne dane domu pozostają nietknięte.
 
@@ -1919,6 +1972,10 @@ po zastosowaniu jego nadpisań; odbiorca nie odtwarza go ze swojej definicji ins
 pozostaje informacją o konfiguracji, bez raportu dostępności. Partner starszy albo bez aktualnego
 raportu daje „Status from … unavailable”; brak danych nie oznacza logowania urządzenia.
 
+Trwałe lustro zachowuje publiczne `Worker.providers` (rodzaj, dostępność, wersję i powód) oraz
+metadane pickera `provider_instances`, bez konfiguracji dostępu i danych kont. Pickery web i mobile
+uznają również dostępność w publicznych instancjach, gdy starszy wydawca lustra pominął `providers`.
+
 Telefony i przeglądarki nie trasują niczego. Metody zarządzania wymagają tokenu serwisowego BFF jak dziś.
 Partner nigdy nie zmienia rekordu wspólnego przez `RemoteRequest`, tylko przez `WatchConfig`. Model nie ma
 dostępu do żadnej z tych metod. Niedostępny dom daje od razu powód z obecności („Laptop B is unreachable
@@ -2113,10 +2170,13 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
 
 ### Strony historii klientów
 
-Klient z `page_size` przechodzi bezpośrednio do domu wątku przez istniejącą
-trasę stage 2, zamiast otrzymywać całe lustro jako pierwszy snapshot.
-Załadowane okno klienta pokazuje się lokalnie; jego kursor i granice stron
-przechodzą do domu. Boty i wymiany również przekazują żądanie strony i kursor.
+Klient z `page_size` otrzymuje najpierw odpowiednie okno z lokalnego lustra,
+a następnie świeże okno domu przez istniejącą trasę stage 2. Nie czeka na
+partnera, żeby pokazać zsynchronizowaną treść. Ramki snapshot i delta lustra
+zachowują `history_version` domu, więc lokalne strony mają tę samą wersję
+historii. Jeżeli starsze lub nieaktualne lustro nie pasuje do wersji żądanej
+strony, odczyt tej strony przechodzi do domu zamiast łączyć różne historie.
+Boty i wymiany również przekazują żądanie strony i kursor.
 Identyfikatory tur i itemów podlegają temu samemu kwalifikowaniu co pozostałe
 odpowiedzi. Starszy dom ignoruje addytywne pola stron i zwraca pełną historię.
 Bez sieci strony są wycinane z pełnego lustra partnera. Odczyt ma `syncing=true`;

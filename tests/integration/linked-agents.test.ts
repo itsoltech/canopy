@@ -140,7 +140,13 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
   }, 20000);
 
   test("bot B is listed, opened, messaged, streamed and edited from A; only B executes", async () => {
-    expect((await a.api.listBots({})).bots.find((x) => x.id === q(botB))?.nodeId).toBe(bNode);
+    expect(
+      await eventually(
+        async () => (await a.api.listBots({})).bots.find((x) => x.id === q(botB))?.nodeId,
+        (node) => node === bNode,
+        15_000,
+      ),
+    ).toBe(bNode);
     expect((await a.api.getBot({ botId: q(botB) })).bot?.configuration?.name).toBe("Bot B");
     const providers = await a.api.getBotProviderInstances({ botId: q(botB) });
     const provider = providers.instances.find((p) => p.id === "bot-fixture")!;
@@ -241,7 +247,13 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
         Boolean,
       ),
     ).toBe(true);
-    const catalog = await tool("list_agents", {});
+
+    const catalog = await eventually(
+      () => tool("list_agents", {}),
+      (result) => result.resultJson.includes(q(workspace)),
+      15_000,
+    );
+
     expect(catalog.resultJson).toContain("Laptop B");
     expect(catalog.resultJson).toContain(q(workspace));
     expect(catalog.resultJson).toContain(q(botB));

@@ -22,15 +22,23 @@ describe.skipIf(!dockerAvailable)("tail pages and journal checkpoints on real ga
   let exchange: string;
   const query = (sql: string, params: unknown[] = []) => gateway.core.linkedAgents.query(sql, params);
 
-  async function openThread(input: MessageInitShape<typeof ui.WatchThreadRequestSchema> = {}, server = gateway) {
+  async function openThread(
+    input: MessageInitShape<typeof ui.WatchThreadRequestSchema> = {},
+    server = gateway,
+    { live = false } = {},
+  ) {
     const abort = new AbortController();
 
     try {
       for await (const update of server.api.watchThread(
         { threadId: thread, incremental: true, pageSize: 12, ...input },
         { signal: abort.signal, timeoutMs: 5000 },
-      ))
+      )) {
+        if (live && update.syncing) continue;
+
         return update;
+      }
+
       throw new Error("Missing initial thread state");
     } finally {
       abort.abort();
@@ -302,8 +310,15 @@ describe.skipIf(!dockerAvailable)("tail pages and journal checkpoints on real ga
     await partner.api.linkComputer({ address: homeLink.addresses[0]!, code: pairing.code });
     await eventually(async () => partnerLink!.reachable().includes(homeLink!.hello().nodeId), Boolean, 15000);
     const remoteThread = qualifyId(thread, homeLink.hello().nodeId);
+    await eventually(
+      () => partnerLink!.mirror.read(homeLink!.hello().nodeId, thread),
+      (held) => !!held?.snapshot.thread,
+      15000,
+    );
     const state = applyThreadUpdate(undefined, await openThread({ threadId: remoteThread }, partner));
     expect(state.turns).toHaveLength(12);
+    expect(state.cursor.startsWith("offline:")).toBe(true);
+    expect(state.historyVersion).not.toBe("");
 
     const page = applyThreadUpdate(
       undefined,
@@ -315,6 +330,16 @@ describe.skipIf(!dockerAvailable)("tail pages and journal checkpoints on real ga
 
     expect(prependThreadPage(state, page).turns).toHaveLength(24);
     expect((await openThread({ threadId: remoteThread, cursor: state.cursor }, partner)).change.case).toBe("delta");
+    const live = applyThreadUpdate(undefined, await openThread({ threadId: remoteThread }, partner, { live: true }));
+    expect(live.historyVersion).toBe(state.historyVersion);
+
+    const resumedLive = applyThreadUpdate(
+      live,
+      await openThread({ threadId: remoteThread, cursor: live.cursor }, partner, { live: true }),
+    );
+
+    expect(resumedLive.turns).toEqual(live.turns);
+    expect(resumedLive.cursor).toBe(live.cursor);
     const remoteBot = qualifyId(bot, homeLink.hello().nodeId);
     const chat = await openBot({ botId: remoteBot }, partner);
     expect(chat.messages).toHaveLength(12);

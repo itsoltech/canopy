@@ -141,12 +141,15 @@ describe.skipIf(!dockerAvailable)("bots, schedules and worker settings at their 
     expect(fresh.newThread?.workspaceId).toBe(onB(workspace.id));
     await f.b.core.scheduler.tick(timestampDate(fresh.nextRunAt!));
 
-    const ran = (await f.a.gateway.api.listSchedules({ includeFinished: true })).schedules.find(
-      (s) => s.id === fresh.id,
-    )!;
+    const ran = await eventually(
+      async () =>
+        (await f.a.gateway.api.listSchedules({ includeFinished: true })).schedules.find((s) => s.id === fresh.id),
+      (row) => Boolean(row?.recentRuns.length),
+      15_000,
+    );
 
-    expect(ran.recentRuns[0]?.workerId).toBe(worker());
-    expect(ran.recentRuns[0]?.outcome).toBe("started");
+    expect(ran?.recentRuns[0]?.workerId).toBe(worker());
+    expect(ran?.recentRuns[0]?.outcome).toBe("started");
   }, 45_000);
 
   test("worker records feed every settings list; home reads and writes keep the shared library intact", async () => {

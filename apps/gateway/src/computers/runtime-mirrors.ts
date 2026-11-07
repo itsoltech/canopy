@@ -11,6 +11,7 @@ import type { LinkedComputers } from "./runtime.ts";
 
 export function computersEmit(hostContext: LinkedComputers, nodeId: string, removed = false) {
   if (removed) {
+    hostContext.reads.forget(nodeId);
     hostContext[computersState].names.delete(nodeId);
     hostContext[computersState].capabilities.delete(nodeId);
   }

@@ -5,6 +5,7 @@ import { Match } from "effect";
 import { routedPinnedTransport } from "@canopy/transport";
 import { DESKTOP_CLIENT_PROTOCOL, MIN_DESKTOP_CLIENT_PROTOCOL } from "@canopy/domain/release/protocol";
 import { gatewayFailure } from "./gateway-errors.ts";
+import { isolatedGatewayTransport } from "./gateway-transport.ts";
 
 export interface GatewayCompatibility {
   state: "ready" | "gateway-update" | "app-update" | "unavailable" | "pairing";
@@ -18,8 +19,16 @@ export interface GatewayCompatibility {
 /** Server-only bearer, supplied by Electron's controller. No service token from the remote server. */
 export function desktopGateway(routesJson: string, token: string) {
   const routes = fromJsonString(ui.MobileRoutesSchema, routesJson, { ignoreUnknownFields: true });
-  const routed = routedPinnedTransport(routes, token);
-  const raw = createClient(ui.GatewayService, routed.transport);
+  const pools: ReturnType<typeof routedPinnedTransport>[] = [];
+
+  const transport = isolatedGatewayTransport(() => {
+    const pool = routedPinnedTransport(routes, token);
+    pools.push(pool);
+
+    return pool.transport;
+  });
+
+  const raw = createClient(ui.GatewayService, transport);
 
   let snapshot: GatewayCompatibility = {
     state: "unavailable",
@@ -39,7 +48,7 @@ export function desktopGateway(routesJson: string, token: string) {
       const info = await raw.getClientCapabilities({}, { timeoutMs: 2500 });
       failureCode = undefined;
 
-      if (info.routes) routed.update(info.routes);
+      if (info.routes) for (const pool of pools) pool.update(info.routes);
       const name = info.gatewayName || "your gateway";
       const core = ["GetOverview", "ListThreads", "GetThread", "GetSettings", "WatchOverview", "WatchThread"];
 
@@ -118,7 +127,7 @@ export function desktopGateway(routesJson: string, token: string) {
     await requireMethod(args[0].name);
 
     try {
-      return await routed.transport.unary(...args);
+      return await transport.unary(...args);
     } catch (cause) {
       if (cause instanceof ConnectError && cause.code === Code.Unimplemented)
         throw new ConnectError("Update Canopy on your gateway to use this feature", Code.Unimplemented);
@@ -131,7 +140,7 @@ export function desktopGateway(routesJson: string, token: string) {
   const stream: Transport["stream"] = async (...args) => {
     await requireMethod(args[0].name);
 
-    return routed.transport.stream(...args);
+    return transport.stream(...args);
   };
 
   return { transport: { unary, stream }, compatibility };

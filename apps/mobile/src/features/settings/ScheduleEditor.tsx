@@ -10,9 +10,15 @@ import { SettingsModel } from "./SettingsModels";
 import { ScheduleDate } from "./ScheduleDate";
 import { ScheduleRecurrence } from "./ScheduleRecurrence";
 import { PermissionPickerSheet, permissionLabel } from "../threads/permissions";
+import { useComputerHome, useWorkerPresence } from "../computers/presence";
+import { projectAwayReason } from "@canopy/domain/linked-snapshot";
+import { splitId } from "@canopy/domain/computers";
+import { awayReason, formatPresenceTime } from "@canopy/domain/computer-presence";
 
 export function ScheduleEditor({ schedule, onSaved }: { schedule?: ui.Schedule; onSaved: () => void }) {
-  const resource = useSettingsResource("schedule-editor", (api) => api.listSchedules({}));
+  const resource = useSettingsResource("schedule-editor", (api) => api.listSchedules({}), "ListSchedules");
+  const overview = useOverview();
+  const home = useComputerHome(schedule ? splitId(schedule.id).node : undefined);
 
   const [draft, setDraft] = useState(() =>
     create(ui.CreateScheduleRequestSchema, {
@@ -35,6 +41,16 @@ export function ScheduleEditor({ schedule, onSaved }: { schedule?: ui.Schedule; 
 
   const change = (patch: Partial<ui.CreateScheduleRequest>) =>
     setDraft(create(ui.CreateScheduleRequestSchema, { ...draft, ...patch }));
+
+  const project = overview.projects.find((row) => row.id === draft.newThread?.projectId);
+  const threadHome = useComputerHome(splitId(draft.threadId).node);
+  const workspace = project?.workspaces.find((row) => row.id === draft.newThread?.workspaceId);
+  const workspaceHome = useComputerHome(splitId(workspace?.workerId ?? "").node);
+
+  const targetAway =
+    draft.target === "thread"
+      ? threadHome.away
+      : workspaceHome.away || Boolean(project && projectAwayReason(project, overview.workers, overview.computers));
 
   const validDate = (text: string) => Number.isFinite(Date.parse(text));
 
@@ -114,6 +130,8 @@ export function ScheduleEditor({ schedule, onSaved }: { schedule?: ui.Schedule; 
         title={schedule ? "Save schedule" : "Create schedule"}
         busy={resource.busy}
         disabled={
+          home.away ||
+          targetAway ||
           !draft.prompt.trim() ||
           (kind === "once" && !validDate(date)) ||
           (kind === "recurring" && !cron) ||
@@ -133,7 +151,7 @@ function ScheduleTarget({
   draft: ui.CreateScheduleRequest;
   change: (v: Partial<ui.CreateScheduleRequest>) => void;
 }) {
-  const { threads } = useOverview();
+  const { threads, computers } = useOverview();
 
   return (
     <>
@@ -153,7 +171,21 @@ function ScheduleTarget({
           onChange={(threadId) => change({ threadId })}
           options={threads
             .filter((t) => !t.archivedAt)
-            .map((t) => ({ value: t.id, label: t.title || "Untitled thread" }))}
+            .map((t) => {
+              const reason = t.nodeId
+                ? awayReason(
+                    computers.find((computer) => computer.nodeId === t.nodeId),
+                    formatPresenceTime,
+                  )
+                : undefined;
+
+              return {
+                value: t.id,
+                label: t.title || "Untitled thread",
+                disabled: Boolean(reason),
+                description: reason,
+              };
+            })}
         />
       ) : (
         <ScheduleThread value={draft.newThread} onChange={(newThread) => change({ newThread })} />
@@ -169,7 +201,8 @@ function ScheduleThread({
   value?: ui.NewThreadSchedule;
   onChange: (v: ui.NewThreadSchedule) => void;
 }) {
-  const { projects } = useOverview();
+  const { projects, workers, computers } = useOverview();
+  const presence = useWorkerPresence();
   const [permission, setPermission] = useState(false);
   const draft = create(ui.NewThreadScheduleSchema, value);
 
@@ -184,7 +217,14 @@ function ScheduleThread({
         title="Project"
         value={draft.projectId}
         onChange={(projectId) => change({ projectId, workspaceId: "" })}
-        options={projects.filter((p) => !p.archivedAt).map((p) => ({ value: p.id, label: p.name }))}
+        options={projects
+          .filter((p) => !p.archivedAt)
+          .map((p) => ({
+            value: p.id,
+            label: p.name,
+            disabled: Boolean(projectAwayReason(p, workers, computers)),
+            description: projectAwayReason(p, workers, computers),
+          }))}
       />
       <SettingChoice
         title="Placement"
@@ -202,7 +242,18 @@ function ScheduleThread({
           title="Workspace"
           value={draft.workspaceId}
           onChange={(workspaceId) => change({ workspaceId })}
-          options={project?.workspaces.map((w) => ({ value: w.id, label: w.label || w.rootPath })) ?? []}
+          options={
+            project?.workspaces.map((w) => {
+              const state = presence(workers.find((worker) => worker.id === w.workerId));
+
+              return {
+                value: w.id,
+                label: w.label || w.rootPath,
+                disabled: !state.online,
+                description: state.reason ?? state.status,
+              };
+            }) ?? []
+          }
         />
       )}
       <SettingsModel
