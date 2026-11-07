@@ -24,7 +24,8 @@ export const CLAUDE_SKIPPED: ReadonlySet<string> = new Set([
   "tag",
 ]);
 
-const NOT_PROMPT = /^(?:<local-command-stdout>|<local-command-stderr>|<command-message>|\[Request interrupted by user)/;
+const NOT_PROMPT =
+  /^(?:<local-command-stdout>|<local-command-stderr>|<local-command-caveat>|<command-message>|<task-notification>|\[Request interrupted by user)/;
 
 /** Text of the blocks of a message content (a string or a list of blocks). */
 export function contentText(content: JsonValue | undefined, kinds: ReadonlySet<string> = TEXT): string {
@@ -61,8 +62,16 @@ export function promptText(entry: JsonObject): string | undefined {
   if (!text && !hasBlock(content, "image")) return undefined;
 
   if (NOT_PROMPT.test(text)) return undefined;
+  // A slash command: "/name args" as typed.
+  const command = /^<command-name>\s*(\S+)\s*<\/command-name>/.exec(text);
 
-  return text;
+  if (command) {
+    const args = /<command-args>([\s\S]*?)<\/command-args>/.exec(text)?.[1]?.trim();
+
+    return [command[1], args].filter(Boolean).join(" ");
+  }
+
+  return hasBlock(content, "image") ? `${text}\n[image]`.trim() : text;
 }
 
 /** cli | exec | sdk | ide | unknown, from the session's entrypoint. */

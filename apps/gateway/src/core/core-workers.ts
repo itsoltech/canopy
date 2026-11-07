@@ -33,6 +33,8 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
     );
   await coreBroadcastWorkers(hostContext);
   void hostContext.worktreeCleanup.tick(workerId);
+  // A paused import continues on this worker (docs/import.md).
+  void hostContext.imports.runner.tick(workerId).catch(() => undefined);
   await hostContext.secrets.sync(workerId, true);
   // The outbox is read first: the turns started below (queued behind a lost one) are delivered once.
   await coreRedeliver(hostContext, workerId).catch((cause: unknown) =>

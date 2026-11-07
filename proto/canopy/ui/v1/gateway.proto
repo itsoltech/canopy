@@ -238,6 +238,15 @@ service GatewayService {
   // Import z CLI agentów (cli_import.proto, docs/import.md): tylko workery tego komputera.
   rpc ScanImport(ScanImportRequest) returns (ScanImportResponse);
   rpc ListImportCandidates(ListImportCandidatesRequest) returns (ListImportCandidatesResponse);
+  rpc StartImport(StartImportRequest) returns (ImportRun);
+  rpc ListImportRuns(ListImportRunsRequest) returns (ListImportRunsResponse);
+  rpc GetImportRun(GetImportRunRequest) returns (ImportRun);
+  // Zatrzymuje po bieżącej stronie; czekające wątki dostają cancelled.
+  rpc CancelImportRun(ImportRunRequest) returns (ImportRun);
+  // Wznawia wstrzymany import i ponawia wątki, które się nie udały.
+  rpc ResumeImportRun(ImportRunRequest) returns (ImportRun);
+  // Usuwa wątki utworzone przez import i ich kopie na workerze.
+  rpc UndoImportRun(ImportRunRequest) returns (ImportRun);
 }
 
 // ---------- Model ----------
@@ -550,6 +559,16 @@ message Thread {
   string notice_interaction_kind = 1001;
   // unseen_result = interrupted: turę zatrzymał użytkownik (nie system).
   bool interrupted_by_user = 1002;
+  // Wątek zaimportowany z CLI agenta (docs/import.md); brak = utworzony w Canopy.
+  ThreadImport import = 1010;
+}
+
+message ThreadImport {
+  // claude | codex | grok
+  string agent_cli = 1;
+  // native: dalsze tury wznawiają kopię sesji CLI; history: tylko do odczytu.
+  string mode = 2;
+  google.protobuf.Timestamp imported_at = 3;
 }
 
 // Wątek agenta, od którego przyszło wejście tury albo steer (zadanie, wiadomość, raport): do oznaczenia wiadomości

@@ -1,7 +1,7 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
-import { listImportCandidates, scanImport } from "./api.ts";
+import { listImportCandidates, scanImport, startImport } from "./api.ts";
 
 export type Period = "7d" | "30d" | "90d" | "all";
 
@@ -40,6 +40,12 @@ export class ImportState {
   allMatching = $state(true);
   included = $state(new Set<string>());
   excluded = $state(new Set<string>());
+
+  /** continue: threads continue where they can; history: every thread is read-only. */
+  mode = $state<"continue" | "history">("continue");
+  /** Directory → the owner's choice: `workspace:<id>`, `create_project`, `no_project` or `skip` (else the suggestion). */
+  targets = $state(new Map<string, string>());
+  starting = $state(false);
 
   #request = 0;
 
@@ -134,9 +140,61 @@ export class ImportState {
     this.excluded = new Set();
   }
 
-  get selectedCount(): number {
-    const total = this.result?.total ?? 0;
-
-    return this.allMatching ? total - this.excluded.size : this.included.size;
+  setTarget(directory: string, choice: string): void {
+    const next = new Map(this.targets);
+    next.set(directory, choice);
+    this.targets = next;
   }
+
+  /** Starts the import of the selection; returns the run, or undefined after an error. */
+  async start(): Promise<ui.ImportRun | undefined> {
+    const scan = this.scan;
+
+    if (!scan) return undefined;
+    this.starting = true;
+    this.error = "";
+
+    try {
+      const run = await startImport({
+        scanId: scan.scanId,
+        selection: {
+          allMatching: this.allMatching,
+          filter: this.filter(),
+          included: [...this.included],
+          excluded: [...this.excluded],
+        },
+        mappings: [...this.targets].flatMap(([directory, choice]) =>
+          choice ? [{ directory, target: targetOf(choice) }] : [],
+        ),
+        mode: this.mode,
+      });
+
+      this.resetSelection();
+      this.selectAll(false);
+      await this.load();
+
+      return run;
+    } catch (error) {
+      this.error = errorText(error);
+
+      return undefined;
+    } finally {
+      this.starting = false;
+    }
+  }
+
+  /** Threads that can be imported now (new ones); the others are listed but not selectable. */
+  get selectable(): number {
+    return this.result?.importable ?? 0;
+  }
+
+  get selectedCount(): number {
+    return this.allMatching ? Math.max(0, this.selectable - this.excluded.size) : this.included.size;
+  }
+}
+
+function targetOf(choice: string): MessageInitShape<typeof ui.ImportTargetSchema> {
+  if (choice.startsWith("workspace:")) return { kind: "workspace", workspaceId: choice.slice("workspace:".length) };
+
+  return { kind: choice };
 }

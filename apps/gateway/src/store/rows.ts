@@ -69,6 +69,8 @@ export interface ThreadRow {
   worktree?: ThreadWorktreeColumns | null;
   /** Joined for a thread without a worktree: the workspace checkout's live HEAD (checkout_heads). */
   checkout_head?: { branch: string; detached_commit: string } | null;
+  /** Joined: the thread came from a CLI import (thread_imports, docs/import.md). */
+  imported?: { agent_cli: string; mode: string; imported_at: string } | null;
 }
 
 export interface UnseenTurnColumns {

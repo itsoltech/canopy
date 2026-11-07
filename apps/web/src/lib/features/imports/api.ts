@@ -18,3 +18,30 @@ export async function listImportCandidates(
 
   return decode(ui.ListImportCandidatesResponseSchema, await requestJson("POST", "/api/imports/candidates", body));
 }
+
+export async function startImport(
+  request: MessageInitShape<typeof ui.StartImportRequestSchema>,
+): Promise<ui.ImportRun> {
+  const body = encode(ui.StartImportRequestSchema, create(ui.StartImportRequestSchema, request));
+
+  return decode(ui.ImportRunSchema, await requestJson("POST", "/api/imports/start", body, 125_000));
+}
+
+export async function listImportRuns(): Promise<ui.ListImportRunsResponse> {
+  return decode(ui.ListImportRunsResponseSchema, await requestJson("GET", "/api/imports/runs"));
+}
+
+export async function getImportRun(runId: string): Promise<ui.ImportRun> {
+  const body = encode(ui.GetImportRunRequestSchema, create(ui.GetImportRunRequestSchema, { runId, items: true }));
+
+  return decode(ui.ImportRunSchema, await requestJson("POST", "/api/imports/runs", body));
+}
+
+export async function importRunAction(runId: string, action: "cancel" | "resume" | "undo"): Promise<ui.ImportRun> {
+  const body = encode(ui.ImportRunRequestSchema, create(ui.ImportRunRequestSchema, { runId }));
+
+  return decode(
+    ui.ImportRunSchema,
+    await requestJson("POST", `/api/imports/runs/action?action=${action}`, body, 125_000),
+  );
+}

@@ -192,13 +192,19 @@ export function readRange(file: SourceFile, start: number, length: number): Buff
 
 export function snapshotOf(file: SourceFile): Snapshot {
   const stat = sourceStat(file);
-  const prefix = readRange(file, 0, Math.min(PREFIX_BYTES, stat.size));
 
   return {
     size: BigInt(stat.size),
     modifiedMs: BigInt(Math.trunc(stat.mtimeMs)),
-    prefixSha256: createHash("sha256").update(prefix).digest("hex"),
+    prefixSha256: prefixSha(file, stat.size),
   };
+}
+
+/** sha256 of the first bytes (at most PREFIX_BYTES) of a file: the same file at the same length starts the same. */
+export function prefixSha(file: SourceFile, size: number): string {
+  return createHash("sha256")
+    .update(readRange(file, 0, Math.min(PREFIX_BYTES, size)))
+    .digest("hex");
 }
 
 /** Complete lines at the start of a file (a line cut by the limit is left out). */

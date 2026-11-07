@@ -117,6 +117,13 @@ export function toUiThread(row: ThreadRow): ui.Thread {
         external: row.worktree.external ?? false,
       },
     }),
+    ...(row.imported && {
+      import: {
+        agentCli: row.imported.agent_cli,
+        mode: row.imported.mode,
+        importedAt: timestampFromDate(new Date(row.imported.imported_at)),
+      },
+    }),
     ...(row.checkout_head && {
       checkoutHead: { branch: row.checkout_head.branch, detachedCommit: row.checkout_head.detached_commit },
     }),

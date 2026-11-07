@@ -79,7 +79,7 @@ message ImportCandidate {
   uint32 turns = 11;
   string origin = 12;
   string cli_version = 13;
-  // new | imported | has_new_turns | in_canopy
+  // new | imported | has_new_turns | in_canopy | unsupported (CLI, którego worker jeszcze nie importuje)
   string status = 14;
   // native | history: co będzie możliwe po imporcie.
   string continue_mode = 15;
@@ -109,4 +109,88 @@ message ListImportCandidatesResponse {
   repeated ImportDirectoryGroup groups = 4;
   // Szacowany rozmiar w bazie Canopy dla pasujących wątków.
   uint64 estimated_bytes = 5;
+  // Pasujące wątki, które można zaimportować teraz (status new); tylko one są zaznaczane.
+  uint32 importable = 6;
+  uint64 importable_estimated_bytes = 7;
+}
+
+// ---------- Import (etap 2) ----------
+
+// Co importować: wszystko, co pasuje do filtra, poza `excluded`, albo dokładnie `included`.
+message ImportSelection {
+  bool all_matching = 1;
+  ImportCandidateFilter filter = 2;
+  repeated string included = 3;
+  repeated string excluded = 4;
+}
+
+// Cel katalogu źródłowego; kind: workspace | create_project | no_project | skip.
+message ImportMapping {
+  string directory = 1;
+  ImportTarget target = 2;
+}
+
+message StartImportRequest {
+  string scan_id = 1;
+  ImportSelection selection = 2;
+  // Katalogi bez wpisu dostają propozycję z listy.
+  repeated ImportMapping mappings = 3;
+  // continue (domyślnie: kontynuacja tam, gdzie się da) | history
+  string mode = 4;
+}
+
+message ImportItem {
+  string id = 1;
+  string agent_cli = 2;
+  string title = 3;
+  // pending | importing | done | failed | cancelled | undone
+  string status = 4;
+  string thread_id = 5;
+  string error = 6;
+  uint32 turns = 7;
+  uint64 bytes_total = 8;
+  uint64 bytes_done = 9;
+  repeated string warnings = 10;
+  string cwd = 11;
+  // native | history
+  string continue_mode = 12;
+}
+
+message ImportRun {
+  string id = 1;
+  string worker_id = 2;
+  string worker_name = 3;
+  // running | paused | completed | failed | cancelled | undone
+  string status = 4;
+  string mode = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp finished_at = 7;
+  uint32 total = 8;
+  uint32 done = 9;
+  uint32 failed = 10;
+  uint32 cancelled = 11;
+  // Wybrane, ale już zaimportowane wcześniej.
+  uint32 already_imported = 12;
+  uint64 bytes_total = 13;
+  uint64 bytes_done = 14;
+  string error = 15;
+  // Tytuł wątku importowanego teraz.
+  string current = 16;
+  // Tylko w GetImportRun z items = true.
+  repeated ImportItem items = 17;
+}
+
+message ListImportRunsRequest {}
+
+message ListImportRunsResponse {
+  repeated ImportRun runs = 1;
+}
+
+message GetImportRunRequest {
+  string run_id = 1;
+  bool items = 2;
+}
+
+message ImportRunRequest {
+  string run_id = 1;
 }

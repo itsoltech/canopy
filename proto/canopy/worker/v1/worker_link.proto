@@ -401,6 +401,7 @@ message Command {
     InterruptTurn interrupt_bot_turn = 831;
     // Import z CLI agentów (cli_import.proto, docs/import.md). Nietrwałe: nigdy z outboxa.
     ScanImportSources scan_import_sources = 850;
+    ReadImportPage read_import_page = 851;
   }
 }
 
@@ -644,6 +645,8 @@ message CommandResult {
   ProviderAccountsReport provider_accounts = 810;
   // Wynik ScanImportSources (docs/import.md).
   ImportScan import_scan = 850;
+  // Wynik ReadImportPage.
+  ImportPage import_page = 851;
 }
 
 message GetProviderAccounts {
@@ -1697,4 +1700,47 @@ message WorktreeInfo {
   // Fałsz przy RenameWorktreeBranch, gdy nazwa została (powód w detail).
   bool renamed = 6;
   string detail = 7;
+}
+
+// ---------- Import z CLI agentów: strony historii (docs/import.md) ----------
+
+// Następna strona wątku CLI jako tury Canopy. Tylko prefiks pliku z chwili skanu (snapshot).
+message ReadImportPage {
+  string source_key = 1;
+  ImportSnapshot snapshot = 2;
+  // Nieprzezroczysty dla gatewaya; pusty = od początku.
+  string cursor = 3;
+  // Wątek Canopy: worker wyprowadza z niego id tur i zdarzeń (UUIDv5), więc powtórzona strona daje te same.
+  string thread_id = 4;
+  // Miękki limit rozmiaru strony; zawsze co najmniej jedna cała tura.
+  uint32 max_bytes = 5;
+}
+
+message ImportedTurn {
+  string turn_id = 1;
+  // Wiadomość użytkownika po maskowaniu sekretów.
+  string prompt = 2;
+  google.protobuf.Timestamp started_at = 3;
+  google.protobuf.Timestamp completed_at = 4;
+  // completed | interrupted | failed
+  string status = 5;
+  string error = 6;
+  // Punkt forka u dostawcy (Claude: uuid ostatniego wpisu tury, Codex: id tury).
+  string provider_turn_ref = 7;
+  // item_completed z pełnym stanem, w kolejności osi czasu.
+  repeated ThreadEvent events = 8;
+  string model = 9;
+}
+
+message ImportPage {
+  repeated ImportedTurn turns = 1;
+  string next_cursor = 2;
+  bool done = 3;
+  repeated string warnings = 4;
+  // Linie, których nie dało się odczytać (uszkodzony JSON, za długie).
+  uint32 skipped_lines = 5;
+  // Bajty źródła przeczytane do next_cursor.
+  uint64 bytes_read = 6;
+  // Tytuł z CLI, gdy go znaleziono (po maskowaniu).
+  string title = 7;
 }

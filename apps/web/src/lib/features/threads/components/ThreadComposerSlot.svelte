@@ -3,6 +3,7 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import ArchivedThreadState from "./ArchivedThreadState.svelte";
+  import ImportedThreadState from "./ImportedThreadState.svelte";
 
   let {
     thread,
@@ -27,6 +28,10 @@
   {#if thread.status === "archived"}
     <div class="col-start-1 row-start-1">
       <ArchivedThreadState {thread} {parent} />
+    </div>
+  {:else if thread.import?.mode === "history"}
+    <div class="col-start-1 row-start-1">
+      <ImportedThreadState {thread} />
     </div>
   {:else}
     <div class="col-start-1 row-start-1">

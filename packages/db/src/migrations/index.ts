@@ -90,6 +90,7 @@ import threadMirrorDelta from "./0088_thread_mirror_delta.sql" with { type: "tex
 import botApprovalRules from "./0089_bot_approval_rules.sql" with { type: "text" };
 import botApprovalDefaults from "./0090_bot_approval_defaults.sql" with { type: "text" };
 import externalWorktrees from "./0092_external_worktrees.sql" with { type: "text" };
+import cliImports from "./0093_cli_imports.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -196,6 +197,7 @@ export const migrations = Migrator.fromRecord({
   "0090_bot_approval_defaults": sqlFile(botApprovalDefaults),
   "0091_bot_view_delta": sqlFile(botViewDelta),
   "0092_external_worktrees": sqlFile(externalWorktrees),
+  "0093_cli_imports": sqlFile(cliImports),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

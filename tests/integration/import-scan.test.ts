@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { toJsonString } from "@bufbuild/protobuf";
@@ -29,6 +29,10 @@ describe.skipIf(!dockerAvailable)("CLI import: discovery and preview", () => {
     );
   }, 120_000);
 
+  afterEach(async () => {
+    await f?.restore();
+  });
+
   afterAll(async () => {
     await f?.close();
   });
@@ -48,7 +52,12 @@ describe.skipIf(!dockerAvailable)("CLI import: discovery and preview", () => {
     expect(all.total).toBe(6);
     expect(all.groups.map((g) => g.directory).sort()).toEqual([join(f.home, "other"), join(f.home, "project")]);
     expect(all.groups.every((g) => g.suggestion?.kind === "create_project")).toBe(true);
-    expect(all.candidates.every((c) => c.status === "new" && c.continueMode === "native")).toBe(true);
+    expect(all.candidates.every((c) => c.continueMode === "native")).toBe(true);
+    // Later stages read Codex and Grok history too; until then only Claude threads can be chosen.
+    expect(all.candidates.map((c) => [c.agentCli, c.status]).sort()).toEqual(
+      all.candidates.map((c) => [c.agentCli, c.agentCli === "claude" ? "new" : "unsupported"]).sort(),
+    );
+    expect(all.importable).toBe(3);
     const planted = all.candidates.find((c) => c.flaggedSecrets > 0)!;
     expect(planted.preview).toContain("[redacted]");
     expect(toJsonString(ui.ListImportCandidatesResponseSchema, all)).not.toContain(CANARY);
