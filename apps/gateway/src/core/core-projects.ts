@@ -17,13 +17,15 @@ export async function coreValidateWorkspaceDirectory(
   hostContext: GatewayCore,
   workerId: string,
   path: string,
-): Promise<void> {
+): Promise<string> {
   const worker = (await coreWorkers(hostContext)).find((w) => w.id === workerId);
 
   if (!worker) throw new NotFound("worker not found");
 
   if (!isAbsolutePath(path, pathStyle(worker.os, path))) throw new InvalidError("root path must be absolute");
-  await coreWorkerQuery(hostContext, workerId, { case: "listDirectory", value: { path } }, 15_000);
+  const result = await coreWorkerQuery(hostContext, workerId, { case: "listDirectory", value: { path } }, 15_000);
+
+  return result.directoryPath || path;
 }
 
 /** The project with its current workspaces, to every overview stream. */
@@ -122,13 +124,13 @@ export const coreProjectsMethods: CoreProjectsMethods = {
       if (overview.projects.find((p) => p.id === request.projectId)?.kind === "scratch")
         throw new InvalidError("scratch workspaces are managed automatically");
       await coreRun(this, (store) => store.lockProject(this[coreState].options.userId, request.projectId));
-      await coreValidateWorkspaceDirectory(this, request.workerId, request.rootPath);
+      const rootPath = await coreValidateWorkspaceDirectory(this, request.workerId, request.rootPath);
 
       const workspace = await coreRun(this, (s) =>
         s.createWorkspace({
           projectId: request.projectId,
           workerId: request.workerId,
-          rootPath: request.rootPath,
+          rootPath,
           label: request.label,
         }),
       );
@@ -140,6 +142,8 @@ export const coreProjectsMethods: CoreProjectsMethods = {
   },
 
   async updateWorkspace(this: GatewayCore, request: ui.UpdateWorkspaceRequest): Promise<ui.Workspace> {
+    let rootPath = request.rootPath;
+
     if (request.rootPath !== undefined) {
       const workspace = (await this.overview()).projects
         .filter((p) => p.kind !== "scratch")
@@ -147,13 +151,13 @@ export const coreProjectsMethods: CoreProjectsMethods = {
         .find((w) => w.id === request.workspaceId);
 
       if (!workspace) throw new NotFound("workspace not found");
-      await coreValidateWorkspaceDirectory(this, workspace.workerId, request.rootPath);
+      rootPath = await coreValidateWorkspaceDirectory(this, workspace.workerId, request.rootPath);
     }
 
     const workspace = await coreRun(this, (s) =>
       s.updateWorkspace(this[coreState].options.userId, {
         workspaceId: request.workspaceId,
-        rootPath: request.rootPath,
+        rootPath,
         label: request.label,
       }),
     );

@@ -20,6 +20,7 @@ export class DirectoryListing {
   readonly #cache = new Map<string, Promise<Listing>>();
   #latest = 0;
   current = $state.raw<Listing | undefined>(undefined);
+  requestedPath = $state("");
   loading = $state(false);
   error = $state<string | undefined>(undefined);
 
@@ -61,13 +62,16 @@ export class DirectoryListing {
 
   async open(path: string): Promise<void> {
     const request = ++this.#latest;
+    this.requestedPath = path;
     this.loading = true;
+    this.error = undefined;
 
     try {
       const listing = await this.#fetch(path);
 
       if (request !== this.#latest) return;
       this.current = listing;
+      this.#cache.set(listing.path, Promise.resolve(listing));
       this.error = undefined;
     } catch (cause) {
       if (request !== this.#latest) return;

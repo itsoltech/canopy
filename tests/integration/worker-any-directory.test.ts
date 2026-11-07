@@ -1,6 +1,15 @@
 /** Real gateway, PostgreSQL, gRPC worker and Codex adapter; a local CLI stand-in records its actual cwd. */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Provider, ui } from "@canopy/contracts";
@@ -16,7 +25,7 @@ import { eventually, failure, startTestGateway, type TestGateway } from "./suppo
 describe.skipIf(!dockerAvailable)("worker without directory roots", () => {
   const dir = tempDir("canopy-any-directory-");
   const dataDir = join(dir, "worker-data");
-  const projectDir = join(dir, "anywhere", "project");
+  const projectDir = join(dir, "Anywhere", "Project");
   const codexHome = join(dir, "device-codex");
   const executable = join(dir, "codex");
   let gw: TestGateway;
@@ -88,8 +97,17 @@ describe.skipIf(!dockerAvailable)("worker without directory roots", () => {
     expect(listing.path).toBe(homedir());
     expect((await gw.api.getOverview({})).workers.find((w) => w.id === workerId)?.configIssues).toEqual([]);
 
-    const workspace = (await gw.api.createWorkspace({ projectId: project.id, workerId, rootPath: projectDir }))
-      .workspace!;
+    const workspace = (
+      await gw.api.createWorkspace({ projectId: project.id, workerId, rootPath: join(dir, "anywhere", "project") })
+    ).workspace!;
+
+    expect(workspace.rootPath).toBe(realpathSync(projectDir));
+
+    const updated = (
+      await gw.api.updateWorkspace({ workspaceId: workspace.id, rootPath: join(dir, "ANYWHERE", "PROJECT") })
+    ).workspace!;
+
+    expect(updated.rootPath).toBe(realpathSync(projectDir));
 
     const thread = (
       await gw.api.createThread({ projectId: project.id, workspaceId: workspace.id, provider: Provider.CODEX })
@@ -99,10 +117,10 @@ describe.skipIf(!dockerAvailable)("worker without directory roots", () => {
       () => gw.api.getThread({ threadId: thread.id }),
       (r) => r.thread?.status === "idle",
     );
-    expect(readFileSync(join(projectDir, "worker-started.txt"), "utf8")).toBe(projectDir);
+    expect(readFileSync(join(projectDir, "worker-started.txt"), "utf8")).toBe(realpathSync(projectDir));
     expect(
       await failure(gw.api.createWorkspace({ projectId: project.id, workerId, rootPath: join(dir, "missing") })),
-    ).toContain("does not exist");
+    ).toContain("No such directory");
     expect(await failure(gw.api.createWorkspace({ projectId: project.id, workerId, rootPath: executable }))).toContain(
       "not a directory",
     );

@@ -190,6 +190,12 @@ Kwalifikowany `worker_id` trasuje wywołanie do domu workera. `Worker.project_so
 czy worker tworzy katalogi i klony. Reguły, ścieżki i poświadczenia:
 [linked-computers.md](linked-computers.md#dodawanie-projektu-na-dowolnym-komputerze).
 
+`ListDirectory` rozwiązuje każdy segment ścieżki na workerze: dokładna nazwa ma pierwszeństwo,
+a bez niej dopuszczalne jest jedno dopasowanie bez uwzględniania wielkości liter. Odpowiedź `path`
+zawiera rzeczywistą ścieżkę; picker aktualizuje jej pisownię przed dodaniem katalogu. Kilka dopasowań
+zwraca błąd z nazwami kandydatów i prośbą o dokładną nazwę. Brak katalogu kończy ładowanie błędem
+z instrukcją sprawdzenia ścieżki. Te same zasady obowiązują na połączonym komputerze.
+
 ## Połączone komputery: udostępnianie przez pośrednika
 
 Etap 7 dodaje do `LinkedComputer` pola `via_node_id`, `via_name`, `relay_origin`,
