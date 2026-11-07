@@ -105,7 +105,16 @@ describe.skipIf(!dockerAvailable)("agent environment library across separate lin
       expectedRevision: snapshot.revision,
     });
 
-    await wait(async () => (await library(b)).plugins.length === 1);
+    // Each record and its content arrive on their own; the plugin can come before the skill's version.
+    await wait(async () => {
+      const arrived = await library(b);
+
+      return (
+        arrived.documents.length === 1 &&
+        arrived.skills[0]?.artifact?.checksum === snapshot.skills[0]!.artifact!.checksum &&
+        arrived.plugins[0]?.assignment?.artifact?.checksum === market.plugins[0]!.artifact!.checksum
+      );
+    });
     const there = await library(b);
     expect(there.documents.map((d) => [d.id, d.name, d.fragments[0]?.content])).toEqual([
       [snapshot.documents[0]!.id, "Team rules", "Write tests for every change."],
