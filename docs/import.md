@@ -199,7 +199,7 @@ wybiera pozycje, a przebieg stosuje je przed wątkami (są szybkie). Starszy wor
 
 - **Klucze.** Każda pozycja ma własny podpisany `source_key`: plik w stałym miejscu domu CLI (`CLAUDE.md`,
   `AGENTS.md`, `AGENTS.override.md`) albo ustawienie w pliku (`settings.json#model`). Worker czyta przez klucz
-  wyłącznie pliki instrukcji (`ReadImportLibraryItem`, przez ten sam czytnik bez dowiązań co wątki), z digestem
+  wyłącznie pliki instrukcji, katalogi skilli i pliki komend (`ReadImportLibraryItem`, przez ten sam czytnik bez dowiązań co wątki), z digestem
   ze skanu: zmieniony plik to błąd. Klucz ustawienia albo sesji nie czyta nic. Tekst wychodzi zamaskowany.
 - **Ustawienia.** Model nowych wątków per dostawca (`ThreadDefaults.models`): Claude `model`, Codex `model`
   (z aktywnego `profile`), Grok `model`/`[model] default`; tylko gdy model jest w katalogu własnej instancji
@@ -236,6 +236,46 @@ wybiera pozycje, a przebieg stosuje je przed wątkami (są szybkie). Starszy wor
   „New instruction document”), konflikty z wyborem Keep both / Replace, a pod rozwijaną listą „In Canopy or
   not imported” reszta z powodami. Przycisk importu liczy wątki i ustawienia; sam import ustawień jest możliwy.
   Wiersz przebiegu pokazuje ustawienia i ich wynik, „Remove imported items” cofa wątki i ustawienia.
+
+## Skille i pluginy
+
+Etap 7 dokłada do skanu biblioteki (`ImportLibraryItem.kind`: `skill`, `command`, `marketplace`, `plugin`):
+
+- **Skille.** Katalogi `skills/<nazwa>/` w domu Claude, Codexa i Groka oraz `~/.agents/skills/` urządzenia (Codex
+  czyta je wspólnie; pochodzenie z `~/.agents/.skill-lock.json` jest pokazywane, ale lock nie zapisuje commitu,
+  więc skill przychodzi jako pliki). Worker czyta skill tym samym czytnikiem bez dowiązań (tylko zwykłe pliki),
+  maskuje pliki tekstowe (plik, który nie jest tekstem UTF-8 albo zawiera NUL lub binarne znaki sterujące,
+  wyklucza cały skill z powodem wskazującym plik; dotyczy to także UTF-16 bez BOM i odczytu przez klucz: maskowanie czyta
+  tekst, więc taki plik mógłby przenieść sekret; fail closed), sortuje je i sprawdza regułami biblioteki (`validateSkillFiles`: `SKILL.md` z `name`
+  i `description`, limity 1000 plików, 1 MiB na plik, 25 MiB), więc digest skanu to checksum, który zapisze
+  biblioteka. Ten sam skill w kilku CLI (ta sama nazwa i treść) to jedna pozycja z listą CLI (harnessy). Dwie
+  wersje jednej nazwy są pokazane obie („Another version has this name. Choose one.”), a gateway przyjmuje jedną.
+- **Komendy i prompty jako skille.** Claude `commands/**.md` (`git/commit.md` → `git-commit`) i Codex
+  `prompts/*.md` dostają wygenerowany `SKILL.md` (opis z frontmattera albo pierwszej linii, treść bez zmian;
+  `$ARGUMENTS` → ostrzeżenie). Domyślnie niezaznaczone: tylko na życzenie (rekomendacja 9).
+- **Zapis.** Skill trafia do biblioteki przez `SaveLibrarySkill` (te same walidacje, limity i audyt co upload),
+  przypisany tylko do workera źródłowego, tylko do domów platformy Canopy (`platform_home`, nigdy katalogi
+  CLI urządzenia). Skill o tej nazwie w bibliotece z tym samym checksumem to *Same in Canopy*; z innym:
+  **Replace** dodaje nową wersję (przypisanie zostaje). Undo usuwa skill albo wraca do poprzedniej wersji, tylko
+  gdy cała definicja (wersja, harnessy, przypisanie i nadpisania maszyn, domy, źródło; odcisk `fingerprint`
+  w pokwitowaniu) jest nadal ta z importu; inaczej `kept`. Pokwitowanie Replace zapisuje poprzednią pełną
+  definicję, w tym repozytorium, ref, ścieżkę, commit, powiązanie konta i politykę aktualizacji. Undo odtwarza
+  definicję i swój wynik atomowo wewnętrzną ścieżką magazynu, zachowując dostępne wersje. Odcisk obejmuje
+  wszystkie pola źródła, także `autoUpdate` i `credentialAccountId`.
+- **Marketplace.** Claude `plugins/known_marketplaces.json` (GitHub `owner/repo`, git przez HTTPS) i Codex
+  `[marketplaces.*]` z `source_type = "git"`; ta sama repozytorium z kilku CLI to jedna pozycja. Gateway czyta je
+  z repozytorium jak przy ręcznym dodaniu (`PreviewMarketplace` + `SaveMarketplace`). Marketplace z katalogu na
+  tym komputerze jest pokazany z powodem („Add it in Agent environment.”). Źródło z danymi logowania w URL
+  (użytkownik, hasło, parametr typu `token`) jest pokazane zamaskowane i nigdy nie trafia do planu: worker i gateway
+  odrzucają je niezależnie, sprawdzając kanoniczną postać i zdekodowane parametry przed zapisem planu.
+  Dotyczy to także wielokrotnie zakodowanych nazw (`%2574oken`); błąd lub przekroczenie granicy dekodowania
+  wyklucza źródło. Metadane pozostają zamaskowane również dla pozycji niedostępnych. Zwykłe parametry i kotwice
+  dokumentacji nie wykluczają źródła. Undo usuwa marketplace, chyba że
+  zatwierdzono z niego plugin (`kept`).
+- **Pluginy.** `installed_plugins.json`, `enabledPlugins`, Codex `[plugins."a@b"]`: lista z wersją i powodem
+  „Plugins run code. Approve each one in Agent environment.” Import nigdy nie aktywuje kodu: zgoda na dokładne
+  pliki zostaje w Agent environment.
+- **Grok:** skille tak; pluginy Groka nie są jeszcze wymieniane.
 
 ## Strony i zapis
 

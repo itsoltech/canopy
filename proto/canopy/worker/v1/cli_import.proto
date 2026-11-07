@@ -1,6 +1,7 @@
 syntax = "proto3";
 package canopy.worker.v1;
 
+import "canopy/worker/v1/agent_environment.proto";
 import "google/protobuf/timestamp.proto";
 
 // Import z CLI agentów (docs/import.md), capability cli_import_v1.
@@ -88,7 +89,7 @@ message ImportLibraryItem {
   string source_key = 1;
   string agent_cli = 2;
   string root_id = 3;
-  // setting | instruction
+  // setting | instruction | skill | command | marketplace | plugin
   string kind = 4;
   // Stała nazwa w katalogu CLI: model, permissions, CLAUDE.md, AGENTS.md.
   string name = 5;
@@ -102,6 +103,10 @@ message ImportLibraryItem {
   // Pusty = można importować; inaczej jednozdaniowy powód.
   string reason = 10;
   repeated string warnings = 11;
+  // skill, command: liczba plików; marketplace, plugin: źródło (owner/repo, URL) i wersja albo commit.
+  uint32 files = 12;
+  string source = 13;
+  string version = 14;
 }
 
 // Treść jednej pozycji biblioteki, po maskowaniu sekretów. digest z ImportLibraryItem: zmieniony plik = błąd.
@@ -113,4 +118,6 @@ message ReadImportLibraryItem {
 message ImportLibraryContent {
   string text = 1;
   string digest = 2;
+  // skill, command: pliki skilla (komenda jako wygenerowany SKILL.md), tekst zamaskowany.
+  repeated SkillFile files = 3;
 }

@@ -1,7 +1,7 @@
 import { providersOf } from "../providers/profiles.ts";
 import { ThreadSecretFiles } from "./thread-secrets.ts";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   Provider,
   type AgentToolCall,
@@ -158,6 +158,8 @@ export class HostState {
         claude: this.deviceHomes.claude,
         codex: this.deviceHomes.codex,
         grok: this.deviceHomes.grok ?? join(homedir(), ".grok"),
+        // `~/.agents` of the device (its `skills/` is deviceHomes.agents); none when the homes are given (tests).
+        ...(this.deviceHomes.agents && { agents: dirname(this.deviceHomes.agents) }),
       }),
       config: () => this.config,
     });

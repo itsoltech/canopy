@@ -235,6 +235,9 @@ message ImportLibraryCandidate {
   repeated string actions = 11;
   string detail = 12;
   uint64 bytes = 13;
+  // Skill znaleziony w kilku CLI z tą samą treścią: jedna pozycja dla wszystkich.
+  repeated string agent_clis = 14;
+  uint32 files = 15;
 }
 
 message ListImportLibraryResponse {

@@ -84,7 +84,13 @@ export async function importFixture(
     runtime,
     dataDir: data,
     clientVersion: "test",
-    deviceHomes: { claude: join(home, ".claude"), codex: join(home, ".codex"), grok: join(home, ".grok") },
+    deviceHomes: {
+      claude: join(home, ".claude"),
+      codex: join(home, ".codex"),
+      grok: join(home, ".grok"),
+      // The fixture's own ~/.agents (never the machine's): its skills are listed for import.
+      ...(options.library && { agents: join(home, ".agents", "skills") }),
+    },
     // The fake Grok CLI has no login of its own to probe (like the instance fixture's probe).
     ...(options.grok && {
       probe: {

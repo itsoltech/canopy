@@ -80,7 +80,8 @@ export class EnvironmentMarketplaces {
     }
   }
 
-  async save(request: ui.SaveMarketplaceRequest) {
+  /** `receipt` runs in the same transaction, after the change (imports, docs/import.md "Blokady"). */
+  async save(request: ui.SaveMarketplaceRequest, receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>) {
     if (!uuid(request.previewId)) throw new ConnectError("Invalid preview ID.", Code.InvalidArgument);
     const owner = this.environment.options.userId;
     const environment = this.environment;
@@ -102,52 +103,59 @@ export class EnvironmentMarketplaces {
 
     const marketplace = preview.marketplace!;
     await environment.sources.db.authorization(marketplace.source!);
-    await environment.db.mutate(request.expectedRevision, (sql) =>
-      Effect.gen(function* () {
-        const library = yield* marketplaces(sql, owner);
-        const previous = library.find((m) => m.id === marketplace.id);
+    await environment.db.mutate(
+      request.expectedRevision,
+      (sql) =>
+        Effect.gen(function* () {
+          const library = yield* marketplaces(sql, owner);
+          const previous = library.find((m) => m.id === marketplace.id);
 
-        if (marketplace.id && (!previous || previous.source?.commit !== preview.baseCommit))
-          return yield* Effect.fail(
-            new ConnectError("Marketplace changed. Preview it again.", Code.FailedPrecondition),
-          );
+          if (marketplace.id && (!previous || previous.source?.commit !== preview.baseCommit))
+            return yield* Effect.fail(
+              new ConnectError("Marketplace changed. Preview it again.", Code.FailedPrecondition),
+            );
 
-        if (
-          (!previous && library.length >= 30) ||
-          library.some((m) => m.id !== marketplace.id && m.name === marketplace.name)
-        )
-          return yield* Effect.fail(
-            new ConnectError("Use unique marketplace names, up to 30 marketplaces.", Code.InvalidArgument),
+          if (
+            (!previous && library.length >= 30) ||
+            library.some((m) => m.id !== marketplace.id && m.name === marketplace.name)
+          )
+            return yield* Effect.fail(
+              new ConnectError("Use unique marketplace names, up to 30 marketplaces.", Code.InvalidArgument),
+            );
+          marketplace.id ||= Bun.randomUUIDv7();
+          yield* saveMarketplace(sql, owner, marketplace);
+          yield* audit(
+            sql,
+            owner,
+            previous ? "environment.marketplace.update" : "environment.marketplace.add",
+            marketplace.id,
           );
-        marketplace.id ||= Bun.randomUUIDv7();
-        yield* saveMarketplace(sql, owner, marketplace);
-        yield* audit(
-          sql,
-          owner,
-          previous ? "environment.marketplace.update" : "environment.marketplace.add",
-          marketplace.id,
-        );
-        yield* sql`DELETE FROM agent_marketplace_previews WHERE id = ${preview.id}::uuid AND owner_user_id = ${owner}::uuid`;
-      }),
+          yield* sql`DELETE FROM agent_marketplace_previews WHERE id = ${preview.id}::uuid AND owner_user_id = ${owner}::uuid`;
+        }),
+      receipt,
     );
 
     return environment.changed();
   }
 
-  async remove(request: ui.DeleteMarketplaceRequest) {
+  /** `receipt` runs in the same transaction, after the change (imports, docs/import.md "Blokady"). */
+  async remove(request: ui.DeleteMarketplaceRequest, receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>) {
     const owner = this.environment.options.userId;
-    await this.environment.db.mutate(request.expectedRevision, (sql) =>
-      Effect.gen(function* () {
-        if (!(yield* marketplaces(sql, owner)).some((m) => m.id === request.id))
-          return yield* Effect.fail(new ConnectError("Marketplace not found.", Code.NotFound));
+    await this.environment.db.mutate(
+      request.expectedRevision,
+      (sql) =>
+        Effect.gen(function* () {
+          if (!(yield* marketplaces(sql, owner)).some((m) => m.id === request.id))
+            return yield* Effect.fail(new ConnectError("Marketplace not found.", Code.NotFound));
 
-        if ((yield* plugins(sql, owner)).some((p) => p.marketplaceId === request.id))
-          return yield* Effect.fail(
-            new ConnectError("Remove this marketplace's enabled plugins first.", Code.FailedPrecondition),
-          );
-        yield* sql`DELETE FROM agent_marketplaces WHERE id = ${request.id}::uuid AND owner_user_id = ${owner}::uuid`;
-        yield* audit(sql, owner, "environment.marketplace.delete", request.id);
-      }),
+          if ((yield* plugins(sql, owner)).some((p) => p.marketplaceId === request.id))
+            return yield* Effect.fail(
+              new ConnectError("Remove this marketplace's enabled plugins first.", Code.FailedPrecondition),
+            );
+          yield* sql`DELETE FROM agent_marketplaces WHERE id = ${request.id}::uuid AND owner_user_id = ${owner}::uuid`;
+          yield* audit(sql, owner, "environment.marketplace.delete", request.id);
+        }),
+      receipt,
     );
 
     return this.environment.changed();

@@ -7,3 +7,10 @@ notify = ["echo", "fixture"]
 [profiles.review]
 model = "gpt-fixture-mini"
 sandbox_mode = "read-only"
+
+[marketplaces.fixture-market]
+source_type = "git"
+source = "https://github.com/fixture/market.git"
+
+[plugins."review@fixture-market"]
+enabled = true

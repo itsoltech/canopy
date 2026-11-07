@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { ImportScanSchema, type ImportRootSchema, type ImportScan } from "@canopy/contracts";
 import type { AppliedConfig } from "../config/remote.ts";
-import { scanLibrary, type LibraryItemInit } from "./library-scan.ts";
+import { collectLibrary } from "./library-collect.ts";
+import type { LibraryItemInit } from "./library-scan.ts";
 import { loadMasker, type Masker } from "./masking.ts";
 import { scanClaude } from "./scan-claude.ts";
 import { scanCodex } from "./scan-codex.ts";
@@ -26,6 +27,8 @@ export interface ImportHomes {
   readonly claude: string;
   readonly codex: string;
   readonly grok: string;
+  /** `~/.agents`: skills the device's CLIs share (Codex reads `skills/` there); library items only. */
+  readonly agents?: string;
 }
 
 type RootInit = MessageInitShape<typeof ImportRootSchema>;
@@ -106,6 +109,21 @@ export class WorkerImport {
     return { roots, listed };
   }
 
+  /** `~/.agents` of this device as a library root (Codex's shared skills), when it exists. */
+  agentsRoot(): ImportRootPath | undefined {
+    const path = this.#homes().agents;
+    const real = path ? realDirectory(path) : undefined;
+
+    return real ? { id: rootId(this.key, "codex", real), agentCli: "codex", path: real } : undefined;
+  }
+
+  /** Roots library keys resolve in: the CLI homes and `~/.agents`. */
+  libraryRoots(): ImportRootPath[] {
+    const shared = this.agentsRoot();
+
+    return [...this.roots().roots, ...(shared ? [shared] : [])];
+  }
+
   /** The CLI of the root a source key names ("" when the root is unknown here). */
   agentCliOf(sourceKey: string): AgentCli | "" {
     const id = sourceKey.split(".")[0];
@@ -124,7 +142,13 @@ export class WorkerImport {
     // Secrets of every CLI home count: a Codex token may appear in a Claude session.
     const masker = this.masker(this.roots().roots);
     const threads: SummaryInit[] = [];
-    const library: LibraryItemInit[] = roots.flatMap((root) => scanLibrary(root, this.key, masker));
+    const shared = agentClis.length === 0 || agentClis.includes("codex") ? this.agentsRoot() : undefined;
+
+    const library: LibraryItemInit[] = [
+      ...roots.flatMap((root) => collectLibrary(root, this.key, masker)),
+      ...(shared ? collectLibrary(shared, this.key, masker, true) : []),
+    ];
+
     let truncated = false;
     let skipped = 0;
     // Many sessions share a directory: each is checked once per scan.

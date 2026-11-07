@@ -1,0 +1,11 @@
+{
+  "version": 3,
+  "skills": {
+    "shared-notes": {
+      "source": "fixture/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/fixture/skills.git",
+      "skillPath": "skills/shared-notes/SKILL.md"
+    }
+  }
+}

@@ -189,6 +189,8 @@ export class CliImports {
       defaults: settings.user?.threadDefaults ?? create(ui.ThreadDefaultsSchema),
       catalogs: new Map(native.map((p) => [p.provider, p.models])),
       documents: environment.documents,
+      skills: environment.skills,
+      marketplaces: environment.marketplaces,
       live,
     };
   }

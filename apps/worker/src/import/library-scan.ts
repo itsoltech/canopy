@@ -19,7 +19,7 @@ import { signSourceKey, type AgentCli, type ImportRootPath } from "./source-key.
 export type LibraryItemInit = MessageInitShape<typeof ImportLibraryItemSchema>;
 
 /** One item before it is tied to its root. */
-interface ItemFields {
+export interface ItemFields {
   readonly kind: string;
   readonly name: string;
   readonly value?: string;
@@ -28,9 +28,12 @@ interface ItemFields {
   readonly bytes?: bigint;
   readonly reason?: string;
   readonly warnings?: string[];
+  readonly files?: number;
+  readonly source?: string;
+  readonly version?: string;
 }
 
-type MakeItem = (rel: string, fields: ItemFields) => LibraryItemInit;
+export type MakeItem = (rel: string, fields: ItemFields) => LibraryItemInit;
 
 /**
  * Every text of an item masked with the one entry point (masking.ts) before it leaves the worker: names, values,
@@ -47,6 +50,8 @@ export function maskedFields(fields: ItemFields, masker: Masker): ItemFields {
     ...(fields.detail !== undefined && { detail: masked(fields.detail) }),
     ...(fields.reason !== undefined && { reason: masked(fields.reason) }),
     ...(fields.warnings && { warnings: fields.warnings.map(masked) }),
+    ...(fields.source !== undefined && { source: masked(fields.source) }),
+    ...(fields.version !== undefined && { version: masked(fields.version) }),
   };
 }
 
@@ -83,11 +88,32 @@ export const LIBRARY_PLACES: Readonly<Record<AgentCli, Place>> = {
   },
 };
 
-/** The relative paths a library key may name in a root of this CLI. */
-export function libraryPlace(cli: AgentCli, rel: string): boolean {
+/** Where a library key may point in a root of this CLI: a file, a skill directory, or nothing. */
+export function libraryPlace(cli: AgentCli, rel: string): "file" | "skill" | "command" | undefined {
   const place = LIBRARY_PLACES[cli];
 
-  return rel === place.settings || place.instructions.includes(rel);
+  if (place.instructions.includes(rel)) return "file";
+
+  if (/^skills\/[^/]+$/.test(rel)) return "skill";
+
+  if (cli === "claude" && /^commands\/(?:[^/]+\/)*[^/]+\.md$/i.test(rel)) return "command";
+
+  if (cli === "codex" && /^prompts\/[^/]+\.md$/i.test(rel)) return "command";
+
+  return undefined;
+}
+
+/** Makes items of one root: each with a signed key to `rel`, or to `<settings>#<name>` for what is no file. */
+export function itemMaker(root: ImportRootPath, key: Buffer, masker: Masker): MakeItem {
+  const settings = LIBRARY_PLACES[root.agentCli].settings;
+
+  return (rel, fields) => ({
+    // A setting names its file and itself (`settings.json#model`): one key per item, never readable as a file.
+    sourceKey: signSourceKey(key, root, join(root.path, rel || `${settings}#${fields.name}`)),
+    agentCli: root.agentCli,
+    rootId: root.id,
+    ...maskedFields(fields, masker),
+  });
 }
 
 export function sha256(data: string | Buffer): string {
@@ -97,14 +123,7 @@ export function sha256(data: string | Buffer): string {
 export function scanLibrary(root: ImportRootPath, key: Buffer, masker: Masker): LibraryItemInit[] {
   const place = LIBRARY_PLACES[root.agentCli];
   const items: LibraryItemInit[] = [];
-
-  const item: MakeItem = (rel, fields) => ({
-    // A setting names its file and itself (`settings.json#model`): one key per item, never readable as a file.
-    sourceKey: signSourceKey(key, root, join(root.path, rel || `${place.settings}#${fields.name}`)),
-    agentCli: root.agentCli,
-    rootId: root.id,
-    ...maskedFields(fields, masker),
-  });
+  const item = itemMaker(root, key, masker);
 
   const config = readConfig(root, place.settings);
 
@@ -178,7 +197,7 @@ export function readText(root: ImportRootPath, rel: string, max: number): string
   return readSourceText({ root: root.path, path: join(root.path, rel) }, max);
 }
 
-function readConfig(root: ImportRootPath, rel: string): JsonObject | undefined {
+export function readConfig(root: ImportRootPath, rel: string): JsonObject | undefined {
   const text = readText(root, rel, CONFIG_BYTES);
 
   if (text === undefined) return undefined;

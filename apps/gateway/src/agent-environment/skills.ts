@@ -15,7 +15,8 @@ import type { AgentEnvironment } from "./service.ts";
 export class EnvironmentSkills {
   constructor(readonly environment: AgentEnvironment) {}
 
-  async save(request: ui.SaveLibrarySkillRequest) {
+  /** `receipt` runs in the same transaction, after the change (imports, docs/import.md "Blokady"). */
+  async save(request: ui.SaveLibrarySkillRequest, receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>) {
     if (!request.skill) throw new ConnectError("Add a skill.", Code.InvalidArgument);
     const input = request.skill;
 
@@ -32,63 +33,104 @@ export class EnvironmentSkills {
 
     const uploaded = artifact;
     const owner = this.environment.options.userId;
-    await this.environment.db.mutate(request.expectedRevision, (sql) =>
-      Effect.gen(function* () {
-        const library = yield* skills(sql, owner);
-        const previous = library.find((s) => s.id === input.id);
+    await this.environment.db.mutate(
+      request.expectedRevision,
+      (sql) =>
+        Effect.gen(function* () {
+          const library = yield* skills(sql, owner);
+          const previous = library.find((s) => s.id === input.id);
 
-        if (input.id && !previous) return yield* Effect.fail(new ConnectError("Skill not found.", Code.NotFound));
+          if (input.id && !previous) return yield* Effect.fail(new ConnectError("Skill not found.", Code.NotFound));
 
-        if (!previous && library.length >= 100)
-          return yield* Effect.fail(new ConnectError("Use at most 100 skills.", Code.InvalidArgument));
-        const saved = clone(ui.LibrarySkillSchema, input);
-        saved.source = previous?.source
-          ? create(ui.SkillSourceSchema, {
-              ...previous.source,
-              autoUpdate: input.source?.autoUpdate ?? false,
-              pinned: input.version !== previous.version || (input.source?.pinned ?? false),
-            })
-          : undefined;
-        saved.id ||= Bun.randomUUIDv7();
-        saved.versions = previous?.versions ?? [];
+          if (!previous && library.length >= 100)
+            return yield* Effect.fail(new ConnectError("Use at most 100 skills.", Code.InvalidArgument));
+          const saved = clone(ui.LibrarySkillSchema, input);
+          saved.source = previous?.source
+            ? create(ui.SkillSourceSchema, {
+                ...previous.source,
+                autoUpdate: input.source?.autoUpdate ?? false,
+                pinned: input.version !== previous.version || (input.source?.pinned ?? false),
+              })
+            : undefined;
+          saved.id ||= Bun.randomUUIDv7();
+          saved.versions = previous?.versions ?? [];
 
-        if (uploaded) {
-          saved.source = undefined;
-          saved.version = (saved.versions.at(-1) ?? 0n) + 1n;
-          saved.versions = [...saved.versions, saved.version];
-          saved.artifact = uploaded;
-          yield* addSkillVersion(sql, owner, saved.id, saved.version, uploaded);
-        } else {
-          if (!previous)
-            return yield* Effect.fail(new ConnectError("Upload a folder or ZIP with SKILL.md.", Code.InvalidArgument));
-          saved.artifact = yield* skillVersion(sql, owner, saved.id, saved.version);
-        }
+          if (uploaded) {
+            saved.source = undefined;
+            saved.version = (saved.versions.at(-1) ?? 0n) + 1n;
+            saved.versions = [...saved.versions, saved.version];
+            saved.artifact = uploaded;
+            yield* addSkillVersion(sql, owner, saved.id, saved.version, uploaded);
+          } else {
+            if (!previous)
+              return yield* Effect.fail(
+                new ConnectError("Upload a folder or ZIP with SKILL.md.", Code.InvalidArgument),
+              );
+            saved.artifact = yield* skillVersion(sql, owner, saved.id, saved.version);
+          }
 
-        const machines = yield* workers(sql, owner);
-        const foreign = foreignWorkers([previous?.selector], machines);
-        yield* checked(() => checkSkillAssignment(saved, machines, foreign));
-        const updated = [...library.filter((s) => s.id !== saved.id), saved];
+          const machines = yield* workers(sql, owner);
+          const foreign = foreignWorkers([previous?.selector], machines);
+          yield* checked(() => checkSkillAssignment(saved, machines, foreign));
+          const updated = [...library.filter((s) => s.id !== saved.id), saved];
 
-        for (const machine of machines) yield* desiredSkills(sql, owner, updated, machine);
-        yield* saveSkillDefinition(sql, owner, saved);
-        yield* audit(sql, owner, uploaded ? "environment.skill.upload" : "environment.skill.assign", saved.id);
-      }),
+          for (const machine of machines) yield* desiredSkills(sql, owner, updated, machine);
+          yield* saveSkillDefinition(sql, owner, saved);
+          yield* audit(sql, owner, uploaded ? "environment.skill.upload" : "environment.skill.assign", saved.id);
+        }),
+      receipt,
     );
 
     return this.environment.changed();
   }
 
-  async remove(request: ui.DeleteLibrarySkillRequest) {
+  /** `receipt` runs in the same transaction, after the change (imports, docs/import.md "Blokady"). */
+  async remove(request: ui.DeleteLibrarySkillRequest, receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>) {
     const owner = this.environment.options.userId;
-    await this.environment.db.mutate(request.expectedRevision, (sql) =>
-      Effect.gen(function* () {
-        const library = yield* skills(sql, owner);
+    await this.environment.db.mutate(
+      request.expectedRevision,
+      (sql) =>
+        Effect.gen(function* () {
+          const library = yield* skills(sql, owner);
 
-        if (!library.some((s) => s.id === request.id))
-          return yield* Effect.fail(new ConnectError("Skill not found.", Code.NotFound));
-        yield* sql`DELETE FROM agent_skills WHERE id = ${request.id}::uuid AND owner_user_id = ${owner}::uuid`;
-        yield* audit(sql, owner, "environment.skill.delete", request.id);
-      }),
+          if (!library.some((s) => s.id === request.id))
+            return yield* Effect.fail(new ConnectError("Skill not found.", Code.NotFound));
+          yield* sql`DELETE FROM agent_skills WHERE id = ${request.id}::uuid AND owner_user_id = ${owner}::uuid`;
+          yield* audit(sql, owner, "environment.skill.delete", request.id);
+        }),
+      receipt,
+    );
+
+    return this.environment.changed();
+  }
+
+  /** Trusted import receipt only: restore a full definition, including its repository source, atomically. */
+  async restore(
+    definition: ui.LibrarySkill,
+    expectedRevision: bigint,
+    receipt: (sql: SqlClient.SqlClient) => Effect.Effect<void>,
+  ) {
+    const owner = this.environment.options.userId;
+    await this.environment.db.mutate(
+      expectedRevision,
+      (sql) =>
+        Effect.gen(function* () {
+          const library = yield* skills(sql, owner);
+          const previous = library.find((s) => s.id === definition.id);
+
+          if (!previous) return yield* Effect.fail(new ConnectError("Skill not found.", Code.NotFound));
+          const saved = clone(ui.LibrarySkillSchema, definition);
+          saved.artifact = yield* skillVersion(sql, owner, saved.id, saved.version);
+          saved.versions = previous.versions;
+          const machines = yield* workers(sql, owner);
+          yield* checked(() => checkSkillAssignment(saved, machines, foreignWorkers([previous.selector], machines)));
+          const updated = library.map((s) => (s.id === saved.id ? saved : s));
+
+          for (const machine of machines) yield* desiredSkills(sql, owner, updated, machine);
+          yield* saveSkillDefinition(sql, owner, saved);
+          yield* audit(sql, owner, "environment.skill.restore", saved.id);
+        }),
+      receipt,
     );
 
     return this.environment.changed();
