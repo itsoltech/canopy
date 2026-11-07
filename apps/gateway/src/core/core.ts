@@ -1,3 +1,4 @@
+import { CliImports } from "../imports/index.ts";
 import { create } from "@bufbuild/protobuf";
 import { createCoreBots, createCoreBus, createCoreScheduler, createCoreUpdates } from "./core-composition.ts";
 import { ui } from "@canopy/contracts";
@@ -200,8 +201,12 @@ export class GatewayCore {
   /** Background tasks for their agents: the tools, and the notes about every end (docs/execution.md, "Pobudka"). */
   readonly backgroundTasks: BackgroundTasks;
 
+  /** Settings → Import: threads of the agent CLIs on the owner's workers (docs/import.md). */
+  readonly imports: CliImports;
+
   constructor(options: GatewayCoreOptions) {
     this.role = options.role ?? "server";
+    this.imports = new CliImports(this);
     this[coreState].options = options;
     this[coreState].actions = new ActionContext(options.runtime);
     this.hub = new Hub((action) => this[coreState].actions.defer(action));

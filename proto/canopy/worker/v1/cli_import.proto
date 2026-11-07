@@ -1,0 +1,74 @@
+syntax = "proto3";
+package canopy.worker.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Import z CLI agentów (docs/import.md), capability cli_import_v1.
+// Komendy są nietrwałe: nigdy z outboxa ani journala. Worker czyta wyłącznie katalogi CLI
+// ze swojej konfiguracji; gateway nigdy nie wysyła ścieżek, tylko podpisane source_key.
+
+message ScanImportSources {
+  // claude | codex | grok; puste = wszystkie trzy.
+  repeated string agent_clis = 1;
+}
+
+// Katalog CLI na workerze (urządzenie albo home_path instancji), po realpath i bez duplikatów.
+message ImportRoot {
+  // Stały skrót ścieżki rzeczywistej; source_identity w gatewayu.
+  string id = 1;
+  string agent_cli = 2;
+  // Tylko do wyświetlenia.
+  string path = 3;
+  // Zainstalowane CLI (pierwsza linia --version), puste gdy brak.
+  string cli_version = 4;
+  string problem = 5;
+}
+
+// Stan pliku źródłowego w chwili skanu; import czyta tylko ten prefiks.
+message ImportSnapshot {
+  uint64 size = 1;
+  int64 modified_ms = 2;
+  // sha256 pierwszych 64 KiB: wykrywa podmieniony plik o tej samej nazwie.
+  string prefix_sha256 = 3;
+}
+
+// Metadane jednego wątku CLI, bez treści rozmowy (tytuł i podgląd po maskowaniu sekretów).
+message ImportThreadSummary {
+  // Podpisany przez workera: root + ścieżka względna + HMAC kluczem lokalnym workera.
+  string source_key = 1;
+  string agent_cli = 2;
+  // Id sesji Claude, wątku Codexa albo sesji Groka.
+  string native_id = 3;
+  string root_id = 4;
+  string cwd = 5;
+  bool cwd_exists = 6;
+  string title = 7;
+  // Najwyżej 120 znaków pierwszej wiadomości, gdy CLI nie zapisało tytułu.
+  string preview = 8;
+  google.protobuf.Timestamp started_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  uint64 bytes = 11;
+  // Liczba wiadomości użytkownika, gdy plik jest mały; 0 = nieznana.
+  uint32 turns = 12;
+  // cli | sdk | ide | exec | app | unknown
+  string origin = 13;
+  string cli_version = 14;
+  // supported | newer | unknown | empty
+  string format = 15;
+  string parent_native_id = 16;
+  bool subagent = 17;
+  // Wartości podobne do sekretów w przeczytanych fragmentach (zostaną zamaskowane).
+  uint32 flagged_secrets = 18;
+  string git_branch = 19;
+  ImportSnapshot snapshot = 20;
+  bool archived = 21;
+}
+
+message ImportScan {
+  repeated ImportRoot roots = 1;
+  repeated ImportThreadSummary threads = 2;
+  // Limit liczby wątków albo czasu skanu został osiągnięty.
+  bool truncated = 3;
+  // Plików, których nie dało się odczytać.
+  uint32 skipped = 4;
+}

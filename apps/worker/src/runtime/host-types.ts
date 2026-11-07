@@ -43,6 +43,7 @@ export interface CommandOutput {
   readonly fileSearch?: MessageInitShape<typeof FileSearchResultSchema>;
   readonly gitRefs?: MessageInitShape<typeof GitRefsSchema>;
   readonly worktree?: MessageInitShape<typeof WorktreeInfoSchema>;
+  readonly importScan?: MessageInitShape<typeof CommandResultSchema>["importScan"];
 }
 
 export interface WorkerHostOptions {

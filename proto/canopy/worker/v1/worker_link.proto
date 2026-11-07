@@ -6,6 +6,7 @@ package canopy.worker.v1;
 
 import "google/protobuf/timestamp.proto";
 import "canopy/worker/v1/agent_environment.proto";
+import "canopy/worker/v1/cli_import.proto";
 
 // Jednorazowa rejestracja nowego workera tokenem z UI.
 service WorkerEnrollmentService {
@@ -398,6 +399,8 @@ message Command {
     // Capability bot_harness_v1. Trwałe, odizolowane od wątków projektowych.
     RunBotTurn run_bot_turn = 830;
     InterruptTurn interrupt_bot_turn = 831;
+    // Import z CLI agentów (cli_import.proto, docs/import.md). Nietrwałe: nigdy z outboxa.
+    ScanImportSources scan_import_sources = 850;
   }
 }
 
@@ -639,6 +642,8 @@ message CommandResult {
   // Normalized identity only; never the raw remote URL or its credentials.
   string workspace_origin = 216;
   ProviderAccountsReport provider_accounts = 810;
+  // Wynik ScanImportSources (docs/import.md).
+  ImportScan import_scan = 850;
 }
 
 message GetProviderAccounts {

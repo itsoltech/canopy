@@ -15,6 +15,7 @@ const sections = {
   "/settings/computers": ["GetComputers", "ManageComputer"],
   "/settings/schedules": ["ListSchedules", "CreateSchedule"],
   "/settings/projects": ["GetOverview", "CreateProject"],
+  "/settings/import": ["ScanImport", "ListImportCandidates"],
 };
 
 export class GatewayCapabilities {

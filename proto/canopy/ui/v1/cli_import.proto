@@ -1,0 +1,112 @@
+syntax = "proto3";
+package canopy.ui.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Settings → Import (docs/import.md): wątki z Claude Code, Codexa i Groka na workerze właściciela.
+
+message ScanImportRequest {
+  string worker_id = 1;
+}
+
+// Podsumowanie jednego CLI na workerze.
+message ImportOverview {
+  string agent_cli = 1;
+  uint32 threads = 2;
+  uint64 bytes = 3;
+  google.protobuf.Timestamp oldest = 4;
+  google.protobuf.Timestamp newest = 5;
+  uint32 directories = 6;
+  string root_path = 7;
+  string cli_version = 8;
+  string problem = 9;
+}
+
+message ScanImportResponse {
+  // Wynik skanu żyje w pamięci gatewaya przez 30 minut; potem trzeba skanować ponownie.
+  string scan_id = 1;
+  string worker_id = 2;
+  repeated ImportOverview overview = 3;
+  bool truncated = 4;
+  google.protobuf.Timestamp scanned_at = 5;
+  uint32 skipped = 6;
+}
+
+message ImportCandidateFilter {
+  // claude | codex | grok; puste = wszystkie.
+  repeated string agent_clis = 1;
+  google.protobuf.Timestamp since = 2;
+  google.protobuf.Timestamp until = 3;
+  // Katalog źródłowy: dokładnie ten albo jego podkatalogi.
+  string directory = 4;
+  // Tytuł i podgląd, bez rozróżniania wielkości liter.
+  string search = 5;
+  // cli | sdk | ide | exec | app | unknown; puste = wszystkie.
+  repeated string origins = 6;
+  bool include_subagents = 7;
+}
+
+message ListImportCandidatesRequest {
+  string scan_id = 1;
+  ImportCandidateFilter filter = 2;
+  uint32 offset = 3;
+  // Domyślnie 200, najwyżej 1000.
+  uint32 limit = 4;
+}
+
+// Dokąd trafi katalog źródłowy.
+message ImportTarget {
+  // workspace | create_project | no_project | missing
+  string kind = 1;
+  string project_id = 2;
+  string workspace_id = 3;
+  string project_name = 4;
+  // Katalog wątku w workspace (cwd źródła albo korzeń workspace'u).
+  string cwd = 5;
+}
+
+message ImportCandidate {
+  string source_key = 1;
+  string agent_cli = 2;
+  string native_id = 3;
+  string title = 4;
+  string preview = 5;
+  string cwd = 6;
+  bool cwd_exists = 7;
+  google.protobuf.Timestamp started_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  uint64 bytes = 10;
+  uint32 turns = 11;
+  string origin = 12;
+  string cli_version = 13;
+  // new | imported | has_new_turns | in_canopy
+  string status = 14;
+  // native | history: co będzie możliwe po imporcie.
+  string continue_mode = 15;
+  // Dlaczego tylko historia (pusty przy native).
+  string reason = 16;
+  bool subagent = 17;
+  uint32 flagged_secrets = 18;
+  // Wątek Canopy dla imported / has_new_turns / in_canopy.
+  string thread_id = 19;
+  string git_branch = 20;
+  bool archived = 21;
+}
+
+message ImportDirectoryGroup {
+  string directory = 1;
+  uint32 threads = 2;
+  uint64 bytes = 3;
+  bool exists = 4;
+  ImportTarget suggestion = 5;
+}
+
+message ListImportCandidatesResponse {
+  repeated ImportCandidate candidates = 1;
+  uint32 total = 2;
+  uint64 total_bytes = 3;
+  // Wszystkie katalogi pasujące do filtra (bez stronicowania).
+  repeated ImportDirectoryGroup groups = 4;
+  // Szacowany rozmiar w bazie Canopy dla pasujących wątków.
+  uint64 estimated_bytes = 5;
+}

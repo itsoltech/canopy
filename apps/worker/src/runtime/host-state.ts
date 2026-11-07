@@ -21,6 +21,7 @@ import type { HeadTracker } from "../git/heads.ts";
 import { CatalogCache } from "../mentions/catalog.ts";
 import { AttachmentFiles } from "../attachments/files.ts";
 import { PreviewStore } from "../images/index.ts";
+import { WorkerImport } from "../import/service.ts";
 import { AccountStatuses } from "../providers/account-status.ts";
 import { resolveWorktreeRoots, type WorktreeRoots } from "../git/worktree-roots.ts";
 
@@ -90,6 +91,8 @@ export class HostState {
   readonly claudeHomes = new Map<string, string>();
   readonly files: AttachmentFiles;
   readonly previews: PreviewStore;
+  /** CLI import (docs/import.md): scans and reads the device's CLI homes on the owner's request. */
+  readonly imports: WorkerImport;
   /** Working directory per thread (from the commands' ThreadSpec): view_image's scope. */
   readonly cwds = new Map<string, string>();
   readonly removingPaths = new Set<string>();
@@ -114,5 +117,14 @@ export class HostState {
     this.files = new AttachmentFiles(options.dataDir);
     this.previews = new PreviewStore(options.dataDir);
     this.previews.prune();
+    this.imports = new WorkerImport({
+      dataDir: options.dataDir,
+      homes: () => ({
+        claude: this.deviceHomes.claude,
+        codex: this.deviceHomes.codex,
+        grok: this.deviceHomes.grok ?? join(homedir(), ".grok"),
+      }),
+      config: () => this.config,
+    });
   }
 }
