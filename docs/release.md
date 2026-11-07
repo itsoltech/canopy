@@ -583,11 +583,13 @@ Na początku/końcu pliku wystarcza jedyny istniejący sąsiad. Przy różnych w
 nowym lub pustym pliku nie przypisujemy dopisku do nikogo. Powiązanie zatrzymuje promocję
 tylko dla oryginału w `(target, C]`, gdy poprawka trafiła na gałąź 0–7 dni po nim;
 blame wskazujący już wydany commit lub commit poza prefiksem nie zatrzymuje prefiksu.
+Blame nie wskazuje commitów `docs`, `test`, `ci`, `chore` ani `style`: nie zmieniają one
+działania wydania, więc nie mogą być zmianą, którą poprawka naprawia (jawny link nadal działa).
 Raport pokazuje SHA właściciela, plik i numery linii sprzed poprawki. Pomijamy:
 
 - `packages/contracts/src/gen/**`, `packages/codex-protocol/src/gen/**`;
 - `packages/db/src/migrations/index.ts`, `packages/db/test/schema.test.ts`;
-- `docs/**`;
+- `docs/**` oraz `AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md` w katalogu głównym;
 - pliki o nazwach `bun.lock`, `bun.lockb`, `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`,
   `pnpm-lock.yaml`, `Cargo.lock`, `Gemfile.lock`, `poetry.lock`, `uv.lock` w dowolnym katalogu;
 - nazwy `CHANGELOG`, `CHANGES`, `HISTORY`, `RELEASE-NOTES` (bez względu na wielkość liter),
