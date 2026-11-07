@@ -1,4 +1,6 @@
 import { Pressable, ScrollView, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
+import { useMotion, useReducedMotion } from "../../ui/motion";
 import { Skeleton } from "../../ui/Skeleton";
 import type { ui } from "@canopy/contracts";
 import { Icon } from "../../ui/Icon";
@@ -39,15 +41,21 @@ export function MentionSuggestions({
   onPick: (option: MentionOption) => void;
 }) {
   const c = useColors();
+  const { pop } = useMotion();
+  const reduced = useReducedMotion();
   const { options, loading, error } = useMentionSuggestions(scope, trigger);
 
   if (!trigger) return null;
 
   return (
-    <View
+    <Animated.View
+      entering={reduced ? undefined : pop.entering}
+      exiting={reduced ? undefined : pop.exiting}
       accessibilityLabel="Suggestions"
       style={{
         maxHeight: 240,
+        flexShrink: 1,
+        minHeight: 0,
         borderRadius: 16,
         borderWidth: 1,
         borderColor: c.line,
@@ -55,7 +63,7 @@ export function MentionSuggestions({
         overflow: "hidden",
       }}
     >
-      <ScrollView keyboardShouldPersistTaps="always" contentContainerStyle={{ padding: 4 }}>
+      <ScrollView keyboardShouldPersistTaps="always" keyboardDismissMode="none" contentContainerStyle={{ padding: 4 }}>
         {options.map((option, index) => (
           <View key={option.key}>
             {option.group !== options[index - 1]?.group ? (
@@ -112,6 +120,6 @@ export function MentionSuggestions({
           </View>
         )}
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 }

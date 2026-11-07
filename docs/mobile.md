@@ -478,7 +478,11 @@ obsługę klawiatury i safe area. Pod ostatnią wiadomością (w nagłówku odwr
 stała rezerwa: wysokość rozwiniętego kompozytora. Zwijanie, rozwijanie i chowanie kontrolek
 przy pisaniu są wyłącznie ruchem nakładki, więc żadna wiadomość się nie przesuwa; rezerwa
 zmienia się tylko po ustaleniu się otwartego kompozytora, gdy naprawdę zmienia się jego treść
-(dłuższy szkic, załącznik, lista wzmianek), a podczas pisania tylko rośnie. Kotwica listy
+(dłuższy szkic, załącznik), a podczas pisania tylko rośnie. Lista podpowiedzi jest osobną
+nakładką poza mierzonym kompozytorem: otwieranie, filtrowanie, doczytywanie i zamykanie
+nie zmieniają rezerwy ani pozycji feedu. Nakładka mieści się między nagłówkiem a kompozytorem,
+nad klawiaturą, z uwzględnieniem safe area; ma maksymalnie 240 dp i własne przewijanie bez
+chowania klawiatury. Wejście i wyjście używają `pop`, przy ograniczeniu ruchu są natychmiastowe. Kotwica listy
 pomija ten nagłówek. „Jump to latest” pozostaje nad nakładką.
 
 Reguły zwijania pochodzą z webowego `ComposerCompaction`: co najmniej 192 dp od końca
