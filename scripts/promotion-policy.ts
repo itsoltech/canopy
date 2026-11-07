@@ -57,11 +57,17 @@ export function sharedPromotionFile(path: string): boolean {
     path === "packages/db/src/migrations/index.ts" ||
     path === "packages/db/test/schema.test.ts" ||
     path.startsWith("docs/") ||
+    /^(?:AGENTS|CLAUDE|README|CONTRIBUTING)\.md$/i.test(path) ||
     /(^|\/)(?:bun\.lockb?|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|Gemfile\.lock|poetry\.lock|uv\.lock)$/i.test(
       path,
     ) ||
     /(^|\/)(?:changelog|changes|history|release-notes)(?:[.-][^/]*)?$/i.test(path)
   );
+}
+
+/** Docs, tests, CI and chores change no shipped behaviour, so blame can't make them the change a fix corrects. */
+function canIntroduceDefect(commit: PromotionCommit): boolean {
+  return !/^(?:docs|test|ci|chore|style)(?:\([^\n)]+\))?!?:/i.test(commit.message);
 }
 
 export function isPromotionFollowup(commit: PromotionCommit): boolean {
@@ -94,7 +100,7 @@ function relationship(fix: PromotionCommit, original: PromotionCommit): string |
   if (links.prs.length || links.shas.length) return undefined;
   const elapsed = fix.landedAt - original.landedAt;
 
-  if (elapsed < 0 || elapsed > 7 * DAY) return undefined;
+  if (elapsed < 0 || elapsed > 7 * DAY || !canIntroduceDefect(original)) return undefined;
   const attributed = fix.attributions.filter((item) => item.sha === original.sha && !sharedPromotionFile(item.file));
 
   return attributed.length

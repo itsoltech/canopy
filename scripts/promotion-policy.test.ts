@@ -166,6 +166,26 @@ test("shared/generated paths cannot hold by blame; migrations and application co
   expect(selectPromotion(input([commit(1, 30, "feat: original", ["bun.lock"]), fix])).sha).toBe(target);
 });
 
+test("blame never holds docs, test, ci or chore commits, or agent instruction files", () => {
+  for (const type of ["docs", "test", "ci(release)", "chore", "style"]) {
+    const original = commit(1, 30, `${type}: no shipped behaviour`);
+    expect(selectPromotion(input([original, commit(2, 1, "fix: correction")])).sha).toBe(original.sha);
+  }
+
+  for (const path of ["AGENTS.md", "CLAUDE.md", "README.md"]) {
+    expect(sharedPromotionFile(path)).toBe(true);
+    expect(
+      selectPromotion(input([commit(1, 30, "feat: original", [path]), commit(2, 1, "fix: rule", [path])])).sha,
+    ).toBe(commit(1, 30).sha);
+  }
+
+  const refactor = commit(1, 30, "refactor: reshape");
+  expect(selectPromotion(input([refactor, commit(2, 1, "fix: correction")])).sha).toBe(target);
+
+  const linked = commit(1, 30, "docs: guide");
+  expect(selectPromotion(input([linked, commit(2, 1, "fix: guide\n\nFixes: #1")])).sha).toBe(target);
+});
+
 test("a revert holds its original SHA even without overlapping files", () => {
   const original = commit(1, 30);
   const revert = commit(2, 1, `revert: feature\n\nThis reverts commit ${original.sha}.`, []);
