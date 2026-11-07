@@ -30,6 +30,8 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    (`clipboard-sanitized-write`, potrzebnym dla `navigator.clipboard.writeText`)
    i powiadomieniami (`notifications`), i to tylko stronom z originu setupu albo web UI
    (`window-permissions.ts`). Odczyt schowka, media i reszta pozostają zablokowane.
+   Wklejanie plików tego nie potrzebuje: zdarzenie `paste` po akcji użytkownika niesie pliki
+   skopiowane w systemie, bez IPC do plików ([ui-api.md](ui-api.md#wklejanie-i-upuszczanie-plików)).
    Alerty wątków i botów idą przez IPC `canopy:notification` do natywnego `Notification`
    procesu main (tylko ścieżki wątku lub bota, każdy klucz raz; [notifications.md](notifications.md));
    uprawnienie `notifications` jest rezerwą dla Notification API strony.

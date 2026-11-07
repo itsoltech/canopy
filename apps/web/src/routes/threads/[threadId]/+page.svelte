@@ -58,6 +58,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
+  import { FileIntake, provideFileIntake } from "#lib/features/attachments/file-intake.svelte.ts";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import { duration } from "#lib/shared/ui/motion.ts";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
@@ -509,6 +510,9 @@
       ? `Thread ${statusLook(thread.status).label.toLowerCase()}${blockingQuestions > 0 ? `, ${blockingQuestions} waiting for you` : ""}`
       : "",
   );
+
+  // Files pasted anywhere in the thread (outside a text field) attach to its composer.
+  const intake = provideFileIntake(new FileIntake());
 </script>
 
 <svelte:head><title>{thread?.title ?? "Thread"} · Canopy</title></svelte:head>
@@ -520,7 +524,7 @@
   style:--panel-width={panelOpen ? "20rem" : "0rem"}
   data-collapsed={!panelOpen || undefined}
 >
-  <div class="flex min-w-0 flex-1 flex-col">
+  <div class="flex min-w-0 flex-1 flex-col" {@attach intake.zone}>
     <TopBar>
       {#if thread}
         <Crumb
