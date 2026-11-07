@@ -23,6 +23,13 @@ const sha = git("rev-parse", "HEAD");
 if (process.env.EXPECTED_SHA && sha !== process.env.EXPECTED_SHA)
   throw new Error("Branch moved since promotion; refusing a different commit");
 
+if (
+  process.env.EXPECTED_SHA &&
+  process.env.GITHUB_REF_TYPE === "branch" &&
+  git("ls-remote", "--exit-code", "origin", process.env.GITHUB_REF).split(/\s+/)[0] !== sha
+)
+  throw new Error("Branch moved since Release started; refusing a different commit");
+
 if (process.env.GITHUB_REF_TYPE === "tag") {
   const tag = process.env.GITHUB_REF_NAME;
 

@@ -221,20 +221,26 @@ bez osobnego przybliżania reguł commitów lub porównywania wyłącznie plikó
 | push do `dev` | bez Release i dodatkowego CI; CI każdego PR pozostaje bez zmian |
 | schedule na domyślnej gałęzi `dev` | plan; CI i buildy tylko dla nowego nightly |
 | dispatch na `dev` | wydanie od razu, przez tę samą bramkę; wymagany `expected_sha` = HEAD |
-| push / dispatch na `next` lub `main` | beta / stable jak wcześniej; dispatch zachowuje `expected_sha` |
+| push na `next` lub `main` | beta / stable dla SHA zdarzenia push, także po promocji i hotfix PR |
+| dispatch na `next` lub `main` | ręczne wydanie z wymaganym `expected_sha` = HEAD |
 | push stabilnego tagu `vX.Y.Z` | ręczne stable z historii `main`, z CI i publikacją jak wcześniej |
 
 Nie dodajemy CI po każdym pushu do `dev`: duplikowałoby pełne shardy CI z PR i późniejszego
 wydania. Oznacza to brak natychmiastowego sygnału o błędzie wynikającym z połączenia zmian;
 pełne CI uruchomi się przed publikacją releasowalnego nightly. Sam PR nadal wymaga CI.
-Dispatch po Promote/back-merge zachowuje walidację `expected_sha`, także na `dev`.
+Push przez deploy key uruchamia Release, dlatego Promote i Back-merge do `next` nie wykonują
+dodatkowego dispatchu. Back-merge do `dev` nadal dispatchuje Release z `expected_sha` commita merge.
+`plan` i `release` dostają `EXPECTED_SHA` z wejścia dispatchu albo `github.sha`; checkout musi
+wskazywać ten commit, a HEAD zdalnej gałęzi nadal musi być taki sam. Przesunięta gałąź kończy
+przebieg błędem przed planowaniem/tagowaniem zamiast wydania innego commita.
 
-Wszystkie przebiegi `dev` (schedule i dispatch) mają wspólną grupę całego workflow
+Wszystkie przebiegi danej gałęzi (push, schedule i dispatch) mają wspólną grupę całego workflow
 z `cancel-in-progress: false`: aktywny przebieg kończy się bez anulowania, a spośród oczekujących
 pozostaje tylko najnowszy. Kolejny cykl czeka lub zostaje zastąpiony nowszym oczekującym,
 nigdy nie publikuje równolegle. Ceną jest oczekiwanie także na desktop/notaryzację aktywnego nightly.
 Nie wolno włączyć `cancel-in-progress: true`: aktywny przebieg może już publikować.
-Beta, stable i tagi mają odrębne grupy przebiegów i zachowują równoległe buildy.
+`dev`, `next`, `main` i poszczególne tagi mają odrębne grupy `release-<ref>`, więc różne kanały
+zachowują równoległe buildy. Push i ręczny dispatch tej samej gałęzi nie publikują równolegle.
 Joby ustalające i publikujące wersję zachowują dotychczasowe blokady per gałąź.
 GitHub uruchamia schedule wyłącznie z domyślnej gałęzi; musi nią pozostać `dev`.
 Guard nie pozwala schedule wydać beta/stable po zmianie gałęzi domyślnej.
@@ -569,7 +575,8 @@ Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawd
    Nie wybieramy wtedy cutoffu sprzed merge'a, który włączył hotfix.
    Tuż przed zapisem ponownie sprawdzamy referencje, PR-y, blokery i CI. Zwykły push
    `<C>:refs/heads/<target>` bez force nigdy nie cofa gałęzi; rozbieżność wymaga Back-merge.
-   Dispatch Release podaje `expected_sha=C`, ponieważ push `GITHUB_TOKEN` nie uruchamia workflow.
+   Push przez deploy key uruchamia dokładnie jeden Release z `EXPECTED_SHA=C` ze zdarzenia push;
+   skrypt nie wykonuje dispatchu. Hotfix PR scalony do `next`/`main` uruchamia tę samą ścieżkę.
    `C == target`, brak bootstrapu stable lub zakres bez zmiany wersji oznacza no-op; docs-only
    nie tworzy bety. Każdy przebieg zapisuje C0, C, wersję oczekiwaną, listę włączoną i wykluczoną
    oraz przyczyny hold w job summary, w tym pominięte blokady jako `hold expired after 3 d: <reason>`
@@ -646,18 +653,20 @@ Stare wejścia `live_smoke`/`update_smoke` zachowano dla kompatybilności dispat
 już bramkami. Zmienne `AUTO_PROMOTE_DEV_TO_NEXT` i `NIGHTLY_SMOKE_SHA` nie są używane.
 Odczyt lokalny: `GITHUB_REPOSITORY=itsoltech/canopy bun scripts/promote.ts --automatic --dry-run`.
 Polecenie fetchuje referencje/tagi i tylko czyta GitHub (autoryzacja `gh`), bez publikacji.
-Gdy dispatch po pushu zawiedzie, issue historii zachowuje plan i SHA; następny cykl ponawia
-dispatch dokładnie tego SHA, zanim dopuści kolejną promocję. Pauza i release-blocker wstrzymują
-także ponowienie. Historia rozróżnia plan przed pushem i skuteczny dispatch; stan publikacji
-pozostaje w Release. Przy błędzie końcowego zapisu issue dispatch może zostać ponowiony,
-ale serializacja i planowanie Release nadal zapobiegają podwójnemu tagowaniu.
-Przed ponowieniem sprawdzamy cały pierwotny zakres od starego targetu: nowa poprawka
-lub hold może zatrzymać jeszcze nieopublikowaną promocję mimo udanego pushu.
+Gdy zapis historii po udanym pushu zawiedzie, następny cykl naprawia wyłącznie issue z planem
+i SHA. Nie ponawia pushu ani nie dispatchuje Release, również dla istniejących znaczników
+`canopy-promotion-pending`. Historia odróżnia zamiar przed pushem od jego potwierdzenia;
+wynik publikacji pozostaje w Release. Nowa poprawka lub hold po pushu wpływa na kolejną
+promocję, nie zatrzymuje już uruchomionego wydania. Nieudany Release ponawiaj przez
+**Re-run all jobs**; brakujący przebieg uruchom ręcznie z aktualnym `expected_sha`.
 
-Po stable **Back-merge** (bez zmian) przenosi hotfix `main` → `next` → `dev` commitami merge bota,
-   dispatchując CI/Release dla zmienionych gałęzi. Dla promocji bez rozbieżności jest to no-op.
-   Przy konflikcie otwiera PR i zatrzymuje dalsze przenoszenie. Po rozwiązaniu konfliktu i squash
-   merge PR uruchom Back-merge ponownie: dopisze merge commit przywracający relację przodków.
+Po stable **Back-merge** przenosi hotfix `main` → `next` → `dev` commitami merge bota.
+Push do `next` uruchamia Release; po pushu do `dev` skrypt wykonuje jeden dispatch z SHA merge'a,
+bo `dev` nie ma triggera push Release. Dla promocji bez rozbieżności jest to no-op.
+Przy konflikcie otwiera PR i zatrzymuje dalsze przenoszenie. Po rozwiązaniu konfliktu i squash
+merge PR uruchom Back-merge ponownie: dopisze merge commit przywracający relację przodków.
+PR utworzony przez `GITHUB_TOKEN` nie uruchamia workflowów PR. Jeśli brakuje wymaganych
+checków, maintainer zamyka i ponownie otwiera PR, aby uruchomić CI oraz commitlint przed scaleniem.
 
 ## Retencja nightly
 
@@ -708,10 +717,11 @@ do pushu, nie do usuwania). Bez tego job zgłasza `GHCR canopy-…: no access to
 ## Ustawienia repozytorium (stosuje maintainer/rodzic)
 
 - Feature PR: wyłącznie **squash merge**, tytuł PR jest tytułem commita. Wymagane checki:
-  `commitlint` (workflow PR title) i CI. Stopka `BREAKING CHANGE` musi zostać w body squasha.
+  `Typecheck, tests, builds` i `commitlint` (workflow PR title), oba z integracji GitHub Actions
+  **15368**. Stopka `BREAKING CHANGE` musi zostać w body squasha.
 - Promocje są pushami **fast-forward**, back-merge bezpośrednimi commitami merge bota — nie
-  korzystają z przycisku merge PR. Reguły ochrony `dev`/`next`/`main` muszą pozwalać GitHub Actions
-  botowi na te operacje i zapis tagów/notes. Nie wymagaj linear history dla back-merge.
+  korzystają z przycisku merge PR. Nie wymagaj linear history dla back-merge. Rulesety gałęzi
+  nie obejmują tagów ani notes semantic-release.
 - Actions: joby żądają `contents: write`, `packages: write`, `actions: write`, `issues: write`
   lub `pull-requests: write` według potrzeby. Włącz „Allow GitHub Actions to create and approve
   pull requests” dla PR konfliktowych. Utwórz etykiety **release-blocker** i **promotion-hold**. Proponowana gałąź
@@ -725,6 +735,42 @@ do pushu, nie do usuwania). Bez tego job zgłasza `GHCR canopy-…: no access to
 - Pages: w *Settings → Pages* ustaw źródło **GitHub Actions** (workflow `pages.yml`).
 - GitHub „immutable releases” pozostaw wyłączone: semantic-release publikuje release przed
   uploadem assetów; upload i retencja wymagają możliwości ich późniejszej zmiany/usunięcia.
+
+### Rulesety i deploy key
+
+Maintainer konfiguruje rulesety poza repozytorium. Aktywny ruleset
+**Release branches: no deletion or force-push** chroni `dev`, `next`, `main` przed usunięciem
+i force-pushem. Po scaleniu obsługi deploy key włącz dodatkowo:
+
+- `dev`: `pull_request`, squash, **0 approvals**, wymagane oba checki wymienione wyżej;
+  bypass **DeployKey / always** dla klucza automatyzacji wydań.
+- `next` i `main`: ograniczenie aktualizacji (**update restricted**), bypass tego samego
+  **DeployKey / always** oraz roli **repository admin / pull_request**.
+
+Przed włączeniem nowych ograniczeń aktualizacji doprowadź promocjami commit zawierający
+obsługę klucza na `next` i `main`. Release wywołuje lokalny workflow Back-merge z commita
+wydania; starsza kopia nadal używa `GITHUB_TOKEN` i zostałaby zablokowana. Sama zmiana `ci`
+nie tworzy wydania — musi wejść w promowany prefiks z kolejną zmianą wpływającą na wersję.
+
+GitHub nie przyjmuje GitHub Actions (`GITHUB_TOKEN`) jako aktora bypass rulesetu. Zapis gałęzi
+wykonują przez SSH joby `promote`, `review` i `backmerge` z write deploy key
+**Release automation (promote, back-merge)**. Prywatna część klucza jest sekretem Actions
+**`RELEASE_DEPLOY_KEY`**; nigdy nie trafia do logów ani repozytorium. Checkout utrzymuje
+poświadczenia SSH do końca joba i usuwa je w kroku post-cleanup. Brak sekretu zatrzymuje job
+z jawnym komunikatem błędu. Dry run Promote/Automatic promotion nie pobiera klucza i działa
+bez niego. Wywołanie Back-merge z Release przekazuje tylko ten sekret jawnie.
+
+`GITHUB_TOKEN` nadal obsługuje API (issue, PR, dispatch `dev`). Pozostałe joby Release używają
+go do tagów, notes i GitHub Releases; konfiguracja semantic-release nie zawiera pluginu git
+ani CHANGELOG-a i nie tworzy commitów na gałęziach. Nie dostają deploy key.
+Nightly hygiene usuwa wyłącznie wydania nightly i wersje GHCR, pozostawiając tagi/notes;
+TestFlight ustawia wersję jedynie w lokalnym `app.json` i przekazuje build number do EAS;
+Pages publikuje przez API Pages, bez pushu gałęzi. Te workflowy nie wymagają bypassu.
+
+Maintainer nadal promuje ręcznie przez **Promote** (w razie potrzeby `override=true`,
+z zachowaniem obowiązkowych bramek). Pilny hotfix trafia PR-em do `next` lub `main`;
+repo admin scala go przez bypass w trybie `pull_request`, bez bezpośredniego pushu.
+Scalenie uruchamia Release dla SHA hotfixu; po stable Back-merge przenosi go dalej.
 
 ## Bootstrap 0.1.0 — wykonuje rodzic
 

@@ -20,7 +20,7 @@ on:
         type: boolean
         default: false
       dry_run:
-        description: Print the plan without pushing, dispatching or writing issues
+        description: Print the plan without pushing or writing issues
         type: boolean
         default: true
       override:
@@ -41,9 +41,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
+      - name: Require release deploy key
+        if: ${{ !inputs.dry_run }}
+        env:
+          RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
+        run: |
+          if [ -z "$RELEASE_DEPLOY_KEY" ]; then
+            echo "::error::RELEASE_DEPLOY_KEY is required to push release branches through repository rulesets."
+            exit 1
+          fi
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ssh-key: ${{ !inputs.dry_run && secrets.RELEASE_DEPLOY_KEY || '' }}
+          persist-credentials: true
       - uses: actions/setup-node@v5
         with:
           node-version: 24
