@@ -1,12 +1,21 @@
 import { appendFileSync } from "node:fs";
 import { api, git, pages, repository } from "./release-github.ts";
 import { loadPromotion, promotionBranches, promotionIssues, type PromotionAdapters } from "./promotion-data.ts";
-import { DAY, selectPromotion, type PromotionInput, type PromotionPlan } from "./promotion-policy.ts";
+import {
+  DAY,
+  DEV_NEXT_HOLD_CAP_DAYS,
+  NEXT_MAIN_HOLD_CAP_DAYS,
+  promotionHoldCap,
+  selectPromotion,
+  type PromotionInput,
+  type PromotionPlan,
+} from "./promotion-policy.ts";
 import { forecastPromotion, forecastPromotionWindow } from "./promotion-version.mjs";
 import { finishPromotion, preparePromotion, resumePromotion } from "./promotion-journal.ts";
 
-export function burnInDays(value: string): number {
-  if (!/^\d+$/.test(value) || Number(value) > 365) throw new Error("Burn-in must be an integer between 0 and 365 days");
+export function burnInDays(value: string, policy = "Burn-in"): number {
+  if (!/^\d+$/.test(value) || Number(value) > 365)
+    throw new Error(`${policy} must be an integer between 0 and 365 days`);
 
   return Number(value);
 }
@@ -28,6 +37,12 @@ export function promotionSummary(input: PromotionInput, plan: PromotionPlan, ver
     "",
     "Held commits (each holds the entire suffix):",
     ...plan.holds.map((hold) => `- ${hold.sha}: ${hold.reason}; eligible since ${new Date(hold.since).toISOString()}`),
+    "",
+    "Expired automatic holds (skipped):",
+    ...plan.expiredHolds.map(
+      (hold) =>
+        `- ${hold.sha}: hold expired after ${promotionHoldCap(input) / DAY} d: ${hold.reason}; eligible since ${new Date(hold.since).toISOString()}`,
+    ),
     "",
     "Excluded suffix:",
     ...input.commits.slice(plan.included.length).map((commit) => `- ${commit.sha} ${commit.message.split("\n")[0]}`),
@@ -64,6 +79,8 @@ export interface PromotionOptions {
   paused: boolean;
   override: boolean;
   burnIn: number;
+  /** Omitted by manual Promote, which retains uncapped relationship holds. */
+  holdCapDays?: number;
 }
 
 export async function runPromotion(
@@ -76,6 +93,7 @@ export async function runPromotion(
   const [source, target] = promotionBranches(path);
   const input = loadPromotion(repo, path, path === "dev-next" ? DAY : options.burnIn * DAY, adapters, now);
   input.paused = options.paused && !options.override;
+  input.holdCapMs = (options.holdCapDays ?? Infinity) * DAY;
 
   // Override bypasses timing and PR holds; CI, publication, blockers, follow-ups and FF remain mandatory.
   if (options.override) {
@@ -137,6 +155,7 @@ export async function runPromotion(
   adapters.git("merge-base", "--is-ancestor", plan.sha, `origin/${source}`);
   const rechecked = loadPromotion(repo, path, input.soakMs, adapters, now);
   rechecked.paused = input.paused;
+  rechecked.holdCapMs = input.holdCapMs;
 
   if (options.override)
     for (const commit of rechecked.commits) commit.prs = commit.prs.map((pr) => ({ ...pr, hold: false }));
@@ -173,7 +192,18 @@ if (import.meta.main) {
 
   for (const path of paths) {
     try {
-      await runPromotion(repo, path, options, { git, api, pages });
+      const cap = path === "dev-next" ? DEV_NEXT_HOLD_CAP_DAYS : NEXT_MAIN_HOLD_CAP_DAYS;
+      const variable = path === "dev-next" ? "DEV_NEXT_HOLD_CAP_DAYS" : "NEXT_MAIN_HOLD_CAP_DAYS";
+
+      await runPromotion(
+        repo,
+        path,
+        {
+          ...options,
+          holdCapDays: automatic ? burnInDays(process.env[variable] || String(cap), "Hold cap") : Infinity,
+        },
+        { git, api, pages },
+      );
     } catch (error) {
       failed = true;
       const message = `Promotion ${path} failed: ${error instanceof Error ? error.message : error}\n`;

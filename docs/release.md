@@ -505,7 +505,7 @@ Nightly zbiera niewydane zmiany `feat`/`fix`/`perf` na `dev` w cyklu godzinowym 
 (zmiany bez wpływu na wersję nie publikują buildu). Beta to wybrany nightly; stable to beta po okresie obserwacji.
 Promocja przebudowuje ten sam commit z nowym numerem wersji, nie kopiuje binariów między kanałami.
 Soak `dev → next` nadal wynosi **24 h od daty commitera każdego commita**, nie od publikacji nightly.
-Nie zmieniają się `landedAt` (`git show --format=%ct`) ani polityka w `promotion-policy.ts`.
+Podstawą tego czasu pozostaje `landedAt` (`git show --format=%ct`).
 Godzinowe grupowanie oznacza mniej commitów z własnym zielonym Release; promocja może wybrać
 starszy ukończony nightly lub poczekać, aż cały nowszy prefiks dojrzeje i przejdzie Release.
 Pominięty plan bez CI/smoke sam nie potwierdza gotowości nieotagowanego commita.
@@ -527,11 +527,22 @@ Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawd
    w `(target, C]`. Cofamy cutoff przed najwcześniejszą taką zmianę, potem powtarzamy sprawdzenie
    do punktu stałego. Etykieta `promotion-hold` na scalonym PR zatrzymuje jego squash i cały suffix.
    Ponownie sprawdzamy również poprawki wykluczone przez hold lub wybór starszego zielonego CI,
-   nawet jeżeli są już starsze niż soak: cofnięcie nie może oddzielić funkcji od jej poprawki.
+   nawet jeżeli są już starsze niż soak, z uwzględnieniem limitu automatycznych holdów.
    Stable sprawdza dodatkowo poprawki na dev, których nie ma jeszcze w next: znana naprawa
-   bety zatrzymuje stable, dopóki nie wejdzie do bety i nie przejdzie jej burn-in. Rozbieżność
-   next/dev zatrzymuje tę ścieżkę do Back-merge; commity dev są tu tylko sygnałami, nigdy kandydatami stable.
+   bety zatrzymuje stable, dopóki nie wejdzie do bety i nie przejdzie jej burn-in, z limitem opisanym poniżej.
+   Rozbieżność next/dev zatrzymuje tę ścieżkę do Back-merge; commity dev są tu tylko sygnałami, nigdy kandydatami stable.
    Jeżeli funkcja i poprawka są już po soak i obie mieszczą się w cutoffie, idą razem.
+   Automatyczny hold z powiązania (jawny link, revert lub blame) wygasa po **więcej niż 2 dniach
+   dla dev → next** albo **3 dniach dla next → main**, liczonych od istniejącego `since`:
+   kwalifikacji czasowej wstrzymanej zmiany na danej ścieżce (dev: data commitera + 24 h;
+   stable: najwcześniejsza gotowa beta zawierająca zmianę + burn-in). Kolejne poprawki i ich
+   łańcuchy nie przesuwają tego początku. Po wygaśnięciu zmiana może wejść bez oczekującej
+   naprawy; naprawa wejdzie w późniejszej promocji. Limity skryptu można nadpisać przez env
+   `DEV_NEXT_HOLD_CAP_DAYS` i `NEXT_MAIN_HOLD_CAP_DAYS` (całkowite 0–365 dni).
+   Nigdy nie wygasają: etykieta `promotion-hold`, otwarte `release-blocker`, pauza
+   `AUTO_PROMOTION=off`, wymaganie udanego Release dokładnie dla C, sam burn-in bety ani
+   wymóg wspólnej promocji oryginału i jego revertu, gdy oba są w czasowym cutoffie C0.
+   Ręczny Promote i override zachowują dotychczasowe zasady.
 3. **Gotowość C.** Najnowszy przebieg Release **dokładnie dla C** na gałęzi źródłowej musi być
    zakończony sukcesem. Późniejszy zielony commit nie dowodzi poprawności wcześniejszego drzewa.
    Preferujemy najnowszy taki commit z ukończonym release i tagiem nightly; dopiero przy braku
@@ -547,12 +558,14 @@ Angular co Release; nie uruchamiają `semantic-release --dry-run`, który sprawd
    Dispatch Release podaje `expected_sha=C`, ponieważ push `GITHUB_TOKEN` nie uruchamia workflow.
    `C == target`, brak bootstrapu stable lub zakres bez zmiany wersji oznacza no-op; docs-only
    nie tworzy bety. Każdy przebieg zapisuje C0, C, wersję oczekiwaną, listę włączoną i wykluczoną
-   oraz przyczyny hold w job summary. Wersja jest prognozą z tego samego analyzera Angular;
+   oraz przyczyny hold w job summary, w tym pominięte blokady jako `hold expired after 3 d: <reason>`
+   (dla bety: `2 d`). Wersja jest prognozą z tego samego analyzera Angular;
    Release wyznacza ją ponownie. Issue `Promotion history: <path>` przechowuje historię planów
    przed pushem (nie stanowi dowodu udanej publikacji; dowodem jest przebieg Release).
-5. **Brak postępu.** Jeśli powiązana poprawka lub hold zatrzymuje zmianę przez co najmniej
+5. **Brak postępu.** Jeśli nadal aktywny hold lub `release-blocker` zatrzymuje zmianę przez co najmniej
    **7 dni od jej kwalifikacji czasowej**, tworzymy/aktualizujemy `Promotion stalled: <path>`
-   z SHA i powodem (konkretna poprawka oraz PR/SHA/pliki). Nie obchodzimy blokady automatycznie.
+   z SHA i powodem (konkretna poprawka oraz PR/SHA/pliki albo etykieta/bloker). Wygasłe holdy
+   nie wywołują tego alertu; etykiet i blokerów nie obchodzimy automatycznie.
 
 **Konwencja linkowania.** Poprawiając wcześniejszą scaloną zmianę, autor `fix`/`perf`/revert
 podaje oryginalny PR lub SHA squasha w osobnej linii body PR/commita i zachowuje ją w squashu:
@@ -569,7 +582,8 @@ Szablon PR udostępnia `Fixes an earlier change: #68`. Revert zachowuje
 i słowa GitHuba `fix`/`fixes`/`fixed`, `close`/`closes`/`closed`,
 `resolve`/`resolves`/`resolved`, z opcjonalnym dwukropkiem, np. `Fixes #68`.
 Link musi zajmować osobną linię; przypadkowe numery PR i hashe w zdaniu nie wiążą zmian.
-Numery odnoszą się do PR-ów tego repozytorium. Jawny link działa bez ograniczenia wieku i plików.
+Numery odnoszą się do PR-ów tego repozytorium. Jawny link ustala powiązanie bez ograniczenia wieku
+i plików; automatyczny hold nadal podlega opisanemu wyżej limitowi.
 
 **Heurystyka awaryjna (SZZ).** Przy braku jawnego linku przypisujemy zmienione/usunięte
 linie do commitów, które je wprowadziły. `git diff -w --ignore-blank-lines -U0 F^ F`
