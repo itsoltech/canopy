@@ -129,7 +129,6 @@
       <ShellMessage
         command={row.steer.shellCommand}
         result={row.steer.shellResult}
-        text={row.steer.inputText}
         status={row.steer.status}
         reason={row.steer.reason}
         pending={row.steer.status === "pending"}

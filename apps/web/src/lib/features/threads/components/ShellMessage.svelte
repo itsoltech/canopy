@@ -9,7 +9,6 @@
   let {
     command,
     result,
-    text = "",
     status = "queued",
     reason = "",
     pending = false,
@@ -17,7 +16,6 @@
   }: {
     command: string;
     result?: ShellResult | undefined;
-    text?: string;
     status?: string;
     reason?: string;
     pending?: boolean;
@@ -72,12 +70,6 @@
           <CodeBlock text={result.output} label="Shell output" class="mt-2" />
         </Disclosure>
       {:else}<p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">No output</p>{/if}
-      {#if text && result.status === "completed"}
-        <Disclosure summaryClass="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-          {#snippet summary()}Full text the agent received{/snippet}
-          <CodeBlock {text} label="Full text the agent received" class="mt-2" />
-        </Disclosure>
-      {/if}
     {/if}
   </div>
 </div>
