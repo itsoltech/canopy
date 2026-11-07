@@ -13,6 +13,8 @@ const explanations: Record<FailureCode, string> = {
     "The agent CLI stopped before it finished. Check what it already did, then retry. If it stops again, check provider settings.",
   configuration:
     "The provider rejected this request or its settings. Check the connection, credentials and model in provider settings.",
+  connection_changed:
+    "Codex could not use this thread with the current connection. Restore its previous connection in provider settings, then retry.",
   provider_unavailable: "The provider is temporarily unavailable. Retry in a few minutes.",
   internal: "Canopy had an internal error. Retry. If it happens again, copy the details and report them.",
 };
@@ -28,7 +30,14 @@ export function failurePresentation(message: string, code: string, proxy: boolea
         ? "The proxy rejected its credentials. Check its saved connection key, then test the proxy."
         : explanations[kind],
     model: kind === "model_unavailable" || kind === "stream_cut_off",
-    settings: ["auth_required", "cli_missing", "configuration", "process_exit", "usage_limit"].includes(kind),
+    settings: [
+      "auth_required",
+      "cli_missing",
+      "configuration",
+      "connection_changed",
+      "process_exit",
+      "usage_limit",
+    ].includes(kind),
     proxy: proxy && ["auth_required", "configuration", "network", "provider_unavailable"].includes(kind),
   };
 }

@@ -41,6 +41,13 @@ export function codexAppServerLaunch(
 
   if (codexHome) command.push(...deviceSkillOverrides(env));
 
+  // Each production runtime serves one instance. Codex also checks the process's current provider when
+  // admitting turns: selecting a provider only on thread/start or thread/resume is not enough.
+  const [instance, ...others] = profiles.filter((profile) => profile.providers.includes("codex"));
+
+  if (instance && others.length === 0)
+    command.push("-c", `model_provider=${tomlValue(codexThreadProvider(instance).modelProvider)}`);
+
   for (const profile of profiles) {
     if (profile.kind !== "cliproxyapi" || !profile.providers.includes("codex")) continue;
     const provider = codexModelProviderId(profile);

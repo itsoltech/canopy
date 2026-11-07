@@ -8,6 +8,7 @@ export const FAILURE_CODES = [
   "stream_cut_off",
   "process_exit",
   "configuration",
+  "connection_changed",
   "provider_unavailable",
   "internal",
 ] as const;
@@ -20,6 +21,9 @@ export function classifyFailure(message: string, code = ""): FailureCode {
 
   if (explicit) return explicit;
   const text = `${code.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)} ${message}`;
+
+  if (/This chat uses .+, but your current provider is .+\. Switch to .+ to continue\./i.test(message))
+    return "connection_changed";
 
   if (
     /\b401\b|unauthenticated|not authenticated|not (?:signed|logged) in|no (?:Claude|Codex|Grok).*login|authentication|unauthorized|invalid.api.key|expired.*(?:token|login)|(?:token|login).*expired/i.test(
