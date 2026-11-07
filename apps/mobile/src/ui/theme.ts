@@ -22,6 +22,8 @@ export function colorsFor(dark: boolean, theme: ThemeName = "birch") {
     text: v.ink,
     body: v.ink,
     muted: v.muted,
+    /** Web shimmer's zinc-300 / zinc-100 highlight. */
+    shimmerHighlight: dark ? zinc(100) : zinc(300),
     /** zinc-400 / zinc-500: chevrons and quiet icons. */
     faint: dark ? zinc(500) : zinc(400),
     /** zinc-700 / zinc-300: secondary text a step under the ink. */

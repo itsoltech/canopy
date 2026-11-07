@@ -9,7 +9,7 @@ import {
 } from "@canopy/domain/bot-chat";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "../../ui/Icon";
-import { LiveText } from "../../ui/Badge";
+import { LiveText } from "../../ui/LiveText";
 import { font, styles, useColors } from "../../ui/theme";
 import { useClock } from "../settings/display";
 import { FailureNotice } from "../timeline/FailureNotice";
@@ -149,7 +149,9 @@ export function BotStatusRow({ bot, text, waiting }: { bot: ParticipantView; tex
           {text}
         </Text>
       ) : (
-        <LiveText style={[styles.body, { flex: 1, color: c.muted }]}>{text}</LiveText>
+        <LiveText containerStyle={{ flex: 1 }} style={styles.body}>
+          {text}
+        </LiveText>
       )}
     </View>
   );

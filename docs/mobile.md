@@ -691,6 +691,14 @@ od `scale.medium`), `toast` (komunikat: wjeżdża o `distance.medium`, `slow` / 
 (zmieniony tekst wchodzi o `distance.micro`), `reveal` (treść w miejscu szkieletu), `layout`
 (sąsiednie wiersze przesuwają się na nowe miejsce). Animacje biegną na wątku UI (Reanimated).
 
+Tekst trwającej pracy (`src/ui/LiveText.tsx`: nagłówki pracy, grupy narzędzi, rozumowanie i status
+bota) ma ten sam shimmer co web: jaśniejszy pas na przygaszonym tekście, liniowy cykl 2000 ms
+z `motion.shimmer`, tło o szerokości 200% i punkty gradientu 40/50/60%. Pas przesuwa się
+w prawo i znika poza tekstem przed kolejnym przebiegiem. Przycięte kopie tekstu z różną
+przezroczystością zmiękczają krawędzie bez dodatkowego modułu natywnego. Przesunięcia kopii
+i okien biegną na wątku UI; tylko tekst bazowy zajmuje miejsce i jest dostępny dla czytnika.
+Ograniczenie ruchu usuwa pas i zatrzymuje animację, pozostawiając statyczny tekst.
+
 Ograniczenie ruchu w systemie: nic nie jedzie ani nie skaluje. Wiersze, nakładki i komunikaty tylko
 się rozjaśniają; zmiana tekstu, przesunięcia (pigułka, przełącznik, panel boczny), układ listy
 i odsłonięcie szkieletu są natychmiastowe. `useReducedMotion` ma jedną subskrypcję na aplikację

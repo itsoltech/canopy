@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, View, type HostInstance } from "react-native";
 import { formatSpan } from "@canopy/domain/format";
-import { LiveText, Rule } from "../../ui/Badge";
+import { Rule } from "../../ui/Badge";
+import { LiveText } from "../../ui/LiveText";
 import { useAnchoredToggle } from "../../ui/feed-anchor";
 import { font, styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
@@ -76,14 +77,26 @@ export function WorkFold({
       <View style={{ width: 16, height: 24, justifyContent: "center" }}>
         {!empty && <Chevron open={open} color={c.faint} />}
       </View>
-      <Text numberOfLines={1} style={[styles.body, { flexShrink: 1, color: c.faint }]}>
-        {summary.live ? (
-          <LiveText style={[styles.body, { fontFamily: font.medium, color: c.muted }]}>{title}</LiveText>
-        ) : (
+      {summary.live ? (
+        <View style={{ flexDirection: "row", flexShrink: 1, minWidth: 0 }}>
+          <LiveText
+            containerStyle={{ flexShrink: 0, maxWidth: "100%" }}
+            style={[styles.body, { fontFamily: font.medium }]}
+          >
+            {title}
+          </LiveText>
+          {detail ? (
+            <Text numberOfLines={1} style={[styles.body, { flexShrink: 1, color: c.faint }]}>
+              {`  ${detail}`}
+            </Text>
+          ) : null}
+        </View>
+      ) : (
+        <Text numberOfLines={1} style={[styles.body, { flexShrink: 1, color: c.faint }]}>
           <Text style={{ fontFamily: font.medium, color: c.muted }}>{title}</Text>
-        )}
-        {detail ? `  ${detail}` : null}
-      </Text>
+          {detail ? `  ${detail}` : null}
+        </Text>
+      )}
       {!summary.live && summary.running > 0 && (
         <View style={[styles.row, { gap: 6, flexShrink: 0, height: 24 }]}>
           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: sky }} />
@@ -141,7 +154,9 @@ export function WorkGroup({
           <Chevron open={open} color={c.faint} />
         </View>
         {running ? (
-          <LiveText style={[styles.body, { flex: 1, color: c.muted }]}>{label}</LiveText>
+          <LiveText containerStyle={{ flex: 1 }} style={styles.body}>
+            {label}
+          </LiveText>
         ) : (
           <Text numberOfLines={1} style={[styles.body, { flex: 1, color: c.muted }]}>
             {label}

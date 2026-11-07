@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ActivityIndicator, Animated, Text, View, type StyleProp, type TextStyle } from "react-native";
+import { ActivityIndicator, Animated, Text, View } from "react-native";
 import type { Tone } from "@canopy/domain/status-look";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "./Icon";
@@ -117,31 +117,4 @@ export function Spinner({ color, size = 14 }: { color?: string; size?: number })
       <ActivityIndicator size="small" color={color ?? c.sky} style={{ transform: [{ scale: size / 20 }] }} />
     </View>
   );
-}
-
-/** Text of live work (web: shimmer): breathes while it runs; still under reduced motion. */
-export function LiveText({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
-  const reduced = useReducedMotion();
-  const [opacity] = useState(() => new Animated.Value(1));
-
-  useEffect(() => {
-    if (reduced) {
-      opacity.setValue(1);
-
-      return;
-    }
-
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.45, duration: 900, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ]),
-    );
-
-    loop.start();
-
-    return () => loop.stop();
-  }, [opacity, reduced]);
-
-  return <Animated.Text style={[style, { opacity }]}>{children}</Animated.Text>;
 }
