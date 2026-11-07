@@ -22,6 +22,8 @@ export async function importFixture(
     gateway?: TestGateway;
     /** Run threads with the fake Claude Code executable (fixtures/instance-claude.ts); its probes go to `trace`. */
     claude?: boolean;
+    /** Run threads with the fake Codex app-server (fixtures/instance-codex.ts). */
+    codex?: boolean;
   } = {},
 ) {
   const home = join(dir, "home");
@@ -32,8 +34,13 @@ export async function importFixture(
   const trace = join(dir, "probe.jsonl");
   // In place: the fixture imports its neighbours.
   const claude = fileURLToPath(new URL("../fixtures/instance-claude.ts", import.meta.url));
+  const codex = fileURLToPath(new URL("../fixtures/instance-codex.ts", import.meta.url));
 
-  if (options.claude) process.env["INSTANCE_TRACE"] = trace;
+  if (options.claude || options.codex) process.env["INSTANCE_TRACE"] = trace;
+
+  // The device login the Codex instance links (a fixture token, like the worktree fixture's).
+  if (options.codex)
+    writeFileSync(join(home, ".codex", "auth.json"), JSON.stringify({ tokens: { access_token: "fixture" } }));
 
   // Claude Code's login in the fixture's own home (shape only, a fixture token): the instance never depends on a
   // login or an API key of the machine the tests run on.
@@ -50,7 +57,7 @@ export async function importFixture(
       s.setWorkerConfig(
         workerId,
         {
-          codex: { enabled: false },
+          codex: options.codex ? { enabled: true, executablePath: codex } : { enabled: false },
           claude: options.claude ? { enabled: true, executablePath: claude } : { enabled: false },
           grok: { enabled: false },
         },

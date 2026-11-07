@@ -91,6 +91,16 @@ export class HostState {
   /** The isolated Claude config dir per instance (skills and commands). */
   readonly claudeHomes = new Map<string, string>();
 
+  /** The private Codex home of an instance ("" = native): its shadow home, else `<data_dir>/codex-home`. */
+  codexHome(profileId: string): string {
+    const id = profileId || "native";
+
+    return (
+      instanceShadowHome(this.options.dataDir, "codex", id, this.#runtimeOf(id, "codex")) ??
+      join(this.options.dataDir, "codex-home")
+    );
+  }
+
   /** The private Claude home of an instance ("" = native), also before its runtime started (docs/import.md). */
   claudeHome(profileId: string): string {
     const id = profileId || "native";

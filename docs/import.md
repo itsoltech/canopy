@@ -8,8 +8,8 @@ Stos A (wątki) ma pięć etapów:
 
 1. wykrywanie i podgląd,
 2. silnik importu i historia Claude,
-3. kontynuacja wątków Claude (ten dokument opisuje stan po etapie 3),
-4. Codex,
+3. kontynuacja wątków Claude,
+4. Codex (ten dokument opisuje stan po etapie 4),
 5. Grok.
 
 Ustawienia, biblioteki (skille, pluginy, marketplace), instrukcje i serwery MCP to stos B; onboarding
@@ -69,7 +69,7 @@ sprawdzony (`newer`) albo nieznany format importuje się najpierw jako historia.
 
 Wiersz wątku pokazuje stan: *Imported*, *Has new turns* (zaimportowany, bez tur w Canopy, a CLI dopisało
 nowe tury), *Already in Canopy* (wątek Canopy o tym samym id u dostawcy),
-*Not supported yet* (CLI, którego historii worker jeszcze nie czyta: do etapów 4–5 Codex i Grok),
+*Not supported yet* (CLI, którego historii worker jeszcze nie czyta: do etapu 5 Grok),
 *History only* z powodem i *Secrets masked*. Zaznaczać można nowe wątki i te z nowymi turami; licznik i
 szacunek rozmiaru dotyczą tylko ich.
 
@@ -105,7 +105,7 @@ Przebieg kończy się jako `completed`, gdy coś się zaimportowało albo żadna
 ## Kontynuacja
 
 Tryb pozycji (`target.mode`, potem `thread_imports.mode`) wybiera plan: `native`, gdy proszono o kontynuację,
-CLI ją obsługuje (od etapu 3 Claude), katalog istnieje, wątek zostaje w swoim katalogu, format jest sprawdzony
+CLI ją obsługuje (Claude, Codex), katalog istnieje, wątek zostaje w swoim katalogu, format jest sprawdzony
 i nie jest to subagent; inaczej `history`.
 
 - **Native.** Po ostatniej stronie runner wysyła `AdoptImportedSession`. Worker kopiuje prefiks ze skanu
@@ -175,6 +175,16 @@ i nie jest to subagent; inaczej `history`.
 - **Nieudany import natywny.** Wątek natywny bez przejętej sesji nie przyjmuje tur (trigger: brak
   `provider_thread_id`); nieudana pozycja przełącza go na tryb historii, a udana ponowna próba z powrotem na
   natywny.
+
+### Codex natywnie
+
+Kopia rolloutu (prefiks do ostatniej pełnej linii, zamaskowana linia po linii jak kopia Claude) trafia do
+`CODEX_HOME` instancji
+(`<data_dir>/codex-home` albo dom cienia) pod `sessions/RRRR/MM/DD/<ta sama nazwa pliku>`; data pochodzi
+z nazwy, więc zarchiwizowane rollouty też trafiają do `sessions`. `provider_thread_id` = id wątku Codexa,
+a pierwsza tura w Canopy wznawia go przez `thread/resume` (app-server znajduje rollout po id w swoim
+`CODEX_HOME`). Zapis i Undo działają jak dla Claude: losowa nazwa tymczasowa, bez dowiązań, manifest;
+Undo usuwa tylko pliki z manifestu.
 
 ## Strony i zapis
 
@@ -266,7 +276,7 @@ Tryb `history` (`thread_imports.mode`): gateway odrzuca `SendMessage`, a miejsce
 - **Pomijane wpisy:** `api-request*`, `atis-latch`, `queue-operation`, `cost-state`, `file-history-snapshot`,
   `last-prompt`, `mode`, `pr-link`, tytuły. Niepoprawne linie są liczone („N lines could not be read”).
 
-Sprawdzone na prawdziwych sesjach (bez zapisu i bez wypisywania treści): ten komputer 357 sesji, 2537 tur,
+Sprawdzone na prawdziwych sesjach Claude (bez zapisu i bez wypisywania treści): ten komputer 357 sesji, 2537 tur,
 85 888 itemów, 0 błędów, 1 sesja z porzuconą gałęzią; Mac Studio 116 sesji, 297 tur, 20 187 itemów, 0 błędów.
 
 ## Protokół
@@ -285,6 +295,31 @@ UI API (`proto/canopy/ui/v1/cli_import.proto`): `ScanImport`, `ListImportCandida
 `ListImportRuns`, `GetImportRun`, `CancelImportRun`, `ResumeImportRun`, `UndoImportRun`, `ContinueImportedThread`. `ui.Thread.import`
 (`agent_cli`, `mode`, `imported_at`) oznacza zaimportowany wątek. Metody nie są trasowane do połączonych
 komputerów.
+
+## Codex
+
+`apps/worker/src/import/codex-history.ts` prowadzi rollout przez mapper adaptera Codexa
+(`CodexEventMapper`, ten sam co dla wątków na żywo, oraz `threadItem` i `decodeResponseItem`):
+
+- **Tury:** `task_started` … `task_complete` (z `error` → `failed`) albo `turn_aborted` → `interrupted`;
+  `provider_turn_ref` = id tury Codexa, `model` z `turn_context`. Rekordy przed pierwszą turą
+  (`session_meta`) nie tworzą tury; pusta tura jest pomijana.
+- **Nowsze rollouty:** `event_msg item_completed` przez mapper (wiadomości, rozumowanie jako
+  `reasoning.summary`, komendy z wynikiem, zmiany plików, MCP, wyszukiwanie, subagenci); `UserMessage` daje
+  prompt tury, nie item. Surowe `response_item` dają wywołania powłoki bez itemu i komórki trybu kodu, na końcu
+  tury jak na żywo.
+- **Starsze rollouty** (bez `item_completed`): prompt z `event_msg user_message` (bez `task_started` otwiera
+  turę), odpowiedzi z `response_item message` asystenta, rozumowanie z podsumowań `response_item reasoning`,
+  komendy z `function_call` i wyniku przez mapper. `compacted` daje `context_compaction` tylko w rolloutach
+  bez itemów (nowsze zapisują kompaktowanie także jako item).
+- Wstrzyknięty kontekst Codexa (`<environment_context>`, `<user_instructions>`, `# AGENTS.md` …) nie jest
+  promptem.
+
+Odstępstwo od projektu: zamiast pomocniczego app-servera na kopii rolloutu starsze formaty czyta własne
+mapowanie z testem na syntetycznym rolloucie; wynik jest deterministyczny i nie uruchamia CLI.
+
+Sprawdzone na prawdziwych rolloutach (bez zapisu i bez wypisywania treści): ten komputer 366 wątków, 1093 tury,
+165 632 itemy, 317 kompaktowań, 0 błędów; Mac Studio 30 wątków, 295 tur, 18 916 itemów, 0 błędów.
 
 ## Model danych
 
@@ -398,9 +433,19 @@ Migracja `0093_cli_imports`:
   wątków na tych samych wątkach; żadnego `40P01`, każdy wątek ma dokładnie jedną żywą pozycję, a `last_seq`
   zgadza się ze zdarzeniami. Undo przebiegu, którego wątek kontynuował późniejszy import, jest odrzucane bez zmian.
   `apps/gateway/src/imports/locks.test.ts` pilnuje, że blokady i transakcje biorą się tylko z `importTransaction`.
+- **Adapter Codex** (`apps/worker/src/import/codex-history.test.ts`): tury, komenda z wynikiem i te same id
+  przy podziale na strony; syntetyczny starszy rollout (bez `item_completed`): wiadomości, rozumowanie,
+  wywołanie powłoki, kompaktowanie, przerwana i nieudana tura, niepoprawna linia.
+- **Wznowienie z prawdziwym Codexem** (`apps/worker/src/import/codex-resume.test.ts`, bez loginu): kopia
+  w prywatnym `CODEX_HOME`, `thread/resume` po id w prawdziwym app-serverze z atrapą modelu; żądanie zawiera
+  oba wcześniejsze prompty i wynik narzędzia.
+- **Integracja Codex** (`tests/integration/import-codex.test.ts`, atrapa app-servera
+  `fixtures/instance-codex.ts`, która wznawia też prawdziwy układ rolloutów): historia bez echa promptu,
+  komenda z wynikiem, rozumowanie, nietknięte rollouty; import natywny z kopią i `thread/resume` przy turze
+  w Canopy.
 - **Live** (`apps/worker/src/import/resume.live.test.ts`, `CANOPY_LIVE=1` z CLIProxyAPI): sesja zrobiona
-  prawdziwym Claude Code poza Canopy zapamiętuje słowo, import kopiuje ją do prywatnego domu, wznowiona tura
-  z prawdziwym modelem je podaje; pliki użytkownika nietknięte.
+  prawdziwym CLI poza Canopy zapamiętuje słowo, import kopiuje ją do prywatnego domu, wznowiona tura
+  z prawdziwym modelem je podaje; pliki użytkownika nietknięte. Claude Code i Codex.
 - **Wydajność** (`apps/worker/src/import/performance.test.ts`): wygenerowana sesja Claude
   (`CANOPY_IMPORT_PERF_MB`, domyślnie 160 MB, głównie cache żądań): skan poniżej 2 s, kilka stron, przyrost
   pamięci poniżej 400 MB. Lokalnie: 160 MB w 2,5 s, +68 MB (maskowanie z widokami zdekodowanymi i sprawdzaniem złączonych pól).
