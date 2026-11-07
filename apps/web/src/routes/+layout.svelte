@@ -7,6 +7,7 @@
   import AppShell from "#lib/features/navigation/AppShell.svelte";
   import QuitGuardOverlay from "#lib/features/desktop/QuitGuardOverlay.svelte";
   import { applyWindowState } from "#lib/features/desktop/window-chrome.ts";
+  import { holdFileDrops } from "#lib/features/attachments/file-intake.svelte.ts";
   import type { LayoutProps } from "./$types";
 
   let { children }: LayoutProps = $props();
@@ -17,6 +18,9 @@
 
     if (isDesktopRoute(path)) lastSettings = path;
   });
+
+  // A file dropped outside a drop target never replaces the app (browser tab or desktop window).
+  onMount(holdFileDrops);
 
   onMount(() => {
     const bridge = window.canopyDesktop;

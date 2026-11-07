@@ -59,6 +59,7 @@
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import { FileIntake, provideFileIntake } from "#lib/features/attachments/file-intake.svelte.ts";
+  import FileDropOverlay from "#lib/features/attachments/FileDropOverlay.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
   import { duration } from "#lib/shared/ui/motion.ts";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
@@ -511,7 +512,7 @@
       : "",
   );
 
-  // Files pasted anywhere in the thread (outside a text field) attach to its composer.
+  // Files pasted anywhere in the thread (outside a text field) or dropped on it attach to its composer.
   const intake = provideFileIntake(new FileIntake());
 </script>
 
@@ -524,7 +525,7 @@
   style:--panel-width={panelOpen ? "20rem" : "0rem"}
   data-collapsed={!panelOpen || undefined}
 >
-  <div class="flex min-w-0 flex-1 flex-col" {@attach intake.zone}>
+  <div class="relative flex min-w-0 flex-1 flex-col" {@attach intake.zone}>
     <TopBar>
       {#if thread}
         <Crumb
@@ -778,6 +779,7 @@
         </VirtualFeed>
       {/key}
     </div>
+    <FileDropOverlay {intake} />
   </div>
 
   <!-- Mounted while closed too, so it can ease out: the panel keeps its width on the column's left edge and fades, so

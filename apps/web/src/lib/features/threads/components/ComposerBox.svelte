@@ -40,7 +40,7 @@
    * `canSend = false` keeps the box editable but holds the message (say why next to it); `disabled` locks both.
    * The send slot eases to the width of what it holds (send, stop, steer), so the pills glide aside.
    * Attachments (`draft`): files dropped on the box or pasted into it (screenshots, copied images, files copied in a
-   * file manager), pasted anywhere in the window (`FileIntake`) or picked from the "+" menu become badges in the text at the caret (docs/ui-api.md, "Załączniki w tekście"); each badge
+   * file manager), pasted anywhere in the window or dropped on it (`FileIntake`) or picked from the "+" menu become badges in the text at the caret (docs/ui-api.md, "Załączniki w tekście"); each badge
    * shows its upload, a tap previews it (an image in the Lightbox, a file's card), and a file goes with its badge.
    * With files a message may go without text.
    * Mentions (`sources`, docs/ui-api.md "Wzmianki"): the text field takes "/", "$", "@" and "#" chips
@@ -219,7 +219,7 @@
     if (pasted.files.length > 0) onfiles(pasted.files);
   }
 
-  // Files pasted elsewhere in the window come here.
+  // Files pasted or dropped elsewhere in the window come here.
   const intake = useFileIntake();
 
   $effect(() => {
@@ -231,8 +231,8 @@
 
     return intake.register({
       root,
-      files: (list) => {
-        onexpand?.("paste");
+      files: (list, how) => {
+        onexpand?.(how);
         take(list);
       },
       notice: (text) => (files.notice = text),

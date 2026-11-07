@@ -701,3 +701,28 @@
     box-shadow: 0 0 0 --spacing(1.5) color-mix(in oklab, var(--color-amber-400) 18%, transparent);
   }
 }
+
+/* Drop overlay (FileDropOverlay): fades in on --duration-fast while files hover, out on --duration-quick; its label
+ * settles from the modal scale. Reduced motion keeps the fade only (the scale tokens are 1). */
+.t-drop {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--duration-quick) var(--ease-smooth-out),
+    visibility 0s linear var(--duration-quick);
+}
+.t-drop[data-open] {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity var(--duration-fast) var(--ease-smooth-out),
+    visibility 0s;
+}
+.t-drop-label {
+  scale: var(--scale-large);
+  transition: scale var(--duration-quick) var(--ease-smooth-out);
+}
+.t-drop[data-open] .t-drop-label {
+  scale: 1;
+  transition-duration: var(--duration-fast);
+}

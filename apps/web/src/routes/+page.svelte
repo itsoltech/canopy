@@ -14,6 +14,7 @@
   import WorkerPicker from "#lib/features/projects/WorkerPicker.svelte";
   import ComposerBox from "#lib/features/threads/components/ComposerBox.svelte";
   import { FileIntake, provideFileIntake } from "#lib/features/attachments/file-intake.svelte.ts";
+  import FileDropOverlay from "#lib/features/attachments/FileDropOverlay.svelte";
   import { AttachmentDraft, limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import type { Mention } from "@canopy/contracts";
@@ -159,7 +160,7 @@
   // Files of the first message (uploaded as added; their ids go with the form).
   const draft = new AttachmentDraft(() => limitsOf(settings.attachmentLimits));
 
-  // Files pasted anywhere on the page (outside a text field) attach to the message.
+  // Files pasted anywhere on the page (outside a text field) or dropped on it attach to the message.
   const intake = provideFileIntake(new FileIntake());
   let busy = $state(false);
   const clientRequestId = crypto.randomUUID();
@@ -202,7 +203,7 @@
 
 <svelte:head><title>New thread · Canopy</title></svelte:head>
 
-<div class="flex h-full flex-col" {@attach intake.zone}>
+<div class="relative flex h-full flex-col" {@attach intake.zone}>
   <TopBar>
     <Crumb current={false}
       >{#snippet mark()}<ProjectMark
@@ -342,4 +343,5 @@
       {/if}
     </div>
   </div>
+  <FileDropOverlay {intake} />
 </div>
