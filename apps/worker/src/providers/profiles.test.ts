@@ -103,7 +103,7 @@ describe("claudeProfileOptions", () => {
 });
 
 describe("codexAppServerLaunch", () => {
-  test("native only: plain app-server, no overrides", () => {
+  test("native only: selects the device-login provider", () => {
     expect(codexAppServerLaunch(resolved([]), ENV).command).toEqual([
       "codex",
       "app-server",
@@ -119,6 +119,8 @@ describe("codexAppServerLaunch", () => {
       "features.apps=false",
       "-c",
       "agents.enabled=false",
+      "-c",
+      'model_provider="openai"',
     ]);
   });
 

@@ -35,6 +35,11 @@ mkdirSync(join(home, "sessions"), { recursive: true });
 recordProbe("codex", "spawn");
 
 const providers = new Map<string, string>();
+
+// App-server checks both routes at turn admission, beyond accepting modelProvider on start/resume.
+const currentProvider =
+  process.argv.flatMap((arg) => /^model_provider="([a-z0-9_-]+)"$/.exec(arg)?.[1] ?? []).at(-1) ?? "openai";
+
 const botServers = new Map<string, ReturnType<typeof codexBotConfig>>();
 const instructions = new Map<string, string>();
 const interrupted = new Set<string>();
@@ -52,6 +57,19 @@ async function turn(
   const turnId = crypto.randomUUID();
   const threadId = params.threadId;
   const text = params.input.map((i) => i.text ?? "").join("\n");
+
+  if (providers.get(threadId) !== currentProvider || text === "FAIL:provider-switch") {
+    send({
+      id,
+      error: {
+        code: -32600,
+        message: `This chat uses ${providers.get(threadId)}, but your current provider is ${text === "FAIL:provider-switch" ? "other" : currentProvider}. Switch to ${providers.get(threadId)} to continue.`,
+      },
+    });
+
+    return;
+  }
+
   send({ id, result: { turn: { id: turnId, status: "inProgress", items: [], error: null } } });
   notify("turn/started", { threadId, turn: { id: turnId, status: "inProgress", items: [], error: null } });
   recordProbe("codex", "turn", threadId, providers.get(threadId));
