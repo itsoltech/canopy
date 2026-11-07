@@ -117,7 +117,7 @@
 
     <SettingsGroup
       title="Settings and library"
-      description="Defaults for new threads, instructions, skills and marketplaces. Undo puts back what was there, unless you changed it since."
+      description="Defaults for new threads, instructions, skills, marketplaces and MCP servers. Undo puts back what was there, unless you changed it since."
     >
       <ImportLibrary library={imports.library} />
     </SettingsGroup>

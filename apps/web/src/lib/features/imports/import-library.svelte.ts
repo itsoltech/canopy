@@ -16,6 +16,8 @@ export class ImportLibraryState {
   error = $state("");
   /** key → action (import | replace | keep_both). */
   chosen = $state(new Map<string, string>());
+  /** key → header names whose value the owner chose to bring from the CLI file (none by default). */
+  secrets = $state(new Map<string, ReadonlySet<string>>());
 
   async load(scanId: string): Promise<void> {
     this.loading = true;
@@ -24,6 +26,7 @@ export class ImportLibraryState {
     try {
       this.items = (await listImportLibrary(scanId)).items;
       this.chosen = new Map(this.items.filter((i) => i.suggested).map((i) => [i.key, "import"]));
+      this.secrets = new Map();
     } catch (error) {
       this.items = [];
       this.chosen = new Map();
@@ -77,8 +80,22 @@ export class ImportLibraryState {
     return this.chosen.get(key) ?? "";
   }
 
-  choices(): { key: string; action: string }[] {
-    return [...this.chosen].map(([key, action]) => ({ key, action }));
+  choices(): { key: string; action: string; secrets: string[] }[] {
+    return [...this.chosen].map(([key, action]) => ({ key, action, secrets: [...(this.secrets.get(key) ?? [])] }));
+  }
+
+  hasSecret(key: string, name: string): boolean {
+    return this.secrets.get(key)?.has(name) ?? false;
+  }
+
+  toggleSecret(key: string, name: string, on: boolean): void {
+    const next = new Map(this.secrets);
+    const names = new Set(next.get(key));
+
+    if (on) names.add(name);
+    else names.delete(name);
+    next.set(key, names);
+    this.secrets = next;
   }
 
   get count(): number {

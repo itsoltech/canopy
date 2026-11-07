@@ -118,6 +118,12 @@ export const SETTINGS: Readonly<Record<AgentCli, (config: JsonObject) => Setting
   grok: grokSettings,
 };
 
+/** Where a CLI keeps model providers with their own endpoint. */
+const PROVIDER_TABLES = new Map<AgentCli, string>([
+  ["codex", "model_providers"],
+  ["grok", "model"],
+]);
+
 /** Parts of a settings file that stay out of Canopy, each with its reason (shown, never imported). */
 export function leftOut(cli: AgentCli, config: JsonObject): { name: string; reason: string }[] {
   const present = (key: string) => config[key] !== undefined && !emptyValue(config[key]);
@@ -137,6 +143,12 @@ export function leftOut(cli: AgentCli, config: JsonObject): { name: string; reas
   }
 
   if (cli === "codex" && present("notify")) out.push({ name: "Notify", reason: hooks });
+  // Model providers with their own endpoint: Canopy keeps them as proxies, with a key entered there.
+  const providers = config[PROVIDER_TABLES.get(cli) ?? ""];
+
+  for (const [name, entry] of Object.entries(isJsonObject(providers) ? providers : {}))
+    if (isJsonObject(entry) && jsonString(entry["base_url"]))
+      out.push({ name: `Model provider ${name}`, reason: "Add it in Proxies, with its key." });
 
   return out;
 }

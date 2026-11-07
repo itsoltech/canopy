@@ -9,6 +9,7 @@ import {
 } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
 import { Effect, Schema } from "effect";
+import type { SqlClient } from "effect/sql";
 import { GatewayStore } from "../store/store.ts";
 import type { CoreRuntime } from "../core/core.ts";
 import { mcpCall, mcpTools } from "../bots/mcp.ts";
@@ -73,8 +74,11 @@ export class ConnectorsRuntime {
 
     return create(connectors.ListConnectorsResponseSchema, { types: connectorCatalog(apps), accounts });
   }
-  save(request: connectors.SaveConnectorAccountRequest) {
-    return this.run((s) => s.save(this.options.userId, request));
+  save(
+    request: connectors.SaveConnectorAccountRequest,
+    receipt?: (sql: SqlClient.SqlClient, account: connectors.ConnectorAccount) => Effect.Effect<void>,
+  ) {
+    return this.run((s) => s.save(this.options.userId, request, receipt));
   }
   access(request: connectors.SetConnectorAccessRequest) {
     return this.run((s) => s.access(this.options.userId, request));
@@ -295,8 +299,16 @@ export class ConnectorsRuntime {
 
     return account;
   }
-  async remove(id: string) {
-    await this.run((s) => s.remove(this.options.userId, id));
+  /** "changed" when `expectedRevision` no longer matches (the account stays). */
+  async remove(
+    id: string,
+    options?: {
+      readonly expectedRevision?: bigint;
+      readonly receipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>;
+      readonly changedReceipt?: (sql: SqlClient.SqlClient) => Effect.Effect<void>;
+    },
+  ) {
+    return this.run((s) => s.remove(this.options.userId, id, options));
   }
   async call(
     source: ExecutionSource,

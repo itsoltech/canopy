@@ -320,7 +320,7 @@ describe.skipIf(!dockerAvailable)("CLI import: settings and instructions", () =>
 
     // A restore whose receipt has no item to land on is rolled back: nothing changes without its record.
     expect(
-      await new LibraryApply(f.gw.core).undo({ ...row!, id: crypto.randomUUID() }).then(
+      await new LibraryApply(f.gw.core, f.sql).undo({ ...row!, id: crypto.randomUUID() }).then(
         () => "restored",
         () => "rolled back",
       ),

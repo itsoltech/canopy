@@ -1,6 +1,7 @@
 syntax = "proto3";
 package canopy.ui.v1;
 
+import "canopy/worker/v1/cli_import.proto";
 import "google/protobuf/timestamp.proto";
 
 // Settings → Import (docs/import.md): wątki z Claude Code, Codexa i Groka na workerze właściciela.
@@ -238,6 +239,9 @@ message ImportLibraryCandidate {
   // Skill znaleziony w kilku CLI z tą samą treścią: jedna pozycja dla wszystkich.
   repeated string agent_clis = 14;
   uint32 files = 15;
+  // connector: transport i nagłówki z sekretami (nazwy i rodzaj, nigdy wartości).
+  string transport = 16;
+  repeated canopy.worker.v1.ImportSecretSlot slots = 17;
 }
 
 message ListImportLibraryResponse {
@@ -248,6 +252,8 @@ message ListImportLibraryResponse {
 message ImportLibraryChoice {
   string key = 1;
   string action = 2;
+  // connector: nagłówki z wartością w pliku CLI, które właściciel zgadza się przenieść (domyślnie żadne).
+  repeated string secrets = 3;
 }
 
 message ImportLibraryResult {

@@ -1,12 +1,13 @@
 import { expect, test } from "bun:test";
-import { appendFileSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { create } from "@bufbuild/protobuf";
-import { ReadImportLibraryItemSchema } from "@canopy/contracts";
+import { create, toJsonString } from "@bufbuild/protobuf";
+import { ImportScanSchema, ReadImportLibraryItemSchema, ReadImportSecretSchema } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
 import { installFixtureHome, installLibraryFixture, treeFingerprint } from "./fixtures/install.ts";
 import { URL_BOUNDARIES } from "./fixtures/url-boundaries.ts";
 import { readImportLibraryItem } from "./library-read.ts";
+import { readImportSecret } from "./library-secret.ts";
 import { WorkerImport } from "./service.ts";
 import { signSourceKey } from "./source-key.ts";
 
@@ -30,6 +31,7 @@ function setup() {
       codex: join(home, ".codex"),
       grok: join(home, ".grok"),
       agents: join(home, ".agents"),
+      claudeAccount: home,
     }),
     config: () => undefined,
   });
@@ -307,4 +309,91 @@ test("marketplace and server URLs with credentials are listed masked and never i
     source: "https://git.example.test/docs.git?design=compact#authentication",
     reason: "",
   });
+});
+
+const secretOf = (
+  service: WorkerImport,
+  item: { sourceKey: string; digest: string },
+  slot: string,
+  confirmation = "c".repeat(64),
+) =>
+  readImportSecret(
+    service,
+    create(ReadImportSecretSchema, { sourceKey: item.sourceKey, slot, confirmation, digest: item.digest }),
+  );
+
+test("MCP servers: remote ones with their secret slots by name only, stdio ones with why they stay out", async () => {
+  const { service } = setup();
+  const scan = await service.scan([]);
+
+  const of = (cli: string, name: string) =>
+    scan.library.find((i) => i.kind === "connector" && i.agentCli === cli && i.name === name);
+
+  const remote = of("claude", "fixture-remote")!;
+  expect(remote).toMatchObject({ transport: "http", detail: "https://mcp.example.invalid/mcp", reason: "" });
+  expect(remote.slots.map((s) => [s.name, s.kind, s.variable])).toEqual([
+    ["Authorization", "env", "FIXTURE_TOKEN"],
+    ["X-Team", "literal", ""],
+  ]);
+  expect(of("claude", "fixture-project (project)")).toMatchObject({ transport: "sse" });
+  expect(of("claude", "fixture-local")?.reason).toContain("Runs a command on this computer");
+  expect(of("codex", "fixture-codex")?.slots.map((s) => [s.name, s.kind, s.variable])).toEqual([
+    ["Authorization", "env", "FIXTURE_CODEX_TOKEN"],
+  ]);
+  expect(of("codex", "fixture-stdio")?.reason).toContain("Runs a command");
+  expect(scan.library.find((i) => i.name === "Model provider fixture-proxy")?.reason).toContain("Proxies");
+  // No value leaves the worker with the scan.
+  expect(toJsonString(ImportScanSchema, scan)).not.toContain("fixture-team-value-0001");
+});
+
+test("nested MCP slot names and variable metadata use the same masking entry point", async () => {
+  const { service, home } = setup();
+  const secret = "SLOT_CANARY_CREDENTIAL_0042";
+  writeFileSync(join(home, ".claude", ".credentials.json"), JSON.stringify({ token: secret }));
+  writeFileSync(
+    join(home, ".claude.json"),
+    JSON.stringify({
+      mcpServers: {
+        nested: {
+          type: "http",
+          url: "https://mcp.example.test/mcp",
+          headers: {
+            [secret]: "literal-fixture-value",
+            Authorization: `Bearer ${"${"}${secret}}`,
+          },
+        },
+      },
+    }),
+  );
+  writeFileSync(
+    join(home, ".codex", "config.toml"),
+    `[mcp_servers.nested]\nurl = "https://mcp.example.test/mcp?unused"\n[mcp_servers.nested.env_http_headers]\nX-Test = "${secret}"\n`,
+  );
+  const scan = await service.scan([]);
+  const slots = scan.library.filter((i) => i.kind === "connector").flatMap((i) => i.slots);
+  expect(slots.some((slot) => slot.name === "[redacted]")).toBe(true);
+  expect(slots.some((slot) => slot.variable === "[redacted]")).toBe(true);
+  expect(toJsonString(ImportScanSchema, scan).includes(secret)).toBe(false);
+});
+
+test("a secret is read only for a literal slot of a listed server, with a confirmation, as scanned", async () => {
+  const { service, home } = setup();
+  const remote = (await service.scan(["claude"])).library.find((i) => i.name === "fixture-remote")!;
+
+  expect(secretOf(service, remote, "X-Team").value).toBe("fixture-team-value-0001");
+  expect(secretOf(service, remote, "X-Team", "c".repeat(64)).confirmation).toBe("c".repeat(64));
+  // Without the owner's confirmation, for a variable, for a header the server lacks: nothing.
+  expect(() => secretOf(service, remote, "X-Team", "")).toThrow("owner's confirmation");
+  expect(() => secretOf(service, remote, "Authorization")).toThrow("no value in the file");
+  expect(() => secretOf(service, remote, "X-Other")).toThrow("no value in the file");
+  // A key of another kind (an instruction file, a skill) reads no secret.
+  const doc = (await service.scan(["claude"])).library.find((i) => i.name === "CLAUDE.md")!;
+  expect(() => secretOf(service, doc, "X-Team")).toThrow("not an MCP server");
+  // The definition changed since the scan: scan again.
+  const path = join(home, ".claude.json");
+  writeFileSync(
+    path,
+    readFileSync(path, "utf8").replace("https://mcp.example.invalid/mcp", "https://other.example.invalid/mcp"),
+  );
+  expect(() => secretOf(service, remote, "X-Team")).toThrow("changed since the scan");
 });

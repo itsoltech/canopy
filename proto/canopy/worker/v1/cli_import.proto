@@ -89,7 +89,7 @@ message ImportLibraryItem {
   string source_key = 1;
   string agent_cli = 2;
   string root_id = 3;
-  // setting | instruction | skill | command | marketplace | plugin
+  // setting | instruction | skill | command | marketplace | plugin | connector
   string kind = 4;
   // Stała nazwa w katalogu CLI: model, permissions, CLAUDE.md, AGENTS.md.
   string name = 5;
@@ -107,6 +107,34 @@ message ImportLibraryItem {
   uint32 files = 12;
   string source = 13;
   string version = 14;
+  // connector: http | sse, i miejsca na sekrety (nazwy i rodzaj, nigdy wartości).
+  string transport = 15;
+  repeated ImportSecretSlot slots = 16;
+}
+
+// Nagłówek serwera MCP, który niesie sekret. Wartość zostaje na workerze, dopóki właściciel jej nie wybierze.
+message ImportSecretSlot {
+  // Nazwa nagłówka (Authorization dla bearer).
+  string name = 1;
+  // literal: wartość jest w pliku CLI; env: plik wskazuje zmienną środowiskową (nigdy odczytywaną).
+  string kind = 2;
+  // Zmienna środowiskowa przy env (do wyświetlenia).
+  string variable = 3;
+}
+
+// Wartość jednego nagłówka z wartością w pliku, tylko na potwierdzenie właściciela (jednorazowy token gatewaya).
+// Nietrwała: nigdy z outboxa ani journala.
+message ReadImportSecret {
+  string source_key = 1;
+  string slot = 2;
+  string confirmation = 3;
+  string digest = 4;
+}
+
+message ImportSecretValue {
+  // Token z żądania: gateway sprawdza go i zużywa.
+  string confirmation = 1;
+  string value = 2;
 }
 
 // Treść jednej pozycji biblioteki, po maskowaniu sekretów. digest z ImportLibraryItem: zmieniony plik = błąd.

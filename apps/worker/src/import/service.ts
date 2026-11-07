@@ -29,6 +29,8 @@ export interface ImportHomes {
   readonly grok: string;
   /** `~/.agents`: skills the device's CLIs share (Codex reads `skills/` there); library items only. */
   readonly agents?: string;
+  /** The directory of Claude's `.claude.json` (MCP servers) when it is not the Claude home itself (`~`). */
+  readonly claudeAccount?: string;
 }
 
 type RootInit = MessageInitShape<typeof ImportRootSchema>;
@@ -117,11 +119,20 @@ export class WorkerImport {
     return real ? { id: rootId(this.key, "codex", real), agentCli: "codex", path: real } : undefined;
   }
 
-  /** Roots library keys resolve in: the CLI homes and `~/.agents`. */
+  /** The directory of `~/.claude.json`, as a root for its MCP servers only (see libraryPlace). */
+  accountRoot(): ImportRootPath | undefined {
+    const path = this.#homes().claudeAccount;
+    const real = path ? realDirectory(path) : undefined;
+
+    return real ? { id: rootId(this.key, "claude", `${real}#account`), agentCli: "claude", path: real } : undefined;
+  }
+
+  /** Roots library keys resolve in: the CLI homes, `~/.agents` and the directory of `~/.claude.json`. */
   libraryRoots(): ImportRootPath[] {
     const shared = this.agentsRoot();
+    const account = this.accountRoot();
 
-    return [...this.roots().roots, ...(shared ? [shared] : [])];
+    return [...this.roots().roots, ...(shared ? [shared] : []), ...(account ? [account] : [])];
   }
 
   /** The CLI of the root a source key names ("" when the root is unknown here). */
@@ -143,10 +154,12 @@ export class WorkerImport {
     const masker = this.masker(this.roots().roots);
     const threads: SummaryInit[] = [];
     const shared = agentClis.length === 0 || agentClis.includes("codex") ? this.agentsRoot() : undefined;
+    const account = agentClis.length === 0 || agentClis.includes("claude") ? this.accountRoot() : undefined;
 
     const library: LibraryItemInit[] = [
       ...roots.flatMap((root) => collectLibrary(root, this.key, masker)),
-      ...(shared ? collectLibrary(shared, this.key, masker, true) : []),
+      ...(shared ? collectLibrary(shared, this.key, masker, "agents") : []),
+      ...(account ? collectLibrary(account, this.key, masker, "account") : []),
     ];
 
     let truncated = false;

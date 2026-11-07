@@ -89,7 +89,7 @@ export async function importFixture(
       codex: join(home, ".codex"),
       grok: join(home, ".grok"),
       // The fixture's own ~/.agents (never the machine's): its skills are listed for import.
-      ...(options.library && { agents: join(home, ".agents", "skills") }),
+      ...(options.library && { agents: join(home, ".agents", "skills"), claudeAccount: home }),
     },
     // The fake Grok CLI has no login of its own to probe (like the instance fixture's probe).
     ...(options.grok && {

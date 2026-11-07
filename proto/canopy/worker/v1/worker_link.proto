@@ -406,6 +406,8 @@ message Command {
     RemoveImportedCopy remove_imported_copy = 853;
     // Ustawienia i biblioteka (capability cli_import_library_v1).
     ReadImportLibraryItem read_import_library_item = 854;
+    // Sekret serwera MCP na potwierdzenie właściciela; wynik nigdy nie jest zapisywany ani logowany.
+    ReadImportSecret read_import_secret = 855;
   }
 }
 
@@ -655,6 +657,8 @@ message CommandResult {
   string imported_session_id = 852;
   // Wynik ReadImportLibraryItem.
   ImportLibraryContent import_library_content = 853;
+  // Wynik ReadImportSecret.
+  ImportSecretValue import_secret = 854;
 }
 
 message GetProviderAccounts {

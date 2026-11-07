@@ -165,3 +165,59 @@ export function pluginCandidates(items: readonly ImportLibraryItem[]): ui.Import
     }),
   );
 }
+
+/**
+ * MCP servers as connector account drafts (docs/import.md, "Serwery MCP"): one per server, with its secret slots.
+ * An account with the same endpoint is *Same in Canopy*. A new one has no access until the owner grants it.
+ */
+export function connectorCandidates(
+  items: readonly ImportLibraryItem[],
+  context: LibraryContext,
+  live: ReadonlySet<string>,
+): ui.ImportLibraryCandidate[] {
+  return items.flatMap((item) => (item.kind === "connector" ? [connectorCandidate(item, context, live)] : []));
+}
+
+export function unsafeConnectorUrl(value: string): boolean {
+  const { url, credential } = inspectImportUrl(value);
+
+  return (
+    credential || !url || !["http:", "https:"].includes(url.protocol) || !!url.search || SECRET_IN_SOURCE.test(value)
+  );
+}
+
+function connectorCandidate(
+  item: ImportLibraryItem,
+  context: LibraryContext,
+  live: ReadonlySet<string>,
+): ui.ImportLibraryCandidate {
+  const common = {
+    ...base([item]),
+    detail: displayImportUrl(item.detail),
+    transport: item.transport,
+    slots: [...item.slots],
+  };
+
+  if (item.reason)
+    return create(ui.ImportLibraryCandidateSchema, { ...common, status: "unavailable", reason: item.reason });
+
+  // Fail closed whatever the worker checked: a URL with user info or masked parts never becomes an account.
+  if (unsafeConnectorUrl(item.detail) || SECRET_IN_SOURCE.test(item.value))
+    return create(ui.ImportLibraryCandidateSchema, {
+      ...common,
+      status: "unavailable",
+      reason: "Its URL may hold a secret (user, password or query). Add it in Connectors.",
+    });
+
+  if (live.has(liveKey(item))) return create(ui.ImportLibraryCandidateSchema, { ...common, status: "imported" });
+
+  if (context.connectors.some((a) => a.connectorType === "custom" && a.url === item.detail))
+    return create(ui.ImportLibraryCandidateSchema, { ...common, status: "same" });
+
+  return create(ui.ImportLibraryCandidateSchema, {
+    ...common,
+    status: "new",
+    proposed: "New connected account, with no access yet",
+    suggested: true,
+  });
+}
