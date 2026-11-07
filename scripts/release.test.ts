@@ -50,6 +50,7 @@ function fixture() {
   copyFileSync(join(root, "release.config.mjs"), join(cwd, "canopy.config.mjs"));
   copyFileSync(join(root, "scripts/release-analyzer.mjs"), join(cwd, "scripts/release-analyzer.mjs"));
   copyFileSync(join(root, "scripts/release-expected-version.mjs"), join(cwd, "scripts/release-expected-version.mjs"));
+  copyFileSync(join(root, "scripts/semantic-release.mjs"), join(cwd, "scripts/semantic-release.mjs"));
   writeFileSync(
     join(cwd, "release.config.mjs"),
     'import config from "./canopy.config.mjs"; export default { ...config, plugins: config.plugins.filter((plugin) => !(Array.isArray(plugin) && plugin[0] === "@semantic-release/github")) };\n',
@@ -98,12 +99,51 @@ function fixture() {
 
   return {
     git,
+    cwd,
     remoteTags,
     dryRun: () => run(),
     publishLocally: (expectedVersion?: string) => run(false, expectedVersion),
     cleanup: () => rmSync(dir, { recursive: true, force: true }),
   };
 }
+
+test("Release accepts the event SHA and rejects moved push snapshots and mismatched dispatches", () => {
+  const repo = fixture();
+  const expected = repo.git("rev-parse", "HEAD");
+
+  const run = (expectedSha: string) =>
+    Bun.spawnSync(["bun", "scripts/semantic-release.mjs", "--dry-run"], {
+      cwd: repo.cwd,
+      env: {
+        ...process.env,
+        GH_TOKEN: "",
+        GITHUB_TOKEN: "",
+        GITHUB_ACTIONS: "",
+        CI: "",
+        GITHUB_OUTPUT: join(repo.cwd, "release-output"),
+        EXPECTED_SHA: expectedSha,
+        GITHUB_REF: "refs/heads/main",
+        GITHUB_REF_TYPE: "branch",
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+  const current = run(expected);
+  expect(current.exitCode).toBe(0);
+  expect(current.stdout.toString()).toContain("published=false");
+  repo.git("commit", "--allow-empty", "-m", "fix: branch moved");
+  const newer = repo.git("rev-parse", "HEAD");
+  repo.git("push", "origin", "main");
+  repo.git("checkout", "--detach", expected);
+  const push = run(expected);
+  expect(push.exitCode).not.toBe(0);
+  expect(push.stderr.toString()).toContain("Branch moved since Release started");
+  const dispatch = run(newer);
+  expect(dispatch.exitCode).not.toBe(0);
+  expect(dispatch.stderr.toString()).toContain("Branch moved since promotion");
+  expect(repo.remoteTags()).toEqual(["v0.1.0"]);
+});
 
 test("bootstrap branches produce no release, then feat produces stable, beta and nightly 0.2.0", async () => {
   const repo = fixture();

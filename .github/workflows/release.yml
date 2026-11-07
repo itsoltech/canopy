@@ -2,7 +2,7 @@
 # `plan` decides whether to release before dev checks/builds; nothing is
 # tagged, pushed to GHCR or uploaded before `checks` pass. Server artifacts are published first; desktop builds
 # (macOS notarization) publish later. All dev events share one active run and only the newest pending run;
-# beta/stable keep independent runs. GITHUB_TOKEN tags do not trigger another workflow.
+# each branch has its own queue. GITHUB_TOKEN tags do not trigger another workflow.
 name: Release
 
 on:
@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: Expected branch HEAD (manual release or Promote/back-merge; reject a moved branch)
+        description: Expected branch HEAD (manual release or dev back-merge; reject a moved branch)
         required: true
         type: string
       desktop_all_targets:
@@ -30,9 +30,9 @@ permissions:
   contents: read
 
 # GitHub replaces an older pending run in this group, but never cancels its active run (which may be
-# publishing). Dev schedule and dispatch share the lock; beta/stable/tags keep independent runs.
+# publishing). Push, schedule and dispatch share the branch lock; tags have their own locks.
 concurrency:
-  group: release-${{ github.ref == 'refs/heads/dev' && github.ref || github.run_id }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -78,7 +78,7 @@ jobs:
       - id: plan
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_SHA: ${{ inputs.expected_sha || github.sha }}
         run: node scripts/semantic-release.mjs --dry-run
       # Nightly skips the experimental targets unless the dispatch asks for them; beta and stable build all.
       - id: matrix
@@ -120,7 +120,7 @@ jobs:
       - id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_SHA: ${{ inputs.expected_sha || github.sha }}
           EXPECTED_VERSION: ${{ needs.plan.outputs.version }}
         run: node scripts/semantic-release.mjs
       - name: Same version as planned
@@ -138,7 +138,7 @@ jobs:
   # A later scheduled/dispatched dev run picks up the commits. Stop builds, including macOS notarization.
   stop-builds:
     needs: [plan, checks, release]
-    if: always() && needs.plan.outputs.published == 'true' && (needs.checks.result == 'failure' || needs.release.result == 'cancelled' || (needs.release.result == 'success' && needs.release.outputs.published != 'true'))
+    if: always() && needs.plan.outputs.published == 'true' && (needs.checks.result == 'failure' || needs.release.result == 'failure' || needs.release.result == 'cancelled' || (needs.release.result == 'success' && needs.release.outputs.published != 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -151,7 +151,7 @@ jobs:
           if [ "$CHECKS" = failure ]; then
             echo "::error::Checks failed; nothing is published and the builds are stopped."
           else
-            echo "::notice::Branch moved; a later Release run must pick up these commits."
+            echo "::notice::Release did not publish; inspect its result before retrying."
           fi
           gh run cancel "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY"
 
@@ -552,6 +552,8 @@ jobs:
     uses: ./.github/workflows/backmerge.yml
     with:
       stable_sha: ${{ github.sha }}
+    secrets:
+      RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
     permissions:
       contents: write
       pull-requests: write

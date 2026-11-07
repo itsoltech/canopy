@@ -129,11 +129,11 @@ export async function runPromotion(
 
   if (options.dryRun) return { input, plan, version, next };
 
-  if (resumePromotion(repo, input, adapters, options.override)) {
+  if (resumePromotion(repo, input, adapters)) {
     if (summaryPath)
       appendFileSync(
         summaryPath,
-        "Handled pending Release (re-dispatched or held after rechecking its original range); no new promotion in this cycle.\n",
+        "Recovered promotion history after its push; Release is triggered by that push. No new promotion in this cycle.\n",
       );
 
     return { input, plan, version };
@@ -161,7 +161,7 @@ export async function runPromotion(
     for (const commit of rechecked.commits) commit.prs = commit.prs.map((pr) => ({ ...pr, hold: false }));
 
   if (selectPromotion(rechecked).sha !== plan.sha) throw new Error("Promotion gates changed during selection");
-  // Durable intent recovers a successful push followed by a failed dispatch on the next scheduled cycle.
+  // Record intent before pushing; a failed history update must never cause a second Release dispatch.
   const issue = preparePromotion(repo, path, plan.sha, summary, adapters);
   adapters.git("push", "origin", `${plan.sha}:refs/heads/${target}`);
   finishPromotion(repo, target, plan.sha, issue, adapters);

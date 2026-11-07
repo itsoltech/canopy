@@ -124,7 +124,7 @@ function fixture() {
   return { git, baseline, remote, commit, release, adapters, writes, issues, blockers, pulls, runs };
 }
 
-test("promotes an ancestor with a fully soaked fix, dispatches its SHA, and leaves newer dev commits behind", async () => {
+test("promotes a soaked ancestor, relies on the push for Release, and leaves newer dev commits behind", async () => {
   const f = fixture();
   f.commit("feat: original", 50);
   const fix = f.commit("fix: correction", 49);
@@ -135,10 +135,8 @@ test("promotes an ancestor with a fully soaked fix, dispatches its SHA, and leav
   expect(result.version).toBe("0.2.0-beta.1");
   expect(f.git("ls-remote", "origin", "refs/heads/next")).toStartWith(fix);
   expect(f.git("ls-remote", "origin", "refs/heads/dev")).toStartWith(head);
-  expect(f.writes.find((write) => write.path.includes("/dispatches"))?.body).toEqual({
-    ref: "next",
-    inputs: { expected_sha: fix },
-  });
+  expect(f.writes.some((write) => write.path.includes("/dispatches"))).toBe(false);
+  expect(JSON.stringify(f.writes.at(-1)?.body)).toContain(`Pushed ${fix} to next; Release is triggered by the push`);
 });
 
 test("dry-run, pause, blockers, docs-only and empty ranges never mutate git or GitHub", async () => {
@@ -221,6 +219,7 @@ test("stable promotes an older published beta and measures burn-in from the mani
   expect(result.plan.sha).toBe(old);
   expect(result.version).toBe("0.2.0");
   expect(f.git("ls-remote", "origin", "refs/heads/main")).toStartWith(old);
+  expect(f.writes.some((write) => write.path.includes("/dispatches"))).toBe(false);
 });
 
 test("diverged histories and concurrent target changes cannot result in a non-fast-forward promotion", async () => {
@@ -286,7 +285,7 @@ test("manual override bypasses soak/pause/hold and still uses the same fast-forw
   for (const value of ["-1", "1.5", "NaN", "366"]) expect(() => burnInDays(value)).toThrow();
 });
 
-test("a failed dispatch is resumed from the journal even after target catches up to source", async () => {
+test("a failed history update is repaired without dispatching or pushing again after target catches source", async () => {
   const f = fixture();
   const sha = f.commit("feat: original", 50);
   f.release(sha, "v0.2.0-nightly.1");
@@ -294,26 +293,33 @@ test("a failed dispatch is resumed from the journal even after target catches up
   const broken: PromotionAdapters = {
     ...f.adapters,
     api(path, method, body) {
-      if (path.includes("/dispatches")) throw new Error("GitHub dispatch unavailable");
+      if (method === "PATCH") throw new Error("GitHub history update unavailable");
 
       return f.adapters.api(path, method, body);
     },
   };
 
   await expect(runPromotion("fixture/canopy", "dev-next", options, broken, now)).rejects.toThrow(
-    "dispatch unavailable",
+    "history update unavailable",
   );
   expect(f.git("ls-remote", "origin", "refs/heads/next")).toStartWith(sha);
   const pending = f.writes.find((write) => write.path.endsWith("/issues"))?.body;
   f.issues.push({ number: 99, title: "Promotion history: dev-next", body: JSON.parse(JSON.stringify(pending)).body });
-  const result = await runPromotion("fixture/canopy", "dev-next", options, f.adapters, now);
+
+  const recovered: PromotionAdapters = {
+    ...f.adapters,
+    git(...args) {
+      if (args[0] === "push") throw new Error("Recovery must not push again");
+
+      return f.git(...args);
+    },
+  };
+
+  const result = await runPromotion("fixture/canopy", "dev-next", options, recovered, now);
   expect(result.plan.sha).toBe(sha);
-  expect(f.writes.find((write) => write.path.includes("/dispatches"))?.body).toEqual({
-    ref: "next",
-    inputs: { expected_sha: sha },
-  });
+  expect(f.writes.some((write) => write.path.includes("/dispatches"))).toBe(false);
   const status = JSON.stringify(f.writes.at(-1)?.body);
-  expect(status).toContain("Release dispatched");
+  expect(status).toContain("Release is triggered by the push");
   expect(status).toContain("Candidate C0");
   expect(status).not.toContain("canopy-promotion-pending");
 });
@@ -336,7 +342,7 @@ test("untagged fallback requires all four successful smoke jobs; skipped smoke c
   expect((await runPromotion("fixture/canopy", "dev-next", options, f.adapters, now)).plan.sha).toBe(sha);
 });
 
-test("pending publication is rechecked and held if its original gets a fix after the successful push", async () => {
+test("a fix after a successful push cannot cause history recovery to dispatch another Release", async () => {
   const f = fixture();
   const feature = f.commit("feat: pending feature", 50);
   f.release(feature, "v0.2.0-nightly.1");
@@ -348,7 +354,8 @@ test("pending publication is rechecked and held if its original gets a fix after
   });
   f.commit(`fix: repair pending feature\n\nRefs: ${feature}`, 1, "other.ts");
   await runPromotion("fixture/canopy", "dev-next", options, f.adapters, now);
-  expect(f.writes).toEqual([]);
+  expect(f.writes.some((write) => write.path.includes("/dispatches"))).toBe(false);
+  expect(JSON.stringify(f.writes.at(-1)?.body)).toContain("Release is triggered by the push");
   expect(f.git("ls-remote", "origin", "refs/heads/next")).toStartWith(feature);
 });
 
@@ -472,7 +479,7 @@ test("automatic labels and release-blockers never expire and still create or upd
   }
 });
 
-test("expired automatic holds stay expired when recovering a pending publication", async () => {
+test("dry-run leaves pending history untouched and never dispatches Release", async () => {
   const f = fixture();
   const feature = f.commit("feat: pending feature", 100);
   f.release(feature, "v0.2.0-nightly.1");
@@ -483,11 +490,8 @@ test("expired automatic holds stay expired when recovering a pending publication
     body: `- Target: ${f.baseline}\n<!-- canopy-promotion-pending: ${feature} -->`,
   });
   f.commit(`fix: pending repair\n\nRefs: ${feature}`, 1, "other.ts");
-  await runPromotion("fixture/canopy", "dev-next", { ...options, holdCapDays: 2 }, f.adapters, now);
-  expect(f.writes.find((write) => write.path.includes("/dispatches"))?.body).toEqual({
-    ref: "next",
-    inputs: { expected_sha: feature },
-  });
+  await runPromotion("fixture/canopy", "dev-next", { ...options, dryRun: true }, f.adapters, now);
+  expect(f.writes).toEqual([]);
 });
 
 test("a stable hotfix reached through a second-parent backmerge is retained during promotion", async () => {
