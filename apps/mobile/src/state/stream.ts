@@ -21,7 +21,7 @@ export function useStream<T>(
   receive: (value: T) => void | boolean,
   key: string,
 ) {
-  const { active, online, expired } = useSession();
+  const { active, online, epoch, expired } = useSession();
   const start = useEffectEvent((signal: AbortSignal) => watch!(signal));
   const onReceive = useEffectEvent(receive);
   const onExpired = useEffectEvent(expired);
@@ -42,6 +42,10 @@ export function useStream<T>(
 
     async function run() {
       let failures = 0;
+      // A stream resubscribing after the background or a network change is not live until it answers again.
+      setState((current) =>
+        current.key === subscriptionKey ? { key: subscriptionKey, connection: "connecting" } : current,
+      );
 
       while (!controller.signal.aborted) {
         let reason: string | undefined;
@@ -98,10 +102,15 @@ export function useStream<T>(
       controller.abort();
       clearTimeout(timer);
     };
-  }, [subscriptionKey, active, online, enabled]);
+  }, [subscriptionKey, active, online, epoch, enabled]);
 
-  // A stream that stays down past the threshold means the gateway does not answer, not a brief drop.
-  const down = state.key === subscriptionKey && state.connection === "reconnecting";
+  // A stream that stays down or keeps connecting past the threshold means the gateway does not answer.
+  const down =
+    enabled &&
+    active &&
+    online &&
+    (state.key !== subscriptionKey || state.connection === "reconnecting" || state.connection === "connecting");
+
   useEffect(() => {
     if (!down) return;
     const timer = setTimeout(() => setStale(subscriptionKey), UNAVAILABLE_AFTER);
@@ -116,10 +125,10 @@ export function useStream<T>(
     ? "offline"
     : !active || !enabled
       ? "paused"
-      : state.key !== subscriptionKey
-        ? "connecting"
-        : down && stale === subscriptionKey
-          ? "unavailable"
+      : down && stale === subscriptionKey
+        ? "unavailable"
+        : state.key !== subscriptionKey
+          ? "connecting"
           : state.connection;
 
   return {

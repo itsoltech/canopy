@@ -92,5 +92,7 @@ export function nodePinnedTransport(): PinnedTransport {
         else request.end();
       });
     },
+    // Every request already opens its own connection (`agent: false`).
+    reset() {},
   };
 }

@@ -11,6 +11,7 @@ import java.security.MessageDigest
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
@@ -78,8 +79,15 @@ class CanopyPinnedFetchModule : Module() {
       .followRedirects(false)
       .followSslRedirects(false)
       .retryOnConnectionFailure(false)
+      // Without it a connection that died while the app was in the background (NAT, Wi-Fi change) keeps
+      // streams and new requests waiting forever, since a quiet stream has no read timeout.
+      .pingInterval(15, TimeUnit.SECONDS)
       .build()
   }
+
+  /** Probes block on connect and handshake. Expo runs every module's AsyncFunction on one shared thread, so
+   * they run here instead: in parallel, and without delaying requests or other modules. */
+  private val probes = Executors.newCachedThreadPool { task -> Thread(task, "canopy-probe").apply { isDaemon = true } }
 
   /** One client per pin, so connections to the computer are reused and never shared across pins. */
   private fun client(pin: String) =
@@ -111,29 +119,37 @@ class CanopyPinnedFetchModule : Module() {
 
     Function("cancel") { id: String -> calls.remove(id)?.cancel() }
 
+    // New requests open new connections; running ones keep theirs (the clients share one pool).
+    Function("reset") { base.connectionPool.evictAll() }
+
     // A TLS handshake only: is this route the paired computer, and how fast? Nothing is sent.
     AsyncFunction("probe") { host: String, port: Int, pin: String, timeoutMs: Int, promise: Promise ->
-      val started = System.nanoTime()
-      val (context, _) = context(pin.lowercase())
-      try {
-        Socket().use { raw ->
-          raw.connect(InetSocketAddress(host, port), timeoutMs)
-          raw.soTimeout = timeoutMs
-          (context.socketFactory.createSocket(raw, host, port, false) as SSLSocket).use { tls ->
-            tls.startHandshake()
-            val leaf = tls.session.peerCertificates.firstOrNull() as? X509Certificate
-            promise.resolve(
-              mapOf(
-                "ok" to true,
-                "fingerprint" to (leaf?.let(::fingerprint) ?: ""),
-                "latencyMs" to ((System.nanoTime() - started) / 1_000_000).toInt(),
-              ),
-            )
-          }
+      probes.execute { probe(host, port, pin.lowercase(), timeoutMs, promise) }
+    }
+  }
+
+  private fun probe(host: String, port: Int, pin: String, timeoutMs: Int, promise: Promise) {
+    val started = System.nanoTime()
+    try {
+      val (context, _) = context(pin)
+      Socket().use { raw ->
+        raw.connect(InetSocketAddress(host, port), timeoutMs)
+        raw.soTimeout = timeoutMs
+        (context.socketFactory.createSocket(raw, host, port, false) as SSLSocket).use { tls ->
+          tls.startHandshake()
+          val leaf = tls.session.peerCertificates.firstOrNull() as? X509Certificate
+          promise.resolve(
+            mapOf(
+              "ok" to true,
+              "fingerprint" to (leaf?.let(::fingerprint) ?: ""),
+              "latencyMs" to ((System.nanoTime() - started) / 1_000_000).toInt(),
+            ),
+          )
         }
-      } catch (error: IOException) {
-        promise.resolve(mapOf("ok" to false, "kind" to if (pinFailure(error)) "pin" else "connect", "code" to code(error)))
       }
+    } catch (error: Exception) {
+      // Off the module thread nothing rejects the promise for us: every failure must resolve it.
+      promise.resolve(mapOf("ok" to false, "kind" to if (pinFailure(error)) "pin" else "connect", "code" to code(error)))
     }
   }
 

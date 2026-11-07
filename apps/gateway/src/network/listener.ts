@@ -7,6 +7,11 @@ export type Handler = (request: http2.Http2ServerRequest, response: http2.Http2S
 
 export type Listener = { host: string; port: number; close: (graceMs?: number) => Promise<void> };
 
+/** How often an idle peer must answer an HTTP/2 PING, and how long it has to answer. */
+export type Liveness = { intervalMs: number; timeoutMs: number };
+
+const LIVENESS: Liveness = { intervalMs: 20_000, timeoutMs: 10_000 };
+
 /** One TLS port for phones and linked computers. TLS proves this computer's pinned certificate to
  * both; a linked computer also presents its own certificate, so `route` sends it to the link service,
  * everything else to the device services (or nowhere). HTTP/2 and HTTP/1.1 are both accepted. */
@@ -15,6 +20,7 @@ export async function openListener(options: {
   port: number;
   identity: { certificate: string; privateKey: string };
   route: (socket: TLSSocket) => Handler | undefined;
+  liveness?: Liveness;
 }): Promise<Listener> {
   const server = http2.createSecureServer(
     {
@@ -44,9 +50,12 @@ export async function openListener(options: {
   server.on("session", (session) => {
     sessions.add(session);
     session.once("close", () => sessions.delete(session));
+    watchLiveness(session, options.liveness ?? LIVENESS);
   });
   server.on("secureConnection", (socket: Socket) => {
     sockets.add(socket);
+    // HTTP/1.1 has no PING; the system's keepalive ends a connection whose peer is gone.
+    socket.setKeepAlive(true, LIVENESS.intervalMs);
     socket.once("close", () => sockets.delete(socket));
   });
   server.on("tlsClientError", () => {});
@@ -88,6 +97,34 @@ export async function openListener(options: {
       return closing;
     },
   };
+}
+
+/** A phone that was suspended or lost its network never closes its connection, and its open streams (and their
+ * overview subscriptions) would stay forever. A session that doesn't answer a PING in time is destroyed. */
+function watchLiveness(session: http2.ServerHttp2Session, liveness: Liveness) {
+  let waiting: ReturnType<typeof setTimeout> | undefined;
+
+  const timer = setInterval(() => {
+    if (waiting || session.destroyed) return;
+    waiting = setTimeout(() => session.destroy(), liveness.timeoutMs);
+
+    try {
+      session.ping((error) => {
+        clearTimeout(waiting);
+        waiting = undefined;
+
+        if (error && !session.destroyed) session.destroy();
+      });
+    } catch {
+      session.destroy();
+    }
+  }, liveness.intervalMs);
+
+  timer.unref();
+  session.once("close", () => {
+    clearInterval(timer);
+    clearTimeout(waiting);
+  });
 }
 
 /** Listen on every interface: IPv6 with IPv4 mapped when the system has IPv6, IPv4 only otherwise. */

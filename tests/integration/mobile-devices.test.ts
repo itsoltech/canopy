@@ -421,7 +421,7 @@ describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect cl
     const phone = routedMobileClient({
       connection: gw.core.mobile.networkRoutes(),
       transport: {
-        probe: transport.probe,
+        ...transport,
         async fetch(...args) {
           requests++;
           const response = await transport.fetch(...args);

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppState } from "react-native";
-import { useNetworkState } from "expo-network";
+import { addNetworkStateListener, useNetworkState } from "expo-network";
 import { routedMobileClient } from "../api/routes";
 import { pinnedTransport } from "../api/pinned";
 import { SessionPersistence, type DeviceSession } from "../storage/session";
@@ -19,6 +19,7 @@ function useSessionState() {
   const [error, setError] = useState("");
   const [persistence] = useState(() => new SessionPersistence());
   const [active, setActive] = useState(AppState.currentState !== "background");
+  const [epoch, setEpoch] = useState(0);
   const network = useNetworkState();
 
   const updateBots = useCallback(
@@ -42,11 +43,6 @@ function useSessionState() {
       )
       .finally(() => setReady(true));
   }, [persistence]);
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", (s) => setActive(s === "active"));
-
-    return () => sub.remove();
-  }, []);
 
   const client = useMemo(
     () =>
@@ -65,6 +61,42 @@ function useSessionState() {
     [session, persistence],
   );
 
+  // Connections pooled before a suspension or a network change may be dead without either side knowing. Reset
+  // runs inside the event, before React restarts any stream, so the next requests race the routes on new ones.
+  useEffect(() => {
+    // iOS may pass through "inactive" on the way back.
+    let suspended = AppState.currentState === "background";
+    let path = "";
+
+    const app = AppState.addEventListener("change", (next) => {
+      if (next === "background") suspended = true;
+
+      if (next === "active" && suspended) {
+        suspended = false;
+        client?.reset();
+      }
+
+      setActive(next === "active");
+    });
+
+    const network = addNetworkStateListener((event) => {
+      const next = `${event.type}:${event.isConnected}`;
+
+      if (path && path !== next) {
+        client?.reset();
+        // Streams on the old network may hang without an error; they subscribe again.
+        setEpoch((n) => n + 1);
+      }
+
+      path = next;
+    });
+
+    return () => {
+      app.remove();
+      network.remove();
+    };
+  }, [client]);
+
   return {
     session,
     client,
@@ -75,6 +107,8 @@ function useSessionState() {
     ready,
     error,
     active,
+    /** Changes when the network does; live streams subscribe again. */
+    epoch,
     // A private tailnet gateway may be reachable even when public internet probes fail.
     online: network.isConnected !== false,
     async pair(value: DeviceSession) {
