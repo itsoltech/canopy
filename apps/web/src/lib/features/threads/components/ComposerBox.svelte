@@ -15,6 +15,8 @@
   import HintIcon from "#lib/shared/ui/HintIcon.svelte";
   import { MentionKind, type Mention } from "@canopy/contracts";
   import { filesOf, type AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
+  import { pastedFiles, UNREACHABLE_FILES } from "#lib/features/attachments/clipboard.ts";
+  import { useFileIntake } from "#lib/features/attachments/file-intake.svelte.ts";
   import AttachmentChipCard from "#lib/features/attachments/AttachmentChipCard.svelte";
   import { chipOf, showUploads } from "#lib/features/attachments/inline-chip.ts";
   import Lightbox from "#lib/features/attachments/Lightbox.svelte";
@@ -37,8 +39,8 @@
    * With `primary = "queue"` (queueing on) the two swap: Enter queues, Mod+Enter (`onalternate`) steers.
    * `canSend = false` keeps the box editable but holds the message (say why next to it); `disabled` locks both.
    * The send slot eases to the width of what it holds (send, stop, steer), so the pills glide aside.
-   * Attachments (`draft`): files dropped on the box or pasted into it (screenshots from the clipboard) or picked
-   * from the "+" menu become badges in the text at the caret (docs/ui-api.md, "Załączniki w tekście"); each badge
+   * Attachments (`draft`): files dropped on the box or pasted into it (screenshots, copied images, files copied in a
+   * file manager), pasted anywhere in the window (`FileIntake`) or picked from the "+" menu become badges in the text at the caret (docs/ui-api.md, "Załączniki w tekście"); each badge
    * shows its upload, a tap previews it (an image in the Lightbox, a file's card), and a file goes with its badge.
    * With files a message may go without text.
    * Mentions (`sources`, docs/ui-api.md "Wzmianki"): the text field takes "/", "$", "@" and "#" chips
@@ -205,14 +207,37 @@
 
   function onpaste(event: ClipboardEvent) {
     onexpand?.("paste");
-    const files = filesOf(event.clipboardData);
 
-    if (!onfiles || files.length === 0) return;
+    if (!onfiles || !draft) return;
+    const pasted = pastedFiles(event.clipboardData);
 
-    // A screenshot comes without text: nothing else to paste. Text with files (an office copy) pastes as well.
-    if (!event.clipboardData?.types.includes("text/plain")) event.preventDefault();
-    onfiles(files);
+    if (pasted.unreachable) draft.notice = UNREACHABLE_FILES;
+
+    // A screenshot or a file manager's copy brings only files. Text with files (an office copy) pastes as well.
+    if (!pasted.text) event.preventDefault();
+
+    if (pasted.files.length > 0) onfiles(pasted.files);
   }
+
+  // Files pasted elsewhere in the window come here.
+  const intake = useFileIntake();
+
+  $effect(() => {
+    const take = onfiles;
+    const files = draft;
+    const root = box;
+
+    if (!intake || !take || !files || !root || disabled) return;
+
+    return intake.register({
+      root,
+      files: (list) => {
+        onexpand?.("paste");
+        take(list);
+      },
+      notice: (text) => (files.notice = text),
+    });
+  });
 
   let box = $state<HTMLDivElement>();
   let sendWidth = $state(36);
