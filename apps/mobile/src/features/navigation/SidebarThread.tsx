@@ -7,6 +7,7 @@ import { styles, useColors } from "../../ui/theme";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { ProjectMark } from "../../ui/ProjectMark";
 import { Swap } from "../../ui/MotionViews";
+import { needsYou } from "@canopy/domain/thread-activity";
 
 export function age(seconds?: bigint) {
   if (!seconds) return "";
@@ -26,11 +27,13 @@ export function SidebarThread({
   project,
   worker,
   style,
+  subagentsNeedingInput = [],
 }: {
   thread: ui.Thread;
   project?: ui.Project;
   worker?: ui.Worker;
   style?: StyleProp<ViewStyle>;
+  subagentsNeedingInput?: readonly ui.Thread[];
 }) {
   const c = useColors();
   const layout = useLayout();
@@ -38,12 +41,16 @@ export function SidebarThread({
   const { id } = useGlobalSearchParams<{ id?: string }>();
   // Wide windows show the open thread beside the list: mark it.
   const active = layout.wide && pathname.startsWith("/thread/") && id === thread.id;
-  const needs = thread.pendingInteractions > 0 || thread.status === "waiting_input";
-  const busy = ["running", "creating"].includes(thread.status);
+  const needs = needsYou(thread) || subagentsNeedingInput.length > 0;
+  const busy = !needs && ["running", "creating"].includes(thread.status);
   const result = thread.unseenResult || (thread.status === "failed" ? "failed" : "");
 
   const label = needs
-    ? "Needs input"
+    ? needsYou(thread)
+      ? "Needs input"
+      : subagentsNeedingInput.length === 1
+        ? "Subagent needs input"
+        : `${subagentsNeedingInput.length} subagents need input`
     : busy
       ? thread.status === "creating"
         ? "Starting"

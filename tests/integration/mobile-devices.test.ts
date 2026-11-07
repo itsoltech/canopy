@@ -104,9 +104,34 @@ describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect cl
     expect((await exchange(valid.code)).deviceToken).toStartWith("canopy_device_");
   });
 
-  test("a paired HTTP/2 client receives its overview snapshot before the stream closes", async () => {
+  test("a paired HTTP/2 client receives the sidebar index, including previous side threads, in its snapshot", async () => {
     const paired = await exchange((await invite()).code);
     const identity = await new ComputerStore(gw.runtime, gw.userId, gw.secretsKey).identity();
+    const projectId = (await gw.api.createProject({ name: "Phone sidebar" })).project!.id;
+
+    const workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/phone" }))
+      .workspace!.id;
+
+    const make = async (title: string, parentThreadId = "") => {
+      const thread = (
+        await gw.api.createThread({ projectId, workspaceId, title, parentThreadId, provider: Provider.CODEX })
+      ).thread!;
+
+      await eventually(
+        () => gw.api.getThread({ threadId: thread.id }),
+        (r) => r.thread?.status === "idle",
+      );
+
+      return thread;
+    };
+
+    const parent = await make("Parent");
+    const side = await make("Previous side", parent.id);
+    const archived = await make("Archived main");
+    await gw.api.setThreadArchived({ threadId: side.id, archived: true });
+    await gw.api.setThreadArchived({ threadId: archived.id, archived: true });
+    const sidebarIndex = (await gw.api.listThreads({ sidebarOnly: true })).threads;
+    expect(sidebarIndex.some((t) => t.id === side.id)).toBe(true);
 
     const phone = createClient(
       ui.GatewayService,
@@ -142,8 +167,17 @@ describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect cl
         received = true;
         expect(update.change.case).toBe("mobileSnapshot");
 
-        if (update.change.case === "mobileSnapshot")
+        if (update.change.case === "mobileSnapshot") {
           expect(update.change.value.overview?.workers.some((w) => w.id === gw.workerId)).toBe(true);
+          const threads = update.change.value.threads;
+          expect(new Set(threads.map((t) => t.id))).toEqual(new Set(sidebarIndex.map((t) => t.id)));
+          expect(threads.find((t) => t.id === side.id)).toMatchObject({
+            parentThreadId: parent.id,
+            status: "archived",
+          });
+          expect(threads.some((t) => t.id === archived.id)).toBe(false);
+        }
+
         break;
       }
 

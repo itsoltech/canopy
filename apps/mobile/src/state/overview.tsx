@@ -22,7 +22,11 @@ function useOverviewState() {
   const reload = useCallback(async () => {
     if (!client) return;
     const requested = ++generation.current;
-    const [overview, list] = await Promise.all([client.api.getOverview({}), client.api.listThreads({})]);
+
+    const [overview, list] = await Promise.all([
+      client.api.getOverview({}),
+      client.api.listThreads({ sidebarOnly: true }),
+    ]);
 
     if (requested !== generation.current) return;
     setProjects(overview.projects);

@@ -551,6 +551,16 @@ domyślny workspace, agenta i uprawnienia.
 Są tworzenie wątku, rename/archive/unread, wyszukiwanie treści, zwinięta praca/narzędzia,
 subagents i panel worker/cwd/model/status/schedules/lineage/connectors.
 
+Sidebar korzysta z tych samych reguł co web w `@canopy/domain/sidebar-threads`,
+`sidebar-entries`, `thread-tree` i `thread-activity`: subagenci nie mają osobnych głównych
+wierszy (także przypięci), a pytania kierowane do użytkownika oznaczają ich rodzica.
+Wątki boczne użytkownika są zagnieżdżone pod rodzicem; przypięty wątek boczny występuje
+tylko raz, jako główny wiersz. Na telefonie można rozwinąć je bez otwierania wątku.
+Wyszukiwanie tytułu wątku bocznego pokazuje rodzica. Archived używa wspólnego pagera
+`@canopy/domain/archived-threads`, filtrów projektu i wyszukiwania po stronie gatewaya;
+archiwalne wątki boczne pozostają w Previous agents pod rodzicem. Powiadomienia o wyniku
+subagenta zostają wewnątrz wątku, a pytanie do użytkownika wywołuje jeden alert rodzica.
+
 Settings używa rejestru sekcji web, z General, Keybindings, Diffs, Agent environment,
 Proxies, Network access i capability-gated Linked computers. Na telefonie otwiera
 listę sekcji i osobny ekran; od 600 dp pokazuje listę obok treści. Zmiany konta zapisuje

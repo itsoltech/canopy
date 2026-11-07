@@ -1,6 +1,17 @@
 import type { ui } from "@canopy/contracts";
-import { needsYou, treeActivity } from "#lib/features/threads/activity.ts";
-import { isSide } from "#lib/features/threads/thread-tree.ts";
+import { needsYou, treeActivity } from "./thread-activity.ts";
+import { groupSideThreads, isSide } from "./thread-tree.ts";
+
+export const isArchivedSidebarThread = (thread: ui.Thread | undefined): thread is ui.Thread =>
+  !!thread && !thread.spawnedByAgent && !thread.deletedAt && thread.status === "archived";
+
+/** Pinned side threads already have their own row. Subagents only surface as attention on their parent. */
+export function sidebarChildren(children: readonly ui.Thread[], rootIds: ReadonlySet<string> = new Set()) {
+  return {
+    sides: groupSideThreads(children.filter((t) => !t.spawnedByAgent && !rootIds.has(t.id))),
+    subagentsNeedingInput: children.filter((t) => !t.deletedAt && t.spawnedByAgent && needsYou(t)),
+  };
+}
 
 /** One visibility rule for project/search/archive filtering; archived children remain discoverable in
  * Previous agents. Pins are flat roots so a pinned side thread is visible even with its parent closed. */

@@ -1,6 +1,6 @@
 import { ui } from "@canopy/contracts";
-import type { ProjectChoice } from "@canopy/domain/projects";
-import { isCalm, needsYou, treeActivity } from "#lib/features/threads/activity.ts";
+import type { ProjectChoice } from "./projects.ts";
+import { isCalm, needsYou, treeActivity } from "./thread-activity.ts";
 
 export interface SidebarEntry {
   key: string;

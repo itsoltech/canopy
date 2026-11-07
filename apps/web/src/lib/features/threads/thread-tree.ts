@@ -1,27 +1,12 @@
 import { ui } from "@canopy/contracts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
+import { isSide } from "@canopy/domain/thread-tree";
+
+export { groupSideThreads, isSide } from "@canopy/domain/thread-tree";
 
 export interface ThreadTree {
   readonly main: ui.Thread;
   readonly sides: readonly ui.Thread[];
-}
-
-export const isSide = (thread: ui.Thread) => thread.kind === ui.ThreadKind.SIDE || Boolean(thread.parentThreadId);
-
-/** Shared by sidebar and Lineage; deleted threads are never a previous agent. */
-export function groupSideThreads(threads: readonly ui.Thread[]) {
-  const visible = threads.filter((t) => !t.deletedAt);
-
-  return {
-    active: visible.filter((t) => t.status !== "archived").sort(byCreation),
-    previous: visible
-      .filter((t) => t.status === "archived")
-      .sort((a, b) =>
-        Number(
-          (b.archivedAt?.seconds ?? b.createdAt?.seconds ?? 0n) - (a.archivedAt?.seconds ?? a.createdAt?.seconds ?? 0n),
-        ),
-      ),
-  };
 }
 
 export interface SideMark {

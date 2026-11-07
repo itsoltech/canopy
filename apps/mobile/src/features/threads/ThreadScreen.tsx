@@ -71,7 +71,7 @@ function useThreadState(id: string) {
   const thread = snapshot?.thread ?? threads.find((t) => t.id === id);
   const home = useComputerHome(thread?.nodeId || splitId(id).node);
   const worker = workers.find((w) => w.id === thread?.workerId);
-  const subagents = threads.filter((t) => t.parentThreadId === id && !t.archivedAt && !t.deletedAt);
+  const subagents = threads.filter((t) => t.spawnedByAgent && t.parentThreadId === id && !t.archivedAt && !t.deletedAt);
   const interactions = snapshot?.interactions.filter((i) => i.status === "pending") ?? [];
   const turns = useMemo(() => visibleTurns(snapshot), [snapshot]);
 
