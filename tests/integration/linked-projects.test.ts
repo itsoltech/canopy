@@ -1,14 +1,23 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { Provider } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { nodeRef } from "@canopy/domain/computers";
 import { projectChoices } from "@canopy/domain/projects";
+import {
+  replaceComputerProjects,
+  replaceComputerRows,
+  retainProjects,
+  retainLinkedRows,
+  upsertLinkedRows,
+} from "@canopy/domain/linked-snapshot";
 import { tempDir } from "@canopy/testing";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { GatewayStore } from "@canopy/gateway/store";
 import { eventually, failure } from "./support/gateway.ts";
 import { linkedProjectFixture } from "./support/linked-projects.ts";
+import { defaultProject, defaultWorkspace } from "../../apps/mobile/src/features/new-thread/placement.ts";
 
 describe.skipIf(!dockerAvailable)("linked projects by Git origin", () => {
   const dir = tempDir("canopy-linked-projects-");
@@ -18,6 +27,70 @@ describe.skipIf(!dockerAvailable)("linked projects by Git origin", () => {
   }, 90_000);
   afterAll(async () => {
     await fixture?.close();
+  }, 30_000);
+
+  test("phone reconnects reconcile aggregate snapshots, peer snapshots and legacy upserts by identity", async () => {
+    const { a, b, lb } = fixture;
+    const initial = await a.gw.api.getOverview({});
+    let projects = initial.projects;
+    let workers = initial.workers;
+    expect(projects.filter((project) => project.kind === "scratch")).toHaveLength(2);
+
+    for (let reconnect = 0; reconnect < 2; reconnect++) {
+      const stop = new AbortController();
+      let aggregate = false;
+      let peer = false;
+      let legacy = false;
+
+      try {
+        for await (const update of a.gw.api.watchOverview(
+          { includeSnapshot: true },
+          { signal: AbortSignal.any([stop.signal, AbortSignal.timeout(10_000)]) },
+        )) {
+          const change = update.change;
+
+          if (change.case === "mobileSnapshot") {
+            const overview = change.value.overview!;
+            projects = retainProjects(projects, overview.projects, overview.computers);
+            workers = retainLinkedRows(workers, overview.workers, overview.computers);
+            aggregate = true;
+          }
+
+          if (change.case === "computerSnapshot") {
+            projects = replaceComputerProjects(projects, change.value.overview?.projects ?? [], change.value.nodeId);
+            workers = replaceComputerRows(workers, change.value.overview?.workers ?? [], change.value.nodeId);
+            peer = true;
+          }
+
+          if (change.case === "project") {
+            projects = upsertLinkedRows(projects, [change.value]);
+            legacy ||= change.value.nodeId === lb.hello().nodeId;
+          }
+
+          if (change.case === "worker") workers = upsertLinkedRows(workers, [change.value]);
+          expect(new Set(projects.map((project) => project.id)).size).toBe(projects.length);
+          expect(new Set(workers.map((worker) => worker.id)).size).toBe(workers.length);
+
+          if (aggregate && peer && legacy) break;
+        }
+      } finally {
+        stop.abort();
+      }
+
+      expect(aggregate && peer && legacy).toBe(true);
+      const choices = projectChoices(projects);
+      expect(choices).toHaveLength(2);
+      expect(choices.filter((project) => project.kind === "scratch")).toHaveLength(1);
+
+      const remote = choices
+        .flatMap((project) => project.workspaces)
+        .find((workspace) => workspace.projectId.startsWith(b.project.id))!;
+
+      const recent = [create(ui.ThreadSchema, { projectId: remote.projectId, workspaceId: remote.id })];
+      const selected = defaultProject(choices, recent, "")!;
+      expect(selected.projectIds).toContain(a.project.id);
+      expect(defaultWorkspace(selected, recent, "", () => true)?.id).toBe(remote.id);
+    }
   }, 30_000);
 
   test("two differently named projects merge and the selected workspace creates only at its home", async () => {

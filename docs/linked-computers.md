@@ -588,6 +588,14 @@ odczytu nie powoduje kolejnej próby na każdym pollu. Tick Update all też jest
 | Search i wzmianki | Paleta/sidebar przeszukują zachowany overview; `SearchThreads` oraz wzmianki `#` są nadal ograniczone do lokalnego domu. Pliki/katalogi są jawnie przypisane do wybranego workera, nie są zbiorczą listą. |
 | Linked agent catalog/overview oraz narzędzia `list_agents`, `list_threads`, `list_bots` | Ten sam cache i lustra; odpowiedzi w tle, lokalne dane i stan loading/ostatni stan partnera. Narzędzia lokalnego agenta nie czekają na zbieranie list partnerów. |
 
+Uzgadnianie w web i mobile usuwa powtórzenia po pełnym id zasobu, niezależnie od
+kolejności snapshotu zbiorczego, snapshotu domu i starszych upsertów. Snapshot domu
+zastępuje tylko jego wiersze i workspace'y; lokalny rekord wspólnego projektu
+pozostaje jednym wierszem. Scalenie widoku `projectChoices` nadal łączy różne id
+według globalnego id lub origin oraz wszystkie projekty scratch w jeden wybór.
+Usuwa też powtórzone id workspace'ów: po materializacji lokalnego aliasu zachowany
+wiersz partnera może wskazywać ten sam workspace co nowy snapshot zbiorczy.
+
 Brak oczekiwania na partnera w lokalnym RPC ogranicza zajęte streamy/fibers. BFF ma
 osobne sesje lokalnych i zdalnych unary oraz lokalnych i zdalnych subskrypcji; limit zdalnych wywołań
 wychodzących wynosi 64, niezależnie od limitu przychodzących. I/O partnera nie zajmuje

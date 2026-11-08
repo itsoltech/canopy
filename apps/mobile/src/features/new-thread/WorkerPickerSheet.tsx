@@ -24,8 +24,14 @@ export function WorkerPickerSheet({
   const presence = useWorkerPresence();
   const groups = new Map<string, PickerSection<string>>();
 
-  const rows = (project?.workspaces ?? [])
-    .map((workspace) => ({ workspace, worker: workers.find((w) => w.id === workspace.workerId) }))
+  const rows = workers
+    .map((worker) => ({
+      worker,
+      workspace:
+        project?.workspaces.find((workspace) => workspace.workerId === worker.id && workspace.id === value) ??
+        project?.workspaces.find((workspace) => workspace.workerId === worker.id),
+    }))
+    .filter((row) => project?.kind === "scratch" || row.workspace)
     .map((row) => ({ ...row, presence: presence(row.worker) }))
     .sort(
       (a, b) =>
@@ -35,19 +41,22 @@ export function WorkerPickerSheet({
     );
 
   for (const { workspace, worker, presence: p } of rows) {
-    const group = groups.get(p.computer) ?? { title: p.computer, options: [] };
+    const home = worker?.nodeId ?? "";
+    const group = groups.get(home) ?? { id: home, title: p.computer, options: [] };
 
     group.options.push({
-      value: workspace.id,
+      value: workspace?.id ?? worker.id,
       label: worker?.name ?? "Unknown worker",
-      description: p.reason ?? (project?.kind === "scratch" ? "Scratch folder" : workspace.label || workspace.rootPath),
+      description: !workspace
+        ? "No scratch directory. Configure this worker."
+        : (p.reason ?? (project?.kind === "scratch" ? "Scratch folder" : workspace.label || workspace.rootPath)),
       icon: "computer-desktop",
       badge: p.online ? undefined : p.status,
       tone: p.online || p.away ? undefined : "warning",
-      disabled: p.away,
+      disabled: !workspace || p.away,
       keywords: p.computer,
     });
-    groups.set(p.computer, group);
+    groups.set(home, group);
   }
 
   const sections = [...groups.values()];
@@ -60,9 +69,15 @@ export function WorkerPickerSheet({
       search={rows.length > 6 ? "Search workers" : undefined}
       value={value}
       onSelect={onSelect}
-      note={project?.workspaces.length ? undefined : "This project is not on any worker yet."}
+      note={
+        rows.length
+          ? undefined
+          : project?.kind === "scratch"
+            ? "Connect a worker first."
+            : "This project is not on any worker yet."
+      }
       // Computer headings only once there is more than one computer.
-      sections={sections.length > 1 ? sections : sections.map((s) => ({ options: s.options }))}
+      sections={sections.length > 1 ? sections : sections.map((s) => ({ id: s.id, options: s.options }))}
     />
   );
 }

@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { PermissionMode, Provider, ui } from "@canopy/contracts";
+import type { ProjectChoice } from "@canopy/domain/projects";
 
 /**
  * Starting values of a new thread, as on the web (apps/web features/projects/placement.ts and
@@ -35,11 +36,11 @@ const recent = (threads: ui.Thread[]) =>
   threads.filter((t) => !t.parentThreadId && !t.spawnedByAgent).sort((a, b) => seconds(b) - seconds(a));
 
 /** Your default workspace's project, the project you last used, No project, the first that lives on a worker. */
-export function defaultProject(projects: ui.Project[], threads: ui.Thread[], defaultWorkspaceId: string) {
+export function defaultProject(projects: ProjectChoice[], threads: ui.Thread[], defaultWorkspaceId: string) {
   return (
     (defaultWorkspaceId ? projects.find((p) => p.workspaces.some((w) => w.id === defaultWorkspaceId)) : undefined) ??
     recent(threads)
-      .map((t) => projects.find((p) => p.id === t.projectId))
+      .map((t) => projects.find((p) => p.projectIds.includes(t.projectId)))
       .find((p) => p !== undefined) ??
     projects.find((p) => p.kind === "scratch") ??
     projects.find((p) => p.workspaces.length > 0) ??

@@ -70,11 +70,16 @@ export function projectChoices(projects: readonly ui.Project[]): ProjectChoice[]
       );
 
       const first = ordered[0]!;
+      const workspaces = new Map<string, ui.Workspace>();
+
+      // A local aggregate can already contain a workspace also present in a retained peer record.
+      for (const workspace of ordered.flatMap((project) => project.workspaces))
+        if (!workspaces.has(workspace.id)) workspaces.set(workspace.id, workspace);
 
       return {
         ...first,
-        workspaces: ordered.flatMap((project) => project.workspaces),
-        projectIds: ordered.map((project) => project.id),
+        workspaces: [...workspaces.values()],
+        projectIds: [...new Set(ordered.map((project) => project.id))],
         aliases: [...new Set(ordered.map((project) => project.name))].filter((name) => name !== first.name),
       };
     });

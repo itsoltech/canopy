@@ -5,6 +5,22 @@ import { nodeRef, splitId } from "./computers.ts";
 const computerOf = (computers: readonly ui.LinkedComputer[], node: string) =>
   computers.find((computer) => computer.nodeId === node || nodeRef(computer.nodeId) === node);
 
+/** Snapshots and legacy upserts can overlap. The latest value wins without moving the row. */
+export const upsertLinkedRows = <T extends { id: string }>(previous: readonly T[], incoming: readonly T[]): T[] => [
+  ...new Map([...previous, ...incoming].map((row) => [row.id, row])).values(),
+];
+
+/** A home snapshot replaces that home's rows; overlapping rows still have one stable identity. */
+export const replaceComputerRows = <T extends { id: string; nodeId: string }>(
+  previous: readonly T[],
+  incoming: readonly T[],
+  nodeId: string,
+): T[] =>
+  upsertLinkedRows(
+    previous.filter((row) => row.nodeId !== nodeId),
+    incoming,
+  );
+
 /** Aggregate refreshes may be partial even before liveness expires. Per-home snapshots and removals reconcile deletions. */
 export function retainLinkedRows<T extends { id: string; nodeId: string }>(
   previous: readonly T[],
@@ -13,14 +29,17 @@ export function retainLinkedRows<T extends { id: string; nodeId: string }>(
 ): T[] {
   const ids = new Set(incoming.map((row) => row.id));
 
-  return [
-    ...incoming,
-    ...previous.filter((row) => {
-      const computer = row.nodeId && computerOf(computers, row.nodeId);
+  return upsertLinkedRows(
+    [],
+    [
+      ...incoming,
+      ...previous.filter((row) => {
+        const computer = row.nodeId && computerOf(computers, row.nodeId);
 
-      return computer && !ids.has(row.id);
-    }),
-  ];
+        return computer && !ids.has(row.id);
+      }),
+    ],
+  );
 }
 
 /** Preserve reported worker state separately so a presence flap never destroys the last known snapshot. */
@@ -50,7 +69,7 @@ export function retainProjects(
           return computer && !ids.has(workspace.id);
         }) ?? [];
 
-    return retained.length ? { ...project, workspaces: [...project.workspaces, ...retained] } : project;
+    return { ...project, workspaces: upsertLinkedRows(project.workspaces, retained) };
   });
 }
 
@@ -66,6 +85,25 @@ export const forgetComputerProjects = (projects: readonly ui.Project[], nodeId: 
           },
         ],
   );
+
+/** Shared local projects survive a peer replacement, with only that peer's workspaces reconciled. */
+export function replaceComputerProjects(
+  previous: readonly ui.Project[],
+  incoming: readonly ui.Project[],
+  nodeId: string,
+): ui.Project[] {
+  const projects = new Map(forgetComputerProjects(previous, nodeId).map((project) => [project.id, project]));
+
+  for (const project of incoming) {
+    const existing = projects.get(project.id);
+    projects.set(project.id, {
+      ...(existing && !existing.nodeId ? existing : project),
+      workspaces: upsertLinkedRows(existing?.workspaces ?? [], project.workspaces),
+    });
+  }
+
+  return [...projects.values()];
+}
 
 /** A merged project remains actionable when any workspace is local or on an available computer. */
 export function projectAwayReason(

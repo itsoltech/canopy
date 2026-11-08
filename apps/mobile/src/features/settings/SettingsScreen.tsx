@@ -35,7 +35,7 @@ export default function SettingsScreen() {
   const { session } = useSession();
   const settings = useAppearance();
   const { reload: reloadSettings } = settings;
-  const { projects, workers, reload } = useOverview();
+  const { reload } = useOverview();
   const device = useDevicePreferences();
   const { wide } = useLayout();
   const section = selectedSection || (wide ? "general" : "");
@@ -75,7 +75,7 @@ export default function SettingsScreen() {
           <>
             <ThreadDisplaySettings />
             <TurnActivitySettings />
-            <ThreadDefaultsSettings settings={settings} projects={projects} workers={workers} />
+            <ThreadDefaultsSettings settings={settings} />
           </>
         )}
         {section === "text-generation" && <TextGenerationSettings />}

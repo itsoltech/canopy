@@ -4,12 +4,14 @@ import {
   forgetComputerProjects,
   retainProjects,
   retainLinkedRows,
+  replaceComputerProjects,
+  replaceComputerRows,
+  upsertLinkedRows,
   workersWithAvailability,
 } from "@canopy/domain/linked-snapshot";
+import { projectChoices } from "@canopy/domain/projects";
 import { useSession } from "./session";
 import { useStream } from "./stream";
-
-const upsert = <T extends { id: string }>(rows: T[], value: T) => [...rows.filter((r) => r.id !== value.id), value];
 
 const upsertComputer = (rows: ui.LinkedComputer[], value: ui.LinkedComputer) => [
   ...rows.filter((r) => r.nodeId !== value.nodeId),
@@ -99,17 +101,17 @@ function useOverviewState() {
       if (change.case === "computerSnapshot") {
         const { nodeId, overview, threads: listed } = change.value;
 
-        forget(nodeId);
-        setWorkers((rows) => [...rows, ...(overview?.workers ?? [])]);
-        setProjects((rows) => [...rows, ...(overview?.projects ?? [])]);
-        setThreads((rows) => [...rows, ...listed]);
+        setWorkers((rows) => replaceComputerRows(rows, overview?.workers ?? [], nodeId));
+        setProjects((rows) => replaceComputerProjects(rows, overview?.projects ?? [], nodeId));
+        setThreads((rows) => replaceComputerRows(rows, listed, nodeId));
       }
 
-      if (change.case === "thread") setThreads((rows) => upsert(rows, change.value));
+      if (change.case === "thread") setThreads((rows) => upsertLinkedRows(rows, [change.value]));
 
-      if (change.case === "project") setProjects((rows) => upsert(rows, change.value));
+      if (change.case === "project")
+        setProjects((rows) => retainProjects([], upsertLinkedRows(rows, [change.value]), []));
 
-      if (change.case === "worker") setWorkers((rows) => upsert(rows, change.value));
+      if (change.case === "worker") setWorkers((rows) => upsertLinkedRows(rows, [change.value]));
 
       if (change.case === "workerRemoved") setWorkers((rows) => rows.filter((r) => r.id !== change.value));
     },
@@ -119,6 +121,7 @@ function useOverviewState() {
   return {
     threads: client ? threads : [],
     projects,
+    projectChoices: projectChoices(projects.filter((project) => !project.archivedAt)),
     workers: workersWithAvailability(workers, computers),
     computers,
     loaded,

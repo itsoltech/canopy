@@ -10,18 +10,15 @@ import { permissionLabel, permissionLook, PermissionPickerSheet } from "../threa
 import { DefaultModels } from "./SettingsModels";
 import { DefaultResets } from "./DefaultResets";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { useOverview } from "../../state/overview";
+import type { ProjectChoice } from "@canopy/domain/projects";
+import { useWorkerLabel } from "../computers/presence";
 
 type Settings = ReturnType<typeof useAppearance>;
 
-export function ThreadDefaultsSettings({
-  settings,
-  projects,
-  workers,
-}: {
-  settings: Settings;
-  projects: ui.Project[];
-  workers: ui.Worker[];
-}) {
+export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
+  const { projectChoices: projects } = useOverview();
+  const workerName = useWorkerLabel();
   const [picker, setPicker] = useState<"workspace" | "agent" | "permission" | null>(null);
   const defaults = settings.user?.threadDefaults;
   const close = () => setPicker(null);
@@ -30,8 +27,7 @@ export function ThreadDefaultsSettings({
     void settings.update({ threadDefaults: Object.assign(create(ui.ThreadDefaultsSchema, defaults), patch) });
 
   const workspace = projects.flatMap((p) => p.workspaces).find((w) => w.id === defaults?.workspaceId);
-  const project = projects.find((p) => p.id === workspace?.projectId);
-  const workerName = (id: string) => workers.find((w) => w.id === id)?.name ?? "Unknown worker";
+  const project = projects.find((p) => p.projectIds.includes(workspace?.projectId ?? ""));
   const look = permissionLook(defaults?.permissionMode);
 
   return (
@@ -124,13 +120,14 @@ export function ThreadDefaultsSettings({
   );
 }
 
-function workspaceOptions(projects: ui.Project[], workerName: (id: string) => string) {
+function workspaceOptions(projects: ProjectChoice[], workerName: (id: string) => string) {
   return [
     { options: [{ value: "", label: "Last used", description: "Use the workspace you used last." }] },
     ...projects.flatMap((p) =>
       !p.archivedAt && p.workspaces.length
         ? [
             {
+              id: p.id,
               title: p.name,
               options: p.workspaces.map((w) => ({
                 value: w.id,
