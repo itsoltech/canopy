@@ -1,7 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Text } from "react-native";
-import Animated from "react-native-reanimated";
-import { useMotion } from "../../ui/motion";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
 import { ScreenFrame } from "../../ui/ScreenFrame";
@@ -13,12 +10,11 @@ import { applyThread } from "../../api/thread";
 import { useSession } from "../../state/session";
 import { useThreadSnapshot } from "../../state/thread";
 import { Notice } from "../../ui/components";
-import { styles, useColors } from "../../ui/theme";
 import { KeyboardArea } from "../../ui/KeyboardArea";
 import { MessageComposer } from "./MessageComposer";
 import { DropZone } from "../attachments/FileIntake";
 import { ThreadPanel } from "./ThreadPanel";
-import { InteractionCard } from "./InteractionCard";
+import { QuestionPanel } from "./questions/QuestionPanel";
 import { useOverview } from "../../state/overview";
 import { ThreadHeader } from "./ThreadHeader";
 import { ThreadTimeline } from "./ThreadTimeline";
@@ -189,12 +185,10 @@ function useThreadComposer(state: ThreadState) {
 }
 
 export function ThreadScreen({ id }: { id: string }) {
-  const c = useColors();
   const state = useThreadState(id);
   const composer = useThreadComposer(state);
 
   const [sheet, setSheet] = useState<"goal" | "side" | null>(null);
-  const { pop } = useMotion();
 
   const {
     session,
@@ -259,16 +253,11 @@ export function ThreadScreen({ id }: { id: string }) {
                 {state.home.name} · {state.home.status}. Read only until it reconnects.
               </Notice>
             )}
-            {!state.home.away &&
-              interactions.slice(0, 1).map((i) => (
-                // A request pops in; once answered (here or elsewhere) it leaves the same way.
-                <Animated.View key={i.requestId} entering={pop.entering} exiting={pop.exiting}>
-                  <InteractionCard interaction={i} />
-                </Animated.View>
-              ))}
-            {interactions.length > 1 && (
-              <Text style={[styles.meta, { color: c.warning }]}>+{interactions.length - 1} pending</Text>
-            )}
+            <QuestionPanel
+              interactions={interactions}
+              subagents={subagents}
+              disabled={state.home.away || state.stream.connection !== "live"}
+            />
             <SubagentSummary threads={subagents} obscured={Boolean(state.message.trigger)} />
             <SkeletonScope loading={!thread}>
               <MessageComposer
