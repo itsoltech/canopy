@@ -11,6 +11,9 @@ import { Overlay } from "../../ui/Overlay";
 import { font, useColors, useTypography } from "../../ui/theme";
 import { ConnectionRoutes } from "./ConnectionRoutes";
 import { useSession } from "../../state/session";
+import { useRouteStatus } from "../../state/route-status";
+import { hasTailscaleFailure } from "../../api/tailscale-hint";
+import { OpenTailscale } from "./OpenTailscale";
 
 export interface StreamState {
   readonly connection: Connection;
@@ -47,12 +50,26 @@ const looks: Record<Connection, { tone: Tone; label: string; description: string
   paused: { tone: "neutral", label: "Paused", description: "Updates resume when Canopy is in the foreground." },
 };
 
+const tailscaleLook = {
+  tone: "amber",
+  label: "Check Tailscale",
+  description: "Tailscale on this phone may be off or stuck. Turn it off and on in the Tailscale app, then reconnect.",
+} as const;
+
+function useConnectionLook(connection: Connection) {
+  const tailscale = hasTailscaleFailure(useRouteStatus());
+
+  return tailscale && ["connecting", "reconnecting", "unavailable"].includes(connection)
+    ? tailscaleLook
+    : looks[connection];
+}
+
 /** The gateway connection in the sidebar footer: a dot and a word. A tap shows what happened and a retry. */
 export function ConnectionStatus({ stream }: { stream: StreamState }) {
   const c = useColors();
   const type = useTypography();
   const [open, setOpen] = useState(false);
-  const look = looks[stream.connection];
+  const look = useConnectionLook(stream.connection);
 
   return (
     <>
@@ -77,7 +94,7 @@ export function ConnectionStatus({ stream }: { stream: StreamState }) {
           active={stream.connection === "reconnecting" || stream.connection === "connecting"}
         />
         {/* A new state swaps in beside its dot (web `swap`). */}
-        <Swap value={stream.connection} style={{ flexShrink: 1 }}>
+        <Swap value={look.label} style={{ flexShrink: 1 }}>
           <Text numberOfLines={1} style={[type.small, { color: c.muted }]}>
             {look.label}
           </Text>
@@ -100,7 +117,7 @@ export function ConnectionDetails({
 }) {
   const c = useColors();
   const type = useTypography();
-  const look = looks[stream.connection];
+  const look = useConnectionLook(stream.connection);
   const down = stream.connection !== "live" && stream.connection !== "paused" && stream.connection !== "offline";
   const { reconnect } = useSession();
 
@@ -121,7 +138,8 @@ export function ConnectionDetails({
         ) : null}
         <ConnectionRoutes />
         {down && (
-          <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
+            {look === tailscaleLook && <OpenTailscale />}
             <Button
               title="Reconnect now"
               icon="arrow-path"
@@ -145,8 +163,9 @@ export function ConnectionDetails({
  */
 export function ConnectionBanner({ stream }: { stream?: StreamState }) {
   const overview = useOverview().stream;
+  const tailscale = hasTailscaleFailure(useRouteStatus());
   const [open, setOpen] = useState(false);
-  const shown = banner(overview, stream);
+  const shown = banner(overview, stream, tailscale);
 
   if (!shown) return null;
 
@@ -171,7 +190,7 @@ export function ConnectionBanner({ stream }: { stream?: StreamState }) {
   );
 }
 
-function banner(overview: StreamState, stream: StreamState | undefined) {
+function banner(overview: StreamState, stream: StreamState | undefined, tailscale: boolean) {
   if (overview.connection === "offline")
     return {
       tone: "warning",
@@ -179,6 +198,9 @@ function banner(overview: StreamState, stream: StreamState | undefined) {
       stream: overview,
       action: "details",
     } as const;
+
+  if (tailscale && ["connecting", "reconnecting", "unavailable"].includes(overview.connection))
+    return { tone: "warning", text: tailscaleLook.description, stream: overview, action: "details" } as const;
 
   if (overview.connection === "unavailable")
     return {

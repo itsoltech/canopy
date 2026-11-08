@@ -1,5 +1,5 @@
 import type { PinnedTransport } from "./routes";
-import { RouteDiagnostics, routeFailure } from "./route-diagnostics";
+import { RouteDiagnostics, routeFailure, type RouteResult } from "./route-diagnostics";
 import { FAST_PROBE_MS, RECOVERY_PROBE_MS, ProbeError, probeRoute } from "./route-probe";
 
 export const FAILED_FOR = 10_000;
@@ -17,7 +17,12 @@ export function raceRoutes(options: {
   const { candidates, diagnostics, failed, signal } = options;
   const controller = new AbortController();
   const codes = new Set<string>();
-  diagnostics.update({ pending: true, active: undefined });
+  const results: RouteResult[] = [];
+  diagnostics.update({
+    pending: true,
+    active: undefined,
+    routes: diagnostics.snapshot().routes.map(({ address, kind }) => ({ address, kind, outcome: "unchecked" })),
+  });
 
   return new Promise<string>((resolve, reject) => {
     let next = 0;
@@ -28,11 +33,15 @@ export function raceRoutes(options: {
       clearTimeout(timer);
       signal.removeEventListener("abort", abort);
       controller.abort();
+
+      const routes = diagnostics
+        .snapshot()
+        .routes.map((route) => (route.outcome === "probing" ? { ...route, outcome: "canceled" as const } : route));
+
       diagnostics.update({
         pending: false,
-        routes: diagnostics
-          .snapshot()
-          .routes.map((route) => (route.outcome === "probing" ? { ...route, outcome: "canceled" } : route)),
+        routes,
+        lastRace: signal.aborted ? undefined : results,
       });
 
       if (address) resolve(address);
@@ -59,7 +68,7 @@ export function raceRoutes(options: {
         () => {
           if (controller.signal.aborted) return;
           failed.delete(address);
-          diagnostics.result(address, "ok", started);
+          results.push(diagnostics.result(address, "ok", started));
           finish(address);
         },
         (error: Error) => {
@@ -68,7 +77,9 @@ export function raceRoutes(options: {
           failed.set(address, Date.now() + FAILED_FOR);
 
           if (error instanceof ProbeError) codes.add(error.code);
-          diagnostics.result(address, routeFailure(error instanceof ProbeError ? error.code : ""), started);
+          results.push(
+            diagnostics.result(address, routeFailure(error instanceof ProbeError ? error.code : ""), started),
+          );
 
           if (next < candidates.length) launch();
           else if (!running) finish();

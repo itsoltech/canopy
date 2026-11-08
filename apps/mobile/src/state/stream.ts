@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useSession } from "./session";
 import { useRouteStatus } from "./route-status";
+import { hasTailscaleFailure } from "../api/tailscale-hint";
 
 export type Connection =
   | "connecting"
@@ -22,8 +23,9 @@ export function useStream<T>(
   receive: (value: T) => void | boolean,
   key: string,
 ) {
-  const { active, online, epoch, expired } = useSession();
+  const { active, online, epoch, expired, client } = useSession();
   const routes = useRouteStatus();
+  const tailscale = hasTailscaleFailure(routes);
   const start = useEffectEvent((signal: AbortSignal) => watch!(signal));
   const onReceive = useEffectEvent(receive);
   const onExpired = useEffectEvent(expired);
@@ -84,7 +86,13 @@ export function useStream<T>(
 
         if (controller.signal.aborted) return;
         setState({ key: subscriptionKey, connection: "reconnecting", ...(reason && { detail: reason.slice(1, -1) }) });
-        const delay = Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5)) * (0.8 + Math.random() * 0.4);
+
+        // Read the completed race now, before React renders it. Only subscriptions retry; never replay an RPC.
+        const delay =
+          client && hasTailscaleFailure(client.diagnostics.snapshot())
+            ? 5000
+            : Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5)) * (0.8 + Math.random() * 0.4);
+
         await new Promise<void>((resolve) => {
           const done = () => {
             clearTimeout(timer);
@@ -104,7 +112,7 @@ export function useStream<T>(
       controller.abort();
       clearTimeout(timer);
     };
-  }, [subscriptionKey, active, online, epoch, enabled]);
+  }, [subscriptionKey, active, online, epoch, enabled, client]);
 
   // A stream that stays down or keeps connecting past the threshold means the gateway does not answer.
   const down =
@@ -127,7 +135,7 @@ export function useStream<T>(
     ? "offline"
     : !active || !enabled
       ? "paused"
-      : down && stale === subscriptionKey && !routes.pending
+      : down && stale === subscriptionKey && (!routes.pending || tailscale)
         ? "unavailable"
         : state.key !== subscriptionKey
           ? "connecting"

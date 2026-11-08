@@ -147,14 +147,46 @@ w kolejnym interwale; zwykłe odczyty strumienia nie mają read timeoutu. Strumi
 nagłówków odpowiedzi po 40 s kończy się błędem `timeout` i łączy ponownie (każdy obserwowany strumień
 zaczyna się od snapshotu, z którym idą nagłówki); żądania unary nie mają takiego limitu. Status
 połączenia po wznowieniu pokazuje „Reconnecting…” do pierwszej odpowiedzi, a „Gateway unavailable”
-po 12 s bez odpowiedzi, także gdy połączenie wisi bez błędu, ale dopiero po zakończeniu aktywnego
-wyścigu tras. „Reconnect now” resetuje transport i backoff wszystkich subskrypcji; sukces streamu
+po 12 s bez odpowiedzi, także gdy połączenie wisi bez błędu. Aktywny wyścig tras opóźnia ten stan,
+chyba że poprzedni zakończony wyścig już uzasadnia wskazówkę Tailscale.
+„Reconnect now” resetuje transport i backoff wszystkich subskrypcji; sukces streamu
 zeruje jego backoff. Zmiany natywnego probe i puli wymagają nowego builda iOS/Android, nie samego OTA.
 Po zmianie portu zapisuje nowe trasy również z odpowiedzi `UpdateNetworkAccess`, nawet
 bez strumienia overview. Usuwa nieaktualną ostatnią trasę; restart telefonu korzysta
 z nowych adresów, zachowując ten sam pin i token urządzenia.
 Bez żadnej znanej działającej trasy potrzebny jest wspólny VPN lub nowy QR — sama aplikacja
 nie zapewnia relaya ani przejścia przez NAT.
+
+### Tailscale na telefonie
+
+Na Androidzie w ustawieniach VPN włącz **Always-on VPN** dla Tailscale, a w ustawieniach
+baterii aplikacji Tailscale wybierz **Unrestricted**. Nazwy i położenie opcji zależą od
+producenta telefonu. Na iOS skonfiguruj [VPN On Demand w Tailscale](https://tailscale.com/docs/features/client/ios-vpn-on-demand)
+tak, by VPN łączył się automatycznie przez Wi-Fi i sieć komórkową poza siecią domową.
+
+W **Details** każda trasa ma własny wynik. **DNS failed** dla `<host>.ts.net` oraz
+**Timed out** dla `100.x.y.z` sugerują wyłączony Tailscale na telefonie — włącz go.
+Jeśli Tailscale jest włączony, ale wszystkie trasy mają **Timed out**, wyłącz go i włącz
+ponownie w aplikacji Tailscale. Timeout LAN poza domową siecią jest spodziewany.
+Ten wzorzec nie dowodzi, że komputer działa; jeśli restart VPN nie pomaga, sprawdź także
+dostępność komputera i jego Network access.
+
+Canopy pokazuje wskazówkę w banerze i arkuszu połączenia wyłącznie wtedy, gdy ostatni
+zakończony wyścig nie znalazł żadnej działającej trasy, a wszystkie trasy Tailscale
+zakończyły się błędem DNS lub timeoutem. Niezgodny pin i odmowa połączenia na trasie
+Tailscale wykluczają wskazówkę. **Copy details** nadal kopiuje wyniki wszystkich tras.
+Na Androidzie **Open Tailscale** otwiera aplikację przez jej URL nawigacji; jeśli system
+nie obsłuży linku, Canopy prosi o ręczne otwarcie. Na iOS otwórz Tailscale ręcznie.
+
+`expo-network` 58.0.4 na Androidzie sprawdza transport Wi-Fi i komórkowy przed VPN, więc
+brak typu `VPN` nie potwierdza wyłączonego tunelu. iOS nie udostępnia osobnego stanu VPN.
+Dlatego komunikat mówi o możliwym wyłączeniu lub zawieszeniu Tailscale. Klucz zmiany sieci
+obejmuje typ, łączność i `isInternetReachable`; na iOS ostatnie pole powtarza łączność.
+Gdy przełączenie VPN nie zmienia tych pól, aktywne subskrypcje podczas wskazówki ponawiają
+wyścig tras po stałej przerwie 5 s zamiast rosnącego backoffu. Same próby nadal mają
+dotychczasowe limity czasu. Nowe próby nie startują w tle; powrót do aplikacji resetuje
+transport i wznawia strumienie. Ponawianie obejmuje subskrypcje i handshake, nigdy RPC,
+które mogło dotrzeć do komputera. Zmiana pozostaje w JS/TS i nie wymaga nowego buildu.
 
 Token urządzenia autoryzuje GatewayService jako **obecnego pojedynczego właściciela**.
 Token urządzenia nie ma terminu ważności — działa do odwołania. Termin ważności dotyczy

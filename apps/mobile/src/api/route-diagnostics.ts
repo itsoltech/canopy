@@ -21,6 +21,8 @@ export interface RouteResult {
 
 export interface RouteSnapshot {
   routes: RouteResult[];
+  /** Completed probes only; request failures and a new race never mix with this result. */
+  lastRace?: readonly RouteResult[] | undefined;
   active?: string | undefined;
   pending: boolean;
 }
@@ -115,19 +117,27 @@ export class RouteDiagnostics {
   }
 
   result(address: string, outcome: RouteOutcome, started: number, phase: "probe" | "request" = "probe") {
+    const result: RouteResult = {
+      address,
+      kind: routeKind(address),
+      outcome,
+      elapsedMs: Date.now() - started,
+      checkedAt: Date.now(),
+      phase,
+    };
+
     this.update({
-      routes: this.#snapshot.routes.map((route) =>
-        route.address === address
-          ? { ...route, outcome, elapsedMs: Date.now() - started, checkedAt: Date.now(), phase }
-          : route,
-      ),
+      routes: this.#snapshot.routes.map((route) => (route.address === address ? result : route)),
     });
+
+    return result;
   }
 
   reset(addresses: string[]) {
     this.update({
       active: undefined,
       pending: false,
+      lastRace: undefined,
       routes: addresses.map(
         (address) =>
           this.#snapshot.routes.find((route) => route.address === address) ?? {

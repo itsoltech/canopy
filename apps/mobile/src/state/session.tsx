@@ -80,7 +80,9 @@ function useSessionState() {
     });
 
     const network = addNetworkStateListener((event) => {
-      const next = `${event.type}:${event.isConnected}`;
+      // VPN toggles can keep Wi-Fi/cellular unchanged. Reachability adds the signal Expo exposes on Android;
+      // iOS mirrors isConnected, so foreground route retries also cover toggles with identical state.
+      const next = `${event.type}:${event.isConnected}:${event.isInternetReachable}`;
 
       if (path && path !== next) {
         client?.reset();
