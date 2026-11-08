@@ -16,6 +16,8 @@ message DesktopHello {
   string version = 2;
   string channel = 3;
   bool remote_update = 4;
+  // The local app reports check timestamps and completes check-only commands.
+  bool update_checks = 5;
 }
 message DesktopWorkerProof {
   string device_id = 1;
@@ -58,6 +60,8 @@ message DesktopUpdateState {
   double updater_progress = 16;
   // Why the updater's last check or download failed.
   string updater_error = 17;
+  // Time the app's updater last started a real feed check, Unix milliseconds. Zero from older apps.
+  double last_checked_at_ms = 18;
 }
 message DesktopReport {
   string session_id = 1;

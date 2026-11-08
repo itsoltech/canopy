@@ -548,7 +548,9 @@ lustro również podczas pozornie zdrowego połączenia i ponownego zestawiania.
 lustra nie zastępuje poprzedniej generacji przed checkpointem. Pozostałe listy
 odświeża `PeerReads`: jedno wywołanie na klucz komputer/metoda/request, najwyżej cztery
 aktywne na komputer, 128 kluczy i 16 MiB odpowiedzi w całym cache. Nieudany odczyt
-zachowuje poprzednią odpowiedź. Snapshoty są dekodowane osobno dla każdego odbiorcy.
+zachowuje poprzednią odpowiedź. Zwykłe odświeżenie zachowuje stan `fresh`, jeżeli
+istnieje udany snapshot; `stale` oznacza dopiero nieudaną próbę. Komunikat oczekiwania
+nie pojawia się i nie znika przy każdym pollu. Snapshoty są dekodowane osobno dla każdego odbiorcy.
 `linked_read_completed` odświeża zainteresowane widoki bez czekania w pierwotnym RPC.
 
 Wszystkie czasy I/O partnera są nazwane w `computers/timing.ts`: zwykły odczyt 10 s,

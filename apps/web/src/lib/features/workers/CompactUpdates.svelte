@@ -32,7 +32,7 @@
 
   async function check() {
     await Promise.all([
-      snapshot?.admin ? updates.manage({ action: "check" }) : updates.reload(),
+      snapshot?.admin || snapshot?.gatewayBundled ? updates.manage({ action: "check" }) : updates.reload(),
       cli.check(),
       app.status ? app.check() : Promise.resolve(),
     ]);

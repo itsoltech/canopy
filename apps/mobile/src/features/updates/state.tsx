@@ -73,7 +73,7 @@ function useUpdatesState() {
 
     try {
       const value =
-        request.action === "check" && !snapshot?.admin
+        request.action === "check" && !snapshot?.admin && !snapshot?.gatewayBundled
           ? undefined
           : await client.api.manageUpdates(request, { timeoutMs: 150_000 });
 

@@ -83,7 +83,17 @@ export function workersHandlers(
         return snapshot();
       }
 
-      if (request.action === "check") await checkLinkedUpdates(core);
+      if (request.action === "check") {
+        await checkLinkedUpdates(core);
+
+        if (core.role === "desktop") {
+          await core.appControl.check();
+
+          // Checking the owner's app needs no permission to replace a gateway binary.
+          if (!(await core.updates.snapshot()).admin) return snapshot();
+        }
+      }
+
       await core.updates.manage(request);
 
       return snapshot();

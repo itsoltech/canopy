@@ -1,5 +1,6 @@
 import { Text, View, type StyleProp, type ViewStyle } from "react-native";
 import type { ReactNode } from "react";
+import { updateCheckLabel } from "@canopy/domain/computer-presence";
 import { Badge } from "../../ui/Badge";
 import { IconButton } from "../../ui/Button";
 import { ProgressBar } from "../../ui/ProgressBar";
@@ -11,6 +12,7 @@ export function UpdateRow({
   name,
   version,
   target,
+  checkedAt,
   status,
   failed = false,
   busy = false,
@@ -23,6 +25,7 @@ export function UpdateRow({
   name: string;
   version: string;
   target?: string | undefined;
+  checkedAt?: number | undefined;
   status: string;
   failed?: boolean;
   busy?: boolean;
@@ -46,6 +49,11 @@ export function UpdateRow({
               ? `${version || "Version unknown"} → ${target}`
               : version || "Version unknown"}
           </Text>
+          {checkedAt !== undefined && (
+            <Text style={[styles.overlayMeta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
+              {updateCheckLabel(checkedAt)}
+            </Text>
+          )}
         </View>
         <Badge tone={failed ? "rose" : busy ? "amber" : status === "Up to date" ? "emerald" : "neutral"}>
           {status}

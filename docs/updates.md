@@ -47,7 +47,8 @@ Trzecia ikona stopki (za Settings i licznikiem workerów) pokazuje aktualizacje
 własnej aplikacji desktopowej: stan spokojny, sprawdzanie, pobieranie z procentem
 oraz gotowość do restartu. Hover i klik otwierają ten sam przewijany popover;
 na telefonie jest to dolny panel. Animacja respektuje ograniczenie ruchu.
-Przeglądarka serwerowa nie pokazuje sekcji własnej aplikacji.
+Przeglądarka podłączona do gatewaya desktopowego pokazuje „Canopy on this computer”
+z raportu aplikacji; gateway serwerowy nadal ma wyłącznie wiersz gatewaya.
 
 Popover ma 352 px szerokości i wysokość zależną od zawartości (maksymalnie
 70% okna / 512 px); przewija się lista między nagłówkiem a odnośnikami.
@@ -234,6 +235,19 @@ sprawdza lokalnie i osobno planuje idempotentne sprawdzenia partnerów (120 s),
 bez czekania na nie. Jawna instalacja u partnera ma limit 15 min; nie jest ponawiana
 automatycznie. Czasy, limity współbieżności i circuit breaker opisuje
 [zsumowany widok](linked-computers.md#zsumowany-widok).
+
+Check now z telefonu i przeglądarki wysyła również `DesktopUpdateCommand.check`
+do aplikacji tego komputera przez istniejący kanał `WatchAppControl`. Nie instaluje
+ani nie restartuje aplikacji. Gateway scala równoległe żądania i wysyła najwyżej
+jedno na 10 s; aktywne sprawdzanie, pobieranie lub żądanie aktualizacji ma pierwszeństwo.
+Nowy desktop ogłasza `DesktopHello.update_checks` i raportuje `last_checked_at_ms`
+z własnego harmonogramu, także przy sprawdzeniu ręcznym. Odpowiedź czeka do 30 s
+na zakończony raport z nowszym czasem. Timeout lub starsza aplikacja zachowuje
+ostatni wynik; sprawdzenia nie są odtwarzane po reconnect. Żądania partnerów
+trafiają tą samą drogą do ich domów, z dotychczasowym sprawdzeniem właściciela.
+Każdy wiersz Canopy pokazuje „Checked {time}”; brak czasu ze starszej aplikacji
+oznacza „Check time unavailable”. Czas odświeżenia gatewaya nie zastępuje czasu aplikacji.
+Telefon pokazuje czas sprawdzenia OTA od ostatniego uruchomienia aplikacji.
 
 Dotyczy wyłącznie aplikacji desktopowych w trybie lokalnym połączonych jako
 [połączone komputery](linked-computers.md). Gatewaye serwerowe (Docker, binarka)

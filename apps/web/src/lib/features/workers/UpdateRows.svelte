@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { create } from "@bufbuild/protobuf";
+  import { ui } from "@canopy/contracts";
   import CompactAppUpdate from "#lib/features/desktop/CompactAppUpdate.svelte";
   import type { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
   import CompactWorkerUpdate from "./CompactWorkerUpdate.svelte";
@@ -27,6 +29,19 @@
 
   // The bundled gateway and worker ship with this app: "This Canopy app" stands for them; their CLIs stay.
   const bundled = $derived(!!snapshot?.gatewayBundled);
+
+  const local = $derived(
+    snapshot && bundled && !app.status
+      ? create(ui.ComputerUpdateSchema, {
+          name: "Canopy on this computer",
+          version: snapshot.gatewayVersion,
+          presence: "connected",
+          remoteUpdate: true,
+          updates: snapshot,
+        })
+      : undefined,
+  );
+
   const groups = $derived(snapshot ? homes(snapshot) : []);
 
   const workerGroups = $derived(
@@ -36,6 +51,7 @@
 
 {#if snapshot?.computers.length}<UpdateGroupLabel>Computers</UpdateGroupLabel>{/if}
 {#if app.status || app.error}<CompactAppUpdate updates={app} {bundled} />{/if}
+{#if local}<CompactComputerUpdate computer={local} {updates} local />{/if}
 {#if snapshot}
   {#if !bundled}<CompactGatewayUpdate {updates} />{@render gateway?.()}{/if}
   {#each snapshot.computers as computer (computer.nodeId)}<CompactComputerUpdate {computer} {updates} />{/each}

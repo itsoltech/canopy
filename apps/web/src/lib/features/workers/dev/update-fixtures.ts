@@ -54,7 +54,13 @@ export function computer(
     ...(app && {
       updates: create(ui.UpdatesSnapshotSchema, {
         ...home("0.42.0", [], []),
-        app: create(ui.DesktopUpdateStateSchema, { connected: true, channel: "nightly", phase: "idle", ...app }),
+        app: create(ui.DesktopUpdateStateSchema, {
+          connected: true,
+          channel: "nightly",
+          phase: "idle",
+          lastCheckedAtMs: Date.now() - 60_000,
+          ...app,
+        }),
       }),
     }),
     ...extra,
@@ -90,6 +96,7 @@ export function fixtureSnapshot(): ui.UpdatesSnapshot {
   );
 
   studioHome.app = create(ui.DesktopUpdateStateSchema, {
+    lastCheckedAtMs: Date.now() - 60_000,
     connected: true,
     version: "0.42.0-nightly.5",
     availableVersion: "0.42.0-nightly.7",
@@ -111,6 +118,13 @@ export function fixtureSnapshot(): ui.UpdatesSnapshot {
       reason: "Update Old MacBook Air from the office downstairs on that computer.",
     }),
   ];
+
+  snapshot.app = create(ui.DesktopUpdateStateSchema, {
+    connected: true,
+    version: snapshot.gatewayVersion,
+    updaterPhase: "idle",
+    lastCheckedAtMs: Date.now() - 3600_000,
+  });
 
   return snapshot;
 }

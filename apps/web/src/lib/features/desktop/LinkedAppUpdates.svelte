@@ -10,6 +10,7 @@
   import { computerUpdate } from "#lib/features/workers/computer-updates.ts";
   import { presenceTime } from "#lib/features/computers/computers.ts";
   import { UpdatesState, updateTone } from "#lib/features/workers/updates.svelte.ts";
+  import { updateCheckLabel } from "@canopy/domain/computer-presence";
 
   /**
    * Linked computers' Canopy apps (docs/updates.md, "Połączone komputery"). Each computer owns its channel and check
@@ -70,6 +71,7 @@
               : ""}</span
           ><Badge compact tone={updateTone(view)}>{view.status}</Badge>
         </p>
+        <p class="text-xs/5 text-muted tabular-nums">{updateCheckLabel(app?.lastCheckedAtMs, presenceTime)}</p>
         {#if detail}<p
             class={[
               "mt-1 text-sm/5 text-pretty",

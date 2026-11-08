@@ -9,6 +9,9 @@ import { busy, validDesktopHello, validDesktopState } from "./control.ts";
 
 type Session = { id: string; hello: ui.DesktopHello; channel: AsyncChannel<ui.DesktopControlEvent> };
 
+const CHECK_THROTTLE_MS = 10_000;
+const CHECK_TIMEOUT_MS = 30_000;
+
 /** Who asked: a directly linked computer of this owner (its node id and name). */
 export type AppUpdateOrigin = { nodeId: string; name: string };
 
@@ -22,6 +25,8 @@ export class LocalAppControl {
   private state = create(ui.DesktopUpdateStateSchema, { phase: "idle" });
   private command = create(ui.DesktopUpdateCommandSchema);
   private queue = Promise.resolve();
+  private lastCheckRequested = 0;
+  private checking: { promise: Promise<void>; finish: () => void; after: number } | undefined;
   constructor(
     readonly runtime: CoreRuntime,
     readonly owner: string,
@@ -41,6 +46,7 @@ export class LocalAppControl {
     validDesktopHello(hello);
     const channel = new AsyncChannel<ui.DesktopControlEvent>();
     const session: Session = { id: crypto.randomUUID(), hello, channel };
+    this.checking?.finish();
     this.session?.channel.close();
     this.session = session;
     const stop = () => channel.close();
@@ -59,7 +65,10 @@ export class LocalAppControl {
     } finally {
       signal.removeEventListener("abort", stop);
 
-      if (this.session === session) this.session = undefined;
+      if (this.session === session) {
+        this.checking?.finish();
+        this.session = undefined;
+      }
     }
   }
 
@@ -75,6 +84,13 @@ export class LocalAppControl {
       // Until the app takes up a new request, its reports (older or no request) don't replace the queued state.
       if (this.command.requestId && state.requestId !== this.command.requestId) return;
       this.state = create(ui.DesktopUpdateStateSchema, { ...state, connected: true });
+
+      if (
+        this.checking &&
+        state.lastCheckedAtMs > this.checking.after &&
+        !["checking", "downloading"].includes(state.updaterPhase)
+      )
+        this.checking.finish();
 
       if (state.requestId && ["failed", "succeeded"].includes(state.phase)) await this.outcome(state);
     });
@@ -127,17 +143,46 @@ export class LocalAppControl {
     });
   }
 
-  /** A linked computer asks the app to check its own feed now. Installs nothing. */
-  check() {
+  /** Owner UI or a linked computer asks for a real check. Coalesce presses; never install or replay a check. */
+  check(): Promise<void> {
+    if (this.checking) return this.checking.promise;
     const session = this.session;
 
-    if (session && !session.channel.closed)
-      session.channel.push(
-        create(ui.DesktopControlEventSchema, { sessionId: session.id, confirmed: true, command: { check: true } }),
-      );
+    if (
+      !session ||
+      session.channel.closed ||
+      busy(this.state.phase) ||
+      ["checking", "downloading", "disabled"].includes(this.state.updaterPhase) ||
+      Date.now() - this.lastCheckRequested < CHECK_THROTTLE_MS
+    )
+      return Promise.resolve();
+    this.lastCheckRequested = Date.now();
+
+    // Older apps already understand check-only commands, but cannot acknowledge completion.
+    // Keep their last reported status and unknown timestamp instead of waiting for a field they never send.
+    if (session.hello.updateChecks) {
+      const { promise, resolve } = Promise.withResolvers<void>();
+      const timer = setTimeout(() => this.checking?.finish(), CHECK_TIMEOUT_MS);
+      this.checking = {
+        promise,
+        after: this.state.lastCheckedAtMs,
+        finish: () => {
+          clearTimeout(timer);
+          this.checking = undefined;
+          resolve();
+        },
+      };
+    }
+
+    session.channel.push(
+      create(ui.DesktopControlEventSchema, { sessionId: session.id, confirmed: true, command: { check: true } }),
+    );
+
+    return this.checking?.promise ?? Promise.resolve();
   }
 
   close() {
+    this.checking?.finish();
     this.session?.channel.close();
   }
 

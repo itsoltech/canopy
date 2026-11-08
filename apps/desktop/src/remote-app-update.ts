@@ -93,6 +93,7 @@ export class RemoteAppUpdate {
         : (update.updateVersion ?? this.state.availableVersion),
       disabledReason: this.historyError || (update.phase === "disabled" ? update.message : ""),
       ready: update.phase === "downloaded",
+      lastCheckedAtMs: update.lastCheckedAt ?? 0,
     };
   }
   snapshot() {

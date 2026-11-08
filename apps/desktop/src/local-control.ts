@@ -53,7 +53,7 @@ export class LocalDesktopControl {
       try {
         if (version)
           for await (const event of this.api.watchAppControl(
-            { workerId: this.workerId, version, channel, remoteUpdate: true },
+            { workerId: this.workerId, version, channel, remoteUpdate: true, updateChecks: true },
             { signal: AbortSignal.any([this.stopping.signal, abort.signal]), timeoutMs: 0 },
           )) {
             this.sessionId = event.sessionId;

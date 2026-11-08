@@ -20,6 +20,8 @@ export function validDesktopState(state: ui.DesktopUpdateState, hello: ui.Deskto
     !Number.isFinite(state.updaterProgress) ||
     state.updaterProgress < 0 ||
     state.updaterProgress > 100 ||
+    !Number.isSafeInteger(state.lastCheckedAtMs) ||
+    state.lastCheckedAtMs < 0 ||
     !["", "idle", "checking", "downloading", "downloaded", "error", "disabled"].includes(state.updaterPhase) ||
     state.version !== hello.version ||
     state.channel !== hello.channel ||

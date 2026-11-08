@@ -32,6 +32,7 @@ export function UpdateRows({ snapshot, pending, manage }: Props) {
           name="Canopy on this computer"
           version={app?.version || snapshot.gatewayVersion}
           target={appTarget(app)}
+          checkedAt={app?.lastCheckedAtMs ?? 0}
           status={app?.updaterPhase === "downloaded" ? "Ready" : updateLabel(appPhase(app))}
           busy={updateBusy(app?.phase) || updateBusy(app?.updaterPhase)}
           failed={app?.phase === "failed" || app?.updaterPhase === "error"}
@@ -114,6 +115,7 @@ function ComputerRow({
       name={computer.name}
       version={app?.version || computer.version}
       target={target}
+      checkedAt={app?.lastCheckedAtMs ?? 0}
       status={
         away
           ? presenceLabel(computer.presence, computer.presenceSinceMs, presenceTime)
@@ -187,6 +189,7 @@ function WorkerRows({
             target={
               app?.targetVersion || app?.availableVersion || (worker.state === "ahead" ? "" : home.gatewayVersion)
             }
+            checkedAt={app ? app.lastCheckedAtMs : undefined}
             status={
               !worker.connected
                 ? "Offline"
