@@ -14,14 +14,17 @@ import { SelectField } from "../../ui/Picker";
 import { PermissionPickerSheet, permissionLabel } from "../threads/permissions";
 import { SkeletonScope } from "../../ui/Skeleton";
 import { SettingsSkeletonGroups } from "./SettingsSkeleton";
-import { useWorkerPresence } from "../computers/presence";
+import { useWorkerLabel, useWorkerPresence } from "../computers/presence";
+import { useProjectDetails } from "../computers/project-details";
 import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 import { splitId } from "@canopy/domain/computers";
 
 type ProjectResource = ReturnType<typeof useSettingsResource<ui.GetSettingsResponse>>;
 
 export function ProjectSettings() {
-  const { projects, workers, computers, loaded } = useOverview();
+  const { projects: records, projectChoices: projects, workers, computers, loaded } = useOverview();
+  const details = useProjectDetails();
+  const workerName = useWorkerLabel();
   const resource = useSettingsResource("projects", (api) => api.getSettings({}));
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ui.Project>();
@@ -45,7 +48,7 @@ export function ProjectSettings() {
       {projects
         .filter((p) => p.kind !== "scratch" && !p.archivedAt)
         .map((project) => (
-          <SettingsGroup key={project.id} title={project.name}>
+          <SettingsGroup key={project.id} title={project.name} description={details.places(project)}>
             {project.nodeId ? (
               <SettingsRow
                 title={project.name}
@@ -67,17 +70,15 @@ export function ProjectSettings() {
               </>
             )}
             {project.workspaces.map((ws) => (
-              <WorkspaceSettings
-                key={ws.id}
-                workspace={ws}
-                resource={resource}
-                workerName={workers.find((w) => w.id === ws.workerId)?.name ?? "Unknown worker"}
-              />
+              <WorkspaceSettings key={ws.id} workspace={ws} resource={resource} workerName={workerName(ws.workerId)} />
             ))}
             {!project.nodeId && (
               <>
                 <Button title="Add workspace" onPress={() => setEditing(project)} />
-                <ProjectDefaults project={project} resource={resource} />
+                <ProjectDefaults
+                  project={records.find((record) => record.id === project.id) ?? project}
+                  resource={resource}
+                />
               </>
             )}
           </SettingsGroup>
@@ -141,6 +142,7 @@ function WorkspaceSettings({
 function AddProject({ onSaved, resource }: { onSaved: () => void; resource: ProjectResource }) {
   const { workers } = useOverview();
   const presence = useWorkerPresence();
+  const workerName = useWorkerLabel();
   const [workerId, setWorker] = useState(workers[0]?.id ?? "");
   const [kind, setKind] = useState("directory");
   const [path, setPath] = useState("");
@@ -164,7 +166,7 @@ function AddProject({ onSaved, resource }: { onSaved: () => void; resource: Proj
         onChange={setWorker}
         options={workers.map((w) => ({
           value: w.id,
-          label: w.name,
+          label: workerName(w.id),
           description: presence(w).reason ?? presence(w).status,
           disabled: !presence(w).online,
         }))}
@@ -241,6 +243,7 @@ function AddWorkspace({
 }) {
   const { workers } = useOverview();
   const presence = useWorkerPresence();
+  const workerName = useWorkerLabel();
   const [workerId, setWorker] = useState(workers[0]?.id ?? "");
   const [rootPath, setPath] = useState("");
   const [label, setLabel] = useState("");
@@ -255,7 +258,7 @@ function AddWorkspace({
         onChange={setWorker}
         options={workers.map((w) => ({
           value: w.id,
-          label: w.name,
+          label: workerName(w.id),
           disabled: Boolean(w.nodeId) || !presence(w).online,
           description: presence(w).reason ?? (w.nodeId ? "Add workspaces on their own computer." : undefined),
           badge: presence(w).online ? undefined : presence(w).status,

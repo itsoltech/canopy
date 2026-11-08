@@ -8,6 +8,8 @@ import {
   retainProjects,
   retainLinkedRows,
   forgetComputerProjects,
+  replaceComputerProjects,
+  replaceComputerRows,
   workersWithAvailability,
   projectAwayReason,
 } from "@canopy/domain/linked-snapshot";
@@ -122,9 +124,9 @@ export class OverviewState {
           this.#deleted.add(thread.id);
       }
 
-      this.#forget(nodeId);
-      this.#workers = [...this.#workers, ...(overview?.workers ?? [])];
-      this.projects = [...this.projects, ...(overview?.projects ?? [])];
+      this.#workers = replaceComputerRows(this.#workers, overview?.workers ?? [], nodeId);
+      this.projects = replaceComputerProjects(this.projects, overview?.projects ?? [], nodeId);
+      this.threads = new Map([...this.threads].filter(([, thread]) => thread.nodeId !== nodeId));
       const next = new Map(this.threads);
 
       for (const thread of threads)

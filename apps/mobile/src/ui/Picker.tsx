@@ -27,6 +27,8 @@ export interface PickerOption<T> {
 }
 
 export interface PickerSection<T> {
+  /** Stable identity when separate projects or computers have the same display name. */
+  id?: string;
   title?: string;
   options: PickerOption<T>[];
 }
@@ -97,7 +99,7 @@ export function PickerSheet<T>({
         style={{ flexGrow: 0 }}
       >
         {shown.map((section, index) => (
-          <View key={section.title ?? index} accessibilityRole="list">
+          <View key={section.id ?? section.title ?? index} accessibilityRole="list">
             {section.title ? (
               <Text
                 accessibilityRole="header"

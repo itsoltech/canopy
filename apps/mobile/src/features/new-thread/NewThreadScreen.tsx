@@ -21,6 +21,7 @@ import { WorkerPickerSheet } from "./WorkerPickerSheet";
 import { WorkspacePills } from "./WorkspacePickers";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { SkeletonScope } from "../../ui/Skeleton";
+import { useProjectDetails } from "../computers/project-details";
 
 type State = ReturnType<typeof useNewThread>;
 
@@ -132,6 +133,7 @@ export function NewThreadScreen() {
 
 function NewThreadPickers({ state, picker, close }: { state: State; picker: Picker | null; close: () => void }) {
   const { projects, workers, project, workspace, sections, selected, effort, permissionMode } = state;
+  const details = useProjectDetails();
 
   return (
     <>
@@ -149,7 +151,8 @@ function NewThreadPickers({ state, picker, close }: { state: State; picker: Pick
               label: p.name,
               leading: <ProjectMark name={p.name} kind={p.kind} />,
               badge: state.projectAway(p) ? "Offline" : p.workspaces.length ? undefined : "Not on a worker",
-              description: state.projectAway(p),
+              description: [state.projectAway(p), details.detail(p)].filter(Boolean).join(" · "),
+              keywords: p.aliases.join(" "),
               disabled: Boolean(state.projectAway(p)),
             })),
           },

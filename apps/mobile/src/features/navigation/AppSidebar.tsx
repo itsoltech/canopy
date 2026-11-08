@@ -23,6 +23,7 @@ import { BotListItem } from "../bots/BotListItem";
 import { SettingsThreadList } from "./SettingsThreadList";
 import { SidebarArchivedThreads } from "./SidebarArchivedThreads";
 import { useSidebarThreads } from "./useSidebarThreads";
+import { useProjectDetails } from "../computers/project-details";
 
 function useSidebarState() {
   const { session, client, ready, updateBots } = useSession();
@@ -275,6 +276,7 @@ export function AppSidebar() {
   const state = useSidebarState();
   const { ready, session, workers, stream, filterOpen, setFilterOpen, navigation, projectId, setProjectId } = state;
   const projects = navigation.choices;
+  const details = useProjectDetails();
 
   if (!ready) return <ListSkeleton />;
 
@@ -309,7 +311,8 @@ export function AppSidebar() {
                 label: p.name,
                 leading: <ProjectMark name={p.name} kind={p.kind} />,
                 badge: navigation.projectAway(p) ? "Offline" : undefined,
-                description: navigation.projectAway(p),
+                description: [navigation.projectAway(p), details.detail(p)].filter(Boolean).join(" · "),
+                keywords: p.aliases.join(" "),
                 muted: Boolean(navigation.projectAway(p)),
               })),
           },

@@ -504,6 +504,18 @@ działającego OTA ustala wiersz Updates; manifesty i historię grup pokazuje EA
 
 ## Interfejs zgodny z web
 
+Overview uzgadnia projekty, workery i wątki po stabilnym id, także przy powtórzonych
+snapshotach partnera i starszych aktualizacjach pojedynczych wierszy. Nowy wątek,
+filtr sidebara i domyślne workspace'y używają wspólnego `projectChoices`: jeden
+**No project** oraz wspólne projekty według globalnego id lub jednoznacznego origin.
+Katalog nadal należy do oryginalnego `workspace.project_id`; scalenie nie zmienia
+trasowania ani właściciela. Wybór workera pokazuje jeden wiersz na worker i grupy
+komputerów; dla scratch uwzględnia też wyłączone workery bez katalogu scratch.
+Osobne projekty o tej samej nazwie mają w szczegółach komputer i workspace.
+Settings → Projects scala prezentację, lecz edytuje lokalny rekord i jego ustawienia;
+zdalne workspace'y pozostają tylko do odczytu. Nazwy komputerów opisują również
+workery w ustawieniach. Sekcje pickerów mają stabilne klucze niezależne od nazw.
+
 Pierwszy odczyt danych pokazuje szkielety z `src/ui/Skeleton.tsx`, zgodne z web:
 zaokrąglone pola o niskim kontraście i delikatny puls, wyłączony przez systemowe
 ograniczenie ruchu. Znane formularze zachowują zamontowane wiersze i wymiary kontrolek;

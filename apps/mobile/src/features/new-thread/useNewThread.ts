@@ -32,14 +32,14 @@ export function useNewThread() {
   const sending = useRef(false);
   const initialLoading = !overview.loaded || (!settings.user && !settings.error);
 
-  const projects = overview.projects.filter((p) => !p.archivedAt);
+  const projects = overview.projectChoices;
   const presence = useWorkerPresence();
   // A worker on a linked computer this one cannot reach counts as offline.
   const online = (workerId: string) => presence(overview.workers.find((w) => w.id === workerId)).online;
   const userDefaults = settings.user?.threadDefaults;
 
   const project =
-    projects.find((p) => p.id === picks.projectId) ??
+    projects.find((p) => p.projectIds.includes(picks.projectId ?? "")) ??
     defaultProject(projects, overview.threads, userDefaults?.workspaceId ?? "");
 
   const defaults = effectiveDefaults(userDefaults, project ? settings.projectDefaults(project.id) : undefined);

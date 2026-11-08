@@ -55,4 +55,17 @@ export function useWorkerPresence() {
   };
 }
 
+/** Worker names alone are ambiguous once several computers contribute choices. */
+export function useWorkerLabel() {
+  const { workers, computers } = useOverview();
+  const presence = useWorkerPresence();
+
+  return (id: string) => {
+    const worker = workers.find((row) => row.id === id);
+    const name = worker?.name ?? "Unknown worker";
+
+    return computers.length ? `${name} · ${presence(worker).computer}` : name;
+  };
+}
+
 const status = (worker: ui.Worker | undefined) => (worker?.online ? "Online" : "Offline");
