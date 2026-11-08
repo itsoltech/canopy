@@ -1,11 +1,11 @@
 import { Pressable, ScrollView, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { router } from "expo-router";
-import Animated from "react-native-reanimated";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import type { ui } from "@canopy/contracts";
 import { subagentLineage } from "@canopy/domain/subagents";
 import { formatCount } from "@canopy/domain/format";
 import { Chevron } from "../../ui/MotionViews";
-import { useMotion, useReducedMotion } from "../../ui/motion";
+import { motion, useTween } from "../../ui/motion";
 import { styles, useColors } from "../../ui/theme";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { SubagentLineage } from "./SubagentLineage";
@@ -69,33 +69,50 @@ export function SubagentSummary({
 export function SubagentPanel({ threads, style }: { threads: readonly ui.Thread[]; style?: StyleProp<ViewStyle> }) {
   const c = useColors();
   const device = useDevicePreferences();
-  const reduced = useReducedMotion();
-  const { pop } = useMotion();
+  const open = device.values.subagentsExpanded === "on" && threads.length > 0;
+  const progress = useTween(open ? 1 : 0, { duration: open ? motion.fast : motion.quick });
+  // Keep the flex slot until the close finishes; an exiting, unmounted view loses its bottom anchor.
+  const slot = useAnimatedStyle(() => ({ display: progress.get() === 0 ? "none" : "flex" }));
 
-  if (device.values.subagentsExpanded !== "on" || !threads.length) return null;
+  const panel = useAnimatedStyle(() => ({
+    opacity: progress.get(),
+    transform: [{ translateY: (progress.get() - 1) * motion.distance.micro }],
+  }));
 
+  // The stable clip contains both directions of motion, including a scrolled list and interrupted toggles.
   return (
     <Animated.View
-      entering={reduced ? undefined : pop.entering}
-      exiting={reduced ? undefined : pop.exiting}
-      accessibilityLabel="Subagents"
-      style={[
-        {
-          maxHeight: 240,
-          minHeight: 0,
-          flexShrink: 1,
-          borderRadius: 16,
-          borderWidth: 1,
-          borderColor: c.line,
-          backgroundColor: c.overlay,
-          overflow: "hidden",
-        },
-        style,
-      ]}
+      pointerEvents={open ? "auto" : "none"}
+      accessibilityElementsHidden={!open}
+      importantForAccessibility={open ? "auto" : "no-hide-descendants"}
+      style={[{ maxHeight: 240, minHeight: 0, flexShrink: 1, overflow: "hidden" }, style, slot]}
     >
-      <ScrollView keyboardShouldPersistTaps="always" keyboardDismissMode="none" contentContainerStyle={{ padding: 4 }}>
-        <SubagentLineage threads={threads} onOpen={(id) => router.push({ pathname: "/thread/[id]", params: { id } })} />
-      </ScrollView>
+      <Animated.View
+        accessibilityLabel="Subagents"
+        style={[
+          {
+            minHeight: 0,
+            flexShrink: 1,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: c.line,
+            backgroundColor: c.overlay,
+            overflow: "hidden",
+          },
+          panel,
+        ]}
+      >
+        <ScrollView
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="none"
+          contentContainerStyle={{ padding: 4 }}
+        >
+          <SubagentLineage
+            threads={threads}
+            onOpen={(id) => router.push({ pathname: "/thread/[id]", params: { id } })}
+          />
+        </ScrollView>
+      </Animated.View>
     </Animated.View>
   );
 }

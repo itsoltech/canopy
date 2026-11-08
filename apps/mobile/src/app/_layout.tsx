@@ -37,15 +37,12 @@ function Navigation() {
   const showSidebar = Boolean(session) && sidebarOpen && pathname !== "/settings";
   // Only the toggle animates; a rotation, a fold, sign-in or Settings (which has its own list) switch at once.
   const context = `${wide}:${Boolean(session)}:${pathname === "/settings"}`;
-  const [last, setLast] = useState(context);
-
-  if (last !== context) setLast(context);
 
   return (
     <View style={{ flex: 1, flexDirection: "row", backgroundColor: c.background }}>
       <StatusBar style={c.dark ? "light" : "dark"} />
       <PaneInsets.Provider value={{ left: insets.left, right: 0 }}>
-        <SidebarColumn open={showSidebar} width={sidebarWidth + insets.left} instant={last !== context} />
+        <SidebarColumn key={context} open={showSidebar} width={sidebarWidth + insets.left} />
       </PaneInsets.Provider>
       <PaneInsets.Provider value={{ left: showSidebar ? 0 : insets.left, right: insets.right }}>
         <View style={{ flex: 1, overflow: "hidden" }}>
@@ -64,7 +61,7 @@ function Navigation() {
  * beside it lays out once, never during the motion (a long thread re-wraps all its text, which would stall the
  * frames). Instant with reduced motion.
  */
-function SidebarColumn({ open, width, instant }: { open: boolean; width: number; instant: boolean }) {
+function SidebarColumn({ open, width }: { open: boolean; width: number }) {
   const c = useColors();
   const reduced = useReducedMotion();
   const [mounted, setMounted] = useState(open);
@@ -82,13 +79,13 @@ function SidebarColumn({ open, width, instant }: { open: boolean; width: number;
   if (!mounted && placed) setPlaced(false);
   useEffect(() => {
     if (open && !placed) return;
-    const duration = reduced || instant ? 0 : open ? motion.slow : motion.medium;
+    const duration = reduced ? 0 : open ? motion.slow : motion.medium;
     progress.set(
       withTiming(open ? 1 : 0, { duration, easing: smoothOut }, (finished) => {
         if (finished && !open) scheduleOnRN(setMounted, false);
       }),
     );
-  }, [open, placed, instant, reduced, progress]);
+  }, [open, placed, reduced, progress]);
 
   if (!mounted) return null;
 

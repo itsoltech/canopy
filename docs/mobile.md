@@ -452,6 +452,9 @@ rozłożony foldable, telefon w poziomie) lista zostaje obok otwartego wątku lu
 w desktopowym web (`src/state/layout.tsx`). Ma 260–320 dp, zaznacza otwarty wątek i chowa się
 przyciskiem listy w nagłówku. Układ zależy od szerokości okna, nie typu urządzenia, więc
 składanie, obrót i zmiana rozmiaru przełączają go na żywo; aplikacja nie blokuje orientacji.
+Przekroczenie progu szerokości odtwarza kolumnę sidebara od razu w docelowym stanie,
+bez oczekiwania na callback zamknięcia. Powrót do pionu nie rezerwuje więc miejsca na
+znikający sidebar i nie zwęża przejściowo wątku. Ręczny przycisk nadal animuje panel.
 `ui/ScreenFrame.tsx` stosuje insets do kontrolek, bez obcinania tła ani viewportu listy.
 Nagłówki i stopka sidebara są półprzezroczystymi nakładkami; ich zmierzona wysokość
 powiększa padding końców list, więc pierwszy i ostatni wiersz są dostępne w całości.
@@ -558,7 +561,11 @@ przy „Keep finished subagents in the list” = Off zakończeni, także archiwa
 ostatnie 10 minut na głównej liście, a starszych pod „Previous subagents” z liczbą nieudanych.
 Wiersz ma ucięty tytuł, stan (w tym „Waiting for an answer”), ikonę dostawcy i model oraz pierwszą
 linię ostatniej wiadomości bez znaczników markdown. Zakończeni mają też względny czas aktywności.
-Wejście i wyjście nakładki używa `pop`, grupy `Expand`, chevron `useTween`; ograniczenie ruchu
+Nakładka pozostaje zamontowana podczas zamykania i odwraca rozjaśnienie oraz niewielkie
+przesunięcie w górę (`distance.micro`, `fast` / `quick`). Osobny kontener przycina oba kierunki
+animacji nad podsumowaniem; zamknięty panel nie zajmuje miejsca ani nie przyjmuje dotyku.
+Zmiana kierunku w trakcie animacji zachowuje bieżący postęp i pozycję przewinięcia listy.
+Grupy używają `Expand`, chevron `useTween`; ograniczenie ruchu
 przełącza panel i grupy natychmiast. Dotknięcie otwiera
 wątek z historią i możliwością dalszej wiadomości; archiwalny wymaga najpierw „Unarchive”.
 Odrzucona przez gateway wiadomość pokazuje jego powód zamiast ogólnej noty o ponowieniu.
