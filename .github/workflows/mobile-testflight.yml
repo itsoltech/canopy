@@ -1,4 +1,4 @@
-# Native changes build iOS/TestFlight; compatible JS changes publish signed updates for both platforms.
+# Native changes build iOS/TestFlight; compatible JS changes publish unsigned updates for both platforms.
 # Android binaries are always built manually. See docs/mobile.md.
 name: Mobile release
 
@@ -100,11 +100,10 @@ jobs:
             --auto-submit-with-profile production --message "$MESSAGE"
 
       # Replace this publisher (and updates.url in app.json) to use an Expo Updates protocol server.
-      - name: Publish signed update
+      - name: Publish update
         if: steps.plan.outputs.ota == 'true'
         working-directory: apps/mobile
         env:
           CHANNEL: ${{ steps.version.outputs.channel }}
           MESSAGE: ${{ steps.plan.outputs.message }}
-          EXPO_UPDATES_PRIVATE_KEY: ${{ secrets.EXPO_UPDATES_PRIVATE_KEY }}
         run: bash ../../scripts/mobile-publish-update.sh

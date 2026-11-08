@@ -7,9 +7,7 @@
     "updates": {
       "url": "https://u.expo.dev/00e078e3-86cf-493e-adac-6fff27d7f803",
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0,
-      "codeSigningCertificate": "./certs/updates-certificate.pem",
-      "codeSigningMetadata": { "keyid": "canopy-updates", "alg": "rsa-v1_5-sha256" }
+      "fallbackToCacheTimeout": 0
     },
     "orientation": "default",
     "icon": "../web/static/icon-512.png",

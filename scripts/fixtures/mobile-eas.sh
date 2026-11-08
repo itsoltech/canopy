@@ -31,9 +31,13 @@ case "$command" in
   update:view) response=group ;;
   update)
     [ -z "${EXPO_UPDATES_PRIVATE_KEY+x}" ]
-    [ "$(stat -c %a "$key")" = 600 ]
-    printf '%s' "$key" > "$CANOPY_MOBILE_TEST_RESPONSES/key-path"
-    exit 12 ;;
+    [ -z "$key" ]
+    if [ "${CANOPY_MOBILE_TEST_FAIL:-}" = update ]; then
+      echo 'Update publication failed.' >&2
+      exit 12
+    fi
+    echo 'Published unsigned update.'
+    exit 0 ;;
   *) echo 'Unexpected EAS mutation or command in offline test.' >&2; exit 99 ;;
 esac
 [ "$response" != "${CANOPY_MOBILE_TEST_FAIL:-}" ] || exit 10
