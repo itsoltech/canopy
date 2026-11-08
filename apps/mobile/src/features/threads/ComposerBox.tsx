@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ComponentRef, type ReactNode } from "react";
-import { ActivityIndicator, Keyboard, Pressable, ScrollView, Text, View } from "react-native";
+import { useRef, type ComponentRef, type ReactNode } from "react";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { inputTypography, TextInput } from "../../ui/TextInput";
 import Animated, { interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { Skeleton } from "../../ui/Skeleton";
@@ -8,6 +8,8 @@ import { Icon } from "../../ui/Icon";
 import type { Mention } from "@canopy/contracts";
 import { MessageSpans, type BadgeTone } from "../composer/MessageText";
 import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
+import { useChatInputID } from "../composer/ChatKeyboard";
+import { useKeyboardBlur } from "../composer/useKeyboardBlur";
 
 /** What each trigger character does, as on the web; no-break spaces keep each item on one line. */
 const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell"]
@@ -187,26 +189,8 @@ function ComposerInput({
   const c = useColors();
   const { progress, writing, room, focused, onFocus } = useComposerMotion();
   const input = useRef<ComponentRef<typeof TextInput>>(null);
-
-  // Android keeps the field focused when the back gesture closes the keyboard: closing it ends writing, so the
-  // controls come back. Only a keyboard that showed during this focus counts (a hardware keyboard shows none).
-  useEffect(() => {
-    if (!focused) return;
-    let shown = false;
-
-    const show = Keyboard.addListener("keyboardDidShow", () => {
-      shown = true;
-    });
-
-    const hide = Keyboard.addListener("keyboardDidHide", () => {
-      if (shown) input.current?.blur();
-    });
-
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, [focused]);
+  const nativeID = useChatInputID();
+  useKeyboardBlur(input, focused);
 
   // Measure the draft's natural height and retain at least the field's height when writing began.
   const lines = useSharedValue(0);
@@ -250,6 +234,7 @@ function ComposerInput({
     >
       <View style={{ flexGrow: 1, flexShrink: 1 }}>
         <TextInput
+          nativeID={nativeID}
           ref={input}
           onContentSizeChange={(event) => lines.set(event.nativeEvent.contentSize.height)}
           accessibilityLabel={label}

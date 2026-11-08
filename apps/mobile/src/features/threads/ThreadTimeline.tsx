@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Platform, Text, View } from "react-native";
+import { View } from "react-native";
 import Animated from "react-native-reanimated";
 import { ui, type Item } from "@canopy/contracts";
 import { useAppearance } from "../../state/appearance";
@@ -10,7 +10,7 @@ import { useMotion } from "../../ui/motion";
 import { ArrivingCell, useArrivals } from "../../ui/MotionViews";
 import { ConversationSkeleton } from "../../ui/Skeleton";
 import { HistoryFooter } from "../../ui/HistoryFooter";
-import { styles, useColors } from "../../ui/theme";
+import { styles } from "../../ui/theme";
 import { TimelineList } from "../composer/TimelineList";
 import type { useFloatingComposer } from "../composer/useFloatingComposer";
 import { TimelineDirectoryProvider, type TimelineDirectory } from "../timeline/directory";
@@ -62,15 +62,14 @@ export function ThreadTimeline({
   state: ThreadState;
   composer: ReturnType<typeof useFloatingComposer<ui.Turn>>;
 }) {
-  const c = useColors();
   const { appearance } = useAppearance();
 
   const maxWidth =
     appearance?.chatWidth === ui.ChatWidth.FULL ? undefined : appearance?.chatWidth === ui.ChatWidth.WIDE ? 1024 : 768;
 
-  const { turns, following, stream, snapshot } = state;
+  const { turns, following, snapshot } = state;
   const { directory, context } = useTimelineData(state);
-  const anchor = useFeedAnchor(following.list, following.offset, following.isFollowing);
+  const anchor = useFeedAnchor(following.list, following.offset, following.isFollowing, following.minimum);
   const latestFirst = [...turns].reverse();
   const turnKey = (turn: ui.Turn) => `${turn.fromThreadId}:${turn.id}`;
   const arrival = useArrivals(latestFirst.map(turnKey), Boolean(snapshot), { newestFirst: true });
@@ -107,7 +106,6 @@ export function ThreadTimeline({
           style={styles.fill}
           contentContainerStyle={{ maxWidth, paddingTop: 24, flexGrow: 1, gap: 0 }}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           // Inverted: the footer is the top of the feed, the header sits under the latest turn.
           ListFooterComponent={
             <View style={{ gap: 16, paddingBottom: 16 }}>
@@ -133,9 +131,6 @@ export function ThreadTimeline({
           ListHeaderComponent={
             <>
               <View style={{ gap: 12, paddingBottom: steering.length || loose.length ? 12 : 0 }}>
-                <Text accessibilityLiveRegion="polite" style={[styles.caption, { color: c.muted, height: 20 }]}>
-                  {snapshot && !state.home.away && stream.connection !== "live" ? "Syncing…" : ""}
-                </Text>
                 {loose.map((n) => (n.notice ? <NoticeRow key={String(n.seq)} notice={n.notice} /> : null))}
                 {steering.map((s) => (
                   <Animated.View key={s.id} entering={rise.entering} exiting={rise.exiting}>

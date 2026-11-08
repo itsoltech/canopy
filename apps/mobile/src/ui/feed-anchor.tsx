@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode, type RefObject } from "react";
 import type { HostInstance } from "react-native";
+import type { SharedValue } from "react-native-reanimated";
 
 /**
  * Keeps what the reader tapped where it was (docs/timeline-folding.md): opening or closing a fold grows or shrinks
@@ -46,6 +47,7 @@ export function useFeedAnchor(
   list: RefObject<Scrollable | null>,
   offset: RefObject<number>,
   following: () => boolean,
+  minimum?: SharedValue<number>,
 ): FeedAnchor {
   return useMemo(
     () => ({
@@ -63,7 +65,7 @@ export function useFeedAnchor(
 
               if (Math.abs(moved) < 1) return;
               // Inverted: a larger offset shows older content, which moves the rows down the screen.
-              offset.current = Math.max(0, offset.current - moved);
+              offset.current = Math.max(minimum?.get() ?? 0, offset.current - moved);
               list.current?.scrollToOffset({ offset: offset.current, animated: false });
             });
 
@@ -72,6 +74,6 @@ export function useFeedAnchor(
         });
       },
     }),
-    [list, offset, following],
+    [list, offset, following, minimum],
   );
 }

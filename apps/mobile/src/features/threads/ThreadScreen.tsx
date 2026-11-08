@@ -10,7 +10,7 @@ import { applyThread } from "../../api/thread";
 import { useSession } from "../../state/session";
 import { useThreadSnapshot } from "../../state/thread";
 import { Notice } from "../../ui/components";
-import { KeyboardArea } from "../../ui/KeyboardArea";
+import { ChatKeyboard } from "../composer/ChatKeyboard";
 import { MessageComposer } from "./MessageComposer";
 import { DropZone } from "../attachments/FileIntake";
 import { ThreadPanel } from "./ThreadPanel";
@@ -18,6 +18,7 @@ import { QuestionPanel } from "./questions/QuestionPanel";
 import { useOverview } from "../../state/overview";
 import { ThreadHeader } from "./ThreadHeader";
 import { ThreadTimeline } from "./ThreadTimeline";
+import { ThreadSyncStatus } from "./ThreadSyncStatus";
 import { ConnectionBanner } from "../navigation/ConnectionStatus";
 import { SubagentPanel, SubagentSummary } from "./SubagentPanel";
 import { useFollowingList } from "../../ui/useFollowingList";
@@ -46,7 +47,7 @@ function useThreadState(id: string) {
   const { snapshot, setSnapshot, stream, history } = useThreadSnapshot(id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const following = useFollowingList<ui.Turn>();
+  const following = useFollowingList<ui.Turn>(true);
   const [details, setDetails] = useState(false);
   const [queued, setQueued] = useState<{ turn: ui.Turn; editing: boolean }>();
   const { projects, workers, threads } = useOverview();
@@ -237,7 +238,7 @@ export function ThreadScreen({ id }: { id: string }) {
         </>
       }
     >
-      <KeyboardArea>
+      <ChatKeyboard composerHeight={composer.height}>
         <DropZone draft={state.message.files} disabled={blocked || state.home.away}>
           <ThreadTimeline state={state} composer={composer} />
           <FloatingComposer
@@ -246,6 +247,17 @@ export function ThreadScreen({ id }: { id: string }) {
             onExpand={composer.expand}
             onLatest={atBottom ? undefined : showLatest}
             overlay={<ThreadSuggestions state={state} />}
+            accessory={
+              <>
+                <ThreadSyncStatus state={state} />
+                <QuestionPanel
+                  interactions={interactions}
+                  subagents={subagents}
+                  disabled={state.home.away || state.stream.connection !== "live"}
+                />
+                <SubagentSummary threads={subagents} obscured={Boolean(state.message.trigger)} />
+              </>
+            }
           >
             {error ? <Notice error>{error}</Notice> : null}
             {state.home.away && (
@@ -253,12 +265,6 @@ export function ThreadScreen({ id }: { id: string }) {
                 {state.home.name} · {state.home.status}. Read only until it reconnects.
               </Notice>
             )}
-            <QuestionPanel
-              interactions={interactions}
-              subagents={subagents}
-              disabled={state.home.away || state.stream.connection !== "live"}
-            />
-            <SubagentSummary threads={subagents} obscured={Boolean(state.message.trigger)} />
             <SkeletonScope loading={!thread}>
               <MessageComposer
                 compact={composer.compact}
@@ -280,7 +286,7 @@ export function ThreadScreen({ id }: { id: string }) {
             </SkeletonScope>
           </FloatingComposer>
         </DropZone>
-      </KeyboardArea>
+      </ChatKeyboard>
       <ThreadPanel snapshot={snapshot} visible={details} onClose={() => setDetails(false)} />
       <QueuedMessageMenu
         turn={state.home.away || state.queued?.editing ? undefined : state.queued?.turn}

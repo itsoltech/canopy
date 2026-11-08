@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Platform, View } from "react-native";
+import { View } from "react-native";
 import { ArrivingCell, useArrivals } from "../../ui/MotionViews";
 import { Skeleton } from "../../ui/Skeleton";
 import { Redirect, router } from "expo-router";
@@ -16,7 +16,7 @@ import { HistoryFooter } from "../../ui/HistoryFooter";
 import { ConnectionBanner } from "../navigation/ConnectionStatus";
 import { IconButton, Notice, ScreenHeader } from "../../ui/components";
 import { styles } from "../../ui/theme";
-import { KeyboardArea } from "../../ui/KeyboardArea";
+import { ChatKeyboard } from "../composer/ChatKeyboard";
 import { ComposerBox } from "../threads/ComposerBox";
 import { ChatRowView, useChatRows } from "./ChatTimeline";
 import { BotStatusRow } from "./ChatRows";
@@ -38,7 +38,7 @@ function useBotChat(id: string) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [details, setDetails] = useState(false);
-  const following = useFollowingList<ChatRow>();
+  const following = useFollowingList<ChatRow>(true);
   const sending = useRef(false);
   const pending = useRef({ text: "", id: "" });
 
@@ -154,7 +154,7 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
         </>
       }
     >
-      <KeyboardArea>
+      <ChatKeyboard composerHeight={composer.height}>
         <View style={styles.fill}>
           <TimelineList
             {...composer.listProps}
@@ -167,7 +167,6 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
             keyExtractor={chatRowId}
             contentContainerStyle={[styles.page, { gap: 0, flexGrow: 1 }]}
             keyboardShouldPersistTaps="handled"
-            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
             renderItem={({ item }) => (
               <ArrivingCell entering={arrival(item.id)}>
                 <ChatRowView row={item} approvals={approvals} readOnly={!live} onAnswer={answer} />
@@ -218,7 +217,7 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
             />
           </FloatingComposer>
         </View>
-      </KeyboardArea>
+      </ChatKeyboard>
       <BotDetailsPanel
         conversation={conversation}
         visible={details || !!rule}

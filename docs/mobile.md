@@ -511,13 +511,24 @@ potwierdzenia `confirm()` zamiast natywnego `Alert.alert`. Cel dotyku 44 dp daje
 wymiary widoczne zostają jak w web.
 
 RN używa StyleSheet i Inter 400/500/600 (pakiet fontu, bez pobierania z sieci), SVG
-z tych samych ścieżek i FlatList. Aplikacja działa edge-to-edge, więc okno nie
-zmienia rozmiaru przy klawiaturze. Ekrany z kompozytorem lub formularzem (wątek, czat bota,
-New thread, Pair) i `Overlay` nie używają `KeyboardAvoidingView`: `ui/KeyboardArea.tsx` liczy,
-ile klawiatura zasłania od dołu okna (wysokość okna minus jej `screenY`; na Androidzie `height`
-pomija pasek nawigacji pod nią). Przy otwartej klawiaturze dół kompozytora leży na niej.
-Przy zamkniętej tło i feed sięgają dolnej krawędzi, a kontrolki i końce przewijanej treści
-dostają dolny inset z `useSafeAreaInsets`. Jasny/ciemny motyw
+z tych samych ścieżek i FlatList. Aplikacja działa edge-to-edge. Klawiaturę obsługuje
+`react-native-keyboard-controller` **1.22.7** (wersja dobrana przez `bunx expo install`):
+`KeyboardProvider` w root przekazuje natywne klatki do Reanimated, także przy interaktywnym
+zamykaniu. Moduł wymaga nowego development buildu; sam bundle JS/OTA nie wystarczy.
+`KeyboardWindow` zbiera `onMove`, `onInteractive` i `onEnd` z `useKeyboardHandler` do wspólnych
+wartości `useKeyboardFrame`. Nie bierze pozycji z `onStart`, bo na iOS jest to cel animacji.
+`FloatingComposer` przesuwa nakładkę na wątku UI według tych klatek, bez własnej krzywej ani
+czasu animacji. Feed zachowuje pełny viewport: `TimelineList` używa na Androidzie
+`KeyboardChatScrollView` z odwróconą listą, `keyboardLiftBehavior="always"` i dolnym insetem.
+Na iOS `IOSChatScrollView` uzgadnia inset i offset w każdej natywnej klatce, zachowując
+odległość od końca listy; interaktywny gest i jego końcowe domknięcie zostawiają offset UIKit.
+Inset safe area jest oddzielony od pomiaru kompozytora; pod klawiaturą zastępuje go IME.
+`useFollowingList` normalizuje ujemny offset insetu iOS; kotwica foldu i „Show latest”
+uwzględniają go także przy otwartej klawiaturze. `ChatKeyboard` wiąże region gestu z polem:
+iOS używa `interactive`, Android natywnego `KeyboardGestureArea` oraz insetów edge-to-edge.
+Zmiany klawiatury nie liczą się jako gest zwijający kompozytor. Formularze New thread,
+Pair i Settings korzystają z `KeyboardViewport`, którego padding także śledzi klatki na UI.
+Pełne arkusze i pickery mają własny provider w natywnym oknie. Jasny/ciemny motyw
 oraz niezależne palety Light/Dark są ustawieniami gatewaya, synchronizowanymi między klientami.
 Settings korzysta ze wspólnych tokenów tematów Birch, Fern, Lagoon, Cedar, Heather,
 Blossom i Ash. Preferencje urządzenia (typografia, kontrast, diffy i format czasu)
@@ -538,8 +549,8 @@ Podczas przewijania wiersze przechodzą pod nagłówkiem i paskiem stanu. Ikony 
 zmieniają jasność wraz z motywem, a powierzchnia nagłówka utrzymuje ich kontrast.
 `ScreenScroll` stosuje padding treści w New thread, Pair, Settings i arkuszach szczegółów.
 Timeline wątku i bota ma odwrócone końce: górny inset jest na najstarszym końcu,
-a dolny rezerwuje zmierzony kompozytor wraz z safe area. Tło kompozytora sięga pod
-home indicator; padding kontrolek znika pod klawiaturą, zastąpiony jej rzeczywistym overlapem.
+a dolny rezerwuje rzeczywistą wysokość kompozytora i oddzielny inset safe area. Tło kompozytora sięga pod
+home indicator; pod klawiaturą inset zastępuje jej rzeczywisty overlap.
 W podziale na kolumny tylko sidebar dostaje lewy inset, a główny panel prawy; po ukryciu
 sidebara główny panel dostaje obie krawędzie. Lewy inset powiększa szerokość kolumny sidebara,
 zamiast zabierać miejsce jej treści. Settings stosuje tę samą regułę do własnych kolumn:
@@ -563,12 +574,13 @@ BotAvatar, ChatBubble i BotDetailsPanel. Brand assety pochodzą z `apps/web/stat
 
 Kompozytor wątku (także bocznego) i czatu bota jest nakładką nad feedem, z powierzchnią,
 obramowaniem i cieniem w jasnym motywie oraz wygaszeniem tła na 32 dp jak w web.
-`features/composer/FloatingComposer.tsx` leży wewnątrz `KeyboardArea`, więc zachowuje
-obsługę klawiatury i safe area. Pod ostatnią wiadomością (w nagłówku odwróconej listy) stoi
-stała rezerwa: wysokość rozwiniętego kompozytora. Zwijanie, rozwijanie i chowanie kontrolek
-przy pisaniu są wyłącznie ruchem nakładki, więc żadna wiadomość się nie przesuwa; rezerwa
-zmienia się tylko po ustaleniu się otwartego kompozytora, gdy naprawdę zmienia się jego treść
-(dłuższy szkic, załącznik), a podczas pisania tylko rośnie. Lista podpowiedzi jest osobną
+`features/composer/FloatingComposer.tsx` ma osobny pas gradientu o stałej wysokości **32 dp**
+nad górną krawędzią pola; gradient nie rozciąga się na pełną wysokość kontenera. Pod ostatnią
+wiadomością (w nagłówku odwróconej listy) stoi rezerwa rzeczywistej, ustalonej wysokości
+kompozytora. Pomiar nie zawiera safe area, klawiatury ani pustych wierszy statusu. Po zwinięciu
+oddaje miejsce ukrytych kontrolek; natywna kotwica utrzymuje czytaną wiadomość. W trakcie
+przejścia zmienia się sama nakładka, a rezerwa jest uzgadniana po jej ustaleniu.
+Lista podpowiedzi jest osobną
 nakładką poza mierzonym kompozytorem: otwieranie, filtrowanie, doczytywanie i zamykanie
 nie zmieniają rezerwy ani pozycji feedu. Nakładka mieści się między nagłówkiem a kompozytorem,
 nad klawiaturą, z uwzględnieniem safe area; ma maksymalnie 240 dp i własne przewijanie bez
@@ -599,8 +611,12 @@ Dolny pasek zachowuje własną wysokość i miejsce na wysyłanie/stop; podgląd
 Wybory i załączniki zostają, bo kontrolki pozostają zamontowane. Po utracie fokusu albo
 zamknięciu klawiatury kontrolki wracają (Android po zamknięciu klawiatury zostawia fokus
 w polu, więc kompozytor sam je wtedy zdejmuje).
-Na iOS i Androidzie dotknięcie modelu, effort lub spinacza najpierw zamyka klawiaturę,
-a następnie otwiera sheet. Menu załączników nadal sprawdza typ schowka bez odczytu obrazu;
+Na iOS i Androidzie każdy modal (w tym model, effort i spinacz) najpierw czeka na
+`KeyboardController.dismiss()`, a następnie prezentuje własne okno. Nie ma stałego timeoutu.
+Wyszukiwanie w pickerze otwiera nową klawiaturę, śledzoną przez provider jego okna.
+Scrim pokrywa pełne okno niezależnie od insetów klawiatury; dolny sheet nie skaluje się
+od krawędzi ekranu, więc nie odsłania bocznych ani dolnych szwów. Menu załączników
+nadal sprawdza typ schowka bez odczytu obrazu;
 „Paste image” czyta obraz dopiero po wybraniu tej akcji. Szkic i wybory pozostają zachowane.
 Bot zachowuje jednorzędową pigułkę z rosnącym polem tekstowym. New thread i formularz
 tworzenia wątku bocznego pozostają rozwinięte: przewijają formularz, nie historię rozmowy.
@@ -627,8 +643,8 @@ bez wierszy ma nieinteraktywny nagłówek „Worked for …”. `!` na początku
 powłoki (obramowanie rose, nota w miejscu kontrolek). Tura w kolejce pokazuje „Queued”,
 a po `dispatched` „Starting”; pliki tury są odznakami w dymku. Nad kompozytorem jest jeden
 wiersz „Subagents · N running · N finished” z wyróżnionym tekstem „N needs input”. Jego
-miejsce (44 dp) jest zarezerwowane także bez subagentów; start i koniec pracy nie przesuwają
-kompozytora ani feedu. Podsumowanie pozostaje widoczne podczas pisania. Dotknięcie rozwija
+miejsce jest nakładką poza pomiarem kompozytora; bez subagentów wiersz ma zerową wysokość.
+Start i koniec pracy nie przesuwają kompozytora ani feedu. Podsumowanie pozostaje widoczne podczas pisania. Dotknięcie rozwija
 listę w nakładce nad tym wierszem, poza pomiarem kompozytora: maksymalnie 240 dp, własne
 przewijanie, bez zamykania klawiatury. Nakładka mieści się między nagłówkiem a kompozytorem
 nawet przy otwartej klawiaturze. To pozwala zachować pole pisania i jego fokus bez dodatkowego
@@ -654,8 +670,8 @@ mobile turę z czasem początku i końca, zanim nadejdzie jej projekcja. „Work
 dzięki temu czas także dla tur rozpoczętych przez dostawcę; zapis cache zachowuje te czasy.
 Wiersze osi czasu wyglądają jak w web (`src/features/timeline`): każdy rodzaj itemu ma widok jak `components/items` w web (komendy z kodem wyjścia, narzędzia z tytułem z rejestru, zmiany plików z diffem, rozumowanie, wyszukiwanie, plan/to do, obraz, kompakcja, zdarzenie dostawcy, zapis zgody lub pytania, subagent z zagnieżdżoną pracą, zadanie w tle ze Stop i ogonem wyjścia, wywołania magistrali agentów na fioletowo z kartą subagenta i dostarczenia). Wejście tury pokazuje jego pochodzenie (zadanie, wiadomość, raport od agenta z nadawcą i modelem, pytanie wątku bocznego, harmonogram, bot, notatka o zakończonych zadaniach w tle), steery mają notę, komunikaty dostawcy są wierszami, a nieudana tura pokazuje wyjaśnienie błędu ze szczegółami. Fold „Working for …” / „Worked for …” ma czas, liczniki albo bieżącą czynność, „N still running” i grupy narzędzi („Read 1 file and ran 5 commands”). Etykiety, liczniki i opisy narzędzi pochodzą ze wspólnych modułów `@canopy/domain` (`tools`, `work-summary`, `turn-origin`, `status-look`, `humanize`, `format`, `questions`, `failure-presentation`, `first-line`), tak jak w web. Czat bota używa tego samego układu co web (`@canopy/domain/bot-chat`: `botEntries`, `layoutChat`): linie dat, serie dymków z ciaśniejszymi rogami, linie wymian bot ⇄ bot, zdarzenia, błędy odpowiedzi i karty w kolejności czasu oraz wiersz statusu bota. Ręczne przełączanie foldu trzyma nagłówek w miejscu (timeline-folding.md, „Pozycja przy ręcznym przełączaniu”).
 Pytania Claude `AskUserQuestion`, Codex `request_user_input` i platformy `ask_user`
-obsługuje wiersz „Answer questions” nad kompozytorem. Jego miejsce jest zarezerwowane,
-a arkusz nie zmienia pomiaru kompozytora ani pozycji czytanego feedu. Wszystkie zestawy
+obsługuje wiersz „Answer questions” nad kompozytorem. Wiersz i arkusz są poza pomiarem
+kompozytora; bez pytań nie zajmują miejsca ani nie przesuwają czytanego feedu. Wszystkie zestawy
 mają wspólne parsowanie i kodowanie odpowiedzi z web (`@canopy/domain/questions`):
 jedna/wiele opcji z opisami i rekomendacją, własny tekst, Back, Skip question, Skip all
 oraz Dismiss request dla pytań synchronicznych. Rekomendacja nie zaznacza odpowiedzi.

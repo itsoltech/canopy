@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LayoutChangeEvent } from "react-native";
 import { useAnimatedScrollHandler, useSharedValue, withTiming, type SharedValue } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
+import { useKeyboardMotion } from "./useKeyboardMotion";
 import { motion, smoothOut, useReducedMotion } from "../../ui/motion";
 import type { useFollowingList } from "../../ui/useFollowingList";
 
@@ -28,7 +29,7 @@ function animate({ progress, moving, instant }: Fold, compact: boolean, settle: 
       if (!finished) return;
       moving.set(false);
 
-      if (!compact) scheduleOnRN(settle);
+      scheduleOnRN(settle);
     }),
   );
 }
@@ -38,9 +39,8 @@ function animate({ progress, moving, instant }: Fold, compact: boolean, settle: 
  * handler folds it after a reader gesture travels toward older messages and opens it at the end, in the same frame.
  * Stream updates, keyboard changes and anchor corrections are not reader gestures and change nothing.
  *
- * The timeline keeps a fixed reserve under its latest message: the expanded composer's height. Folding and opening
- * are overlay motion only, so no message moves; the reserve follows the composer only when it is open and settled
- * (a longer draft or an attachment). Popovers are outside the measured box and never change the reserve.
+ * The timeline reserves the input's real settled height. Folding and writing animate only the overlay, then its
+ * reserve settles with native visible-content anchoring. Status rows, popovers, keyboard and safe areas are separate.
  */
 export function useFloatingComposer<Item>(
   following: ReturnType<typeof useFollowingList<Item>>,
@@ -64,17 +64,12 @@ export function useFloatingComposer<Item>(
   // The controls folding away for writing, or coming back.
   const shifting = useSharedValue(false);
   const [focused, setFocused] = useState(false);
-  const focusedNow = useRef(false);
   const measured = useRef(0);
   const motionState = useMemo(() => ({ progress, moving, instant }), [progress, moving, instant]);
-  const { track } = following;
+  const { track, distance } = following;
+  const keyboardMoving = useKeyboardMotion(reader, travel);
 
-  // The reserve follows the open composer once it has settled; a fold or its reversal never resizes it, and while
-  // writing it only grows.
-  const settle = useCallback(
-    () => setHeight((reserve) => (focusedNow.current ? Math.max(reserve, measured.current) : measured.current)),
-    [],
-  );
+  const settle = useCallback(() => setHeight(measured.current), []);
 
   // The open motion from JS; React's flag follows separately (`expand`, or at render for a protected draft).
   const open = useCallback(() => {
@@ -110,7 +105,6 @@ export function useFloatingComposer<Item>(
   // Writing: the controls fold away and the field grows into their room (`fast`, the same both ways).
   const onFocus = useCallback(
     (next: boolean) => {
-      focusedNow.current = next;
       setFocused(next);
       shifting.set(true);
       writing.set(
@@ -138,7 +132,7 @@ export function useFloatingComposer<Item>(
   const onScroll = useAnimatedScrollHandler({
     onBeginDrag: (event) => {
       reader.set(true);
-      previous.set(event.contentOffset.y);
+      previous.set(distance(event.contentOffset.y));
     },
     onEndDrag: (event) => {
       // A release without a fling ends the gesture; a fling keeps it until its momentum ends.
@@ -150,29 +144,33 @@ export function useFloatingComposer<Item>(
       track(event.contentOffset.y);
     },
     onScroll: (event) => {
-      const distance = Math.max(0, event.contentOffset.y);
-      const up = distance - previous.get();
-      previous.set(distance);
-      track(distance);
+      const fromEnd = distance(event.contentOffset.y);
+      const up = fromEnd - previous.get();
+      previous.set(fromEnd);
 
-      if (distance <= END_DISTANCE) return fold(false);
+      track(event.contentOffset.y);
+
+      if (keyboardMoving.get()) return;
+
+      if (fromEnd <= END_DISTANCE) return fold(false);
 
       if (!reader.get() || guarded.get()) return;
       travel.set(Math.max(0, travel.get() + up));
 
-      if (distance >= COMPACT_DISTANCE && travel.get() >= COMPACT_TRAVEL) fold(true);
+      if (fromEnd >= COMPACT_DISTANCE && travel.get() >= COMPACT_TRAVEL) fold(true);
     },
   });
 
   function measure(event: LayoutChangeEvent) {
     measured.current = event.nativeEvent.layout.height;
 
-    // Folded or moving, the composer is not at its open size: keep the reserve. While writing it only grows (a
-    // longer draft); the controls folding away for the text must not pull the feed down.
-    if (folded.get() || moving.get() || shifting.get()) return;
+    // Wait until the input settles, then release any space its folded controls no longer occupy.
+    if (moving.get() || shifting.get()) return;
 
-    if (focused ? measured.current > height : Math.abs(measured.current - height) >= 1) setHeight(measured.current);
+    if (Math.abs(measured.current - height) >= 1) setHeight(measured.current);
   }
+
+  const anchor = following.listProps.maintainVisibleContentPosition;
 
   return {
     compact,
@@ -184,7 +182,7 @@ export function useFloatingComposer<Item>(
       ...following.listProps,
       onScroll,
       // Skip the reserve spacer when anchoring the first visible message.
-      maintainVisibleContentPosition: { ...following.listProps.maintainVisibleContentPosition, minIndexForVisible: 1 },
+      maintainVisibleContentPosition: anchor ? { ...anchor, minIndexForVisible: 1 } : undefined,
     },
   };
 }
