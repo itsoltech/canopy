@@ -7,7 +7,7 @@ import { styles, useColors } from "../../ui/theme";
 import { Icon } from "../../ui/Icon";
 import type { Mention } from "@canopy/contracts";
 import { MessageSpans, type BadgeTone } from "../composer/MessageText";
-import { ComposerFold, controlsShown, useComposerMotion } from "../composer/ComposerFold";
+import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
 
 /** What each trigger character does, as on the web; no-break spaces keep each item on one line. */
 const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell"]
@@ -72,11 +72,11 @@ export function ComposerBox({
   const stop = running && empty && Boolean(onStop);
   const unavailable = disabled || busy || (!stop && empty) || shellIssue;
   const composerMotion = useComposerMotion();
-  const { progress, writing, focused } = composerMotion;
+  const { progress } = composerMotion;
 
-  // The send buttons ride the composer's bottom edge as the controls fold or make room for writing (UI thread).
+  // The send buttons follow the toolbar's fold; writing keeps both in place (UI thread).
   const sendPosition = useAnimatedStyle(() => ({
-    bottom: interpolate(controlsShown({ progress, writing }), [0, 1], [4, 10]),
+    bottom: interpolate(progress.get(), [0, 1], [4, 10]),
   }));
 
   return (
@@ -106,7 +106,7 @@ export function ComposerBox({
         badges={badges}
       />
       {!inline && (
-        <ComposerFold open={!compact && !focused}>
+        <ComposerFold open={!compact} hideWhileWriting={false}>
           <ComposerControls shell={shell} files={files} sendWidth={running && !empty && onQueue ? 92 : 60}>
             {controls}
           </ComposerControls>
@@ -214,11 +214,10 @@ function ComposerInput({
   const laidOut = useRef(0);
 
   // Folding shortens the field; writing hands it the controls' room, so the composer keeps its height and nothing
-  // above it moves while the text gets about four more lines. The send button sits beside the text whenever the toolbar is away. All on the UI thread,
+  // above it moves. The toolbar keeps its own space; the send button sits beside the text only when compact. All on the UI thread,
   // on a frame around the field: Android's text input does not take animated sizes itself.
   const fold = useAnimatedStyle(() => {
     const t = progress.get();
-    const shown = controlsShown({ progress, writing });
     const writes = inline ? 0 : writing.get() * t;
     const padTop = interpolate(t, [0, 1], [10, 14]);
     const padBottom = interpolate(t, [0, 1], [10, 12]);
@@ -236,7 +235,7 @@ function ComposerInput({
     return {
       minHeight: natural + (writingSize - natural) * writes,
       maxHeight: max + room.get() * writes,
-      paddingRight: inline ? 16 : interpolate(shown, [0, 1], [60, 16]),
+      paddingRight: inline ? 16 : interpolate(t, [0, 1], [60, 16]),
       paddingTop: padTop,
       paddingBottom: padBottom,
     };

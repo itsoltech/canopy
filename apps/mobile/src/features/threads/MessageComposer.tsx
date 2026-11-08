@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View } from "react-native";
+import { Keyboard, ScrollView, View } from "react-native";
 import { PermissionMode, ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { ComposerBox, ComposerPill } from "./ComposerBox";
@@ -107,32 +107,50 @@ export function MessageComposer({
           controls={
             <>
               <AttachButton draft={message.files} disabled={disabled || busy} />
-              {thread?.goalStatus ? <ComposerPill icon="flag" title="Goal" onPress={onGoal} /> : null}
               {thread ? (
                 <ComposerPill
                   icon="cpu-chip"
                   leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}
                   title={current?.name || thread.model || "Model"}
-                  onPress={() => setPicker("model")}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setPicker("model");
+                  }}
                 />
               ) : (
                 <Skeleton style={{ width: 110, height: 24 }} />
               )}
               {current?.efforts.length ? (
-                <ComposerPill icon="light-bulb" title={effortLabel(effort)} onPress={() => setPicker("effort")} />
+                <ComposerPill
+                  icon="light-bulb"
+                  title={effortLabel(effort)}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setPicker("effort");
+                  }}
+                />
               ) : null}
             </>
           }
         />
       </PasteTarget>
-      {/* The worker and permission row folds with the toolbar, and gives way while writing. */}
+      {/* Only this secondary row gives its height to the field while writing. */}
       <ComposerFold open={!compact && !focused}>
         <View style={[styles.row, { justifyContent: "space-between", paddingHorizontal: 6 }]}>
-          {worker ? (
-            <ComposerPill icon="computer-desktop" title={worker.name} onPress={onDetails} />
-          ) : (
-            <Skeleton style={{ width: 100, height: 24 }} />
-          )}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.row}
+            style={{ flex: 1 }}
+          >
+            {worker ? (
+              <ComposerPill icon="computer-desktop" title={worker.name} onPress={onDetails} />
+            ) : (
+              <Skeleton style={{ width: 100, height: 24 }} />
+            )}
+            {thread?.goalStatus ? <ComposerPill icon="flag" title="Goal" onPress={onGoal} /> : null}
+          </ScrollView>
           <ComposerPill
             icon={look.icon}
             title={permissionLabel(thread?.permissionMode)}
