@@ -35,8 +35,9 @@ Run lint and typecheck before declaring any task done.
 ## Building with EAS
 
 The `development` EAS profile builds an internal development client for both platforms.
-Run EAS CLI as `bunx eas-cli <command>` in this Bun project. Publishing, submission and
-OTA updates are outside the current implementation scope.
+Run EAS CLI as `bunx eas-cli <command>` in this Bun project. Release profiles, signed OTA
+and TestFlight automation are documented in `../../docs/mobile.md`. Builds, submission
+and OTA publication ship to users and require explicit authority; Android builds stay manual.
 Docs: https://docs.expo.dev/eas/index.md
 
 ## Rules

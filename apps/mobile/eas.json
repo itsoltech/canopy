@@ -18,13 +18,33 @@
       }
     },
     "preview": {
+      "channel": "nightly",
+      "environment": "production",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
       }
     },
+    "preview-beta": {
+      "extends": "preview",
+      "channel": "beta"
+    },
+    "preview-stable": {
+      "extends": "preview",
+      "channel": "stable"
+    },
     "production": {
+      "channel": "nightly",
+      "environment": "production",
       "autoIncrement": true
+    },
+    "production-beta": {
+      "extends": "production",
+      "channel": "beta"
+    },
+    "production-stable": {
+      "extends": "production",
+      "channel": "stable"
     }
   },
   "submit": {

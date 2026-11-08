@@ -300,21 +300,96 @@ i używaj zgodnych wersji CocoaPods, Ruby i `ffi`. Błąd `avdmanager ENOENT`
 oznacza brak Command-line Tools pod `$ANDROID_HOME/cmdline-tools/latest/bin`,
 nawet jeżeli sam obraz AVD jest już zainstalowany.
 
-## Nightly w TestFlight
+## Wydania mobilne: TestFlight i OTA
 
-Workflow `Mobile TestFlight` (`.github/workflows/mobile-testflight.yml`) uruchamia się po udanym
-przebiegu `Release` na `dev`: z harmonogramu godzinowego (`17 * * * *`), dispatchu
-(także po back-merge) lub pushu dla starszych przebiegów. Buduje iOS w EAS profilem `production` i wysyła build do TestFlight
-(`--auto-submit`). Robi to tylko wtedy, gdy:
+Workflow `Mobile release` (`.github/workflows/mobile-testflight.yml`) działa po rzeczywistej
+publikacji przez `Release`: `dev` → `nightly`, `next` → `beta`, `main` i stabilne tagi → `stable`.
+Sprawdza sukces joba `release` przez API (`actions: read`) i tag dokładnie na źródłowym SHA.
+Cykl Release bez nowej publikacji pomija EAS oraz instalację zależności. Ręczny dispatch wymaga
+wydanego HEAD na gałęzi wydania lub tagu; `force` omija tylko sprawdzenie zmienionych ścieżek,
+nie zgodność runtime, kanał ani deduplikację. Nie wysyła nieotagowanych commitów.
 
-- job `release` zakończył się sukcesem i commit dostał tag nightly (`v…-nightly.N`);
-  workflow czyta joby źródłowego przebiegu przez API (`actions: read`). Sam stary tag na HEAD
-  nie wystarcza: kolejny cykl bez publikacji pomija EAS i instalację zależności,
-- od ostatniego buildu iOS, który nie zakończył się błędem ani anulowaniem, zmieniło się coś,
-  z czego składa się aplikacja: `apps/mobile`, pakiety `contracts`, `domain` i `ui`,
-  `package.json`, `bun.lock` albo sam workflow.
+Planner `scripts/mobile-release.sh` porównuje commit z ostatnim ukończonym buildem iOS lub
+nowszym kompletnym, podpisanym OTA dla jego runtime. Brak zmian w `apps/mobile`, pakietach
+`contracts`, `domain`, `ui`, root `package.json`, `bun.lock`, workflow i obu skryptach wydania
+pomija wydanie mobilne. Brak znanego punktu odniesienia wymusza ocenę runtime.
 
-Ręczne uruchomienie (`workflow_dispatch`) z `force` buduje bez sprawdzania zmian.
+`expo-updates` ma `runtimeVersion: { policy: "fingerprint" }`. SDK 58 używa presetu `balanced`
+(`fingerprint.config.js`): wersja marketingowa i numer buildu nie zmieniają runtime, ale SDK,
+zależności natywne, konfiguracja natywna, źródła lokalnych modułów Swift/Kotlin i certyfikat
+podpisu już tak. JS, teksty i zgodne assety mogą trafić przez OTA. Certyfikat jest dodatkowym
+źródłem fingerprintu, żeby rotacja klucza wymagała nowej binarki.
+
+1. Workflow wpisuje wersję marketingową z tagu do roboczego `app.json` i oblicza osobny
+   fingerprint iOS/Android przez `eas fingerprint:generate --build-profile …`. Build i publikacja
+   korzystają z tego samego środowiska EAS `production`, niezależnie od kanału.
+2. Wyszukuje ukończone buildy po kanale i `runtimeVersion`. Zgodny iOS store build oznacza OTA
+   zamiast nowego buildu. Brak zgodnego iOS oznacza pełny build i wysyłkę do TestFlight przez
+   profil submit `production`. Aktywny build tego runtime blokuje kolejne zlecenie.
+3. Jeśli choć jedna platforma ma zgodny build, osobny publisher wysyła podpisane OTA przez
+   `eas update --channel … --platform all --environment production`. Android nie wymusza buildu
+   iOS. Gdy zmieniło się wyłącznie native iOS, zgodny Android nadal może otrzymać OTA.
+4. **APK nigdy nie powstaje automatycznie.** Po zmianie runtime Androida maintainer buduje go
+   ręcznie. OTA dla nowego runtime nie zaktualizuje APK ze starym runtime.
+5. Globalna kolejka nie anuluje publikacji. Planner pomija wydane SHA i ich starszych przodków,
+   aktywne buildy oraz podpisane OTA o tej samej wiadomości `Canopy <tag> (<pełny SHA>)` dla obu
+   runtime. Błędy zapytań EAS zatrzymują planowanie. Nieudany/anulowany build można ponowić;
+   niepełna publikacja OTA jest ponawiana jako kompletna grupa obu platform.
+
+**Pierwsze wydanie po dodaniu `expo-updates` wymaga pełnego buildu natywnego.** Dotychczasowe
+instalacje nie mają modułu ani certyfikatu. OTA zaczyna działać od kolejnej zmiany wyłącznie JS,
+po instalacji nowego IPA lub ręcznie zbudowanego APK.
+
+### Kanały i uruchamianie aktualizacji
+
+| Kanał | Gałąź | Profil iOS/TestFlight | Ręczny profil APK |
+|---|---|---|---|
+| `nightly` | `dev` | `production` | `preview` |
+| `beta` | `next` | `production-beta` | `preview-beta` |
+| `stable` | `main` | `production-stable` | `preview-stable` |
+
+Kanał jest wpisany do binarki; nie ma przełącznika kanału w aplikacji. Każdy kanał EAS musi
+wskazywać wyłącznie własną gałąź aktualizacji o tej samej nazwie. Planner odrzuca aliasy,
+wstrzymane kanały i rollouty; nie przepina ich automatycznie. **Nie mapuj `beta`/`stable` do
+`nightly`**, nawet przy tym samym fingerprint. Development client służy do pracy z Metro,
+nie jest instalacją przypisaną do kanału wydania.
+
+`updates.checkAutomatically: ON_LOAD` sprawdza aktualizacje na zimnym starcie.
+`fallbackToCacheTimeout: 0` uruchamia od razu ostatni lokalny bundle (także offline);
+pobieranie trwa w tle, a pobrany bundle działa od następnego zimnego startu. Nie wywołujemy
+`reloadAsync`, więc aktualizacja nie przerywa pracy. Settings → General → About → Updates
+pokazuje kanał, skrócone ID działającego OTA i datę z lokalnym formatowaniem. Wbudowany bundle
+ma status `Bundled`, klient developerski `Development build`. Dane dotyczą uruchomionego
+bundle, nie aktualizacji dopiero pobranej.
+
+### Podpisywanie i własny serwer
+
+Publiczny certyfikat: `apps/mobile/certs/updates-certificate.pem`. `app.json` wskazuje go przez
+`updates.codeSigningCertificate` i przypina `codeSigningMetadata` (`canopy-updates`,
+`rsa-v1_5-sha256`). Certyfikat trafia do binarki. Natywny klient na obu platformach domyślnie
+ma `allowUnsignedManifests=false`: brak `expo-signature`, obcy keyid albo błędny podpis
+odrzuca manifest przed użyciem. Pozostaje lokalny, sprawdzony bundle. Nie włączaj wyjątków
+zezwalających na niepodpisane manifesty.
+
+Prywatny klucz jest wyłącznie sekretem Actions **`EXPO_UPDATES_PRIVATE_KEY`**. Publisher
+`scripts/mobile-publish-update.sh` zapisuje go z `umask 077` do pliku `0600` pod `.tmp/`,
+podaje przez `--private-key-path` i usuwa przy wyjściu, także po błędzie. Klucz nie trafia
+do EAS ani repozytorium. Certyfikat jest ważny 10 lat; rotacja przed wygaśnięciem wymaga
+nowej pary, aktualizacji sekretu/certyfikatu i nowych buildów obu platform.
+Podpisywanie w hostowanym EAS Update wymaga planu Production lub Enterprise w Expo.
+
+Granice przyszłej migracji na własny serwer protokołu Expo Updates są dwie: **jedna wartość
+`updates.url` w `apps/mobile/app.json`** oraz **jeden skrypt publikacji
+`scripts/mobile-publish-update.sh`**. Zastąp URL i implementację publikacji podpisanych
+manifestów/assetów oraz operacje `latest`/`status` tego skryptu, zachowując kanały, runtime,
+podpisy i metadane wydania. Odczyty historii OTA i walidacja kanałów są w tym samym adapterze;
+planner nadal używa EAS do inwentarza buildów. Buildy mogą pozostać w EAS. Zmiana URL wymaga
+nowej binarki; stare instalacje nadal pytają stary URL, więc utrzymuj go do końca migracji.
+
+W razie wadliwego JS zatrzymaj dalsze publikacje i opublikuj ponownie ostatnią dobrą grupę
+na tym samym kanale/runtime przez `eas update:republish --channel <kanał> --group <grupa>`
+z `--private-key-path` i tym samym kluczem. Zmiana natywna wymaga nowego buildu. Wersję
+działającego OTA ustala wiersz Updates; manifesty i historię grup pokazuje EAS.
 
 - **Aplikacja:** w App Store Connect nazywa się „Canopy Remote”. Ma bundle id
   `tech.itsol.canopy-remote`, ASC app id `6768351426` i zespół `5XWLF3YKWM`.
@@ -323,6 +398,7 @@ Ręczne uruchomienie (`workflow_dispatch`) z `force` buduje bez sprawdzania zmia
 - **Wersja:** App Store przyjmuje trzy liczby, więc `0.2.0-nightly.84` trafia jako `0.2.0`.
   Workflow wpisuje ją do `app.json` tylko w kopii roboczej. EAS kopiuje drzewo robocze, więc nic nie
   jest commitowane. Numer buildu prowadzi EAS (`cli.appVersionSource: remote`, `autoIncrement`).
+  Przy OTA wersja natywna pozostaje wersją zainstalowanego buildu; tag i SHA są wiadomością OTA.
 - **Konto:** sekret repozytorium `EXPO_TOKEN` daje dostęp do organizacji `itsol`.
 - **Poświadczenia:** certyfikat dystrybucyjny i profil provisioningowy trzyma EAS. Pierwszy raz
   tworzy je interaktywnie ktoś z dostępem do zespołu Apple:
@@ -841,3 +917,7 @@ z ponownym zgłoszeniem nadal działających tur workera.
 - [Camera](https://docs.expo.dev/versions/v58.0.0/sdk/camera/), [SecureStore](https://docs.expo.dev/versions/v58.0.0/sdk/securestore/), [Crypto](https://docs.expo.dev/versions/v58.0.0/sdk/crypto/).
 - [Development builds](https://docs.expo.dev/develop/development-builds/introduction/), [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/), [Tailscale Serve](https://tailscale.com/docs/reference/tailscale-cli/serve).
 - [Oficjalne aliasy TS 6 + TS 7](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0).
+
+Aktualizacje OTA: [Updates SDK 58](https://docs.expo.dev/versions/v58.0.0/sdk/updates/),
+[Fingerprint SDK 58](https://docs.expo.dev/versions/v58.0.0/sdk/fingerprint/) i
+[podpisywanie EAS Update](https://docs.expo.dev/eas-update/code-signing/).

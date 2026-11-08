@@ -8,6 +8,7 @@ import { SettingsGroup, SettingsRow, SettingChoice, SettingToggle } from "./Sett
 import { DeviceChoiceRow } from "./DeviceChoiceRow";
 import { useDevicePreferences } from "./device-preferences";
 import { ResetSetting } from "./ResetSetting";
+import { AppUpdateStatus } from "./AppUpdateStatus";
 
 export function GeneralSettings() {
   const settings = useAppearance();
@@ -110,25 +111,32 @@ export function GeneralSettings() {
         />
       </SettingsGroup>
       <ConfirmationSettings />
-      <SettingsGroup title="Display" description="This device unless marked Account">
-        <DeviceChoiceRow
-          preference="timeFormat"
-          title="Time format"
-          description="Set how timestamps show hours."
-          options={[
-            { value: "system", label: "System" },
-            { value: "12h", label: "12-hour" },
-            { value: "24h", label: "24-hour" },
-          ]}
-        />
-        <SettingsRow
-          title="Time zone"
-          description="Bots and scheduled tasks use the time zone reported by this device."
-        >
-          <Text style={[styles.chrome, { color: c.text }]}>Account · {settings.user?.timezone || "UTC"}</Text>
-        </SettingsRow>
-      </SettingsGroup>
+      <DisplaySettings />
+      <AppUpdateStatus />
     </View>
+  );
+}
+
+function DisplaySettings() {
+  const settings = useAppearance();
+  const c = useColors();
+
+  return (
+    <SettingsGroup title="Display" description="This device unless marked Account">
+      <DeviceChoiceRow
+        preference="timeFormat"
+        title="Time format"
+        description="Set how timestamps show hours."
+        options={[
+          { value: "system", label: "System" },
+          { value: "12h", label: "12-hour" },
+          { value: "24h", label: "24-hour" },
+        ]}
+      />
+      <SettingsRow title="Time zone" description="Bots and scheduled tasks use the time zone reported by this device.">
+        <Text style={[styles.chrome, { color: c.text }]}>Account · {settings.user?.timezone || "UTC"}</Text>
+      </SettingsRow>
+    </SettingsGroup>
   );
 }
 
