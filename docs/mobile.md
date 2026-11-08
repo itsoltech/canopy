@@ -310,15 +310,14 @@ wydanego HEAD na gałęzi wydania lub tagu; `force` omija tylko sprawdzenie zmie
 nie zgodność runtime, kanał ani deduplikację. Nie wysyła nieotagowanych commitów.
 
 Planner `scripts/mobile-release.sh` porównuje commit z ostatnim ukończonym buildem iOS lub
-nowszym kompletnym, podpisanym OTA dla jego runtime. Brak zmian w `apps/mobile`, pakietach
+nowszym kompletnym OTA dla jego runtime. Brak zmian w `apps/mobile`, pakietach
 `contracts`, `domain`, `ui`, root `package.json`, `bun.lock`, workflow i obu skryptach wydania
 pomija wydanie mobilne. Brak znanego punktu odniesienia wymusza ocenę runtime.
 
 `expo-updates` ma `runtimeVersion: { policy: "fingerprint" }`. SDK 58 używa presetu `balanced`
 (`fingerprint.config.js`): wersja marketingowa i numer buildu nie zmieniają runtime, ale SDK,
-zależności natywne, konfiguracja natywna, źródła lokalnych modułów Swift/Kotlin i certyfikat
-podpisu już tak. JS, teksty i zgodne assety mogą trafić przez OTA. Certyfikat jest dodatkowym
-źródłem fingerprintu, żeby rotacja klucza wymagała nowej binarki.
+zależności natywne, konfiguracja natywna i źródła lokalnych modułów Swift/Kotlin już tak.
+JS, teksty i zgodne assety mogą trafić przez OTA.
 
 1. Workflow wpisuje wersję marketingową z tagu do roboczego `app.json` i oblicza osobny
    fingerprint iOS/Android przez `eas fingerprint:generate --build-profile …`. Build i publikacja
@@ -326,19 +325,24 @@ podpisu już tak. JS, teksty i zgodne assety mogą trafić przez OTA. Certyfikat
 2. Wyszukuje ukończone buildy po kanale i `runtimeVersion`. Zgodny iOS store build oznacza OTA
    zamiast nowego buildu. Brak zgodnego iOS oznacza pełny build i wysyłkę do TestFlight przez
    profil submit `production`. Aktywny build tego runtime blokuje kolejne zlecenie.
-3. Jeśli choć jedna platforma ma zgodny build, osobny publisher wysyła podpisane OTA przez
+3. Jeśli choć jedna platforma ma zgodny build, osobny publisher wysyła niepodpisane OTA przez
    `eas update --channel … --platform all --environment production`. Android nie wymusza buildu
    iOS. Gdy zmieniło się wyłącznie native iOS, zgodny Android nadal może otrzymać OTA.
 4. **APK nigdy nie powstaje automatycznie.** Po zmianie runtime Androida maintainer buduje go
    ręcznie. OTA dla nowego runtime nie zaktualizuje APK ze starym runtime.
 5. Globalna kolejka nie anuluje publikacji. Planner pomija wydane SHA i ich starszych przodków,
-   aktywne buildy oraz podpisane OTA o tej samej wiadomości `Canopy <tag> (<pełny SHA>)` dla obu
-   runtime. Błędy zapytań EAS zatrzymują planowanie. Nieudany/anulowany build można ponowić;
+   aktywne buildy oraz OTA o dokładnie tej samej wiadomości `Canopy <tag> (<pełny SHA>)` dla obu
+   runtime na właściwej gałęzi, z pominięciem rollbacków. Podpis nie jest warunkiem deduplikacji.
+   Błędy zapytań EAS zatrzymują planowanie. Nieudany/anulowany build można ponowić;
    niepełna publikacja OTA jest ponawiana jako kompletna grupa obu platform.
 
 **Pierwsze wydanie po dodaniu `expo-updates` wymaga pełnego buildu natywnego.** Dotychczasowe
-instalacje nie mają modułu ani certyfikatu. OTA zaczyna działać od kolejnej zmiany wyłącznie JS,
+instalacje nie mają modułu. OTA zaczyna działać od kolejnej zmiany wyłącznie JS,
 po instalacji nowego IPA lub ręcznie zbudowanego APK.
+
+Usunięcie konfiguracji podpisu również zmienia fingerprint i wymaga pełnego buildu natywnego.
+Build iOS wysłany do TestFlight z `nightly.104` zawiera certyfikat z PR #357 i przyjmuje tylko
+podpisane OTA. Nie otrzyma niepodpisanych aktualizacji; trzeba zastąpić go nowym IPA.
 
 ### Kanały i uruchamianie aktualizacji
 
@@ -362,33 +366,38 @@ pokazuje kanał, skrócone ID działającego OTA i datę z lokalnym formatowanie
 ma status `Bundled`, klient developerski `Development build`. Dane dotyczą uruchomionego
 bundle, nie aktualizacji dopiero pobranej.
 
-### Podpisywanie i własny serwer
+### Niepodpisane OTA i własny serwer
 
-Publiczny certyfikat: `apps/mobile/certs/updates-certificate.pem`. `app.json` wskazuje go przez
-`updates.codeSigningCertificate` i przypina `codeSigningMetadata` (`canopy-updates`,
-`rsa-v1_5-sha256`). Certyfikat trafia do binarki. Natywny klient na obu platformach domyślnie
-ma `allowUnsignedManifests=false`: brak `expo-signature`, obcy keyid albo błędny podpis
-odrzuca manifest przed użyciem. Pozostaje lokalny, sprawdzony bundle. Nie włączaj wyjątków
-zezwalających na niepodpisane manifesty.
+Na planie EAS Starter publikujemy OTA **bez podpisu kodu**. Podpisywanie w hostowanym EAS Update
+wymaga planu Production lub Enterprise. Pierwsza publikacja po PR #357/#360 (przebieg
+`42501709806`, `nightly.104`) została odrzucona z komunikatem:
 
-Prywatny klucz jest wyłącznie sekretem Actions **`EXPO_UPDATES_PRIVATE_KEY`**. Publisher
-`scripts/mobile-publish-update.sh` zapisuje go z `umask 077` do pliku `0600` pod `.tmp/`,
-podaje przez `--private-key-path` i usuwa przy wyjściu, także po błędzie. Klucz nie trafia
-do EAS ani repozytorium. Certyfikat jest ważny 10 lat; rotacja przed wygaśnięciem wymaga
-nowej pary, aktualizacji sekretu/certyfikatu i nowych buildów obu platform.
-Podpisywanie w hostowanym EAS Update wymaga planu Production lub Enterprise w Expo.
+> EAS Update code signing requires a subscription to the EAS Production or Enterprise plan.
+> This account (itsol) currently has a subscription to the Starter plan.
+
+Decyzją maintainera usunięto certyfikat, `codeSigningCertificate` i `codeSigningMetadata`
+z konfiguracji aplikacji. Publisher nie wymaga klucza prywatnego ani `--private-key-path`.
+Sekret GitHub Actions **`EXPO_UPDATES_PRIVATE_KEY` pozostaje w repozytorium jako nieużywany**,
+na przyszły powrót podpisywania; workflow go nie odczytuje ani nie przekazuje.
+
+**Zaufanie do aktualizacji opiera się teraz na EAS i HTTPS.** Klient nie weryfikuje niezależnego
+podpisu Canopy, więc przejęcie konta EAS lub usługi dystrybucji może pozwolić na podmianę kodu
+JS. HTTPS chroni transport, ale nie zastępuje podpisu wydawcy. Podpisywanie wróci wraz
+z firmowym serwerem Expo Updates: certyfikat i metadane podpisu wrócą do konfiguracji,
+certyfikat do wejść fingerprintu, a nowe binarki będą weryfikować podpisy Canopy.
 
 Granice przyszłej migracji na własny serwer protokołu Expo Updates są dwie: **jedna wartość
 `updates.url` w `apps/mobile/app.json`** oraz **jeden skrypt publikacji
-`scripts/mobile-publish-update.sh`**. Zastąp URL i implementację publikacji podpisanych
-manifestów/assetów oraz operacje `latest`/`status` tego skryptu, zachowując kanały, runtime,
-podpisy i metadane wydania. Odczyty historii OTA i walidacja kanałów są w tym samym adapterze;
+`scripts/mobile-publish-update.sh`**. Zastąp URL i implementację publikacji manifestów/assetów
+oraz operacje `latest`/`status` tego skryptu, zachowując kanały, runtime i metadane wydania.
+Powrót podpisywania wymaga dodatkowo opisanej wyżej konfiguracji certyfikatu i nowych binarek.
+Odczyty historii OTA i walidacja kanałów są w tym samym adapterze;
 planner nadal używa EAS do inwentarza buildów. Buildy mogą pozostać w EAS. Zmiana URL wymaga
 nowej binarki; stare instalacje nadal pytają stary URL, więc utrzymuj go do końca migracji.
 
 W razie wadliwego JS zatrzymaj dalsze publikacje i opublikuj ponownie ostatnią dobrą grupę
-na tym samym kanale/runtime przez `eas update:republish --channel <kanał> --group <grupa>`
-z `--private-key-path` i tym samym kluczem. Zmiana natywna wymaga nowego buildu. Wersję
+na tym samym kanale/runtime przez `eas update:republish --channel <kanał> --group <grupa>`.
+Na EAS Starter nie podawaj klucza podpisu. Zmiana natywna wymaga nowego buildu. Wersję
 działającego OTA ustala wiersz Updates; manifesty i historię grup pokazuje EAS.
 
 - **Aplikacja:** w App Store Connect nazywa się „Canopy Remote”. Ma bundle id

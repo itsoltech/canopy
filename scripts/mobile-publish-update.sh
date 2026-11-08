@@ -34,7 +34,7 @@ latest() {
   [ "$channel_exists" = true ] || return 0
   recent=$(eas update:list --branch "$CHANNEL" --platform ios --limit 1)
   group=$(jq -r --arg runtime "$runtime" '.currentPage[0] |
-    select(.runtimeVersion == $runtime and .codeSigningKey == "canopy-updates" and
+    select(.runtimeVersion == $runtime and
     (.isRollBackToEmbedded | not) and (.rolloutPercentage == null or .rolloutPercentage == 100)) | .group // empty' <<< "$recent")
   [ -n "$group" ] || return 0
   update=$(eas update:view "$group")
@@ -47,7 +47,7 @@ already_published() {
   while :; do
     page=$(eas update:list --branch "$CHANNEL" --platform "$platform" --runtime-version "$runtime" --limit 50 --offset "$offset") || exit 1
     if jq -e --arg message "\"$MESSAGE\" " '.currentPage[] |
-      select(.codeSigningKey == "canopy-updates" and (.isRollBackToEmbedded | not) and (.message | startswith($message)))' <<< "$page" >/dev/null; then
+      select((.isRollBackToEmbedded | not) and (.message | startswith($message)))' <<< "$page" >/dev/null; then
       return 0
     fi
     [ "$(jq '.currentPage | length' <<< "$page")" -eq 50 ] || return 1
@@ -64,16 +64,8 @@ case "${1:-publish}" in
   publish) ;;
   *) echo 'Invalid update-service operation.' >&2; exit 1 ;;
 esac
-: "${MESSAGE:?}" "${EXPO_UPDATES_PRIVATE_KEY:?Missing update signing key}"
+: "${MESSAGE:?}"
 validate_channel
 [ "$channel_exists" = true ] || { echo 'Build this channel before publishing updates.' >&2; exit 1; }
-umask 077
-mkdir -p ../../.tmp
-key=$(mktemp ../../.tmp/expo-updates-key.XXXXXX)
-trap 'rm -- "$key"' EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
-printf '%s\n' "$EXPO_UPDATES_PRIVATE_KEY" > "$key"
-unset EXPO_UPDATES_PRIVATE_KEY
 bunx "$EAS_CLI" update --channel "$CHANNEL" --platform all --environment production \
-  --message "$MESSAGE" --private-key-path "$key" --non-interactive
+  --message "$MESSAGE" --non-interactive

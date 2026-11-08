@@ -65,7 +65,7 @@ fi
 
 published=$(MESSAGE="$message" bash ../../scripts/mobile-publish-update.sh status "$ios" "$android")
 if [ "$published" = true ]; then
-  echo 'Signed updates for both runtimes already exist; skipping publication.'
+  echo 'Updates for both runtimes already exist; skipping publication.'
 else
   echo 'ota=true' >> "$GITHUB_OUTPUT"
 fi

@@ -781,17 +781,26 @@ Zachowuje filtr zmian ścieżek mobile oraz zależnych workspace'ów. Wersja mar
 z tagu bez prerelease (`v0.2.0-beta.1` → `0.2.0`), a numer natywny zwiększa EAS.
 
 Fingerprint natywnego runtime jest liczony osobno dla iOS i Androida. Jeśli na kanale istnieje
-ukończony store build iOS o tym runtime, wydanie JS trafia jako podpisane OTA zamiast nowego IPA.
+ukończony store build iOS o tym runtime, wydanie JS trafia jako niepodpisane OTA zamiast nowego IPA.
 Inaczej EAS buduje iOS i wysyła do TestFlight. Android jest zawsze budowany ręcznie; zgodny
 zainstalowany APK otrzymuje OTA razem z iOS (`--platform all`). Kanały nie współdzielą gałęzi OTA.
 Ponowienia korzystają z historii EAS i pełnego SHA w wiadomości; aktywne buildy są deduplikowane.
 Pierwsze wydanie z `expo-updates` musi zbudować nową binarkę, OTA rusza od następnej zmiany JS.
 
-Podpisy wymusza certyfikat w binarce (`apps/mobile/certs/updates-certificate.pem`), klucz prywatny
-trzyma sekret Actions `EXPO_UPDATES_PRIVATE_KEY`. `EXPO_TOKEN` autoryzuje EAS. URL aktualizacji
-jest w `apps/mobile/app.json`, a publikacja w `scripts/mobile-publish-update.sh`; te granice
-przygotowują migrację na własny serwer protokołu Expo Updates. Szczegóły kanałów, ponowień,
-rotacji klucza i rollbacku: [mobile.md](mobile.md#wydania-mobilne-testflight-i-ota).
+EAS Starter nie obsługuje podpisywania OTA (wymaga Production lub Enterprise), co zablokowało
+publikację `nightly.104` po PR #357/#360. Decyzją maintainera publikujemy bez podpisu kodu;
+zaufanie opiera się na EAS i HTTPS, bez niezależnej weryfikacji podpisu Canopy. Przejęcie konta
+lub usługi EAS może pozwolić na podmianę JS. `EXPO_TOKEN` nadal autoryzuje EAS. Sekret Actions
+`EXPO_UPDATES_PRIVATE_KEY` pozostaje nieużywany na przyszły powrót podpisywania; workflow go
+nie odczytuje. Usunięcie certyfikatu i metadanych podpisu zmienia fingerprint, więc następne
+wydanie wymaga pełnego buildu iOS. IPA z `nightly.104` przyjmuje tylko podpisane aktualizacje
+i nie otrzyma nowych OTA do czasu zastąpienia go nową binarką.
+
+URL aktualizacji jest w `apps/mobile/app.json`, a wszystkie operacje OTA w
+`scripts/mobile-publish-update.sh`; te dwie granice przygotowują migrację na firmowy serwer
+protokołu Expo Updates. Wraz z nim wróci podpisywanie: konfiguracja certyfikatu, jego wejście
+fingerprintu i nowe binarki weryfikujące podpisy. Szczegóły kanałów, ponowień i rollbacku:
+[mobile.md](mobile.md#wydania-mobilne-testflight-i-ota).
 
 ## Bootstrap 0.1.0 — wykonuje rodzic
 

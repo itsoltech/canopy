@@ -18,7 +18,9 @@ type Scenario = {
   docsOnly?: boolean;
   recent?: boolean;
   published?: boolean;
-  unsigned?: boolean;
+  signed?: boolean;
+  messageSuffix?: string;
+  rollback?: boolean;
   mappedBranch?: string;
   fail?: string;
   baselineHead?: boolean;
@@ -65,9 +67,9 @@ function fixture(options: Scenario = {}) {
   const update = {
     group: "group",
     runtimeVersion: iosRuntime,
-    codeSigningKey: options.unsigned ? null : "canopy-updates",
-    message: `"${message}" (now by test)`,
-    isRollBackToEmbedded: false,
+    codeSigningKey: options.signed ? "canopy-updates" : null,
+    message: `"${message}${options.messageSuffix ?? ""}" (now by test)`,
+    isRollBackToEmbedded: options.rollback ?? false,
   };
 
   const data = {
@@ -124,10 +126,10 @@ function fixture(options: Scenario = {}) {
     publish: () => {
       const result = Bun.spawnSync(["bash", "../../scripts/mobile-publish-update.sh"], {
         cwd,
-        env: { ...env, MESSAGE: message, EXPO_UPDATES_PRIVATE_KEY: "offline fixture key" },
+        env: { ...env, MESSAGE: message, EXPO_UPDATES_PRIVATE_KEY: undefined },
       });
 
-      return { code: result.exitCode, keyPath: join(cwd, readFileSync(join(responses, "key-path"), "utf8")) };
+      return { code: result.exitCode, output: result.stdout.toString(), error: result.stderr.toString() };
     },
   };
 }
@@ -178,16 +180,34 @@ test("docs-only changes skip the mobile release", () => {
   expect(result.output).not.toMatch(/(?:build|ota)=true/);
 });
 
-test("complete signed publications are idempotent", () => {
+test("complete unsigned publications with the exact release message are idempotent", () => {
   const result = fixture({ ios: true, published: true }).run();
   expect(result.code).toBe(0);
   expect(result.output).not.toMatch(/(?:build|ota)=true/);
 });
 
-test("unsigned publications cannot satisfy release deduplication", () => {
-  const result = fixture({ ios: true, published: true, unsigned: true }).run();
+test("a publication whose message only starts with the release message does not satisfy deduplication", () => {
+  const result = fixture({ ios: true, published: true, messageSuffix: " extra" }).run();
   expect(result.code).toBe(0);
   expect(result.output).toContain("ota=true");
+});
+
+test("rollback publications do not satisfy release deduplication", () => {
+  const result = fixture({ ios: true, published: true, rollback: true }).run();
+  expect(result.code).toBe(0);
+  expect(result.output).toContain("ota=true");
+});
+
+test("complete legacy signed publications remain idempotent", () => {
+  const result = fixture({ ios: true, published: true, signed: true }).run();
+  expect(result.code).toBe(0);
+  expect(result.output).not.toMatch(/(?:build|ota)=true/);
+});
+
+test("a complete unsigned OTA advances the baseline and skips an already delivered commit", () => {
+  const result = fixture({ ios: true, recent: true }).run();
+  expect(result.code).toBe(0);
+  expect(result.output).not.toMatch(/(?:build|ota)=true/);
 });
 
 test("an Android OTA after a failed iOS native build cannot hide the missing build", () => {
@@ -209,8 +229,14 @@ test("a successful same-SHA iOS build still retries a missing Android OTA", () =
   expect(result.output).toContain("ota=true");
 });
 
-test("the signer uses a private 0600 file, removes the key from the child environment and cleans up on failure", () => {
+test("publishing succeeds without a signing key", () => {
   const result = fixture().publish();
+  expect(result.code).toBe(0);
+  expect(result.output).toContain("Published unsigned update.");
+});
+
+test("an unsigned publication failure surfaces to the workflow", () => {
+  const result = fixture({ fail: "update" }).publish();
   expect(result.code).toBe(12);
-  expect(() => readFileSync(result.keyPath)).toThrow();
+  expect(result.error).toContain("Update publication failed.");
 });
