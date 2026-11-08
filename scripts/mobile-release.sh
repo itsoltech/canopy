@@ -2,7 +2,7 @@
 # Release planner only: reads EAS state, sets the tag version, emits build/ota outputs. Run in apps/mobile.
 set -euo pipefail
 
-: "${CHANNEL:?}" "${PROFILE:?}" "${TAG:?}" "${MARKETING:?}" "${HEAD_SHA:?}" "${GITHUB_OUTPUT:?}"
+: "${CHANNEL:?}" "${PROFILE:?}" "${TAG:?}" "${HEAD_SHA:?}" "${GITHUB_OUTPUT:?}"
 EAS_CLI=${EAS_CLI:-eas-cli@27.4.1}
 case "$CHANNEL:$PROFILE" in
   nightly:production|beta:production-beta|stable:production-stable) ;;
@@ -35,14 +35,14 @@ if [ -n "$last" ] && git cat-file -e "$last^{commit}" 2>/dev/null; then
   # A same-SHA native build can have succeeded after its parallel Android OTA step failed.
   if [ "$last" != "$HEAD_SHA" ] && [ "${FORCE:-false}" != true ] && git diff --quiet "$last" HEAD -- \
     . ../../packages/contracts ../../packages/domain ../../packages/ui ../../package.json ../../bun.lock \
-    ../../scripts/mobile-release.sh ../../scripts/mobile-publish-update.sh ../../.github/workflows/mobile-testflight.yml; then
+    ../../scripts/mobile-release.sh ../../scripts/mobile-publish-update.sh ../../scripts/mobile-version.sh \
+    ../../.github/workflows/mobile-testflight.yml; then
     echo "Nothing the mobile app uses changed since ${last:0:8}; skipping."; exit 0
   fi
 fi
 
-# The same marketing version, profile environment and fingerprint policy must reach build and update.
-jq --arg v "$MARKETING" '.expo.version = $v' app.json > app.json.tmp
-mv app.json.tmp app.json
+# The same full JS version, marketing version and fingerprint must reach build and update.
+bash ../../scripts/mobile-version.sh "$TAG"
 ios=$(eas fingerprint:generate --platform ios --build-profile "$PROFILE" | jq -er '.hash | select(test("^[a-f0-9]{40}$"))')
 android=$(eas fingerprint:generate --platform android --build-profile "$PROFILE" | jq -er '.hash | select(test("^[a-f0-9]{40}$"))')
 echo "Runtime fingerprints: iOS $ios, Android $android"

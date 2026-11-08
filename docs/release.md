@@ -1,6 +1,6 @@
 # Wydania: wersje, CI, artefakty
 
-Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop). Wersję wyznacza
+Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop, mobile). Wersję wyznacza
 semantic-release z commitów Angular po squash merge. Wdrożenie: [deploy.md](deploy.md).
 Zasady commitów i wybór gałęzi: [contributing.md](contributing.md).
 
@@ -57,6 +57,11 @@ Stała `CANOPY_VERSION` z `@canopy/domain/release/version` czyta `process.env.CA
 - web: Vite `define` (`apps/web/vite.config.ts`); widoczna w **Settings** (dół nawigacji) i w `GET /api/health`,
 - desktop: `CANOPY_VERSION` → `-c.extraMetadata.version` (wersja aplikacji Electron, nazwy plików, `Version` deb)
   i `define` w sidecarach (`apps/desktop/scripts/build.ts`),
+- mobile: `scripts/mobile-version.sh <tag>` zapisuje pełną wersję w roboczym
+  `apps/mobile/canopy-version.json`; mobilne `src/version.ts` eksportuje ją jako `CANOPY_VERSION`.
+  Metro bundluje plik dla zdalnych buildów EAS oraz OTA; `expo.extra.canopyVersion` pokazuje
+  tę samą wartość w publicznym configu. Lokalnie domyślna wersja to `0.0.0-dev`.
+  Nie wymaga zmiennej środowiskowej na zdalnym builderze i nie zmienia fingerprintu runtime,
 - worker zgłasza ją gatewayowi w `Hello.host.worker_version` (kolumna `workers.version`),
 - `canopy-gateway --version`, `canopy-worker --version`.
 
@@ -764,7 +769,7 @@ bez niego. Wywołanie Back-merge z Release przekazuje tylko ten sekret jawnie.
 go do tagów, notes i GitHub Releases; konfiguracja semantic-release nie zawiera pluginu git
 ani CHANGELOG-a i nie tworzy commitów na gałęziach. Nie dostają deploy key.
 Nightly hygiene usuwa wyłącznie wydania nightly i wersje GHCR, pozostawiając tagi/notes;
-Mobile release ustawia wersję jedynie w lokalnym `app.json` i przekazuje build number do EAS;
+Mobile release ustawia wersje jedynie w roboczych `app.json` i `canopy-version.json`, a build number prowadzi EAS;
 Pages publikuje przez API Pages, bez pushu gałęzi. Te workflowy nie wymagają bypassu.
 
 Maintainer nadal promuje ręcznie przez **Promote** (w razie potrzeby `override=true`,
@@ -779,6 +784,13 @@ kanały: `dev` → `nightly`, `next` → `beta`, `main`/stabilny tag → `stable
 joba `release` i właściwego tagu na SHA; kolejne przebiegi bez publikacji niczego nie wysyłają.
 Zachowuje filtr zmian ścieżek mobile oraz zależnych workspace'ów. Wersja marketingowa pochodzi
 z tagu bez prerelease (`v0.2.0-beta.1` → `0.2.0`), a numer natywny zwiększa EAS.
+Wspólny krok `scripts/mobile-version.sh <tag>` zapisuje równocześnie pełną wersję Canopy
+do modułu JSON bundlowanego z JS (`0.2.0-beta.1`). Settings pokazuje wersję działającego
+bundle, więc także OTA aktualizuje ten numer. Plik JS nie jest wejściem natywnego fingerprintu,
+a hook usuwa z niego wyłącznie `extra.canopyVersion`, zachowując pozostałą konfigurację.
+Zmiana samego numeru nie wymusza nowego IPA/APK. Ręczne buildy Androida muszą
+wywołać ten sam krok przed `eas build`; instrukcja i reset do `0.0.0-dev` są w
+[mobile.md](mobile.md#wersja-działającego-bundle).
 
 Fingerprint natywnego runtime jest liczony osobno dla iOS i Androida. Jeśli na kanale istnieje
 ukończony store build iOS o tym runtime, wydanie JS trafia jako niepodpisane OTA zamiast nowego IPA.

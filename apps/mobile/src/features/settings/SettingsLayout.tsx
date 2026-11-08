@@ -5,7 +5,7 @@ import { router, useNavigation } from "expo-router";
 import { ScreenFrame, usePaneInsets } from "../../ui/ScreenFrame";
 import { ScreenScroll } from "../../ui/ScreenScroll";
 import { KeyboardViewport } from "../../ui/KeyboardViewport";
-import { CANOPY_VERSION } from "@canopy/domain/release/version";
+import { CANOPY_VERSION } from "../../version";
 import { settingsGroups, settingsSections, type SettingsSection } from "@canopy/ui/settings";
 import { useLayout } from "../../state/layout";
 import { useSession } from "../../state/session";

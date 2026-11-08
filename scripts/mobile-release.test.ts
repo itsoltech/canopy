@@ -36,7 +36,7 @@ function fixture(options: Scenario = {}) {
 
   for (const directory of [cwd, bin, responses, join(root, "scripts")]) mkdirSync(directory, { recursive: true });
 
-  for (const script of ["mobile-release.sh", "mobile-publish-update.sh"])
+  for (const script of ["mobile-release.sh", "mobile-publish-update.sh", "mobile-version.sh"])
     copyFileSync(resolve("scripts", script), join(root, "scripts", script));
   symlinkSync(resolve("scripts/fixtures/mobile-eas.sh"), join(bin, "bunx"));
   writeFileSync(join(cwd, "app.json"), JSON.stringify({ expo: { version: "1.0.0" } }));
@@ -110,7 +110,6 @@ function fixture(options: Scenario = {}) {
     CHANNEL: "beta",
     PROFILE: "production-beta",
     TAG: "v0.2.0-beta.1",
-    MARKETING: "0.2.0",
     HEAD_SHA: head,
     GITHUB_OUTPUT: output,
     CANOPY_MOBILE_TEST_RESPONSES: responses,
@@ -121,7 +120,12 @@ function fixture(options: Scenario = {}) {
     run: () => {
       const result = Bun.spawnSync(["bash", "../../scripts/mobile-release.sh"], { cwd, env });
 
-      return { code: result.exitCode, output: readFileSync(output, "utf8"), error: result.stderr.toString() };
+      return {
+        code: result.exitCode,
+        output: readFileSync(output, "utf8"),
+        error: result.stderr.toString(),
+        version: () => JSON.parse(readFileSync(join(cwd, "canopy-version.json"), "utf8")),
+      };
     },
     publish: () => {
       const result = Bun.spawnSync(["bash", "../../scripts/mobile-publish-update.sh"], {
@@ -139,12 +143,14 @@ test("JS-only releases use OTA when a compatible iOS build exists; Android never
   expect(result.code).toBe(0);
   expect(result.output).toContain("ota=true");
   expect(result.output).not.toContain("build=true");
+  expect(result.version()).toEqual({ version: "0.2.0-beta.1" });
 });
 
 test("the first release on a channel without a delivered build builds iOS", () => {
   const result = fixture({ firstRelease: true }).run();
   expect(result.code).toBe(0);
   expect(result.output).toContain("build=true");
+  expect(result.version()).toEqual({ version: "0.2.0-beta.1" });
 });
 
 test("a new native runtime builds iOS; failed builds do not prevent a retry", () => {
