@@ -40,6 +40,7 @@ export function PickerSheet<T>({
   title,
   visible,
   onClose,
+  onDismiss,
   sections,
   value,
   onSelect,
@@ -50,6 +51,8 @@ export function PickerSheet<T>({
   title: string;
   visible: boolean;
   onClose: () => void;
+  /** Use for actions that present native UI after this picker closes. */
+  onDismiss?: () => void;
   sections: PickerSection<T>[];
   value?: T;
   onSelect: (value: T) => void;
@@ -81,7 +84,7 @@ export function PickerSheet<T>({
   }
 
   return (
-    <Overlay visible={visible} onClose={close} label={title}>
+    <Overlay visible={visible} onClose={close} onDismiss={onDismiss} label={title}>
       <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
         <Text accessibilityRole="header" style={[styles.overlayHeading, { color: c.muted }]}>
           {title}

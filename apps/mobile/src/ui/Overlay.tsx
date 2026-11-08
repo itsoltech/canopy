@@ -1,15 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Modal, Pressable, View, useWindowDimensions } from "react-native";
-import Animated, {
-  LayoutAnimationConfig,
-  ReduceMotion,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
-import { scheduleOnRN } from "react-native-worklets";
+import Animated, { LayoutAnimationConfig, useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { motion, smoothOut, useReducedMotion } from "./motion";
+import { motion, useReducedMotion } from "./motion";
+import { useOverlayTransition } from "./useOverlayTransition";
 import { useColors } from "./theme";
 import { useKeyboardOverlap } from "./KeyboardArea";
 
@@ -25,11 +19,14 @@ export const WIDE_OVERLAY = 600;
 export function Overlay({
   visible,
   onClose,
+  onDismiss,
   label,
   children,
 }: {
   visible: boolean;
   onClose: () => void;
+  /** Runs after the exit animation and native modal dismissal, including on Android. */
+  onDismiss?: () => void;
   label: string;
   children: ReactNode;
 }) {
@@ -37,22 +34,10 @@ export function Overlay({
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const reduced = useReducedMotion();
-  const progress = useSharedValue(0);
-  const [mounted, setMounted] = useState(visible);
   const wide = width >= WIDE_OVERLAY;
+  const { progress, mounted, didDismiss } = useOverlayTransition(visible, wide, onDismiss);
   // The sheet sits on the keyboard while it is open; its own bottom inset is then under the keyboard.
   const keyboard = useKeyboardOverlap();
-
-  if (visible && !mounted) setMounted(true);
-  useEffect(() => {
-    if (!mounted) return;
-    const duration = wide ? (visible ? motion.fast : motion.quick) : visible ? motion.slow : motion.medium;
-    progress.set(
-      withTiming(visible ? 1 : 0, { duration, easing: smoothOut, reduceMotion: ReduceMotion.Never }, (finished) => {
-        if (finished && !visible) scheduleOnRN(setMounted, false);
-      }),
-    );
-  }, [visible, mounted, wide, progress]);
 
   const shift = reduced || wide ? 0 : motion.distance.large;
   const grow = reduced ? 1 : motion.scale.large;
@@ -75,8 +60,10 @@ export function Overlay({
       statusBarTranslucent
       navigationBarTranslucent
       onRequestClose={onClose}
+      onDismiss={didDismiss}
     >
       <View
+        pointerEvents={visible ? "auto" : "none"}
         style={{
           flex: 1,
           paddingTop: wide ? insets.top : 0,

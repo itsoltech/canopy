@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { ActivityIndicator, Keyboard, Pressable, ScrollView, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
@@ -91,22 +91,38 @@ export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boo
   const c = useColors();
   const [open, setOpen] = useState(false);
   const [image, setImage] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const locked = useRef(false);
+  const pending = useRef<Source | undefined>(undefined);
 
   async function show() {
+    if (locked.current || disabled) return;
+    locked.current = true;
+    setBusy(true);
     Keyboard.dismiss();
     setImage(await Clipboard.hasImageAsync().catch(() => false));
     setOpen(true);
   }
 
-  const pick = (source: Source) =>
-    void (source === "photos" ? draft.pickPhotos() : source === "files" ? draft.pickFiles() : draft.pasteImage());
+  async function dismissed() {
+    const source = pending.current;
+    pending.current = undefined;
+
+    try {
+      if (!source || disabled) return;
+      await (source === "photos" ? draft.pickPhotos() : source === "files" ? draft.pickFiles() : draft.pasteImage());
+    } finally {
+      locked.current = false;
+      setBusy(false);
+    }
+  }
 
   return (
     <>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Attach files"
-        disabled={disabled}
+        disabled={disabled || busy}
         onPress={() => void show()}
         style={({ pressed }) => ({
           width: 36,
@@ -124,7 +140,10 @@ export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boo
         title="Attach"
         visible={open}
         onClose={() => setOpen(false)}
-        onSelect={pick}
+        onSelect={(source) => {
+          pending.current = source;
+        }}
+        onDismiss={() => void dismissed()}
         sections={[
           {
             options: [
