@@ -722,6 +722,28 @@ Wyszukiwanie tytułu wątku bocznego pokazuje rodzica. Archived używa wspólneg
 archiwalne wątki boczne pozostają w Previous agents pod rodzicem. Powiadomienia o wyniku
 subagenta zostają wewnątrz wątku, a pytanie do użytkownika wywołuje jeden alert rodzica.
 
+Settings zajmuje osobną, nieprzezroczystą trasę ponad całym workspace'em. Sidebar i wątek
+pod spodem zachowują szerokość przy otwieraniu i zamykaniu. Android przesuwa Settings
+od dołu bez przenikania tekstu; iOS używa natywnego przejścia stosu i gestu od lewej
+krawędzi. To animacje platformy, bez własnych czasów. Ograniczenie ruchu wyłącza je.
+Stos workspace'u na szerokim oknie zamienia wątki i boty od razu, w przyciętym panelu
+obok sidebara; nie przesuwa ani nie rozjaśnia starego widoku nad listą.
+
+Sekcje Settings mają własny natywny stos (`/settings` → `/settings/[section]`). Gest iOS
+oraz Back Androida cofają sekcję do głównego widoku Settings, a dopiero z niego zamykają
+Settings. Gest zewnętrznego stosu jest wyłączony, gdy cofanie należy do stosu sekcji.
+Skróty do konkretnej sekcji również zachowują główny widok pod nią. Na szerokim oknie
+główny widok pokazuje listę i General; pierwszy Back przywraca ten widok, drugi wraca
+do workspace'u. Wybór kolejnej sekcji obok listy zastępuje bieżącą sekcję, bez tworzenia
+historii każdego wyboru. Złożenie lub obrót nie kasuje stosu. Krzyżyk zamyka całe Settings
+z dowolnego poziomu. Wejście do wątku bocznego ze szczegółów lub panelu subagentów
+oraz wejście do rozmowy botów dodaje trasę do stosu workspace'u; Back wraca do
+bezpośredniego poprzednika. Wybór z sidebara na szerokim oknie nadal zamienia trasę
+bez historii pomiędzy wyborami. Arkusze botów mają własne
+`onRequestClose`: ustawienia wracają do szczegółów, szczegóły do czatu. Parowanie jest
+dostępne wyłącznie bez sesji; zakończenie lub usunięcie parowania usuwa niepasujące
+trasy z historii. Back Androida w skanerze wraca najpierw do wypełnionego formularza.
+
 Settings używa rejestru sekcji web, z General, Keybindings, Diffs, Agent environment,
 Proxies, Network access i capability-gated Linked computers. Na telefonie otwiera
 listę sekcji i osobny ekran; od 600 dp pokazuje listę obok treści. Zmiany konta zapisuje

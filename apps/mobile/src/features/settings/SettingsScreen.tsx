@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { View } from "react-native";
-import { Redirect, useLocalSearchParams } from "expo-router";
+import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
@@ -31,20 +31,20 @@ import { useDevicePreferences } from "./device-preferences";
 import { useLayout } from "../../state/layout";
 
 export default function SettingsScreen() {
-  const params = useLocalSearchParams<{ section?: string }>();
-
-  return <SettingsContent key={params.section} initialSection={params.section ?? ""} />;
-}
-
-function SettingsContent({ initialSection }: { initialSection: string }) {
+  const { section: selectedSection = "" } = useLocalSearchParams<{ section?: string }>();
   const { session } = useSession();
   const settings = useAppearance();
   const { reload: reloadSettings } = settings;
   const { projects, workers, reload } = useOverview();
   const device = useDevicePreferences();
   const { wide } = useLayout();
-  const [selectedSection, setSection] = useState(initialSection);
   const section = selectedSection || (wide ? "general" : "");
+
+  function selectSection(next: string) {
+    if (!next) router.back();
+    else if (selectedSection) router.replace({ pathname: "/settings/[section]", params: { section: next } });
+    else router.push({ pathname: "/settings/[section]", params: { section: next } });
+  }
 
   useEffect(() => {
     void reloadSettings();
@@ -54,7 +54,7 @@ function SettingsContent({ initialSection }: { initialSection: string }) {
   if (!session) return <Redirect href="/pair" />;
 
   return (
-    <SettingsLayout section={section} onSelect={setSection}>
+    <SettingsLayout section={section} onSelect={selectSection}>
       {device.error ? <Notice error>{device.error}</Notice> : null}
       {settings.error ? (
         <View style={{ gap: 8 }}>

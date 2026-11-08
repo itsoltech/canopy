@@ -19,7 +19,7 @@ function useLayoutState() {
     /** The sidebar takes about a third of the window, 260–320 dp. */
     sidebarWidth: Math.round(Math.min(320, Math.max(260, width * 0.36))),
     sidebarOpen: wide && sidebarOpen,
-    /** The column animates itself (app/_layout.tsx `SidebarColumn`). */
+    /** The column animates itself (`MainNavigation`'s `SidebarColumn`). */
     toggleSidebar() {
       setSidebarOpen((open) => !open);
     },
