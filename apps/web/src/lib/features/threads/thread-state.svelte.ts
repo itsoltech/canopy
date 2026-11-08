@@ -6,53 +6,22 @@ import {
   TurnOrigin,
   TurnOutcome,
   ui,
-  type Item,
-  type Notice,
   type TurnFinished,
   type TurnStarted,
   type Usage,
 } from "@canopy/contracts";
 import { eventItemId, reduceItem } from "@canopy/domain/items";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
+import { orderThreadTurns } from "@canopy/domain/history-pages";
 import { threadCache } from "./thread-cache.ts";
 import { ThreadHistory } from "./history.svelte.ts";
 import { classifyFailure, safeFailureDetail } from "@canopy/domain";
 import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts";
 
-export interface TimelineEntry {
-  readonly id: string;
-  readonly item: Item;
-  readonly turnId: string;
-  readonly firstSeq: bigint;
-  /** From the history a fork inherited (its seq counts in the source thread). */
-  readonly inherited: boolean;
-  /** Inherited: the thread it belongs to (along a chain of forks, not always the direct source). */
-  readonly fromThreadId: string;
-  /**
-   * Item times observed on the live stream (`completedAt`: a message's latest completion). Snapshots bring only a
-   * completed agent message's end: it starts the turn's next segment (docs/timeline-folding.md).
-   */
-  readonly startedAt?: number | undefined;
-  readonly completedAt?: number | undefined;
-}
+import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.ts";
 
-/** A notice event (rate limit, retry, provider error, restart); the snapshot brings the latest ones. */
-export interface TimelineNotice {
-  readonly seq: bigint;
-  readonly turnId: string;
-  readonly notice: Notice;
-  readonly at: Timestamp | undefined;
-}
-
-/**
- * How a turn ended, from its turn_finished event: the interruption reason (not part of `ui.Turn`) and
- * usage until the turn update with `usage` arrives. Live only.
- */
-export interface TurnResult {
-  readonly usage: Usage | undefined;
-  readonly reason: string;
-}
+export type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.ts";
 
 /** Token usage added up over turns. */
 export interface UsageTotals {
@@ -269,9 +238,13 @@ export class ThreadState {
       case "thread":
         this.thread = change.value;
         break;
-      case "turn":
-        this.upsertTurn(change.value);
+      case "turn": {
+        const turn = this.#snapshot.turns.find((turn) => turn.id === change.value.id);
+
+        if (turn) this.upsertTurn(turn);
         break;
+      }
+
       case "secret":
         this.upsertSecret(change.value);
         break;
@@ -307,7 +280,7 @@ export class ThreadState {
     const index = this.turns.findIndex((t) => t.id === turn.id);
 
     if (index >= 0 && this.turns[index]!.ordinal === turn.ordinal) this.turns = this.turns.with(index, turn);
-    else this.turns = [...this.turns.filter((t) => t.id !== turn.id), turn].sort((a, b) => a.ordinal - b.ordinal);
+    else this.turns = orderThreadTurns([...this.turns.filter((t) => t.id !== turn.id), turn]);
   }
 
   upsertSecret(secret: ui.ThreadSecret): void {

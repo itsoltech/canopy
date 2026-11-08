@@ -432,16 +432,16 @@ describe.skipIf(!dockerAvailable)("models, effort and steering (gateway + script
     expect(steered).toContain(`[canopy] Message from the thread "orchestrator" (thread_id: ${main.id}), sent at `);
     expect(steered).toContain("focus on tests");
 
-    // One report for the spawn and the steer: both target the side thread's running turn.
+    // The spawn and steer target one child turn, so their shared result produces one report.
     gw.worker.holdTurns = false;
     gw.worker.finish(sideId, sideTurn!.id, "tests fixed");
 
     const mainTurns = await eventually(
       () => turns(main.id),
-      (t) => t.length === 3 && t.every((x) => x.status === "completed"),
+      (t) => t.length === 2 && t.every((x) => x.status === "completed"),
     );
 
-    expect(mainTurns.slice(1).map((t) => t.trigger)).toEqual(["agent_bus", "agent_bus"]);
+    expect(mainTurns.slice(1).map((t) => t.trigger)).toEqual(["agent_bus"]);
     expect(mainTurns.slice(1).every((t) => t.text.includes("tests fixed"))).toBe(true);
     expect(await turns(sideId)).toHaveLength(1);
   });

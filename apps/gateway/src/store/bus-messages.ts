@@ -56,7 +56,7 @@ export const consumeMessages = (
       yield* sql`UPDATE agent_bus_calls SET message_consumed = ${reason},
         notify_status = CASE WHEN notify_status = 'pending' THEN 'cancelled' ELSE notify_status END
         WHERE id = ${call.id}::uuid`;
-      yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now()
+      yield* sql`UPDATE turns SET status = 'cancelled', withdrawn = 'consumed', completed_at = now()
         WHERE id = ${call.target_turn_id}::uuid AND status = 'queued'`;
       yield* sql`UPDATE turn_steers SET status = 'failed', reason = ${reason}, updated_at = now()
         WHERE agent_call_id = ${call.id}::uuid AND status IN ('pending', 'accepted', 'dropped')`;

@@ -154,6 +154,28 @@ describe.skipIf(!dockerAvailable)("tail pages and journal checkpoints on real ga
     const full = applyThreadUpdate(undefined, await openThread({ pageSize: 0 }));
     expect(state.turns).toEqual(full.turns);
     expect(state.items).toEqual(full.items);
+
+    const resumed = applyThreadUpdate(
+      undefined,
+      await openThread({
+        incremental: false,
+        fromTurnId: state.historyBeforeTurnId,
+        historyVersion: state.historyVersion,
+      }),
+    );
+
+    expect(resumed.turns).toEqual(full.turns);
+    expect(resumed.items).toEqual(full.items);
+
+    for (const input of [
+      { fromTurnId: crypto.randomUUID(), historyVersion: state.historyVersion },
+      { fromTurnId: state.historyBeforeTurnId, historyVersion: "other-history" },
+    ]) {
+      const reset = applyThreadUpdate(undefined, await openThread({ incremental: false, ...input }));
+      expect(reset.historyReset).toBe(true);
+      expect(reset.turns).toHaveLength(12);
+    }
+
     expect(coldBytes).toBeLessThan(toBinary(ui.ThreadSnapshotSchema, full).length / 4);
     const targeted = applyThreadUpdate(undefined, await openThread({ targetItemId: "answer-2" }));
     expect(targeted.items[0]?.item?.itemId).toBe("answer-2");

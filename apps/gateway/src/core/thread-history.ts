@@ -21,7 +21,11 @@ export function threadHistory(snapshot: ui.ThreadSnapshot, query?: ThreadHistory
       : undefined;
 
   const targetIndex = target ? turns.findIndex((turn) => turn.id === target.turnId) : -1;
-  const start = targetIndex >= 0 ? targetIndex : Math.max(0, end - Math.min(query.pageSize, 100));
+  const fromIndex = !reset && query.fromTurnId ? turns.findIndex((turn) => turn.id === query.fromTurnId) : -1;
+
+  const start =
+    targetIndex >= 0 ? targetIndex : fromIndex >= 0 ? fromIndex : Math.max(0, end - Math.min(query.pageSize, 100));
+
   const selected = turns.slice(start, end);
   const ids = new Set(selected.map((turn) => turn.id));
 
@@ -31,6 +35,6 @@ export function threadHistory(snapshot: ui.ThreadSnapshot, query?: ThreadHistory
     items: snapshot.items.filter((entry) => !entry.turnId || ids.has(entry.turnId)),
     historyBeforeTurnId: selected[0]?.id ?? "",
     historyHasMore: start > 0,
-    historyReset: reset || boundary < 0,
+    historyReset: reset || boundary < 0 || (!!query.fromTurnId && fromIndex < 0),
   };
 }

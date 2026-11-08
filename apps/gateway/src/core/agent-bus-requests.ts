@@ -135,6 +135,9 @@ export const busRequestsMethods: BusRequestsMethods = {
         );
       }
 
+      if (["get_thread", "read_thread", "wait_threads", "interrupt_thread", "close_thread"].includes(call.tool))
+        await this[busState].host.inputsChanged(source.threadId);
+
       return ok(request.callId, result);
     } catch (error) {
       // A concurrent duplicate of a spawn/send may have stored it first.

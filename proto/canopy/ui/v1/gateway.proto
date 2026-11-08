@@ -1033,6 +1033,8 @@ message WatchThreadRequest {
   string target_item_id = 805;
   // A page must belong to the same fork/move history as the held window.
   string history_version = 806;
+  // Inclusive oldest loaded turn on resume; full-snapshot fallback keeps this window.
+  string from_turn_id = 807;
 }
 
 message ThreadSnapshot {

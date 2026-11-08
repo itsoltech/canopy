@@ -27,7 +27,12 @@ export class ThreadHistory {
       this.view.connection = this.read()?.thread ? "syncing" : "connecting";
       stop = liveSource(`/api/threads/${id}/events`, {
         url: () =>
-          `/api/threads/${id}/events?${new URLSearchParams({ incremental: "1", cursor: this.read()?.cursor ?? "" })}`,
+          `/api/threads/${id}/events?${new URLSearchParams({
+            incremental: "1",
+            cursor: this.read()?.cursor ?? "",
+            from: this.read()?.historyBeforeTurnId ?? "",
+            version: this.read()?.historyVersion ?? "",
+          })}`,
         ondrop: () => {
           this.view.connection = "reconnecting";
         },

@@ -72,6 +72,19 @@ const deliverNotification = (sql: SqlClient.SqlClient, callId: string, input: Tu
 
       if (running && (yield* waitingForMessage(sql, caller.id, running.id, call.target_thread_id!))) return undefined;
 
+      // Several admitted messages can point to the same target turn (including its spawn).
+      // Claim its result once per recipient, under the same lock as reads and fallback.
+      const reported = yield* sql`SELECT id FROM agent_bus_calls
+        WHERE source_thread_id = ${caller.id}::uuid AND target_turn_id = ${call.target_turn_id}::uuid
+          AND id <> ${call.id}::uuid
+          AND notify_status IN ('steering', 'delivered', 'consumed_by_wait', 'consumed_by_read', 'superseded') LIMIT 1`;
+
+      if (reported.length > 0) {
+        yield* sql`UPDATE agent_bus_calls SET notify_status = 'superseded' WHERE id = ${callId}::uuid`;
+
+        return undefined;
+      }
+
       if (
         yield* deduplicateMessageReport(
           sql,
@@ -167,7 +180,8 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
         const calls = yield* sql<BusCallRow & { turn_status: string }>`
               SELECT c.*, u.status AS turn_status FROM agent_bus_calls c JOIN turns u ON u.id = c.target_turn_id
                WHERE (${turnId ?? null}::uuid IS NULL OR c.target_turn_id = ${turnId ?? null}::uuid) AND c.notify_status = 'pending'
-                 AND u.status IN ('completed', 'interrupted', 'failed', 'cancelled')`;
+                 AND u.status IN ('completed', 'interrupted', 'failed', 'cancelled')
+               ORDER BY c.created_at, c.id`;
 
         return yield* Effect.forEach(calls, (call) =>
           Effect.gen(function* () {

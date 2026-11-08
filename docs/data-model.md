@@ -1,5 +1,10 @@
 # Model danych (PostgreSQL)
 
+Migracja `0096_consumed_bus_turns` rozszerza `turns.withdrawn` o `consumed`.
+Zużycie niewysłanej wiadomości lub raportu anuluje wejście i wycofuje je z osi czasu;
+nie oznacza anulowania pracy modelu. Migracja oznacza też wcześniejsze takie tury,
+jeśli nie miały startu ani komendy `StartTurn`. Zwykłe anulowania pozostają widoczne.
+
 Migracja `0095_bus_message_consumption` dodaje `agent_bus_calls.message_consumed`
 (`consumed_by_wait`, `consumed_by_read`, `deduplicated`, domyślnie `NULL`) wyłącznie
 dla `send_message` oraz indeks oczekujących wiadomości według adresata i nadawcy.
@@ -346,7 +351,7 @@ W SQL (CHECK, FK, indeksy częściowe):
 - projekt żyje na workerach, na których ma aktywny workspace (`archived_at IS NULL`); zmiana katalogu (`UpdateWorkspace`) nie przenosi istniejących wątków (ich `cwd` jest własny), a zarchiwizowany workspace (`RemoveWorkspace`) przyjmuje już tylko wątki boczne istniejących wątków,
 - `main` ⇔ brak rodzica ⇔ `root_thread_id = id` ⇔ `depth = 0`; najwyżej jeden poziom wątków bocznych (`depth <= 1`); fork dla wątków bocznych i (od migracji 0020, „Fork from here”) głównych; `interaction_route = parent` tylko dla wątków bocznych,
 - punkt forka to tura **wątku źródłowego** (złożony FK `(fork_after_turn_id, fork_source_thread_id)`),
-- jedna tura `running` na wątek; `client_request_id` unikalny w wątku; kolejność kolejki to `ordinal` (zmiana kolejności permutuje ordinale tur kolejki, `0021`); tura wyjęta z kolejki przez użytkownika ma `withdrawn` (`deleted` | `steered`) i jest `cancelled`; `revision` rośnie z każdą edycją wejścia tury w kolejce; steer z kolejki wskazuje swoją turę (`turn_steers.from_turn_id`); wyzwalacz ma swoje powiązanie (`agent_call_id`, `schedule_id`, `interaction_request_id`, `resumes_turn_id`); `hops` = 0 dla człowieka i dostawcy, > 0 dla szyny,
+- jedna tura `running` na wątek; `client_request_id` unikalny w wątku; kolejność kolejki to `ordinal` (zmiana kolejności permutuje ordinale tur kolejki, `0021`); tura wyjęta z kolejki ma `withdrawn` (`deleted` | `steered` od użytkownika, `consumed` po odczycie szyny) i jest `cancelled`; `revision` rośnie z każdą edycją wejścia tury w kolejce; steer z kolejki wskazuje swoją turę (`turn_steers.from_turn_id`); wyzwalacz ma swoje powiązanie (`agent_call_id`, `schedule_id`, `interaction_request_id`, `resumes_turn_id`); `hops` = 0 dla człowieka i dostawcy, > 0 dla szyny,
 - cel ustawiony przez harness jest zapisywany tak, jak go zgłosił (bez akceptacji i budżetu, `0010`); autor to `user` (z `created_by_user_id`) albo `provider`; silnika celów platformy nie ma (`0011` usuwa jego kolumny i stan `proposed`); najwyżej jeden otwarty cel na wątek,
 - harmonogram agenta zawsze ma koniec i `hops > 0`; dokładnie jeden autor (użytkownik albo wywołanie szyny); decyzja w interakcji ma dokładnie jednego autora,
 - harmonogram `thread` ma `thread_id`, a `new_thread` ma konfigurację i autora użytkownika, bez `thread_id`; oba mają `project_id`. Nowy wątek ma `origin = schedule`, `schedule_id`, zapisany `schedule_name` i dodatni `schedule_run`; para harmonogram/numer jest unikalna. Historia i outbox powstają razem z wątkiem i jego pierwszą turą w jednej transakcji. Pochodzenie nie znika po anulowaniu harmonogramu,

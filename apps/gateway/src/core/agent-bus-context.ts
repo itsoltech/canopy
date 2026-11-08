@@ -39,6 +39,8 @@ export interface BusHost {
   interrupt(threadId: string): Promise<void>;
   answer(by: { threadId: string }, request: ui.AnswerInteractionRequest): Promise<ui.Interaction>;
   broadcastThread(threadId: string): Promise<void>;
+  /** Publish committed consumption of queued inputs and unentered steers to every live client. */
+  inputsChanged(threadId: string): Promise<void>;
   /** An agent created or cancelled a schedule: announce it. */
   scheduleChanged(scheduleId: string): Promise<void>;
   requestSecret(source: CallSource, args: AgentBusArgs["request_secret"]): Promise<JsonValue>;

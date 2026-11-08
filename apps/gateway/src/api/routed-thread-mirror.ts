@@ -93,7 +93,12 @@ function mirroredPage(snapshot: ui.ThreadSnapshot, input: ui.WatchThreadRequest,
   const value = threadHistory(create(ui.ThreadSnapshotSchema, { ...snapshot, cursor }), input);
 
   const unchanged =
-    !!cursor && input.incremental && input.cursor === cursor && !input.beforeTurnId && !input.targetItemId;
+    !!cursor &&
+    input.incremental &&
+    input.cursor === cursor &&
+    !input.beforeTurnId &&
+    !input.targetItemId &&
+    !value.historyReset;
 
   return create(ui.ThreadUpdateSchema, {
     syncing: true,

@@ -3,6 +3,7 @@ import { ui } from "@canopy/contracts";
 import { eventItemId, reduceItem } from "./items.ts";
 import { applyThreadDelta } from "./thread-mirror.ts";
 import { applyTurnEvent } from "./thread-turn-events.ts";
+import { loadedThreadDelta, orderThreadTurns } from "./history-pages.ts";
 
 const upsert = <T>(rows: T[], value: T, key: (row: T) => string) => [
   ...rows.filter((row) => key(row) !== key(value)),
@@ -27,12 +28,10 @@ export function applyThreadUpdate(state: ui.ThreadSnapshot | undefined, update: 
     case "thread":
       return { ...previous, thread: change.value };
     case "turn":
-      return {
+      return loadedThreadDelta(previous, {
         ...previous,
-        turns: upsert(previous.turns, change.value, (t) => `${t.fromThreadId}:${t.id}`).sort(
-          (a, b) => a.ordinal - b.ordinal,
-        ),
-      };
+        turns: orderThreadTurns(upsert(previous.turns, change.value, (t) => `${t.fromThreadId}:${t.id}`)),
+      });
     case "interaction":
       return { ...previous, interactions: upsert(previous.interactions, change.value, (i) => i.requestId) };
     case "secret":

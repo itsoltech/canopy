@@ -1,8 +1,10 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { dayKey } from "@canopy/domain/format";
+import { orderThreadTurns } from "@canopy/domain/history-pages";
 
 export function visibleTurns(snapshot: ui.ThreadSnapshot | undefined) {
-  const turns = snapshot?.turns.filter((t) => !t.withdrawn).slice() ?? [];
+  const turns = orderThreadTurns(snapshot?.turns.filter((t) => !t.withdrawn) ?? []);
   const known = new Set(turns.map((turn) => `${turn.fromThreadId}:${turn.id}`));
 
   // Provider-origin events can arrive before a turn update. Keep those entries visible.
@@ -34,8 +36,7 @@ export function newDays(turns: readonly ui.Turn[]): ReadonlySet<ui.Turn> {
     const at = turn.startedAt ?? turn.queuedAt;
 
     if (!at) continue;
-    const date = new Date(Number(at.seconds) * 1000);
-    const day = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    const day = dayKey(at);
 
     if (day !== last) days.add(turn);
     last = day;

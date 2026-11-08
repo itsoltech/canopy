@@ -405,6 +405,18 @@ sequenceDiagram
 
 ## 8. Trwałość
 
+- Wynik jednej tury docelowej dostaje jeden raport na wątek odbiorcy, również
+  gdy `spawn_thread` i kilka przyjętych steerów wskazują tę samą turę.
+  Blokada odbiorcy serializuje wybór raportu z odczytami i fallbackiem;
+  pozostałe wywołania dostają `superseded`. Różne tury lub odbiorcy zachowują
+  niezależne raporty. Tekst wiadomości nie jest kluczem deduplikacji.
+- Odczyt zużywający niewysłane wejście oznacza jego turę jako
+  `cancelled`, `withdrawn = consumed`. Web i mobile chowają ją tak jak inne
+  wycofane wejścia; zwykłe anulowanie pozostaje widoczne. Po zatwierdzeniu
+  transakcji gateway ogłasza zmienione tury i steery wszystkim aktywnym
+  klientom. Migracja `0096` naprawia wcześniejsze zużyte wejścia bez
+  ukrywania tur, które weszły do workera.
+
 - **Idempotencja:** `agent_bus_calls.id = call_id`. Ponowione `AgentToolCall` zwraca zapisany wynik, nie tworzy drugiego wątku ani harmonogramu.
 - **Powiadomienia** to outbox (`notify_status`, migracja `0030`). Wybór dostarczenia blokuje wiersz wątku wywołującego i wywołania: `pending` → `steering` → `delivered` albo `pending` → `delivered` z `notified_turn_id`. Steer ma osobne, unikalne `notification_call_id` i powiązanie zwrotne `agent_bus_calls.notified_steer_id` (nie zmienia `target_turn_id` pierwotnego wywołania). Baza wymaga wskazania steera dla `steering` i steera lub tury dla `delivered`. Steer i komenda workera zapisują się w jednej transakcji. Fallback zapisuje turę, `notified_turn_id` i stan steera w jednej transakcji; powtórzony callback niczego nie tworzy. Ponowne wysłanie komendy zachowuje jej ID dla trwałej deduplikacji w dzienniku workera.
 - **Restart gateway:** początkowy i okresowy `sweep` wznawia zaległe raporty zakończonych tur i fallbacki, także po awarii pomiędzy zapisem odmowy komendy a utworzeniem tury raportu. Outbox wznawia niewysłane komendy po połączeniu workera. Zużycie raportu i zapis wyniku odczytu są jedną transakcją; zużyty raport nie wraca po restarcie. Harmonogramy także żyją w bazie.
