@@ -353,6 +353,7 @@ message UpdatesSnapshot {
   DesktopUpdateState app = 16;
   // Local mode: linked computers, their apps, workers and agent CLIs (docs/updates.md).
   repeated ComputerUpdate computers = 17;
+  GatewayDeparture departure = 18;
 }
 // A linked computer's Canopy app and what runs on it. Its ids are qualified with its node.
 message ComputerUpdate {
@@ -780,6 +781,19 @@ message LinkedComputerSnapshot {
   repeated Thread threads = 3;
 }
 
+// Planned interruption and its durable outcome. Empty node_id means the connected gateway.
+message GatewayDeparture {
+  string id = 1;
+  string state = 2; // updating | restarting | succeeded | failed | rolled_back
+  string target_version = 3;
+  int64 started_at_ms = 4;
+  uint32 window_ms = 5;
+  string version = 6;
+  string reason = 7;
+  string node_id = 8;
+  string name = 9;
+}
+
 message OverviewUpdate {
   oneof change {
     MobileDevice mobile_device = 760;
@@ -787,6 +801,7 @@ message OverviewUpdate {
     MobileOverviewSnapshot mobile_snapshot = 763;
     MobileRoutes mobile_routes = 764;
     DesktopUpdateState desktop_update = 765;
+    GatewayDeparture gateway_departure = 766;
     string worker_removed = 700;
     WorkerEnrollment enrollment = 701;
     Worker worker = 1;

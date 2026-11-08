@@ -115,13 +115,16 @@ export class RemoteCalls {
     return this.#closed || Boolean(this.#departure);
   }
 
-  /** An announced departure ends subscriptions normally; commands receive a scoped, expected refusal. */
+  /** End subscriptions and refuse new calls; accepted update commands may still return their acknowledgement. */
   presence(state: string) {
     this.#departure = state === "connected" ? undefined : state;
 
     if (!this.#departure) return;
 
-    for (const call of this.#outgoing.values()) call.channel.close(call.streaming ? undefined : this.#away());
+    for (const call of this.#outgoing.values()) {
+      if (call.streaming) call.channel.close();
+      else if (!["updating", "restarting"].includes(this.#departure)) call.channel.close(this.#away());
+    }
   }
 
   #away() {

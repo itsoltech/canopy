@@ -424,7 +424,7 @@ export class DesktopRuntime {
   cancelStartup() {
     this.installing?.abort();
   }
-  async presence(state: string) {
+  async presence(state: string, targetVersion = "") {
     if (["sleeping", "shutting_down", "updating"].includes(state)) this.health.suspend();
 
     if (state === "connected" || state === "waking") this.health.resume();
@@ -433,7 +433,7 @@ export class DesktopRuntime {
 
     if (this.state.mode === "local" && this.state.gatewayUrl)
       await this.client().manageComputer(
-        { action: "presence", name: state },
+        { action: "presence", name: state, targetVersion },
         { timeoutMs: state === "sleeping" ? 500 : 2000 },
       );
   }

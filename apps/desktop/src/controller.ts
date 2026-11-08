@@ -14,6 +14,7 @@ export interface ControllerArguments {
   secrets?: Secrets;
   configuration?: ConfigurationInput;
   state?: string;
+  targetVersion?: string | undefined;
   remoteClient?: DesktopClientCredential | undefined;
   draining?: boolean;
   updateState?: string;
@@ -23,7 +24,7 @@ type ControllerRequest = { id: number } & (
   | { action: "initialize"; directory: string; paths: RuntimePaths; secrets: Secrets }
   | { action: "restore"; remoteClient?: DesktopClientCredential }
   | { action: "configure"; configuration: ConfigurationInput; remoteClient?: DesktopClientCredential }
-  | { action: "presence"; state: string }
+  | { action: "presence"; state: string; targetVersion?: string }
   | { action: "worker-drain"; draining: boolean }
   | { action: "remote-update-state"; updateState: string }
 );
@@ -119,7 +120,7 @@ lines.on("line", (line) => {
   // Sleep cannot wait behind enrollment, a download or another queued configuration operation.
   if (request.action === "presence" && runtime && !ending) {
     void runtime
-      .presence(request.state)
+      .presence(request.state, request.targetVersion)
       .then(() => send({ id: request.id, result: {} }))
       .catch(() => send({ id: request.id, error: "Presence announcement did not complete" }));
 
@@ -155,7 +156,7 @@ lines.on("line", (line) => {
 
         send({ id, result: { pids: runtime.pids } });
       } else if (request.action === "presence" && runtime) {
-        await runtime.presence(request.state);
+        await runtime.presence(request.state, request.targetVersion);
         send({ id, result: {} });
       } else if (request.action === "worker-drain" && runtime) {
         send({ id, result: { idle: await runtime.drainWorker(request.draining) } });

@@ -19,6 +19,7 @@ import { DesktopControl } from "../desktop-updates/control.ts";
 import { LocalAppControl } from "../desktop-updates/local.ts";
 import { DesktopUpdateStore } from "../desktop-updates/store.ts";
 import { GatewayUpdates } from "../updates/runtime.ts";
+import { createGatewayDepartures, type GatewayDepartures } from "../updates/departures.ts";
 import { UpdateCenter } from "../updates/center.ts";
 import { createUpdateCenter } from "../updates/center-composition.ts";
 import { WorkerSsh } from "./worker-ssh.ts";
@@ -166,6 +167,7 @@ export class GatewayCore {
   network?: NetworkAccess;
 
   readonly updates: GatewayUpdates;
+  readonly departures: GatewayDepartures;
   readonly updateCenter: UpdateCenter;
 
   readonly mobile: MobileDevices;
@@ -210,6 +212,7 @@ export class GatewayCore {
     this[coreState].options = options;
     this[coreState].actions = new ActionContext(options.runtime);
     this.hub = new Hub((action) => this[coreState].actions.defer(action));
+    this.departures = createGatewayDepartures(this, options);
     this.linkedAgents = new LinkedAgents(this, options, {
       run: (effect) => this[coreState].actions.run(effect),
       transaction: (perform) => this[coreState].actions.transaction(perform),

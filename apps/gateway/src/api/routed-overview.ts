@@ -203,6 +203,8 @@ export function remoteUpdates(update: ui.OverviewUpdate, nodeId: string): ui.Ove
   const one = (value: ui.OverviewUpdate["change"]) => create(ui.OverviewUpdateSchema, { change: value });
 
   switch (change.case) {
+    case "gatewayDeparture":
+      return [one({ case: "gatewayDeparture", value: { ...change.value, nodeId } })];
     case "mobileSnapshot":
       return [
         one({

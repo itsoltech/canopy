@@ -5,6 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import type { UiHandlers } from "./ui-service.ts";
 import { manageConfigNotice } from "../config-sync/notices.ts";
 import { listWorkerRecords } from "./worker-records.ts";
+import { mobileIdentity } from "../core/mobile-devices.ts";
 
 export function computersHandlers(
   core: GatewayCore,
@@ -29,7 +30,23 @@ export function computersHandlers(
 
     linkComputer: (r) => computerGuard(() => computers(core).pair(r.address, r.code, r.shareConfig)),
 
-    manageComputer: (r) => computerGuard(() => computers(core).manage(r)),
+    manageComputer: (r, context) =>
+      computerGuard(async () => {
+        const linked = computers(core);
+
+        if (r.action === "presence") {
+          if (context.values.get(mobileIdentity))
+            throw new ConnectError("Only this computer can announce its departure", Code.PermissionDenied);
+
+          if (r.name === "updating" || r.name === "restarting")
+            await core.departures.announce(
+              r.name,
+              r.targetVersion || (r.name === "updating" ? core.appControl.snapshot().updaterVersion : ""),
+            );
+        }
+
+        return linked.manage(r);
+      }),
     manageConfigNotice: (r) =>
       computerGuard(async () => {
         const linked = computers(core);

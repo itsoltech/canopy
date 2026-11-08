@@ -97,6 +97,11 @@ export function workersHandlers(
     reportAppControl: async (report, context) => {
       localAppOnly(core, context);
       await core.appControl.report(report);
+      const state = core.appControl.snapshot();
+
+      if (state.phase === "restarting") await core.departures.announce("restarting", state.targetVersion);
+
+      if (["succeeded", "failed"].includes(state.phase)) await core.departures.recover(state.phase, state.reason);
 
       return create(ui.DesktopAckSchema);
     },

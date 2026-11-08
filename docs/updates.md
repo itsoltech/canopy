@@ -1,5 +1,26 @@
 # Aktualizacje Canopy
 
+## Zapowiedziana przerwa gatewaya
+
+`WatchOverview` wysyła `gateway_departure` przed aktualizacją i restartem, także
+telefonowi, który sam nie zlecił operacji. Sygnał zawiera id próby, `updating` lub
+`restarting`, wersję początkową i docelową (jeżeli jest znana), czas rozpoczęcia
+oraz pięciominutowe okno. Połączone komputery dostają ten sam rekord w `Presence`;
+stan `restarting` zachowuje fallback `updating` dla starszych partnerów.
+
+Checkpoint w prywatnym `user_settings.settings.gatewayDeparture` nie zmienia
+wersji edytowalnych ustawień. Po starcie gateway potwierdza uruchomioną wersję,
+odczytuje istniejący journal updatera i zapisuje `succeeded`, `failed` albo
+`rolled_back` z przyczyną. `GetUpdates.departure` i pierwsza wiadomość kolejnego
+overview odtwarzają wynik; raport lokalnej aplikacji desktopowej korzysta z tego
+samego checkpointu. Stan partnera jest kwalifikowany jego `node_id`.
+
+Lokalny kontroler desktopu przekazuje docelową wersję również przy zwykłym
+„Restart to update”. Restart zdrowia ogłasza `restarting`, o ile gateway nadal
+obsługuje RPC. Gateway całkowicie nieodpowiadający nie może rozesłać sygnału;
+klienci stosują wtedy zwykłe odzyskiwanie połączenia. Nie zmieniamy
+`canopy.update.v1` ani `WORKER_LINK_PROTOCOL`.
+
 ## Wskaźnik w pasku bocznym
 
 Trzecia ikona stopki (za Settings i licznikiem workerów) pokazuje aktualizacje
