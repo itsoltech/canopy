@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 import { confirm } from "../../ui/Confirm";
 import { router } from "expo-router";
+import { openSettingsSection } from "../settings/navigation";
 import type { bots } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { Button, Notice } from "../../ui/components";
@@ -58,7 +59,7 @@ export function BotSettingsExtras({
         disabled={disabled || busy}
         onPress={() => {
           onClose();
-          router.push({ pathname: "/settings", params: { section: "connectors" } });
+          openSettingsSection("connectors");
         }}
       />
       <Text style={[styles.heading, { color: c.text }]}>Danger zone</Text>

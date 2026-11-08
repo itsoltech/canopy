@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { router } from "expo-router";
+import { openSettingsSection } from "./navigation";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { useAppearance } from "../../state/appearance";
@@ -58,7 +58,7 @@ export function WorkerSettings() {
           <SettingsRow
             title={data?.network.enabled ? "Remote access is on" : "Remote access is off"}
             description={data?.network.note || "Connect paired devices and remote workers to this gateway."}
-            control={<Button title="Manage network access" onPress={() => router.push("/settings?section=network")} />}
+            control={<Button title="Manage network access" onPress={() => openSettingsSection("network")} />}
           />
         </SettingsGroup>
       )}

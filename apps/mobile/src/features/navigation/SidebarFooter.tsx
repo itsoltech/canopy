@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
+import { openSettingsSection } from "../settings/navigation";
 import type { ui } from "@canopy/contracts";
 import { ConnectionStatus, type StreamState } from "./ConnectionStatus";
 import { IconButton } from "../../ui/components";
@@ -15,7 +16,7 @@ export function SidebarFooter({ workers, stream }: { workers: ui.Worker[]; strea
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Workers online"
-        onPress={() => router.push({ pathname: "/settings", params: { section: "workers" } })}
+        onPress={() => openSettingsSection("workers")}
         style={[styles.row, { minHeight: 44 }]}
       >
         <Icon name="server" size={14} />

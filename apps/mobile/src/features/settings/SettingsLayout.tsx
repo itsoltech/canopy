@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
-import { BackHandler, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useEffect } from "react";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import { ScreenFrame, usePaneInsets } from "../../ui/ScreenFrame";
 import { ScreenScroll } from "../../ui/ScreenScroll";
 import { KeyboardArea } from "../../ui/KeyboardArea";
@@ -51,17 +51,6 @@ export function SettingsLayout({
       active = false;
     };
   }, [client]);
-  useEffect(() => {
-    if (wide || !section) return;
-
-    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
-      onSelect("");
-
-      return true;
-    });
-
-    return () => listener.remove();
-  }, [wide, section, onSelect]);
 
   const sections = settingsSections.filter(
     (s) =>
@@ -133,6 +122,7 @@ function SettingsHeader({
 }) {
   const c = useColors();
   const { wide } = useLayout();
+  const settingsNavigation = useNavigation("/settings");
 
   return (
     <>
@@ -171,7 +161,12 @@ function SettingsHeader({
         <IconButton
           icon="x-mark"
           label="Close Settings"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+          onPress={() => {
+            const parent = settingsNavigation.getParent();
+
+            if (parent?.canGoBack()) parent.goBack();
+            else router.replace("/");
+          }}
         />
       </View>
       <ConnectionBanner />

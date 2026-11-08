@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ui } from "@canopy/contracts";
-import { router } from "expo-router";
+import { openSettingsSection } from "./navigation";
 import { Button, Notice } from "../../ui/components";
 import { SettingsRow, SettingsSection } from "./SettingsGroup";
 import { SettingsInput } from "./SettingsInput";
@@ -45,7 +45,7 @@ export function WorkerDetails({
       </SettingsSection>
       <SettingsSection
         title="Configuration"
-        actions={<Button title="Manage providers" onPress={() => router.push("/settings?section=providers")} />}
+        actions={<Button title="Manage providers" onPress={() => openSettingsSection("providers")} />}
       >
         <SettingsValue
           title="Providers"

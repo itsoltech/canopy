@@ -13,6 +13,7 @@ import { pinnedTransport } from "../../api/pinned";
 import { useSession } from "../../state/session";
 import { Button, Field, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
+import { useScannerBack } from "./useScannerBack";
 
 function usePairing() {
   const { session, ready, pair, error: sessionError } = useSession();
@@ -27,6 +28,7 @@ function usePairing() {
   const [busy, setBusy] = useState(false);
   const scanLock = useRef(false);
   const submitting = useRef(false);
+  useScannerBack(scanning, setScanning);
 
   async function scan() {
     setError("");
