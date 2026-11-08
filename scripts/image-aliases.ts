@@ -1,7 +1,7 @@
 /**
  * Points the channel aliases of the GHCR images (`nightly`, `beta`, `stable`, `latest`, `vX`, `vX.Y`) at the
  * already pushed `vX.Y.Z` images, only forward: an alias that names a newer version stays (docs/release.md).
- * Runs in release.yml `publish-server` after `docker login`; version and tag as in scripts/release-manifest.ts.
+ * Runs in release.yml `publish-desktop` after publication and `docker login`; version and tag as in scripts/release-manifest.ts.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { compareTags, resolveVersion } from "./version.ts";

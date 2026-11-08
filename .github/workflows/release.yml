@@ -1,7 +1,7 @@
 # Releases main/next pushes, hourly dev snapshots, manual stable tags and dispatches (docs/release.md).
 # `plan` decides whether to release before dev checks/builds; nothing is
-# tagged, pushed to GHCR or uploaded before `checks` pass. Server artifacts are published first; desktop builds
-# (macOS notarization) publish later. All dev events share one active run and only the newest pending run;
+# tagged, pushed to GHCR or uploaded before `checks` pass. Server artifacts are staged on a draft;
+# publication waits for desktop builds, feeds and verification. All dev events share one active run and only the newest pending run;
 # each branch has its own queue. GITHUB_TOKEN tags do not trigger another workflow.
 name: Release
 
@@ -92,7 +92,7 @@ jobs:
           fi
           echo "value={\"include\":[$targets]}" >> "$GITHUB_OUTPUT"
 
-  # The real release: tag and GitHub Release only after the checks, and only with the planned version
+  # Reserve the version: tag and draft GitHub Release after checks, only with the planned version
   # (EXPECTED_VERSION, scripts/release-expected-version.mjs). A branch that moved meanwhile gives no release.
   release:
     needs: [plan, checks]
@@ -240,7 +240,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
 
   # After the release tag exists: the same build from the cache, pushed only as the immutable vX.Y.Z.
-  # Channel aliases move in publish-server, forward only.
+  # Channel aliases move after publish-desktop, forward only.
   images:
     needs: [release, images-build]
     if: needs.release.outputs.published == 'true'
@@ -446,8 +446,7 @@ jobs:
           retention-days: 7
           overwrite: true
 
-  # Stage 1: binaries, checksums.txt and manifest.json (gateway/worker updates, worker install), then the
-  # image aliases. Serialized per branch so aliases only move forward. Does not wait for desktop.
+  # Stage 1: stage binaries and server metadata on the hidden draft. No updater sees this stage.
   publish-server:
     needs: [checks, release, binaries, smoke, images]
     if: ${{ !cancelled() && needs.release.outputs.published == 'true' && needs.checks.result == 'success' && needs.binaries.result == 'success' && needs.smoke.result == 'success' && needs.images.result == 'success' }}
@@ -458,7 +457,6 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write
-      packages: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CANOPY_VERSION: ${{ needs.release.outputs.version }}
@@ -466,7 +464,7 @@ jobs:
       CANOPY_RELEASE_TAG: ${{ needs.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v5
-      # The release scripts have no package dependencies.
+      # The staging scripts have no runtime package dependencies.
       - uses: ./.github/actions/setup-bun
         with:
           install: "false"
@@ -480,27 +478,22 @@ jobs:
           ls -l release-assets
           echo "### Canopy $CANOPY_VERSION ($CANOPY_RELEASE_TAG): server" >> "$GITHUB_STEP_SUMMARY"
           sed 's/^/    /' release-assets/checksums.txt >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload assets (manifest last)
+      - name: Stage server assets on draft (manifest last)
         run: bun scripts/release-upload.ts release-assets
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Image channel aliases (forward only)
-        run: bun scripts/image-aliases.ts
 
-  # Stage 2, whenever the desktop builds end (possibly after the next run published): installers, blockmaps,
-  # merged feeds, then checksums.txt and manifest.json regenerated with the desktop assets. Publishes what
-  # was built; a failed target (e.g. notarization) is added by "Re-run failed jobs", which repeats this job.
+  # Stage 2: required desktop targets must succeed. Upload and verify the complete set before publishing
+  # the draft or moving image aliases. Failed jobs can resume the same draft without exposing partial feeds.
   publish-desktop:
     needs: [release, publish-server, desktop]
-    if: ${{ !cancelled() && needs.publish-server.result == 'success' }}
+    if: ${{ !cancelled() && needs.publish-server.result == 'success' && needs.desktop.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    concurrency:
+      group: release-publish-${{ github.ref }}
+      cancel-in-progress: false
     permissions:
       contents: write
+      packages: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CANOPY_VERSION: ${{ needs.release.outputs.version }}
@@ -517,37 +510,30 @@ jobs:
         with:
           pattern: desktop-*
           path: desktop-artifacts
-      - id: built
-        run: |
-          mkdir -p desktop-artifacts
-          if [ -z "$(ls -A desktop-artifacts)" ]; then
-            echo "::warning::No desktop target finished; the release keeps its server assets only."
-            echo "any=false" >> "$GITHUB_OUTPUT"
-          else
-            ls desktop-artifacts
-            echo "any=true" >> "$GITHUB_OUTPUT"
-          fi
       # Stable emits latest/beta/nightly feeds; beta emits beta/nightly; nightly emits nightly.
       # Aliases refer to this release's single Canopy artifact set (including mac ZIP/blockmaps).
-      - name: Merge desktop update feeds and publish cumulative channel aliases
-        if: steps.built.outputs.any == 'true'
+      - name: Merge desktop update feeds and cumulative channel aliases
         run: bun apps/desktop/scripts/merge-update-metadata.ts desktop-artifacts release-assets
-      # The binaries are hashed again (same bytes, same manifest entries) but publish-server already uploaded them.
+      # Keep binaries locally for complete verification; matching draft assets are not uploaded again.
       - name: checksums.txt and manifest.json
-        if: steps.built.outputs.any == 'true'
         run: |
           bun scripts/release-manifest.ts release-assets
-          mkdir server-assets
-          mv release-assets/canopy-* server-assets/
           ls -l release-assets
           echo "### Canopy $CANOPY_VERSION ($CANOPY_RELEASE_TAG): server and desktop" >> "$GITHUB_STEP_SUMMARY"
           sed 's/^/    /' release-assets/checksums.txt >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload assets (feeds, then manifest last)
-        if: steps.built.outputs.any == 'true'
-        run: bun scripts/release-upload.ts release-assets
+      - name: Upload and verify all assets, then publish release
+        run: bun scripts/release-upload.ts release-assets --publish
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image channel aliases (forward only)
+        run: bun scripts/image-aliases.ts
 
   backmerge:
-    needs: [release, publish-server]
+    needs: [release, publish-desktop]
     if: needs.release.outputs.channel == 'stable'
     uses: ./.github/workflows/backmerge.yml
     with:
@@ -560,7 +546,7 @@ jobs:
       actions: write
 
   nightly-hygiene:
-    needs: [release, publish-server]
+    needs: [release, publish-desktop]
     if: needs.release.outputs.channel == 'nightly'
     uses: ./.github/workflows/nightly-hygiene.yml
     permissions:

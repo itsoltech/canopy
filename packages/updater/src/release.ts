@@ -279,7 +279,7 @@ export class ReleaseSource {
           const version = release.tag_name.replace(/^v/, "");
           const match = SEMVER.exec(version);
 
-          // semantic-release creates the release before the builds finish; manifest.json is uploaded last.
+          // Drafts are staged before publication; older incomplete releases may also lack manifest.json.
           if (!match || release.draft || !release.assets?.some((asset) => asset.name === "manifest.json")) return false;
           const stable = !release.prerelease && !match[4];
 

@@ -168,8 +168,9 @@ Assety desktop mają `app: "desktop"` (kilka formatów na jedną parę os/arch).
 Feedy `latest*.yml`, `beta*.yml`, `nightly*.yml` i blockmapy nie wchodzą do tablicy
 `manifest.assets`, bo nie mają pojedynczego os/arch. Obejmuje je `checksums.txt`.
 Format manifestu i zamrożony protokół aktualizacji gatewaya/workera pozostają bez zmian.
-Release dostaje oba pliki dwukrotnie: najpierw z samymi binariami (`publish-server`), potem
+Ukryty draft dostaje oba pliki dwukrotnie: najpierw z samymi binariami (`publish-server`), potem
 przeliczone z assetami desktop (`publish-desktop`); wpisy serwerowe w obu wersjach są identyczne.
+Publiczny release od początku zawiera komplet assetów i feedów wszystkich wymaganych platform.
 
 ## Workflowy GitHub Actions
 
@@ -271,12 +272,12 @@ plan ─┬─ checks ───────────────────�
 | `binaries`, `smoke` | cross-compile wszystkich celów; `--version` każdej binarki na jej OS/arch | po `plan`, równolegle z checkami | — (artefakt Actions) |
 | `images-build` | buildx amd64+arm64 do cache GHA (`mode=max`), bez pushu i atestacji | po `plan` | — |
 | `desktop` | Linux, macOS (Apple Silicon), Windows; podpisy i notaryzacja | po `plan` | — (artefakt Actions) |
-| `release` | prawdziwy semantic-release: tag i GitHub Release z notatkami | po **zielonych `checks`**; grupa `release-version-<ref>` | tag + pusty release |
+| `release` | prawdziwy semantic-release: tag i draft GitHub Release z notatkami | po **zielonych `checks`**; grupa `release-version-<ref>` | tag + ukryty draft |
 | `images` | ten sam build z cache, push wyłącznie niezmiennego `vX.Y.Z` (SBOM) | po `release` i `images-build` | obraz `vX.Y.Z` |
-| `publish-server` | binaria, `checksums.txt`, `manifest.json` (ostatni), potem aliasy obrazów | po `checks`, `release`, `binaries`, `smoke`, `images`; grupa `release-publish-<ref>` | etap 1 |
-| `publish-desktop` | instalatory, blockmapy, scalone feedy, nowe `checksums.txt`/`manifest.json` | po `publish-server` i końcu macierzy desktop | etap 2 |
+| `publish-server` | binaria, `checksums.txt`, `manifest.json` na drafcie | po `checks`, `release`, `binaries`, `smoke`, `images`; grupa `release-publish-<ref>` | nic publicznego |
+| `publish-desktop` | instalatory, blockmapy, scalone feedy, nowe `checksums.txt`/`manifest.json`; weryfikacja, publikacja, aliasy obrazów | po `publish-server` i sukcesie wymaganych celów desktop; ta sama grupa publikacji | kompletny release |
 | `stop-builds` | `gh run cancel` własnego przebiegu | checki czerwone albo `release` bez wydania/anulowany | — |
-| `nightly-hygiene`, `backmerge` | jak wcześniej | po `publish-server`; brak wydania pomija oba | — |
+| `nightly-hygiene`, `backmerge` | jak wcześniej | po `publish-desktop`; brak wydania pomija oba | — |
 
 **Nic nie jest publikowane przed zielonymi testami.** Równolegle z `checks` powstają wyłącznie artefakty
 Actions i cache buildx (prywatne dla repozytorium). Tag, GitHub Release, obraz w GHCR, assety
@@ -297,31 +298,45 @@ GitHub w grupie `concurrency` trzyma jeden job oczekujący: nowszy anuluje stars
 oznacza wyprzedzony przebieg. Przy czerwonych checkach `stop-builds` także zatrzymuje buildy;
 nic nie zostało otagowane, więc ponowienie (**Re-run all jobs**) jest bezpieczne.
 
-**Publikacja w dwóch etapach** (`scripts/release-upload.ts`, oba etapy można powtarzać):
+**Atomowa publikacja dla updaterów** (`scripts/release-upload.ts`, oba etapy można powtarzać):
 
-1. Tag musi wskazywać `GITHUB_SHA` przebiegu, release nie może być draftem, a flaga prerelease
-   musi zgadzać się z kanałem. Ścieżka tagowa tworzy release przy pierwszym uploadzie.
-2. Kolejność: binaria/instalatory/blockmapy (`--clobber`) → feedy `*.yml` → `checksums.txt`
-   → `manifest.json`. Te dwa ostatnie są wymieniane przez upload `<nazwa>.next` i zmianę nazwy,
-   więc opublikowany release traci je najwyżej na czas jednego wywołania API.
-3. `publish-server` publikuje manifest tylko z binariami gatewaya/workera. Od tej chwili działają
-   aktualizacje gatewaya/workera, instalator workera i obrazy kanału.
+1. Tag musi wskazywać `GITHUB_SHA` przebiegu, a wersja, kanał i flaga prerelease muszą się zgadzać.
+   semantic-release tworzy **draft** (`draftRelease: true`); ścieżka tagowa tworzy draft przy
+   pierwszym uploadzie. Hook `addChannel` jest wyłączony: plugin GitHub może w nim utworzyć
+   publiczny release mimo `draftRelease`. Promocje beta/stable budują własną wersję przez ten
+   sam workflow, bez publikowania pustych kopii ani przełączania istniejących wydań.
+2. `publish-server` wgrywa binaria i pliki zbiorcze wyłącznie na draft. Nie udostępnia jeszcze
+   aktualizacji gatewaya/workera, instalatora workera ani nowych aliasów obrazów.
+3. Kolejność uploadu: binaria/instalatory/blockmapy → feedy `*.yml` → `checksums.txt` → `manifest.json`.
+   `--clobber` wolno używać wyłącznie na drafcie. Pasujące assety są pomijane przy ponowieniu.
 4. `publish-desktop` pobiera ponownie artefakt `binaries` i wszystkie gotowe `desktop-*`, scala feedy,
    liczy `checksums.txt`/`manifest.json` od nowa (wpisy serwerowe są identyczne, dochodzą `app: desktop`),
-   wgrywa tylko pliki desktop, feedy i oba pliki zbiorcze. Updater desktopu wybiera release dopiero,
-   gdy ma feed jego platformy **i** `manifest.json`, więc release z samymi binariami pomija;
-   feed trafia na release po instalatorach i blockmapach, które opisuje.
+   wgrywa brakujące lub zmienione pliki. `--publish` wymaga wszystkich binariów, instalatorów,
+   blockmap macOS/Windows oraz feedów dla Windows (`<kanał>.yml`), macOS (`<kanał>-mac.yml`)
+   i Linux (`<kanał>-linux.yml`). Stable wymaga aliasów latest/beta/nightly, beta beta/nightly,
+   nightly nightly. Obecny eksperymentalny linux-arm64 musi mieć też swój instalator i feedy.
+   Po uploadzie skrypt sprawdza przez paginowane API **stan `uploaded`, rozmiar i SHA-256 każdego
+   pliku**, łącznie z feedami i plikami zbiorczymi. Dopiero potem jednym PATCH ustawia `draft=false`;
+   prerelease nigdy nie staje się `latest`, stable korzysta z wyboru GitHuba według wersji.
 5. Aliasy obrazów (`nightly`, `beta`, `stable`, `latest`, `vX`, `vX.Y`) przesuwa
    `scripts/image-aliases.ts` (`docker buildx imagetools create`) **tylko do przodu**: alias wskazujący
-   nowszą wersję (adnotacja `org.opencontainers.image.version` indeksu) zostaje. `publish-server`
+   nowszą wersję (adnotacja `org.opencontainers.image.version` indeksu) zostaje. `publish-desktop`
    jest serializowany per gałąź, więc dwa przebiegi nie cofną aliasu. Poprawka starszej linii stable
-   przesuwa `vX.Y`, ale nie `latest`/`stable`.
+   przesuwa `vX.Y`, ale nie `latest`/`stable`. Aliasy zmieniają się dopiero po publikacji release.
 
-Błąd desktopu nie dotyka już opublikowanego etapu 1. `publish-desktop` publikuje cele, które się
-zbudowały; brakujący cel jest widoczny jako czerwony job i ewentualne ostrzeżenie w podsumowaniu.
-`promote.ts` wymaga zielonego przebiegu Release na wybranym commicie C, więc niepełny desktop blokuje promocję tego commita
-aż do skutecznego ponowienia. Ponowny upload manifestu przesuwa jego `updated_at`, od którego liczy się
-burn-in bety — to zamierzone: liczy się od kompletu assetów.
+Klient sprawdzający kanał w dowolnej chwili widzi poprzedni release albo nowy z kompletem plików.
+Dotyczy to również resolvera gatewaya/workera, instalacji workera i pobrań dokładnego tagu;
+tag git może istnieć wcześniej, ale draft nie jest publicznym źródłem pobrań. Awaria wymaganego
+desktopu lub weryfikacji pozostawia cały release ukryty. Ponowienie kontynuuje ten sam draft.
+Po udanym PATCH, także gdy odpowiedź zaginęła lub zawiódł późniejszy krok aliasów, skrypt rozpoznaje
+publiczny release i nie zmienia już jego assetów. Przejściowe błędy odczytu GitHuba nadal korzystają
+z retry z #320; wyczerpanie retry przerywa publikację, zamiast udawać brak release.
+Zapisów nie ponawiamy automatycznie — ich skutek sprawdza ponowiony job.
+`promote.ts` nadal wymaga zielonego Release i liczy burn-in od późniejszego z `published_at`
+oraz `manifest.json.updated_at`. Mobile uruchamia osobny pipeline EAS/TestFlight/OTA dopiero po
+zielonym Release; nie pobiera instalatorów ani feedów desktopu z GitHuba. Opcjonalny krótszy retry
+desktopu pominięto: nowy przepływ usuwa stan „publiczny release bez feedu”, a zmiana trwałego
+harmonogramu sprawdzeń wymagałaby osobnej polityki.
 
 **Cele desktopu.** linux-x64, darwin-arm64 i windows-x64 są pełnymi, wymaganymi celami
 nightly, beta i stable. Tylko linux-arm64 pozostaje eksperymentalny (`continue-on-error`):
@@ -341,9 +356,9 @@ Bundla web nie współdzielimy między jobami desktop: osobny job buildu opóźn
 | `checks` zielone | ~4,5–5 min |
 | `release` (tag), start `images` | ~5,5–6 min |
 | obrazy `vX.Y.Z` w GHCR (build z cache) | ~7–8 min |
-| **etap 1: binaria, `manifest.json`, aliasy obrazów** | **~9–11 min** |
-| desktop Linux w release | ~12–14 min |
-| desktop macOS (podpis + notaryzacja) w release | ~30–35 min |
+| binaria i `manifest.json` na ukrytym drafcie | ~9–11 min |
+| artefakt desktop Linux gotowy do uploadu | ~12–14 min |
+| **kompletny publiczny release i aliasy obrazów** (po macOS i Windows) | **~30–35 min**, zależnie od podpisów/notaryzacji |
 
 Czasy są orientacyjne; CI startujące po planie wymaga potwierdzenia na GitHubie.
 Merge do `dev` czeka na najbliższy cykl godzinowy, a nowy przebieg dodatkowo na zakończenie
@@ -354,11 +369,12 @@ całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie b
 - Po błędzie buildów albo publikacji użyj **Re-run failed jobs**: zachowuje wyjścia `plan`/`release`
   i powtarza nieudane joby z zależnymi. Ponowienie całego workflow po utworzeniu tagu kończy się
   „no release”, bo tag już istnieje. Artefakty Actions żyją 7 dni.
-- **Notaryzacja macOS zawiodła** (timeout Apple, odrzucenie, wygasła umowa/klucz): etap 1 i pozostałe
-  cele desktop są już opublikowane, release nie ma assetów mac ani `*-mac.yml`, więc desktop macOS
-  zostaje na poprzedniej wersji. Sprawdź log `desktop (darwin-arm64)` (status zgłoszenia `notarytool`,
+- **Notaryzacja macOS zawiodła** (timeout Apple, odrzucenie, wygasła umowa/klucz): release pozostaje
+  draftem, wszystkie updatery i aliasy obrazów zostają na poprzedniej wersji.
+  Sprawdź log `desktop (darwin-arm64)` (status zgłoszenia `notarytool`,
   ważność sekretów i umów Apple), napraw przyczynę i użyj **Re-run failed jobs** — przebuduje macOS
-  i powtórzy `publish-desktop`, który dopisze assety mac oraz przeliczy feedy, sumy i manifest.
+  i powtórzy `publish-desktop`, który dopisze assety mac, przeliczy feedy, sumy i manifest,
+  zweryfikuje cały zestaw i opublikuje draft.
   Ponowienie działa także po tym, jak nowszy przebieg wydał już kolejny nightly.
 - Ręczny stabilny tag musi należeć do historii `main`; ścieżka tagowa tworzy release przy uploadzie.
 
@@ -404,10 +420,9 @@ Do pobierania publicznych aktualizacji aplikacja nie potrzebuje tokena GitHub.
 
 Centrum aktualizacji pobiera również publiczne notatki GitHub Releases, z krótkim
 cache, dla przedziału (wersja zainstalowana, wersja docelowa], od najnowszej.
-Filtrowanie zachowuje hierarchię kanałów stable → beta → nightly. Wydanie serwera
-może istnieć przed publikacją desktopu: brak feedu danej platformy oznacza, że
-desktop nadal nie jest dostępny, a publikacja może trwać albo wymagać ponowienia.
-Nie jest to potwierdzenie, że zadanie CI nadal działa.
+Filtrowanie zachowuje hierarchię kanałów stable → beta → nightly. Starsze wydania mogą
+nie mieć feedu danej platformy; klient nadal je pomija. Nowe wydania są publiczne dopiero
+po przygotowaniu desktopu, więc brak feedu nie jest już zwykłym etapem publikacji.
 
 1. Dołącz do **Apple Developer Program** i zaakceptuj aktualne umowy Apple.
    Na Macu w Keychain Access utwórz Certificate Signing Request, a w Apple Developer
@@ -478,8 +493,8 @@ dialogu na każdej wersji macOS. Szczegółowa tabela i lokalne obejście:
 
 1. Na runnerze Apple Silicon sprawdź liczbę runtime Mach-O w logu,
    użycie Developer ID Application, powodzenie notaryzacji/staplingu oraz krok
-   `Verify macOS signatures and notarization`. Ich błąd blokuje publikację desktopu macOS
-   (etap 2) i promocję, nie binaria ani obrazy (etap 1).
+   `Verify macOS signatures and notarization`. Ich błąd blokuje publikację całego release,
+   przesunięcie aliasów obrazów i promocję; binaria pozostają na drafcie.
 2. Pobierz dmg i zip z GitHuba na czystego Maca z quarantine. Uruchom app bez `xattr`,
    sprawdź lokalny start PostgreSQL, gatewaya, workera i web oraz zamknięcie procesów.
    Sprawdź `codesign -d --entitlements :-` dla app, helpera i jednego `runtime/bun`.
@@ -689,6 +704,8 @@ oznacza liczbę wersji, nie gwarantowane 10 godzin historii.
    ponowienia. Pozostawia tagi git i notes semantic-release: są potrzebne do numeracji oraz historii
    kanałów. Cache gatewaya zachowuje manifest/binarie jego wersji. Starszy nightly na zimnym cache może
    wymagać ręcznego przejścia na zachowany release.
+   Drafty są pomijane przez retencję, także gdy mają już serwerowy `manifest.json`;
+   pozostają do ponowienia albo ręcznego porządkowania przez maintainera.
 2. **GHCR** (`canopy-gateway`, `canopy-web`, `canopy-worker`, REST
    `/orgs/{org}/packages/container/{name}/versions`). Usuwa wersję pakietu (digest) tylko gdy:
    - wszystkie jej tagi to wersje `vX.Y.Z-nightly.N`, których nightly nie jest już zachowany
@@ -707,7 +724,7 @@ oznacza liczbę wersji, nie gwarantowane 10 godzin historii.
    indeksu, usuwa administrator. Błąd odczytu rejestru pomija cały pakiet.
 
 Najpierw releases, potem GHCR: brak dostępu do pakietu kończy job błędem z opisem dopiero po
-przycięciu releases. Wydanie to nie dotyka — `nightly-hygiene` startuje po `publish-server` i nic od
+przycięciu releases. Wydanie to nie dotyka — `nightly-hygiene` startuje po `publish-desktop` i nic od
 niego nie zależy (przebieg release jest wtedy czerwony tylko na tym jobie). Ręcznie: workflow dispatch
 `Nightly hygiene` z `dry_run: true` albo lokalnie `GH_TOKEN=… GITHUB_REPOSITORY=itsoltech/canopy bun
 scripts/prune-nightly.ts --dry-run` — wypisuje tylko plan (nazwy, tagi, id). Harmonogram i wywołanie
@@ -738,8 +755,9 @@ do pushu, nie do usuwania). Bez tego job zgłasza `GHCR canopy-…: no access to
   [Retencja nightly](#retencja-nightly)).
   Runnery `ubuntu-24.04-arm`, `macos-15`, `windows-2025` muszą być dostępne.
 - Pages: w *Settings → Pages* ustaw źródło **GitHub Actions** (workflow `pages.yml`).
-- GitHub „immutable releases” pozostaw wyłączone: semantic-release publikuje release przed
-  uploadem assetów; upload i retencja wymagają możliwości ich późniejszej zmiany/usunięcia.
+- GitHub „immutable releases” pozostaw wyłączone ze względu na retencję nightly, która usuwa
+  stare wydania i zachowuje tagi. Upload kończy się przed publikacją; ponowienia nie zmieniają
+  publicznych assetów. Zmiana ustawienia nie jest częścią tej procedury.
 
 ### Rulesety i deploy key
 
@@ -821,7 +839,8 @@ fingerprintu i nowe binarki weryfikujące podpisy. Szczegóły kanałów, ponowi
 2. Na HEAD main utwórz `git tag -a v0.1.0 -m 'Canopy 0.1.0'`, potem
    `git push origin main v0.1.0`. Tylko przebieg tagowy publikuje **0.1.0 stable**; przebieg main
    widzi tag na HEAD i brak nowych commitów. CI, wszystkie binaria/smoke i obrazy muszą przejść
-   przed pierwszym manifestem; desktop dopisuje się w drugim etapie. Sprawdź `v0.1.0/manifest.json` i publiczną widoczność GHCR.
+   przed publicznym release; desktop, wszystkie feedy i manifest muszą być kompletne przed
+   publikacją draftu. Sprawdź `v0.1.0/manifest.json` i publiczną widoczność GHCR.
 3. Utwórz `git branch next v0.1.0` oraz `git branch dev v0.1.0`; wykonaj
    `git push origin next dev`. Obie gałęzie kończą się **no release** aż do nowych commitów
    wpływających na wersję. Nie twórz tagów beta/nightly ręcznie.
@@ -844,5 +863,9 @@ przebieg nic nie taguje, inna niż zaplanowana wersja jest odrzucana przed tagie
 Test etapów publikacji liczy sumy i manifest z samymi binariami, potem z jednym celem desktop, potem
 po „ponowieniu” z brakującym celem: każdy asset manifestu istnieje i ma zgodny SHA-256, `checksums.txt`
 obejmuje wszystkie pliki, wpisy serwerowe się nie zmieniają, a powtórka daje ten sam wynik.
+`bun test scripts/release-upload.test.ts` sprawdza widoczność poprzedniej wersji aż do
+końcowej publikacji dla wszystkich kanałów, brakujące platformy/aliasy/blockmapy,
+przerwane uploady, utraconą odpowiedź publikacji, niezmienność publicznych assetów oraz
+odmowę publikacji przy błędnym stanie, rozmiarze lub SHA-256 w API.
 Testy updatera używają lokalnego fixture HTTP
 z prereleases, paginacją i manifestami. Pełna publikacja wymaga uruchomienia workflow na GitHubie.
