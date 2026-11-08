@@ -2,6 +2,7 @@ import * as http2 from "node:http2";
 import type { Socket } from "node:net";
 import type { AddressInfo } from "node:net";
 import type { TLSSocket } from "node:tls";
+import { watchSession } from "./session-liveness.ts";
 
 export type Handler = (request: http2.Http2ServerRequest, response: http2.Http2ServerResponse) => void | Promise<void>;
 
@@ -10,7 +11,7 @@ export type Listener = { host: string; port: number; close: (graceMs?: number) =
 /** How often an idle peer must answer an HTTP/2 PING, and how long it has to answer. */
 export type Liveness = { intervalMs: number; timeoutMs: number };
 
-const LIVENESS: Liveness = { intervalMs: 20_000, timeoutMs: 10_000 };
+const LIVENESS: Liveness = { intervalMs: 20_000, timeoutMs: 60_000 };
 
 /** One TLS port for phones and linked computers. TLS proves this computer's pinned certificate to
  * both; a linked computer also presents its own certificate, so `route` sends it to the link service,
@@ -21,6 +22,7 @@ export async function openListener(options: {
   identity: { certificate: string; privateKey: string };
   route: (socket: TLSSocket) => Handler | undefined;
   liveness?: Liveness;
+  log?: (message: string) => void;
 }): Promise<Listener> {
   const server = http2.createSecureServer(
     {
@@ -32,7 +34,7 @@ export async function openListener(options: {
       // A client certificate is optional: phones have none, a new computer pairs with a new one.
       requestCert: true,
       rejectUnauthorized: false,
-      handshakeTimeout: 5000,
+      handshakeTimeout: 15_000,
       settings: { maxConcurrentStreams: 16 },
     },
     (request, response) => {
@@ -47,18 +49,49 @@ export async function openListener(options: {
 
   const sockets = new Set<Socket>();
   const sessions = new Set<http2.ServerHttp2Session>();
-  server.on("session", (session) => {
-    sessions.add(session);
-    session.once("close", () => sessions.delete(session));
-    watchLiveness(session, options.liveness ?? LIVENESS);
-  });
-  server.on("secureConnection", (socket: Socket) => {
+  const retiring = new Map<http2.ServerHttp2Session, () => void>();
+  let sequence = 0;
+
+  const log = (id: number, message: string) =>
+    options.log?.(
+      `network access: at=${new Date().toISOString()} listener_port=${options.port} session=${id} ${message}`,
+    );
+
+  // Include unfinished TLS handshakes in shutdown; they may now wait longer for a waking VPN.
+  server.on("connection", (socket: Socket) => {
     sockets.add(socket);
-    // HTTP/1.1 has no PING; the system's keepalive ends a connection whose peer is gone.
-    socket.setKeepAlive(true, LIVENESS.intervalMs);
     socket.once("close", () => sockets.delete(socket));
   });
-  server.on("tlsClientError", () => {});
+  server.on("session", (session) => {
+    sessions.add(session);
+    const id = ++sequence;
+    retiring.set(
+      session,
+      watchSession(session, {
+        ...(options.liveness ?? LIVENESS),
+        log: (message) => log(id, message),
+      }),
+    );
+    session.once("close", () => {
+      sessions.delete(session);
+      retiring.delete(session);
+    });
+  });
+  server.on("secureConnection", (socket: TLSSocket) => {
+    const id = ++sequence;
+    const started = Date.now();
+
+    if (socket.alpnProtocol !== "h2") {
+      log(id, `connected tls=established protocol=${socket.alpnProtocol || "unnegotiated"} pin_check=client_side`);
+      socket.once("close", () =>
+        log(id, `closed reason=${closing ? "listener_shutdown" : "peer_closed"} duration_ms=${Date.now() - started}`),
+      );
+    }
+
+    // HTTP/1.1 has no PING; the system's keepalive ends a connection whose peer is gone.
+    socket.setKeepAlive(true, LIVENESS.intervalMs);
+  });
+  server.on("tlsClientError", () => log(0, "tls_handshake_failed"));
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(options.port, options.host, () => {
@@ -88,7 +121,10 @@ export async function openListener(options: {
         });
 
         // GOAWAY keeps existing RPCs/streams alive while new connections use the new port.
-        for (const session of sessions) session.close();
+        for (const session of sessions) {
+          retiring.get(session)?.();
+          session.close();
+        }
       });
 
       if (graceMs > 0) timer ??= setTimeout(destroy, graceMs);
@@ -97,34 +133,6 @@ export async function openListener(options: {
       return closing;
     },
   };
-}
-
-/** A phone that was suspended or lost its network never closes its connection, and its open streams (and their
- * overview subscriptions) would stay forever. A session that doesn't answer a PING in time is destroyed. */
-function watchLiveness(session: http2.ServerHttp2Session, liveness: Liveness) {
-  let waiting: ReturnType<typeof setTimeout> | undefined;
-
-  const timer = setInterval(() => {
-    if (waiting || session.destroyed) return;
-    waiting = setTimeout(() => session.destroy(), liveness.timeoutMs);
-
-    try {
-      session.ping((error) => {
-        clearTimeout(waiting);
-        waiting = undefined;
-
-        if (error && !session.destroyed) session.destroy();
-      });
-    } catch {
-      session.destroy();
-    }
-  }, liveness.intervalMs);
-
-  timer.unref();
-  session.once("close", () => {
-    clearInterval(timer);
-    clearTimeout(waiting);
-  });
 }
 
 /** Listen on every interface: IPv6 with IPv4 mapped when the system has IPv6, IPv4 only otherwise. */

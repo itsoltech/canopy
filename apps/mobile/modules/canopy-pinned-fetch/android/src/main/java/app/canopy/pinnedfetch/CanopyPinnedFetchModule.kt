@@ -18,6 +18,7 @@ import javax.net.ssl.SSLSocket
 import javax.net.ssl.X509TrustManager
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.ConnectionPool
 import okhttp3.Headers.Companion.toHeaders
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
@@ -70,9 +71,10 @@ private fun pinFailure(error: Throwable?): Boolean {
 class CanopyPinnedFetchModule : Module() {
   private val calls = ConcurrentHashMap<String, Call>()
   private val clients = ConcurrentHashMap<String, OkHttpClient>()
+  private val probeSockets = ConcurrentHashMap<String, Socket>()
   private val base by lazy {
     OkHttpClient.Builder()
-      .connectTimeout(8, TimeUnit.SECONDS)
+      .connectTimeout(15, TimeUnit.SECONDS)
       // Overview and thread streams stay open and may be quiet for a long time.
       .readTimeout(0, TimeUnit.MILLISECONDS)
       .writeTimeout(30, TimeUnit.SECONDS)
@@ -81,7 +83,8 @@ class CanopyPinnedFetchModule : Module() {
       .retryOnConnectionFailure(false)
       // Without it a connection that died while the app was in the background (NAT, Wi-Fi change) keeps
       // streams and new requests waiting forever, since a quiet stream has no read timeout.
-      .pingInterval(15, TimeUnit.SECONDS)
+      // OkHttp uses this interval as its pong deadline too. A waking VPN/radio can take more than 15 s.
+      .pingInterval(60, TimeUnit.SECONDS)
       .build()
   }
 
@@ -94,6 +97,7 @@ class CanopyPinnedFetchModule : Module() {
     clients.getOrPut(pin) {
       val (context, trust) = context(pin)
       base.newBuilder()
+        .connectionPool(ConnectionPool())
         .sslSocketFactory(context.socketFactory, trust)
         // The exact certificate pin is stronger than a host name check (addresses change, names are optional).
         .hostnameVerifier { _, _ -> true }
@@ -119,20 +123,32 @@ class CanopyPinnedFetchModule : Module() {
 
     Function("cancel") { id: String -> calls.remove(id)?.cancel() }
 
-    // New requests open new connections; running ones keep theirs (the clients share one pool).
-    Function("reset") { base.connectionPool.evictAll() }
+    // New requests open new connections; running ones keep their original pool.
+    Function("reset") {
+      // evictAll() only removes idle connections. A shared pool can still reuse an active, half-open h2
+      // connection, so discard the clients and give future requests a separate pool instead.
+      clients.values.forEach { it.connectionPool.evictAll() }
+      clients.clear()
+    }
 
     // A TLS handshake only: is this route the paired computer, and how fast? Nothing is sent.
-    AsyncFunction("probe") { host: String, port: Int, pin: String, timeoutMs: Int, promise: Promise ->
-      probes.execute { probe(host, port, pin.lowercase(), timeoutMs, promise) }
+    AsyncFunction("probe") { host: String, port: Int, pin: String, timeoutMs: Int, id: String, promise: Promise ->
+      val raw = Socket()
+      probeSockets[id] = raw
+      probes.execute {
+        try { probe(host, port, pin.lowercase(), timeoutMs, raw, promise) }
+        finally { probeSockets.remove(id) }
+      }
     }
+
+    Function("cancelProbe") { id: String -> probeSockets.remove(id)?.close() }
   }
 
-  private fun probe(host: String, port: Int, pin: String, timeoutMs: Int, promise: Promise) {
+  private fun probe(host: String, port: Int, pin: String, timeoutMs: Int, raw: Socket, promise: Promise) {
     val started = System.nanoTime()
     try {
       val (context, _) = context(pin)
-      Socket().use { raw ->
+      raw.use {
         raw.connect(InetSocketAddress(host, port), timeoutMs)
         raw.soTimeout = timeoutMs
         (context.socketFactory.createSocket(raw, host, port, false) as SSLSocket).use { tls ->

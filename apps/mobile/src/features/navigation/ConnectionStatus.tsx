@@ -9,6 +9,8 @@ import { Swap } from "../../ui/MotionViews";
 import { Button } from "../../ui/Button";
 import { Overlay } from "../../ui/Overlay";
 import { font, useColors, useTypography } from "../../ui/theme";
+import { ConnectionRoutes } from "./ConnectionRoutes";
+import { useSession } from "../../state/session";
 
 export interface StreamState {
   readonly connection: Connection;
@@ -100,10 +102,11 @@ export function ConnectionDetails({
   const type = useTypography();
   const look = looks[stream.connection];
   const down = stream.connection !== "live" && stream.connection !== "paused" && stream.connection !== "offline";
+  const { reconnect } = useSession();
 
   return (
     <Overlay visible={visible} onClose={onClose} label="Connection">
-      <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, gap: 12 }}>
+      <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, gap: 12, flexShrink: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <StatusDot tone={look.tone} active={stream.connection === "reconnecting"} />
           <Text accessibilityRole="header" style={[type.body, { fontFamily: font.semibold, color: c.text }]}>
@@ -116,6 +119,7 @@ export function ConnectionDetails({
             Last error: <Text style={{ color: c.soft, fontVariant: ["tabular-nums"] }}>{stream.detail}</Text>
           </Text>
         ) : null}
+        <ConnectionRoutes />
         {down && (
           <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
             <Button
@@ -123,7 +127,7 @@ export function ConnectionDetails({
               icon="arrow-path"
               size="sm"
               onPress={() => {
-                stream.retry();
+                reconnect();
                 onClose();
               }}
             />

@@ -109,6 +109,7 @@ function useSessionState() {
     active,
     /** Changes when the network does; live streams subscribe again. */
     epoch,
+    reconnect: () => resetSession(client, () => setEpoch((n) => n + 1)),
     // A private tailnet gateway may be reachable even when public internet probes fail.
     online: network.isConnected !== false,
     async pair(value: DeviceSession) {
@@ -144,6 +145,11 @@ function useSessionState() {
       );
     },
   };
+}
+
+function resetSession(client: ReturnType<typeof routedMobileClient> | null, advance: () => void) {
+  client?.reset();
+  advance();
 }
 
 const Context = createContext<ReturnType<typeof useSessionState> | null>(null);

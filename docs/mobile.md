@@ -57,7 +57,10 @@ Błędy transportu niosą natywną domenę i kod, bez adresu: na iOS `NSURLError
 klasę wyjątku i jego przyczyny (`SSLHandshakeException / CertPathValidatorException`). Aplikacja
 dopisuje kod w nawiasie do komunikatu przy parowaniu i w „Cannot reach this computer securely”
 po nieudanym probe. Kod ostatniego błędu streamu („Last error: …”) pokazuje arkusz statusu połączenia
-(stopka listy lub „Details” w banerze). Zrzut ekranu tego arkusza wystarcza do diagnozy.
+(stopka listy lub „Details” w banerze). Każda trasa ma osobny wynik: rodzaj i skrócony adres,
+„DNS failed”, „Timed out after N ms”, „TLS pin mismatch”, „Connection refused” albo „OK in N ms”.
+„In use” oznacza wybraną trasę. „Copy details” kopiuje pełne adresy, wyniki i czas sprawdzenia;
+nie kopiuje tokenu, pinu ani danych żądań. Wyniki pozostają tylko w pamięci aplikacji.
 
 ## Wersje i Bun workspace
 
@@ -119,25 +122,34 @@ na ekran ponownego parowania. Nowe urządzenia mają `pairing_version=2`.
 `OverviewUpdate.mobile_routes` (764) ogłasza nowe adresy i nazwy hostów. Telefon zapisuje
 je wyłącznie przy zgodnym pinie. Nie ponawia RPC po wysłaniu, aby nie dublować komend.
 
-Wybór trasy (`src/api/routes.ts`): handshake TLS bez HTTP (`probe`, 2 s) sprawdza trasy w kolejności
-ostatni sukces → pozostałe → trasy, które zawiodły w ostatnich 10 s. Kolejna próba startuje 250 ms po
-poprzedniej albo od razu po jej błędzie; wygrywa pierwsza ze zgodnym pinem. Martwa trasa na początku
-kosztuje więc chwilę, nie cały timeout, a brak jakiejkolwiek trasy telefon zgłasza po jednym timeoucie.
+Wybór trasy (`src/api/routes.ts`, `route-race.ts`): handshake TLS bez HTTP sprawdza najpierw IP
+Tailscale, potem ostatni sukces i pozostałe adresy; trasy, które zawiodły w ostatnich 10 s, idą na koniec.
+MagicDNS nie jest potrzebny, gdy działa IP tailnetu. Kolejna próba startuje 250 ms po poprzedniej albo
+od razu po jej błędzie; wygrywa pierwsza ze zgodnym pinem. Szybka próba trwa maksymalnie 2 s,
+a po timeoucie ta sama trasa dostaje jeszcze 8 s na obudzenie tunelu VPN lub radia. Błąd DNS,
+odmowa połączenia i niezgodny pin nie są ponawiane w tym wyścigu. Obie próby obejmuje także
+termin po stronie JS, więc zawieszony DNS nie blokuje wyścigu bez końca.
 Wszystkie żądania czekające na trasę dzielą jeden wyścig; anulowane żądanie go nie przerywa.
-Trasa, która właśnie odpowiedziała, jest używana bez nowego handshake'u przez 30 s od ostatniego
-sukcesu; błąd żądania ją unieważnia. Na Androidzie `probe` działa na własnych wątkach: Expo wykonuje
+Trasa ze zgodnym pinem jest od razu współdzielona również podczas oczekiwania na nagłówki RPC;
+odpowiedź odnawia okno 30 s. Błąd żądania ją unieważnia; anulowanie przez wywołującego nie psuje
+trasy innym żądaniom. Reset anuluje stary wyścig, a spóźnione odpowiedzi nie przywracają starej trasy.
+Przegrane i anulowane probe zamykają natywne sockety. Na Androidzie `probe` działa na własnych wątkach: Expo wykonuje
 `AsyncFunction` wszystkich modułów na jednym wątku, a blokujący connect wstrzymywał inne wywołania.
 
 Martwe połączenia: po powrocie z tła i po zmianie sieci (typ lub łączność z `expo-network`) aplikacja
 woła `reset()` w samym zdarzeniu, zanim React wznowi strumienie. Kolejne żądania idą przez nowe
-połączenia (iOS: nowa `URLSession`, Android: `evictAll()` puli OkHttp), wyścig tras startuje od nowa,
+połączenia (iOS: nowa `URLSession`, Android: nowy klient i nowa pula OkHttp), wyścig tras startuje od nowa,
 a po zmianie sieci strumienie subskrybują się ponownie. URLSession nie wysyła HTTP/2 PING, więc bez tego
 iOS wysyłał żądania w połączenie zerwane podczas uśpienia (np. wygasłe mapowanie NAT), a pusta
-odpowiedź wisiała do 24 h. OkHttp wysyła PING co 15 s i zamyka połączenie bez odpowiedzi. Strumień bez
-nagłówków odpowiedzi po 20 s kończy się błędem `timeout` i łączy ponownie (każdy obserwowany strumień
+odpowiedź wisiała do 24 h. Samo `evictAll()` usuwa tylko bezczynne połączenia: aktywne HTTP/2
+mogłoby nadal przyjmować nowe żądania. OkHttp wysyła PING co 60 s i zamyka połączenie bez odpowiedzi
+w kolejnym interwale; zwykłe odczyty strumienia nie mają read timeoutu. Strumień bez
+nagłówków odpowiedzi po 40 s kończy się błędem `timeout` i łączy ponownie (każdy obserwowany strumień
 zaczyna się od snapshotu, z którym idą nagłówki); żądania unary nie mają takiego limitu. Status
 połączenia po wznowieniu pokazuje „Reconnecting…” do pierwszej odpowiedzi, a „Gateway unavailable”
-po 12 s bez odpowiedzi, także gdy połączenie wisi bez błędu.
+po 12 s bez odpowiedzi, także gdy połączenie wisi bez błędu, ale dopiero po zakończeniu aktywnego
+wyścigu tras. „Reconnect now” resetuje transport i backoff wszystkich subskrypcji; sukces streamu
+zeruje jego backoff. Zmiany natywnego probe i puli wymagają nowego builda iOS/Android, nie samego OTA.
 Po zmianie portu zapisuje nowe trasy również z odpowiedzi `UpdateNetworkAccess`, nawet
 bez strumienia overview. Usuwa nieaktualną ostatnią trasę; restart telefonu korzysta
 z nowych adresów, zachowując ten sam pin i token urządzenia.
@@ -947,6 +959,15 @@ w natywnym kliencie Android. Wymaga throwaway PostgreSQL w Dockerze.
 Network access: trzy źródła pytań, wybory i własny tekst, pominięcia, odrzucenie, expiry,
 izolacja właściciela/tokenów, pytanie subagenta oraz odpowiedzi po restarcie gatewaya
 z ponownym zgłoszeniem nadal działających tur workera.
+
+`mobile-routes.test.ts` sprawdza współdzielenie wyścigu i wybranej trasy przed nagłówkami RPC,
+preferencję IP tailnetu przy błędzie MagicDNS, odmowę i niezgodny pin, anulowanie/reset w trakcie
+probe, wspólne okno czarnych dziur oraz brak replay także po błędzie treści odpowiedzi.
+`mobile-route-recovery.test.ts` używa prawdziwego przypiętego TLS i proxy opóźniającego pierwszy
+pakiet odpowiedzi o 3,5 s na każdym połączeniu; równolegle jedna nazwa nie rozwiązuje się, a inna
+trasa nie odpowiada na TLS. `network-liveness.test.ts` sprawdza wolne pongi, usunięcie martwej
+sesji i logi bez pinu. Timingi testów liveness są skrócone; test klienta TS nie zastępuje QA radia
+ani natywnego transportu na fizycznych telefonach.
 
 ## Źródła sprawdzone dla tego wdrożenia
 

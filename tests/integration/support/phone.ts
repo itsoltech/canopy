@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import * as https from "node:https";
 import * as tls from "node:tls";
 import type { PinnedTransport } from "../../../apps/mobile/src/api/routes.ts";
+import { ProbeError } from "../../../apps/mobile/src/api/routes.ts";
 
 const fingerprint = (raw: Buffer) => createHash("sha256").update(raw).digest("hex");
 
@@ -10,7 +11,7 @@ export function nodePinnedTransport(): PinnedTransport {
   const certificates = new Map<string, string>();
 
   return {
-    probe(origin, pin, signal) {
+    probe(origin, pin, signal, timeoutMs = 2000) {
       return new Promise((resolve, reject) => {
         const url = new URL(origin);
 
@@ -21,14 +22,18 @@ export function nodePinnedTransport(): PinnedTransport {
           ...(signal && { signal }),
         });
 
-        socket.setTimeout(2000, () => socket.destroy(new Error("Probe timeout")));
-        socket.once("error", reject);
+        socket.setTimeout(timeoutMs, () => socket.destroy(new ProbeError("timeout")));
+        socket.once("error", (error) =>
+          reject(
+            error instanceof ProbeError ? error : new ProbeError("code" in error ? String(error.code) : "unknown"),
+          ),
+        );
         socket.once("secureConnect", () => {
           const raw = socket.getPeerCertificate().raw;
           socket.destroy();
 
           if (!raw || fingerprint(raw) !== pin) {
-            reject(new Error("Certificate mismatch"));
+            reject(new ProbeError("pin"));
 
             return;
           }

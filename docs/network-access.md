@@ -48,7 +48,9 @@ Jeden port, HTTP/2 i HTTP/1.1 (ALPN), TLS z certyfikatem tożsamości komputera 
 (IPv6 z mapowaniem IPv4), a bez IPv6 w systemie na `0.0.0.0`. Telefon uśpiony w tle albo za NAT-em,
 który zapomniał mapowanie, nie zamyka połączenia; jego strumienie (i subskrypcje overview) zostawałyby
 otwarte na zawsze. Dlatego listener wysyła każdej sesji HTTP/2 PING co 20 s i niszczy sesję bez
-odpowiedzi w 10 s; połączenia HTTP/1.1 mają systemowy keepalive TCP. Serwer prosi o certyfikat klienta,
+odpowiedzi w 60 s (najpóźniej 80 s od utraty ścieżki); połączenia HTTP/1.1 mają systemowy keepalive TCP.
+Handshake TLS ma limit 15 s, żeby krótka przerwa tunelu VPN nie zamykała nowego połączenia.
+Serwer prosi o certyfikat klienta,
 ale go nie wymaga:
 
 - połączenie **z certyfikatem** w roli `desktop` trafia wyłącznie do `ComputerLinkService` i dodatkowo musi być TLS 1.3
@@ -69,6 +71,12 @@ workera potwierdza bieżącą sesję i powiązanie właściciela. To osobny stru
 WorkerLink i zamrożonego UpdateService; nie przekazuje binariów ani adresów feedu.
 Żądania z nagłówkiem Origin są odrzucane. Minimalna wersja TLS serwera to 1.2
 (starsze telefony); komputery same wymagają 1.3.
+
+Log gatewaya (również sidecar desktopu) zapisuje otwarcie TLS, protokół, identyfikator sesji,
+zamknięcie z przyczyną i czasem trwania oraz przekroczenie terminu PING. Nie zapisuje adresów,
+certyfikatów, tokenów, nagłówków ani payloadów. `pin_check=client_side` oznacza miejsce weryfikacji:
+serwer nie może potwierdzić, czy klient porównał jego pin. Wynik „OK” probe w arkuszu telefonu
+potwierdza zgodny pin po stronie klienta. Błąd handshake'u ma osobny wpis `tls_handshake_failed`.
 
 ### Port
 

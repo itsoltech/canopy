@@ -306,7 +306,12 @@ export class NetworkAccess {
   }
 
   #listen(port: number) {
-    const options = { port, identity: this.#identity!, route: (socket: TLSSocket) => this.#route(socket) };
+    const options = {
+      port,
+      identity: this.#identity!,
+      route: (socket: TLSSocket) => this.#route(socket),
+      ...(this.options.log && { log: this.options.log }),
+    };
 
     return this.options.host ? openListener({ ...options, host: this.options.host }) : openEverywhere(options);
   }

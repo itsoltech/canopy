@@ -8,6 +8,8 @@ import Network
 /// The exact SHA-256 fingerprint is transferred out of band during pairing.
 public class CanopyPinnedFetchModule: Module {
   private lazy var calls = PinnedCalls(emit: { [weak self] name, body in self?.sendEvent(name, body) })
+  private let probeQueue = DispatchQueue(label: "app.canopy.pinnedfetch.probes")
+  private var probes: [String: () -> Void] = [:]
 
   public func definition() -> ModuleDefinition {
     Name("CanopyPinnedFetch")
@@ -32,8 +34,14 @@ public class CanopyPinnedFetchModule: Module {
     Function("reset") { self.calls.reset() }
 
     // A TLS handshake only: is this route the paired computer, and how fast? Nothing is sent.
-    AsyncFunction("probe") { (host: String, port: Int, pin: String, timeoutMs: Int, promise: Promise) in
-      probe(host: host, port: port, pin: pin.lowercased(), timeoutMs: timeoutMs, promise: promise)
+    AsyncFunction("probe") { (host: String, port: Int, pin: String, timeoutMs: Int, id: String, promise: Promise) in
+      self.probeQueue.async {
+        self.probes[id] = probe(host: host, port: port, pin: pin.lowercased(), timeoutMs: timeoutMs,
+          promise: promise, queue: self.probeQueue, finished: { self.probes.removeValue(forKey: id) })
+      }
+    }
+    Function("cancelProbe") { (id: String) in
+      self.probeQueue.async { self.probes.removeValue(forKey: id)?() }
     }
   }
 }
@@ -70,8 +78,8 @@ func leaf(_ trust: SecTrust) -> SecCertificate? {
   (SecTrustCopyCertificateChain(trust) as? [SecCertificate])?.first
 }
 
-private func probe(host: String, port: Int, pin: String, timeoutMs: Int, promise: Promise) {
-  let queue = DispatchQueue(label: "app.canopy.pinnedfetch.probe")
+private func probe(host: String, port: Int, pin: String, timeoutMs: Int, promise: Promise,
+  queue: DispatchQueue, finished: @escaping () -> Void) -> () -> Void {
   let tls = NWProtocolTLS.Options()
   var matched = ""
   var mismatch = false
@@ -85,7 +93,7 @@ private func probe(host: String, port: Int, pin: String, timeoutMs: Int, promise
     }, queue)
   guard let endpointPort = NWEndpoint.Port(rawValue: UInt16(clamping: port)) else {
     promise.resolve(["ok": false, "kind": "connect"])
-    return
+    return {}
   }
   let connection = NWConnection(
     host: NWEndpoint.Host(host), port: endpointPort, using: NWParameters(tls: tls, tcp: .init()))
@@ -95,6 +103,7 @@ private func probe(host: String, port: Int, pin: String, timeoutMs: Int, promise
     if done { return }
     done = true
     connection.cancel()
+    finished()
     promise.resolve(result)
   }
   connection.stateUpdateHandler = { state in
@@ -111,6 +120,7 @@ private func probe(host: String, port: Int, pin: String, timeoutMs: Int, promise
   queue.asyncAfter(deadline: .now() + .milliseconds(timeoutMs)) {
     finish(["ok": false, "kind": "connect", "code": "timeout"])
   }
+  return { finish(["ok": false, "kind": "connect", "code": "canceled"]) }
 }
 
 /// Requests share one session (its connections are reused per route); delegate callbacks are serial.
