@@ -37,6 +37,7 @@ export const busDeliveriesMethods: BusDeliveriesMethods = {
       };
 
       const delivery = await this[busState].host.run(AgentBusStore.use((s) => s.deliverNotification(call.id, input)));
+      await this[busState].host.inputsChanged(call.source_thread_id);
 
       if (delivery?.turn) await this[busState].host.queued(call.source_thread_id, delivery.turn);
       else if (delivery?.steerId) await this[busState].host.steered(delivery.steerId);

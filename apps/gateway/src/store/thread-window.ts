@@ -4,7 +4,7 @@ import type { SqlClient } from "effect/sql";
 
 export type ThreadHistoryQuery = Pick<
   ui.WatchThreadRequest,
-  "pageSize" | "beforeTurnId" | "targetItemId" | "historyVersion"
+  "pageSize" | "beforeTurnId" | "targetItemId" | "historyVersion" | "fromTurnId"
 >;
 
 /** Select complete turns before decoding timeline content. The chain and page share the snapshot's MVCC read. */
@@ -34,7 +34,11 @@ export function threadWindow(sql: SqlClient.SqlClient, thread: string, version: 
         : undefined;
 
     const targetIndex = target ? turns.findIndex((turn) => turn.id === target.turn_id) : -1;
-    const start = targetIndex >= 0 ? targetIndex : Math.max(0, end - Math.min(query.pageSize, 100));
+    const fromIndex = !reset && query.fromTurnId ? turns.findIndex((turn) => turn.id === query.fromTurnId) : -1;
+
+    const start =
+      targetIndex >= 0 ? targetIndex : fromIndex >= 0 ? fromIndex : Math.max(0, end - Math.min(query.pageSize, 100));
+
     const selected = turns.slice(start, end);
     const queued = yield* sql<{ id: string }>`SELECT id FROM turns WHERE thread_id=${thread}::uuid AND status='queued'`;
 
@@ -42,7 +46,7 @@ export function threadWindow(sql: SqlClient.SqlClient, thread: string, version: 
       ids: [...selected, ...queued].map((turn) => turn.id),
       before: selected[0]?.id ?? "",
       hasMore: start > 0,
-      reset: reset || boundary < 0,
+      reset: reset || boundary < 0 || (!!query.fromTurnId && fromIndex < 0),
     };
   });
 }

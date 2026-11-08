@@ -22,6 +22,8 @@ export const GET: RequestHandler = async ({ request, params, url }) => {
             pageSize: 24,
             incremental: url.searchParams.get("incremental") === "1",
             cursor: (url.searchParams.get("cursor") ?? "").slice(0, 128),
+            fromTurnId: (url.searchParams.get("from") ?? "").slice(0, 128),
+            historyVersion: (url.searchParams.get("version") ?? "").slice(0, 128),
           },
           { signal, timeoutMs: 0 },
         ),

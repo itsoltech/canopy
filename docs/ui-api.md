@@ -1269,6 +1269,12 @@ itemu do końca. `history_version` identyfikuje łańcuch forków i przeniesion�
 historię; niezgodna wersja lub brak granicznej tury daje świeży ogon
 z `history_reset`, zamiast doklejenia obcej historii.
 
+Przy wznowieniu głównego watcha klient przekazuje `from_turn_id` (najstarszą
+załadowaną turę, włącznie) oraz `history_version`. Jeśli gateway musi zastąpić
+cache pełnym snapshotem, odczytuje całe to okno do najnowszej tury, zamiast
+ucinać wcześniej doładowane strony do domyślnego ogona. Nieistniejąca wskazana tura lub
+zmiana wersji zwraca świeży ogon z `history_reset`.
+
 Boty i wymiany używają `before_seq` z `history_before_seq`. Numery wiadomości
 nie przesuwają się po nowej wiadomości ani edycji. Strona czyta jeden snapshot
 MVCC razem z checkpointem. Przy prośbie o starszą stronę klient przekazuje
@@ -1300,3 +1306,12 @@ w panelu oznaczają sumę załadowanych tur, dopóki okno nie obejmuje całej hi
 Zwykła przeglądarka trzyma historię tylko w pamięci SPA. Electron ma prywatny
 cache na dysku przez preload ([desktop.md](desktop.md)); BFF nigdy nie
 współdzieli snapshotów między sesjami właścicieli.
+
+Kolejność tur wynika z gatewayowego `ordinal`, a elementów transkryptu z `first_seq`;
+czas utworzenia ani kolejność dotarcia aktualizacji nie zmieniają pozycji.
+Web wstawia turę bez itemów przed następną turą z wyższym `ordinal`, zamiast
+dopisywać ją za nowszymi odpowiedziami. Zdarzenia pracy w tle zachowują kolejność
+`seq`. Mobile, scalanie stron i reducer live współdzielą porządek tur; historia
+przodków forka pozostaje przed własnymi turami, nawet gdy ich numery się pokrywają.
+Spóźniona aktualizacja starej tury poza załadowanym oknem nie tworzy drugiego ogona.
+Zużyte wejścia szyny mają `withdrawn = consumed` i nie tworzą pustego „Work — Cancelled”.

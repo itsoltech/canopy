@@ -33,7 +33,14 @@ export function useThreadSnapshot(id: string) {
     client && loaded
       ? (signal) =>
           client.api.watchThread(
-            { threadId: id, pageSize: 24, incremental: true, cursor: current.current?.cursor ?? "" },
+            {
+              threadId: id,
+              pageSize: 24,
+              incremental: true,
+              cursor: current.current?.cursor ?? "",
+              fromTurnId: current.current?.historyBeforeTurnId ?? "",
+              historyVersion: current.current?.historyVersion ?? "",
+            },
             { signal },
           )
       : null,

@@ -1,6 +1,7 @@
 import type { ui } from "@canopy/contracts";
-import { dayKey } from "#lib/shared/format.ts";
-import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-state.svelte.ts";
+import { dayKey } from "@canopy/domain/format";
+import { orderThreadTurns } from "@canopy/domain/history-pages";
+import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.ts";
 
 /** An item with the items nested under it (subagent work has `parent_item_id`). */
 export interface ItemNode {
@@ -76,8 +77,8 @@ type Element = { seq: bigint; turnId: string } & ({ node: ItemNode } | { notice:
 /**
  * Orders items and notices by seq and frames each turn: a start row before its first element (marking a
  * new day) and an end row (status, usage, the last answer) after its last one. Items of other turns or between turns (background
- * work) keep their place in the sequence. Turns without any element yet (just started, or failed
- * before the provider ran) follow at the end; waiting turns are not rows (the queue panel shows them apart), nor
+ * work) keep their place in the sequence. Turns without any element yet keep their ordinal position
+ * before the next turn with elements; waiting turns are not rows (the queue panel shows them apart), nor
  * are turns the user took out of the queue (`withdrawn`: deleted, or steered into another turn).
  * `nodes` keeps item nodes between builds: an unchanged item (and nested items) keeps its node object.
  */
@@ -124,7 +125,8 @@ export function buildTimeline(
 
   const withdrawn = turns.filter((t) => t.withdrawn).map((t) => t.ordinal);
   const number = (turn: ui.Turn) => turn.ordinal - withdrawn.filter((o) => o < turn.ordinal).length;
-  turns = turns.filter((t) => !t.withdrawn);
+  turns = orderThreadTurns(turns.filter((t) => !t.withdrawn));
+  const position = new Map(turns.map((turn, index) => [turn.id, index]));
   const turnById = new Map(turns.map((t) => [t.id, t]));
   const lastIndex = new Map<string, number>();
   elements.forEach((element, index) => element.turnId && lastIndex.set(element.turnId, index));
@@ -143,6 +145,9 @@ export function buildTimeline(
 
   const rows: TimelineRow[] = [];
   const opened = new Set<string>();
+
+  const empty = turns.filter((turn) => !lastIndex.has(turn.id) && (turn.status !== "queued" || turn.dispatched));
+
   let lastDay = "";
 
   const open = (turn: ui.Turn) => {
@@ -175,7 +180,18 @@ export function buildTimeline(
   elements.forEach((element, index) => {
     const turn = element.turnId ? turnById.get(element.turnId) : undefined;
 
-    if (turn && !opened.has(turn.id)) open(turn);
+    if (turn && !opened.has(turn.id)) {
+      for (const earlier of empty) {
+        if (position.get(earlier.id)! >= position.get(turn.id)!) break;
+
+        if (!opened.has(earlier.id)) {
+          open(earlier);
+          close(earlier);
+        }
+      }
+
+      open(turn);
+    }
 
     if ("node" in element) {
       const steer = isSteerMessage(element.node.entry);

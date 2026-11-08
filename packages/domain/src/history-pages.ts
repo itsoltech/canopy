@@ -1,6 +1,13 @@
 import { create } from "@bufbuild/protobuf";
 import { bots, ui } from "@canopy/contracts";
 
+/** Fork ancestors retain chain order; this thread's turns use their gateway ordinal, including empty turns. */
+export function orderThreadTurns(turns: readonly ui.Turn[]): ui.Turn[] {
+  return turns
+    .filter((turn) => turn.inherited)
+    .concat(turns.filter((turn) => !turn.inherited).sort((a, b) => a.ordinal - b.ordinal));
+}
+
 /** Page reads never advance a live checkpoint or overwrite a newer row already received on the watch. */
 export function prependThreadPage(
   current: ui.ThreadSnapshot,
@@ -17,7 +24,7 @@ export function prependThreadPage(
   return create(ui.ThreadSnapshotSchema, {
     ...current,
     cursor: checkpoint,
-    turns: [...page.turns.filter((turn) => !turns.has(turn.id)), ...current.turns],
+    turns: orderThreadTurns([...page.turns.filter((turn) => !turns.has(turn.id)), ...current.turns]),
     items: [
       ...page.items.filter((entry) => !items.has(`${entry.fromThreadId}:${entry.item?.itemId}`)),
       ...current.items,

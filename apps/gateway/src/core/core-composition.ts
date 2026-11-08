@@ -1,5 +1,6 @@
 import { create, fromJson } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { toUiSteer, toUiTurn } from "../store/index.ts";
 import { AgentBus } from "./agent-bus.ts";
 import { Scheduler } from "./scheduler.ts";
 import { scheduleWorkerEligible } from "@canopy/domain";
@@ -61,6 +62,21 @@ export function createCoreBus(core: GatewayCore): AgentBus {
     interrupt: (threadId) => core.interrupt(threadId),
     answer: (by, request) => coreAnswer(core, by, request),
     broadcastThread: (threadId) => coreBroadcastThread(core, threadId),
+    inputsChanged: async (threadId) => {
+      for (const turn of await coreRun(core, (s) => s.turnsOf(threadId)))
+        if (turn.withdrawn === "consumed")
+          core.hub.publishThread(
+            threadId,
+            create(ui.ThreadUpdateSchema, { change: { case: "turn", value: toUiTurn(turn) } }),
+          );
+
+      for (const steer of await coreSteers(core, (s) => s.ofThread(threadId)))
+        if (steer.status === "failed")
+          core.hub.publishThread(
+            threadId,
+            create(ui.ThreadUpdateSchema, { change: { case: "steer", value: toUiSteer(steer) } }),
+          );
+    },
     scheduleChanged: (scheduleId) => corePublishSchedule(core, scheduleId),
     spawnInstances: (thread) => coreSpawnInstances(core, thread),
     backgroundTask: (call, callerId) => core.backgroundTasks.tool(call, callerId),

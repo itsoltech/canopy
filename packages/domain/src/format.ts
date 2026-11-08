@@ -1,6 +1,14 @@
 /** Numbers and spans of time as the timeline shows them, the same on every client. */
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 
+/** Calendar day in the device's local time, shared by thread timeline projections. */
+export function dayKey(timestamp: Timestamp | undefined): string {
+  if (!timestamp) return "";
+  const date = timestampDate(timestamp);
+
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
 /** Compact age for lists: "now", "5m", "3h", "2d", "4w". Hermes has no Intl.RelativeTimeFormat. */
 export function formatAge(timestamp: Timestamp | undefined, now = Date.now()): string {
   if (!timestamp) return "";

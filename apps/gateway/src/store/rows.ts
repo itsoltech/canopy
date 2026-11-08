@@ -166,7 +166,7 @@ export interface TurnRow {
   question_tool?: string | null;
   /** Joined from turn_sources: a background_task turn's tasks (item ids). */
   background_item_ids?: string[] | null;
-  /** Taken out of the queue by the user (cancelled): deleted | steered (docs/ui-api.md, "Kolejka"). */
+  /** Withdrawn before entry (cancelled): deleted | steered | consumed (bus result read). */
   withdrawn?: string | null;
   /** Grows with every edit of the queued input. */
   revision?: number;

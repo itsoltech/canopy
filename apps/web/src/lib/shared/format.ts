@@ -1,6 +1,14 @@
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 
-export { formatAge, formatBytes, formatCount, formatDuration, formatSpan, prettyJson } from "@canopy/domain/format";
+export {
+  dayKey,
+  formatAge,
+  formatBytes,
+  formatCount,
+  formatDuration,
+  formatSpan,
+  prettyJson,
+} from "@canopy/domain/format";
 
 export { basename } from "@canopy/domain/humanize";
 
@@ -51,14 +59,6 @@ export const formatTime = (timestamp: Timestamp | undefined, timeZone?: string):
         ...(timeZone && { timeZone }),
       }).format(timestampDate(timestamp))
     : "";
-
-/** The local calendar day of a timestamp ("2026-11-02"), for telling days apart; "" without one. */
-export function dayKey(timestamp: Timestamp | undefined): string {
-  if (!timestamp) return "";
-  const at = timestampDate(timestamp);
-
-  return `${at.getFullYear()}-${at.getMonth() + 1}-${at.getDate()}`;
-}
 
 /** A day separator's label: "Today", "Yesterday" or the date ("Nov 2, 2026"). */
 export function formatDay(timestamp: Timestamp | undefined, now = new Date()): string {

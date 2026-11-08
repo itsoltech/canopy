@@ -156,7 +156,7 @@ export const consumeNotifications = (
 
     for (const call of calls) {
       yield* sql`UPDATE agent_bus_calls SET notify_status = ${status} WHERE id = ${call.id}::uuid`;
-      yield* sql`UPDATE turns SET status = 'cancelled', completed_at = now() WHERE id = ${call.notified_turn_id}::uuid AND status = 'queued'`;
+      yield* sql`UPDATE turns SET status = 'cancelled', withdrawn = 'consumed', completed_at = now() WHERE id = ${call.notified_turn_id}::uuid AND status = 'queued'`;
       // An already dispatched input cannot be recalled. Suppress its fallback; a late acknowledgement
       // or transcript event must not resurrect it. Undispatched outbox commands are withdrawn too.
       yield* sql`UPDATE turn_steers SET status = 'failed', reason = ${status}, updated_at = now()
