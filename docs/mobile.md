@@ -285,7 +285,9 @@ Adres Metro i adres gatewaya to dwa różne połączenia. Nie używaj publiczneg
 3. Projekt EAS to `@itsol/canopy-mobile` (`owner` i `extra.eas.projectId` w `app.json`); build
    wymaga konta w organizacji itsol albo jej tokenu `EXPO_TOKEN`, który trzymamy poza repo.
    Samodzielny APK do testów z nightly (bez Metro, połączenie HTTPS z przypiętym
-   certyfikatem): `bunx eas-cli build --profile preview --platform android`. Profil
+   certyfikatem): najpierw z katalogu repozytorium uruchom
+   `bash scripts/mobile-version.sh v0.2.0-nightly.105` (podaj tag budowanego wydania),
+   potem z `apps/mobile` uruchom `bunx eas-cli build --profile preview --platform android`. Profil
    `preview` buduje na Androidzie APK, a EAS trzyma klucz podpisu, więc kolejne APK
    instalują się jako aktualizacja.
    Dla development buildu APK użyj `bunx eas-cli build --profile development --platform android`.
@@ -323,7 +325,7 @@ nie zgodność runtime, kanał ani deduplikację. Nie wysyła nieotagowanych com
 
 Planner `scripts/mobile-release.sh` porównuje commit z ostatnim ukończonym buildem iOS lub
 nowszym kompletnym OTA dla jego runtime. Brak zmian w `apps/mobile`, pakietach
-`contracts`, `domain`, `ui`, root `package.json`, `bun.lock`, workflow i obu skryptach wydania
+`contracts`, `domain`, `ui`, root `package.json`, `bun.lock`, workflow i skryptach wydania
 pomija wydanie mobilne. Brak znanego punktu odniesienia wymusza ocenę runtime.
 
 `expo-updates` ma `runtimeVersion: { policy: "fingerprint" }`. SDK 58 używa presetu `balanced`
@@ -331,7 +333,8 @@ pomija wydanie mobilne. Brak znanego punktu odniesienia wymusza ocenę runtime.
 zależności natywne, konfiguracja natywna i źródła lokalnych modułów Swift/Kotlin już tak.
 JS, teksty i zgodne assety mogą trafić przez OTA.
 
-1. Workflow wpisuje wersję marketingową z tagu do roboczego `app.json` i oblicza osobny
+1. Planner wywołuje `scripts/mobile-version.sh <tag>`, który wpisuje wersję marketingową
+   do roboczego `app.json`, a pełną wersję wydania do `canopy-version.json`. Następnie oblicza osobny
    fingerprint iOS/Android przez `eas fingerprint:generate --build-profile …`. Build i publikacja
    korzystają z tego samego środowiska EAS `production`, niezależnie od kanału.
 2. Wyszukuje ukończone buildy po kanale i `runtimeVersion`. Zgodny iOS store build oznacza OTA
@@ -378,6 +381,44 @@ pokazuje kanał, skrócone ID działającego OTA i datę z lokalnym formatowanie
 ma status `Bundled`, klient developerski `Development build`. Dane dotyczą uruchomionego
 bundle, nie aktualizacji dopiero pobranej.
 
+### Wersja działającego bundle
+
+`apps/mobile/canopy-version.json` jest źródłem mobilnej stałej `CANOPY_VERSION`
+(`src/version.ts`). Metro umieszcza wartość bezpośrednio w JS zarówno dla iOS, jak i Androida.
+Nie korzystamy tu z `process.env.CANOPY_VERSION`: Metro nie wstrzykuje tej zmiennej,
+a zdalny build EAS nie dziedziczy lokalnego środowiska workflow. EAS kopiuje zmodyfikowane
+pliki drzewa roboczego, więc build natywny oraz `eas update` dostają tę samą pełną wersję,
+np. `0.2.0-nightly.105`, `0.2.0-beta.3` lub `0.2.0`. `app.config.ts` pokazuje ją także
+w `expo.extra.canopyVersion`; `bunx expo config --type public` pozwala sprawdzić przygotowanie.
+
+Settings pokazuje wersję działającego JS, również po OTA; nie odczytuje wersji natywnej
+zainstalowanego IPA/APK. Wiersz About → Updates nadal pokazuje kanał i tożsamość aktualizacji.
+Mobilny klient nie wykonuje sprawdzeń `WORKER_LINK_PROTOCOL`; wersje gatewaya i workerów
+w ich ustawieniach pochodzą z odpowiedzi gatewaya, nie z wersji telefonu.
+
+Ręczny APK korzysta z tego samego przygotowania (polecenia z katalogu repozytorium):
+
+```bash
+bash scripts/mobile-version.sh v0.2.0-nightly.105
+cd apps/mobile
+bunx eas-cli build --profile preview --platform android
+```
+
+Na checkoutcie tagu podaj dokładnie ten tag, a na `dev` tag wydania, które świadomie budujesz.
+Dla beta/stable wybierz odpowiednio `preview-beta`/`preview-stable`. Lokalny build developerski
+ma `0.0.0-dev` z commitowanego pliku; po przygotowaniu wydania przywróć go poleceniem
+`bash scripts/mobile-version.sh dev` lub odtwórz oba pliki przez
+`git restore -- apps/mobile/app.json apps/mobile/canopy-version.json`. Skrypt tylko zapisuje
+pliki, nie publikuje, nie taguje i nie commitowuje zmian.
+
+Numer wydania nie jest wejściem natywnego fingerprintu: plik JSON jest źródłem JS,
+a preset `balanced` SDK 58 pomija wersję marketingową i numer buildu. Hook w
+`fingerprint.config.js` usuwa wyłącznie `extra.canopyVersion` z hashowanej konfiguracji;
+pozostałe pola `extra` nadal wpływają na runtime.
+Po zmianach konfiguracji sprawdź lokalnie `bunx expo-updates fingerprint:generate --platform ios`
+oraz `--platform android` przed i po dwóch różnych tagach; hashe dla każdej platformy muszą
+pozostać identyczne. Zmiana wersji JS nie wymusza nowej binarki i nie blokuje OTA.
+
 ### Niepodpisane OTA i własny serwer
 
 Na planie EAS Starter publikujemy OTA **bez podpisu kodu**. Podpisywanie w hostowanym EAS Update
@@ -419,7 +460,8 @@ działającego OTA ustala wiersz Updates; manifesty i historię grup pokazuje EA
 - **Wersja:** App Store przyjmuje trzy liczby, więc `0.2.0-nightly.84` trafia jako `0.2.0`.
   Workflow wpisuje ją do `app.json` tylko w kopii roboczej. EAS kopiuje drzewo robocze, więc nic nie
   jest commitowane. Numer buildu prowadzi EAS (`cli.appVersionSource: remote`, `autoIncrement`).
-  Przy OTA wersja natywna pozostaje wersją zainstalowanego buildu; tag i SHA są wiadomością OTA.
+  Przy OTA wersja natywna pozostaje wersją zainstalowanego buildu; pełna wersja JS pochodzi
+  z `canopy-version.json`, a tag i SHA są także wiadomością OTA.
 - **Konto:** sekret repozytorium `EXPO_TOKEN` daje dostęp do organizacji `itsol`.
 - **Poświadczenia:** certyfikat dystrybucyjny i profil provisioningowy trzyma EAS. Pierwszy raz
   tworzy je interaktywnie ktoś z dostępem do zespołu Apple:

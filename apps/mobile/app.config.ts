@@ -1,4 +1,5 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
+import release from "./canopy-version.json";
 
 // CNG owns ios/ and android/. Do not maintain native project files by hand.
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -6,6 +7,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: "Canopy",
   slug: "canopy-mobile",
   platforms: ["ios", "android"],
+  extra: { ...config.extra, canopyVersion: release.version },
   ios: {
     ...config.ios,
     infoPlist: {
