@@ -30,6 +30,7 @@ export function AppUpdateStatus({ compact = false }: { compact?: boolean }) {
       <UpdateRow
         name="Canopy on this phone"
         version={CANOPY_VERSION}
+        checkedAt={status.lastCheckForUpdateTimeSinceRestart?.getTime() ?? 0}
         status={Updates.isEnabled ? phase : "Development build"}
         busy={status.isChecking || status.isDownloading}
         failed={!!error}

@@ -157,7 +157,7 @@ describe.skipIf(!dockerAvailable)("linked computer read deadlines and recovery",
     f.stall();
 
     try {
-      expect(await eventually(async () => (await pages()).peer.readState === "stale", Boolean, 10_000)).toBe(true);
+      expect(await eventually(async () => (await pages()).peer.readState === "stale", Boolean, 20_000)).toBe(true);
       expect(await eventually(async () => (f.requests.get("GetComputerUpdates") ?? 0) > before, Boolean, 10_000)).toBe(
         true,
       );

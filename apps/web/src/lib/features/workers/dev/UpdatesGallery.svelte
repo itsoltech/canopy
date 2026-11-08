@@ -30,9 +30,10 @@
     message: "Canopy is up to date",
     changingChannel: false,
     checkIntervalMinutes: 360,
+    lastCheckedAt: Date.now() - 60_000,
   };
 
-  app.status = status;
+  if (page.url.searchParams.get("client") !== "web") app.status = status;
 
   const states = new UpdatesState();
   const settings = page.url.searchParams.get("view") === "settings";

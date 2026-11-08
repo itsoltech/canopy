@@ -5,6 +5,8 @@
   import { updateTone } from "#lib/features/workers/updates.svelte.ts";
   import { appCurrent } from "#lib/features/workers/compact-updates.ts";
   import type { DesktopUpdatesState } from "./desktop-updates.svelte.ts";
+  import { updateCheckLabel } from "@canopy/domain/computer-presence";
+  import { presenceTime } from "#lib/features/computers/computers.ts";
 
   let {
     updates,
@@ -40,6 +42,7 @@
     icon="computer-desktop"
     current={status.version}
     target={status.updateVersion}
+    metadata={updateCheckLabel(status.lastCheckedAt, presenceTime)}
     status={status.phase === "downloaded"
       ? "Ready"
       : status.phase === "downloading"

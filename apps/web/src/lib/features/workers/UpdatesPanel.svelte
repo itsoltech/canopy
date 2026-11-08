@@ -93,7 +93,8 @@
         size="sm"
         disabled={!!updates.pending || busy || snapshot?.checking}
         loading={updates.pending === "check" || snapshot?.checking}
-        onclick={() => void (snapshot?.admin ? updates.manage({ action: "check" }) : updates.reload())}
+        onclick={() =>
+          void (snapshot?.admin || snapshot?.gatewayBundled ? updates.manage({ action: "check" }) : updates.reload())}
         >Check now</Button
       >
       {#if available}<Button

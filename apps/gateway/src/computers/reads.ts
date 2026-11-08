@@ -94,7 +94,9 @@ export class PeerReads {
 
     if (!entry?.value) return entry?.failed ? "stale" : "loading";
 
-    return entry.failed || entry.pending || entry.next <= Date.now() ? "stale" : "fresh";
+    // A normal background refresh still serves the last successful snapshot. Only a failed
+    // refresh makes it stale; otherwise every poll briefly adds and removes a waiting message.
+    return entry.failed ? "stale" : "fresh";
   }
 
   read<A extends Message>(

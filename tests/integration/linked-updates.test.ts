@@ -8,6 +8,8 @@ import { computerLink as link, ui } from "@canopy/contracts";
 import { nodeRef, REMOTE_APP_UPDATE, REMOTE_THREADS } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDirs } from "@canopy/testing";
+import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
 import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
@@ -50,6 +52,7 @@ class FakeApp {
   idle = false;
   restarted = false;
   checks = 0;
+  checkGate?: Promise<void>;
   notified: string[] = [];
   reports = 0;
   /** Reports like an app from before the updater fields: the gateway gets none of them. */
@@ -68,8 +71,15 @@ class FakeApp {
       updateVersion: available,
     };
     this.control = new LocalDesktopControl(gateway.api, gateway.workerId, (command) => {
-      if (command.check) this.checks++;
-      else void this.coordinator.command(command);
+      if (command.check) {
+        this.checks++;
+        this.status = { ...this.status, phase: "checking", lastCheckedAt: Date.now() };
+        void this.coordinator.publish().then(async () => {
+          await this.checkGate;
+          this.status = { ...this.status, phase: "idle", updateVersion: available };
+          await this.coordinator.publish();
+        });
+      } else void this.coordinator.command(command);
     });
     this.coordinator = new RemoteAppUpdate(path, {
       status: () => this.status,
@@ -247,14 +257,50 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     await eventually(async () => (await computer())?.updates?.app?.updaterPhase === "idle");
   }, 20_000);
 
-  test("Check now on A asks B's app to check its own feed", async () => {
-    // The test gateway's own release check isn't running; the linked computers' checks go out anyway.
-    await a.api.manageUpdates({ action: "check" }).catch(() => undefined);
-    await eventually(async () => app.checks > 0);
-    // Check now on one linked computer (Settings → App updates).
-    const before = app.checks;
-    await a.api.manageUpdates({ action: "computer_check", nodeId: bNode });
-    await eventually(async () => app.checks > before);
+  test("Check now checks the local app and B's app, and repeated presses are throttled", async () => {
+    const local = new FakeApp(a, join(makeTemp("canopy-local-app-check-"), "remote-update.json"), "1.0.0", "1.1.0");
+    const gate = Promise.withResolvers<void>();
+    local.checkGate = gate.promise;
+    await eventually(async () => (await a.api.getUpdates({})).app?.connected === true);
+
+    try {
+      // The test gateway's own release check isn't running; the linked computers' checks go out anyway.
+      let finished = false;
+
+      const check = a.api
+        .manageUpdates({ action: "check" })
+        .catch(() => undefined)
+        .then(() => {
+          finished = true;
+        });
+
+      const repeated = a.api.manageUpdates({ action: "check" }).catch(() => undefined);
+      await eventually(async () => (await a.api.getUpdates({})).app?.updaterPhase === "checking");
+      expect(finished).toBe(false);
+      expect(local.checks).toBe(1);
+      gate.resolve();
+      await Promise.all([check, repeated]);
+      await eventually(async () => app.checks > 0);
+      expect(local.checks).toBe(1);
+      expect((await a.api.getUpdates({})).app).toMatchObject({
+        availableVersion: "1.1.0",
+        lastCheckedAtMs: local.status.lastCheckedAt,
+        requestId: "",
+      });
+      expect(local.restarted).toBe(false);
+      expect(local.notified).toEqual([]);
+      // Check now on one linked computer (Settings → App updates).
+      const before = app.checks;
+      await a.api.manageUpdates({ action: "computer_check", nodeId: bNode });
+      expect(app.checks).toBe(before);
+      await a.api.manageUpdates({ action: "check" }).catch(() => undefined);
+      expect(local.checks).toBe(1);
+      expect(app.checks).toBe(before);
+      await eventually(async () => (await computer())?.updates?.app?.lastCheckedAtMs === app.status.lastCheckedAt);
+    } finally {
+      gate.resolve();
+      await local.stop();
+    }
   }, 20_000);
 
   test("an update of B is routed and audited, waits for idle on B, restarts and comes back on the new version", async () => {
@@ -325,10 +371,54 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
 
   test("another owner's computer cannot ask B for an update", async () => {
     const method = methodNamed("RequestComputerUpdate")!;
-    const request = create(link.ComputerUpdateRequestSchema, { action: "app" });
-    expect(await failure(serveComputerUpdates(b.core, "f".repeat(64), method, request))).toMatchObject({
-      code: Code.PermissionDenied,
-    });
+
+    for (const action of ["app", "check"]) {
+      const request = create(link.ComputerUpdateRequestSchema, { action });
+      expect(await failure(serveComputerUpdates(b.core, "f".repeat(64), method, request))).toMatchObject({
+        code: Code.PermissionDenied,
+      });
+    }
+  });
+
+  test("an older local desktop receives the check command without waiting for a timestamp", async () => {
+    const setRole = (role: string) =>
+      a.runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql`UPDATE users SET role = ${role} WHERE id = ${a.userId}::uuid`;
+        }),
+      );
+
+    const abort = new AbortController();
+
+    const stream = a.api
+      .watchAppControl(
+        {
+          workerId: a.workerId,
+          version: "1.0.0",
+          channel: "nightly",
+          remoteUpdate: true,
+        },
+        { signal: abort.signal, timeoutMs: 3000 },
+      )
+      [Symbol.asyncIterator]();
+
+    try {
+      await setRole("user");
+      const opened = await stream.next();
+      await a.api.reportAppControl({
+        sessionId: opened.value!.sessionId,
+        state: { workerId: a.workerId, version: "1.0.0", channel: "nightly", phase: "idle" },
+      });
+      const request = a.api.manageUpdates({ action: "check" });
+      expect((await stream.next()).value?.command?.check).toBe(true);
+      expect((await request).admin).toBe(false);
+      expect((await a.api.getUpdates({})).app?.lastCheckedAtMs).toBe(0);
+    } finally {
+      await setRole("admin");
+      abort.abort();
+      await stream.return?.();
+    }
   });
 
   test("B without the capability shows its version and a readable status, with no action", async () => {

@@ -20,6 +20,11 @@ export function formatPresenceTime(ms: bigint, options: Intl.DateTimeFormatOptio
   }).format(at);
 }
 
+/** Never substitute a gateway or peer refresh time for the app's actual feed check. */
+export function updateCheckLabel(ms: number | undefined, time = formatPresenceTime): string {
+  return ms ? `Checked ${time(BigInt(ms))}` : "Check time unavailable";
+}
+
 /** Shared wording for web/mobile settings, pickers, read-only bars and update rows. */
 export function presenceLabel(status: string, since: bigint, time: (ms: bigint) => string): string {
   const label = status === "connected" ? "Connected" : (awayLabels.get(status) ?? "Unreachable");

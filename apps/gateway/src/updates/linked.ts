@@ -58,7 +58,7 @@ export async function serveComputerUpdates(
 
     if (!peer) throw new ConnectError("That computer is no longer linked", Code.PermissionDenied);
 
-    if (input.action === "check") core.appControl.check();
+    if (input.action === "check") await core.appControl.check();
     else {
       if ((await core.updateCenter.status())?.state === "running")
         throw new ConnectError(

@@ -7,6 +7,8 @@
   import UpdateItem from "./UpdateItem.svelte";
   import { workerCurrent } from "./compact-updates.ts";
   import { updateBusy, updateStateLabel, updateTone, type UpdatesState } from "./updates.svelte.ts";
+  import { updateCheckLabel } from "@canopy/domain/computer-presence";
+  import { presenceTime } from "#lib/features/computers/computers.ts";
 
   let {
     worker,
@@ -89,6 +91,7 @@
   name={worker.name}
   icon={desktop ? "computer-desktop" : "server"}
   current={desktop?.version || worker.version}
+  metadata={desktop ? updateCheckLabel(desktop.lastCheckedAtMs, presenceTime) : ""}
   target={desktop?.targetVersion ||
     desktop?.availableVersion ||
     (worker.state !== "ahead" ? snapshot?.gatewayVersion : "")}
