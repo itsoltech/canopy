@@ -73,8 +73,13 @@ export function ComposerFold({
 
   const style = useAnimatedStyle(() => {
     const shown = hideWhileWriting ? controlsShown({ progress, writing }) : progress.get();
+    const expanded = Math.min(1, progress.get() / 0.8);
+    const size = hideWhileWriting ? Math.min(expanded, 1 - writing.get()) : expanded;
 
-    return { height: height.get() * shown, opacity: shown };
+    // Give the row all of its room before painting controls. In reverse they disappear before the clip closes:
+    // a partly open clip must never draw half a button or let it cross the moving send button.
+    // Writing still hands exactly its share of the row to the field on each frame.
+    return { height: height.get() * size, opacity: Math.max(0, (shown - 0.8) / 0.2) };
   });
 
   return (

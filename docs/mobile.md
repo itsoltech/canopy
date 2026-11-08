@@ -639,10 +639,18 @@ Kompozytor wątku (także bocznego) i czatu bota jest nakładką nad feedem, z p
 obramowaniem i cieniem w jasnym motywie oraz wygaszeniem tła na 32 dp jak w web.
 `features/composer/FloatingComposer.tsx` ma osobny pas gradientu o stałej wysokości **32 dp**
 nad górną krawędzią pola; gradient nie rozciąga się na pełną wysokość kontenera. Pod ostatnią
-wiadomością (w nagłówku odwróconej listy) stoi rezerwa rzeczywistej, ustalonej wysokości
-kompozytora. Pomiar nie zawiera safe area, klawiatury ani pustych wierszy statusu. Po zwinięciu
-oddaje miejsce ukrytych kontrolek; natywna kotwica utrzymuje czytaną wiadomość. W trakcie
-przejścia zmienia się sama nakładka, a rezerwa jest uzgadniana po jej ustaleniu.
+wiadomością (w nagłówku odwróconej listy) stoi rezerwa zmierzonej wysokości rozwiniętego
+kompozytora. Pomiar nie zawiera safe area, klawiatury ani pustych wierszy statusu. Zwijanie
+i rozwijanie zmienia wyłącznie nakładkę; obie strony przejścia zachowują tę samą rezerwę,
+bez końcowej zmiany wysokości nagłówka listy ani korekty scrolla. Dzięki temu ostatnia wiadomość
+ma miejsce przez całe otwieranie. Rezerwa podąża za zmianami rozwiniętej treści (np. długim
+draftem lub załącznikami), a podczas pisania nie maleje. Wiersz kontrolek najpierw odzyskuje
+pełną wysokość, potem się rozjaśnia; przy zamykaniu znika przed zwężeniem klipu.
+Decyzja o foldzie wymaga gestu czytelnika: próg końca to 8 dp, zwinięcia 192 dp i 96 dp
+przebytej drogi w stronę starszych wiadomości. Każda zmiana foldu zużywa gest. Kolejny wymaga
+nowego dotknięcia listy; samo zdarzenie momentum go nie tworzy. Zmiana wymiarów listy, insetu
+klawiatury lub programowa korekta kotwicy unieważnia trwający gest. „Show latest” otwiera
+kompozytor jawnie, bez rozpoznawania programowego scrolla jako gestu.
 Lista podpowiedzi jest osobną
 nakładką poza mierzonym kompozytorem: otwieranie, filtrowanie, doczytywanie i zamykanie
 nie zmieniają rezerwy ani pozycji feedu. Nakładka mieści się między nagłówkiem a kompozytorem,
