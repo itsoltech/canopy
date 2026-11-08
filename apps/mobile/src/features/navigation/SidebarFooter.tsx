@@ -6,6 +6,7 @@ import { ConnectionStatus, type StreamState } from "./ConnectionStatus";
 import { IconButton } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
+import { UpdateCenterButton } from "../updates/UpdateCenter";
 
 export function SidebarFooter({ workers, stream }: { workers: ui.Worker[]; stream: StreamState }) {
   const c = useColors();
@@ -24,6 +25,7 @@ export function SidebarFooter({ workers, stream }: { workers: ui.Worker[]; strea
           {workers.filter((w) => w.online).length}/{workers.length}
         </Text>
       </Pressable>
+      <UpdateCenterButton />
       <View style={[styles.row, { flex: 1, justifyContent: "flex-end" }]}>
         <ConnectionStatus stream={stream} />
       </View>

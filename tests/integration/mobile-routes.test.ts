@@ -150,6 +150,22 @@ describe("phone route selection", () => {
     expect(client.connection().lastAddress).toBe(alive);
     const restored = routedMobileClient({ connection: client.connection(), transport });
     expect(restored.departure.snapshot()).toBeUndefined();
+
+    const next = create(ui.GatewayDepartureSchema, {
+      ...announcement,
+      id: "next-attempt",
+      startedAtMs: BigInt(Date.now()),
+    });
+
+    client.departure.receive(next);
+    client.departure.receive(create(ui.GatewayDepartureSchema, { ...next, state: "succeeded", version: "1.1.0" }));
+    // In-flight reads of either attempt can arrive after the live success event.
+    client.departure.receive(next);
+    client.departure.receive(announcement);
+    expect(client.departure.snapshot()?.state).toBe("succeeded");
+    expect(client.departure.snapshot()?.id).toBe(next.id);
+    await client.api.getOverview({});
+    expect(requests).toBe(before + 2);
   });
 
   test("requests at the same time share one race, then reuse the route without a handshake", async () => {

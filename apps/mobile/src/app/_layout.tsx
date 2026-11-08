@@ -13,6 +13,8 @@ import { useReducedMotion } from "../ui/motion";
 import { DevicePreferencesProvider } from "../features/settings/device-preferences";
 import { InAppAlerts } from "../features/navigation/InAppAlerts";
 import { ConfirmHost } from "../ui/Confirm";
+import { UpdatesProvider } from "../features/updates/state";
+import { UpdateCenter } from "../features/updates/UpdateCenter";
 import { KeyboardWindow } from "../ui/KeyboardWindow";
 import {
   useFonts,
@@ -60,6 +62,7 @@ function Navigation() {
         </Stack.Protected>
       </Stack>
       <InAppAlerts />
+      <UpdateCenter />
       <ConfirmHost />
     </View>
   );
@@ -71,9 +74,11 @@ function SessionUI() {
   return (
     <AppearanceProvider key={session?.deviceId ?? "unpaired"}>
       <OverviewProvider>
-        <LayoutProvider>
-          <Navigation />
-        </LayoutProvider>
+        <UpdatesProvider key={session?.deviceId ?? "unpaired"}>
+          <LayoutProvider>
+            <Navigation />
+          </LayoutProvider>
+        </UpdatesProvider>
       </OverviewProvider>
     </AppearanceProvider>
   );
