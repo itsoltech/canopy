@@ -6,7 +6,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Device from "expo-device";
 import { ScreenFrame } from "../../ui/ScreenFrame";
 import { ScreenScroll } from "../../ui/ScreenScroll";
-import { KeyboardArea } from "../../ui/KeyboardArea";
+import { KeyboardViewport } from "../../ui/KeyboardViewport";
 import { readPairingQr } from "../../api/client";
 import { routedMobileClient } from "../../api/routes";
 import { pinnedTransport } from "../../api/pinned";
@@ -174,7 +174,7 @@ export default function PairScreen() {
 
   return (
     <ScreenFrame>
-      <KeyboardArea>
+      <KeyboardViewport>
         <SkeletonScope loading={!ready}>
           <ScreenScroll
             keyboardShouldPersistTaps="handled"
@@ -255,7 +255,7 @@ export default function PairScreen() {
             </Text>
           </ScreenScroll>
         </SkeletonScope>
-      </KeyboardArea>
+      </KeyboardViewport>
     </ScreenFrame>
   );
 }

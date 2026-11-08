@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { FlatList } from "react-native";
-import { useAnimatedScrollHandler, useSharedValue } from "react-native-reanimated";
+import { Platform, type FlatList, type FlatListProps } from "react-native";
+import { useAnimatedScrollHandler, useDerivedValue, useSharedValue } from "react-native-reanimated";
+import { useKeyboardFrame } from "./KeyboardWindow";
+import { useContentInsets } from "./ScreenFrame";
 import { scheduleOnRN } from "react-native-worklets";
 
 /** Within this distance of the latest message the list counts as at the bottom and keeps following. */
@@ -12,11 +14,30 @@ const FOLLOW_THRESHOLD = 96;
  * The scroll position lives on the UI thread; React hears only when the reader leaves or reaches the bottom.
  * Pass `listProps` to a Reanimated list (`Animated.FlatList`, `TimelineList`).
  */
-export function useFollowingList<Item>() {
+export function useFollowingList<Item>(keyboardChat = false) {
   const list = useRef<FlatList<Item>>(null);
   const [atBottom, setAtBottom] = useState(true);
   const scrollY = useSharedValue(0);
   const bottom = useSharedValue(true);
+  const keyboard = useKeyboardFrame();
+  const insets = useContentInsets();
+  const ios = Platform.OS === "ios";
+
+  // iOS exposes the chat inset as a negative offset; Android's synthetic inset keeps its end at zero.
+  const minimum = useDerivedValue(() =>
+    keyboardChat && ios
+      ? Math.min(0, keyboard.height.get() + insets.bottom * keyboard.progress.get()) - insets.bottom
+      : 0,
+  );
+
+  const distance = useCallback(
+    (y: number) => {
+      "worklet";
+
+      return Math.max(0, y - minimum.get());
+    },
+    [minimum],
+  );
 
   // The scroll offset for the fold anchor (feed-anchor.tsx); 0 is the bottom. Reads and writes go to the UI thread.
   const offset = useMemo(
@@ -31,25 +52,26 @@ export function useFollowingList<Item>() {
     [scrollY],
   );
 
-  const isFollowing = useCallback(() => scrollY.get() <= FOLLOW_THRESHOLD, [scrollY]);
+  const isFollowing = useCallback(() => distance(scrollY.get()) <= FOLLOW_THRESHOLD, [scrollY, distance]);
 
   /** Records a scroll position (a worklet: scroll handlers call it on the UI thread). */
   const track = useCallback(
     (y: number) => {
       "worklet";
       scrollY.set(y);
-      const at = y <= FOLLOW_THRESHOLD;
+      const at = distance(y) <= FOLLOW_THRESHOLD;
 
       if (at === bottom.get()) return;
       bottom.set(at);
       scheduleOnRN(setAtBottom, at);
     },
-    [scrollY, bottom],
+    [scrollY, bottom, distance],
   );
 
   function jump(animated: boolean) {
-    list.current?.scrollToOffset({ offset: 0, animated });
-    scrollY.set(0);
+    const end = minimum.get();
+    list.current?.scrollToOffset({ offset: end, animated });
+    scrollY.set(end);
     bottom.set(true);
     setAtBottom(true);
   }
@@ -59,12 +81,23 @@ export function useFollowingList<Item>() {
     onMomentumEnd: (event) => track(event.contentOffset.y),
   });
 
+  let anchor: FlatListProps<Item>["maintainVisibleContentPosition"] = {
+    minIndexForVisible: 0,
+    autoscrollToTopThreshold: FOLLOW_THRESHOLD,
+  };
+
+  // UIKit's autoscroll always targets zero, ignoring a negative keyboard inset. At the end an inverted list
+  // follows naturally; enable native row anchoring only while reading history, without that autoscroll.
+  if (keyboardChat && ios) anchor = atBottom ? undefined : { minIndexForVisible: 0 };
+
   return {
     list,
     offset,
     isFollowing,
     atBottom,
     track,
+    distance,
+    minimum,
     resumeFollowing: () => jump(false),
     showLatest: () => jump(true),
     listProps: {
@@ -72,8 +105,7 @@ export function useFollowingList<Item>() {
       inverted: true,
       onScroll,
       scrollEventThrottle: 16,
-      // Offset 0 is the bottom: keep the visible rows still when content arrives, follow it near the bottom.
-      maintainVisibleContentPosition: { minIndexForVisible: 0, autoscrollToTopThreshold: FOLLOW_THRESHOLD },
+      maintainVisibleContentPosition: anchor,
     },
   };
 }

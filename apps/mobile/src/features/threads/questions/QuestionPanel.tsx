@@ -75,7 +75,7 @@ function QuestionEditor({
   );
 }
 
-/** The 44 dp slot is always reserved. Sheets never affect the feed's measured composer reserve. */
+/** Requests float above the measured input. Child subscriptions stay mounted even without a visible row. */
 export function QuestionPanel({
   interactions,
   subagents,
@@ -112,7 +112,7 @@ export function QuestionPanel({
   const source = subagents.find((thread) => thread.id === active?.threadId);
 
   return (
-    <View style={[{ height: 44, flexShrink: 0 }, style]}>
+    <View style={[{ height: active ? 44 : 0, flexShrink: 0 }, style]}>
       {subagents.map((thread) => (
         <ChildQuestions key={thread.id} thread={thread} onChange={onChange} />
       ))}

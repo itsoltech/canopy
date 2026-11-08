@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { router, useNavigation } from "expo-router";
 import { ScreenFrame, usePaneInsets } from "../../ui/ScreenFrame";
 import { ScreenScroll } from "../../ui/ScreenScroll";
-import { KeyboardArea } from "../../ui/KeyboardArea";
+import { KeyboardViewport } from "../../ui/KeyboardViewport";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { settingsGroups, settingsSections, type SettingsSection } from "@canopy/ui/settings";
 import { useLayout } from "../../state/layout";
@@ -60,7 +60,7 @@ export function SettingsLayout({
 
   return (
     <ScreenFrame header={<SettingsHeader section={section} current={current} onSelect={onSelect} />}>
-      <KeyboardArea style={{ flexDirection: "row", minWidth: 0 }}>
+      <KeyboardViewport style={{ flexDirection: "row", minWidth: 0 }}>
         {(wide || !section) && (
           <ScreenScroll
             space={12}
@@ -106,7 +106,7 @@ export function SettingsLayout({
             </SettingsDensity.Provider>
           </ScreenScroll>
         )}
-      </KeyboardArea>
+      </KeyboardViewport>
     </ScreenFrame>
   );
 }

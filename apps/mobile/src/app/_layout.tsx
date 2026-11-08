@@ -13,6 +13,7 @@ import { useReducedMotion } from "../ui/motion";
 import { DevicePreferencesProvider } from "../features/settings/device-preferences";
 import { InAppAlerts } from "../features/navigation/InAppAlerts";
 import { ConfirmHost } from "../ui/Confirm";
+import { KeyboardWindow } from "../ui/KeyboardWindow";
 import {
   useFonts,
   Inter_400Regular,
@@ -92,13 +93,15 @@ export default function Layout() {
 
   return (
     <SafeAreaProvider>
-      <PreferencesProvider>
-        <DevicePreferencesProvider>
-          <SessionProvider>
-            <SessionUI />
-          </SessionProvider>
-        </DevicePreferencesProvider>
-      </PreferencesProvider>
+      <KeyboardWindow>
+        <PreferencesProvider>
+          <DevicePreferencesProvider>
+            <SessionProvider>
+              <SessionUI />
+            </SessionProvider>
+          </DevicePreferencesProvider>
+        </PreferencesProvider>
+      </KeyboardWindow>
     </SafeAreaProvider>
   );
 }

@@ -1,5 +1,6 @@
 import { createContext, useState, type ReactNode } from "react";
-import { Keyboard, Pressable, Text, View, type TextInputProps } from "react-native";
+import { Pressable, Text, View, type TextInputProps } from "react-native";
+import { KeyboardController } from "react-native-keyboard-controller";
 import { TextInput } from "./TextInput";
 import { font, styles, useColors, useTypography } from "./theme";
 import { Icon } from "./Icon";
@@ -125,7 +126,7 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
           accessibilityLabel={label}
           placeholderTextColor={c.muted}
           returnKeyType="done"
-          onSubmitEditing={Keyboard.dismiss}
+          onSubmitEditing={() => void KeyboardController.dismiss()}
           {...props}
           onFocus={(event) => {
             setFocused(true);

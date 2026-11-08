@@ -10,7 +10,7 @@ import { styles, useColors } from "../../ui/theme";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { SubagentLineage } from "./SubagentLineage";
 
-/** A fixed slot keeps both the measured feed reserve and composer still when agents start or finish. */
+/** Status floats above the measured input; an empty summary takes no room. */
 export function SubagentSummary({
   threads,
   obscured = false,
@@ -33,34 +33,34 @@ export function SubagentSummary({
 
   const needs = waiting ? `${formatCount(waiting)} ${waiting === 1 ? "needs" : "need"} input` : "";
 
+  if (running + waiting + finished === 0) return null;
+
   return (
     <View style={[{ height: 44, flexShrink: 0 }, style]}>
-      {running + waiting + finished > 0 && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={[summary, needs].filter(Boolean).join(" · ")}
-          accessibilityState={{ expanded: open && !obscured }}
-          accessibilityLiveRegion="polite"
-          onPress={() => device.set("subagentsExpanded", open ? "off" : "on")}
-          style={({ pressed }) => [
-            styles.row,
-            { flex: 1, paddingHorizontal: 8, borderRadius: 8, backgroundColor: pressed ? c.pressed : undefined },
-          ]}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={[summary, needs].filter(Boolean).join(" · ")}
+        accessibilityState={{ expanded: open && !obscured }}
+        accessibilityLiveRegion="polite"
+        onPress={() => device.set("subagentsExpanded", open ? "off" : "on")}
+        style={({ pressed }) => [
+          styles.row,
+          { flex: 1, paddingHorizontal: 8, borderRadius: 8, backgroundColor: pressed ? c.pressed : undefined },
+        ]}
+      >
+        <Text
+          numberOfLines={1}
+          style={[styles.chromeMeta, { flex: 1, minWidth: 0, color: c.muted, fontVariant: ["tabular-nums"] }]}
         >
-          <Text
-            numberOfLines={1}
-            style={[styles.chromeMeta, { flex: 1, minWidth: 0, color: c.muted, fontVariant: ["tabular-nums"] }]}
-          >
-            {summary}
+          {summary}
+        </Text>
+        {needs ? (
+          <Text style={[styles.chromeMeta, { color: c.warning, flexShrink: 0, fontVariant: ["tabular-nums"] }]}>
+            {needs}
           </Text>
-          {needs ? (
-            <Text style={[styles.chromeMeta, { color: c.warning, flexShrink: 0, fontVariant: ["tabular-nums"] }]}>
-              {needs}
-            </Text>
-          ) : null}
-          <Chevron open={open && !obscured} />
-        </Pressable>
-      )}
+        ) : null}
+        <Chevron open={open && !obscured} />
+      </Pressable>
     </View>
   );
 }

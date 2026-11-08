@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 import { Redirect } from "expo-router";
 import { ScreenFrame } from "../../ui/ScreenFrame";
 import { ScreenScroll } from "../../ui/ScreenScroll";
-import { KeyboardArea } from "../../ui/KeyboardArea";
+import { KeyboardViewport } from "../../ui/KeyboardViewport";
 import { useSession } from "../../state/session";
 import { Notice, ScreenHeader } from "../../ui/components";
 import { PickerSheet } from "../../ui/Picker";
@@ -40,7 +40,7 @@ export function NewThreadScreen() {
 
   return (
     <ScreenFrame header={<ScreenHeader title="New thread" subtitle={project?.name} />}>
-      <KeyboardArea>
+      <KeyboardViewport>
         <DropZone draft={message.files} disabled={state.busy}>
           <ScreenScroll
             keyboardShouldPersistTaps="handled"
@@ -124,7 +124,7 @@ export function NewThreadScreen() {
             {error ? <Notice error>{error}</Notice> : null}
           </ScreenScroll>
         </DropZone>
-      </KeyboardArea>
+      </KeyboardViewport>
       <NewThreadPickers state={state} picker={picker} close={() => setPicker(null)} />
     </ScreenFrame>
   );

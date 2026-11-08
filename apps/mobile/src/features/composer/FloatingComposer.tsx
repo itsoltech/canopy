@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
-import Animated from "react-native-reanimated";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { useKeyboardFrame } from "../../ui/KeyboardWindow";
 import { useMotion } from "../../ui/motion";
 import { useColors } from "../../ui/theme";
 import { IconButton } from "../../ui/components";
@@ -15,10 +16,13 @@ export function FloatingComposer({
   onLatest,
   motion,
   overlay,
+  accessory,
 }: {
   children: ReactNode;
   /** Popovers never participate in the measured composer or the feed's reserve. */
   overlay?: ReactNode;
+  /** Status rows float outside the input measurement; empty slots never enlarge the fade or feed reserve. */
+  accessory?: ReactNode;
   /** The fold and writing motion its composer parts follow (useFloatingComposer). */
   motion: ComposerMotion;
   onLayout: (event: LayoutChangeEvent) => void;
@@ -28,12 +32,20 @@ export function FloatingComposer({
   const c = useColors();
   const insets = useContentInsets();
   const { pop } = useMotion();
+  const keyboard = useKeyboardFrame();
+
+  // Keep the overlay's top below the fixed header as its bottom follows the keyboard. The safe-area padding
+  // sits outside the measured composer; its proportional sticky offset cancels it without resizing the reserve.
+  const bounds = useAnimatedStyle(() => ({
+    top: insets.top - keyboard.height.get() - insets.bottom * keyboard.progress.get(),
+    transform: [{ translateY: keyboard.height.get() + insets.bottom * keyboard.progress.get() }],
+  }));
 
   return (
     <ComposerMotionContext.Provider value={motion}>
-      <View
+      <Animated.View
         pointerEvents="box-none"
-        style={{ position: "absolute", top: insets.top, bottom: 0, left: 0, right: 0, justifyContent: "flex-end" }}
+        style={[{ position: "absolute", bottom: 0, left: 0, right: 0, justifyContent: "flex-end" }, bounds]}
       >
         {onLatest && (
           // It pops in and out above the composer (web `pop`) without moving it.
@@ -67,33 +79,37 @@ export function FloatingComposer({
           }}
         >
           {overlay}
+          {accessory && <View style={{ backgroundColor: c.background, borderRadius: 8 }}>{accessory}</View>}
         </View>
-        <View
-          onLayout={onLayout}
-          onTouchStart={onExpand}
-          style={{
-            flexShrink: 0,
-            paddingLeft: 12 + insets.left,
-            paddingRight: 12 + insets.right,
-            paddingTop: 8,
-            paddingBottom: 12 + insets.bottom,
-            gap: 8,
-          }}
-        >
+        <View style={{ paddingBottom: insets.bottom, backgroundColor: c.background }}>
           <View
-            pointerEvents="none"
+            onLayout={onLayout}
+            onTouchStart={onExpand}
             style={{
-              position: "absolute",
-              top: -32,
-              bottom: 0,
-              left: 0,
-              right: 0,
-              backgroundImage: `linear-gradient(to bottom, ${c.background}00, ${c.background} 32px)`,
+              flexShrink: 0,
+              paddingLeft: 12 + insets.left,
+              paddingRight: 12 + insets.right,
+              paddingTop: 8,
+              paddingBottom: 12,
+              gap: 8,
+              backgroundColor: c.background,
             }}
-          />
-          {children}
+          >
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                top: -32,
+                height: 32,
+                left: 0,
+                right: 0,
+                backgroundImage: `linear-gradient(to bottom, ${c.background}00, ${c.background})`,
+              }}
+            />
+            {children}
+          </View>
         </View>
-      </View>
+      </Animated.View>
     </ComposerMotionContext.Provider>
   );
 }

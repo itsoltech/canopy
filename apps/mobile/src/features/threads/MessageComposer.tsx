@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Keyboard, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { PermissionMode, ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { ComposerBox, ComposerPill } from "./ComposerBox";
@@ -113,7 +113,6 @@ export function MessageComposer({
                   leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}
                   title={current?.name || thread.model || "Model"}
                   onPress={() => {
-                    Keyboard.dismiss();
                     setPicker("model");
                   }}
                 />
@@ -125,7 +124,6 @@ export function MessageComposer({
                   icon="light-bulb"
                   title={effortLabel(effort)}
                   onPress={() => {
-                    Keyboard.dismiss();
                     setPicker("effort");
                   }}
                 />
