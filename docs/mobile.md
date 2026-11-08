@@ -825,9 +825,27 @@ Menu załączników zamyka się przed otwarciem Photos, Files lub odczytem „Pa
 koniec animacji nie wystarczają do prezentacji kolejnego kontrolera UIKit.
 Zamykana nakładka nie przyjmuje dotyku; spinacz jest zablokowany do zakończenia
 wyboru lub wklejania. Anulowanie odblokowuje go bez komunikatu, błędy pokazują krótki
-komunikat z możliwością zamknięcia i ponowienia akcji. Photos używa systemowego
-wyboru obrazów bez wcześniejszego żądania pełnego dostępu do biblioteki; brak takiej
+komunikat z możliwością zamknięcia i ponowienia akcji. Photos and videos używa systemowego
+wyboru obrazów i filmów bez wcześniejszego żądania pełnego dostępu do biblioteki; brak takiej
 zgody nie blokuje wyboru. Kompozytor nie ma akcji robienia zdjęcia kamerą.
+
+Oba kompozytory utrzymują poziomo przewijany pasek wszystkich plików do wysłania lub usunięcia,
+także po zakończeniu uploadu. Obrazy mają lokalne miniatury 56 × 56 dp, filmy kafelek z ikoną
+odtwarzania i czasem, jeśli picker go poda. Zainstalowany picker nie zwraca plakatu filmu;
+nie dodajemy natywnego generatora miniatur. Rodzaj `video` służy tylko prezentacji draftu;
+upload nadal przesyła nazwę i bajty, a gateway rozpoznaje i zapisuje typ jak dotąd.
+Pozostałe pliki pokazują ikonę formatu (PDF, archiwum, kod, tekst, arkusz, audio lub plik),
+nazwę i rozmiar. Format wynika z MIME i rozszerzenia. Wysokość wiersza jest stała, nazwy
+skracają się z zachowaniem końcówki, a przycisk usuwania ma cel 32 × 56 dp i usuwa też
+plakietkę w tekście. Upload nakłada spinner, błąd dodaje obramowanie i powód; `pop` oraz
+`layout` korzystają ze wspólnych tokenów i respektują ograniczenie ruchu. Pasek nie zmienia
+zasad klawiatury ani gradientu 32 dp. Nie ma jeszcze mobilnej przeglądarki obrazów, więc
+miniatury nie otwierają dodatkowego widoku.
+
+URI obrazu z pickera lub data URI ze schowka zostaje w drafcie także po uploadzie.
+Kopie obrazów z natywnego wklejania i upuszczania są zwalniane przy usunięciu, wysłaniu
+lub zamknięciu draftu, a pozostałe kopie intake po odczycie. Nie zmienia to natywnych
+modułów ani konfiguracji runtime; zmiana może trafić przez OTA.
 
 Wklejanie i upuszczanie plików (`features/attachments/FileIntake.tsx`, lokalny moduł Expo
 `modules/canopy-file-intake`) idzie tą samą drogą co wybór: `UploadAttachment` z limitami gatewaya.

@@ -47,6 +47,15 @@ export const icons = {
     "M14 3v4a1 1 0 0 0 1 1h4",
     "M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2M9 9h1m-1 4h6m-6 4h6",
   ],
+  // file-type-pdf
+  "file-pdf": [
+    "M14 3v4a1 1 0 0 0 1 1h4",
+    "M5 12V5a2 2 0 0 1 2-2h7l5 5v4M5 18h1.5a1.5 1.5 0 0 0 0-3H5v6m12-3h2m1-3h-3v6m-6-6v6h1a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2z",
+  ],
+  // table
+  "table-cells": ["M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm0 5h18M10 3v18"],
+  // music
+  "musical-note": ["M3 17a3 3 0 1 0 6 0a3 3 0 0 0-6 0m10 0a3 3 0 1 0 6 0a3 3 0 0 0-6 0", "M9 17V4h10v13M9 8h10"],
   // edit
   "pencil-square": [
     "M7 7H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-1",

@@ -1,34 +1,27 @@
-import { useRef, useState } from "react";
-import { Alert } from "react-native";
-import * as DocumentPicker from "expo-document-picker";
-import * as ImagePicker from "expo-image-picker";
+import { useEffect, useRef, useState } from "react";
 import { File } from "expo-file-system";
 import * as Crypto from "expo-crypto";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useAppearance } from "../../state/appearance";
-import { clipboardImage } from "./clipboard-image";
+import { attachmentKind, type AttachmentKind } from "./attachment-display";
+import { pasteImage, pickFiles, pickPhotos, type Picked } from "./pick-attachments";
 
 export interface DraftFile {
   key: string;
   name: string;
   size: number;
-  kind: "image" | "file";
+  kind: AttachmentKind;
+  mimeType?: string;
+  /** Local image or clipboard data URI, kept through upload success and failure. */
+  previewUri?: string;
+  /** Milliseconds, when the media picker supplies a video duration. */
+  duration?: number;
+  /** Native intake owns this preview copy; release it when the draft lets it go. */
+  temporary?: boolean;
   /** Set once the gateway stored it (UploadAttachment). */
   attachment?: ui.Attachment;
   error?: string;
-}
-
-interface Picked {
-  /** Where to read it; none: over the limit, not copied (a native paste or drop). */
-  uri?: string;
-  /** Read already (a clipboard image). */
-  data?: Uint8Array;
-  name: string;
-  size: number;
-  kind: DraftFile["kind"];
-  /** A copy made for this upload (canopy-file-intake): deleted once read. */
-  temporary?: boolean;
 }
 
 /** A file from a native paste or drop (modules/canopy-file-intake). */
@@ -59,6 +52,18 @@ export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
   const [files, setFiles] = useState<DraftFile[]>([]);
   // The same rows, readable at once by picks that land in one tick (several photos at a time).
   const current = useRef<DraftFile[]>([]);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+
+    return () => {
+      mounted.current = false;
+
+      for (const file of current.current) discardPreview(file);
+      current.current = [];
+    };
+  }, []);
 
   const apply = (next: (rows: DraftFile[]) => DraftFile[]) => {
     current.current = next(current.current);
@@ -77,6 +82,9 @@ export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
     apply((rows) => rows.map((f) => (f.key === key ? { ...f, ...change } : f)));
 
   async function upload(picked: Picked) {
+    // A system picker can return after its composer has gone away.
+    if (!mounted.current) return discard(picked);
+
     const key = Crypto.randomUUID();
     const total = current.current.reduce((sum, f) => sum + f.size, 0) + picked.size;
 
@@ -89,15 +97,32 @@ export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
             ? `A message can carry up to ${fileSize(max.maxMessageBytes)}.`
             : undefined;
 
-    const file: DraftFile = { key, name: picked.name, size: picked.size, kind: picked.kind, error };
+    const file: DraftFile = {
+      key,
+      name: picked.name,
+      size: picked.size,
+      kind: picked.kind,
+      mimeType: picked.mimeType,
+      previewUri: picked.kind === "image" ? (picked.previewUri ?? picked.uri) : undefined,
+      duration: picked.duration,
+      temporary: picked.temporary,
+      error,
+    };
 
     apply((rows) => [...rows, file]);
     onAdd?.(file);
 
-    if (error || !client) return discard(picked);
+    if (error || !client) {
+      if (!file.previewUri) discard(picked);
+
+      return;
+    }
 
     try {
       const data = picked.data ?? new Uint8Array(await read(picked));
+
+      if (!current.current.some((f) => f.key === key)) return;
+
       const result = await client.api.uploadAttachment({ name: picked.name, data }, { timeoutMs: 120_000 });
       patch(key, { attachment: result.attachment });
     } catch {
@@ -111,7 +136,8 @@ export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
     try {
       return await new File(picked.uri).arrayBuffer();
     } finally {
-      discard(picked);
+      // Native intake images remain readable by the thumbnail until remove, send or unmount.
+      if (picked.kind !== "image") discard(picked);
     }
   }
 
@@ -132,57 +158,10 @@ export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
         uri: file.uri,
         name: file.name,
         size: file.size,
-        kind: file.mimeType?.startsWith("image/") ? "image" : "file",
+        kind: attachmentKind(file.name, file.mimeType),
+        mimeType: file.mimeType,
         temporary: true,
       });
-  }
-
-  /** The clipboard's image ("Paste image" in the attach menu; iOS may ask to allow the paste). */
-  async function pasteImage() {
-    const data = await clipboardImage();
-
-    if (data) void upload({ data, name: `pasted-image-${Date.now()}.png`, size: data.length, kind: "image" });
-  }
-
-  async function pickPhotos() {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsMultipleSelection: true,
-        selectionLimit: Math.max(1, max.maxFiles - current.current.length),
-        quality: 1,
-      });
-
-      if (result.canceled) return;
-
-      for (const asset of result.assets)
-        void upload({
-          uri: asset.uri,
-          name: asset.fileName || `photo-${Date.now()}.jpg`,
-          size: asset.fileSize ?? 0,
-          kind: "image",
-        });
-    } catch {
-      Alert.alert("Could not open photos", "Try again or attach a file.", [{ text: "Close" }]);
-    }
-  }
-
-  async function pickFiles() {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
-
-      if (result.canceled) return;
-
-      for (const asset of result.assets)
-        void upload({
-          uri: asset.uri,
-          name: asset.name,
-          size: asset.size ?? 0,
-          kind: asset.mimeType?.startsWith("image/") ? "image" : "file",
-        });
-    } catch {
-      Alert.alert("Could not open files", "Try again or attach a photo.", [{ text: "Close" }]);
-    }
   }
 
   const uploading = files.some((f) => !f.attachment && !f.error);
@@ -191,15 +170,35 @@ export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
   return {
     files,
     ids: files.flatMap((f) => (f.attachment ? [f.attachment.id] : [])),
-    pickPhotos,
-    pickFiles,
-    pasteImage,
+    pickPhotos: () => pickPhotos(upload, max.maxFiles - current.current.length),
+    pickFiles: () => pickFiles(upload),
+    pasteImage: () => pasteImage(upload),
     addIntake,
     /** The largest file the gateway takes: native pastes and drops copy nothing bigger. */
     maxFileBytes: max.maxFileBytes,
-    remove: (key: string) => apply((rows) => rows.filter((f) => f.key !== key)),
-    clear: () => apply(() => []),
+    remove: (key: string) =>
+      apply((rows) => {
+        for (const file of rows) if (file.key === key) discardPreview(file);
+
+        return rows.filter((f) => f.key !== key);
+      }),
+    clear: () =>
+      apply((rows) => {
+        for (const file of rows) discardPreview(file);
+
+        return [];
+      }),
     /** Why the message cannot go yet. */
     blocker: uploading ? "Uploading files…" : failed ? "Remove the files that could not be attached." : undefined,
   };
+}
+
+function discardPreview(file: DraftFile) {
+  if (!file.temporary || !file.previewUri) return;
+
+  try {
+    new File(file.previewUri).delete();
+  } catch {
+    /* Gone already; native intake clears stale copies on the next start. */
+  }
 }
