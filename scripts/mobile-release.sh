@@ -19,7 +19,9 @@ last_build=$(jq -r '.[0].gitCommitHash // empty' <<< "$builds")
 last_runtime=$(jq -r '.[0].runtimeVersion // empty' <<< "$builds")
 
 # The publisher owns all update-service reads as well as writes, for a future server swap.
-last_update=$(bash ../../scripts/mobile-publish-update.sh latest "$last_runtime")
+# No delivered build on this channel yet (first release with OTA): nothing can have been published to it.
+last_update=
+[ -z "$last_runtime" ] || last_update=$(bash ../../scripts/mobile-publish-update.sh latest "$last_runtime")
 last=$last_build
 if [ -n "$last_update" ] && git cat-file -e "$last_update^{commit}" 2>/dev/null; then
   if [ -z "$last" ] || ! git cat-file -e "$last^{commit}" 2>/dev/null || git merge-base --is-ancestor "$last" "$last_update"; then

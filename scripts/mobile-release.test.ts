@@ -22,6 +22,7 @@ type Scenario = {
   mappedBranch?: string;
   fail?: string;
   baselineHead?: boolean;
+  firstRelease?: boolean;
 };
 
 function fixture(options: Scenario = {}) {
@@ -78,13 +79,15 @@ function fixture(options: Scenario = {}) {
         branchMapping: JSON.stringify({ data: [{ branchId: "branch", branchMappingLogic: "true" }] }),
       },
     },
-    baseline: [
-      {
-        ...build,
-        gitCommitHash: options.baselineHead ? head : previous,
-        runtimeVersion: options.ios ? iosRuntime : "old-runtime",
-      },
-    ],
+    baseline: options.firstRelease
+      ? []
+      : [
+          {
+            ...build,
+            gitCommitHash: options.baselineHead ? head : previous,
+            runtimeVersion: options.ios ? iosRuntime : "old-runtime",
+          },
+        ],
     ios: options.ios ? [build] : [],
     android: options.android ? [build] : [],
     pending: options.pending ? [{ ...build, status: "IN_PROGRESS" }] : [{ ...build, status: "ERRORED" }],
@@ -134,6 +137,12 @@ test("JS-only releases use OTA when a compatible iOS build exists; Android never
   expect(result.code).toBe(0);
   expect(result.output).toContain("ota=true");
   expect(result.output).not.toContain("build=true");
+});
+
+test("the first release on a channel without a delivered build builds iOS", () => {
+  const result = fixture({ firstRelease: true }).run();
+  expect(result.code).toBe(0);
+  expect(result.output).toContain("build=true");
 });
 
 test("a new native runtime builds iOS; failed builds do not prevent a retry", () => {
