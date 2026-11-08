@@ -570,8 +570,19 @@ Zdarzenia `turnStarted` / `turnFinished` od dostawcy lub wznowienia odtwarzają 
 mobile turę z czasem początku i końca, zanim nadejdzie jej projekcja. „Working for …” zachowuje
 dzięki temu czas także dla tur rozpoczętych przez dostawcę; zapis cache zachowuje te czasy.
 Wiersze osi czasu wyglądają jak w web (`src/features/timeline`): każdy rodzaj itemu ma widok jak `components/items` w web (komendy z kodem wyjścia, narzędzia z tytułem z rejestru, zmiany plików z diffem, rozumowanie, wyszukiwanie, plan/to do, obraz, kompakcja, zdarzenie dostawcy, zapis zgody lub pytania, subagent z zagnieżdżoną pracą, zadanie w tle ze Stop i ogonem wyjścia, wywołania magistrali agentów na fioletowo z kartą subagenta i dostarczenia). Wejście tury pokazuje jego pochodzenie (zadanie, wiadomość, raport od agenta z nadawcą i modelem, pytanie wątku bocznego, harmonogram, bot, notatka o zakończonych zadaniach w tle), steery mają notę, komunikaty dostawcy są wierszami, a nieudana tura pokazuje wyjaśnienie błędu ze szczegółami. Fold „Working for …” / „Worked for …” ma czas, liczniki albo bieżącą czynność, „N still running” i grupy narzędzi („Read 1 file and ran 5 commands”). Etykiety, liczniki i opisy narzędzi pochodzą ze wspólnych modułów `@canopy/domain` (`tools`, `work-summary`, `turn-origin`, `status-look`, `humanize`, `format`, `questions`, `failure-presentation`, `first-line`), tak jak w web. Czat bota używa tego samego układu co web (`@canopy/domain/bot-chat`: `botEntries`, `layoutChat`): linie dat, serie dymków z ciaśniejszymi rogami, linie wymian bot ⇄ bot, zdarzenia, błędy odpowiedzi i karty w kolejności czasu oraz wiersz statusu bota. Ręczne przełączanie foldu trzyma nagłówek w miejscu (timeline-folding.md, „Pozycja przy ręcznym przełączaniu”).
-Pytania/zgody w wątkach są widoczne **read-only** i odpowiada się na nie w web. Karty
-ze znanym terminem (`Interaction.expires_at`, `BotApproval.expires_at`) pokazują
+Pytania Claude `AskUserQuestion`, Codex `request_user_input` i platformy `ask_user`
+obsługuje wiersz „Answer questions” nad kompozytorem. Jego miejsce jest zarezerwowane,
+a arkusz nie zmienia pomiaru kompozytora ani pozycji czytanego feedu. Wszystkie zestawy
+mają wspólne parsowanie i kodowanie odpowiedzi z web (`@canopy/domain/questions`):
+jedna/wiele opcji z opisami i rekomendacją, własny tekst, Back, Skip question, Skip all
+oraz Dismiss request dla pytań synchronicznych. Rekomendacja nie zaznacza odpowiedzi.
+Szkice zostają przy zamykaniu arkusza, przełączaniu zestawów i pisaniu zwykłej wiadomości.
+Pytania subagentów są dostępne w rodzicu z etykietą subagenta; ich strumienie czytają
+żądania bez dołączania historii do feedu rodzica. `AnswerInteraction` idzie tym samym
+przypiętym transportem i tokenem urządzenia co inne RPC. Gateway egzekwuje właściciela,
+ważność i kontrakt odpowiedzi. Oś czasu pokazuje odpowiedzi, pominięcia i odrzucenie.
+Zgody i formularze MCP nadal odsyłają do web; nieobsługiwany format pytania ma osobny komunikat.
+Karty ze znanym terminem (`Interaction.expires_at`, `BotApproval.expires_at`) pokazują
 „Expires in m:ss” (bursztynowe przez ostatnie 25 s), a przy zerze „Expiring…”, dopóki
 gateway nie oznaczy prośby jako wygasłej; licznik używa zegara telefonu. Wygasła prośba
 wątku znika jak w web. Karta bota widziana w czasie oczekiwania zostaje do końca wizyty
@@ -800,6 +811,10 @@ administrację właściciela i izolację kont, zachowanie service tokenu, limit 
 z prawdziwym HTTP/1.1 GetOverview + WatchThread oraz snapshot WatchOverview przez HTTP/2
 z weryfikacją przypiętego certyfikatu. Test transportu Node nie potwierdza działania streamów
 w natywnym kliencie Android. Wymaga throwaway PostgreSQL w Dockerze.
+`tests/integration/mobile-questions.test.ts` używa tego samego przypiętego klienta przez
+Network access: trzy źródła pytań, wybory i własny tekst, pominięcia, odrzucenie, expiry,
+izolacja właściciela/tokenów, pytanie subagenta oraz odpowiedzi po restarcie gatewaya
+z ponownym zgłoszeniem nadal działających tur workera.
 
 ## Źródła sprawdzone dla tego wdrożenia
 

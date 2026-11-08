@@ -25,6 +25,7 @@ import {
   type InputAttachment,
   type UserInput,
   type InteractionRequest,
+  type InteractionResponse,
   type ProfileModelsSchema,
   type WorkerConfig,
 } from "@canopy/contracts";
@@ -128,6 +129,7 @@ export class ScriptedWorker {
   /** Custom behaviour per command kind (e.g. a turn that keeps running); the default answers otherwise. */
   readonly handlers = new Map<string, CommandHandler>();
   readonly interactionAnswers: { requestId: string; allow: boolean }[] = [];
+  readonly interactionResponses = new Map<string, InteractionResponse>();
   /** Threads this worker was asked to create, with their cwd. */
   readonly created: {
     threadId: string;
@@ -369,8 +371,10 @@ export class ScriptedWorker {
         continue;
       }
 
-      if (payload.case === "interactionResponse")
+      if (payload.case === "interactionResponse") {
         this.interactionAnswers.push({ requestId: payload.value.requestId, allow: payload.value.allow });
+        this.interactionResponses.set(payload.value.requestId, payload.value);
+      }
 
       if (payload.case === "agentToolResult") {
         this.#toolResults.get(payload.value.callId)?.(payload.value);

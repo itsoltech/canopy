@@ -134,7 +134,11 @@ export function InteractionCard({ interaction }: { interaction: ui.Interaction }
             )}
           </Text>
         )}
-        <Text style={[styles.caption, { color: c.muted }]}>Open this thread in Canopy on the web to respond.</Text>
+        <Text style={[styles.caption, { color: c.muted }]}>
+          {permission
+            ? "Approvals need Canopy on the web. Open this thread there to respond."
+            : "This form needs Canopy on the web. Open this thread there to respond."}
+        </Text>
       </View>
     </View>
   );
