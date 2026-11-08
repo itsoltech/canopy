@@ -80,7 +80,7 @@ export function SidebarThread({
       accessibilityRole="button"
       accessibilityLabel={`${thread.title || "Untitled thread"}, ${label}${home.away ? `, ${home.reason}` : ""}`}
       accessibilityState={{ selected: active }}
-      onPress={() => layout.open({ pathname: "/thread/[id]", params: { id: thread.id } })}
+      onPress={() => void layout.openThread(thread.id)}
       style={({ pressed }) => [
         {
           paddingHorizontal: 12,

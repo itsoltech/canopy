@@ -78,14 +78,14 @@ export function TurnDetails({ turn }: { turn: ui.Turn }) {
   const end = turn.completedAt ? Number(turn.completedAt.seconds) * 1000 + turn.completedAt.nanos / 1e6 : undefined;
   const took = start !== undefined && end !== undefined ? Math.round(end - start) : undefined;
 
-  if (took === undefined || took < 0) return null;
+  const duration = took !== undefined && took >= 0 ? formatDuration(took) : "";
 
   return (
     <Text
-      accessibilityLabel={`Time the turn ran: ${formatDuration(took)}`}
-      style={[styles.meta, { color: c.muted, fontVariant: ["tabular-nums"] }]}
+      accessibilityLabel={duration ? `Time the turn ran: ${duration}` : undefined}
+      style={[styles.meta, { minHeight: styles.meta.lineHeight, color: c.muted, fontVariant: ["tabular-nums"] }]}
     >
-      {formatDuration(took)}
+      {duration}
     </Text>
   );
 }

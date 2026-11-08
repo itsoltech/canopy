@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useWindowDimensions } from "react-native";
-import { router, type Href } from "expo-router";
+import { router, usePathname, type Href } from "expo-router";
+import { useSession } from "./session";
 
 /**
  * From this window width (dp, Android's large-screen class) the thread list stays beside the open thread, as on
@@ -12,7 +13,24 @@ export const WIDE_LAYOUT = 600;
 function useLayoutState() {
   const { width } = useWindowDimensions();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { threadCache } = useSession();
+  const opening = useRef(0);
+  const pathname = usePathname();
   const wide = width >= WIDE_LAYOUT;
+
+  useEffect(
+    () => () => {
+      opening.current++;
+    },
+    [threadCache, pathname],
+  );
+
+  function open(href: Href) {
+    opening.current++;
+
+    if (wide) router.replace(href);
+    else router.push(href);
+  }
 
   return {
     wide,
@@ -24,9 +42,15 @@ function useLayoutState() {
       setSidebarOpen((open) => !open);
     },
     /** Opens a thread or chat: beside the list on wide windows (no history between them), pushed on phones. */
-    open(href: Href) {
-      if (wide) router.replace(href);
-      else router.push(href);
+    open,
+    /** Read local history before starting the push, so its first frame includes cached turns and their times. */
+    async openThread(id: string) {
+      const request = ++opening.current;
+
+      if (threadCache && !threadCache.peek(id)) await threadCache.load(id).catch(() => undefined);
+
+      // A later tap or pairing change wins over an outstanding local read.
+      if (request === opening.current) open({ pathname: "/thread/[id]", params: { id } });
     },
   };
 }
