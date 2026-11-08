@@ -143,6 +143,23 @@ export const computerStates = () => [
     reason: "Remote updates need a strictly newer signed release.",
   }),
   computer("Too old", "9", undefined, { remoteUpdate: false, reason: "Update Too old on that computer." }),
+  computer(
+    "Returned on the previous version",
+    "f4",
+    { version: "0.41.0", availableVersion: "0.42.0" },
+    {
+      updates: create(ui.UpdatesSnapshotSchema, {
+        app: { connected: true, phase: "idle", version: "0.41.0", availableVersion: "0.42.0" },
+        departure: {
+          id: "rollback",
+          state: "rolled_back",
+          version: "0.41.0",
+          targetVersion: "0.42.0",
+          reason: "The new version did not start. Check again to retry.",
+        },
+      }),
+    },
+  ),
   // Its own updater, apart from any requested update; the last finished request still names the version it installed.
   computer("Downloading by itself", "a", {
     version: "0.41.0",

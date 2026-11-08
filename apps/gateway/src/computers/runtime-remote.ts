@@ -296,7 +296,10 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     this[computersState].announced = state;
 
     if (state === "sleeping") this[computersState].paused = true;
-    computersBroadcast(this, { body: { case: "presence", value: { state, announcedAtMs: BigInt(Date.now()) } } });
+    const departure = await this.options.core?.departures.snapshot();
+    computersBroadcast(this, {
+      body: { case: "presence", value: { state, announcedAtMs: BigInt(Date.now()), departure } },
+    });
     // Allow queued control frames to reach the socket before a lifecycle stop.
     await new Promise((resolve) => setTimeout(resolve, 100));
 

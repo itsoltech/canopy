@@ -48,6 +48,20 @@ describe.skipIf(!dockerAvailable)("phone administration of linked computers is o
     });
 
     const phone = routedMobileClient({ connection, transport, token: pairing.deviceToken }).api;
+    expect(
+      await failure(phone.manageComputer({ action: "presence", name: "updating", targetVersion: "1.1.0" })),
+    ).toContain("Only this computer");
+    const announcement = gw.core.departures.announce("updating", "1.1.0");
+
+    const observed = async () => {
+      for await (const update of phone.watchOverview({ includeSnapshot: true }, { signal: AbortSignal.timeout(5000) }))
+        if (update.change.case === "gatewayDeparture") return update.change.value;
+      throw new Error("Phone overview ended before the announcement");
+    };
+
+    expect(await observed()).toMatchObject({ state: "updating", targetVersion: "1.1.0" });
+    await announcement;
+    await gw.core.departures.recover("failed", "The update could not be installed.");
     const owner = crypto.randomUUID();
     const peer = await generateIdentity();
     const notice = crypto.randomUUID();

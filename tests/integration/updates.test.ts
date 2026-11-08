@@ -734,6 +734,8 @@ describe("independent update service and gateway mirror", () => {
       active = true,
       restarted = false;
 
+    const announcements: { state: string; target: string | undefined }[] = [];
+
     const workers: WorkerUpdateRow[] = [
       { id: "worker", name: "private", version: "1.0.0", os: "linux", arch: "x64", status: { installKind: "binary" } },
     ];
@@ -747,7 +749,11 @@ describe("independent update service and gateway mirror", () => {
       channel: "v2.0.0",
       authenticate: async () => "worker",
       idle: async () => !active,
+      departure: async (state, target) => {
+        announcements.push({ state, target });
+      },
       restart: async () => {
+        expect(announcements.at(-1)).toEqual({ state: "restarting", target: "2.0.0" });
         restarted = true;
       },
       persistence: {
@@ -765,8 +771,10 @@ describe("independent update service and gateway mirror", () => {
     await runtime.start();
     await runtime.check();
     await refused(runtime.manage(create(ui.ManageUpdatesRequestSchema, { action: "gateway" })), Code.PermissionDenied);
+    expect(announcements).toHaveLength(0);
     admin = true;
     await runtime.manage(create(ui.ManageUpdatesRequestSchema, { action: "gateway" }));
+    expect(announcements).toEqual([{ state: "updating", target: "2.0.0" }]);
     expect(runtime.draining).toBe(true);
     expect(restarted).toBe(false);
     expect(f.downloads()).toBe(0);

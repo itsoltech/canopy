@@ -107,6 +107,8 @@ message ComputerOperationRequest {
   string address = 5;
   // share_onward: the complete selection of this partner's other direct partners.
   repeated string share_onward_node_ids = 6;
+  // Local desktop departure: the version its updater is about to install.
+  string target_version = 7;
 }
 
 // Stage 4: configuration shared between linked computers. Items are opt-in; everything else stays

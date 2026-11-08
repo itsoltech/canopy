@@ -120,6 +120,8 @@ export function createCoreScheduler(core: GatewayCore, options: GatewayCoreOptio
 export function createCoreUpdates(core: GatewayCore, options: GatewayCoreOptions): GatewayUpdates {
   return new GatewayUpdates({
     ...options.updates,
+    departure: (state, target) => core.departures.announce(state, target),
+    recovered: (state, reason, target) => core.departures.recover(state, reason, target),
     bundled: core.role === "desktop",
     idle: async () =>
       core[coreState].pumpAdmissions === 0 && core.bots.idle && ((await options.updates?.idle?.()) ?? true),

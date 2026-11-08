@@ -46,6 +46,7 @@ const PHASE = new Map([
 export function computerUpdate(computer: ui.ComputerUpdate, time = formatPresenceTime): ComputerUpdateView {
   const app = computer.updates?.app;
   const base = { current: false, busy: false, failed: false, actionable: false, target: "", progress: undefined };
+  const departure = computer.updates?.departure;
 
   // Announced before it quit for an update: it comes back by itself.
   if (computer.presence === "updating" || computer.presence === "restarting")
@@ -64,6 +65,23 @@ export function computerUpdate(computer: ui.ComputerUpdate, time = formatPresenc
           ? "Manual update"
           : presenceLabel(computer.presence, computer.presenceSinceMs, time),
       detail: PRESENCE.get(computer.presence) ?? UNREACHABLE,
+    };
+
+  const failedDeparture = !!(
+    departure &&
+    ["failed", "rolled_back"].includes(departure.state) &&
+    !REQUESTED.includes(app?.phase ?? "") &&
+    !["checking", "downloading"].includes(app?.updaterPhase ?? "") &&
+    !(app?.phase === "succeeded" && app.targetVersion === departure.targetVersion)
+  );
+
+  if (failedDeparture && !app)
+    return {
+      ...base,
+      status: departure?.state === "rolled_back" ? "Rolled back" : "Failed",
+      failed: true,
+      target: departure?.targetVersion ?? "",
+      detail: departure?.reason || "The update did not finish. Check again to retry.",
     };
 
   if (!computer.remoteUpdate) return { ...base, status: "Manual update", detail: computer.reason };
@@ -89,37 +107,43 @@ export function computerUpdate(computer: ui.ComputerUpdate, time = formatPresenc
   // A finished request keeps the version it installed; only a running or failed one still aims at it.
   const target = [
     requested || app.phase === "failed" ? app.targetVersion : "",
+    failedDeparture ? departure?.targetVersion : "",
     app.updaterVersion,
     app.availableVersion,
   ]
     .filter(Boolean)
-    .find((version) => newerVersion(version, app.version));
+    .find((version) => version && newerVersion(version, app.version));
 
   const busy = requested || own === "checking" || own === "downloading";
-  const failed = app.phase === "failed" || own === "error";
+  const failed = app.phase === "failed" || own === "error" || failedDeparture;
   const progress = app.phase === "downloading" ? app.progress : own === "downloading" ? app.updaterProgress : 0;
 
   return {
     // The same words as "This Canopy app" (CompactAppUpdate.svelte).
     status: downloading
       ? `${Math.round(progress)}%`
-      : (PHASE.get(app.phase) ??
-        (own === "error"
-          ? "Failed"
-          : own === "checking"
-            ? "Checking"
-            : ready
-              ? "Ready"
-              : target
-                ? "Available"
-                : "Up to date")),
+      : failedDeparture
+        ? departure?.state === "rolled_back"
+          ? "Rolled back"
+          : "Failed"
+        : (PHASE.get(app.phase) ??
+          (own === "error"
+            ? "Failed"
+            : own === "checking"
+              ? "Checking"
+              : ready
+                ? "Ready"
+                : target
+                  ? "Available"
+                  : "Up to date")),
     current: !busy && !failed && !target && !ready,
     busy,
     failed,
     actionable: !busy && (!!target || ready),
     target: target ?? "",
-    detail:
-      app.phase === "waiting_idle"
+    detail: failedDeparture
+      ? departure?.reason || "The update did not finish. Check again to retry."
+      : app.phase === "waiting_idle"
         ? "It restarts after its current turns end."
         : app.phase === "failed"
           ? app.reason

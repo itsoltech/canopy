@@ -267,7 +267,8 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     expect((await computer())?.updates?.app).toMatchObject({ targetVersion: "1.1.0", ready: true });
     app.idle = true;
     await eventually(async () => app.restarted);
-    await eventually(async () => (await computer())?.updates?.app?.phase === "restarting");
+    // The planned departure closes peer reads immediately; the last app snapshot may still say waiting_idle.
+    await eventually(async () => ["updating", "restarting"].includes((await computer())?.presence ?? ""));
     expect((await audit(a, "computer.update.sent")).map((d) => d.node)).toEqual([bNode]);
     expect((await audit(b, "desktop.update.request")).map((d) => d.node)).toEqual([la.hello().nodeId]);
     expect((await audit(b, "computer.update.received")).map((d) => d.node)).toEqual([la.hello().nodeId]);

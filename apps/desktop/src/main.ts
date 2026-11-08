@@ -291,7 +291,10 @@ app.on("before-quit", (event) => {
   };
 
   // EOF makes the guardian stop owned process groups even if Electron subsequently crashes.
-  void rpc("presence", { state: installingUpdate ? "updating" : "shutting_down" })
+  void rpc("presence", {
+    state: installingUpdate ? "updating" : "shutting_down",
+    targetVersion: installingUpdate ? updates.status().updateVersion : undefined,
+  })
     .catch(() => {})
     .finally(() => controller?.stdin.end());
 

@@ -10,6 +10,7 @@ import { linkedUpdates, requestComputerUpdate } from "./linked.ts";
 /** With `linked`, linked computers' apps too; a linked computer asking for this one's snapshot gets it without. */
 export async function updatesSnapshot(core: GatewayCore, linked = true) {
   const value = await core.updates.snapshot();
+  value.departure = await core.departures.snapshot();
   const states = await core.desktopControl.states();
   value.cliWorkers = await coreWorkers(core);
 

@@ -173,7 +173,11 @@ message LinkWelcome {
   // available for update verdicts, presence and unlink.
   string update_node_id = 3;
 }
-message Presence { string state = 1; int64 announced_at_ms = 2; }
+message Presence {
+  string state = 1;
+  int64 announced_at_ms = 2;
+  canopy.ui.v1.GatewayDeparture departure = 3;
+}
 message Heartbeat { int64 sent_at_ms = 1; }
 message Unlinked {}
 // Stage 6, capability "lan_routes": the sender's current addresses (e.g. after its IP changed).

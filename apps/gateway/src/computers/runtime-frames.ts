@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 
-import { computerLink as link } from "@canopy/contracts";
+import { computerLink as link, ui } from "@canopy/contracts";
 
 import { AsyncChannel } from "@canopy/transport";
 
@@ -91,6 +91,13 @@ export async function computersReceive(
   } else if (body.case === "presence") {
     if (!["updating", "restarting", "sleeping", "shutting_down", "connected"].includes(body.value.state))
       throw new ConnectError("Unknown presence state", Code.InvalidArgument);
+
+    if (body.value.departure)
+      hostContext.options.core?.hub.publishOverview(
+        create(ui.OverviewUpdateSchema, {
+          change: { case: "gatewayDeparture", value: { ...body.value.departure, nodeId } },
+        }),
+      );
     await computersStatus(
       hostContext,
       nodeId,
@@ -267,6 +274,7 @@ async function receiveHandshake(
                 ? "updating"
                 : hostContext[computersState].announced,
             announcedAtMs: BigInt(Date.now()),
+            departure: await hostContext.options.core?.departures.snapshot(),
           },
         },
       });

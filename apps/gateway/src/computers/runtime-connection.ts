@@ -241,6 +241,7 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
                         ? "updating"
                         : hostContext[computersState].announced,
                     announcedAtMs: BigInt(Date.now()),
+                    departure: await hostContext.options.core?.departures.snapshot(),
                   },
                 },
               });

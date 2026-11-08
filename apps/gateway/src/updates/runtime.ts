@@ -39,6 +39,8 @@ export interface GatewayUpdatesOptions {
   bundled?: boolean;
   binaryPath?: string;
   restart?(exitCode?: number): Promise<void>;
+  departure?(state: "updating" | "restarting", target?: string): Promise<void>;
+  recovered?(state: string, reason: string, target?: string): Promise<void>;
   idle?(): Promise<boolean>;
   drain?(value: boolean): void;
   log?(message: string): void;
@@ -104,9 +106,15 @@ export class GatewayUpdates {
       if (record) {
         this.#state = record.state;
         this.#reason = record.reason;
+        await this.options.recovered?.(
+          record.state === "failed" && this.version === record.previousVersion ? "rolled_back" : record.state,
+          record.reason,
+          record.version,
+        );
       }
     }
 
+    await this.options.recovered?.(this.#state, this.#reason);
     this.#ready = true;
 
     for (const [id, connection] of this.service.connections) {
@@ -146,7 +154,10 @@ export class GatewayUpdates {
         waiting: async () => {
           this.options.log?.("supervisor handover: waiting for active turns to finish");
         },
-        apply: () => this.options.restart!(SUPERVISOR_HANDOVER_EXIT_CODE),
+        apply: async () => {
+          await this.options.departure?.("restarting");
+          await this.options.restart!(SUPERVISOR_HANDOVER_EXIT_CODE);
+        },
       });
     } finally {
       this.#state = previousState;
@@ -281,9 +292,13 @@ export class GatewayUpdates {
         throw new ConnectError("Release does not support the frozen update protocol", Code.FailedPrecondition);
       this.#state = "waiting_idle";
       this.#reason = "Waiting for active turns to finish";
+      await this.options.departure?.("updating", manifest.version);
       void this.#updateGateway(manifest, request).catch((cause: unknown) => {
         this.#state = "failed";
         this.#reason = cause instanceof Error ? cause.message : "Gateway update failed";
+        void this.options.recovered?.("failed", this.#reason).catch(() => {
+          this.options.log?.("Could not save the gateway update outcome");
+        });
       });
     } else if (request.action === "worker" || request.action === "all") {
       const workers = await this.options.persistence.workers();
@@ -349,6 +364,7 @@ export class GatewayUpdates {
         });
         this.#state = "restarting";
         this.#reason = "Restarting gateway; this page will reconnect";
+        await this.options.departure?.("restarting", manifest.version);
         await Bun.sleep(500);
         await this.options.restart!();
       },
