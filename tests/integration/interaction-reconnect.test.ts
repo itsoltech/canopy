@@ -199,7 +199,8 @@ describe.skipIf(!dockerAvailable)("native interactions across worker reconnects 
     interactions?.mockRestore();
     await runtime?.dispose();
     await gw?.close();
-  });
+    // Closing the worker host, runtime and gateway can outlast bun's 5 s hook default on a busy CI runner.
+  }, 30_000);
 
   test("a provider request made offline reaches the UI once; repeated reconnects do not duplicate its timeline", async () => {
     const threadId = await thread("asks offline");
