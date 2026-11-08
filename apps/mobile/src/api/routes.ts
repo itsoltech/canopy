@@ -1,8 +1,9 @@
 import { gatewayOrigin, mobileClient } from "./client";
 import { RouteDiagnostics, routeFailure, routeKind, type RouteOutcome } from "./route-diagnostics";
 import { FAILED_FOR, raceRoutes } from "./route-race";
-import { ProbeError } from "./route-probe";
+import { ProbeError, probeRoute } from "./route-probe";
 import { observeResponse } from "./stream-response";
+import { MobileDeparture, plannedDeparture } from "./departure";
 
 export { ProbeError } from "./route-probe";
 
@@ -10,6 +11,7 @@ export interface MobileConnection {
   fingerprint: string;
   addresses: string[];
   lastAddress?: string;
+  departure?: string | undefined;
 }
 
 export interface PinnedTransport {
@@ -33,8 +35,13 @@ export function routedMobileClient(options: {
 
   if (!/^[a-f0-9]{64}$/i.test(fingerprint))
     throw new Error("Pair this phone again to verify this computer's certificate.");
-  const selector = new RouteSelector(options.connection, options.transport);
-  const connection = () => selector.connection();
+  const departure = new MobileDeparture(options.connection.departure, () => options.changed?.(connection()));
+
+  const selector = new RouteSelector(options.connection, options.transport, () =>
+    plannedDeparture(departure.snapshot()),
+  );
+
+  const connection = () => ({ ...selector.connection(), departure: departure.serialized() });
 
   // SAFETY: Connect invokes only the Fetch call signature, never Bun's static fetch.preconnect.
   const fetch = (async (input, init) => {
@@ -95,6 +102,7 @@ export function routedMobileClient(options: {
     } satisfies typeof client.api,
     connection,
     diagnostics: selector.diagnostics,
+    departure,
     update,
     reset: () => selector.reset(),
   };
@@ -113,6 +121,7 @@ class RouteSelector {
   constructor(
     readonly saved: MobileConnection,
     readonly transport: PinnedTransport,
+    readonly planned: () => boolean,
   ) {
     this.addresses = normalized(saved.addresses);
     this.#lastAddress = saved.lastAddress;
@@ -132,15 +141,22 @@ class RouteSelector {
 
     if (this.#chosen && this.#chosen.until > Date.now()) return this.#chosen.address;
     const generation = this.generation;
+    const preferred = this.planned() ? this.#lastAddress : undefined;
 
-    const shared = (this.#racing ??= raceRoutes({
-      candidates: this.order(),
-      fingerprint: this.saved.fingerprint,
-      transport: this.transport,
-      diagnostics: this.diagnostics,
-      failed: this.failed,
-      signal: this.#controller.signal,
-    })
+    const shared = (this.#racing ??= (
+      preferred
+        ? probeRoute(this.transport, preferred, this.saved.fingerprint, this.#controller.signal, 2000).then(
+            () => preferred,
+          )
+        : raceRoutes({
+            candidates: this.order(),
+            fingerprint: this.saved.fingerprint,
+            transport: this.transport,
+            diagnostics: this.diagnostics,
+            failed: this.failed,
+            signal: this.#controller.signal,
+          })
+    )
       .then((address) => {
         if (generation === this.generation) {
           this.#chosen = { address, until: Date.now() + KEEP };

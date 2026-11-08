@@ -63,6 +63,12 @@ function useOverviewState() {
     (update: ui.OverviewUpdate) => {
       const change = update.change;
 
+      if (change.case === "gatewayDeparture") {
+        client?.departure.receive(change.value);
+
+        return;
+      }
+
       if (change.case === "mobileRoutes") {
         client?.update(change.value);
 
@@ -78,6 +84,11 @@ function useOverviewState() {
         void reload().catch(() => undefined);
 
       if (change.case === "mobileSnapshot") {
+        if (client?.departure.snapshot())
+          void client.api
+            .getUpdates({})
+            .then((snapshot) => client.departure.reconcile(snapshot))
+            .catch(() => {});
         const next = change.value.overview;
         const peers = next?.computers ?? [];
         setProjects((rows) => retainProjects(rows, next?.projects ?? [], peers));

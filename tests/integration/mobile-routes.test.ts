@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createServer, type AddressInfo, type Server, type Socket } from "node:net";
-import { create } from "@bufbuild/protobuf";
+import { create, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { connectNodeAdapter } from "@connectrpc/connect-node";
 import { generateIdentity } from "../../apps/gateway/src/computers/identity.ts";
@@ -105,6 +105,51 @@ describe("phone route selection", () => {
     // Probing one route after another waited for every dead route's 2 s timeout first.
     expect(performance.now() - started).toBeLessThan(1500);
     expect(saved?.lastAddress).toBe(alive);
+  });
+
+  test("a persisted gateway departure keeps the last route until its window ends; peer departures do not pin it", async () => {
+    const { transport, probes } = counted();
+
+    const announcement = create(ui.GatewayDepartureSchema, {
+      id: "attempt",
+      state: "restarting",
+      targetVersion: "1.1.0",
+      startedAtMs: BigInt(Date.now()),
+      windowMs: 300_000,
+    });
+
+    const client = routedMobileClient({
+      connection: {
+        fingerprint,
+        addresses: [refused, alive],
+        lastAddress: refused,
+        departure: toJsonString(ui.GatewayDepartureSchema, announcement),
+      },
+      transport,
+    });
+
+    const before = requests;
+    await expect(client.api.getOverview({})).rejects.toThrow();
+    expect(probes.get(alive)).toBeUndefined();
+    expect(requests).toBe(before);
+    client.departure.receive(
+      create(ui.GatewayDepartureSchema, { ...announcement, nodeId: "peer", state: "succeeded" }),
+    );
+    await expect(client.api.getOverview({})).rejects.toThrow();
+    expect(requests).toBe(before);
+    // Expiry resumes the ordinary route race. An expired checkpoint also does not survive a phone restart.
+    client.departure.receive(
+      create(ui.GatewayDepartureSchema, {
+        ...announcement,
+        state: "updating",
+        startedAtMs: BigInt(Date.now() - 300_001),
+      }),
+    );
+    await client.api.getOverview({});
+    expect(requests).toBe(before + 1);
+    expect(client.connection().lastAddress).toBe(alive);
+    const restored = routedMobileClient({ connection: client.connection(), transport });
+    expect(restored.departure.snapshot()).toBeUndefined();
   });
 
   test("requests at the same time share one race, then reuse the route without a handshake", async () => {
