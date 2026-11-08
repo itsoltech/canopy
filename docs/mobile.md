@@ -512,13 +512,17 @@ i położenie (tokeny `motion.slow` / `motion.medium`, `smoothOut`); ograniczeni
 przełącza od razu. Androidowe pole tekstowe nie przyjmuje animowanych rozmiarów, więc
 animuje się ramka wokół niego.
 
-Podczas pisania (fokus pola) kontrolki pod polem chowają się: przycisk załączników, model,
-effort, cel, worker i tryb uprawnień (`motion.fast`, przy ograniczeniu ruchu od razu).
-Pole przejmuje ich zmierzone miejsce, więc kompozytor zachowuje wysokość, a tekst ma kilka
-wierszy więcej. Wysyłanie i stop pozostają widoczne; podglądy dodanych załączników też.
+Podczas pisania (fokus pola) dolny pasek pozostaje widoczny: przycisk załączników, model,
+effort oraz wysyłanie/stop. Chowa się tylko dodatkowy wiersz z workerem, celem i trybem
+uprawnień (`motion.fast`, przy ograniczeniu ruchu od razu). Pole przejmuje wyłącznie jego
+zmierzoną wysokość, więc kompozytor zachowuje wysokość, a tekst ma więcej miejsca.
+Dolny pasek zachowuje własną wysokość i miejsce na wysyłanie/stop; podglądy dodanych załączników też zostają.
 Wybory i załączniki zostają, bo kontrolki pozostają zamontowane. Po utracie fokusu albo
 zamknięciu klawiatury kontrolki wracają (Android po zamknięciu klawiatury zostawia fokus
 w polu, więc kompozytor sam je wtedy zdejmuje).
+Na iOS i Androidzie dotknięcie modelu, effort lub spinacza najpierw zamyka klawiaturę,
+a następnie otwiera sheet. Menu załączników nadal sprawdza typ schowka bez odczytu obrazu;
+„Paste image” czyta obraz dopiero po wybraniu tej akcji. Szkic i wybory pozostają zachowane.
 Bot zachowuje jednorzędową pigułkę z rosnącym polem tekstowym. New thread i formularz
 tworzenia wątku bocznego pozostają rozwinięte: przewijają formularz, nie historię rozmowy.
 

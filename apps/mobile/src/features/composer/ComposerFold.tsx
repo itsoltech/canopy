@@ -48,21 +48,31 @@ function grow(room: SharedValue<number>, delta: number) {
  * own clipped height and opacity follow the composer's motion on the UI thread. Only this overlay lays out while it
  * moves, never the timeline beside it.
  */
-export function ComposerFold({ open, children }: { open: boolean; children: ReactNode }) {
+export function ComposerFold({
+  open,
+  hideWhileWriting = true,
+  children,
+}: {
+  open: boolean;
+  /** The main toolbar stays visible while typing and gives none of its height to the field. */
+  hideWhileWriting?: boolean;
+  children: ReactNode;
+}) {
   const { progress, writing, room } = useComposerMotion();
   const height = useSharedValue(0);
   // This row's share of the room, in JS: changes go to the UI thread as deltas, so two rows never race.
   const share = useRef(0);
 
   useEffect(() => {
+    if (!hideWhileWriting) return;
     const own = share;
     scheduleOnUI(grow, room, own.current);
 
     return () => scheduleOnUI(grow, room, -own.current);
-  }, [room]);
+  }, [room, hideWhileWriting]);
 
   const style = useAnimatedStyle(() => {
-    const shown = controlsShown({ progress, writing });
+    const shown = hideWhileWriting ? controlsShown({ progress, writing }) : progress.get();
 
     return { height: height.get() * shown, opacity: shown };
   });
@@ -77,7 +87,8 @@ export function ComposerFold({ open, children }: { open: boolean; children: Reac
       <View
         onLayout={(event) => {
           const next = event.nativeEvent.layout.height;
-          scheduleOnUI(grow, room, next - share.current);
+
+          if (hideWhileWriting) scheduleOnUI(grow, room, next - share.current);
           share.current = next;
           height.set(next);
         }}
