@@ -14,6 +14,8 @@ import { useSession } from "../../state/session";
 import { useRouteStatus } from "../../state/route-status";
 import { hasTailscaleFailure } from "../../api/tailscale-hint";
 import { OpenTailscale } from "./OpenTailscale";
+import { departureLabel, useGatewayDeparture } from "../../state/gateway-departure";
+import { GatewayUpdateNotice } from "./GatewayUpdateNotice";
 
 export interface StreamState {
   readonly connection: Connection;
@@ -58,6 +60,13 @@ const tailscaleLook = {
 
 function useConnectionLook(connection: Connection) {
   const tailscale = hasTailscaleFailure(useRouteStatus());
+  const departure = useGatewayDeparture();
+
+  if (departure.planned && connection !== "offline" && connection !== "paused")
+    return {
+      ...looks.reconnecting,
+      label: departure.value?.state === "updating" && connection === "live" ? "Updating…" : "Restarting…",
+    };
 
   return tailscale && ["connecting", "reconnecting", "unavailable"].includes(connection)
     ? tailscaleLook
@@ -120,6 +129,8 @@ export function ConnectionDetails({
   const look = useConnectionLook(stream.connection);
   const down = stream.connection !== "live" && stream.connection !== "paused" && stream.connection !== "offline";
   const { reconnect } = useSession();
+  const departure = useGatewayDeparture();
+  const planned = departure.planned && stream.connection !== "offline";
 
   return (
     <Overlay visible={visible} onClose={onClose} label="Connection">
@@ -127,11 +138,13 @@ export function ConnectionDetails({
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <StatusDot tone={look.tone} active={stream.connection === "reconnecting"} />
           <Text accessibilityRole="header" style={[type.body, { fontFamily: font.semibold, color: c.text }]}>
-            {look.label}
+            {planned && departure.value ? departureLabel(departure.value, down) : look.label}
           </Text>
         </View>
-        <Text style={[type.small, { color: c.muted }]}>{stream.issue || look.description}</Text>
-        {stream.detail && stream.connection !== "live" ? (
+        <Text style={[type.small, { color: c.muted }]}>
+          {planned ? "Canopy reconnects automatically on the same route." : stream.issue || look.description}
+        </Text>
+        {stream.detail && stream.connection !== "live" && !planned ? (
           <Text selectable style={[type.small, { color: c.muted }]}>
             Last error: <Text style={{ color: c.soft, fontVariant: ["tabular-nums"] }}>{stream.detail}</Text>
           </Text>
@@ -139,7 +152,7 @@ export function ConnectionDetails({
         <ConnectionRoutes />
         {down && (
           <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
-            {look === tailscaleLook && <OpenTailscale />}
+            {look === tailscaleLook && !planned && <OpenTailscale />}
             <Button
               title="Reconnect now"
               icon="arrow-path"
@@ -164,28 +177,32 @@ export function ConnectionDetails({
 export function ConnectionBanner({ stream }: { stream?: StreamState }) {
   const overview = useOverview().stream;
   const tailscale = hasTailscaleFailure(useRouteStatus());
+  const departure = useGatewayDeparture();
   const [open, setOpen] = useState(false);
   const shown = banner(overview, stream, tailscale);
 
-  if (!shown) return null;
-
   return (
     <>
-      <Alert
-        banner
-        tone={shown.tone}
-        actions={
-          <Button
-            title={shown.action === "retry" ? "Retry" : "Details"}
-            size="sm"
-            variant="ghost"
-            onPress={() => (shown.action === "retry" ? shown.stream.retry() : setOpen(true))}
-          />
-        }
-      >
-        {shown.text}
-      </Alert>
-      <ConnectionDetails stream={shown.stream} visible={open} onClose={() => setOpen(false)} />
+      <GatewayUpdateNotice />
+      {shown && (!departure.visible || overview.connection === "offline") && (
+        <>
+          <Alert
+            banner
+            tone={shown.tone}
+            actions={
+              <Button
+                title={shown.action === "retry" ? "Retry" : "Details"}
+                size="sm"
+                variant="ghost"
+                onPress={() => (shown.action === "retry" ? shown.stream.retry() : setOpen(true))}
+              />
+            }
+          >
+            {shown.text}
+          </Alert>
+          <ConnectionDetails stream={shown.stream} visible={open} onClose={() => setOpen(false)} />
+        </>
+      )}
     </>
   );
 }

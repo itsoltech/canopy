@@ -3,6 +3,8 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { useSession } from "./session";
 import { useRouteStatus } from "./route-status";
 import { hasTailscaleFailure } from "../api/tailscale-hint";
+import { plannedDeparture } from "../api/departure";
+import { useGatewayDeparture } from "./gateway-departure";
 
 export type Connection =
   | "connecting"
@@ -24,6 +26,7 @@ export function useStream<T>(
   key: string,
 ) {
   const { active, online, epoch, expired, client } = useSession();
+  const { planned } = useGatewayDeparture();
   const routes = useRouteStatus();
   const tailscale = hasTailscaleFailure(routes);
   const start = useEffectEvent((signal: AbortSignal) => watch!(signal));
@@ -52,6 +55,7 @@ export function useStream<T>(
       );
 
       while (!controller.signal.aborted) {
+        const started = Date.now();
         let reason: string | undefined;
 
         try {
@@ -88,8 +92,9 @@ export function useStream<T>(
         setState({ key: subscriptionKey, connection: "reconnecting", ...(reason && { detail: reason.slice(1, -1) }) });
 
         // Read the completed race now, before React renders it. Only subscriptions retry; never replay an RPC.
-        const delay =
-          client && hasTailscaleFailure(client.diagnostics.snapshot())
+        const delay = plannedDeparture(client?.departure.snapshot())
+          ? Math.max(0, 2500 - (Date.now() - started))
+          : client && hasTailscaleFailure(client.diagnostics.snapshot())
             ? 5000
             : Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5)) * (0.8 + Math.random() * 0.4);
 
@@ -135,7 +140,7 @@ export function useStream<T>(
     ? "offline"
     : !active || !enabled
       ? "paused"
-      : down && stale === subscriptionKey && (!routes.pending || tailscale)
+      : down && stale === subscriptionKey && (!routes.pending || tailscale) && !planned
         ? "unavailable"
         : state.key !== subscriptionKey
           ? "connecting"

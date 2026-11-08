@@ -21,6 +21,15 @@ obsługuje RPC. Gateway całkowicie nieodpowiadający nie może rozesłać sygna
 klienci stosują wtedy zwykłe odzyskiwanie połączenia. Nie zmieniamy
 `canopy.update.v1` ani `WORKER_LINK_PROTOCOL`.
 
+Telefon zapisuje ogłoszenie w istniejącym SecureStore parowania. Przez ogłoszone
+okno (maksymalnie pięć minut) próbuje ostatniej działającej trasy z zachowaniem
+pinu, bez równoległego wyboru innych adresów. Strumienie na pierwszym planie
+ponawiają subskrypcję co 2,5 s zamiast narastającego backoffu; tło i brak sieci
+nadal zatrzymują próby. Po wygaśnięciu wracają zwykła selekcja tras i komunikaty
+o niedostępności. Ogłoszenie partnera nie zmienia trasy telefonu. Raz wysłane RPC
+nie jest automatycznie odtwarzane. Po powrocie telefon pokazuje krótki wynik,
+wersję oraz szczegóły błędu; starszy gateway bez sygnału działa jak wcześniej.
+
 ## Wskaźnik w pasku bocznym
 
 Trzecia ikona stopki (za Settings i licznikiem workerów) pokazuje aktualizacje
