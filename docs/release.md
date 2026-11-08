@@ -367,7 +367,7 @@ podmienia `manifest.json`/`checksums.txt` przez `.next` (brak pozostałych plik�
 `publish-desktop` widzi artefakty z poprzedniej próby po **Re-run failed jobs**; `stop-builds`
 anuluje wyprzedzony przebieg. Dwa merge'e przed cyklem dają jeden nightly z obu commitów;
 kolejny cykl na tym samym SHA albo po samych `docs` pomija `checks` i buildy.
-Sprawdź też wspólną kolejkę schedule/dispatch i wywołanie TestFlight tylko po rzeczywistej publikacji.
+Sprawdź też wspólną kolejkę schedule/dispatch i wywołanie Mobile release tylko po rzeczywistej publikacji.
 
 Bez certyfikatu macOS otrzymuje podpis ad-hoc. Windows beta/stable wymagają Azure
 Trusted Signing; nightly podpisuje przy komplecie trzech sekretów Azure, a bez
@@ -764,13 +764,34 @@ bez niego. Wywołanie Back-merge z Release przekazuje tylko ten sekret jawnie.
 go do tagów, notes i GitHub Releases; konfiguracja semantic-release nie zawiera pluginu git
 ani CHANGELOG-a i nie tworzy commitów na gałęziach. Nie dostają deploy key.
 Nightly hygiene usuwa wyłącznie wydania nightly i wersje GHCR, pozostawiając tagi/notes;
-TestFlight ustawia wersję jedynie w lokalnym `app.json` i przekazuje build number do EAS;
+Mobile release ustawia wersję jedynie w lokalnym `app.json` i przekazuje build number do EAS;
 Pages publikuje przez API Pages, bez pushu gałęzi. Te workflowy nie wymagają bypassu.
 
 Maintainer nadal promuje ręcznie przez **Promote** (w razie potrzeby `override=true`,
 z zachowaniem obowiązkowych bramek). Pilny hotfix trafia PR-em do `next` lub `main`;
 repo admin scala go przez bypass w trybie `pull_request`, bez bezpośredniego pushu.
 Scalenie uruchamia Release dla SHA hotfixu; po stable Back-merge przenosi go dalej.
+
+### Wydania aplikacji mobilnej
+
+Po publikacji `Release` workflow `Mobile release` (`mobile-testflight.yml`) obsługuje wszystkie
+kanały: `dev` → `nightly`, `next` → `beta`, `main`/stabilny tag → `stable`. Wymaga sukcesu
+joba `release` i właściwego tagu na SHA; kolejne przebiegi bez publikacji niczego nie wysyłają.
+Zachowuje filtr zmian ścieżek mobile oraz zależnych workspace'ów. Wersja marketingowa pochodzi
+z tagu bez prerelease (`v0.2.0-beta.1` → `0.2.0`), a numer natywny zwiększa EAS.
+
+Fingerprint natywnego runtime jest liczony osobno dla iOS i Androida. Jeśli na kanale istnieje
+ukończony store build iOS o tym runtime, wydanie JS trafia jako podpisane OTA zamiast nowego IPA.
+Inaczej EAS buduje iOS i wysyła do TestFlight. Android jest zawsze budowany ręcznie; zgodny
+zainstalowany APK otrzymuje OTA razem z iOS (`--platform all`). Kanały nie współdzielą gałęzi OTA.
+Ponowienia korzystają z historii EAS i pełnego SHA w wiadomości; aktywne buildy są deduplikowane.
+Pierwsze wydanie z `expo-updates` musi zbudować nową binarkę, OTA rusza od następnej zmiany JS.
+
+Podpisy wymusza certyfikat w binarce (`apps/mobile/certs/updates-certificate.pem`), klucz prywatny
+trzyma sekret Actions `EXPO_UPDATES_PRIVATE_KEY`. `EXPO_TOKEN` autoryzuje EAS. URL aktualizacji
+jest w `apps/mobile/app.json`, a publikacja w `scripts/mobile-publish-update.sh`; te granice
+przygotowują migrację na własny serwer protokołu Expo Updates. Szczegóły kanałów, ponowień,
+rotacji klucza i rollbacku: [mobile.md](mobile.md#wydania-mobilne-testflight-i-ota).
 
 ## Bootstrap 0.1.0 — wykonuje rodzic
 
