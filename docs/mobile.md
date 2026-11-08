@@ -661,6 +661,17 @@ nie pełna równoważność wszystkich jego funkcji.
 
 ### Wklejanie i upuszczanie
 
+Menu załączników zamyka się przed otwarciem Photos, Files lub odczytem „Paste image”.
+`Overlay` kończy animację wyjścia, a potem czeka na natywne zamknięcie modala:
+`Modal.onDismiss` na iOS, usunięcie nieanimowanego Dialog w commicie na Androidzie.
+`PickerSheet.onDismiss` uruchamia zapamiętaną akcję tylko raz. Samo `onClose` ani
+koniec animacji nie wystarczają do prezentacji kolejnego kontrolera UIKit.
+Zamykana nakładka nie przyjmuje dotyku; spinacz jest zablokowany do zakończenia
+wyboru lub wklejania. Anulowanie odblokowuje go bez komunikatu, błędy pokazują krótki
+komunikat z możliwością zamknięcia i ponowienia akcji. Photos używa systemowego
+wyboru obrazów bez wcześniejszego żądania pełnego dostępu do biblioteki; brak takiej
+zgody nie blokuje wyboru. Kompozytor nie ma akcji robienia zdjęcia kamerą.
+
 Wklejanie i upuszczanie plików (`features/attachments/FileIntake.tsx`, lokalny moduł Expo
 `modules/canopy-file-intake`) idzie tą samą drogą co wybór: `UploadAttachment` z limitami gatewaya.
 Menu spinacza pokazuje „Paste image”, gdy schowek ma obraz. `expo-clipboard` `hasImageAsync`
