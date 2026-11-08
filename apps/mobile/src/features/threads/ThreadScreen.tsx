@@ -32,6 +32,7 @@ import { FloatingComposer } from "../composer/FloatingComposer";
 import { useFloatingComposer } from "../composer/useFloatingComposer";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { visibleTurns } from "./thread-turns";
+import { threadComposerHeight } from "../composer/geometry";
 
 /** The gateway refused the message and says why (not delivered: no retry note); otherwise delivery is unknown. */
 function deliveryError(failure: ConnectError) {
@@ -182,6 +183,7 @@ function useThreadComposer(state: ThreadState) {
     state.following,
     Boolean(message.value.text.length || message.files.files.length || message.trigger) ||
       interactions.some((i) => i.kind === InteractionKind.QUESTION && !i.asynchronous),
+    threadComposerHeight,
   );
 }
 

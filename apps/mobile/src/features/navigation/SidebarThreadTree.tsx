@@ -129,7 +129,7 @@ function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; pr
       accessibilityRole="button"
       accessibilityLabel={`${thread.title || "Untitled thread"}${label ? `, ${label}` : ""}`}
       accessibilityState={{ selected: active }}
-      onPress={() => layout.open({ pathname: "/thread/[id]", params: { id: thread.id } })}
+      onPress={() => void layout.openThread(thread.id)}
       style={({ pressed }) => [
         styles.row,
         {

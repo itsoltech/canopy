@@ -10,6 +10,7 @@ import { MessageSpans, type BadgeTone } from "../composer/MessageText";
 import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
 import { useChatInputID } from "../composer/ChatKeyboard";
 import { useKeyboardBlur } from "../composer/useKeyboardBlur";
+import { composerGeometry } from "../composer/geometry";
 
 /** What each trigger character does, as on the web; no-break spaces keep each item on one line. */
 const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell"]
@@ -108,7 +109,7 @@ export function ComposerBox({
         badges={badges}
       />
       {!inline && (
-        <ComposerFold open={!compact} hideWhileWriting={false}>
+        <ComposerFold open={!compact} expandedHeight={composerGeometry.toolbar} hideWhileWriting={false}>
           <ComposerControls shell={shell} files={files} sendWidth={running && !empty && onQueue ? 92 : 60}>
             {controls}
           </ComposerControls>
@@ -152,7 +153,12 @@ function ComposerControls({
   const c = useColors();
 
   return (
-    <View style={[styles.row, { minHeight: 52, padding: 10, paddingLeft: 12, paddingRight: sendWidth }]}>
+    <View
+      style={[
+        styles.row,
+        { minHeight: composerGeometry.toolbar, padding: 10, paddingLeft: 12, paddingRight: sendWidth },
+      ]}
+    >
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -209,7 +215,7 @@ function ComposerInput({
 
     const natural = Math.min(
       max,
-      Math.max(inline ? 44 : interpolate(t, [0, 1], [44, 64]), lines.get() + padTop + padBottom),
+      Math.max(inline ? 44 : interpolate(t, [0, 1], [44, composerGeometry.input]), lines.get() + padTop + padBottom),
     );
 
     // Writing: the field fills the room it was given (its height when writing began plus the controls' room) and
@@ -285,6 +291,8 @@ export function ComposerPill({
   warning = false,
   danger = false,
   leading,
+  width,
+  loading,
 }: {
   icon: Parameters<typeof Icon>[0]["name"];
   title: string;
@@ -292,18 +300,21 @@ export function ComposerPill({
   warning?: boolean;
   danger?: boolean;
   leading?: ReactNode;
+  width?: number;
+  loading?: boolean;
 }) {
   const c = useColors();
   const tone = danger ? c.danger : warning ? c.warning : c.muted;
 
   return (
-    <Skeleton>
+    <Skeleton loading={loading}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={title}
         onPress={onPress}
         style={({ pressed }) => ({
-          minHeight: 36,
+          minHeight: composerGeometry.secondary,
+          width,
           flexDirection: "row",
           alignItems: "center",
           gap: 4,
@@ -313,7 +324,7 @@ export function ComposerPill({
         })}
       >
         {leading ?? <Icon name={icon} size={14} color={tone} />}
-        <Text numberOfLines={1} style={[styles.meta, { color: tone, maxWidth: 140 }]}>
+        <Text numberOfLines={1} style={[styles.meta, { color: tone, maxWidth: 140, flexShrink: 1 }]}>
           {title}
         </Text>
         <Icon name="chevron-down" size={12} />

@@ -39,10 +39,11 @@ function animate({ progress, moving, instant }: Fold, compact: boolean) {
 export function useFloatingComposer<Item>(
   following: ReturnType<typeof useFollowingList<Item>>,
   protectedDraft = false,
+  initialHeight = 0,
 ) {
   const reduced = useReducedMotion();
   const [compact, setCompact] = useState(false);
-  const [height, setHeight] = useState(0);
+  const [height, setHeight] = useState(initialHeight);
   // 1 open … 0 compact; every part of the composer follows it (ComposerMotionContext).
   const progress = useSharedValue(1);
   const moving = useSharedValue(false);

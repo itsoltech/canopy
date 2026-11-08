@@ -563,6 +563,17 @@ pozostałe operacje, w tym odpowiedzi na zgody i edycja kolejki, nadal trafiają
 autorytatywnego gatewaya. Brak kopii oznacza skeleton timeline; nagłówek, model i
 worker korzystają z overview/listy zamiast tymczasowych nazw.
 
+Otwarcie z listy (także wątku bocznego lub archiwalnego) najpierw odczytuje lokalny
+cache, bez oczekiwania na sieć. Dopiero potem rozpoczyna push/replace, więc pierwszy
+render korzysta z `peek`, razem z czasami tur. Kolejne tapnięcie lub zmiana parowania
+unieważnia oczekującą na dysk nawigację. Bez wpisu pozostaje skeleton historii.
+Katalogi modeli są przechowywane w pamięci przez czas życia klienta parowania
+i pobierane już przy widocznej liście workerów; kompozytor odczytuje je synchronicznie.
+Model, effort i uprawnienia mają stałe sloty 160/96/128 dp. Nieznany katalog pokazuje skeleton zamiast
+surowego identyfikatora modelu; model bez effort pozostawia pusty slot. Zmiana etykiet
+nie przesuwa sąsiednich kontrolek. Stopka zakończonej tury zachowuje wysokość linii,
+nawet gdy czasy nie są jeszcze dostępne, tak jak `TurnDetails` w web.
+
 Androidowy build deweloperski wyłącza `expo-build-properties.android.networkInspector`.
 Inspektor Expo podgląda do 1 MiB odpowiedzi HTTP/2 przed przekazaniem jej aplikacji;
 dla cichego, otwartego strumienia Connect oznacza to blokadę małych delt i overview.
@@ -684,7 +695,10 @@ obramowaniem i cieniem w jasnym motywie oraz wygaszeniem tła na 32 dp jak w web
 `features/composer/FloatingComposer.tsx` ma osobny pas gradientu o stałej wysokości **32 dp**
 nad górną krawędzią pola; gradient nie rozciąga się na pełną wysokość kontenera. Pod ostatnią
 wiadomością (w nagłówku odwróconej listy) stoi rezerwa zmierzonej wysokości rozwiniętego
-kompozytora. Pomiar nie zawiera safe area, klawiatury ani pustych wierszy statusu. Zwijanie
+kompozytora. Pierwszy render pustego wątku rezerwuje 186 dp: pole 64, toolbar 56,
+dolny wiersz 36, odstęp 8, padding 20 i obramowanie 2. Oba foldy zaczynają z pełną
+wysokością swoich wierszy zamiast zera; późniejszy pomiar nadal obsługuje rzeczywisty
+rozmiar treści. Pomiar nie zawiera safe area, klawiatury ani pustych wierszy statusu. Zwijanie
 i rozwijanie zmienia wyłącznie nakładkę; obie strony przejścia zachowują tę samą rezerwę,
 bez końcowej zmiany wysokości nagłówka listy ani korekty scrolla. Dzięki temu ostatnia wiadomość
 ma miejsce przez całe otwieranie. Rezerwa podąża za zmianami rozwiniętej treści (np. długim

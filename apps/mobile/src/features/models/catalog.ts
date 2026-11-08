@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { Provider, type ModelInfo, type ProfileModels, type ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
@@ -128,24 +128,12 @@ export function findChoice(section: ModelSection | undefined, model: string) {
 
 /** The worker's model catalog, loaded on selection and again when its home reconnects. */
 export function useModelCatalog(workerId: string | undefined) {
-  const { client } = useSession();
+  const { client, modelCatalog } = useSession();
   const online = useOverview().workers.find((worker) => worker.id === workerId)?.online;
-  const [catalog, setCatalog] = useState<{ workerId: string; profiles: ProfileModels[] }>();
+  const catalog = useSyncExternalStore(modelCatalog.subscribe, () => modelCatalog.peek(workerId));
   useEffect(() => {
-    let active = true;
+    if (client && workerId && online) void modelCatalog.load(workerId, true).catch(() => undefined);
+  }, [client, modelCatalog, workerId, online]);
 
-    if (client && workerId && online)
-      void client.api
-        .listModels({ workerId })
-        .then((r) => {
-          if (active) setCatalog({ workerId, profiles: r.workers.flatMap((w) => w.profiles) });
-        })
-        .catch(() => undefined);
-
-    return () => {
-      active = false;
-    };
-  }, [client, workerId, online]);
-
-  return catalog && catalog.workerId === workerId ? catalog.profiles : [];
+  return catalog;
 }

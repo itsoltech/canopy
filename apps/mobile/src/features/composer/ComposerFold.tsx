@@ -50,16 +50,19 @@ function grow(room: SharedValue<number>, delta: number) {
  */
 export function ComposerFold({
   open,
+  expandedHeight,
   hideWhileWriting = true,
   children,
 }: {
   open: boolean;
+  /** Reserve the row before its first native measurement; controls must be whole during a screen push. */
+  expandedHeight: number;
   /** The main toolbar stays visible while typing and gives none of its height to the field. */
   hideWhileWriting?: boolean;
   children: ReactNode;
 }) {
   const { progress, writing, room } = useComposerMotion();
-  const height = useSharedValue(0);
+  const height = useSharedValue(expandedHeight);
   // This row's share of the room, in JS: changes go to the UI thread as deltas, so two rows never race.
   const share = useRef(0);
 

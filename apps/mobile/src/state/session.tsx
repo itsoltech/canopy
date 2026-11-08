@@ -9,6 +9,7 @@ import { type PersistentThreadCache } from "../storage/thread-cache";
 import { prepareBotCache } from "../storage/bot-cache-native";
 import { clearPairedHistory, type PersistentBotCache } from "../storage/bot-cache";
 import { bots as botContract } from "@canopy/contracts";
+import { ModelCatalogCache } from "../features/models/catalog-cache";
 
 function useSessionState() {
   const [session, setSession] = useState<DeviceSession | null>(null);
@@ -61,6 +62,8 @@ function useSessionState() {
     [session, persistence],
   );
 
+  const modelCatalog = useMemo(() => new ModelCatalogCache(client?.api), [client]);
+
   // Connections pooled before a suspension or a network change may be dead without either side knowing. Reset
   // runs inside the event, before React restarts any stream, so the next requests race the routes on new ones.
   useEffect(() => {
@@ -102,6 +105,7 @@ function useSessionState() {
   return {
     session,
     client,
+    modelCatalog,
     threadCache,
     botCache,
     bots,

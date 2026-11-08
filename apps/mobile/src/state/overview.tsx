@@ -19,7 +19,7 @@ const upsertComputer = (rows: ui.LinkedComputer[], value: ui.LinkedComputer) => 
 ];
 
 function useOverviewState() {
-  const { client, session } = useSession();
+  const { client, session, modelCatalog } = useSession();
   const [threads, setThreads] = useState<ui.Thread[]>([]);
   const [projects, setProjects] = useState<ui.Project[]>([]);
   const [workers, setWorkers] = useState<ui.Worker[]>([]);
@@ -27,6 +27,14 @@ function useOverviewState() {
   const [loaded, setLoaded] = useState(false);
   const [linkedReads, setLinkedReads] = useState<Record<string, number>>({});
   const generation = useRef(0);
+
+  // Warm model names and effort choices while the thread list is visible, before a composer mounts.
+  useEffect(() => {
+    if (!client) return;
+
+    for (const worker of workersWithAvailability(workers, computers))
+      if (worker.online) void modelCatalog.load(worker.id).catch(() => {});
+  }, [client, modelCatalog, workers, computers]);
 
   const reload = useCallback(async () => {
     if (!client) return;
