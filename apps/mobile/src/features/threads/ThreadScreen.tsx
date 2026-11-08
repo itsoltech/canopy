@@ -212,7 +212,7 @@ export function ThreadScreen({ id }: { id: string }) {
     blocked,
   } = state;
 
-  const { atBottom, showLatest } = following;
+  const { atBottom } = following;
 
   if (!ready) return <ConversationSkeleton />;
 
@@ -245,7 +245,7 @@ export function ThreadScreen({ id }: { id: string }) {
             motion={composer.motion}
             onLayout={composer.measure}
             onExpand={composer.expand}
-            onLatest={atBottom ? undefined : showLatest}
+            onLatest={atBottom ? undefined : composer.showLatest}
             overlay={<ThreadSuggestions state={state} />}
             accessory={
               <>

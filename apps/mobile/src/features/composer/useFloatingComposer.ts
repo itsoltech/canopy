@@ -1,15 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LayoutChangeEvent } from "react-native";
-import { useAnimatedScrollHandler, useSharedValue, withTiming, type SharedValue } from "react-native-reanimated";
+import { useSharedValue, withTiming, type SharedValue } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
-import { useKeyboardMotion } from "./useKeyboardMotion";
+import { useComposerScroll } from "./useComposerScroll";
 import { motion, smoothOut, useReducedMotion } from "../../ui/motion";
 import type { useFollowingList } from "../../ui/useFollowingList";
-
-// Match web's ComposerCompaction and FEED_END_THRESHOLD, in native layout points.
-const END_DISTANCE = 8;
-const COMPACT_DISTANCE = 192;
-const COMPACT_TRAVEL = 96;
 
 interface Fold {
   readonly progress: SharedValue<number>;
@@ -19,8 +14,8 @@ interface Fold {
   readonly instant: SharedValue<boolean>;
 }
 
-/** Runs the fold on the UI thread (also when started from JS); an opening that ends hands the size to `settle`. */
-function animate({ progress, moving, instant }: Fold, compact: boolean, settle: () => void) {
+/** Folding only animates the overlay; neither direction changes the timeline's reserve on completion. */
+function animate({ progress, moving, instant }: Fold, compact: boolean) {
   "worklet";
   moving.set(true);
   const duration = instant.get() ? 0 : compact ? motion.medium : motion.slow;
@@ -28,8 +23,6 @@ function animate({ progress, moving, instant }: Fold, compact: boolean, settle: 
     withTiming(compact ? 0 : 1, { duration, easing: smoothOut }, (finished) => {
       if (!finished) return;
       moving.set(false);
-
-      scheduleOnRN(settle);
     }),
   );
 }
@@ -39,8 +32,9 @@ function animate({ progress, moving, instant }: Fold, compact: boolean, settle: 
  * handler folds it after a reader gesture travels toward older messages and opens it at the end, in the same frame.
  * Stream updates, keyboard changes and anchor corrections are not reader gestures and change nothing.
  *
- * The timeline reserves the input's real settled height. Folding and writing animate only the overlay, then its
- * reserve settles with native visible-content anchoring. Status rows, popovers, keyboard and safe areas are separate.
+ * The timeline retains the measured expanded input height through both directions of the fold. The last message
+ * already has room when the composer opens, and reading history never needs a reserve/scroll correction.
+ * Status rows, popovers, keyboard and safe areas are separate.
  */
 export function useFloatingComposer<Item>(
   following: ReturnType<typeof useFollowingList<Item>>,
@@ -54,30 +48,47 @@ export function useFloatingComposer<Item>(
   const moving = useSharedValue(false);
   const instant = useSharedValue(reduced);
   const folded = useSharedValue(false);
+  const opening = useSharedValue(false);
   const guarded = useSharedValue(protectedDraft);
-  // A finger or its fling moves the list: only then does travel count.
-  const reader = useSharedValue(false);
-  const travel = useSharedValue(0);
-  const previous = useSharedValue(0);
   const writing = useSharedValue(0);
   const room = useSharedValue(0);
   // The controls folding away for writing, or coming back.
   const shifting = useSharedValue(false);
   const [focused, setFocused] = useState(false);
+  const focusedNow = useRef(false);
   const measured = useRef(0);
   const motionState = useMemo(() => ({ progress, moving, instant }), [progress, moving, instant]);
-  const { track, distance } = following;
-  const keyboardMoving = useKeyboardMotion(reader, travel);
 
-  const settle = useCallback(() => setHeight(measured.current), []);
+  const settle = useCallback(() => {
+    if (folded.get() || opening.get() || moving.get() || shifting.get()) return;
+    setHeight((reserve) => (focusedNow.current ? Math.max(reserve, measured.current) : measured.current));
+  }, [folded, opening, moving, shifting]);
+
+  const fold = useCallback(
+    (next: boolean) => {
+      "worklet";
+
+      if (folded.get() === next) return false;
+      folded.set(next);
+      opening.set(!next);
+      scheduleOnRN(setCompact, next);
+      animate(motionState, next);
+
+      return true;
+    },
+    [folded, opening, motionState],
+  );
+
+  const { onScroll, reset } = useComposerScroll(following, moving, guarded, fold);
 
   // The open motion from JS; React's flag follows separately (`expand`, or at render for a protected draft).
   const open = useCallback(() => {
-    if (!folded.get()) return;
-    folded.set(false);
-    travel.set(0);
-    animate(motionState, false, settle);
-  }, [folded, travel, motionState, settle]);
+    reset();
+
+    // An interaction with an already open input can change its natural size, including making it shorter.
+    if (!folded.get() && !moving.get()) opening.set(false);
+    fold(false);
+  }, [reset, fold, folded, moving, opening]);
 
   /** Opens it now (a tap, focus, typing): the motion starts on the UI thread in this frame. */
   function expand() {
@@ -88,16 +99,6 @@ export function useFloatingComposer<Item>(
   // A question or draft arriving while folded opens it until another reader gesture.
   if (protectedDraft && compact) setCompact(false);
 
-  function fold(next: boolean) {
-    "worklet";
-
-    if (folded.get() === next) return;
-    folded.set(next);
-    travel.set(0);
-    scheduleOnRN(setCompact, next);
-    animate(motionState, next, settle);
-  }
-
   useEffect(() => {
     instant.set(reduced);
   }, [instant, reduced]);
@@ -105,6 +106,8 @@ export function useFloatingComposer<Item>(
   // Writing: the controls fold away and the field grows into their room (`fast`, the same both ways).
   const onFocus = useCallback(
     (next: boolean) => {
+      focusedNow.current = next;
+      reset();
       setFocused(next);
       shifting.set(true);
       writing.set(
@@ -115,7 +118,7 @@ export function useFloatingComposer<Item>(
         }),
       );
     },
-    [writing, shifting, reduced, settle],
+    [writing, shifting, reduced, settle, reset],
   );
 
   const composerMotion = useMemo(
@@ -129,60 +132,39 @@ export function useFloatingComposer<Item>(
     if (protectedDraft) open();
   }, [protectedDraft, guarded, open]);
 
-  const onScroll = useAnimatedScrollHandler({
-    onBeginDrag: (event) => {
-      reader.set(true);
-      previous.set(distance(event.contentOffset.y));
-    },
-    onEndDrag: (event) => {
-      // A release without a fling ends the gesture; a fling keeps it until its momentum ends.
-      if (Math.abs(event.velocity?.y ?? 0) < 0.05) reader.set(false);
-    },
-    onMomentumBegin: () => reader.set(true),
-    onMomentumEnd: (event) => {
-      reader.set(false);
-      track(event.contentOffset.y);
-    },
-    onScroll: (event) => {
-      const fromEnd = distance(event.contentOffset.y);
-      const up = fromEnd - previous.get();
-      previous.set(fromEnd);
-
-      track(event.contentOffset.y);
-
-      if (keyboardMoving.get()) return;
-
-      if (fromEnd <= END_DISTANCE) return fold(false);
-
-      if (!reader.get() || guarded.get()) return;
-      travel.set(Math.max(0, travel.get() + up));
-
-      if (fromEnd >= COMPACT_DISTANCE && travel.get() >= COMPACT_TRAVEL) fold(true);
-    },
-  });
-
   function measure(event: LayoutChangeEvent) {
     measured.current = event.nativeEvent.layout.height;
 
-    // Wait until the input settles, then release any space its folded controls no longer occupy.
-    if (moving.get() || shifting.get()) return;
+    // Only real expanded-content changes (drafts/files) update the reserve. Folding never releases it.
+    if (folded.get() || moving.get() || shifting.get()) return;
 
-    if (Math.abs(measured.current - height) >= 1) setHeight(measured.current);
+    // onLayout crosses to JS: a partial frame can arrive after the UI animation's completion callback.
+    // Keep the existing reserve until an expanded measurement catches up, even with reduced motion.
+    if (opening.get()) {
+      if (measured.current < height) return;
+      opening.set(false);
+    }
+
+    if (focused ? measured.current > height : Math.abs(measured.current - height) >= 1) {
+      reset();
+      settle();
+    }
   }
-
-  const anchor = following.listProps.maintainVisibleContentPosition;
 
   return {
     compact,
     motion: composerMotion,
     expand,
+    showLatest: () => {
+      expand();
+      following.showLatest();
+    },
     height,
     measure,
     listProps: {
+      // FlatList already accounts for ListHeaderComponent; index 0 is the newest turn, not the reserve.
       ...following.listProps,
       onScroll,
-      // Skip the reserve spacer when anchoring the first visible message.
-      maintainVisibleContentPosition: anchor ? { ...anchor, minIndexForVisible: 1 } : undefined,
     },
   };
 }

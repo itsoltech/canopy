@@ -18,6 +18,7 @@ export function useFollowingList<Item>(keyboardChat = false) {
   const list = useRef<FlatList<Item>>(null);
   const [atBottom, setAtBottom] = useState(true);
   const scrollY = useSharedValue(0);
+  const corrections = useSharedValue(0);
   const bottom = useSharedValue(true);
   const keyboard = useKeyboardFrame();
   const insets = useContentInsets();
@@ -46,10 +47,11 @@ export function useFollowingList<Item>(keyboardChat = false) {
         return scrollY.get();
       },
       set current(value: number) {
+        corrections.set(corrections.get() + 1);
         scrollY.set(value);
       },
     }),
-    [scrollY],
+    [scrollY, corrections],
   );
 
   const isFollowing = useCallback(() => distance(scrollY.get()) <= FOLLOW_THRESHOLD, [scrollY, distance]);
@@ -69,6 +71,7 @@ export function useFollowingList<Item>(keyboardChat = false) {
   );
 
   function jump(animated: boolean) {
+    corrections.set(corrections.get() + 1);
     const end = minimum.get();
     list.current?.scrollToOffset({ offset: end, animated });
     scrollY.set(end);
@@ -98,6 +101,7 @@ export function useFollowingList<Item>(keyboardChat = false) {
     track,
     distance,
     minimum,
+    corrections,
     resumeFollowing: () => jump(false),
     showLatest: () => jump(true),
     listProps: {

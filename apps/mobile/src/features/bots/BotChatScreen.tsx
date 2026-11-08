@@ -137,7 +137,7 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
   const rows = useChatRows(conversation, approvals, known);
   const waiting = approvals.some((a) => a.status === "pending");
 
-  const { atBottom, showLatest } = following;
+  const { atBottom } = following;
   const latestFirst = [...rows].reverse();
   const arrival = useArrivals(latestFirst.map(chatRowId), Boolean(conversation), { newestFirst: true });
 
@@ -192,7 +192,7 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
             motion={composer.motion}
             onLayout={composer.measure}
             onExpand={composer.expand}
-            onLatest={atBottom ? undefined : showLatest}
+            onLatest={atBottom ? undefined : composer.showLatest}
           >
             {error ? <Notice error>{error}</Notice> : null}
             {home.away && (
