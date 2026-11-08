@@ -32,6 +32,17 @@ wersję oraz szczegóły błędu; starszy gateway bez sygnału działa jak wcze�
 
 ## Wskaźnik w pasku bocznym
 
+Aplikacja iOS/Android ma ten sam punkt wejścia: trzecią ikonę stopki paska bocznego.
+Kropka oznacza dostępne aktualizacje lub trwającą operację. Dolny panel pokazuje
+gateway albo aplikację komputera, połączone komputery, workery z podziałem na dom,
+zwinięte Agent CLIs oraz stan OTA telefonu. Ustawienia używają tych samych wierszy
+i warunków dostępności akcji. `Update all` obejmuje lokalne workery i CLI oraz
+aplikacje połączonych komputerów; indywidualne akcje korzystają z istniejących,
+sprawdzających właściciela API. Odczyt odświeża się tylko na pierwszym planie:
+co 15 s, a przy otwartym panelu lub trwającej aktualizacji co 2,5 s po odpowiedzi.
+Ostatni wynik pozostaje widoczny w czasie restartu. Błędy mają szczegóły z kopiowaniem.
+Zmiana telefonu dotyczy wyłącznie JS/TS i nie wymaga nowego runtime ani builda EAS.
+
 Trzecia ikona stopki (za Settings i licznikiem workerów) pokazuje aktualizacje
 własnej aplikacji desktopowej: stan spokojny, sprawdzanie, pobieranie z procentem
 oraz gotowość do restartu. Hover i klik otwierają ten sam przewijany popover;

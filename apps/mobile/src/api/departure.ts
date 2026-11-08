@@ -20,7 +20,7 @@ export class MobileDeparture {
     readonly changed: () => void,
   ) {
     try {
-      const value = saved ? fromJsonString(ui.GatewayDepartureSchema, saved) : undefined;
+      const value = saved ? fromJsonString(ui.GatewayDepartureSchema, saved, { ignoreUnknownFields: true }) : undefined;
 
       if (plannedDeparture(value)) this.value = value;
     } catch {
@@ -60,8 +60,19 @@ export class MobileDeparture {
   }
   receive(value: ui.GatewayDeparture) {
     if (value.nodeId || !value.id) return;
+    const previous = this.value;
+    const pending = ["updating", "restarting"].includes(value.state);
 
-    if (!["updating", "restarting"].includes(value.state) && this.value?.id !== value.id) return;
+    // A read started before recovery must not restore the outage after its terminal stream event.
+    if (
+      previous &&
+      (previous.id !== value.id
+        ? value.startedAtMs < previous.startedAtMs
+        : pending && !["updating", "restarting"].includes(previous.state))
+    )
+      return;
+
+    if (!pending && previous?.id !== value.id) return;
 
     if (this.value && equals(ui.GatewayDepartureSchema, this.value, value)) return;
     this.value = value;

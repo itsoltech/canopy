@@ -6,7 +6,8 @@ import { Alert } from "../../ui/Alert";
 import { Button } from "../../ui/Button";
 import { Overlay } from "../../ui/Overlay";
 import { styles, useColors } from "../../ui/theme";
-import { openSettingsSection } from "../settings/navigation";
+import { useUpdates } from "../updates/state";
+import { UpdateDetails } from "../updates/UpdateDetails";
 
 export function GatewayUpdateNotice() {
   const { value, visible } = useGatewayDeparture();
@@ -14,6 +15,7 @@ export function GatewayUpdateNotice() {
   const [open, setOpen] = useState(false);
   const updates = useRef(false);
   const c = useColors();
+  const { setOpen: showUpdates } = useUpdates();
 
   if (!value) return null;
   const failed = value.state === "failed" || value.state === "rolled_back";
@@ -37,7 +39,7 @@ export function GatewayUpdateNotice() {
         onDismiss={() => {
           if (updates.current) {
             updates.current = false;
-            openSettingsSection("workers");
+            showUpdates(true);
           }
         }}
       >
@@ -48,12 +50,12 @@ export function GatewayUpdateNotice() {
               ? `${value.version} → ${value.targetVersion}`
               : value.version}
           </Text>
-          <Text selectable style={[styles.overlayMeta, { color: c.muted }]}>
-            {value.reason ||
-              (failed
-                ? "The update did not finish. Open Updates to retry."
-                : "Canopy reconnects automatically on the same route.")}
+          <Text style={[styles.overlayMeta, { color: c.muted }]}>
+            {failed
+              ? "The update did not finish. Open Updates to retry."
+              : "Canopy reconnects automatically on the same route."}
           </Text>
+          {!!value.reason && <UpdateDetails text={value.reason} />}
           <Button
             title="Open updates"
             onPress={() => {
