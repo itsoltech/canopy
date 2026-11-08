@@ -14,7 +14,7 @@ export async function clipboardImage() {
 
     const base64 = image.data.slice(image.data.indexOf(",") + 1);
 
-    return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    return { data: Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)), previewUri: image.data };
   } catch {
     Alert.alert("Could not paste image", "Copy the image again, then allow pasting if asked.", [{ text: "Close" }]);
   }

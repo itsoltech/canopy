@@ -1,85 +1,14 @@
 import { useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import Animated from "react-native-reanimated";
+import { Pressable } from "react-native";
 import { Icon } from "../../ui/Icon";
-import { useMotion } from "../../ui/motion";
 import { PickerSheet } from "../../ui/Picker";
-import { styles, useColors } from "../../ui/theme";
-import { fileSize, type DraftFile, type useAttachmentDraft } from "./useAttachmentDraft";
+import { useColors } from "../../ui/theme";
+import type { useAttachmentDraft } from "./useAttachmentDraft";
+
+export { AttachmentChips } from "./AttachmentChips";
 
 type Draft = ReturnType<typeof useAttachmentDraft>;
-
-/**
- * Files still uploading or that failed, as removable chips above the text: their badges sit in the text, which
- * cannot show progress or a reason. A stored file has only its badge.
- */
-export function AttachmentChips({ files, onRemove }: { files: DraftFile[]; onRemove: (key: string) => void }) {
-  const c = useColors();
-  const shown = files.filter((f) => !f.attachment);
-  const { pop, layout } = useMotion();
-
-  if (!shown.length) return null;
-
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ gap: 6, paddingHorizontal: 12, paddingTop: 12 }}
-    >
-      {/* A chip pops in when added and out when removed; its neighbours glide aside (web `pop`, `reorder`). */}
-      {shown.map((f) => (
-        <Animated.View
-          key={f.key}
-          entering={pop.entering}
-          exiting={pop.exiting}
-          layout={layout}
-          style={[
-            styles.row,
-            {
-              gap: 6,
-              maxWidth: 220,
-              minHeight: 36,
-              paddingLeft: 10,
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: f.error ? c.danger : c.line,
-              backgroundColor: c.inset,
-            },
-          ]}
-        >
-          {!f.attachment && !f.error ? (
-            <ActivityIndicator size="small" color={c.muted} accessibilityLabel={`Uploading ${f.name}`} />
-          ) : (
-            <Icon
-              name={f.error ? "exclamation-circle" : f.kind === "image" ? "photo" : "document-text"}
-              size={14}
-              color={f.error ? c.danger : c.muted}
-            />
-          )}
-          <View style={{ flexShrink: 1 }}>
-            <Text numberOfLines={1} style={[styles.caption, { color: c.text }]}>
-              {f.name}
-            </Text>
-            <Text numberOfLines={1} style={[styles.caption, { color: f.error ? c.danger : c.faint }]}>
-              {f.error ?? fileSize(f.size)}
-            </Text>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Remove ${f.name}`}
-            onPress={() => onRemove(f.key)}
-            hitSlop={6}
-            style={{ width: 32, height: 36, alignItems: "center", justifyContent: "center" }}
-          >
-            <Icon name="x-mark" size={14} />
-          </Pressable>
-        </Animated.View>
-      ))}
-    </ScrollView>
-  );
-}
 
 type Source = "photos" | "files" | "paste";
 
@@ -146,7 +75,7 @@ export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boo
         sections={[
           {
             options: [
-              { value: "photos" as const, label: "Photos", icon: "photo" as const },
+              { value: "photos" as const, label: "Photos and videos", icon: "photo" as const },
               { value: "files" as const, label: "Files", icon: "document-text" as const },
               ...(image
                 ? [{ value: "paste" as const, label: "Paste image", icon: "clipboard-document" as const }]
