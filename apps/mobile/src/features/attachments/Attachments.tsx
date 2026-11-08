@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Keyboard, Pressable, ScrollView, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { Icon } from "../../ui/Icon";
 import { useMotion } from "../../ui/motion";
@@ -93,6 +93,7 @@ export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boo
   const [image, setImage] = useState(false);
 
   async function show() {
+    Keyboard.dismiss();
     setImage(await Clipboard.hasImageAsync().catch(() => false));
     setOpen(true);
   }
