@@ -51,6 +51,10 @@ wszędzie, gdzie gateway używa `NetworkAccess.addresses()`/`origins()`:
 - trasy w kodach QR i linkach parowania telefonów i klientów desktopowych;
 - karta Network access i podsumowanie w Linked computers.
 
+Telefon porządkuje kandydatów lokalnie: IP Tailscale wyprzedza nazwę MagicDNS, więc niedziałający
+resolver telefonu nie opóźnia działającego IP. Kolejność ogłaszana pozostałym klientom nie zmienia się.
+Szczegóły timeoutów i diagnostyki tras: [mobile.md](mobile.md#parowanie-i-granica-uprawnień).
+
 **Certyfikaty bez zmian.** Każdy klient (łącze komputerów, worker, enrollment, UpdateService, telefony
 iOS/Android) sprawdza pełny SHA-256 przypiętego certyfikatu i pomija weryfikację nazwy hosta
 (`checkServerIdentity` porównuje pin). Nazwa MagicDNS działa więc jak każdy adres: nie trzeba jej dodawać

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import * as http2 from "node:http2";
+import { createHash } from "node:crypto";
 import { connect, createServer, type AddressInfo, type Server, type Socket } from "node:net";
 import { generateIdentity } from "../../apps/gateway/src/computers/identity.ts";
 import { openListener, type Listener } from "../../apps/gateway/src/network/listener.ts";
@@ -12,14 +13,23 @@ describe("network access listener liveness", () => {
   let path: Server;
   const sockets = new Set<Socket>();
   let frozen = false;
+  let delayMs = 0;
   let open = 0;
+  let certificate = "";
+  let fingerprint = "";
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const logs: string[] = [];
 
   beforeAll(async () => {
+    const identity = await generateIdentity();
+    certificate = identity.certificate;
+    fingerprint = identity.fingerprint;
     listener = await openListener({
       host: "127.0.0.1",
       port: 0,
-      identity: await generateIdentity(),
-      liveness: { intervalMs: 200, timeoutMs: 300 },
+      identity,
+      liveness: { intervalMs: 200, timeoutMs: 900 },
+      log: (message) => logs.push(message),
       // A quiet live stream: headers, then nothing until the phone leaves.
       route: () => (request, response) => {
         open++;
@@ -32,7 +42,17 @@ describe("network access listener liveness", () => {
     path = createServer((phone) => {
       const computer = connect(listener.port, "127.0.0.1");
       sockets.add(phone).add(computer);
-      phone.on("data", (data) => frozen || computer.write(data));
+      phone.on("data", (data) => {
+        if (frozen) return;
+
+        const timer = setTimeout(() => {
+          timers.delete(timer);
+
+          if (!frozen && !computer.destroyed) computer.write(data);
+        }, delayMs);
+
+        timers.add(timer);
+      });
       computer.on("data", (data) => frozen || phone.write(data));
       phone.on("error", () => computer.destroy());
       computer.on("error", () => phone.destroy());
@@ -41,15 +61,49 @@ describe("network access listener liveness", () => {
   });
 
   afterAll(async () => {
+    for (const timer of timers) clearTimeout(timer);
+
     for (const socket of sockets) socket.destroy();
     await new Promise<void>((resolve) => path?.close(() => resolve()));
     await listener?.close();
   });
 
-  test("a quiet stream stays open while the phone answers, and ends once it stops", async () => {
-    // SAFETY: the path listens on a TCP host/port.
+  function phoneClient() {
+    // SAFETY: the path listens on a TCP host/port. Trust only the generated test computer's certificate.
     const port = (path.address() as AddressInfo).port;
-    const phone = http2.connect(`https://127.0.0.1:${port}`, { rejectUnauthorized: false });
+
+    return http2.connect(`https://127.0.0.1:${port}`, {
+      ca: certificate,
+      checkServerIdentity: (_host, peer) =>
+        createHash("sha256").update(peer.raw).digest("hex") === fingerprint ? undefined : new Error("pin"),
+    });
+  }
+
+  test("slow pongs outlive the old deadline without closing a healthy session", async () => {
+    const phone = phoneClient();
+    phone.on("error", () => {});
+
+    try {
+      const stream = phone.request({ ":method": "POST", ":path": "/canopy.ui.v1.GatewayService/WatchOverview" });
+      stream.on("error", () => {});
+      await new Promise((resolve) => stream.once("response", resolve));
+      // 450 ms replies exceed the former 300 ms test deadline; a full window tolerates them.
+      delayMs = 450;
+      await Bun.sleep(1800);
+      expect(open).toBe(1);
+      expect(logs.some((line) => line.includes("liveness_timeout"))).toBe(false);
+    } finally {
+      delayMs = 0;
+      phone.destroy();
+      await eventually(
+        async () => open,
+        (count) => count === 0,
+      );
+    }
+  });
+
+  test("a quiet stream stays open while the phone answers, and ends once it stops", async () => {
+    const phone = phoneClient();
     phone.on("error", () => {});
 
     try {
@@ -71,6 +125,8 @@ describe("network access listener liveness", () => {
         ),
       ).toBe(0);
       expect(performance.now() - started).toBeLessThan(2000);
+      expect(logs.some((line) => line.includes("closed reason=liveness_timeout duration_ms="))).toBe(true);
+      expect(logs.join()).not.toContain(fingerprint);
     } finally {
       phone.destroy();
     }

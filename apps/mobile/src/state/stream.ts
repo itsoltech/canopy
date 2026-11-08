@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useSession } from "./session";
+import { useRouteStatus } from "./route-status";
 
 export type Connection =
   | "connecting"
@@ -22,6 +23,7 @@ export function useStream<T>(
   key: string,
 ) {
   const { active, online, epoch, expired } = useSession();
+  const routes = useRouteStatus();
   const start = useEffectEvent((signal: AbortSignal) => watch!(signal));
   const onReceive = useEffectEvent(receive);
   const onExpired = useEffectEvent(expired);
@@ -34,7 +36,7 @@ export function useStream<T>(
   const [attempt, setAttempt] = useState(0);
   const [stale, setStale] = useState("");
   const enabled = Boolean(watch);
-  const subscriptionKey = `${key}:${attempt}`;
+  const subscriptionKey = `${key}:${attempt}:${epoch}`;
   useEffect(() => {
     if (!enabled || !active || !online) return;
     const controller = new AbortController();
@@ -125,7 +127,7 @@ export function useStream<T>(
     ? "offline"
     : !active || !enabled
       ? "paused"
-      : down && stale === subscriptionKey
+      : down && stale === subscriptionKey && !routes.pending
         ? "unavailable"
         : state.key !== subscriptionKey
           ? "connecting"

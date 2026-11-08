@@ -5,7 +5,12 @@ import { ui } from "@canopy/contracts";
 import { connectNodeAdapter } from "@connectrpc/connect-node";
 import { generateIdentity } from "../../apps/gateway/src/computers/identity.ts";
 import { openListener, type Listener } from "../../apps/gateway/src/network/listener.ts";
-import { routedMobileClient, type MobileConnection, type PinnedTransport } from "../../apps/mobile/src/api/routes.ts";
+import {
+  ProbeError,
+  routedMobileClient,
+  type MobileConnection,
+  type PinnedTransport,
+} from "../../apps/mobile/src/api/routes.ts";
 import { nodePinnedTransport } from "./support/phone.ts";
 
 /** A phone returning with dead routes in its pairing: a blackholed address (connects, never answers TLS, like a
@@ -69,10 +74,10 @@ describe("phone route selection", () => {
     let resets = 0;
 
     const transport: PinnedTransport = {
-      probe: (origin, pin, signal) => {
+      probe: (origin, pin, signal, timeoutMs) => {
         probes.set(origin, (probes.get(origin) ?? 0) + 1);
 
-        return real.probe(origin, pin, signal);
+        return real.probe(origin, pin, signal, timeoutMs);
       },
       fetch: real.fetch,
       reset: () => resets++,
@@ -114,6 +119,30 @@ describe("phone route selection", () => {
     expect(Math.max(...probes.values())).toBe(1);
   });
 
+  test("requests arriving while RPC headers are pending reuse the successful probe", async () => {
+    const { transport, probes } = counted();
+
+    const client = routedMobileClient({
+      connection: { fingerprint, addresses: [alive] },
+      transport: {
+        ...transport,
+        async fetch(url, init, pin) {
+          const response = await transport.fetch(url, init, pin);
+          await Bun.sleep(150);
+
+          return response;
+        },
+      },
+    });
+
+    const before = requests;
+    const first = client.api.getOverview({});
+    await Bun.sleep(50);
+    await Promise.all([first, ...Array.from({ length: 12 }, () => client.api.getOverview({}))]);
+    expect(requests - before).toBe(13);
+    expect(probes.get(alive)).toBe(1);
+  });
+
   test("a request canceled while routes are probed doesn't stop the race for the next one", async () => {
     const { transport, probes } = counted();
     let saved: MobileConnection | undefined;
@@ -140,7 +169,127 @@ describe("phone route selection", () => {
     expect(client.connection().lastAddress).toBe(alive);
   });
 
-  test("with no working route the phone learns it after one timeout, not one per route", async () => {
+  test("tailnet IP bypasses broken MagicDNS even when the saved route is the hostname", async () => {
+    const dns = "https://computer.tailnet.ts.net:23456";
+    const ip = "https://100.64.0.9:23456";
+    const real = nodePinnedTransport();
+    const probes: string[] = [];
+
+    const client = routedMobileClient({
+      connection: { fingerprint, addresses: [dns, ip], lastAddress: dns },
+      transport: {
+        ...real,
+        probe(route, pin, signal, timeoutMs) {
+          probes.push(route);
+
+          return route === dns
+            ? Promise.reject(new ProbeError("UnknownHostException"))
+            : real.probe(alive, pin, signal, timeoutMs);
+        },
+        fetch: (_url, init, pin) => real.fetch(`${alive}/canopy.ui.v1.GatewayService/GetOverview`, init, pin),
+      },
+    });
+
+    await client.api.getOverview({});
+    expect(probes).toEqual([ip]);
+    expect(client.diagnostics.snapshot().active).toBe(ip);
+  });
+
+  test("a pin mismatch and refusal identify their routes without retrying the pin", async () => {
+    const wrong = "https://changed.invalid:23456";
+    const real = nodePinnedTransport();
+    let pinChecks = 0;
+
+    const client = routedMobileClient({
+      connection: { fingerprint, addresses: [wrong, refused, alive] },
+      transport: {
+        ...real,
+        probe(route, pin, signal, timeoutMs) {
+          if (route === wrong) {
+            pinChecks++;
+
+            return real.probe(alive, "f".repeat(64), signal, timeoutMs);
+          }
+
+          return real.probe(route, pin, signal, timeoutMs);
+        },
+      },
+    });
+
+    await client.api.getOverview({});
+    expect(pinChecks).toBe(1);
+    expect(client.diagnostics.snapshot().routes.find((route) => route.address === wrong)?.outcome).toBe("pin");
+    expect(client.diagnostics.snapshot().routes.find((route) => route.address === refused)?.outcome).toBe("refused");
+  });
+
+  test("an RPC whose response is lost is never replayed on another route", async () => {
+    const real = nodePinnedTransport();
+
+    const client = routedMobileClient({
+      connection: { fingerprint, addresses: [alive, refused] },
+      transport: {
+        ...real,
+        async fetch(url, init, pin) {
+          const response = await real.fetch(url, init, pin);
+          await response.arrayBuffer();
+          throw new ProbeError("SocketTimeoutException");
+        },
+      },
+    });
+
+    const before = requests;
+    await expect(client.api.getOverview({})).rejects.toThrow();
+    expect(requests - before).toBe(1);
+    expect(client.diagnostics.snapshot().routes.find((route) => route.address === alive)?.phase).toBe("request");
+    expect(client.diagnostics.snapshot().routes.find((route) => route.address === alive)?.outcome).toBe("timeout");
+  });
+
+  test("a body failure after headers invalidates the route without replay", async () => {
+    const real = nodePinnedTransport();
+
+    const client = routedMobileClient({
+      connection: { fingerprint, addresses: [alive] },
+      transport: {
+        ...real,
+        async fetch(url, init, pin) {
+          const response = await real.fetch(url, init, pin);
+          await response.arrayBuffer();
+
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new ProbeError("SocketTimeoutException"));
+              },
+            }),
+            { status: response.status, headers: response.headers },
+          );
+        },
+      },
+    });
+
+    const before = requests;
+    await expect(client.api.getOverview({})).rejects.toThrow();
+    expect(requests - before).toBe(1);
+    expect(client.diagnostics.snapshot().active).toBeUndefined();
+    expect(client.diagnostics.snapshot().routes[0]?.outcome).toBe("timeout");
+  });
+
+  test("reset during a blackholed race cancels it and ignores its late results", async () => {
+    const { transport, probes } = counted();
+    const client = phone(transport);
+    const before = requests;
+    const abandoned = client.api.getOverview({}).catch(() => undefined);
+    await Bun.sleep(50);
+    client.reset();
+    await client.api.getOverview({});
+    await abandoned;
+    expect(requests - before).toBe(1);
+    expect(probes.get(silent)).toBe(2);
+    expect(client.diagnostics.snapshot().active).toBe(alive);
+    expect(client.diagnostics.snapshot().pending).toBe(false);
+  });
+
+  test("blackholed routes share one bounded recovery window", async () => {
     const { transport } = counted();
 
     const client = routedMobileClient({
@@ -150,6 +299,8 @@ describe("phone route selection", () => {
 
     const started = performance.now();
     await expect(client.api.getOverview({})).rejects.toThrow("Cannot reach this computer securely");
-    expect(performance.now() - started).toBeLessThan(3500);
-  });
+    expect(performance.now() - started).toBeLessThan(12_000);
+    expect(client.diagnostics.snapshot().pending).toBe(false);
+    expect(client.diagnostics.snapshot().routes.filter((route) => route.outcome === "timeout")).toHaveLength(2);
+  }, 15_000);
 });

@@ -1,5 +1,6 @@
 import { NativeModule, requireNativeModule } from "expo";
 import { ProbeError, type PinnedTransport } from "./routes";
+import { streamResponse } from "./stream-response";
 
 type ResponseEvent = { id: string; status: number; headers: Record<string, string>; fingerprint: string };
 
@@ -27,19 +28,21 @@ declare class PinnedModule extends NativeModule<Events> {
   ): Promise<void>;
   cancel(id: string): void;
   reset(): void;
+  cancelProbe(id: string): void;
   probe(
     host: string,
     port: number,
     pin: string,
     timeoutMs: number,
-  ): Promise<{ ok: boolean; fingerprint?: string; code?: string }>;
+    id: string,
+  ): Promise<{ ok: boolean; fingerprint?: string; code?: string; kind?: string }>;
 }
 
 const native = requireNativeModule<PinnedModule>("CanopyPinnedFetch");
 let sequence = 0;
 
 /** Every watched stream starts with a snapshot, which brings its headers; none in this time means a dead connection. */
-const STREAM_RESPONSE_TIMEOUT = 20_000;
+const STREAM_RESPONSE_TIMEOUT = 40_000;
 const PROBE_TIMEOUT = 2000;
 
 /** Streaming Fetch adapter for Connect. TLS pinning runs natively before request bytes leave the phone. */
@@ -82,7 +85,7 @@ function fetchPinned(url: string, init: RequestInit | undefined, fingerprint: st
     const streaming = headers["content-type"]?.startsWith("application/connect+");
 
     const waiting = streaming
-      ? setTimeout(() => fail(new Error(withCode(UNREACHABLE, "timeout"))), STREAM_RESPONSE_TIMEOUT)
+      ? setTimeout(() => fail(new ProbeError("timeout", withCode(UNREACHABLE, "timeout"))), STREAM_RESPONSE_TIMEOUT)
       : undefined;
 
     const stream = new ReadableStream<Uint8Array>({
@@ -102,7 +105,7 @@ function fetchPinned(url: string, init: RequestInit | undefined, fingerprint: st
         if (event.id !== id || finished) return;
 
         if (event.fingerprint && event.fingerprint !== fingerprint) {
-          fail(new Error(PIN_CHANGED));
+          fail(new ProbeError("pin", PIN_CHANGED));
 
           return;
         }
@@ -119,7 +122,7 @@ function fetchPinned(url: string, init: RequestInit | undefined, fingerprint: st
         controller.close();
       }),
       native.addListener("onError", (event) => {
-        if (event.id === id) fail(new Error(failure(event)));
+        if (event.id === id) fail(failure(event));
       }),
     );
     init?.signal?.addEventListener("abort", abort, { once: true });
@@ -144,74 +147,41 @@ const UNREACHABLE = "Could not connect to this computer. Check the network, then
 const withCode = (text: string, code?: string) => (code ? `${text} (${code})` : text);
 
 function failure(event: ErrorEvent) {
-  if (event.kind === "pin") return PIN_CHANGED;
+  if (event.kind === "pin") return new ProbeError("pin", PIN_CHANGED);
 
-  if (event.kind === "io") return withCode("Connection interrupted. Try again.", event.code);
-
-  return withCode(UNREACHABLE, event.code);
-}
-
-/** React Native's Response constructor doesn't accept streams. Connect consumes body, arrayBuffer or json. */
-function streamResponse(body: ReadableStream<Uint8Array>, event: ResponseEvent) {
-  const response = new Response(null, { status: event.status, headers: event.headers });
-  Object.defineProperty(response, "body", { value: body });
-  response.arrayBuffer = async () => {
-    const reader = body.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-
-        if (done) break;
-        size += value.byteLength;
-
-        if (size > 32 * 1024 * 1024) throw new Error("Response is too large.");
-        chunks.push(value);
-      }
-    } finally {
-      await reader.cancel();
-      reader.releaseLock();
-    }
-
-    const result = new Uint8Array(size);
-    let offset = 0;
-
-    for (const chunk of chunks) {
-      result.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    return result.buffer;
-  };
-
-  response.text = async () => new TextDecoder().decode(await response.arrayBuffer());
-  response.json = async () => JSON.parse(await response.text());
-
-  return response;
+  return new ProbeError(
+    event.code ?? "unknown",
+    withCode(event.kind === "io" ? "Connection interrupted. Try again." : UNREACHABLE, event.code),
+  );
 }
 
 export const pinnedTransport: PinnedTransport = {
-  async probe(origin, fingerprint, signal) {
+  async probe(origin, fingerprint, signal, timeoutMs = PROBE_TIMEOUT) {
     signal?.throwIfAborted();
     const url = new URL(origin);
+    const id = `probe-${++sequence}`;
+    const abort = () => native.cancelProbe(id);
+    signal?.addEventListener("abort", abort, { once: true });
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     // The native timeout covers connect and handshake; this one also covers a name lookup that never ends.
     const late = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new ProbeError("timeout")), PROBE_TIMEOUT + 1000);
+      timer = setTimeout(() => reject(new ProbeError("timeout")), timeoutMs);
     });
 
     const result = await Promise.race([
-      native.probe(url.hostname.replace(/^\[|\]$/g, ""), Number(url.port || 443), fingerprint, PROBE_TIMEOUT),
+      native.probe(url.hostname.replace(/^\[|\]$/g, ""), Number(url.port || 443), fingerprint, timeoutMs, id),
       late,
-    ]).finally(() => clearTimeout(timer));
+    ]).finally(() => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      native.cancelProbe(id);
+    });
 
     signal?.throwIfAborted();
 
     if (!result.ok || result.fingerprint !== fingerprint)
-      throw new ProbeError(result.ok ? "pin" : (result.code ?? "unknown"));
+      throw new ProbeError(result.ok || result.kind === "pin" ? "pin" : (result.code ?? "unknown"));
   },
   fetch: fetchPinned,
   reset: () => native.reset(),
