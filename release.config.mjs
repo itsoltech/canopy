@@ -5,6 +5,9 @@ export default {
     { name: "dev", channel: "nightly", prerelease: "nightly" },
   ],
   tagFormat: "v${version}",
+  // GitHub's addChannel hook can create a public release even with draftRelease enabled.
+  // Promotions build their own version; only release-upload.ts may make it visible.
+  addChannel: [],
   plugins: [
     // Delegates to commit-analyzer (Angular), adjusting breaking changes only while major is zero.
     "./scripts/release-analyzer.mjs",
@@ -13,7 +16,7 @@ export default {
     ["@semantic-release/release-notes-generator", { preset: "angular" }],
     [
       "@semantic-release/github",
-      { successComment: false, failComment: false, failTitle: false, releasedLabels: false },
+      { draftRelease: true, successComment: false, failComment: false, failTitle: false, releasedLabels: false },
     ],
   ],
 };
