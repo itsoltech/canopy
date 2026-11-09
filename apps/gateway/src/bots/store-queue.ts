@@ -15,6 +15,8 @@ import { botConfiguration, uuid } from "./store-views.ts";
 import type { BotAccess } from "./store-access.ts";
 import type { botConfig } from "./store-config.ts";
 
+type BotTurnKey = Pick<BotTurn, "id">;
+
 /** Queues a bot turn with its message (user, bot, routine or system input). */
 function botEnqueue(
   sql: SqlClient.SqlClient,
@@ -48,7 +50,7 @@ function botEnqueue(
 
         // A retry returns the original turn even if a mentioned bot was deleted since acceptance.
         const previous =
-          (yield* sql<BotTurn>`SELECT * FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0];
+          (yield* sql<BotTurnKey>`SELECT id FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0];
 
         if (previous) return previous.id;
 
@@ -133,12 +135,14 @@ function botEnqueue(
           ? `Routine instructions (${options.routineTitle}):\n${routine.instructions}\n\n${input}`
           : input;
 
-        yield* sql`INSERT INTO bot_turns(id, bot_id, client_request_id, input, hops, reply_to_bot_id, exchange_id, routine_id, routine_title)
+        const inserted =
+          yield* sql<BotTurnKey>`INSERT INTO bot_turns(id, bot_id, client_request_id, input, hops, reply_to_bot_id, exchange_id, routine_id, routine_title)
       VALUES (${turnId}::uuid, ${botId}::uuid, ${requestId}, ${storedInput}, ${options.hops ?? 0}, ${options.replyTo ?? null}::uuid, ${options.exchangeId ?? null}::uuid, ${options.routineId ?? null}::uuid, ${options.routineTitle ?? ""})
-      ON CONFLICT(bot_id, client_request_id) DO NOTHING`;
+      ON CONFLICT(bot_id, client_request_id) DO NOTHING RETURNING id`;
 
         const turn =
-          (yield* sql<BotTurn>`SELECT * FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0]!;
+          inserted[0] ??
+          (yield* sql<BotTurnKey>`SELECT id FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0]!;
 
         for (const image of images)
           yield* sql`UPDATE attachments SET bot_id=${botId}::uuid, bot_turn_id=${turn.id}::uuid
