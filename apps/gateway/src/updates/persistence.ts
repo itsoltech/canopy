@@ -66,7 +66,7 @@ export class UpdatePersistence {
       }),
     );
   }
-  async workers(): Promise<WorkerUpdateRow[]> {
+  async workers(includeCommands = true): Promise<WorkerUpdateRow[]> {
     const userId = this.userId;
 
     return this.runtime.runPromise(
@@ -81,7 +81,10 @@ export class UpdatePersistence {
           arch: string;
           capabilities: { update?: WorkerUpdateRow["status"]; updateCommand?: JsonValue; desktopBundled?: boolean };
         }>`
-        SELECT id, name, version, os, arch, capabilities FROM workers WHERE archived_at IS NULL AND revoked_at IS NULL
+        SELECT id, name, version, os, arch,
+          jsonb_build_object('update',capabilities->'update','desktopBundled',capabilities->'desktopBundled',
+            'updateCommand',CASE WHEN ${includeCommands} THEN capabilities->'updateCommand' END) AS capabilities
+          FROM workers WHERE archived_at IS NULL AND revoked_at IS NULL
           AND (owner_user_id = ${userId}::uuid OR owner_user_id IS NULL) ORDER BY name`;
 
         return rows.map((r) => ({

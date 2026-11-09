@@ -11,13 +11,13 @@ import { coreUiThread } from "./core-titles.ts";
 import { decorateOrigins } from "./workspace-origins.ts";
 
 export async function coreBroadcastThread(hostContext: GatewayCore, threadId: string): Promise<void> {
-  const thread = coreUiThread(hostContext, await coreRun(hostContext, (s) => s.thread(threadId, true)));
+  const thread = coreUiThread(hostContext, await coreRun(hostContext, (s) => s.thread(threadId, true, true)));
   hostContext.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "thread", value: thread } }));
   hostContext.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: thread } }));
 }
 
 export async function coreBroadcastTurn(hostContext: GatewayCore, threadId: string, turnId: string): Promise<void> {
-  const turn = (await coreRun(hostContext, (s) => s.turnsOf(threadId))).find((t) => t.id === turnId);
+  const turn = (await coreRun(hostContext, (s) => s.turnsOf(threadId, [turnId])))[0];
 
   if (!turn) return;
   hostContext.hub.publishThread(

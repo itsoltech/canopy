@@ -6,6 +6,9 @@ import { cursorOf, type Clock } from "./mirror.ts";
 import type { RemoteServe } from "./remote.ts";
 import type { LinkedComputers } from "./runtime.ts";
 import { watchTiming } from "./watch-liveness.ts";
+import { MIRROR_CURSOR } from "@canopy/domain/thread-mirror";
+import { threadWatchRevision } from "../store/thread-watch-revision.ts";
+import { linkedMessage } from "./remote-policy.ts";
 
 /** The durable revision probe does not depend on Hub fan-out or on an HTTP/2 pong. */
 export async function* publishThreadWatch(
@@ -21,17 +24,22 @@ export async function* publishThreadWatch(
   const close = () => output.close();
   combined.addEventListener("abort", close, { once: true });
   let probing = false;
+  let checkpoint = request.cursor || request.mirrorCursor;
 
   const probe = async () => {
     if (probing || combined.aborted) return;
     probing = true;
 
     try {
+      const base = MIRROR_CURSOR.exec(checkpoint);
+
       const clock = (
-        await computers.store.query<Clock>(
-          "SELECT epoch,revision::text FROM computer_thread_clock WHERE owner_user_id=$1::uuid",
-          [computers.store.owner],
-        )
+        await computers.store.query<Clock>(threadWatchRevision, [
+          computers.store.owner,
+          request.threadId,
+          base?.[1] ?? null,
+          base?.[2] ?? null,
+        ])
       )[0];
 
       if (clock && !combined.aborted) output.push(create(ui.ThreadUpdateSchema, { watchCursor: cursorOf(clock) }));
@@ -58,8 +66,15 @@ export async function* publishThreadWatch(
 
   const reading = (async () => {
     try {
-      for await (const update of serve(ui.GatewayService.method.watchThread, request, combined, peer))
+      for await (const update of serve(ui.GatewayService.method.watchThread, request, combined, peer)) {
+        const typed = linkedMessage(ui.ThreadUpdateSchema, update);
+
+        if (typed.change.case === "snapshot") checkpoint = typed.change.value.cursor;
+        else if (typed.change.case === "delta") checkpoint = typed.change.value.snapshot?.cursor ?? checkpoint;
+
         if (!output.push(update)) break;
+      }
+
       output.close();
     } catch (error) {
       if (!combined.aborted)

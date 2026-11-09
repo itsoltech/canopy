@@ -89,13 +89,19 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
         id: string;
       }>`SELECT id FROM projects WHERE owner_user_id = ${ownerUserId}::uuid AND kind = 'scratch' FOR UPDATE`)[0]!;
 
-      const workers = yield* sql<{ id: string; os: string; capabilities: { scratchRoot?: string } }>`
-            SELECT w.id, w.os, w.capabilities FROM workers w JOIN worker_configs c ON c.worker_id = w.id
+      const workers = yield* sql<{ id: string; os: string; scratch_root: string | null }>`
+            SELECT w.id, w.os, w.capabilities->>'scratchRoot' AS scratch_root FROM workers w JOIN worker_configs c ON c.worker_id = w.id
             WHERE (w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId}::uuid)
               AND w.archived_at IS NULL AND w.revoked_at IS NULL`;
 
+      const currentWorkspaces = yield* sql<{ id: string; worker_id: string; root_path: string }>`
+        SELECT id,worker_id,root_path FROM project_workspaces
+        WHERE project_id=${scratch.id}::uuid AND archived_at IS NULL`;
+
+      const byWorker = new Map(currentWorkspaces.map((w) => [w.worker_id, w]));
+
       for (const worker of workers) {
-        const root = worker.capabilities.scratchRoot;
+        const root = worker.scratch_root;
 
         if (!root) continue;
         const style = pathStyle(worker.os, root);
@@ -103,11 +109,7 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
         if (!isAbsolutePath(root, style)) continue;
         const base = scratchBase(root, ownerUserId, style);
 
-        const current = (yield* sql<{
-          id: string;
-          root_path: string;
-        }>`SELECT id, root_path FROM project_workspaces
-              WHERE project_id = ${scratch.id}::uuid AND worker_id = ${worker.id}::uuid AND archived_at IS NULL`)[0];
+        const current = byWorker.get(worker.id);
 
         if (!current)
           yield* sql`INSERT INTO project_workspaces (id, project_id, worker_id, root_path)
@@ -144,21 +146,29 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
                  AND coalesce(host.capabilities->>'scratchRoot', '') <> ''))
              ORDER BY w.created_at`;
 
+      const byProject = new Map<string, ui.Workspace[]>();
+
+      for (const w of workspaces) {
+        const group = byProject.get(w.project_id) ?? [];
+        group.push(
+          create(ui.WorkspaceSchema, {
+            id: w.id,
+            projectId: w.project_id,
+            workerId: w.worker_id,
+            rootPath: w.root_path,
+            label: w.label,
+            gitOrigin: w.git_origin,
+          }),
+        );
+        byProject.set(w.project_id, group);
+      }
+
       return projects.map((p) =>
         create(ui.ProjectSchema, {
           ...p,
           globalId: p.global_id,
           createdAt: timestampFromDate(new Date(p.created_at)),
-          workspaces: workspaces
-            .filter((w) => w.project_id === p.id)
-            .map((w) => ({
-              id: w.id,
-              projectId: w.project_id,
-              workerId: w.worker_id,
-              rootPath: w.root_path,
-              label: w.label,
-              gitOrigin: w.git_origin,
-            })),
+          workspaces: byProject.get(p.id) ?? [],
         }),
       );
     }),

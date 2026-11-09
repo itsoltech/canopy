@@ -2,11 +2,10 @@ import { createHash } from "node:crypto";
 import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ConfigAppliedSchema, Provider, ui, type Hello } from "@canopy/contracts";
-import { Effect, Option } from "effect";
+import { Effect } from "effect";
 import { workerLinkCompatible } from "@canopy/domain/release/protocol";
 import type { SqlClient } from "effect/sql";
 import { one, type Fx } from "./errors.ts";
-import { storedWorkerConfig } from "./worker-config-json.ts";
 
 export interface WorkerStore {
   // users
@@ -18,6 +17,56 @@ export interface WorkerStore {
   workerSeen(workerId: string): Fx<void>;
   journalCursors(workerId: string, journalId: string): Fx<{ threadId: string; lastSeq: bigint }[]>;
   listWorkers(online: ReadonlySet<string>, ownerUserId?: string): Fx<ui.Worker[]>;
+}
+
+interface WorkerListRow {
+  id: string;
+  name: string;
+  os: string;
+  version: string;
+  capabilities: {
+    hostname?: string;
+    homeDirectory?: string;
+    worktreesRoot?: string;
+    projectSources?: boolean;
+    cliImport?: boolean;
+  };
+  last_seen_at: Date | null;
+  revoked_at: Date | null;
+  profile_names: Record<string, string>;
+  config_version: bigint | null;
+  applied_version: bigint | null;
+  apply_report: JsonValue | null;
+}
+
+function listedWorker(r: WorkerListRow, online: ReadonlySet<string>) {
+  const report = r.apply_report
+    ? fromJson(ConfigAppliedSchema, r.apply_report, { ignoreUnknownFields: true })
+    : undefined;
+
+  // Names the user gave: the configuration knows them before the worker reports (older workers never do).
+  for (const profile of report?.profiles ?? []) profile.displayName ||= r.profile_names[profile.id] ?? "";
+
+  return create(ui.WorkerSchema, {
+    id: r.id,
+    name: r.name,
+    online: !r.revoked_at && online.has(r.id),
+    ...(r.revoked_at && { revokedAt: timestampFromDate(new Date(r.revoked_at)) }),
+    hostname: r.capabilities?.hostname ?? "",
+    os: r.os,
+    version: r.version,
+    providers: report?.providers ?? [],
+    profiles: report?.profiles ?? [],
+    homeDirectory: r.capabilities?.homeDirectory ?? "",
+    worktrees: Boolean(r.capabilities?.worktreesRoot),
+    worktreesRoot: r.capabilities?.worktreesRoot ?? "",
+    projectSources: r.capabilities?.projectSources === true,
+    cliImport: r.capabilities?.cliImport === true,
+    configVersion: r.config_version ? BigInt(r.config_version) : 0n,
+    appliedVersion: r.applied_version ? BigInt(r.applied_version) : 0n,
+    configIssues: report?.issues ?? [],
+    ...(r.last_seen_at && { lastSeenAt: timestampFromDate(new Date(r.last_seen_at)) }),
+  });
 }
 
 export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
@@ -99,65 +148,19 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
 
     listWorkers: (online, ownerUserId) =>
       Effect.gen(function* () {
-        const rows = yield* sql<{
-          id: string;
-          name: string;
-          os: string;
-          version: string;
-          capabilities: {
-            hostname?: string;
-            homeDirectory?: string;
-            worktreesRoot?: string;
-            projectSources?: boolean;
-            cliImport?: boolean;
-          };
-          last_seen_at: Date | null;
-          revoked_at: Date | null;
-          config: JsonValue | null;
-          config_version: bigint | null;
-          applied_version: bigint | null;
-          apply_report: JsonValue | null;
-        }>`
-                SELECT w.id, w.name, w.os, w.version, w.capabilities, w.last_seen_at, w.revoked_at,
-                       c.config, c.version AS config_version, c.applied_version, c.apply_report
+        const rows = yield* sql<WorkerListRow>`
+                SELECT w.id, w.name, w.os, w.version,
+                       jsonb_build_object('hostname',w.capabilities->'hostname','homeDirectory',w.capabilities->'homeDirectory',
+                         'worktreesRoot',w.capabilities->'worktreesRoot','projectSources',w.capabilities->'projectSources',
+                         'cliImport',w.capabilities->'cliImport') AS capabilities, w.last_seen_at, w.revoked_at,
+                       coalesce(c.profile_names,'{}'::jsonb) AS profile_names,
+                       c.version AS config_version, c.applied_version, c.apply_report
                   FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id
                  WHERE w.archived_at IS NULL
                    AND (${ownerUserId ?? null}::uuid IS NULL OR w.owner_user_id IS NULL OR w.owner_user_id = ${ownerUserId ?? null}::uuid)
                  ORDER BY w.name`;
 
-        return rows.map((r) => {
-          const report = r.apply_report
-            ? fromJson(ConfigAppliedSchema, r.apply_report, { ignoreUnknownFields: true })
-            : undefined;
-
-          const config = r.config ? Option.getOrUndefined(storedWorkerConfig(r.config)) : undefined;
-
-          // Names the user gave: the configuration knows them before the worker reports (older workers never do).
-          for (const profile of report?.profiles ?? []) {
-            profile.displayName ||= config?.profiles?.find((p) => p.id === profile.id)?.displayName ?? "";
-          }
-
-          return create(ui.WorkerSchema, {
-            id: r.id,
-            name: r.name,
-            online: !r.revoked_at && online.has(r.id),
-            ...(r.revoked_at && { revokedAt: timestampFromDate(new Date(r.revoked_at)) }),
-            hostname: r.capabilities?.hostname ?? "",
-            os: r.os,
-            version: r.version,
-            providers: report?.providers ?? [],
-            profiles: report?.profiles ?? [],
-            homeDirectory: r.capabilities?.homeDirectory ?? "",
-            worktrees: Boolean(r.capabilities?.worktreesRoot),
-            worktreesRoot: r.capabilities?.worktreesRoot ?? "",
-            projectSources: r.capabilities?.projectSources === true,
-            cliImport: r.capabilities?.cliImport === true,
-            configVersion: r.config_version ? BigInt(r.config_version) : 0n,
-            appliedVersion: r.applied_version ? BigInt(r.applied_version) : 0n,
-            configIssues: report?.issues ?? [],
-            ...(r.last_seen_at && { lastSeenAt: timestampFromDate(new Date(r.last_seen_at)) }),
-          });
-        });
+        return rows.map((r) => listedWorker(r, online));
       }),
   };
 }

@@ -766,6 +766,11 @@ capability, a starszy dom lub partner nadal używa dotychczasowych snapshotów.
 
 ### Żywotność subskrypcji i odzyskiwanie
 
+Heartbeat domu uwzględnia zmiany danego wątku, odziedziczonych źródeł oraz
+metadanych współdzielonych. Aktywność niezależnego wątku nie wymusza resnapshotu.
+Nowa epoka lub usunięty fragment dziennika wymusza ponowną walidację; tury z
+mutowalnymi źródłami nadal używają konserwatywnego zegara właściciela.
+
 Połączenie transportowe i aktualność widoku są sprawdzane oddzielnie. HTTP/2 PING
 (15 s, budżet pong 10 s), heartbeat całego łącza i heartbeat SSE z BFF nie dowodzą,
 że `WatchThread` lub `WatchThreadMirror` nadal dostarcza zmiany. BFF przekazuje

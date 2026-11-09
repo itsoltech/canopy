@@ -3,6 +3,7 @@ import { computerLink as link, ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { setTimeout as delay } from "node:timers/promises";
 import { commitMirrorUpdate, type State } from "./mirror-persistence.ts";
+import { mirrorJournal } from "./mirror-journal.ts";
 import { deltaFrames, mirrorThreadSnapshot, safeOverview, snapshotFrames } from "./mirror-projection.ts";
 import { linkedMessage, methodNamed, qualify, type RemoteServe } from "./remote.ts";
 import type { ComputerStore } from "./store.ts";
@@ -297,17 +298,10 @@ export class ThreadMirror {
 
       const changes =
         match?.[1] === head.epoch && seq <= BigInt(head.revision)
-          ? await this.store.query<{ revision: string; thread_id: string | null }>(
-              `SELECT revision::text,thread_id FROM computer_thread_changes
-          WHERE owner_user_id=$1::uuid AND revision>$2::bigint AND revision<=$3::bigint ORDER BY computer_thread_changes.revision`,
-              [owner, seq.toString(), head.revision],
-            )
+          ? await mirrorJournal(this.store, seq.toString(), head.revision)
           : undefined;
 
-      const contiguous =
-        changes &&
-        BigInt(changes.length) === BigInt(head.revision) - seq &&
-        changes.every((c, i) => BigInt(c.revision) === seq + BigInt(i) + 1n);
+      const contiguous = changes && BigInt(changes.count) === BigInt(head.revision) - seq;
 
       if (!contiguous) {
         // Capture the cursor BEFORE reading projections: concurrent changes are replayed afterwards.
@@ -331,17 +325,17 @@ export class ThreadMirror {
       } else {
         // Coalesce repeated invalidations (e.g. streaming deltas) into one projection per poll.
         // Forks inherit source items/turns: reconciliation of the source also invalidates descendants.
-        const ids = changes!.length
+        const ids = changes!.threads.length
           ? await this.store.query<{ id: string }>(
               `WITH RECURSIVE affected(id) AS (
           SELECT id FROM threads WHERE owner_user_id=$1::uuid AND id=ANY($2::uuid[])
           UNION SELECT t.id FROM threads t JOIN affected a ON t.fork_source_thread_id=a.id WHERE t.owner_user_id=$1::uuid
         ) SELECT id FROM affected`,
-              [owner, [...new Set(changes!.flatMap((c) => (c.thread_id ? [c.thread_id] : [])))]],
+              [owner, changes!.threads.filter((id) => id !== null)],
             )
           : [];
 
-        const threadIds = new Set([...changes!.map((c) => c.thread_id), ...ids.map((t) => t.id)]);
+        const threadIds = new Set([...changes!.threads, ...ids.map((t) => t.id)]);
 
         for (const threadId of threadIds) {
           if (signal.aborted) return;
@@ -355,7 +349,7 @@ export class ThreadMirror {
           } else yield create(link.MirrorUpdateSchema, { previousCursor: cursor, overview: await overview() });
         }
 
-        if (changes!.length) {
+        if (BigInt(changes!.count) > 0n) {
           yield create(link.MirrorUpdateSchema, { previousCursor: cursor, cursor: cursorOf(head), commit: true });
           cursor = cursorOf(head);
         }
@@ -366,11 +360,7 @@ export class ThreadMirror {
         lastHeartbeat = Date.now();
       }
 
-      // Retain 10,000 invalidations, independently of full timeline retention in mirrors.
-      await this.store.query(
-        "DELETE FROM computer_thread_changes WHERE owner_user_id=$1::uuid AND revision<=$2::bigint-10000",
-        [owner, head.revision],
-      );
+      // The commit trigger bounds journal retention; an idle subscriber need not DELETE every 250 ms.
 
       try {
         await delay(250, undefined, { signal });

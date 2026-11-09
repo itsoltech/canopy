@@ -95,6 +95,7 @@ import cliImportLibrary from "./0094_cli_import_library.sql" with { type: "text"
 import busMessageConsumption from "./0095_bus_message_consumption.sql" with { type: "text" };
 import consumedBusTurns from "./0096_consumed_bus_turns.sql" with { type: "text" };
 import mirrorThreadMetadata from "./0097_mirror_thread_metadata.sql" with { type: "text" };
+import threadReadMetadata from "./0098_thread_read_metadata.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 
 /**
@@ -206,6 +207,7 @@ export const migrations = Migrator.fromRecord({
   "0095_bus_message_consumption": sqlFile(busMessageConsumption),
   "0096_consumed_bus_turns": sqlFile(consumedBusTurns),
   "0097_mirror_thread_metadata": sqlFile(mirrorThreadMetadata),
+  "0098_thread_read_metadata": sqlFile(threadReadMetadata),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

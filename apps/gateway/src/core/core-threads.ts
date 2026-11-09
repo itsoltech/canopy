@@ -166,7 +166,7 @@ export const coreThreadsMethods: CoreThreadsMethods = {
   },
 
   async getThread(this: GatewayCore, threadId: string): Promise<ui.Thread> {
-    const row = await coreRun(this, (s) => s.thread(threadId));
+    const row = await coreRun(this, (s) => s.thread(threadId, false, true));
 
     if (row.owner_user_id !== this[coreState].options.userId) throw new NotFound("thread not found");
 
