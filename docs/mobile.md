@@ -769,6 +769,12 @@ lokalny podgląd załącznika w kompozytorze, również podczas wysyłania. iOS 
 obraz arkuszem Share z usuwanej kopii tymczasowej, Android zapisuje go w katalogu
 wybranym przez użytkownika. Nie dodajemy modułu galerii ani uprawnień do biblioteki zdjęć.
 Obrazy w pamięci widoku mają limit 20 MiB; SVG i inne formaty plikowe nie są renderowane.
+„Show full output” / „Show full diff” otwiera pełny tekst w osobnym widoku. Podgląd inline
+nadal ma 12 tys. znaków. Bloby są pobierane dopiero po otwarciu przez `GetThreadBlob`,
+po autoryzacji właściciela i z routingiem do domu wątku. Gateway i viewer ograniczają
+odczyt do 8 MiB; większa treść wyjaśnia limit i prosi o mniejszy fragment.
+Lista wirtualizuje fragmenty do 4096 znaków, także pojedyncze bardzo długie linie.
+Wynik, diff i bloki kodu mają akcję kopiowania.
 Oś czasu nadąża za web: grupę pracy otwiera i zwija Settings → Threads → Turn activity
 („While working”, „After the turn”, z resetem), według tej samej reguły `workFoldOpen`
 z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Preferencje dotyczą tego

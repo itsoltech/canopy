@@ -42,6 +42,13 @@ Dekoracyjne potwierdzenia nie używają krzywych z przeregulowaniem.
 
 ## Canopy mobile
 
+`GetThreadBlob` odczytuje obrazy, wyniki komend/narzędzi/zadań i diffy wskazane przez
+itemy drzewa wątku. Rejestr `thread_blobs` powstaje przy ingestii, a odczyt filtruje po
+właścicielu i aktywnym wątku. Limit wynosi 8 MiB i jest sprawdzany przed pobraniem
+bajtów z bazy. Zdalny identyfikator kieruje odczyt do domu połączonego komputera.
+Worker może przesyłać oprócz obrazów `text/plain`, `text/x-diff` i `application/json`;
+każdy upload nadal wymaga zgodnego hasha i mieści się w tym samym limicie.
+
 ### Przyrostowy odczyt wątku
 
 `WatchThreadRequest.incremental` (802) włącza checkpointy UI. Pierwsze otwarcie bez

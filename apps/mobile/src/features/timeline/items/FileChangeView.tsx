@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ItemStatus, type BlobRef, type FileChange } from "@canopy/contracts";
 import type { Tone } from "@canopy/domain/status-look";
-import { formatBytes } from "@canopy/domain/format";
 import { basename } from "@canopy/domain/humanize";
 import { diffCounts } from "@canopy/domain/tools";
 import { Badge } from "../../../ui/Badge";
@@ -12,6 +11,7 @@ import { useDevicePreferences } from "../../settings/device-preferences";
 import { ItemFrame } from "../ItemFrame";
 import { Aside, DiffCounts, RowTitle } from "./parts";
 import { Chevron } from "../../../ui/MotionViews";
+import { TextViewerButton } from "../../viewers/TextViewerButton";
 
 /** Files the agent added, edited, moved or deleted, each with its diff (web: FileChangeView). */
 export function FileChangeView({ change, status }: { change: FileChange; status: ItemStatus }) {
@@ -83,13 +83,8 @@ function FileDiffEntry({
         </Text>
         {diff ? <DiffCounts {...diffCounts([{ diff }])} /> : null}
       </Pressable>
-      {diff && shown ? (
-        <Diff bare diff={diff} label={`Diff of ${path}`} />
-      ) : diffBlob && shown ? (
-        <Text style={[styles.workMeta, { color: c.muted }]}>
-          Diff ({formatBytes(diffBlob.sizeBytes)}) is stored on the gateway; viewing it here is not supported yet.
-        </Text>
-      ) : null}
+      {diff && shown ? <Diff bare diff={diff} label={`Diff of ${path}`} /> : null}
+      {diffBlob && shown ? <TextViewerButton blob={diffBlob} label={`Diff of ${path}`} diff /> : null}
     </View>
   );
 }

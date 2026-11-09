@@ -156,14 +156,17 @@ function snake(camel: string): string {
 }
 
 /**
- * Image previews an item shows (Image.blob, ToolCall.images): the worker uploads them before the event, the gateway
+ * Blobs an item shows: the worker uploads them before the event, the gateway
  * lets the thread's owner read them through the thread (thread_blobs).
  */
 export function previewRefs(item: Item): BlobRef[] {
   const refs = Match.value(item.content).pipe(
     Match.withReturnType<readonly (BlobRef | undefined)[]>(),
     Match.discriminator("case")("image", (content) => [content.value.blob]),
-    Match.discriminator("case")("toolCall", (content) => content.value.images),
+    Match.discriminator("case")("toolCall", (content) => [...content.value.images, content.value.outputBlob]),
+    Match.discriminator("case")("commandExecution", (content) => [content.value.outputBlob]),
+    Match.discriminator("case")("backgroundTask", (content) => [content.value.outputBlob]),
+    Match.discriminator("case")("fileChange", (content) => content.value.changes.map((change) => change.diffBlob)),
     Match.orElse(() => []),
   );
 

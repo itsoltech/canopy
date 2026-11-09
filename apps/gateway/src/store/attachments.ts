@@ -60,6 +60,7 @@ type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound | Invalid>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHA256 = /^[0-9a-f]{64}$/;
+export const THREAD_BLOB_BYTES = 8 * 1024 ** 2;
 
 export class AttachmentStore extends Context.Service<
   AttachmentStore,
@@ -167,16 +168,21 @@ export class AttachmentStore extends Context.Service<
 
         threadBlob: (ownerUserId, threadId, sha256) =>
           UUID.test(threadId) && SHA256.test(sha256)
-            ? sql<{ data: Uint8Array | null; mime_type: string }>`
-                SELECT b.data, b.mime_type FROM blobs b
+            ? sql<{ data: Uint8Array | null; mime_type: string; size_bytes: number }>`
+                SELECT CASE WHEN b.size_bytes <= ${THREAD_BLOB_BYTES} THEN b.data END AS data,
+                       b.mime_type, b.size_bytes FROM blobs b
                  WHERE b.sha256 = ${sha256}
                    AND EXISTS (
                      SELECT 1 FROM thread_blobs tb JOIN threads t ON t.id = tb.thread_id
                       WHERE tb.sha256 = b.sha256 AND t.owner_user_id = ${ownerUserId}::uuid AND t.deleted_at IS NULL
                         AND t.root_thread_id = (SELECT root_thread_id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid AND deleted_at IS NULL))`.pipe(
-                Effect.flatMap((rows) => readBlob(rows, "image")),
+                Effect.flatMap((rows): Fx<{ data: Uint8Array; mimeType: string }> =>
+                  rows[0] && Number(rows[0].size_bytes) > THREAD_BLOB_BYTES
+                    ? Effect.fail(new Invalid("This content exceeds the 8 MB viewing limit."))
+                    : readBlob(rows, "content"),
+                ),
               )
-            : Effect.fail(new NotFound("image not found")),
+            : Effect.fail(new NotFound("content not found")),
 
         workerBlob: (workerId, threadId, sha256) =>
           UUID.test(threadId) && SHA256.test(sha256)
