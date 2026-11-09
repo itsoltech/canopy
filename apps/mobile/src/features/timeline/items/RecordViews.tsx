@@ -9,10 +9,13 @@ import { CodeBlock } from "../CodeBlock";
 import { prettyJson } from "@canopy/domain/format";
 import { EmptyNote, ErrorText, RowTitle } from "./parts";
 import { Chevron } from "../../../ui/MotionViews";
+import { ImagePreview } from "../../attachments/ImagePreview";
+import { useTimelineDirectory } from "../directory";
 
-/** An image the agent looked at or generated (web: ImageView). The phone does not load the preview. */
+/** The same stored preview the model saw, with a full-screen viewer. */
 export function ImageView({ image, status }: { image: Image; status: ItemStatus }) {
   const c = useColors();
+  const directory = useTimelineDirectory();
 
   const label =
     image.source === "generated" ? "Generated image" : image.source === "view_image" ? "Viewed image" : "Image";
@@ -28,12 +31,22 @@ export function ImageView({ image, status }: { image: Image; status: ItemStatus 
       title={<RowTitle lead={label} subject={image.path || image.prompt || "generated"} mono={Boolean(image.path)} />}
     >
       {image.prompt ? <Text style={[styles.work, { color: c.soft }]}>{image.prompt}</Text> : null}
-      {image.detail ? (
+      {image.blob ? (
+        <>
+          <ImagePreview
+            source={{ kind: "thread", threadId: directory.currentId, ...image.blob }}
+            name={image.path.split(/[/\\]/).pop() || "image.png"}
+            width={image.width}
+            height={image.height}
+          />
+          {image.originalWidth && (image.originalWidth !== image.width || image.originalHeight !== image.height) ? (
+            <Text style={[styles.workMeta, { color: c.muted }]}>
+              {image.originalWidth}×{image.originalHeight} px, shown to the model at {image.width}×{image.height}.
+            </Text>
+          ) : null}
+        </>
+      ) : image.detail ? (
         <ErrorText text={image.detail} />
-      ) : image.blob ? (
-        <Text style={[styles.workMeta, { color: c.muted }]}>
-          {image.width}×{image.height} px preview; open this thread on the web to see it.
-        </Text>
       ) : status !== ItemStatus.IN_PROGRESS ? (
         <EmptyNote>No preview of this image.</EmptyNote>
       ) : null}

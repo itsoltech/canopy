@@ -13,6 +13,8 @@ import { CodeBlock, OutputBlock } from "../CodeBlock";
 import { ItemFrame } from "../ItemFrame";
 import { MarkdownBody } from "./MarkdownBody";
 import { Aside, DiffCounts, RawToggle, RowTitle, Section, useRoomyRows } from "./parts";
+import { ImagePreview } from "../../attachments/ImagePreview";
+import { useTimelineDirectory } from "../directory";
 
 /**
  * Built-in, MCP or dynamic tool as the shared registry describes it (web: ToolCallView): a title in words with its
@@ -21,6 +23,7 @@ import { Aside, DiffCounts, RawToggle, RowTitle, Section, useRoomyRows } from ".
  */
 export function ToolCallView({ call, status }: { call: ToolCall; status: ItemStatus }) {
   const roomy = useRoomyRows();
+  const directory = useTimelineDirectory();
   const look = describeTool({ ...call, running: status === ItemStatus.IN_PROGRESS });
   const input = parseObject(call.inputJson);
   const failed = call.isError || status === ItemStatus.FAILED;
@@ -72,6 +75,13 @@ export function ToolCallView({ call, status }: { call: ToolCall; status: ItemSta
           />
         </Section>
       )}
+      {call.images.map((blob, index) => (
+        <ImagePreview
+          key={blob.sha256}
+          source={{ kind: "thread", threadId: directory.currentId, ...blob }}
+          name={`Tool image ${index + 1}.png`}
+        />
+      ))}
       <RawToggle
         parts={[
           { label: "Input", text: call.inputJson === "{}" || call.inputJson === "null" ? "" : call.inputJson },
