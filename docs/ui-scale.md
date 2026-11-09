@@ -98,5 +98,9 @@ Na telefonie nakładki z `sheet` otwierają się jako dolny arkusz. Zostają prz
 - Nowa nakładka korzysta z `Popover`, `DropdownMenu`, `SearchPicker`, `Select` lub `HoverCard`
   i dostaje kontekst sama. Własny panel w top layer dostaje klasę `density-overlay`
   i `provideDensity("overlay")`.
+- Panel szczegółów wątku korzysta z `density-chrome`, także w arkuszu telefonu.
+  Wiersze mają co najmniej 36 / 32 px, odstęp ikon 8 px i pionowy padding sekcji 4 px.
+  Kopiowanie katalogu pojawia się przy hoverze lub fokusie (na dotyku zawsze),
+  a miejsce na nie i Stop zadania pozostaje zarezerwowane w każdym stanie.
 - Pierścienie fokusu mieszczą się w wierszu: wiersze menu i list mają obrys wewnętrzny
   (`-outline-offset-2`), a przyciski zewnętrzny 2 px (`focus-ring`) z marginesem panelu `p-1`.

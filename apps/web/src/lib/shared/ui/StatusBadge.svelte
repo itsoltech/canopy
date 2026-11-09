@@ -6,13 +6,19 @@
   import { badgeTones } from "./tone.ts";
 
   /** Status of a thread, turn, interaction or worker: dot + label; a new status swaps in. */
-  let { status, class: className }: { status: string; class?: ClassValue } = $props();
+  let {
+    status,
+    compact = false,
+    class: className,
+  }: { status: string; compact?: boolean; class?: ClassValue } = $props();
+
   const look = $derived(statusLook(status));
 </script>
 
 <span
   class={[
-    "inline-flex shrink-0 items-center gap-x-1.5 rounded-md py-0.5 pr-1.5 pl-2 text-sm/5 font-medium whitespace-nowrap ring-1 ring-inset sm:text-xs/5",
+    "inline-flex shrink-0 items-center gap-x-1.5 rounded-md pr-1.5 pl-2 text-sm font-medium whitespace-nowrap ring-1 ring-inset sm:text-xs",
+    compact ? "py-0.5 leading-4" : "py-0.5 leading-5",
     badgeTones[look.tone],
     className,
   ]}

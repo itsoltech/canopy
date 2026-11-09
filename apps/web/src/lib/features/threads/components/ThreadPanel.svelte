@@ -5,13 +5,15 @@
   import { terminalCwd } from "#lib/shared/ui/terminal.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
+  import MiddleTruncatedText from "#lib/shared/ui/MiddleTruncatedText.svelte";
+  import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import type { ui, Usage } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import { osLabel } from "#lib/features/overview/workers.ts";
   import ScheduleCompactRow from "#lib/features/schedules/ScheduleCompactRow.svelte";
   import { clock } from "#lib/shared/clock.svelte.ts";
-  import { formatCount, formatDateTime } from "#lib/shared/format.ts";
+  import { formatCount } from "#lib/shared/format.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import StatusBadge from "#lib/shared/ui/StatusBadge.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
@@ -98,20 +100,21 @@
 
   const parent = $derived(thread.parentThreadId ? lookup(thread.parentThreadId) : undefined);
   const hasUsage = $derived(totals.inputTokens > 0n || totals.outputTokens > 0n);
+  const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 </script>
 
 <div
   class={[
-    "grid grid-cols-1 divide-y divide-zinc-950/5 rounded-2xl bg-white py-1.5 shadow-sm ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10",
+    "density-chrome grid min-w-0 grid-cols-1 divide-y divide-zinc-950/5 rounded-2xl bg-white py-1 shadow-sm ring-1 ring-zinc-950/10 dark:divide-white/8 dark:bg-zinc-950 dark:shadow-none dark:ring-white/10",
     className,
   ]}
 >
-  <ThreadTitleActions {thread} class={windowTitlebar ? "macos:hidden" : undefined} />
+  <ThreadTitleActions {thread} compact class={windowTitlebar ? "macos:hidden" : undefined} />
   <!-- Connector accounts are per computer (stage 4); a linked computer's thread uses that computer's. -->
   {#if !thread.nodeId}<ThreadConnectors threadId={thread.id} />{/if}
-  <section aria-label="Placement" class="grid grid-cols-1 px-1.5 pb-1.5">
+  <section aria-label="Placement" class="grid min-w-0 grid-cols-1 px-1.5 pb-1">
     <PanelRow icon="computer-desktop">
-      {worker?.name ?? "Unknown worker"}
+      <TruncatedText text={worker?.name ?? "Unknown worker"} />
       {#snippet aside()}
         <span class="flex shrink-0 items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/5">
           <StatusDot tone={worker?.online ? "emerald" : "neutral"} />{worker?.online ? osLabel(worker.os) : "Offline"}
@@ -125,18 +128,23 @@
           >Scratch folder</span
         >
       {:else}
-        <code class="font-mono text-xs/6" {@attach tooltip(thread.cwd)}>{terminalCwd(thread.cwd, 34)}</code>
+        <MiddleTruncatedText text={terminalCwd(thread.cwd, Infinity)} hint={thread.cwd} class="font-mono" />
       {/if}
-      {#snippet aside()}<CopyButton text={thread.cwd} label="Copy working directory" class="-my-1" />{/snippet}
+      {#snippet aside()}<span
+          class="flex shrink-0 pointer-fine:opacity-0 pointer-fine:group-focus-within/panel-row:opacity-100 pointer-fine:group-hover/panel-row:opacity-100"
+          ><CopyButton text={thread.cwd} label="Copy working directory" /></span
+        >{/snippet}
     </PanelRow>
     {#if thread.worktree}
       <!-- A git worktree (docs/worktrees.md): its branch and what it started from; opens Manage worktree. -->
       <PanelRow icon="git-fork" onclick={onworktree}>
-        <code class="font-mono text-xs/6" {@attach tooltip(worktreeTooltip(thread.worktree))}
-          >{headLabel(thread.worktree)}</code
-        >
+        <MiddleTruncatedText
+          text={headLabel(thread.worktree)}
+          hint={`${headLabel(thread.worktree)} · ${worktreeTooltip(thread.worktree)}`}
+          class="font-mono"
+        />
         {#snippet aside()}{#if thread.worktree?.baseRef}<span
-              class="max-w-1/2 min-w-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+              class="max-w-2/5 min-w-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
               {@attach tooltip(`Started from ${thread.worktree.baseRef}`)}
               >from <code class="font-mono">{thread.worktree.baseRef}</code></span
             >{/if}{/snippet}
@@ -144,7 +152,7 @@
     {:else if thread.checkoutHead && headLabel(thread.checkoutHead)}
       <!-- The workspace's own checkout: its live branch, as the worker reports it. -->
       <PanelRow icon="git-fork">
-        <code class="font-mono text-xs/6">{headLabel(thread.checkoutHead)}</code>
+        <MiddleTruncatedText text={headLabel(thread.checkoutHead)} class="font-mono" />
         {#snippet aside()}<span class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
             >Current checkout</span
           >{/snippet}
@@ -152,18 +160,19 @@
     {/if}
   </section>
 
-  <section aria-label="Agent" class="grid grid-cols-1 p-1.5">
+  <section aria-label="Agent" class="grid min-w-0 grid-cols-1 px-1.5 py-1">
     <PanelRow icon="cpu-chip">
       {#snippet lead()}{#if providerKey}<ProviderIcon provider={providerKey} />{:else}<Icon
             name="cpu-chip"
             class="fill-zinc-400 dark:fill-zinc-500"
           />{/if}{/snippet}
-      {providerLabel(thread.provider)}{thread.model ? ` ${thread.model}` : ""}
+      <TruncatedText text={`${providerLabel(thread.provider)}${thread.model ? ` ${thread.model}` : ""}`} />
       {#snippet aside()}{#if thread.providerProfileId}{@const instance = providerKey
             ? instanceOf(worker, providerKey, thread.providerProfileId)
-            : undefined}<span class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5"
-            >{instance ? instanceLabel(instance) : thread.providerProfileId}</span
-          >{/if}{/snippet}
+            : undefined}<TruncatedText
+            text={instance ? instanceLabel(instance) : thread.providerProfileId}
+            class="max-w-2/5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+          />{/if}{/snippet}
     </PanelRow>
     <PanelRow
       icon={permissionLook(thread.permissionMode).icon}
@@ -189,7 +198,7 @@
     {/if}
     <PanelRow icon="signal">
       Status
-      {#snippet aside()}<StatusBadge status={thread.status} />{/snippet}
+      {#snippet aside()}<StatusBadge status={thread.status} compact />{/snippet}
     </PanelRow>
     <!-- A thread that has run keeps this row from the first frame (a dash until the snapshot's totals
          arrive), so the sections below don't move down when they do. -->
@@ -197,13 +206,17 @@
       <PanelRow icon="bolt">
         {#if hasUsage}<span
             class="tabular-nums"
-            title={partialUsage ? "Tokens of loaded turns" : "Tokens of this thread's turns"}
-            >{formatCount(totals.inputTokens)} in · {formatCount(totals.outputTokens)} out</span
+            {@attach tooltip(
+              `${formatCount(totals.inputTokens)} in · ${formatCount(totals.outputTokens)} out. ${partialUsage ? "Tokens of loaded turns." : "Tokens of this thread's turns."}`,
+            )}>{formatCount(totals.inputTokens)} in · {formatCount(totals.outputTokens)} out</span
           >{:else}<span class="text-zinc-400 dark:text-zinc-500" aria-label="Token usage loading">–</span>{/if}
         {#snippet aside()}
-          <span class="shrink-0 text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5">
-            {#if totals.costUsd > 0}${totals.costUsd.toFixed(
-                3,
+          <span
+            class="shrink-0 text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400"
+            {@attach tooltip(totals.costUsd > 0 ? `${totals.costUsd} USD` : undefined)}
+          >
+            {#if totals.costUsd > 0}{currency.format(
+                totals.costUsd,
               )}{:else if usage && usage.contextWindowTokens > 0n}{formatCount(usage.contextWindowTokens)} ctx{/if}
           </span>
         {/snippet}
@@ -219,8 +232,8 @@
     />{/if}
 
   {#if activeSecrets.length > 0 && onsecretchange}
-    <section aria-labelledby="secrets-title" class="grid grid-cols-1 p-1.5">
-      <h2 id="secrets-title" class="px-3 pt-1 pb-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Secrets</h2>
+    <section aria-labelledby="secrets-title" class="grid min-w-0 grid-cols-1 px-1.5 py-1">
+      <h2 id="secrets-title" class="px-2 py-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Secrets</h2>
       <ul role="list" class="grid grid-cols-1 gap-0.5">
         {#each activeSecrets as secret (secret.requestId)}
           <li><ThreadSecretRow {secret} onchange={onsecretchange} /></li>
@@ -230,8 +243,8 @@
   {/if}
 
   {#if schedules.length > 0 || onschedule}
-    <section aria-labelledby="schedules-title" class="grid grid-cols-1 p-1.5">
-      <h2 id="schedules-title" class="px-3 pt-1 pb-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+    <section aria-labelledby="schedules-title" class="grid min-w-0 grid-cols-1 px-1.5 py-1">
+      <h2 id="schedules-title" class="px-2 py-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         Scheduled tasks
       </h2>
       {#if schedules.length > 0}
@@ -248,7 +261,7 @@
   {/if}
 
   {#if thread.forkSourceThreadId}
-    <section aria-label="Fork" class="grid grid-cols-1 p-1.5">
+    <section aria-label="Fork" class="grid min-w-0 grid-cols-1 px-1.5 py-1">
       <PanelRow icon="square-2-stack" href="/threads/{thread.forkSourceThreadId}">
         Forked from {source?.title ?? "another thread"}
         {#snippet aside()}

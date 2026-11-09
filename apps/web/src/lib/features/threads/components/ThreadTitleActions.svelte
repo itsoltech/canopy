@@ -13,8 +13,9 @@
   let {
     thread,
     titlebar = false,
+    compact = false,
     class: className,
-  }: { thread: ui.Thread; titlebar?: boolean; class?: ClassValue } = $props();
+  }: { thread: ui.Thread; titlebar?: boolean; compact?: boolean; class?: ClassValue } = $props();
 
   const actions = useThreadActions();
 
@@ -48,7 +49,7 @@
   data-window-drag={titlebar || undefined}
   class={[
     "flex min-w-0 items-center gap-2 text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white",
-    titlebar ? "h-12 shrink-0 px-3" : "p-3",
+    titlebar ? "h-12 shrink-0 px-3" : compact ? "px-3 py-1" : "p-3",
     className,
   ]}
 >
