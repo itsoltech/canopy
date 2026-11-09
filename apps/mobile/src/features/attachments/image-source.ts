@@ -1,5 +1,5 @@
 import type { ui } from "@canopy/contracts";
-import type { useSession } from "../../state/session";
+import type { Client } from "@connectrpc/connect";
 
 export type ImageSource =
   | { kind: "thread"; threadId: string; sha256: string; sizeBytes: bigint }
@@ -11,8 +11,17 @@ export const rasterImage = /^image\/(png|jpeg|gif|webp)$/i;
 
 export class ImageReadError extends Error {}
 
+/** Preserve qualified computer ids and key the actual representation, including full-only blob fallbacks. */
+export function imageCacheKey(source: Exclude<ImageSource, { kind: "local" }>, thumbnail: boolean) {
+  return JSON.stringify(
+    source.kind === "attachment"
+      ? ["attachment", source.file.id, thumbnail && source.file.hasThumbnail ? "thumbnail" : "full"]
+      : ["blob", source.threadId, source.sha256, "full"],
+  );
+}
+
 export async function readImage(
-  api: NonNullable<ReturnType<typeof useSession>["client"]>["api"],
+  api: Pick<Client<typeof ui.GatewayService>, "getThreadBlob" | "getAttachment">,
   source: Exclude<ImageSource, { kind: "local" }>,
   thumbnail: boolean,
   signal: AbortSignal,

@@ -8,6 +8,7 @@ import { fileFormat, videoDuration } from "./attachment-display";
 import { fileSize, type DraftFile } from "./useAttachmentDraft";
 import { ImageViewer } from "./ImageViewer";
 import { AttachmentViewer } from "./AttachmentViewer";
+import { useImage } from "./useImage";
 
 /** All draft files remain here until sent or removed, independently of their inline badges. */
 export function AttachmentChips({ files, onRemove }: { files: DraftFile[]; onRemove: (key: string) => void }) {
@@ -129,6 +130,14 @@ function MediaTile({ file, uploading }: { file: DraftFile; uploading: boolean })
   const [unreadable, setUnreadable] = useState(false);
   const duration = videoDuration(file.duration);
 
+  const image = useImage(
+    file.attachment ? { kind: "attachment", file: file.attachment } : { kind: "local", uri: file.previewUri ?? "" },
+    true,
+    file.kind === "image" && Boolean(file.attachment),
+  );
+
+  const preview = file.kind === "image" && file.attachment ? image.uri : file.previewUri;
+
   return (
     <View
       style={{
@@ -141,9 +150,9 @@ function MediaTile({ file, uploading }: { file: DraftFile; uploading: boolean })
         backgroundColor: c.surface,
       }}
     >
-      {file.previewUri && !unreadable ? (
+      {preview && !unreadable ? (
         <Image
-          source={{ uri: file.previewUri }}
+          source={{ uri: preview }}
           resizeMode="cover"
           style={StyleSheet.absoluteFill}
           accessible={false}

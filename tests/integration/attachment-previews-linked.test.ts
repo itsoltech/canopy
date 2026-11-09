@@ -56,11 +56,12 @@ async function sentImage(home: ConfigComputer, viewer: ConfigComputer) {
   return { attached, png, localId: image.id };
 }
 
-const bff = (viewer: ConfigComputer, id: string, query = "") =>
+const bff = (viewer: ConfigComputer, id: string, query = "", ifNoneMatch?: string | null) =>
   attachmentResponse(
     viewer.gateway.api,
     id,
     new URL(`http://localhost/api/attachments/${encodeURIComponent(id)}${query}`),
+    ifNoneMatch,
   );
 
 async function imageReads(home: ConfigComputer, viewer: ConfigComputer) {
@@ -84,6 +85,11 @@ async function imageReads(home: ConfigComputer, viewer: ConfigComputer) {
     expect(http.status).toBe(200);
     expect(new Uint8Array(await http.arrayBuffer())).toEqual(new Uint8Array(response.data));
     expect(http.headers.get("x-content-type-options")).toBe("nosniff");
+    const etag = http.headers.get("etag");
+    expect(etag).toMatch(/^"[a-f0-9]{64}"$/);
+    const fresh = await bff(viewer, attached.id, query, etag);
+    expect(fresh.status).toBe(304);
+    expect(await fresh.text()).toBe("");
   }
 
   // Stale mirrored metadata can advertise a thumbnail that its home no longer has.
@@ -132,7 +138,11 @@ test.skipIf(!dockerAvailable)(
       const stranger = await a.gateway.runtime.runPromise(GatewayStore.use((s) => s.ensureUser("other@test", "Other")));
       await a.store.query("UPDATE attachments SET owner_user_id=$1::uuid WHERE id=$2::uuid", [stranger, file.id]);
       expect(await failure(b.gateway.api.getAttachment({ attachmentId, preview: true }))).toContain("not found");
-      expect((await bff(b, attachmentId, "?preview")).status).toBe(404);
+      const denied = await bff(b, attachmentId, "?preview", http.headers.get("etag"));
+      expect(denied.status).toBe(404);
+      expect(denied.headers.get("cache-control")).toBe("no-store");
+      expect(denied.headers.get("etag")).toBeNull();
+      const available = await bff(b, image.id, "?thumbnail");
 
       await a.links.options.network.update(
         create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: false }),
@@ -147,10 +157,11 @@ test.skipIf(!dockerAvailable)(
       if (!(cause instanceof ConnectError)) throw new Error("Expected attachment failure");
       expect(cause.code).toBe(Code.Unavailable);
       expect(cause.rawMessage).toBe("Available when Preview A is connected.");
-      const unavailable = await bff(b, image.id, "?thumbnail");
+      const unavailable = await bff(b, image.id, "?thumbnail", available.headers.get("etag"));
       expect(unavailable.status).toBe(409);
       expect(await unavailable.json()).toMatchObject({ message: cause.rawMessage, scope: "computer" });
       expect(unavailable.headers.get("cache-control")).toBe("no-store");
+      expect(unavailable.headers.get("etag")).toBeNull();
 
       await a.links.options.network.update(
         create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }),

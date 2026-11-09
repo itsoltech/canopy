@@ -860,6 +860,18 @@ lokalny podgląd załącznika w kompozytorze, również podczas wysyłania. iOS 
 obraz arkuszem Share z usuwanej kopii tymczasowej, Android zapisuje go w katalogu
 wybranym przez użytkownika. Nie dodajemy modułu galerii ani uprawnień do biblioteki zdjęć.
 Obrazy w pamięci widoku mają limit 20 MiB; SVG i inne formaty plikowe nie są renderowane.
+Niezmienne obrazy trafiają do prywatnego `Paths.cache/images-v1`: klucz zawiera pełny
+kwalifikowany identyfikator załącznika albo wątku i SHA256 blobu oraz wariant miniatura/pełny.
+Katalog parowania i nazwy plików są haszowane; nie zapisujemy ich w bibliotece zdjęć ani logach.
+LRU ogranicza pliki do 200 MiB i 2048 wpisów, a pamięciowy indeks URI do budżetu 24 MiB
+ważonego rozmiarem zakodowanych obrazów. To nie jest limit natywnie zdekodowanych bitmap.
+`Image` dostaje `file://`, bez utrzymywania kopii base64. Żądania tego samego klucza są wspólne;
+odejście ostatniego odbiorcy anuluje RPC. Unpair, revocation i zmiana parowania zamykają
+cache przed usunięciem plików. System może wyczyścić cache; brakujący plik pobieramy ponownie.
+Obrazy osi czasu rozpoczynają odczyt dopiero po przecięciu okna ekranu, również wewnątrz
+jednej wysokiej tury; przewijanie odświeża pomiar najwyżej co 100 ms i po zatrzymaniu.
+Załączniki w listach i wysłane chipy używają miniatur, viewer pełnego wariantu.
+`GetThreadBlob` nie ma wariantu miniatury: dla blobów listy wykorzystują dostępny obraz źródłowy.
 Załączniki tekstowe i Markdown otwierają się także z composera po wysłaniu pliku do
 gatewaya. `GetAttachment.preview` pobiera do 128 KiB przez istniejące trasowanie do
 domu i autoryzację właściciela. Cache podglądów jest ograniczony do 64 wpisów na klienta

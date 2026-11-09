@@ -1,7 +1,15 @@
-import { useCallback, type ComponentProps, type Ref } from "react";
-import { Platform, type FlatList, type ScrollViewProps } from "react-native";
+import { useCallback, useState, type ComponentProps, type Ref } from "react";
+import { Platform, type FlatList, type FlatListProps, type ScrollViewProps } from "react-native";
 import { KeyboardChatScrollView } from "react-native-keyboard-controller";
-import Animated, { useDerivedValue } from "react-native-reanimated";
+import Animated, {
+  useAnimatedScrollHandler,
+  useComposedEventHandler,
+  useDerivedValue,
+  useSharedValue,
+  type ScrollHandlerProcessed,
+} from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
+import { ImageViewport, ImageViewportContext } from "../attachments/image-viewport";
 import { useContentInsets } from "../../ui/ScreenFrame";
 import { styles } from "../../ui/theme";
 import { IOSChatScrollView } from "./IOSChatScrollView";
@@ -12,10 +20,39 @@ import { IOSChatScrollView } from "./IOSChatScrollView";
  */
 export function TimelineList<Item>({
   contentContainerStyle,
+  onScroll,
+  onLayout,
+  onContentSizeChange,
   ...props
-}: ComponentProps<typeof Animated.FlatList<Item>> & { ref?: Ref<FlatList<Item>> }) {
+}: Omit<ComponentProps<typeof Animated.FlatList<Item>>, "onScroll" | "onLayout" | "onContentSizeChange"> & {
+  ref?: Ref<FlatList<Item>>;
+  onScroll?: ScrollHandlerProcessed;
+  onLayout?: FlatListProps<Item>["onLayout"];
+  onContentSizeChange?: FlatListProps<Item>["onContentSizeChange"];
+}) {
   const insets = useContentInsets();
   const safePadding = useDerivedValue(() => insets.bottom);
+  const [viewport] = useState(() => new ImageViewport());
+  const lastCheck = useSharedValue(0);
+  const refresh = viewport.refresh;
+
+  const imageScroll = useAnimatedScrollHandler({
+    onScroll() {
+      const now = Date.now();
+
+      if (now - lastCheck.get() < 100) return;
+      lastCheck.set(now);
+      scheduleOnRN(refresh);
+    },
+    onMomentumEnd() {
+      scheduleOnRN(refresh);
+    },
+    onEndDrag() {
+      scheduleOnRN(refresh);
+    },
+  });
+
+  const composedScroll = useComposedEventHandler([onScroll ?? null, imageScroll]);
 
   const renderScrollComponent = useCallback(
     (scrollProps: ScrollViewProps) =>
@@ -34,17 +71,28 @@ export function TimelineList<Item>({
   );
 
   return (
-    <Animated.FlatList
-      {...props}
-      renderScrollComponent={renderScrollComponent}
-      keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "none"}
-      contentInsetAdjustmentBehavior="never"
-      automaticallyAdjustContentInsets={false}
-      contentContainerStyle={[
-        styles.page,
-        contentContainerStyle,
-        { paddingBottom: 16 + insets.top, paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right },
-      ]}
-    />
+    <ImageViewportContext.Provider value={viewport}>
+      <Animated.FlatList
+        {...props}
+        onScroll={composedScroll}
+        onLayout={(event) => {
+          onLayout?.(event);
+          refresh();
+        }}
+        onContentSizeChange={(width, height) => {
+          onContentSizeChange?.(width, height);
+          refresh();
+        }}
+        renderScrollComponent={renderScrollComponent}
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "none"}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        contentContainerStyle={[
+          styles.page,
+          contentContainerStyle,
+          { paddingBottom: 16 + insets.top, paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right },
+        ]}
+      />
+    </ImageViewportContext.Provider>
   );
 }

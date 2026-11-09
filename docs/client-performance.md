@@ -77,6 +77,15 @@ publikacji OTA. Nie uruchamiaj buildów EAS ani generowania projektów natywnych
 
 ## Profilowanie na urządzeniu
 
+`TMPDIR` na dysku, następnie `bun scripts/bench/image-cache.ts`, mierzy liczbę żądań
+i bajty odpowiedzi HTTP dla 20 miniatur po 16 KiB: dwa przejścia i ponowne otwarcie,
+a osobno restart cache w tym samym parowaniu. Porównuje poprzedni odczyt przy każdym
+montowaniu z rzeczywistym stanem cache i filesystemem Node. Nie mierzy RPC ani renderera:
+widoczność jest symulowana. Na urządzeniu powtórz scenariusz, rejestrując `GetAttachment`
+i `GetThreadBlob` w profilerze sieci, bez zapisywania treści lub identyfikatorów użytkownika.
+Sprawdź także anulowanie przy szybkim scrollu, pełny viewer, restart, unpair i revocation;
+po unpair katalog obrazów ma być pusty. Pamięć bitmap sprawdź narzędziami platformy.
+
 Na zgodnym kliencie z modułami natywnymi otwórz te same dane: 1000 tur, jedną turę
 z 5000 itemów i odpowiedź zawierającą kod, tabelę oraz diff. Użyj React Native
 DevTools Profiler do nagrania 200 delt po 25/s: policz commity i renderowane

@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
-import { base64Encode } from "@bufbuild/protobuf/wire";
 import { useSession } from "../../state/session";
-import { ImageReadError, readImage, type ImageSource } from "./image-source";
+import { imageCacheKey, ImageReadError, readImage, type ImageSource } from "./image-source";
 import { attachmentFailure } from "./failure";
 import { useAttachmentConnection } from "./useAttachmentConnection";
 
-/** Private bytes stay in this mounted view; they never enter an image URL, log or shared cache. */
-export function useImage(source: ImageSource, thumbnail = false) {
-  const { client } = useSession();
+/** The pairing owns private immutable files. A mounted image retains only its file URI. */
+export function useImage(source: ImageSource, thumbnail = false, enabled = true) {
+  const { client, imageCache } = useSession();
   const [retry, setRetry] = useState(0);
   const [result, setResult] = useState<{ uri: string; error: string }>({ uri: "", error: "" });
   const local = source.kind === "local" ? source.uri : "";
@@ -21,15 +20,19 @@ export function useImage(source: ImageSource, thumbnail = false) {
     const controller = new AbortController();
     setResult({ uri: local, error: "" });
 
-    if (!local && client) {
+    if (!local && client && imageCache && enabled) {
       const remote: Exclude<ImageSource, { kind: "local" }> = file
         ? { kind: "attachment", file }
         : { kind: "thread", threadId, sha256, sizeBytes };
 
-      void readImage(client.api, remote, thumbnail, controller.signal)
-        .then((image) => {
-          if (!controller.signal.aborted)
-            setResult({ uri: `data:${image.mimeType};base64,${base64Encode(image.data)}`, error: "" });
+      void imageCache
+        .get(
+          imageCacheKey(remote, thumbnail),
+          async (signal) => (await readImage(client.api, remote, thumbnail, signal)).data,
+          controller.signal,
+        )
+        .then((uri) => {
+          if (!controller.signal.aborted) setResult({ uri, error: "" });
         })
         .catch((error) => {
           if (!controller.signal.aborted)
@@ -44,7 +47,19 @@ export function useImage(source: ImageSource, thumbnail = false) {
     }
 
     return () => controller.abort();
-  }, [client, local, threadId, sha256, sizeBytes, file, thumbnail, retry, connection]);
+  }, [client, imageCache, local, threadId, sha256, sizeBytes, file, thumbnail, retry, enabled, connection]);
 
-  return { ...result, retry: () => setRetry((n) => n + 1) };
+  return {
+    ...result,
+    retry: () => {
+      const cleared =
+        source.kind === "local" || !imageCache
+          ? Promise.resolve()
+          : imageCache.invalidate(imageCacheKey(source, thumbnail));
+
+      void cleared
+        .then(() => setRetry((n) => n + 1))
+        .catch(() => setResult({ uri: "", error: "Could not load the image. Check the connection, then retry." }));
+    },
+  };
 }

@@ -6,7 +6,12 @@ import { fileResponse } from "./files.ts";
 import { gatewayFailure } from "./gateway-errors.ts";
 
 /** Bytes or a JSON failure for every attachment consumer, including img previews. No payloads enter logs. */
-export async function attachmentResponse(api: Client<typeof ui.GatewayService>, attachmentId: string, url: URL) {
+export async function attachmentResponse(
+  api: Client<typeof ui.GatewayService>,
+  attachmentId: string,
+  url: URL,
+  ifNoneMatch: string | null = null,
+) {
   const thumbnail = url.searchParams.has("thumbnail");
   const preview = url.searchParams.has("preview");
 
@@ -19,6 +24,7 @@ export async function attachmentResponse(api: Client<typeof ui.GatewayService>, 
       name: thumbnail && response.mimeType === "image/webp" ? `${name}.webp` : name,
       download: url.searchParams.has("download"),
       image: url.searchParams.has("image"),
+      ifNoneMatch,
     });
 
     result.headers.set("x-canopy-preview-truncated", String(response.truncated || data.length < response.data.length));
