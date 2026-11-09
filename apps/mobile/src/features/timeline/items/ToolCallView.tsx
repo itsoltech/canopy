@@ -15,6 +15,7 @@ import { MarkdownBody } from "./MarkdownBody";
 import { Aside, DiffCounts, RawToggle, RowTitle, Section, useRoomyRows } from "./parts";
 import { ImagePreview } from "../../attachments/ImagePreview";
 import { useTimelineDirectory } from "../directory";
+import { TextViewerButton } from "../../viewers/TextViewerButton";
 
 /**
  * Built-in, MCP or dynamic tool as the shared registry describes it (web: ToolCallView): a title in words with its
@@ -60,6 +61,7 @@ export function ToolCallView({ call, status }: { call: ToolCall; status: ItemSta
           <CodeBlock text={shellCommand(input)} label="Command" />
           <OutputBlock
             output={result}
+            blob={call.outputBlob}
             label="Output"
             empty={status === ItemStatus.IN_PROGRESS ? "Waiting for output…" : "No output."}
           />
@@ -70,6 +72,7 @@ export function ToolCallView({ call, status }: { call: ToolCall; status: ItemSta
         <Section label="Result">
           <OutputBlock
             output={result}
+            blob={call.outputBlob}
             label={`Result of ${title}`}
             empty={status === ItemStatus.IN_PROGRESS ? "Waiting for the result…" : "No result."}
           />
@@ -82,6 +85,9 @@ export function ToolCallView({ call, status }: { call: ToolCall; status: ItemSta
           name={`Tool image ${index + 1}.png`}
         />
       ))}
+      {look.body === "markdown" && call.outputBlob ? (
+        <TextViewerButton blob={call.outputBlob} label={`Result of ${title}`} />
+      ) : null}
       <RawToggle
         parts={[
           { label: "Input", text: call.inputJson === "{}" || call.inputJson === "null" ? "" : call.inputJson },

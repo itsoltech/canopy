@@ -1,31 +1,25 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { BlobRef } from "@canopy/contracts";
-import { formatBytes } from "@canopy/domain/format";
 import { styles, useColors, useTypography } from "../../ui/theme";
 import { Chevron } from "../../ui/MotionViews";
-
-/** Longer text stays on the web: the phone shows this much of an output or a diff. */
-const PREVIEW = 12_000;
+import { TextViewerButton } from "../viewers/TextViewerButton";
+import { INLINE_PREVIEW } from "../viewers/TextViewer";
 
 /** Code or output on a recessed surface (web: CodeBlock), monospace, selectable, capped for the phone. */
 export function CodeBlock({ text, label }: { text: string; label: string }) {
   const c = useColors();
   const type = useTypography();
-  const cut = text.length > PREVIEW;
+  const cut = text.length > INLINE_PREVIEW;
 
   return (
     <View accessibilityLabel={label} style={{ gap: 4 }}>
       <View style={{ borderRadius: 8, backgroundColor: c.well, padding: 12 }}>
         <Text selectable style={[type.mono, { color: c.text }]}>
-          {cut ? text.slice(0, PREVIEW) : text}
+          {cut ? text.slice(0, INLINE_PREVIEW) : text}
         </Text>
       </View>
-      {cut && (
-        <Text style={[styles.workMeta, { color: c.muted }]}>
-          Shows the first {PREVIEW.toLocaleString("en")} characters. Open this thread on the web for the rest.
-        </Text>
-      )}
+      {cut && <TextViewerButton text={text} label={label} />}
     </View>
   );
 }
@@ -99,9 +93,7 @@ export function OutputBlock({
         </>
       ) : null}
       {blob ? (
-        <Text style={[styles.workMeta, { color: c.muted }]}>
-          Full output ({formatBytes(blob.sizeBytes)}) is stored on the gateway; viewing it here is not supported yet.
-        </Text>
+        <TextViewerButton blob={blob} label={label} />
       ) : !output ? (
         <Text style={[styles.workMeta, { color: c.muted, fontStyle: "italic" }]}>{empty}</Text>
       ) : null}

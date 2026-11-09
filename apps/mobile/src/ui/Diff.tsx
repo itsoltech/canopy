@@ -4,6 +4,8 @@ import { useDevicePreferences } from "../features/settings/device-preferences";
 import { Segmented } from "./components";
 import { styles, useColors, useTypography } from "./theme";
 import { diffRows } from "./diff-lines";
+import { INLINE_PREVIEW } from "../features/viewers/TextViewer";
+import { TextViewerButton } from "../features/viewers/TextViewerButton";
 
 /** `bare`: always open, without its own header (the row above it names the file and opens or folds it). */
 export function Diff({ diff, label = "File changes", bare = false }: { diff: string; label?: string; bare?: boolean }) {
@@ -11,7 +13,12 @@ export function Diff({ diff, label = "File changes", bare = false }: { diff: str
   const type = useTypography();
   const { values, set } = useDevicePreferences();
   const [open, setOpen] = useState(values.diffFileState !== "collapsed");
-  const rows = useMemo(() => diffRows(diff, values.hideWhitespace === "on"), [diff, values.hideWhitespace]);
+
+  const rows = useMemo(
+    () => diffRows(diff.slice(0, INLINE_PREVIEW), values.hideWhitespace === "on"),
+    [diff, values.hideWhitespace],
+  );
+
   const addition = values.diffColors === "blue-orange" ? c.sky : c.success;
   const deletion = values.diffColors === "blue-orange" ? c.warning : c.danger;
   const wrapped = values.wrapDiffs === "on";
@@ -82,6 +89,7 @@ export function Diff({ diff, label = "File changes", bare = false }: { diff: str
               </ScrollView>
             )}
           </View>
+          {diff.length > INLINE_PREVIEW ? <TextViewerButton text={diff} label={label} diff /> : null}
         </>
       )}
     </View>
