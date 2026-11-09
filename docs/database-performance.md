@@ -122,6 +122,15 @@ oraz kolejkę.
 Pełny snapshot starszych klientów, skok do itemu i odtworzenie okna od `fromTurnId`
 zachowują wcześniejszy zakres; nie są po cichu obcinane.
 
+Dekodowanie protobuf dużych snapshotów oddaje sterowanie do fazy I/O co około
+4 ms (kontrola co 32 rekordy), po zamknięciu transakcji odczytu. Samo oddanie
+microtaska nie wystarcza do obsługi socketów. `bun scripts/bench/decode.ts --run`
+porównuje dekodowanie tych samych 32 768 syntetycznych itemów i przerwy timera
+1 ms. Nie mierzy parsowania JSON przez driver ani serializacji transportu.
+Pojedynczy ogromny item nadal dekoduje się synchronicznie; pełny kontrakt historii
+nie pozwala go obciąć. Ograniczenie tego przypadku wymaga osobnego kontraktu
+fragmentacji payloadu lub przeniesienia kodeka poza główną pętlę.
+
 Kontekst nazwy gałęzi wybiera pierwszy i trzy ostatnie prompty przez indeks porządku
 tur. Nie pobiera środkowej historii. Fakty agent busa pobierają nagłówki wszystkich
 adresatów jednym zapytaniem. Powiadomienia mają strony po 50 rekordów, a fallbacki

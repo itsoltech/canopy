@@ -11,6 +11,7 @@ import type { TurnStore } from "./turns-store.ts";
 import { mirrorSelection, type MirrorSelection } from "./mirror-selection.ts";
 import { threadWindow, type ThreadHistoryQuery } from "./thread-window.ts";
 import { composerTurnChoices } from "./composer-turn-choices.ts";
+import { decodeSnapshotRows } from "./snapshot-decode.ts";
 
 export interface ThreadSnapshotStore {
   composerTurnChoices(threadId: string, ownerUserId: string): Fx<ui.ComposerTurnChoices | undefined>;
@@ -45,6 +46,17 @@ interface ItemRow {
   inherited: boolean;
   completed_at: Date | null;
 }
+
+const timelineItem = (r: ItemRow) =>
+  create(ui.TimelineItemSchema, {
+    item: fromJson(ItemSchema, r.content),
+    turnId: r.turn_id ?? "",
+    firstSeq: BigInt(r.first_seq),
+    lastSeq: BigInt(r.last_seq),
+    inherited: r.inherited,
+    fromThreadId: r.inherited ? r.thread_id : "",
+    ...(r.completed_at && { completedAt: timestampFromDate(new Date(r.completed_at)) }),
+  });
 
 export function threadSnapshot(
   sql: SqlClient.SqlClient,
@@ -103,19 +115,6 @@ export function threadSnapshot(
                     OR v.turn_id=ANY(${window?.ids ?? []}::uuid[]))
                 ORDER BY c.level DESC,v.first_seq`;
 
-        const items = itemRows.map((r) =>
-          create(ui.TimelineItemSchema, {
-            item: fromJson(ItemSchema, r.content),
-            turnId: r.turn_id ?? "",
-            firstSeq: BigInt(r.first_seq),
-            lastSeq: BigInt(r.last_seq),
-            inherited: r.inherited,
-            fromThreadId: r.inherited ? r.thread_id : "",
-            // When a shown answer ended: the start of the turn's next segment (docs/timeline-folding.md).
-            ...(r.completed_at && { completedAt: timestampFromDate(new Date(r.completed_at)) }),
-          }),
-        );
-
         const noticeRows = yield* sql<{
           seq: bigint;
           turn_id: string | null;
@@ -129,30 +128,15 @@ export function threadSnapshot(
                    ORDER BY seq DESC LIMIT ${selection ? null : 200}) n
                  ORDER BY seq`;
 
-        const notices = noticeRows.flatMap((r) => {
-          const event = fromJson(ThreadEventSchema, r.payload);
-
-          return event.body.case === "notice"
-            ? [
-                create(ui.ThreadNoticeSchema, {
-                  seq: BigInt(r.seq),
-                  turnId: r.turn_id ?? "",
-                  notice: event.body.value,
-                  occurredAt: timestampFromDate(new Date(r.occurred_at)),
-                }),
-              ]
-            : [];
-        });
-
         const interactions = yield* self().pendingInteractions(threadId);
 
         return {
           thread,
           lastUserTurnChoices,
           turns: [...inheritedTurns.map((t) => ({ ...t, inherited: true })), ...turns],
-          items,
+          itemRows,
           interactions,
-          notices,
+          noticeRows,
           lastSeq: BigInt(thread.last_seq),
           selection,
           cursor: clock?.cursor ?? "",
@@ -162,15 +146,42 @@ export function threadSnapshot(
       });
 
       // Ordinary snapshots also run inside writable bot actions; preserve their transaction.
-      return mirrorCursor || includeCursor
-        ? sql.withTransaction(
-            Effect.gen(function* () {
-              yield* sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`;
+      const snapshot =
+        mirrorCursor || includeCursor
+          ? sql.withTransaction(
+              Effect.gen(function* () {
+                yield* sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`;
 
-              return yield* read;
-            }),
-          )
-        : read;
+                return yield* read;
+              }),
+            )
+          : read;
+
+      // Materialize the consistent SQL snapshot first. Decoding yields without extending its read transaction.
+      return snapshot.pipe(
+        Effect.flatMap(({ itemRows, noticeRows, ...state }) =>
+          Effect.gen(function* () {
+            const items = yield* Effect.promise(() => decodeSnapshotRows(itemRows, timelineItem));
+
+            const decoded = yield* Effect.promise(() =>
+              decodeSnapshotRows(noticeRows, (r) => {
+                const event = fromJson(ThreadEventSchema, r.payload);
+
+                return event.body.case === "notice"
+                  ? create(ui.ThreadNoticeSchema, {
+                      seq: BigInt(r.seq),
+                      turnId: r.turn_id ?? "",
+                      notice: event.body.value,
+                      occurredAt: timestampFromDate(new Date(r.occurred_at)),
+                    })
+                  : undefined;
+              }),
+            );
+
+            return { ...state, items, notices: decoded.filter((notice) => notice !== undefined) };
+          }),
+        ),
+      );
     },
 
     threadItem: (threadId, itemId) =>
