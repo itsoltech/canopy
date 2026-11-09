@@ -2,10 +2,13 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import type { ui } from "@canopy/contracts";
+  import { attachmentPreviewKind } from "@canopy/domain/attachment-preview";
+  import AttachmentPreview from "./AttachmentPreview.svelte";
 
   /**
    * A file as a chip: icon, name and a second line (size and type, or why it failed). With `href` the whole chip
-   * downloads the file; `trailing` adds something at the end (a download arrow).
+   * downloads the file unless `file` supports a preview; `trailing` adds something at the end (a download arrow).
    */
   let {
     name,
@@ -13,6 +16,7 @@
     failed = false,
     href,
     trailing,
+    file,
     class: className,
   }: {
     name: string;
@@ -20,8 +24,12 @@
     failed?: boolean;
     href?: string | undefined;
     trailing?: Snippet | undefined;
+    file?: ui.Attachment;
     class?: ClassValue;
   } = $props();
+
+  let anchor = $state<HTMLElement>();
+  let open = $state(false);
 </script>
 
 {#snippet body()}
@@ -43,8 +51,20 @@
   {@render trailing?.()}
 {/snippet}
 
-{#if href}
+{#if file && attachmentPreviewKind(file) !== "file"}
+  <button
+    type="button"
+    bind:this={anchor}
+    aria-label="Open {name}"
+    onclick={() => (open = true)}
+    class={[
+      "flex min-w-0 items-center gap-2.5 text-left focus-ring hover:bg-zinc-950/2.5 dark:hover:bg-white/5",
+      className,
+    ]}>{@render body()}</button
+  >
+{:else if href}
   <a
+    bind:this={anchor}
     {href}
     download={name}
     class={["flex min-w-0 items-center gap-2.5 focus-ring hover:bg-zinc-950/2.5 dark:hover:bg-white/5", className]}
@@ -53,3 +73,4 @@
 {:else}
   <div class={["flex min-w-0 items-center gap-2.5", className]}>{@render body()}</div>
 {/if}
+{#if file}<AttachmentPreview {file} {anchor} bind:open />{/if}

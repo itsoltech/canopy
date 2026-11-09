@@ -2,6 +2,7 @@ import { toast } from "#lib/shared/ui/toast.svelte.ts";
 
 /** Values are strings at the storage boundary; only declared choices are accepted. */
 export const deviceChoices = {
+  attachmentMarkdown: ["rendered", "source"],
   threadNotifications: ["off", "notifications", "sound"],
   botNotifications: ["off", "notifications", "sound"],
   inAppNotifications: ["on", "off"],
@@ -29,6 +30,7 @@ export const deviceChoices = {
 export type DeviceKey = keyof typeof deviceChoices;
 
 export const deviceDefaults: Record<DeviceKey, string> = {
+  attachmentMarkdown: "rendered",
   threadNotifications: "off",
   botNotifications: "off",
   inAppNotifications: "on",

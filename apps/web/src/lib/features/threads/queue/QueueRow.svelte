@@ -10,6 +10,7 @@
   import QueueEditor from "./QueueEditor.svelte";
   import QueueHandle from "./QueueHandle.svelte";
   import QueueRowMenu from "./QueueRowMenu.svelte";
+  import AttachmentChipList from "#lib/features/attachments/AttachmentChipList.svelte";
 
   /**
    * One queued message: its handle (the queue icon; the grip on hover or focus, always on touch), the text on
@@ -94,6 +95,7 @@
 >
   {#if editing}
     <QueueEditor
+      attachments={turn.attachments}
       text={messageOf(turn)}
       mentions={turn.messageText ? turn.mentions : []}
       allowEmpty={carriesMore(turn)}
@@ -136,5 +138,6 @@
       {/if}
       <QueueRowMenu {index} {count} {hints} {delivery} onedit={own ? onedit : undefined} onmove={move} {ondelivery} />
     </div>
+    {#if turn.attachments.length > 0}<AttachmentChipList attachments={turn.attachments} class="px-10 pb-2" />{/if}
   {/if}
 </div>

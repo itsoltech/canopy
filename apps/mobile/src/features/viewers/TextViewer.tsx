@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ActivityIndicator, FlatList, Text, View } from "react-native";
+import { useMemo, useState, type ReactNode } from "react";
+import { ActivityIndicator, FlatList, ScrollView, Text, View } from "react-native";
 import type { BlobRef } from "@canopy/contracts";
-import { useSession } from "../../state/session";
 import { Button } from "../../ui/Button";
 import { FullScreenViewer } from "../../ui/FullScreenViewer";
 import { styles, useColors, useTypography } from "../../ui/theme";
@@ -9,8 +8,12 @@ import { CopyAction } from "./copy-action";
 import { QuoteAction } from "../quotes/QuoteAction";
 import { DiffContent } from "../../ui/DiffContent";
 import { QUOTE_LIMITS } from "@canopy/domain";
+import { Markdown } from "../../ui/markdown/Markdown";
+import { Segmented } from "../../ui/Segmented";
+import { useDevicePreferences } from "../settings/device-preferences";
+import { useTextContent } from "./useTextContent";
+import { Switch } from "../../ui/Switch";
 
-const TEXT_BYTES = 8 * 1024 ** 2;
 export const INLINE_PREVIEW = 12_000;
 
 /** Bound each native Text and the mounted window, including for a single enormous output line. */
@@ -53,6 +56,9 @@ export function TextViewer({
   diff = false,
   onClose,
   extraActions,
+  attachment = false,
+  markdown = false,
+  notice,
 }: {
   text?: string;
   blob?: BlobRef | undefined;
@@ -61,50 +67,15 @@ export function TextViewer({
   diff?: boolean;
   onClose: () => void;
   extraActions?: ReactNode;
+  attachment?: boolean;
+  markdown?: boolean;
+  notice?: string;
 }) {
-  const { client } = useSession();
   const c = useColors();
-  const [loaded, setLoaded] = useState<string>();
-  const [error, setError] = useState("");
-  const [retry, setRetry] = useState(0);
-
-  const inlineTooLarge = useMemo(
-    () =>
-      text.length > TEXT_BYTES || (text.length > TEXT_BYTES / 3 && new TextEncoder().encode(text).length > TEXT_BYTES),
-    [text],
-  );
-
-  const tooLarge = blob ? blob.sizeBytes > BigInt(TEXT_BYTES) : inlineTooLarge;
-  const sha256 = blob?.sha256;
-
-  useEffect(() => {
-    if (tooLarge) return;
-    const controller = new AbortController();
-    setError("");
-
-    if (!sha256) setLoaded(text);
-    else if (client) {
-      setLoaded(undefined);
-      void client.api
-        .getThreadBlob({ threadId, sha256 }, { signal: controller.signal })
-        .then((response) => {
-          if (controller.signal.aborted) return;
-
-          if (response.data.length > TEXT_BYTES) {
-            setError("This content exceeds the 8 MB viewing limit. Ask the agent for a smaller section.");
-
-            return;
-          }
-
-          setLoaded(new TextDecoder("utf-8", { fatal: true }).decode(response.data));
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setError("Could not load this content. Check the connection, then retry.");
-        });
-    }
-
-    return () => controller.abort();
-  }, [client, threadId, sha256, text, tooLarge, retry]);
+  const { loaded, error, tooLarge, retry } = useTextContent(text, blob, threadId);
+  const preferences = useDevicePreferences();
+  const [wrap, setWrap] = useState(true);
+  const rendered = markdown && preferences.values.attachmentMarkdown === "rendered";
 
   const chunks = useMemo(() => chunksOf(loaded ?? ""), [loaded]);
 
@@ -116,23 +87,60 @@ export function TextViewer({
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           {loaded ? (
             <>
-              <CopyAction text={loaded} label={diff ? "Copy diff" : "Copy output"} />
-              <QuoteAction text={loaded} kind={diff ? "diff" : "command_output"} />
+              <CopyAction text={loaded} label={attachment ? "Copy text" : diff ? "Copy diff" : "Copy output"} />
+              {!attachment && <QuoteAction text={loaded} kind={diff ? "diff" : "command_output"} />}
             </>
           ) : null}
           {extraActions}
         </View>
       }
     >
+      {attachment && (
+        <View style={{ padding: 12, gap: 8 }}>
+          {notice && <Text style={[styles.caption, { color: c.muted }]}>{notice}</Text>}
+          {markdown && (
+            <Segmented
+              options={[
+                { value: "rendered", label: "Rendered" },
+                { value: "source", label: "Source" },
+              ]}
+              value={preferences.values.attachmentMarkdown}
+              onChange={(value) => preferences.set("attachmentMarkdown", value)}
+            />
+          )}
+          {!rendered && (
+            <View style={[styles.row, { gap: 12, minHeight: 44 }]}>
+              <Text style={[styles.caption, { color: c.text }]}>Wrap lines</Text>
+              <Switch label="Wrap lines" value={wrap} onChange={setWrap} />
+            </View>
+          )}
+        </View>
+      )}
       {tooLarge || error ? (
         <View style={{ padding: 20, gap: 12 }}>
           <Text accessibilityRole="alert" style={[styles.body, { color: c.muted }]}>
             {tooLarge ? "This content exceeds the 8 MB viewing limit. Ask the agent for a smaller section." : error}
           </Text>
-          {!tooLarge && <Button title="Retry" onPress={() => setRetry((n) => n + 1)} />}
+          {!tooLarge && <Button title="Retry" onPress={retry} />}
         </View>
       ) : loaded === undefined ? (
         <ActivityIndicator accessibilityLabel="Loading content" style={{ padding: 24 }} color={c.muted} />
+      ) : rendered ? (
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
+          <Markdown text={loaded} />
+        </ScrollView>
+      ) : attachment && !wrap ? (
+        <ScrollView horizontal contentContainerStyle={{ minWidth: "100%" }}>
+          <FlatList
+            data={chunks}
+            keyExtractor={(_chunk, index) => String(index)}
+            renderItem={({ item }) => <TextChunk text={item} diff={false} />}
+            initialNumToRender={4}
+            maxToRenderPerBatch={4}
+            windowSize={5}
+            contentContainerStyle={{ padding: 16 }}
+          />
+        </ScrollView>
       ) : (
         <FlatList
           data={chunks}
@@ -140,7 +148,7 @@ export function TextViewer({
           renderItem={({ item }) => (
             <View>
               <TextChunk text={item} diff={diff} />
-              {loaded.length > QUOTE_LIMITS.maxTextChars && (
+              {!attachment && loaded.length > QUOTE_LIMITS.maxTextChars && (
                 <QuoteAction text={item} kind={diff ? "diff" : "command_output"} />
               )}
             </View>

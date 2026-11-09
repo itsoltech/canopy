@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import Lightbox from "./Lightbox.svelte";
+  import type { ui } from "@canopy/contracts";
+  import AttachmentPreview from "./AttachmentPreview.svelte";
 
   /**
    * An image in the chat that opens at full size (Lightbox) when tapped. `src` is what the chat shows (a thumbnail),
@@ -17,6 +19,7 @@
     imageClass,
     class: className,
     onerror,
+    file,
   }: {
     src: string;
     full?: string;
@@ -28,12 +31,15 @@
     imageClass?: ClassValue;
     class?: ClassValue;
     onerror?: (() => void) | undefined;
+    file?: ui.Attachment;
   } = $props();
 
   let open = $state(false);
+  let anchor = $state<HTMLButtonElement>();
 </script>
 
 <button
+  bind:this={anchor}
   type="button"
   class={["group block max-w-full overflow-hidden focus-ring", className]}
   aria-label="Open {name}"
@@ -52,4 +58,5 @@
     {onerror}
   />
 </button>
-<Lightbox bind:open src={full} {name} {detail} {download} />
+{#if file}<AttachmentPreview {file} {anchor} bind:open />
+{:else}<Lightbox bind:open src={full} {name} {detail} {download} />{/if}

@@ -12,6 +12,7 @@ import { ItemStatus, MentionKind, MentionSchema, Provider, ui } from "@canopy/co
 import { dockerAvailable } from "@canopy/db/testing";
 import { AttachmentStore, GatewayStore, SteerStore } from "@canopy/gateway/store";
 import sharp from "sharp";
+import { ATTACHMENT_PREVIEW_BYTES } from "@canopy/domain/attachment-preview";
 import {
   eventually,
   failure,
@@ -357,6 +358,20 @@ describe.skipIf(!dockerAvailable)("attachments", () => {
   });
 
   describe("access to bytes", () => {
+    test("a bounded preview returns a prefix while downloads retain the whole file", async () => {
+      const data = text("entry\n".repeat(30_000));
+      const file = (await api.uploadAttachment({ name: "large.log", data })).attachment!;
+      const preview = await api.getAttachment({ attachmentId: file.id, preview: true });
+      expect(preview.data).toEqual(data.subarray(0, ATTACHMENT_PREVIEW_BYTES));
+      expect(preview.truncated).toBe(true);
+      expect(preview.attachment?.sizeBytes).toBe(BigInt(data.length));
+      const download = await api.getAttachment({ attachmentId: file.id });
+      expect(download.data).toEqual(data);
+      expect(download.truncated).toBe(false);
+      const short = (await api.uploadAttachment({ name: "small.txt", data: text("hello") })).attachment!;
+      expect((await api.getAttachment({ attachmentId: short.id, preview: true })).truncated).toBe(false);
+    });
+
     test("an attachment is readable only by its owner", async () => {
       const mine = (await api.uploadAttachment({ name: "mine.txt", data: text("mine") })).attachment!;
       expect((await api.getAttachment({ attachmentId: mine.id })).mimeType).toBe("text/plain");
@@ -376,6 +391,7 @@ describe.skipIf(!dockerAvailable)("attachments", () => {
       );
 
       expect(await failure(api.getAttachment({ attachmentId: theirs.id }))).toContain("not found");
+      expect(await failure(api.getAttachment({ attachmentId: theirs.id, preview: true }))).toContain("not found");
       expect(await failure(api.getAttachment({ attachmentId: "not-a-uuid" }))).toContain("not found");
       // Nor can it be sent by someone else.
       const thread = await newThread("Theft");

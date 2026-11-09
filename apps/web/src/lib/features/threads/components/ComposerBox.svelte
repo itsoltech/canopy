@@ -17,9 +17,8 @@
   import { filesOf, type AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
   import { pastedFiles, UNREACHABLE_FILES } from "#lib/features/attachments/clipboard.ts";
   import { useFileIntake } from "#lib/features/attachments/file-intake.svelte.ts";
-  import AttachmentChipCard from "#lib/features/attachments/AttachmentChipCard.svelte";
+  import EditorAttachmentPreview from "#lib/features/attachments/EditorAttachmentPreview.svelte";
   import { chipOf, showUploads } from "#lib/features/attachments/inline-chip.ts";
-  import Lightbox from "#lib/features/attachments/Lightbox.svelte";
   import ComposerPlusMenu from "#lib/features/mentions/ComposerPlusMenu.svelte";
   import { trimValue, type EditorControls, type TriggerChar } from "#lib/features/mentions/editor.ts";
   import type { MentionData } from "#lib/features/mentions/kinds.ts";
@@ -177,18 +176,6 @@
   /** A paste brings back only badges of files this draft has. */
   const acceptChip = (m: MentionData) => m.kind !== MentionKind.ATTACHMENT || Boolean(draft?.file(m.name));
 
-  let preview = $state<{ key: string; image: boolean; anchor: HTMLElement }>();
-  let previewOpen = $state(false);
-  const previewed = $derived(preview && draft?.file(preview.key));
-
-  function onchipclick(mention: MentionData, chip: HTMLElement) {
-    const file = mention.kind === MentionKind.ATTACHMENT ? draft?.file(mention.name) : undefined;
-
-    if (!file) return;
-    preview = { key: file.key, image: file.image && Boolean(file.localUrl) && file.status !== "failed", anchor: chip };
-    previewOpen = true;
-  }
-
   const stopMode = $derived(Boolean(onstop) && !hasContent);
 
   const steerMode = $derived(Boolean(onqueue) && !stopMode && hasContent);
@@ -331,7 +318,6 @@
           {onkeydown}
           {onpaste}
           {acceptChip}
-          {onchipclick}
           singleLine={compact}
           class={["text-base/6 sm:text-sm/6", shellMode && "font-mono", disabled && "cursor-not-allowed"]}
         />
@@ -435,15 +421,4 @@
     </ComposerFold>
   {/if}
 </div>
-{#if draft && previewed}
-  {#if preview?.image && previewed.localUrl}
-    <Lightbox bind:open={previewOpen} src={previewed.localUrl} name={previewed.name} />
-  {:else}
-    <AttachmentChipCard
-      bind:open={previewOpen}
-      file={previewed}
-      anchor={preview?.anchor}
-      onremove={() => editor?.removeChips((m) => m.kind === MentionKind.ATTACHMENT && m.name === previewed.key)}
-    />
-  {/if}
-{/if}
+{#if draft}<EditorAttachmentPreview {draft} {editor} />{/if}

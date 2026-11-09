@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./attachment-preview": "./src/attachments/preview.ts",
     "./sidebar-threads": "./src/sidebar-threads.ts",
     "./sidebar-entries": "./src/sidebar-entries.ts",
     "./archived-threads": "./src/archived-threads.ts",

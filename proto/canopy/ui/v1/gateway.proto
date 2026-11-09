@@ -2028,12 +2028,15 @@ message GetAttachmentRequest {
   string attachment_id = 1;
   // Miniatura obrazu (WebP, do 512 px) zamiast pliku.
   bool thumbnail = 2;
+  // Ograniczony podgląd: pierwsze 128 KiB, bez pobierania całego bloba z bazy.
+  bool preview = 800;
 }
 
 message GetAttachmentResponse {
   Attachment attachment = 1;
   bytes data = 2;
   string mime_type = 3;
+  bool truncated = 800;
 }
 
 // Podgląd obrazu z transkryptu wątku (Image.blob, ToolCall.images), tylko dla właściciela wątku.

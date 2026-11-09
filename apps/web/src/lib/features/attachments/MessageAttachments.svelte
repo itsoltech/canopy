@@ -27,6 +27,7 @@
         <li>
           <FileAvailability entityId={image.id} name={image.name}>
             <ZoomableImage
+              file={image}
               src={url(image, image.hasThumbnail ? "thumbnail" : undefined)}
               full={url(image)}
               name={image.name}
@@ -53,6 +54,7 @@
         <li class="min-w-0">
           <FileAvailability entityId={file.id} name={file.name}>
             <FileChip
+              {file}
               name={file.name}
               detail="{formatSize(file.sizeBytes)} · {file.mimeType}"
               href={url(file, "download")}

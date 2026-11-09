@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 
 // Device preferences never enter account settings or overwrite another client's choices.
 export const deviceChoices = {
+  attachmentMarkdown: ["rendered", "source"],
   inAppNotifications: ["on", "off"],
   timeFormat: ["system", "12h", "24h"],
   contrast: ["standard", "strong", "maximum"],
@@ -25,6 +26,7 @@ export const deviceChoices = {
 export type DeviceKey = keyof typeof deviceChoices;
 
 export const deviceDefaults: Record<DeviceKey, string> = {
+  attachmentMarkdown: "rendered",
   inAppNotifications: "on",
   timeFormat: "system",
   contrast: "standard",
