@@ -50,13 +50,13 @@ type BlocksView = ComponentType<{ tokens: readonly Token[] }>;
 /** A tight item's text runs inline; everything else (and every part of a loose item) is a block. */
 function ItemBody({ item, Blocks }: { item: Tokens.ListItem; Blocks: BlocksView }) {
   const type = useTypography();
-  const { ink } = useMarkdownScope();
+  const { ink, selectable } = useMarkdownScope();
 
   if (item.loose) return <Blocks tokens={item.tokens} />;
 
   return item.tokens.map((child, index) =>
     isToken(child, "text") ? (
-      <Text key={index} selectable style={[type.body, { color: ink }]}>
+      <Text key={index} selectable={selectable} style={[type.body, { color: ink }]}>
         {child.tokens ? <Inline tokens={child.tokens} /> : child.text}
       </Text>
     ) : (

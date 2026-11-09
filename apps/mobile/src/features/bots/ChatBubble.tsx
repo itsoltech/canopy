@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
 import type { ChatMessageView, ParticipantView } from "@canopy/domain/bot-chat";
 import { Icon } from "../../ui/Icon";
 import { Markdown } from "../../ui/markdown";
@@ -6,6 +7,9 @@ import { font, styles, useColors, useTypography } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { MascotAvatar } from "./BotAvatar";
 import { botInk } from "./bot-ink";
+import { MessageSpans, mentionElements } from "../composer/MessageText";
+import { QuotePreview } from "../quotes/QuotePreview";
+import { TextActions } from "../viewers/TextActions";
 
 /**
  * One message in a run (web: ChatBubble, MessageRow). Bots write markdown on soft grey; your messages are plain text
@@ -20,6 +24,7 @@ export function ChatBubble({
   last,
   showName,
   gutter,
+  onReply,
 }: {
   message: ChatMessageView;
   sender: ParticipantView | undefined;
@@ -28,12 +33,17 @@ export function ChatBubble({
   last: boolean;
   showName: boolean;
   gutter: boolean;
+  onReply?: ((message: ChatMessageView) => void) | undefined;
 }) {
   const c = useColors();
-  const type = useTypography();
+  const [actions, setActions] = useState(false);
   const rose = useTone("rose").text;
   const end = mine;
   const tight = 6;
+
+  const accessibleText = [...(message.quotes ?? []).flatMap((q) => [q.text, q.comment]), message.text]
+    .filter(Boolean)
+    .join("\n");
 
   const corners = {
     borderRadius: 20,
@@ -74,8 +84,12 @@ export function ChatBubble({
             </Text>
           </View>
         )}
-        <View
-          accessibilityLabel={`${mine ? "You" : (sender?.name ?? "Unknown")}: ${message.text}`}
+        <Pressable
+          accessibilityLabel={`${mine ? "You" : (sender?.name ?? "Unknown")}: ${accessibleText}`}
+          accessibilityHint="Long press for message actions"
+          onLongPress={() => setActions(true)}
+          accessibilityActions={[{ name: "activate", label: "Message actions" }]}
+          onAccessibilityAction={() => setActions(true)}
           style={[
             corners,
             {
@@ -87,14 +101,14 @@ export function ChatBubble({
             },
           ]}
         >
-          {mine ? (
-            <Text selectable style={[type.body, { color: c.botUserText }]}>
-              {message.text}
-            </Text>
-          ) : (
-            <Markdown text={message.text} />
-          )}
-        </View>
+          <MessageBody message={message} mine={mine} />
+        </Pressable>
+        <TextActions
+          text={message.text || message.quotes?.map((q) => q.text).join("\n\n") || ""}
+          visible={actions}
+          onClose={() => setActions(false)}
+          onReply={onReply ? () => onReply(message) : undefined}
+        />
         {message.delivery && (
           <View style={[styles.row, { gap: 4, paddingHorizontal: 12 }]}>
             {message.delivery === "failed" && <Icon name="exclamation-circle" size={14} color={rose} />}
@@ -104,6 +118,30 @@ export function ChatBubble({
           </View>
         )}
       </View>
+    </View>
+  );
+}
+
+function MessageBody({ message, mine }: { message: ChatMessageView; mine: boolean }) {
+  const c = useColors();
+  const type = useTypography();
+
+  return (
+    <View style={{ gap: 8 }}>
+      {message.quotes?.map((quote, index) => (
+        <QuotePreview key={index} quote={quote} mine={mine} />
+      ))}
+      {mine ? (
+        <Text style={[type.body, { color: c.botUserText }]}>
+          <MessageSpans value={{ text: message.text, mentions: message.mentions ?? [] }} />
+        </Text>
+      ) : (
+        <Markdown
+          selectable={false}
+          text={message.text}
+          elements={mentionElements(message.text, message.mentions ?? [])}
+        />
+      )}
     </View>
   );
 }

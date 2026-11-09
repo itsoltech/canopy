@@ -1,7 +1,14 @@
 import { useMemo } from "react";
 import { View } from "react-native";
 import type { bots } from "@canopy/contracts";
-import { botEntries, botParticipant, layoutChat, type ChatRow, type ParticipantView } from "@canopy/domain/bot-chat";
+import {
+  botEntries,
+  botParticipant,
+  layoutChat,
+  type ChatRow,
+  type ChatMessageView,
+  type ParticipantView,
+} from "@canopy/domain/bot-chat";
 import { ApprovalCard } from "./ApprovalCard";
 import { ChatBubble } from "./ChatBubble";
 import { ChatDateLine, ChatErrorLine, ChatEventLine, ExchangeLine } from "./ChatRows";
@@ -42,11 +49,13 @@ export function ChatRowView({
   approvals,
   readOnly = false,
   onAnswer,
+  onReply,
 }: {
   row: ChatRow;
   approvals: readonly bots.BotApproval[];
   readOnly?: boolean;
   onAnswer?: (request: bots.AnswerBotApprovalRequest) => Promise<bots.AnswerBotApprovalResponse>;
+  onReply?: ((message: ChatMessageView) => void) | undefined;
 }) {
   switch (row.kind) {
     case "date":
@@ -98,6 +107,7 @@ export function ChatRowView({
             last={row.last}
             showName={row.showName}
             gutter={false}
+            onReply={readOnly ? undefined : onReply}
           />
         </View>
       );

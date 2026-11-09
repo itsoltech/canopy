@@ -985,11 +985,13 @@ Katalog stref IANA w `packages/ui/src/timezones.json` jest wspólny z web, bo He
 udostępnia `Intl.supportedValuesOf`. Wybór daty sprawdza też nieistniejące godziny przy zmianie czasu.
 Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
 listę, czat ze streamem, wysyłanie/stop, karty pytań/zgód z odpowiedziami oraz sheet
-szczegółów/routines/reminders (zarządzanie routines/reminders w web). „Bot settings”
+szczegółów z włączaniem, pauzowaniem i usuwaniem rutyn oraz anulowaniem przypomnień. „Bot settings”
 pozwala edytować nazwę, instrukcje, wygląd, model, effort, worker i politykę zgód;
 przycisk Create bot w nagłówku listy Bots otwiera ten sam formularz do tworzenia.
 Tworzenie zachowuje `client_request_id` przy ponowieniu niepotwierdzonego zapisu.
-Własny kolor można wpisać jako #RRGGBB. Nieudana odpowiedź ma Retry dla ostatniego
+Wspólna walidacja szkicu wykrywa powtórzone nazwy na tym samym komputerze i normalizuje
+kolor #RGB do #RRGGBB; gateway pozostaje źródłem walidacji. Nowy bot rozpoczyna formularz
+od wyboru modelu. Nieudana odpowiedź ma Retry dla ostatniego
 błędu oraz Change model or worker, otwierające ustawienia. Akcje wymagają live
 i dostępnego domu bota; gateway ponownie sprawdza możliwość ponowienia.
 New thread ma skrót Manage projects do istniejącego tworzenia projektów i workspace'ów,
@@ -1001,8 +1003,8 @@ na karcie przesyła identyfikator opcji wyliczonej w gatewayu. Automatyczna zgod
 jako „Allowed by rule: …”, z odnośnikiem do ustawień. „Threads started by this bot”
 używa tych samych opcji co web; karty narzędzi takich wątków można rozstrzygać również
 w czacie bota. Są też połączenia, archiwizacja i usuwanie bota. Lista botów odświeża się co 10 sekund.
-Brak push i wysyłania offline. Cache obejmuje wątki, nie rozmowy botów. To pierwsza iteracja zgodności z web,
-nie pełna równoważność wszystkich jego funkcji.
+Lista obejmuje przypinanie i sekcję Archived, a karta oczekującej zgody ma skrót do polityki bota.
+Brak push i wysyłania offline; cache obejmuje wątki i rozmowy botów, zgodnie z opisem powyżej.
 
 ### Wklejanie i upuszczanie
 
@@ -1185,6 +1187,25 @@ pakiet odpowiedzi o 3,5 s na każdym połączeniu; równolegle jedna nazwa nie r
 trasa nie odpowiada na TLS. `network-liveness.test.ts` sprawdza wolne pongi, usunięcie martwej
 sesji i logi bez pinu. Timingi testów liveness są skrócone; test klienta TS nie zastępuje QA radia
 ani natywnego transportu na fizycznych telefonach.
+
+Czat bota używa wspólnego edytora wzmianek: `@` proponuje inne aktywne boty tego samego
+komputera oraz połączone konta udostępnione botowi. Katalog kont jest lokalny, zgodnie z web;
+gateway ponownie sprawdza wzmianki, granty i zasady zatwierdzania. Przytrzymanie wiadomości
+otwiera Reply/Copy. Odpowiedź dodaje cytat do szkicu, z komentarzem i usuwaniem;
+można wysłać same cytaty. Ponowienie zachowuje identyfikator dostarczenia tylko dla
+niezmienionego tekstu, wzmianek i cytatów. Podpowiedzi nie zmieniają wysokości edytora.
+Wątki i boty współdzielą szkic cytatów oraz pasek `QuoteTray`; boty zachowują komentarze
+edytowane bezpośrednio w pasku. Konwersja Markdown na tekst cytatu jest wspólna
+w `domain/markdown`. Menu Reply/Copy używa `TextActions`, a kopiowanie w menu
+i przeglądarkach korzysta z tego samego `useCopyText`, z potwierdzeniem dostępności
+i komunikatem ponowienia po błędzie. Długie przytrzymanie treści bota nie konkuruje
+z natywnym zaznaczaniem tekstu kodu ani diffu; pełne przeglądarki zachowują zaznaczanie.
+
+`In-app notifications` obejmuje inne wątki i czaty botów na tym urządzeniu. Alerty botów
+korzystają ze wspólnych z web reguł świeżości wiadomości, pytań i zatwierdzeń. Pierwszy odczyt,
+wznowienie po uśpieniu i odczyt po błędzie tworzą cichą bazę. Boty zarchiwizowane, przeczytane
+wiadomości i aktualnie otwarty czat nie pokazują alertu. To wyłącznie JS w otwartej aplikacji;
+nie rejestruje powiadomień systemowych ani obsługi w tle.
 
 ## Źródła sprawdzone dla tego wdrożenia
 

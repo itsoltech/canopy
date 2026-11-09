@@ -51,7 +51,7 @@ export function GeneralSettings() {
         <DeviceChoiceRow
           preference="inAppNotifications"
           title="In-app notifications"
-          description="Show alerts from other threads while Canopy has focus."
+          description="Show alerts from other threads and bot chats while Canopy has focus."
           options={[
             { value: "on", label: "On" },
             { value: "off", label: "Off" },

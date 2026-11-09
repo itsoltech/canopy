@@ -19,11 +19,14 @@ export function Markdown({
   color,
   breaks = false,
   elements,
+  selectable = true,
 }: {
   text: string;
   color?: string | undefined;
   breaks?: boolean;
   elements?: InlineElements | undefined;
+  /** Chat bubbles supply their own long-press Reply/Copy menu. */
+  selectable?: boolean;
 }) {
   const c = useColors();
   const ranges = elements?.ranges;
@@ -32,6 +35,7 @@ export function Markdown({
   const tokens = useMemo(() => lexMarkdown(marked?.text ?? text, breaks), [marked, text, breaks]);
 
   const scope = {
+    selectable,
     ink: color ?? c.body,
     strong: color ?? c.text,
     restore: marked?.restore ?? ((code: string) => code),

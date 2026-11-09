@@ -45,6 +45,7 @@ export function ComposerBox({
   label = "Message to your agent",
   badges,
   triggers = false,
+  shellCommands = true,
 }: {
   text: string;
   onChange: (text: string) => void;
@@ -69,11 +70,13 @@ export function ComposerBox({
   badges?: ComposerBadges;
   /** The composer takes mentions and shell commands: the empty field lists their trigger characters. */
   triggers?: boolean;
+  /** Bot chats treat leading exclamation marks as ordinary text. */
+  shellCommands?: boolean;
 }) {
   const c = useColors();
   const empty = !text.trim() && files === 0;
   // A leading "!" runs the text as a shell command on the worker when it is delivered (docs/ui-api.md).
-  const shell = text.startsWith("!");
+  const shell = shellCommands && text.startsWith("!");
   const shellIssue = shell && (text.trim() === "!" || files > 0);
   const stop = running && empty && Boolean(onStop);
   const unavailable = disabled || busy || (!stop && empty) || shellIssue;

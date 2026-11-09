@@ -10,20 +10,28 @@ import { usePaneInsets } from "../../ui/ScreenFrame";
 import { useMotion } from "../../ui/motion";
 import { needsYou } from "@canopy/domain/thread-activity";
 import { sidebarChildren } from "@canopy/domain/sidebar-threads";
+import { useSession } from "../../state/session";
+import { useBotAlerts, type InAppAlert } from "./useBotAlerts";
 
 /** Alert only for live changes after the initial snapshot, never replay historical results. */
 export function InAppAlerts() {
   const { threads, loaded } = useOverview();
+  const { active } = useSession();
   const { values } = useDevicePreferences();
   const { id } = useGlobalSearchParams<{ id?: string }>();
   const previous = useRef<Map<string, string> | null>(null);
-  const [alert, setAlert] = useState<{ id: string; title: string; status: string }>();
+  const [alert, setAlert] = useState<InAppAlert>();
+  useBotAlerts(id, setAlert);
   const c = useColors();
   const insets = usePaneInsets();
   const { banner } = useMotion();
 
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !active) {
+      previous.current = null;
+
+      return;
+    }
 
     // A subagent's result belongs inside its parent. Questions routed to the user alert once on that parent.
     const notices = threads
@@ -57,10 +65,14 @@ export function InAppAlerts() {
     if (changed && values.inAppNotifications === "on")
       setAlert({
         id: changed.thread.id,
+        kind: "thread",
         title: changed.thread.title || "Untitled thread",
         status: changed.status,
       });
-  }, [threads, loaded, id, values.inAppNotifications]);
+  }, [threads, loaded, id, active, values.inAppNotifications]);
+  useEffect(() => {
+    if (!active) setAlert(undefined);
+  }, [active]);
   useEffect(() => {
     if (!alert) return;
     const timer = setTimeout(() => setAlert(undefined), 6000);
@@ -68,7 +80,7 @@ export function InAppAlerts() {
     return () => clearTimeout(timer);
   }, [alert]);
 
-  if (!alert || values.inAppNotifications !== "on") return null;
+  if (!alert || !active || values.inAppNotifications !== "on") return null;
 
   // Web: Toaster. A dark pill under the top edge: what happened and one action. It comes down and leaves the same
   // way; a newer alert replaces it (web `t-toast`, from the top edge).
@@ -89,9 +101,9 @@ export function InAppAlerts() {
       <Pressable
         accessibilityRole="button"
         accessibilityLiveRegion="polite"
-        accessibilityLabel={`${alert.title}, ${alert.status}. Open thread`}
+        accessibilityLabel={`${alert.title}, ${alert.status}. ${alert.kind === "bot" ? "Open chat" : "Open thread"}`}
         onPress={() => {
-          router.push({ pathname: "/thread/[id]", params: { id: alert.id } });
+          router.push({ pathname: alert.kind === "bot" ? "/bot/[id]" : "/thread/[id]", params: { id: alert.id } });
           setAlert(undefined);
         }}
         style={({ pressed }) => [

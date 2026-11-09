@@ -10,7 +10,17 @@ import { QuoteAction } from "../features/quotes/QuoteAction";
 import { CopyAction } from "../features/viewers/copy-action";
 
 /** `bare`: always open, without its own header (the row above it names the file and opens or folds it). */
-export function Diff({ diff, label = "File changes", bare = false }: { diff: string; label?: string; bare?: boolean }) {
+export function Diff({
+  diff,
+  label = "File changes",
+  bare = false,
+  selectable = true,
+}: {
+  diff: string;
+  label?: string;
+  bare?: boolean;
+  selectable?: boolean;
+}) {
   const c = useColors();
   const { values, set } = useDevicePreferences();
   const [open, setOpen] = useState(values.diffFileState !== "collapsed");
@@ -40,7 +50,7 @@ export function Diff({ diff, label = "File changes", bare = false }: { diff: str
             onChange={(value) => set("diffLayout", value)}
           />
           <View style={{ borderRadius: 8, overflow: "hidden", paddingVertical: 8, backgroundColor: c.inset }}>
-            <DiffContent diff={diff.slice(0, INLINE_PREVIEW)} />
+            <DiffContent diff={diff.slice(0, INLINE_PREVIEW)} selectable={selectable} />
           </View>
           {diff.length > INLINE_PREVIEW ? <TextViewerButton text={diff} label={label} diff /> : null}
           <View style={[styles.row, { minHeight: 32, gap: 8 }]}>

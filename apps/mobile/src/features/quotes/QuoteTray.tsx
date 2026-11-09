@@ -4,13 +4,24 @@ import { IconButton } from "../../ui/Button";
 import { styles, useColors } from "../../ui/theme";
 import { QuoteEditor } from "./QuoteEditor";
 import type { useQuoteDraft } from "./useQuoteDraft";
+import { InlineQuoteDrafts } from "./QuotePreview";
 
-export function QuoteTray({ draft }: { draft: ReturnType<typeof useQuoteDraft> }) {
+export function QuoteTray({
+  draft,
+  inline = false,
+  busy = false,
+}: {
+  draft: ReturnType<typeof useQuoteDraft>;
+  inline?: boolean;
+  busy?: boolean;
+}) {
   const c = useColors();
   const [editing, setEditing] = useState<number>();
   const quote = editing === undefined ? undefined : draft.quotes[editing];
 
   if (!draft.quotes.length) return null;
+
+  if (inline) return <InlineQuoteDrafts draft={draft} busy={busy} />;
 
   return (
     <>
@@ -25,6 +36,7 @@ export function QuoteTray({ draft }: { draft: ReturnType<typeof useQuoteDraft> }
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Edit quote"
+              disabled={busy}
               onPress={() => setEditing(index)}
               style={{ flex: 1, minWidth: 0, padding: 8 }}
             >
@@ -37,7 +49,13 @@ export function QuoteTray({ draft }: { draft: ReturnType<typeof useQuoteDraft> }
                 </Text>
               ) : null}
             </Pressable>
-            <IconButton icon="x-mark" label="Remove quote" size="sm" onPress={() => draft.remove(index)} />
+            <IconButton
+              icon="x-mark"
+              label="Remove quote"
+              size="sm"
+              disabled={busy}
+              onPress={() => draft.remove(index)}
+            />
           </View>
         ))}
       </ScrollView>

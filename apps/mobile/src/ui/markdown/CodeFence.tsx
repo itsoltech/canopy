@@ -7,6 +7,7 @@ import { TextViewerButton } from "../../features/viewers/TextViewerButton";
 import { CopyAction } from "../../features/viewers/copy-action";
 import { QuoteAction } from "../../features/quotes/QuoteAction";
 import { DiffContent } from "../DiffContent";
+import { useMarkdownScope } from "./scope";
 
 /**
  * A wide block in a message (code, display math): long lines scroll sideways inside it, never widening the
@@ -28,6 +29,7 @@ export function SidewaysScroll({ children, wrap = false }: { children: ReactNode
  * divider, then the code in the reader's monospace. Lines scroll sideways unless Wrap code is on.
  */
 export function CodeFence({ code, lang }: { code: string; lang: string | undefined }) {
+  const { selectable } = useMarkdownScope();
   const c = useColors();
   const type = useTypography();
   const { values } = useDevicePreferences();
@@ -65,11 +67,11 @@ export function CodeFence({ code, lang }: { code: string; lang: string | undefin
         <QuoteAction text={code} kind={diff ? "diff" : "code"} language={lang} />
       </View>
       {diff ? (
-        <DiffContent diff={code.slice(0, INLINE_PREVIEW)} />
+        <DiffContent diff={code.slice(0, INLINE_PREVIEW)} selectable={selectable} />
       ) : (
         <SidewaysScroll wrap={values.wrapCode === "on"}>
           {/* An empty block keeps one line, so it reads as a code block rather than a stray box. */}
-          <Text selectable style={[type.mono, { color: c.text }]}>
+          <Text selectable={selectable} style={[type.mono, { color: c.text }]}>
             {code.slice(0, INLINE_PREVIEW) || " "}
           </Text>
         </SidewaysScroll>
