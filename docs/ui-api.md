@@ -49,6 +49,12 @@ bajtów z bazy. Zdalny identyfikator kieruje odczyt do domu połączonego komput
 Worker może przesyłać oprócz obrazów `text/plain`, `text/x-diff` i `application/json`;
 każdy upload nadal wymaga zgodnego hasha i mieści się w tym samym limicie.
 
+Arkusz sekretów mobile korzysta z istniejących `AnswerThreadSecret` i `RevokeThreadSecret`.
+Wartość jest wyłącznie wejściem zapisu; odpowiedzi i snapshoty zawierają metadane.
+Kwalifikowane `request_id` kieruje obie metody bezpośrednim łączem do domu wątku,
+który sprawdza właściciela. Metody nie należą do allowlisty relay, a lustra nie
+replikują sekretów. Gateway pośredniczący nie zapisuje wartości ani payloadu RPC.
+
 ### Przyrostowy odczyt wątku
 
 `WatchThreadRequest.incremental` (802) włącza checkpointy UI. Pierwsze otwarcie bez

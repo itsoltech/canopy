@@ -534,6 +534,15 @@ Przegląd środowiska pokazuje podsumowanie zmian, skrypty/pliki wykonywalne,
 usunięte pliki oraz obie wersje treści. Przy wybraniu wersji skilla telefon
 pobiera jej niezmienny artefakt przed zatwierdzeniem; błąd pobrania blokuje zapis.
 
+Prośby o sekret otwierają osobny arkusz „Thread secrets”. Pole jest zawsze zamaskowane,
+bez autofill, korekty i sugestii; wysłanie, zamknięcie lub przejście aplikacji w tło
+usuwa lokalną wartość. Save securely i Decline korzystają z `AnswerThreadSecret`,
+a Revoke z `RevokeThreadSecret`. Szczegóły wątku i arkusz pokazują wyłącznie nazwy
+aktywnych grantów i termin wygaśnięcia nadany przez gateway (24 godziny).
+Po utracie live lub domu wątku kontrolki są nieaktywne. Gateway weryfikuje właściciela
+i ważność urządzenia; bezpośrednie łącze kieruje odpowiedź do domu wątku.
+Sekrety nie trafiają do cache draftów, transkryptu ani komunikatów błędów.
+
 Overview uzgadnia projekty, workery i wątki po stabilnym id, także przy powtórzonych
 snapshotach partnera i starszych aktualizacjach pojedynczych wierszy. Nowy wątek,
 filtr sidebara i domyślne workspace'y używają wspólnego `projectChoices`: jeden

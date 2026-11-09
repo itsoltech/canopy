@@ -1,5 +1,5 @@
-import { createContext, useState, type ReactNode } from "react";
-import { Pressable, Text, View, type TextInputProps } from "react-native";
+import { createContext, useState, type ReactNode, type ComponentProps } from "react";
+import { Pressable, Text, View } from "react-native";
 import { KeyboardController } from "react-native-keyboard-controller";
 import { TextInput } from "./TextInput";
 import { font, styles, useColors, useTypography } from "./theme";
@@ -111,7 +111,7 @@ export function Sheet({
 }
 
 /** A labelled text field (web: Field + Input): 40 dp, a 1 dp divider outline that turns accent and 2 dp on focus. */
-export function Field({ label, ...props }: TextInputProps & { label: string }) {
+export function Field({ label, ...props }: ComponentProps<typeof TextInput> & { label: string }) {
   const c = useColors();
   const type = useTypography();
   const [focused, setFocused] = useState(false);
