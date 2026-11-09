@@ -10,9 +10,7 @@ export function ProviderModels({ instance, onChanged }: { instance: ui.ProviderI
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
-  const resource = useSettingsResource(`models:${instance.harness}/${instance.id}`, (api) =>
-    api.listModels({ unfiltered: true }),
-  );
+  const resource = useSettingsResource("ListModels:unfiltered", (api) => api.listModels({ unfiltered: true }));
 
   const [draft, setDraft] = useState<ui.InstanceModels>();
   const models = draft ?? instance.models ?? create(ui.InstanceModelsSchema);

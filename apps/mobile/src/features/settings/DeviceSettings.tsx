@@ -13,7 +13,7 @@ import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
 
 function useDeviceSettings() {
-  const resource = useSettingsResource("devices", (api) => api.getMobileDevices({}));
+  const resource = useSettingsResource("GetMobileDevices", (api) => api.getMobileDevices({}));
   const { client, session, forget } = useSession();
   const [invitation, setInvitation] = useState<ui.CreateMobilePairingResponse>();
   const [now, setNow] = useState(Date.now);

@@ -7,7 +7,8 @@ import { Button } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { SettingsRow, SettingChoice, SettingsActions } from "./SettingsGroup";
 import { WorkerCliRow } from "./WorkerCliRow";
-import { ResourceState, useSettingsResource } from "./resource";
+import { useOverview } from "../../state/overview";
+import { ResourceState, useSettingsAction, workersFollowStream } from "./resource";
 import { useDateTime } from "./display";
 
 export function WorkerCliSettings({
@@ -20,10 +21,12 @@ export function WorkerCliSettings({
   onChanged?: () => void;
 }) {
   const settings = useAppearance();
-  const resource = useSettingsResource(`cli:${worker?.id ?? "account"}`, (api) => api.getOverview({}));
+  // Workers follow the overview stream: their changes after an action arrive there, no read needed.
+  const overview = useOverview();
+  const resource = useSettingsAction(workersFollowStream);
   const format = useDateTime();
   const c = useColors();
-  const current = resource.data?.workers.find((w) => w.id === worker?.id) ?? worker;
+  const current = overview.workers.find((w) => w.id === worker?.id) ?? worker;
 
   const interval = worker
     ? current?.cliUpdateCheckMinutes === undefined

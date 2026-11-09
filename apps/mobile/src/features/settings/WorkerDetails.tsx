@@ -27,7 +27,7 @@ export function WorkerDetails({
   onChanged: () => void;
   onClose: () => void;
 }) {
-  const resource = useSettingsResource(`worker:${worker.id}`, (api) => api.getWorkerSetup({}));
+  const resource = useSettingsResource("GetWorkerSetup", (api) => api.getWorkerSetup({}));
   const tags = record ?? environment.workers.find((w) => w.workerId === worker.id);
 
   const readOnly =
@@ -135,7 +135,7 @@ function WorkerAccess({
   onChanged: () => void;
   onClose: () => void;
 }) {
-  const resource = useSettingsResource(`worker-access:${worker.id}`, (api) => api.getWorkerSetup({}));
+  const resource = useSettingsResource("GetWorkerSetup", (api) => api.getWorkerSetup({}));
   const [credential, setCredential] = useState("");
   const disabled = resource.busy || !!readOnly;
 

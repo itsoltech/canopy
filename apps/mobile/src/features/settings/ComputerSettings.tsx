@@ -17,7 +17,7 @@ import { presenceTime } from "../computers/presence";
 type Operation = MessageInitShape<typeof ui.ComputerOperationRequestSchema>;
 
 export function ComputerSettings() {
-  const resource = useSettingsResource("computers", (api) => api.getComputers({}));
+  const resource = useSettingsResource("GetComputers", (api) => api.getComputers({}));
   const [pairing, setPairing] = useState(false);
   const [moving, setMoving] = useState<ui.LinkedComputer>();
   const data = resource.data;

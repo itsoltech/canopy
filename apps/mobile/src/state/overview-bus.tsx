@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useEffectEvent, useMemo, useRef, 
 import type { ui } from "@canopy/contracts";
 import { useSession } from "./session";
 import { useStream } from "./stream";
-import { invalidateQueries } from "./queries";
+import { OverviewInvalidation } from "@canopy/domain/shared-query-events";
 
 type Listener = (update: ui.OverviewUpdate) => void;
 
@@ -11,17 +11,27 @@ type Listener = (update: ui.OverviewUpdate) => void;
  * so one phone opens one stream (and one remote subscription per linked computer at the gateway).
  */
 function useOverviewBusState() {
-  const { client, session, queries } = useSession();
+  const { client, session, queries, modelCatalog } = useSession();
   const listeners = useRef(new Set<Listener>());
   const snapshots = useRef(0);
+  const invalidation = useMemo(() => new OverviewInvalidation(queries), [queries]);
 
   const stream = useStream(
     client ? (signal) => client.api.watchOverview({ includeSnapshot: true }, { signal }) : null,
     (update: ui.OverviewUpdate) => {
-      const resubscribed = update.change.case === "mobileSnapshot" && snapshots.current++ > 0;
+      const change = update.change;
 
       for (const listener of listeners.current) listener(update);
-      invalidateQueries(queries, update, resubscribed);
+
+      if (change.case === "models") modelCatalog.apply(change.value);
+
+      // A snapshot after a resubscription means the stream had a gap: shared reads are stale once.
+      if (change.case === "mobileSnapshot") {
+        const gap = snapshots.current++ > 0;
+        invalidation.synced(change.value.overview?.workers ?? [], gap);
+
+        if (gap) modelCatalog.invalidate();
+      } else invalidation.apply(update);
     },
     `overview:${session?.deviceId}`,
   );

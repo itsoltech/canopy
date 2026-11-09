@@ -11,7 +11,7 @@ import { EnvironmentComputer } from "./EnvironmentComputer";
 import { SettingsSkeletonGroups } from "./SettingsSkeleton";
 
 export function AgentEnvironmentSettings() {
-  const resource = useSettingsResource("agent-environment", (api) => api.getAgentEnvironment({}));
+  const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
   const [editor, setEditor] = useState<"instruction" | "skill" | "source">();
   const [document, setDocument] = useState<ui.InstructionDocument>();
   const [skill, setSkill] = useState<ui.LibrarySkill>();

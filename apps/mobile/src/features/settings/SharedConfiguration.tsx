@@ -6,7 +6,7 @@ import { SettingsValue } from "./SettingsValue";
 import { ResourceState, useSettingsResource } from "./resource";
 
 export function SharedConfiguration({ notices, onChanged }: { notices: ui.ConfigNotice[]; onChanged: () => void }) {
-  const resource = useSettingsResource("configuration-notices", (api) => api.getComputers({}));
+  const resource = useSettingsResource("GetComputers", (api) => api.getComputers({}));
   const settings = useAppearance();
 
   const act = (id: string, action: string) =>

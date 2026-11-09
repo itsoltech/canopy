@@ -27,7 +27,7 @@
   const overview = useOverview();
   const capabilities = useGatewayCapabilities();
   const setup = new WorkerSetup();
-  const environment = workerEnvironment(overview);
+  const environment = workerEnvironment();
   const records = workerRecords(overview);
   const linked = $derived(records.computers.flatMap((c) => c.workers));
   const total = $derived(overview.ownWorkers.length + linked.length);

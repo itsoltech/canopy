@@ -11,7 +11,7 @@ import { ProviderModels } from "./ProviderModels";
 import { MoveEnvironment } from "./MoveEnvironment";
 
 export function ProviderSettings() {
-  const resource = useSettingsResource("providers", async (api) => {
+  const resource = useSettingsResource("ListProviderInstances+ListWorkerRecords", async (api) => {
     const [instances, records] = await Promise.all([api.listProviderInstances({}), api.listWorkerRecords({})]);
 
     return { ...instances, ...records };

@@ -33,6 +33,8 @@ type Entry = {
   inflight: { promise: Promise<unknown>; controller: AbortController } | undefined;
   /** Grows with every `set`: a read started before it is older than the value. */
   written: number;
+  /** When the value was last read or set (ms). */
+  readAt: number;
   dirty: boolean;
   timer: ReturnType<typeof setTimeout> | undefined;
 };
@@ -92,15 +94,20 @@ export class QueryCache {
     return this.#load<T>(entry);
   }
 
-  /** Keeps the key current while watched. The listener runs on every change; returns the unsubscribe. */
-  watch<T>(key: string, fetch: QueryFetch<T>, listener: Listener): () => void {
+  /**
+   * Keeps the key current while watched. The listener runs on every change; returns the unsubscribe.
+   * `maxAgeMs` bounds staleness for data some changes of which have no event: a new watcher of an older value
+   * reads again.
+   */
+  watch<T>(key: string, fetch: QueryFetch<T>, listener: Listener, maxAgeMs = Infinity): () => void {
     if (this.#disposed) return () => {};
 
     const entry = this.#entry(key, fetch);
     entry.fetch = fetch;
     entry.listeners.add(listener);
 
-    if (!entry.snapshot.loaded || entry.dirty) void this.#load(entry).catch(() => {});
+    if (!entry.snapshot.loaded || entry.dirty || Date.now() - entry.readAt > maxAgeMs)
+      void this.#load(entry).catch(() => {});
 
     return () => {
       entry.listeners.delete(listener);
@@ -117,6 +124,7 @@ export class QueryCache {
     const current = entry.snapshot.data as T | undefined;
     const data = isUpdater(value) ? value(current) : value;
     entry.written++;
+    entry.readAt = Date.now();
     entry.dirty = false;
     clearTimeout(entry.timer);
     entry.timer = undefined;
@@ -182,6 +190,7 @@ export class QueryCache {
       listeners: new Set(),
       inflight: undefined,
       written: 0,
+      readAt: 0,
       dirty: false,
       timer: undefined,
     };
@@ -211,9 +220,10 @@ export class QueryCache {
           if (!this.#current(entry, controller)) throw new QueryCacheDisposed();
 
           // A value set meanwhile is newer than this read.
-          if (entry.written === written)
+          if (entry.written === written) {
+            entry.readAt = Date.now();
             this.#publish(entry, { data, loaded: true, loading: false, error: "", stale: entry.dirty });
-          else this.#publish(entry, { loading: false });
+          } else this.#publish(entry, { loading: false });
 
           // SAFETY: The entry's value is this key's result (read now or set meanwhile).
           return entry.snapshot.data as T;

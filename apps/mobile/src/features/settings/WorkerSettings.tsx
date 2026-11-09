@@ -23,28 +23,31 @@ import { useWorkerPresence } from "../computers/presence";
 export function WorkerSettings() {
   const overview = useOverview();
 
-  const resource = useSettingsResource("workers", async (api) => {
-    const [overview, setup, environment, records, network] = await Promise.all([
-      api.getOverview({}),
-      api.getWorkerSetup({}),
-      api.getAgentEnvironment({}),
-      api.listWorkerRecords({}),
-      api.getNetworkAccess({}),
-    ]);
+  // Each part is a shared read: other screens reuse it and events refresh only the part that changed.
+  const setup = useSettingsResource("GetWorkerSetup", (api) => api.getWorkerSetup({}));
+  const environment = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
+  const records = useSettingsResource("ListWorkerRecords", (api) => api.listWorkerRecords({}));
+  const network = useSettingsResource("GetNetworkAccess", (api) => api.getNetworkAccess({}));
+  const parts = [setup, environment, records, network];
+  const error = parts.find((part) => part.error)?.error ?? "";
 
-    return { overview, setup, environment, records, network };
-  });
+  const resource = {
+    ...setup,
+    error,
+    initialLoading: parts.some((part) => part.initialLoading) && !error,
+    reload: () => Promise.all(parts.map((part) => part.reload())).then(() => undefined),
+  };
+
+  const data =
+    setup.data && environment.data && records.data && network.data
+      ? { setup: setup.data, environment: environment.data, records: records.data, network: network.data }
+      : undefined;
 
   const [adding, setAdding] = useState(false);
   const [expanded, setExpanded] = useState<string[]>([]);
   const format = useDateTime();
-  const data = resource.data;
 
-  const groups = workerGroups(
-    overview.loaded ? overview.workers : (data?.overview.workers ?? []),
-    data?.records.records ?? [],
-    overview.computers,
-  );
+  const groups = workerGroups(overview.workers, data?.records.records ?? [], overview.computers);
 
   const pending = data?.setup.enrollments.filter((e) => !e.usedAt && !e.revokedAt) ?? [];
 

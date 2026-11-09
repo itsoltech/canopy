@@ -19,11 +19,12 @@ export function SkillEditor({
   snapshot: ui.AgentEnvironmentSnapshot;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource(`skill:${skill?.id ?? "new"}`, (api) => api.getAgentEnvironment({}));
+  const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
   const [selectedVersion, setSelectedVersion] = useState(skill?.version ?? 0n);
 
-  const versionPreview = useSettingsResource(`skill-version:${skill?.id ?? "new"}:${selectedVersion}`, (api) =>
-    api.getAgentEnvironment(skill ? { previewSkillId: skill.id, previewSkillVersion: selectedVersion } : {}),
+  const versionPreview = useSettingsResource(
+    `GetAgentEnvironment:skill:${skill?.id ?? "new"}:${selectedVersion}`,
+    (api) => api.getAgentEnvironment(skill ? { previewSkillId: skill.id, previewSkillVersion: selectedVersion } : {}),
   );
 
   const [draft, setDraft] = useState(() =>

@@ -1,8 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
-import { requestJson } from "#lib/shared/http.ts";
-import { decode } from "#lib/shared/wire.ts";
+import { sharedRead, type SharedRead } from "#lib/shared/queries.svelte.ts";
 import { awayReason, workerPresence } from "#lib/features/computers/computers.ts";
 import { computerName } from "@canopy/domain/computer-presence";
 import type { SelectOption } from "#lib/shared/ui/listbox.ts";
@@ -11,8 +10,6 @@ import type { SelectOption } from "#lib/shared/ui/listbox.ts";
 export type LinkedWorker = { worker: ui.Worker; record: ui.WorkerRecord; readOnly: string };
 
 export type WorkerComputer = { nodeId: string; name: string; readOnly: string; workers: LinkedWorker[] };
-
-const RELOAD = new Set(["workerRecordsChanged", "worker", "workerRemoved", "computer", "computerRemoved"]);
 
 /** The last known worker of a record, for a home that is not answering now. */
 function recordedWorker(record: ui.WorkerRecord): ui.Worker {
@@ -33,28 +30,27 @@ function recordedWorker(record: ui.WorkerRecord): ui.Worker {
  * changes them; this computer reads its copy, so an offline computer's workers stay visible and read-only.
  */
 export class WorkerRecords {
-  records = $state.raw<ui.WorkerRecord[]>([]);
-  loaded = $state(false);
-  error = $state("");
-  #sequence = 0;
+  constructor(
+    private readonly overview: OverviewState,
+    private readonly read: SharedRead<ui.ListWorkerRecordsResponse>,
+  ) {}
 
-  constructor(private readonly overview: OverviewState) {}
+  get records(): ui.WorkerRecord[] {
+    return this.read.data?.records ?? [];
+  }
+
+  get loaded(): boolean {
+    const { loaded, error } = this.read.snapshot;
+
+    return loaded || !!error;
+  }
+
+  get error(): string {
+    return this.read.snapshot.error ? "Could not load workers of linked computers." : "";
+  }
 
   async reload(): Promise<void> {
-    const sequence = ++this.#sequence;
-
-    try {
-      const result = decode(ui.ListWorkerRecordsResponseSchema, await requestJson("GET", "/api/workers/records"));
-
-      if (sequence !== this.#sequence) return;
-      this.records = result.records;
-      this.error = "";
-    } catch (cause) {
-      if (sequence === this.#sequence)
-        this.error = cause instanceof Error ? cause.message : "Could not load workers of linked computers.";
-    } finally {
-      if (sequence === this.#sequence) this.loaded = true;
-    }
+    await this.read.reload().catch(() => {});
   }
 
   record(workerId: string): ui.WorkerRecord | undefined {
@@ -182,21 +178,13 @@ export class WorkerRecords {
   });
 }
 
-/** Records that reload with the overview stream: their changes, workers and linked computers. */
+/**
+ * The tab's one copy of the records: every page and picker shares it. It reads again when records change, a
+ * linked computer changes or leaves, and after a gap in the stream (AppShell), never per worker report.
+ */
 export function workerRecords(overview: OverviewState): WorkerRecords {
-  const records = new WorkerRecords(overview);
-
-  $effect(() => {
-    void records.reload();
-
-    return overview.subscribe((update) => {
-      if (RELOAD.has(update.change.case ?? "")) void records.reload();
-    });
-  });
-
-  $effect(() => {
-    if (overview.resyncs > 0) void records.reload();
-  });
-
-  return records;
+  return new WorkerRecords(
+    overview,
+    sharedRead("ListWorkerRecords", ui.ListWorkerRecordsResponseSchema, "/api/workers/records"),
+  );
 }

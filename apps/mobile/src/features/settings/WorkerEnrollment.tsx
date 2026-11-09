@@ -9,7 +9,7 @@ import { WorkerSsh } from "./WorkerSsh";
 import { WorkerInstallCommands } from "./WorkerInstallCommands";
 
 export function WorkerEnrollment({ setup, onClose }: { setup: ui.GetWorkerSetupResponse; onClose: () => void }) {
-  const resource = useSettingsResource("enrollment", (api) => api.getWorkerSetup({}));
+  const resource = useSettingsResource("GetWorkerSetup", (api) => api.getWorkerSetup({}));
   const [name, setName] = useState("");
   const [tags, setTags] = useState("");
   const [gateway, setGateway] = useState(setup.gatewayUrl);

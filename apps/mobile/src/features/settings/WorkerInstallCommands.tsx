@@ -21,7 +21,7 @@ export function WorkerInstallCommands({
 }) {
   const [platform, setPlatform] = useState("linux/x64");
 
-  const resource = useSettingsResource(`worker-release:${platform}`, async (api) => {
+  const resource = useSettingsResource(`FetchWorkerInstall:${platform}`, async (api) => {
     const [os, arch] = platform.split("/");
 
     for await (const chunk of api.fetchWorkerInstall({ os, arch, metadataOnly: true, channelFallback: true }))

@@ -66,7 +66,11 @@ export function ComputerMove({
 }) {
   const everything = !items;
   const request = { nodeId, everything, items: items ?? [] };
-  const resource = useSettingsResource(`move:${nodeId}:${JSON.stringify(items)}`, (api) => api.previewMove(request));
+
+  const resource = useSettingsResource(`PreviewMove:${nodeId}:${JSON.stringify(items)}`, (api) =>
+    api.previewMove(request),
+  );
+
   const { projects } = useOverview();
   const [placements, setPlacements] = useState<Record<string, string>>({});
   const [moves, setMoves] = useState<ui.ComputerMove[]>([]);

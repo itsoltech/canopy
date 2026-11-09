@@ -7,7 +7,7 @@ import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 
 export function ProxySettings() {
-  const resource = useSettingsResource("proxies", (api) => api.listProxies({}));
+  const resource = useSettingsResource("ListProxies", (api) => api.listProxies({}));
   const [editing, setEditing] = useState<ui.Proxy | "new">();
   const [test, setTest] = useState<ui.TestProxyResponse>();
   const proxies = resource.data?.proxies ?? (resource.initialLoading ? [create(ui.ProxySchema, { name: " " })] : []);
@@ -87,7 +87,7 @@ export function ProxySettings() {
 }
 
 function ProxyForm({ proxy, onSaved }: { proxy?: ui.Proxy; onSaved: () => void }) {
-  const resource = useSettingsResource(`proxy:${proxy?.id ?? "new"}`, (api) => api.listProxies({}));
+  const resource = useSettingsResource("ListProxies", (api) => api.listProxies({}));
   const [name, setName] = useState(proxy?.name ?? "");
   const [kind, setKind] = useState(proxy?.kind ?? "cliproxyapi");
   const [baseUrl, setUrl] = useState(proxy?.baseUrl ?? "");

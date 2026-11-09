@@ -4,7 +4,7 @@
   import { create } from "@bufbuild/protobuf";
   import { afterNavigate, beforeNavigate } from "$app/navigation";
   import { page } from "$app/state";
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, onDestroy, untrack } from "svelte";
   import { threadCache } from "#lib/features/threads/thread-cache.ts";
   import { botCache } from "#lib/features/bots/cache.ts";
   import { MediaQuery } from "svelte/reactivity";
@@ -25,6 +25,8 @@
   import { CommandRegistry, provideCommands } from "#lib/features/commands/registry.ts";
   import { OverviewState, provideOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { ModelCatalogState, provideModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
+  import { OverviewInvalidation } from "@canopy/domain/shared-query-events";
+  import { queries } from "#lib/shared/queries.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Drawer from "#lib/shared/ui/Drawer.svelte";
   import GrowIn from "#lib/shared/ui/GrowIn.svelte";
@@ -117,6 +119,17 @@
   provideModelCatalog(models);
 
   $effect(() => overview.subscribe((update) => models.apply(update)));
+
+  // Shared reads (worker records, agent environment, …) follow the stream's events and its gaps.
+  const invalidation = new OverviewInvalidation(queries);
+
+  $effect(() => overview.subscribe((update) => invalidation.apply(update)));
+
+  $effect(() => {
+    const resyncs = overview.resyncs;
+
+    if (resyncs > 0) untrack(() => invalidation.synced(overview.workers, resyncs > 1));
+  });
 
   $effect(() => {
     if (overview.resyncs > 0) void Promise.allSettled([settings.reload(), models.reload()]).then(() => (ready = true));

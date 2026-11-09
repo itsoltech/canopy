@@ -17,7 +17,7 @@ export function ProviderWorker({
   workerId: string;
   onChanged: () => void;
 }) {
-  const resource = useSettingsResource(`instance-worker:${workerId}/${instance.harness}/${instance.id}`, (api) =>
+  const resource = useSettingsResource(`GetInstanceWorker:${workerId}/${instance.harness}/${instance.id}`, (api) =>
     api.getInstanceWorker({ workerId, harness: instance.harness, id: instance.id }),
   );
 
@@ -99,8 +99,9 @@ function WorkerOverrides({
   worker: ui.InstanceOnWorker;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource(`overrides:${worker.workerId}/${instance.id}`, (api) =>
-    api.getInstanceWorker({ workerId: worker.workerId, harness: instance.harness, id: instance.id }),
+  const resource = useSettingsResource(
+    `GetInstanceWorker:${worker.workerId}/${instance.harness}/${instance.id}`,
+    (api) => api.getInstanceWorker({ workerId: worker.workerId, harness: instance.harness, id: instance.id }),
   );
 
   const [binaryPath, setBinary] = useState(worker.overrides?.binaryPath ?? "");

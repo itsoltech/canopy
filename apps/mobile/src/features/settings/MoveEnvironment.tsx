@@ -8,9 +8,7 @@ export function MoveEnvironment({ instance, onSaved }: { instance: ui.ProviderIn
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(`${providerName(instance.harness)} proxy`);
 
-  const resource = useSettingsResource(`move-proxy:${instance.harness}:${instance.id}`, (api) =>
-    api.listProviderInstances({}),
-  );
+  const resource = useSettingsResource("ListProviderInstances", (api) => api.listProviderInstances({}));
 
   const names = new Set(instance.env.map((entry) => entry.name.toUpperCase()));
 

@@ -2,24 +2,40 @@ import { clone, create } from "@bufbuild/protobuf";
 import { ui, type EnvironmentFileStatus } from "@canopy/contracts";
 import { HttpError, requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
-import type { JsonValue } from "#lib/shared/json.ts";
 import { revealEnvironmentItem } from "./environment-feedback.ts";
+import { sharedRead, type SharedRead } from "#lib/shared/queries.svelte.ts";
+
+/** The library and every worker's view of it, shared by the tab (Agent environment and Workers pages). */
+export const sharedEnvironment = () =>
+  sharedRead("GetAgentEnvironment", ui.AgentEnvironmentSnapshotSchema, "/api/agent-environment");
 
 export class EnvironmentState {
-  snapshot = $state.raw<ui.AgentEnvironmentSnapshot>(create(ui.AgentEnvironmentSnapshotSchema));
+  #local = $state.raw<ui.AgentEnvironmentSnapshot>(create(ui.AgentEnvironmentSnapshotSchema));
   draft = $state<ui.InstructionDocument | undefined>();
   workerId = $state("");
   error = $state("");
   notice = $state("");
   busy = $state(false);
   editConflict = $state(false);
-  loaded = $state(false);
-  #refresh = 0;
   #editRevision = 0n;
 
-  constructor(initial: JsonValue = {}) {
-    this.snapshot = decode(ui.AgentEnvironmentSnapshotSchema, initial);
-    this.workerId = this.snapshot.workers[0]?.workerId ?? "";
+  constructor(
+    initial: ui.AgentEnvironmentSnapshot = create(ui.AgentEnvironmentSnapshotSchema),
+    private readonly shared: SharedRead<ui.AgentEnvironmentSnapshot> = sharedEnvironment(),
+  ) {
+    this.#local = initial;
+    this.workerId = this.#local.workers[0]?.workerId ?? "";
+  }
+
+  get loaded(): boolean {
+    return this.shared.snapshot.loaded;
+  }
+
+  /** The newest revision known: the shared read, or a route's initial value until it arrives. */
+  get snapshot(): ui.AgentEnvironmentSnapshot {
+    const shared = this.shared.data;
+
+    return shared && shared.revision >= this.#local.revision ? shared : this.#local;
   }
 
   edit(document?: ui.InstructionDocument): void {
@@ -40,17 +56,8 @@ export class EnvironmentState {
   }
 
   async refresh(): Promise<ui.AgentEnvironmentSnapshot | undefined> {
-    const sequence = ++this.#refresh;
-
     try {
-      const result = decode(ui.AgentEnvironmentSnapshotSchema, await requestJson("GET", "/api/agent-environment"));
-
-      if (sequence === this.#refresh && result.revision >= this.snapshot.revision) {
-        this.snapshot = result;
-        this.loaded = true;
-      }
-
-      return result;
+      return await this.shared.reload();
     } catch (error) {
       this.error = error instanceof Error ? error.message : "Couldn't refresh the environment.";
     }
@@ -109,10 +116,9 @@ export class EnvironmentState {
 
     try {
       const response = await requestJson(method, `/api/agent-environment${path}`, body);
-      this.#refresh++;
       const saved = decode(ui.AgentEnvironmentSnapshotSchema, response);
 
-      if (saved.revision >= this.snapshot.revision) this.snapshot = saved;
+      if (saved.revision >= this.snapshot.revision) this.shared.set(saved);
       // A worker can acknowledge while the mutation response is still in flight. Fetch after it so
       // an older response cannot replace the report already delivered by the overview stream.
       await this.refresh();

@@ -1014,6 +1014,16 @@ aktualizuje po zdarzeniu strumienia lub odpowiedzi własnej mutacji. `QueryCache
 - nieudany odczyt zachowuje poprzednią wartość i błąd; nieobserwowane wpisy trzyma ograniczony LRU;
 - snapshot po ponownej subskrypcji (przerwa w strumieniu) unieważnia wszystkie wpisy raz.
 
+`OverviewInvalidation` (`@canopy/domain/shared-query-events`) mapuje zdarzenia na klucze:
+`workerRecordsChanged`, `computer` i `computer_removed` → `ListWorkerRecords`;
+`agentEnvironmentChanged` → `GetAgentEnvironment`; `models` → `ListModels`; nazwany
+`linked_read_completed` → jego RPC. `worker` unieważnia bibliotekę środowiska tylko, gdy zmienia się
+obecność, wersja lub stosowana konfiguracja; broadcast powtarzający niezmienione workery nic nie czyta.
+Web trzyma jeden `QueryCache` na kartę (`lib/shared/queries.svelte.ts`): rekordy workerów
+i środowisko agentów są współdzielone przez strony i pickery, a load trasy korzysta z bieżącej
+wartości (`loadShared`). `OverviewState.resyncs` rośnie tylko przy pierwszej synchronizacji
+i przerwie w strumieniu; zakończony odczyt partnera odświeża overview, ale nie ustawienia ani modele.
+
 Uprawnienia i stan wykonania sprawdza zawsze gateway; cache służy tylko do wyświetlania.
 
 **Oczekujące decyzje.** Pytanie ma jeden przewijany obszar z treścią, opcjami i polem

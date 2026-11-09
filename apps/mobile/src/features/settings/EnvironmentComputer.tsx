@@ -16,7 +16,7 @@ export function EnvironmentComputer({
   revision: bigint;
   onChanged: () => void;
 }) {
-  const resource = useSettingsResource(`environment:${worker.workerId}`, (api) => api.getAgentEnvironment({}));
+  const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
   const pending = worker.report?.revision !== worker.desiredRevision;
   const disabled = resource.busy || !worker.online || pending;
 

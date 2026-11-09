@@ -37,7 +37,10 @@ export class OverviewState {
   ownProjects = $derived(this.projects.filter((p) => !p.nodeId));
   #deleted = new Set<string>();
   connection = $state<OverviewConnection>("reconnecting");
-  /** Grows with every reload after a gap in the stream: state kept elsewhere (settings, schedules) reloads too. */
+  /**
+   * Grows with the first sync and every reload after a gap in the stream: state kept elsewhere (settings,
+   * schedules, shared reads) reloads too. A background linked read that settles is not a gap.
+   */
   resyncs = $state(0);
   #synced = false;
   #refreshing = false;
@@ -108,7 +111,7 @@ export class OverviewState {
       !this.#refreshing
     ) {
       this.#refreshing = true;
-      void this.#resync(AbortSignal.timeout(12_000))
+      void this.#resync(AbortSignal.timeout(12_000), false)
         .catch(() => {})
         .finally(() => {
           this.#refreshing = false;
@@ -196,7 +199,8 @@ export class OverviewState {
     this.#synced = true;
   }
 
-  async #resync(signal: AbortSignal): Promise<void> {
+  /** `gap`: the stream reconnected, so state kept elsewhere reads again (`resyncs`); a peer refresh does not. */
+  async #resync(signal: AbortSignal, gap = true): Promise<void> {
     const get = async (path: string) => {
       const response = await fetch(path, {
         headers: { accept: "application/json" },
@@ -222,7 +226,8 @@ export class OverviewState {
         decode(ui.ListThreadsResponseSchema, threads).threads,
       );
       this.connection = "live";
-      this.resyncs += 1;
+
+      if (gap) this.resyncs += 1;
     } catch (cause) {
       if (signal.aborted) return;
       throw cause;

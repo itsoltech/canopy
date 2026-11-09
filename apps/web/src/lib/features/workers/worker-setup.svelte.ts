@@ -13,6 +13,8 @@ export class WorkerSetup {
   enrollments = $state.raw<ui.WorkerEnrollment[]>([]);
   loaded = $state(false);
   error = $state("");
+  /** The worker gateway address setting last seen in the stream. */
+  #address: string | undefined;
   async reload() {
     try {
       const setup = decode(ui.GetWorkerSetupResponseSchema, await requestJson("GET", "/api/workers/setup"));
@@ -33,7 +35,15 @@ export class WorkerSetup {
       this.enrollments = [value, ...this.enrollments.filter((e) => e.id !== value.id)];
     }
 
-    if (update.change.case === "userSettings" || update.change.case === "mobileRoutes") void this.reload();
+    // The gateway address follows its setting and the network routes; other settings change nothing here.
+    if (update.change.case === "userSettings") {
+      const address = update.change.value.workerGatewayUrl;
+
+      if (address !== this.#address) void this.reload();
+      this.#address = address;
+    }
+
+    if (update.change.case === "mobileRoutes") void this.reload();
   }
   async saveAddress(address: string) {
     for (let attempt = 0; ; attempt++) {

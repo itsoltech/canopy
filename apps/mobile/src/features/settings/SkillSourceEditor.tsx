@@ -16,7 +16,7 @@ export function SkillSourceEditor({
   skill?: ui.LibrarySkill;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource(`source:${skill?.id ?? "new"}`, (api) => api.listConnectors({}));
+  const resource = useSettingsResource("ListConnectors", (api) => api.listConnectors({}));
   const [command, setCommand] = useState(skill?.source?.url ?? "");
   const [account, setAccount] = useState(skill?.source?.credentialAccountId ?? "");
   const [preview, setPreview] = useState<ui.SkillSourcePreview>();

@@ -1,5 +1,8 @@
 import { error } from "@sveltejs/kit";
+import type { DescMessage, MessageShape } from "@bufbuild/protobuf";
 import { isJsonObject, isString, bodyJson, type JsonValue } from "./json.ts";
+import { queries } from "./queries.svelte.ts";
+import { decode } from "./wire.ts";
 
 /** Client route data with the BFF's status preserved for the retryable error view. */
 export async function loadJson(fetcher: typeof fetch, path: string): Promise<JsonValue> {
@@ -19,4 +22,23 @@ export async function loadJson(fetcher: typeof fetch, path: string): Promise<Jso
   }
 
   return body;
+}
+
+/**
+ * Route data from the tab's shared reads: a current value answers without a request; otherwise the read
+ * goes out once and becomes the shared value for the page's components.
+ */
+export async function loadShared<D extends DescMessage>(
+  fetcher: typeof fetch,
+  key: string,
+  schema: D,
+  path: string,
+): Promise<MessageShape<D>> {
+  const current = queries.snapshot<MessageShape<D>>(key);
+
+  if (current.loaded && !current.stale && current.data) return current.data;
+  const value = decode(schema, await loadJson(fetcher, path));
+  queries.set(key, value);
+
+  return value;
 }

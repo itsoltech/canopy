@@ -72,18 +72,29 @@
     seenReports = current;
   });
 
-  // New model lists (after a configuration or a refresh): the full catalogs again.
-  const listed = $derived(
-    [...catalog.workers.values()].map((c) => `${c.workerId}:${c.updatedAt?.seconds ?? 0}`).join(","),
+  // Definitions changed elsewhere (another device, or an instance with no worker): read them again.
+  $effect(() =>
+    overview.subscribe((update) => {
+      if (update.change.case === "providerInstancesChanged") void providers.reload().catch(() => {});
+    }),
   );
 
-  let seenListed: string | undefined;
+  // A worker reported a new model list: that worker's full catalog again, not every worker's.
+  const listed = $derived(
+    new Map([...catalog.workers.values()].map((c) => [c.workerId, `${c.updatedAt?.seconds ?? 0}`] as const)),
+  );
+
+  let seenListed: ReadonlyMap<string, string> | undefined;
 
   $effect(() => {
     const current = listed;
-
-    if (seenListed !== undefined && seenListed !== current) void providers.reloadModels().catch(() => {});
+    const previous = seenListed;
     seenListed = current;
+
+    if (!previous) return;
+    const changed = [...current].flatMap(([id, at]) => (previous.get(id) === at ? [] : [id]));
+
+    if (changed.length) void providers.reloadModels(changed).catch(() => {});
   });
 
   function select(key: string) {

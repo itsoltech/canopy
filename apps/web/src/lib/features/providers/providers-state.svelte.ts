@@ -40,8 +40,22 @@ export class ProvidersState {
     this.instances = await listInstances();
   }
 
-  async reloadModels(): Promise<void> {
-    this.catalogs = decode(ui.ListModelsResponseSchema, await requestJson("GET", "/api/models?unfiltered=1")).workers;
+  /** Full catalogs again: of the named workers only (a new report), or of every worker. */
+  async reloadModels(workerIds?: readonly string[]): Promise<void> {
+    if (!workerIds) {
+      this.catalogs = decode(ui.ListModelsResponseSchema, await requestJson("GET", "/api/models?unfiltered=1")).workers;
+
+      return;
+    }
+
+    const read = (workerId: string) =>
+      requestJson("GET", `/api/models?unfiltered=1&workerId=${encodeURIComponent(workerId)}`).then(
+        (json) => decode(ui.ListModelsResponseSchema, json).workers,
+      );
+
+    const fresh = (await Promise.all(workerIds.map(read))).flat();
+    const ids = new Set(workerIds);
+    this.catalogs = [...this.catalogs.filter((c) => !ids.has(c.workerId)), ...fresh];
   }
 
   /** Versions, availability and logins checked again on the online workers. */

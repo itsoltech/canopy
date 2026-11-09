@@ -14,7 +14,10 @@ export function DirectoryBrowser({
   onChange: (path: string) => void;
 }) {
   const [path, setPath] = useState("");
-  const resource = useSettingsResource(`directory:${workerId}:${path}`, (api) => api.listDirectory({ workerId, path }));
+
+  const resource = useSettingsResource(`ListDirectory:${workerId}:${path}`, (api) =>
+    api.listDirectory({ workerId, path }),
+  );
 
   return (
     <ResourceState resource={resource}>
