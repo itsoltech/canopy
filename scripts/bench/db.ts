@@ -9,6 +9,7 @@ import { runtime } from "./runtime.ts";
 import { seed, type Dataset } from "./seed.ts";
 import { Recorder } from "./trace.ts";
 import { stats, difference } from "./stats.ts";
+import { queueOperations, seedQueues } from "./queues.ts";
 
 const { values } = parseArgs({
   args: process.argv.slice(2),
@@ -49,7 +50,9 @@ const iterations = integer(values.iterations, "iterations", 200);
 if ((size.threads * size.turns + size.longTurns) * size.textBytes > 512 * 1024 ** 2)
   throw new Error("Dataset content exceeds 512 MiB before events/indexes; reduce size options");
 
-const selected = operations(size).filter((op) => !values.operation || op.name.includes(values.operation));
+const selected = [...operations(size), ...queueOperations()].filter(
+  (op) => !values.operation || op.name.includes(values.operation),
+);
 
 if (!selected.length) throw new Error("No benchmark operations match --operation");
 
@@ -66,6 +69,7 @@ try {
   await normal.runPromise(migrate);
   await normal.runPromise(seed(size));
   await normal.runPromise(seedMirrors(size));
+  await normal.runPromise(seedQueues);
   const results: object[] = [];
 
   for (const operation of selected) {

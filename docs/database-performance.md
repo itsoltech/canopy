@@ -49,7 +49,7 @@ w aplikacji. Parametry pozostają tylko w pamięci procesu; wynik nie zawiera tr
 zapytań, parametrów ani wierszy.
 
 `--explain` wykonuje `EXPLAIN (ANALYZE, BUFFERS)` dla odczytów z przebiegu
-diagnostycznego, z pominięciem blokujących SELECT FOR UPDATE. Nie powtarza zapisów.
+diagnostycznego (także odczytowe CTE), z pominięciem blokujących SELECT FOR UPDATE. Nie powtarza zapisów.
 Wynik opisuje węzły, relacje, indeksy, wiersze/pętle oraz bloki, bez warunków
 i wartości. Dla zapytań wewnątrz transakcji plan jest osobną obserwacją, poza
 pierwotnym snapshotem MVCC.
@@ -67,6 +67,34 @@ Gateway używa `@effect/sql-pg`, z domyślnie włączonym cache prepared stateme
 (100 na połączenie) i pulą do 10 połączeń. Bun SQL obsługuje administrację baz
 testowych. Zmiana limitów i timeoutów wymaga pomiaru współbieżnego obciążenia;
 skrót czasu statement nie jest zamiennikiem ograniczenia kosztu zapytania.
+
+### Kolejki, importy i współbieżność
+
+Fixture obejmuje dodatkowo 50 zakończonych importów po 2000 pozycji, 4096 oczekujących
+komend i 16 384 zakończone komendy. `imports/progress` mierzy samą agregację, oddzielnie
+od pełnego katalogu znanych źródeł; `commands/pending`, `worktrees/branch-context`
+i `schedules/claim-empty` uzupełniają odczyty kolejek.
+
+`bun scripts/bench/concurrent.ts --run` uruchamia osiem klientów odczytujących projekty,
+stronę historii, postęp importów i komendy. Równolegle zapisuje partie po osiem delt
+itemu oraz aktualizacje lustra. Domyślnie wykonuje 40 iteracji na klienta, używa
+64 wątków, 2048 tur w długim wątku i tekstów po 4096 bajtów. Parametry `--clients`,
+`--pool`, `--iterations`, `--statement-timeout-ms` pozwalają porównać nasycenie puli;
+domyślna pula 10 odpowiada gatewayowi, limit serwera wynosi 40.
+
+Osobne połączenie próbkuje `pg_stat_activity` i `pg_blocking_pids` co około 10 ms.
+Wynik podaje maksimum aktywnych/otwartych połączeń, sumę zaobserwowanych oczekiwań
+na blokady, p95 rezerwacji połączenia i opóźnienie pętli zdarzeń. Próbkowanie może
+pominąć krótsze blokady; liczników nie należy interpretować jako dokładnego czasu
+oczekiwania. Rezerwacja obejmuje także utworzenie połączenia. Latency obejmuje
+oczekiwanie na pulę i dekodowanie. Błędy są liczone według kategorii, bez treści;
+osobna próba `SET LOCAL statement_timeout` sprawdza anulowanie i rollback.
+
+Postęp importu agreguje liczniki i sumy w jednym skanie pozycji na przebieg, po
+wyborze maksymalnie 50 przebiegów właściciela. Sumy pozostają dokładnymi liczbami
+dziesiętnymi, także powyżej precyzji JS number. Pobranie pozycji do UI nie dekoduje
+snapshotów źródła, bazy dopisywania ani kursorów wznowienia; wewnętrzne przejścia
+importu nadal odczytują pełne rekordy.
 
 ## Odczyty wątków
 

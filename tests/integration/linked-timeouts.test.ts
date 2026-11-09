@@ -157,10 +157,19 @@ describe.skipIf(!dockerAvailable)("linked computer read deadlines and recovery",
     f.stall();
 
     try {
+      // Other background reads can delay admission. Wait for this RPC before checking its timeout.
+      expect(
+        await eventually(
+          async () => {
+            await pages();
+
+            return (f.requests.get("GetComputerUpdates") ?? 0) > before;
+          },
+          Boolean,
+          20_000,
+        ),
+      ).toBe(true);
       expect(await eventually(async () => (await pages()).peer.readState === "stale", Boolean, 20_000)).toBe(true);
-      expect(await eventually(async () => (f.requests.get("GetComputerUpdates") ?? 0) > before, Boolean, 10_000)).toBe(
-        true,
-      );
       const calls = f.requests.get("GetComputerUpdates") ?? 0;
       await Bun.sleep(10_500);
 
@@ -181,7 +190,7 @@ describe.skipIf(!dockerAvailable)("linked computer read deadlines and recovery",
     await f.la.announce("sleeping");
     await f.la.announce("connected");
     await recovered();
-  }, 45_000);
+  }, 75_000);
 
   test("a stalled peer action and an open subscription cannot occupy local BFF request slots", async () => {
     const sessions = new Set<ServerHttp2Session>();

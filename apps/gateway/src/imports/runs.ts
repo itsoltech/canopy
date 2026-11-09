@@ -13,7 +13,7 @@ import { directoryTargets, newItems, selected, type Scratch } from "./plan.ts";
 import type { ImportRunner } from "./runner.ts";
 import {
   createRun,
-  items,
+  itemSummaries,
   knownSources,
   runs,
   storedSnapshot,
@@ -182,7 +182,7 @@ export class ImportRuns {
 
     return toUiRun(
       run,
-      withItems ? await this.#imports.sql((sql) => items(sql, run.id)) : [],
+      withItems ? await this.#imports.sql((sql) => itemSummaries(sql, run.id)) : [],
       await this.#imports.sql((sql) => libraryItems(sql, run.id)),
     );
   }

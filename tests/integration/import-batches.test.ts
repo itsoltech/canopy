@@ -2,7 +2,14 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { createRun, items, type NewItem, setRunStatus } from "../../apps/gateway/src/imports/store.ts";
+import {
+  createRun,
+  items,
+  itemSummaries,
+  runs,
+  type NewItem,
+  setRunStatus,
+} from "../../apps/gateway/src/imports/store.ts";
 import { libraryItems, type NewLibraryItem } from "../../apps/gateway/src/imports/library-store.ts";
 import { startTestGateway, type TestGateway } from "./support/gateway.ts";
 
@@ -124,5 +131,54 @@ describe.skipIf(!dockerAvailable)("bulk import admission durability", () => {
     );
 
     expect(rows).toEqual([{ runs: 0, items: 0, library: 0 }]);
+  });
+
+  test("progress preserves mixed statuses, exact bytes, first importing title and owner scope", async () => {
+    const id = Bun.randomUUIDv7();
+    await admit(id, newItems(id).slice(0, 7), library(id).slice(0, 3));
+    await gateway.core.linkedAgents.query(
+      `UPDATE import_items SET status =
+      (ARRAY['done','failed','cancelled','importing','superseded','undone','importing'])[position+1],
+      bytes_done=17, base=jsonb_build_object('large',repeat('x',100000)) WHERE run_id=$1::uuid`,
+      [id],
+    );
+    await gateway.core.linkedAgents.query(
+      `UPDATE import_library_items SET status =
+      (ARRAY['done','failed','cancelled'])[position+1] WHERE run_id=$1::uuid`,
+      [id],
+    );
+
+    const result = await gateway.runtime.runPromise(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+
+        return {
+          progress: (yield* runs(sql, gateway.userId, id))[0]!,
+          summaries: yield* itemSummaries(sql, id),
+          foreign: yield* runs(sql, Bun.randomUUIDv7(), id),
+        };
+      }),
+    );
+
+    expect(result.progress).toMatchObject({
+      total: 7,
+      done: 1,
+      failed: 1,
+      cancelled: 1,
+      library_done: 1,
+      library_failed: 1,
+      current: "Import 3",
+      bytes_total: String(6n * 9007199254740993n),
+      bytes_done: String(9007199254740993n + 6n * 17n),
+    });
+    expect(result.foreign).toEqual([]);
+    expect(result.summaries.map((row) => row.title)).toEqual(
+      newItems(id)
+        .slice(0, 7)
+        .map((row) => row.title),
+    );
+    expect(result.summaries[0]).toMatchObject({ target: { mode: "history" } });
+    expect(result.summaries[0]).not.toHaveProperty("base");
+    expect(result.summaries[0]).not.toHaveProperty("snapshot");
   });
 });
