@@ -6,7 +6,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import { carriesMore, messageOf, overrides, ownMessage, queuedText, steerable } from "./queue.ts";
+  import { carriesMore, messageOf, overrides, ownMessage, queuedText } from "./queue.ts";
   import QueueEditor from "./QueueEditor.svelte";
   import QueueHandle from "./QueueHandle.svelte";
   import QueueRowMenu from "./QueueRowMenu.svelte";
@@ -125,12 +125,8 @@
         </p>
       {/if}
       {#if own && running}
-        {@const files = !steerable(turn)}
-        <span
-          class="flex shrink-0"
-          {@attach tooltip(files ? "A message with files runs as its own turn" : "Send it into the running turn now")}
-        >
-          <Button variant="ghost" size="sm" icon="arrow-turn-down-right" disabled={files} onclick={onsteer}
+        <span class="flex shrink-0" {@attach tooltip("Send it into the running turn now")}>
+          <Button variant="ghost" size="sm" icon="arrow-turn-down-right" onclick={onsteer}
             ><span class="max-sm:sr-only">Steer</span></Button
           >
         </span>

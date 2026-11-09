@@ -1,6 +1,7 @@
 import { create, toJson, type MessageInitShape } from "@bufbuild/protobuf";
 import { coreNameBranchAfterTurn } from "../worktrees/branch-naming.ts";
 import { SHELL_INPUT_CAPABILITY, SHELL_INPUT_TIMEOUT_MS } from "@canopy/domain";
+import { STEER_ATTACHMENTS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { CommandResultSchema, CommandSchema, type Command, type CommandResult } from "@canopy/contracts";
 import { AgentBusStore, GatewayStore, SteerStore } from "../store/index.ts";
 import { BotStore } from "../bots/store.ts";
@@ -44,6 +45,13 @@ export async function coreDispatch(
 
   if (!stored) return;
 
+  if (
+    hostContext[coreState].actions.defer(() => {
+      void coreDeliver(hostContext, workerId, stored);
+    })
+  )
+    return;
+
   void coreDeliver(hostContext, workerId, stored);
 }
 
@@ -84,6 +92,18 @@ export async function coreDeliver(hostContext: GatewayCore, workerId: string, co
     const shell =
       (command.kind.case === "startTurn" || command.kind.case === "steerTurn") &&
       command.kind.value.input?.shellCommand !== undefined;
+
+    if (
+      command.kind.case === "steerTurn" &&
+      command.kind.value.input?.attachments.length &&
+      !connection.hello.capabilities.includes(STEER_ATTACHMENTS_CAPABILITY)
+    )
+      result = create(CommandResultSchema, {
+        commandId: command.commandId,
+        errorCode: "STEER_ATTACHMENTS_UNSUPPORTED",
+        errorMessage:
+          "This worker cannot steer messages with files yet. The message stays queued. Update the worker to steer files.",
+      });
 
     result ??=
       shell && !connection.hello.capabilities.includes(SHELL_INPUT_CAPABILITY)

@@ -142,6 +142,7 @@
           mentions: row.steer.mentions,
         }}
         quotes={row.steer.quotes}
+        files={row.steer.attachments}
         note={steeringNote(row.steer)}
         sender={row.steer.sender}
         pending

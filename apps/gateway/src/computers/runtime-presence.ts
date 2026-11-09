@@ -21,6 +21,7 @@ import {
   THREAD_MIRROR_DELTA,
   THREAD_WATCH_LIVENESS,
   INLINE_ATTACHMENTS,
+  STEER_ATTACHMENTS,
 } from "@canopy/domain/computers";
 
 import { certificateIdentity, computerName, linkAddress } from "./identity.ts";
@@ -83,6 +84,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
               AGENT_BUS,
               RELAY,
               INLINE_ATTACHMENTS,
+              STEER_ATTACHMENTS,
             ]
           : []),
         ...(this.config ? [CONFIG_SYNC] : []),

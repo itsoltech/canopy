@@ -121,6 +121,13 @@ export class ThreadCommands {
       throw new CommandError("STEER_NOT_RUNNING", "the turn is not running on this worker", true);
     const input = await prepareShellInput(this.ctx, threadId, turnId, rawInput, commandId, false);
 
+    // FetchBlob confirms every file's bytes; verify and atomically write them before the harness sees their paths.
+    if (input.attachments.length > 0) await this.ctx.ops.ensureAttachments(threadId, input.attachments);
+
+    // File delivery can outlive this turn. Never steer a newer turn with this message.
+    if (!this.ctx.state.running.has(`${threadId}/${turnId}`))
+      throw new CommandError("STEER_NOT_RUNNING", "the turn ended while its files were arriving", true);
+
     // Like InterruptTurn: the runtime with the running turn takes it.
     const claude = [...this.ctx.state.claude].find(([, handle]) =>
       Context.get(handle.context, ClaudeThreads).running(threadId),

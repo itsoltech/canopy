@@ -24,6 +24,9 @@ export const RELAY = "relay";
  */
 export const INLINE_ATTACHMENTS = "inline_attachments";
 
+/** The home accepts attachment steers and reports a queued fallback when its worker cannot take them. */
+export const STEER_ATTACHMENTS = "steer_attachments_v1";
+
 /** Stage 8: two-phase moves of threads and bots between directly linked computers, and redirects. */
 export const MOVE_ITEMS = "move_items";
 

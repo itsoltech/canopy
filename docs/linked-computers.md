@@ -514,6 +514,12 @@ dwóch komputerów albo lokalny uuid w wywołaniu do partnera jest odrzucane (�
 and thread on the same computer”). Wyjątek: załączniki wgrane na A do wiadomości dla wątku B gateway A
 odczytuje i wgrywa na B (`UploadAttachment`), a w żądaniu podmienia na id z B.
 
+Steer z plikami używa tej samej trasy: blob najpierw trafia do domu wątku, a jego worker dostarcza
+pliki przed sterowaniem trwającą turą. Dom ogłasza capability `steer_attachments_v1`; starszy dom
+zachowuje poprzednie działanie (kolejka). A dodaje wtedy `SendMessageResponse.delivery_note`, aby UI
+wyjaśniło brak wsparcia zamiast twierdzić, że tura się skończyła. Brak capability workera na domu
+również daje kolejkę z zapisanym powodem; pliki pozostają związane z wiadomością.
+
 #### Załączniki w tekście
 
 Plakietki plików w tekście (`MentionKind.ATTACHMENT`, `name` = id załącznika) idą za plikami: gateway A

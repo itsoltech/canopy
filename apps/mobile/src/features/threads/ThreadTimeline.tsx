@@ -44,6 +44,7 @@ function useTimelineData(state: ThreadState) {
     thread: (id) => threads.find((t) => t.id === id) ?? (id === thread?.id ? thread : undefined),
     item: (id) => items.get(id),
     delivery: (callId) => snapshot?.busDeliveries.find((d) => d.callId === callId),
+    queuedFallback: (turnId) => snapshot?.steers.find((s) => s.status === "queued" && s.queuedTurnId === turnId),
   };
 
   const context: TurnContext = {
@@ -140,6 +141,7 @@ export function ThreadTimeline({
                     <UserMessageView
                       text={s.text}
                       mentions={s.mentions}
+                      attachments={s.attachments}
                       note={steeringNote(s)}
                       sender={s.sender}
                       quotes={s.quotes}

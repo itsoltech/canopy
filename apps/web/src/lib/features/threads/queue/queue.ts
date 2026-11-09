@@ -37,9 +37,6 @@ export function ordered(turns: readonly ui.Turn[], order: readonly string[] | un
 export const ownMessage = (turn: ui.Turn): boolean =>
   turn.trigger === "user" && !turn.sourceKind && !turn.sourceThreadId;
 
-/** A message steered from the queue takes no files: a message with attachments runs as its own turn. */
-export const steerable = (turn: ui.Turn): boolean => ownMessage(turn) && turn.attachments.length === 0;
-
 /** The message as the user wrote it (without the platform's note: attachments, mentions, a source). */
 export const messageOf = (turn: ui.Turn): string => turn.messageText || turn.inputText;
 

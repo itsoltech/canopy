@@ -77,7 +77,7 @@ function useThreadState(id: string) {
   const interactions = snapshot?.interactions.filter((i) => i.status === "pending") ?? [];
   const turns = useMemo(() => visibleTurns(snapshot), [snapshot]);
 
-  async function send(requested: ui.MessageDelivery) {
+  async function send(delivery: ui.MessageDelivery) {
     const outgoing = message.outgoing();
     const { text: value, attachmentIds, mentions } = outgoing;
 
@@ -92,9 +92,6 @@ function useThreadState(id: string) {
     following.resumeFollowing();
     setBusy(true);
     setError("");
-
-    // A message with files always waits in the queue (it never joins a running turn).
-    const delivery = attachmentIds.length ? ui.MessageDelivery.QUEUE : requested;
 
     const key = JSON.stringify({ value, delivery, attachmentIds, mentions, quotes: quotes.quotes });
 
@@ -117,6 +114,8 @@ function useThreadState(id: string) {
       setSnapshot((snapshot) => withSentMessage(snapshot, result));
       message.clear();
       quotes.clear();
+
+      if (result.deliveryNote) setError(result.deliveryNote);
       pending.current = null;
     } catch (e) {
       if (ConnectError.from(e).code === Code.Unauthenticated) await expired();
@@ -259,12 +258,7 @@ export function ThreadScreen({ id }: { id: string }) {
         </DropZone>
       </ChatKeyboard>
       <ThreadPanel snapshot={snapshot} visible={details} onClose={() => setDetails(false)} />
-      <QueuedMessageMenu
-        turn={state.home.away || state.queued?.editing ? undefined : state.queued?.turn}
-        onClose={() => state.setQueued(undefined)}
-        onEdit={(turn) => state.setQueued({ turn, editing: true })}
-        onError={setError}
-      />
+      <ThreadQueue state={state} onError={setError} />
       <GoalSheet
         thread={thread}
         goal={snapshot?.goal}
@@ -272,11 +266,25 @@ export function ThreadScreen({ id }: { id: string }) {
         onClose={() => setSheet(null)}
       />
       <SideThreadSheet main={thread} visible={!state.home.away && sheet === "side"} onClose={() => setSheet(null)} />
+    </ScreenFrame>
+  );
+}
+
+function ThreadQueue({ state, onError }: { state: ThreadState; onError: (message: string) => void }) {
+  return (
+    <>
+      <QueuedMessageMenu
+        running={state.thread?.status === "running"}
+        turn={state.home.away || state.queued?.editing ? undefined : state.queued?.turn}
+        onClose={() => state.setQueued(undefined)}
+        onEdit={(turn) => state.setQueued({ turn, editing: true })}
+        onError={onError}
+      />
       <QueueEditor
         turn={!state.home.away && state.queued?.editing ? state.queued.turn : undefined}
         onClose={() => state.setQueued(undefined)}
       />
-    </ScreenFrame>
+    </>
   );
 }
 

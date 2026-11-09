@@ -16,11 +16,13 @@ const failure = (cause: unknown) => ConnectError.from(cause).rawMessage;
 /** A queued message's actions, as the web queue row offers them: edit it in place or delete it. */
 export function QueuedMessageMenu({
   turn,
+  running,
   onClose,
   onEdit,
   onError,
 }: {
   turn: ui.Turn | undefined;
+  running: boolean;
   onClose: () => void;
   onEdit: (turn: ui.Turn) => void;
   onError: (message: string) => void;
@@ -36,6 +38,10 @@ export function QueuedMessageMenu({
         if (!turn) return;
 
         if (action === "edit") onEdit(turn);
+        else if (action === "steer")
+          void client?.api
+            .steerQueuedTurn({ turnId: turn.id })
+            .catch(() => onError("Could not steer the message. Check the queue, then try again."));
         else
           void client?.api
             .deleteQueuedTurn({ turnId: turn.id })
@@ -44,6 +50,9 @@ export function QueuedMessageMenu({
       sections={[
         {
           options: [
+            ...(running
+              ? [{ value: "steer" as const, label: "Steer now", icon: "arrow-turn-down-right" as const }]
+              : []),
             { value: "edit" as const, label: "Edit message", icon: "pencil-square" as const },
             { value: "delete" as const, label: "Delete", icon: "trash" as const, tone: "danger" as const },
           ],

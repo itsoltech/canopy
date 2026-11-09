@@ -84,9 +84,7 @@ export function MessageComposer({
   const look = permissionLook(thread?.permissionMode);
 
   const primary =
-    message.files.ids.length || user?.composer?.runningDelivery === ui.MessageDelivery.QUEUE
-      ? ui.MessageDelivery.QUEUE
-      : ui.MessageDelivery.STEER;
+    user?.composer?.runningDelivery === ui.MessageDelivery.QUEUE ? ui.MessageDelivery.QUEUE : ui.MessageDelivery.STEER;
 
   return (
     <>
@@ -100,10 +98,8 @@ export function MessageComposer({
           badges={message.badges}
           triggers
           onSend={() => send(thread?.status === "running" ? primary : ui.MessageDelivery.QUEUE)}
-          onAlternate={
-            message.files.ids.length
-              ? undefined
-              : () => send(primary === ui.MessageDelivery.QUEUE ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE)
+          onAlternate={() =>
+            send(primary === ui.MessageDelivery.QUEUE ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE)
           }
           primary={primary === ui.MessageDelivery.QUEUE ? "queue" : "steer"}
           onStop={stop}

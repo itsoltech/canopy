@@ -45,6 +45,7 @@ export function TurnInput({ turn, onActions }: { turn: ui.Turn; onActions?: (() 
   const type = useTypography();
   const directory = useTimelineDirectory();
   const origin = turnOrigin(turn);
+  const fallback = directory.queuedFallback?.(turn.id);
 
   const fromAgent =
     ["task", "message", "report"].includes(origin.kind) ||
@@ -64,7 +65,14 @@ export function TurnInput({ turn, onActions }: { turn: ui.Turn; onActions?: (() 
         quotes={turn.quotes}
         mentions={turn.messageText ? turn.mentions : []}
         onActions={onActions}
-        note={turn.status === "queued" ? { text: turn.dispatched ? "Starting" : "Queued" } : undefined}
+        note={
+          turn.status === "queued"
+            ? {
+                text: fallback?.reason ? `Queued instead: ${fallback.reason}` : turn.dispatched ? "Starting" : "Queued",
+                ...(fallback && { tone: "amber" }),
+              }
+            : undefined
+        }
       />
     );
 

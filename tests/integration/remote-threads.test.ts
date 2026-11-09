@@ -5,7 +5,8 @@ import { createServer, type AddressInfo } from "node:net";
 import { create, toJson } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { InteractionKind, MentionKind, PermissionMode, Provider, ui, computerLink as link } from "@canopy/contracts";
-import { INLINE_ATTACHMENTS, nodeRef, REMOTE_THREADS } from "@canopy/domain/computers";
+import { INLINE_ATTACHMENTS, nodeRef, REMOTE_THREADS, STEER_ATTACHMENTS } from "@canopy/domain/computers";
+import { STEER_ATTACHMENTS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { dockerAvailable } from "@canopy/db/testing";
 import { AsyncChannel } from "@canopy/transport";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
@@ -61,7 +62,7 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
       port,
       heartbeatMs: 100,
       serve: remoteServe(uiHandlers(b.core)),
-      capabilities: ["presence", "unlink", REMOTE_THREADS, INLINE_ATTACHMENTS],
+      capabilities: ["presence", "unlink", REMOTE_THREADS, INLINE_ATTACHMENTS, STEER_ATTACHMENTS],
       ...extra,
     });
 
@@ -79,7 +80,10 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
 
   beforeAll(async () => {
     a = await startTestGateway({ role: "desktop" });
-    b = await startTestGateway({ role: "desktop" });
+    b = await startTestGateway({
+      role: "desktop",
+      worker: { hello: { capabilities: [STEER_ATTACHMENTS_CAPABILITY] } },
+    });
     sa = new ComputerStore(a.runtime, a.userId, randomBytes(32));
     sb = new ComputerStore(b.runtime, b.userId, randomBytes(32));
     la = linkedComputers({
@@ -330,6 +334,70 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     expect(turn.attachments.map((x) => [x.name, x.id.endsWith(`~${nodeRef(bNode)}`)])).toEqual([["notes.txt", true]]);
     await eventually(async () => (b.worker.attachments.get(turn.id.split("~")[0]!) ?? []).length === 1);
   }, 20_000);
+
+  test("attachment steers reach the thread's home; an older home queues them with an accurate note", async () => {
+    const plain = thread.split("~")[0]!;
+    await eventually(async () => (await b.api.getThread({ threadId: plain })).thread?.status === "idle");
+    b.worker.holdTurns = true;
+
+    const running = (await a.api.sendMessage({ threadId: thread, text: "hold for files", clientRequestId: id() }))
+      .turn!;
+
+    try {
+      await eventually(async () => b.worker.started.has(running.id.split("~")[0]!));
+
+      const send = async () => {
+        const file = (await a.api.uploadAttachment({ name: "steer.txt", data: new TextEncoder().encode("home bytes") }))
+          .attachment!;
+
+        return a.api.sendMessage({
+          threadId: thread,
+          text: "read the file",
+          clientRequestId: id(),
+          attachmentIds: [file.id],
+          delivery: ui.MessageDelivery.STEER,
+        });
+      };
+
+      const sent = await send();
+      expect(sent.steer?.attachments.map((f) => f.name)).toEqual(["steer.txt"]);
+      const steerId = sent.steer!.id.split("~")[0]!;
+      await eventually(async () => b.worker.started.has(steerId));
+      const input = b.worker.started.get(steerId)!;
+      expect(input.attachments[0]!.path).toContain(plain);
+      expect(input.text).toContain(input.attachments[0]!.path);
+      const stored = await b.api.getAttachment({ attachmentId: input.attachments[0]!.attachmentId });
+      expect(new TextDecoder().decode(stored.data)).toBe("home bytes");
+
+      // Emulate the previous home's SendMessage, which always queued files.
+      const handlers = uiHandlers(b.core);
+      await restartB({
+        capabilities: ["presence", "unlink", REMOTE_THREADS, INLINE_ATTACHMENTS],
+        serve: remoteServe({
+          ...handlers,
+          sendMessage: (request, context) =>
+            handlers.sendMessage(
+              create(ui.SendMessageRequestSchema, { ...request, delivery: ui.MessageDelivery.QUEUE }),
+              context,
+            ),
+        }),
+      });
+      await reachable();
+      const fallback = await send();
+      expect(fallback.steer).toBeUndefined();
+      expect(fallback.turn?.attachments.map((f) => f.name)).toEqual(["steer.txt"]);
+      expect(fallback.deliveryNote).toBe(
+        "This computer cannot steer messages with files yet. Your message runs as the next turn.",
+      );
+      await a.api.deleteQueuedTurn({ turnId: fallback.turn!.id });
+    } finally {
+      await restartB();
+      await reachable();
+      b.worker.holdTurns = false;
+      b.worker.finish(plain, running.id.split("~")[0]!);
+      await eventually(async () => (await b.api.getThread({ threadId: plain })).thread?.status === "idle");
+    }
+  }, 30_000);
 
   test("a file placed in the text on A keeps its place on B; an older B gets the text without the badge", async () => {
     const text = "read [placed.txt] first";

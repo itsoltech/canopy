@@ -34,7 +34,7 @@
    * into it keep the mode the turn started with. Until the gateway confirms, a message sent meanwhile
    * carries the pick as its turn's override.
    * Attachments (paperclip, drop, paste): badges in the text, uploaded as they are added, sent with the message at
-   * their places, which then always runs as the next turn (its files reach the worker before the turn starts).
+   * their places. Files reach the worker before the message enters a turn, including when steered.
    * Mentions ("/", "$", "@", "#"; docs/ui-api.md "Wzmianki") come from the thread's worker and folder; "/goal" is
    * the platform's command: the rest of the message becomes the thread's goal.
    * Quotes (Cite on the agent's output; docs/ui-api.md "Cytaty") wait as chips above the text, in the thread's quote
@@ -151,7 +151,7 @@
         message,
         requestId,
         override,
-        attachmentIds.length > 0 ? "queue" : delivery,
+        delivery,
         attachmentIds,
         draft.wire(sentMentions),
         sentQuotes.map(toWire),
@@ -163,7 +163,7 @@
 
       // Steered while the turn was ending: the gateway queued it as the next turn.
       if (delivery === "steer" && response.turn)
-        outcome = "The turn had just ended, so your message runs as the next turn.";
+        outcome = response.deliveryNote || "The turn ended. Your message runs as the next turn.";
       text = "";
       mentions = [];
       draft.clear();
