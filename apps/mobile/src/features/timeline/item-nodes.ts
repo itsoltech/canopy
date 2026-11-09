@@ -16,7 +16,12 @@ export function itemNodes(items: readonly Item[]): ItemNode[] {
     const parent = item.parentItemId;
 
     if (!parent || parent === item.itemId || !ids.has(parent)) top.push(item);
-    else children.set(parent, [...(children.get(parent) ?? []), item]);
+    else {
+      const group = children.get(parent);
+
+      if (group) group.push(item);
+      else children.set(parent, [item]);
+    }
   }
 
   const node = (item: Item, seen: Set<string>): ItemNode => {

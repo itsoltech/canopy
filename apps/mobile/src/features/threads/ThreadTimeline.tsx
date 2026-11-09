@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { View } from "react-native";
 import Animated from "react-native-reanimated";
 import { ui, type Item } from "@canopy/contracts";
@@ -18,6 +18,7 @@ import { NoticeRow } from "../timeline/NoticeRows";
 import { TimelineTurn, type TurnContext } from "../timeline/TimelineTurn";
 import { steeringNote, UserMessageView } from "../timeline/UserMessageView";
 import { newDays } from "./thread-turns";
+import { TimelineEntries } from "./timeline-entries";
 import type { ThreadState } from "./ThreadScreen";
 
 /** What the timeline's items look up: other threads, items, deliveries, and its tasks by their command. */
@@ -81,18 +82,8 @@ export function ThreadTimeline({
   const loose = snapshot?.notices.filter((n) => !turnIds.has(n.turnId)).slice(-3) ?? [];
   const steering = snapshot?.steers.filter((s) => ["pending", "accepted"].includes(s.status)) ?? [];
 
-  const entries = useMemo(() => {
-    const grouped = new Map<string, ui.TimelineItem[]>();
-
-    for (const item of snapshot?.items ?? []) {
-      const key = `${item.fromThreadId}:${item.turnId}`;
-      const group = grouped.get(key) ?? [];
-      group.push(item);
-      grouped.set(key, group);
-    }
-
-    return grouped;
-  }, [snapshot?.items]);
+  const [entryIndex] = useState(() => new TimelineEntries());
+  const entries = useMemo(() => entryIndex.build(snapshot?.items ?? []), [entryIndex, snapshot?.items]);
 
   return (
     <TimelineDirectoryProvider value={directory}>

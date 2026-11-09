@@ -36,6 +36,7 @@ export class PersistentThreadCache {
   #memory = new ThreadCache({ count: 6, bytes: 24 * 1024 * 1024 });
   #writing: Promise<void> = Promise.resolve();
   #closed = false;
+  #saving: { snapshot: ui.ThreadSnapshot; promise: Promise<void> } | undefined;
 
   constructor(
     readonly storage: ThreadCacheStorage,
@@ -47,6 +48,8 @@ export class PersistentThreadCache {
   }
 
   load(id: string): Promise<ui.ThreadSnapshot | undefined> {
+    this.#saving = undefined;
+
     return this.#serial(async () => {
       if (this.#closed) return undefined;
       const cached = this.peek(id);
@@ -82,10 +85,15 @@ export class PersistentThreadCache {
 
   save(snapshot: ui.ThreadSnapshot): Promise<void> {
     if (this.#closed || !snapshot.thread) return Promise.resolve();
+    const saved = this.#saving;
+
+    // Reducers replace snapshots; periodic saves of the same revision share encoding and disk work.
+    if (saved?.snapshot === snapshot && this.peek(snapshot.thread.id) === snapshot) return saved.promise;
+    this.#saving = undefined;
     const bytes = toBinary(ui.ThreadSnapshotSchema, snapshot);
     this.#memory.set(snapshot, bytes.byteLength);
 
-    return this.#serial(async () => {
+    const saving = this.#serial(async () => {
       if (this.#closed) return;
       const id = snapshot.thread!.id;
       const previous = (await this.storage.list()).filter((file) => file.id === id);
@@ -95,12 +103,21 @@ export class PersistentThreadCache {
 
       for (const entry of previous) await this.storage.remove(entry.name);
       await this.#trim();
+    }).catch((error) => {
+      if (this.#saving?.snapshot === snapshot) this.#saving = undefined;
+      throw error;
     });
+
+    // Do not retain an oversized snapshot outside the memory budget.
+    if (this.peek(snapshot.thread.id) === snapshot) this.#saving = { snapshot, promise: saving };
+
+    return saving;
   }
 
   close(): Promise<void> {
     this.#closed = true;
     this.#memory.clear();
+    this.#saving = undefined;
 
     return this.#serial(() => this.storage.clear());
   }

@@ -7,6 +7,7 @@ import { FeedBuilder, type FeedInput } from "../../apps/web/src/lib/features/thr
 import { longThreadSnapshot, streamingTurn } from "../../apps/web/src/lib/features/threads/dev/fixture.ts";
 import { turnBody } from "../../apps/mobile/src/features/timeline/turn-plan.ts";
 import { visibleTurns } from "../../apps/mobile/src/features/threads/thread-turns.ts";
+import { TimelineEntries } from "../../apps/mobile/src/features/threads/timeline-entries.ts";
 import { PersistentThreadCache, type ThreadCacheStorage } from "../../apps/mobile/src/storage/thread-cache.ts";
 
 /** CPU measurements, not a test suite. Deterministic data; no application, native modules or user files. */
@@ -94,6 +95,24 @@ await measure("mobile visible turns", () => {
   visibleTurns(snapshot);
 });
 
+const groups = new TimelineEntries();
+const beforeGroups = groups.build(snapshot.items);
+const changed = snapshot.items.with(snapshot.items.length - 1, { ...snapshot.items[snapshot.items.length - 1]! });
+const afterGroups = groups.build(changed);
+
+console.info(
+  JSON.stringify({
+    metric: "mobile groups retained after one item changes",
+    retained: [...beforeGroups].filter(([key, value]) => afterGroups.get(key) === value).length,
+    total: beforeGroups.size,
+  }),
+);
+
+await measure("mobile turn grouping / streaming item", () => {
+  groups.build(changed);
+  groups.build(snapshot.items);
+});
+
 const entries = snapshot.items.filter((entry) => entry.turnId === snapshot.turns[0]?.id);
 
 await measure("mobile turn body / typical turn", () => {
@@ -141,6 +160,6 @@ const storage: ThreadCacheStorage = {
 
 const cache = new PersistentThreadCache(storage);
 
-await measure("mobile cache save / serialization + queue, no disk", () => cache.save(snapshot), 10);
+await measure("mobile cache save / same immutable snapshot, no disk", () => cache.save(snapshot), 10);
 
 await cache.close();

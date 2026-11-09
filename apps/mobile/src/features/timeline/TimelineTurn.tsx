@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { View } from "react-native";
 import Animated, { LayoutAnimationConfig } from "react-native-reanimated";
 import type { Item, Provider, ui } from "@canopy/contracts";
@@ -141,7 +141,7 @@ export function TimelineTurn({
   const { workFold } = useDevicePreferences();
   const [folds, setFolds] = useState<ReadonlyMap<number, boolean>>(new Map());
   const [groups, setGroups] = useState<ReadonlyMap<string, boolean>>(new Map());
-  const body = turnBody(turn, entries, context.notices);
+  const body = useMemo(() => turnBody(turn, entries, context.notices), [turn, entries, context.notices]);
   const ended = ["completed", "interrupted", "failed", "cancelled"].includes(turn.status);
   const plan = segmentsOf(turn, body, () => false);
 

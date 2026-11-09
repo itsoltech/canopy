@@ -79,6 +79,35 @@ describe("durable bounded thread snapshots", () => {
     expect(await storage.list()).toHaveLength(0);
   });
 
+  test("an unchanged revision retries a failed write and can be persisted again after eviction", async () => {
+    class InterruptedStorage extends DiskThreadStorage {
+      interrupted = true;
+
+      override async write(id: string, bytes: Uint8Array) {
+        if (this.interrupted) {
+          this.interrupted = false;
+          throw new Error("Interrupted disk write");
+        }
+
+        await super.write(id, bytes);
+      }
+    }
+
+    const storage = new InterruptedStorage(directory("canopy-cache-retry-"));
+    const cache = new PersistentThreadCache(storage, { count: 1, bytes: 4096, entry: 2048 });
+    const state = snapshot("first");
+    await expect(cache.save(state)).rejects.toThrow("Interrupted disk write");
+    await Promise.all([cache.save(state), cache.save(state)]);
+    expect(await new PersistentThreadCache(storage).load("first")).toEqual(state);
+    await cache.save(snapshot("second"));
+    expect(await new PersistentThreadCache(storage).load("first")).toBeUndefined();
+    await cache.save(state);
+    expect(await new PersistentThreadCache(storage).load("first")).toEqual(state);
+    await cache.close();
+    await cache.save(state);
+    expect(await new PersistentThreadCache(storage).load("first")).toBeUndefined();
+  });
+
   test("provider and recovery turn times survive live events, disk restart and authoritative upserts", async () => {
     const storage = new DiskThreadStorage(directory("canopy-cache-provider-turn-"));
     const startedAt = timestampFromMs(1_800_000_000_000);
