@@ -1,11 +1,11 @@
 import type { Query } from "@anthropic-ai/claude-agent-sdk";
 import type { PermissionMode } from "@canopy/contracts";
-import { claudePermissions, sandboxed } from "./permissions.ts";
+import { claudePermissions, sandboxed, type AutoAllow } from "./permissions.ts";
 
 /** What a mode switch changes on a live session (Session has these fields). */
 export interface ModeSwitchable {
   mode: PermissionMode;
-  autoAllow: boolean;
+  autoAllow: AutoAllow;
   readonly query: Pick<Query, "applyFlagSettings" | "setPermissionMode">;
 }
 
@@ -19,7 +19,7 @@ export async function switchSessionMode(session: ModeSwitchable, mode: Permissio
   const next = claudePermissions(mode);
 
   // Nothing is auto-allowed while switching: FULL_AUTO only once the sandbox is on, FULL_ACCESS once it is off.
-  session.autoAllow = false;
+  session.autoAllow = "none";
 
   if (sandboxed(next) !== sandboxed(current)) {
     // Options.sandbox is the settings' sandbox; live, only an explicit `enabled: false` turns it off

@@ -15,6 +15,7 @@ import type { NativeToolPolicy } from "../native-tools.ts";
 import type { Env, ResolvedProfile } from "../profiles.ts";
 import type { ViewImageResult } from "../../images/index.ts";
 import { ClaudeEventMapper } from "./mapping.ts";
+import type { AutoAllow } from "./permissions.ts";
 
 export class ClaudeThreadError extends Schema.TaggedError<ClaudeThreadError>()("ClaudeThreadError", {
   threadId: Schema.String,
@@ -87,7 +88,7 @@ export interface Session {
   model: string;
   /** Permission mode the process runs with; canUseTool reads autoAllow per request (a later turn may switch it). */
   mode: PermissionMode;
-  autoAllow: boolean;
+  autoAllow: AutoAllow;
   /** Read position in each background task's output file. */
   readonly outputs: Map<string, { offset: number; readonly decoder: TextDecoder }>;
   /** The Claude config dir the session lives in (the instance's own, else the runtime's). */
