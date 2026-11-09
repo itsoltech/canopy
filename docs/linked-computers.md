@@ -1568,6 +1568,10 @@ addytywne). UI: `PreviewMove`/`StartMove`/`GetMoves` w `canopy.ui.v1` (tylko tok
 nie telefony), BFF `/api/computers/moves`, komponenty `MoveDialog`, `MovePreview`, `MoveProgress`
 i pochodne w `apps/web/src/lib/features/computers`.
 
+Podgląd bota odczytuje metadane, liczniki i nazwy połączeń bez dekodowania historii.
+Inspekcja wielu rzeczy pobiera nagłówki botów oraz wątki z projektami grupowo,
+z zakresem właściciela. Ostateczny eksport nadal następuje po zamrożeniu rzeczy.
+
 ### Zakres i decyzje
 
 - **Tylko bezpośrednio połączone komputery.** Ruch przenoszenia nie przechodzi przez relay

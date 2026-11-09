@@ -8,7 +8,7 @@ import { CONFIG_SYNC, splitId } from "@canopy/domain/computers";
 
 import { Effect } from "effect";
 
-import { botBlocker, botRowsJson, exportBot, threadBlocker, threadFamily, transaction } from "./move-state.ts";
+import { botBlocker, threadBlocker, threadFamily, transaction } from "./move-state.ts";
 import { DECIDE_TIMEOUT_MS, movesState } from "./moves-context.ts";
 import { movesUnary } from "./moves-recovery.ts";
 import type { ComputerMoves } from "./moves.ts";
@@ -28,36 +28,43 @@ export async function movesEverything(hostContext: ComputerMoves) {
 }
 
 /** The target's provider instances and projects among those the items need. */
-export async function movesInspect(hostContext: ComputerMoves, target: string, refs: { kind: string; id: string }[]) {
+export async function movesInspect(
+  hostContext: ComputerMoves,
+  target: string,
+  refs: readonly { kind: string; id: string }[],
+) {
   const instances = new Set<string>();
   const projects = new Set<string>();
 
-  for (const ref of refs) {
-    if (ref.kind === "bot") {
-      const bot = (
-        await hostContext[movesState].store.query<{ provider: string; provider_instance: string }>(
-          `SELECT provider, provider_instance FROM bots WHERE id=$1::uuid AND owner_user_id=$2::uuid`,
-          [ref.id, hostContext[movesState].store.owner],
-        )
-      )[0];
+  const store = hostContext[movesState].store;
+  const botIds = refs.flatMap((ref) => (ref.kind === "bot" ? [ref.id] : []));
+  const threadIds = refs.flatMap((ref) => (ref.kind !== "bot" ? [ref.id] : []));
 
-      if (bot && bot.provider_instance !== "native") instances.add(`${bot.provider}:${bot.provider_instance}`);
-    } else {
-      const rows = await hostContext[movesState].store.query<{
+  const bots = botIds.length
+    ? await store.query<{ provider: string; provider_instance: string }>(
+        `SELECT provider,provider_instance FROM bots WHERE id=ANY($1::uuid[]) AND owner_user_id=$2::uuid`,
+        [botIds, store.owner],
+      )
+    : [];
+
+  for (const bot of bots)
+    if (bot.provider_instance !== "native") instances.add(`${bot.provider}:${bot.provider_instance}`);
+
+  const rows = threadIds.length
+    ? await store.query<{
         provider: string;
         provider_profile_id: string | null;
         project_id: string;
       }>(
         `SELECT provider, provider_profile_id, project_id FROM threads
-          WHERE owner_user_id=$2::uuid AND (id=$1::uuid OR parent_thread_id=$1::uuid) AND deleted_at IS NULL`,
-        [ref.id, hostContext[movesState].store.owner],
-      );
+          WHERE owner_user_id=$2::uuid AND (id=ANY($1::uuid[]) OR parent_thread_id=ANY($1::uuid[])) AND deleted_at IS NULL`,
+        [threadIds, store.owner],
+      )
+    : [];
 
-      for (const r of rows) {
-        if (r.provider_profile_id) instances.add(`${r.provider}:${r.provider_profile_id}`);
-        projects.add(r.project_id);
-      }
-    }
+  for (const r of rows) {
+    if (r.provider_profile_id) instances.add(`${r.provider}:${r.provider_profile_id}`);
+    projects.add(r.project_id);
   }
 
   return movesUnary<link.MoveInspection>(
@@ -188,11 +195,28 @@ export async function movesPreviewBot(hostContext: ComputerMoves, id: string, in
   if (bot.routines) item.moves.push(bot.routines === 1 ? "1 routine" : `${bot.routines} routines`);
 
   if (bot.reminders) item.moves.push(bot.reminders === 1 ? "1 reminder" : `${bot.reminders} reminders`);
-  const rows = botRowsJson((await exportBot(hostContext[movesState].store, id, "")).rowsJson);
 
-  for (const g of rows.grants) item.redo.push(`Connect ${g.name} (${g.connector_type}) again`);
+  const connections = await hostContext[movesState].store.query<{
+    kind: string;
+    name: string;
+    connector_type: string;
+  }>(
+    `WITH owned AS (SELECT id FROM bots WHERE id=$1::uuid AND owner_user_id=$2::uuid AND deleted_at IS NULL)
+    SELECT 'connector' AS kind,a.name,a.connector_type FROM connector_accounts a
+      WHERE a.owner_user_id=$2::uuid AND EXISTS(SELECT 1 FROM owned)
+      AND (a.all_bots OR EXISTS(SELECT 1 FROM connector_bot_grants g WHERE g.account_id=a.id AND g.bot_id=$1::uuid))
+    UNION ALL SELECT 'mcp',s.name,'' FROM bot_mcp_connections c JOIN bot_mcp_servers s ON s.id=c.server_id
+      WHERE c.bot_id=$1::uuid AND s.owner_user_id=$2::uuid AND EXISTS(SELECT 1 FROM owned)
+    ORDER BY kind,name`,
+    [id, owner],
+  );
 
-  for (const m of rows.mcp) item.redo.push(`Add the MCP server ${m.name} again`);
+  for (const connection of connections)
+    item.redo.push(
+      connection.kind === "connector"
+        ? `Connect ${connection.name} (${connection.connector_type}) again`
+        : `Add the MCP server ${connection.name} again`,
+    );
 
   if (
     !item.blocked &&

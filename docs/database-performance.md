@@ -228,6 +228,13 @@ właściciela i rosnący zapis checkpointu w jednym zapytaniu, także dla powtó
 
 ## Zapisy grupowe
 
+`bun scripts/bench/move-previews.ts --run` mierzy podgląd bota z ponad 2000
+wiadomościami po 4 KiB oraz sprawdzenie zależności 16 botów i ośmiu wątków.
+Podgląd pobiera tylko nazwy połączeń potrzebne w liście czynności po przeniesieniu.
+Sprawdzenie zależności używa dwóch grupowych odczytów nagłówków i projektów,
+z filtrem właściciela także dla wątków bocznych. Syntetyczna odpowiedź inspection
+zastępuje transport; serializacja rzeczywistego eksportu i transfer nie są mierzone.
+
 `bun scripts/bench/environment.ts --run` mierzy snapshot biblioteki i ustawienia
 jednego workera: 32 skille z dwiema wersjami po 16 KiB, 13 workerów, 16 historycznych
 pinów. Bieżące niezmienne artefakty są używane ponownie z biblioteki właściciela;
