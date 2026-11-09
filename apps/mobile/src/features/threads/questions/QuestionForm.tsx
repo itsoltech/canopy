@@ -2,7 +2,7 @@ import { Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { Field, Notice } from "../../../ui/components";
 import { Swap } from "../../../ui/MotionViews";
-import { RequestCountdown } from "../../../ui/RequestCountdown";
+import { RequestHeader } from "../../../ui/RequestHeader";
 import { font, styles, useColors } from "../../../ui/theme";
 import { QuestionOption } from "./QuestionOption";
 import { QuestionActions } from "./QuestionActions";
@@ -22,7 +22,6 @@ export function QuestionForm({
 
   return (
     <View style={{ gap: 12 }}>
-      <RequestCountdown expiresAt={interaction.expiresAt} pending={!draft.done && interaction.status === "pending"} />
       <Text style={[styles.overlayMeta, { color: c.muted }]}>
         {interaction.asynchronous
           ? "The agent keeps working. Answer any time."
@@ -31,12 +30,14 @@ export function QuestionForm({
       {interaction.routedTo === "parent" && (
         <Text style={[styles.overlayMeta, { color: c.muted }]}>The parent agent can answer. You can step in.</Text>
       )}
+      <RequestHeader expiresAt={interaction.expiresAt} pending={!draft.done && interaction.status === "pending"}>
+        <Text accessibilityRole="header" style={[styles.overlay, { color: c.text, fontFamily: font.medium }]}>
+          {draft.questions.length > 1 ? `${draft.step + 1} of ${draft.questions.length} · ` : ""}
+          {q.header || "Question"}
+        </Text>
+      </RequestHeader>
       <Swap value={q.id}>
         <View style={{ gap: 8 }}>
-          <Text accessibilityRole="header" style={[styles.overlay, { color: c.text, fontFamily: font.medium }]}>
-            {draft.questions.length > 1 ? `${draft.step + 1} of ${draft.questions.length} · ` : ""}
-            {q.header || "Question"}
-          </Text>
           <Text selectable style={[styles.overlay, { color: c.text }]}>
             {q.question}
           </Text>

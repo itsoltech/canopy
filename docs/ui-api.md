@@ -655,12 +655,14 @@ transportu wygrywa. In-process MCP Claude przekazuje i egzekwuje 330 s z tej sam
 stałej, która konfiguruje SDK. Natywne interakcje bez znanego limitu, asynchroniczne
 pytania i HTTP MCP botów bez limitu Canopy nie dostają terminu.
 
-Web pokazuje `Expires in 1:45`, bursztynowo w ostatnich 25 s. Wartość aktualizuje się
+Web i mobile pokazują `Expires in 1:45` przy tytule karty, bursztynowo w ostatnich 25 s.
+Na wąskiej karcie licznik przechodzi pod tytuł, z wyrównaniem do prawej. Znany termin
+zachowuje swoje miejsce po rozstrzygnięciu prośby; brak terminu nie dodaje pustego wiersza.
+Wartość aktualizuje się
 co sekundę lokalnie w karcie, bez animacji i bez przesuwania zawartości. Przy zerze
 pokazuje `Expiring…`; dopiero zdarzenie gatewaya rozstrzyga o wygaśnięciu. Aplikacja
 nie ma offsetu zegara serwera, więc odliczanie używa zegara klienta (jego rozbieżność
-może zmienić wskazanie, nigdy stan prośby). Natywna aplikacja mobilna otrzymuje pole
-w kontrakcie, ale prezentacja odliczania jest odłożona do osobnej zmiany mobile UX.
+może zmienić wskazanie, nigdy stan prośby).
 Pytania asynchroniczne zachowują możliwość odpowiedzi w kolejnej turze.
 
 `ComposerTop` to wspólna powierzchnia/slot nad polem wiadomości: panel subagentów, kolejka i pytania tworzą jeden stos z jednym nachodzeniem na composer. Warianty `embedded` paneli nie dodają własnych obwódek ani przesunięć. `Composer` wybiera najstarszy zestaw blokujący przed async, przechowuje szkice per id zestawu i używa osobnego `MessageComposer` do zwykłych wiadomości.

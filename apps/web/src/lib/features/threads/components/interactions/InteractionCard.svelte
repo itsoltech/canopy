@@ -9,7 +9,7 @@
   import PermissionRequest from "./PermissionRequest.svelte";
   import ThreadLink from "../items/ThreadLink.svelte";
   import DecisionContent from "./DecisionContent.svelte";
-  import RequestCountdown from "#lib/shared/ui/RequestCountdown.svelte";
+  import RequestHeader from "#lib/shared/ui/RequestHeader.svelte";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
 
   /**
@@ -81,11 +81,13 @@
       /></span
     >
     <div class="min-w-0 flex-1">
-      <h2 id="{id}-title" class="text-base/6 font-semibold text-zinc-950 dark:text-white">{title}</h2>
-      <RequestCountdown
+      <RequestHeader
         expiresAt={interaction.expiresAt ? timestampDate(interaction.expiresAt) : undefined}
         pending={!expired && interaction.status === "pending"}
-      />
+        class="text-base/6"
+      >
+        <h2 id="{id}-title" class="text-base/6 font-semibold text-zinc-950 dark:text-white">{title}</h2>
+      </RequestHeader>
       {#if interaction.routedTo === "parent"}
         <p class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm/5 text-violet-700 dark:text-violet-400">
           <Icon name="sparkles" tone="inherit" class="size-3.5" />

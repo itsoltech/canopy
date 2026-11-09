@@ -10,7 +10,7 @@
   import type { QuestionSession } from "./question-session.svelte.ts";
   import ComposerPanelHeader from "../ComposerPanelHeader.svelte";
   import DecisionContent from "./DecisionContent.svelte";
-  import RequestCountdown from "#lib/shared/ui/RequestCountdown.svelte";
+  import RequestHeader from "#lib/shared/ui/RequestHeader.svelte";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
 
   let {
@@ -94,167 +94,170 @@
   class={["flex max-h-[70dvh] min-w-0 flex-col", className]}
   aria-label="Questions from the agent"
 >
-  <div class="flex justify-end px-3">
-    <RequestCountdown
+  <ComposerPanelHeader
+    {expanded}
+    controls="{id}-body"
+    onclick={(wasExpanded) => {
+      session.collapsed = wasExpanded;
+      session.messaging = false;
+    }}
+  >
+    <span class="flex h-lh shrink-0 items-center self-start">
+      <Icon name="question-mark-circle" size="sm" class="text-amber-600 dark:text-amber-400" />
+    </span>
+    <RequestHeader
       expiresAt={session.interaction.expiresAt ? timestampDate(session.interaction.expiresAt) : undefined}
-      pending={!session.expired && session.interaction.status === "pending"}
-    />
-  </div>
-  {#if session.expired}
-    <p role="status" class="flex min-h-16 items-center p-3 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+      pending={!session.done && !session.expired && session.interaction.status === "pending"}
+    >
+      <div class="flex min-w-0 items-center gap-2">
+        <span class="min-w-0 truncate font-medium text-zinc-950 dark:text-white">{question.header || "Question"}</span>
+        {#if question.options.length}<span class="shrink-0 text-zinc-500 dark:text-zinc-400"
+            >{question.options.length} options</span
+          >{/if}
+        {#if session.questions.length > 1}<span
+            class="shrink-0 text-zinc-500 tabular-nums dark:text-zinc-400"
+            aria-live="polite">{session.step + 1} of {session.questions.length}</span
+          >{/if}
+        {#if more}<span class="text-zinc-500 dark:text-zinc-400">+{more} pending</span>{/if}
+      </div>
+    </RequestHeader>
+  </ComposerPanelHeader>
+  {#if session.expired && expanded}
+    <p
+      id="{id}-body"
+      role="status"
+      class="flex min-h-16 items-center p-3 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
+    >
       Expired. The agent no longer needs an answer.
     </p>
-  {:else}
-    <ComposerPanelHeader
-      {expanded}
-      controls="{id}-body"
-      onclick={(wasExpanded) => {
-        session.collapsed = wasExpanded;
-        session.messaging = false;
-      }}
-    >
-      <Icon name="question-mark-circle" size="sm" class="text-amber-600 dark:text-amber-400" />
-      <span class="truncate font-medium text-zinc-950 dark:text-white">{question.header || "Question"}</span>
-      {#if question.options.length}<span class="shrink-0 text-zinc-500 dark:text-zinc-400"
-          >{question.options.length} options</span
-        >{/if}
-      {#if session.questions.length > 1}<span
-          class="shrink-0 text-zinc-500 tabular-nums dark:text-zinc-400"
-          aria-live="polite">{session.step + 1} of {session.questions.length}</span
-        >{/if}
-      {#if more}<span class="text-zinc-500 dark:text-zinc-400">+{more} pending</span>{/if}
-    </ComposerPanelHeader>
-    {#if expanded}
-      <div id="{id}-body" class="flex min-h-0 flex-col">
-        <DecisionContent
-          label="Question and answer"
-          moreLabel={question.options.length ? "More options and answer below" : "More question details below"}
-        >
-          <div class="grid gap-1.5 px-4 pt-1 pb-2">
-            {#if session.interaction.routedTo === "parent"}<p
-                class="text-[0.8125rem]/5 text-violet-700 sm:text-xs/5 dark:text-violet-400"
-              >
-                The parent agent can answer. You can step in.
-              </p>{/if}
-            <p class="text-[0.8125rem]/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" role="status">
-              {session.interaction.asynchronous
-                ? "The agent keeps working. Answer any time."
-                : "The agent is waiting for your answers."}
-            </p>
-            <fieldset disabled={disabled || session.busy} class="min-w-0">
-              <legend
-                tabindex="-1"
-                class="w-full text-sm/5 font-medium text-pretty wrap-anywhere text-zinc-950 sm:text-[0.8125rem]/5 dark:text-white"
-                >{question.question}</legend
-              >
-              {#if question.options.length}
-                <p class="pt-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
-                  {question.options.length} options · {question.kind === "multiple_choice"
-                    ? "Choose any"
-                    : "Choose one"}
-                </p>
-                <ol role="list" class="grid gap-0.5 pt-1">
-                  {#each question.options as option, index (index)}
-                    <li>
-                      <QuestionOption
-                        {option}
-                        {index}
-                        multiple={question.kind === "multiple_choice"}
-                        name="{id}-{question.id}"
-                        checked={session.labels.includes(option.label)}
-                        recommended={question.recommended === option.label}
-                        disabled={disabled || session.busy}
-                        onselect={() => session.select(option.label)}
-                      />
-                    </li>
-                  {/each}
-                </ol>
-              {/if}
-            </fieldset>
-            <label for="{id}-answer" class="text-sm/5 font-medium text-zinc-950 dark:text-white"
-              >{question.options.length ? "Or type your own answer" : "Your answer"}</label
+  {:else if expanded}
+    <div id="{id}-body" class="flex min-h-0 flex-col">
+      <DecisionContent
+        label="Question and answer"
+        moreLabel={question.options.length ? "More options and answer below" : "More question details below"}
+      >
+        <div class="grid gap-1.5 px-4 pt-1 pb-2">
+          {#if session.interaction.routedTo === "parent"}<p
+              class="text-[0.8125rem]/5 text-violet-700 sm:text-xs/5 dark:text-violet-400"
             >
-            {#if question.secret}
-              <Input
-                id="{id}-answer"
-                type="password"
-                autocomplete="off"
-                onkeydown={answerKey}
-                bind:value={() => session.text, (value) => (session.text = value)}
-                disabled={disabled || session.busy}
-              />
-            {:else}
-              <Textarea
-                id="{id}-answer"
-                rows={2}
-                resize={false}
-                onkeydown={answerKey}
-                bind:value={() => session.text, (value) => (session.text = value)}
-                disabled={disabled || session.busy}
-                placeholder="Type your answer…"
-              />
-            {/if}
-            {#if session.error}<Alert tone="error">{session.error}</Alert>{/if}
-          </div>
-          {#snippet actions()}
-            <div class="grid gap-1 px-3 py-2">
-              <div class="flex flex-wrap items-center justify-between gap-2">
-                {#if session.step > 0}<Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={disabled || session.busy}
-                    onclick={() => session.step--}>Back</Button
-                  >{/if}
-                <Button
-                  size="sm"
-                  variant="primary"
-                  loading={session.busy}
-                  disabled={disabled || !session.answer}
-                  onclick={() => void session.submit()}
-                  >{session.step + 1 < session.questions.length ? "Submit and continue" : "Submit answer"}</Button
-                >
-              </div>
-              <div class="flex flex-wrap items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={disabled || session.busy}
-                  onclick={() => void session.submit(true)}>Skip question</Button
-                >
-                {#if session.questions.length > 1}<Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={disabled || session.busy}
-                    onclick={() => void session.finish(true)}>Skip all</Button
-                  >{/if}
-                {#if !session.interaction.asynchronous}<Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={disabled || session.busy}
-                    onclick={() => void session.finish(false, true)}>Dismiss request</Button
-                  >{/if}
-              </div>
-              <p class="text-xs/4 text-zinc-500 dark:text-zinc-400">
-                {#if session.questions.length > 1}Skip leaves this question unanswered. Skip all sends no answers.{:else}Skip
-                  sends no answer.{/if}
-                {#if !session.interaction.asynchronous}
-                  Dismiss cancels the request.{/if}
+              The parent agent can answer. You can step in.
+            </p>{/if}
+          <p class="text-[0.8125rem]/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400" role="status">
+            {session.interaction.asynchronous
+              ? "The agent keeps working. Answer any time."
+              : "The agent is waiting for your answers."}
+          </p>
+          <fieldset disabled={disabled || session.busy} class="min-w-0">
+            <legend
+              tabindex="-1"
+              class="w-full text-sm/5 font-medium text-pretty wrap-anywhere text-zinc-950 sm:text-[0.8125rem]/5 dark:text-white"
+              >{question.question}</legend
+            >
+            {#if question.options.length}
+              <p class="pt-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
+                {question.options.length} options · {question.kind === "multiple_choice" ? "Choose any" : "Choose one"}
               </p>
-              {#if disabled && note}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{note}</p>{/if}
-              {#if session.interaction.asynchronous}
-                <Button
+              <ol role="list" class="grid gap-0.5 pt-1">
+                {#each question.options as option, index (index)}
+                  <li>
+                    <QuestionOption
+                      {option}
+                      {index}
+                      multiple={question.kind === "multiple_choice"}
+                      name="{id}-{question.id}"
+                      checked={session.labels.includes(option.label)}
+                      recommended={question.recommended === option.label}
+                      disabled={disabled || session.busy}
+                      onselect={() => session.select(option.label)}
+                    />
+                  </li>
+                {/each}
+              </ol>
+            {/if}
+          </fieldset>
+          <label for="{id}-answer" class="text-sm/5 font-medium text-zinc-950 dark:text-white"
+            >{question.options.length ? "Or type your own answer" : "Your answer"}</label
+          >
+          {#if question.secret}
+            <Input
+              id="{id}-answer"
+              type="password"
+              autocomplete="off"
+              onkeydown={answerKey}
+              bind:value={() => session.text, (value) => (session.text = value)}
+              disabled={disabled || session.busy}
+            />
+          {:else}
+            <Textarea
+              id="{id}-answer"
+              rows={2}
+              resize={false}
+              onkeydown={answerKey}
+              bind:value={() => session.text, (value) => (session.text = value)}
+              disabled={disabled || session.busy}
+              placeholder="Type your answer…"
+            />
+          {/if}
+          {#if session.error}<Alert tone="error">{session.error}</Alert>{/if}
+        </div>
+        {#snippet actions()}
+          <div class="grid gap-1 px-3 py-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              {#if session.step > 0}<Button
                   size="sm"
                   variant="ghost"
-                  aria-pressed={session.messaging}
                   disabled={disabled || session.busy}
-                  onclick={() => (session.messaging = !session.messaging)}
-                  >{session.messaging ? "Answer questions" : "Send a message"}</Button
-                >
-              {/if}
+                  onclick={() => session.step--}>Back</Button
+                >{/if}
+              <Button
+                size="sm"
+                variant="primary"
+                loading={session.busy}
+                disabled={disabled || !session.answer}
+                onclick={() => void session.submit()}
+                >{session.step + 1 < session.questions.length ? "Submit and continue" : "Submit answer"}</Button
+              >
             </div>
-          {/snippet}
-        </DecisionContent>
-      </div>
-    {/if}
+            <div class="flex flex-wrap items-center gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={disabled || session.busy}
+                onclick={() => void session.submit(true)}>Skip question</Button
+              >
+              {#if session.questions.length > 1}<Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={disabled || session.busy}
+                  onclick={() => void session.finish(true)}>Skip all</Button
+                >{/if}
+              {#if !session.interaction.asynchronous}<Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={disabled || session.busy}
+                  onclick={() => void session.finish(false, true)}>Dismiss request</Button
+                >{/if}
+            </div>
+            <p class="text-xs/4 text-zinc-500 dark:text-zinc-400">
+              {#if session.questions.length > 1}Skip leaves this question unanswered. Skip all sends no answers.{:else}Skip
+                sends no answer.{/if}
+              {#if !session.interaction.asynchronous}
+                Dismiss cancels the request.{/if}
+            </p>
+            {#if disabled && note}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{note}</p>{/if}
+            {#if session.interaction.asynchronous}
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-pressed={session.messaging}
+                disabled={disabled || session.busy}
+                onclick={() => (session.messaging = !session.messaging)}
+                >{session.messaging ? "Answer questions" : "Send a message"}</Button
+              >
+            {/if}
+          </div>
+        {/snippet}
+      </DecisionContent>
+    </div>
   {/if}
 </section>

@@ -4,7 +4,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
-  import RequestCountdown from "#lib/shared/ui/RequestCountdown.svelte";
+  import RequestHeader from "#lib/shared/ui/RequestHeader.svelte";
   import { timeLabel } from "../chat-timeline.ts";
   import type { QuestionView } from "@canopy/domain/bot-chat";
   import ChatCard from "./ChatCard.svelte";
@@ -46,15 +46,16 @@
 </script>
 
 <ChatCard labelledby="{id}-prompt" class={["p-1", className]} {onkeydown}>
-  <div class="flex justify-end px-3 pt-1">
-    <RequestCountdown expiresAt={question.expiresAt} pending={!answered} />
-  </div>
   {#if question.routineTitle}<p class="px-3 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
       From routine “{question.routineTitle}”
     </p>{/if}
   <div class="flex items-start gap-2 px-3 pt-2.5 pb-2 text-base/6 sm:text-sm/6">
     <Icon name="question-mark-circle" class="h-lh shrink-0 text-sky-500 dark:text-sky-400" />
-    <h3 id="{id}-prompt" class="font-medium text-pretty text-zinc-950 dark:text-white">{question.prompt}</h3>
+    <RequestHeader expiresAt={question.expiresAt} pending={!answered}>
+      <h3 id="{id}-prompt" class="font-medium text-pretty wrap-anywhere text-zinc-950 dark:text-white">
+        {question.prompt}
+      </h3>
+    </RequestHeader>
   </div>
   {#if question.options.length > 0}
     <ul role="list" class="grid gap-0.5">

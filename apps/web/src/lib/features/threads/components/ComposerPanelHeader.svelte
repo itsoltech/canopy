@@ -45,10 +45,12 @@
   }}
 >
   {@render children()}
-  <Icon
-    name="chevron-down"
-    size="xs"
-    class={["t-acc-chevron ml-auto fill-zinc-400 dark:fill-zinc-500", expanded && "rotate-180"]}
-  />
+  <span class="ml-auto flex h-lh shrink-0 items-center self-start">
+    <Icon
+      name="chevron-down"
+      size="xs"
+      class={["t-acc-chevron fill-zinc-400 dark:fill-zinc-500", expanded && "rotate-180"]}
+    />
+  </span>
   <TouchTarget size="sm" />
 </button>

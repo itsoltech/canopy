@@ -25,7 +25,7 @@
 <!-- Keep the line and its width when resolved; seconds never announce over a screen reader's current task. -->
 <span
   class={[
-    "inline-block min-h-5 min-w-[8.5rem] shrink-0 text-sm/5 whitespace-nowrap tabular-nums sm:text-xs/5",
+    "inline-block min-h-5 min-w-[8.5rem] shrink-0 text-right text-sm/5 whitespace-nowrap tabular-nums sm:text-xs/5",
     pending && expiresAt && seconds <= 25 ? "text-amber-700 dark:text-amber-400" : "text-zinc-500 dark:text-zinc-400",
     className,
   ]}

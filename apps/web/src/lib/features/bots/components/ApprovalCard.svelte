@@ -8,7 +8,7 @@
   import Textarea from "#lib/shared/ui/Textarea.svelte";
   import RequestField from "#lib/shared/ui/RequestField.svelte";
   import RequestText from "#lib/shared/ui/RequestText.svelte";
-  import RequestCountdown from "#lib/shared/ui/RequestCountdown.svelte";
+  import RequestHeader from "#lib/shared/ui/RequestHeader.svelte";
   import { BOT_APPROVAL_OPTIONS, type ApprovalView } from "@canopy/domain/bot-chat";
   import ChatCard from "./ChatCard.svelte";
   import CreateBotPreview from "./CreateBotPreview.svelte";
@@ -83,32 +83,33 @@
   </p>
 {:else}
   <ChatCard labelledby="{id}-title" class={className}>
-    <header class="flex items-center justify-between gap-3 px-4 pt-3">
-      {#if onpolicy && policy && !approval.botProposal && approval.status === "pending"}
-        <DropdownMenu label="When this bot asks">
-          {#snippet trigger(props)}
-            <button
-              type="button"
-              {...props}
-              class="relative -ml-1.5 flex items-center gap-1 rounded-md py-0.5 pr-1 pl-1.5 text-sm/5 font-medium text-amber-700 focus-ring hover:bg-amber-500/10 sm:text-xs/5 dark:text-amber-400"
-            >
-              Needs approval<Icon name="chevron-down" tone="inherit" class="size-3.5 fill-current" />
-            </button>
-          {/snippet}
-          {#each BOT_APPROVAL_OPTIONS as option (option.value)}
-            <MenuCheckItem
-              checked={policy === option.value}
-              description={option.description}
-              onselect={() => onpolicy(option.value)}>{option.label}</MenuCheckItem
-            >
-          {/each}
-        </DropdownMenu>
-      {:else if approval.status === "pending"}
-        <p class="text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400">Needs approval</p>
-      {:else}
-        <p class="text-sm/5 font-medium text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Approval request</p>
-      {/if}
-      <RequestCountdown expiresAt={approval.expiresAt} pending={approval.status === "pending"} class="text-right" />
+    <header class="px-4 pt-3 text-sm/5 sm:text-xs/5">
+      <RequestHeader expiresAt={approval.expiresAt} pending={approval.status === "pending"}>
+        {#if onpolicy && policy && !approval.botProposal && approval.status === "pending"}
+          <DropdownMenu label="When this bot asks">
+            {#snippet trigger(props)}
+              <button
+                type="button"
+                {...props}
+                class="relative -ml-1.5 flex items-center gap-1 rounded-md py-0.5 pr-1 pl-1.5 text-sm/5 font-medium text-amber-700 focus-ring hover:bg-amber-500/10 sm:text-xs/5 dark:text-amber-400"
+              >
+                Needs approval<Icon name="chevron-down" tone="inherit" class="size-3.5 fill-current" />
+              </button>
+            {/snippet}
+            {#each BOT_APPROVAL_OPTIONS as option (option.value)}
+              <MenuCheckItem
+                checked={policy === option.value}
+                description={option.description}
+                onselect={() => onpolicy(option.value)}>{option.label}</MenuCheckItem
+              >
+            {/each}
+          </DropdownMenu>
+        {:else if approval.status === "pending"}
+          <p class="text-sm/5 font-medium text-amber-700 sm:text-xs/5 dark:text-amber-400">Needs approval</p>
+        {:else}
+          <p class="text-sm/5 font-medium text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Approval request</p>
+        {/if}
+      </RequestHeader>
     </header>
     {#if approval.routineTitle}<p class="px-4 pt-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         From routine “{approval.routineTitle}”
