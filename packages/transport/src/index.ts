@@ -1,5 +1,7 @@
 export { AsyncChannel } from "./channel.ts";
 
+export { SyncMetrics, syncMetrics, syncCpu, syncCpuMicros } from "./sync-metrics.ts";
+
 export { startConnectHttpServer } from "./http-server.ts";
 
 export { createGrpcClientTransport, type GrpcClientOptions } from "./client.ts";
