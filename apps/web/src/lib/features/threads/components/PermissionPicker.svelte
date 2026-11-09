@@ -10,7 +10,7 @@
 
   /**
    * Composer pill for a thread's permission mode (new thread and side thread: the draft's pick; thread
-   * composer: the thread's stored mode, saved when picked). Full auto never asks before running anything,
+   * composer: the next turn's mode, restored from the last user turn). Full auto never asks before running anything,
    * so the pill turns amber with a warning shield and says so in the menu. Full access has no sandbox either:
    * rose with a crossed-out shield, and picking it asks for a confirmation first.
    */

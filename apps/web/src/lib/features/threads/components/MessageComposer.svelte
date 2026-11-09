@@ -8,13 +8,15 @@
   import QuoteTray from "#lib/features/quotes/QuoteTray.svelte";
   import { MentionSources } from "#lib/features/mentions/sources.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
-  import { turnOverride, type ModelOption } from "#lib/features/models/catalog.ts";
+  import { type ModelOption } from "#lib/features/models/catalog.ts";
+  import { composerChoices, type ComposerPick } from "@canopy/domain/composer-choices";
+  import { PermissionMode } from "@canopy/contracts";
   import { useThreadModels } from "#lib/features/models/model-catalog.svelte.ts";
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import WorkerHoverCard from "#lib/features/overview/WorkerHoverCard.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import PillText from "#lib/shared/ui/PillText.svelte";
-  import { interruptThread, sendMessage, updateThread, type Delivery } from "../api.ts";
+  import { interruptThread, sendMessage, type Delivery } from "../api.ts";
   import { permissionKey, providerLabel, type PermissionModeKey } from "../labels.ts";
   import ComposerBox from "./ComposerBox.svelte";
   import type { ComposerActivity } from "./composer-compaction.ts";
@@ -30,11 +32,9 @@
    * (Mod+Enter or the send button's menu), and the empty box offers Stop. `onsent` gets the result (the
    * queued turn or the steer) so the page shows it before the stream does.
    * Pills: the model and reasoning effort for the next messages (same provider and profile as the
-   * thread), sent with each message as an override for its turn; unchanged = the thread's defaults.
-   * Under the box: where the thread runs (hover for the worker) and the thread's permission mode. A pick is
-   * saved on the thread at once (UpdateThread) and applies from the next turn; the running turn and a steer
-   * into it keep the mode the turn started with. Until the gateway confirms, a message sent meanwhile
-   * carries the pick as its turn's override.
+   * thread), restored from the last user turn and sent with each message as an override for its turn.
+   * Under the box: where the thread runs (hover for the worker) and the next turn's permission mode.
+   * A running turn and a steer into it keep the mode the turn started with.
    * Attachments (paperclip, drop, paste): badges in the text, uploaded as they are added, sent with the message at
    * their places. Files reach the worker before the message enters a turn, including when steered.
    * Mentions ("/", "$", "@", "#"; docs/ui-api.md "Wzmianki") come from the thread's worker and folder; "/goal" is
@@ -72,29 +72,43 @@
   // The thread's provider and profile stay; only models on them are offered. `current` = the thread's default.
   const offer = useThreadModels(() => ({ thread, worker }));
 
-  // Your choice for this thread's next messages (kept per thread; navigating to another starts fresh).
-  let choice = $state<{ threadId: string; option?: ModelOption | undefined; effort?: string | undefined }>({
-    threadId: "",
-  });
+  let choices = $state.raw<Record<string, ComposerPick & { custom?: ModelOption }>>({});
+  const mine = $derived(choices[thread.id]);
 
-  const mine = $derived(choice.threadId === thread.id ? choice : undefined);
-  const option = $derived(mine?.option ?? offer.current);
-  const effort = $derived(mine?.effort);
-  const threadMode = $derived(permissionKey(thread.permissionMode));
-
-  // A pick on its way to the gateway: shown until the thread's mode changes from the one it was made over.
-  let modeChoice = $state.raw<{ threadId: string; mode: PermissionModeKey; over: PermissionModeKey }>();
-
-  const pending = $derived(
-    modeChoice?.threadId === thread.id && modeChoice.over === threadMode ? modeChoice : undefined,
+  const models = $derived(
+    [...offer.options, ...(mine?.custom ? [mine.custom] : [])].map((option) => ({
+      ...option,
+      efforts: option.efforts.map((e) => e.id),
+      option,
+    })),
   );
 
-  const mode = $derived(pending?.mode ?? threadMode);
+  const selected = $derived(composerChoices(thread, models, mine));
+  const option = $derived(selected.option?.option);
+  const effort = $derived(selected.effort || undefined);
+  const mode = $derived(permissionKey(selected.permissionMode));
+  const override = $derived({ model: option?.model, effort: selected.effort, permissionMode: mode });
 
-  const override = $derived({
-    ...turnOverride(option, offer.current, effort, thread.effort),
-    ...(mode !== threadMode && { permissionMode: mode }),
-  });
+  function pickModel(next: ModelOption | undefined) {
+    if (!next) return;
+    choices = {
+      ...choices,
+      [thread.id]: {
+        ...mine,
+        model: next.model,
+        effort: selected.effort,
+        ...(next.origin === "custom" && { custom: next }),
+      },
+    };
+  }
+
+  function pickEffort(next: string | undefined) {
+    choices = { ...choices, [thread.id]: { ...mine, effort: next ?? "" } };
+  }
+
+  function pickMode(next: PermissionModeKey) {
+    choices = { ...choices, [thread.id]: { ...mine, permissionMode: PermissionMode[next] } };
+  }
 
   let text = $state("");
   let mentions = $state<Mention[]>([]);
@@ -190,20 +204,6 @@
     }
   }
 
-  async function pickMode(next: PermissionModeKey) {
-    if (next === mode) return;
-    const pick = { threadId: thread.id, mode: next, over: threadMode };
-    modeChoice = pick;
-    error = undefined;
-
-    try {
-      await updateThread(pick.threadId, { permissionMode: next });
-    } catch (e) {
-      if (modeChoice === pick) modeChoice = undefined;
-      error = e instanceof Error ? e.message : String(e);
-    }
-  }
-
   async function interrupt() {
     stopping = true;
     error = undefined;
@@ -248,8 +248,8 @@
         {#if option}
           <ModelControls
             options={offer.options}
-            bind:option={() => option, (next) => (choice = { threadId: thread.id, option: next, effort: mine?.effort })}
-            bind:effort={() => effort, (next) => (choice = { threadId: thread.id, option: mine?.option, effort: next })}
+            bind:option={() => option, pickModel}
+            bind:effort={() => effort, pickEffort}
             inherited={thread.effort || undefined}
             workerId={thread.workerId}
             class="flex-1 justify-end"

@@ -4,7 +4,7 @@ import { createServer, type AddressInfo } from "node:net";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
-import { NoticeLevel, Provider, ui, computerLink as link } from "@canopy/contracts";
+import { NoticeLevel, PermissionMode, Provider, ui, computerLink as link } from "@canopy/contracts";
 import { qualifyId, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { AsyncChannel, startGrpcServer } from "@canopy/transport";
@@ -226,6 +226,32 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     expect(await failure(a.core.getThread(thread))).toContain("not found");
     expect(snapshot.secrets).toEqual([]);
     expect(snapshot.schedules).toEqual([]);
+  });
+
+  test("last user composer choices reach the linked computer with a qualified turn id", async () => {
+    const own = await createThread("Remember choices across computers");
+
+    const sent = await b.api.sendMessage({
+      threadId: own,
+      text: "Remember these choices",
+      model: "gpt-5.5",
+      effort: "high",
+      permissionMode: PermissionMode.READ_ONLY,
+      clientRequestId: id(),
+    });
+
+    await eventually(async () => (await la.mirror.snapshot(node, own))?.thread?.lastUserTurnChoices?.effort === "high");
+    expect((await la.mirror.snapshot(node, own))?.thread?.lastUserTurnChoices).toMatchObject({
+      turnId: q(sent.turn!.id),
+      model: "gpt-5.5",
+      effort: "high",
+      permissionMode: PermissionMode.READ_ONLY,
+    });
+    expect((await la.mirror.thread(node, own))?.lastUserTurnChoices).toBeUndefined();
+    expect(
+      (await la.mirror.threads(node, create(ui.ListThreadsRequestSchema))).find((t) => t.id === q(own))
+        ?.lastUserTurnChoices,
+    ).toBeUndefined();
   });
 
   test("online opens show the mirror while the home snapshot is blocked, then hand over to live updates", async () => {

@@ -381,7 +381,13 @@ export function threadModelOptions(
 
   if (!provider) return { options: [], current: undefined };
   const profileId = profileIdValue(thread.providerProfileId);
-  const options = modelOptions({ ...sources, only: { provider, profileId } });
+  const list = profileCatalog(sources.catalog, provider, profileId);
+
+  // An all-hidden catalog must not reintroduce hidden models through the offline stand-ins.
+  const options =
+    list && list.models.length > 0 && list.models.every((m) => m.hidden)
+      ? []
+      : modelOptions({ ...sources, only: { provider, profileId } });
 
   const current =
     findOption(options, provider, profileId, thread.model) ??

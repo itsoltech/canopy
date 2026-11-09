@@ -6,6 +6,7 @@
   "exports": {
     "./attachment-preview": "./src/attachments/preview.ts",
     "./pending-send": "./src/pending-send.ts",
+    "./composer-choices": "./src/composer-choices.ts",
     "./sidebar-threads": "./src/sidebar-threads.ts",
     "./sidebar-entries": "./src/sidebar-entries.ts",
     "./archived-threads": "./src/archived-threads.ts",

@@ -17,6 +17,7 @@ const { values } = parseArgs({
     threads: { type: "string", default: "240" },
     turns: { type: "string", default: "32" },
     "long-turns": { type: "string", default: "2048" },
+    "agent-tail": { type: "string", default: "0" },
     "text-bytes": { type: "string", default: "4096" },
     iterations: { type: "string", default: "20" },
     operation: { type: "string" },
@@ -26,10 +27,11 @@ const { values } = parseArgs({
 
 if (!values.run) throw new Error("Opt in with --run. This starts and removes a private PostgreSQL 18 container.");
 
-function integer(value: string, name: string, maximum: number) {
+function integer(value: string, name: string, maximum: number, minimum = 1) {
   const n = Number(value);
 
-  if (!Number.isSafeInteger(n) || n < 1 || n > maximum) throw new Error(`${name} must be between 1 and ${maximum}`);
+  if (!Number.isSafeInteger(n) || n < minimum || n > maximum)
+    throw new Error(`${name} must be between ${minimum} and ${maximum}`);
 
   return n;
 }
@@ -38,6 +40,7 @@ const size: Dataset = {
   threads: integer(values.threads, "threads", 2000),
   turns: integer(values.turns, "turns", 1000),
   longTurns: integer(values["long-turns"], "long-turns", 10000),
+  agentTail: integer(values["agent-tail"], "agent-tail", 10000, 0),
   textBytes: integer(values["text-bytes"], "text-bytes", 65536),
 };
 

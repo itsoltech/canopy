@@ -34,6 +34,7 @@ import { ImportedThreadComposer } from "../imports/ImportedThreadComposer";
 import { useQuoteDraft } from "../quotes/useQuoteDraft";
 import { withSentMessage } from "./sent-message";
 import { confirmMessage } from "./pending-message";
+import type { ComposerPick } from "@canopy/domain/composer-choices";
 
 /** The gateway refused the message and says why (not delivered: no retry note); otherwise delivery is unknown. */
 function deliveryError(failure: ConnectError) {
@@ -80,7 +81,7 @@ function useThreadState(id: string) {
   const interactions = snapshot?.interactions.filter((i) => i.status === "pending") ?? [];
   const turns = useMemo(() => visibleTurns(snapshot), [snapshot]);
 
-  async function send(delivery: ui.MessageDelivery) {
+  async function send(delivery: ui.MessageDelivery, choices?: ComposerPick) {
     const outgoing = message.outgoing();
     const { text: value, attachmentIds, mentions } = outgoing;
 
@@ -97,7 +98,7 @@ function useThreadState(id: string) {
     setWaiting(false);
     setError("");
 
-    const key = JSON.stringify({ value, delivery, attachmentIds, mentions, quotes: quotes.quotes });
+    const key = JSON.stringify({ value, delivery, attachmentIds, mentions, quotes: quotes.quotes, choices });
 
     if (pending.current?.key !== key) pending.current = { key, id: Crypto.randomUUID() };
     const signal = requestController.current.signal;
@@ -111,6 +112,7 @@ function useThreadState(id: string) {
         mentions,
         quotes: [...quotes.quotes],
         clientRequestId: pending.current.id,
+        ...choices,
       };
 
       const result = await confirmMessage(
@@ -277,7 +279,7 @@ function ThreadComposer({
           worker={state.worker}
           message={state.message}
           quotes={state.quotes}
-          send={(delivery) => void state.send(delivery)}
+          send={(delivery, choices) => void state.send(delivery, choices)}
           stop={() => {
             if (!state.client || !state.thread) return;
             void state.client.api

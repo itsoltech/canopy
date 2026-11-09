@@ -399,6 +399,11 @@ Listy, nagłówki i snapshoty UI wątków pomijają instrukcje, handoff i kontek
 generatora tytułu; pełny odczyt pojedynczego wątku nadal dostarcza je ścieżkom
 wykonawczym. Broadcast tury i potwierdzenie enqueue pobierają tylko wskazaną turę,
 bez odczytu wejść pozostałych tur.
+Wybory kompozytora są odczytywane wyłącznie dla jednego wątku w snapshotach
+i aktualizacjach watcha, poza wspólnym odczytem metadanych list. Indeks częściowy
+`turns_composer_choices` (0101) na `(thread_id, author_user_id, ordinal DESC)`
+obejmuje niewycofane tury użytkownika bez poleceń shell, więc pomija długie
+końcówki tur dostawcy i agentów.
 `threads.list_settings` i `worker_configs.profile_names` są generowanymi, zapisanymi
 projekcjami: polling nie detoastuje dużych konfiguracji nawet wewnątrz PostgreSQL.
 Indeks częściowy `turns_mutable_sources` ogranicza sprawdzenie zależności watcha
