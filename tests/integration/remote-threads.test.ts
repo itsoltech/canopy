@@ -18,6 +18,8 @@ import { linkClient } from "../../apps/gateway/src/computers/transport.ts";
 import { gatewayFailure } from "../../apps/web/src/lib/server/gateway-errors.ts";
 import { sseResponse } from "../../apps/web/src/lib/server/sse.ts";
 import { awayLabel } from "@canopy/domain/computer-presence";
+import { resolvePendingSend } from "@canopy/domain/pending-send";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   answers,
   eventually as poll,
@@ -212,6 +214,69 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
       b.worker.holdTurns = false;
     }
   }, 25_000);
+
+  test("a timed-out steer resolves by the same request id without another delivery", async () => {
+    const plain = thread.split("~")[0]!;
+    b.worker.holdTurns = true;
+    const send = b.core.sendMessage.bind(b.core);
+    const clientRequestId = id();
+    let first = true;
+    let pending = false;
+    let attempts = 0;
+    let running = "";
+
+    b.core.sendMessage = async (request, linked) => {
+      if (request.clientRequestId === clientRequestId && first) {
+        first = false;
+        await delay(200);
+      }
+
+      return send(request, linked);
+    };
+
+    try {
+      running = (await a.api.sendMessage({ threadId: thread, text: "Running task", clientRequestId: id() })).turn!.id;
+      await eventually(async () => (await b.api.getThread({ threadId: plain })).thread?.status === "running");
+
+      const request = {
+        threadId: thread,
+        text: "Additional instruction",
+        clientRequestId,
+        delivery: ui.MessageDelivery.STEER,
+      };
+
+      const result = await resolvePendingSend(() => a.api.sendMessage(request, { timeoutMs: attempts++ ? 3000 : 50 }), {
+        uncertain: (error) => ConnectError.from(error).code === Code.DeadlineExceeded,
+        onWaiting: () => {
+          pending = true;
+        },
+        retryMs: 300,
+      });
+
+      expect(pending).toBe(true);
+      expect(result.steer).toBeDefined();
+      const again = await a.api.sendMessage(request);
+      expect(again.steer?.id).toBe(result.steer!.id);
+      await eventually(async () => b.worker.steered.has(result.steer!.id.split("~")[0]!));
+      expect(
+        b.worker.commands.filter((c) => c.case === "steerTurn" && c.value.inputId === result.steer!.id.split("~")[0]),
+      ).toHaveLength(1);
+      expect(
+        (
+          await sb.query<{ count: string }>(
+            "SELECT count(*)::text AS count FROM turn_steers WHERE thread_id=$1::uuid AND client_request_id=$2",
+            [plain, clientRequestId],
+          )
+        )[0]?.count,
+      ).toBe("1");
+    } finally {
+      b.core.sendMessage = send;
+
+      if (running) b.worker.finish(plain, running.split("~")[0]!);
+      b.worker.holdTurns = false;
+      await eventually(async () => (await b.api.getThread({ threadId: plain })).thread?.status === "idle");
+    }
+  }, 10_000);
 
   test("announced update closes BFF streams quietly, keeps A live, and reconnects automatically", async () => {
     const abort = new AbortController();

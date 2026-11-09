@@ -21,6 +21,8 @@
   import PermissionPicker from "./PermissionPicker.svelte";
   import ComposerContextRow from "./ComposerContextRow.svelte";
   import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { computerName } from "@canopy/domain/computer-presence";
 
   /**
    * Message box of a thread. Each send carries an idempotency key, so a retried send never runs
@@ -108,11 +110,17 @@
   const quoteDrafts = useQuoteDrafts();
   const quotes = $derived(quoteDrafts.list(thread.id));
   let sending = $state(false);
+  let waiting = $state(false);
+  const overview = useOverview();
+
+  const homeName = $derived(thread.nodeId ? computerName(overview?.computer(thread.nodeId)) : "this computer");
+
   let stopping = $state(false);
   let error = $state<string | undefined>(undefined);
 
   /** What happened to the last message when it did not go the way it was sent (a steer that became a turn). */
   let outcome = $state<string | undefined>(undefined);
+  const deliveryStatus = $derived(sending ? (waiting ? `Still waiting for ${homeName}…` : "Sending…") : outcome);
 
   // One key per message: a retry after a network error reuses it, a new message gets a new one.
   let requestId = crypto.randomUUID();
@@ -142,6 +150,7 @@
     const threadId = thread.id;
     const sentQuotes = quotes;
     sending = true;
+    waiting = false;
     error = undefined;
     outcome = undefined;
 
@@ -155,6 +164,9 @@
         attachmentIds,
         draft.wire(sentMentions),
         sentQuotes.map(toWire),
+        () => {
+          waiting = true;
+        },
       );
 
       onsent?.(response);
@@ -217,7 +229,7 @@
     bind:mentions
     {sources}
     placeholder={running ? "Steer the agent, or queue for the next turn…" : "Ask anything…"}
-    {disabled}
+    disabled={disabled || sending}
     {sending}
     {stopping}
     onstop={running ? interrupt : undefined}
@@ -232,7 +244,7 @@
   >
     {#snippet elements()}<QuoteTray threadId={thread.id} class="px-3 pt-3" />{/snippet}
     {#snippet controls()}
-      <fieldset {disabled} class="contents">
+      <fieldset disabled={disabled || sending} class="contents">
         {#if option}
           <ModelControls
             options={offer.options}
@@ -251,13 +263,20 @@
       <ComposerContextRow>
         {#snippet computerControl()}<WorkerHoverCard {worker} {note} class="max-w-full" />{/snippet}
         {#snippet permissionControl()}
-          <fieldset {disabled} class="contents">
+          <fieldset disabled={disabled || sending} class="contents">
             <PermissionPicker value={mode} onselect={(next) => void pickMode(next)} />
           </fieldset>
         {/snippet}
       </ComposerContextRow>
     {/snippet}
   </ComposerBox>
-  {#if outcome}<p class="sr-only" role="status">{outcome}</p>{/if}
+  <p
+    class="min-h-5 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+    title={deliveryStatus}
+    role="status"
+    aria-atomic="true"
+  >
+    {deliveryStatus ?? ""}
+  </p>
 </form>
 <AccountConfigNotices section="composer" />

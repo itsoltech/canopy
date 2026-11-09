@@ -686,6 +686,22 @@ Opcje to semantyczne inputy radio/checkbox ze wspólnego `Input`, z własną gra
 
 Odpowiedź nadal idzie przez `AnswerInteraction` / `POST api/interactions/[id]`. Dla `ask_user`: `{answerJson: JSON.stringify({answers: [{id, kind: "choice", labels: [...]}, {id, kind: "text", text: "..."}, {id, kind: "skipped"}]})}`; kompletna lista odpowiada zestawowi pytań. Dismiss: `{cancelled: true}`. Adaptery zachowują natywne formaty Claude i Codexa. `interaction_prompt` zostaje na osi czasu jako skrót tematu i odpowiedzi z autorem; rozwinięcie pokazuje cały zestaw i jawnie pominięte pytania.
 
+### Potwierdzenie wiadomości
+
+`SendMessage` z nieznanym wynikiem transportowym pozostaje oczekujący. BFF zwraca
+HTTP 202 `{pending: true}`; web/desktop i mobile ponawiają niezmienione żądanie z
+tym samym `client_request_id` co 2 s. Kompozytor blokuje szkic i pokazuje „Sending…”
+lub „Still waiting for ‹computer›…”. Potwierdzenie domu obejmuje także `/goal`;
+odczyt wyniku nie tworzy drugiej wiadomości po końcu tury. Szczegóły limitów,
+trwałych potwierdzeń i lokalnego revision probe: [linked-computers.md](linked-computers.md).
+
+BFF dobiera budżet domyślny RPC: odczyty lokalne 10 s, odczyty kwalifikowane
+komputerem 15 s, pozostałe zapisy 35 s. Jawny limit danej operacji ma pierwszeństwo;
+`SendMessage` zachowuje 10 s i potwierdzanie wyniku. Zwykły fetch JSON ma budżet 40 s.
+`MarkThreadSeen` jest best effort: HTTP potwierdza przyjęcie od razu, BFF utrzymuje
+jedno RPC na wątek oraz najwyższy oczekujący numer, z limitem 256 aktywnych wątków.
+Niepowodzenie markera nie trafia do UI ani do logu błędów operacji użytkownika.
+
 ### Załączniki
 
 Pliki dołączone do wiadomości (obrazy, zrzuty ekranu, tekst, kod, PDF, archiwa). Platforma nie zgaduje limitów modeli: agent dostaje pliki na dysku workera i sam decyduje, co z nimi zrobić (obrazy może obejrzeć przez `view_image`, [agent-bus.md](agent-bus.md#view_image)).

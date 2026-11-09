@@ -3,7 +3,8 @@ import { Schema } from "effect";
 import { PermissionMode, ui } from "@canopy/contracts";
 import { mentionsFromWire } from "#lib/features/mentions/wire.ts";
 import { readBody } from "#lib/server/body.ts";
-import { call } from "#lib/server/gateway.ts";
+import { gateway, failWith } from "#lib/server/gateway.ts";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
 
@@ -55,17 +56,37 @@ export const POST: RequestHandler = async ({ request, params }) => {
     error(400, cause instanceof Error ? cause.message : "invalid mentions");
   }
 
-  const response = await call((api) =>
-    api.sendMessage({
-      threadId: params.threadId,
-      ...body,
-      attachmentIds: [...(attachmentIds ?? [])],
-      mentions,
-      quotes: (quotes ?? []).map((quote) => ({ ...quote })),
-      ...(permissionMode && { permissionMode: PermissionMode[permissionMode] }),
-      delivery: delivery === "steer" ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,
-    }),
-  );
+  try {
+    const response = await gateway().sendMessage(
+      {
+        threadId: params.threadId,
+        ...body,
+        attachmentIds: [...(attachmentIds ?? [])],
+        mentions,
+        quotes: (quotes ?? []).map((quote) => ({ ...quote })),
+        ...(permissionMode && { permissionMode: PermissionMode[permissionMode] }),
+        delivery: delivery === "steer" ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,
+      },
+      { timeoutMs: 10_000 },
+    );
 
-  return json(encode(ui.SendMessageResponseSchema, response));
+    return json(encode(ui.SendMessageResponseSchema, response));
+  } catch (cause) {
+    const failure = ConnectError.from(cause);
+
+    if (
+      [Code.DeadlineExceeded, Code.Unavailable, Code.Canceled, Code.Internal, Code.Unknown].includes(failure.code) ||
+      failure.metadata.get("canopy-error-scope") === "computer"
+    ) {
+      console.warn("Message delivery awaiting confirmation", {
+        clientRequestId: body.clientRequestId,
+        code: failure.code,
+        outcome: "unknown",
+      });
+
+      return json({ pending: true }, { status: 202 });
+    }
+
+    failWith(cause);
+  }
 };

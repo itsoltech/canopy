@@ -19,6 +19,7 @@ import type { TurnRow } from "../store/rows.ts";
 import { coreShellInput } from "./core-shell.ts";
 import { storedShellResult } from "../store/shell-input.ts";
 import { coreEnqueueTurn } from "./core-enqueue-turn.ts";
+import { messageReceipt } from "./message-receipt.ts";
 
 /** Internal linked input, prepared by the peer gateway rather than a public UI request. */
 export interface LinkedMessageInput {
@@ -174,7 +175,7 @@ export interface CoreMessagesMethods {
   interrupt(threadId: string): Promise<void>;
 }
 
-export const coreMessagesMethods: CoreMessagesMethods = {
+const messageActions: CoreMessagesMethods = {
   /**
    * A message: the next turn (queue), or into the running turn (steer; without one it is queued too).
    * Idempotent by client_request_id across both.
@@ -360,5 +361,12 @@ export const coreMessagesMethods: CoreMessagesMethods = {
       { kind: { case: "interruptTurn", value: { threadId, turnId: turn.id } } },
       { threadId, turnId: turn.id, ttlSeconds: TTL.interruptTurn },
     );
+  },
+};
+
+export const coreMessagesMethods: CoreMessagesMethods = {
+  ...messageActions,
+  sendMessage(this: GatewayCore, request, linked) {
+    return messageReceipt(this, request, () => messageActions.sendMessage.call(this, request, linked));
   },
 };

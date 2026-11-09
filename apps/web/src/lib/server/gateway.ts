@@ -7,6 +7,7 @@ import { desktopGateway, type GatewayCompatibility } from "./desktop-gateway.ts"
 import { gatewayFailure } from "./gateway-errors.ts";
 import { logGatewayFailures } from "./gateway-logging.ts";
 import { isolatedGatewayTransport } from "./gateway-transport.ts";
+import { gatewayDeadlines } from "./gateway-deadlines.ts";
 
 const desktop = process.env["CANOPY_DESKTOP_CLIENT_TOKEN"]
   ? desktopGateway(process.env["CANOPY_DESKTOP_GATEWAY_ROUTES"] ?? "", process.env["CANOPY_DESKTOP_CLIENT_TOKEN"])
@@ -57,24 +58,26 @@ export function gateway(): Client<typeof ui.GatewayService> {
   const token = requireServiceToken();
   client ??= createClient(
     ui.GatewayService,
-    logGatewayFailures(
-      desktop?.transport ??
-        isolatedGatewayTransport(() =>
-          createGrpcTransport({
-            baseUrl: GATEWAY_URL,
-            defaultTimeoutMs: 3000,
-            connectTimeoutMs: 3000,
-            pingIntervalMs: 10_000,
-            pingTimeoutMs: 3000,
-            interceptors: [
-              (next) => (request) => {
-                request.header.set("authorization", `Bearer ${token}`);
+    gatewayDeadlines(
+      logGatewayFailures(
+        desktop?.transport ??
+          isolatedGatewayTransport(() =>
+            createGrpcTransport({
+              baseUrl: GATEWAY_URL,
+              defaultTimeoutMs: 3000,
+              connectTimeoutMs: 3000,
+              pingIntervalMs: 10_000,
+              pingTimeoutMs: 3000,
+              interceptors: [
+                (next) => (request) => {
+                  request.header.set("authorization", `Bearer ${token}`);
 
-                return next(request);
-              },
-            ],
-          }),
-        ),
+                  return next(request);
+                },
+              ],
+            }),
+          ),
+      ),
     ),
   );
 
