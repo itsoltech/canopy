@@ -7,6 +7,7 @@ import type { SqlClient } from "effect/sql";
 import { InvalidError } from "../core/core-context.ts";
 import { appendBase } from "./append.ts";
 import { importTransaction } from "./locks.ts";
+import { insertFreshItems } from "./run-items.ts";
 import { insertLibraryItems, toUiLibrary, type LibraryRow, type NewLibraryItem } from "./library-store.ts";
 
 /**
@@ -131,6 +132,12 @@ export const createRun = (
       yield* sql`INSERT INTO import_runs (id, owner_user_id, worker_id, status, mode, already_imported)
                  VALUES (${run.id}::uuid, ${run.ownerId}::uuid, ${run.workerId}::uuid, 'running', ${run.mode}, ${run.alreadyImported})`;
       yield* insertLibraryItems(sql, run, run.library ?? []);
+
+      if (!run.items.some((item) => item.continues)) {
+        yield* insertFreshItems(sql, run, run.items);
+
+        return;
+      }
 
       for (const [position, item] of run.items.entries()) {
         const continues = item.continues;

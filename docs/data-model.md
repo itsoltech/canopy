@@ -1,5 +1,10 @@
 # Model danych (PostgreSQL)
 
+Migracja `0100_history_read_indexes` indeksuje niewidziane tury, itemy stron
+historii, ostatnie odpowiedzi oraz komunikaty. Nie zmienia danych
+ani retencji. Indeksy powstają w transakcji migratora i wymagają uwzględnienia blokad
+zapisu na dużej bazie; [pomiary i wdrożenie](database-performance.md).
+
 Migracja `0096_consumed_bus_turns` rozszerza `turns.withdrawn` o `consumed`.
 Zużycie niewysłanej wiadomości lub raportu anuluje wejście i wycofuje je z osi czasu;
 nie oznacza anulowania pracy modelu. Migracja oznacza też wcześniejsze takie tury,
