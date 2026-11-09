@@ -118,7 +118,7 @@ export const coreWatchMethods: CoreWatchMethods = {
         historyBeforeTurnId: snapshot.window?.before ?? "",
         historyHasMore: snapshot.window?.hasMore ?? false,
         historyReset: snapshot.window?.reset ?? false,
-        thread: coreUiThread(this, snapshot.thread),
+        thread: { ...coreUiThread(this, snapshot.thread), lastUserTurnChoices: snapshot.lastUserTurnChoices },
         turns: [...(moved?.turns ?? []), ...snapshot.turns.map(toUiTurn)],
         items: [...(moved?.items ?? []), ...snapshot.items],
         interactions: snapshot.interactions,
@@ -161,6 +161,18 @@ export const coreWatchMethods: CoreWatchMethods = {
 
       for await (const update of subscription.updates) {
         if (update.change.case === "event" && update.change.value.seq <= snapshot.lastSeq) continue;
+
+        if (update.change.case === "thread") {
+          const lastUserTurnChoices = await coreRun(this, (s) =>
+            s.composerTurnChoices(threadId, this[coreState].options.userId),
+          );
+
+          yield create(ui.ThreadUpdateSchema, {
+            change: { case: "thread", value: { ...update.change.value, lastUserTurnChoices } },
+          });
+          continue;
+        }
+
         yield update;
       }
     } finally {

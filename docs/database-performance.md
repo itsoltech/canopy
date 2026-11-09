@@ -14,9 +14,13 @@ metadane załączników, boty z historią, harmonogramy i lustro połączonego k
 Wszystkie treści są syntetyczne. Import mierzy utworzenie 100 pozycji oraz odczyt
 przebiegów i znanych źródeł. Nie uruchamia CLI ani inferencji.
 
-Parametry: `--threads`, `--turns`, `--long-turns`, `--text-bytes`, `--iterations`
-oraz filtr nazwy `--operation` (np. `--operation thread/`). Limit treści przed
-narzutem tabel, zdarzeń i indeksów wynosi 512 MiB; zwiększanie profilu wymaga
+Parametry: `--threads`, `--turns`, `--long-turns`, `--text-bytes`, `--iterations`,
+filtr nazwy `--operation` (np. `--operation thread/`) oraz `--agent-tail`
+(domyślnie 0: wszystkie tury użytkownika). Ten ostatni zamienia
+końcowe N tur każdego wątku na tury dostawcy, pozostawiając co najmniej jedną turę
+użytkownika. Pozwala sprawdzić odczyty ostatniego wyboru po długiej pracy agenta;
+`--explain` pokazuje także liczbę wierszy odrzuconych przez filtr.
+Limit treści przed narzutem tabel, zdarzeń i indeksów wynosi 512 MiB; zwiększanie profilu wymaga
 uwzględnienia pamięci innych procesów. Mały smoke:
 
 ```sh

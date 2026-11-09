@@ -10,8 +10,10 @@ import type { ThreadStore } from "./threads-store.ts";
 import type { TurnStore } from "./turns-store.ts";
 import { mirrorSelection, type MirrorSelection } from "./mirror-selection.ts";
 import { threadWindow, type ThreadHistoryQuery } from "./thread-window.ts";
+import { composerTurnChoices } from "./composer-turn-choices.ts";
 
 export interface ThreadSnapshotStore {
+  composerTurnChoices(threadId: string, ownerUserId: string): Fx<ui.ComposerTurnChoices | undefined>;
   snapshot(
     threadId: string,
     mirrorCursor?: string,
@@ -19,6 +21,7 @@ export interface ThreadSnapshotStore {
     history?: ThreadHistoryQuery,
   ): Fx<{
     thread: ThreadRow;
+    lastUserTurnChoices: ui.ComposerTurnChoices | undefined;
     turns: (TurnRow & { inherited?: boolean })[];
     items: ui.TimelineItem[];
     interactions: ui.Interaction[];
@@ -48,9 +51,11 @@ export function threadSnapshot(
   self: () => Pick<ThreadStore, "thread"> & Pick<TurnStore, "turnsOf"> & Pick<InteractionStore, "pendingInteractions">,
 ): ThreadSnapshotStore {
   return {
+    composerTurnChoices: (threadId, ownerUserId) => composerTurnChoices(sql, threadId, ownerUserId),
     snapshot: (threadId, mirrorCursor, includeCursor, historyQuery) => {
       const read = Effect.gen(function* () {
         const thread = yield* self().thread(threadId, false, true);
+        const lastUserTurnChoices = yield* composerTurnChoices(sql, threadId, thread.owner_user_id);
 
         const history = (yield* sql<{ version: string }>`SELECT md5(
           coalesce((SELECT string_agg(c.thread_id::text || ':' || coalesce(c.upto_seq::text,''), ',' ORDER BY c.level)
@@ -143,6 +148,7 @@ export function threadSnapshot(
 
         return {
           thread,
+          lastUserTurnChoices,
           turns: [...inheritedTurns.map((t) => ({ ...t, inherited: true })), ...turns],
           items,
           interactions,

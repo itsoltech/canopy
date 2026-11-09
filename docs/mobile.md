@@ -634,6 +634,11 @@ render korzysta z `peek`, razem z czasami tur. Kolejne tapnięcie lub zmiana par
 unieważnia oczekującą na dysk nawigację. Bez wpisu pozostaje skeleton historii.
 Katalogi modeli są przechowywane w pamięci przez czas życia klienta parowania
 i pobierane już przy widocznej liście workerów; kompozytor odczytuje je synchronicznie.
+Model, effort i uprawnienia następnej tury odtwarza `Thread.last_user_turn_choices`
+według wspólnej z web funkcji `domain/composer-choices`. Jawny wybór w szkicu ma
+pierwszeństwo i idzie z wiadomością, bez zmiany domyślnych wątku. Po ponownym
+otwarciu aplikacji gateway odtwarza ostatni wysłany wybór, również na innym urządzeniu
+i przez połączony komputer; szczegóły: [ui-api.md](ui-api.md#wybory-następnej-tury).
 Model, effort i uprawnienia mają stałe sloty 160/96/128 dp. Nieznany katalog pokazuje skeleton zamiast
 surowego identyfikatora modelu; model bez effort pozostawia pusty slot. Zmiana etykiet
 nie przesuwa sąsiednich kontrolek. Stopka zakończonej tury zachowuje wysokość linii,

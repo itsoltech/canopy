@@ -19,6 +19,7 @@ export interface ModelChoice {
   defaultEffort: string;
   isDefault: boolean;
   aliases: string[];
+  resolvedModel: string;
 }
 
 export interface ModelSection {
@@ -71,6 +72,7 @@ function choice(provider: Provider, profileId: string, m: ModelInfo): ModelChoic
     defaultEffort: m.defaultEffort,
     isDefault: m.isDefault,
     aliases: m.aliases,
+    resolvedModel: m.resolvedModel,
   };
 }
 

@@ -1,4 +1,4 @@
-import { fromBinary, toBinary } from "@bufbuild/protobuf";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 
 import { computerLink as link, ui } from "@canopy/contracts";
 
@@ -58,8 +58,10 @@ export async function commitMirrorUpdate(
           }
 
           if (update.snapshot?.thread) {
+            const metadata = create(ui.ThreadSchema, { ...update.snapshot.thread, lastUserTurnChoices: undefined });
+
             yield* sql`INSERT INTO computer_mirror_threads(owner_user_id,origin_node_id,generation,thread_id,snapshot,thread_metadata)
-                VALUES(${owner}::uuid,${node},${generation}::uuid,${update.snapshot.thread.id}::uuid,${toBinary(ui.ThreadSnapshotSchema, update.snapshot)},${toBinary(ui.ThreadSchema, update.snapshot.thread)})
+                VALUES(${owner}::uuid,${node},${generation}::uuid,${update.snapshot.thread.id}::uuid,${toBinary(ui.ThreadSnapshotSchema, update.snapshot)},${toBinary(ui.ThreadSchema, metadata)})
                 ON CONFLICT(owner_user_id,origin_node_id,generation,thread_id) DO UPDATE SET snapshot=excluded.snapshot,thread_metadata=excluded.thread_metadata`;
           }
 

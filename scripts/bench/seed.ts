@@ -12,6 +12,7 @@ export interface Dataset {
   readonly turns: number;
   readonly textBytes: number;
   readonly longTurns: number;
+  readonly agentTail: number;
 }
 
 export const seed = (size: Dataset) =>
@@ -45,10 +46,13 @@ export const seed = (size: Dataset) =>
     for (let n = 1; n <= size.threads; n++) {
       const thread = n === 1 ? ids.thread : undefined;
       const turns = n === 1 ? size.longTurns : size.turns;
+      const userThrough = Math.max(1, turns - size.agentTail);
       yield* sql`INSERT INTO turns(id,thread_id,ordinal,status,trigger,author_user_id,input,first_seq,last_seq,
         queued_at,started_at,completed_at)
       SELECT md5('turn-'||${n}||'-'||i)::uuid,coalesce(${thread ?? null}::uuid,md5('thread-'||${n})::uuid),
-        i,'completed','user',${ids.owner}::uuid,jsonb_build_object('text','Synthetic task '||i),i*2-1,i*2,
+        i,'completed',CASE WHEN i<=${userThrough} THEN 'user' ELSE 'provider' END,
+        CASE WHEN i<=${userThrough} THEN ${ids.owner}::uuid END,
+        jsonb_build_object('text','Synthetic task '||i),i*2-1,i*2,
         now()-(i||' minutes')::interval,now()-(i||' minutes')::interval,now()-(i||' minutes')::interval
       FROM generate_series(1,${turns}) i`;
       yield* sql`INSERT INTO thread_items(thread_id,item_id,turn_id,type,status,content,first_seq,last_seq)

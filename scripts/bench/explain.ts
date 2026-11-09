@@ -9,6 +9,7 @@ interface Plan {
   readonly "Index Name"?: string;
   readonly "Actual Rows": number;
   readonly "Actual Loops": number;
+  readonly "Rows Removed by Filter"?: number;
   readonly "Shared Hit Blocks": number;
   readonly "Shared Read Blocks": number;
   readonly "Temp Read Blocks": number;
@@ -24,6 +25,7 @@ function nodes(plan: Plan): object[] {
       index: plan["Index Name"],
       rows: plan["Actual Rows"],
       loops: plan["Actual Loops"],
+      rowsRemoved: plan["Rows Removed by Filter"],
       hits: plan["Shared Hit Blocks"],
       reads: plan["Shared Read Blocks"],
       tempRead: plan["Temp Read Blocks"],

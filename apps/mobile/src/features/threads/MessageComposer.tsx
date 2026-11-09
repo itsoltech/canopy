@@ -1,13 +1,10 @@
-import { useState } from "react";
 import { ScrollView, View } from "react-native";
-import { PermissionMode, ui } from "@canopy/contracts";
-import { useSession } from "../../state/session";
+import { ui } from "@canopy/contracts";
+import type { ComposerPick } from "@canopy/domain/composer-choices";
 import { ComposerBox, ComposerPill } from "./ComposerBox";
-import { Notice } from "../../ui/components";
 import { styles } from "../../ui/theme";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { useAppearance } from "../../state/appearance";
-import { findChoice, modelSections, useModelCatalog } from "../models/catalog";
 import { useEffortLabel } from "../settings/display";
 import { EffortPickerSheet, ModelPickerSheet } from "../models/ModelPicker";
 import { permissionLabel, permissionLook, PermissionPickerSheet } from "./permissions";
@@ -19,36 +16,7 @@ import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
 import { composerGeometry } from "../composer/geometry";
 import { QuoteTray } from "../quotes/QuoteTray";
 import type { useQuoteDraft } from "../quotes/useQuoteDraft";
-
-type Picker = "model" | "effort" | "permission";
-
-/** The thread's model, effort and permission mode: each pick is saved at once and applies from the next turn. */
-function useComposerSettings(thread: ui.Thread | undefined, worker: ui.Worker | undefined) {
-  const { client } = useSession();
-  const [picker, setPicker] = useState<Picker | null>(null);
-  const [error, setError] = useState("");
-  const catalog = useModelCatalog(thread?.workerId);
-
-  const section = thread
-    ? modelSections(worker, catalog, { provider: thread.provider, profileId: thread.providerProfileId })[0]
-    : undefined;
-
-  const current = findChoice(section, thread?.model ?? "");
-  const effort = thread?.effort || current?.defaultEffort || "";
-
-  async function update(patch: { model?: string; effort?: string; permissionMode?: PermissionMode }) {
-    if (!client || !thread) return;
-    setError("");
-
-    try {
-      await client.api.updateThread({ threadId: thread.id, ...patch });
-    } catch {
-      setError("Could not update the thread. Try again.");
-    }
-  }
-
-  return { picker, setPicker, error, section, current, effort, update };
-}
+import { useComposerSettings } from "./useComposerSettings";
 
 export function MessageComposer({
   thread,
@@ -68,7 +36,7 @@ export function MessageComposer({
   worker?: ui.Worker;
   message: MessageDraft;
   quotes: ReturnType<typeof useQuoteDraft>;
-  send: (delivery: ui.MessageDelivery) => void;
+  send: (delivery: ui.MessageDelivery, choices: ComposerPick) => void;
   stop: () => void;
   disabled: boolean;
   busy: boolean;
@@ -80,15 +48,14 @@ export function MessageComposer({
   const { user } = useAppearance();
   const { focused } = useComposerMotion();
   const state = useComposerSettings(thread, worker);
-  const { setPicker, error } = state;
-  const look = permissionLook(thread?.permissionMode);
+  const { setPicker } = state;
+  const look = permissionLook(state.permissionMode);
 
   const primary =
     user?.composer?.runningDelivery === ui.MessageDelivery.QUEUE ? ui.MessageDelivery.QUEUE : ui.MessageDelivery.STEER;
 
   return (
     <>
-      {error ? <Notice error>{error}</Notice> : null}
       <PasteTarget draft={message.files}>
         <ComposerBox
           compact={compact}
@@ -97,9 +64,12 @@ export function MessageComposer({
           onChange={message.setText}
           badges={message.badges}
           triggers
-          onSend={() => send(thread?.status === "running" ? primary : ui.MessageDelivery.QUEUE)}
+          onSend={() => send(thread?.status === "running" ? primary : ui.MessageDelivery.QUEUE, state.override)}
           onAlternate={() =>
-            send(primary === ui.MessageDelivery.QUEUE ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE)
+            send(
+              primary === ui.MessageDelivery.QUEUE ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,
+              state.override,
+            )
           }
           primary={primary === ui.MessageDelivery.QUEUE ? "queue" : "steer"}
           onStop={stop}
@@ -130,7 +100,7 @@ export function MessageComposer({
           </ScrollView>
           <ComposerPill
             icon={look.icon}
-            title={permissionLabel(thread?.permissionMode)}
+            title={permissionLabel(state.permissionMode)}
             width={128}
             warning={look.tone === "warning"}
             danger={look.tone === "danger"}
@@ -138,7 +108,7 @@ export function MessageComposer({
           />
         </View>
       </ComposerFold>
-      <ComposerPickers state={state} thread={thread} />
+      <ComposerPickers state={state} />
     </>
   );
 }
@@ -192,14 +162,8 @@ function ComposerAttachments({ message, quotes }: { message: MessageDraft; quote
   );
 }
 
-function ComposerPickers({
-  state,
-  thread,
-}: {
-  state: ReturnType<typeof useComposerSettings>;
-  thread: ui.Thread | undefined;
-}) {
-  const { picker, setPicker, section, current, effort, update } = state;
+function ComposerPickers({ state }: { state: ReturnType<typeof useComposerSettings> }) {
+  const { picker, setPicker, section, current, effort, permissionMode, update } = state;
   const close = () => setPicker(null);
 
   return (
@@ -210,10 +174,10 @@ function ComposerPickers({
         sections={section ? [section] : []}
         value={current?.key}
         onSelect={(choice) =>
-          void update({
+          update({
             model: choice.model,
             // Keep the effort only when the new model takes it.
-            effort: choice.efforts.includes(thread?.effort ?? "") ? thread?.effort : "",
+            effort: choice.efforts.includes(effort) ? effort : choice.defaultEffort,
           })
         }
       />
@@ -222,13 +186,13 @@ function ComposerPickers({
         onClose={close}
         choice={current}
         value={effort}
-        onSelect={(next) => void update({ effort: next })}
+        onSelect={(next) => update({ effort: next })}
       />
       <PermissionPickerSheet
         visible={picker === "permission"}
         onClose={close}
-        value={thread?.permissionMode}
-        onSelect={(mode) => void update({ permissionMode: mode })}
+        value={permissionMode}
+        onSelect={(mode) => update({ permissionMode: mode })}
       />
     </>
   );
