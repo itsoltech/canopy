@@ -601,6 +601,15 @@ maksymalnie 16 MiB na wpis, oraz 6 wątków / 24 MiB w pamięci. Wpisy przekracz
 limit nadal działają online, ale nie są utrwalane. Zapis pliku tymczasowego i rename
 chronią przed częściowym odczytem; uszkodzony wpis jest usuwany.
 
+Kolejne zapisy tej samej niemutowalnej rewizji współdzielą serializację i trwający
+zapis, również przy wyjściu z ekranu. Nowa rewizja, odczyt albo inny wątek
+unieważniają to uproszczenie. Błąd dysku pozwala ponowić zapis tej samej rewizji;
+unpair nadal od razu zamyka ścieżkę zapisu. Nie zwiększa to limitów pamięci.
+Przygotowanie osi czasu zachowuje tablice itemów niezmienionych tur, dzięki czemu
+`TimelineTurn` nie buduje ponownie drzewa ich pracy przy delcie innej tury.
+Grupowanie dzieci subagenta dopisuje do tablic zamiast kopiować rosnącą grupę.
+Pomiary JS i ograniczenia profilowania: [client-performance.md](client-performance.md).
+
 `WatchThread` wysyła `incremental=true` i ostatni atomowy `cursor`. Gateway odpowiada
 deltą dziennika albo pełnym stanem według reguł w `ui-api.md`. Zdarzenia live nie
 przesuwają kursora; ponowny odczyt idempotentnie nakłada projekcje od checkpointu.
