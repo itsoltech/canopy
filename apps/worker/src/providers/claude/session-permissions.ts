@@ -3,18 +3,19 @@ import type { CanUseTool } from "@anthropic-ai/claude-agent-sdk";
 import { InteractionKind, InteractionRequestSchema, type ThreadSpec } from "@canopy/contracts";
 import { decodeJson } from "../json.ts";
 import { BUS_SERVER } from "./mapping.ts";
+import { autoAllows, type AutoAllow } from "./permissions.ts";
 
 import type { ClaudeThreadsOptions } from "./thread-types.ts";
 
 export function sessionPermissions(options: ClaudeThreadsOptions) {
   const canUseTool =
-    (spec: ThreadSpec, turnId: () => string, autoAllow: () => boolean): CanUseTool =>
+    (spec: ThreadSpec, turnId: () => string, autoAllow: () => AutoAllow): CanUseTool =>
     async (toolName, input, context) => {
       if (toolName.startsWith(`mcp__${BUS_SERVER}__`) && context.mcpServer?.source === "sdk")
         return { behavior: "allow", updatedInput: input };
       const question = toolName === "AskUserQuestion";
 
-      if (autoAllow() && !question) return { behavior: "allow", updatedInput: input };
+      if (!question && autoAllows(autoAllow(), toolName)) return { behavior: "allow", updatedInput: input };
 
       const answer = await options.interact(
         create(InteractionRequestSchema, {

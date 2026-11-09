@@ -65,7 +65,7 @@ export function claudeSessions(
       ...(resume ? { resume: sessionId } : { sessionId }),
       includePartialMessages: true,
       ...permissions.options,
-      canUseTool: canUseTool(spec, turnId, () => session?.autoAllow ?? false),
+      canUseTool: canUseTool(spec, turnId, () => session?.autoAllow ?? "none"),
       // dontAsk denies whatever is not pre-approved. Gateway enforces connector grants and permission modes.
       allowedTools: busTools,
       ...claudeNativeToolOptions(options.nativeTools),
