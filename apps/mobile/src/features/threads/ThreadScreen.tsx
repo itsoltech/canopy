@@ -35,6 +35,7 @@ import { useQuoteDraft } from "../quotes/useQuoteDraft";
 import { withSentMessage } from "./sent-message";
 import { confirmMessage } from "./pending-message";
 import type { ComposerPick } from "@canopy/domain/composer-choices";
+import { useArchivedThreadDisclosure } from "../settings/use-archived-thread-disclosure";
 
 /** The gateway refused the message and says why (not delivered: no retry note); otherwise delivery is unknown. */
 function deliveryError(failure: ConnectError) {
@@ -75,6 +76,7 @@ function useThreadState(id: string) {
   }, [id]);
 
   const thread = snapshot?.thread ?? threads.find((t) => t.id === id);
+  useArchivedThreadDisclosure(thread?.status === "archived" ? thread.id : undefined);
   const home = useComputerHome(thread?.nodeId || splitId(id).node);
   const worker = workers.find((w) => w.id === thread?.workerId);
   const subagents = threads.filter((t) => t.spawnedByAgent && t.parentThreadId === id && !t.deletedAt);

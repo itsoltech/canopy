@@ -5,6 +5,7 @@ import { ui } from "@canopy/contracts";
 import { accents } from "@canopy/ui";
 import { useSession } from "./session";
 import { useStream } from "./stream";
+import { useDevicePreferences } from "../features/settings/device-preferences";
 
 function useAppearanceState() {
   const { client, session } = useSession();
@@ -74,6 +75,17 @@ function useAppearanceState() {
     `appearance:${session?.deviceId}`,
   );
   const appearance = user?.appearance;
+  const device = useDevicePreferences();
+
+  useEffect(() => {
+    if (!user || !device.viewLoaded) return;
+    device.initializeView({
+      archivedThreadsExpanded: user.sidebar?.archivedExpanded ?? false,
+      sidebarCollapsed: user.appearance?.sidebarCollapsed ?? false,
+      threadPanelCollapsed: user.appearance?.threadPanelCollapsed ?? false,
+      sidebarWidth: user.appearance?.sidebarWidth ?? 0,
+    });
+  }, [user, device]);
 
   const dark =
     appearance?.colorScheme === ui.ColorScheme.DARK ||

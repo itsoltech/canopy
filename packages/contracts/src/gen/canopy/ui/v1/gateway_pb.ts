@@ -4429,7 +4429,7 @@ export type AppearanceSettings = Message<"canopy.ui.v1.AppearanceSettings"> & {
   chatWidth: ChatWidth;
 
   /**
-   * Panel kontekstu wątku zwinięty.
+   * Deprecated: new clients keep the thread panel disclosure in device preferences.
    *
    * @generated from field: bool thread_panel_collapsed = 4;
    */
@@ -4446,15 +4446,14 @@ export type AppearanceSettings = Message<"canopy.ui.v1.AppearanceSettings"> & {
   darkTheme: ColorTheme;
 
   /**
-   * Szerokość paska bocznego na desktopie w px; 0 = domyślna. Gateway przycina do granic
-   * (@canopy/domain SIDEBAR_WIDTH), UI dodatkowo do szerokości okna.
+   * Deprecated: new clients keep sidebar width in device preferences. 0 = default.
    *
    * @generated from field: uint32 sidebar_width = 130;
    */
   sidebarWidth: number;
 
   /**
-   * Pasek boczny na desktopie zwinięty (szerokość zostaje zapisana na powrót).
+   * Deprecated: new clients keep sidebar disclosure in device preferences.
    *
    * @generated from field: bool sidebar_collapsed = 131;
    */
@@ -4694,6 +4693,8 @@ export type SidebarSettings = Message<"canopy.ui.v1.SidebarSettings"> & {
   archived: boolean;
 
   /**
+   * Deprecated: new clients seed device preferences once and no longer update this field.
+   *
    * @generated from field: bool archived_expanded = 310;
    */
   archivedExpanded: boolean;

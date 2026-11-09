@@ -24,6 +24,7 @@ import { SettingsThreadList } from "./SettingsThreadList";
 import { useSidebarThreads } from "./useSidebarThreads";
 import { useProjectDetails } from "../computers/project-details";
 import { CreateBot } from "../bots/CreateBot";
+import { useDevicePreferences } from "../settings/device-preferences";
 
 function useSidebarState() {
   const { session, client, ready, updateBots, bots } = useSession();
@@ -245,7 +246,8 @@ function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const pinned = useAppearance().user?.sidebar?.pinnedBotIds ?? [];
   const { layout } = useMotion();
   const { query, bots, botError, botsLoaded } = state;
-  const [archivedOpen, setArchivedOpen] = useState(false);
+  const device = useDevicePreferences();
+  const archivedOpen = device.view.archivedBotsExpanded;
 
   const archived = orderBots(
     bots.filter(
@@ -301,7 +303,7 @@ function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
             <Button
               variant="ghost"
               title={`${archivedOpen ? "Hide" : "Show"} archived bots · ${archived.length}`}
-              onPress={() => setArchivedOpen(!archivedOpen)}
+              onPress={() => device.setView({ archivedBotsExpanded: !archivedOpen })}
             />
             {archivedOpen && archived.map((bot) => <BotListItem key={bot.id} bot={bot} />)}
           </View>

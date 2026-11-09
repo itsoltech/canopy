@@ -47,6 +47,7 @@ interface ServerSettings {
  * conflict (409: changed elsewhere in between) reloads the settings and applies the change once more.
  */
 export class SettingsState {
+  loaded = $state(false);
   user = $state.raw<ui.UserSettings>(create(ui.UserSettingsSchema));
   projects = $state.raw<ReadonlyMap<string, ui.ProjectSettings>>(new Map());
   notice = $state<SettingsNotice | undefined>(undefined);
@@ -159,6 +160,7 @@ export class SettingsState {
 
   async reload(): Promise<void> {
     this.#replace(decode(ui.GetSettingsResponseSchema, await requestJson("GET", "/api/settings")));
+    this.loaded = true;
     this.#syncDeviceTimezone();
   }
 

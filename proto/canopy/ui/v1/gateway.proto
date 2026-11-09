@@ -1342,14 +1342,13 @@ message AppearanceSettings {
   ColorScheme color_scheme = 1;
   AccentTheme accent = 2;
   ChatWidth chat_width = 3;
-  // Panel kontekstu wątku zwinięty.
+  // Deprecated: new clients keep the thread panel disclosure in device preferences.
   bool thread_panel_collapsed = 4;
   ColorTheme light_theme = 5;
   ColorTheme dark_theme = 6;
-  // Szerokość paska bocznego na desktopie w px; 0 = domyślna. Gateway przycina do granic
-  // (@canopy/domain SIDEBAR_WIDTH), UI dodatkowo do szerokości okna.
+  // Deprecated: new clients keep sidebar width in device preferences. 0 = default.
   uint32 sidebar_width = 130;
-  // Pasek boczny na desktopie zwinięty (szerokość zostaje zapisana na powrót).
+  // Deprecated: new clients keep sidebar disclosure in device preferences.
   bool sidebar_collapsed = 131;
 }
 
@@ -1412,6 +1411,7 @@ message SidebarSettings {
   repeated string project_ids = 1;
   repeated string pinned_thread_ids = 2;
   bool archived = 3 [deprecated = true]; // dawny widok; ignorowany przez nowy sidebar
+  // Deprecated: new clients seed device preferences once and no longer update this field.
   bool archived_expanded = 310;
   bool group_by_project = 900;
   ProjectOrder project_order = 901;

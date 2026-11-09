@@ -1,7 +1,7 @@
 import { maxSidebarWidth, SIDEBAR_WIDTH, sidebarWidthFor } from "@canopy/domain";
 import type { ResizeChange } from "#lib/shared/ui/resize-handle.ts";
 import { duration } from "#lib/shared/ui/motion.ts";
-import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
+import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 
 /** Id of the desktop sidebar column (the toggle's `aria-controls`). */
 export const SIDEBAR_ID = "app-sidebar";
@@ -10,14 +10,14 @@ export const SIDEBAR_HOTKEY = "Mod+B";
 /** How long after the last change the width and collapse are saved (a drag saves once, when let go). */
 const SAVE_DELAY_MS = 400;
 
-/** Sidebar geometry not yet saved to the appearance settings. */
+/** Sidebar geometry not yet saved to device preferences. */
 interface LayoutChange {
   sidebarWidth?: number;
   sidebarCollapsed?: boolean;
 }
 
 /**
- * Width and collapse of the desktop sidebar. Both live in the appearance settings (gateway); while the user
+ * Width and collapse of the desktop sidebar. Both live in device preferences; while the user
  * changes them the change shows at once as a draft and is saved once things are still. `viewport` (the
  * window's width, browser only) keeps the width under 45% of it; the server renders the same cap in CSS
  * (`cssWidth`), so the first paint already has the right width.
@@ -34,19 +34,13 @@ export class SidebarLayout {
   #pending: LayoutChange = {};
   #saveTimer: ReturnType<typeof setTimeout> | undefined;
   #settleTimer: ReturnType<typeof setTimeout> | undefined;
-  readonly #settings: SettingsState;
-
-  constructor(settings: SettingsState) {
-    this.#settings = settings;
-  }
-
   get collapsed(): boolean {
-    return this.#collapsed ?? this.#settings.appearance.sidebarCollapsed;
+    return this.#collapsed ?? devicePreferences.view.sidebarCollapsed;
   }
 
   /** The saved (or drafted) width, before the window's cap; 0 = default. */
   get #saved(): number {
-    return this.#width ?? this.#settings.appearance.sidebarWidth;
+    return this.#width ?? devicePreferences.view.sidebarWidth;
   }
 
   /** The width the sidebar has when open, px. */
@@ -111,7 +105,7 @@ export class SidebarLayout {
 
     if (Object.keys(change).length === 0) return;
     // The settings show the change at once, so the drafts can go.
-    void this.#settings.updateAppearance(change).catch(() => undefined);
+    devicePreferences.setView(change);
     this.#width = undefined;
     this.#collapsed = undefined;
   }

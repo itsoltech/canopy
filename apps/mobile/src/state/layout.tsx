@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import { useWindowDimensions } from "react-native";
 import { router, usePathname, type Href } from "expo-router";
 import { useSession } from "./session";
+import { useDevicePreferences } from "../features/settings/device-preferences";
 
 /**
  * From this window width (dp, Android's large-screen class) the thread list stays beside the open thread, as on
@@ -12,7 +13,8 @@ export const WIDE_LAYOUT = 600;
 
 function useLayoutState() {
   const { width } = useWindowDimensions();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const device = useDevicePreferences();
+  const sidebarOpen = !device.view.sidebarCollapsed;
   const { threadCache } = useSession();
   const opening = useRef(0);
   const pathname = usePathname();
@@ -39,7 +41,7 @@ function useLayoutState() {
     sidebarOpen: wide && sidebarOpen,
     /** The column animates itself (`MainNavigation`'s `SidebarColumn`). */
     toggleSidebar() {
-      setSidebarOpen((open) => !open);
+      device.setView({ sidebarCollapsed: sidebarOpen });
     },
     /** Opens a thread or chat: beside the list on wide windows (no history between them), pushed on phones. */
     open,

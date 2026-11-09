@@ -89,6 +89,16 @@
 
   onMount(() => devicePreferences.connect());
 
+  $effect(() => {
+    if (!settings.loaded) return;
+    devicePreferences.initializeView({
+      archivedThreadsExpanded: settings.sidebar.archivedExpanded,
+      sidebarCollapsed: settings.appearance.sidebarCollapsed,
+      sidebarWidth: settings.appearance.sidebarWidth,
+      threadPanelCollapsed: settings.appearance.threadPanelCollapsed,
+    });
+  });
+
   onMount(() => keybindings.connect());
 
   $effect(() => applyDeviceAppearance(devicePreferences));
@@ -113,20 +123,20 @@
   });
 
   // The server rendered the appearance into <html>; keep it current (and follow the system for "system").
-  $effect(() => applyAppearance(settings.appearance));
+  $effect(() => applyAppearance(settings.appearance, devicePreferences.view));
 
   onMount(() => document.getElementById("canopy-boot")?.remove());
 
   $effect(() => {
     const query = matchMedia("(prefers-color-scheme: dark)");
-    const follow = () => applyAppearance(settings.appearance);
+    const follow = () => applyAppearance(settings.appearance, devicePreferences.view);
     query.addEventListener("change", follow);
 
     return () => query.removeEventListener("change", follow);
   });
 
-  // Desktop sidebar: width and collapse from the appearance settings, rendered by the server (no jump).
-  const sidebar = new SidebarLayout(settings);
+  // Desktop geometry belongs to this browser profile or desktop shell.
+  const sidebar = new SidebarLayout();
 
   $effect(() => () => sidebar.flush());
 

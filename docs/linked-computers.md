@@ -1754,7 +1754,7 @@ Stos PR-ów: `feat/linked-shared-config-N` ([etapy](#etapy-wspólnej-konfiguracj
 | Dane | Źródło | Zakres | Powód |
 |---|---|---|---|
 | wygląd: schemat, akcent, palety Light/Dark, szerokość czatu | `user_settings.appearance` | wspólne | wybór użytkownika, nie ekranu |
-| szerokość i zwinięcie sidebara, zwinięty panel wątku | `user_settings.appearance` | komputer | zależy od ekranu |
+| szerokość i zwinięcie sidebara, zwinięty panel wątku, rozwinięcie archiwum wątków/botów | preferencje urządzenia (web/desktop: profil przeglądarki, mobile: SecureStore) | urządzenie | stan konkretnego widoku; stare pola konta służą tylko jednorazowej inicjalizacji |
 | ogólne (potwierdzenia), kompozytor (Enter w trakcie tury) | `user_settings.general`, `.composer` | wspólne | nawyki użytkownika |
 | domyślne ustawienia wątku | `user_settings.thread_defaults` | wspólne bez `workspace_id` | workspace jest katalogiem jednej maszyny |
 | generowanie tekstu, strefa czasowa | `user_settings.text_generation`, `.timezone` | wspólne | jedno konto, jedna osoba |

@@ -8,6 +8,7 @@ import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
 import { updateThread } from "./api.ts";
+import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 import { requestTitleRegeneration } from "./title-actions.ts";
 import type { ThreadActionId } from "./thread-actions.ts";
 
@@ -83,9 +84,9 @@ export class ThreadActions {
           await this.lifecycle(thread.id, thread.markedUnread || thread.unseenResult ? "read" : "unread");
           break;
         case "filter":
+          if (thread.status === "archived") devicePreferences.setView({ archivedThreadsExpanded: true });
           await this.settings.updateSidebar({
             projectIds: [thread.projectId],
-            ...(thread.status === "archived" && { archivedExpanded: true }),
           });
           break;
         case "settings":
