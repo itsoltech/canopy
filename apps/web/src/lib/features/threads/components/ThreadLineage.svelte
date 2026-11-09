@@ -19,9 +19,9 @@
   const id = $props.id();
 </script>
 
-<section aria-label="Lineage" class={["grid grid-cols-1 px-1.5 pt-1.5", className]}>
+<section aria-label="Lineage" class={["grid min-w-0 grid-cols-1 px-1.5 pt-1", className]}>
   {#if sides.active.length || sides.previous.length || !agents.length || tree.main.id !== currentId}
-    <h2 {id} class="px-3 pt-1 pb-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Lineage</h2>
+    <h2 {id} class="px-2 py-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Lineage</h2>
     <ul role="list" aria-labelledby={id} class="grid grid-cols-1 gap-0.5">
       <li>
         <PanelRow icon="chat-bubble-left-right" href="/threads/{tree.main.id}" current={tree.main.id === currentId}>

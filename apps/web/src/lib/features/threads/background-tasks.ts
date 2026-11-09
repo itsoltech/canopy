@@ -45,8 +45,7 @@ export function backgroundStatus(entry: BackgroundEntry, exitCode?: number): str
   if (entry.item.status === ItemStatus.FAILED || reason === "error")
     return `Failed${exitCode === undefined ? "" : ` · exit ${exitCode}`}`;
 
-  if (entry.item.status === ItemStatus.COMPLETED)
-    return exitCode === undefined ? "Done · exit unavailable" : `Done · exit ${exitCode}`;
+  if (entry.item.status === ItemStatus.COMPLETED) return `Done${exitCode ? ` · exit ${exitCode}` : ""}`;
 
   return "Pending";
 }

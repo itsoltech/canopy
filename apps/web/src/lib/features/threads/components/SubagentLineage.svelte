@@ -37,7 +37,7 @@
         open={expanded}
         onchange={(open) => device.set("subagentsExpanded", open ? "on" : "off")}
         align="center"
-        summaryClass="min-h-10 px-3 py-2 text-sm/5 text-zinc-500 sm:min-h-9 sm:text-xs/5 dark:text-zinc-400 hover:bg-zinc-950/4 dark:hover:bg-white/4"
+        summaryClass="min-h-9 px-2 py-1 text-sm/5 text-zinc-500 sm:min-h-8 sm:text-xs/5 dark:text-zinc-400 hover:bg-zinc-950/4 dark:hover:bg-white/4"
       >
         {#snippet summary()}<span role="status" class="tabular-nums">{label}</span>{/snippet}
         <SubagentList threads={lineage.current} {currentId} label="Active and recent subagents" />
@@ -51,7 +51,7 @@
         open={device.values.finishedSubagentsExpanded === "on"}
         onchange={(open) => device.set("finishedSubagentsExpanded", open ? "on" : "off")}
         align="center"
-        summaryClass="min-h-10 px-3 py-2 text-sm/5 text-zinc-500 sm:min-h-9 sm:text-xs/5 dark:text-zinc-400 hover:bg-zinc-950/4 dark:hover:bg-white/4"
+        summaryClass="min-h-9 px-2 py-1 text-sm/5 text-zinc-500 sm:min-h-8 sm:text-xs/5 dark:text-zinc-400 hover:bg-zinc-950/4 dark:hover:bg-white/4"
       >
         {#snippet summary()}<span role="status" class="tabular-nums"
             >{hasMainList ? "" : "Subagents · "}{formatCount(lineage.finished)} finished</span

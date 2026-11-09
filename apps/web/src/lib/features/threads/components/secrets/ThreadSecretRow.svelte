@@ -4,6 +4,7 @@
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
+  import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import { answerThreadSecret } from "../../api.ts";
   import PanelRow from "../PanelRow.svelte";
 
@@ -27,17 +28,14 @@
 </script>
 
 <PanelRow icon="lock-closed">
-  <span
-    {@attach tooltip(
-      secret.expiresAt
-        ? `Kept out of chat; the agent's commands can read it until ${formatDateTime(secret.expiresAt)}`
-        : undefined,
-    )}>{secret.label || "Secret"}</span
-  >
+  <TruncatedText text={secret.label || "Secret"} />
   {#snippet aside()}
     <span class="flex shrink-0 items-center gap-1">
-      {#if secret.expiresAt}<span class="text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400"
-          >until {formatTime(secret.expiresAt)}</span
+      {#if secret.expiresAt}<span
+          class="text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400"
+          {@attach tooltip(
+            `The agent's commands can read this until ${formatDateTime(secret.expiresAt)}. Kept out of chat.`,
+          )}>until {formatTime(secret.expiresAt)}</span
         >{/if}
       <IconButton
         icon="x-mark"
