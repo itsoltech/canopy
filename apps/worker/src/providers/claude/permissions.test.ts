@@ -21,29 +21,29 @@ function live(mode: PermissionMode) {
 }
 
 describe("claudePermissions", () => {
-  test("Full access starts without a sandbox and allows every tool; Full auto stays sandboxed", () => {
-    expect(claudePermissions(PermissionMode.FULL_ACCESS)).toEqual({
+  test("Full access starts without a sandbox and allows every tool; Full auto requires the sandbox", () => {
+    expect(claudePermissions(PermissionMode.FULL_ACCESS, "linux")).toEqual({
       options: { permissionMode: "acceptEdits", sandbox: { enabled: false } },
       autoAllow: "all",
     });
-    expect(claudePermissions(PermissionMode.FULL_AUTO)).toEqual({
+    expect(claudePermissions(PermissionMode.FULL_AUTO, "linux")).toEqual({
       options: {
         permissionMode: "acceptEdits",
         sandbox: {
           enabled: true,
-          failIfUnavailable: false,
+          failIfUnavailable: true,
           autoAllowBashIfSandboxed: true,
           allowUnsandboxedCommands: false,
         },
       },
-      autoAllow: "unconfined-shell-asks",
+      autoAllow: "all",
     });
   });
 
-  test("Full auto without a working sandbox asks before a shell command runs unconfined", () => {
-    // The sandbox auto-allows what it confines; a shell command reaching canUseTool was not confined (Windows).
-    const { autoAllow } = claudePermissions(PermissionMode.FULL_AUTO);
+  test("Full auto on Windows starts without the sandbox and asks before a shell command runs unconfined", () => {
+    const { options, autoAllow } = claudePermissions(PermissionMode.FULL_AUTO, "win32");
 
+    expect(options.sandbox?.failIfUnavailable).toBe(false);
     expect(["Bash", "PowerShell"].map((tool) => autoAllows(autoAllow, tool))).toEqual([false, false]);
     expect(["Edit", "Write", "WebFetch", "mcp__docs__search"].every((tool) => autoAllows(autoAllow, tool))).toBe(true);
     expect(autoAllows(claudePermissions(PermissionMode.FULL_ACCESS).autoAllow, "PowerShell")).toBe(true);

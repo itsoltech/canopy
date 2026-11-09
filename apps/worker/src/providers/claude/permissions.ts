@@ -9,13 +9,15 @@ import { PermissionMode } from "@canopy/contracts";
  * | ASK (and unspecified) | `default` | every edit and command goes through canUseTool -> the platform |
  * | ACCEPT_EDITS | `acceptEdits` | edits in the workspace pass, the rest asks |
  * | READ_ONLY | `dontAsk` | nothing asks; what needs approval (edits, shell) is denied |
- * | FULL_AUTO | `acceptEdits` + sandboxed Bash | nothing asks; shell runs in the OS sandbox (writes stay in the workspace) |
+ * | FULL_AUTO | `acceptEdits` + sandboxed Bash | nothing asks; shell runs in the OS sandbox (writes stay in the workspace); on Windows shell commands ask |
  * | FULL_ACCESS | `acceptEdits`, sandbox off | nothing asks; edits and shell run anywhere the worker's OS user can |
  *
- * FULL_AUTO never means bypassPermissions and never runs a command unconfined. The sandbox (bubblewrap on Linux,
- * Seatbelt on macOS) auto-allows the commands it confines; where it is unavailable (Windows, Linux without
- * bubblewrap) the session still starts, and a shell command reaches canUseTool, which asks the user instead of
- * allowing it. FULL_ACCESS is not bypassPermissions either: canUseTool allows every tool, so questions to the user
+ * FULL_AUTO never means bypassPermissions and never runs a command unconfined. On Linux (bubblewrap) and macOS
+ * (Seatbelt) a command fails instead of running unconfined when the sandbox cannot start (failIfUnavailable), and
+ * canUseTool allows everything: a command reaching it still runs in the sandbox (Claude Code's own auto-allow skips
+ * some confined commands, e.g. `cd x && rm y`). Windows has no sandbox in Claude Code, so there the session starts
+ * without it and a shell command reaches canUseTool unconfined, which asks the user instead of allowing it.
+ * FULL_ACCESS is not bypassPermissions either: canUseTool allows every tool, so questions to the user
  * (AskUserQuestion) still reach the platform. The sandbox is off explicitly, also when the repository's settings
  * turn it on.
  */
@@ -26,17 +28,23 @@ export interface ClaudePermissions {
 
 /**
  * What canUseTool allows without asking; questions to the user always go to the platform.
- * `unconfined-shell-asks`: every tool but a shell command the sandbox did not confine (FULL_AUTO).
+ * `unconfined-shell-asks`: every tool but the shell, which runs unconfined (FULL_AUTO on Windows).
  */
 export type AutoAllow = "none" | "unconfined-shell-asks" | "all";
 
-/** Claude Code's shell tools; the sandbox auto-allows them only when it confines the command. */
+/** Claude Code's shell tools; a sandbox confines them where Claude Code has one. */
 const SHELL_TOOLS: ReadonlySet<string> = new Set(["Bash", "PowerShell"]);
 
 export const autoAllows = (autoAllow: AutoAllow, toolName: string): boolean =>
   autoAllow === "all" || (autoAllow === "unconfined-shell-asks" && !SHELL_TOOLS.has(toolName));
 
-export function claudePermissions(mode: PermissionMode): ClaudePermissions {
+export function claudePermissions(
+  mode: PermissionMode,
+  platform: NodeJS.Platform = process.platform,
+): ClaudePermissions {
+  // Claude Code has no OS sandbox on Windows: a required one would fail every turn at start.
+  const noSandbox = platform === "win32";
+
   switch (mode) {
     case PermissionMode.ACCEPT_EDITS:
       return { options: { permissionMode: "acceptEdits" }, autoAllow: "none" };
@@ -48,13 +56,12 @@ export function claudePermissions(mode: PermissionMode): ClaudePermissions {
           permissionMode: "acceptEdits",
           sandbox: {
             enabled: true,
-            // Without a sandbox the turn runs and unconfined commands ask (autoAllow), instead of failing at start.
-            failIfUnavailable: false,
+            failIfUnavailable: !noSandbox,
             autoAllowBashIfSandboxed: true,
             allowUnsandboxedCommands: false,
           },
         },
-        autoAllow: "unconfined-shell-asks",
+        autoAllow: noSandbox ? "unconfined-shell-asks" : "all",
       };
     case PermissionMode.FULL_ACCESS:
       return { options: { permissionMode: "acceptEdits", sandbox: { enabled: false } }, autoAllow: "all" };
