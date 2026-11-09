@@ -75,6 +75,16 @@ Planista blokuje jeden bot na transakcję, do 100 takich transakcji na przebieg.
 Sprawdza zajętość wszystkich jego rutyn jednym odczytem, bez pobierania instrukcji,
 a stan następnego wystąpienia i przyjęcie tury zatwierdza atomowo.
 
+`bun scripts/bench/bot-config.ts --run` sprawdza konfigurację botów: 32 konta MCP
+z katalogami po 64 KiB oraz katalogi 13 własnych i 32 cudzych workerów. Każdy
+worker ma dwa niepasujące profile po 64 KiB i jeden mały profil docelowy.
+Lista MCP używa metadanych i dwóch grupowych odczytów grantów; nie pobiera narzędzi.
+Wybór modeli przenosi filtr właściciela, dostawcy i instancji do SQL, przed
+dekodowaniem protobuf. Wspólni workerzy z pustym właścicielem nadal są dostępni.
+Odczyt instancji do walidacji wymaga właściciela albo wspólnej instancji i pobiera
+wyłącznie listę modeli niestandardowych. Pomiar: trzy serie po dwa rozgrzania
+i 20 próbek, osobny EXPLAIN z rollbackiem, bez transportu.
+
 `bun scripts/bench/secrets.ts --run` mierzy kolejkę 1024 syntetycznych grantów:
 polling, pierwszy reset po połączeniu i pierwszą partię wygaszania.
 Stan wejściowy jest przywracany poza pomiarem; diagnostyka wykonuje osobne plany

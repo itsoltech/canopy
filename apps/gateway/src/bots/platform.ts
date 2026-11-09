@@ -250,6 +250,7 @@ async function listBotModels(core: GatewayCore, turn: BotTurn, { string, optiona
 
     return await core.bots.run((s) =>
       s.harnessModels(
+        core[coreState].options.userId,
         requested ? legacyProvider(requested) : config.provider,
         optional("provider_instance") || config.providerInstance,
         config.workerId,

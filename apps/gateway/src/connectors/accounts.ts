@@ -110,7 +110,7 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
 
   const list = (
     user: string,
-    scope: { workerId?: string; threadId?: string; botId?: string } = {},
+    scope: { workerId?: string; threadId?: string; botId?: string; connectorType?: string } = {},
     metadataOnly = false,
   ) =>
     Effect.gen(function* () {
@@ -137,6 +137,7 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
       a.auth_kind,a.credentials,a.legacy_headers,a.status,a.error,a.all_workers,a.all_bots,a.revision,a.last_used_at,
       ${metadataOnly ? sql`'[]'::jsonb` : sql`a.tools`} AS tools
       FROM connector_accounts a WHERE owner_user_id=${user}::uuid
+      AND (${scope.connectorType ?? null}::text IS NULL OR a.connector_type=${scope.connectorType ?? null})
       AND (${workerId ?? null}::uuid IS NULL OR (a.all_workers OR EXISTS(SELECT 1 FROM connector_worker_grants g WHERE g.account_id=a.id AND g.worker_id=${workerId ?? null}::uuid)))
       AND (${scope.botId ?? null}::uuid IS NULL OR (a.all_bots OR EXISTS(SELECT 1 FROM connector_bot_grants g WHERE g.account_id=a.id AND g.bot_id=${scope.botId ?? null}::uuid)))
       ORDER BY connector_type, name, id`;

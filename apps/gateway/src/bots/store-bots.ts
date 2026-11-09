@@ -42,14 +42,16 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
             : Effect.fail(new Invalid("Bot provider instance is unavailable")),
         ),
       ),
-    harnessModels: (provider: Provider, instanceId: string, workerId = "") =>
+    harnessModels: (user: string, provider: Provider, instanceId: string, workerId = "") =>
       Effect.gen(function* () {
-        const instance =
-          (yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(provider)} AND id = ${instanceId}`)[0];
+        const instance = (yield* sql<Pick<InstanceRow, "custom_models">>`SELECT custom_models FROM provider_instances
+            WHERE harness = ${harnessOf(provider)} AND id = ${instanceId}
+              AND (created_by=${user}::uuid OR created_by IS NULL)`)[0];
 
         if (!instance) return yield* Effect.fail(new Invalid("choose an existing provider instance"));
 
         const profiles = yield* catalogs(
+          user,
           create(bots.BotConfigurationSchema, { provider, providerInstance: instanceId, workerId }),
         );
 

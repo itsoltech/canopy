@@ -21,7 +21,7 @@ describe.skipIf(process.env["CANOPY_LIVE"] !== "1" || !url || !key || !dockerAva
         harnesses: [Provider.CODEX],
       });
       await eventually(
-        () => gw.core.bots.run((s) => s.harnessModels(Provider.CODEX, "cliproxyapi")),
+        () => gw.core.bots.run((s) => s.harnessModels(gw.userId, Provider.CODEX, "cliproxyapi")),
         (models) => models.some((m) => m.id === model),
       );
       gw.core.bots.start();

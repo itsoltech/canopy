@@ -122,7 +122,7 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
       allWorkers: true,
     });
     await eventually(
-      () => gw.core.bots.run((s) => s.harnessModels(Provider.CODEX, "connector-test")),
+      () => gw.core.bots.run((s) => s.harnessModels(gw.userId, Provider.CODEX, "connector-test")),
       (models) => models.some((m) => m.id === "gpt-6.1-sol"),
     );
     projectId = (await gw.api.createProject({ name: "Connectors" })).project!.id;
