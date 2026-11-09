@@ -6,6 +6,7 @@ import init from "./0001_init.sql" with { type: "text" };
 import historyReadIndexes from "./0100_history_read_indexes.sql" with { type: "text" };
 import composerTurnChoices from "./0101_composer_turn_choices.sql" with { type: "text" };
 import botComposer from "./0102_bot_composer.sql" with { type: "text" };
+import configFieldAncestry from "./0110_config_field_ancestry.sql" with { type: "text" };
 import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
@@ -232,6 +233,7 @@ export const migrations = Migrator.fromRecord({
   "0107_lifecycle_read_indexes": Effect.void,
   "0108_secret_delivery_batches": sqlFile(secretDeliveryBatches),
   "0109_secret_queue_indexes": Effect.void,
+  "0110_config_field_ancestry": sqlFile(configFieldAncestry),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

@@ -19,6 +19,7 @@ import { instanceIds } from "./aliases.ts";
 import { mapSettingsInstances, settingsValues } from "./settings.ts";
 import type { SettingsRow } from "./settings-apply.ts";
 import { recordWorkers } from "./worker-records.ts";
+import { editedField } from "./intent.ts";
 
 export class ConfigSync {
   readonly ahead = new Map<string, number>();
@@ -66,7 +67,8 @@ export class ConfigSync {
           if (row.deleted.value === true) break;
 
           if (row.fields[name]) continue;
-          row.fields[name] = { value, hlc, prev: "" };
+          const field = { value, hlc, prev: "" };
+          row.fields[name] = { ...field, edited: editedField(row, name, field) };
           changed = true;
         }
 

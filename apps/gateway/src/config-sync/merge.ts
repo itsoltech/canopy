@@ -7,6 +7,8 @@ import { clockParts, compareClock } from "./clock.ts";
 import { emptyRecord, equalValue, type ConfigRow, type Field } from "./persistence.ts";
 import { versionKey, type Cipher } from "./secrets.ts";
 import { DEVICE_SETTINGS_FIELDS } from "./settings.ts";
+import { editedField } from "./intent.ts";
+import { sawVersion } from "./ancestry.ts";
 
 export const jsonValue = Schema.decodeUnknownSync(Schema.MutableJson);
 
@@ -19,6 +21,8 @@ export function wireItem(row: ConfigRow, secrets: ReadonlyMap<string, string> = 
       valueJson: JSON.stringify(value.value),
       hlc: value.hlc,
       prev: value.prev,
+      edited: editedField(row, name, value),
+      seen: value.seen ?? [],
       ...(secret !== undefined && { secret }),
     });
   };
@@ -42,6 +46,9 @@ function readField(field: link.ConfigField): Field {
   clockParts(field.hlc);
   clockParts(field.prev);
 
+  if (field.seen.length > 1000 || field.seen.some((clock) => !clock || compareClock(clock, field.hlc) > 0))
+    throw new ConnectError("Invalid configuration ancestry", Code.InvalidArgument);
+
   if (compareClock(field.prev, field.hlc) > 0)
     throw new ConnectError("Invalid configuration ancestry", Code.InvalidArgument);
 
@@ -52,7 +59,13 @@ function readField(field: link.ConfigField): Field {
     throw new ConnectError("Unsupported configuration field", Code.InvalidArgument);
 
   try {
-    return { value: jsonValue(JSON.parse(field.valueJson)), hlc: field.hlc, prev: field.prev };
+    return {
+      value: jsonValue(JSON.parse(field.valueJson)),
+      hlc: field.hlc,
+      prev: field.prev,
+      seen: [...field.seen],
+      ...(field.edited !== undefined && { edited: field.edited }),
+    };
   } catch {
     throw new ConnectError("Invalid configuration value", Code.InvalidArgument);
   }
@@ -108,9 +121,10 @@ export function remember(
 ) {
   const ciphertext = cipher?.(name, value) ?? null;
 
-  return sql`INSERT INTO config_history(owner_user_id,kind,global_id,field,value,hlc,node_id,notice_node_id,reason,secret,ciphertext)
+  return sql`INSERT INTO config_history(owner_user_id,kind,global_id,field,value,hlc,node_id,notice_node_id,reason,secret,ciphertext,ancestry)
     VALUES(${owner}::uuid,${row.kind},${row.global_id},${name},${JSON.stringify(value.value)}::jsonb,${value.hlc},
-      ${clockParts(value.hlc).node},${noticeNode},${reason},${ciphertext !== null},${ciphertext}) ON CONFLICT DO NOTHING`;
+      ${clockParts(value.hlc).node},${noticeNode},${reason},${ciphertext !== null},${ciphertext},
+      ${JSON.stringify({ prev: value.prev, seen: value.seen ?? [] })}::jsonb) ON CONFLICT DO NOTHING`;
 }
 
 export function compactTombstone(
@@ -136,7 +150,7 @@ export function compactTombstone(
   });
 }
 
-/** LWW join; history and notices are local, durable and idempotent. */
+/** Explicit edits beat untouched defaults. Ambiguous provider/account edits wait for a user choice. */
 export function mergeRecord(
   sql: SqlClient.SqlClient,
   owner: string,
@@ -162,16 +176,33 @@ export function mergeRecord(
       }
 
       const old = name === "deleted" ? row.deleted : row.fields[name];
-      const order = old ? compareClock(next.hlc, old.hlc) : 1;
+      const intent = old ? Number(editedField(row, name, next)) - Number(editedField(row, name, old)) : 0;
+      const order = old ? intent || compareClock(next.hlc, old.hlc) : 1;
 
-      if (old && order === 0 && !equalValue(old.value, next.value))
+      if (old && compareClock(next.hlc, old.hlc) === 0 && !equalValue(old.value, next.value))
         return yield* Effect.fail(new ConnectError("Configuration clock reused for a different value", Code.DataLoss));
 
       if (old && old.hlc && next.hlc && !same(name, old, next)) {
-        if (order > 0 && compareClock(next.prev, old.hlc) < 0)
-          yield* remember(sql, owner, row, name, old, peer, next.prev ? "concurrent" : "merged", cipher);
-        else if (order < 0 && compareClock(old.prev, next.hlc) < 0)
-          yield* remember(sql, owner, row, name, next, peer, next.prev ? "concurrent" : "merged", cipher);
+        const concurrent = !sawVersion(next, old) && !sawVersion(old, next);
+
+        if (
+          intent === 0 &&
+          editedField(row, name, old) &&
+          concurrent &&
+          ["instance", "proxy", "settings"].includes(row.kind)
+        ) {
+          yield* remember(sql, owner, row, name, next, peer, "choice", cipher);
+          continue;
+        }
+
+        if (intent !== 0) {
+          if (intent < 0) continue;
+        } else {
+          if (order > 0 && compareClock(next.prev, old.hlc) < 0)
+            yield* remember(sql, owner, row, name, old, peer, next.prev ? "concurrent" : "merged", cipher);
+          else if (order < 0 && compareClock(old.prev, next.hlc) < 0)
+            yield* remember(sql, owner, row, name, next, peer, next.prev ? "concurrent" : "merged", cipher);
+        }
       }
 
       if (order > 0) {

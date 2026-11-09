@@ -82,7 +82,7 @@ describe.skipIf(!dockerAvailable)("configuration replay and version skew over li
     settings.fields["timezone"] = { value: "Europe/Zurich", hlc, prev: settings.fields["timezone"]!.hlc };
     const future = emptyRecord("future_kind", "future-record");
     future.identity = "future-identity";
-    future.fields["futureChoice"] = { value: { list: ["kept"] }, hlc, prev: "" };
+    future.fields["futureChoice"] = { value: { list: ["kept"] }, hlc, prev: "", edited: true, seen: [] };
     future.schema_version = 2;
     await publish(a, [settings, future]);
     // The trigger has actually interrupted receipt, rather than an idle connection hiding a partial write.

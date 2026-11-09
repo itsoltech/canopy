@@ -121,6 +121,7 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "107_lifecycle_read_indexes",
       "108_secret_delivery_batches",
       "109_secret_queue_indexes",
+      "110_config_field_ancestry",
     ]);
   }, 60_000);
 

@@ -50,6 +50,10 @@ Migracja `0073_config_sync` przenosi ustawienia konta z protokołu 0050 do `conf
 właściciela, `config_peer_cursors` zapisuje checkpoint razem z przyjętą partią i ma kaskadę
 do partnera. `config_history` zachowuje przegrane wartości oraz lokalny stan Restore/Dismiss
 przez 90 dni; `config_aliases` rezerwuje mapowanie tożsamości kolejnych rodzajów.
+Migracja `0110_config_field_ancestry` dodaje `config_history.ancestry` z poprzednikiem i wersjami
+autorów widzianymi przez alternatywę. Jawne rozstrzygnięcie konfliktu zachowuje te zależności także
+po restarcie i przekazaniu przez kolejny komputer. Intencja edycji i obserwacje bieżących pól
+pozostają w JSONB `config_items.fields`.
 `computer_peers.share_config` i `peer_share_config` przechowują obie zgody, a ich rewizje
 chronią przed opóźnionymi ramkami. Wyłączenie łącza zachowuje wspólne dane, historię i usunięcia.
 [Protokół wspólnej konfiguracji](linked-computers.md#konkretny-protokół-wspólna-konfiguracja).

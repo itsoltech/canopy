@@ -147,7 +147,18 @@ async function readEntry(
     return create(ProviderAccountEntrySchema, {
       provider,
       profileId: resolved.id,
-      account: resolved.runtime.shadowHomePath ? account : { ...account, configDir: "" },
+      account: {
+        ...account,
+        configDir: resolved.runtime.shadowHomePath ? account.configDir : "",
+        loginDir:
+          resolved.kind === "native"
+            ? accountText(
+                resolved.runtime.ownLogin ? configDir : resolved.runtime.homePath || ctx.state.deviceHomes[harness],
+                query.secrets,
+              )
+            : "",
+        loginExecutable: resolved.kind === "native" ? accountText(query.executable, query.secrets) : "",
+      },
     });
   } catch {
     return create(ProviderAccountEntrySchema, {

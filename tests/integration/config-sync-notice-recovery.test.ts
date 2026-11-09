@@ -29,21 +29,23 @@ describe.skipIf(!dockerAvailable)("stale configuration notices reconcile with cu
     await a.sharing(b.node, true);
     await wait(
       async () =>
-        (await instanceOf(a, Provider.CLAUDE, "native"))?.label ===
-        (await instanceOf(b, Provider.CLAUDE, "native"))?.label,
+        (await a.links.snapshot()).configNotices.length === 1 && (await b.links.snapshot()).configNotices.length === 1,
     );
 
     for (const computer of [a, b]) {
       const notices = (await computer.links.snapshot()).configNotices;
       expect(notices).toHaveLength(1);
-      expect(notices[0]).toMatchObject({ kind: "instance", field: "label", reason: "concurrent" });
+      expect(notices[0]).toMatchObject({ kind: "instance", field: "label", reason: "choice" });
     }
 
     const old = JSON.parse((await a.links.snapshot()).configNotices[0]!.value);
     await editInstance(a, Provider.CLAUDE, "native", { label: old });
     await wait(async () => (await instanceOf(b, Provider.CLAUDE, "native"))?.label === old);
 
-    for (const computer of [a, b]) expect((await computer.links.snapshot()).configNotices).toEqual([]);
+    await wait(
+      async () =>
+        (await a.links.snapshot()).configNotices.length === 0 && (await b.links.snapshot()).configNotices.length === 0,
+    );
   }, 40_000);
 
   test("equal notices left by older releases clear automatically and remain handled after restart", async () => {

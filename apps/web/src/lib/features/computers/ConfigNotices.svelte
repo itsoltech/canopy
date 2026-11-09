@@ -20,7 +20,7 @@
     match: (notice: ui.ConfigNotice) => boolean;
     title?: string;
     named?: boolean;
-    /** After Restore: the item changed here too. */
+    /** Refresh the item after restoring a value or resolving a choice. */
     onchange?: () => void;
     class?: ClassValue;
   } = $props();
@@ -50,7 +50,7 @@
 
       notices = response.configNotices;
 
-      if (action === "restore") onchange?.();
+      onchange?.();
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Could not update this notice. Try again.";
     } finally {

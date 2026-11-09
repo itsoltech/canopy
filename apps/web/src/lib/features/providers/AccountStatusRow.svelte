@@ -11,6 +11,7 @@
   import { onMount } from "svelte";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
   import { Provider } from "@canopy/contracts";
+  import { providerLoginCommand } from "@canopy/domain/provider-accounts";
   import Sensitive from "#lib/shared/ui/Sensitive.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
@@ -25,6 +26,7 @@
     harness,
     id,
     online,
+    os,
     onupdated,
   }: {
     account?: ProviderAccountStatus;
@@ -32,6 +34,7 @@
     harness: Provider;
     id: string;
     online: boolean;
+    os: string;
     onupdated?: () => Promise<void>;
   } = $props();
 
@@ -62,7 +65,13 @@
   const sep = "before:mr-1.5 before:text-zinc-400 before:content-['·'_/_''] dark:before:text-zinc-500";
 
   const login = $derived(
-    harness === Provider.CLAUDE ? "claude auth login" : harness === Provider.CODEX ? "codex login" : "grok login",
+    account
+      ? providerLoginCommand(
+          harness === Provider.CLAUDE ? "claude" : harness === Provider.CODEX ? "codex" : "grok",
+          account,
+          os,
+        )
+      : "",
   );
 
   onMount(() => {
@@ -141,11 +150,19 @@
       {#if signIn}
         <Popover bind:open={help} label="Sign in" placement="bottom-start" class="w-[min(20rem,calc(100vw-1rem))] p-3">
           {#snippet trigger(props)}<Button {...props} variant="ghost" size="sm">Sign in</Button>{/snippet}
-          <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">Run this on the worker, then refresh.</p>
-          <div class="mt-1 flex min-w-0 items-center gap-1 rounded-md bg-zinc-950/5 py-0.5 pr-0.5 pl-2 dark:bg-white/5">
-            <code class="min-w-0 flex-1 truncate font-mono text-sm/6 text-zinc-950 dark:text-white">{login}</code>
-            <CopyButton text={login} label="Copy command" />
-          </div>
+          <p class="text-sm/6 text-zinc-600 dark:text-zinc-400">
+            {login
+              ? `Run this on the worker${os === "win32" ? " in PowerShell" : ""}, then refresh.`
+              : "Refresh account status to get this instance’s sign-in command. Update the worker if it stays unavailable."}
+          </p>
+          {#if login}
+            <div
+              class="mt-1 flex min-w-0 items-center gap-1 rounded-md bg-zinc-950/5 py-0.5 pr-0.5 pl-2 dark:bg-white/5"
+            >
+              <code class="min-w-0 flex-1 truncate font-mono text-sm/6 text-zinc-950 dark:text-white">{login}</code>
+              <CopyButton text={login} label="Copy command" />
+            </div>
+          {/if}
         </Popover>
       {/if}
     </div>

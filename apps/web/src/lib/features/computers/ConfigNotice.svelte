@@ -30,15 +30,18 @@
 
   const item = $derived(notice.kind !== "settings");
   const removed = $derived(item && notice.reason === "deleted" && notice.field === "deleted");
+  const choice = $derived(notice.reason === "choice");
 
   const message = $derived(
-    removed
-      ? `Deleted on ${notice.nodeName} at ${time}.`
-      : notice.reason === "merged"
-        ? `Merged with ${notice.nodeName}.`
-        : notice.reason === "resurrected"
-          ? `${notice.nodeName} changed it after it was deleted here.`
-          : `${notice.nodeName} also changed this at ${time}.`,
+    choice
+      ? `${notice.nodeName} has a different value. Choose which to keep.`
+      : removed
+        ? `Deleted on ${notice.nodeName} at ${time}.`
+        : notice.reason === "merged"
+          ? `Merged with ${notice.nodeName}.`
+          : notice.reason === "resurrected"
+            ? `${notice.nodeName} changed it after it was deleted here.`
+            : `${notice.nodeName} also changed this at ${time}.`,
   );
 
   const title = $derived(
@@ -62,10 +65,12 @@
     <p class="text-sm/5 text-pretty break-words text-zinc-500 dark:text-zinc-400">{message}</p>
     {#if value}<p class="mt-1 line-clamp-3 text-sm/5 break-words text-zinc-600 dark:text-zinc-300">{value}</p>{/if}
   </div>
-  <div class="flex shrink-0 gap-2">
+  <div class="flex max-w-full shrink-0 flex-wrap gap-2">
     <Button size="sm" disabled={busy} onclick={() => onaction(notice.id, "restore")}
-      >{notice.reason === "resurrected" ? "Delete" : "Restore"}</Button
+      >{choice ? "Use the other’s" : notice.reason === "resurrected" ? "Delete" : "Restore"}</Button
     >
-    <Button size="sm" variant="ghost" disabled={busy} onclick={() => onaction(notice.id, "dismiss")}>Dismiss</Button>
+    <Button size="sm" variant="ghost" disabled={busy} onclick={() => onaction(notice.id, "dismiss")}
+      >{choice ? "Keep this computer’s" : "Dismiss"}</Button
+    >
   </div>
 </div>

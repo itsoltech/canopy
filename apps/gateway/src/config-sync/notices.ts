@@ -5,8 +5,9 @@ import { Effect, Predicate } from "effect";
 import { SqlClient } from "effect/sql";
 import type { ConfigSync } from "./engine.ts";
 import { applySettings } from "./settings-apply.ts";
-import { nextClock } from "./clock.ts";
+import { compareClock, nextClock } from "./clock.ts";
 import { configLock, saveRecord, type ConfigRow, type Field } from "./persistence.ts";
+import { fieldAncestry, sawVersion, type Ancestry } from "./ancestry.ts";
 import { compactTombstone } from "./merge.ts";
 import { applyInstance, applyProxy } from "./provider-apply.ts";
 import { PROVIDER_KINDS, secretField } from "./provider-values.ts";
@@ -30,6 +31,7 @@ type HistoryRow = Field & {
   secret: boolean;
   ciphertext: Uint8Array | null;
   reason: string;
+  ancestry: Ancestry;
 };
 
 type NoticeRow = HistoryRow & {
@@ -54,7 +56,11 @@ async function unresolved(sync: ConfigSync, rows: readonly NoticeRow[]) {
 
         if (row.ciphertext) ciphers.set(`${row.field}\x1f${row.hlc}`, row.ciphertext);
 
-        if (current && row.reason !== "resurrected" && same(row.kind, row.field, row, current, cipherOf(ciphers))) {
+        if (
+          current &&
+          ((row.reason === "choice" && sawVersion(current, row)) ||
+            (row.reason !== "resurrected" && same(row.kind, row.field, row, current, cipherOf(ciphers))))
+        ) {
           yield* sql`UPDATE config_history SET state='dismissed' WHERE owner_user_id=${sync.store.owner}::uuid AND id=${row.id}::uuid AND state='open'`;
         } else result.push(row);
       }
@@ -133,8 +139,16 @@ function restore(sync: ConfigSync, row: ConfigRow, history: readonly HistoryRow[
       if (h.secret && !h.ciphertext)
         return yield* Effect.fail(new ConnectError("Not supported on this computer", Code.FailedPrecondition));
       clock = nextClock(clock, self());
-      const previous = h.field === "deleted" ? row.deleted : row.fields[h.field];
-      const next = { value: h.value, hlc: clock, prev: previous?.hlc ?? "" };
+      const ancestry = yield* fieldAncestry(sql, store.owner, row, h.field, [{ ...h.ancestry, hlc: h.hlc }]);
+      const seen = ancestry.prev;
+
+      const next = {
+        value: h.value,
+        hlc: clock,
+        prev: compareClock(h.hlc, seen) > 0 ? h.hlc : seen,
+        seen: ancestry.seen,
+        edited: true,
+      };
 
       if (h.field === "deleted") row.deleted = next;
       else row.fields[h.field] = next;
@@ -197,7 +211,7 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
 
           let result: { cli: boolean; workers: string[]; environment: boolean } | undefined;
 
-          if (action === "restore") {
+          if (action === "restore" || first.reason === "choice") {
             const row = (yield* sql<ConfigRow>`SELECT * FROM config_items WHERE owner_user_id=${store.owner}::uuid
           AND kind=${first.kind} AND global_id=${first.global_id}`)[0];
 
@@ -208,7 +222,25 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
               )
             )
               return yield* Effect.fail(new ConnectError("Not supported on this computer", Code.FailedPrecondition));
-            result = yield* restore(sync, row, history, clock.hlc);
+            const ciphers = cipherOf(yield* recordCiphers(sql, store.owner, row.kind, row.global_id));
+
+            const chosen =
+              action === "restore"
+                ? history
+                : history.map((h) => {
+                    const current = h.field === "deleted" ? row.deleted : row.fields[h.field];
+
+                    const ciphertext = current ? (ciphers(h.field, current) ?? null) : null;
+
+                    return {
+                      ...h,
+                      value: current?.value ?? null,
+                      ciphertext,
+                      secret: ciphertext !== null,
+                    };
+                  });
+
+            result = yield* restore(sync, row, chosen, clock.hlc);
           }
 
           yield* sql`UPDATE config_history SET state=${action === "restore" ? "restored" : "dismissed"}
@@ -220,7 +252,7 @@ export async function manageConfigNotice(sync: ConfigSync, id: string, action: s
     }),
   );
 
-  if (outcome.kind === "settings" && action === "restore") await host.settingsChanged?.(outcome.cli ?? false);
+  if (outcome.kind === "settings" && outcome.cli !== undefined) await host.settingsChanged?.(outcome.cli);
 
   if (outcome.workers) await host.providersChanged?.(outcome.workers);
 
