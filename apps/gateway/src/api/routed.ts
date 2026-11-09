@@ -27,7 +27,7 @@ import { refuseRemoteWorktree, refuseRemoteBranchSwitch } from "../worktrees/rem
 import { validateUserSettings } from "../core/settings-validation.ts";
 import { coreCheckThreadDefaults, coreCliDefaultsChanged } from "../core/core-settings.ts";
 import { coreConfigsChanged } from "../core/core-providers.ts";
-import { coreModels, corePublishModels } from "../core/core-models.ts";
+import { coreModelCatalogs, corePublishModels } from "../core/core-models.ts";
 import { receivedWorkerSetting, receiveWorkerSetting, sendWorkerSetting, settled } from "./routed-workers.ts";
 import { splitOverrides } from "./routed-workers-split.ts";
 import { auditHomeAction, receiveHomeAction } from "./routed-execution.ts";
@@ -284,7 +284,7 @@ export function sharedHost(core: GatewayCore, _local: UiHandlers): SharedHost {
     },
     providersChanged: async (workerIds) => {
       await coreConfigsChanged(core, workerIds);
-      await corePublishModels(core, await coreModels(core, (s) => s.catalogs([])));
+      await corePublishModels(core, await coreModelCatalogs(core));
     },
     validateProjectSettings: (defaults) => coreCheckThreadDefaults(core, defaults),
     environmentChanged: async () => {

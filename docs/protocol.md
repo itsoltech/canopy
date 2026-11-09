@@ -224,6 +224,11 @@ Modele czatu zgodne z harnessem pozostają także bez danych o wysiłku (puste `
 Nieczytane, bo zależą od folderu wątku, a katalog jest per worker: projektowy `.codex/config.toml`, ustawienia projektu i lokalne Claude (`.claude/settings*.json`), a także warstwy systemowe i zarządzane (`/etc/codex`, managed settings Claude, `maxEffortLevel`). Nieczytelny plik = brak ustawienia. Profil workera (native albo CLIProxyAPI) nie zmienia tego wyboru: ustawienie harnessu dotyczy wszystkich jego profili.
 
 Gateway zapisuje ostatni katalog workera (`worker_model_catalogs`) i odświeża go komendą `ListModels`.
+Odczyt katalogów wymaga właściciela z kontekstu gatewaya i obejmuje tylko jego
+niezarchiwizowane workery oraz workery współdzielone (bez właściciela). Dotyczy to
+także powiadomień o zmianach modeli instancji i konfiguracji dostawców. W magazynie
+pominięcie listy workerów oznacza wszystkie dostępne temu właścicielowi; jawna
+pusta lista zwraca zero katalogów.
 
 **Modele instancji.** Użytkownik wybiera modele instancji widoczne w pickerach, ulubione (pierwsze, w swojej kolejności) i własne id modeli; gateway oznacza pozostałe jako `hidden` w `ListModels` i `OverviewUpdate.models`, dokłada własne modele i układa ulubione na początku; pełny katalog daje `ListModelsRequest.unfiltered`, a walidacja używa pełnego katalogu z własnymi modelami ([worker-config.md](worker-config.md#93-modele-w-pickerach)).
 

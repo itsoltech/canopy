@@ -4,7 +4,7 @@ import { provisionalTitle, sanitizeTitle, titleContext, titleModel, titlePrompt 
 import { providerOf } from "../store/instance-config.ts";
 import { coreState, InvalidError, UnavailableError } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
-import { coreForPickers, coreModels } from "./core-models.ts";
+import { coreForPickers, coreModelCatalogs } from "./core-models.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreBroadcastThread, coreLog, coreRun } from "./core-broadcast.ts";
 import { coreGoals } from "./core-goals.ts";
@@ -86,7 +86,7 @@ export async function coreGenerateText(
   const connection = worker && hostContext.link.connections.get(worker.id);
 
   if (!connection) throw new UnavailableError("no worker for text generation");
-  const catalog = (await coreForPickers(hostContext, await coreModels(hostContext, (s) => s.catalogs([worker.id]))))[0];
+  const catalog = (await coreForPickers(hostContext, await coreModelCatalogs(hostContext, [worker.id])))[0];
   const listed = catalog?.profiles.find((p) => p.provider === provider && p.profileId === profileId);
 
   const choice = explicit
