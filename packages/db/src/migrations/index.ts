@@ -106,6 +106,8 @@ import databaseRetention from "./0104_database_retention.sql" with { type: "text
 import retentionIndexes from "./0105_retention_indexes.sql" with { type: "text" };
 import pollingIndexes from "./0106_polling_indexes.sql" with { type: "text" };
 import lifecycleReadIndexes from "./0107_lifecycle_read_indexes.sql" with { type: "text" };
+import secretDeliveryBatches from "./0108_secret_delivery_batches.sql" with { type: "text" };
+import secretQueueIndexes from "./0109_secret_queue_indexes.sql" with { type: "text" };
 import { indexTasks, runIndexTasks } from "./index-tasks.ts";
 
 /**
@@ -228,13 +230,23 @@ export const migrations = Migrator.fromRecord({
   "0105_retention_indexes": Effect.void,
   "0106_polling_indexes": Effect.void,
   "0107_lifecycle_read_indexes": Effect.void,
+  "0108_secret_delivery_batches": sqlFile(secretDeliveryBatches),
+  "0109_secret_queue_indexes": Effect.void,
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
 const migrateSchema = Migrator.make({})({ loader: migrations, table: "schema_migrations" });
 
 const deferredIndexes = indexTasks(
-  queueReadIndexes + "\n" + retentionIndexes + "\n" + pollingIndexes + "\n" + lifecycleReadIndexes,
+  queueReadIndexes +
+    "\n" +
+    retentionIndexes +
+    "\n" +
+    pollingIndexes +
+    "\n" +
+    lifecycleReadIndexes +
+    "\n" +
+    secretQueueIndexes,
 ).filter((task) => task.name !== "worker_commands_redelivery");
 
 const migrateWithIndexes = (concurrent: boolean) =>

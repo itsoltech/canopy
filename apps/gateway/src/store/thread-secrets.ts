@@ -6,7 +6,8 @@ import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
 import type { CallSource } from "./agent-bus.ts";
 import { Invalid, NotFound } from "./store.ts";
-import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
+import { encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
+import { secretDeliveries } from "./secret-deliveries.ts";
 
 type Fx<A> = Effect.Effect<A, SqlError.SqlError | Invalid | NotFound>;
 
@@ -34,7 +35,7 @@ export interface ThreadSecretsStore {
   secretResult(threadId: string, requestId: string): Fx<JsonValue>;
   answerSecret(ownerId: string, requestId: string, value: string, decline: boolean, ttlMs: number): Fx<ThreadSecretRow>;
   revokeSecret(ownerId: string, requestId: string): Fx<ThreadSecretRow>;
-  expireSecrets(): Fx<readonly ThreadSecretRow[]>;
+  expireSecrets(ownerId: string): Fx<readonly ThreadSecretRow[]>;
   secretDeliveries(workerId: string, reset?: boolean): Fx<ThreadSecretDelivery[]>;
   secretReceipt(workerId: string, receipt: ThreadSecretReceipt): Fx<void>;
 }
@@ -120,9 +121,14 @@ export function threadSecretsStore(sql: SqlClient.SqlClient, key: Buffer): Threa
     secretResult: (threadId, id) =>
       Effect.gen(function* () {
         const rows = yield* sql<
-          Pick<ThreadSecretRow, "id" | "status" | "name" | "expires_at" | "revision" | "applied_revision" | "file_path">
-        >`SELECT id,status,name,expires_at,revision,applied_revision,file_path
-          FROM thread_secrets WHERE id = ${id}::uuid AND thread_id = ${threadId}::uuid`;
+          Pick<
+            ThreadSecretRow,
+            "id" | "status" | "name" | "expires_at" | "revision" | "applied_revision" | "file_path"
+          > & { replay_pending: boolean }
+        >`SELECT id,status,name,expires_at,revision,applied_revision,file_path,
+          EXISTS(SELECT 1 FROM threads t JOIN worker_secret_replays r ON r.worker_id=t.worker_id
+            WHERE t.id=s.thread_id AND (r.last_id IS NULL OR s.id>r.last_id)) AS replay_pending
+          FROM thread_secrets s WHERE id = ${id}::uuid AND thread_id = ${threadId}::uuid`;
 
         const row = rows[0];
 
@@ -133,7 +139,7 @@ export function threadSecretsStore(sql: SqlClient.SqlClient, key: Buffer): Threa
 
         if (!row.expires_at || new Date(row.expires_at).getTime() <= Date.now()) return { ...base, status: "expired" };
 
-        if (row.applied_revision !== row.revision || !row.file_path)
+        if (row.replay_pending || row.applied_revision !== row.revision || !row.file_path)
           return { ...base, status: "pending", delivery: "waiting_for_worker" };
 
         return {
@@ -190,34 +196,14 @@ export function threadSecretsStore(sql: SqlClient.SqlClient, key: Buffer): Threa
           return rows[0]!;
         }),
       ),
-    expireSecrets: () => sql<ThreadSecretRow>`UPDATE thread_secrets s SET status = 'expired', ciphertext = NULL,
-      key_id = NULL, file_path = NULL, revision = revision + 1 FROM threads t WHERE t.id = s.thread_id AND
-      ((s.status = 'saved' AND s.expires_at <= now()) OR (s.status IN ('saved', 'pending') AND (t.deleted_at IS NOT NULL OR t.archived_at IS NOT NULL))) RETURNING s.*`,
-    secretDeliveries: (workerId, reset = false) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          if (reset)
-            yield* sql`UPDATE thread_secrets s SET applied_revision = 0 FROM threads t WHERE t.id = s.thread_id AND t.worker_id = ${workerId}::uuid AND s.revision > 0`;
-
-          const rows =
-            yield* sql<ThreadSecretRow>`SELECT s.*, t.cwd AS worker_cwd FROM thread_secrets s JOIN threads t ON t.id = s.thread_id
-        WHERE t.worker_id = ${workerId}::uuid AND s.revision > s.applied_revision ORDER BY s.created_at`;
-
-          return rows.map((r) => ({
-            $typeName: "canopy.worker.v1.ThreadSecretDelivery" as const,
-            requestId: r.id,
-            threadId: r.thread_id,
-            revision: r.revision,
-            cwd: r.worker_cwd ?? "",
-            value:
-              r.status === "saved" && r.ciphertext && r.expires_at && new Date(r.expires_at).getTime() > Date.now()
-                ? decryptSecret(key, r.ciphertext)
-                : "",
-            ...(r.expires_at && { expiresAt: timestampFromDate(new Date(r.expires_at)) }),
-            remove: r.status !== "saved" || !r.expires_at || new Date(r.expires_at).getTime() <= Date.now(),
-          }));
-        }),
-      ),
+    expireSecrets: (ownerId) => sql<ThreadSecretRow>`UPDATE thread_secrets SET status = 'expired', ciphertext = NULL,
+      key_id = NULL, file_path = NULL, revision = revision + 1 WHERE id IN (
+        SELECT s.id FROM thread_secrets s JOIN threads t ON t.id=s.thread_id
+        WHERE t.owner_user_id=${ownerId}::uuid AND
+        ((s.status = 'saved' AND s.expires_at <= now()) OR (s.status IN ('saved', 'pending')
+          AND (t.deleted_at IS NOT NULL OR t.archived_at IS NOT NULL)))
+        ORDER BY s.id LIMIT 256 FOR UPDATE OF s SKIP LOCKED) RETURNING *`,
+    secretDeliveries: (workerId, reset = false) => secretDeliveries(sql, key, workerId, reset),
     secretReceipt: (workerId, receipt) =>
       Effect.gen(function* () {
         if (!receipt.applied || receipt.file.length > 4096) return;

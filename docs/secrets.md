@@ -67,14 +67,25 @@ Ponowiony zapis nie nadpisuje zaakceptowanego sekretu. Gateway sprawdza właści
 wątku; agent nie może odnowić requestu innego wątku. Rozmiar wartości to 1–32768
 bajtów UTF-8, bez NUL. Nazwa jest wyłącznie podpowiedzią zgodną z nazwą env.
 
-Gateway co sekundę usuwa wygasłe szyfrogramy, także przy archiwizacji lub usunięciu
-wątku. Lokalny timer workera egzekwuje expiry również po utracie połączenia.
+Gateway co sekundę usuwa wygasłe szyfrogramy właściciela w partiach do 256,
+także przy archiwizacji lub usunięciu wątku. Duża zaległość wymaga kilku przebiegów;
+odczyt wyniku już po TTL zwraca `expired`. Lokalny timer workera egzekwuje expiry
+również po utracie połączenia.
 Jeżeli sam proces workera nie działa, sprzątanie plików następuje przy jego
 ponownym uruchomieniu; nie ma osobnego demona usuwającego je w czasie awarii.
 Revoke zeruje szyfrogram od razu i wysyła usunięcie; odłączony worker wykona je po
 ponownym połączeniu albo wcześniej po TTL. Rewizje i potwierdzenia chronią przed
 ponownym zastosowaniem starego przydziału po revoke. Restart gateway odczytuje stan
 z bazy; restart workera usuwa pozostałe materializacje przed synchronizacją.
+Odczyt dostaw rezerwuje do 64 rekordów przez `FOR UPDATE SKIP LOCKED`.
+Trwały kursor `worker_secret_delivery_cursors` przesuwa niepotwierdzone dostawy za następne,
+aby brak potwierdzenia jednego pliku nie blokował późniejszych grantów.
+Partia zapisuje jeden kursor zamiast aktualizować każdy grant. Po dojściu do końca
+identyfikatorów kolejka zawija; blokady pominięte przez SKIP LOCKED są ponawiane później.
+Reset po ponownym połączeniu zeruje potwierdzenia w partiach do 256;
+`worker_secret_replays` przechowuje kursor także po restarcie gatewaya.
+Do zakończenia resetu wynik nie uznaje starej ścieżki pliku za potwierdzoną.
+Potwierdzenia nadal wymagają zgodności workera, wątku, requestu i rewizji.
 Zaszyfrowane kopie w backupach/WAL podlegają polityce retencji bazy; zwykłe DELETE
 lub UPDATE nie jest kryptograficznym wymazaniem historycznych backupów.
 
@@ -131,6 +142,8 @@ czyści globalnego schowka. Pole czyści się przed fetch oraz po unmount.
   wątku, expiry offline oraz nowe instancje gateway i workera. SQL przeszukuje
   turns, steers, items, events, agent_bus_calls, worker_commands, interactions
   i audit_log w poszukiwaniu plaintextu.
+- `secret-queue-batches.test.ts`: wznowienie resetu 600 grantów po restarcie,
+  brak zagłodzenia bez potwierdzeń oraz ograniczone wygaszanie tylko własnych grantów.
 - `thread-secrets.live.test.ts`: Codex i Claude przez `useLiveProxy`/CLIProxyAPI,
   każdy w `ASK` oraz `FULL_AUTO`; API odpowiada na prośbę, agent porównuje SHA-256
   pliku. Wartość nie występuje w zapisach bazy, wynikach, logach workera ani jego

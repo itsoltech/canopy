@@ -67,6 +67,20 @@ latency. Nie zastępuje testów konkurencji ani audytu zimnych gałęzi kodu.
 
 ## Inwentaryzacja SQL
 
+`bun scripts/bench/secrets.ts --run` mierzy kolejkę 1024 syntetycznych grantów:
+polling, pierwszy reset po połączeniu i pierwszą partię wygaszania.
+Stan wejściowy jest przywracany poza pomiarem; diagnostyka wykonuje osobne plany
+`EXPLAIN (ANALYZE, BUFFERS)` z rollbackiem. Dostawy są ograniczone do 64,
+reset i wygaszanie do 256 zapisów. Jeden trwały zapis kursora kolejności ponowień ogranicza
+koszt pojedynczego przebiegu i zachowuje sprawiedliwość po restarcie;
+sam limit nie oznacza niższego p95 ani szybszego opróżnienia całej kolejki.
+Trzy serie porównują naprzemiennie każdą próbkę dawnej i bieżącej ścieżki na tej samej bazie.
+Każda seria ma dwa rozgrzania i 20 próbek; stan ACK, TTL i kursory są przywracane
+poza pomiarem. Dawna ścieżka służy wyłącznie jako punkt odniesienia benchmarku.
+Domyślnie polling ma stabilną kolejkę, a reset i expiry usuwają martwe wpisy fixture
+przez VACUUM poza pomiarem. `--churn` przywraca wszystkie granty przed każdą próbką
+bez VACUUM; pozwala oddzielnie zobaczyć koszt narastania martwych wpisów indeksu.
+
 `bun scripts/bench/audit.ts` wypisuje miejsca instrukcji i fragmentów SQL w
 `apps/gateway/src` i `packages/db/src`, także migracje. Podaje operację, relacje
 i kandydatów do przeglądu: szeroką projekcję, brak LIMIT, blokady, duże agregacje,
