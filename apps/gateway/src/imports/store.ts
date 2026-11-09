@@ -171,23 +171,47 @@ export const createRun = (
     }),
   );
 
-const RUN_COLUMNS = `
-  r.*, w.name AS worker_name,
-  (SELECT count(*)::int FROM import_items i WHERE i.run_id = r.id) AS total,
-  (SELECT count(*)::int FROM import_items i WHERE i.run_id = r.id AND i.status = 'done') AS done,
-  (SELECT count(*)::int FROM import_items i WHERE i.run_id = r.id AND i.status = 'failed') AS failed,
-  (SELECT count(*)::int FROM import_items i WHERE i.run_id = r.id AND i.status = 'cancelled') AS cancelled,
-  (SELECT coalesce(sum(i.bytes_total), 0)::text FROM import_items i WHERE i.run_id = r.id AND i.status <> 'cancelled') AS bytes_total,
-  (SELECT coalesce(sum(CASE WHEN i.status = 'done' THEN i.bytes_total ELSE i.bytes_done END), 0)::text
-     FROM import_items i WHERE i.run_id = r.id) AS bytes_done,
-  (SELECT i.title FROM import_items i WHERE i.run_id = r.id AND i.status = 'importing' ORDER BY i.position LIMIT 1) AS current,
-  (SELECT count(*)::int FROM import_library_items l WHERE l.run_id = r.id AND l.status = 'done') AS library_done,
-  (SELECT count(*)::int FROM import_library_items l WHERE l.run_id = r.id AND l.status = 'failed') AS library_failed`;
-
 export const runs = (sql: SqlClient.SqlClient, ownerId: string, runId?: string) =>
-  sql<RunRow>`SELECT ${sql.literal(RUN_COLUMNS)} FROM import_runs r JOIN workers w ON w.id = r.worker_id
-               WHERE r.owner_user_id = ${ownerId}::uuid AND (${runId ?? null}::uuid IS NULL OR r.id = ${runId ?? null}::uuid)
-               ORDER BY r.created_at DESC LIMIT 50`;
+  sql<RunRow>`WITH selected AS MATERIALIZED (
+    SELECT r.*, w.name AS worker_name FROM import_runs r JOIN workers w ON w.id = r.worker_id
+    WHERE r.owner_user_id = ${ownerId}::uuid AND (${runId ?? null}::uuid IS NULL OR r.id = ${runId ?? null}::uuid)
+    ORDER BY r.created_at DESC LIMIT 50
+  )
+  SELECT r.*, i.*, l.*,
+    (SELECT title FROM import_items WHERE run_id = r.id AND status = 'importing' ORDER BY position LIMIT 1) AS current
+  FROM selected r CROSS JOIN LATERAL (
+    SELECT count(*)::int AS total,
+      count(*) FILTER (WHERE status = 'done')::int AS done,
+      count(*) FILTER (WHERE status = 'failed')::int AS failed,
+      count(*) FILTER (WHERE status = 'cancelled')::int AS cancelled,
+      coalesce(sum(bytes_total) FILTER (WHERE status <> 'cancelled'), 0)::text AS bytes_total,
+      coalesce(sum(CASE WHEN status = 'done' THEN bytes_total ELSE bytes_done END), 0)::text AS bytes_done
+    FROM import_items WHERE run_id = r.id
+  ) i CROSS JOIN LATERAL (
+    SELECT count(*) FILTER (WHERE status = 'done')::int AS library_done,
+      count(*) FILTER (WHERE status = 'failed')::int AS library_failed
+    FROM import_library_items WHERE run_id = r.id
+  ) l ORDER BY r.created_at DESC`;
+
+export type UiItemRow = Pick<
+  ItemRow,
+  | "id"
+  | "agent_cli"
+  | "title"
+  | "status"
+  | "thread_id"
+  | "error"
+  | "turns"
+  | "bytes_total"
+  | "bytes_done"
+  | "warnings"
+  | "cwd"
+> & { readonly target: Pick<ImportTargetJson, "mode"> };
+
+/** UI polling never decodes snapshots, append bases or resumable source cursors. */
+export const itemSummaries = (sql: SqlClient.SqlClient, runId: string) =>
+  sql<UiItemRow>`SELECT id, agent_cli, title, status, thread_id, error, turns, bytes_total, bytes_done, warnings, cwd,
+    jsonb_build_object('mode', target->'mode') AS target FROM import_items WHERE run_id = ${runId}::uuid ORDER BY position`;
 
 export const items = (sql: SqlClient.SqlClient, runId: string) =>
   sql<ItemRow>`SELECT * FROM import_items WHERE run_id = ${runId}::uuid ORDER BY position`;
@@ -225,7 +249,11 @@ export const knownSources = (sql: SqlClient.SqlClient, ownerId: string, workerId
      WHERE i.owner_user_id = ${ownerId}::uuid AND i.worker_id = ${workerId}::uuid
        AND i.status IN ('pending', 'importing', 'done', 'failed') AND (t.id IS NULL OR t.deleted_at IS NULL)`;
 
-export function toUiRun(row: RunRow, rows: readonly ItemRow[] = [], library: readonly LibraryRow[] = []): ui.ImportRun {
+export function toUiRun(
+  row: RunRow,
+  rows: readonly UiItemRow[] = [],
+  library: readonly LibraryRow[] = [],
+): ui.ImportRun {
   return create(ui.ImportRunSchema, {
     id: row.id,
     workerId: row.worker_id,

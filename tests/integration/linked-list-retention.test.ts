@@ -66,6 +66,20 @@ describe.skipIf(!dockerAvailable)("merged lists keep a linked computer's committ
     return { overview, threads: threads.threads };
   }
 
+  async function settledLists(away: boolean) {
+    // Transport readiness changes before the corresponding presence write commits.
+    const matches = ({ overview }: Awaited<ReturnType<typeof lists>>) =>
+      f.la.reachable().includes(f.node) === !away &&
+      overview.computers.some(
+        (computer) => computer.nodeId === f.node && Boolean(awayReason(computer, formatPresenceTime)) === away,
+      );
+
+    const snapshot = await eventually(lists, matches, 10_000);
+    expect(matches(snapshot)).toBe(true);
+
+    return snapshot;
+  }
+
   test("web and mobile snapshots retain workers, projects and readable threads across repeated blackholes", async () => {
     const initial = await lists();
     // Aggregate refreshes can omit a home before connection liveness notices the stall.
@@ -102,8 +116,7 @@ describe.skipIf(!dockerAvailable)("merged lists keep a linked computer's committ
           cold.abort();
         }
 
-        expect(await eventually(async () => !f.la.reachable().includes(f.node), Boolean, 10_000)).toBe(true);
-        const { overview, threads } = await lists();
+        const { overview, threads } = await settledLists(true);
         expect((await f.a.api.listBots({})).bots.map((bot) => bot.id)).toContain(remoteBotId);
 
         const agentList = await f.a.worker.callTool({
@@ -164,8 +177,7 @@ describe.skipIf(!dockerAvailable)("merged lists keep a linked computer's committ
         await f.la.announce("connected");
       }
 
-      expect(await eventually(async () => f.la.reachable().includes(f.node), Boolean, 5000)).toBe(true);
-      const { overview } = await lists();
+      const { overview } = await settledLists(false);
       expect(
         awayReason(
           overview.computers.find((computer) => computer.nodeId === f.node),

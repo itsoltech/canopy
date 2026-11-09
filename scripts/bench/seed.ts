@@ -12,7 +12,7 @@ export interface Dataset {
   readonly turns: number;
   readonly textBytes: number;
   readonly longTurns: number;
-  readonly agentTail: number;
+  readonly agentTail?: number;
 }
 
 export const seed = (size: Dataset) =>
@@ -46,7 +46,7 @@ export const seed = (size: Dataset) =>
     for (let n = 1; n <= size.threads; n++) {
       const thread = n === 1 ? ids.thread : undefined;
       const turns = n === 1 ? size.longTurns : size.turns;
-      const userThrough = Math.max(1, turns - size.agentTail);
+      const userThrough = Math.max(1, turns - (size.agentTail ?? 0));
       yield* sql`INSERT INTO turns(id,thread_id,ordinal,status,trigger,author_user_id,input,first_seq,last_seq,
         queued_at,started_at,completed_at)
       SELECT md5('turn-'||${n}||'-'||i)::uuid,coalesce(${thread ?? null}::uuid,md5('thread-'||${n})::uuid),

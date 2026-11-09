@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { BenchRuntime } from "./runtime.ts";
 import type { QuerySample } from "./trace.ts";
+import { createHash } from "node:crypto";
 
 interface Plan {
   readonly "Node Type": string;
@@ -41,7 +42,11 @@ export async function explain(runtime: BenchRuntime, samples: readonly QuerySamp
   const plans: object[] = [];
 
   for (const sample of samples) {
-    if (!/^\s*(?:--[^\n]*\n\s*)*SELECT\b/i.test(sample.text) || /\bFOR\s+(?:UPDATE|SHARE)\b/i.test(sample.text))
+    if (
+      !/^\s*(?:--[^\n]*\n\s*)*(?:SELECT|WITH)\b/i.test(sample.text) ||
+      /\b(?:INSERT|UPDATE|DELETE|MERGE)\b/i.test(sample.text) ||
+      /\bFOR\s+(?:UPDATE|SHARE)\b/i.test(sample.text)
+    )
       continue;
 
     if (seen.has(sample.text)) continue;
@@ -59,7 +64,12 @@ export async function explain(runtime: BenchRuntime, samples: readonly QuerySamp
     );
 
     const plan = rows[0]!["QUERY PLAN"][0]!;
-    plans.push({ statement: seen.size, executionMs: plan["Execution Time"], nodes: nodes(plan.Plan) });
+    plans.push({
+      statement: seen.size,
+      fingerprint: createHash("sha256").update(sample.text).digest("hex").slice(0, 16),
+      executionMs: plan["Execution Time"],
+      nodes: nodes(plan.Plan),
+    });
   }
 
   return plans;
