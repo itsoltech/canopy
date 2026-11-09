@@ -544,6 +544,68 @@ describe.skipIf(!dockerAvailable)("remote threads across two linked gateways", (
     expect((await a.api.listSchedules({ threadId: thread })).schedules).toEqual([]);
   }, 20_000);
 
+  test("secret decisions reach only their home and keep the value out of responses and the forwarding database", async () => {
+    b.worker.holdTurns = true;
+
+    const created = (
+      await b.api.createThread({
+        projectId: project,
+        workspaceId: workspace,
+        provider: Provider.CODEX,
+        initialMessage: "Work",
+      })
+    ).thread!;
+
+    const updates = await watchUntil(
+      b.api,
+      created.id,
+      (u) =>
+        u.some((v) => v.change.case === "turn" && v.change.value.status === "running") ||
+        u.some((v) => v.change.case === "snapshot" && v.change.value.turns.some((t) => t.status === "running")),
+    );
+
+    const turns = updates.flatMap((u) => {
+      if (u.change.case === "turn") return [u.change.value];
+
+      if (u.change.case === "snapshot") return u.change.value.turns;
+
+      return [];
+    });
+
+    const turnId = turns.find((t) => t.status === "running")!.id;
+    const requestId = id();
+
+    const waiting = b.worker.callTool({
+      threadId: created.id,
+      turnId,
+      callId: requestId,
+      tool: "request_secret",
+      args: { label: "Linked token", description: "Access the development account." },
+    });
+
+    await eventually(
+      async () => (await sb.query("SELECT id FROM thread_secrets WHERE id=$1::uuid", [requestId])).length === 1,
+    );
+    const secretSnapshot = await watchUntil(a.api, q(created.id), (u) => u.some((v) => v.change.case === "snapshot"));
+    const snapshot = secretSnapshot.find((u) => u.change.case === "snapshot");
+    expect(
+      snapshot?.change.case === "snapshot" && snapshot.change.value.secrets.some((s) => s.requestId === q(requestId)),
+    ).toBe(true);
+    const value = crypto.randomUUID();
+    const saved = await a.api.answerThreadSecret({ requestId: q(requestId), value });
+    expect(saved.secret?.status).toBe("saved");
+    expect(saved.secret?.requestId).toBe(q(requestId));
+    expect(JSON.stringify(toJson(ui.ThreadSecretResponseSchema, saved)).includes(value)).toBe(false);
+    expect(await sa.query("SELECT id FROM thread_secrets WHERE id=$1::uuid", [requestId])).toEqual([]);
+    expect((await a.api.revokeThreadSecret({ requestId: q(requestId) })).secret?.status).toBe("revoked");
+    await waiting;
+    expect(await sb.query("SELECT status,ciphertext FROM thread_secrets WHERE id=$1::uuid", [requestId])).toEqual([
+      { status: "revoked", ciphertext: null },
+    ]);
+    b.worker.finish(created.id, turnId);
+    b.worker.holdTurns = false;
+  }, 20_000);
+
   test("after unlink neither side can reach the other's threads, including over a raw pinned stream", async () => {
     const aNode = la.hello().nodeId;
     await a.api.manageComputer({ action: "unlink", nodeId: bNode });

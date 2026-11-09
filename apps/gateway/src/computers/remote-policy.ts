@@ -16,6 +16,8 @@ export const SERVED = new Set([
   "SendMessage",
   "InterruptThread",
   "AnswerInteraction",
+  "AnswerThreadSecret",
+  "RevokeThreadSecret",
   "UpdateThread",
   "RegenerateTitle",
   "SetGoal",

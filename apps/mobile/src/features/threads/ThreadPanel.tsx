@@ -10,6 +10,9 @@ import { permissionLabel } from "./permissions";
 import { headLabel, PROVISIONAL_BRANCH_HINT } from "@canopy/domain/git-heads";
 import { SubagentLineage } from "./SubagentLineage";
 import { ListSkeleton } from "../../ui/Skeleton";
+import { SecretGrants } from "./ThreadSecrets";
+import { useComputerHome } from "../computers/presence";
+import { useSession } from "../../state/session";
 import { openSettingsSection } from "../settings/navigation";
 
 export function PanelRow({
@@ -68,6 +71,8 @@ export function ThreadPanel({
   const { threads, workers } = useOverview();
   const c = useColors();
   const thread = snapshot?.thread;
+  const home = useComputerHome(thread?.nodeId);
+  const { online } = useSession();
   const worker = workers.find((w) => w.id === thread?.workerId);
 
   const lineage = thread
@@ -114,6 +119,7 @@ export function ThreadPanel({
             <PanelRow title="Status" value={thread.status.replace("_", " ")} icon="check-circle" />
             <PanelRow title="Permissions" value={permissionLabel(thread.permissionMode)} icon="shield-check" />
           </View>
+          {visible && <SecretGrants secrets={snapshot?.secrets ?? []} disabled={home.away || !online} />}
           <Text style={[styles.label, { color: c.text }]}>Scheduled tasks</Text>
           {snapshot?.schedules.length ? (
             snapshot.schedules.map((s) => (

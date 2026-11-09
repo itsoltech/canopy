@@ -1673,7 +1673,7 @@ Stos PR-ów: `feat/linked-shared-config-N` ([etapy](#etapy-wspólnej-konfiguracj
 | stan OAuth, wykonania, audyt connectorów | `connector_oauth_states`, `connector_executions`, `connector_audit` | lokalne | stan wykonania |
 | boty, rutyny, przypomnienia | `bots`, `bot_routines`, `bot_wakeups` | dom | rzeczy wykonawcze |
 | harmonogramy i ich uruchomienia | `schedules`, `schedule_runs` | dom | rzeczy wykonawcze |
-| sekrety wątków | `thread_secrets` | dom wątku | nigdy nie opuszczają domu |
+| sekrety wątków | `thread_secrets` | dom wątku | brak replikacji; zapis i revoke przez bezpośrednie RPC do domu |
 | worker: nazwa, połączenie, konfiguracja wysyłana do workera | `workers`, `worker_connections`, `worker_configs` | worker | składane przez dom |
 | enrollment, klucze i hosty SSH, dostęp sieciowy | `worker_enrollments`, `worker_ssh_*`, `network_access` | komputer | sieć i zaufanie tej maszyny |
 | łącza, trasy, lustra, ruchy | `computer_*` | komputer | stan łącza |

@@ -13,13 +13,12 @@ import { ChatKeyboard } from "../composer/ChatKeyboard";
 import { MessageComposer } from "./MessageComposer";
 import { DropZone } from "../attachments/FileIntake";
 import { ThreadPanel } from "./ThreadPanel";
-import { QuestionPanel } from "./questions/QuestionPanel";
 import { useOverview } from "../../state/overview";
 import { ThreadHeader } from "./ThreadHeader";
 import { ThreadTimeline } from "./ThreadTimeline";
 import { ThreadSyncStatus } from "./ThreadSyncStatus";
 import { ConnectionBanner } from "../navigation/ConnectionStatus";
-import { SubagentPanel, SubagentSummary } from "./SubagentPanel";
+import { SubagentPanel } from "./SubagentPanel";
 import { useFollowingList } from "../../ui/useFollowingList";
 import { useMessageDraft } from "../composer/useMessageDraft";
 import { QueuedMessageMenu, QueueEditor } from "./QueuedMessage";
@@ -32,6 +31,7 @@ import { useFloatingComposer } from "../composer/useFloatingComposer";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { visibleTurns } from "./thread-turns";
 import { threadComposerHeight } from "../composer/geometry";
+import { ThreadRequests } from "./ThreadRequests";
 import { ImportedThreadComposer } from "../imports/ImportedThreadComposer";
 import { useQuoteDraft } from "../quotes/useQuoteDraft";
 import { withSentMessage } from "./sent-message";
@@ -193,8 +193,6 @@ export function ThreadScreen({ id }: { id: string }) {
     setDetails,
     projects,
     thread,
-    subagents,
-    interactions,
     turns,
     blocked,
   } = state;
@@ -237,13 +235,7 @@ export function ThreadScreen({ id }: { id: string }) {
             accessory={
               <>
                 <ThreadSyncStatus state={state} />
-                <QuestionPanel
-                  interactions={interactions}
-                  items={snapshot?.items}
-                  subagents={subagents}
-                  disabled={state.home.away || state.stream.connection !== "live"}
-                />
-                <SubagentSummary threads={subagents} obscured={Boolean(state.message.trigger)} />
+                <ThreadRequests state={state} />
               </>
             }
           >
