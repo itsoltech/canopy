@@ -870,6 +870,55 @@ szyny agentów. Utrata wpisów nie jest traktowana jako brak zmian. Wspólny odc
 owner-scoped i obejmuje wyłącznie już autoryzowane subskrypcje; zamknięcie ostatniej
 usuwa timer. Różne interwały mają oddzielne terminy bez zwiększania częstotliwości
 wolniejszego watcha. Zasady wznowienia delty i pełnego snapshotu pozostają bez zmian.
+Gdy trwała głowa dziennika nie zmieniła się, zapytanie pomija rekursję źródeł historii
+i odczyty zależności tur/szyny. Nadal czyta zegar i autoryzowany rekord wątku: sam cache
+publikacji w pamięci nie wykryłby utraty fan-out ani zmiany epoki.
+
+Capability **`thread_watch_coalesce`** dodaje `WatchThreadRequest.watch_coalesce` (810)
+i `ThreadEventUpdate.first_seq` (810). Dom włącza ją tylko dla obustronnie negocjowanego
+watcha z liveness. Scala kolejne `item_delta` tego samego itemu, pola, wątku i tury
+przez najwyżej 40 ms i do 16 384 znaków UTF-16. Nowa linia, inny rodzaj zmiany lub heartbeat
+kończy partię. Pojedynczy większy fragment wychodzi od razu. `seq` jest końcem partii,
+`first_seq` jej początkiem; partner wymaga ciągłości od ostatniego zastosowanego numeru
+i akceptuje zakres tylko dla `item_delta`. Luka albo częściowe nakładanie zakresów
+wymusza odczyt pełnego stanu. Duplikaty całej partii są pomijane. Po scaleniu `raw_json`
+jest puste; tekst, kolejność i wynik reduktora pozostają takie same. Bez capability dom
+wysyła pojedyncze zdarzenia. Klienci UI mogą ignorować addytywne `first_seq`.
+
+Snapshoty i delty lustra grupują powtarzane pola w fragmenty do około 32 KiB protobuf;
+pojedynczy większy element wychodzi osobno, w istniejącym limicie pojedynczej wiadomości RPC.
+Pola zachowują kolejność, a ramki start/end i atomowy commit pozostają bez zmian.
+Starszy odbiorca obsługuje grupy przez istniejące repeated fields, bez nowej capability.
+Publisher odpowiedzi RPC oddaje pętlę I/O co 16 fragmentów transportowych, aby HTTP/2
+opróżniało kolejkę także podczas wysyłania gotowego dużego snapshotu.
+
+### Ograniczenia buforów synchronizacji
+
+Wolny odbiorca nie zatrzymuje publikacji do innych subskrybentów. Limity dotyczą wiadomości
+oczekujących w kolejce aplikacji, poza pojedynczą aktualnie dostarczaną wiadomością
+i buforami HTTP/2/TLS:
+
+| Kolejka | Limit | Przepełnienie |
+|---|---|---|
+| Hub: osobny watch wątku lub overview | 256 wiadomości, 8 MiB zakodowanego protobuf | Odrzucenie kolejki i `DataLoss` dla tego watcha |
+| Zsumowany overview | 256 wiadomości, 8 MiB protobuf | `DataLoss`; klient łączy się po świeży snapshot |
+| Publisher liveness wątku i odebrane odpowiedzi pojedynczego linked RPC | 256 wiadomości, 64 MiB protobuf | `DataLoss`; odebrany RPC jest natychmiast anulowany u domu |
+| Wyjście całego łącza | 2048 ramek, każda ograniczona przez transport do 64 KiB | Zamknięcie tego łącza; ponowne połączenie wznawia checkpointy |
+| BFF SSE | Próg kolejki 1 MiB UTF-8; dopuszczona jedna większa ramka snapshotu | Następna ramka przy nieopróżnionej kolejce przerywa stream i upstream |
+
+Hub liczy rozmiar raz na publikację, niezależnie od liczby odbiorców; odbiorcy współdzielą
+obiekt aktualizacji. Dla niezmiennych zdarzeń `item_delta` zachowuje też zakodowane bajty
+pod słabym kluczem obiektu. Publisher używa ich do limitu kolejki i kodowania odpowiedzi
+łącza. Identyczne zakresy scalania współdzielą gotową partię (do czterech wariantów pod
+jednym słabym kluczem), a jeden timer obsługuje całe okno, bez odtwarzania przy każdej
+delcie. Cache nie przechowuje historii i nie obejmuje mutowalnych snapshotów ani zmian
+konfiguracji. Zmiana pól konfiguracyjnych nie dotyka `item_delta`; kodowanie Connect
+na każdej subskrypcji pozostaje osobne.
+Zwolniony bufor nie dostarcza częściowego stanu jako poprawnego checkpointu. Supervisor
+zdalnego watcha naprawia `DataLoss` pustym kursorem; klient lokalny wznawia od ostatniego
+atomowego kursora i dostaje deltę albo snapshot według ciągłości dziennika. Lustro po
+przepełnieniu posługuje się dotychczasową polityką nowej generacji; zwykły reconnect
+zachowuje ostatni commit. Unary akcji nie są automatycznie odtwarzane.
 
 Obie strony zapisują rozpoczęcie i zakończenie subskrypcji na poziomie debug,
 a wykryte stall/gap i wymuszoną resynchronizację na warn. Logi zawierają wyłącznie

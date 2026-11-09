@@ -3,6 +3,7 @@ import { computerLink as link } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Match } from "effect";
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { nodesOf } from "./remote-ids.ts";
 import { methodNamed, MovedError, movedItems, SERVED } from "./remote-policy.ts";
 import { syncDecode, syncEncode } from "./sync-codec.ts";
@@ -157,7 +158,13 @@ export class RemoteCalls {
     if (this.#outgoing.size >= MAX_SERVED)
       throw new ConnectError("Too many calls to this computer at once", Code.ResourceExhausted);
     const id = this.#next++;
-    const channel = new AsyncChannel<Uint8Array>();
+
+    const channel = new AsyncChannel<Uint8Array>({
+      maxItems: 256,
+      maxBytes: 64 * 1024 * 1024,
+      overflow: () => new ConnectError("Linked subscription fell behind; resume from its checkpoint", Code.DataLoss),
+    });
+
     this.#outgoing.set(id, { channel, parts: [], size: 0, streaming: method.methodKind !== "unary" });
 
     const stop = () =>
@@ -228,7 +235,13 @@ export class RemoteCalls {
     call.parts.push(r.payload);
 
     if (!r.more) {
-      call.channel.push(join(call.parts));
+      const bytes = join(call.parts);
+
+      if (!call.channel.push(bytes, bytes.length)) {
+        this.#outgoing.delete(r.callId);
+        this.options.send({ body: { case: "remoteCancel", value: { callId: r.callId } } });
+      }
+
       call.parts = [];
       call.size = 0;
     }
@@ -303,11 +316,18 @@ export class RemoteCalls {
       if (nodesOf(method.input, request).size)
         throw new ConnectError("Calls through another computer are not supported", Code.InvalidArgument);
 
+      let sent = 0;
+
       for await (const message of this.options.serve(method, request, signal, undefined, route)) {
         if (signal.aborted || this.#closed) return;
 
-        for (const { data, more } of chunks(syncEncode(method.output, message, `link.${method.name}`)))
+        for (const { data, more } of chunks(syncEncode(method.output, message, `link.${method.name}`))) {
+          if (signal.aborted || this.#closed) return;
           this.options.send({ body: { case: "remoteResponse", value: { callId: id, payload: data, more } } });
+
+          // A ready snapshot generator must let HTTP/2 drain before filling the bounded link queue.
+          if (++sent % 16 === 0) await nextTurn(undefined, { signal });
+        }
       }
 
       if (!signal.aborted) this.#end(id);

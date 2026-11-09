@@ -434,6 +434,17 @@ właściciela. Luka, zmiana epoki i źródła spoza wątku wymagają konserwatyw
 Mechanizm nie wymaga nowego pola proto ani capability. Szczegóły:
 [żywotność watchy](linked-computers.md#żywotność-subskrypcji-i-odzyskiwanie).
 
+`thread_watch_coalesce` negocjuje scalanie kolejnych fragmentów tekstu na łączu:
+`WatchThreadRequest.watch_coalesce` (810) i początek zakresu `ThreadEventUpdate.first_seq` (810).
+Okno 40 ms, limit 16 384 znaków UTF-16 i wymóg ciągłości `seq` ograniczają liczbę ramek
+bez zmiany trwałego zapisu zdarzeń. Starsi partnerzy dostają pojedyncze zdarzenia.
+Przepełnienie ograniczonej kolejki kończy dany stream `DataLoss`; odzyskiwanie korzysta
+z atomowego checkpointu, a luka wymusza snapshot. Limit całego łącza zamyka tylko to
+połączenie. Limity i wyjątek dużego snapshotu SSE: [bufory synchronizacji](linked-computers.md#ograniczenia-buforów-synchronizacji).
+Lustra grupują elementy istniejących repeated fields w fragmenty o budżecie około 32 KiB;
+duży pojedynczy element nadal może przekroczyć ten budżet w ramach limitu RPC.
+Oddanie pętli I/O co 16 fragmentów odpowiedzi pozwala opróżniać transport podczas dużego snapshotu.
+
 ## Wersjonowanie
 
 - Pakiet `canopy.worker.v1`. Zmiany zgodne wstecz: tylko nowe pola i wartości enumów.
@@ -450,10 +461,13 @@ odpowiedzi wewnątrz łącza, przed fragmentacją; rozróżniają snapshoty, del
 Nie obejmuje TLS, nagłówków HTTP/2, kompresji, CPU bazy ani kodowania zewnętrznej ramki LinkFrame.
 Liczniki nie przechowują treści, identyfikatorów, nazw komputerów ani sekretów i niczego same nie logują.
 Bez flagi nie ma dodatkowej serializacji ani próbkowania CPU.
+Po współdzieleniu zakodowanych delt hook `link.*.encode` mierzy także trafienia w cache.
+Pierwsze kodowanie do limitu kolejki odbywa się wcześniej, poza tym hookiem; jego koszt
+wchodzi do procesowego CPU. Nie traktuj sumy czasów hooków jako całego kosztu kodeków.
 
 Scenariusz opt-in uruchamia dwa gatewaye, dwa fixture workera, sześć zdalnych widoków,
 overview obu komputerów, prawdziwy przypięty transport telefonu i most SSE z koalescencją.
-Tura emituje 300 delt co 20 ms, wyniki narzędzi i postęp zadania w tle. Następnie dom restartuje
+Tura emituje 1500 delt co 20 ms, wyniki narzędzi i postęp zadania w tle. Następnie dom restartuje
 się z tą samą bazą, zmienia dane offline i odtwarza lustro po połączeniu.
 To test protokołu, bez przeglądarki i natywnego runtime telefonu.
 
@@ -469,3 +483,31 @@ CPU równe zero oznacza brak pomiaru kodeka natywnego, nie zerowy koszt.
 CPU to suma `process.cpuUsage()` wokół synchronicznej operacji w procesie testowym;
 wyniki krótkich przebiegów są zaszumione. Porównuj ten sam scenariusz i oddzielaj kanały
 encode/decode, żeby nie liczyć tych samych bajtów dwukrotnie. Wyników nie zapisuj w repozytorium.
+
+`CANOPY_SYNC_LEGACY=1` w tym samym scenariuszu wyłącza nowe capability koalescencji
+na obu komputerach, zachowując te same limity buforów. Pozwala porównać format protokołu
+w jednym checkoutcie. `processCpuMicros` mierzy cały proces dwóch gatewayów i klientów
+w oknie aktywności, bez CPU osobnego Postgresa. Liczniki `textDeltas` i `batches` opisują
+ramki tekstowe, `deltas` checkpointy; lustro liczy pełną projekcję/deltę tylko na ramce startowej,
+a `messages/bytes` obejmują wszystkie fragmenty.
+
+Rozbicie CPU na procesy zapewnia osobny wariant tego samego ruchu:
+
+```bash
+CANOPY_SYNC_METRICS=1 CANOPY_SYNC_PROCESSES=1 bun run check:tmp tests/integration/sync-process-performance.test.ts
+```
+
+Dom, komputer oglądający i most BFF działają w trzech procesach Bun. Każdy raportuje
+`process.cpuUsage()` w około 30-sekundowym oknie aktywności i osobnym oknie 10,2 s
+po turze, wraz z p99 i maksimum opóźnienia pętli zdarzeń. Gateway zawiera fixture workera;
+kontroler, czytniki watchy, klient telefonu i PostgreSQL nie wchodzą do sumy tych trzech
+procesów. To rozbicie i pomiar jednoprocesowy mają różne granice; nie porównuj ich sum
+bezpośrednio. Powtarzaj pomiary na tym samym dev, tym samym fixture i bez profilera
+dla tabel CPU. Przy porównaniu wersji przenieś wyłącznie fixture i definicje liczników.
+
+`CANOPY_SYNC_PROFILE_DIR` wskazuje prywatny katalog na profile. Fixture uruchamia każdy
+z trzech procesów z `bun --cpu-prof --cpu-prof-md`; profile obejmują także start i teardown,
+a raportowane CPU dotyczy wyłącznie wyznaczonego okna. Próbki w `.cpuprofile` służą do
+lokalizacji stosów; sekundy w raporcie Markdown profilera nie zastępują procesowego CPU,
+zwłaszcza przy długim oczekiwaniu na I/O. Uruchamiaj pliki wielogatewayowe kolejno i usuń
+profile po analizie. Nie zapisuj ich ani wyników pomiaru w repozytorium.

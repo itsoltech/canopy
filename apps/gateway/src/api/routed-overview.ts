@@ -1,8 +1,8 @@
-import { create, type Message } from "@bufbuild/protobuf";
+import { create, toBinary, type Message } from "@bufbuild/protobuf";
 import { bots, ui } from "@canopy/contracts";
 import { qualifyId, REMOTE_BOTS, THREAD_MIRROR } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
-import { createHandlerContext, type HandlerContext } from "@connectrpc/connect";
+import { Code, ConnectError, createHandlerContext, type HandlerContext } from "@connectrpc/connect";
 import { linkedMessage, methodNamed } from "../computers/remote.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { single, stream, unary, unaryTimeout, withSignal, type Handler } from "./routed-context.ts";
@@ -304,7 +304,13 @@ export async function* watchOverview(
     return;
   }
 
-  const out = new AsyncChannel<ui.OverviewUpdate>();
+  const out = new AsyncChannel<ui.OverviewUpdate>({
+    maxItems: 256,
+    maxBytes: 8 * 1024 * 1024,
+    sizeOf: (value) => toBinary(ui.OverviewUpdateSchema, value).length,
+    overflow: () => new ConnectError("Overview fell behind; reconnect for a snapshot", Code.DataLoss),
+  });
+
   const stop = new AbortController();
   const signal = AbortSignal.any([context.signal, stop.signal]);
   const watchers = new Map<string, AbortController>();

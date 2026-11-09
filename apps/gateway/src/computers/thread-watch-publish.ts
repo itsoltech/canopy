@@ -1,11 +1,13 @@
 import { create, type Message } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
-import { ConnectError } from "@connectrpc/connect";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { linkedMessage, type RemoteServe } from "./remote.ts";
 import type { LinkedComputers } from "./runtime.ts";
 import { watchTiming } from "./watch-liveness.ts";
 import { threadWatchRevisions } from "../core/thread-watch-revisions.ts";
+import { coalesceDeltas } from "@canopy/domain/coalesce";
+import { threadUpdateBytes } from "../core/thread-update-bytes.ts";
 
 function checkpoint(update: ui.ThreadUpdate) {
   if (update.change.case === "snapshot") return update.change.value.cursor;
@@ -22,11 +24,18 @@ export async function* publishThreadWatch(
   request: ui.WatchThreadRequest,
   signal: AbortSignal,
   peer: string,
+  coalesce = false,
 ): AsyncGenerator<Message> {
-  const output = new AsyncChannel<Message>();
+  const output = new AsyncChannel<ui.ThreadUpdate>({
+    maxItems: 256,
+    maxBytes: 64 * 1024 * 1024,
+    overflow: () => new ConnectError("Linked thread watch fell behind", Code.DataLoss),
+  });
+
   const stopped = new AbortController();
   const combined = AbortSignal.any([signal, stopped.signal]);
   const close = () => output.close();
+
   combined.addEventListener("abort", close, { once: true });
   let unsubscribe: (() => void) | undefined;
   console.debug("Linked thread watch subscribed", {
@@ -57,7 +66,7 @@ export async function* publishThreadWatch(
             watchTiming(computers).heartbeatMs,
           );
 
-        if (!output.push(update)) break;
+        if (!output.push(typed, threadUpdateBytes(typed).length)) break;
       }
 
       output.close();
@@ -69,13 +78,16 @@ export async function* publishThreadWatch(
           side: "home",
           code: ConnectError.from(error).code,
         });
+
       output.close(error);
     }
   })();
 
   try {
     if (combined.aborted) close();
-    yield* output;
+
+    if (coalesce) yield* coalesceDeltas(output, { windowMs: 40, sequenceRanges: true });
+    else yield* output;
   } finally {
     unsubscribe?.();
     stopped.abort();

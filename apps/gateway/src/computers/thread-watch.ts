@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { THREAD_WATCH_LIVENESS } from "@canopy/domain/computers";
+import { THREAD_WATCH_LIVENESS, THREAD_WATCH_COALESCE } from "@canopy/domain/computers";
 import { MIRROR_CURSOR } from "@canopy/domain/thread-mirror";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { linkedMessage } from "./remote.ts";
@@ -16,6 +16,22 @@ function revisionChanged(checkpoint: string, revision: string) {
   return !base || base[1] !== next[1] || BigInt(next[2]!) > BigInt(base[2]!);
 }
 
+function acceptEvent(change: ui.ThreadEventUpdate, lastSeq: bigint | undefined, coalesce: boolean) {
+  if (lastSeq === undefined) throw new ConnectError("Linked thread event before snapshot", Code.DataLoss);
+
+  if (change.seq <= lastSeq) return undefined;
+  const first = change.firstSeq || change.seq;
+
+  if (
+    first !== lastSeq + 1n ||
+    first > change.seq ||
+    (change.firstSeq && (!coalesce || change.event?.body.case !== "itemDelta"))
+  )
+    throw new ConnectError("Linked thread event sequence gap", Code.DataLoss);
+
+  return change.seq;
+}
+
 /** One supervisor per client watch; every reopen validates at the home, independently of the mirror. */
 export async function* watchRemoteThread(
   computers: LinkedComputers,
@@ -28,7 +44,19 @@ export async function* watchRemoteThread(
     computers.capabilities(node).includes(THREAD_WATCH_LIVENESS);
 
   const timing = watchTiming(computers);
-  let request = create(ui.WatchThreadRequestSchema, { ...input, incremental: true, watchLiveness: heartbeat });
+
+  const coalesce =
+    heartbeat &&
+    computers.hello().capabilities.includes(THREAD_WATCH_COALESCE) &&
+    computers.capabilities(node).includes(THREAD_WATCH_COALESCE);
+
+  let request = create(ui.WatchThreadRequestSchema, {
+    ...input,
+    incremental: true,
+    watchLiveness: heartbeat,
+    watchCoalesce: coalesce,
+  });
+
   let checkpoint = input.cursor || input.mirrorCursor;
   let lastSeq: bigint | undefined;
   let retried = false;
@@ -73,11 +101,10 @@ export async function* watchRemoteThread(
           retried = false;
           lease.renew(heartbeat ? timing.timeoutMs : timing.legacyProbeMs);
         } else if (change.case === "event") {
-          if (lastSeq === undefined || change.value.seq > lastSeq + 1n)
-            throw new ConnectError("Linked thread event sequence gap", Code.DataLoss);
+          const seq = acceptEvent(change.value, lastSeq, coalesce);
 
-          if (change.value.seq <= lastSeq) continue;
-          lastSeq = change.value.seq;
+          if (seq === undefined) continue;
+          lastSeq = seq;
         }
 
         yield update;
@@ -131,6 +158,7 @@ export async function* watchRemoteThread(
       ...input,
       incremental: true,
       watchLiveness: heartbeat,
+      watchCoalesce: coalesce,
       mirrorCursor: "",
       cursor: input.incremental ? checkpoint : "",
       // Retain an expanded history window on automatic full-snapshot recovery.

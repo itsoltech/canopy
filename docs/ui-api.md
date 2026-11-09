@@ -64,6 +64,13 @@ replikują sekretów. Gateway pośredniczący nie zapisuje wartości ani payload
 
 ### Przyrostowy odczyt wątku
 
+Łącze między komputerami może dodatkowo scalać tekst w oknie 40 ms i sprawdzać rewizje
+konkretnego wątku. Klient UI zachowuje ten sam atomowy kursor snapshotu; addytywne
+`ThreadEventUpdate.first_seq` opisuje początek scalonego zakresu i może być ignorowane
+przez starszy reduktor. BFF zachowuje własne okno koalescencji 200 ms, a po przepełnieniu
+kolejki SSE przerywa upstream i pozwala klientowi wznowić od checkpointu. Pełne zasady:
+[linked-computers.md](linked-computers.md#ograniczenia-buforów-synchronizacji).
+
 `WatchThreadRequest.incremental` (802) włącza checkpointy UI. Pierwsze otwarcie bez
 `cursor` otrzymuje pełny `ThreadSnapshot` z `cursor` (800): `<uuid-epoki>:<rewizja>`
 istniejącego dziennika właściciela. Odczyt kursora i historii odbywa się w tej samej
