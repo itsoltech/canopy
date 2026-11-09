@@ -106,4 +106,26 @@ describe.skipIf(!dockerAvailable)("reads and pushed changes across linked homes"
       await reading;
     }
   }, 30_000);
+
+  test("a peer read that returns the same answer announces nothing, so clients read nothing again", async () => {
+    const completed: string[] = [];
+    const stop = f.la.reads.subscribe((method) => completed.push(method));
+
+    try {
+      // The first answer is new: it is announced.
+      await f.a.api.listSchedules({});
+      await eventually(
+        async () => completed.filter((m) => m === "ListSchedules").length,
+        (n) => n > 0,
+        5000,
+      );
+      const first = completed.filter((m) => m === "ListSchedules").length;
+      await Bun.sleep(5600);
+      await f.a.api.listSchedules({});
+      await Bun.sleep(800);
+      expect(completed.filter((m) => m === "ListSchedules").length).toBe(first);
+    } finally {
+      stop();
+    }
+  }, 20_000);
 });

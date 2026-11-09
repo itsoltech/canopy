@@ -7,6 +7,7 @@ import {
   ui,
   type CommandResult,
   type Mention,
+  type MentionCatalog,
 } from "@canopy/contracts";
 import { type CommandInit } from "../worker-link/index.ts";
 import {
@@ -195,6 +196,17 @@ export function coreComposeInput(
   };
 }
 
+const catalogPending = new WeakMap<GatewayCore, Map<string, Promise<MentionCatalog>>>();
+
+/** Catalog queries in flight, per owner core and scope. */
+function catalogReads(core: GatewayCore): Map<string, Promise<MentionCatalog>> {
+  let reads = catalogPending.get(core);
+
+  if (!reads) catalogPending.set(core, (reads = new Map()));
+
+  return reads;
+}
+
 export interface CoreMentionsMethods {
   listMentionCatalog(request: ui.ListMentionCatalogRequest): Promise<ui.ListMentionCatalogResponse>;
   searchFiles(request: ui.SearchFilesRequest): Promise<ui.SearchFilesResponse>;
@@ -215,23 +227,39 @@ export const coreMentionsMethods: CoreMentionsMethods = {
     let catalog = !request.refresh && cached && Date.now() - cached.at < CATALOG_TTL_MS ? cached.catalog : undefined;
 
     if (!catalog) {
-      const result = await coreWorkerQuery(
-        this,
-        scope.workerId,
-        {
-          case: "listMentionCatalog",
-          value: { provider: scope.provider, profileId: scope.profileId, cwd: scope.cwd, refresh: request.refresh },
-        },
-        45_000,
-      );
+      // Composers asking for the same scope at once share one worker query.
+      const pending = catalogReads(this);
+      const shared = !request.refresh && pending.get(key);
 
-      catalog =
-        result.mentionCatalog ??
-        create(MentionCatalogSchema, { provider: scope.provider, profileId: scope.profileId, cwd: scope.cwd });
-      this[coreState].catalogs.set(key, { at: Date.now(), catalog });
+      const read =
+        shared ||
+        coreWorkerQuery(
+          this,
+          scope.workerId,
+          {
+            case: "listMentionCatalog",
+            value: { provider: scope.provider, profileId: scope.profileId, cwd: scope.cwd, refresh: request.refresh },
+          },
+          45_000,
+        ).then((result) => {
+          const value =
+            result.mentionCatalog ??
+            create(MentionCatalogSchema, { provider: scope.provider, profileId: scope.profileId, cwd: scope.cwd });
 
-      if (this[coreState].catalogs.size > 200)
-        this[coreState].catalogs.delete(this[coreState].catalogs.keys().next().value ?? "");
+          this[coreState].catalogs.set(key, { at: Date.now(), catalog: value });
+
+          if (this[coreState].catalogs.size > 200)
+            this[coreState].catalogs.delete(this[coreState].catalogs.keys().next().value ?? "");
+
+          return value;
+        });
+
+      if (!shared) {
+        pending.set(key, read);
+        void read.catch(() => {}).finally(() => pending.get(key) === read && pending.delete(key));
+      }
+
+      catalog = await read;
     }
 
     // Goals need a worker thread of either provider; the platform runs /goal itself (SetGoal).

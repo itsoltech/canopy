@@ -66,8 +66,11 @@ function useSessionState() {
   const modelCatalog = useMemo(() => new ModelCatalogCache(client?.api), [client]);
   // Reads shared by every screen of this pairing; a new pairing or unpair fences the old one's requests.
   const queries = useMemo(() => (client ? new QueryCache({ failure: () => SHARED_READ_FAILED }) : unpaired), [client]);
+  // Recent mention searches, apart so they never push shared reads out of the LRU.
+  const searches = useMemo(() => (client ? new QueryCache({ idle: 64 }) : unpaired), [client]);
 
   useEffect(() => () => queries.dispose(), [queries]);
+  useEffect(() => () => searches.dispose(), [searches]);
 
   // Connections pooled before a suspension or a network change may be dead without either side knowing. Reset
   // runs inside the event, before React restarts any stream, so the next requests race the routes on new ones.
@@ -126,6 +129,7 @@ function useSessionState() {
     client,
     modelCatalog,
     queries,
+    searches,
     threadCache,
     archivedCache,
     botCache,

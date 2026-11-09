@@ -10,7 +10,7 @@ const STALE: Partial<Record<Change, readonly string[]>> = {
   computer: ["ListWorkerRecords", "GetComputers"],
   computerRemoved: ["ListWorkerRecords", "GetComputers"],
   sharedConfig: ["GetComputers"],
-  agentEnvironmentChanged: ["GetAgentEnvironment", "GetWorkerEnvironment"],
+  agentEnvironmentChanged: ["GetAgentEnvironment", "GetWorkerEnvironment", "ListMentionCatalog"],
   workerRemoved: ["GetAgentEnvironment"],
   providerInstancesChanged: ["ListProviderInstances", "GetBotProviderInstances"],
   enrollment: ["GetWorkerSetup"],

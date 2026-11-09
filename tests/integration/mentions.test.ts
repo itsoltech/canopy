@@ -126,6 +126,10 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
         ["/repo/app", true],
         ["/repo/app/sub", false],
       ]);
+      // Composers opening the same uncached scope at once share one worker query.
+      const scope = { workspaceId, provider: Provider.CODEX, cwd: "/repo/app/other" };
+      await Promise.all([1, 2, 3, 4].map(() => api.listMentionCatalog({ scope })));
+      expect(asked.filter((a) => a.cwd === "/repo/app/other")).toHaveLength(1);
       worker.handlers.delete("listMentionCatalog");
     });
 
