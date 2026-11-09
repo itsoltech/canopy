@@ -737,6 +737,13 @@ Co jest na zrzucie?
 
 **Worker offline.** Wiadomość z załącznikami do istniejącego wątku idzie do kolejki jak każda (bajty czekają w gateway, worker pobiera je przy starcie tury). Nowego wątku na workerze offline kompozytor nie wysyła (jak dotąd). Worker, który nigdy nie zgłosił `attachments_root` (starsza wersja), nie przyjmie załączników: `SendMessage` zwraca powód.
 
+Podgląd obrazu pobiera odpowiedź BFF przed utworzeniem adresu Blob dla `<img>`.
+Odmowa HTTP pokazuje komunikat JSON i Retry zamiast uszkodzonego obrazu; tekst
+korzysta z tej samej obsługi błędu. BFF loguje kod RPC, wariant i oczyszczony
+powód, bez zawartości pliku. Błędy nie są cache'owane. Po powrocie połączenia
+lub domu pliku otwarty podgląd ponawia odczyt. Szczegóły zgodności starszych
+domów: [linked-computers.md](linked-computers.md#podglądy-załączników).
+
 #### Załączniki w tekście
 
 **Podgląd plików.** Plakietki wiadomości wysłanych, kolejki i kompozytora otwierają

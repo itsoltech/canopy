@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { base64Encode } from "@bufbuild/protobuf/wire";
 import { useSession } from "../../state/session";
 import { ImageReadError, readImage, type ImageSource } from "./image-source";
+import { attachmentFailure } from "./failure";
+import { useAttachmentConnection } from "./useAttachmentConnection";
 
 /** Private bytes stay in this mounted view; they never enter an image URL, log or shared cache. */
 export function useImage(source: ImageSource, thumbnail = false) {
@@ -13,6 +15,7 @@ export function useImage(source: ImageSource, thumbnail = false) {
   const sha256 = source.kind === "thread" ? source.sha256 : "";
   const sizeBytes = source.kind === "thread" ? source.sizeBytes : 0n;
   const file = source.kind === "attachment" ? source.file : undefined;
+  const connection = useAttachmentConnection(file?.id ?? threadId);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -35,13 +38,13 @@ export function useImage(source: ImageSource, thumbnail = false) {
               error:
                 error instanceof ImageReadError
                   ? error.message
-                  : "Could not load the image. Check the connection, then retry.",
+                  : attachmentFailure(error, "Could not load the image. Check the connection, then retry."),
             });
         });
     }
 
     return () => controller.abort();
-  }, [client, local, threadId, sha256, sizeBytes, file, thumbnail, retry]);
+  }, [client, local, threadId, sha256, sizeBytes, file, thumbnail, retry, connection]);
 
   return { ...result, retry: () => setRetry((n) => n + 1) };
 }

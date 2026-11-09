@@ -11,6 +11,7 @@
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import Lightbox from "./Lightbox.svelte";
   import AttachmentContent from "./AttachmentContent.svelte";
+  import AttachmentImage from "./AttachmentImage.svelte";
   import { attachmentUrl } from "./preview.ts";
 
   let {
@@ -158,11 +159,12 @@
     class="grid w-72 max-w-[calc(100vw-2rem)] gap-2 p-3"
   >
     {#if kind === "image"}
-      <img
+      <AttachmentImage
         onload={imageLoaded}
         src={attachmentUrl(file, file.hasThumbnail ? "thumbnail" : "image")}
-        alt=""
-        class="h-36 w-full rounded-lg bg-zinc-950/3 object-contain dark:bg-white/5"
+        entityId={file.id}
+        class="min-h-36 rounded-lg bg-zinc-950/3 dark:bg-white/5"
+        imageClass="h-36 w-full object-contain"
       />
     {:else if isText}
       <div class="max-h-40 overflow-hidden rounded-lg bg-zinc-950/3 p-2 dark:bg-white/5">
@@ -180,6 +182,7 @@
   <Lightbox
     bind:open
     src={attachmentUrl(file, "image")}
+    entityId={file.id}
     name={file.name}
     {detail}
     download={attachmentUrl(file, "download")}

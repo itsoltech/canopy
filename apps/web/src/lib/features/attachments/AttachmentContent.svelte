@@ -4,7 +4,7 @@
   import type { ClassValue } from "svelte/elements";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import { readAttachmentPreview } from "./preview.ts";
+  import { attachmentConnection, readAttachmentPreview } from "./preview.ts";
 
   let {
     file,
@@ -23,22 +23,25 @@
   } = $props();
 
   let result = $state<AttachmentTextPreview>();
-  let failed = $state(false);
+  let failure = $state("");
   let retry = $state(0);
+  const connection = attachmentConnection(() => file.id);
+  const availability = $derived(connection());
 
   $effect(() => {
     void retry;
+    void availability;
     let active = true;
     result = undefined;
-    failed = false;
+    failure = "";
     void readAttachmentPreview(file)
       .then((preview) => {
         if (!active) return;
         result = preview;
         onload?.(preview);
       })
-      .catch(() => {
-        if (active) failed = true;
+      .catch((cause: unknown) => {
+        if (active) failure = cause instanceof Error ? cause.message : "Could not load the preview.";
       });
 
     return () => {
@@ -51,8 +54,8 @@
 </script>
 
 <div class={["min-w-0", className]}>
-  {#if failed}
-    <p role="alert" class="text-muted">Could not load the preview. Check the connection, then retry.</p>
+  {#if failure}
+    <p role="alert" class="break-words text-muted">{failure}</p>
     <Button variant="ghost" size="sm" onclick={() => retry++}>Retry</Button>
   {:else if !result}
     <p role="status" class="text-muted">Loading preview…</p>

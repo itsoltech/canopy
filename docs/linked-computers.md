@@ -2289,6 +2289,26 @@ bazami PostgreSQL i kluczami sekretów, przypięte mTLS, skryptowane workery. Be
    Nowe odczyty i zapis wyjątku środowiska są addytywnymi RPC UI; protokół łącza i schemat bazy bez zmian.
    Testy: `tests/integration/config-sync-execution.test.ts`, z rzeczywistym workerem i testowym harness.
 
+### Podglądy załączników
+
+Id załącznika z historii i wzmianki w tekście zachowuje kwalifikator domu
+(`uuid~node`). `GetAttachment` jest odczytem dozwolonym przez łącze; dom nadal
+sprawdza właściciela. Odczyt po samym lokalnym UUID nie szuka pliku na innych
+komputerach. Bajty nie są częścią lustra.
+
+Dom sprzed obsługi `preview` ignoruje to addytywne pole i zwraca pełny plik.
+Gateway odbierający ogranicza taką odpowiedź do 128 KiB i ustawia `truncated`;
+pełne pobranie pozostaje bez zmian. Brak miniatury przy nieaktualnych metadanych
+pozwala pobrać oryginał z tego samego domu. Inne odmowy, zwłaszcza własność,
+polityka i dostępność, nie uruchamiają tego fallbacku.
+
+Nieosiągalny dom daje „Available when <computer> is connected.”. BFF zwraca
+JSON z oczyszczonym powodem i zakresem `computer`, bez cache błędów; log zawiera
+wariant odczytu, kod RPC i oczyszczony komunikat, bez identyfikatorów, bajtów
+ani przyczyn transportowych. Podglądy obrazów i tekstu pokazują ten powód oraz
+Retry. Zamontowany podgląd ponawia odczyt po zmianie obecności domu lub
+odtworzeniu połączenia klienta. Dotyczy to także mobilnego odczytu Connect.
+
 ### Strony historii klientów
 
 Klient z `page_size` otrzymuje najpierw odpowiednie okno z lokalnego lustra,
