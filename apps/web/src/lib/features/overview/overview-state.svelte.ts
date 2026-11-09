@@ -38,6 +38,11 @@ export class OverviewState {
   #deleted = new Set<string>();
   connection = $state<OverviewConnection>("reconnecting");
   /**
+   * Domains the open stream pushes completely (`OverviewUpdate.feeds`): their readers stop polling. Empty while
+   * the stream is down or the gateway is older.
+   */
+  pushed = $state.raw<ReadonlySet<string>>(new Set());
+  /**
    * Grows with the first sync and every reload after a gap in the stream: state kept elsewhere (settings,
    * schedules, shared reads) reloads too. A background linked read that settles is not a gap.
    */
@@ -104,6 +109,8 @@ export class OverviewState {
   apply(update: ui.OverviewUpdate): void {
     for (const listener of this.#listeners) listener(update);
     const change = update.change;
+
+    if (change.case === "feeds") this.pushed = new Set(change.value.pushed);
 
     if (
       change.case === "linkedReadCompleted" &&
@@ -252,6 +259,8 @@ export class OverviewState {
         }
       },
       ondrop: () => {
+        this.pushed = new Set();
+
         if (this.connection === "live") this.connection = "reconnecting";
       },
       onfailure: () => (this.connection = "unavailable"),

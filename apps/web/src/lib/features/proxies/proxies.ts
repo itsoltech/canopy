@@ -1,3 +1,4 @@
+import { sharedRead } from "#lib/shared/queries.svelte.ts";
 import { create, type DescMessage, type MessageInitShape, type MessageShape } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
@@ -54,4 +55,13 @@ export async function proxyCall<A extends ProxyAction>(
 
 export async function listProxies(): Promise<ui.Proxy[]> {
   return decode(ui.ListProxiesResponseSchema, await requestJson("GET", "/api/proxies")).proxies;
+}
+
+/** The tab's one proxy list: the page and every picker share it; `proxiesChanged` reads it again. */
+export const sharedProxies = () => sharedRead("ListProxies", ui.ListProxiesResponseSchema, "/api/proxies");
+
+/** A saved or removed proxy, applied to the shared list at once. */
+export function replaceProxy(read: ReturnType<typeof sharedProxies>, proxy: ui.Proxy, removed = false): void {
+  const proxies = (read.data?.proxies ?? []).filter((p) => p.id !== proxy.id);
+  read.set(create(ui.ListProxiesResponseSchema, { proxies: removed ? proxies : [...proxies, proxy] }));
 }

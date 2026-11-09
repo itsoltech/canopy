@@ -253,6 +253,7 @@ describe.skipIf(!dockerAvailable)("settings expansion persistence, checks and ow
     if (snapshot.change.case === "mobileSnapshot")
       expect(snapshot.change.value.threads.some((t) => t.id === thread.id)).toBe(false);
     await stream.next(); // network routes
+    await stream.next(); // pushed feeds
     const pending = stream.next();
     gw.core.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: thread } }));
     abort.abort();

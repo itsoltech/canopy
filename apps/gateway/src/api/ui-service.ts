@@ -27,9 +27,40 @@ export function uiRoutes(core: GatewayCore): (router: ConnectRouter) => void {
   return (router) => router.service(ui.GatewayService, routed(core, uiHandlers(core)));
 }
 
+/** Writes that can change a bot summary, a connector or a proxy: the owner feed compares at once afterwards. */
+const FEED_WRITE = /Bot|Connector|Prox/;
+const READ = /^(List|Get|Watch|Read|Search|Preview)|Draft/;
+
+/** Nudges the owner feed after successful writes, so other clients see them within ~100 ms, not 2 s. */
+function withFeedNudges(core: GatewayCore, handlers: UiHandlers): UiHandlers {
+  // SAFETY: Entries are replaced by wrappers that call the same handler with the same arguments.
+  const own = handlers as Record<string, (...args: never[]) => object>;
+
+  for (const method of ui.GatewayService.methods) {
+    if (method.methodKind !== "unary" || !FEED_WRITE.test(method.name) || READ.test(method.name)) continue;
+    const handler = own[method.localName];
+
+    if (!handler) continue;
+
+    // Grants and moves change which accounts a bot must reconnect: compare every bot.
+    const full = /^(SaveConnectorAccount|SetConnectorAccess|DeleteConnectorAccount|DisconnectConnector)$|Move/.test(
+      method.name,
+    );
+
+    own[method.localName] = async (...args: never[]) => {
+      const result = await handler(...args);
+      core.feeds.nudge(full);
+
+      return result;
+    };
+  }
+
+  return handlers;
+}
+
 /** This computer's own GatewayService. Thin: validation and state live in the core and the store. */
 export function uiHandlers(core: GatewayCore): UiHandlers {
-  return {
+  return withFeedNudges(core, {
     ...agentEnvironmentHandlers(core),
     ...computersHandlers(core),
     ...workersHandlers(core),
@@ -45,5 +76,5 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     ...queueHandlers(core),
     ...worktreesHandlers(core),
     ...importsHandlers(core),
-  };
+  });
 }

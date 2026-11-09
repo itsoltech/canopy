@@ -1178,8 +1178,9 @@ jako „Allowed by rule: …”, z odnośnikiem do ustawień. „Threads started
 używa tych samych opcji co web; karty narzędzi takich wątków można rozstrzygać również
 w czacie bota. Są też połączenia, archiwizacja i usuwanie bota. Pasek boczny, alerty,
 ustawienia bota i dostęp konektorów korzystają z jednej listy botów parowania
-(`state/bot-list.ts`): jedno żądanie naraz, odczyt po powrocie na pierwszy plan i zmianie sieci
-oraz zapasowy odczyt co 10 s na pierwszym planie. Alerty biorą za punkt odniesienia pierwszą
+(`state/bot-list.ts`): jedno żądanie naraz, potem wypychane `bot`/`bot_removed`; po każdym
+`feeds` z `bots` lista czyta się raz. Starszy gateway nie wypycha botów: wtedy zapasowy odczyt co 15 s
+na pierwszym planie oraz po powrocie na pierwszy plan i zmianie sieci. Alerty biorą za punkt odniesienia pierwszą
 listę odczytaną po każdym połączeniu, więc nie odtwarzają historii.
 Lista obejmuje przypinanie i sekcję Archived, a karta oczekującej zgody ma skrót do polityki bota.
 Brak push i wysyłania offline; cache obejmuje wątki i rozmowy botów, zgodnie z opisem powyżej.

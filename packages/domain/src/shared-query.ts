@@ -116,7 +116,10 @@ export class QueryCache {
     };
   }
 
-  /** A value from a mutation response or a pushed event. Reads already in flight are older and are dropped. */
+  /**
+   * A value from a mutation response or a pushed event. A read already in flight is older and is dropped; a
+   * watched key reads once more after it, since that read may hold other changes.
+   */
   set<T>(key: string, value: T | ((current: T | undefined) => T)): void {
     if (this.#disposed) return;
     const entry = this.#entries.get(key) ?? this.#entry(key, () => Promise.reject(new Error(`No reader for ${key}`)));
@@ -125,9 +128,14 @@ export class QueryCache {
     const data = isUpdater(value) ? value(current) : value;
     entry.written++;
     entry.readAt = Date.now();
-    entry.dirty = false;
-    clearTimeout(entry.timer);
-    entry.timer = undefined;
+    // A read in flight is dropped as older; it may also carry other changes, so one more read follows it.
+    entry.dirty = Boolean(entry.inflight);
+
+    if (!entry.inflight) {
+      clearTimeout(entry.timer);
+      entry.timer = undefined;
+    }
+
     this.#publish(entry, { data, loaded: true, error: "", stale: false });
     this.#touch(entry);
   }

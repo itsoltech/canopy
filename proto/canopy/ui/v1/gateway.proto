@@ -848,7 +848,23 @@ message OverviewUpdate {
     bool worker_records_changed = 822;
     // A background aggregate read settled. Clients may refresh only the named catalog.
     string linked_read_completed = 823;
+    // A bot's summary as ListBots shows it (created, changed, read, archived). Linked homes forward theirs.
+    Bot bot = 824;
+    // A bot left the list (deleted or moved away).
+    string bot_removed = 825;
+    // Connector accounts, grants or OAuth apps changed: read ListConnectors again.
+    bool connectors_changed = 826;
+    // Saved proxies changed: read ListProxies again.
+    bool proxies_changed = 827;
+    // Sent when the stream opens and when it changes: the domains it pushes completely.
+    OverviewFeeds feeds = 828;
   }
+}
+
+// Domains (`bots`, `connectors`, `proxies`) an overview stream pushes completely, every linked computer it lists
+// included. Clients stop polling those; older gateways never send this, so clients keep their fallback.
+message OverviewFeeds {
+  repeated string pushed = 1;
 }
 
 // ---------- Katalogi, projekty, workspace'y ----------

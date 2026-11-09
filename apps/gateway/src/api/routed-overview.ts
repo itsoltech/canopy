@@ -236,6 +236,9 @@ export function remoteUpdates(update: ui.OverviewUpdate, nodeId: string): ui.Ove
       ];
     case "workerRemoved":
       return [one({ case: "workerRemoved", value: qualifyId(change.value, nodeId) })];
+    case "botRemoved":
+      return [one({ case: "botRemoved", value: qualifyId(change.value, nodeId) })];
+    case "bot":
     case "worker":
     case "thread":
     case "project":
@@ -315,6 +318,7 @@ export async function* watchOverview(
   const signal = AbortSignal.any([context.signal, stop.signal]);
   const watchers = new Map<string, AbortController>();
   const revisions = new Map<string, number>();
+  const feeds = linkedFeeds(computers, (value) => out.push(value));
   const watchMethod = methodNamed("WatchOverview")!;
 
   const unsubscribeReads = computers.reads.subscribe((method) =>
@@ -336,18 +340,15 @@ export async function* watchOverview(
 
         for await (const message of remote) {
           if (signal.aborted || controller.signal.aborted || watchers.get(nodeId) !== controller) break;
-          const update = linkedMessage(ui.OverviewUpdateSchema, message);
-          const merged = splitShared(update, await localProjectIds(core));
-
-          for (const value of remoteUpdates(update, nodeId)) out.push(value);
-
-          // A shared project is this computer's row: send it again with the other computer's workspaces.
-          if (merged.size) resend(merged);
+          await relayRemote(core, nodeId, message, { feeds, resend, push: (value) => out.push(value) });
         }
       } catch {
         /* the link dropped; its presence change follows */
       } finally {
         if (watchers.get(nodeId) === controller) watchers.delete(nodeId);
+
+        // A new stream to it must announce its feeds again.
+        feeds.peer(nodeId, []);
 
         // Another connection to the same computer may still be up.
         if (!signal.aborted && !controller.signal.aborted)
@@ -371,6 +372,7 @@ export async function* watchOverview(
       }
 
     for (const nodeId of reachable) if (!watchers.has(nodeId) && !computers!.reads.blocked(nodeId)) watch(nodeId);
+    feeds.update();
   }
 
   const unsubscribe = computers.subscribe(({ nodeId, removed }) => {
@@ -394,6 +396,8 @@ export async function* watchOverview(
       for await (const message of stream(own["watchOverview"]!, request, withSignal(context, signal))) {
         const update = linkedMessage(ui.OverviewUpdateSchema, message);
         const change = update.change;
+
+        if (change.case === "feeds" && feeds.local(change.value.pushed)) continue;
 
         // This computer's row of a shared project alone would hide the other computers' workspaces.
         if (
@@ -438,4 +442,68 @@ export async function* watchOverview(
 
     for (const controller of watchers.values()) controller.abort();
   }
+}
+
+/**
+ * What this stream pushes completely: this computer's feeds, with `bots` only while every reachable computer
+ * pushes its bots too (an older one does not: clients keep polling the list). Sent again when that changes.
+ */
+function linkedFeeds(computers: NonNullable<GatewayCore["computers"]>, push: (update: ui.OverviewUpdate) => void) {
+  let own: readonly string[] | undefined;
+  const peers = new Map<string, readonly string[]>();
+  let sent = "";
+
+  const update = () => {
+    if (!own) return;
+    const reachable = computers.reachable();
+    const pushed = own.filter((feed) => feed !== "bots" || reachable.every((node) => peers.get(node)?.includes(feed)));
+    const key = pushed.join(",");
+
+    if (key === sent) return;
+    sent = key;
+    push(create(ui.OverviewUpdateSchema, { change: { case: "feeds", value: { pushed } } }));
+  };
+
+  return {
+    update,
+    /** This computer's own feeds; the stream sends the combined ones instead. */
+    local(pushed: readonly string[]) {
+      own = pushed;
+      sent = "\u0000";
+      update();
+
+      return true;
+    },
+    peer(nodeId: string, pushed: readonly string[]) {
+      peers.set(nodeId, pushed);
+      update();
+    },
+  };
+}
+
+/** One message of a linked computer's overview stream, as this stream relays it. */
+async function relayRemote(
+  core: GatewayCore,
+  nodeId: string,
+  message: Message,
+  to: {
+    feeds: ReturnType<typeof linkedFeeds>;
+    resend: (ids: Iterable<string>) => void;
+    push: (update: ui.OverviewUpdate) => void;
+  },
+) {
+  const update = linkedMessage(ui.OverviewUpdateSchema, message);
+
+  if (update.change.case === "feeds") {
+    to.feeds.peer(nodeId, update.change.value.pushed);
+
+    return;
+  }
+
+  const merged = splitShared(update, await localProjectIds(core));
+
+  for (const value of remoteUpdates(update, nodeId)) to.push(value);
+
+  // A shared project is this computer's row: send it again with the other computer's workspaces.
+  if (merged.size) to.resend(merged);
 }

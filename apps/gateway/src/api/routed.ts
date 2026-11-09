@@ -286,6 +286,7 @@ export function sharedHost(core: GatewayCore, _local: UiHandlers): SharedHost {
       if (cliChanged) await coreCliDefaultsChanged(core);
     },
     providersChanged: async (workerIds) => {
+      core.feeds.nudge();
       await coreConfigsChanged(core, workerIds);
       await corePublishModels(core, await coreModelCatalogs(core));
     },
@@ -295,6 +296,7 @@ export function sharedHost(core: GatewayCore, _local: UiHandlers): SharedHost {
     },
     connectorsChanged: async () => {
       await core.environment.changed();
+      core.feeds.nudge(true);
     },
     workerRecordsChanged: () =>
       core.hub.publishOverview(

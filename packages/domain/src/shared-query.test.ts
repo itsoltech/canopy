@@ -78,9 +78,15 @@ describe("shared session reads", () => {
     cache.set("GetSettings", "from mutation");
     reader.calls[0]!.resolve("older read");
     await settle();
-    expect(cache.snapshot("GetSettings")).toMatchObject({ data: "from mutation", loaded: true, loading: false });
+    expect(cache.snapshot("GetSettings")).toMatchObject({ data: "from mutation", loaded: true });
+    // The dropped read may have held other changes: one more read follows it.
+    expect(reader.calls).toHaveLength(2);
+    reader.calls[1]!.resolve("newest read");
+    await settle();
+    expect(cache.snapshot("GetSettings")).toMatchObject({ data: "newest read", loading: false });
     cache.set<string>("GetSettings", (current) => `${current}, updated`);
-    expect(cache.snapshot<string>("GetSettings").data).toBe("from mutation, updated");
+    expect(cache.snapshot<string>("GetSettings").data).toBe("newest read, updated");
+    expect(reader.calls).toHaveLength(2);
   });
 
   test("a failed read keeps the last value and reports the error", async () => {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { botList } from "#lib/features/bots/bot-list.svelte.ts";
   import { onMount, untrack } from "svelte";
   import { create } from "@bufbuild/protobuf";
   import { bots as botContract, connectors } from "@canopy/contracts";
@@ -15,7 +16,6 @@
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import ConnectionError from "#lib/features/connectors/ConnectionError.svelte";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
-  import { requestJson } from "#lib/shared/http.ts";
 
   let { data }: PageProps = $props();
   const overview = useOverview();
@@ -34,9 +34,14 @@
 
   let botCatalog = $state(untrack(() => decode(botContract.ListBotsResponseSchema, data.bots)));
   let reloading = false;
+  let reloadAgain = false;
+  const CONNECTORS_FALLBACK_MS = 30_000;
+
+  // The shared bot list follows pushed changes; the route's list covers the first paint.
+  $effect(() => botList.use());
 
   const bots = $derived(
-    botCatalog.bots.map((b) => ({
+    (botList.loaded ? botList.list.filter((b) => !b.archived) : botCatalog.bots).map((b) => ({
       id: b.id,
       name: b.configuration?.name ?? "Bot",
     })),
@@ -81,12 +86,16 @@
   }
 
   async function reload() {
-    if (reloading) return;
+    if (reloading) {
+      reloadAgain = true;
+
+      return;
+    }
+
     reloading = true;
 
     try {
-      const [result, nextBots] = await Promise.all([listConnectors(), requestJson("GET", "/api/bots")]);
-      botCatalog = decode(botContract.ListBotsResponseSchema, nextBots);
+      const result = await listConnectors();
 
       const completed = result.accounts.find(
         (next) =>
@@ -99,13 +108,26 @@
       accounts = result.accounts;
     } finally {
       reloading = false;
+
+      if (reloadAgain) {
+        reloadAgain = false;
+        void reload().catch(() => {});
+      }
     }
   }
 
+  // Accounts, grants and OAuth results from any client arrive as `connectorsChanged`. A gateway that does not
+  // push them (older) gets one visible-page check every 30 s instead.
+  onMount(() =>
+    overview.subscribe((update) => {
+      if (update.change.case === "connectorsChanged") void reload().catch(() => {});
+    }),
+  );
+
   onMount(() => {
     const timer = setInterval(() => {
-      if (!document.hidden) void reload().catch(() => {});
-    }, 3000);
+      if (!document.hidden && !overview.pushed.has("connectors")) void reload().catch(() => {});
+    }, CONNECTORS_FALLBACK_MS);
 
     return () => clearInterval(timer);
   });
