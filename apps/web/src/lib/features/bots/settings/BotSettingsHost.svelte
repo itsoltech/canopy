@@ -12,7 +12,6 @@
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import { botList } from "../bot-list.svelte.ts";
   import { botWizardInstances } from "../live.ts";
-  import BotSettingsDialog from "./BotSettingsDialog.svelte";
   import { archiveBot } from "./lifecycle.ts";
   import { nodeRef, splitId } from "@canopy/domain/computers";
 
@@ -27,6 +26,7 @@
   let deletingBusy = $state(false);
   let deleteError = $state("");
   let generation = 0;
+  let SettingsDialog = $state.raw<typeof import("./BotSettingsDialog.svelte").default>();
   const bot = $derived(botList.list.find((b) => b.id === id));
 
   const instances = $derived(
@@ -48,9 +48,13 @@
       loading = true;
 
       try {
-        const instancesJson = await requestJson("GET", `/api/bots/${nextId}/providers`);
+        const [instancesJson, component] = await Promise.all([
+          requestJson("GET", `/api/bots/${nextId}/providers`),
+          import("./BotSettingsDialog.svelte"),
+        ]);
 
         if (generation !== version) return;
+        SettingsDialog = component.default;
         providers = decode(ui.ListProviderInstancesResponseSchema, instancesJson).instances;
         open = true;
       } catch (cause) {
@@ -105,17 +109,19 @@
 </script>
 
 {#if bot}
-  <BotSettingsDialog
-    bind:open
-    {bot}
-    {providers}
-    {instances}
-    onarchive={archive}
-    ondelete={() => {
-      deleting = true;
-      deleteError = "";
-    }}
-  />
+  {#if SettingsDialog}
+    <SettingsDialog
+      bind:open
+      {bot}
+      {providers}
+      {instances}
+      onarchive={archive}
+      ondelete={() => {
+        deleting = true;
+        deleteError = "";
+      }}
+    />
+  {/if}
   <Dialog
     bind:open={deleting}
     title="Delete {bot.configuration?.name ?? 'bot'}?"

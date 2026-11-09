@@ -1146,6 +1146,19 @@ tożsamość, żeby wirtualizowany feed nie zmieniał kotwicy. Akcje podczas syn
 wykonuje dom ze sprawdzeniem właściciela i bieżącego stanu. Brak lustra zachowuje dotychczasowe
 otwarcie z domu. Szczegóły: [linked-computers.md](linked-computers.md#przyrostowe-otwarcie-i-publikacja).
 
+### Koszt aktualizacji renderera
+
+`FeedBuilder` porównuje własne pola wierszy bez tworzenia tablic `Object.entries`
+i map przy każdej delcie. Zachowuje tożsamość niezmienionych wierszy i dotychczasowe
+reguły porównania danych zagnieżdżonych. Wirtualizacja nadal mierzy rzeczywistą
+wysokość Markdown, kodu i diffów; nie zakłada stałej wysokości odpowiedzi.
+
+`BotSettingsHost` pobiera edytor ustawień bota przez dynamiczny import dopiero
+przy pierwszym otwarciu, równolegle z listą instancji dostawców. W czasie pobierania
+działa istniejący dialog ładowania/błędu. Raz załadowany komponent zostaje dostępny
+także podczas animacji zamknięcia. Zmiana bota lub zniszczenie hosta unieważnia
+spóźnioną odpowiedź. Procedura pomiarowa: [client-performance.md](client-performance.md).
+
 ### Strefa czasowa użytkownika
 
 `UserSettings.timezone` (pole **620**) to nazwa strefy IANA; brak zapisanej wartości
