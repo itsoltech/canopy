@@ -10,6 +10,7 @@ import { seed, type Dataset } from "./seed.ts";
 import { Recorder } from "./trace.ts";
 import { stats, difference } from "./stats.ts";
 import { queueOperations, seedQueues } from "./queues.ts";
+import { PlanCapture } from "./plan-capture.ts";
 
 const { values } = parseArgs({
   args: process.argv.slice(2),
@@ -23,6 +24,7 @@ const { values } = parseArgs({
     iterations: { type: "string", default: "20" },
     operation: { type: "string" },
     explain: { type: "boolean" },
+    "explain-writes": { type: "boolean" },
   },
 });
 
@@ -88,6 +90,7 @@ try {
     const after = await normal.runPromise(stats);
 
     recorder.samples = [];
+    recorder.planCapture = values["explain-writes"] ? new PlanCapture() : undefined;
     await operation.run(diagnostic);
     const samples = recorder.samples;
     recorder.samples = undefined;
@@ -99,7 +102,11 @@ try {
       rows: samples.reduce((n, s) => n + s.rows, 0),
       decodedJsonBytes: samples.reduce((n, s) => n + s.bytes, 0),
       serverPerIteration: difference(before, after, iterations),
-      ...(values.explain ? { plans: await explain(normal, samples) } : undefined),
+      ...(recorder.planCapture
+        ? { plans: recorder.planCapture.plans }
+        : values.explain
+          ? { plans: await explain(normal, samples) }
+          : undefined),
     });
   }
 

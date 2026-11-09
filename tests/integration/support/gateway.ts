@@ -561,6 +561,11 @@ export async function startTestGateway(
 ): Promise<TestGateway> {
   const pg = options.storage?.pg ?? (await startPostgres({ migrated: true }));
   const secretsKey = options.storage?.secretsKey ?? randomBytes(32);
+  const auditDirectory = process.env["CANOPY_SQL_AUDIT_DIR"];
+
+  const audit = auditDirectory
+    ? await (await import("../../../scripts/bench/test-audit.ts")).testAudit(pg.layer, auditDirectory)
+    : undefined;
 
   const runtime: TestRuntime = ManagedRuntime.make(
     Layer.mergeAll(
@@ -576,10 +581,11 @@ export async function startTestGateway(
       AttachmentStore.layer,
       BackgroundTaskStore.layer,
       BotStore.layer(secretsKey),
-    ).pipe(Layer.provideMerge(pg.layer)),
+    ).pipe(Layer.provideMerge(audit?.layer ?? pg.layer)),
   );
 
   await runtime.runPromise(migrate);
+  audit?.start();
   const userId = await runtime.runPromise(GatewayStore.use((s) => s.ensureUser("dev@localhost", "Dev")));
 
   const addWorker = async (name: string, allowedRoots?: string[]) => {
@@ -719,6 +725,7 @@ export async function startTestGateway(
       await runtime.dispose();
 
       if (!keepDatabase) await pg.stop();
+      await audit?.flush();
     },
   };
 }
