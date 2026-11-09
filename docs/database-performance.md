@@ -67,6 +67,14 @@ latency. Nie zastępuje testów konkurencji ani audytu zimnych gałęzi kodu.
 
 ## Inwentaryzacja SQL
 
+`bun scripts/bench/routines.ts --run` mierzy planistę 16 botów z czterema rutynami
+każdy. Osobny przebieg dodaje prywatny trigger opóźniający enqueue o 5 ms i mierzy
+edycję ostatniego bota po rozpoczęciu pierwszego enqueue; ten czas obejmuje
+oczekiwanie na blokadę. Zwykłe p95 dispatch nie zawiera sztucznego opóźnienia.
+Planista blokuje jeden bot na transakcję, do 100 takich transakcji na przebieg.
+Sprawdza zajętość wszystkich jego rutyn jednym odczytem, bez pobierania instrukcji,
+a stan następnego wystąpienia i przyjęcie tury zatwierdza atomowo.
+
 `bun scripts/bench/secrets.ts --run` mierzy kolejkę 1024 syntetycznych grantów:
 polling, pierwszy reset po połączeniu i pierwszą partię wygaszania.
 Stan wejściowy jest przywracany poza pomiarem; diagnostyka wykonuje osobne plany

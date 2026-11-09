@@ -195,6 +195,8 @@ zawiera identyfikator rutyny i planowany termin. Restart ani drugi gateway nie t
 drugiej tury tego samego wystąpienia. Wiele terminów po przestoju składa się w **jedno**
 wykonanie; kolejny termin liczymy od aktualnego czasu. Jeśli wykonanie/follow-up tej
 rutyny nadal czeka lub pracuje, przesuwamy termin bez tworzenia zaległej kolejki.
+Jeden przebieg obsługuje do 100 botów, po jednym na transakcję; blokady nie obejmują
+pozostałych botów podczas zapisywania wystąpień pierwszego.
 Archiwalny/usunięty bot nie uruchamia rutyn. Wyłączenie lub usunięcie rutyny przerywa
 także już zakolejkowane/aktywne tury i odrzuca ich oczekujące karty; fencing lease
 uniemożliwia zatwierdzenie dalszych efektów starego wykonawcy. Efektu zdalnego, który

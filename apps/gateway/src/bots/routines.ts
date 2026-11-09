@@ -120,7 +120,71 @@ const checked = (patch: RoutinePatch, now: Date) =>
     catch: (e) => (e instanceof Invalid ? e : new Invalid("invalid cron expression")),
   });
 
-/** Called inside BotStore's transactions: bot -> routine -> turn is the lock order. */
+/** One bot per transaction; bot -> routine -> turn remains the lock order. */
+function deliverRoutines(sql: SqlClient.SqlClient, hooks: Hooks, user: string, now: Date) {
+  return Effect.gen(function* () {
+    for (let i = 0; i < 100; i++) {
+      const claimed = yield* sql.withTransaction(
+        Effect.gen(function* () {
+          const dueBots = yield* sql<{ id: string }>`SELECT b.id FROM bots b
+            WHERE b.owner_user_id=${user}::uuid AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
+            AND EXISTS(SELECT 1 FROM bot_routines r WHERE r.bot_id=b.id AND r.enabled
+              AND r.deleted_at IS NULL AND r.next_run_at<=${now})
+            ORDER BY b.id FOR UPDATE SKIP LOCKED LIMIT 1`;
+
+          for (const b of dueBots) {
+            const due = yield* sql<
+              Pick<
+                RoutineRow,
+                "id" | "title" | "cron" | "timezone" | "hops" | "next_run_at" | "run_count" | "last_outcome"
+              > & { pending: boolean }
+            >`SELECT r.id,r.title,r.cron,r.timezone,r.hops,r.next_run_at,r.run_count,r.last_outcome,
+              EXISTS(SELECT 1 FROM bot_turns t WHERE t.routine_id=r.id AND t.status IN ('queued','running','waiting')) AS pending
+              FROM bot_routines r WHERE r.bot_id=${b.id}::uuid AND r.enabled AND r.deleted_at IS NULL
+              AND r.next_run_at<=${now} ORDER BY r.id FOR UPDATE OF r`;
+
+            for (const r of due) {
+              let next: Date | undefined;
+
+              try {
+                next = nextCronRun(r.cron, r.timezone, now);
+              } catch {
+                /* Disable an expression rejected after a parser upgrade. */
+              }
+
+              const enqueue = Boolean(next) && !r.pending;
+
+              if (enqueue) {
+                const input = `Background routine: ${r.title}\nRoutine ID: ${r.id}\nScheduled for: ${new Date(r.next_run_at!).toISOString()}\nCurrent time: ${now.toISOString()} (${r.timezone})\nRun: ${r.run_count + 1}\nPrevious outcome: ${r.last_outcome || "No previous run"}`;
+                yield* hooks.enqueue(user, b.id, input, `routine:${r.id}:${new Date(r.next_run_at!).toISOString()}`, {
+                  hops: r.hops,
+                  sender: "system",
+                  event: true,
+                  routineId: r.id,
+                  routineTitle: r.title,
+                });
+              }
+
+              // Claim and enqueue commit together. Downtime coalesces to one occurrence.
+              yield* sql`UPDATE bot_routines SET next_run_at=${next ?? null},enabled=${Boolean(next)},updated_at=now(),
+                last_run_at=CASE WHEN ${enqueue} THEN ${now} ELSE last_run_at END,
+                run_count=run_count+${enqueue ? 1 : 0},
+                last_outcome=CASE WHEN ${enqueue} THEN 'Running' ELSE last_outcome END WHERE id=${r.id}::uuid`;
+            }
+
+            yield* hooks.changed(b.id);
+          }
+
+          return dueBots.length > 0;
+        }),
+      );
+
+      if (!claimed) break;
+    }
+  });
+}
+
+/** Mutation callers preserve bot -> routine -> turn lock order. */
 export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
   const rows = (botId: string) =>
     sql<RoutineRow>`SELECT * FROM bot_routines WHERE bot_id = ${botId}::uuid AND deleted_at IS NULL ORDER BY created_at, id`;
@@ -208,49 +272,6 @@ export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
           return { deleted: true };
         }),
       ),
-    deliverRoutines: (user: string, now: Date) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          // Claim and enqueue atomically. Advance from now: downtime coalesces to one occurrence.
-          const dueBots =
-            yield* sql<BotRow>`SELECT b.* FROM bots b WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
-        AND EXISTS (SELECT 1 FROM bot_routines r WHERE r.bot_id = b.id AND r.enabled AND r.deleted_at IS NULL AND r.next_run_at <= ${now})
-        ORDER BY b.id FOR UPDATE SKIP LOCKED LIMIT 100`;
-
-          for (const b of dueBots) {
-            const due =
-              yield* sql<RoutineRow>`SELECT * FROM bot_routines WHERE bot_id = ${b.id}::uuid AND enabled AND deleted_at IS NULL AND next_run_at <= ${now} ORDER BY id FOR UPDATE`;
-
-            for (const r of due) {
-              let next: Date | undefined;
-
-              try {
-                next = nextCronRun(r.cron, r.timezone, now);
-              } catch {
-                /* Disable an expression rejected after a parser upgrade. */
-              }
-
-              const pending =
-                yield* sql`SELECT id FROM bot_turns WHERE routine_id = ${r.id}::uuid AND status IN ('queued','running','waiting') LIMIT 1`;
-
-              if (next && !pending.length) {
-                const input = `Background routine: ${r.title}\nRoutine ID: ${r.id}\nScheduled for: ${new Date(r.next_run_at!).toISOString()}\nCurrent time: ${now.toISOString()} (${r.timezone})\nRun: ${r.run_count + 1}\nPrevious outcome: ${r.last_outcome || "No previous run"}`;
-                yield* hooks.enqueue(user, b.id, input, `routine:${r.id}:${new Date(r.next_run_at!).toISOString()}`, {
-                  hops: r.hops,
-                  sender: "system",
-                  event: true,
-                  routineId: r.id,
-                  routineTitle: r.title,
-                });
-                yield* sql`UPDATE bot_routines SET last_run_at = ${now}, run_count = run_count + 1, last_outcome = 'Running' WHERE id = ${r.id}::uuid`;
-              }
-
-              yield* sql`UPDATE bot_routines SET next_run_at = ${next ?? null}, enabled = ${Boolean(next)}, updated_at = now() WHERE id = ${r.id}::uuid`;
-            }
-
-            yield* hooks.changed(b.id);
-          }
-        }),
-      ),
+    deliverRoutines: (user: string, now: Date) => deliverRoutines(sql, hooks, user, now),
   };
 }
