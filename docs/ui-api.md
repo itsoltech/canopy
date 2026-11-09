@@ -144,6 +144,8 @@ Arkusz „Thread details” ma stały nagłówek; tytuł wątku i menu zmiany na
 pokazane raz, we wspólnym `ThreadPanel` używanym też na desktopie. Pełny tytuł
 jest dostępny w tooltipie (na telefonie po przytrzymaniu) i w dialogu zmiany nazwy.
 Pusta lista konektorów zajmuje jeden wiersz „Connectors · None” z linkiem „Manage”.
+Panel web/desktop i mobile nie powtarza modelu, uprawnień, statusu ani zużycia tokenów i kosztu.
+Model i uprawnienia pozostają w kompozytorze, a status w nagłówku wątku i sidebarze.
 
 `connectors.proto` i osiem RPC `GatewayService` obsługują katalog, nazwane konta,
 granty, test, disconnect, aplikacje OAuth oraz begin/complete autoryzacji.
@@ -1385,8 +1387,7 @@ kompensuje wzrost wysokości scrolla. Cytat do niezaładowanego itemu pobiera ok
 `target_item_id` przed rozwinięciem folda i przewinięciem do celu.
 Wyszukiwanie w wątku po wpisaniu zapytania doczytuje wcześniejsze strony aż do
 początku; obejmuje wejścia użytkownika i tekst odpowiedzi agenta, także dziedziczony.
-Wynik w web otwiera właściwy fold i przewija do tury lub itemu. Liczniki zużycia
-w panelu oznaczają sumę załadowanych tur, dopóki okno nie obejmuje całej historii.
+Wynik w web otwiera właściwy fold i przewija do tury lub itemu.
 
 Zwykła przeglądarka trzyma historię tylko w pamięci SPA. Electron ma prywatny
 cache na dysku przez preload ([desktop.md](desktop.md)); BFF nigdy nie

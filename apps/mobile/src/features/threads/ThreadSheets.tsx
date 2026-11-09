@@ -20,12 +20,7 @@ export function ThreadSheets({
   return (
     <>
       <TimelineDirectoryProvider value={viewerDirectory(state)}>
-        <ThreadPanel
-          snapshot={snapshot}
-          usage={state.usage}
-          visible={state.details}
-          onClose={() => state.setDetails(false)}
-        />
+        <ThreadPanel snapshot={snapshot} visible={state.details} onClose={() => state.setDetails(false)} />
       </TimelineDirectoryProvider>
       <QueuedMessageMenu
         threadId={thread?.id ?? ""}

@@ -803,9 +803,6 @@
             {thread}
             {tree}
             {worker}
-            usage={view.usage}
-            totals={view.totals}
-            partialUsage={view.hasMore}
             schedules={view.upcomingSchedules}
             backgroundTasks={allBackgroundTasks}
             items={itemsById}
@@ -837,9 +834,6 @@
       {thread}
       {tree}
       {worker}
-      usage={view.usage}
-      totals={view.totals}
-      partialUsage={view.hasMore}
       schedules={view.upcomingSchedules}
       backgroundTasks={allBackgroundTasks}
       items={itemsById}
