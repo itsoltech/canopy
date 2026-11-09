@@ -160,7 +160,9 @@ export class Ingest extends Context.Service<
           for (const event of [...events].sort((a, b) =>
             a.journalSeq < b.journalSeq ? -1 : a.journalSeq > b.journalSeq ? 1 : 0,
           )) {
-            byThread.set(event.threadId, [...(byThread.get(event.threadId) ?? []), event]);
+            const group = byThread.get(event.threadId) ?? [];
+            group.push(event);
+            byThread.set(event.threadId, group);
           }
 
           const acks = new Map<string, bigint>();

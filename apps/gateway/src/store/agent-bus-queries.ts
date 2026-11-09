@@ -20,7 +20,23 @@ export const thread = (sql: SqlClient.SqlClient, id: string) =>
     Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0]) : Effect.fail(new NotFound("thread not found")))),
   );
 
-export const node = (row: ThreadRow & { archived_at?: Date | null }): ThreadNode => ({
+export type ThreadNodeRow = Pick<
+  ThreadRow,
+  | "id"
+  | "root_thread_id"
+  | "depth"
+  | "remote_parent_ref"
+  | "parent_thread_id"
+  | "owner_user_id"
+  | "provider"
+  | "provider_profile_id"
+  | "archived_at"
+>;
+
+export const nodeColumns =
+  "id,root_thread_id,depth,remote_parent_ref,parent_thread_id,owner_user_id,provider,provider_profile_id,archived_at";
+
+export const node = (row: ThreadNodeRow): ThreadNode => ({
   id: row.id,
   rootId: row.root_thread_id,
   depth: row.remote_parent_ref ? 1 : row.depth,

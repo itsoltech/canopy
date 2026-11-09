@@ -141,4 +141,6 @@ export const busState: unique symbol = Symbol("AgentBus state");
 
 export class AgentBusState {
   host!: BusHost;
+  notificationCursor: string | undefined;
+  fallbackCursor: string | undefined;
 }

@@ -70,7 +70,7 @@ export function botWakeups(sql: SqlClient.SqlClient, core: BotCore) {
 
 /** Delivers due watches and wakeups as bot turns. */
 export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
-  const { changed, enqueue, originEnabled } = core;
+  const { changed, enqueue } = core;
 
   return {
     deliver: () =>
@@ -81,7 +81,7 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
             target_turn_id: string;
           }>`SELECT w.call_id, CASE WHEN s.status = 'delivered' THEN s.turn_id ELSE s.queued_turn_id END AS target_turn_id
         FROM bot_thread_watches w JOIN turn_steers s ON w.target_steer_id = s.id JOIN bots b ON b.id = w.bot_id
-        WHERE NOT w.delivered AND w.target_turn_id IS NULL AND s.status IN ('delivered','queued') AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL FOR UPDATE OF b, w SKIP LOCKED`;
+        WHERE NOT w.delivered AND w.target_turn_id IS NULL AND s.status IN ('delivered','queued') AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL ORDER BY w.call_id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
 
           for (const steer of steers)
             yield* sql`UPDATE bot_thread_watches SET target_turn_id = ${steer.target_turn_id}::uuid WHERE call_id = ${steer.call_id}::uuid`;
@@ -97,23 +97,23 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
             title: string;
           }>`SELECT w.*, b.owner_user_id, t.status, th.title FROM bot_thread_watches w
         JOIN bots b ON b.id = w.bot_id JOIN turns t ON t.id = w.target_turn_id JOIN threads th ON th.id = t.thread_id
-        WHERE NOT w.delivered AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL AND th.owner_user_id = b.owner_user_id AND t.status IN ('completed','failed','interrupted','cancelled') FOR UPDATE OF b, w SKIP LOCKED`;
+        WHERE NOT w.delivered AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL AND th.owner_user_id = b.owner_user_id AND t.status IN ('completed','failed','interrupted','cancelled') ORDER BY w.call_id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
+
+          const watchSources = yield* deliverySources(
+            sql,
+            watches.map((w) => w.call_id),
+          );
+
+          const results = yield* watchTexts(
+            sql,
+            watches.map((w) => ({ thread: w.target_thread_id, turn: w.target_turn_id })),
+          );
 
           for (const watch of watches) {
-            const items = yield* sql<{
-              content: { agentMessage?: { text?: string } };
-            }>`SELECT content FROM thread_items WHERE thread_id = ${watch.target_thread_id}::uuid AND turn_id = ${watch.target_turn_id}::uuid ORDER BY first_seq`;
+            const text = results.get(watch.target_turn_id) ?? "";
+            const source = watchSources.get(watch.call_id);
 
-            const text = items
-              .map((i) => i.content.agentMessage?.text ?? "")
-              .filter(Boolean)
-              .join("\n")
-              .slice(0, 80_000);
-
-            const source =
-              (yield* sql<BotTurn>`SELECT t.* FROM bot_tool_calls c JOIN bot_turns t ON t.id = c.turn_id WHERE c.id = ${watch.call_id}::uuid`)[0];
-
-            if (yield* originEnabled(source))
+            if (source?.origin_enabled ?? true)
               yield* enqueue(
                 watch.owner_user_id,
                 watch.bot_id,
@@ -137,13 +137,17 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
             hops: number;
             owner_user_id: string;
           }>`SELECT w.*, b.owner_user_id FROM bot_wakeups w JOIN bots b ON b.id = w.bot_id
-        WHERE NOT w.delivered AND NOT w.cancelled AND w.run_at <= now() AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL FOR UPDATE OF b, w SKIP LOCKED`;
+        WHERE NOT w.delivered AND NOT w.cancelled AND w.run_at <= now() AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL ORDER BY w.run_at,w.id LIMIT 32 FOR UPDATE OF b, w SKIP LOCKED`;
+
+          const wakeSources = yield* deliverySources(
+            sql,
+            wakeups.map((w) => w.id),
+          );
 
           for (const wake of wakeups) {
-            const source =
-              (yield* sql<BotTurn>`SELECT t.* FROM bot_tool_calls c JOIN bot_turns t ON t.id = c.turn_id WHERE c.id = ${wake.id}::uuid`)[0];
+            const source = wakeSources.get(wake.id);
 
-            if (yield* originEnabled(source))
+            if (source?.origin_enabled ?? true)
               yield* enqueue(wake.owner_user_id, wake.bot_id, wake.prompt, `wakeup:${wake.id}`, {
                 hops: wake.hops,
                 sender: "system",
@@ -157,3 +161,27 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
       ),
   };
 }
+
+const deliverySources = (sql: SqlClient.SqlClient, ids: readonly string[]) =>
+  ids.length
+    ? sql<BotTurn & { call_id: string; origin_enabled: boolean }>`SELECT t.*,c.id AS call_id,
+    (t.routine_id IS NULL OR coalesce(r.enabled AND r.deleted_at IS NULL,false)) AS origin_enabled
+    FROM bot_tool_calls c JOIN bot_turns t ON t.id=c.turn_id LEFT JOIN bot_routines r ON r.id=t.routine_id
+    WHERE c.id=ANY(${[...ids]}::uuid[])`.pipe(Effect.map((rows) => new Map(rows.map((row) => [row.call_id, row]))))
+    : Effect.succeed(new Map<string, BotTurn & { origin_enabled: boolean }>());
+
+/** Fetch a text prefix, never complete tool payloads. JS slicing retains the historical UTF-16 limit. */
+export const watchTexts = (sql: SqlClient.SqlClient, requested: readonly { thread: string; turn: string }[]) =>
+  sql<{
+    turn: string;
+    text: string;
+  }>`SELECT r.turn,result.text FROM unnest(${requested.map((r) => r.thread)}::uuid[],${requested.map((r) => r.turn)}::uuid[]) r(thread,turn)
+  CROSS JOIN LATERAL (WITH texts AS MATERIALIZED (
+    SELECT first_seq,left(content->'agentMessage'->>'text',80000) AS text FROM thread_items
+    WHERE thread_id=r.thread AND turn_id=r.turn AND type='agent_message'
+      AND coalesce(content->'agentMessage'->>'text','')<>''
+  ), budget AS (
+    SELECT first_seq,text,coalesce(sum(length(text)+1) OVER(ORDER BY first_seq ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS preceding FROM texts
+  ) SELECT left(coalesce(string_agg(text,E'\n' ORDER BY first_seq) FILTER(WHERE preceding<=80000),''),80000) AS text FROM budget) result`.pipe(
+    Effect.map((rows) => new Map(rows.map((row) => [row.turn, row.text.slice(0, 80000)]))),
+  );

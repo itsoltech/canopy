@@ -118,6 +118,26 @@ oraz kolejkę.
 Pełny snapshot starszych klientów, skok do itemu i odtworzenie okna od `fromTurnId`
 zachowują wcześniejszy zakres; nie są po cichu obcinane.
 
+Kontekst nazwy gałęzi wybiera pierwszy i trzy ostatnie prompty przez indeks porządku
+tur. Nie pobiera środkowej historii. Fakty agent busa pobierają nagłówki wszystkich
+adresatów jednym zapytaniem. Powiadomienia mają strony po 50 rekordów, a fallbacki
+po 64; kursor `(created_at, id)` pozwala ominąć chwilowo zajęte cele, a kolejny
+przebieg wraca na początek. Status dostarczenia pozostaje trwały w bazie. Ostatnia
+odpowiedź jest liczona raz na turę celu i zwracana tylko do limitu podglądu;
+licznik obcięcia zachowuje długość UTF-16. Watch i wakeup botów przyjmują do 32
+rekordów, a teksty watchy pobierają grupowo, bez payloadów narzędzi.
+
+Konfiguracja workera rozwiązuje zaszyfrowane referencje jednym odczytem grupowym;
+nie wykonuje osobnego SELECT dla każdego sekretu. Uwierzytelnianie workera używa
+indeksu hasha credentiala; lookup aktualizacji porównuje UUID bez rzutowania kolumny
+na tekst. Migracja `0106` rejestruje te indeksy oraz indeksy pollingu agent busa
+i botów jako zadania obsługujące budowanie online.
+
+`bun scripts/bench/stores.ts --run` mierzy 32 adresatów, 256 powiadomień,
+24 referencje sekretów i lookup wśród 10 013 workerów. Pomiar rozróżnia pierwszą
+stronę powiadomień od pełnego opróżnienia; ma tę samą metodę p95 i diagnostyki
+wierszy/bajtów co główny harness.
+
 Wyszukiwanie tytułów odczytuje małe nagłówki kandydatów, zachowuje fuzzy ranking
 i kolejność aktywności, a dopiero dla maksymalnie 50 wyników pobiera pełne metadane
 i buduje podglądy powiadomień. Oba odczyty sprawdzają właściciela i widoczność.

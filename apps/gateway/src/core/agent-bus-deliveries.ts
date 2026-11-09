@@ -21,19 +21,28 @@ export const busDeliveriesMethods: BusDeliveriesMethods = {
 
   /** Durable reports: also called by the startup/periodic sweep after a gateway restart. */
   async deliverNotifications(this: AgentBus, turnId?: string): Promise<void> {
+    const state = this[busState];
+
     if (!turnId) {
-      for (const id of await this[busState].host.run(AgentBusStore.use((s) => s.notificationFallbacks())))
-        await this[busState].host.fallbackSteer(id);
+      const fallbacks = await state.host.run(AgentBusStore.use((s) => s.notificationFallbacks(state.fallbackCursor)));
+
+      for (const id of fallbacks) await this[busState].host.fallbackSteer(id);
+      state.fallbackCursor = fallbacks.length === 64 ? fallbacks.at(-1) : undefined;
     }
 
-    const due = await this[busState].host.run(AgentBusStore.use((s) => s.dueNotifications(turnId)));
+    let due = await state.host.run(
+      AgentBusStore.use((s) => s.dueNotifications(turnId, turnId ? undefined : state.notificationCursor)),
+    );
 
-    for (const { call, target, turnStatus, lastMessage } of due) {
+    if (!turnId && !due.length && state.notificationCursor)
+      due = await state.host.run(AgentBusStore.use((s) => s.dueNotifications()));
+
+    for (const { call, target, turnStatus, lastMessage, lastMessageLength } of due) {
       const label = target.kind === "side" ? "side thread" : "thread";
 
       const input = {
         note: `[canopy] The ${label} "${target.title}" (thread_id: ${target.id}) finished a turn: ${turnStatus}. Its last message:`,
-        message: truncate(lastMessage, 20_000) || "(no message)",
+        message: truncate(lastMessage, 20_000, lastMessageLength) || "(no message)",
       };
 
       const delivery = await this[busState].host.run(AgentBusStore.use((s) => s.deliverNotification(call.id, input)));
@@ -42,6 +51,8 @@ export const busDeliveriesMethods: BusDeliveriesMethods = {
       if (delivery?.turn) await this[busState].host.queued(call.source_thread_id, delivery.turn);
       else if (delivery?.steerId) await this[busState].host.steered(delivery.steerId);
     }
+
+    if (!turnId) state.notificationCursor = due.length === 50 ? due.at(-1)?.call.id : undefined;
   },
 
   async deliverAnswers(this: AgentBus): Promise<void> {

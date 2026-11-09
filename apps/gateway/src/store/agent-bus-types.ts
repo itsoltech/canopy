@@ -75,10 +75,11 @@ export function busPermissionMode(stored: string | undefined): SpawnPermissionMo
 }
 
 export interface Notification {
-  readonly call: BusCallRow;
-  readonly target: ThreadRow;
+  readonly call: Pick<BusCallRow, "id" | "source_thread_id">;
+  readonly target: Pick<ThreadRow, "id" | "title" | "kind">;
   readonly turnStatus: string;
   readonly lastMessage: string;
+  readonly lastMessageLength: number;
 }
 
 export interface ScheduleRow {
@@ -220,8 +221,8 @@ export function toUiSchedule(row: ScheduleRow): ui.Schedule {
   });
 }
 
-export function truncate(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max)}… [${text.length - max} more characters]`;
+export function truncate(text: string, max: number, totalLength = text.length): string {
+  return totalLength <= max ? text : `${text.slice(0, max)}… [${totalLength - max} more characters]`;
 }
 
 export function truncateJson(value: Record<string, JsonValue>): Record<string, JsonValue> {
