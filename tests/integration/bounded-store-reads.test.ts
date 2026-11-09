@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Provider } from "@canopy/contracts";
 import { authorizeBusCall } from "@canopy/domain";
 import { dockerAvailable } from "@canopy/db/testing";
-import { AgentBusStore, GatewayStore, truncate } from "@canopy/gateway/store";
+import { AgentBusStore, GatewayStore, InstanceStore, truncate } from "@canopy/gateway/store";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { watchTexts } from "../../apps/gateway/src/bots/store-wakeups.ts";
@@ -201,5 +201,41 @@ describe.skipIf(!dockerAvailable)("bounded history and notification reads", () =
     expect(
       (await query("SELECT secret_id FROM worker_config_secrets WHERE worker_id=$1::uuid", [gateway.workerId])).length,
     ).toBe(1);
+  });
+
+  test("provider settings omit another owner's instances and worker assignments", async () => {
+    const other = crypto.randomUUID();
+    const worker = crypto.randomUUID();
+    await query(
+      "INSERT INTO users(id,email,display_name,role) VALUES($1::uuid,'settings-other@example.invalid','Other','user')",
+      [other],
+    );
+    await query(
+      "INSERT INTO workers(id,name,credential_hash,owner_user_id) VALUES($1::uuid,'private-worker','synthetic-settings-hash',$2::uuid)",
+      [worker, other],
+    );
+    await query(
+      `INSERT INTO provider_instances(harness,id,kind,label,created_by,env)
+      VALUES('codex','private-settings','native','Private',$1::uuid,
+        jsonb_build_array(jsonb_build_object('name','PRIVATE_SETTING','value',repeat('x',65536))))`,
+      [other],
+    );
+    await query(
+      `INSERT INTO provider_instance_workers(harness,instance_id,worker_id,enabled)
+      VALUES('codex','native',$1::uuid,true),('codex','private-settings',$1::uuid,true)`,
+      [worker],
+    );
+
+    const listed = await gateway.runtime.runPromise(InstanceStore.use((s) => s.list(gateway.userId)));
+    expect(listed.some((i) => i.id === "private-settings")).toBe(false);
+    expect(listed.flatMap((i) => i.workers).some((w) => w.workerId === worker)).toBe(false);
+    expect(
+      listed
+        .find((i) => i.harness === Provider.CODEX && i.id === "native")
+        ?.workers.some((w) => w.workerId === gateway.workerId),
+    ).toBe(true);
+
+    const privateView = await gateway.runtime.runPromise(InstanceStore.use((s) => s.list(other)));
+    expect(privateView.find((i) => i.id === "private-settings")?.workers.map((w) => w.workerId)).toEqual([worker]);
   });
 });

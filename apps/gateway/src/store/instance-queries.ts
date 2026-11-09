@@ -25,25 +25,34 @@ import { recordProviders } from "../config-sync/provider-records.ts";
 
 /** Instances, assignments and workers as stored, and the settings view of them. */
 export function instanceReads(sql: SqlClient.SqlClient) {
-  const instances = () => sql<InstanceRow>`SELECT i.*, p.codex AS proxy_codex, p.owner_user_id AS proxy_owner
-    FROM provider_instances i LEFT JOIN proxies p ON p.id = i.proxy_id ORDER BY harness, (i.id <> 'native'), i.id`;
+  const instances = (
+    userId?: string,
+  ) => sql<InstanceRow>`SELECT i.*, p.codex AS proxy_codex, p.owner_user_id AS proxy_owner
+    FROM provider_instances i LEFT JOIN proxies p ON p.id = i.proxy_id
+    WHERE (${userId ?? null}::uuid IS NULL OR i.created_by IS NULL OR i.created_by=${userId ?? null}::uuid)
+      AND (${userId ?? null}::uuid IS NULL OR p.owner_user_id IS NULL OR p.owner_user_id=${userId ?? null}::uuid)
+    ORDER BY harness, (i.id <> 'native'), i.id`;
 
-  const assignments = () => sql<AssignmentRow>`SELECT w.*, p.codex AS proxy_codex,
+  const assignments = (userId?: string) => sql<AssignmentRow>`SELECT w.*, p.codex AS proxy_codex,
     CASE WHEN p.id IS NULL THEN w.overrides ELSE w.overrides || jsonb_build_object('baseUrl', p.base_url, 'apiKey',
       CASE WHEN p.secret_id IS NULL THEN NULL ELSE jsonb_build_object('secretRef', p.secret_id::text) END) END AS overrides
-    FROM provider_instance_workers w LEFT JOIN proxies p ON p.id = w.proxy_id`;
+    FROM provider_instance_workers w JOIN workers host ON host.id=w.worker_id LEFT JOIN proxies p ON p.id = w.proxy_id
+    WHERE (${userId ?? null}::uuid IS NULL OR host.owner_user_id IS NULL OR host.owner_user_id=${userId ?? null}::uuid)`;
 
-  const workers = () =>
+  const workers = (userId?: string) =>
     sql<WorkerRow>`
             SELECT w.id, w.name, c.version, c.applied_version, c.applied_at, c.apply_report
               FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id
-             WHERE w.archived_at IS NULL AND w.revoked_at IS NULL ORDER BY w.name, w.id`;
+             WHERE w.archived_at IS NULL AND w.revoked_at IS NULL
+               AND (${userId ?? null}::uuid IS NULL OR w.owner_user_id IS NULL OR w.owner_user_id=${userId ?? null}::uuid)
+             ORDER BY w.name, w.id`;
 
   /** Threads per instance and worker (not archived). */
-  const threadUse = () =>
+  const threadUse = (userId?: string) =>
     sql<{ worker_id: string; harness: Harness; id: string; count: bigint | number }>`
             SELECT worker_id, provider AS harness, coalesce(nullif(provider_profile_id, ''), 'native') AS id, count(*) AS count
-              FROM threads WHERE archived_at IS NULL AND worker_id IS NOT NULL AND provider IN ('claude', 'codex', 'grok') GROUP BY 1, 2, 3`;
+              FROM threads WHERE archived_at IS NULL AND worker_id IS NOT NULL AND provider IN ('claude', 'codex', 'grok')
+                AND (${userId ?? null}::uuid IS NULL OR owner_user_id=${userId ?? null}::uuid) GROUP BY 1, 2, 3`;
 
   const lockInstance = (harness: Harness, id: string) =>
     Effect.gen(function* () {
@@ -60,16 +69,13 @@ export function instanceReads(sql: SqlClient.SqlClient) {
   const list = (userId?: string) =>
     Effect.gen(function* () {
       const [all, rows, workerRows, used] = [
-        yield* instances(),
-        yield* assignments(),
-        yield* workers(),
-        yield* threadUse(),
+        yield* instances(userId),
+        yield* assignments(userId),
+        yield* workers(userId),
+        yield* threadUse(userId),
       ];
 
-      return all
-        .filter((row) => !userId || !row.created_by || row.created_by === userId)
-        .filter((row) => !userId || !row.proxy_owner || row.proxy_owner === userId)
-        .map((row) => toUi(row, rows, workerRows, used));
+      return all.map((row) => toUi(row, rows, workerRows, used));
     });
 
   const get = (harness: Harness, id: string, userId?: string) =>
@@ -170,12 +176,10 @@ export function instanceWrites(sql: SqlClient.SqlClient, secretsKey: Buffer, rea
       yield* sql`UPDATE provider_instances SET all_workers = ${allWorkers}, updated_at = now() WHERE harness = ${harness} AND id = ${id}`;
 
       // All workers: no worker keeps an explicit choice. Chosen workers: on for them, off for the rest.
-      for (const workerId of known) {
-        const enabled = allWorkers ? null : workerIds.includes(workerId);
-        yield* sql`
-                INSERT INTO provider_instance_workers (harness, instance_id, worker_id, enabled) VALUES (${harness}, ${id}, ${workerId}::uuid, ${enabled})
-                ON CONFLICT (harness, instance_id, worker_id) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now()`;
-      }
+      yield* sql`INSERT INTO provider_instance_workers(harness,instance_id,worker_id,enabled)
+        SELECT ${harness},${id},worker,CASE WHEN ${allWorkers} THEN NULL ELSE worker=ANY(${[...workerIds]}::uuid[]) END
+        FROM unnest(${[...known]}::uuid[]) worker
+        ON CONFLICT(harness,instance_id,worker_id) DO UPDATE SET enabled=excluded.enabled,updated_at=now()`;
     });
 
   return { putSecret, envFrom, runtimeFrom, assign };
@@ -251,9 +255,11 @@ export function instanceSync(sql: SqlClient.SqlClient, reads: InstanceReads, sec
                    WHERE worker_id = ${row.worker_id}::uuid`;
           yield* sql`DELETE FROM worker_config_secrets WHERE worker_id = ${row.worker_id}::uuid`;
 
-          for (const secretId of profileSecretRefs(profiles)) {
-            yield* sql`INSERT INTO worker_config_secrets (worker_id, secret_id) VALUES (${row.worker_id}::uuid, ${secretId}::uuid) ON CONFLICT DO NOTHING`;
-          }
+          const refs = profileSecretRefs(profiles);
+
+          if (refs.length)
+            yield* sql`INSERT INTO worker_config_secrets(worker_id,secret_id)
+            SELECT ${row.worker_id}::uuid,ref FROM unnest(${refs}::uuid[]) ref ON CONFLICT DO NOTHING`;
 
           changed.push(row.worker_id);
         }

@@ -61,12 +61,16 @@ export class ConnectorsRuntime {
 
     const accounts = await this.run((s) =>
       Effect.gen(function* () {
-        const rows = yield* s.list(user, {
-          ...(request.threadId && { threadId: request.threadId }),
-          ...(request.botId && { botId: request.botId }),
-        });
+        const rows = yield* s.list(
+          user,
+          {
+            ...(request.threadId && { threadId: request.threadId }),
+            ...(request.botId && { botId: request.botId }),
+          },
+          true,
+        );
 
-        return yield* Effect.forEach(rows, s.view);
+        return yield* s.views(rows);
       }),
     );
 
