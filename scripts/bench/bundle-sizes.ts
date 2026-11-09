@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { gzipSync } from "node:zlib";
+import { pathToFileURL } from "node:url";
+import { Schema } from "effect";
 import { listOf, objectOf, parseObject, str } from "@canopy/domain/json";
 
 /** Static import closure of each SvelteKit node plus the application shell. Dynamic imports stay separate. */
@@ -10,7 +12,31 @@ const names = Object.keys(manifest);
 const shell = names.filter((name) => /\/entry\/(start|app)\.js$/.test(name));
 const nodes = names.filter((name) => /\/nodes\/\d+\.js$/.test(name));
 
-for (const node of nodes) {
+const ServerManifest = Schema.Struct({
+  manifest: Schema.Struct({
+    routes: Schema.Array(
+      Schema.Struct({
+        id: Schema.String,
+        page: Schema.NullOr(
+          Schema.Struct({ layouts: Schema.Array(Schema.NullOr(Schema.Number)), leaf: Schema.Number }),
+        ),
+      }),
+    ),
+  }),
+});
+
+const server = Schema.decodeUnknownSync(ServerManifest)(
+  await import(pathToFileURL(resolve(directory, "../server/manifest-full.js")).href),
+);
+
+const targets = [
+  { route: "(shell)", indices: [0] },
+  ...server.manifest.routes.flatMap(({ id, page }) =>
+    page ? [{ route: id, indices: [...page.layouts, page.leaf] }] : [],
+  ),
+];
+
+for (const { route, indices } of targets) {
   const visited = new Set<string>();
   const files = new Set<string>();
 
@@ -27,7 +53,11 @@ for (const node of nodes) {
     for (const imported of listOf(entry["imports"])) visit(str(imported));
   };
 
-  for (const name of [...shell, ...nodes.filter((name) => name.endsWith("/nodes/0.js")), node]) visit(name);
+  const routeNodes = indices.flatMap((index) =>
+    index === null ? [] : nodes.filter((name) => name.endsWith(`/nodes/${index}.js`)),
+  );
+
+  for (const name of [...shell, ...routeNodes]) visit(name);
   const sizes = { js: 0, css: 0, jsGzip: 0, cssGzip: 0 };
 
   for (const file of files) {
@@ -37,7 +67,7 @@ for (const node of nodes) {
     sizes[kind === "css" ? "cssGzip" : "jsGzip"] += gzipSync(data).byteLength;
   }
 
-  console.info(JSON.stringify({ node, ...sizes }));
+  console.info(JSON.stringify({ route, nodes: routeNodes, ...sizes }));
 }
 
 if (!nodes.length) throw new Error("No SvelteKit nodes found; build the web application first");

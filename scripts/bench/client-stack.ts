@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { mkdir } from "node:fs/promises";
+import { seedClient } from "./seed-client.ts";
+import { clientWorker } from "./client-worker.ts";
 
 /** Private disposable gateway/BFF for renderer profiling; never reads a developer's stack config. */
 const root = resolve(import.meta.dir, "../..");
@@ -25,6 +27,7 @@ const port = (name: string, fallback: number) => {
 const webPort = port("CANOPY_BENCH_WEB_PORT", 15437);
 const gatewayPort = port("CANOPY_BENCH_GATEWAY_PORT", 15438);
 const pgPort = port("CANOPY_BENCH_PG_PORT", 15439);
+const production = process.env["CANOPY_BENCH_PRODUCTION"] === "1";
 
 if (new Set([webPort, gatewayPort, pgPort]).size !== 3) throw new Error("Benchmark ports must differ");
 
@@ -33,10 +36,12 @@ const password = randomBytes(24).toString("hex");
 const token = randomBytes(32).toString("hex");
 const children: ReturnType<typeof Bun.spawn>[] = [];
 let stopping = false;
+let stopWorker: (() => Promise<void>) | undefined;
 
 async function stop() {
   if (stopping) return;
   stopping = true;
+  await stopWorker?.();
 
   for (const child of children.toReversed()) child.kill("SIGTERM");
   await Promise.all(children.map((child) => child.exited));
@@ -69,39 +74,61 @@ try {
   const deadline = Date.now() + 45_000;
 
   while (
-    (await Bun.spawn(["docker", "exec", name, "pg_isready", "-U", "postgres"], { stdout: "ignore", stderr: "ignore" })
-      .exited) !== 0
+    (await Bun.spawn(["docker", "exec", name, "pg_isready", "-h", "127.0.0.1", "-U", "postgres"], {
+      stdout: "ignore",
+      stderr: "ignore",
+    }).exited) !== 0
   ) {
     if (Date.now() > deadline) throw new Error("Private PostgreSQL did not become ready");
     await Bun.sleep(100);
   }
 
+  const gatewayEnv = {
+    ...process.env,
+    CANOPY_DATABASE_URL: `postgres://postgres:${password}@127.0.0.1:${pgPort}/postgres`,
+    CANOPY_SECRETS_KEY: randomBytes(32).toString("base64"),
+    CANOPY_UI_SERVICE_TOKEN: token,
+    CANOPY_HOST: "127.0.0.1",
+    CANOPY_GATEWAY_ROLE: "server",
+    CANOPY_PORT: String(gatewayPort),
+    CANOPY_NETWORK_PORT: undefined,
+    CANOPY_DEV_USER_EMAIL: "dev@localhost",
+  };
+
+  const seeded = process.env["CANOPY_BENCH_SEED"] === "0" ? undefined : await seedClient(gatewayEnv);
+
   children.push(
     Bun.spawn(["bun", "apps/gateway/src/main.ts"], {
       cwd: root,
-      env: {
-        ...process.env,
-        CANOPY_DATABASE_URL: `postgres://postgres:${password}@127.0.0.1:${pgPort}/postgres`,
-        CANOPY_SECRETS_KEY: randomBytes(32).toString("base64"),
-        CANOPY_UI_SERVICE_TOKEN: token,
-        CANOPY_HOST: "127.0.0.1",
-        CANOPY_GATEWAY_ROLE: "server",
-        CANOPY_PORT: String(gatewayPort),
-        CANOPY_NETWORK_PORT: undefined,
-      },
+      env: gatewayEnv,
       stdout: "inherit",
       stderr: "inherit",
     }),
   );
+
+  if (seeded) stopWorker = await clientWorker(`http://127.0.0.1:${gatewayPort}`, seeded.worker);
   children.push(
-    Bun.spawn(["bun", "run", "dev", "--host", "127.0.0.1", "--port", String(webPort)], {
-      cwd: resolve(root, "apps/web"),
-      env: { ...process.env, GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`, GATEWAY_SERVICE_TOKEN: token },
-      stdout: "inherit",
-      stderr: "inherit",
-    }),
+    Bun.spawn(
+      production ? ["bun", "run", "start"] : ["bun", "run", "dev", "--host", "127.0.0.1", "--port", String(webPort)],
+      {
+        cwd: resolve(root, "apps/web"),
+        env: {
+          ...process.env,
+          GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
+          GATEWAY_SERVICE_TOKEN: token,
+          HOST: "127.0.0.1",
+          PORT: String(webPort),
+          ORIGIN: `http://127.0.0.1:${webPort}`,
+        },
+        stdout: "inherit",
+        stderr: "inherit",
+      },
+    ),
   );
-  console.info(`Renderer fixture: http://127.0.0.1:${webPort}/dev/long-thread?turns=1000`);
+
+  if (!production) console.info(`Renderer fixture: http://127.0.0.1:${webPort}/dev/long-thread?turns=1000`);
+
+  if (seeded) console.info(`Seeded thread: http://127.0.0.1:${webPort}/threads/${seeded.thread}`);
   console.info(`Stop this process (${process.pid}) to remove its servers and database.`);
   await Promise.race(children.map((child) => child.exited));
 } finally {

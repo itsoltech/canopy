@@ -23,7 +23,9 @@
 
   let { data }: PageProps = $props();
 
-  const snapshot = $derived(longThreadSnapshot({ turns: data.turns, inherited: data.inherited }));
+  const snapshot = $derived(
+    longThreadSnapshot({ turns: data.turns, inherited: data.inherited, answerRepeat: data.answerRepeat }),
+  );
 
   const view = $derived.by(() => {
     const state = new ThreadState();
