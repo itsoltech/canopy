@@ -64,6 +64,23 @@ Gateway używa `@effect/sql-pg`, z domyślnie włączonym cache prepared stateme
 testowych. Zmiana limitów i timeoutów wymaga pomiaru współbieżnego obciążenia;
 skrót czasu statement nie jest zamiennikiem ograniczenia kosztu zapytania.
 
+## Odczyty wątków
+
+Zwykła strona historii korzysta z istniejącego ograniczonego okna tur w SQL;
+nie przesyła wszystkich historycznych id do JS. Odczyt itemów nakłada granicę forka
+i wybrane tury bezpośrednio
+na `thread_items`, przed sortowaniem treści. Zachowuje zadania w tle, itemy bez tury
+oraz kolejkę.
+Pełny snapshot starszych klientów, skok do itemu i odtworzenie okna od `fromTurnId`
+zachowują wcześniejszy zakres; nie są po cichu obcinane.
+
+Wyszukiwanie tytułów odczytuje małe nagłówki kandydatów, zachowuje fuzzy ranking
+i kolejność aktywności, a dopiero dla maksymalnie 50 wyników pobiera pełne metadane
+i buduje podglądy powiadomień. Oba odczyty sprawdzają właściciela i widoczność.
+Kandydaci pozostają niepaginowani, ponieważ ranking obejmuje wszystkie aktywne tytuły;
+rozmiar treści rozmów nie powiększa tego zbioru. Mark seen łączy sprawdzenie
+właściciela i rosnący zapis checkpointu w jednym zapytaniu, także dla powtórzeń.
+
 ## Trwałość i retencja
 
 Migracja `0100_history_read_indexes` dodaje indeksy:

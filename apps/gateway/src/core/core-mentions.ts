@@ -9,11 +9,9 @@ import {
   type Mention,
 } from "@canopy/contracts";
 import { type CommandInit } from "../worker-link/index.ts";
-import { timestampDate } from "@bufbuild/protobuf/wkt";
 import {
   checkMentions,
   composeMessage,
-  fuzzyRank,
   joinNotes,
   MentionError,
   numberAttachmentMarkers,
@@ -265,15 +263,11 @@ export const coreMentionsMethods: CoreMentionsMethods = {
   /** The user's threads by title (fuzzy), best match first, the most recent activity first among equals. */
   async searchThreads(this: GatewayCore, request: ui.SearchThreadsRequest): Promise<ui.SearchThreadsResponse> {
     const limit = Math.min(request.limit || 20, 50);
-    const activity = (t: ui.Thread) => (t.lastActivityAt ? timestampDate(t.lastActivityAt).getTime() : 0);
 
-    const threads = (await coreRun(this, (s) => s.listThreads(this[coreState].options.userId, "")))
-      .map((row) => coreUiThread(this, row))
-      .filter((t) => t.id !== request.excludeThreadId)
-      .sort((a, b) => activity(b) - activity(a));
+    const rows = await coreRun(this, (s) =>
+      s.searchThreads(this[coreState].options.userId, request.query, request.excludeThreadId, limit),
+    );
 
-    const ranked = fuzzyRank(request.query, threads, (t) => [t.title || "Untitled"], limit);
-
-    return create(ui.SearchThreadsResponseSchema, { threads: ranked.map((r) => r.item) });
+    return create(ui.SearchThreadsResponseSchema, { threads: rows.map((row) => coreUiThread(this, row)) });
   },
 };

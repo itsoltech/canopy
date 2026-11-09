@@ -2,7 +2,8 @@ import { create } from "@bufbuild/protobuf";
 import { ThreadSpecSchema, ui, type ThreadSpec } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
-import { Invalid, one, type Fx } from "./errors.ts";
+import { Invalid, NotFound, one, type Fx } from "./errors.ts";
+import { searchThreads } from "./thread-search.ts";
 import { archivedPage } from "./archived-pagination.ts";
 import { providerOf } from "./instance-config.ts";
 import type { ThreadRow } from "./rows.ts";
@@ -26,6 +27,7 @@ export interface ThreadStore {
     ownerUserId: string,
     request: ui.ListArchivedThreadsRequest,
   ): Fx<{ threads: ThreadRow[]; sideThreads: ThreadRow[]; totalCount: number; nextPageToken: string }>;
+  searchThreads(ownerUserId: string, query: string, excludeThreadId: string, limit: number): Fx<ThreadRow[]>;
   threadSpec(row: ThreadRow): ThreadSpec;
   setThreadStatus(threadId: string, status: string, detail: string | null): Fx<void>;
   /** The thread's default model, effort and permission mode (unset = unchanged). */
@@ -106,24 +108,22 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
 
     markThreadSeen: (ownerUserId, threadId, upToSeq) =>
       Effect.gen(function* () {
-        const rows = yield* sql<{ seen_seq: string }>`
+        const rows = yield* sql<{ found: boolean; changed: boolean }>`
+              WITH owned AS MATERIALIZED (
+                SELECT owner_user_id,id,last_seq FROM threads
+                 WHERE id=${threadId}::uuid AND owner_user_id=${ownerUserId}::uuid AND deleted_at IS NULL
+              ), saved AS (
                 INSERT INTO thread_reads (user_id, thread_id, seen_seq)
-                SELECT t.owner_user_id, t.id, least(${upToSeq.toString()}::bigint, t.last_seq) FROM threads t
-                 WHERE t.id = ${threadId}::uuid AND t.owner_user_id = ${ownerUserId}::uuid AND t.deleted_at IS NULL
+                SELECT owner_user_id,id,least(${upToSeq.toString()}::bigint,last_seq) FROM owned WHERE true
                 ON CONFLICT (user_id, thread_id) DO UPDATE SET seen_seq = greatest(thread_reads.seen_seq, EXCLUDED.seen_seq),
                   marked_unread = false, seen_at = now()
                  WHERE thread_reads.seen_seq < EXCLUDED.seen_seq OR thread_reads.marked_unread
-                RETURNING seen_seq`;
+                RETURNING seen_seq
+              ) SELECT EXISTS(SELECT 1 FROM owned) AS found,EXISTS(SELECT 1 FROM saved) AS changed`;
 
-        if (rows.length > 0) return true;
-        yield* one(
-          yield* sql<{
-            id: string;
-          }>`SELECT id FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${ownerUserId}::uuid AND deleted_at IS NULL`,
-          "thread",
-        );
+        if (!rows[0]?.found) return yield* Effect.fail(new NotFound("thread not found"));
 
-        return false;
+        return rows[0].changed;
       }),
 
     listThreads: (ownerUserId, projectId, includeArchived = false, sidebarOnly = false) =>
@@ -139,6 +139,8 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
       ),
 
     listArchivedThreads: (ownerUserId, request) => archivedThreads(sql, ownerUserId, request),
+    searchThreads: (ownerUserId, query, excludeThreadId, limit) =>
+      searchThreads(sql, ownerUserId, query, excludeThreadId, limit),
 
     threadSpec: (row) =>
       create(ThreadSpecSchema, {

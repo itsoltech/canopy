@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Client } from "@connectrpc/connect";
 import { InteractionKind, PermissionMode, Provider, TurnOrigin, TurnOutcome, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayStore } from "@canopy/gateway/store";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 let gw: TestGateway;
@@ -176,5 +177,22 @@ describe.skipIf(!dockerAvailable)("thread read state (gateway)", () => {
 
   test("unknown threads are refused", async () => {
     expect(await failure(api.markThreadSeen({ threadId: Bun.randomUUIDv7(), upToSeq: 1n }))).toContain("not");
+  });
+
+  test("a foreign owner's read marker is refused and leaves durable markers untouched", async () => {
+    const thread = (await api.createThread({ projectId, workspaceId, provider: Provider.CODEX })).thread!;
+    const query = (text: string, params: unknown[] = []) => gw.core.linkedAgents.query(text, params);
+    await query(
+      `INSERT INTO thread_reads(user_id,thread_id,seen_seq,marked_unread)
+      VALUES($1::uuid,$2::uuid,0,true)`,
+      [gw.userId, thread.id],
+    );
+    const foreign = Bun.randomUUIDv7();
+    await expect(
+      gw.runtime.runPromise(GatewayStore.use((s) => s.markThreadSeen(foreign, thread.id, 100n))),
+    ).rejects.toThrow("thread not found");
+    expect(
+      await query(`SELECT seen_seq::text,marked_unread FROM thread_reads WHERE thread_id=$1::uuid`, [thread.id]),
+    ).toEqual([{ seen_seq: "0", marked_unread: true }]);
   });
 });
