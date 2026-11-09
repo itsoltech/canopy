@@ -38,6 +38,34 @@ describe.skipIf(!dockerAvailable)("settings expansion persistence, checks and ow
     await gw?.close();
   });
 
+  test("follow-up delivery persists across cores and stays scoped to the viewing user", async () => {
+    const before = (await gw.api.getSettings({})).user!;
+
+    const saved = (
+      await gw.api.updateUserSettings({
+        expectedVersion: before.version,
+        composer: { runningDelivery: ui.MessageDelivery.QUEUE },
+      })
+    ).settings!;
+
+    const restarted = new GatewayCore({ runtime: gw.runtime, userId: gw.userId, instanceId: "restart-delivery" });
+
+    try {
+      expect((await restarted.settings()).user?.composer?.runningDelivery).toBe(ui.MessageDelivery.QUEUE);
+      expect((await other.settings()).user?.composer?.runningDelivery).toBe(ui.MessageDelivery.UNSPECIFIED);
+      expect((await gw.api.getSettings({})).user?.threadDefaults).toEqual(before.threadDefaults);
+
+      await gw.api.updateUserSettings({
+        expectedVersion: saved.version,
+        composer: { runningDelivery: ui.MessageDelivery.STEER },
+      });
+      expect((await restarted.settings()).user?.composer?.runningDelivery).toBe(ui.MessageDelivery.STEER);
+      expect((await other.settings()).user?.composer?.runningDelivery).toBe(ui.MessageDelivery.UNSPECIFIED);
+    } finally {
+      restarted.secrets.stop();
+    }
+  });
+
   test("general and sidebar sections survive a new core, reject stale writes, isolate owners and reset without losing pins", async () => {
     const before = (await gw.api.getSettings({})).user!;
 

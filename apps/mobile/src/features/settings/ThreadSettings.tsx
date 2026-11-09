@@ -13,6 +13,7 @@ import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { useOverview } from "../../state/overview";
 import type { ProjectChoice } from "@canopy/domain/projects";
 import { useWorkerLabel } from "../computers/presence";
+import { FollowUpSettings } from "./FollowUpSettings";
 
 type Settings = ReturnType<typeof useAppearance>;
 
@@ -32,6 +33,7 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
 
   return (
     <View style={{ gap: 20 }}>
+      <FollowUpSettings settings={settings} />
       <DefaultResets
         value={create(ui.ThreadDefaultsSchema, defaults)}
         onChange={save}
