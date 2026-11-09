@@ -81,6 +81,16 @@ Kandydaci pozostają niepaginowani, ponieważ ranking obejmuje wszystkie aktywne
 rozmiar treści rozmów nie powiększa tego zbioru. Mark seen łączy sprawdzenie
 właściciela i rosnący zapis checkpointu w jednym zapytaniu, także dla powtórzeń.
 
+## Zapisy grupowe
+
+Przyjęcie świeżego importu i jego biblioteki używa typowanego
+`jsonb_to_recordset`, do 128 pozycji lub około 512 KiB JSON na partię. Pojedyncza
+wcześniej zwalidowana duża pozycja może przekroczyć cel bajtowy. Pozycje zachowują
+kolejność, właściciela, snapshot i dokładne bigint; dane wszystkich partii są w tej
+samej transakcji. Konflikt późniejszej partii wycofuje także wcześniejsze.
+Import dopisujący historię zachowuje dotychczasowe walidacje i blokady wątków;
+nie omija ich przez ścieżkę zapisu grupowego.
+
 ## Trwałość i retencja
 
 Migracja `0100_history_read_indexes` dodaje indeksy:

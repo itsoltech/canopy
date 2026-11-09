@@ -4,6 +4,7 @@ import type { JsonValue } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { importTransaction } from "./locks.ts";
+import { jsonBatches } from "./json-batches.ts";
 
 /** Settings and library items of import runs (docs/import.md, "Ustawienia i biblioteka"); all owner-scoped. */
 
@@ -45,16 +46,34 @@ export const insertLibraryItems = (
   run: { id: string; ownerId: string; workerId: string },
   items: readonly NewLibraryItem[],
 ) =>
-  Effect.forEach(
-    items.entries(),
-    ([position, item]) => sql`
+  jsonBatches(
+    libraryRows(items),
+    (json) => sql`
       INSERT INTO import_library_items (id, run_id, owner_user_id, worker_id, position, agent_cli, root_id, kind, name,
                                         digest, source_key, value, label, action, status)
-      VALUES (${Bun.randomUUIDv7()}::uuid, ${run.id}::uuid, ${run.ownerId}::uuid, ${run.workerId}::uuid, ${position},
-              ${item.agentCli}, ${item.rootId}, ${item.kind}, ${item.name}, ${item.digest}, ${item.sourceKey},
-              ${item.value}, ${item.label}, ${item.action}, 'pending')`,
-    { discard: true },
+      SELECT x.id,${run.id}::uuid,${run.ownerId}::uuid,${run.workerId}::uuid,x.position,x.agent_cli,x.root_id,x.kind,
+        x.name,x.digest,x.source_key,x.value,x.label,x.action,'pending'
+      FROM jsonb_to_recordset(${json}::jsonb) AS x(id uuid,position integer,agent_cli text,root_id text,kind text,
+        name text,digest text,source_key text,value text,label text,action text)`,
   );
+
+function* libraryRows(items: readonly NewLibraryItem[]) {
+  for (const [position, item] of items.entries()) {
+    yield {
+      id: Bun.randomUUIDv7(),
+      position,
+      agent_cli: item.agentCli,
+      root_id: item.rootId,
+      kind: item.kind,
+      name: item.name,
+      digest: item.digest,
+      source_key: item.sourceKey,
+      value: item.value,
+      label: item.label,
+      action: item.action,
+    };
+  }
+}
 
 export const libraryItems = (sql: SqlClient.SqlClient, runId: string) =>
   sql<LibraryRow>`SELECT * FROM import_library_items WHERE run_id = ${runId}::uuid ORDER BY position`;
