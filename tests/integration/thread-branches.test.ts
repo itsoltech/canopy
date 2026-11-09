@@ -74,7 +74,11 @@ describe.skipIf(!dockerAvailable)("thread branch selection over the worker link"
     });
 
     const commands = await f.gw.runtime.runPromise(GatewayStore.use((s) => s.pendingCommands(f.workerId)));
-    const command = commands.find((c) => c.kind.case === "startTurn" && c.kind.value.thread?.threadId === thread.id);
+
+    const command = commands.find(
+      ({ command: c }) => c.kind.case === "startTurn" && c.kind.value.thread?.threadId === thread.id,
+    )?.command;
+
     expect(command?.kind.case).toBe("startTurn");
 
     if (command?.kind.case === "startTurn") {

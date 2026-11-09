@@ -55,7 +55,7 @@ if (!serviceToken)
 const runtime = gatewayRuntime(env);
 
 if ((env["CANOPY_MIGRATE"] ?? "1") === "1") {
-  const applied = await migrateDatabase(runtime);
+  const applied = await migrateDatabase(runtime, env);
 
   if (applied.length > 0) console.info(`migrations applied: ${applied.join(", ")}`);
 }

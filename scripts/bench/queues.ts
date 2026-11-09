@@ -62,6 +62,22 @@ export const queueOperations = (): Operation[] => [
     },
   },
   {
+    name: "commands/read-all",
+    run: async (runtime) => {
+      let after: string | undefined;
+
+      for (;;) {
+        const page = await runtime.runPromise(GatewayStore.use((store) => store.pendingCommands(ids.worker, after)));
+
+        if (!page.length) return;
+        const cursor = page.at(-1)!.command.commandId;
+
+        if (cursor === after) throw new Error("Command page cursor did not advance");
+        after = cursor;
+      }
+    },
+  },
+  {
     name: "worktrees/branch-context",
     run: async (runtime) => {
       await runtime.runPromise(GatewayStore.use((store) => store.branchContext(ids.thread)));

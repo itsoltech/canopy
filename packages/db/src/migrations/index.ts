@@ -101,6 +101,8 @@ import mirrorThreadMetadata from "./0097_mirror_thread_metadata.sql" with { type
 import threadReadMetadata from "./0098_thread_read_metadata.sql" with { type: "text" };
 import messageReceipts from "./0099_message_receipts.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
+import queueReadIndexes from "./0103_queue_read_indexes.sql" with { type: "text" };
+import { indexTasks, runIndexTasks } from "./index-tasks.ts";
 
 /**
  * Runs a .sql file statement by statement (the driver uses the extended protocol only).
@@ -216,7 +218,21 @@ export const migrations = Migrator.fromRecord({
   "0100_history_read_indexes": sqlFile(historyReadIndexes),
   "0101_composer_turn_choices": sqlFile(composerTurnChoices),
   "0102_bot_composer": sqlFile(botComposer),
+  // Performance-only indexes are restartable post-migration tasks, not constraints.
+  "0103_queue_read_indexes": Effect.void,
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
-export const migrate = Migrator.make({})({ loader: migrations, table: "schema_migrations" });
+const migrateSchema = Migrator.make({})({ loader: migrations, table: "schema_migrations" });
+const deferredIndexes = indexTasks(queueReadIndexes);
+
+const migrateWithIndexes = (concurrent: boolean) =>
+  Effect.gen(function* () {
+    const applied = yield* migrateSchema;
+    yield* runIndexTasks(deferredIndexes, concurrent, ["worker_commands_open"]);
+
+    return applied;
+  });
+
+export const migrate = migrateWithIndexes(false);
+export const migrateOnline = migrateWithIndexes(true);

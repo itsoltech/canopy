@@ -101,6 +101,22 @@ Wszystkie zmienne opisuje [`deploy/.env.example`](../deploy/.env.example). `CANO
 szyfruje klucze providerów i tokeny konektorów w bazie — zachowaj kopię; jego utrata oznacza
 ponowne wpisanie sekretów. Gateway przy starcie wykonuje migracje (`CANOPY_MIGRATE=0` wyłącza).
 
+`CANOPY_DATABASE_INDEX_MODE=concurrent` włącza budowanie zarejestrowanych indeksów
+wydajnościowych po migracji schematu przez `CREATE INDEX CONCURRENTLY`. Domyślne
+`blocking` zachowuje szybsze zwykłe budowanie dla desktopu i małych baz. Tryb online
+dotyczy indeksów od `0103`, jawnie zarejestrowanych jako zadania; nie zmienia starych
+migracji ani tworzenia ograniczeń. Migracja kończy się dopiero po sprawdzeniu
+`pg_index.indisvalid` i definicji indeksu. Nie uruchamiaj aplikacji, jeśli ten krok
+zawiedzie, nawet gdy tabela `schema_migrations` zawiera już numer migracji.
+
+Po przerwaniu budowy uruchom ponownie tę samą migrację. Zadania mają blokadę sesyjną
+i działają poza transakcją, na zarezerwowanym połączeniu. Prawidłowy indeks jest
+pomijany; niepoprawny indeks o oczekiwanej definicji zostaje usunięty i odtworzony.
+Inna definicja pod tą samą nazwą zatrzymuje wykonanie i wymaga sprawdzenia przez
+administratora. Zastąpiony indeks jest usuwany dopiero po poprawnym zbudowaniu
+następcy. Pozostaw zapas miejsca na oba indeksy podczas przebudowy i obserwuj
+`pg_stat_progress_create_index`; długie transakcje mogą opóźniać zakończenie.
+
 Domyślnie web i port procesu gatewaya są wystawione tylko na `127.0.0.1`:
 
 - **web** (`WEB_PORT`, 3000): postaw przed nim reverse proxy z TLS. BFF sprawdza origin formularzy

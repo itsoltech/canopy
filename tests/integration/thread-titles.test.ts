@@ -219,6 +219,6 @@ describe.skipIf(!dockerAvailable)("thread titles through the worker link", () =>
     );
     expect(requests.length).toBe(count);
     const queued = await gw.runtime.runPromise(GatewayStore.use((s) => s.pendingCommands(gw.workerId)));
-    expect(queued.some((c) => c.kind.case === "generateText")).toBe(false);
+    expect(queued.some(({ command }) => command.kind.case === "generateText")).toBe(false);
   });
 });
