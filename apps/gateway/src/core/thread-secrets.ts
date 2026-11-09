@@ -102,7 +102,9 @@ export class ThreadSecrets {
     this.#ticking = true;
 
     try {
-      const expired = await this.options.runtime.runPromise(GatewayStore.use((s) => s.expireSecrets()));
+      const expired = await this.options.runtime.runPromise(
+        GatewayStore.use((s) => s.expireSecrets(this.options.userId)),
+      );
 
       for (const row of expired) this.publish(row);
 
