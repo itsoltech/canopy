@@ -17,6 +17,7 @@ import {
   RELAY,
   REMOTE_BOTS,
   REMOTE_THREADS,
+  REMOTE_BRANCH_SWITCH,
   THREAD_MIRROR,
   THREAD_MIRROR_DELTA,
   THREAD_WATCH_LIVENESS,
@@ -76,6 +77,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.serve
           ? [
               REMOTE_THREADS,
+              REMOTE_BRANCH_SWITCH,
               "remote_worktrees",
               THREAD_MIRROR,
               THREAD_MIRROR_DELTA,

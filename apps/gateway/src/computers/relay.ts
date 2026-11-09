@@ -2,7 +2,7 @@ import { create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { RESTART_PRESENCE } from "@canopy/domain/computer-presence";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link } from "@canopy/contracts";
-import { AGENT_BUS, REMOTE_BOTS, REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
+import { AGENT_BUS, REMOTE_BOTS, REMOTE_THREADS, REMOTE_BRANCH_SWITCH, THREAD_MIRROR } from "@canopy/domain/computers";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { ComputerStore, type PeerRow } from "./store.ts";
@@ -10,7 +10,14 @@ import { linkedMessage, SERVED, UPDATE_METHODS, WORKER_SETTINGS } from "./remote
 
 // Configuration (which can contain credentials) is deliberately absent, even when
 // every participant supports stage 4. Routes and relay itself are never inherited.
-const FEATURES = new Set([REMOTE_THREADS, "remote_worktrees", THREAD_MIRROR, REMOTE_BOTS, AGENT_BUS]);
+const FEATURES = new Set([
+  REMOTE_THREADS,
+  "remote_worktrees",
+  REMOTE_BRANCH_SWITCH,
+  THREAD_MIRROR,
+  REMOTE_BOTS,
+  AGENT_BUS,
+]);
 
 // Configuration, worker settings and app updates never cross a relay (docs/linked-computers.md, "Udostępnianie per łącze").
 export const RELAY_METHODS = new Set(

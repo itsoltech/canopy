@@ -19,3 +19,5 @@ export function worktreeTooltip(worktree: { readonly path: string; readonly prov
     ? `Worktree ${worktree.path}. ${PROVISIONAL_BRANCH_HINT}`
     : `Worktree ${worktree.path}`;
 }
+
+export { branchSwitchReason, placementPath } from "./thread-branch.ts";

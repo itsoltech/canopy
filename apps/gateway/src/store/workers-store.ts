@@ -30,6 +30,7 @@ interface WorkerListRow {
     worktreesRoot?: string;
     projectSources?: boolean;
     cliImport?: boolean;
+    branchSwitch?: boolean;
   };
   last_seen_at: Date | null;
   revoked_at: Date | null;
@@ -62,6 +63,7 @@ function listedWorker(r: WorkerListRow, online: ReadonlySet<string>) {
     worktreesRoot: r.capabilities?.worktreesRoot ?? "",
     projectSources: r.capabilities?.projectSources === true,
     cliImport: r.capabilities?.cliImport === true,
+    branchSwitch: r.capabilities?.branchSwitch === true,
     configVersion: r.config_version ? BigInt(r.config_version) : 0n,
     appliedVersion: r.applied_version ? BigInt(r.applied_version) : 0n,
     configIssues: report?.issues ?? [],
@@ -114,6 +116,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           projectSources: hello.capabilities.includes("project_sources"),
           // Threads, settings and libraries of the device's CLIs (docs/import.md).
           cliImport: hello.capabilities.includes("cli_import_v1"),
+          branchSwitch: hello.capabilities.includes("git_branch_switch_v1"),
           // The desktop app's own local-mode worker: it updates with the app (docs/updates.md).
           desktopBundled: hello.capabilities.includes("desktop_bundled"),
         });
@@ -152,7 +155,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
                 SELECT w.id, w.name, w.os, w.version,
                        jsonb_build_object('hostname',w.capabilities->'hostname','homeDirectory',w.capabilities->'homeDirectory',
                          'worktreesRoot',w.capabilities->'worktreesRoot','projectSources',w.capabilities->'projectSources',
-                         'cliImport',w.capabilities->'cliImport') AS capabilities, w.last_seen_at, w.revoked_at,
+                         'cliImport',w.capabilities->'cliImport','branchSwitch',w.capabilities->'branchSwitch') AS capabilities, w.last_seen_at, w.revoked_at,
                        coalesce(c.profile_names,'{}'::jsonb) AS profile_names,
                        c.version AS config_version, c.applied_version, c.apply_report
                   FROM workers w LEFT JOIN worker_configs c ON c.worker_id = w.id

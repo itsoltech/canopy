@@ -104,6 +104,7 @@ export function safeOverview(value: ui.GetOverviewResponse): ui.GetOverviewRespo
       worktrees: w.worktrees,
       projectSources: w.projectSources,
       cliImport: w.cliImport,
+      branchSwitch: w.branchSwitch,
     })),
     projects: value.projects,
   });

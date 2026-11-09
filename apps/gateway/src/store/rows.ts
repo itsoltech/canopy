@@ -32,7 +32,14 @@ export interface ThreadRow {
   fork_after_turn_id: string | null;
   /** Joined: the fork point's number in the thread it belongs to (fork_source_thread_id). */
   fork_after_turn_ordinal?: number | null;
-  settings: { model?: string; effort?: string; permissionMode?: string; instructions?: string; handoff?: string };
+  settings: {
+    model?: string;
+    effort?: string;
+    permissionMode?: string;
+    instructions?: string;
+    handoff?: string;
+    branchNote?: string;
+  };
   status: string;
   status_detail: string | null;
   title: string;
@@ -122,6 +129,8 @@ export interface TurnRow {
     shellCommand?: string;
     shellInputId?: string;
     shellResult?: JsonValue;
+    /** Pending checkout context, restored if a shell input fails before the agent starts. */
+    branchNote?: string;
     text?: string;
     note?: string;
     message?: string;

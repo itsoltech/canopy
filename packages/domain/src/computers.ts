@@ -6,6 +6,7 @@
  */
 export const REMOTE_THREADS = "remote_threads";
 export const REMOTE_WORKTREES = "remote_worktrees";
+export const REMOTE_BRANCH_SWITCH = "remote_branch_switch_v1";
 export const THREAD_MIRROR = "thread_mirror";
 export const THREAD_MIRROR_DELTA = "thread_mirror_delta";
 export const THREAD_WATCH_LIVENESS = "thread_watch_liveness";

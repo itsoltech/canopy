@@ -52,6 +52,11 @@ nie uniemożliwiała sprzątania. Źródła git zachowują własny limit capture
 Instalator streamuje zredagowane linie. Sesje harnessu zachowują swój lifecycle,
 bez krótkiego deadline przeznaczonego dla git/probe.
 
+Śledzenie gałęzi rozstrzyga gitdir raz, potem odczytuje `HEAD` bez procesu po zdarzeniu fs (debounce
+150 ms) i zakończeniu tury. Picker gałęzi pobiera refy dopiero po otwarciu, bez discovery worktree.
+Przełączenie omija cache odczytów; jeden sygnał anulowania obejmuje walidację, kolejkę i mutację,
+z deadline 90 s krótszym od timeoutu gatewaya. Przeterminowana komenda nie uruchamia git.
+
 ## Ocena bibliotek git
 
 Źródła sprawdzono 2026-11-04 przez publiczne registry npm i repozytoria upstream.

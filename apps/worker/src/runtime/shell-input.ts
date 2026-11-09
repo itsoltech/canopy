@@ -77,7 +77,14 @@ export async function prepareShellInput(
     throw new CommandError("SHELL_INTERRUPTED", result.reason, true);
   }
 
-  return { ...input, text: shellInputText(result), mentions: [], shellResult: result };
+  const text = shellInputText(result);
+
+  return {
+    ...input,
+    text: input.contextNote ? `${input.contextNote}\n\n${text}` : text,
+    mentions: [],
+    shellResult: result,
+  };
 }
 
 interface ShellDelivery {

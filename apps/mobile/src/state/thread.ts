@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Usage, ui } from "@canopy/contracts";
+import type { ui } from "@canopy/contracts";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { useSession } from "./session";
 import { useStream } from "./stream";
@@ -13,8 +13,6 @@ export function useThreadSnapshot(id: string) {
   const current = useRef(snapshot);
   const saving = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [loaded, setLoaded] = useState(false);
-  const [usage, setUsage] = useState<Usage>();
-  useEffect(() => setUsage(undefined), [id, client]);
   useEffect(() => {
     let cancelled = false;
     void (threadCache?.load(id) ?? Promise.resolve(undefined))
@@ -47,9 +45,6 @@ export function useThreadSnapshot(id: string) {
           )
       : null,
     (update: ui.ThreadUpdate) => {
-      if (update.change.case === "event" && update.change.value.event?.body.case === "usageUpdated")
-        setUsage(update.change.value.event.body.value.usage);
-
       try {
         current.current = applyThreadUpdate(current.current, update);
       } catch {
@@ -113,7 +108,6 @@ export function useThreadSnapshot(id: string) {
 
   return {
     snapshot,
-    usage,
     history,
     stream,
     setSnapshot(update: (previous: ui.ThreadSnapshot | undefined) => ui.ThreadSnapshot | undefined) {

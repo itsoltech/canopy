@@ -3,6 +3,15 @@ import { ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Match } from "effect";
 import { linkedMessage } from "../computers/remote-policy.ts";
+import { REMOTE_BRANCH_SWITCH } from "@canopy/domain/computers";
+
+export function refuseRemoteBranchSwitch(method: DescMethod, capabilities: readonly string[]): void {
+  if (
+    ["ListThreadBranches", "SwitchThreadBranch"].includes(method.name) &&
+    !capabilities.includes(REMOTE_BRANCH_SWITCH)
+  )
+    throw new ConnectError("Update the thread's home computer to switch branches.", Code.FailedPrecondition);
+}
 
 export function refuseRemoteAutomation(mode: string | undefined, fork = false): void {
   if (mode && mode !== "checkout")

@@ -1,7 +1,8 @@
-import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { create } from "@bufbuild/protobuf";
 import { CommandSchema, ui, type Command } from "@canopy/contracts";
 import { Effect } from "effect";
-import { mentionsFromJson } from "./mentions.ts";
+import { joinNotes } from "@canopy/domain";
+import { mentionsFromJson, mentionsToJson } from "./mentions.ts";
 import {
   GatewayStore,
   Ingest,
@@ -28,6 +29,7 @@ import { corePublishInteraction } from "./core-interactions.ts";
 import { corePublishSteer, coreQueueSteer, coreSteers } from "./core-messages.ts";
 import { coreProfileModels } from "./core-models.ts";
 import { storedShellResult } from "../store/shell-input.ts";
+import { takeBranchNote } from "../store/thread-branches.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core-broadcast.ts";
 
 /** Turns that no longer run on their worker end as interrupted; the threads go on with what is queued. */
@@ -154,7 +156,7 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
   const permissionMode =
     turn.permission_mode || permissionModeName(permissionModeOf(thread.settings.permissionMode)) || "ASK";
 
-  const command: MessageInitShape<typeof CommandSchema> = {
+  const command = create(CommandSchema, {
     kind: {
       case: "startTurn",
       value: {
@@ -182,7 +184,7 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
         permissionMode: permissionModeOf(permissionMode),
       },
     },
-  };
+  });
 
   let stored: Command | undefined;
 
@@ -193,6 +195,30 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
           { threadId, turnId: turn.id, revision: turn.revision ?? 0 },
           GatewayStore.use((s) =>
             Effect.gen(function* () {
+              // Read context under the admission lock: a branch switch may have completed while this turn queued.
+              const current = yield* s.thread(threadId);
+              const note = current.settings.branchNote;
+
+              if (note && command.kind.case === "startTurn" && command.kind.value.input) {
+                const input = command.kind.value.input;
+                const prefix = `${note}\n\n`;
+                input.contextNote = joinNotes(note, turn.input.note ?? "");
+                input.text = prefix + input.text;
+
+                for (const mention of input.mentions) {
+                  mention.start += prefix.length;
+                  mention.end += prefix.length;
+                }
+
+                yield* takeBranchNote(threadId, turn.id, {
+                  text: input.text,
+                  note: joinNotes(note, turn.input.note ?? ""),
+                  branchNote: note,
+                  message: turn.input.message ?? turn.input.text ?? "",
+                  delivered: mentionsToJson(input.mentions),
+                });
+              }
+
               if (
                 model !== (turn.model ?? "") ||
                 effort !== (turn.effort ?? "") ||

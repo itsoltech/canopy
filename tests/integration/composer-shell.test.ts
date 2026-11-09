@@ -9,6 +9,7 @@ import { SHELL_INPUT_OUTPUT_BYTES, shellInputText } from "@canopy/domain";
 import { waitForProcessStopped } from "@canopy/testing";
 import { startInstanceFixture, type InstanceFixture } from "./support/instance-fixture.ts";
 import { eventually, failure, watchUntil } from "./support/gateway.ts";
+import { branchSwitchNotices } from "../../apps/gateway/src/store/thread-branches.ts";
 
 let fixture: InstanceFixture;
 
@@ -54,6 +55,24 @@ describe.skipIf(!dockerAvailable)("composer shell input over gRPC and scripted h
       expect(view.turns[0]?.inputText).toBe(done.inputText);
     }
   }, 30_000);
+
+  test("branch context survives shell input preparation and reaches the resumed agent", async () => {
+    const thread = await fixture.thread(Provider.CODEX);
+    await fixture.gw.runtime.runPromise(branchSwitchNotices([thread.id], "feature/owner-choice"));
+    const turn = await fixture.send(thread.id, "!printf branch-context");
+    const done = await fixture.finished(thread.id, turn.id);
+    expect(done.inputText).toContain("The user switched this checkout to branch feature/owner-choice");
+    expect(done.inputText).toContain(shellInputText(done.shellResult!));
+    expect(fixture.inputs().some((input) => input.parts.some((part) => part.text === done.inputText))).toBe(true);
+
+    await fixture.gw.runtime.runPromise(branchSwitchNotices([thread.id], "feature/after-shell-failure"));
+    const failed = await fixture.send(thread.id, "!kill -TERM $$");
+    expect((await fixture.finished(thread.id, failed.id)).status).toBe("failed");
+    const next = await fixture.send(thread.id, "Continue after the shell failed");
+    const resumed = await fixture.finished(thread.id, next.id);
+    expect(resumed.inputText).toContain("The user switched this checkout to branch feature/after-shell-failure");
+    expect(fixture.inputs().some((input) => input.parts.some((part) => part.text === resumed.inputText))).toBe(true);
+  }, 15_000);
 
   test("queued commands execute only at dequeue, in order; an edited message retains shell semantics", async () => {
     const thread = await fixture.thread(Provider.CODEX);

@@ -23,14 +23,6 @@ import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.t
 
 export type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.ts";
 
-/** Token usage added up over turns. */
-export interface UsageTotals {
-  readonly inputTokens: bigint;
-  readonly cachedInputTokens: bigint;
-  readonly outputTokens: bigint;
-  readonly costUsd: number;
-}
-
 /** connecting: first snapshot pending; live: stream open; reconnecting: dropped, EventSource retries. */
 export type Connection = "connecting" | "syncing" | "live" | "reconnecting";
 
@@ -138,25 +130,6 @@ export class ThreadState {
         s.backgroundItemIds.length === 0,
     );
   });
-  /** Usage of the thread's own turns (from the snapshot, so it survives a reload). */
-  readonly totals = $derived(
-    this.ownTurns.reduce<UsageTotals>(
-      (sum, turn) => {
-        const usage = turn.usage ?? this.turnResults.get(turn.id)?.usage;
-
-        if (!usage) return sum;
-
-        return {
-          inputTokens: sum.inputTokens + usage.inputTokens,
-          cachedInputTokens: sum.cachedInputTokens + usage.cachedInputTokens,
-          outputTokens: sum.outputTokens + usage.outputTokens,
-          costUsd: sum.costUsd + usage.costUsd,
-        };
-      },
-      { inputTokens: 0n, cachedInputTokens: 0n, outputTokens: 0n, costUsd: 0 },
-    ),
-  );
-
   /**
    * Seeds the header from the client route load before the stream connects. A supplied snapshot (e.g.
    * in a fixture) renders immediately; the stream's first snapshot replaces it.

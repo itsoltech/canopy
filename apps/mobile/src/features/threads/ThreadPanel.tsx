@@ -1,14 +1,12 @@
 import { Text, View } from "react-native";
 import { router } from "expo-router";
-import type { Usage, ui } from "@canopy/contracts";
+import type { ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
 import { Button, Sheet } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 import { ConnectorList, useConnectors } from "../connectors/Connectors";
-import { permissionLabel } from "./permissions";
 import { ThreadPlacement } from "./ThreadPlacement";
-import { ThreadUsage } from "./ThreadUsage";
 import { ThreadBackgroundTasks } from "./ThreadBackgroundTasks";
 import { SubagentLineage } from "./SubagentLineage";
 import { ListSkeleton } from "../../ui/Skeleton";
@@ -50,12 +48,10 @@ export function PanelRow({
 
 export function ThreadPanel({
   snapshot,
-  usage,
   visible,
   onClose,
 }: {
   snapshot?: ui.ThreadSnapshot;
-  usage?: Usage;
   visible: boolean;
   onClose: () => void;
 }) {
@@ -101,15 +97,7 @@ export function ThreadPanel({
               icon="computer-desktop"
             />
             <ThreadPlacement thread={thread} onClose={onClose} />
-            <PanelRow
-              title="Model"
-              value={[thread.model || "Default model", thread.effort].filter(Boolean).join(" · ")}
-              icon="cpu-chip"
-            />
-            <PanelRow title="Status" value={thread.status.replace("_", " ")} icon="check-circle" />
-            <PanelRow title="Permissions" value={permissionLabel(thread.permissionMode)} icon="shield-check" />
           </View>
-          {snapshot && <ThreadUsage snapshot={snapshot} live={usage} />}
           {visible && <SecretGrants secrets={snapshot?.secrets ?? []} disabled={home.away || !online} />}
           {snapshot && <ThreadSchedules snapshot={snapshot} onClose={onClose} />}
           {snapshot && <ThreadBackgroundTasks snapshot={snapshot} disabled={home.away || !online} />}

@@ -342,6 +342,7 @@ while (!stopping.signal.aborted) {
           "git_worktree_discovery",
           // git_heads: the live branch of thread checkouts (GitHeads).
           "git_heads",
+          "git_branch_switch_v1",
           // provisional_branches: RenameWorktreeBranch.provisional keeps pushed or switched branches.
           "provisional_branches",
           "project_sources",
