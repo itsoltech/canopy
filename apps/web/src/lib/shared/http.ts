@@ -22,13 +22,13 @@ export class HttpError extends Error {
 
 /**
  * Browser-side JSON call to the BFF (same origin); the error message comes from SvelteKit's `{ message }`.
- * Gives up after `timeoutMs` (15 s; longer for calls that wait on a worker).
+ * Gives up after `timeoutMs` (40 s; longer for calls that wait on a worker).
  */
 export async function requestJson(
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
   body?: JsonBody,
-  timeoutMs = 15_000,
+  timeoutMs = 40_000,
 ): Promise<JsonValue> {
   const response = await fetch(path, {
     method,

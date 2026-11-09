@@ -35,6 +35,7 @@ import { threadComposerHeight } from "../composer/geometry";
 import { ImportedThreadComposer } from "../imports/ImportedThreadComposer";
 import { useQuoteDraft } from "../quotes/useQuoteDraft";
 import { withSentMessage } from "./sent-message";
+import { confirmMessage } from "./pending-message";
 
 /** The gateway refused the message and says why (not delivered: no retry note); otherwise delivery is unknown. */
 function deliveryError(failure: ConnectError) {
@@ -49,6 +50,7 @@ function useThreadState(id: string) {
   const { session, client, ready, online, expired } = useSession();
   const { snapshot, setSnapshot, stream, history } = useThreadSnapshot(id);
   const [busy, setBusy] = useState(false);
+  const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState("");
   const following = useFollowingList<ui.Turn>(true);
   const [details, setDetails] = useState(false);
@@ -64,11 +66,14 @@ function useThreadState(id: string) {
   } | null>(null);
 
   const requestController = useRef(new AbortController());
+  const currentClient = useRef(client);
+  currentClient.current = client;
+
   useEffect(() => {
     requestController.current = new AbortController();
 
     return () => requestController.current.abort();
-  }, [id, client]);
+  }, [id]);
 
   const thread = snapshot?.thread ?? threads.find((t) => t.id === id);
   const home = useComputerHome(thread?.nodeId || splitId(id).node);
@@ -91,24 +96,30 @@ function useThreadState(id: string) {
     sending.current = true;
     following.resumeFollowing();
     setBusy(true);
+    setWaiting(false);
     setError("");
 
     const key = JSON.stringify({ value, delivery, attachmentIds, mentions, quotes: quotes.quotes });
 
     if (pending.current?.key !== key) pending.current = { key, id: Crypto.randomUUID() };
+    const signal = requestController.current.signal;
 
     try {
-      const result = await client.api.sendMessage(
-        {
-          threadId: id,
-          text: value,
-          delivery,
-          attachmentIds,
-          mentions,
-          quotes: [...quotes.quotes],
-          clientRequestId: pending.current.id,
-        },
-        { signal: requestController.current.signal, timeoutMs: 20_000 },
+      const request = {
+        threadId: id,
+        text: value,
+        delivery,
+        attachmentIds,
+        mentions,
+        quotes: [...quotes.quotes],
+        clientRequestId: pending.current.id,
+      };
+
+      const result = await confirmMessage(
+        request,
+        () => currentClient.current?.api,
+        signal,
+        () => setWaiting(true),
       );
 
       setSnapshot((snapshot) => withSentMessage(snapshot, result));
@@ -119,7 +130,7 @@ function useThreadState(id: string) {
       pending.current = null;
     } catch (e) {
       if (ConnectError.from(e).code === Code.Unauthenticated) await expired();
-      else if (!requestController.current.signal.aborted) setError(deliveryError(ConnectError.from(e)));
+      else if (!signal.aborted) setError(deliveryError(ConnectError.from(e)));
     } finally {
       sending.current = false;
       setBusy(false);
@@ -141,6 +152,7 @@ function useThreadState(id: string) {
     ready,
     snapshot,
     busy,
+    waiting,
     error,
     setError,
     following,
@@ -247,6 +259,9 @@ export function ThreadScreen({ id }: { id: string }) {
               </>
             }
           >
+            {state.busy ? (
+              <Notice>{state.waiting ? `Still waiting for ${state.home.name || "this computer"}…` : "Sending…"}</Notice>
+            ) : null}
             {error ? <Notice error>{error}</Notice> : null}
             {state.home.away && (
               <Notice>

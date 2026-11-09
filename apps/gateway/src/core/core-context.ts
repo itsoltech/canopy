@@ -71,6 +71,8 @@ export interface GatewayCoreOptions {
   readonly userId: string;
   readonly log?: (message: string) => void;
   readonly commandTimeoutMs?: number;
+  /** Test-only interval for the local UI watch's durable revision probe. */
+  readonly watchProbeMs?: number;
   /** Per file, per message and how many files (docs/ui-api.md, "Załączniki"); defaults: DEFAULT_ATTACHMENT_LIMITS. */
   readonly attachmentLimits?: AttachmentLimits;
   /** How long a Claude task that completed by itself waits for Claude's own wake-up turn (core/background-tasks.ts). */

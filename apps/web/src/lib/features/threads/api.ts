@@ -1,6 +1,8 @@
 import { ui } from "@canopy/contracts";
 import type { PermissionModeKey } from "./labels.ts";
-import { requestJson, type JsonBody } from "#lib/shared/http.ts";
+import { requestJson, HttpError, type JsonBody } from "#lib/shared/http.ts";
+import { isJsonObject } from "#lib/shared/json.ts";
+import { resolvePendingSend } from "@canopy/domain/pending-send";
 import { decode } from "#lib/shared/wire.ts";
 import type { Mention } from "@canopy/contracts";
 import { mentionsToWire } from "#lib/features/mentions/wire.ts";
@@ -27,18 +29,31 @@ export async function sendMessage(
   attachmentIds: readonly string[] = [],
   mentions: readonly Mention[] = [],
   quotes: readonly WireQuote[] = [],
+  onWaiting?: () => void,
 ): Promise<ui.SendMessageResponse> {
-  return decode(
-    ui.SendMessageResponseSchema,
-    await post(`${threadPath(threadId)}/messages`, {
-      text,
-      clientRequestId,
-      ...turn,
-      delivery,
-      ...(attachmentIds.length > 0 && { attachmentIds }),
-      ...(mentions.length > 0 && { mentions: mentionsToWire(mentions) }),
-      ...(quotes.length > 0 && { quotes }),
-    }),
+  const body = {
+    text,
+    clientRequestId,
+    ...turn,
+    delivery,
+    ...(attachmentIds.length > 0 && { attachmentIds }),
+    ...(mentions.length > 0 && { mentions: mentionsToWire(mentions) }),
+    ...(quotes.length > 0 && { quotes }),
+  };
+
+  return resolvePendingSend(
+    async () => {
+      const result = await post(`${threadPath(threadId)}/messages`, body);
+
+      return isJsonObject(result) && result["pending"] === true
+        ? undefined
+        : decode(ui.SendMessageResponseSchema, result);
+    },
+    {
+      // A lost HTTP response cannot establish whether the BFF/home committed the request.
+      uncertain: (error) => !(error instanceof HttpError) || error.status >= 500,
+      onWaiting,
+    },
   );
 }
 

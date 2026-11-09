@@ -11,7 +11,7 @@ export function logGatewayFailures(transport: Transport): Transport {
     } catch (cause) {
       const failure = gatewayFailure(cause);
 
-      if (failure.status >= 500)
+      if (failure.status >= 500 && args[0].name !== "MarkThreadSeen")
         console.error("gateway call failed", {
           method: args[0].name,
           durationMs: Math.round(performance.now() - started),

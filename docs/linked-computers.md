@@ -570,8 +570,31 @@ sprawdzenie aktualizacji 120 s, żądanie instalacji 15 min. Limit RPC nie oznac
 próbą. Zdrowe wyniki można odświeżyć po 5 s. UI pokazuje Loading/Waiting, zachowując
 lokalne dane. Utrata łącza otwiera circuit breaker: 30 s, 60 s, 120 s, najwyżej 3 min;
 w tym czasie pomijane są wywołania i próby dial. Udany handshake, zweryfikowane
-ogłoszenie LAN, wake lub zmiana sieci zerują go od razu. Żadna wysłana akcja nie jest
-automatycznie powtarzana. Dłuższe limity operacji celowych opisuje ta sama tabela stałych.
+ogłoszenie LAN, wake lub zmiana sieci zerują go od razu. Wyjątkiem od zakazu
+automatycznego powtarzania zapisów jest potwierdzanie `SendMessage` z tym samym
+`client_request_id` (niżej). Dłuższe limity operacji celowych opisuje ta sama tabela stałych.
+
+### Potwierdzenie wysłanej wiadomości
+
+Timeout nie dowodzi odmowy: dom mógł już przyjąć wiadomość. BFF daje `SendMessage`
+10 s (zwykłe RPC mają 3 s), łącze mutacji 30 s, a mobile 20 s na próbę.
+BFF zwraca HTTP 202 przy nieznanym wyniku. Web/desktop i mobile co 2 s ponawiają
+identyczne żądanie z tym samym `client_request_id`, aż otrzymają wynik albo jawną
+odmowę. Kompozytor zachowuje zablokowany szkic i pokazuje „Sending…” lub
+„Still waiting for ‹computer›…”, bez czerwonego błędu transportowego.
+
+Dom blokuje wiersz wątku właściciela i atomowo zapisuje efekt oraz potwierdzenie
+w `thread_message_receipts` (0099). Współbieżne próby nie mogą zmienić steera w nową
+turę, nawet gdy pierwotna tura już się skończyła. Odpowiedź ponowienia odczytuje bieżący
+stan zapisanej tury lub steera; komendy platformy, np. `/goal`, też mają potwierdzenie.
+Nowe id z drugiego urządzenia oznacza osobną wiadomość: nie deduplikujemy treści.
+Nie ma kolejki nowych zapisów offline ani automatycznego ponawiania innych mutacji.
+
+Gatewaye nadawcy i domu logują wynik `SendMessage`, `clientRequestId`, id partnera
+i czas, bez treści i adresów. Lista lustra loguje czas, liczbę wątków i bajty metadanych
+po przekroczeniu 250 ms. Diagnostyka nie ustala przyczyny historycznego zerwania
+połączenia SQL: sterownik ma także limit 16 MiB na pojedynczą ramkę odpowiedzi,
+który może zerwać odczyt dużego snapshotu jeszcze przed dekodowaniem protobuf.
 
 `PEER_LONG_CALL_TIMEOUTS`: AddProject 6 min (klonowanie), CreateThread 120 s,
 ListWorktrees 120 s (operacje Git), CleanupWorktrees 5 min. Zestawienie TLS ma 5 s,
@@ -766,10 +789,17 @@ capability, a starszy dom lub partner nadal używa dotychczasowych snapshotów.
 
 ### Żywotność subskrypcji i odzyskiwanie
 
-Heartbeat domu uwzględnia zmiany danego wątku, odziedziczonych źródeł oraz
-metadanych współdzielonych. Aktywność niezależnego wątku nie wymusza resnapshotu.
-Nowa epoka lub usunięty fragment dziennika wymusza ponowną walidację; tury z
-mutowalnymi źródłami nadal używają konserwatywnego zegara właściciela.
+Lokalny `WatchThread` UI również co 5 s porównuje trwałą rewizję z
+checkpointem snapshotu. Nowsza rewizja, luka `event.seq` lub opóźnienie lokalnego
+event loop wymusza ponowną subskrypcję z zachowaniem załadowanego okna historii.
+Klient dostaje `syncing=true`, następnie deltę lub pełny snapshot. Stall i ponowienie
+pozostawiają log bez treści. Brak fan-outu podczas końca tury nie wymaga ponownego
+otwierania strony: kolejny probe odzyskuje trwały stan.
+
+Probe lokalny i heartbeat domu uwzględniają zmiany danego wątku, odziedziczonych
+źródeł oraz metadanych współdzielonych. Aktywność niezależnego wątku nie wymusza
+resnapshotu. Nowa epoka lub usunięty fragment dziennika wymusza ponowną walidację;
+tury z mutowalnymi źródłami nadal używają konserwatywnego zegara właściciela.
 
 Połączenie transportowe i aktualność widoku są sprawdzane oddzielnie. HTTP/2 PING
 (15 s, budżet pong 10 s), heartbeat całego łącza i heartbeat SSE z BFF nie dowodzą,
@@ -1423,7 +1453,8 @@ następnie wysyła nowsze katalogi. Online W usuwa P2, kursor, wszystkie generac
 i botów oraz listingi; P2 usuwa informacyjny W i odłącza odwołania szyny. Jeśli pozostaje
 przeciwna zgoda, wpis zostaje z węższą rolą, ale odebrane lustra i odwołania są usuwane.
 Unlink P1↔P2 usuwa także zgody i aktualizuje katalog W. Lokalne dane P2 zostają nietknięte.
-Już przyjętej przez dom akcji nie cofamy; nie ponawiamy automatycznie zapisu po utracie odpowiedzi.
+Już przyjętej przez dom akcji nie cofamy; po utracie odpowiedzi automatycznie
+potwierdzamy jedynie idempotentny `SendMessage` z niezmienionym `client_request_id`.
 Offline W poznaje odwołanie przy następnym połączeniu, przed odnowieniem dostępu do domu;
 nie można natychmiast skasować bajtów na nieosiągalnym komputerze.
 

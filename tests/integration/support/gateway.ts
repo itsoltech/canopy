@@ -555,6 +555,7 @@ export async function startTestGateway(
     botClock?: GatewayCoreOptions["botClock"];
     worker?: ScriptedWorkerOptions;
     secretTtlMs?: number;
+    watchProbeMs?: number;
     storage?: { pg: TestPostgres; secretsKey: Buffer; workerId: string; workerCredential: string };
   } = {},
 ): Promise<TestGateway> {
@@ -620,6 +621,7 @@ export async function startTestGateway(
     ...(options.cliLatest && { cliLatest: options.cliLatest }),
     ...(options.updates && { updates: options.updates }),
     ...(options.secretTtlMs !== undefined && { secretTtlMs: options.secretTtlMs }),
+    ...(options.watchProbeMs !== undefined && { watchProbeMs: options.watchProbeMs }),
     ...(options.botModel && { botModel: options.botModel }),
     ...(options.botClock && { botClock: options.botClock }),
     ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }),

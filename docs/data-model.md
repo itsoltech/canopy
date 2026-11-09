@@ -400,6 +400,12 @@ Indeks częściowy `turns_mutable_sources` ogranicza sprawdzenie zależności wa
 do tur ze źródłami. Publisher mirrora grupuje powtarzane id w SQL, a retencję
 dziennika zostawia triggerowi commitującemu, bez `DELETE` co 250 ms na partnera.
 
+`thread_message_receipts` (0099) przechowuje odpowiedź przyjęcia `SendMessage`
+pod kluczem `(thread_id, client_request_id)`, z FK usuwanym kaskadowo z wątkiem.
+Blokada wiersza wątku właściciela serializuje przyjęcie; efekt i potwierdzenie
+commitują razem. Dotyczy także komend bez tury (`/goal`). Powtórny odczyt zwraca
+bieżący stan tury/steera, bez ponawiania efektu. Nie ma deduplikacji treści.
+
 - `thread_events (thread_id, seq)` — klucz główny, odczyt osi czasu; `(thread_id, event_id)` unikalny — idempotencja.
 - `thread_items (thread_id, first_seq)` — snapshot dla frontendu; `(thread_id) WHERE status = 'in_progress'` — elementy w toku.
 - `threads (project_id, created_at DESC) WHERE kind = 'main'` — lista wątków projektu.

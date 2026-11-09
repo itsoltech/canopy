@@ -4,6 +4,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { type GatewayCore } from "../core/core.ts";
 import { guard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
+import { watchLocalThread } from "../core/local-thread-watch.ts";
 
 export function threadsHandlers(
   core: GatewayCore,
@@ -76,13 +77,15 @@ export function threadsHandlers(
       ),
 
     watchThread: (request, context) =>
-      core.watchThread(
-        request.threadId,
-        context.signal,
-        request.incremental ? request.cursor || request.mirrorCursor : request.mirrorCursor,
-        request.incremental,
-        request,
-      ),
+      context.protocolName !== "canopy.link"
+        ? watchLocalThread(core, request, context.signal)
+        : core.watchThread(
+            request.threadId,
+            context.signal,
+            request.incremental ? request.cursor || request.mirrorCursor : request.mirrorCursor,
+            request.incremental,
+            request,
+          ),
 
     updateThread: (request) =>
       guard(async () => create(ui.UpdateThreadResponseSchema, { thread: await core.updateThread(request) })),

@@ -33,6 +33,7 @@ import { splitOverrides } from "./routed-workers-split.ts";
 import { auditHomeAction, receiveHomeAction } from "./routed-execution.ts";
 import { executionLists } from "./routed-execution-lists.ts";
 import { linkedManageUpdates } from "./routed-updates.ts";
+import { linkedWrite } from "../computers/write-diagnostics.ts";
 
 export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   // SAFETY: Each entry is invoked with the request decoded by its own GatewayService method descriptor.
@@ -77,13 +78,15 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
             const home = await peerOf(core, node, method, request);
             refuseRemoteWorktree(method, request, core.computers?.capabilities(home).includes(REMOTE_WORKTREES));
 
-            const response = await single(
-              forward(
-                core,
-                home,
-                method,
-                request,
-                AbortSignal.any([context.signal, AbortSignal.timeout(unaryTimeout(method))]),
+            const response = await linkedWrite(method, request, home, "sender", () =>
+              single(
+                forward(
+                  core,
+                  home,
+                  method,
+                  request,
+                  AbortSignal.any([context.signal, AbortSignal.timeout(unaryTimeout(method))]),
+                ),
               ),
             );
 
@@ -237,7 +240,9 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
       const answer = setting && (await receiveWorkerSetting(core!, method, request, setting));
 
       if (method.methodKind === "unary") {
-        const response = create(method.output, answer || (await unary(own[method.localName]!, request, context)));
+        const response = await linkedWrite(method, request, peerNodeId ?? "", "home", async () =>
+          create(method.output, answer || (await unary(own[method.localName]!, request, context))),
+        );
 
         if (core && peerNodeId) await auditHomeAction(core, "received", method, response, peerNodeId);
         await ids?.map(method.output, response, "toGlobal");
