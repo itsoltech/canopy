@@ -23,7 +23,10 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
   let fault: "none" | "stall" | "fanout" | "gap" | "base" | "all" = "none";
   let mirrorStalled = false;
   let mirrorError = false;
+  let mirrorRecovery: Promise<void> | undefined;
   let dropped = false;
+  let gapSequence = 0n;
+  let heartbeats = 0;
   let subscriptions = 0;
   let mirrorSubscriptions = 0;
   const timing = { heartbeatMs: 100, timeoutMs: 1000, legacyProbeMs: 1500 };
@@ -32,20 +35,23 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
     await b.api.updateThread({ threadId: thread, title: value });
   }
 
-  async function follow(pageSize = 0, cursor = "", base?: ui.ThreadSnapshot) {
+  async function follow(pageSize = 0, cursor = "", base?: ui.ThreadSnapshot, localHome = false) {
     const abort = new AbortController();
     const updates: ui.ThreadUpdate[] = [];
     let state = base;
+    let live = false;
     let failure: unknown;
 
     const done = (async () => {
       try {
-        for await (const update of a.api.watchThread(
-          { threadId: qualifyId(thread, node), pageSize, incremental: !!pageSize, cursor },
+        for await (const update of (localHome ? b : a).api.watchThread(
+          { threadId: localHome ? thread : qualifyId(thread, node), pageSize, incremental: !!pageSize, cursor },
           { signal: abort.signal },
         )) {
           updates.push(update);
           state = applyThreadUpdate(state, update);
+
+          if (!update.syncing && (update.change.case === "snapshot" || update.change.case === "delta")) live = true;
         }
       } catch (cause) {
         if (!abort.signal.aborted) failure = cause;
@@ -63,7 +69,8 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
       async until(value: string) {
         expect(
           await eventually(
-            async () => state?.thread?.title,
+            // The mirror seed is readable before the home watch is subscribed.
+            async () => (live ? state?.thread?.title : undefined),
             (name) => name === value,
             5000,
           ),
@@ -79,7 +86,7 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
 
   beforeAll(async () => {
     a = await startTestGateway({ role: "desktop" });
-    b = await startTestGateway({ role: "desktop" });
+    b = await startTestGateway({ role: "desktop", watchProbeMs: 100 });
     store = new ComputerStore(b.runtime, b.userId, b.secretsKey);
     const project = (await b.api.createProject({ name: "Remote work" })).project!.id;
 
@@ -100,7 +107,8 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
     const options = (gateway: TestGateway) => ({
       store: new ComputerStore(gateway.runtime, gateway.userId, gateway.secretsKey),
       host: "127.0.0.1",
-      heartbeatMs: 100,
+      // Exercise application expiry before the independent physical link can expire.
+      heartbeatMs: timing.timeoutMs,
       watchTiming: timing,
       serve: remoteServe(uiHandlers(gateway.core)),
     });
@@ -120,6 +128,8 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
           throw new ConnectError("Injected mirror stream failure", Code.Unavailable);
         }
 
+        if (args[1].name === "WatchThreadMirror") await mirrorRecovery;
+
         if (watching) {
           if (fault === "all" || (fault === "stall" && seeded)) {
             dropped = true;
@@ -128,15 +138,24 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
 
           const update = linkedMessage(ui.ThreadUpdateSchema, message);
 
+          if (update.watchCursor) heartbeats++;
+
           if (fault === "fanout" && seeded && !update.watchCursor) {
             dropped = true;
             continue;
           }
 
-          if (fault === "gap" && update.change.case === "event") {
+          if (fault === "gap") {
+            // Hold revision recovery until a real missing event and its successor reach the viewer.
+            if (update.change.case !== "event") continue;
+
+            if (!dropped) {
+              gapSequence = update.change.value.seq;
+              dropped = true;
+              continue;
+            }
+
             fault = "none";
-            dropped = true;
-            continue;
           }
 
           if (fault === "base" && update.change.case === "delta") {
@@ -200,9 +219,14 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
       dropped = false;
       await title("Recovered stall");
       expect(await eventually(async () => dropped, Boolean)).toBe(true);
+      expect(
+        await eventually(
+          async () => subscriptions,
+          (count) => count > before,
+        ),
+      ).toBeGreaterThan(before);
       fault = "none";
       await view.until("Recovered stall");
-      expect(subscriptions).toBeGreaterThan(before);
       expect(local.reachable()).toContain(node);
       expect(view.updates.some((update) => update.syncing)).toBe(true);
     } finally {
@@ -211,27 +235,139 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
     }
   }, 15_000);
 
+  test("local and linked watches ignore unrelated activity and already-scanned journal pruning", async () => {
+    const source = (await b.api.getThread({ threadId: thread })).thread!;
+
+    const other = (
+      await b.api.createThread({
+        projectId: source.projectId,
+        workspaceId: source.workspaceId,
+        provider: source.provider,
+        clientRequestId: crypto.randomUUID(),
+      })
+    ).thread!.id;
+
+    const view = await follow(24);
+    const localView = await follow(24, "", undefined, true);
+
+    try {
+      await view.until("Recovered stall");
+      await localView.until("Recovered stall");
+      const before = subscriptions;
+      const beats = heartbeats;
+      await b.api.updateThread({ threadId: other, title: "Busy unrelated thread" });
+
+      const clock = (
+        await store.query<{ revision: string }>(
+          "SELECT revision::text FROM computer_thread_clock WHERE owner_user_id=$1::uuid",
+          [b.userId],
+        )
+      )[0]!;
+
+      expect(
+        await eventually(
+          async () => heartbeats,
+          (count) => count >= beats + 3,
+        ),
+      ).toBeGreaterThanOrEqual(beats + 3);
+      expect(subscriptions).toBe(before);
+      await store.query("DELETE FROM computer_thread_changes WHERE owner_user_id=$1::uuid AND revision<=$2::bigint", [
+        b.userId,
+        clock.revision,
+      ]);
+      const scanned = heartbeats;
+      expect(
+        await eventually(
+          async () => heartbeats,
+          (count) => count >= scanned + 3,
+        ),
+      ).toBeGreaterThanOrEqual(scanned + 3);
+      expect(subscriptions).toBe(before);
+      expect(localView.updates.some((update) => update.syncing)).toBe(false);
+      await store.query("UPDATE threads SET title='Shared revision repaired' WHERE id=$1::uuid", [thread]);
+      await view.until("Shared revision repaired");
+      await localView.until("Shared revision repaired");
+      expect(localView.updates.some((update) => update.syncing)).toBe(true);
+      expect(subscriptions).toBeGreaterThan(before);
+    } finally {
+      await view.close();
+      await localView.close();
+      await title("Recovered stall");
+    }
+  }, 15_000);
+
+  test("a retained-journal gap conservatively revalidates a quiet watch", async () => {
+    const view = await follow(24);
+
+    try {
+      await view.until("Recovered stall");
+      const before = subscriptions;
+      await store.query("UPDATE threads SET title='Gap revision repaired' WHERE id=$1::uuid", [thread]);
+      await store.query("DELETE FROM computer_thread_changes WHERE owner_user_id=$1::uuid", [b.userId]);
+      await view.until("Gap revision repaired");
+      expect(subscriptions).toBeGreaterThan(before);
+      expect(
+        view.updates.some(
+          (update) =>
+            update.change.case === "snapshot" && update.change.value.thread?.title === "Gap revision repaired",
+        ),
+      ).toBe(true);
+    } finally {
+      await view.close();
+      await title("Recovered stall");
+    }
+  }, 15_000);
+
   test("an event sequence gap replaces the base with an authoritative snapshot", async () => {
-    const view = await follow();
+    const view = await follow(24);
 
     try {
       await view.until("Recovered stall");
       const before = subscriptions;
       fault = "gap";
       dropped = false;
-      await b.api.sendMessage({ threadId: thread, text: "After a missed event", clientRequestId: crypto.randomUUID() });
+      let turnId = "";
+
+      // A home revision probe may cover a turn before its events reach this stream.
+      // Drive activity until the transport has actually injected the event gap.
       expect(
         await eventually(
-          async () => subscriptions,
-          (count) => count > before,
+          async () => {
+            if (fault !== "gap") return true;
+
+            const sent = await b.api.sendMessage({
+              threadId: thread,
+              text: "After a missed event",
+              clientRequestId: crypto.randomUUID(),
+            });
+
+            turnId = sent.turn!.id;
+
+            return dropped && fault !== "gap";
+          },
+          Boolean,
           5000,
         ),
-      ).toBeGreaterThan(before);
+      ).toBe(true);
       expect(dropped).toBe(true);
+      expect(
+        await eventually(
+          async () =>
+            view.updates.some(
+              (update) => update.change.case === "snapshot" && update.change.value.lastSeq >= gapSequence,
+            ),
+          Boolean,
+        ),
+      ).toBe(true);
+      expect(subscriptions).toBeGreaterThan(before);
       expect(view.failure).toBeUndefined();
-      expect(await eventually(async () => view.state?.turns.some((turn) => turn.status === "completed"), Boolean)).toBe(
-        true,
-      );
+      expect(
+        await eventually(
+          async () =>
+            view.state?.turns.some((turn) => turn.id === qualifyId(turnId, node) && turn.status === "completed"),
+          Boolean,
+        ),
+      ).toBe(true);
     } finally {
       fault = "none";
       await view.close();
@@ -346,14 +482,26 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
   }, 15_000);
 
   test("a missing background mirror checkpoint triggers a fresh generation", async () => {
+    const state = await eventually(
+      async () => local.mirror.state(node),
+      (value) => !!value?.cursor,
+    );
+
+    expect(state?.cursor).toBeTruthy();
     const before = mirrorSubscriptions;
-    const generation = (await local.mirror.state(node))!.generation;
+    const generation = state!.generation;
     mirrorStalled = true;
     dropped = false;
 
     try {
       await title("Mirror recovered");
       expect(await eventually(async () => dropped, Boolean)).toBe(true);
+      expect(
+        await eventually(
+          async () => (await local.mirror.state(node))?.cursor,
+          (cursor) => cursor === "",
+        ),
+      ).toBe("");
       mirrorStalled = false;
       expect(
         await eventually(
@@ -362,6 +510,12 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
           5000,
         ),
       ).toBe("Mirror recovered");
+      expect(
+        await eventually(
+          async () => (await local.mirror.state(node))?.generation,
+          (value) => !!value && value !== generation,
+        ),
+      ).not.toBe(generation);
       expect(mirrorSubscriptions).toBeGreaterThan(before);
       expect((await local.mirror.state(node))!.generation).not.toBe(generation);
     } finally {
@@ -397,23 +551,39 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
 
   test("an idle mirror clears a stream failure after its checkpoint is revalidated without a new commit", async () => {
     const state = (await local.mirror.state(node))!;
+    const recovery = Promise.withResolvers<void>();
+    mirrorRecovery = recovery.promise;
     mirrorError = true;
-    expect(
-      await eventually(
-        async () => (await local.computer(node))?.status,
-        (status) => status === "unreachable",
-        5000,
-      ),
-    ).toBe("unreachable");
-    expect(
-      await eventually(
-        async () => (await local.computer(node))?.status,
-        (status) => status === "connected",
-        5000,
-      ),
-    ).toBe("connected");
-    expect((await local.mirror.state(node))!.cursor).toBe(state.cursor);
-    expect((await local.mirror.state(node))!.generation).toBe(state.generation);
+
+    try {
+      expect(await eventually(async () => !mirrorError, Boolean)).toBe(true);
+      expect(
+        await eventually(
+          async () => (await local.computer(node))?.status,
+          (status) => status === "unreachable",
+          5000,
+        ),
+      ).toBe("unreachable");
+      expect(local.reachable()).toContain(node);
+      expect((await local.mirror.state(node))!.cursor).toBe(state.cursor);
+      expect((await local.mirror.state(node))!.generation).toBe(state.generation);
+      // Keep recovery pending until stale application state has been observed.
+      mirrorRecovery = undefined;
+      recovery.resolve();
+      expect(
+        await eventually(
+          async () => (await local.computer(node))?.status,
+          (status) => status === "connected",
+          5000,
+        ),
+      ).toBe("connected");
+      expect((await local.mirror.state(node))!.cursor).toBe(state.cursor);
+      expect((await local.mirror.state(node))!.generation).toBe(state.generation);
+    } finally {
+      mirrorError = false;
+      mirrorRecovery = undefined;
+      recovery.resolve();
+    }
   }, 15_000);
 
   test("an older home without heartbeat frames is periodically revalidated", async () => {
@@ -421,7 +591,7 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
     home = linkedComputers({
       store,
       host: "127.0.0.1",
-      heartbeatMs: 100,
+      heartbeatMs: timing.timeoutMs,
       capabilities: ["presence", "unlink", REMOTE_THREADS, THREAD_MIRROR],
       serve: remoteServe(uiHandlers(b.core)),
     });
@@ -438,9 +608,14 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
       dropped = false;
       await title("Legacy recovered");
       expect(await eventually(async () => dropped, Boolean)).toBe(true);
+      expect(
+        await eventually(
+          async () => subscriptions,
+          (count) => count > before,
+        ),
+      ).toBeGreaterThan(before);
       fault = "none";
       await view.until("Legacy recovered");
-      expect(subscriptions).toBeGreaterThan(before);
     } finally {
       fault = "none";
       await view.close();

@@ -822,7 +822,7 @@ Starszy partner nie musi znać tych pól.
    atomowym checkpointem snapshotu. Nowa rewizja powoduje ponowny odczyt:
    klient przyrostowy dostaje deltę względem tego checkpointu, pozostali pełny
    snapshot. Zdarzenia na żywo nie przesuwają checkpointu. Zegar obejmuje
-   właściciela, więc także zmiana innego wątku może spowodować tanią rewalidację.
+   właściciela. Bez dodatkowej capability także zmiana innego wątku może spowodować rewalidację.
 2. Brak pierwszego snapshotu lub kolejnego heartbeat przez 15 s przerywa
    konkretne wywołanie. Po utracie działającej subskrypcji gateway oznacza widok
    istniejącym `syncing=true` i raz próbuje pełnego snapshotu, z pustym kursorem.
@@ -849,6 +849,27 @@ Przy standardowym interwale łącza ponowny start lustra następuje na kolejnym 
 po jego zatrzymaniu kontrola następuje po wznowieniu. Opóźniony event loop domu
 nie usuwa trwałego dziennika: revision probe i ponowny snapshot uzupełniają
 zmiany nawet wtedy, gdy żywy fan-out ich nie przekazał.
+
+Lokalne i zdalne watchy korzystają ze wspólnego mechanizmu `threadWatchRevision`.
+Jeden koordynator na runtime i właściciela grupuje odczyty o tym samym interwale
+w jeden odczyt dziennika co 5 s. Nie zmienia formatu kursora ani protokołu heartbeat.
+Dla każdego
+watcha `watch_cursor` wskazuje największą rewizję dotyczącą jego wątku, źródeł odziedziczonej
+historii lub wspólnych metadanych. Gdy nie ma takiej zmiany, potwierdza checkpoint
+początkowego snapshotu. Aktywność niezależnego wątku nie otwiera ponownie cichego watcha.
+Zdarzenia live nadal nie przesuwają atomowego checkpointu.
+Pozycja sprawdzonego dziennika jest osobna od rewizji danych watcha: po każdym odczycie
+przesuwa się do głowy właściciela, także po niezależnej zmianie. Kolejny heartbeat skanuje
+tylko nowsze wpisy. Usunięcie już sprawdzonych wpisów nie unieważnia cichego watcha;
+luka w jeszcze niesprawdzonym zakresie nadal wymaga rewalidacji.
+
+Luka w zachowanym dzienniku, inna epoka oraz dane zależne od zewnętrznych źródeł tur
+(wywołania agentów/botów, interakcje, harmonogramy i tury z zadań w tle) wymagają
+konserwatywnej rewizji właściciela. Tak samo działa wątek z wychodzącymi wywołaniami
+szyny agentów. Utrata wpisów nie jest traktowana jako brak zmian. Wspólny odczyt jest
+owner-scoped i obejmuje wyłącznie już autoryzowane subskrypcje; zamknięcie ostatniej
+usuwa timer. Różne interwały mają oddzielne terminy bez zwiększania częstotliwości
+wolniejszego watcha. Zasady wznowienia delty i pełnego snapshotu pozostają bez zmian.
 
 Obie strony zapisują rozpoczęcie i zakończenie subskrypcji na poziomie debug,
 a wykryte stall/gap i wymuszoną resynchronizację na warn. Logi zawierają wyłącznie

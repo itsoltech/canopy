@@ -427,6 +427,13 @@ Szczegóły: [etap 4](agent-environment.md#marketplace-i-pluginy--protokół-eta
 - HTTP/2 ma flow control na poziomie strumienia. Dodatkowo worker ogranicza liczbę niepotwierdzonych zdarzeń (np. 1000). Po przekroczeniu buforuje tylko w dzienniku.
 - Duże treści (output komendy, diff, obraz) nie są przycinane. Worker wysyła je jako `BlobChunk` (sha256), a zdarzenie wskazuje blob przez `BlobRef` ([transcript.md](transcript.md#5-zapis-po-stronie-gateway)). Zaimplementowane dla podglądów obrazów ([Załączniki](#załączniki)); output i diff są na razie inline.
 
+Lokalne i zdalne watchy współdzielą `threadWatchRevision`: jeden koordynator
+na runtime i właściciela grupuje odczyty rewizji, zachowując interwał każdego watcha.
+Heartbeat potwierdza dane wątku i zależności, a checkpoint nadal pochodzi z dziennika
+właściciela. Luka, zmiana epoki i źródła spoza wątku wymagają konserwatywnej rewalidacji.
+Mechanizm nie wymaga nowego pola proto ani capability. Szczegóły:
+[żywotność watchy](linked-computers.md#żywotność-subskrypcji-i-odzyskiwanie).
+
 ## Wersjonowanie
 
 - Pakiet `canopy.worker.v1`. Zmiany zgodne wstecz: tylko nowe pola i wartości enumów.

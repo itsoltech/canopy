@@ -1,18 +1,23 @@
 /** A heartbeat advances only for this thread, its inherited sources or shared metadata.
  * A pruned journal or changed epoch still forces a full validation at the home.
- * Parameters: owner, thread, checkpoint epoch (or null), checkpoint revision (or null).
+ * Batched parameters: owner, already-authorized thread ids, last examined journal revision.
  */
-export const threadWatchRevision = `WITH clock AS (
+export const threadWatchRevision = `WITH clock AS MATERIALIZED (
   SELECT epoch,revision FROM computer_thread_clock WHERE owner_user_id=$1::uuid
-), chain AS MATERIALIZED (SELECT thread_id FROM thread_fork_chain($2::uuid)), relevant AS (
-  SELECT max(revision) AS revision FROM computer_thread_changes
-  WHERE owner_user_id=$1::uuid AND revision>$4::bigint
-    AND (thread_id IS NULL OR thread_id IN (SELECT thread_id FROM chain))
+), changes AS MATERIALIZED (
+  SELECT computer_thread_changes.revision,thread_id FROM computer_thread_changes,clock
+  WHERE owner_user_id=$1::uuid AND computer_thread_changes.revision>$3::bigint
+    AND computer_thread_changes.revision<=clock.revision
+), latest AS MATERIALIZED (
+  SELECT thread_id,max(revision) AS revision FROM changes GROUP BY thread_id
 )
-SELECT clock.epoch, (CASE WHEN $3::text IS DISTINCT FROM clock.epoch::text OR $4::bigint IS NULL
-    OR $4::bigint < coalesce((SELECT min(revision) FROM computer_thread_changes WHERE owner_user_id=$1::uuid),clock.revision)-1
-    OR EXISTS(SELECT 1 FROM turns WHERE thread_id IN (SELECT thread_id FROM chain) AND
-      (agent_call_id IS NOT NULL OR interaction_request_id IS NOT NULL OR schedule_id IS NOT NULL
-        OR bot_call_id IS NOT NULL OR trigger='background_task') LIMIT 1)
-  THEN clock.revision ELSE greatest($4::bigint,coalesce(relevant.revision,$4::bigint)) END)::text AS revision
-FROM clock CROSS JOIN relevant`;
+SELECT t.id,c.epoch,c.revision::text,(SELECT count(*)::text FROM changes) AS count,
+  coalesce((SELECT max(l.revision) FROM latest l
+    WHERE l.thread_id IS NULL OR l.thread_id=ANY(s.ids)),0)::text AS relevant,
+  EXISTS(SELECT 1 FROM turns u WHERE u.thread_id=ANY(s.ids) AND
+    (u.agent_call_id IS NOT NULL OR u.interaction_request_id IS NOT NULL OR u.schedule_id IS NOT NULL
+      OR u.bot_call_id IS NOT NULL OR u.trigger='background_task'))
+    OR EXISTS(SELECT 1 FROM agent_bus_calls a WHERE a.source_thread_id=t.id) AS broad
+FROM threads t CROSS JOIN clock c CROSS JOIN LATERAL
+  (SELECT array_agg(thread_id) AS ids FROM thread_fork_chain(t.id)) s
+WHERE t.owner_user_id=$1::uuid AND t.id=ANY($2::uuid[])`;
