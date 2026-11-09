@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Alert } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { QUOTE_LIMITS } from "@canopy/domain";
+import { useUpdateBlocker } from "../updates/useUpdateBlocker";
 
 export function useQuoteDraft(blocked: () => boolean = () => false) {
   const [quotes, setQuotes] = useState<readonly ui.Quote[]>([]);
+  useUpdateBlocker(() => quotes.length > 0);
 
   return {
     quotes,

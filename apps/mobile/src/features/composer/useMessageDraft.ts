@@ -5,6 +5,7 @@ import { useAttachmentDraft } from "../attachments/useAttachmentDraft";
 import type { ComposerBadges } from "../threads/ComposerBox";
 import type { BadgeTone } from "./MessageText";
 import { activeTrigger } from "./useMentionSuggestions";
+import { useUpdateBlocker } from "../updates/useUpdateBlocker";
 import {
   editText,
   emptyValue,
@@ -26,6 +27,7 @@ export function useMessageDraft() {
   const [caret, setCaret] = useState<number>();
   // Read at once by picks that land in one tick (several photos at a time).
   const current = useRef<MessageValue>(emptyValue);
+  useUpdateBlocker(() => current.current.text.length > 0);
   const selection = useRef({ start: 0, end: 0 });
 
   const apply = (next: MessageValue) => {

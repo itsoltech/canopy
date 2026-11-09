@@ -6,6 +6,7 @@ import { useSession } from "../../state/session";
 import { Button, Field, Notice, Sheet } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { TextInput } from "../../ui/TextInput";
+import { useUpdateBlocker } from "../updates/useUpdateBlocker";
 
 /** Values never enter snapshots, drafts or diagnostics. Closing the sheet unmounts the write-only input. */
 export function ThreadSecrets({ secrets, disabled }: { secrets: readonly ui.ThreadSecret[]; disabled: boolean }) {
@@ -47,6 +48,7 @@ function SecretRequest({ secret, disabled }: { secret: ui.ThreadSecret; disabled
   const value = useRef("");
   const input = useRef<ComponentRef<typeof TextInput>>(null);
   const sending = useRef(false);
+  useUpdateBlocker(() => sending.current || value.current.length > 0);
   const [filled, setFilled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

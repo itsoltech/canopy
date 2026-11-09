@@ -13,12 +13,18 @@ import { bulkUpdatesAvailable, updatesAvailable, updatesRunning } from "./model"
 import { UpdateRows } from "./UpdateRows";
 import { CliUpdates } from "./CliUpdates";
 import { UpdateFeedback, UpdateRun } from "./UpdateSummary";
+import { usePhoneUpdates } from "./phone";
 
 /** The third sidebar action, like the web update center. Its 44 dp slot stays reserved in every state. */
 export function UpdateCenterButton() {
   const { snapshot, setOpen } = useUpdates();
-  const available = !!snapshot && updatesAvailable(snapshot);
-  const running = !!snapshot && updatesRunning(snapshot);
+  const phone = usePhoneUpdates();
+
+  const available = Boolean(
+    (snapshot && updatesAvailable(snapshot)) || phone.status.isUpdateAvailable || phone.status.isUpdatePending,
+  );
+
+  const running = Boolean((snapshot && updatesRunning(snapshot)) || phone.busy);
 
   return (
     <View>
@@ -38,6 +44,7 @@ export function UpdateCenterButton() {
 
 export function UpdateCenter() {
   const { snapshot, open, setOpen, pending, manage } = useUpdates();
+  const phone = usePhoneUpdates();
   const settings = useRef(false);
   const c = useColors();
   const busy = !!pending || snapshot?.run?.state === "running";
@@ -72,8 +79,11 @@ export function UpdateCenter() {
               icon="arrow-path"
               label="Check now"
               size="sm"
-              disabled={busy}
-              onPress={() => void manage({ action: "check" })}
+              disabled={busy || phone.busy}
+              onPress={() => {
+                void phone.check();
+                void manage({ action: "check" });
+              }}
             />
             <IconButton icon="x-mark" label="Close updates" size="sm" onPress={() => setOpen(false)} />
           </View>
