@@ -7,6 +7,7 @@ import { styles, useColors } from "../../ui/theme";
 import { fileFormat, videoDuration } from "./attachment-display";
 import { fileSize, type DraftFile } from "./useAttachmentDraft";
 import { ImageViewer } from "./ImageViewer";
+import { AttachmentViewer } from "./AttachmentViewer";
 
 /** All draft files remain here until sent or removed, independently of their inline badges. */
 export function AttachmentChips({ files, onRemove }: { files: DraftFile[]; onRemove: (key: string) => void }) {
@@ -64,8 +65,8 @@ function AttachmentChip({ file, onRemove }: { file: DraftFile; onRemove: (key: s
       ]}
     >
       <Pressable
-        accessibilityRole={file.kind === "image" && file.previewUri ? "button" : undefined}
-        onPress={file.kind === "image" && file.previewUri ? () => setViewing(true) : undefined}
+        accessibilityRole={file.attachment || (file.kind === "image" && file.previewUri) ? "button" : undefined}
+        onPress={file.attachment || (file.kind === "image" && file.previewUri) ? () => setViewing(true) : undefined}
         accessibilityLabel={`${format.label}, ${file.name}, ${fileSize(file.size)}${duration ? `, ${duration}` : ""}. ${status}`}
         style={[styles.row, { flex: 1, minWidth: 0, gap: 8 }]}
       >
@@ -109,7 +110,9 @@ function AttachmentChip({ file, onRemove }: { file: DraftFile; onRemove: (key: s
       >
         <Icon name="x-mark" size={14} />
       </Pressable>
-      {viewing && file.previewUri ? (
+      {viewing && file.attachment ? (
+        <AttachmentViewer file={file.attachment} onClose={() => setViewing(false)} />
+      ) : viewing && file.previewUri ? (
         <ImageViewer
           source={{ kind: "local", uri: file.previewUri }}
           name={file.name}

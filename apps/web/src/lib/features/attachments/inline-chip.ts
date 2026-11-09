@@ -30,7 +30,7 @@ export function attachmentChipHtml(mention: MentionData): string {
   const name = mention.label || mention.name;
   const data = escape(JSON.stringify({ ...mention, kind: mention.kind }));
 
-  return `<span contenteditable="false" data-element="mention" data-mention="${data}" data-attachment="${escape(mention.name)}" class="${attachmentChipClass()}" title="${escape(name)}">${iconSvg(kindLook(mention).icon, KIND_ICON)}${SPINNER}${iconSvg("exclamation-circle", FAILED_ICON)}<span class="truncate">${escape(name)}</span><span aria-hidden="true" class="${BAR}"></span></span>`;
+  return `<span contenteditable="false" role="button" tabindex="0" aria-label="Open ${escape(name)}" data-element="mention" data-mention="${data}" data-attachment="${escape(mention.name)}" class="${attachmentChipClass()} focus-ring">${iconSvg(kindLook(mention).icon, KIND_ICON)}${SPINNER}${iconSvg("exclamation-circle", FAILED_ICON)}<span class="truncate">${escape(name)}</span><span aria-hidden="true" class="${BAR}"></span></span>`;
 }
 
 /** What a badge says on hover: the name and size, the upload's progress, or why it failed. */
@@ -50,7 +50,9 @@ export function showUploads(root: ParentNode, file: (key: string) => DraftFile |
     if (!draft) continue;
     chip.dataset["status"] = draft.status;
     chip.style.setProperty("--progress", String(draft.progress));
-    chip.title = uploadTitle(draft);
+
+    if (draft.status !== "ready") chip.title = uploadTitle(draft);
+    else chip.removeAttribute("title");
   }
 }
 

@@ -70,7 +70,7 @@ export class AttachmentStore extends Context.Service<
     owned(ownerUserId: string, attachmentId: string): Fx<AttachmentRow>;
     /** Attachments a new message may take: the owner's, not yet sent, in the order given. */
     forMessage(ownerUserId: string, ids: readonly string[]): Fx<AttachmentRow[]>;
-    blob(sha256: string): Fx<{ data: Uint8Array; mimeType: string }>;
+    blob(sha256: string, maxBytes?: number): Fx<{ data: Uint8Array; mimeType: string }>;
     /** Stores a blob (idempotent: the same content is the same blob). */
     putBlob(sha256: string, data: Uint8Array, mimeType: string): Fx<void>;
     /** A transcript blob the owner may read through this thread (or another thread of its tree). */
@@ -156,12 +156,13 @@ export class AttachmentStore extends Context.Service<
             return ordered;
           }),
 
-        blob: (sha256) =>
+        blob: (sha256, maxBytes) =>
           SHA256.test(sha256)
             ? sql<{
                 data: Uint8Array | null;
                 mime_type: string;
-              }>`SELECT data, mime_type FROM blobs WHERE sha256 = ${sha256}`.pipe(
+              }>`SELECT substring(data FROM 1 FOR ${maxBytes ?? 2_147_483_647}::integer) AS data,
+                        mime_type FROM blobs WHERE sha256 = ${sha256}`.pipe(
                 Effect.flatMap((rows) => readBlob(rows, "blob")),
               )
             : Effect.fail(new NotFound("blob not found")),

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { MentionKind, type Mention } from "@canopy/contracts";
+  import { MentionKind, type Mention, type ui } from "@canopy/contracts";
+  import EditorAttachmentPreview from "#lib/features/attachments/EditorAttachmentPreview.svelte";
   import type { ClassValue } from "svelte/elements";
   import { restoreCaret } from "#lib/features/mentions/caret.ts";
   import { trimValue, type EditorControls } from "#lib/features/mentions/editor.ts";
@@ -21,6 +22,7 @@
     onsave,
     oncancel,
     allowEmpty = false,
+    attachments = [],
     class: className,
   }: {
     text: string;
@@ -28,6 +30,7 @@
     onsave: (text: string, mentions: Mention[]) => Promise<string | undefined>;
     oncancel: () => void;
     allowEmpty?: boolean;
+    attachments?: readonly ui.Attachment[];
     class?: ClassValue;
   } = $props();
 
@@ -115,3 +118,4 @@
     <Button type="submit" size="sm" loading={saving} disabled={!allowEmpty && !value.trim()}>Save</Button>
   </div>
 </form>
+<EditorAttachmentPreview {attachments} {editor} />

@@ -769,6 +769,14 @@ lokalny podgląd załącznika w kompozytorze, również podczas wysyłania. iOS 
 obraz arkuszem Share z usuwanej kopii tymczasowej, Android zapisuje go w katalogu
 wybranym przez użytkownika. Nie dodajemy modułu galerii ani uprawnień do biblioteki zdjęć.
 Obrazy w pamięci widoku mają limit 20 MiB; SVG i inne formaty plikowe nie są renderowane.
+Załączniki tekstowe i Markdown otwierają się także z composera po wysłaniu pliku do
+gatewaya. `GetAttachment.preview` pobiera do 128 KiB przez istniejące trasowanie do
+domu i autoryzację właściciela. Cache podglądów jest ograniczony do 64 wpisów na klienta
+sesji, a widok do 2000 wierszy, z jawnym komunikatem o obcięciu. Nieprawidłowy UTF-8
+dekoduje się z zastępowaniem; treść binarna nie ma podglądu. „Rendered” / „Source”
+używa natywnego renderera Markdown i preferencji urządzenia; tekst można kopiować,
+zawijać oraz zapisać/udostępnić w całości. Pełne bajty tekstowego załącznika są
+pobierane dopiero po wybraniu eksportu (do 30 MiB), bez nowych modułów natywnych.
 „Show full output” / „Show full diff” otwiera pełny tekst w osobnym widoku. Podgląd inline
 nadal ma 12 tys. znaków. Bloby są pobierane dopiero po otwarciu przez `GetThreadBlob`,
 po autoryzacji właściciela i z routingiem do domu wątku. Gateway i viewer ograniczają
@@ -782,7 +790,7 @@ stopka zakończonej tury kopiuje ostatnią odpowiedź i pozwala na „Fork from 
 Obrazy i bloby odziedziczonych tur są odczytywane przez ich wątek źródłowy.
 
 Plakietka załącznika otwiera wspólną przeglądarkę: obrazy jako miniatury i pełny ekran,
-tekst UTF-8 do 8 MiB jako wirtualizowany tekst, pozostałe pliki do 20 MiB z eksportem
+tekst UTF-8 do 128 KiB i 2000 wierszy (Markdown także renderowany), pozostałe pliki do 30 MiB z eksportem
 przez Share na iOS albo zapis do wskazanego katalogu na Androidzie. Nie renderujemy PDF
 ani plików biurowych wewnątrz aplikacji; web również udostępnia ich pobranie.
 Akcja „Quote passage” przy odpowiedzi, rozumowaniu, kodzie, wyniku i diffie otwiera

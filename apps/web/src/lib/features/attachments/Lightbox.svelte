@@ -20,6 +20,8 @@
   let dialog = $state<HTMLDialogElement>();
   let closing = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let zoomed = $state(false);
+  let failed = $state(false);
 
   $effect(() => () => clearTimeout(timer));
 
@@ -27,6 +29,8 @@
     if (!dialog) return;
 
     if (open && !dialog.open) {
+      zoomed = false;
+      failed = false;
       clearTimeout(timer);
       closing = false;
       dialog.showModal();
@@ -50,20 +54,43 @@
 >
   {#if open || closing}
     <figure class="grid gap-3">
-      <img
-        {src}
-        alt={name}
-        class="max-h-[calc(var(--window-safe-height)-8rem)] w-auto max-w-full rounded-lg object-contain outline-1 -outline-offset-1 outline-white/10"
-      />
+      <div
+        class="max-h-[calc(var(--window-safe-height)-11rem)] max-w-[96vw] overflow-auto rounded-lg sm:max-h-[calc(var(--window-safe-height)-8rem)]"
+      >
+        {#if failed}
+          <p role="alert" class="rounded-lg bg-zinc-950 p-4 text-white">
+            Could not display the image. Download it to open it.
+          </p>
+        {:else}
+          <img
+            {src}
+            alt={name}
+            onerror={() => (failed = true)}
+            class={[
+              "mx-auto w-auto rounded-lg object-contain outline-1 -outline-offset-1 outline-white/10",
+              zoomed
+                ? "max-w-none"
+                : "max-h-[calc(var(--window-safe-height)-11rem)] max-w-full sm:max-h-[calc(var(--window-safe-height)-8rem)]",
+            ]}
+          />
+        {/if}
+      </div>
       <!-- Its own dark surface: readable over any page, also while the backdrop fades in. -->
       <figcaption
-        class="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-zinc-950/90 py-2 pr-2 pl-3 text-base/6 text-white sm:text-sm/6"
+        class="grid min-w-0 gap-2 rounded-xl bg-zinc-950/90 py-2 pr-2 pl-3 text-base/6 text-white sm:flex sm:items-center sm:justify-between sm:gap-3 sm:text-sm/6"
       >
         <span class="min-w-0">
           <span class="block truncate font-medium">{name}</span>
           {#if detail}<span class="block truncate text-white/60 tabular-nums">{detail}</span>{/if}
         </span>
-        <span class="flex shrink-0 items-center gap-1">
+        <span class="flex shrink-0 items-center justify-end gap-1">
+          <button
+            type="button"
+            aria-pressed={zoomed}
+            onclick={() => (zoomed = !zoomed)}
+            class="min-w-20 rounded-md px-2 py-1.5 font-medium focus-ring hover:bg-white/10"
+            >{zoomed ? "Zoom out" : "Zoom in"}</button
+          >
           {#if download}
             <a
               href={download}

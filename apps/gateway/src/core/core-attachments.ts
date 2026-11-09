@@ -16,6 +16,7 @@ import {
   type TurnInputJson,
 } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
+import { ATTACHMENT_PREVIEW_BYTES } from "@canopy/domain/attachment-preview";
 import { coreLog } from "./core-broadcast.ts";
 
 /** What a badge of a placed file shows: the stored name and kind (image | file). */
@@ -197,7 +198,7 @@ export function coreAttachments<A, E>(
 
 export interface CoreAttachmentsMethods {
   uploadAttachment(name: string, data: Uint8Array): Promise<ui.Attachment>;
-  getAttachment(attachmentId: string, thumbnail: boolean): Promise<ui.GetAttachmentResponse>;
+  getAttachment(attachmentId: string, thumbnail: boolean, preview?: boolean): Promise<ui.GetAttachmentResponse>;
   getThreadBlob(threadId: string, sha256: string): Promise<ui.GetThreadBlobResponse>;
 }
 
@@ -220,17 +221,26 @@ export const coreAttachmentsMethods: CoreAttachmentsMethods = {
     return toUiAttachment(row);
   },
 
-  async getAttachment(this: GatewayCore, attachmentId: string, thumbnail: boolean): Promise<ui.GetAttachmentResponse> {
+  async getAttachment(
+    this: GatewayCore,
+    attachmentId: string,
+    thumbnail: boolean,
+    preview = false,
+  ): Promise<ui.GetAttachmentResponse> {
     const row = await coreAttachments(this, (s) => s.owned(this[coreState].options.userId, attachmentId));
     const sha = thumbnail ? row.thumb_sha256 : row.sha256;
 
     if (!sha) throw new InvalidError("this attachment has no thumbnail");
-    const blob = await coreAttachments(this, (s) => s.blob(sha));
+
+    const blob = await coreAttachments(this, (s) =>
+      s.blob(sha, preview && !thumbnail ? ATTACHMENT_PREVIEW_BYTES : undefined),
+    );
 
     return create(ui.GetAttachmentResponseSchema, {
       attachment: toUiAttachment(row),
       data: blob.data,
       mimeType: blob.mimeType,
+      truncated: preview && !thumbnail && BigInt(row.size_bytes) > BigInt(blob.data.length),
     });
   },
 
