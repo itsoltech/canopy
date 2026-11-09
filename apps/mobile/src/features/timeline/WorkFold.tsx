@@ -7,22 +7,9 @@ import { useAnchoredToggle } from "../../ui/feed-anchor";
 import { font, styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { Chevron } from "../../ui/MotionViews";
+import type { WorkSummary } from "./turn-plan";
 
-/** What a fold says about its work (web: work-groups.ts WorkSummary). */
-export interface WorkSummary {
-  /** The segment's start in ms; a live fold counts from it. */
-  readonly startMs: number | undefined;
-  /** Start to end in ms; undefined without both timestamps (an older gateway's snapshot). */
-  readonly spanMs: number | undefined;
-  /** "3 commands, 1 edit". */
-  readonly counts: string;
-  /** Items still running under the fold (background tasks outlive the turn). */
-  readonly running: number;
-  readonly live: boolean;
-  readonly hint: string;
-  /** Rows under the fold; an ended turn with none has nothing to open. */
-  readonly size: number;
-}
+export type { WorkSummary } from "./turn-plan";
 
 /** Ticks once a second while `live`; folds of ended turns have no timer. */
 function useNow(live: boolean) {

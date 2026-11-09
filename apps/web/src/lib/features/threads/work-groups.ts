@@ -1,7 +1,7 @@
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { ItemStatus } from "@canopy/contracts";
 import type { ui } from "@canopy/contracts";
-import type { TimelineEntry } from "./thread-state.svelte.ts";
+import type { TimelineEntry } from "./thread-types.ts";
 import type { ItemNode, TimelineRow } from "./timeline.ts";
 import { currentWorkHint, groupSummary, isToolItem, workCounts } from "@canopy/domain/work-summary";
 import { blank } from "./work-segments.ts";

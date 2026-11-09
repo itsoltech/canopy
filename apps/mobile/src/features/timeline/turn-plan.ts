@@ -1,8 +1,18 @@
 import { ItemStatus, type Item, type ui } from "@canopy/contracts";
 import { turnProgress, workSegments, type WorkSegment } from "@canopy/domain/work-fold";
 import { currentWorkHint, groupSummary, isToolItem, workCounts } from "@canopy/domain/work-summary";
-import { itemNodes, type ItemNode } from "./ItemView";
-import type { WorkSummary } from "./WorkFold";
+import { itemNodes, type ItemNode } from "./item-nodes";
+
+/** What a fold says about its work (web: work-groups.ts WorkSummary). */
+export interface WorkSummary {
+  readonly startMs: number | undefined;
+  readonly spanMs: number | undefined;
+  readonly counts: string;
+  readonly running: number;
+  readonly live: boolean;
+  readonly hint: string;
+  readonly size: number;
+}
 
 /** A row of a turn's body (web: TimelineRow item | notice): an item with its nested items, or a notice. */
 export type BodyRow =

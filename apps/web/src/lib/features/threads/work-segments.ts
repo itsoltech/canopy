@@ -1,6 +1,6 @@
 import type { ui, Item } from "@canopy/contracts";
 import { foldId, turnProgress, workSegments, type BodyRow } from "@canopy/domain/work-fold";
-import type { TimelineEntry, TimelineNotice } from "./thread-state.svelte.ts";
+import type { TimelineEntry, TimelineNotice } from "./thread-types.ts";
 import { isSteerMessage } from "./timeline.ts";
 
 /** A message or reasoning with nothing to show yet: it adds no visible work (later deltas can fill it). */
