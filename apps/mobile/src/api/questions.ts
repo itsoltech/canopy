@@ -5,18 +5,7 @@ import { encodeAnswers, parseQuestions } from "@canopy/domain/questions";
 
 /** Use the same parser and provider-specific wire answers as the web question panel. */
 export function mobileQuestions(interaction: ui.Interaction) {
-  if (
-    interaction.kind !== InteractionKind.QUESTION ||
-    !["AskUserQuestion", "request_user_input", "ask_user"].includes(interaction.toolName)
-  )
-    return [];
-  const questions = parseQuestions(interaction.requestJson);
-
-  return questions.length <= 4 &&
-    questions.every((q) => q.question.trim()) &&
-    new Set(questions.map((q) => q.id)).size === questions.length
-    ? questions
-    : [];
+  return interaction.kind === InteractionKind.QUESTION ? parseQuestions(interaction.requestJson) : [];
 }
 
 export function answerQuestions(

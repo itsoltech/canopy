@@ -1,145 +1,105 @@
 import { Text, View } from "react-native";
-import { InteractionKind, ui } from "@canopy/contracts";
-import { Icon } from "../../ui/Icon";
+import { InteractionKind, type Item, type ui } from "@canopy/contracts";
+import { humanizeToolName } from "@canopy/domain/humanize";
+import { parseObject, str } from "@canopy/domain/json";
+import { Button, Notice } from "../../ui/components";
 import { RequestCountdown } from "../../ui/RequestCountdown";
-import { styles, useColors } from "../../ui/theme";
+import { styles, useColors, useTypography } from "../../ui/theme";
+import { useInteractionAnswer } from "./useInteractionAnswer";
+import { ElicitationForm } from "./ElicitationForm";
 
-interface InteractionRequest {
-  questions?: unknown;
-  reason?: unknown;
-  command?: unknown;
-  prompt?: unknown;
-  question?: unknown;
-}
-
-interface QuestionOption {
-  label?: string;
-  description?: string;
-}
-
-interface Question {
-  header?: string;
-  question?: string;
-  options?: QuestionOption[];
-}
-
-function isInteractionRequest(value: unknown): value is InteractionRequest {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-function isQuestionOption(value: unknown): value is QuestionOption {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    (!("label" in value) || value.label === undefined || typeof value.label === "string") &&
-    (!("description" in value) || value.description === undefined || typeof value.description === "string")
-  );
-}
-
-function isQuestion(value: unknown): value is Question {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    (!("header" in value) || value.header === undefined || typeof value.header === "string") &&
-    (!("question" in value) || value.question === undefined || typeof value.question === "string") &&
-    (!("options" in value) ||
-      value.options === undefined ||
-      (Array.isArray(value.options) && value.options.every(isQuestionOption)))
-  );
-}
-
-function isQuestions(value: unknown): value is Question[] {
-  return Array.isArray(value) && value.every(isQuestion);
-}
-
-export function InteractionCard({ interaction }: { interaction: ui.Interaction }) {
+/** Permission decisions use the same gateway-enforced session grant as the web. */
+export function InteractionCard({ interaction, related }: { interaction: ui.Interaction; related?: Item }) {
   const c = useColors();
-  let request: InteractionRequest = {};
-
-  try {
-    const value: unknown = JSON.parse(interaction.requestJson);
-
-    if (isInteractionRequest(value)) request = value;
-  } catch {
-    /* Non-JSON provider prompts remain readable. */
-  }
-
-  const questions = isQuestions(request.questions) ? request.questions : [];
-
+  const answer = useInteractionAnswer(interaction);
   const permission = interaction.kind === InteractionKind.PERMISSION;
 
   return (
-    <View
-      style={{
-        borderWidth: 1,
-        borderColor: c.line,
-        borderRadius: 16,
-        backgroundColor: c.surface,
-        overflow: "hidden",
-      }}
-    >
-      <View
-        style={[
-          styles.row,
-          {
-            paddingHorizontal: 16,
-            paddingVertical: 10,
-            borderBottomWidth: 1,
-            borderBottomColor: c.line,
-          },
-        ]}
-      >
-        <Icon name={permission ? "shield-exclamation" : "hand-raised"} color={c.warning} />
-        <Text numberOfLines={1} style={[styles.meta, { flex: 1, color: c.text }]}>
-          {permission ? "Approval required" : questions[0]?.header || "Question"}
+    <View style={{ gap: 12 }}>
+      <Text accessibilityRole="header" style={[styles.label, { color: c.text }]}>
+        {permission ? `Allow ${humanizeToolName(interaction.toolName)}?` : "The agent needs some details"}
+      </Text>
+      <RequestCountdown expiresAt={interaction.expiresAt} pending={!answer.ended && interaction.status === "pending"} />
+      {interaction.routedTo === "parent" && <Notice>The parent agent can answer. You can step in.</Notice>}
+      {permission ? (
+        <>
+          <PermissionDetails interaction={interaction} related={related} />
+          <Button
+            title="Allow"
+            variant="primary"
+            disabled={answer.disabled}
+            busy={answer.busy}
+            onPress={() => void answer.respond({ allow: true })}
+          />
+          <Button
+            title="Deny"
+            variant="danger"
+            disabled={answer.disabled}
+            onPress={() => void answer.respond({ allow: false, message: "Denied by the user" })}
+          />
+          <Button
+            title="Allow for this session"
+            disabled={answer.disabled}
+            onPress={() => void answer.respond({ allow: true, allowForSession: true })}
+          />
+        </>
+      ) : (
+        <ElicitationForm requestJson={interaction.requestJson} answer={answer} />
+      )}
+      {answer.error ? <Notice error={!answer.ended}>{answer.error}</Notice> : null}
+      {!answer.online && <Notice>Reconnect to respond. Your draft stays here.</Notice>}
+      {answer.done && <Notice>Response sent. Check the thread for details.</Notice>}
+    </View>
+  );
+}
+
+function PermissionDetails({ interaction, related }: { interaction: ui.Interaction; related?: Item }) {
+  const c = useColors();
+  const type = useTypography();
+  const request = parseObject(interaction.requestJson);
+
+  const command =
+    str(request["command"]) || (related?.content.case === "commandExecution" ? related.content.value.command : "");
+
+  const changes = related?.content.case === "fileChange" ? related.content.value.changes : [];
+
+  return (
+    <View style={{ gap: 8 }}>
+      {str(request["reason"]) ? (
+        <Text selectable style={[styles.body, { color: c.text }]}>
+          {str(request["reason"])}
         </Text>
-        <RequestCountdown
-          expiresAt={interaction.expiresAt}
-          pending={interaction.status === "pending"}
-          style={{ textAlign: "right" }}
-        />
-      </View>
-      <View style={{ padding: 16, gap: 8 }}>
-        <Text style={[styles.caption, { color: c.muted }]}>
-          {permission
-            ? "The agent is waiting for your approval."
-            : interaction.asynchronous
-              ? "The agent keeps working — answer any time."
-              : "The agent is waiting for your answers."}
-        </Text>
-        {questions.length ? (
-          questions.map((q, i) => (
-            <View key={i} style={{ gap: 8 }}>
-              <Text style={[styles.meta, { color: c.text }]}>{q.question}</Text>
-              {q.options?.map((o, n) => (
-                <View key={n} style={[styles.row, { padding: 10, backgroundColor: c.inset, borderRadius: 8 }]}>
-                  <Text style={[styles.meta, { color: c.muted }]}>{n + 1}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.meta, { color: c.text }]}>{o.label}</Text>
-                    {o.description ? <Text style={[styles.caption, { color: c.muted }]}>{o.description}</Text> : null}
-                  </View>
-                </View>
-              ))}
-            </View>
-          ))
-        ) : (
-          <Text selectable style={[styles.meta, { color: c.body }]}>
-            {String(
-              request.reason ||
-                request.command ||
-                request.prompt ||
-                request.question ||
-                interaction.toolName ||
-                interaction.requestJson,
-            )}
+      ) : null}
+      {command ? (
+        <>
+          <Text selectable style={[type.mono, { color: c.text }]}>
+            {command}
           </Text>
-        )}
-        <Text style={[styles.caption, { color: c.muted }]}>
-          {permission
-            ? "Approvals need Canopy on the web. Open this thread there to respond."
-            : "This form needs Canopy on the web. Open this thread there to respond."}
+          {str(request["cwd"]) ? (
+            <Text selectable style={[styles.meta, { color: c.muted }]}>
+              {str(request["cwd"])}
+            </Text>
+          ) : null}
+        </>
+      ) : changes.length ? (
+        changes.map((change, index) => (
+          <View key={index} style={{ gap: 8 }}>
+            <Text selectable style={[styles.meta, { color: c.text }]}>
+              {change.kind} · {change.path}
+            </Text>
+            {change.diff ? (
+              <Text selectable style={[type.mono, { color: c.body }]}>
+                {change.diff}
+              </Text>
+            ) : null}
+          </View>
+        ))
+      ) : null}
+      {!command && !changes.length && (
+        <Text selectable style={[type.mono, { color: c.body }]}>
+          {JSON.stringify(request, null, 2) || interaction.requestJson}
         </Text>
-      </View>
+      )}
     </View>
   );
 }

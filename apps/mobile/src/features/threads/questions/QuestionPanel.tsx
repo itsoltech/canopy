@@ -1,40 +1,45 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { InteractionKind, type ui } from "@canopy/contracts";
+import { InteractionKind, type Item, type ui } from "@canopy/contracts";
 import { Button, Sheet } from "../../../ui/components";
 import { Icon } from "../../../ui/Icon";
 import { styles, useColors } from "../../../ui/theme";
 import { useSession } from "../../../state/session";
 import { useStream } from "../../../state/stream";
+import { applyThread } from "../../../api/thread";
 import { InteractionCard } from "../InteractionCard";
 import { QuestionForm } from "./QuestionForm";
 import { useQuestionDraft } from "./useQuestionDraft";
 
-/** Only requests are retained from each child's stream; history stays in that child's own timeline. */
+/** Child requests and approval details stay separate from the parent's timeline. */
 function ChildQuestions({
   thread,
   onChange,
 }: {
   thread: ui.Thread;
-  onChange: (id: string, requests: ui.Interaction[]) => void;
+  onChange: (id: string, requests: ui.Interaction[], items?: ui.TimelineItem[]) => void;
 }) {
   const { client } = useSession();
-  const [requests, setRequests] = useState<ui.Interaction[]>([]);
+  const [snapshot, setSnapshot] = useState<ui.ThreadSnapshot>();
   useStream(
     client ? (signal) => client.api.watchThread({ threadId: thread.id, pageSize: 1 }, { signal }) : null,
     (update: ui.ThreadUpdate) => {
-      if (update.change.case === "snapshot") setRequests(update.change.value.interactions);
+      setSnapshot((previous) => {
+        const next = applyThread(previous, update);
 
-      if (update.change.case === "interaction") {
-        const request = update.change.value;
-        setRequests((previous) => [...previous.filter((q) => q.requestId !== request.requestId), request]);
-      }
+        return {
+          ...next,
+          items: next.items.filter(
+            (entry) => entry.item?.content.case === "commandExecution" || entry.item?.content.case === "fileChange",
+          ),
+        };
+      });
     },
     thread.id,
   );
   useEffect(() => {
-    onChange(thread.id, requests);
-  }, [thread.id, requests, onChange]);
+    onChange(thread.id, snapshot?.interactions ?? [], snapshot?.items ?? []);
+  }, [thread.id, snapshot, onChange]);
   useEffect(() => () => onChange(thread.id, []), [thread.id, onChange]);
 
   return null;
@@ -47,6 +52,7 @@ function QuestionEditor({
   navigation,
   label,
   draft,
+  related,
 }: {
   interaction: ui.Interaction;
   visible: boolean;
@@ -54,6 +60,7 @@ function QuestionEditor({
   navigation: React.ReactNode;
   label?: string;
   draft: ReturnType<typeof useQuestionDraft>;
+  related?: Item;
 }) {
   const c = useColors();
 
@@ -68,7 +75,7 @@ function QuestionEditor({
       {interaction.kind === InteractionKind.QUESTION ? (
         <QuestionForm interaction={interaction} draft={draft} />
       ) : (
-        <InteractionCard interaction={interaction} />
+        <InteractionCard key={interaction.requestId} interaction={interaction} related={related} />
       )}
       {interaction.asynchronous && <Button title="Send a message" variant="ghost" size="sm" onPress={onClose} />}
     </Sheet>
@@ -81,21 +88,27 @@ export function QuestionPanel({
   subagents,
   disabled,
   style,
+  items = [],
 }: {
   interactions: readonly ui.Interaction[];
   subagents: readonly ui.Thread[];
   disabled: boolean;
   style?: StyleProp<ViewStyle>;
+  items?: readonly ui.TimelineItem[];
 }) {
   const c = useColors();
-  const [children, setChildren] = useState<Record<string, ui.Interaction[]>>({});
+
+  const [children, setChildren] = useState<Record<string, { requests: ui.Interaction[]; items: ui.TimelineItem[] }>>(
+    {},
+  );
+
   const [selected, setSelected] = useState<string>();
 
-  const onChange = useCallback((id: string, requests: ui.Interaction[]) => {
-    setChildren((previous) => ({ ...previous, [id]: requests }));
+  const onChange = useCallback((id: string, requests: ui.Interaction[], items: ui.TimelineItem[] = []) => {
+    setChildren((previous) => ({ ...previous, [id]: { requests, items } }));
   }, []);
 
-  const requests = [...interactions, ...subagents.flatMap((t) => children[t.id] ?? [])]
+  const requests = [...interactions, ...subagents.flatMap((t) => children[t.id]?.requests ?? [])]
     .filter((q) => q.status === "pending")
     .sort((a, b) => Number(a.asynchronous) - Number(b.asynchronous));
 
@@ -140,6 +153,11 @@ export function QuestionPanel({
         <QuestionEditor
           interaction={active}
           draft={draft}
+          related={
+            [...items, ...(source ? (children[source.id]?.items ?? []) : [])].find(
+              (entry) => entry.item?.itemId === active.itemId,
+            )?.item
+          }
           visible={!disabled && selected !== undefined}
           onClose={() => setSelected(undefined)}
           label={source ? source.title || "Untitled thread" : undefined}

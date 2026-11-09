@@ -254,6 +254,7 @@ export function ThreadScreen({ id }: { id: string }) {
                 <ThreadSyncStatus state={state} />
                 <QuestionPanel
                   interactions={interactions}
+                  items={snapshot?.items}
                   subagents={subagents}
                   disabled={state.home.away || state.stream.connection !== "live"}
                 />
