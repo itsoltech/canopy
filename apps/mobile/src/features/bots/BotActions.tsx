@@ -3,6 +3,7 @@ import { create } from "@bufbuild/protobuf";
 import { bots, ui } from "@canopy/contracts";
 import { useAppearance } from "../../state/appearance";
 import { useSession } from "../../state/session";
+import { useRefreshBots } from "../../state/bot-list";
 import { useComputerHome } from "../computers/presence";
 import { PickerSheet } from "../../ui/Picker";
 import { Button, Notice, Sheet } from "../../ui/components";
@@ -12,7 +13,8 @@ import { ItemComputerMove } from "../settings/ItemComputerMove";
 
 export function BotActions({ bot, visible, onClose }: { bot: bots.Bot; visible: boolean; onClose: () => void }) {
   const settings = useAppearance();
-  const { client, online, updateBots } = useSession();
+  const { client, online } = useSession();
+  const refreshBots = useRefreshBots();
   const home = useComputerHome(bot.nodeId);
   const [panel, setPanel] = useState("");
   const [busy, setBusy] = useState(false);
@@ -40,7 +42,7 @@ export function BotActions({ bot, visible, onClose }: { bot: bots.Bot; visible: 
       else if (kind === "delete") await client.api.deleteBot({ botId: bot.id });
       else if (bot.archived) await client.api.unarchiveBot({ botId: bot.id });
       else await client.api.archiveBot({ botId: bot.id });
-      updateBots((await client.api.listBots({ includeArchived: true })).bots);
+      await refreshBots();
       await settings.reload();
       onClose();
     } catch {

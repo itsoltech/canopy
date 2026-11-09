@@ -1,15 +1,59 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ui } from "@canopy/contracts";
 import { nodeRef, splitId } from "@canopy/domain/computers";
 import { router } from "expo-router";
 import { Button, Notice } from "../../ui/components";
 import { useOverview } from "../../state/overview";
+import { useSession } from "../../state/session";
 import { SettingsGroup, SettingChoice } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
 
 export type MoveItem = { kind: "thread" | "bot"; id: string };
+
+/** Progress is a read: GetMoves only, never a mutation's refresh of the preview or the overview. */
+function useMoveProgress(
+  batch: string | undefined,
+  moves: ui.ComputerMove[],
+  setMoves: (moves: ui.ComputerMove[]) => void,
+  reload: () => Promise<void>,
+) {
+  const { client } = useSession();
+  const running = moves.some((m) => !["done", "aborted"].includes(m.state));
+  const watched = useRef(false);
+
+  useEffect(() => {
+    if (!batch || !running || !client) return;
+    let busy = false;
+    let active = true;
+    watched.current = true;
+
+    const timer = setInterval(() => {
+      if (busy) return;
+      busy = true;
+      void client.api
+        .getMoves({ batchId: batch })
+        .then((r) => active && setMoves(r.moves))
+        .catch(() => undefined)
+        .finally(() => (busy = false));
+    }, 2000);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [batch, running, client, setMoves]);
+
+  // A finished move changes what the preview shows; read it once.
+  useEffect(() => {
+    if (running || !watched.current) return;
+    watched.current = false;
+    void reload();
+  }, [running, reload]);
+
+  return running;
+}
 
 export function ComputerMove({
   nodeId,
@@ -33,22 +77,9 @@ export function ComputerMove({
     p.workspaces.filter((w) => p.kind !== "scratch" && splitId(w.id).node === nodeRef(nodeId)),
   );
 
-  const { run } = resource;
+  const { run, reload } = resource;
   const batch = moves[0]?.batchId;
-  const running = moves.some((m) => !["done", "aborted"].includes(m.state));
-  useEffect(() => {
-    if (!batch || !running) return;
-
-    const timer = setInterval(
-      () =>
-        void run((api) => api.getMoves({ batchId: batch })).then((r) => {
-          if (r) setMoves(r.moves);
-        }),
-      2000,
-    );
-
-    return () => clearInterval(timer);
-  }, [batch, running, run]);
+  const running = useMoveProgress(batch, moves, setMoves, reload);
 
   const ready =
     data && !data.unavailable && data.items.some((i) => !i.blocked) && projectIds.every((id) => placements[id]);

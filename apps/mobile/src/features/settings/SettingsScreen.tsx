@@ -1,8 +1,6 @@
-import { useEffect } from "react";
 import { View } from "react-native";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useSession } from "../../state/session";
-import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
 import { Button, Notice } from "../../ui/components";
 import { SkeletonScope } from "../../ui/Skeleton";
@@ -34,8 +32,6 @@ export default function SettingsScreen() {
   const { section: selectedSection = "" } = useLocalSearchParams<{ section?: string }>();
   const { session } = useSession();
   const settings = useAppearance();
-  const { reload: reloadSettings } = settings;
-  const { reload } = useOverview();
   const device = useDevicePreferences();
   const { wide } = useLayout();
   const section = selectedSection || (wide ? "general" : "");
@@ -45,11 +41,6 @@ export default function SettingsScreen() {
     else if (selectedSection) router.replace({ pathname: "/settings/[section]", params: { section: next } });
     else router.push({ pathname: "/settings/[section]", params: { section: next } });
   }
-
-  useEffect(() => {
-    void reloadSettings();
-    void reload().catch(() => undefined);
-  }, [section, reloadSettings, reload]);
 
   if (!session) return <Redirect href="/pair" />;
 

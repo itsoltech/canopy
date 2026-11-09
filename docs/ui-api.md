@@ -996,6 +996,24 @@ Popraw oba miejsca.
 
 ## 4. Frontend (`apps/web`)
 
+### Współdzielone odczyty
+
+Projekty, workery, modele, ustawienia i podobne katalogi zmieniają się tylko po znanych
+zdarzeniach albo akcjach użytkownika. Klient czyta je raz, trzyma w pamięci sesji i
+aktualizuje po zdarzeniu strumienia lub odpowiedzi własnej mutacji. `QueryCache`
+(`@canopy/domain/shared-query`, web i mobile) opisuje te reguły:
+
+- klucz nazywa jedno żądanie (np. `ListBots:archived`); konsumenci tego samego klucza dzielą
+  wartość i żądanie w toku, a pusty wynik też jest wczytany;
+- zdarzenie lub mutacja unieważnia klucz albo ustawia jego wartość; obserwowany klucz czyta
+  ponownie raz na serię zdarzeń (40 ms), a zdarzenie w trakcie odczytu daje jeden odczyt końcowy;
+- odczyt rozpoczęty przed ustawioną wartością jest starszy i zostaje odrzucony; po `forget`
+  (unlink, usunięcie) i `dispose` (unpair, nowe parowanie) nic nie wraca do cache;
+- nieudany odczyt zachowuje poprzednią wartość i błąd; nieobserwowane wpisy trzyma ograniczony LRU;
+- snapshot po ponownej subskrypcji (przerwa w strumieniu) unieważnia wszystkie wpisy raz.
+
+Uprawnienia i stan wykonania sprawdza zawsze gateway; cache służy tylko do wyświetlania.
+
 **Oczekujące decyzje.** Pytanie ma jeden przewijany obszar z treścią, opcjami i polem
 odpowiedzi; nagłówek oraz akcje pozostają widoczne. Przycisk pod treścią wskazuje,
 że niżej są dalsze opcje lub szczegóły, i przewija ten obszar. Przy pojedynczym pytaniu

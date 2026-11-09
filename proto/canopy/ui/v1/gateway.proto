@@ -789,6 +789,9 @@ message WatchOverviewRequest {
 message MobileOverviewSnapshot {
   GetOverviewResponse overview = 1;
   repeated Thread threads = 2;
+  // Settings read after the subscription started: a reconnect needs no separate GetSettings.
+  // Older gateways leave it unset; clients then read GetSettings after the snapshot.
+  GetSettingsResponse settings = 3;
 }
 
 // Pełna lista widocznych wątków i metadanych jednego partnera po reconnect.

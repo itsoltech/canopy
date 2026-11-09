@@ -241,6 +241,10 @@ Last seen sprawdzamy przy RPC, zapisując najwyżej raz/minutę; nie jest to hea
 stale otwartego połączenia. Zdarzenia overview 760–761 zawierają tylko metadane.
 `WatchOverviewRequest.include_snapshot` (762) i `OverviewUpdate.mobile_snapshot` (763)
 dają pełny stan po każdym reconnect. Zwykły BFF nie żąda tego snapshotu.
+`MobileOverviewSnapshot.settings` (3) niesie ustawienia odczytane już po rozpoczęciu
+subskrypcji, więc reconnect nie potrzebuje osobnego GetSettings; starszy gateway go nie
+wysyła i telefon czyta wtedy GetSettings raz po snapshocie. Wersje ustawień tylko rosną:
+starsza odpowiedź nie zastępuje nowszego zdarzenia.
 
 Unpair w aplikacji najpierw odwołuje dostęp na gatewayu, potem usuwa SecureStore.
 Gdy gateway jest niedostępny, **Forget pairing locally** wymaga potwierdzenia i wyraźnie
@@ -1134,8 +1138,14 @@ osobnego wyboru; wartości nie trafiają na telefon ([import.md](import.md#wejś
 Wątek zaimportowany jako historia zamiast kompozytora pokazuje Continue in a new thread;
 gateway tworzy nowy wątek z podsumowaniem tej historii, tak jak w web.
 Pierwszy stan projektów, workerów i wątków pobierają także unary GetOverview i ListThreads,
-bez oczekiwania na pierwszy pakiet WatchOverview. Udany zapis formularza odświeża te dane;
-generacja żądania chroni przed nadpisaniem nowszych danych starszą odpowiedzią.
+bez oczekiwania na pierwszy pakiet WatchOverview; generacja żądania chroni przed nadpisaniem
+nowszych danych starszą odpowiedzią. Sparowany telefon ma **jedną** subskrypcję WatchOverview
+(`state/overview-bus.tsx`): overview, ustawienia i współdzielone odczyty słuchają tej samej
+szyny, więc gateway otwiera też tylko jedną zdalną subskrypcję na połączony komputer.
+Przejście między sekcjami Settings niczego nie pobiera ponownie. Udany zapis formularza
+odczytuje ponownie tylko zasób tego formularza; projekty, workery i wątki przychodzą
+strumieniem. Postęp przenoszenia to wyłącznie GetMoves co 2 s (bez PreviewMove i overview),
+a po zakończeniu podgląd czyta się raz.
 Formularz harmonogramu ma własny kalendarz, godzinę i gotowe częstotliwości oraz tryb cron.
 Katalog stref IANA w `packages/ui/src/timezones.json` jest wspólny z web, bo Hermes nie
 udostępnia `Intl.supportedValuesOf`. Wybór daty sprawdza też nieistniejące godziny przy zmianie czasu.
@@ -1158,7 +1168,11 @@ lista „Allowed actions” pokazuje czas i źródło reguły oraz „Remove rul
 na karcie przesyła identyfikator opcji wyliczonej w gatewayu. Automatyczna zgoda zostaje
 jako „Allowed by rule: …”, z odnośnikiem do ustawień. „Threads started by this bot”
 używa tych samych opcji co web; karty narzędzi takich wątków można rozstrzygać również
-w czacie bota. Są też połączenia, archiwizacja i usuwanie bota. Lista botów odświeża się co 10 sekund.
+w czacie bota. Są też połączenia, archiwizacja i usuwanie bota. Pasek boczny, alerty,
+ustawienia bota i dostęp konektorów korzystają z jednej listy botów parowania
+(`state/bot-list.ts`): jedno żądanie naraz, odczyt po powrocie na pierwszy plan i zmianie sieci
+oraz zapasowy odczyt co 10 s na pierwszym planie. Alerty biorą za punkt odniesienia pierwszą
+listę odczytaną po każdym połączeniu, więc nie odtwarzają historii.
 Lista obejmuje przypinanie i sekcję Archived, a karta oczekującej zgody ma skrót do polityki bota.
 Brak push i wysyłania offline; cache obejmuje wątki i rozmowy botów, zgodnie z opisem powyżej.
 

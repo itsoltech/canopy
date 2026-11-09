@@ -28,6 +28,7 @@
     "./history-pages": "./src/history-pages.ts",
     "./bot-snapshot": "./src/bot-snapshot.ts",
     "./bot-cache": "./src/bot-cache.ts",
+    "./shared-query": "./src/shared-query.ts",
     "./computer-presence": "./src/computer-presence.ts",
     "./linked-snapshot": "./src/linked-snapshot.ts",
     "./projects": "./src/projects.ts",
