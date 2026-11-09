@@ -78,9 +78,13 @@ i `schedules/claim-empty` uzupełniają odczyty kolejek.
 `bun scripts/bench/concurrent.ts --run` uruchamia osiem klientów odczytujących projekty,
 stronę historii, postęp importów i komendy. Równolegle zapisuje partie po osiem delt
 itemu oraz aktualizacje lustra. Domyślnie wykonuje 40 iteracji na klienta, używa
-64 wątków, 2048 tur w długim wątku i tekstów po 4096 bajtów. Parametry `--clients`,
-`--pool`, `--iterations`, `--statement-timeout-ms` pozwalają porównać nasycenie puli;
+64 wątków, 2048 tur w długim wątku i tekstów po 4096 bajtów. Delty trafiają do
+oddzielnej działającej tury; harness sprawdza kompletny tekst i status po pomiarze.
+Parametry `--clients`, `--gateways`, `--pool`, `--iterations`, `--statement-timeout-ms`
+pozwalają porównać nasycenie jednej lub kilku niezależnych pul gatewaya;
 domyślna pula 10 odpowiada gatewayowi, limit serwera wynosi 40.
+Łączna pojemność pul nie może przekroczyć 36, aby zostawić połączenia administracyjne.
+To współbieżność warstwy SQL, bez transportu kilku procesów gatewaya.
 
 Osobne połączenie próbkuje `pg_stat_activity` i `pg_blocking_pids` co około 10 ms.
 Wynik podaje maksimum aktywnych/otwartych połączeń, sumę zaobserwowanych oczekiwań
