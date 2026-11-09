@@ -6,6 +6,7 @@ import { useSession } from "../../state/session";
 import { useAppearance } from "../../state/appearance";
 import { attachmentKind, type AttachmentKind } from "./attachment-display";
 import { pasteImage, pickFiles, pickPhotos, type Picked } from "./pick-attachments";
+import { useUpdateBlocker } from "../updates/useUpdateBlocker";
 
 export interface DraftFile {
   key: string;
@@ -52,6 +53,7 @@ export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
   const [files, setFiles] = useState<DraftFile[]>([]);
   // The same rows, readable at once by picks that land in one tick (several photos at a time).
   const current = useRef<DraftFile[]>([]);
+  useUpdateBlocker(() => current.current.length > 0);
   const mounted = useRef(true);
 
   useEffect(() => {

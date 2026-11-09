@@ -14,6 +14,7 @@ import { DevicePreferencesProvider } from "../features/settings/device-preferenc
 import { InAppAlerts } from "../features/navigation/InAppAlerts";
 import { ConfirmHost } from "../ui/Confirm";
 import { ToastHost } from "../ui/Toast";
+import { PhoneUpdatesProvider } from "../features/updates/phone";
 import { UpdatesProvider } from "../features/updates/state";
 import { UpdateCenter } from "../features/updates/UpdateCenter";
 import { KeyboardWindow } from "../ui/KeyboardWindow";
@@ -77,9 +78,11 @@ function SessionUI() {
     <AppearanceProvider key={session?.deviceId ?? "unpaired"}>
       <OverviewProvider>
         <UpdatesProvider key={session?.deviceId ?? "unpaired"}>
-          <LayoutProvider>
-            <Navigation />
-          </LayoutProvider>
+          <PhoneUpdatesProvider>
+            <LayoutProvider>
+              <Navigation />
+            </LayoutProvider>
+          </PhoneUpdatesProvider>
         </UpdatesProvider>
       </OverviewProvider>
     </AppearanceProvider>

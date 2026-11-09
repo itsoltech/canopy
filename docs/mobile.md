@@ -408,11 +408,22 @@ nie jest instalacją przypisaną do kanału wydania.
 
 `updates.checkAutomatically: ON_LOAD` sprawdza aktualizacje na zimnym starcie.
 `fallbackToCacheTimeout: 0` uruchamia od razu ostatni lokalny bundle (także offline);
-pobieranie trwa w tle, a pobrany bundle działa od następnego zimnego startu. Nie wywołujemy
-`reloadAsync`, więc aktualizacja nie przerywa pracy. Settings → General → About → Updates
-pokazuje kanał, skrócone ID działającego OTA i datę z lokalnym formatowaniem. Wbudowany bundle
-ma status `Bundled`, klient developerski `Development build`. Dane dotyczą uruchomionego
-bundle, nie aktualizacji dopiero pobranej.
+pobieranie trwa w tle, a pobrany bundle działa od następnego zimnego startu.
+Settings → General → About oraz centrum aktualizacji współdzielą stan telefonu:
+sprawdzenie (`checkForUpdateAsync`), pobranie (`fetchUpdateAsync`) i jawne zastosowanie
+(`reloadAsync`). „Apply next launch” odkłada restart; aplikacja nigdy nie restartuje się
+automatycznie w trakcie pracy. Próba zastosowania przy niewysłanym tekście, plikach
+(także w trakcie uploadu), niewysłanym cytacie, edycji kolejki lub wpisywaniu sekretu odkłada aktualizację
+do następnego uruchomienia. Rejestr przechowuje wyłącznie funkcje sprawdzające zajętość,
+bez treści szkiców; uwzględnia też kompozytory pozostawione pod Settings.
+
+Wiersz pokazuje kanał, skrócone ID działającego OTA, datę oraz wersję docelowego JS
+z `manifest.extra.expoClient.extra.canopyVersion`. Wbudowany bundle ma status `Bundled`,
+klient developerski `Development build` bez akcji aktualizacji. „Read release notes”
+odczytuje treść dokładnego tagu z GitHub Releases, tego samego źródła co changelog desktopu.
+Nie zastępuje jej nowszym wydaniem kanału, które może nie być zgodne z runtime telefonu.
+Przy rollbacku lub braku metadanych pokazuje brak notatek i link do wydań;
+błąd sieci pozwala ponowić odczyt.
 
 ### Wersja działającego bundle
 

@@ -9,6 +9,7 @@ import { Overlay } from "../../ui/Overlay";
 import { styles, useColors } from "../../ui/theme";
 import { MessageSpans } from "../composer/MessageText";
 import { editText, isAttachment, trimValue, type MessageValue } from "../composer/message-value";
+import { useUpdateBlocker } from "../updates/useUpdateBlocker";
 
 const failure = (cause: unknown) => ConnectError.from(cause).rawMessage;
 
@@ -29,6 +30,7 @@ function EditorBody({ turn, onClose }: { turn: ui.Turn; onClose: () => void }) {
   const { client } = useSession();
   const initial: MessageValue = { text: turn.messageText, mentions: turn.mentions };
   const [value, setValue] = useState(initial);
+  useUpdateBlocker(() => value.text !== initial.text || value.mentions.length !== initial.mentions.length);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
