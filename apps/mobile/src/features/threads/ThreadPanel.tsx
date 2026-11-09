@@ -1,13 +1,15 @@
 import { Text, View } from "react-native";
 import { router } from "expo-router";
-import type { ui } from "@canopy/contracts";
+import type { Usage, ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
 import { Button, Sheet } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 import { ConnectorList, useConnectors } from "../connectors/Connectors";
 import { permissionLabel } from "./permissions";
-import { headLabel, PROVISIONAL_BRANCH_HINT } from "@canopy/domain/git-heads";
+import { ThreadPlacement } from "./ThreadPlacement";
+import { ThreadUsage } from "./ThreadUsage";
+import { ThreadBackgroundTasks } from "./ThreadBackgroundTasks";
 import { SubagentLineage } from "./SubagentLineage";
 import { ListSkeleton } from "../../ui/Skeleton";
 import { SecretGrants } from "./ThreadSecrets";
@@ -46,25 +48,14 @@ export function PanelRow({
   );
 }
 
-/** The live branch: of the thread's worktree (with its base), else of the workspace's own checkout. */
-function BranchRow({ thread }: { thread: ui.Thread }) {
-  const worktree = thread.worktree;
-  const head = worktree ?? thread.checkoutHead;
-  const label = head ? headLabel(head) : "";
-
-  if (!label) return null;
-  const detail = worktree ? (worktree.baseRef ? `Worktree from ${worktree.baseRef}` : "Worktree") : "Current checkout";
-  const value = worktree?.provisionalBranch ? `${label}\n${PROVISIONAL_BRANCH_HINT}` : label;
-
-  return <PanelRow title={`Branch · ${detail}`} value={value} icon="git-fork" />;
-}
-
 export function ThreadPanel({
   snapshot,
+  usage,
   visible,
   onClose,
 }: {
   snapshot?: ui.ThreadSnapshot;
+  usage?: Usage;
   visible: boolean;
   onClose: () => void;
 }) {
@@ -109,8 +100,7 @@ export function ThreadPanel({
               value={`${worker?.name ?? "Unknown worker"} · ${worker?.online ? "Online" : "Offline"}`}
               icon="computer-desktop"
             />
-            <PanelRow title="Working directory" value={thread.cwd} icon="folder" />
-            <BranchRow thread={thread} />
+            <ThreadPlacement thread={thread} onClose={onClose} />
             <PanelRow
               title="Model"
               value={[thread.model || "Default model", thread.effort].filter(Boolean).join(" · ")}
@@ -119,15 +109,10 @@ export function ThreadPanel({
             <PanelRow title="Status" value={thread.status.replace("_", " ")} icon="check-circle" />
             <PanelRow title="Permissions" value={permissionLabel(thread.permissionMode)} icon="shield-check" />
           </View>
+          {snapshot && <ThreadUsage snapshot={snapshot} live={usage} />}
           {visible && <SecretGrants secrets={snapshot?.secrets ?? []} disabled={home.away || !online} />}
-          <Text style={[styles.label, { color: c.text }]}>Scheduled tasks</Text>
-          {snapshot?.schedules.length ? (
-            snapshot.schedules.map((s) => (
-              <PanelRow key={s.id} title={s.name || "Scheduled task"} value={s.status} icon="clock" />
-            ))
-          ) : (
-            <Text style={[styles.meta, { color: c.muted }]}>No scheduled tasks</Text>
-          )}
+          {snapshot && <ThreadSchedules snapshot={snapshot} onClose={onClose} />}
+          {snapshot && <ThreadBackgroundTasks snapshot={snapshot} disabled={home.away || !online} />}
           <Text style={[styles.label, { color: c.text }]}>Lineage</Text>
           {lineage.length || subagents.length ? (
             lineage.map((t) => <Button key={t.id} title={t.title} onPress={() => openThread(t.id)} />)
@@ -147,6 +132,30 @@ export function ThreadPanel({
         </>
       )}
     </Sheet>
+  );
+}
+
+function ThreadSchedules({ snapshot, onClose }: { snapshot: ui.ThreadSnapshot; onClose: () => void }) {
+  const c = useColors();
+
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={[styles.label, { color: c.text }]}>Scheduled tasks</Text>
+      {snapshot.schedules.length ? (
+        snapshot.schedules.map((s) => (
+          <PanelRow key={s.id} title={s.name || "Scheduled task"} value={s.status} icon="clock" />
+        ))
+      ) : (
+        <Text style={[styles.meta, { color: c.muted }]}>No scheduled tasks</Text>
+      )}
+      <Button
+        title="Manage thread schedules"
+        onPress={() => {
+          onClose();
+          openSettingsSection("schedules", { threadId: snapshot.thread?.id ?? "" });
+        }}
+      />
+    </View>
   );
 }
 
