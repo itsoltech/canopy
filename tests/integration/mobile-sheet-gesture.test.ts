@@ -1,5 +1,34 @@
 import { describe, expect, test } from "bun:test";
 import { sheetDragDistance, sheetDragOffset, shouldDismissSheet } from "../../apps/mobile/src/ui/sheet-gesture";
+import { shouldMoveSheetResponder, shouldStartSheetResponder } from "../../apps/mobile/src/ui/sheet-responder";
+
+describe("sheet responder negotiation", () => {
+  const touch = { numberActiveTouches: 1, dx: 0, dy: 0 };
+
+  test("claims plain grabber/header touches at start while leaving controls and content alone", () => {
+    expect(shouldStartSheetResponder(touch, "drag-area")).toBe(true);
+    expect(shouldStartSheetResponder(touch, "header-control")).toBe(false);
+    expect(shouldStartSheetResponder(touch, "content")).toBe(false);
+    expect(shouldStartSheetResponder({ ...touch, numberActiveTouches: 0 }, "drag-area")).toBe(false);
+    expect(shouldStartSheetResponder({ ...touch, numberActiveTouches: 2 }, "drag-area")).toBe(false);
+  });
+
+  test("requires deliberate vertical movement before moving chrome or capturing a header button", () => {
+    for (const target of ["drag-area", "header-control"] as const) {
+      expect(shouldMoveSheetResponder(touch, target)).toBe(false);
+      expect(shouldMoveSheetResponder({ ...touch, dy: 6 }, target)).toBe(false);
+      expect(shouldMoveSheetResponder({ ...touch, dx: 2, dy: 7 }, target)).toBe(true);
+      expect(shouldMoveSheetResponder({ ...touch, dx: 2, dy: -7 }, target)).toBe(true);
+      expect(shouldMoveSheetResponder({ ...touch, dx: 8, dy: 7 }, target)).toBe(false);
+      expect(shouldMoveSheetResponder({ ...touch, dx: -7, dy: -7 }, target)).toBe(false);
+      expect(shouldMoveSheetResponder({ ...touch, dy: 30, numberActiveTouches: 2 }, target)).toBe(false);
+      expect(shouldMoveSheetResponder({ ...touch, dy: 30, numberActiveTouches: 0 }, target)).toBe(false);
+      expect(shouldMoveSheetResponder({ ...touch, dy: 7 }, target, 8)).toBe(false);
+    }
+
+    expect(shouldMoveSheetResponder({ ...touch, dy: 30 }, "content")).toBe(false);
+  });
+});
 
 describe("sheet release", () => {
   test("uses the measured height and a deliberate downward fling", () => {

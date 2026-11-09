@@ -43,10 +43,9 @@ export function SheetHandle() {
       onAccessibilityAction={close}
       onAccessibilityTap={close}
       onAccessibilityEscape={close}
-      hitSlop={8}
-      style={{ alignItems: "center", justifyContent: "center", height: 28 }}
+      style={{ alignItems: "center", justifyContent: "center", height: 44, alignSelf: "stretch" }}
     >
-      <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: c.line }} />
+      <View pointerEvents="none" style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: c.line }} />
     </SheetDragArea>
   );
 }

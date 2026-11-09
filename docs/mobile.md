@@ -843,6 +843,11 @@ i odczucie około 400–500 ms. Tylko scrim zmienia opacity według postępu po�
 Uchwyt i nagłówki oznaczone `SheetDragArea` obsługują `PanResponder`; zdarzenia dotyku
 przychodzą przez JS, a obliczenia, wartości i style Reanimated oraz sprężyna biegną na UI,
 bez renderów React podczas ruchu. Nie gwarantuje to dostarczania dotyku przy zablokowanym JS.
+Strefa uchwytu ma 44 dp wysokości i pełną szerokość arkusza. Zwykły dotyk uchwytu lub
+nagłówka zgłasza responder w fazie bubbling: zagnieżdżone przyciski zachowują tapnięcia.
+Ruch zaczyna przeciąganie dopiero po przekroczeniu 6 dp w pionie i przewadze nad ruchem
+poziomym; capture może wtedy przejąć gest rozpoczęty na przycisku nagłówka. Samo
+tapnięcie chrome nie porusza arkuszem ani nie zamyka klawiatury.
 Gest w dół przesuwa arkusz 1:1. Puszczenie po 28% jego zmierzonej wysokości lub po
 co najmniej 8 dp z prędkością ≥ 900 dp/s zamyka go z prędkością gestu; ruch w górę
 ma malejący opór ograniczony do 15% wysokości. Odwrócenie prędkości poniżej −300 dp/s
