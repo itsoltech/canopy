@@ -15,6 +15,7 @@ import { useClock } from "../settings/display";
 import { FailureNotice } from "../timeline/FailureNotice";
 import { MascotAvatar } from "./BotAvatar";
 import { botInk } from "./bot-ink";
+import { BotFailureActions } from "./BotFailureActions";
 
 /** Centered time between messages: "Today 8:44 PM" (web: ChatDateLine). */
 export function ChatDateLine({ at }: { at: Date }) {
@@ -124,16 +125,27 @@ export function ChatEventLine({ event }: { event: ChatEventView }) {
   );
 }
 
-/** A reply that failed, with what it means (web: ChatErrorLine). Retrying and changes happen on the web. */
-export function ChatErrorLine({ error, sender }: { error: ChatErrorView; sender: ParticipantView | undefined }) {
+/** A failed reply with recovery actions, matching the web chat. */
+export function ChatErrorLine({
+  error,
+  sender,
+  readOnly,
+}: {
+  error: ChatErrorView;
+  sender: ParticipantView | undefined;
+  readOnly: boolean;
+}) {
   return (
-    <FailureNotice
-      heading={`${sender?.name ?? "The bot"} couldn't reply`}
-      message={error.detail}
-      code={error.code}
-      source={error.source}
-      authHint="Sign in to the provider on the bot's worker using this instance's CLI home, then retry."
-    />
+    <View style={{ gap: 8 }}>
+      <FailureNotice
+        heading={`${sender?.name ?? "The bot"} couldn't reply`}
+        message={error.detail}
+        code={error.code}
+        source={error.source}
+        authHint="Sign in to the provider on the bot's worker using this instance's CLI home, then retry."
+      />
+      <BotFailureActions botId={error.botId} retryable={error.retryable} disabled={readOnly} />
+    </View>
   );
 }
 

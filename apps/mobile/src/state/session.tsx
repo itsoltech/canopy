@@ -147,7 +147,7 @@ function useSessionState() {
       setError(
         !cleared
           ? "This device was revoked. Could not clear local storage. Clear Canopy’s app data before pairing again."
-          : "This device was revoked. Pair it again in web Settings.",
+          : "This device was revoked. Create a new code in Settings → Devices on a paired device.",
       );
     },
   };

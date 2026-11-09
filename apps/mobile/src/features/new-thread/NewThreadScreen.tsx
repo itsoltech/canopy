@@ -5,7 +5,8 @@ import { ScreenFrame } from "../../ui/ScreenFrame";
 import { ScreenScroll } from "../../ui/ScreenScroll";
 import { KeyboardViewport } from "../../ui/KeyboardViewport";
 import { useSession } from "../../state/session";
-import { Notice, ScreenHeader } from "../../ui/components";
+import { Button, Notice, ScreenHeader } from "../../ui/components";
+import { openSettingsSection } from "../settings/navigation";
 import { PickerSheet } from "../../ui/Picker";
 import { ProjectMark } from "../../ui/ProjectMark";
 import { ProviderIcon } from "../../ui/ProviderIcon";
@@ -122,6 +123,14 @@ export function NewThreadScreen() {
               <WorkspacePills draft={state.workspaceDraft} />
             </SkeletonScope>
             {!state.initialLoading && blocker && blocker !== message.files.blocker ? <Notice>{blocker}</Notice> : null}
+            {!state.initialLoading && (
+              <Button
+                title="Manage projects"
+                variant="ghost"
+                size="sm"
+                onPress={() => openSettingsSection("projects")}
+              />
+            )}
             {error ? <Notice error>{error}</Notice> : null}
           </ScreenScroll>
         </DropZone>

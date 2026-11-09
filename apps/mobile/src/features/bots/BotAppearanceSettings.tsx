@@ -4,6 +4,7 @@ import { mascotShapes, mascotColors } from "@canopy/ui/mascot";
 import { PickerSheet, SelectField } from "../../ui/Picker";
 import { View } from "react-native";
 import { MascotAvatar } from "./BotAvatar";
+import { Field } from "../../ui/components";
 
 export function BotAppearanceSettings({
   config,
@@ -26,6 +27,16 @@ export function BotAppearanceSettings({
         onPress={() => setPicker("shape")}
       />
       <SelectField label="Color" value={config.color} disabled={disabled} onPress={() => setPicker("color")} />
+      <Field
+        label="Custom color"
+        value={config.color}
+        editable={!disabled}
+        autoCapitalize="none"
+        autoCorrect={false}
+        maxLength={7}
+        onChangeText={(color) => onChange({ ...config, color })}
+        placeholder="#8b5cf6"
+      />
       <PickerSheet
         title={picker === "shape" ? "Shape" : "Color"}
         visible={!!picker}

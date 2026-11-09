@@ -73,7 +73,7 @@ export function ChatRowView({
     case "error":
       return (
         <View style={{ paddingTop: 12, paddingLeft: 36 }}>
-          <ChatErrorLine error={row.error} sender={row.sender} />
+          <ChatErrorLine error={row.error} sender={row.sender} readOnly={readOnly} />
         </View>
       );
     case "question":

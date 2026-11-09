@@ -77,11 +77,11 @@ export function useNewThread() {
   const permissionMode = permission ?? (defaults.permissionMode || PermissionMode.ASK);
 
   const blocker = !project
-    ? "Create a project in Canopy on the web first."
+    ? "Add a project in Settings → Projects to start a thread."
     : !workspace
       ? project.kind === "scratch"
         ? "Choose a worker with an allowed directory to start a scratch thread."
-        : `${project.name} is not on any worker yet. Add it to a worker in Canopy on the web.`
+        : `${project.name} is not on any worker yet. Add a workspace in Settings → Projects.`
       : presence(worker).reason
         ? presence(worker).reason
         : !worker?.online

@@ -24,6 +24,7 @@ import { SettingsThreadList } from "./SettingsThreadList";
 import { SidebarArchivedThreads } from "./SidebarArchivedThreads";
 import { useSidebarThreads } from "./useSidebarThreads";
 import { useProjectDetails } from "../computers/project-details";
+import { CreateBot } from "../bots/CreateBot";
 
 function useSidebarState() {
   const { session, client, ready, updateBots } = useSession();
@@ -96,6 +97,7 @@ function useSidebarState() {
 
 function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const c = useColors();
+  const [creating, setCreating] = useState(false);
   const { section, setSection, queries, setQueries, setFilterOpen, projectId, navigation, bots } = state;
   const unread = bots.reduce((sum, bot) => sum + (bot.archived ? 0 : bot.unreadCount), 0);
   // The project filter is named in words, not only by the tinted funnel.
@@ -122,7 +124,11 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
           />
           <Text style={[styles.label, { color: c.text }]}>Canopy</Text>
         </View>
-        <IconButton icon="pencil-square" label="New thread" onPress={() => router.push("/new-thread")} />
+        <IconButton
+          icon="pencil-square"
+          label={section === "bots" ? "Create bot" : "New thread"}
+          onPress={() => (section === "bots" ? setCreating(true) : router.push("/new-thread"))}
+        />
       </View>
       <Segmented
         options={[
@@ -137,6 +143,7 @@ function SidebarHeader({ state }: { state: ReturnType<typeof useSidebarState> })
         onChange={setSection}
         style={{ marginHorizontal: 12, marginBottom: 8 }}
       />
+      {creating && <CreateBot onClose={() => setCreating(false)} />}
       <View style={[styles.row, { paddingHorizontal: 12, paddingBottom: 8 }]}>
         <SearchField
           bare
@@ -260,7 +267,7 @@ function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
               <EmptyState
                 icon="chat-bubble-left-right"
                 title="No bots yet"
-                description="Create a bot in Canopy on the web."
+                description="Select Create bot above to start a conversation."
               />
             )}
           </View>
