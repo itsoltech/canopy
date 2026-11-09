@@ -4,6 +4,7 @@ import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
 import { linkedMessage, mapIds, MovedError } from "./remote.ts";
 import { Predicate, Schema } from "effect";
 import type { ComputerStore } from "./store.ts";
+import { followRedirects, recordRedirects, type RedirectRow as Row } from "./redirect-records.ts";
 
 /**
  * Stage 8 of docs/linked-computers.md: where moved threads and bots live now. A moved thing keeps
@@ -16,14 +17,8 @@ const PLAIN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Redirects sent to a partner after each handshake: the most recent ones. */
 const SYNC_LIMIT = 2000;
 
-type Row = {
-  item_id: string;
-  kind: string;
-  home_node_id: string;
-  home_name: string;
-  from_node_id: string;
-  moved_at: Date;
-};
+const valid = (item: link.MovedItem) =>
+  PLAIN.test(item.itemId) && ["thread", "bot"].includes(item.kind) && /^[a-f0-9]{64}$/.test(item.homeNodeId);
 
 export { MovedError };
 
@@ -43,7 +38,7 @@ export class Redirects {
   }
   /** The computer a thread or bot moved to, if it did. */
   home(itemId: string): Row | undefined {
-    return this.#rows.get(itemId);
+    return this.#rows.get(itemId.toLowerCase());
   }
   get size() {
     return this.#rows.size;
@@ -51,15 +46,8 @@ export class Redirects {
 
   /** Records where a thing lives now; an older notice never replaces a newer one. Returns whether it changed. */
   async record(item: link.MovedItem): Promise<boolean> {
-    if (!PLAIN.test(item.itemId) || !["thread", "bot"].includes(item.kind) || !/^[a-f0-9]{64}$/.test(item.homeNodeId))
-      return false;
-    const known = this.#rows.get(item.itemId);
+    if (!this.#accepts(item)) return false;
     const at = new Date(Number(item.movedAtMs) || Date.now());
-
-    if (known && new Date(known.moved_at).getTime() >= at.getTime() && known.home_node_id === item.homeNodeId)
-      return false;
-
-    if (known && new Date(known.moved_at).getTime() > at.getTime()) return false;
 
     const rows = await this.store.query<Row>(
       `INSERT INTO computer_redirects(owner_user_id,item_id,kind,home_node_id,home_name,from_node_id,moved_at)
@@ -68,24 +56,69 @@ export class Redirects {
       [this.store.owner, item.itemId, item.kind, item.homeNodeId, item.homeName.slice(0, 120), item.fromNodeId, at],
     );
 
-    if (rows[0]) this.#rows.set(item.itemId, rows[0]);
+    if (rows[0]) this.#rows.set(rows[0].item_id, rows[0]);
 
     return Boolean(rows[0]);
   }
 
+  #accepts(item: link.MovedItem) {
+    if (!valid(item)) return false;
+    const known = this.#rows.get(item.itemId.toLowerCase());
+    const at = Number(item.movedAtMs) || Date.now();
+
+    return (
+      !known ||
+      (new Date(known.moved_at).getTime() <= at &&
+        (new Date(known.moved_at).getTime() < at || known.home_node_id !== item.homeNodeId))
+    );
+  }
+
   /** What a partner said moved. Only the former or the new home may say so, and nothing that lives here is moved by a notice. */
   async learn(sender: string, items: readonly link.MovedItem[]): Promise<link.MovedItem[]> {
-    const learned: link.MovedItem[] = [];
+    const trusted = items
+      .slice(0, SYNC_LIMIT)
+      .filter((item) => (sender === item.fromNodeId || sender === item.homeNodeId) && valid(item));
 
-    for (const item of items.slice(0, SYNC_LIMIT)) {
-      if (sender !== item.fromNodeId && sender !== item.homeNodeId) continue;
+    const counts = new Map<string, number>();
 
-      if (item.homeNodeId !== this.self() && (await this.#lives(item))) continue;
-
-      if (item.homeNodeId === this.self() && this.#rows.get(item.itemId)?.home_node_id !== this.self()) continue;
-
-      if (await this.record(item)) learned.push(item);
+    for (const item of trusted) {
+      const id = item.itemId.toLowerCase();
+      counts.set(id, (counts.get(id) ?? 0) + 1);
     }
+
+    const candidates = trusted.filter((item) => counts.get(item.itemId.toLowerCase())! > 1 || this.#accepts(item));
+    const living = await this.#lives(candidates.filter((item) => item.homeNodeId !== this.self()));
+    const learned: link.MovedItem[] = [];
+    let pending = new Map<string, link.MovedItem>();
+
+    const flush = async () => {
+      if (!pending.size) return;
+      const rows = await recordRedirects(this.store, [...pending.values()]);
+
+      for (const row of rows) {
+        this.#rows.set(row.item_id, row);
+        learned.push(pending.get(row.item_id)!);
+      }
+
+      pending = new Map();
+    };
+
+    for (const item of candidates) {
+      if (living.has(`${item.kind}:${item.itemId.toLowerCase()}`)) continue;
+
+      // Duplicate IDs must observe the earlier commit before applying timestamp/home checks.
+      if (pending.has(item.itemId.toLowerCase())) await flush();
+
+      if (item.homeNodeId === this.self() && this.#rows.get(item.itemId.toLowerCase())?.home_node_id !== this.self())
+        continue;
+
+      if (!this.#accepts(item)) continue;
+      pending.set(item.itemId.toLowerCase(), item);
+
+      if (pending.size >= 128) await flush();
+    }
+
+    await flush();
 
     if (learned.length) await this.#follow(learned);
 
@@ -93,21 +126,38 @@ export class Redirects {
   }
 
   /** A thread or bot of this computer that has not moved away. */
-  async #lives(item: link.MovedItem) {
-    const table = item.kind === "bot" ? "bots" : "threads";
+  async #lives(items: readonly link.MovedItem[]) {
+    const living = new Set<string>();
 
-    return (
-      (
-        await this.store.query(
-          `SELECT 1 FROM ${table} WHERE id=$1::uuid AND owner_user_id=$2::uuid AND moved_to IS NULL AND deleted_at IS NULL`,
-          [item.itemId, this.store.owner],
-        )
-      ).length > 0
-    );
+    for (const kind of ["thread", "bot"]) {
+      const ids = [...new Set(items.flatMap((item) => (item.kind === kind ? [item.itemId] : [])))];
+
+      if (!ids.length) continue;
+      const table = kind === "bot" ? "bots" : "threads";
+
+      const rows = await this.store.query<{ id: string }>(
+        `SELECT id FROM ${table} WHERE id=ANY($1::uuid[]) AND owner_user_id=$2::uuid AND moved_to IS NULL AND deleted_at IS NULL`,
+        [ids, this.store.owner],
+      );
+
+      for (const row of rows) living.add(`${kind}:${row.id}`);
+    }
+
+    return living;
   }
 
   /** Agent bus references to a moved thing route to its new home (docs/linked-computers.md, stage 8). */
   async #follow(items: link.MovedItem[]) {
+    if (items.length > 1 && new Set(items.map((item) => item.itemId.toLowerCase())).size === items.length) {
+      try {
+        await followRedirects(this.store, items);
+
+        return;
+      } catch {
+        // Preserve best-effort per-item recovery when a single reference prevents the bulk update.
+      }
+    }
+
     for (const item of items) {
       await this.store
         .query(
@@ -126,7 +176,7 @@ export class Redirects {
       .map(toItem);
   }
   item(itemId: string) {
-    const row = this.#rows.get(itemId);
+    const row = this.#rows.get(itemId.toLowerCase());
 
     return row && toItem(row);
   }
@@ -144,7 +194,7 @@ export class Redirects {
       const { id, node } = splitId(value);
 
       if (!PLAIN.test(id)) return value;
-      const row = this.#rows.get(id);
+      const row = this.#rows.get(id.toLowerCase());
 
       if (!row) return value;
       const home = nodeRef(row.home_node_id);
