@@ -78,7 +78,7 @@
         onclick={() => void updates.manage({ action: "update_all" })}
       />{/if}
   </header>
-  <div class="min-h-0 overflow-y-auto overscroll-contain px-3 py-1">
+  <div class="min-h-0 scroll-py-1 overflow-y-auto overscroll-contain px-3 py-1">
     {#if error}<p class="break-anywhere py-2 text-xs/5 text-rose-600 dark:text-rose-400" role="status">{error}</p>{/if}
     {#if run && run.state !== "succeeded"}
       <div class="border-b border-divider py-2 text-xs/5">

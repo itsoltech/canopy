@@ -60,7 +60,7 @@
   role="group"
   aria-label="Show models"
   class={[
-    "flex shrink-0 [scrollbar-width:none] flex-col items-center gap-0.5 overflow-y-auto overscroll-contain border-r border-zinc-950/5 p-1 dark:border-white/8",
+    "flex shrink-0 scroll-py-1 [scrollbar-width:none] flex-col items-center gap-0.5 overflow-y-auto overscroll-contain border-r border-zinc-950/5 p-1 dark:border-white/8",
     className,
   ]}
   {onkeydown}

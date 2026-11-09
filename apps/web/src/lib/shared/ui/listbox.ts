@@ -1,7 +1,10 @@
 /**
  * Looks shared by listboxes whose options are driven from a text field (Combobox, the composer's mention popup):
- * a sticky group heading and an option row that highlights the active option (`data-active`).
+ * an inset list, a sticky group heading and an option row that highlights the active option (`data-active`).
+ * Insets belong to the list content, so they scroll away beneath flush sticky headings.
  */
+export const listboxListClasses = "grid grid-cols-1 content-start py-1";
+
 export const listboxHeadingClasses =
   "sticky top-0 z-10 bg-surface pt-1.5 pb-0.5 text-sm/5 font-medium text-zinc-500 sm:text-xs/4 dark:text-zinc-400";
 

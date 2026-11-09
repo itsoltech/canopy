@@ -109,3 +109,6 @@ Na telefonie nakładki z `sheet` otwierają się jako dolny arkusz. Zostają prz
   Mobile używa stopni `chrome` / `chromeSmall` (15 / 13) i celów minimum 48 dp.
 - Pierścienie fokusu mieszczą się w wierszu: wiersze menu i list mają obrys wewnętrzny
   (`-outline-offset-2`), a przyciski zewnętrzny 2 px (`focus-ring`) z marginesem panelu `p-1`.
+- Listy pickerów mają pionowy inset `py-1` wewnątrz przewijanej treści i `scroll-py-1`
+  na kontenerze przewijania. Pierwszy i ostatni wiersz nie dotykają separatorów wyszukiwarki
+  ani stopki. Inset przewija się z listą, a lepkie nagłówki pozostają przy `top-0`, bez szczeliny.
