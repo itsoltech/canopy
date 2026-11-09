@@ -52,7 +52,7 @@ test.skipIf(!dockerAvailable)(
           }
         }),
       );
-      expect(await runtime.runPromise(migrate)).toEqual([[96, "consumed_bus_turns"]]);
+      expect(await runtime.runPromise(migrate)).toContainEqual([96, "consumed_bus_turns"]);
 
       const rows = await runtime.runPromise(
         Effect.gen(function* () {

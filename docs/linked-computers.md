@@ -549,9 +549,14 @@ właściciela i lokalizację. Wynik i dokładne wejście agenta wracają przez z
 ### Zsumowany widok
 
 Odczyty zbiorcze zwracają lokalne dane i ostatni znany stan partnerów bez oczekiwania
-na sieć. `GetOverview` i `ListThreads` dla `thread_mirror` czytają zatwierdzone lokalne
-lustro również podczas pozornie zdrowego połączenia i ponownego zestawiania. Reset
-lustra nie zastępuje poprzedniej generacji przed checkpointem. Pozostałe listy
+na sieć. `GetOverview` dla `thread_mirror` czyta zatwierdzone lokalne lustro.
+Zsumowany `ListThreads` używa udanej odpowiedzi `PeerReads`, gdy partner jest osiągalny;
+lustro jest fallbackiem podczas pierwszego odczytu, awarii lub offline. Zdrowy polling
+nie odczytuje lustra ponownie. Lista kwalifikowanego projektu czyta wprost metadane
+lustra. Lista lustra dekoduje wyłącznie `ui.Thread` z
+`thread_metadata`, nigdy pełną historię `snapshot`. Migracja 0097 uzupełnia starsze
+wiersze i wymaga niepustej kolumny; zapis metadanych i snapshotu jest atomowy.
+Reset lustra nie zastępuje poprzedniej generacji przed checkpointem. Listy
 odświeża `PeerReads`: jedno wywołanie na klucz komputer/metoda/request, najwyżej cztery
 aktywne na komputer, 128 kluczy i 16 MiB odpowiedzi w całym cache. Nieudany odczyt
 zachowuje poprzednią odpowiedź. Zwykłe odświeżenie zachowuje stan `fresh`, jeżeli

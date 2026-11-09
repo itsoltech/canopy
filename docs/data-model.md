@@ -368,6 +368,11 @@ Funkcje: `thread_timeline(thread_id)` (pełny log z odziedziczonymi prefiksami f
 
 ## Indeksy na start
 
+`computer_mirror_threads.thread_metadata` zawiera protobuf `ui.Thread`, zapisywany
+w tej samej transakcji co pełny `snapshot`. Listy i nagłówki czytają tylko metadane.
+Migracja 0097 uzupełnia brakujące nagłówki bez przesyłania historii do gatewaya
+i ustawia `NOT NULL`.
+
 - `thread_events (thread_id, seq)` — klucz główny, odczyt osi czasu; `(thread_id, event_id)` unikalny — idempotencja.
 - `thread_items (thread_id, first_seq)` — snapshot dla frontendu; `(thread_id) WHERE status = 'in_progress'` — elementy w toku.
 - `threads (project_id, created_at DESC) WHERE kind = 'main'` — lista wątków projektu.

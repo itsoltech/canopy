@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Provider, ui } from "@canopy/contracts";
 import { linkedMessage } from "../../apps/gateway/src/computers/remote.ts";
@@ -445,4 +446,26 @@ describe.skipIf(!dockerAvailable)("linked thread application liveness", () => {
       await view.close();
     }
   }, 30_000);
+
+  test("healthy aggregate list polls use the live cache without consulting mirror histories", async () => {
+    const request = create(ui.ListThreadsRequestSchema);
+    expect(
+      await eventually(async () => {
+        await a.api.listThreads(request);
+
+        return local.reads.state(node, ui.GatewayService.method.listThreads, request) === "fresh";
+      }, Boolean),
+    ).toBe(true);
+    const list = local.mirror.threads.bind(local.mirror);
+    local.mirror.threads = async () => {
+      throw new Error("Mirror listing must not be used for a healthy cached list");
+    };
+
+    try {
+      for (let poll = 0; poll < 3; poll++)
+        expect((await a.api.listThreads(request)).threads.some((t) => t.id === qualifyId(thread, node))).toBe(true);
+    } finally {
+      local.mirror.threads = list;
+    }
+  });
 });
