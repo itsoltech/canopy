@@ -26,6 +26,8 @@ export class CommandHandlers {
 
     if (kind.case === "listGitRefs") return this.ctx.ops.listGitRefs(kind);
 
+    if (kind.case === "switchThreadBranch") return this.ctx.ops.switchThreadBranch(kind);
+
     if (kind.case === "readWorkspaceOrigin") return this.ctx.ops.readWorkspaceOrigin(kind);
 
     if (kind.case === "initRepository") return this.ctx.ops.initRepository(kind);

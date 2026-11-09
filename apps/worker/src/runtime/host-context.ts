@@ -14,6 +14,7 @@ import { TaskCommands } from "./task-commands.ts";
 import { TextGeneration } from "./text-generation.ts";
 import { CommandHandlers } from "./command-handlers.ts";
 import { GitCommands } from "./git-commands.ts";
+import { BranchCommands } from "./branch-commands.ts";
 import { BotTurns } from "../bots/runtime.ts";
 
 export interface HostHooks {
@@ -22,6 +23,7 @@ export interface HostHooks {
 }
 
 export type HostOperations = HostHooks &
+  Pick<BranchCommands, "switchThreadBranch"> &
   Pick<HostCatalog, "homes" | "probe" | "startLogin" | "publishCatalog" | "listModels"> &
   Pick<HostFiles, "checkCwd" | "listDirectory" | "ensureAttachments" | "fetchBlob" | "viewImage"> &
   Pick<
@@ -89,8 +91,10 @@ export class HostContext {
     const bots = new BotTurns(this);
     const commands = new CommandHandlers(this);
     const gitCommands = new GitCommands(this);
+    const branches = new BranchCommands(this);
     this.ops = {
       ...hooks,
+      switchThreadBranch: branches.switchThreadBranch.bind(branches),
       homes: catalog.homes.bind(catalog),
       probe: catalog.probe.bind(catalog),
       startLogin: catalog.startLogin.bind(catalog),

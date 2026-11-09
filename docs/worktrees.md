@@ -142,7 +142,9 @@ mobilna pokazują ją na żywo. „Started from ‹ref›” (`base_ref`) się n
   (`rev-parse --absolute-git-dir`, dla worktree `.git/worktrees/<nazwa>`), odczyt na końcu każdej tury
   (obserwacja niedostępna albo pominięta) i pełny stan po każdym połączeniu z gatewayem. Wysyła tylko zmiany:
   `WorkerMessage.git_heads` (`GitHeads`: wątki checkoutu, gałąź albo skrócony commit odłączonego HEAD).
-  Nieudany odczyt (git zajęty) jest ponawiany kilka razy. UnloadThread i zamknięcie zwalniają obserwacje.
+  Ścieżka gitdir jest rozstrzygana raz; kolejne odczyty czytają bezpośrednio `HEAD`, bez uruchamiania git.
+  Obserwacja katalogu przeżywa atomową podmianę pliku, a debounce 150 ms scala serię zmian.
+  Nieudany odczyt jest ponawiany najwyżej pięć razy. UnloadThread i zamknięcie zwalniają obserwacje.
 - **Gateway** (`apps/gateway/src/worktrees/heads.ts`) przyjmuje zgłoszenie tylko dla wątków tego workera
   i odrzuca nazwę ze znakami sterującymi albo dłuższą niż 255 znaków. Worktree: `worktrees.branch`
   (gałąź) i `worktrees.detached_commit` (migracja `0086_git_heads`; przy odłączonym HEAD `branch` zostaje
@@ -153,6 +155,33 @@ mobilna pokazują ją na żywo. „Started from ‹ref›” (`base_ref`) się n
 - Status, sprzątanie, Reveal i Remove używają bieżącej gałęzi; przy odłączonym HEAD worker oczekuje
   worktree bez wybranej gałęzi. Starszy worker niczego nie zgłasza: wątek pokazuje gałąź z utworzenia.
   `WORKER_LINK_PROTOCOL` bez zmian (pole addytywne; starszy gateway ignoruje nieznaną wiadomość).
+
+### Przełączanie gałęzi z podsumowania
+
+Web/desktop i mobile pokazują osobno komputer, pełną ścieżkę „Worktree” albo „Directory” oraz pełną
+nazwę „Branch”. Ścieżka ma zwijany katalog domowy (`~`), przygaszonego rodzica, wyróżnioną nazwę folderu
+i kopiowanie oryginału. Długie wartości zawijają się; baza „from …” jest osobną linią. Odłączony HEAD
+pokazuje „Detached at ‹commit›”. Miejsce na ikonę, kopiowanie i zwykłe długości gałęzi jest zarezerwowane.
+Szczegółowy ahead/behind pozostaje w „Manage worktree”; panel nie uruchamia cyklicznych skanów statusu.
+
+- `ListThreadBranches` i `SwitchThreadBranch` są owner-scoped na gatewayu, trasowane do domu wątku.
+  Worker wymaga `git_branch_switch_v1`, dom linked computers wymaga `remote_branch_switch_v1`.
+  Starsze wersje pokazują czytelne dane z wyłączonym wyborem i powodem aktualizacji.
+- Picker wyszukuje lokalne i znane zdalne refy (do 500), bez fetch i bez discovery innych worktree.
+  Lokalny wybór wykonuje `git switch --no-overwrite-ignore --no-guess`; zdalny tworzy lokalną gałąź
+  śledzącą wskazany ref. Istniejąca lokalna nazwa wymaga wybrania jej z grupy „Local branches”.
+- Gateway blokuje wątki tego checkoutu w kolejności admission, aż worker potwierdzi zmianę.
+  Worker rozstrzyga aliasy ścieżek przez metadane `.git`, pomijając zagnieżdżone repozytoria.
+  Aktywna/kolejkowana tura, interakcja, zadanie w tle lub otwarty cel blokują operację;
+  worker dodatkowo rezerwuje katalog przed nową turą. UI wyłącza wybór w czasie pracy.
+- Świeży status musi być czysty (także pliki untracked); bez auto-stash i force. Git odmawia, gdy gałąź
+  jest już wybrana w innym worktree. Komenda nie trafia do outboxa; deadline 90 s obejmuje kolejkę
+  process-governor i procesy git, przed timeoutem gatewaya 120 s. Opóźniona dostawa jest odrzucana.
+- Po potwierdzeniu gateway zapisuje HEAD i komunikat „Branch switched to X by you” dla wątków checkoutu.
+  Notatka trafia do wejścia następnej tury, także wznowionej sesji harnessu, i jest zużywana atomowo
+  z zapisem komendy tury. Wejście `! shell` zachowuje ją przed wynikiem polecenia; jeśli polecenie
+  zakończy się przed startem agenta błędem lub przerwaniem, notatka wraca do następnego wejścia.
+  Zmiany płyną istniejącymi strumieniami i lustrem komputerów.
 
 ## Protokół workera
 
@@ -323,9 +352,8 @@ Nagłówek wątku: chip z bieżącą gałęzią albo „Detached at ‹commit›
 otwierają wspólny dialog statusu i zarządzania. Karta pokazuje ahead/behind, zmienione pliki,
 niewypchnięte commity, ostatnią aktywność i akcje jak w Settings. Po usunięciu pozostaje informacja
 o usuniętym worktree i historia wątku. Offline akcje workera są wyłączone z przyczyną;
-ścieżkę nadal można skopiować. Karta hover w sidebarze pokazuje gałąź. Wątek w bieżącym checkoutcie ma
-w panelu wiersz z gałęzią checkoutu i dopiskiem „Current checkout”. W aplikacji mobilnej szczegóły wątku
-pokazują wiersz „Branch · Worktree from ‹ref›” albo „Branch · Current checkout”.
+ścieżkę nadal można skopiować. Karta hover w sidebarze pokazuje gałąź. Panel web/desktop i mobile
+pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage worktree” otwiera dialog statusu.
 
 ## Interakcje
 
@@ -451,6 +479,13 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
   agenta w worktree na żywo w strumieniu wątku, baza bez zmian, status po zmianie gałęzi, odłączony HEAD,
   gałąź checkoutu workspace'u, nadrobienie zmiany po ponownym połączeniu oraz odrzucenie zgłoszeń dla wątków
   innego workera i niepoprawnych nazw.
+- `tests/integration/thread-branches.test.ts`: lokalny i zdalny wybór, aktualizacja strumienia, komunikat
+  i kontekst następnej tury; odmowy dla zmian lokalnych, zajętej gałęzi, aktywnej/kolejkowanej tury,
+  innego właściciela i starszego workera.
+- `tests/integration/external-worktrees-linked.test.ts`: wybór na domu wątku, kwalifikowane identyfikatory,
+  HEAD i komunikat u odbiorcy oraz odmowa starszego domu mimo nieaktualnych capabilities wywołującego.
+- `tests/integration/composer-shell.test.ts`: notatka o zmianie gałęzi w rzeczywistym wejściu harnessu
+  po `! shell`, także po nieudanym poleceniu, które nie uruchomiło agenta.
 
 ## Weryfikacja (nazwy folderów)
 

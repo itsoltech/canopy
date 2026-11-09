@@ -9,7 +9,8 @@ import { isWithin } from "../git/worktrees.ts";
 import { recoverRemoval } from "../git/remove-worktree.ts";
 import { freshGit, gitOk, GitError } from "../git/git.ts";
 import { runProcess, withProcessPriority } from "@canopy/process-governor";
-import { listGitRefs } from "../git/refs.ts";
+import { listGitRefs, repoRoot } from "../git/refs.ts";
+import { matchingCheckoutPaths } from "../git/checkout-paths.ts";
 import { createWorktree, renameWorktreeBranch } from "../git/worktrees.ts";
 
 import { CommandError, type CommandOutput } from "./host-types.ts";
@@ -52,6 +53,21 @@ export class GitCommands {
 
   async listGitRefs(kind: Extract<Command["kind"], { case: "listGitRefs" }>): Promise<CommandOutput> {
     this.ctx.ops.checkCwd(kind.value.repoPath);
+
+    if (kind.value.branchesOnly)
+      return gitStep(async () => {
+        const root = await repoRoot(kind.value.repoPath);
+
+        return {
+          gitRefs: kind.value.worktreesOnly
+            ? {
+                isRepo: Boolean(root),
+                repoRoot: root ?? "",
+                sameCheckoutPaths: root ? matchingCheckoutPaths(root, kind.value.knownPaths) : [],
+              }
+            : await listGitRefs(kind.value.repoPath),
+        };
+      });
 
     return gitStep(async () => {
       const discovery = await this.#discovery

@@ -133,6 +133,7 @@ export class HostState {
   /** Working directory per thread (from the commands' ThreadSpec): view_image's scope. */
   readonly cwds = new Map<string, string>();
   readonly removingPaths = new Set<string>();
+  readonly switchingPaths = new Set<string>();
   /** Managed git worktree roots (docs/worktrees.md, "Położenie"). */
   readonly worktreeRoots: WorktreeRoots;
   /** Attachments being fetched (FetchBlob), by request id. */

@@ -392,6 +392,8 @@ message Command {
     // Never persisted in the outbox; the result carries directory_path (6).
     InitRepository init_repository = 217;
     CloneRepository clone_repository = 218;
+    // Capability git_branch_switch_v1; tylko jawna akcja właściciela, nigdy z outboxa.
+    SwitchThreadBranch switch_thread_branch = 219;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
@@ -503,6 +505,8 @@ message StartTurn {
 
 message UserInput {
   string text = 1;
+  // Kontekst z gatewaya już zawarty w text; zachowany także przy zastąpieniu tekstu wynikiem shell.
+  string context_note = 8;
   // Jawna komenda właściciela, wykonywana dopiero przy dostarczeniu wejścia. Capability shell_input_v1.
   optional string shell_command = 5;
   // Stabilny także przy przejściu steer -> kolejka; komendy nie wolno ponowić po restarcie.
@@ -649,6 +653,7 @@ message CommandResult {
   bool worktree_branch_deleted = 214;
   // Normalized identity only; never the raw remote URL or its credentials.
   string workspace_origin = 216;
+  ThreadGitHead switched_head = 219;
   ProviderAccountsReport provider_accounts = 810;
   // Wynik ScanImportSources (docs/import.md).
   ImportScan import_scan = 850;
@@ -1574,6 +1579,17 @@ message ListGitRefs {
   bool fresh_worktrees = 4;
   // Registry paths may use a configured symlink spelling. Metadata only; never traversed recursively.
   repeated string known_paths = 5;
+  // git_branch_switch_v1: bez odkrywania innych worktree; worktrees_only zwraca wtedy wyłącznie korzeń.
+  bool branches_only = 6;
+}
+
+message SwitchThreadBranch {
+  string thread_id = 1;
+  string cwd = 2;
+  string branch = 3;
+  bool remote = 4;
+  // Bezpiecznik opóźnionej dostawy; worker kończy operację przed timeoutem gateway.
+  uint64 expires_at_ms = 5;
 }
 
 message GitRef {
@@ -1598,6 +1614,8 @@ message GitRefs {
   bool dirty = 6;
   repeated GitWorktree worktrees = 7;
   string worktrees_detail = 8;
+  // git_branch_switch_v1: known_paths należące do tego samego checkoutu (bez zagnieżdżonych repozytoriów).
+  repeated string same_checkout_paths = 9;
 }
 
 // Metadata only, validated against the configured repository's common git directory.

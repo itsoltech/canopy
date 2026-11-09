@@ -2,18 +2,11 @@
   import ThreadSecretRow from "./secrets/ThreadSecretRow.svelte";
   import ThreadConnectors from "#lib/features/connectors/ThreadConnectors.svelte";
   import { timestampMs } from "@bufbuild/protobuf/wkt";
-  import { terminalCwd } from "#lib/shared/ui/terminal.ts";
-  import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import CopyButton from "#lib/shared/ui/CopyButton.svelte";
-  import MiddleTruncatedText from "#lib/shared/ui/MiddleTruncatedText.svelte";
-  import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { osLabel } from "#lib/features/overview/workers.ts";
   import ScheduleCompactRow from "#lib/features/schedules/ScheduleCompactRow.svelte";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import type { ThreadTree } from "../thread-tree.ts";
   import ThreadLineage from "./ThreadLineage.svelte";
   import PanelRow from "./PanelRow.svelte";
@@ -22,8 +15,7 @@
   import type { Item } from "@canopy/contracts";
   import { useThreadDirectory } from "../thread-directory.ts";
   import ThreadTitleActions from "./ThreadTitleActions.svelte";
-  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import { headLabel, worktreeTooltip } from "@canopy/domain/git-heads";
+  import ThreadPlacement from "./ThreadPlacement.svelte";
 
   /**
    * Context of a thread: where it runs, its scheduled tasks (pause, resume, cancel, schedule another),
@@ -70,9 +62,6 @@
     secrets.filter((s) => s.status === "saved" && (!s.expiresAt || timestampMs(s.expiresAt) > clock.now)),
   );
 
-  const overview = useOverview();
-  const scratch = $derived(overview.project(thread.projectId)?.kind === "scratch");
-
   const lookup = (id: string) => (tree.main.id === id ? tree.main : tree.sides.find((s) => s.id === id));
   const directory = useThreadDirectory();
 
@@ -93,53 +82,7 @@
   <ThreadTitleActions {thread} compact class={windowTitlebar ? "macos:hidden" : undefined} />
   <!-- Connector accounts are per computer (stage 4); a linked computer's thread uses that computer's. -->
   {#if !thread.nodeId}<ThreadConnectors threadId={thread.id} />{/if}
-  <section aria-label="Placement" class="grid min-w-0 grid-cols-1 px-1.5 pb-1">
-    <PanelRow icon="computer-desktop">
-      <TruncatedText text={worker?.name ?? "Unknown worker"} />
-      {#snippet aside()}
-        <span class="flex shrink-0 items-center gap-1.5 text-sm/5 text-zinc-500 sm:text-xs/5">
-          <StatusDot tone={worker?.online ? "emerald" : "neutral"} />{worker?.online ? osLabel(worker.os) : "Offline"}
-        </span>
-      {/snippet}
-    </PanelRow>
-    <!-- One line: the path shortened in the middle (home as ~), all of it in the tooltip and one click from the clipboard. -->
-    <PanelRow icon="folder">
-      {#if scratch}
-        <span {@attach tooltip(`${thread.cwd} — kept after the thread ends; remove it by hand when no thread needs it`)}
-          >Scratch folder</span
-        >
-      {:else}
-        <MiddleTruncatedText text={terminalCwd(thread.cwd, Infinity)} hint={thread.cwd} class="font-mono" />
-      {/if}
-      {#snippet aside()}<span
-          class="flex shrink-0 pointer-fine:opacity-0 pointer-fine:group-focus-within/panel-row:opacity-100 pointer-fine:group-hover/panel-row:opacity-100"
-          ><CopyButton text={thread.cwd} label="Copy working directory" /></span
-        >{/snippet}
-    </PanelRow>
-    {#if thread.worktree}
-      <!-- A git worktree (docs/worktrees.md): its branch and what it started from; opens Manage worktree. -->
-      <PanelRow icon="git-fork" onclick={onworktree}>
-        <MiddleTruncatedText
-          text={headLabel(thread.worktree)}
-          hint={`${headLabel(thread.worktree)} · ${worktreeTooltip(thread.worktree)}`}
-          class="font-mono"
-        />
-        {#snippet aside()}{#if thread.worktree?.baseRef}<span
-              class="max-w-2/5 min-w-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
-              {@attach tooltip(`Started from ${thread.worktree.baseRef}`)}
-              >from <code class="font-mono">{thread.worktree.baseRef}</code></span
-            >{/if}{/snippet}
-      </PanelRow>
-    {:else if thread.checkoutHead && headLabel(thread.checkoutHead)}
-      <!-- The workspace's own checkout: its live branch, as the worker reports it. -->
-      <PanelRow icon="git-fork">
-        <MiddleTruncatedText text={headLabel(thread.checkoutHead)} class="font-mono" />
-        {#snippet aside()}<span class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
-            >Current checkout</span
-          >{/snippet}
-      </PanelRow>
-    {/if}
-  </section>
+  <ThreadPlacement {thread} {worker} {onworktree} />
 
   {#if onbackground}<BackgroundTasksSection
       tasks={backgroundTasks}

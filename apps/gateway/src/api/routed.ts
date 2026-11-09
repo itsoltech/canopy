@@ -23,7 +23,7 @@ import { toConnectError } from "./ui-errors.ts";
 import { ConfigIds, localProjectIds, refuseMissingInstance } from "./routed-config.ts";
 import { harnessOf } from "../store/instance-config.ts";
 import type { UiHandlers } from "./ui-service.ts";
-import { refuseRemoteWorktree } from "../worktrees/remote.ts";
+import { refuseRemoteWorktree, refuseRemoteBranchSwitch } from "../worktrees/remote.ts";
 import { validateUserSettings } from "../core/settings-validation.ts";
 import { coreCheckThreadDefaults, coreCliDefaultsChanged } from "../core/core-settings.ts";
 import { coreConfigsChanged } from "../core/core-providers.ts";
@@ -76,6 +76,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
             if (WORKER_SETTINGS.has(method.name)) return sendWorkerSetting(core, method, request, node, context.signal);
 
             const home = await peerOf(core, node, method, request);
+            refuseRemoteBranchSwitch(method, core.computers?.capabilities(home) ?? []);
             refuseRemoteWorktree(method, request, core.computers?.capabilities(home).includes(REMOTE_WORKTREES));
 
             const response = await linkedWrite(method, request, home, "sender", () =>
@@ -191,6 +192,8 @@ export function remoteServe(local: UiHandlers, core?: GatewayCore): RemoteServe 
   const own = local as Record<string, Handler>;
 
   return async function* (method, request, signal, peerNodeId) {
+    if (peerNodeId) refuseRemoteBranchSwitch(method, core?.computers?.hello().capabilities ?? []);
+
     if (peerNodeId)
       refuseRemoteWorktree(method, request, core?.computers?.hello().capabilities.includes(REMOTE_WORKTREES));
 

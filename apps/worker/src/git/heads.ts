@@ -1,7 +1,9 @@
 import { watch, type FSWatcher } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { ThreadGitHeadSchema } from "@canopy/contracts";
-import { freshGit, git } from "./git.ts";
+import { git } from "./git.ts";
 
 export type ThreadGitHeadInit = MessageInitShape<typeof ThreadGitHeadSchema>;
 
@@ -26,18 +28,23 @@ async function gitDirOf(cwd: string): Promise<string | undefined> {
 
 /** The branch HEAD names, else the short commit of a detached HEAD; undefined when git cannot tell. */
 export async function readHead(cwd: string): Promise<GitHead | undefined> {
-  return freshGit(async () => {
-    const branch = await git(cwd, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+  const dir = await gitDirOf(cwd);
 
-    if (branch.ok && branch.stdout.trim()) return { branch: branch.stdout.trim(), detachedCommit: "" };
-    const commit = await git(cwd, ["rev-parse", "--verify", "--quiet", "--short", "HEAD"]);
+  return dir ? readHeadFile(dir) : undefined;
+}
 
-    return commit.ok && commit.stdout.trim() ? { branch: "", detachedCommit: commit.stdout.trim() } : undefined;
-  }).catch(() => undefined);
+/** Watching atomic HEAD replacement never starts a process. Seven hex digits match git's usual short SHA. */
+async function readHeadFile(dir: string): Promise<GitHead | undefined> {
+  const value = await readFile(join(dir, "HEAD"), "utf8").catch(() => "");
+  const head = value.trim();
+
+  if (head.startsWith("ref: refs/heads/")) return { branch: head.slice(16), detachedCommit: "" };
+
+  return /^[0-9a-f]{40,64}$/.test(head) ? { branch: "", detachedCommit: head.slice(0, 7) } : undefined;
 }
 
 interface Checkout {
-  readonly cwd: string;
+  readonly gitDir: string;
   readonly threads: Set<string>;
   watcher?: FSWatcher;
   head?: GitHead;
@@ -79,7 +86,7 @@ export class HeadTracker {
         return;
       }
 
-      const checkout: Checkout = { cwd, threads: new Set([threadId]), retries: 0 };
+      const checkout: Checkout = { gitDir: dir, threads: new Set([threadId]), retries: 0 };
       this.#checkouts.set(dir, checkout);
 
       try {
@@ -148,7 +155,7 @@ export class HeadTracker {
   }
 
   async #read(checkout: Checkout, always: boolean): Promise<void> {
-    const head = await readHead(checkout.cwd);
+    const head = await readHeadFile(checkout.gitDir);
 
     if (this.#closed) return;
 

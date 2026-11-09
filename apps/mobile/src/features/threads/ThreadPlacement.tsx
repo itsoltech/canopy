@@ -1,14 +1,18 @@
 import * as Clipboard from "expo-clipboard";
 import { Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
-import { headLabel, PROVISIONAL_BRANCH_HINT } from "@canopy/domain/git-heads";
+import { placementPath } from "@canopy/domain/git-heads";
 import { Button } from "../../ui/components";
-import { styles, useColors } from "../../ui/theme";
+import { styles, useColors, useTypography } from "../../ui/theme";
 import { toast } from "../../ui/Toast";
 import { openSettingsSection } from "../settings/navigation";
+import { ThreadBranch } from "./ThreadBranch";
+import { useOverview } from "../../state/overview";
 
-function CopyPath({ title, path }: { title: string; path: string }) {
+function CopyPath({ title, path, home }: { title: string; path: string; home?: string }) {
   const c = useColors();
+  const type = useTypography();
+  const shown = placementPath(path, home);
 
   return (
     <View style={{ gap: 6, paddingVertical: 8 }}>
@@ -25,43 +29,36 @@ function CopyPath({ title, path }: { title: string; path: string }) {
           }}
         />
       </View>
-      <Text selectable style={[styles.body, { color: c.text }]}>
-        {path}
+      <Text selectable style={[type.mono, { color: c.muted }]}>
+        {shown.parent}
+        <Text style={{ color: c.text, fontWeight: "600" }}>{shown.name}</Text>
       </Text>
     </View>
   );
 }
 
 export function ThreadPlacement({ thread, onClose }: { thread: ui.Thread; onClose: () => void }) {
-  const c = useColors();
+  const { workers } = useOverview();
+  const worker = workers.find((worker) => worker.id === thread.workerId);
   const worktree = thread.worktree;
   const head = worktree ?? thread.checkoutHead;
 
   return (
     <View style={{ gap: 8 }}>
-      <CopyPath title="Working directory" path={thread.cwd} />
-      {head && (
-        <Text selectable style={[styles.meta, { color: c.muted }]}>
-          {headLabel(head)}
-          {thread.worktree?.baseRef ? ` · from ${thread.worktree.baseRef}` : ""}
-          {thread.worktree?.provisionalBranch ? `\n${PROVISIONAL_BRANCH_HINT}` : ""}
-        </Text>
-      )}
+      <CopyPath title={worktree ? "Worktree" : "Directory"} path={thread.cwd} home={worker?.homeDirectory} />
+      {head && <ThreadBranch thread={thread} worker={worker} />}
       {worktree && (
-        <>
-          <CopyPath title="Worktree path" path={worktree.path} />
-          <Button
-            title="Manage worktree"
-            onPress={() => {
-              onClose();
-              openSettingsSection("worktrees", {
-                projectId: thread.projectId,
-                workerId: thread.workerId,
-                worktreeId: worktree.id,
-              });
-            }}
-          />
-        </>
+        <Button
+          title="Manage worktree"
+          onPress={() => {
+            onClose();
+            openSettingsSection("worktrees", {
+              projectId: thread.projectId,
+              workerId: thread.workerId,
+              worktreeId: worktree.id,
+            });
+          }}
+        />
       )}
     </View>
   );

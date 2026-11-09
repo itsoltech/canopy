@@ -12,6 +12,7 @@ import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import type { WorktreeRoots } from "../../../apps/worker/src/git/worktree-roots.ts";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { eventually, startTestGateway } from "./gateway.ts";
 
 export function git(cwd: string, ...args: string[]): string {
@@ -97,6 +98,8 @@ export async function worktreeFixture(
   let host = startHost();
 
   let link: GatewayLink;
+  const closing = new WeakSet<GatewayLink>();
+  const sessions = new Set<Promise<void>>();
   const calls = new Map<string, (result: AgentToolResult) => void>();
 
   const connect = async () => {
@@ -128,7 +131,16 @@ export async function worktreeFixture(
       }
     };
 
-    void serveLink({ ...link, messages: messages() }, host, runtime);
+    const serving = serveLink({ ...link, messages: messages() }, host, runtime)
+      .then(
+        () => {},
+        (cause) => {
+          if (!(closing.has(active) && cause instanceof ConnectError && cause.code === Code.Unavailable)) throw cause;
+        },
+      )
+      .finally(() => sessions.delete(serving));
+
+    sessions.add(serving);
     await eventually(
       () => gw.api.getOverview({}),
       (o) => o.workers.some((w) => w.id === workerId && w.appliedVersion > 0n && w.online),
@@ -202,11 +214,15 @@ export async function worktreeFixture(
     remove,
     cleanup,
     connect,
-    disconnect: () => link.close(),
+    disconnect: () => {
+      closing.add(link);
+      link.close();
+    },
     /** A message on the worker's link, as a worker could send it. */
     send: (payload: Parameters<GatewayLink["send"]>[0]) => link.send(payload),
     /** A new worker process on the same data directory (an upgrade), with other worktree roots. */
     restart: async (worktreeRoots?: WorktreeRoots) => {
+      closing.add(link);
       link.close();
       await host.close();
       host = startHost(worktreeRoots);
@@ -227,8 +243,10 @@ export async function worktreeFixture(
         });
       }),
     close: async () => {
+      closing.add(link);
       link.close();
       await host.close();
+      await Promise.all(sessions);
       await runtime.dispose();
       await gw.close();
     },

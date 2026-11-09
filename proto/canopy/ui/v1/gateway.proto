@@ -209,6 +209,9 @@ service GatewayService {
   rpc RemoveWorktree(RemoveWorktreeRequest) returns (WorktreeEntry);
   rpc RevealWorktree(RemoveWorktreeRequest) returns (google.protobuf.Empty);
   rpc ListGitRefs(ListGitRefsRequest) returns (ListGitRefsResponse);
+  // Bieżący checkout wątku, capability git_branch_switch_v1 workera i domu.
+  rpc ListThreadBranches(ThreadBranchesRequest) returns (ListGitRefsResponse);
+  rpc SwitchThreadBranch(SwitchThreadBranchRequest) returns (SwitchThreadBranchResponse);
   rpc GetThreadBlob(GetThreadBlobRequest) returns (GetThreadBlobResponse);
 
   // Kolejka (sekcja na końcu pliku): wiadomości czekające za turą w toku — kolejność, edycja, usunięcie
@@ -430,6 +433,8 @@ message Worker {
   string worktrees_root = 806;
   // Worker importuje dane CLI (capability "cli_import_v1", docs/import.md).
   bool cli_import = 807;
+  // Bieżący checkout można bezpiecznie przełączyć (git_branch_switch_v1).
+  bool branch_switch = 808;
   optional uint32 cli_update_check_minutes = 900; // nadpisanie; brak = konto
   uint32 effective_cli_update_check_minutes = 901;
   google.protobuf.Timestamp cli_updates_checked_at = 902;
@@ -2332,6 +2337,20 @@ message WorktreeSettingSource {
 
 message ListGitRefsRequest {
   string workspace_id = 1;
+}
+
+message ThreadBranchesRequest {
+  string thread_id = 1;
+}
+
+message SwitchThreadBranchRequest {
+  string thread_id = 1;
+  string branch = 2;
+  bool remote = 3;
+}
+
+message SwitchThreadBranchResponse {
+  Thread thread = 1;
 }
 
 message ListGitRefsResponse {

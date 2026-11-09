@@ -9,6 +9,16 @@ import {
 
 const freshness = new AsyncLocalStorage<boolean>();
 export const freshGit = <T>(run: () => Promise<T>): Promise<T> => freshness.run(true, run);
+const deadline = new AsyncLocalStorage<AbortSignal>();
+
+/** Includes governor admission, every validation and the mutation; expired commands never spawn git. */
+export function boundedGit<T>(expiresAt: bigint, run: () => Promise<T>): Promise<T> {
+  const remaining = Math.min(90_000, Number(expiresAt) - Date.now());
+
+  if (remaining <= 0) throw new GitError("SWITCH_EXPIRED", "The branch switch expired. Try again.");
+
+  return deadline.run(AbortSignal.timeout(remaining), run);
+}
 
 /**
  * Git for worktrees (docs/worktrees.md): always the `git` binary with an argument list (never a shell), no prompts
@@ -61,6 +71,10 @@ export async function git(
   timeoutMs = GIT_TIMEOUT_MS,
   input?: { text?: string; env?: Record<string, string> },
 ): Promise<GitResult> {
+  const signal = deadline.getStore();
+
+  if (signal?.aborted) throw new GitError("SWITCH_EXPIRED", "The branch switch expired. Try again.");
+
   const read =
     !input?.text &&
     !input?.env &&
@@ -84,6 +98,7 @@ export async function git(
     cwd,
     env: { ...process.env, ...ENV, ...input?.env },
     timeoutMs,
+    ...(signal && { signal }),
     ...(input?.text !== undefined && { input: input.text }),
   };
 
@@ -97,6 +112,8 @@ export async function git(
 
     return { ok: result.code === 0, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {
+    if (signal?.aborted) throw new GitError("SWITCH_EXPIRED", "The branch switch expired. Try again.");
+
     if (error instanceof ProcessBusyError) throw new GitError("GIT_BUSY", error.message);
 
     if (error instanceof ProcessTimeoutError)
