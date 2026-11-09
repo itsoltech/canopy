@@ -364,7 +364,8 @@ Etap 9:
   Import innego połączonego komputera nadal wymaga połączenia z jego gatewayem.
   Ekran pokazuje też przebiegi: postęp (pasek bajtów), podsumowanie,
   bieżący wątek, błąd oraz **Cancel**, **Resume** / **Retry failed** i **Remove imported items** (z potwierdzeniem).
-  Lista odświeża się co 3 s, dopóki któryś przebieg trwa albo czeka. Nieudane pozycje biblioteki też pozwalają ponowić import; przebieg
+  Lista odświeża się co 3 s, dopóki któryś przebieg trwa, i co 15 s, gdy tylko czeka (paused); web odpowiednio
+  co 1,5 s i 10 s, wyłącznie na widocznej karcie, bez ponownego czytania zakończonego otwartego przebiegu. Nieudane pozycje biblioteki też pozwalają ponowić import; przebieg
   anulowany lub cofnięty nie oferuje wznowienia. Po nieudanym przywróceniu **Remove imported items** pojawia się
   ponownie tylko dla pozycji, które pozostały. Etykiety, odcienie i dostępność akcji są wspólne
   (`@canopy/domain/import-look`). Data jest osobnym wierszem, aby długie formaty nie ściskały liczników.

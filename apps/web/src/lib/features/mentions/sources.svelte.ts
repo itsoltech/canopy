@@ -1,4 +1,6 @@
-import { MentionKind, type MentionCatalogEntry } from "@canopy/contracts";
+import { MentionKind, type MentionCatalogEntry, type ui } from "@canopy/contracts";
+import { QueryCache } from "@canopy/domain/shared-query";
+import { queries } from "#lib/shared/queries.svelte.ts";
 import { fuzzyRank } from "@canopy/domain";
 import { HttpError } from "#lib/shared/http.ts";
 import { listMentionCatalog, searchFiles, searchThreads, type MentionScope } from "./api.ts";
@@ -43,6 +45,15 @@ export interface MentionSourceSet {
 const DEBOUNCE_MS = 120;
 const LIMIT = 40;
 
+/** A scope's commands and skills are shared by its composers; skill changes invalidate them sooner. */
+const CATALOG_MAX_AGE_MS = 60_000;
+
+/** Files and threads change outside Canopy: a search is reused only briefly. */
+const SEARCH_MAX_AGE_MS = 8000;
+
+/** Recent searches of the tab, apart from the shared reads so they never push those out of the LRU. */
+const searches = new QueryCache({ idle: 64 });
+
 const scopeKey = (scope: MentionScope | undefined) =>
   scope
     ? `${scope.threadId ?? ""}|${scope.workspaceId ?? ""}|${scope.provider ?? 0}|${scope.providerProfileId ?? ""}|${scope.cwd ?? ""}`
@@ -83,13 +94,16 @@ export class MentionSources implements MentionSourceSet {
     const scope = this.#scope();
     const key = scopeKey(scope);
 
-    if (!scope || (!refresh && key === this.#catalogKey && (this.catalog.loading || this.catalog.entries.length > 0)))
-      return;
+    if (!scope || (!refresh && key === this.#catalogKey && (this.catalog.loading || !this.catalog.error))) return;
     this.#catalogKey = key;
-    this.catalog = { entries: [], loading: true };
+    const shared = `ListMentionCatalog:${key}`;
+    const current = queries.snapshot<ui.ListMentionCatalogResponse>(shared);
+    // Another composer of this scope already listed it: show that at once (an empty catalog is listed too).
+    this.catalog = { entries: current.data?.catalog?.entries ?? [], loading: !current.loaded };
 
     try {
-      const { catalog } = await listMentionCatalog(scope, refresh);
+      if (refresh) queries.invalidate(shared);
+      const { catalog } = await queries.read(shared, () => listMentionCatalog(scope, refresh), CATALOG_MAX_AGE_MS);
 
       if (key === this.#catalogKey) this.catalog = { entries: catalog?.entries ?? [], loading: false };
     } catch (error) {
@@ -181,7 +195,13 @@ export class MentionSources implements MentionSourceSet {
     const scope = this.#scope();
 
     if (!scope) throw new Error("Choose a worker to mention files from its folder");
-    const { result } = await searchFiles(scope, query, LIMIT);
+
+    // Reopening the picker with the same text reuses a search of the last few seconds.
+    const { result } = await searches.read(
+      `SearchFiles:${scopeKey(scope)}:${query}`,
+      () => searchFiles(scope, query, LIMIT),
+      SEARCH_MAX_AGE_MS,
+    );
 
     return (result?.matches ?? []).map((m) => {
       const slash = m.path.lastIndexOf("/");
@@ -198,7 +218,11 @@ export class MentionSources implements MentionSourceSet {
   }
 
   async #threads(query: string): Promise<MentionOption[]> {
-    const { threads } = await searchThreads(query, this.#threadId(), LIMIT);
+    const { threads } = await searches.read(
+      `SearchThreads:${this.#threadId()}:${query}`,
+      () => searchThreads(query, this.#threadId(), LIMIT),
+      SEARCH_MAX_AGE_MS,
+    );
 
     return threads.map((t) => ({
       key: `thread:${t.id}`,

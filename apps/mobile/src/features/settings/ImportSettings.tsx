@@ -12,6 +12,8 @@ export function ImportSettings() {
   const resource = useSettingsResource("ListImportRuns", (api) => api.listImportRuns({}));
   const runs = resource.data?.runs ?? [];
   const active = runs.some((run) => run.status === "running" || run.status === "paused");
+  // Only a running import reads every 3 s; a paused one changes when someone resumes or cancels it.
+  const running = runs.some((run) => run.status === "running");
   const { reload } = resource;
 
   useFocusEffect(
@@ -23,12 +25,15 @@ export function ImportSettings() {
   useEffect(() => {
     if (!active) return;
 
-    const timer = setInterval(() => {
-      if (AppState.currentState === "active") void reload();
-    }, 3000);
+    const timer = setInterval(
+      () => {
+        if (AppState.currentState === "active") void reload();
+      },
+      running ? 3000 : 15_000,
+    );
 
     return () => clearInterval(timer);
-  }, [active, reload]);
+  }, [active, running, reload]);
 
   return (
     <ResourceState resource={resource}>

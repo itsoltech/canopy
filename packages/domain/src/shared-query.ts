@@ -83,12 +83,15 @@ export class QueryCache {
     return (this.#entries.get(key)?.snapshot ?? EMPTY) as QuerySnapshot<T>;
   }
 
-  /** The value, read once and shared; a loaded, current entry answers without a request. */
-  async read<T>(key: string, fetch: QueryFetch<T>): Promise<T> {
+  /**
+   * The value, read once and shared; a loaded, current entry younger than `maxAgeMs` answers without a request.
+   */
+  async read<T>(key: string, fetch: QueryFetch<T>, maxAgeMs = Infinity): Promise<T> {
     if (this.#disposed) throw new QueryCacheDisposed();
     const entry = this.#entry(key, fetch);
 
-    if (entry.snapshot.loaded && !entry.dirty) return this.snapshot<T>(key).data!;
+    if (entry.snapshot.loaded && !entry.dirty && Date.now() - entry.readAt <= maxAgeMs)
+      return this.snapshot<T>(key).data!;
     this.#touch(entry);
 
     return this.#load<T>(entry);

@@ -888,6 +888,13 @@ sposób wyboru trybu; gateway nie zmienia semantyki ich wiadomości.
 
 Komendy, skille, pluginy, pliki i inne wątki są wstawiane w tekst wiadomości jako chipy. Wyzwalacze w kompozytorze: `/` komendy, `$` skille i pluginy (`$Skill`, aplikacje `$app`), `@` pliki folderu wątku, `#` wątki; te same pozycje są w menu „+” obok „Attach files”.
 
+Katalog zakresu (wątek albo workspace, dostawca, profil i folder) jest współdzielony przez kompozytory
+karty lub parowania przez minutę, a `agentEnvironmentChanged` unieważnia go wcześniej; pusty katalog też
+jest wczytany, a nieudany nie zastępuje wartości i czyta się ponownie przy następnym kompozytorze.
+Gateway łączy równoczesne zapytania o ten sam niezbuforowany zakres w jedno zapytanie workera.
+Wyszukiwania `@` i `#` z tym samym tekstem są ponownie używane przez 8 s (otwarcie listy jeszcze raz);
+pliki i wątki zmieniają się poza Canopy, więc dłuższego cache nie ma.
+
 Podczas kompozycji IME edytor odczytuje model i wykrywa wyzwalacze przy każdym
 `input`, lecz nie przeformatowuje DOM aż do końca kompozycji. `compositionend`
 odczytuje tekst także bez kolejnego `input`; Enter w czasie kompozycji nie wysyła.

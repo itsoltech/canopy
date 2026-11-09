@@ -3,9 +3,15 @@ import { getImportRun, importRunAction, listImportRuns } from "./api.ts";
 
 const POLL_MS = 1500;
 
+/** A paused run changes only when someone resumes or cancels it. */
+const PAUSED_POLL_MS = 10_000;
+
+const finished = (run: ui.ImportRun | undefined) => !!run && run.status !== "running" && run.status !== "paused";
+
 /**
  * The owner's import runs (docs/import.md, "Przebieg"): the list, the open run with its threads, and actions.
- * While a run is running or paused the list refreshes every 1.5 s; it stops when nothing is in progress.
+ * While a run is running the list refreshes every 1.5 s, while paused every 10 s, never while the page is hidden;
+ * it stops when nothing is in progress. An open run that already finished is not read again.
  */
 export class ImportRunsState {
   runs = $state.raw<ui.ImportRun[]>([]);
@@ -29,7 +35,8 @@ export class ImportRunsState {
     try {
       this.runs = (await listImportRuns()).runs;
 
-      for (const id of this.details.keys()) await this.open(id);
+      for (const id of this.details.keys())
+        if (!finished(this.details.get(id)) || !finished(this.runs.find((r) => r.id === id))) await this.open(id);
     } catch (error) {
       this.error = error instanceof Error ? error.message : "Imports are unavailable. Try again.";
     }
@@ -72,6 +79,12 @@ export class ImportRunsState {
   #schedule(): void {
     this.stop();
 
-    if (this.active) this.#timer = setTimeout(() => void this.load(), POLL_MS);
+    if (!this.active) return;
+    const running = this.runs.some((r) => r.status === "running");
+
+    this.#timer = setTimeout(
+      () => (document.hidden ? this.#schedule() : void this.load()),
+      running ? POLL_MS : PAUSED_POLL_MS,
+    );
   }
 }

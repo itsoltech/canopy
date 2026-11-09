@@ -158,6 +158,8 @@ export class PeerReads {
     this.active.set(entry.node, (this.active.get(entry.node) ?? 0) + 1);
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+    let changed = false;
+
     const task = (async () => {
       try {
         const value = toBinary(method.output, await load(controller.signal));
@@ -172,6 +174,7 @@ export class PeerReads {
         }
 
         const total = this.bytes - (entry.value?.byteLength ?? 0) + value.byteLength;
+        changed = entry.failed || !entry.value || !sameBytes(entry.value, value);
 
         if (total <= MAX_BYTES) {
           this.bytes = total;
@@ -182,6 +185,7 @@ export class PeerReads {
         entry.next = Date.now() + PEER_READ_REFRESH_MS;
       } catch {
         if (entry.generation === generation) {
+          changed = !entry.failed;
           entry.failed = true;
           entry.next = Date.now() + PEER_READ_RETRY_MS;
         }
@@ -198,7 +202,8 @@ export class PeerReads {
               this.refresh(waiting, waiting.method, waiting.load, waiting.timeoutMs);
           }
 
-        if (!this.closed)
+        // Only a read that changed what clients see is announced: an unchanged refresh triggers no client reads.
+        if (!this.closed && changed)
           for (const listener of this.listeners) {
             try {
               listener(method.name);
@@ -223,4 +228,12 @@ export class PeerReads {
     this.circuits.clear();
     this.bytes = 0;
   }
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.byteLength !== b.byteLength) return false;
+
+  for (let index = 0; index < a.byteLength; index++) if (a[index] !== b[index]) return false;
+
+  return true;
 }

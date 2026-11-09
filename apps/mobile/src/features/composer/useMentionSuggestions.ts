@@ -71,22 +71,40 @@ function fromCatalog(entries: readonly MentionCatalogEntry[], char: "/" | "$", q
     }));
 }
 
+/** A scope's commands and skills, shared by its composers. */
+const CATALOG_MAX_AGE_MS = 60_000;
+
+/** Files and threads change outside Canopy: a search is reused only briefly (reopening the list). */
+const SEARCH_MAX_AGE_MS = 8000;
+
 /**
  * What the mention list offers for a trigger (docs/ui-api.md, "Wzmianki"): "/" commands and "$" skills and plugins
  * from the thread's catalog (listed once), "@" files and "#" threads searched as you type.
  */
 export function useMentionSuggestions(scope: ui.MentionScope | undefined, trigger: ActiveTrigger | undefined) {
-  const { client } = useSession();
+  const { client, queries, searches } = useSession();
   const [catalog, setCatalog] = useState<{ key: string; entries: readonly MentionCatalogEntry[]; error?: string }>();
   const [found, setFound] = useState<{ key: string; options: MentionOption[]; error?: string }>();
-  const scopeKey = scope ? `${scope.threadId}|${scope.workspaceId}|${scope.provider}|${scope.providerProfileId}` : "";
+
+  // The folder is part of the scope: a catalog of one cwd is not another's.
+  const scopeKey = scope
+    ? `${scope.threadId}|${scope.workspaceId}|${scope.provider}|${scope.providerProfileId}|${scope.cwd}`
+    : "";
+
   const wantsCatalog = trigger?.char === "/" || trigger?.char === "$";
   const searchKey = trigger && !wantsCatalog ? `${scopeKey}|${trigger.char}|${trigger.query}` : "";
 
   const listCatalog = useEffectEvent(async () => {
     if (!client || !scope) return [];
 
-    return (await client.api.listMentionCatalog({ scope }, { timeoutMs: 50_000 })).catalog?.entries ?? [];
+    // Composers of one scope share a listing for a minute; skill changes invalidate it sooner.
+    const listed = await queries.read(
+      `ListMentionCatalog:${scopeKey}`,
+      () => client.api.listMentionCatalog({ scope }, { timeoutMs: 50_000 }),
+      CATALOG_MAX_AGE_MS,
+    );
+
+    return listed.catalog?.entries ?? [];
   });
 
   // The catalog is listed once per scope, when "/" or "$" first opens the list.
@@ -112,9 +130,10 @@ export function useMentionSuggestions(scope: ui.MentionScope | undefined, trigge
     if (trigger.char === "@") {
       if (!scope) return [];
 
-      const { result } = await client.api.searchFiles(
-        { scope, query: trigger.query, limit: LIMIT },
-        { timeoutMs: 25_000 },
+      const { result } = await searches.read(
+        `SearchFiles:${scopeKey}:${trigger.query}`,
+        () => client.api.searchFiles({ scope, query: trigger.query, limit: LIMIT }, { timeoutMs: 25_000 }),
+        SEARCH_MAX_AGE_MS,
       );
 
       return (result?.matches ?? []).map((m) => {
@@ -130,11 +149,11 @@ export function useMentionSuggestions(scope: ui.MentionScope | undefined, trigge
       });
     }
 
-    const { threads } = await client.api.searchThreads({
-      query: trigger.query,
-      excludeThreadId: scope?.threadId ?? "",
-      limit: 20,
-    });
+    const { threads } = await searches.read(
+      `SearchThreads:${scope?.threadId ?? ""}:${trigger.query}`,
+      () => client.api.searchThreads({ query: trigger.query, excludeThreadId: scope?.threadId ?? "", limit: 20 }),
+      SEARCH_MAX_AGE_MS,
+    );
 
     return threads.map((t) => ({
       key: `thread:${t.id}`,

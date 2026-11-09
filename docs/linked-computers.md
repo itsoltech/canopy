@@ -562,7 +562,9 @@ aktywne na komputer, 128 kluczy i 16 MiB odpowiedzi w całym cache. Nieudany odc
 zachowuje poprzednią odpowiedź. Zwykłe odświeżenie zachowuje stan `fresh`, jeżeli
 istnieje udany snapshot; `stale` oznacza dopiero nieudaną próbę. Komunikat oczekiwania
 nie pojawia się i nie znika przy każdym pollu. Snapshoty są dekodowane osobno dla każdego odbiorcy.
-`linked_read_completed` odświeża zainteresowane widoki bez czekania w pierwotnym RPC.
+`linked_read_completed` odświeża zainteresowane widoki bez czekania w pierwotnym RPC. Jest wysyłane
+tylko wtedy, gdy odczyt zmienił to, co widzą klienci (nowa odpowiedź, inna treść albo zmiana
+powodzenia); odświeżenie z tą samą odpowiedzią nie powoduje odczytów klientów.
 
 Wszystkie czasy I/O partnera są nazwane w `computers/timing.ts`: zwykły odczyt 10 s,
 sprawdzenie aktualizacji 120 s, żądanie instalacji 15 min. Limit RPC nie oznacza,
