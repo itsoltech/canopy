@@ -656,8 +656,9 @@ na ekranie z ostatnim stanem i krótkim statusem nad composerem, który pozostaj
 
 ### UI
 
-Znaczek maszyny (`MachineBadge`: ikona łącza i nazwa) przy wątku partnera w sidebarze i nagłówku
-wątku oraz w karcie podglądu wątku. Kompozytor scala projekty według origin (reguły powyżej),
+Sidebar pokazuje worker wątku bez dodatkowej plakietki komputera. Niedostępny dom
+przygasza wiersz; etykieta dostępności zawiera „Read-only” i przyczynę. Nazwa komputera
+pozostaje w nagłówku i karcie podglądu wątku. Kompozytor scala projekty według origin (reguły powyżej),
 a komputer wybiera się przez worker. Nowy wątek na workerze B używa rekordu projektu z B;
 B zostaje właścicielem. Ekrany konfiguracji per komputer (workery, dostawcy, connectory,
 domyślne ustawienia wątków, harmonogramy) pokazują wyłącznie własne rzeczy (`ownWorkers`/`ownProjects`),

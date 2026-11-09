@@ -1,4 +1,5 @@
 <script lang="ts">
+  import "#lib/features/navigation/sidebar-rows.css";
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { clock } from "#lib/shared/clock.svelte.ts";
@@ -52,7 +53,7 @@
 
 <div
   class={[
-    "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-zinc-950/4 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-brand-500 dark:hover:bg-white/4",
+    "sidebar-row group relative flex min-h-12 items-center gap-2.5 rounded-xl px-3 py-1.5 hover:bg-zinc-950/4 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-brand-500 dark:hover:bg-white/4",
     current && "bg-zinc-950/6 dark:bg-white/8",
     home.reason && "opacity-60",
     className,
@@ -60,13 +61,13 @@
   {@attach contextMenu(() => (menuOpen = items.length > 0))}
 >
   {@render avatar()}
-  <div class="grid min-w-0 flex-1 grid-cols-1 gap-0.5">
+  <div class="grid min-w-0 flex-1 grid-cols-1 gap-px">
     {#if conversation.nodeId}<BotHome nodeId={conversation.nodeId} />{/if}
     <p class="flex items-baseline gap-2">
       <a
         {href}
         aria-current={current ? "page" : undefined}
-        class="min-w-0 flex-1 truncate text-base/6 font-medium text-zinc-900 after:absolute after:inset-0 after:rounded-xl focus:outline-none sm:text-sm/5 dark:text-zinc-100"
+        class="min-w-0 flex-1 truncate text-base/5 font-medium text-zinc-900 after:absolute after:inset-0 after:rounded-xl focus:outline-none sm:text-sm/4.5 dark:text-zinc-100"
       >
         {title}
       </a>
@@ -74,7 +75,7 @@
         <time
           datetime={conversation.lastMessage.at.toISOString()}
           class={[
-            "shrink-0 text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400",
+            "shrink-0 text-sm/4.5 text-zinc-500 tabular-nums sm:text-xs/4 dark:text-zinc-400",
             items.length > 0 &&
               "group-has-aria-expanded:invisible group-has-[button:focus-visible]:invisible pointer-fine:group-hover:invisible",
           ]}
@@ -86,7 +87,7 @@
     <p class="flex items-center gap-2">
       <span
         class={[
-          "min-w-0 flex-1 truncate text-sm/5",
+          "min-w-0 flex-1 truncate text-sm/4.5 sm:text-xs/4",
           conversation.unread > 0 ? "text-zinc-700 dark:text-zinc-300" : "text-zinc-500 dark:text-zinc-400",
         ]}
       >
@@ -98,11 +99,13 @@
           {#if author}{`${author}: `}{/if}<MarkdownSnippet text={conversation.lastMessage.text} />
         {/if}
       </span>
-      {#if conversation.unread > 0}
-        <span class="shrink-0 rounded-full bg-action px-1.5 text-xs/5 font-medium text-on-accent tabular-nums">
-          {conversation.unread > 99 ? "99+" : conversation.unread}<span class="sr-only"> unread</span>
-        </span>
-      {/if}
+      <span class="flex w-7 shrink-0 justify-end">
+        {#if conversation.unread > 0}<span
+            class="shrink-0 rounded-full bg-action px-1.5 text-xs/4.5 font-medium text-on-accent tabular-nums"
+          >
+            {conversation.unread > 99 ? "99+" : conversation.unread}<span class="sr-only"> unread</span>
+          </span>{/if}
+      </span>
     </p>
   </div>
 

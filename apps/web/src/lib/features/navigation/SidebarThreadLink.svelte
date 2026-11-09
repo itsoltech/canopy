@@ -1,4 +1,5 @@
 <script lang="ts">
+  import "./sidebar-rows.css";
   import type { ui } from "@canopy/contracts";
   import { tick, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
@@ -107,7 +108,7 @@
             data-result={result.current}
             data-unread={thread.markedUnread || undefined}
             class={[
-              "group focus-ring [-webkit-touch-callout:none]",
+              "sidebar-row group focus-ring [-webkit-touch-callout:none]",
               !away &&
                 needsAttention &&
                 "bg-amber-500/6 inset-ring inset-ring-amber-500/20 dark:bg-amber-400/6 dark:inset-ring-amber-400/15",
@@ -118,8 +119,9 @@
             ]}
           >
             {@render children()}
+            {#if away}<span class="sr-only">Read-only. {away}</span>{/if}
             {#if thread.markedUnread}<span class="sr-only">Unread</span><span
-                class="absolute top-3 right-3 size-1.5 rounded-full bg-brand-500"
+                class="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-brand-500"
                 aria-hidden="true"
               ></span>{/if}
           </a>

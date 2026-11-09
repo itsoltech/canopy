@@ -4,7 +4,7 @@ import { useLayout } from "../../state/layout";
 import type { bots } from "@canopy/contracts";
 import { BotAvatar } from "./BotAvatar";
 import { age } from "../navigation/SidebarThread";
-import { styles, useColors } from "../../ui/theme";
+import { font, styles, useColors } from "../../ui/theme";
 import Animated from "react-native-reanimated";
 import { useMotion } from "../../ui/motion";
 import { Swap } from "../../ui/MotionViews";
@@ -34,35 +34,42 @@ export function BotListItem({ bot }: { bot: bots.Bot }) {
         style={({ pressed }) => ({
           flexDirection: "row",
           alignItems: "center",
-          gap: 12,
+          gap: 10,
           borderRadius: 12,
-          padding: 12,
+          minHeight: 48,
+          paddingHorizontal: 12,
+          paddingVertical: 6,
           backgroundColor: pressed || active ? c.inset : "transparent",
           opacity: home.away ? 0.55 : 1,
         })}
       >
         <BotAvatar bot={bot} />
-        <View style={{ flex: 1, gap: 4 }}>
+        <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
           <View style={[styles.row, { justifyContent: "space-between" }]}>
-            <Text style={[styles.label, { color: c.text, flex: 1 }]} numberOfLines={1}>
+            <Text
+              style={[styles.chrome, { fontFamily: font.medium, color: c.text, flex: 1, minWidth: 0 }]}
+              numberOfLines={1}
+            >
               {bot.configuration?.name}
             </Text>
             <Text style={[styles.caption, { color: c.muted }]}>
               {home.away ? "Read-only" : age(bot.lastMessage?.createdAt?.seconds)}
             </Text>
           </View>
-          <Text numberOfLines={1} style={[styles.meta, { color: c.muted }]}>
+          <Text numberOfLines={1} style={[styles.chromeMeta, { color: c.muted }]}>
             {bot.lastMessage?.text || "Start a conversation"}
           </Text>
         </View>
         {/* The unread count pops in and swaps as it grows (web `pop`, `swap`). */}
-        {bot.unreadCount > 0 && (
-          <Animated.View entering={pop.entering} exiting={pop.exiting}>
-            <Swap value={String(bot.unreadCount)}>
-              <Text style={[styles.caption, { color: c.accent }]}>{bot.unreadCount}</Text>
-            </Swap>
-          </Animated.View>
-        )}
+        <View style={{ width: 28, alignItems: "flex-end" }}>
+          {bot.unreadCount > 0 && (
+            <Animated.View entering={pop.entering} exiting={pop.exiting}>
+              <Swap value={String(bot.unreadCount)}>
+                <Text style={[styles.caption, { color: c.accent }]}>{bot.unreadCount}</Text>
+              </Swap>
+            </Animated.View>
+          )}
+        </View>
         <IconButton icon="ellipsis-horizontal" label="Bot actions" onPress={() => setActions(true)} />
       </Pressable>
       <BotActions bot={bot} visible={actions} onClose={() => setActions(false)} />
