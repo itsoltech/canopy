@@ -1,4 +1,5 @@
 import type { JsonValue } from "@bufbuild/protobuf";
+import { syncMetrics, syncCpu, syncCpuMicros } from "@canopy/transport";
 import { computerFailure } from "./gateway-errors.ts";
 
 /**
@@ -20,9 +21,18 @@ export function sseResponse<T>(
 
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (text: string) => {
+      const send = (text: string, start = syncMetrics && syncCpu()) => {
         try {
-          controller.enqueue(encoder.encode(text));
+          const bytes = encoder.encode(text);
+
+          if (start)
+            syncMetrics?.record(
+              "bff.sse.encode",
+              bytes.length,
+              syncCpuMicros(start),
+              text.startsWith("event: heartbeat") ? "heartbeat" : "",
+            );
+          controller.enqueue(bytes);
         } catch {
           upstream.abort(); // client gone
         }
@@ -32,7 +42,10 @@ export function sseResponse<T>(
       const heartbeat = setInterval(() => send("event: heartbeat\ndata: {}\n\n"), 10_000);
 
       try {
-        for await (const value of source(upstream.signal)) send(`data: ${JSON.stringify(encode(value))}\n\n`);
+        for await (const value of source(upstream.signal)) {
+          const start = syncMetrics && syncCpu();
+          send(`data: ${JSON.stringify(encode(value))}\n\n`, start);
+        }
       } catch (cause) {
         if (!upstream.signal.aborted) {
           if (computerFailure(cause)) send("event: away\ndata: {}\n\n");

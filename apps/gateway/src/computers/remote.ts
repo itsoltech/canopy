@@ -5,6 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Match } from "effect";
 import { nodesOf } from "./remote-ids.ts";
 import { methodNamed, MovedError, movedItems, SERVED } from "./remote-policy.ts";
+import { syncDecode, syncEncode } from "./sync-codec.ts";
 
 export { mapIds, nodesOf, qualify, unqualify } from "./remote-ids.ts";
 
@@ -179,7 +180,7 @@ export class RemoteCalls {
           body: { case: "remoteRequest", value: { callId: id, method: method.name, payload: data, more, ...route } },
         });
 
-      for await (const bytes of channel) yield fromBinary(method.output, bytes);
+      for await (const bytes of channel) yield syncDecode(method.output, bytes, `link.${method.name}`);
     } finally {
       signal.removeEventListener("abort", stop);
 
@@ -305,7 +306,7 @@ export class RemoteCalls {
       for await (const message of this.options.serve(method, request, signal, undefined, route)) {
         if (signal.aborted || this.#closed) return;
 
-        for (const { data, more } of chunks(toBinary(method.output, message)))
+        for (const { data, more } of chunks(syncEncode(method.output, message, `link.${method.name}`)))
           this.options.send({ body: { case: "remoteResponse", value: { callId: id, payload: data, more } } });
       }
 
