@@ -52,7 +52,11 @@ message EnvironmentWorker {
   repeated string plugin_ids = 14;
 }
 
-message AgentEnvironmentRequest {}
+message AgentEnvironmentRequest {
+  // Read an immutable local library version without changing its assignment.
+  string preview_skill_id = 1;
+  uint64 preview_skill_version = 2;
+}
 message GetWorkerEnvironmentRequest { string worker_id = 1; }
 // item to globalny klucz biblioteki, a version_hash wskazuje treść, nie lokalny numer wersji.
 message WorkerEnvironmentOverride {
@@ -91,6 +95,7 @@ message AgentEnvironmentSnapshot {
   repeated LibrarySkill skills = 4;
   repeated EnvironmentMarketplace marketplaces = 5;
   repeated LibraryPlugin plugins = 6;
+  canopy.worker.v1.SkillArtifact preview_skill_artifact = 7;
 }
 
 message MarketplacePlugin {

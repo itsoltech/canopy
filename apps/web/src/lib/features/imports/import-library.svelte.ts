@@ -1,5 +1,6 @@
 import type { ui } from "@canopy/contracts";
 import { listImportLibrary } from "./api.ts";
+import { suggestedImportKeys } from "@canopy/domain/import-look";
 
 /** Kinds that become library skills (a skill name is one skill). */
 const SKILLS: ReadonlySet<string> = new Set(["skill", "command"]);
@@ -25,7 +26,7 @@ export class ImportLibraryState {
 
     try {
       this.items = (await listImportLibrary(scanId)).items;
-      this.chosen = new Map(this.items.filter((i) => i.suggested).map((i) => [i.key, "import"]));
+      this.chosen = new Map(suggestedImportKeys(this.items).map((key) => [key, "import"]));
       this.secrets = new Map();
     } catch (error) {
       this.items = [];

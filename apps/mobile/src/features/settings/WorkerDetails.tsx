@@ -10,6 +10,7 @@ import { WorkerCliSettings } from "./WorkerCliSettings";
 import { WorkerProviderAccounts } from "./WorkerProviderAccounts";
 import { providerName } from "../models/catalog";
 import { useWorkerPresence } from "../computers/presence";
+import { router } from "expo-router";
 
 export function WorkerDetails({
   worker,
@@ -40,6 +41,16 @@ export function WorkerDetails({
   return (
     <ResourceState resource={resource} gap={0}>
       {readOnly ? <Notice>{readOnly} These are the last saved settings.</Notice> : null}
+      {own && worker.cliImport && (
+        <Button
+          title="Import CLI threads"
+          disabled={!worker.online}
+          onPress={() => {
+            onClose();
+            router.push({ pathname: "/settings/[section]", params: { section: "import", worker: worker.id } });
+          }}
+        />
+      )}
       <SettingsSection title="Agent CLIs" description="Nothing changes until you install or update.">
         <WorkerCliSettings worker={worker} readOnly={readOnly} onChanged={onChanged} />
       </SettingsSection>

@@ -1,6 +1,10 @@
 import type { StatusLook } from "./status-look.ts";
 import type { ui } from "@canopy/contracts";
 
+/** Suggested new items start selected; conflicts and secret copies require an explicit choice. */
+export const suggestedImportKeys = (items: readonly ui.ImportLibraryCandidate[]) =>
+  items.flatMap((item) => (item.suggested && item.status === "new" ? [item.key] : []));
+
 /** Words and tones of CLI imports (docs/import.md, docs/copy.md), shared by the web app and the phone app. */
 
 const RUNS = new Map<string, StatusLook>([

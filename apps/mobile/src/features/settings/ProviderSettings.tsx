@@ -8,6 +8,7 @@ import { providerName } from "../models/catalog";
 import { ProviderForm } from "./ProviderForm";
 import { ProviderWorker } from "./ProviderWorker";
 import { ProviderModels } from "./ProviderModels";
+import { MoveEnvironment } from "./MoveEnvironment";
 
 export function ProviderSettings() {
   const resource = useSettingsResource("providers", async (api) => {
@@ -67,6 +68,7 @@ export function ProviderSettings() {
               description={`${providerName(instance.harness)} · ${instance.id} · ${instance.workers.filter((w) => w.enabled).length} ${instance.workers.filter((w) => w.enabled).length === 1 ? "worker" : "workers"}`}
             >
               <SettingsActions>
+                {!scope && <MoveEnvironment instance={instance} onSaved={changed} />}
                 <Button
                   title={scope ? "Edit worker settings" : "Edit definition"}
                   onPress={() => (scope ? setSelected(instance) : setEditing(instance))}

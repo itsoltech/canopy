@@ -8,6 +8,7 @@ import { useSession } from "../../state/session";
 import { Button, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { ConnectorList, useConnectors } from "../connectors/Connectors";
+import { ItemComputerMove } from "../settings/ItemComputerMove";
 
 export function BotSettingsExtras({
   bot,
@@ -23,6 +24,7 @@ export function BotSettingsExtras({
   const c = useColors();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [moving, setMoving] = useState(false);
 
   async function act(remove: boolean) {
     setBusy(true);
@@ -43,6 +45,8 @@ export function BotSettingsExtras({
 
   return (
     <View style={{ gap: 12 }}>
+      {!bot.nodeId && <Button title="Move to a computer" disabled={disabled || busy} onPress={() => setMoving(true)} />}
+      {moving && <ItemComputerMove item={{ kind: "bot", id: bot.id }} onClose={() => setMoving(false)} />}
       <Text style={[styles.heading, { color: c.text }]}>Connections</Text>
       {list ? (
         list.accounts.length ? (

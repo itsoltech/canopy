@@ -32,7 +32,7 @@ export function agentEnvironmentHandlers(
   return {
     getWorkerEnvironment: (r) => workerGuard(() => workerEnvironment(core.environment, r.workerId)),
     setWorkerEnvironmentOverride: (r) => workerGuard(() => setWorkerEnvironmentOverride(core.environment, r)),
-    getAgentEnvironment: () => workerGuard(() => core.environment.snapshot()),
+    getAgentEnvironment: (r) => workerGuard(() => core.environment.snapshot(r)),
     saveInstructionDocument: (r) => workerGuard(() => core.environment.save(r)),
     deleteInstructionDocument: (r) => workerGuard(() => core.environment.remove(r)),
     setEnvironmentTags: (r) => workerGuard(() => core.environment.tags(r)),

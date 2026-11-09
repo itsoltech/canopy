@@ -10,6 +10,7 @@ import { ProgressBar } from "../../ui/ProgressBar";
 import { useColors } from "../../ui/theme";
 import { SettingsActions, SettingsGroup, settingsType } from "./SettingsGroup";
 import { confirmAction, type useSettingsResource } from "./resource";
+import { ImportRunDetails } from "./ImportRunDetails";
 
 function counted(value: number, one: string): string {
   return `${value.toLocaleString("en")} ${value === 1 ? one : `${one}s`}`;
@@ -29,6 +30,7 @@ export function ImportRunGroup({
   const look = importRunLook(run.status);
   const actions = importRunActions(run);
   const [now] = useState(Date.now);
+  const [details, setDetails] = useState(false);
   const date = run.createdAt && timestampDate(run.createdAt);
 
   const dateLabel =
@@ -90,6 +92,8 @@ export function ImportRunGroup({
           </Text>
         ) : null}
       </View>
+      <Button size="sm" title={details ? "Hide details" : "Show details"} onPress={() => setDetails(!details)} />
+      {details && <ImportRunDetails run={run} />}
       {actions.active || actions.retry || actions.removable ? (
         <SettingsActions>
           {actions.active ? (

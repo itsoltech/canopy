@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ui } from "@canopy/contracts";
 import { nodeRef, splitId } from "@canopy/domain/computers";
+import { router } from "expo-router";
 import { Button, Notice } from "../../ui/components";
 import { useOverview } from "../../state/overview";
 import { SettingsGroup, SettingChoice } from "./SettingsGroup";
@@ -8,8 +9,20 @@ import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
 
-export function ComputerMove({ nodeId }: { nodeId: string }) {
-  const resource = useSettingsResource(`move:${nodeId}`, (api) => api.previewMove({ nodeId, everything: true }));
+export type MoveItem = { kind: "thread" | "bot"; id: string };
+
+export function ComputerMove({
+  nodeId,
+  items,
+  onOpened,
+}: {
+  nodeId: string;
+  items?: MoveItem[];
+  onOpened?: () => void;
+}) {
+  const everything = !items;
+  const request = { nodeId, everything, items: items ?? [] };
+  const resource = useSettingsResource(`move:${nodeId}:${JSON.stringify(items)}`, (api) => api.previewMove(request));
   const { projects } = useOverview();
   const [placements, setPlacements] = useState<Record<string, string>>({});
   const [moves, setMoves] = useState<ui.ComputerMove[]>([]);
@@ -72,17 +85,16 @@ export function ComputerMove({ nodeId }: { nodeId: string }) {
         ))}
         <Button
           variant="primary"
-          title="Move everything"
+          title={everything ? "Move everything" : "Move"}
           disabled={!ready || resource.busy || moves.length > 0}
           onPress={() =>
             confirmAction(
-              "Move everything",
+              everything ? "Move everything" : "Move item",
               "Threads and bots move to the selected computer. Review the preview and workspace choices before continuing.",
               () =>
                 void run((api) =>
                   api.startMove({
-                    nodeId,
-                    everything: true,
+                    ...request,
                     placements: projectIds.map((id) => ({ projectId: id, workspaceId: placements[id] })),
                   }),
                 ).then((r) => {
@@ -99,6 +111,21 @@ export function ComputerMove({ nodeId }: { nodeId: string }) {
             description={move.error || move.redo.join(", ")}
           />
         ))}
+        {!everything && !running && moves.length === 1 && moves[0]?.newId && moves[0].state === "done" && (
+          <Button
+            title="Open moved item"
+            onPress={() => {
+              const move = moves[0];
+
+              if (!move?.newId) return;
+              onOpened?.();
+              router.replace({
+                pathname: move.kind === "bot" ? "/bot/[id]" : "/thread/[id]",
+                params: { id: move.newId },
+              });
+            }}
+          />
+        )}
       </SettingsGroup>
     </ResourceState>
   );

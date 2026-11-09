@@ -14,10 +14,11 @@ import { ProjectMark } from "../../ui/ProjectMark";
 import { styles, useColors } from "../../ui/theme";
 import { Skeleton } from "../../ui/Skeleton";
 import { ThreadSearchSheet } from "./ThreadSearchSheet";
+import { ItemComputerMove } from "../settings/ItemComputerMove";
 
 function useThreadActions(thread: ui.Thread | undefined) {
   const { client } = useSession();
-  const [sheet, setSheet] = useState<"actions" | "rename" | "search" | null>(null);
+  const [sheet, setSheet] = useState<"actions" | "rename" | "search" | "move" | null>(null);
   const [title, setTitle] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -128,6 +129,7 @@ export function ThreadHeader({
         goals={Boolean(onGoal)}
         onSelect={(kind) => {
           if (kind === "rename") setSheet("rename");
+          else if (kind === "move") setSheet("move");
           else if (kind === "side") onSideThread();
           else if (kind === "goal") onGoal?.();
           else if (kind === "archive" && !thread?.archivedAt && user?.general?.confirmArchive)
@@ -161,6 +163,9 @@ export function ThreadHeader({
         history={history}
         hasMore={snapshot?.historyHasMore ?? false}
       />
+      {!readOnly && sheet === "move" && thread && (
+        <ItemComputerMove item={{ kind: "thread", id: thread.id }} onClose={() => setSheet(null)} />
+      )}
       {error && sheet === null ? (
         <View style={{ padding: 8 }}>
           <Notice error>{error}</Notice>
@@ -170,7 +175,7 @@ export function ThreadHeader({
   );
 }
 
-type ThreadAction = "side" | "goal" | "rename" | "unread" | "archive";
+type ThreadAction = "side" | "goal" | "rename" | "unread" | "archive" | "move";
 
 function ThreadIdentity({ thread, project }: { thread?: ui.Thread; project?: ui.Project }) {
   const c = useColors();
@@ -239,6 +244,9 @@ function ThreadActionsSheet({
           options: [
             { value: "rename" as const, label: "Rename", icon: "pencil-square" as const },
             { value: "unread" as const, label: "Mark as unread", icon: "chat-bubble-left" as const },
+            ...(!thread?.nodeId
+              ? [{ value: "move" as const, label: "Move to a computer", icon: "arrows-right-left" as const }]
+              : []),
             {
               value: "archive" as const,
               label: thread?.archivedAt ? "Unarchive" : "Archive",

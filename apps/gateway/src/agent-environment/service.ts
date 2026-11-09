@@ -16,7 +16,7 @@ import { automaticTags, checkDocument, compose, foreignWorkers, manualTags } fro
 import { documents, EnvironmentDatabase, revision, workers } from "./database.ts";
 import { putDocument, removeDocument, setTags } from "./mutations.ts";
 import { resolveDrift } from "./drift.ts";
-import { skills } from "./skill-database.ts";
+import { skills, skillVersion } from "./skill-database.ts";
 import { EnvironmentSkills } from "./skills.ts";
 import { skillApplies } from "./skill-assignment.ts";
 import { EnvironmentSources } from "./sources.ts";
@@ -48,8 +48,11 @@ export class AgentEnvironment {
     this.plugins = new EnvironmentPlugins(this);
   }
 
-  async snapshot(): Promise<ui.AgentEnvironmentSnapshot> {
+  async snapshot(request?: ui.AgentEnvironmentRequest): Promise<ui.AgentEnvironmentSnapshot> {
     const owner = this.options.userId;
+
+    if (Boolean(request?.previewSkillId) !== Boolean(request?.previewSkillVersion))
+      throw new ConnectError("Choose a skill and version to preview.", Code.InvalidArgument);
 
     const snapshot = await this.db.run(
       Effect.gen(function* () {
@@ -60,11 +63,19 @@ export class AgentEnvironment {
             yield* sql`INSERT INTO agent_environments (owner_user_id) VALUES (${owner}::uuid) ON CONFLICT DO NOTHING`;
             yield* sql`SELECT revision FROM agent_environments WHERE owner_user_id = ${owner}::uuid FOR SHARE`;
 
+            const library = yield* skills(sql, owner);
+
+            if (request?.previewSkillId && !library.some((skill) => skill.id === request.previewSkillId))
+              return yield* Effect.fail(new ConnectError("Skill not found.", Code.NotFound));
+
             return create(ui.AgentEnvironmentSnapshotSchema, {
               revision: yield* revision(sql, owner),
               documents: yield* documents(sql, owner),
               workers: yield* workers(sql, owner),
-              skills: yield* skills(sql, owner),
+              skills: library,
+              previewSkillArtifact: request?.previewSkillId
+                ? yield* skillVersion(sql, owner, request.previewSkillId, request.previewSkillVersion)
+                : undefined,
               marketplaces: yield* marketplaces(sql, owner),
               plugins: yield* plugins(sql, owner),
             });
