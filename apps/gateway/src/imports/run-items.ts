@@ -1,6 +1,6 @@
 import type { SqlClient } from "effect/sql";
 import type { NewItem } from "./store.ts";
-import { jsonBatches } from "./json-batches.ts";
+import { jsonBatches } from "../json-batches.ts";
 
 function* rows(items: readonly NewItem[]) {
   for (const [position, item] of items.entries()) {

@@ -5,7 +5,8 @@ import type { InstanceRow } from "../store/instance-config.ts";
 import type { ProxyRow } from "../store/proxy-records.ts";
 import { compareClock, nextClock } from "./clock.ts";
 import { compactTombstone } from "./merge.ts";
-import { configLock, emptyRecord, equalValue, saveRecord, type ConfigRow } from "./persistence.ts";
+import { configLock, emptyRecord, equalValue, type ConfigRow } from "./persistence.ts";
+import { saveRecords } from "./record-batches.ts";
 import {
   ENV_FIELD,
   instanceIdentity,
@@ -67,6 +68,7 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
   return Effect.gen(function* () {
     const clock = yield* configLock(sql, owner);
     const state = { observed: clock.hlc };
+    const pending = new Set<ConfigRow>();
 
     const records = [
       ...(yield* sql<ConfigRow>`SELECT * FROM config_items WHERE owner_user_id=${owner}::uuid
@@ -146,7 +148,7 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
 
         if (!changed) return;
         yield* pruneSecrets(sql, owner, row);
-        yield* saveRecord(sql, owner, row, state.observed);
+        pending.add(row);
       });
 
     for (const proxy of proxies) {
@@ -187,9 +189,10 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
       yield* sql`UPDATE config_history SET state='dismissed' WHERE owner_user_id=${owner}::uuid AND kind=${row.kind}
         AND global_id=${row.global_id} AND reason='deleted' AND notice_node_id=${node} AND state='open'`;
       yield* pruneSecrets(sql, owner, row);
-      yield* saveRecord(sql, owner, row, state.observed);
+      pending.add(row);
     }
 
+    yield* saveRecords(sql, owner, pending, state.observed);
     yield* sql`UPDATE config_clock SET hlc=${state.observed} WHERE owner_user_id=${owner}::uuid`;
   });
 }
