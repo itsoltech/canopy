@@ -18,7 +18,7 @@ export function InstructionEditor({
   snapshot: ui.AgentEnvironmentSnapshot;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource(`instruction:${document?.id ?? "new"}`, (api) => api.getAgentEnvironment({}));
+  const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
 
   const [draft, setDraft] = useState(() =>
     create(

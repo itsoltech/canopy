@@ -10,7 +10,7 @@ import { ConnectorAccess } from "./ConnectorAccess";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
 
 export function ConnectorSettings() {
-  const resource = useSettingsResource("connectors", (api) => api.listConnectors({}));
+  const resource = useSettingsResource("ListConnectors", (api) => api.listConnectors({}));
   const [editing, setEditing] = useState<{ type: connectors.ConnectorType; account?: connectors.ConnectorAccount }>();
   const [tools, setTools] = useState<connectors.TestConnectorResponse>();
 

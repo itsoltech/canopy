@@ -128,13 +128,19 @@ export function findChoice(section: ModelSection | undefined, model: string) {
   return choices.find((c) => c.model === model || c.aliases.includes(model));
 }
 
-/** The worker's model catalog, loaded on selection and again when its home reconnects. */
+/**
+ * The worker's model catalog: read once per pairing (or taken from the preload), then kept current by the
+ * stream's `models` updates. Selecting the worker again or reopening a composer reads nothing.
+ */
 export function useModelCatalog(workerId: string | undefined) {
   const { client, modelCatalog } = useSession();
   const online = useOverview().workers.find((worker) => worker.id === workerId)?.online;
   const catalog = useSyncExternalStore(modelCatalog.subscribe, () => modelCatalog.peek(workerId));
   useEffect(() => {
-    if (client && workerId && online) void modelCatalog.load(workerId, true).catch(() => undefined);
+    if (!client || !workerId || !online) return;
+    void modelCatalog.load(workerId).catch(() => undefined);
+
+    return modelCatalog.watch(workerId);
   }, [client, modelCatalog, workerId, online]);
 
   return catalog;

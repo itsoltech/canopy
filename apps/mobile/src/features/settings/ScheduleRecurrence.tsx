@@ -26,7 +26,7 @@ export function ScheduleRecurrence({
   maxRuns: number;
   setMaxRuns: (v: number) => void;
 }) {
-  const resource = useSettingsResource("schedule-preview", (api) => api.listSchedules({}));
+  const resource = useSettingsResource("ListSchedules", (api) => api.listSchedules({}));
   const [preview, setPreview] = useState<ui.PreviewScheduleResponse>();
   const [ends, setEnds] = useState(until ? "until" : maxRuns ? "count" : "never");
   const zones = [...new Set([timezone, "UTC", ...timeZones])];

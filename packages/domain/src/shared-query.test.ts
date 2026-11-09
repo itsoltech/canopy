@@ -135,6 +135,21 @@ describe("shared session reads", () => {
     expect(seen).toContain(undefined);
   });
 
+  test("a new watcher reads a value older than its bound again; a current one is shared", async () => {
+    const cache = new QueryCache({ coalesceMs: 0 });
+    let reads = 0;
+    const fetch = async () => ++reads;
+    cache.watch("GetComputers", fetch, () => {}, 50)();
+    await settle();
+    cache.watch("GetComputers", fetch, () => {}, 50)();
+    await settle();
+    expect(reads).toBe(1);
+    await Bun.sleep(60);
+    cache.watch("GetComputers", fetch, () => {}, 50)();
+    await settle();
+    expect(reads).toBe(2);
+  });
+
   test("unwatched entries stay within the LRU bound", async () => {
     const cache = new QueryCache({ idle: 2, coalesceMs: 0 });
 

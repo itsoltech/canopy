@@ -15,10 +15,8 @@ import { awayReason, formatPresenceTime } from "@canopy/domain/computer-presence
 export function ScheduleSettings() {
   const { threadId } = useLocalSearchParams<{ threadId?: string }>();
 
-  const resource = useSettingsResource(
-    `schedules:${threadId ?? ""}`,
-    (api) => api.listSchedules({ threadId, includeFinished: true }),
-    "ListSchedules",
+  const resource = useSettingsResource(`ListSchedules:${threadId ?? ""}`, (api) =>
+    api.listSchedules({ threadId, includeFinished: true }),
   );
 
   const { computers } = useOverview();

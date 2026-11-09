@@ -5,12 +5,15 @@ import { providerName } from "../models/catalog";
 import { Button, Notice } from "../../ui/components";
 import { SettingsSection, SettingsActions } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
-import { ResourceState, useSettingsResource } from "./resource";
+import { useOverview } from "../../state/overview";
+import { ResourceState, useSettingsAction, workersFollowStream } from "./resource";
 import { useDateTime } from "./display";
 
 export function WorkerProviderAccounts({ worker, readOnly }: { worker: ui.Worker; readOnly: string }) {
-  const resource = useSettingsResource(`worker-accounts:${worker.id}`, (api) => api.getOverview({}));
-  const current = resource.data?.workers.find((w) => w.id === worker.id) ?? worker;
+  // Workers follow the overview stream: their changes after an action arrive there, no read needed.
+  const overview = useOverview();
+  const resource = useSettingsAction(workersFollowStream);
+  const current = overview.workers.find((w) => w.id === worker.id) ?? worker;
   const format = useDateTime();
   const [now, setNow] = useState(() => Date.now());
 

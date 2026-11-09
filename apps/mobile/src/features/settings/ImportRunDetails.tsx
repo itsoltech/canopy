@@ -8,7 +8,7 @@ import { SettingsValue } from "./SettingsValue";
 
 export function ImportRunDetails({ run }: { run: ui.ImportRun }) {
   const resource = useSettingsResource(
-    `import-detail:${run.id}:${run.done}:${run.failed}:${run.cancelled}:${run.bytesDone}:${run.status}:${run.library.map((item) => item.status).join(",")}`,
+    `GetImportRun:${run.id}:${run.done}:${run.failed}:${run.cancelled}:${run.bytesDone}:${run.status}:${run.library.map((item) => item.status).join(",")}`,
     (api) => api.getImportRun({ runId: run.id, items: true }),
   );
 

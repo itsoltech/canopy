@@ -1,71 +1,48 @@
-import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useContext, useRef, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { confirm } from "../../ui/Confirm";
 import type { Client } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
-import { useOverview } from "../../state/overview";
+import { useSharedQuery } from "../../state/queries";
 import { Button, Notice, SheetContent } from "../../ui/components";
 import { SkeletonScope } from "../../ui/Skeleton";
 
 export type SettingsApi = Client<typeof ui.GatewayService>;
 
+/** How old a shared settings read may be when a screen opens; events refresh it sooner. */
+const SETTINGS_MAX_AGE_MS = 30_000;
+
 /**
- * Refetch after mutations, including rejected stale revisions. Never display raw transport diagnostics.
- * Projects, workers and threads follow the overview stream, so a mutation reads only this resource again.
+ * A settings read shared by every screen of the pairing. `key` names the request: the RPC name, then its scope
+ * (`GetComputers`, `ListModels:<worker>`). Screens with the same key share one value and one request; overview
+ * events and linked reads that settle invalidate it by name. A screen opened later reuses a value read in the
+ * last 30 s. A mutation reads only this resource again; projects, workers and threads follow the stream.
+ * Never display raw transport diagnostics.
  */
-export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) => Promise<T>, linkedMethod = "") {
+export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) => Promise<T>) {
   const { client } = useSession();
-  const overview = useOverview();
-  const linkedRevision = overview.linkedReads[linkedMethod] ?? 0;
-  const fetchRef = useRef(fetch);
-  useEffect(() => {
-    fetchRef.current = fetch;
-  }, [fetch]);
-  const generation = useRef(0);
-  const [result, setResult] = useState<{ key: string; data: T }>();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    if (!client) return;
-    const id = ++generation.current;
+  const shared = useSharedQuery<T>(
+    key,
+    () => (client ? fetch(client.api) : Promise.reject(new Error("Not paired"))),
+    Boolean(client),
+    SETTINGS_MAX_AGE_MS,
+  );
 
-    try {
-      const data = await fetchRef.current(client.api);
+  const error = shared.error ? "Could not load settings. Check the connection and retry." : "";
+  const action = useSettingsAction({ reload: shared.reload, error });
 
-      if (id === generation.current) {
-        setResult({ key, data });
-        setError("");
-      }
-    } catch {
-      if (id === generation.current) setError("Could not load settings. Check the connection and retry.");
-    } finally {
-      if (id === generation.current) setLoading(false);
-    }
-  }, [client, key]);
-
-  const reload = useCallback(() => {
-    setLoading(true);
-
-    return load();
-  }, [load]);
-
-  const invalidate = useCallback(() => {
-    generation.current++;
-  }, []);
-
-  useEffect(() => {
-    void load();
-
-    return invalidate;
-  }, [load, invalidate, linkedRevision]);
-
-  const data = result?.key === key ? result.data : undefined;
-  const action = useSettingsAction({ reload, error });
-
-  return { ...action, data, loading, initialLoading: data === undefined && !error };
+  return {
+    ...action,
+    data: shared.data,
+    loading: shared.loading,
+    initialLoading: !shared.loaded && !error,
+  };
 }
+
+/** For actions on workers: the overview stream carries their result. */
+export const workersFollowStream = { reload: async () => {}, error: "", loaded: true };
 
 /** Runs settings mutations one at a time; afterwards only the resource behind them reads again. */
 export function useSettingsAction(resource: { reload: () => Promise<void>; error: string; loaded?: boolean }) {

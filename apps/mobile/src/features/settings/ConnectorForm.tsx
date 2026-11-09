@@ -16,7 +16,7 @@ function useConnectorForm({
   account?: connectors.ConnectorAccount;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource(`connector:${account?.id ?? type.id}`, (api) => api.listConnectors({}));
+  const resource = useSettingsResource("ListConnectors", (api) => api.listConnectors({}));
   const [saved, setSaved] = useState(account);
   const [name, setName] = useState(account?.name ?? "");
   const [url, setUrl] = useState(account?.url ?? type.url);
@@ -311,7 +311,7 @@ function ConnectorOAuthApp({
   type: connectors.ConnectorType;
   method?: connectors.ConnectorAuthMethod;
 }) {
-  const resource = useSettingsResource(`oauth-app:${type.id}`, (api) => api.listConnectors({}));
+  const resource = useSettingsResource("ListConnectors", (api) => api.listConnectors({}));
   const [clientId, setId] = useState("");
   const [secret, setSecret] = useState("");
   const [issuer, setIssuer] = useState("");

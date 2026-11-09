@@ -15,7 +15,7 @@ function useProviderForm({
   harness: Provider;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource(`provider-form:${instance?.id ?? "new"}`, async (api) => {
+  const resource = useSettingsResource("ListProxies+ListWorkerRecords", async (api) => {
     const [proxies, records] = await Promise.all([api.listProxies({}), api.listWorkerRecords({})]);
 
     return { ...proxies, ...records };

@@ -155,6 +155,9 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
         // SAFETY: This entry was built from the ListModels descriptor above.
         return unary(routedOne["listModels"]!, request, context) as Promise<ui.ListModelsResponse>;
 
+      // A plain worker id is this computer's worker: no other home has its catalog.
+      if (request.workerId) return local.listModels(request, context);
+
       const [result, remote] = await Promise.all([
         local.listModels(request, context),
         gather<ui.ListModelsResponse>(core, "ListModels", request, context.signal),

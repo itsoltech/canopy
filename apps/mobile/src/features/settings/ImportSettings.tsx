@@ -9,7 +9,7 @@ import { ResourceState, useSettingsResource } from "./resource";
 /** Settings → Import: choose the computer's CLI sources and manage durable runs. */
 export function ImportSettings() {
   const { worker = "" } = useLocalSearchParams<{ worker?: string }>();
-  const resource = useSettingsResource("imports", (api) => api.listImportRuns({}));
+  const resource = useSettingsResource("ListImportRuns", (api) => api.listImportRuns({}));
   const runs = resource.data?.runs ?? [];
   const active = runs.some((run) => run.status === "running" || run.status === "paused");
   const { reload } = resource;

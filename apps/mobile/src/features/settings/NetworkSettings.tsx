@@ -15,8 +15,8 @@ type Change = (
 ) => Promise<boolean>;
 
 export function NetworkSettings() {
-  const resource = useSettingsResource("network", (api) => api.getNetworkAccess({}));
-  const { data: capabilities } = useSettingsResource("capabilities", (api) => api.getClientCapabilities({}));
+  const resource = useSettingsResource("GetNetworkAccess", (api) => api.getNetworkAccess({}));
+  const { data: capabilities } = useSettingsResource("GetClientCapabilities", (api) => api.getClientCapabilities({}));
   const status = resource.data ?? (resource.initialLoading ? create(ui.NetworkAccessSchema) : undefined);
 
   const change = async (action: string, patch: MessageInitShape<typeof ui.UpdateNetworkAccessRequestSchema> = {}) =>

@@ -27,21 +27,6 @@
   const worker = $derived(
     state.snapshot.workers.find((w) => w.workerId === state.workerId) ?? state.snapshot.workers[0],
   );
-
-  $effect(() =>
-    overview.subscribe((update) => {
-      if (
-        update.change.case === "agentEnvironmentChanged" ||
-        update.change.case === "worker" ||
-        update.change.case === "workerRemoved"
-      )
-        void state.refresh();
-    }),
-  );
-
-  $effect(() => {
-    if (overview.resyncs > 0) void state.refresh();
-  });
 </script>
 
 <div class="settings-stack">

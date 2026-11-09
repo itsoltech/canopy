@@ -24,7 +24,7 @@ export function ScheduleEditor({
   defaultThreadId?: string;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource("schedule-editor", (api) => api.listSchedules({}), "ListSchedules");
+  const resource = useSettingsResource("ListSchedules", (api) => api.listSchedules({}));
   const overview = useOverview();
   const home = useComputerHome(schedule ? splitId(schedule.id).node : undefined);
 

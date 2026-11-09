@@ -17,7 +17,7 @@ export function MarketplaceSettings({
   snapshot: ui.AgentEnvironmentSnapshot;
   onChanged: () => void;
 }) {
-  const resource = useSettingsResource("marketplaces", (api) => api.getAgentEnvironment({}));
+  const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
   const [adding, setAdding] = useState<ui.EnvironmentMarketplace | "new">();
   const [plugin, setPlugin] = useState<{ market: ui.EnvironmentMarketplace; candidate: ui.MarketplacePlugin }>();
 
@@ -130,7 +130,7 @@ function MarketplaceImport({
   revision: bigint;
   onSaved: () => void;
 }) {
-  const resource = useSettingsResource("marketplace-import", (api) => api.listConnectors({}));
+  const resource = useSettingsResource("ListConnectors", (api) => api.listConnectors({}));
   const [command, setCommand] = useState(market?.source?.url ?? "");
   const [account, setAccount] = useState(market?.source?.credentialAccountId ?? "");
   const [preview, setPreview] = useState<ui.MarketplacePreview>();
@@ -214,7 +214,7 @@ function PluginEditor({
     (p) => p.marketplaceId === market.id && p.assignment?.artifact?.name === candidate.artifact?.name,
   );
 
-  const resource = useSettingsResource("plugin-editor", (api) => api.getAgentEnvironment({}));
+  const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
 
   const [assignment, setAssignment] = useState(() =>
     create(

@@ -25,7 +25,7 @@ export function ProjectSettings() {
   const { projects: records, projectChoices: projects, workers, computers, loaded } = useOverview();
   const details = useProjectDetails();
   const workerName = useWorkerLabel();
-  const resource = useSettingsResource("projects", (api) => api.getSettings({}));
+  const resource = useSettingsResource("GetSettings", (api) => api.getSettings({}));
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ui.Project>();
 

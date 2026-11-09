@@ -268,8 +268,16 @@ Pickery zachowują opcje offline: akcje wymagające partnera są wyłączone, a 
 nadal pozwala czytać jego wątki. Jawny snapshot domu, usunięcie i unlink uzgadniają
 usunięcia. Okno historii `WatchThread.page_size` także wysyła lokalny seed od razu,
 zanim liveness rozpozna nieodpowiadające łącze. Katalogi modeli, botów i harmonogramów
-odświeżają zainteresowane ustawienia po `linked_read_completed`; katalog wybranego workera
-jest pobierany ponownie po odzyskaniu połączenia z jego domem.
+odświeżają zainteresowane ustawienia po `linked_read_completed`. Katalog modeli workera jest
+czytany raz na parowanie (albo pochodzi z preloadu listy), potem zastępują go `OverviewUpdate.models`
+ze strumienia; ponowny wybór workera ani nowy kompozytor nic nie czytają. Po przerwie w strumieniu
+katalogi w użyciu czytają się raz ponownie.
+
+Odczyty ekranów Settings (`useSettingsResource`) są współdzielone w parowaniu: klucz to nazwa
+RPC i zakres (`GetComputers`, `ListModels:<worker>`), ekrany z tym samym kluczem dzielą wartość
+i żądanie. Zdarzenia overview unieważniają je po nazwie (`@canopy/domain/shared-query-events`);
+ekran otwarty później użyje wartości młodszej niż 30 s. Edytory kopiują dane do szkicu przy
+otwarciu, więc odświeżenie z innego urządzenia nie niszczy niezapisanych zmian.
 
 ## Android emulator: lokalny development build
 

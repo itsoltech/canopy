@@ -642,7 +642,8 @@ nie zapisuje payloadu, nagłówków uwierzytelniania ani transportowego cause.
 - `GetOverview`: lokalne workery i projekty plus ostatnie znane projekcje partnerów,
   oraz `computers` (800): wszyscy partnerzy z obecnością i capabilities.
 - `ListThreads` bez projektu i `ListModels` bez workera: lokalne plus partnerzy; z kwalifikowanym
-  projektem/workerem — tylko dom.
+  projektem/workerem — tylko dom. `ListModels` z niekwalifikowanym (lokalnym) workerem czyta tylko
+  ten komputer: żaden partner nie ma jego katalogu, więc nie powstaje odczyt partnera.
 - `WatchOverview`: lokalny strumień plus, dla każdego udostępniającego partnera, jego `WatchOverview`
   z `include_snapshot` rozpakowanym do zmian `worker`/`project`/`thread`. Zmiana obecności, nazwy
   albo capabilities partnera to `OverviewUpdate.computer` (800), Unlink — `computer_removed` (801).

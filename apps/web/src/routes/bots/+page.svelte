@@ -79,10 +79,10 @@
     error = "";
 
     try {
+      // Model catalogs stay current through the overview stream (AppShell); only the wizard's lists are read.
       const [providers, list] = await Promise.all([
         requestJson("GET", "/api/providers"),
         requestJson("GET", "/api/bots"),
-        catalogs.reload(),
       ]);
 
       if (current !== request) return;

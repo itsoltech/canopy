@@ -10,7 +10,7 @@ import { presenceTime } from "../computers/presence";
 
 export function ItemComputerMove({ item, onClose }: { item: MoveItem; onClose: () => void }) {
   const { online } = useSession();
-  const resource = useSettingsResource("move-targets", (api) => api.getComputers({}));
+  const resource = useSettingsResource("GetComputers", (api) => api.getComputers({}));
   const [target, setTarget] = useState("");
   const targets = resource.data?.peers.filter((peer) => !peer.viaNodeId) ?? [];
   const local = !splitId(item.id).node;

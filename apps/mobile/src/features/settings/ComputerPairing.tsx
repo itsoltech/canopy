@@ -6,7 +6,7 @@ import { SettingsValue } from "./SettingsValue";
 import { ResourceState, useSettingsResource } from "./resource";
 
 export function ComputerPairing({ onClose }: { onClose: () => void }) {
-  const resource = useSettingsResource("computer-pairing", (api) => api.getComputers({}));
+  const resource = useSettingsResource("GetComputers", (api) => api.getComputers({}));
   const [invitation, setInvitation] = useState<ui.ComputerPairing>();
   const [shareConfig, setShare] = useState(true);
   const [address, setAddress] = useState("");

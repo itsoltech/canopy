@@ -15,7 +15,7 @@
   /** One worker: the same header facts and sections as an expanded worker in Settings → Workers. */
   const route = useSettingsRoute();
   const overview = useOverview();
-  const environment = workerEnvironment(overview);
+  const environment = workerEnvironment();
   const records = workerRecords(overview);
   const id = $derived(route.params.workerId ?? "");
   const record = $derived(records.record(id));

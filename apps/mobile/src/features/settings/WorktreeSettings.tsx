@@ -19,7 +19,7 @@ export function WorktreeSettings() {
   const [focused, setFocused] = useState(initial.worktreeId);
   const scope = { projectId, workerId };
 
-  const resource = useSettingsResource(`worktree-settings:${projectId}:${workerId}`, (api) =>
+  const resource = useSettingsResource(`GetWorktreeSettings:${projectId}:${workerId}`, (api) =>
     api.getWorktreeSettings(scope),
   );
 
@@ -289,7 +289,7 @@ function WorktreeCleanup({ response, busy, save }: Fields) {
 }
 
 function WorktreeList({ scope, worktreeId }: { scope: { projectId: string; workerId: string }; worktreeId?: string }) {
-  const resource = useSettingsResource(`worktrees:${scope.projectId}:${scope.workerId}`, (api) =>
+  const resource = useSettingsResource(`ListWorktrees:${scope.projectId}:${scope.workerId}`, (api) =>
     api.listWorktrees(scope),
   );
 
