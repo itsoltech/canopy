@@ -405,9 +405,9 @@ Skrypt pakowania w razie zmiany kanału odświeża shell i ikonę, zachowując z
 Linux x64, macOS arm64 i Windows x64 są pełnymi celami każdego kanału: nightly,
 beta i stable. Linux arm64 pozostaje eksperymentalny (`continue-on-error`): beta
 i stable budują go zawsze, nightly tylko z `desktop_all_targets: true`.
-Workflow `desktop-windows.yml` przy zmianach kodu lub pakowania buduje
-`package:windows` na `windows-2025`: PR z tego repo wymaga sekretów Azure i kontroli
-podpisów, a PR z forka buduje unsigned i sprawdza odrzucenie przez kontrolę podpisu.
+Windows buduje się, podpisuje i weryfikuje tylko w wydaniu (`release.yml`); PR-y go nie budują.
+Workflow `desktop-windows.yml` uruchamiany ręcznie (`workflow_dispatch`) buduje
+`package:windows` na `windows-2025`, wymaga sekretów Azure i kontroli podpisów.
 Instaluje NSIS i uruchamia zainstalowane
 sidecary gateway/worker z `--version` (ten sam zakres co binarny smoke wydania).
 Nie publikuje tagów ani wydań; artefakt Actions przechowuje przez 3 dni.

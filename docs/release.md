@@ -396,8 +396,8 @@ niego buduje unsigned z notice. Podjęta próba podpisania zawsze wymaga poprawn
 wyniku. Instalator i wszystkie `.exe` paczki (w tym aplikacja i Bun sidecarów)
 muszą przejść `Get-AuthenticodeSignature` ze statusem `Valid` i wydawcą ITSOL;
 błąd blokuje upload Windows. Szczegóły: [desktop.md](desktop.md#podpisywanie-windows).
-PR-only `desktop-windows.yml` buduje na `windows-2025`: podpisuje i weryfikuje
-podpisy dla PR z tego repo; dla forka bez sekretów sprawdza odrzucenie unsigned.
+PR-y nie budują Windows. Ręcznie uruchamiany `desktop-windows.yml` (`workflow_dispatch`) buduje
+na `windows-2025`, podpisuje i weryfikuje podpisy.
 Instaluje NSIS, sprawdza `--version` zainstalowanych gatewaya/workera i zachowuje
 artefakt przez 3 dni, bez publikacji wydania. Nie potwierdza zachowania SmartScreen.
 Konfiguracja certyfikatu macOS włącza obowiązkowy signing,
