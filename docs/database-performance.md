@@ -253,6 +253,22 @@ Przed porównaniem wersji należy zakończyć inne własne benchmarki, testy i b
 Regresja wymaga profilu i porównania wszystkich serii, z zachowaniem niekorzystnych
 wyników; sam spadek liczby zapytań nie zamyka weryfikacji wydajności.
 
+Synchronizacja biblioteki odczytuje brakujące hashe bez przesyłania pełnych pól
+i zegarów rekordów. Najpierw usuwa powtórzenia referencji, następnie sprawdza
+format hashy i ich obecność w trzech tabelach biblioteki właściciela. Walidacja
+każdego powtórzonego klucza osobno może kosztować więcej niż dawny odczyt JSON.
+Ponowne zastosowanie biblioteki pobiera tylko żywe rekordy oczekujące albo
+nazywające właśnie otrzymaną treść; marketplace nadal jest stosowany przed pluginem.
+Częściowy tombstone z niepustymi polami pozostaje żywy. Przed odczytem artefaktów
+wersji sprawdzana jest grupowo obecność hashy: brak pliku nie powoduje zapytania
+o jego treść dla każdej wersji. Treść istniejąca w innej części biblioteki tego
+samego właściciela nadal jest ponownie weryfikowana i używana.
+
+`bun scripts/bench/config-blobs.ts --run` mierzy te ścieżki na 129 rekordach
+z 64 wspólnymi brakującymi wersjami, w tym jednym oczekującym rekordzie. Wykonuje
+trzy serie po dwa rozgrzania i 20 próbek, następnie osobny przebieg planów
+z wycofaniem zmian. Transfer treści i transport między komputerami nie są mierzone.
+
 Przyjęcie świeżego importu i jego biblioteki używa typowanego
 `jsonb_to_recordset`, do 128 pozycji lub około 512 KiB JSON na partię. Pojedyncza
 wcześniej zwalidowana duża pozycja może przekroczyć cel bajtowy. Pozycje zachowują

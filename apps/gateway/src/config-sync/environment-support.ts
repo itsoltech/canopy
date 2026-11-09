@@ -7,7 +7,7 @@ import type { ConfigRow } from "./persistence.ts";
 import { NOT_SUPPORTED } from "./provider-apply.ts";
 import type { Values } from "./provider-values.ts";
 import { isVersion, versionHashes } from "./environment-values.ts";
-import { localBlob, verifiedArtifact, type Blobs } from "./environment-blobs.ts";
+import { localBlob, presentBlobHashes, verifiedArtifact, type Blobs } from "./environment-blobs.ts";
 
 const options = { ignoreUnknownFields: true };
 
@@ -70,11 +70,23 @@ export function storeVersions(
   plugin: boolean,
 ) {
   return Effect.gen(function* () {
-    for (const hash of versionHashes(values)) {
+    const installed = new Set(local.map((version) => version.content_hash));
+
+    const pending = versionHashes(values).filter(
+      (hash) => isVersion(values[`version.${hash}`]) && !installed.has(hash),
+    );
+
+    const available = yield* presentBlobHashes(
+      sql,
+      owner,
+      pending.filter((hash) => !blobs.has(hash)),
+    );
+
+    for (const hash of pending) {
       const version = values[`version.${hash}`];
 
-      if (!isVersion(version) || local.some((l) => l.content_hash === hash)) continue;
-      const bytes = blobs.get(hash) ?? (yield* localBlob(sql, owner, hash));
+      if (!isVersion(version)) continue;
+      const bytes = blobs.get(hash) ?? (available.has(hash) ? yield* localBlob(sql, owner, hash) : undefined);
 
       if (!bytes) continue;
       const verified = verifiedArtifact(bytes, hash, version.checksum, plugin);
