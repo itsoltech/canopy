@@ -1,6 +1,8 @@
 import type { ModelOption } from "#lib/features/models/catalog.ts";
 import type { ProviderKey } from "#lib/features/threads/providers.ts";
-import { normalizeColor, type BotAppearance } from "../mascot.ts";
+import type { BotAppearance } from "../mascot.ts";
+
+export { nameError, appearanceError } from "@canopy/domain/bot-draft";
 
 /** Adapter boundary: the caller supplies available instances and their existing picker options. */
 export interface BotProviderInstance {
@@ -22,38 +24,6 @@ export interface CreateBotDraft extends BotAppearanceDraft {
   model: string;
   /** undefined means the selected model's default. */
   effort: string | undefined;
-}
-
-/** Ignore exactly one original name when editing; other duplicates still count. */
-export function nameError(name: string, existingNames: readonly string[], originalName?: string): string | undefined {
-  const key = (value: string) => value.trim().normalize("NFC").toLowerCase();
-  const normalized = key(name);
-
-  if (!normalized) return "Give your bot a name.";
-  let skippedOriginal = false;
-
-  const duplicate = existingNames.some((existing) => {
-    if (!skippedOriginal && originalName !== undefined && key(existing) === key(originalName)) {
-      skippedOriginal = true;
-
-      return false;
-    }
-
-    return key(existing) === normalized;
-  });
-
-  return duplicate ? "A bot with this name already exists. Choose another name." : undefined;
-}
-
-export function appearanceError(
-  draft: BotAppearanceDraft,
-  existingNames: readonly string[],
-  originalName?: string,
-): string | undefined {
-  return (
-    nameError(draft.name, existingNames, originalName) ??
-    (!normalizeColor(draft.color) ? "Enter a color as #RGB or #RRGGBB." : undefined)
-  );
 }
 
 /** Revalidate against live props immediately before invoking the caller. */

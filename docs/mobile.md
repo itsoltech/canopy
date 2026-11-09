@@ -505,6 +505,17 @@ działającego OTA ustala wiersz Updates; manifesty i historię grup pokazuje EA
 
 ## Interfejs zgodny z web
 
+Panel bota pozwala wstrzymać/włączyć i usunąć rutynę oraz anulować przypomnienie.
+Usunięcie rutyny wymaga potwierdzenia. Akcje są dostępne wyłącznie przy aktywnym
+odczycie rozmowy i dostępnym domu. Menu bota (przycisk lub długie przytrzymanie
+wiersza) obsługuje przypinanie, edycję, archiwizację, usuwanie i przenoszenie.
+Sekcja **Archived bots** udostępnia archiwum i przywracanie rozmów.
+
+Kreator otwiera wybór pierwszego modelu. Walidacja nazwy (w tym duplikatów)
+i normalizacja koloru `#RGB`/`#RRGGBB` są wspólne z kreatorem web w `domain/bot-draft`.
+Gateway nadal waliduje zapis. Oczekująca karta zgody oferuje **Change approval policy**
+przez istniejący `UpdateBot`; zmiana polityki nie stanowi odpowiedzi na kartę.
+
 Telefon pokazuje szczegóły każdego importu (`GetImportRun`), błędy pozycji i akcję
 **Open thread**. Nowe pozycje biblioteki sugerowane przez gateway są zaznaczone;
 konflikty i kopiowanie sekretów wymagają osobnego wyboru. **Import CLI threads**

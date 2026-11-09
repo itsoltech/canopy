@@ -13,6 +13,7 @@ import { styles, useColors } from "../../ui/theme";
 import Animated from "react-native-reanimated";
 import { useMotion } from "../../ui/motion";
 import { Swap } from "../../ui/MotionViews";
+import { BotApprovalPolicy } from "./BotApprovalPolicy";
 
 type ApprovalCardProps = {
   approval: bots.BotApproval;
@@ -95,6 +96,12 @@ export function ApprovalCard({ approval, readOnly = false, onAnswer }: ApprovalC
         </Text>
         <RequestCountdown expiresAt={approval.expiresAt} pending={!expired} style={{ textAlign: "right" }} />
       </View>
+      {!question && (
+        <BotApprovalPolicy
+          botId={approval.botId}
+          disabled={readOnly || busy || approval.status !== "pending" || expired}
+        />
+      )}
       <Text selectable style={[styles.body, { color: c.text }]}>
         {approval.prompt}
       </Text>

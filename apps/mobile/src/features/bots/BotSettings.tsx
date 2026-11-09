@@ -9,6 +9,9 @@ import { BotPermissionSettings } from "./BotPermissionSettings";
 import { BotModelSettings } from "./BotModelSettings";
 import { BotAppearanceSettings } from "./BotAppearanceSettings";
 import { BotSettingsExtras } from "./BotSettingsExtras";
+import { appearanceError, normalizeColor } from "@canopy/domain/bot-draft";
+import { useSettingsResource } from "../settings/resource";
+import { useComputerHome } from "../computers/presence";
 
 export function BotSettings({
   bot,
@@ -22,12 +25,21 @@ export function BotSettings({
   onClose: () => void;
 }) {
   const { client, online, bots: known, updateBots } = useSession();
+  const home = useComputerHome(bot.nodeId);
+  const names = useSettingsResource(`bot-names:${bot.id}`, (api) => api.listBots({ includeArchived: true }));
   const [config, setConfig] = useState(() => create(bots.BotConfigurationSchema, bot.configuration));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const saving = useRef(false);
   const pending = useRef({ configuration: "", id: "" });
-  const valid = !!config.name.trim() && !!config.model && !!config.provider && /^#[0-9a-f]{6}$/i.test(config.color);
+
+  const draftError = appearanceError(
+    config,
+    (names.data?.bots ?? known).filter((row) => row.nodeId === bot.nodeId).map((row) => row.configuration?.name ?? ""),
+    creating ? undefined : bot.configuration?.name,
+  );
+
+  const valid = !home.away && !draftError && !!config.model && !!config.provider;
 
   async function save() {
     if (!client || !online || !valid || saving.current) return;
@@ -36,14 +48,20 @@ export function BotSettings({
     setError("");
 
     try {
-      if (creating) {
-        const configuration = JSON.stringify(config);
+      const configuration = create(bots.BotConfigurationSchema, {
+        ...config,
+        color: normalizeColor(config.color) ?? config.color,
+        name: config.name.trim(),
+      });
 
-        if (pending.current.configuration !== configuration)
-          pending.current = { configuration, id: Crypto.randomUUID() };
+      if (creating) {
+        const serialized = JSON.stringify(configuration);
+
+        if (pending.current.configuration !== serialized)
+          pending.current = { configuration: serialized, id: Crypto.randomUUID() };
 
         const result = await client.api.createBot(
-          { configuration: config, clientRequestId: pending.current.id },
+          { configuration, clientRequestId: pending.current.id },
           { timeoutMs: 20_000 },
         );
 
@@ -57,7 +75,7 @@ export function BotSettings({
         return;
       }
 
-      await client.api.updateBot({ botId: bot.id, configuration: config }, { timeoutMs: 20_000 });
+      await client.api.updateBot({ botId: bot.id, configuration }, { timeoutMs: 20_000 });
       onClose();
     } catch {
       setError(
@@ -95,7 +113,8 @@ export function BotSettings({
         maxLength={32000}
       />
       <BotAppearanceSettings config={config} onChange={setConfig} disabled={busy} />
-      <BotModelSettings bot={bot} config={config} onChange={setConfig} disabled={busy} />
+      <BotModelSettings bot={bot} config={config} onChange={setConfig} disabled={busy || home.away} guided={creating} />
+      {config.name.trim() && draftError ? <Notice error>{draftError}</Notice> : null}
       <BotPermissionSettings
         botId={creating ? undefined : bot.id}
         selectedRule={selectedRule}
@@ -111,7 +130,7 @@ export function BotSettings({
         disabled={!online || !valid}
         onPress={() => void save()}
       />
-      {!creating && <BotSettingsExtras bot={bot} onClose={onClose} disabled={busy} />}
+      {!creating && <BotSettingsExtras bot={bot} onClose={onClose} disabled={busy || home.away || !online} />}
     </Sheet>
   );
 }

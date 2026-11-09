@@ -27,11 +27,10 @@ import { useProjectDetails } from "../computers/project-details";
 import { CreateBot } from "../bots/CreateBot";
 
 function useSidebarState() {
-  const { session, client, ready, updateBots } = useSession();
+  const { session, client, ready, updateBots, bots } = useSession();
   const { projects, workers, loaded, stream } = useOverview();
   const [section, setSection] = useState<"threads" | "bots">("threads");
   const [queries, setQueries] = useState({ threads: "", bots: "" });
-  const [bots, setBots] = useState<botContract.Bot[]>([]);
   const [botError, setBotError] = useState("");
   const [botsLoaded, setBotsLoaded] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -49,10 +48,9 @@ function useSidebarState() {
 
     const load = () =>
       void client.api
-        .listBots({})
+        .listBots({ includeArchived: true })
         .then((r) => {
           if (active) {
-            setBots(r.bots);
             updateBots(r.bots);
             setBotError("");
             setBotsLoaded(true);
@@ -249,6 +247,14 @@ function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const pinned = useAppearance().user?.sidebar?.pinnedBotIds ?? [];
   const { layout } = useMotion();
   const { query, bots, botError, botsLoaded } = state;
+  const [archivedOpen, setArchivedOpen] = useState(false);
+
+  const archived = orderBots(
+    bots.filter(
+      (bot) => bot.archived && `${bot.configuration?.name} ${bot.lastMessage?.text}`.toLowerCase().includes(query),
+    ),
+    [],
+  );
 
   const shownBots = orderBots(
     bots.filter((b) => !b.archived && `${b.configuration?.name} ${b.lastMessage?.text}`.toLowerCase().includes(query)),
@@ -290,6 +296,18 @@ function BotList({ state }: { state: ReturnType<typeof useSidebarState> }) {
             )}
           </View>
         )
+      }
+      ListFooterComponent={
+        archived.length ? (
+          <View style={{ gap: 8 }}>
+            <Button
+              variant="ghost"
+              title={`${archivedOpen ? "Hide" : "Show"} archived bots · ${archived.length}`}
+              onPress={() => setArchivedOpen(!archivedOpen)}
+            />
+            {archivedOpen && archived.map((bot) => <BotListItem key={bot.id} bot={bot} />)}
+          </View>
+        ) : undefined
       }
     />
   );

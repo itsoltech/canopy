@@ -102,7 +102,7 @@
 
     if (busy || (!editing && (loading || loadError))) return;
     submitted = true;
-    error = appearanceError({ name, shape, color }, existingNames, initial?.name);
+    error = appearanceError({ name, color }, existingNames, initial?.name);
 
     if (error) {
       if (!normalizeColor(color)) appearanceOpen = true;
