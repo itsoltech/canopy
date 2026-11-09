@@ -122,6 +122,28 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
     expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === t.worktree!.id)?.removed).toBe(true);
   });
 
+  test("inactive cleanup preserves a worktree when an older turn completed recently", async () => {
+    const t = await f.tree();
+    const old = new Date(Date.now() - 20 * 86_400_000);
+    const recent = new Date(Date.now() - 86_400_000);
+    await f.settings({ cleanupInactiveDays: 7 });
+    await f.sql((sql) => sql`UPDATE threads SET created_at=${old} WHERE id=${t.id}::uuid`);
+    await f.sql((sql) => sql`UPDATE worktrees SET last_used_at=${old} WHERE id=${t.worktree!.id}::uuid`);
+    await f.sql(
+      (sql) => sql`INSERT INTO turns(id,thread_id,ordinal,trigger,author_user_id,input,status,first_seq,last_seq,
+      queued_at,started_at,completed_at) VALUES
+      (${crypto.randomUUID()}::uuid,${t.id}::uuid,1,'user',${f.gw.userId}::uuid,'{}','completed',1,1,${old},NULL,${recent}),
+      (${crypto.randomUUID()}::uuid,${t.id}::uuid,2,'user',${f.gw.userId}::uuid,'{}','completed',2,2,${old},NULL,NULL)`,
+    );
+
+    const inventory = await f.gw.runtime.runPromise(
+      GatewayStore.use((s) => s.worktreeInventory(f.gw.userId, "", "", t.worktree!.id)),
+    );
+
+    expect(new Date(inventory[0]!.last_activity_at).getTime()).toBe(recent.getTime());
+    expect((await f.cleanup()).entries.find((e) => e.worktree?.id === t.worktree!.id)?.wouldRemove).toBe(false);
+  });
+
   test("dirty files require explicit confirmation even with keep-local-changes off; branch survives", async () => {
     const t = await f.tree();
     writeFileSync(join(t.cwd, "local.txt"), "do not lose");
