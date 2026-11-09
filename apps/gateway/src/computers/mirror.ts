@@ -2,7 +2,7 @@ import { create, fromBinary, toBinary, type Message } from "@bufbuild/protobuf";
 import { computerLink as link, ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { setTimeout as delay } from "node:timers/promises";
-import { commitMirrorUpdate, type State } from "./mirror-persistence.ts";
+import { commitMirrorUpdate, registerMirrorGeneration, type State } from "./mirror-persistence.ts";
 import { mirrorJournal } from "./mirror-journal.ts";
 import { deltaFrames, mirrorThreadSnapshot, safeOverview, snapshotFrames } from "./mirror-projection.ts";
 import { linkedMessage, methodNamed, qualify, type RemoteServe } from "./remote.ts";
@@ -189,6 +189,11 @@ export class ThreadMirror {
           )
             throw mismatch();
           generation = crypto.randomUUID();
+
+          if (
+            !(await this.store.runtime.runPromise(registerMirrorGeneration(this.store.owner, node, generation, state)))
+          )
+            throw new ConnectError("Thread mirror subscription superseded", Code.Aborted);
           resetting = true;
           overview = null;
         }
@@ -241,9 +246,9 @@ export class ThreadMirror {
     } finally {
       if (resetting)
         await this.store.query(
-          `DELETE FROM computer_mirror_threads t WHERE owner_user_id=$1::uuid AND origin_node_id=$2 AND generation=$3::uuid
-        AND NOT EXISTS(SELECT 1 FROM computer_mirror_state s WHERE s.owner_user_id=t.owner_user_id AND s.origin_node_id=t.origin_node_id AND s.generation=t.generation)`,
-          [this.store.owner, node, generation],
+          `UPDATE computer_mirror_generations SET lease_until=now() WHERE owner_user_id=$1::uuid AND origin_node_id=$2
+          AND generation=$3::uuid AND subscription_id=$4::uuid`,
+          [this.store.owner, node, generation, state.subscription_id],
         );
     }
   }

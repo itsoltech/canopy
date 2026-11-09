@@ -16,6 +16,7 @@ import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { linkClient } from "../../apps/gateway/src/computers/transport.ts";
+import { pruneDatabase } from "../../apps/gateway/src/maintenance/prune.ts";
 import {
   eventually as poll,
   failure,
@@ -349,6 +350,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
 
     expect(names.map((n) => n.table_name).toSorted()).toEqual([
       "computer_mirror_bots",
+      "computer_mirror_generations",
       "computer_mirror_state",
       "computer_mirror_threads",
     ]);
@@ -657,6 +659,13 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     expect((await la.mirror.state(node))!.generation).toBe(state.generation);
     expect((await la.mirror.state(node))!.cursor).toBe(state.cursor);
     expect((await a.api.getThread({ threadId: q(thread) })).thread?.title).toBe("After journal pruning");
+
+    // Cleanup is now deferred and bounded; no partial generation becomes readable while it waits.
+    for (let i = 0; i < 16; i++) {
+      await sa.query("UPDATE database_maintenance SET next_run_at=now() WHERE owner_user_id=$1::uuid", [a.userId]);
+      await a.runtime.runPromise(pruneDatabase(a.userId));
+    }
+
     expect(
       (await sa.query("SELECT DISTINCT generation FROM computer_mirror_threads WHERE origin_node_id=$1", [node]))
         .length,

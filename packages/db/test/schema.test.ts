@@ -115,6 +115,8 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       "101_composer_turn_choices",
       "102_bot_composer",
       "103_queue_read_indexes",
+      "104_database_retention",
+      "105_retention_indexes",
     ]);
   }, 60_000);
 
