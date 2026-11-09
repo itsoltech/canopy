@@ -1,1 +1,1 @@
-export { migrate, migrations } from "./migrations/index.ts";
+export { migrate, migrateOnline, migrations } from "./migrations/index.ts";

@@ -1,5 +1,5 @@
 import { PgClient } from "@effect/sql-pg";
-import { migrate } from "@canopy/db";
+import { migrate, migrateOnline } from "@canopy/db";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
 import { BotStore } from "./bots/store.ts";
 import {
@@ -49,8 +49,15 @@ export function gatewayServices(secretsKey: Buffer) {
 export type GatewayRuntime = ReturnType<typeof gatewayRuntime>;
 
 /** Applies pending migrations (development; production runs them as a separate deploy step). */
-export async function migrateDatabase(runtime: GatewayRuntime): Promise<string[]> {
-  const applied = await runtime.runPromise(migrate);
+export async function migrateDatabase(
+  runtime: GatewayRuntime,
+  env: Readonly<Record<string, string | undefined>> = {},
+): Promise<string[]> {
+  const mode = env["CANOPY_DATABASE_INDEX_MODE"] ?? "blocking";
+
+  if (mode !== "blocking" && mode !== "concurrent")
+    throw new Error("CANOPY_DATABASE_INDEX_MODE must be blocking or concurrent");
+  const applied = await runtime.runPromise(mode === "concurrent" ? migrateOnline : migrate);
 
   return applied.map(([id, name]) => `${id}_${name}`);
 }

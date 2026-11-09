@@ -135,14 +135,31 @@ Migracja `0100_history_read_indexes` dodaje indeksy:
 | `thread_events_notices` | ostatnie komunikaty bez skanowania transkryptu |
 
 Migrator wykonuje migracje w transakcji z blokadą, więc nie można użyć
-`CREATE INDEX CONCURRENTLY`. Istniejąca migracja `0098_thread_read_metadata`
+`CREATE INDEX CONCURRENTLY` wewnątrz migracji schematu. Od `0103` nowe indeksy
+wydajnościowe mogą być zarejestrowane jako zadania wykonywane po jej zatwierdzeniu.
+`CANOPY_DATABASE_INDEX_MODE=concurrent` wybiera budowanie online; domyślne `blocking`
+zachowuje zwykłe budowanie. Każde uruchomienie sprawdza definicję i poprawność indeksu,
+także gdy numer migracji jest już zapisany. Przerwany build jest bezpiecznie ponawiany.
+Nie dotyczy to indeksów unikalnych ani ograniczeń. Procedura: [deploy.md](deploy.md).
+
+Istniejąca migracja `0098_thread_read_metadata`
 opróżnia odroczone zdarzenia triggerów po wcześniejszych naprawach danych.
 Indeks aktywności również pochodzi z 0098 i nie jest tutaj powielany.
 Zwykłe budowanie indeksu blokuje zapisy do danej
 tabeli; duża baza serwerowa wymaga okna utrzymaniowego. Dla wdrożeń bez takiego
-okna potrzebna jest osobna procedura migracji online, obejmująca także odtworzenie
-po nieudanym budowaniu. Indeksy zwiększają koszt zapisów i zajętość dysku;
+okna dla starszych migracji nadal potrzebna jest osobna procedura operacyjna.
+Indeksy zwiększają koszt zapisów i zajętość dysku;
 benchmark obejmuje również send/steer/import, żeby uwidocznić ten kompromis.
+
+Odczyt outboxa pobiera metadane do 64 kandydatów, wylicza budżet około 512 KiB,
+a dopiero potem pobiera i dekoduje payloady. Pojedyncza większa komenda przechodzi,
+żeby nie zatrzymać kolejki. Kolejność `(created_at, id)` i stronicowanie po trwałym id
+zachowują wszystkie komendy, także przy jednakowych timestampach i zakończeniu komendy
+stanowiącej kursor. Indeks `worker_commands_redelivery` zastępuje krótszy indeks
+`worker_commands_open` dopiero po poprawnym zbudowaniu. Ponowne dostarczanie ma do
+64 komend w locie i pobiera dalsze strony po odpowiedziach. Zmiana połączenia kończy
+stary drain; restart odtwarza oczekujące komendy z bazy. Kolejka nie potrzebuje nowego
+claimu SQL: ogrodzenie połączenia workera i deduplikacja po id pozostają obowiązujące.
 
 Transkrypty, itemy, importy, audyt i zakończone komendy nie są danymi do usuwania
 wyłącznie według wieku. Zakończone `worker_commands` uczestniczą m.in. w

@@ -5,6 +5,11 @@ import type { SqlClient } from "effect/sql";
 import type { Fx } from "./errors.ts";
 import type { OutboxRow } from "./rows.ts";
 
+export interface PendingCommand {
+  readonly command: Command;
+  readonly expiresAt: Date;
+}
+
 export interface OutboxStore {
   enqueueCommand(input: {
     workerId: string;
@@ -13,7 +18,8 @@ export interface OutboxStore {
     command: MessageInitShape<typeof CommandSchema>;
     ttlSeconds: number;
   }): Fx<Command>;
-  pendingCommands(workerId: string): Fx<Command[]>;
+  /** Ordered keyset page, at most 2048 commands / about 512 KiB (one oversized command makes progress). */
+  pendingCommands(workerId: string, afterId?: string): Fx<PendingCommand[]>;
   commandDone(commandId: string, ok: boolean, result: JsonValue): Fx<void>;
 }
 
@@ -33,11 +39,28 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
         return message;
       }),
 
-    pendingCommands: (workerId) =>
-      sql<OutboxRow>`
-              SELECT id, worker_id, thread_id, turn_id, kind, payload FROM worker_commands
-               WHERE worker_id = ${workerId}::uuid AND status IN ('pending', 'delivered') AND expires_at > now() ORDER BY created_at`.pipe(
-        Effect.map((rows) => rows.map((r) => fromBinary(CommandSchema, r.payload))),
+    pendingCommands: (workerId, afterId) =>
+      sql<Pick<OutboxRow, "id" | "payload"> & { expires_at: Date }>`
+        WITH candidates AS MATERIALIZED (
+          SELECT id, payload, created_at, expires_at FROM worker_commands
+          WHERE worker_id = ${workerId}::uuid AND status IN ('pending', 'delivered') AND expires_at > now()
+          ${afterId ? sql`AND (created_at, id) > (SELECT created_at, id FROM worker_commands WHERE id = ${afterId}::uuid AND worker_id = ${workerId}::uuid)` : sql``}
+          ORDER BY created_at, id LIMIT 2048
+        ), budget AS (
+          SELECT b.*, coalesce(sum(octet_length(b.payload)) OVER
+            (ORDER BY b.created_at,b.id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS preceding_bytes
+          FROM candidates b
+        )
+        SELECT b.id,b.payload,b.expires_at FROM budget b
+        WHERE b.preceding_bytes < 524288 ORDER BY b.created_at,b.id`.pipe(
+        Effect.map((rows) =>
+          rows.map((row) => {
+            const command = fromBinary(CommandSchema, row.payload);
+            command.commandId = row.id;
+
+            return { command, expiresAt: row.expires_at };
+          }),
+        ),
       ),
 
     commandDone: (commandId, ok, result) =>

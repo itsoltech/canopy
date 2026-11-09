@@ -809,7 +809,7 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     );
 
     expect(delivered).toBeGreaterThan(0);
-    const starts = commands.filter((c) => c.kind.case === "startTurn" && c.kind.value.turnId === turn.id);
+    const starts = commands.filter(({ command: c }) => c.kind.case === "startTurn" && c.kind.value.turnId === turn.id);
     expect(starts.length).toBeLessThanOrEqual(1);
 
     const echoes = await eventually(

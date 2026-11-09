@@ -5,6 +5,7 @@ import { STEER_ATTACHMENTS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { CommandResultSchema, CommandSchema, type Command, type CommandResult } from "@canopy/contracts";
 import { AgentBusStore, GatewayStore, SteerStore } from "../store/index.ts";
 import { BotStore } from "../bots/store.ts";
+import type { PendingCommand } from "../store/outbox.ts";
 import { coreState, HARNESS_ERROR_CODES, SETTLE_TURN_ENDED } from "./core-context.ts";
 import { coreEndLostTurns, coreSettle } from "./core-work-loop.ts";
 import { fullAccessRefusal } from "./full-access.ts";
@@ -14,9 +15,34 @@ import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core
 import { coreBroadcastGoal, coreGoalAnswered, coreGoals } from "./core-goals.ts";
 
 export async function coreRedeliver(hostContext: GatewayCore, workerId: string): Promise<void> {
+  const connection = hostContext.link.connections.get(workerId);
   const commands = await coreRun(hostContext, (s) => s.pendingCommands(workerId));
 
-  for (const command of commands) void coreDeliver(hostContext, workerId, command);
+  // Return after dispatching the first batch so the worker event loop can start immediately.
+  // A bounded SQL page amortizes reads; ACKs/disconnects free each 64-command batch.
+  const drain = async (page: PendingCommand[]) => {
+    while (page.length && connection?.isOpen && hostContext.link.connections.get(workerId) === connection) {
+      const after = page.at(-1)!.command.commandId;
+
+      for (let offset = 0; offset < page.length; offset += 64) {
+        if (!connection.isOpen || hostContext.link.connections.get(workerId) !== connection) return;
+        await Promise.all(
+          page
+            .slice(offset, offset + 64)
+            .map((pending) =>
+              pending.expiresAt.getTime() > Date.now()
+                ? coreDeliver(hostContext, workerId, pending.command)
+                : undefined,
+            ),
+        );
+      }
+
+      if (!connection.isOpen || hostContext.link.connections.get(workerId) !== connection) return;
+      page = await coreRun(hostContext, (s) => s.pendingCommands(workerId, after));
+    }
+  };
+
+  void drain(commands).catch(() => coreLog(hostContext, `outbox redelivery of ${workerId} will retry on reconnect`));
 }
 
 // ------------------------------------------------------------------ commands
