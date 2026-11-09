@@ -170,6 +170,37 @@ describe.skipIf(!dockerAvailable)("mentions", () => {
       expect(found.threads.map((t) => t.id)).not.toContain(b.id);
       expect((await api.searchThreads({ query: "pauli" })).threads[0]?.id).toBe(a.id);
     });
+
+    test("search ranks headers without reading other owners, archived threads or unmatched history", async () => {
+      const first = await newThread("Database search candidate");
+      const second = await newThread("Database search candidate");
+      const archived = await newThread("Database search candidate archived");
+      const foreign = Bun.randomUUIDv7();
+      const foreignThread = Bun.randomUUIDv7();
+      const query = (text: string, params: unknown[] = []) => gw.core.linkedAgents.query(text, params);
+      await query(`INSERT INTO users(id,email,display_name,role) VALUES($1::uuid,$2,'Other','user')`, [
+        foreign,
+        `${foreign}@example.test`,
+      ]);
+      await query(
+        `INSERT INTO threads(id,root_thread_id,owner_user_id,project_id,kind,runtime,provider,worker_id,workspace_id,cwd,status,title)
+        SELECT $1::uuid,$1::uuid,$2::uuid,project_id,kind,runtime,provider,worker_id,workspace_id,cwd,status,title
+        FROM threads WHERE id=$3::uuid`,
+        [foreignThread, foreign, first.id],
+      );
+      await query(`UPDATE threads SET archived_at=now() WHERE id=$1::uuid`, [archived.id]);
+      // Stable equal-score ordering follows activity, including the queue, without reading transcript payloads.
+      await query(
+        `INSERT INTO turns(id,thread_id,ordinal,trigger,author_user_id,input,queued_at)
+        VALUES($1::uuid,$2::uuid,1,'user',$3::uuid,'{}','2030-01-01')`,
+        [Bun.randomUUIDv7(), second.id, gw.userId],
+      );
+      const found = await api.searchThreads({ query: "Database search candidate", limit: 1 });
+      expect(found.threads.map((t) => t.id)).toEqual([second.id]);
+      const excluded = await api.searchThreads({ query: "Database search candidate", excludeThreadId: second.id });
+      expect(excluded.threads.map((t) => t.id)).toEqual([first.id]);
+      expect((await api.searchThreads({ query: "no-such-database-title" })).threads).toEqual([]);
+    });
   });
 
   describe("a message with mentions", () => {

@@ -10,7 +10,6 @@ import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { DesktopUpdateStore } from "../../apps/gateway/src/desktop-updates/store.ts";
 import { UpdateRunStore } from "../../apps/gateway/src/updates/run-store.ts";
 import { createRun, runs, knownSources, setRunStatus } from "../../apps/gateway/src/imports/store.ts";
-import { fuzzyRank } from "@canopy/domain";
 import { ids, type Dataset } from "./seed.ts";
 import type { BenchRuntime } from "./runtime.ts";
 
@@ -129,8 +128,11 @@ function inputOperations(size: Dataset): Operation[] {
     {
       name: "search/titles",
       run: async (runtime) => {
-        const threads = await runtime.runPromise(GatewayStore.use((s) => s.listThreads(ids.owner, "")));
-        fuzzyRank("Benchmark 12", threads.map(toUiThread), (t) => [t.title || "Untitled"], 20);
+        const threads = await runtime.runPromise(
+          GatewayStore.use((s) => s.searchThreads(ids.owner, "Benchmark 12", "", 20)),
+        );
+
+        threads.map(toUiThread);
       },
     },
     {
