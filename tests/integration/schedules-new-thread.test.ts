@@ -375,6 +375,148 @@ describe.skipIf(!dockerAvailable)("new-thread schedules", () => {
     );
   });
 
+  test("workspace preparation does not block pause, and a paused occurrence cannot commit", async () => {
+    const s = await schedule("specific");
+    const now = timestampDate(s.nextRunAt!);
+
+    const claimed = await gw.runtime.runPromise(
+      AgentBusStore.use((store) => store.claimDueSchedules("preparing", now, 180)),
+    );
+
+    let entered = () => {};
+    let release = () => {};
+
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const firing = gw.runtime.runPromise(
+      AgentBusStore.use((store) =>
+        store.fireSchedule({
+          schedule: claimed.find((row) => row.id === s.id)!,
+          input: { note: "scheduled", message: s.prompt },
+          run: true,
+          nextRunAt: undefined,
+          eligibleWorkerIds: [second.workerId],
+          now,
+          prepareWorkspace: async (request) => {
+            entered();
+            await hold;
+
+            return request;
+          },
+        }),
+      ),
+    );
+
+    try {
+      await started;
+      await gw.runtime.runPromise(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          yield* sql.withTransaction(
+            Effect.gen(function* () {
+              yield* sql`SET LOCAL lock_timeout = '250ms'`;
+              yield* sql`UPDATE schedules SET status='paused',next_run_at=NULL,version=version+1 WHERE id=${s.id}::uuid`;
+            }),
+          );
+        }),
+      );
+    } finally {
+      release();
+    }
+
+    expect(await firing).toEqual({ threadId: "" });
+    expect((await current(s.id)).runs).toBe(0);
+    expect(await query("SELECT id FROM threads WHERE schedule_id=$1::uuid", [s.id])).toEqual([]);
+    await gw.api.setScheduleStatus({ scheduleId: s.id, status: "cancelled" });
+  });
+
+  test("failed workspace preparation retries promptly without shortening a replacement lease", async () => {
+    for (const replaced of [false, true]) {
+      const s = await schedule("specific");
+      const now = timestampDate(s.nextRunAt!);
+
+      const claimed = await gw.runtime.runPromise(
+        AgentBusStore.use((store) => store.claimDueSchedules("failed-preparation", now, 180)),
+      );
+
+      expect(
+        await failure(
+          gw.runtime.runPromise(
+            AgentBusStore.use((store) =>
+              store.fireSchedule({
+                schedule: claimed.find((row) => row.id === s.id)!,
+                input: { note: "scheduled", message: s.prompt },
+                run: true,
+                nextRunAt: undefined,
+                eligibleWorkerIds: [second.workerId],
+                now,
+                prepareWorkspace: async () => {
+                  if (replaced) await query("UPDATE schedules SET lease_owner='replacement' WHERE id=$1::uuid", [s.id]);
+
+                  throw new Error("Synthetic unavailable workspace");
+                },
+              }),
+            ),
+          ),
+        ),
+      ).toContain("Could not prepare the scheduled workspace");
+
+      const retried = await gw.runtime.runPromise(
+        AgentBusStore.use((store) =>
+          store.claimDueSchedules("retry-preparation", new Date(now.getTime() + 5_000), 180),
+        ),
+      );
+
+      expect(retried.some((row) => row.id === s.id)).toBe(!replaced);
+      expect((await current(s.id)).runs).toBe(0);
+      expect(await query("SELECT id FROM threads WHERE schedule_id=$1::uuid", [s.id])).toEqual([]);
+      await gw.api.setScheduleStatus({ scheduleId: s.id, status: "cancelled" });
+    }
+  });
+
+  test("a workspace archived during preparation is revalidated before creating a thread", async () => {
+    const s = await schedule("specific");
+    const now = timestampDate(s.nextRunAt!);
+
+    const claimed = await gw.runtime.runPromise(
+      AgentBusStore.use((store) => store.claimDueSchedules("preparing", now, 180)),
+    );
+
+    const workspace = workspaces[1]!;
+
+    try {
+      const result = await gw.runtime.runPromise(
+        AgentBusStore.use((store) =>
+          store.fireSchedule({
+            schedule: claimed.find((row) => row.id === s.id)!,
+            input: { note: "scheduled", message: s.prompt },
+            run: true,
+            nextRunAt: undefined,
+            eligibleWorkerIds: [second.workerId],
+            now,
+            prepareWorkspace: async (request) => {
+              await query("UPDATE project_workspaces SET archived_at=now() WHERE id=$1::uuid", [workspace.id]);
+
+              return request;
+            },
+          }),
+        ),
+      );
+
+      expect(result).toEqual({ threadId: "" });
+      expect(await query("SELECT id FROM threads WHERE schedule_id=$1::uuid", [s.id])).toEqual([]);
+    } finally {
+      await query("UPDATE project_workspaces SET archived_at=NULL WHERE id=$1::uuid", [workspace.id]);
+      await gw.api.setScheduleStatus({ scheduleId: s.id, status: "cancelled" });
+    }
+  });
+
   test("validates ownership, target, model/effort, project workspace and minimum cron interval", async () => {
     const s = await schedule();
     await gw.api.setScheduleStatus({ scheduleId: s.id, status: "cancelled" });

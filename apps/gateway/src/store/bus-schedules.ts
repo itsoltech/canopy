@@ -1,6 +1,5 @@
-import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { selectScheduleWorkspace } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
 import { GatewayStore, Invalid, NotFound, type ThreadRow, type TurnRow } from "./store.ts";
@@ -16,6 +15,7 @@ import {
   type TurnInput,
 } from "./agent-bus-types.ts";
 import { insertCall, scheduleSelect, thread } from "./agent-bus-queries.ts";
+import { placementAvailable, prepareSchedule, scheduleBusy, scheduledThread } from "./schedule-workspace.ts";
 
 export interface BusScheduleStore {
   /** An agent's schedule (schedule_wakeup / schedule_recurring), stored with its call. */
@@ -47,7 +47,7 @@ export interface BusScheduleStore {
     nextRunAt?: Date;
   }): Fx<ScheduleRow>;
   /** Leases due schedules for this gateway instance (safe with several instances). */
-  claimDueSchedules(owner: string, now: Date, leaseSeconds: number): Fx<ReadonlyArray<ScheduleRow>>;
+  claimDueSchedules(owner: string, now: Date, leaseSeconds: number, limit?: number): Fx<ReadonlyArray<ScheduleRow>>;
   /**
    * Records a run: queues the turn (unless skipped), counts it, sets the next run or completes the
    * schedule, releases the lease. A schedule of an archived thread is cancelled instead.
@@ -67,179 +67,108 @@ export interface BusScheduleStore {
   }): Effect.Effect<FiredSchedule, SqlError.SqlError | NotFound | Invalid, GatewayStore>;
 }
 
-/** The thread a new_thread schedule starts this run in, created on its placement and sent to its worker. */
-const scheduledThread = (
-  sql: SqlClient.SqlClient,
-  schedule: ScheduleRow,
-  spec: ui.NewThreadSchedule,
-  placement: { id: string; worker_id: string },
-  prepareWorkspace: Parameters<BusScheduleStore["fireSchedule"]>[0]["prepareWorkspace"],
-) =>
+export const fireSchedule = (sql: SqlClient.SqlClient, args: Parameters<BusScheduleStore["fireSchedule"]>[0]) =>
   Effect.gen(function* () {
-    const gateway = yield* GatewayStore;
+    const prepared = yield* prepareSchedule(sql, args);
+    const { schedule: claimed, input, run: shouldRun, now } = args;
+    let nextRunAt = args.nextRunAt;
 
-    const project = (yield* sql<{
-      owner_user_id: string;
-    }>`SELECT owner_user_id FROM projects WHERE id = ${schedule.project_id}::uuid`)[0]!;
+    return yield* sql.withTransaction(
+      Effect.gen(function* () {
+        // Fence stale leases and already handled occurrences, including ticks racing a pause or restart.
+        const schedule =
+          (yield* sql<ScheduleRow>`SELECT * FROM schedules WHERE id = ${claimed.id}::uuid FOR UPDATE`)[0];
 
-    const request = create(ui.CreateThreadRequestSchema, {
-      projectId: schedule.project_id!,
-      workspaceId: placement.id,
-      provider: spec.provider,
-      providerProfileId: spec.providerProfileId,
-      model: spec.model,
-      effort: spec.effort,
-      permissionMode: spec.permissionMode,
-      title: spec.title,
-      workspaceMode: spec.workspaceMode,
-      baseRef: spec.baseRef,
-      initialMessage: schedule.prompt,
-    });
+        if (
+          !schedule ||
+          schedule.status !== "active" ||
+          schedule.version !== claimed.version ||
+          schedule.lease_owner !== claimed.lease_owner ||
+          new Date(schedule.lease_until!).getTime() !== new Date(claimed.lease_until!).getTime() ||
+          new Date(schedule.next_run_at!).getTime() !== new Date(claimed.next_run_at!).getTime()
+        )
+          return { threadId: "" };
+        const occurrence = new Date(schedule.occurrence_at ?? schedule.next_run_at!);
+        const spec = schedule.new_thread ? fromJson(ui.NewThreadScheduleSchema, schedule.new_thread) : undefined;
+        let run = shouldRun;
+        let outcome = run ? "started" : "missed";
 
-    const prepared = prepareWorkspace
-      ? yield* Effect.tryPromise({
-          try: () => prepareWorkspace(request, project.owner_user_id, spec.parentThreadId),
-          catch: () => new Invalid("Could not prepare the scheduled workspace; it will retry when available"),
-        })
-      : request;
-
-    let owner = yield* gateway.createThread(project.owner_user_id, { ...prepared, initialMessage: "" });
-
-    yield* sql`UPDATE threads SET origin = 'schedule', schedule_id = ${schedule.id}::uuid,
-          schedule_name = ${schedule.name || schedule.prompt.slice(0, 60)}, schedule_run = ${schedule.runs + 1},
-          title = ${spec.title || schedule.prompt.split("\n")[0]!.slice(0, 60)} WHERE id = ${owner.id}::uuid`;
-    owner = yield* gateway.thread(owner.id);
-
-    const command = yield* gateway.enqueueCommand({
-      workerId: placement.worker_id,
-      threadId: owner.id,
-      command: { kind: { case: "createThread", value: { thread: gateway.threadSpec(owner) } } },
-      ttlSeconds: 365 * 24 * 3600,
-    });
-
-    return { thread: owner, command, newWorktree: prepared.workspaceMode === ui.WorkspaceMode.NEW_WORKTREE };
-  });
-
-export const fireSchedule = (
-  sql: SqlClient.SqlClient,
-  {
-    schedule: claimed,
-    input,
-    run: shouldRun,
-    nextRunAt,
-    eligibleWorkerIds,
-    now,
-    prepareWorkspace,
-  }: Parameters<BusScheduleStore["fireSchedule"]>[0],
-) =>
-  sql.withTransaction(
-    Effect.gen(function* () {
-      // Fence stale leases and already handled occurrences, including ticks racing a pause or restart.
-      const schedule = (yield* sql<ScheduleRow>`SELECT * FROM schedules WHERE id = ${claimed.id}::uuid FOR UPDATE`)[0];
-
-      if (
-        !schedule ||
-        schedule.status !== "active" ||
-        schedule.version !== claimed.version ||
-        schedule.lease_owner !== claimed.lease_owner ||
-        new Date(schedule.lease_until!).getTime() !== new Date(claimed.lease_until!).getTime() ||
-        new Date(schedule.next_run_at!).getTime() !== new Date(claimed.next_run_at!).getTime()
-      )
-        return { threadId: "" };
-      const occurrence = new Date(schedule.occurrence_at ?? schedule.next_run_at!);
-      const spec = schedule.new_thread ? fromJson(ui.NewThreadScheduleSchema, schedule.new_thread) : undefined;
-      let run = shouldRun;
-      let outcome = run ? "started" : "missed";
-
-      if (schedule.until && now > new Date(schedule.until)) {
-        run = false;
-        outcome = "expired";
-        nextRunAt = undefined;
-      }
-
-      if (spec && run && schedule.concurrency === "skip_if_running") {
-        const busy = yield* sql`SELECT 1 FROM schedule_runs sr WHERE sr.schedule_id = ${schedule.id}::uuid AND (
-              EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = sr.thread_id AND u.status IN ('queued', 'running')) OR
-              EXISTS (SELECT 1 FROM thread_items i WHERE i.thread_id = sr.thread_id AND i.type = 'background_task' AND i.status = 'in_progress')
-            ) LIMIT 1`;
-
-        if (busy.length) {
+        if (schedule.until && now > new Date(schedule.until)) {
           run = false;
-          outcome = "running";
+          outcome = "expired";
+          nextRunAt = undefined;
         }
-      }
 
-      const candidates =
-        spec && run
-          ? yield* sql<{ id: string; worker_id: string; load: number }>`
-            SELECT pw.id, pw.worker_id, (SELECT count(*)::int FROM turns u JOIN threads t ON t.id = u.thread_id
-              WHERE t.worker_id = pw.worker_id AND u.status IN ('queued', 'running')) AS load
-            FROM project_workspaces pw JOIN workers w ON w.id = pw.worker_id JOIN projects p ON p.id = pw.project_id
-            WHERE pw.project_id = ${schedule.project_id}::uuid AND pw.archived_at IS NULL AND p.archived_at IS NULL
-              AND w.archived_at IS NULL AND w.revoked_at IS NULL
-              AND pw.worker_id = ANY(${[...eligibleWorkerIds]}::uuid[])
-              AND (${spec.placement !== "specific"}::boolean OR pw.id = ${spec.workspaceId || null}::uuid)`
-          : [];
+        if (spec && run && schedule.concurrency === "skip_if_running") {
+          const busy = yield* scheduleBusy(sql, schedule.id);
 
-      const placement = spec
-        ? selectScheduleWorkspace(spec.placement, candidates, schedule.placement_cursor)
-        : undefined;
+          if (busy.length) {
+            run = false;
+            outcome = "running";
+          }
+        }
 
-      if (spec && run && !placement) {
-        // Keep the occurrence key. The lease bounds retry frequency without changing its due time.
-        yield* sql`UPDATE schedules SET lease_until = ${new Date(now.getTime() + 4_000)} WHERE id = ${schedule.id}::uuid`;
+        const placement =
+          spec && run && prepared && (yield* placementAvailable(sql, schedule, prepared)).length
+            ? prepared.placement
+            : undefined;
 
-        return { threadId: "" };
-      }
+        if (spec && run && !placement) {
+          // Keep the occurrence key. The lease bounds retry frequency without changing its due time.
+          yield* sql`UPDATE schedules SET lease_until = ${new Date(now.getTime() + 4_000)} WHERE id = ${schedule.id}::uuid`;
 
-      let created: FiredSchedule["created"];
-      let owner: ThreadRow | undefined;
+          return { threadId: "" };
+        }
 
-      if (spec && run && placement) {
-        created = yield* scheduledThread(sql, schedule, spec, placement, prepareWorkspace);
-        owner = created.thread;
-      } else if (!spec) owner = yield* thread(sql, schedule.thread_id!);
+        let created: FiredSchedule["created"];
+        let owner: ThreadRow | undefined;
 
-      if (owner && (owner.archived_at != null || owner.deleted_at != null)) {
-        yield* sql`
+        if (spec && run && placement && prepared) {
+          created = yield* scheduledThread(sql, schedule, spec, prepared);
+          owner = created.thread;
+        } else if (!spec) owner = yield* thread(sql, schedule.thread_id!);
+
+        if (owner && (owner.archived_at != null || owner.deleted_at != null)) {
+          yield* sql`
               UPDATE schedules SET status = 'cancelled', next_run_at = NULL, lease_owner = NULL, lease_until = NULL, updated_at = now()
                WHERE id = ${schedule.id}::uuid`;
 
-        return { threadId: owner.id };
-      }
+          return { threadId: owner.id };
+        }
 
-      if (owner) yield* sql`SELECT id FROM threads WHERE id = ${owner.id}::uuid FOR UPDATE`;
+        if (owner) yield* sql`SELECT id FROM threads WHERE id = ${owner.id}::uuid FOR UPDATE`;
 
-      const turn =
-        run && owner
-          ? yield* sql<TurnRow>`
+        const turn =
+          run && owner
+            ? yield* sql<TurnRow>`
                 INSERT INTO turns (id, thread_id, ordinal, trigger, schedule_id, hops, input)
                 SELECT ${Bun.randomUUIDv7()}::uuid, ${owner.id}::uuid, coalesce(max(ordinal), 0) + 1, 'schedule', ${schedule.id}::uuid,
                        ${spec ? 0 : schedule.hops}, ${inputJson(input)}::jsonb
                   FROM turns WHERE thread_id = ${owner.id}::uuid
                 RETURNING *`.pipe(Effect.map((rows) => rows[0]))
-          : undefined;
+            : undefined;
 
-      yield* sql`INSERT INTO schedule_runs (schedule_id, scheduled_for, number, thread_id, turn_id, worker_id, workspace_id, outcome)
+        yield* sql`INSERT INTO schedule_runs (schedule_id, scheduled_for, number, thread_id, turn_id, worker_id, workspace_id, outcome)
             VALUES (${schedule.id}::uuid, ${occurrence}, ${turn ? schedule.runs + 1 : 0}, ${turn ? owner!.id : null}::uuid,
               ${turn?.id ?? null}::uuid, ${turn ? owner!.worker_id : null}::uuid, ${turn ? owner!.workspace_id : null}::uuid, ${outcome})`;
-      const runs = schedule.runs + (turn ? 1 : 0);
+        const runs = schedule.runs + (turn ? 1 : 0);
 
-      const finished =
-        nextRunAt === undefined ||
-        (schedule.max_runs !== null && runs >= schedule.max_runs) ||
-        (schedule.until !== null && nextRunAt.getTime() > new Date(schedule.until).getTime());
+        const finished =
+          nextRunAt === undefined ||
+          (schedule.max_runs !== null && runs >= schedule.max_runs) ||
+          (schedule.until !== null && nextRunAt.getTime() > new Date(schedule.until).getTime());
 
-      yield* sql`
+        yield* sql`
             UPDATE schedules SET runs = ${runs}, last_turn_id = coalesce(${turn?.id ?? null}::uuid, last_turn_id),
                    placement_cursor = coalesce(${placement?.id ?? null}::uuid, placement_cursor),
                    next_run_at = ${finished ? null : nextRunAt}, status = ${finished ? "completed" : "active"},
                    lease_owner = NULL, lease_until = NULL, occurrence_at = NULL, updated_at = now()
              WHERE id = ${schedule.id}::uuid`;
 
-      return { threadId: owner?.id ?? "", ...(turn && { turn }), ...(created && { created }) };
-    }),
-  );
+        return { threadId: owner?.id ?? "", ...(turn && { turn }), ...(created && { created }) };
+      }),
+    );
+  });
 
 const updateSchedule = (
   sql: SqlClient.SqlClient,
@@ -397,13 +326,13 @@ export function busScheduleStore(sql: SqlClient.SqlClient): BusScheduleStore {
         }),
       ),
 
-    claimDueSchedules: (owner, now, leaseSeconds) =>
+    claimDueSchedules: (owner, now, leaseSeconds, limit = 50) =>
       sql<ScheduleRow>`
             UPDATE schedules SET lease_owner = ${owner}, lease_until = ${new Date(now.getTime() + leaseSeconds * 1000)},
               occurrence_at = coalesce(occurrence_at, next_run_at)
              WHERE id IN (SELECT id FROM schedules
                            WHERE status = 'active' AND next_run_at <= ${now} AND (lease_until IS NULL OR lease_until < ${now})
-                           ORDER BY next_run_at LIMIT 50 FOR UPDATE SKIP LOCKED)
+                           ORDER BY next_run_at, id LIMIT ${Math.max(1, Math.min(50, limit))} FOR UPDATE SKIP LOCKED)
             RETURNING *`,
 
     fireSchedule: (input) => fireSchedule(sql, input),
