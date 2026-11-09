@@ -550,7 +550,7 @@
   });
 
   function focusOnMount(node: HTMLDivElement) {
-    if (autofocus) node.focus();
+    if (autofocus) node.focus({ preventScroll: true });
   }
 </script>
 

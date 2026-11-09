@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
-  import ResizeSlot from "#lib/shared/ui/ResizeSlot.svelte";
   import type { ModelOption } from "./catalog.ts";
   import EffortPicker from "./EffortPicker.svelte";
   import { useModelCatalog } from "./model-catalog.svelte.ts";
@@ -52,20 +51,22 @@
 </script>
 
 <span class={["flex min-w-0 items-center gap-1", className]}>
-  <ModelPicker
-    bind:open={modelOpen}
-    options={listed}
-    value={option?.key}
-    catalog={workerId ? models.of(workerId) : undefined}
-    {allowCustom}
-    notice={workerId ? models.errors.get(workerId) : undefined}
-    refreshing={workerId ? models.refreshing.has(workerId) : false}
-    onrefresh={workerId ? () => void models.refresh(workerId) : undefined}
-    onselect={select}
-    class="shrink"
-  />
-  <!-- A model without efforts has no effort pill: its slot eases shut instead of the model pill jumping. -->
-  <ResizeSlot>
+  <!-- Fixed slots keep catalog labels and effort availability from moving adjacent controls. -->
+  <span class="flex w-48 min-w-0 shrink items-center">
+    <ModelPicker
+      bind:open={modelOpen}
+      options={listed}
+      value={option?.key}
+      catalog={workerId ? models.of(workerId) : undefined}
+      {allowCustom}
+      notice={workerId ? models.errors.get(workerId) : undefined}
+      refreshing={workerId ? models.refreshing.has(workerId) : false}
+      onrefresh={workerId ? () => void models.refresh(workerId) : undefined}
+      onselect={select}
+      class="w-full"
+    />
+  </span>
+  <span class="flex w-24 shrink-0 items-center justify-end">
     {#if option && option.efforts.length > 0}
       <EffortPicker
         bind:open={effortOpen}
@@ -73,8 +74,8 @@
         {option}
         {inherited}
         onmodel={() => (modelOpen = true)}
-        class="shrink-0"
+        class="w-full justify-end"
       />
     {/if}
-  </ResizeSlot>
+  </span>
 </span>

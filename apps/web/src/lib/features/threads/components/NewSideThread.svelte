@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CenteredContent from "#lib/shared/ui/CenteredContent.svelte";
   import { enhance } from "$app/forms";
   import { goto } from "$app/navigation";
   import type { Mention, ui } from "@canopy/contracts";
@@ -91,87 +92,85 @@
       <ButtonLink {href} size="sm" icon="arrow-left" aria-label="Back to main thread">Back</ButtonLink>
     {/snippet}
   </TopBar>
-  <div class="grid min-h-0 flex-1 place-items-center overflow-y-auto px-4 py-8 sm:px-6 sm:pb-16">
-    <div class="grid w-full max-w-(--chat-width) min-w-0 grid-cols-1 gap-8">
-      <SideThreadContext {main} {worker} {project} />
-      <form
-        method="POST"
-        action="?/createSideThread"
-        class="grid min-w-0 grid-cols-1 gap-3"
-        use:enhance={({ cancel }) => {
-          if (busy || closed || !option || draft.blocker) return cancel();
-          busy = true;
-          const key = draftKey;
-          return async ({ result, update }) => {
-            try {
-              if (result.type === "redirect") permissions.clear(key);
-              await update({ reset: false });
-            } finally {
-              busy = false;
-            }
-          };
-        }}
+  <CenteredContent class="grid max-w-(--chat-width) min-w-0 grid-cols-1 gap-8">
+    <SideThreadContext {main} {worker} {project} />
+    <form
+      method="POST"
+      action="?/createSideThread"
+      class="grid min-w-0 grid-cols-1 gap-3"
+      use:enhance={({ cancel }) => {
+        if (busy || closed || !option || draft.blocker) return cancel();
+        busy = true;
+        const key = draftKey;
+        return async ({ result, update }) => {
+          try {
+            if (result.type === "redirect") permissions.clear(key);
+            await update({ reset: false });
+          } finally {
+            busy = false;
+          }
+        };
+      }}
+    >
+      <input type="hidden" name="clientRequestId" value={clientRequestId} />
+      <input type="hidden" name="model" value={picked?.model ?? main.model} />
+      <input type="hidden" name="effort" value={sentEffort ?? ""} />
+      <input type="hidden" name="permissionMode" value={mode} />
+      <input type="hidden" name="fork" value={fork ? "on" : ""} />
+      {#each draft.ids as id (id)}<input type="hidden" name="attachmentId" value={id} />{/each}
+      {#if error}<Alert tone="error">{error}</Alert>{/if}
+      <ComposerBox
+        shell
+        bind:value={message}
+        bind:mentions
+        {sources}
+        {draft}
+        sending={busy}
+        disabled={busy || closed}
+        canSend={Boolean(option) && !draft.blocker}
+        autofocus
+        label="Task for the side thread"
+        sendLabel="Start side thread"
+        blockedReason={closed
+          ? "Reopen the main thread to start a side thread."
+          : !option
+            ? "The main thread's agent is unavailable."
+            : undefined}
       >
-        <input type="hidden" name="clientRequestId" value={clientRequestId} />
-        <input type="hidden" name="model" value={picked?.model ?? main.model} />
-        <input type="hidden" name="effort" value={sentEffort ?? ""} />
-        <input type="hidden" name="permissionMode" value={mode} />
-        <input type="hidden" name="fork" value={fork ? "on" : ""} />
-        {#each draft.ids as id (id)}<input type="hidden" name="attachmentId" value={id} />{/each}
-        {#if error}<Alert tone="error">{error}</Alert>{/if}
-        <ComposerBox
-          shell
-          bind:value={message}
-          bind:mentions
-          {sources}
-          {draft}
-          sending={busy}
-          disabled={busy || closed}
-          canSend={Boolean(option) && !draft.blocker}
-          autofocus
-          label="Task for the side thread"
-          sendLabel="Start side thread"
-          blockedReason={closed
-            ? "Reopen the main thread to start a side thread."
-            : !option
-              ? "The main thread's agent is unavailable."
-              : undefined}
-        >
-          {#snippet controls()}
-            {#if option}
-              <ModelControls
-                options={offer.options}
-                bind:option={() => option, (next) => (picked = next)}
-                bind:effort
-                inherited={main.effort || undefined}
-                workerId={main.workerId}
-                class="flex-1 justify-end"
-              />
-            {/if}
-          {/snippet}
-          {#snippet meta()}
-            <label class="flex min-w-0 items-center gap-2">
-              <Switch
-                name="continueHistory"
-                label="Continue from the main thread's history"
-                description="The side thread starts from the main thread's last completed turn."
-                bind:checked={fork}
-              />
-              <span>Use main thread history</span>
-            </label>
-            {#if !closed && worker && !worker.online}<HintIcon
-                warning
-                label="Computer offline"
-                text="This computer is offline. The side thread starts when it reconnects."
-              />{/if}
-            <PermissionPicker
-              value={mode}
-              onselect={(next) => permissions.set(draftKey, next)}
-              class="-mr-1.5 shrink-0"
+        {#snippet controls()}
+          {#if option}
+            <ModelControls
+              options={offer.options}
+              bind:option={() => option, (next) => (picked = next)}
+              bind:effort
+              inherited={main.effort || undefined}
+              workerId={main.workerId}
+              class="flex-1 justify-end"
             />
-          {/snippet}
-        </ComposerBox>
-      </form>
-    </div>
-  </div>
+          {/if}
+        {/snippet}
+        {#snippet meta()}
+          <label class="flex min-w-0 items-center gap-2">
+            <Switch
+              name="continueHistory"
+              label="Continue from the main thread's history"
+              description="The side thread starts from the main thread's last completed turn."
+              bind:checked={fork}
+            />
+            <span>Use main thread history</span>
+          </label>
+          {#if !closed && worker && !worker.online}<HintIcon
+              warning
+              label="Computer offline"
+              text="This computer is offline. The side thread starts when it reconnects."
+            />{/if}
+          <PermissionPicker
+            value={mode}
+            onselect={(next) => permissions.set(draftKey, next)}
+            class="-mr-1.5 shrink-0"
+          />
+        {/snippet}
+      </ComposerBox>
+    </form>
+  </CenteredContent>
 </div>

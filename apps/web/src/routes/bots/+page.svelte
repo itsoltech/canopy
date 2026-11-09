@@ -15,7 +15,9 @@
   import { botWizardInstances } from "#lib/features/bots/live.ts";
   import CreateBotWizard, { type CreateBotDraft } from "#lib/features/bots/wizard/CreateBotWizard.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import CenteredContent from "#lib/shared/ui/CenteredContent.svelte";
 
+  const LOAD_ERROR = "Could not load bots and provider instances. Try again.";
   let instances = $state.raw<ui.ProviderInstance[]>([]);
   let existing = $state.raw<bots.Bot[]>([]);
   let open = $state(false);
@@ -48,6 +50,11 @@
   ]);
 
   const options = $derived(botWizardInstances(availableInstances, [...catalogs.workers.values()]));
+
+  const status = $derived(
+    error ? "error" : loading ? "loading" : loaded && options.every((i) => !i.models.length) ? "setup" : undefined,
+  );
+
   const requestId = crypto.randomUUID();
 
   const availabilityVersion = $derived(
@@ -83,7 +90,7 @@
       existing = decode(bots.ListBotsResponseSchema, list).bots;
       loaded = true;
     } catch {
-      if (current === request) error = "Could not load bots and provider instances. Try again.";
+      if (current === request) error = LOAD_ERROR;
     } finally {
       if (current === request) loading = false;
     }
@@ -145,22 +152,37 @@
 
 <div class="flex h-full flex-col">
   <TopBar><Crumb>Bots</Crumb></TopBar>
-  <div class="grid min-h-0 flex-1 place-content-center gap-4 overflow-y-auto p-6 text-center">
-    <h1 class="text-xl font-semibold">Your bots</h1>
-    <p class="max-w-md text-sm text-zinc-500">
-      A conversation with a bot that remembers your messages and can work with your connected services and agents.
-    </p>
-    {#if error}<p role="alert" class="text-sm text-red-500">{error}</p>{/if}
-    <Button variant="primary" onclick={openWizard}>Create bot</Button>
-    {#if loading}<p role="status" class="text-sm text-zinc-500">Loading providers and models…</p>
-    {:else if loaded && (!options.length || options.every((i) => !i.models.length))}
+  <CenteredContent class="max-w-md">
+    <div class="grid gap-4 text-center">
+      <h1 class="text-xl font-semibold">Your bots</h1>
       <p class="max-w-md text-sm text-zinc-500">
-        Enable a provider instance on a worker in <a href="/settings/providers" class="underline"
-          >Settings → Providers</a
-        >.
+        A conversation with a bot that remembers your messages and can work with your connected services and agents.
       </p>
-    {/if}
-  </div>
+      <Button variant="primary" onclick={openWizard}>Create bot</Button>
+      <!-- All statuses share one cell and reserve their wrapped height, including when it is empty. -->
+      <div class="grid text-sm text-zinc-500">
+        <p
+          class={["col-start-1 row-start-1", status !== "loading" && "invisible"]}
+          role="status"
+          aria-hidden={status !== "loading"}
+        >
+          Loading providers and models…
+        </p>
+        <p class={["col-start-1 row-start-1", status !== "setup" && "invisible"]} aria-hidden={status !== "setup"}>
+          Enable a provider instance on a worker in <a href="/settings/providers" class="underline"
+            >Settings → Providers</a
+          >.
+        </p>
+        <p
+          class={["col-start-1 row-start-1 text-red-500", status !== "error" && "invisible"]}
+          role="alert"
+          aria-hidden={status !== "error"}
+        >
+          {error || LOAD_ERROR}
+        </p>
+      </div>
+    </div>
+  </CenteredContent>
 </div>
 <CreateBotWizard
   bind:open
