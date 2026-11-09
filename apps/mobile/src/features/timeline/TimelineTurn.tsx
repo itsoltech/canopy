@@ -62,6 +62,7 @@ function BodyRowContent({ row, steers, ended }: { row: BodyRow; steers: readonly
         note={STEERED}
         fromAgent={Boolean(content.value.authorAgentId)}
         sender={steer?.sender}
+        quotes={steer?.quotes}
       />
     );
   }
@@ -148,7 +149,9 @@ export function TimelineTurn({
 
   const segments = segmentsOf(turn, body, open);
   const queued = onQueued && turn.status === "queued" && !turn.dispatched && !turn.fromThreadId;
-  const hasInput = Boolean(turn.inputText || turn.messageText || turn.attachments.length);
+  const hasInput = Boolean(turn.inputText || turn.messageText || turn.attachments.length || turn.quotes.length);
+  const lastAnswer = entries.findLast((entry) => entry.item?.content.case === "agentMessage")?.item?.content;
+  const answerText = lastAnswer?.case === "agentMessage" ? lastAnswer.value.text : "";
 
   const answerEnd = (at: number | undefined) => {
     const row = at === undefined ? undefined : body[at];
@@ -215,7 +218,7 @@ export function TimelineTurn({
         {ended && (
           <View style={{ gap: 4 }}>
             <TurnEnd turn={turn} provider={context.provider} />
-            <TurnDetails turn={turn} />
+            <TurnDetails turn={turn} answer={answerText} />
           </View>
         )}
       </View>

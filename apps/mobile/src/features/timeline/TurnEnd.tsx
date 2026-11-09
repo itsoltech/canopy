@@ -8,6 +8,8 @@ import { Icon } from "../../ui/Icon";
 import { font, styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { FailureNotice } from "./FailureNotice";
+import { CopyAction } from "../viewers/copy-action";
+import { ForkAction } from "./ForkAction";
 
 const REASONS = new Map([
   ["user", "by you"],
@@ -71,8 +73,8 @@ export function TurnEnd({ turn, provider }: { turn: ui.Turn; provider: Provider 
   );
 }
 
-/** The quiet footer of an ended turn: how long it ran (web: TurnDetails; copying and forking stay on the web). */
-export function TurnDetails({ turn }: { turn: ui.Turn }) {
+/** The ended turn's answer, fork point and elapsed time (web: TurnDetails). */
+export function TurnDetails({ turn, answer }: { turn: ui.Turn; answer: string }) {
   const c = useColors();
   const start = turn.startedAt ? Number(turn.startedAt.seconds) * 1000 + turn.startedAt.nanos / 1e6 : undefined;
   const end = turn.completedAt ? Number(turn.completedAt.seconds) * 1000 + turn.completedAt.nanos / 1e6 : undefined;
@@ -81,11 +83,15 @@ export function TurnDetails({ turn }: { turn: ui.Turn }) {
   const duration = took !== undefined && took >= 0 ? formatDuration(took) : "";
 
   return (
-    <Text
-      accessibilityLabel={duration ? `Time the turn ran: ${duration}` : undefined}
-      style={[styles.meta, { minHeight: styles.meta.lineHeight, color: c.muted, fontVariant: ["tabular-nums"] }]}
-    >
-      {duration}
-    </Text>
+    <View accessibilityLabel="Turn details" style={[styles.row, { minHeight: 40, gap: 8 }]}>
+      {answer ? <CopyAction text={answer} label="Copy answer" /> : null}
+      <ForkAction turn={turn} />
+      <Text
+        accessibilityLabel={duration ? `Time the turn ran: ${duration}` : undefined}
+        style={[styles.meta, { minHeight: styles.meta.lineHeight, color: c.muted, fontVariant: ["tabular-nums"] }]}
+      >
+        {duration}
+      </Text>
+    </View>
   );
 }

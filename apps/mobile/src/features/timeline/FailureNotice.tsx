@@ -5,6 +5,7 @@ import { failurePresentation } from "@canopy/domain/failure-presentation";
 import { font, styles, useColors, useTypography } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { Chevron } from "../../ui/MotionViews";
+import { CopyAction } from "../viewers/copy-action";
 
 /**
  * A failed turn or bot reply (web: FailureNotice): a heading, what it means in words, a hint for a login and the
@@ -53,9 +54,14 @@ export function FailureNotice({
         <Text style={[styles.body, { color: c.muted }]}>Show details</Text>
       </Pressable>
       {open && (
-        <Text selectable style={[type.mono, { color: c.muted }]}>
-          {details}
-        </Text>
+        <View style={{ gap: 4 }}>
+          <Text selectable style={[type.mono, { color: c.muted }]}>
+            {details}
+          </Text>
+          <View style={{ alignItems: "flex-start" }}>
+            <CopyAction text={details} label="Copy error details" />
+          </View>
+        </View>
       )}
     </View>
   );

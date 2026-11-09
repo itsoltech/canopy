@@ -6,6 +6,7 @@ import { useAnchoredToggle } from "../../../ui/feed-anchor";
 import { Markdown } from "../../../ui/markdown";
 import { font, styles, useColors } from "../../../ui/theme";
 import { Chevron } from "../../../ui/MotionViews";
+import { QuoteAction } from "../../quotes/QuoteAction";
 
 /** Reasoning, folded: the first line of the summary as a preview, the rest on demand (web: ReasoningView). */
 export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; streaming: boolean }) {
@@ -60,6 +61,12 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
           {reasoning.text.trim() && reasoning.text !== reasoning.summary ? (
             <Markdown text={reasoning.text} color={c.faint} />
           ) : null}
+          <QuoteAction
+            text={[reasoning.summary, reasoning.text !== reasoning.summary ? reasoning.text : ""]
+              .filter(Boolean)
+              .join("\n\n")}
+            kind="reasoning"
+          />
         </View>
       )}
     </View>

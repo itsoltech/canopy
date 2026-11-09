@@ -1,5 +1,5 @@
 import { Text, type TextStyle } from "react-native";
-import type { Mention } from "@canopy/contracts";
+import { MentionKind, type Mention } from "@canopy/contracts";
 import type { InlineElements } from "../../ui/markdown";
 import { font, useColors } from "../../ui/theme";
 import { segmentsOf, type MessageValue } from "./message-value";
@@ -21,7 +21,15 @@ export function MessageSpans({ value, tone }: { value: MessageValue; tone?: (men
 }
 
 /** One mention's placeholder as a badge, inside a line of text. */
-export function MentionBadge({ text, tone }: { text: string; tone?: BadgeTone }) {
+export function MentionBadge({
+  text,
+  tone,
+  onPress,
+}: {
+  text: string;
+  tone?: BadgeTone;
+  onPress?: (() => void) | undefined;
+}) {
   const c = useColors();
 
   const style: TextStyle = {
@@ -30,11 +38,19 @@ export function MentionBadge({ text, tone }: { text: string; tone?: BadgeTone })
     backgroundColor: tone === "failed" ? c.inset : c.softAccent,
   };
 
-  return <Text style={style}>{text}</Text>;
+  return (
+    <Text style={style} onPress={onPress} accessibilityRole={onPress ? "button" : undefined}>
+      {text}
+    </Text>
+  );
 }
 
 /** A sent message's mentions as badges inside its markdown (`Markdown` `elements`). */
-export function mentionElements(text: string, mentions: readonly Mention[]): InlineElements | undefined {
+export function mentionElements(
+  text: string,
+  mentions: readonly Mention[],
+  onAttachment?: (id: string) => void,
+): InlineElements | undefined {
   if (mentions.length === 0) return undefined;
 
   return {
@@ -42,7 +58,14 @@ export function mentionElements(text: string, mentions: readonly Mention[]): Inl
     render: (index) => {
       const mention = mentions[index];
 
-      return mention ? <MentionBadge text={text.slice(mention.start, mention.end)} /> : null;
+      return mention ? (
+        <MentionBadge
+          text={text.slice(mention.start, mention.end)}
+          onPress={
+            mention.kind === MentionKind.ATTACHMENT && onAttachment ? () => onAttachment(mention.name) : undefined
+          }
+        />
+      ) : null;
     },
   };
 }

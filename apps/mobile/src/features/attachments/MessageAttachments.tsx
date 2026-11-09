@@ -1,11 +1,14 @@
-import { Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 import { ImagePreview } from "./ImagePreview";
+import { AttachmentViewer } from "./AttachmentViewer";
 
 export function MessageAttachments({ files, pending }: { files: readonly ui.Attachment[]; pending: boolean }) {
   const c = useColors();
+  const [selected, setSelected] = useState<ui.Attachment>();
 
   return (
     <View
@@ -24,7 +27,9 @@ export function MessageAttachments({ files, pending }: { files: readonly ui.Atta
             height={file.height}
           />
         ) : (
-          <View
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setSelected(file)}
             key={file.id}
             accessibilityLabel={`Attached ${file.name}`}
             style={[styles.row, { gap: 4, paddingHorizontal: 6, borderRadius: 6, backgroundColor: c.inset }]}
@@ -33,9 +38,10 @@ export function MessageAttachments({ files, pending }: { files: readonly ui.Atta
             <Text numberOfLines={1} style={[styles.caption, { color: c.body, maxWidth: 180 }]}>
               {file.name}
             </Text>
-          </View>
+          </Pressable>
         ),
       )}
+      {selected && <AttachmentViewer file={selected} onClose={() => setSelected(undefined)} />}
     </View>
   );
 }

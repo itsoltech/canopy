@@ -17,6 +17,8 @@ import type { MessageDraft } from "../composer/useMessageDraft";
 import { Skeleton } from "../../ui/Skeleton";
 import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
 import { composerGeometry } from "../composer/geometry";
+import { QuoteTray } from "../quotes/QuoteTray";
+import type { useQuoteDraft } from "../quotes/useQuoteDraft";
 
 type Picker = "model" | "effort" | "permission";
 
@@ -52,6 +54,7 @@ export function MessageComposer({
   thread,
   worker,
   message,
+  quotes,
   send,
   stop,
   disabled,
@@ -64,6 +67,7 @@ export function MessageComposer({
   thread?: ui.Thread;
   worker?: ui.Worker;
   message: MessageDraft;
+  quotes: ReturnType<typeof useQuoteDraft>;
   send: (delivery: ui.MessageDelivery) => void;
   stop: () => void;
   disabled: boolean;
@@ -76,8 +80,7 @@ export function MessageComposer({
   const { user } = useAppearance();
   const { focused } = useComposerMotion();
   const state = useComposerSettings(thread, worker);
-  const { setPicker, current, effort, error } = state;
-  const effortLabel = useEffortLabel();
+  const { setPicker, error } = state;
   const look = permissionLook(thread?.permissionMode);
 
   const primary =
@@ -107,36 +110,9 @@ export function MessageComposer({
           running={thread?.status === "running"}
           disabled={disabled || Boolean(message.files.blocker)}
           busy={busy}
-          files={message.files.ids.length}
-          top={<AttachmentChips files={message.files.files} onRemove={message.remove} />}
-          controls={
-            <>
-              <AttachButton draft={message.files} disabled={disabled || busy} />
-              <ComposerPill
-                icon="cpu-chip"
-                leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}
-                title={current?.name || "Model"}
-                width={160}
-                loading={!thread || (!current && !state.section?.choices.length)}
-                onPress={() => {
-                  setPicker("model");
-                }}
-              />
-              <View style={{ width: 96 }}>
-                {!current || current.efforts.length ? (
-                  <ComposerPill
-                    icon="light-bulb"
-                    title={effortLabel(effort)}
-                    width={96}
-                    loading={!current}
-                    onPress={() => {
-                      setPicker("effort");
-                    }}
-                  />
-                ) : null}
-              </View>
-            </>
-          }
+          files={message.files.ids.length + quotes.quotes.length}
+          top={<ComposerAttachments message={message} quotes={quotes} />}
+          controls={<ComposerControls state={state} thread={thread} message={message} disabled={disabled || busy} />}
         />
       </PasteTarget>
       {/* Only this secondary row gives its height to the field while writing. */}
@@ -167,6 +143,55 @@ export function MessageComposer({
         </View>
       </ComposerFold>
       <ComposerPickers state={state} thread={thread} />
+    </>
+  );
+}
+
+function ComposerControls({
+  state,
+  thread,
+  message,
+  disabled,
+}: {
+  state: ReturnType<typeof useComposerSettings>;
+  thread: ui.Thread | undefined;
+  message: MessageDraft;
+  disabled: boolean;
+}) {
+  const { setPicker, current, effort } = state;
+  const effortLabel = useEffortLabel();
+
+  return (
+    <>
+      <AttachButton draft={message.files} disabled={disabled} />
+      <ComposerPill
+        icon="cpu-chip"
+        leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}
+        title={current?.name || "Model"}
+        width={160}
+        loading={!thread || (!current && !state.section?.choices.length)}
+        onPress={() => setPicker("model")}
+      />
+      <View style={{ width: 96 }}>
+        {!current || current.efforts.length ? (
+          <ComposerPill
+            icon="light-bulb"
+            title={effortLabel(effort)}
+            width={96}
+            loading={!current}
+            onPress={() => setPicker("effort")}
+          />
+        ) : null}
+      </View>
+    </>
+  );
+}
+
+function ComposerAttachments({ message, quotes }: { message: MessageDraft; quotes: ReturnType<typeof useQuoteDraft> }) {
+  return (
+    <>
+      <QuoteTray draft={quotes} />
+      <AttachmentChips files={message.files.files} onRemove={message.remove} />
     </>
   );
 }

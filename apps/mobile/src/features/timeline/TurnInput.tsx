@@ -52,7 +52,7 @@ export function TurnInput({ turn, onActions }: { turn: ui.Turn; onActions?: (() 
 
   const tone: Tone = origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet";
   const look = useTone(tone);
-  const text = turn.messageText || turn.inputText;
+  const text = turn.quotes.length ? turn.messageText : turn.messageText || turn.inputText;
 
   if (origin.kind === "background_task") return <BackgroundNoteRow itemIds={origin.itemIds} />;
 
@@ -61,6 +61,7 @@ export function TurnInput({ turn, onActions }: { turn: ui.Turn; onActions?: (() 
       <UserMessageView
         text={text}
         attachments={turn.attachments}
+        quotes={turn.quotes}
         mentions={turn.messageText ? turn.mentions : []}
         onActions={onActions}
         note={turn.status === "queued" ? { text: turn.dispatched ? "Starting" : "Queued" } : undefined}

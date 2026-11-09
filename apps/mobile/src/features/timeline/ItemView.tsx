@@ -16,6 +16,7 @@ import { SubagentView } from "./items/SubagentView";
 import { ToolCallView } from "./items/ToolCallView";
 import { WebSearchView } from "./items/WebSearchView";
 import { UserMessageView } from "./UserMessageView";
+import { QuoteItem } from "../quotes/QuoteAction";
 
 /** An item with the items that name it as parent (subagent work), as the timeline builds it. */
 export interface ItemNode {
@@ -131,11 +132,15 @@ export function ItemView({ node, turnEnded = false }: { node: ItemNode; turnEnde
   }
 
   return (
-    <View>
-      <ItemChildren.Provider value={framed}>{view}</ItemChildren.Provider>
-      {nested && inline ? (
-        <View style={{ marginTop: 4, gap: 4, borderLeftWidth: 2, borderColor: c.rule, paddingLeft: 12 }}>{nested}</View>
-      ) : null}
-    </View>
+    <QuoteItem.Provider value={item.itemId}>
+      <View>
+        <ItemChildren.Provider value={framed}>{view}</ItemChildren.Provider>
+        {nested && inline ? (
+          <View style={{ marginTop: 4, gap: 4, borderLeftWidth: 2, borderColor: c.rule, paddingLeft: 12 }}>
+            {nested}
+          </View>
+        ) : null}
+      </View>
+    </QuoteItem.Provider>
   );
 }

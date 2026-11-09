@@ -39,6 +39,7 @@ function useTimelineData(state: ThreadState) {
 
   const directory: TimelineDirectory = {
     currentId: thread?.id ?? "",
+    quote: state.quotes.add,
     readOnly: state.home.away || !thread || Boolean(thread.archivedAt || thread.deletedAt),
     thread: (id) => threads.find((t) => t.id === id) ?? (id === thread?.id ? thread : undefined),
     item: (id) => items.get(id),
@@ -118,14 +119,16 @@ export function ThreadTimeline({
           // neither do the rows it mounts with. Later rows inside it animate themselves (TimelineTurn).
           renderItem={({ item, index }) => (
             <ArrivingCell entering={arrival(turnKey(item))}>
-              <TimelineTurn
-                turn={item}
-                entries={entries.get(turnKey(item)) ?? []}
-                context={context}
-                newDay={days.has(item)}
-                latest={index === 0}
-                onQueued={(turn) => state.setQueued({ turn, editing: false })}
-              />
+              <TimelineDirectoryProvider value={{ ...directory, sourceId: item.fromThreadId || directory.currentId }}>
+                <TimelineTurn
+                  turn={item}
+                  entries={entries.get(turnKey(item)) ?? []}
+                  context={context}
+                  newDay={days.has(item)}
+                  latest={index === 0}
+                  onQueued={(turn) => state.setQueued({ turn, editing: false })}
+                />
+              </TimelineDirectoryProvider>
             </ArrivingCell>
           )}
           ListHeaderComponent={
@@ -139,6 +142,7 @@ export function ThreadTimeline({
                       mentions={s.mentions}
                       note={steeringNote(s)}
                       sender={s.sender}
+                      quotes={s.quotes}
                       pending
                     />
                   </Animated.View>

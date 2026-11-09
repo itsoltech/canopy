@@ -33,7 +33,7 @@ export function TextViewerButton({
           blob={blob}
           label={label}
           diff={diff}
-          threadId={directory.currentId}
+          threadId={directory.sourceId || directory.currentId}
           onClose={() => setOpen(false)}
         />
       )}
