@@ -11,7 +11,7 @@
   import UpdateRows from "./UpdateRows.svelte";
   import { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
   import UpdateRun from "./UpdateRun.svelte";
-  import { UpdatesState, updateBusy } from "./updates.svelte.ts";
+  import { updateCenter, UpdatesState, updateBusy } from "./updates.svelte.ts";
   import TextLink from "#lib/shared/ui/TextLink.svelte";
   import { listedWorkers, updatesAvailable } from "./compact-updates.ts";
   import { updateIndicator } from "./update-indicator.ts";
@@ -26,7 +26,7 @@
   } = $props();
 
   const given = untrack(() => fixture);
-  const updates = given?.updates ?? new UpdatesState();
+  const updates = given?.updates ?? updateCenter;
   const app = given?.app ?? new DesktopUpdatesState();
   const overview = useOverview();
   const snapshot = $derived(updates.snapshot);

@@ -7,6 +7,10 @@ import { DESKTOP_CLIENT_PROTOCOL, MIN_DESKTOP_CLIENT_PROTOCOL } from "@canopy/do
 import { gatewayFailure } from "./gateway-errors.ts";
 import { isolatedGatewayTransport } from "./gateway-transport.ts";
 
+/** How long a successful negotiation is reused without a failing call (ms). */
+const READY_MS = 60_000;
+const RENEGOTIATE = new Set([Code.Unavailable, Code.Unimplemented, Code.Unauthenticated]);
+
 export interface GatewayCompatibility {
   state: "ready" | "gateway-update" | "app-update" | "unavailable" | "pairing";
   message: string;
@@ -93,7 +97,9 @@ export function desktopGateway(routesJson: string, token: string) {
       };
     }
 
-    expires = Date.now() + (snapshot.state === "ready" ? 5000 : 1000);
+    // A negotiation holds for the connection: calls that fail as unavailable, unimplemented or
+    // unauthenticated renegotiate at once, so a restart, upgrade or revocation is noticed without polling.
+    expires = Date.now() + (snapshot.state === "ready" ? READY_MS : 1000);
 
     return snapshot;
   }
@@ -129,10 +135,11 @@ export function desktopGateway(routesJson: string, token: string) {
     try {
       return await transport.unary(...args);
     } catch (cause) {
+      if (cause instanceof ConnectError && RENEGOTIATE.has(cause.code)) expires = 0;
+
       if (cause instanceof ConnectError && cause.code === Code.Unimplemented)
         throw new ConnectError("Update Canopy on your gateway to use this feature", Code.Unimplemented);
 
-      if (cause instanceof ConnectError && cause.code === Code.Unauthenticated) expires = 0;
       throw cause;
     }
   };
@@ -140,7 +147,12 @@ export function desktopGateway(routesJson: string, token: string) {
   const stream: Transport["stream"] = async (...args) => {
     await requireMethod(args[0].name);
 
-    return transport.stream(...args);
+    try {
+      return await transport.stream(...args);
+    } catch (cause) {
+      if (cause instanceof ConnectError && RENEGOTIATE.has(cause.code)) expires = 0;
+      throw cause;
+    }
   };
 
   return { transport: { unary, stream }, compatibility };

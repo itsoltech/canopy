@@ -858,10 +858,12 @@ message OverviewUpdate {
     bool proxies_changed = 827;
     // Sent when the stream opens and when it changes: the domains it pushes completely.
     OverviewFeeds feeds = 828;
+    // The update center changed (state, check, a worker's or linked computer's update): read GetUpdates again.
+    bool updates_changed = 829;
   }
 }
 
-// Domains (`bots`, `connectors`, `proxies`) an overview stream pushes completely, every linked computer it lists
+// Domains (`bots`, `connectors`, `proxies`, `updates`) an overview stream pushes completely, every linked computer it lists
 // included. Clients stop polling those; older gateways never send this, so clients keep their fallback.
 message OverviewFeeds {
   repeated string pushed = 1;

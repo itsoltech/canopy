@@ -9,7 +9,7 @@
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import { computerUpdate } from "#lib/features/workers/computer-updates.ts";
   import { presenceTime } from "#lib/features/computers/computers.ts";
-  import { UpdatesState, updateTone } from "#lib/features/workers/updates.svelte.ts";
+  import { updateCenter, UpdatesState, updateTone } from "#lib/features/workers/updates.svelte.ts";
   import { updateCheckLabel } from "@canopy/domain/computer-presence";
 
   /**
@@ -26,7 +26,7 @@
   } = $props();
 
   const given = untrack(() => fixture);
-  const updates = given ?? new UpdatesState();
+  const updates = given ?? updateCenter;
   const computers = $derived(updates.snapshot?.computers ?? []);
   let action = $state("");
 

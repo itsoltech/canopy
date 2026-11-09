@@ -236,6 +236,32 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     expect((await f.gateway.api.getUpdates({})).run?.state).toBe("succeeded");
   });
 
+  test("update progress is pushed to overview subscribers, and an idle stream gets no notices", async () => {
+    const f = await fixture();
+    const abort = new AbortController();
+    const updates: ui.OverviewUpdate[] = [];
+
+    const reading = (async () => {
+      for await (const update of f.gateway.api.watchOverview({}, { signal: abort.signal })) updates.push(update);
+    })().catch(() => {});
+
+    try {
+      const feeds = await eventually(async () => updates.find((u) => u.change.case === "feeds"), Boolean, 5000);
+      expect(feeds?.change.case === "feeds" && feeds.change.value.pushed).toContain("updates");
+      await Bun.sleep(1000);
+      expect(updates.filter((u) => u.change.case === "updatesChanged")).toEqual([]);
+
+      await f.gateway.api.manageUpdates({ action: "update_all" });
+      await workerCommand(f);
+      expect(await eventually(async () => updates.some((u) => u.change.case === "updatesChanged"), Boolean, 3000)).toBe(
+        true,
+      );
+    } finally {
+      abort.abort();
+      await reading;
+    }
+  });
+
   test("worker failure stops the chain with its reason, without starting a CLI", async () => {
     const f = await fixture();
     await f.gateway.api.manageUpdates({ action: "update_all" });

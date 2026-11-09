@@ -5,13 +5,13 @@
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import ProgressRing from "#lib/shared/ui/ProgressRing.svelte";
   import { DesktopUpdatesState } from "./desktop-updates.svelte.ts";
-  import { UpdatesState } from "#lib/features/workers/updates.svelte.ts";
+  import { updateCenter } from "#lib/features/workers/updates.svelte.ts";
   import { updateIndicator } from "#lib/features/workers/update-indicator.ts";
   import CompactUpdates from "#lib/features/workers/CompactUpdates.svelte";
 
   let { class: className }: { class?: ClassValue } = $props();
   const updates = new DesktopUpdatesState();
-  const center = new UpdatesState();
+  const center = updateCenter;
   let open = $state(false);
   let pinned = $state(false);
   let closeTimer: ReturnType<typeof setTimeout> | undefined;

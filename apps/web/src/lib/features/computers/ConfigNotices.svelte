@@ -3,6 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import { ui } from "@canopy/contracts";
   import { requestJson } from "#lib/shared/http.ts";
+  import { revalidateEvery, sharedRead } from "#lib/shared/queries.svelte.ts";
   import { decode } from "#lib/shared/wire.ts";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -26,17 +27,15 @@
   } = $props();
 
   const capabilities = useGatewayCapabilities();
-  let notices = $state<ui.ConfigNotice[]>([]);
+
+  // One shared computers snapshot for every notice list and the Computers page; computer and configuration
+  // events refresh it, with one 60 s visible check for notices that arrive without an event.
+  const computers = sharedRead("GetComputers", ui.ComputersSnapshotSchema, "/api/computers");
   let error = $state("");
   let busy = $state(false);
 
+  const notices = $derived(capabilities?.linkedComputers ? (computers.data?.configNotices ?? []) : []);
   const visible = $derived(notices.filter((n) => match(n)));
-
-  async function reload() {
-    if (!capabilities?.linkedComputers) return;
-    const response = decode(ui.ComputersSnapshotSchema, await requestJson("GET", "/api/computers"));
-    notices = response.configNotices;
-  }
 
   async function act(id: string, action: "restore" | "dismiss") {
     busy = true;
@@ -48,7 +47,7 @@
         await requestJson("PUT", "/api/computers/notices", { id, action }),
       );
 
-      notices = response.configNotices;
+      computers.set(response);
 
       onchange?.();
     } catch (cause) {
@@ -58,15 +57,7 @@
     }
   }
 
-  onMount(() => {
-    void reload().catch(() => {});
-
-    const timer = setInterval(() => {
-      if (!document.hidden && !busy) void reload().catch(() => {});
-    }, 3000);
-
-    return () => clearInterval(timer);
-  });
+  onMount(() => (capabilities?.linkedComputers ? revalidateEvery("GetComputers", 60_000) : undefined));
 </script>
 
 {#if visible.length}

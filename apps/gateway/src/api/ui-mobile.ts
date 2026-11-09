@@ -25,7 +25,8 @@ export function mobileHandlers(
         gatewayVersion: CANOPY_VERSION,
         gatewayRole: core.role,
         linkedComputers: core.role === "desktop",
-        gatewayName: (await core.computers?.snapshot())?.self?.name ?? "your gateway",
+        // The identity's name only: a full computers snapshot (routes, peers, notices) is not needed here.
+        gatewayName: core.computers?.hello().name || "your gateway",
         minProtocol: MIN_DESKTOP_CLIENT_PROTOCOL,
         maxProtocol: DESKTOP_CLIENT_PROTOCOL,
         methods: ui.GatewayService.methods.map((method) => method.name),

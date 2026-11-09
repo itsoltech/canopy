@@ -47,8 +47,13 @@ gateway albo aplikację komputera, połączone komputery, workery z podziałem n
 zwinięte Agent CLIs oraz stan OTA telefonu. Ustawienia używają tych samych wierszy
 i warunków dostępności akcji. `Update all` obejmuje lokalne workery i CLI oraz
 aplikacje połączonych komputerów; indywidualne akcje korzystają z istniejących,
-sprawdzających właściciela API. Odczyt odświeża się tylko na pierwszym planie:
-co 15 s, a przy otwartym panelu lub trwającej aktualizacji co 2,5 s po odpowiedzi.
+sprawdzających właściciela API. Gateway ogłasza zmiany centrum przez
+`OverviewUpdate.updates_changed` (829): stan i sprawdzenia aktualizatora oraz raporty aktualizacji
+workerów, zebrane w paczki po 250 ms; zmiana połączonego komputera odświeża od razu jego
+snapshot tutaj, a zakończony odczyt (`linked_read_completed` GetComputerUpdates) informuje klientów.
+Klient czyta GetUpdates po takim zdarzeniu, `desktop_update`, `gateway_departure`, zmianie obecności
+komputera lub wersji/CLI workera; co 2–2,5 s tylko w trakcie aktualizacji. Gateway bez `updates`
+w `feeds` (starszy) dostaje jeden odczyt na minutę na pierwszym planie; ukryta karta nic nie czyta.
 Ostatni wynik pozostaje widoczny w czasie restartu. Błędy mają szczegóły z kopiowaniem.
 Zmiana telefonu dotyczy wyłącznie JS/TS i nie wymaga nowego runtime ani builda EAS.
 
@@ -278,8 +283,9 @@ więc wiersz połączonego komputera pokazuje to samo co „This Canopy app”. 
 a sam postęp aplikacja raportuje najwyżej raz na sekundę (ostatnią wartość zawsze). Gateway w trybie
 zdalnym zeruje je przed zapisem do `desktop_updates`. Starsza aplikacja ich nie wysyła: wiersz wygląda
 wtedy jak wcześniej (wersja docelowa z `available_version`). `target_version` zakończonego żądania nie
-jest już celem wiersza; liczy się tylko wersja nowsza od bieżącej. Centrum aktualizacji odświeża się co
-5 s, a co 2 s, gdy któryś połączony komputer pobiera aktualizację.
+jest już celem wiersza; liczy się tylko wersja nowsza od bieżącej. Centrum aktualizacji web to jeden
+współdzielony stan na kartę (wskaźnik w pasku bocznym, Workers i App updates); czyta co 2 s tylko,
+gdy któryś komputer pobiera aktualizację, poza tym po zdarzeniach opisanych wyżej.
 Nowe pola `DesktopUpdateCommand`: `requested_by` (nazwa komputera w powiadomieniu „MacBook
 requested an app update…”) i `check` (samo sprawdzenie feedu, bez instalacji).
 

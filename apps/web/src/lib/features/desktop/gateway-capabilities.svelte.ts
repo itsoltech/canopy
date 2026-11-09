@@ -18,6 +18,9 @@ const sections = {
   "/settings/import": ["ScanImport", "ListImportCandidates"],
 };
 
+/** Capabilities read again while visible, besides connection changes (ms). */
+const FALLBACK_MS = 5 * 60_000;
+
 export class GatewayCapabilities {
   state = $state("ready");
   message = $state("");
@@ -74,11 +77,29 @@ export class GatewayCapabilities {
       this.state = "unavailable";
     }
   }
+  /**
+   * Negotiates once, then again when the overview connection changes (AppShell), when the page returns after
+   * a minute hidden, and every 5 minutes while visible as a fallback. Every gateway call stays authenticated.
+   */
   connect() {
     void this.reload();
-    const timer = setInterval(() => void this.reload(), 5000);
+    let hiddenAt = 0;
 
-    return () => clearInterval(timer);
+    const timer = setInterval(() => {
+      if (!document.hidden) void this.reload();
+    }, FALLBACK_MS);
+
+    const visibility = () => {
+      if (document.hidden) hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > 60_000) void this.reload();
+    };
+
+    document.addEventListener("visibilitychange", visibility);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", visibility);
+    };
   }
 }
 

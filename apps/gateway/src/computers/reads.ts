@@ -75,6 +75,11 @@ export class PeerReads {
       }
   }
 
+  /** The node's reads of `method` are due now (it announced a change): the next read refreshes at once. */
+  due(node: string, method: string) {
+    for (const entry of this.entries.values()) if (entry.node === node && entry.method.name === method) entry.next = 0;
+  }
+
   forget(node: string) {
     this.circuits.delete(node);
 

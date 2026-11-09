@@ -25,10 +25,12 @@
   import ConnectionRequestError from "#lib/features/network/ConnectionRequestError.svelte";
   import ConfigSharing from "#lib/features/computers/ConfigSharing.svelte";
   import ConfigNotice from "#lib/features/computers/ConfigNotice.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import PairingChoice from "#lib/features/computers/PairingChoice.svelte";
   import PairingInvitation from "#lib/features/computers/PairingInvitation.svelte";
 
   const network = useNetworkAccess();
+  const overview = useOverview();
 
   const request = useConnectionRequest(create(ui.ComputersSnapshotSchema), async () =>
     decode(ui.ComputersSnapshotSchema, await requestJson("GET", "/api/computers")),
@@ -94,12 +96,26 @@
     request.set(decode(ui.ComputersSnapshotSchema, await requestJson("PUT", "/api/computers", { action, ...extra })));
   }
 
+  // Presence, names, links and unlinks arrive as overview events; an open invitation is checked every 2 s until
+  // the other computer accepts it; otherwise one visible check a minute covers routes and notices.
+  onMount(() =>
+    overview.subscribe((update) => {
+      if (["computer", "computerRemoved", "sharedConfig"].includes(update.change.case ?? "") && !busy) void reload();
+    }),
+  );
+
   onMount(() => {
     void reload();
+    let last = Date.now();
 
     const refresh = setInterval(() => {
-      if (!busy && !document.hidden) void reload();
-    }, 3000);
+      if (busy || document.hidden) return;
+      const waiting = !!invitation && remaining > 0;
+
+      if (!waiting && Date.now() - last < 60_000) return;
+      last = Date.now();
+      void reload();
+    }, 2000);
 
     const clock = setInterval(() => {
       now = Date.now();

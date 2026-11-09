@@ -65,8 +65,10 @@
       now = Date.now();
     }, 1000);
 
-    // Also recover after a missed overview event or a disconnected browser.
-    const refresh = setInterval(() => void reload(), 15_000);
+    // Pairing and revocation arrive as events; last-seen times have none, so one visible check a minute.
+    const refresh = setInterval(() => {
+      if (!document.hidden) void reload();
+    }, 60_000);
 
     return () => {
       unsubscribe();

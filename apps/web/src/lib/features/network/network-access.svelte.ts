@@ -7,7 +7,7 @@ import { useConnectionRequest } from "./connection-request.svelte.ts";
 
 /** This computer's network access for a settings page: loaded, refreshed while visible (addresses
  * follow the network) and changed through the BFF. Errors stay with the caller's dialog or alert. */
-export function useNetworkAccess(refreshMs = 5000) {
+export function useNetworkAccess(refreshMs = 30_000) {
   const request = useConnectionRequest(create(ui.NetworkAccessSchema), async () =>
     decode(ui.NetworkAccessSchema, await requestJson("GET", "/api/network")),
   );

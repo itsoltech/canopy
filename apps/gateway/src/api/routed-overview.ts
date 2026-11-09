@@ -5,6 +5,8 @@ import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError, createHandlerContext, type HandlerContext } from "@connectrpc/connect";
 import { linkedMessage, methodNamed } from "../computers/remote.ts";
 import type { GatewayCore } from "../core/core.ts";
+import { LINKED_FEEDS } from "../core/owner-feeds.ts";
+import { refreshComputerUpdates } from "../updates/linked.ts";
 import { single, stream, unary, unaryTimeout, withSignal, type Handler } from "./routed-context.ts";
 import { localProjectIds } from "./routed-config.ts";
 import { forward } from "./routed-home.ts";
@@ -445,8 +447,8 @@ export async function* watchOverview(
 }
 
 /**
- * What this stream pushes completely: this computer's feeds, with `bots` only while every reachable computer
- * pushes its bots too (an older one does not: clients keep polling the list). Sent again when that changes.
+ * What this stream pushes completely: this computer's feeds, with `bots` and `updates` only while every reachable
+ * computer pushes them too (an older one does not: clients keep polling). Sent again when that changes.
  */
 function linkedFeeds(computers: NonNullable<GatewayCore["computers"]>, push: (update: ui.OverviewUpdate) => void) {
   let own: readonly string[] | undefined;
@@ -456,7 +458,11 @@ function linkedFeeds(computers: NonNullable<GatewayCore["computers"]>, push: (up
   const update = () => {
     if (!own) return;
     const reachable = computers.reachable();
-    const pushed = own.filter((feed) => feed !== "bots" || reachable.every((node) => peers.get(node)?.includes(feed)));
+
+    const pushed = own.filter(
+      (feed) => !LINKED_FEEDS.includes(feed) || reachable.every((node) => peers.get(node)?.includes(feed)),
+    );
+
     const key = pushed.join(",");
 
     if (key === sent) return;
@@ -499,6 +505,10 @@ async function relayRemote(
 
     return;
   }
+
+  // Its update center changed: its snapshot here is refreshed, and the settled read notifies clients.
+  if (update.change.case === "updatesChanged" || update.change.case === "desktopUpdate")
+    refreshComputerUpdates(core, nodeId);
 
   const merged = splitShared(update, await localProjectIds(core));
 

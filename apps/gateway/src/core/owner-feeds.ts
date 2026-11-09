@@ -6,7 +6,13 @@ import { coreState } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 
 /** Domains an overview stream of this gateway pushes completely (`OverviewUpdate.feeds`). */
-export const OWNER_FEEDS = ["bots", "connectors", "proxies"] as const;
+export const OWNER_FEEDS = ["bots", "connectors", "proxies", "updates"] as const;
+
+/** Feeds that include linked computers: pushed only while every reachable one pushes them too. */
+export const LINKED_FEEDS: readonly string[] = ["bots", "updates"];
+
+/** Merges a burst of update center changes (a download reports often) into one notice. */
+const UPDATES_MS = 250;
 
 /** How often the feed compares cheap revisions while a client watches (ms). Mutations here nudge it at once. */
 export const FEED_CHECK_MS = 2000;
@@ -51,6 +57,7 @@ export class OwnerFeeds {
   #views = new Map<string, bots.Bot>();
   #connectors: string | undefined;
   #proxies: string | undefined;
+  #updates: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private readonly core: GatewayCore,
@@ -79,6 +86,16 @@ export class OwnerFeeds {
       this.#connectors = undefined;
       this.#proxies = undefined;
     };
+  }
+
+  /** The update center changed: one `updates_changed` per burst, only while someone watches. */
+  updatesChanged(): void {
+    if (!this.#watchers || this.#updates) return;
+    this.#updates = setTimeout(() => {
+      this.#updates = undefined;
+
+      if (this.#watchers) this.#publish({ case: "updatesChanged", value: true });
+    }, UPDATES_MS);
   }
 
   /** Something changed here: compare now. `full` also compares every bot (connector grants, moves). */
