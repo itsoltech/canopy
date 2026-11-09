@@ -4,6 +4,7 @@
   import { backdropDismiss } from "#lib/shared/ui/backdrop.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
   import { exitDuration } from "#lib/shared/ui/motion.ts";
+  import AttachmentImage from "./AttachmentImage.svelte";
 
   /**
    * An image at full size over the page (modal 06: `t-modal` scales in on --duration-fast, out on
@@ -15,13 +16,20 @@
     name,
     detail = "",
     download,
-  }: { open?: boolean; src: string; name: string; detail?: string; download?: string | undefined } = $props();
+    entityId,
+  }: {
+    open?: boolean;
+    src: string;
+    name: string;
+    detail?: string;
+    download?: string | undefined;
+    entityId?: string;
+  } = $props();
 
   let dialog = $state<HTMLDialogElement>();
   let closing = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let zoomed = $state(false);
-  let failed = $state(false);
 
   $effect(() => () => clearTimeout(timer));
 
@@ -30,7 +38,6 @@
 
     if (open && !dialog.open) {
       zoomed = false;
-      failed = false;
       clearTimeout(timer);
       closing = false;
       dialog.showModal();
@@ -57,23 +64,18 @@
       <div
         class="max-h-[calc(var(--window-safe-height)-11rem)] max-w-[96vw] overflow-auto rounded-lg sm:max-h-[calc(var(--window-safe-height)-8rem)]"
       >
-        {#if failed}
-          <p role="alert" class="rounded-lg bg-zinc-950 p-4 text-white">
-            Could not display the image. Download it to open it.
-          </p>
-        {:else}
-          <img
-            {src}
-            alt={name}
-            onerror={() => (failed = true)}
-            class={[
-              "mx-auto w-auto rounded-lg object-contain outline-1 -outline-offset-1 outline-white/10",
-              zoomed
-                ? "max-w-none"
-                : "max-h-[calc(var(--window-safe-height)-11rem)] max-w-full sm:max-h-[calc(var(--window-safe-height)-8rem)]",
-            ]}
-          />
-        {/if}
+        <AttachmentImage
+          {src}
+          alt={name}
+          {entityId}
+          class="min-h-36 rounded-lg bg-zinc-950 text-white"
+          imageClass={[
+            "mx-auto w-auto rounded-lg object-contain outline-1 -outline-offset-1 outline-white/10",
+            zoomed
+              ? "max-w-none"
+              : "max-h-[calc(var(--window-safe-height)-11rem)] max-w-full sm:max-h-[calc(var(--window-safe-height)-8rem)]",
+          ]}
+        />
       </div>
       <!-- Its own dark surface: readable over any page, also while the backdrop fades in. -->
       <figcaption

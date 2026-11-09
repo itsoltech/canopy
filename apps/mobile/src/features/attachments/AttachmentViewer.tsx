@@ -11,6 +11,8 @@ import { TextViewer } from "../viewers/TextViewer";
 import { exportFile } from "./export-file";
 import { ImageViewer } from "./ImageViewer";
 import { readAttachmentPreview } from "./preview";
+import { attachmentFailure } from "./failure";
+import { useAttachmentConnection } from "./useAttachmentConnection";
 
 const FILE_BYTES = 30 * 1024 ** 2;
 
@@ -36,6 +38,7 @@ function FileViewer({ file, onClose }: { file: ui.Attachment; onClose: () => voi
   const previewable = kind === "text" || kind === "markdown";
   const tooLarge = file.sizeBytes > BigInt(FILE_BYTES);
   const { id, mimeType } = file;
+  const connection = useAttachmentConnection(id);
 
   useEffect(() => {
     if (!client || tooLarge) return;
@@ -52,8 +55,9 @@ function FileViewer({ file, onClose }: { file: ui.Attachment; onClose: () => voi
           setTruncated(preview.truncated);
           setLoaded(true);
         })
-        .catch(() => {
-          if (!controller.signal.aborted) setError("Could not load the preview. Check the connection, then retry.");
+        .catch((cause: unknown) => {
+          if (!controller.signal.aborted)
+            setError(attachmentFailure(cause, "Could not load the preview. Check the connection, then retry."));
         });
 
       return () => controller.abort();
@@ -68,12 +72,13 @@ function FileViewer({ file, onClose }: { file: ui.Attachment; onClose: () => voi
         setData(response.data);
         setLoaded(true);
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setError("Could not load the file. Check the connection, then retry.");
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted)
+          setError(attachmentFailure(cause, "Could not load the file. Check the connection, then retry."));
       });
 
     return () => controller.abort();
-  }, [client, id, mimeType, tooLarge, retry, previewable, file]);
+  }, [client, id, mimeType, tooLarge, retry, previewable, file, connection]);
 
   async function save() {
     if (!client || busy) return;

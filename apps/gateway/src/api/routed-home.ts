@@ -21,6 +21,7 @@ import { mapProjectIds } from "../config-sync/project-aliases.ts";
 import { mirrorFirst, offlineThread } from "./routed-thread-mirror.ts";
 import { announcedDeparture } from "@canopy/domain/computer-presence";
 import { watchRemoteThread } from "../computers/thread-watch.ts";
+import { remoteAttachment } from "./routed-attachments.ts";
 
 export async function peerOf(core: GatewayCore, ref: string, method?: DescMethod, request?: Message) {
   if (!core.computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
@@ -69,8 +70,11 @@ export async function* forward(
     if (error instanceof ConnectError && [Code.Unavailable, Code.DeadlineExceeded].includes(error.code)) {
       const computer = await core.computers?.computer(nodeId);
       const announced = computer && announcedDeparture(computer.status);
+      const attachment = method.name === "GetAttachment" || method.name === "GetThreadBlob";
       throw new ConnectError(
-        computer?.unavailableReason || error.rawMessage,
+        attachment && error.code === Code.Unavailable
+          ? `Available when ${computer?.displayName || computer?.name || "the other computer"} is connected.`
+          : computer?.unavailableReason || error.rawMessage,
         announced ? Code.FailedPrecondition : error.code,
         {
           "canopy-error-scope": "computer",
@@ -237,10 +241,15 @@ async function* send(
   unqualify(method.input, outbound, nodeId, new Set([...(await ids.projects()).known, ...(await ids.proxies()).known]));
   await ids.map(method.input, outbound, "toGlobal", true);
 
-  const responses =
-    method.name === "WatchThread"
-      ? watchRemoteThread(computers, nodeId, linkedMessage(ui.WatchThreadRequestSchema, outbound), signal)
-      : computers.remote(nodeId, method, outbound, signal);
+  const responses = Match.value(method.name).pipe(
+    Match.when("WatchThread", () =>
+      watchRemoteThread(computers, nodeId, linkedMessage(ui.WatchThreadRequestSchema, outbound), signal),
+    ),
+    Match.when("GetAttachment", () =>
+      remoteAttachment(computers, nodeId, method, linkedMessage(ui.GetAttachmentRequestSchema, outbound), signal),
+    ),
+    Match.orElse(() => computers.remote(nodeId, method, outbound, signal)),
+  );
 
   for await (const message of responses) {
     if (method.name === "SendMessage" && !computers.capabilities(nodeId).includes(STEER_ATTACHMENTS)) {
