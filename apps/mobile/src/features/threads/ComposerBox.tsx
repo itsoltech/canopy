@@ -1,5 +1,5 @@
 import { useRef, type ComponentRef, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { inputTypography, TextInput } from "../../ui/TextInput";
 import Animated, { interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { Skeleton } from "../../ui/Skeleton";
@@ -11,6 +11,7 @@ import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
 import { useChatInputID } from "../composer/ChatKeyboard";
 import { useKeyboardBlur } from "../composer/useKeyboardBlur";
 import { composerGeometry } from "../composer/geometry";
+import { SendButtons } from "./SendButtons";
 
 /** What each trigger character does, as on the web; no-break spaces keep each item on one line. */
 const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell"]
@@ -28,7 +29,8 @@ export function ComposerBox({
   text,
   onChange,
   onSend,
-  onQueue,
+  onAlternate,
+  primary = "steer",
   onStop,
   running = false,
   disabled,
@@ -47,7 +49,8 @@ export function ComposerBox({
   text: string;
   onChange: (text: string) => void;
   onSend: () => void;
-  onQueue?: () => void;
+  onAlternate?: () => void;
+  primary?: "steer" | "queue";
   onStop?: () => void;
   running?: boolean;
   disabled?: boolean;
@@ -110,7 +113,7 @@ export function ComposerBox({
       />
       {!inline && (
         <ComposerFold open={!compact} expandedHeight={composerGeometry.toolbar} hideWhileWriting={false}>
-          <ComposerControls shell={shell} files={files} sendWidth={running && !empty && onQueue ? 92 : 60}>
+          <ComposerControls shell={shell} files={files} sendWidth={running && !empty && onAlternate ? 92 : 60}>
             {controls}
           </ComposerControls>
         </ComposerFold>
@@ -124,7 +127,8 @@ export function ComposerBox({
           ]}
         >
           <SendButtons
-            queue={running && !empty ? onQueue : undefined}
+            alternate={running && !empty ? onAlternate : undefined}
+            primary={primary}
             onSend={stop ? onStop : onSend}
             stop={stop}
             running={running}
@@ -330,66 +334,5 @@ export function ComposerPill({
         <Icon name="chevron-down" size={12} />
       </Pressable>
     </Skeleton>
-  );
-}
-
-/** Queue (while a turn runs), then send, send now or stop. */
-function SendButtons({
-  queue,
-  onSend,
-  stop,
-  running,
-  disabled,
-  busy,
-  unavailable,
-}: {
-  queue?: () => void;
-  onSend?: () => void;
-  stop: boolean;
-  running: boolean;
-  disabled?: boolean;
-  busy?: boolean;
-  unavailable: boolean;
-}) {
-  const c = useColors();
-
-  return (
-    <>
-      {queue ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Queue message"
-          onPress={queue}
-          disabled={disabled || busy}
-          style={{ padding: 8, opacity: disabled ? 0.4 : 1 }}
-        >
-          <Icon name="queue-list" />
-        </Pressable>
-      ) : null}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={stop ? "Stop the turn" : running ? "Send now" : "Send message"}
-        disabled={unavailable}
-        onPress={onSend}
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 18,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: unavailable ? c.line : stop ? c.text : c.accent,
-        }}
-      >
-        {busy ? (
-          <ActivityIndicator size="small" color={c.onAccent} />
-        ) : (
-          <Icon
-            name={stop ? "stop" : "arrow-up"}
-            color={unavailable ? c.faint : stop ? c.background : c.onAccent}
-            size={18}
-          />
-        )}
-      </Pressable>
-    </>
   );
 }

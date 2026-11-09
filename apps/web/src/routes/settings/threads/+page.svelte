@@ -9,6 +9,7 @@
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SubagentDisplaySettings from "#lib/features/settings/SubagentDisplaySettings.svelte";
   import WorkFoldSettings from "#lib/features/settings/WorkFoldSettings.svelte";
+  import FollowUpSettings from "#lib/features/settings/FollowUpSettings.svelte";
 
   const overview = useOverview();
   const settings = useSettings();
@@ -19,6 +20,7 @@
 
 <SubagentDisplaySettings />
 <WorkFoldSettings />
+<FollowUpSettings />
 
 <SettingsGroup
   title="New threads"
@@ -37,3 +39,4 @@
 </SettingsGroup>
 
 <AccountConfigNotices section="threadDefaults" />
+<AccountConfigNotices section="composer" />

@@ -733,6 +733,25 @@ Wiadomości czekające za turą w toku (tury `queued`) użytkownik układa. Kole
 | `SteerQueuedTurn` | wiadomość użytkownika (bez załączników; z jej wzmiankami, wejście takie, jakie dostałaby tura) idzie teraz do tury w toku: w jednej transakcji powstaje steer (`Steer.from_turn_id` (160) = ta tura) i tura wychodzi z kolejki (`withdrawn = steered`). Dalej jak steer z `SendMessage` (`pending` → `accepted` → `delivered`); gdy nie wejdzie, wraca ta sama tura na swoje miejsce w kolejce (`Steer.queued_turn_id = from_turn_id`), nie nowa na końcu. Bez tury w toku = `FailedPrecondition`, wiadomość zostaje w kolejce |
 | `UserSettings.composer` (160) | `ComposerSettings.running_delivery`: co robi Enter, gdy trwa tura — `STEER` (domyślnie; Mod+Enter = kolejka) albo `QUEUE` (Enter = kolejka, Mod+Enter = steer) |
 
+Settings → Threads → Messages udostępnia „When the agent is working, send messages as”
+z wyborem Steer / Queue. Web, desktop i mobile zapisują istniejące
+`UserSettings.composer.running_delivery` w JSONB ustawień właściciela; nie potrzeba
+nowego pola protokołu ani migracji. Brak wartości nadal oznacza Steer. Menu kolejki
+zmienia tę samą preferencję. Dotyczy ona wiadomości użytkownika, bez wpływu na
+raporty subagentów i szynę agentów.
+
+Web używa jej dla głównego przycisku i skrótu wysyłania (domyślnie Enter), a skrót
+alternatywny (domyślnie Ctrl+Enter / ⌘+Enter) oraz menu przycisku pozwalają wybrać
+drugi tryb dla jednej wiadomości. Mobile pokazuje drugi tryb obok głównego przycisku
+i udostępnia go także po przytrzymaniu głównego przycisku. Wiadomości z plikami
+zawsze trafiają do kolejki. Gdy agent nie pracuje, wiadomość rozpoczyna nową turę.
+
+Klient wybiera tryb z ustawień oglądającego użytkownika i wysyła jawne
+`SendMessage.delivery`, również do kwalifikowanego id zdalnego wątku. Dom wątku nie
+wybiera trybu z własnych ustawień, więc preferencja działa także z wcześniejszą
+wersją gatewaya obsługującą steer/kolejkę. Starsze klienty zachowują swój dotychczasowy
+sposób wyboru trybu; gateway nie zmienia semantyki ich wiadomości.
+
 **Wyścig z głową kolejki.** Zmiany kolejki i start jej głowy blokują najpierw wiersz wątku, więc idą jedna po drugiej. Scheduler (`pump`) zapisuje `StartTurn` tylko wtedy, gdy tura nadal jest głową kolejki z rewizją, którą przeczytał (`QueueStore.whileHead`); inaczej czyta kolejkę od nowa. Wystartowana tura ma więc zawsze tekst i miejsce, które użytkownik widział jako ostatnie przyjęte, a zmiana tury, którą scheduler wziął pierwszy, kończy się czytelnym błędem.
 ### Wzmianki
 

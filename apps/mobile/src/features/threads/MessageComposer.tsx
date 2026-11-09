@@ -80,6 +80,11 @@ export function MessageComposer({
   const effortLabel = useEffortLabel();
   const look = permissionLook(thread?.permissionMode);
 
+  const primary =
+    message.files.ids.length || user?.composer?.runningDelivery === ui.MessageDelivery.QUEUE
+      ? ui.MessageDelivery.QUEUE
+      : ui.MessageDelivery.STEER;
+
   return (
     <>
       {error ? <Notice error>{error}</Notice> : null}
@@ -91,14 +96,13 @@ export function MessageComposer({
           onChange={message.setText}
           badges={message.badges}
           triggers
-          onSend={() =>
-            send(
-              thread?.status === "running"
-                ? user?.composer?.runningDelivery || ui.MessageDelivery.STEER
-                : ui.MessageDelivery.QUEUE,
-            )
+          onSend={() => send(thread?.status === "running" ? primary : ui.MessageDelivery.QUEUE)}
+          onAlternate={
+            message.files.ids.length
+              ? undefined
+              : () => send(primary === ui.MessageDelivery.QUEUE ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE)
           }
-          onQueue={() => send(ui.MessageDelivery.QUEUE)}
+          primary={primary === ui.MessageDelivery.QUEUE ? "queue" : "steer"}
           onStop={stop}
           running={thread?.status === "running"}
           disabled={disabled || Boolean(message.files.blocker)}

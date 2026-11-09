@@ -402,6 +402,24 @@ describe.skipIf(!dockerAvailable)("managing the queue (gateway + scripted worker
     expect(await drain(thread.id, runningId, 2)).toEqual(["B", "A2"]);
   });
 
+  test("explicit queue delivery waits for the running turn without steering it", async () => {
+    const { thread, runningId } = await busyThread("explicit-queue", []);
+
+    const sent = await gw.api.sendMessage({
+      threadId: thread.id,
+      text: "next task",
+      clientRequestId: "explicit-queue-message",
+      delivery: ui.MessageDelivery.QUEUE,
+    });
+
+    expect(sent.steer).toBeUndefined();
+    expect(sent.turn?.status).toBe("queued");
+    expect(sent.turn?.dispatched).toBe(false);
+    expect(await steers(thread.id)).toHaveLength(0);
+    expect(gw.worker.started.has(sent.turn!.id)).toBe(false);
+    expect(await drain(thread.id, runningId, 1)).toEqual(["next task"]);
+  });
+
   test("composer settings: the default delivery while a turn runs", async () => {
     const current = await gw.api.getSettings({});
     expect(current.user?.composer?.runningDelivery).toBe(ui.MessageDelivery.UNSPECIFIED);
