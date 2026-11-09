@@ -1,4 +1,4 @@
-import { create, fromJson, type JsonValue, type Message } from "@bufbuild/protobuf";
+import { create, fromJson, toBinary, type JsonValue, type Message } from "@bufbuild/protobuf";
 
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 
@@ -11,6 +11,37 @@ import { linkedMessage } from "./remote.ts";
 import { ThreadMirror } from "./mirror.ts";
 
 export const SNAPSHOT_LISTS = ["turns", "items", "interactions", "notices", "steers", "busDeliveries"] as const;
+
+/** Pack repeated fields without changing the legacy snapshot/delta envelope or its atomic checkpoint. */
+function* fragments(snapshot: ui.ThreadSnapshot): Generator<ui.ThreadSnapshot> {
+  for (const field of SNAPSHOT_LISTS) {
+    let fragment = create(ui.ThreadSnapshotSchema);
+    let bytes = 0;
+
+    for (const value of snapshot[field]) {
+      const size = toBinary(ui.ThreadSnapshotSchema, create(ui.ThreadSnapshotSchema, { [field]: [value] })).length;
+
+      if (bytes && bytes + size > 32 * 1024) {
+        yield fragment;
+        fragment = create(ui.ThreadSnapshotSchema);
+        bytes = 0;
+      }
+
+      // SAFETY: The same repeated-field key selects values of the same generated protobuf type.
+      const values = fragment[field] as (typeof snapshot)[typeof field][number][];
+      values.push(value);
+      bytes += size;
+
+      if (bytes >= 32 * 1024) {
+        yield fragment;
+        fragment = create(ui.ThreadSnapshotSchema);
+        bytes = 0;
+      }
+    }
+
+    if (bytes) yield fragment;
+  }
+}
 
 /** Whole timelines have no retention/size cap; each transport message is bounded independently. */
 export function* snapshotFrames(snapshot: ui.ThreadSnapshot, previousCursor = ""): Generator<link.MirrorUpdate> {
@@ -25,13 +56,8 @@ export function* snapshotFrames(snapshot: ui.ThreadSnapshot, previousCursor = ""
     },
   });
 
-  for (const field of SNAPSHOT_LISTS)
-    for (const value of snapshot[field]) {
-      yield create(link.MirrorUpdateSchema, {
-        previousCursor,
-        snapshot: create(ui.ThreadSnapshotSchema, { [field]: [value] }),
-      });
-    }
+  for (const fragment of fragments(snapshot))
+    yield create(link.MirrorUpdateSchema, { previousCursor, snapshot: fragment });
 
   yield create(link.MirrorUpdateSchema, { previousCursor, snapshotEnd: true });
 }
@@ -54,12 +80,8 @@ export function* deltaFrames(delta: ui.ThreadSnapshotDelta, previousCursor: stri
     },
   });
 
-  for (const field of SNAPSHOT_LISTS)
-    for (const value of snapshot[field])
-      yield create(link.MirrorUpdateSchema, {
-        previousCursor,
-        delta: { snapshot: create(ui.ThreadSnapshotSchema, { [field]: [value] }) },
-      });
+  for (const fragment of fragments(snapshot))
+    yield create(link.MirrorUpdateSchema, { previousCursor, delta: { snapshot: fragment } });
 
   yield create(link.MirrorUpdateSchema, { previousCursor, deltaEnd: true });
 }

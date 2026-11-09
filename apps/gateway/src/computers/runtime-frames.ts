@@ -158,11 +158,15 @@ export async function* computersAccept(
   // A short background wake must not complete a handshake and advertise online.
   // The desktop clears this pause only after its wake grace (or an explicit unlock).
   if (hostContext[computersState].paused) return;
-  const output = new AsyncChannel<link.LinkFrame>();
+
+  const output = new AsyncChannel<link.LinkFrame>({
+    maxItems: 2048,
+    overflow: () => new ConnectError("Computer link fell behind", Code.ResourceExhausted),
+  });
 
   const connection: Connection = {
     send: (f) => {
-      if (!output.closed) output.push(create(link.LinkFrameSchema, f));
+      if (!output.closed && !output.push(create(link.LinkFrameSchema, f))) connection.close();
     },
     close: () => {
       output.close();

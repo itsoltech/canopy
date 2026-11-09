@@ -10,6 +10,7 @@ export const REMOTE_BRANCH_SWITCH = "remote_branch_switch_v1";
 export const THREAD_MIRROR = "thread_mirror";
 export const THREAD_MIRROR_DELTA = "thread_mirror_delta";
 export const THREAD_WATCH_LIVENESS = "thread_watch_liveness";
+export const THREAD_WATCH_COALESCE = "thread_watch_coalesce";
 export const REMOTE_BOTS = "remote_bots";
 export const AGENT_BUS = "agent_bus";
 

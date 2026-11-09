@@ -21,6 +21,7 @@ import {
   THREAD_MIRROR,
   THREAD_MIRROR_DELTA,
   THREAD_WATCH_LIVENESS,
+  THREAD_WATCH_COALESCE,
   INLINE_ATTACHMENTS,
   STEER_ATTACHMENTS,
 } from "@canopy/domain/computers";
@@ -82,6 +83,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
               THREAD_MIRROR,
               THREAD_MIRROR_DELTA,
               THREAD_WATCH_LIVENESS,
+              THREAD_WATCH_COALESCE,
               REMOTE_BOTS,
               AGENT_BUS,
               RELAY,

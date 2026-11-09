@@ -10,14 +10,19 @@ export const threadWatchRevision = `WITH clock AS MATERIALIZED (
     AND computer_thread_changes.revision<=clock.revision
 ), latest AS MATERIALIZED (
   SELECT thread_id,max(revision) AS revision FROM changes GROUP BY thread_id
+), watched AS MATERIALIZED (
+  SELECT t.id,c.epoch,c.revision,
+    CASE WHEN c.revision=$3::bigint THEN ARRAY[]::uuid[]
+      ELSE ARRAY(SELECT thread_id FROM thread_fork_chain(t.id)) END AS ids
+  FROM threads t CROSS JOIN clock c
+  WHERE t.owner_user_id=$1::uuid AND t.id=ANY($2::uuid[])
 )
-SELECT t.id,c.epoch,c.revision::text,(SELECT count(*)::text FROM changes) AS count,
+SELECT c.id,c.epoch,c.revision::text,(SELECT count(*)::text FROM changes) AS count,
   coalesce((SELECT max(l.revision) FROM latest l
-    WHERE l.thread_id IS NULL OR l.thread_id=ANY(s.ids)),0)::text AS relevant,
-  EXISTS(SELECT 1 FROM turns u WHERE u.thread_id=ANY(s.ids) AND
+    WHERE l.thread_id IS NULL OR l.thread_id=ANY(c.ids)),0)::text AS relevant,
+  CASE WHEN c.revision=$3::bigint THEN false ELSE
+    EXISTS(SELECT 1 FROM turns u WHERE u.thread_id=ANY(c.ids) AND
     (u.agent_call_id IS NOT NULL OR u.interaction_request_id IS NOT NULL OR u.schedule_id IS NOT NULL
       OR u.bot_call_id IS NOT NULL OR u.trigger='background_task'))
-    OR EXISTS(SELECT 1 FROM agent_bus_calls a WHERE a.source_thread_id=t.id) AS broad
-FROM threads t CROSS JOIN clock c CROSS JOIN LATERAL
-  (SELECT array_agg(thread_id) AS ids FROM thread_fork_chain(t.id)) s
-WHERE t.owner_user_id=$1::uuid AND t.id=ANY($2::uuid[])`;
+    OR EXISTS(SELECT 1 FROM agent_bus_calls a WHERE a.source_thread_id=c.id) END AS broad
+FROM watched c`;

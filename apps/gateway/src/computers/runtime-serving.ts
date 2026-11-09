@@ -14,6 +14,7 @@ import {
   THREAD_MIRROR,
   THREAD_MIRROR_DELTA,
   THREAD_WATCH_LIVENESS,
+  THREAD_WATCH_COALESCE,
 } from "@canopy/domain/computers";
 
 import { BOT_METHODS, linkedMessage, MOVE_METHODS, UPDATE_METHODS, type RelayRoute } from "./remote.ts";
@@ -222,6 +223,9 @@ export async function* computersServeHome(
       linkedMessage(ui.WatchThreadRequestSchema, request),
       signal,
       nodeId,
+      linkedMessage(ui.WatchThreadRequestSchema, request).watchCoalesce &&
+        hostContext.hello().capabilities.includes(THREAD_WATCH_COALESCE) &&
+        Boolean(connection.capabilities?.has(THREAD_WATCH_COALESCE)),
     );
   else yield* hostContext.options.serve(method, request, signal, nodeId);
 }

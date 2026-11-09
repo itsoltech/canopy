@@ -1069,6 +1069,8 @@ message WatchThreadRequest {
   string from_turn_id = 807;
   // Internal linked subscription, negotiated by thread_watch_liveness.
   bool watch_liveness = 808;
+  // Internal linked token coalescing, only with thread_watch_coalesce on both peers.
+  bool watch_coalesce = 810;
 }
 
 message ThreadSnapshot {
@@ -1101,6 +1103,9 @@ message ThreadSnapshot {
 message ThreadEventUpdate {
   uint64 seq = 1;
   canopy.worker.v1.ThreadEvent event = 2;
+  // Inclusive start of a contiguous item_delta run; zero means a single event.
+  // Set by links that negotiated thread_watch_coalesce; UI clients may ignore it.
+  uint64 first_seq = 810;
 }
 
 message ThreadUpdate {

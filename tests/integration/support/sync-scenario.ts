@@ -1,18 +1,27 @@
 import { Provider, ui } from "@canopy/contracts";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
-import { qualifyId } from "@canopy/domain/computers";
+import {
+  qualifyId,
+  REMOTE_THREADS,
+  THREAD_MIRROR,
+  THREAD_MIRROR_DELTA,
+  THREAD_WATCH_LIVENESS,
+} from "@canopy/domain/computers";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { ComputerStore } from "../../../apps/gateway/src/computers/store.ts";
 import { linkedComputers } from "./computers.ts";
 import { eventually, startTestGateway, type TestGateway } from "./gateway.ts";
 
-export async function scenarioComputer() {
+export async function scenarioComputer(legacy = false) {
   let gateway = await startTestGateway({ role: "desktop" });
 
   const makeLinks = () =>
     linkedComputers({
       store: new ComputerStore(gateway.runtime, gateway.userId, gateway.secretsKey),
       host: "127.0.0.1",
+      ...(legacy && {
+        capabilities: ["presence", "unlink", REMOTE_THREADS, THREAD_MIRROR, THREAD_MIRROR_DELTA, THREAD_WATCH_LIVENESS],
+      }),
       serve: remoteServe(uiHandlers(gateway.core)),
     });
 

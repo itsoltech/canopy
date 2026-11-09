@@ -188,13 +188,18 @@ export async function computersDial(hostContext: LinkedComputers, peer: PeerRow,
       hostContext[computersState].active.get(peer.node_id)?.size
     )
       return;
-    const output = new AsyncChannel<link.LinkFrame>();
+
+    const output = new AsyncChannel<link.LinkFrame>({
+      maxItems: 2048,
+      overflow: () => new ConnectError("Computer link fell behind", Code.ResourceExhausted),
+    });
+
     const routeController = new AbortController();
     const client = linkClient(address, peer.certificate, hostContext[computersState].identity);
 
     const connection: Connection = {
       send: (f) => {
-        output.push(create(link.LinkFrameSchema, f));
+        if (!output.push(create(link.LinkFrameSchema, f))) connection.close();
       },
       close: () => {
         output.close();

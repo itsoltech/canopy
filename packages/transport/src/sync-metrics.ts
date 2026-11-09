@@ -7,6 +7,8 @@ type Counters = {
   snapshots: number;
   deltas: number;
   heartbeats: number;
+  textDeltas: number;
+  batches: number;
 };
 
 /** Opt-in process-local counters. Labels are channel names, never ids or payloads. */
@@ -22,6 +24,8 @@ export class SyncMetrics {
       snapshots: 0,
       deltas: 0,
       heartbeats: 0,
+      textDeltas: 0,
+      batches: 0,
     };
 
     counters.messages++;
@@ -30,6 +34,8 @@ export class SyncMetrics {
     counters.snapshots += Number(kind === "snapshot");
     counters.deltas += Number(kind === "delta");
     counters.heartbeats += Number(kind === "heartbeat");
+    counters.textDeltas += Number(kind === "text" || kind === "batch");
+    counters.batches += Number(kind === "batch");
     this.#channels.set(channel, counters);
   }
 

@@ -2,7 +2,7 @@ import { ItemDeltaField, ItemStatus } from "@canopy/contracts";
 import type { TestGateway } from "./gateway.ts";
 import { eventually } from "./gateway.ts";
 
-/** A six-second turn with token deltas, tool results and progress from a background command. */
+/** A thirty-second turn with token deltas, tool results and background command progress. */
 export async function syncActivity(gateway: TestGateway, thread: string) {
   gateway.worker.holdTurns = true;
 
@@ -39,7 +39,7 @@ export async function syncActivity(gateway: TestGateway, thread: string) {
     },
   });
 
-  for (let i = 0; i < 300; i++) {
+  for (let i = 0; i < 1500; i++) {
     gateway.worker.emit(thread, turn, {
       case: "itemDelta",
       value: { itemId: "answer", field: ItemDeltaField.TEXT, chunk: i % 20 === 19 ? "token\n" : "token " },

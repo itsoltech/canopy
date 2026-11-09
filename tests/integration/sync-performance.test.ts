@@ -18,8 +18,9 @@ import { remoteThread, scenarioComputer, scenarioMirror, scenarioWatch } from ".
 test.skipIf(!dockerAvailable || process.env["CANOPY_SYNC_BENCH"] !== "1")(
   "sync protocol scenario",
   async () => {
-    const a = await scenarioComputer();
-    const b = await scenarioComputer();
+    const legacy = process.env["CANOPY_SYNC_LEGACY"] === "1";
+    const a = await scenarioComputer(legacy);
+    const b = await scenarioComputer(legacy);
     const abort = new AbortController();
     const readers: Promise<void>[] = [];
     let unmount: (() => void) | undefined;
@@ -96,6 +97,7 @@ test.skipIf(!dockerAvailable || process.env["CANOPY_SYNC_BENCH"] !== "1")(
       await Bun.sleep(500);
       syncMetrics?.reset();
       const started = performance.now();
+      const cpuStarted = process.cpuUsage();
       await syncActivity(b.gateway, activeId);
       const changed = performance.now();
       await b.gateway.api.updateThread({ threadId: activeId, title: "Streaming complete" });
@@ -104,6 +106,7 @@ test.skipIf(!dockerAvailable || process.env["CANOPY_SYNC_BENCH"] !== "1")(
       const consistencyMs = performance.now() - changed;
       const streaming = syncMetrics?.snapshot();
       const streamMs = performance.now() - started;
+      const cpu = process.cpuUsage(cpuStarted);
       abort.abort();
       await Promise.all(readers);
       unmount();
@@ -122,7 +125,18 @@ test.skipIf(!dockerAvailable || process.env["CANOPY_SYNC_BENCH"] !== "1")(
       resumeAbort.abort();
       await resumed.done;
       expect(resumed.state?.thread?.title).toBe("Offline change");
-      console.log("CANOPY_SYNC_BENCH", JSON.stringify({ streaming, streamMs, consistencyMs, reconnectMs, catchup }));
+      console.log(
+        "CANOPY_SYNC_BENCH",
+        JSON.stringify({
+          legacy,
+          streaming,
+          streamMs,
+          consistencyMs,
+          processCpuMicros: cpu.user + cpu.system,
+          reconnectMs,
+          catchup,
+        }),
+      );
     } finally {
       abort.abort();
       await Promise.allSettled(readers);
