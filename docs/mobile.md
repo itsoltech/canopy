@@ -96,8 +96,9 @@ aplikacja i Connect nie wymagają globalnego `crypto.getRandomValues`.
 
 ## Parowanie i granica uprawnień
 
-1. W web otwórz **Settings → Devices → Pair a phone**. BFF wywołuje
-   `CreateMobilePairing` swoim dotychczasowym service tokenem. Telefon go nie otrzymuje.
+1. Na już połączonym urządzeniu otwórz **Settings → Devices → Pair a phone**.
+   `CreateMobilePairing` akceptuje token BFF albo sparowanego telefonu/desktopu.
+   Nowy telefon nigdy nie otrzymuje service tokenu.
 2. Gateway generuje 64 losowe bity jako kod `XXXX-XXXX-XXXX-XXXX`, ważny 10 minut.
    QR zawiera lokalnie wygenerowany JSON `{type:"canopy-pair",version:2,addresses,fingerprint,code}`,
    nie URL z sekretem. Kod nie trafia do zewnętrznego serwisu QR.
@@ -921,6 +922,15 @@ Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
 listę, czat ze streamem, wysyłanie/stop, karty pytań/zgód z odpowiedziami oraz sheet
 szczegółów/routines/reminders (zarządzanie routines/reminders w web). „Bot settings”
 pozwala edytować nazwę, instrukcje, wygląd, model, effort, worker i politykę zgód;
+przycisk Create bot w nagłówku listy Bots otwiera ten sam formularz do tworzenia.
+Tworzenie zachowuje `client_request_id` przy ponowieniu niepotwierdzonego zapisu.
+Własny kolor można wpisać jako #RRGGBB. Nieudana odpowiedź ma Retry dla ostatniego
+błędu oraz Change model or worker, otwierające ustawienia. Akcje wymagają live
+i dostępnego domu bota; gateway ponownie sprawdza możliwość ponowienia.
+New thread ma skrót Manage projects do istniejącego tworzenia projektów i workspace'ów,
+a Thread details → Manage connector access otwiera mobilne Settings → Connectors.
+Tak jak w web, konta są przyznawane workerowi, a nie pojedynczemu wątkowi.
+Parowanie i revocation wskazują Settings → Devices na dowolnym już sparowanym urządzeniu.
 lista „Allowed actions” pokazuje czas i źródło reguły oraz „Remove rule”. „Always allow…”
 na karcie przesyła identyfikator opcji wyliczonej w gatewayu. Automatyczna zgoda zostaje
 jako „Allowed by rule: …”, z odnośnikiem do ustawień. „Threads started by this bot”

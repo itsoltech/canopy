@@ -10,6 +10,7 @@ import { permissionLabel } from "./permissions";
 import { headLabel, PROVISIONAL_BRANCH_HINT } from "@canopy/domain/git-heads";
 import { SubagentLineage } from "./SubagentLineage";
 import { ListSkeleton } from "../../ui/Skeleton";
+import { openSettingsSection } from "../settings/navigation";
 
 export function PanelRow({
   title,
@@ -130,7 +131,13 @@ export function ThreadPanel({
           <SubagentLineage threads={subagents} onOpen={openThread} />
           <Text style={[styles.label, { color: c.text }]}>Connectors</Text>
           <ThreadConnectors threadId={thread.id} />
-          <Text style={[styles.meta, { color: c.muted }]}>Manage thread connectors in Canopy on the web.</Text>
+          <Button
+            title="Manage connector access"
+            onPress={() => {
+              onClose();
+              openSettingsSection("connectors");
+            }}
+          />
         </>
       )}
     </Sheet>

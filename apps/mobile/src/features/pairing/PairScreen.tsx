@@ -114,7 +114,7 @@ function usePairing() {
           ? "Cannot reach this computer. Connect to the same Wi-Fi or VPN and try again."
           : e instanceof Error
             ? e.message
-            : "Pairing failed. Create a new code in web Settings.",
+            : "Pairing failed. Create a new code in Settings → Devices on a paired device.",
       );
     } finally {
       submitting.current = false;
@@ -251,7 +251,7 @@ export default function PairScreen() {
               busy={busy}
             />
             <Text style={[styles.meta, { color: c.muted }]}>
-              Your device key stays in encrypted storage. You can revoke access at any time in web Settings.
+              Your device key stays in encrypted storage. Revoke access in Settings → Devices on another paired device.
             </Text>
           </ScreenScroll>
         </SkeletonScope>

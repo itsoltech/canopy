@@ -64,8 +64,8 @@ export function WorkerInstallCommands({
       )}
       {method === "script" && (
         <Notice>
-          The phone connects directly to the gateway. These verified download and enrollment commands replace the web
-          server install-script URL. Save the service printed by the final command, then run its startup commands.
+          Run these commands on the computer that will host the worker. They download, verify and enroll it. Then follow
+          the startup instructions printed by the final command.
         </Notice>
       )}
       <SettingsValue
