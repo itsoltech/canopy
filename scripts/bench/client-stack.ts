@@ -1,0 +1,109 @@
+import { randomBytes } from "node:crypto";
+import { resolve } from "node:path";
+import { mkdir } from "node:fs/promises";
+
+/** Private disposable gateway/BFF for renderer profiling; never reads a developer's stack config. */
+const root = resolve(import.meta.dir, "../..");
+const temp = process.env["TMPDIR"];
+
+if (!temp || temp === "/tmp" || !temp.startsWith("/"))
+  throw new Error("Set TMPDIR to a private, disk-backed absolute directory before starting the benchmark");
+
+await mkdir(temp, { recursive: true });
+
+const forbidden = new Set([17443, 5180, 8444, 17444, 17445, 3000, 7443, 7432, 4443, 7444, 5291, 8081]);
+
+const port = (name: string, fallback: number) => {
+  const value = Number(process.env[name] ?? fallback);
+
+  if (!Number.isInteger(value) || value < 1024 || value > 65535 || forbidden.has(value))
+    throw new Error(`Choose an unused non-reserved port for ${name}`);
+
+  return value;
+};
+
+const webPort = port("CANOPY_BENCH_WEB_PORT", 15437);
+const gatewayPort = port("CANOPY_BENCH_GATEWAY_PORT", 15438);
+const pgPort = port("CANOPY_BENCH_PG_PORT", 15439);
+
+if (new Set([webPort, gatewayPort, pgPort]).size !== 3) throw new Error("Benchmark ports must differ");
+
+const name = `canopy-client-bench-${process.pid}`;
+const password = randomBytes(24).toString("hex");
+const token = randomBytes(32).toString("hex");
+const children: ReturnType<typeof Bun.spawn>[] = [];
+let stopping = false;
+
+async function stop() {
+  if (stopping) return;
+  stopping = true;
+
+  for (const child of children.toReversed()) child.kill("SIGTERM");
+  await Promise.all(children.map((child) => child.exited));
+  await Bun.spawn(["docker", "rm", "-f", "-v", name], { stdout: "ignore", stderr: "ignore" }).exited;
+}
+
+for (const signal of ["SIGINT", "SIGTERM"] as const)
+  process.once(signal, () => void stop().then(() => process.exit(0)));
+
+try {
+  const docker = Bun.spawn(
+    [
+      "docker",
+      "run",
+      "-d",
+      "--rm",
+      "--name",
+      name,
+      "-e",
+      "POSTGRES_PASSWORD",
+      "-p",
+      `127.0.0.1:${pgPort}:5432`,
+      "postgres:17",
+    ],
+    { env: { ...process.env, POSTGRES_PASSWORD: password }, stdout: "ignore", stderr: "inherit" },
+  );
+
+  if ((await docker.exited) !== 0) throw new Error("Could not start private PostgreSQL");
+
+  const deadline = Date.now() + 45_000;
+
+  while (
+    (await Bun.spawn(["docker", "exec", name, "pg_isready", "-U", "postgres"], { stdout: "ignore", stderr: "ignore" })
+      .exited) !== 0
+  ) {
+    if (Date.now() > deadline) throw new Error("Private PostgreSQL did not become ready");
+    await Bun.sleep(100);
+  }
+
+  children.push(
+    Bun.spawn(["bun", "apps/gateway/src/main.ts"], {
+      cwd: root,
+      env: {
+        ...process.env,
+        CANOPY_DATABASE_URL: `postgres://postgres:${password}@127.0.0.1:${pgPort}/postgres`,
+        CANOPY_SECRETS_KEY: randomBytes(32).toString("base64"),
+        CANOPY_UI_SERVICE_TOKEN: token,
+        CANOPY_HOST: "127.0.0.1",
+        CANOPY_GATEWAY_ROLE: "server",
+        CANOPY_PORT: String(gatewayPort),
+        CANOPY_NETWORK_PORT: undefined,
+      },
+      stdout: "inherit",
+      stderr: "inherit",
+    }),
+  );
+  children.push(
+    Bun.spawn(["bun", "run", "dev", "--host", "127.0.0.1", "--port", String(webPort)], {
+      cwd: resolve(root, "apps/web"),
+      env: { ...process.env, GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`, GATEWAY_SERVICE_TOKEN: token },
+      stdout: "inherit",
+      stderr: "inherit",
+    }),
+  );
+  console.info(`Renderer fixture: http://127.0.0.1:${webPort}/dev/long-thread?turns=1000`);
+  console.info(`Stop this process (${process.pid}) to remove its servers and database.`);
+  await Promise.race(children.map((child) => child.exited));
+} finally {
+  await stop();
+}

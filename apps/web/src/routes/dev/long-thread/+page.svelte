@@ -13,6 +13,7 @@
     type BenchResult,
   } from "#lib/features/threads/dev/bench.ts";
   import { longThreadSnapshot, streamingTurn } from "#lib/features/threads/dev/fixture.ts";
+  import { benchmarkSession } from "#lib/features/threads/dev/session.ts";
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { ThreadState } from "#lib/features/threads/thread-state.svelte.ts";
   import { FeedBuilder, feedEstimate, feedGroup, type FeedRow } from "#lib/features/threads/feed.ts";
@@ -62,7 +63,18 @@
 
   // Hydrated: the benchmark button works (the runner waits for this).
   $effect(() => {
-    Object.assign(window, { __benchReady: true });
+    const session = benchmarkSession({
+      reset: (snapshot) => {
+        view.apply(create(ui.ThreadUpdateSchema, { change: { case: "snapshot", value: snapshot } }));
+        generation++;
+      },
+      apply: (update) => view.apply(update),
+      scroller: () => document.querySelector<HTMLElement>("[data-bench-scroller] [role=region]")!,
+    });
+
+    Object.assign(window, { __benchReady: true, __benchRun: run, __benchSession: session });
+
+    return () => session.stop();
   });
 
   async function run() {
