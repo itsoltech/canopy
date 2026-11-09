@@ -206,6 +206,24 @@ właściciela i rosnący zapis checkpointu w jednym zapytaniu, także dla powtó
 
 ## Zapisy grupowe
 
+`bun scripts/bench/environment.ts --run` mierzy snapshot biblioteki i ustawienia
+jednego workera: 32 skille z dwiema wersjami po 16 KiB, 13 workerów, 16 historycznych
+pinów. Bieżące niezmienne artefakty są używane ponownie z biblioteki właściciela;
+historyczne piny mają grupowy odczyt zamiast zapytania dla każdego skilla i workera.
+Pełny snapshot nadal zachowuje pliki wymagane przez podgląd i uzgadnianie środowiska.
+Harness używa rzeczywistego serwisu bez transportu, z tą samą metodą próbek i EXPLAIN
+co pozostałe pomiary. Wyniki na współdzielonej maszynie mogą różnić się w p95 mimo
+redukcji liczby zapytań; liczba wywołań i bajtów nie jest deklaracją poprawy latency.
+`--profile` wykonuje trzy serie po 20 próbek z dwoma rozgrzaniami każdej serii.
+Podaje p50/p95 każdej serii, CPU procesu oraz osobny przebieg z czasem sterownika
+dla każdego fingerprintu SQL. Czas sterownika obejmuje transport i dekodowanie,
+bez liczenia rozmiaru JSON; cały przebieg diagnostyczny obejmuje również to liczenie
+i ma zimne połączenie diagnostyczne. Nie należy odejmować jego czasów od zwykłego
+p95, aby wyliczyć czas JS. Plany pokazują czas po stronie PostgreSQL oddzielnie.
+Przed porównaniem wersji należy zakończyć inne własne benchmarki, testy i buildy.
+Regresja wymaga profilu i porównania wszystkich serii, z zachowaniem niekorzystnych
+wyników; sam spadek liczby zapytań nie zamyka weryfikacji wydajności.
+
 Przyjęcie świeżego importu i jego biblioteki używa typowanego
 `jsonb_to_recordset`, do 128 pozycji lub około 512 KiB JSON na partię. Pojedyncza
 wcześniej zwalidowana duża pozycja może przekroczyć cel bajtowy. Pozycje zachowują

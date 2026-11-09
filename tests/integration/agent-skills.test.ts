@@ -278,6 +278,14 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     );
     expect(readFileSync(extra, "utf8")).toContain("Private extra");
 
+    const workerSettings = await gateway.api.getWorkerEnvironment({ workerId: windows.workerId });
+    const entry = workerSettings.items.find((item) => item.kind === "skill" && item.name === skill.name)!;
+    expect(entry.versions.map((version) => version.version)).toEqual([1n, 2n]);
+    expect(entry.versions.every((version) => version.hash.length === 64)).toBe(true);
+    expect(workerSettings.overrides.find((override) => override.item === entry.item)?.versionHash).toBe(
+      entry.versions[0]!.hash,
+    );
+
     const rollback = clone(
       ui.LibrarySkillSchema,
       saved.skills.find((s) => s.id === skill.id)!,

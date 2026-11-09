@@ -5,7 +5,7 @@ import { Effect } from "effect";
 import { Code, ConnectError } from "@connectrpc/connect";
 import type { SqlClient } from "effect/sql";
 import { checkSelector, invalid, selected, uuid } from "./composition.ts";
-import { skillVersion } from "./skill-database.ts";
+import { skillVersions } from "./skill-database.ts";
 
 export function checkSkillAssignment(
   skill: ui.LibrarySkill,
@@ -56,9 +56,30 @@ export function desiredSkills(
     const destinations = new Set<string>();
     let total = 0;
 
-    for (const skill of library.filter((s) => skillApplies(s, worker))) {
-      const version = skill.overrides.find((o) => o.workerId === worker.workerId)?.version || skill.version;
-      const artifact = yield* skillVersion(sql, owner, skill.id, version);
+    const selected = library.flatMap((skill) =>
+      skillApplies(skill, worker)
+        ? [
+            {
+              skill,
+              version: skill.overrides.find((o) => o.workerId === worker.workerId)?.version || skill.version,
+            },
+          ]
+        : [],
+    );
+
+    const historical = yield* skillVersions(
+      sql,
+      owner,
+      selected.flatMap(({ skill, version }) =>
+        version !== skill.version || !skill.artifact ? [{ id: skill.id, version }] : [],
+      ),
+    );
+
+    for (const { skill, version } of selected) {
+      const artifact =
+        version === skill.version && skill.artifact ? skill.artifact : historical.get(`${skill.id}:${version}`);
+
+      if (!artifact) return yield* Effect.fail(new ConnectError("Skill version not found.", Code.NotFound));
 
       for (const harness of skill.harnesses) {
         for (const scope of [skill.deviceHome ? "device" : "", skill.platformHome ? "platform" : ""].filter(Boolean)) {

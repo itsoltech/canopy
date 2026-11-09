@@ -263,6 +263,12 @@ instrukcji. `SkillMachineOverride` wyłącza element lub przypina wersję; `vers
 dziedziczy wybraną wersję biblioteki. Gateway odrzuca kolizje celów i ponad 25 MiB
 artefaktów przypisanych jednej maszynie. Limit biblioteki: 100 skilli/właściciela.
 
+Walidacja przypisań korzysta z bieżących artefaktów już odczytanych w bibliotece
+właściciela lub zwalidowanych podczas uploadu. Niezmienne historyczne piny pobiera
+jednym zapytaniem grupowym na maszynę, z kontrolą właściciela dla każdego rekordu.
+Widok ustawień maszyny rozwiązuje numery wersji i hashe jednym odczytem metadanych;
+nie pobiera ponownie plików dla listy wersji ani osobno dla każdego override'u.
+
 Capability `agent_skills_v1` rozszerza istniejący `AgentEnvironmentDesired`:
 `skills=4` przenosi pełne wybrane artefakty, `skill_resolutions=5` jednorazowe
 decyzje. `AgentEnvironmentReport.skills=3` zawiera status każdego elementu/celu:

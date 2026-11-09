@@ -38,6 +38,25 @@ export function skillVersion(sql: SqlClient.SqlClient, owner: string, id: string
   });
 }
 
+/** Historical pins only; current artifacts already belong to the owner-scoped library snapshot. */
+export function skillVersions(
+  sql: SqlClient.SqlClient,
+  owner: string,
+  refs: readonly { id: string; version: bigint }[],
+) {
+  if (!refs.length) return Effect.succeed(new Map<string, SkillArtifact>());
+  const wanted = JSON.stringify(refs.map((ref) => ({ id: ref.id, version: ref.version.toString() })));
+
+  return sql<{ skill_id: string; version: bigint; artifact: JsonValue }>`SELECT v.skill_id,v.version,v.artifact
+    FROM agent_skill_versions v JOIN jsonb_to_recordset(${wanted}::jsonb) AS r(id uuid,version bigint)
+      ON v.skill_id=r.id AND v.version=r.version WHERE v.owner_user_id=${owner}::uuid`.pipe(
+    Effect.map(
+      (rows) =>
+        new Map(rows.map((row) => [`${row.skill_id}:${row.version}`, fromJson(SkillArtifactSchema, row.artifact)])),
+    ),
+  );
+}
+
 export function addSkillVersion(
   sql: SqlClient.SqlClient,
   owner: string,
