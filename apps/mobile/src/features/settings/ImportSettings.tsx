@@ -1,14 +1,13 @@
 import { useCallback, useEffect } from "react";
-import { AppState, Text, View } from "react-native";
+import { AppState } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { EmptyState } from "../../ui/components";
-import { styles, useColors } from "../../ui/theme";
+import { ImportStart } from "../imports/ImportStart";
 import { ImportRunGroup } from "./ImportRunGroup";
 import { ResourceState, useSettingsResource } from "./resource";
 
-/** Settings → Import: monitor and manage runs; source selection stays on web/desktop. */
+/** Settings → Import: choose the computer's CLI sources and manage durable runs. */
 export function ImportSettings() {
-  const c = useColors();
   const resource = useSettingsResource("imports", (api) => api.listImportRuns({}));
   const runs = resource.data?.runs ?? [];
   const active = runs.some((run) => run.status === "running" || run.status === "paused");
@@ -32,15 +31,12 @@ export function ImportSettings() {
 
   return (
     <ResourceState resource={resource}>
-      {runs.length > 0 ? (
-        <View style={{ paddingHorizontal: 4 }}>
-          <Text style={[styles.workMeta, { color: c.muted }]}>Choose what to import in the web or desktop app.</Text>
-        </View>
-      ) : resource.data ? (
+      <ImportStart onStarted={() => void reload()} />
+      {!runs.length && resource.data ? (
         <EmptyState
           icon="arrow-down-tray"
           title="No imports yet"
-          description="Bring threads and settings from Claude Code, Codex and Grok into Canopy in the web or desktop app."
+          description="Scan a computer to choose threads and settings to bring into Canopy."
         />
       ) : null}
       {runs.map((run) => (

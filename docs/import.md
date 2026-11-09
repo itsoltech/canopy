@@ -1,8 +1,8 @@
 # Import z CLI agentów
 
 Settings → Code → **Import** przenosi do Canopy wątki, które użytkownik prowadził wcześniej w Claude Code,
-Codexie i Groku, tak żeby mógł je czytać i kontynuować. Wybór źródeł działa w webie i desktopie;
-telefon pokazuje postęp i akcje przebiegów (sekcja „Wejścia i telefon”).
+Codexie i Groku, tak żeby mógł je czytać i kontynuować. Wybór źródeł działa w webie, desktopie
+i na sparowanym telefonie; pliki zawsze czyta worker komputera (sekcja „Wejścia i telefon”).
 
 Stos A (wątki) ma pięć etapów:
 
@@ -352,10 +352,19 @@ Etap 9:
   osobny wiersz. Przy wysokości ekranu poniżej 600 px karta jest ukryta.
 - **Workers.** Menu akcji workera tego komputera ma **Import from this computer** (tylko worker z capability,
   nieaktywne offline albo po odwołaniu): otwiera Settings → Import z tym workerem.
-- **Telefon.** Settings → Import w aplikacji mobilnej pokazuje przebiegi: postęp (pasek bajtów), podsumowanie,
+- **Telefon.** Settings → Import pozwala wybrać worker tego gatewaya z `cli_import_v1`,
+  uruchomić Scan computer i przejrzeć źródła. Filtry obejmują CLI, 7/30/90 dni lub cały czas,
+  szukanie, katalog i subagentów. Zaznaczenie dotyczy całego wyniku, niezależnie od strony
+  (po 200 wątków); katalogi można przypisać do istniejącego projektu/workspace'u tego workera,
+  pozostawić według propozycji, bez projektu albo pominąć. Import mode wybiera kontynuację
+  tam, gdzie możliwa, albo samą historię. Ustawienia i bibliotekę wybiera się jawnie; konflikty
+  mają Replace existing / Keep both. Nagłówki sekretów z pliku CLI wymagają osobnego wyboru;
+  telefon nie otrzymuje ich wartości. Zmienne środowiska uzupełnia się później w Connectors.
+  Skan i wykonanie korzystają z tych samych RPC co web, bez odczytu plików telefonu.
+  Import innego połączonego komputera nadal wymaga połączenia z jego gatewayem.
+  Ekran pokazuje też przebiegi: postęp (pasek bajtów), podsumowanie,
   bieżący wątek, błąd oraz **Cancel**, **Resume** / **Retry failed** i **Remove imported items** (z potwierdzeniem).
-  Lista odświeża się co 3 s, dopóki któryś przebieg trwa albo czeka. Wybór wątków i mapowanie katalogów (gęsta
-  lista) zostają w aplikacji web i desktop. Nieudane pozycje biblioteki też pozwalają ponowić import; przebieg
+  Lista odświeża się co 3 s, dopóki któryś przebieg trwa albo czeka. Nieudane pozycje biblioteki też pozwalają ponowić import; przebieg
   anulowany lub cofnięty nie oferuje wznowienia. Po nieudanym przywróceniu **Remove imported items** pojawia się
   ponownie tylko dla pozycji, które pozostały. Etykiety, odcienie i dostępność akcji są wspólne
   (`@canopy/domain/import-look`). Data jest osobnym wierszem, aby długie formaty nie ściskały liczników.

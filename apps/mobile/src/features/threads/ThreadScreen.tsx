@@ -33,6 +33,7 @@ import { useFloatingComposer } from "../composer/useFloatingComposer";
 import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { visibleTurns } from "./thread-turns";
 import { threadComposerHeight } from "../composer/geometry";
+import { ImportedThreadComposer } from "../imports/ImportedThreadComposer";
 
 /** The gateway refused the message and says why (not delivered: no retry note); otherwise delivery is unknown. */
 function deliveryError(failure: ConnectError) {
@@ -268,25 +269,27 @@ export function ThreadScreen({ id }: { id: string }) {
                 {state.home.name} · {state.home.status}. Read only until it reconnects.
               </Notice>
             )}
-            <SkeletonScope loading={!thread}>
-              <MessageComposer
-                compact={composer.compact}
-                onExpand={composer.expand}
-                thread={thread}
-                worker={worker}
-                message={state.message}
-                send={(delivery) => void send(delivery)}
-                stop={() =>
-                  void client!.api
-                    .interruptThread({ threadId: id })
-                    .catch(() => setError("Could not stop the turn. Try again."))
-                }
-                disabled={blocked}
-                busy={busy}
-                onDetails={() => setDetails(true)}
-                onGoal={() => setSheet("goal")}
-              />
-            </SkeletonScope>
+            <ImportedThreadComposer thread={thread} disabled={blocked}>
+              <SkeletonScope loading={!thread}>
+                <MessageComposer
+                  compact={composer.compact}
+                  onExpand={composer.expand}
+                  thread={thread}
+                  worker={worker}
+                  message={state.message}
+                  send={(delivery) => void send(delivery)}
+                  stop={() =>
+                    void client!.api
+                      .interruptThread({ threadId: id })
+                      .catch(() => setError("Could not stop the turn. Try again."))
+                  }
+                  disabled={blocked}
+                  busy={busy}
+                  onDetails={() => setDetails(true)}
+                  onGoal={() => setSheet("goal")}
+                />
+              </SkeletonScope>
+            </ImportedThreadComposer>
           </FloatingComposer>
         </DropZone>
       </ChatKeyboard>
