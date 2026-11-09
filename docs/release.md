@@ -146,12 +146,16 @@ wersji Intel (darwin-x64) nie budujemy — ani desktopu, ani binarek gatewaya/wo
 `bun scripts/icons/channel-icons.ts --previews <katalog>` odtwarza zasoby w
 `apps/web/static/channels/{stable,beta,nightly}` oraz podglądy poza repozytorium:
 512/128/64/32/16 px, planszę porównawczą i jasny/ciemny Dock (także w 16/32 px).
+Podglądy mobilne obejmują maskę iOS w 1024/180/120/87/60 px, maski Androida
+(koło, squircle i zaokrąglony kwadrat), rząd ikon iPhone’a oraz duże ikony TestFlight.
 PNG, wielorozdzielcze ICO i ICNS, ikony Expo i osobne warstwy adaptive Androida
 są commitowane; release tylko wybiera właściwe pliki i nie wymaga generatora.
 Generator wycina drzewo kluczem nasycenia/jasności, czyści i wygładza maskę oraz
 usuwa kolor tła z krawędzi. Cienie, półtony i światła otrzymują osobne stopnie
 koloru; światło z prawej pozostaje wewnątrz maski. Warianty zachowują oryginalny
-kształt, fazowanie, połysk i cieniowanie tła.
+kształt, fazowanie, połysk i cieniowanie tła wyłącznie dla desktopu i web.
+Mobilne zasoby składają samo drzewo na pełnym tle, bez wewnętrznej ramki;
+szczegóły stref bezpieczeństwa i warstwy monochromatycznej opisuje [mobile.md](mobile.md).
 
 Web rozpoznaje kanał wersji działającego gatewaya przez `GetClientCapabilities`
 (cache 5 s, timeout 750 ms); przy niedostępności zachowuje ostatnią tożsamość.

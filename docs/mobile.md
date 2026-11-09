@@ -12,8 +12,14 @@ rozszerzające profile beta/stable jawnie nadpisują nightly. Publikacja OTA bez
 rozpoznaje kanał z przygotowanej wersji, więc fingerprint zgadza się z natywnym buildem.
 Nie zmieniamy bundle ID, nazwy pakietu Androida ani `canopy://`.
 
-Ikona iOS jest nieprzezroczystym PNG 1024 px. Android ma osobny foreground drzewa
-w centralnej bezpiecznej strefie i tło sceny; splash używa tego samego wariantu.
+Ikona iOS jest pełnym kwadratem RGB PNG 1024 px, bez kanału alfa, ramki, fazowania
+i połysku. Samo drzewo zajmuje 70% szerokości, lekko powyżej środka; maskę nakłada iOS.
+Android ma osobny foreground mieszczący się w kole 66 dp na płótnie 108 dp,
+pomniejszony o dodatkowe 14%, aby pozostawić co najmniej 8% średnicy widocznej maski
+między drzewem a jej krawędzią. Ma pełne tło sceny oraz monochromatyczną sylwetkę
+dla ikon tematycznych Androida 13+.
+Księżyc/słońce i gwiazdy mają osobne pozycje dla masek launcherów.
+Splash pokazuje samo drzewo na kolorze kanału, również w trybie ciemnym.
 **Nazwa, ikony launchera i splash wymagają nowego buildu natywnego. OTA ich nie zmienia.**
 Konfiguracja natywna oraz assety wpływają na fingerprint; stare IPA/APK pozostają ze
 starą tożsamością do instalacji nowej binarki. Publiczną konfigurację można sprawdzić
