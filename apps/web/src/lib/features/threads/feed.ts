@@ -202,7 +202,7 @@ function historyParts(
   }));
 }
 
-/** Same kind and the same values (by identity) one level down, including the timeline row's fields. */
+/** Same kind and values one level down, including the timeline row's fields. */
 function sameRow(a: FeedRow, b: FeedRow): boolean {
   if (!shallowEqual(a, b, ["row", "threadIds", "summary", "items"])) return false;
 
@@ -222,17 +222,24 @@ function sameRow(a: FeedRow, b: FeedRow): boolean {
   return true;
 }
 
+/** Compare own fields without allocating entries, arrays or Maps for every row on every delta. */
 function shallowEqual<T extends FeedRow | TimelineRow | WorkSummary>(
   a: T,
   b: T,
   skip: readonly string[] = [],
 ): boolean {
-  const left = Object.entries(a);
-  const right = new Map(Object.entries(b));
+  let size = 0;
 
-  if (left.length !== right.size) return false;
+  for (const key in a) {
+    if (!Object.hasOwn(a, key)) continue;
 
-  return left.every(([key, value]) => skip.includes(key) || value === right.get(key));
+    if (!Object.hasOwn(b, key) || (!skip.includes(key) && a[key] !== b[key])) return false;
+    size++;
+  }
+
+  for (const key in b) if (Object.hasOwn(b, key)) size--;
+
+  return size === 0;
 }
 
 /** A row inside an open fold (a work row or a tool group), outside the folded history. */
