@@ -96,6 +96,13 @@ dziesiętnymi, także powyżej precyzji JS number. Pobranie pozycji do UI nie de
 snapshotów źródła, bazy dopisywania ani kursorów wznowienia; wewnętrzne przejścia
 importu nadal odczytują pełne rekordy.
 
+`bun scripts/bench/schedule-lock.ts --run` mierzy konflikt edycji z przygotowaniem
+workspace'u: 20 próbek i dwa rozgrzania, 50 ms syntetycznego I/O. Edycja wersji
+zaczyna się po wejściu w przygotowanie. Wynik podaje p50/p95 edycji (w tym czas
+oczekiwania na blokadę wiersza) i liczbę tur zapisanych mimo równoległej edycji.
+Przygotowanie działa poza transakcją; końcowa transakcja ponownie sprawdza fence
+i placement, a claim schedulera pobiera jedno zadanie tuż przed obsługą.
+
 ## Odczyty wątków
 
 Zwykła strona historii korzysta z istniejącego ograniczonego okna tur w SQL;

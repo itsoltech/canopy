@@ -25,7 +25,7 @@ export interface SchedulerHost {
   prepareWorkspace?(request: ui.CreateThreadRequest, userId: string, sourceId: string): Promise<ui.CreateThreadRequest>;
 }
 
-const LEASE_SECONDS = 60;
+const LEASE_SECONDS = 180;
 
 /** A run later than this after its time counts as missed (missed_policy applies). */
 const MISSED_AFTER_MS = 2 * 60_000;
@@ -83,19 +83,29 @@ export class Scheduler {
     this.#ticking = true;
 
     try {
-      const due = await this.#host.run(
-        AgentBusStore.use((s) => s.claimDueSchedules(this.#host.owner, now, LEASE_SECONDS)),
-      );
+      const started = performance.now();
+      let handled = 0;
 
-      for (const schedule of due) {
+      while (handled < 50) {
+        const current = new Date(now.getTime() + performance.now() - started);
+
+        const due = await this.#host.run(
+          AgentBusStore.use((s) => s.claimDueSchedules(this.#host.owner, current, LEASE_SECONDS, 1)),
+        );
+
+        const schedule = due[0];
+
+        if (!schedule) break;
+        handled++;
+
         try {
-          await this.#fire(schedule, now);
+          await this.#fire(schedule, current);
         } catch (error) {
           this.#host.log(`schedule ${schedule.id} failed: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
 
-      return due.length;
+      return handled;
     } finally {
       this.#ticking = false;
     }

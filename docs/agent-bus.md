@@ -283,6 +283,8 @@ Gdy dostawca w wątku bocznym prosi o zgodę albo zadaje pytanie ([execution.md]
 Harmonogram jest funkcją platformy, nie dostawcy: trwały (`schedules`), widoczny w UI, przeżywa restart i wyłączenie workera.
 
 - Gateway odpala zaległe harmonogramy z dzierżawą (`FOR UPDATE SKIP LOCKED`) jako tury `trigger = schedule`. Jeśli worker jest offline, tura czeka w kolejce jak każda inna.
+- Scheduler przejmuje po jednym wystąpieniu bezpośrednio przed wykonaniem, do 50 na tick. Lease wynosi 180 sekund; oczekujące zadania nie tracą dzierżaw podczas przygotowania wcześniejszego workspace'u.
+- Błąd przygotowania workspace'u skraca własną, nadal aktualną dzierżawę do 4 sekund od ticka; zachowuje wystąpienie do ponowienia i nie zmienia dzierżawy nowszego wykonawcy.
 - Po przestoju `missed_policy` decyduje: jedna tura nadrabiająca (`run_once`, domyślnie) albo pominięcie (`skip`).
 - Agent może ustawić harmonogram dla siebie albo dla swoich potomków. Harmonogram agenta zawsze ma koniec (jednorazowy, `until` albo `max_runs`) i wydłuża łańcuch przeskoków. Agent, który w kółko planuje sam siebie, zatrzyma się na limicie. Użytkownik może tworzyć harmonogramy bez końca.
 
@@ -330,6 +332,12 @@ sprawdzana pod blokadą wiersza; stary właściciel nie może zatwierdzić przej
 Utworzenie wątku, tury, komendy w outboxie, wpisu historii i przesunięcie harmonogramu to jedna
 transakcja. Restart przed zatwierdzeniem pozwala ponowić termin, a po zatwierdzeniu odtwarza komendę
 z outboxa bez tworzenia drugiego wątku. Komenda utworzenia nowego wątku ma ważność 365 dni.
+Przygotowanie workspace'u, w tym RPC tworzący worktree, odbywa się przed tą transakcją,
+bez blokady harmonogramu i bez zajętego połączenia SQL. Zatwierdzenie sprawdza ponownie
+wersję, właściciela i termin lease, wystąpienie, współbieżność oraz dostępność wybranego
+workspace'u. Pauza lub edycja podczas przygotowania uniemożliwia zapis starego wystąpienia.
+Niewykorzystany worktree pozostaje w trwałym rejestrze i podlega zwykłemu cleanupowi;
+utworzenie katalogu na workerze nie jest częścią transakcji PostgreSQL.
 Historia UI pokazuje pięć ostatnich wystąpień, w tym pominięcia; pełna historia pozostaje w bazie.
 
 ### Edycja harmonogramu przez użytkownika
