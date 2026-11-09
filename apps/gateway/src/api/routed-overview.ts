@@ -53,11 +53,25 @@ export async function gather<A extends Message>(
 
   const results = await Promise.allSettled(
     ordered.map(async (nodeId) => {
+      // Serve a successful live list from the bounded cache; read the mirror only while unavailable/loading.
+      if (name === "ListThreads" && computers.capabilities(nodeId).includes(THREAD_MIRROR)) {
+        const cached = computers.reads.read<A>(
+          nodeId,
+          method,
+          request,
+          (background) => single(forward(core, nodeId, method, request, background, false, true)),
+          unaryTimeout(method),
+          reachable.has(nodeId),
+        );
+
+        if (reachable.has(nodeId) && cached && computers.reads.state(nodeId, method, request) === "fresh")
+          return cached;
+
+        return single<A>(forward(core, nodeId, method, request, signal));
+      }
+
       // Committed local projections stay authoritative through reconnects and partial mirror resets.
-      if (
-        (name === "GetOverview" || name === "ListThreads") &&
-        computers.capabilities(nodeId).includes(THREAD_MIRROR)
-      ) {
+      if (name === "GetOverview" && computers.capabilities(nodeId).includes(THREAD_MIRROR)) {
         const projection = await single<A>(forward(core, nodeId, method, request, signal));
 
         if (name === "GetOverview") {

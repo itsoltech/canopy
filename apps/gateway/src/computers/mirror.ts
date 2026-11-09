@@ -31,15 +31,15 @@ export class ThreadMirror {
   async snapshot(node: string, thread: string): Promise<ui.ThreadSnapshot | undefined> {
     return (await this.read(node, thread))?.snapshot;
   }
-  /** Route/BFF header reads do not decode the complete timeline. Old projections fall back until refreshed. */
+  /** Header reads and lists never load the complete timeline. */
   async thread(node: string, thread: string): Promise<ui.Thread | undefined> {
-    const rows = await this.store.query<{ metadata: Uint8Array | null }>(
+    const rows = await this.store.query<{ metadata: Uint8Array }>(
       `SELECT t.thread_metadata AS metadata FROM computer_mirror_threads t JOIN computer_mirror_state s
       USING(owner_user_id,origin_node_id,generation) WHERE t.owner_user_id=$1::uuid AND t.origin_node_id=$2 AND t.thread_id=$3::uuid`,
       [this.store.owner, node, thread],
     );
 
-    if (!rows[0]?.metadata) return (await this.snapshot(node, thread))?.thread;
+    if (!rows[0]) return undefined;
     const value = fromBinary(ui.ThreadSchema, rows[0].metadata);
     qualify(ui.ThreadSchema, value, node);
 
@@ -60,17 +60,24 @@ export class ThreadMirror {
     return { snapshot: value, cursor: rows[0].cursor };
   }
   async threads(node: string, request: ui.ListThreadsRequest): Promise<ui.Thread[]> {
-    const rows = await this.store.query<{ snapshot: Uint8Array }>(
-      `SELECT t.snapshot FROM computer_mirror_threads t JOIN computer_mirror_state s
+    const started = performance.now();
+
+    const rows = await this.store.query<{ metadata: Uint8Array }>(
+      `SELECT t.thread_metadata AS metadata FROM computer_mirror_threads t JOIN computer_mirror_state s
       USING(owner_user_id,origin_node_id,generation) WHERE t.owner_user_id=$1::uuid AND t.origin_node_id=$2 ORDER BY t.thread_id`,
       [this.store.owner, node],
     );
 
-    const threads = rows.flatMap((r) => {
-      const t = fromBinary(ui.ThreadSnapshotSchema, r.snapshot).thread;
+    const threads = rows.map((r) => fromBinary(ui.ThreadSchema, r.metadata));
+    const activeParents = new Set(threads.filter((t) => t.status !== "archived").map((t) => t.id));
 
-      return t ? [t] : [];
-    });
+    if (performance.now() - started >= 250)
+      console.warn("Slow mirror thread list", {
+        peer: node,
+        durationMs: Math.round(performance.now() - started),
+        threads: rows.length,
+        bytes: rows.reduce((total, row) => total + row.metadata.byteLength, 0),
+      });
 
     return threads
       .filter(
@@ -78,9 +85,7 @@ export class ThreadMirror {
           !t.deletedAt &&
           (!request.projectId || t.projectId === request.projectId) &&
           ((!request.sidebarOnly && request.includeArchived) ||
-            (request.sidebarOnly &&
-              t.kind === ui.ThreadKind.SIDE &&
-              threads.some((p) => p.id === t.parentThreadId && p.status !== "archived")) ||
+            (request.sidebarOnly && t.kind === ui.ThreadKind.SIDE && activeParents.has(t.parentThreadId)) ||
             t.status !== "archived"),
       )
       .map((t) => {
