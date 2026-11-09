@@ -81,7 +81,7 @@ export function ToolCallView({ call, status }: { call: ToolCall; status: ItemSta
       {call.images.map((blob, index) => (
         <ImagePreview
           key={blob.sha256}
-          source={{ kind: "thread", threadId: directory.currentId, ...blob }}
+          source={{ kind: "thread", threadId: directory.sourceId || directory.currentId, ...blob }}
           name={`Tool image ${index + 1}.png`}
         />
       ))}

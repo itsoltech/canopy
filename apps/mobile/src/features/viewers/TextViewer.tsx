@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Text, View } from "react-native";
 import type { BlobRef } from "@canopy/contracts";
 import { useSession } from "../../state/session";
@@ -6,6 +6,9 @@ import { Button } from "../../ui/Button";
 import { FullScreenViewer } from "../../ui/FullScreenViewer";
 import { styles, useColors, useTypography } from "../../ui/theme";
 import { CopyAction } from "./copy-action";
+import { QuoteAction } from "../quotes/QuoteAction";
+import { DiffContent } from "../../ui/DiffContent";
+import { QUOTE_LIMITS } from "@canopy/domain";
 
 const TEXT_BYTES = 8 * 1024 ** 2;
 export const INLINE_PREVIEW = 12_000;
@@ -18,7 +21,10 @@ function chunksOf(text: string) {
   while (offset < text.length) {
     const maximum = Math.min(offset + 4096, text.length);
     const newline = text.lastIndexOf("\n", maximum - 1);
-    const end = newline >= offset ? newline + 1 : maximum;
+    let end = newline >= offset ? newline + 1 : maximum;
+    const last = text.charCodeAt(end - 1);
+
+    if (end < text.length && last >= 0xd800 && last <= 0xdbff) end--;
     chunks.push(text.slice(offset, end));
     offset = end;
   }
@@ -30,25 +36,11 @@ function TextChunk({ text, diff }: { text: string; diff: boolean }) {
   const c = useColors();
   const type = useTypography();
 
-  return (
+  return diff ? (
+    <DiffContent diff={text} />
+  ) : (
     <Text selectable style={[type.mono, { color: c.text }]}>
-      {diff
-        ? text.split(/(?<=\n)/).map((line, index) => (
-            <Text
-              key={index}
-              style={{
-                color:
-                  line.startsWith("+") && !line.startsWith("+++")
-                    ? c.success
-                    : line.startsWith("-") && !line.startsWith("---")
-                      ? c.danger
-                      : c.text,
-              }}
-            >
-              {line}
-            </Text>
-          ))
-        : text}
+      {text}
     </Text>
   );
 }
@@ -60,6 +52,7 @@ export function TextViewer({
   label,
   diff = false,
   onClose,
+  extraActions,
 }: {
   text?: string;
   blob?: BlobRef | undefined;
@@ -67,13 +60,21 @@ export function TextViewer({
   label: string;
   diff?: boolean;
   onClose: () => void;
+  extraActions?: ReactNode;
 }) {
   const { client } = useSession();
   const c = useColors();
   const [loaded, setLoaded] = useState<string>();
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const tooLarge = blob ? blob.sizeBytes > BigInt(TEXT_BYTES) : text.length > TEXT_BYTES;
+
+  const inlineTooLarge = useMemo(
+    () =>
+      text.length > TEXT_BYTES || (text.length > TEXT_BYTES / 3 && new TextEncoder().encode(text).length > TEXT_BYTES),
+    [text],
+  );
+
+  const tooLarge = blob ? blob.sizeBytes > BigInt(TEXT_BYTES) : inlineTooLarge;
   const sha256 = blob?.sha256;
 
   useEffect(() => {
@@ -111,7 +112,17 @@ export function TextViewer({
     <FullScreenViewer
       title={label}
       onClose={onClose}
-      actions={loaded ? <CopyAction text={loaded} label={diff ? "Copy diff" : "Copy output"} /> : undefined}
+      actions={
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {loaded ? (
+            <>
+              <CopyAction text={loaded} label={diff ? "Copy diff" : "Copy output"} />
+              <QuoteAction text={loaded} kind={diff ? "diff" : "command_output"} />
+            </>
+          ) : null}
+          {extraActions}
+        </View>
+      }
     >
       {tooLarge || error ? (
         <View style={{ padding: 20, gap: 12 }}>
@@ -126,7 +137,14 @@ export function TextViewer({
         <FlatList
           data={chunks}
           keyExtractor={(_chunk, index) => String(index)}
-          renderItem={({ item }) => <TextChunk text={item} diff={diff} />}
+          renderItem={({ item }) => (
+            <View>
+              <TextChunk text={item} diff={diff} />
+              {loaded.length > QUOTE_LIMITS.maxTextChars && (
+                <QuoteAction text={item} kind={diff ? "diff" : "command_output"} />
+              )}
+            </View>
+          )}
           initialNumToRender={4}
           maxToRenderPerBatch={4}
           windowSize={5}

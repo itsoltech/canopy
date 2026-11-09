@@ -4,6 +4,8 @@ import type { AgentMessage } from "@canopy/contracts";
 import { Markdown } from "../../ui/markdown";
 import { useReducedMotion } from "../../ui/motion";
 import { useColors } from "../../ui/theme";
+import { CopyAction } from "../viewers/copy-action";
+import { QuoteAction } from "../quotes/QuoteAction";
 
 /** Agent text as markdown; commentary (thinking aloud while working) is quieter than answers (web: AgentMessageView). */
 export function AgentMessageView({ message, streaming }: { message: AgentMessage; streaming: boolean }) {
@@ -17,6 +19,12 @@ export function AgentMessageView({ message, streaming }: { message: AgentMessage
     >
       <Markdown text={message.text} color={commentary ? c.muted : undefined} />
       {streaming && <Caret />}
+      {!streaming && message.text.trim() ? (
+        <View style={{ flexDirection: "row", gap: 8, minHeight: 32 }}>
+          <CopyAction text={message.text} label="Copy message" />
+          <QuoteAction text={message.text} kind="agent_message" />
+        </View>
+      ) : null}
     </View>
   );
 }

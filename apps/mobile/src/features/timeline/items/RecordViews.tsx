@@ -34,7 +34,7 @@ export function ImageView({ image, status }: { image: Image; status: ItemStatus 
       {image.blob ? (
         <>
           <ImagePreview
-            source={{ kind: "thread", threadId: directory.currentId, ...image.blob }}
+            source={{ kind: "thread", threadId: directory.sourceId || directory.currentId, ...image.blob }}
             name={image.path.split(/[/\\]/).pop() || "image.png"}
             width={image.width}
             height={image.height}

@@ -5,6 +5,8 @@ import { useColors, useTypography } from "../theme";
 import { INLINE_PREVIEW } from "../../features/viewers/TextViewer";
 import { TextViewerButton } from "../../features/viewers/TextViewerButton";
 import { CopyAction } from "../../features/viewers/copy-action";
+import { QuoteAction } from "../../features/quotes/QuoteAction";
+import { DiffContent } from "../DiffContent";
 
 /**
  * A wide block in a message (code, display math): long lines scroll sideways inside it, never widening the
@@ -29,6 +31,7 @@ export function CodeFence({ code, lang }: { code: string; lang: string | undefin
   const c = useColors();
   const type = useTypography();
   const { values } = useDevicePreferences();
+  const diff = /^(diff|patch)$/i.test(lang ?? "");
 
   return (
     <View
@@ -59,14 +62,21 @@ export function CodeFence({ code, lang }: { code: string; lang: string | undefin
           {lang || "Code"}
         </Text>
         <CopyAction text={code} label="Copy code" />
+        <QuoteAction text={code} kind={diff ? "diff" : "code"} language={lang} />
       </View>
-      <SidewaysScroll wrap={values.wrapCode === "on"}>
-        {/* An empty block keeps one line, so it reads as a code block rather than a stray box. */}
-        <Text selectable style={[type.mono, { color: c.text }]}>
-          {code.slice(0, INLINE_PREVIEW) || " "}
-        </Text>
-      </SidewaysScroll>
-      {code.length > INLINE_PREVIEW ? <TextViewerButton text={code} label={lang ? `Code, ${lang}` : "Code"} /> : null}
+      {diff ? (
+        <DiffContent diff={code.slice(0, INLINE_PREVIEW)} />
+      ) : (
+        <SidewaysScroll wrap={values.wrapCode === "on"}>
+          {/* An empty block keeps one line, so it reads as a code block rather than a stray box. */}
+          <Text selectable style={[type.mono, { color: c.text }]}>
+            {code.slice(0, INLINE_PREVIEW) || " "}
+          </Text>
+        </SidewaysScroll>
+      )}
+      {code.length > INLINE_PREVIEW ? (
+        <TextViewerButton text={code} diff={diff} label={lang ? `Code, ${lang}` : "Code"} />
+      ) : null}
     </View>
   );
 }

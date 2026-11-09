@@ -8,6 +8,8 @@ import { router } from "expo-router";
  */
 export interface TimelineDirectory {
   readonly currentId: string;
+  readonly sourceId?: string;
+  readonly quote?: (quote: ui.Quote) => void;
   /** Archived, deleted or inherited history: nothing can be stopped or sent from here. */
   readonly readOnly: boolean;
   readonly thread: (id: string) => ui.Thread | undefined;

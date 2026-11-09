@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { MentionKind, type Mention, type ui } from "@canopy/contracts";
 import { hasPlatformNote } from "@canopy/domain/platform";
@@ -12,6 +13,9 @@ import { Markdown } from "../../ui/markdown";
 import { AgentMessageBubble } from "./AgentMessageBubble";
 import { SenderLabel } from "./SenderLabel";
 import { MessageAttachments } from "../attachments/MessageAttachments";
+import { AttachmentViewer } from "../attachments/AttachmentViewer";
+import { MessageQuotes } from "../quotes/MessageQuotes";
+import { CopyAction } from "../viewers/copy-action";
 
 /** A line above a message: what happens to it (queued, steering into the turn, steered) (web: MessageNote). */
 export interface MessageNote {
@@ -40,6 +44,7 @@ export function UserMessageView({
   note,
   pending = false,
   attachments = [],
+  quotes = [],
   mentions = [],
   fromAgent = false,
   sender,
@@ -50,6 +55,7 @@ export function UserMessageView({
   pending?: boolean;
   /** Files not placed in the text show as chips above it. */
   attachments?: readonly ui.Attachment[];
+  quotes?: readonly ui.Quote[];
   mentions?: readonly Mention[];
   fromAgent?: boolean;
   sender?: ui.AgentSender | undefined;
@@ -57,6 +63,7 @@ export function UserMessageView({
   onActions?: () => void;
 }) {
   const c = useColors();
+  const [selected, setSelected] = useState<ui.Attachment>();
   const violet = useTone("violet").text;
   const amber = useTone("amber").text;
   const agent = fromAgent || Boolean(sender);
@@ -72,9 +79,8 @@ export function UserMessageView({
       <Icon name={note?.icon ?? "sparkles"} size={14} color={color} />
     ) : null;
 
-  const content = body.trim() ? (
-    <Markdown text={body} breaks color={c.text} elements={mentionElements(body, mentions)} />
-  ) : null;
+  const onAttachment = (id: string) => setSelected(attachments.find((file) => file.id === id));
+  const hasContent = Boolean(body.trim() || quotes.length);
 
   return (
     <View style={{ alignItems: "flex-end", gap: 4 }}>
@@ -116,11 +122,11 @@ export function UserMessageView({
         </View>
       ) : null}
       {loose.length > 0 && <MessageAttachments files={loose} pending={pending} />}
-      {content && agent ? (
-        <AgentMessageBubble text={body} dim={pending}>
-          <AgentText text={body} mentions={mentions} />
+      {hasContent && agent ? (
+        <AgentMessageBubble text={body || quotes[0]?.text || ""} rich={!!quotes.length} dim={pending}>
+          <AgentText text={body} mentions={mentions} quotes={quotes} onAttachment={onAttachment} />
         </AgentMessageBubble>
-      ) : content ? (
+      ) : hasContent ? (
         <View
           style={{
             maxWidth: "85%",
@@ -132,15 +138,36 @@ export function UserMessageView({
             opacity: pending ? 0.7 : 1,
           }}
         >
-          {content}
+          <MessageBody text={body} mentions={mentions} quotes={quotes} onAttachment={onAttachment} color={c.text} />
         </View>
+      ) : null}
+      {!pending && body.trim() ? <CopyAction text={body} label="Copy message" /> : null}
+      {selected && <AttachmentViewer file={selected} onClose={() => setSelected(undefined)} />}
+    </View>
+  );
+}
+
+type MessageBodyProps = {
+  text: string;
+  mentions: readonly Mention[];
+  quotes: readonly ui.Quote[];
+  onAttachment: (id: string) => void;
+  color?: string;
+};
+
+function MessageBody({ text, mentions, quotes, color, onAttachment }: MessageBodyProps) {
+  return (
+    <View style={{ gap: 8 }}>
+      {quotes.length ? <MessageQuotes quotes={quotes} /> : null}
+      {text.trim() ? (
+        <Markdown text={text} breaks color={color} elements={mentionElements(text, mentions, onAttachment)} />
       ) : null}
     </View>
   );
 }
 
-function AgentText({ text, mentions }: { text: string; mentions: readonly Mention[] }) {
+function AgentText(props: Omit<MessageBodyProps, "color">) {
   const violet = useTone("violet").panel.text;
 
-  return <Markdown text={text} breaks color={violet} elements={mentionElements(text, mentions)} />;
+  return <MessageBody {...props} color={violet} />;
 }

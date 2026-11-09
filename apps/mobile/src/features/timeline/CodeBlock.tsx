@@ -5,6 +5,8 @@ import { styles, useColors, useTypography } from "../../ui/theme";
 import { Chevron } from "../../ui/MotionViews";
 import { TextViewerButton } from "../viewers/TextViewerButton";
 import { INLINE_PREVIEW } from "../viewers/TextViewer";
+import { CopyAction } from "../viewers/copy-action";
+import { QuoteAction } from "../quotes/QuoteAction";
 
 /** Code or output on a recessed surface (web: CodeBlock), monospace, selectable, capped for the phone. */
 export function CodeBlock({ text, label }: { text: string; label: string }) {
@@ -20,6 +22,10 @@ export function CodeBlock({ text, label }: { text: string; label: string }) {
         </Text>
       </View>
       {cut && <TextViewerButton text={text} label={label} />}
+      <View style={[styles.row, { minHeight: 32, gap: 8 }]}>
+        <CopyAction text={text} label="Copy output" />
+        <QuoteAction text={text} kind="command_output" />
+      </View>
     </View>
   );
 }

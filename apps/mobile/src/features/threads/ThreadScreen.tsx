@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { create } from "@bufbuild/protobuf";
 import { ConversationSkeleton, SkeletonScope } from "../../ui/Skeleton";
 import { Redirect } from "expo-router";
 import { ScreenFrame } from "../../ui/ScreenFrame";
 import * as Crypto from "expo-crypto";
-import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { InteractionKind, ui } from "@canopy/contracts";
-import { applyThread } from "../../api/thread";
 import { useSession } from "../../state/session";
 import { useThreadSnapshot } from "../../state/thread";
 import { Notice } from "../../ui/components";
@@ -34,6 +33,8 @@ import { MentionSuggestions } from "../composer/MentionSuggestions";
 import { visibleTurns } from "./thread-turns";
 import { threadComposerHeight } from "../composer/geometry";
 import { ImportedThreadComposer } from "../imports/ImportedThreadComposer";
+import { useQuoteDraft } from "../quotes/useQuoteDraft";
+import { withSentMessage } from "./sent-message";
 
 /** The gateway refused the message and says why (not delivered: no retry note); otherwise delivery is unknown. */
 function deliveryError(failure: ConnectError) {
@@ -55,10 +56,10 @@ function useThreadState(id: string) {
   const { projects, workers, threads } = useOverview();
   const sending = useRef(false);
   const message = useMessageDraft();
+  const quotes = useQuoteDraft();
 
   const pending = useRef<{
-    text: string;
-    delivery: ui.MessageDelivery;
+    key: string;
     id: string;
   } | null>(null);
 
@@ -80,7 +81,13 @@ function useThreadState(id: string) {
     const outgoing = message.outgoing();
     const { text: value, attachmentIds, mentions } = outgoing;
 
-    if (!client || (!value && !attachmentIds.length) || message.files.blocker || sending.current) return;
+    if (
+      !client ||
+      (!value && !attachmentIds.length && !quotes.quotes.length) ||
+      message.files.blocker ||
+      sending.current
+    )
+      return;
     sending.current = true;
     following.resumeFollowing();
     setBusy(true);
@@ -89,8 +96,9 @@ function useThreadState(id: string) {
     // A message with files always waits in the queue (it never joins a running turn).
     const delivery = attachmentIds.length ? ui.MessageDelivery.QUEUE : requested;
 
-    if (pending.current?.text !== value || pending.current.delivery !== delivery)
-      pending.current = { text: value, delivery, id: Crypto.randomUUID() };
+    const key = JSON.stringify({ value, delivery, attachmentIds, mentions, quotes: quotes.quotes });
+
+    if (pending.current?.key !== key) pending.current = { key, id: Crypto.randomUUID() };
 
     try {
       const result = await client.api.sendMessage(
@@ -100,35 +108,15 @@ function useThreadState(id: string) {
           delivery,
           attachmentIds,
           mentions,
+          quotes: [...quotes.quotes],
           clientRequestId: pending.current.id,
         },
         { signal: requestController.current.signal, timeoutMs: 20_000 },
       );
 
-      if (result.turn)
-        setSnapshot((s) =>
-          s?.turns.some((turn) => turn.id === result.turn!.id)
-            ? s
-            : applyThread(
-                s,
-                create(ui.ThreadUpdateSchema, {
-                  change: { case: "turn", value: result.turn! },
-                }),
-              ),
-        );
-
-      if (result.steer)
-        setSnapshot((s) =>
-          s?.steers.some((steer) => steer.id === result.steer!.id)
-            ? s
-            : applyThread(
-                s,
-                create(ui.ThreadUpdateSchema, {
-                  change: { case: "steer", value: result.steer! },
-                }),
-              ),
-        );
+      setSnapshot((snapshot) => withSentMessage(snapshot, result));
       message.clear();
+      quotes.clear();
       pending.current = null;
     } catch (e) {
       if (ConnectError.from(e).code === Code.Unauthenticated) await expired();
@@ -171,6 +159,7 @@ function useThreadState(id: string) {
     blocked,
     home,
     message,
+    quotes,
     queued,
     setQueued,
   };
@@ -182,7 +171,7 @@ function useThreadComposer(state: ThreadState) {
 
   return useFloatingComposer(
     state.following,
-    Boolean(message.value.text.length || message.files.files.length || message.trigger) ||
+    Boolean(message.value.text.length || message.files.files.length || message.trigger || state.quotes.quotes.length) ||
       interactions.some((i) => i.kind === InteractionKind.QUESTION && !i.asynchronous),
     threadComposerHeight,
   );
@@ -196,10 +185,8 @@ export function ThreadScreen({ id }: { id: string }) {
 
   const {
     session,
-    client,
     ready,
     snapshot,
-    busy,
     error,
     setError,
     following,
@@ -207,11 +194,9 @@ export function ThreadScreen({ id }: { id: string }) {
     setDetails,
     projects,
     thread,
-    worker,
     subagents,
     interactions,
     turns,
-    send,
     blocked,
   } = state;
 
@@ -269,27 +254,7 @@ export function ThreadScreen({ id }: { id: string }) {
                 {state.home.name} · {state.home.status}. Read only until it reconnects.
               </Notice>
             )}
-            <ImportedThreadComposer thread={thread} disabled={blocked}>
-              <SkeletonScope loading={!thread}>
-                <MessageComposer
-                  compact={composer.compact}
-                  onExpand={composer.expand}
-                  thread={thread}
-                  worker={worker}
-                  message={state.message}
-                  send={(delivery) => void send(delivery)}
-                  stop={() =>
-                    void client!.api
-                      .interruptThread({ threadId: id })
-                      .catch(() => setError("Could not stop the turn. Try again."))
-                  }
-                  disabled={blocked}
-                  busy={busy}
-                  onDetails={() => setDetails(true)}
-                  onGoal={() => setSheet("goal")}
-                />
-              </SkeletonScope>
-            </ImportedThreadComposer>
+            <ThreadComposer state={state} composer={composer} onGoal={() => setSheet("goal")} />
           </FloatingComposer>
         </DropZone>
       </ChatKeyboard>
@@ -312,6 +277,42 @@ export function ThreadScreen({ id }: { id: string }) {
         onClose={() => state.setQueued(undefined)}
       />
     </ScreenFrame>
+  );
+}
+
+function ThreadComposer({
+  state,
+  composer,
+  onGoal,
+}: {
+  state: ThreadState;
+  composer: ReturnType<typeof useThreadComposer>;
+  onGoal: () => void;
+}) {
+  return (
+    <ImportedThreadComposer thread={state.thread} disabled={state.blocked}>
+      <SkeletonScope loading={!state.thread}>
+        <MessageComposer
+          compact={composer.compact}
+          onExpand={composer.expand}
+          thread={state.thread}
+          worker={state.worker}
+          message={state.message}
+          quotes={state.quotes}
+          send={(delivery) => void state.send(delivery)}
+          stop={() => {
+            if (!state.client || !state.thread) return;
+            void state.client.api
+              .interruptThread({ threadId: state.thread.id })
+              .catch(() => state.setError("Could not stop the turn. Try again."));
+          }}
+          disabled={state.blocked}
+          busy={state.busy}
+          onDetails={() => state.setDetails(true)}
+          onGoal={onGoal}
+        />
+      </SkeletonScope>
+    </ImportedThreadComposer>
   );
 }
 

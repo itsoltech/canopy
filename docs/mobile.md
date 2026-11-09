@@ -775,6 +775,23 @@ po autoryzacji właściciela i z routingiem do domu wątku. Gateway i viewer ogr
 odczyt do 8 MiB; większa treść wyjaśnia limit i prosi o mniejszy fragment.
 Lista wirtualizuje fragmenty do 4096 znaków, także pojedyncze bardzo długie linie.
 Wynik, diff i bloki kodu mają akcję kopiowania.
+Pełny diff korzysta z tych samych preferencji układu, kolorów, białych znaków i zawijania
+co podgląd. Kopiowanie wiadomości jest dostępne przy wiadomościach ludzi i agentów;
+stopka zakończonej tury kopiuje ostatnią odpowiedź i pozwala na „Fork from here” przez
+`CreateThread`, z identycznymi warunkami dostępności jak web. Fork otwiera nowy wątek.
+Obrazy i bloby odziedziczonych tur są odczytywane przez ich wątek źródłowy.
+
+Plakietka załącznika otwiera wspólną przeglądarkę: obrazy jako miniatury i pełny ekran,
+tekst UTF-8 do 8 MiB jako wirtualizowany tekst, pozostałe pliki do 20 MiB z eksportem
+przez Share na iOS albo zapis do wskazanego katalogu na Androidzie. Nie renderujemy PDF
+ani plików biurowych wewnątrz aplikacji; web również udostępnia ich pobranie.
+Akcja „Quote passage” przy odpowiedzi, rozumowaniu, kodzie, wyniku i diffie otwiera
+edytowalny fragment z opcjonalnym komentarzem. Systemowego menu zaznaczenia tekstu
+nie rozszerzamy modułem natywnym. Pasek szkicu pozwala edytować i usuwać cytaty;
+można wysłać same cytaty bez tekstu. Limity są wspólne z gatewayem: 20 cytatów,
+20 tys. znaków fragmentu i 4 tys. znaków komentarza. Długi wynik udostępnia też cytowanie
+poszczególnych fragmentów listy. Wysłane cytaty pokazują treść i komentarz oraz „Show source”:
+osobny odczyt strony historii po `target_item_id` odnajduje źródło także poza załadowaną osią.
 Oś czasu nadąża za web: grupę pracy otwiera i zwija Settings → Threads → Turn activity
 („While working”, „After the turn”, z resetem), według tej samej reguły `workFoldOpen`
 z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Preferencje dotyczą tego
@@ -981,8 +998,8 @@ nazwę i rozmiar. Format wynika z MIME i rozszerzenia. Wysokość wiersza jest s
 skracają się z zachowaniem końcówki, a przycisk usuwania ma cel 32 × 56 dp i usuwa też
 plakietkę w tekście. Upload nakłada spinner, błąd dodaje obramowanie i powód; `pop` oraz
 `layout` korzystają ze wspólnych tokenów i respektują ograniczenie ruchu. Pasek nie zmienia
-zasad klawiatury ani gradientu 32 dp. Nie ma jeszcze mobilnej przeglądarki obrazów, więc
-miniatury nie otwierają dodatkowego widoku.
+zasad klawiatury ani gradientu 32 dp. Tapnięcie miniatury obrazu otwiera tę samą
+pełnoekranową przeglądarkę co obraz w transkrypcie, także przed zakończeniem uploadu.
 
 URI obrazu z pickera lub data URI ze schowka zostaje w drafcie także po uploadzie.
 Kopie obrazów z natywnego wklejania i upuszczania są zwalniane przy usunięciu, wysłaniu
@@ -1080,6 +1097,8 @@ Wiadomości agentów, botów i ludzi renderuje `src/ui/markdown/` natywnymi wido
 Drzewo tokenów, matematykę (`$…$`, `$$…$$`), bezpieczne linki (`safeHref`: tylko http, https, mailto)
 i znaczniki elementów wstawianych w tekst (plakietki wzmianek) dzieli z web `@canopy/domain/markdown`.
 Obrazy nie są pobierane (link do nich), surowy HTML jest tekstem, matematyka pokazuje źródło TeX.
+Bloki `diff` / `patch` korzystają ze wspólnego widoku diffu. Pozostały kod jest monospace
+bez kolorowania składni: mobilny workspace nie ma silnika highlightera używanego przez web.
 Tabele nie mają układu tabeli w React Native: szerokości kolumn liczy się z długości tekstu, długie
 komórki się zawijają, a szeroka tabela przewija się w poziomie.
 

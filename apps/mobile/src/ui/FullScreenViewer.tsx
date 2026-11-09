@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Modal, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import Animated from "react-native-reanimated";
 import { IconButton } from "./Button";
 import { CompactControls } from "./density";
@@ -24,20 +24,22 @@ export function FullScreenViewer({
 
   return (
     <Modal visible animationType="none" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
-        <Animated.View entering={reveal.entering} accessibilityViewIsModal style={{ flex: 1 }}>
-          <View
-            style={[styles.row, { paddingHorizontal: 8, minHeight: 48, borderBottomWidth: 1, borderColor: c.rule }]}
-          >
-            <IconButton icon="x-mark" label="Close viewer" onPress={onClose} />
-            <Text numberOfLines={1} style={[styles.chrome, { flex: 1, minWidth: 0, color: c.text }]}>
-              {title}
-            </Text>
-            <CompactControls.Provider value={true}>{actions}</CompactControls.Provider>
-          </View>
-          {children}
-        </Animated.View>
-      </SafeAreaView>
+      <SafeAreaProvider>
+        <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
+          <Animated.View entering={reveal.entering} accessibilityViewIsModal style={{ flex: 1 }}>
+            <View
+              style={[styles.row, { paddingHorizontal: 8, minHeight: 48, borderBottomWidth: 1, borderColor: c.rule }]}
+            >
+              <IconButton icon="x-mark" label="Close viewer" onPress={onClose} />
+              <Text numberOfLines={1} style={[styles.chrome, { flex: 1, minWidth: 0, color: c.text }]}>
+                {title}
+              </Text>
+              <CompactControls.Provider value={true}>{actions}</CompactControls.Provider>
+            </View>
+            {children}
+          </Animated.View>
+        </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   );
 }

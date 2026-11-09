@@ -15,6 +15,7 @@ export function ImageViewer({ source, name, onClose }: { source: ImageSource; na
   const image = useImage(source);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [decodeError, setDecodeError] = useState(false);
 
   async function save() {
     if (busy || !image.uri) return;
@@ -23,7 +24,8 @@ export function ImageViewer({ source, name, onClose }: { source: ImageSource; na
 
     try {
       const match = /^data:([^;]+);base64,(.*)$/s.exec(image.uri);
-      const bytes = match ? base64Decode(match[2]!) : await new File(image.uri).bytes();
+      const encoded = match?.[2];
+      const bytes = encoded !== undefined ? base64Decode(encoded) : await new File(image.uri).bytes();
       await exportFile(name, bytes, match?.[1] || "application/octet-stream");
     } catch {
       setError("Could not export the image. Try again.");
@@ -46,14 +48,22 @@ export function ImageViewer({ source, name, onClose }: { source: ImageSource; na
         />
       }
     >
-      {image.uri ? (
-        <ImageCanvas uri={image.uri} name={name} onClose={onClose} />
+      {image.uri && !decodeError ? (
+        <ImageCanvas uri={image.uri} name={name} onClose={onClose} onError={() => setDecodeError(true)} />
       ) : (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 20, gap: 12 }}>
-          {image.error ? (
+          {image.error || decodeError ? (
             <>
-              <Text style={[styles.body, { color: c.muted }]}>{image.error}</Text>
-              <Button title="Retry" onPress={image.retry} />
+              <Text accessibilityRole="alert" style={[styles.body, { color: c.muted }]}>
+                {decodeError ? "Could not display the image. Retry, or export it to open in another app." : image.error}
+              </Text>
+              <Button
+                title="Retry"
+                onPress={() => {
+                  setDecodeError(false);
+                  image.retry();
+                }}
+              />
             </>
           ) : (
             <ActivityIndicator accessibilityLabel="Loading image" color={c.muted} />
