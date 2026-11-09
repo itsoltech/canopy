@@ -51,8 +51,7 @@
 </script>
 
 <span class={["flex min-w-0 items-center gap-1", className]}>
-  <!-- Fixed slots keep catalog labels and effort availability from moving adjacent controls. -->
-  <span class="flex w-48 min-w-0 shrink items-center">
+  <span class="flex max-w-48 min-w-0 shrink items-center">
     <ModelPicker
       bind:open={modelOpen}
       options={listed}
@@ -63,19 +62,18 @@
       refreshing={workerId ? models.refreshing.has(workerId) : false}
       onrefresh={workerId ? () => void models.refresh(workerId) : undefined}
       onselect={select}
-      class="w-full"
+      class="max-w-full"
     />
   </span>
-  <span class="flex w-24 shrink-0 items-center justify-end">
-    {#if option && option.efforts.length > 0}
+  {#if option && option.efforts.length > 0}
+    <span class="flex shrink-0 items-center">
       <EffortPicker
         bind:open={effortOpen}
         bind:value={effort}
         {option}
         {inherited}
         onmodel={() => (modelOpen = true)}
-        class="w-full justify-end"
       />
-    {/if}
-  </span>
+    </span>
+  {/if}
 </span>

@@ -173,7 +173,7 @@ function ComposerControls({
         horizontal
         showsHorizontalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.row, { gap: 4, paddingRight: 4 }]}
+        contentContainerStyle={[styles.row, { flexGrow: 1, justifyContent: "flex-end", gap: 4, paddingRight: 4 }]}
         style={{ flex: 1 }}
       >
         {shell ? (
@@ -301,7 +301,7 @@ export function ComposerPill({
   warning = false,
   danger = false,
   leading,
-  width,
+  loadingWidth,
   loading,
 }: {
   icon: Parameters<typeof Icon>[0]["name"];
@@ -310,7 +310,7 @@ export function ComposerPill({
   warning?: boolean;
   danger?: boolean;
   leading?: ReactNode;
-  width?: number;
+  loadingWidth?: number;
   loading?: boolean;
 }) {
   const c = useColors();
@@ -324,7 +324,7 @@ export function ComposerPill({
         onPress={onPress}
         style={({ pressed }) => ({
           minHeight: composerGeometry.secondary,
-          width,
+          width: loading ? loadingWidth : undefined,
           flexDirection: "row",
           alignItems: "center",
           gap: 4,

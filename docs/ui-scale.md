@@ -91,6 +91,10 @@ Na telefonie nakładki z `sheet` otwierają się jako dolny arkusz. Zostają prz
 - Nie wpisuj rozmiarów w pikselach ani `text-[…]` dla tekstu interfejsu. Użyj stopnia
   (`text-base sm:text-sm`, `text-sm sm:text-xs`) albo tokenu (`--type-*`, `--icon-*`,
   `--control-*`), jeśli komponent ma własny styl.
+- Pigułki modelu i wysiłku w composerze mają szerokość treści, odstęp 4 i wyrównanie
+  grupy do prawej. Nazwa modelu pochodzi synchronicznie ze wspólnego katalogu;
+  maksymalna szerokość ogranicza długą nazwę, bez rezerwowania pustego slotu dla krótkiej.
+  Brak obsługi wysiłku usuwa jego pigułkę razem z odstępem.
 - Wiersze nakładek mają jedną linię na pole: nazwy użytkownika (projekty, workery, gałęzie, modele)
   kończą się wielokropkiem, a pełna nazwa jest w tooltipie (`TruncatedText`; robią to `PickerRow`,
   `MenuItemText`, opcje `Select` i `Checkbox` w nakładce). Druga linia jest tylko tam, gdzie wiersz ją

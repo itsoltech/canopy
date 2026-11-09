@@ -677,9 +677,11 @@ według wspólnej z web funkcji `domain/composer-choices`. Jawny wybór w szkicu
 pierwszeństwo i idzie z wiadomością, bez zmiany domyślnych wątku. Po ponownym
 otwarciu aplikacji gateway odtwarza ostatni wysłany wybór, również na innym urządzeniu
 i przez połączony komputer; szczegóły: [ui-api.md](ui-api.md#wybory-następnej-tury).
-Model, effort i uprawnienia mają stałe sloty 160/96/128 dp. Nieznany katalog pokazuje skeleton zamiast
-surowego identyfikatora modelu; model bez effort pozostawia pusty slot. Zmiana etykiet
-nie przesuwa sąsiednich kontrolek. Stopka zakończonej tury zachowuje wysokość linii,
+Pigułki modelu, effort i uprawnień dopasowują szerokość do etykiet. Nieznany katalog pokazuje
+kompaktowe skeletony modelu i effort (128/72 dp) zamiast surowego identyfikatora modelu;
+model bez effort nie rezerwuje pustego miejsca. Toolbar jest wyrównany do prawej, więc
+po zimnym odczycie katalogu grupa rośnie w lewo, a przyciski wysyłania pozostają w miejscu.
+Stopka zakończonej tury zachowuje wysokość linii,
 nawet gdy czasy nie są jeszcze dostępne, tak jak `TurnDetails` w web.
 
 Androidowy build deweloperski wyłącza `expo-build-properties.android.networkInspector`.

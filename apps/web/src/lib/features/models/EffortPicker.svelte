@@ -45,8 +45,7 @@
   const isDefault = $derived(fallback !== undefined && current === fallback);
 
   // While the picker is open the pill keeps the name it had when it opened, so neither it, the model pill beside
-  // it nor the popover anchored to it moves as the effort changes; on close the name swaps in and the pill
-  // eases to fit it (ResizeSlot in ModelControls).
+  // it nor the popover anchored to it moves as the effort changes; on close the name swaps in.
   let frozen = $state<{ label: string; rank: number }>();
 
   $effect(() => {
