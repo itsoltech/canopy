@@ -911,7 +911,12 @@ oznaczone jako niedostępne w tym buildzie, bez pozornego przełącznika push.
 Settings → Import pokazuje przebiegi importu CLI: postęp, datę, liczniki, bieżący wątek i akcje
 Cancel, Resume / Retry failed oraz Remove imported items z potwierdzeniem. Aktywny przebieg
 odświeża listę co 3 s, gdy aplikacja jest na pierwszym planie. Nieudane przywrócenie pozwala
-ponowić usuwanie pozostałych pozycji; wybór źródeł zostaje w web i desktop ([import.md](import.md#wejścia-i-telefon)).
+ponowić usuwanie pozostałych pozycji. Scan computer uruchamia skan CLI workera tego gatewaya;
+arkusz pozwala wybrać wątki ze stronicowaniem, filtry, mapowanie katalogów, tryb kontynuacji
+i ustawienia/bibliotekę z decyzjami o konfliktach. Kopiowanie wartości sekretów wymaga
+osobnego wyboru; wartości nie trafiają na telefon ([import.md](import.md#wejścia-i-telefon)).
+Wątek zaimportowany jako historia zamiast kompozytora pokazuje Continue in a new thread;
+gateway tworzy nowy wątek z podsumowaniem tej historii, tak jak w web.
 Pierwszy stan projektów, workerów i wątków pobierają także unary GetOverview i ListThreads,
 bez oczekiwania na pierwszy pakiet WatchOverview. Udany zapis formularza odświeża te dane;
 generacja żądania chroni przed nadpisaniem nowszych danych starszą odpowiedzią.
