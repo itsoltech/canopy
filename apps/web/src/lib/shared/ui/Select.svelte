@@ -9,6 +9,7 @@
   import PickerTrigger from "./PickerTrigger.svelte";
   import {
     listboxHeadingClasses,
+    listboxListClasses,
     listboxOptionClasses,
     moveOption,
     selectedIndex,
@@ -218,7 +219,7 @@
       id="{uid}-list"
       role="listbox"
       aria-label={rest["aria-label"] ?? name ?? "Options"}
-      class="grid grid-cols-1 gap-0.5 px-1"
+      class={[listboxListClasses, "gap-0.5 px-1"]}
     >
       {#each groups as group, groupIndex (groupIndex)}
         {#if groupIndex > 0}

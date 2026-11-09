@@ -78,8 +78,8 @@
     start = "first";
     return done;
   }}
-  class={["min-w-48 p-1", className]}
+  class={["min-w-48", className]}
   {trigger}
 >
-  {@render children()}
+  <div class="p-1">{@render children()}</div>
 </Popover>

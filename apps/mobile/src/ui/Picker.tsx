@@ -96,7 +96,7 @@ export function PickerSheet<T>({
       {search && <SearchField value={query} onChange={setQuery} placeholder={search} />}
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingHorizontal: 8, paddingBottom: 4 }}
+        contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 4 }}
         style={{ flexGrow: 0 }}
       >
         {shown.map((section, index) => (

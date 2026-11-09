@@ -4,7 +4,7 @@
   import { useField } from "./field.ts";
   import Icon from "./Icon.svelte";
   import Input from "./Input.svelte";
-  import { listboxOptionClasses } from "./listbox.ts";
+  import { listboxListClasses, listboxOptionClasses } from "./listbox.ts";
   import ComboboxGroup from "./ComboboxGroup.svelte";
   import Popover from "./Popover.svelte";
   import Spinner from "./Spinner.svelte";
@@ -141,7 +141,11 @@
     if (!listOpen || activeIndex < 0) return;
 
     // The first option scrolls to the very top, so a heading above it stays in view.
-    if (activeIndex === 0) document.getElementById(`${id}-list`)?.scrollTo({ top: 0 });
+    if (activeIndex === 0)
+      document
+        .getElementById(`${id}-list`)
+        ?.closest<HTMLElement>("[data-listbox-scroll], [popover]")
+        ?.scrollTo({ top: 0 });
     else document.getElementById(optionId(activeIndex))?.scrollIntoView({ block: "nearest" });
   });
 
@@ -236,11 +240,7 @@
     role="listbox"
     aria-multiselectable={multiple || undefined}
     aria-label={label}
-    class={[
-      "grid grid-cols-1 content-start",
-      inline ? "min-h-0 flex-1 overflow-y-auto overscroll-contain px-1.5" : "px-1",
-      listClass,
-    ]}
+    class={[listboxListClasses, inline ? "px-1.5" : "px-1", listClass]}
   >
     {#each groups as group, g (g)}
       <ComboboxGroup
@@ -317,7 +317,10 @@
         {@attach focusOnMount}
       />
     </div>
-    {@render list()}
+    <!-- Scroll the inset list, not a padded viewport: sticky headings must meet the search divider. -->
+    <div data-listbox-scroll class="min-h-0 flex-1 scroll-py-1 overflow-y-auto overscroll-contain">
+      {@render list()}
+    </div>
   </div>
 {:else}
   <div class={["relative", className]}>

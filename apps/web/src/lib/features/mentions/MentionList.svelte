@@ -2,7 +2,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { ClassValue } from "svelte/elements";
   import type { Snippet } from "svelte";
-  import { listboxHeadingClasses, listboxOptionClasses } from "#lib/shared/ui/listbox.ts";
+  import { listboxHeadingClasses, listboxListClasses, listboxOptionClasses } from "#lib/shared/ui/listbox.ts";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { kindLook, safeIcon } from "./kinds.ts";
   import type { MentionOption } from "./sources.svelte.ts";
@@ -108,7 +108,7 @@
     id="{id}-list"
     role="listbox"
     aria-label={label}
-    class="grid grid-cols-1 content-start px-1"
+    class={[listboxListClasses, "px-1"]}
     onpointerdown={preserveFocus}
     onpointermove={trackPress}
     onpointercancel={() => {
