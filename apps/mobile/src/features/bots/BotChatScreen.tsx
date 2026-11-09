@@ -47,7 +47,7 @@ function useBotChat(id: string) {
     if (!client) return;
     let active = true;
     client.api
-      .listBots({})
+      .listBots({ includeArchived: true })
       .then((result) => active && updateBots(result.bots))
       .catch(() => undefined);
 
@@ -220,6 +220,7 @@ export function BotChatScreen({ id, rule = "" }: { id: string; rule?: string }) 
       </ChatKeyboard>
       <BotDetailsPanel
         conversation={conversation}
+        readOnly={!live}
         visible={details || !!rule}
         selectedRule={rule}
         onClose={() => {

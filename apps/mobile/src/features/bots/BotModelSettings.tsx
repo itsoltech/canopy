@@ -7,21 +7,24 @@ import { PickerSheet, SelectField } from "../../ui/Picker";
 import { useModelCatalog, modelSections } from "../models/catalog";
 import { ModelPickerSheet, EffortPickerSheet } from "../models/ModelPicker";
 import { useWorkerPresence } from "../computers/presence";
+import { Notice } from "../../ui/components";
 
 export function BotModelSettings({
   bot,
   config,
   onChange,
   disabled,
+  guided = false,
 }: {
   bot: bots.Bot;
   config: bots.BotConfiguration;
   onChange: (c: bots.BotConfiguration) => void;
   disabled: boolean;
+  guided?: boolean;
 }) {
   const { workers } = useOverview();
   const presence = useWorkerPresence();
-  const [picker, setPicker] = useState("");
+  const [picker, setPicker] = useState(guided ? "model" : "");
   const homeWorkers = workers.filter((w) => splitId(w.id).node === (bot.nodeId ? nodeRef(bot.nodeId) : undefined));
 
   const worker = config.workerId
@@ -42,6 +45,7 @@ export function BotModelSettings({
 
   return (
     <View style={{ gap: 12 }}>
+      {guided && !config.model && <Notice>First, choose a model for this bot.</Notice>}
       <SelectField
         label="Runs on"
         value={config.workerId ? worker?.name || "Worker unavailable" : "Automatic"}
