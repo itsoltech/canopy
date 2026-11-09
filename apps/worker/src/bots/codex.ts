@@ -12,6 +12,7 @@ import { BotHarnessFailure } from "./types.ts";
 import { codexErrorCode } from "../providers/codex/status-mapping.ts";
 import { decodeJson } from "../providers/json.ts";
 import { isolatedHomeEnvironment } from "../providers/home.ts";
+import { rejectBotToolApproval } from "./failures.ts";
 
 async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLaunch> {
   const { input, session } = ctx;
@@ -53,6 +54,26 @@ function codexFailure(error: import("@canopy/codex-protocol").v2.TurnError | nul
   return new BotHarnessFailure(codexErrorCode(decodeJson(error?.codexErrorInfo)) || "HARNESS_ERROR", error?.message);
 }
 
+function botThreadParams(ctx: BotHarnessContext) {
+  return {
+    model: ctx.input.model,
+    ...codexThreadProvider(ctx.profile),
+    cwd: ctx.session.cwd,
+    approvalPolicy: "never" as const,
+    sandbox: "read-only" as const,
+    baseInstructions: ctx.input.instructions,
+    developerInstructions: "",
+    config: {
+      project_doc_max_bytes: 0,
+      // Only this authenticated server delegates authorization to the gateway. Keep native tools denied.
+      mcp_servers: ctx.input.tools.length
+        ? { canopy: { url: ctx.mcp.url, http_headers: ctx.mcp.headers, default_tools_approval_mode: "approve" } }
+        : {},
+      developer_instructions: "",
+    },
+  };
+}
+
 /** Dedicated official app-server; the bot catalog keeps the model's limits and removes every local tool. */
 function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
   const { input, session } = ctx;
@@ -68,6 +89,19 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
       server.notifications.pipe(
         Stream.runForEach((event) => {
           if (!("threadId" in event.params) || event.params.threadId !== id) return Effect.void;
+
+          if (
+            event.method === "item/completed" &&
+            event.params.item.type === "mcpToolCall" &&
+            event.params.item.server === "canopy" &&
+            /MCP tool call requires approval|approval required.*approval policy.*never/i.test(
+              event.params.item.error?.message ?? "",
+            )
+          )
+            return Effect.tryPromise({
+              try: () => rejectBotToolApproval(ctx),
+              catch: () => new BotHarnessFailure("tool_approval"),
+            }).pipe(Effect.catch((error) => Deferred.fail(done, error)));
 
           if (event.method === "item/agentMessage/delta")
             return Effect.promise(() =>
@@ -108,20 +142,7 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
       ),
     );
 
-    const params = {
-      model: input.model,
-      ...codexThreadProvider(ctx.profile),
-      cwd: session.cwd,
-      approvalPolicy: "never" as const,
-      sandbox: "read-only" as const,
-      baseInstructions: input.instructions,
-      developerInstructions: "",
-      config: {
-        project_doc_max_bytes: 0,
-        mcp_servers: input.tools.length ? { canopy: { url: ctx.mcp.url, http_headers: ctx.mcp.headers } } : {},
-        developer_instructions: "",
-      },
-    };
+    const params = botThreadParams(ctx);
 
     const resumed = session.id
       ? yield* server

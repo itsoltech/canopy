@@ -254,7 +254,11 @@ Grok ma prywatne sesje per bot i instancja, wznawiane przez `session/load`.
 Curated profil oraz `--tools search_tool,use_tool` usuwają lokalne narzędzia,
 pozostawiając obsługę MCP. Proces nie dziedziczy skilli, launch args ani MCP
 urządzenia. Każdy callback zgody ACP jest odrzucany; zgody narzędzi Canopy pozostają
-w gatewayu. Utrata sesji odtwarza kontekst bez ponawiania historycznych narzędzi.
+w gatewayu. Jawna reguła `MCPTool(canopy__*)` przepuszcza transport Canopy przed
+callbackiem. Codex analogicznie ustawia `default_tools_approval_mode="approve"`
+wyłącznie dla serwera Canopy; jego wewnętrzne `approvalPolicy="never"` nie jest
+ustawieniem bota. Szczegóły odmów i granicy zgód: [bots-harness.md](bots-harness.md#narzędzia-i-granica-bezpieczeństwa).
+Utrata sesji odtwarza kontekst bez ponawiania historycznych narzędzi.
 Czytnik własnego `updates.jsonl` Groka odzyskuje tekst i zapisany koniec tury po awarii.
 
 ### Izolowane generowanie tekstu i dowód dla sesji botów

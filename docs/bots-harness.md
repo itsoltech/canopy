@@ -164,6 +164,12 @@ narzędzi, `tool_mode` innego niż `direct`, multi-agenta, wyszukiwania narzędz
 node REPL, `model_messages` i responses-lite (schematy zostają w polu `tools`).
 Do tego wyłączenia wspólne z `codexTextOverrides`, read-only, sieć sandboxa wyłączona, approvals `never`,
 brak dokumentów projektu. Konfiguracja MCP zawiera wyłącznie serwer Canopy.
+Ten serwer ma `default_tools_approval_mode="approve"`: wywołanie przechodzi do
+gatewaya przy każdej polityce bota, także `safe` i `always`. Bez tego ustawienia
+Codex traktuje narzędzia bez adnotacji jako wymagające własnej zgody i przy
+`approvalPolicy="never"` odmawia przed wywołaniem MCP. Nie oznaczamy mutacji
+jako odczytów. `never` chroni izolację narzędzi natywnych; nie jest polityką bota
+ani opcją w jego ustawieniach. Ustawienie trafia również do `thread/resume`.
 Codex zachowuje funkcje transportu MCP `list_mcp_resources`,
 `list_mcp_resource_templates` i `read_mcp_resource`; serwer bota nie udostępnia
 zasobów. Nie dają one dostępu do lokalnych plików. Dowodem izolacji obu CLI
@@ -174,6 +180,21 @@ Grok używa curated profilu z `tools: search_tool, use_tool` i takiej samej allo
 `--tools`, bez launch args i skilli instancji. Pozostaje tylko transport Canopy MCP;
 callbacki ACP odmawiają każdego lokalnego uprawnienia. Przechwycenie schematów
 prawdziwego CLI jest częścią `isolation.test.ts`, obok Claude i Codexa.
+Grok ma jawną regułę `allow = ["MCPTool(canopy__*)"]`, także dla zwykłych wątków;
+tylko ten serwer deleguje zgody do gatewaya. Pozostałe MCP i narzędzia lokalne
+zachowują dotychczasowe reguły. Generowanie tekstu bez narzędzi nie dostaje wyjątku.
+Allowlista Claude `mcp__canopy__*` ma ten sam cel. Komunikat
+`CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` dla tych narzędzi oznacza, że allowlista
+rozstrzyga zgodę SDK przed callbackiem; zgoda platformy nadal następuje w gatewayu.
+
+Prompt bota używa etykiet **Ask for approval** z ustawień i odróżnia je od
+**Threads started by this bot**. Puste ustawienie jest normalizowane do `safe`;
+gateway przyjmuje tylko `safe`, `always` i `full_auto`, nigdy `never`.
+Karta tworzenia bota również pokazuje etykietę ustawienia zamiast kodu polityki.
+Odmowa MCP przez Codexa lub `permission_denials` Claude dla Canopy kończy turę
+kodem `tool_approval`, nawet jeżeli harness raportuje sukces generacji. Czat
+podaje aktualizację workera i ponowienie zamiast sugerować nieistniejącą opcję.
+Surowa treść odmowy nie trafia do rozmowy ani journala bota.
 
 Serwer MCP Canopy na workerze jest transportem schematów i wywołań, a nie
 wykonawcą akcji. Schematy istniejących `bots/tools/*` i przyznanych connectorów
@@ -261,6 +282,17 @@ fixtures i wygenerowanym kodem. Endpointy inferencji oraz klienci HTTP SDK powod
 błąd CI; generowanie tytułów nie ma wyjątku.
 
 ## Testy
+
+`bots-harness-approvals.test.ts` sprawdza przez prawdziwy WorkerLink i kontrolowane
+CLI każdą politykę wszystkich trzech harnessów: kartę `create_bot`, brak efektu
+przed zgodą, wykonanie po zgodzie oraz `start_thread` bez karty przy full auto.
+Obejmuje także odmowę MCP Codexa i odmowę allowlistowanego narzędzia Claude.
+Fixture Codexa uwzględnia domyślną odmowę MCP bez jawnego `approve`, a fixture
+Groka sprawdza regułę serwera. `codex-tools.test.ts` uruchamia prawdziwy app-server
+z kontrolowanym endpointem modelu i wykonuje MCP Canopy bez zgody natywnej.
+`providers/codex/platform-tools.test.ts` potwierdza, że zwykły wątek full auto
+przekazuje `ask_user`, `spawn_thread` i `send_message` przez `dynamicTools`;
+nie podlega on polityce zgód MCP. Testy nie potrzebują zewnętrznej inferencji.
 
 `bots-harness-errors.test.ts` sprawdza przez WorkerLink i kontrolowane CLI każdą
 klasę awarii Claude/Codex/Grok, brak pliku wykonywalnego i skuteczne ponowienie,
