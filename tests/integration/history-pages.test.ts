@@ -126,6 +126,34 @@ describe.skipIf(!dockerAvailable)("tail pages and journal checkpoints on real ga
     await gateway?.close();
   });
 
+  test("background tasks remain in tail snapshots when their starting turn is outside the page", async () => {
+    await query(
+      `INSERT INTO thread_items(thread_id,item_id,turn_id,type,status,content,first_seq,last_seq)
+       SELECT thread_id,'persistent-task-'||n,id,'background_task',s,
+         jsonb_build_object('itemId','persistent-task-'||n,'status',p,
+           'backgroundTask',jsonb_build_object('taskId','task-'||n,'description','Earlier background work')),
+         n,n FROM turns CROSS JOIN (VALUES (1,'in_progress','ITEM_STATUS_IN_PROGRESS'),
+           (2,'completed','ITEM_STATUS_COMPLETED')) AS tasks(n,s,p)
+       WHERE thread_id=$1::uuid AND ordinal=1`,
+      [thread],
+    );
+
+    try {
+      const tail = applyThreadUpdate(undefined, await openThread());
+      expect(tail.turns.every((turn) => turn.ordinal > 1)).toBe(true);
+      expect(tail.items.filter((entry) => entry.item?.content.case === "backgroundTask")).toHaveLength(2);
+      const reopened = applyThreadUpdate(undefined, await openThread({ incremental: false }));
+      expect(reopened.items.filter((entry) => entry.item?.content.case === "backgroundTask")).toEqual(
+        tail.items.filter((entry) => entry.item?.content.case === "backgroundTask"),
+      );
+      const earlier = applyThreadUpdate(undefined, await openThread({ targetItemId: "persistent-task-1" }));
+      const merged = prependThreadPage(tail, earlier);
+      expect(merged.items.filter((entry) => entry.item?.content.case === "backgroundTask")).toHaveLength(2);
+    } finally {
+      await query("DELETE FROM thread_items WHERE thread_id=$1::uuid AND type='background_task'", [thread]);
+    }
+  });
+
   test("thread pages cover complete turns without omissions while new turns arrive", async () => {
     let state = applyThreadUpdate(undefined, await openThread());
     expect(state.turns).toHaveLength(12);

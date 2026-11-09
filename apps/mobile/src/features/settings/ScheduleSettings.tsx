@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocalSearchParams } from "expo-router";
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
@@ -12,9 +13,11 @@ import { splitId } from "@canopy/domain/computers";
 import { awayReason, formatPresenceTime } from "@canopy/domain/computer-presence";
 
 export function ScheduleSettings() {
+  const { threadId } = useLocalSearchParams<{ threadId?: string }>();
+
   const resource = useSettingsResource(
-    "schedules",
-    (api) => api.listSchedules({ includeFinished: true }),
+    `schedules:${threadId ?? ""}`,
+    (api) => api.listSchedules({ threadId, includeFinished: true }),
     "ListSchedules",
   );
 
@@ -113,6 +116,7 @@ export function ScheduleSettings() {
       >
         {editing && (
           <ScheduleEditor
+            defaultThreadId={threadId}
             schedule={editing === "new" ? undefined : editing}
             onSaved={() => {
               setEditing(undefined);

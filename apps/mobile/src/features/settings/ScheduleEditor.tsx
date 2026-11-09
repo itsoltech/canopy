@@ -15,22 +15,23 @@ import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 import { splitId } from "@canopy/domain/computers";
 import { awayReason, formatPresenceTime } from "@canopy/domain/computer-presence";
 
-export function ScheduleEditor({ schedule, onSaved }: { schedule?: ui.Schedule; onSaved: () => void }) {
+export function ScheduleEditor({
+  schedule,
+  defaultThreadId,
+  onSaved,
+}: {
+  schedule?: ui.Schedule;
+  defaultThreadId?: string;
+  onSaved: () => void;
+}) {
   const resource = useSettingsResource("schedule-editor", (api) => api.listSchedules({}), "ListSchedules");
   const overview = useOverview();
   const home = useComputerHome(schedule ? splitId(schedule.id).node : undefined);
 
   const [draft, setDraft] = useState(() =>
     create(ui.CreateScheduleRequestSchema, {
-      threadId: schedule?.threadId,
-      prompt: schedule?.prompt,
-      name: schedule?.configuredName,
-      timezone: schedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-      target: schedule?.target || "thread",
-      newThread: schedule?.newThread,
-      concurrency: schedule?.concurrency || "skip_if_running",
-      missedPolicy: schedule?.missedPolicy || "run_once",
-      maxRuns: schedule?.maxRuns,
+      threadId: schedule?.threadId ?? defaultThreadId,
+      ...scheduleDraft(schedule),
     }),
   );
 
@@ -142,6 +143,19 @@ export function ScheduleEditor({ schedule, onSaved }: { schedule?: ui.Schedule; 
       />
     </ResourceState>
   );
+}
+
+function scheduleDraft(schedule?: ui.Schedule) {
+  return {
+    prompt: schedule?.prompt,
+    name: schedule?.configuredName,
+    timezone: schedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+    target: schedule?.target || "thread",
+    newThread: schedule?.newThread,
+    concurrency: schedule?.concurrency || "skip_if_running",
+    missedPolicy: schedule?.missedPolicy || "run_once",
+    maxRuns: schedule?.maxRuns,
+  };
 }
 
 function ScheduleTarget({

@@ -1,4 +1,6 @@
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { useState } from "react";
+import { ThreadActionsSheet } from "../threads/ThreadActionsSheet";
 import { useGlobalSearchParams, usePathname } from "expo-router";
 import { useLayout } from "../../state/layout";
 import type { ui } from "@canopy/contracts";
@@ -37,6 +39,7 @@ export function SidebarThread({
   subagentsNeedingInput?: readonly ui.Thread[];
 }) {
   const c = useColors();
+  const [actions, setActions] = useState(false);
   const home = useComputerHome(thread.nodeId);
   const layout = useLayout();
   const pathname = usePathname();
@@ -76,60 +79,71 @@ export function SidebarThread({
             : c.muted;
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${thread.title || "Untitled thread"}, ${label}${home.away ? `, ${home.reason}` : ""}`}
-      accessibilityState={{ selected: active }}
-      onPress={() => void layout.openThread(thread.id)}
-      style={({ pressed }) => [
-        {
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          gap: 2,
-          borderRadius: 12,
-          backgroundColor: pressed || active ? c.inset : needs ? (c.dark ? "#fbbf240f" : "#f59e0b0f") : "transparent",
-          borderWidth: needs ? 1 : 0,
-          borderColor: `${c.warning}33`,
-          opacity: home.away ? 0.55 : 1,
-        },
-        style,
-      ]}
-    >
-      <View style={[styles.row, { opacity: busy ? 0.7 : 1 }]}>
-        {needs || busy ? (
-          <View
-            style={{
-              width: 18,
-              height: 18,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Icon name={needs ? "hand-raised" : "arrow-path"} size={14} color={tone} />
-          </View>
-        ) : (
-          <ProjectMark name={project?.name ?? "?"} kind={project?.kind} />
-        )}
-        <Text numberOfLines={1} style={[styles.meta, { flex: 1, color: c.muted }]}>
-          {project?.name ?? "Unknown project"}
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${thread.title || "Untitled thread"}, ${label}${home.away ? `, ${home.reason}` : ""}`}
+        accessibilityState={{ selected: active }}
+        onPress={() => void layout.openThread(thread.id)}
+        onLongPress={() => setActions(true)}
+        accessibilityHint="Hold for thread actions."
+        accessibilityActions={[{ name: "longpress", label: "Thread actions" }]}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === "longpress") setActions(true);
+        }}
+        style={({ pressed }) => [
+          {
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            gap: 2,
+            borderRadius: 12,
+            backgroundColor: pressed || active ? c.inset : needs ? (c.dark ? "#fbbf240f" : "#f59e0b0f") : "transparent",
+            borderWidth: needs ? 1 : 0,
+            borderColor: `${c.warning}33`,
+            opacity: home.away ? 0.55 : 1,
+          },
+          style,
+        ]}
+      >
+        <View style={[styles.row, { opacity: busy ? 0.7 : 1 }]}>
+          {needs || busy ? (
+            <View
+              style={{
+                width: 18,
+                height: 18,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon name={needs ? "hand-raised" : "arrow-path"} size={14} color={tone} />
+            </View>
+          ) : (
+            <ProjectMark name={project?.name ?? "?"} kind={project?.kind} />
+          )}
+          <Text numberOfLines={1} style={[styles.meta, { flex: 1, color: c.muted }]}>
+            {project?.name ?? "Unknown project"}
+          </Text>
+          {/* A new state (working, needs input, a result) swaps in; the age ticking over does not. */}
+          <Swap value={needs ? "needs" : busy ? thread.status : result || "age"}>
+            <Text style={[styles.meta, { color: tone }]}>{label}</Text>
+          </Swap>
+        </View>
+        <Text numberOfLines={1} style={[styles.body, { color: c.body, opacity: busy ? 0.6 : 1 }]}>
+          {thread.title || "Untitled thread"}
         </Text>
-        {/* A new state (working, needs input, a result) swaps in; the age ticking over does not. */}
-        <Swap value={needs ? "needs" : busy ? thread.status : result || "age"}>
-          <Text style={[styles.meta, { color: tone }]}>{label}</Text>
-        </Swap>
-      </View>
-      <Text numberOfLines={1} style={[styles.body, { color: c.body, opacity: busy ? 0.6 : 1 }]}>
-        {thread.title || "Untitled thread"}
-      </Text>
-      <View style={[styles.row, { gap: 6, opacity: busy ? 0.6 : 1 }]}>
-        <Icon name="computer-desktop" size={14} color={worker?.online ? c.muted : c.faint} />
-        <Text numberOfLines={1} style={[styles.meta, { flex: 1, color: c.muted }]}>
-          {worker?.name ?? "Unknown worker"} ·{" "}
-          {project?.kind === "scratch" ? "scratch folder" : (thread.cwd.split("/").filter(Boolean).pop() ?? thread.cwd)}
-        </Text>
-        {thread.goalStatus ? <Icon name="flag" size={14} /> : null}
-        <ProviderIcon provider={thread.provider} />
-      </View>
-    </Pressable>
+        <View style={[styles.row, { gap: 6, opacity: busy ? 0.6 : 1 }]}>
+          <Icon name="computer-desktop" size={14} color={worker?.online ? c.muted : c.faint} />
+          <Text numberOfLines={1} style={[styles.meta, { flex: 1, color: c.muted }]}>
+            {worker?.name ?? "Unknown worker"} ·{" "}
+            {project?.kind === "scratch"
+              ? "scratch folder"
+              : (thread.cwd.split("/").filter(Boolean).pop() ?? thread.cwd)}
+          </Text>
+          {thread.goalStatus ? <Icon name="flag" size={14} /> : null}
+          <ProviderIcon provider={thread.provider} />
+        </View>
+      </Pressable>
+      <ThreadActionsSheet thread={thread} visible={actions} onClose={() => setActions(false)} />
+    </>
   );
 }

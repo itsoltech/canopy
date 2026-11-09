@@ -93,7 +93,8 @@ export function threadSnapshot(
                 FROM thread_items_view(${threadId}::uuid) WITH ORDINALITY v
                 LEFT JOIN thread_events e ON v.type='agent_message' AND v.status='completed'
                   AND e.thread_id=v.thread_id AND e.seq=v.last_seq
-                WHERE ${!window} OR v.turn_id IS NULL OR v.turn_id=ANY(${window?.ids ?? []}::uuid[]) ORDER BY v.ordinality`;
+                WHERE ${!window} OR v.turn_id IS NULL OR v.type='background_task'
+                  OR v.turn_id=ANY(${window?.ids ?? []}::uuid[]) ORDER BY v.ordinality`;
 
         const items = itemRows.map((r) =>
           create(ui.TimelineItemSchema, {

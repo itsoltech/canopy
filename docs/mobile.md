@@ -926,7 +926,9 @@ Domyślny tryb pochodzi z ustawień worktree, a `CreateThread` dostaje `workspac
 `base_ref` i `worktree_id` jak z web.
 Pliki (zdjęcia z `expo-image-picker`, dokumenty z `expo-document-picker`, odczyt przez
 `expo-file-system`) trafiają do `UploadAttachment` od razu po wyborze, z limitami gatewaya
-z GetSettings; wiadomość z plikami zawsze idzie do kolejki. Jak w web, wybrany plik wstawia
+z GetSettings; wiadomość z plikami zachowuje wybór steer/queue. Gdy dom nie obsługuje
+sterowania plikami, gateway odkłada wiadomość do kolejki i zwraca wyjaśnienie.
+Jak w web, wybrany plik wstawia
 plakietkę `[nazwa]` w miejscu kursora (wzmianka ATTACHMENT, `features/composer/message-value.ts`):
 TextInput dostaje fragmenty tekstu jako dzieci, więc plakietka jest zabarwionym zakresem.
 Edycja dotykająca plakietki usuwa ją w całości razem z plikiem; tekst wpisany w jej środek
@@ -935,10 +937,27 @@ nad tekstem chip ze stanem i przyciskiem Remove; zapisany plik ma już tylko pla
 wiadomość pokazuje plakietki w tych samych miejscach (`Turn.mentions`), a chipy tylko dla plików
 spoza tekstu. Własna wiadomość w kolejce ma „…” obok „Queued”: Edit message otwiera edytor
 z tymi samymi plakietkami (`EditQueuedTurn` z `mentions_complete`, linia „‹name› leaves the
-message when you save.”), Delete usuwa ją (`DeleteQueuedTurn`). Settings → Threads edytuje
+message when you save.”). Menu pozwala przesuwać wiadomość o jedno miejsce lub na początek/koniec
+(`ReorderQueuedTurns`), a wiadomość, również z plikami, przekazać do działającej tury przez „Steer now”
+(`SteerQueuedTurn`). Usunięcie (`DeleteQueuedTurn`) pokazuje „Undo” przez 8 sekund
+(`RestoreQueuedTurn`); nie zmienia domyślnej preferencji steer/queue. Settings → Threads edytuje
 domyślny workspace, agenta i uprawnienia.
 Są tworzenie wątku, rename/archive/unread, wyszukiwanie treści, zwinięta praca/narzędzia,
 subagents i panel worker/cwd/model/status/schedules/lineage/connectors.
+
+Nagłówek oraz przytrzymanie wiersza sidebara otwierają ten sam arkusz akcji wątku:
+pin/unpin, zmiana lub regeneracja tytułu, read/unread, archive/unarchive i delete;
+lokalny wątek zachowuje też „Move to a computer”.
+Potwierdzenia korzystają z preferencji użytkownika. „Undo” po usunięciu wywołuje
+`RestoreThread` i przywraca otwarty wątek, również gdy usunięto go wraz z rodzicem.
+Panel szczegółów pokazuje sumy tokenów i koszt własnych tur (bez odziedziczonych),
+z oznaczeniem „loaded turns” przy niepełnej historii, oraz ostatni zgłoszony limit okna kontekstu.
+„Copy” kopiuje osobno katalog roboczy i ścieżkę worktree przez `expo-clipboard`.
+Linki do harmonogramów i zarządzania worktree otwierają Settings z zakresem tego wątku
+lub worktree. Lista zadań w tle pozostaje dostępna w szczegółach po zakończeniu tury;
+pokazuje status i kod wyjścia, pozwala zatrzymać zadanie i otworzyć pełny wynik.
+Snapshot strony zachowuje także itemy zadań w tle spoza okna załadowanych tur.
+„Show full output” korzysta ze wspólnego `TextViewer`, także dla wyniku zapisanego jako blob.
 
 Sidebar korzysta z tych samych reguł co web w `@canopy/domain/sidebar-threads`,
 `sidebar-entries`, `thread-tree` i `thread-activity`: subagenci nie mają osobnych głównych

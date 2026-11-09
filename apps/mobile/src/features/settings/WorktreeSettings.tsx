@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { useLocalSearchParams } from "expo-router";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
@@ -11,9 +12,11 @@ import { ResetSetting } from "./ResetSetting";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
 
 export function WorktreeSettings() {
+  const initial = useLocalSearchParams<{ projectId?: string; workerId?: string; worktreeId?: string }>();
   const { projects, workers } = useOverview();
-  const [projectId, setProject] = useState("");
-  const [workerId, setWorker] = useState("");
+  const [projectId, setProject] = useState(initial.projectId ?? "");
+  const [workerId, setWorker] = useState(initial.workerId ?? "");
+  const [focused, setFocused] = useState(initial.worktreeId);
   const scope = { projectId, workerId };
 
   const resource = useSettingsResource(`worktree-settings:${projectId}:${workerId}`, (api) =>
@@ -35,6 +38,14 @@ export function WorktreeSettings() {
           }),
         }),
       ))
+    );
+
+  if (focused)
+    return (
+      <>
+        <Button title="Show all worktree settings" onPress={() => setFocused(undefined)} />
+        <WorktreeList scope={scope} worktreeId={focused} />
+      </>
     );
 
   return (
@@ -277,7 +288,7 @@ function WorktreeCleanup({ response, busy, save }: Fields) {
   );
 }
 
-function WorktreeList({ scope }: { scope: { projectId: string; workerId: string } }) {
+function WorktreeList({ scope, worktreeId }: { scope: { projectId: string; workerId: string }; worktreeId?: string }) {
   const resource = useSettingsResource(`worktrees:${scope.projectId}:${scope.workerId}`, (api) =>
     api.listWorktrees(scope),
   );
@@ -316,17 +327,19 @@ function WorktreeList({ scope }: { scope: { projectId: string; workerId: string 
             void resource.reload();
           }}
         />
-        <Button
-          title="Preview cleanup"
-          busy={resource.busy}
-          onPress={() =>
-            void resource
-              .run((api) => api.cleanupWorktrees({ ...scope, dryRun: true }))
-              .then((r) => {
-                if (r) setPreview(r);
-              })
-          }
-        />
+        {!worktreeId && (
+          <Button
+            title="Preview cleanup"
+            busy={resource.busy}
+            onPress={() =>
+              void resource
+                .run((api) => api.cleanupWorktrees({ ...scope, dryRun: true }))
+                .then((r) => {
+                  if (r) setPreview(r);
+                })
+            }
+          />
+        )}
         {preview && (
           <>
             <Notice>{preview.entries.filter((e) => e.wouldRemove).length} worktrees qualify for cleanup.</Notice>
@@ -348,43 +361,47 @@ function WorktreeList({ scope }: { scope: { projectId: string; workerId: string 
             />
           </>
         )}
-        {(preview ?? resource.data)?.entries.map((entry) => (
-          <SettingsRow
-            key={entry.worktree?.id}
-            title={
-              entry.worktree?.detachedCommit
-                ? `Detached HEAD · ${entry.worktree.detachedCommit}`
-                : entry.worktree?.branch || "Worktree"
-            }
-            description={entry.worktree?.path}
-          >
-            <SettingsValue
-              title="Status"
-              value={
-                entry.worktree?.external
-                  ? entry.worktree.unavailableReason || (entry.online ? "Available" : "Offline")
-                  : entry.detail ||
-                    entry.status?.detail ||
-                    (entry.removed ? "Removed" : entry.busy ? "Busy" : entry.online ? "Online" : "Offline")
+        {(preview ?? resource.data)?.entries
+          .filter((entry) => !worktreeId || entry.worktree?.id === worktreeId)
+          .map((entry) => (
+            <SettingsRow
+              key={entry.worktree?.id}
+              title={
+                entry.worktree?.detachedCommit
+                  ? `Detached HEAD · ${entry.worktree.detachedCommit}`
+                  : entry.worktree?.branch || "Worktree"
               }
-            />
-            {entry.worktree?.external && <SettingsValue title="Management" value="Created outside Canopy" />}
-            {!entry.worktree?.external && (
-              <>
-                <SettingsValue
-                  title="Changes"
-                  value={`${entry.status?.dirtyFiles ?? 0} files · ${entry.status?.ahead ?? 0} ahead · ${entry.status?.behind ?? 0} behind${entry.status?.unpushed ? " · Unpushed commits" : ""}`}
-                />
-                <Button
-                  variant="danger"
-                  title="Remove worktree"
-                  disabled={resource.busy || !entry.online || entry.busy || entry.removed || !entry.status?.headCommit}
-                  onPress={() => remove(entry)}
-                />
-              </>
-            )}
-          </SettingsRow>
-        ))}
+              description={entry.worktree?.path}
+            >
+              <SettingsValue
+                title="Status"
+                value={
+                  entry.worktree?.external
+                    ? entry.worktree.unavailableReason || (entry.online ? "Available" : "Offline")
+                    : entry.detail ||
+                      entry.status?.detail ||
+                      (entry.removed ? "Removed" : entry.busy ? "Busy" : entry.online ? "Online" : "Offline")
+                }
+              />
+              {entry.worktree?.external && <SettingsValue title="Management" value="Created outside Canopy" />}
+              {!entry.worktree?.external && (
+                <>
+                  <SettingsValue
+                    title="Changes"
+                    value={`${entry.status?.dirtyFiles ?? 0} files · ${entry.status?.ahead ?? 0} ahead · ${entry.status?.behind ?? 0} behind${entry.status?.unpushed ? " · Unpushed commits" : ""}`}
+                  />
+                  <Button
+                    variant="danger"
+                    title="Remove worktree"
+                    disabled={
+                      resource.busy || !entry.online || entry.busy || entry.removed || !entry.status?.headCommit
+                    }
+                    onPress={() => remove(entry)}
+                  />
+                </>
+              )}
+            </SettingsRow>
+          ))}
         {resource.data && !resource.data.entries.length && (
           <SettingsRow title="No worktrees yet" description="Start a thread in a new worktree to add one." />
         )}

@@ -13,6 +13,7 @@ import { useReducedMotion } from "../ui/motion";
 import { DevicePreferencesProvider } from "../features/settings/device-preferences";
 import { InAppAlerts } from "../features/navigation/InAppAlerts";
 import { ConfirmHost } from "../ui/Confirm";
+import { ToastHost } from "../ui/Toast";
 import { UpdatesProvider } from "../features/updates/state";
 import { UpdateCenter } from "../features/updates/UpdateCenter";
 import { KeyboardWindow } from "../ui/KeyboardWindow";
@@ -64,6 +65,7 @@ function Navigation() {
       <InAppAlerts />
       <UpdateCenter />
       <ConfirmHost />
+      <ToastHost key={session?.deviceId ?? "unpaired"} />
     </View>
   );
 }

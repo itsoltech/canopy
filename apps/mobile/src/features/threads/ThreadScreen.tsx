@@ -12,7 +12,6 @@ import { Notice } from "../../ui/components";
 import { ChatKeyboard } from "../composer/ChatKeyboard";
 import { MessageComposer } from "./MessageComposer";
 import { DropZone } from "../attachments/FileIntake";
-import { ThreadPanel } from "./ThreadPanel";
 import { useOverview } from "../../state/overview";
 import { ThreadHeader } from "./ThreadHeader";
 import { ThreadTimeline } from "./ThreadTimeline";
@@ -21,9 +20,8 @@ import { ConnectionBanner } from "../navigation/ConnectionStatus";
 import { SubagentPanel } from "./SubagentPanel";
 import { useFollowingList } from "../../ui/useFollowingList";
 import { useMessageDraft } from "../composer/useMessageDraft";
-import { QueuedMessageMenu, QueueEditor } from "./QueuedMessage";
-import { GoalSheet, isFinishedGoal, takesGoals } from "./GoalSheet";
-import { SideThreadSheet } from "./SideThreadSheet";
+import { isFinishedGoal, takesGoals } from "./GoalSheet";
+import { ThreadSheets } from "./ThreadSheets";
 import { useComputerHome } from "../computers/presence";
 import { splitId } from "@canopy/domain/computers";
 import { FloatingComposer } from "../composer/FloatingComposer";
@@ -47,7 +45,7 @@ export type ThreadState = ReturnType<typeof useThreadState>;
 
 function useThreadState(id: string) {
   const { session, client, ready, online, expired } = useSession();
-  const { snapshot, setSnapshot, stream, history } = useThreadSnapshot(id);
+  const { snapshot, setSnapshot, stream, history, usage } = useThreadSnapshot(id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const following = useFollowingList<ui.Turn>(true);
@@ -140,6 +138,7 @@ function useThreadState(id: string) {
     client,
     ready,
     snapshot,
+    usage,
     busy,
     error,
     setError,
@@ -182,20 +181,7 @@ export function ThreadScreen({ id }: { id: string }) {
 
   const [sheet, setSheet] = useState<"goal" | "side" | null>(null);
 
-  const {
-    session,
-    ready,
-    snapshot,
-    error,
-    setError,
-    following,
-    details,
-    setDetails,
-    projects,
-    thread,
-    turns,
-    blocked,
-  } = state;
+  const { session, ready, snapshot, error, following, setDetails, projects, thread, turns, blocked } = state;
 
   const { atBottom } = following;
 
@@ -215,7 +201,11 @@ export function ThreadScreen({ id }: { id: string }) {
             turns={turns}
             onDetails={() => setDetails(true)}
             onSideThread={() => setSheet("side")}
-            onGoal={thread && takesGoals(thread) ? () => setSheet("goal") : undefined}
+            onGoal={
+              thread && takesGoals(thread) && (!snapshot?.goal || isFinishedGoal(snapshot.goal.status))
+                ? () => setSheet("goal")
+                : undefined
+            }
             goalOpen={Boolean(snapshot?.goal && !isFinishedGoal(snapshot.goal.status))}
             readOnly={state.home.away}
           />
@@ -249,34 +239,8 @@ export function ThreadScreen({ id }: { id: string }) {
           </FloatingComposer>
         </DropZone>
       </ChatKeyboard>
-      <ThreadPanel snapshot={snapshot} visible={details} onClose={() => setDetails(false)} />
-      <ThreadQueue state={state} onError={setError} />
-      <GoalSheet
-        thread={thread}
-        goal={snapshot?.goal}
-        visible={!state.home.away && sheet === "goal"}
-        onClose={() => setSheet(null)}
-      />
-      <SideThreadSheet main={thread} visible={!state.home.away && sheet === "side"} onClose={() => setSheet(null)} />
+      <ThreadSheets state={state} sheet={sheet} onClose={() => setSheet(null)} />
     </ScreenFrame>
-  );
-}
-
-function ThreadQueue({ state, onError }: { state: ThreadState; onError: (message: string) => void }) {
-  return (
-    <>
-      <QueuedMessageMenu
-        running={state.thread?.status === "running"}
-        turn={state.home.away || state.queued?.editing ? undefined : state.queued?.turn}
-        onClose={() => state.setQueued(undefined)}
-        onEdit={(turn) => state.setQueued({ turn, editing: true })}
-        onError={onError}
-      />
-      <QueueEditor
-        turn={!state.home.away && state.queued?.editing ? state.queued.turn : undefined}
-        onClose={() => state.setQueued(undefined)}
-      />
-    </>
   );
 }
 
