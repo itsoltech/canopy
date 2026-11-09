@@ -88,6 +88,9 @@ HTML ani logów, a skrypt usuwa je z bieżącego adresu. W desktopie strona pró
 otworzyć `canopy://connectors` i ma przycisk „Open Canopy”, gdy przeglądarka
 wymaga kliknięcia. Link pokazuje ustawienia konektorów; powrót fokusu także
 odświeża stan kont. W Electronie wynik wraca bezpośrednio do ustawień.
+Zakończony OAuth, zmiana kont i grantów oraz błąd odświeżenia tokenu docierają do każdego
+otwartego klienta jako `OverviewUpdate.connectors_changed` (bez stałego odpytywania strony;
+[ui-api.md](ui-api.md#współdzielone-odczyty)). Granty sprawdza zawsze gateway przy wykonaniu.
 ### Stały redirect OAuth
 
 Nowe rejestracje DCR oraz aplikacje bez DCR (`oauth_app_required`: Slack, GitHub OAuth app)

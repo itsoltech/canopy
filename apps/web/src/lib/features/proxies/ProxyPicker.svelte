@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { Provider, type ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -7,7 +6,7 @@
   import Field from "#lib/shared/ui/Field.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import ProxyDialog from "./ProxyDialog.svelte";
-  import { listProxies, supportsHarness } from "./proxies.ts";
+  import { replaceProxy, sharedProxies, supportsHarness } from "./proxies.ts";
 
   let {
     harness,
@@ -23,10 +22,11 @@
     class?: ClassValue;
   } = $props();
 
-  let proxies = $state<ui.Proxy[]>([]);
+  const read = sharedProxies();
+  const proxies = $derived(read.data?.proxies ?? []);
   let adding = $state(false);
-  let loading = $state(true);
-  let failure = $state<string>();
+  const loading = $derived(!read.snapshot.loaded && !read.snapshot.error);
+  const failure = $derived(read.snapshot.error || undefined);
 
   const options = $derived([
     ...(inherited ? [{ value: "", label: "Use the instance's proxy" }] : []),
@@ -35,22 +35,7 @@
       .map((p) => ({ value: p.id, label: p.name, description: p.baseUrl })),
   ]);
 
-  async function reload() {
-    loading = true;
-    failure = undefined;
-
-    try {
-      proxies = await listProxies();
-    } catch (error) {
-      failure = error instanceof Error ? error.message : String(error);
-    } finally {
-      loading = false;
-    }
-  }
-
-  onMount(() => {
-    void reload();
-  });
+  const reload = () => void read.reload().catch(() => {});
 </script>
 
 <div class={["grid gap-3", className]}>
@@ -72,7 +57,7 @@
 <ProxyDialog
   bind:open={adding}
   onsaved={(proxy) => {
-    proxies = [...proxies, proxy];
+    replaceProxy(read, proxy);
     if (supportsHarness(proxy, harness)) value = proxy.id;
   }}
 />

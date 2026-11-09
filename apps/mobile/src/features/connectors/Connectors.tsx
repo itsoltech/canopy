@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { connectors } from "@canopy/contracts";
 import { useSession } from "../../state/session";
+import { useSharedQuery } from "../../state/queries";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 import { Chevron, Expand } from "../../ui/MotionViews";
@@ -18,31 +19,21 @@ const accountStatus = (status: string) =>
 const accountLabel = (account: connectors.ConnectorAccount, types: readonly connectors.ConnectorType[]) =>
   `${types.find((t) => t.id === account.connectorType)?.name ?? account.connectorType} · ${account.name}`;
 
-/** Your connector accounts, or the ones a thread can use (`threadId`); `list` is undefined while loading. */
+/**
+ * Your connector accounts, or the ones a thread or bot can use; `list` is undefined while loading. Shared by every
+ * screen showing the same scope and read again when connectors change on any device.
+ */
 export function useConnectors(threadId?: string, botId?: string) {
   const { client } = useSession();
-  const [list, setList] = useState<connectors.ListConnectorsResponse>();
-  const [error, setError] = useState("");
+  const scope = threadId ? `thread=${threadId}` : botId ? `bot=${botId}` : "";
 
-  useEffect(() => {
-    let active = true;
+  const read = useSharedQuery(
+    scope ? `ListConnectors:${scope}` : "ListConnectors",
+    () => client!.api.listConnectors({ threadId: threadId ?? "", botId: botId ?? "" }),
+    Boolean(client),
+  );
 
-    if (client)
-      void client.api
-        .listConnectors({ threadId: threadId ?? "", botId: botId ?? "" })
-        .then((r) => {
-          if (active) setList(r);
-        })
-        .catch(() => {
-          if (active) setError("Could not load connectors.");
-        });
-
-    return () => {
-      active = false;
-    };
-  }, [client, threadId, botId]);
-
-  return { list, error };
+  return { list: read.data, error: read.error ? "Could not load connectors." : "" };
 }
 
 /** Connector accounts with their status; a failed test shows its reason and, on request, the details. */

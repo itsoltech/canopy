@@ -648,7 +648,9 @@ nie zapisuje payloadu, nagłówków uwierzytelniania ani transportowego cause.
 - `WatchOverview`: lokalny strumień plus, dla każdego udostępniającego partnera, jego `WatchOverview`
   z `include_snapshot` rozpakowanym do zmian `worker`/`project`/`thread`. Zmiana obecności, nazwy
   albo capabilities partnera to `OverviewUpdate.computer` (800), Unlink — `computer_removed` (801).
-  Ustawienia, harmonogramy i urządzenia partnera nie są przekazywane. Migawka telefonu
+  Ustawienia, harmonogramy i urządzenia partnera nie są przekazywane. Podsumowania botów partnera
+  (`bot`, `bot_removed`) są przekazywane z kwalifikowanymi id; `feeds` partnera decyduje, czy lokalny
+  strumień ogłasza `bots` jako wypychane. Migawka telefonu
   (`include_snapshot`) obejmuje także partnerów.
 - `ListArchivedThreads` pozostaje lokalne (stronicowanie per komputer); archiwum partnera jest u niego.
 

@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { dockerAvailable } from "@canopy/db/testing";
+import { Provider, type ui } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
 import { eventually } from "./support/gateway.ts";
 import { linkedTimeouts } from "./support/linked-timeouts.ts";
 
-describe.skipIf(!dockerAvailable)("model catalog routing across linked homes", () => {
+describe.skipIf(!dockerAvailable)("reads and pushed changes across linked homes", () => {
   let f: Awaited<ReturnType<typeof linkedTimeouts>>;
   const calls = () => f.requests.get("ListModels") ?? 0;
   /** Linked reads this computer starts for ListModels (a refused or failing one still costs a peer request). */
@@ -51,4 +52,58 @@ describe.skipIf(!dockerAvailable)("model catalog routing across linked homes", (
 
     expect(all.workers.map((w) => w.workerId)).toContain(f.a.workerId);
   });
+
+  test("a linked home's bot changes reach this computer's subscribers with qualified ids", async () => {
+    const abort = new AbortController();
+    const updates: ui.OverviewUpdate[] = [];
+
+    const reading = (async () => {
+      for await (const update of f.a.api.watchOverview({}, { signal: abort.signal })) updates.push(update);
+    })().catch(() => {});
+
+    try {
+      const pushed = await eventually(
+        async () => updates.flatMap((u) => (u.change.case === "feeds" ? [u.change.value.pushed] : [])).at(-1),
+        (feeds) => !!feeds?.includes("bots"),
+        10_000,
+      );
+
+      expect(pushed).toContain("bots");
+      await Bun.sleep(2500);
+
+      const bot = (
+        await f.b.api.createBot({
+          clientRequestId: crypto.randomUUID(),
+          configuration: {
+            name: "Studio bot",
+            shape: "round",
+            color: "#22aaff",
+            provider: Provider.CODEX,
+            providerInstance: "native",
+            model: "gpt-6.1-sol",
+            workerId: f.b.workerId,
+          },
+        })
+      ).bot!;
+
+      const remote = qualifyId(bot.id, f.node);
+
+      const seen = await eventually(
+        async () => updates.find((u) => u.change.case === "bot" && u.change.value.id === remote),
+        Boolean,
+        5000,
+      );
+
+      expect(seen?.change.case).toBe("bot");
+      await f.b.api.deleteBot({ botId: bot.id });
+      await eventually(
+        async () => updates.some((u) => u.change.case === "botRemoved" && u.change.value === remote),
+        Boolean,
+        5000,
+      );
+    } finally {
+      abort.abort();
+      await reading;
+    }
+  }, 30_000);
 });

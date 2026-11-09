@@ -1,63 +1,51 @@
 import type { connectors } from "@canopy/contracts";
+import { queries, SharedRead } from "#lib/shared/queries.svelte.ts";
 import { listConnectors } from "./api.ts";
 
 export interface ConnectorAccounts {
-  accounts: connectors.ConnectorAccount[];
-  types: connectors.ConnectorType[];
-  loading: boolean;
-  error: string;
+  readonly accounts: connectors.ConnectorAccount[];
+  readonly types: connectors.ConnectorType[];
+  readonly loading: boolean;
+  readonly error: string;
 }
 
-/** Shared scoped catalog; late responses from a previous bot/thread cannot replace the current one. */
+const isConnectorRead = (key: string) => key === "ListConnectors" || key.startsWith("ListConnectors:");
+
+/**
+ * A bot's or thread's connector access, shared by every component of the tab that shows the same scope (one
+ * request). `connectorsChanged` from any device (AppShell) and this tab's "connectors-changed" read it again.
+ */
 export function useConnectorAccounts(scope: () => { botId: string } | { threadId: string } | undefined) {
-  const state = $state<ConnectorAccounts>({
-    accounts: [],
-    types: [],
-    loading: true,
-    error: "",
+  const read = $derived.by(() => {
+    const current = scope();
+
+    if (!current) return undefined;
+    const query = new URLSearchParams(current).toString();
+
+    return new SharedRead(queries, `ListConnectors:${query}`, () => listConnectors(`?${query}`));
   });
 
   $effect(() => {
-    const current = scope();
+    const changed = () => queries.invalidate(isConnectorRead);
+    window.addEventListener("connectors-changed", changed);
 
-    if (!current) {
-      state.accounts = [];
-      state.types = [];
-      state.loading = false;
-
-      return;
-    }
-
-    const query = new URLSearchParams(current).toString();
-    let active = true;
-    state.accounts = [];
-
-    const load = async () => {
-      state.loading = true;
-
-      try {
-        const result = await listConnectors(`?${query}`);
-
-        if (active) {
-          state.accounts = result.accounts;
-          state.types = result.types;
-          state.error = "";
-        }
-      } catch {
-        if (active) state.error = "Could not load connector access.";
-      } finally {
-        if (active) state.loading = false;
-      }
-    };
-
-    void load();
-    window.addEventListener("connectors-changed", load);
-
-    return () => {
-      active = false;
-      window.removeEventListener("connectors-changed", load);
-    };
+    return () => window.removeEventListener("connectors-changed", changed);
   });
 
-  return state;
+  return {
+    get accounts() {
+      return read?.data?.accounts ?? [];
+    },
+    get types() {
+      return read?.data?.types ?? [];
+    },
+    get loading() {
+      const snapshot = read?.snapshot;
+
+      return !!snapshot && !snapshot.loaded && !snapshot.error;
+    },
+    get error() {
+      return read?.snapshot.error ? "Could not load connector access." : "";
+    },
+  } satisfies ConnectorAccounts;
 }

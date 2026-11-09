@@ -18,6 +18,8 @@ const STALE: Partial<Record<Change, readonly string[]>> = {
   schedule: ["ListSchedules"],
   // A worker's new model list: settings that show catalogs read once; pickers apply the pushed list.
   models: ["ListModels"],
+  connectorsChanged: ["ListConnectors"],
+  proxiesChanged: ["ListProxies"],
 };
 
 /** A key names one request (`Method`, `Method:scope`) or several joined by `+`; any of them matches. */

@@ -1024,6 +1024,17 @@ i środowisko agentów są współdzielone przez strony i pickery, a load trasy 
 wartości (`loadShared`). `OverviewState.resyncs` rośnie tylko przy pierwszej synchronizacji
 i przerwie w strumieniu; zakończony odczyt partnera odświeża overview, ale nie ustawienia ani modele.
 
+**Wypychane domeny.** Gateway sam wykrywa zmiany botów, konektorów i proxy (`core/owner-feeds.ts`),
+dopóki ktoś obserwuje overview: co 2 s czyta zegar dziennika botów właściciela (`bot_view_clock`,
+migracja 0091, O(1) w spoczynku), sygnaturę oczekujących kart oraz skróty kont konektorów i proxy.
+Zmiany z harmonogramu, agentów, OAuth, synchronizacji konfiguracji i innych instancji gatewaya są więc
+widoczne; zapis przez to API szturcha porównanie od razu (~100 ms). Wysyła `OverviewUpdate.bot` (824,
+podsumowanie jak w ListBots, tylko zmienione boty), `bot_removed` (825), `connectors_changed` (826)
+i `proxies_changed` (827). Po każdym otwarciu strumienia przychodzi `feeds` (828) z listą domen
+wypychanych w całości; `bots` jest na niej tylko, gdy każdy osiągalny połączony komputer też je wypycha
+(jego zmiany botów przychodzą z kwalifikowanymi id). Klient bez danej domeny w `feeds` (starszy gateway,
+przerwany strumień) zachowuje zapasowe odpytywanie: lista botów co 15 s, Connectors co 30 s.
+
 Uprawnienia i stan wykonania sprawdza zawsze gateway; cache służy tylko do wyświetlania.
 
 **Oczekujące decyzje.** Pytanie ma jeden przewijany obszar z treścią, opcjami i polem

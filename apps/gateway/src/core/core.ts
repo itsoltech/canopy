@@ -8,6 +8,7 @@ import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@canopy/domain
 import { AgentBus } from "./agent-bus.ts";
 import { BackgroundTasks } from "./background-tasks.ts";
 import { Hub } from "./hub.ts";
+import { OwnerFeeds } from "./owner-feeds.ts";
 import { Scheduler } from "./scheduler.ts";
 import { BotsRuntime } from "../bots/runtime.ts";
 import { ThreadSecrets } from "./thread-secrets.ts";
@@ -192,6 +193,8 @@ export class GatewayCore {
   readonly link: WorkerLink;
 
   readonly hub: Hub;
+  /** Bot summaries and connector/proxy changes pushed to overview subscribers. */
+  readonly feeds: OwnerFeeds;
 
   readonly bus: AgentBus;
 
@@ -212,6 +215,7 @@ export class GatewayCore {
     this[coreState].options = options;
     this[coreState].actions = new ActionContext(options.runtime);
     this.hub = new Hub((action) => this[coreState].actions.defer(action));
+    this.feeds = new OwnerFeeds(this);
     this.departures = createGatewayDepartures(this, options);
     this.linkedAgents = new LinkedAgents(this, options, {
       run: (effect) => this[coreState].actions.run(effect),

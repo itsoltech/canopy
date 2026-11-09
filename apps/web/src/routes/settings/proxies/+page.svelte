@@ -1,30 +1,24 @@
 <script lang="ts">
   import { applicationName } from "#lib/application-name.ts";
-  import { untrack } from "svelte";
   import { ui } from "@canopy/contracts";
   import ProxyDialog from "#lib/features/proxies/ProxyDialog.svelte";
   import ProxyEntry from "#lib/features/proxies/ProxyEntry.svelte";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import { decode } from "#lib/shared/wire.ts";
-  import { requestJson } from "#lib/shared/http.ts";
+  import { replaceProxy, sharedProxies } from "#lib/features/proxies/proxies.ts";
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import type { PageProps } from "./$types";
 
   let { data }: PageProps = $props();
-  let proxies = $state(untrack(() => decode(ui.ListProxiesResponseSchema, data.proxies).proxies));
+
+  // The route seeds the tab's shared list; saves, deletes and other devices' changes update it.
+  const read = sharedProxies();
+  const proxies = $derived(read.data?.proxies ?? data.proxies.proxies);
   let editing = $state<ui.Proxy>();
   let open = $state(false);
 
-  async function reload() {
-    proxies = decode(ui.ListProxiesResponseSchema, await requestJson("GET", "/api/proxies")).proxies;
-  }
-
-  function saved(proxy: ui.Proxy) {
-    proxies = proxies.some((p) => p.id === proxy.id)
-      ? proxies.map((p) => (p.id === proxy.id ? proxy : p))
-      : [...proxies, proxy];
-  }
+  const reload = () => read.reload();
+  const saved = (proxy: ui.Proxy) => replaceProxy(read, proxy);
 </script>
 
 <svelte:head><title>Proxies · {applicationName}</title></svelte:head>
@@ -57,7 +51,7 @@
             editing = proxy;
             open = true;
           }}
-          ondelete={() => (proxies = proxies.filter((p) => p.id !== proxy.id))}
+          ondelete={() => replaceProxy(read, proxy, true)}
         />{/each}
     </div>
   {/if}

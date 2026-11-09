@@ -6,6 +6,7 @@ import { NotFound, toUiDelivery, toUiGoal, toUiSchedule, toUiSteer, toUiTurn, tu
 import { coreState } from "./core-context.ts";
 import { coreCheckProvider, coreStartThread } from "./core-threads.ts";
 import type { GatewayCore } from "./core.ts";
+import { OWNER_FEEDS } from "./owner-feeds.ts";
 import { coreRun } from "./core-broadcast.ts";
 import { coreGoals } from "./core-goals.ts";
 import { coreSteers } from "./core-messages.ts";
@@ -187,6 +188,7 @@ export const coreWatchMethods: CoreWatchMethods = {
     includeSnapshot = false,
   ): AsyncGenerator<ui.OverviewUpdate> {
     const subscription = this.hub.subscribeOverview();
+    const detach = this.feeds.attach();
     const close = () => subscription.close();
     signal.addEventListener("abort", close, { once: true });
 
@@ -210,10 +212,12 @@ export const coreWatchMethods: CoreWatchMethods = {
         yield create(ui.OverviewUpdateSchema, { change: { case: "mobileRoutes", value: this.mobile.networkRoutes() } });
       }
 
+      yield create(ui.OverviewUpdateSchema, { change: { case: "feeds", value: { pushed: [...OWNER_FEEDS] } } });
       yield* subscription.updates;
     } finally {
       signal.removeEventListener("abort", close);
       subscription.close();
+      detach();
     }
   },
 };
