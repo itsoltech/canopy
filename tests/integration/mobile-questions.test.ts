@@ -239,6 +239,106 @@ describe.skipIf(!dockerAvailable)("mobile answers over paired Network access", (
     }, 20_000);
   }
 
+  test("additional question tools and long question sets use the shared answer contract", async () => {
+    const source = await start();
+    const requestId = Bun.randomUUIDv7();
+
+    const extended = [
+      ...questions,
+      { id: "fifth", question: "Fifth answer?" },
+      { id: "sixth", question: "Last answer?" },
+    ];
+
+    gw.worker.ask({
+      ...source,
+      requestId,
+      kind: InteractionKind.QUESTION,
+      toolName: "custom_question",
+      requestJson: JSON.stringify({ questions: extended }),
+    });
+
+    const state = await eventually(
+      () => snapshot(source.threadId),
+      (s) => s.interactions.some((q) => q.requestId === requestId),
+    );
+
+    const interaction = state.interactions.find((q) => q.requestId === requestId)!;
+
+    expect(mobileQuestions(interaction)).toHaveLength(6);
+    await answerQuestions(
+      client(),
+      interaction,
+      mobileQuestions(interaction).map((q) => ({ id: q.id, kind: "text", text: "Answered on mobile" })),
+    );
+    await answered(interaction, Array(6).fill("Answered on mobile"));
+    gw.worker.finish(source.threadId, source.turnId);
+  }, 20_000);
+
+  test("paired phones allow, deny, grant a session and submit or decline MCP forms", async () => {
+    const source = await start();
+
+    for (const response of [
+      { allow: true },
+      { allow: false, message: "Denied by the user" },
+      { allow: true, allowForSession: true },
+    ]) {
+      const requestId = Bun.randomUUIDv7();
+
+      gw.worker.ask({
+        ...source,
+        requestId,
+        kind: InteractionKind.PERMISSION,
+        toolName: "shell",
+        requestJson: JSON.stringify({ command: "git status", cwd: "/repo" }),
+      });
+      await eventually(
+        () => snapshot(source.threadId),
+        (s) => s.interactions.some((q) => q.requestId === requestId),
+      );
+      const result = await client().answerInteraction({ requestId, ...response });
+
+      expect(result.interaction?.status).toBe(response.allow ? "allowed" : "declined");
+      const delivered = await eventually(async () => gw.worker.interactionResponses.get(requestId), Boolean);
+
+      expect(delivered).toMatchObject(response);
+      expect((await snapshot(source.threadId)).interactions.some((q) => q.requestId === requestId)).toBe(false);
+    }
+
+    for (const response of [
+      { answerJson: JSON.stringify({ name: "Mobile", count: 3, enabled: false }) },
+      { cancelled: true },
+    ]) {
+      const requestId = Bun.randomUUIDv7();
+
+      gw.worker.ask({
+        ...source,
+        requestId,
+        kind: InteractionKind.ELICITATION,
+        toolName: "mcp_form",
+        requestJson: JSON.stringify({
+          message: "Choose settings",
+          requestedSchema: {
+            type: "object",
+            required: ["name"],
+            properties: { name: { type: "string" }, count: { type: "integer" }, enabled: { type: "boolean" } },
+          },
+        }),
+      });
+      await eventually(
+        () => snapshot(source.threadId),
+        (s) => s.interactions.some((q) => q.requestId === requestId),
+      );
+      const result = await client().answerInteraction({ requestId, ...response });
+
+      expect(result.interaction?.status).toBe(response.cancelled ? "cancelled" : "answered");
+      const delivered = await eventually(async () => gw.worker.interactionResponses.get(requestId), Boolean);
+
+      expect(delivered).toMatchObject(response);
+    }
+
+    gw.worker.finish(source.threadId, source.turnId);
+  }, 20_000);
+
   test("another owner's paired device cannot see or answer a request; revoked device cannot answer", async () => {
     const source = await start();
     const interaction = await ask("ask_user", source);

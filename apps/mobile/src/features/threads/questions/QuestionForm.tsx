@@ -18,7 +18,7 @@ export function QuestionForm({
   const c = useColors();
   const q = draft.question;
 
-  if (!q) return <Notice>This question format needs Canopy on the web. Open this thread there to answer.</Notice>;
+  if (!q) return <Notice>This request is no longer pending. Check the thread for details.</Notice>;
 
   return (
     <View style={{ gap: 12 }}>

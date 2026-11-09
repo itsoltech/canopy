@@ -809,7 +809,12 @@ Pytania subagentów są dostępne w rodzicu z etykietą subagenta; ich strumieni
 żądania bez dołączania historii do feedu rodzica. `AnswerInteraction` idzie tym samym
 przypiętym transportem i tokenem urządzenia co inne RPC. Gateway egzekwuje właściciela,
 ważność i kontrakt odpowiedzi. Oś czasu pokazuje odpowiedzi, pominięcia i odrzucenie.
-Zgody i formularze MCP nadal odsyłają do web; nieobsługiwany format pytania ma osobny komunikat.
+Ten sam arkusz obsługuje zgody: Allow, Deny oraz Allow for this session przez
+`AnswerInteraction.allow_for_session`, egzekwowane przez gateway i harness.
+Pokazuje pełną komendę, katalog albo proponowaną zmianę z dostępnego itemu.
+Formularze MCP obsługują płaski schemat string/number/integer/boolean, wymagane
+pola, Submit i Decline. Pytania nie mają osobnego limitu liczby kroków ani listy
+dozwolonych nazw narzędzi: używają dokładnie parsera web, także dla prostego promptu.
 Karty ze znanym terminem (`Interaction.expires_at`, `BotApproval.expires_at`) pokazują
 „Expires in m:ss” (bursztynowe przez ostatnie 25 s), a przy zerze „Expiring…”, dopóki
 gateway nie oznaczy prośby jako wygasłej; licznik używa zegara telefonu. Wygasła prośba
