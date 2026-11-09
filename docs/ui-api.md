@@ -724,6 +724,13 @@ Niepowodzenie markera nie trafia do UI ani do logu błędów operacji użytkowni
 
 ### Załączniki
 
+Niezmienne bajty załączników i blobów wątku mają `Cache-Control: private,
+max-age=31536000, immutable` oraz ETag SHA256 faktycznie wysłanego wariantu.
+Query `?thumbnail` i `?preview` tworzą odrębne klucze URL; walidacja ETag następuje
+po sprawdzeniu dostępu przez gateway. `Vary: Cookie, Authorization` rozdziela sesje.
+Odpowiedzi błędów API, w tym 404 i 409, mają `no-store`, bez ETag.
+Obrazy osi czasu korzystają z `loading="lazy"`.
+
 Pliki dołączone do wiadomości (obrazy, zrzuty ekranu, tekst, kod, PDF, archiwa). Platforma nie zgaduje limitów modeli: agent dostaje pliki na dysku workera i sam decyduje, co z nimi zrobić (obrazy może obejrzeć przez `view_image`, [agent-bus.md](agent-bus.md#view_image)).
 
 | Metoda | Co robi |

@@ -4,6 +4,7 @@ import { styles, useColors } from "../../ui/theme";
 import { ImageViewer } from "./ImageViewer";
 import type { ImageSource } from "./image-source";
 import { useImage } from "./useImage";
+import { useImageVisibility } from "./image-viewport";
 
 export function ImagePreview({
   source,
@@ -17,12 +18,13 @@ export function ImagePreview({
   height?: number;
 }) {
   const c = useColors();
-  const image = useImage(source, true);
+  const { ref, onLayout, visible } = useImageVisibility();
+  const image = useImage(source, true, visible);
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);
 
   return (
-    <View style={{ maxWidth: "100%", gap: 4 }}>
+    <View ref={ref} onLayout={onLayout} collapsable={false} style={{ maxWidth: "100%", gap: 4 }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Open image ${name}`}

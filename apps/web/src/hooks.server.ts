@@ -23,7 +23,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   const appearance = page && event.url.pathname !== "/desktop" ? shellAppearance() : undefined;
   const identity = page && !building ? shellIdentity() : undefined;
 
-  return resolve(event, {
+  const response = await resolve(event, {
     transformPageChunk: async ({ html }) => {
       const attributes = documentAttributes(await appearance);
       const channel = await identity;
@@ -33,4 +33,11 @@ export const handle: Handle = async ({ event, resolve }) => {
       return html.replace(/%canopy\.\w+%/g, (placeholder) => attributes.get(placeholder) ?? "");
     },
   });
+
+  if (event.url.pathname.startsWith("/api/") && response.status >= 400) {
+    response.headers.set("cache-control", "no-store");
+    response.headers.delete("etag");
+  }
+
+  return response;
 };

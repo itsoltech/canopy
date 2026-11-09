@@ -10,6 +10,8 @@ import type { PersistentArchivedCache } from "../storage/archived-cache";
 import { type PersistentThreadCache } from "../storage/thread-cache";
 import { prepareBotCache } from "../storage/bot-cache-native";
 import { clearPairedHistory, type PersistentBotCache } from "../storage/bot-cache";
+import { prepareImageCache } from "../storage/image-cache-native";
+import type { ImmutableImageCache } from "../storage/image-cache";
 import { bots as botContract } from "@canopy/contracts";
 import { ModelCatalogCache } from "../features/models/catalog-cache";
 
@@ -19,6 +21,7 @@ function useSessionState() {
   const [threadCache, setThreadCache] = useState<PersistentThreadCache | null>(null);
   const [archivedCache, setArchivedCache] = useState<PersistentArchivedCache | null>(null);
   const [botCache, setBotCache] = useState<PersistentBotCache | null>(null);
+  const [imageCache, setImageCache] = useState<ImmutableImageCache | null>(null);
   const [bots, setBots] = useState<botContract.Bot[]>([]);
   const [error, setError] = useState("");
   const [persistence] = useState(() => new SessionPersistence());
@@ -41,6 +44,7 @@ function useSessionState() {
         setThreadCache(await prepareThreadCache(value));
         setArchivedCache(await prepareArchivedCache(value));
         setBotCache(await prepareBotCache(value));
+        setImageCache(await prepareImageCache(value));
         setSession(value);
       })
       .catch((cause) =>
@@ -49,22 +53,7 @@ function useSessionState() {
       .finally(() => setReady(true));
   }, [persistence]);
 
-  const client = useMemo(
-    () =>
-      session
-        ? routedMobileClient({
-            connection: session,
-            token: session.token,
-            transport: pinnedTransport,
-            changed(connection) {
-              void persistence
-                .update(session.deviceId, connection)
-                .catch(() => setError("Could not save the latest network addresses. Reconnect and try again."));
-            },
-          })
-        : null,
-    [session, persistence],
-  );
+  const client = usePairedClient(session, persistence, setError);
 
   const modelCatalog = useMemo(() => new ModelCatalogCache(client?.api), [client]);
 
@@ -107,10 +96,14 @@ function useSessionState() {
   }, [client]);
 
   async function clearHistory(revoked = false) {
-    const cleared = await clearPairedHistory([threadCache, botCache, archivedCache], () => persistence.forget());
+    const cleared = await clearPairedHistory([threadCache, botCache, archivedCache, imageCache], () =>
+      persistence.forget(),
+    );
+
     setThreadCache(null);
     setArchivedCache(null);
     setBotCache(null);
+    setImageCache(null);
     setBots([]);
     setSession(null);
     setError(historyMessage(cleared, revoked));
@@ -123,6 +116,7 @@ function useSessionState() {
     threadCache,
     archivedCache,
     botCache,
+    imageCache,
     bots,
     updateBots,
     ready,
@@ -137,13 +131,16 @@ function useSessionState() {
       await threadCache?.close();
       await archivedCache?.close();
       await botCache?.close();
+      await imageCache?.close();
       const cache = await prepareThreadCache(value);
       const archive = await prepareArchivedCache(value);
       const botHistory = await prepareBotCache(value);
+      const images = await prepareImageCache(value);
       await persistence.save(value);
       setThreadCache(cache);
       setArchivedCache(archive);
       setBotCache(botHistory);
+      setImageCache(images);
       setBots([]);
       setSession(value);
       setError("");
@@ -160,6 +157,29 @@ function historyMessage(cleared: boolean, revoked: boolean) {
       : "Could not clear local storage. Clear Canopy’s app data before pairing again.";
 
   return revoked ? "This device was revoked. Create a new code in Settings → Devices on a paired device." : "";
+}
+
+function usePairedClient(
+  session: DeviceSession | null,
+  persistence: SessionPersistence,
+  setError: (error: string) => void,
+) {
+  return useMemo(
+    () =>
+      session
+        ? routedMobileClient({
+            connection: session,
+            token: session.token,
+            transport: pinnedTransport,
+            changed(connection) {
+              void persistence
+                .update(session.deviceId, connection)
+                .catch(() => setError("Could not save the latest network addresses. Reconnect and try again."));
+            },
+          })
+        : null,
+    [session, persistence, setError],
+  );
 }
 
 function resetSession(client: ReturnType<typeof routedMobileClient> | null, advance: () => void) {
