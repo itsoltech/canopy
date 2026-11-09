@@ -6,6 +6,7 @@ import { type SqlClient } from "effect/sql";
 import { clockParts, compareClock } from "./clock.ts";
 import { emptyRecord, equalValue, type ConfigRow, type Field } from "./persistence.ts";
 import { versionKey, type Cipher } from "./secrets.ts";
+import { DEVICE_SETTINGS_FIELDS } from "./settings.ts";
 
 export const jsonValue = Schema.decodeUnknownSync(Schema.MutableJson);
 
@@ -27,7 +28,11 @@ export function wireItem(row: ConfigRow, secrets: ReadonlyMap<string, string> = 
     globalId: row.global_id,
     homeNodeId: row.home_node_id,
     identity: row.identity,
-    fields: Object.fromEntries(Object.entries(row.fields).map(([k, v]) => [k, field(v, k)])),
+    fields: Object.fromEntries(
+      Object.entries(row.fields).flatMap(([k, v]) =>
+        row.kind === "settings" && DEVICE_SETTINGS_FIELDS.has(k) ? [] : [[k, field(v, k)]],
+      ),
+    ),
     deleted: field(row.deleted),
     schemaVersion: row.schema_version,
   });

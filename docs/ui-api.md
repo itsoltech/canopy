@@ -1384,6 +1384,15 @@ wymiany botów niedostępnych, zarchiwizowanych albo przeniesionych.
 
 ### Preferencje General i aktualizacje
 
+Rozwinięcie archiwum wątków/botów, szerokość i zwinięcie sidebara oraz zwinięcie
+panelu szczegółów wątku należą do urządzenia (`DevicePreferences`,
+`canopy:preferences:view` w profilu web/desktop). Otwarcie archiwalnego wątku rozwija
+archiwum wyłącznie w tym profilu. Pierwszy odczyt inicjalizuje brakujące wartości ze
+starych pól konta, kolejne zmiany konta ich nie nadpisują. Stare pola proto pozostają
+dla zgodności ze starszymi klientami; nowe klienty nie zapisują do nich zmian widoku.
+Synchronizacja połączonych komputerów pomija te pola, także gdy zostały w starszym
+rekordzie konfiguracji. Pozostała klasyfikacja ustawień: [settings-map.md](settings-map.md).
+
 `UserSettings.general` (900), `sidebar` (nowe pola 900–902) i `cli_updates`
 (901) są zapisywane w istniejącym JSON właściciela, przez `expected_version`.
 Gateway waliduje kolejność projektów oraz częstotliwości CLI (0, 60, 360, 1440,

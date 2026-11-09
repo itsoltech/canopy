@@ -83,9 +83,26 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | Desktop | Local/remote mode; worker status; detected CLIs; change mode | urządzenie/store: wybór przy konfiguracji | Wyłącznie topologia uruchomienia i status lokalnych usług; bez ogólnych preferencji zachowania |
 | App updates | Installed version; channel; check frequency; check now; download/restart status; release notes; Linked computers (version, target, channel, status, Check now, Update) | urządzenie/store: kanał builda, 6 h; partnerzy: tylko odczyt | Wyłącznie aktualizacje powłoki i runtime; kanał i częstotliwość połączonego komputera zmienia się na nim samym |
 
-Geometria sidebara/panelu i przypięcia/filtry pozostają w istniejącym kontrakcie
-właściciela; nie są usuwane przy resetowaniu nowych preferencji. Udostępnianie między
-połączonymi komputerami pozostaje osobną, istniejącą funkcją.
+Stan widoku jest lokalny dla urządzenia: rozwinięcie archiwum wątków i botów,
+zwinięcie sidebara i panelu szczegółów wątku oraz szerokość sidebara. Web/desktop
+przechowuje go przez `DevicePreferences` w `canopy:preferences:view`, mobile przez
+ten sam model w SecureStore (`canopy.settings.view.v1`). Otwarcie archiwalnego wątku
+rozwija archiwum tylko na tym urządzeniu. Jawne zwinięcie pozostaje możliwe.
+Przy pierwszym odczycie brakujące wartości są jednorazowo kopiowane ze starych
+ustawień konta; zapisane `false` i szerokość `0` również blokują kolejne kopiowanie.
+Pola proto pozostają dla starych klientów. Nowe klienty nie zmieniają ich przy
+obsłudze widoku; synchronizacja konfiguracji nie eksportuje ani nie stosuje tych pól.
+Reset stron General/Appearance nie zmienia zapamiętanego stanu widoku.
+
+Audyt pozostałych pól konta: `sidebar.groupByProject`, `projectOrder` i `workingSection`
+opisują sposób organizacji listy, a nie bieżące rozwinięcie sekcji. Zostają na koncie,
+podobnie jak schemat/palety kolorów, szerokość czatu, potwierdzenia,
+domyślne nowego wątku i tryb Steer/Queue. Przypięcia wątków/botów są organizacją
+zasobów i także pozostają na koncie. `sidebar.projectIds` jest niejednoznacznym filtrem:
+zachowujemy istniejący zakres konta; rekomendacja to osobna decyzja produktowa o
+przeniesieniu go na urządzenie. Pamięć tras, zakładek, przewijania i pozostałe ręczne
+foldy już żyją w pamięci klienta lub preferencjach urządzenia, poza ustawieniami konta.
+Udostępnianie między połączonymi komputerami pozostaje osobną funkcją.
 
 Quit shortcut przenosimy z App updates do General → Desktop app, obok potwierdzeń,
 z etykietą „This device” i tylko w Electron. To polityka zachowania przy zamykaniu,

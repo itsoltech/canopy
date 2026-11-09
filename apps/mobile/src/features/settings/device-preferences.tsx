@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import * as SecureStore from "expo-secure-store";
+import { DeviceViewPreferences, deviceViewDefaults, type DeviceViewValues } from "@canopy/domain/device-view";
 
 // Device preferences never enter account settings or overwrite another client's choices.
 export const deviceChoices = {
@@ -59,6 +60,57 @@ export const appearanceDeviceKeys: DeviceKey[] = [
 
 export const diffDeviceKeys: DeviceKey[] = ["diffLayout", "hideWhitespace", "diffFileState", "diffColors"];
 const storageKey = "canopy.settings.preferences.v1";
+const viewStorageKey = "canopy.settings.view.v1";
+
+function deviceViewStore(changed: (values: DeviceViewValues) => void, failed: (error: string) => void) {
+  let writes = Promise.resolve();
+
+  return new DeviceViewPreferences(changed, (raw) => {
+    writes = writes
+      .catch(() => {})
+      .then(() => SecureStore.setItemAsync(viewStorageKey, raw))
+      .then(() => failed(""))
+      .catch(() => failed("Could not save device preferences. Choose the setting again to retry."));
+  });
+}
+
+function useDeviceView() {
+  const [view, setView] = useState({ ...deviceViewDefaults });
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState("");
+  const [store] = useState(() => deviceViewStore(setView, setError));
+
+  useEffect(() => {
+    let active = true;
+    void SecureStore.getItemAsync(viewStorageKey)
+      .then((raw) => {
+        if (active) store.load(raw);
+      })
+      .catch(() => {
+        if (active) setError("Could not load device preferences. Restore device defaults to retry.");
+      })
+      .finally(() => {
+        if (active) setLoaded(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [store]);
+
+  return {
+    view,
+    viewLoaded: loaded,
+    viewError: error,
+    initializeView(legacy: Partial<DeviceViewValues>) {
+      if (loaded) store.initialize(legacy);
+    },
+    setView(change: Partial<DeviceViewValues>) {
+      if (loaded) store.set(change);
+    },
+  };
+}
+
 const isKey = (key: string): key is DeviceKey => Object.hasOwn(deviceChoices, key);
 
 function isSavedPreferences(value: unknown): value is Partial<Record<DeviceKey, string>> {
@@ -85,6 +137,7 @@ function readPreferences(raw: string | null): Record<DeviceKey, string> {
 }
 
 function useDeviceState() {
+  const view = useDeviceView();
   const [values, setValues] = useState({ ...deviceDefaults });
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
@@ -128,9 +181,10 @@ function useDeviceState() {
   }
 
   return {
+    ...view,
     values,
     loaded,
-    error,
+    error: error || view.viewError,
     set(key: DeviceKey, value: string) {
       if (loaded && deviceChoices[key].some((choice) => choice === value)) save({ ...current.current, [key]: value });
     },

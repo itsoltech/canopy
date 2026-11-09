@@ -3,7 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import { ArchivedThreadsPager } from "@canopy/domain/archived-threads";
 import { collapsedArchivedThread, isArchivedSidebarThread } from "@canopy/domain/sidebar-threads";
 import { useSession } from "../../state/session";
-import { useAppearance } from "../../state/appearance";
+import { useDevicePreferences } from "../settings/device-preferences";
 import { useOverview } from "../../state/overview";
 import { styles, useColors } from "../../ui/theme";
 import { Chevron } from "../../ui/MotionViews";
@@ -13,11 +13,10 @@ import type { useSidebarThreads } from "./useSidebarThreads";
 
 export function useArchivedThreads(navigation: ReturnType<typeof useSidebarThreads>) {
   const { client, archivedCache, online, epoch } = useSession();
-  const { update } = useAppearance();
+  const device = useDevicePreferences();
   const { threads, projects, workers, stream, linkedReads } = useOverview();
   const { current, settings, projectName, query } = navigation;
-  const [localOpen, setLocalOpen] = useState<boolean>();
-  const expanded = localOpen ?? settings.archivedExpanded;
+  const expanded = device.view.archivedThreadsExpanded;
   const projectsKey = settings.projectIds.join(",");
 
   const filter = useMemo(
@@ -110,8 +109,7 @@ export function useArchivedThreads(navigation: ReturnType<typeof useSidebarThrea
     visible: page.totalCount !== 0 || !!sticky || !!page.error || roots.length > 0,
     stale: !!saved && (!online || stream.connection !== "live" || !!page.error || page.loading),
     toggle() {
-      setLocalOpen(!expanded);
-      void update({ sidebar: { ...settings, archivedExpanded: !expanded } });
+      device.setView({ archivedThreadsExpanded: !expanded });
     },
     retry: () => void pager.refresh(filter, expanded, String(Date.now())),
     more: () => {

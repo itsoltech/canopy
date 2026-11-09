@@ -1,4 +1,5 @@
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
+import { DeviceViewPreferences, deviceViewDefaults, type DeviceViewValues } from "@canopy/domain/device-view";
 
 /** Values are strings at the storage boundary; only declared choices are accepted. */
 export const deviceChoices = {
@@ -56,13 +57,37 @@ export const deviceDefaults: Record<DeviceKey, string> = {
 };
 
 const prefix = "canopy:preferences:";
+const viewKey = prefix + "view";
 
 export class DevicePreferences {
   values = $state<Record<DeviceKey, string>>({ ...deviceDefaults });
+  view = $state<DeviceViewValues>({ ...deviceViewDefaults });
+  #view = new DeviceViewPreferences(
+    (values) => (this.view = values),
+    (raw) => {
+      try {
+        localStorage.setItem(viewKey, raw);
+      } catch {
+        toast("The preference could not be saved. Allow browser storage to keep it after closing this tab.", {
+          tone: "error",
+        });
+      }
+    },
+  );
+
+  initializeView(legacy: Partial<DeviceViewValues>): void {
+    this.#view.initialize(legacy);
+  }
+
+  setView(change: Partial<DeviceViewValues>): void {
+    this.#view.set(change);
+  }
 
   connect(): () => void {
     const read = () => {
       try {
+        this.#view.load(localStorage.getItem(viewKey));
+
         for (const key of Object.keys(deviceChoices)) {
           if (!isDeviceKey(key)) continue;
           const value = localStorage.getItem(prefix + key);

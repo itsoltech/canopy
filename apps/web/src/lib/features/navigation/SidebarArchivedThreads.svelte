@@ -5,6 +5,7 @@
   import type { ClassValue } from "svelte/elements";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
+  import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import { requestJson } from "#lib/shared/http.ts";
   import { whenIdle } from "#lib/shared/idle.ts";
   import { decode } from "#lib/shared/wire.ts";
@@ -27,7 +28,7 @@
   const settings = useSettings();
   const projectIds = $derived(expandProjectIds(settings.sidebar.projectIds, overview.projectChoices));
   const id = $props.id();
-  const expanded = $derived(settings.sidebar.archivedExpanded);
+  const expanded = $derived(devicePreferences.view.archivedThreadsExpanded);
 
   const sticky = $derived(
     collapsedArchivedThread(
@@ -149,7 +150,7 @@
         title={pageState.error || undefined}
         onpointerenter={prefetch}
         onfocus={prefetch}
-        onclick={() => void settings.updateSidebar({ archivedExpanded: !expanded })}
+        onclick={() => devicePreferences.setView({ archivedThreadsExpanded: !expanded })}
         class="flex h-10 w-full items-center gap-1 rounded-lg px-3 text-sm font-medium text-zinc-500 focus-ring hover:bg-zinc-950/4 sm:h-9 sm:text-xs dark:text-zinc-400 dark:hover:bg-white/4"
       >
         <span>Archived ·</span>

@@ -96,6 +96,11 @@
   $effect(() => view.connect(threadId));
 
   const thread = $derived(view.thread);
+  const archivedId = $derived(thread?.status === "archived" ? thread.id : undefined);
+
+  $effect(() => {
+    if (archivedId) untrack(() => device.setView({ archivedThreadsExpanded: true }));
+  });
 
   $effect(() => {
     if (thread?.deletedAt) void goto("/");
@@ -284,9 +289,9 @@
     return undefined;
   });
 
-  // Context panel: beside the chat on wide screens (open or collapsed, saved in your settings), a sheet
+  // Context panel: beside the chat on wide screens (saved on this device), a sheet
   // on narrow ones.
-  const panelOpen = $derived(!settings.appearance.threadPanelCollapsed);
+  const panelOpen = $derived(!device.view.threadPanelCollapsed);
   let panelSheet = $state(false);
   let worktreeDialog = $state(false);
 
@@ -296,7 +301,7 @@
   }
 
   function togglePanel() {
-    if (matchMedia("(min-width: 80rem)").matches) void settings.updateAppearance({ threadPanelCollapsed: panelOpen });
+    if (matchMedia("(min-width: 80rem)").matches) device.setView({ threadPanelCollapsed: panelOpen });
     else panelSheet = true;
   }
 

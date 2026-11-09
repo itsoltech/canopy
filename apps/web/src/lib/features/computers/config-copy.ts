@@ -25,7 +25,6 @@ const LABELS = new Map(
     "sidebar.pinnedThreadIds": "Pinned threads",
     "sidebar.pinnedBotIds": "Pinned bots",
     "sidebar.projectIds": "Sidebar projects",
-    "sidebar.archivedExpanded": "Archived projects",
     "sidebar.groupByProject": "Group by project",
     "sidebar.projectOrder": "Project order",
     "sidebar.workingSection": "Working section",

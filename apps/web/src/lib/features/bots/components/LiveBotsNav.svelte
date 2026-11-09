@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from "$app/state";
+  import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { botList } from "../bot-list.svelte.ts";
   import { botConversation } from "../live.ts";
@@ -57,7 +58,14 @@
   />
 {:else if botList.loaded && !botList.error}<BotsSectionEmpty {query} />{/if}
 {#if archived.length}
-  <details class="group pt-4">
+  <details
+    class="group pt-4"
+    open={devicePreferences.view.archivedBotsExpanded}
+    ontoggle={(event) => {
+      if (event.currentTarget.open !== devicePreferences.view.archivedBotsExpanded)
+        devicePreferences.setView({ archivedBotsExpanded: event.currentTarget.open });
+    }}
+  >
     <summary
       class="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-500 focus-ring dark:text-zinc-400"
       ><Icon name="chevron-right" class="group-open:rotate-90" />Archived bots · {archived.length}</summary

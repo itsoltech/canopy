@@ -10,6 +10,11 @@ const readObject = Schema.decodeUnknownSync(Schema.Record(Schema.String, Schema.
 const strings = Schema.decodeUnknownSync(Schema.Array(Schema.String));
 const LOCAL_APPEARANCE = new Set(["sidebarWidth", "sidebarCollapsed", "threadPanelCollapsed"]);
 
+export const DEVICE_SETTINGS_FIELDS = new Set([
+  "sidebar.archivedExpanded",
+  ...[...LOCAL_APPEARANCE].map((key) => `appearance.${key}`),
+]);
+
 const SECTIONS = {
   appearance: ui.AppearanceSettingsSchema,
   threadDefaults: ui.ThreadDefaultsSchema,
@@ -52,7 +57,11 @@ export function settingsValues(stored: SettingsJson, self: string, nodes: readon
 
     if (section === "threadDefaults") delete json["workspaceId"];
 
-    if (section === "sidebar") delete json["archived"];
+    if (section === "sidebar") {
+      delete json["archived"];
+      delete json["archivedExpanded"];
+    }
+
     Object.assign(result, flatten(json, section));
   }
 

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./device-view": "./src/device-view.ts",
     "./coalesce": "./src/coalesce.ts",
     "./attachment-preview": "./src/attachments/preview.ts",
     "./pending-send": "./src/pending-send.ts",

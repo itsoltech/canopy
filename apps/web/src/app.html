@@ -79,6 +79,21 @@
     <script>
       // Gateway palettes are already inline. Only the bundled desktop startup uses its chrome cache.
       const root = document.documentElement;
+      try {
+        const view = JSON.parse(localStorage.getItem("canopy:preferences:view") || "{}");
+        if (view && typeof view === "object") {
+          if (typeof view.sidebarWidth === "number" && Number.isFinite(view.sidebarWidth)) {
+            const width = view.sidebarWidth > 0 ? Math.round(Math.min(560, Math.max(220, view.sidebarWidth))) : 288;
+            root.dataset.sidebarWidth = String(width);
+            root.style.setProperty("--canopy-sidebar-width", `min(45vw, ${width}px)`);
+          }
+          for (const key of ["sidebarCollapsed", "threadPanelCollapsed"]) {
+            if (typeof view[key] === "boolean") root.dataset[key] = String(view[key]);
+          }
+        }
+      } catch {
+        // The shell remains usable when device storage is unavailable.
+      }
       const startup = location.pathname === "/desktop" && window.canopyDesktop?.startupAppearance;
       if (startup) {
         root.style.cssText += ";" + startup.style;

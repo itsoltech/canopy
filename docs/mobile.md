@@ -747,6 +747,12 @@ oraz niezależne palety Light/Dark są ustawieniami gatewaya, synchronizowanymi 
 Settings korzysta ze wspólnych tokenów tematów Birch, Fern, Lagoon, Cedar, Heather,
 Blossom i Ash. Preferencje urządzenia (typografia, kontrast, diffy i format czasu)
 pozostają w SecureStore telefonu i nie zmieniają preferencji przeglądarki.
+Rozwinięcie archiwum wątków i botów oraz zwinięcie sidebara również należą do telefonu
+(`DevicePreferences`, `canopy.settings.view.v1` w SecureStore). Przetrwają odmontowanie
+listy i restart aplikacji. Otwarcie archiwalnego wątku rozwija tylko lokalne archiwum;
+nie zmienia stanu desktopu ani webu. Brakujące wartości są jednorazowo inicjalizowane
+ze starych pól konta, bez ich aktualizowania. Filtr projektów i przypięcia nadal są
+ustawieniami konta; pełna klasyfikacja jest w [settings-map.md](settings-map.md).
 Na wąskim oknie sidebar jest natywnym ekranem listy (stos lista → wątek); web na telefonie
 otwiera go jako drawer. Od 600 dp szerokości okna (klasa large screen Androida: tablety,
 rozłożony foldable, telefon w poziomie) lista zostaje obok otwartego wątku lub czatu, jak

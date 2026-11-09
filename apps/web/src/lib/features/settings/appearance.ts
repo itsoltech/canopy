@@ -3,6 +3,7 @@ import { create } from "@bufbuild/protobuf";
 import { SIDEBAR_WIDTH, storedSidebarWidth } from "@canopy/domain";
 import { accents, type AccentName } from "@canopy/ui";
 import { isThemeName, paletteStyle, themeVariables, type ThemeName, type ThemeMode } from "@canopy/ui/themes";
+import type { DeviceViewValues } from "@canopy/domain/device-view";
 
 /**
  * Appearance settings (stored by the gateway) as the attributes of `<html>` that layout.css reads:
@@ -122,7 +123,7 @@ export function appearanceFromDocument(): ui.AppearanceSettings {
 }
 
 /** Applies appearance to the live document (browser only); "system" follows prefers-color-scheme. */
-export function applyAppearance(appearance: ui.AppearanceSettings | undefined): void {
+export function applyAppearance(appearance: ui.AppearanceSettings | undefined, view: DeviceViewValues): void {
   const root = document.documentElement;
   const scheme = schemeOf(appearance);
   root.classList.toggle(
@@ -141,9 +142,9 @@ export function applyAppearance(appearance: ui.AppearanceSettings | undefined): 
   }
 
   root.dataset["chatWidth"] = chatWidthOf(appearance);
-  root.dataset["sidebarWidth"] = String(appearance?.sidebarWidth || SIDEBAR_WIDTH.default);
-  root.dataset["sidebarCollapsed"] = String(appearance?.sidebarCollapsed ?? false);
-  root.dataset["threadPanelCollapsed"] = String(appearance?.threadPanelCollapsed ?? false);
+  root.dataset["sidebarWidth"] = String(view.sidebarWidth || SIDEBAR_WIDTH.default);
+  root.dataset["sidebarCollapsed"] = String(view.sidebarCollapsed);
+  root.dataset["threadPanelCollapsed"] = String(view.threadPanelCollapsed);
   document
     .querySelector('meta[name="color-scheme"]')
     ?.setAttribute("content", scheme === "system" ? "light dark" : scheme);
