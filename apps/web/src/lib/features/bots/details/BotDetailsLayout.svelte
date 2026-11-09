@@ -80,7 +80,7 @@
   }
 </script>
 
-<div class={["flex min-h-0 min-w-0 flex-1", className]}>
+<div class={["flex min-h-0 min-w-0 flex-1", className]} data-window-side-panel={desktop && open ? "shown" : undefined}>
   <div class="min-h-0 min-w-0 flex-1">{@render children()}</div>
   {#if desktop}
     <aside {id} aria-label="Bot details" class="shrink-0 overflow-hidden" class:is-open={open} inert={!open}>

@@ -2,16 +2,20 @@
   import "./layout.css";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
-  import { isDesktopRoute } from "@canopy/ui/desktop";
+  import { isDesktopRoute, type DesktopWindowControl } from "@canopy/ui/desktop";
   import { onMount } from "svelte";
   import AppShell from "#lib/features/navigation/AppShell.svelte";
   import QuitGuardOverlay from "#lib/features/desktop/QuitGuardOverlay.svelte";
+  import WindowControls from "#lib/features/desktop/WindowControls.svelte";
   import { applyWindowState } from "#lib/features/desktop/window-chrome.ts";
   import { holdFileDrops } from "#lib/features/attachments/file-intake.svelte.ts";
   import type { LayoutProps } from "./$types";
 
   let { children }: LayoutProps = $props();
   let lastSettings = "/settings";
+
+  /** Windows and Linux: the window has no native buttons, the app draws them. */
+  let windowControl = $state<(control: DesktopWindowControl) => Promise<void>>();
 
   $effect(() => {
     const path = (page.shallow?.url ?? page.url).pathname;
@@ -45,6 +49,9 @@
     if (!bridge) return;
     document.documentElement.dataset["canopyPlatform"] = bridge.platform;
 
+    if ((bridge.platform === "win32" || bridge.platform === "linux") && bridge.windowControl)
+      windowControl = bridge.windowControl;
+
     // Feature detection also supports a remote web build running in an older desktop shell.
     if (!bridge.windowState || !bridge.onWindowState) return;
     let received = false;
@@ -72,4 +79,5 @@
 {:else}
   <AppShell>{@render children()}</AppShell>
 {/if}
+{#if windowControl}<WindowControls control={windowControl} />{/if}
 <QuitGuardOverlay />

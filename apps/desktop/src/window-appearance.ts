@@ -56,11 +56,7 @@ export function windowColors() {
 
 export function applyWindowAppearance(target: BrowserWindow) {
   nativeTheme.themeSource = windowAppearance().scheme;
-  const colors = windowColors();
-  target.setBackgroundColor(colors.canvas);
-
-  if (process.platform === "win32" || process.platform === "linux")
-    target.setTitleBarOverlay({ color: colors.canvas, symbolColor: colors.ink, height: 48 });
+  target.setBackgroundColor(windowColors().canvas);
 }
 
 export function registerAppearanceIpc(authorize: (event: IpcMainInvokeEvent | IpcMainEvent) => void) {

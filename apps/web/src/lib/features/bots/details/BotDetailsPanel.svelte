@@ -77,7 +77,7 @@
 </script>
 
 <div class={["flex min-h-full flex-col gap-8 px-5 pt-4 pb-8 text-base/6 sm:px-6 sm:text-sm/5", className]}>
-  <div class="-mx-5 -mt-4 flex h-12 shrink-0 items-center justify-end px-2 sm:-mx-6" data-window-drag>
+  <div class="-mx-5 -mt-4 flex h-12 shrink-0 items-center justify-end px-2 sm:-mx-6" data-window-drag data-window-end>
     <IconButton icon="x-mark" label="Close bot details" onclick={onclose} />
   </div>
   <div class="grid justify-items-center gap-4 pb-2 text-center">

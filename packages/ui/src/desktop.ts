@@ -25,7 +25,15 @@ export interface QuitGuardState {
 export interface DesktopWindowState {
   zoomFactor: number;
   fullscreen: boolean;
+  /** Drives the maximize / restore window control on Windows and Linux. */
+  maximized?: boolean;
 }
+
+/** A window button drawn by the web UI on Windows and Linux (docs/desktop.md). */
+export type DesktopWindowControl = "minimize" | "toggle-maximize" | "close";
+
+export const isDesktopWindowControl = (value: string): value is DesktopWindowControl =>
+  value === "minimize" || value === "toggle-maximize" || value === "close";
 
 export interface DesktopUpdateStatus {
   checkIntervalMinutes?: number;
@@ -163,6 +171,8 @@ export interface DesktopBridge {
   setAppearance?(appearance: DesktopAppearance): Promise<void>;
   windowState(): Promise<DesktopWindowState>;
   onWindowState(listener: (state: DesktopWindowState) => void): () => void;
+  /** Minimize, maximize / restore or close the calling window (Windows and Linux draw their own buttons). */
+  windowControl?(control: DesktopWindowControl): Promise<void>;
   status(): Promise<DesktopStatus>;
   /** Only in the bundled setup window. False means the user canceled the restart confirmation. */
   configure(configuration: DesktopConfiguration): Promise<void | boolean>;

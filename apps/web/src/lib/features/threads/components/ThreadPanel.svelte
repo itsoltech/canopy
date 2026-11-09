@@ -79,7 +79,7 @@
     className,
   ]}
 >
-  <ThreadTitleActions {thread} compact class={windowTitlebar ? "macos:hidden" : undefined} />
+  <ThreadTitleActions {thread} compact class={windowTitlebar ? "desktop:hidden" : undefined} />
   <!-- Connector accounts are per computer (stage 4); a linked computer's thread uses that computer's. -->
   {#if !thread.nodeId}<ThreadConnectors threadId={thread.id} />{/if}
   <ThreadPlacement {thread} {worker} {onworktree} />

@@ -71,10 +71,8 @@ export function createDesktopWindow(options: WindowOptions) {
     icon: options.iconPath,
     show: false,
     backgroundColor: windowColors()["canvas"],
-    ...((process.platform === "win32" || process.platform === "linux") && {
-      titleBarStyle: "hidden" as const,
-      titleBarOverlay: { color: windowColors().canvas, symbolColor: windowColors().ink, height: 48 },
-    }),
+    // No native buttons: the web UI draws minimize / maximize / close in the active palette (docs/desktop.md).
+    ...((process.platform === "win32" || process.platform === "linux") && { titleBarStyle: "hidden" as const }),
     ...(process.platform === "darwin" && {
       titleBarStyle: "hiddenInset" as const,
       trafficLightPosition: { x: 18, y: 18 },
