@@ -139,13 +139,22 @@ stosuje te same tokeny przed pierwszym renderem. Po połączeniu ustawienia
 właściciela z gatewaya aktualizują cache i okno. Błąd zapisu cache nie blokuje
 zmiany kolorów. Szczegóły kontraktu i pomiarów: [appearance.md](appearance.md).
 
-Linux i Windows używają `titleBarStyle: hidden` oraz natywnego titleBarOverlay
-o wysokości 48 px, z tłem canvas i symbolami ink aktywnej palety. Nagłówek
-rezerwuje po prawej miejsce dla kontrolek, z uwzględnieniem zoomu. Regiony
-przeciągania i bezpieczna wysokość są wspólne dla wszystkich platform desktop.
-Zmiana schematu ustawia nativeTheme; System reaguje na preferencję systemu.
-Integracja jest sprawdzona typami; wyglądu natywnego okna nie potwierdzono
-w tej sesji na Linux, Windows ani macOS.
+Linux i Windows używają `titleBarStyle: hidden` bez natywnego overlay. Minimize,
+maximize/restore i close rysuje web (`features/desktop/WindowControls.svelte`)
+tokenami palety, więc podążają za motywem i schematem jasny/ciemny. Bridge
+`windowControl()` wysyła `canopy:window-control` (ta sama autoryzacja co
+pozostałe IPC), a `DesktopWindowState.maximized` przełącza ikonę i etykietę.
+Kontrolki leżą w DOM po aplikacji i mają `no-drag`, więc biorą kliknięcia nad
+regionem przeciągania nagłówka; w pełnym ekranie są ukryte. Skalują się z zoomem,
+dlatego `--window-safe-top` (48 px) i rezerwa `--window-controls-width` (7,5 rem)
+nie dzielą się przez zoom. Rezerwę po prawej dostają paski przy prawej krawędzi:
+nagłówki stron (`data-window-titlebar`), chyba że obok stoi otwarty panel
+(`data-window-side-panel`: `xl` dla panelu wątku, `shown` dla panelu bota), oraz
+górne paski paneli (`data-window-end`). Panel szczegółów wątku ma na każdej
+platformie desktop pasek tytułu 48 px, więc jego treść zaczyna się pod
+kontrolkami. Otwarty modal przykrywa kontrolki backdropem jak resztę okna; na
+Windows 11 nie ma menu Snap Layouts przy maximize (Win+Z działa). Zmiana schematu
+ustawia nativeTheme; System reaguje na preferencję systemu.
 
 ### Pozycja i rozmiar okna
 

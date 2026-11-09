@@ -63,9 +63,34 @@ html[data-canopy-platform="darwin"]
   [data-window-titlebar]:not([data-window-offset] *) {
   transition-duration: var(--duration-slow);
 }
+/*
+ * Windows and Linux: no native title bar buttons; the app draws them at the top right (WindowControls). They scale
+ * with zoom like the page, so the safe top and their reserve are plain CSS lengths. A strip that reaches the
+ * window's right edge reserves their width: page headers (`data-window-titlebar`) unless an open side panel stands
+ * to their right (`data-window-side-panel`), and the side panels' own top strips (`data-window-end`).
+ */
+html:is([data-canopy-platform="linux"], [data-canopy-platform="win32"]) {
+  --window-safe-top: var(--window-titlebar-size);
+  --window-controls-width: 7.5rem;
+}
 html:is([data-canopy-platform="linux"], [data-canopy-platform="win32"]):not([data-window-fullscreen])
+  :is([data-window-titlebar], [data-window-end]):not(dialog *) {
+  padding-right: var(--window-controls-width);
+  @media (prefers-reduced-motion: no-preference) {
+    transition: padding-right var(--duration-medium) var(--ease-smooth-out);
+  }
+}
+html:is([data-canopy-platform="linux"], [data-canopy-platform="win32"]):not([data-window-fullscreen])
+  [data-window-side-panel="shown"]
   [data-window-titlebar] {
-  padding-right: calc(140px / var(--window-zoom, 1));
+  padding-right: revert-layer;
+}
+@media (width >= 80rem) {
+  html:is([data-canopy-platform="linux"], [data-canopy-platform="win32"]):not([data-window-fullscreen])
+    [data-window-side-panel="xl"]
+    [data-window-titlebar] {
+    padding-right: revert-layer;
+  }
 }
 html[data-canopy-platform]:not(:has(:popover-open, [data-window-no-drag])) {
   &:not(:has(dialog:modal)) :is([data-window-drag], [data-window-titlebar]):not(dialog *, [inert] *),

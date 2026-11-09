@@ -525,6 +525,7 @@
   class="t-panel-column flex h-full xl:grid xl:grid-cols-[minmax(0,1fr)_var(--panel-width)] xl:grid-rows-1"
   style:--panel-width={panelOpen ? "20rem" : "0rem"}
   data-collapsed={!panelOpen || undefined}
+  data-window-side-panel={panelOpen ? "xl" : undefined}
 >
   <div class="relative flex min-w-0 flex-1 flex-col" {@attach intake.zone}>
     <TopBar>
@@ -792,7 +793,8 @@
     data-collapsed={!panelOpen || undefined}
   >
     <div class="t-panel absolute inset-y-0 left-0 flex w-80 flex-col">
-      <div class="hidden macos:block">
+      <!-- The 48px title strip keeps the panel's content clear of the window controls on every desktop platform. -->
+      <div class="hidden desktop:block" data-window-end>
         {#if thread}<ThreadTitleActions {thread} titlebar />{:else}<div class="h-12" data-window-drag></div>{/if}
       </div>
       <div class="min-h-0 flex-1 overflow-y-auto py-3 pr-3 pl-1">

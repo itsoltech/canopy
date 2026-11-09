@@ -44,6 +44,7 @@ const bridge: DesktopBridge = {
   setAppearance: (appearance) => ipcRenderer.invoke("canopy:appearance", appearance),
   windowState: () => ipcRenderer.invoke("canopy:window-state"),
   onWindowState: (listener) => subscribe<DesktopWindowState>("canopy:window-state", listener),
+  windowControl: (control) => ipcRenderer.invoke("canopy:window-control", control),
   status: () => ipcRenderer.invoke("canopy:status"),
   configure: (configuration) => ipcRenderer.invoke("canopy:configure", configuration),
   openSettings: () => ipcRenderer.invoke("canopy:settings"),

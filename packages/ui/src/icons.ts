@@ -177,6 +177,8 @@ export const icons = {
   bolt: ["M13 3v7h6l-8 11v-7H5z"],
   // minus
   minus: ["M5 12h14"],
+  // square
+  square: ["M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"],
   // dots
   "ellipsis-horizontal": [
     "M4 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0m7 0a1 1 0 1 0 2 0a1 1 0 1 0-2 0m7 0a1 1 0 1 0 2 0a1 1 0 1 0-2 0",
