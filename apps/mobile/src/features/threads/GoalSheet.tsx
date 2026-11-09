@@ -5,6 +5,7 @@ import { Provider, type ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { Button, Field } from "../../ui/components";
 import { Overlay } from "../../ui/Overlay";
+import { SheetDragArea } from "../../ui/SheetDragArea";
 import { styles, useColors } from "../../ui/theme";
 
 /** The gateway's limit on an objective. */
@@ -84,14 +85,14 @@ function OpenGoal({ thread, goal, onReplace }: { thread: ui.Thread; goal: ui.Goa
 
   return (
     <View style={{ padding: 16, gap: 12 }}>
-      <View style={[styles.row, { justifyContent: "space-between" }]}>
+      <SheetDragArea style={[styles.row, { justifyContent: "space-between" }]}>
         <Text accessibilityRole="header" style={[styles.overlayHeading, { color: c.muted }]}>
           Goal
         </Text>
         <Text style={[styles.overlayMeta, { color: goal.status === "active" ? c.sky : c.muted }]}>
           {goalLabels.get(goal.status) ?? goal.status}
         </Text>
-      </View>
+      </SheetDragArea>
       <Text selectable style={[styles.overlay, { color: c.text }]}>
         {goal.objective}
       </Text>
@@ -172,12 +173,12 @@ function GoalForm({
 
   return (
     <View style={{ padding: 16, gap: 16 }}>
-      <View style={{ gap: 4 }}>
+      <SheetDragArea style={{ gap: 4 }}>
         <Text accessibilityRole="header" style={[styles.heading, { color: c.text }]}>
           {replacing ? "Replace the goal" : "Set a goal"}
         </Text>
         <Text style={[styles.meta, { color: c.muted }]}>{how}</Text>
-      </View>
+      </SheetDragArea>
       {replacing ? (
         <Text style={[styles.meta, { color: c.muted }]}>
           This replaces the current goal: “

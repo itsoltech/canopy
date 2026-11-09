@@ -8,6 +8,7 @@ import { StatusDot } from "../../ui/Badge";
 import { Swap } from "../../ui/MotionViews";
 import { Button } from "../../ui/Button";
 import { Overlay } from "../../ui/Overlay";
+import { SheetDragArea } from "../../ui/SheetDragArea";
 import { font, useColors, useTypography } from "../../ui/theme";
 import { ConnectionRoutes } from "./ConnectionRoutes";
 import { useSession } from "../../state/session";
@@ -135,12 +136,12 @@ export function ConnectionDetails({
   return (
     <Overlay visible={visible} onClose={onClose} label="Connection">
       <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, gap: 12, flexShrink: 1 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <SheetDragArea style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <StatusDot tone={look.tone} active={stream.connection === "reconnecting"} />
           <Text accessibilityRole="header" style={[type.body, { fontFamily: font.semibold, color: c.text }]}>
             {planned && departure.value ? departureLabel(departure.value, down) : look.label}
           </Text>
-        </View>
+        </SheetDragArea>
         <Text style={[type.small, { color: c.muted }]}>
           {planned ? "Canopy reconnects automatically on the same route." : stream.issue || look.description}
         </Text>

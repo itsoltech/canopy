@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { Modal, useWindowDimensions } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { KeyboardWindow } from "./KeyboardWindow";
 import { OverlaySurface } from "./OverlaySurface";
 import { useOverlayTransition } from "./useOverlayTransition";
@@ -14,18 +15,33 @@ export function Overlay({
   onClose,
   onDismiss,
   label,
+  fullHeight = false,
   children,
 }: {
   visible: boolean;
+  /** Shared close controls notify the parent after the exit and native dismissal. */
   onClose: () => void;
   /** Runs after the exit animation and native modal dismissal, including on Android. */
   onDismiss?: () => void;
   label: string;
+  fullHeight?: boolean;
   children: ReactNode;
 }) {
   const { width } = useWindowDimensions();
+  const [closing, setClosing] = useState(false);
+  const close = useCallback(() => setClosing(true), []);
   const presented = useKeyboardPresentation(visible);
-  const { progress, mounted, didDismiss } = useOverlayTransition(presented, width >= WIDE_OVERLAY, onDismiss);
+
+  const { progress, velocity, mounted, didDismiss, didLayout } = useOverlayTransition(presented && !closing, () => {
+    if (closing) onClose();
+    onDismiss?.();
+  });
+
+  const [content, setContent] = useState({ children });
+
+  if (!visible && closing) setClosing(false);
+
+  if (visible && content.children !== children) setContent({ children });
 
   return (
     <Modal
@@ -34,20 +50,25 @@ export function Overlay({
       animationType="none"
       statusBarTranslucent
       navigationBarTranslucent
-      onRequestClose={onClose}
+      onRequestClose={close}
       onDismiss={didDismiss}
     >
-      <KeyboardWindow preload={false}>
-        <OverlaySurface
-          visible={visible}
-          onClose={onClose}
-          label={label}
-          progress={progress}
-          wide={width >= WIDE_OVERLAY}
-        >
-          {children}
-        </OverlaySurface>
-      </KeyboardWindow>
+      <SafeAreaProvider>
+        <KeyboardWindow preload={false}>
+          <OverlaySurface
+            visible={visible && !closing}
+            onClose={close}
+            label={label}
+            progress={progress}
+            velocity={velocity}
+            wide={width >= WIDE_OVERLAY}
+            fullHeight={fullHeight}
+            onLayout={didLayout}
+          >
+            {visible ? children : content.children}
+          </OverlaySurface>
+        </KeyboardWindow>
+      </SafeAreaProvider>
     </Modal>
   );
 }

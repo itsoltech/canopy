@@ -4,6 +4,7 @@ import { TextInput } from "./TextInput";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "./Icon";
 import { Overlay } from "./Overlay";
+import { SheetDragArea } from "./SheetDragArea";
 import { font, styles, useColors, useTypography, type Colors } from "./theme";
 import { Skeleton } from "./Skeleton";
 
@@ -87,11 +88,11 @@ export function PickerSheet<T>({
 
   return (
     <Overlay visible={visible} onClose={close} onDismiss={onDismiss} label={title}>
-      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
+      <SheetDragArea style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
         <Text accessibilityRole="header" style={[styles.overlayHeading, { color: c.muted }]}>
           {title}
         </Text>
-      </View>
+      </SheetDragArea>
       {search && <SearchField value={query} onChange={setQuery} placeholder={search} />}
       <ScrollView
         keyboardShouldPersistTaps="handled"

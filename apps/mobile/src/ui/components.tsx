@@ -6,6 +6,7 @@ import { font, styles, useColors, useTypography } from "./theme";
 import { Icon } from "./Icon";
 import { IconButton } from "./Button";
 import { SheetSurface } from "./SheetSurface";
+import { SheetCloseButton } from "./SheetDragArea";
 import { router } from "expo-router";
 import { LayoutAnimationConfig } from "react-native-reanimated";
 import { Skeleton } from "./Skeleton";
@@ -93,13 +94,14 @@ export function Sheet({
   return (
     <SheetSurface
       visible={visible}
+      label={title}
       onClose={onClose}
       header={
         <View style={[styles.row, { paddingLeft: 20, paddingRight: 12, paddingTop: 16, paddingBottom: 4 }]}>
           <Text accessibilityRole="header" numberOfLines={2} style={[styles.heading, { flex: 1, color: c.text }]}>
             {title}
           </Text>
-          <IconButton icon="x-mark" size="sm" label={`Close ${title}`} onPress={onClose} />
+          <SheetCloseButton label={`Close ${title}`} />
         </View>
       }
     >

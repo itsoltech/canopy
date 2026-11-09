@@ -5,6 +5,7 @@ import { useOverview } from "../../state/overview";
 import { Alert } from "../../ui/Alert";
 import { Button } from "../../ui/Button";
 import { Overlay } from "../../ui/Overlay";
+import { SheetDragArea } from "../../ui/SheetDragArea";
 import { styles, useColors } from "../../ui/theme";
 import { useUpdates } from "../updates/state";
 import { UpdateDetails } from "../updates/UpdateDetails";
@@ -44,7 +45,9 @@ export function GatewayUpdateNotice() {
         }}
       >
         <View style={{ padding: 16, gap: 12 }}>
-          <Text style={[styles.overlay, { color: c.strong }]}>{title}</Text>
+          <SheetDragArea>
+            <Text style={[styles.overlay, { color: c.strong }]}>{title}</Text>
+          </SheetDragArea>
           <Text selectable style={[styles.overlayMeta, { color: c.muted }]}>
             {value.targetVersion && value.targetVersion !== value.version
               ? `${value.version} → ${value.targetVersion}`
