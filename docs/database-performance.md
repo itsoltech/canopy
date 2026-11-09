@@ -66,6 +66,25 @@ skrót czasu statement nie jest zamiennikiem ograniczenia kosztu zapytania.
 
 ## Trwałość i retencja
 
+Migracja `0100_history_read_indexes` dodaje indeksy:
+
+| Indeks | Odczyt |
+|---|---|
+| `turns_unseen` | najnowsza zakończona, niewidziana tura według `last_seq` |
+| `thread_items_turn_order` | itemy wybranych tur oraz itemy bez tury |
+| `thread_items_last_answer` | ostatnia odpowiedź bez skanowania innych rodzajów itemów |
+| `thread_events_notices` | ostatnie komunikaty bez skanowania transkryptu |
+
+Migrator wykonuje migracje w transakcji z blokadą, więc nie można użyć
+`CREATE INDEX CONCURRENTLY`. Istniejąca migracja `0098_thread_read_metadata`
+opróżnia odroczone zdarzenia triggerów po wcześniejszych naprawach danych.
+Indeks aktywności również pochodzi z 0098 i nie jest tutaj powielany.
+Zwykłe budowanie indeksu blokuje zapisy do danej
+tabeli; duża baza serwerowa wymaga okna utrzymaniowego. Dla wdrożeń bez takiego
+okna potrzebna jest osobna procedura migracji online, obejmująca także odtworzenie
+po nieudanym budowaniu. Indeksy zwiększają koszt zapisów i zajętość dysku;
+benchmark obejmuje również send/steer/import, żeby uwidocznić ten kompromis.
+
 Transkrypty, itemy, importy, audyt i zakończone komendy nie są danymi do usuwania
 wyłącznie według wieku. Zakończone `worker_commands` uczestniczą m.in. w
 deduplikacji i rozpoznawaniu wysłanej tury. Usunięcie może ponownie uruchomić pracę.
