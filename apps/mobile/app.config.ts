@@ -46,6 +46,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     adaptiveIcon: {
       foregroundImage: `${assets}/adaptive-foreground.png`,
       backgroundImage: `${assets}/adaptive-background.png`,
+      monochromeImage: `${assets}/adaptive-monochrome.png`,
       backgroundColor: identity.background,
     },
   },
@@ -55,11 +56,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-splash-screen",
       {
         backgroundColor: identity.background,
-        image: `${assets}/icon-512.png`,
+        image: `${assets}/splash.png`,
         imageWidth: 96,
         dark: {
-          backgroundColor: identity.channel === "stable" ? "#000000" : identity.background,
-          image: `${assets}/icon-512.png`,
+          backgroundColor: identity.background,
+          image: `${assets}/splash.png`,
         },
       },
     ],

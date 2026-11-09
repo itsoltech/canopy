@@ -6,16 +6,19 @@ import { resolve, join } from "node:path";
 import { parseArgs } from "node:util";
 import sharp from "sharp";
 import { releaseIdentity, type ReleaseChannel } from "@canopy/domain/release/identity";
-import { channelArtwork, separateTree, sky } from "./artwork.ts";
+import { channelArtwork, separateTree } from "./artwork.ts";
 import { ico, icns } from "./formats.ts";
 import { writePreviews } from "./previews.ts";
 import { gradeTree } from "./lighting.ts";
+import { mobileArtwork, type MobileArtwork } from "./mobile.ts";
+import { writeMobilePreviews } from "./mobile-previews.ts";
 
 const root = resolve(import.meta.dir, "../..");
 const source = await readFile(join(root, "apps/web/static/icon-512.png"));
 const tree = await separateTree(source);
 const { values } = parseArgs({ args: Bun.argv.slice(2), options: { previews: { type: "string" } }, strict: true });
 const artwork = new Map<ReleaseChannel, Buffer>();
+const mobile = new Map<ReleaseChannel, MobileArtwork>();
 
 for (const channel of ["stable", "beta", "nightly"] as const) {
   const directory = join(root, "apps/web/static", releaseIdentity(channel).assets);
@@ -32,27 +35,20 @@ for (const channel of ["stable", "beta", "nightly"] as const) {
   await writeFile(join(directory, "icon.ico"), await ico(icon));
   await writeFile(join(directory, "icon.icns"), await icns(icon));
 
-  // iOS icons are opaque squares; the OS supplies the final rounded mask.
-  const background =
-    channel === "stable"
-      ? await sharp({ create: { width: 512, height: 512, channels: 4, background: "#ffffff" } })
-          .png()
-          .toBuffer()
-      : await sharp(sky(channel)).png().toBuffer();
+  const native = await mobileArtwork(foreground, channel);
+  mobile.set(channel, native);
 
-  await sharp(background)
-    .composite([{ input: icon }])
-    .resize(1024)
-    .flatten()
-    .png()
-    .toFile(join(directory, "expo-icon.png"));
-  // Android foreground fits its central safe zone; launchers choose their own mask.
-  await sharp(foreground)
-    .resize(640)
-    .extend({ top: 192, bottom: 192, left: 192, right: 192, background: "#00000000" })
-    .png()
-    .toFile(join(directory, "adaptive-foreground.png"));
-  await sharp(background).resize(1024).png().toFile(join(directory, "adaptive-background.png"));
+  for (const [filename, input] of [
+    ["expo-icon", native.icon],
+    ["adaptive-foreground", native.foreground],
+    ["adaptive-background", native.background],
+    ["adaptive-monochrome", native.monochrome],
+    ["splash", native.splash],
+  ] as const)
+    await writeFile(join(directory, `${filename}.png`), input);
 }
 
-if (values.previews) await writePreviews(artwork, resolve(values.previews));
+if (values.previews) {
+  await writePreviews(artwork, resolve(values.previews));
+  await writeMobilePreviews(mobile, resolve(values.previews));
+}

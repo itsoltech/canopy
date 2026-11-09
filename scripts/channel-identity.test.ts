@@ -11,6 +11,7 @@ import { channelConfiguration } from "../apps/desktop/scripts/channel-configurat
 import desktop from "../apps/desktop/package.json";
 import eas from "../apps/mobile/eas.json";
 import { releaseIdentity } from "@canopy/domain/release/identity";
+import { mobileScene, treeGeometry } from "./icons/mobile.ts";
 
 const root = resolve(import.meta.dir, "..");
 const desktopDirectory = join(root, "apps/desktop");
@@ -106,9 +107,99 @@ test("EAS profiles resolve actual Expo config with channel assets and unchanged 
     expect(foreground).toBe(`../web/static/channels/${channel}/adaptive-foreground.png`);
     expect(existsSync(resolve(root, "apps/mobile", config.icon!))).toBe(true);
     expect(existsSync(resolve(root, "apps/mobile", foreground!))).toBe(true);
+    expect(config.android?.adaptiveIcon?.backgroundImage).toBe(
+      `../web/static/channels/${channel}/adaptive-background.png`,
+    );
+    expect(config.android?.adaptiveIcon?.monochromeImage).toBe(
+      `../web/static/channels/${channel}/adaptive-monochrome.png`,
+    );
     expect(config.plugins).toContainEqual([
       "expo-splash-screen",
-      expect.objectContaining({ image: `../web/static/channels/${channel}/icon-512.png` }),
+      expect.objectContaining({
+        image: `../web/static/channels/${channel}/splash.png`,
+        backgroundColor: releaseIdentity(channel).background,
+        dark: expect.objectContaining({
+          image: `../web/static/channels/${channel}/splash.png`,
+          backgroundColor: releaseIdentity(channel).background,
+        }),
+      }),
     ]);
   }
 }, 30_000);
+
+test("native channel artwork is full-bleed on iOS and gives Android launcher masks breathing room", async () => {
+  for (const channel of ["stable", "beta", "nightly"] as const) {
+    const directory = join(root, "apps/web/static/channels", channel);
+    const icon = sharp(join(directory, "expo-icon.png"));
+    const metadata = await icon.metadata();
+    expect([metadata.width, metadata.height, metadata.channels, metadata.hasAlpha]).toEqual([1024, 1024, 3, false]);
+    expect((await icon.stats()).isOpaque).toBe(true);
+
+    const actual = await icon.raw().toBuffer();
+    const scene = await sharp(mobileScene(channel)).removeAlpha().raw().toBuffer();
+    const matte = Buffer.alloc(1024 * 1024 * 4);
+
+    for (let i = 0; i < 1024 * 1024; i++) {
+      const difference = Math.max(...[0, 1, 2].map((c) => Math.abs(actual[i * 3 + c]! - scene[i * 3 + c]!)));
+      matte[i * 4 + 3] = difference > 3 ? 255 : 0;
+    }
+
+    const bounds = await treeGeometry(
+      await sharp(matte, { raw: { width: 1024, height: 1024, channels: 4 } })
+        .png()
+        .toBuffer(),
+    );
+
+    // A desktop tile at half size cannot meet this silhouette size/placement.
+    expect(bounds.width / 1024).toBeGreaterThanOrEqual(0.68);
+    expect(bounds.width / 1024).toBeLessThanOrEqual(0.75);
+    expect((bounds.left + bounds.width / 2) / 1024).toBeCloseTo(0.5, 2);
+    expect((bounds.top + bounds.height / 2) / 1024).toBeCloseTo(0.48, 2);
+
+    // The scene reaches every edge: there is no pre-drawn rounded mask or tile.
+    for (const [x, y] of [
+      [0, 0],
+      [1023, 0],
+      [0, 1023],
+      [1023, 1023],
+      [512, 0],
+      [0, 512],
+    ]) {
+      const offset = (y! * 1024 + x!) * 3;
+      expect(actual.subarray(offset, offset + 3)).toEqual(scene.subarray(offset, offset + 3));
+    }
+
+    const foreground = join(directory, "adaptive-foreground.png");
+    const alpha = await sharp(foreground).extractChannel("alpha").raw().toBuffer();
+    let radius = 0;
+
+    for (let y = 0; y < 1024; y++)
+      for (let x = 0; x < 1024; x++)
+        if (alpha[y * 1024 + x]) radius = Math.max(radius, Math.hypot(x - 511.5, y - 511.5));
+    // The visible mask spans 72 dp of the 108 dp canvas. The circle is the
+    // tightest mask; squircle and rounded-square both enclose that circle.
+    const visibleDiameter = (1024 * 72) / 108;
+    const clearance = (visibleDiameter / 2 - radius) / visibleDiameter;
+    expect(clearance).toBeGreaterThanOrEqual(0.08);
+    expect(clearance).toBeLessThan(0.12);
+    // Moon/sun stays entirely clear of the tree and inside the circle launcher.
+    let moonCoverage = 0;
+    let moonRadius = 0;
+
+    for (let y = 244; y <= 288; y++)
+      for (let x = 682; x <= 726; x++) {
+        if (Math.hypot(x - 704, y - 266) > 22) continue;
+        moonCoverage += alpha[y * 1024 + x]!;
+        moonRadius = Math.max(moonRadius, Math.hypot(x - 512, y - 512));
+      }
+
+    expect(moonCoverage).toBe(0);
+    expect(moonRadius).toBeLessThan(1024 / 3);
+    expect(await sharp(join(directory, "adaptive-monochrome.png")).extractChannel("alpha").raw().toBuffer()).toEqual(
+      alpha,
+    );
+    expect((await sharp(join(directory, "adaptive-background.png")).metadata()).hasAlpha).toBe(false);
+    const splash = await treeGeometry(readFileSync(join(directory, "splash.png")));
+    expect(Math.max(splash.width, splash.height)).toBeGreaterThan(500);
+  }
+});
