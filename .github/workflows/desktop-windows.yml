@@ -1,19 +1,9 @@
-# Builds and installs Windows without publication; repository PRs also verify Azure signing.
+# Builds and installs Windows without publication, on demand. Releases build, sign and verify Windows
+# themselves (release.yml), so pull requests don't run this.
 name: Windows desktop package
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/desktop-windows.yml"
-      - ".github/workflows/release.yml"
-      - ".github/actions/setup-bun/**"
-      - "apps/desktop/**"
-      - "apps/gateway/**"
-      - "apps/worker/**"
-      - "apps/web/**"
-      - "packages/**"
-      - "scripts/**"
-      - "bun.lock"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -39,8 +29,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - name: Require signing credentials for repository PRs
-        if: github.event.pull_request.head.repo.full_name == github.repository
+      - name: Require signing credentials
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -58,18 +47,7 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: bun run --cwd apps/desktop package:windows
       - name: Verify Windows signatures
-        if: github.event.pull_request.head.repo.full_name == github.repository
         run: ./apps/desktop/scripts/verify-windows.ps1 -ReleaseDirectory apps/desktop/release/nightly
-      - name: Unsigned installer must fail the signature gate
-        if: github.event.pull_request.head.repo.full_name != github.repository
-        run: |
-          try {
-            ./apps/desktop/scripts/verify-windows.ps1 -ReleaseDirectory apps/desktop/release/nightly
-            throw 'Unsigned installer passed the signature gate'
-          } catch {
-            if (-not $_.Exception.Message.StartsWith('Invalid Authenticode signature')) { throw }
-            Write-Output 'Unsigned installer rejected by the release signature gate.'
-          }
       - name: Install package and smoke sidecars
         run: ./apps/desktop/scripts/smoke-windows.ps1 -ReleaseDirectory apps/desktop/release/nightly
       - name: Validate release metadata without publishing
