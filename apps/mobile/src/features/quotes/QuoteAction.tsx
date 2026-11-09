@@ -4,7 +4,7 @@ import { ui } from "@canopy/contracts";
 import { IconButton } from "../../ui/Button";
 import { useTimelineDirectory } from "../timeline/directory";
 import { QuoteEditor } from "./QuoteEditor";
-import { markdownText } from "./markdown-text";
+import { markdownText } from "@canopy/domain/markdown";
 
 export const QuoteItem = createContext("");
 

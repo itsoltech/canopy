@@ -15,17 +15,21 @@ const emptyText = {
 } as const;
 
 const iconOf = (option: MentionOption) =>
-  option.group === "Files"
-    ? option.mention.isDir
-      ? ("folder" as const)
-      : ("document-text" as const)
-    : option.group === "Threads"
-      ? ("chat-bubble-left" as const)
-      : option.group === "Plugins"
-        ? ("swatch" as const)
-        : option.group === "Skills"
-          ? ("sparkles" as const)
-          : ("command-line" as const);
+  option.group === "Bots"
+    ? ("chat-bubble-left-right" as const)
+    : option.group === "Connectors"
+      ? ("link" as const)
+      : option.group === "Files"
+        ? option.mention.isDir
+          ? ("folder" as const)
+          : ("document-text" as const)
+        : option.group === "Threads"
+          ? ("chat-bubble-left" as const)
+          : option.group === "Plugins"
+            ? ("swatch" as const)
+            : option.group === "Skills"
+              ? ("sparkles" as const)
+              : ("command-line" as const);
 
 /**
  * The mention list over the composer while the caret is in a trigger ("/", "$", "@", "#"): compact rows grouped
@@ -40,12 +44,32 @@ export function MentionSuggestions({
   trigger: ActiveTrigger | undefined;
   onPick: (option: MentionOption) => void;
 }) {
-  const c = useColors();
-  const { pop } = useMotion();
-  const reduced = useReducedMotion();
   const { options, loading, error } = useMentionSuggestions(scope, trigger);
 
   if (!trigger) return null;
+
+  return (
+    <MentionOptions options={options} loading={loading} error={error} empty={emptyText[trigger.char]} onPick={onPick} />
+  );
+}
+
+/** Shared compact suggestions; each composer supplies its own authorized sources. */
+export function MentionOptions({
+  options,
+  loading,
+  error,
+  empty,
+  onPick,
+}: {
+  options: readonly MentionOption[];
+  loading: boolean;
+  error?: string | undefined;
+  empty: string;
+  onPick: (option: MentionOption) => void;
+}) {
+  const c = useColors();
+  const { pop } = useMotion();
+  const reduced = useReducedMotion();
 
   return (
     <Animated.View
@@ -113,9 +137,7 @@ export function MentionSuggestions({
                 <Skeleton style={{ width: "70%", height: 16 }} />
               </>
             ) : (
-              <Text style={[styles.overlayMeta, { color: error ? c.danger : c.muted, flex: 1 }]}>
-                {error || emptyText[trigger.char]}
-              </Text>
+              <Text style={[styles.overlayMeta, { color: error ? c.danger : c.muted, flex: 1 }]}>{error || empty}</Text>
             )}
           </View>
         )}

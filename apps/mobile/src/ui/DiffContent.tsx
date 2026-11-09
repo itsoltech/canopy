@@ -5,7 +5,7 @@ import { useColors, useTypography } from "./theme";
 import { diffRows } from "./diff-lines";
 
 /** Shared by the bounded timeline preview and virtualized full-diff chunks. */
-export function DiffContent({ diff }: { diff: string }) {
+export function DiffContent({ diff, selectable = true }: { diff: string; selectable?: boolean }) {
   const c = useColors();
   const type = useTypography();
   const { values } = useDevicePreferences();
@@ -17,7 +17,7 @@ export function DiffContent({ diff }: { diff: string }) {
 
   const lineView = (line: string | undefined, color: string, changed = false) => (
     <Text
-      selectable
+      selectable={selectable}
       style={[type.mono, { color, paddingHorizontal: 8, backgroundColor: changed ? `${color}14` : "transparent" }]}
     >
       {line || " "}

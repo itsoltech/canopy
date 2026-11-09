@@ -10,6 +10,7 @@ export interface InlineElements {
 
 /** What every block and inline run of one message reads: its text colour, and the caller's inline elements. */
 export interface MarkdownScope {
+  readonly selectable: boolean;
   /** Body text colour (commentary, reasoning and tinted bubbles are quieter or tinted). */
   readonly ink: string;
   /** Headings, bold and inline code: the strongest text colour, or the tint of a tinted bubble. */
@@ -19,7 +20,13 @@ export interface MarkdownScope {
   readonly render: ((index: number) => ReactNode) | undefined;
 }
 
-const Scope = createContext<MarkdownScope>({ ink: "", strong: "", restore: (code) => code, render: undefined });
+const Scope = createContext<MarkdownScope>({
+  selectable: true,
+  ink: "",
+  strong: "",
+  restore: (code) => code,
+  render: undefined,
+});
 
 export const MarkdownScopeProvider = Scope.Provider;
 export const useMarkdownScope = () => useContext(Scope);

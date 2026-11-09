@@ -43,7 +43,7 @@ const alignOf = (align: Tokens.Table["align"][number] | undefined): TextStyle["t
 export function MarkdownTable({ table }: { table: Tokens.Table }) {
   const c = useColors();
   const type = useTypography();
-  const { ink, strong } = useMarkdownScope();
+  const { ink, strong, selectable } = useMarkdownScope();
   const [frame, setFrame] = useState(0);
   // web: text-sm/6, a step under the message with its line height.
   const fontSize = (type.body.fontSize * 14) / 16;
@@ -65,7 +65,7 @@ export function MarkdownTable({ table }: { table: Tokens.Table }) {
           }}
         >
           <Faced
-            selectable
+            selectable={selectable}
             weight={header ? "semibold" : "regular"}
             style={[text, { textAlign: alignOf(table.align[column]) }, header && { color: strong }]}
           >

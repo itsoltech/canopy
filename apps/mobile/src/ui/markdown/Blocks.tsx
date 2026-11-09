@@ -19,13 +19,13 @@ const HEADING: ReadonlyMap<number, readonly [number, number]> = new Map([
 
 function Heading({ depth, tokens }: { depth: number; tokens: Token[] }) {
   const type = useTypography();
-  const { strong } = useMarkdownScope();
+  const { strong, selectable } = useMarkdownScope();
   const scale = type.body.fontSize / 16;
   const [size, line] = HEADING.get(depth) ?? [16, 24];
 
   return (
     <Faced
-      selectable
+      selectable={selectable}
       weight="semibold"
       accessibilityRole="header"
       style={[type.body, { fontSize: size * scale, lineHeight: line * scale, color: strong }]}
@@ -38,10 +38,10 @@ function Heading({ depth, tokens }: { depth: number; tokens: Token[] }) {
 /** A paragraph-like run of text in the message's colour. */
 function Prose({ children }: { children: ReactNode }) {
   const type = useTypography();
-  const { ink } = useMarkdownScope();
+  const { ink, selectable } = useMarkdownScope();
 
   return (
-    <Text selectable style={[type.body, { color: ink }]}>
+    <Text selectable={selectable} style={[type.body, { color: ink }]}>
       {children}
     </Text>
   );
@@ -50,11 +50,11 @@ function Prose({ children }: { children: ReactNode }) {
 /** Display math as its TeX source on one scrolling line (the phone does not typeset it). */
 function DisplayMath({ raw }: { raw: string }) {
   const type = useTypography();
-  const { strong } = useMarkdownScope();
+  const { strong, selectable } = useMarkdownScope();
 
   return (
     <SidewaysScroll>
-      <Text selectable style={[type.mono, { color: strong }]}>
+      <Text selectable={selectable} style={[type.mono, { color: strong }]}>
         {raw}
       </Text>
     </SidewaysScroll>
@@ -63,7 +63,7 @@ function DisplayMath({ raw }: { raw: string }) {
 
 function Block({ token }: { token: Token }) {
   const c = useColors();
-  const { restore } = useMarkdownScope();
+  const { restore, selectable } = useMarkdownScope();
 
   if (isMathToken(token)) return token.display ? <DisplayMath raw={token.raw} /> : <Prose>{token.raw}</Prose>;
 
@@ -78,7 +78,7 @@ function Block({ token }: { token: Token }) {
 
   if (isToken(token, "code"))
     return token.lang === "diff" ? (
-      <Diff diff={restore(token.text)} />
+      <Diff diff={restore(token.text)} selectable={selectable} />
     ) : (
       <CodeFence code={restore(token.text)} lang={token.lang || undefined} />
     );
