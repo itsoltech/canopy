@@ -45,7 +45,15 @@ describe.skipIf(!dockerAvailable)("durable configuration record batches", () => 
   const rows = (prefix: string, count: number) =>
     Array.from({ length: count }, (_, n) => {
       const row = emptyRecord("instruction", `${prefix}-${n}`, node);
-      row.fields = { content: { value: "Synthetic ".repeat(900), hlc, prev: "" } };
+      row.fields = {
+        content: {
+          value: "Synthetic ".repeat(900),
+          hlc,
+          prev: "",
+          edited: n % 2 === 0,
+          seen: [`900.0.${node}`],
+        },
+      };
 
       return row;
     });
@@ -64,7 +72,7 @@ describe.skipIf(!dockerAvailable)("durable configuration record batches", () => 
 
     expect(persisted.map((row) => row.global_id)).toEqual(records.map((row) => row.global_id));
     expect(persisted.map((row) => row.revision)).toEqual(records.map((_, n) => (initial + BigInt(n) + 1n).toString()));
-    expect(persisted.every((row) => row.fields["content"]?.value === records[0]!.fields["content"]!.value)).toBe(true);
+    expect(persisted.map((row) => row.fields)).toEqual(records.map((row) => row.fields));
 
     const clock = await query<{ revision: string; hlc: string }>(
       "SELECT revision::text,hlc FROM config_clock WHERE owner_user_id=$1::uuid",

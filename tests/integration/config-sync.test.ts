@@ -23,6 +23,20 @@ const count = async (computer: ConfigComputer, table: string) =>
     )
   )[0]!.n;
 
+/** Equal values can still be different concurrent versions; the next edit waits for the choice itself. */
+const settledTimezone = (...computers: ConfigComputer[]) =>
+  wait(async () => {
+    const versions = await Promise.all(
+      computers.map((computer) =>
+        computer.store.query<{ hlc: string }>(
+          "SELECT fields->'timezone'->>'hlc' AS hlc FROM config_items WHERE kind='settings' AND global_id='account'",
+        ),
+      ),
+    );
+
+    return new Set(versions.map((rows) => rows[0]?.hlc)).size === 1;
+  });
+
 describe.skipIf(!dockerAvailable)("account configuration across three independently stored gateways", () => {
   let a: ConfigComputer;
   let b: ConfigComputer;
@@ -72,7 +86,7 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
     expect(a.links.hello().capabilities).not.toContain("shared_config");
   }, 30_000);
 
-  test("concurrent fields converge, conflicting values survive in history and Restore propagates", async () => {
+  test("different fields merge, conflicting values wait for a choice and Restore propagates", async () => {
     await a.sharing(b.node, false);
     await wait(() => !configAllowed(b.links, a.node));
     await a.update({
@@ -84,7 +98,7 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
     await synced([a, b]);
     await wait(
       async () =>
-        (await a.settings()).timezone === (await c.settings()).timezone &&
+        (await a.links.snapshot()).configNotices.some((n) => n.field === "timezone" && n.reason === "choice") &&
         (await c.settings()).textGeneration?.threadTitleInstructions === "Keep titles concise" &&
         (await a.settings()).general?.confirmUnpin === true,
     );
@@ -95,9 +109,9 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
     const otherNotice = (await b.links.snapshot()).configNotices.find((n) => n.field === "timezone");
     expect(otherNotice).toBeDefined();
     await b.gateway.api.manageConfigNotice({ id: otherNotice!.id, action: "dismiss" });
-    expect((await a.links.snapshot()).configNotices.some((n) => n.id === notice.id)).toBe(true);
-    await a.gateway.api.manageConfigNotice({ id: notice.id, action: "restore" });
     await wait(async () => (await c.settings()).timezone === restore);
+    await wait(async () => !(await a.links.snapshot()).configNotices.some((n) => n.id === notice.id));
+    await settledTimezone(a, b, c);
     expect((await a.links.snapshot()).configNotices.some((n) => n.id === notice.id)).toBe(false);
     const history = await count(a, "config_history");
     await a.restart();
@@ -173,7 +187,17 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
     expect((await a.settings()).timezone).toBe("America/Chicago");
     await a.sharing(b.node, true);
     await synced([a, b], [b, c]);
+    await wait(async () =>
+      (await a.links.snapshot()).configNotices.some((n) => n.field === "timezone" && n.reason === "choice"),
+    );
+
+    const choice = (await a.links.snapshot()).configNotices.find(
+      (n) => n.field === "timezone" && n.reason === "choice",
+    )!;
+
+    await a.gateway.api.manageConfigNotice({ id: choice.id, action: "restore" });
     await wait(async () => (await a.settings()).timezone === (await c.settings()).timezone);
+    await settledTimezone(a, b, c);
     await wait(async () => (await a.links.snapshot()).configGroup.length === 3);
 
     for (const computer of [a, b, c]) {
@@ -219,14 +243,17 @@ describe.skipIf(!dockerAvailable)("account configuration across three independen
     }
 
     await a.restart();
-    expect(
-      (
-        await a.store.query<{ cursor: string }>(
-          "SELECT cursor FROM config_peer_cursors WHERE owner_user_id=$1::uuid AND node_id=$2",
-          [a.gateway.userId, b.node],
-        )
-      )[0]!.cursor,
-    ).toBe(cursor);
+
+    const resumed = (
+      await a.store.query<{ cursor: string }>(
+        "SELECT cursor FROM config_peer_cursors WHERE owner_user_id=$1::uuid AND node_id=$2",
+        [a.gateway.userId, b.node],
+      )
+    )[0]!.cursor;
+
+    expect(resumed.split(":")[0]).toBe(cursor.split(":")[0]);
+    // Reconnection can already have committed a newer batch; it must never forget the durable checkpoint.
+    expect(BigInt(resumed.split(":")[1]!)).toBeGreaterThanOrEqual(BigInt(cursor.split(":")[1]!));
     await synced([a, b]);
     await b.update({ timezone: "Europe/Berlin" });
     await wait(async () => (await a.settings()).timezone === "Europe/Berlin");

@@ -5,8 +5,9 @@ import { canonicalJson } from "../store/instance-config.ts";
 import { compareClock, nextClock } from "./clock.ts";
 import { instanceIds } from "./aliases.ts";
 import { mapSettingsInstances, settingsValues, type SettingsJson } from "./settings.ts";
+import { fieldAncestry } from "./ancestry.ts";
 
-export type Field = { value: JsonValue; hlc: string; prev: string };
+export type Field = { value: JsonValue; hlc: string; prev: string; edited?: boolean; seen?: string[] };
 
 export type Fields = Record<string, Field>;
 
@@ -109,7 +110,7 @@ export function configSettingsChanged(
 
       if (current && equalValue(value, previous[field] ?? null)) continue;
       last = nextClock(last, node.node_id);
-      row.fields[field] = { value, hlc: last, prev: row.fields[field]?.hlc ?? "" };
+      row.fields[field] = { value, hlc: last, ...(yield* fieldAncestry(sql, owner, row, field)), edited: true };
       changed = true;
     }
 

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { toJsonString } from "@bufbuild/protobuf";
 import { dockerAvailable } from "@canopy/db/testing";
+import { providerLoginCommand } from "@canopy/domain/provider-accounts";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDir } from "@canopy/testing";
 import { journalHello, openGatewayLink, type GatewayLink } from "@canopy/worker/gateway-link";
@@ -105,6 +106,8 @@ console.log(JSON.stringify({ loggedIn: true, authMethod: "claude.ai", email: "qa
       organization: "Example team",
       plan: "team",
       configDir: "",
+      loginDir: join(dir, "device-claude"),
+      loginExecutable: executable,
     });
     const initial = count();
     await Promise.all(Array.from({ length: 20 }, () => gw.api.getOverview({})));
@@ -127,6 +130,7 @@ console.log(JSON.stringify({ loggedIn: true, authMethod: "claude.ai", email: "qa
       overrides: { shadowHomePath: shadow },
     });
     await eventually(account, (a) => a?.configDir === shadow);
+    expect((await account())?.loginDir).toBe(join(dir, "device-claude"));
     const overview = await gw.api.getOverview({});
     const payload = toJsonString(ui.GetOverviewResponseSchema, overview);
     expect(payload).not.toContain("sk-fake-never-send");
@@ -144,6 +148,32 @@ console.log(JSON.stringify({ loggedIn: true, authMethod: "claude.ai", email: "qa
         ),
       ).toBeUndefined();
   });
+
+  test("sign-in targets this worker's own instance home and safely quotes executable and home paths", async () => {
+    const ownHome = join(dir, "Claude's home $(unused)");
+    await gw.api.saveProviderInstance({
+      harness: Provider.CLAUDE,
+      id: "separate-login",
+      label: "Separate login",
+      create: true,
+      kind: ProviderProfileKind.NATIVE,
+      allWorkers: true,
+      runtime: { ownLogin: true, shadowHomePath: ownHome, binaryPath: executable },
+    });
+
+    const separate = async () =>
+      (await gw.api.listProviderInstances({})).instances
+        .find((i) => i.id === "separate-login")
+        ?.workers.find((w) => w.workerId === workerId)?.account;
+
+    const report = await eventually(separate, (a) => a?.loginDir === ownHome);
+    expect(report?.loginDir).toBe(ownHome);
+    expect(report?.loginExecutable).toBe(executable);
+    const command = providerLoginCommand("claude", report!, "linux");
+    expect(command).toBe(`CLAUDE_CONFIG_DIR='${ownHome.replaceAll("'", `'"'"'`)}' '${executable}' auth login`);
+    const powershell = providerLoginCommand("claude", report!, "win32");
+    expect(powershell).toBe(`$env:CLAUDE_CONFIG_DIR='${ownHome.replaceAll("'", "''")}'; & '${executable}' auth login`);
+  }, 30_000);
 
   test("a full provider refresh invalidates login metadata without a configuration version change", async () => {
     writeFileSync(join(dir, "plan"), "enterprise");

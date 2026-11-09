@@ -174,7 +174,7 @@ describe.skipIf(!dockerAvailable)("provider instances, models and proxies across
     await wait(async () => (await profile(b, "team")).apiKey === KEY);
   }, 30_000);
 
-  test("concurrent edits converge with notices; Restore of a name and a key reaches both", async () => {
+  test("concurrent edits wait for a choice; keeping a name and key reaches both", async () => {
     const proxyId = (await instanceOf(a, Provider.CODEX, "team"))!.proxyId;
 
     const proxyOf = async (computer: ConfigComputer) =>
@@ -191,20 +191,21 @@ describe.skipIf(!dockerAvailable)("provider instances, models and proxies across
     await synced(a, b);
     await wait(
       async () =>
-        (await instanceOf(a, Provider.CODEX, "team"))?.label === "Named on B" &&
-        (await profile(a, "team")).apiKey === KEY_B,
+        (await a.links.snapshot()).configNotices.some((n) => n.kind === "proxy" && n.field === "secret") &&
+        (await a.links.snapshot()).configNotices.some((n) => n.kind === "instance" && n.field === "label"),
     );
+    expect((await instanceOf(a, Provider.CODEX, "team"))?.label).toBe("Named on A");
     expect((await instanceOf(b, Provider.CODEX, "team"))?.label).toBe("Named on B");
 
     const notices = (await a.links.snapshot()).configNotices;
     const label = notices.find((n) => n.kind === "instance" && n.globalId === "codex:team" && n.field === "label")!;
     const key = notices.find((n) => n.kind === "proxy" && n.field === "secret")!;
-    expect(JSON.parse(label.value)).toBe("Named on A");
-    expect(label).toMatchObject({ localId: "team", itemName: "Named on B", nodeName: "Laptop B" });
+    expect(JSON.parse(label.value)).toBe("Named on B");
+    expect(label).toMatchObject({ localId: "team", itemName: "Named on A", nodeName: "Laptop B", reason: "choice" });
     expect(key.value).toBe("A different key");
     expect(json(await a.gateway.api.getComputers({}))).not.toContain(KEY_A);
-    await a.gateway.api.manageConfigNotice({ id: label.id, action: "restore" });
-    await a.gateway.api.manageConfigNotice({ id: key.id, action: "restore" });
+    await a.gateway.api.manageConfigNotice({ id: label.id, action: "dismiss" });
+    await a.gateway.api.manageConfigNotice({ id: key.id, action: "dismiss" });
     await wait(async () => (await instanceOf(b, Provider.CODEX, "team"))?.label === "Named on A");
     await wait(async () => (await profile(b, "team")).apiKey === KEY_A);
     expect((await profile(a, "team")).apiKey).toBe(KEY_A);

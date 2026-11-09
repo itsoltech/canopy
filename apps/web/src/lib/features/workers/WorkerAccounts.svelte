@@ -22,6 +22,7 @@
           harness={instance.harness}
           id={instance.id}
           {online}
+          os={worker.os}
         />
       </div>
     {/each}

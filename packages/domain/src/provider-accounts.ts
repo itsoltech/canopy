@@ -24,6 +24,27 @@ export function accountEmail(value: string | null | undefined, secrets: readonly
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safe) ? safe : "";
 }
 
+/** A copyable command for the worker's actual login home, including paths with shell metacharacters. */
+export function providerLoginCommand(
+  harness: "claude" | "codex" | "grok",
+  account: Pick<ProviderAccountStatus, "loginDir" | "loginExecutable">,
+  os: string,
+): string {
+  if (!account.loginDir) return "";
+  const windows = os === "win32";
+
+  const quote = (value: string) =>
+    windows ? `'${value.replaceAll("'", "''")}'` : `'${value.replaceAll("'", `'"'"'`)}'`;
+
+  const variable = { claude: "CLAUDE_CONFIG_DIR", codex: "CODEX_HOME", grok: "GROK_HOME" }[harness];
+  const executable = quote(account.loginExecutable || harness);
+  const args = harness === "claude" ? "auth login" : "login";
+
+  return windows
+    ? `$env:${variable}=${quote(account.loginDir)}; & ${executable} ${args}`
+    : `${variable}=${quote(account.loginDir)} ${executable} ${args}`;
+}
+
 const states = new Set(["signed_in", "signed_out", "unknown", "error"]);
 
 const methods = new Set([
@@ -62,6 +83,8 @@ export function sanitizeAccountStatus(
     organization: accountText(value.organization, secrets),
     plan: accountText(value.plan, secrets),
     configDir: accountText(value.configDir, secrets),
+    loginDir: accountText(value.loginDir, secrets),
+    loginExecutable: accountText(value.loginExecutable, secrets),
     proxyName: accountText(value.proxyName, secrets),
     detail: details.has(value.detail) ? value.detail : "",
     expiresAt: validDate(value.expiresAt),

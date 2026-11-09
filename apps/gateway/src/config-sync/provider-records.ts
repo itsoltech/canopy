@@ -7,6 +7,7 @@ import { compareClock, nextClock } from "./clock.ts";
 import { compactTombstone } from "./merge.ts";
 import { configLock, emptyRecord, equalValue, type ConfigRow } from "./persistence.ts";
 import { saveRecords } from "./record-batches.ts";
+import { fieldAncestry } from "./ancestry.ts";
 import {
   ENV_FIELD,
   instanceIdentity,
@@ -17,6 +18,7 @@ import {
   type Values,
 } from "./provider-values.ts";
 import { cipherOf, pruneSecrets, recordCiphers, storeSecret } from "./secrets.ts";
+import { editedField } from "./intent.ts";
 
 const INSTANCE_FIELDS = new Set([
   "label",
@@ -53,7 +55,7 @@ type Stamped<T> = T & { updated_at: Date };
 /**
  * Versions this computer's instances and proxies after a local change, in the caller's transaction. Values a
  * linked computer sent are already in the records, so applying them never versions them again. A field without a
- * version takes the row's own timestamp, so the first bootstrap keeps the later change on either computer.
+ * version takes the row's own timestamp. Untouched built-in defaults carry no edit intent.
  */
 export function recordProviders(sql: SqlClient.SqlClient) {
   return Effect.gen(function* () {
@@ -137,8 +139,10 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
           } else if (old ? equalValue(old.value, next) : next === null) continue;
 
           const fresh = !old && row.deleted.value !== true;
-          const hlc = fresh ? seedClock : nextClock(state.observed, node);
-          row.fields[name] = { value: next, hlc, prev: old?.hlc ?? "" };
+          const ancestry = yield* fieldAncestry(sql, owner, row, name);
+          const hlc = fresh && !ancestry.prev ? seedClock : nextClock(state.observed, node);
+          const field = { value: next, hlc, ...ancestry };
+          row.fields[name] = { ...field, edited: !fresh || editedField(row, name, field) };
 
           if (compareClock(hlc, state.observed) > 0) state.observed = hlc;
 

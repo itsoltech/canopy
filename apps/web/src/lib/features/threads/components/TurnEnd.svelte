@@ -128,7 +128,7 @@
       code={turn.errorCode}
       classification={turn.errorClass}
       authHint={thread?.provider === Provider.CLAUDE
-        ? "Run claude login on the worker using this instance's CLI home, then retry."
+        ? "Open provider settings for this worker. Use its sign-in command, then retry."
         : thread?.provider === Provider.GROK
           ? "Run grok login on the worker using this instance's CLI home, then retry."
           : "Sign in from provider settings, or run codex login on the worker using this instance's CLI home."}

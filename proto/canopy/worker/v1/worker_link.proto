@@ -707,6 +707,9 @@ message ProviderAccountStatus {
   google.protobuf.Timestamp checked_at = 8;
   string detail = 9;
   string proxy_name = 10;
+  // Local sign-in target, resolved on this worker. Never contains credentials.
+  string login_dir = 11;
+  string login_executable = 12;
 }
 
 message ProviderAccountEntry {

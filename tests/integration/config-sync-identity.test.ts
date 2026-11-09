@@ -107,6 +107,15 @@ describe.skipIf(!dockerAvailable)("identity merge, aliases and routed instance i
     expect((await instanceOf(a, Provider.CODEX, split))?.label).toBe("Team on B");
     expect((await instanceOf(b, Provider.CODEX, "team"))?.label).toBe("Team on B");
     expect((await instanceOf(b, Provider.CODEX, "team-2"))?.label).toBe("Team on A");
+    await wait(async () =>
+      (await a.links.snapshot()).configNotices.some((n) => n.kind === "instance" && n.field === "label"),
+    );
+
+    const name = (await a.links.snapshot()).configNotices.find(
+      (n) => n.kind === "instance" && n.field === "label" && n.reason === "choice",
+    )!;
+
+    await a.gateway.api.manageConfigNotice({ id: name.id, action: "restore" });
     await wait(async () => (await instanceOf(a, Provider.CODEX, "work"))?.label === "Office");
     expect((await instanceOf(b, Provider.CODEX, "office"))?.label).toBe("Office");
 

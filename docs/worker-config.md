@@ -544,6 +544,14 @@ Patrz [agent-environment.md](agent-environment.md#marketplace-i-pluginy--protok�
 
 Codex ma logowanie w API app-servera: `account/login/start` z `chatgptDeviceCode` zwraca adres i jednorazowy kod. `StartProviderLogin` (instancja Codexa `native` z `own_login`, worker z capability `codex_device_login`) uruchamia krótko żyjący `codex app-server` z `CODEX_HOME` = katalog instancji; UI pokazuje kod i link („Continue with ChatGPT”), użytkownik potwierdza w dowolnej przeglądarce, Codex zapisuje `auth.json` w katalogu instancji, worker po `account/login/completed` (najwyżej 15 min) wysyła nowy `ConfigApplied` („Authenticated · ChatGPT”). Tokeny nie opuszczają katalogu Codexa. Claude Code nie ma logowania w API SDK: instancja Claude używa logowania urządzenia (`claude login` w swoim katalogu CLI), klucza w zmiennych albo endpointu.
 
+Pomoc **Sign in** w stanie konta korzysta z `ProviderAccountStatus.login_dir` i `login_executable`,
+wyznaczonych przez workera z efektywnej konfiguracji instancji i jego nadpisań. Dla własnego logowania
+to faktyczny izolowany dom; dla logowania urządzenia to źródłowy dom CLI, z którego dowiązywane jest
+logowanie. Polecenie ustawia `CLAUDE_CONFIG_DIR`, `CODEX_HOME` lub `GROK_HOME` i cytuje ścieżki
+dla systemu workera (Windows: PowerShell). Nie wykonuje polecenia ani nie przenosi plików logowania.
+Starszy worker bez tych pól wymaga odświeżenia/aktualizacji zamiast niepoprawnego polecenia bez katalogu.
+Odzyskanie po dawnym nadpisaniu przy linkowaniu: [linked-computers.md](linked-computers.md#odzyskanie-konfiguracji-po-nadpisaniu-przy-linkowaniu).
+
 ### 9.6. Migracja z profili per worker (`0018`)
 
 Każdy profil każdego workera staje się instancją każdego dostawcy, którego obsługiwał, **z tym samym id** (wątki dalej się rozwiązują). Pierwszy worker (po id) definiuje instancję; późniejszy worker z innym adresem, kluczem albo zmiennymi dostaje je jako swoje nadpisania; profil o tym samym id, ale innym rodzaju połączenia, dostaje instancję `<id>-<n>`, a wątki tego workera przechodzą na nią. `disabled` → wyłączona na tym workerze. Wybór modeli (`provider_model_selections`) → `hidden_models` / `shown_models` instancji (najnowszy), ulubione z ustawień użytkownika → `favorites`; tabela `provider_model_selections` jest usunięta. Na żywym stosie: `cliproxyapi` (oba dostawcy, CLI) i niejawne `native` → `claude/cliproxyapi`, `codex/cliproxyapi`, `claude/native`, `codex/native`; gateway po starcie zapisuje workerowi nową wersję z profilami per dostawca (test: `packages/db/test/global-providers.test.ts`).

@@ -273,7 +273,9 @@ przy bezpośrednim partnerze. `CreateComputerPairing` i `LinkComputer` przyjmuj�
 `ManageComputer` z akcją `share_config` zmienia lokalny wybór. Konfiguracja przechodzi dopiero
 po zgodzie obu stron. `ManageConfigNotice` (`restore`, `dismiss`), przez
 `PUT /api/computers/notices`, wymaga tokenu serwisowego BFF jak zarządzanie komputerami.
-Restore tworzy nową wspólną zmianę, Dismiss ukrywa notkę wyłącznie lokalnie.
+Restore tworzy nową wspólną zmianę, Dismiss ukrywa zwykłą notkę wyłącznie lokalnie.
+Powód `choice` oznacza nierozstrzygnięte wartości: Restore wybiera wersję partnera, a Dismiss
+zapisuje bieżącą jako nową wspólną zmianę (UI: Use the other’s / Keep this computer’s).
 Od etapu 2 to samo dotyczy instancji providerów, list modeli i proxy: zwykłe zapisy
 (`SaveProviderInstance`, `SetInstanceModels`, `SetInstanceWorkers`, `SaveProxy`, `DeleteProxy`, …) są wspólne,
 a ścieżki CLI i ustawienia workerów zostają na komputerze. `ConfigNotice.local_id` to id elementu na tym

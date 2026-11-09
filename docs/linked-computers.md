@@ -205,9 +205,10 @@ Rzeczy wykonawcze (wątki, boty z konfiguracją i rutynami, harmonogramy, sekret
 jeden dom ([model](#model-każda-rzecz-ma-dom)). Każdy komputer je widzi i edytuje zdalnie,
 ale nie są replikowane jako druga edytowalna kopia: kopia offline byłaby ukrytą kolejką pracy.
 
-- **Edycja wszędzie, bez pytań.** Wersje są per pole z hybrydowym zegarem logicznym; wygrywa
-  późniejsza zmiana. Współbieżnie nadpisana wartość trafia do historii, a UI pokazuje to przy
-  elemencie z akcją „Restore”. Nic nie znika po cichu i nic nie czeka na decyzję.
+- **Edycja wszędzie.** Wersje są per pole z hybrydowym zegarem logicznym i informacją o intencji
+  edycji. Nietknięte wartości startowe ustępują skonfigurowanym. Sprzeczne równoległe zmiany
+  ustawień konta, instancji i proxy czekają na jawny wybór w Linked computers; pozostałe rekordy
+  zachowują regułę późniejszej zmiany i historię z akcją „Restore”.
 - **Per łącze** można wyłączyć Share configuration (np. dla komputera służbowego). Konfiguracja przechodzi
   tylko łączami z włączonym udostępnianiem, także pośrednio; po wyłączeniu obie strony zachowują swoją kopię.
 - **Ustawienia workera** zapisuje wyłącznie gateway jego domu. Edycja z innego komputera to
@@ -1809,7 +1810,7 @@ Nie obejmował proxy, ustawień ogólnych, kompozytora, sidebara, CLI, ustawień
 opisuje jeden element. `kind` to rodzaj (`settings`, `instance`, `proxy`, `project`, `project_settings`,
 `worktree_policy`, `instruction`, `skill`, `plugin`, `marketplace`, `connector`, `oauth_app`, `worker`).
 `home_node_id` jest puste dla rekordu wspólnego, a dla rekordu workera wskazuje jego dom.
-`fields` to mapa pole → `{value, hlc, prev}`. Wartość sekretu zastępuje losowy token.
+`fields` to mapa pole → `{value, hlc, prev, edited?, seen?}`. Wartość sekretu zastępuje losowy token.
 `identity` to znormalizowany klucz scalania ([bootstrap](#bootstrap-i-scalanie-tożsamości)).
 
 **Id są ujednolicone, a mapowane tylko po scaleniu.** Element utworzony po połączeniu ma to samo id
@@ -1849,7 +1850,17 @@ całkowity i ten sam na każdym komputerze. Pola mają granulację wartości, kt
 ruchem: liść ustawień, nazwa instancji, cała lista ulubionych, zmienna po nazwie, nadpisanie selektora
 po uuid workera. Zmiana dwóch różnych pól jednego elementu nigdy nie jest konfliktem.
 
-`prev` to HLC wartości, którą autor widział przed zmianą. Odbiorca porównuje go z lokalnym HLC pola:
+`edited` odróżnia zmianę użytkownika od nietkniętej wartości domyślnej. Jawna zmiana wygrywa
+z taką wartością niezależnie od HLC. Powrót użytkownika do pustej lub domyślnej wartości jest
+zwykłą edycją (`edited=true`), a nie ponowną inicjalizacją. Znacznik jest częścią wersji pola,
+zachowywaną w `config_items.fields` i przesyłaną addytywnym `ConfigField.edited`.
+
+`prev` to HLC poprzedniej wartości. Dla ustawień konta, instancji i proxy pole `seen` zachowuje
+ostatnią zaobserwowaną wersję każdego autora tego pola. Samo porównanie czasów nie dowodzi,
+że drugi komputer widział naszą edycję: jego późniejszy bootstrap mógł powstać niezależnie.
+Zmiana następcza zawiera naszą wersję w `prev` lub `seen`. Dwie różne jawne wartości bez
+takiej zależności pozostają lokalnie bez zmian, z notką wymagającą wyboru. Nie wybiera domu,
+komputera zapraszającego ani nowszego łącza. HLC porządkuje równoważne wersje i pozostałe rodzaje rekordów:
 
 - `prev ≥` lokalny HLC: zmiana następcza; stosuje ją bez śladu;
 - przychodzący HLC wyższy, ale `prev` niższy: zmiana współbieżna; stosuje ją, a lokalną wartość
@@ -1871,7 +1882,9 @@ partnera od swojego kursora. Dom wysyła rekordy z rewizją powyżej kursora w p
 Potem utrzymuje strumień i wysyła zmiany na żywo (powiadomienie po commicie, najpóźniej co 250 ms).
 Brak kursora, inna epoka albo kursor z przyszłości oznaczają pełne wysłanie wszystkich rekordów.
 
-Scalanie jest idempotentne, przemienne i łączne (mapa LWW per pole), więc nie potrzebujemy dziennika zmian
+Scalanie zwykłych wersji jest idempotentne; nierozstrzygnięte wybory zachowują obie wersje lokalnie.
+Po jawnym wyborze nowa wersja potwierdza wszystkich znanych autorów i dochodzi do partnerów.
+Nie potrzebujemy dziennika zmian
 ani naprawy luk: wystarczy stan rekordów. Ponowienie partii po awarii niczego nie psuje, a kursor zapisujemy
 po zastosowaniu partii. Odbiorca przyjmujący zmianę nadaje rekordowi własną rewizję i publikuje go dalej.
 Echo do nadawcy niczego nie zmienia i nie podbija rewizji, więc grupa komputerów dochodzi do jednego stanu.
@@ -1935,7 +1948,15 @@ się komunikatem „This instance isn't on “Laptop B”. Choose one of its ins
 
 ### Konflikty i historia
 
-Pytania o wersję znikają. Edycja wszędzie pozostaje prosta, a dane nie giną po cichu:
+Niejednoznaczne edycje ustawień konta, instancji i proxy wymagają wyboru:
+
+- Odbiorca zachowuje swoją działającą wartość. Wersja partnera trafia do historii
+  z powodem `choice`, bez zmiany efektywnej konfiguracji tego pola. Sekrety pozostają zaszyfrowane.
+- Settings → Linked computers oraz notki przy elemencie pokazują **Keep this computer’s** i
+  **Use the other’s**. Obie akcje zapisują jawny wybór jako nową wspólną wersję. Zwykła edycja
+  tego pola również uwzględnia wszystkie otrzymane alternatywy. Notki przetrwają restart.
+
+Pozostałe rodzaje rekordów i historia wcześniejszych wersji zachowują dotychczasowe Restore/Dismiss:
 
 - `config_history(owner_user_id, kind, global_id, field, value, hlc, node_id, secret, superseded_at, state)`
   przechowuje każdą wartość przegraną współbieżnie. Wartość sekretu jest zaszyfrowana kluczem tego komputera.
@@ -1948,8 +1969,8 @@ Pytania o wersję znikają. Edycja wszędzie pozostaje prosta, a dane nie giną 
 Równość dotyczy wartości efektywnych: kolejność kluczy JSON nie ma znaczenia, aliasy tego samego
 proxy wskazują jedną rzecz, a sekret porównywany jest po odszyfrowanej wartości wyłącznie wewnątrz
 gatewaya. Losowy token wersji i szyfrogram odbiorcy nie są różnicą konfiguracji. Jawne wartości
-domyślne potwierdzenia usuwania i częstotliwości CLI odpowiadają brakowi nadpisania. HLC nadal
-rozstrzyga, która wersja pola wygrywa; równoważność usuwa tylko fałszywą notkę.
+domyślne potwierdzenia usuwania i częstotliwości CLI odpowiadają brakowi nadpisania. Przy równoważnych
+wartościach intencja i HLC rozstrzygają wersję pola; równoważność usuwa fałszywą notkę.
 
 Odczyt notek porównuje też zachowaną wartość z bieżącym polem. Gdy znów są równoważne, oznacza
 notkę jako obsłużoną, zachowując historię. Działa to również dla notek zapisanych przez starszą
@@ -1996,11 +2017,26 @@ przegrany komputer oznacza konto „needs reconnect”. Nowsza wersja poświadcz
 
 ### Bootstrap i scalanie tożsamości
 
-Pierwsza synchronizacja z partnerem to zwykłe pełne wysłanie. Elementy o tym samym globalnym id scalają się
-per pole. Singletony (ustawienia konta, wbudowane instancje `native`, projekt scratch) mają stałe klucze,
-więc też scalają się per pole. Istniejące dane dostają przy migracji HLC z `updated_at` swojego wiersza,
-a w razie jego braku z `created_at`. Bootstrap wybiera więc najnowszą zmianę, a starszą wartość zapisuje
-w historii z notką „Merged with Laptop B”.
+Pierwsza synchronizacja z partnerem to pełne wysłanie, z tymi samymi regułami intencji co kolejne rundy.
+Elementy o tym samym globalnym id scalają się per pole. Singletony (ustawienia konta, wbudowane instancje
+`native`, projekt scratch) mają stałe klucze. Nietknięte wartości konta i wbudowanych instancji są
+oznaczane `edited=false`; skonfigurowana strona wygrywa z nimi także przy późniejszym utworzeniu
+świeżego komputera, zmianie kierunku zaproszenia i restarcie. Lokalne zapisy zmienionych pól dostają
+`edited=true`. Nie ma komputera głównego ani priorytetu nowszego łącza.
+
+Starsze wersje bez znacznika są rozpoznawane zachowawczo: znana wartość domyślna singletonu bez `prev`
+jest nietknięta; pozostałe wartości traktujemy jako skonfigurowane. Brak historii intencji nie pozwala
+odtworzyć dawnego świadomego resetu. Warto zaktualizować oba komputery przed ponownym włączeniem
+Share configuration; starszy gateway nadal stosuje swoje dawne reguły. Znaczniki i `seen` mieszczą się
+w istniejącym JSONB rekordów. Migracja **0110_config_field_ancestry** dodaje `config_history.ancestry`,
+aby jawny wybór zachował również przechodnich autorów alternatywy po restarcie i przekazaniu przez
+trzeci komputer. Starsze wpisy historii mają pustą ancestry i nadal można je przywrócić.
+
+Ścieżki CLI, `homePath`, `shadowHomePath`, pliki logowania i magazyn systemowy logowania pozostają
+na komputerze wykonującym CLI. Definicja instancji (w tym argumenty i wybór własnego logowania)
+jest wspólna, ale `ownLogin` nie przenosi żadnego logowania. Włączenie i nadpisania konkretnego
+workera stosuje tylko jego dom; kopia rekordu workera u partnera nigdy nie staje się konfiguracją
+lokalnego workera. Zmienne wskazujące domy CLI są zastrzeżone i nie są zwykłymi zmiennymi instancji.
 
 Elementy o różnych id, ale tej samej **tożsamości**, stają się jednym elementem. Scalenie jest deterministyczne:
 kanoniczne id to mniejsze, drugie jest aliasem, a pola scalają się per pole. Każdy komputer liczy ten sam
@@ -2021,6 +2057,27 @@ wynik niezależnie, także później, gdy taki element powstanie offline na dwó
 
 Inny klucz przy tym samym endpoincie oznacza dwa konta, więc elementy pozostają osobne. Różna treść skilla,
 instrukcji albo pluginu o tej samej tożsamości nie ginie: przegrana treść staje się kolejną wersją elementu.
+
+### Odzyskanie konfiguracji po nadpisaniu przy linkowaniu
+
+Wcześniejszy bootstrap używał wyłącznie `updated_at`, więc świeży `native` mógł zastąpić nazwę,
+rodzaj połączenia, argumenty lub `ownLogin` działającej instancji. Same ścieżki zostawały lokalne.
+Utrata `ownLogin` mogła przy ponownym przygotowaniu domu usunąć lokalny plik logowania instancji,
+jeżeli worker próbował zamiast niego dowiązać nieistniejący login urządzenia.
+
+1. Zaktualizuj oba komputery. Na komputerze z uszkodzoną instancją otwórz Settings → Linked computers.
+2. W zachowanych notkach **Merged with …** / **Changed on two computers** przywróć pola instancji
+   przez **Restore** (historia jest lokalna i wygasa po 90 dniach). Sekret jest widoczny wyłącznie
+   jako „A different key”; Restore korzysta z zachowanego szyfrogramu.
+3. W Settings → Providers wybierz instancję i właściwego workera. Sprawdź rodzaj połączenia,
+   własne logowanie oraz lokalne ścieżki i nadpisania. Bez historii trzeba je ustawić ręcznie.
+4. Odśwież stan konta. **Sign in** pokazuje polecenie z katalogiem logowania i plikiem CLI
+   zgłoszonym przez tego workera: dla własnego logowania to izolowany dom instancji, dla logowania
+   urządzenia to źródłowy dom CLI. Windows używa PowerShell. Przycisk w błędzie tury otwiera tę
+   instancję i workera; nie wykonuje logowania automatycznie. Po zalogowaniu odśwież i wybierz **Retry**.
+
+Historia konfiguracji nie zawiera plików logowania Claude ani tokenów z pęku kluczy. Jeżeli plik został
+usunięty, przywrócenie `ownLogin` nie odzyska jego zawartości: wymagane jest ponowne logowanie.
 
 ### Projekty jako tożsamość
 

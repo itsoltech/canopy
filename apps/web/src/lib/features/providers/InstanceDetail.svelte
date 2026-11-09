@@ -137,6 +137,7 @@
               harness={instance.harness}
               id={instance.id}
               online={worker.online}
+              os={worker.os}
               onupdated={() => providers.reload()}
             />
           </dd>{/if}
@@ -171,6 +172,7 @@
                   harness={instance.harness}
                   id={instance.id}
                   online={onlineOf(w.workerId)}
+                  os={workers.find((worker) => worker.id === w.workerId)?.os ?? ""}
                   onupdated={() => providers.reload()}
                 />
               </div>{/if}

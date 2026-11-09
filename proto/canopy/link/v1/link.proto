@@ -122,6 +122,10 @@ message ConfigField {
   string prev = 3;
   // Reserved for kinds carrying secrets; never exposed by UI messages.
   optional string secret = 4;
+  // False for untouched bootstrap defaults. Absent on older peers.
+  optional bool edited = 5;
+  // Latest observed version of this field per author; timestamps alone do not prove ancestry.
+  repeated string seen = 6;
 }
 message ConfigItem {
   string kind = 1;
