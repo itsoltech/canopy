@@ -15,6 +15,9 @@ export const PEER_CONNECT_TIMEOUT_MS = 5000;
 export const PEER_HANDSHAKE_TIMEOUT_MS = 8000;
 export const PEER_IDLE_CONNECTION_TIMEOUT_MS = 1000;
 export const PEER_MUTATION_TIMEOUT_MS = 30_000;
+export const PEER_WATCH_HEARTBEAT_MS = 5000;
+export const PEER_WATCH_TIMEOUT_MS = 15_000;
+export const PEER_WATCH_LEGACY_PROBE_MS = 30_000;
 
 /** Explicit operations can be slow without delaying any local list or page. */
 export const PEER_LONG_CALL_TIMEOUTS = new Map([

@@ -7,6 +7,7 @@ import { deltaFrames, mirrorThreadSnapshot, safeOverview, snapshotFrames } from 
 import { linkedMessage, methodNamed, qualify, type RemoteServe } from "./remote.ts";
 import type { ComputerStore } from "./store.ts";
 import { MirrorFrames } from "./mirror-frames.ts";
+import { PEER_WATCH_HEARTBEAT_MS } from "./timing.ts";
 
 export { commitMirrorUpdate, type State } from "./mirror-persistence.ts";
 
@@ -108,7 +109,13 @@ export class ThreadMirror {
   }
 
   /** One subscription per peer. Reset frames are staged; only a checkpoint changes visible data. */
-  async consume(node: string, updates: AsyncIterable<Message>, notify: () => void, signal: AbortSignal) {
+  async consume(
+    node: string,
+    updates: AsyncIterable<Message>,
+    notify: () => void,
+    signal: AbortSignal,
+    confirmed: () => void = () => {},
+  ) {
     // A revoked relay home is re-inserted as a callback-only origin in the same catalog
     // transaction that purged its mirror. A late subscription must not recreate it.
     await this.store.query(
@@ -137,6 +144,28 @@ export class ThreadMirror {
       for await (const message of updates) {
         if (signal.aborted) return;
         let update = linkedMessage(link.MirrorUpdateSchema, message);
+
+        if (update.heartbeat) {
+          if (
+            resetting ||
+            frames.pending ||
+            update.cursor !== state.cursor ||
+            update.previousCursor !== state.cursor ||
+            update.reset ||
+            update.commit ||
+            update.snapshot ||
+            update.delta ||
+            update.overview ||
+            update.snapshotStart ||
+            update.snapshotEnd ||
+            update.deltaStart ||
+            update.deltaEnd ||
+            update.removedThreadId
+          )
+            throw mismatch();
+          confirmed();
+          continue;
+        }
 
         if (update.reset) {
           if (
@@ -218,6 +247,7 @@ export class ThreadMirror {
     request: link.MirrorRequest,
     serve: RemoteServe,
     signal: AbortSignal,
+    heartbeatMs = PEER_WATCH_HEARTBEAT_MS,
   ): AsyncGenerator<link.MirrorUpdate> {
     const { owner } = this.store;
     await this.store.query("INSERT INTO computer_thread_clock(owner_user_id) VALUES($1::uuid) ON CONFLICT DO NOTHING", [
@@ -253,6 +283,7 @@ export class ThreadMirror {
     const snapshot = (id: string, cursor = "") => mirrorThreadSnapshot(this, one, owner, id, cursor);
 
     let cursor = request.cursor;
+    let lastHeartbeat = 0;
 
     while (!signal.aborted) {
       const head = await clock();
@@ -323,6 +354,11 @@ export class ThreadMirror {
           yield create(link.MirrorUpdateSchema, { previousCursor: cursor, cursor: cursorOf(head), commit: true });
           cursor = cursorOf(head);
         }
+      }
+
+      if (request.heartbeat && Date.now() - lastHeartbeat >= heartbeatMs) {
+        yield create(link.MirrorUpdateSchema, { heartbeat: true, previousCursor: cursor, cursor });
+        lastHeartbeat = Date.now();
       }
 
       // Retain 10,000 invalidations, independently of full timeline retention in mirrors.

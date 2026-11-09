@@ -8,6 +8,7 @@ export const REMOTE_THREADS = "remote_threads";
 export const REMOTE_WORKTREES = "remote_worktrees";
 export const THREAD_MIRROR = "thread_mirror";
 export const THREAD_MIRROR_DELTA = "thread_mirror_delta";
+export const THREAD_WATCH_LIVENESS = "thread_watch_liveness";
 export const REMOTE_BOTS = "remote_bots";
 export const AGENT_BUS = "agent_bus";
 

@@ -96,6 +96,14 @@ export async function computersComputerMessage(hostContext: LinkedComputers, pee
     }
   }
 
+  const stale = hostContext[computersState].staleMirrors.get(peer.node_id);
+
+  if (stale && result.status === "connected") {
+    result.status = "unreachable";
+    result.statusSinceMs = BigInt(stale);
+    result.unavailableReason = `${result.displayName || result.name} is reconnecting. Try again in a moment.`;
+  }
+
   return result;
 }
 

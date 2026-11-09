@@ -76,14 +76,15 @@ export async function* mirrorFirst(
   for await (const message of send(outbound)) {
     const update = linkedMessage(ui.ThreadUpdateSchema, message);
 
-    if (update.change.case === "delta") {
-      if (!initial || update.change.value.baseCursor !== held.cursor)
+    if (update.change.case === "delta" && initial) {
+      if (update.change.value.baseCursor !== held.cursor)
         throw new ConnectError("Thread mirror cursor mismatch", Code.DataLoss);
       yield create(ui.ThreadUpdateSchema, {
         change: { case: "snapshot", value: applyThreadDelta(snapshot, update.change.value) },
       });
     } else yield update;
-    initial = false;
+
+    if (update.change.case) initial = false;
   }
 
   return true;

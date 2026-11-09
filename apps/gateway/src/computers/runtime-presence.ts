@@ -19,6 +19,7 @@ import {
   REMOTE_THREADS,
   THREAD_MIRROR,
   THREAD_MIRROR_DELTA,
+  THREAD_WATCH_LIVENESS,
   INLINE_ATTACHMENTS,
 } from "@canopy/domain/computers";
 
@@ -77,6 +78,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
               "remote_worktrees",
               THREAD_MIRROR,
               THREAD_MIRROR_DELTA,
+              THREAD_WATCH_LIVENESS,
               REMOTE_BOTS,
               AGENT_BUS,
               RELAY,

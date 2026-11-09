@@ -1050,6 +1050,8 @@ message WatchThreadRequest {
   string history_version = 806;
   // Inclusive oldest loaded turn on resume; full-snapshot fallback keeps this window.
   string from_turn_id = 807;
+  // Internal linked subscription, negotiated by thread_watch_liveness.
+  bool watch_liveness = 808;
 }
 
 message ThreadSnapshot {
@@ -1087,6 +1089,8 @@ message ThreadEventUpdate {
 message ThreadUpdate {
   // The snapshot is a local mirror; the home's current state is still pending.
   bool syncing = 800;
+  // Internal idle heartbeat: current durable owner journal, independent of live fan-out.
+  string watch_cursor = 808;
   oneof change {
     ThreadSnapshot snapshot = 1;
     ThreadEventUpdate event = 2;

@@ -12,6 +12,7 @@ import { ConfigIds } from "./routed-config.ts";
 import { mapProjectIds } from "../config-sync/project-aliases.ts";
 import { mirrorFirst, offlineThread } from "./routed-thread-mirror.ts";
 import { announcedDeparture } from "@canopy/domain/computer-presence";
+import { watchRemoteThread } from "../computers/thread-watch.ts";
 
 export async function peerOf(core: GatewayCore, ref: string, method?: DescMethod, request?: Message) {
   if (!core.computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
@@ -228,7 +229,12 @@ async function* send(
   unqualify(method.input, outbound, nodeId, new Set([...(await ids.projects()).known, ...(await ids.proxies()).known]));
   await ids.map(method.input, outbound, "toGlobal", true);
 
-  for await (const message of computers.remote(nodeId, method, outbound, signal)) {
+  const responses =
+    method.name === "WatchThread"
+      ? watchRemoteThread(computers, nodeId, linkedMessage(ui.WatchThreadRequestSchema, outbound), signal)
+      : computers.remote(nodeId, method, outbound, signal);
+
+  for await (const message of responses) {
     await ids.map(method.output, message, "toLocal");
     qualify(method.output, message, nodeId);
     yield message;
