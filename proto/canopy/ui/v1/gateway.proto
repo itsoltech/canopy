@@ -1008,6 +1008,8 @@ message SendMessageRequest {
 }
 
 message SendMessageResponse {
+  // Powód zastępczej kolejki podany przez gateway pośredniczący starszego domu wątku.
+  string delivery_note = 244;
   // Wiadomość jako tura (kolejka, także steer bez tury w toku).
   Turn turn = 1;
   // Wiadomość dołączona do tury w toku (delivery = STEER).
@@ -1474,6 +1476,8 @@ enum MessageDelivery {
 // w miejscu, w którym weszła.
 message Steer {
   string id = 1;
+  // Pliki tej wiadomości, także gdy jest dopiero dostarczana do trwającej tury.
+  repeated Attachment attachments = 243;
   optional string shell_command = 240;
   canopy.worker.v1.ShellResult shell_result = 241;
   string input_text = 242;

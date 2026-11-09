@@ -1,6 +1,14 @@
 import { clone, create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { bots, MentionKind, MentionSchema, ui, type Mention } from "@canopy/contracts";
-import { INLINE_ATTACHMENTS, nodeRef, qualifyId, REMOTE_BOTS, splitId, THREAD_MIRROR } from "@canopy/domain/computers";
+import {
+  INLINE_ATTACHMENTS,
+  STEER_ATTACHMENTS,
+  nodeRef,
+  qualifyId,
+  REMOTE_BOTS,
+  splitId,
+  THREAD_MIRROR,
+} from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Match } from "effect";
@@ -235,6 +243,15 @@ async function* send(
       : computers.remote(nodeId, method, outbound, signal);
 
   for await (const message of responses) {
+    if (method.name === "SendMessage" && !computers.capabilities(nodeId).includes(STEER_ATTACHMENTS)) {
+      const sent = linkedMessage(ui.SendMessageRequestSchema, outbound);
+      const response = linkedMessage(ui.SendMessageResponseSchema, message);
+
+      if (sent.delivery === ui.MessageDelivery.STEER && sent.attachmentIds.length > 0 && response.turn)
+        response.deliveryNote =
+          "This computer cannot steer messages with files yet. Your message runs as the next turn.";
+    }
+
     await ids.map(method.output, message, "toLocal");
     qualify(method.output, message, nodeId);
     yield message;

@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui, type CommandResult } from "@canopy/contracts";
-import { Effect } from "effect";
+import { Effect, Match } from "effect";
 import { mentionsFromJson } from "./mentions.ts";
 import { NotFound, SteerStore, toUiDelivery, toUiSteer, toUiTurn, turnEffort } from "../store/index.ts";
 import { checkedQuotes } from "./quotes.ts";
@@ -55,6 +55,15 @@ export async function coreSendSteer(hostContext: GatewayCore, steerId: string): 
             authorUserId: steer.author_user_id ?? "",
             authorAgentId: steer.source_thread_id ?? "",
             mentions: mentionsFromJson(steer.input.delivered),
+            attachments: (steer.input.attachments ?? []).map((a) => ({
+              attachmentId: a.id,
+              sha256: a.sha256,
+              sizeBytes: BigInt(a.sizeBytes),
+              mimeType: a.mimeType,
+              name: a.name,
+              path: a.path,
+              kind: a.kind,
+            })),
           },
         },
       },
@@ -83,10 +92,13 @@ export async function coreSteerAnswered(
     return;
   }
 
-  const reason =
-    result.errorCode === "STEER_NOT_RUNNING"
-      ? "the turn ended before the message could join it"
-      : `the provider did not take the message into the running turn: ${result.errorMessage || result.errorCode}`;
+  const reason = Match.value(result.errorCode).pipe(
+    Match.when("STEER_ATTACHMENTS_UNSUPPORTED", () => result.errorMessage),
+    Match.when("STEER_NOT_RUNNING", () => "the turn ended before the message could join it"),
+    Match.orElse(
+      () => `the provider did not take the message into the running turn: ${result.errorMessage || result.errorCode}`,
+    ),
+  );
 
   await coreQueueSteer(hostContext, steerId, reason);
   await hostContext.pump(threadId);
@@ -228,36 +240,6 @@ export const coreMessagesMethods: CoreMessagesMethods = {
     const permissionMode = checkedPermissionMode(request.permissionMode);
     coreCheckFullAccess(this, thread.worker_id, request.permissionMode);
 
-    // A message with attachments is always the next turn: its files go to the worker before the turn starts.
-    // Quotes travel in the text (their note), so a message with quotes steers like any other.
-    if (request.delivery === ui.MessageDelivery.STEER && !files) {
-      const running = await coreRun(this, (s) => s.steerTarget(threadId));
-
-      if (running && thread.worker_id) {
-        const steerInput =
-          linked?.input ?? shell ?? coreComposeInput(this, thread.provider, request.text, mentions, undefined, quotes);
-
-        const steer = await coreSteers(this, (s) =>
-          s.create({
-            threadId,
-            turnId: running.id,
-            text: request.text,
-            userId: this[coreState].options.userId,
-            clientRequestId,
-            model: request.model,
-            effort: request.effort,
-            permissionMode,
-            ...(linked && { linked }),
-            ...(steerInput && { input: { ...steerInput, text: steerInput.text ?? request.text } }),
-          }),
-        );
-
-        await coreSendSteer(this, steer.id);
-
-        return { steer: toUiSteer(await coreSteers(this, (s) => s.steer(steer.id))) };
-      }
-    }
-
     const input =
       linked?.input ??
       shell ??
@@ -269,6 +251,35 @@ export const coreMessagesMethods: CoreMessagesMethods = {
         files?.input(threadId, request.text, mentions),
         quotes,
       );
+
+    if (request.delivery === ui.MessageDelivery.STEER) {
+      const running = await coreRun(this, (s) => s.steerTarget(threadId));
+
+      if (running && thread.worker_id) {
+        const steer = await this[coreState].actions.transaction(async () => {
+          const created = await coreSteers(this, (s) =>
+            s.create({
+              threadId,
+              turnId: running.id,
+              text: request.text,
+              userId: this[coreState].options.userId,
+              clientRequestId,
+              model: request.model,
+              effort: request.effort,
+              permissionMode,
+              ...(linked && { linked }),
+              ...(input && { input: { ...input, text: input.text ?? request.text } }),
+            }),
+          );
+
+          await coreSendSteer(this, created.id);
+
+          return created;
+        });
+
+        return { steer: toUiSteer(await coreSteers(this, (s) => s.steer(steer.id))) };
+      }
+    }
 
     const turn = await coreEnqueueTurn(this, {
       threadId,

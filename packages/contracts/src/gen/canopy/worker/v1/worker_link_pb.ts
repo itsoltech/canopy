@@ -1839,7 +1839,8 @@ export type UserInput = Message<"canopy.worker.v1.UserInput"> & {
 
   /**
    * Pliki dołączone do wiadomości. Tekst zawiera już notatkę platformy z ich ścieżkami; worker zapisuje
-   * każdy plik pod path (pobiera bajty przez FetchBlob, sprawdza sha256) przed przekazaniem tury dostawcy.
+   * każdy plik pod path (pobiera bajty przez FetchBlob, sprawdza sha256) przed przekazaniem wejścia dostawcy.
+   * SteerTurn z plikami wymaga capability steer_attachments_v1; po zapisie worker ponownie sprawdza turę.
    *
    * @generated from field: repeated canopy.worker.v1.InputAttachment attachments = 4;
    */

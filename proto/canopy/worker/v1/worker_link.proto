@@ -512,7 +512,8 @@ message UserInput {
   string author_user_id = 2;
   string author_agent_id = 3;
   // Pliki dołączone do wiadomości. Tekst zawiera już notatkę platformy z ich ścieżkami; worker zapisuje
-  // każdy plik pod path (pobiera bajty przez FetchBlob, sprawdza sha256) przed przekazaniem tury dostawcy.
+  // każdy plik pod path (pobiera bajty przez FetchBlob, sprawdza sha256) przed przekazaniem wejścia dostawcy.
+  // SteerTurn z plikami wymaga capability steer_attachments_v1; po zapisie worker ponownie sprawdza turę.
   repeated InputAttachment attachments = 4;
   // Wzmianki w tekście (numery od 140, docs/protocol.md#wzmianki): komendy, skille, pluginy, pliki, wątki.
   // Zakresy dotyczą tego tekstu (już z notatką platformy i przepisaniem dla dostawcy, które zrobił gateway).

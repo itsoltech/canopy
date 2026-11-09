@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { Provider, ProviderProfileKind } from "@canopy/contracts";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDirs } from "@canopy/testing";
+import { STEER_ATTACHMENTS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { journalHello, openGatewayLink, resendPending } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
 import { WorkerHost, serveLink, type WorkerHostOptions } from "@canopy/worker/runtime";
@@ -36,6 +37,7 @@ export async function startInstanceFixture(
   gatewayOptions: Parameters<typeof startTestGateway>[0] = {},
   workerOptions: Pick<WorkerHostOptions, "shellTimeoutMs"> = {},
   shellCapability = true,
+  steerAttachments = true,
 ) {
   const restoreEnv = isolateProviderEnv();
   const dir = tempDir("canopy-instance-switch-");
@@ -85,12 +87,19 @@ export async function startInstanceFixture(
 
   let host = createHost();
 
+  const capabilities = [
+    "bot_harness_v1",
+    "attachments",
+    ...(shellCapability ? ["shell_input_v1"] : []),
+    ...(steerAttachments ? [STEER_ATTACHMENTS_CAPABILITY] : []),
+  ];
+
   let link = await openGatewayLink({
     baseUrl: gw.grpcUrl,
     credential: added.credential,
     hello: {
       workerId: added.workerId,
-      capabilities: ["bot_harness_v1", "attachments", ...(shellCapability ? ["shell_input_v1"] : [])],
+      capabilities,
       attachmentsRoot: host.attachmentsRoot,
       environmentKind: "desktop",
       ...(await runtime.runPromise(journalHello())),
@@ -251,7 +260,7 @@ export async function startInstanceFixture(
         credential: added.credential,
         hello: {
           workerId: added.workerId,
-          capabilities: ["bot_harness_v1", "attachments", ...(shellCapability ? ["shell_input_v1"] : [])],
+          capabilities,
           attachmentsRoot: host.attachmentsRoot,
           environmentKind: "desktop",
           ...(await runtime.runPromise(journalHello())),
@@ -285,7 +294,7 @@ export async function startInstanceFixture(
         credential: added.credential,
         hello: {
           workerId: added.workerId,
-          capabilities: ["bot_harness_v1", "attachments", ...(shellCapability ? ["shell_input_v1"] : [])],
+          capabilities,
           attachmentsRoot: host.attachmentsRoot,
           environmentKind: "desktop",
           runningTurns: host.runningTurns(),

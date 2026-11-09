@@ -191,8 +191,7 @@
 
   const stopMode = $derived(Boolean(onstop) && !hasContent);
 
-  // Files go with the next turn: a message with them is never steered.
-  const steerMode = $derived(Boolean(onqueue) && !stopMode && (Boolean(value.trim()) || elementCount > 0) && !hasFiles);
+  const steerMode = $derived(Boolean(onqueue) && !stopMode && hasContent);
   let dragging = $state(false);
   const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes("Files") ?? false;
 

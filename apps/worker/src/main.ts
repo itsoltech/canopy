@@ -6,6 +6,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { ManagedRuntime, Result } from "effect";
 import { WorkerState } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
+import { STEER_ATTACHMENTS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig } from "./config/local.ts";
 import { resolveWorktreeRoots, type WorktreeRoots } from "./git/worktree-roots.ts";
 import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
@@ -323,6 +324,7 @@ while (!stopping.signal.aborted) {
           "provider_account_status",
           "running_turns",
           "attachments",
+          STEER_ATTACHMENTS_CAPABILITY,
           "probe_providers",
           "codex_device_login",
           "generate_text",

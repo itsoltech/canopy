@@ -10,7 +10,7 @@ import type { Client } from "@connectrpc/connect";
 import { create } from "@bufbuild/protobuf";
 import { ItemStatus, MentionKind, MentionSchema, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { AttachmentStore, GatewayStore } from "@canopy/gateway/store";
+import { AttachmentStore, GatewayStore, SteerStore } from "@canopy/gateway/store";
 import sharp from "sharp";
 import {
   eventually,
@@ -279,7 +279,7 @@ describe.skipIf(!dockerAvailable)("attachments", () => {
       ).toContain("unknown attachment");
     });
 
-    test("a steer with attachments runs as the next turn", async () => {
+    test("a worker without attachment steer support queues the message with a reason", async () => {
       const thread = await newThread("Steer");
       worker.holdTurns = true;
       const first = await api.sendMessage({ threadId: thread.id, text: "work", clientRequestId: "st-1" });
@@ -297,8 +297,14 @@ describe.skipIf(!dockerAvailable)("attachments", () => {
         delivery: ui.MessageDelivery.STEER,
       });
 
-      expect(steered.steer).toBeUndefined();
-      expect(steered.turn?.status).toBe("queued");
+      const fallback = await eventually(
+        () => gw.runtime.runPromise(SteerStore.use((s) => s.steer(steered.steer!.id))),
+        (s) => s.status === "queued",
+      );
+
+      expect(fallback.status).toBe("queued");
+      expect(fallback.reason).toContain("This worker cannot steer messages with files yet");
+      expect(fallback.input.attachments?.map((a) => a.id)).toEqual([file.id]);
       worker.holdTurns = false;
       worker.finish(thread.id, first.turn!.id);
     });

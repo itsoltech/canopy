@@ -4,7 +4,9 @@ import { ui } from "@canopy/contracts";
 import { Context, Effect, Layer } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { toUiQuote, type StoredQuote } from "./quotes.ts";
-import { NotFound, toUiSender, type SenderColumns, type TurnRow } from "./store.ts";
+import { Invalid, NotFound, toUiSender, type SenderColumns, type TurnRow } from "./store.ts";
+import { toUiAttachment } from "./attachments.ts";
+import { createSteer } from "./steer-create.ts";
 import { mentionsFromJson, type StoredMentions } from "../core/mentions.ts";
 import { storedShellResult } from "./shell-input.ts";
 
@@ -24,7 +26,10 @@ export interface SteerRow {
   turn_id: string;
   /** text = what the model gets; with quotes, note (the quotes) + message (the user's text) for the UI. */
   input: { text: string; note?: string; message?: string; quotes?: StoredQuote[] } & StoredMentions &
-    Pick<TurnRow["input"], "sender" | "sourceKind" | "sourceStatus" | "shellCommand" | "shellInputId" | "shellResult">;
+    Pick<
+      TurnRow["input"],
+      "attachments" | "sender" | "sourceKind" | "sourceStatus" | "shellCommand" | "shellInputId" | "shellResult"
+    >;
   author_user_id: string | null;
   agent_call_id: string | null;
   bot_call_id?: string | null;
@@ -51,7 +56,7 @@ export interface SteerRow {
   background_item_ids?: string[] | null;
 }
 
-type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound>;
+type Fx<A> = Effect.Effect<A, SqlError.SqlError | NotFound | Invalid>;
 
 export class SteerStore extends Context.Service<
   SteerStore,
@@ -128,22 +133,7 @@ export class SteerStore extends Context.Service<
               return rows.length > 0 ? yield* action : undefined;
             }),
           ),
-        create: ({ threadId, turnId, text, userId, clientRequestId, model, effort, permissionMode, input, linked }) =>
-          Effect.gen(function* () {
-            const id = Bun.randomUUIDv7();
-
-            const rows = yield* sql<{ id: string }>`
-              INSERT INTO turn_steers (id, thread_id, turn_id, input, author_user_id, client_request_id, model, effort, permission_mode, linked_call_id, hops)
-              VALUES (${id}::uuid, ${threadId}::uuid, ${turnId}::uuid, ${JSON.stringify(input ?? { text })}::jsonb, ${linked ? null : userId}::uuid,
-                      ${clientRequestId || null}, ${model}, ${effort}, ${permissionMode}, ${linked?.callId ?? null}::uuid, ${linked?.hops ?? 0})
-              ON CONFLICT (thread_id, client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING
-              RETURNING id`;
-
-            if (rows[0]) return yield* one(rows[0].id);
-            const existing = yield* store.byClientRequest(threadId, clientRequestId);
-
-            return existing ?? (yield* Effect.fail(new NotFound("steer not found")));
-          }),
+        create: (input) => createSteer(sql, input).pipe(Effect.flatMap(one)),
 
         byClientRequest: (threadId, clientRequestId) =>
           clientRequestId
@@ -221,6 +211,10 @@ export class SteerStore extends Context.Service<
 
               const turn = rows[0]!;
 
+              if (steer.input.attachments?.length)
+                yield* sql`UPDATE attachments SET turn_id = ${turn.id}::uuid
+                  WHERE thread_id = ${steer.thread_id}::uuid AND id = ANY(${steer.input.attachments.map((a) => a.id)}::uuid[])`;
+
               if (steer.linked_call_id)
                 yield* sql`UPDATE computer_agent_calls SET target_turn_id=${turn.id}::uuid WHERE target_steer_id=${id}::uuid AND direction='incoming' AND NOT detached`;
               yield* sql`
@@ -262,6 +256,7 @@ export function toUiSteer(row: SteerRow & SenderColumns): ui.Steer {
     sourceThreadId: sender?.threadId || row.source_thread_id || "",
     fromTurnId: row.from_turn_id ?? "",
     quotes: (row.input.quotes ?? []).map(toUiQuote),
+    attachments: (row.input.attachments ?? []).map(toUiAttachment),
     mentions: mentionsFromJson(row.input.mentions),
     backgroundItemIds: row.background_item_ids ?? [],
     ...(sender && { sender }),

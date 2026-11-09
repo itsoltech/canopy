@@ -227,9 +227,6 @@ export class QueueStore extends Context.Service<
             Effect.gen(function* () {
               const turn = yield* lockUserMessage(sql, turnId, ownerUserId);
 
-              if ((turn.input.attachments ?? []).length > 0)
-                return yield* Effect.fail(new Invalid("a message with attachments runs as its own turn"));
-
               const running = yield* sql<{ id: string; worker_id: string | null }>`
                 SELECT u.id, t.worker_id FROM turns u JOIN threads t ON t.id = u.thread_id
                  WHERE u.thread_id = ${turn.thread_id}::uuid AND u.status = 'running'`;

@@ -44,7 +44,8 @@
   {@const message = row.node.entry.item.content.value}
   <!-- An agent's steer: its own text (the agent got it after a platform note naming the sender) and who sent it. -->
   <UserMessageView
-    message={steer?.quotes.length || steer?.sender ? { ...message, text: steer.text } : message}
+    message={steer ? { ...message, text: steer.text, mentions: steer.mentions } : message}
+    files={steer?.attachments ?? []}
     quotes={steer?.quotes ?? []}
     note={STEERED}
     sender={steer?.sender}

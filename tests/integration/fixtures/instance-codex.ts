@@ -200,6 +200,14 @@ for await (const line of createInterface({ input: process.stdin })) {
       turn: { id: params.turnId, status: "interrupted", items: [], error: null },
     });
   } else if (request.method === "turn/steer") {
+    recordInput(
+      "codex",
+      params.input.map((i: { type: string; text?: string; path?: string }) => ({
+        type: i.type,
+        text: i.text,
+        image: i.path?.split("/").pop(),
+      })),
+    );
     const text = params.input.map((part: { text?: string }) => part.text ?? "").join("\n");
     send({ id, result: { turnId: params.expectedTurnId } });
     notify("item/completed", {

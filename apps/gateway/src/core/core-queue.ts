@@ -127,13 +127,15 @@ export const coreQueueMethods: CoreQueueMethods = {
 
   /** A queued message into the running turn now; when it cannot join, its turn is back at its place (SteerStore.queue). */
   async steerQueuedTurn(this: GatewayCore, turnId: string): Promise<{ steer: ui.Steer; turn: ui.Turn }> {
-    const { steer, turn } = await coreQueue(this, (q) =>
-      q.steer({ turnId, ownerUserId: this[coreState].options.userId }),
-    );
+    return this[coreState].actions.transaction(async () => {
+      const { steer, turn } = await coreQueue(this, (q) =>
+        q.steer({ turnId, ownerUserId: this[coreState].options.userId }),
+      );
 
-    const update = await corePublishQueued(this, turn);
-    await coreSendSteer(this, steer.id);
+      const update = await corePublishQueued(this, turn);
+      await coreSendSteer(this, steer.id);
 
-    return { steer: toUiSteer(await coreSteers(this, (s) => s.steer(steer.id))), turn: update };
+      return { steer: toUiSteer(await coreSteers(this, (s) => s.steer(steer.id))), turn: update };
+    });
   },
 };

@@ -4,6 +4,9 @@ export const WORKER_LINK_PROTOCOL = 1;
 /** Protocol 0 (before negotiation) is deliberately incompatible. Recovery uses UpdateService. */
 export const MIN_WORKER_LINK_PROTOCOL = 1;
 
+/** Additive WorkerLink capability: write and verify attachments before invoking a running turn's steer. */
+export const STEER_ATTACHMENTS_CAPABILITY = "steer_attachments_v1";
+
 /** Frozen canopy.update.v1; never bump this for WorkerLink or application releases. */
 export const UPDATE_PROTOCOL = 1;
 
