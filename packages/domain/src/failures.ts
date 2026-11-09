@@ -9,6 +9,7 @@ export const FAILURE_CODES = [
   "process_exit",
   "configuration",
   "connection_changed",
+  "tool_approval",
   "provider_unavailable",
   "internal",
 ] as const;

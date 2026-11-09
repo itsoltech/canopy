@@ -10,6 +10,7 @@ import type { BotRow, BotTurn, ModelMessage, StoredCall, ToolResult, ToolSpec } 
 import { approvalView, botConfiguration, uuid, type ApprovalRow } from "./store-views.ts";
 import type { BotCore } from "./store-queue.ts";
 import { botRules } from "./store-rules.ts";
+import { BOT_APPROVAL_OPTIONS } from "@canopy/domain/bot-chat";
 
 function requireWaitingHarness(sql: SqlClient.SqlClient, turnId: string) {
   return Effect.gen(function* () {
@@ -216,7 +217,7 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
               `Model: ${config.model}`,
               `Effort: ${config.effort || "Model default"}`,
               `Instance: ${config.provider === Provider.CLAUDE ? "Claude" : "Codex"} · ${config.providerInstance}`,
-              `Approval policy: ${config.approvalPolicy}`,
+              `Ask for approval: ${BOT_APPROVAL_OPTIONS.find((option) => option.value === config.approvalPolicy)?.label ?? BOT_APPROVAL_OPTIONS[0]!.label}`,
               `Instructions: ${config.instructions || "No additional instructions."}`,
             ].join("\n");
           }

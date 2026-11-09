@@ -8,6 +8,7 @@ import { statSync } from "node:fs";
 import { botPrompt } from "./session.ts";
 import type { BotHarnessContext } from "./types.ts";
 import { BotHarnessFailure } from "./types.ts";
+import { rejectBotToolApproval } from "./failures.ts";
 
 /** Official Claude SDK, with an empty built-in tool set and only Canopy MCP. */
 export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
@@ -89,6 +90,9 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
       }
 
       if (message.type === "result") {
+        if (message.permission_denials?.some((denial) => allowedTools.includes(denial.tool_name)))
+          await rejectBotToolApproval(ctx);
+
         if (message.subtype !== "success" || message.is_error)
           throw new BotHarnessFailure(
             message.subtype === "success" ? "error_result" : message.subtype,

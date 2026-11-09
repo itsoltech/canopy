@@ -6,6 +6,7 @@ const Mcp = Schema.Struct({
   url: Schema.String,
   headers: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
   http_headers: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
+  default_tools_approval_mode: Schema.optionalKey(Schema.String),
 });
 
 const McpConfig = Schema.Struct({ mcpServers: Schema.Record(Schema.String, Mcp) });
@@ -52,6 +53,9 @@ export function claudeBotConfig() {
   if (!process.env["BOT_TRACE"] || !value) return undefined;
   const config = Schema.decodeSync(Schema.fromJsonString(McpConfig))(value);
   botEvidence("claude", arg("--tools") === "" && process.argv.includes("--strict-mcp-config"));
+
+  if (config.mcpServers["canopy"] && !arg("--allowedTools")?.includes("mcp__canopy__"))
+    throw new Error("Canopy MCP needs a harness allowlist; the gateway enforces approvals");
 
   return config.mcpServers["canopy"];
 }

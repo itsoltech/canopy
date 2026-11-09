@@ -6,6 +6,7 @@ import { createInterface } from "node:readline";
 import type { JsonObject } from "@canopy/domain";
 import { recordInput, recordProbe, releaseProbe } from "./instance-probe.ts";
 import { arg, botEvidence, botFailure, botTool } from "./bot-probe.ts";
+import { Schema } from "effect";
 
 const servers = new Map<string, { url: string; headers: Record<string, string> }>();
 const permissions = new Map<string, (denied: boolean) => void>();
@@ -124,6 +125,14 @@ for await (const line of createInterface({ input: process.stdin })) {
     writeFileSync(file, "{}");
 
     if (process.env["BOT_TRACE"]) {
+      const config = Schema.decodeUnknownSync(
+        Schema.Struct({
+          permission: Schema.Struct({ allow: Schema.Array(Schema.String) }),
+        }),
+      )(Bun.TOML.parse(readFileSync(join(process.env["GROK_HOME"]!, "config.toml"), "utf8")));
+
+      if (!config.permission.allow.includes("MCPTool(canopy__*)"))
+        throw new Error("Canopy MCP needs a harness allow rule; the gateway enforces approvals");
       botEvidence("grok", arg("--tools") === "search_tool,use_tool" && !!arg("--agent-profile"));
       const server = params.mcpServers?.[0];
 

@@ -15,6 +15,7 @@ const explanations: Record<FailureCode, string> = {
     "The provider rejected this request or its settings. Check the connection, credentials and model in provider settings.",
   connection_changed:
     "Codex could not use this thread with the current connection. Restore its previous connection in provider settings, then retry.",
+  tool_approval: "The agent CLI blocked this Canopy tool before approval. Update the worker, then retry.",
   provider_unavailable: "The provider is temporarily unavailable. Retry in a few minutes.",
   internal: "Canopy had an internal error. Retry. If it happens again, copy the details and report them.",
 };

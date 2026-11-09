@@ -156,7 +156,9 @@ async function turn(text: string): Promise<void> {
     total_cost_usd: 0,
     usage: { input_tokens: 1, output_tokens: 1 },
     modelUsage: {},
-    permission_denials: [],
+    permission_denials: text.includes("FAIL:MCP_POLICY")
+      ? [{ tool_name: "mcp__canopy__create_bot", tool_use_id: "denied-tool", tool_input: {} }]
+      : [],
     stop_reason: "end_turn",
   });
 }

@@ -23,9 +23,12 @@ z gatewayem; po instalacji użyj odświeżenia providerów.
 
 Grok używa `WorkerConfig.grok` (pole 640), `PROVIDER_GROK` i tych samych globalnych instancji native/CLIProxyAPI co Claude/Codex. Nowy `worker add` włącza również Groka; istniejące workery wymagają `grok.enabled: true` w konfiguracji zdalnej. Login native jest czytany z domu CLI; endpointy dostają prywatny home procesu i klucz w env. Szczegóły oraz instrukcja uruchomienia: [grok-adapter.md](grok-adapter.md#włączenie-na-stosie-użytkownika).
 
-Boty używają globalnej instancji endpointowej z gateway, bez nadpisań workera,
-zmiennych procesu harnessu ani logowania CLI urządzenia. Model i effort należą
-do bota; klucz endpointu pozostaje sekretem gateway. Zasady: [bots.md](bots.md).
+Boty używają oficjalnego harnessu przypiętego workera i jego efektywnej instancji
+native lub proxy, z izolowanym katalogiem sesji. Model i effort należą do bota.
+Zgody transportu Canopy MCP są jawnie przepuszczane przez harness; politykę bota
+i granty egzekwuje gateway. Ustawienia shella i sandboxa dotyczą osobno wątków
+kodujących, a `never` Codexa nie jest opcją bota. Zasady: [bots.md](bots.md)
+i [bots-harness.md](bots-harness.md#narzędzia-i-granica-bezpieczeństwa).
 
 Status: **zaimplementowana**:
 - kontrakt: `WorkerConfig`, `ConfigApplied`, `Hello.config_version`,

@@ -113,6 +113,32 @@ async function turn(
 
   if (process.env["BOT_TRACE"] || text.startsWith("[canopy] Owner shell command result")) {
     if (process.env["BOT_TRACE"]) writeFileSync(join(home, "bot-input.txt"), text);
+    const server = botServers.get(threadId);
+
+    // Codex defaults unannotated MCP tools to Auto: they need approval, which Never refuses.
+    if (
+      (text.includes("TOOL:") && server?.default_tools_approval_mode !== "approve") ||
+      text.includes("FAIL:MCP_POLICY")
+    ) {
+      notify("item/completed", {
+        threadId,
+        turnId,
+        item: {
+          id: `tool-${turnId}`,
+          type: "mcpToolCall",
+          server: "canopy",
+          tool: "create_bot",
+          status: "failed",
+          arguments: {},
+          result: null,
+          error: { message: "MCP tool call requires approval, but approval policy is never" },
+        },
+      });
+      notify("turn/completed", { threadId, turn: { id: turnId, status: "completed", items: [], error: null } });
+
+      return;
+    }
+
     const answer = await botTool(text, botServers.get(threadId), instructions.get(threadId));
     notify("item/completed", {
       threadId,
