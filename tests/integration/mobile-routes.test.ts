@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, setSystemTime, test } from "bun:test";
 import { createServer, type AddressInfo, type Server, type Socket } from "node:net";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
@@ -37,6 +37,12 @@ describe("phone route selection", () => {
             requests++;
 
             return create(ui.GetOverviewResponseSchema, {});
+          },
+          async *watchOverview(_request, context) {
+            while (!context.signal.aborted) {
+              yield create(ui.OverviewUpdateSchema, {});
+              await Bun.sleep(25);
+            }
           },
         }),
     });
@@ -202,6 +208,45 @@ describe("phone route selection", () => {
     await Promise.all([first, ...Array.from({ length: 12 }, () => client.api.getOverview({}))]);
     expect(requests - before).toBe(13);
     expect(probes.get(alive)).toBe(1);
+  });
+
+  test("a live pinned stream keeps its route and diagnostics beyond the old expiry and address refresh", async () => {
+    const { transport, probes, resets } = counted();
+    let saved: MobileConnection | undefined;
+
+    const client = routedMobileClient({
+      connection: { fingerprint, addresses: [alive, "https://10.20.1.0:24443"], lastAddress: alive },
+      transport,
+      changed: (connection) => {
+        saved = connection;
+      },
+    });
+
+    const controller = new AbortController();
+    const stream = client.api.watchOverview({}, { signal: controller.signal })[Symbol.asyncIterator]();
+
+    try {
+      expect((await stream.next()).done).toBe(false);
+      // Sanitized pairings must be persisted even when their last working route stays the same.
+      expect(saved?.addresses).toEqual([alive]);
+      const diagnostics = client.diagnostics.snapshot();
+      setSystemTime(new Date(Date.now() + 300_000));
+      expect((await stream.next()).done).toBe(false);
+      await client.api.getOverview({});
+      expect(client.diagnostics.snapshot()).toBe(diagnostics);
+      client.update({ fingerprint, addresses: [refused, alive, "https://10.20.1.0:24443"] });
+      expect((await stream.next()).done).toBe(false);
+      await client.api.getOverview({});
+      expect(client.connection().addresses).toEqual([refused, alive]);
+      expect(client.diagnostics.snapshot().active).toBe(alive);
+      expect(probes.get(alive)).toBe(1);
+      expect(probes.has(refused)).toBe(false);
+      expect(resets()).toBe(0);
+    } finally {
+      setSystemTime();
+      controller.abort();
+      await stream.return?.();
+    }
   });
 
   test("a request canceled while routes are probed doesn't stop the race for the next one", async () => {

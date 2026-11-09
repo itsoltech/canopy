@@ -48,7 +48,7 @@ export function streamResponse(
 }
 
 /** Failures after headers also invalidate the route. Cancellation stays local and never replays a request. */
-export function observeResponse(response: Response, failed: (error: Error) => void) {
+export function observeResponse(response: Response, failed: (error: Error) => void, activity: () => void = () => {}) {
   if (!response.body) return response;
   const reader = response.body.getReader();
 
@@ -60,7 +60,10 @@ export function observeResponse(response: Response, failed: (error: Error) => vo
         if (done) {
           reader.releaseLock();
           controller.close();
-        } else controller.enqueue(value);
+        } else {
+          activity();
+          controller.enqueue(value);
+        }
       } catch (error) {
         reader.releaseLock();
         failed(error instanceof Error ? error : new Error("Connection interrupted. Try again."));

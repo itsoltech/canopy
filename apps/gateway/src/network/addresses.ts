@@ -9,7 +9,10 @@ export type AddressKind = "lan" | "tailscale" | "vpn" | "public" | "hostname";
 export type DetectedAddress = { host: string; kind: Exclude<AddressKind, "hostname">; interfaceName: string };
 
 // Container and VM bridges are internal to this computer: nothing outside can use them.
-const BRIDGE = /^(docker|br-|veth|virbr|vboxnet|vmnet|cni|flannel|cali|podman|lxc|lxd|vEthernet)/i;
+const BRIDGE =
+  /^(docker|br[-\d]|bridge|veth|virbr|vboxnet|vmnet|vmenet|cni|flannel|cali|podman|lxc|lxd|vEthernet|orb|anpi|awdl|llw)/i;
+
+const VIRTUAL_ADAPTER = /VirtualBox|VMware|Hyper-V|Loopback|OrbStack/i;
 
 // Point-to-point VPNs: reachable by the devices in the same VPN.
 const VPN = /^(tailscale|utun|wg|tun|tap|zt|ham|ppp|ipsec|nordlynx|proton)/i;
@@ -34,13 +37,23 @@ export function isPrivateIpv4(host: string) {
 }
 
 export function classify(host: string, interfaceName: string): DetectedAddress["kind"] | undefined {
-  if (isIP(host) !== 4 || inRange(host, "127.0.0.0", 8) || inRange(host, "169.254.0.0", 16)) return undefined;
+  if (
+    isIP(host) !== 4 ||
+    inRange(host, "0.0.0.0", 8) ||
+    inRange(host, "127.0.0.0", 8) ||
+    inRange(host, "169.254.0.0", 16) ||
+    ipv4(host) >= ipv4("224.0.0.0")
+  )
+    return undefined;
 
-  if (BRIDGE.test(interfaceName)) return undefined;
+  if (BRIDGE.test(interfaceName) || VIRTUAL_ADAPTER.test(interfaceName)) return undefined;
 
   // 100.64.0.0/10 is Tailscale's address space (and carrier-grade NAT elsewhere).
   if (inRange(host, "100.64.0.0", 10) && (VPN.test(interfaceName) || /tailscale/i.test(interfaceName)))
     return "tailscale";
+
+  // macOS utun devices also belong to private relays and VM software. Only advertise their tailnet IPs.
+  if (/^utun/i.test(interfaceName)) return undefined;
 
   if (VPN.test(interfaceName)) return "vpn";
 
@@ -57,16 +70,40 @@ export function containerBridged() {
 /** This computer's IPv4 addresses that other devices can use: local network first, then VPNs. */
 export function detectAddresses(): DetectedAddress[] {
   if (containerBridged()) return [];
+
+  return advertisedAddresses(networkInterfaces());
+}
+
+/** Pure interface filtering, including subnet boundaries from the actual mask, not an assumed /24. */
+export function advertisedAddresses(interfaces: ReturnType<typeof networkInterfaces>): DetectedAddress[] {
   const found = new Map<string, DetectedAddress>();
 
-  for (const [interfaceName, addresses] of Object.entries(networkInterfaces()))
+  for (const [interfaceName, addresses] of Object.entries(interfaces))
     for (const a of addresses ?? []) {
-      const kind = a.internal || a.family !== "IPv4" ? undefined : classify(a.address, interfaceName);
+      const kind =
+        a.internal || a.family !== "IPv4" || subnetEndpoint(a.address, a.netmask)
+          ? undefined
+          : classify(a.address, interfaceName);
 
       if (kind && !found.has(a.address)) found.set(a.address, { host: a.address, kind, interfaceName });
     }
 
   return [...found.values()].sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
+}
+
+function subnetEndpoint(host: string, netmask: string) {
+  if (isIP(host) !== 4 || isIP(netmask) !== 4) return true;
+
+  const size = 2 ** 32 - ipv4(netmask);
+
+  if (!Number.isInteger(Math.log2(size))) return true;
+
+  // /31 point-to-point links and /32 host routes have no reserved network/broadcast endpoints.
+  if (size <= 2) return false;
+
+  const offset = ipv4(host) % size;
+
+  return offset === 0 || offset === size - 1;
 }
 
 const LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;

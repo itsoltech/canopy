@@ -133,9 +133,9 @@ export class RouteDiagnostics {
     return result;
   }
 
-  reset(addresses: string[]) {
+  reset(addresses: string[], active?: string) {
     this.update({
-      active: undefined,
+      active,
       pending: false,
       lastRace: undefined,
       routes: addresses.map(
