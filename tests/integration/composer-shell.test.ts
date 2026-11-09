@@ -359,10 +359,13 @@ describe.skipIf(!dockerAvailable)("composer shell input over gRPC and scripted h
   test("Stop during a shell steer kills its group and persists the failed delivery", async () => {
     const thread = await fixture.thread(Provider.CODEX);
     const first = await fixture.send(thread.id, "HOLD:shell-stop-steer");
-    await eventually(
-      async () => fixture.records(),
-      (r) => r.some((r) => r.event === "turn" && r.session === thread.providerThreadId),
-    );
+    // The harness probe precedes durable turn_started; Stop targets a running gateway turn.
+    expect(
+      await eventually(
+        async () => (await snapshot(thread.id)).turns.find((turn) => turn.id === first.id)?.status,
+        (status) => status === "running",
+      ),
+    ).toBe("running");
     const marker = join(fixture.dir, "steer-child");
 
     const sent = await fixture.gw.api.sendMessage({

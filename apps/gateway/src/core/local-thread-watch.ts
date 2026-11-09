@@ -2,11 +2,9 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { MIRROR_CURSOR } from "@canopy/domain/thread-mirror";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { Effect } from "effect";
-import { SqlClient } from "effect/sql";
 import { coreState } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
-import { threadWatchRevision } from "../store/thread-watch-revision.ts";
+import { threadWatchRevisions } from "./thread-watch-revisions.ts";
 
 /** Local UI watches validate durable revisions independently of in-process Hub delivery. */
 export async function* watchLocalThread(core: GatewayCore, input: ui.WatchThreadRequest, signal: AbortSignal) {
@@ -18,63 +16,29 @@ export async function* watchLocalThread(core: GatewayCore, input: ui.WatchThread
   while (!signal.aborted) {
     const stop = new AbortController();
     const combined = AbortSignal.any([signal, stop.signal]);
-    let seeded = false;
-    let probing = false;
+    let unsubscribe: (() => void) | undefined;
     let failure: unknown;
     let lastSeq: bigint | undefined;
     let previousProbe = Date.now();
     let reason = "revision";
 
-    const probe = async () => {
-      if (!seeded || probing || combined.aborted) return;
-      probing = true;
+    const probe = (cursor: string) => {
+      if (combined.aborted) return;
+      const now = Date.now();
+      const stalled = now - previousProbe > Math.max(interval * 3, 15_000);
+      previousProbe = now;
 
-      try {
-        const now = Date.now();
-        const stalled = now - previousProbe > Math.max(interval * 3, 15_000);
-        previousProbe = now;
+      const base = MIRROR_CURSOR.exec(checkpoint);
 
-        const base = MIRROR_CURSOR.exec(checkpoint);
+      const next = MIRROR_CURSOR.exec(cursor);
 
-        const rows = await core[coreState].actions.run(
-          Effect.gen(function* () {
-            const sql = yield* SqlClient.SqlClient;
+      if (stalled || !base || !next || base[1] !== next[1] || BigInt(next[2]!) > BigInt(base[2]!)) {
+        reason = stalled ? "event_loop_stall" : "revision";
 
-            return yield* sql.unsafe<{ epoch: string; revision: string }>(threadWatchRevision, [
-              core[coreState].options.userId,
-              input.threadId,
-              base?.[1] ?? null,
-              base?.[2] ?? null,
-            ]);
-          }),
-        );
-
-        const clock = rows[0];
-        const cursor = clock ? `${clock.epoch}:${clock.revision}` : undefined;
-
-        if (combined.aborted || !cursor) return;
-        const next = MIRROR_CURSOR.exec(cursor);
-
-        if (stalled || !base || !next || base[1] !== next[1] || BigInt(next[2]!) > BigInt(base[2]!)) {
-          reason = stalled ? "event_loop_stall" : "revision";
-
-          if (stalled) console.warn("Local thread watch stalled", { threadId: input.threadId });
-          stop.abort();
-        }
-      } catch (error) {
-        failure = error;
-        console.warn("Local thread watch probe failed", { threadId: input.threadId });
+        if (stalled) console.warn("Local thread watch stalled", { threadId: input.threadId });
         stop.abort();
-      } finally {
-        probing = false;
       }
     };
-
-    const timer = setInterval(() => {
-      void probe();
-    }, interval);
-
-    timer.unref();
 
     try {
       const updates = core.watchThread(
@@ -97,7 +61,24 @@ export async function* watchLocalThread(core: GatewayCore, input: ui.WatchThread
           fromTurnId ||= snapshot.historyBeforeTurnId;
           historyVersion = snapshot.historyVersion;
           lastSeq = snapshot.lastSeq;
-          seeded = true;
+
+          if (!unsubscribe)
+            unsubscribe = threadWatchRevisions(
+              core[coreState].options.runtime,
+              core[coreState].options.userId,
+            ).subscribe(
+              {
+                thread: input.threadId,
+                cursor: checkpoint,
+                send: probe,
+                fail: (error) => {
+                  failure = error;
+                  console.warn("Local thread watch probe failed", { threadId: input.threadId });
+                  stop.abort();
+                },
+              },
+              interval,
+            );
         } else if (change.case === "event") {
           if (lastSeq !== undefined && change.value.seq > lastSeq + 1n) {
             checkpoint = "";
@@ -118,7 +99,7 @@ export async function* watchLocalThread(core: GatewayCore, input: ui.WatchThread
 
       if (!combined.aborted) throw new ConnectError("Local thread watch ended", Code.Unavailable);
     } finally {
-      clearInterval(timer);
+      unsubscribe?.();
       stop.abort();
     }
 

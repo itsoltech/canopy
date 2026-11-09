@@ -302,10 +302,9 @@ describe.skipIf(!dockerAvailable)("bounded metadata reads on PostgreSQL", () => 
     )[0]!;
 
     const read = () =>
-      query<{ epoch: string; revision: string }>(threadWatchRevision, [
+      query<{ epoch: string; revision: string; relevant: string; count: string }>(threadWatchRevision, [
         gateway.userId,
-        thread,
-        clock.epoch,
+        [thread],
         clock.revision,
       ]);
 
@@ -316,10 +315,12 @@ describe.skipIf(!dockerAvailable)("bounded metadata reads on PostgreSQL", () => 
       [gateway.userId, clock.revision, other],
     );
     await query("UPDATE computer_thread_clock SET revision=revision+1 WHERE owner_user_id=$1::uuid", [gateway.userId]);
-    expect((await read())[0]).toEqual(clock);
+    expect((await read())[0]!.relevant).toBe("0");
+    expect((await read())[0]!.count).toBe("1");
     await query("UPDATE threads SET title='Relevant revision' WHERE id=$1::uuid", [thread]);
-    expect(BigInt((await read())[0]!.revision)).toBeGreaterThan(BigInt(clock.revision));
+    expect(BigInt((await read())[0]!.relevant)).toBeGreaterThan(BigInt(clock.revision));
     await query("DELETE FROM computer_thread_changes WHERE owner_user_id=$1::uuid", [gateway.userId]);
+    expect((await read())[0]!.count).toBe("0");
     expect(BigInt((await read())[0]!.revision)).toBeGreaterThan(BigInt(clock.revision));
   });
 
