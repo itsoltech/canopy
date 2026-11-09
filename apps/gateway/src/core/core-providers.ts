@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import { harnessOf, InstanceStore } from "../store/index.ts";
 import { coreState, describeError, InvalidError, UnavailableError } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
-import { coreModels, corePublishModels } from "./core-models.ts";
+import { coreModelCatalogs, corePublishModels } from "./core-models.ts";
 import { coreBroadcastWorkers, coreRun } from "./core-broadcast.ts";
 import { coreProxyMethods, type CoreProxyMethods } from "./core-proxies.ts";
 
@@ -141,7 +141,7 @@ export const coreProvidersMethods: CoreProvidersMethods = {
   async setInstanceModels(this: GatewayCore, request: ui.SetInstanceModelsRequest): Promise<ui.ProviderInstance> {
     await coreInstance(this, request.harness, request.id);
     await coreInstances(this, (s) => s.setModels(request));
-    await corePublishModels(this, await coreModels(this, (s) => s.catalogs([])));
+    await corePublishModels(this, await coreModelCatalogs(this));
     await coreBroadcastWorkers(this);
     coreProvidersChanged(this);
 

@@ -25,8 +25,8 @@ export class ModelStore extends Context.Service<
       configVersion: bigint;
       profiles: readonly ProfileModels[];
     }): Effect.Effect<ui.WorkerModels, SqlError.SqlError>;
-    /** Catalogs of the given workers (all workers when empty). */
-    catalogs(workerIds: readonly string[]): Effect.Effect<ui.WorkerModels[], SqlError.SqlError>;
+    /** Accessible catalogs: omitted IDs select all owned/shared workers; explicit empty IDs select none. */
+    catalogs(owner: string, workerIds?: readonly string[]): Effect.Effect<ui.WorkerModels[], SqlError.SqlError>;
   }
 >()("canopy/gateway/ModelStore") {
   static readonly layer = Layer.effect(
@@ -50,11 +50,16 @@ export class ModelStore extends Context.Service<
             ON CONFLICT (worker_id) DO UPDATE SET config_version = EXCLUDED.config_version, profiles = EXCLUDED.profiles, updated_at = now()
             RETURNING *`.pipe(Effect.map((rows) => toUi(rows[0]!))),
 
-        catalogs: (workerIds) =>
-          (workerIds.length > 0
-            ? sql<Row>`SELECT * FROM worker_model_catalogs WHERE worker_id = ANY(${workerIds}::uuid[]) ORDER BY worker_id`
-            : sql<Row>`SELECT * FROM worker_model_catalogs ORDER BY worker_id`
-          ).pipe(Effect.map((rows) => rows.map(toUi))),
+        catalogs: (owner, workerIds) => {
+          if (workerIds?.length === 0) return Effect.succeed([]);
+
+          return sql<Row>`
+            SELECT m.* FROM worker_model_catalogs m JOIN workers w ON w.id = m.worker_id
+            WHERE (w.owner_user_id = ${owner}::uuid OR w.owner_user_id IS NULL)
+              AND w.archived_at IS NULL
+              ${workerIds ? sql`AND m.worker_id = ANY(${workerIds}::uuid[])` : sql``}
+            ORDER BY m.worker_id`.pipe(Effect.map((rows) => rows.map(toUi)));
+        },
       });
     }),
   );

@@ -81,7 +81,7 @@ export async function coreProfileModels(
   }
 
   const profile = profileId && profileId !== "native" ? profileId : "native";
-  const catalog = workerId ? (await coreModels(hostContext, (s) => s.catalogs([workerId]))).at(0) : undefined;
+  const catalog = workerId ? (await coreModelCatalogs(hostContext, [workerId])).at(0) : undefined;
   const listed = catalog?.profiles.find((p) => p.provider === provider && p.profileId === profile);
 
   // The instance's custom models are accepted like listed ones.
@@ -107,9 +107,7 @@ export async function coreSpawnInstances(
 
   if (!worker || worker.appliedVersion === 0n) return undefined;
 
-  const catalog = (await coreForPickers(hostContext, await coreModels(hostContext, (s) => s.catalogs([worker.id])))).at(
-    0,
-  );
+  const catalog = (await coreForPickers(hostContext, await coreModelCatalogs(hostContext, [worker.id]))).at(0);
 
   return worker.providerInstances
     .filter((i) => i.enabled && harnessOf(i.harness))
@@ -154,6 +152,11 @@ export function coreModels<A, E>(
   return hostContext[coreState].actions.run(ModelStore.use(use));
 }
 
+/** All catalog reads use the gateway's trusted owner context, including provider-change broadcasts. */
+export function coreModelCatalogs(hostContext: GatewayCore, workerIds?: readonly string[]): Promise<ui.WorkerModels[]> {
+  return coreModels(hostContext, (s) => s.catalogs(hostContext[coreState].options.userId, workerIds));
+}
+
 export interface CoreModelsMethods {
   listModels(request: ui.ListModelsRequest): Promise<ui.WorkerModels[]>;
 }
@@ -184,7 +187,10 @@ export const coreModelsMethods: CoreModelsMethods = {
       );
     }
 
-    const catalogs = await coreModels(this, (s) => s.catalogs(workers.map((w) => w.id)));
+    const catalogs = await coreModelCatalogs(
+      this,
+      workers.map((w) => w.id),
+    );
 
     return request.unfiltered ? catalogs : coreForPickers(this, catalogs);
   },
