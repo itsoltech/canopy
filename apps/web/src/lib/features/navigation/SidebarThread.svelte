@@ -8,11 +8,10 @@
   import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import ThreadActivityMark from "#lib/features/threads/ThreadActivityMark.svelte";
   import ThreadGoalMark from "#lib/features/threads/ThreadGoalMark.svelte";
-  import ThreadStatusText from "#lib/features/threads/ThreadStatusText.svelte";
+  import SidebarThreadStatus from "./SidebarThreadStatus.svelte";
   import SidebarThreadLink from "./SidebarThreadLink.svelte";
   import SwapText from "#lib/shared/ui/SwapText.svelte";
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
-  import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
   import { needsYou } from "#lib/features/threads/activity.ts";
@@ -52,42 +51,41 @@
   {thread}
   {current}
   needsAttention={needsYou(thread) || subagentsNeedingInput.length > 0}
-  class="grid gap-0.5 rounded-xl px-3 py-2.5"
+  class="grid gap-px rounded-xl px-3 py-1.5"
 >
   <span class="flex min-w-0 items-center gap-2">
     {#if away}
-      <Icon name="link" class="shrink-0 fill-zinc-400 dark:fill-zinc-500" />
+      <span class="grid size-4.5 shrink-0 place-items-center">
+        <Icon name="link" class="fill-zinc-400 dark:fill-zinc-500" />
+      </span>
     {:else}
       <ThreadActivityMark thread={subagentsNeedingInput[0] ?? thread}>
         {#snippet idle()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}
       </ThreadActivityMark>
     {/if}
     <span
-      class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5 dark:text-zinc-400"
+      class="min-w-0 flex-1 truncate text-sm/4.5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/4 dark:text-zinc-400"
       >{project?.name ?? "Unknown project"}</span
     >
-    {#if !needsYou(thread) && subagentsNeedingInput.length}
-      <span role="status" class="shrink-0 text-sm/5 text-amber-700 tabular-nums sm:text-xs/5 dark:text-amber-400"
-        >{subagentsNeedingInput.length === 1
+    <SidebarThreadStatus
+      {thread}
+      label={!needsYou(thread) && subagentsNeedingInput.length
+        ? subagentsNeedingInput.length === 1
           ? "Subagent needs input"
-          : `${formatCount(subagentsNeedingInput.length)} subagents need input`}</span
-      >
-    {:else}<ThreadStatusText
-        {thread}
-        icons={false}
-        class="group-data-calm:opacity-60 pointer-fine:group-focus-within/row:invisible pointer-fine:group-hover/row:invisible"
-      />{/if}
+          : `${formatCount(subagentsNeedingInput.length)} subagents need input`
+        : undefined}
+    />
   </span>
   <SwapText
     text={thread.title}
     class={[
-      "h-6 w-full min-w-0 overflow-hidden text-base/6 sm:h-5 sm:text-sm/5",
+      "h-5 w-full min-w-0 overflow-hidden text-base/5 sm:h-4.5 sm:text-sm/4.5",
       thread.titleGenerating
         ? "shimmer"
         : "text-zinc-800 group-aria-[current=page]:text-zinc-950 group-data-calm:opacity-60 group-data-result:text-zinc-950 dark:text-zinc-200 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
     ]}
   />
-  <span class="flex min-w-0 items-center gap-1.5 text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/5">
+  <span class="flex min-w-0 items-center gap-1.5 text-sm/4.5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/4">
     <Icon
       name="computer-desktop"
       class="size-3.5 {worker?.online ? 'fill-zinc-400 dark:fill-zinc-500' : 'fill-zinc-300 dark:fill-zinc-700'}"
@@ -100,7 +98,6 @@
           ? headLabel(thread.worktree)
           : basename(thread.cwd)}</span
     >
-    <MachineBadge nodeId={thread.nodeId} compact class="max-w-28" />
     <span class="flex shrink-0 items-center gap-2">
       <ThreadGoalMark {thread} />
       <ScheduleOrigin {thread} compact />

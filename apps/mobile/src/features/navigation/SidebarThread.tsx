@@ -11,6 +11,16 @@ import { ProjectMark } from "../../ui/ProjectMark";
 import { Swap } from "../../ui/MotionViews";
 import { needsYou } from "@canopy/domain/thread-activity";
 import { useComputerHome } from "../computers/presence";
+import { SidebarUnread } from "./SidebarUnread";
+
+const rowStyle: ViewStyle = {
+  paddingHorizontal: 12,
+  minHeight: 48,
+  paddingVertical: 6,
+  gap: 1,
+  borderRadius: 12,
+  borderWidth: 1,
+};
 
 export function age(seconds?: bigint) {
   if (!seconds) return "";
@@ -82,7 +92,7 @@ export function SidebarThread({
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${thread.title || "Untitled thread"}, ${label}${home.away ? `, ${home.reason}` : ""}`}
+        accessibilityLabel={`${thread.title || "Untitled thread"}, ${label}${home.away ? `, ${home.reason}` : ""}${thread.markedUnread ? ", Unread" : ""}`}
         accessibilityState={{ selected: active }}
         onPress={() => void layout.openThread(thread.id)}
         onLongPress={() => setActions(true)}
@@ -92,14 +102,10 @@ export function SidebarThread({
           if (event.nativeEvent.actionName === "longpress") setActions(true);
         }}
         style={({ pressed }) => [
+          rowStyle,
           {
-            paddingHorizontal: 12,
-            paddingVertical: 10,
-            gap: 2,
-            borderRadius: 12,
             backgroundColor: pressed || active ? c.inset : needs ? (c.dark ? "#fbbf240f" : "#f59e0b0f") : "transparent",
-            borderWidth: needs ? 1 : 0,
-            borderColor: `${c.warning}33`,
+            borderColor: needs ? `${c.warning}33` : "transparent",
             opacity: home.away ? 0.55 : 1,
           },
           style,
@@ -120,20 +126,24 @@ export function SidebarThread({
           ) : (
             <ProjectMark name={project?.name ?? "?"} kind={project?.kind} />
           )}
-          <Text numberOfLines={1} style={[styles.meta, { flex: 1, color: c.muted }]}>
+          <Text numberOfLines={1} style={[styles.chromeMeta, { flex: 1, minWidth: 0, color: c.muted }]}>
             {project?.name ?? "Unknown project"}
           </Text>
           {/* A new state (working, needs input, a result) swaps in; the age ticking over does not. */}
-          <Swap value={needs ? "needs" : busy ? thread.status : result || "age"}>
-            <Text style={[styles.meta, { color: tone }]}>{label}</Text>
-          </Swap>
+          <View style={{ width: 96 }}>
+            <Swap value={needs ? "needs" : busy ? thread.status : result || "age"}>
+              <Text numberOfLines={1} style={[styles.chromeMeta, { color: tone, textAlign: "right" }]}>
+                {label}
+              </Text>
+            </Swap>
+          </View>
         </View>
-        <Text numberOfLines={1} style={[styles.body, { color: c.body, opacity: busy ? 0.6 : 1 }]}>
+        <Text numberOfLines={1} style={[styles.chrome, { color: c.body, opacity: busy ? 0.6 : 1 }]}>
           {thread.title || "Untitled thread"}
         </Text>
         <View style={[styles.row, { gap: 6, opacity: busy ? 0.6 : 1 }]}>
           <Icon name="computer-desktop" size={14} color={worker?.online ? c.muted : c.faint} />
-          <Text numberOfLines={1} style={[styles.meta, { flex: 1, color: c.muted }]}>
+          <Text numberOfLines={1} style={[styles.chromeMeta, { flex: 1, minWidth: 0, color: c.muted }]}>
             {worker?.name ?? "Unknown worker"} ·{" "}
             {project?.kind === "scratch"
               ? "scratch folder"
@@ -142,6 +152,7 @@ export function SidebarThread({
           {thread.goalStatus ? <Icon name="flag" size={14} /> : null}
           <ProviderIcon provider={thread.provider} />
         </View>
+        <SidebarUnread unread={thread.markedUnread} />
       </Pressable>
       <ThreadActionsSheet thread={thread} visible={actions} onClose={() => setActions(false)} />
     </>

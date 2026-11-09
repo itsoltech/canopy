@@ -1,0 +1,15 @@
+/* Dense list text uses existing scale steps; menus and previews keep their own density scopes. */
+.sidebar-row {
+  --text-base: var(--type-standard);
+  --text-sm: var(--type-caption);
+}
+
+/* Status swaps stay inside the reserved slot and inherit the row's caption size. */
+.sidebar-row-status > span {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  justify-content: flex-end;
+  font-size: inherit;
+  line-height: inherit;
+}

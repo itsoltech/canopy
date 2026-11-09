@@ -4,7 +4,7 @@
   import { sideMark } from "#lib/features/threads/thread-tree.ts";
   import ThreadActivityMark from "#lib/features/threads/ThreadActivityMark.svelte";
   import ThreadGoalMark from "#lib/features/threads/ThreadGoalMark.svelte";
-  import ThreadStatusText from "#lib/features/threads/ThreadStatusText.svelte";
+  import SidebarThreadStatus from "./SidebarThreadStatus.svelte";
   import SidebarThreadLink from "./SidebarThreadLink.svelte";
   import SwapText from "#lib/shared/ui/SwapText.svelte";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
@@ -33,7 +33,12 @@
 <SidebarThreadLink
   {thread}
   {current}
-  class={["flex min-w-0 items-center gap-2 rounded-lg py-1.5 pr-3 pl-2", className]}
+  compact
+  class={[
+    "flex min-h-9 min-w-0 items-center gap-2 rounded-lg py-1 pr-3 pl-2 sm:min-h-8 pointer-coarse:min-h-12",
+    thread.status === "archived" && "opacity-60",
+    className,
+  ]}
 >
   {#if previous && provider}<ProviderIcon {provider} class="size-3.5 opacity-70" />{:else}
     <ThreadActivityMark {thread} size="sm">
@@ -49,7 +54,7 @@
   <SwapText
     text={thread.title}
     class={[
-      "h-6 min-w-0 flex-1 overflow-hidden text-base/6 sm:h-5 sm:text-sm/5",
+      "h-5 min-w-0 flex-1 overflow-hidden text-base/5 sm:h-4.5 sm:text-sm/4.5",
       thread.titleGenerating
         ? "shimmer"
         : "text-zinc-700 group-aria-[current=page]:text-zinc-950 group-data-calm:opacity-60 group-data-result:text-zinc-950 dark:text-zinc-300 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
@@ -60,11 +65,8 @@
   {#if previous && when}<time
       datetime={isoDateTime(when)}
       title={formatDateTime(when)}
-      class="shrink-0 text-xs text-zinc-500 tabular-nums dark:text-zinc-400">{formatRelative(when, clock.now)}</time
+      class="w-24 shrink-0 truncate text-right text-sm/4.5 text-zinc-500 tabular-nums sm:text-xs/4 dark:text-zinc-400"
+      >{formatRelative(when, clock.now)}</time
     >
-  {:else}<ThreadGoalMark {thread} /><ThreadStatusText
-      {thread}
-      icons={false}
-      class="group-data-calm:opacity-60 pointer-fine:group-focus-within/row:invisible pointer-fine:group-hover/row:invisible"
-    />{/if}
+  {:else}<ThreadGoalMark {thread} /><SidebarThreadStatus {thread} />{/if}
 </SidebarThreadLink>

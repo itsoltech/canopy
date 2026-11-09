@@ -102,5 +102,10 @@ Na telefonie nakładki z `sheet` otwierają się jako dolny arkusz. Zostają prz
   Wiersze mają co najmniej 36 / 32 px, odstęp ikon 8 px i pionowy padding sekcji 4 px.
   Kopiowanie katalogu pojawia się przy hoverze lub fokusie (na dotyku zawsze),
   a miejsce na nie i Stop zadania pozostaje zarezerwowane w każdym stanie.
+- Wiersze wątków i botów w sidebarze korzystają z gęstszego wariantu `sidebar-row`:
+  tytuł 14 / 12, podpis 12 / 11,5, pionowy padding 6 px. Wiersz główny ma trzy
+  zwarte linie, boczne i archiwalne mają minimum 36 / 32 px (48 px przy dotyku).
+  Status wątku ma stały slot, więc zmiana czasu na pracę lub wynik nie przesuwa tekstu.
+  Mobile używa stopni `chrome` / `chromeSmall` (15 / 13) i celów minimum 48 dp.
 - Pierścienie fokusu mieszczą się w wierszu: wiersze menu i list mają obrys wewnętrzny
   (`-outline-offset-2`), a przyciski zewnętrzny 2 px (`focus-ring`) z marginesem panelu `p-1`.

@@ -10,6 +10,8 @@ import { styles, useColors } from "../../ui/theme";
 import { Chevron, Expand } from "../../ui/MotionViews";
 import { Icon } from "../../ui/Icon";
 import { SidebarThread, age } from "./SidebarThread";
+import { useComputerHome } from "../computers/presence";
+import { SidebarUnread } from "./SidebarUnread";
 
 /** One tree owns its side rows and attention, including when the same tree is pinned or archived. */
 export function SidebarThreadTree({
@@ -55,7 +57,7 @@ export function SidebarThreadTree({
             style={[styles.row, { minHeight: 48, gap: 4, paddingHorizontal: 8 }]}
           >
             <Chevron open={open} size={14} />
-            <Text style={[styles.meta, { color: c.muted }]}>
+            <Text numberOfLines={1} style={[styles.chromeMeta, { flexShrink: 1, color: c.muted }]}>
               {sides.active.length
                 ? `${sides.active.length} side ${sides.active.length === 1 ? "thread" : "threads"}`
                 : "Side threads"}
@@ -75,7 +77,9 @@ export function SidebarThreadTree({
                     style={[styles.row, { minHeight: 48, gap: 4, paddingHorizontal: 8 }]}
                   >
                     <Chevron open={previousOpen} size={14} />
-                    <Text style={[styles.meta, { color: c.muted }]}>Previous agents · {sides.previous.length}</Text>
+                    <Text numberOfLines={1} style={[styles.chromeMeta, { flexShrink: 1, color: c.muted }]}>
+                      Previous agents · {sides.previous.length}
+                    </Text>
                   </Pressable>
                   <Expand open={previousOpen}>
                     {sides.previous.map((side) => (
@@ -94,40 +98,45 @@ export function SidebarThreadTree({
 
 function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; previous?: boolean }) {
   const c = useColors();
+  const home = useComputerHome(thread.nodeId);
   const layout = useLayout();
   const pathname = usePathname();
   const { id } = useGlobalSearchParams<{ id?: string }>();
   const active = layout.wide && pathname.startsWith("/thread/") && id === thread.id;
-  const needs = needsYou(thread);
-  const busy = thread.status === "running" || thread.status === "creating";
+  const needs = !home.away && needsYou(thread);
+  const busy = !home.away && (thread.status === "running" || thread.status === "creating");
   const result = thread.unseenResult;
 
-  const label = previous
-    ? age(thread.archivedAt?.seconds)
-    : needs
-      ? "Needs input"
-      : busy
-        ? thread.status === "creating"
-          ? "Starting"
-          : "Working"
-        : result
-          ? result[0]!.toUpperCase() + result.slice(1)
-          : "";
+  const label = home.away
+    ? "Read-only"
+    : previous
+      ? age(thread.archivedAt?.seconds)
+      : needs
+        ? "Needs input"
+        : busy
+          ? thread.status === "creating"
+            ? "Starting"
+            : "Working"
+          : result
+            ? result[0]!.toUpperCase() + result.slice(1)
+            : "";
 
-  const tone = needs
-    ? c.warning
-    : busy
-      ? c.sky
-      : result === "failed"
-        ? c.danger
-        : result === "completed"
-          ? c.success
-          : c.muted;
+  const tone = home.away
+    ? c.muted
+    : needs
+      ? c.warning
+      : busy
+        ? c.sky
+        : result === "failed"
+          ? c.danger
+          : result === "completed"
+            ? c.success
+            : c.muted;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${thread.title || "Untitled thread"}${label ? `, ${label}` : ""}`}
+      accessibilityLabel={`${thread.title || "Untitled thread"}${label ? `, ${label}` : ""}${home.away ? `, ${home.reason}` : ""}${thread.markedUnread ? ", Unread" : ""}`}
       accessibilityState={{ selected: active }}
       onPress={() => void layout.openThread(thread.id)}
       style={({ pressed }) => [
@@ -136,6 +145,7 @@ function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; pr
           minHeight: 48,
           borderRadius: 8,
           paddingHorizontal: 8,
+          opacity: home.away ? 0.55 : 1,
           backgroundColor: pressed || active ? c.inset : "transparent",
         },
       ]}
@@ -153,10 +163,13 @@ function SidebarSideThread({ thread, previous = false }: { thread: ui.Thread; pr
         size={14}
         color={tone}
       />
-      <Text numberOfLines={1} style={[styles.body, { flex: 1, minWidth: 0, color: c.body }]}>
+      <Text numberOfLines={1} style={[styles.chrome, { flex: 1, minWidth: 0, color: c.body }]}>
         {thread.title || "Untitled thread"}
       </Text>
-      {label ? <Text style={[styles.meta, { color: tone }]}>{label}</Text> : null}
+      <Text numberOfLines={1} style={[styles.chromeMeta, { width: 96, textAlign: "right", color: tone }]}>
+        {label}
+      </Text>
+      <SidebarUnread unread={thread.markedUnread} />
     </Pressable>
   );
 }
