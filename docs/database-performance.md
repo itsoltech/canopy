@@ -242,15 +242,41 @@ okna dla starszych migracji nadal potrzebna jest osobna procedura operacyjna.
 Indeksy zwiększają koszt zapisów i zajętość dysku;
 benchmark obejmuje również send/steer/import, żeby uwidocznić ten kompromis.
 
-Odczyt outboxa pobiera metadane do 64 kandydatów, wylicza budżet około 512 KiB,
-a dopiero potem pobiera i dekoduje payloady. Pojedyncza większa komenda przechodzi,
+Odczyt outboxa wybiera do 2048 kandydatów, wylicza budżet około 512 KiB
+i zwraca identyfikatory, terminy ważności oraz payloady mieszczące się w budżecie.
+Payloady są dekodowane dopiero po tym filtrze. Pojedyncza większa komenda przechodzi,
 żeby nie zatrzymać kolejki. Kolejność `(created_at, id)` i stronicowanie po trwałym id
 zachowują wszystkie komendy, także przy jednakowych timestampach i zakończeniu komendy
-stanowiącej kursor. Indeks `worker_commands_redelivery` zastępuje krótszy indeks
-`worker_commands_open` dopiero po poprawnym zbudowaniu. Ponowne dostarczanie ma do
-64 komend w locie i pobiera dalsze strony po odpowiedziach. Zmiana połączenia kończy
+stanowiącej kursor. Od `0107` indeks `worker_commands_redelivery_expiry` zastępuje
+`worker_commands_open` i `worker_commands_redelivery` dopiero po poprawnym zbudowaniu.
+Zawiera także `expires_at`: skan odrzuca wygasłe wpisy w indeksie, przed pobraniem
+payloadów. Rozmiary są sprawdzane dopiero dla wybranych kandydatów.
+Status przeterminowanej komendy pozostaje bez zmian, żeby nie zwolnić bramki
+deduplikacji `startTurn`. Ponowne dostarczanie ma do
+64 komend w locie i czeka na odpowiedzi po każdej takiej grupie, także wewnątrz
+strony SQL. Przed wysłaniem każdej komendy sprawdza ponownie jej termin ważności,
+więc czekanie na wcześniejsze ACK nie pozwala wysłać przeterminowanej komendy.
+Zmiana połączenia kończy
 stary drain; restart odtwarza oczekujące komendy z bazy. Kolejka nie potrzebuje nowego
 claimu SQL: ogrodzenie połączenia workera i deduplikacja po id pozostają obowiązujące.
+
+`bun scripts/bench/outbox.ts --run` porównuje poprzedni odczyt całej kolejki
+z ograniczonymi stronami. Fixture zawiera 4096 prawidłowych komend protobuf oraz
+16384 zakończone wpisy. Trzy rundy po 20 próbek i dwie rozgrzewki przeplatają
+obie wersje w każdej próbce. Pierwsza strona i pełny odczyt są mierzone osobno;
+transport i ACK nie wchodzą do tego pomiaru. Osobny przebieg zbiera plany z rollbackiem.
+Większa strona SQL amortyzuje przejścia do bazy, a limit 64 w locie ogranicza fan-out.
+
+Inventory worktree pobiera najnowszą aktywność przez istniejący indeks wyrażenia
+dat tur, z zachowaniem pustych `started_at`/`completed_at` i wszystkich współdzielących
+wątków. Częściowe indeksy `turns_busy` i `worker_commands_thread_busy` pomijają historię
+podczas sprawdzania bezpieczeństwa usunięcia. Lista i podgląd sekretów nie odczytują
+szyfrogramów; dostarczanie workera nadal odczytuje je wyłącznie w wewnętrznej ścieżce.
+
+`bun scripts/bench/lifecycle.ts --run` mierzy 8192 tury worktree, prefiks 32 768
+wygasłych komend przed 64 aktywnymi i widok 64 sekretów z szyfrogramami po 8192 bajty.
+`--large-active-queue` zwiększa aktywną kolejkę do 4096. Metoda: dwa rozgrzania,
+20 próbek bez instrumentacji i osobny przebieg EXPLAIN z buforami. Nie mierzy I/O Git.
 
 Transkrypty, itemy, importy, audyt i zakończone komendy nie są danymi do usuwania
 wyłącznie według wieku. Zakończone `worker_commands` uczestniczą m.in. w

@@ -86,7 +86,12 @@ const requestSecret = (sql: SqlClient.SqlClient, source: CallSource, args: Agent
     }),
   );
 
-export function toUiThreadSecret(row: ThreadSecretRow): ui.ThreadSecret {
+type SecretMetadata = Pick<
+  ThreadSecretRow,
+  "id" | "thread_id" | "label" | "description" | "placeholder" | "name" | "status" | "expires_at"
+>;
+
+export function toUiThreadSecret(row: SecretMetadata): ui.ThreadSecret {
   return create(ui.ThreadSecretSchema, {
     requestId: row.id,
     threadId: row.thread_id,
@@ -105,15 +110,19 @@ export function threadSecretsStore(sql: SqlClient.SqlClient, key: Buffer): Threa
     requestSecret: (source, args) => requestSecret(sql, source, args),
     threadSecrets: (ownerId, threadId) =>
       Effect.gen(function* () {
-        const rows = yield* sql<ThreadSecretRow>`SELECT s.* FROM thread_secrets s JOIN threads t ON t.id = s.thread_id
+        const rows =
+          yield* sql<SecretMetadata>`SELECT s.id,s.thread_id,s.label,s.description,s.placeholder,s.name,s.status,s.expires_at
+        FROM thread_secrets s JOIN threads t ON t.id = s.thread_id
         WHERE t.id = ${threadId}::uuid AND t.owner_user_id = ${ownerId}::uuid AND t.deleted_at IS NULL ORDER BY s.created_at`;
 
         return rows.map(toUiThreadSecret);
       }),
     secretResult: (threadId, id) =>
       Effect.gen(function* () {
-        const rows =
-          yield* sql<ThreadSecretRow>`SELECT * FROM thread_secrets WHERE id = ${id}::uuid AND thread_id = ${threadId}::uuid`;
+        const rows = yield* sql<
+          Pick<ThreadSecretRow, "id" | "status" | "name" | "expires_at" | "revision" | "applied_revision" | "file_path">
+        >`SELECT id,status,name,expires_at,revision,applied_revision,file_path
+          FROM thread_secrets WHERE id = ${id}::uuid AND thread_id = ${threadId}::uuid`;
 
         const row = rows[0];
 

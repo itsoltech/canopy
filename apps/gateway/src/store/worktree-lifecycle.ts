@@ -19,7 +19,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Shared by preview and the locked reservation. Includes every thread sharing the worktree. */
 const snapshot = `SELECT w.*,
   greatest(w.last_used_at, (SELECT max(greatest(t.created_at,
-    (SELECT max(greatest(u.queued_at, u.started_at, u.completed_at)) FROM turns u WHERE u.thread_id = t.id)))
+    (SELECT greatest(u.queued_at,coalesce(u.started_at,u.queued_at),coalesce(u.completed_at,u.queued_at))
+      FROM turns u WHERE u.thread_id = t.id
+      ORDER BY greatest(u.queued_at,coalesce(u.started_at,u.queued_at),coalesce(u.completed_at,u.queued_at)) DESC LIMIT 1)))
     FROM threads t WHERE t.worktree_id = w.id)) AS last_activity_at,
   EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id) AND
     NOT EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND t.deleted_at IS NULL) AS all_deleted,

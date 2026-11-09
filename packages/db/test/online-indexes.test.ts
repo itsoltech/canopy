@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { migrate, migrateOnline } from "../src/index.ts";
+import { runIndexTasks } from "../src/migrations/index-tasks.ts";
 import { dockerAvailable, startPostgres, type TestPostgres } from "../src/testing.ts";
 
 describe.skipIf(!dockerAvailable)("restartable online performance indexes", () => {
@@ -44,25 +45,79 @@ describe.skipIf(!dockerAvailable)("restartable online performance indexes", () =
   });
 
   test("a changed definition fails closed without dropping the existing index", async () => {
-    await query("DROP INDEX worker_commands_redelivery");
+    await query("DROP INDEX worker_commands_redelivery_expiry");
 
     try {
-      await query("CREATE INDEX worker_commands_redelivery ON worker_commands(worker_id)");
+      await query("CREATE INDEX worker_commands_redelivery_expiry ON worker_commands(worker_id)");
       await expect(runtime.runPromise(migrateOnline)).rejects.toThrow("unexpected definition");
 
       const rows = await query<{ definition: string }>(
-        "SELECT pg_get_indexdef('worker_commands_redelivery'::regclass) AS definition",
+        "SELECT pg_get_indexdef('worker_commands_redelivery_expiry'::regclass) AS definition",
       );
 
       expect(rows[0]?.definition).toEndWith("USING btree (worker_id)");
     } finally {
-      await query("DROP INDEX IF EXISTS worker_commands_redelivery");
+      await query("DROP INDEX IF EXISTS worker_commands_redelivery_expiry");
       await runtime.runPromise(migrate);
     }
   });
 
+  test("waiting for another migrator can be cancelled without retaining a snapshot", async () => {
+    let release = () => {};
+    let acquired = () => {};
+
+    const ready = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
+
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const holder = runtime.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          const connection = yield* sql.reserve;
+          yield* Effect.acquireRelease(
+            connection.executeUnprepared("SELECT pg_advisory_lock(183516401,1)", [], undefined),
+            () =>
+              connection.executeUnprepared("SELECT pg_advisory_unlock(183516401,1)", [], undefined).pipe(Effect.orDie),
+          );
+          acquired();
+          yield* Effect.promise(() => hold);
+        }),
+      ),
+    );
+
+    await ready;
+    const abort = new AbortController();
+
+    const waiting = other.runPromise(runIndexTasks([], true), { signal: abort.signal }).then(
+      () => false,
+      () => true,
+    );
+
+    try {
+      await Bun.sleep(100);
+      abort.abort();
+      expect(await Promise.race([waiting, Bun.sleep(1000).then(() => false)])).toBe(true);
+      expect(
+        await query(`SELECT pid FROM pg_stat_activity WHERE datname=current_database()
+        AND state='active' AND wait_event_type='Lock' AND query LIKE 'SELECT pg_advisory_lock(183516401, 1)%'`),
+      ).toEqual([]);
+    } finally {
+      abort.abort();
+      release();
+      await holder;
+      await waiting;
+    }
+
+    await other.runPromise(runIndexTasks([], true));
+  });
+
   test("a cancelled concurrent build leaves an invalid index which a new runtime repairs", async () => {
-    await query("DROP INDEX worker_commands_redelivery");
+    await query("DROP INDEX worker_commands_redelivery_expiry");
     let release = () => {};
     let acquired = () => {};
 
@@ -105,12 +160,12 @@ describe.skipIf(!dockerAvailable)("restartable online performance indexes", () =
 
       await waitForBuild();
       await query(`SELECT pg_cancel_backend(pid) FROM pg_stat_activity
-        WHERE datname=current_database() AND query LIKE 'CREATE INDEX CONCURRENTLY worker_commands_redelivery %'
+        WHERE datname=current_database() AND query LIKE 'CREATE INDEX CONCURRENTLY worker_commands_redelivery_expiry %'
           AND state='active'`);
       expect(await result).toBe(true);
       expect(
         await query<{ valid: boolean }>(`SELECT indisvalid AS valid FROM pg_index
-        WHERE indexrelid='worker_commands_redelivery'::regclass`),
+        WHERE indexrelid='worker_commands_redelivery_expiry'::regclass`),
       ).toEqual([{ valid: false }]);
     } finally {
       release();
@@ -122,12 +177,12 @@ describe.skipIf(!dockerAvailable)("restartable online performance indexes", () =
     await Promise.all([runtime.runPromise(migrateOnline), other.runPromise(migrateOnline)]);
     expect(
       await query<{ valid: boolean }>(`SELECT indisvalid AS valid FROM pg_index
-      WHERE indexrelid='worker_commands_redelivery'::regclass`),
+      WHERE indexrelid='worker_commands_redelivery_expiry'::regclass`),
     ).toEqual([{ valid: true }]);
   }, 10000);
 
   test("writes continue while a concurrent build waits for an older writer", async () => {
-    await query("DROP INDEX worker_commands_redelivery");
+    await query("DROP INDEX worker_commands_redelivery_expiry");
     let release = () => {};
     let acquired = () => {};
 
@@ -186,7 +241,7 @@ describe.skipIf(!dockerAvailable)("restartable online performance indexes", () =
 
     for (;;) {
       const active = await query(`SELECT pid FROM pg_stat_activity WHERE datname=current_database()
-        AND query LIKE 'CREATE INDEX CONCURRENTLY worker_commands_redelivery %' AND state='active'
+        AND query LIKE 'CREATE INDEX CONCURRENTLY worker_commands_redelivery_expiry %' AND state='active'
         AND wait_event_type='Lock'`);
 
       if (active.length) return;
