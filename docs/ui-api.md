@@ -464,6 +464,19 @@ Discovery, weryfikacja wyboru i zgodność starszych workerów: [worktrees.md](w
 
 ## Pasek boczny i cykl życia wątku
 
+Przełączanie Threads ↔ Bots nie zmienia położenia treści po jej pierwszym renderze.
+Ekrany startowe i nowy wątek boczny używają `CenteredContent`: automatyczne marginesy centrują treść,
+a w krótkim oknie nadmiar rośnie w dół i przewija się bez obcinania nagłówka.
+Autofocus edytora nie przewija kontenerów. Statusy ładowania, braku providerów i błędu
+na ekranie Bots zajmują wspólną zarezerwowaną komórkę. `ModelControls` ma stałe
+sloty modelu i wysiłku; model może się skracać na wąskim ekranie. Nazwy korzystają
+synchronicznie z katalogu w pamięci powłoki, a aktualizacja katalogu nie przesuwa
+sąsiednich kontrolek, również w composerze istniejącego wątku. `ComposerBox` rezerwuje
+od pierwszego renderu rozmiar przycisku Send właściwy dla breakpointu; pomiar
+niestandardowych przycisków nie zmienia odstępu po zamontowaniu zwykłego Send.
+Nowy wątek na workerze z obsługą worktrees rezerwuje także wiersz workspace/ref
+przed odczytem Git, aby późne dane nie zmieniały wysokości wycentrowanej treści.
+
 `UserSettings.sidebar` przechowuje filtr projektów (`project_ids`, puste = wszystkie), przypięcia
 (`pinned_thread_ids`) i rozwinięcie sekcji Archived (`archived_expanded`, pole 310). Dawne `archived`
 pozostaje w kontrakcie jako przestarzałe i nie steruje listą. `UpdateUserSettings.sidebar` zastępuje sekcję

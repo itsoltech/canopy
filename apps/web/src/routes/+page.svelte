@@ -29,6 +29,7 @@
   import Alert from "#lib/shared/ui/Alert.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import EmptyState from "#lib/shared/ui/EmptyState.svelte";
+  import CenteredContent from "#lib/shared/ui/CenteredContent.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import HintIcon from "#lib/shared/ui/HintIcon.svelte";
@@ -216,135 +217,136 @@
     <Crumb>New thread</Crumb>
   </TopBar>
 
-  <div class="relative grid min-h-0 flex-1 place-items-center overflow-y-auto px-4 pb-16 sm:px-6">
-    <div class="w-full max-w-(--chat-width)">
-      <div class="mb-8 text-center">
-        <h1 class="text-3xl font-medium tracking-tight text-balance text-zinc-950 dark:text-white">
-          What should we work on?
-        </h1>
-      </div>
+  <CenteredContent class="max-w-(--chat-width)">
+    <div class="mb-8 text-center">
+      <h1 class="text-3xl font-medium tracking-tight text-balance text-zinc-950 dark:text-white">
+        What should we work on?
+      </h1>
+    </div>
 
-      {#if !project}
-        <EmptyState
-          icon="folder-open"
-          title="Create a project first"
-          description="A thread runs in a project's directory on one of your workers. Create a project in Settings and add it to a worker."
+    {#if !project}
+      <EmptyState
+        icon="folder-open"
+        title="Create a project first"
+        description="A thread runs in a project's directory on one of your workers. Create a project in Settings and add it to a worker."
+      >
+        {#snippet action()}<ButtonLink href="/settings/projects" variant="primary" icon="cog-6-tooth"
+            >Open project settings</ButtonLink
+          >{/snippet}
+      </EmptyState>
+    {:else}
+      <form
+        method="POST"
+        action="?/createThread"
+        class="grid gap-3"
+        use:enhance={({ cancel }) => {
+          if (blockedReason) return cancel();
+          busy = true;
+          return async ({ result, update }) => {
+            if (result.type === "redirect") permissions.clear(NEW_THREAD);
+            await update({ reset: false });
+            busy = false;
+          };
+        }}
+      >
+        <input type="hidden" name="projectId" value={workspace?.projectId ?? project.id} />
+        <input type="hidden" name="clientRequestId" value={clientRequestId} />
+        <input type="hidden" name="provider" value={selected?.provider ?? ""} />
+        <input type="hidden" name="profileId" value={selected?.profileId ?? ""} />
+        <input type="hidden" name="model" value={model} />
+        <input type="hidden" name="effort" value={sentEffort} />
+        <input type="hidden" name="workspaceId" value={workspace?.id ?? ""} />
+        <input type="hidden" name="permissionMode" value={permissionMode} />
+        <input type="hidden" name="workspaceMode" value={place.form.workspaceMode} />
+        <input type="hidden" name="baseRef" value={place.form.baseRef} />
+        <input type="hidden" name="worktreeId" value={place.form.worktreeId} />
+        {#each draft.ids as id (id)}<input type="hidden" name="attachmentId" value={id} />{/each}
+        {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
+        <ComposerBox
+          shell
+          bind:value={message}
+          bind:mentions
+          {sources}
+          sending={busy}
+          canSend={!blocker && !draft.blocker}
+          {blockedReason}
+          autofocus
+          label="Task for the agent"
+          {draft}
         >
-          {#snippet action()}<ButtonLink href="/settings/projects" variant="primary" icon="cog-6-tooth"
-              >Open project settings</ButtonLink
-            >{/snippet}
-        </EmptyState>
-      {:else}
-        <form
-          method="POST"
-          action="?/createThread"
-          class="grid gap-3"
-          use:enhance={({ cancel }) => {
-            if (blockedReason) return cancel();
-            busy = true;
-            return async ({ result, update }) => {
-              if (result.type === "redirect") permissions.clear(NEW_THREAD);
-              await update({ reset: false });
-              busy = false;
-            };
-          }}
-        >
-          <input type="hidden" name="projectId" value={workspace?.projectId ?? project.id} />
-          <input type="hidden" name="clientRequestId" value={clientRequestId} />
-          <input type="hidden" name="provider" value={selected?.provider ?? ""} />
-          <input type="hidden" name="profileId" value={selected?.profileId ?? ""} />
-          <input type="hidden" name="model" value={model} />
-          <input type="hidden" name="effort" value={sentEffort} />
-          <input type="hidden" name="workspaceId" value={workspace?.id ?? ""} />
-          <input type="hidden" name="permissionMode" value={permissionMode} />
-          <input type="hidden" name="workspaceMode" value={place.form.workspaceMode} />
-          <input type="hidden" name="baseRef" value={place.form.baseRef} />
-          <input type="hidden" name="worktreeId" value={place.form.worktreeId} />
-          {#each draft.ids as id (id)}<input type="hidden" name="attachmentId" value={id} />{/each}
-          {#if form?.error}<Alert tone="error">{form.error}</Alert>{/if}
-          <ComposerBox
-            shell
-            bind:value={message}
-            bind:mentions
-            {sources}
-            sending={busy}
-            canSend={!blocker && !draft.blocker}
-            {blockedReason}
-            autofocus
-            label="Task for the agent"
-            {draft}
-          >
-            {#snippet controls()}
-              {#if workspace && selected}
-                <ModelControls
-                  {options}
-                  bind:option={() => selected, (option) => (picked = option)}
-                  bind:effort
-                  {workerId}
-                  class="flex-1 justify-end"
+          {#snippet controls()}
+            {#if workspace && selected}
+              <ModelControls
+                {options}
+                bind:option={() => selected, (option) => (picked = option)}
+                bind:effort
+                {workerId}
+                class="flex-1 justify-end"
+              />
+            {/if}
+          {/snippet}
+          {#snippet meta()}
+            <ComposerContextRow
+              hasWorkspace={Boolean(place.gitRefs || (worker?.worktrees && project.kind !== "scratch"))}
+              stackPlacement
+            >
+              {#snippet projectControl()}
+                <ProjectPicker
+                  projects={overview.projectChoices}
+                  value={project.id}
+                  onselect={pickProject}
+                  class="w-full max-w-full"
                 />
-              {/if}
-            {/snippet}
-            {#snippet meta()}
-              <ComposerContextRow hasWorkspace={Boolean(place.gitRefs)} stackPlacement>
-                {#snippet projectControl()}
-                  <ProjectPicker
-                    projects={overview.projectChoices}
-                    value={project.id}
-                    onselect={pickProject}
+              {/snippet}
+              {#snippet computerControl()}
+                <div class="flex min-w-0 items-center">
+                  <WorkerPicker
+                    {project}
+                    value={workspace?.id}
+                    onselect={pickWorkspace}
+                    warning={workerNote}
+                    class="min-w-0 flex-1"
+                  />
+                  {#if workspaceNote && !place.gitRefs}<HintIcon
+                      label="Workspace information"
+                      text={workspaceNote}
+                      warning={Boolean(place.error)}
+                    />{/if}
+                </div>
+              {/snippet}
+              {#snippet workspaceControl()}
+                {#if place.gitRefs}
+                  <WorkspacePicker
+                    choice={place.choice}
+                    worktrees={place.worktrees}
+                    onopen={() => void place.refresh()}
+                    onselect={(choice) => place.choose(choice)}
+                    class="w-full max-w-full"
+                    note={workspaceNote}
+                    warning={Boolean(place.error)}
+                  />
+                {/if}
+              {/snippet}
+              {#snippet branchControl()}
+                {#if place.gitRefs}
+                  <RefPicker
+                    refs={place.gitRefs}
+                    branch={place.branch}
+                    editable={place.choice.kind === "new"}
+                    onselect={(ref) => place.chooseBase(ref.name)}
                     class="w-full max-w-full"
                   />
-                {/snippet}
-                {#snippet computerControl()}
-                  <div class="flex min-w-0 items-center">
-                    <WorkerPicker
-                      {project}
-                      value={workspace?.id}
-                      onselect={pickWorkspace}
-                      warning={workerNote}
-                      class="min-w-0 flex-1"
-                    />
-                    {#if workspaceNote && !place.gitRefs}<HintIcon
-                        label="Workspace information"
-                        text={workspaceNote}
-                        warning={Boolean(place.error)}
-                      />{/if}
-                  </div>
-                {/snippet}
-                {#snippet workspaceControl()}
-                  {#if place.gitRefs}
-                    <WorkspacePicker
-                      choice={place.choice}
-                      worktrees={place.worktrees}
-                      onopen={() => void place.refresh()}
-                      onselect={(choice) => place.choose(choice)}
-                      class="w-full max-w-full"
-                      note={workspaceNote}
-                      warning={Boolean(place.error)}
-                    />
-                  {/if}
-                {/snippet}
-                {#snippet branchControl()}
-                  {#if place.gitRefs}
-                    <RefPicker
-                      refs={place.gitRefs}
-                      branch={place.branch}
-                      editable={place.choice.kind === "new"}
-                      onselect={(ref) => place.chooseBase(ref.name)}
-                      class="w-full max-w-full"
-                    />
-                  {/if}
-                {/snippet}
-                {#snippet permissionControl()}
-                  <PermissionPicker value={permissionMode} onselect={(mode) => permissions.set(NEW_THREAD, mode)} />
-                {/snippet}
-              </ComposerContextRow>
-            {/snippet}
-          </ComposerBox>
-        </form>
-      {/if}
-    </div>
-    <ImportSuggestion />
-  </div>
+                {/if}
+              {/snippet}
+              {#snippet permissionControl()}
+                <PermissionPicker value={permissionMode} onselect={(mode) => permissions.set(NEW_THREAD, mode)} />
+              {/snippet}
+            </ComposerContextRow>
+          {/snippet}
+        </ComposerBox>
+      </form>
+    {/if}
+  </CenteredContent>
+  <ImportSuggestion />
   <FileDropOverlay {intake} />
 </div>

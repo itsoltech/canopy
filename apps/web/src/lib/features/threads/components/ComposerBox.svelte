@@ -226,7 +226,7 @@
   });
 
   let box = $state<HTMLDivElement>();
-  let sendWidth = $state(36);
+  let sendWidth = $state<number>();
 
   // From its observer, after layout: `bind:clientWidth` also reads the width as it mounts, which forces a
   // layout of the whole page in the middle of rendering it (the observer still reports before the first paint).
@@ -257,7 +257,7 @@
 <div class={["grid grid-cols-1", className]}>
   <div
     class={[
-      "relative rounded-2xl bg-surface shadow-sm ring-1 dark:shadow-none",
+      "relative rounded-2xl bg-surface shadow-sm ring-1 [--composer-send-width:--spacing(9)] sm:[--composer-send-width:--spacing(8)] dark:shadow-none",
       disabled && "*:opacity-70",
       shellMode
         ? "ring-rose-600 has-focus-visible:ring-rose-600 dark:ring-rose-400 dark:has-focus-visible:ring-rose-400"
@@ -270,7 +270,7 @@
     onpointerdown={() => onexpand?.("pointer")}
     data-compact={compact || undefined}
     data-shell-mode={shellMode || undefined}
-    style:--composer-send-width="{sendWidth}px"
+    style:--composer-send-width={sendWidth === undefined ? undefined : `${sendWidth}px`}
     role="group"
     aria-label={onfiles ? `${label}, drop files to attach` : undefined}
     ondragover={(event) => {

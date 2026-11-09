@@ -39,7 +39,7 @@
       </div>
       {#if hasWorkspace && workspaceControl}
         <div
-          class="grid min-w-0 grid-cols-[7rem_minmax(0,1fr)] items-center gap-1 @min-[34rem]/context:grid-cols-2 @min-[44rem]/context:flex"
+          class="grid min-h-(--control-chrome) min-w-0 grid-cols-[7rem_minmax(0,1fr)] items-center gap-1 max-sm:min-h-(--control-touch) @min-[34rem]/context:grid-cols-2 @min-[44rem]/context:flex pointer-coarse:min-h-(--control-touch)"
         >
           <div class="min-w-0 @max-[34rem]/context:max-w-28 @min-[44rem]/context:max-w-40">
             {@render workspaceControl()}
