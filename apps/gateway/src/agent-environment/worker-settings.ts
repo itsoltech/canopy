@@ -20,6 +20,21 @@ export async function workerEnvironment(environment: AgentEnvironment, workerId:
       const owner = environment.options.userId;
       const instructions = yield* globalIds(sql, owner, "instruction");
 
+      const versions = snapshot.skills.length
+        ? yield* sql<{ skill_id: string; version: bigint; content_hash: string }>`
+        SELECT skill_id,version,content_hash FROM agent_skill_versions
+        WHERE owner_user_id=${owner}::uuid AND skill_id=ANY(${snapshot.skills.map((skill) => skill.id)}::uuid[])
+        ORDER BY skill_id,version`
+        : [];
+
+      const bySkill = new Map<string, { version: bigint; content_hash: string }[]>();
+
+      for (const row of versions) {
+        const entries = bySkill.get(row.skill_id) ?? [];
+        entries.push(row);
+        bySkill.set(row.skill_id, entries);
+      }
+
       for (const doc of snapshot.documents) {
         items.push(
           create(ui.WorkerEnvironmentItemSchema, {
@@ -48,13 +63,7 @@ export async function workerEnvironment(environment: AgentEnvironment, workerId:
           kind === "skill" ? snapshot.skills : snapshot.plugins.flatMap((p) => (p.assignment ? [p.assignment] : []));
 
         for (const item of library) {
-          const versions =
-            kind === "skill"
-              ? yield* sql<{
-                  version: bigint;
-                  content_hash: string;
-                }>`SELECT version,content_hash FROM agent_skill_versions WHERE owner_user_id=${owner}::uuid AND skill_id=${item.id}::uuid ORDER BY version`
-              : [];
+          const versions = kind === "skill" ? (bySkill.get(item.id) ?? []) : [];
 
           items.push(
             create(ui.WorkerEnvironmentItemSchema, {
@@ -70,17 +79,15 @@ export async function workerEnvironment(environment: AgentEnvironment, workerId:
 
           const version =
             kind === "skill" && override.version
-              ? yield* sql<{
-                  content_hash: string;
-                }>`SELECT content_hash FROM agent_skill_versions WHERE owner_user_id=${owner}::uuid AND skill_id=${item.id}::uuid AND version=${override.version}`
-              : [];
+              ? versions.find((row) => BigInt(row.version) === override.version)
+              : undefined;
 
           overrides.push(
             create(ui.WorkerEnvironmentOverrideSchema, {
               kind,
               item: ids.toGlobal(item.id),
               disabled: override.disabled,
-              versionHash: version[0]?.content_hash ?? "",
+              versionHash: version?.content_hash ?? "",
             }),
           );
         }
