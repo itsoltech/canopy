@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { ItemDeltaField, ThreadEventSchema } from "@canopy/contracts";
+import { ItemDeltaField, ItemStatus, ThreadEventSchema } from "@canopy/contracts";
 import { migrate } from "@canopy/db";
 import { Effect } from "effect";
 import { SqlClient, SqlError } from "effect/sql";
@@ -17,6 +17,7 @@ const { values } = parseArgs({
     run: { type: "boolean" },
     clients: { type: "string", default: "8" },
     pool: { type: "string", default: "10" },
+    gateways: { type: "string", default: "1" },
     iterations: { type: "string", default: "40" },
     "statement-timeout-ms": { type: "string", default: "5000" },
   },
@@ -34,11 +35,21 @@ function integer(value: string, maximum: number) {
 
 const clients = integer(values.clients, 32);
 const pool = integer(values.pool, 30);
+const gateways = integer(values.gateways, 3);
+
+if (pool * gateways > 36) throw new Error("Reserve at least four of the server's 40 connections for administration");
+
 const iterations = integer(values.iterations, 200);
 const statementTimeoutMs = integer(values["statement-timeout-ms"], 60000);
 const size = { threads: 64, turns: 16, longTurns: 2048, textBytes: 4096 };
 const owned = await database();
 const normal = runtime(owned.url, undefined, { pool, statementTimeoutMs });
+
+const pools = [
+  normal,
+  ...Array.from({ length: gateways - 1 }, () => runtime(owned.url, undefined, { pool, statementTimeoutMs })),
+];
+
 const monitor = runtime(owned.url, undefined, { pool: 1 });
 const delays = monitorEventLoopDelay({ resolution: 10 });
 const timings = new Map<string, number[]>();
@@ -52,6 +63,9 @@ let peakConnections = 0;
 let peakActive = 0;
 let samples = 0;
 let sequence = 0n;
+const streamingTurn = "30000000-0000-4000-8000-000000000002";
+const streamingItem = "concurrent-answer";
+const streamingChunk = "synthetic streaming delta ";
 
 const percentile = (input: readonly number[], p: number) =>
   input.toSorted((a, b) => a - b)[Math.ceil(input.length * p) - 1] ?? 0;
@@ -95,10 +109,10 @@ async function observe() {
   }
 }
 
-async function probe() {
+async function probe(client: typeof normal) {
   for (let i = 0; i < iterations; i++) {
     const start = performance.now();
-    await normal.runPromise(
+    await client.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
@@ -118,10 +132,11 @@ async function stream() {
         create(ThreadEventSchema, {
           eventId: Bun.randomUUIDv7(),
           threadId: ids.thread,
+          turnId: streamingTurn,
           journalSeq: ++sequence,
           body: {
             case: "itemDelta",
-            value: { itemId: "answer-1", field: ItemDeltaField.TEXT, chunk: "synthetic streaming delta " },
+            value: { itemId: streamingItem, field: ItemDeltaField.TEXT, chunk: streamingChunk },
           },
         }),
       );
@@ -143,6 +158,38 @@ try {
   await normal.runPromise(seed(size));
   await normal.runPromise(seedMirrors(size));
   await normal.runPromise(seedQueues);
+  await normal.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`INSERT INTO turns(id,thread_id,ordinal,status,trigger,author_user_id,input,started_at)
+      VALUES(${streamingTurn}::uuid,${ids.thread}::uuid,${size.longTurns + 1},'running','user',${ids.owner}::uuid,'{}',now())`;
+      yield* sql`UPDATE threads SET status='running' WHERE id=${ids.thread}::uuid`;
+
+      const result = yield* Ingest.use((store) =>
+        store.ingest(ids.worker, "synthetic-concurrency", [
+          create(ThreadEventSchema, {
+            eventId: Bun.randomUUIDv7(),
+            threadId: ids.thread,
+            turnId: streamingTurn,
+            journalSeq: ++sequence,
+            body: {
+              case: "itemStarted",
+              value: {
+                item: {
+                  itemId: streamingItem,
+                  status: ItemStatus.IN_PROGRESS,
+                  content: { case: "agentMessage", value: { text: "" } },
+                },
+              },
+            },
+          }),
+        ]),
+      );
+
+      if (result.failedThreads.length || result.unknownThreads.length)
+        throw new Error("Streaming fixture did not commit");
+    }),
+  );
   const all = [...operations(size), ...queueOperations()];
 
   const polling = all.filter((op) =>
@@ -151,7 +198,7 @@ try {
 
   const mirror = all.find((op) => op.name === "mirror/write")!;
 
-  for (const op of polling) await op.run(normal);
+  for (const client of pools) for (const op of polling) await op.run(client);
   delays.enable();
   const observation = observe();
   const start = performance.now();
@@ -161,14 +208,14 @@ try {
       ...Array.from({ length: clients }, async (_, client) => {
         for (let i = 0; i < iterations; i++) {
           const op = polling[(client + i) % polling.length]!;
-          await measured(op.name, () => op.run(normal));
+          await measured(op.name, () => op.run(pools[client % pools.length]!));
         }
       }),
       stream(),
       (async () => {
-        for (let i = 0; i < iterations; i++) await measured(mirror.name, () => mirror.run(normal));
+        for (let i = 0; i < iterations; i++) await measured(mirror.name, () => mirror.run(pools.at(-1)!));
       })(),
-      probe(),
+      ...pools.map(probe),
     ]);
   } finally {
     sampling = false;
@@ -177,6 +224,21 @@ try {
   }
 
   const elapsedMs = performance.now() - start;
+
+  const streamingVerified = await normal.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+
+      return (
+        (yield* sql<{ valid: boolean }>`SELECT u.status='running' AND i.status='in_progress'
+      AND length(i.content->'agentMessage'->>'text')=${iterations * 8 * streamingChunk.length} AS valid
+      FROM turns u JOIN thread_items i ON i.turn_id=u.id WHERE u.id=${streamingTurn}::uuid AND i.item_id=${streamingItem}`)[0]
+          ?.valid ?? false
+      );
+    }),
+  );
+
+  if (!streamingVerified) throw new Error("Streaming turn lost deltas or changed status");
 
   const timeoutCancelled = await normal.runPromise(
     Effect.gen(function* () {
@@ -204,6 +266,9 @@ try {
       {
         clients,
         pool,
+        gateways,
+        totalPoolCapacity: pool * gateways,
+        streamingVerified,
         maxConnections: 40,
         iterations,
         statementTimeoutMs,
@@ -226,7 +291,7 @@ try {
         postgres: { samples, peakConnections, peakActive, lockWaitSamples, blockers },
         eventLoop: { p95Ms: delays.percentile(95) / 1e6, maxMs: delays.max / 1e6 },
         method:
-          "Shared gateway pool; concurrent client polls, 8-event ingest batches and mirror commits. Lock waits are 10 ms samples, acquisition is a scoped probe including checkout/connection setup. Failures include statement timeouts; no external CLI or transport.",
+          "Independent gateway SQL pools; concurrent client polls, 8-event batches into a running turn and mirror commits. Lock waits are 10 ms samples, acquisition is a scoped probe including checkout/connection setup. Failures include statement timeouts; no external CLI or transport.",
       },
       null,
       2,
@@ -237,7 +302,7 @@ try {
   delays.disable();
 
   try {
-    await normal.dispose();
+    for (const client of pools) await client.dispose();
     await monitor.dispose();
   } finally {
     await owned.stop();
