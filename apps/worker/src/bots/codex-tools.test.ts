@@ -72,6 +72,7 @@ test.skipIf(!Bun.which("codex"))(
         mcp: { url: bus.server.url, headers: Object.fromEntries(bus.server.headers.map((h) => [h.name, h.value])) },
         record: async () => {},
         noteHarness: async () => {},
+        images: async () => [],
       });
       expect(requests.at(-1)).toContain("GATEWAY_APPROVAL_RESULT");
       expect(calls).toBe(1);

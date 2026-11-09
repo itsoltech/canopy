@@ -45,6 +45,7 @@ export const READS = new Set([
   "ListBotApprovalRules",
   "ListThreadApprovals",
   "GetBot",
+  "GetBotDraft",
   "WatchBotConversation",
   "ReadBotExchange",
   "GetBotProviderInstances",

@@ -28,6 +28,7 @@ import { useFloatingComposer } from "../composer/useFloatingComposer";
 import { useBotMessage } from "./useBotMessage";
 import { BotComposer } from "./BotComposer";
 import { BotMentionSuggestions } from "./BotMentionSuggestions";
+import { DropZone } from "../attachments/FileIntake";
 
 const chatRowId = (row: ChatRow) => row.id;
 
@@ -114,88 +115,90 @@ function BotConversation({ id, rule }: { id: string; rule: string }) {
       }
     >
       <ChatKeyboard composerHeight={composer.height}>
-        <View style={styles.fill}>
-          <TimelineList
-            {...composer.listProps}
-            onEndReached={() => {
-              if (!following.isFollowing()) void history.load();
-            }}
-            onEndReachedThreshold={0.3}
-            style={styles.fill}
-            data={latestFirst}
-            keyExtractor={chatRowId}
-            contentContainerStyle={[styles.page, { gap: 0, flexGrow: 1 }]}
-            keyboardShouldPersistTaps="handled"
-            renderItem={({ item }) => (
-              <ArrivingCell entering={arrival(item.id)}>
-                <ChatRowView
-                  row={item}
-                  approvals={approvals}
-                  readOnly={!live}
-                  onAnswer={chat.answer}
-                  onReply={
-                    busy
-                      ? undefined
-                      : (value) => {
-                          composer.expand();
-                          message.reply(value);
-                        }
-                  }
-                />
-              </ArrivingCell>
-            )}
-            // Inverted: the footer is the top of the chat, the header sits under the latest message.
-            ListFooterComponent={
-              <HistoryFooter
-                hasMore={conversation?.historyHasMore}
-                history={history}
-                skeleton={!conversation}
-                empty={!!conversation && !conversation.messages.length}
-              />
-            }
-            ListHeaderComponent={
-              <>
-                <BotTyping conversation={conversation} waiting={waiting} />
-                <View style={{ height: composer.height }} />
-              </>
-            }
-          />
-          <FloatingComposer
-            overlay={
-              <BotMentionSuggestions
-                id={id}
-                trigger={draft.trigger}
-                disabled={!live || busy}
-                onPick={(option) => draft.pickMention(option.mention)}
-              />
-            }
-            motion={composer.motion}
-            onLayout={composer.measure}
-            onExpand={composer.expand}
-            onLatest={following.atBottom ? undefined : composer.showLatest}
-          >
-            {error ? <Notice error>{error}</Notice> : null}
-            {home.away && (
-              <Notice>
-                {home.name} · {home.status}. Read only until it reconnects.
-              </Notice>
-            )}
-            <BotComposer
-              name={bot?.configuration?.name ?? ""}
-              message={message}
-              compact={composer.compact}
-              onExpand={composer.expand}
-              running={conversation?.working ?? false}
-              onStop={() => {
-                if (live)
-                  void chat.client?.api
-                    .interruptBot({ botId: id })
-                    .catch(() => setError("Could not stop the bot. Check the connection and retry."));
+        <DropZone draft={draft.files} disabled={!live || busy || !message.loaded}>
+          <View style={styles.fill}>
+            <TimelineList
+              {...composer.listProps}
+              onEndReached={() => {
+                if (!following.isFollowing()) void history.load();
               }}
-              disabled={!live || !chat.online || !conversation}
+              onEndReachedThreshold={0.3}
+              style={styles.fill}
+              data={latestFirst}
+              keyExtractor={chatRowId}
+              contentContainerStyle={[styles.page, { gap: 0, flexGrow: 1 }]}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <ArrivingCell entering={arrival(item.id)}>
+                  <ChatRowView
+                    row={item}
+                    approvals={approvals}
+                    readOnly={!live}
+                    onAnswer={chat.answer}
+                    onReply={
+                      busy
+                        ? undefined
+                        : (value) => {
+                            composer.expand();
+                            message.reply(value);
+                          }
+                    }
+                  />
+                </ArrivingCell>
+              )}
+              // Inverted: the footer is the top of the chat, the header sits under the latest message.
+              ListFooterComponent={
+                <HistoryFooter
+                  hasMore={conversation?.historyHasMore}
+                  history={history}
+                  skeleton={!conversation}
+                  empty={!!conversation && !conversation.messages.length}
+                />
+              }
+              ListHeaderComponent={
+                <>
+                  <BotTyping conversation={conversation} waiting={waiting} />
+                  <View style={{ height: composer.height }} />
+                </>
+              }
             />
-          </FloatingComposer>
-        </View>
+            <FloatingComposer
+              overlay={
+                <BotMentionSuggestions
+                  id={id}
+                  trigger={draft.trigger}
+                  disabled={!live || busy}
+                  onPick={(option) => draft.pickMention(option.mention)}
+                />
+              }
+              motion={composer.motion}
+              onLayout={composer.measure}
+              onExpand={composer.expand}
+              onLatest={following.atBottom ? undefined : composer.showLatest}
+            >
+              {error ? <Notice error>{error}</Notice> : null}
+              {home.away && (
+                <Notice>
+                  {home.name} · {home.status}. Read only until it reconnects.
+                </Notice>
+              )}
+              <BotComposer
+                name={bot?.configuration?.name ?? ""}
+                message={message}
+                compact={composer.compact}
+                onExpand={composer.expand}
+                running={conversation?.working ?? false}
+                onStop={() => {
+                  if (live)
+                    void chat.client?.api
+                      .interruptBot({ botId: id })
+                      .catch(() => setError("Could not stop the bot. Check the connection and retry."));
+                }}
+                disabled={!live || !chat.online || !conversation}
+              />
+            </FloatingComposer>
+          </View>
+        </DropZone>
       </ChatKeyboard>
       <BotDetailsPanel
         conversation={conversation}

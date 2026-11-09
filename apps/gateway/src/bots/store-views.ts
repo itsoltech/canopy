@@ -9,6 +9,7 @@ import { storedMentions } from "./mentions.ts";
 import { approvalFields } from "./approval-fields.ts";
 import type { BotRow } from "./types.ts";
 import { decodedRules } from "./store-rules.ts";
+import { toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
 
 export interface WakeupRow {
   id: string;
@@ -19,6 +20,7 @@ export interface WakeupRow {
 }
 
 export interface MessageRow {
+  attachments: StoredAttachment[];
   id: string;
   seq: bigint;
   bot_id: string;
@@ -97,6 +99,7 @@ export const messageView = (row: MessageRow) =>
     settingChanges: row.setting_changes ?? [],
     mentions: storedMentions(row.mentions),
     quotes: row.quotes.map(toUiQuote),
+    attachments: (row.attachments ?? []).map(toUiAttachment),
   });
 
 export const approvalView = (row: ApprovalRow) =>

@@ -9,12 +9,11 @@ import {
   CONFIG_SYNC,
   NODE_REF_LENGTH,
   RELAY,
-  REMOTE_BOTS,
   REMOTE_THREADS,
   THREAD_MIRROR,
 } from "@canopy/domain/computers";
 
-import { BOT_METHODS } from "./remote.ts";
+import { botFeature } from "./remote-policy.ts";
 
 import { RELAY_METHODS, relayCallback } from "./relay.ts";
 
@@ -214,11 +213,7 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
       const feature =
         method.name === "CallAgentBus"
           ? AGENT_BUS
-          : BOT_METHODS.has(method.name)
-            ? REMOTE_BOTS
-            : method.name === "WatchThreadMirror"
-              ? THREAD_MIRROR
-              : REMOTE_THREADS;
+          : (botFeature(method, request) ?? (method.name === "WatchThreadMirror" ? THREAD_MIRROR : REMOTE_THREADS));
 
       if (!this.hello().capabilities.includes(feature) || !indirect.capabilities.includes(feature))
         throw new ConnectError("The linked computer needs an update for this action", Code.FailedPrecondition);
@@ -237,7 +232,7 @@ export const computersRemoteMethods: ComputersRemoteMethods = {
     const remote = computersChannel(this, nodeId);
 
     if (!remote) throw await this.unavailable(nodeId);
-    const feature = method.name === "CallAgentBus" ? AGENT_BUS : BOT_METHODS.has(method.name) ? REMOTE_BOTS : undefined;
+    const feature = method.name === "CallAgentBus" ? AGENT_BUS : botFeature(method, request);
 
     if (feature && (!this.hello().capabilities.includes(feature) || !this.capabilities(nodeId).includes(feature))) {
       const peer = await this.store.peer(nodeId);

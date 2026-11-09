@@ -19,6 +19,8 @@
   import type { ChatEntry } from "@canopy/domain/bot-chat";
   import ChangeModelDialog, { type BotModelChoice } from "#lib/features/bots/wizard/ChangeModelDialog.svelte";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
+  import { botComposerDraft } from "#lib/features/bots/composer-draft.svelte.ts";
+  import { limitsOf } from "#lib/features/attachments/draft.svelte.ts";
   import { requestJson } from "#lib/shared/http.ts";
   import { watchBot } from "#lib/features/bots/watch.svelte.ts";
   import { canAnswerBotApproval } from "@canopy/domain/bot-snapshot";
@@ -38,6 +40,7 @@
 
   let { data }: PageProps = $props();
   const settings = useSettings();
+  const composerDraft = $derived(botComposerDraft(data.bot.id, () => limitsOf(settings.attachmentLimits)));
   const capabilities = useGatewayCapabilities();
   const catalogs = useModelCatalog();
   let snapshot = $state.raw(create(bots.BotConversationSchema));
@@ -60,7 +63,17 @@
 
   /** Your messages until the conversation has them; a failed one keeps its request id for Retry. */
   let pending = $state<
-    { id: string; text: string; mentions: Mention[]; quotes: ui.Quote[]; at: Date; baseline: number; failed: boolean }[]
+    {
+      id: string;
+      text: string;
+      mentions: Mention[];
+      quotes: ui.Quote[];
+      attachments: ui.Attachment[];
+      revision: bigint | undefined;
+      at: Date;
+      baseline: number;
+      failed: boolean;
+    }[]
   >([]);
 
   let instances = $state.raw<ui.ProviderInstance[]>([]);
@@ -92,6 +105,7 @@
           .some(
             (m) =>
               m.text === p.text &&
+              m.attachments.map((a) => a.id).join() === p.attachments.map((a) => a.id).join() &&
               JSON.stringify(m.quotes.map((q) => encode(ui.QuoteSchema, q))) ===
                 JSON.stringify(p.quotes.map((q) => encode(ui.QuoteSchema, q))) &&
               m.mentions.length === p.mentions.length &&
@@ -116,6 +130,7 @@
         text: p.text,
         mentions: p.mentions,
         quotes: p.quotes,
+        attachments: p.attachments,
         delivery: p.failed ? "failed" : "sending",
       },
     })),
@@ -186,7 +201,14 @@
     };
   });
 
-  async function deliver(item: { id: string; text: string; mentions: Mention[]; quotes: ui.Quote[] }) {
+  async function deliver(item: {
+    id: string;
+    text: string;
+    mentions: Mention[];
+    quotes: ui.Quote[];
+    attachments: ui.Attachment[];
+    revision: bigint | undefined;
+  }) {
     sending = true;
 
     try {
@@ -195,29 +217,45 @@
         mentions: mentionsToWire(item.mentions),
         quotes: item.quotes.map((q) => encode(ui.QuoteSchema, q)),
         clientRequestId: item.id,
+        attachmentIds: item.attachments.map((a) => a.id),
+        draftRevision: item.revision?.toString(),
       });
+
+      return true;
     } catch {
       pending = pending.map((p) => (p.id === item.id ? { ...p, failed: true } : p));
+
+      return false;
     } finally {
       sending = false;
     }
   }
 
-  function send(text: string, mentions: Mention[], quotes: ui.Quote[]) {
-    if (!canAct) return;
+  async function send(
+    text: string,
+    mentions: Mention[],
+    quotes: ui.Quote[],
+    attachments: ui.Attachment[] = [],
+    requestId: string = crypto.randomUUID(),
+    revision?: bigint,
+  ) {
+    if (!canAct) return false;
 
     const item = {
-      id: crypto.randomUUID(),
+      id: requestId,
       text,
       mentions,
       quotes,
+      attachments,
+      revision,
       at: new Date(),
       baseline: yours.length,
       failed: false,
     };
 
-    pending = [...pending, item];
-    void deliver(item);
+    pending = [...pending.filter((p) => p.id !== item.id), item];
+
+    return deliver(item);
   }
 
   function resend() {
@@ -225,7 +263,10 @@
 
     if (!failed) return;
     pending = pending.map((p) => (p === failed ? { ...p, failed: false } : p));
-    void deliver(failed);
+    void deliver(failed).then(async (accepted) => {
+      if (accepted && composerDraft.sync.value.clientRequestId === failed.id)
+        await composerDraft.sync.sent(composerDraft.sync.value);
+    });
   }
 
   async function reply(id: string, body: { approve: boolean; answer: string; ruleOptionId?: string }, mark: string) {
@@ -361,6 +402,7 @@
           onclose={closeDetails}
         />{/snippet}
       <ChatView
+        {composerDraft}
         hasMore={history.hasMore}
         historyError={history.historyError}
         loadingOlder={history.loadingOlder}

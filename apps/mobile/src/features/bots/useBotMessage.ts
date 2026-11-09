@@ -1,5 +1,4 @@
-import { useRef, useState } from "react";
-import * as Crypto from "expo-crypto";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import type { ChatMessageView } from "@canopy/domain/bot-chat";
@@ -8,47 +7,71 @@ import { QUOTE_LIMITS } from "@canopy/domain";
 import { useSession } from "../../state/session";
 import { useMessageDraft } from "../composer/useMessageDraft";
 import { useQuoteDraft } from "../quotes/useQuoteDraft";
+import { botComposerState } from "./composer-state";
 
 export function useBotMessage(id: string, live: boolean, onSend: () => void) {
   const { client, online } = useSession();
-  const draft = useMessageDraft();
-  const [busy, setBusy] = useState(false);
+  const state = useMemo(() => botComposerState(client, id), [client, id]);
+  useSyncExternalStore(state.subscribe, state.snapshot);
+  const draft = useMessageDraft({ value: state.value, files: state.files, botId: id, onChange: state.changed });
+  const busy = state.sending;
   const [error, setError] = useState("");
-  const sending = useRef(false);
-  const quoteDraft = useQuoteDraft(() => sending.current);
+  const quoteDraft = useQuoteDraft(() => state.sending, { current: state.quotes, onChange: state.changed });
   const { quotes } = quoteDraft;
-  const pending = useRef({ value: "", id: "" });
+  useEffect(() => {
+    if (online) void state.sync.load();
+
+    return () => {
+      void state.sync.flush().catch(() => {});
+    };
+  }, [state, online]);
 
   async function send() {
-    const { text, mentions } = draft.outgoing();
+    const { text, mentions, attachmentIds } = draft.outgoing();
 
-    if ((!text && !quotes.length) || sending.current || !client || !online || !live) return;
-    sending.current = true;
+    if (
+      (!text && !quotes.length && !attachmentIds.length) ||
+      state.sending ||
+      draft.files.blocker ||
+      !client ||
+      !online ||
+      !live ||
+      !state.sync.loaded
+    )
+      return;
+    state.persist();
+    state.sending = true;
+    state.notify();
     onSend();
-    setBusy(true);
     setError("");
-    const value = JSON.stringify({ text, mentions, quotes });
-
-    if (pending.current.value !== value) pending.current = { value, id: Crypto.randomUUID() };
 
     try {
+      const saved = await state.sync.outgoing();
       await client.api.sendBotMessage(
-        { botId: id, text, mentions, quotes: [...quotes], clientRequestId: pending.current.id },
+        {
+          botId: id,
+          text,
+          mentions,
+          quotes: [...quotes],
+          attachmentIds,
+          clientRequestId: saved.clientRequestId,
+          draftRevision: saved.revision,
+        },
         { timeoutMs: 20_000 },
       );
       draft.clear();
       quoteDraft.clear();
-      pending.current = { value: "", id: "" };
+      await state.sync.sent(saved);
     } catch {
-      setError("Could not confirm delivery. Retry this message unchanged to send it only once.");
+      setError(state.sync.error || "Could not confirm delivery. Retry this message unchanged to send it only once.");
     } finally {
-      sending.current = false;
-      setBusy(false);
+      state.sending = false;
+      state.notify();
     }
   }
 
   function reply(message: ChatMessageView) {
-    if (!live || sending.current) return;
+    if (!live || state.sending) return;
 
     if (quotes.length >= QUOTE_LIMITS.maxQuotes) {
       setError("A message can carry up to 20 quotes. Remove a quote to add another.");
@@ -76,7 +99,12 @@ export function useBotMessage(id: string, live: boolean, onSend: () => void) {
     quotes,
     quoteDraft,
     busy,
-    error,
+    error: error || state.sync.error,
+    loaded: state.sync.loaded,
+    reloadDraft: () => {
+      setError("");
+      void state.sync.reload();
+    },
     setError,
     send,
     reply,

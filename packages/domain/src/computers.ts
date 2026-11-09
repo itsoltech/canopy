@@ -12,6 +12,9 @@ export const THREAD_MIRROR_DELTA = "thread_mirror_delta";
 export const THREAD_WATCH_LIVENESS = "thread_watch_liveness";
 export const THREAD_WATCH_COALESCE = "thread_watch_coalesce";
 export const REMOTE_BOTS = "remote_bots";
+
+/** Durable bot drafts and image messages; every forwarding computer must understand the fields. */
+export const REMOTE_BOT_COMPOSER = "remote_bot_composer_v1";
 export const AGENT_BUS = "agent_bus";
 
 /** Stage 6: the computer accepts `RouteAnnouncement` frames (its partner's current addresses). */

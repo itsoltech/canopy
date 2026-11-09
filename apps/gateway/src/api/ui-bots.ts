@@ -3,6 +3,7 @@ import { bots, ui } from "@canopy/contracts";
 import { type GatewayCore } from "../core/core.ts";
 import { connectorGuard, guard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
+import { coreState } from "../core/core-context.ts";
 
 export function botsHandlers(
   core: GatewayCore,
@@ -17,6 +18,8 @@ export function botsHandlers(
   | "getBot"
   | "getBotProviderInstances"
   | "sendBotMessage"
+  | "getBotDraft"
+  | "saveBotDraft"
   | "watchBotConversation"
   | "readBotExchange"
   | "answerBotApproval"
@@ -76,7 +79,12 @@ export function botsHandlers(
       }),
 
     sendBotMessage: (r) =>
-      guard(async () => create(bots.SendBotMessageResponseSchema, { turnId: await core.bots.send(r) })),
+      guard(async () =>
+        create(bots.SendBotMessageResponseSchema, { turnId: await core.bots.send(r, await core.attachmentLimits) }),
+      ),
+
+    getBotDraft: (r) => guard(() => core.bots.run((s) => s.draft(core[coreState].options.userId, r.botId))),
+    saveBotDraft: (r) => guard(() => core.bots.run((s) => s.saveDraft(core[coreState].options.userId, r))),
 
     watchBotConversation: (r, context) => core.bots.watch(r.botId, context.signal, r.incremental, r.cursor, r),
 

@@ -29,7 +29,7 @@ export function createSteer(sql: SqlClient.SqlClient, request: Parameters<SteerS
       if (attachments.length > 0) {
         const bound = yield* sql`UPDATE attachments SET thread_id = ${threadId}::uuid, turn_id = ${turnId}::uuid
           WHERE id = ANY(${attachments.map((a) => a.id)}::uuid[])
-            AND owner_user_id = ${userId}::uuid AND thread_id IS NULL RETURNING id`;
+            AND owner_user_id = ${userId}::uuid AND thread_id IS NULL AND bot_id IS NULL RETURNING id`;
 
         if (bound.length !== attachments.length)
           return yield* Effect.fail(new Invalid("an attachment was already sent with another message"));

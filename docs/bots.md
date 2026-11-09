@@ -49,6 +49,37 @@ Niedostępny gateway odrzuca zdalną akcję od razu; nic nie czeka na ponowne po
 
 Kod: `apps/gateway/src/bots`, `apps/worker/src/bots`; kontrakty: boty UI i WorkerLink.
 
+## Szkice i obrazy w rozmowie
+
+Szkic wiadomości bota jest zapisywany w bazie gatewaya (`bot_composer_drafts`),
+osobno dla bota i właściciela. Obejmuje tekst, strukturalne wzmianki, cytaty
+z komentarzami i identyfikatory wgranych obrazów. Web, desktop i mobile używają
+tych samych RPC `GetBotDraft` / `SaveBotDraft`, z opóźnieniem zapisu 350 ms
+i kontrolą rewizji. Zmiana Threads/Bots oraz nawigacja zachowują również trwające
+uploady w pamięci sesji; po zakończeniu uploadu szkic zapisuje jego metadane w DB.
+Nie używamy localStorage ani magazynu urządzenia. Niedokończony upload wymaga
+ponownego dodania obrazu po zamknięciu aplikacji. Szkice wątków pozostają lokalne
+w pamięci kompozytora; trwałość szkiców botów jest osobnym rozszerzeniem.
+
+Wysyłanie zachowuje szkic do potwierdzenia gatewaya. Odrzucone żądanie i błąd
+transportu nie kasują treści ani klucza idempotencji. Przyjęta wiadomość czyści
+wyłącznie wysyłaną rewizję; nowszy szkic zapisany na drugim urządzeniu pozostaje.
+Konflikt zapisu jest jawny i nie nadpisuje drugiego urządzenia.
+
+Pierwszy zakres załączników obejmuje PNG, JPEG, GIF i WebP. Web/desktop przyjmują
+obrazy przez wklejenie, upuszczenie i **Attach images**; mobile przez istniejący
+intake wklejania, zdjęć i plików. Upload korzysta z blobów gatewaya, limitów
+rozmiaru pliku, sumy wiadomości i liczby plików z ustawień oraz wspólnych
+miniatur i przeglądarek. Typ jest rozpoznawany z bajtów. Inne typy są odrzucane.
+Wiadomość może zawierać sam obraz; rozmowa nadal ma układ komunikatora.
+Obrazy docierają do oficjalnego harnessu natywnie, bez nowych narzędzi dyskowych
+bota: [bots-harness.md](bots-harness.md#obrazy-użytkownika).
+
+Przeniesienie bota między komputerami obejmuje szkic, wgrane obrazy szkicu,
+obrazy rozmowy i miniatury. Wymaga `remote_bot_composer_v1` na komputerze
+docelowym; starsza wersja odmawia przeniesienia z instrukcją aktualizacji.
+Obrazy muszą zmieścić się w limicie transferu 40 MiB, tak jak pliki wątku.
+
 ## Zmiana modelu — ukryte przekazanie kontekstu
 
 Prompt każdej tury podaje **aktualnego dostawcę, etykietę i id instancji, konkretne id
@@ -822,8 +853,8 @@ JSON i składanych logów pracy.
   Szczegóły nie zawierają endpointów, stderr ani sekretów; surowe komunikaty błędów
   modeli nie są zapisywane w gatewayu.
   Lista boczna pokazuje „Couldn't reply”.
-- **Composer** (`BotComposer`): jedna zaokrąglona „pigułka”: „+” (załączniki — na razie
-  niedostępne z podpowiedzią), wspólny `MentionEditor` z Threads zamiast textarea.
+- **Composer** (`BotComposer`): jedna zaokrąglona „pigułka”: „+” (**Attach images**),
+  wspólny `MentionEditor` z Threads zamiast textarea.
   Markdown na żywo: pogrubienie, kursywa, kod inline i bloki kodu; wklejanie jako czysty tekst.
   Pole „Message ‹Bot›” rośnie do `min(40dvh,16rem)`; dopiero po osiągnięciu limitu ma
   stylowane przewijanie. Wiele linii lub cytaty zmieniają pigułkę w zaokrąglone pole,
@@ -834,7 +865,8 @@ JSON i składanych logów pracy.
 - **Autouzupełnianie**: tylko `@`, pozostałe boty użytkownika bez bieżącego: awatar,
   kolor, nazwa, model jako opis, filtr fuzzy. ↑↓ i Enter/Tab wybierają, Esc zamyka;
   dotknięcie wybiera bez utraty fokusu. Desktop ma popover, telefon/wskaźnik coarse panel
-  nad edytorem wewnątrz composera. Brak plików, skillsów oraz wyzwalaczy `/`, `$`, `#`.
+  nad edytorem wewnątrz composera. Obrazy mają plakietki załączników; brak przeglądania
+  systemu plików, skillsów oraz wyzwalaczy `/`, `$`, `#`.
   `MentionSourceSet` oddziela edytor od źródeł. Typowany `BotMentionRegistry` ma grupy
   `bots` i `connectors`; druga pobiera połączone konta z grantów bieżącego bota.
   Źródła implementują `search(query) → MentionOption[]`. Chip np. „GitHub · work”
@@ -937,5 +969,5 @@ Widoki UI sprawdzamy ręcznie w obu motywach i przy szerokości desktopu/telefon
 zgodnie z polityką repozytorium. Uwzględnij karty interakcji, Edit/Retry, archiwum,
 Undo i kontrolki kompozytora; brak błędów transportu nie dowodzi poprawnego układu.
 
-Dalej: reakcje i odpowiedzi w API, liczniki nieprzeczytanych, załączniki, harmonogramy cykliczne
+Dalej: reakcje i odpowiedzi w API, liczniki nieprzeczytanych, inne typy załączników, harmonogramy cykliczne
 botów, kompakcja kontekstu, stronicowanie i wirtualizacja długich rozmów.

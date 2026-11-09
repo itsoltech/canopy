@@ -33,3 +33,5 @@ export function appearanceError(
 }
 
 export { normalizeColor };
+
+export { BotComposerSync, type BotDraftTransport } from "./bot-composer-sync.ts";

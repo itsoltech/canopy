@@ -1,6 +1,7 @@
-import { QUOTE_LIMITS } from "@canopy/domain";
+import { isQuoteSourceKind, QUOTE_LIMITS } from "@canopy/domain";
 import { toWire, type QuoteDraft, type WireQuote } from "./quote.ts";
 import type { QuoteSource } from "./selection.ts";
+import type { ui } from "@canopy/contracts";
 
 /**
  * The quotes of each thread's composer draft, for this tab (like the draft text, nothing is stored in the
@@ -62,6 +63,17 @@ export class QuoteDrafts {
 
   clear(threadId: string): void {
     this.#set(threadId, []);
+  }
+
+  restore(threadId: string, quotes: readonly ui.Quote[]): void {
+    this.#set(
+      threadId,
+      quotes.flatMap((quote) =>
+        isQuoteSourceKind(quote.sourceKind)
+          ? [{ ...quote, sourceKind: quote.sourceKind, id: crypto.randomUUID() }]
+          : [],
+      ),
+    );
   }
 
   /** The draft's quotes for SendMessage (empty comments left out). */

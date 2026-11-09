@@ -2,7 +2,7 @@ import { create, fromJson } from "@bufbuild/protobuf";
 import { createHash } from "node:crypto";
 import { CommandSchema, CommandResultSchema, TurnOutcome } from "@canopy/contracts";
 import { classifyFailure, ProviderFailure } from "@canopy/domain";
-import { budgetedHistory } from "../bots/history-budget.ts";
+import { botImageInput } from "./bot-images.ts";
 import { BotStore } from "../bots/store.ts";
 import type { BotTurn, ModelInput, ModelReply } from "../bots/types.ts";
 import { coreState } from "./core-context.ts";
@@ -10,6 +10,24 @@ import { coreWorkers } from "./core-providers.ts";
 import { coreDeliver, coreDispatch } from "./core-commands.ts";
 import { coreRun } from "./core-broadcast.ts";
 import type { GatewayCore } from "./core.ts";
+
+const configurationKey = (configuration: ModelInput["configuration"]) =>
+  createHash("sha256")
+    .update(
+      JSON.stringify({
+        name: configuration.name,
+        instructions: configuration.instructions,
+        approvalPolicy: configuration.approvalPolicy,
+      }),
+    )
+    .digest("hex");
+
+const harnessTools = (tools: ModelInput["tools"]) =>
+  tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    inputSchemaJson: JSON.stringify(t.parameters),
+  }));
 
 export async function workerJournalWelcome(core: GatewayCore, workerId: string, journalId: string) {
   core[coreState].journalIds.set(workerId, journalId);
@@ -83,6 +101,18 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
         "platform",
       );
     await run((s) => s.assignWorker(core[coreState].options.userId, turn.bot_id, workerId));
+    const images = await botImageInput(core, turn.bot_id, workerId, input.messages);
+
+    if (
+      (images.attachments.length || images.historyAttachments.length) &&
+      connection?.isOpen &&
+      !connection.hello.capabilities.includes("bot_images_v1")
+    )
+      throw new ProviderFailure(
+        "configuration",
+        "Update this worker to receive images, or choose another worker.",
+        "platform",
+      );
 
     const command = await run((s) =>
       s.harnessCommand(
@@ -100,22 +130,9 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
               model: input.configuration.model,
               effort: input.configuration.effort,
               instructions: input.instructions,
-              configurationKey: createHash("sha256")
-                .update(
-                  JSON.stringify({
-                    name: input.configuration.name,
-                    instructions: input.configuration.instructions,
-                    approvalPolicy: input.configuration.approvalPolicy,
-                  }),
-                )
-                .digest("hex"),
-              historyJson: JSON.stringify(budgetedHistory(input.messages)),
-              input: input.messages.findLast((m) => m.role === "user")?.text ?? "",
-              tools: input.tools.map((t) => ({
-                name: t.name,
-                description: t.description,
-                inputSchemaJson: JSON.stringify(t.parameters),
-              })),
+              configurationKey: configurationKey(input.configuration),
+              ...images,
+              tools: harnessTools(input.tools),
             },
           },
         }),
@@ -155,6 +172,17 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
       }
 
       const connection = core.link.connections.get(workerId);
+
+      if (
+        connection?.isOpen &&
+        input.messages.some((m) => m.attachments?.length) &&
+        !connection.hello.capabilities.includes("bot_images_v1")
+      )
+        throw new ProviderFailure(
+          "configuration",
+          "Update this worker to receive images, or choose another worker.",
+          "platform",
+        );
 
       if (connection?.isOpen && !connection.hello.capabilities.includes("bot_harness_v1"))
         throw new ProviderFailure(

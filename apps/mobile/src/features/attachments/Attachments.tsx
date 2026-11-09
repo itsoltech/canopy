@@ -49,7 +49,7 @@ export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boo
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Attach files"
+        accessibilityLabel={draft.imagesOnly ? "Attach images" : "Attach files"}
         disabled={disabled || busy}
         onPress={() => void show()}
         style={({ pressed }) => ({
@@ -75,7 +75,11 @@ export function AttachButton({ draft, disabled }: { draft: Draft; disabled?: boo
         sections={[
           {
             options: [
-              { value: "photos" as const, label: "Photos and videos", icon: "photo" as const },
+              {
+                value: "photos" as const,
+                label: draft.imagesOnly ? "Photos" : "Photos and videos",
+                icon: "photo" as const,
+              },
               { value: "files" as const, label: "Files", icon: "document-text" as const },
               ...(image
                 ? [{ value: "paste" as const, label: "Paste image", icon: "clipboard-document" as const }]

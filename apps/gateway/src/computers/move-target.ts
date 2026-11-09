@@ -8,6 +8,7 @@ import { botRowsJson, insertRows, payloadOf, threadRowJson, type MoveRow, type S
 
 import { audit, redirect, transaction } from "./move-state.ts";
 import type { ComputerStore } from "./store.ts";
+import { importBotComposer } from "./move-bot-composer.ts";
 
 /** Stages a move on the target. A repeated prepare of the same move is answered from its record. */
 export function stage(
@@ -174,6 +175,7 @@ export function applyBot(store: ComputerStore, move: MoveRow, self: { nodeId: st
         })),
       );
       // New sequence numbers here, in the same order; the read marker follows its message.
+      yield* importBotComposer(sql, owner, move.item_id, prepare.bot!);
       yield* insertRows(sql, "bot_messages", rows.messages, { omit: ["seq"], order: "seq" });
       const lastRead = Number(rows.bot.last_read_seq);
       const read = rows.messages.filter((m) => Number(m.seq) <= lastRead).map((m) => m.id);

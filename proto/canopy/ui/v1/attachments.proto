@@ -1,0 +1,15 @@
+syntax = "proto3";
+package canopy.ui.v1;
+
+// Shared by thread messages and bot conversations. Types come from content, never the client filename.
+message Attachment {
+  string id = 1;
+  string name = 2;
+  string mime_type = 3;
+  string kind = 4;
+  uint64 size_bytes = 5;
+  uint32 width = 6;
+  uint32 height = 7;
+  string sha256 = 8;
+  bool has_thumbnail = 9;
+}

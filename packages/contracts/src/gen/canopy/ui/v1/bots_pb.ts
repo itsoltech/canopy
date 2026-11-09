@@ -14,13 +14,15 @@ import type { Quote } from "./quotes_pb.ts";
 import { file_canopy_ui_v1_quotes } from "./quotes_pb.ts";
 import type { LinkedComputer } from "./computers_pb.ts";
 import { file_canopy_ui_v1_computers } from "./computers_pb.ts";
+import type { Attachment } from "./attachments_pb.ts";
+import { file_canopy_ui_v1_attachments } from "./attachments_pb.ts";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file canopy/ui/v1/bots.proto.
  */
 export const file_canopy_ui_v1_bots: GenFile = /*@__PURE__*/
-  fileDesc("ChdjYW5vcHkvdWkvdjEvYm90cy5wcm90bxIMY2Fub3B5LnVpLnYxIrgCChBCb3RDb25maWd1cmF0aW9uEgwKBG5hbWUYASABKAkSDQoFc2hhcGUYAiABKAkSDQoFY29sb3IYAyABKAkSLAoIcHJvdmlkZXIYBCABKA4yGi5jYW5vcHkud29ya2VyLnYxLlByb3ZpZGVyEhkKEXByb3ZpZGVyX2luc3RhbmNlGAUgASgJEg0KBW1vZGVsGAYgASgJEg4KBmVmZm9ydBgHIAEoCRIUCgxpbnN0cnVjdGlvbnMYCCABKAkSFgoObWNwX3NlcnZlcl9pZHMYCSADKAkSFwoPYXBwcm92YWxfcG9saWN5GAogASgJEhIKCXdvcmtlcl9pZBi+BiABKAkSHwoRdGhyZWFkX3Blcm1pc3Npb24Y6QcgASgJSACIAQFCFAoSX3RocmVhZF9wZXJtaXNzaW9uIuMDCgNCb3QSCgoCaWQYASABKAkSNQoNY29uZmlndXJhdGlvbhgCIAEoCzIeLmNhbm9weS51aS52MS5Cb3RDb25maWd1cmF0aW9uEi4KCmNyZWF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KDGxhc3RfbWVzc2FnZRjeAiABKAsyGC5jYW5vcHkudWkudjEuQm90TWVzc2FnZRIRCghhcmNoaXZlZBiuAyABKAgSGgoRY3JlYXRlZF9ieV9ib3RfaWQY2AQgASgJEhwKE2NyZWF0ZWRfYnlfYm90X25hbWUY2QQgASgJEhYKDW93bmVyX3VzZXJfaWQYsAQgASgJEhUKDHVucmVhZF9jb3VudBixBCABKA0SFgoNbGFzdF9yZWFkX3NlcRiyBCABKAQSEAoHbm9kZV9pZBigBiABKAkSGAoPbW92ZWRfZnJvbV9uYW1lGKEGIAEoCRISCglyZWNvbm5lY3QYogYgAygJEjQKEHBlbmRpbmdfYXBwcm92YWwY6AcgASgLMhkuY2Fub3B5LnVpLnYxLkJvdEFwcHJvdmFsIokDCgpCb3RNZXNzYWdlEgoKAmlkGAEgASgJEgsKA3NlcRgCIAEoBBIOCgZib3RfaWQYAyABKAkSEQoJc2VuZGVyX2lkGAQgASgJEhQKDHJlY2lwaWVudF9pZBgFIAEoCRIMCgRraW5kGAYgASgJEgwKBHRleHQYByABKAkSEwoLZXhjaGFuZ2VfaWQYCCABKAkSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGZmFpbGVkGAogASgIEhMKCmVycm9yX2NvZGUYtgYgASgJEhUKDGVycm9yX3NvdXJjZRi3BiABKAkSOAoPc2V0dGluZ19jaGFuZ2VzGK4DIAMoCzIeLmNhbm9weS51aS52MS5Cb3RTZXR0aW5nQ2hhbmdlEiwKCG1lbnRpb25zGMIDIAMoCzIZLmNhbm9weS53b3JrZXIudjEuTWVudGlvbhIkCgZxdW90ZXMYwwMgAygLMhMuY2Fub3B5LnVpLnYxLlF1b3RlIkAKEEJvdFNldHRpbmdDaGFuZ2USDQoFZmllbGQYASABKAkSDgoGYmVmb3JlGAIgASgJEg0KBWFmdGVyGAMgASgJIoIECgtCb3RBcHByb3ZhbBIKCgJpZBgBIAEoCRIOCgZib3RfaWQYAiABKAkSDwoHdHVybl9pZBgDIAEoCRIMCgRraW5kGAQgASgJEg4KBnByb21wdBgFIAEoCRIOCgZzdGF0dXMYBiABKAkSDgoGYW5zd2VyGAcgASgJEi4KCmNyZWF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB29wdGlvbnMYCSADKAkSLwoGZmllbGRzGNkEIAMoCzIeLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbEZpZWxkEi8KCmV4cGlyZXNfYXQY2gQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBI1Cgxwcm9wb3NlZF9ib3QY2AQgASgLMh4uY2Fub3B5LnVpLnYxLkJvdENvbmZpZ3VyYXRpb24SFgoNcm91dGluZV90aXRsZRiwBCABKAkSNAoMcnVsZV9vcHRpb25zGOkHIAMoCzIdLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbFJ1bGUSNwoPYWxsb3dlZF9ieV9ydWxlGOoHIAEoCzIdLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbFJ1bGUSEgoJdGhyZWFkX2lkGOsHIAEoCRITCgpyZXF1ZXN0X2lkGOwHIAEoCSKwAQoPQm90QXBwcm92YWxSdWxlEgoKAmlkGAEgASgJEg4KBmJvdF9pZBgCIAEoCRIMCgRraW5kGAMgASgJEhEKCXRhcmdldF9pZBgEIAEoCRIRCgl0b29sX25hbWUYBSABKAkSDQoFbGFiZWwYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGc291cmNlGAggASgJIi0KG0xpc3RCb3RBcHByb3ZhbFJ1bGVzUmVxdWVzdBIOCgZib3RfaWQYASABKAkiTAocTGlzdEJvdEFwcHJvdmFsUnVsZXNSZXNwb25zZRIsCgVydWxlcxgBIAMoCzIdLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbFJ1bGUiPwocRGVsZXRlQm90QXBwcm92YWxSdWxlUmVxdWVzdBIOCgZib3RfaWQYASABKAkSDwoHcnVsZV9pZBgCIAEoCSIfCh1EZWxldGVCb3RBcHByb3ZhbFJ1bGVSZXNwb25zZSJJChpMaXN0VGhyZWFkQXBwcm92YWxzUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSGAoQb3RoZXJfdGhyZWFkX2lkcxgCIAMoCSJLChtMaXN0VGhyZWFkQXBwcm92YWxzUmVzcG9uc2USLAoJYXBwcm92YWxzGAEgAygLMhkuY2Fub3B5LnVpLnYxLkJvdEFwcHJvdmFsIjAKEEJvdEFwcHJvdmFsRmllbGQSDQoFbGFiZWwYASABKAkSDQoFdmFsdWUYAiABKAki+gMKD0JvdENvbnZlcnNhdGlvbhIeCgNib3QYASABKAsyES5jYW5vcHkudWkudjEuQm90EioKCG1lc3NhZ2VzGAIgAygLMhguY2Fub3B5LnVpLnYxLkJvdE1lc3NhZ2USLAoJYXBwcm92YWxzGAMgAygLMhkuY2Fub3B5LnVpLnYxLkJvdEFwcHJvdmFsEhMKC3N0YXR1c19saW5lGAQgASgJEg8KB3dvcmtpbmcYBSABKAgSEAoIcmV2aXNpb24YBiABKAQSKwoIcm91dGluZXMYsAQgAygLMhguY2Fub3B5LnVpLnYxLkJvdFJvdXRpbmUSLQoJcmVtaW5kZXJzGLEEIAMoCzIZLmNhbm9weS51aS52MS5Cb3RSZW1pbmRlchIXCg5zdHJlYW1pbmdfdGV4dBi+BiABKAkSDwoGY3Vyc29yGMwIIAEoCRIUCgtiYXNlX2N1cnNvchjNCCABKAkSDgoFZGVsdGEYzgggASgIEhwKE3JlbW92ZWRfbWVzc2FnZV9pZHMYzwggAygJEhsKEmNvbnRyb2xzX3VuY2hhbmdlZBjQCCABKAgSGwoSaGlzdG9yeV9iZWZvcmVfc2VxGNYIIAEoBBIZChBoaXN0b3J5X2hhc19tb3JlGNcIIAEoCBIWCg1oaXN0b3J5X3Jlc2V0GNgIIAEoCCKAAwoKQm90Um91dGluZRIKCgJpZBgBIAEoCRIOCgZib3RfaWQYAiABKAkSDQoFdGl0bGUYAyABKAkSFAoMaW5zdHJ1Y3Rpb25zGAQgASgJEgwKBGNyb24YBSABKAkSEAoIdGltZXpvbmUYBiABKAkSFQoNc2NoZWR1bGVfdGV4dBgHIAEoCRIPCgdlbmFibGVkGAggASgIEi4KCmNyZWF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2xhc3RfcnVuX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgtuZXh0X3J1bl9hdBgMIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMbGFzdF9vdXRjb21lGA0gASgJEhEKCXJ1bl9jb3VudBgOIAEoDSJVCgtCb3RSZW1pbmRlchIKCgJpZBgBIAEoCRIOCgZwcm9tcHQYAiABKAkSKgoGcnVuX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJSChtTZXRCb3RSb3V0aW5lRW5hYmxlZFJlcXVlc3QSDgoGYm90X2lkGAEgASgJEhIKCnJvdXRpbmVfaWQYAiABKAkSDwoHZW5hYmxlZBgDIAEoCCI9ChdEZWxldGVCb3RSb3V0aW5lUmVxdWVzdBIOCgZib3RfaWQYASABKAkSEgoKcm91dGluZV9pZBgCIAEoCSI/ChJCb3RSb3V0aW5lUmVzcG9uc2USKQoHcm91dGluZRgBIAEoCzIYLmNhbm9weS51aS52MS5Cb3RSb3V0aW5lIhoKGERlbGV0ZUJvdFJvdXRpbmVSZXNwb25zZSI/ChhDYW5jZWxCb3RSZW1pbmRlclJlcXVlc3QSDgoGYm90X2lkGAEgASgJEhMKC3JlbWluZGVyX2lkGAIgASgJIhsKGUNhbmNlbEJvdFJlbWluZGVyUmVzcG9uc2UiOQoSTWFya0JvdFJlYWRSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRITCgt0aHJvdWdoX3NlcRgCIAEoBCJkChBDcmVhdGVCb3RSZXF1ZXN0EjUKDWNvbmZpZ3VyYXRpb24YASABKAsyHi5jYW5vcHkudWkudjEuQm90Q29uZmlndXJhdGlvbhIZChFjbGllbnRfcmVxdWVzdF9pZBgCIAEoCSJZChBVcGRhdGVCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRI1Cg1jb25maWd1cmF0aW9uGAIgASgLMh4uY2Fub3B5LnVpLnYxLkJvdENvbmZpZ3VyYXRpb24iHwoNR2V0Qm90UmVxdWVzdBIOCgZib3RfaWQYASABKAkiMAoOR2V0Qm90UmVzcG9uc2USHgoDYm90GAEgASgLMhEuY2Fub3B5LnVpLnYxLkJvdCIsCg9MaXN0Qm90c1JlcXVlc3QSGQoQaW5jbHVkZV9hcmNoaXZlZBiuAyABKAgirAEKEExpc3RCb3RzUmVzcG9uc2USHwoEYm90cxgBIAMoCzIRLmNhbm9weS51aS52MS5Cb3QSOwoVdW5hdmFpbGFibGVfY29tcHV0ZXJzGAIgAygLMhwuY2Fub3B5LnVpLnYxLkxpbmtlZENvbXB1dGVyEjoKFHJlZnJlc2hpbmdfY29tcHV0ZXJzGAMgAygLMhwuY2Fub3B5LnVpLnYxLkxpbmtlZENvbXB1dGVyIiIKEERlbGV0ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIhMKEURlbGV0ZUJvdFJlc3BvbnNlIiMKEUFyY2hpdmVCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSIlChNVbmFyY2hpdmVCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSKkAQoVU2VuZEJvdE1lc3NhZ2VSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRIMCgR0ZXh0GAIgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAMgASgJEiwKCG1lbnRpb25zGMIDIAMoCzIZLmNhbm9weS53b3JrZXIudjEuTWVudGlvbhIkCgZxdW90ZXMYwwMgAygLMhMuY2Fub3B5LnVpLnYxLlF1b3RlIikKFlNlbmRCb3RNZXNzYWdlUmVzcG9uc2USDwoHdHVybl9pZBgBIAEoCSJ9ChtXYXRjaEJvdENvbnZlcnNhdGlvblJlcXVlc3QSDgoGYm90X2lkGAEgASgJEhQKC2luY3JlbWVudGFsGMwIIAEoCBIPCgZjdXJzb3IYzQggASgJEhIKCXBhZ2Vfc2l6ZRjWCCABKA0SEwoKYmVmb3JlX3NlcRjXCCABKAQifQoWUmVhZEJvdEV4Y2hhbmdlUmVxdWVzdBITCgtleGNoYW5nZV9pZBgBIAEoCRIUCgtpbmNyZW1lbnRhbBjMCCABKAgSDwoGY3Vyc29yGM0IIAEoCRISCglwYWdlX3NpemUY1gggASgNEhMKCmJlZm9yZV9zZXEY1wggASgEIrECChdSZWFkQm90RXhjaGFuZ2VSZXNwb25zZRIqCghtZXNzYWdlcxgBIAMoCzIYLmNhbm9weS51aS52MS5Cb3RNZXNzYWdlEg8KBmN1cnNvchjMCCABKAkSFAoLYmFzZV9jdXJzb3IYzQggASgJEg4KBWRlbHRhGM4IIAEoCBIcChNyZW1vdmVkX21lc3NhZ2VfaWRzGM8IIAMoCRIoCgxwYXJ0aWNpcGFudHMY0AggAygLMhEuY2Fub3B5LnVpLnYxLkJvdBIbChJjb250cm9sc191bmNoYW5nZWQY0QggASgIEhsKEmhpc3RvcnlfYmVmb3JlX3NlcRjWCCABKAQSGQoQaGlzdG9yeV9oYXNfbW9yZRjXCCABKAgSFgoNaGlzdG9yeV9yZXNldBjYCCABKAgiigEKDUJvdENhY2hlZFZpZXcSCwoDa2V5GAEgASgJEjMKDGNvbnZlcnNhdGlvbhgCIAEoCzIdLmNhbm9weS51aS52MS5Cb3RDb252ZXJzYXRpb24SNwoIZXhjaGFuZ2UYAyABKAsyJS5jYW5vcHkudWkudjEuUmVhZEJvdEV4Y2hhbmdlUmVzcG9uc2UiaQoYQW5zd2VyQm90QXBwcm92YWxSZXF1ZXN0EhMKC2FwcHJvdmFsX2lkGAEgASgJEg8KB2FwcHJvdmUYAiABKAgSDgoGYW5zd2VyGAMgASgJEhcKDnJ1bGVfb3B0aW9uX2lkGOkHIAEoCSJIChlBbnN3ZXJCb3RBcHByb3ZhbFJlc3BvbnNlEisKCGFwcHJvdmFsGAEgASgLMhkuY2Fub3B5LnVpLnYxLkJvdEFwcHJvdmFsIiUKE0ludGVycnVwdEJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIhYKFEludGVycnVwdEJvdFJlc3BvbnNlIiEKD1JldHJ5Qm90UmVxdWVzdBIOCgZib3RfaWQYASABKAkiEgoQUmV0cnlCb3RSZXNwb25zZSKAAQoMQm90TWNwU2VydmVyEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSCwoDdXJsGAMgASgJEhEKCXRyYW5zcG9ydBgEIAEoCRIPCgdlbmFibGVkGAUgASgIEhQKDGhlYWRlcl9uYW1lcxgGIAMoCRIPCgdib3RfaWRzGAcgAygJIvABChdTYXZlQm90TWNwU2VydmVyUmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgsKA3VybBgDIAEoCRIRCgl0cmFuc3BvcnQYBCABKAkSDwoHZW5hYmxlZBgFIAEoCBJDCgdoZWFkZXJzGAYgAygLMjIuY2Fub3B5LnVpLnYxLlNhdmVCb3RNY3BTZXJ2ZXJSZXF1ZXN0LkhlYWRlcnNFbnRyeRIVCg1jbGVhcl9oZWFkZXJzGAcgASgIGi4KDEhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkYKGFNhdmVCb3RNY3BTZXJ2ZXJSZXNwb25zZRIqCgZzZXJ2ZXIYASABKAsyGi5jYW5vcHkudWkudjEuQm90TWNwU2VydmVyIhoKGExpc3RCb3RNY3BTZXJ2ZXJzUmVxdWVzdCJIChlMaXN0Qm90TWNwU2VydmVyc1Jlc3BvbnNlEisKB3NlcnZlcnMYASADKAsyGi5jYW5vcHkudWkudjEuQm90TWNwU2VydmVyIi4KGURlbGV0ZUJvdE1jcFNlcnZlclJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIhwKGkRlbGV0ZUJvdE1jcFNlcnZlclJlc3BvbnNlIiwKF1Rlc3RCb3RNY3BTZXJ2ZXJSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJCCgpCb3RNY3BUb29sEgwKBG5hbWUYASABKAkSEwoLZGVzY3JpcHRpb24YAiABKAkSEQoJcmVhZF9vbmx5GAMgASgIIkMKGFRlc3RCb3RNY3BTZXJ2ZXJSZXNwb25zZRInCgV0b29scxgBIAMoCzIYLmNhbm9weS51aS52MS5Cb3RNY3BUb29sYgZwcm90bzM", [file_google_protobuf_timestamp, file_canopy_worker_v1_worker_link, file_canopy_ui_v1_quotes, file_canopy_ui_v1_computers]);
+  fileDesc("ChdjYW5vcHkvdWkvdjEvYm90cy5wcm90bxIMY2Fub3B5LnVpLnYxIrgCChBCb3RDb25maWd1cmF0aW9uEgwKBG5hbWUYASABKAkSDQoFc2hhcGUYAiABKAkSDQoFY29sb3IYAyABKAkSLAoIcHJvdmlkZXIYBCABKA4yGi5jYW5vcHkud29ya2VyLnYxLlByb3ZpZGVyEhkKEXByb3ZpZGVyX2luc3RhbmNlGAUgASgJEg0KBW1vZGVsGAYgASgJEg4KBmVmZm9ydBgHIAEoCRIUCgxpbnN0cnVjdGlvbnMYCCABKAkSFgoObWNwX3NlcnZlcl9pZHMYCSADKAkSFwoPYXBwcm92YWxfcG9saWN5GAogASgJEhIKCXdvcmtlcl9pZBi+BiABKAkSHwoRdGhyZWFkX3Blcm1pc3Npb24Y6QcgASgJSACIAQFCFAoSX3RocmVhZF9wZXJtaXNzaW9uIuMDCgNCb3QSCgoCaWQYASABKAkSNQoNY29uZmlndXJhdGlvbhgCIAEoCzIeLmNhbm9weS51aS52MS5Cb3RDb25maWd1cmF0aW9uEi4KCmNyZWF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KDGxhc3RfbWVzc2FnZRjeAiABKAsyGC5jYW5vcHkudWkudjEuQm90TWVzc2FnZRIRCghhcmNoaXZlZBiuAyABKAgSGgoRY3JlYXRlZF9ieV9ib3RfaWQY2AQgASgJEhwKE2NyZWF0ZWRfYnlfYm90X25hbWUY2QQgASgJEhYKDW93bmVyX3VzZXJfaWQYsAQgASgJEhUKDHVucmVhZF9jb3VudBixBCABKA0SFgoNbGFzdF9yZWFkX3NlcRiyBCABKAQSEAoHbm9kZV9pZBigBiABKAkSGAoPbW92ZWRfZnJvbV9uYW1lGKEGIAEoCRISCglyZWNvbm5lY3QYogYgAygJEjQKEHBlbmRpbmdfYXBwcm92YWwY6AcgASgLMhkuY2Fub3B5LnVpLnYxLkJvdEFwcHJvdmFsIrkDCgpCb3RNZXNzYWdlEgoKAmlkGAEgASgJEgsKA3NlcRgCIAEoBBIOCgZib3RfaWQYAyABKAkSEQoJc2VuZGVyX2lkGAQgASgJEhQKDHJlY2lwaWVudF9pZBgFIAEoCRIMCgRraW5kGAYgASgJEgwKBHRleHQYByABKAkSEwoLZXhjaGFuZ2VfaWQYCCABKAkSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGZmFpbGVkGAogASgIEhMKCmVycm9yX2NvZGUYtgYgASgJEhUKDGVycm9yX3NvdXJjZRi3BiABKAkSOAoPc2V0dGluZ19jaGFuZ2VzGK4DIAMoCzIeLmNhbm9weS51aS52MS5Cb3RTZXR0aW5nQ2hhbmdlEiwKCG1lbnRpb25zGMIDIAMoCzIZLmNhbm9weS53b3JrZXIudjEuTWVudGlvbhIkCgZxdW90ZXMYwwMgAygLMhMuY2Fub3B5LnVpLnYxLlF1b3RlEi4KC2F0dGFjaG1lbnRzGMQDIAMoCzIYLmNhbm9weS51aS52MS5BdHRhY2htZW50IkAKEEJvdFNldHRpbmdDaGFuZ2USDQoFZmllbGQYASABKAkSDgoGYmVmb3JlGAIgASgJEg0KBWFmdGVyGAMgASgJIoIECgtCb3RBcHByb3ZhbBIKCgJpZBgBIAEoCRIOCgZib3RfaWQYAiABKAkSDwoHdHVybl9pZBgDIAEoCRIMCgRraW5kGAQgASgJEg4KBnByb21wdBgFIAEoCRIOCgZzdGF0dXMYBiABKAkSDgoGYW5zd2VyGAcgASgJEi4KCmNyZWF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB29wdGlvbnMYCSADKAkSLwoGZmllbGRzGNkEIAMoCzIeLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbEZpZWxkEi8KCmV4cGlyZXNfYXQY2gQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBI1Cgxwcm9wb3NlZF9ib3QY2AQgASgLMh4uY2Fub3B5LnVpLnYxLkJvdENvbmZpZ3VyYXRpb24SFgoNcm91dGluZV90aXRsZRiwBCABKAkSNAoMcnVsZV9vcHRpb25zGOkHIAMoCzIdLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbFJ1bGUSNwoPYWxsb3dlZF9ieV9ydWxlGOoHIAEoCzIdLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbFJ1bGUSEgoJdGhyZWFkX2lkGOsHIAEoCRITCgpyZXF1ZXN0X2lkGOwHIAEoCSKwAQoPQm90QXBwcm92YWxSdWxlEgoKAmlkGAEgASgJEg4KBmJvdF9pZBgCIAEoCRIMCgRraW5kGAMgASgJEhEKCXRhcmdldF9pZBgEIAEoCRIRCgl0b29sX25hbWUYBSABKAkSDQoFbGFiZWwYBiABKAkSLgoKY3JlYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGc291cmNlGAggASgJIi0KG0xpc3RCb3RBcHByb3ZhbFJ1bGVzUmVxdWVzdBIOCgZib3RfaWQYASABKAkiTAocTGlzdEJvdEFwcHJvdmFsUnVsZXNSZXNwb25zZRIsCgVydWxlcxgBIAMoCzIdLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbFJ1bGUiPwocRGVsZXRlQm90QXBwcm92YWxSdWxlUmVxdWVzdBIOCgZib3RfaWQYASABKAkSDwoHcnVsZV9pZBgCIAEoCSIfCh1EZWxldGVCb3RBcHByb3ZhbFJ1bGVSZXNwb25zZSJJChpMaXN0VGhyZWFkQXBwcm92YWxzUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSGAoQb3RoZXJfdGhyZWFkX2lkcxgCIAMoCSJLChtMaXN0VGhyZWFkQXBwcm92YWxzUmVzcG9uc2USLAoJYXBwcm92YWxzGAEgAygLMhkuY2Fub3B5LnVpLnYxLkJvdEFwcHJvdmFsIjAKEEJvdEFwcHJvdmFsRmllbGQSDQoFbGFiZWwYASABKAkSDQoFdmFsdWUYAiABKAki+gMKD0JvdENvbnZlcnNhdGlvbhIeCgNib3QYASABKAsyES5jYW5vcHkudWkudjEuQm90EioKCG1lc3NhZ2VzGAIgAygLMhguY2Fub3B5LnVpLnYxLkJvdE1lc3NhZ2USLAoJYXBwcm92YWxzGAMgAygLMhkuY2Fub3B5LnVpLnYxLkJvdEFwcHJvdmFsEhMKC3N0YXR1c19saW5lGAQgASgJEg8KB3dvcmtpbmcYBSABKAgSEAoIcmV2aXNpb24YBiABKAQSKwoIcm91dGluZXMYsAQgAygLMhguY2Fub3B5LnVpLnYxLkJvdFJvdXRpbmUSLQoJcmVtaW5kZXJzGLEEIAMoCzIZLmNhbm9weS51aS52MS5Cb3RSZW1pbmRlchIXCg5zdHJlYW1pbmdfdGV4dBi+BiABKAkSDwoGY3Vyc29yGMwIIAEoCRIUCgtiYXNlX2N1cnNvchjNCCABKAkSDgoFZGVsdGEYzgggASgIEhwKE3JlbW92ZWRfbWVzc2FnZV9pZHMYzwggAygJEhsKEmNvbnRyb2xzX3VuY2hhbmdlZBjQCCABKAgSGwoSaGlzdG9yeV9iZWZvcmVfc2VxGNYIIAEoBBIZChBoaXN0b3J5X2hhc19tb3JlGNcIIAEoCBIWCg1oaXN0b3J5X3Jlc2V0GNgIIAEoCCKAAwoKQm90Um91dGluZRIKCgJpZBgBIAEoCRIOCgZib3RfaWQYAiABKAkSDQoFdGl0bGUYAyABKAkSFAoMaW5zdHJ1Y3Rpb25zGAQgASgJEgwKBGNyb24YBSABKAkSEAoIdGltZXpvbmUYBiABKAkSFQoNc2NoZWR1bGVfdGV4dBgHIAEoCRIPCgdlbmFibGVkGAggASgIEi4KCmNyZWF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2xhc3RfcnVuX2F0GAsgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgtuZXh0X3J1bl9hdBgMIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMbGFzdF9vdXRjb21lGA0gASgJEhEKCXJ1bl9jb3VudBgOIAEoDSJVCgtCb3RSZW1pbmRlchIKCgJpZBgBIAEoCRIOCgZwcm9tcHQYAiABKAkSKgoGcnVuX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJSChtTZXRCb3RSb3V0aW5lRW5hYmxlZFJlcXVlc3QSDgoGYm90X2lkGAEgASgJEhIKCnJvdXRpbmVfaWQYAiABKAkSDwoHZW5hYmxlZBgDIAEoCCI9ChdEZWxldGVCb3RSb3V0aW5lUmVxdWVzdBIOCgZib3RfaWQYASABKAkSEgoKcm91dGluZV9pZBgCIAEoCSI/ChJCb3RSb3V0aW5lUmVzcG9uc2USKQoHcm91dGluZRgBIAEoCzIYLmNhbm9weS51aS52MS5Cb3RSb3V0aW5lIhoKGERlbGV0ZUJvdFJvdXRpbmVSZXNwb25zZSI/ChhDYW5jZWxCb3RSZW1pbmRlclJlcXVlc3QSDgoGYm90X2lkGAEgASgJEhMKC3JlbWluZGVyX2lkGAIgASgJIhsKGUNhbmNlbEJvdFJlbWluZGVyUmVzcG9uc2UiOQoSTWFya0JvdFJlYWRSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRITCgt0aHJvdWdoX3NlcRgCIAEoBCJkChBDcmVhdGVCb3RSZXF1ZXN0EjUKDWNvbmZpZ3VyYXRpb24YASABKAsyHi5jYW5vcHkudWkudjEuQm90Q29uZmlndXJhdGlvbhIZChFjbGllbnRfcmVxdWVzdF9pZBgCIAEoCSJZChBVcGRhdGVCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRI1Cg1jb25maWd1cmF0aW9uGAIgASgLMh4uY2Fub3B5LnVpLnYxLkJvdENvbmZpZ3VyYXRpb24iHwoNR2V0Qm90UmVxdWVzdBIOCgZib3RfaWQYASABKAkiMAoOR2V0Qm90UmVzcG9uc2USHgoDYm90GAEgASgLMhEuY2Fub3B5LnVpLnYxLkJvdCIsCg9MaXN0Qm90c1JlcXVlc3QSGQoQaW5jbHVkZV9hcmNoaXZlZBiuAyABKAgirAEKEExpc3RCb3RzUmVzcG9uc2USHwoEYm90cxgBIAMoCzIRLmNhbm9weS51aS52MS5Cb3QSOwoVdW5hdmFpbGFibGVfY29tcHV0ZXJzGAIgAygLMhwuY2Fub3B5LnVpLnYxLkxpbmtlZENvbXB1dGVyEjoKFHJlZnJlc2hpbmdfY29tcHV0ZXJzGAMgAygLMhwuY2Fub3B5LnVpLnYxLkxpbmtlZENvbXB1dGVyIiIKEERlbGV0ZUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIhMKEURlbGV0ZUJvdFJlc3BvbnNlIiMKEUFyY2hpdmVCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSIlChNVbmFyY2hpdmVCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSLuAQoVU2VuZEJvdE1lc3NhZ2VSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRIMCgR0ZXh0GAIgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAMgASgJEiwKCG1lbnRpb25zGMIDIAMoCzIZLmNhbm9weS53b3JrZXIudjEuTWVudGlvbhIkCgZxdW90ZXMYwwMgAygLMhMuY2Fub3B5LnVpLnYxLlF1b3RlEhcKDmF0dGFjaG1lbnRfaWRzGMQDIAMoCRIcCg5kcmFmdF9yZXZpc2lvbhjFAyABKARIAIgBAUIRCg9fZHJhZnRfcmV2aXNpb24i3gEKEEJvdENvbXBvc2VyRHJhZnQSDgoGYm90X2lkGAEgASgJEgwKBHRleHQYAiABKAkSKwoIbWVudGlvbnMYAyADKAsyGS5jYW5vcHkud29ya2VyLnYxLk1lbnRpb24SIwoGcXVvdGVzGAQgAygLMhMuY2Fub3B5LnVpLnYxLlF1b3RlEi0KC2F0dGFjaG1lbnRzGAUgAygLMhguY2Fub3B5LnVpLnYxLkF0dGFjaG1lbnQSEAoIcmV2aXNpb24YBiABKAQSGQoRY2xpZW50X3JlcXVlc3RfaWQYByABKAkibwoTU2F2ZUJvdERyYWZ0UmVxdWVzdBIOCgZib3RfaWQYASABKAkSLQoFZHJhZnQYAiABKAsyHi5jYW5vcHkudWkudjEuQm90Q29tcG9zZXJEcmFmdBIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoBCIpChZTZW5kQm90TWVzc2FnZVJlc3BvbnNlEg8KB3R1cm5faWQYASABKAkifQobV2F0Y2hCb3RDb252ZXJzYXRpb25SZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCRIUCgtpbmNyZW1lbnRhbBjMCCABKAgSDwoGY3Vyc29yGM0IIAEoCRISCglwYWdlX3NpemUY1gggASgNEhMKCmJlZm9yZV9zZXEY1wggASgEIn0KFlJlYWRCb3RFeGNoYW5nZVJlcXVlc3QSEwoLZXhjaGFuZ2VfaWQYASABKAkSFAoLaW5jcmVtZW50YWwYzAggASgIEg8KBmN1cnNvchjNCCABKAkSEgoJcGFnZV9zaXplGNYIIAEoDRITCgpiZWZvcmVfc2VxGNcIIAEoBCKxAgoXUmVhZEJvdEV4Y2hhbmdlUmVzcG9uc2USKgoIbWVzc2FnZXMYASADKAsyGC5jYW5vcHkudWkudjEuQm90TWVzc2FnZRIPCgZjdXJzb3IYzAggASgJEhQKC2Jhc2VfY3Vyc29yGM0IIAEoCRIOCgVkZWx0YRjOCCABKAgSHAoTcmVtb3ZlZF9tZXNzYWdlX2lkcxjPCCADKAkSKAoMcGFydGljaXBhbnRzGNAIIAMoCzIRLmNhbm9weS51aS52MS5Cb3QSGwoSY29udHJvbHNfdW5jaGFuZ2VkGNEIIAEoCBIbChJoaXN0b3J5X2JlZm9yZV9zZXEY1gggASgEEhkKEGhpc3RvcnlfaGFzX21vcmUY1wggASgIEhYKDWhpc3RvcnlfcmVzZXQY2AggASgIIooBCg1Cb3RDYWNoZWRWaWV3EgsKA2tleRgBIAEoCRIzCgxjb252ZXJzYXRpb24YAiABKAsyHS5jYW5vcHkudWkudjEuQm90Q29udmVyc2F0aW9uEjcKCGV4Y2hhbmdlGAMgASgLMiUuY2Fub3B5LnVpLnYxLlJlYWRCb3RFeGNoYW5nZVJlc3BvbnNlImkKGEFuc3dlckJvdEFwcHJvdmFsUmVxdWVzdBITCgthcHByb3ZhbF9pZBgBIAEoCRIPCgdhcHByb3ZlGAIgASgIEg4KBmFuc3dlchgDIAEoCRIXCg5ydWxlX29wdGlvbl9pZBjpByABKAkiSAoZQW5zd2VyQm90QXBwcm92YWxSZXNwb25zZRIrCghhcHByb3ZhbBgBIAEoCzIZLmNhbm9weS51aS52MS5Cb3RBcHByb3ZhbCIlChNJbnRlcnJ1cHRCb3RSZXF1ZXN0Eg4KBmJvdF9pZBgBIAEoCSIWChRJbnRlcnJ1cHRCb3RSZXNwb25zZSIhCg9SZXRyeUJvdFJlcXVlc3QSDgoGYm90X2lkGAEgASgJIhIKEFJldHJ5Qm90UmVzcG9uc2UigAEKDEJvdE1jcFNlcnZlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgsKA3VybBgDIAEoCRIRCgl0cmFuc3BvcnQYBCABKAkSDwoHZW5hYmxlZBgFIAEoCBIUCgxoZWFkZXJfbmFtZXMYBiADKAkSDwoHYm90X2lkcxgHIAMoCSLwAQoXU2F2ZUJvdE1jcFNlcnZlclJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRILCgN1cmwYAyABKAkSEQoJdHJhbnNwb3J0GAQgASgJEg8KB2VuYWJsZWQYBSABKAgSQwoHaGVhZGVycxgGIAMoCzIyLmNhbm9weS51aS52MS5TYXZlQm90TWNwU2VydmVyUmVxdWVzdC5IZWFkZXJzRW50cnkSFQoNY2xlYXJfaGVhZGVycxgHIAEoCBouCgxIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJGChhTYXZlQm90TWNwU2VydmVyUmVzcG9uc2USKgoGc2VydmVyGAEgASgLMhouY2Fub3B5LnVpLnYxLkJvdE1jcFNlcnZlciIaChhMaXN0Qm90TWNwU2VydmVyc1JlcXVlc3QiSAoZTGlzdEJvdE1jcFNlcnZlcnNSZXNwb25zZRIrCgdzZXJ2ZXJzGAEgAygLMhouY2Fub3B5LnVpLnYxLkJvdE1jcFNlcnZlciIuChlEZWxldGVCb3RNY3BTZXJ2ZXJSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSIcChpEZWxldGVCb3RNY3BTZXJ2ZXJSZXNwb25zZSIsChdUZXN0Qm90TWNwU2VydmVyUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiQgoKQm90TWNwVG9vbBIMCgRuYW1lGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEhEKCXJlYWRfb25seRgDIAEoCCJDChhUZXN0Qm90TWNwU2VydmVyUmVzcG9uc2USJwoFdG9vbHMYASADKAsyGC5jYW5vcHkudWkudjEuQm90TWNwVG9vbGIGcHJvdG8z", [file_google_protobuf_timestamp, file_canopy_worker_v1_worker_link, file_canopy_ui_v1_quotes, file_canopy_ui_v1_computers, file_canopy_ui_v1_attachments]);
 
 /**
  * @generated from message canopy.ui.v1.BotConfiguration
@@ -288,6 +290,11 @@ export type BotMessage = Message<"canopy.ui.v1.BotMessage"> & {
    * @generated from field: repeated canopy.ui.v1.Quote quotes = 451;
    */
   quotes: Quote[];
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.Attachment attachments = 452;
+   */
+  attachments: Attachment[];
 };
 
 /**
@@ -1197,6 +1204,18 @@ export type SendBotMessageRequest = Message<"canopy.ui.v1.SendBotMessageRequest"
    * @generated from field: repeated canopy.ui.v1.Quote quotes = 451;
    */
   quotes: Quote[];
+
+  /**
+   * @generated from field: repeated string attachment_ids = 452;
+   */
+  attachmentIds: string[];
+
+  /**
+   * Clear only the draft this send started from. A newer edit on another device survives.
+   *
+   * @generated from field: optional uint64 draft_revision = 453;
+   */
+  draftRevision?: bigint | undefined;
 };
 
 /**
@@ -1205,6 +1224,82 @@ export type SendBotMessageRequest = Message<"canopy.ui.v1.SendBotMessageRequest"
  */
 export const SendBotMessageRequestSchema: GenMessage<SendBotMessageRequest> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_bots, 33);
+
+/**
+ * @generated from message canopy.ui.v1.BotComposerDraft
+ */
+export type BotComposerDraft = Message<"canopy.ui.v1.BotComposerDraft"> & {
+  /**
+   * @generated from field: string bot_id = 1;
+   */
+  botId: string;
+
+  /**
+   * @generated from field: string text = 2;
+   */
+  text: string;
+
+  /**
+   * @generated from field: repeated canopy.worker.v1.Mention mentions = 3;
+   */
+  mentions: Mention[];
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.Quote quotes = 4;
+   */
+  quotes: Quote[];
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.Attachment attachments = 5;
+   */
+  attachments: Attachment[];
+
+  /**
+   * @generated from field: uint64 revision = 6;
+   */
+  revision: bigint;
+
+  /**
+   * Stable across navigation and transport retries; changing the message creates a new id.
+   *
+   * @generated from field: string client_request_id = 7;
+   */
+  clientRequestId: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.BotComposerDraft.
+ * Use `create(BotComposerDraftSchema)` to create a new message.
+ */
+export const BotComposerDraftSchema: GenMessage<BotComposerDraft> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_bots, 34);
+
+/**
+ * @generated from message canopy.ui.v1.SaveBotDraftRequest
+ */
+export type SaveBotDraftRequest = Message<"canopy.ui.v1.SaveBotDraftRequest"> & {
+  /**
+   * @generated from field: string bot_id = 1;
+   */
+  botId: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.BotComposerDraft draft = 2;
+   */
+  draft?: BotComposerDraft | undefined;
+
+  /**
+   * @generated from field: uint64 expected_revision = 3;
+   */
+  expectedRevision: bigint;
+};
+
+/**
+ * Describes the message canopy.ui.v1.SaveBotDraftRequest.
+ * Use `create(SaveBotDraftRequestSchema)` to create a new message.
+ */
+export const SaveBotDraftRequestSchema: GenMessage<SaveBotDraftRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_bots, 35);
 
 /**
  * @generated from message canopy.ui.v1.SendBotMessageResponse
@@ -1221,7 +1316,7 @@ export type SendBotMessageResponse = Message<"canopy.ui.v1.SendBotMessageRespons
  * Use `create(SendBotMessageResponseSchema)` to create a new message.
  */
 export const SendBotMessageResponseSchema: GenMessage<SendBotMessageResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 34);
+  messageDesc(file_canopy_ui_v1_bots, 36);
 
 /**
  * @generated from message canopy.ui.v1.WatchBotConversationRequest
@@ -1258,7 +1353,7 @@ export type WatchBotConversationRequest = Message<"canopy.ui.v1.WatchBotConversa
  * Use `create(WatchBotConversationRequestSchema)` to create a new message.
  */
 export const WatchBotConversationRequestSchema: GenMessage<WatchBotConversationRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 35);
+  messageDesc(file_canopy_ui_v1_bots, 37);
 
 /**
  * @generated from message canopy.ui.v1.ReadBotExchangeRequest
@@ -1295,7 +1390,7 @@ export type ReadBotExchangeRequest = Message<"canopy.ui.v1.ReadBotExchangeReques
  * Use `create(ReadBotExchangeRequestSchema)` to create a new message.
  */
 export const ReadBotExchangeRequestSchema: GenMessage<ReadBotExchangeRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 36);
+  messageDesc(file_canopy_ui_v1_bots, 38);
 
 /**
  * @generated from message canopy.ui.v1.ReadBotExchangeResponse
@@ -1359,7 +1454,7 @@ export type ReadBotExchangeResponse = Message<"canopy.ui.v1.ReadBotExchangeRespo
  * Use `create(ReadBotExchangeResponseSchema)` to create a new message.
  */
 export const ReadBotExchangeResponseSchema: GenMessage<ReadBotExchangeResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 37);
+  messageDesc(file_canopy_ui_v1_bots, 39);
 
 /**
  * Device-local representation; never accepted by a gateway mutation.
@@ -1388,7 +1483,7 @@ export type BotCachedView = Message<"canopy.ui.v1.BotCachedView"> & {
  * Use `create(BotCachedViewSchema)` to create a new message.
  */
 export const BotCachedViewSchema: GenMessage<BotCachedView> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 38);
+  messageDesc(file_canopy_ui_v1_bots, 40);
 
 /**
  * @generated from message canopy.ui.v1.AnswerBotApprovalRequest
@@ -1422,7 +1517,7 @@ export type AnswerBotApprovalRequest = Message<"canopy.ui.v1.AnswerBotApprovalRe
  * Use `create(AnswerBotApprovalRequestSchema)` to create a new message.
  */
 export const AnswerBotApprovalRequestSchema: GenMessage<AnswerBotApprovalRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 39);
+  messageDesc(file_canopy_ui_v1_bots, 41);
 
 /**
  * @generated from message canopy.ui.v1.AnswerBotApprovalResponse
@@ -1439,7 +1534,7 @@ export type AnswerBotApprovalResponse = Message<"canopy.ui.v1.AnswerBotApprovalR
  * Use `create(AnswerBotApprovalResponseSchema)` to create a new message.
  */
 export const AnswerBotApprovalResponseSchema: GenMessage<AnswerBotApprovalResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 40);
+  messageDesc(file_canopy_ui_v1_bots, 42);
 
 /**
  * @generated from message canopy.ui.v1.InterruptBotRequest
@@ -1456,7 +1551,7 @@ export type InterruptBotRequest = Message<"canopy.ui.v1.InterruptBotRequest"> & 
  * Use `create(InterruptBotRequestSchema)` to create a new message.
  */
 export const InterruptBotRequestSchema: GenMessage<InterruptBotRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 41);
+  messageDesc(file_canopy_ui_v1_bots, 43);
 
 /**
  * @generated from message canopy.ui.v1.InterruptBotResponse
@@ -1469,7 +1564,7 @@ export type InterruptBotResponse = Message<"canopy.ui.v1.InterruptBotResponse"> 
  * Use `create(InterruptBotResponseSchema)` to create a new message.
  */
 export const InterruptBotResponseSchema: GenMessage<InterruptBotResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 42);
+  messageDesc(file_canopy_ui_v1_bots, 44);
 
 /**
  * Ponawia ostatnią turę, jeśli zakończyła się błędem: ta sama wiadomość użytkownika, bez nowego wpisu w czacie.
@@ -1488,7 +1583,7 @@ export type RetryBotRequest = Message<"canopy.ui.v1.RetryBotRequest"> & {
  * Use `create(RetryBotRequestSchema)` to create a new message.
  */
 export const RetryBotRequestSchema: GenMessage<RetryBotRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 43);
+  messageDesc(file_canopy_ui_v1_bots, 45);
 
 /**
  * @generated from message canopy.ui.v1.RetryBotResponse
@@ -1501,7 +1596,7 @@ export type RetryBotResponse = Message<"canopy.ui.v1.RetryBotResponse"> & {
  * Use `create(RetryBotResponseSchema)` to create a new message.
  */
 export const RetryBotResponseSchema: GenMessage<RetryBotResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 44);
+  messageDesc(file_canopy_ui_v1_bots, 46);
 
 /**
  * @generated from message canopy.ui.v1.BotMcpServer
@@ -1552,7 +1647,7 @@ export type BotMcpServer = Message<"canopy.ui.v1.BotMcpServer"> & {
  * Use `create(BotMcpServerSchema)` to create a new message.
  */
 export const BotMcpServerSchema: GenMessage<BotMcpServer> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 45);
+  messageDesc(file_canopy_ui_v1_bots, 47);
 
 /**
  * @generated from message canopy.ui.v1.SaveBotMcpServerRequest
@@ -1603,7 +1698,7 @@ export type SaveBotMcpServerRequest = Message<"canopy.ui.v1.SaveBotMcpServerRequ
  * Use `create(SaveBotMcpServerRequestSchema)` to create a new message.
  */
 export const SaveBotMcpServerRequestSchema: GenMessage<SaveBotMcpServerRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 46);
+  messageDesc(file_canopy_ui_v1_bots, 48);
 
 /**
  * @generated from message canopy.ui.v1.SaveBotMcpServerResponse
@@ -1620,7 +1715,7 @@ export type SaveBotMcpServerResponse = Message<"canopy.ui.v1.SaveBotMcpServerRes
  * Use `create(SaveBotMcpServerResponseSchema)` to create a new message.
  */
 export const SaveBotMcpServerResponseSchema: GenMessage<SaveBotMcpServerResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 47);
+  messageDesc(file_canopy_ui_v1_bots, 49);
 
 /**
  * @generated from message canopy.ui.v1.ListBotMcpServersRequest
@@ -1633,7 +1728,7 @@ export type ListBotMcpServersRequest = Message<"canopy.ui.v1.ListBotMcpServersRe
  * Use `create(ListBotMcpServersRequestSchema)` to create a new message.
  */
 export const ListBotMcpServersRequestSchema: GenMessage<ListBotMcpServersRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 48);
+  messageDesc(file_canopy_ui_v1_bots, 50);
 
 /**
  * @generated from message canopy.ui.v1.ListBotMcpServersResponse
@@ -1650,7 +1745,7 @@ export type ListBotMcpServersResponse = Message<"canopy.ui.v1.ListBotMcpServersR
  * Use `create(ListBotMcpServersResponseSchema)` to create a new message.
  */
 export const ListBotMcpServersResponseSchema: GenMessage<ListBotMcpServersResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 49);
+  messageDesc(file_canopy_ui_v1_bots, 51);
 
 /**
  * @generated from message canopy.ui.v1.DeleteBotMcpServerRequest
@@ -1667,7 +1762,7 @@ export type DeleteBotMcpServerRequest = Message<"canopy.ui.v1.DeleteBotMcpServer
  * Use `create(DeleteBotMcpServerRequestSchema)` to create a new message.
  */
 export const DeleteBotMcpServerRequestSchema: GenMessage<DeleteBotMcpServerRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 50);
+  messageDesc(file_canopy_ui_v1_bots, 52);
 
 /**
  * @generated from message canopy.ui.v1.DeleteBotMcpServerResponse
@@ -1680,7 +1775,7 @@ export type DeleteBotMcpServerResponse = Message<"canopy.ui.v1.DeleteBotMcpServe
  * Use `create(DeleteBotMcpServerResponseSchema)` to create a new message.
  */
 export const DeleteBotMcpServerResponseSchema: GenMessage<DeleteBotMcpServerResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 51);
+  messageDesc(file_canopy_ui_v1_bots, 53);
 
 /**
  * @generated from message canopy.ui.v1.TestBotMcpServerRequest
@@ -1697,7 +1792,7 @@ export type TestBotMcpServerRequest = Message<"canopy.ui.v1.TestBotMcpServerRequ
  * Use `create(TestBotMcpServerRequestSchema)` to create a new message.
  */
 export const TestBotMcpServerRequestSchema: GenMessage<TestBotMcpServerRequest> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 52);
+  messageDesc(file_canopy_ui_v1_bots, 54);
 
 /**
  * @generated from message canopy.ui.v1.BotMcpTool
@@ -1724,7 +1819,7 @@ export type BotMcpTool = Message<"canopy.ui.v1.BotMcpTool"> & {
  * Use `create(BotMcpToolSchema)` to create a new message.
  */
 export const BotMcpToolSchema: GenMessage<BotMcpTool> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 53);
+  messageDesc(file_canopy_ui_v1_bots, 55);
 
 /**
  * @generated from message canopy.ui.v1.TestBotMcpServerResponse
@@ -1741,5 +1836,5 @@ export type TestBotMcpServerResponse = Message<"canopy.ui.v1.TestBotMcpServerRes
  * Use `create(TestBotMcpServerResponseSchema)` to create a new message.
  */
 export const TestBotMcpServerResponseSchema: GenMessage<TestBotMcpServerResponse> = /*@__PURE__*/
-  messageDesc(file_canopy_ui_v1_bots, 54);
+  messageDesc(file_canopy_ui_v1_bots, 56);
 

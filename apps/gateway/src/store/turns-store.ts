@@ -112,7 +112,7 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
             // Each attachment goes with one message: a concurrent send of the same file fails here and rolls back.
             const bound = yield* sql`
                     UPDATE attachments SET thread_id = ${threadId}::uuid, turn_id = ${id}::uuid
-                     WHERE id = ANY(${`{${attachments.map((a) => a.id).join(",")}}`}::uuid[]) AND owner_user_id = ${userId}::uuid AND thread_id IS NULL
+                     WHERE id = ANY(${`{${attachments.map((a) => a.id).join(",")}}`}::uuid[]) AND owner_user_id = ${userId}::uuid AND thread_id IS NULL AND bot_id IS NULL
                     RETURNING id`;
 
             if (bound.length !== attachments.length)

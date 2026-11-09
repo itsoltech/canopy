@@ -176,7 +176,17 @@ export function caretAtPoint(root: HTMLElement, x: number, y: number): void {
 
   if (!point || !root.contains(point.offsetNode)) return;
   const range = document.createRange();
-  range.setStart(point.offsetNode, point.offset);
+  const element = point.offsetNode instanceof Element ? point.offsetNode : point.offsetNode.parentElement;
+  const chip = element?.closest<HTMLElement>('[contenteditable="false"]');
+
+  // A drop on an atomic chip inserts beside it; insertHTML cannot edit its contents.
+  if (chip && root.contains(chip)) {
+    const bounds = chip.getBoundingClientRect();
+
+    if (x < bounds.left + bounds.width / 2) range.setStartBefore(chip);
+    else range.setStartAfter(chip);
+  } else range.setStart(point.offsetNode, point.offset);
+  range.collapse(true);
   select(range);
 }
 

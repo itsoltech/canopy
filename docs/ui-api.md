@@ -729,6 +729,24 @@ komputerem 15 s, pozostałe zapisy 35 s. Jawny limit danej operacji ma pierwsze�
 jedno RPC na wątek oraz najwyższy oczekujący numer, z limitem 256 aktywnych wątków.
 Niepowodzenie markera nie trafia do UI ani do logu błędów operacji użytkownika.
 
+### Szkice i załączniki botów
+
+`GetBotDraft({bot_id})` zwraca `BotComposerDraft`: tekst, wzmianki, cytaty, metadane
+załączników, rewizję i klucz idempotencji wysyłki. `SaveBotDraft({bot_id, draft,
+expected_revision})` zapisuje pełny szkic w DB domu bota; konflikt rewizji daje
+`FailedPrecondition`. Oba RPC sprawdzają właściciela. Web udostępnia je przez
+`GET/PUT /api/bots/:id/draft`; mobile wywołuje te same RPC. Szkic nie jest częścią
+publicznego cache rozmowy i nie jest przechowywany w localStorage.
+
+`UploadAttachment.bot_id` (3) kieruje upload do domu bota i ogranicza go do PNG,
+JPEG, GIF i WebP. `SendBotMessage.attachment_ids` (452) wiąże obrazy z wiadomością,
+`BotMessage.attachments` (452) udostępnia wspólne miniatury i viewer. Opcjonalne
+`SendBotMessage.draft_revision` (453) czyści tylko wysłaną rewizję szkicu, w tej
+samej transakcji co zapis wiadomości. Retry z tym samym `client_request_id`
+zwraca tę samą turę, również po związaniu obrazów. Nieudana wysyłka zostawia szkic.
+Limity są wspólne z wątkami i ponownie sprawdzane przy wysłaniu. Nowe operacje
+przez połączone komputery wymagają `remote_bot_composer_v1` na całej trasie.
+
 ### Załączniki
 
 Niezmienne bajty załączników i blobów wątku mają `Cache-Control: private,
@@ -862,10 +880,10 @@ zachowuje fokus, a `pointercancel` i próg ruchu odróżniają przewijanie od wy
 Po `execCommand("insertHTML")` trzeba przywrócić chipowi `contenteditable="false"`,
 ponieważ WebKit może usunąć ten atrybut i umożliwić edycję samej etykiety.
 
-Boty używają tego samego edytora z osobnym źródłem: tylko `@` i pozostałe boty właściciela.
+Boty używają tego samego edytora z osobnym źródłem: `@` dla botów właściciela i przyznanych konektorów.
 `Mention.kind=BOT`, `name=bot_id`, znacznik `@label`; `SendBotMessage.mentions` i
-`BotMessage.mentions` mają numer 450. Wątki workera odrzucają ten rodzaj. Brak skillsów
-i plików w composerze botów; rejestr ma pustą grupę przyszłych konektorów. Szczegóły:
+`BotMessage.mentions` mają numer 450. Wątki workera odrzucają ten rodzaj. Composer botów
+przyjmuje też obrazy jako `ATTACHMENT`; nie udostępnia skillsów ani katalogu plików workera. Szczegóły:
 [bots.md](bots.md#wzmianki-i-cytaty-użytkownika).
 
 Na ekranach poniżej `40rem` lub ze wskaźnikiem `coarse` sugestie są częścią powierzchni kompozytora, nad edytorem, z własnym przewijaniem i limitem wysokości 40% `visualViewport` (aktualizowanym przy zmianie klawiatury/viewportu). Desktop zachowuje popover nad kompozytorem. Każdy `input`, także `insertCompositionText` i `insertReplacementText`, aktualizuje model i sugestie; formatowanie DOM czeka na zatwierdzenie kompozycji. `compositionend` sam ponawia odczyt, a zwykły input i utrata fokusu zerują stan kompozycji. Lista zapobiega utracie fokusu przy `pointerdown`; wybór przez `pointerup` działa także w WebKit, który może pominąć późniejszy `click`. `pointercancel` lub ruch palca większy niż 8 px wyklucza wybór podczas przewijania.
@@ -1095,7 +1113,7 @@ Plik żyje razem z plakietką (`AttachmentDraft.place`): Backspace i Delete przy
 
 Wklejenie przyjmuje to, co daje przeglądarka (`attachments/clipboard.ts`, `pastedFiles`): zrzuty ekranu i obrazy skopiowane z aplikacji lub przeglądarki (`image/png`), obrazy wstawione w HTML jako `data:` (gdy schowek nie ma ani pliku, ani tekstu), kilka plików naraz oraz pliki skopiowane w menedżerze plików. Chromium (więc i Electron desktopu) zamienia listę plików ze schowka systemu na pliki zdarzenia `paste` na każdym systemie: macOS `public.file-url` (ikonę Findera pomija), Windows `CF_HDROP`/`FileNameW`, Linux `text/uri-list` z URI `file://`. Renderer dostaje dostęp tylko do tych plików, które użytkownik skopiował, więc desktop nie ma własnego IPC do czytania plików ani nowej ścieżki zaufania; pliki idą zwykłym `POST api/attachments` z limitami. Menedżer plików kładzie obok plików ich nazwy lub ścieżki jako tekst: gdy każda linia tekstu to nazwa wklejanego pliku, wkleja się tylko plik. Tekst z plikami (kopia z arkusza albo dokumentu) wkleja się dalej razem z plakietkami. Przeglądarka, która zamiast plików daje tylko ich URI `file://` (np. Firefox na Linuksie), nie wkleja adresów; podpowiedź przy „+” mówi „This browser can't paste copied files. Drag them in or choose Attach files.”.
 
-Wklejenie w dowolnym miejscu okna wątku i nowego wątku (oś czasu, nagłówek, brak fokusu) trafia do kompozytora (`attachments/file-intake.svelte.ts`, `FileIntake`): strona udostępnia go kontekstem i podpina `zone` na swoim obszarze bez sidebaru, a `ComposerBox` z `draft` rejestruje się, gdy nie jest wyłączony. Pliki bierze ostatni zarejestrowany kompozytor, który jest widoczny i nie leży w `inert` (kompozytor schowany za zgodą albo pytaniem nie bierze nic, więc wklejenie nie trafia do niewidocznego szkicu). Wklejenie w inne pole tekstowe zostaje w nim, a wklejenie bez plików nic nie robi. Czat botów nie ma jeszcze załączników, więc nie przyjmuje plików.
+Wklejenie w dowolnym miejscu okna wątku i nowego wątku (oś czasu, nagłówek, brak fokusu) trafia do kompozytora (`attachments/file-intake.svelte.ts`, `FileIntake`): strona udostępnia go kontekstem i podpina `zone` na swoim obszarze bez sidebaru, a `ComposerBox` z `draft` rejestruje się, gdy nie jest wyłączony. Pliki bierze ostatni zarejestrowany kompozytor, który jest widoczny i nie leży w `inert` (kompozytor schowany za zgodą albo pytaniem nie bierze nic, więc wklejenie nie trafia do niewidocznego szkicu). Wklejenie w inne pole tekstowe zostaje w nim, a wklejenie bez plików nic nie robi. Czat bota korzysta z tego samego mechanizmu przez `BotImageIntake`, przyjmując PNG, JPEG, GIF i WebP. Nakładka mówi „Drop images to attach”.
 
 Upuszczanie działa na tym samym obszarze (`FileIntake.zone`): oś czasu, nagłówek i kompozytor, bez sidebaru i panelu szczegółów. Gdy pliki spoza strony wiszą nad obszarem, `FileDropOverlay` przykrywa go przerywaną ramką w kolorze marki z etykietą „Drop files to attach”. Nakładka leży absolutnie w obszarze (`relative`), nie zajmuje miejsca i przepuszcza zdarzenia wskaźnika, więc upuszczenie na kompozytor nadal wstawia plakietki w punkcie upuszczenia; upuszczenie gdzie indziej wstawia je w miejscu kursora. Pojawia się na `--duration-fast`, znika na `--duration-quick`, a etykieta dochodzi ze skali modala (`t-drop` w `motion.css`; przy ograniczonym ruchu zostaje samo przenikanie). Nakładkę trzyma `dragover` (przychodzi co najmniej co ~350 ms), a `dragleave` chowa ją dopiero po 120 ms, więc przejścia między elementami nie migają; bez `dragleave` znika 600 ms po ostatnim `dragover`. Przeciągnięcia zaczęte na stronie (zaznaczony tekst, obrazy z osi czasu) nie pokazują nakładki; kolejka zmienia kolejność wskaźnikiem, nie przez drag and drop. Bez widocznego kompozytora nakładka się nie pojawia. Root layout (`holdFileDrops`) blokuje upuszczenie pliku poza celem na każdej stronie: przeglądarka nie otworzy pliku w miejscu aplikacji, a okno desktopu i tak nie nawiguje do `file://` (`will-navigate`).
 

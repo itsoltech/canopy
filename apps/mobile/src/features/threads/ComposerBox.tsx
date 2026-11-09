@@ -46,6 +46,7 @@ export function ComposerBox({
   badges,
   triggers = false,
   shellCommands = true,
+  canSend = true,
 }: {
   text: string;
   onChange: (text: string) => void;
@@ -72,6 +73,7 @@ export function ComposerBox({
   triggers?: boolean;
   /** Bot chats treat leading exclamation marks as ordinary text. */
   shellCommands?: boolean;
+  canSend?: boolean;
 }) {
   const c = useColors();
   const empty = !text.trim() && files === 0;
@@ -79,7 +81,7 @@ export function ComposerBox({
   const shell = shellCommands && text.startsWith("!");
   const shellIssue = shell && (text.trim() === "!" || files > 0);
   const stop = running && empty && Boolean(onStop);
-  const unavailable = disabled || busy || (!stop && empty) || shellIssue;
+  const unavailable = disabled || busy || (!stop && (empty || !canSend)) || shellIssue;
   const composerMotion = useComposerMotion();
   const { progress } = composerMotion;
 
@@ -102,6 +104,7 @@ export function ComposerBox({
       }}
     >
       {top}
+      {inline && controls ? <View style={{ paddingLeft: 4 }}>{controls}</View> : null}
 
       <ComposerInput
         text={text}

@@ -25,6 +25,8 @@
   import WatchBar from "./WatchBar.svelte";
   import ConversationSkeleton from "./ConversationSkeleton.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import type { BotComposerDraft } from "../composer-draft.svelte.ts";
+  import { FileIntake, provideFileIntake } from "#lib/features/attachments/file-intake.svelte.ts";
 
   /**
    * A whole bot chat: header, the scrolling conversation (opens at the "New" divider, else at the end) and
@@ -50,6 +52,7 @@
     retrying = false,
     policy,
     sending = false,
+    composerDraft,
     composerDisabledReason,
     exchangeHref,
     onsend,
@@ -84,10 +87,18 @@
     retrying?: boolean;
     policy?: ApprovalPolicy | undefined;
     sending?: boolean;
+    composerDraft?: BotComposerDraft | undefined;
     /** Set when you cannot write right now (e.g. the bot is unavailable); shown in the box. */
     composerDisabledReason?: string | undefined;
     exchangeHref?: ((segment: ExchangeSegment) => string) | undefined;
-    onsend: (text: string, mentions: Mention[], quotes: ui.Quote[]) => void;
+    onsend: (
+      text: string,
+      mentions: Mention[],
+      quotes: ui.Quote[],
+      attachments?: ui.Attachment[],
+      requestId?: string,
+      revision?: bigint,
+    ) => void | Promise<boolean | void>;
     onanswer?: ((questionId: string, optionId: string) => void) | undefined;
     onapprove?: ((approvalId: string, answer: ApprovalAnswer) => void) | undefined;
     onpolicy?: ((policy: ApprovalPolicy) => void) | undefined;
@@ -109,6 +120,32 @@
   const quoteDrafts = useQuoteDrafts();
   const quoteKey = $derived(`bot:${conversation.id}`);
   let composerRegion = $state<HTMLElement>();
+  const intake = new FileIntake();
+
+  provideFileIntake(intake);
+
+  $effect(() => {
+    const current = composerDraft;
+
+    if (!current) return;
+    void current.sync.load();
+
+    return () => {
+      void current.sync.flush().catch(() => {});
+    };
+  });
+
+  $effect(() => {
+    const current = composerDraft;
+
+    if (!current) return;
+    void current.text;
+    void current.mentions;
+    void current.loaded;
+    void current.files.files.map((f) => f.status);
+    void quoteDrafts.list(current.quoteKey);
+    untrack(() => current.persist());
+  });
 
   /** Height of the floating composer: the conversation scrolls under it and keeps that much room at its end. */
   let composerHeight = $state(0);
@@ -207,7 +244,9 @@
   // Your own message goes to the end of the conversation: follow it there.
   function send(text: string, mentions: Mention[], quotes: ui.Quote[]) {
     following = true;
-    onsend(text, mentions, quotes);
+
+    if (composerDraft) void composerDraft.send(onsend);
+    else void onsend(text, mentions, quotes);
     void tick().then(() => toEnd());
   }
 
@@ -233,7 +272,7 @@
   }
 </script>
 
-<div data-mascot-chat class={["flex h-full min-h-0 flex-col", className]}>
+<div data-mascot-chat class={["relative flex h-full min-h-0 flex-col", className]} {@attach intake.zone}>
   <div class="relative flex min-h-0 flex-1 flex-col">
     <!-- Over the conversation, frosted: messages scrolling under it stay faintly visible. The log starts below it
          (scroll-padding keeps focused and jumped-to messages clear of it). -->
@@ -348,20 +387,44 @@
       {:else}
         <BotComposer
           bind:this={composer}
-          bind:value={draft}
-          bind:mentions={draftMentions}
+          bind:value={
+            () => composerDraft?.text ?? draft,
+            (value) => {
+              if (composerDraft) composerDraft.text = value;
+              else draft = value;
+            }
+          }
+          bind:mentions={
+            () => composerDraft?.mentions ?? draftMentions,
+            (value) => {
+              if (composerDraft) composerDraft.mentions = value;
+              else draftMentions = value;
+            }
+          }
           botId={conversation.id}
           {quoteKey}
           placeholder={conversation.bots.length === 1 ? `Message ${conversation.bots[0]!.name}` : "Message"}
-          {sending}
-          disabled={Boolean(composerDisabledReason)}
+          sending={sending || composerDraft?.sending}
+          files={composerDraft?.files}
+          durable={Boolean(composerDraft)}
+          disabled={Boolean(composerDisabledReason) || Boolean(composerDraft && !composerDraft.loaded)}
           disabledReason={composerDisabledReason}
           onsend={send}
           {onattach}
         />
+        {#if composerDraft?.error}<p role="status" class="px-3 pt-2 text-sm text-rose-600 dark:text-rose-400">
+            {composerDraft.error}
+          </p>
+          <Button size="sm" variant="ghost" onclick={() => void composerDraft?.sync.reload()}>Load saved draft</Button>
+        {/if}
       {/if}
     </div>
   </div>
+  {#if intake.dragging}<div
+      class="pointer-events-none absolute inset-2 z-30 grid place-items-center rounded-2xl border-2 border-dashed border-brand-500 bg-white/90 dark:bg-zinc-950/90"
+    >
+      <p>Drop images to attach</p>
+    </div>{/if}
 </div>
 {#if conversation.kind !== "watch" && !conversation.archived}<CiteLayer
     threadId={quoteKey}

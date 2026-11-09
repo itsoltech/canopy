@@ -1333,13 +1333,22 @@ komputera oraz połączone konta udostępnione botowi. Katalog kont jest lokalny
 gateway ponownie sprawdza wzmianki, granty i zasady zatwierdzania. Przytrzymanie wiadomości
 otwiera Reply/Copy. Odpowiedź dodaje cytat do szkicu, z komentarzem i usuwaniem;
 można wysłać same cytaty. Ponowienie zachowuje identyfikator dostarczenia tylko dla
-niezmienionego tekstu, wzmianek i cytatów. Podpowiedzi nie zmieniają wysokości edytora.
+niezmienionego tekstu, wzmianek, cytatów i obrazów. Podpowiedzi nie zmieniają wysokości edytora.
 Wątki i boty współdzielą szkic cytatów oraz pasek `QuoteTray`; boty zachowują komentarze
 edytowane bezpośrednio w pasku. Konwersja Markdown na tekst cytatu jest wspólna
 w `domain/markdown`. Menu Reply/Copy używa `TextActions`, a kopiowanie w menu
 i przeglądarkach korzysta z tego samego `useCopyText`, z potwierdzeniem dostępności
 i komunikatem ponowienia po błędzie. Długie przytrzymanie treści bota nie konkuruje
 z natywnym zaznaczaniem tekstu kodu ani diffu; pełne przeglądarki zachowują zaznaczanie.
+
+Szkic bota jest trwały w bazie gatewaya przez `GetBotDraft` / `SaveBotDraft`,
+z kontrolą rewizji. Tekst, strukturalne wzmianki, cytaty i obrazy wracają po nawigacji;
+trwające uploady zachowuje stan powiązany z klientem i botem. Przyjęcie wiadomości
+czyści tylko jej rewizję, błąd zachowuje szkic. **Load saved draft** pozwala rozwiązać
+konflikt z innym urządzeniem po skopiowaniu lokalnych zmian. Kompozytor przyjmuje
+PNG, JPEG, GIF i WebP przez istniejące wklejanie, wybór zdjęć lub plików i upuszczanie.
+Korzysta ze wspólnych limitów, miniaturek i przeglądarek załączników; nie zmienia
+modułów natywnych, konfiguracji ani zależności aplikacji.
 
 `In-app notifications` obejmuje inne wątki i czaty botów na tym urządzeniu. Alerty botów
 korzystają ze wspólnych z web reguł świeżości wiadomości, pytań i zatwierdzeń. Pierwszy odczyt,

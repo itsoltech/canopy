@@ -178,6 +178,13 @@ wywołania narzędzi, zgody, rejestr zdalnych MCP i outboxy pobudek/wyników wor
 `turns.trigger='bot'` i `bot_call_id` zachowują pochodzenie oraz hops przy delegowaniu.
 Uzasadnienie osobnego modelu i niezmienniki: [bots.md](bots.md).
 
+Migracja `0102_bot_composer` dodaje `bot_composer_drafts`: jeden prywatny szkic
+na bota, właściciel, payload protobuf i rewizja do zapisu CAS. Blokada bota
+serializuje zapis szkicu z wysłaniem wiadomości. Przyjęcie wiadomości czyści
+tylko pasującą rewizję. `bot_messages.attachments` zachowuje metadane obrazów;
+`attachments.bot_id` / `bot_turn_id` są ustawiane atomowo i wykluczają powiązanie
+z wątkiem. Szkic odwołuje się do własnych, jeszcze niewysłanych obrazów.
+
 Migracja `0026_sidebar_threads` dodaje do `threads`: `deleted_at`, `deletion_batch_id`,
 `archived_by` (`user` / `agent`) i `archived_by_thread_id`. Soft delete obejmuje rodzica i dzieci;
 identyfikator partii pozwala cofnąć tylko tę operację. Triggery blokują nową pracę oraz tworzenie dzieci
@@ -334,7 +341,8 @@ Pozostałe tabele:
 | `schedule_runs` | trwała historia wystąpień harmonogramu: klucz `(schedule_id, scheduled_for)`, numer wykonanego uruchomienia, wątek, tura, workspace, worker i wynik (`started`, `missed`, `running` — pominięcie przez współbieżność, `expired`) |
 | `agent_bus_calls` | szyna agentów: każde wywołanie narzędzia (`spawn_thread`, `send_message`, `wait_threads`, ...), argumenty, wynik, uruchomiony wątek/tura, `hops`, powiadomienie zwrotne (outbox) |
 | `blobs` | duże treści (output, diff, obraz), adresowane sha256, inline albo w magazynie obiektów |
-| `attachments` | pliki użytkownika do wiadomości: właściciel, blob (sha256) i miniatura WebP obrazu, nazwa (bez katalogów i znaków sterujących), typ rozpoznany z treści, `kind` (`image` / `file`), rozmiar, wymiary; po wysłaniu wątek i tura (raz, razem) |
+| `attachments` | pliki użytkownika do wiadomości: właściciel, blob (sha256) i miniatura WebP obrazu, nazwa (bez katalogów i znaków sterujących), typ rozpoznany z treści, `kind` (`image` / `file`), rozmiar, wymiary; po wysłaniu wątek i tura albo bot i tura bota (raz, razem, wyłącznie jedna rozmowa) |
+| `bot_composer_drafts` | prywatny, trwały szkic bota: tekst, strukturalne wzmianki, cytaty i wgrane obrazy w protobuf, rewizja CAS i klucz idempotencji wiadomości |
 | `thread_blobs` | bloby, które pokazuje transkrypt wątku (podglądy obrazów od workera): przez nie UI czyta blob (właściciel, drzewo wątku) |
 | `worker_journal_cursors` | potwierdzone `journal_seq` per worker, dziennik i wątek (kursory `Welcome`) |
 | `worker_configs`, `worker_config_history`, `secrets`, `worker_config_secrets` | zdalna konfiguracja workerów (migracja `0002`) — [worker-config.md](worker-config.md#7-schemat-0002_worker_config) |

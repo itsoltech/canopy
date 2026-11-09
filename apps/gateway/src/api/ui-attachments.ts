@@ -12,11 +12,13 @@ export function attachmentsHandlers(
 > {
   return {
     uploadAttachment: (request) =>
-      guard(async () =>
-        create(ui.UploadAttachmentResponseSchema, {
-          attachment: await core.uploadAttachment(request.name, request.data),
-        }),
-      ),
+      guard(async () => {
+        if (request.botId) await core.bots.get(request.botId);
+
+        return create(ui.UploadAttachmentResponseSchema, {
+          attachment: await core.uploadAttachment(request.name, request.data, Boolean(request.botId)),
+        });
+      }),
 
     getAttachment: (request) =>
       guard(() => core.getAttachment(request.attachmentId, request.thumbnail, request.preview)),

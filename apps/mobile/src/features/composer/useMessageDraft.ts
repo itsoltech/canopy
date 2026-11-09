@@ -15,36 +15,56 @@ import {
   withoutMention,
   type MessageValue,
 } from "./message-value";
+import type { DraftFile } from "../attachments/useAttachmentDraft";
 
 /**
  * The next message: its text, the mentions placed in it and its files. A picked file's badge goes in at the caret,
  * as on the web; removing the badge removes the file and removing the file removes its badge. While composing, a
  * badge names the file's draft key; `outgoing` swaps in the stored attachment's id.
  */
-export function useMessageDraft() {
-  const [value, setValue] = useState<MessageValue>(emptyValue);
+export function useMessageDraft(
+  options: {
+    value?: { current: MessageValue };
+    files?: { current: DraftFile[] };
+    onChange?: () => void;
+    botId?: string;
+  } = {},
+) {
+  const [localValue, setValue] = useState<MessageValue>(emptyValue);
   // The collapsed caret, for the mention trigger before it (undefined while text is selected).
   const [caret, setCaret] = useState<number>();
   // Read at once by picks that land in one tick (several photos at a time).
-  const current = useRef<MessageValue>(emptyValue);
+  const local = useRef<MessageValue>(emptyValue);
+  const current = options.value ?? local;
+  const value = options.value ? current.current : localValue;
   useUpdateBlocker(() => current.current.text.length > 0);
   const selection = useRef({ start: 0, end: 0 });
 
   const apply = (next: MessageValue) => {
     current.current = next;
     setValue(next);
+    options.onChange?.();
   };
 
-  const files = useAttachmentDraft((file) => {
-    const placed = insertMention(current.current, selection.current, {
-      kind: MentionKind.ATTACHMENT,
-      name: file.key,
-      label: file.name,
-    });
+  const files = useAttachmentDraft(
+    (file) => {
+      const placed = insertMention(current.current, selection.current, {
+        kind: MentionKind.ATTACHMENT,
+        name: file.key,
+        label: file.name,
+      });
 
-    selection.current = { start: placed.caret, end: placed.caret };
-    apply(placed.value);
-  });
+      selection.current = { start: placed.caret, end: placed.caret };
+      apply(placed.value);
+    },
+    {
+      current: options.files,
+      keepAlive: Boolean(options.botId),
+      botId: options.botId,
+      imagesOnly: Boolean(options.botId),
+      onChange: options.onChange,
+    },
+  );
 
   const status = new Map<string, BadgeTone>(
     files.files.map((f) => [f.key, f.error ? "failed" : f.attachment ? undefined : "uploading"]),

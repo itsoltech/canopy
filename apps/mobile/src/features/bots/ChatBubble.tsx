@@ -10,6 +10,7 @@ import { botInk } from "./bot-ink";
 import { MessageSpans, mentionElements } from "../composer/MessageText";
 import { QuotePreview } from "../quotes/QuotePreview";
 import { TextActions } from "../viewers/TextActions";
+import { MessageAttachments } from "../attachments/MessageAttachments";
 
 /**
  * One message in a run (web: ChatBubble, MessageRow). Bots write markdown on soft grey; your messages are plain text
@@ -103,6 +104,9 @@ export function ChatBubble({
         >
           <MessageBody message={message} mine={mine} />
         </Pressable>
+        {message.attachments?.length ? (
+          <MessageAttachments files={message.attachments} pending={message.delivery === "sending"} />
+        ) : null}
         <TextActions
           text={message.text || message.quotes?.map((q) => q.text).join("\n\n") || ""}
           visible={actions}

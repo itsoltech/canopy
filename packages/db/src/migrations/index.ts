@@ -5,6 +5,7 @@ import { Migrator, SqlClient } from "effect/sql";
 import init from "./0001_init.sql" with { type: "text" };
 import historyReadIndexes from "./0100_history_read_indexes.sql" with { type: "text" };
 import composerTurnChoices from "./0101_composer_turn_choices.sql" with { type: "text" };
+import botComposer from "./0102_bot_composer.sql" with { type: "text" };
 import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
@@ -214,6 +215,7 @@ export const migrations = Migrator.fromRecord({
   "0099_message_receipts": sqlFile(messageReceipts),
   "0100_history_read_indexes": sqlFile(historyReadIndexes),
   "0101_composer_turn_choices": sqlFile(composerTurnChoices),
+  "0102_bot_composer": sqlFile(botComposer),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

@@ -77,7 +77,7 @@ export class HostFiles {
     }
   }
 
-  fetchBlob(threadId: string, sha256: string): Promise<Uint8Array> {
+  fetchBlob(threadId: string, sha256: string, botTurnId = ""): Promise<Uint8Array> {
     const link = this.ctx.state.link;
 
     if (!link) return Promise.reject(new AttachmentError("not connected to the gateway", false));
@@ -96,7 +96,16 @@ export class HostFiles {
       });
 
       try {
-        link.send({ case: "fetchBlob", value: { requestId, threadId, sha256 } });
+        link.send({
+          case: "fetchBlob",
+          value: {
+            requestId,
+            threadId: botTurnId ? "" : threadId,
+            sha256,
+            botId: botTurnId ? threadId : "",
+            botTurnId,
+          },
+        });
       } catch {
         this.ctx.state.fetches.delete(requestId);
         clearTimeout(timer);

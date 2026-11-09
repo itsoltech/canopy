@@ -2,7 +2,14 @@ import { create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { RESTART_PRESENCE } from "@canopy/domain/computer-presence";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link } from "@canopy/contracts";
-import { AGENT_BUS, REMOTE_BOTS, REMOTE_THREADS, REMOTE_BRANCH_SWITCH, THREAD_MIRROR } from "@canopy/domain/computers";
+import {
+  AGENT_BUS,
+  REMOTE_BOTS,
+  REMOTE_BOT_COMPOSER,
+  REMOTE_THREADS,
+  REMOTE_BRANCH_SWITCH,
+  THREAD_MIRROR,
+} from "@canopy/domain/computers";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { ComputerStore, type PeerRow } from "./store.ts";
@@ -16,6 +23,7 @@ const FEATURES = new Set([
   REMOTE_BRANCH_SWITCH,
   THREAD_MIRROR,
   REMOTE_BOTS,
+  REMOTE_BOT_COMPOSER,
   AGENT_BUS,
 ]);
 

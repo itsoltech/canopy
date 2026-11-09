@@ -70,7 +70,10 @@ export class AttachmentDraft {
   readonly #limits: () => AttachmentLimits;
   readonly #uploads = new Map<string, XMLHttpRequest>();
 
-  constructor(limits: () => AttachmentLimits = () => DEFAULT_ATTACHMENT_LIMITS) {
+  constructor(
+    limits: () => AttachmentLimits = () => DEFAULT_ATTACHMENT_LIMITS,
+    readonly options: { botId?: string; imagesOnly?: boolean; onUploaded?: () => void } = {},
+  ) {
     this.#limits = limits;
   }
 
@@ -145,7 +148,13 @@ export class AttachmentDraft {
       const going = [...this.attached, ...added];
       const total = going.reduce((sum, f) => sum + f.size, 0) + file.size;
 
-      if (going.length >= limits.maxFiles) problems.push(`Up to ${limits.maxFiles} files go with one message.`);
+      if (
+        this.options.imagesOnly &&
+        !/^image\/(png|jpeg|gif|webp)$/.test(file.type) &&
+        !(!file.type && /\.(png|jpe?g|gif|webp)$/i.test(name))
+      )
+        problems.push("Attach a PNG, JPEG, GIF or WebP image.");
+      else if (going.length >= limits.maxFiles) problems.push(`Up to ${limits.maxFiles} files go with one message.`);
       else if (file.size === 0) problems.push(`${name} is empty.`);
       else if (file.size > limits.maxFileBytes)
         problems.push(`${name} is ${formatSize(file.size)}; files can be up to ${formatSize(limits.maxFileBytes)}.`);
@@ -196,6 +205,8 @@ export class AttachmentDraft {
     this.#uploads.set(key, request);
     request.open("POST", "/api/attachments");
     request.setRequestHeader("x-file-name", encodeURIComponent(name));
+
+    if (this.options.botId) request.setRequestHeader("x-bot-id", this.options.botId);
     request.setRequestHeader("x-requested-with", "canopy");
     request.setRequestHeader("content-type", "application/octet-stream");
     request.responseType = "json";
@@ -215,6 +226,7 @@ export class AttachmentDraft {
         draft.attachment = decode(ui.AttachmentSchema, request.response);
         draft.progress = 1;
         draft.status = "ready";
+        this.options.onUploaded?.();
       } else {
         // `responseType` is "json": the body as JSON, or null.
         const response: JsonValue = request.response;

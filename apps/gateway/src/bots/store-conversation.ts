@@ -125,6 +125,7 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
           ...rows.map((r): ModelMessage => ({
             role: r.sender_id === turn.bot_id ? "assistant" : "user",
             text: modelInput(r.model_text, storedMentions(r.mentions), r.quotes),
+            attachments: r.attachments,
           })),
           ...(turn.routine_id || turn.handoff_configuration ? [{ role: "user" as const, text: turn.input }] : []),
         ]),

@@ -216,6 +216,7 @@ for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {
         mcp: { url: bus.server.url, headers: Object.fromEntries(bus.server.headers.map((h) => [h.name, h.value])) },
         record: async () => {},
         noteHarness: async () => {},
+        images: async () => [],
       };
 
       const done = (

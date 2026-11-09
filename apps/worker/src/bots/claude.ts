@@ -1,4 +1,4 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeEventMapper } from "../providers/claude/mapping.ts";
 import { claudeProfileOptions } from "../providers/claude/profile.ts";
 import { claudeExecutable } from "../providers/claude/executable.ts";
@@ -31,9 +31,32 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   if (signal.aborted) cancel();
   const allowedTools = input.tools.map((t) => `mcp__canopy__${t.name}`);
   const profile = claudeProfileOptions(ctx.profile, process.env);
+  const images = await ctx.images(resumed);
+
+  async function* prompt(): AsyncGenerator<SDKUserMessage> {
+    yield {
+      type: "user",
+      session_id: id,
+      parent_tool_use_id: null,
+      message: {
+        role: "user",
+        content: [
+          { type: "text", text: botPrompt(input, resumed) },
+          ...images.map((image) => ({
+            type: "image" as const,
+            source: {
+              type: "base64" as const,
+              media_type: image.mimeType,
+              data: Buffer.from(image.data).toString("base64"),
+            },
+          })),
+        ],
+      },
+    };
+  }
 
   const q = query({
-    prompt: botPrompt(input, resumed),
+    prompt: images.length ? prompt() : botPrompt(input, resumed),
     options: {
       ...profile,
       env: {

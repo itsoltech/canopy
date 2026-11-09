@@ -39,6 +39,10 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
   try {
     signal.throwIfAborted();
     const info = await client.initialize();
+    const hasImages = input.attachments.length > 0 || input.historyAttachments.length > 0;
+
+    if (hasImages && !info.agentCapabilities?.promptCapabilities?.image)
+      throw new BotHarnessFailure("IMAGE_UNAVAILABLE", "Update the Grok CLI to receive images.");
 
     if (input.tools.length && !info.agentCapabilities?.mcpCapabilities?.http)
       throw new BotHarnessFailure("MCP_UNAVAILABLE");
@@ -84,6 +88,11 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
 
     for await (const event of client.prompt(id, [
       { type: "text", text: `${input.instructions}\n\n${botPrompt(input, Boolean(resumed))}` },
+      ...(await ctx.images(Boolean(resumed))).map((image) => ({
+        type: "image" as const,
+        data: Buffer.from(image.data).toString("base64"),
+        mimeType: image.mimeType,
+      })),
     ])) {
       signal.throwIfAborted();
 
