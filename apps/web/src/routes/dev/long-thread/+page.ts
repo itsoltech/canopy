@@ -9,5 +9,9 @@ export const load: PageLoad = ({ url }) => {
   const number = (name: string, fallback: number) =>
     Math.max(0, Math.min(20_000, Number(url.searchParams.get(name) ?? fallback) || 0));
 
-  return { turns: number("turns", 1000), inherited: number("inherited", 0) };
+  return {
+    turns: number("turns", 1000),
+    inherited: number("inherited", 0),
+    answerRepeat: Math.max(1, Math.min(100, number("answerRepeat", 1))),
+  };
 };

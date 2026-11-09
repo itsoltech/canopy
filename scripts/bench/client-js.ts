@@ -162,4 +162,27 @@ const cache = new PersistentThreadCache(storage);
 
 await measure("mobile cache save / same immutable snapshot, no disk", () => cache.save(snapshot), 10);
 
+await measure("mobile cache save / new immutable snapshot, no disk", () => cache.save({ ...snapshot }), 10);
+
 await cache.close();
+
+const encoded = toBinary(ui.ThreadSnapshotSchema, snapshot);
+const threadId = snapshot.thread?.id;
+
+if (!threadId) throw new Error("Fixture thread missing");
+
+const reading: ThreadCacheStorage = {
+  ...storage,
+  list: async () => [{ name: "fixture", id: threadId, accessed: 0, bytes: encoded.byteLength }],
+  read: async () => encoded,
+};
+
+await measure(
+  "mobile cache cold load / decode, no disk",
+  async () => {
+    const cold = new PersistentThreadCache(reading);
+    await cold.load(threadId);
+    await cold.close();
+  },
+  10,
+);

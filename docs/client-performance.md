@@ -17,7 +17,38 @@ gateway i developerski BFF. Porty można wskazać przez `CANOPY_BENCH_WEB_PORT`,
 `CANOPY_BENCH_GATEWAY_PORT`, `CANOPY_BENCH_PG_PORT`. Skrypt odrzuca porty
 zarezerwowane dla innych stosów. Zatrzymaj **proces skryptu** przez SIGINT/SIGTERM:
 sprząta wyłącznie uruchomione przez siebie procesy i kontener. Usuń swój katalog
-tymczasowy po zakończeniu pomiarów. Nie uruchamia workera ani inferencji.
+tymczasowy po zakończeniu pomiarów. Syntetyczny worker nie uruchamia CLI ani
+inferencji: na wiadomość odpowiada 200 deltami po 25/s przez prawdziwe łącze.
+W nowej, prywatnej bazie tworzy 500 wątków projektu i 1000 tur z 7099 itemami
+w jednym z nich; wypisuje adres tego wątku. Zwykła strona wątku pobiera początkowo
+ostatnią stronę historii, a nie wszystkie 1000 tur. Otwieranie tej strony mierzy
+rzeczywisty snapshot gateway → BFF → SSE; fixture poniżej mierzy cały załadowany feed.
+Tworzy też jednego bota do sprawdzenia otwierania ustawień, bez wysyłania mu wiadomości.
+`CANOPY_BENCH_SEED=0` wyłącza zasiew i syntetycznego workera na potrzeby pomiaru
+samego renderera bez ruchu i animacji paska bocznego; użyj tej samej opcji przed i po.
+Po buildzie web ustaw `CANOPY_BENCH_PRODUCTION=1`, aby zamiast Vite uruchomić
+produkcyjny serwer BFF. Ta opcja służy do cold FCP na zwykłej stronie wątku;
+trasy i importy developerskich sond wymagają Vite.
+
+Ostatnia odpowiedź zasianego wątku powtarza Markdown 64 razy. Fixture przyjmuje
+analogiczny parametr `answerRepeat=64` (1–100), aby sprawdzić pojedynczą bardzo
+długą odpowiedź poza standardowym pomiarem wielu tur.
+
+Na developerskim BFF zaimportuj w konsoli moduł
+`/src/lib/features/threads/dev/navigation.ts`. `probeThreadSnapshot(id, 20)`
+otwiera i zamyka prawdziwe EventSource i mierzy `JSON.parse` + dekoder protobuf +
+`ThreadState.apply` pierwszego snapshotu. `probeThreadNavigation('/threads/' + id)`
+mierzy nawigację SPA do drugiej klatki po zamontowaniu artykułów i gotowość fokusu
+kompozytora. Zacznij z innej strony, np. `/settings/general`. To proxy gotowości
+konkretnych kontrolek, nie browser TTI ani cold FCP. Aby powtórzyć cold FCP,
+przeładuj stronę i odczytaj `performance.getEntriesByType('paint')`; zapisz,
+czy build był developerski czy produkcyjny i czy cache przeglądarki był ciepły.
+
+Moduł `/src/lib/features/threads/dev/network.ts` udostępnia `probeThreadStream(id)`.
+**Wysyła wiadomość**: używaj wyłącznie wydrukowanego id syntetycznego wątku.
+Mierzy synchroniczny handler rzeczywistych delt SSE w oddzielnym `ThreadState`,
+bez renderowania; liczba wiadomości może być mniejsza niż 200 przez koalescencję BFF.
+Podczas pomiaru można pozostawić zwykłą stronę wątku, by oglądać ten sam streaming.
 
 ## Web i renderer desktopu
 
@@ -49,8 +80,8 @@ nie należy nazywać pomiaru remountu czasem otwarcia pełnego wątku.
 
 Po `bun run --filter @canopy/web build` uruchom
 `bun scripts/bench/bundle-sizes.ts`. Wynik dla każdego węzła SvelteKit obejmuje
-statyczną sumę importów strony, powłoki i głównego layoutu, z deduplikacją plików.
-Podaje surowe i gzip JS/CSS. Numery węzłów mapuje wygenerowany manifest SvelteKit.
+statyczną sumę importów strony, powłoki i jej layoutów, z deduplikacją plików.
+Podaje nazwę trasy oraz surowe i gzip JS/CSS. Trasy i węzły czyta z manifestu SvelteKit.
 Dynamiczne importy, gramatyki highlightera i żądania sieciowe nie należą do tej sumy.
 
 ## Mobile: pomiary bez natywnego runtime
@@ -58,7 +89,8 @@ Dynamiczne importy, gramatyki highlightera i żądania sieciowe nie należą do 
 `bun scripts/bench/client-js.ts` raportuje medianę i p95 po rozgrzewce:
 dekodowanie i reducer 200 delt, przygotowanie web feedu, mobilne `visibleTurns`,
 `turnBody` dla zwykłej tury i 5000 zagnieżdżonych itemów, tokenizację długiego
-Markdown i serializację cache z kolejką. Dane mają domyślnie 1000 tur;
+Markdown oraz zapis tej samej i nowej rewizji cache i zimny odczyt z dekodowaniem.
+Dane mają domyślnie 1000 tur;
 `CANOPY_BENCH_TURNS` zmienia rozmiar. Cache używa adaptera bez dysku: wynik nie
 obejmuje kosztu `expo-file-system`. Bun/JSC nie przewiduje czasów Hermes ani UI.
 
@@ -85,6 +117,16 @@ widoczność jest symulowana. Na urządzeniu powtórz scenariusz, rejestrując `
 i `GetThreadBlob` w profilerze sieci, bez zapisywania treści lub identyfikatorów użytkownika.
 Sprawdź także anulowanie przy szybkim scrollu, pełny viewer, restart, unpair i revocation;
 po unpair katalog obrazów ma być pusty. Pamięć bitmap sprawdź narzędziami platformy.
+
+W prywatnym stosie web wyślij 20 deterministycznych PNG (np. canvas 256 × 256 z szumem),
+po 10 załączników na wiadomość. Worker pomiarowy zgłasza katalog załączników,
+ale nie odczytuje plików i nie uruchamia modelu. W przeglądarce wyczyść Resource Timing
+przed pierwszym przejściem. Przewijaj ostatnie dwie tury w krokach 400 px, czekając
+na render, następnie powtórz i ponownie otwórz wątek. Dla `/api/attachments/` zsumuj
+`encodedBodySize` tylko przy `transferSize > 0`, osobno policz żądania sieciowe i cache hits.
+Przy walidacji nagłówków użyj osobnej próby, aby wymuszony `If-None-Match` lub pełny
+wariant obrazu nie zmienił wyniku. Nie wyłączaj cache w DevTools. Istniejące private/immutable
+już oszczędzało ponowne transfery web; ETag nie jest dodatkowym spadkiem bajtów przy świeżym cache.
 
 Na zgodnym kliencie z modułami natywnymi otwórz te same dane: 1000 tur, jedną turę
 z 5000 itemów i odpowiedź zawierającą kod, tabelę oraz diff. Użyj React Native

@@ -13,6 +13,8 @@ type EventBody = NonNullable<MessageInitShape<typeof ThreadEventSchema>["body"]>
  */
 export interface FixtureOptions {
   readonly turns: number;
+  /** Repeat the last answer for the single very long Markdown case. */
+  readonly answerRepeat?: number;
   /** Inherited turns (a fork's history) before the thread's own turns. */
   readonly inherited?: number;
 }
@@ -164,7 +166,10 @@ function turnItems(prefix: string, seed: number, input: string): Item[] {
   return items;
 }
 
-export function longThreadSnapshot({ turns, inherited = 0 }: FixtureOptions): ui.ThreadSnapshot {
+export function longThreadSnapshot({ turns, inherited = 0, answerRepeat = 1 }: FixtureOptions): ui.ThreadSnapshot {
+  if (!Number.isInteger(answerRepeat) || answerRepeat < 1 || answerRepeat > 100)
+    throw new Error("Use 1–100 answer repetitions");
+
   const thread = create(ui.ThreadSchema, {
     id: FIXTURE_THREAD_ID,
     title: `Synthetic thread (${turns} turns)`,
@@ -201,6 +206,11 @@ export function longThreadSnapshot({ turns, inherited = 0 }: FixtureOptions): ui
     );
 
     for (const it of turnItems(id, t, input)) {
+      if (t === total - 1 && it.content.case === "agentMessage") {
+        const text = it.content.value.text;
+        it.content.value.text = Array.from({ length: answerRepeat }, () => text).join("\n\n");
+      }
+
       timeline.push(
         create(ui.TimelineItemSchema, {
           item: it,
