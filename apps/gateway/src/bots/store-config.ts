@@ -1,5 +1,5 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
-import { bots, ProfileModelsSchema, type ProfileModels } from "@canopy/contracts";
+import { bots, ProfileModelsSchema, Provider, type ProfileModels } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient, type SqlError } from "effect/sql";
 import { Invalid } from "../store/store.ts";
@@ -13,7 +13,7 @@ import type { BotAccess } from "./store-access.ts";
 function botValidate(
   sql: SqlClient.SqlClient,
   { server }: Pick<BotAccess, "server">,
-  catalogs: (config: bots.BotConfiguration) => Effect.Effect<ProfileModels[], SqlError.SqlError>,
+  catalogs: (user: string, config: bots.BotConfiguration) => Effect.Effect<ProfileModels[], SqlError.SqlError>,
 ) {
   return (user: string, config: bots.BotConfiguration, requireCatalog = false) =>
     Effect.gen(function* () {
@@ -61,8 +61,9 @@ function botValidate(
       )
         return yield* Effect.fail(new Invalid("invalid approval policy or MCP connections"));
 
-      const instances =
-        yield* sql<InstanceRow>`SELECT * FROM provider_instances WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance}`;
+      const instances = yield* sql<Pick<InstanceRow, "custom_models">>`SELECT custom_models FROM provider_instances
+          WHERE harness = ${harnessOf(config.provider)} AND id = ${config.providerInstance}
+            AND (created_by=${user}::uuid OR created_by IS NULL)`;
 
       if (!instances[0]) return yield* Effect.fail(new Invalid("choose an existing provider instance"));
 
@@ -78,7 +79,7 @@ function botValidate(
       }
 
       for (const id of config.mcpServerIds) yield* server(user, id);
-      const catalog = yield* catalogs(config);
+      const catalog = yield* catalogs(user, config);
 
       if (
         (requireCatalog || catalog.some((p) => p.models.length > 0)) &&
@@ -117,14 +118,19 @@ export function botConfig(sql: SqlClient.SqlClient, access: BotAccess) {
   const { handoffs, owned, server } = access;
 
   /** What the workers last reported for the bot's instance (aliases and their concrete models). */
-  const catalogs = (config: bots.BotConfiguration) =>
+  const catalogs = (user: string, config: bots.BotConfiguration) =>
     sql<{
-      profiles: JsonValue[];
-    }>`SELECT profiles FROM worker_model_catalogs WHERE (${config.workerId || null}::uuid IS NULL OR worker_id = ${config.workerId || null}::uuid)`.pipe(
+      profile: JsonValue;
+    }>`SELECT p.value AS profile FROM worker_model_catalogs c JOIN workers w ON w.id=c.worker_id
+      CROSS JOIN LATERAL jsonb_array_elements(c.profiles) WITH ORDINALITY p(value,position)
+      WHERE (w.owner_user_id=${user}::uuid OR w.owner_user_id IS NULL)
+        AND (${config.workerId || null}::uuid IS NULL OR c.worker_id = ${config.workerId || null}::uuid)
+        AND (p.value->'provider'=${JSON.stringify("PROVIDER_" + Provider[config.provider])}::jsonb
+          OR p.value->'provider'=to_jsonb(${config.provider}::int))
+        AND coalesce(p.value->>'profileId','')=${config.providerInstance}
+      ORDER BY c.worker_id,p.position`.pipe(
       Effect.map((rows): ProfileModels[] =>
-        rows
-          .flatMap((r) => r.profiles.map((p) => fromJson(ProfileModelsSchema, p, { ignoreUnknownFields: true })))
-          .filter((p) => p.provider === config.provider && p.profileId === config.providerInstance),
+        rows.map((r) => fromJson(ProfileModelsSchema, r.profile, { ignoreUnknownFields: true })),
       ),
     );
 

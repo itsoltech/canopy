@@ -43,6 +43,12 @@ workera; offline wiadomości czekają. Native/device login i proxy są obsługiw
 harness. Gateway nie wywołuje API modelu. Pełna decyzja
 i ograniczenia: [bots-harness.md](bots-harness.md).
 
+Lista modeli bota odczytuje tylko katalogi własnych i wspólnych workerów oraz
+profil wskazanego dostawcy i instancji. Przypięcie workera zachowuje ten sam filtr
+właściciela. Prywatna instancja innego użytkownika nie może służyć do tworzenia
+bota ani do odczytu modeli niestandardowych. Lista kont MCP pomija katalogi
+narzędzi i pobiera uprawnienia grupowo, z zachowaniem nazw nagłówków i grantów.
+
 Tworzenie z pickera workera połączonego komputera zapisuje bota w gatewayu tego workera.
 Edycja, archiwizacja i usuwanie z pozostałych komputerów są trasowane do tego domu.
 Niedostępny gateway odrzuca zdalną akcję od razu; nic nie czeka na ponowne połączenie.

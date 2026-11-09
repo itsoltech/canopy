@@ -90,25 +90,19 @@ export function botAccess(sql: SqlClient.SqlClient, key: Buffer) {
 
   const servers = (user: string) =>
     Effect.gen(function* () {
-      const rows = yield* connections.list(user);
-      const result: bots.BotMcpServer[] = [];
+      const accounts = yield* connections.views(yield* connections.list(user, { connectorType: "custom" }, true));
 
-      for (const row of rows.filter((r) => r.connector_type === "custom")) {
-        const account = yield* connections.view(row);
-        result.push(
-          create(bots.BotMcpServerSchema, {
-            id: row.id,
-            name: row.name,
-            url: row.url,
-            transport: row.transport,
-            enabled: row.status === "connected",
-            headerNames: account.headerNames,
-            botIds: account.botIds,
-          }),
-        );
-      }
-
-      return result;
+      return accounts.map((account) =>
+        create(bots.BotMcpServerSchema, {
+          id: account.id,
+          name: account.name,
+          url: account.url,
+          transport: account.transport,
+          enabled: account.status === "connected",
+          headerNames: account.headerNames,
+          botIds: account.botIds,
+        }),
+      );
     });
 
   return {

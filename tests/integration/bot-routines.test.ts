@@ -124,7 +124,7 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
       allWorkers: true,
     });
     await eventually(
-      () => gw.core.bots.run((s) => s.harnessModels(Provider.CODEX, "routines-test")),
+      () => gw.core.bots.run((s) => s.harnessModels(gw.userId, Provider.CODEX, "routines-test")),
       (models) => models.some((m) => m.id === "gpt-6.1-sol"),
     );
   }, 30_000);
