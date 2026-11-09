@@ -9,6 +9,7 @@ import { Chevron, useArrivals } from "../../ui/MotionViews";
 import { useMotion } from "../../ui/motion";
 import { SidebarThreadTree } from "./SidebarThreadTree";
 import type { useSidebarThreads } from "./useSidebarThreads";
+import { SidebarArchivedHeader, SidebarArchivedStatus, useArchivedThreads } from "./SidebarArchivedThreads";
 
 export function SettingsThreadList({
   navigation,
@@ -16,39 +17,79 @@ export function SettingsThreadList({
   workers,
   loaded,
   empty,
-  footer,
 }: {
   navigation: ReturnType<typeof useSidebarThreads>;
   loaded: boolean;
   projects: ui.Project[];
   workers: ui.Worker[];
   empty: ReactNode;
-  footer: ReactNode;
 }) {
   const padding = useContentPadding(8);
   const c = useColors();
-  const { layout } = useMotion();
+  const { layout, rise } = useMotion();
   const [workingOpen, setWorkingOpen] = useState(false);
   const { filtered, settings, choices, current } = navigation;
   const entries = sidebarEntries(filtered, settings, choices, workingOpen);
+  const archive = useArchivedThreads(navigation);
+  const active = entries.map((entry) => ({ ...entry, section: "active" as const }));
+
+  const archived = archive.visible
+    ? [
+        { key: "archived-heading", section: "heading" as const },
+        ...(archive.expanded
+          ? [
+              ...archive.roots.map((thread) => ({
+                key: `archived-${thread.id}`,
+                thread,
+                section: "archived" as const,
+              })),
+              { key: "archived-status", section: "status" as const },
+            ]
+          : archive.sticky
+            ? [{ key: `archived-${archive.sticky.id}`, thread: archive.sticky, section: "archived" as const }]
+            : []),
+      ]
+    : [];
+
+  const data = [...active, ...(!active.length ? [{ key: "empty", section: "empty" as const }] : []), ...archived];
   const rootIds = new Set(filtered.roots.map((t) => t.id));
 
   const arrival = useArrivals(
-    entries.map((e) => e.key),
+    data.map((e) => e.key),
     loaded,
   );
 
   return (
     <Animated.FlatList
-      data={entries}
+      data={data}
       keyExtractor={(entry) => entry.key}
       itemLayoutAnimation={layout}
       contentInsetAdjustmentBehavior="never"
       automaticallyAdjustContentInsets={false}
       contentContainerStyle={[padding, { flexGrow: 1 }]}
+      initialNumToRender={12}
+      maxToRenderPerBatch={8}
+      windowSize={7}
+      onEndReached={archive.more}
+      onEndReachedThreshold={0.4}
       renderItem={({ item }) => (
-        <Animated.View entering={arrival(item.key)}>
-          {item.thread ? (
+        <Animated.View entering={arrival(item.key)} exiting={item.section === "archived" ? rise.exiting : undefined}>
+          {item.section === "empty" ? (
+            empty
+          ) : item.section === "heading" ? (
+            <SidebarArchivedHeader archive={archive} />
+          ) : item.section === "status" ? (
+            <SidebarArchivedStatus archive={archive} />
+          ) : item.section === "archived" ? (
+            <SidebarThreadTree
+              thread={item.thread}
+              archived
+              current={current}
+              projects={archive.projects}
+              workers={archive.workers}
+              sideThreads={archive.sideThreads.get(item.thread.id) ?? []}
+            />
+          ) : item.thread ? (
             <SidebarThreadTree
               thread={item.thread}
               sideThreads={filtered.sides.get(item.thread.id) ?? []}
@@ -72,9 +113,6 @@ export function SettingsThreadList({
           )}
         </Animated.View>
       )}
-      ListEmptyComponent={<>{empty}</>}
-      ListFooterComponent={<>{footer}</>}
-      ListFooterComponentStyle={{ flexGrow: 1 }}
     />
   );
 }

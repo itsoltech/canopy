@@ -5,6 +5,8 @@ import { routedMobileClient } from "../api/routes";
 import { pinnedTransport } from "../api/pinned";
 import { SessionPersistence, type DeviceSession } from "../storage/session";
 import { prepareThreadCache } from "../storage/thread-cache-native";
+import { prepareArchivedCache } from "../storage/archived-cache-native";
+import type { PersistentArchivedCache } from "../storage/archived-cache";
 import { type PersistentThreadCache } from "../storage/thread-cache";
 import { prepareBotCache } from "../storage/bot-cache-native";
 import { clearPairedHistory, type PersistentBotCache } from "../storage/bot-cache";
@@ -15,6 +17,7 @@ function useSessionState() {
   const [session, setSession] = useState<DeviceSession | null>(null);
   const [ready, setReady] = useState(false);
   const [threadCache, setThreadCache] = useState<PersistentThreadCache | null>(null);
+  const [archivedCache, setArchivedCache] = useState<PersistentArchivedCache | null>(null);
   const [botCache, setBotCache] = useState<PersistentBotCache | null>(null);
   const [bots, setBots] = useState<botContract.Bot[]>([]);
   const [error, setError] = useState("");
@@ -36,6 +39,7 @@ function useSessionState() {
       .load()
       .then(async (value) => {
         setThreadCache(await prepareThreadCache(value));
+        setArchivedCache(await prepareArchivedCache(value));
         setBotCache(await prepareBotCache(value));
         setSession(value);
       })
@@ -102,11 +106,22 @@ function useSessionState() {
     };
   }, [client]);
 
+  async function clearHistory(revoked = false) {
+    const cleared = await clearPairedHistory([threadCache, botCache, archivedCache], () => persistence.forget());
+    setThreadCache(null);
+    setArchivedCache(null);
+    setBotCache(null);
+    setBots([]);
+    setSession(null);
+    setError(historyMessage(cleared, revoked));
+  }
+
   return {
     session,
     client,
     modelCatalog,
     threadCache,
+    archivedCache,
     botCache,
     bots,
     updateBots,
@@ -120,37 +135,31 @@ function useSessionState() {
     online: network.isConnected !== false,
     async pair(value: DeviceSession) {
       await threadCache?.close();
+      await archivedCache?.close();
       await botCache?.close();
       const cache = await prepareThreadCache(value);
+      const archive = await prepareArchivedCache(value);
       const botHistory = await prepareBotCache(value);
       await persistence.save(value);
       setThreadCache(cache);
+      setArchivedCache(archive);
       setBotCache(botHistory);
       setBots([]);
       setSession(value);
       setError("");
     },
-    async forget() {
-      const cleared = await clearPairedHistory([threadCache, botCache], () => persistence.forget());
-      setThreadCache(null);
-      setBotCache(null);
-      setBots([]);
-      setSession(null);
-      setError(cleared ? "" : "Could not clear local storage. Clear Canopy’s app data before pairing again.");
-    },
-    async expired() {
-      const cleared = await clearPairedHistory([threadCache, botCache], () => persistence.forget());
-      setThreadCache(null);
-      setBotCache(null);
-      setBots([]);
-      setSession(null);
-      setError(
-        !cleared
-          ? "This device was revoked. Could not clear local storage. Clear Canopy’s app data before pairing again."
-          : "This device was revoked. Create a new code in Settings → Devices on a paired device.",
-      );
-    },
+    forget: () => clearHistory(),
+    expired: () => clearHistory(true),
   };
+}
+
+function historyMessage(cleared: boolean, revoked: boolean) {
+  if (!cleared)
+    return revoked
+      ? "This device was revoked. Could not clear local storage. Clear Canopy’s app data before pairing again."
+      : "Could not clear local storage. Clear Canopy’s app data before pairing again.";
+
+  return revoked ? "This device was revoked. Create a new code in Settings → Devices on a paired device." : "";
 }
 
 function resetSession(client: ReturnType<typeof routedMobileClient> | null, advance: () => void) {

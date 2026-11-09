@@ -49,6 +49,9 @@ export class ArchivedThreadsPager {
   constructor(
     private load: Load,
     private changed: (state: ArchivedPageState) => void,
+    private saved?: (filter: ArchivedFilter) => ArchivedPageState | undefined,
+    private remember?: (filter: ArchivedFilter, state: ArchivedPageState) => void,
+    private revision?: () => number,
   ) {}
   #set(change: Partial<ArchivedPageState>) {
     this.state = { ...this.state, ...change };
@@ -58,17 +61,22 @@ export class ArchivedThreadsPager {
   /** `version` changes whenever the archive may have changed (stream updates, reconnects). */
   async refresh(filter: ArchivedFilter, expanded: boolean, version = ""): Promise<void> {
     const key = JSON.stringify([[...filter.projectIds].sort(), filter.query.trim().toLowerCase()]);
+    const filterChanged = key !== this.#key;
 
-    if (key !== this.#key) {
+    if (filterChanged) {
       this.#key = key;
       this.#pages = 1;
       this.#fresh = false;
       this.#first = undefined;
       this.#prefetching = undefined;
-      this.state = empty();
+      this.state = this.saved?.(filter) ?? empty();
+      // Saved peer rows do not consume the local archive endpoint's keyset pages.
+      this.#pages = this.state.loaded
+        ? Math.max(1, Math.ceil(this.state.threads.filter((thread) => !thread.nodeId).length / 20))
+        : 1;
     }
 
-    const changed = version !== this.#version;
+    const changed = filterChanged || version !== this.#version;
 
     if (changed) {
       this.#version = version;
@@ -78,12 +86,12 @@ export class ArchivedThreadsPager {
     const opening = expanded && !this.#expanded;
     const closing = !expanded && this.#expanded;
 
-    if (expanded !== this.#expanded) this.#pages = 1;
+    if (expanded !== this.#expanded && !this.saved) this.#pages = 1;
     this.#filter = filter;
     this.#expanded = expanded;
 
     // Collapsed: keep only the first page as the cache for the next opening.
-    if (closing && this.#first) this.#set({ ...this.#first });
+    if (closing && this.#first && !this.saved) this.#set({ ...this.#first });
 
     if (!changed && !opening && this.state.totalCount !== undefined && !this.state.error) {
       // Nothing changed since the count / pages (a settings write re-ran the caller): no request, and
@@ -127,7 +135,7 @@ export class ArchivedThreadsPager {
     const epoch = ++this.#epoch;
     this.#set({ loading: true });
 
-    const run = this.#loadPages(epoch, 1, true).finally(() => {
+    const run = this.#loadPages(epoch, this.saved ? this.#pages : 1, true).finally(() => {
       if (this.#prefetching === run) this.#prefetching = undefined;
     });
 
@@ -136,13 +144,15 @@ export class ArchivedThreadsPager {
 
   async more(): Promise<void> {
     if (!this.#expanded || this.state.loading || !this.state.nextPageToken) return;
+    this.state = this.saved?.(this.#filter) ?? this.state;
     const epoch = ++this.#epoch;
+    const revision = this.revision?.();
     this.#set({ loading: true, error: "" });
 
     try {
       const page = await this.load({ ...this.#filter, pageToken: this.state.nextPageToken, countOnly: false });
 
-      if (epoch !== this.#epoch) return;
+      if (!this.#current(epoch, revision)) return;
       this.#pages += 1;
       this.#set({
         threads: unique([...this.state.threads, ...page.threads]),
@@ -151,6 +161,7 @@ export class ArchivedThreadsPager {
         nextPageToken: page.nextPageToken,
         loading: false,
       });
+      this.remember?.(this.#filter, this.state);
     } catch (cause) {
       if (epoch === this.#epoch) this.#set({ loading: false, error: message(cause) });
     }
@@ -161,6 +172,8 @@ export class ArchivedThreadsPager {
   }
 
   async #loadPages(epoch: number, pages: number, quiet = false): Promise<void> {
+    const revision = this.revision?.();
+
     try {
       const threads: ui.Thread[] = [];
       const sideThreads: ui.Thread[] = [];
@@ -170,7 +183,7 @@ export class ArchivedThreadsPager {
       for (let i = 0; i < pages; i++) {
         const page = await this.load({ ...this.#filter, pageToken, countOnly: false });
 
-        if (epoch !== this.#epoch) return;
+        if (!this.#current(epoch, revision)) return;
 
         if (i === 0)
           first = { threads: page.threads, sideThreads: page.sideThreads, nextPageToken: page.nextPageToken };
@@ -189,6 +202,7 @@ export class ArchivedThreadsPager {
             loaded: true,
             loading: false,
           });
+          this.remember?.(this.#filter, this.state);
 
           return;
         }
@@ -196,6 +210,18 @@ export class ArchivedThreadsPager {
     } catch (cause) {
       if (epoch === this.#epoch) this.#set({ loading: false, error: quiet ? this.state.error : message(cause) });
     }
+  }
+
+  #current(epoch: number, revision: number | undefined) {
+    if (epoch !== this.#epoch) return false;
+
+    if (revision !== this.revision?.()) {
+      this.#set({ loading: false });
+
+      return false;
+    }
+
+    return true;
   }
 }
 

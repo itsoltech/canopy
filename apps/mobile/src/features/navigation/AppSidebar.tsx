@@ -21,7 +21,6 @@ import { styles, useColors } from "../../ui/theme";
 import { SearchField } from "../../ui/SearchField";
 import { BotListItem } from "../bots/BotListItem";
 import { SettingsThreadList } from "./SettingsThreadList";
-import { SidebarArchivedThreads } from "./SidebarArchivedThreads";
 import { useSidebarThreads } from "./useSidebarThreads";
 import { useProjectDetails } from "../computers/project-details";
 import { CreateBot } from "../bots/CreateBot";
@@ -232,7 +231,6 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
               </View>
             )
           }
-          footer={<SidebarArchivedThreads navigation={navigation} query={state.queries.threads} />}
         />
       ) : (
         <BotList state={state} />

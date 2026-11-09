@@ -42,6 +42,7 @@ export function useSidebarThreads(query: string) {
   };
 
   return {
+    query,
     current,
     choices,
     projectAway: (project: ui.Project) => projectAwayReason(project, workers, computers),
