@@ -20,7 +20,7 @@ export async function coreEnqueueTurn(
 
       if (!hostContext.updates.draining) await corePumpQueued(hostContext, input.threadId);
 
-      const current = (await coreRun(hostContext, (s) => s.turnsOf(input.threadId))).find((t) => t.id === turn.id)!;
+      const current = (await coreRun(hostContext, (s) => s.turnsOf(input.threadId, [turn.id])))[0]!;
       const update = toUiTurn(current);
       hostContext.hub.publishThread(
         input.threadId,

@@ -197,7 +197,7 @@ export class GatewayUpdates {
     }
   }
   async snapshot(): Promise<ui.UpdatesSnapshot> {
-    const workers = await this.options.persistence.workers();
+    const workers = await this.options.persistence.workers(false);
 
     return create(ui.UpdatesSnapshotSchema, {
       gatewayVersion: this.version,

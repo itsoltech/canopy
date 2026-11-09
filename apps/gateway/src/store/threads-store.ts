@@ -6,13 +6,13 @@ import { Invalid, one, type Fx } from "./errors.ts";
 import { archivedPage } from "./archived-pagination.ts";
 import { providerOf } from "./instance-config.ts";
 import type { ThreadRow } from "./rows.ts";
-import { threadSelect } from "./thread-select.ts";
+import { listThreadSelect, threadSelect } from "./thread-select.ts";
 import { permissionModeOf } from "./ui-mappers.ts";
 
 export interface ThreadStore {
   /** `id`: a thread moved here from a linked computer keeps its id (docs/linked-computers.md, stage 8). */
   createThread(ownerUserId: string, request: ui.CreateThreadRequest, id?: string): Fx<ThreadRow>;
-  thread(threadId: string, includeDeleted?: boolean): Fx<ThreadRow>;
+  thread(threadId: string, includeDeleted?: boolean, metadataOnly?: boolean): Fx<ThreadRow>;
   /** The owner saw the thread up to `upToSeq` (capped at its last event; the marker only grows). False when nothing changed. */
   markThreadSeen(ownerUserId: string, threadId: string, upToSeq: bigint): Fx<boolean>;
   /** Threads of a project, or of every project the user owns when projectId is empty. */
@@ -64,7 +64,7 @@ const archivedThreads = (sql: SqlClient.SqlClient, ownerUserId: string, request:
     if (request.countOnly) return { threads: [], sideThreads: [], totalCount, nextPageToken: "" };
 
     const rows = yield* sql.unsafe<ThreadRow & { archive_cursor: string }>(
-      threadSelect(
+      listThreadSelect(
         `${where}
           AND ($4::timestamptz IS NULL OR (t.archived_at, t.id) < ($4::timestamptz, $5::uuid))
           ORDER BY t.archived_at DESC, t.id DESC LIMIT $6`,
@@ -78,7 +78,7 @@ const archivedThreads = (sql: SqlClient.SqlClient, ownerUserId: string, request:
 
     const sideThreads = threads.length
       ? yield* sql.unsafe<ThreadRow>(
-          threadSelect(`WHERE t.parent_thread_id = ANY($1::uuid[])
+          listThreadSelect(`WHERE t.parent_thread_id = ANY($1::uuid[])
           AND t.owner_user_id = $2::uuid AND t.deleted_at IS NULL ORDER BY t.created_at`),
           [threads.map((t) => t.id), ownerUserId],
         )
@@ -94,12 +94,14 @@ const archivedThreads = (sql: SqlClient.SqlClient, ownerUserId: string, request:
 
 export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "createThread"> {
   const store: Omit<ThreadStore, "createThread"> = {
-    thread: (threadId, includeDeleted = false) =>
+    thread: (threadId, includeDeleted = false, metadataOnly = false) =>
       sql
-        .unsafe<ThreadRow>(threadSelect("WHERE t.id = $1::uuid AND (t.deleted_at IS NULL OR $2::boolean)"), [
-          threadId,
-          includeDeleted,
-        ])
+        .unsafe<ThreadRow>(
+          (metadataOnly ? listThreadSelect : threadSelect)(
+            "WHERE t.id = $1::uuid AND (t.deleted_at IS NULL OR $2::boolean)",
+          ),
+          [threadId, includeDeleted],
+        )
         .pipe(Effect.flatMap((rows) => one(rows, "thread"))),
 
     markThreadSeen: (ownerUserId, threadId, upToSeq) =>
@@ -126,7 +128,7 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
 
     listThreads: (ownerUserId, projectId, includeArchived = false, sidebarOnly = false) =>
       sql.unsafe<ThreadRow>(
-        threadSelect(`WHERE t.owner_user_id = $1::uuid AND ($2::uuid IS NULL OR t.project_id = $2::uuid)
+        listThreadSelect(`WHERE t.owner_user_id = $1::uuid AND ($2::uuid IS NULL OR t.project_id = $2::uuid)
               AND t.deleted_at IS NULL AND (CASE WHEN $4::boolean THEN ((t.archived_at IS NULL AND NOT EXISTS
                 (SELECT 1 FROM threads parent WHERE parent.id = t.parent_thread_id AND parent.archived_at IS NOT NULL)) OR
                 (t.kind = 'side' AND EXISTS (SELECT 1 FROM threads parent WHERE parent.id = t.parent_thread_id

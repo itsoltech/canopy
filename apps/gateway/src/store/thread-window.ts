@@ -15,17 +15,7 @@ export function threadWindow(sql: SqlClient.SqlClient, thread: string, version: 
 
     if (moved.length) return undefined;
 
-    const turns = yield* sql<{ id: string }>`SELECT u.id FROM thread_fork_chain(${thread}::uuid) c
-      JOIN turns u ON u.thread_id=c.thread_id WHERE u.status<>'queued'
-        AND (c.upto_seq IS NULL OR u.last_seq<=c.upto_seq)
-      ORDER BY c.level DESC,u.ordinal`;
-
     const reset = !!query.historyVersion && query.historyVersion !== version;
-
-    const boundary =
-      !reset && query.beforeTurnId ? turns.findIndex((turn) => turn.id === query.beforeTurnId) : turns.length;
-
-    const end = boundary < 0 ? turns.length : boundary;
 
     const target =
       !reset && query.targetItemId
@@ -33,20 +23,46 @@ export function threadWindow(sql: SqlClient.SqlClient, thread: string, version: 
           WHERE item_id=${query.targetItemId} LIMIT 1`)[0]
         : undefined;
 
-    const targetIndex = target ? turns.findIndex((turn) => turn.id === target.turn_id) : -1;
-    const fromIndex = !reset && query.fromTurnId ? turns.findIndex((turn) => turn.id === query.fromTurnId) : -1;
+    // Locate anchors by primary key, then page by the fork depth and ordinal. Only the
+    // requested window crosses the SQL boundary, even for a thread with years of turns.
+    const page = (yield* sql<{ ids: string[]; before: string | null; has_more: boolean; missing: boolean }>`
+      WITH chain AS MATERIALIZED (SELECT * FROM thread_fork_chain(${thread}::uuid)), eligible AS NOT MATERIALIZED (
+        SELECT u.id,-c.level AS depth,u.ordinal FROM chain c
+        JOIN turns u ON u.thread_id=c.thread_id WHERE u.status<>'queued'
+          AND (c.upto_seq IS NULL OR u.last_seq<=c.upto_seq)
+      ), bounds AS (
+        SELECT b.depth AS end_depth,b.ordinal AS end_ordinal,
+          coalesce(t.depth,f.depth) AS start_depth,coalesce(t.ordinal,f.ordinal) AS start_ordinal,
+          (${!reset && !!query.beforeTurnId} AND b.id IS NULL) OR
+            (${!!query.fromTurnId} AND f.id IS NULL) AS missing
+        FROM (SELECT 1) seed
+        LEFT JOIN eligible b ON b.id=${reset ? null : query.beforeTurnId || null}::uuid
+        LEFT JOIN eligible f ON f.id=${reset ? null : query.fromTurnId || null}::uuid
+        LEFT JOIN eligible t ON t.id=${target?.turn_id ?? null}::uuid
+      ), page AS MATERIALIZED (
+        SELECT e.* FROM chain c CROSS JOIN bounds b CROSS JOIN LATERAL (
+          SELECT u.id,-c.level AS depth,u.ordinal FROM turns u
+          WHERE u.thread_id=c.thread_id AND u.status<>'queued'
+            AND (c.upto_seq IS NULL OR u.last_seq<=c.upto_seq)
+            AND (b.end_depth IS NULL OR (-c.level,u.ordinal)<(b.end_depth,b.end_ordinal))
+            AND (b.start_depth IS NULL OR (-c.level,u.ordinal)>=(b.start_depth,b.start_ordinal))
+          ORDER BY u.ordinal DESC LIMIT CASE WHEN b.start_depth IS NULL THEN ${Math.min(query.pageSize, 100)} END
+        ) e
+        ORDER BY e.depth DESC,e.ordinal DESC
+        LIMIT (SELECT CASE WHEN start_depth IS NULL THEN ${Math.min(query.pageSize, 100)} END FROM bounds)
+      ), first_turn AS (SELECT * FROM page ORDER BY depth,ordinal LIMIT 1)
+      SELECT ARRAY(SELECT id FROM page ORDER BY depth,ordinal) AS ids,
+        (SELECT id FROM first_turn) AS before,
+        EXISTS(SELECT 1 FROM eligible e,first_turn f WHERE (e.depth,e.ordinal)<(f.depth,f.ordinal)) AS has_more,
+        (SELECT missing FROM bounds) AS missing`)[0]!;
 
-    const start =
-      targetIndex >= 0 ? targetIndex : fromIndex >= 0 ? fromIndex : Math.max(0, end - Math.min(query.pageSize, 100));
-
-    const selected = turns.slice(start, end);
     const queued = yield* sql<{ id: string }>`SELECT id FROM turns WHERE thread_id=${thread}::uuid AND status='queued'`;
 
     return {
-      ids: [...selected, ...queued].map((turn) => turn.id),
-      before: selected[0]?.id ?? "",
-      hasMore: start > 0,
-      reset: reset || boundary < 0 || (!!query.fromTurnId && fromIndex < 0),
+      ids: [...page.ids, ...queued.map((turn) => turn.id)],
+      before: page.before ?? "",
+      hasMore: page.has_more,
+      reset: reset || page.missing,
     };
   });
 }

@@ -40,12 +40,12 @@ export function threadSnapshot(
   return {
     snapshot: (threadId, mirrorCursor, includeCursor, historyQuery) => {
       const read = Effect.gen(function* () {
-        const thread = yield* self().thread(threadId);
+        const thread = yield* self().thread(threadId, false, true);
 
         const history = (yield* sql<{ version: string }>`SELECT md5(
           coalesce((SELECT string_agg(c.thread_id::text || ':' || coalesce(c.upto_seq::text,''), ',' ORDER BY c.level)
             FROM thread_fork_chain(${threadId}::uuid) c),'') || ':' ||
-          coalesce((SELECT md5(history) FROM computer_moved_threads WHERE thread_id=${threadId}::uuid),'')
+          coalesce((SELECT history_hash FROM computer_moved_threads WHERE thread_id=${threadId}::uuid),'')
         ) AS version`)[0]!;
 
         const clock = includeCursor

@@ -373,6 +373,33 @@ w tej samej transakcji co pełny `snapshot`. Listy i nagłówki czytają tylko m
 Migracja 0097 uzupełnia brakujące nagłówki bez przesyłania historii do gatewaya
 i ustawia `NOT NULL`.
 
+Migracja 0098 dodaje indeks `turns_last_activity`: pasek boczny pobiera ostatnią
+aktywność przez `ORDER BY … DESC LIMIT 1`, zamiast agregować wszystkie tury.
+`computer_moved_threads.history_hash` jest kolumną generowaną i przechowywaną:
+wersja historii watcha odczytuje hash, bez ponownego hashowania binarki. Backfill
+wykonuje PostgreSQL przy dodawaniu kolumny; każda zmiana historii aktualizuje hash.
+
+Okno historii wybiera tury w SQL według poziomu forka i numeru tury, z limitem 100
+dla zwykłej strony. Przez granicę SQL przechodzą tylko id wybranego okna i kolejki;
+`from_turn_id` i `target_item_id` świadomie rozszerzają okno. Dziennik mirrora
+sprawdza ciągłość agregatem i pobiera wyłącznie odrębne klucze zmienionych encji
+danego wątku. Nie przenosi zmian wszystkich wątków do JavaScript dla jednego watcha.
+
+Overview czyta istniejące workspace'y scratch jednym zapytaniem, grupuje je po
+workerze i zapisuje tylko brakujące lub zmienione katalogi. Grupowanie workspace'ów
+projektów jest liniowe. Lista workerów odczytuje nazwy profili i używane pola
+capabilities, bez pełnej konfiguracji. Centrum aktualizacji pomija komendę instalacji
+w odczycie statusu; ścieżka wykonawcza nadal ją pobiera.
+Listy, nagłówki i snapshoty UI wątków pomijają instrukcje, handoff i kontekst
+generatora tytułu; pełny odczyt pojedynczego wątku nadal dostarcza je ścieżkom
+wykonawczym. Broadcast tury i potwierdzenie enqueue pobierają tylko wskazaną turę,
+bez odczytu wejść pozostałych tur.
+`threads.list_settings` i `worker_configs.profile_names` są generowanymi, zapisanymi
+projekcjami: polling nie detoastuje dużych konfiguracji nawet wewnątrz PostgreSQL.
+Indeks częściowy `turns_mutable_sources` ogranicza sprawdzenie zależności watcha
+do tur ze źródłami. Publisher mirrora grupuje powtarzane id w SQL, a retencję
+dziennika zostawia triggerowi commitującemu, bez `DELETE` co 250 ms na partnera.
+
 - `thread_events (thread_id, seq)` — klucz główny, odczyt osi czasu; `(thread_id, event_id)` unikalny — idempotencja.
 - `thread_items (thread_id, first_seq)` — snapshot dla frontendu; `(thread_id) WHERE status = 'in_progress'` — elementy w toku.
 - `threads (project_id, created_at DESC) WHERE kind = 'main'` — lista wątków projektu.
