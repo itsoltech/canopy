@@ -4,10 +4,7 @@ import { validatePluginFiles } from "@canopy/domain/plugin-artifact";
 import { skillDigest, validateSkillFiles } from "@canopy/domain/skill-artifact";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
-import type { ConfigRow } from "./persistence.ts";
-import { alive } from "./provider-records.ts";
-import { HASH, isCatalog, versionHashes } from "./environment-values.ts";
-import { valuesOf } from "./provider-values.ts";
+import { HASH } from "./environment-values.ts";
 
 /**
  * Library content travels apart from the records (docs/linked-computers.md, "Treść biblioteki"). A record names
@@ -37,36 +34,48 @@ export function localBlob(sql: SqlClient.SqlClient, owner: string, hash: string)
   );
 }
 
-const neededBy = (row: ConfigRow) => {
-  const values = valuesOf(row.fields);
-  const catalog = values["catalog"];
+/** Metadata only: an absent version must not cause a content lookup for each record that names it. */
+export function presentBlobHashes(sql: SqlClient.SqlClient, owner: string, hashes: readonly string[]) {
+  if (!hashes.length) return Effect.succeed(new Set<string>());
 
-  return row.kind === "marketplace" ? (isCatalog(catalog) ? [catalog.hash] : []) : versionHashes(values);
-};
+  return Effect.map(
+    sql<{ hash: string }>`SELECT content_hash AS hash FROM agent_skill_versions
+    WHERE owner_user_id=${owner}::uuid AND content_hash=ANY(${hashes}::text[])
+    UNION SELECT content_hash FROM agent_plugin_versions
+    WHERE owner_user_id=${owner}::uuid AND content_hash=ANY(${hashes}::text[])
+    UNION SELECT content_hash FROM agent_marketplace_catalogs
+    WHERE owner_user_id=${owner}::uuid AND content_hash=ANY(${hashes}::text[])`,
+    (rows) => new Set(rows.map((row) => row.hash)),
+  );
+}
 
 /** Content that live records name and no library table here has yet. */
 export function missingBlobs(sql: SqlClient.SqlClient, owner: string) {
-  return Effect.gen(function* () {
-    const records = (yield* sql<ConfigRow>`SELECT * FROM config_items WHERE owner_user_id=${owner}::uuid
-      AND kind IN ('skill','marketplace','plugin') AND home_node_id=''`).filter(alive);
-
-    const wanted = [...new Set(records.flatMap(neededBy))].filter((h) => HASH.test(h));
-
-    if (!wanted.length) return [];
-
-    const present = yield* sql<{ hash: string }>`SELECT content_hash AS hash FROM agent_skill_versions
-      WHERE owner_user_id=${owner}::uuid AND content_hash=ANY(${wanted}::text[])
-      UNION SELECT content_hash FROM agent_plugin_versions WHERE owner_user_id=${owner}::uuid AND content_hash=ANY(${wanted}::text[])
-      UNION SELECT content_hash FROM agent_marketplace_catalogs WHERE owner_user_id=${owner}::uuid AND content_hash=ANY(${wanted}::text[])`;
-
-    const known = new Set(present.map((p) => p.hash));
-
-    return wanted.filter((h) => !known.has(h));
-  });
+  return Effect.map(
+    sql<{ hash: string }>`WITH records AS MATERIALIZED (
+      SELECT kind,fields FROM config_items WHERE owner_user_id=${owner}::uuid
+        AND kind IN ('skill','marketplace','plugin') AND home_node_id=''
+        AND (deleted->'value' IS DISTINCT FROM 'true'::jsonb OR fields<>'{}'::jsonb)
+    ), wanted AS MATERIALIZED (
+      SELECT DISTINCT hash FROM (
+        SELECT substring(key FROM 9) AS hash FROM records,
+          LATERAL jsonb_object_keys(fields) AS key
+          WHERE kind IN ('skill','plugin') AND length(key)=72 AND starts_with(key,'version.')
+        UNION ALL SELECT fields#>>'{catalog,value,hash}' FROM records WHERE kind='marketplace'
+          AND jsonb_typeof(fields#>'{catalog,value,hash}')='string'
+          AND jsonb_typeof(fields#>'{catalog,value,commit}')='string'
+      ) refs
+    ) SELECT hash FROM wanted WHERE length(hash)=64 AND translate(hash,'0123456789abcdef','')=''
+    AND NOT EXISTS (
+      SELECT 1 FROM agent_skill_versions WHERE owner_user_id=${owner}::uuid AND content_hash=wanted.hash
+    ) AND NOT EXISTS (
+      SELECT 1 FROM agent_plugin_versions WHERE owner_user_id=${owner}::uuid AND content_hash=wanted.hash
+    ) AND NOT EXISTS (
+      SELECT 1 FROM agent_marketplace_catalogs WHERE owner_user_id=${owner}::uuid AND content_hash=wanted.hash
+    ) ORDER BY hash`,
+    (rows) => rows.map((row) => row.hash),
+  );
 }
-
-/** Records that name any of these hashes, to be applied again once their content is here. */
-export const namesAny = (row: ConfigRow, hashes: ReadonlySet<string>) => neededBy(row).some((h) => hashes.has(h));
 
 function text(bytes: Uint8Array, hash: string) {
   if (bytes.length > BLOB_BYTES || skillDigest(bytes) !== hash) throw new Error("Content does not match its hash");
