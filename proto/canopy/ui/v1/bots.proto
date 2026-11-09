@@ -6,6 +6,7 @@ import "google/protobuf/timestamp.proto";
 import "canopy/worker/v1/worker_link.proto";
 import "canopy/ui/v1/quotes.proto";
 import "canopy/ui/v1/computers.proto";
+import "canopy/ui/v1/attachments.proto";
 
 message BotConfiguration {
   string name = 1;
@@ -67,6 +68,7 @@ message BotMessage {
   // Wybrane chipy w wiadomości użytkownika; BOT.name = bot_id, zakresy UTF-16.
   repeated canopy.worker.v1.Mention mentions = 450;
   repeated Quote quotes = 451;
+  repeated Attachment attachments = 452;
 }
 message BotSettingChange {
   string field = 1;
@@ -188,6 +190,24 @@ message SendBotMessageRequest {
   string client_request_id = 3;
   repeated canopy.worker.v1.Mention mentions = 450;
   repeated Quote quotes = 451;
+  repeated string attachment_ids = 452;
+  // Clear only the draft this send started from. A newer edit on another device survives.
+  optional uint64 draft_revision = 453;
+}
+message BotComposerDraft {
+  string bot_id = 1;
+  string text = 2;
+  repeated canopy.worker.v1.Mention mentions = 3;
+  repeated Quote quotes = 4;
+  repeated Attachment attachments = 5;
+  uint64 revision = 6;
+  // Stable across navigation and transport retries; changing the message creates a new id.
+  string client_request_id = 7;
+}
+message SaveBotDraftRequest {
+  string bot_id = 1;
+  BotComposerDraft draft = 2;
+  uint64 expected_revision = 3;
 }
 message SendBotMessageResponse { string turn_id = 1; }
 message WatchBotConversationRequest {

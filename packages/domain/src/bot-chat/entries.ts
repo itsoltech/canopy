@@ -96,6 +96,7 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
         text: m.text,
         mentions: m.mentions,
         quotes: m.quotes,
+        attachments: m.attachments,
       },
     };
   });

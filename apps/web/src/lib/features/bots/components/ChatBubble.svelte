@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
   import type { ClassValue } from "svelte/elements";
   import { MentionKind } from "@canopy/contracts";
   import ConnectorChip from "#lib/features/connectors/ConnectorChip.svelte";
@@ -171,6 +172,7 @@
       {/each}
     </ul>
   {/if}
+  {#if message.attachments?.length}<MessageAttachments attachments={message.attachments} />{/if}
   {#if message.delivery}
     <p
       class={[

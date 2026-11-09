@@ -7,6 +7,7 @@ import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
+import { botComposerForMove, sendRemoteBotImage } from "./support/bot-composer-move.ts";
 import { MoveCrash, type MoveHost } from "../../apps/gateway/src/computers/moves.ts";
 import type { BotModel, ModelInput } from "../../apps/gateway/src/bots/types.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
@@ -436,7 +437,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
       })
     ).bot!.id;
 
-    await a.api.sendBotMessage({ botId: bot, text: "my favourite colour is teal", clientRequestId: id() });
+    const { image, pending, draft } = await botComposerForMove(a, bot);
     await eventually(
       () => a.core.bots.run((s) => s.conversation(a.userId, bot)),
       (x) => !x.working && x.messages.some((m) => m.text === "A: my favourite colour is teal"),
@@ -515,6 +516,13 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     const moved = (await c.api.getBot({ botId: bot })).bot!;
     expect(moved.movedFromName).toBe("Laptop A");
     expect(moved.reconnect).toEqual(["Work GitHub (github)"]);
+    expect(await c.api.getBotDraft({ botId: bot })).toEqual(draft);
+    expect((await c.api.getAttachment({ attachmentId: image.id })).data.length).toBeGreaterThan(0);
+    expect((await c.api.getAttachment({ attachmentId: pending.id })).data.length).toBeGreaterThan(0);
+    expect(
+      (await c.core.bots.run((s) => s.conversation(c.userId, bot))).messages.find((m) => m.attachments?.length)
+        ?.attachments?.[0]?.id,
+    ).toBe(image.id);
     await c.api.sendBotMessage({ botId: bot, text: "still there?", clientRequestId: id() });
 
     const conversation = await eventually(
@@ -527,6 +535,20 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     // Old ids resolve: A's plain id and B's qualified one reach C.
     expect((await a.api.getBot({ botId: bot })).bot?.nodeId).toBe(cNode);
     expect((await b.api.getBot({ botId: qualifyId(bot, aNode) })).bot?.nodeId).toBe(cNode);
+
+    expect((await a.api.getBotDraft({ botId: bot })).text).toBe(draft.text);
+
+    const remoteId = qualifyId(bot, cNode);
+    const remoteDraft = await b.api.getBotDraft({ botId: remoteId });
+
+    expect(remoteDraft.attachments[0]?.id).toBe(qualifyId(pending.id, cNode));
+    await sendRemoteBotImage(
+      b,
+      remoteId,
+      remoteDraft.revision,
+      (await c.api.getAttachment({ attachmentId: image.id })).data,
+    );
+    expect((await c.api.getBotDraft({ botId: bot })).text).toBe("");
 
     const sent = await b.worker.callTool({
       threadId: bThread,

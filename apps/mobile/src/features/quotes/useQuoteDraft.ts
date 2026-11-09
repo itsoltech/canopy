@@ -4,8 +4,24 @@ import type { ui } from "@canopy/contracts";
 import { QUOTE_LIMITS } from "@canopy/domain";
 import { useUpdateBlocker } from "../updates/useUpdateBlocker";
 
-export function useQuoteDraft(blocked: () => boolean = () => false) {
-  const [quotes, setQuotes] = useState<readonly ui.Quote[]>([]);
+export function useQuoteDraft(
+  blocked: () => boolean = () => false,
+  options: {
+    current?: { current: readonly ui.Quote[] };
+    onChange?: () => void;
+  } = {},
+) {
+  const [local, setLocal] = useState<readonly ui.Quote[]>([]);
+  const quotes = options.current?.current ?? local;
+
+  const setQuotes = (change: (current: readonly ui.Quote[]) => readonly ui.Quote[]) => {
+    const next = change(options.current?.current ?? quotes);
+
+    if (options.current) options.current.current = next;
+    setLocal(next);
+    options.onChange?.();
+  };
+
   useUpdateBlocker(() => quotes.length > 0);
 
   return {
@@ -30,7 +46,7 @@ export function useQuoteDraft(blocked: () => boolean = () => false) {
       setQuotes((current) => current.filter((_quote, at) => at !== index));
     },
     clear() {
-      setQuotes([]);
+      setQuotes(() => []);
     },
   };
 }

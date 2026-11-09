@@ -18,13 +18,15 @@
   import QuoteTray from "#lib/features/quotes/QuoteTray.svelte";
   import { toWire, useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
   import RoundButton from "./RoundButton.svelte";
+  import type { AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
+  import BotImageIntake from "./BotImageIntake.svelte";
 
   /**
    * Message box of a bot chat, one rounded pill: "+" on the left, the text growing up to a few lines, and
    * the send button, which appears once there is text or a quote. Shared MentionEditor and QuoteTray own
    * rich text, atomic bot chips and removable quote drafts. Enter sends and Shift+Enter adds a line; on touch
-   * keyboards Enter adds a line and the button sends. A missing `onattach` keeps "+" visible but
-   * unavailable ("coming soon"); `disabled` (with `disabledReason` as the placeholder) turns the box off.
+   * keyboards Enter adds a line and the button sends. The shared intake uploads pasted, dropped or picked images.
+   * `disabled` (with `disabledReason` as the placeholder) turns the box off.
    * `focus()` returns to the text after adding a reply quote without changing the draft.
    */
   let {
@@ -38,6 +40,8 @@
     sending = false,
     onsend,
     onattach,
+    files,
+    durable = false,
     class: className,
   }: {
     value?: string;
@@ -50,12 +54,15 @@
     sending?: boolean;
     onsend: (text: string, mentions: Mention[], quotes: ui.Quote[]) => void;
     onattach?: (() => void) | undefined;
+    files?: AttachmentDraft | undefined;
+    durable?: boolean;
     class?: ClassValue;
   } = $props();
 
   const id = $props.id();
   let box = $state<HTMLDivElement>();
   let editor = $state<EditorControls>();
+  let intake = $state<ReturnType<typeof BotImageIntake>>();
   const connectorCatalog = useConnectorAccounts(() => (splitId(botId).node ? undefined : { botId }));
 
   const sources = new BotMentionSources(
@@ -90,7 +97,11 @@
 
   const quoteDrafts = useQuoteDrafts();
   const quotes = $derived(quoteDrafts.list(quoteKey));
-  const ready = $derived(!disabled && !sending && (value.trim().length > 0 || quotes.length > 0));
+
+  const ready = $derived(
+    !disabled && !sending && !files?.blocker && (value.trim().length > 0 || quotes.length > 0 || files?.ready),
+  );
+
   let multiline = $state(false);
 
   $effect(() => {
@@ -120,9 +131,11 @@
       quotes.map((quote) => create(ui.QuoteSchema, toWire(quote))),
     );
 
-    for (const quote of quotes) quoteDrafts.remove(quoteKey, quote.id);
-    value = "";
-    mentions = [];
+    if (!durable) {
+      for (const quote of quotes) quoteDrafts.remove(quoteKey, quote.id);
+      value = "";
+      mentions = [];
+    }
   }
 </script>
 
@@ -140,14 +153,20 @@
   {#if quotes.length > 0}
     <div class="col-span-3 row-start-1 min-w-0 px-2 pt-2 pb-3"><QuoteTray threadId={quoteKey} /></div>
   {/if}
+  {#if files?.notice || files?.blocker}<p
+      role="status"
+      class="col-span-3 row-start-4 px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400"
+    >
+      {files.notice ?? files.blocker}
+    </p>{/if}
   <div class="col-start-1 row-start-3 flex">
     <RoundButton
       icon="plus"
-      label="Add attachment"
-      tooltip={onattach ? "Add attachment" : "Attachments are coming soon"}
+      label="Attach images"
+      tooltip={files || onattach ? "Attach images" : "Attachments are coming soon"}
       variant="secondary"
-      unavailable={disabled || !onattach}
-      onclick={onattach}
+      unavailable={disabled || sending || (!files && !onattach)}
+      onclick={files ? () => intake?.pick() : onattach}
     />
   </div>
   <MentionEditor
@@ -156,7 +175,9 @@
     bind:value
     bind:mentions
     bind:editor
-    {disabled}
+    disabled={disabled || sending}
+    onpaste={(event) => intake?.paste(event)}
+    acceptChip={(m) => m.kind !== MentionKind.ATTACHMENT || Boolean(files?.file(m.name))}
     {sources}
     triggers={BOT_MENTION_TRIGGERS}
     anchor={box}
@@ -186,9 +207,18 @@
       {/if}
     {/snippet}
   </MentionEditor>
-  {#if value.trim() || quotes.length > 0}
+  {#if value.trim() || quotes.length > 0 || files?.attached.length}
     <span class="col-start-3 row-start-3 flex" in:iconSwap>
       <RoundButton icon="arrow-up" label="Send" variant="primary" unavailable={!ready} busy={sending} onclick={send} />
     </span>
   {/if}
 </div>
+{#if files}<BotImageIntake
+    bind:this={intake}
+    draft={files}
+    {editor}
+    root={box}
+    disabled={disabled || sending}
+    {value}
+    {mentions}
+  />{/if}

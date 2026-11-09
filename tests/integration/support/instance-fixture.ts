@@ -89,6 +89,7 @@ export async function startInstanceFixture(
 
   const capabilities = [
     "bot_harness_v1",
+    "bot_images_v1",
     "attachments",
     ...(shellCapability ? ["shell_input_v1"] : []),
     ...(steerAttachments ? [STEER_ATTACHMENTS_CAPABILITY] : []),

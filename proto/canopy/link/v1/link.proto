@@ -318,6 +318,9 @@ message ThreadMove {
 message BotMove {
   string rows_json = 1;
   string source_name = 2;
+  // Negotiated with remote_bot_composer_v1; includes images referenced by the draft.
+  repeated MovedFile files = 3;
+  canopy.ui.v1.BotComposerDraft draft = 4;
 }
 message MoveDecision {
   string move_id = 1;

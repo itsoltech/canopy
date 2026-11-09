@@ -16,6 +16,7 @@ import {
 
 import { audit, redirect, transaction } from "./move-state.ts";
 import type { ComputerStore } from "./store.ts";
+import { exportBotComposer } from "./move-bot-composer.ts";
 
 // ------------------------------------------------------------------ what blocks a move
 
@@ -288,7 +289,11 @@ export async function exportBot(store: ComputerStore, botId: string, sourceName:
 
   if (!rows?.bot) throw new Error("bot disappeared during its move");
 
-  return create(link.BotMoveSchema, { rowsJson: JSON.stringify(rows), sourceName });
+  return create(link.BotMoveSchema, {
+    rowsJson: JSON.stringify(rows),
+    sourceName,
+    ...(await exportBotComposer(store, botId)),
+  });
 }
 
 /** The cut-over on the source: its copy becomes a redirect to the target, in one transaction with the decision. */

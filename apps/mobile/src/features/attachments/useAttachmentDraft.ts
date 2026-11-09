@@ -47,12 +47,23 @@ export const fileSize = (bytes: number) =>
  * Files of the next message: each is uploaded as soon as it is picked; the message sends their ids.
  * Limits are checked before the upload, as the web composer does.
  */
-export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
+export function useAttachmentDraft(
+  onAdd?: (file: DraftFile) => void,
+  options: {
+    current?: { current: DraftFile[] };
+    keepAlive?: boolean;
+    botId?: string;
+    imagesOnly?: boolean;
+    onChange?: () => void;
+  } = {},
+) {
   const { client } = useSession();
   const { limits } = useAppearance();
-  const [files, setFiles] = useState<DraftFile[]>([]);
+  const [localFiles, setFiles] = useState<DraftFile[]>([]);
   // The same rows, readable at once by picks that land in one tick (several photos at a time).
-  const current = useRef<DraftFile[]>([]);
+  const local = useRef<DraftFile[]>([]);
+  const current = options.current ?? local;
+  const files = options.current ? current.current : localFiles;
   useUpdateBlocker(() => current.current.length > 0);
   const mounted = useRef(true);
 
@@ -62,6 +73,8 @@ export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
     return () => {
       mounted.current = false;
 
+      if (options.keepAlive) return;
+
       for (const file of current.current) discardPreview(file);
       current.current = [];
     };
@@ -70,34 +83,35 @@ export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
   const apply = (next: (rows: DraftFile[]) => DraftFile[]) => {
     current.current = next(current.current);
     setFiles(current.current);
+    options.onChange?.();
   };
 
-  const max = limits?.maxFiles
-    ? {
-        maxFileBytes: Number(limits.maxFileBytes),
-        maxMessageBytes: Number(limits.maxMessageBytes),
-        maxFiles: limits.maxFiles,
-      }
-    : fallback;
+  const max = draftLimits(limits);
 
   const patch = (key: string, change: Partial<DraftFile>) =>
     apply((rows) => rows.map((f) => (f.key === key ? { ...f, ...change } : f)));
 
   async function upload(picked: Picked) {
     // A system picker can return after its composer has gone away.
-    if (!mounted.current) return discard(picked);
+    if (!mounted.current && !options.keepAlive) return discard(picked);
 
     const key = Crypto.randomUUID();
     const total = current.current.reduce((sum, f) => sum + f.size, 0) + picked.size;
 
     const error =
-      current.current.length >= max.maxFiles
-        ? `Attach up to ${max.maxFiles} files.`
-        : picked.size > max.maxFileBytes
-          ? `Files can be up to ${fileSize(max.maxFileBytes)}.`
-          : total > max.maxMessageBytes
-            ? `A message can carry up to ${fileSize(max.maxMessageBytes)}.`
-            : undefined;
+      options.imagesOnly &&
+      !(
+        picked.kind === "image" &&
+        (/^image\/(png|jpeg|gif|webp)$/.test(picked.mimeType ?? "") || /\.(png|jpe?g|gif|webp)$/i.test(picked.name))
+      )
+        ? "Attach a PNG, JPEG, GIF or WebP image."
+        : current.current.length >= max.maxFiles
+          ? `Attach up to ${max.maxFiles} files.`
+          : picked.size > max.maxFileBytes
+            ? `Files can be up to ${fileSize(max.maxFileBytes)}.`
+            : total > max.maxMessageBytes
+              ? `A message can carry up to ${fileSize(max.maxMessageBytes)}.`
+              : undefined;
 
     const file: DraftFile = {
       key,
@@ -125,31 +139,14 @@ export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
 
       if (!current.current.some((f) => f.key === key)) return;
 
-      const result = await client.api.uploadAttachment({ name: picked.name, data }, { timeoutMs: 120_000 });
+      const result = await client.api.uploadAttachment(
+        { name: picked.name, data, botId: options.botId },
+        { timeoutMs: 120_000 },
+      );
+
       patch(key, { attachment: result.attachment });
     } catch {
       patch(key, { error: "Could not upload. Remove it and try again." });
-    }
-  }
-
-  async function read(picked: Picked) {
-    if (!picked.uri) throw new Error("not copied");
-
-    try {
-      return await new File(picked.uri).arrayBuffer();
-    } finally {
-      // Native intake images remain readable by the thumbnail until remove, send or unmount.
-      if (picked.kind !== "image") discard(picked);
-    }
-  }
-
-  function discard(picked: Picked) {
-    if (!picked.temporary || !picked.uri) return;
-
-    try {
-      new File(picked.uri).delete();
-    } catch {
-      /* Gone already; the module clears its folder on the next start. */
     }
   }
 
@@ -172,12 +169,13 @@ export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
   return {
     files,
     ids: files.flatMap((f) => (f.attachment ? [f.attachment.id] : [])),
-    pickPhotos: () => pickPhotos(upload, max.maxFiles - current.current.length),
-    pickFiles: () => pickFiles(upload),
+    pickPhotos: () => pickPhotos(upload, max.maxFiles - current.current.length, options.imagesOnly),
+    pickFiles: () => pickFiles(upload, options.imagesOnly),
     pasteImage: () => pasteImage(upload),
     addIntake,
     /** The largest file the gateway takes: native pastes and drops copy nothing bigger. */
     maxFileBytes: max.maxFileBytes,
+    imagesOnly: options.imagesOnly,
     remove: (key: string) =>
       apply((rows) => {
         for (const file of rows) if (file.key === key) discardPreview(file);
@@ -195,6 +193,27 @@ export function useAttachmentDraft(onAdd?: (file: DraftFile) => void) {
   };
 }
 
+async function read(picked: Picked) {
+  if (!picked.uri) throw new Error("not copied");
+
+  try {
+    return await new File(picked.uri).arrayBuffer();
+  } finally {
+    // Native intake images remain readable by the thumbnail until remove, send or unmount.
+    if (picked.kind !== "image") discard(picked);
+  }
+}
+
+function discard(picked: Picked) {
+  if (!picked.temporary || !picked.uri) return;
+
+  try {
+    new File(picked.uri).delete();
+  } catch {
+    /* Gone already; the module clears its folder on the next start. */
+  }
+}
+
 function discardPreview(file: DraftFile) {
   if (!file.temporary || !file.previewUri) return;
 
@@ -203,4 +222,14 @@ function discardPreview(file: DraftFile) {
   } catch {
     /* Gone already; native intake clears stale copies on the next start. */
   }
+}
+
+function draftLimits(limits: ui.AttachmentLimits | undefined) {
+  return limits?.maxFiles
+    ? {
+        maxFileBytes: Number(limits.maxFileBytes),
+        maxMessageBytes: Number(limits.maxMessageBytes),
+        maxFiles: limits.maxFiles,
+      }
+    : fallback;
 }

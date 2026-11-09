@@ -561,6 +561,9 @@ message FetchBlob {
   string request_id = 1;
   string thread_id = 2;
   string sha256 = 3;
+  // bot_images_v1: uses the durable bot harness assignment instead of a thread.
+  string bot_id = 4;
+  string bot_turn_id = 5;
 }
 
 // Przerywa tylko turę. Zadania w tle działają dalej (zatrzymuje je StopTask).
@@ -740,6 +743,9 @@ message RunBotTurn {
   // Stabilny fingerprint ustawień bota; bez czasu i kontekstu bieżącej tury.
   // Starszy worker ignoruje pole; puste pole oznacza komendę starszego gatewaya.
   string configuration_key = 11;
+  // bot_images_v1: verified files supplied as native image input; never filesystem tools.
+  repeated InputAttachment attachments = 12;
+  repeated InputAttachment history_attachments = 13;
 }
 
 message DirectoryEntry {

@@ -66,6 +66,13 @@ export async function coreDeliver(hostContext: GatewayCore, workerId: string, co
 
   if (
     command.kind.case === "runBotTurn" &&
+    (command.kind.value.attachments.length || command.kind.value.historyAttachments.length) &&
+    !connection.hello.capabilities.includes("bot_images_v1")
+  )
+    return;
+
+  if (
+    command.kind.case === "runBotTurn" &&
     !(await hostContext[coreState].options.runtime.runPromise(
       BotStore.use((s) => s.harnessDispatchable(command.commandId)),
     ))

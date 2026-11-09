@@ -281,6 +281,7 @@ export async function carryAttachments(
 ) {
   const field = Match.value(method.name).pipe(
     Match.when("SendMessage", () => ({ ids: "attachmentIds", mentions: "mentions" }) as const),
+    Match.when("SendBotMessage", () => ({ ids: "attachmentIds", mentions: "mentions" }) as const),
     Match.when("CreateThread", () => ({ ids: "initialAttachmentIds", mentions: "initialMentions" }) as const),
     Match.orElse(() => undefined),
   );
@@ -290,7 +291,10 @@ export async function carryAttachments(
   const record = request as Message & Record<typeof field.ids, string[]> & Record<typeof field.mentions, Mention[]>;
   const sent = await uploadAll(core, nodeId, record[field.ids], signal);
   record[field.ids] = record[field.ids].map((id) => sent.get(id) ?? id);
-  const inline = core.computers?.capabilities(nodeId).includes(INLINE_ATTACHMENTS) ?? false;
+
+  const inline =
+    method.name === "SendBotMessage" || (core.computers?.capabilities(nodeId).includes(INLINE_ATTACHMENTS) ?? false);
+
   record[field.mentions] = record[field.mentions].flatMap((m) =>
     m.kind !== MentionKind.ATTACHMENT
       ? [m]

@@ -26,7 +26,8 @@ export const POST: RequestHandler = async ({ request, url }) => {
   }
 
   const data = new Uint8Array(await request.arrayBuffer());
-  const response = await call((api) => api.uploadAttachment({ name, data }, { timeoutMs: 60_000 }));
+  const botId = request.headers.get("x-bot-id") ?? "";
+  const response = await call((api) => api.uploadAttachment({ name, data, botId }, { timeoutMs: 60_000 }));
 
   return json(encode(ui.AttachmentSchema, response.attachment!));
 };

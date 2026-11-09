@@ -26,10 +26,10 @@ export async function pasteImage(upload: Upload) {
   if (image) void upload({ ...image, name: `pasted-image-${Date.now()}.png`, size: image.data.length, kind: "image" });
 }
 
-export async function pickPhotos(upload: Upload, slots: number) {
+export async function pickPhotos(upload: Upload, slots: number, imagesOnly = false) {
   try {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images", "videos"],
+      mediaTypes: imagesOnly ? ["images"] : ["images", "videos"],
       allowsMultipleSelection: true,
       selectionLimit: Math.max(1, slots),
       quality: 1,
@@ -54,9 +54,13 @@ export async function pickPhotos(upload: Upload, slots: number) {
   }
 }
 
-export async function pickFiles(upload: Upload) {
+export async function pickFiles(upload: Upload, imagesOnly = false) {
   try {
-    const result = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
+    const result = await DocumentPicker.getDocumentAsync({
+      multiple: true,
+      copyToCacheDirectory: true,
+      type: imagesOnly ? ["image/png", "image/jpeg", "image/gif", "image/webp"] : "*/*",
+    });
 
     if (result.canceled) return;
 

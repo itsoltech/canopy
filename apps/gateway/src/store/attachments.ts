@@ -27,6 +27,8 @@ export interface AttachmentRow {
   height: number | null;
   thread_id: string | null;
   turn_id: string | null;
+  bot_id: string | null;
+  bot_turn_id: string | null;
 }
 
 /** An attachment as its turn keeps it (turns.input.attachments): what the UI shows and the worker writes. */
@@ -77,6 +79,7 @@ export class AttachmentStore extends Context.Service<
     threadBlob(ownerUserId: string, threadId: string, sha256: string): Fx<{ data: Uint8Array; mimeType: string }>;
     /** An attachment's bytes for a worker: only of a thread that runs on that worker. */
     workerBlob(workerId: string, threadId: string, sha256: string): Fx<Uint8Array>;
+    workerBotBlob(workerId: string, botId: string, turnId: string, sha256: string): Fx<Uint8Array>;
     /** Where the worker keeps attachments (Hello.attachments_root) and its OS; root empty = no attachment support. */
     workerRoot(workerId: string): Fx<{ root: string; os: string }>;
   }
@@ -148,7 +151,7 @@ export class AttachmentStore extends Context.Service<
 
               if (!row) return yield* Effect.fail(new Invalid("unknown attachment (upload it again)"));
 
-              if (row.thread_id)
+              if (row.thread_id || row.bot_id)
                 return yield* Effect.fail(new Invalid(`${row.name} was already sent with another message`));
               ordered.push(row);
             }
@@ -192,6 +195,21 @@ export class AttachmentStore extends Context.Service<
                  WHERE b.sha256 = ${sha256}
                    AND EXISTS (SELECT 1 FROM attachments a JOIN threads t ON t.id = a.thread_id
                                 WHERE a.sha256 = b.sha256 AND a.thread_id = ${threadId}::uuid AND t.worker_id = ${workerId}::uuid AND t.deleted_at IS NULL)`.pipe(
+                Effect.flatMap((rows) => readBlob(rows, "attachment")),
+                Effect.map((blob) => blob.data),
+              )
+            : Effect.fail(new NotFound("attachment not found")),
+
+        workerBotBlob: (workerId, botId, turnId, sha256) =>
+          UUID.test(botId) && UUID.test(turnId) && SHA256.test(sha256)
+            ? sql<{ data: Uint8Array | null; mime_type: string }>`
+                SELECT bl.data, bl.mime_type FROM blobs bl WHERE bl.sha256=${sha256}
+                AND EXISTS (SELECT 1 FROM attachments a JOIN bots b ON b.id=a.bot_id
+                  JOIN bot_harness_turns h ON h.bot_id=b.id JOIN bot_turns t ON t.id=h.turn_id
+                  WHERE a.sha256=bl.sha256 AND b.id=${botId}::uuid
+                    AND a.owner_user_id=b.owner_user_id AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
+                    AND h.turn_id=${turnId}::uuid AND h.worker_id=${workerId}::uuid
+                    AND h.outcome IS NULL AND t.status='running')`.pipe(
                 Effect.flatMap((rows) => readBlob(rows, "attachment")),
                 Effect.map((blob) => blob.data),
               )

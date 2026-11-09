@@ -4,7 +4,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link, ui } from "@canopy/contracts";
 
-import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
+import { nodeRef, qualifyId, splitId, REMOTE_BOT_COMPOSER } from "@canopy/domain/computers";
 
 import {
   commitSource,
@@ -96,6 +96,12 @@ export async function movesDrive(hostContext: ComputerMoves, moveId: string) {
           name,
         );
       else prepare.bot = await exportBot(hostContext[movesState].store, move.item_id, name);
+
+      if (
+        (prepare.bot?.draft || prepare.bot?.files.length) &&
+        !(await hostContext[movesState].store.peer(target))?.capabilities.includes(REMOTE_BOT_COMPOSER)
+      )
+        throw new MoveRefused("Update the other computer to move this bot's draft and images.");
 
       if (!hostContext[movesState].host.ready(target))
         throw new MoveRefused(

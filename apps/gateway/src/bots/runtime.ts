@@ -363,11 +363,14 @@ export class BotsRuntime {
 
     return bot;
   }
-  async send(request: bots.SendBotMessageRequest) {
+  async send(request: bots.SendBotMessageRequest, attachmentLimits?: import("@canopy/domain").AttachmentLimits) {
     const turnId = await this.run((s) =>
       s.enqueue(this.#options.userId, request.botId, request.text, request.clientRequestId, {
         mentions: request.mentions,
         quotes: request.quotes,
+        attachmentIds: request.attachmentIds,
+        attachmentLimits,
+        draftRevision: request.draftRevision,
       }),
     );
 

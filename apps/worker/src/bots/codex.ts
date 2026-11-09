@@ -74,6 +74,13 @@ function botThreadParams(ctx: BotHarnessContext) {
   };
 }
 
+async function imageInput(ctx: BotHarnessContext, resumed: boolean) {
+  return (await ctx.images(resumed)).map((image) => ({
+    type: "image" as const,
+    url: `data:${image.mimeType};base64,${Buffer.from(image.data).toString("base64")}`,
+  }));
+}
+
 /** Dedicated official app-server; the bot catalog keeps the model's limits and removes every local tool. */
 function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
   const { input, session } = ctx;
@@ -180,7 +187,10 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
 
     const turn = yield* server.request("turn/start", {
       threadId: id,
-      input: [{ type: "text", text: botPrompt(input, Boolean(resumed)), text_elements: [] }],
+      input: [
+        { type: "text", text: botPrompt(input, Boolean(resumed)), text_elements: [] },
+        ...(yield* Effect.promise(() => imageInput(ctx, Boolean(resumed)))),
+      ],
       ...(input.effort && { effort: input.effort }),
       approvalPolicy: "never",
       sandboxPolicy: { type: "readOnly", networkAccess: false },

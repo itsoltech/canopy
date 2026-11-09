@@ -2,7 +2,22 @@ import { isMessage, type DescMessage, type Message, type MessageShape } from "@b
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
-import { computerLink as link, ui } from "@canopy/contracts";
+import { bots, computerLink as link, ui } from "@canopy/contracts";
+import { REMOTE_BOTS, REMOTE_BOT_COMPOSER } from "@canopy/domain/computers";
+
+export function botFeature(method: { name: string }, request: Message): string | undefined {
+  const send = method.name === "SendBotMessage" ? linkedMessage(bots.SendBotMessageRequestSchema, request) : undefined;
+
+  if (
+    method.name === "GetBotDraft" ||
+    method.name === "SaveBotDraft" ||
+    (send && (send.attachmentIds.length > 0 || send.draftRevision !== undefined)) ||
+    (method.name === "UploadAttachment" && linkedMessage(ui.UploadAttachmentRequestSchema, request).botId)
+  )
+    return REMOTE_BOT_COMPOSER;
+
+  return BOT_METHODS.has(method.name) ? REMOTE_BOTS : undefined;
+}
 
 /** Explicit home operations for threads and bots, plus capability-gated internal services.
  * Credential and connector administration are never exposed through this allowlist. */
@@ -53,6 +68,8 @@ export const SERVED = new Set([
   "ListBots",
   "CreateBot",
   "GetBot",
+  "GetBotDraft",
+  "SaveBotDraft",
   "WatchBotConversation",
   "SendBotMessage",
   "AnswerBotApproval",
@@ -165,6 +182,8 @@ export const movedItems = (cause: unknown): link.MovedItem[] | undefined =>
 export const BOT_METHODS = new Set([
   "ListBots",
   "GetBot",
+  "GetBotDraft",
+  "SaveBotDraft",
   "WatchBotConversation",
   "SendBotMessage",
   "AnswerBotApproval",

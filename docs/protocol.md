@@ -319,6 +319,13 @@ Wywołania narzędzi szyny (`spawn_thread`, `send_message`, `wait_threads`, ... 
 
 ## Załączniki
 
+Boty używają tych samych blobów i weryfikacji plików. Addytywne
+`RunBotTurn.attachments` / `history_attachments` (12/13) wymagają capability
+`bot_images_v1`. `FetchBlob.bot_id` / `bot_turn_id` (4/5) zastępują dla nich
+`thread_id`; gateway sprawdza właściciela obrazu i aktywną komendę tego workera.
+Adaptery dostarczają obrazy natywnie, bez udostępniania botom narzędzi dyskowych.
+Szczegóły: [bots-harness.md](bots-harness.md#obrazy-użytkownika).
+
 Pliki, które użytkownik dołącza do wiadomości ([ui-api.md](ui-api.md#załączniki)). Gateway trzyma bajty (blob), worker pobiera je, zanim przekaże turę harnessowi.
 
 - `Hello.attachments_root` (+ capability `attachments`): katalog załączników na urządzeniu, `<data_dir>/attachments` (ścieżka absolutna). Gateway zapisuje go z raportem workera (`workers.capabilities.attachmentsRoot`). Pusty = worker bez załączników: `SendMessage` / `CreateThread` z załącznikami do jego wątku są odrzucane z powodem.

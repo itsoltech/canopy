@@ -37,11 +37,16 @@ const NativeDrop = available
  * Around a composer: images and files pasted into its text (the system Paste, a keyboard's image or clipboard
  * strip) or dropped on it attach to `draft`; text pastes as before (docs/mobile.md, "Wklejanie i upuszczanie").
  */
-export function PasteTarget({ draft, children }: { draft: Draft; children: ReactNode }) {
+export function PasteTarget({ draft, disabled, children }: { draft: Draft; disabled?: boolean; children: ReactNode }) {
   if (!NativePaste) return children;
 
   return (
-    <NativePaste maxBytes={draft.maxFileBytes} onFiles={(event) => draft.addIntake(event.nativeEvent.files)}>
+    <NativePaste
+      maxBytes={draft.maxFileBytes}
+      onFiles={(event) => {
+        if (!disabled) draft.addIntake(event.nativeEvent.files);
+      }}
+    >
       {children}
     </NativePaste>
   );

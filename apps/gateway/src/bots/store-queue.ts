@@ -1,8 +1,9 @@
-import { create, toJson } from "@bufbuild/protobuf";
-import { MentionKind, MentionSchema, type Mention, type ui } from "@canopy/contracts";
+import { create, toBinary, toJson } from "@bufbuild/protobuf";
+import { bots, MentionKind, MentionSchema, type Mention, type ui } from "@canopy/contracts";
 import { ConnectorFailure } from "../connectors/store.ts";
 import { connectorType } from "../connectors/catalog.ts";
-import { checkMentions, mentionPlaceholder } from "@canopy/domain";
+import { checkMentions, mentionPlaceholder, type AttachmentLimits } from "@canopy/domain";
+import { botImages, storedBotImage } from "./attachments.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
@@ -33,6 +34,9 @@ function botEnqueue(
       displayText?: string;
       mentions?: readonly Mention[];
       quotes?: readonly ui.Quote[];
+      attachmentIds?: readonly string[];
+      attachmentLimits?: AttachmentLimits | undefined;
+      draftRevision?: bigint | undefined;
     } = {},
   ) =>
     sql.withTransaction(
@@ -53,7 +57,11 @@ function botEnqueue(
           catch: (cause) => (cause instanceof Invalid ? cause : new Invalid(String(cause))),
         });
 
-        if (!input.trim() && quotes.length === 0) return yield* Effect.fail(new Invalid("text or quotes are required"));
+        const images = yield* botImages(sql, user, options.attachmentIds ?? [], options.attachmentLimits);
+        const files = new Map(images.map((a) => [a.id, a]));
+
+        if (!input.trim() && quotes.length === 0 && !images.length)
+          return yield* Effect.fail(new Invalid("Write a message or attach an image."));
 
         const mentions = yield* Effect.try({
           try: () => checkMentions(input, options.mentions ?? []),
@@ -65,6 +73,14 @@ function botEnqueue(
         for (const mention of mentions) {
           if (input.slice(mention.start, mention.end) !== mentionPlaceholder(mention))
             return yield* Effect.fail(new Invalid("mention must have a matching @name range"));
+
+          if (mention.kind === MentionKind.ATTACHMENT) {
+            const image = files.get(mention.name);
+
+            if (!image) return yield* Effect.fail(new Invalid("This image is unavailable. Upload it again."));
+            checked.push(create(MentionSchema, { ...mention, label: image.name, source: "image", path: "" }));
+            continue;
+          }
 
           if (mention.kind === MentionKind.CONNECTOR) {
             const account = yield* connections
@@ -124,9 +140,17 @@ function botEnqueue(
         const turn =
           (yield* sql<BotTurn>`SELECT * FROM bot_turns WHERE bot_id = ${botId}::uuid AND client_request_id = ${requestId}`)[0]!;
 
+        for (const image of images)
+          yield* sql`UPDATE attachments SET bot_id=${botId}::uuid, bot_turn_id=${turn.id}::uuid
+            WHERE id=${image.id}::uuid AND thread_id IS NULL AND bot_id IS NULL`;
+
+        if (options.draftRevision !== undefined)
+          yield* sql`UPDATE bot_composer_drafts SET payload=${toBinary(bots.BotComposerDraftSchema, create(bots.BotComposerDraftSchema))}, revision=revision+1
+            WHERE bot_id=${botId}::uuid AND owner_user_id=${user}::uuid AND revision=${options.draftRevision}`;
+
         if (!options.routineId)
-          yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id, mentions, quotes)
-      VALUES (${uuid()}::uuid, ${botId}::uuid, ${turn.id}::uuid, 'input', ${options.sender ?? "user"}, ${botId}, ${options.event ? "event" : "message"}, ${options.displayText ?? input}, ${options.exchangeId ?? null}::uuid, ${JSON.stringify(checked.map((m) => toJson(MentionSchema, m)))}::jsonb, ${JSON.stringify(quotes)}::jsonb)
+          yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id, mentions, quotes, attachments)
+      VALUES (${uuid()}::uuid, ${botId}::uuid, ${turn.id}::uuid, 'input', ${options.sender ?? "user"}, ${botId}, ${options.event ? "event" : "message"}, ${options.displayText ?? input}, ${options.exchangeId ?? null}::uuid, ${JSON.stringify(checked.map((m) => toJson(MentionSchema, m)))}::jsonb, ${JSON.stringify(quotes)}::jsonb, ${JSON.stringify(images.map(storedBotImage))}::jsonb)
       ON CONFLICT(turn_id, message_key) DO NOTHING`;
         yield* changed(botId);
 

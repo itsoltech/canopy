@@ -11,6 +11,7 @@ import { botHarnessStore } from "./store-harness.ts";
 import { botRules } from "./store-rules.ts";
 import { botThreadApprovals } from "./thread-approvals.ts";
 import { botExchange } from "./store-exchange.ts";
+import { botDrafts } from "./drafts.ts";
 
 export {
   botConfiguration,
@@ -45,6 +46,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     ...botSelfUpdate(sql, core),
     ...botConversation(sql, core),
     ...botExchange(sql, core),
+    ...botDrafts(sql, core),
     ...botMcp(sql, core),
     ...botTurns(sql, core),
     ...botApprovals(sql, core),

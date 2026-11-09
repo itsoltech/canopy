@@ -73,6 +73,7 @@ export interface ChatMessageView {
   text: string;
   mentions?: readonly Mention[] | undefined;
   quotes?: readonly ui.Quote[] | undefined;
+  attachments?: readonly ui.Attachment[] | undefined;
   links?: LinkView[] | undefined;
   /** Quoted message this one answers. */
   replyTo?: { senderId: string; excerpt: string } | undefined;

@@ -2,6 +2,7 @@
 // Transkrypt (Item, ThreadEvent) to te same typy co w kanale gateway <-> worker.
 // Opis: docs/ui-api.md
 syntax = "proto3";
+import "canopy/ui/v1/attachments.proto";
 import "google/protobuf/empty.proto";
 
 package canopy.ui.v1;
@@ -102,6 +103,8 @@ service GatewayService {
   rpc ListBots(ListBotsRequest) returns (ListBotsResponse);
   rpc GetBot(GetBotRequest) returns (GetBotResponse);
   rpc SendBotMessage(SendBotMessageRequest) returns (SendBotMessageResponse);
+  rpc GetBotDraft(GetBotRequest) returns (BotComposerDraft);
+  rpc SaveBotDraft(SaveBotDraftRequest) returns (BotComposerDraft);
   rpc WatchBotConversation(WatchBotConversationRequest) returns (stream BotConversation);
   rpc ReadBotExchange(ReadBotExchangeRequest) returns (ReadBotExchangeResponse);
   rpc AnswerBotApproval(AnswerBotApprovalRequest) returns (AnswerBotApprovalResponse);
@@ -2014,21 +2017,6 @@ message CheckCliUpdatesResponse {
 // ---------- Załączniki (docs/ui-api.md) ----------
 
 // Plik dołączony do wiadomości. Gateway sam rozpoznaje typ po treści (nie po nazwie ani typie z przeglądarki).
-message Attachment {
-  string id = 1;
-  // Nazwa bez katalogów i znaków sterujących (taka trafia na workera).
-  string name = 2;
-  string mime_type = 3;
-  // image (png, jpeg, gif, webp: podgląd w UI) | file (reszta, także SVG i HEIC)
-  string kind = 4;
-  uint64 size_bytes = 5;
-  uint32 width = 6;
-  uint32 height = 7;
-  string sha256 = 8;
-  // Obraz ma miniaturę (GetAttachment.thumbnail).
-  bool has_thumbnail = 9;
-}
-
 message AttachmentLimits {
   uint64 max_file_bytes = 1;
   uint64 max_message_bytes = 2;
@@ -2038,6 +2026,8 @@ message AttachmentLimits {
 message UploadAttachmentRequest {
   string name = 1;
   bytes data = 2;
+  // Optional bot home. Uploads for linked bots go directly to their owner-scoped gateway.
+  string bot_id = 3;
 }
 
 message UploadAttachmentResponse {

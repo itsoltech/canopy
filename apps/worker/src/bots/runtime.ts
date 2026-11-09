@@ -15,6 +15,7 @@ import { runGrokBot } from "./grok.ts";
 import { BotHarnessFailure } from "./types.ts";
 import { botFailureEvent } from "./failures.ts";
 import { providersOf } from "../providers/profiles.ts";
+import { botImages } from "./images.ts";
 
 function botProvider(provider: Provider) {
   return Match.value(provider).pipe(
@@ -24,6 +25,9 @@ function botProvider(provider: Provider) {
     Match.orElse(() => undefined),
   );
 }
+
+const imagesFor = (ctx: HostContext, input: RunBotTurn) => (resumed: boolean) =>
+  botImages(input, resumed, ctx.state.files, (sha) => ctx.ops.fetchBlob(input.botId, sha, input.turnId));
 
 /** Hidden bot sessions own no project workspace and expose only gateway-executed MCP. */
 export class BotTurns {
@@ -118,6 +122,7 @@ export class BotTurns {
           ? { url: bus.server.url, headers: Object.fromEntries(bus.server.headers.map((h) => [h.name, h.value])) }
           : { url: "", headers: {} },
       record,
+      images: imagesFor(this.ctx, input),
       noteHarness: (harness: Parameters<Journal["Service"]["noteHarness"]>[2]) =>
         this.ctx.state.options.runtime.runPromise(
           Journal.use((j) => j.noteHarness(input.botId, input.turnId, harness)),

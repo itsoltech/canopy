@@ -30,6 +30,30 @@ wybranego workera i instancji, łącznie z modelami własnymi. Alias Claude jest
 poprawnym wyborem harnessu; nie stosujemy do niego ograniczeń API. Zmiana wyglądu
 nie wymaga dostępnego workera ani zmiany modelu.
 
+## Obrazy użytkownika
+
+Gateway wiąże obraz z turą bota atomowo z zapisem wiadomości, po sprawdzeniu
+właściciela, typu, limitów i braku wcześniejszego powiązania. `RunBotTurn`
+przenosi addytywne `attachments` (12) i `history_attachments` (13). Taka komenda
+wymaga capability workera `bot_images_v1`; starszy worker zwraca powód aktualizacji,
+zamiast uruchomić turę bez obrazów. Wersja WorkerLink pozostaje 1.
+
+Worker pobiera bajty przez `FetchBlob.bot_id` / `bot_turn_id` (4/5). Dostęp wymaga
+aktywnej, trwałej komendy harnessu przypisanej temu workerowi i temu botowi;
+obraz musi należeć do właściciela bota. Zakończona tura nie uprawnia do pobierania.
+Wspólny `AttachmentFiles` sprawdza ścieżkę, rozmiar i SHA-256 przed zapisem.
+Ścieżki są wyliczane dla aktualnego workera, również po zmianie Runs on.
+
+Notatka platformy wymienia nazwy i ścieżki obrazów. Adapter normalizuje obraz
+jak w wątkach i dostarcza bajty natywnie: Claude SDK jako bloki `image` base64,
+Codex app-server jako wejścia `image` z data URL, Grok ACP jako bloki `image`.
+Grok wymaga `promptCapabilities.image`. Bot nadal nie ma `view_image`, shella
+ani czytania dowolnych plików. Po wznowieniu sesji wysyłamy obrazy bieżącej tury;
+odbudowana sesja dostaje też najnowsze obrazy z historii: najwyżej 10 i 20 MiB
+łącznie, oprócz obrazów bieżącej wiadomości. Pominięte obrazy zastępuje notatka
+z prośbą o ponowne załączenie, jeśli będą potrzebne.
+Sekrety połączeń i dane logowania nigdy nie są częścią promptu.
+
 ## Sesja i kontekst
 
 Rozmowa bota ma ukrytą sesję harnessu, bez sztucznego projektu lub wątku w UI.

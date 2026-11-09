@@ -9,7 +9,6 @@ import {
   MOVE_ITEMS,
   RELAY,
   REMOTE_APP_UPDATE,
-  REMOTE_BOTS,
   REMOTE_THREADS,
   THREAD_MIRROR,
   THREAD_MIRROR_DELTA,
@@ -17,7 +16,8 @@ import {
   THREAD_WATCH_COALESCE,
 } from "@canopy/domain/computers";
 
-import { BOT_METHODS, linkedMessage, MOVE_METHODS, UPDATE_METHODS, type RelayRoute } from "./remote.ts";
+import { linkedMessage, MOVE_METHODS, UPDATE_METHODS, type RelayRoute } from "./remote.ts";
+import { botFeature } from "./remote-policy.ts";
 
 import { RELAY_METHODS, relayCallback } from "./relay.ts";
 
@@ -99,11 +99,7 @@ export async function* computersServeRemote(
   const feature =
     method.name === "CallAgentBus"
       ? AGENT_BUS
-      : BOT_METHODS.has(method.name)
-        ? REMOTE_BOTS
-        : method.name === "WatchThreadMirror"
-          ? THREAD_MIRROR
-          : REMOTE_THREADS;
+      : (botFeature(method, request) ?? (method.name === "WatchThreadMirror" ? THREAD_MIRROR : REMOTE_THREADS));
 
   if (!connection.capabilities?.has(feature) || !hostContext.capabilities(target.node_id).includes(feature))
     throw new ConnectError("All computers need an update for this linked action", Code.FailedPrecondition);
@@ -174,8 +170,7 @@ export async function* computersServeHome(
   // A thing that moved away answers with its new home; the caller follows (stage 8).
   hostContext.redirects.refuse(method, request);
 
-  const feature =
-    method.name === "CallAgentBus" ? AGENT_BUS : BOT_METHODS.has(method.name) ? REMOTE_BOTS : REMOTE_THREADS;
+  const feature = method.name === "CallAgentBus" ? AGENT_BUS : (botFeature(method, request) ?? REMOTE_THREADS);
 
   if (!hostContext.hello().capabilities.includes(feature) || !connection.capabilities?.has(feature))
     throw new ConnectError("Both computers need an update for this linked action", Code.Unimplemented);

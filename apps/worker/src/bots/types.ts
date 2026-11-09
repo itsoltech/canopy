@@ -2,6 +2,7 @@ import type { RunBotTurn } from "@canopy/contracts";
 import type { ThreadEventInit, TurnHarness } from "../journal/index.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
 import type { BotSession } from "./session.ts";
+import type { NormalizedImage } from "../images/normalize.ts";
 
 /** Stable harness code only; provider payloads and stderr never enter gateway-visible reasons. */
 export class BotHarnessFailure extends Error {
@@ -23,4 +24,5 @@ export interface BotHarnessContext {
   mcp: { url: string; headers: Record<string, string> };
   record(event: ThreadEventInit): Promise<void>;
   noteHarness(harness: TurnHarness): Promise<void>;
+  images(resumed: boolean): Promise<NormalizedImage[]>;
 }
