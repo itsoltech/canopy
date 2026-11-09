@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { create } from "@bufbuild/protobuf";
   import { ui } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -16,7 +17,7 @@
   const workspaces = $derived(overview.ownProjects.map((project) => ({ project, workspaces: project.workspaces })));
 </script>
 
-<svelte:head><title>Threads · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Threads · Settings · {applicationName}</title></svelte:head>
 
 <SubagentDisplaySettings />
 <WorkFoldSettings />

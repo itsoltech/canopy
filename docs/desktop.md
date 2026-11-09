@@ -413,7 +413,7 @@ sidecary gateway/worker z `--version` (ten sam zakres co binarny smoke wydania).
 Nie publikuje tagów ani wydań; artefakt Actions przechowuje przez 3 dni.
 
 Te joby realizuje `desktop` w `.github/workflows/release.yml` ([release.md](release.md)):
-z `CANOPY_VERSION` i `CANOPY_CHANNEL` nazwy plików to `Canopy[-Beta|-Nightly]-<wersja>-<linux|darwin|windows>-<x64|arm64>.<ext>`,
+z `CANOPY_VERSION` i `CANOPY_CHANNEL` nazwy plików to `Canopy-<wersja>-<linux|darwin|windows>-<x64|arm64>.<ext>`,
 macOS dostaje też `zip`, podpisywanie jest warunkowe. Każdy job CI: checkout tego samego commita → instalacja Node/Bun → `bun install`
 → `package:linux`, `package:mac` albo `package:windows` → zachowanie plików z
 `apps/desktop/release/<kanał>`. Przed budową sprawdź `process.platform/process.arch`;
@@ -519,11 +519,36 @@ Zmiana kanału zastępuje tę samą aplikację. userData jest wspólne: macOS
 `~/Library/Application Support/Canopy`, Windows `%APPDATA%/Canopy`, Linux
 `${XDG_CONFIG_HOME:-~/.config}/Canopy`. `CANOPY_USER_DATA` pozostaje nadpisaniem diagnostycznym.
 
-Ikona zależy od **zainstalowanego buildu**: stable zachowuje źródłowy PNG, beta jest
-bursztynowa, nightly fioletowa. Kolor nie wpływa na bundle ID, podpis ani schemat.
-Zmiana preferencji nie zmienia ikony przed instalacją. Sidebar oznacza wersję
+Nazwa widoczna i ikona zależą od **zainstalowanego buildu**: stable to `Canopy`
+z niezmienionym źródłowym PNG; beta to `Canopy (Beta)` z drzewem w oliwkowo-złotych
+barwach na tle zachodu; nightly to `Canopy (Nightly)` z drzewem w chłodnych,
+przygaszonych barwach, gwiazdami i księżycem. Zmiana preferencji aktualizacji nie
+zmienia nazwy ani ikony przed instalacją. Sidebar oznacza wersję
 uruchomionego web buildu; sekcja App updates pokazuje wersję i kanał samego Electrona,
 także gdy lokalny frontend łączy się ze zdalnym gatewayem o innej wersji.
+
+| Platforma | Zależne od kanału | Stałe przy zmianie kanału |
+|---|---|---|
+| macOS | `CFBundleDisplayName` (Dock), ikona ICNS, menu aplikacji, About i tytuł okna | Nazwa pliku bundle, `CFBundleName`, executable, bundle ID i identyfikatory helperów |
+| Windows | Nazwy skrótów NSIS, `uninstallDisplayName`, ikona ICO i tytuł okna | `productName`, katalog instalacji, appId/GUID, executable, klucze rejestru instalatora i cache aktualizacji |
+| Linux | `Name` wpisu desktop, PNG i tytuł okna | `canopy.desktop`, `StartupWMClass`, nazwa pakietu deb, katalog instalacji i wzorzec `artifactName` |
+
+`desktopUserData()` jawnie przypina katalog do `Canopy`, niezależnie od nazwy
+widocznej. Także `app.setName()` pozostaje `Canopy`: Electron 45 używa tej wartości
+do wyboru klucza Keychain na macOS i Secret Service/KWallet na Linuxie. Zmiana
+wewnętrznej nazwy odcięłaby istniejące zaszyfrowane dane. `CFBundleName` pozostaje
+stałe również dlatego, że Electron szuka na tej podstawie swoich helperów.
+Menu i panel About otrzymują osobno nazwę widoczną. NSIS odczytuje poprzednią nazwę
+skrótu z rejestru i aktualizuje ją podczas instalacji; kanały nie tworzą osobnych instalacji.
+
+Weryfikacja kontraktu: `bun test scripts/channel-identity.test.ts` sprawdza konfigurację
+electron-builder i Expo, w tym stałe ścieżki, identyfikatory oraz zasoby wszystkich kanałów.
+Źródła: [macOS electron-builder](https://www.electron.build/mac/),
+[NSIS](https://www.electron.build/nsis/), implementacje przypiętych wersji
+`app-builder-lib@26.18.0` (`AppInfo`, `createMacApp`, `MacPackager.applyCommonInfo`,
+`NsisTarget`, szablon `setLinkVars`) i `electron-updater@6.8.3` (`MacUpdater`, `NsisUpdater`).
+Nazwę magazynu kluczy ustala
+[Electron 45.2.1](https://github.com/electron/electron/blob/v45.2.1/shell/browser/electron_browser_main_parts.cc).
 
 ### Przejście ze starych Canopy Beta / Canopy Nightly
 

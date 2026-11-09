@@ -1,10 +1,32 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
 import release from "./canopy-version.json";
+import { releaseIdentity } from "@canopy/domain/release/identity";
+import { releaseChannel } from "@canopy/domain/release/version";
+
+const profile = process.env.EAS_BUILD_PROFILE;
+
+const profileChannel =
+  profile === "production" || profile === "preview"
+    ? "nightly"
+    : profile?.endsWith("-beta")
+      ? "beta"
+      : profile?.endsWith("-stable")
+        ? "stable"
+        : undefined;
+
+const versionChannel = releaseChannel(release.version);
+
+const identity = releaseIdentity(
+  process.env.CANOPY_CHANNEL || profileChannel || (versionChannel === "development" ? "stable" : versionChannel),
+);
+
+const assets = `../web/static${identity.assets}`;
 
 // CNG owns ios/ and android/. Do not maintain native project files by hand.
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "Canopy",
+  name: identity.displayName,
+  icon: `${assets}/expo-icon.png`,
   slug: "canopy-mobile",
   platforms: ["ios", "android"],
   extra: { ...config.extra, canopyVersion: release.version },
@@ -19,8 +41,28 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       NSAppTransportSecurity: { NSAllowsArbitraryLoads: true },
     },
   },
+  android: {
+    ...config.android,
+    adaptiveIcon: {
+      foregroundImage: `${assets}/adaptive-foreground.png`,
+      backgroundImage: `${assets}/adaptive-background.png`,
+      backgroundColor: identity.background,
+    },
+  },
   plugins: [
-    ...(config.plugins ?? []),
+    ...(config.plugins ?? []).filter((plugin) => !(Array.isArray(plugin) && plugin[0] === "expo-splash-screen")),
+    [
+      "expo-splash-screen",
+      {
+        backgroundColor: identity.background,
+        image: `${assets}/icon-512.png`,
+        imageWidth: 96,
+        dark: {
+          backgroundColor: identity.channel === "stable" ? "#000000" : identity.background,
+          image: `${assets}/icon-512.png`,
+        },
+      },
+    ],
     [
       "expo-build-properties",
       {

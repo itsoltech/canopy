@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import type { ProjectChoice } from "@canopy/domain/projects";
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
@@ -37,7 +38,7 @@
   const localId = (project: ProjectChoice) => project.projectIds.find((id) => !id.includes("~"));
 </script>
 
-<svelte:head><title>Projects · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Projects · Settings · {applicationName}</title></svelte:head>
 
 <SettingsGroup title="Projects" description="Choose a project to manage its workspaces and threads.">
   {#snippet actions()}

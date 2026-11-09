@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
@@ -19,7 +20,7 @@
   const project = $derived(overview.project(projectId));
 </script>
 
-<svelte:head><title>{project?.name ?? "Project"} · Settings · Canopy</title></svelte:head>
+<svelte:head><title>{project?.name ?? "Project"} · Settings · {applicationName}</title></svelte:head>
 
 <SettingsHeading title={project?.name ?? "Project"}>
   {#snippet leading()}<ProjectAvatar name={project?.name ?? "?"} class="size-8 rounded-md text-xs/none" />{/snippet}

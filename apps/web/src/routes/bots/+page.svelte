@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { onMount, untrack } from "svelte";
@@ -140,7 +141,7 @@
   }
 </script>
 
-<svelte:head><title>Bots · Canopy</title></svelte:head>
+<svelte:head><title>Bots · {applicationName}</title></svelte:head>
 
 <div class="flex h-full flex-col">
   <TopBar><Crumb>Bots</Crumb></TopBar>

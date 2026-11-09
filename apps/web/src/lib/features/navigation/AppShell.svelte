@@ -1,5 +1,5 @@
 <script lang="ts">
-  import favicon from "#lib/assets/favicon.svg";
+  import { applicationName } from "#lib/application-name.ts";
   import { ui } from "@canopy/contracts";
   import { create } from "@bufbuild/protobuf";
   import { afterNavigate, beforeNavigate } from "$app/navigation";
@@ -182,8 +182,7 @@
 </script>
 
 <svelte:head>
-  <link rel="icon" href={favicon} />
-  <title>Canopy</title>
+  <title>{applicationName}</title>
 </svelte:head>
 
 <svelte:window bind:innerWidth={sidebar.viewport} />

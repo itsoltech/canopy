@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { onMount } from "svelte";
   import { create } from "@bufbuild/protobuf";
   import { toJsonString } from "@bufbuild/protobuf";
@@ -149,7 +150,7 @@
   }
 </script>
 
-<svelte:head><title>Devices · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Devices · Settings · {applicationName}</title></svelte:head>
 <div class="flex flex-wrap items-start justify-between gap-4 px-1">
   <div class="min-w-0">
     <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Devices</h1>

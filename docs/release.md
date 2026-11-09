@@ -120,6 +120,10 @@ Kompilacja zawsze na `BUILDPLATFORM` (cross-compile), więc arm64 nie wymaga emu
 ([desktop.md](desktop.md)). Z `CANOPY_VERSION` pliki nazywają się
 `Canopy-<wersja>-<linux|darwin|windows>-<x64|arm64>.<AppImage|deb|dmg|zip|exe>`.
 Jedna aplikacja `app.canopy.desktop` / Canopy współdzieli userData i `canopy://`.
+Nazwy widoczne to `Canopy`, `Canopy (Beta)` i `Canopy (Nightly)` z ikoną danego
+kanału. `productName`, wewnętrzna nazwa Electrona, nazwy plików i identyfikatory
+instalacji pozostają stałe, aby aktualizacje i zmiana kanału zastępowały tę samą aplikację.
+Pola poszczególnych OS opisuje [desktop.md](desktop.md#jedna-instalacja-i-kanały).
 Kanał wybiera się lokalnie w Settings → App updates; domyślnie odpowiada buildowi.
 To niezależna preferencja od polityki aktualizacji gatewaya/workera.
 Stare Canopy Beta/Nightly wymagają jednorazowej ręcznej instalacji Canopy — Squirrel
@@ -135,6 +139,30 @@ bez jednorazowej zgody na stabilniejszy kanał. Manifest nadal oznacza instalato
 wymagane; niepodpisane/ad-hoc macOS nie emituje feedu.
 macOS: tylko Apple Silicon (arm64);
 wersji Intel (darwin-x64) nie budujemy — ani desktopu, ani binarek gatewaya/workera.
+
+### Ikony kanałów
+
+Źródłem stable pozostaje `apps/web/static/icon-512.png`. Polecenie
+`bun scripts/icons/channel-icons.ts --previews <katalog>` odtwarza zasoby w
+`apps/web/static/channels/{stable,beta,nightly}` oraz podglądy poza repozytorium:
+512/128/64/32/16 px, planszę porównawczą i jasny/ciemny Dock (także w 16/32 px).
+PNG, wielorozdzielcze ICO i ICNS, ikony Expo i osobne warstwy adaptive Androida
+są commitowane; release tylko wybiera właściwe pliki i nie wymaga generatora.
+Generator wycina drzewo kluczem nasycenia/jasności, czyści i wygładza maskę oraz
+usuwa kolor tła z krawędzi. Cienie, półtony i światła otrzymują osobne stopnie
+koloru; światło z prawej pozostaje wewnątrz maski. Warianty zachowują oryginalny
+kształt, fazowanie, połysk i cieniowanie tła.
+
+Web rozpoznaje kanał wersji działającego gatewaya przez `GetClientCapabilities`
+(cache 5 s, timeout 750 ms); przy niedostępności zachowuje ostatnią tożsamość.
+Początkowa rezerwa to `CANOPY_CHANNEL` procesu BFF albo kanał wersji jego buildu
+(development → stable). Powłoka podaje nazwę i ścieżki favicon/apple-touch-icon
+przed uruchomieniem SPA. Tytuły stron korzystają z tej samej nazwy; dynamiczny
+`manifest.webmanifest` ma ten sam kanał, stałe `id` i `start_url` oraz `no-store`.
+Zasoby kanałów mają oddzielne URL, więc zmiana kanału nie zostawia favicony stable
+w cache. Preferencja kanału aktualizacji gatewaya nie zmienia jego bieżącej tożsamości.
+Natywne nazwy i ikony mobile wymagają nowego IPA/APK, a nie OTA
+([mobile.md](mobile.md)).
 
 ### checksums.txt i manifest.json
 

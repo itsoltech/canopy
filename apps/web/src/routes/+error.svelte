@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { page } from "$app/state";
   import { invalidateAll } from "$app/navigation";
   import GatewayUnavailable from "#lib/shared/ui/GatewayUnavailable.svelte";
@@ -49,7 +50,7 @@
   });
 </script>
 
-<svelte:head><title>{page.status} · Canopy</title></svelte:head>
+<svelte:head><title>{page.status} · {applicationName}</title></svelte:head>
 
 <div class="flex h-full flex-col">
   <TopBar><Crumb>{page.status === 404 ? "Not found" : "Error"}</Crumb></TopBar>

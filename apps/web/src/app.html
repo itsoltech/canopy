@@ -1,6 +1,7 @@
 <!doctype html>
 <html
   lang="en"
+  data-application-name="%canopy.applicationName%"
   class="%canopy.dark% bg-canvas antialiased"
   data-color-scheme="%canopy.scheme%"
   data-accent="%canopy.accent%"
@@ -17,13 +18,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="text-scale" content="scale" />
     <meta name="color-scheme" content="%canopy.colorSchemeMeta%" />
-    <link rel="icon" href="/favicon.ico" sizes="48x48" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" href="%canopy.channelAssets%/icon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="%canopy.channelAssets%/icon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="%canopy.channelAssets%/icon-16.png" />
+    <link rel="apple-touch-icon" href="%canopy.channelAssets%/icon-180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="apple-mobile-web-app-title" content="Canopy" />
-    <meta name="application-name" content="Canopy" />
+    <meta name="apple-mobile-web-app-title" content="%canopy.applicationName%" />
+    <meta name="application-name" content="%canopy.applicationName%" />
     <style>
       html {
         background: var(--theme-canvas);

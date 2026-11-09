@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { InteractionKind, ItemStatus, Provider, ui } from "@canopy/contracts";
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
@@ -516,7 +517,7 @@
   const intake = provideFileIntake(new FileIntake());
 </script>
 
-<svelte:head><title>{thread?.title ?? "Thread"} · Canopy</title></svelte:head>
+<svelte:head><title>{thread?.title ?? "Thread"} · {applicationName}</title></svelte:head>
 
 <!-- On xl the container reserves the details panel's column (it arrives before the panel, so nothing moves while
      the page loads) and eases it open or shut (motion.css `t-panel-column`). -->

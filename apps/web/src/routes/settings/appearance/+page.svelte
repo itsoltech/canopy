@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import {
     chatWidthLabels,
     chatWidthNames,
@@ -31,7 +32,7 @@
   const schemes = ["system", "light", "dark"] as const;
 </script>
 
-<svelte:head><title>Appearance · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Appearance · Settings · {applicationName}</title></svelte:head>
 
 <div class="mb-4 flex justify-end">
   <Button

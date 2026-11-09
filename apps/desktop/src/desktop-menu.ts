@@ -80,7 +80,9 @@ export function updateDesktopMenus(options: MenuOptions) {
     {
       label: productName,
       submenu: [
-        ...(process.platform === "darwin" ? [{ role: "about" as const }, { type: "separator" as const }] : []),
+        ...(process.platform === "darwin"
+          ? [{ role: "about" as const, label: `About ${productName}` }, { type: "separator" as const }]
+          : []),
         ...settingsMenu(openAppSettings, openSettings),
         updates.item(),
         { label: "Open logs folder", click: () => void shell.openPath(logsDirectory) },

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { onMount } from "svelte";
   import type { DesktopStatus } from "@canopy/ui/desktop";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -20,7 +21,7 @@
   });
 </script>
 
-<svelte:head><title>Desktop · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Desktop · Settings · {applicationName}</title></svelte:head>
 <div class="settings-stack">
   {#if status}
     <WorkerStatus {status} />
