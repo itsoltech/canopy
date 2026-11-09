@@ -12,6 +12,26 @@ import { mismatch } from "./mirror.ts";
 
 export type State = { cursor: string; generation: string; overview: Uint8Array | null; subscription_id: string };
 
+/** A staging generation is durably registered before any projection can be written. */
+export const registerMirrorGeneration = (owner: string, node: string, generation: string, state: State) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+
+    return yield* sql.withTransaction(
+      Effect.gen(function* () {
+        const fenced = yield* sql`SELECT 1 FROM computer_mirror_state WHERE owner_user_id=${owner}::uuid
+        AND origin_node_id=${node} AND subscription_id=${state.subscription_id}::uuid
+        AND generation=${state.generation}::uuid AND cursor=${state.cursor} FOR UPDATE`;
+
+        if (!fenced.length) return false;
+        yield* sql`INSERT INTO computer_mirror_generations(owner_user_id,origin_node_id,generation,subscription_id,lease_until)
+        VALUES(${owner}::uuid,${node},${generation}::uuid,${state.subscription_id}::uuid,now()+interval '5 minutes')`;
+
+        return true;
+      }),
+    );
+  });
+
 export async function commitMirrorUpdate(
   runtime: ComputerStore["runtime"],
   owner: string,
@@ -44,6 +64,17 @@ export async function commitMirrorUpdate(
           )
             return false;
 
+          if (generation !== state.generation) {
+            const staging = yield* sql`UPDATE computer_mirror_generations SET lease_until=now()+interval '5 minutes'
+              WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node} AND generation=${generation}::uuid
+                AND subscription_id=${state.subscription_id}::uuid AND lease_until>now() RETURNING generation`;
+
+            if (!staging.length) return false;
+          } else {
+            yield* sql`INSERT INTO computer_mirror_generations(owner_user_id,origin_node_id,generation,subscription_id)
+              VALUES(${owner}::uuid,${node},${generation}::uuid,${state.subscription_id}::uuid) ON CONFLICT DO NOTHING`;
+          }
+
           if (update.delta) {
             const delta = update.delta;
 
@@ -72,7 +103,6 @@ export async function commitMirrorUpdate(
           if (update.commit) {
             yield* sql`UPDATE computer_mirror_state SET cursor=${update.cursor},generation=${generation}::uuid,overview=coalesce(${nextOverview},overview)
                 WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node}`;
-            yield* sql`DELETE FROM computer_mirror_threads WHERE owner_user_id=${owner}::uuid AND origin_node_id=${node} AND generation<>${generation}::uuid`;
           }
 
           return true;

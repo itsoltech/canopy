@@ -80,10 +80,9 @@ export class SourceDatabase {
         const sql = yield* SqlClient.SqlClient;
         yield* sql.withTransaction(
           Effect.gen(function* () {
-            yield* sql`DELETE FROM agent_skill_source_previews WHERE owner_user_id = ${owner}::uuid AND expires_at < now()`;
             // Bounded durable cache; no artifacts or credentials in process logs.
             yield* sql`DELETE FROM agent_skill_source_previews WHERE id IN (
-          SELECT id FROM agent_skill_source_previews WHERE owner_user_id = ${owner}::uuid ORDER BY expires_at DESC OFFSET 4)`;
+          SELECT id FROM agent_skill_source_previews WHERE owner_user_id = ${owner}::uuid ORDER BY expires_at DESC LIMIT 256 OFFSET 4)`;
             const json = JSON.stringify(toJson(ui.SkillSourcePreviewSchema, preview));
             yield* sql`INSERT INTO agent_skill_source_previews(id, owner_user_id, preview, expires_at)
           VALUES (${preview.id}::uuid, ${owner}::uuid, ${json}::jsonb, ${preview.expiresAt}::timestamptz)`;

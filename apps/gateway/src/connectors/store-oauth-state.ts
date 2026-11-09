@@ -17,7 +17,7 @@ export function connectorOAuthState(sql: SqlClient.SqlClient, base: ConnectorBas
   return {
     saveState: (user: string, row: AccountRow, state: string, binding: string, value: Credentials) =>
       Effect.gen(function* () {
-        yield* sql`DELETE FROM connector_oauth_states WHERE expires_at < now() OR account_id=${row.id}::uuid`;
+        yield* sql`DELETE FROM connector_oauth_states WHERE owner_user_id=${user}::uuid AND account_id=${row.id}::uuid`;
         yield* sql`INSERT INTO connector_oauth_states(state_hash,owner_user_id,account_id,browser_hash,credentials,account_revision,expires_at)
         VALUES (${digest(state)},${user}::uuid,${row.id}::uuid,${digest(binding)},${base.seal(value)},${BigInt(row.revision)},now()+interval '10 minutes')`;
       }),

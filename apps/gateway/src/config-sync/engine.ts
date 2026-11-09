@@ -227,7 +227,6 @@ export class ConfigSync {
             }
 
             if (changed) yield* saveRecord(sql, store.owner, row, last);
-            yield* sql`DELETE FROM config_history WHERE owner_user_id=${store.owner}::uuid AND superseded_at<now()-interval '90 days'`;
           }),
         );
       }),

@@ -24,6 +24,7 @@ import { mountMobileNetwork } from "./network/devices.ts";
 import { loadSecretsKey } from "./store/secrets.ts";
 import { workerRoutes } from "./worker-link/routes.ts";
 import { gatewayRole } from "./role.ts";
+import { DatabaseMaintenance } from "./maintenance/job.ts";
 
 const env = Bun.env;
 
@@ -152,6 +153,10 @@ console.info(`gateway ${CANOPY_VERSION} listening on ${server.url}`);
 
 core.scheduler.start();
 
+const maintenance = new DatabaseMaintenance(runtime, userId);
+
+maintenance.start();
+
 // Open items of finished turns, threads stuck in a busy or failed look: fixed now and every few minutes.
 core.startSweep();
 
@@ -175,6 +180,7 @@ async function stop(presence = "shutting_down") {
   core.appControl.close();
   core.secrets.stop();
   await core.scheduler.stop();
+  await maintenance.stop();
   await core.stopSweep();
   core.backgroundTasks.stop();
   await core.bots.stop();

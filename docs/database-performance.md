@@ -103,6 +103,11 @@ oczekiwania na blokadę wiersza) i liczbę tur zapisanych mimo równoległej edy
 Przygotowanie działa poza transakcją; końcowa transakcja ponownie sprawdza fence
 i placement, a claim schedulera pobiera jedno zadanie tuż przed obsługą.
 
+`bun scripts/bench/retention.ts --run` porównuje dawną blokadę checkpointu i usunięcie
+4096 starych snapshotów po 4096 bajtów z pełną transakcją joba i partią 256 rekordów.
+Podaje też czas opróżnienia całego backlogu. W tym ostatnim pomiarze przyspiesza
+termin joba między partiami; normalny timer oddaje zasoby innym operacjom.
+
 ## Odczyty wątków
 
 Zwykła strona historii korzysta z istniejącego ograniczonego okna tur w SQL;
@@ -171,7 +176,8 @@ claimu SQL: ogrodzenie połączenia workera i deduplikacja po id pozostają obow
 Transkrypty, itemy, importy, audyt i zakończone komendy nie są danymi do usuwania
 wyłącznie według wieku. Zakończone `worker_commands` uczestniczą m.in. w
 deduplikacji i rozpoznawaniu wysłanej tury. Usunięcie może ponownie uruchomić pracę.
-Nowa retencja wymaga zachowania tych znaczników i testów odtworzenia po restarcie.
-Obecne dzienniki zmian luster zachowują 10 000 rewizji; starszy kursor wymusza
-pełny odczyt. Historia wspólnej konfiguracji ma retencję opisaną w
-[modelu danych](data-model.md). Ten benchmark nie zmienia zasad retencji.
+Migracje `0104`–`0105` i trwały job zachowują te znaczniki, kompaktują zbędne payloady
+i usuwają surowe eventy harnessów dopiero za trwałym ACK. Dziennik zmian luster
+zachowuje 10 000 rewizji; starszy kursor wymusza pełny odczyt. Usuwanie starych
+generacji wymaga trwałej rejestracji stagingu i fence'u subskrypcji.
+Dokładne warunki, limity i dane bez retencji: [database-retention.md](database-retention.md).

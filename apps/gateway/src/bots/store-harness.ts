@@ -29,6 +29,11 @@ export interface HarnessTurnRow {
   items: Record<string, string>;
 }
 
+const recordCursor = (sql: SqlClient.SqlClient, worker: string, journal: string, bot: string, seq: bigint) =>
+  sql`INSERT INTO bot_harness_cursors(worker_id,journal_id,bot_id,last_seq)
+    VALUES(${worker}::uuid,${journal},${bot}::uuid,${seq}) ON CONFLICT(worker_id,journal_id,bot_id)
+    DO UPDATE SET last_seq=greatest(bot_harness_cursors.last_seq,excluded.last_seq)`;
+
 /** Bot events use the worker journal, with independent storage and owner/worker checks. */
 export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
   return {
@@ -101,7 +106,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
       sql<{
         bot_id: string;
         last_seq: bigint;
-      }>`SELECT h.bot_id, max(e.journal_seq) AS last_seq FROM bot_harness_events e JOIN bot_harness_turns h ON h.turn_id = e.turn_id WHERE e.worker_id = ${workerId}::uuid AND e.journal_id = ${journalId} GROUP BY h.bot_id`.pipe(
+      }>`SELECT bot_id,last_seq FROM bot_harness_cursors WHERE worker_id=${workerId}::uuid AND journal_id=${journalId}`.pipe(
         Effect.map((rows) => rows.map((r) => ({ threadId: r.bot_id, lastSeq: BigInt(r.last_seq) }))),
       ),
     harnessEvent: (workerId: string, journalId: string, event: ThreadEvent) =>
@@ -134,13 +139,16 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
 
           if (!row) return false;
 
+          yield* recordCursor(sql, workerId, journalId, row.bot_id, event.journalSeq);
+
+          // The durable watermark acknowledges terminal replay without recreating pruned raw events.
+          if (row.outcome !== null) return true;
+
           const saved =
             yield* sql`INSERT INTO bot_harness_events(event_id, turn_id, worker_id, journal_id, journal_seq, payload) VALUES (${event.eventId}::uuid, ${row.turn_id}::uuid, ${workerId}::uuid, ${journalId}, ${event.journalSeq}, ${toBinary(ThreadEventSchema, event)}) ON CONFLICT DO NOTHING RETURNING event_id`;
 
           if (!saved.length) return true;
 
-          // A terminal journal record is immutable, including when later reconnect replay arrives.
-          if (row.outcome !== null) return true;
           const body = event.body;
 
           if (body.case === "itemCompleted" && body.value.item?.content.case === "agentMessage") {
@@ -156,7 +164,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
           if (end)
             yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now()
               WHERE turn_id = ${row.turn_id}::uuid AND status = 'pending'`;
-          yield* sql`UPDATE bot_harness_turns SET items = ${JSON.stringify(row.items)}::jsonb, text = ${text}, outcome = ${end?.outcome ?? row.outcome}, source = ${end?.source ?? row.source}, reason = ${end?.reason ?? row.reason}, error_code = ${end?.errorCode ?? row.error_code}, error_class = ${end?.errorClass ?? row.error_class} WHERE turn_id = ${row.turn_id}::uuid`;
+          yield* sql`UPDATE bot_harness_turns SET items = ${JSON.stringify(row.items)}::jsonb, text = ${text}, outcome = ${end?.outcome ?? row.outcome}, finished_at=CASE WHEN ${!!end} THEN now() ELSE finished_at END, source = ${end?.source ?? row.source}, reason = ${end?.reason ?? row.reason}, error_code = ${end?.errorCode ?? row.error_code}, error_class = ${end?.errorClass ?? row.error_class} WHERE turn_id = ${row.turn_id}::uuid`;
           yield* access.changed(row.bot_id);
 
           return true;

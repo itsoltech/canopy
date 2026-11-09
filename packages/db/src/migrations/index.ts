@@ -102,6 +102,8 @@ import threadReadMetadata from "./0098_thread_read_metadata.sql" with { type: "t
 import messageReceipts from "./0099_message_receipts.sql" with { type: "text" };
 import { splitStatements } from "./split.ts";
 import queueReadIndexes from "./0103_queue_read_indexes.sql" with { type: "text" };
+import databaseRetention from "./0104_database_retention.sql" with { type: "text" };
+import retentionIndexes from "./0105_retention_indexes.sql" with { type: "text" };
 import { indexTasks, runIndexTasks } from "./index-tasks.ts";
 
 /**
@@ -220,11 +222,13 @@ export const migrations = Migrator.fromRecord({
   "0102_bot_composer": sqlFile(botComposer),
   // Performance-only indexes are restartable post-migration tasks, not constraints.
   "0103_queue_read_indexes": Effect.void,
+  "0104_database_retention": sqlFile(databaseRetention),
+  "0105_retention_indexes": Effect.void,
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
 const migrateSchema = Migrator.make({})({ loader: migrations, table: "schema_migrations" });
-const deferredIndexes = indexTasks(queueReadIndexes);
+const deferredIndexes = indexTasks(queueReadIndexes + "\n" + retentionIndexes);
 
 const migrateWithIndexes = (concurrent: boolean) =>
   Effect.gen(function* () {
