@@ -238,6 +238,21 @@ właściciela i rosnący zapis checkpointu w jednym zapytaniu, także dla powtó
 
 ## Zapisy grupowe
 
+`bun scripts/bench/redirects.ts --run` sprawdza przyjęcie 256 przekierowań
+przeniesienia i ich powtórkę przy handshake'u. Odrzucanie powtórek korzysta
+z odtworzonej mapy; nowe wpisy sprawdzają lokalne wątki i boty dwoma grupowymi
+odczytami. Zapisy obejmują do 128 różnych id na instrukcję, z warunkiem czasu
+w bazie. Powtórzone id rozdzielają partie, aby zachować kolejność, także przy
+równych czasach i zmianie domu. Referencje agent busa mają grupowy UPDATE;
+powtórzone id oraz błędy pojedynczej referencji zachowują wcześniejszą sekwencję
+naprawczą. Mapa zmienia się dopiero po zatwierdzeniu instrukcji. Ochrona obiektów
+lokalnych, właściciel, zaufany nadawca i zakaz samowolnego wskazania tego komputera
+jako nowego domu pozostają sprawdzane przed zapisem.
+Harness ma trzy serie po dwa rozgrzania i 20 próbek, oddzielny EXPLAIN z rollbackiem;
+reset i odtworzenie mapy nie wchodzą do latency. Nie mierzy transportu ani dużego
+zbioru referencji agent busa. Pełna mapa przekierowań jest potrzebna do obsługi
+starych id i nie podlega usuwaniu według wieku.
+
 `bun scripts/bench/config-records.ts --run` mierzy bootstrap i ponowny start
 ConfigSync ze 128 dokumentami instrukcji po 4 KiB, 24 projektami i 13 workerami.
 Bootstrap usuwa stan synchronizacji właściciela poza pomiarem; restart zachowuje
