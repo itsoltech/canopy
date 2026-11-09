@@ -151,7 +151,7 @@ export class RemoteCalls {
   ): AsyncGenerator<Message> {
     if (this.#departure) throw this.#away();
 
-    if (this.#closed) throw new ConnectError(`${this.options.name()} disconnected`, Code.Unavailable);
+    if (this.#closed) throw this.#disconnected();
 
     if (this.#outgoing.size >= MAX_SERVED)
       throw new ConnectError("Too many calls to this computer at once", Code.ResourceExhausted);
@@ -324,11 +324,17 @@ export class RemoteCalls {
     if (this.#closed) return;
     this.#closed = true;
 
-    for (const call of this.#outgoing.values())
-      call.channel.close(new ConnectError(`${this.options.name()} disconnected`, Code.Unavailable));
+    for (const call of this.#outgoing.values()) call.channel.close(this.#disconnected());
     this.#outgoing.clear();
 
     for (const call of this.#served.values()) call.abort?.abort();
     this.#served.clear();
+  }
+
+  /** Local-only provenance: a peer's RemoteResponse cannot supply error metadata. */
+  #disconnected() {
+    return new ConnectError(`${this.options.name()} disconnected`, Code.Unavailable, {
+      "canopy-link-closed": "true",
+    });
   }
 }

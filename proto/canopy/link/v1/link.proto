@@ -41,6 +41,8 @@ message MirrorRequest {
   string cursor = 1;
   // Only with thread_mirror_delta on both computers. Older computers keep full projections.
   bool incremental = 2;
+  // Negotiated by thread_watch_liveness. Emit idle revision frames.
+  bool heartbeat = 3;
 }
 message MirrorUpdate {
   string previous_cursor = 1;
@@ -57,6 +59,8 @@ message MirrorUpdate {
   canopy.ui.v1.ThreadSnapshotDelta delta = 10;
   bool delta_start = 11;
   bool delta_end = 12;
+  // No projection; cursor must equal the last committed checkpoint.
+  bool heartbeat = 13;
 }
 
 // Stage 4, capability "shared_config": internal call over RemoteRequest/RemoteResponse, never

@@ -48,6 +48,8 @@ export type Options = {
   minProtocol?: number;
   maxProtocol?: number;
   heartbeatMs?: number;
+  /** Application watch timing; independent of link/HTTP2 heartbeats. */
+  watchTiming?: { heartbeatMs: number; timeoutMs: number; legacyProbeMs: number };
   /** Clock for persisted presence and expiry; transport heartbeat timing stays independent. */
   presenceNow?: () => number;
   /** Serves linked computers' calls on this computer's threads (stage 2). Without it the capability is not offered. */
@@ -171,6 +173,7 @@ export class LinkedComputersState {
   capabilities = new Map<string, string[]>();
 
   mirroring = new Map<string, AbortController>();
+  staleMirrors = new Map<string, number>();
 
   botMirroring = new Map<string, AbortController>();
 

@@ -13,6 +13,7 @@ import {
   REMOTE_THREADS,
   THREAD_MIRROR,
   THREAD_MIRROR_DELTA,
+  THREAD_WATCH_LIVENESS,
 } from "@canopy/domain/computers";
 
 import { BOT_METHODS, linkedMessage, MOVE_METHODS, UPDATE_METHODS, type RelayRoute } from "./remote.ts";
@@ -24,6 +25,9 @@ import { computersRelayChannel } from "./runtime-remote.ts";
 import type { LinkedComputers } from "./runtime.ts";
 import { serveConfigBlob } from "./runtime-blobs.ts";
 import { serveConfig } from "./runtime-config.ts";
+import { publishThreadWatch } from "./thread-watch-publish.ts";
+import { ui } from "@canopy/contracts";
+import { watchTiming } from "./watch-liveness.ts";
 
 // ------------------------------------------------------------------ stage 2: remote threads
 
@@ -182,12 +186,42 @@ export async function* computersServeHome(
     input.incremental &&=
       hostContext.hello().capabilities.includes(THREAD_MIRROR_DELTA) &&
       connection.capabilities.has(THREAD_MIRROR_DELTA);
-    yield* hostContext.mirror.publish(input, hostContext.options.serve, signal);
+    input.heartbeat &&=
+      hostContext.hello().capabilities.includes(THREAD_WATCH_LIVENESS) &&
+      connection.capabilities.has(THREAD_WATCH_LIVENESS);
+    console.debug("Linked thread mirror subscribed", { peer: nodeId, side: "home" });
+
+    try {
+      yield* hostContext.mirror.publish(input, hostContext.options.serve, signal, watchTiming(hostContext).heartbeatMs);
+    } catch (error) {
+      if (!signal.aborted)
+        console.warn("Linked thread mirror failed", {
+          peer: nodeId,
+          side: "home",
+          code: ConnectError.from(error).code,
+        });
+      throw error;
+    } finally {
+      console.debug("Linked thread mirror ended", { peer: nodeId, side: "home" });
+    }
   } else if (method.name === "WatchBotMirror")
     yield* hostContext.botMirror.publish(
       linkedMessage(link.MirrorRequestSchema, request),
       hostContext.options.serve,
       signal,
+    );
+  else if (
+    method.name === "WatchThread" &&
+    linkedMessage(ui.WatchThreadRequestSchema, request).watchLiveness &&
+    hostContext.hello().capabilities.includes(THREAD_WATCH_LIVENESS) &&
+    connection.capabilities?.has(THREAD_WATCH_LIVENESS)
+  )
+    yield* publishThreadWatch(
+      hostContext,
+      hostContext.options.serve,
+      linkedMessage(ui.WatchThreadRequestSchema, request),
+      signal,
+      nodeId,
     );
   else yield* hostContext.options.serve(method, request, signal, nodeId);
 }

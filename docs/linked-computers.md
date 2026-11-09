@@ -753,6 +753,70 @@ pozostawał aktualny także przed pierwszym zdarzeniem workera.
 Numer protokołu łącza pozostaje bez zmian: nowe pola są addytywne, oba końce muszą reklamować
 capability, a starszy dom lub partner nadal używa dotychczasowych snapshotów.
 
+### Żywotność subskrypcji i odzyskiwanie
+
+Połączenie transportowe i aktualność widoku są sprawdzane oddzielnie. HTTP/2 PING
+(15 s, budżet pong 10 s), heartbeat całego łącza i heartbeat SSE z BFF nie dowodzą,
+że `WatchThread` lub `WatchThreadMirror` nadal dostarcza zmiany. BFF przekazuje
+zdalny `WatchThread` przez oddzielną pulę subskrypcji do lokalnego gatewaya;
+gateway kwalifikuje id i otwiera niezależne wywołanie na domu. Nie ma współdzielonego
+licznika konsumentów otwartego wątku. Cache historii UI zachowuje checkpoint,
+ale ponowne otwarcie zawsze sprawdza go w domu. Listy korzystają niezależnie
+z trwałego lustra. Zerwanie transportu nadal kończy wszystkie jego wywołania;
+ponowne zestawienie i circuit breaker zachowują reguły opisane wyżej.
+
+Nowa capability **`thread_watch_liveness`** negocjuje wyłącznie addytywne pola:
+`WatchThreadRequest.watch_liveness` (808), `ThreadUpdate.watch_cursor` (808),
+`MirrorRequest.heartbeat` (3) i `MirrorUpdate.heartbeat` (13). Numer protokołu
+komputerów, `WORKER_LINK_PROTOCOL` i zamrożony UpdateService pozostają bez zmian.
+Starszy partner nie musi znać tych pól.
+
+1. Dom aktywnego wątku co 5 s odczytuje trwały zegar właściciela i wysyła
+   `watch_cursor`, niezależnie od fan-outu Hub. Partner porównuje go z ostatnim
+   atomowym checkpointem snapshotu. Nowa rewizja powoduje ponowny odczyt:
+   klient przyrostowy dostaje deltę względem tego checkpointu, pozostali pełny
+   snapshot. Zdarzenia na żywo nie przesuwają checkpointu. Zegar obejmuje
+   właściciela, więc także zmiana innego wątku może spowodować tanią rewalidację.
+2. Brak pierwszego snapshotu lub kolejnego heartbeat przez 15 s przerywa
+   konkretne wywołanie. Po utracie działającej subskrypcji gateway oznacza widok
+   istniejącym `syncing=true` i raz próbuje pełnego snapshotu, z pustym kursorem.
+   Nieudana naprawa kończy się błędem o zakresie `computer`, obsługiwanym przez
+   istniejący stan reconnect/unreachable klienta. Ponawiane są tylko odczyty.
+3. Zdarzenia `event.seq` muszą następować bez luk po `snapshot.last_seq`.
+   Duplikaty są pomijane; luka albo delta z inną bazą wymusza pełny snapshot.
+   Okno stron i granica najstarszej załadowanej tury zostają zachowane.
+4. Publisher lustra wysyła co 5 s ramkę z ostatnim zatwierdzonym kursorem,
+   dopiero po zakończeniu całej partii. Receiver sprawdza zgodność z własnym
+   checkpointem; brakujące fragmenty lub commit nie są uznawane za aktualny stan.
+   Timeout 15 s albo luka zeruje kursor i wymusza nową generację. Poprzednia
+   pozostaje czytelna do commitu. Nieudana synchronizacja oznacza partnera jako
+   `unreachable` w projekcji UI, nawet przy zdrowym transporcie; poprawny commit
+   albo heartbeat potwierdzający ten sam checkpoint usuwa ten stan. Zwykłe
+   zerwanie łącza zachowuje checkpoint do wznowienia.
+5. Bez wspólnej capability działający watch jest ponownie sprawdzany najpóźniej
+   co 30 s. `WatchThread` ponawia odczyt od checkpointu, jeśli stary dom go obsługuje;
+   w przeciwnym razie dostaje pełny snapshot. Lustro odnawia pełną generację.
+   To planowa rewalidacja, bez oznaczania zdrowego partnera jako niedostępnego.
+
+Przy standardowym interwale łącza ponowny start lustra następuje na kolejnym ticku
+(do 5 s po wykryciu problemu). Czasy zakładają działający lokalny event loop;
+po jego zatrzymaniu kontrola następuje po wznowieniu. Opóźniony event loop domu
+nie usuwa trwałego dziennika: revision probe i ponowny snapshot uzupełniają
+zmiany nawet wtedy, gdy żywy fan-out ich nie przekazał.
+
+Obie strony zapisują rozpoczęcie i zakończenie subskrypcji na poziomie debug,
+a wykryte stall/gap i wymuszoną resynchronizację na warn. Logi zawierają wyłącznie
+id partnera/wątku, stronę, przyczynę, kod błędu i checkpoint/seq; bez nazw komputerów, adresów,
+treści wątku, poświadczeń ani surowych komunikatów błędów. Planowe rewalidacje
+starszego partnera i zmiany rewizji są debug.
+
+`tests/integration/linked-thread-liveness.test.ts` używa dwóch gatewayów, osobnych
+baz PostgreSQL i przypiętego mTLS. Kontroluje utratę ramek aplikacyjnych bez
+zrywania łącza: otwarty stream bez postępu/heartbeat, brakujące zdarzenie lub
+checkpoint lustra, niezgodną bazę, pominięty fan-out metadanych, ponowne otwarcie,
+nieudaną naprawę i partnera bez nowych ramek. Czasy są skrócone wyłącznie
+w opcjach fixture. Pliki testów wielogatewayowych uruchamiamy kolejno.
+
 ### Odczyt i dostępność
 
 Klient UI z własną kopią i `WatchThreadRequest.incremental` przekazuje jej `cursor`
