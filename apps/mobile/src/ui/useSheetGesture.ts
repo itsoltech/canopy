@@ -1,15 +1,68 @@
 import { useLayoutEffect, useMemo } from "react";
-import { PanResponder } from "react-native";
+import { PanResponder, type PanResponderGestureState } from "react-native";
 import { KeyboardController } from "react-native-keyboard-controller";
 import { cancelAnimation, useSharedValue, withSpring, type SharedValue } from "react-native-reanimated";
 import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
 import { useKeyboardFrame } from "./KeyboardWindow";
 import { sheetSpring, useReducedMotion } from "./motion";
 import { sheetDragDistance, sheetDragOffset, shouldDismissSheet } from "./sheet-gesture";
+import { shouldMoveSheetResponder, shouldStartSheetResponder } from "./sheet-responder";
 
 const dismissKeyboard = () => {
   void KeyboardController.dismiss();
 };
+
+/** Own the native responder lifecycle outside React rendering. */
+function createSheetResponder(
+  visible: boolean,
+  start: () => void,
+  move: (dy: number) => void,
+  finish: (dy: number, vy: number, cancelled: boolean) => void,
+) {
+  let dragging = false;
+  let claimedOnMove = false;
+
+  const claimMove = (g: PanResponderGestureState) => {
+    claimedOnMove = visible && shouldMoveSheetResponder(g, "header-control");
+
+    return claimedOnMove;
+  };
+
+  return PanResponder.create({
+    // Do not capture touch start: Pressables must receive taps before this bubbles to the chrome.
+    onStartShouldSetPanResponder: (_, g) => visible && shouldStartSheetResponder(g, "drag-area"),
+    onMoveShouldSetPanResponder: (_, g) => claimMove(g),
+    onMoveShouldSetPanResponderCapture: (_, g) => claimMove(g),
+    onPanResponderGrant: () => {
+      // RN resets dy on grant. A capture has already crossed the threshold; a touch start has not.
+      dragging = claimedOnMove;
+      claimedOnMove = false;
+
+      if (dragging) start();
+    },
+    onPanResponderReject: () => {
+      claimedOnMove = false;
+    },
+    onPanResponderMove: (_, g) => {
+      if (!dragging) {
+        if (!shouldMoveSheetResponder(g, "drag-area")) return;
+        dragging = true;
+        start();
+      }
+
+      move(g.dy);
+    },
+    onPanResponderRelease: (_, g) => {
+      if (dragging) finish(g.dy, g.vy * 1000, false);
+      dragging = false;
+    },
+    onPanResponderTerminate: (_, g) => {
+      if (dragging) finish(g.dy, 0, true);
+      dragging = false;
+    },
+    onPanResponderTerminationRequest: () => false,
+  }).panHandlers;
+}
 
 /** PanResponder delivers JS touch events; all position math, styles and settling run on the UI thread. */
 export function useSheetGesture(
@@ -69,16 +122,11 @@ export function useSheetGesture(
       }
     };
 
-    return PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) =>
-        g.numberActiveTouches === 1 && Math.abs(g.dy) > 5 && Math.abs(g.dy) > Math.abs(g.dx),
-      onMoveShouldSetPanResponderCapture: (_, g) =>
-        g.numberActiveTouches === 1 && Math.abs(g.dy) > 5 && Math.abs(g.dy) > Math.abs(g.dx),
-      onPanResponderGrant: () => scheduleOnUI(start),
-      onPanResponderMove: (_, g) => scheduleOnUI(move, g.dy),
-      onPanResponderRelease: (_, g) => scheduleOnUI(finish, g.dy, g.vy * 1000, false),
-      onPanResponderTerminate: (_, g) => scheduleOnUI(finish, g.dy, 0, true),
-      onPanResponderTerminationRequest: () => false,
-    }).panHandlers;
-  }, [progress, velocity, travel, height, onClose, reduced, keyboard.height, origin, keyboardOnly, enabled]);
+    return createSheetResponder(
+      visible,
+      () => scheduleOnUI(start),
+      (dy) => scheduleOnUI(move, dy),
+      (dy, vy, cancelled) => scheduleOnUI(finish, dy, vy, cancelled),
+    );
+  }, [progress, velocity, travel, height, visible, onClose, reduced, keyboard.height, origin, keyboardOnly, enabled]);
 }
