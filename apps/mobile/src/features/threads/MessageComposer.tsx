@@ -101,7 +101,6 @@ export function MessageComposer({
           <ComposerPill
             icon={look.icon}
             title={permissionLabel(state.permissionMode)}
-            width={128}
             warning={look.tone === "warning"}
             danger={look.tone === "danger"}
             onPress={() => setPicker("permission")}
@@ -134,21 +133,19 @@ function ComposerControls({
         icon="cpu-chip"
         leading={thread ? <ProviderIcon provider={thread.provider} /> : undefined}
         title={current?.name || "Model"}
-        width={160}
+        loadingWidth={128}
         loading={!thread || (!current && !state.section?.choices.length)}
         onPress={() => setPicker("model")}
       />
-      <View style={{ width: 96 }}>
-        {!current || current.efforts.length ? (
-          <ComposerPill
-            icon="light-bulb"
-            title={effortLabel(effort)}
-            width={96}
-            loading={!current}
-            onPress={() => setPicker("effort")}
-          />
-        ) : null}
-      </View>
+      {!current || current.efforts.length ? (
+        <ComposerPill
+          icon="light-bulb"
+          title={effortLabel(effort)}
+          loadingWidth={72}
+          loading={!current}
+          onPress={() => setPicker("effort")}
+        />
+      ) : null}
     </>
   );
 }
