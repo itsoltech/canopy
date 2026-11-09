@@ -128,6 +128,24 @@ dziesiętnymi, także powyżej precyzji JS number. Pobranie pozycji do UI nie de
 snapshotów źródła, bazy dopisywania ani kursorów wznowienia; wewnętrzne przejścia
 importu nadal odczytują pełne rekordy.
 
+Pętla importu sprawdza stan przebiegu po kluczu i właścicielu przed kolejną pozycją.
+Pełne liczniki wylicza dopiero przed zakończeniem przebiegu; odświeżanie postępu UI
+nadal zwraca dokładne agregaty. Anulowany przebieg nie zostaje ponownie zakończony.
+
+Lista konektorów UI pobiera metadane bez katalogów narzędzi i rozwiązuje granty
+dwoma zapytaniami grupowymi, niezależnie od liczby kont. Wykonanie narzędzia nadal
+odczytuje pełny katalog i sprawdza grant. Ustawienia instancji filtrują właściciela
+instancji, proxy, workerów i liczników w SQL, przed przesłaniem konfiguracji do JS.
+Wewnętrzna synchronizacja nadal może odczytać konfigurację wszystkich właścicieli.
+Przypisanie instancji do workerów i zapis referencji sekretów używają `unnest`,
+z zachowaniem walidacji i transakcji wywołującego.
+
+`bun scripts/bench/config.ts --run` mierzy 32 konta z katalogami po 64 KiB,
+32 obce instancje z konfiguracją po 64 KiB, przypisanie do 13 workerów i kontrolę
+przebiegu importu z 2000 pozycji. `--baseline` służy do porównania z wcześniejszym
+kodem magazynów. Każdy wariant tworzy własną bazę; 20 próbek po dwóch rozgrzaniach
+nie zawiera instrumentacji. Oddzielny przebieg zbiera plany i rozmiar zwróconych danych.
+
 `bun scripts/bench/schedule-lock.ts --run` mierzy konflikt edycji z przygotowaniem
 workspace'u: 20 próbek i dwa rozgrzania, 50 ms syntetycznego I/O. Edycja wersji
 zaczyna się po wejściu w przygotowanie. Wynik podaje p50/p95 edycji (w tym czas

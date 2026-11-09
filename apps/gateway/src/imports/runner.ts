@@ -8,7 +8,7 @@ import { coreWorkerQuery } from "../core/core-mentions.ts";
 import { ensureThread, ingestPage } from "./ingest.ts";
 import { LibraryApply } from "./library-apply.ts";
 import { failLibraryItem, nextLibraryItem, type LibraryRow } from "./library-store.ts";
-import { nextItem, runs, type ItemRow } from "./store.ts";
+import { nextItem, runnerRun, runs, type ItemRow } from "./store.ts";
 import {
   adoptionFailed,
   failItem,
@@ -107,7 +107,7 @@ export class ImportRunner {
     const ownerId = this.#core[coreState].options.userId;
 
     for (;;) {
-      const run = (await this.#sql((sql) => runs(sql, ownerId, runId)))[0];
+      const run = (await this.#sql((sql) => runnerRun(sql, ownerId, runId)))[0];
 
       if (!run || run.status !== "running") return;
       // Settings and library first: they are quick, and threads may take long.
@@ -121,8 +121,11 @@ export class ImportRunner {
       const item = (await this.#sql((sql) => nextItem(sql, runId)))[0];
 
       if (!item) {
-        const done = run.done + run.library_done;
-        const failed = run.failed + run.library_failed;
+        const progress = (await this.#sql((sql) => runs(sql, ownerId, runId)))[0];
+
+        if (!progress || progress.status !== "running") return;
+        const done = progress.done + progress.library_done;
+        const failed = progress.failed + progress.library_failed;
         await this.#sql((sql) => runnerRunStatus(sql, runId, done > 0 || failed === 0 ? "completed" : "failed"));
 
         return;

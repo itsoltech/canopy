@@ -20,6 +20,7 @@ export function connectorStore(sql: SqlClient.SqlClient, key: Buffer) {
     unseal: base.unseal,
     seal: base.seal,
     view: base.view,
+    views: base.views,
     authorize: base.authorize,
     list: base.list,
     updateCredentials: base.updateCredentials,

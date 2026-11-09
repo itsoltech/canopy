@@ -95,6 +95,11 @@ export interface RunRow {
   readonly library_failed: number;
 }
 
+/** Runner admission does not need progress aggregates for every imported item. */
+export const runnerRun = (sql: SqlClient.SqlClient, owner: string, id: string) =>
+  sql<Pick<RunRow, "id" | "status" | "worker_name">>`SELECT r.id,r.status,w.name AS worker_name
+    FROM import_runs r JOIN workers w ON w.id=r.worker_id WHERE r.id=${id}::uuid AND r.owner_user_id=${owner}::uuid`;
+
 export interface NewItem {
   readonly agentCli: string;
   readonly rootId: string;
