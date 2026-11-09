@@ -5,7 +5,7 @@ import { humanizeToolName } from "@canopy/domain/humanize";
 import { answerText, parseQuestions } from "@canopy/domain/questions";
 import { statusLook } from "@canopy/domain/status-look";
 import { Badge } from "../../../ui/Badge";
-import { RequestCountdown } from "../../../ui/RequestCountdown";
+import { RequestHeader } from "../../../ui/RequestHeader";
 import { font, styles, useColors } from "../../../ui/theme";
 import { useTone } from "../../../ui/tone";
 import { CodeBlock } from "../CodeBlock";
@@ -57,12 +57,14 @@ export function InteractionPromptView({ prompt, status }: { prompt: InteractionP
       status={status}
       label={[kind, subject || preview, by].filter(Boolean).join(" ")}
       title={
-        <Text numberOfLines={1} style={[styles.work, { color: c.soft }]}>
-          {kind}
-          {preview ? <Text style={{ color: c.muted }}>{`  ${preview}`}</Text> : null}
-          {subject ? <Text style={{ color: c.strong }}>{`  ${subject}`}</Text> : null}
-          {by ? <Text style={{ color: by === "for the parent agent" ? violet : c.muted }}>{`  ${by}`}</Text> : null}
-        </Text>
+        <RequestHeader expiresAt={prompt.expiresAt} pending={!prompt.outcome}>
+          <Text numberOfLines={1} style={[styles.work, { color: c.soft }]}>
+            {kind}
+            {preview ? <Text style={{ color: c.muted }}>{`  ${preview}`}</Text> : null}
+            {subject ? <Text style={{ color: c.strong }}>{`  ${subject}`}</Text> : null}
+            {by ? <Text style={{ color: by === "for the parent agent" ? violet : c.muted }}>{`  ${by}`}</Text> : null}
+          </Text>
+        </RequestHeader>
       }
       aside={
         <Badge tone={look.tone} dot>
@@ -70,7 +72,6 @@ export function InteractionPromptView({ prompt, status }: { prompt: InteractionP
         </Badge>
       }
     >
-      {prompt.expiresAt && <RequestCountdown expiresAt={prompt.expiresAt} pending={!prompt.outcome} />}
       {questions.length > 0 ? (
         <View style={{ gap: 8 }}>
           {questions.map((question) => (

@@ -29,8 +29,8 @@ export function RequestCountdown({
     return () => clearInterval(timer);
   }, [active]);
 
-  if (!active) return null;
-  const seconds = Math.max(0, Math.ceil((deadline - now) / 1000));
+  if (!expiresAt) return null;
+  const seconds = Math.max(0, Math.ceil((timestampMs(expiresAt) - now) / 1000));
 
   return (
     <Text
@@ -39,11 +39,21 @@ export function RequestCountdown({
       numberOfLines={1}
       style={[
         styles.caption,
-        { minWidth: 112, fontVariant: ["tabular-nums"], color: seconds <= 25 ? c.warning : c.muted },
+        {
+          minWidth: 112,
+          minHeight: 20,
+          textAlign: "right",
+          fontVariant: ["tabular-nums"],
+          color: seconds <= 25 ? c.warning : c.muted,
+        },
         style,
       ]}
     >
-      {seconds > 0 ? `Expires in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` : "Expiring…"}
+      {active
+        ? seconds > 0
+          ? `Expires in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
+          : "Expiring…"
+        : ""}
     </Text>
   );
 }

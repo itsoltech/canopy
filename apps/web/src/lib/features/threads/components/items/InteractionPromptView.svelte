@@ -11,7 +11,7 @@
   import RawToggle from "./tools/RawToggle.svelte";
   import Section from "./tools/Section.svelte";
   import StructuredView from "./tools/StructuredView.svelte";
-  import RequestCountdown from "#lib/shared/ui/RequestCountdown.svelte";
+  import RequestHeader from "#lib/shared/ui/RequestHeader.svelte";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
 
   /**
@@ -59,39 +59,38 @@
 
 <ItemFrame icon={prompt.kind === InteractionKind.PERMISSION ? "shield-check" : "question-mark-circle"} {status}>
   {#snippet title()}
-    <span class="flex min-w-0 items-center gap-1.5">
-      <span class="shrink-0">{kind}</span>
-      {#if prompt.kind === InteractionKind.QUESTION && questions[0]}
-        <span class="min-w-0 truncate text-zinc-600 dark:text-zinc-400">
-          {questions[0].header || questions[0].question}
-          {#if answers[questions[0].id]}
-            → {questions[0].secret
-              ? "Answered (hidden)"
-              : answers[questions[0].id]}{:else if prompt.outcome === "cancelled"}
-            → Dismissed{/if}
-          {#if questions.length > 1}
-            · +{questions.length - 1}{/if}
-        </span>
-      {/if}
-      {#if subject}<span class="truncate text-zinc-800 dark:text-zinc-200">{subject}</span>{/if}
-      {#if prompt.answeredByThreadId}
-        <span class="text-zinc-500 dark:text-zinc-400">answered by</span><ThreadLink
-          threadId={prompt.answeredByThreadId}
-          fallback="Parent agent"
-        />
-      {:else if prompt.answeredByUserId}
-        <span class="text-zinc-500 dark:text-zinc-400">answered by you</span>
-      {:else if prompt.routedTo === "parent" && !prompt.outcome}
-        <span class="text-violet-700 dark:text-violet-400">for the parent agent</span>
-      {/if}
-    </span>
+    <RequestHeader expiresAt={prompt.expiresAt ? timestampDate(prompt.expiresAt) : undefined} pending={!prompt.outcome}>
+      <span class="flex min-w-0 items-center gap-1.5">
+        <span class="shrink-0">{kind}</span>
+        {#if prompt.kind === InteractionKind.QUESTION && questions[0]}
+          <span class="min-w-0 truncate text-zinc-600 dark:text-zinc-400">
+            {questions[0].header || questions[0].question}
+            {#if answers[questions[0].id]}
+              → {questions[0].secret
+                ? "Answered (hidden)"
+                : answers[questions[0].id]}{:else if prompt.outcome === "cancelled"}
+              → Dismissed{/if}
+            {#if questions.length > 1}
+              · +{questions.length - 1}{/if}
+          </span>
+        {/if}
+        {#if subject}<span class="truncate text-zinc-800 dark:text-zinc-200">{subject}</span>{/if}
+        {#if prompt.answeredByThreadId}
+          <span class="text-zinc-500 dark:text-zinc-400">answered by</span><ThreadLink
+            threadId={prompt.answeredByThreadId}
+            fallback="Parent agent"
+          />
+        {:else if prompt.answeredByUserId}
+          <span class="text-zinc-500 dark:text-zinc-400">answered by you</span>
+        {:else if prompt.routedTo === "parent" && !prompt.outcome}
+          <span class="text-violet-700 dark:text-violet-400">for the parent agent</span>
+        {/if}
+      </span>
+    </RequestHeader>
   {/snippet}
   {#snippet aside()}
     <StatusBadge status={prompt.outcome || "pending"} />
   {/snippet}
-  {#if prompt.expiresAt}
-    <RequestCountdown expiresAt={timestampDate(prompt.expiresAt)} pending={!prompt.outcome} />
-  {/if}
   {#if prompt.kind === InteractionKind.PERMISSION}
     <PermissionRequest toolName={prompt.toolName} requestJson={prompt.requestJson} related={undefined} />
   {:else if questions.length > 0}
