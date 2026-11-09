@@ -11,6 +11,7 @@ import { mentionElements } from "../composer/MessageText";
 import { Markdown } from "../../ui/markdown";
 import { AgentMessageBubble } from "./AgentMessageBubble";
 import { SenderLabel } from "./SenderLabel";
+import { MessageAttachments } from "../attachments/MessageAttachments";
 
 /** A line above a message: what happens to it (queued, steering into the turn, steered) (web: MessageNote). */
 export interface MessageNote {
@@ -60,7 +61,7 @@ export function UserMessageView({
   const amber = useTone("amber").text;
   const agent = fromAgent || Boolean(sender);
   const placed = new Set(mentions.flatMap((m) => (m.kind === MentionKind.ATTACHMENT ? [m.name] : [])));
-  const loose = attachments.filter((a) => !placed.has(a.id));
+  const loose = attachments.filter((a) => a.kind === "image" || !placed.has(a.id));
   const body = !mentions.length && hasPlatformNote(text) ? withoutIds(text) : text;
   const color = note?.tone === "amber" ? amber : agent ? violet : c.muted;
 
@@ -114,24 +115,7 @@ export function UserMessageView({
           ) : null}
         </View>
       ) : null}
-      {loose.length > 0 && (
-        <View
-          style={[styles.row, { flexWrap: "wrap", justifyContent: "flex-end", gap: 4, opacity: pending ? 0.7 : 1 }]}
-        >
-          {loose.map((a) => (
-            <View
-              key={a.id}
-              accessibilityLabel={`Attached ${a.name}`}
-              style={[styles.row, { gap: 4, paddingHorizontal: 6, borderRadius: 6, backgroundColor: c.inset }]}
-            >
-              <Icon name={a.kind === "image" ? "photo" : "document-text"} size={12} />
-              <Text numberOfLines={1} style={[styles.caption, { color: c.body, maxWidth: 180 }]}>
-                {a.name}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
+      {loose.length > 0 && <MessageAttachments files={loose} pending={pending} />}
       {content && agent ? (
         <AgentMessageBubble text={body} dim={pending}>
           <AgentText text={body} mentions={mentions} />

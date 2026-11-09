@@ -760,7 +760,15 @@ Zwykłe `Text` oraz style pól na Androidzie zachowują dotychczasową interlini
 
 Markdown renderujemy natywnym Text/View po tokenizacji, bez HTML/WebView i automatycznego
 pobierania obrazów. Linki otwierają tylko HTTP(S) po tapnięciu. Narzędzia/praca są domyślnie
-zwinięte; bardzo długi output ma jawny limit podglądu 12 tys. znaków i odsyłacz opisowy do web.
+zwinięte; bardzo długi output ma jawny limit podglądu 12 tys. znaków.
+Obrazy transkryptu, wyniki obrazowe narzędzi i załączniki wiadomości mają miniatury.
+Odczyt przez `GetThreadBlob` / `GetAttachment` używa tego samego przypiętego klienta co wątek,
+także dla połączonych komputerów. Tapnięcie otwiera pełny ekran z gestami powiększania
+i przesuwania; przesunięcie w dół przy skali 1 zamyka widok. Ten sam viewer otwiera
+lokalny podgląd załącznika w kompozytorze, również podczas wysyłania. iOS eksportuje
+obraz arkuszem Share z usuwanej kopii tymczasowej, Android zapisuje go w katalogu
+wybranym przez użytkownika. Nie dodajemy modułu galerii ani uprawnień do biblioteki zdjęć.
+Obrazy w pamięci widoku mają limit 20 MiB; SVG i inne formaty plikowe nie są renderowane.
 Oś czasu nadąża za web: grupę pracy otwiera i zwija Settings → Threads → Turn activity
 („While working”, „After the turn”, z resetem), według tej samej reguły `workFoldOpen`
 z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Preferencje dotyczą tego
