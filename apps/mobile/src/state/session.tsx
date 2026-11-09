@@ -14,6 +14,14 @@ import { prepareImageCache } from "../storage/image-cache-native";
 import type { ImmutableImageCache } from "../storage/image-cache";
 import { bots as botContract } from "@canopy/contracts";
 import { ModelCatalogCache } from "../features/models/catalog-cache";
+import { QueryCache } from "@canopy/domain/shared-query";
+
+const SHARED_READ_FAILED = "Could not load settings. Check the connection and retry.";
+
+/** Without a pairing nothing reads. */
+const unpaired = new QueryCache();
+
+unpaired.dispose();
 
 function useSessionState() {
   const [session, setSession] = useState<DeviceSession | null>(null);
@@ -56,6 +64,10 @@ function useSessionState() {
   const client = usePairedClient(session, persistence, setError);
 
   const modelCatalog = useMemo(() => new ModelCatalogCache(client?.api), [client]);
+  // Reads shared by every screen of this pairing; a new pairing or unpair fences the old one's requests.
+  const queries = useMemo(() => (client ? new QueryCache({ failure: () => SHARED_READ_FAILED }) : unpaired), [client]);
+
+  useEffect(() => () => queries.dispose(), [queries]);
 
   // Connections pooled before a suspension or a network change may be dead without either side knowing. Reset
   // runs inside the event, before React restarts any stream, so the next requests race the routes on new ones.
@@ -113,6 +125,7 @@ function useSessionState() {
     session,
     client,
     modelCatalog,
+    queries,
     threadCache,
     archivedCache,
     botCache,

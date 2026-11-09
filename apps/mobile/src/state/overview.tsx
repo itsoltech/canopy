@@ -11,7 +11,7 @@ import {
 } from "@canopy/domain/linked-snapshot";
 import { projectChoices } from "@canopy/domain/projects";
 import { useSession } from "./session";
-import { useStream } from "./stream";
+import { useOverviewEvents, useOverviewStream } from "./overview-bus";
 
 const upsertComputer = (rows: ui.LinkedComputer[], value: ui.LinkedComputer) => [
   ...rows.filter((r) => r.nodeId !== value.nodeId),
@@ -19,7 +19,7 @@ const upsertComputer = (rows: ui.LinkedComputer[], value: ui.LinkedComputer) => 
 ];
 
 function useOverviewState() {
-  const { client, session, modelCatalog, archivedCache } = useSession();
+  const { client, modelCatalog, archivedCache } = useSession();
   const [threads, setThreads] = useState<ui.Thread[]>([]);
   const [projects, setProjects] = useState<ui.Project[]>([]);
   const [workers, setWorkers] = useState<ui.Worker[]>([]);
@@ -72,82 +72,80 @@ function useOverviewState() {
     setThreads((rows) => rows.filter((r) => r.nodeId !== nodeId));
   };
 
-  const stream = useStream(
-    client ? (signal) => client.api.watchOverview({ includeSnapshot: true }, { signal }) : null,
-    (update: ui.OverviewUpdate) => {
-      const change = update.change;
+  const stream = useOverviewStream();
 
-      if (change.case === "gatewayDeparture") {
-        client?.departure.receive(change.value);
+  useOverviewEvents((update: ui.OverviewUpdate) => {
+    const change = update.change;
 
-        return;
-      }
+    if (change.case === "gatewayDeparture") {
+      client?.departure.receive(change.value);
 
-      if (change.case === "mobileRoutes") {
-        client?.update(change.value);
+      return;
+    }
 
-        return;
-      }
+    if (change.case === "mobileRoutes") {
+      client?.update(change.value);
 
-      generation.current++;
+      return;
+    }
 
-      if (change.case === "linkedReadCompleted")
-        setLinkedReads((revisions) => ({ ...revisions, [change.value]: (revisions[change.value] ?? 0) + 1 }));
+    generation.current++;
 
-      if (change.case === "linkedReadCompleted" && ["GetOverview", "ListThreads"].includes(change.value))
-        void reload().catch(() => undefined);
+    if (change.case === "linkedReadCompleted")
+      setLinkedReads((revisions) => ({ ...revisions, [change.value]: (revisions[change.value] ?? 0) + 1 }));
 
-      if (change.case === "mobileSnapshot") {
-        for (const thread of change.value.threads) void archivedCache?.reconcile(thread)?.catch(() => {});
+    if (change.case === "linkedReadCompleted" && ["GetOverview", "ListThreads"].includes(change.value))
+      void reload().catch(() => undefined);
 
-        if (client?.departure.snapshot())
-          void client.api
-            .getUpdates({})
-            .then((snapshot) => client.departure.reconcile(snapshot))
-            .catch(() => {});
-        const next = change.value.overview;
-        const peers = next?.computers ?? [];
-        setProjects((rows) => retainProjects(rows, next?.projects ?? [], peers));
-        setWorkers((rows) => retainLinkedRows(rows, next?.workers ?? [], peers));
-        setThreads((rows) => retainLinkedRows(rows, change.value.threads, peers));
-        setComputers(peers);
-        setLoaded(true);
-      }
+    if (change.case === "mobileSnapshot") {
+      for (const thread of change.value.threads) void archivedCache?.reconcile(thread)?.catch(() => {});
 
-      if (change.case === "computer") setComputers((rows) => upsertComputer(rows, change.value));
+      if (client?.departure.snapshot())
+        void client.api
+          .getUpdates({})
+          .then((snapshot) => client.departure.reconcile(snapshot))
+          .catch(() => {});
+      const next = change.value.overview;
+      const peers = next?.computers ?? [];
+      setProjects((rows) => retainProjects(rows, next?.projects ?? [], peers));
+      setWorkers((rows) => retainLinkedRows(rows, next?.workers ?? [], peers));
+      setThreads((rows) => retainLinkedRows(rows, change.value.threads, peers));
+      setComputers(peers);
+      setLoaded(true);
+    }
 
-      // Unlinked: its workers, projects and threads leave the lists.
-      if (change.case === "computerRemoved") {
-        void archivedCache?.forgetComputer(change.value).catch(() => {});
-        setComputers((rows) => rows.filter((c) => c.nodeId !== change.value));
-        forget(change.value);
-      }
+    if (change.case === "computer") setComputers((rows) => upsertComputer(rows, change.value));
 
-      // A linked computer reconnected: its rows replace the ones listed before.
-      if (change.case === "computerSnapshot") {
-        const { nodeId, overview, threads: listed } = change.value;
+    // Unlinked: its workers, projects and threads leave the lists.
+    if (change.case === "computerRemoved") {
+      void archivedCache?.forgetComputer(change.value).catch(() => {});
+      setComputers((rows) => rows.filter((c) => c.nodeId !== change.value));
+      forget(change.value);
+    }
 
-        for (const thread of listed) void archivedCache?.reconcile(thread)?.catch(() => {});
+    // A linked computer reconnected: its rows replace the ones listed before.
+    if (change.case === "computerSnapshot") {
+      const { nodeId, overview, threads: listed } = change.value;
 
-        setWorkers((rows) => replaceComputerRows(rows, overview?.workers ?? [], nodeId));
-        setProjects((rows) => replaceComputerProjects(rows, overview?.projects ?? [], nodeId));
-        setThreads((rows) => replaceComputerRows(rows, listed, nodeId));
-      }
+      for (const thread of listed) void archivedCache?.reconcile(thread)?.catch(() => {});
 
-      if (change.case === "thread") {
-        void archivedCache?.reconcile(change.value)?.catch(() => {});
-        setThreads((rows) => upsertLinkedRows(rows, [change.value]));
-      }
+      setWorkers((rows) => replaceComputerRows(rows, overview?.workers ?? [], nodeId));
+      setProjects((rows) => replaceComputerProjects(rows, overview?.projects ?? [], nodeId));
+      setThreads((rows) => replaceComputerRows(rows, listed, nodeId));
+    }
 
-      if (change.case === "project")
-        setProjects((rows) => retainProjects([], upsertLinkedRows(rows, [change.value]), []));
+    if (change.case === "thread") {
+      void archivedCache?.reconcile(change.value)?.catch(() => {});
+      setThreads((rows) => upsertLinkedRows(rows, [change.value]));
+    }
 
-      if (change.case === "worker") setWorkers((rows) => upsertLinkedRows(rows, [change.value]));
+    if (change.case === "project")
+      setProjects((rows) => retainProjects([], upsertLinkedRows(rows, [change.value]), []));
 
-      if (change.case === "workerRemoved") setWorkers((rows) => rows.filter((r) => r.id !== change.value));
-    },
-    `overview:${session?.deviceId}`,
-  );
+    if (change.case === "worker") setWorkers((rows) => upsertLinkedRows(rows, [change.value]));
+
+    if (change.case === "workerRemoved") setWorkers((rows) => rows.filter((r) => r.id !== change.value));
+  });
 
   return {
     threads: client ? threads : [],

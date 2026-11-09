@@ -179,6 +179,55 @@ describe.skipIf(!dockerAvailable)("settings expansion persistence, checks and ow
     expect((await gw.runtime.runPromise(SettingsStore.use((s) => s.user(otherId)))).version).toBe(0n);
   });
 
+  test("a phone's overview snapshot carries its owner's settings, and later changes arrive as events", async () => {
+    const initial = (await gw.api.getSettings({})).user!;
+
+    const before = (
+      await gw.api.updateUserSettings({ expectedVersion: initial.version, cliUpdates: { intervalMinutes: 60 } })
+    ).settings!;
+
+    const otherVersion = (await other.settings()).user?.version;
+    const abort = new AbortController();
+    const stream = gw.api.watchOverview({ includeSnapshot: true }, { signal: abort.signal });
+    const updates = stream[Symbol.asyncIterator]();
+    let snapshot: ui.MobileOverviewSnapshot | undefined;
+
+    while (!snapshot) {
+      const next = (await updates.next()).value!;
+
+      if (next.change.case === "mobileSnapshot") snapshot = next.change.value;
+    }
+
+    expect(snapshot.settings?.user?.version).toBe(before.version);
+    expect(snapshot.settings?.attachmentLimits).toBeDefined();
+    const otherAbort = new AbortController();
+    const otherStream = other.watchOverview(otherAbort.signal, true);
+    const otherSnapshot = (await otherStream.next()).value;
+    otherAbort.abort();
+    await otherStream.return(undefined);
+    expect(otherSnapshot?.change.case).toBe("mobileSnapshot");
+
+    if (otherSnapshot?.change.case === "mobileSnapshot")
+      expect(otherSnapshot.change.value.settings?.user?.version).toBe(otherVersion!);
+    expect(otherVersion).not.toBe(before.version);
+
+    const saved = await gw.api.updateUserSettings({
+      expectedVersion: before.version,
+      cliUpdates: { intervalMinutes: 1440 },
+    });
+
+    let event: ui.UserSettings | undefined;
+
+    while (!event) {
+      const next = (await updates.next()).value!;
+
+      if (next.change.case === "userSettings") event = next.change.value;
+    }
+
+    expect(event.version).toBe(saved.settings!.version);
+    abort.abort();
+  });
+
   test("notification sources exclude another owner's threads from snapshots and live fan-out", async () => {
     const project = (await gw.api.createProject({ name: "Private notification" })).project!;
 

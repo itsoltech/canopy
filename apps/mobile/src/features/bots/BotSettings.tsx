@@ -4,13 +4,13 @@ import * as Crypto from "expo-crypto";
 import { create } from "@bufbuild/protobuf";
 import { bots } from "@canopy/contracts";
 import { useSession } from "../../state/session";
+import { useBotList } from "../../state/bot-list";
 import { Button, Field, Notice, Sheet } from "../../ui/components";
 import { BotPermissionSettings } from "./BotPermissionSettings";
 import { BotModelSettings } from "./BotModelSettings";
 import { BotAppearanceSettings } from "./BotAppearanceSettings";
 import { BotSettingsExtras } from "./BotSettingsExtras";
 import { appearanceError, normalizeColor } from "@canopy/domain/bot-draft";
-import { useSettingsResource } from "../settings/resource";
 import { useComputerHome } from "../computers/presence";
 
 export function BotSettings({
@@ -26,7 +26,7 @@ export function BotSettings({
 }) {
   const { client, online, bots: known, updateBots } = useSession();
   const home = useComputerHome(bot.nodeId);
-  const names = useSettingsResource(`bot-names:${bot.id}`, (api) => api.listBots({ includeArchived: true }));
+  const names = useBotList();
   const [config, setConfig] = useState(() => create(bots.BotConfigurationSchema, bot.configuration));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

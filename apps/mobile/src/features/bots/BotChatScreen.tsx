@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { View } from "react-native";
 import { ArrivingCell, useArrivals } from "../../ui/MotionViews";
 import { Skeleton } from "../../ui/Skeleton";
@@ -10,6 +10,7 @@ import { splitId } from "@canopy/domain/computers";
 import { useComputerHome } from "../computers/presence";
 import { botParticipant, type ChatRow } from "@canopy/domain/bot-chat";
 import { useSession } from "../../state/session";
+import { useBotList } from "../../state/bot-list";
 import { useBotSnapshot } from "../../state/bot";
 import { HistoryFooter } from "../../ui/HistoryFooter";
 import { ConnectionBanner } from "../navigation/ConnectionStatus";
@@ -33,25 +34,14 @@ import { DropZone } from "../attachments/FileIntake";
 const chatRowId = (row: ChatRow) => row.id;
 
 function useBotChat(id: string) {
-  const { session, client, online, bots: known, updateBots } = useSession();
+  const { session, client, online, bots: known } = useSession();
   const history = useBotSnapshot(id);
   const { snapshot: conversation, stream } = history;
   const [details, setDetails] = useState(false);
   const following = useFollowingList<ChatRow>(true);
 
-  // Your other bots name the counterparts of bot ⇄ bot exchanges.
-  useEffect(() => {
-    if (!client) return;
-    let active = true;
-    client.api
-      .listBots({ includeArchived: true })
-      .then((result) => active && updateBots(result.bots))
-      .catch(() => undefined);
-
-    return () => {
-      active = false;
-    };
-  }, [client, updateBots]);
+  // Your other bots name the counterparts of bot ⇄ bot exchanges: the shared list keeps them current.
+  useBotList();
 
   return {
     session,

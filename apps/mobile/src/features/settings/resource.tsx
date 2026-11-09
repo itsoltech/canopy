@@ -10,7 +10,10 @@ import { SkeletonScope } from "../../ui/Skeleton";
 
 export type SettingsApi = Client<typeof ui.GatewayService>;
 
-/** Refetch after mutations, including rejected stale revisions. Never display raw transport diagnostics. */
+/**
+ * Refetch after mutations, including rejected stale revisions. Never display raw transport diagnostics.
+ * Projects, workers and threads follow the overview stream, so a mutation reads only this resource again.
+ */
 export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) => Promise<T>, linkedMethod = "") {
   const { client } = useSession();
   const overview = useOverview();
@@ -20,12 +23,9 @@ export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) =>
     fetchRef.current = fetch;
   }, [fetch]);
   const generation = useRef(0);
-  const running = useRef(false);
   const [result, setResult] = useState<{ key: string; data: T }>();
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
     if (!client) return;
@@ -61,6 +61,21 @@ export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) =>
     return invalidate;
   }, [load, invalidate, linkedRevision]);
 
+  const data = result?.key === key ? result.data : undefined;
+  const action = useSettingsAction({ reload, error });
+
+  return { ...action, data, loading, initialLoading: data === undefined && !error };
+}
+
+/** Runs settings mutations one at a time; afterwards only the resource behind them reads again. */
+export function useSettingsAction(resource: { reload: () => Promise<void>; error: string; loaded?: boolean }) {
+  const { client } = useSession();
+  const running = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const { reload } = resource;
+
   async function run<R>(action: (api: SettingsApi) => Promise<R>, success = "") {
     if (!client || running.current) return undefined;
     running.current = true;
@@ -70,12 +85,12 @@ export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) =>
 
     try {
       const result = await action(client.api);
-      await Promise.all([reload(), overview.reload().catch(() => undefined)]);
+      await reload().catch(() => undefined);
       setMessage(success);
 
       return result;
     } catch {
-      await reload();
+      await reload().catch(() => undefined);
       setError("Could not save this change. Settings were refreshed. Check the values and retry.");
 
       return undefined;
@@ -85,9 +100,14 @@ export function useSettingsResource<T>(key: string, fetch: (api: SettingsApi) =>
     }
   }
 
-  const data = result?.key === key ? result.data : undefined;
-
-  return { data, loading, initialLoading: data === undefined && !error, busy, error, message, reload, run };
+  return {
+    busy,
+    error: error || resource.error,
+    message,
+    initialLoading: resource.loaded === false && !resource.error,
+    reload,
+    run,
+  };
 }
 
 export function ResourceState({

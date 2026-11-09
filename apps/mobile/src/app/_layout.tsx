@@ -6,6 +6,8 @@ import { LayoutAnimationConfig } from "react-native-reanimated";
 import { SessionProvider, useSession } from "../state/session";
 import { AppearanceProvider } from "../state/appearance";
 import { OverviewProvider } from "../state/overview";
+import { OverviewBusProvider } from "../state/overview-bus";
+import { useBotListSync } from "../state/bot-list";
 import { LayoutProvider } from "../state/layout";
 import { PreferencesProvider } from "../state/preferences";
 import { useColors } from "../ui/theme";
@@ -71,21 +73,31 @@ function Navigation() {
   );
 }
 
+/** Keeps the pairing's shared bot list current for the sidebar, alerts and settings. */
+function BotListSync() {
+  useBotListSync();
+
+  return null;
+}
+
 function SessionUI() {
   const { session } = useSession();
 
   return (
-    <AppearanceProvider key={session?.deviceId ?? "unpaired"}>
-      <OverviewProvider>
-        <UpdatesProvider key={session?.deviceId ?? "unpaired"}>
-          <PhoneUpdatesProvider>
-            <LayoutProvider>
-              <Navigation />
-            </LayoutProvider>
-          </PhoneUpdatesProvider>
-        </UpdatesProvider>
-      </OverviewProvider>
-    </AppearanceProvider>
+    <OverviewBusProvider>
+      <AppearanceProvider key={session?.deviceId ?? "unpaired"}>
+        <OverviewProvider>
+          <UpdatesProvider key={session?.deviceId ?? "unpaired"}>
+            <PhoneUpdatesProvider>
+              <LayoutProvider>
+                <BotListSync />
+                <Navigation />
+              </LayoutProvider>
+            </PhoneUpdatesProvider>
+          </UpdatesProvider>
+        </OverviewProvider>
+      </AppearanceProvider>
+    </OverviewBusProvider>
   );
 }
 

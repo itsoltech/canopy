@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Image, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { useMotion } from "../../ui/motion";
@@ -11,6 +11,7 @@ import { bots as botContract } from "@canopy/contracts";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { compareConversations } from "@canopy/domain/bot-chat";
 import { useSession } from "../../state/session";
+import { useBotList } from "../../state/bot-list";
 import { useAppearance } from "../../state/appearance";
 import { useOverview } from "../../state/overview";
 import { Button, EmptyState, IconButton, Notice, Segmented } from "../../ui/components";
@@ -27,12 +28,10 @@ import { CreateBot } from "../bots/CreateBot";
 import { useDevicePreferences } from "../settings/device-preferences";
 
 function useSidebarState() {
-  const { session, client, ready, updateBots, bots } = useSession();
+  const { session, ready, bots } = useSession();
   const { projects, workers, loaded, stream } = useOverview();
   const [section, setSection] = useState<"threads" | "bots">("threads");
   const [queries, setQueries] = useState({ threads: "", bots: "" });
-  const [botError, setBotError] = useState("");
-  const [botsLoaded, setBotsLoaded] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const navigation = useSidebarThreads(queries.threads);
   const selectedProjectId = navigation.settings.projectIds[0];
@@ -42,32 +41,9 @@ function useSidebarState() {
 
   const { setProjectId } = navigation;
   // Bots load in both sections: the Bots tab shows their unread count while you read threads.
-  useEffect(() => {
-    if (!client) return;
-    let active = true;
-
-    const load = () =>
-      void client.api
-        .listBots({ includeArchived: true })
-        .then((r) => {
-          if (active) {
-            updateBots(r.bots);
-            setBotError("");
-            setBotsLoaded(true);
-          }
-        })
-        .catch(() => {
-          if (active) setBotError("Could not load bots.");
-        });
-
-    load();
-    const timer = setInterval(load, 10_000);
-
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, [client, updateBots]);
+  const botList = useBotList();
+  const botError = botList.error ? "Could not load bots." : "";
+  const botsLoaded = botList.loaded;
   const query = queries[section].trim().toLowerCase();
 
   return {

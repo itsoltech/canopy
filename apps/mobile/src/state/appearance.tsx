@@ -4,11 +4,16 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { accents } from "@canopy/ui";
 import { useSession } from "./session";
-import { useStream } from "./stream";
+import { useOverviewEvents } from "./overview-bus";
 import { useDevicePreferences } from "../features/settings/device-preferences";
 
+/** Settings versions only grow: an older read or event never replaces a newer value. */
+function newer(current: ui.UserSettings | undefined, next: ui.UserSettings | undefined) {
+  return current && next && next.version < current.version ? current : next;
+}
+
 function useAppearanceState() {
-  const { client, session } = useSession();
+  const { client } = useSession();
   const system = useColorScheme();
   const [user, setUser] = useState<ui.UserSettings>();
   const [projects, setProjects] = useState<ui.ProjectSettings[]>([]);
@@ -19,7 +24,7 @@ function useAppearanceState() {
 
   const loaded = useCallback((r: ui.GetSettingsResponse) => {
     requests.current++;
-    setUser(r.user);
+    setUser((current) => newer(current, r.user));
     setProjects(r.projects);
     setLimits(r.attachmentLimits);
     setError("");
@@ -57,23 +62,24 @@ function useAppearanceState() {
       active = false;
     };
   }, [client, loaded]);
-  useStream(
-    client ? (signal) => client.api.watchOverview({ includeSnapshot: true }, { signal }) : null,
-    (update: ui.OverviewUpdate) => {
-      const change = update.change;
+  useOverviewEvents((update: ui.OverviewUpdate) => {
+    const change = update.change;
 
-      if (change.case === "userSettings") {
-        requests.current++;
-        setUser(change.value);
-      }
+    if (change.case === "userSettings") {
+      requests.current++;
+      setUser((current) => newer(current, change.value));
+    }
 
-      if (change.case === "projectSettings")
-        setProjects((rows) => [...rows.filter((r) => r.projectId !== change.value.projectId), change.value]);
+    if (change.case === "projectSettings")
+      setProjects((rows) => [...rows.filter((r) => r.projectId !== change.value.projectId), change.value]);
 
-      if (update.change.case === "mobileSnapshot") void reload();
-    },
-    `appearance:${session?.deviceId}`,
-  );
+    if (change.case !== "mobileSnapshot") return;
+
+    // The snapshot carries settings read after the subscription began: nothing changed in between is missed.
+    // An older gateway sends none, so read them once after its snapshot.
+    if (change.value.settings) loaded(change.value.settings);
+    else void reload();
+  });
   const appearance = user?.appearance;
   const device = useDevicePreferences();
 

@@ -1,7 +1,8 @@
 import type { connectors } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
 import { SettingsGroup, SettingToggle } from "./SettingsGroup";
-import { ResourceState, useSettingsResource } from "./resource";
+import { ResourceState, useSettingsAction } from "./resource";
+import { useBotList } from "../../state/bot-list";
 
 export function ConnectorAccess({
   account,
@@ -10,7 +11,8 @@ export function ConnectorAccess({
   account: connectors.ConnectorAccount;
   onChanged: () => void;
 }) {
-  const resource = useSettingsResource(`connector-access:${account.id}`, (api) => api.listBots({}), "ListBots");
+  const list = useBotList();
+  const resource = useSettingsAction(list);
   const { workers } = useOverview();
 
   const change = (patch: { allWorkers?: boolean; workerIds?: string[]; allBots?: boolean; botIds?: string[] }) =>
@@ -60,17 +62,21 @@ export function ConnectorAccess({
           onChange={(allBots) => change({ allBots })}
         />
         {!account.allBots &&
-          resource.data?.bots.map((bot) => (
-            <SettingToggle
-              key={bot.id}
-              title={bot.configuration?.name || "Bot"}
-              value={account.botIds.includes(bot.id)}
-              disabled={resource.busy}
-              onChange={(enabled) =>
-                change({ botIds: enabled ? [...account.botIds, bot.id] : account.botIds.filter((id) => id !== bot.id) })
-              }
-            />
-          ))}
+          list.data?.bots
+            .filter((bot) => !bot.archived)
+            .map((bot) => (
+              <SettingToggle
+                key={bot.id}
+                title={bot.configuration?.name || "Bot"}
+                value={account.botIds.includes(bot.id)}
+                disabled={resource.busy}
+                onChange={(enabled) =>
+                  change({
+                    botIds: enabled ? [...account.botIds, bot.id] : account.botIds.filter((id) => id !== bot.id),
+                  })
+                }
+              />
+            ))}
       </SettingsGroup>
     </ResourceState>
   );
