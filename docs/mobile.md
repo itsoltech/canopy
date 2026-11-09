@@ -144,7 +144,7 @@ na ekran ponownego parowania. Nowe urządzenia mają `pairing_version=2`.
 `OverviewUpdate.mobile_routes` (764) ogłasza nowe adresy i nazwy hostów. Telefon zapisuje
 je wyłącznie przy zgodnym pinie. Nie ponawia RPC po wysłaniu, aby nie dublować komend.
 
-Wybór trasy (`src/api/routes.ts`, `route-race.ts`): handshake TLS bez HTTP sprawdza najpierw IP
+Wybór trasy (`src/api/routes.ts`, `route-selector.ts`, `route-race.ts`): handshake TLS bez HTTP sprawdza najpierw IP
 Tailscale, potem ostatni sukces i pozostałe adresy; trasy, które zawiodły w ostatnich 10 s, idą na koniec.
 MagicDNS nie jest potrzebny, gdy działa IP tailnetu. Kolejna próba startuje 250 ms po poprzedniej albo
 od razu po jej błędzie; wygrywa pierwsza ze zgodnym pinem. Szybka próba trwa maksymalnie 2 s,
@@ -152,9 +152,20 @@ a po timeoucie ta sama trasa dostaje jeszcze 8 s na obudzenie tunelu VPN lub rad
 odmowa połączenia i niezgodny pin nie są ponawiane w tym wyścigu. Obie próby obejmuje także
 termin po stronie JS, więc zawieszony DNS nie blokuje wyścigu bez końca.
 Wszystkie żądania czekające na trasę dzielą jeden wyścig; anulowane żądanie go nie przerywa.
-Trasa ze zgodnym pinem jest od razu współdzielona również podczas oczekiwania na nagłówki RPC;
-odpowiedź odnawia okno 30 s. Błąd żądania ją unieważnia; anulowanie przez wywołującego nie psuje
-trasy innym żądaniom. Reset anuluje stary wyścig, a spóźnione odpowiedzi nie przywracają starej trasy.
+Trasa ze zgodnym pinem jest od razu współdzielona również podczas oczekiwania na nagłówki RPC.
+Pozostaje wybrana bez limitu czasu: same upływ czasu i cisza w strumieniach nie uruchamiają probe.
+Nagłówki odpowiedzi oraz dane i heartbeat strumienia potwierdzają zdrowie bieżącego wyboru.
+Błąd transportu unieważnia trasę dla kolejnych żądań; anulowanie przez wywołującego nie psuje
+jej innym żądaniom. Nie ma okresowych wyścigów ani probe szukających lepszej trasy w tle.
+Nowy wyścig następuje po błędzie, zmianie sieci, powrocie z tła, „Reconnect now” lub usunięciu
+bieżącego adresu z ogłoszenia. Dodanie lub przestawienie pozostałych adresów zachowuje działającą
+trasę i strumienie. Reset anuluje stary wyścig; spóźnione odpowiedzi i błędy porzuconego wyboru
+nie zmieniają nowego, nawet jeżeli oba wybory używają tego samego adresu.
+Details zachowuje wyniki ostatniego wyścigu i trasę „In use” bez nowych sprawdzeń przy zwykłych żądaniach.
+Starsze zapisy parowania i ogłoszenia są filtrowane także w telefonie: prywatne IPv4 kończące się `.0`
+są pomijane jako prawdopodobne adresy sieci wirtualnych /24. Bez maski podsieci w kontrakcie to heurystyka:
+może pominąć poprawny prywatny adres `.0` w większej podsieci; publiczne i Tailscale `.0` zostają.
+Aktualne, przefiltrowane adresy gatewaya zastępują zapis telefonu przez `mobile_routes` i `UpdateNetworkAccess`.
 Przegrane i anulowane probe zamykają natywne sockety. Na Androidzie `probe` działa na własnych wątkach: Expo wykonuje
 `AsyncFunction` wszystkich modułów na jednym wątku, a blokujący connect wstrzymywał inne wywołania.
 
@@ -1319,9 +1330,14 @@ Network access: trzy źródła pytań, wybory i własny tekst, pominięcia, odrz
 izolacja właściciela/tokenów, pytanie subagenta oraz odpowiedzi po restarcie gatewaya
 z ponownym zgłoszeniem nadal działających tur workera.
 
+`mobile-route-policy.test.ts` sprawdza bez sieci brak wygaśnięcia trasy, przejście po błędzie,
+reset używany przez zmianę sieci/powrót z tła/reconnect, odporność na spóźnione odpowiedzi,
+zmiany ogłoszeń i filtrowanie starszych adresów `.0`.
 `mobile-routes.test.ts` sprawdza współdzielenie wyścigu i wybranej trasy przed nagłówkami RPC,
 preferencję IP tailnetu przy błędzie MagicDNS, odmowę i niezgodny pin, anulowanie/reset w trakcie
 probe, wspólne okno czarnych dziur oraz brak replay także po błędzie treści odpowiedzi.
+Żywy strumień przez przypięty TLS utrzymuje trasę po upływie dawnego okna 30 s, także gdy ogłoszenie
+dodaje nieosiągalny adres; kolejne RPC nie uruchamiają probe i nie resetują transportu.
 `mobile-route-recovery.test.ts` używa prawdziwego przypiętego TLS i proxy opóźniającego pierwszy
 pakiet odpowiedzi o 3,5 s na każdym połączeniu; równolegle jedna nazwa nie rozwiązuje się, a inna
 trasa nie odpowiada na TLS. `network-liveness.test.ts` sprawdza wolne pongi, usunięcie martwej

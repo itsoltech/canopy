@@ -98,10 +98,20 @@ to use port N. Choose a port above 1024.”.
 
 Gateway sam wykrywa adresy IPv4 interfejsów i odświeża je co 10 s (nowe Wi-Fi, włączony VPN).
 Rodzaje: `lan` (adresy prywatne), `tailscale` (100.64.0.0/10 na interfejsie Tailscale/utun),
-`vpn` (wg, tun, utun, zt…), `public`; pomijane są loopback, link-local oraz mosty kontenerów i maszyn
-wirtualnych (docker, br-, veth, virbr, vboxnet, vmnet…). Dodane nazwy (`hostname`) idą na końcu, na
+`vpn` (wg, tun, zt…), `public`; pomijane są loopback, link-local, multicast, adresy zarezerwowane oraz
+mosty kontenerów i maszyn wirtualnych (docker, br-, bridge/bridge100, veth, virbr, vboxnet, vmnet,
+OrbStack, vEthernet, opisowe nazwy adapterów VMware/VirtualBox/Hyper-V). `utun` zostaje tylko dla
+adresu Tailscale; pozostałe tunele `utun` i interfejsy pomocnicze macOS (awdl, llw, anpi) są pomijane.
+Adres sieci i broadcast są odrzucane według rzeczywistej maski, również poza /24. /31 (łącza punkt-punkt)
+i /32 (trasy hosta, m.in. Tailscale) zachowują oba końce. Filtrowanie jest czystą funkcją
+`advertisedAddresses`; API systemowe Node nie podaje typu adaptera, więc interfejsy wirtualne rozpoznaje
+po nazwie. Sama nazwa nie dowodzi osiągalności; klient nadal weryfikuje przypięty TLS.
+Bez Tailscale kolejność to LAN, pozostałe VPN, publiczne IPv4.
+Dodane nazwy i adresy publiczne (`hostname`) idą na końcu, na
 porcie listenera albo na własnym porcie (`canopy.example.com:8443`, gdy router przekierowuje inny port).
 Zmiana listy jest ogłaszana od razu partnerom (ramka `routes`, [etap 6](linked-computers.md#ogłaszanie-adresów-przez-łącze)).
+Nowe QR oraz odpowiedzi `UpdateNetworkAccess` i ogłoszenia `mobile_routes` korzystają z tej samej
+przefiltrowanej listy. Telefon zastępuje nią wcześniej zapisane adresy, bez ponownego parowania.
 
 Lista adresów **nie jest zaufaniem**: każde połączenie i tak sprawdza przypięty certyfikat.
 
@@ -191,3 +201,5 @@ o zmianie); API web; parowanie komputerów przez drugi adres z zaproszenia, ogł
 partnerowi jako trasy `announced`; klient TLS bez certyfikatu nie dociera do usługi łącza. Klasyfikacja
 adresów, podpowiedź macOS i parsowanie `CANOPY_NETWORK_PORT` mają szybkie testy bez Dockera. Pozostałe
 zestawy połączonych komputerów działają na tym samym listenerze (`tests/integration/support/computers.ts`).
+`tests/integration/network-addresses.test.ts` sprawdza czysty filtr na listach interfejsów macOS,
+Linux i Windows, deduplikację, kolejność oraz granice podsieci /23, /24, /25, /31 i /32.
