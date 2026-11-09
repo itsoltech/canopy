@@ -25,21 +25,24 @@ export function gatewayRuntime(env: Readonly<Record<string, string | undefined>>
   const database = PgClient.layer({ url: Redacted.make(url), applicationName: "canopy-gateway" });
   const secretsKey = loadSecretsKey(env);
 
-  return ManagedRuntime.make(
-    Layer.mergeAll(
-      GatewayStore.layer(secretsKey),
-      Ingest.layer,
-      AgentBusStore.layer,
-      SettingsStore.layer,
-      ModelStore.layer,
-      SteerStore.layer,
-      QueueStore.layer,
-      GoalStore.layer,
-      InstanceStore.layer(secretsKey),
-      AttachmentStore.layer,
-      BackgroundTaskStore.layer,
-      BotStore.layer(secretsKey),
-    ).pipe(Layer.provideMerge(database)),
+  return ManagedRuntime.make(gatewayServices(secretsKey).pipe(Layer.provideMerge(database)));
+}
+
+/** Shared service composition for the application and opt-in database benchmarks. */
+export function gatewayServices(secretsKey: Buffer) {
+  return Layer.mergeAll(
+    GatewayStore.layer(secretsKey),
+    Ingest.layer,
+    AgentBusStore.layer,
+    SettingsStore.layer,
+    ModelStore.layer,
+    SteerStore.layer,
+    QueueStore.layer,
+    GoalStore.layer,
+    InstanceStore.layer(secretsKey),
+    AttachmentStore.layer,
+    BackgroundTaskStore.layer,
+    BotStore.layer(secretsKey),
   );
 }
 
