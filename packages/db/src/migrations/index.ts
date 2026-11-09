@@ -104,6 +104,7 @@ import { splitStatements } from "./split.ts";
 import queueReadIndexes from "./0103_queue_read_indexes.sql" with { type: "text" };
 import databaseRetention from "./0104_database_retention.sql" with { type: "text" };
 import retentionIndexes from "./0105_retention_indexes.sql" with { type: "text" };
+import pollingIndexes from "./0106_polling_indexes.sql" with { type: "text" };
 import { indexTasks, runIndexTasks } from "./index-tasks.ts";
 
 /**
@@ -224,11 +225,12 @@ export const migrations = Migrator.fromRecord({
   "0103_queue_read_indexes": Effect.void,
   "0104_database_retention": sqlFile(databaseRetention),
   "0105_retention_indexes": Effect.void,
+  "0106_polling_indexes": Effect.void,
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */
 const migrateSchema = Migrator.make({})({ loader: migrations, table: "schema_migrations" });
-const deferredIndexes = indexTasks(queueReadIndexes + "\n" + retentionIndexes);
+const deferredIndexes = indexTasks(queueReadIndexes + "\n" + retentionIndexes + "\n" + pollingIndexes);
 
 const migrateWithIndexes = (concurrent: boolean) =>
   Effect.gen(function* () {

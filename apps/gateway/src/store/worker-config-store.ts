@@ -63,9 +63,11 @@ export function workerConfigStore(sql: SqlClient.SqlClient, secretsKey: Buffer):
                   ON CONFLICT (worker_id) DO UPDATE SET version = EXCLUDED.version, config = EXCLUDED.config, updated_by = EXCLUDED.updated_by, updated_at = now()`;
           yield* sql`DELETE FROM worker_config_secrets WHERE worker_id = ${workerId}::uuid`;
 
-          for (const secretId of Object.values(secretRefs)) {
-            yield* sql`INSERT INTO worker_config_secrets (worker_id, secret_id) VALUES (${workerId}::uuid, ${secretId}::uuid) ON CONFLICT DO NOTHING`;
-          }
+          const refs = [...new Set(Object.values(secretRefs))];
+
+          if (refs.length)
+            yield* sql`INSERT INTO worker_config_secrets(worker_id,secret_id)
+            SELECT ${workerId}::uuid,id FROM unnest(${refs}::uuid[]) id ON CONFLICT DO NOTHING`;
 
           return version;
         }),
@@ -99,18 +101,36 @@ export function workerConfigStore(sql: SqlClient.SqlClient, secretsKey: Buffer):
         if (!config) return undefined;
 
         // Resolve {"secretRef": id} placeholders right before sending; plaintext never touches the table.
-        const resolve = (value: Schema.Json) =>
-          Effect.gen(function* () {
-            const ref = Predicate.hasProperty(value, "secretRef") ? value.secretRef : undefined;
+        const reference = (value: Schema.Json) =>
+          Predicate.hasProperty(value, "secretRef") && Predicate.isString(value.secretRef)
+            ? value.secretRef
+            : undefined;
 
-            if (!ref) return value;
+        const refs = [
+          ...new Set(
+            (config.profiles ?? [])
+              .flatMap((profile) => [profile.apiKey, ...(profile.env ?? []).map((v) => v.value)])
+              .flatMap((value) => (value === undefined ? [] : (reference(value) ?? []))),
+          ),
+        ];
 
-            const secret = yield* sql<{
+        const secrets = refs.length
+          ? yield* sql<{
+              id: string;
               ciphertext: Uint8Array;
-            }>`SELECT ciphertext FROM secrets WHERE id = ${ref}::uuid`;
+            }>`SELECT id,ciphertext FROM secrets WHERE id=ANY(${refs}::uuid[])`
+          : [];
 
-            return secret[0] ? decryptSecret(secretsKey, secret[0].ciphertext) : "";
-          });
+        const byId = new Map(secrets.map((row) => [row.id, row.ciphertext]));
+
+        const resolve = (value: Schema.Json) => {
+          const ref = reference(value);
+
+          if (!ref) return value;
+          const ciphertext = byId.get(ref);
+
+          return ciphertext ? decryptSecret(secretsKey, ciphertext) : "";
+        };
 
         const profiles: StoredProfile[] = [];
 
@@ -119,16 +139,14 @@ export function workerConfigStore(sql: SqlClient.SqlClient, secretsKey: Buffer):
 
           for (const variable of profile.env ?? [])
             env.push(
-              variable.value === undefined
-                ? variable
-                : Object.assign({}, variable, { value: yield* resolve(variable.value) }),
+              variable.value === undefined ? variable : Object.assign({}, variable, { value: resolve(variable.value) }),
             );
 
           profiles.push(
             Object.assign(
               {},
               profile,
-              profile.apiKey ? { apiKey: yield* resolve(profile.apiKey) } : {},
+              profile.apiKey ? { apiKey: resolve(profile.apiKey) } : {},
               profile.env ? { env } : {},
             ),
           );

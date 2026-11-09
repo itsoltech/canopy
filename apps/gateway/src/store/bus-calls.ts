@@ -13,7 +13,16 @@ import type { AgentBusArgs } from "@canopy/domain";
 import { recordBusCall } from "./bus-call-record.ts";
 
 import { type BusCallRow, type CallSource, type Fx } from "./agent-bus-types.ts";
-import { callerMode, consumeNotifications, isUuid, node, thread, turnRef } from "./agent-bus-queries.ts";
+import {
+  callerMode,
+  consumeNotifications,
+  isUuid,
+  node,
+  nodeColumns,
+  type ThreadNodeRow,
+  thread,
+  turnRef,
+} from "./agent-bus-queries.ts";
 
 export interface BusCallStore {
   /** Serialize the returned snapshot and its durable observation with input delivery. */
@@ -81,11 +90,21 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
         const hopsRows = yield* sql<{ hops: number }>`SELECT hops FROM turns WHERE id = ${turnRef(sql, source)}`;
         const targets = new Map<string, ThreadNode>();
 
-        for (const id of new Set(targetIds)) {
-          if (!isUuid(id)) continue;
-          const rows = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${id}::uuid AND deleted_at IS NULL`;
+        const ids = [...new Set(targetIds)].filter(isUuid);
 
-          if (rows[0]) targets.set(id, node(rows[0]));
+        const addressed = ids.length
+          ? yield* sql.unsafe<ThreadNodeRow>(
+              `SELECT ${nodeColumns} FROM threads WHERE id=ANY($1::uuid[]) AND deleted_at IS NULL`,
+              [ids],
+            )
+          : [];
+
+        const byId = new Map(addressed.map((row) => [row.id, node(row)]));
+
+        for (const id of ids) {
+          const target = byId.get(id.toLowerCase());
+
+          if (target) targets.set(id, target);
         }
 
         const counts = yield* sql<{ children: number; active: number }>`
@@ -116,7 +135,10 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
               routedTo: row.routed_to,
               status: row.status,
             };
-            const owner = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${row.thread_id}::uuid`;
+
+            const owner = yield* sql.unsafe<ThreadNodeRow>(`SELECT ${nodeColumns} FROM threads WHERE id=$1::uuid`, [
+              row.thread_id,
+            ]);
 
             if (owner[0]) targets.set(row.thread_id, node(owner[0]));
           }
@@ -130,7 +152,10 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
 
           if (rows[0]) {
             schedule = { id: rows[0].id, threadId: rows[0].thread_id };
-            const owner = yield* sql<ThreadRow>`SELECT * FROM threads WHERE id = ${rows[0].thread_id}::uuid`;
+
+            const owner = yield* sql.unsafe<ThreadNodeRow>(`SELECT ${nodeColumns} FROM threads WHERE id=$1::uuid`, [
+              rows[0].thread_id,
+            ]);
 
             if (owner[0]) targets.set(owner[0].id, node(owner[0]));
           }

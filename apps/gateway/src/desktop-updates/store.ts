@@ -3,6 +3,7 @@ import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
+import { isUuid } from "../store/agent-bus-queries.ts";
 
 type Row = { worker_id: string; device_id: string; state: JsonValue; command: JsonValue };
 
@@ -36,6 +37,7 @@ export class DesktopUpdateStore {
   }
 
   async bind(workerId: string, deviceId: string) {
+    if (!isUuid(workerId) || !isUuid(deviceId)) return false;
     const owner = this.owner;
 
     return this.runtime.runPromise(
@@ -44,7 +46,7 @@ export class DesktopUpdateStore {
 
         const rows = yield* sql`INSERT INTO desktop_updates (worker_id, device_id, owner_user_id)
         SELECT w.id, d.id, ${owner}::uuid FROM workers w, mobile_devices d
-        WHERE w.id::text = ${workerId} AND d.id::text = ${deviceId}
+        WHERE w.id = ${workerId}::uuid AND d.id = ${deviceId}::uuid
         AND w.owner_user_id = ${owner}::uuid AND d.owner_user_id = ${owner}::uuid
         AND w.revoked_at IS NULL AND w.archived_at IS NULL AND d.revoked_at IS NULL
         AND d.client_kind = 'desktop' AND w.capabilities->'update'->>'installKind' = 'desktop'
@@ -67,6 +69,7 @@ export class DesktopUpdateStore {
     command?: ui.DesktopUpdateCommand,
     action?: string,
   ) {
+    if (!isUuid(workerId) || !isUuid(deviceId)) return false;
     const owner = this.owner;
 
     return this.runtime.runPromise(
@@ -78,7 +81,7 @@ export class DesktopUpdateStore {
             const rows =
               yield* sql`UPDATE desktop_updates SET state = ${JSON.stringify(toJson(ui.DesktopUpdateStateSchema, state))}::jsonb,
           command = CASE WHEN ${!!command} THEN ${JSON.stringify(toJson(ui.DesktopUpdateCommandSchema, command ?? create(ui.DesktopUpdateCommandSchema)))}::jsonb ELSE command END,
-          updated_at = now() WHERE worker_id::text = ${workerId} AND device_id::text = ${deviceId}
+          updated_at = now() WHERE worker_id = ${workerId}::uuid AND device_id = ${deviceId}::uuid
           AND owner_user_id = ${owner}::uuid
           AND EXISTS (SELECT 1 FROM workers w, mobile_devices d WHERE w.id = desktop_updates.worker_id
             AND d.id = desktop_updates.device_id AND w.owner_user_id = ${owner}::uuid AND d.owner_user_id = ${owner}::uuid

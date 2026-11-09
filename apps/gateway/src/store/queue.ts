@@ -43,7 +43,13 @@ const read = (sql: SqlClient.SqlClient, ids: readonly string[]) =>
       FROM turns u LEFT JOIN turn_sources s ON s.turn_id = u.id WHERE u.id = ANY($1::uuid[])`,
       [ids],
     )
-    .pipe(Effect.map((rows) => ids.flatMap((id) => rows.filter((r) => r.id === id))));
+    .pipe(
+      Effect.map((rows) => {
+        const byId = new Map(rows.map((row) => [row.id, row]));
+
+        return ids.flatMap((id) => byId.get(id) ?? []);
+      }),
+    );
 
 const readOne = (sql: SqlClient.SqlClient, id: string) => read(sql, [id]).pipe(Effect.map((rows) => rows[0]!));
 

@@ -223,10 +223,15 @@ function branchStore(
     branchContext: (threadId) =>
       Effect.gen(function* () {
         const requests = yield* sql<{ text: string }>`
-              SELECT left(COALESCE(u.input->>'message', u.input->>'text', ''), 600) AS text FROM turns u
-               WHERE u.thread_id = ${threadId}::uuid AND u.trigger IN ('user', 'goal', 'agent_bus')
-                 AND COALESCE(u.input->>'message', u.input->>'text', '') <> ''
-               ORDER BY u.ordinal`;
+              WITH first AS (
+                SELECT ordinal,left(COALESCE(input->>'message',input->>'text',''),600) AS text FROM turns
+                WHERE thread_id=${threadId}::uuid AND trigger IN ('user','goal','agent_bus')
+                  AND COALESCE(input->>'message',input->>'text','')<>'' ORDER BY ordinal LIMIT 1
+              ), latest AS (
+                SELECT ordinal,left(COALESCE(input->>'message',input->>'text',''),600) AS text FROM turns
+                WHERE thread_id=${threadId}::uuid AND trigger IN ('user','goal','agent_bus')
+                  AND COALESCE(input->>'message',input->>'text','')<>'' ORDER BY ordinal DESC LIMIT 3
+              ) SELECT text FROM (SELECT * FROM first UNION SELECT * FROM latest) chosen ORDER BY ordinal`;
 
         const answer = yield* sql<{ text: string | null }>`
               SELECT left(m.content->'agentMessage'->>'text', 800) AS text FROM thread_items m
@@ -234,7 +239,7 @@ function branchStore(
 
         const texts = requests.map((r) => r.text);
 
-        return { requests: [...texts.slice(0, 1), ...texts.slice(1).slice(-3)], answer: answer[0]?.text ?? "" };
+        return { requests: texts, answer: answer[0]?.text ?? "" };
       }),
 
     saveGitHead: (workerId, threadIds, { branch, detachedCommit }) =>

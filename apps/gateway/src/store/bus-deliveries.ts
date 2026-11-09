@@ -27,9 +27,9 @@ export interface BusDeliveryStore {
    */
   deliveries(by: { sourceThreadId: string } | { turnId: string } | { steerId: string }): Fx<ReadonlyArray<DeliveryRow>>;
   /** Notifications due because `turnId` finished. */
-  dueNotifications(turnId?: string): Fx<Notification[]>;
+  dueNotifications(turnId?: string, afterId?: string): Fx<Notification[]>;
   /** A report whose steer failed or whose receiving turn ended without it. Restart reconciliation. */
-  notificationFallbacks(): Fx<string[]>;
+  notificationFallbacks(afterId?: string): Fx<string[]>;
   /** Steers into the caller's running turn, otherwise queues an agent_bus turn. */
   deliverNotification(callId: string, input: TurnInput): Fx<{ turn?: TurnRow; steerId?: string } | undefined>;
   /**
@@ -175,37 +175,56 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
           : sql.unsafe<DeliveryRow>(`${select} AND st.id = $1::uuid`, [by.steerId]);
     },
 
-    dueNotifications: (turnId) =>
-      Effect.gen(function* () {
-        const calls = yield* sql<BusCallRow & { turn_status: string }>`
-              SELECT c.*, u.status AS turn_status FROM agent_bus_calls c JOIN turns u ON u.id = c.target_turn_id
+    dueNotifications: (turnId, afterId) =>
+      sql<{
+        id: string;
+        source_thread_id: string;
+        target_id: string;
+        target_title: string;
+        target_kind: ThreadRow["kind"];
+        turn_status: string;
+        last_message: string;
+        last_message_length: number;
+      }>`
+              WITH due AS MATERIALIZED (
+              SELECT c.id,c.source_thread_id,c.target_turn_id,c.created_at,
+                t.id AS target_id,t.title AS target_title,t.kind AS target_kind,u.status AS turn_status
+              FROM agent_bus_calls c JOIN turns u ON u.id = c.target_turn_id JOIN threads t ON t.id=c.target_thread_id
                WHERE (${turnId ?? null}::uuid IS NULL OR c.target_turn_id = ${turnId ?? null}::uuid) AND c.notify_status = 'pending'
+                 AND t.deleted_at IS NULL
+                 ${afterId ? sql`AND (c.created_at,c.id)>(SELECT created_at,id FROM agent_bus_calls WHERE id=${afterId}::uuid)` : sql``}
                  AND u.status IN ('completed', 'interrupted', 'failed', 'cancelled')
-               ORDER BY c.created_at, c.id`;
+               ORDER BY c.created_at, c.id LIMIT 50
+              ), answers AS MATERIALIZED (
+                SELECT d.target_turn_id,coalesce(left(a.text,20001),'') AS last_message,
+                  coalesce(length(a.text)+regexp_count(a.text,U&'[\\+010000-\\+10FFFF]'),0) AS last_message_length
+                FROM (SELECT DISTINCT target_id,target_turn_id FROM due) d
+                LEFT JOIN LATERAL (SELECT i.content->'agentMessage'->>'text' AS text FROM thread_items i
+                  WHERE i.thread_id=d.target_id AND i.turn_id=d.target_turn_id AND i.type='agent_message'
+                  ORDER BY i.first_seq DESC LIMIT 1) a ON true
+              ) SELECT d.id,d.source_thread_id,d.target_id,d.target_title,d.target_kind,d.turn_status,
+                a.last_message,a.last_message_length FROM due d JOIN answers a USING(target_turn_id)
+              ORDER BY d.created_at,d.id`.pipe(
+        Effect.map((rows) =>
+          rows.map((row) => ({
+            call: { id: row.id, source_thread_id: row.source_thread_id },
+            target: { id: row.target_id, title: row.target_title, kind: row.target_kind },
+            turnStatus: row.turn_status,
+            lastMessage: row.last_message,
+            lastMessageLength: row.last_message_length,
+          })),
+        ),
+      ),
 
-        return yield* Effect.forEach(calls, (call) =>
-          Effect.gen(function* () {
-            const target = yield* thread(sql, call.target_thread_id ?? "");
-
-            return {
-              call,
-              target,
-              turnStatus: call.turn_status,
-              lastMessage: yield* lastMessage(sql, target.id, call.target_turn_id!),
-            };
-          }),
-        );
-      }),
-
-    notificationFallbacks: () =>
+    notificationFallbacks: (afterId) =>
       sql<{ id: string }>`
           SELECT s.id FROM turn_steers s JOIN agent_bus_calls c ON c.id = s.notification_call_id
             JOIN turns u ON u.id = s.turn_id LEFT JOIN worker_commands w ON w.id = s.id
            WHERE c.notify_status = 'steering' AND s.status IN ('pending', 'accepted', 'dropped')
+             AND (${afterId ?? null}::uuid IS NULL OR s.id>${afterId ?? null}::uuid)
              AND (s.status = 'dropped' OR u.status IN ('completed', 'interrupted', 'failed', 'cancelled')
-                  OR w.status = 'failed' OR (w.status IN ('pending', 'delivered') AND w.expires_at <= now()))`.pipe(
-        Effect.map((rows) => rows.map((r) => r.id)),
-      ),
+                  OR w.status = 'failed' OR (w.status IN ('pending', 'delivered') AND w.expires_at <= now()))
+           ORDER BY s.id LIMIT 64`.pipe(Effect.map((rows) => rows.map((r) => r.id))),
 
     deliverNotification: (callId, input) => deliverNotification(sql, callId, input),
 
