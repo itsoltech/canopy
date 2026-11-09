@@ -4,7 +4,7 @@ import type { JsonValue } from "@canopy/domain";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { importTransaction } from "./locks.ts";
-import { jsonBatches } from "./json-batches.ts";
+import { jsonBatches } from "../json-batches.ts";
 
 /** Settings and library items of import runs (docs/import.md, "Ustawienia i biblioteka"); all owner-scoped. */
 

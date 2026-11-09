@@ -2,7 +2,8 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { compareClock, nextClock } from "./clock.ts";
 import { compactTombstone } from "./merge.ts";
-import { emptyRecord, equalValue, saveRecord, type ConfigRow } from "./persistence.ts";
+import { emptyRecord, equalValue, type ConfigRow } from "./persistence.ts";
+import { saveRecords } from "./record-batches.ts";
 import { DEFAULT_FIELDS, POLICY_FIELDS } from "./project-values.ts";
 import { alive } from "./provider-records.ts";
 import type { SettingsJson } from "./settings.ts";
@@ -28,20 +29,23 @@ export function projectWriter(
 ) {
   const state = { last };
   const seen = new Set<ConfigRow>();
+  const pending = new Set<ConfigRow>();
+  const localRows = new Map(records.map((row) => [`${row.kind}:${row.local_id}`, row]));
 
   const recordFor = (kind: string, local: string, global: string) => {
-    const existing = records.find((r) => r.kind === kind && r.local_id === local);
+    const existing = localRows.get(`${kind}:${local}`);
 
     if (existing) return existing;
     const row = emptyRecord(kind, global);
     row.local_id = local;
     records.push(row);
+    localRows.set(`${kind}:${local}`, row);
 
     return row;
   };
 
   const update = (row: ConfigRow, values: SettingsJson, updated: Date) =>
-    Effect.gen(function* () {
+    Effect.sync(() => {
       seen.add(row);
 
       if (row.unsupported) return;
@@ -65,7 +69,7 @@ export function projectWriter(
         changed = true;
       }
 
-      if (changed) yield* saveRecord(sql, owner, row, state.last);
+      if (changed) pending.add(row);
     });
 
   const finish = () =>
@@ -77,8 +81,10 @@ export function projectWriter(
         yield* compactTombstone(sql, owner, row, node);
         yield* sql`UPDATE config_history SET state='dismissed' WHERE owner_user_id=${owner}::uuid AND kind=${row.kind}
         AND global_id=${row.global_id} AND reason='deleted' AND notice_node_id=${node} AND state='open'`;
-        yield* saveRecord(sql, owner, row, state.last);
+        pending.add(row);
       }
+
+      yield* saveRecords(sql, owner, pending, state.last);
     });
 
   return { recordFor, update, finish };

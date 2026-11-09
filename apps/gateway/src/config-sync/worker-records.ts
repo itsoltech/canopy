@@ -3,7 +3,8 @@ import { Effect, Option, Schema } from "effect";
 import type { SqlClient, SqlError } from "effect/sql";
 import { nextClock } from "./clock.ts";
 import { instanceIds } from "./aliases.ts";
-import { configLock, emptyRecord, equalValue, saveRecord, type ConfigRow } from "./persistence.ts";
+import { configLock, emptyRecord, equalValue, type ConfigRow } from "./persistence.ts";
+import { saveRecords } from "./record-batches.ts";
 import { projectIds } from "./project-aliases.ts";
 
 /**
@@ -166,11 +167,13 @@ export function recordWorkers(sql: SqlClient.SqlClient, owner: string, node: str
       AND kind=${WORKER_KIND} AND home_node_id=${node}`;
 
     const values = yield* homeValues(sql, owner);
+    const pending: ConfigRow[] = [];
+    const byId = new Map(records.map((row) => [row.global_id, row]));
     let last = clock.hlc;
     let changed = false;
 
     for (const [id, own] of values) {
-      const row = records.find((r) => r.global_id === id) ?? emptyRecord(WORKER_KIND, id, node);
+      const row = byId.get(id) ?? emptyRecord(WORKER_KIND, id, node);
       let dirty = false;
 
       if (row.deleted.value === true) {
@@ -190,7 +193,7 @@ export function recordWorkers(sql: SqlClient.SqlClient, owner: string, node: str
         dirty = true;
       }
 
-      if (dirty) yield* saveRecord(sql, owner, row, last);
+      if (dirty) pending.push(row);
       changed ||= dirty;
     }
 
@@ -199,9 +202,11 @@ export function recordWorkers(sql: SqlClient.SqlClient, owner: string, node: str
       last = nextClock(last, node);
       row.deleted = { value: true, hlc: last, prev: row.deleted.hlc };
       row.fields = {};
-      yield* saveRecord(sql, owner, row, last);
+      pending.push(row);
       changed = true;
     }
+
+    yield* saveRecords(sql, owner, pending, last);
 
     return changed;
   });

@@ -9,7 +9,8 @@ import { decryptSecret, encryptSecret } from "../store/secrets.ts";
 import { compareClock, nextClock } from "./clock.ts";
 import { accountIdentity, CONNECTOR_FIELDS, connectorIdentity } from "./connector-values.ts";
 import { compactTombstone } from "./merge.ts";
-import { configLock, emptyRecord, equalValue, saveRecord, type ConfigRow } from "./persistence.ts";
+import { configLock, emptyRecord, equalValue, type ConfigRow } from "./persistence.ts";
+import { saveRecords } from "./record-batches.ts";
 import { alive } from "./provider-records.ts";
 import type { Values } from "./provider-values.ts";
 import { cipherOf, currentSecret, pruneSecrets, recordCiphers, storeSecret } from "./secrets.ts";
@@ -40,6 +41,7 @@ function recordOwner(sql: SqlClient.SqlClient, key: Buffer, owner: string, node:
   return Effect.gen(function* () {
     const clock = yield* configLock(sql, owner);
     const state = { last: clock.hlc };
+    const pending = new Set<ConfigRow>();
 
     const records = [
       ...(yield* sql<ConfigRow>`SELECT * FROM config_items WHERE owner_user_id=${owner}::uuid
@@ -98,7 +100,7 @@ function recordOwner(sql: SqlClient.SqlClient, key: Buffer, owner: string, node:
 
         if (changed) {
           yield* pruneSecrets(sql, owner, row);
-          yield* saveRecord(sql, owner, row, state.last);
+          pending.add(row);
         }
       });
 
@@ -158,9 +160,10 @@ function recordOwner(sql: SqlClient.SqlClient, key: Buffer, owner: string, node:
       yield* sql`UPDATE config_history SET state='dismissed' WHERE owner_user_id=${owner}::uuid AND kind=${row.kind}
         AND global_id=${row.global_id} AND reason='deleted' AND notice_node_id=${node} AND state='open'`;
       yield* pruneSecrets(sql, owner, row);
-      yield* saveRecord(sql, owner, row, state.last);
+      pending.add(row);
     }
 
+    yield* saveRecords(sql, owner, pending, state.last);
     yield* sql`UPDATE config_clock SET hlc=${state.last} WHERE owner_user_id=${owner}::uuid`;
   });
 }

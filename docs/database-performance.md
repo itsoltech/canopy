@@ -238,6 +238,17 @@ właściciela i rosnący zapis checkpointu w jednym zapytaniu, także dla powtó
 
 ## Zapisy grupowe
 
+`bun scripts/bench/config-records.ts --run` mierzy bootstrap i ponowny start
+ConfigSync ze 128 dokumentami instrukcji po 4 KiB, 24 projektami i 13 workerami.
+Bootstrap usuwa stan synchronizacji właściciela poza pomiarem; restart zachowuje
+stan. Trzy serie mają po dwa rozgrzania i 20 próbek, a osobny przebieg zbiera
+plany z rollbackiem. Zapisy rekordów używają wspólnego limitu 128 rekordów lub
+512 KiB i działają w dotychczasowej transakcji pod blokadą zegara właściciela.
+SQL przydziela kolejne dokładne rewizje bigint, bez konwersji przez JS number;
+błąd późnej partii cofa także wcześniej przydzielone rewizje. Tombstone, sekrety
+i aktualizacje domeny nadal zatwierdzają się razem. Wyszukiwanie lokalnych
+rekordów projektów i workerów korzysta z map zamiast powtarzanych skanów tablic.
+
 `bun scripts/bench/move-previews.ts --run` mierzy podgląd bota z ponad 2000
 wiadomościami po 4 KiB oraz sprawdzenie zależności 16 botów i ośmiu wątków.
 Podgląd pobiera tylko nazwy połączeń potrzebne w liście czynności po przeniesieniu.
