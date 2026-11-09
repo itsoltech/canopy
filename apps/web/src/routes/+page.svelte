@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { enhance } from "$app/forms";
   import { page } from "$app/state";
   import { Provider, type ui } from "@canopy/contracts";
@@ -202,7 +203,7 @@
   const blockedReason = $derived(workerNote ?? (place.loading ? workspaceNote : undefined) ?? draft.blocker);
 </script>
 
-<svelte:head><title>New thread · Canopy</title></svelte:head>
+<svelte:head><title>New thread · {applicationName}</title></svelte:head>
 
 <div class="relative flex h-full flex-col" {@attach intake.zone}>
   <TopBar>

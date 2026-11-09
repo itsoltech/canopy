@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { onMount } from "svelte";
   import { create } from "@bufbuild/protobuf";
   import { ui } from "@canopy/contracts";
@@ -160,7 +161,7 @@
   });
 </script>
 
-<svelte:head><title>Linked computers · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Linked computers · Settings · {applicationName}</title></svelte:head>
 <div class="flex flex-col items-start justify-between gap-4 px-1 sm:flex-row">
   <div class="min-w-0 flex-1">
     <h1 class="text-base font-semibold text-balance text-zinc-950 dark:text-white">Linked computers</h1>

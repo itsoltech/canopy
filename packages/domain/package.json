@@ -45,6 +45,7 @@
     "./release/protocol": "./src/release/protocol.ts",
     "./release/update-actions": "./src/release/update-actions.ts",
     "./release/version": "./src/release/version.ts",
+    "./release/identity": "./src/release/identity.ts",
     "./humanize": "./src/humanize.ts",
     "./tools": "./src/tools/index.ts",
     "./turn-origin": "./src/turn-origin.ts",

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { untrack } from "svelte";
   import { ui } from "@canopy/contracts";
   import ProxyDialog from "#lib/features/proxies/ProxyDialog.svelte";
@@ -26,7 +27,7 @@
   }
 </script>
 
-<svelte:head><title>Proxies · Canopy</title></svelte:head>
+<svelte:head><title>Proxies · {applicationName}</title></svelte:head>
 <div class="settings-stack">
   <SettingsHeading
     title="Proxies"

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { devicePreferences as device, diffDeviceKeys } from "#lib/features/settings/device-preferences.svelte.ts";
   import DeviceChoiceRow from "#lib/features/settings/DeviceChoiceRow.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
@@ -9,7 +10,7 @@
     "--- a/example.ts\n+++ b/example.ts\n@@ -1,2 +1,2 @@\n-const count = 1;\n+const count = 2;\n console.log(count);\n@@ -5 +5 @@\n-  render();\n+    render();";
 </script>
 
-<svelte:head><title>Diffs · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Diffs · Settings · {applicationName}</title></svelte:head>
 <div class="settings-stack">
   <div class="flex justify-end">
     <Button size="sm" icon="arrow-path" onclick={() => device.reset(diffDeviceKeys)}>Restore device defaults</Button>

@@ -1,5 +1,14 @@
 # Aktualizacje Canopy
 
+Nazwa widoczna i ikona desktopu oznaczają kanał **zainstalowanego buildu**:
+`Canopy (Nightly)`, `Canopy (Beta)` albo `Canopy`. Wybór kanału aktualizacji sam
+ich nie zmienia; nowa tożsamość pojawia się po instalacji i restarcie. Wszystkie
+kanały zachowują tę samą instalację, `app.canopy.desktop`, `canopy://`, userData,
+wewnętrzną nazwę magazynu kluczy i cache updatera. Szczegóły pól OS:
+[desktop.md](desktop.md#jedna-instalacja-i-kanały). Web oznacza wersję aktualnie
+podłączonego gatewaya. Na telefonie nazwa i ikona wymagają nowego IPA/APK;
+aktualizacja OTA ich nie zastępuje ([mobile.md](mobile.md)).
+
 ## Zapowiedziana przerwa gatewaya
 
 `WatchOverview` wysyła `gateway_departure` przed aktualizacją i restartem, także

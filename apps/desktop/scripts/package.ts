@@ -1,17 +1,21 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { desktopIdentity } from "../src/identity.ts";
+import { channelConfiguration } from "./channel-configuration.ts";
 
 const desktop = resolve(import.meta.dir, "..");
 const identity = desktopIdentity();
+const channel = channelConfiguration(identity);
 const stamp = resolve(desktop, "dist/identity.json");
+
+// Artwork can change without a channel change or a shell rebuild.
+await import("./prepare-identity.ts");
 
 if (
   !existsSync(stamp) ||
   JSON.parse(readFileSync(stamp, "utf8")).channel !== identity.channel ||
   !existsSync(resolve(desktop, `build/${identity.channel}/icon.png`))
 ) {
-  await import("./prepare-identity.ts");
   await import("./build-shell.ts");
 }
 
@@ -64,10 +68,17 @@ const configuration = {
     { from: icon, to: "icon.png" },
   ],
   protocols: [{ name: `${identity.productName} enrollment`, schemes: [identity.scheme] }],
-  linux: { ...base.linux, icon, desktop: { entry: { StartupWMClass: identity.productName } } },
-  mac: { ...base.mac, icon, ...(!signed && { identity: "-" }), notarize },
+  linux: { ...base.linux, ...channel.linux },
+  mac: {
+    ...base.mac,
+    ...channel.mac,
+    extendInfo: { ...base.mac.extendInfo, ...channel.mac.extendInfo },
+    ...(!signed && { identity: "-" }),
+    notarize,
+  },
   // Omit Azure configuration completely for unsigned builds; its presence selects the signing provider.
-  win: { ...windows, icon, signExecutable: windowsSigned, ...(windowsSigned && { azureSignOptions }) },
+  win: { ...windows, ...channel.win, signExecutable: windowsSigned, ...(windowsSigned && { azureSignOptions }) },
+  nsis: { ...base.nsis, ...channel.nsis },
   // Never advertise an ad-hoc macOS build to already signed clients.
   publish:
     process.platform === "darwin" && !signed

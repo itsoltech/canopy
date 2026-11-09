@@ -8,6 +8,13 @@ przy zgodnym protokole nie jest błędem. [Projekt i migracja](desktop-remote-fr
 
 ## Ikony
 
+Favicon, apple-touch-icon, nazwa manifestu i sufiks tytułów stron odzwierciedlają
+kanał wersji działającego gatewaya (`Canopy`, `Canopy (Beta)`, `Canopy (Nightly)`),
+nie preferencję aktualizacji. BFF rozpoznaje go przez `GetClientCapabilities`
+i podaje w HTML przed startem SPA. Manifest jest dynamiczny, z `no-store`;
+grafiki kanałów mają osobne URL. Rezerwy przy niedostępności gatewaya i generator
+zasobów: [release.md](release.md#ikony-kanałów).
+
 `@canopy/ui/icons` eksportuje mapę `icons`: stabilna nazwa semantyczna → tablica ścieżek `d`.
 Wszystkie 87 nazw `IconName` używa Tabler outline (MIT), z `@iconify-json/tabler` 1.2.43.
 Wspólny `iconStyle` definiuje viewBox 24×24 i stroke 2.25 (1.5 px przy rozmiarze 16 px).

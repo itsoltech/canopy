@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
@@ -41,7 +42,7 @@
   const setHostnames = (hostnames: string[]) => change("set_hostnames", { hostnames });
 </script>
 
-<svelte:head><title>Network access · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Network access · Settings · {applicationName}</title></svelte:head>
 <div class="min-w-0 px-1">
   <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Network access</h1>
   <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">

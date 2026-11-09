@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { ui } from "@canopy/contracts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { devicePreferences as device, generalDeviceKeys } from "#lib/features/settings/device-preferences.svelte.ts";
@@ -44,7 +45,7 @@
   ] as const;
 </script>
 
-<svelte:head><title>General · Settings · Canopy</title></svelte:head>
+<svelte:head><title>General · Settings · {applicationName}</title></svelte:head>
 <div class="settings-stack">
   <div class="flex flex-wrap items-center justify-between gap-2">
     <p class="text-sm/5 text-zinc-500">

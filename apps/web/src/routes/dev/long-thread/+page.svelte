@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { ui } from "@canopy/contracts";
   import { create } from "@bufbuild/protobuf";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
@@ -100,7 +101,7 @@
   }
 </script>
 
-<svelte:head><title>Long thread benchmark · Canopy</title></svelte:head>
+<svelte:head><title>Long thread benchmark · {applicationName}</title></svelte:head>
 
 <div class="flex h-full min-w-0 flex-col">
   <TopBar>

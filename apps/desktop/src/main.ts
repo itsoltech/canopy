@@ -14,7 +14,7 @@ import { savedRemoteClient } from "./client-vault.ts";
 import { closeModeChooser, configureDesktopMode, openModeChooser } from "./mode-configuration.ts";
 import { Logs } from "./runtime/log.ts";
 import { controllerEntry, runtimePaths } from "./runtime/launch.ts";
-import { desktopIdentity } from "./identity.ts";
+import { desktopIdentity, desktopUserData } from "./identity.ts";
 import { DesktopUpdates } from "./updates.ts";
 import { QuitGuard } from "./quit-guard.ts";
 import { systemQuitClock } from "./quit-machine.ts";
@@ -34,9 +34,12 @@ import { startupFailure } from "./startup-error.ts";
 
 const identity = desktopIdentity();
 
+// Electron also uses this name for Keychain / Secret Service encryption keys.
 app.setName(identity.productName);
 
-app.setPath("userData", join(app.getPath("appData"), identity.productName));
+app.setPath("userData", desktopUserData(app.getPath("appData")));
+
+app.setAboutPanelOptions({ applicationName: identity.displayName });
 
 if (process.platform === "win32") app.setAppUserModelId(identity.appId);
 
@@ -139,7 +142,7 @@ function broadcast() {
   updateDesktopMenus({
     status,
     tray,
-    productName: identity.productName,
+    productName: identity.displayName,
     showMain,
     openSettings,
     openAppSettings: () => openRoute("/settings"),
@@ -172,7 +175,7 @@ function createWindow(main = false) {
   return createDesktopWindow({
     appRoutes,
     placement: main ? windowPlacement(app.getPath("userData"), windowSizeLimits) : undefined,
-    productName: identity.productName,
+    productName: identity.displayName,
     iconPath,
     quitGuard,
     enrollmentReady,

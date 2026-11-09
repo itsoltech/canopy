@@ -1,4 +1,12 @@
-export type DesktopChannel = "stable" | "beta" | "nightly";
+import { releaseIdentity, type ReleaseChannel } from "@canopy/domain/release/identity";
+import { join } from "node:path";
+
+export type DesktopChannel = ReleaseChannel;
+
+/** Installation and data identity must survive both upgrades and channel switches. */
+export function desktopUserData(appData: string) {
+  return join(appData, "Canopy");
+}
 
 declare const CANOPY_DESKTOP_CHANNEL: string | undefined;
 
@@ -16,6 +24,7 @@ export function desktopIdentity(
   const channel: DesktopChannel = value;
 
   return {
+    ...releaseIdentity(channel),
     channel,
     productName: "Canopy",
     artifactPrefix: "Canopy",

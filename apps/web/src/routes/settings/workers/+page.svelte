@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { onMount } from "svelte";
   import { timestampDate } from "@bufbuild/protobuf/wkt";
@@ -72,7 +73,7 @@
   }
 </script>
 
-<svelte:head><title>Workers · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Workers · Settings · {applicationName}</title></svelte:head>
 
 <div class="flex flex-wrap items-start justify-between gap-4 px-1">
   <div class="min-w-0">

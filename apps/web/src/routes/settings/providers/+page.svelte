@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { ui } from "@canopy/contracts";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
@@ -123,7 +124,7 @@
   }
 </script>
 
-<svelte:head><title>Providers · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Providers · Settings · {applicationName}</title></svelte:head>
 
 <ScopeBar {workers} bind:scope />
 <SettingsHeading title="Providers">

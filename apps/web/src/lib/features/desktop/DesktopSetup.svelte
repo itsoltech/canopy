@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import {
@@ -126,7 +127,7 @@
   }
 </script>
 
-<svelte:head><title>{startup ? "Starting Canopy" : "Set up Canopy"}</title></svelte:head>
+<svelte:head><title>{startup ? `Starting ${applicationName}` : `Set up ${applicationName}`}</title></svelte:head>
 <svelte:window
   onkeydown={(event) => {
     if (event.key !== "Escape" || event.defaultPrevented || !canGoBack || busy) return;

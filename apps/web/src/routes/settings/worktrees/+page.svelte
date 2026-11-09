@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { ui } from "@canopy/contracts";
   import { setContext } from "svelte";
   import WorktreeChoiceSetting from "#lib/features/worktrees/WorktreeChoiceSetting.svelte";
@@ -64,7 +65,7 @@
   const reset = (field: WorktreeField) => settingsState.update({ [field]: undefined });
 </script>
 
-<svelte:head><title>Worktrees · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Worktrees · Settings · {applicationName}</title></svelte:head>
 
 <div class="settings-stack">
   <WorktreeScopeBar {scope} disabled={settingsState.saving > 0} onchange={(next) => (scope = next)} />

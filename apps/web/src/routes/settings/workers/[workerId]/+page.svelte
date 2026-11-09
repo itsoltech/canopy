@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import WorkerDetails from "#lib/features/workers/WorkerDetails.svelte";
   import WorkerStatusBadges from "#lib/features/workers/WorkerStatusBadges.svelte";
@@ -23,7 +24,7 @@
   const where = $derived(record ? `“${record.computerName}”` : records.records.length ? "this computer" : "");
 </script>
 
-<svelte:head><title>{worker?.name ?? "Worker"} · Settings · Canopy</title></svelte:head>
+<svelte:head><title>{worker?.name ?? "Worker"} · Settings · {applicationName}</title></svelte:head>
 
 <SettingsHeading
   title={worker?.name ?? "Worker"}

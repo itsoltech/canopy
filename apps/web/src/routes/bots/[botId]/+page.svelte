@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
@@ -336,7 +337,7 @@
   }
 </script>
 
-<svelte:head><title>{config.name || "Bot"} · Canopy</title></svelte:head>
+<svelte:head><title>{config.name || "Bot"} · {applicationName}</title></svelte:head>
 <Dialog
   bind:open={ruleDialog}
   title="Allowed actions"

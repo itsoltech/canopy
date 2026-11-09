@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -116,7 +117,7 @@
   let composerValue = $state("");
 </script>
 
-<svelte:head><title>Bots gallery · Canopy</title></svelte:head>
+<svelte:head><title>Bots gallery · {applicationName}</title></svelte:head>
 
 <div class={["flex h-full flex-col", className]}>
   <TopBar><Crumb current={false}>Dev</Crumb><Crumb>Bots gallery</Crumb></TopBar>

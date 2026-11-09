@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { useCommands } from "#lib/features/commands/registry.ts";
   import {
     bindingCatalogue,
@@ -53,7 +54,7 @@
   }
 </script>
 
-<svelte:head><title>Keybindings · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Keybindings · Settings · {applicationName}</title></svelte:head>
 <div class="settings-stack">
   <div class="flex flex-wrap items-start justify-between gap-3">
     <p class="max-w-xl text-sm/5 text-zinc-500">This device · Shortcuts apply to this browser or desktop app.</p>

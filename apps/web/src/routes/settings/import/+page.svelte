@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { onMount } from "svelte";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import ImportFilters from "#lib/features/imports/ImportFilters.svelte";
@@ -55,7 +56,7 @@
   const workerName = $derived(workers.find((w) => w.id === imports.scan?.workerId)?.name ?? "this worker");
 </script>
 
-<svelte:head><title>Import · Settings · Canopy</title></svelte:head>
+<svelte:head><title>Import · Settings · {applicationName}</title></svelte:head>
 
 <div class="settings-stack">
   <SettingsGroup

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { applicationName } from "#lib/application-name.ts";
   import { goto } from "$app/navigation";
   import ChatView from "#lib/features/bots/components/ChatView.svelte";
   import { botParticipant, exchangeEntries } from "#lib/features/bots/live.ts";
@@ -53,7 +54,7 @@
   const close = () => goto(`/bots/${params.botId}`);
 </script>
 
-<svelte:head><title>{pair.map((b) => b.name).join(" ⇄ ")} · Canopy</title></svelte:head>
+<svelte:head><title>{pair.map((b) => b.name).join(" ⇄ ")} · {applicationName}</title></svelte:head>
 <svelte:window
   onkeydown={(event) => {
     if (

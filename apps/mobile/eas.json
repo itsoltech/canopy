@@ -19,6 +19,7 @@
     },
     "preview": {
       "channel": "nightly",
+      "env": { "CANOPY_CHANNEL": "nightly" },
       "environment": "production",
       "distribution": "internal",
       "android": {
@@ -27,23 +28,28 @@
     },
     "preview-beta": {
       "extends": "preview",
+      "env": { "CANOPY_CHANNEL": "beta" },
       "channel": "beta"
     },
     "preview-stable": {
       "extends": "preview",
+      "env": { "CANOPY_CHANNEL": "stable" },
       "channel": "stable"
     },
     "production": {
       "channel": "nightly",
+      "env": { "CANOPY_CHANNEL": "nightly" },
       "environment": "production",
       "autoIncrement": true
     },
     "production-beta": {
       "extends": "production",
+      "env": { "CANOPY_CHANNEL": "beta" },
       "channel": "beta"
     },
     "production-stable": {
       "extends": "production",
+      "env": { "CANOPY_CHANNEL": "stable" },
       "channel": "stable"
     }
   },

@@ -4,6 +4,21 @@ Pierwsza wersja to **development build** Expo, nie Expo Go ani Expo web.
 Identyfikatory: iOS `tech.itsol.canopy-remote`, Android `tech.itsol.canopy_remote` (Android nie dopuszcza myślnika w identyfikatorze); scheme: `canopy`.
 Konfiguracja: `apps/mobile/app.json`, `app.config.ts`, `eas.json`.
 
+Natywna nazwa oraz ikony zależą od kanału: `Canopy (Nightly)`, `Canopy (Beta)` albo
+`Canopy` (stable). `app.config.ts` wybiera kanał z `CANOPY_CHANNEL`, następnie profilu
+`EAS_BUILD_PROFILE`, a na końcu wersji w `canopy-version.json` (lokalny development
+domyślnie stable). Każdy profil wydania EAS przekazuje własny `CANOPY_CHANNEL`;
+rozszerzające profile beta/stable jawnie nadpisują nightly. Publikacja OTA bez profilu
+rozpoznaje kanał z przygotowanej wersji, więc fingerprint zgadza się z natywnym buildem.
+Nie zmieniamy bundle ID, nazwy pakietu Androida ani `canopy://`.
+
+Ikona iOS jest nieprzezroczystym PNG 1024 px. Android ma osobny foreground drzewa
+w centralnej bezpiecznej strefie i tło sceny; splash używa tego samego wariantu.
+**Nazwa, ikony launchera i splash wymagają nowego buildu natywnego. OTA ich nie zmienia.**
+Konfiguracja natywna oraz assety wpływają na fingerprint; stare IPA/APK pozostają ze
+starą tożsamością do instalacji nowej binarki. Publiczną konfigurację można sprawdzić
+w `apps/mobile` przez `CANOPY_CHANNEL=nightly bunx expo config --type public`.
+
 ## Transport: czy React Native obsługuje gRPC?
 
 Natywne gRPC wymaga HTTP/2 i dostępu do trailers; fetch React Native nie udostępnia
