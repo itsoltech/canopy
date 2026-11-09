@@ -5,6 +5,7 @@ import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { EnvironmentFiles } from "./EnvironmentFiles";
+import { VersionComparison } from "./VersionComparison";
 
 export function EnvironmentComputer({
   worker,
@@ -85,13 +86,12 @@ export function EnvironmentComputer({
             {file.detail && <Notice>{file.detail}</Notice>}
             {["drift", "kept"].includes(file.status) && (
               <>
-                <SettingsValue title="On this computer" value={file.managedContent} />
-                <SettingsValue
-                  title="Library version"
-                  value={
+                <VersionComparison
+                  before={file.managedContent}
+                  after={
                     worker.preview.find(
                       (p) => p.harness === file.harness && (file.scope === "device" ? p.deviceHome : p.platformHome),
-                    )?.content
+                    )?.content ?? ""
                   }
                 />
                 <DriftActions

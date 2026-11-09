@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
+import { suggestedImportKeys } from "@canopy/domain/import-look";
 import { useSession } from "../../state/session";
 import { useSettingsResource } from "../settings/resource";
 import type { LibraryChoices } from "./ImportLibraryChoices";
@@ -27,7 +28,7 @@ export function useImportDraft(scan: ui.ScanImportResponse, onStarted: () => voi
   const [excluded, setExcluded] = useState<string[]>([]);
   const [mode, setMode] = useState("continue");
   const [targets, setTargets] = useState<Record<string, string>>({});
-  const [choices, setChoices] = useState<LibraryChoices>({});
+  const [selectedChoices, setChoices] = useState<LibraryChoices>();
 
   const filter = useMemo(
     () =>
@@ -50,6 +51,13 @@ export function useImportDraft(scan: ui.ScanImportResponse, onStarted: () => voi
   );
 
   const result = resource.data;
+
+  const choices =
+    selectedChoices ??
+    Object.fromEntries(
+      suggestedImportKeys(library.data?.items ?? []).map((key) => [key, { action: "import", secrets: [] }]),
+    );
+
   const count = all ? Math.max(0, (result?.importable ?? 0) - excluded.length) : included.length;
   const busy = resource.busy;
   const disabled = busy || !online;

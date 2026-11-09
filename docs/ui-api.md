@@ -1176,6 +1176,13 @@ aby widoku błędu odczytu nie zastępować nieuzasadnionym żądaniem aktualiza
 
 ### Agent environment
 
+`GetAgentEnvironment` przyjmuje opcjonalną parę `preview_skill_id` i
+`preview_skill_version`. Zwraca wskazany artefakt w `preview_skill_artifact`,
+bez zmiany przypisania ani rewizji. Odczyt jest lokalny (biblioteka współdzielonej
+konfiguracji), filtrowany właścicielem i ograniczony do nadal istniejącego skilla.
+Brak wersji lub obcy/usunięty skill kończy się odmową; telefon nie zatwierdza
+przywrócenia bez poprawnego podglądu.
+
 Settings → Agent environment korzysta z `GetAgentEnvironment`,
 `SaveInstructionDocument`, `DeleteInstructionDocument`, `SetEnvironmentTags`,
 `PreviewAgentEnvironment`, `ResolveEnvironmentDrift`, `SaveLibrarySkill`,

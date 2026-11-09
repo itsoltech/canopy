@@ -7,7 +7,7 @@ import { Button, Field, Notice } from "../../ui/components";
 import { SettingChoice, SettingToggle } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
 import { EnvironmentDestinations } from "./EnvironmentAssignment";
-import { EnvironmentFiles } from "./EnvironmentFiles";
+import { SkillFileReview } from "./SkillFileReview";
 import { EnvironmentWizard } from "./EnvironmentWizard";
 
 export function SkillEditor({
@@ -20,6 +20,11 @@ export function SkillEditor({
   onSaved: () => void;
 }) {
   const resource = useSettingsResource(`skill:${skill?.id ?? "new"}`, (api) => api.getAgentEnvironment({}));
+  const [selectedVersion, setSelectedVersion] = useState(skill?.version ?? 0n);
+
+  const versionPreview = useSettingsResource(`skill-version:${skill?.id ?? "new"}:${selectedVersion}`, (api) =>
+    api.getAgentEnvironment(skill ? { previewSkillId: skill.id, previewSkillVersion: selectedVersion } : {}),
+  );
 
   const [draft, setDraft] = useState(() =>
     create(
@@ -65,7 +70,11 @@ export function SkillEditor({
       <EnvironmentWizard
         steps={["Files & version", "Review files", "Assign & confirm"]}
         busy={resource.busy}
-        disabled={!draft.name.trim() || (!skill && !files.length && !zip?.length)}
+        disabled={
+          !draft.name.trim() ||
+          (!skill && !files.length && !zip?.length) ||
+          Boolean(skill && !files.length && !zip && !versionPreview.data?.previewSkillArtifact)
+        }
         onSave={() =>
           void resource
             .run((api) =>
@@ -87,40 +96,20 @@ export function SkillEditor({
                   title="Library version"
                   value={String(draft.version)}
                   options={skill.versions.map((v) => ({ value: String(v), label: `Version ${v}` }))}
-                  onChange={(v) => change({ version: BigInt(v) })}
+                  onChange={(v) => {
+                    const version = BigInt(v);
+                    change({ version });
+                    setSelectedVersion(version);
+                    setFiles([]);
+                    setZip(undefined);
+                  }}
                 />
               )}
               {draft.source && <SkillSourcePolicy source={draft.source} onChange={(source) => change({ source })} />}
               {error ? <Notice error>{error}</Notice> : null}
             </>
           ) : step === 1 ? (
-            <>
-              {zip && (
-                <Notice>
-                  The gateway unpacks and validates this ZIP when you save. Choose a folder to review individual files
-                  before saving.
-                </Notice>
-              )}
-              <EnvironmentFiles
-                artifact={
-                  files.length
-                    ? {
-                        ...draft.artifact,
-                        $typeName: "canopy.worker.v1.SkillArtifact",
-                        name: draft.name,
-                        description: "",
-                        checksum: "",
-                        files,
-                      }
-                    : draft.artifact
-                }
-              />
-              {skill && draft.version !== skill.version && (
-                <Notice>
-                  These files belong to the currently assigned version. Saving restores the selected library version.
-                </Notice>
-              )}
-            </>
+            <SkillFileReview files={files} zip={zip} draft={draft} before={skill?.artifact} preview={versionPreview} />
           ) : (
             <EnvironmentDestinations value={draft} workers={snapshot.workers} onChange={setDraft} />
           )

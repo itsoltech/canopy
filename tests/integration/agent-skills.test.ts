@@ -260,6 +260,16 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     skill.overrides = [create(ui.SkillMachineOverrideSchema, { workerId: windows.workerId, version: 1n })];
     const saved = await save(skill, skillFiles("code-review", "Version two."));
     expect(saved.skills.find((s) => s.id === skill.id)?.versions).toEqual([1n, 2n]);
+    const preview = await gateway.api.getAgentEnvironment({ previewSkillId: skill.id, previewSkillVersion: 1n });
+    expect(
+      new TextDecoder().decode(preview.previewSkillArtifact?.files.find((file) => file.path === "SKILL.md")?.content),
+    ).toContain("Review the patch carefully.");
+    expect(preview.skills.find((s) => s.id === skill.id)?.version).toBe(2n);
+    expect(preview.revision).toBe(saved.revision);
+    expect((await snapshot()).skills.find((s) => s.id === skill.id)?.version).toBe(2n);
+    expect(
+      await failure(gateway.api.getAgentEnvironment({ previewSkillId: skill.id, previewSkillVersion: 999n })),
+    ).toContain("version not found");
     await settled();
     await settled(windows);
     expect(readFileSync(join(linux.deviceHomes.agents, "code-review/SKILL.md"), "utf8")).toContain("Version two.");
@@ -406,6 +416,10 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     const id = created.skills[0]!.id;
     const state = await snapshot();
     expect(state.skills.some((s) => s.id === id)).toBe(false);
+    expect(await failure(gateway.api.getAgentEnvironment({ previewSkillId: id, previewSkillVersion: 1n }))).toContain(
+      "not found",
+    );
+    expect(await failure(gateway.api.getAgentEnvironment({ previewSkillVersion: 1n }))).toContain("Choose a skill");
     expect(await failure(gateway.api.deleteLibrarySkill({ id, expectedRevision: state.revision }))).toContain(
       "not found",
     );

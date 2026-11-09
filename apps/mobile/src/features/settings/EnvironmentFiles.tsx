@@ -3,30 +3,45 @@ import type { SkillArtifact } from "@canopy/contracts";
 import { Button, Sheet } from "../../ui/components";
 import { SettingsValue } from "./SettingsValue";
 import { SettingsRow } from "./SettingsGroup";
+import { skillChanges, skillScript } from "@canopy/domain/skill-source";
+import { environmentFileText } from "@canopy/domain/environment-review";
+import { VersionComparison } from "./VersionComparison";
 
 export function EnvironmentFiles({ artifact, before }: { artifact?: SkillArtifact; before?: SkillArtifact }) {
   const [path, setPath] = useState("");
   const file = artifact?.files.find((f) => f.path === path);
   const previous = before?.files.find((f) => f.path === path);
+  const changes = artifact && before ? skillChanges(before, artifact) : [];
+  const paths = [...new Set([...(artifact?.files ?? []), ...(before?.files ?? [])].map((f) => f.path))].sort();
 
   return (
     <>
-      {artifact?.files.map((f) => (
+      {paths.map((name) => (
         <SettingsRow
-          key={f.path}
-          title={f.path}
-          description={`${f.content.length} bytes${f.executable ? " · Executable" : ""}`}
-          control={<Button title="Review file" onPress={() => setPath(f.path)} />}
+          key={name}
+          title={name}
+          description={[
+            before ? changes.find((change) => change.path === name)?.kind || "Unchanged" : "Added",
+            [...(artifact?.files ?? []), ...(before?.files ?? [])].some((f) => f.path === name && skillScript(f))
+              ? "Script / executable"
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          control={<Button title="Review file" onPress={() => setPath(name)} />}
         />
       ))}
-      {before?.files
-        .filter((f) => !artifact?.files.some((a) => a.path === f.path))
-        .map((f) => (
-          <SettingsValue key={f.path} title={`Removed: ${f.path}`} value={new TextDecoder().decode(f.content)} />
-        ))}
-      <Sheet title={path || "File"} visible={!!file} onClose={() => setPath("")}>
-        {previous && <SettingsValue title="Previously approved" value={new TextDecoder().decode(previous.content)} />}
-        {file && <SettingsValue title="Selected version" value={new TextDecoder().decode(file.content)} />}
+      <Sheet title={path || "File"} visible={!!path} onClose={() => setPath("")}>
+        {before ? (
+          <VersionComparison
+            before={environmentFileText(previous)}
+            after={environmentFileText(file)}
+            beforeLabel="Previously approved"
+            afterLabel="Selected version"
+          />
+        ) : (
+          <SettingsValue title="Selected version" value={environmentFileText(file)} />
+        )}
       </Sheet>
     </>
   );

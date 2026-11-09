@@ -37,6 +37,7 @@
     "./plugin-artifact": "./src/plugin-artifact.ts",
     "./plugin-components": "./src/plugin-components.ts",
     "./skill-source": "./src/skill-source.ts",
+    "./environment-review": "./src/environment-review.ts",
     "./environment-selectors": "./src/environment-selectors.ts",
     "./background-tasks": "./src/background-tasks/index.ts",
     "./release/protocol": "./src/release/protocol.ts",

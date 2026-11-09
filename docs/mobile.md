@@ -505,6 +505,24 @@ działającego OTA ustala wiersz Updates; manifesty i historię grup pokazuje EA
 
 ## Interfejs zgodny z web
 
+Telefon pokazuje szczegóły każdego importu (`GetImportRun`), błędy pozycji i akcję
+**Open thread**. Nowe pozycje biblioteki sugerowane przez gateway są zaznaczone;
+konflikty i kopiowanie sekretów wymagają osobnego wyboru. **Import CLI threads**
+w szczegółach lokalnego workera i pustej liście wątków otwiera import tego komputera.
+
+**Move to a computer** w akcjach lokalnego wątku i ustawieniach bota otwiera
+podgląd przeniesienia pojedynczej rzeczy. Telefon wybiera bezpośrednio połączony,
+dostępny komputer i docelowy workspace projektu, śledzi trwały przebieg i otwiera
+nowy identyfikator. Gateway sprawdza dom, placement i dostępność ponownie przy starcie.
+
+Ustawienia providera oferują **Move to a proxy** dla połączenia zapisanego
+w zmiennych środowiska. Telefon przekazuje nazwę i rewizję; zapisany sekret
+przenosi wyłącznie gateway.
+
+Przegląd środowiska pokazuje podsumowanie zmian, skrypty/pliki wykonywalne,
+usunięte pliki oraz obie wersje treści. Przy wybraniu wersji skilla telefon
+pobiera jej niezmienny artefakt przed zatwierdzeniem; błąd pobrania blokuje zapis.
+
 Overview uzgadnia projekty, workery i wątki po stabilnym id, także przy powtórzonych
 snapshotach partnera i starszych aktualizacjach pojedynczych wierszy. Nowy wątek,
 filtr sidebara i domyślne workspace'y używają wspólnego `projectChoices`: jeden

@@ -213,6 +213,24 @@ function SidebarLists({ state }: { state: ReturnType<typeof useSidebarState> }) 
                 {projectId ? (
                   <Button size="sm" variant="ghost" title="Clear filters" onPress={() => setProjectId("")} />
                 ) : null}
+                {!projectId &&
+                  !query &&
+                  workers.some((worker) => !worker.nodeId && worker.online && worker.cliImport) && (
+                    <Button
+                      size="sm"
+                      title="Import CLI threads"
+                      onPress={() =>
+                        router.push({
+                          pathname: "/settings/[section]",
+                          params: {
+                            section: "import",
+                            worker:
+                              workers.find((worker) => !worker.nodeId && worker.online && worker.cliImport)?.id ?? "",
+                          },
+                        })
+                      }
+                    />
+                  )}
               </View>
             )
           }

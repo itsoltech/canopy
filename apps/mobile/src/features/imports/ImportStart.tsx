@@ -9,11 +9,11 @@ import { SettingsValue } from "../settings/SettingsValue";
 import { ImportReview } from "./ImportReview";
 
 /** The computer's worker reads CLI files; the paired phone only chooses what to import. */
-export function ImportStart({ onStarted }: { onStarted: () => void }) {
+export function ImportStart({ onStarted, initialWorkerId = "" }: { onStarted: () => void; initialWorkerId?: string }) {
   const { client, online } = useSession();
   const { workers } = useOverview();
   const eligible = workers.filter((w) => !w.nodeId && w.cliImport && !w.revokedAt);
-  const [picked, setPicked] = useState("");
+  const [picked, setPicked] = useState(initialWorkerId);
   const workerId = picked || eligible.find((w) => w.online)?.id || eligible[0]?.id || "";
   const worker = eligible.find((w) => w.id === workerId);
   const [scan, setScan] = useState<ui.ScanImportResponse>();

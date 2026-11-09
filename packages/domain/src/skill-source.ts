@@ -15,7 +15,16 @@ export function skillChanges(before: SkillArtifact, after: SkillArtifact) {
     const previous = before.files.find((f) => f.path === path);
     const next = after.files.find((f) => f.path === path);
 
-    if (previous?.checksum === next?.checksum && previous?.executable === next?.executable) return [];
+    if (
+      previous &&
+      next &&
+      previous.executable === next.executable &&
+      (previous.checksum && next.checksum
+        ? previous.checksum === next.checksum
+        : previous.content.length === next.content.length &&
+          previous.content.every((byte, index) => byte === next.content[index]))
+    )
+      return [];
 
     return [
       {
