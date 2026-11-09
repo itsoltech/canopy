@@ -54,6 +54,17 @@ Wynik opisuje węzły, relacje, indeksy, wiersze/pętle oraz bloki, bez warunkó
 i wartości. Dla zapytań wewnątrz transakcji plan jest osobną obserwacją, poza
 pierwotnym snapshotem MVCC.
 
+`--explain-writes` zamiast tego zbiera plany przed rzeczywistymi instrukcjami
+przebiegu diagnostycznego, na tym samym połączeniu i z kontekstem FK/blokad.
+Obejmuje SELECT z blokadami, INSERT, UPDATE, DELETE i CTE. Dodatkowe wykonanie
+`EXPLAIN (ANALYZE, BUFFERS)` jest cofane przez SAVEPOINT lub własne BEGIN/ROLLBACK,
+po czym wykonywana jest właściwa instrukcja. Ten tryb działa wyłącznie w harnessie
+tworzącym własną bazę. Pomija znane efekty sesji i sekwencji, których rollback
+nie cofa; raportuje pominięcia i błędy zamiast uznawać je za pokrycie. DDL i sterowanie
+transakcją nie mają planu EXPLAIN. Plany nie zawierają wartości ani warunków.
+Diagnostyka ogrzewa cache i ponownie wywołuje triggery, dlatego nie działa w pomiarze
+latency. Nie zastępuje testów konkurencji ani audytu zimnych gałęzi kodu.
+
 ## Inwentaryzacja SQL
 
 `bun scripts/bench/audit.ts` wypisuje miejsca instrukcji i fragmentów SQL w
@@ -62,6 +73,23 @@ i kandydatów do przeglądu: szeroką projekcję, brak LIMIT, blokady, duże agr
 usuwanie i składane fragmenty. To pomoc w audycie, nie lista potwierdzonych błędów;
 fragmenty mogą się nakładać, a nieograniczony SELECT po kluczu jest poprawny.
 Dynamiczne generatory i wywołania funkcji SQL trzeba sprawdzić w kodzie źródłowym.
+
+`CANOPY_SQL_AUDIT_DIR` włącza osobny przebieg diagnostyczny testowych gatewayów.
+Wskazuje istniejący prywatny katalog poza repozytorium; po zamknięciu gatewaya
+trafiają tam plany z buforami, fingerprinty i dokładnie dopasowane szablony SQL
+ze ścieżką oraz linią źródła. Parametry, wiersze wyników i tekst SQL nie są zapisywane.
+Plan ma syntetyczny fixture danego testu, więc nie zastępuje pomiaru dużego zbioru
+benchmarku ani dowodu wywołania konkretnej gałęzi kodu. Niedopasowane fragmenty
+dynamiczne pozostają jawnie bez ścieżki. Nie należy używać tego trybu do pomiaru
+latency; zwykły przebieg testów nie ma instrumentacji.
+
+Plany zapisywane przez `PlanCapture` w benchmarkach również zawierają kandydatów
+źródła na podstawie szablonu. `audit.ts --benchmark-directory <katalog>
+--integration-directory <katalog>` łączy te dowody z inwentaryzacją. Raport oddziela
+plany benchmarków od małych fixture testów i jawnie liczy miejsca bez dowodu,
+błędy oraz niedopasowane plany. Należy wskazywać wyłącznie wyniki tej samej rewizji
+źródeł: numery linii zmieniają się podczas edycji. Dopasowanie nie jest werdyktem
+wydajności ani potwierdzeniem wykonania każdej z pasujących ścieżek.
 
 Gateway używa `@effect/sql-pg`, z domyślnie włączonym cache prepared statements
 (100 na połączenie) i pulą do 10 połączeń. Bun SQL obsługuje administrację baz

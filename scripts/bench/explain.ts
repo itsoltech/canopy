@@ -4,7 +4,7 @@ import type { BenchRuntime } from "./runtime.ts";
 import type { QuerySample } from "./trace.ts";
 import { createHash } from "node:crypto";
 
-interface Plan {
+export interface Plan {
   readonly "Node Type": string;
   readonly "Relation Name"?: string;
   readonly "Index Name"?: string;
@@ -18,7 +18,7 @@ interface Plan {
   readonly Plans?: readonly Plan[];
 }
 
-function nodes(plan: Plan): object[] {
+export function nodes(plan: Plan): object[] {
   return [
     {
       node: plan["Node Type"],

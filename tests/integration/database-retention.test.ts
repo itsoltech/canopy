@@ -209,6 +209,25 @@ describe.skipIf(!dockerAvailable)("bounded database retention preserves durable 
       "INSERT INTO bot_harness_events(event_id,turn_id,worker_id,journal_id,journal_seq,payload) SELECT gen_random_uuid(),$1::uuid,$2::uuid,'retention',n,''::bytea FROM generate_series(1,300)n",
       [turn, gateway.workerId],
     );
+    // An older unacknowledged journal must neither be deleted nor starve eligible turns.
+    const blocked = crypto.randomUUID();
+    const blockedCommand = crypto.randomUUID();
+    await query(
+      "INSERT INTO bot_turns(id,bot_id,client_request_id,input,status) VALUES($1::uuid,$2::uuid,$1,'synthetic','completed')",
+      [blocked, bot],
+    );
+    await query(
+      "INSERT INTO worker_commands(id,worker_id,kind,payload,expires_at) VALUES($1::uuid,$2::uuid,'runBotTurn',''::bytea,now()+interval '1 day')",
+      [blockedCommand, gateway.workerId],
+    );
+    await query(
+      "INSERT INTO bot_harness_turns(turn_id,bot_id,worker_id,command_id,outcome,finished_at) VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,1,now()-interval '9 days')",
+      [blocked, bot, gateway.workerId, blockedCommand],
+    );
+    await query(
+      "INSERT INTO bot_harness_events(event_id,turn_id,worker_id,journal_id,journal_seq,payload) VALUES(gen_random_uuid(),$1::uuid,$2::uuid,'unacknowledged',1,''::bytea)",
+      [blocked, gateway.workerId],
+    );
 
     const replay = create(ThreadEventSchema, {
       eventId: crypto.randomUUID(),
@@ -239,6 +258,11 @@ describe.skipIf(!dockerAvailable)("bounded database retention preserves durable 
       (await query<{ n: number }>("SELECT count(*)::int n FROM bot_harness_events WHERE turn_id=$1::uuid", [turn]))[0]
         ?.n,
     ).toBe(0);
+    expect(
+      (
+        await query<{ n: number }>("SELECT count(*)::int n FROM bot_harness_events WHERE turn_id=$1::uuid", [blocked])
+      )[0]?.n,
+    ).toBe(1);
   });
 
   test("active and live staging generations survive, expired generations are fenced and removed in batches", async () => {

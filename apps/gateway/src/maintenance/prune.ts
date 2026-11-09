@@ -57,7 +57,12 @@ const pruneHarness = (sql: SqlClient.SqlClient, owner: string) =>
     // Lock the same terminal harness row as ingestion. A replay cannot race removal or alter its projection.
     const rows = yield* sql<{ turn_id: string }>`SELECT h.turn_id FROM bot_harness_turns h JOIN bots b ON b.id=h.bot_id
     WHERE b.owner_user_id=${owner}::uuid AND h.outcome IS NOT NULL AND h.finished_at<now()-interval '7 days'
-      AND h.events_pruned_at IS NULL ORDER BY h.finished_at,h.turn_id LIMIT 1 FOR UPDATE OF h SKIP LOCKED`;
+      AND h.events_pruned_at IS NULL
+      AND (NOT EXISTS(SELECT 1 FROM bot_harness_events e WHERE e.turn_id=h.turn_id)
+        OR EXISTS(SELECT 1 FROM bot_harness_events e JOIN bot_harness_cursors c
+          ON c.worker_id=e.worker_id AND c.journal_id=e.journal_id AND c.bot_id=h.bot_id
+          WHERE e.turn_id=h.turn_id AND e.journal_seq<=c.last_seq))
+      ORDER BY h.finished_at,h.turn_id LIMIT 1 FOR UPDATE OF h SKIP LOCKED`;
 
     const turn = rows[0]?.turn_id;
 
