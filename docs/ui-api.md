@@ -3,7 +3,11 @@
 Desktop w obu trybach używa dołączonego lokalnego BFF. W remote uwierzytelnia się
 owner-scoped poświadczeniem desktopu przez przypięty TLS Network access, bez
 tokenu usługi zdalnego webu. `GetClientCapabilities` negocjuje protokół oraz metody;
-brakujące funkcje są ukryte lub pokazują stan aktualizacji. Różnica numerów buildów
+brakujące funkcje są ukryte lub pokazują stan aktualizacji. SPA negocjuje przy starcie, przy każdej
+zmianie połączenia overview (restart, aktualizacja, odwołanie), po powrocie karty ukrytej ponad minutę
+i co 5 min jako rezerwa. BFF trybu remote używa udanej negocjacji przez 60 s i negocjuje od razu po
+wywołaniu zakończonym Unavailable, Unimplemented lub Unauthenticated; każde RPC pozostaje
+uwierzytelnione. Gateway podaje nazwę z tożsamości, bez pełnego snapshotu komputerów. Różnica numerów buildów
 przy zgodnym protokole nie jest błędem. [Projekt i migracja](desktop-remote-frontend.md).
 
 ## Ikony
@@ -1032,6 +1036,11 @@ i `proxies_changed` (827). Po każdym otwarciu strumienia przychodzi `feeds` (82
 wypychanych w całości; `bots` jest na niej tylko, gdy każdy osiągalny połączony komputer też je wypycha
 (jego zmiany botów przychodzą z kwalifikowanymi id). Klient bez danej domeny w `feeds` (starszy gateway,
 przerwany strumień) zachowuje zapasowe odpytywanie: lista botów co 15 s, Connectors co 30 s.
+Uwagi konfiguracji (`ConfigNotices`) i strona Computers dzielą jeden odczyt `GetComputers`,
+odświeżany przez `computer`, `computer_removed` i `shared_config`, z jednym sprawdzeniem na minutę
+na widocznej stronie; zaproszenie do parowania sprawdza się co 2 s, dopóki jest ważne. Network access
+czyta się co 30 s na widocznej stronie, a lista urządzeń raz na minutę (parowanie i odwołanie
+przychodzą zdarzeniami).
 
 Uprawnienia i stan wykonania sprawdza zawsze gateway; cache służy tylko do wyświetlania.
 

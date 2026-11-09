@@ -23,6 +23,7 @@ import {
 import type { UpdatePersistence, WorkerUpdateRow } from "./persistence.ts";
 import { GatewayUpdateService } from "./service.ts";
 import { GatewayReleaseMirror, UpdateCache } from "./cache.ts";
+import { updateBusyState, versionAhead } from "./versions.ts";
 
 export interface GatewayUpdatesOptions {
   persistence: Pick<
@@ -45,10 +46,9 @@ export interface GatewayUpdatesOptions {
   drain?(value: boolean): void;
   log?(message: string): void;
   pollMs?: number;
+  /** The update center changed: state, a check, or a worker's update report. Clients read it again. */
+  changed?(): void;
 }
-
-const updateBusyState = (state: string | undefined) =>
-  ["queued", "waiting_idle", "downloading", "restarting"].includes(state ?? "");
 
 export class GatewayUpdates {
   readonly service: GatewayUpdateService;
@@ -81,9 +81,9 @@ export class GatewayUpdates {
       version: this.version,
       authenticate: options.authenticate,
       mirror: new GatewayReleaseMirror(this.#cache, this.version, this.source),
-      hello: (id, hello) => options.persistence.hello(id, hello),
+      hello: (id, hello) => options.persistence.hello(id, hello).finally(() => options.changed?.()),
       command: (id, hello) => this.#onHello(id, hello),
-      report: (id, report) => options.persistence.report(id, report),
+      report: (id, report) => options.persistence.report(id, report).finally(() => options.changed?.()),
     });
   }
   async start(): Promise<void> {
@@ -104,7 +104,7 @@ export class GatewayUpdates {
       const record = await readUpdateRecord(this.options.binaryPath);
 
       if (record) {
-        this.#state = record.state;
+        this.#setState(record.state);
         this.#reason = record.reason;
         await this.options.recovered?.(
           record.state === "failed" && this.version === record.previousVersion ? "rolled_back" : record.state,
@@ -140,7 +140,7 @@ export class GatewayUpdates {
     const previousState = this.#state,
       previousReason = this.#reason;
 
-    this.#state = "waiting_idle";
+    this.#setState("waiting_idle");
     this.#reason = "Waiting for active turns before supervisor handover";
 
     try {
@@ -160,11 +160,17 @@ export class GatewayUpdates {
         },
       });
     } finally {
-      this.#state = previousState;
+      this.#setState(previousState);
       this.#reason = previousReason;
     }
   }
+  #setState(state: string): void {
+    this.#state = state;
+    this.options.changed?.();
+  }
   check(): Promise<void> {
+    if (!this.#checking) queueMicrotask(() => this.options.changed?.());
+
     return (this.#checking ??= (async () => {
       try {
         this.#available = await this.source.resolve(this.#channel);
@@ -185,16 +191,12 @@ export class GatewayUpdates {
       } finally {
         this.#checkedAt = new Date().toISOString();
         this.#checking = undefined;
+        this.options.changed?.();
       }
     })());
   }
-  /** A worker version above the gateway's (unknown or unparsable versions are not "ahead"). */
   #ahead(version: string): boolean {
-    try {
-      return !!version && compareVersions(version, this.version) > 0;
-    } catch {
-      return false;
-    }
+    return versionAhead(version, this.version);
   }
   async snapshot(): Promise<ui.UpdatesSnapshot> {
     const workers = await this.options.persistence.workers(false);
@@ -290,11 +292,11 @@ export class GatewayUpdates {
 
       if (manifest.protocol.update !== UPDATE_PROTOCOL)
         throw new ConnectError("Release does not support the frozen update protocol", Code.FailedPrecondition);
-      this.#state = "waiting_idle";
+      this.#setState("waiting_idle");
       this.#reason = "Waiting for active turns to finish";
       await this.options.departure?.("updating", manifest.version);
       void this.#updateGateway(manifest, request).catch((cause: unknown) => {
-        this.#state = "failed";
+        this.#setState("failed");
         this.#reason = cause instanceof Error ? cause.message : "Gateway update failed";
         void this.options.recovered?.("failed", this.#reason).catch(() => {
           this.options.log?.("Could not save the gateway update outcome");
@@ -331,7 +333,7 @@ export class GatewayUpdates {
       signal: this.#stopping.signal,
       waiting: async () => {},
       apply: async () => {
-        this.#state = "downloading";
+        this.#setState("downloading");
         this.#reason = "Downloading and verifying the gateway release";
         const mirror = new GatewayReleaseMirror(this.#cache, manifest.version, this.source);
         await mirror.remember(manifest);
@@ -362,7 +364,7 @@ export class GatewayUpdates {
           source: this.source.options,
           allowDowngrade: request.allowDowngrade,
         });
-        this.#state = "restarting";
+        this.#setState("restarting");
         this.#reason = "Restarting gateway; this page will reconnect";
         await this.options.departure?.("restarting", manifest.version);
         await Bun.sleep(500);

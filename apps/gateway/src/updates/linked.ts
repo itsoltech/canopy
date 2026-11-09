@@ -215,3 +215,23 @@ export async function checkLinkedUpdates(core: GatewayCore) {
     );
   }
 }
+
+/**
+ * A linked computer announced an update center change: refresh its snapshot now instead of after the read
+ * cooldown. The settled read tells clients (`linked_read_completed` GetComputerUpdates) to read GetUpdates once.
+ */
+export function refreshComputerUpdates(core: GatewayCore, nodeId: string): void {
+  const computers = core.computers;
+
+  if (!computers?.reachable().includes(nodeId)) return;
+  const method = methodNamed("GetComputerUpdates")!;
+  const request = create(link.ComputerUpdatesRequestSchema);
+  computers.reads.due(nodeId, method.name);
+  computers.reads.read(
+    nodeId,
+    method,
+    request,
+    (signal) => single<ui.UpdatesSnapshot>(forward(core, nodeId, method, request, signal)),
+    PEER_READ_TIMEOUT_MS,
+  );
+}

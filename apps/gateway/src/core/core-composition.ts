@@ -137,6 +137,7 @@ export function createCoreUpdates(core: GatewayCore, options: GatewayCoreOptions
       }
     },
     persistence: new UpdatePersistence(options.runtime, options.userId),
+    changed: () => core.feeds.updatesChanged(),
     authenticate: (credential) => coreRun(core, (s) => s.authenticateWorker(credential)),
   });
 }

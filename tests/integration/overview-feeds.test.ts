@@ -63,9 +63,11 @@ describe.skipIf(!dockerAvailable)("pushed bot, connector and proxy changes", () 
 
   test("a stream announces what it pushes, and bot changes from another client arrive without ListBots", async () => {
     const watcher = subscriber(gw);
+    using _closing = { [Symbol.dispose]: () => watcher.close() };
     const feeds = await watcher.next("feeds");
 
-    if (feeds.change.case === "feeds") expect(feeds.change.value.pushed).toEqual(["bots", "connectors", "proxies"]);
+    if (feeds.change.case === "feeds")
+      expect(feeds.change.value.pushed).toEqual(["bots", "connectors", "proxies", "updates"]);
     // Let the feed take its baseline.
     await Bun.sleep(300);
 

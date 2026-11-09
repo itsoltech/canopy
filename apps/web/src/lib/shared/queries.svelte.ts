@@ -55,3 +55,30 @@ export const queries = new QueryCache();
 export function sharedRead<D extends DescMessage>(key: string, schema: D, path: string): SharedRead<MessageShape<D>> {
   return new SharedRead(queries, key, getMessage(schema, path));
 }
+
+const revalidating = new Map<string, { users: number; stop: () => void }>();
+
+/**
+ * A bounded fallback for a shared read some changes of which send no event: while anyone asks for it, the key is
+ * read again every `everyMs` while the page is visible (one timer per key, however many components ask).
+ */
+export function revalidateEvery(key: string, everyMs: number): () => void {
+  const current = revalidating.get(key);
+
+  if (current) current.users++;
+  else {
+    const timer = setInterval(() => {
+      if (!document.hidden) queries.invalidate(key);
+    }, everyMs);
+
+    revalidating.set(key, { users: 1, stop: () => clearInterval(timer) });
+  }
+
+  return () => {
+    const entry = revalidating.get(key);
+
+    if (!entry || --entry.users > 0) return;
+    entry.stop();
+    revalidating.delete(key);
+  };
+}

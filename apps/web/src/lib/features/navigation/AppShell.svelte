@@ -8,6 +8,7 @@
   import { threadCache } from "#lib/features/threads/thread-cache.ts";
   import { botCache } from "#lib/features/bots/cache.ts";
   import { botList } from "#lib/features/bots/bot-list.svelte.ts";
+  import { updateCenter } from "#lib/features/workers/updates.svelte.ts";
   import { MediaQuery } from "svelte/reactivity";
   import AppSidebar from "#lib/features/navigation/AppSidebar.svelte";
   import { appearanceFromDocument, applyAppearance } from "#lib/features/settings/appearance.ts";
@@ -121,8 +122,17 @@
 
   $effect(() => overview.subscribe((update) => models.apply(update)));
 
-  // The shared bot list follows pushed summaries instead of polling.
+  // The shared bot list and update center follow pushed changes instead of polling.
   $effect(() => botList.follow(overview));
+
+  $effect(() => updateCenter.follow(overview));
+
+  // A new or dropped overview connection (restart, upgrade, revocation) renegotiates the gateway's capabilities.
+  $effect(() => {
+    void overview.connection;
+    void overview.resyncs;
+    untrack(() => void capabilities.reload());
+  });
 
   // Shared reads (worker records, agent environment, …) follow the stream's events and its gaps.
   const invalidation = new OverviewInvalidation(queries);

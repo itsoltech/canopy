@@ -1,3 +1,5 @@
+import type { ui } from "@canopy/contracts";
+
 /** Shared update-check policy and labels. Zero means manual checks only. */
 export const updateCheckChoices = [
   { value: "60", label: "Every hour" },
@@ -60,3 +62,9 @@ export class UpdateCheckTimer {
     this.#cancel = undefined;
   }
 }
+
+/** What the update center shows of a worker: presence, versions and CLI updates (not its running turns). */
+export const workerUpdateSignature = (worker: ui.Worker) =>
+  `${worker.online}:${worker.version}:${worker.cliTools
+    .map((t) => `${t.tool?.provider}:${t.tool?.version}:${t.updateAvailable}:${t.action}`)
+    .join(",")}`;

@@ -22,17 +22,12 @@ function useDeviceSettings() {
   const current = data?.pairings.find((p) => p.id === invitation?.pairing?.id) ?? invitation?.pairing;
   const seconds = Math.max(0, Math.ceil(Number(current?.expiresAt?.seconds ?? 0n) - now / 1000));
   const usable = seconds > 0 && !current?.usedAt && !current?.revokedAt;
-  const { reload } = resource;
-
+  // Pairings and revocations arrive as overview events (shared read); the countdown is local.
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
-    const refresh = setInterval(() => void reload(), 15_000);
 
-    return () => {
-      clearInterval(timer);
-      clearInterval(refresh);
-    };
-  }, [reload]);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(
     () => () => {
       if (invitation?.pairing) void client?.api.revokeMobilePairing({ id: invitation.pairing.id }).catch(() => {});

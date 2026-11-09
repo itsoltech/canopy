@@ -2,7 +2,19 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { ConnectError } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
+import { useOverviewEvents } from "../../state/overview-bus";
+import { workerUpdateSignature } from "@canopy/domain/update-checks";
 import { updatesRunning, type UpdateRequest } from "./model";
+
+/** Overview updates after which the update center may show something new. */
+const UPDATE_EVENTS = new Set([
+  "updatesChanged",
+  "desktopUpdate",
+  "gatewayDeparture",
+  "computer",
+  "workerRemoved",
+  "feeds",
+]);
 
 function useUpdatesState() {
   const { client, active, online } = useSession();
@@ -44,24 +56,56 @@ function useUpdatesState() {
   );
 
   const busy = !!snapshot && updatesRunning(snapshot);
+  const [pushed, setPushed] = useState(false);
+  const [nudge, setNudge] = useState(0);
+  const workers = useRef(new Map<string, string>());
+
+  // The gateway announces update center changes; only an update in progress reads every 2.5 s, and a gateway
+  // that does not push them (older) gets one read a minute in the foreground.
+  useOverviewEvents((update) => {
+    const change = update.change;
+
+    if (change.case === "feeds") setPushed(change.value.pushed.includes("updates"));
+
+    if (change.case === "worker") {
+      const signature = workerUpdateSignature(change.value);
+      const previous = workers.current.get(change.value.id);
+      workers.current.set(change.value.id, signature);
+
+      if (previous === undefined || previous === signature) return;
+    } else if (
+      !UPDATE_EVENTS.has(change.case ?? "") &&
+      !(change.case === "linkedReadCompleted" && change.value === "GetComputerUpdates")
+    )
+      return;
+
+    setNudge((n) => n + 1);
+  });
+
+  useEffect(() => {
+    if (!active || !online) setPushed(false);
+  }, [active, online]);
+
   useEffect(() => {
     if (!client || !active || !online) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const delay = busy ? 2500 : pushed ? undefined : 60_000;
 
     const tick = async () => {
       await reload(controller.signal);
 
-      if (!controller.signal.aborted) timer = setTimeout(() => void tick(), open || busy ? 2500 : 15_000);
+      if (!controller.signal.aborted && delay !== undefined) timer = setTimeout(() => void tick(), delay);
     };
 
-    void tick();
+    // A change notice is merged with others arriving in the same moment.
+    timer = setTimeout(() => void tick(), nudge ? 150 : 0);
 
     return () => {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [client, active, online, reload, open, busy]);
+  }, [client, active, online, reload, open, busy, pushed, nudge]);
 
   async function manage(request: UpdateRequest) {
     if (!client || running.current) return;

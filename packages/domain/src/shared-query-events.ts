@@ -9,6 +9,7 @@ const STALE: Partial<Record<Change, readonly string[]>> = {
   // Names, presence and sharing decide which linked workers can be edited.
   computer: ["ListWorkerRecords", "GetComputers"],
   computerRemoved: ["ListWorkerRecords", "GetComputers"],
+  sharedConfig: ["GetComputers"],
   agentEnvironmentChanged: ["GetAgentEnvironment", "GetWorkerEnvironment"],
   workerRemoved: ["GetAgentEnvironment"],
   providerInstancesChanged: ["ListProviderInstances", "GetBotProviderInstances"],
