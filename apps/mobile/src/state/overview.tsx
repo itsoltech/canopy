@@ -19,7 +19,7 @@ const upsertComputer = (rows: ui.LinkedComputer[], value: ui.LinkedComputer) => 
 ];
 
 function useOverviewState() {
-  const { client, session, modelCatalog } = useSession();
+  const { client, session, modelCatalog, archivedCache } = useSession();
   const [threads, setThreads] = useState<ui.Thread[]>([]);
   const [projects, setProjects] = useState<ui.Project[]>([]);
   const [workers, setWorkers] = useState<ui.Worker[]>([]);
@@ -27,6 +27,10 @@ function useOverviewState() {
   const [loaded, setLoaded] = useState(false);
   const [linkedReads, setLinkedReads] = useState<Record<string, number>>({});
   const generation = useRef(0);
+
+  useEffect(() => {
+    if (loaded) void archivedCache?.rememberMetadata(projects, workers)?.catch(() => {});
+  }, [archivedCache, loaded, projects, workers]);
 
   // Warm model names and effort choices while the thread list is visible, before a composer mounts.
   useEffect(() => {
@@ -94,6 +98,8 @@ function useOverviewState() {
         void reload().catch(() => undefined);
 
       if (change.case === "mobileSnapshot") {
+        for (const thread of change.value.threads) void archivedCache?.reconcile(thread)?.catch(() => {});
+
         if (client?.departure.snapshot())
           void client.api
             .getUpdates({})
@@ -112,6 +118,7 @@ function useOverviewState() {
 
       // Unlinked: its workers, projects and threads leave the lists.
       if (change.case === "computerRemoved") {
+        void archivedCache?.forgetComputer(change.value).catch(() => {});
         setComputers((rows) => rows.filter((c) => c.nodeId !== change.value));
         forget(change.value);
       }
@@ -120,12 +127,17 @@ function useOverviewState() {
       if (change.case === "computerSnapshot") {
         const { nodeId, overview, threads: listed } = change.value;
 
+        for (const thread of listed) void archivedCache?.reconcile(thread)?.catch(() => {});
+
         setWorkers((rows) => replaceComputerRows(rows, overview?.workers ?? [], nodeId));
         setProjects((rows) => replaceComputerProjects(rows, overview?.projects ?? [], nodeId));
         setThreads((rows) => replaceComputerRows(rows, listed, nodeId));
       }
 
-      if (change.case === "thread") setThreads((rows) => upsertLinkedRows(rows, [change.value]));
+      if (change.case === "thread") {
+        void archivedCache?.reconcile(change.value)?.catch(() => {});
+        setThreads((rows) => upsertLinkedRows(rows, [change.value]));
+      }
 
       if (change.case === "project")
         setProjects((rows) => retainProjects([], upsertLinkedRows(rows, [change.value]), []));

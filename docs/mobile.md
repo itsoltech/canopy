@@ -980,6 +980,24 @@ Wyszukiwanie tytułu wątku bocznego pokazuje rodzica. Archived używa wspólneg
 archiwalne wątki boczne pozostają w Previous agents pod rodzicem. Powiadomienia o wyniku
 subagenta zostają wewnątrz wątku, a pytanie do użytkownika wywołuje jeden alert rodzica.
 
+Tapnięcie Archived zmienia lokalny stan od razu; zapis ustawienia w gatewayu działa
+w tle. Osobny cache `Paths.cache/archived-threads-v1` zachowuje ostatnio odczytane
+strony dla najwyżej 8 filtrów, razem z metadanymi projektów i workerów. Używa tego
+samego atomowego adaptera i zakresu urządzenie + pin co cache historii; unpair oraz
+revocation zamykają go przed usunięciem plików. Nie zajmuje miejsca w LRU transkryptów.
+Zapisane strony pokazują się przed odświeżeniem; brak danych daje kompaktowe skeletony.
+Przy braku połączenia lub nieaktualnych danych sekcja pokazuje „Showing saved threads”.
+Filtry projektu i tytułu działają także na zapisanych wierszach; pełne wyniki wyszukiwania
+uzupełnia gateway. Wiersze lokalne i połączonych komputerów trafiają do jednej
+wirtualizowanej FlatList, a koniec listy doczytuje kolejną stronę. Nowe archiwa są
+wstawiane w kolejności kursora bez ponownego sortowania całości. Jawne zdarzenia
+archive/unarchive/delete i unlink aktualizują cache; sama nieobecność komputera nie
+usuwa zapisanych wątków. Zmiana podczas pobierania unieważnia starszą odpowiedź,
+więc nie przywraca usuniętego lub odarchiwizowanego wiersza.
+Obecne API `ListArchivedThreads` zwraca tylko lokalne archiwum. Mobile zachowuje
+wiersze partnerów poznane przez zdarzenia overview i nie usuwa ich po lokalnym odczycie;
+pełna historia archiwum partnera nadal jest dostępna na jego komputerze.
+
 Settings zajmuje osobną, nieprzezroczystą trasę ponad całym workspace'em. Sidebar i wątek
 pod spodem zachowują szerokość przy otwieraniu i zamykaniu. Android przesuwa Settings
 od dołu bez przenikania tekstu; iOS używa natywnego przejścia stosu i gestu od lewej
