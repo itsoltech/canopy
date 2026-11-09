@@ -734,7 +734,7 @@ dostawcy, menu akcji) używa jednego `PickerSheet` (`src/ui/Picker.tsx`): kompak
 z zaokrąglonymi rogami, wierszami ≥ 48 dp, nagłówkami sekcji, wyszukiwaniem przy długich listach
 i znacznikiem wyboru; na oknach od 600 dp otwiera się jako karta na środku. Teksty nakładek
 biorą stopnie `contextType` z `packages/ui` (docs/ui-scale.md), ruch tokeny `motion`;
-przy ograniczeniu ruchu nakładki tylko się rozjaśniają (sekcja „Ruch”). Full access wymaga potwierdzenia
+przy ograniczeniu ruchu arkusze zmieniają położenie natychmiast (sekcja „Ruch”). Full access wymaga potwierdzenia
 przy każdym wyborze, jak w web. Feed wątku i czat bota są odwróconymi listami: otwierają się
 na ostatniej wiadomości, podążają za nowymi na dole i trzymają pozycję podczas czytania historii. Nazwy komponentów odpowiadają web, m.in. SidebarThread,
 ThreadHeader, MessageComposer/ComposerBox, ThreadPanel, AppearanceSettings,
@@ -799,6 +799,28 @@ nadal sprawdza typ schowka bez odczytu obrazu;
 „Paste image” czyta obraz dopiero po wybraniu tej akcji. Szkic i wybory pozostają zachowane.
 Bot zachowuje jednorzędową pigułkę z rosnącym polem tekstowym. New thread i formularz
 tworzenia wątku bocznego pozostają rozwinięte: przewijają formularz, nie historię rozmowy.
+
+`Overlay` i pełny `SheetSurface` korzystają z tego samego przezroczystego okna Modal oraz
+`useOverlayTransition`: powierzchnia wjeżdża spod dolnej krawędzi i wyjeżdża samą translacją,
+bez zmiany opacity ani skali, także w kartach od 600 dp. `sheetSpring` w `ui/motion.ts`
+(masa 1, sztywność 300, tłumienie 34, bez przestrzelenia) daje prawie krytyczne tłumienie
+i odczucie około 400–500 ms. Tylko scrim zmienia opacity według postępu położenia.
+Uchwyt i nagłówki oznaczone `SheetDragArea` obsługują `PanResponder`; zdarzenia dotyku
+przychodzą przez JS, a obliczenia, wartości i style Reanimated oraz sprężyna biegną na UI,
+bez renderów React podczas ruchu. Nie gwarantuje to dostarczania dotyku przy zablokowanym JS.
+Gest w dół przesuwa arkusz 1:1. Puszczenie po 28% jego zmierzonej wysokości lub po
+co najmniej 8 dp z prędkością ≥ 900 dp/s zamyka go z prędkością gestu; ruch w górę
+ma malejący opór ograniczony do 15% wysokości. Odwrócenie prędkości poniżej −300 dp/s
+anuluje zamknięcie. Anulowany lub krótki gest wraca do położenia spoczynkowego.
+Pierwszy gest z otwartą klawiaturą zamyka wyłącznie klawiaturę; następny przesuwa arkusz.
+Przewijana treść zachowuje natywne przewijanie: PanResponder nie zapewnia niezawodnego
+przejęcia aktywnego ScrollView na obu platformach bez skoku ani konfliktu responderów.
+Zamykanie przez uchwyt (akcja dostępności „Close”), escape, przycisk, tło i Android back
+korzysta z tego samego wyjścia. Ustawienie reduced motion usuwa sprężyny, ale zachowuje gest.
+Wspólne kontrolki zamknięcia wywołują `onClose` po animacji i usunięciu natywnego okna,
+więc rodzic może wtedy odmontować cały komponent. Przy zamykaniu przez `visible=false`
+`Overlay` zachowuje ostatnią treść do końca wyjścia. `onDismiss` nadal uruchamia akcje
+prezentujące kolejne okno dopiero po natywnym zamknięciu.
 
 Pusty kompozytor obsługujący triggery pokazuje tylko `/ commands · $ skills · @ files · # threads · ! shell`.
 Podpowiedź jest zawsze jednym wierszem z wielokropkiem na końcu, poza pomiarem tekstu pola;
@@ -1131,7 +1153,7 @@ Przejścia stanu UI idą przez warstwę `src/ui/motion.ts` (tokeny, presety, `us
 `useTween`) i `src/ui/MotionViews.tsx` (`Expand`, `Swap`, `Chevron`, `useArrivals`, `GlidingCell`,
 `usePressScale`). Czasy, odległości, skale i krzywe pochodzą z `motion` w `@canopy/ui`, tych samych
 co tokeny CSS web (`routes/layout.css`): otwarcie `fast` (250 ms), zamknięcie `quick` (150 ms), panele
-i arkusze `slow` / `medium` (400 / 350 ms), `smoothOut` dla powierzchni, pozycji i rozmiaru, `inOut`
+`slow` / `medium` (400 / 350 ms), arkusze `sheetSpring` opisany wyżej, `smoothOut` dla powierzchni, pozycji i rozmiaru, `inOut`
 dla tekstu i odsłonięcia szkieletu. Bez liczb ad hoc w komponentach. React Native nie ma `filter: blur`,
 więc przejścia web z rozmyciem są tu bez niego.
 
@@ -1148,7 +1170,8 @@ przezroczystością zmiękczają krawędzie bez dodatkowego modułu natywnego. P
 i okien biegną na wątku UI; tylko tekst bazowy zajmuje miejsce i jest dostępny dla czytnika.
 Ograniczenie ruchu usuwa pas i zatrzymuje animację, pozostawiając statyczny tekst.
 
-Ograniczenie ruchu w systemie: nic nie jedzie ani nie skaluje. Wiersze, nakładki i komunikaty tylko
+Ograniczenie ruchu w systemie: nic nie jedzie ani nie skaluje automatycznie. Arkusze zmieniają
+położenie natychmiast, a przeciąganie pozostaje dostępne. Wiersze i komunikaty tylko
 się rozjaśniają; zmiana tekstu, przesunięcia (pigułka, przełącznik, panel boczny), układ listy
 i odsłonięcie szkieletu są natychmiastowe. `useReducedMotion` ma jedną subskrypcję na aplikację
 i do pierwszej odpowiedzi systemu bierze wartość, którą Reanimated odczytał przy starcie.

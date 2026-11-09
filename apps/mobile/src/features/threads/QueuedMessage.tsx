@@ -6,6 +6,7 @@ import { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { Button } from "../../ui/components";
 import { Overlay } from "../../ui/Overlay";
+import { SheetDragArea } from "../../ui/SheetDragArea";
 import { styles, useColors } from "../../ui/theme";
 import { MessageSpans } from "../composer/MessageText";
 import { editText, isAttachment, trimValue, type MessageValue } from "../composer/message-value";
@@ -66,9 +67,11 @@ function EditorBody({ turn, onClose }: { turn: ui.Turn; onClose: () => void }) {
 
   return (
     <View style={{ padding: 16, gap: 12 }}>
-      <Text accessibilityRole="header" style={[styles.overlayHeading, { color: c.muted }]}>
-        Edit queued message
-      </Text>
+      <SheetDragArea>
+        <Text accessibilityRole="header" style={[styles.overlayHeading, { color: c.muted }]}>
+          Edit queued message
+        </Text>
+      </SheetDragArea>
       <TextInput
         accessibilityLabel="Edit queued message"
         autoFocus

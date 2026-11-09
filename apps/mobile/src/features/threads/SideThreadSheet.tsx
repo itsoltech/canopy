@@ -7,6 +7,7 @@ import { useSession } from "../../state/session";
 import { useLayout } from "../../state/layout";
 import { Button, Field } from "../../ui/components";
 import { Overlay } from "../../ui/Overlay";
+import { SheetDragArea } from "../../ui/SheetDragArea";
 import { Checkbox } from "../../ui/Checkbox";
 import { styles, useColors } from "../../ui/theme";
 
@@ -81,9 +82,11 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
 
   return (
     <View style={{ padding: 16, gap: 16 }}>
-      <Text accessibilityRole="header" style={[styles.overlayHeading, { color: c.muted }]}>
-        New side thread
-      </Text>
+      <SheetDragArea>
+        <Text accessibilityRole="header" style={[styles.overlayHeading, { color: c.muted }]}>
+          New side thread
+        </Text>
+      </SheetDragArea>
       <Field
         label="Task for the side thread"
         multiline

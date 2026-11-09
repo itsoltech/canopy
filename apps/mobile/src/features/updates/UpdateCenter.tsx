@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { IconButton, Button } from "../../ui/Button";
 import { Overlay } from "../../ui/Overlay";
+import { SheetCloseButton, SheetDragArea } from "../../ui/SheetDragArea";
 import { SheetContent } from "../../ui/components";
 import { CompactControls } from "../../ui/density";
 import { styles, useColors } from "../../ui/theme";
@@ -63,7 +64,7 @@ export function UpdateCenter() {
     >
       <SheetContent.Provider value={true}>
         <CompactControls.Provider value={true}>
-          <View style={[styles.row, { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }]}>
+          <SheetDragArea style={[styles.row, { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }]}>
             <Text accessibilityRole="header" style={[styles.overlayHeading, { color: c.strong, flex: 1 }]}>
               Updates
             </Text>
@@ -85,8 +86,8 @@ export function UpdateCenter() {
                 void manage({ action: "check" });
               }}
             />
-            <IconButton icon="x-mark" label="Close updates" size="sm" onPress={() => setOpen(false)} />
-          </View>
+            <SheetCloseButton label="Close updates" />
+          </SheetDragArea>
           <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12 }}>
             <UpdateFeedback />
             {snapshot && (

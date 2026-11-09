@@ -18,9 +18,12 @@ import { motion } from "@canopy/ui";
  * Motion on the web's token scale (@canopy/ui `motion` = routes/layout.css): open on `fast`, close on `quick`,
  * panels and sheets on `slow` / `medium`, `smoothOut` for surfaces, position and size, `inOut` for text and
  * skeleton reveal. Everything runs on the UI thread (Reanimated). With reduced motion nothing travels or scales:
- * surfaces and rows fade, text swaps, slides and layout changes are instant.
+ * rows fade, sheet positions, text swaps, slides and layout changes are instant.
  */
 export { motion };
+
+/** Nearly critically damped sheet travel: settles in about 400–500 ms without crossing the screen edge. */
+export const sheetSpring = { mass: 1, stiffness: 300, damping: 34, overshootClamping: true };
 
 export const smoothOut = Easing.bezierFn(...motion.smoothOut);
 export const inOut = Easing.bezierFn(...motion.inOut);
