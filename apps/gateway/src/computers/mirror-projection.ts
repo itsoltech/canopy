@@ -93,6 +93,7 @@ export function safeOverview(value: ui.GetOverviewResponse): ui.GetOverviewRespo
       id: w.id,
       name: w.name,
       hostname: w.hostname,
+      homeDirectory: w.homeDirectory,
       os: w.os,
       version: w.version,
       online: w.online,

@@ -11,11 +11,13 @@ import { coreWorkers } from "./core-providers.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { configLock } from "../config-sync/persistence.ts";
+import { safeCloneUrl } from "@canopy/domain/clone-url";
 
 /** A clone may take minutes; the worker stops git at 5 minutes, the gateway waits a little longer. */
 export const CLONE_COMMAND_TIMEOUT_MS = 5 * 60_000 + 15_000;
 
 const PROJECT_SOURCES = "project_sources";
+const adding = new WeakMap<GatewayCore, Set<string>>();
 
 /** The last segment of a worker path (`/home/me/GIT/canopy/` → `canopy`), for the new project's name. */
 const directoryName = (path: string) =>
@@ -31,6 +33,32 @@ const directoryName = (path: string) =>
  * A directory whose git origin matches exactly one project here joins it instead of creating a duplicate.
  */
 export async function coreAddProject(core: GatewayCore, request: ui.AddProjectRequest): Promise<ui.AddProjectResponse> {
+  const key = `${request.projectId}:${request.workerId}`;
+  const active = adding.get(core) ?? new Set<string>();
+
+  if (request.projectId && active.has(key))
+    throw new InvalidError("A workspace is already being added on this worker.");
+  adding.set(core, active);
+  active.add(key);
+
+  try {
+    return await addProject(core, request);
+  } finally {
+    active.delete(key);
+  }
+}
+
+async function addProject(core: GatewayCore, request: ui.AddProjectRequest): Promise<ui.AddProjectResponse> {
+  const selected = request.projectId
+    ? (await core.overview()).projects.find((p) => p.id === request.projectId)
+    : undefined;
+
+  if (request.projectId && !selected) throw new NotFound("project not found");
+
+  if (selected?.kind === "scratch") throw new InvalidError("scratch workspaces are managed automatically");
+
+  if (selected?.workspaces.some((w) => w.workerId === request.workerId))
+    throw new InvalidError("This project already has a workspace on this worker.");
   const worker = (await coreWorkers(core)).find((w) => w.id === request.workerId);
 
   if (!worker) throw new NotFound("worker not found");
@@ -38,6 +66,13 @@ export async function coreAddProject(core: GatewayCore, request: ui.AddProjectRe
 
   if (!connection?.isOpen) throw new UnavailableError(`${worker.name} is offline`);
   const source = request.source;
+
+  if (source.case === "clone") {
+    const checked = safeCloneUrl(source.value.url);
+
+    if ("message" in checked) throw new InvalidError(checked.message);
+    source.value.url = checked.url;
+  }
 
   if (source.case !== "directoryPath" && source.case !== "init" && source.case !== "clone")
     throw new InvalidError("Choose a directory, a new project or a Git URL");
@@ -86,7 +121,17 @@ export async function coreAddProject(core: GatewayCore, request: ui.AddProjectRe
 
     // The same rule as the merged pickers: every workspace of the project knows this one origin.
     const matches = origin ? await coreRun(core, (s) => s.projectsWithOrigin(userId, origin)) : [];
-    const attachTo = matches.length === 1 ? projects.find((p) => p.id === matches[0]!.id) : undefined;
+
+    const attachTo = selected
+      ? projects.find((p) => p.id === selected.id)
+      : matches.length === 1
+        ? projects.find((p) => p.id === matches[0]!.id)
+        : undefined;
+
+    if (selected && !attachTo) throw new NotFound("project not found");
+
+    if (selected && attachTo?.workspaces.some((w) => w.workerId === worker.id))
+      throw new InvalidError("This project already has a workspace on this worker.");
     const project = attachTo ?? (await coreRun(core, (s) => s.createProject(userId, directoryName(directory))));
 
     const workspace = await coreRun(core, (s) =>

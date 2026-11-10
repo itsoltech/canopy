@@ -115,6 +115,7 @@ export async function worktreeFixture(
           "worktrees",
           "worktree_lifecycle",
           "workspace_origin",
+          "workspace_clone_source",
           "project_sources",
           ...(options.capabilities ?? []),
         ],

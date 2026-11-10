@@ -79,6 +79,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.serve
           ? [
               REMOTE_THREADS,
+              "project_workspaces",
               REMOTE_BRANCH_SWITCH,
               "remote_worktrees",
               THREAD_MIRROR,

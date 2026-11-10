@@ -1,8 +1,9 @@
 import { normalizeGitOrigin } from "@canopy/domain/projects";
 import { processKey, runProcess } from "@canopy/process-governor";
+import { cloneUrl } from "./project-sources.ts";
 
-/** No fetch, shell, prompts or raw URLs on the wire. Negative results are cached too. */
-export async function workspaceOrigin(cwd: string): Promise<string> {
+/** No fetch, shell or prompts. A safe clone URL leaves the worker only when explicitly requested. */
+export async function workspaceOrigin(cwd: string, includeCloneUrl = false) {
   const command = {
     argv: ["git", "config", "--local", "--get", "remote.origin.url"],
     cwd,
@@ -14,5 +15,16 @@ export async function workspaceOrigin(cwd: string): Promise<string> {
 
   if (result.code !== 0 && result.code !== 1) throw new Error("Could not read the workspace Git origin.");
 
-  return result.code === 0 ? normalizeGitOrigin(result.stdout) : "";
+  const raw = result.code === 0 ? result.stdout.trim() : "";
+  let url = "";
+
+  if (includeCloneUrl && raw) {
+    try {
+      url = cloneUrl(raw);
+    } catch {
+      // Unsafe origins (including credentials) never leave this worker.
+    }
+  }
+
+  return { workspaceOrigin: normalizeGitOrigin(raw), workspaceCloneUrl: url };
 }

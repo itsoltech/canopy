@@ -238,6 +238,24 @@ async function* send(
   const outbound = clone(method.input, request);
   await carryAttachments(core, nodeId, method, outbound, signal);
   const ids = await ConfigIds.for(core, nodeId);
+
+  if (
+    method.name === "AddProject" &&
+    linkedMessage(ui.AddProjectRequestSchema, outbound).projectId &&
+    !computers.capabilities(nodeId).includes("project_workspaces")
+  )
+    throw new ConnectError("Update Canopy on the linked computer to add workspaces there.", Code.FailedPrecondition);
+
+  if (method.name === "AddProject") {
+    const projectId = linkedMessage(ui.AddProjectRequestSchema, outbound).projectId;
+
+    if (projectId && !splitId(projectId).node && !(await ids.projects()).known.has(projectId))
+      throw new ConnectError(
+        "Turn on Share configuration for this link before adding this project's workspace on the other computer.",
+        Code.FailedPrecondition,
+      );
+  }
+
   unqualify(method.input, outbound, nodeId, new Set([...(await ids.projects()).known, ...(await ids.proxies()).known]));
   await ids.map(method.input, outbound, "toGlobal", true);
 

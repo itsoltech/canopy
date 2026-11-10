@@ -257,6 +257,11 @@ Reguły niejednoznaczności i zgodność: [linked-computers.md](linked-computers
 dodaje katalog workera jako workspace: `directory_path` (istniejący katalog), `init`
 (`parent_path` + `name`: nowy katalog i `git init`) albo `clone` (`parent_path`, `name`, `url`).
 Odpowiedź: `project`, `workspace` i `attached` (katalog dołączył do projektu o tym samym git origin).
+Opcjonalne `project_id` (5) dołącza katalog do jawnie wybranego projektu właściciela; projekt i worker
+są sprawdzane przed klonem, a drugi workspace tego projektu na tym samym workerze jest odrzucany.
+`GetWorkspaceCloneSource(workspace_id)` (BFF: `GET /api/workspaces/{id}/clone-source`) zwraca edytowalny,
+pozbawiony poświadczeń URL origin, odczytany na workerze źródłowym. Brak/niebezpieczny origin daje pusty URL.
+Odczyt jest tylko na żądanie, bez przechowywania URL w overview lub lustrze.
 Kwalifikowany `worker_id` trasuje wywołanie do domu workera. `Worker.project_sources` (**805**) mówi,
 czy worker tworzy katalogi i klony. Reguły, ścieżki i poświadczenia:
 [linked-computers.md](linked-computers.md#dodawanie-projektu-na-dowolnym-komputerze).
@@ -302,8 +307,10 @@ po scaleniu origin; `id` nadal wskazuje lokalny wiersz. Gateway tłumaczy `proje
 w wywołaniach trasowanych i zbiera workspace'y partnerów w jednym projekcie. Id workspace'ów i workerów
 zachowują kwalifikator komputera. Ustawienia worktree z workerem zapisuje jego dom; edycja jest trasowana.
 Settings → Projects i strona projektu używają `ConfigNotice` oraz Restore; sekcja „Workspaces” pokazuje
-nazwę workera i komputera, a katalogi partnera są tylko do odczytu. Opis: „A new thread runs in one of
-these directories on the project's workers.”.
+nazwę workera i komputera w zwartych wierszach, kopiowanie ścieżki i menu edycji/usunięcia także dla partnera.
+„Add workspace” otwiera wybór workera, istniejącego katalogu lub klonu; mobile używa arkusza.
+`UpdateWorkspace` i `RemoveWorkspace` trasują kwalifikowane id do domu workspace'u.
+Opis: „A new thread runs in one of these directories on the project's workers.”.
 API i UI 0050 zostały usunięte. Dawne deklaracje protobuf zostają zarezerwowane; `GetSharedConfig`
 i `ManageSharedConfig` zwracają Unimplemented, a `PushSharedConfig` nie jest obsługiwane na łączu.
 

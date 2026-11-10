@@ -29,6 +29,8 @@
     worker,
     mode,
     name = "",
+    parent = "",
+    actionLabel,
     busy = false,
     error,
     onsubmit,
@@ -39,6 +41,8 @@
     mode: BrowseMode;
     /** Starting name of the new directory (a clone's repository name). */
     name?: string;
+    parent?: string;
+    actionLabel?: string;
     busy?: boolean;
     error?: string | undefined;
     onsubmit: (target: { dir: string; name: string }) => void;
@@ -47,6 +51,7 @@
   } = $props();
 
   const id = $props.id();
+  const label = $derived(actionLabel ?? ACTION_LABELS[mode]);
   const listing = untrack(() => new DirectoryListing(worker.id));
   let input = $state<HTMLInputElement>();
   let text = $state("");
@@ -76,7 +81,7 @@
       (home) => {
         realHome = home.path;
 
-        if (!text) text = `${directoryText(home.path, style)}${untrack(() => name)}`;
+        if (!text) text = `${directoryText(untrack(() => parent) || home.path, style)}${untrack(() => name)}`;
       },
       () => (text ||= `~${style.sep}`),
     );
@@ -174,11 +179,17 @@
   />
   {#snippet action()}
     <Button size="sm" variant={ready ? "primary" : "secondary"} disabled={!ready} loading={busy} onclick={submit}>
-      {busy ? BUSY_LABELS[mode] : ACTION_LABELS[mode]}
+      {busy ? BUSY_LABELS[mode] : label}
       {#if !busy}<Kbd hotkey={active >= 0 ? "Mod+Enter" : "Enter"} class={ready ? "text-white/75!" : undefined} />{/if}
     </Button>
   {/snippet}
 </StepHeader>
+
+{#if busy && mode === "clone"}
+  <p role="status" class="px-4 py-2 text-sm/5 text-zinc-500 dark:text-zinc-400">
+    Cloning on {worker.name}… This stops after 5 minutes.
+  </p>
+{/if}
 
 <p id="{id}-status" class="sr-only" role="status">{listingError ?? notice}</p>
 {#if notice}
@@ -228,7 +239,7 @@
 <PaletteFooter
   hints={[
     { hotkeys: ["ArrowUp", "ArrowDown"], label: "Navigate" },
-    { hotkeys: ["Enter"], label: active >= 0 ? "Open" : ACTION_LABELS[mode] },
+    { hotkeys: ["Enter"], label: active >= 0 ? "Open" : label },
     { hotkeys: ["Backspace"], label: "Back" },
     { hotkeys: ["Escape"], label: "Close" },
   ]}

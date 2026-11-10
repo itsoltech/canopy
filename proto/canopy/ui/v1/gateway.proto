@@ -136,6 +136,8 @@ service GatewayService {
   // Katalog na workerze (istniejący, nowy z git init albo klon) jako workspace: dołącza do projektu
   // o tym samym git origin albo tworzy nowy projekt. Trasowane do domu workera.
   rpc AddProject(AddProjectRequest) returns (AddProjectResponse);
+  // Credential-free clone URL of an owner-scoped workspace's origin, read on its worker.
+  rpc GetWorkspaceCloneSource(GetWorkspaceCloneSourceRequest) returns (GetWorkspaceCloneSourceResponse);
 
   rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
   rpc ListArchivedThreads(ListArchivedThreadsRequest) returns (ListArchivedThreadsResponse);
@@ -921,6 +923,17 @@ message AddProjectRequest {
     AddProjectInit init = 3;
     AddProjectClone clone = 4;
   }
+  // Nonempty: attach explicitly to this existing project instead of matching by origin.
+  string project_id = 5;
+}
+
+message GetWorkspaceCloneSourceRequest {
+  string workspace_id = 1;
+}
+
+message GetWorkspaceCloneSourceResponse {
+  // Empty when missing or unsafe (including embedded credentials). Never persisted.
+  string clone_url = 1;
 }
 
 message AddProjectInit {
