@@ -74,6 +74,7 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "renameWorktreeBranch",
   "scanWorktrees",
   "revealWorktree",
+  "revealPath",
   "scanImportSources",
   "readImportPage",
   "readImportLibraryItem",

@@ -9,6 +9,7 @@ import { readImportPage } from "../import/pages.ts";
 import type { HostContext } from "./host-context.ts";
 import { providerAccounts } from "./account-commands.ts";
 import { withProcessPriority } from "@canopy/process-governor";
+import { revealInFileManager } from "./reveal.ts";
 
 export class CommandHandlers {
   constructor(readonly ctx: HostContext) {}
@@ -43,6 +44,13 @@ export class CommandHandlers {
     if (kind.case === "removeWorktree") return this.ctx.ops.removeWorktree(kind, command.commandId);
 
     if (kind.case === "revealWorktree") return this.ctx.ops.revealWorktree(kind);
+
+    if (kind.case === "revealPath") {
+      this.ctx.ops.checkCwd(kind.value.path);
+      await revealInFileManager(kind.value.path);
+
+      return {};
+    }
 
     if (kind.case === "scanImportSources")
       return { importScan: await this.ctx.state.imports.scan(kind.value.agentClis) };

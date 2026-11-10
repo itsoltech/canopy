@@ -10,6 +10,9 @@ export const STEER_ATTACHMENTS_CAPABILITY = "steer_attachments_v1";
 /** Explicit owner action in an idle thread's checkout; no automatic stash or force. */
 export const GIT_BRANCH_SWITCH_CAPABILITY = "git_branch_switch_v1";
 
+/** Explicit owner action: open a thread's directory in the worker computer's file manager. */
+export const REVEAL_PATH_CAPABILITY = "reveal_path";
+
 /** Frozen canopy.update.v1; never bump this for WorkerLink or application releases. */
 export const UPDATE_PROTOCOL = 1;
 

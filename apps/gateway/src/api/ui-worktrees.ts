@@ -17,6 +17,7 @@ export function worktreesHandlers(
   | "cleanupWorktrees"
   | "removeWorktree"
   | "revealWorktree"
+  | "revealThreadDirectory"
 > {
   const branches = new ThreadBranches(core);
 
@@ -32,6 +33,12 @@ export function worktreesHandlers(
     revealWorktree: (request) =>
       guard(async () => {
         await core.revealWorktree(request);
+
+        return {};
+      }),
+    revealThreadDirectory: (request) =>
+      guard(async () => {
+        await branches.reveal(request);
 
         return {};
       }),

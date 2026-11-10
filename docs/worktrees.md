@@ -258,7 +258,14 @@ staje się niezarządzany ani nieusuwalny. Worktree ze skonfigurowanym `location
 zamiar usunięcia przed operacją git, a wynik w journalu komend; ponowienie po zerwanym połączeniu
 lub awarii między usunięciem a zapisem wyniku nie usuwa innej ścieżki ani nie powiela audytu.
 Reveal otwiera folder menedżerem plików na komputerze workera (`open -R`, `explorer.exe`, `xdg-open`);
-bez menedżera zwraca komunikat z zaleceniem skopiowania ścieżki.
+bez menedżera zwraca komunikat z zaleceniem skopiowania ścieżki. Explorer kończy się kodem 1 także
+po otwarciu folderu, więc na Windows błędem jest tylko nieudany start.
+
+**Open folder** (menu kontekstowe wątku i ikona przy „Directory”/„Worktree” w szczegółach wątku)
+otwiera tak samo katalog wątku: `RevealThreadDirectory` sprawdza właściciela i aktywny wątek, a gateway
+wysyła nietrwałą komendę `RevealPath` (capability `reveal_path`) z `threads.cwd`; worker wymaga
+bezwzględnego, istniejącego katalogu. Starszy worker dostaje prośbę o aktualizację, offline — o połączenie.
+Wątek połączonego komputera otwiera folder na komputerze swojego domu.
 
 ## Nazwy gałęzi
 

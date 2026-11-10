@@ -75,6 +75,11 @@ export async function forkThread(threadId: string, turnId: string): Promise<ui.T
   return decode(ui.CreateThreadResponseSchema, await post(`${threadPath(threadId)}/fork`, { turnId })).thread;
 }
 
+/** Opens the thread's directory in the file manager of its worker's computer. */
+export async function revealThreadDirectory(threadId: string): Promise<void> {
+  await requestJson("POST", `${threadPath(threadId)}/reveal`, {}, 30_000);
+}
+
 export async function interruptThread(threadId: string): Promise<void> {
   await post(`${threadPath(threadId)}/interrupt`, {});
 }

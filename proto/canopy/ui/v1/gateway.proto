@@ -215,6 +215,8 @@ service GatewayService {
   // Bieżący checkout wątku, capability git_branch_switch_v1 workera i domu.
   rpc ListThreadBranches(ThreadBranchesRequest) returns (ListGitRefsResponse);
   rpc SwitchThreadBranch(SwitchThreadBranchRequest) returns (SwitchThreadBranchResponse);
+  // Otwiera katalog wątku menedżerem plików na komputerze workera (capability reveal_path).
+  rpc RevealThreadDirectory(ThreadBranchesRequest) returns (google.protobuf.Empty);
   rpc GetThreadBlob(GetThreadBlobRequest) returns (GetThreadBlobResponse);
 
   // Kolejka (sekcja na końcu pliku): wiadomości czekające za turą w toku — kolejność, edycja, usunięcie
