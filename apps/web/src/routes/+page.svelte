@@ -217,7 +217,7 @@
     <Crumb>New thread</Crumb>
   </TopBar>
 
-  <CenteredContent class="max-w-(--chat-width)">
+  <CenteredContent bottomClass="composer-bottom" class="max-w-(--chat-width)">
     <div class="mb-8 text-center">
       <h1 class="text-3xl font-medium tracking-tight text-balance text-zinc-950 dark:text-white">
         What should we work on?

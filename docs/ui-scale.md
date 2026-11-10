@@ -126,6 +126,15 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   grupy do prawej. Nazwa modelu pochodzi synchronicznie ze wspólnego katalogu;
   maksymalna szerokość ogranicza długą nazwę, bez rezerwowania pustego slotu dla krótkiej.
   Brak obsługi wysiłku usuwa jego pigułkę razem z odstępem.
+- Dolny inset composerów web/desktop (wątki, nowe wątki, wątki boczne, boty i grupy)
+  używa wspólnego `composer-bottom`: maksimum z 8 px (`--spacing(2)`) i
+  `env(safe-area-inset-bottom)`, także od `sm`. Na wyśrodkowanych ekranach to minimalny
+  odstęp po przewinięciu, a nie wymuszone wyrównanie do dołu. Status wysyłki zajmuje
+  miejsce komputera w wierszu kontekstu, bez dodatkowego pustego wiersza pod nim.
+  Spacer osi czasu i pozycja „Jump to latest” uwzględniają mierzoną wysokość całego
+  wrappera wraz z insetem; tło composera dochodzi do dolnej krawędzi widoku. Rozmowy
+  botów i grup utrzymują koniec po zmianie wysokości composera tylko podczas śledzenia
+  najnowszych wiadomości, bez przesuwania czytelnika przeglądającego historię.
 - Wiersze nakładek mają jedną linię na pole: nazwy użytkownika (projekty, workery, gałęzie, modele)
   kończą się wielokropkiem, a pełna nazwa jest w tooltipie (`TruncatedText`; robią to `PickerRow`,
   `MenuItemText`, opcje `Select` i `Checkbox` w nakładce). Druga linia jest tylko tam, gdzie wiersz ją

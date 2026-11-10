@@ -92,7 +92,7 @@
       <ButtonLink {href} size="sm" icon="arrow-left" aria-label="Back to main thread">Back</ButtonLink>
     {/snippet}
   </TopBar>
-  <CenteredContent class="grid max-w-(--chat-width) min-w-0 grid-cols-1 gap-8">
+  <CenteredContent bottomClass="composer-bottom" class="grid max-w-(--chat-width) min-w-0 grid-cols-1 gap-8">
     <SideThreadContext {main} {worker} {project} />
     <form
       method="POST"
