@@ -1,4 +1,5 @@
 import { chmodSync, copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { expect } from "bun:test";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
@@ -164,6 +165,42 @@ export async function worktreeFixture(
 
   await settings({ branchNaming: ui.BranchNaming.PREFIX });
 
+  const entry = async (id: string) => (await gw.api.listWorktrees({ worktreeId: id })).entries[0]!;
+
+  // threadReady reports idle before createThread is acknowledged; queued turns can also outlive it.
+  const settled = async (thread: ui.Thread) => {
+    const state = await eventually(
+      () =>
+        gw.runtime.runPromise(
+          Effect.flatMap(
+            SqlClient.SqlClient,
+            (sql) => sql<{ status: string; busy: boolean }>`SELECT t.status,
+            EXISTS (SELECT 1 FROM turns u WHERE u.thread_id=t.id AND u.status IN ('queued','running')) OR
+            EXISTS (SELECT 1 FROM worker_commands c WHERE c.thread_id=t.id AND c.status IN ('pending','delivered')
+              AND c.kind IN ('createThread','startTurn','setGoal') AND c.expires_at>now()) AS busy
+            FROM threads t WHERE t.id=${thread.id}::uuid`,
+          ).pipe(Effect.map((rows) => rows[0])),
+        ),
+      (state) => state?.status === "idle" && !state.busy,
+    );
+
+    expect(state).toMatchObject({ status: "idle", busy: false });
+    // Checkout aliases have no worktree id; their own durable admission must still settle above.
+    const worktree = thread.worktree;
+
+    if (!worktree) return;
+
+    const scanned = await eventually(
+      () => entry(worktree.id),
+      (entry) => !entry.busy && (worktree.external || entry.status !== undefined),
+    );
+
+    expect(scanned.busy).toBe(false);
+
+    // External worktrees are discovered, never scanned for cleanup.
+    if (!worktree.external) expect(scanned.status).toBeDefined();
+  };
+
   const tree = async () => {
     const thread = (
       await gw.api.createThread({
@@ -175,16 +212,11 @@ export async function worktreeFixture(
       })
     ).thread!;
 
-    await eventually(
-      () => gw.api.getThread({ threadId: thread.id }),
-      (r) => r.thread?.status === "idle",
-    );
+    await settled(thread);
     rmSync(join(thread.cwd, "worker-started.txt"));
 
     return thread;
   };
-
-  const entry = async (id: string) => (await gw.api.listWorktrees({ worktreeId: id })).entries[0]!;
 
   const remove = async (id: string, confirm = false) =>
     gw.api.removeWorktree({
@@ -209,6 +241,7 @@ export async function worktreeFixture(
     project,
     workspace,
     tree,
+    settled,
     entry,
     settings,
     remove,

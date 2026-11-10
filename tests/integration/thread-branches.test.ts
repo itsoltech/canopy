@@ -99,10 +99,7 @@ describe.skipIf(!dockerAvailable)("thread branch selection over the worker link"
       (await f.gw.runtime.runPromise(GatewayStore.use((s) => s.thread(thread.id)))).settings.branchNote,
     ).toBeUndefined();
     await f.connect();
-    await eventually(
-      () => snapshotOf(thread.id),
-      (s) => s.turns.every((t) => t.status !== "queued" && t.status !== "running"),
-    );
+    await f.settled(thread);
   });
 
   test("creates a tracking branch from an existing remote ref without fetching", async () => {
@@ -171,10 +168,7 @@ describe.skipIf(!dockerAvailable)("thread branch selection over the worker link"
       })
     ).thread!;
 
-    await eventually(
-      () => f.gw.api.getThread({ threadId: side.id }),
-      (r) => r.thread?.status === "idle",
-    );
+    await f.settled(side);
     rmSync(join(thread.cwd, "worker-started.txt"));
 
     const queued = await f.gw.runtime.runPromise(
@@ -249,10 +243,7 @@ describe.skipIf(!dockerAvailable)("thread branch selection over the worker link"
       })
     ).thread!;
 
-    await eventually(
-      () => f.gw.api.getThread({ threadId: shared.id }),
-      (r) => r.thread?.status === "idle",
-    );
+    await f.settled(shared);
     rmSync(join(thread.cwd, "worker-started.txt"));
 
     const queued = await f.gw.runtime.runPromise(

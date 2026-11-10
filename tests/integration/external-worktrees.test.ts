@@ -74,10 +74,7 @@ describe.skipIf(!dockerAvailable)("external worktrees over the worker link", () 
     const t = (await pick(external.id)).thread!;
     expect(t.cwd).toBe(path);
     expect(t.worktree).toMatchObject({ external: true, provisionalBranch: false });
-    await eventually(
-      () => f.gw.api.getThread({ threadId: t.id }),
-      (r) => r.thread?.status === "idle",
-    );
+    await f.settled(t);
     expect(readFileSync(join(path, "worker-started.txt"), "utf8")).toBe(path);
     git(path, "switch", "-qc", "external/live-branch");
     await eventually(
