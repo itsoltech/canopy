@@ -16,6 +16,37 @@ export interface ArchivedPageState {
   error: string;
 }
 
+/**
+ * Whether a live thread update can change the archived list (rows, count, titles, side threads), judged against
+ * the index before it. Status and activity of active threads cannot: those updates fetch no archived pages.
+ */
+export function changesArchived(thread: ui.Thread, known: (id: string) => ui.Thread | undefined): boolean {
+  const before = known(thread.id);
+
+  // New, restored from a page that was never loaded, or deleted.
+  if (!before || thread.deletedAt) return true;
+
+  if (before.status === "archived" || thread.status === "archived") return true;
+
+  return Boolean(thread.parentThreadId) && known(thread.parentThreadId)?.status === "archived";
+}
+
+/** The same judgement for a whole index that replaced `before` (clients that hold the list, not its events). */
+export function indexChangesArchived(before: ReadonlyMap<string, ui.Thread>, after: readonly ui.Thread[]): boolean {
+  let kept = 0;
+
+  for (const thread of after) {
+    const previous = before.get(thread.id);
+
+    if (previous) kept += 1;
+
+    if (previous !== thread && changesArchived(thread, (id) => before.get(id))) return true;
+  }
+
+  // A thread left the index (deleted, or its computer unlinked).
+  return kept !== before.size;
+}
+
 type Load = (
   request: ArchivedFilter & { pageToken: string; countOnly: boolean },
 ) => Promise<ui.ListArchivedThreadsResponse>;

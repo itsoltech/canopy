@@ -7,7 +7,7 @@ import { useContentPadding } from "../../ui/ScreenFrame";
 import Animated from "react-native-reanimated";
 import { Chevron, useArrivals } from "../../ui/MotionViews";
 import { useMotion } from "../../ui/motion";
-import { SidebarThreadTree } from "./SidebarThreadTree";
+import { SidebarThreadTreeRow } from "./SidebarThreadTree";
 import type { useSidebarThreads } from "./useSidebarThreads";
 import { SidebarArchivedHeader, SidebarArchivedStatus, useArchivedThreads } from "./SidebarArchivedThreads";
 
@@ -53,6 +53,7 @@ export function SettingsThreadList({
 
   const data = [...active, ...(!active.length ? [{ key: "empty", section: "empty" as const }] : []), ...archived];
   const rootIds = new Set(filtered.roots.map((t) => t.id));
+  const now = Date.now();
 
   const arrival = useArrivals(
     data.map((e) => e.key),
@@ -81,8 +82,9 @@ export function SettingsThreadList({
           ) : item.section === "status" ? (
             <SidebarArchivedStatus archive={archive} />
           ) : item.section === "archived" ? (
-            <SidebarThreadTree
+            <SidebarThreadTreeRow
               thread={item.thread}
+              now={now}
               archived
               current={current}
               projects={archive.projects}
@@ -90,8 +92,9 @@ export function SettingsThreadList({
               sideThreads={archive.sideThreads.get(item.thread.id) ?? []}
             />
           ) : item.thread ? (
-            <SidebarThreadTree
+            <SidebarThreadTreeRow
               thread={item.thread}
+              now={now}
               sideThreads={filtered.sides.get(item.thread.id) ?? []}
               rootIds={rootIds}
               current={current}

@@ -264,8 +264,14 @@ export function pop(
 
 /** List reorder (`animate:reorder` in a keyed each): rows glide to their new place (position change). */
 export function reorder(node: Element, positions: { from: DOMRect; to: DOMRect }): AnimationConfig {
+  // A long list moves hundreds of rows nobody sees: only rows on screen before or after the move animate.
+  if (!onScreen(positions.from) && !onScreen(positions.to)) return { duration: 0 };
+
   return flip(node, positions, { duration: prefersReducedMotion.current ? 0 : duration("fast"), easing: smoothOut });
 }
+
+const onScreen = (rect: DOMRect) =>
+  rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
 
 /** Delay of the `index`-th item of a group that appears together (--duration-stagger, capped so the last waits under 300 ms). */
 export function stagger(index: number, cap = 7): number {

@@ -3,7 +3,9 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { projectChoices } from "./projects.ts";
+import { changesArchived, indexChangesArchived } from "./archived-threads.ts";
 import { sidebarEntries } from "./sidebar-entries.ts";
+import { sameSidebarRow, sidebarRows } from "./sidebar-rows.ts";
 import {
   collapsedArchivedThread,
   isArchivedSidebarThread,
@@ -151,5 +153,57 @@ describe("shared sidebar trees", () => {
     expect(collapsedArchivedThread(subagent, false, all, [], "", projectName)).toBeUndefined();
     expect(ids([archived, subagent].filter(isArchivedSidebarThread))).toEqual(["archived"]);
     expect(ids(sidebarChildren([side]).sides.previous)).toEqual(["side"]);
+  });
+});
+
+describe("live sidebar updates", () => {
+  const lookup = { project: () => undefined, worker: () => undefined };
+
+  const rowsOf = (rows: ui.Thread[], open?: string) => {
+    const filtered = sidebarThreads(rows, settings(), "", projectName);
+
+    return sidebarRows(sidebarEntries(filtered, settings(), [], false), filtered, open, lookup);
+  };
+
+  test("a rebuilt index keeps unchanged rows equal; the changed thread, its tree and the open tree differ", () => {
+    const rows = [thread("a"), thread("b"), thread("side", { parentThreadId: "b" })];
+    const before = rowsOf(rows);
+    const after = rowsOf([rows[0]!, create(ui.ThreadSchema, { ...rows[1]!, status: "running" }), rows[2]!]);
+    const changed = after.filter((row, at) => !sameSidebarRow(before[at]!, row)).map((row) => row.key);
+
+    expect(after.map((row) => row.key)).toEqual(before.map((row) => row.key));
+    expect(changed).toEqual(["b"]);
+
+    const side = create(ui.ThreadSchema, { ...rows[2]!, title: "Renamed" });
+    const sideChanged = rowsOf([rows[0]!, rows[1]!, side]).filter((row, at) => !sameSidebarRow(before[at]!, row));
+    expect(sideChanged.map((row) => row.key)).toEqual(["b"]);
+
+    const opened = rowsOf(rows, "b").filter((row, at) => !sameSidebarRow(before[at]!, row));
+    expect(opened.map((row) => [row.key, row.open])).toEqual([["b", true]]);
+  });
+
+  test("only updates that can reach the archive refresh its pages", () => {
+    const active = thread("active", { status: "running" });
+    const archived = thread("archived", { status: "archived" });
+    const side = thread("side", { parentThreadId: "archived" });
+    const index = new Map([active, archived, side].map((t) => [t.id, t]));
+    const known = (id: string) => index.get(id);
+
+    const update = (base: ui.Thread, patch: Partial<ui.Thread>): ui.Thread => ({ ...base, ...patch });
+
+    expect(changesArchived(update(active, { status: "idle", title: "Renamed" }), known)).toBe(false);
+    expect(changesArchived(update(active, { status: "archived" }), known)).toBe(true);
+    expect(changesArchived(update(archived, { status: "idle" }), known)).toBe(true);
+    expect(changesArchived(update(archived, { title: "Renamed" }), known)).toBe(true);
+    expect(changesArchived(update(side, { status: "running" }), known)).toBe(true);
+    expect(changesArchived(thread("restored-or-new"), known)).toBe(true);
+    expect(changesArchived(update(active, { deletedAt: timestampFromMs(2000) }), known)).toBe(true);
+
+    const list = [...index.values()];
+    expect(indexChangesArchived(index, list)).toBe(false);
+    expect(indexChangesArchived(index, [update(active, { status: "idle" }), archived, side])).toBe(false);
+    expect(indexChangesArchived(index, [active, update(archived, { title: "Renamed" }), side])).toBe(true);
+    expect(indexChangesArchived(index, [active, archived])).toBe(true);
+    expect(indexChangesArchived(index, [...list, thread("new")])).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 import { ui } from "@canopy/contracts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 import { isSide } from "@canopy/domain/thread-tree";
+import { retain, sameItems } from "@canopy/domain/same-items";
 
 export { groupSideThreads, isSide } from "@canopy/domain/thread-tree";
 
@@ -45,9 +46,19 @@ export function threadForest(threads: readonly ui.Thread[]): ThreadTree[] {
     .map((main) => ({ main, sides: (sides.get(main.id) ?? []).sort(byCreation) }));
 }
 
-/** The tree the given thread belongs to. */
+/** The tree the given thread belongs to: the same tree `threadForest` builds, without building the others. */
 export function treeOf(threads: readonly ui.Thread[], thread: ui.Thread): ThreadTree {
   const rootId = isSide(thread) && thread.parentThreadId ? thread.parentThreadId : thread.id;
+  const main = threads.find((t) => t.id === rootId);
 
-  return threadForest(threads).find((tree) => tree.main.id === rootId) ?? { main: thread, sides: [] };
+  // A main that is itself a side thread of a listed one is no root of the forest.
+  if (!main || (isSide(main) && threads.some((t) => t.id === main.parentThreadId))) return { main: thread, sides: [] };
+
+  return { main, sides: threads.filter((t) => isSide(t) && t.parentThreadId === rootId).sort(byCreation) };
 }
+
+const sameTree = (a: ThreadTree | undefined, b: ThreadTree | undefined): boolean =>
+  a === b || (a !== undefined && b !== undefined && a.main === b.main && sameItems(a.sides, b.sides));
+
+/** Every thread event rebuilds the index: the tree's readers (panel, lineage) rerun only when the tree changed. */
+export const retainTree = () => retain(sameTree);

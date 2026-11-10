@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ui } from "@canopy/contracts";
 import {
   forgetComputerProjects,
@@ -147,11 +147,15 @@ function useOverviewState() {
     if (change.case === "workerRemoved") setWorkers((rows) => rows.filter((r) => r.id !== change.value));
   });
 
+  // Thread events render every reader; derived lists keep their identity so memoized rows can skip them.
+  const choices = useMemo(() => projectChoices(projects.filter((project) => !project.archivedAt)), [projects]);
+  const available = useMemo(() => workersWithAvailability(workers, computers), [workers, computers]);
+
   return {
     threads: client ? threads : [],
     projects,
-    projectChoices: projectChoices(projects.filter((project) => !project.archivedAt)),
-    workers: workersWithAvailability(workers, computers),
+    projectChoices: choices,
+    workers: available,
     computers,
     loaded,
     linkedReads,

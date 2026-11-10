@@ -1,5 +1,6 @@
 import type { ui } from "@canopy/contracts";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
+import { sameItems } from "./same-items.ts";
 import { byActivity } from "./thread-activity.ts";
 import type { StatusLook } from "./status-look.ts";
 
@@ -81,6 +82,10 @@ export function subagentsOf(threads: Iterable<ui.Thread>, parentId: string): Sub
     )
     .sort((a, b) => Number((b.thread.createdAt?.seconds ?? 0n) - (a.thread.createdAt?.seconds ?? 0n)));
 }
+
+/** Same subagents in the same states: a rebuilt list that changed nothing keeps the panel as it is. */
+export const sameSubagents = (a: readonly Subagent[], b: readonly Subagent[]): boolean =>
+  sameItems(a, b, (x, y) => x.thread === y.thread && x.state === y.state);
 
 /** Active counts only: "2 subagents working · 1 needs you". Empty when no agent is active. */
 export function subagentSummary(list: readonly Subagent[]): string {

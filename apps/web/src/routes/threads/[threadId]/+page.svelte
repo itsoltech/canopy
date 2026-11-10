@@ -37,14 +37,14 @@
   import QueuePanel from "#lib/features/threads/queue/QueuePanel.svelte";
   import { QueueState } from "#lib/features/threads/queue/queue-state.svelte.ts";
   import SubagentsPanel from "#lib/features/threads/subagents/SubagentsPanel.svelte";
-  import { subagentsOf } from "#lib/features/threads/subagents/subagents.ts";
+  import { retainSubagents, subagentsOf } from "#lib/features/threads/subagents/subagents.ts";
   import { subagentPresence } from "#lib/features/threads/subagents/subagent-motion.ts";
   import SubagentOrigin from "#lib/features/threads/components/SubagentOrigin.svelte";
   import TimelineSkeleton from "#lib/features/threads/components/TimelineSkeleton.svelte";
   import { forkFrom, lastForkPoint } from "#lib/features/threads/fork.svelte.ts";
   import { provideThreadDirectory } from "#lib/features/threads/thread-directory.ts";
   import { ThreadState } from "#lib/features/threads/thread-state.svelte.ts";
-  import { isSide, treeOf } from "#lib/features/threads/thread-tree.ts";
+  import { isSide, retainTree, treeOf } from "#lib/features/threads/thread-tree.ts";
   import { isTerminal, topLevelEntry } from "#lib/features/threads/timeline.ts";
   import { WorkFolds, type FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
@@ -149,7 +149,9 @@
     return all.some((t) => t.id === thread.id) ? all.map((t) => (t.id === thread.id ? thread : t)) : [...all, thread];
   });
 
-  const tree = $derived(thread ? treeOf(threads, thread) : undefined);
+  // The tree and the subagents keep their value while an event elsewhere leaves them unchanged.
+  const [keepTree, keepSubagents] = [retainTree(), retainSubagents()];
+  const tree = $derived(keepTree(thread ? treeOf(threads, thread) : undefined));
 
   provideThreadDirectory({
     get readOnly() {
@@ -158,7 +160,7 @@
     get currentId() {
       return threadId;
     },
-    thread: (id) => threads.find((t) => t.id === id) ?? overview.threads.get(id),
+    thread: (id) => (id === thread?.id ? thread : overview.threads.get(id)),
     awaiting: (itemId) => view.pending.some((i) => i.itemId === itemId),
     goal: (id) => (view.goal?.id === id ? view.goal : undefined),
     turnEnded: (turnId) => {
@@ -221,7 +223,7 @@
   });
 
   // The subagents its agent started (spawn_thread), live from the thread index: the panel above the composer.
-  const subagents = $derived(thread ? subagentsOf(threads, thread.id) : []);
+  const subagents = $derived(keepSubagents(thread ? subagentsOf(threads, thread.id) : []));
   const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
   const itemsById = $derived(new Map(view.ownEntries.map((e) => [e.id, e.item])));
   const closed = $derived(!thread || thread.status === "failed" || thread.status === "archived" || Boolean(away));
