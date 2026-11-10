@@ -1,13 +1,6 @@
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 import { View } from "react-native";
-import {
-  callKey,
-  diagnosticsRanges,
-  diagnosticsSorts,
-  diagnosticsKinds,
-  DiagnosticsPages,
-  sortCalls,
-} from "@canopy/domain/diagnostics";
+import { diagnosticsRanges, diagnosticsSorts, diagnosticsKinds, DiagnosticsPages } from "@canopy/domain/diagnostics";
 import { SettingChoice, SettingsGroup, SettingsActions } from "./SettingsGroup";
 import { ResourceState } from "./resource";
 import { useDiagnosticsResource } from "./diagnostics-resource";
@@ -24,7 +17,6 @@ export function DiagnosticsSettings() {
   const [sort, setSort] = useState("p95");
   const [kind, setKind] = useState("unary");
   const pages = useRef(new DiagnosticsPages());
-  const [order, setOrder] = useState<string[]>([]);
   const [expanded, setExpanded] = useState(false);
 
   const overview = useDiagnosticsResource(`GetDiagnostics:${range}`, (api) =>
@@ -53,14 +45,6 @@ export function DiagnosticsSettings() {
   );
 
   const data = detail.data?.computerId === computer ? detail.data : undefined;
-  const scope = detailKey;
-
-  useEffect(() => {
-    setOrder([]);
-  }, [scope]);
-  useEffect(() => {
-    if (!order.length && data?.calls.length) setOrder(sortCalls(data.calls, sort).map(callKey));
-  }, [data, order.length, sort]);
 
   function select(value: string) {
     setSelected(value);
@@ -70,15 +54,7 @@ export function DiagnosticsSettings() {
   function chooseSort(value: string) {
     setSort(value);
     setOffset(0);
-    setOrder(sortCalls(data?.calls ?? [], value).map(callKey));
   }
-
-  const ranks = new Map(order.map((key, index) => [key, index]));
-
-  const calls = [...(data?.calls ?? [])].sort(
-    (a, b) =>
-      (ranks.get(callKey(a)) ?? Infinity) - (ranks.get(callKey(b)) ?? Infinity) || callKey(a).localeCompare(callKey(b)),
-  );
 
   return (
     <MinimumTouchTarget.Provider value={48}>
@@ -125,7 +101,7 @@ export function DiagnosticsSettings() {
               }}
             />
           </SettingsGroup>
-          {data ? <DiagnosticsCalls calls={calls} computer={data} /> : null}
+          {data ? <DiagnosticsCalls calls={data.calls} computer={data} /> : null}
           {offset || data?.nextOffset ? (
             <SettingsActions>
               <View style={{ minHeight: 48, justifyContent: "center" }}>
