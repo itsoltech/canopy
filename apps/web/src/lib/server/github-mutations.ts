@@ -1,4 +1,5 @@
 import { github } from "@canopy/contracts";
+import { draftPullRequest } from "@canopy/domain/github-agent-draft";
 import { readMessage } from "./body.ts";
 import type { gateway } from "./gateway.ts";
 import { encode } from "#lib/shared/wire.ts";
@@ -10,6 +11,14 @@ export async function githubMutation(
   binding: string,
 ) {
   const options = { headers: { "canopy-github-client": binding }, timeoutMs: 120_000 };
+
+  if (operation === "agent-draft") {
+    const r = await readMessage(request, github.PullRequestCreateContextRequestSchema);
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(120_000)]);
+    const context = await api.preparePullRequestDraftContext(r, { ...options, signal });
+
+    return draftPullRequest(api, r.threadId, context, crypto.randomUUID(), signal);
+  }
 
   if (operation === "create-context")
     return encode(

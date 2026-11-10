@@ -54,6 +54,8 @@ export function Button({
   disabled,
   busy,
   style,
+  label,
+  hint,
 }: {
   title: string;
   onPress: () => void;
@@ -64,6 +66,8 @@ export function Button({
   disabled?: boolean;
   busy?: boolean;
   style?: StyleProp<ViewStyle>;
+  label?: string;
+  hint?: string;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -78,7 +82,8 @@ export function Button({
     <Skeleton>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={title}
+        accessibilityLabel={label ?? title}
+        accessibilityHint={hint}
         accessibilityState={{ disabled: disabled || busy, busy }}
         disabled={disabled || busy}
         onPress={onPress}

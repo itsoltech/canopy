@@ -29,6 +29,7 @@
     onkeydown,
     class: className,
     children,
+    footer,
   }: {
     open?: boolean;
     title: string;
@@ -40,6 +41,7 @@
     onkeydown?: ((event: KeyboardEvent) => void) | undefined;
     class?: ClassValue;
     children: Snippet;
+    footer?: Snippet;
   } = $props();
 
   provideDensity("standard");
@@ -112,27 +114,39 @@
     <h2 id="{id}-title" class="sr-only">{title}</h2>
     {#if open || closing}{@render children()}{/if}
   {:else}
-    <!-- Zero-height sticky row: the close button stays in the corner while the dialog scrolls. -->
-    <div class="sticky top-0 z-10 h-0">
-      <span class="absolute top-4 right-4 rounded-md bg-surface sm:top-5 sm:right-5">
-        <IconButton icon="x-mark" label="Close" size="sm" disabled={!dismissible} onclick={() => (open = false)} />
-      </span>
-    </div>
-    <div class="min-w-0 p-5 pb-[max(--spacing(5),env(safe-area-inset-bottom))] wrap-anywhere sm:p-6">
-      <div class="pr-8">
-        <div class="min-w-0">
-          <h2 id="{id}-title" class="text-lg/7 font-semibold text-balance">{title}</h2>
-          {#if description}<p
-              id="{id}-description"
-              class="mt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
-            >
-              {description}
-            </p>{/if}
+    <div class={footer ? "flex min-h-full flex-col" : undefined}>
+      <!-- Zero-height sticky row: the close button stays in the corner while the dialog scrolls. -->
+      <div class="sticky top-0 z-10 h-0">
+        <span class="absolute top-4 right-4 rounded-md bg-surface sm:top-5 sm:right-5">
+          <IconButton icon="x-mark" label="Close" size="sm" disabled={!dismissible} onclick={() => (open = false)} />
+        </span>
+      </div>
+      <div
+        class={[
+          "min-w-0 p-5 pb-[max(--spacing(5),env(safe-area-inset-bottom))] wrap-anywhere sm:p-6",
+          footer && "flex-1",
+        ]}
+      >
+        <div class="pr-8">
+          <div class="min-w-0">
+            <h2 id="{id}-title" class="text-lg/7 font-semibold text-balance">{title}</h2>
+            {#if description}<p
+                id="{id}-description"
+                class="mt-1 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
+              >
+                {description}
+              </p>{/if}
+          </div>
+        </div>
+        <div class="mt-5 min-w-0">
+          {#if open || closing}{@render children()}{/if}
         </div>
       </div>
-      <div class="mt-5 min-w-0">
-        {#if open || closing}{@render children()}{/if}
-      </div>
+      {#if footer}<div
+          class="sticky bottom-0 z-10 border-t border-divider bg-surface px-5 pt-3 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6"
+        >
+          {@render footer()}
+        </div>{/if}
     </div>
   {/if}
 </dialog>

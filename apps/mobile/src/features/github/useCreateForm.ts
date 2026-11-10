@@ -4,10 +4,10 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { github } from "@canopy/contracts";
 import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
 import { ConnectError } from "@connectrpc/connect";
-import { createRequest, importPullRequestDraft } from "@canopy/domain/github-lifecycle";
+import { createRequest } from "@canopy/domain/github-lifecycle";
+import { draftPullRequest } from "@canopy/domain/github-agent-draft";
 import { sendMutation, mutationUnconfirmed } from "@canopy/domain/github-mutations";
 import { useSession } from "../../state/session";
-import { putContext } from "./context-draft";
 import { mutationRefused } from "./useMutation";
 import { createDrafts } from "./create-drafts";
 
@@ -28,20 +28,22 @@ export function useCreateForm(props: CreateProps) {
   const locked = useRef(false),
     started = useRef(false);
 
+  const draftingRequest = useRef<AbortController | undefined>(undefined);
+  useEffect(() => () => draftingRequest.current?.abort(), []);
+
   const [initial] = useState(() => createDrafts.read(threadId));
 
   const [context, setContext] = useState<github.PullRequestCreateContext>(),
     [selection, setSelection] = useState<github.GitHubRepositoryAccountResponse>();
 
   const [title, setTitle] = useState(initial.title),
-    [body, setBody] = useState(initial.body),
-    [imported, setImported] = useState("");
+    [body, setBody] = useState(initial.body);
 
   const [draft, setDraft] = useState(initial.draft),
-    [consent, setConsent] = useState(initial.consent),
-    [preview, setPreview] = useState(false);
+    [consent, setConsent] = useState(initial.consent);
 
   const [busy, setBusy] = useState(false),
+    [drafting, setDrafting] = useState(false),
     [error, setError] = useState(""),
     [picker, setPicker] = useState("");
 
@@ -125,14 +127,13 @@ export function useCreateForm(props: CreateProps) {
     setTitle: change(setTitle),
     body,
     setBody: change(setBody),
-    imported,
-    setImported,
     draft,
     setDraft: change(setDraft),
     consent,
     setConsent: change(setConsent),
-    preview,
-    setPreview,
+    drafting,
+    setDrafting,
+    draftingRequest,
     busy,
     setBusy,
     error,
@@ -170,7 +171,8 @@ interface CreateState {
   draft: boolean;
   consent: boolean;
   picker: string;
-  imported: string;
+  setDrafting: (v: boolean) => void;
+  draftingRequest: { current: AbortController | undefined };
   setBusy: (v: boolean) => void;
   setError: (v: string) => void;
   setPrepared: (v: github.PullRequestMutationRequest | undefined) => void;
@@ -178,7 +180,6 @@ interface CreateState {
   setContext: (v: github.PullRequestCreateContext) => void;
   setTitle: (v: string) => void;
   setBody: (v: string) => void;
-  setImported: (v: string) => void;
   savePending: (r: github.PullRequestMutationRequest) => void;
   request: (fields?: ContextFields) => github.PullRequestCreateContextRequest;
   load: (fields?: ContextFields) => Promise<void>;
@@ -208,14 +209,26 @@ function useCreateOperations(f: CreateState) {
     agentDraft: () =>
       createAction(f, async () => {
         if (!f.client || !f.context || f.blocked) return;
-        putContext(
-          f.threadId,
-          await f.client.api.preparePullRequestDraftContext(f.request({ headSha: f.context.headSha }), {
-            timeoutMs: 120_000,
-          }),
-        );
-        f.onClose();
-        f.ondrafted();
+        const controller = new AbortController();
+        f.draftingRequest.current = controller;
+        f.setDrafting(true);
+
+        try {
+          const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(120_000)]);
+
+          const context = await f.client.api.preparePullRequestDraftContext(f.request({ headSha: f.context.headSha }), {
+            signal,
+          });
+
+          const proposal = await draftPullRequest(f.client.api, f.threadId, context, Crypto.randomUUID(), signal);
+          f.setTitle(proposal.title);
+          f.setBody(proposal.body);
+        } catch {
+          f.setError("Draft was not returned. Check the thread before drafting again.");
+        } finally {
+          f.setDrafting(false);
+          f.draftingRequest.current = undefined;
+        }
       }),
     submit: () =>
       createAction(f, async () => {
@@ -296,17 +309,6 @@ function useCreateOperations(f: CreateState) {
           nextCursor: more.nextCursor,
         });
       }),
-    useDraft: () => {
-      try {
-        const value = importPullRequestDraft(f.imported);
-        f.setTitle(value.title);
-        f.setBody(value.body);
-        f.setImported("");
-        f.setError("");
-      } catch {
-        f.setError("Paste the agent’s JSON with a title and body, then review both fields.");
-      }
-    },
   };
 }
 

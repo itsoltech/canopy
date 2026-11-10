@@ -1,15 +1,13 @@
 import { Text, View } from "react-native";
-import { Button, Field, Notice, Sheet } from "../../ui/components";
+import { Button, Field, Notice, Sheet, IconButton } from "../../ui/components";
 import { Checkbox } from "../../ui/Checkbox";
-import { PickerSheet, SelectField } from "../../ui/Picker";
-import { Markdown } from "../../ui/markdown/Markdown";
+import { PickerSheet } from "../../ui/Picker";
+import { MarkdownEditor } from "../../ui/MarkdownEditor";
 import { useColors, useTypography } from "../../ui/theme";
 import { useCreateForm, type CreateForm, type CreateProps } from "./useCreateForm";
 
 export function CreatePullRequest(props: CreateProps) {
-  const f = useCreateForm(props),
-    c = useColors(),
-    type = useTypography();
+  const f = useCreateForm(props);
 
   return (
     <Sheet
@@ -18,52 +16,51 @@ export function CreatePullRequest(props: CreateProps) {
       onClose={() => {
         if (!f.busy) props.onClose();
       }}
+      footer={
+        <>
+          <Checkbox label="Create as draft" checked={f.draft} onChange={f.setDraft} disabled={f.busy || f.uncertain} />
+          <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+            <Button title="Cancel" variant="ghost" disabled={f.busy} onPress={props.onClose} />
+            <Button
+              title={f.prepared ? "Create pull request" : "Review pull request"}
+              variant="primary"
+              busy={f.busy && !f.drafting}
+              disabled={f.blocked || !f.title.trim()}
+              onPress={() => void f.submit()}
+            />
+          </View>
+        </>
+      }
     >
       <View style={{ gap: 12 }}>
         <CreateTarget form={f} />
-        <Button
-          title="Refresh branch"
-          variant="ghost"
-          disabled={f.busy || f.uncertain || !f.online}
-          onPress={() => void f.load()}
-        />
-        <Button title="Draft with agent" disabled={f.blocked} onPress={() => void f.agentDraft()} />
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <Button
+            title={f.drafting ? "Drafting…" : "Draft with agent"}
+            busy={f.drafting}
+            disabled={f.blocked}
+            onPress={() => void f.agentDraft()}
+          />
+          <IconButton
+            icon="arrow-path"
+            label="Refresh branch"
+            disabled={f.busy || f.uncertain || !f.online}
+            onPress={() => void f.load()}
+          />
+        </View>
         <Field
           label="Pull request title"
           value={f.title}
           onChangeText={f.setTitle}
           editable={!f.busy && !f.uncertain}
         />
-        <Button
-          title={f.preview ? "Write" : "Preview"}
-          size="sm"
-          variant="ghost"
-          onPress={() => f.setPreview(!f.preview)}
+        <MarkdownEditor
+          label="Pull request description"
+          value={f.body}
+          onChange={f.setBody}
+          placeholder="Describe the changes in Markdown…"
+          disabled={f.busy || f.uncertain}
         />
-        {f.preview ? (
-          <Markdown text={f.body || "Nothing to preview"} />
-        ) : (
-          <Field
-            label="Pull request description"
-            value={f.body}
-            multiline
-            style={{ minHeight: 140 }}
-            onChangeText={f.setBody}
-            editable={!f.busy && !f.uncertain}
-          />
-        )}
-        <Field
-          label="Agent draft JSON"
-          value={f.imported}
-          multiline
-          onChangeText={f.setImported}
-          editable={!f.busy && !f.uncertain}
-        />
-        <Button title="Use draft" disabled={!f.imported || f.busy || f.uncertain} onPress={f.useDraft} />
-        <Text style={[type.meta, { color: c.muted }]}>
-          Only the title and description are imported. Review them before creating.
-        </Text>
-        <Checkbox label="Create as draft" checked={f.draft} onChange={f.setDraft} disabled={f.busy || f.uncertain} />
         {f.context && f.context.headRepositoryName !== f.context.repositoryName && (
           <Checkbox
             label="Allow maintainers to modify this branch"
@@ -93,12 +90,6 @@ export function CreatePullRequest(props: CreateProps) {
             onPress={() => void f.linkExisting()}
           />
         )}
-        <Button
-          title={f.prepared ? "Create pull request" : "Review pull request"}
-          variant="primary"
-          disabled={f.blocked || !f.title.trim()}
-          onPress={() => void f.submit()}
-        />
       </View>
     </Sheet>
   );
@@ -121,29 +112,50 @@ function CreateTarget({ form: f }: { form: CreateForm }) {
 
   return (
     <>
-      <Text style={[type.meta, { color: c.muted }]}>
-        {context.viewerLogin} · {context.headRepositoryName}:{context.headRef} · {context.headSha.slice(0, 7)}
-      </Text>
-      <SelectField
-        label="Base repository"
-        value={context.repositoryName}
-        disabled={f.busy || f.uncertain}
-        onPress={() => f.setPicker("repository")}
-      />
-      <SelectField
-        label="GitHub account"
-        value={context.viewerLogin || "Choose account"}
-        disabled={f.busy || f.uncertain}
-        onPress={() => f.setPicker("account")}
-      />
-      {!!context.accountId && (
-        <SelectField
-          label="Base branch"
-          value={context.baseRef}
-          disabled={f.busy || f.uncertain}
-          onPress={() => f.setPicker("base")}
-        />
-      )}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
+        {(f.selection?.candidates.length ?? 0) > 1 ? (
+          <Button
+            title={context.viewerLogin || "Choose account"}
+            size="sm"
+            variant="ghost"
+            disabled={f.busy || f.uncertain}
+            onPress={() => f.setPicker("account")}
+          />
+        ) : (
+          <Text style={[type.meta, { color: c.muted }]}>{context.viewerLogin}</Text>
+        )}
+        <Text style={[type.meta, { color: c.muted }]}>·</Text>
+        {context.repositories.length > 1 ? (
+          <Button
+            title={context.repositoryName}
+            size="sm"
+            variant="ghost"
+            disabled={f.busy || f.uncertain}
+            onPress={() => f.setPicker("repository")}
+          />
+        ) : (
+          <Text numberOfLines={1} style={[type.meta, { color: c.muted, flexShrink: 1 }]}>
+            {context.repositoryName}
+          </Text>
+        )}
+        <Text
+          numberOfLines={1}
+          accessibilityLabel={`${context.headRepositoryName}:${context.headRef}`}
+          style={[type.meta, { color: c.muted, flexShrink: 1 }]}
+        >
+          : {context.headRef} →
+        </Text>
+        {!!context.accountId && (
+          <Button
+            title={`${context.baseRef} ⌄`}
+            label="Base branch"
+            size="sm"
+            variant="ghost"
+            disabled={f.busy || f.uncertain}
+            onPress={() => f.setPicker("base")}
+          />
+        )}
+      </View>
       {!!context.nextCursor && (
         <Button title="Load more branches" disabled={f.busy || f.uncertain} onPress={() => void f.more()} />
       )}

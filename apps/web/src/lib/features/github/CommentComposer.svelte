@@ -9,9 +9,8 @@
     mutationUnconfirmed,
     uncertainMutation,
   } from "@canopy/domain/github-mutations";
-  import Textarea from "#lib/shared/ui/Textarea.svelte";
+  import MarkdownEditor from "#lib/shared/ui/MarkdownEditor.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import { mutations } from "./api.ts";
   import { invalidations } from "./invalidations.ts";
   import { mutationRefused } from "./mutation-errors.ts";
@@ -36,7 +35,6 @@
   const key = untrack(() => commentDrafts.key(snapshot, resourceId, commentKind));
   const saved = untrack(() => (browser ? commentDrafts.read(key, initial) : { body: initial, receipt: undefined }));
   let body = $state(saved.body);
-  let preview = $state(false);
   let busy = $state(false);
   let receipt = $state<github.PullRequestMutationReceipt | undefined>(saved.receipt);
   let online = $state(true);
@@ -90,25 +88,14 @@
     >
       {snapshot.viewerLogin} · {ref?.repositoryName} #{ref?.number}
     </p>
-    <Button size="sm" variant="ghost" aria-pressed={preview} onclick={() => (preview = !preview)}
-      >{preview ? "Write" : "Preview"}</Button
-    >
   </div>
-  {#if preview}<div class="min-h-24 min-w-0 [&>div]:[overflow-wrap:anywhere]">
-      {#if body}<Markdown text={body} class="min-w-0" />{:else}<p class="text-sm text-zinc-500">
-          Nothing to preview
-        </p>{/if}
-    </div>
-  {:else}<Textarea
-      name="comment"
-      aria-label={resourceId ? "Reply or edit comment" : "Comment"}
-      placeholder="Write a comment in Markdown…"
-      rows={4}
-      resize={false}
-      class="field-sizing-content max-h-80 min-h-28"
-      bind:value={body}
-      disabled={busy || uncertain}
-    />{/if}
+  <MarkdownEditor
+    name="comment"
+    label={resourceId ? "Reply or edit comment" : "Comment"}
+    placeholder="Write a comment in Markdown…"
+    bind:value={body}
+    disabled={busy || uncertain}
+  />
   {#if uncertain}<p role="status" class="text-sm text-amber-700 dark:text-amber-400">
       {uncertainMutation}.
       <a

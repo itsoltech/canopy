@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { github } from "@canopy/contracts";
+  import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
   import type { ClassValue } from "svelte/elements";
   import { lifecycleLabel, lifecycleEffect, lifecycleFields, mergeMethodLabel } from "@canopy/domain/github-lifecycle";
   import { mutationRequest, sendMutation, mutationUnconfirmed } from "@canopy/domain/github-mutations";
@@ -12,7 +13,12 @@
   import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
-  import Select from "#lib/shared/ui/Select.svelte";
+  import SegmentedChoice from "#lib/shared/ui/SegmentedChoice.svelte";
+  import { methodSegmentLabel } from "@canopy/domain/github-lifecycle-display";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
+  import Badge from "#lib/shared/ui/Badge.svelte";
+  import MergeBlockers from "./MergeBlockers.svelte";
+  import ConfirmationCountdown from "./ConfirmationCountdown.svelte";
   import { mutations } from "./api.ts";
   import { mutationRefused, mutationDetail } from "./mutation-errors.ts";
   import { commentDrafts } from "./comment-drafts.ts";
@@ -36,6 +42,7 @@
     error = $state("");
 
   let prepared = $state<github.PullRequestMutationRequest>();
+  let expiresAt = $state<Timestamp>();
   const life = $derived(snapshot.lifecycle);
   const actions = $derived(life?.actions ?? []);
 
@@ -50,6 +57,11 @@
   const methods = $derived(action === "update_branch" ? (life?.updateMethods ?? []) : (life?.mergeMethods ?? []));
 
   $effect(() => commentDrafts.save(key, "", receipt));
+
+  $effect(() => {
+    if (prepared && (prepared.method !== method || prepared.title !== title || prepared.body !== body))
+      prepared = undefined;
+  });
 
   $effect(() => {
     const changed = () => (online = navigator.onLine);
@@ -79,11 +91,12 @@
     error = "";
 
     try {
-      if (!prepared) {
+      if (!prepared || !expiresAt || timestampDate(expiresAt).getTime() <= Date.now()) {
         const fields = lifecycleFields(action);
         const r = mutationRequest(snapshot, crypto.randomUUID(), fields.action, { ...fields, method, title, body });
         const p = await mutations.preparePullRequestMutation(r);
         prepared = { ...r, confirmationId: p.confirmationId };
+        expiresAt = p.expiresAt;
       } else {
         receipt = await sendMutation(mutations, prepared, mutationRefused, mutationDetail);
         open = false;
@@ -103,11 +116,13 @@
   <div class={["grid min-w-0 gap-2", className]}>
     <div class="flex flex-wrap items-center gap-2">
       {#if ["open", "draft"].includes(snapshot.summary?.state ?? "")}
-        <Button
-          size="sm"
-          variant="primary"
-          disabled={blocked || !actions.includes(primary)}
-          onclick={() => choose(primary)}>{lifecycleLabel(primary)}</Button
+        <span {@attach tooltip(life.blockingReasons.join(" "))}
+          ><Button
+            size="sm"
+            variant="primary"
+            disabled={blocked || !actions.includes(primary)}
+            onclick={() => choose(primary)}>{lifecycleLabel(primary)}</Button
+          ></span
         >
         {#if primary === "merge" && life.mergeMethods.length > 1}<DropdownMenu label="Merge methods" sheet>
             {#snippet trigger(props)}<IconButton
@@ -147,13 +162,17 @@
             >{/each}
         </DropdownMenu>{/if}
     </div>
-    {#if life.autoMergeMethod}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
-        Auto-merge: {mergeMethodLabel(life.autoMergeMethod)} · {life.autoMergeAuthor}
-      </p>{/if}
+    {#if life.autoMergeMethod}<button
+        type="button"
+        class="w-fit"
+        {@attach tooltip(`${mergeMethodLabel(life.autoMergeMethod)} · ${life.autoMergeAuthor}`, { touch: "tap" })}
+      >
+        <Badge>Auto-merge on</Badge>
+      </button>{/if}
     {#if life.inQueue}<p role="status" class="text-sm/5 text-zinc-500 dark:text-zinc-400">
         Waiting in the merge queue
       </p>{/if}
-    {#each life.blockingReasons as reason}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{reason}</p>{/each}
+    <MergeBlockers reasons={life.blockingReasons} />
     {#if life.updateBlockingReason}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
         {life.updateBlockingReason}
       </p>{/if}
@@ -176,14 +195,19 @@
     <p class="text-sm break-words text-zinc-500 dark:text-zinc-400">
       {snapshot.viewerLogin} · {snapshot.summary?.ref?.repositoryName} #{snapshot.summary?.ref?.number}
     </p>
-    <p class="font-mono text-sm break-all">
-      {snapshot.baseRef} ← {snapshot.headRef} · {prepared?.headSha ?? snapshot.summary?.headSha}
+    <p class="text-sm wrap-anywhere">
+      {snapshot.baseRef} ← {snapshot.headRef} ·
+      <button
+        type="button"
+        class="inline-block font-mono select-text"
+        {@attach tooltip(prepared?.headSha ?? snapshot.summary?.headSha ?? "", { touch: "tap" })}
+        >{(prepared?.headSha ?? snapshot.summary?.headSha)?.slice(0, 7)}</button
+      >
     </p>
-    {#if ["merge", "enable_auto_merge", "update_branch"].includes(action)}<Select
-        aria-label={action === "update_branch" ? "Update method" : "Merge method"}
-        options={methods.map((value) => ({ value, label: mergeMethodLabel(value) }))}
+    {#if ["merge", "enable_auto_merge", "update_branch"].includes(action)}<SegmentedChoice
+        label={action === "update_branch" ? "Update method" : "Merge method"}
+        options={methods.map((value) => ({ value, label: methodSegmentLabel(value) }))}
         bind:value={method}
-        onchange={() => (prepared = undefined)}
         disabled={busy}
       />{/if}
     {#if ["merge", "enable_auto_merge"].includes(action) && method === "SQUASH"}
@@ -198,19 +222,19 @@
         name="merge-body"
         aria-label="Commit body"
         rows={5}
+        resize={false}
+        class="field-sizing-content max-h-80 min-h-28"
         bind:value={body}
         oninput={() => (prepared = undefined)}
         disabled={busy}
       />
     {/if}
-    {#if prepared}<p role="status" class="text-sm text-zinc-500">
-        Requirements checked. Confirm within 60 seconds.
-      </p>{/if}
+    {#if prepared}<ConfirmationCountdown {expiresAt} />{/if}
     {#if error}<p role="alert" class="text-sm text-amber-700 dark:text-amber-400">{error}</p>{/if}
   </div>
   <DialogActions
-    ><Button data-autofocus onclick={() => (open = false)} disabled={busy}>Cancel</Button><Button
-      variant={action === "close" || action === "merge" ? "danger" : "primary"}
+    ><Button variant="ghost" data-autofocus onclick={() => (open = false)} disabled={busy}>Cancel</Button><Button
+      variant="primary"
       loading={busy}
       disabled={blocked}
       onclick={() => void confirm()}>{prepared ? lifecycleLabel(action) : "Check requirements"}</Button

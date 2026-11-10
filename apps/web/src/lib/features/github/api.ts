@@ -3,6 +3,7 @@ import { toJson, type DescMessage, type MessageShape } from "@bufbuild/protobuf"
 import { requestJson, type JsonBody } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 import type { MutationApi } from "@canopy/domain/github-mutations";
+import { importPullRequestDraft } from "@canopy/domain/github-lifecycle";
 
 const post = (operation: string, body: JsonBody) => requestJson("POST", `/api/github/${operation}`, body, 125_000);
 
@@ -47,6 +48,11 @@ export const draftContext = async (r: github.PullRequestCreateContextRequest) =>
   decode(
     github.PullRequestContextResponseSchema,
     await post("draft-context", toJson(github.PullRequestCreateContextRequestSchema, r)),
+  );
+
+export const agentDraft = async (r: github.PullRequestCreateContextRequest) =>
+  importPullRequestDraft(
+    JSON.stringify(await post("agent-draft", toJson(github.PullRequestCreateContextRequestSchema, r))),
   );
 
 export const page = async <D extends DescMessage>(

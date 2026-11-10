@@ -2,6 +2,7 @@ import { useState } from "react";
 import * as Crypto from "expo-crypto";
 import { ConnectError } from "@connectrpc/connect";
 import type { github } from "@canopy/contracts";
+import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { lifecycleFields } from "@canopy/domain/github-lifecycle";
 import { mutationRequest, mutationUnconfirmed } from "@canopy/domain/github-mutations";
 import { useMutation } from "./useMutation";
@@ -17,9 +18,9 @@ export function useLifecycle(snapshot: github.PullRequestSnapshot, onrefresh: ()
     [body, setBody] = useState("");
 
   const [prepared, setPrepared] = useState<github.PullRequestMutationRequest>();
+  const [expiresAt, setExpiresAt] = useState<Timestamp>();
 
   const [busy, setBusy] = useState(false),
-    [picker, setPicker] = useState(false),
     [error, setError] = useState("");
 
   const life = snapshot.lifecycle,
@@ -53,11 +54,12 @@ export function useLifecycle(snapshot: github.PullRequestSnapshot, onrefresh: ()
     setError("");
 
     try {
-      if (!prepared) {
+      if (!prepared || !expiresAt || timestampDate(expiresAt).getTime() <= Date.now()) {
         const fields = lifecycleFields(action);
         const r = mutationRequest(snapshot, Crypto.randomUUID(), fields.action, { ...fields, method, title, body });
         const p = await m.client.api.preparePullRequestMutation(r);
         setPrepared({ ...r, confirmationId: p.confirmationId });
+        setExpiresAt(p.expiresAt);
       } else {
         commentDrafts.pending(key, "", prepared);
         const receipt = await m.send(prepared.action, {}, prepared);
@@ -92,8 +94,7 @@ export function useLifecycle(snapshot: github.PullRequestSnapshot, onrefresh: ()
     body,
     prepared,
     busy,
-    picker,
-    setPicker,
+    expiresAt,
     error,
     life,
     actions,

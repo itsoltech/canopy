@@ -520,9 +520,11 @@ Dotychczasowy dowód MCP, niezależne sprawdzenia git i ochrona lokalnych zmian 
 Jawne **Create pull request** odczytuje ten sam kontekst git i wymaga opublikowanej head branch.
 Użytkownik wybiera base repo/branch, head repo/ref, konto i draft/ready; Canopy nie wykonuje
 push ani tworzenia forka w tle. Brak opublikowanego SHA kieruje do zwykłego przepływu pracy z git.
-**Draft with agent** przygotowuje edytowalną prośbę w composerze i ograniczony załącznik
-z repo/ref/SHA, listą commitów i wybranymi diffami (limity §7); dopiero Send uruchamia turę.
-Wynik modelu jest propozycją tytułu i Markdown opisu, importowaną do formularza, nie żądaniem API.
+**Draft with agent** po jawnym kliknięciu uruchamia jedną zwykłą turę wątku z ograniczonym
+załącznikiem repo/ref/SHA, listą commitów i wybranymi diffami (limity §7). Formularz pokazuje
+stan ładowania i wypełnia pola tytułu oraz opisu wyłącznie zweryfikowaną odpowiedzią tej tury.
+Wynik modelu jest propozycją tekstu, nie żądaniem API. Utrata odpowiedzi nie ponawia wysłania;
+użytkownik sprawdza wynik w wątku. Opis ma wspólny z komentarzami edytor Markdown i podgląd.
 Użytkownik ogląda i edytuje całą treść oraz cel, potem osobno klika **Create pull request**.
 Zmiana repo/ref/SHA unieważnia wcześniejsze sprawdzenie formularza; model nie ustala konta ani praw.
 Formularz ogranicza tytuł do 256 znaków, opis do 64 KiB i respektuje dodatkowe limity GitHub;

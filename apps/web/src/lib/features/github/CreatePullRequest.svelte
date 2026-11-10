@@ -3,17 +3,15 @@
   import { create, type MessageInitShape } from "@bufbuild/protobuf";
   import { github } from "@canopy/contracts";
   import { GITHUB_HOME, splitId } from "@canopy/domain/computers";
-  import { createRequest, importPullRequestDraft } from "@canopy/domain/github-lifecycle";
+  import { createRequest } from "@canopy/domain/github-lifecycle";
   import { sendMutation, mutationUnconfirmed } from "@canopy/domain/github-mutations";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
-  import DialogActions from "#lib/shared/ui/DialogActions.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
-  import Textarea from "#lib/shared/ui/Textarea.svelte";
+  import MarkdownEditor from "#lib/shared/ui/MarkdownEditor.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
-  import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
-  import { contextDraft } from "./context-draft.svelte.ts";
   import { createDrafts } from "./create-drafts.ts";
   import { mutationRefused, mutationDetail } from "./mutation-errors.ts";
   import * as api from "./api.ts";
@@ -31,12 +29,11 @@
 
   let title = $state(initial.title),
     body = $state(initial.body),
-    imported = $state(""),
     draft = $state(initial.draft),
-    consent = $state(initial.consent),
-    preview = $state(false);
+    consent = $state(initial.consent);
 
   let busy = $state(false),
+    drafting = $state(false),
     error = $state(""),
     online = $state(true);
 
@@ -114,27 +111,18 @@
   async function agentDraft() {
     if (!context || blocked) return;
     busy = true;
+    drafting = true;
     error = "";
 
     try {
-      contextDraft.pending = { threadId, context: await api.draftContext(request({ headSha: context.headSha })) };
-      open = false;
-    } catch (cause) {
-      error = mutationDetail(cause);
+      const proposal = await api.agentDraft(request({ headSha: context.headSha }));
+      title = proposal.title;
+      body = proposal.body;
+    } catch {
+      error = "Draft was not returned. Check the thread before drafting again.";
     } finally {
       busy = false;
-    }
-  }
-
-  function useDraft() {
-    try {
-      const value = importPullRequestDraft(imported);
-      title = value.title;
-      body = value.body;
-      imported = "";
-      error = "";
-    } catch {
-      error = "Paste the agent’s JSON with a title and body, then review both fields.";
+      drafting = false;
     }
   }
 
@@ -223,33 +211,39 @@
 <Dialog bind:open title="Create pull request" size="lg" fullscreen dismissible={!busy}>
   <div class="grid min-w-0 gap-3">
     {#if context}
-      <p class="text-sm break-words text-zinc-500 dark:text-zinc-400">
-        {context.viewerLogin} · {context.headRepositoryName}:{context.headRef} ·
-        <span title={context.headSha}>{context.headSha.slice(0, 7)}</span>
-      </p>
-      <Select
-        aria-label="Base repository"
-        value={context.repositoryName}
-        options={context.repositories.map((value) => ({ value, label: value }))}
-        disabled={busy || uncertain}
-        onchange={(repositoryName) => void load({ repositoryName, baseRef: "" })}
-      />
-      {#if selection}<Select
-          aria-label="GitHub account"
-          value={context.accountId}
-          options={selection.candidates.map((a) => ({ value: a.id, label: a.login }))}
-          disabled={busy || uncertain}
-          onchange={(value) => void account(value)}
-        />{/if}
-      {#if context.accountId}<Select
-          aria-label="Base branch"
-          value={context.baseRef}
-          options={[...new Set([context.baseRef, ...context.branches])]
-            .filter(Boolean)
-            .map((value) => ({ value, label: value }))}
-          disabled={busy || uncertain}
-          onchange={(baseRef) => void load({ baseRef })}
-        />{/if}
+      <div class="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-sm text-zinc-500 dark:text-zinc-400">
+        {#if selection && selection.candidates.length > 1}<Select
+            inline
+            aria-label="GitHub account"
+            value={context.accountId}
+            options={selection.candidates.map((a) => ({ value: a.id, label: a.login }))}
+            disabled={busy || uncertain}
+            onchange={(value) => void account(value)}
+          />{:else}<span>{context.viewerLogin}</span>{/if}
+        <span>·</span>
+        {#if context.repositories.length > 1}<Select
+            inline
+            aria-label="Base repository"
+            value={context.repositoryName}
+            options={context.repositories.map((value) => ({ value, label: value }))}
+            disabled={busy || uncertain}
+            onchange={(repositoryName) => void load({ repositoryName, baseRef: "" })}
+          />{:else}<span class="min-w-0 truncate" title={context.repositoryName}>{context.repositoryName}</span>{/if}
+        <span>:</span><span
+          class="max-w-full min-w-0 truncate select-text"
+          title={`${context.headRepositoryName}:${context.headRef} · ${context.headSha}`}>{context.headRef}</span
+        ><span>→</span>
+        {#if context.accountId}<Select
+            inline
+            aria-label="Base branch"
+            value={context.baseRef}
+            options={[...new Set([context.baseRef, ...context.branches])]
+              .filter(Boolean)
+              .map((value) => ({ value, label: value }))}
+            disabled={busy || uncertain}
+            onchange={(baseRef) => void load({ baseRef })}
+          />{/if}
+      </div>
       {#if context.nextCursor}<Button
           size="sm"
           variant="ghost"
@@ -262,15 +256,17 @@
         >{/if}
       {#if context.detail}<p role="status" class="text-sm text-amber-700 dark:text-amber-400">{context.detail}</p>{/if}
     {/if}
-    <Button size="sm" variant="ghost" disabled={busy || uncertain || !online} onclick={() => void load()}
-      >Refresh branch</Button
-    >
-    <div class="flex flex-wrap gap-2">
-      <Button size="sm" disabled={blocked} onclick={() => void agentDraft()}>Draft with agent</Button><Button
-        size="sm"
-        variant="ghost"
-        onclick={() => (preview = !preview)}>{preview ? "Write" : "Preview"}</Button
+    <div class="flex items-center justify-between gap-2">
+      <Button size="sm" loading={drafting} disabled={blocked} onclick={() => void agentDraft()}
+        >{drafting ? "Drafting…" : "Draft with agent"}</Button
       >
+      <IconButton
+        icon="arrow-path"
+        label="Refresh branch"
+        size="sm"
+        disabled={busy || uncertain || !online}
+        onclick={() => void load()}
+      />
     </div>
     <Input
       name="pr-title"
@@ -279,28 +275,13 @@
       bind:value={title}
       disabled={busy || uncertain}
     />
-    {#if preview}<Markdown text={body || "Nothing to preview"} />{:else}<Textarea
-        name="pr-body"
-        aria-label="Pull request description"
-        placeholder="Describe the changes in Markdown…"
-        rows={7}
-        bind:value={body}
-        disabled={busy || uncertain}
-      />{/if}
-    <details>
-      <summary class="cursor-pointer text-sm text-zinc-500">Use an agent draft</summary>
-      <div class="mt-2 grid gap-2">
-        <Textarea
-          name="agent-draft"
-          aria-label="Agent draft JSON"
-          rows={3}
-          bind:value={imported}
-          disabled={busy || uncertain}
-        /><Button size="sm" disabled={!imported || busy || uncertain} onclick={useDraft}>Use draft</Button>
-        <p class="text-sm text-zinc-500">Only the title and description are imported. Review them before creating.</p>
-      </div>
-    </details>
-    <Checkbox name="pr-draft" label="Create as draft" bind:checked={draft} disabled={busy || uncertain} />
+    <MarkdownEditor
+      name="pr-body"
+      label="Pull request description"
+      placeholder="Describe the changes in Markdown…"
+      bind:value={body}
+      disabled={busy || uncertain}
+    />
     {#if context && context.headRepositoryName !== context.repositoryName}<Checkbox
         name="maintainer-modify"
         label="Allow maintainers to modify this branch"
@@ -323,12 +304,17 @@
         >Link existing pull request #{receipt.existingPullRequest.number}</Button
       >{/if}
   </div>
-  <DialogActions
-    ><Button onclick={() => (open = false)} disabled={busy}>Cancel</Button><Button
-      variant="primary"
-      loading={busy}
-      disabled={blocked || !title.trim()}
-      onclick={() => void submit()}>{prepared ? "Create pull request" : "Review pull request"}</Button
-    ></DialogActions
-  >
+  {#snippet footer()}
+    <div class="grid gap-2">
+      <Checkbox name="pr-draft" label="Create as draft" bind:checked={draft} disabled={busy || uncertain} />
+      <div class="flex items-center justify-end gap-2">
+        <Button variant="ghost" onclick={() => (open = false)} disabled={busy}>Cancel</Button><Button
+          variant="primary"
+          loading={busy}
+          disabled={blocked || !title.trim()}
+          onclick={() => void submit()}>{prepared ? "Create pull request" : "Review pull request"}</Button
+        >
+      </div>
+    </div>
+  {/snippet}
 </Dialog>
