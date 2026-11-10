@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { github } from "@canopy/contracts";
 import { mutationRequest, sendMutation, mutationUnconfirmed, type MutationApi } from "./github-mutations.ts";
+import { applyReviewerDiff } from "./github-reviewers.ts";
 
 export type MetadataKind = "title" | "description" | "reviewers" | "assignees" | "labels";
 
@@ -19,7 +20,6 @@ export interface MetadataState {
   title: string;
   body: string;
   ids: string[];
-  reviewerAction: string;
   options: github.PullRequestMetadataOption[];
   next: string;
   detail: string;
@@ -37,7 +37,6 @@ export class GitHubMetadataEditor {
     title: "",
     body: "",
     ids: [],
-    reviewerAction: "request",
     options: [],
     next: "",
     detail: "",
@@ -96,16 +95,23 @@ export class GitHubMetadataEditor {
       const fresh = reset || !this.state.current;
       const degraded = this.kind === "reviewers" && !page.membersAvailable;
 
-      const options = degraded
-        ? page.options
-        : [
-            ...new Map(
-              [...(fresh ? [] : this.state.options), ...fieldOptions(current, this.kind), ...page.options].map((o) => [
-                o.id,
-                o,
-              ]),
-            ).values(),
-          ];
+      const reviewed =
+        this.kind === "reviewers"
+          ? this.snapshot.reviewers
+              .filter((r) => r.nodeId && r.state !== "requested")
+              .map((r) => create(github.PullRequestMetadataOptionSchema, { id: r.nodeId, name: r.login, kind: "user" }))
+          : [];
+
+      const options = [
+        ...new Map(
+          [
+            ...(fresh || degraded ? [] : this.state.options),
+            ...fieldOptions(current, this.kind),
+            ...reviewed,
+            ...page.options,
+          ].map((o) => [o.id, o]),
+        ).values(),
+      ];
 
       this.patch({
         current: fresh ? current : this.state.current,
@@ -113,11 +119,10 @@ export class GitHubMetadataEditor {
         ...(fresh && {
           title: current.title,
           body: current.body,
-          ids: this.kind === "reviewers" ? [] : fieldOptions(current, this.kind).map((o) => o.id),
+          ids: fieldOptions(current, this.kind).map((o) => o.id),
           receipt: undefined,
           display: undefined,
         }),
-        ...(!fresh && degraded && { ids: this.state.ids.filter((id) => options.some((o) => o.id === id)) }),
         options,
         next: page.page?.nextCursor ?? "",
         detail: page.page?.detail ?? "",
@@ -147,8 +152,45 @@ export class GitHubMetadataEditor {
   toggle(id: string) {
     this.patch({ ids: this.state.ids.includes(id) ? this.state.ids.filter((v) => v !== id) : [...this.state.ids, id] });
   }
-  reviewAction(reviewerAction: string) {
-    this.patch({ reviewerAction, ids: [] });
+  async reRequest(id: string) {
+    if (!this.state.current) await this.load();
+    const before = this.state.current;
+
+    if (!before || this.blocked || this.snapshot.stale || !before.actions.includes("reviewers")) return false;
+    this.patch({ busy: true, detail: "" });
+
+    try {
+      const receipt = await sendMutation(
+        this.api,
+        mutationRequest(this.snapshot, this.uuid(), "request_reviewers", {
+          metadataRevision: before.revision,
+          metadataIds: [id],
+          reviewerAction: "re_request",
+        }),
+        this.refused,
+        this.detail,
+      );
+
+      this.patch({ receipt, detail: receipt.detail });
+
+      if (receipt.state !== "succeeded") return false;
+      const page = await this.page();
+
+      if (!page.metadata) return false;
+      this.patch({
+        current: page.metadata,
+        ids: [...new Set([...this.state.ids, id])],
+        options: [...new Map([...this.state.options, ...page.metadata.reviewers].map((r) => [r.id, r])).values()],
+      });
+
+      return true;
+    } catch (cause) {
+      this.patch({ detail: this.detail(cause) || "Could not request this review. Refresh to retry." });
+
+      return false;
+    } finally {
+      this.patch({ busy: false });
+    }
   }
   async apply() {
     const before = this.state.current;
@@ -159,17 +201,12 @@ export class GitHubMetadataEditor {
     if (!before.actions.includes(field)) return false;
     const selected = this.state.options.filter((o) => this.state.ids.includes(o.id));
 
-    const reviewers =
-      this.state.reviewerAction === "remove"
-        ? before.reviewers.filter((o) => !this.state.ids.includes(o.id))
-        : [...new Map([...before.reviewers, ...selected].map((o) => [o.id, o])).values()];
-
     const display = create(github.PullRequestMetadataSchema, {
       ...before,
       ...(field === "details"
         ? { title: this.state.title, body: this.state.body }
         : this.kind === "reviewers"
-          ? { reviewers }
+          ? { reviewers: selected }
           : { [this.kind]: selected }),
     });
 
@@ -180,11 +217,22 @@ export class GitHubMetadataEditor {
       body: this.state.body,
       metadataRevision: before.revision,
       metadataIds: this.state.ids,
-      reviewerAction: this.kind === "reviewers" ? this.state.reviewerAction : "",
     });
 
     try {
-      const receipt = await sendMutation(this.api, request, this.refused, this.detail);
+      const receipt =
+        this.kind === "reviewers"
+          ? await applyReviewerDiff(
+              this.api,
+              this.snapshot,
+              before,
+              this.state.ids,
+              this.uuid,
+              this.refused,
+              this.detail,
+            )
+          : await sendMutation(this.api, request, this.refused, this.detail);
+
       this.patch({ receipt, detail: receipt.detail, ...(receipt.state !== "succeeded" && { display: undefined }) });
 
       if (receipt.state === "succeeded") {
@@ -228,14 +276,7 @@ export function metadataComparison(state: MetadataState, kind: MetadataKind) {
   let upstream = `${current?.title ?? ""}\n\n${current?.body ?? ""}`;
 
   if (metadataField(kind) !== "details" && current && state.current) {
-    let ids = state.ids;
-
-    if (kind === "reviewers") {
-      ids =
-        state.reviewerAction === "remove"
-          ? state.current.reviewers.filter((v) => !ids.includes(v.id)).map((v) => v.id)
-          : [...new Set([...state.current.reviewers.map((v) => v.id), ...ids])];
-    }
+    const ids = state.ids;
 
     draft = ids
       .map((id) => state.options.find((v) => v.id === id)?.name ?? id)

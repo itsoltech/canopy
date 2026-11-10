@@ -99,12 +99,15 @@ export async function checks(scope: ReadScope) {
   });
 }
 
-const run = Schema.Struct({
+export const workflowRun = Schema.Struct({
   id: Schema.Number,
   head_sha: Schema.String,
   run_attempt: Schema.Number,
   repository: Schema.Struct({ id: Schema.Number }),
   pull_requests: Schema.Array(Schema.Struct({ number: Schema.Number })),
+  status: Schema.optional(Schema.String),
+  conclusion: Schema.optional(Schema.NullOr(Schema.String)),
+  name: Schema.optional(Schema.String),
 });
 
 export const numericId = (value: string) => {
@@ -114,25 +117,30 @@ export const numericId = (value: string) => {
 };
 
 export async function checkedRun(scope: ReadScope, id: string) {
-  const result = await scope.prs.client.read(scope.row.id, {
-    key: `run:${scope.pr.repository_id}:${scope.pr.number}:${scope.head}:${id}`,
-    path: `${scope.root}/actions/runs/${numericId(id)}`,
-    ttl: 15_000,
-    project: async (value) => {
-      const item = Schema.decodeUnknownSync(run)(value);
+  const result = await scope.prs.client.read(
+    scope.row.id,
+    {
+      key: `run:${scope.pr.repository_id}:${scope.pr.number}:${scope.head}:${id}`,
+      path: `${scope.root}/actions/runs/${numericId(id)}`,
+      ttl: 15_000,
+      project: async (value) => {
+        const item = Schema.decodeUnknownSync(workflowRun)(value);
 
-      if (
-        String(item.repository.id) !== scope.pr.repository_id ||
-        item.head_sha !== scope.head ||
-        !item.pull_requests.some((p) => p.number === scope.pr.number)
-      )
-        throw new ConnectError("Check not found", Code.NotFound);
+        if (
+          String(item.id) !== id ||
+          String(item.repository.id) !== scope.pr.repository_id ||
+          item.head_sha !== scope.head ||
+          !item.pull_requests.some((p) => p.number === scope.pr.number)
+        )
+          throw new ConnectError("Check not found", Code.NotFound);
 
-      return value;
+        return value;
+      },
     },
-  });
+    scope.request.refresh,
+  );
 
-  return Schema.decodeUnknownSync(run)(result.payload);
+  return Schema.decodeUnknownSync(workflowRun)(result.payload);
 }
 
 export const job = Schema.Struct({
@@ -167,6 +175,13 @@ export async function jobs(scope: ReadScope) {
       return jsonMessage(
         github.PullRequestJobsPageSchema,
         create(github.PullRequestJobsPageSchema, {
+          run: {
+            id: String(run.id),
+            attempt: run.run_attempt,
+            name: run.name ?? "Workflow run",
+            state: (run.conclusion || run.status || "unknown").toLowerCase(),
+            headSha: run.head_sha,
+          },
           jobs: list.jobs.map((j) => ({
             id: String(j.id),
             runId: String(j.run_id),

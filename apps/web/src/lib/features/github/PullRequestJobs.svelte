@@ -13,8 +13,15 @@
   import { invalidations } from "./invalidations.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { toneClasses } from "./presentation.ts";
+  import CiActions from "./CiActions.svelte";
 
-  let { id, runId, class: className }: { id: string; runId: string; class?: ClassValue } = $props();
+  let {
+    snapshot,
+    runId,
+    class: className,
+  }: { snapshot: github.PullRequestSnapshot; runId: string; class?: ClassValue } = $props();
+
+  const id = $derived(snapshot.summary?.ref?.id ?? "");
   let selected = $state("");
 
   const pages = $derived(
@@ -31,7 +38,7 @@
     const target = pages;
     untrack(() => void target.read());
 
-    const unsubscribe = invalidations.subscribe(id, () => void target.invalidate());
+    const unsubscribe = invalidations.subscribe(id, () => void target.invalidate(true));
 
     const timer = setInterval(() => {
       if (
@@ -49,6 +56,12 @@
 </script>
 
 <div class={["grid min-w-0 gap-2 p-3", className]}>
+  {#if pages.current?.run}<div class="flex min-w-0 items-center gap-2">
+      <p class="min-w-0 flex-1 truncate" title={pages.current.run.name}>
+        {pages.current.run.name} · attempt {pages.current.run.attempt}
+      </p>
+      <CiActions {snapshot} {runId} state={pages.current.run.state} />
+    </div>{/if}
   {#each pages.current?.jobs ?? [] as job (job.id)}
     {@const look = checkLook(job.state)}
     <div class="flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5">
@@ -56,6 +69,7 @@
         ><Icon name={look.icon} label={look.label} tone="inherit" class={toneClasses[look.tone]} /></span
       >
       <p class="min-w-0 flex-1 truncate" title={job.name}>{job.name}</p>
+      <CiActions {snapshot} {runId} jobId={job.id} state={pages.current?.run?.state ?? job.state} name={job.name} />
       <Button
         size="sm"
         variant="ghost"

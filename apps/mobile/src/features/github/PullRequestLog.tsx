@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import type { ReactNode } from "react";
 import { FlatList, Text, View } from "react-native";
 import { useSession } from "../../state/session";
 import { useColors, useTypography } from "../../ui/theme";
@@ -7,7 +8,21 @@ import { SheetCloseButton } from "../../ui/SheetDragArea";
 import { usePages } from "./usePages";
 import { PageControls } from "./PageControls";
 
-export function PullRequestLog({ id, jobId, onClose }: { id: string; jobId: string; onClose: () => void }) {
+export function PullRequestLog({
+  id,
+  jobId,
+  onClose,
+  children,
+  visible = true,
+  onDismiss,
+}: {
+  id: string;
+  jobId: string;
+  onClose: () => void;
+  children?: ReactNode;
+  visible?: boolean;
+  onDismiss?: () => void;
+}) {
   const { client } = useSession();
   const c = useColors();
   const type = useTypography();
@@ -21,9 +36,10 @@ export function PullRequestLog({ id, jobId, onClose }: { id: string; jobId: stri
   );
 
   return (
-    <Overlay visible onClose={onClose} label="Job log">
+    <Overlay visible={visible} onClose={onClose} onDismiss={onDismiss} label="Job log">
       <View style={{ flexDirection: "row", alignItems: "center", padding: 12 }}>
         <Text style={[type.small, { flex: 1, color: c.text }]}>Job {jobId}</Text>
+        {children}
         <SheetCloseButton label="Close log" />
       </View>
       <FlatList

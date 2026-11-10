@@ -186,7 +186,14 @@ Edycja metadanych PR korzysta z `GetPullRequestMetadata`, `UpdatePullRequestDeta
 `github_pr_metadata_v1`. Klient wysyła rewizję i ID, nigdy endpoint ani poświadczenie.
 Każda zmiana wymaga Apply; konflikt pokazuje porównanie i odświeżenie, a wynik uncertain
 nie jest odtwarzany po utracie połączenia. Odczyt i zapis podlegają owner-scoping domu PR.
-Szczegóły i zakres kolejnych etapów: [GitHub](github.md).
+Picker reviewerów pokazuje bieżące requesty jako zaznaczone. Apply wysyła tylko różnicę;
+Re-request review jest osobną akcją przy wykonanym review.
+`RerunPullRequestChecks` przyjmuje run/attempt, enum failed/all/job i opcjonalny job ID;
+`CancelPullRequestCheckRun` wymaga potwierdzenia z Prepare. Linked computers negocjują
+`github_pr_write_v1` dla CI. BFF udostępnia POST `/api/github/rerun-checks` i `/api/github/cancel-run`.
+Receipt accepted potwierdza zlecenie, a watch/polling odczytuje późniejsze queued/in-progress.
+Nie ma dispatch/debug/force-cancel ani automatycznego replay po uncertain.
+Szczegóły i kontrakty: [GitHub](github.md).
 
 ## Connectors
 

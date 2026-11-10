@@ -107,6 +107,7 @@
 
     try {
       read.set(await api.pullRequest(id, true));
+      invalidations.publish(id);
       denied = false;
     } catch (cause) {
       if (cause instanceof HttpError && [403, 404, 409, 412].includes(cause.status)) denied = true;

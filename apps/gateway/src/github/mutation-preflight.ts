@@ -7,6 +7,7 @@ import { graphErrors } from "./read-scope.ts";
 import { mutationBudget } from "./mutation-http.ts";
 import { lifecycleActions } from "./lifecycle.ts";
 import { metadataActions } from "./metadata-mutation.ts";
+import { ciActions } from "./ci.ts";
 
 const pr = Schema.Struct({ id: Schema.String });
 
@@ -68,9 +69,11 @@ export async function mutationScope(prs: GitHubPullRequests, r: github.PullReque
 
     const permitted = installed.some(
       (i) =>
-        (["set_assignees", "set_labels"].includes(r.action)
-          ? i.permissions["issues"] === "write"
-          : i.permissions["pull_requests"] === "write") ||
+        (ciActions.includes(r.action)
+          ? i.permissions["actions"] === "write"
+          : ["set_assignees", "set_labels"].includes(r.action)
+            ? i.permissions["issues"] === "write"
+            : i.permissions["pull_requests"] === "write") ||
         (r.action === "create_comment" && i.permissions["issues"] === "write") ||
         (["update_comment", "delete_comment"].includes(r.action) &&
           r.commentKind === "issue" &&
@@ -139,6 +142,7 @@ export async function preflight(scope: MutationScope, r: github.PullRequestMutat
       "discard_review",
       ...lifecycleActions,
       ...metadataActions,
+      ...ciActions,
     ].includes(r.action)
   ) {
     const n = data.node;

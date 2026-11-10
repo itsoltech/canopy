@@ -23,6 +23,8 @@ export function mutationRequest(
 }
 
 export interface MutationApi {
+  rerunPullRequestChecks: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  cancelPullRequestCheckRun: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
   updatePullRequestDetails: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
   requestPullRequestReviewers: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
   setPullRequestAssignees: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
@@ -58,6 +60,10 @@ export async function sendMutation(
 ) {
   try {
     switch (request.action) {
+      case "rerun_checks":
+        return await api.rerunPullRequestChecks(request);
+      case "cancel_run":
+        return await api.cancelPullRequestCheckRun(request);
       case "update_details":
         return await api.updatePullRequestDetails(request);
       case "request_reviewers":

@@ -14,6 +14,8 @@ const mutate = async (operation: string, r: github.PullRequestMutationRequest) =
   );
 
 export const mutations: MutationApi = {
+  rerunPullRequestChecks: (r) => mutate("rerun-checks", r),
+  cancelPullRequestCheckRun: (r) => mutate("cancel-run", r),
   updatePullRequestDetails: (r) => mutate("update-details", r),
   requestPullRequestReviewers: (r) => mutate("request-reviewers", r),
   setPullRequestAssignees: (r) => mutate("set-assignees", r),

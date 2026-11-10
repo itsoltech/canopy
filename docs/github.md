@@ -1,6 +1,6 @@
 # Konto GitHub i pull requesty
 
-Status: **zaakceptowany**, 2026-11-10. Etapy 1–3 w stosie implementują konta,
+Status: **v1 zaimplementowane w draftowym stosie PR; dostępne po scaleniu całego stosu**, 2026-11-10. Etapy 1–3 w stosie implementują konta,
 powiązania ręczne i automatyczne oraz Summary. Etap 4 dodaje pełny odczyt:
 Timeline, review threads, checki/jobs/logi i Code, polling, kontekst composera
 oraz fallback aktualizacji. Etap 5 dodaje jawne komentarze (post/reply/edit/delete)
@@ -9,7 +9,7 @@ Etap 6 dodaje inline comments i zakresy LEFT/RIGHT, pending review ze wszystkimi
 trzema werdyktami oraz resolve/unresolve. Etap 7 dodaje tworzenie PR z gałęzi wątku,
 ready/draft, merge trzema metodami, kolejkę scalania, auto-merge, update branch i close/reopen.
 Etap 8 dodaje edycję tytułu/opisu, reviewerów (osoby i zespoły), assignees i istniejących labels.
-Sterowanie CI pozostaje zakresem etapu 9.
+Etap 9 dodaje sterowanie CI oraz ujednolica wybór reviewerów. Cały stos pozostaje draftem do zakończenia weryfikacji i wspólnego scalenia przez maintenera.
 Decyzje ustalone po przeglądzie: oficjalna GitHub App Canopy organizacji `itsoltech`, device flow,
 wygasające tokeny użytkownika w domu wątku, pełny zakres zapisów opisany poniżej i Viewed
 synchronizowane z GitHub. Implementacja jako jeden stos PR według §11.
@@ -107,12 +107,16 @@ allowlista dopuszcza tylko serwerowe merge i update branch. Te akcje zmieniają 
 nie lokalny checkout. Nie pobieramy Workflows: write, Administration ani uprawnień do e-mail.
 Checks: write nie jest potrzebne i nie daje prawa do ponawiania dowolnego zewnętrznego CI.
 Members: read pozwoli etapowi 8 uzupełnić pickery reviewerów o osoby i zespoły organizacji.
-Bez tego prawa, również dla PAT, pozostają podpowiedzi z PR/historii oraz jawny login lub
-`org/team-slug`; REST request reviewers przyjmuje slug, a GitHub sprawdza dostęp zespołu.
+Bez tego prawa, również dla PAT, pozostają bieżące przypisania i podpowiedzi dostępnych
+współpracowników repozytorium oraz osób, które już wykonały review. Nie ma dowolnego wpisywania
+loginów ani tworzenia zespołów; GitHub ponownie sprawdza dostęp wybranych osób i zespołów.
 Zakres v1 nie obejmuje osobnych funkcji Discussions, Projects ani dodatkowych źródeł alertów
 i wdrożeń; ich nadane uprawnienia pozostają niewykorzystane do osobnej implementacji.
 Faktycznie dostępne akcje nadal wynikają z praw użytkownika,
-instalacji i repo. Brak Actions lub Contents w PAT wyłącza odpowiednie akcje z wyjaśnieniem.
+instalacji i repo. Dla GitHub App brak Actions: write wyłącza sterowanie CI z wyjaśnieniem.
+PAT nie udostępnia pełnej introspekcji fine-grained permissions: odczyt roli repozytorium nie
+potwierdza Actions: write. Ostateczna odmowa GitHub pozostaje błędem receiptu z wyjaśnieniem,
+bez próby innym kontem ani ponowienia zapisu.
 [Komentarze i wymagane prawa](https://docs.github.com/en/rest/issues/comments#create-an-issue-comment),
 [merge i update branch](https://docs.github.com/en/rest/pulls/pulls),
 [reviewerzy](https://docs.github.com/en/rest/pulls/review-requests),
@@ -176,15 +180,17 @@ Własny endpoint MCP i jego dowolne nagłówki nie są źródłem tokenu do GitH
 
 ### Połączone komputery
 
-Etap kont negocjuje osobne `github_accounts_v1`, bez przedwczesnego ogłaszania
-`github_pr_v1` lub `github_pr_write_v1`. Wyłącznie osiem RPC kont z `github.proto`
+Moduł kont negocjuje osobne `github_accounts_v1`; odczyty i zapisy PR mają własne
+capabilities opisane w §6. Dziesięć RPC kont z `github.proto`
 przechodzi przez bezpośrednie łącze: lista, start/status/cancel device flow,
-disconnect, wybór PAT oraz katalog instalacji/repozytoriów. Konto i próba otrzymują
+disconnect, wybór PAT, katalog instalacji/repozytoriów oraz odczyt i wybór konta aktualizacji.
+Konto i próba otrzymują
 kwalifikowany identyfikator domu. Lista i start przed utworzeniem konta używają
 kwalifikowanego znacznika `GITHUB_HOME`; znacznik służy tylko do routingu.
 Próba z partnera wiąże skrót uwierzytelnionego klienta także z tożsamością partnera.
 RPC kont nie przechodzą przez relay i nie trafiają do wspólnej konfiguracji.
-Udostępnianie odczytów PR przez pośrednika pozostaje zakresem późniejszych etapów.
+Odczyty PR mogą przechodzić przez uprawniony relay z `github_pr_v1`;
+capabilities zapisu nie są przekazywane przez pośrednika.
 
 **Domem konta jest gateway obsługujący wątek.** Konto na A nie udziela samo dostępu B.
 UI na A może przeprowadzić device flow na B przez uwierzytelnione łącze; kod urządzenia,
@@ -247,8 +253,8 @@ Konfiguracja i pilotaż:
 Etap 2 udostępnia ręczne link/unlink i read-only Summary na web/desktop oraz mobile.
 Katalog instalacji i odczyty PR używają jednego klienta REST/GraphQL, dzierżaw SQL i budżetu.
 Summary zawiera najwyżej pierwsze 100 elementów każdego źródła; `partial` jawnie wskazuje
-niepełny wynik i odsyła na GitHub. Pełna paginacja, watch/polling i rozbudowane metryki
-pozostają w etapie 4. PostgreSQL weryfikuje każdy odczyt, a LRU RAM do 32 MiB
+niepełny wynik i odsyła na GitHub. Etap 4 dodaje pełną paginację szczegółów,
+watch/polling i rozbudowane metryki. PostgreSQL weryfikuje każdy odczyt, a LRU RAM do 32 MiB
 ogranicza ponowne parsowanie tej samej generacji JSON. Retencja 30 dni i limit 100 MiB
 dotyczą już trwałego cache etapu 2.
 Etap 3 dodaje autodetekcję i wyróżnia PR bieżącej gałęzi przed historią; w każdej grupie
@@ -562,13 +568,23 @@ bez retry, a odczyt po zapisie sprawdza wynik. GitHub nie udostępnia atomowego 
 dla tych pól; preflight ogranicza okno wyścigu, ale go nie usuwa. Rozbieżność po zapisie lub utrata
 odpowiedzi pozostaje `uncertain`, bez automatycznego ponowienia. Receipty i audyt wykorzystują
 istniejący store; parametr strukturalny zawiera rewizję/ID/tryb review, bez tytułu/opisu i sekretów.
-Etap nie dodaje migracji.
+Etapy 8–9 nie dodają migracji. Picker reviewerów wstępnie zaznacza bieżące requesty;
+**Apply** oblicza usunięcia i nowe prośby. Usunięcia i dodania mają osobne receipty,
+z odczytem i sprawdzeniem rewizji pomiędzy nimi. Częściowy lub niepewny wynik zatrzymuje diff
+bez automatycznego wznowienia. **Re-request review** jest osobną akcją ikonową przy osobie,
+która już wykonała review, w Summary i w pickerze. Zespoły oznacza ikona zespołu.
+
+CI negocjuje końcową capability `github_pr_write_v1`; wcześniejsze, węższe capabilities
+comments/review/lifecycle/metadata pozostają obsługiwane. Prepare dla CI oraz oba RPC zapisu
+wymagają nowej capability na obu końcach bezpośredniego łącza. Run/job ID pozostają upstream ID;
+account/PR/confirmation ID są kwalifikowane domem. Receipty są związane z uwierzytelnionym
+klientem i partnerem, a zapis odbywa się wyłącznie w domu konta. Brak domu nie kolejkuje zapisu.
 
 Rozszerzamy istniejący **`canopy.ui.v1.GatewayService`**, z wiadomościami w nowym
 `proto/canopy/ui/v1/github.proto`. To domena w istniejącej usłudze, nie drugi serwer API.
 `api/ui-github.ts` składa handlery analogicznie do `ui-connectors.ts`.
 
-| Grupa RPC — proponowane nazwy | Kontrakt |
+| Grupa RPC | Kontrakt |
 | --- | --- |
 | `ListGitHubAccounts`, `BeginGitHubDeviceAuth`, `GetGitHubDeviceAuth`, `CancelGitHubDeviceAuth`, `DisconnectGitHubAccount` | DTO konta i stanu próby bez tokenów/device code; żądania mają dom, nie dowolny URL |
 | `ListGitHubInstallations`, `ListGitHubRepositories`, `SetGitHubRepositoryAccount` | Stronicowany katalog dostępnych repo, jawny wybór konta i expected revision |
@@ -577,7 +593,7 @@ Rozszerzamy istniejący **`canopy.ui.v1.GatewayService`**, z wiadomościami w no
 | `CreatePullRequestComment`, `ReplyPullRequestReviewThread`, `UpdatePullRequestComment`, `DeletePullRequestComment`, `SetPullRequestReviewThreadResolved` | Typ komentarza i upstream ID związane z PR; edycja/usunięcie tylko własnego komentarza; resolve/unresolve według aktualnych praw |
 | `AddPullRequestReviewComment`, `SubmitPullRequestReview`, `DiscardPullRequestReview`, `SetPullRequestFileViewed` | Inline z path/startSide/startLine/endSide/endLine/commit OID, pending review ID oraz event Comment/Approve/Request changes; Viewed wywołuje GitHub |
 | `CreatePullRequest`, `SetPullRequestDraft`, `MergePullRequest`, `SetPullRequestAutoMerge`, `UpdatePullRequestBranch`, `SetPullRequestOpen` | Jawna akcja użytkownika, oczekiwany head/base i dozwolona metoda; create z thread ID; receipt również dla accepted/uncertain |
-| `UpdatePullRequestDetails`, `RequestPullRequestReviewers`, `SetPullRequestAssignees`, `SetPullRequestLabels` | Tytuł/opis z rewizją, enum request/re-request/remove z rozróżnieniem user/team, zmiana przypisań w obrębie jednego repo |
+| `UpdatePullRequestDetails`, `RequestPullRequestReviewers`, `SetPullRequestAssignees`, `SetPullRequestLabels` | Tytuł/opis z rewizją, walidowane request/re_request/remove z rozróżnieniem user/team, zmiana przypisań w obrębie jednego repo |
 | `ListPullRequestCheckJobs`, `GetPullRequestJobLog`, `RerunPullRequestChecks`, `CancelPullRequestCheckRun` | Run/job/attempt przypisane przez gateway do repo i SHA PR; stronicowane jobs/logi, enum failed_jobs/all_jobs/single_job, bez dowolnego URL/workflow dispatch |
 | `PreparePullRequestMutation`, `GetPullRequestMutation`, `PreparePullRequestContext`, `PreparePullRequestDraftContext` | Preflight/receipt i potwierdzenie związane z akcją; context zwraca zwykłe Attachment DTO, nie wysyła tury. DraftContext przyjmuje thread ID i oczekiwany kontekst gałęzi, bez wymogu istniejącego PR |
 
@@ -666,6 +682,20 @@ redagujemy znane sekrety. Log może zawierać prywatne dane mimo maskowania prze
 Zewnętrzny check bez API logów GitHub pokazuje dostępne output/adnotacje w Canopy i jawny
 link dostawcy; nie pobieramy arbitralnych URL. Re-run/cancel są dostępne dla GitHub Actions,
 nie udają uniwersalnego sterowania każdym dostawcą Checks API.
+
+Re-run failed/all/job i cancel mają wspólny preflight z komentarzami oraz świeży odczyt
+run/joba wewnątrz kolejki zapisów. Gateway sprawdza owner/account/revision/repo/PR/head SHA,
+numer attemptu, prawa użytkownika i Actions: write instalacji. Cancel wymaga niewygasłego,
+powiązanego z klientem potwierdzenia całego run; dialog obejmuje także wpływ na pozostałe PR
+współdzielące run. Re-run joba ponawia również zależne joby według semantyki GitHub;
+dialog wyjaśnia możliwe ponowne deploymenty. API jobs nie udostępnia grafu `needs`, więc
+Canopy nie wymyśla zależności na podstawie kolejności ani nazw jobów.
+
+Odpowiedź 201/202 daje receipt **accepted**, nie **succeeded**. Checki i jobs pokazują
+queued/in-progress dopiero po odczycie GitHub przez watch/polling z etapu 4. Akcja **Check current state**
+jest odczytem i jawnym odblokowaniem kolejnej decyzji, nigdy ponowieniem poprzedniego POST.
+Utrata odpowiedzi lub restart z opuszczonym in-flight daje **uncertain**, bez replay.
+Stałe endpointy Actions i puste body nie dopuszczają workflow_dispatch, debug logging ani force-cancel.
 [Logi jobs](https://docs.github.com/en/rest/actions/workflow-jobs#download-job-logs-for-a-workflow-run),
 [ponowienie i anulowanie runs](https://docs.github.com/en/rest/actions/workflow-runs).
 
@@ -687,8 +717,7 @@ Obecny `features/navigation/AppShell.svelte` organizuje widoki trasami, bez ogó
 kart dokumentów. PR otwiera się w istniejącej prawej kolumnie wątku na desktopie,
 a na wąskim ekranie w arkuszu; parametr `pr` adresu wątku pozwala wrócić do tego panelu.
 Rozmowa, szkic i pozycja przewijania pozostają zamontowane. Mobile używa pushed screen.
-Nie budujemy nowego systemu okien. Etap 2 pokazuje tylko segment Summary;
-Timeline i Code pojawią się z implementacją ich etapów w tym samym pasku.
+Panel zawiera zakładki Summary, Timeline i Code w tym samym pasku.
 
 1. **Panel wątku.** Pod `ThreadPlacement`/Branch lista **Pull requests**: tytuł, repo gdy potrzebne,
    `#number`, stan i checki. Domyślnie najnowszy PR bieżącej gałęzi według utworzenia;
@@ -703,7 +732,7 @@ Timeline i Code pojawią się z implementacją ich etapów w tym samym pasku.
    Checki pokazują queued/in progress/success/failure/cancelled/skipped/neutral/timed out,
    nazwę wykonawcy, SHA i link. Brak checków/niepełny odczyt nie jest „All checks passed”.
    Wynik zbiorczy dotyczy wykonanych checków, nie gwarantuje spełnienia branch protection.
-   Wiersz checka rozwija jobs i logi; menu run/joba zawiera dostępne akcje CI.
+   Wiersz checka rozwija jobs i logi; ikonowe akcje checka/run/joba mają tooltipy.
 4. **Timeline.** Zdarzenia, commity, komentarze i reviews od najnowszych. Rozwinięcie review
    doczytuje dyskusje i odpowiedzi; zachowuje identyfikatory, autorów, permalink i oznaczenie
    outdated/resolved. Paginacja nie przesuwa właśnie czytanego zdarzenia.
@@ -766,7 +795,7 @@ Nie ma offline send ani zapisu po samym logowaniu. Szkic pozostaje po błędzie.
 | Branch i stan PR | Overflow nagłówka: **Update branch**, **Close pull request**/**Reopen pull request** | Update potwierdza merge base do head na GitHub i możliwy nowy CI; bez lokalnego push. Close wymaga potwierdzenia; reopen jest osobną jawną akcją, nie Undo uruchamianym automatycznie |
 | Tytuł i opis | **Edit title and description** przy nagłówku/opisie i w overflow | Edytowalny Markdown z preview, **Save changes**, konflikt przy zewnętrznej edycji nie nadpisuje jej po cichu |
 | Reviewers, assignees, labels | Pola Summary z pickerami i jawnym **Apply** | Request/re-request user lub team, usunięcie requestu, dodanie/usunięcie istniejących labels i assignees; bez tworzenia globalnych etykiet lub zmiany zespołu. Picker informuje o powiadomieniu zespołu |
-| CI i logi | Wiersze checków/jobs Summary i podgląd logu; menu run/joba | **View logs**, **Re-run failed jobs**, **Re-run all jobs**, **Re-run job**, **Cancel run**; pokazujemy run/attempt/SHA i ostrzegamy, że ponowienie może wykonać deploy. Cancel potwierdza konkretny run i wpływ na pozostałe PR z tym run |
+| CI i logi | Ikonowe akcje z tooltipami w wierszach checków/jobs Summary i podglądzie logu | **View logs**, **Re-run**, **Re-run failed**, **Cancel run**; kontekst wiersza i dialog rozróżniają cały run od jednego joba. Pokazujemy run/attempt/SHA, zależne joby jako skutek ponowienia i możliwy deploy. Cancel potwierdza cały run i wpływ na pozostałe PR z tym run. Zewnętrzne CI i brak praw wyłączają akcje z przyczyną |
 
 Review pending należy do GitHub user ID: po otwarciu doczytujemy istniejący draft z GitHub,
 również utworzony na innym urządzeniu. Rozróżniamy tekst w edytorze (jeszcze lokalny),
@@ -864,7 +893,7 @@ wybór zakresu zachowuje kotwicę przy przejściu między stronami.
 | Viewed | Checkbox przy pliku zapisuje na GitHub; optymistyczny stan/rollback, `DISMISSED` i blokada offline identyczne jak §7; zmiana AppState/fokusu rewaliduje stronę |
 | Create i lifecycle | **Create pull request** pod Branch; pełnoekranowy formularz base/head/konto/draft z **Draft with agent**, edycją propozycji i osobnym Create. Nagłówek i arkusz overflow mają ready/draft, update branch, close/reopen, merge/squash/rebase i auto-merge on/off; dialog merge pokazuje metodę/SHA i blokady, close/update/enable auto-merge wymagają takich samych potwierdzeń jak web |
 | Metadane | **Edit title and description** otwiera edytor z preview; reviewers (users/teams), request/re-request, assignees i labels mają arkusze wyszukiwania z Apply. Podpowiedzi/slug zespołu i ostrzeżenie o powiadomieniu działają bez desktopowego hover |
-| CI | Check rozwija stronicowane jobs; **View logs** otwiera wirtualną listę tekstu z następnymi stronami i stanem truncated/unavailable. Menu run/joba: re-run failed/all/job i cancel; run/attempt/SHA, informacja o skutkach i potwierdzenie cancel są widoczne także przy klawiaturze ekranowej |
+| CI | Check rozwija stronicowane jobs; **View logs** otwiera wirtualną listę tekstu z następnymi stronami i stanem truncated/unavailable. Ikonowe akcje run/joba oraz nagłówka logu: re-run failed/all/job i cancel; run/attempt/SHA, informacja o skutkach i potwierdzenie cancel pozostają w arkuszu. Długie przytrzymanie podaje etykietę; dotknięcie wyłączonej akcji podaje powód |
 
 Żadna mutacja nie jest przypisana wyłącznie do hover, prawego przycisku ani przeciągania.
 Bottom sheet respektuje safe area i klawiaturę; potwierdzenie destrukcyjnej akcji jest osobnym

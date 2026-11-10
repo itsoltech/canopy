@@ -53,6 +53,18 @@ async function bodyText(response: Response) {
   return Buffer.concat(parts).toString("utf8");
 }
 
+/** Only these Actions endpoints document successful responses without a JSON body. */
+function emptyActionsResponse(path: string, method: string | undefined, status: number) {
+  if (method !== "POST") return false;
+  const root = "^/repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/";
+
+  return (
+    (status === 201 &&
+      new RegExp(`${root}(runs/[1-9][0-9]*/(rerun|rerun-failed-jobs)|jobs/[1-9][0-9]*/rerun)$`).test(path)) ||
+    (status === 202 && new RegExp(`${root}runs/[1-9][0-9]*/cancel$`).test(path))
+  );
+}
+
 export class GitHubHttp {
   readonly config;
   readonly now;
@@ -101,7 +113,10 @@ export class GitHubHttp {
       );
     }
 
-    const text = await bodyText(response);
+    const text = response.body ? await bodyText(response) : "";
+
+    if (!text.trim() && emptyActionsResponse(path, init.method, response.status))
+      return { status: response.status, headers, value: {} };
 
     const decoded = Schema.decodeUnknownSync(Schema.Json)(
       JSON.parse(secrets.length ? redactConnector(text, {}, secrets) : text),

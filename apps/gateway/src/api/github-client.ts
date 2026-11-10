@@ -57,6 +57,8 @@ export function bindGitHubRequest(method: DescMethod, request: Message, context:
       "RequestPullRequestReviewers",
       "SetPullRequestAssignees",
       "SetPullRequestLabels",
+      "RerunPullRequestChecks",
+      "CancelPullRequestCheckRun",
     ].includes(method.name)
   )
     return;

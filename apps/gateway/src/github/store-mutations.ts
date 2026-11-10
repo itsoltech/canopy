@@ -6,6 +6,7 @@ import { reviewParameters } from "./review-mutation.ts";
 import { lifecycleParameters } from "./lifecycle.ts";
 import { githubCreateStore } from "./store-create.ts";
 import { metadataParameters } from "./metadata-mutation.ts";
+import { ciParameters } from "./ci.ts";
 
 export interface MutationRow {
   owner_user_id: string;
@@ -33,7 +34,8 @@ export interface MutationRow {
   viewer_viewed_state: string;
   parameters: ReturnType<typeof reviewParameters> &
     ReturnType<typeof lifecycleParameters> &
-    ReturnType<typeof metadataParameters>;
+    ReturnType<typeof metadataParameters> &
+    ReturnType<typeof ciParameters>;
 }
 
 export const uncertainDetail = "Couldn't confirm. Check on GitHub";
@@ -87,7 +89,7 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
           (owner_user_id,request_id,account_id,pull_request_id,client_binding,fingerprint,action,access_revision,mapping_revision,
           head_sha,expected_state,resource_id,path,confirmation_id,parameters)
           VALUES (${owner}::uuid,${r.clientRequestId}::uuid,${r.accountId}::uuid,${r.pullRequestId}::uuid,${client},${fingerprint},
-          ${r.action},${r.accessRevision}::bigint,${mapping}::bigint,${r.headSha},${r.expectedState},${r.resourceId},${r.path},${Bun.randomUUIDv7()}::uuid,${JSON.stringify({ ...reviewParameters(r), ...lifecycleParameters(r), ...metadataParameters(r) })}::jsonb)
+          ${r.action},${r.accessRevision}::bigint,${mapping}::bigint,${r.headSha},${r.expectedState},${r.resourceId},${r.path},${Bun.randomUUIDv7()}::uuid,${JSON.stringify({ ...reviewParameters(r), ...lifecycleParameters(r), ...metadataParameters(r), ...ciParameters(r) })}::jsonb)
           ON CONFLICT DO NOTHING RETURNING *`;
 
           if (rows[0]) yield* audit(rows[0], "prepared");
@@ -101,7 +103,7 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
           const rows =
             yield* sql<MutationRow>`UPDATE github_mutation_receipts m SET state='in_flight',lease_until=now()+interval '60 seconds',updated_at=now()
         WHERE m.owner_user_id=${r.owner_user_id}::uuid AND m.request_id=${r.request_id}::uuid AND m.state='prepared'
-        AND m.expires_at>now() AND (m.action NOT IN ('delete_comment','discard_review','merge','queue','auto_merge','update_branch','set_open','set_draft','create_pr') OR m.confirmation_id::text=${confirmation})
+        AND m.expires_at>now() AND (m.action NOT IN ('delete_comment','discard_review','merge','queue','auto_merge','update_branch','set_open','set_draft','create_pr','cancel_run') OR m.confirmation_id::text=${confirmation})
         AND (m.thread_id IS NULL OR EXISTS(SELECT 1 FROM threads t WHERE t.owner_user_id=m.owner_user_id AND t.id=m.thread_id AND t.deleted_at IS NULL))
         AND EXISTS(SELECT 1 FROM github_accounts a JOIN github_repository_accounts ra ON ra.owner_user_id=a.owner_user_id AND ra.account_id=a.id
           WHERE a.owner_user_id=m.owner_user_id AND a.id=m.account_id AND a.revision=m.access_revision AND a.status='connected'
@@ -130,7 +132,11 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
           OR cache_key=(SELECT 'summary:'||repository_id||':'||number FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid)
           OR cache_key LIKE (SELECT 'pending:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid)
           OR cache_key LIKE (SELECT 'timeline:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid)
-          OR cache_key LIKE (SELECT 'reviews:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid))`;
+          OR cache_key LIKE (SELECT 'reviews:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid)
+          OR (${["rerun_checks", "cancel_run"].includes(r.action)} AND (
+            cache_key LIKE (SELECT 'checks:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid)
+            OR cache_key LIKE (SELECT 'jobs:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid)
+            OR cache_key LIKE (SELECT 'run:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid))))`;
 
           return rows[0];
         }),

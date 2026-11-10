@@ -34,6 +34,8 @@ export function githubMutationHandlers(
   | "requestPullRequestReviewers"
   | "setPullRequestAssignees"
   | "setPullRequestLabels"
+  | "rerunPullRequestChecks"
+  | "cancelPullRequestCheckRun"
 > {
   const action =
     (expected: string) =>
@@ -82,6 +84,8 @@ export function githubMutationHandlers(
     requestPullRequestReviewers: action("request_reviewers"),
     setPullRequestAssignees: action("set_assignees"),
     setPullRequestLabels: action("set_labels"),
+    rerunPullRequestChecks: action("rerun_checks"),
+    cancelPullRequestCheckRun: action("cancel_run"),
     createPullRequestComment: action("create_comment"),
     replyPullRequestReviewThread: action("reply"),
     updatePullRequestComment: action("update_comment"),

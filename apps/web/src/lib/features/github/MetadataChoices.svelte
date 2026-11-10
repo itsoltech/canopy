@@ -5,15 +5,22 @@
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import GitHubAvatar from "./GitHubAvatar.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
+  import ReRequestReview from "./ReRequestReview.svelte";
+  import type { MetadataKind } from "@canopy/domain/github-metadata";
 
   let {
     options,
+    kind,
+    snapshot,
     ids,
     disabled,
     ontoggle,
     class: className,
   }: {
     options: github.PullRequestMetadataOption[];
+    kind: MetadataKind;
+    snapshot: github.PullRequestSnapshot;
     ids: string[];
     disabled: boolean;
     ontoggle: (id: string) => void;
@@ -28,7 +35,11 @@
   <SearchField
     name="metadata-search"
     label="Search choices"
-    placeholder="Search people, teams or labels"
+    placeholder={kind === "labels"
+      ? "Search labels"
+      : kind === "reviewers"
+        ? "Search people or teams"
+        : "Search people"}
     bind:value={query}
   />
   <div class="grid max-h-72 scroll-stable gap-1 overflow-y-auto py-1 pr-2">
@@ -41,11 +52,18 @@
             class="size-4 shrink-0 rounded border border-black/15 bg-(--label-bg) dark:border-white/20"
             style:--label-bg={color.background}
           ></span>
-        {:else}<GitHubAvatar userId={option.userId} login={option.name} compact />{/if}
+        {:else if option.kind === "team"}<Icon name="user-group" label="Team" />{:else}<GitHubAvatar
+            userId={option.userId}
+            login={option.name}
+            compact
+          />{/if}
         <div class="min-w-0 flex-1" onchange={() => ontoggle(option.id)}>
           <Checkbox name={`metadata-${option.id}`} label={option.name} checked={ids.includes(option.id)} {disabled} />
         </div>
-        {#if option.kind === "team"}<p class="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">Team</p>{/if}
+        {#if kind === "reviewers" && snapshot.reviewers.some((r) => r.nodeId === option.id && r.state !== "requested")}<ReRequestReview
+            {snapshot}
+            id={option.id}
+          />{/if}
       </div>
     {/each}
     {#if !shown.length}<p class="py-2 text-sm text-zinc-500 dark:text-zinc-400">No matching choices</p>{/if}

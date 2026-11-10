@@ -143,6 +143,7 @@ message PullRequestCheck {
 message PullRequestReviewer {
   string login = 1;
   string state = 2;
+  string node_id = 3;
 }
 message PullRequestLabel {
   string name = 1;
@@ -172,6 +173,7 @@ message PullRequestSnapshot {
   string head_repository_name = 21;
   string viewer_login = 22;
   PullRequestLifecycle lifecycle = 23;
+  string ci_blocking_reason = 24;
 }
 message PullRequestLifecycle {
   repeated string actions = 1;
@@ -348,6 +350,20 @@ message PullRequestJob {
 message PullRequestJobsPage {
   repeated PullRequestJob jobs = 1;
   PullRequestPageInfo page = 2;
+  PullRequestWorkflowRun run = 3;
+}
+message PullRequestWorkflowRun {
+  string id = 1;
+  uint32 attempt = 2;
+  string name = 3;
+  string state = 4;
+  string head_sha = 5;
+}
+enum PullRequestRerunMode {
+  PULL_REQUEST_RERUN_MODE_UNSPECIFIED = 0;
+  PULL_REQUEST_RERUN_MODE_FAILED_JOBS = 1;
+  PULL_REQUEST_RERUN_MODE_ALL_JOBS = 2;
+  PULL_REQUEST_RERUN_MODE_SINGLE_JOB = 3;
 }
 message PullRequestJobLogPage {
   string text = 1;
@@ -471,6 +487,10 @@ message PullRequestMutationRequest {
   repeated string metadata_ids = 38;
   // request, re_request or remove for reviewers.
   string reviewer_action = 39;
+  string run_id = 40;
+  string job_id = 41;
+  uint32 run_attempt = 42;
+  PullRequestRerunMode rerun_mode = 43;
 }
 message PullRequestMutationRequestRef {
   string pull_request_id = 1;

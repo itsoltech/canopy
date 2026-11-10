@@ -11,6 +11,7 @@ import { mutationScope, preflight, type MutationScope } from "./mutation-preflig
 import { mutationDocument, mutationQueue, mutationInput, mutationBudget } from "./mutation-http.ts";
 import { uncertainDetail, type MutationRow } from "./store-mutations.ts";
 import { viewedFiles } from "./viewed.ts";
+import { ciActions, ciParameters, validateCi, ciPreflight, ciMutation, acceptCi } from "./ci.ts";
 import { validateReview, reviewMutation, reviewParameters } from "./review-mutation.ts";
 import { verifyReviewAnchor, reviewPreflight } from "./review-preflight.ts";
 import {
@@ -42,6 +43,7 @@ const actions = [
   "resolve_thread",
   ...lifecycleActions,
   ...metadataActions,
+  ...ciActions,
 ];
 
 const result = Schema.Struct({
@@ -88,6 +90,7 @@ function validate(r: github.PullRequestMutationRequest) {
   validateReview(r);
   validateLifecycle(r);
   validateMetadata(r);
+  validateCi(r);
 
   if (!uuid(r.pullRequestId) || !uuid(r.accountId) || !uuid(r.clientRequestId))
     throw new ConnectError("Pull request not found", Code.NotFound);
@@ -159,6 +162,7 @@ export class GitHubMutations {
         lifecycleParameters(r),
         r.title,
         metadataParameters(r),
+        ciParameters(r),
       ]),
     );
 
@@ -191,6 +195,8 @@ export class GitHubMutations {
         await reviewPreflight(scope, r, renew);
 
         if (lifecycleActions.includes(r.action)) await lifecyclePreflight(scope, r);
+
+        if (ciActions.includes(r.action)) await ciPreflight(scope, r);
         const selected = metadataActions.includes(r.action) ? await metadataPreflight(scope, r, renew) : [];
         await renew();
         row = (
@@ -232,6 +238,7 @@ export class GitHubMutations {
       const review = reviewMutation(scope, r);
       const lifecycle = lifecycleActions.includes(r.action) ? lifecycleMutation(scope, r) : undefined;
       const metadata = metadataActions.includes(r.action) ? metadataMutation(scope, r, selected) : undefined;
+      const ci = ciActions.includes(r.action) ? ciMutation(scope, r) : undefined;
       const input = review?.input ?? mutationInput(scope, r);
 
       const query =
@@ -244,12 +251,13 @@ export class GitHubMutations {
 
       // Deliberately bypass authorized(): even its 401 refresh retry must never replay a write.
       const response = await accounts.http.detailed(
-        metadata?.path ?? lifecycle?.path ?? "/graphql",
+        ci?.path ?? metadata?.path ?? lifecycle?.path ?? "/graphql",
         {
-          method: metadata?.method ?? lifecycle?.method ?? "POST",
+          method: ci?.method ?? metadata?.method ?? lifecycle?.method ?? "POST",
           headers: { Authorization: `Bearer ${scope.access.token}`, "Content-Type": "application/json" },
           body: JSON.stringify(
-            metadata?.body ??
+            ci?.body ??
+              metadata?.body ??
               lifecycle?.body ?? {
                 query,
                 variables: { input: { ...input, clientMutationId: r.clientRequestId } },
@@ -260,6 +268,8 @@ export class GitHubMutations {
       );
 
       await mutationBudget(scope, response.value, response.headers);
+
+      if (ci) return mutationReceipt(await acceptCi(scope, r, row));
 
       if (metadata) {
         try {

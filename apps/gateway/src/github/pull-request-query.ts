@@ -5,11 +5,12 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Option, Schema } from "effect";
 import { LIFECYCLE_FIELDS, LIFECYCLE_REPOSITORY_FIELDS, snapshotLifecycle } from "./lifecycle-state.ts";
 
-const person = Schema.NullOr(Schema.Struct({ login: Schema.String }));
+const person = Schema.NullOr(Schema.Struct({ login: Schema.String, id: Schema.optional(Schema.String) }));
 const page = Schema.Struct({ hasNextPage: Schema.Boolean });
 
 const check = Schema.Struct({
   __typename: Schema.String,
+  id: Schema.optional(Schema.String),
   name: Schema.optional(Schema.String),
   context: Schema.optional(Schema.String),
   status: Schema.optional(Schema.String),
@@ -18,7 +19,14 @@ const check = Schema.Struct({
   detailsUrl: Schema.optional(Schema.NullOr(Schema.String)),
   targetUrl: Schema.optional(Schema.NullOr(Schema.String)),
   creator: Schema.optional(person),
-  checkSuite: Schema.optional(Schema.Struct({ app: Schema.NullOr(Schema.Struct({ name: Schema.String })) })),
+  checkSuite: Schema.optional(
+    Schema.NullOr(
+      Schema.Struct({
+        app: Schema.NullOr(Schema.Struct({ name: Schema.String })),
+        workflowRun: Schema.optional(Schema.NullOr(Schema.Struct({ databaseId: Schema.Number }))),
+      }),
+    ),
+  ),
 });
 
 const PullRequest = Schema.Struct({
@@ -59,6 +67,8 @@ const PullRequest = Schema.Struct({
               login: Schema.optional(Schema.String),
               name: Schema.optional(Schema.String),
               slug: Schema.optional(Schema.String),
+              id: Schema.optional(Schema.String),
+              organization: Schema.optional(Schema.Struct({ login: Schema.String })),
             }),
           ),
         }),
@@ -107,11 +117,11 @@ export const SUMMARY_QUERY = `query CanopyPullRequest($owner:String!,$name:Strin
     ${LIFECYCLE_FIELDS}
     labels(first:100){nodes{name color} pageInfo{hasNextPage}}
     assignees(first:100){nodes{login} pageInfo{hasNextPage}}
-    reviewRequests(first:100){nodes{requestedReviewer{... on User{login} ... on Team{name slug}}} pageInfo{hasNextPage}}
-    latestReviews(first:100){nodes{author{login} state} pageInfo{hasNextPage}}
+    reviewRequests(first:100){nodes{requestedReviewer{... on User{id login} ... on Team{id name slug organization{login}}}} pageInfo{hasNextPage}}
+    latestReviews(first:100){nodes{author{login ... on User{id}} state} pageInfo{hasNextPage}}
     commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){totalCount pageInfo{hasNextPage}
-      nodes{__typename ... on CheckRun{name status conclusion detailsUrl checkSuite{app{name}}}
-      ... on StatusContext{context state targetUrl creator{login}}}}}}}}
+      nodes{__typename ... on CheckRun{id name status conclusion detailsUrl checkSuite{app{name} workflowRun{databaseId}}}
+      ... on StatusContext{id context state targetUrl creator{login}}}}}}}}
   }}
 }`;
 
@@ -163,9 +173,11 @@ export function summarySnapshot(
     pr.commits.nodes[0]?.commit.oid === pr.headRefOid ? pr.commits.nodes[0]?.commit.statusCheckRollup : undefined;
 
   const checks = (rollup?.contexts.nodes ?? []).map((c) => ({
+    nodeId: c.id ?? "",
     name: c.name ?? c.context ?? "Check",
     state: (c.conclusion || c.status || c.state || "unknown").toLowerCase(),
     provider: c.checkSuite?.app?.name ?? c.creator?.login ?? "",
+    runId: c.checkSuite?.workflowRun ? String(c.checkSuite.workflowRun.databaseId) : "",
     url: c.detailsUrl ?? c.targetUrl ?? "",
     headSha: pr.headRefOid,
   }));
@@ -209,8 +221,13 @@ export function summarySnapshot(
         r.requestedReviewer
           ? [
               {
-                login: r.requestedReviewer.login ?? r.requestedReviewer.slug ?? r.requestedReviewer.name ?? "",
+                login:
+                  r.requestedReviewer.login ??
+                  (r.requestedReviewer.slug
+                    ? `${r.requestedReviewer.organization?.login ?? repositoryName.split("/")[0]}/${r.requestedReviewer.slug}`
+                    : (r.requestedReviewer.name ?? "")),
                 state: "requested",
+                nodeId: r.requestedReviewer.id ?? "",
               },
             ]
           : [],
@@ -218,6 +235,7 @@ export function summarySnapshot(
         previous?.reviewers.filter((r) => r.state === "requested") ??
         []),
       ...(pr.latestReviews?.nodes.map((r) => ({
+        nodeId: r.author?.id ?? "",
         login: r.author?.login ?? "Deleted user",
         state: r.state.toLowerCase(),
       })) ??

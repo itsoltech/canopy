@@ -10,6 +10,7 @@
   import PullRequestCheckRow from "./PullRequestCheckRow.svelte";
   import * as api from "./api.ts";
   import { invalidations } from "./invalidations.ts";
+  import CiActions from "./CiActions.svelte";
 
   let { snapshot, class: className }: { snapshot: github.PullRequestSnapshot; class?: ClassValue } = $props();
   let visible = $state(5);
@@ -35,10 +36,11 @@
     const target = pages;
     untrack(() => void target.read());
 
-    return invalidations.subscribe(id, () => void target.invalidate());
+    return invalidations.subscribe(id, () => void target.invalidate(true));
   });
 
   const checks = $derived(sortedChecks(pages.pages.length ? pages.pages.flatMap((p) => p.checks) : snapshot.checks));
+  const runs = $derived([...new Set(checks.map((check) => check.runId).filter(Boolean))]);
 
   async function more() {
     if (visible < checks.length) visible = checks.length;
@@ -69,11 +71,12 @@
     role="list"
     class="max-h-96 min-w-0 scroll-stable divide-y divide-zinc-950/5 overflow-y-auto rounded-lg border border-zinc-950/10 dark:divide-white/5 dark:border-white/10"
   >
-    {#each checks.slice(0, visible) as check, i (`${check.nodeId}:${check.name}:${i}`)}<PullRequestCheckRow
-        {id}
+    {#each checks.slice(0, visible) as check (check.nodeId || `${check.runId}:${check.provider}:${check.name}`)}<PullRequestCheckRow
+        {snapshot}
         {check}
       />{/each}
   </ul>
+  {#each runs as runId (runId)}<CiActions {snapshot} {runId} state="unknown" dialog />{/each}
   {#if visible < checks.length || pages.current?.page?.nextCursor}<Button
       variant="ghost"
       size="sm"

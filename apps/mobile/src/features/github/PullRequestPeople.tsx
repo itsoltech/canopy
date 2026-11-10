@@ -7,6 +7,7 @@ import { PullRequestStatusLook } from "./PullRequestStatus";
 import { StatusIcon } from "./StatusIcon";
 import { useState } from "react";
 import { MetadataEdit } from "./MetadataEdit";
+import { ReRequestReview } from "./ReRequestReview";
 
 export function PullRequestPeople({ snapshot }: { snapshot: github.PullRequestSnapshot }) {
   const c = useColors();
@@ -15,7 +16,7 @@ export function PullRequestPeople({ snapshot }: { snapshot: github.PullRequestSn
   const [assigneeDisplay, setAssignees] = useState<github.PullRequestMetadata>();
 
   const reviewers = reviewerDisplay
-    ? reviewerDisplay.reviewers.map((r) => ({ login: r.name, state: "requested" }))
+    ? reviewerDisplay.reviewers.map((r) => ({ login: r.name, state: "requested", nodeId: r.id }))
     : snapshot.reviewers;
 
   const assignees = assigneeDisplay ? assigneeDisplay.assignees.map((a) => a.name) : snapshot.assignees;
@@ -30,11 +31,16 @@ export function PullRequestPeople({ snapshot }: { snapshot: github.PullRequestSn
         {!reviewers.length && <Text style={[type.small, { color: c.muted }]}>No reviewers requested</Text>}
         {reviewers.map((r, i) => (
           <View key={`${r.login}:${i}`} style={{ flexDirection: "row", alignItems: "center", gap: 8, minHeight: 32 }}>
-            <GitHubAvatar login={r.login} userId="" compact />
+            {r.login.includes("/") ? (
+              <StatusIcon name="user-group" label="Team" />
+            ) : (
+              <GitHubAvatar login={r.login} userId="" compact />
+            )}
             <Text numberOfLines={1} style={[type.small, { flex: 1, color: c.text }]}>
               {r.login}
             </Text>
             <PullRequestStatusLook look={reviewerLook(r.state)} iconOnly />
+            {!!r.nodeId && r.state !== "requested" && <ReRequestReview snapshot={snapshot} id={r.nodeId} />}
           </View>
         ))}
       </View>

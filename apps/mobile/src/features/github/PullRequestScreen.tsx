@@ -18,6 +18,9 @@ import { putContext } from "./context-draft";
 import { CommentComposer } from "./CommentComposer";
 import { invalidations } from "./invalidations";
 
+const deniedRead = (code: Code) =>
+  [Code.PermissionDenied, Code.NotFound, Code.FailedPrecondition, Code.Aborted].includes(code);
+
 export function PullRequestScreen({ id, threadId }: { id: string; threadId?: string }) {
   const { client, queries, online } = useSession();
   const key = `GetPullRequest:${id}`;
@@ -42,12 +45,7 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
 
         return value;
       } catch (cause) {
-        if (
-          [Code.PermissionDenied, Code.NotFound, Code.FailedPrecondition, Code.Aborted].includes(
-            ConnectError.from(cause).code,
-          )
-        )
-          setDenied(true);
+        if (deniedRead(ConnectError.from(cause).code)) setDenied(true);
         throw cause;
       }
     },
@@ -81,14 +79,10 @@ export function PullRequestScreen({ id, threadId }: { id: string; threadId?: str
 
     try {
       queries.set(key, await client.api.refreshPullRequest({ pullRequestId: id }));
+      invalidations.publish(id);
       setDenied(false);
     } catch (cause) {
-      if (
-        [Code.PermissionDenied, Code.NotFound, Code.FailedPrecondition, Code.Aborted].includes(
-          ConnectError.from(cause).code,
-        )
-      )
-        setDenied(true);
+      if (deniedRead(ConnectError.from(cause).code)) setDenied(true);
       setError("Could not load this summary. Check account access and the connection, then retry.");
     } finally {
       setBusy(false);

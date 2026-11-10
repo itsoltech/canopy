@@ -67,6 +67,8 @@ export async function githubMutation(
       "request-reviewers",
       "set-assignees",
       "set-labels",
+      "rerun-checks",
+      "cancel-run",
     ].includes(operation)
   )
     return undefined;
@@ -74,6 +76,10 @@ export async function githubMutation(
 
   async function run() {
     switch (operation) {
+      case "rerun-checks":
+        return api.rerunPullRequestChecks(r, options);
+      case "cancel-run":
+        return api.cancelPullRequestCheckRun(r, options);
       case "update-details":
         return api.updatePullRequestDetails(r, options);
       case "request-reviewers":

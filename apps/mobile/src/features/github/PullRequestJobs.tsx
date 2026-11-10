@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { AppState, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { checkLook } from "@canopy/domain/github-pr";
@@ -10,12 +10,17 @@ import { usePages } from "./usePages";
 import { PageControls } from "./PageControls";
 import { PullRequestLog } from "./PullRequestLog";
 import { toneColor } from "./presentation";
+import type { github } from "@canopy/contracts";
+import { CiActions } from "./CiActions";
 
-export function PullRequestJobs({ id, runId }: { id: string; runId: string }) {
+export function PullRequestJobs({ snapshot, runId }: { snapshot: github.PullRequestSnapshot; runId: string }) {
+  const id = snapshot.summary?.ref?.id ?? "";
   const { client } = useSession();
   const c = useColors();
   const type = useTypography();
   const [jobId, setJob] = useState("");
+  const [logVisible, setLogVisible] = useState(true);
+  const pendingLogAction = useRef<(() => void) | undefined>(undefined);
 
   const pages = usePages(
     useCallback(
@@ -24,10 +29,14 @@ export function PullRequestJobs({ id, runId }: { id: string; runId: string }) {
       [client, id, runId],
     ),
     id,
+    "",
+    true,
   );
 
   const latest = useRef(pages);
-  latest.current = pages;
+  useEffect(() => {
+    latest.current = pages;
+  }, [pages]);
   useFocusEffect(
     useCallback(() => {
       const timer = setInterval(() => {
@@ -46,6 +55,14 @@ export function PullRequestJobs({ id, runId }: { id: string; runId: string }) {
 
   return (
     <View style={{ gap: 8, padding: 8 }}>
+      {pages.current?.run && (
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Text style={[type.small, { flex: 1, color: c.text }]}>
+            {pages.current.run.name} · attempt {pages.current.run.attempt}
+          </Text>
+          <CiActions snapshot={snapshot} runId={runId} state={pages.current.run.state} />
+        </View>
+      )}
       {pages.current?.jobs.map((job) => {
         const look = checkLook(job.state);
 
@@ -55,7 +72,21 @@ export function PullRequestJobs({ id, runId }: { id: string; runId: string }) {
             <Text numberOfLines={2} style={[type.small, { flex: 1, color: c.text }]}>
               {job.name}
             </Text>
-            <Button title="View logs" variant="ghost" onPress={() => setJob(job.id)} />
+            <CiActions
+              snapshot={snapshot}
+              runId={runId}
+              state={pages.current?.run?.state ?? job.state}
+              jobId={job.id}
+              name={job.name}
+            />
+            <Button
+              title="View logs"
+              variant="ghost"
+              onPress={() => {
+                setLogVisible(true);
+                setJob(job.id);
+              }}
+            />
           </View>
         );
       })}
@@ -67,7 +98,33 @@ export function PullRequestJobs({ id, runId }: { id: string; runId: string }) {
         next={() => void pages.read(true)}
         retry={() => void pages.read(false, true)}
       />
-      {!!jobId && <PullRequestLog id={id} jobId={jobId} onClose={() => setJob("")} />}
+      {!!jobId && (
+        <PullRequestLog
+          id={id}
+          jobId={jobId}
+          visible={logVisible}
+          onClose={() => setJob("")}
+          onDismiss={() => {
+            // UIKit must dismiss the log's window before the shared CI dialog is presented.
+            const choose = pendingLogAction.current;
+            pendingLogAction.current = undefined;
+            setJob("");
+            choose?.();
+          }}
+        >
+          <CiActions
+            snapshot={snapshot}
+            runId={runId}
+            state={pages.current?.run?.state ?? "unknown"}
+            jobId={jobId}
+            name={pages.current?.jobs.find((job) => job.id === jobId)?.name ?? ""}
+            beforeChoose={(choose) => {
+              pendingLogAction.current = choose;
+              setLogVisible(false);
+            }}
+          />
+        </PullRequestLog>
+      )}
     </View>
   );
 }
