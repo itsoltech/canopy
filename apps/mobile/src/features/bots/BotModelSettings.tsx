@@ -6,7 +6,7 @@ import { useOverview } from "../../state/overview";
 import { PickerSheet, SelectField } from "../../ui/Picker";
 import { useModelCatalog, modelSections } from "../models/catalog";
 import { ModelPickerSheet, EffortPickerSheet } from "../models/ModelPicker";
-import { useWorkerPresence } from "../computers/presence";
+import { useWorkerOptions } from "../computers/worker-options";
 import { Notice } from "../../ui/components";
 
 export function BotModelSettings({
@@ -23,7 +23,7 @@ export function BotModelSettings({
   guided?: boolean;
 }) {
   const { workers } = useOverview();
-  const presence = useWorkerPresence();
+  const workerOptions = useWorkerOptions();
   const [picker, setPicker] = useState(guided ? "model" : "");
   const homeWorkers = workers.filter((w) => splitId(w.id).node === (bot.nodeId ? nodeRef(bot.nodeId) : undefined));
 
@@ -71,16 +71,7 @@ export function BotModelSettings({
         value={config.workerId}
         sections={[
           {
-            options: [
-              { value: "", label: "Automatic", badge: undefined },
-              ...homeWorkers.map((w) => ({
-                value: w.id,
-                label: w.name,
-                badge: presence(w).online ? undefined : presence(w).status,
-                disabled: presence(w).away,
-                description: presence(w).reason,
-              })),
-            ],
+            options: [{ value: "", label: "Automatic", badge: undefined }, ...workerOptions(homeWorkers)],
           },
         ]}
         onSelect={(workerId) => onChange({ ...config, workerId })}

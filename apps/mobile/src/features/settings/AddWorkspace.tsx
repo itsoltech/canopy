@@ -8,7 +8,8 @@ import { useSession } from "../../state/session";
 import { Button, Notice } from "../../ui/components";
 import { SettingChoice } from "./SettingsGroup";
 import { DirectoryBrowser } from "./DirectoryBrowser";
-import { useWorkerLabel, useWorkerPresence } from "../computers/presence";
+import { useWorkerPresence } from "../computers/presence";
+import { useWorkerOptions } from "../computers/worker-options";
 import { useWorkspaceSource } from "./workspace-source";
 import { WorkspaceCloneFields } from "./WorkspaceCloneFields";
 import { WorkspaceCopy } from "./WorkspaceCopy";
@@ -25,7 +26,7 @@ export function AddWorkspace({ project, onSaved, onBusy }: AddWorkspaceProps) {
   const { workers, projects } = useOverview();
   const { client } = useSession();
   const presence = useWorkerPresence();
-  const workerName = useWorkerLabel();
+  const workerOptions = useWorkerOptions();
   const [workerId, setWorkerId] = useState("");
   const [source, setSource] = useState("directory");
   const [path, setPath] = useState("");
@@ -99,18 +100,15 @@ export function AddWorkspace({ project, onSaved, onBusy }: AddWorkspaceProps) {
           setPath(next ? workspaceParent(next, projects) : "");
           setError("");
         }}
-        options={workers
-          .filter((w) => !w.revokedAt)
-          .map((w) => {
-            const existing = project.workspaces.some((ws) => ws.workerId === w.id);
+        options={workerOptions(workers.filter((w) => !w.revokedAt)).map((option) => {
+          const existing = project.workspaces.some((ws) => ws.workerId === option.value);
 
-            return {
-              value: w.id,
-              label: workerName(w.id),
-              disabled: busy || existing || !presence(w).online,
-              description: existing ? "Already added" : (presence(w).reason ?? presence(w).status),
-            };
-          })}
+          return {
+            ...option,
+            disabled: busy || existing || option.disabled,
+            description: existing ? "Already added" : option.description,
+          };
+        })}
       />
       {worker && (
         <>

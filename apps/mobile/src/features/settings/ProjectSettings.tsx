@@ -14,7 +14,8 @@ import { SelectField } from "../../ui/Picker";
 import { PermissionPickerSheet, permissionLabel } from "../threads/permissions";
 import { SkeletonScope } from "../../ui/Skeleton";
 import { SettingsSkeletonGroups } from "./SettingsSkeleton";
-import { useWorkerLabel, useWorkerPresence } from "../computers/presence";
+import { useWorkerOptions } from "../computers/worker-options";
+import { useWorkerPresence } from "../computers/presence";
 import { useProjectDetails } from "../computers/project-details";
 import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 import { AddWorkspace } from "./AddWorkspace";
@@ -106,7 +107,7 @@ export function ProjectSettings() {
 function AddProject({ onSaved, resource }: { onSaved: () => void; resource: ProjectResource }) {
   const { workers } = useOverview();
   const presence = useWorkerPresence();
-  const workerName = useWorkerLabel();
+  const workerOptions = useWorkerOptions();
   const [workerId, setWorker] = useState(workers[0]?.id ?? "");
   const [kind, setKind] = useState("directory");
   const [path, setPath] = useState("");
@@ -124,17 +125,7 @@ function AddProject({ onSaved, resource }: { onSaved: () => void; resource: Proj
 
   return (
     <ResourceState resource={resource}>
-      <SettingChoice
-        title="Worker"
-        value={workerId}
-        onChange={setWorker}
-        options={workers.map((w) => ({
-          value: w.id,
-          label: workerName(w.id),
-          description: presence(w).reason ?? presence(w).status,
-          disabled: !presence(w).online,
-        }))}
-      />
+      <SettingChoice title="Worker" value={workerId} onChange={setWorker} options={workerOptions(workers)} />
       <SettingChoice
         title="Source"
         value={kind}
@@ -197,6 +188,8 @@ function AddProject({ onSaved, resource }: { onSaved: () => void; resource: Proj
 }
 
 function ProjectDefaults({ project, resource }: { project: ui.Project; resource: ProjectResource }) {
+  const { workers } = useOverview();
+  const workerOptions = useWorkerOptions();
   const settings = useAppearance();
   const [permission, setPermission] = useState(false);
   const row = resource.data?.projects.find((p) => p.projectId === project.id);
@@ -220,7 +213,12 @@ function ProjectDefaults({ project, resource }: { project: ui.Project; resource:
           onChange={(workspaceId) => save({ workspaceId })}
           options={[
             { value: "", label: "Use my default" },
-            ...project.workspaces.map((w) => ({ value: w.id, label: w.label || w.rootPath })),
+            ...workerOptions(
+              workers.filter((worker) => project.workspaces.some((w) => w.workerId === worker.id)),
+              false,
+            ).flatMap((option) =>
+              project.workspaces.filter((w) => w.workerId === option.value).map((w) => ({ ...option, value: w.id })),
+            ),
           ]}
         />
         <SettingChoice

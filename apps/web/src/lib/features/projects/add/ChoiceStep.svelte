@@ -39,7 +39,9 @@
   let activeKey = $state<string>();
 
   const shown = $derived(
-    choices.filter((c) => `${c.title} ${c.detail ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())),
+    choices.filter((c) =>
+      `${c.title} ${c.detail ?? ""} ${c.keywords ?? ""}`.toLowerCase().includes(query.trim().toLowerCase()),
+    ),
   );
 
   const activeIndex = $derived.by(() => {
@@ -119,6 +121,7 @@
     <PaletteOption
       id="{id}-{choice.key}"
       title={choice.title}
+      suffix={choice.suffix}
       detail={choice.detail}
       status={choice.status}
       icon={choice.icon}

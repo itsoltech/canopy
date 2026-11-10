@@ -251,8 +251,17 @@ naruszania stanu innych komputerów. Następne pojedyncze aktualizacje działaj�
 `Workspace.git_origin` (216) niesie znormalizowaną tożsamość z workera, zachowaną także w lustrze.
 Web wylicza z surowych rekordów wspólne wybory projektów (`@canopy/domain/projects`): zgodny origin
 łączy różne komputery, nazwa lokalna wygrywa, pozostałe są aliasami. No project występuje raz.
-Picker workera grupuje wybory według komputera; wybór zachowuje oryginalne id workspace'u
-i `workspace.project_id`, więc CreateThread nadal trasuje do jednego domu.
+Picker workera pokazuje jedną płaską listę ze wszystkich komputerów: najpierw dostępne workery,
+potem pozostałe, w obu grupach alfabetycznie po nazwie. Nie ma nagłówków komputerów.
+Wiersz zawiera kropkę stanu, nazwę i cichy status z systemem; nazwa komputera jest sufiksem
+tylko dla powtarzających się nazw workerów. Zamknięty picker pokazuje samą nazwę workera,
+a tooltip także komputer i stan. Wyszukiwanie nadal uwzględnia komputer. Niedostępne workery
+pozostają na liście, przygaszone i z powodem; pickery uruchomienia blokują ich wybór.
+Wybór zachowuje oryginalne id workspace'u i `workspace.project_id`, więc CreateThread nadal
+trasuje do jednego domu. Ten sam porządek i prezentację stosują pickery botów, harmonogramów,
+dodawania projektu i ustawień. Dotychczasowe ograniczenia domu oraz zakresu konfiguracji
+pozostają; domyślny worker i filtry ustawień mogą wskazywać offline worker.
+Settings → Workers zachowuje grupowanie komputerów jako widok zarządzania.
 Sidebar (filtr, grupy) i paleta poleceń korzystają z tych samych wyborów; ustawienia pozostają lokalne.
 Settings → Projects pokazuje sumę projektów wszystkich połączonych komputerów (te same wybory) i przy
 każdym cicho komputery z jego workspace'ami. Stronę ustawień otwiera tylko projekt z rekordem na tym

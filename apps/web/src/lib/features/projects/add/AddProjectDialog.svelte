@@ -2,6 +2,7 @@
   import { goto } from "$app/navigation";
   import { ui } from "@canopy/contracts";
   import { workerPresence } from "#lib/features/computers/computers.ts";
+  import { workerChoices } from "@canopy/domain/worker-choices";
   import { paletteDialogClass } from "#lib/features/commands/palette-style.ts";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -54,31 +55,25 @@
   const step = $derived<Step | CopyStep>(stack.at(-1) ?? { kind: "worker" });
   const computerOf = (worker: ui.Worker) => overview.machine(worker.nodeId) ?? "This computer";
 
-  const workerChoices = $derived<Choice<ui.Worker>[]>(
-    overview.workers
-      .filter((worker) => !worker.revokedAt && (!worker.nodeId || capabilities?.linkedComputers))
-      .sort(
-        (a, b) =>
-          Number(Boolean(a.nodeId)) - Number(Boolean(b.nodeId)) ||
-          computerOf(a).localeCompare(computerOf(b)) ||
-          a.name.localeCompare(b.name),
-      )
-      .map((worker) => {
-        const presence = workerPresence(worker, overview.computer(worker.nodeId));
-        const existing = flow.project?.workspaces.some((w) => w.workerId === worker.id);
+  const choices = $derived<Choice<ui.Worker>[]>(
+    workerChoices(
+      overview.workers.filter((worker) => !worker.revokedAt && (!worker.nodeId || capabilities?.linkedComputers)),
+      (worker) => ({ ...workerPresence(worker, overview.computer(worker.nodeId)), computer: computerOf(worker) }),
+    ).map(({ worker, duplicate, computer, ...presence }) => {
+      const existing = flow.project?.workspaces.some((w) => w.workerId === worker.id);
 
-        return {
-          key: worker.id,
-          value: worker,
-          title: worker.name,
-          detail: presence.online
-            ? computerOf(worker)
-            : (presence.reason ?? `${computerOf(worker)} · Start the worker to add projects`),
-          status: existing ? "Already added" : presence.status,
-          online: presence.online,
-          disabled: existing || !presence.online,
-        };
-      }),
+      return {
+        key: worker.id,
+        value: worker,
+        title: worker.name,
+        suffix: duplicate ? computer : undefined,
+        keywords: computer,
+        detail: presence.online ? undefined : (presence.reason ?? "Start the worker to add projects."),
+        status: existing ? "Already added" : presence.status,
+        online: presence.online,
+        disabled: existing || !presence.online,
+      };
+    }),
   );
 
   const sourceChoices = (worker: ui.Worker): Choice<SourceChoice>[] => [
@@ -254,7 +249,7 @@
           <ChoiceStep
             label="Workers"
             placeholder="Search workers…"
-            choices={workerChoices}
+            {choices}
             onchoose={(worker) => push({ kind: "source", worker })}
             onclose={close}
           />

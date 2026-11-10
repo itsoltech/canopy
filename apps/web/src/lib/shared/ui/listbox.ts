@@ -16,6 +16,10 @@ export interface SelectOption {
   readonly value: string;
   readonly label: string;
   readonly description?: string | undefined;
+  readonly suffix?: string | undefined;
+  readonly status?: string | undefined;
+  readonly online?: boolean | undefined;
+  readonly tooltip?: string | undefined;
   readonly icon?: import("./icons.ts").IconName | undefined;
   readonly group?: string | undefined;
   readonly separator?: boolean | undefined;

@@ -101,13 +101,7 @@ export function NewThreadScreen() {
                   />
                   <ComposerPill
                     icon="computer-desktop"
-                    title={
-                      worker
-                        ? worker.nodeId
-                          ? `${worker.name} · ${state.workerPresence.computer}`
-                          : worker.name
-                        : "Choose a worker"
-                    }
+                    title={worker?.name ?? "Choose a worker"}
                     warning={!state.workerPresence.online}
                     onPress={() => setPicker("worker")}
                   />

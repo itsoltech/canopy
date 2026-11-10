@@ -7,6 +7,8 @@
   import TouchTarget from "./TouchTarget.svelte";
   import TruncatedText from "./TruncatedText.svelte";
   import PickerTrigger from "./PickerTrigger.svelte";
+  import PickerRow from "./PickerRow.svelte";
+  import StatusDot from "./StatusDot.svelte";
   import {
     listboxHeadingClasses,
     listboxListClasses,
@@ -198,6 +200,7 @@
       <PickerTrigger
         {...props}
         {...rest}
+        title={selected?.tooltip ?? rest.title}
         bind:element={button}
         {id}
         {disabled}
@@ -233,10 +236,10 @@
               <li
                 id={optionId(index)}
                 role="option"
-                aria-label={option.label}
+                aria-label={[option.label, option.suffix].filter(Boolean).join(" · ")}
                 aria-selected={option.value === value}
                 aria-disabled={option.disabled || undefined}
-                aria-describedby={option.description ? `${optionId(index)}-description` : undefined}
+                aria-describedby={option.description || option.status ? `${optionId(index)}-description` : undefined}
                 data-active={active === index || undefined}
                 class={[
                   listboxOptionClasses,
@@ -249,20 +252,36 @@
                 }}
                 onclick={() => choose(index)}
               >
-                {#if option.icon}<Icon name={option.icon} />{/if}
-                <div class="min-w-0 flex-1">
-                  <TruncatedText text={option.label} />
-                  {#if option.description}<p
-                      id="{optionId(index)}-description"
-                      class="text-sm/5 text-pretty text-zinc-500 sm:text-xs/4 dark:text-zinc-400"
-                    >
-                      {option.description}
-                    </p>{/if}
-                </div>
-                <Icon
-                  name="check"
-                  class={["text-brand-600 dark:text-brand-400", option.value !== value && "invisible"]}
-                />
+                {#if option.online !== undefined}
+                  <span id="{optionId(index)}-description" class="sr-only">
+                    {[option.status, option.description].filter(Boolean).join(". ")}
+                  </span>
+                  <PickerRow
+                    title={option.label}
+                    suffix={option.suffix}
+                    detail={option.description}
+                    status={option.status}
+                    selected={option.value === value}
+                    class="w-full"
+                  >
+                    {#snippet leading()}<StatusDot tone={option.online ? "emerald" : "neutral"} />{/snippet}
+                  </PickerRow>
+                {:else}
+                  {#if option.icon}<Icon name={option.icon} />{/if}
+                  <div class="min-w-0 flex-1">
+                    <TruncatedText text={option.label} />
+                    {#if option.description}<p
+                        id="{optionId(index)}-description"
+                        class="text-sm/5 text-pretty text-zinc-500 sm:text-xs/4 dark:text-zinc-400"
+                      >
+                        {option.description}
+                      </p>{/if}
+                  </div>
+                  <Icon
+                    name="check"
+                    class={["text-brand-600 dark:text-brand-400", option.value !== value && "invisible"]}
+                  />
+                {/if}
                 <TouchTarget />
               </li>
             {/each}

@@ -10,10 +10,12 @@ import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { ResetSetting } from "./ResetSetting";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
+import { useWorkerOptions } from "../computers/worker-options";
 
 export function WorktreeSettings() {
   const initial = useLocalSearchParams<{ projectId?: string; workerId?: string; worktreeId?: string }>();
   const { projects, workers } = useOverview();
+  const workerOptions = useWorkerOptions();
   const [projectId, setProject] = useState(initial.projectId ?? "");
   const [workerId, setWorker] = useState(initial.workerId ?? "");
   const [focused, setFocused] = useState(initial.worktreeId);
@@ -63,7 +65,7 @@ export function WorktreeSettings() {
         title="Computer"
         value={workerId}
         onChange={setWorker}
-        options={[{ value: "", label: "All computers" }, ...workers.map((w) => ({ value: w.id, label: w.name }))]}
+        options={[{ value: "", label: "All computers" }, ...workerOptions(workers, false)]}
       />
       {response && (
         <>

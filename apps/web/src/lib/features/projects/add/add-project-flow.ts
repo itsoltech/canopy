@@ -34,6 +34,8 @@ export interface Choice<V> {
   readonly key: string;
   readonly value: V;
   readonly title: string;
+  readonly suffix?: string | undefined;
+  readonly keywords?: string | undefined;
   readonly detail?: string | undefined;
   readonly status?: string | undefined;
   readonly icon?: IconName | undefined;
