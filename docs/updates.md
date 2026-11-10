@@ -132,8 +132,11 @@ limit 30 min oraz 90 s bez przyrostu liczby pobranych bajtów. Timeout anuluje
 Przerwany updater jest zastępowany nowym, z osobnym katalogiem pobierania:
 spóźnione odpowiedzi, zdarzenia i sprzątanie plików nie zmieniają kolejnej próby.
 Poprzednia gotowa paczka zachowuje własny updater do instalacji.
-Na macOS zatwierdzanie feedu Squirrel jest szeregowane między próbami, a restart
-ponownie ustawia feed gotowej paczki. Stary zapis błędu wynikającego wyłącznie
+Na macOS zatwierdzanie feedu Squirrel jest szeregowane między próbami. Zwykły restart
+od razu wywołuje instalator; ponownie ustawia feed gotowej paczki tylko wtedy, gdy
+późniejsza próba mogła go zastąpić. To lokalne przygotowanie ZIP nie ma deadline'u
+kontrolera; błędy Squirrel i dysku trafiają do obsługi błędu instalacji.
+Stary zapis błędu wynikającego wyłącznie
 z zajętości pozostaje w journalu, ale raport partnera pokazuje bieżący stan updatera;
 rzeczywiste błędy instalacji nadal są raportowane jako Failed.
 

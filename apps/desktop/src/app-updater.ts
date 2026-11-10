@@ -7,18 +7,7 @@ import { CancellationError } from "builder-util-runtime";
 import { app } from "electron";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { UpdateOperation } from "./update-operation.ts";
-
-// Squirrel has one native feed for every MacUpdater instance. Serialize commits and
-// replay the installable feed last, including after a retired finalizer returns late.
-let macFinalizing = Promise.resolve();
-
-function commitMacFeed(run: () => Promise<void>) {
-  const next = macFinalizing.then(run, run);
-  macFinalizing = next.catch(() => {});
-
-  return next;
-}
+import { MacUpdateFeed } from "./mac-update-feed.ts";
 
 /** Cancelled attempts must not commit files or replace the native macOS feed when they settle late. */
 function cancellable(task: DownloadExecutorTask): DownloadExecutorTask {
@@ -43,7 +32,7 @@ function cancellable(task: DownloadExecutorTask): DownloadExecutorTask {
 
 class StagedMacUpdater extends MacUpdater {
   private readonly downloads = new StagedDownloads();
-  private installFeed: (() => Promise<void>) | undefined;
+  private installFeed: MacUpdateFeed | undefined;
   constructor(directory?: string) {
     super();
 
@@ -51,7 +40,7 @@ class StagedMacUpdater extends MacUpdater {
   }
   protected override async executeDownload(task: DownloadExecutorTask) {
     task = cancellable(task);
-    let installFeed: (() => Promise<void>) | undefined;
+    let installFeed: MacUpdateFeed | undefined;
 
     const files = await this.downloads.run(
       this.downloadedUpdateHelper,
@@ -72,12 +61,12 @@ class StagedMacUpdater extends MacUpdater {
         if (downloaded) {
           const event = downloaded;
 
-          const commit = async () => {
+          const feed = new MacUpdateFeed(async () => {
             await task.done?.(event);
-          };
+          });
 
-          await commitMacFeed(commit);
-          installFeed = () => commitMacFeed(commit);
+          await feed.commit();
+          installFeed = feed;
         }
 
         return files;
@@ -89,16 +78,18 @@ class StagedMacUpdater extends MacUpdater {
     return files;
   }
   override quitAndInstall() {
-    const operation = new UpdateOperation();
-    void operation
-      .wait("check", async () => {
-        if (!this.installFeed) throw new Error("No staged app update");
-        await this.installFeed();
-      })
-      .then(() => super.quitAndInstall())
-      .catch((cause: unknown) => {
+    if (!this.installFeed) {
+      super.quitAndInstall();
+
+      return;
+    }
+
+    this.installFeed.install(
+      () => super.quitAndInstall(),
+      (cause: unknown) => {
         this.emit("error", cause instanceof Error ? cause : new Error("Could not prepare the app update"));
-      });
+      },
+    );
   }
 }
 
