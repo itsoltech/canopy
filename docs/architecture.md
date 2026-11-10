@@ -299,6 +299,12 @@ Worker zamienia natywne zdarzenia dostawców na `ThreadEvent` z ściśle typowan
 
 Model, mapowanie Claude/Codex i sposób ładowania na frontendzie: [transcript.md](transcript.md).
 
+Przy zapisie tekstu gateway zamienia NUL i niesparowane surogaty na U+FFFD, także
+w JSON dostawcy, ponieważ PostgreSQL nie może ich przechować. Pozostałe trwałe
+błędy danych nie blokują łącza: oryginalne bajty trafiają do kwarantanny, a historia
+otrzymuje ostrzeżenie. Kursor i wynik zastępczy muszą być zatwierdzone przed ACK
+([trwałość](durability.md#31-dziennik-lokalny)).
+
 Typy protokołu app-server generuje sam Codex (`codex app-server generate-ts`); będą wersjonowane razem z przypiętą wersją Codexa.
 
 ## 8. Profile dostawców i CLIProxyAPI

@@ -148,6 +148,21 @@ Zasady:
 - Kursory `journal_seq` są ważne tylko w obrębie `Hello.journal_id`. Nowy dziennik (np. reinstalacja workera) oznacza dosłanie wszystkiego; duplikaty odrzuca `event_id`.
 - Gateway potwierdza zbiorczo (np. co 100 ms lub co N zdarzeń), nie każde zdarzenie osobno.
 - Duplikaty po wznowieniu ignoruje klucz `(thread_id, event_id)`.
+- Granica zapisu gatewaya zamienia U+0000 oraz niesparowane surogaty UTF-16 na
+  U+FFFD (`�`), także w kluczach i wartościach oryginalnego JSON. Prawidłowe pary
+  surogatów i dosłowny tekst `\u0000` pozostają bez zmian. Ta sama reguła obejmuje
+  projekcje itemów, tekst botów, wyniki komend i wygenerowane tytuły. Stary dziennik
+  z taką treścią opróżnia się sam po aktualizacji gatewaya; nie należy go usuwać.
+- Inny błąd danych PostgreSQL (SQLSTATE klasy `22`) uruchamia izolację zdarzeń
+  w odrzuconej partii. Gateway zapisuje oryginalny protobuf jako `bytea` w
+  `worker_event_quarantine`, ostrzeżenie `event_quarantined` w historii oraz kursor
+  dziennika w jednej transakcji. Ostrzeżenie zachowuje `event_id`, więc replay nie
+  powiela go. Dopiero commit pozwala wysłać ACK. Kolejne zdarzenia są przyjmowane
+  bez rozłączania workera. Log zawiera identyfikatory i SQLSTATE, bez treści zdarzenia.
+  Boty stosują tę samą kwarantannę i umieszczają ostrzeżenie w zapisywanym tekście tury.
+- Pozostałe błędy, w tym utrata połączenia, deadlock i serializacja, nie powodują
+  kwarantanny ani ACK. Obowiązuje dotychczasowy drain i ponowne dostarczenie.
+  Awaria zapisu samej kwarantanny lub ostrzeżenia również pozostawia journal do replay.
 - Zdarzenia między turami (zadania w tle, kompaktowanie, zmiany statusu) mają pusty `turn_id` i są przesyłane tak samo.
 - Kompaktowanie delt po `item_completed` to decyzja retencji, nie protokołu ([transcript.md](transcript.md#7-retencja)).
 

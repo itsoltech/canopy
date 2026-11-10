@@ -6,7 +6,7 @@ Wymaganie: frontend pokazuje **wszystko**: wiadomości, rozumowanie, każde narz
 
 ## 1. Zasady
 
-1. **Nic nie ginie.** Każde zdarzenie dostawcy trafia do `thread_events`, także takie, którego jeszcze nie umiemy zmapować. Oryginał zawsze leży w `raw`.
+1. **Trwałe przyjęcie przed ACK.** Zdarzenia dostawcy trafiają do `thread_events`, także bez mapowania. `raw` zachowuje JSON po zastąpieniu NUL i niesparowanych surogatów znakiem U+FFFD. Inny błąd danych SQLSTATE `22xxx` zapisuje oryginalny protobuf w `worker_event_quarantine` oraz ostrzeżenie w historii, atomowo z kursorem journalu; odrzucone zdarzenie nie wykonuje projekcji. [Reguły trwałości](durability.md#31-dziennik-lokalny).
 2. **Treść dostawcy nie jest przycinana.** Treść większa niż limit wiadomości trafia do `blobs` (adresowane sha256) i jest wskazywana przez `BlobRef`. Wyjątek dla jawnych komend powłoki właściciela: worker przechwytuje ograniczony początek i koniec outputu, z oznaczeniem pominiętego środka (poniżej).
 3. **Jedna oś czasu na wątek.** `seq` nadaje gateway przy zapisie. Zdarzenia workera i platformy (wejście użytkownika, decyzje o zgodach, szyna agentów, komunikaty) mają jedną, wspólną kolejność.
 4. **Zdarzenia poza turą są pełnoprawne.** `turn_id` jest pusty, gdy zdarzenie nie należy do tury.
