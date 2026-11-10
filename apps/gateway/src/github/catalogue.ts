@@ -113,6 +113,7 @@ export class GitHubCatalogue {
     await this.refresh(request.accountId, request.refresh);
     const { owner, run } = this.access;
     const rows = await run((s) => s.installations(owner, request.accountId, request.page));
+    const counts = (await run((s) => s.catalogueCounts(owner, request.accountId)))[0];
 
     return create(github.GitHubInstallationsResponseSchema, {
       installations: rows.slice(0, 50).map((i) => ({
@@ -129,6 +130,8 @@ export class GitHubCatalogue {
         verifiedAt: timestampFromDate(new Date(i.verified_at)),
       })),
       nextPage: rows.length > 50 ? request.page + 1 : 0,
+      totalCount: counts?.installations ?? 0,
+      repositoryCount: counts?.repositories ?? 0,
     });
   }
   async repositories(request: github.GitHubCatalogueRequest) {
@@ -136,6 +139,10 @@ export class GitHubCatalogue {
 
     const rows = await this.access.run((s) =>
       s.repositories(this.access.owner, request.accountId, request.installationId, request.page),
+    );
+
+    const counts = await this.access.run((s) =>
+      s.repositoryCount(this.access.owner, request.accountId, request.installationId),
     );
 
     return create(github.GitHubRepositoriesResponseSchema, {
@@ -146,6 +153,7 @@ export class GitHubCatalogue {
         permissions: r.permissions,
       })),
       nextPage: rows.length > 50 ? request.page + 1 : 0,
+      totalCount: counts[0]?.total ?? 0,
     });
   }
 }

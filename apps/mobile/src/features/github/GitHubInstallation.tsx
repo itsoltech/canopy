@@ -1,98 +1,62 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import * as Linking from "expo-linking";
 import type { github } from "@canopy/contracts";
-import { useSession } from "../../state/session";
-import { Button, Notice } from "../../ui/components";
+import { Chevron, Expand } from "../../ui/MotionViews";
+import { Notice } from "../../ui/components";
 import { useColors, useTypography } from "../../ui/theme";
+import { GitHubActions } from "./GitHubActions";
+import { GitHubRepositories } from "./GitHubRepositories";
 
 export function GitHubInstallation({
   accountId,
   installation,
+  installUrl,
 }: {
   accountId: string;
   installation: github.GitHubInstallation;
+  installUrl: string;
 }) {
-  const { client } = useSession();
   const c = useColors();
   const type = useTypography();
   const [open, setOpen] = useState(false);
-  const [repos, setRepos] = useState<github.GitHubRepository[]>([]);
-  const [next, setNext] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
 
-  async function load(page = 0) {
-    if (!client || busy) return;
-    setBusy(true);
-    setError("");
-
-    try {
-      const result = await client.api.listGitHubRepositories({
-        accountId,
-        installationId: installation.installationId,
-        page,
-      });
-
-      setRepos((previous) => (page ? [...previous, ...result.repositories] : result.repositories));
-      setNext(result.nextPage);
-      setLoaded(true);
-    } catch {
-      setError("Could not load repositories. Check access on GitHub, then retry.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const openGitHub = (url: string) =>
+    void Linking.openURL(url).catch(() => setError("Could not open GitHub. Check your browser, then retry."));
 
   return (
-    <View style={{ gap: 12, minWidth: 0 }}>
-      <Button
-        size="sm"
-        title={`${open ? "Hide" : "Show"} repositories: ${installation.login}${installation.suspended ? " · Suspended" : ""}`}
-        onPress={() => {
-          setOpen(!open);
-
-          if (!loaded && !open) void load();
-        }}
-      />
-      {open && (
-        <View style={{ gap: 12, paddingLeft: 12 }}>
-          <Button
-            size="sm"
-            title="Manage repositories"
-            onPress={() =>
-              void Linking.openURL(installation.manageUrl).catch(() =>
-                setError("Could not open GitHub. Check your browser, then retry."),
-              )
-            }
-          />
-          {installation.suspended && (
-            <Notice>This installation is suspended. Ask its administrator to restore access.</Notice>
-          )}
-          {repos.map((repo) => (
-            <Text key={repo.repositoryId} style={[type.body, { color: c.text }]}>
-              {repo.fullName}
-              {repo.private ? " · Private" : " · Public"}
-            </Text>
-          ))}
-          {loaded && !repos.length && !installation.suspended && (
-            <Text style={[type.body, { color: c.muted }]}>
-              No accessible repositories. Choose repositories on GitHub or ask an administrator for access.
-            </Text>
-          )}
-          {busy && <Text style={[type.body, { color: c.muted }]}>Loading repositories…</Text>}
-          {!!next && (
-            <Button size="sm" title="Load more repositories" disabled={busy} onPress={() => void load(next)} />
-          )}
-          {!!error && (
-            <View style={{ gap: 8 }}>
-              <Notice error>{error}</Notice>
-              <Button size="sm" title="Retry" onPress={() => void load()} />
-            </View>
-          )}
-        </View>
-      )}
+    <View style={{ minWidth: 0 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={installation.login}
+          accessibilityState={{ expanded: open }}
+          onPress={() => setOpen(!open)}
+          style={{ flex: 1, minWidth: 0, minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8 }}
+        >
+          <Chevron open={open} />
+          <Text numberOfLines={1} style={[type.chrome, { flex: 1, color: c.text }]}>
+            {installation.login}
+          </Text>
+          {installation.suspended && <Text style={[type.meta, { color: c.muted }]}>Suspended</Text>}
+        </Pressable>
+        <GitHubActions
+          name={installation.login}
+          actions={[
+            { label: "Manage repositories", run: () => openGitHub(installation.manageUrl) },
+            ...(installUrl ? [{ label: "Install on another account", run: () => openGitHub(installUrl) }] : []),
+          ]}
+        />
+      </View>
+      {!!error && <Notice error>{error}</Notice>}
+      <Expand open={open} style={{ paddingLeft: 20, paddingBottom: 8 }}>
+        {installation.suspended ? (
+          <Notice>This installation is suspended. Ask its administrator to restore access.</Notice>
+        ) : (
+          <GitHubRepositories accountId={accountId} installationId={installation.installationId} />
+        )}
+      </Expand>
     </View>
   );
 }

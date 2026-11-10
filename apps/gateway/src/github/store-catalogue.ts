@@ -22,6 +22,13 @@ export interface RepositoryRow {
 
 export function githubCatalogue(sql: SqlClient.SqlClient) {
   return {
+    catalogueCounts: (owner: string, account: string) =>
+      sql<{ installations: number; repositories: number }>`SELECT
+        (SELECT count(*)::integer FROM github_installations WHERE owner_user_id=${owner}::uuid AND account_id=${account}::uuid) AS installations,
+        (SELECT count(*)::integer FROM github_installation_repositories WHERE owner_user_id=${owner}::uuid AND account_id=${account}::uuid) AS repositories`,
+    repositoryCount: (owner: string, account: string, installation: string) =>
+      sql<{ total: number }>`SELECT count(*)::integer AS total FROM github_installation_repositories
+        WHERE owner_user_id=${owner}::uuid AND account_id=${account}::uuid AND installation_id=${installation}`,
     saveCatalogue: (
       row: AccountRow,
       catalogue: readonly { installation: Installation; repos: readonly Repository[] }[],

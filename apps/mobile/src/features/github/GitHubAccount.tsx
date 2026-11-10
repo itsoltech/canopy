@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { Text, View } from "react-native";
 import * as Linking from "expo-linking";
 import type { github } from "@canopy/contracts";
 import { Button, Notice } from "../../ui/components";
-import { useColors, useTypography, font } from "../../ui/theme";
+import { Expand } from "../../ui/MotionViews";
+import { useColors, useTypography } from "../../ui/theme";
 import { confirmAction } from "../settings/resource";
 import { GitHubInstallation } from "./GitHubInstallation";
+import { GitHubAccountRow } from "./GitHubAccountRow";
 import { useGitHubCatalogue } from "./useGitHubCatalogue";
 
 export function GitHubAccount({
@@ -18,79 +21,97 @@ export function GitHubAccount({
 }) {
   const c = useColors();
   const type = useTypography();
+  const [open, setOpen] = useState(false);
+  const [all, setAll] = useState(false);
+  const catalogue = useGitHubCatalogue(account, onchanged);
+  const { installations, next, busy, loaded, error, generation, load, disconnect, setError } = catalogue;
 
-  const { installations, next, busy, loaded, error, generation, load, disconnect, setError } = useGitHubCatalogue(
-    account,
-    onchanged,
-  );
-
-  const open = (url: string) =>
+  const openGitHub = (url: string) =>
     void Linking.openURL(url).catch(() => setError("Could not open GitHub. Check your browser, then retry."));
 
+  const actions = [
+    ...(account.authKind !== "pat"
+      ? [
+          {
+            label: "Refresh installations",
+            disabled: busy || account.status !== "connected",
+            run: () => void load(0, true),
+          },
+        ]
+      : []),
+    ...(installUrl && account.authKind !== "pat"
+      ? [{ label: "Install on another account", run: () => openGitHub(installUrl) }]
+      : []),
+    {
+      label: "Manage authorization on GitHub",
+      run: () => openGitHub("https://github.com/settings/apps/authorizations"),
+    },
+    {
+      label: "Disconnect account",
+      danger: true,
+      disabled: busy || account.status === "disconnected",
+      run: () =>
+        confirmAction(
+          "Disconnect account",
+          "This removes this account’s access from this computer. To revoke authorization on every computer, open GitHub Settings → Applications → Authorized GitHub Apps.",
+          () => void disconnect(),
+        ),
+    },
+  ];
+
   return (
-    <View style={{ gap: 12, minWidth: 0, borderTopWidth: 1, borderColor: c.line, paddingVertical: 16 }}>
-      <Text style={[type.body, { color: c.text, fontFamily: font.semibold }]}>{account.login}</Text>
-      <Text style={[type.body, { color: c.muted }]}>
-        {account.host} · {account.authKind === "pat" ? "Personal access token" : "GitHub App"} ·{" "}
-        {account.status === "connected"
-          ? "Connected"
-          : account.status === "needs_reconnect"
-            ? "Reconnect required"
-            : "Disconnected"}
-      </Text>
-      {account.status !== "disconnected" && (
-        <Button
-          title="Disconnect account"
-          size="sm"
-          disabled={busy}
-          onPress={() =>
-            confirmAction(
-              "Disconnect account",
-              "This removes this account’s access from this computer. To revoke authorization on every computer, open GitHub Settings → Applications → Authorized GitHub Apps.",
-              () => void disconnect(),
-            )
-          }
-        />
-      )}
+    <View style={{ minWidth: 0 }}>
+      <GitHubAccountRow
+        account={account}
+        installations={catalogue.installationCount}
+        repositories={catalogue.repositoryCount}
+        open={open}
+        onToggle={() => setOpen(!open)}
+        actions={actions}
+      />
       {!!error && (
-        <View style={{ gap: 8 }}>
+        <View style={{ gap: 8, paddingVertical: 8 }}>
           <Notice error>{error}</Notice>
           <Button title="Retry" size="sm" disabled={busy} onPress={() => void load(0, true)} />
         </View>
       )}
-      {account.status === "connected" &&
-        (account.authKind === "pat" ? (
-          <Text style={[type.body, { color: c.muted }]}>
-            This account uses the personal access token you selected in Connectors.
-          </Text>
-        ) : (
-          <View style={{ gap: 12 }}>
-            {busy && !loaded && <Text style={[type.body, { color: c.muted }]}>Loading installations…</Text>}
-            {installations.map((installation) => (
-              <GitHubInstallation
-                key={`${generation}:${installation.installationId}`}
-                accountId={account.id}
-                installation={installation}
-              />
-            ))}
-            {loaded && !installations.length && (
-              <Text style={[type.body, { color: c.muted }]}>
-                No accessible installations. Install Canopy and choose repositories, or ask an organization
-                administrator to approve access.
-              </Text>
-            )}
-            {!!installUrl && <Button title="Install Canopy" size="sm" onPress={() => open(installUrl)} />}
-            <Button title="Refresh installations" size="sm" disabled={busy} onPress={() => void load(0, true)} />
-            {!!next && (
-              <Button title="Load more installations" size="sm" disabled={busy} onPress={() => void load(next)} />
-            )}
-          </View>
-        ))}
-      <Button
-        title="Manage authorization on GitHub"
-        size="sm"
-        onPress={() => open("https://github.com/settings/apps/authorizations")}
-      />
+      <Expand open={open} style={{ gap: 8, paddingTop: 8 }}>
+        {account.status === "connected" &&
+          (account.authKind === "pat" ? (
+            <Text style={[type.meta, { color: c.muted }]}>
+              This account uses the personal access token you selected in Connectors.
+            </Text>
+          ) : (
+            <>
+              {busy && !loaded && <Text style={[type.meta, { color: c.muted }]}>Loading installations…</Text>}
+              {(all ? installations : installations.slice(0, 5)).map((installation) => (
+                <GitHubInstallation
+                  key={`${generation}:${installation.installationId}`}
+                  accountId={account.id}
+                  installation={installation}
+                  installUrl={installUrl}
+                />
+              ))}
+              {loaded && !installations.length && (
+                <Text style={[type.meta, { color: c.muted }]}>
+                  No accessible installations. Install Canopy and choose repositories, or ask an organization
+                  administrator to approve access.
+                </Text>
+              )}
+              {catalogue.installationCount > 5 && (
+                <Button
+                  title={all ? "Show fewer installations" : `Show all ${catalogue.installationCount} installations`}
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => setAll(!all)}
+                />
+              )}
+              {all && !!next && (
+                <Button title="Load more installations" size="sm" disabled={busy} onPress={() => void load(next)} />
+              )}
+            </>
+          ))}
+      </Expand>
     </View>
   );
 }

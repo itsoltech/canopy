@@ -10,6 +10,7 @@
   import Select from "#lib/shared/ui/Select.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import InsetList from "#lib/shared/ui/InsetList.svelte";
 
   const overview = useOverview();
   let homeId = $state("");
@@ -101,6 +102,7 @@
     {#key homeId}<ConnectGitHub
         {homeId}
         configured={data.configured}
+        hasAccounts={data.accounts.length > 0}
         onconnected={() => {
           void reload();
         }}
@@ -118,17 +120,19 @@
             >{/each}
         </div>
       </section>{/if}
-    <div>
-      {#each data.accounts as account (`${homeId}:${account.id}:${account.revision}`)}<GitHubAccount
-          {account}
-          installUrl={data.installUrl}
-          onchanged={() => {
-            void reload();
-          }}
-        />{:else}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          No GitHub accounts connected on this computer.
-        </p>{/each}
-    </div>
+    {#if data.accounts.length}<InsetList label="GitHub accounts">
+        {#each data.accounts as account (`${homeId}:${account.id}:${account.revision}`)}<li>
+            <GitHubAccount
+              {account}
+              installUrl={data.installUrl}
+              onchanged={() => {
+                void reload();
+              }}
+            />
+          </li>{/each}
+      </InsetList>{:else}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+        No GitHub accounts connected on this computer.
+      </p>{/if}
   {:else if !error}<p role="status" class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
       Loading GitHub accounts…
     </p>{/if}

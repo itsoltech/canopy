@@ -60,6 +60,7 @@ export function GitHubSettings() {
               key={`${session?.deviceId}:${homeId}`}
               homeId={homeId}
               configured={data.configured}
+              hasAccounts={data.accounts.length > 0}
               onconnected={() => void reload()}
             />
           </View>
@@ -84,14 +85,18 @@ export function GitHubSettings() {
           </View>
         </SettingsGroup>
       )}
-      {data?.accounts.map((account) => (
-        <GitHubAccount
-          key={`${homeId}:${account.id}:${account.revision}`}
-          account={account}
-          installUrl={data.installUrl}
-          onchanged={() => void reload()}
-        />
-      ))}
+      {!!data?.accounts.length && (
+        <SettingsGroup title="Your accounts">
+          {data.accounts.map((account) => (
+            <GitHubAccount
+              key={`${homeId}:${account.id}:${account.revision}`}
+              account={account}
+              installUrl={data.installUrl}
+              onchanged={() => void reload()}
+            />
+          ))}
+        </SettingsGroup>
+      )}
       {data && !data.accounts.length && <SettingsRow title="No GitHub accounts connected on this computer" />}
       <PickerSheet
         title="Store accounts on"

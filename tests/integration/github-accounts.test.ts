@@ -248,11 +248,17 @@ describe.skipIf(!dockerAvailable)("GitHub accounts over gRPC with local HTTP", (
       const first = await gw.api.listGitHubInstallations({ accountId: id });
       expect(first.installations).toHaveLength(50);
       expect(first.nextPage).toBe(1);
+      expect(first.totalCount).toBe(101);
+      expect(first.repositoryCount).toBe(10_201);
+      const account = (await gw.api.listGitHubAccounts({})).accounts.find((a) => a.id === id)!;
+      expect(account.installationCount).toBe(101);
+      expect(account.repositoryCount).toBe(10_201);
       const second = await gw.api.listGitHubInstallations({ accountId: id, page: first.nextPage });
       const last = await gw.api.listGitHubInstallations({ accountId: id, page: second.nextPage });
       expect(last.installations).toHaveLength(1);
       expect(last.nextPage).toBe(0);
       const repositories = await gw.api.listGitHubRepositories({ accountId: id, installationId: "107" });
+      expect(repositories.totalCount).toBe(101);
 
       const middle = await gw.api.listGitHubRepositories({
         accountId: id,

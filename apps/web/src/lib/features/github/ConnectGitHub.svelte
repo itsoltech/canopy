@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import type { github } from "@canopy/contracts";
-  import { timestampDate } from "@bufbuild/protobuf/wkt";
+  import { formatTime } from "#lib/shared/format.ts";
   import * as api from "./api.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
@@ -11,11 +11,13 @@
   let {
     homeId = "",
     configured = true,
+    hasAccounts = false,
     onconnected,
     class: className,
   }: {
     homeId?: string;
     configured?: boolean;
+    hasAccounts?: boolean;
     onconnected?: () => void;
     class?: ClassValue;
   } = $props();
@@ -125,13 +127,14 @@
         <Button onclick={() => run(() => api.cancel(attempt!.id))} disabled={busy} size="sm">Cancel</Button>
       </div>
       <div class="min-h-6 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status">
-        {copied ? "Code copied. " : ""}Waiting for GitHub. Expires at {attempt.expiresAt
-          ? timestampDate(attempt.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-          : "—"}.
+        {copied ? "Code copied. " : ""}Waiting for GitHub. Expires at {formatTime(attempt.expiresAt) || "—"}.
       </div>
     </div>
   {:else}
-    {#if attempt}<p class="text-base/6 text-zinc-600 sm:text-sm/6 dark:text-zinc-300" role="status">
+    {#if attempt && !(hasAccounts && attempt.state === "connected")}<p
+        class="text-base/6 text-zinc-600 sm:text-sm/6 dark:text-zinc-300"
+        role="status"
+      >
         {attempt.state === "connected"
           ? "GitHub account connected."
           : attempt.state === "expired"
@@ -142,8 +145,10 @@
                 ? "GitHub sign-in cancelled."
                 : "GitHub sign-in could not finish. Start again to get a new code."}
       </p>{/if}
-    <div>
-      <Button variant="primary" onclick={start} disabled={busy}>{busy ? "Connecting…" : "Connect GitHub"}</Button>
+    <div class="flex min-h-10 items-center">
+      <Button variant={hasAccounts ? "secondary" : "primary"} onclick={start} disabled={busy}
+        >{busy ? "Connecting…" : hasAccounts ? "Connect another account" : "Connect GitHub"}</Button
+      >
     </div>
   {/if}
   {#if error}<Alert

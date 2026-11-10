@@ -884,6 +884,17 @@ Przypisanie repozytorium, sprawdzanie praw PAT per repo oraz wspólny klient/cac
 z §3 są zakresem etapu 2. Katalog etapu 1 ma atomowy snapshot, stronicowanie,
 odświeżanie single-flight, TTL 15 min i cooldown po niepowodzeniu.
 
+Settings → GitHub pokazuje konta w jednej zwartej liście: avatar z inicjałami jako fallback,
+login, metodę i stan dostępu oraz liczbę instalacji i repozytoriów. Liczniki obejmują cały
+katalog właściciela danego konta, niezależnie od stronicowania. Akcje konta są w menu
+(na mobile w arkuszu akcji); odłączenie wymaga potwierdzenia. Instalacje rozwijają się
+wewnątrz konta ze wspólnym ruchem accordion. **Manage repositories** i **Install on another
+account** są w menu wiersza. Repozytoria pokazują domyślnie 5 pozycji, **Show all N** rozwija
+przewijaną listę, a powyżej 10 dostępne jest wyszukiwanie po całym katalogu instalacji.
+Pełna nazwa jest dostępna mimo skrócenia środka; Private/Public pozostaje dyskretną etykietą.
+Po połączeniu konta akcja **Connect another account** jest drugorzędna; stan pusty zachowuje
+główne **Connect GitHub**. Web/desktop i mobile mają tę samą strukturę i akcje.
+
 **Ustalono jeden stos obejmujący etapy 1–9.** Podstawą stosu jest dokumentacyjny
 PR [#485](https://github.com/itsoltech/canopy/pull/485): gałąź `docs/github-integration` celująca w `dev`.
 Etap 1 bazuje na `docs/github-integration`, każdy następny na poprzednim (`gh stack`, `github/gh-stack`).

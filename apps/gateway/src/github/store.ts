@@ -55,7 +55,10 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
     audit,
     clear,
     list: (owner: string) =>
-      sql<AccountRow>`SELECT * FROM github_accounts WHERE owner_user_id=${owner}::uuid ORDER BY created_at,id`,
+      sql<AccountRow>`SELECT a.*,
+        (SELECT count(*)::integer FROM github_installations i WHERE i.owner_user_id=a.owner_user_id AND i.account_id=a.id) AS installation_count,
+        (SELECT count(*)::integer FROM github_installation_repositories r WHERE r.owner_user_id=a.owner_user_id AND r.account_id=a.id) AS repository_count
+        FROM github_accounts a WHERE a.owner_user_id=${owner}::uuid ORDER BY a.created_at,a.id`,
     refreshClaim: (row: AccountRow, lease: string, now: number) =>
       sql<AccountRow>`UPDATE github_accounts SET refresh_lease=${lease}::uuid,refresh_lease_until=${new Date(now + 30_000)}
         WHERE owner_user_id=${row.owner_user_id}::uuid AND id=${row.id}::uuid AND revision=${row.revision}::bigint

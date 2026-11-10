@@ -6,21 +6,25 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Button, Notice } from "../../ui/components";
 import { useColors, useTypography } from "../../ui/theme";
 import { useGitHubSignIn } from "./useGitHubSignIn";
+import { useClock } from "../settings/display";
 
 /** Inline account connection, reused by GitHub operations without automatically retrying mutations. */
 export function ConnectGitHub({
   homeId = "",
   configured,
+  hasAccounts = false,
   onconnected,
   style,
 }: {
   homeId?: string;
   configured: boolean;
+  hasAccounts?: boolean;
   onconnected?: () => void;
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
   const type = useTypography();
+  const clock = useClock();
   const flow = useGitHubSignIn(homeId, onconnected);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -88,22 +92,19 @@ export function ConnectGitHub({
           </View>
           <Text accessibilityLiveRegion="polite" style={[type.body, { color: c.muted }]}>
             {copied ? "Code copied. " : ""}Waiting for GitHub. Expires at{" "}
-            {attempt.expiresAt
-              ? timestampDate(attempt.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-              : "—"}
-            .
+            {attempt.expiresAt ? clock.time(timestampDate(attempt.expiresAt)) : "—"}.
           </Text>
         </View>
       ) : (
         <View style={{ gap: 12 }}>
-          {attempt && (
+          {attempt && !(hasAccounts && attempt.state === "connected") && (
             <Text accessibilityLiveRegion="polite" style={[type.body, { color: c.soft }]}>
               {terminal}
             </Text>
           )}
           <Button
-            title={flow.busy ? "Connecting…" : "Connect GitHub"}
-            variant="primary"
+            title={flow.busy ? "Connecting…" : hasAccounts ? "Connect another account" : "Connect GitHub"}
+            variant={hasAccounts ? "secondary" : "primary"}
             disabled={flow.busy}
             onPress={() => {
               setCopied(false);

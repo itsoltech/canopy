@@ -29,6 +29,8 @@ export interface AccountRow {
   refresh_lease: string | null;
   refresh_lease_until: Date | null;
   catalog_verified_at: Date | null;
+  installation_count?: number;
+  repository_count?: number;
 }
 
 export interface AttemptRow {
@@ -59,6 +61,8 @@ export const accountView = (row: AccountRow) =>
     status: row.status,
     revision: BigInt(row.revision),
     connectorAccountId: row.connector_account_id ?? "",
+    installationCount: row.installation_count ?? 0,
+    repositoryCount: row.repository_count ?? 0,
     ...(row.catalog_verified_at && { catalogVerifiedAt: timestampFromDate(new Date(row.catalog_verified_at)) }),
   });
 

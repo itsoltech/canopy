@@ -12,6 +12,7 @@ export function useGitHubCatalogue(account: github.GitHubAccount, onchanged: () 
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [generation, setGeneration] = useState(0);
+  const [counts, setCounts] = useState<{ installations: number; repositories: number }>();
 
   function fetchCatalogue(page = 0, refresh = false) {
     if (!client || running.current || account.status !== "connected" || account.authKind === "pat") return;
@@ -23,6 +24,7 @@ export function useGitHubCatalogue(account: github.GitHubAccount, onchanged: () 
         (value) => {
           setInstallations((previous) => (page ? [...previous, ...value.installations] : value.installations));
           setNext(value.nextPage);
+          setCounts({ installations: value.totalCount, repositories: value.repositoryCount });
           setLoaded(true);
 
           if (!page) setGeneration((n) => n + 1);
@@ -78,5 +80,17 @@ export function useGitHubCatalogue(account: github.GitHubAccount, onchanged: () 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, account.id, account.revision]);
 
-  return { installations, next, busy, loaded, error, generation, load, disconnect, setError };
+  return {
+    installations,
+    next,
+    busy,
+    loaded,
+    error,
+    generation,
+    load,
+    disconnect,
+    setError,
+    installationCount: counts?.installations ?? account.installationCount,
+    repositoryCount: counts?.repositories ?? account.repositoryCount,
+  };
 }

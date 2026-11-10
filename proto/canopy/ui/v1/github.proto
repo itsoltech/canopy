@@ -13,6 +13,8 @@ message GitHubAccount {
   uint64 revision = 7;
   string connector_account_id = 8;
   google.protobuf.Timestamp catalog_verified_at = 9;
+  uint32 installation_count = 10;
+  uint32 repository_count = 11;
 }
 message GitHubAccountsRequest {
   // Empty = this computer; otherwise the home marker qualified by the computer.
@@ -77,6 +79,8 @@ message GitHubInstallationsResponse {
   repeated GitHubInstallation installations = 1;
   uint32 next_page = 2;
   string detail = 3;
+  uint32 total_count = 4;
+  uint32 repository_count = 5;
 }
 message GitHubRepository {
   string repository_id = 1;
@@ -87,4 +91,5 @@ message GitHubRepository {
 message GitHubRepositoriesResponse {
   repeated GitHubRepository repositories = 1;
   uint32 next_page = 2;
+  uint32 total_count = 3;
 }
