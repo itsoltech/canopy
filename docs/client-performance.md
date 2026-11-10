@@ -178,3 +178,50 @@ w tło i otwierania/zamykania dużych obrazów. Porównaj heap Hermes, pamięć 
 i pamięć procesu po zamknięciu viewerów. Osobno zmierz odczyt/zapis cache na
 prawdziwym filesystemie. Wnioski o pamięci obrazów, płynności UI i energii wymagają
 tych pomiarów; harness Bun ich nie zastępuje.
+
+## Pasek boczny i indeks wątków na żywo
+
+Każde zdarzenie overview zastępuje indeks wątków (`OverviewState.threads`), więc wszystko,
+co czyta cały indeks, przelicza się przy każdym zdarzeniu. Koszt ma rosnąć z liczbą
+zmienionych wierszy, nie z liczbą wątków:
+
+- Wiersz długiej listy nie czyta indeksu, mapy wpisów ani wspólnych tablic. Lista trzyma
+  stabilną tablicę kluczy (zmienia się tylko przy zmianie kolejności), a każdy wiersz czyta
+  własny slot `Keyed` (`#lib/shared/keyed.svelte.ts`), synchronizowany w `$effect.pre` przed
+  listą. Slot dostaje nową wartość tylko wtedy, gdy zmieniło się to, co wiersz pokazuje
+  (`sidebarRows` + `sameSidebarRow`: wątek, dzieci, projekt, worker, otwarte drzewo).
+  Puste listy dzieci to jedna stała, nie nowa tablica przy każdym przeliczeniu.
+- `{#each}` z `animate:` mierzy wszystkie elementy przy każdej zmianie tablicy. `reorder`
+  nie animuje wierszy, które przed i po przestawieniu są poza ekranem.
+- Wiersze poza ekranem mają `content-visibility: auto` z `contain-intrinsic-size: auto`
+  równym wysokości wiersza dla danego breakpointu i `overflow-clip-margin` na pierścień
+  fokusu. Chromium obserwuje każdy taki element wewnętrznym IntersectionObserverem
+  przy każdej klatce: 500 wierszy kosztowało ok. 0,5–0,8 ms na klatkę, ale pre-paint,
+  paint i layerize całego paska spadły bardziej (także przy streamingu w innym widoku).
+  Stosuj to tylko na długich listach i mierz oba składniki
+  (`IntersectionObserverController::computeIntersections` i etapy paint).
+  Nie zastępuj tego wirtualizacją: lista zostaje w DOM dla wyszukiwania w stronie,
+  kolejności Tab i drzewa dostępności.
+- Dane pochodne strony wątku (drzewo, subagenci w trayu) zachowują poprzednią wartość,
+  gdy przebudowa daje te same elementy (`retain` z `@canopy/domain/same-items`). Szukanie
+  wątku po id używa mapy indeksu, nie `find` po liście projektu.
+- Odświeżenia wyzwalane zdarzeniami filtruj tym, czego naprawdę dotyczą: status
+  i aktywność aktywnego wątku nie pobierają stron archiwum (`changesArchived`,
+  `indexChangesArchived` dla klientów trzymających całą listę).
+- `Intl.DateTimeFormat` twórz raz na zestaw opcji; listy formatują daty w każdym wierszu.
+- Komponent powtarzany w wierszach nie rejestruje nasłuchów na `document`, jeśli nie są
+  potrzebne (tooltip nasłuchuje stuknięć poza sobą tylko dla `touch: "tap"`).
+- Mobile: wiersze FlatList są w `memo` z komparatorem obejmującym wszystko, co wiersz
+  pokazuje, łącznie z etykietą wieku w czasie renderu listy, żeby wynik był taki sam
+  jak bez `memo`. Listy pochodne overview (`workers`, `projectChoices`) są w `useMemo`.
+
+Scenariusz pomiaru paska: 500 zasianych wątków, otwarty inny, bezczynny wątek, 10 wątków
+pracuje. Co 50 ms jeden z nich zmienia status, tytuł, liczbę zadań w tle lub ostatnią
+wiadomość, przez tę samą ścieżkę co handler SSE (JSON → protobuf → `OverviewState.apply`).
+Jak w gatewayu, `lastActivityAt` (a więc miejsce na liście) zmienia się tylko przy starcie
+lub końcu tury. Aktualizacje wstrzykuje się przez tymczasowe wystawienie `OverviewState`
+na `window` w lokalnej kopii, nigdy w repozytorium. Zgodność zachowania sprawdza
+deterministyczna sekwencja zdarzeń: kolejność wierszy, `data-calm`, `data-result`,
+`data-unread`, `aria-current` i tekst wszystkich wierszy muszą być identyczne przed i po
+zmianie. Pętla rAF harnessu wymusza klatkę główną przy każdym odświeżeniu ekranu; podaj
+też przebieg bez aktualizacji jako tło.
