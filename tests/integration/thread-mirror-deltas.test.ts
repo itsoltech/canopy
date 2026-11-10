@@ -40,7 +40,15 @@ describe.skipIf(!dockerAvailable)("incremental mirrors over two real gateway lin
     ).toBe(true);
   };
 
-  const open = () => watchUntil(a.api, qualifyId(thread, node), (updates) => updates.some((u) => !u.syncing));
+  const open = async (onUpdate?: (update: ui.ThreadUpdate) => void) => {
+    const live = (updates: ui.ThreadUpdate[]) => updates.some((u) => !u.syncing && u.change.case === "snapshot");
+    // An offline stream can end on a presence change without reaching the home.
+    const updates = await eventually(() => watchUntil(a.api, qualifyId(thread, node), live, onUpdate), live, 15_000);
+
+    expect(live(updates)).toBe(true);
+
+    return updates;
+  };
 
   const connect = async () => {
     await lb.start();
@@ -556,12 +564,26 @@ describe.skipIf(!dockerAvailable)("incremental mirrors over two real gateway lin
 
   test("older homes and legacy mirror requests receive full snapshots", async () => {
     await lb.close();
+    expect(
+      await eventually(
+        () => Promise.resolve(la.reachable().includes(node)),
+        (reachable) => !reachable,
+      ),
+    ).toBe(false);
     lb = home(["presence", "unlink", REMOTE_THREADS, THREAD_MIRROR]);
     b.core.computers = lb;
     b.core.network = lb.options.network;
-    await connect();
     opens.length = 0;
-    await open();
+    // Reconnecting ends an offline watch after its cached seed, before any home response.
+    const seeded = Promise.withResolvers<void>();
+
+    const opening = open((update) => {
+      if (update.syncing && update.change.case === "snapshot") seeded.resolve();
+    });
+
+    await Promise.race([seeded.promise, opening]);
+    await connect();
+    await opening;
     expect(opens.some((u) => u.change.case === "snapshot" && u.change.value.items.length === 2999)).toBe(true);
     expect(opens.some((u) => u.change.case === "delta")).toBe(false);
     const cursor = (await la.mirror.state(node))!.cursor;
