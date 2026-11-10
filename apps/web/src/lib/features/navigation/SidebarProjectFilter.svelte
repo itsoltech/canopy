@@ -78,7 +78,7 @@
       >
         <span class="min-w-0 flex-1 text-left">All projects</span>{#if !selected.length}<Icon name="check" />{/if}
       </Button>
-      <div class="max-h-72 scroll-stable overflow-y-auto" role="group" aria-label="Projects">
+      <div class="max-h-72 overflow-y-auto" role="group" aria-label="Projects">
         {#each projects as project (project.id)}
           <SidebarProjectChoice
             {project}
