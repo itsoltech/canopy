@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useKeyboardFrame } from "../../ui/KeyboardWindow";
@@ -17,12 +17,18 @@ export function FloatingComposer({
   motion,
   overlay,
   accessory,
+  tray,
+  onAccessoryLayout,
 }: {
   children: ReactNode;
   /** Popovers never participate in the measured composer or the feed's reserve. */
   overlay?: ReactNode;
   /** Status rows float outside the input measurement; empty slots never enlarge the fade or feed reserve. */
   accessory?: ReactNode;
+  /** The panels attached to the composer's top edge (ComposerTray), under the status rows. */
+  tray?: ReactNode;
+  /** The height the status rows and the tray take above the composer, for the feed's reserve. */
+  onAccessoryLayout?: (height: number) => void;
   /** The fold and writing motion its composer parts follow (useFloatingComposer). */
   motion: ComposerMotion;
   onLayout: (event: LayoutChangeEvent) => void;
@@ -33,6 +39,7 @@ export function FloatingComposer({
   const insets = useContentInsets();
   const { pop } = useMotion();
   const keyboard = useKeyboardFrame();
+  const [block, setBlock] = useState(0);
 
   // Keep the overlay's top below the fixed header as its bottom follows the keyboard. The safe-area padding
   // sits outside the measured composer; its proportional sticky offset cancels it without resizing the reserve.
@@ -68,18 +75,33 @@ export function FloatingComposer({
             </View>
           </Animated.View>
         )}
-        <View
-          pointerEvents="box-none"
-          style={{
-            zIndex: 1,
-            flexShrink: 1,
-            minHeight: 0,
-            marginLeft: 12 + insets.left,
-            marginRight: 12 + insets.right,
-          }}
-        >
-          {overlay}
-          {accessory && <View style={{ backgroundColor: c.background, borderRadius: 8 }}>{accessory}</View>}
+        <View pointerEvents="box-none" style={{ zIndex: 1, flexShrink: 1, minHeight: 0 }}>
+          <View
+            pointerEvents="box-none"
+            style={{ flexShrink: 1, minHeight: 0, marginLeft: 12 + insets.left, marginRight: 12 + insets.right }}
+          >
+            {overlay}
+          </View>
+          {/* Status rows and the tray share the composer's canvas and fade, so the feed passes under them. */}
+          <View
+            pointerEvents="box-none"
+            onLayout={(event) => {
+              setBlock(event.nativeEvent.layout.height);
+              onAccessoryLayout?.(event.nativeEvent.layout.height);
+            }}
+            style={{
+              flexShrink: 1,
+              minHeight: 0,
+              gap: 8,
+              paddingLeft: 12 + insets.left,
+              paddingRight: 12 + insets.right,
+              backgroundColor: block > 0 ? c.background : undefined,
+            }}
+          >
+            {block > 0 && <Fade />}
+            {accessory}
+            {tray}
+          </View>
         </View>
         <View style={{ paddingBottom: insets.bottom, backgroundColor: c.background }}>
           <View
@@ -95,21 +117,30 @@ export function FloatingComposer({
               backgroundColor: c.background,
             }}
           >
-            <View
-              pointerEvents="none"
-              style={{
-                position: "absolute",
-                top: -32,
-                height: 32,
-                left: 0,
-                right: 0,
-                backgroundImage: `linear-gradient(to bottom, ${c.background}00, ${c.background})`,
-              }}
-            />
+            <Fade />
             {children}
           </View>
         </View>
       </Animated.View>
     </ComposerMotionContext.Provider>
+  );
+}
+
+/** The canvas fading over 32 points above whatever floats on top of the feed. */
+function Fade() {
+  const c = useColors();
+
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        top: -32,
+        height: 32,
+        left: 0,
+        right: 0,
+        backgroundImage: `linear-gradient(to bottom, ${c.background}00, ${c.background})`,
+      }}
+    />
   );
 }

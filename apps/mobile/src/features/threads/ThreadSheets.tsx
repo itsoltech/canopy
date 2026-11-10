@@ -2,7 +2,6 @@ import { ThreadPanel } from "./ThreadPanel";
 import { GoalSheet } from "./GoalSheet";
 import { SideThreadSheet } from "./SideThreadSheet";
 import { QueueEditor } from "./QueuedMessage";
-import { QueuedMessageMenu } from "./QueuedMessageMenu";
 import type { ThreadState } from "./ThreadScreen";
 import { TimelineDirectoryProvider, type TimelineDirectory } from "../timeline/directory";
 
@@ -22,16 +21,6 @@ export function ThreadSheets({
       <TimelineDirectoryProvider value={viewerDirectory(state)}>
         <ThreadPanel snapshot={snapshot} visible={state.details} onClose={() => state.setDetails(false)} />
       </TimelineDirectoryProvider>
-      <QueuedMessageMenu
-        threadId={thread?.id ?? ""}
-        turns={snapshot?.turns ?? []}
-        running={snapshot?.turns.some((t) => !t.inherited && t.status === "running") ?? false}
-        disabled={state.home.away || state.stream.connection !== "live"}
-        turn={state.home.away || state.queued?.editing ? undefined : state.queued?.turn}
-        onClose={() => state.setQueued(undefined)}
-        onEdit={(turn) => state.setQueued({ turn, editing: true })}
-        onError={state.setError}
-      />
       <GoalSheet
         thread={thread}
         goal={snapshot?.goal}
@@ -39,10 +28,7 @@ export function ThreadSheets({
         onClose={onClose}
       />
       <SideThreadSheet main={thread} visible={!state.home.away && sheet === "side"} onClose={onClose} />
-      <QueueEditor
-        turn={!state.home.away && state.queued?.editing ? state.queued.turn : undefined}
-        onClose={() => state.setQueued(undefined)}
-      />
+      <QueueEditor turn={state.home.away ? undefined : state.editing} onClose={() => state.setEditing(undefined)} />
     </>
   );
 }

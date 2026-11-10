@@ -30,7 +30,15 @@ export function ThreadBackgroundTasks({ snapshot, disabled }: { snapshot: ui.Thr
   );
 }
 
-function TaskRow({ entry, threadId, disabled }: { entry: ui.TimelineItem; threadId: string; disabled: boolean }) {
+export function TaskRow({
+  entry,
+  threadId,
+  disabled,
+}: {
+  entry: ui.TimelineItem;
+  threadId: string;
+  disabled: boolean;
+}) {
   const c = useColors();
   const { client } = useSession();
   const [busy, setBusy] = useState(false);

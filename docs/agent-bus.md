@@ -147,9 +147,8 @@ Zakończeni, nieudani, przerwani i zamknięci pozostają dostępni w szczegóła
 
 Sekcja subagentów jest domyślnie zwinięta i zapamiętuje rozwinięcie na urządzeniu. Sidebar nie pokazuje subagentów; pytania i zgody skierowane do człowieka wyróżniają rodzica i pozostają w panelu nad kompozytorem. Wątki boczne użytkownika są odróżniane przez istniejące `spawned_by_agent = false`. Wejście panelu kompozytora korzysta z `t-rise` / `--duration-fast`, wyjście panelu i wierszy z accordionu / `--duration-quick`; reduced motion jest natychmiastowe. Nakładka kompozytora chroni pozycję czytanego wiersza podczas tych zmian. Rozwinięty panel ma wiersz na aktywnego subagenta: stan (working / waiting for an answer), tytuł, dostawca + model, początek ostatniej wiadomości. Wiersz prowadzi do wątku bocznego. Dane pochodzą z żywego indeksu wątków (overview), bez osobnych zapytań.
 
-Mobile ma jeden zarezerwowany wiersz podsumowania nad kompozytorem, widoczny także podczas
-pisania. Rozwinięta lista zajmuje ograniczoną nakładkę z własnym przewijaniem nad klawiaturą,
-poza pomiarem kompozytora; start, koniec i rozwijanie subagentów nie zmieniają rezerwy feedu.
+Mobile ma ten sam panel w zasobniku nad kompozytorem (te same reguły `subagentsOf` /
+`subagentSummary`), widoczny także podczas pisania; czytanej historii nie przesuwa.
 `subagentsExpanded` i `finishedSubagentsExpanded` są preferencjami urządzenia, domyślnie Off.
 Grupowanie aktywnych, ostatnich 10 minut i starszych zakończonych jest wspólne z webem
 (`@canopy/domain/subagents`); szczegóły układu i ruchu: [mobile.md](mobile.md).

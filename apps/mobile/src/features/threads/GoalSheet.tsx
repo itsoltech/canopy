@@ -7,22 +7,13 @@ import { Button, Field } from "../../ui/components";
 import { Overlay } from "../../ui/Overlay";
 import { SheetDragArea } from "../../ui/SheetDragArea";
 import { styles, useColors } from "../../ui/theme";
+import { useTone } from "../../ui/tone";
+import { goalLook, isFinishedGoal } from "@canopy/domain/goals";
 
 /** The gateway's limit on an objective. */
 const OBJECTIVE_LIMIT = 4000;
 
-/** Status labels as on the web (apps/web features/goals/goals.ts). */
-const goalLabels = new Map([
-  ["active", "Active"],
-  ["paused", "Paused"],
-  ["blocked", "Blocked"],
-  ["budget_limited", "Budget reached"],
-  ["usage_limited", "Usage limit"],
-  ["achieved", "Achieved"],
-  ["cancelled", "Cleared"],
-]);
-
-export const isFinishedGoal = (status: string) => status === "achieved" || status === "cancelled";
+export { isFinishedGoal };
 
 /** Goals belong to the harness: a gateway thread and Grok have none (docs/goals.md). */
 export const takesGoals = (thread: ui.Thread) => thread.runtime !== "gateway" && thread.provider !== Provider.GROK;
@@ -63,6 +54,7 @@ function GoalBody({ thread, open, onClose }: { thread: ui.Thread; open: ui.Goal 
 
 function OpenGoal({ thread, goal, onReplace }: { thread: ui.Thread; goal: ui.Goal; onReplace: () => void }) {
   const c = useColors();
+  const tone = useTone(goalLook(goal.status).tone);
   const { client } = useSession();
   const [busy, setBusy] = useState<string>();
   const [confirming, setConfirming] = useState(false);
@@ -89,9 +81,7 @@ function OpenGoal({ thread, goal, onReplace }: { thread: ui.Thread; goal: ui.Goa
         <Text accessibilityRole="header" style={[styles.overlayHeading, { color: c.muted }]}>
           Goal
         </Text>
-        <Text style={[styles.overlayMeta, { color: goal.status === "active" ? c.sky : c.muted }]}>
-          {goalLabels.get(goal.status) ?? goal.status}
-        </Text>
+        <Text style={[styles.overlayMeta, { color: tone.text }]}>{goalLook(goal.status).label}</Text>
       </SheetDragArea>
       <Text selectable style={[styles.overlay, { color: c.text }]}>
         {goal.objective}
