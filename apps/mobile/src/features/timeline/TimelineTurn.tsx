@@ -17,6 +17,7 @@ import { segmentsOf, summarize, timestampMs, turnBody, workRows, type BodyRow, t
 import { STEERED, UserMessageView } from "./UserMessageView";
 import { WorkFold, WorkGroup } from "./WorkFold";
 import { QuoteItem } from "../quotes/QuoteAction";
+import { ActivityGroup, activityHeader, activitySurface } from "./activity-header";
 
 /** What a turn looks up beyond its own items: the thread's notices and steers, its tasks and provider. */
 export interface TurnContext {
@@ -101,7 +102,7 @@ function WorkRail({
             <BodyRowView key={row.row.key} row={row.row} steers={steers} ended={ended} />
           ) : (
             // A group's rows hang off the same rail as its header (web: work-group rows).
-            <View key={row.key} style={{ gap: 4 }}>
+            <View key={row.key} style={[activityHeader.shell, activitySurface(c)]}>
               <WorkGroup
                 label={row.label}
                 open={groups(row.key)}
@@ -111,9 +112,13 @@ function WorkRail({
                 statusCount={row.statusCount}
                 onToggle={() => onGroup(row.key)}
               />
-              {row.rows.map((inner) => (
-                <BodyRowView key={inner.key} row={inner} steers={steers} ended={ended} />
-              ))}
+              <ActivityGroup value={true}>
+                <View style={{ paddingHorizontal: 8, paddingBottom: row.rows.length ? 4 : 0 }}>
+                  {row.rows.map((inner) => (
+                    <BodyRowView key={inner.key} row={inner} steers={steers} ended={ended} />
+                  ))}
+                </View>
+              </ActivityGroup>
             </View>
           ),
         )}

@@ -30,7 +30,13 @@ import { foldId, turnProgress, workSegments, type BodyRow, type WorkSegment } fr
  *   group would only repeat the fold's counts: its rows follow the open fold directly (`flat`).
  */
 export type FoldedRow =
-  | { readonly kind: "row"; readonly row: TimelineRow; readonly work: boolean }
+  | {
+      readonly kind: "row";
+      readonly row: TimelineRow;
+      readonly work: boolean;
+      /** Surface fragment of an expanded tool group; rows remain independently virtualized. */
+      readonly group?: "body" | "end";
+    }
   | {
       readonly kind: "work";
       readonly key: string;
@@ -296,7 +302,7 @@ function workRows(
         items: tools.map((r) => r.key),
       });
 
-    if (open) out.push({ kind: "row", row, work: true });
+    if (open) out.push({ kind: "row", row, work: true, group: row === tools.at(-1) ? "end" : "body" });
   }
 
   return out;

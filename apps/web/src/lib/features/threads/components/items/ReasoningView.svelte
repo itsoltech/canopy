@@ -5,6 +5,7 @@
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import { LineReveal } from "#lib/shared/ui/streaming/line-reveal.svelte.ts";
+  import { activityBody } from "../activity-header.ts";
 
   /** Reasoning, collapsed: the first line of the summary as a preview, the rest on demand. */
   let { reasoning, streaming }: { reasoning: Reasoning; streaming: boolean } = $props();
@@ -27,7 +28,8 @@
 
 {#if hasBody || streaming}
   <Disclosure
-    class="density-work"
+    class="activity-shell density-work rounded-md border-l-2 border-zinc-950/5 bg-zinc-950/1 dark:border-white/10 dark:bg-white/2.5"
+    grid
     remember="reasoning"
     summaryClass="px-2 py-2.5 text-base/6 text-zinc-600 hover:bg-zinc-950/2.5 sm:py-1 sm:text-sm/5 dark:text-zinc-400 dark:hover:bg-white/5"
   >
@@ -40,10 +42,7 @@
         <span class="min-w-0 truncate italic">{preview}</span>
       </span>
     {/snippet}
-    <div
-      data-quote-kind="reasoning"
-      class="mt-1 mb-2 grid gap-3 border-l-2 border-zinc-950/5 pl-4 dark:border-white/10"
-    >
+    <div data-quote-kind="reasoning" class={[activityBody, "gap-3"]}>
       {#if reasoning.summary.trim()}<Markdown
           text={reasoning.summary}
           {streaming}

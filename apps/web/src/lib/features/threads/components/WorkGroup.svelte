@@ -27,13 +27,12 @@
   } = $props();
 </script>
 
-<div class={["density-work", className]}>
+<div class={["activity-group-head density-work", activitySurface, className]} data-open={open || undefined}>
   <button
     type="button"
     class={[
       "flex w-full min-w-0 items-start gap-2 rounded-md text-left text-base/6 focus-ring sm:text-sm/5",
       activityHeader,
-      activitySurface,
     ]}
     aria-expanded={open}
     title={label}

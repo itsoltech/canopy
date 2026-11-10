@@ -4,6 +4,7 @@
   import Badge from "#lib/shared/ui/Badge.svelte";
   import ItemFrame from "./ItemFrame.svelte";
   import OutputBlock from "./OutputBlock.svelte";
+  import CodeBlock from "#lib/shared/ui/CodeBlock.svelte";
 
   /** Shell command: command line, exit code, duration; output streams in while it runs. */
   let {
@@ -25,12 +26,12 @@
         >exit {command.exitCode}</Badge
       >{/if}
   {/snippet}
-  {#if command.command.includes("\n")}
-    <pre
-      data-quote-kind="code"
-      data-quote-lang="sh"
-      class="code-surface rounded-lg bg-zinc-950/2.5 p-3 text-zinc-950 dark:bg-white/5 dark:text-white">{command.command}</pre>
-  {/if}
+  <CodeBlock
+    text={command.command}
+    label={command.command.split("\n")[0] ?? ""}
+    data-quote-kind="code"
+    data-quote-lang="sh"
+  />
   {#if command.cwd}<p class="truncate font-mono text-xs/5 text-zinc-500 dark:text-zinc-400" title={command.cwd}>
       in {command.cwd}
     </p>{/if}

@@ -8,7 +8,7 @@ import { styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { ItemStatusIcon } from "./ItemStatusIcon";
 import { Chevron } from "../../ui/MotionViews";
-import { activityHeader, activitySurface } from "./activity-header";
+import { ActivityGroup, activityHeader, activitySurface } from "./activity-header";
 
 /** The nested items of the item a frame shows (web: item-context.ts); a frame shows them inside its details. */
 export const ItemChildren = createContext<ReactNode>(undefined);
@@ -41,6 +41,7 @@ export function ItemFrame({
   label?: string;
 }) {
   const c = useColors();
+  const grouped = useContext(ActivityGroup);
   const [open, setOpen] = useState(false);
   const inherited = useContext(ItemChildren);
   nested ??= inherited;
@@ -69,10 +70,12 @@ export function ItemFrame({
     </View>
   );
 
-  if (!body) return <View style={[activityHeader.row, activitySurface(c), { paddingLeft: 32 }]}>{row}</View>;
+  const surface = !grouped && [activityHeader.shell, activitySurface(c)];
+
+  if (!body) return <View style={[surface, activityHeader.row, { paddingLeft: 32 }]}>{row}</View>;
 
   return (
-    <View>
+    <View style={surface}>
       <View ref={header} collapsable={false}>
         <Pressable
           accessibilityRole="button"
@@ -81,7 +84,7 @@ export function ItemFrame({
           onPress={() => toggle(header.current, () => setOpen(!open))}
           style={({ pressed }) => [
             activityHeader.row,
-            activitySurface(c),
+            open && activityHeader.open,
             { justifyContent: "center" },
             pressed && { backgroundColor: c.pressed },
           ]}
@@ -90,7 +93,7 @@ export function ItemFrame({
         </Pressable>
       </View>
       {open && (
-        <View style={{ marginTop: 4, marginBottom: 8, gap: 8, paddingLeft: 24 }}>
+        <View style={activityHeader.body}>
           {children}
           {nested && <View style={{ gap: 4, borderLeftWidth: 2, borderColor: c.rule, paddingLeft: 12 }}>{nested}</View>}
         </View>

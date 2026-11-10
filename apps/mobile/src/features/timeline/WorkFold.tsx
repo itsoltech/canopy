@@ -12,7 +12,7 @@ import { ItemStatus } from "@canopy/contracts";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "../../ui/Icon";
 import { ItemStatusIcon } from "./ItemStatusIcon";
-import { activityHeader, activitySurface } from "./activity-header";
+import { activityHeader } from "./activity-header";
 
 export type { WorkSummary } from "./turn-plan";
 
@@ -163,7 +163,7 @@ export function WorkGroup({
         style={({ pressed }) => [
           styles.row,
           activityHeader.row,
-          activitySurface(c),
+          open && activityHeader.open,
           { alignItems: "flex-start" },
           pressed && { backgroundColor: c.pressed },
         ]}

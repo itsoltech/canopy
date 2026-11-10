@@ -28,6 +28,7 @@ export type FeedRow =
       readonly history: boolean;
       readonly last: boolean;
       readonly work: boolean;
+      readonly group?: "body" | "end";
       /** The last row of an open fold: the conversation after it keeps its usual gap. */
       readonly end?: boolean;
     }
@@ -141,6 +142,7 @@ export class FeedBuilder {
                 history: true,
                 last,
                 work: fold.work,
+                ...(fold.group && { group: fold.group }),
               });
           });
         });
@@ -156,7 +158,15 @@ export class FeedBuilder {
     )) {
       if (fold.kind !== "row") next.push({ ...fold, history: false, last: false });
       else
-        next.push({ kind: "timeline", key: fold.row.key, row: fold.row, history: false, last: false, work: fold.work });
+        next.push({
+          kind: "timeline",
+          key: fold.row.key,
+          row: fold.row,
+          history: false,
+          last: false,
+          work: fold.work,
+          ...(fold.group && { group: fold.group }),
+        });
     }
 
     if (input.working && !next.some((r) => r.kind === "work" && r.summary.live))

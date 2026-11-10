@@ -28,7 +28,7 @@ export function CommandView({ command, status }: { command: CommandExecution; st
         </>
       }
     >
-      {command.command.includes("\n") && <CodeBlock text={command.command} label="Command" />}
+      <CodeBlock text={command.command} label="Command" />
       {command.cwd ? (
         <Text numberOfLines={1} style={[type.mono, { fontSize: 12, lineHeight: 20, color: c.muted }]}>
           in {command.cwd}

@@ -8,6 +8,7 @@ import { font, styles, useColors } from "../../../ui/theme";
 import { Chevron } from "../../../ui/MotionViews";
 import { Icon } from "../../../ui/Icon";
 import { QuoteAction } from "../../quotes/QuoteAction";
+import { activityHeader } from "../activity-header";
 
 /** Reasoning, folded: the first line of the summary as a preview, the rest on demand (web: ReasoningView). */
 export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; streaming: boolean }) {
@@ -26,17 +27,20 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
   const label = { fontFamily: font.medium, color: c.muted };
 
   return (
-    <View ref={header} collapsable={false}>
+    <View
+      ref={header}
+      collapsable={false}
+      style={[activityHeader.shell, { borderColor: c.rule, backgroundColor: c.dark ? "#ffffff06" : "#09090b03" }]}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         onPress={() => toggle(header.current, () => setOpen(!open))}
         style={({ pressed }) => [
           styles.row,
+          activityHeader.row,
+          open && activityHeader.open,
           {
-            minHeight: 44,
-            paddingHorizontal: 8,
-            borderRadius: 6,
             backgroundColor: pressed ? c.well : "transparent",
           },
         ]}
@@ -58,9 +62,7 @@ export function ReasoningView({ reasoning, streaming }: { reasoning: Reasoning; 
         </Text>
       </Pressable>
       {open && (
-        <View
-          style={{ marginTop: 4, marginBottom: 8, gap: 12, borderLeftWidth: 2, borderColor: c.rule, paddingLeft: 16 }}
-        >
+        <View style={[activityHeader.body, { gap: 12 }]}>
           {reasoning.summary.trim() ? <Markdown text={reasoning.summary} color={c.muted} /> : null}
           {reasoning.text.trim() && reasoning.text !== reasoning.summary ? (
             <Markdown text={reasoning.text} color={c.faint} />
