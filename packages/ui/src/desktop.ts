@@ -138,6 +138,8 @@ export function sameDesktopConfiguration(
 }
 
 export interface DesktopBridge {
+  /** Read-only family enumeration; main validates the application origin and main frame. */
+  listFonts?(): Promise<string[]>;
   history?: {
     read(key: string): Promise<{ generation: string; bytes?: Uint8Array }>;
     write(generation: string, key: string, bytes: Uint8Array): Promise<void>;

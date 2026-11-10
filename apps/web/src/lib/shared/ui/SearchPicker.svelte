@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Combobox from "./Combobox.svelte";
+  import VirtualCombobox from "./VirtualCombobox.svelte";
   import type { Placement } from "./floating.ts";
   import Popover, { type PopoverTriggerProps } from "./Popover.svelte";
 
@@ -32,6 +33,9 @@
     option,
     empty,
     link,
+    footer,
+    query = $bindable(""),
+    virtual = false,
   }: {
     items: readonly T[];
     key: (item: T) => string;
@@ -56,9 +60,11 @@
     empty?: Snippet<[string]> | undefined;
     /** A link in the footer (where the list is managed). */
     link?: { href: string; label: string } | undefined;
+    footer?: Snippet | undefined;
+    query?: string;
+    /** Single-line ungrouped lists; grouped/disabled lists use the standard Combobox. */
+    virtual?: boolean;
   } = $props();
-
-  let query = $state("");
 </script>
 
 <Popover
@@ -71,26 +77,43 @@
   {trigger}
 >
   <div class="flex max-h-[min(24rem,var(--float-available-height,24rem))] flex-col in-data-sheet:max-h-[70dvh]">
-    <Combobox
-      inline
-      autofocus
-      {items}
-      {key}
-      {text}
-      {groupOf}
-      {disabled}
-      bind:query
-      {value}
-      label={searchLabel ?? label}
-      {placeholder}
-      onselect={(item) => {
-        onselect(item);
-        open = false;
-      }}
-      class="min-h-0 flex-1"
-      {option}
-      {empty}
-    />
+    {#if virtual && !groupOf && !disabled}
+      <VirtualCombobox
+        {items}
+        {key}
+        {text}
+        {value}
+        bind:query
+        label={searchLabel ?? label}
+        {placeholder}
+        {option}
+        {empty}
+        onselect={(item) => {
+          onselect(item);
+          open = false;
+        }}
+      />
+    {:else}<Combobox
+        inline
+        autofocus
+        {items}
+        {key}
+        {text}
+        {groupOf}
+        {disabled}
+        bind:query
+        {value}
+        label={searchLabel ?? label}
+        {placeholder}
+        onselect={(item) => {
+          onselect(item);
+          open = false;
+        }}
+        class="min-h-0 flex-1"
+        {option}
+        {empty}
+      />{/if}
+    {#if footer}<div class="shrink-0 border-t border-zinc-950/5 p-2 dark:border-white/8">{@render footer()}</div>{/if}
     {#if link}
       <div class="flex shrink-0 border-t border-zinc-950/5 py-1 pr-1 pl-2.5 text-sm/5 sm:text-xs/4 dark:border-white/8">
         <a

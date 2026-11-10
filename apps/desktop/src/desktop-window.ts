@@ -6,7 +6,7 @@ import { applyWindowAppearance, windowAppearance, windowColors } from "./window-
 import { trackAppRoutes } from "./app-route-ipc.ts";
 import type { AppRoutes } from "./app-routes.ts";
 import type { WindowPlacement } from "./window-state.ts";
-import { allowedPermission } from "./window-permissions.ts";
+import { allowedFontAccess, allowedPermission } from "./window-permissions.ts";
 
 interface WindowOptions {
   appRoutes: AppRoutes;
@@ -139,11 +139,22 @@ export function createDesktopWindow(options: WindowOptions) {
   });
   target.webContents.on("will-attach-webview", (event) => event.preventDefault());
   const trusted = () => [options.setupOrigin(), options.webUrl()];
-  target.webContents.session.setPermissionRequestHandler((_webContents, permission, callback, details) =>
-    callback(allowedPermission(permission, details.requestingUrl, trusted())),
+  target.webContents.session.setPermissionRequestHandler((contents, permission, callback, details) =>
+    callback(
+      permission === "local-fonts"
+        ? details.isMainFrame &&
+            allowedFontAccess(details.requestingUrl, options.webUrl()) &&
+            allowedFontAccess(contents.getURL(), options.webUrl())
+        : allowedPermission(permission, details.requestingUrl, trusted()),
+    ),
   );
-  target.webContents.session.setPermissionCheckHandler((_webContents, permission, requestingOrigin) =>
-    allowedPermission(permission, requestingOrigin, trusted()),
+  target.webContents.session.setPermissionCheckHandler((contents, permission, requestingOrigin, details) =>
+    permission === "local-fonts"
+      ? details.isMainFrame &&
+        !!contents &&
+        allowedFontAccess(requestingOrigin, options.webUrl()) &&
+        allowedFontAccess(contents.getURL(), options.webUrl())
+      : allowedPermission(permission, requestingOrigin, trusted()),
   );
 
   return target;

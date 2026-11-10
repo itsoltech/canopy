@@ -35,6 +35,14 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
    Alerty wątków i botów idą przez IPC `canopy:notification` do natywnego `Notification`
    procesu main (tylko ścieżki wątku lub bota, każdy klucz raz; [notifications.md](notifications.md));
    uprawnienie `notifications` jest rezerwą dla Notification API strony.
+   Typography korzysta najpierw z `window.queryLocalFonts()`. Uprawnienie `local-fonts`
+   jest dostępne wyłącznie głównej ramce web UI; setup, iframe i obce originy nie mają
+   dostępu. Jeśli API nie działa, typowany `listFonts()` wywołuje `canopy:fonts`.
+   Main sprawdza nadawcę tym samym mechanizmem co inne IPC, następnie główną ramkę
+   i origin aplikacji. Enumeracja nie przyjmuje argumentów od renderera: Linux używa
+   `fc-list`, macOS `NSFontManager` przez systemowy JXA, Windows `InstalledFontCollection`
+   przez PowerShell. Polecenia mają limit 10 s i 4 MiB wyjścia, bez shella i bez sieci.
+   Wynik zawiera unikalne rodziny, bez duplikatów nazw pełnych i wariantów stylu.
 2. **Baza:** pełny PostgreSQL 18.6 z binariów `@embedded-postgres`, pobieranych tylko
    po wybraniu trybu lokalnego. Aplikacja nie zawiera PostgreSQL. Pierwszy lokalny start
    wymaga internetu; gotowy cache działa offline. Nie wymaga ręcznej instalacji ani

@@ -1,4 +1,5 @@
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
+import { localFontFamily } from "@canopy/ui/fonts";
 import { DeviceViewPreferences, deviceViewDefaults, type DeviceViewValues } from "@canopy/domain/device-view";
 
 /** Values are strings at the storage boundary; only declared choices are accepted. */
@@ -128,6 +129,8 @@ function isDeviceKey(key: string): key is DeviceKey {
 }
 
 function validChoice(key: DeviceKey, value: string): boolean {
+  if ((key === "interfaceFont" || key === "monoFont") && localFontFamily(value)) return true;
+
   return deviceChoices[key].some((choice) => choice === value);
 }
 

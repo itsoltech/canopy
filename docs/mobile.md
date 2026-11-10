@@ -743,6 +743,16 @@ Kit `src/ui` odpowiada `apps/web/src/lib/shared/ui`: `Button` (primary, secondar
 potwierdzenia `confirm()` zamiast natywnego `Alert.alert`. Cel dotyku 44 dp daje `hitSlop`,
 wymiary widoczne zostają jak w web.
 
+Typography przechowuje na urządzeniu osobny wybór fontu interfejsu i kodu. Presety
+pozostają na początku wyszukiwanego pickera; nazwy mają podgląd we własnym kroju.
+Lista JS obejmuje wbudowane rodziny platformy: iOS System/SF, New York (`ui-serif`),
+Georgia, Avenir Next, Helvetica Neue, Times New Roman, Menlo i Courier; Android
+Roboto i jego odmiany, Noto Serif (`serif`) oraz `monospace`. Picker kodu ogranicza
+listę do rodzin monospace. Dowolne fonty doinstalowane przez użytkownika nie są
+dostępne: ich enumeracja wymaga natywnych API, których ta zmiana JS nie dodaje.
+Nie zmienia konfiguracji natywnej ani zależności; fingerprint EAS pozostaje granicą
+zgodności aktualizacji. Brak rodziny używa domyślnego fontu platformy.
+
 RN używa StyleSheet i Inter 400/500/600 (pakiet fontu, bez pobierania z sieci), SVG
 z tych samych ścieżek i FlatList. Aplikacja działa edge-to-edge. Klawiaturę obsługuje
 `react-native-keyboard-controller` **1.22.7** (wersja dobrana przez `bunx expo install`):

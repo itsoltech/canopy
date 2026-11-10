@@ -10,6 +10,7 @@
     "./mascot": "./src/mascot.ts",
     "./settings": "./src/settings.ts",
     "./desktop": "./src/desktop.ts",
+    "./fonts": "./src/fonts.ts",
     "./themes": "./src/themes.ts",
     "./keybindings": "./src/keybindings.ts",
     "./timezones": "./src/timezones.json"
