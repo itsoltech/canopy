@@ -1,5 +1,6 @@
 import { getContext, setContext } from "svelte";
 import type { Item, ui } from "@canopy/contracts";
+import { provideThreadFileLinks } from "#lib/features/files/file-links.svelte.ts";
 
 /** Lets timeline items name and link other threads of the project (agent bus targets, parents). */
 export interface ThreadDirectory {
@@ -26,7 +27,13 @@ export interface ThreadDirectory {
 }
 
 const KEY = Symbol("thread-directory");
-export const provideThreadDirectory = (directory: ThreadDirectory) => setContext(KEY, directory);
+
+/** Also makes file paths in the thread's messages open the file (features/files). */
+export const provideThreadDirectory = (directory: ThreadDirectory) => {
+  provideThreadFileLinks(() => directory.currentId || undefined);
+
+  return setContext(KEY, directory);
+};
 
 export const useThreadDirectory = (): ThreadDirectory =>
   getContext<ThreadDirectory | undefined>(KEY) ?? {

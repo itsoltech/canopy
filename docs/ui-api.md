@@ -1598,3 +1598,25 @@ dopisywać ją za nowszymi odpowiedziami. Zdarzenia pracy w tle zachowują kolej
 przodków forka pozostaje przed własnymi turami, nawet gdy ich numery się pokrywają.
 Spóźniona aktualizacja starej tury poza załadowanym oknem nie tworzy drugiego ogona.
 Zużyte wejścia szyny mają `withdrawn = consumed` i nie tworzą pustego „Work — Cancelled”.
+
+## Pliki wątku
+
+Ścieżka pliku w wiadomości agenta jest przyciskiem: inline code, który wygląda na plik
+(`out/report.md`, `C:\work\query.sql`, `~/notes.txt`, `src/app.ts:12`), oraz link Markdown do pliku
+(`[raport](out/report.md)`, `file:///…`). Rozpoznawanie (`shared/ui/markdown/file-paths.ts`) wymaga
+rozszerzenia; sama nazwa bez folderu musi mieć rozszerzenie znanego języka albo dokumentu. Kontekst
+ustawia `provideThreadDirectory`, więc działa tylko w wątku; poza nim ścieżki zostają zwykłym kodem.
+
+Ustawienie urządzenia **Open files in** (Settings → Interface, `fileLinks`): **Canopy** otwiera
+przeglądarkę (`features/files/FileViewer.svelte`, jedna naraz, host w głównym layoucie), **Default app**
+od razu prosi worker o otwarcie pliku w domyślnej aplikacji jego komputera.
+
+Przeglądarka czyta plik przez `GET /api/threads/:id/files?path=` (`ReadThreadFile`, do 2 MiB). Markdown
+ma widok Rendered/Source (wspólny z podglądem załączników), reszta jest podświetlona Shiki według
+rozszerzenia. **Edit** ładuje CodeMirror 6 (leniwie, `features/files/code-editor.ts`): język z nazwy pliku
+(`@codemirror/language-data`), kolory z tokenów `--code-*` i palety, więc edytor podąża za motywem.
+Edycja pokazuje znacznik „Unsaved changes” w zarezerwowanym miejscu, `Mod+S` zapisuje
+(`PUT …/files` z SHA-256 odczytu), zamknięcie z niezapisanymi zmianami pyta o porzucenie. Zmiana na dysku
+od odczytu daje konflikt z akcją „Discard and reload”. **Delete…** potwierdza i usuwa z tym samym
+sprawdzeniem hasha; **Open in default app** woła `POST …/files/open`. Edycja jest wyłączona dla plików
+binarnych, obciętych i większych niż 400 KB (limit body BFF 512 KB). Granice dostępu: [protocol.md](protocol.md#folder-i-pliki-wątku).

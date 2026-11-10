@@ -27,6 +27,7 @@ export const deviceChoices = {
   hideWhitespace: ["off", "on"],
   diffFileState: ["expanded", "collapsed"],
   diffColors: ["red-green", "blue-orange"],
+  fileLinks: ["canopy", "app"],
 } as const;
 
 export type DeviceKey = keyof typeof deviceChoices;
@@ -55,6 +56,7 @@ export const deviceDefaults: Record<DeviceKey, string> = {
   hideWhitespace: "off",
   diffFileState: "expanded",
   diffColors: "red-green",
+  fileLinks: "canopy",
 };
 
 const prefix = "canopy:preferences:";
