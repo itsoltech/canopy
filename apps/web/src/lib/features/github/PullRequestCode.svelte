@@ -3,12 +3,10 @@
   import { create } from "@bufbuild/protobuf";
   import { github } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { safeHref } from "@canopy/domain/markdown";
-  import Diff from "#lib/features/threads/components/Diff.svelte";
-  import Button from "#lib/shared/ui/Button.svelte";
-  import Select from "#lib/shared/ui/Select.svelte";
-  import Checkbox from "#lib/shared/ui/Checkbox.svelte";
-  import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
+  import { fileRows } from "@canopy/domain/github-read";
+  import Icon from "#lib/shared/ui/Icon.svelte";
+  import CodeToolbar from "./CodeToolbar.svelte";
+  import CodeFile from "./CodeFile.svelte";
   import { PullRequestPages } from "./pages.svelte.ts";
   import PageControls from "./PageControls.svelte";
   import * as api from "./api.ts";
@@ -16,6 +14,8 @@
 
   let { snapshot, class: className }: { snapshot: github.PullRequestSnapshot; class?: ClassValue } = $props();
   let commit = $state("");
+  let tree = $state(false);
+  let collapsed = $state(new Set<string>());
   let selected = $state<github.PullRequestFile>();
   let patch = $state<github.PullRequestDiff>();
   let busy = $state(false);
@@ -56,12 +56,20 @@
     ),
   );
 
+  const files = $derived(pages.current?.files ?? []);
+  const rows = $derived(fileRows(files, tree, collapsed));
+
   const options = $derived([
     { value: "", label: "All commits" },
     ...commits.pages.flatMap((p) =>
       p.commits.map((c) => ({ value: c.sha, label: `${c.sha.slice(0, 7)} ${c.subject}` })),
     ),
   ]);
+
+  $effect(() => {
+    void pages.current;
+    untrack(close);
+  });
 
   $effect(() => {
     const target = pages;
@@ -82,12 +90,14 @@
     return invalidations.subscribe(id, () => void target.invalidate());
   });
 
-  async function open(file: github.PullRequestFile) {
+  async function open(file: github.PullRequestFile, force = false) {
     selected = file;
     patch = undefined;
     error = "";
-    busy = true;
+    busy = force || file.patchState === "available";
     const generation = ++version;
+
+    if (!busy) return;
 
     try {
       const value = await api.page(
@@ -103,69 +113,55 @@
       if (generation === version) busy = false;
     }
   }
+
+  function close() {
+    selected = undefined;
+    patch = undefined;
+    busy = false;
+    version++;
+  }
 </script>
 
-<section aria-label="Code" class={["grid min-w-0 gap-3", className]}>
-  <Select aria-label="Commit filter" bind:value={commit} {options} />
-  {#if commits.current?.page?.nextCursor}<Button
-      variant="ghost"
-      disabled={commits.busy}
-      onclick={() => void commits.read(true)}>Load more commits</Button
-    >{/if}
-  {#if commit}<p class="text-sm/5 text-zinc-500 sm:text-xs/5">Changes against this commit’s first parent</p>{/if}
-  <ul role="list" class="grid min-w-0 divide-y divide-zinc-950/5 dark:divide-white/10">
-    {#each pages.current?.files ?? [] as file (file.path)}<li class="min-w-0">
-        <button
-          type="button"
-          aria-expanded={selected?.path === file.path}
-          onclick={() => void open(file)}
-          class="flex min-h-11 w-full min-w-0 items-center gap-2 py-2 text-left text-sm/5 focus-ring sm:min-h-9 sm:text-xs/5"
-        >
-          <p
-            class="min-w-0 flex-1 truncate font-mono"
-            title={file.previousPath ? `${file.previousPath} → ${file.path}` : file.path}
+<section aria-label="Code" class={["min-w-0", className]}>
+  <CodeToolbar
+    bind:commit
+    bind:tree
+    {options}
+    count={commit ? `${files.length}${pages.current?.page?.nextCursor ? "+" : ""}` : String(snapshot.files)}
+    more={commits.current?.page?.nextCursor ? () => void commits.read(true) : undefined}
+    busy={commits.busy}
+  />
+  {#if commit}<p class="py-2 text-sm/5 text-zinc-500 sm:text-xs/5">Changes against this commit’s first parent</p>{/if}
+  <ul role="list" class="min-w-0">
+    {#each rows as row (row.key)}
+      {#if row.kind === "folder"}<li>
+          <button
+            type="button"
+            class="flex min-h-10 w-full items-center gap-2 text-left text-sm focus-ring sm:text-xs"
+            style:padding-left={`${Math.min(row.depth, 6) * 12}px`}
+            aria-expanded={!collapsed.has(row.key)}
+            onclick={() => {
+              const next = new Set(collapsed);
+              if (!next.delete(row.key)) next.add(row.key);
+              collapsed = next;
+            }}
+            ><Icon name={collapsed.has(row.key) ? "chevron-right" : "chevron-down"} size="sm" /><Icon
+              name={collapsed.has(row.key) ? "folder" : "folder-open"}
+            /><span class="truncate">{row.name}</span></button
           >
-            {file.previousPath ? `${file.previousPath} → ` : ""}{file.path}
-          </p>
-          <p class="shrink-0 tabular-nums">
-            <span class="text-emerald-700 dark:text-emerald-400">+{file.additions}</span>
-            <span class="text-rose-700 dark:text-rose-400">−{file.deletions}</span>
-          </p>
-        </button>
-        {#if selected?.path === file.path}<div class="grid min-w-0 gap-2 pb-3">
-            <div class="flex flex-wrap gap-3 text-sm sm:text-xs">
-              <Checkbox
-                name="wrap"
-                label="Wrap"
-                bind:checked={
-                  () => device.values.wrapDiffs === "on", (checked) => device.set("wrapDiffs", checked ? "on" : "off")
-                }
-              />
-              <Checkbox
-                name="whitespace"
-                label="Hide whitespace"
-                bind:checked={
-                  () => device.values.hideWhitespace === "on",
-                  (checked) => device.set("hideWhitespace", checked ? "on" : "off")
-                }
-              />
-            </div>
-            {#if busy}<p role="status">Loading patch…</p>{/if}
-            {#if error}<p role="alert">{error}</p>
-              <Button variant="ghost" onclick={() => void open(file)}>Retry</Button>{/if}
-            {#if patch?.patch}<Diff diff={patch.patch} label={file.path} />{:else if patch}<p
-                class="text-sm/5 text-zinc-500"
-              >
-                {patch.page?.detail || "Binary file or patch unavailable. Open on GitHub to read this file."}
-              </p>{/if}
-            {#if safeHref(file.url)}<a
-                href={safeHref(file.url)}
-                target="_blank"
-                rel="noreferrer"
-                class="text-sm text-zinc-500 hover:underline">Open on GitHub</a
-              >{/if}
-          </div>{/if}
-      </li>{/each}
+        </li>
+      {:else}<CodeFile
+          file={row.file}
+          active={selected?.path === row.file.path}
+          {patch}
+          {busy}
+          {error}
+          depth={row.depth}
+          onexpand={() => void open(row.file)}
+          onopen={() => void open(row.file, true)}
+          onclose={close}
+        />{/if}
+    {/each}
   </ul>
   <PageControls
     page={pages.current?.page}

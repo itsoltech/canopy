@@ -7,7 +7,7 @@ import { useSession } from "../../state/session";
 import { useColors, useTypography } from "../../ui/theme";
 import { Button } from "../../ui/components";
 import { usePages } from "./usePages";
-import { PageControls } from "./PageControls";
+import { PageStatus } from "./PageStatus";
 import { PullRequestCheckRow } from "./PullRequestCheckRow";
 
 export function PullRequestChecks({ snapshot }: { snapshot: github.PullRequestSnapshot }) {
@@ -16,7 +16,7 @@ export function PullRequestChecks({ snapshot }: { snapshot: github.PullRequestSn
   const type = useTypography();
   const id = snapshot.summary?.ref?.id ?? "";
   const headSha = snapshot.summary?.headSha ?? "";
-  const [expanded, setExpanded] = useState(false);
+  const [visible, setVisible] = useState(5);
 
   const pages = usePages(
     useCallback(
@@ -27,7 +27,15 @@ export function PullRequestChecks({ snapshot }: { snapshot: github.PullRequestSn
     id,
   );
 
-  const checks = sortedChecks(pages.current?.checks ?? snapshot.checks);
+  const checks = sortedChecks(pages.pages.length ? pages.pages.flatMap((p) => p.checks) : snapshot.checks);
+
+  async function more() {
+    if (visible < checks.length) setVisible(checks.length);
+    else {
+      await pages.read(true);
+      setVisible((value) => value + 50);
+    }
+  }
 
   return (
     <View style={{ gap: 8 }}>
@@ -40,24 +48,23 @@ export function PullRequestChecks({ snapshot }: { snapshot: github.PullRequestSn
             }),
           )}
         </Text>
-        <Text style={[type.meta, { color: c.muted }]}>{headSha.slice(0, 7)}</Text>
+        <Text style={[type.meta, { color: c.muted }]}>on {headSha.slice(0, 7)}</Text>
       </View>
-      {(expanded ? checks : checks.slice(0, 5)).map((check, i) => (
+      {checks.slice(0, visible).map((check, i) => (
         <PullRequestCheckRow key={`${check.nodeId}:${check.name}:${i}`} id={id} check={check} />
       ))}
-      {checks.length > 5 && (
+      {(visible < checks.length || !!pages.current?.page?.nextCursor) && (
         <Button
-          title={expanded ? "Show fewer checks" : `Show ${checks.length - 5} more checks`}
+          title={visible < checks.length ? `Show ${checks.length - visible} more checks` : "Show more checks"}
           variant="ghost"
-          onPress={() => setExpanded(!expanded)}
+          disabled={pages.busy}
+          onPress={() => void more()}
         />
       )}
-      <PageControls
+      <PageStatus
         page={pages.current?.page}
         busy={pages.busy}
         error={pages.error}
-        previous={pages.previous}
-        next={() => void pages.read(true)}
         retry={() => void pages.read(false, true)}
       />
     </View>

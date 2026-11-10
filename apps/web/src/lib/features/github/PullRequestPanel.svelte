@@ -145,7 +145,7 @@
     role="tabpanel"
     id={`${prefix}-${tab}-panel`}
     aria-labelledby={`${prefix}-${tab}-tab`}
-    class="min-h-0 flex-1 scroll-stable overflow-y-auto overscroll-contain p-4"
+    class={["min-h-0 flex-1 scroll-stable overflow-y-auto overscroll-contain", tab === "summary" ? "p-4" : "px-4 pb-4"]}
   >
     {#if error || read.snapshot.error}<Alert class="mb-4"
         >{error || "Connect to load this page. Check account access, then retry."}<Button

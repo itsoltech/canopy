@@ -6,6 +6,7 @@
   "exports": {
     "./connection-recovery": "./src/connection-recovery.ts",
     "./github-pr": "./src/github-pr.ts",
+    "./github-read": "./src/github-read.ts",
     "./github-watch": "./src/github-watch.ts",
     "./device-view": "./src/device-view.ts",
     "./coalesce": "./src/coalesce.ts",

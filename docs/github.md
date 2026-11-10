@@ -646,10 +646,22 @@ Timeline i Code pojawią się z implementacją ich etapów w tym samym pasku.
 4. **Timeline.** Zdarzenia, commity, komentarze i reviews od najnowszych. Rozwinięcie review
    doczytuje dyskusje i odpowiedzi; zachowuje identyfikatory, autorów, permalink i oznaczenie
    outdated/resolved. Paginacja nie przesuwa właśnie czytanego zdarzenia.
+   Filtr typu i ikona kolejności mieszczą się w jednym wierszu. Oś pokazuje autora, ikonę
+   zdarzenia i czas względny (pełna data w tooltipie). Kolejne commity tego samego autora
+   tworzą grupę z krótkimi SHA. Dyskusje są wplecione w oś z kontekstem plik:linia,
+   wciętymi odpowiedziami i stopniowym doczytywaniem; komentarze używają kart Markdown.
 5. **Code.** Lista/drzewo plików, +/−, Viewed, filtr commitu, Stacked/Side by side, wrap,
    widoczność whitespace i drzewo. Są to rozszerzenia `DiffLines`/`diff-layout.ts` i mobilnego
    `DiffContent`, nie nowy parser. Whitespace jest przełącznikiem prezentacji znaków;
    rzeczywisty patch i liczniki pozostają zgodne z GitHub, bez udawania nowego porównania git.
+   Jeden górny pasek zawiera kompaktowy filtr commitu, liczbę plików i ikony układu,
+   wrap, whitespace i drzewa. Wiersz pliku ma chevron, ikonę zmiany, środkowo skróconą
+   ścieżkę (przy rename starą → nową) i +/−. Patch rozwija się bezpośrednio pod wierszem,
+   którego nagłówek pozostaje przyklejony podczas przewijania. Link do GitHub jest ikoną
+   w nagłówku; binarne/duże pliki mają krótki komunikat i akcję. Foldery drzewa są zwijane.
+   W etapie 4 Viewed pozostaje ukryte. Stan całego PR ma ikonę i tekst w nagłówku;
+   pojedyncze statusy wierszy pozostają ikonami z etykietami dostępnymi i tooltipami.
+   Checki używają jednego „Show more”, które przezroczyście doczytuje kolejne strony.
 
 Gutter Code ma **Add comment** oraz wybór początku/końca zakresu; unified i split zachowują
 te same kotwice. Dostępne są drag/Shift i równoważne sterowanie klawiaturą, także przy wrap/whitespace.

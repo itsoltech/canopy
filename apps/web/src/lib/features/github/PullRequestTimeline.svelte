@@ -2,36 +2,28 @@
   import { untrack } from "svelte";
   import { create } from "@bufbuild/protobuf";
   import { github } from "@canopy/contracts";
+  import { activityFilters, pullRequestActivity } from "@canopy/domain/github-read";
   import type { ClassValue } from "svelte/elements";
-  import { timelineLook } from "@canopy/domain/github-pr";
-  import { tooltip } from "#lib/shared/ui/tooltip.ts";
-  import { toneClasses } from "./presentation.ts";
-  import { safeHref } from "@canopy/domain/markdown";
-  import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import Select from "#lib/shared/ui/Select.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import { formatDateTime } from "#lib/shared/format.ts";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
+  import MenuCheckItem from "#lib/shared/ui/MenuCheckItem.svelte";
+  import GitHubAvatar from "./GitHubAvatar.svelte";
+  import ReviewThread from "./ReviewThread.svelte";
+  import TimelineEvent from "./TimelineEvent.svelte";
+  import PageStatus from "./PageStatus.svelte";
   import { PullRequestPages } from "./pages.svelte.ts";
-  import PageControls from "./PageControls.svelte";
-  import PullRequestReviews from "./PullRequestReviews.svelte";
   import * as api from "./api.ts";
   import { invalidations } from "./invalidations.ts";
 
   let { id, class: className }: { id: string; class?: ClassValue } = $props();
   let kind = $state("");
-  let author = $state("");
-  let oldest = $state("newest");
-  let reviews = $state(false);
+  let oldest = $state(false);
+  const includeThreads = $derived(!kind || kind === "review");
 
   const pages = $derived.by(() => {
-    const base = create(github.PullRequestPageRequestSchema, {
-      pullRequestId: id,
-      kind,
-      author,
-      oldestFirst: oldest === "oldest",
-    });
+    const base = create(github.PullRequestPageRequestSchema, { pullRequestId: id, kind, oldestFirst: oldest });
 
     return new PullRequestPages((cursor, refresh) =>
       api.page(
@@ -42,72 +34,102 @@
     );
   });
 
+  const reviews = $derived(
+    new PullRequestPages((cursor, refresh) =>
+      api.page(
+        "reviews",
+        github.PullRequestReviewThreadsPageSchema,
+        create(github.PullRequestPageRequestSchema, { pullRequestId: id, cursor, refresh }),
+      ),
+    ),
+  );
+
+  const rows = $derived(
+    pullRequestActivity(
+      pages.pages.flatMap((p) => p.items),
+      includeThreads ? reviews.pages.flatMap((p) => p.threads) : [],
+      oldest,
+    ),
+  );
+
   $effect(() => {
     const target = pages;
     untrack(() => void target.read());
 
     return invalidations.subscribe(id, () => void target.invalidate());
   });
+
+  $effect(() => {
+    const target = reviews;
+    untrack(() => void target.read());
+
+    return invalidations.subscribe(id, () => void target.invalidate());
+  });
+
+  async function more() {
+    if (pages.current?.page?.nextCursor) await pages.read(true);
+
+    if (includeThreads && reviews.current?.page?.nextCursor) await reviews.read(true);
+  }
 </script>
 
-<section aria-label="Timeline" class={["grid min-w-0 gap-4", className]}>
-  <div class="flex flex-wrap items-center gap-2">
-    <Select
-      aria-label="Timeline type"
-      bind:value={kind}
-      options={[
-        { value: "", label: "All events" },
-        { value: "comment", label: "Comments" },
-        { value: "review", label: "Reviews" },
-        { value: "commit", label: "Commits" },
-        { value: "event", label: "Events" },
-      ]}
-    />
-    <Select
-      aria-label="Timeline order"
-      bind:value={oldest}
-      options={[
-        { value: "newest", label: "Newest first" },
-        { value: "oldest", label: "Oldest first" },
-      ]}
-    />
-    <Input aria-label="Filter by author" placeholder="Author login" bind:value={author} />
-  </div>
-  <Button variant="ghost" aria-expanded={reviews} onclick={() => (reviews = !reviews)}
-    >{reviews ? "Hide review threads" : "Review threads"}</Button
+<section aria-label="Timeline" class={["min-w-0", className]}>
+  <div
+    class="sticky top-0 z-20 flex h-12 items-center justify-between gap-2 border-b border-zinc-950/10 bg-surface dark:border-white/10"
   >
-  {#if reviews}<PullRequestReviews {id} />{/if}
-  <ol role="list" class="grid gap-4">
-    {#each pages.current?.items ?? [] as item, i (item.content.value?.id ?? i)}
-      {@const entry = item.content.value}
-      {#if entry}{@const look = timelineLook(entry.kind, entry.state, item.content.case)}
-        <li class="grid min-w-0 gap-2 border-b border-zinc-950/5 pb-4 dark:border-white/10">
-          <div class="flex min-w-0 items-center gap-2 text-sm/5 sm:text-xs/5">
-            <span {@attach tooltip(look.label)} class={toneClasses[look.tone]}
-              ><Icon name={look.icon} label={look.label} tone="inherit" /></span
-            >
-            <p class="min-w-0 flex-1 truncate font-medium">{entry.author}</p>
-            <a
-              href={safeHref(entry.url)}
-              target="_blank"
-              rel="noreferrer"
-              class="shrink-0 text-zinc-500 hover:underline">{formatDateTime(entry.createdAt) || "Source"}</a
-            >
-          </div>
-          {#if entry.body}<Markdown text={entry.body} />{/if}
-          {#if entry.sha}<p class="font-mono text-sm text-zinc-500 sm:text-xs">{entry.sha.slice(0, 12)}</p>{/if}
-        </li>{/if}
+    <DropdownMenu label="Activity filter" sheet>
+      {#snippet trigger(props)}<Button {...props} size="sm" variant="ghost"
+          ><Icon name="funnel" /><span>{activityFilters.find((f) => f.value === kind)?.label}</span><Icon
+            name="chevron-down"
+            size="sm"
+          /></Button
+        >{/snippet}
+      {#each activityFilters as filter (filter.value)}<MenuCheckItem
+          checked={kind === filter.value}
+          onselect={() => (kind = filter.value)}>{filter.label}</MenuCheckItem
+        >{/each}
+    </DropdownMenu>
+    <IconButton
+      size="sm"
+      icon={oldest ? "arrow-up" : "arrow-down"}
+      label={oldest ? "Oldest first" : "Newest first"}
+      aria-pressed={oldest}
+      onclick={() => (oldest = !oldest)}
+    />
+  </div>
+  <ol
+    role="list"
+    class="relative grid gap-5 py-5 before:absolute before:inset-y-5 before:left-4 before:w-px before:bg-zinc-950/10 dark:before:bg-white/10"
+  >
+    {#each rows as row (row.key)}
+      {@const author = row.kind === "thread" ? row.thread.comments[0]?.author : row.items[0]?.content.value?.author}
+      <li class="relative flex min-w-0 items-start gap-3">
+        <GitHubAvatar userId="" login={author || "GH"} class="ring-4 ring-surface" />
+        <div class="min-w-0 flex-1 pt-1.5">
+          {#if row.kind === "thread"}<ReviewThread {id} thread={row.thread} />{:else}<TimelineEvent
+              items={row.items}
+            />{/if}
+        </div>
+      </li>
     {/each}
   </ol>
-  {#if pages.current && !pages.current.items.length}<p class="text-sm text-zinc-500">
-      No matching events on this page
-    </p>{/if}
-  <PageControls
+  {#if pages.current && !rows.length}<p class="py-4 text-sm text-zinc-500">No matching activity</p>{/if}
+  {#if pages.current?.page?.nextCursor || (includeThreads && reviews.current?.page?.nextCursor)}<Button
+      variant="ghost"
+      size="sm"
+      disabled={pages.busy || reviews.busy}
+      onclick={more}>Show more activity</Button
+    >{/if}
+  <PageStatus
     page={pages.current?.page}
     busy={pages.busy}
     error={pages.error}
-    previous={pages.index ? () => pages.index-- : undefined}
-    next={() => void pages.read(true)}
     retry={() => void pages.read(false, true)}
   />
+  {#if includeThreads}<PageStatus
+      page={reviews.current?.page}
+      busy={reviews.busy}
+      error={reviews.error}
+      retry={() => void reviews.read(false, true)}
+    />{/if}
 </section>

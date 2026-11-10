@@ -54,7 +54,7 @@ export function PullRequestHeader({
             {ref?.repositoryName} <Text style={{ color: c.text }}>#{ref?.number}</Text>
           </Text>
         </Pressable>
-        <PullRequestStatus state={pr?.state ?? ""} iconOnly />
+        <PullRequestStatus state={pr?.state ?? ""} />
         <GitHubActions
           name="Pull request"
           actions={[

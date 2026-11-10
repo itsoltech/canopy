@@ -60,7 +60,7 @@
       class="min-w-0 flex-1 truncate font-medium text-zinc-500 hover:underline dark:text-zinc-400"
       >{ref?.repositoryName} <span class="text-zinc-900 dark:text-zinc-100">#{ref?.number}</span></a
     >
-    <PullRequestState state={pr?.state ?? ""} iconOnly />
+    <PullRequestState state={pr?.state ?? ""} />
     <DropdownMenu label="Pull request actions" placement="bottom-end" sheet>
       {#snippet trigger(props)}<IconButton
           icon="ellipsis-horizontal"

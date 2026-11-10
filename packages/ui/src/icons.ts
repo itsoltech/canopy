@@ -4,6 +4,12 @@
  * Values contain only validated inert path data; comments name the upstream glyph.
  */
 export const icons = {
+  // text-wrap
+  "text-wrap": ["M4 6h16M4 18h5m-5-6h13a3 3 0 0 1 0 6h-4m3-3l-3 3l3 3"],
+  // space
+  space: ["M4 10v4h16v-4"],
+  // file-tree
+  "file-tree": ["M9 6h11M12 12h8m-8 6h8M4 4v14a1 1 0 0 0 1 1h3M4 12h4M4 6h1"],
   // hourglass-high
   hourglass: ["M6 3h12m-12 18h12M7 3v4a5 5 0 0 0 10 0V3M7 21v-4a5 5 0 0 1 10 0v4"],
   // eye

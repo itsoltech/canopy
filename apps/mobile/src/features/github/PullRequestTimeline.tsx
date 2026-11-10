@@ -1,145 +1,130 @@
 import { useCallback, useState, type ReactNode } from "react";
-import { FlatList, Pressable, Text, View } from "react-native";
-import * as Linking from "expo-linking";
-import { github } from "@canopy/contracts";
-import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { timelineLook } from "@canopy/domain/github-pr";
-import { toneColor } from "./presentation";
-import { safeHref } from "@canopy/domain/markdown";
+import { FlatList, Text, View } from "react-native";
+import { activityFilters, pullRequestActivity } from "@canopy/domain/github-read";
 import { useSession } from "../../state/session";
-import { Markdown } from "../../ui/markdown/Markdown";
 import { PickerSheet } from "../../ui/Picker";
-import { TextInput } from "../../ui/TextInput";
 import { Button } from "../../ui/components";
-import { Icon } from "../../ui/Icon";
 import { useColors, useTypography } from "../../ui/theme";
 import { useContentPadding } from "../../ui/ScreenFrame";
 import { usePages } from "./usePages";
-import { PageControls } from "./PageControls";
-import { PullRequestReviews } from "./PullRequestReviews";
-import { StatusIcon } from "./StatusIcon";
+import { PageStatus } from "./PageStatus";
+import { ActivityRow } from "./ActivityRow";
+import { IconAction } from "./IconAction";
 
 export function PullRequestTimeline({ id, header }: { id: string; header: ReactNode }) {
   const { client } = useSession();
   const padding = useContentPadding();
+  const c = useColors();
+  const type = useTypography();
   const [kind, setKind] = useState("");
-  const [author, setAuthor] = useState("");
   const [oldestFirst, setOldest] = useState(false);
   const [picker, setPicker] = useState(false);
-  const [reviews, setReviews] = useState(false);
+  const includeThreads = !kind || kind === "review";
 
-  const load = useCallback(
-    (cursor: string, refresh: boolean) =>
-      client!.api.listPullRequestTimeline({ pullRequestId: id, cursor, refresh, kind, author, oldestFirst }),
-    [client, id, kind, author, oldestFirst],
+  const pages = usePages(
+    useCallback(
+      (cursor: string, refresh: boolean) =>
+        client!.api.listPullRequestTimeline({ pullRequestId: id, cursor, refresh, kind, oldestFirst }),
+      [client, id, kind, oldestFirst],
+    ),
+    id,
   );
 
-  const pages = usePages(load, id);
+  const reviews = usePages(
+    useCallback(
+      (cursor: string, refresh: boolean) =>
+        client!.api.listPullRequestReviewThreads({ pullRequestId: id, cursor, refresh }),
+      [client, id],
+    ),
+    id,
+  );
+
+  const rows = pullRequestActivity(
+    pages.pages.flatMap((p) => p.items),
+    includeThreads ? reviews.pages.flatMap((p) => p.threads) : [],
+    oldestFirst,
+  );
+
+  async function more() {
+    if (pages.current?.page?.nextCursor) await pages.read(true);
+
+    if (includeThreads && reviews.current?.page?.nextCursor) await reviews.read(true);
+  }
 
   return (
     <>
       <FlatList
-        data={pages.current?.items ?? []}
-        keyExtractor={(item, index) => item.content.value?.id ?? String(index)}
-        contentContainerStyle={{ ...padding, gap: 16 }}
-        keyboardShouldPersistTaps="handled"
+        data={rows}
+        keyExtractor={(row) => row.key}
+        contentContainerStyle={padding}
         ListHeaderComponent={
           <View style={{ gap: 12 }}>
             {header}
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              <Button title={kind || "All events"} variant="ghost" onPress={() => setPicker(true)} />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                borderBottomWidth: 1,
+                borderColor: c.line,
+              }}
+            >
               <Button
-                title={oldestFirst ? "Oldest first" : "Newest first"}
+                title={activityFilters.find((f) => f.value === kind)?.label ?? "All activity"}
                 variant="ghost"
+                onPress={() => setPicker(true)}
+              />
+              <IconAction
+                icon={oldestFirst ? "arrow-up" : "arrow-down"}
+                label={oldestFirst ? "Oldest first" : "Newest first"}
+                selected={oldestFirst}
                 onPress={() => setOldest(!oldestFirst)}
               />
             </View>
-            <TextInput
-              accessibilityLabel="Filter by author"
-              placeholder="Author login"
-              value={author}
-              onChangeText={setAuthor}
-            />
-            <Button
-              title={reviews ? "Hide review threads" : "Review threads"}
-              variant="ghost"
-              onPress={() => setReviews(!reviews)}
-            />
-            {reviews && <PullRequestReviews id={id} />}
           </View>
         }
-        ListFooterComponent={
-          <PageControls
-            page={pages.current?.page}
-            busy={pages.busy}
-            error={pages.error}
-            previous={pages.previous}
-            next={() => void pages.read(true)}
-            retry={() => void pages.read(false, true)}
-          />
+        renderItem={({ item }) => <ActivityRow id={id} row={item} />}
+        ListEmptyComponent={
+          pages.current ? <Text style={[type.meta, { color: c.muted }]}>No matching activity</Text> : undefined
         }
-        renderItem={({ item }) => <TimelineRow item={item} />}
+        ListFooterComponent={
+          <View style={{ gap: 8, paddingTop: 16 }}>
+            {(!!pages.current?.page?.nextCursor || (includeThreads && !!reviews.current?.page?.nextCursor)) && (
+              <Button
+                title="Show more activity"
+                variant="ghost"
+                disabled={pages.busy || reviews.busy}
+                onPress={() => void more()}
+              />
+            )}
+            <PageStatus
+              page={pages.current?.page}
+              busy={pages.busy}
+              error={pages.error}
+              retry={() => void pages.read(false, true)}
+            />
+            {includeThreads && (
+              <PageStatus
+                page={reviews.current?.page}
+                busy={reviews.busy}
+                error={reviews.error}
+                retry={() => void reviews.read(false, true)}
+              />
+            )}
+          </View>
+        }
       />
       <PickerSheet
-        title="Timeline type"
+        title="Activity filter"
         visible={picker}
         value={kind}
         onClose={() => setPicker(false)}
-        onSelect={(v) => {
-          setKind(v);
+        onSelect={(value) => {
+          setKind(value);
           setPicker(false);
         }}
-        sections={[
-          {
-            options: [
-              { value: "", label: "All events" },
-              { value: "comment", label: "Comments" },
-              { value: "review", label: "Reviews" },
-              { value: "commit", label: "Commits" },
-              { value: "event", label: "Events" },
-            ],
-          },
-        ]}
+        sections={[{ options: activityFilters }]}
       />
     </>
-  );
-}
-
-function TimelineRow({ item }: { item: github.PullRequestTimelineItem }) {
-  const c = useColors();
-  const type = useTypography();
-  const entry = item.content.value;
-
-  if (!entry) return null;
-  const look = timelineLook(entry.kind, entry.state, item.content.case);
-
-  return (
-    <View style={{ gap: 8, borderBottomWidth: 1, borderColor: c.line, paddingBottom: 12 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <StatusIcon name={look.icon} label={look.label} color={toneColor(c, look.tone)} />
-        <Text style={[type.small, { flex: 1, color: c.text }]}>{entry.author}</Text>
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel="Open event on GitHub"
-          style={{ minHeight: 48, justifyContent: "center" }}
-          onPress={() => {
-            const href = safeHref(entry.url);
-
-            if (href) void Linking.openURL(href);
-          }}
-        >
-          <Icon name="arrow-top-right-on-square" />
-        </Pressable>
-      </View>
-      {entry.createdAt && (
-        <Text style={[type.meta, { color: c.muted }]}>{timestampDate(entry.createdAt).toLocaleString()}</Text>
-      )}
-      {!!entry.body && <Markdown text={entry.body} />}
-      {!!entry.sha && (
-        <Text selectable style={[type.mono, { color: c.muted }]}>
-          {entry.sha.slice(0, 12)}
-        </Text>
-      )}
-    </View>
   );
 }
