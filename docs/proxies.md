@@ -23,8 +23,8 @@ prefiks ścieżki reverse proxy. URL nie może zawierać loginu, hasła, query a
   `env_key=CANOPY_<ID>_API_KEY`, `requires_openai_auth=false`. Wątek wybiera ten
   provider przez `thread/start.modelProvider`. To równoważne polom `config.toml`
   z poradnika CLIProxyAPI, bez modyfikacji konfiguracji urządzenia i bez klucza w pliku
-  lub argv. Zaawansowane ustawienia pozwalają wyłączyć WebSockets (preset CLIProxyAPI
-  włącza je) i dodać publiczne nagłówki routingu. Bieżący Codex obsługuje wyłącznie
+  lub argv. Nowe połączenia domyślnie używają HTTP/SSE. Zaawansowane ustawienia
+  pozwalają jawnie włączyć WebSockets i dodać publiczne nagłówki routingu. Bieżący Codex obsługuje wyłącznie
   `responses`; inna wartość `wire_api` jest odrzucana. Nagłówki auth, cookies i kluczy
   są odrzucane; sekret ma osobne pole.
 - Grok 1.0.70 (`f50904eaee6c`) obsługuje własne endpointy:
@@ -39,6 +39,32 @@ prefiks ścieżki reverse proxy. URL nie może zawierać loginu, hasła, query a
 
 Źródła: [adapter Groka](grok-adapter.md), [oficjalne ACP/headless](https://docs.x.ai/build/cli/headless-scripting),
 [routing CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI/blob/main/internal/api/server_routes.go).
+
+### Codex: przerwanie odpowiedzi przez proxy
+
+Canopy wysyła do app-servera `turn/steer` (nowe wejście do działającej tury)
+albo `turn/interrupt` (Stop). Steer nie jest implementowany jako Stop + nowa tura.
+Sam Codex 0.164.0 wysyła przez transport Responses WebSocket ramkę
+`response.interrupt` z id odpowiedzi i `mode = discard_partial_items`.
+Dotyczy to także wyprzedzającego dostarczenia steera (`instant_interrupt`, domyślnie włączone).
+Źródło: [transport Codexa](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/codex-api/src/endpoint/responses_websocket.rs).
+
+CLIProxyAPI v8.0.22 ma wyścig na granicy zakończenia odpowiedzi: gdy upstream
+już zakończył pracę, ale klient nadal czeka na jej koniec, kontrolna ramka może
+dostać 400 `no active upstream websocket for response.interrupt`. Ten błąd może
+zostać w kolejce po starej odpowiedzi i zepsuć następną. Nie dowodzi awarii
+klucza lub modelu ani braku obsługi WebSockets w ogóle. Rozpoznany upstream:
+[zgłoszenie #6483](https://github.com/router-for-me/CLIProxyAPI/issues/6483),
+[kontrola aktywnego połączenia](https://github.com/router-for-me/CLIProxyAPI/blob/6746588/internal/runtime/executor/codex_websockets_executor.go),
+[obsługa ramki](https://github.com/router-for-me/CLIProxyAPI/blob/6746588/sdk/api/handlers/openai/openai_responses_websocket_input.go).
+Bez wersji proxy i zdarzeń konkretnego wątku nie można potwierdzić, że właśnie
+ten wyścig wywołał pojedynczy incydent.
+
+HTTP/SSE omija te ramki, zachowując `turn/steer` i Stop. Zapisany jawny wybór
+WebSockets pozostaje respektowany; w istniejącym proxy z tym błędem wyłącz
+**Supports WebSockets** w Settings → Proxies. Zmiana działa po drain instancji.
+**Test connection** sprawdza katalog modeli, nie potwierdza zgodności ramek
+kontrolnych. Nie ignorujemy rzeczywistego `turn/completed.status = failed`.
 
 ## Test połączenia
 

@@ -40,10 +40,10 @@ export function proxyRoot(value: string): string {
 export const proxySupports = (kind: string, harness: string): boolean =>
   kind === "cliproxyapi" || (kind === "anthropic" ? harness === "claude" : harness === "codex" || harness === "grok");
 
-export function proxyOptions(kind: string, input?: ProxyOptions): ProxyOptions {
+export function proxyOptions(input?: ProxyOptions): ProxyOptions {
   const options = {
     wireApi: input?.wireApi || "responses",
-    supportsWebsockets: input?.supportsWebsockets ?? kind === "cliproxyapi",
+    supportsWebsockets: input?.supportsWebsockets ?? false,
     extraHeaders: input?.extraHeaders ?? {},
   };
 

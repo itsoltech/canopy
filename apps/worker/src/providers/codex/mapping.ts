@@ -271,6 +271,7 @@ export class CodexEventMapper {
       case "error": {
         const { error, willRetry, turnId } = notification.params;
 
+        // Even willRetry=false is a diagnostic, not a turn end. Only turn/completed carries the outcome.
         return [
           event(turnId, {
             case: "notice",

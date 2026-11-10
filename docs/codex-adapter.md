@@ -75,6 +75,15 @@ Gotowe:
 | rollout: `function_call` `exec_command` bez itemu Codexa | `command_execution` złożony z wywołania i wyniku (kod wyjścia, output), na końcu tury |
 | hooki, `readState`, metadane moderacji, diff tury, ... | zdarzenie bez ciała, tylko `raw_json` |
 
+`error` nigdy nie kończy tury, również przy `willRetry = false`: dalsze itemy
+pozostają w tej samej turze, a wynik określa dopiero `turn/completed.status`.
+`systemError`/`idle` w aktywności nie zeruje działającej tury gatewaya. Późny
+koniec starej tury nie zmienia statusu nowszej. `provider-errors.test.ts`
+odtwarza skryptowane sekwencje app-servera, a `provider-error-turns.test.ts`
+sprawdza ich ingest przez gRPC, snapshot/live, pobudkę po `worker_shutdown`
+i położenie stopki starej tury przed działającym foldem. To sekwencje regresji,
+nie nagranie incydentu. Transport proxy: [proxies.md](proxies.md#codex-przerwanie-odpowiedzi-przez-proxy).
+
 ## Załączniki i obrazy
 
 - Pliki leżą poza repozytorium (`<data_dir>/attachments/...`); sandbox Codexa (`read-only`, `workspace-write`) czyta cały dysk, więc nic nie trzeba dodawać.

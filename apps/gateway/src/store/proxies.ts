@@ -118,7 +118,7 @@ export function proxyStore(sql: SqlClient.SqlClient, key: Buffer, core: Instance
           });
 
           const options = yield* Effect.try({
-            try: () => proxyOptions(request.kind, request.codex ?? previous?.codex),
+            try: () => proxyOptions(request.codex ?? previous?.codex),
             catch: (e) => (e instanceof Invalid ? e : new Invalid("Invalid transport options")),
           });
 

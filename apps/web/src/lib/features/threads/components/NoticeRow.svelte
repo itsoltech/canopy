@@ -1,12 +1,15 @@
 <script lang="ts">
   import { NoticeLevel } from "@canopy/contracts";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import { humanizeEnum } from "@canopy/domain/humanize";
+  import CopyButton from "#lib/shared/ui/CopyButton.svelte";
+  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
+  import { noticePresentation } from "@canopy/domain/notice-presentation";
   import type { TimelineNotice } from "../thread-state.svelte.ts";
 
   /** Platform or provider notice (rate limit, retry, restart, provider error). */
   let { notice }: { notice: TimelineNotice } = $props();
   const level = $derived(notice.notice.level);
+  const presentation = $derived(noticePresentation(notice.notice));
 </script>
 
 <div
@@ -30,8 +33,18 @@
       class="opacity-70"
     />
   </span>
-  <!-- The machine code (e.g. rate_limit) stays in the tooltip; the message says it in words. -->
-  <p class="min-w-0 break-words select-text" title={notice.notice.code ? `Code: ${notice.notice.code}` : undefined}>
-    {notice.notice.message || humanizeEnum(notice.notice.code)}
-  </p>
+  <div class="grid min-w-0 flex-1 gap-1">
+    <p class="break-words select-text" title={notice.notice.code ? `Code: ${notice.notice.code}` : undefined}>
+      {presentation.message}
+    </p>
+    {#if presentation.details}
+      <Disclosure remember={`notice:${notice.seq}`}>
+        {#snippet summary()}Show details{/snippet}
+        <div class="flex min-w-0 items-start gap-2 py-2">
+          <pre class="min-w-0 flex-1 font-mono break-words whitespace-pre-wrap select-text">{presentation.details}</pre>
+          <CopyButton text={presentation.details} label="Copy error details" />
+        </div>
+      </Disclosure>
+    {/if}
+  </div>
 </div>
