@@ -50,12 +50,46 @@ async function pgCounters() {
   return {
     cpuMicros: Number(cpu.match(/^usage_usec (\d+)/m)?.[1] ?? 0),
     writeBytes: [...io.matchAll(/wbytes=(\d+)/g)].reduce((total, value) => total + Number(value[1]), 0),
+    writeDevices: Object.fromEntries(
+      io
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => [line.split(" ")[0]!, Number(line.match(/\bwbytes=(\d+)/)?.[1] ?? 0)]),
+    ),
   };
 }
 
 async function checkpoint(database: string) {
   if (process.env["CANOPY_BENCH_CHECKPOINT"] !== "1") return;
   await command(["docker", "exec", name, "psql", "-U", "postgres", "-d", database, "-Atqc", "CHECKPOINT"]);
+}
+
+async function measuredGateway(env: Record<string, string | undefined>, series: number, on: boolean) {
+  const before = await pgCounters();
+  const started = performance.now();
+  const gateway = await diagnosticsProcess(env);
+  const startupMs = performance.now() - started;
+  const after = await pgCounters();
+  console.info(
+    JSON.stringify({
+      phase: "startup",
+      series,
+      on,
+      startupMs,
+      pgCpuMicros: after.cpuMicros - before.cpuMicros,
+      ioBytes: after.writeBytes - before.writeBytes,
+      ioDeviceBytes: Object.fromEntries(
+        Object.entries(after.writeDevices).map(([device, bytes]) => [
+          device,
+          bytes - (before.writeDevices[device] ?? 0),
+        ]),
+      ),
+      ...(await gateway.run("sample")),
+    }),
+  );
+
+  return gateway;
 }
 
 async function run(on: boolean, index: number) {
@@ -76,22 +110,7 @@ async function run(on: boolean, index: number) {
   if (process.env["CANOPY_BENCH_HISTORY"] === "1")
     console.info(JSON.stringify({ history: await seedDiagnosticsHistory(env) }));
   await checkpoint(database);
-  const beforeStartup = await pgCounters();
-  const startupAt = performance.now();
-  active = await diagnosticsProcess(env);
-  const startupMs = performance.now() - startupAt;
-  const afterStartup = await pgCounters();
-  console.info(
-    JSON.stringify({
-      phase: "startup",
-      series: index + 1,
-      on,
-      startupMs,
-      pgCpuMicros: afterStartup.cpuMicros - beforeStartup.cpuMicros,
-      ioBytes: afterStartup.writeBytes - beforeStartup.writeBytes,
-      ...(await active.run("sample")),
-    }),
-  );
+  active = await measuredGateway(env, index + 1, on);
   worker = await diagnosticsWorker({
     ...env,
     CANOPY_BENCH_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
@@ -168,6 +187,12 @@ async function run(on: boolean, index: number) {
         cpuPercent: after.cpuMicros / after.elapsedMs / 10,
         pgCpuPercent: (afterPg.cpuMicros - beforePg.cpuMicros) / after.elapsedMs / 10,
         ioBytesPerHour: (afterPg.writeBytes - beforePg.writeBytes) / hours,
+        ioDeviceBytesPerHour: Object.fromEntries(
+          Object.entries(afterPg.writeDevices).map(([device, bytes]) => [
+            device,
+            (bytes - (beforePg.writeDevices[device] ?? 0)) / hours,
+          ]),
+        ),
         walBytesPerHour: (after.walBytes - before.walBytes) / hours,
         persistedBytesPerHour: (after.rollupBytes - before.rollupBytes) / hours,
         writesPerHour: (after.writes - before.writes) / hours,
