@@ -7,6 +7,9 @@
   import SearchPicker from "#lib/shared/ui/SearchPicker.svelte";
   import PickerRow from "#lib/shared/ui/PickerRow.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import MiddleTruncatedText from "#lib/shared/ui/MiddleTruncatedText.svelte";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
+  import PanelField from "./PanelField.svelte";
   import { threadBranches, switchThreadBranch } from "../branches.ts";
 
   let { thread, worker, class: className }: { thread: ui.Thread; worker?: ui.Worker; class?: ClassValue } = $props();
@@ -25,6 +28,7 @@
   let loading = $state(false);
   let busy = $state(false);
   let error = $state("");
+  let checkoutReason = $state("");
   let refs = $state<GitRef[]>([]);
 
   $effect(() => {
@@ -34,12 +38,15 @@
     let cancelled = false;
     loading = true;
     error = "";
+    checkoutReason = "";
     refs = [];
     void threadBranches(id)
       .then((result) => {
         if (cancelled) return;
 
         if (!result.supported) error = result.detail || "This directory is not a git checkout.";
+
+        if (result.refs?.dirty) checkoutReason = "Commit or stash changes before switching branches.";
         refs = result.refs?.refs ?? [];
       })
       .catch((cause: Error) => {
@@ -59,7 +66,7 @@
   });
 
   async function select(ref: GitRef) {
-    if (reason || busy) return;
+    if (reason || checkoutReason || busy) return;
     busy = true;
     error = "";
 
@@ -74,49 +81,60 @@
 </script>
 
 {#snippet value()}
-  <div class="min-w-0 space-y-1">
-    <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Branch</p>
+  <PanelField icon="git-fork" label="Branch">
     <p class="font-mono text-sm/5 wrap-anywhere sm:text-xs/5">{head ? headLabel(head) : "Unknown branch"}</p>
-    {#if thread.worktree?.baseRef}<p class="text-sm/5 wrap-anywhere text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-        from <code>{thread.worktree.baseRef}</code>
+    {#if thread.worktree?.baseRef}<p class="flex min-w-0 gap-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+        <span class="shrink-0">from</span><MiddleTruncatedText text={thread.worktree.baseRef} class="font-mono" />
       </p>{/if}
-  </div>
+    {#snippet aside()}
+      <Icon name={busy ? "arrow-path" : "chevron-down"} class={["shrink-0", busy && "motion-safe:animate-spin"]} />
+    {/snippet}
+  </PanelField>
 {/snippet}
 
-<div class={["grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2 px-2 py-2", className]}>
-  <Icon name="git-fork" class="mt-0.5 shrink-0" />
-  <div class="grid min-w-0 gap-1">
-    <SearchPicker
-      bind:open
-      label="Switch branch"
-      searchLabel="Search branches"
-      placeholder="Search branches…"
-      items={refs}
-      key={(ref) => `${ref.remote ? "remote" : "local"}:${ref.name}`}
-      text={(ref) => ref.name}
-      value={head && !head.detachedCommit ? `local:${head.branch}` : undefined}
-      groupOf={(ref) => (ref.remote ? "Remote branches" : "Local branches")}
-      disabled={(ref) => busy || Boolean(reason) || (!ref.remote && ref.name === head?.branch && !head.detachedCommit)}
-      onselect={(ref) => void select(ref)}
-    >
-      {#snippet trigger(props)}
-        <button
-          type="button"
-          {...props}
-          disabled={Boolean(reason) || busy}
-          aria-label="Switch branch"
-          class="grid min-h-32 w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-md text-left text-zinc-700 focus-ring enabled:hover:bg-zinc-950/4 dark:text-zinc-300 dark:enabled:hover:bg-white/5"
-        >
-          {@render value()}
-          <Icon name={busy ? "arrow-path" : "chevron-down"} class={["shrink-0", busy && "motion-safe:animate-spin"]} />
-        </button>
-      {/snippet}
-      {#snippet option(ref, state)}<PickerRow title={ref.name} selected={state.selected} class="font-mono" />{/snippet}
-      {#snippet empty(query)}{loading
-          ? "Loading branches…"
-          : error || (query ? `No branches match “${query}”.` : "No branches found. Refresh to retry.")}{/snippet}
-    </SearchPicker>
-    {#if reason}<p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">{reason}</p>{/if}
-    {#if error && !open}<p role="alert" class="text-sm/5 text-red-600 sm:text-xs/5 dark:text-red-400">{error}</p>{/if}
-  </div>
+<div class={["min-w-0", className]}>
+  <SearchPicker
+    bind:open
+    label="Switch branch"
+    searchLabel="Search branches"
+    placeholder="Search branches…"
+    items={refs}
+    key={(ref) => `${ref.remote ? "remote" : "local"}:${ref.name}`}
+    text={(ref) => ref.name}
+    value={head && !head.detachedCommit ? `local:${head.branch}` : undefined}
+    groupOf={(ref) => (ref.remote ? "Remote branches" : "Local branches")}
+    disabled={(ref) =>
+      busy || Boolean(reason || checkoutReason) || (!ref.remote && ref.name === head?.branch && !head.detachedCommit)}
+    onselect={(ref) => void select(ref)}
+  >
+    {#snippet trigger(props)}
+      <button
+        type="button"
+        {...props}
+        aria-disabled={Boolean(reason) || busy}
+        onclick={(event) => {
+          if (!reason && !busy) props.onclick(event);
+        }}
+        aria-label="Switch branch"
+        class={[
+          "block w-full min-w-0 rounded-lg text-left focus-ring not-aria-disabled:hover:bg-zinc-950/4 not-aria-disabled:focus-visible:bg-zinc-950/4",
+          reason || checkoutReason || busy ? "text-zinc-500 dark:text-zinc-400" : "text-zinc-700 dark:text-zinc-300",
+          "dark:not-aria-disabled:hover:bg-white/5 dark:not-aria-disabled:focus-visible:bg-white/5",
+        ]}
+        {@attach tooltip(reason || checkoutReason || undefined)}
+      >
+        {@render value()}
+      </button>
+    {/snippet}
+    {#snippet option(ref, state)}<PickerRow title={ref.name} selected={state.selected} class="font-mono" />{/snippet}
+    {#snippet empty(query)}{loading
+        ? "Loading branches…"
+        : error || (query ? `No branches match “${query}”.` : "No branches found. Refresh to retry.")}{/snippet}
+  </SearchPicker>
+  {#if checkoutReason}<p role="status" class="px-8 pb-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+      {checkoutReason}
+    </p>{/if}
+  {#if error && !open}<p role="alert" class="px-8 pb-2 text-sm/5 text-red-600 sm:text-xs/5 dark:text-red-400">
+      {error}
+    </p>{/if}
 </div>

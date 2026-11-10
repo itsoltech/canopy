@@ -160,8 +160,12 @@ mobilna pokazują ją na żywo. „Started from ‹ref›” (`base_ref`) się n
 
 Web/desktop i mobile pokazują osobno komputer, pełną ścieżkę „Worktree” albo „Directory” oraz pełną
 nazwę „Branch”. Ścieżka ma zwijany katalog domowy (`~`), przygaszonego rodzica, wyróżnioną nazwę folderu
-i kopiowanie oryginału. Długie wartości zawijają się; baza „from …” jest osobną linią. Odłączony HEAD
-pokazuje „Detached at ‹commit›”. Miejsce na ikonę, kopiowanie i zwykłe długości gałęzi jest zarezerwowane.
+i kopiowanie oryginału. Ścieżka i gałąź zawijają się; baza „from …” jest osobną, przygaszoną linią
+z obcięciem środka długiej nazwy (pełna wartość w tooltipie web, dostępna do zaznaczenia na mobile).
+Odłączony HEAD pokazuje „Detached at ‹commit›”. Worktree i Branch mają wspólny układ ikony,
+etykiety i wartości. Wysokość wynika z treści; picker nie ma tła w spoczynku, a hover i fokus
+podświetlają cały wiersz. Chevron jest wyrównany do pierwszej linii wartości i ma stałe miejsce.
+Wyłączony wybór zachowuje ten sam układ, przygaszoną wartość i powód w tooltipie web lub pod wierszem mobile.
 Szczegółowy ahead/behind pozostaje w „Manage worktree”; panel nie uruchamia cyklicznych skanów statusu.
 
 - `ListThreadBranches` i `SwitchThreadBranch` są owner-scoped na gatewayu, trasowane do domu wątku.
@@ -177,6 +181,8 @@ Szczegółowy ahead/behind pozostaje w „Manage worktree”; panel nie uruchami
 - Świeży status musi być czysty (także pliki untracked); bez auto-stash i force. Git odmawia, gdy gałąź
   jest już wybrana w innym worktree. Komenda nie trafia do outboxa; deadline 90 s obejmuje kolejkę
   process-governor i procesy git, przed timeoutem gatewaya 120 s. Opóźniona dostawa jest odrzucana.
+  Gdy odczyt pickera wykryje zmiany, UI przygasza wartość i blokuje wybór z powodem pod wierszem.
+  Wyzwalacz pozostaje dostępny do ponownego odczytu po uporządkowaniu drzewa; worker zawsze sprawdza świeży status.
 - Po potwierdzeniu gateway zapisuje HEAD i komunikat „Branch switched to X by you” dla wątków checkoutu.
   Notatka trafia do wejścia następnej tury, także wznowionej sesji harnessu, i jest zużywana atomowo
   z zapisem komendy tury. Wejście `! shell` zachowuje ją przed wynikiem polecenia; jeśli polecenie
