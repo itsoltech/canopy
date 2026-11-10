@@ -30,6 +30,7 @@ export function metadataFixture() {
     race: false,
     denyAfterWrite: false,
     verificationDenied: false,
+    repositoryId: 777,
     before: () => {},
   };
 
@@ -76,6 +77,8 @@ export function metadataFixture() {
 
               if (user) return { id, __typename: "User", login: user.login };
 
+              if (id === "USER_FOREIGN") return { id, __typename: "User", login: "outside-member" };
+
               if (label) return { id, __typename: "Label", name: label.name, repository: { databaseId: 777 } };
 
               if (id === "LABEL_FOREIGN")
@@ -98,7 +101,7 @@ export function metadataFixture() {
 
       if (query.includes("CanopyMetadata") || query.includes("CanopyPullRequest"))
         return Response.json({
-          data: { repository: { databaseId: 777, viewerPermission: "WRITE", pullRequest: pull() } },
+          data: { repository: { databaseId: state.repositoryId, viewerPermission: "WRITE", pullRequest: pull() } },
         });
 
       return undefined;

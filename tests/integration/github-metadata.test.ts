@@ -108,7 +108,7 @@ describe.skipIf(!dockerAvailable)("GitHub metadata ownership, conflicts and dura
     const before = fixture.state.writes;
     expect(await code(gw.api.getPullRequestMetadata({ pullRequestId: crypto.randomUUID() }))).toBe(Code.NotFound);
 
-    for (const id of ["USER_AUTHOR", "USER_MISSING", "TEAM_OTHER_ORG", "TEAM_FOREIGN_REPO"]) {
+    for (const id of ["USER_AUTHOR", "USER_MISSING", "USER_FOREIGN", "TEAM_OTHER_ORG", "TEAM_FOREIGN_REPO"]) {
       expect(
         await code(
           gw.api.requestPullRequestReviewers(
@@ -129,6 +129,17 @@ describe.skipIf(!dockerAvailable)("GitHub metadata ownership, conflicts and dura
     ).toBe(Code.NotFound);
     const foreign = await request("set_labels", { pullRequestId: crypto.randomUUID() });
     expect(await code(gw.api.setPullRequestLabels(foreign, browser))).toBe(Code.NotFound);
+    const otherAccount = await request("set_labels", { accountId: crypto.randomUUID() });
+    expect(await code(gw.api.setPullRequestLabels(otherAccount, browser))).toBe(Code.FailedPrecondition);
+    const wrongRepo = await request("set_labels");
+    fixture.state.repositoryId = 888;
+
+    try {
+      expect(await code(gw.api.setPullRequestLabels(wrongRepo, browser))).toBe(Code.NotFound);
+    } finally {
+      fixture.state.repositoryId = 777;
+    }
+
     fixture.state.issues = false;
     expect(await code(gw.api.setPullRequestLabels(await request("set_labels"), browser))).toBe(Code.PermissionDenied);
     fixture.state.issues = true;
