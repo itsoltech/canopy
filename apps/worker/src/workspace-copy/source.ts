@@ -2,7 +2,7 @@ import { createHash, type Hash } from "node:crypto";
 import { lstat, readlink } from "node:fs/promises";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
-import { WorkspaceCopyChunkSchema, type WorkspaceCopyRead } from "@canopy/contracts";
+import { WorkspaceCopyChunkSchema, type WorkspaceCopyRead, type WorkspaceCopyAuthorize } from "@canopy/contracts";
 import { COPY_CHUNK_BYTES, COPY_IDLE_MS, COPY_MAX_FILE_BYTES } from "@canopy/domain/workspace-copy";
 import { readHandle, copyError } from "./safety.ts";
 import { scanWorkspace, type CopyScan } from "./scan.ts";
@@ -10,6 +10,7 @@ import { scanWorkspace, type CopyScan } from "./scan.ts";
 interface SourceSession {
   scan: CopyScan;
   expires: number;
+  selected?: Set<string>;
   reading?: { path: string; offset: number; hash: Hash };
 }
 
@@ -38,6 +39,23 @@ export class CopySources {
     this.#sessions.delete(token);
   }
 
+  authorize(request: WorkspaceCopyAuthorize) {
+    const session = this.#sessions.get(request.token);
+
+    if (!session || session.expires < Date.now()) throw copyError("The file list expired. Refresh it before copying.");
+    delete session.selected;
+    const paths = new Set(request.paths);
+    const entries = session.scan.manifest.entries;
+
+    if (entries.some((e) => !e.ignored && (!paths.has(e.path) || e.blocked)))
+      throw copyError("Copy the complete repository. Refresh the file list and retry.");
+
+    if (entries.filter((e) => paths.has(e.path) && !e.blocked).length !== paths.size)
+      throw copyError("The selection includes an unavailable file.");
+    session.selected = paths;
+    session.expires = Date.now() + COPY_IDLE_MS;
+  }
+
   async read(request: WorkspaceCopyRead) {
     const session = this.#sessions.get(request.token);
 
@@ -45,7 +63,8 @@ export class CopySources {
     session.expires = Date.now() + COPY_IDLE_MS;
     const entry = session.scan.manifest.entries.find((e) => e.path === request.path);
 
-    if (!entry || entry.directory || entry.blocked) throw copyError("This file cannot be copied.");
+    if (!entry || entry.directory || entry.blocked || !session.selected?.has(request.path))
+      throw copyError("This file was not selected for copying.");
 
     if (entry.size > COPY_MAX_FILE_BYTES) throw copyError("A selected file exceeds the 8 GB per-file limit.");
     const offset = Number(request.offset);

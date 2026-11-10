@@ -1,7 +1,8 @@
 # Worktrees (git)
 
 Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
-źródłowego linked worktree'u. Wybór plików i ograniczenia Git:
+źródłowego linked worktree'u. Całe repozytorium jest kopiowane obowiązkowo;
+wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
 Status: **etapy 1–3 zaimplementowane** (2026-11-04). Etap 1: ustawienia (Creation, Branches,

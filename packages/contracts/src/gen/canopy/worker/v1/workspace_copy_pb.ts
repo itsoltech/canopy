@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/worker/v1/workspace_copy.proto.
  */
 export const file_canopy_worker_v1_workspace_copy: GenFile = /*@__PURE__*/
-  fileDesc("CiVjYW5vcHkvd29ya2VyL3YxL3dvcmtzcGFjZV9jb3B5LnByb3RvEhBjYW5vcHkud29ya2VyLnYxIrgBChJXb3Jrc3BhY2VDb3B5RW50cnkSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEgwKBG1vZGUYAyABKA0SDwoHc3ltbGluaxgEIAEoCRIRCglkaXJlY3RvcnkYBSABKAgSDwoHaWdub3JlZBgGIAEoCBIQCghpbmNsdWRlZBgHIAEoCBIOCgZzZWNyZXQYCCABKAgSEAoIbWV0YWRhdGEYCSABKAgSDwoHYmxvY2tlZBgKIAEoCSJ7ChVXb3Jrc3BhY2VDb3B5TWFuaWZlc3QSDQoFdG9rZW4YASABKAkSNQoHZW50cmllcxgCIAMoCzIkLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUVudHJ5Eg0KBWJ5dGVzGAMgASgEEg0KBWZpbGVzGAQgASgNIiYKEVdvcmtzcGFjZUNvcHlTY2FuEhEKCXJvb3RfcGF0aBgBIAEoCSJAChFXb3Jrc3BhY2VDb3B5UmVhZBINCgV0b2tlbhgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBm9mZnNldBgDIAEoBCKOAQoUV29ya3NwYWNlQ29weVByZXBhcmUSDQoFdG9rZW4YASABKAkSEwoLcGFyZW50X3BhdGgYAiABKAkSDAoEbmFtZRgDIAEoCRI1CgdlbnRyaWVzGAQgAygLMiQuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5RW50cnkSDQoFYnl0ZXMYBSABKAQibQoSV29ya3NwYWNlQ29weUNodW5rEg0KBXRva2VuGAEgASgJEgwKBHBhdGgYAiABKAkSDgoGb2Zmc2V0GAMgASgEEgwKBGRhdGEYBCABKAwSDAoEbGFzdBgFIAEoCBIOCgZzaGEyNTYYBiABKAkiNAoTV29ya3NwYWNlQ29weUZpbmlzaBINCgV0b2tlbhgBIAEoCRIOCgZzaGEyNTYYAiABKAki3AIKFldvcmtzcGFjZUNvcHlPcGVyYXRpb24SMwoEc2NhbhgBIAEoCzIjLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weVNjYW5IABIzCgRyZWFkGAIgASgLMiMuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5UmVhZEgAEjkKB3ByZXBhcmUYAyABKAsyJi5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlQcmVwYXJlSAASNQoFd3JpdGUYBCABKAsyJC5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlDaHVua0gAEjcKBmZpbmlzaBgFIAEoCzIlLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUZpbmlzaEgAEhAKBmNhbmNlbBgGIAEoCUgAEhEKB3JlbGVhc2UYByABKAlIAEIICgZhY3Rpb24imAEKE1dvcmtzcGFjZUNvcHlSZXN1bHQSOQoIbWFuaWZlc3QYASABKAsyJy5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlNYW5pZmVzdBIzCgVjaHVuaxgCIAEoCzIkLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUNodW5rEhEKCWRpcmVjdG9yeRgDIAEoCWIGcHJvdG8z");
+  fileDesc("CiVjYW5vcHkvd29ya2VyL3YxL3dvcmtzcGFjZV9jb3B5LnByb3RvEhBjYW5vcHkud29ya2VyLnYxIrgBChJXb3Jrc3BhY2VDb3B5RW50cnkSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEgwKBG1vZGUYAyABKA0SDwoHc3ltbGluaxgEIAEoCRIRCglkaXJlY3RvcnkYBSABKAgSDwoHaWdub3JlZBgGIAEoCBIQCghpbmNsdWRlZBgHIAEoCBIOCgZzZWNyZXQYCCABKAgSEAoIbWV0YWRhdGEYCSABKAgSDwoHYmxvY2tlZBgKIAEoCSLzAQoVV29ya3NwYWNlQ29weU1hbmlmZXN0Eg0KBXRva2VuGAEgASgJEjUKB2VudHJpZXMYAiADKAsyJC5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlFbnRyeRINCgVieXRlcxgDIAEoBBINCgVmaWxlcxgEIAEoDRIbChNza2lwcGVkX2RpcmVjdG9yaWVzGAUgAygJEg4KBmJyYW5jaBgGIAEoCRIdChB1bnB1c2hlZF9jb21taXRzGAcgASgNSACIAQESFQoNY2hhbmdlZF9maWxlcxgIIAEoDUITChFfdW5wdXNoZWRfY29tbWl0cyImChFXb3Jrc3BhY2VDb3B5U2NhbhIRCglyb290X3BhdGgYASABKAkiQAoRV29ya3NwYWNlQ29weVJlYWQSDQoFdG9rZW4YASABKAkSDAoEcGF0aBgCIAEoCRIOCgZvZmZzZXQYAyABKAQiNgoWV29ya3NwYWNlQ29weUF1dGhvcml6ZRINCgV0b2tlbhgBIAEoCRINCgVwYXRocxgCIAMoCSIuCh1Xb3Jrc3BhY2VDb3B5SWdub3JlZFNlbGVjdGlvbhINCgVwYXRocxgBIAMoCSKOAQoUV29ya3NwYWNlQ29weVByZXBhcmUSDQoFdG9rZW4YASABKAkSEwoLcGFyZW50X3BhdGgYAiABKAkSDAoEbmFtZRgDIAEoCRI1CgdlbnRyaWVzGAQgAygLMiQuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5RW50cnkSDQoFYnl0ZXMYBSABKAQibQoSV29ya3NwYWNlQ29weUNodW5rEg0KBXRva2VuGAEgASgJEgwKBHBhdGgYAiABKAkSDgoGb2Zmc2V0GAMgASgEEgwKBGRhdGEYBCABKAwSDAoEbGFzdBgFIAEoCBIOCgZzaGEyNTYYBiABKAkiNAoTV29ya3NwYWNlQ29weUZpbmlzaBINCgV0b2tlbhgBIAEoCRIOCgZzaGEyNTYYAiABKAkimwMKFldvcmtzcGFjZUNvcHlPcGVyYXRpb24SMwoEc2NhbhgBIAEoCzIjLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weVNjYW5IABIzCgRyZWFkGAIgASgLMiMuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5UmVhZEgAEjkKB3ByZXBhcmUYAyABKAsyJi5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlQcmVwYXJlSAASNQoFd3JpdGUYBCABKAsyJC5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlDaHVua0gAEjcKBmZpbmlzaBgFIAEoCzIlLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUZpbmlzaEgAEhAKBmNhbmNlbBgGIAEoCUgAEhEKB3JlbGVhc2UYByABKAlIABI9CglhdXRob3JpemUYCCABKAsyKC5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlBdXRob3JpemVIAEIICgZhY3Rpb24imAEKE1dvcmtzcGFjZUNvcHlSZXN1bHQSOQoIbWFuaWZlc3QYASABKAsyJy5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlNYW5pZmVzdBIzCgVjaHVuaxgCIAEoCzIkLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUNodW5rEhEKCWRpcmVjdG9yeRgDIAEoCWIGcHJvdG8z");
 
 /**
  * Transient, owner initiated file transfer. Never journal, log or put these messages in an outbox.
@@ -99,6 +99,26 @@ export type WorkspaceCopyManifest = Message<"canopy.worker.v1.WorkspaceCopyManif
    * @generated from field: uint32 files = 4;
    */
   files: number;
+
+  /**
+   * @generated from field: repeated string skipped_directories = 5;
+   */
+  skippedDirectories: string[];
+
+  /**
+   * @generated from field: string branch = 6;
+   */
+  branch: string;
+
+  /**
+   * @generated from field: optional uint32 unpushed_commits = 7;
+   */
+  unpushedCommits?: number | undefined;
+
+  /**
+   * @generated from field: uint32 changed_files = 8;
+   */
+  changedFiles: number;
 };
 
 /**
@@ -153,6 +173,49 @@ export const WorkspaceCopyReadSchema: GenMessage<WorkspaceCopyRead> = /*@__PURE_
   messageDesc(file_canopy_worker_v1_workspace_copy, 3);
 
 /**
+ * The source validates the complete repository before allowing any reads.
+ *
+ * @generated from message canopy.worker.v1.WorkspaceCopyAuthorize
+ */
+export type WorkspaceCopyAuthorize = Message<"canopy.worker.v1.WorkspaceCopyAuthorize"> & {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token: string;
+
+  /**
+   * @generated from field: repeated string paths = 2;
+   */
+  paths: string[];
+};
+
+/**
+ * Describes the message canopy.worker.v1.WorkspaceCopyAuthorize.
+ * Use `create(WorkspaceCopyAuthorizeSchema)` to create a new message.
+ */
+export const WorkspaceCopyAuthorizeSchema: GenMessage<WorkspaceCopyAuthorize> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_workspace_copy, 4);
+
+/**
+ * Only ignored local files are selectable. The repository is always included.
+ *
+ * @generated from message canopy.worker.v1.WorkspaceCopyIgnoredSelection
+ */
+export type WorkspaceCopyIgnoredSelection = Message<"canopy.worker.v1.WorkspaceCopyIgnoredSelection"> & {
+  /**
+   * @generated from field: repeated string paths = 1;
+   */
+  paths: string[];
+};
+
+/**
+ * Describes the message canopy.worker.v1.WorkspaceCopyIgnoredSelection.
+ * Use `create(WorkspaceCopyIgnoredSelectionSchema)` to create a new message.
+ */
+export const WorkspaceCopyIgnoredSelectionSchema: GenMessage<WorkspaceCopyIgnoredSelection> = /*@__PURE__*/
+  messageDesc(file_canopy_worker_v1_workspace_copy, 5);
+
+/**
  * @generated from message canopy.worker.v1.WorkspaceCopyPrepare
  */
 export type WorkspaceCopyPrepare = Message<"canopy.worker.v1.WorkspaceCopyPrepare"> & {
@@ -187,7 +250,7 @@ export type WorkspaceCopyPrepare = Message<"canopy.worker.v1.WorkspaceCopyPrepar
  * Use `create(WorkspaceCopyPrepareSchema)` to create a new message.
  */
 export const WorkspaceCopyPrepareSchema: GenMessage<WorkspaceCopyPrepare> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_workspace_copy, 4);
+  messageDesc(file_canopy_worker_v1_workspace_copy, 6);
 
 /**
  * @generated from message canopy.worker.v1.WorkspaceCopyChunk
@@ -229,7 +292,7 @@ export type WorkspaceCopyChunk = Message<"canopy.worker.v1.WorkspaceCopyChunk"> 
  * Use `create(WorkspaceCopyChunkSchema)` to create a new message.
  */
 export const WorkspaceCopyChunkSchema: GenMessage<WorkspaceCopyChunk> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_workspace_copy, 5);
+  messageDesc(file_canopy_worker_v1_workspace_copy, 7);
 
 /**
  * @generated from message canopy.worker.v1.WorkspaceCopyFinish
@@ -251,7 +314,7 @@ export type WorkspaceCopyFinish = Message<"canopy.worker.v1.WorkspaceCopyFinish"
  * Use `create(WorkspaceCopyFinishSchema)` to create a new message.
  */
 export const WorkspaceCopyFinishSchema: GenMessage<WorkspaceCopyFinish> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_workspace_copy, 6);
+  messageDesc(file_canopy_worker_v1_workspace_copy, 8);
 
 /**
  * @generated from message canopy.worker.v1.WorkspaceCopyOperation
@@ -302,6 +365,12 @@ export type WorkspaceCopyOperation = Message<"canopy.worker.v1.WorkspaceCopyOper
      */
     value: string;
     case: "release";
+  } | {
+    /**
+     * @generated from field: canopy.worker.v1.WorkspaceCopyAuthorize authorize = 8;
+     */
+    value: WorkspaceCopyAuthorize;
+    case: "authorize";
   } | { case: undefined; value?: undefined };
 };
 
@@ -310,7 +379,7 @@ export type WorkspaceCopyOperation = Message<"canopy.worker.v1.WorkspaceCopyOper
  * Use `create(WorkspaceCopyOperationSchema)` to create a new message.
  */
 export const WorkspaceCopyOperationSchema: GenMessage<WorkspaceCopyOperation> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_workspace_copy, 7);
+  messageDesc(file_canopy_worker_v1_workspace_copy, 9);
 
 /**
  * @generated from message canopy.worker.v1.WorkspaceCopyResult
@@ -337,5 +406,5 @@ export type WorkspaceCopyResult = Message<"canopy.worker.v1.WorkspaceCopyResult"
  * Use `create(WorkspaceCopyResultSchema)` to create a new message.
  */
 export const WorkspaceCopyResultSchema: GenMessage<WorkspaceCopyResult> = /*@__PURE__*/
-  messageDesc(file_canopy_worker_v1_workspace_copy, 8);
+  messageDesc(file_canopy_worker_v1_workspace_copy, 10);
 

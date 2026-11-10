@@ -75,6 +75,10 @@ z nazwą certyfikatu. Peer Node w testach jest bundlowany przez
 
 Capability `workspace_copy_v1` dodaje nietrwałe `Command.workspace_copy` (221)
 i wynik o tym samym numerze: scan/read/prepare/write/finish/cancel/release.
+Capability `workspace_copy_scope_v2` dodaje `authorize` (8): źródłowy worker
+wymusza komplet repozytorium przed odczytem. Manifest dodaje pominięte katalogi (5),
+gałąź (6), opcjonalną liczbę nieopublikowanych commitów (7) i zmienione pliki (8).
+Wybór klienta dotyczy tylko plików ignorowanych bez zależności i wyniku builda.
 Potwierdzane porcje 128 KiB, SHA-256 i ograniczenia współbieżności chronią
 strumienie wątków. Komendy i wyniki z plikami omijają outbox i journal.
 `WORKER_LINK_PROTOCOL` i UpdateService nie zmieniają się.

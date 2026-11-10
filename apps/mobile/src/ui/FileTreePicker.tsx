@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
-import { FlatList, Pressable, Text, View } from "react-native";
+import { useMemo, useState, type ReactNode } from "react";
+import { Alert, FlatList, Pressable, Text, View } from "react-native";
 import { visibleCopyTree, toggleCopyNode, copySize, type CopyTreeNode } from "@canopy/domain/workspace-copy";
 import { Field } from "./components";
 import { Icon } from "./Icon";
+import { IconButton } from "./Button";
+import { Chevron } from "./MotionViews";
 import { useColors, useTypography } from "./theme";
 
 /** A touch tree with one 48 dp row per visible node; virtualized inside the sheet's unscrolled body. */
@@ -10,19 +12,38 @@ export function FileTreePicker({
   roots,
   selected,
   onChange,
+  header,
 }: {
   roots: CopyTreeNode[];
   selected: ReadonlySet<string>;
   onChange: (value: Set<string>) => void;
+  header?: ReactNode;
 }) {
-  const [expanded, setExpanded] = useState(new Set(["files:"]));
+  const [expanded, setExpanded] = useState(
+    new Set(
+      roots.some((node) => node.children.filter((child) => !child.children.length).length > 200) ? [] : ["ignored:"],
+    ),
+  );
+
   const [query, setQuery] = useState("");
   const rows = useMemo(() => visibleCopyTree(roots, expanded, query), [roots, expanded, query]);
 
   return (
-    <View style={{ flex: 1, minHeight: 120, gap: 8 }}>
-      <Field label="Filter files" value={query} onChangeText={setQuery} autoCapitalize="none" autoCorrect={false} />
+    <View style={{ flex: 1, minHeight: 0 }}>
       <FlatList
+        style={{ flex: 1 }}
+        ListHeaderComponent={
+          <View style={{ gap: 12, paddingBottom: 8 }}>
+            {header}
+            <Field
+              label="Filter files"
+              value={query}
+              onChangeText={setQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+        }
         data={rows}
         keyExtractor={(node) => node.key}
         keyboardShouldPersistTaps="handled"
@@ -30,7 +51,6 @@ export function FileTreePicker({
         maxToRenderPerBatch={12}
         windowSize={5}
         extraData={selected}
-        getItemLayout={(_, index) => ({ length: 48, offset: 48 * index, index })}
         renderItem={({ item }) => (
           <TreeRow
             node={item}
@@ -94,12 +114,12 @@ function TreeRow({
           opacity: node.children.length ? 1 : 0,
         }}
       >
-        <Icon name={expanded ? "chevron-down" : "chevron-right"} size={14} color={c.muted} />
+        <Chevron open={expanded} size={14} color={c.muted} />
       </Pressable>
       <Pressable
         accessibilityRole="checkbox"
         accessibilityLabel={`${node.path || node.label}, ${node.files} files, ${copySize(node.bytes)}`}
-        accessibilityHint={node.blocked || (node.secret ? "May contain secrets" : undefined)}
+        accessibilityHint={node.blocked || (node.secretFiles ? `${node.secretFiles} may contain secrets` : undefined)}
         accessibilityState={{ checked: mixed ? "mixed" : checked, disabled: !node.members.length }}
         disabled={!node.members.length}
         onPress={onToggle}
@@ -124,14 +144,21 @@ function TreeRow({
             {node.label}
             {node.children.length ? ` (${node.files})` : ""}
           </Text>
-          {(node.secret || node.blocked) && (
-            <Text numberOfLines={1} style={[type.meta, { color: c.muted }]}>
-              {node.blocked || "May contain secrets"}
-            </Text>
-          )}
         </View>
-        <Text style={[type.meta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>{copySize(node.bytes)}</Text>
+        {!!node.secretFiles && !!node.children.length && !!node.path && (
+          <Text style={[type.meta, { color: c.muted }]}>{node.secretFiles} may contain secrets</Text>
+        )}
+        {!!node.blocked && <Text style={[type.meta, { color: c.muted }]}>Unavailable</Text>}
       </Pressable>
+      {!!node.secretFiles && !node.children.length && !node.blocked && (
+        <IconButton
+          icon="lock-closed"
+          size="sm"
+          label={`May contain secrets: ${node.path}`}
+          onPress={() => Alert.alert("May contain secrets", node.path)}
+        />
+      )}
+      <Text style={[type.meta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>{copySize(node.bytes)}</Text>
     </View>
   );
 }

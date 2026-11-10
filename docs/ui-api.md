@@ -309,8 +309,11 @@ zachowują kwalifikator komputera. Ustawienia worktree z workerem zapisuje jego 
 Settings → Projects i strona projektu używają `ConfigNotice` oraz Restore; sekcja „Workspaces” pokazuje
 nazwę workera i komputera w zwartych wierszach, kopiowanie ścieżki i menu edycji/usunięcia także dla partnera.
 „Add workspace” otwiera wybór workera, istniejącego katalogu, klonu lub kopii
-workspace'u; mobile używa arkusza. `GetWorkspaceCopyManifest` zwraca drzewo
-bez treści; `CopyWorkspace` strumieniuje postęp. BFF udostępnia
+workspace'u; mobile używa arkusza. `GetWorkspaceCopyManifest` zwraca metadane
+bez treści, z listą pominiętych zależności i podsumowaniem Git. UI pokazuje repozytorium
+jako stałe podsumowanie, a picker wyłącznie dla plików ignorowanych.
+`CopyWorkspace.ignored_selection` wybiera tylko te pliki; całe repozytorium jest
+dodawane automatycznie. `CopyWorkspace` strumieniuje postęp. BFF udostępnia
 `GET /api/workspaces/{id}/copy-manifest` i `POST /api/workspaces/copy` (NDJSON).
 Wewnętrzne `WorkspaceCopySource` i `WorkspaceCopyTarget` sprawdzają właściciela
 we właściwym domu. Szczegóły: [workspace-copy.md](workspace-copy.md).

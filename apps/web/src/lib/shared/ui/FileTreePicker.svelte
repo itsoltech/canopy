@@ -5,6 +5,7 @@
   import ChoiceControl from "./ChoiceControl.svelte";
   import Icon from "./Icon.svelte";
   import SearchField from "./SearchField.svelte";
+  import IconButton from "./IconButton.svelte";
 
   let {
     roots,
@@ -18,7 +19,7 @@
     class?: ClassValue;
   } = $props();
 
-  let expanded = $state.raw(new Set<string>(["files:"]));
+  let expanded = $state.raw(new Set<string>());
   let query = $state("");
   let scroll = $state(0);
   let height = $state(280);
@@ -36,6 +37,8 @@
   });
 
   onMount(() => {
+    if (!roots.some((node) => node.children.filter((child) => !child.children.length).length > 200))
+      expanded = new Set(["ignored:"]);
     const media = matchMedia("(max-width: 639px), (pointer: coarse)");
 
     const resize = () => {
@@ -101,7 +104,7 @@
     onscroll={(e) => (scroll = e.currentTarget.scrollTop)}
     class="h-72 min-h-36 scroll-stable overflow-auto overscroll-contain rounded-lg border border-zinc-950/10 dark:border-white/10"
     role="tree"
-    aria-label="Files to copy"
+    aria-label="Ignored files to copy"
     aria-multiselectable="true"
   >
     <div class="relative h-(--tree-height)" style:--tree-height="{rows.length * rowHeight}px">
@@ -142,11 +145,22 @@
             disabled={Boolean(node.blocked) || !node.members.length}
             onchange={() => onchange(toggleCopyNode(selected, node))}
           />
-          <div class="min-w-0 flex-1 truncate" title={node.blocked || node.path || node.label}>
-            {node.label}{node.children.length ? ` (${node.files.toLocaleString()})` : ""}
+          <div class="min-w-0 flex-1" title={node.blocked || node.path || node.label}>
+            <div class="truncate">{node.label}{node.children.length ? ` (${node.files.toLocaleString()})` : ""}</div>
           </div>
-          <div class="shrink-0 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
-            {#if node.blocked}Unavailable{:else if node.secret}<span title="May contain secrets">Secrets?</span>{/if}
+          <div class="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+            {#if node.blocked}Unavailable{:else if node.secretFiles && node.path}
+              {#if node.children.length}
+                {node.secretFiles.toLocaleString()} may contain secrets
+              {:else}
+                <IconButton
+                  icon="lock-closed"
+                  size="sm"
+                  label="May contain secrets: {node.path}"
+                  tooltipOptions={{ touch: "tap" }}
+                />
+              {/if}
+            {/if}
           </div>
           <div
             class="w-16 shrink-0 text-right text-sm text-zinc-500 tabular-nums sm:text-xs dark:text-zinc-400"

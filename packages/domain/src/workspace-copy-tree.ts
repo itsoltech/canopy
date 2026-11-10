@@ -1,4 +1,5 @@
 import type { WorkspaceCopyEntry } from "@canopy/contracts";
+import { copySelectable } from "./workspace-copy.ts";
 
 export interface CopyTreeNode {
   key: string;
@@ -9,7 +10,7 @@ export interface CopyTreeNode {
   members: string[];
   bytes: bigint;
   files: number;
-  secret: boolean;
+  secretFiles: number;
   blocked: string;
   ignored: boolean;
 }
@@ -18,13 +19,13 @@ export interface CopyTreeNode {
 export function copyTree(entries: readonly WorkspaceCopyEntry[]) {
   const nodes = new Map<string, CopyTreeNode>();
   const roots: CopyTreeNode[] = [];
-  const groupLabels = { files: "Repository files", ignored: "Ignored files", git: "Git metadata" };
+  const groupLabels = { ignored: "Ignored files" };
 
   for (const entry of entries) {
-    const group = entry.metadata ? "git" : entry.ignored ? "ignored" : "files";
+    if (!copySelectable(entry)) continue;
+    const group = "ignored";
     const parts = entry.path.split("/");
 
-    if (entry.metadata) parts.shift();
     const chain = ["", ...parts.map((_, i) => parts.slice(0, i + 1).join("/"))];
     let parent: CopyTreeNode | undefined;
 
@@ -42,7 +43,7 @@ export function copyTree(entries: readonly WorkspaceCopyEntry[]) {
           members: [],
           bytes: 0n,
           files: 0,
-          secret: false,
+          secretFiles: 0,
           blocked: "",
           ignored: group === "ignored",
         };
@@ -56,7 +57,8 @@ export function copyTree(entries: readonly WorkspaceCopyEntry[]) {
       node.bytes += entry.size;
 
       if (!entry.directory) node.files++;
-      node.secret ||= entry.secret;
+
+      if (!entry.directory && entry.secret) node.secretFiles++;
 
       if (depth === chain.length - 1) node.blocked = entry.blocked;
       parent = node;

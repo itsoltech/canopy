@@ -242,7 +242,7 @@ async function* send(
 
   if (
     ["GetWorkspaceCopyManifest", "WorkspaceCopySource", "WorkspaceCopyTarget"].includes(method.name) &&
-    !computers.capabilities(nodeId).includes("workspace_copy_v1")
+    !computers.capabilities(nodeId).includes("workspace_copy_scope_v2")
   )
     throw new ConnectError("Update this computer to copy files", Code.FailedPrecondition);
   await carryAttachments(core, nodeId, method, outbound, signal);

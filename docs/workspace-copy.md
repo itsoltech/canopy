@@ -8,17 +8,37 @@ używa dialogu, mobile arkusza z dotykowym, wirtualizowanym drzewem plików.
 
 ## Wybór i sekrety
 
-Podgląd odczytuje metadane, bez treści. Domyślnie zaznacza istniejące pliki
-z `git ls-files --cached --others --exclude-standard` oraz ignorowane lokalne
-konfiguracje do 1 MiB (`.env*`, `*.local`, `.npmrc` itd.). Pozostałe ignorowane
-pliki są osobną, wyłączoną grupą. Wspólna lista `COPY_GENERATED_DIRECTORIES`
+Podgląd odczytuje metadane, bez treści. Repozytorium jest niepodzielne: komplet
+`.git`, istniejące śledzone pliki oraz nieśledzone pliki nieobjęte ignorowaniem
+z `git ls-files --cached --others --exclude-standard` są zawsze kopiowane.
+UI pokazuje je w zwartym bloku: liczba plików i rozmiar, osobno gałąź monospace
+(skrócona z dostępem do pełnej nazwy), a pod nią liczba nieopublikowanych
+commitów nieosiągalnych z refów remote i zmian z `git status`.
+Nie ma drzewa ani checkboxów repozytorium.
+
+Picker obejmuje wyłącznie pliki ignorowane. Domyślnie zaznacza lokalne
+konfiguracje i pliki mogące zawierać sekrety do 1 MiB (`.env*`, `*.local`, klucze itd.).
+Pozostałe ignorowane pliki zaczynają odznaczone. Wspólna lista `COPY_GENERATED_DIRECTORIES`
 w `packages/domain/src/workspace-copy.ts` obejmuje zależności, build i cache
 (m.in. node_modules, target, bin/obj, venv, dist, Pods). Śledzenie przez Git
-ma pierwszeństwo przed tą listą. Drzewo umożliwia wybór folderów i plików,
-filtruje ścieżki i pokazuje rozmiary oraz liczby plików.
+ma pierwszeństwo przed tą listą. Ignorowane zależności i wynik builda są pomijane
+podczas skanowania, bez schodzenia do ich wnętrza. Nie trafiają do manifestu ani
+pickera; UI podaje pominięte katalogi w rozwijanej notatce. Drzewo plików ignorowanych
+pokazuje rozmiary i liczby plików. Pliki mogące zawierać sekrety mają ikonę kłódki
+z objaśnieniem, a katalogi — liczbę takich plików; korzeń nie powtarza ostrzeżenia.
+Grupy katalogów zaczynają
+zwinięte. Powyżej 200 plików picker wyświetla wskazówkę, aby sprawdzić zależności
+oraz wynik builda; długą płaską listę też pokazuje jako zwiniętą grupę.
+Notatka pominiętych katalogów używa disclosure z kitu i wspólnych tokenów ruchu.
+Stopka z główną akcją pozostaje poza przewijaną listą, także przy potwierdzaniu
+sekretów i podczas transferu. Zablokowana akcja podaje powód, a transfer pokazuje
+stan zajętości i możliwość anulowania.
 
 Preset w `workspace_copy_presets` w domu źródła zawiera tylko SHA-256 ścieżek
-zaznaczonych i pominiętych, bez nazw i treści. Pliki mogące zawierać sekrety
+zaznaczonych i pominiętych plików ignorowanych, bez nazw i treści. Stare presety
+są odczytywane wyłącznie dla nadal dostępnych plików ignorowanych; wykluczenia
+plików repozytorium i wpisy zależności są ignorowane. Następny zapis usuwa je z presetu.
+Pliki mogące zawierać sekrety
 (`.env*`, klucze, credentials, konfiguracje) wymagają każdorazowo osobnego
 potwierdzenia z ich listą i nazwą celu. Gateway źródła sprawdza zgodę dla
 każdego wybranego sekretu, właściciela workspace'u i przynależność do manifestu.
@@ -28,7 +48,8 @@ każdego wybranego sekretu, właściciela workspace'u i przynależność do mani
 Kopiujemy komplet `.git`: zachowuje lokalne commity, indeks, gałąź i remotes,
 bez wymagania dostępu do remote z celu. Klon z remote nie zachowałby indeksu
 i nieopublikowanych commitów. `.git/config` wymaga potwierdzenia sekretów.
-Wszystkie metadane muszą pozostać wybrane. Linked worktree jest spłaszczany
+Worker źródła odrzuca niepełne repozytorium i nie udostępnia żadnych porcji przed
+autoryzacją całej selekcji. Linked worktree jest spłaszczany
 do samodzielnego checkoutu: wspólne obiekty/refy plus jego własny HEAD i indeks.
 Przed publikacją cel sprawdza `git fsck --connectivity-only --no-reflogs`.
 
@@ -43,11 +64,19 @@ wielkości liter są odrzucane.
 
 ## Transfer i trwałość
 
-Capability workera i gatewaya to `workspace_copy_v1`; `WORKER_LINK_PROTOCOL`
+Nowy zakres negocjuje capability workera i gatewaya `workspace_copy_scope_v2`,
+obok dotychczasowego `workspace_copy_v1`. `WORKER_LINK_PROTOCOL`
 i zamrożony `update/v1` pozostają bez zmian. Starszy worker pokazuje
 **Update this worker to copy files**. Routing źródła i celu jest niezależny,
 z istniejącymi aliasami projektów i wymaganiem Share configuration. Dom celu
 autoryzuje projekt/worker i publikuje workspace standardowym AddProject.
+
+Nowe żądania `CopyWorkspace.ignored_selection` (10) i
+`WorkspaceCopySource.ignored_selection` (8) zawierają tylko ścieżki ignorowane.
+Gateway sam dodaje komplet repozytorium. Dawne pola `paths` pozostają oznaczone
+jako deprecated; próba pominięcia pliku repozytorium jest odrzucana przez worker.
+Addytywna operacja `WorkspaceCopyOperation.authorize` (8) wiąże token podglądu
+z pełną listą przed odczytem. Starsze workery i połączone gatewaye wymagają aktualizacji.
 
 Źródło → gateway → opcjonalny połączony gateway → cel używa istniejących łączy.
 Jedna porcja 128 KiB czeka na zapis przed następnym odczytem, do 8 MiB/s.

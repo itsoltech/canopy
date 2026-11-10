@@ -20,6 +20,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { coreWorkerQuery } from "../../apps/gateway/src/core/core-mentions.ts";
 import { linkedProjectFixture } from "./support/linked-projects.ts";
 import { workspaceWorker } from "./support/workspace-worker.ts";
 import { eventually, failure } from "./support/gateway.ts";
@@ -44,6 +46,9 @@ describe.skipIf(!dockerAvailable)("workspace copies over real worker and compute
     writeFileSync(join(repo, ".gitignore"), ".env*\n*.local\n.npmrc\nnode_modules/\ntarget/\ndist/\nignored.txt\n");
     git(repo, "add", ".gitignore");
     git(repo, "commit", "-qm", "copy fixture");
+    writeFileSync(join(repo, "README.md"), "modified tracked work");
+    writeFileSync(join(repo, "staged.txt"), "staged work");
+    git(repo, "add", "staged.txt");
     writeFileSync(join(repo, ".env"), secret);
     writeFileSync(join(repo, ".npmrc"), "fixture npm configuration");
     writeFileSync(join(repo, "settings.local"), "fixture config");
@@ -82,7 +87,7 @@ describe.skipIf(!dockerAvailable)("workspace copies over real worker and compute
       targetRef: remote ? remoteId : target.workerId,
       projectRef: fixture.a.project.id,
       manifestToken: manifest.token,
-      paths: manifest.entries.filter((e) => e.included).map((e) => e.path),
+      ignoredSelection: { paths: manifest.entries.filter((e) => e.ignored && e.included).map((e) => e.path) },
       confirmedSecrets: manifest.entries.filter((e) => e.secret && e.included).map((e) => e.path),
       parentPath: remote ? linked.dir : target.dir,
       name,
@@ -104,8 +109,14 @@ describe.skipIf(!dockerAvailable)("workspace copies over real worker and compute
     for (const path of ["README.md", "untracked.txt", ".env", ".npmrc", "settings.local"])
       expect(manifest.entries.find((e) => e.path === path)?.included).toBe(true);
 
-    for (const path of ["node_modules/generated", "target/generated", "dist/generated", "ignored.txt"])
-      expect(manifest.entries.find((e) => e.path === path)).toMatchObject({ included: false, ignored: true });
+    for (const path of ["node_modules", "target", "dist"]) {
+      expect(manifest.entries.some((e) => e.path === path || e.path.startsWith(`${path}/`))).toBe(false);
+      expect(manifest.skippedDirectories).toContain(path);
+    }
+
+    expect(manifest.entries.find((e) => e.path === "ignored.txt")).toMatchObject({ included: false, ignored: true });
+    expect(manifest.unpushedCommits).toBe(1);
+    expect(manifest.changedFiles).toBeGreaterThan(1);
     expect(manifest.entries.find((e) => e.path === ".env")?.secret).toBe(true);
     expect(manifest.entries.find((e) => e.path === ".docker/config.json")?.secret).toBe(true);
     const input = request(manifest, "no-confirmation");
@@ -117,14 +128,17 @@ describe.skipIf(!dockerAvailable)("workspace copies over real worker and compute
   test("copies a real local checkout, local secrets, modes, safe symlinks and an ignored selection; persists only path hashes", async () => {
     const manifest = await plan();
     const input = request(manifest, "local-copy");
-    input.paths.push("ignored.txt");
-    input.paths = input.paths.filter((p) => p !== "settings.local");
+    input.ignoredSelection!.paths.push("ignored.txt");
+    input.ignoredSelection!.paths = input.ignoredSelection!.paths.filter((p) => p !== "settings.local");
     const events = await run(input);
     const result = events.at(-1)!;
     expect(result.status).toBe("completed");
     expect(result.files).toBe(result.totalFiles);
     expect(result.bytes).toBe(result.totalBytes);
     const path = join(target.dir, "local-copy");
+    expect(readFileSync(join(path, "README.md"), "utf8")).toBe("modified tracked work");
+    expect(readFileSync(join(path, "untracked.txt"), "utf8")).toBe("local work");
+    expect(git(path, "status", "--porcelain")).toBe(git(fixture.a.repo, "status", "--porcelain"));
     expect(readFileSync(join(path, ".env"), "utf8")).toBe(secret);
     expect(readFileSync(join(path, "ignored.txt"), "utf8")).toBe("opt in");
     expect(existsSync(join(path, "settings.local"))).toBe(false);
@@ -147,6 +161,76 @@ describe.skipIf(!dockerAvailable)("workspace copies over real worker and compute
     await fixture.a.gw.api.removeWorkspace({ workspaceId: result.workspaceRef });
   }, 30_000);
 
+  test("rejects omitted repository files in the source worker and never serves generated dependencies", async () => {
+    const command = (operation: MessageInitShape<typeof WorkspaceCopyOperationSchema>) =>
+      coreWorkerQuery(fixture.a.gw.core, fixture.a.workerId, { case: "workspaceCopy", value: operation }, 30_000);
+
+    const manifest = (await command({ action: { case: "scan", value: { rootPath: fixture.a.repo } } })).workspaceCopy!
+      .manifest!;
+
+    const required = manifest.entries.filter((e) => !e.ignored).map((e) => e.path);
+
+    for (const omitted of ["README.md", "untracked.txt", ".git/HEAD"]) {
+      expect(
+        await failure(
+          command({
+            action: {
+              case: "authorize",
+              value: { token: manifest.token, paths: required.filter((p) => p !== omitted) },
+            },
+          }),
+        ),
+      ).toContain("complete repository");
+      expect(
+        await failure(command({ action: { case: "read", value: { token: manifest.token, path: "README.md" } } })),
+      ).toContain("not selected");
+    }
+
+    for (const path of ["node_modules/generated", "target/generated", "dist/generated"]) {
+      expect(
+        await failure(
+          command({ action: { case: "authorize", value: { token: manifest.token, paths: [...required, path] } } }),
+        ),
+      ).toContain("unavailable");
+      expect(await failure(command({ action: { case: "read", value: { token: manifest.token, path } } }))).toContain(
+        "not selected",
+      );
+      const input = request(await plan(), `crafted-${path.split("/")[0]}`);
+      input.ignoredSelection!.paths.push(path);
+      expect(await failure(run(input))).toContain("unavailable");
+    }
+
+    await command({ action: { case: "release", value: manifest.token } });
+  }, 30_000);
+
+  test("ignores old preset exclusions for repository files and keeps only ignored choices", async () => {
+    const hash = (path: string) => createHash("sha256").update(path).digest("hex");
+    await fixture.a.sql(
+      (sql) =>
+        sql`UPDATE workspace_copy_presets SET included=${JSON.stringify([hash("node_modules/generated"), hash("ignored.txt")])}::jsonb, excluded=${JSON.stringify([hash("README.md"), hash("untracked.txt"), hash("settings.local")])}::jsonb`,
+    );
+    const manifest = await plan();
+    expect(manifest.entries.find((e) => e.path === "README.md")?.included).toBe(true);
+    expect(manifest.entries.find((e) => e.path === "untracked.txt")?.included).toBe(true);
+    expect(manifest.entries.find((e) => e.path === "settings.local")?.included).toBe(false);
+    expect(manifest.entries.find((e) => e.path === "ignored.txt")?.included).toBe(true);
+    const events = await run(request(manifest, "old-preset-copy"));
+    const persisted = await fixture.a.sql((sql) => sql`SELECT included, excluded FROM workspace_copy_presets`);
+    expect(JSON.stringify(persisted)).not.toContain(hash("README.md"));
+    expect(JSON.stringify(persisted)).not.toContain(hash("untracked.txt"));
+    expect(JSON.stringify(persisted)).not.toContain(hash("node_modules/generated"));
+    await fixture.a.gw.api.removeWorkspace({ workspaceId: events.at(-1)!.workspaceRef });
+  }, 30_000);
+
+  test("refuses a legacy client selection that omits tracked files", async () => {
+    const manifest = await plan();
+    const input = request(manifest, "partial-repository");
+    delete input.ignoredSelection;
+    input.paths = manifest.entries.filter((e) => e.included && e.path !== "README.md").map((e) => e.path);
+    expect(await failure(run(input))).toContain("complete repository");
+    expect(existsSync(join(target.dir, "partial-repository"))).toBe(false);
+  });
+
   test("copies through linked gateways and publishes the target home's workspace", async () => {
     const events = await run(request(await plan(), "linked-copy", true));
     const result = events.at(-1)!;
@@ -165,7 +249,6 @@ describe.skipIf(!dockerAvailable)("workspace copies over real worker and compute
     const manifest = await plan();
     expect(manifest.entries.find((e) => e.path === "escape")?.blocked).toContain("outside");
     const input = request(manifest, "unsafe-copy");
-    input.paths.push("escape");
     expect(await failure(run(input))).toContain("unavailable");
     rmSync(join(fixture.a.repo, "escape"));
     const older = request(await plan(), "old-copy");

@@ -12,11 +12,13 @@ message CopyWorkspaceRequest {
   string target_ref = 2;
   string project_ref = 3;
   string manifest_token = 4;
-  repeated string paths = 5;
+  // Legacy full selection; incomplete repositories are rejected.
+  repeated string paths = 5 [deprecated = true];
   repeated string confirmed_secrets = 6;
   string parent_path = 7;
   string name = 8;
   string transfer_key = 9;
+  canopy.worker.v1.WorkspaceCopyIgnoredSelection ignored_selection = 10;
 }
 message WorkspaceCopyProgress {
   uint64 bytes = 1;
@@ -33,11 +35,12 @@ message WorkspaceCopyProgress {
 message WorkspaceCopySourceRequest {
   string workspace_id = 1;
   string token = 2;
-  repeated string paths = 3;
+  repeated string paths = 3 [deprecated = true];
   repeated string confirmed_secrets = 4;
   bool authorize = 5;
   canopy.worker.v1.WorkspaceCopyRead read = 6;
   bool release = 7;
+  canopy.worker.v1.WorkspaceCopyIgnoredSelection ignored_selection = 8;
 }
 message WorkspaceCopySourceResponse {
   repeated canopy.worker.v1.WorkspaceCopyEntry entries = 1;

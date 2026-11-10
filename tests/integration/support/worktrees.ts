@@ -118,6 +118,7 @@ export async function worktreeFixture(
           "workspace_clone_source",
           "project_sources",
           "workspace_copy_v1",
+          "workspace_copy_scope_v2",
           ...(options.capabilities ?? []),
         ],
         worktreesRoot: host.worktreesRoot,
