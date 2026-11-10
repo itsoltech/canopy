@@ -108,7 +108,7 @@ describe.skipIf(!dockerAvailable)("GitHub metadata ownership, conflicts and dura
     const before = fixture.state.writes;
     expect(await code(gw.api.getPullRequestMetadata({ pullRequestId: crypto.randomUUID() }))).toBe(Code.NotFound);
 
-    for (const id of ["USER_AUTHOR", "USER_MISSING", "USER_FOREIGN", "TEAM_OTHER_ORG", "TEAM_FOREIGN_REPO"]) {
+    for (const id of ["USER_AUTHOR", "USER_MISSING", "TEAM_OTHER_ORG", "TEAM_FOREIGN_REPO"]) {
       expect(
         await code(
           gw.api.requestPullRequestReviewers(
@@ -119,6 +119,14 @@ describe.skipIf(!dockerAvailable)("GitHub metadata ownership, conflicts and dura
       ).toBe(Code.NotFound);
     }
 
+    expect(
+      await code(
+        gw.api.requestPullRequestReviewers(
+          await request("request_reviewers", { metadataIds: ["USER_FOREIGN"], reviewerAction: "request" }),
+          browser,
+        ),
+      ),
+    ).toBe(Code.PermissionDenied);
     expect(
       await code(gw.api.setPullRequestLabels(await request("set_labels", { metadataIds: ["LABEL_FOREIGN"] }), browser)),
     ).toBe(Code.NotFound);
