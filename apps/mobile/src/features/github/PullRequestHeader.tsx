@@ -8,6 +8,7 @@ import { font, useColors, useTypography } from "../../ui/theme";
 import { GitHubAvatar } from "./GitHubAvatar";
 import { GitHubActions } from "./GitHubActions";
 import { PullRequestStatus } from "./PullRequestStatus";
+import { LifecycleActions } from "./LifecycleActions";
 
 export function PullRequestHeader({
   snapshot,
@@ -124,6 +125,7 @@ export function PullRequestHeader({
           <Icon name="copy" />
         </Pressable>
       </View>
+      <LifecycleActions snapshot={snapshot} onrefresh={onrefresh} />
     </View>
   );
 }

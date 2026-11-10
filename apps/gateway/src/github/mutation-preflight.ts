@@ -5,6 +5,7 @@ import type { GitHubPullRequests } from "./pull-requests.ts";
 import type { AccessToken } from "./access.ts";
 import { graphErrors } from "./read-scope.ts";
 import { mutationBudget } from "./mutation-http.ts";
+import { lifecycleActions } from "./lifecycle.ts";
 
 const pr = Schema.Struct({ id: Schema.String });
 
@@ -126,7 +127,16 @@ export async function preflight(scope: MutationScope, r: github.PullRequestMutat
   )
     throw new ConnectError("Pull request changed. Refresh before sending.", Code.FailedPrecondition);
 
-  if (!["create_comment", "viewed", "add_review_comment", "submit_review", "discard_review"].includes(r.action)) {
+  if (
+    ![
+      "create_comment",
+      "viewed",
+      "add_review_comment",
+      "submit_review",
+      "discard_review",
+      ...lifecycleActions,
+    ].includes(r.action)
+  ) {
     const n = data.node;
 
     const kind = ["reply", "resolve_thread"].includes(r.action)

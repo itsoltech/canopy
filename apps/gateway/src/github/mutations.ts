@@ -1,4 +1,4 @@
-import { create } from "@bufbuild/protobuf";
+import { create, fromJsonString } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -13,6 +13,13 @@ import { uncertainDetail, type MutationRow } from "./store-mutations.ts";
 import { viewedFiles } from "./viewed.ts";
 import { validateReview, reviewMutation, reviewParameters } from "./review-mutation.ts";
 import { verifyReviewAnchor, reviewPreflight } from "./review-preflight.ts";
+import {
+  lifecycleActions,
+  lifecycleParameters,
+  validateLifecycle,
+  lifecyclePreflight,
+  lifecycleMutation,
+} from "./lifecycle.ts";
 
 const actions = [
   "create_comment",
@@ -24,6 +31,7 @@ const actions = [
   "submit_review",
   "discard_review",
   "resolve_thread",
+  ...lifecycleActions,
 ];
 
 const result = Schema.Struct({
@@ -39,6 +47,7 @@ const result = Schema.Struct({
           pullRequest: Schema.optional(Schema.Struct({ id: Schema.String })),
           pullRequestReview: Schema.optional(Schema.Struct({ id: Schema.String })),
           thread: Schema.optional(Schema.Struct({ id: Schema.String })),
+          mergeQueueEntry: Schema.optional(Schema.Struct({ id: Schema.String })),
         }),
       ),
     }),
@@ -56,11 +65,18 @@ export function mutationReceipt(r: MutationRow) {
     confirmationId: r.state === "prepared" ? r.confirmation_id : "",
     expiresAt: timestampFromDate(new Date(r.expires_at)),
     viewerViewedState: r.viewer_viewed_state,
+    createdPullRequest: r.created_pr
+      ? fromJsonString(github.PullRequestRefSchema, JSON.stringify(r.created_pr))
+      : undefined,
+    existingPullRequest: r.existing_pr
+      ? fromJsonString(github.PullRequestRefSchema, JSON.stringify(r.existing_pr))
+      : undefined,
   });
 }
 
 function validate(r: github.PullRequestMutationRequest) {
   validateReview(r);
+  validateLifecycle(r);
 
   if (!uuid(r.pullRequestId) || !uuid(r.accountId) || !uuid(r.clientRequestId))
     throw new ConnectError("Pull request not found", Code.NotFound);
@@ -97,10 +113,15 @@ function validate(r: github.PullRequestMutationRequest) {
 export class GitHubMutations {
   constructor(readonly prs: GitHubPullRequests) {}
   async get(r: github.PullRequestMutationRequestRef, client: string) {
-    if (!uuid(r.pullRequestId) || !uuid(r.clientRequestId)) throw new ConnectError("Mutation not found", Code.NotFound);
+    if ((!uuid(r.pullRequestId) && !uuid(r.threadId)) || !uuid(r.clientRequestId))
+      throw new ConnectError("Mutation not found", Code.NotFound);
     const row = (await this.prs.accounts.run((s) => s.mutationGet(this.prs.accounts.owner, r.clientRequestId)))[0];
 
-    if (!row || row.pull_request_id !== r.pullRequestId || row.client_binding !== client)
+    if (
+      !row ||
+      (r.threadId ? row.thread_id !== r.threadId : row.pull_request_id !== r.pullRequestId) ||
+      row.client_binding !== client
+    )
       throw new ConnectError("Mutation not found", Code.NotFound);
 
     return mutationReceipt(row);
@@ -124,6 +145,8 @@ export class GitHubMutations {
         r.path,
         r.viewed,
         reviewParameters(r),
+        lifecycleParameters(r),
+        r.title,
       ]),
     );
 
@@ -154,6 +177,8 @@ export class GitHubMutations {
         if (row && row.state !== "prepared") return mutationReceipt(row);
         await preflight(scope, r, scope.access);
         await reviewPreflight(scope, r, renew);
+
+        if (lifecycleActions.includes(r.action)) await lifecyclePreflight(scope, r);
         await renew();
         row = (
           await accounts.run((s) => s.mutationPrepare(accounts.owner, client, r, fingerprint, scope.mapping.revision))
@@ -187,6 +212,7 @@ export class GitHubMutations {
 
     try {
       const review = reviewMutation(scope, r);
+      const lifecycle = lifecycleActions.includes(r.action) ? lifecycleMutation(scope, r) : undefined;
       const input = review?.input ?? mutationInput(scope, r);
 
       const query =
@@ -199,19 +225,34 @@ export class GitHubMutations {
 
       // Deliberately bypass authorized(): even its 401 refresh retry must never replay a write.
       const response = await accounts.http.detailed(
-        "/graphql",
+        lifecycle?.path ?? "/graphql",
         {
-          method: "POST",
+          method: lifecycle?.method ?? "POST",
           headers: { Authorization: `Bearer ${scope.access.token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query,
-            variables: { input: { ...input, clientMutationId: r.clientRequestId } },
-          }),
+          body: JSON.stringify(
+            lifecycle?.body ?? {
+              query,
+              variables: { input: { ...input, clientMutationId: r.clientRequestId } },
+            },
+          ),
         },
         [scope.access.token, ...(scope.access.secrets ?? [])],
       );
 
       await mutationBudget(scope, response.value, response.headers);
+
+      if (r.action === "merge") {
+        const merged = Schema.decodeUnknownSync(
+          Schema.Struct({ merged: Schema.Boolean, sha: Schema.optional(Schema.String) }),
+        )(response.value);
+
+        state = merged.merged && merged.sha ? "succeeded" : "failed";
+        upstream = merged.sha ?? "";
+        detail = state === "failed" ? "GitHub blocked this merge. Refresh and check the requirements." : "";
+
+        return mutationReceipt(await accounts.run((s) => s.mutationFinish(row, state, upstream, detail)));
+      }
+
       const parsed = Schema.decodeUnknownSync(result)(response.value);
       const payload = parsed.data?.result;
 
@@ -223,13 +264,14 @@ export class GitHubMutations {
           payload.pullRequestReviewComment?.id ??
           payload.pullRequestReview?.id ??
           payload.thread?.id ??
+          payload.mergeQueueEntry?.id ??
           payload.pullRequest?.id ??
           payload.clientMutationId ??
           "";
 
         if (upstream) {
-          state = "succeeded";
-          detail = "";
+          state = lifecycle?.accepted ? "accepted" : "succeeded";
+          detail = lifecycle?.accepted ? "GitHub accepted this request. Refresh to check its progress." : "";
         }
       } else if (
         !payload &&

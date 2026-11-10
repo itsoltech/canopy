@@ -51,6 +51,15 @@ service GatewayService {
   rpc SubmitPullRequestReview(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
   rpc DiscardPullRequestReview(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
   rpc SetPullRequestReviewThreadResolved(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc GetPullRequestCreateContext(PullRequestCreateContextRequest) returns (PullRequestCreateContext);
+  rpc PreparePullRequestDraftContext(PullRequestCreateContextRequest) returns (PullRequestContextResponse);
+  rpc CreatePullRequest(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc SetPullRequestDraft(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc MergePullRequest(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc SetPullRequestQueue(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc SetPullRequestAutoMerge(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc UpdatePullRequestBranch(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
+  rpc SetPullRequestOpen(PullRequestMutationRequest) returns (PullRequestMutationReceipt);
   rpc GetGitHubUpdateAccount(GitHubAccountsRequest) returns (GitHubUpdateAccountResponse);
   rpc SetGitHubUpdateAccount(GitHubUpdateAccountRequest) returns (GitHubUpdateAccountResponse);
   rpc ListGitHubAccounts(GitHubAccountsRequest) returns (GitHubAccountsResponse);

@@ -95,7 +95,9 @@
 
 <div class={["grid min-w-0 gap-3 border-y border-sky-500/30 bg-surface p-3 text-sm sm:text-xs", className]}>
   <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
-    <p class="min-w-0 truncate font-mono" title={file.path}>{file.path} · {anchorLabel(range)} · {sha.slice(0, 7)}</p>
+    <p class="min-w-0 truncate font-mono" title={`${file.path} · ${sha.slice(0, 7)}`}>
+      {file.path} · {anchorLabel(range)}
+    </p>
     <Button size="sm" variant="ghost" onclick={onrange}>Extend range</Button>
   </div>
   <p class="text-zinc-500 dark:text-zinc-400">
@@ -125,9 +127,6 @@
     </p>{/if}
   {#if stale || !online}<p role="status">
       Connect and open the current changes before sending. Your draft stays here.
-    </p>{/if}
-  {#if draft.pendingId}<p class="text-zinc-500 dark:text-zinc-400">
-      A pending review exists. Add this comment to it, then submit the review.
     </p>{/if}
   {#if draft.error}<p role="alert">{draft.error}</p>
     <Button size="sm" variant="ghost" onclick={() => void draft.read()}>Refresh review</Button>{/if}

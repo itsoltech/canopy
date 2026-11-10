@@ -13,7 +13,7 @@
   }: {
     label: string;
     value?: string;
-    options: readonly { value: string; label: string }[];
+    options: readonly { value: string; label: string; disabled?: boolean; reason?: string }[];
     disabled?: boolean;
     class?: ClassValue;
   } = $props();
@@ -23,17 +23,20 @@
 
     if (!keys.includes(event.key)) return;
     event.preventDefault();
-    const current = options.findIndex((o) => o.value === value);
+    const enabled = options.filter((o) => !o.disabled);
+
+    if (!enabled.length || disabled) return;
+    const current = enabled.findIndex((o) => o.value === value);
 
     const next =
       event.key === "Home"
         ? 0
         : event.key === "End"
-          ? options.length - 1
-          : (current + (event.key === "ArrowRight" ? 1 : -1) + options.length) % options.length;
+          ? enabled.length - 1
+          : (current + (event.key === "ArrowRight" ? 1 : -1) + enabled.length) % enabled.length;
 
-    value = options[next]!.value;
-    event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button")[next]?.focus();
+    value = enabled[next]!.value;
+    event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")[next]?.focus();
   }
 </script>
 
@@ -41,7 +44,8 @@
   {#each options as option (option.value)}
     <button
       type="button"
-      {disabled}
+      disabled={disabled || option.disabled}
+      title={option.reason}
       aria-pressed={value === option.value}
       data-active={value === option.value || undefined}
       onclick={() => (value = option.value)}

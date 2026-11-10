@@ -6,7 +6,9 @@ Timeline, review threads, checki/jobs/logi i Code, polling, kontekst composera
 oraz fallback aktualizacji. Etap 5 dodaje jawne komentarze (post/reply/edit/delete)
 i Viewed synchronizowane z GitHub, ze wspólnym preflightem, receiptami i audytem.
 Etap 6 dodaje inline comments i zakresy LEFT/RIGHT, pending review ze wszystkimi
-trzema werdyktami oraz resolve/unresolve. Pozostałe zapisy pozostają zakresem etapów 7–9.
+trzema werdyktami oraz resolve/unresolve. Etap 7 dodaje tworzenie PR z gałęzi wątku,
+ready/draft, merge trzema metodami, kolejkę scalania, auto-merge, update branch i close/reopen.
+Pozostałe zapisy pozostają zakresem etapów 8–9.
 Decyzje ustalone po przeglądzie: oficjalna GitHub App Canopy organizacji `itsoltech`, device flow,
 wygasające tokeny użytkownika w domu wątku, pełny zakres zapisów opisany poniżej i Viewed
 synchronizowane z GitHub. Implementacja jako jeden stos PR według §11.
@@ -531,6 +533,15 @@ evidence=`product_create` dla źródłowego wątku. Awaria lokalnego linku po ut
 uruchamia read-only reconcile po upstream ID, bez ponownego create. Konflikt „PR already exists”
 proponuje link do zweryfikowanego PR i respektuje tombstone; nie tworzy duplikatu ani nie odpina
 innych PR. Utrata odpowiedzi create pozostaje uncertain do rozstrzygnięcia, także po restarcie.
+
+Implementacja lifecycle negocjuje `github_pr_lifecycle_v1`. Migracja `0119_github_lifecycle`
+rozszerza wspólny receipt o wątek, repozytorium i potwierdzony upstream ID nowego PR oraz stan
+`accepted`. Numer należy zweryfikować przed scaleniem stosu, jeżeli równolegle dochodzą migracje.
+Po trwałym zapisaniu upstream ID ponowne otwarcie formularza sprawdza tylko receipt i odczytuje PR;
+lokalny link jest transakcyjny i zachowuje tombstone. Brak odpowiedzi bez takiego dowodu nigdy
+nie wywołuje drugiego create. Wszystkie akcje lifecycle wymagają potwierdzenia ważnego 60 s,
+związanego z klientem, kontem, pełnym head/base SHA i parametrami. Enqueue, update branch
+i enable auto-merge pokazują przyjęcie zlecenia, a ich wynik odświeża zwykły odczyt GitHub.
 
 ## 6. Proto i API UI
 

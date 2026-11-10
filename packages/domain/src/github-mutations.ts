@@ -15,6 +15,7 @@ export function mutationRequest(
     accessRevision: snapshot.accessRevision,
     headSha: snapshot.summary?.headSha ?? "",
     expectedState: snapshot.summary?.state ?? "",
+    baseSha: snapshot.baseSha,
     clientRequestId: requestId,
     action,
     ...fields,
@@ -22,6 +23,13 @@ export function mutationRequest(
 }
 
 export interface MutationApi {
+  createPullRequest: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  setPullRequestDraft: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  mergePullRequest: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  setPullRequestQueue: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  setPullRequestAutoMerge: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  updatePullRequestBranch: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
+  setPullRequestOpen: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
   preparePullRequestMutation: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
   getPullRequestMutation: (r: github.PullRequestMutationRequestRef) => Promise<github.PullRequestMutationReceipt>;
   createPullRequestComment: (r: github.PullRequestMutationRequest) => Promise<github.PullRequestMutationReceipt>;
@@ -46,6 +54,20 @@ export async function sendMutation(
 ) {
   try {
     switch (request.action) {
+      case "create_pr":
+        return await api.createPullRequest(request);
+      case "set_draft":
+        return await api.setPullRequestDraft(request);
+      case "merge":
+        return await api.mergePullRequest(request);
+      case "queue":
+        return await api.setPullRequestQueue(request);
+      case "auto_merge":
+        return await api.setPullRequestAutoMerge(request);
+      case "update_branch":
+        return await api.updatePullRequestBranch(request);
+      case "set_open":
+        return await api.setPullRequestOpen(request);
       case "create_comment":
         return await api.createPullRequestComment(request);
       case "reply":
@@ -69,12 +91,17 @@ export async function sendMutation(
     }
   } catch (cause) {
     try {
-      return await api.getPullRequestMutation(
+      const receipt = await api.getPullRequestMutation(
         create(github.PullRequestMutationRequestRefSchema, {
           pullRequestId: request.pullRequestId,
           clientRequestId: request.clientRequestId,
+          threadId: request.threadId,
         }),
       );
+
+      if (receipt.state === "prepared") throw cause;
+
+      return receipt;
     } catch {
       return create(github.PullRequestMutationReceiptSchema, {
         clientRequestId: request.clientRequestId,

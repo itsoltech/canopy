@@ -13,6 +13,6 @@ export const reviewComplete = (pages: readonly github.PullRequestReviewDraft[]) 
   pages.reduce((n, p) => n + p.comments.length, 0) === pages[0]?.totalCount;
 
 export const anchorLabel = (c: { side: string; line: number; startSide: string; startLine: number }) =>
-  c.startLine && (c.startLine !== c.line || c.startSide !== c.side)
-    ? `${c.startSide} ${c.startLine}–${c.side} ${c.line}`
-    : `${c.side} ${c.line}`;
+  c.startLine && c.startLine !== c.line
+    ? `Lines ${c.startLine}–${c.line} (${c.side === "LEFT" ? "old" : "new"})`
+    : `Line ${c.line} (${c.side === "LEFT" ? "old" : "new"})`;

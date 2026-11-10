@@ -13,6 +13,13 @@ const mutate = async (operation: string, r: github.PullRequestMutationRequest) =
   );
 
 export const mutations: MutationApi = {
+  createPullRequest: (r) => mutate("create-pr", r),
+  setPullRequestDraft: (r) => mutate("set-draft", r),
+  mergePullRequest: (r) => mutate("merge", r),
+  setPullRequestQueue: (r) => mutate("queue", r),
+  setPullRequestAutoMerge: (r) => mutate("auto-merge", r),
+  updatePullRequestBranch: (r) => mutate("update-branch", r),
+  setPullRequestOpen: (r) => mutate("set-open", r),
   preparePullRequestMutation: (r) => mutate("prepare-mutation", r),
   getPullRequestMutation: async (r) =>
     decode(
@@ -29,6 +36,18 @@ export const mutations: MutationApi = {
   discardPullRequestReview: (r) => mutate("discard-review", r),
   setPullRequestReviewThreadResolved: (r) => mutate("resolve-thread", r),
 };
+
+export const createContext = async (r: github.PullRequestCreateContextRequest) =>
+  decode(
+    github.PullRequestCreateContextSchema,
+    await post("create-context", toJson(github.PullRequestCreateContextRequestSchema, r)),
+  );
+
+export const draftContext = async (r: github.PullRequestCreateContextRequest) =>
+  decode(
+    github.PullRequestContextResponseSchema,
+    await post("draft-context", toJson(github.PullRequestCreateContextRequestSchema, r)),
+  );
 
 export const page = async <D extends DescMessage>(
   operation: string,

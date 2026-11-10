@@ -12,6 +12,7 @@
   import GitHubAvatar from "./GitHubAvatar.svelte";
   import PullRequestState from "./PullRequestState.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
+  import LifecycleActions from "./LifecycleActions.svelte";
 
   let {
     snapshot,
@@ -117,4 +118,5 @@
       ><TouchTarget /><code>gh pr checkout {ref?.number}</code><Icon name="copy" size="sm" /></button
     >
   </div>
+  <LifecycleActions {snapshot} {onrefresh} />
 </header>

@@ -1,14 +1,20 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { Effect } from "effect";
+import { Effect, type Schema } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { github } from "@canopy/contracts";
 import { reviewParameters } from "./review-mutation.ts";
+import { lifecycleParameters } from "./lifecycle.ts";
+import { githubCreateStore } from "./store-create.ts";
 
 export interface MutationRow {
   owner_user_id: string;
   request_id: string;
   account_id: string;
-  pull_request_id: string;
+  pull_request_id: string | null;
+  thread_id: string | null;
+  repository_id: string;
+  created_pr: Schema.JsonObject | null;
+  existing_pr: Schema.JsonObject | null;
   client_binding: string;
   fingerprint: string;
   action: string;
@@ -24,7 +30,7 @@ export interface MutationRow {
   upstream_id: string;
   detail: string;
   viewer_viewed_state: string;
-  parameters: ReturnType<typeof reviewParameters>;
+  parameters: ReturnType<typeof reviewParameters> & ReturnType<typeof lifecycleParameters>;
 }
 
 export const uncertainDetail = "Couldn't confirm. Check on GitHub";
@@ -33,7 +39,7 @@ const missing = () => new ConnectError("Mutation not found", Code.NotFound);
 export function githubMutationsStore(sql: SqlClient.SqlClient) {
   const audit = (r: MutationRow, outcome: string) =>
     sql`INSERT INTO audit_log(id,actor_user_id,action,target_type,target_id,details)
-      VALUES (${Bun.randomUUIDv7()}::uuid,${r.owner_user_id}::uuid,${`github.${r.action}`},'github_pull_request',${r.pull_request_id}::uuid,
+      VALUES (${Bun.randomUUIDv7()}::uuid,${r.owner_user_id}::uuid,${`github.${r.action}`},${r.pull_request_id ? "github_pull_request" : "thread"},${r.pull_request_id ?? r.thread_id}::uuid,
       ${JSON.stringify({
         requestId: r.request_id,
         client: r.client_binding,
@@ -52,6 +58,7 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
     sql<MutationRow>`SELECT * FROM github_mutation_receipts WHERE owner_user_id=${owner}::uuid AND request_id=${id}::uuid`;
 
   return {
+    ...githubCreateStore(sql, audit),
     mutationGet: (owner: string, id: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -77,7 +84,7 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
           (owner_user_id,request_id,account_id,pull_request_id,client_binding,fingerprint,action,access_revision,mapping_revision,
           head_sha,expected_state,resource_id,path,confirmation_id,parameters)
           VALUES (${owner}::uuid,${r.clientRequestId}::uuid,${r.accountId}::uuid,${r.pullRequestId}::uuid,${client},${fingerprint},
-          ${r.action},${r.accessRevision}::bigint,${mapping}::bigint,${r.headSha},${r.expectedState},${r.resourceId},${r.path},${Bun.randomUUIDv7()}::uuid,${JSON.stringify(reviewParameters(r))}::jsonb)
+          ${r.action},${r.accessRevision}::bigint,${mapping}::bigint,${r.headSha},${r.expectedState},${r.resourceId},${r.path},${Bun.randomUUIDv7()}::uuid,${JSON.stringify({ ...reviewParameters(r), ...lifecycleParameters(r) })}::jsonb)
           ON CONFLICT DO NOTHING RETURNING *`;
 
           if (rows[0]) yield* audit(rows[0], "prepared");
@@ -91,11 +98,12 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
           const rows =
             yield* sql<MutationRow>`UPDATE github_mutation_receipts m SET state='in_flight',lease_until=now()+interval '60 seconds',updated_at=now()
         WHERE m.owner_user_id=${r.owner_user_id}::uuid AND m.request_id=${r.request_id}::uuid AND m.state='prepared'
-        AND m.expires_at>now() AND (m.action NOT IN ('delete_comment','discard_review') OR m.confirmation_id::text=${confirmation})
+        AND m.expires_at>now() AND (m.action NOT IN ('delete_comment','discard_review','merge','queue','auto_merge','update_branch','set_open','set_draft','create_pr') OR m.confirmation_id::text=${confirmation})
+        AND (m.thread_id IS NULL OR EXISTS(SELECT 1 FROM threads t WHERE t.owner_user_id=m.owner_user_id AND t.id=m.thread_id AND t.deleted_at IS NULL))
         AND EXISTS(SELECT 1 FROM github_accounts a JOIN github_repository_accounts ra ON ra.owner_user_id=a.owner_user_id AND ra.account_id=a.id
-          JOIN github_pull_requests p ON p.owner_user_id=ra.owner_user_id AND p.repository_id=ra.repository_id
           WHERE a.owner_user_id=m.owner_user_id AND a.id=m.account_id AND a.revision=m.access_revision AND a.status='connected'
-          AND ra.revision=m.mapping_revision AND p.id=m.pull_request_id) RETURNING m.*`;
+          AND ra.revision=m.mapping_revision AND (ra.repository_id=m.repository_id OR EXISTS(SELECT 1 FROM github_pull_requests p
+          WHERE p.owner_user_id=m.owner_user_id AND p.repository_id=ra.repository_id AND p.id=m.pull_request_id))) RETURNING m.*`;
 
           if (rows[0]) yield* audit(rows[0], "in_flight");
 
@@ -116,6 +124,7 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
           yield* sql`UPDATE github_pr_cache SET expires_at=now(),etag='',generation=generation+1
           WHERE owner_user_id=${r.owner_user_id}::uuid AND account_id=${r.account_id}::uuid
           AND (cache_key LIKE ${`viewed:${r.pull_request_id}:%`} OR cache_key=${`pending-header:${r.pull_request_id}`}
+          OR cache_key=(SELECT 'summary:'||repository_id||':'||number FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid)
           OR cache_key LIKE (SELECT 'pending:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid)
           OR cache_key LIKE (SELECT 'timeline:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid)
           OR cache_key LIKE (SELECT 'reviews:'||repository_id||':'||number||':%' FROM github_pull_requests WHERE owner_user_id=${r.owner_user_id}::uuid AND id=${r.pull_request_id}::uuid))`;
@@ -130,7 +139,7 @@ export function githubMutationsStore(sql: SqlClient.SqlClient) {
       WHERE github_user_id=${user} AND resource='graphql' AND (last_mutation_at IS NULL OR last_mutation_at<now()-interval '1 second') RETURNING github_user_id`,
     mutationDenied: (owner: string, client: string, pr: string, request: string, action: string) =>
       sql`INSERT INTO audit_log(id,actor_user_id,action,target_type,target_id,details)
-        VALUES (${Bun.randomUUIDv7()}::uuid,${owner}::uuid,'github.mutation_denied','github_pull_request',${pr}::uuid,
+        VALUES (${Bun.randomUUIDv7()}::uuid,${owner}::uuid,'github.mutation_denied',${action === "create_pr" ? "thread" : "github_pull_request"},${pr}::uuid,
         ${JSON.stringify({ client, requestId: request, action, outcome: "denied" })}::jsonb)`,
   };
 }

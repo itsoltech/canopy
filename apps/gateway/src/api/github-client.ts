@@ -46,6 +46,13 @@ export function bindGitHubRequest(method: DescMethod, request: Message, context:
       "SubmitPullRequestReview",
       "DiscardPullRequestReview",
       "SetPullRequestReviewThreadResolved",
+      "CreatePullRequest",
+      "SetPullRequestDraft",
+      "MergePullRequest",
+      "SetPullRequestQueue",
+      "SetPullRequestAutoMerge",
+      "UpdatePullRequestBranch",
+      "SetPullRequestOpen",
     ].includes(method.name)
   )
     return;

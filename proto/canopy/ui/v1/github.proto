@@ -171,6 +171,47 @@ message PullRequestSnapshot {
   string head_repository_id = 20;
   string head_repository_name = 21;
   string viewer_login = 22;
+  PullRequestLifecycle lifecycle = 23;
+}
+message PullRequestLifecycle {
+  repeated string actions = 1;
+  repeated string merge_methods = 2;
+  repeated string update_methods = 3;
+  repeated string blocking_reasons = 4;
+  bool queue_required = 5;
+  bool in_queue = 6;
+  string auto_merge_method = 7;
+  string auto_merge_author = 8;
+  bool maintainer_can_modify = 9;
+  string merge_title = 10;
+  string merge_body = 11;
+  string update_blocking_reason = 12;
+}
+// Read-only checkout and GitHub verification. No push or turn dispatch.
+message PullRequestCreateContextRequest {
+  string thread_id = 1;
+  string repository_name = 2;
+  string base_ref = 3;
+  string head_sha = 4;
+  string cursor = 5;
+}
+message PullRequestCreateContext {
+  string thread_id = 1;
+  string repository_name = 2;
+  string repository_id = 3;
+  repeated string repositories = 4;
+  string head_repository_name = 5;
+  string head_ref = 6;
+  string head_sha = 7;
+  string base_ref = 8;
+  string base_sha = 9;
+  repeated string branches = 10;
+  string next_cursor = 11;
+  string account_id = 12;
+  uint64 access_revision = 13;
+  string viewer_login = 14;
+  bool published = 15;
+  string detail = 16;
 }
 message PullRequestLink {
   PullRequestSummary summary = 1;
@@ -414,11 +455,23 @@ message PullRequestMutationRequest {
   string review_revision = 23;
   bool acknowledge_outdated = 24;
   bool resolved = 25;
+  string base_sha = 26;
+  string method = 27;
+  string title = 28;
+  bool enabled = 29;
+  string thread_id = 30;
+  string repository_name = 31;
+  string head_repository_name = 32;
+  string head_ref = 33;
+  string base_ref = 34;
+  bool draft = 35;
+  bool maintainer_can_modify = 36;
 }
 message PullRequestMutationRequestRef {
   string pull_request_id = 1;
   string client_request_id = 2;
   string client_binding = 3;
+  string thread_id = 4;
 }
 message PullRequestMutationReceipt {
   string client_request_id = 1;
@@ -429,4 +482,6 @@ message PullRequestMutationReceipt {
   string confirmation_id = 6;
   google.protobuf.Timestamp expires_at = 7;
   string viewer_viewed_state = 8;
+  PullRequestRef created_pull_request = 9;
+  PullRequestRef existing_pull_request = 10;
 }

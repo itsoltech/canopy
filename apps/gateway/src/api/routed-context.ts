@@ -34,6 +34,7 @@ export const READS = new Set([
   "ListPullRequestTimeline",
   "ListPullRequestReviewThreads",
   "GetPullRequestReviewDraft",
+  "GetPullRequestCreateContext",
   "ListPullRequestChecks",
   "ListPullRequestCheckJobs",
   "GetPullRequestJobLog",

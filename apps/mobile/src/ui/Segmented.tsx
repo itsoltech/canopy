@@ -18,7 +18,7 @@ export function Segmented<T extends string>({
   style,
 }: {
   /** `badge`: a count beside the label of a segment that is not selected (unread items there). */
-  options: readonly { value: T; label: string; badge?: number }[];
+  options: readonly { value: T; label: string; badge?: number; disabled?: boolean }[];
   value: T;
   onChange: (value: T) => void;
   style?: StyleProp<ViewStyle>;
@@ -76,7 +76,8 @@ export function Segmented<T extends string>({
           <Pressable
             key={option.value}
             accessibilityRole="tab"
-            accessibilityState={{ selected: value === option.value }}
+            accessibilityState={{ selected: value === option.value, disabled: option.disabled }}
+            disabled={option.disabled}
             onPress={() => onChange(option.value)}
             hitSlop={{ top: 6, bottom: 6 }}
             style={[
@@ -87,6 +88,7 @@ export function Segmented<T extends string>({
                 paddingVertical: 6,
                 alignItems: "center",
                 justifyContent: "center",
+                opacity: option.disabled ? 0.4 : 1,
               },
               value === option.value && !segment && raised,
             ]}
