@@ -7,7 +7,7 @@
   import { useItemAwaiting } from "../../thread-directory.ts";
   import ItemStatusIcon from "./ItemStatusIcon.svelte";
   import { useItemChildren } from "./item-context.ts";
-  import { activityHeader, activitySurface } from "../activity-header.ts";
+  import { activityBody, activityHeader, activitySurface } from "../activity-header.ts";
 
   /**
    * One-line activity row (tool, command, file change …) that expands to its details.
@@ -66,9 +66,9 @@
 
 <div class="density-work text-base/6 sm:text-sm/5">
   {#if children || nested()}
-    <Disclosure bind:open remember="frame" summaryClass={[activityHeader, activitySurface]}>
+    <Disclosure bind:open remember="frame" grid class={activitySurface} summaryClass={activityHeader}>
       {#snippet summary()}{@render row()}{/snippet}
-      <div class="mt-1 mb-2 grid grid-cols-[minmax(0,1fr)] gap-2 pl-6">
+      <div class={activityBody}>
         {@render children?.()}
         {#if nested()}<div class="grid gap-1 border-l-2 border-zinc-950/5 pl-3 dark:border-white/10">
             {@render nested()?.()}

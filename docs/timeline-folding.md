@@ -44,16 +44,27 @@ Web/desktop i mobile pokazują tekst agenta zwykłą typografią wiadomości, ta
 foldu. Odpowiedź pozostaje w osobnym slocie pod pracą. Narzędzia i ich grupy mają mniejszy
 tekst kontekstu pracy, ikonę Tabler, neutralne tło oraz cienką lewą krawędź. Jednorodne
 grupy zachowują ikonę rodzaju pracy, mieszane używają listy kroków. Szczegóły narzędzi
-zachowują dotychczasowy kompaktowy układ.
+zachowują kompaktowy układ. W rozwiniętym wierszu tło i lewa krawędź obejmują
+nagłówek oraz szczegóły; kod i wynik mają wspólny wewnętrzny inset 8 px (web od `sm`: 12 px).
+Grupa kontynuuje tę samą powierzchnię przez osobne wirtualne wiersze, z dolnymi
+rogami tylko na ostatnim dziecku. Narzędzia wewnątrz grupy mają wcięcie zamiast
+kolejnych ramek i teł. Metadane fragmentu grupy są prymitywne, więc nie naruszają
+ponownego użycia niezmienionych wierszy podczas streamingu.
 
 Rozumowanie ma ikonę żarówki, stałe miejsce na „Thinking” / „Thought” oraz kursywę
-w jednoliniowym podglądzie. Nie dostaje tła narzędzi. Tło i krawędź aktywności pozostają
+w jednoliniowym podglądzie. Ma własną, słabszą powierzchnię i ciągłą krawędź, także
+po rozwinięciu. Tło i krawędź aktywności pozostają
 neutralne także po błędzie, odrzuceniu i przerwaniu. Kolor ma tylko ikona lub status.
 Zwarta etykieta grupy podaje liczbę elementów ze statusem o najwyższym priorytecie
 (błąd, odrzucenie, przerwanie, działanie); pozostałe stany widać po rozwinięciu.
 Na telefonie widoczna jest ikona i liczba, pełna etykieta pozostaje dostępna dla czytnika.
 Wcięcia i krawędzie nie zależą od stanu. Reguły grupowania,
-klucze wierszy, pamięć rozwinięcia, kotwiczenie i animacje pozostają wspólne.
+klucze wierszy, pamięć rozwinięcia i kotwiczenie pozostają wspólne. Szczegóły web
+rozwijają tor grid `0fr` → `1fr` bez pomiaru wysokości, na tokenach `fast` / `smoothOut`;
+zamknięte szczegóły są odmontowane. Rogi nagłówka zmieniają się na tych samych tokenach.
+Przy ograniczonym ruchu obie zmiany są natychmiastowe. Wirtualne dzieci grup zachowują
+docelową wysokość i istniejące wejście, aby nie zmieniać kotwiczenia. Mobile zachowuje
+przełączanie z kotwicą nagłówka oraz dotychczasowy ruch chevrona.
 
 ## Pozycja przy ręcznym przełączaniu
 

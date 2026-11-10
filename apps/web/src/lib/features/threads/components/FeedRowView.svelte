@@ -11,6 +11,7 @@
   import WorkGroup from "./WorkGroup.svelte";
   import AnswerSlot from "./AnswerSlot.svelte";
   import ShellMessage from "./ShellMessage.svelte";
+  import { activitySurface } from "./activity-header.ts";
 
   /**
    * One row of the thread page's feed. Rows space themselves (bottom padding, measured with the row);
@@ -34,6 +35,8 @@
 
   const directory = useThreadDirectory();
   const well = "bg-zinc-950/2.5 px-3 dark:bg-white/4";
+
+  const attached = () => (row.kind === "work-group" && row.open) || (row.kind === "timeline" && row.group === "body");
 
   const turnId = $derived.by(() => {
     if (row.kind === "work" || row.kind === "work-group" || row.kind === "answer") return row.turn.id;
@@ -92,7 +95,7 @@
   </div>
 {:else if (row.kind === "timeline" || row.kind === "work" || row.kind === "work-group" || row.kind === "answer") && row.history}
   <div class={[row.last && "pb-3"]} data-turn={turnId}>
-    <div class={[well, "pb-3", row.last && "rounded-b-xl"]}>
+    <div class={[well, !attached() && "pb-3", row.last && "rounded-b-xl"]}>
       <div class="opacity-90">{@render body(row)}</div>
     </div>
   </div>
@@ -102,10 +105,12 @@
   <!-- A turn's start is mostly space (its details are quiet): it sits close to the input under it. Rows inside the
        work fold are a dense list, a step tighter than the conversation around them. -->
   <div
-    class={!row.end &&
-    ((row.kind === "timeline" && (row.row.kind === "turn-start" || row.work)) || row.kind === "work-group")
-      ? "pb-1"
-      : "pb-3"}
+    class={attached()
+      ? ""
+      : !row.end &&
+          ((row.kind === "timeline" && (row.row.kind === "turn-start" || row.work)) || row.kind === "work-group")
+        ? "pb-1"
+        : "pb-3"}
     data-turn={turnId}
   >
     {@render body(row)}
@@ -155,7 +160,7 @@
   {#if row.kind === "work"}
     <WorkFold summary={row.summary} turn={row.turn} open={row.open} ontoggle={() => onwork(row.fold, row.key)} />
   {:else if row.kind === "work-group"}
-    <div class="-mb-1 ml-2 border-l border-zinc-950/10 pb-1 pl-4 dark:border-white/10">
+    <div class={["ml-2 border-l border-zinc-950/10 pl-4 dark:border-white/10", !row.open && "-mb-1 pb-1"]}>
       <WorkGroup
         label={row.label}
         open={row.open}
@@ -170,8 +175,12 @@
     <AnswerSlot row={row.row} />
   {:else if row.work}
     <!-- The rule continues the fold's chevron (size-4, centred at 8px); it runs through the row gap. -->
-    <div class="-mb-1 ml-2 border-l border-zinc-950/10 pb-1 pl-4 dark:border-white/10">
-      <TimelineRowView row={row.row} />
+    <div class={["ml-2 border-l border-zinc-950/10 pl-4 dark:border-white/10", !attached() && "-mb-1 pb-1"]}>
+      {#if row.group}
+        <div class={[activitySurface, "activity-group-row px-2 pb-1"]} data-end={row.group === "end" || undefined}>
+          <TimelineRowView row={row.row} />
+        </div>
+      {:else}<TimelineRowView row={row.row} />{/if}
     </div>
   {:else}
     <TimelineRowView row={row.row} />

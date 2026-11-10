@@ -1,0 +1,39 @@
+/* A single surface owns the rail and the outer corners; only the trigger responds to hover. */
+.activity-shell {
+  overflow: clip;
+}
+.activity-shell > summary,
+.activity-group-head > button,
+.activity-group-head {
+  transition: border-radius var(--duration-fast) var(--ease-smooth-out);
+}
+.activity-shell[open] > summary,
+.activity-group-head[data-open] > button,
+.activity-group-head[data-open] {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.activity-shell > summary:focus-visible,
+.activity-shell > button:focus-visible {
+  outline-offset: -2px;
+}
+/* Group fragments meet at virtual row boundaries. Children use that surface, with just an inset. */
+.activity-group-row {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.activity-group-row:not([data-end]) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.activity-group-row .activity-shell {
+  border-left-width: 0;
+  background: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-shell > summary,
+  .activity-group-head > button,
+  .activity-group-head {
+    transition: none;
+  }
+}

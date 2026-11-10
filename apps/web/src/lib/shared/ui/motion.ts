@@ -101,6 +101,15 @@ export function expand(
   };
 }
 
+/** Mounted accordion content: interpolate the grid track without measuring its height. */
+export function expandGrid(): TransitionConfig {
+  return {
+    duration: prefersReducedMotion.current ? 0 : duration("fast"),
+    easing: smoothOut,
+    css: (t) => `display: grid; grid-template-rows: ${t}fr; opacity: ${t}`,
+  };
+}
+
 /**
  * Quiet fade for things that appear on their own (a button over the timeline, a new list row).
  * No travel or blur: rows and any controls inside keep their position. In on --duration-fast,
