@@ -69,6 +69,7 @@ class BotList {
       // Every (re)subscription of a pushing gateway announces its feeds: read once, so nothing missed before
       // it stays stale. An older gateway's gap is a resync.
       if (this.#users && change.case === "feeds") void this.refresh();
+      else if (this.#users && change.case === "linkedReadCompleted" && change.value === "ListBots") void this.refresh();
       else if (this.#users && overview.resyncs !== resyncs && !overview.pushed.has("bots")) void this.refresh();
       resyncs = overview.resyncs;
     });
