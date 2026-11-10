@@ -35,13 +35,13 @@
   {current}
   compact
   class={[
-    "flex min-h-9 min-w-0 items-center gap-2 rounded-lg py-1 pr-3 pl-2 sm:min-h-8 pointer-coarse:min-h-12",
+    "flex min-h-10 min-w-0 items-center gap-2 rounded-lg py-1.5 pr-3 pl-2 sm:min-h-9 pointer-coarse:min-h-12",
     thread.status === "archived" && "opacity-60",
     className,
   ]}
 >
   {#if previous && provider}<ProviderIcon {provider} class="size-3.5 opacity-70" />{:else}
-    <ThreadActivityMark {thread} size="sm">
+    <ThreadActivityMark {thread} size="sm" class="sidebar-row-activity-small">
       {#snippet idle()}
         <!-- An agent's side thread (subagent) shows what it runs on; forks and your own side threads their kind. -->
         {#if thread.spawnedByAgent && provider}<ProviderIcon {provider} class="size-3.5" />{:else}<Icon
@@ -54,7 +54,7 @@
   <SwapText
     text={thread.title}
     class={[
-      "h-5 min-w-0 flex-1 overflow-hidden text-base/5 sm:h-4.5 sm:text-sm/4.5",
+      "h-5.5 min-w-0 flex-1 overflow-hidden text-base/5.5 sm:h-5 sm:text-sm/5",
       thread.titleGenerating
         ? "shimmer"
         : "text-zinc-700 group-aria-[current=page]:text-zinc-950 group-data-calm:opacity-60 group-data-result:text-zinc-950 dark:text-zinc-300 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
@@ -65,7 +65,7 @@
   {#if previous && when}<time
       datetime={isoDateTime(when)}
       title={formatDateTime(when)}
-      class="w-24 shrink-0 truncate text-right text-sm/4.5 text-zinc-500 tabular-nums sm:text-xs/4 dark:text-zinc-400"
+      class="w-24 shrink-0 truncate text-right text-sm/5 text-zinc-500 tabular-nums sm:text-xs/4.5 dark:text-zinc-400"
       >{formatRelative(when, clock.now)}</time
     >
   {:else}<ThreadGoalMark {thread} /><SidebarThreadStatus {thread} />{/if}

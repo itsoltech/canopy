@@ -106,11 +106,23 @@ Na telefonie nakładki z `sheet` otwierają się jako dolny arkusz. Zostają prz
   Wiersze mają co najmniej 36 / 32 px, odstęp ikon 8 px i pionowy padding sekcji 4 px.
   Kopiowanie katalogu pojawia się przy hoverze lub fokusie (na dotyku zawsze),
   a miejsce na nie i Stop zadania pozostaje zarezerwowane w każdym stanie.
-- Wiersze wątków i botów w sidebarze korzystają z gęstszego wariantu `sidebar-row`:
-  tytuł 14 / 12, podpis 12 / 11,5, pionowy padding 6 px. Wiersz główny ma trzy
-  zwarte linie, boczne i archiwalne mają minimum 36 / 32 px (48 px przy dotyku).
-  Status wątku ma stały slot, więc zmiana czasu na pracę lub wynik nie przesuwa tekstu.
-  Mobile używa stopni `chrome` / `chromeSmall` (15 / 13) i celów minimum 48 dp.
+- Sidebar ma lokalny wariant `sidebar-scale`: kontrolki, zakładki i wybór projektów
+  używają tekstu 16 / 14, podpisów 14 / 12,5. Pole wyszukiwania zachowuje 16 px
+  na telefonie, a miejsce przycisku czyszczenia jest zawsze zarezerwowane.
+  Nakładki poza filtrem projektów zachowują własną kompaktową skalę.
+- Wiersze wątków i botów używają `sidebar-row`: tytuł 15 / 13 (linia 22 / 20),
+  podpis i wiek 13 / 12,5 (linia 20 / 18), pionowy padding 8 px i odstęp linii 2 px.
+  Wiersz główny ma 82 / 78 px, bot 60 px, boczny i archiwalny minimum 40 / 36 px
+  (48 px przy dotyku); szkielet archiwum ma tę samą wysokość. Znak projektu ma 20 px
+  z inicjałami 10 px, znak aktywności slot 20 px i ikonę 18 px (boczny 16 px), avatar bota 44 px.
+  Status wątku ma stały slot 96 px, czas bota 64 px, a licznik nieprzeczytanych 28 px;
+  zmiany stanu nie przesuwają tekstu. Wartości pozostają w `rem`.
+- Mobile stosuje lokalnie kolejny stopień: tytuł 16 dp (linia 24), podpis 14 dp
+  (linia 20), wiek i licznik bota 13 dp (linia 18), padding 8 dp i odstęp linii 2 dp.
+  Typografia uwzględnia font i Interface size urządzenia. Znak projektu ma 20 dp,
+  ikony 16 dp, avatar bota 44 dp; cele dotykowe pozostają minimum 48 dp.
+  Natywne pole wyszukiwania (16 dp), zakładki i picker projektów (14 dp) już używały
+  większej skali, więc nie wymagają zmiany.
 - Pierścienie fokusu mieszczą się w wierszu: wiersze menu i list mają obrys wewnętrzny
   (`-outline-offset-2`), a przyciski zewnętrzny 2 px (`focus-ring`) z marginesem panelu `p-1`.
 - Listy pickerów mają pionowy inset `py-1` wewnątrz przewijanej treści i `scroll-py-1`

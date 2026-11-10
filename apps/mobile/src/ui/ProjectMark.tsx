@@ -2,7 +2,7 @@ import { Text, View } from "react-native";
 import { palette } from "@canopy/ui";
 import { useColors } from "./theme";
 
-export function ProjectMark({ name, kind }: { name: string; kind?: string }) {
+export function ProjectMark({ name, kind, size = 18 }: { name: string; kind?: string; size?: number }) {
   const c = useColors();
   const tones = ["emerald", "rose", "amber", "sky", "violet", "fuchsia", "cyan", "lime", "zinc"] as const;
   const tone = tones[[...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % tones.length]!;
@@ -13,8 +13,8 @@ export function ProjectMark({ name, kind }: { name: string; kind?: string }) {
   return (
     <View
       style={{
-        width: 18,
-        height: 18,
+        width: size,
+        height: size,
         borderRadius: 2,
         alignItems: "center",
         justifyContent: "center",
@@ -27,8 +27,8 @@ export function ProjectMark({ name, kind }: { name: string; kind?: string }) {
       {kind !== "scratch" && (
         <Text
           style={{
-            fontSize: 9,
-            lineHeight: 11,
+            fontSize: size / 2,
+            lineHeight: size / 2 + 2,
             fontWeight: "700",
             fontFamily: "monospace",
             color: color[c.dark ? 400 : 700],

@@ -22,7 +22,7 @@
     {thread}
     {current}
     compact
-    class="flex h-9 w-full min-w-0 items-center gap-2 rounded-lg px-3 sm:h-8 pointer-coarse:h-12"
+    class="flex h-10 w-full min-w-0 items-center gap-2 rounded-lg px-3 sm:h-9 pointer-coarse:h-12"
   >
     <ProjectMark
       name={overview.project(thread.projectId)?.name ?? "?"}
@@ -30,13 +30,13 @@
       class="opacity-50"
     />
     <span
-      class="min-w-0 flex-1 truncate text-base/5 text-zinc-500 group-aria-[current=page]:text-zinc-950 sm:text-sm/4.5 dark:text-zinc-400 dark:group-aria-[current=page]:text-white"
+      class="min-w-0 flex-1 truncate text-base/5.5 text-zinc-500 group-aria-[current=page]:text-zinc-950 sm:text-sm/5 dark:text-zinc-400 dark:group-aria-[current=page]:text-white"
       >{thread.title}</span
     >
     <time
       datetime={isoDateTime(when)}
       title={formatDateTime(when)}
-      class="shrink-0 text-sm/4.5 text-zinc-500 tabular-nums sm:text-xs/4 dark:text-zinc-400 pointer-fine:group-focus-within/row:invisible pointer-fine:group-hover/row:invisible"
+      class="shrink-0 text-sm/5 text-zinc-500 tabular-nums sm:text-xs/4.5 dark:text-zinc-400 pointer-fine:group-focus-within/row:invisible pointer-fine:group-hover/row:invisible"
       >{formatAge(when, clock.now)}</time
     >
   </SidebarThreadLink>

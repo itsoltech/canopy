@@ -12,12 +12,13 @@ import { Swap } from "../../ui/MotionViews";
 import { needsYou } from "@canopy/domain/thread-activity";
 import { useComputerHome } from "../computers/presence";
 import { SidebarUnread } from "./SidebarUnread";
+import { useSidebarTypography } from "./sidebar-scale";
 
 const rowStyle: ViewStyle = {
   paddingHorizontal: 12,
   minHeight: 48,
-  paddingVertical: 6,
-  gap: 1,
+  paddingVertical: 8,
+  gap: 2,
   borderRadius: 12,
   borderWidth: 1,
 };
@@ -49,6 +50,7 @@ export function SidebarThread({
   subagentsNeedingInput?: readonly ui.Thread[];
 }) {
   const c = useColors();
+  const type = useSidebarTypography();
   const [actions, setActions] = useState(false);
   const home = useComputerHome(thread.nodeId);
   const layout = useLayout();
@@ -115,42 +117,42 @@ export function SidebarThread({
           {needs || busy ? (
             <View
               style={{
-                width: 18,
-                height: 18,
+                width: 20,
+                height: 20,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Icon name={needs ? "hand-raised" : "arrow-path"} size={14} color={tone} />
+              <Icon name={needs ? "hand-raised" : "arrow-path"} size={16} color={tone} />
             </View>
           ) : (
-            <ProjectMark name={project?.name ?? "?"} kind={project?.kind} />
+            <ProjectMark name={project?.name ?? "?"} kind={project?.kind} size={20} />
           )}
-          <Text numberOfLines={1} style={[styles.chromeMeta, { flex: 1, minWidth: 0, color: c.muted }]}>
+          <Text numberOfLines={1} style={[type.meta, { flex: 1, minWidth: 0, color: c.muted }]}>
             {project?.name ?? "Unknown project"}
           </Text>
           {/* A new state (working, needs input, a result) swaps in; the age ticking over does not. */}
           <View style={{ width: 96 }}>
             <Swap value={needs ? "needs" : busy ? thread.status : result || "age"}>
-              <Text numberOfLines={1} style={[styles.chromeMeta, { color: tone, textAlign: "right" }]}>
+              <Text numberOfLines={1} style={[type.meta, { color: tone, textAlign: "right" }]}>
                 {label}
               </Text>
             </Swap>
           </View>
         </View>
-        <Text numberOfLines={1} style={[styles.chrome, { color: c.body, opacity: busy ? 0.6 : 1 }]}>
+        <Text numberOfLines={1} style={[type.title, { color: c.body, opacity: busy ? 0.6 : 1 }]}>
           {thread.title || "Untitled thread"}
         </Text>
-        <View style={[styles.row, { gap: 6, opacity: busy ? 0.6 : 1 }]}>
-          <Icon name="computer-desktop" size={14} color={worker?.online ? c.muted : c.faint} />
-          <Text numberOfLines={1} style={[styles.chromeMeta, { flex: 1, minWidth: 0, color: c.muted }]}>
+        <View style={[styles.row, { gap: 8, opacity: busy ? 0.6 : 1 }]}>
+          <Icon name="computer-desktop" size={16} color={worker?.online ? c.muted : c.faint} />
+          <Text numberOfLines={1} style={[type.meta, { flex: 1, minWidth: 0, color: c.muted }]}>
             {worker?.name ?? "Unknown worker"} ·{" "}
             {project?.kind === "scratch"
               ? "scratch folder"
               : (thread.cwd.split("/").filter(Boolean).pop() ?? thread.cwd)}
           </Text>
-          {thread.goalStatus ? <Icon name="flag" size={14} /> : null}
-          <ProviderIcon provider={thread.provider} />
+          {thread.goalStatus ? <Icon name="flag" size={16} /> : null}
+          <ProviderIcon provider={thread.provider} size={16} />
         </View>
         <SidebarUnread unread={thread.markedUnread} />
       </Pressable>

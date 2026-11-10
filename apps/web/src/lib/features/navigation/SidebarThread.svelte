@@ -51,20 +51,20 @@
   {thread}
   {current}
   needsAttention={needsYou(thread) || subagentsNeedingInput.length > 0}
-  class="grid gap-px rounded-xl px-3 py-1.5"
+  class="grid gap-0.5 rounded-xl px-3 py-2"
 >
   <span class="flex min-w-0 items-center gap-2">
     {#if away}
-      <span class="grid size-4.5 shrink-0 place-items-center">
+      <span class="grid size-5 shrink-0 place-items-center">
         <Icon name="link" class="fill-zinc-400 dark:fill-zinc-500" />
       </span>
     {:else}
-      <ThreadActivityMark thread={subagentsNeedingInput[0] ?? thread}>
+      <ThreadActivityMark thread={subagentsNeedingInput[0] ?? thread} class="sidebar-row-activity">
         {#snippet idle()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}
       </ThreadActivityMark>
     {/if}
     <span
-      class="min-w-0 flex-1 truncate text-sm/4.5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/4 dark:text-zinc-400"
+      class="min-w-0 flex-1 truncate text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/4.5 dark:text-zinc-400"
       >{project?.name ?? "Unknown project"}</span
     >
     <SidebarThreadStatus
@@ -79,13 +79,13 @@
   <SwapText
     text={thread.title}
     class={[
-      "h-5 w-full min-w-0 overflow-hidden text-base/5 sm:h-4.5 sm:text-sm/4.5",
+      "h-5.5 w-full min-w-0 overflow-hidden text-base/5.5 sm:h-5 sm:text-sm/5",
       thread.titleGenerating
         ? "shimmer"
         : "text-zinc-800 group-aria-[current=page]:text-zinc-950 group-data-calm:opacity-60 group-data-result:text-zinc-950 dark:text-zinc-200 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
     ]}
   />
-  <span class="flex min-w-0 items-center gap-1.5 text-sm/4.5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/4">
+  <span class="flex min-w-0 items-center gap-2 text-sm/5 text-zinc-500 group-data-calm:opacity-60 sm:text-xs/4.5">
     <Icon
       name="computer-desktop"
       class="size-3.5 {worker?.online ? 'fill-zinc-400 dark:fill-zinc-500' : 'fill-zinc-300 dark:fill-zinc-700'}"

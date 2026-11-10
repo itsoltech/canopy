@@ -48,7 +48,7 @@
           href={sectionMemory.href(section.id)}
           aria-current={current ? "true" : undefined}
           data-active={current || undefined}
-          class={segmentedLabel}
+          class={[segmentedLabel, "sidebar-section-label"]}
         >
           <span class="relative">
             {section.label}
