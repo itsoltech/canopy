@@ -167,7 +167,8 @@ gdy wcześniej go ogłosił. Wiadomości nie czekają w kolejce wychodzącej.
 
 - Stan partnera: **Connected**, **Updating…**, **Restarting…**, **Offline since …**,
   **Asleep since …** albo **Unreachable since …**, według reguł obecności poniżej.
-- Wątki i boty niedostępnego komputera zostają na liście ze stonowanym oznaczeniem komputera. Wiersze
+- Wątki i boty niedostępnego komputera zostają na liście jako przygaszone wiersze, bez pigułki komputera.
+  „Read-only” i powód pozostają dostępne dla czytnika ekranu. Wiersze
   wątków zachowują zwykły czas aktywności, bez powtarzania „Last seen”. Da się w nie
   wejść i czytać wszystko, co było zsynchronizowane do chwili rozłączenia. Composer, zgody i akcje są
   zablokowane z wyjaśnieniem.
@@ -275,7 +276,8 @@ Telefon i przeglądarka łączą się z jednym gatewayem i widzą przez niego ws
 
 - Settings → **Linked computers**: lista z nazwą, stanem, trasami i wersją; „Link computer”; przy partnerze
   „Share onward”, „Move to…”, „Unlink”.
-- Sidebar, lista botów, nagłówek wątku: znaczek maszyny; stonowana ikona dla niedostępnych.
+- Sidebar: wiersze wątków i botów bez pigułki komputera, przygaszone przy niedostępności.
+  Nazwa komputera zostaje w nagłówku rozmowy i widokach wyboru miejsca wykonania.
 - Status niedostępnego komputera w pasku nad composerem, obok celu i subagentów; bez bannera u góry.
   Krótki stan, „read only” i czas zmiany obecności; szczegóły pod ikoną informacji, dostępne także dotknięciem.
   „Last seen” zostaje przy samym komputerze w ustawieniach; stan „needs an update”.

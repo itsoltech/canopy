@@ -9,7 +9,6 @@
   import { listTimeLabel } from "../chat-timeline.ts";
   import { contextMenu } from "../context-menu.ts";
   import { conversationTitle, type ConversationView } from "@canopy/domain/bot-chat";
-  import BotHome from "./BotHome.svelte";
   import { useBotHome } from "../home.svelte.ts";
   import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";
   import ActionItems from "./ActionItems.svelte";
@@ -62,7 +61,6 @@
 >
   {@render avatar()}
   <div class="grid min-w-0 flex-1 grid-cols-1 gap-px">
-    {#if conversation.nodeId}<BotHome nodeId={conversation.nodeId} />{/if}
     <p class="flex items-baseline gap-2">
       <a
         {href}
@@ -70,6 +68,7 @@
         class="min-w-0 flex-1 truncate text-base/5 font-medium text-zinc-900 after:absolute after:inset-0 after:rounded-xl focus:outline-none sm:text-sm/4.5 dark:text-zinc-100"
       >
         {title}
+        {#if home.reason}<span class="sr-only left-0">Read-only. {home.reason}</span>{/if}
       </a>
       {#if conversation.lastMessage}
         <time
