@@ -15,6 +15,7 @@ import {
   COPY_MAX_FILE_BYTES,
   COPY_IDLE_MS,
   copyTotals,
+  copyGenerated,
 } from "@canopy/domain/workspace-copy";
 import { newDirectory } from "../git/project-sources.ts";
 import { freshGit, git } from "../git/git.ts";
@@ -254,6 +255,9 @@ function validateEntries(entries: readonly WorkspaceCopyEntry[], bytes: bigint) 
 
   for (const e of entries) {
     checkedPath("/", e.path);
+
+    if (e.ignored && copyGenerated(e.directory || e.symlink ? e.path : dirname(e.path)))
+      throw copyError("Dependencies and build output cannot be copied.");
 
     if (e.blocked || e.size > COPY_MAX_FILE_BYTES)
       throw copyError("A selected file cannot be copied (8 GB per-file limit).");

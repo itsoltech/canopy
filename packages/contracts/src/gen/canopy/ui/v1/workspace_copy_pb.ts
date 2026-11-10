@@ -4,7 +4,7 @@
 
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
-import type { WorkspaceCopyChunk, WorkspaceCopyEntry, WorkspaceCopyManifest, WorkspaceCopyOperation, WorkspaceCopyRead } from "../../worker/v1/workspace_copy_pb.ts";
+import type { WorkspaceCopyChunk, WorkspaceCopyEntry, WorkspaceCopyIgnoredSelection, WorkspaceCopyManifest, WorkspaceCopyOperation, WorkspaceCopyRead } from "../../worker/v1/workspace_copy_pb.ts";
 import { file_canopy_worker_v1_workspace_copy } from "../../worker/v1/workspace_copy_pb.ts";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file canopy/ui/v1/workspace_copy.proto.
  */
 export const file_canopy_ui_v1_workspace_copy: GenFile = /*@__PURE__*/
-  fileDesc("CiFjYW5vcHkvdWkvdjEvd29ya3NwYWNlX2NvcHkucHJvdG8SDGNhbm9weS51aS52MSI3Ch9HZXRXb3Jrc3BhY2VDb3B5TWFuaWZlc3RSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCSJdCiBHZXRXb3Jrc3BhY2VDb3B5TWFuaWZlc3RSZXNwb25zZRI5CghtYW5pZmVzdBgBIAEoCzInLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weU1hbmlmZXN0Is4BChRDb3B5V29ya3NwYWNlUmVxdWVzdBISCgpzb3VyY2VfcmVmGAEgASgJEhIKCnRhcmdldF9yZWYYAiABKAkSEwoLcHJvamVjdF9yZWYYAyABKAkSFgoObWFuaWZlc3RfdG9rZW4YBCABKAkSDQoFcGF0aHMYBSADKAkSGQoRY29uZmlybWVkX3NlY3JldHMYBiADKAkSEwoLcGFyZW50X3BhdGgYByABKAkSDAoEbmFtZRgIIAEoCRIUCgx0cmFuc2Zlcl9rZXkYCSABKAkirQEKFVdvcmtzcGFjZUNvcHlQcm9ncmVzcxINCgVieXRlcxgBIAEoBBITCgt0b3RhbF9ieXRlcxgCIAEoBBINCgVmaWxlcxgDIAEoDRITCgt0b3RhbF9maWxlcxgEIAEoDRIUCgxjdXJyZW50X2ZpbGUYBSABKAkSDgoGc3RhdHVzGAYgASgJEhUKDXdvcmtzcGFjZV9yZWYYByABKAkSDwoHc2tpcHBlZBgIIAEoDSLCAQoaV29ya3NwYWNlQ29weVNvdXJjZVJlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEg0KBXRva2VuGAIgASgJEg0KBXBhdGhzGAMgAygJEhkKEWNvbmZpcm1lZF9zZWNyZXRzGAQgAygJEhEKCWF1dGhvcml6ZRgFIAEoCBIxCgRyZWFkGAYgASgLMiMuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5UmVhZBIPCgdyZWxlYXNlGAcgASgIIpoBChtXb3Jrc3BhY2VDb3B5U291cmNlUmVzcG9uc2USNQoHZW50cmllcxgBIAMoCzIkLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUVudHJ5EjMKBWNodW5rGAIgASgLMiQuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5Q2h1bmsSDwoHc2tpcHBlZBgDIAEoDSKUAQoaV29ya3NwYWNlQ29weVRhcmdldFJlcXVlc3QSEQoJd29ya2VyX2lkGAEgASgJEhIKCnByb2plY3RfaWQYAiABKAkSEgoKc291cmNlX3JlZhgDIAEoCRI7CglvcGVyYXRpb24YBCABKAsyKC5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlPcGVyYXRpb24iRwobV29ya3NwYWNlQ29weVRhcmdldFJlc3BvbnNlEhEKCWRpcmVjdG9yeRgBIAEoCRIVCg13b3Jrc3BhY2VfcmVmGAIgASgJYgZwcm90bzM", [file_canopy_worker_v1_workspace_copy]);
+  fileDesc("CiFjYW5vcHkvdWkvdjEvd29ya3NwYWNlX2NvcHkucHJvdG8SDGNhbm9weS51aS52MSI3Ch9HZXRXb3Jrc3BhY2VDb3B5TWFuaWZlc3RSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCSJdCiBHZXRXb3Jrc3BhY2VDb3B5TWFuaWZlc3RSZXNwb25zZRI5CghtYW5pZmVzdBgBIAEoCzInLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weU1hbmlmZXN0Ip4CChRDb3B5V29ya3NwYWNlUmVxdWVzdBISCgpzb3VyY2VfcmVmGAEgASgJEhIKCnRhcmdldF9yZWYYAiABKAkSEwoLcHJvamVjdF9yZWYYAyABKAkSFgoObWFuaWZlc3RfdG9rZW4YBCABKAkSEQoFcGF0aHMYBSADKAlCAhgBEhkKEWNvbmZpcm1lZF9zZWNyZXRzGAYgAygJEhMKC3BhcmVudF9wYXRoGAcgASgJEgwKBG5hbWUYCCABKAkSFAoMdHJhbnNmZXJfa2V5GAkgASgJEkoKEWlnbm9yZWRfc2VsZWN0aW9uGAogASgLMi8uY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5SWdub3JlZFNlbGVjdGlvbiKtAQoVV29ya3NwYWNlQ29weVByb2dyZXNzEg0KBWJ5dGVzGAEgASgEEhMKC3RvdGFsX2J5dGVzGAIgASgEEg0KBWZpbGVzGAMgASgNEhMKC3RvdGFsX2ZpbGVzGAQgASgNEhQKDGN1cnJlbnRfZmlsZRgFIAEoCRIOCgZzdGF0dXMYBiABKAkSFQoNd29ya3NwYWNlX3JlZhgHIAEoCRIPCgdza2lwcGVkGAggASgNIpICChpXb3Jrc3BhY2VDb3B5U291cmNlUmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSDQoFdG9rZW4YAiABKAkSEQoFcGF0aHMYAyADKAlCAhgBEhkKEWNvbmZpcm1lZF9zZWNyZXRzGAQgAygJEhEKCWF1dGhvcml6ZRgFIAEoCBIxCgRyZWFkGAYgASgLMiMuY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5UmVhZBIPCgdyZWxlYXNlGAcgASgIEkoKEWlnbm9yZWRfc2VsZWN0aW9uGAggASgLMi8uY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5SWdub3JlZFNlbGVjdGlvbiKaAQobV29ya3NwYWNlQ29weVNvdXJjZVJlc3BvbnNlEjUKB2VudHJpZXMYASADKAsyJC5jYW5vcHkud29ya2VyLnYxLldvcmtzcGFjZUNvcHlFbnRyeRIzCgVjaHVuaxgCIAEoCzIkLmNhbm9weS53b3JrZXIudjEuV29ya3NwYWNlQ29weUNodW5rEg8KB3NraXBwZWQYAyABKA0ilAEKGldvcmtzcGFjZUNvcHlUYXJnZXRSZXF1ZXN0EhEKCXdvcmtlcl9pZBgBIAEoCRISCgpwcm9qZWN0X2lkGAIgASgJEhIKCnNvdXJjZV9yZWYYAyABKAkSOwoJb3BlcmF0aW9uGAQgASgLMiguY2Fub3B5Lndvcmtlci52MS5Xb3Jrc3BhY2VDb3B5T3BlcmF0aW9uIkcKG1dvcmtzcGFjZUNvcHlUYXJnZXRSZXNwb25zZRIRCglkaXJlY3RvcnkYASABKAkSFQoNd29ya3NwYWNlX3JlZhgCIAEoCWIGcHJvdG8z", [file_canopy_worker_v1_workspace_copy]);
 
 /**
  * @generated from message canopy.ui.v1.GetWorkspaceCopyManifestRequest
@@ -75,7 +75,10 @@ export type CopyWorkspaceRequest = Message<"canopy.ui.v1.CopyWorkspaceRequest"> 
   manifestToken: string;
 
   /**
-   * @generated from field: repeated string paths = 5;
+   * Legacy full selection; incomplete repositories are rejected.
+   *
+   * @generated from field: repeated string paths = 5 [deprecated = true];
+   * @deprecated
    */
   paths: string[];
 
@@ -98,6 +101,11 @@ export type CopyWorkspaceRequest = Message<"canopy.ui.v1.CopyWorkspaceRequest"> 
    * @generated from field: string transfer_key = 9;
    */
   transferKey: string;
+
+  /**
+   * @generated from field: canopy.worker.v1.WorkspaceCopyIgnoredSelection ignored_selection = 10;
+   */
+  ignoredSelection?: WorkspaceCopyIgnoredSelection | undefined;
 };
 
 /**
@@ -177,7 +185,8 @@ export type WorkspaceCopySourceRequest = Message<"canopy.ui.v1.WorkspaceCopySour
   token: string;
 
   /**
-   * @generated from field: repeated string paths = 3;
+   * @generated from field: repeated string paths = 3 [deprecated = true];
+   * @deprecated
    */
   paths: string[];
 
@@ -200,6 +209,11 @@ export type WorkspaceCopySourceRequest = Message<"canopy.ui.v1.WorkspaceCopySour
    * @generated from field: bool release = 7;
    */
   release: boolean;
+
+  /**
+   * @generated from field: canopy.worker.v1.WorkspaceCopyIgnoredSelection ignored_selection = 8;
+   */
+  ignoredSelection?: WorkspaceCopyIgnoredSelection | undefined;
 };
 
 /**

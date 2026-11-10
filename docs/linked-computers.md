@@ -186,8 +186,9 @@ Workery już przypisane do projektu mają stan **Already added**, a niedostępne
 Klon podpowiada edytowalny URL `origin` istniejącego workspace'u, nazwę jego katalogu i katalog nadrzędny
 innego projektu na docelowym workerze (albo jego home). Klon kończy się po najwyżej 5 min; błędy i postęp
 są widoczne w dialogu. Po sukcesie workspace pojawia się na liście i w wyborze workera nowego wątku.
-Źródło **Copy from …** kopiuje wybrane pliki istniejącego workspace'u także
-przez połączone komputery. Wybór plików, sekrety, limity i trwałość:
+Źródło **Copy from …** kopiuje całe repozytorium istniejącego workspace'u także
+przez połączone komputery. Wybór dotyczy tylko ignorowanych plików lokalnych,
+bez zależności i wyniku builda. Sekrety, limity i trwałość:
 [workspace-copy.md](workspace-copy.md).
 Web używa tego samego nagłówka kroków co **Add project**, także dla wyboru plików
 i potwierdzenia sekretów. Mobile ma jawne przyciski akcji w formularzach i arkuszu kopiowania.

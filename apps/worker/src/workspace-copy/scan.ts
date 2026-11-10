@@ -6,7 +6,7 @@ import {
   type WorkspaceCopyManifest,
 } from "@canopy/contracts";
 import { lstat, readdir, readlink, realpath } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
   COPY_MAX_ENTRIES,
   COPY_MANIFEST_BYTES,
@@ -32,7 +32,7 @@ export interface CopyScan {
   files: Map<string, ScannedFile>;
 }
 
-/** All paths, including ignored folders, are visible. No file contents are read during preview. */
+/** Preview metadata only; ignored dependencies are pruned before walking their contents. */
 export async function scanWorkspace(path: string): Promise<CopyScan> {
   const root = await realpath(path);
   const tracked = await freshGit(() => git(root, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]));
@@ -64,7 +64,26 @@ export async function scanWorkspace(path: string): Promise<CopyScan> {
 
   const entries: WorkspaceCopyEntry[] = [];
   const files = new Map<string, ScannedFile>();
-  const context = { root, included, ignoredDirectories, entries, files, manifestBytes: 0 };
+  const requiredDirectories = new Set<string>();
+
+  for (const path of included)
+    path
+      .split("/")
+      .slice(0, -1)
+      .forEach((_, i, parts) => requiredDirectories.add(parts.slice(0, i + 1).join("/")));
+  const skippedDirectories: string[] = [];
+
+  const context = {
+    root,
+    included,
+    requiredDirectories,
+    ignoredDirectories,
+    entries,
+    files,
+    skippedDirectories,
+    manifestBytes: 0,
+  };
+
   await walk(context, root, "", "", false);
   await walk(context, commonRoot, "", ".git", true, gitRoot !== commonRoot);
 
@@ -88,6 +107,19 @@ export async function scanWorkspace(path: string): Promise<CopyScan> {
   }
 
   const fileEntries = entries.filter((e) => !e.directory);
+  const branch = await git(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+  const ahead = await git(root, ["rev-list", "--count", "HEAD", "--not", "--remotes"]);
+  const status = await freshGit(() => git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]));
+
+  if (!status.ok) throw copyError("Could not read repository changes. Refresh and retry.");
+  const changes = status.stdout.split("\0").filter(Boolean);
+  let changedFiles = 0;
+
+  for (let i = 0; i < changes.length; i++) {
+    changedFiles++;
+
+    if (/^[RC]|^.[RC]/.test(changes[i]!)) i++;
+  }
 
   return {
     manifest: create(WorkspaceCopyManifestSchema, {
@@ -95,6 +127,10 @@ export async function scanWorkspace(path: string): Promise<CopyScan> {
       entries,
       bytes: fileEntries.reduce((sum, e) => sum + e.size, 0n),
       files: fileEntries.length,
+      skippedDirectories,
+      branch: branch.ok ? branch.stdout.trim() : "",
+      unpushedCommits: ahead.ok ? Number(ahead.stdout.trim()) : undefined,
+      changedFiles,
     }),
     files,
   };
@@ -103,10 +139,12 @@ export async function scanWorkspace(path: string): Promise<CopyScan> {
 interface ScanContext {
   root: string;
   included: Set<string>;
+  requiredDirectories: Set<string>;
   ignoredDirectories: Set<string>;
   entries: WorkspaceCopyEntry[];
   files: Map<string, ScannedFile>;
   manifestBytes: number;
+  skippedDirectories: string[];
 }
 
 async function walk(
@@ -140,17 +178,11 @@ async function walk(
     const display = prefix ? `${prefix}/${local}` : local;
     const entry = await add(ctx, root, local, display, metadata);
 
-    if (entry.directory && !entry.blocked) await walk(ctx, root, local, prefix, metadata, linked);
+    if (entry?.directory && !entry.blocked) await walk(ctx, root, local, prefix, metadata, linked);
   }
 }
 
 async function add(ctx: ScanContext, root: string, path: string, display: string, metadata: boolean) {
-  if (ctx.entries.length >= COPY_MAX_ENTRIES)
-    throw copyError("This repository has more than 100,000 entries. Reduce it before copying.");
-  ctx.manifestBytes += Buffer.byteLength(display) + 160;
-
-  if (ctx.manifestBytes > COPY_MANIFEST_BYTES)
-    throw copyError("The file list exceeds 8 MB. Reduce the repository before copying.");
   const full = join(root, path);
   await checkedParent(root, full);
   const info = await lstat(full);
@@ -161,6 +193,38 @@ async function add(ctx: ScanContext, root: string, path: string, display: string
     (info.isDirectory()
       ? display.split("/").some((_, i, parts) => ctx.ignoredDirectories.has(parts.slice(0, i + 1).join("/")))
       : !ctx.included.has(display));
+
+  if (
+    ignored &&
+    copyGenerated(info.isDirectory() || symlink ? display : dirname(display)) &&
+    (!info.isDirectory() || !ctx.requiredDirectories.has(display))
+  ) {
+    const parts = display.split("/");
+
+    const skipped = parts
+      .slice(0, parts.findIndex((_, i) => copyGenerated(parts.slice(0, i + 1).join("/"))) + 1)
+      .join("/");
+
+    if (!ctx.skippedDirectories.includes(skipped)) {
+      ctx.skippedDirectories.push(skipped);
+      ctx.manifestBytes += Buffer.byteLength(skipped) + 8;
+    }
+
+    if (ctx.entries.length + ctx.skippedDirectories.length >= COPY_MAX_ENTRIES)
+      throw copyError("This repository has more than 100,000 entries. Reduce it before copying.");
+
+    if (ctx.manifestBytes > COPY_MANIFEST_BYTES)
+      throw copyError("The file list exceeds 8 MB. Reduce the repository before copying.");
+
+    return;
+  }
+
+  if (ctx.entries.length + ctx.skippedDirectories.length >= COPY_MAX_ENTRIES)
+    throw copyError("This repository has more than 100,000 entries. Reduce it before copying.");
+  ctx.manifestBytes += Buffer.byteLength(display) + 160;
+
+  if (ctx.manifestBytes > COPY_MANIFEST_BYTES)
+    throw copyError("The file list exceeds 8 MB. Reduce the repository before copying.");
 
   let blocked = !copySafePath(display) ? "Unsupported path" : "";
 
@@ -186,7 +250,7 @@ async function add(ctx: ScanContext, root: string, path: string, display: string
     metadata,
     included:
       !blocked &&
-      (metadata || !ignored || (copyLocalConfig(display) && info.size <= 1024 ** 2 && !copyGenerated(display))),
+      (metadata || !ignored || ((copyLocalConfig(display) || copySecret(display)) && info.size <= 1024 ** 2)),
     secret: copySecret(display),
     blocked,
   });

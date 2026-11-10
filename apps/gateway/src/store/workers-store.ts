@@ -116,7 +116,7 @@ export function workerStore(sql: SqlClient.SqlClient): WorkerStore {
           worktreesRoot: hello.capabilities.includes("worktrees") ? hello.worktreesRoot : "",
           // New project directories and clones (InitRepository, CloneRepository).
           projectSources: hello.capabilities.includes("project_sources"),
-          workspaceCopy: hello.capabilities.includes("workspace_copy_v1"),
+          workspaceCopy: hello.capabilities.includes("workspace_copy_scope_v2"),
           // Threads, settings and libraries of the device's CLIs (docs/import.md).
           cliImport: hello.capabilities.includes("cli_import_v1"),
           branchSwitch: hello.capabilities.includes("git_branch_switch_v1"),

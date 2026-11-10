@@ -1,7 +1,13 @@
 import { create, clone } from "@bufbuild/protobuf";
 import { ui, WorkspaceCopyManifestSchema, type WorkspaceCopyManifest } from "@canopy/contracts";
 import { createHash } from "node:crypto";
-import { COPY_IDLE_MS, COPY_MAX_BYTES, COPY_MAX_FILE_BYTES, copyTotals } from "@canopy/domain/workspace-copy";
+import {
+  COPY_IDLE_MS,
+  COPY_MAX_BYTES,
+  COPY_MAX_FILE_BYTES,
+  copyTotals,
+  copySelectable,
+} from "@canopy/domain/workspace-copy";
 import { WORKSPACE_COPY_CAPABILITY } from "@canopy/domain/release/protocol";
 import type { GatewayCore } from "../core/core.ts";
 import { coreState, InvalidError } from "../core/core-context.ts";
@@ -59,11 +65,12 @@ export async function copyManifest(core: GatewayCore, workspaceId: string) {
   const excluded = new Set(preset.excluded);
 
   for (const entry of manifest.entries) {
+    if (!copySelectable(entry)) continue;
     const hash = pathHash(entry.path);
 
     if (included.has(hash)) entry.included = !entry.blocked;
 
-    if (excluded.has(hash) && !entry.metadata) entry.included = false;
+    if (excluded.has(hash)) entry.included = false;
   }
 
   const map = leases.get(core) ?? new Map<string, SourceLease>();
@@ -102,16 +109,28 @@ export async function copySource(core: GatewayCore, request: ui.WorkspaceCopySou
   }
 
   if (request.authorize) {
-    const paths = new Set(request.paths);
+    lease.selected.clear();
+
+    if (request.ignoredSelection && request.paths.length)
+      throw new InvalidError("Choose ignored files only. Refresh the file list and retry.");
+    const ignored = new Set(request.ignoredSelection?.paths);
+
+    if (
+      request.ignoredSelection &&
+      lease.manifest.entries.filter((e) => copySelectable(e) && ignored.has(e.path)).length !== ignored.size
+    )
+      throw new InvalidError("The selection includes an unavailable file.");
+
+    const paths = new Set(
+      request.ignoredSelection
+        ? lease.manifest.entries.filter((e) => !copySelectable(e) || ignored.has(e.path)).map((e) => e.path)
+        : request.paths,
+    );
+
     const selected = lease.manifest.entries.filter((e) => paths.has(e.path));
 
     if (selected.length !== paths.size || selected.some((e) => e.blocked))
       throw new InvalidError("The selection includes an unavailable file.");
-
-    if (lease.manifest.entries.some((e) => e.metadata && (!paths.has(e.path) || e.blocked)))
-      throw new InvalidError(
-        "Include all Git metadata to create a usable checkout. Wait for any Git operation to finish, then refresh.",
-      );
 
     if (copyTotals(selected).bytes > COPY_MAX_BYTES || selected.some((e) => e.size > COPY_MAX_FILE_BYTES))
       throw new InvalidError("Choose up to 20 GB in total and 8 GB per file.");
@@ -119,13 +138,22 @@ export async function copySource(core: GatewayCore, request: ui.WorkspaceCopySou
 
     if (selected.some((e) => e.secret && !e.directory && !confirmed.has(e.path)))
       throw new InvalidError("Confirm the selected files that may contain secrets before copying.");
+    await coreWorkerQuery(
+      core,
+      workspace.workerId,
+      {
+        case: "workspaceCopy",
+        value: { action: { case: "authorize", value: { token: request.token, paths: [...paths] } } },
+      },
+      30_000,
+    );
     lease.selected = paths;
     await coreRun(core, (s) =>
       s.saveCopyPreset(
         core[coreState].options.userId,
         workspace.projectId,
-        selected.map((e) => pathHash(e.path)),
-        lease.manifest.entries.filter((e) => !paths.has(e.path)).map((e) => pathHash(e.path)),
+        selected.filter(copySelectable).map((e) => pathHash(e.path)),
+        lease.manifest.entries.filter((e) => copySelectable(e) && !paths.has(e.path)).map((e) => pathHash(e.path)),
       ),
     );
 

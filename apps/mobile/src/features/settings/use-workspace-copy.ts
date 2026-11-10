@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ConnectError } from "@connectrpc/connect";
 import { ui, type WorkspaceCopyManifest } from "@canopy/contracts";
-import { copyTree, copyTotals } from "@canopy/domain/workspace-copy";
+import { copySelection, copySelectable, copyTotals } from "@canopy/domain/workspace-copy";
 import * as Crypto from "expo-crypto";
 import { useSession } from "../../state/session";
 
@@ -31,14 +31,13 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
   const [progress, setProgress] = useState<ui.WorkspaceCopyProgress>();
   const abort = useRef<AbortController | undefined>(undefined);
   const manifestToken = useRef("");
-  const roots = useMemo(() => copyTree(manifest?.entries ?? []), [manifest]);
-  const entries = useMemo(() => manifest?.entries.filter((e) => selected.has(e.path)) ?? [], [manifest, selected]);
+  const entries = useMemo(() => copySelection(manifest?.entries ?? [], selected), [manifest, selected]);
   const totals = useMemo(() => copyTotals(entries), [entries]);
-  const metadataMissing = manifest?.entries.some((e) => e.metadata && (!selected.has(e.path) || e.blocked));
+  const repositoryBlocked = manifest?.entries.some((e) => !copySelectable(e) && e.blocked);
   const secrets = useMemo(() => entries.filter((e) => e.secret && !e.directory), [entries]);
 
   const skipped = useMemo(
-    () => manifest?.entries.filter((e) => !e.directory && !selected.has(e.path)).length ?? 0,
+    () => manifest?.entries.filter((e) => copySelectable(e) && !e.directory && !selected.has(e.path)).length ?? 0,
     [manifest, selected],
   );
 
@@ -69,7 +68,7 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
 
       setManifest(result);
       manifestToken.current = result?.token ?? "";
-      setSelected(new Set(result?.entries.filter((e) => e.included).map((e) => e.path)));
+      setSelected(new Set(result?.entries.filter((e) => copySelectable(e) && e.included).map((e) => e.path)));
     } catch (cause) {
       setError(copyMessage(cause));
     } finally {
@@ -100,7 +99,7 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
           targetRef: props.worker.id,
           projectRef: props.project.id,
           manifestToken: manifest.token,
-          paths: [...selected],
+          ignoredSelection: { paths: [...selected] },
           confirmedSecrets: confirmed ? secrets.map((e) => e.path) : [],
           parentPath: parent,
           name,
@@ -139,9 +138,8 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
     setConfirmed,
     cancelled,
     progress,
-    roots,
     totals,
-    metadataMissing,
+    repositoryBlocked,
     secrets,
     skipped,
     load,

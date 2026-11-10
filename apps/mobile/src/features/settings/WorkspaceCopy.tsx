@@ -2,7 +2,7 @@ import { FlatList, ScrollView, Text, View } from "react-native";
 import { copySize, copyFileCount } from "@canopy/domain/workspace-copy";
 import { Button, Field, Notice } from "../../ui/components";
 import { Checkbox } from "../../ui/Checkbox";
-import { FileTreePicker } from "../../ui/FileTreePicker";
+import { WorkspaceCopyFiles } from "./WorkspaceCopyFiles";
 import { useColors, useTypography } from "../../ui/theme";
 import { DirectoryBrowser } from "./DirectoryBrowser";
 import { useWorkspaceCopy, type WorkspaceCopyProps } from "./use-workspace-copy";
@@ -29,9 +29,8 @@ export function WorkspaceCopy(props: WorkspaceCopyProps) {
     setConfirmed,
     cancelled,
     progress,
-    roots,
     totals,
-    metadataMissing,
+    repositoryBlocked,
     secrets,
     skipped,
     load,
@@ -79,9 +78,8 @@ export function WorkspaceCopy(props: WorkspaceCopyProps) {
   else if (manifest)
     body = (
       <>
-        <Notice>Git metadata preserves the branch and local changes. Ignored build files start excluded.</Notice>
-        <FileTreePicker
-          roots={roots}
+        <WorkspaceCopyFiles
+          manifest={manifest}
           selected={selected}
           onChange={(value) => {
             setSelected(value);
@@ -91,16 +89,16 @@ export function WorkspaceCopy(props: WorkspaceCopyProps) {
         {text(
           `${copyFileCount(totals.files)} · ${copySize(totals.bytes)} selected · ${skipped.toLocaleString()} skipped`,
         )}
-        <Notice>Up to 20 GB in total, 8 GB per file. Your selection is remembered for this project.</Notice>
-        {metadataMissing && (
+        <Notice>Up to 20 GB in total, 8 GB per file. Ignored file choices are remembered for this project.</Notice>
+        {repositoryBlocked && (
           <Notice>
-            Include all Git metadata to copy this checkout. Wait for Git operations to finish, then refresh.
+            Some repository files cannot be copied. Resolve unsafe paths or active Git operations, then refresh.
           </Notice>
         )}
         <Button
           variant="primary"
           title={secrets.length ? "Review secrets" : "Copy workspace"}
-          disabled={!totals.files || metadataMissing}
+          disabled={!totals.files || repositoryBlocked}
           onPress={() => void copy()}
         />
       </>

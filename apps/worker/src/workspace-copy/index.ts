@@ -61,6 +61,9 @@ export class WorkspaceCopies {
           return create(WorkspaceCopyResultSchema, { manifest: await this.source.scan(action.value.rootPath) });
         case "read":
           return create(WorkspaceCopyResultSchema, { chunk: await this.source.read(action.value) });
+        case "authorize":
+          this.source.authorize(action.value);
+          break;
         case "prepare":
           return create(WorkspaceCopyResultSchema, { directory: await this.target.prepare(action.value) });
         case "write":

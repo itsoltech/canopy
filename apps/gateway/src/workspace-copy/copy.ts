@@ -83,6 +83,7 @@ export async function* copyWorkspace(core: GatewayCore, request: ui.CopyWorkspac
     const authorized = await source({
       authorize: true,
       paths: request.paths,
+      ignoredSelection: request.ignoredSelection,
       confirmedSecrets: request.confirmedSecrets,
     });
 

@@ -1,4 +1,4 @@
-import type { WorkspaceCopyEntry } from "@canopy/contracts";
+import type { WorkspaceCopyEntry, WorkspaceCopyManifest } from "@canopy/contracts";
 
 export { copyTree, visibleCopyTree, toggleCopyNode, type CopyTreeNode } from "./workspace-copy-tree.ts";
 
@@ -48,13 +48,13 @@ export function copyGenerated(path: string): boolean {
 
   return (
     parts.some((part) => COPY_GENERATED_DIRECTORIES.has(part)) ||
-    path.includes("vendor/bundle/") ||
-    path.includes(".yarn/cache/")
+    /(?:^|\/)(?:vendor\/bundle|\.yarn\/cache)(?:\/|$)/.test(path)
   );
 }
 
 export const copyLocalConfig = (path: string) =>
-  /(?:^|\/)(?:\.env[^/]*|[^/]+\.local|\.npmrc|\.yarnrc(?:\.yml)?|\.pypirc|\.netrc|NuGet\.Config)$/i.test(path);
+  /(?:^|\/)(?:\.env[^/]*|[^/]+\.local|\.npmrc|\.yarnrc(?:\.yml)?|\.pypirc|\.netrc|NuGet\.Config)$/i.test(path) ||
+  /(?:^|\/)(?:\.vscode|\.idea)(?:\/|$)/i.test(path);
 
 export const copySecret = (path: string) =>
   copyLocalConfig(path) ||
@@ -92,6 +92,32 @@ export function copyTotals(entries: readonly WorkspaceCopyEntry[]) {
 }
 
 export const copyFileCount = (count: number) => `${count.toLocaleString()} ${count === 1 ? "file" : "files"}`;
+
+export const copySelectable = (entry: WorkspaceCopyEntry) => entry.ignored && !entry.metadata;
+
+export function copySelection(entries: readonly WorkspaceCopyEntry[], ignored: ReadonlySet<string>) {
+  return entries.filter((e) => !copySelectable(e) || ignored.has(e.path));
+}
+
+export function copyRepositorySummary(manifest: WorkspaceCopyManifest) {
+  const totals = copyTotals(manifest.entries.filter((e) => !copySelectable(e)));
+  const commits = manifest.unpushedCommits;
+
+  return [
+    `Repository: ${copyFileCount(totals.files)} · ${copySize(totals.bytes)}`,
+    manifest.branch ? `branch ${manifest.branch}` : "Detached HEAD",
+    ...(commits === undefined ? [] : [`${commits.toLocaleString()} unpushed ${commits === 1 ? "commit" : "commits"}`]),
+    `${manifest.changedFiles.toLocaleString()} changed ${manifest.changedFiles === 1 ? "file" : "files"}`,
+  ].join(" · ");
+}
+
+export function copySkippedSummary(directories: readonly string[]) {
+  const preferred = ["node_modules", "target"].filter((path) => directories.includes(path));
+  const first = [...preferred, ...directories.filter((path) => !preferred.includes(path))].slice(0, 2).join(", ");
+  const extra = directories.length - 2;
+
+  return `Skipped: ${first}${extra > 0 ? ` and ${extra.toLocaleString()} more` : ""} (dependencies and build output)`;
+}
 
 export const copySize = (bytes: bigint | number) => {
   const n = Number(bytes);

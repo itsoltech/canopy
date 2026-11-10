@@ -2,10 +2,10 @@
   import { onMount, onDestroy } from "svelte";
   import { create, type MessageInitShape } from "@bufbuild/protobuf";
   import { ui, type WorkspaceCopyManifest } from "@canopy/contracts";
-  import { copyTree, copyTotals, copySize, copyFileCount } from "@canopy/domain/workspace-copy";
+  import { copySelection, copySelectable, copyTotals, copySize, copyFileCount } from "@canopy/domain/workspace-copy";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
-  import FileTreePicker from "#lib/shared/ui/FileTreePicker.svelte";
+  import WorkspaceCopyFiles from "./WorkspaceCopyFiles.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import StepHeader from "./StepHeader.svelte";
@@ -41,12 +41,15 @@
   let cancelled = $state(false);
   let progress = $state.raw<ui.WorkspaceCopyProgress>();
   let controller: AbortController | undefined;
-  const roots = $derived(copyTree(manifest?.entries ?? []));
-  const entries = $derived((manifest?.entries ?? []).filter((e) => selected.has(e.path)));
+  const entries = $derived(copySelection(manifest?.entries ?? [], selected));
   const totals = $derived(copyTotals(entries));
-  const metadataMissing = $derived(manifest?.entries.some((e) => e.metadata && (!selected.has(e.path) || e.blocked)));
+  const repositoryBlocked = $derived(manifest?.entries.some((e) => !copySelectable(e) && e.blocked));
   const secrets = $derived(entries.filter((e) => e.secret && !e.directory));
-  const skipped = $derived((manifest?.entries ?? []).filter((e) => !e.directory && !selected.has(e.path)).length);
+
+  const skipped = $derived(
+    (manifest?.entries ?? []).filter((e) => copySelectable(e) && !e.directory && !selected.has(e.path)).length,
+  );
+
   const done = $derived(progress?.status === "completed");
   const percent = $derived(progress?.totalBytes ? Number((progress.bytes * 100n) / progress.totalBytes) : 0);
 
@@ -127,7 +130,7 @@
           130_000,
         ),
       ).manifest;
-      selected = new Set(manifest?.entries.filter((e) => e.included).map((e) => e.path));
+      selected = new Set(manifest?.entries.filter((e) => copySelectable(e) && e.included).map((e) => e.path));
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Could not read the file list. Retry.";
     } finally {
@@ -154,7 +157,7 @@
       targetRef: worker.id,
       projectRef: project.id,
       manifestToken: manifest.token,
-      paths: [...selected],
+      ignoredSelection: { paths: [...selected] },
       confirmedSecrets: confirmed ? secrets.map((e) => e.path) : [],
       parentPath: parent,
       name,
@@ -256,11 +259,8 @@
       bind:checked={confirmed}
     />
   {:else if manifest}
-    <p class="text-zinc-500 dark:text-zinc-400">
-      Git metadata preserves the branch and local changes. Ignored build files start excluded.
-    </p>
-    <FileTreePicker
-      {roots}
+    <WorkspaceCopyFiles
+      {manifest}
       {selected}
       onchange={(next) => {
         selected = next;
@@ -271,11 +271,11 @@
       {copyFileCount(totals.files)} · {copySize(totals.bytes)} selected · {skipped.toLocaleString()} skipped
     </p>
     <p class="text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
-      Up to 20 GB in total, 8 GB per file. Your selection is remembered for this project.
+      Up to 20 GB in total, 8 GB per file. Ignored file choices are remembered for this project.
     </p>
-    {#if metadataMissing}
+    {#if repositoryBlocked}
       <p role="status">
-        Include all Git metadata to copy this checkout. Wait for Git operations to finish, then refresh.
+        Some repository files cannot be copied. Resolve unsafe paths or active Git operations, then refresh.
       </p>
     {/if}
   {/if}

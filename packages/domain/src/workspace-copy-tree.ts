@@ -1,4 +1,5 @@
 import type { WorkspaceCopyEntry } from "@canopy/contracts";
+import { copySelectable } from "./workspace-copy.ts";
 
 export interface CopyTreeNode {
   key: string;
@@ -18,13 +19,13 @@ export interface CopyTreeNode {
 export function copyTree(entries: readonly WorkspaceCopyEntry[]) {
   const nodes = new Map<string, CopyTreeNode>();
   const roots: CopyTreeNode[] = [];
-  const groupLabels = { files: "Repository files", ignored: "Ignored files", git: "Git metadata" };
+  const groupLabels = { ignored: "Ignored files" };
 
   for (const entry of entries) {
-    const group = entry.metadata ? "git" : entry.ignored ? "ignored" : "files";
+    if (!copySelectable(entry)) continue;
+    const group = "ignored";
     const parts = entry.path.split("/");
 
-    if (entry.metadata) parts.shift();
     const chain = ["", ...parts.map((_, i) => parts.slice(0, i + 1).join("/"))];
     let parent: CopyTreeNode | undefined;
 

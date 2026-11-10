@@ -14,7 +14,7 @@ export const GIT_BRANCH_SWITCH_CAPABILITY = "git_branch_switch_v1";
 export const REVEAL_PATH_CAPABILITY = "reveal_path";
 
 /** Bounded transient workspace file transfers, negotiated without breaking protocol 1. */
-export const WORKSPACE_COPY_CAPABILITY = "workspace_copy_v1";
+export const WORKSPACE_COPY_CAPABILITY = "workspace_copy_scope_v2";
 
 /** Frozen canopy.update.v1; never bump this for WorkerLink or application releases. */
 export const UPDATE_PROTOCOL = 1;

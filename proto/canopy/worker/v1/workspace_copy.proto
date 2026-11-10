@@ -20,6 +20,10 @@ message WorkspaceCopyManifest {
   repeated WorkspaceCopyEntry entries = 2;
   uint64 bytes = 3;
   uint32 files = 4;
+  repeated string skipped_directories = 5;
+  string branch = 6;
+  optional uint32 unpushed_commits = 7;
+  uint32 changed_files = 8;
 }
 
 message WorkspaceCopyScan { string root_path = 1; }
@@ -28,6 +32,13 @@ message WorkspaceCopyRead {
   string path = 2;
   uint64 offset = 3;
 }
+// The source validates the complete repository before allowing any reads.
+message WorkspaceCopyAuthorize {
+  string token = 1;
+  repeated string paths = 2;
+}
+// Only ignored local files are selectable. The repository is always included.
+message WorkspaceCopyIgnoredSelection { repeated string paths = 1; }
 message WorkspaceCopyPrepare {
   string token = 1;
   string parent_path = 2;
@@ -56,6 +67,7 @@ message WorkspaceCopyOperation {
     WorkspaceCopyFinish finish = 5;
     string cancel = 6;
     string release = 7;
+    WorkspaceCopyAuthorize authorize = 8;
   }
 }
 message WorkspaceCopyResult {

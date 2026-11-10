@@ -15,7 +15,12 @@ export function FileTreePicker({
   selected: ReadonlySet<string>;
   onChange: (value: Set<string>) => void;
 }) {
-  const [expanded, setExpanded] = useState(new Set(["files:"]));
+  const [expanded, setExpanded] = useState(
+    new Set(
+      roots.some((node) => node.children.filter((child) => !child.children.length).length > 200) ? [] : ["ignored:"],
+    ),
+  );
+
   const [query, setQuery] = useState("");
   const rows = useMemo(() => visibleCopyTree(roots, expanded, query), [roots, expanded, query]);
 
