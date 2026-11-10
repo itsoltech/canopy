@@ -273,8 +273,7 @@ Przy presji SQL/event loop najpierw ograniczamy polling i prefetch.
 Warunek wydania implementacji: porównanie baseline/kandydat przy takim samym obciążeniu
 GetOverview/GetThread, dispatch tury, ingest/ACK i renderowania web/mobile, także z niedostępnym
 GitHub i partnerem. Powtarzalny wzrost p95 ponad niepewność pomiaru blokuje wydanie.
-Korzystamy z metod `docs/database-performance.md` i `docs/client-performance.md`;
-obecny PR dokumentacyjny nie uruchamia benchmarków ani nie deklaruje ich wyników.
+Korzystamy z metod `docs/database-performance.md` i `docs/client-performance.md`.
 
 ## 4. Dane i retencja
 
@@ -630,16 +629,13 @@ Rozmiary to orientacyjne linie kodu z testami i zależności, bez kodu generowan
 Każdy etap utrzymuje zgodność i działającą pionową funkcję w swojej gałęzi; etapy infrastrukturalne
 nie udają wartości widocznej przed etapem 2. Mutacje pozostają wyłączone do akceptacji zakresu.
 Nie dodajemy web UI/component/Playwright testów ani trywialnych testów helperów.
-Scenariusze integracyjne używają autoryzowanego lokalnego fixture HTTP i bazy testowej,
-nigdy anonimowego produkcyjnego API GitHub. Live GitHub jest wyłącznie opt-in.
+Scenariusze integracyjne używają lokalnego fixture HTTP i bazy testowej.
+Testy z rzeczywistym GitHub są wyłącznie opt-in (`CANOPY_LIVE=1`).
 
-Podczas przyszłej implementacji wykonawca może sam uruchamiać jednostkowe testy, lint i format.
-Integracja/E2E, benchmarki, uruchamianie aplikacji oraz inne sprawdzenia poza tym zakresem
-wymagają uprzedniej zgody zgodnie z instrukcją właściciela workspace'u; najpierw kończy prace
-dozwolone. Przed gotowością całego stosu potrzebny jest komplet repo checks z AGENTS.md
-(install, gen:check, typecheck, lint, format:check, check:tmp, web build), wykonany w dozwolonym
-środowisku lub CI, z jawnym wskazaniem niewykonanych sprawdzeń.
-QA UI po zgodzie obejmuje light/dark, desktop/phone/tablet, klawiaturę/czytnik, reduced motion,
+Przed gotowością całego stosu pełna lista sprawdzeń z AGENTS.md musi przejść:
+install, gen:check, typecheck, lint, format:check, check:tmp (pełne testy, w tym integracyjne)
+i web build.
+QA UI obejmuje light/dark, desktop/phone/tablet, klawiaturę/czytnik, reduced motion,
 krótkie i długie treści, sticky/scroll oraz iOS/Android z tym samym zestawem funkcji.
 
 Włączanie po merge: capability i flagi domeny domyślnie wyłączone, pilotaż na wybranych kontach,
