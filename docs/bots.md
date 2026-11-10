@@ -900,8 +900,10 @@ JSON i składanych logów pracy.
 Wiersze botów w sidebarze web/desktop nie pokazują pigułki komputera. Lokalne i zdalne
 boty mają tę samą wysokość 52 px; slot nieprzeczytanych wiadomości i położenie czasu są stałe.
 Niedostępny bot pozostaje przygaszony, a tekst „Read-only” z powodem trafia do tekstu
-dostępnego dla czytnika ekranu. Nazwa komputera zostaje w nagłówku rozmowy, szczegółach,
-ustawieniach i przy przenoszeniu bota, gdzie wskazuje miejsce wykonywania akcji.
+dostępnego dla czytnika ekranu. Nagłówek rozmowy również nie powtarza pigułki komputera;
+tytuł zachowuje dostępny opis „Read-only. {reason}” przy niedostępności domu.
+Nazwa komputera zostaje w szczegółach, ustawieniach i przy przenoszeniu bota,
+gdzie wskazuje miejsce wykonywania akcji.
 
 - **Dymki** (`ChatBubble`, `MessageRow`): Twoje wiadomości w ciemnym neutralnym kolorze
   (zinc‑900; w trybie ciemnym jasne zinc‑100), bota na miękkiej szarości (zinc‑100 / zinc‑800).

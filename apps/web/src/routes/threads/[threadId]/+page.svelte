@@ -75,7 +75,6 @@
   import ThreadMenuItems from "#lib/features/threads/components/ThreadMenuItems.svelte";
   import ThreadSearch from "#lib/features/threads/components/ThreadSearch.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
-  import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
   import ComputerAwayBar from "#lib/features/computers/ComputerAwayBar.svelte";
   import { awayReason } from "#lib/features/computers/computers.ts";
 
@@ -533,7 +532,7 @@
   data-window-side-panel={panelOpen ? "xl" : undefined}
 >
   <div class="relative flex min-w-0 flex-1 flex-col" {@attach intake.zone}>
-    <TopBar>
+    <TopBar description={away ? `Read-only. ${away}` : undefined}>
       {#if thread}
         <Crumb
           href={project
@@ -545,9 +544,6 @@
                 <ProjectMark name={project?.name ?? "?"} kind={project?.kind} />
               </ThreadSyncStatus>{/key}{/snippet}{project?.name ?? "Project"}</Crumb
         >
-        {#if thread.nodeId}<li class="flex min-w-0 shrink-0 items-center">
-            <MachineBadge nodeId={thread.nodeId} compact class="max-w-20 sm:max-w-40" />
-          </li>{/if}
         {#if tree && isSide(thread) && tree.main.id !== thread.id}
           <Crumb href="/threads/{tree.main.id}">{tree.main.title}</Crumb>
         {/if}

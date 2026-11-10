@@ -44,6 +44,12 @@ Obrót trwa 2 s według tokenów ruchu; przy ograniczonym ruchu ikona pozostaje 
 Etykieta dostępności to „Syncing…”, a region statusu ogłasza ją dopiero po 2 s.
 Stan komputera poza siecią ma osobną notę, bez ikony synchronizacji.
 
+Breadcrumb wątku i formularza wątku bocznego oraz nagłówek rozmowy bota nie powtarzają
+plakietki połączonego komputera. Komputer wątku pozostaje w szczegółach i kontekście composera;
+`BotHome` pokazuje lokalizację w szczegółach i ustawieniach bota, gdzie objaśnia miejsce działania.
+Nagłówki zachowują dostępny opis „Read-only. {reason}” podczas niedostępności domu,
+bez zmiany szerokości breadcrumbu. Widoczne noty i istniejące blokady akcji pozostają bez zmian.
+
 ## Ruch formularzy
 
 Otwarcie `Dialog` / arkusza / `Popover` animuje wyłącznie kontener według tokenów

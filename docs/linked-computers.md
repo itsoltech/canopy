@@ -333,7 +333,8 @@ Telefon i przeglądarka łączą się z jednym gatewayem i widzą przez niego ws
 - Settings → **Linked computers**: lista z nazwą, stanem, trasami i wersją; „Link computer”; przy partnerze
   „Share onward”, „Move to…”, „Unlink”.
 - Sidebar: wiersze wątków i botów bez pigułki komputera, przygaszone przy niedostępności.
-  Nazwa komputera zostaje w nagłówku rozmowy i widokach wyboru miejsca wykonania.
+  Nagłówki również nie powtarzają pigułki; zachowują dostępny opis „Read-only. {reason}”.
+  Nazwa komputera zostaje w szczegółach i widokach wyboru miejsca wykonania.
 - Status niedostępnego komputera w pasku nad composerem, obok celu i subagentów; bez bannera u góry.
   Krótki stan, „read only” i czas zmiany obecności; szczegóły pod ikoną informacji, dostępne także dotknięciem.
   „Last seen” zostaje przy samym komputerze w ustawieniach; stan „needs an update”.
@@ -1274,8 +1275,9 @@ Starsze domy ignorują opt-in i odpowiadają pełną historią. Offline pozostaj
 odczyt lustra; lokalny cache nie nadaje praw do wysyłania ani odpowiadania na karty.
 
 Online rozmowa i karty idą na żywo do domu; edycja, rutyny, przypomnienia, granty connectorów,
-wnioskowanie i ukryte notatki przekazania wykonują się wyłącznie tam. Nagłówek rozmowy pokazuje
-`MachineBadge`, a panel szczegółów wyjaśnia „Runs on Laptop B. Routines and reminders stay there.”.
+wnioskowanie i ukryte notatki przekazania wykonują się wyłącznie tam. Nagłówek rozmowy nie powtarza
+`MachineBadge`; panel szczegółów i ustawienia zachowują `BotHome`, który wyjaśnia
+„Runs on Laptop B. Routines and reminders stay there.”.
 Ostrzeżenie o odczycie offline jest w przewijanej rozmowie pod nagłówkiem; żaden komunikat nie
 poprzedza paska okna macOS. Zarządzanie autoryzacją kont kieruje na komputer domu. UI nie używa katalogu
 connectorów A w rozmowie bota z B. Wzmianki w composerze obejmują boty tego samego domu;
