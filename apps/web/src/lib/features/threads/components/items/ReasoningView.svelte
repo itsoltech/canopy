@@ -4,6 +4,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
+  import LiveText from "#lib/shared/ui/LiveText.svelte";
   import { LineReveal } from "#lib/shared/ui/streaming/line-reveal.svelte.ts";
   import { activityBody } from "../activity-header.ts";
 
@@ -36,8 +37,8 @@
     {#snippet summary()}
       <span class="flex min-w-0 gap-2">
         <span class="flex h-lh shrink-0 items-center"><Icon name="light-bulb" /></span>
-        {#key streaming}<span class={["w-16 shrink-0 font-medium", streaming && "shimmer"]} in:swap
-            >{streaming ? "Thinking" : "Thought"}</span
+        {#key streaming}<span class="w-16 shrink-0 font-medium" in:swap
+            ><LiveText text={streaming ? "Thinking" : "Thought"} active={streaming} /></span
           >{/key}
         <span class="min-w-0 truncate italic">{preview}</span>
       </span>

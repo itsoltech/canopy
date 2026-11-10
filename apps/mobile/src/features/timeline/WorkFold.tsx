@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { Pressable, Text, View, type HostInstance } from "react-native";
 import { formatSpan } from "@canopy/domain/format";
 import { Rule } from "../../ui/Badge";
@@ -13,21 +13,33 @@ import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "../../ui/Icon";
 import { ItemStatusIcon } from "./ItemStatusIcon";
 import { activityHeader } from "./activity-header";
+import { useLiveTime } from "../../ui/time";
+import { useViewportVisibility } from "../../ui/viewport";
 
 export type { WorkSummary } from "./turn-plan";
 
-/** Ticks once a second while `live`; folds of ended turns have no timer. */
-function useNow(live: boolean) {
-  const [now, setNow] = useState(Date.now);
+/** The clock updates just the label, including its clipped highlight copies. */
+function WorkingTitle({ summary, starting }: { summary: WorkSummary; starting: boolean }) {
+  const viewport = useViewportVisibility();
+  const now = useLiveTime(viewport.visible && !starting && summary.startMs !== undefined);
+  const span = summary.startMs === undefined ? undefined : Math.max(0, now - summary.startMs);
+  const title = starting ? "Starting" : span === undefined ? "Working" : `Working for ${formatSpan(span)}`;
 
-  useEffect(() => {
-    if (!live) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-
-    return () => clearInterval(timer);
-  }, [live]);
-
-  return now;
+  return (
+    <View
+      ref={viewport.ref}
+      onLayout={viewport.onLayout}
+      collapsable={false}
+      style={{ flexShrink: 0, maxWidth: "100%" }}
+    >
+      <LiveText
+        containerStyle={{ flexShrink: 0, maxWidth: "100%" }}
+        style={[styles.body, { fontFamily: font.medium, fontVariant: ["tabular-nums"] }]}
+      >
+        {title}
+      </LiveText>
+    </View>
+  );
 }
 
 /**
@@ -47,10 +59,9 @@ export function WorkFold({
 }) {
   const c = useColors();
   const sky = useTone("sky").text;
-  const now = useNow(summary.live);
   const header = useRef<HostInstance>(null);
   const toggle = useAnchoredToggle();
-  const span = summary.live && summary.startMs !== undefined ? Math.max(0, now - summary.startMs) : summary.spanMs;
+  const span = summary.spanMs;
 
   const label = starting
     ? "Starting"
@@ -73,12 +84,7 @@ export function WorkFold({
       </View>
       {summary.live ? (
         <View style={{ flexDirection: "row", flexShrink: 1, minWidth: 0 }}>
-          <LiveText
-            containerStyle={{ flexShrink: 0, maxWidth: "100%" }}
-            style={[styles.body, { fontFamily: font.medium, fontVariant: ["tabular-nums"] }]}
-          >
-            {title}
-          </LiveText>
+          <WorkingTitle summary={summary} starting={starting} />
           {detail ? (
             <Text numberOfLines={1} style={[styles.body, { flexShrink: 1, color: c.faint }]}>
               {`  ${detail}`}
@@ -107,7 +113,6 @@ export function WorkFold({
       ) : (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={[title, detail].filter(Boolean).join(", ")}
           accessibilityState={{ expanded: open }}
           onPress={() => toggle(header.current, onToggle)}
           style={{ flexShrink: 1, minHeight: 44, paddingVertical: 10 }}

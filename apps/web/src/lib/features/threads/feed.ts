@@ -2,6 +2,7 @@ import type { ui } from "@canopy/contracts";
 import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.ts";
 import { buildTimeline, type ItemNode, type TimelineRow } from "./timeline.ts";
 import { foldTurns, type WorkSummary } from "./work-groups.ts";
+import { FeedPrefix } from "./feed-prefix.ts";
 
 /**
  * The rows of the thread page's virtual feed, in order: a fork's inherited history (a header that folds
@@ -106,6 +107,8 @@ export const feedEstimate = (group: string): number => ESTIMATES.get(group.repla
 export class FeedBuilder {
   #rows = new Map<string, FeedRow>();
   readonly #nodes = new WeakMap<TimelineEntry, ItemNode>();
+  readonly #prefix = new FeedPrefix();
+  readonly #stable = new WeakMap<FeedRow, FeedRow>();
 
   build(input: FeedInput): FeedRow[] {
     const next: FeedRow[] = [];
@@ -151,23 +154,7 @@ export class FeedBuilder {
       next.push({ kind: "forked", key: "forked", sourceId });
     }
 
-    for (const fold of foldTurns(
-      buildTimeline(input.entries, input.turns, input.notices, input.results, this.#nodes),
-      open,
-      groupOpen,
-    )) {
-      if (fold.kind !== "row") next.push({ ...fold, history: false, last: false });
-      else
-        next.push({
-          kind: "timeline",
-          key: fold.row.key,
-          row: fold.row,
-          history: false,
-          last: false,
-          work: fold.work,
-          ...(fold.group && { group: fold.group }),
-        });
-    }
+    for (const row of this.#prefix.build(input, (part, context) => ownRows(part, this.#nodes, context))) next.push(row);
 
     if (input.working && !next.some((r) => r.kind === "work" && r.summary.live))
       next.push({ kind: "working", key: "working" });
@@ -180,12 +167,37 @@ export class FeedBuilder {
 
     return marked.map((row) => {
       const old = previous.get(row.key);
-      const kept = old && sameRow(old, row) ? old : row;
+      const kept = this.#stable.get(row) ?? (old && sameRow(old, row) ? old : row);
+      this.#stable.set(row, kept);
       this.#rows.set(row.key, kept);
 
       return kept;
     });
   }
+}
+
+function ownRows(
+  input: FeedInput,
+  nodes: WeakMap<TimelineEntry, ItemNode>,
+  context?: { readonly lastDay: string; readonly withdrawn: readonly number[] },
+): FeedRow[] {
+  return foldTurns(
+    buildTimeline(input.entries, input.turns, input.notices, input.results, nodes, context),
+    (fold) => input.openWork.has(fold),
+    (key) => input.openGroups?.has(key) ?? false,
+  ).map((fold): FeedRow =>
+    fold.kind !== "row"
+      ? { ...fold, history: false, last: false }
+      : {
+          kind: "timeline",
+          key: fold.row.key,
+          row: fold.row,
+          history: false,
+          last: false,
+          work: fold.work,
+          ...(fold.group && { group: fold.group }),
+        },
+  );
 }
 
 /** The inherited history per thread it came from (a fork of a fork inherits from several), oldest first. */

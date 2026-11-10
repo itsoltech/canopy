@@ -9,6 +9,7 @@
   import { FeedEntrances } from "./feed-entrances.ts";
   import { EndScroll } from "./end-scroll.ts";
   import { publishViewport, rowAttachment } from "./feed-measure.ts";
+  import { FeedRows } from "./feed-rows.ts";
   import { COLD_OVERSCAN, initialHeight, keepMounted, OVERSCAN_STEP } from "./feed-range.ts";
   import { feedRowKey, focusFeedRow, footerField, pagedRow } from "./feed-keys.ts";
   import { SizeIndex } from "./size-index.ts";
@@ -125,7 +126,8 @@
   /** The first row at the top of the viewport and its distance from the top edge. */
   let anchor: FeedAnchor | undefined;
 
-  const sized = $derived(rows.map((r) => ({ key: key(r), group: group(r) })));
+  const structure = new FeedRows();
+  const sized = $derived(structure.update(rows, key, group));
   const positions = $derived(new Map(sized.map((r, i) => [r.key, i])));
 
   const layout = $derived.by(() => {
@@ -265,12 +267,14 @@
     clearTimeout(rowTimer);
   });
 
-  // After every DOM change of the window: keep the reader's place (or the end).
+  // Structural changes need a settle; content growth is already measured by ResizeObserver.
+  // Reading scrollHeight for every text delta forces layout even when the row's height stays fixed.
   $effect(() => {
     void padTop;
     void padBottom;
-    void visible;
+    void sized;
     void footerSpace;
+
     untrack(settle);
   });
 

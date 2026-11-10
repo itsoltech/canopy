@@ -4,6 +4,7 @@
   import { timestampFromMs } from "@bufbuild/protobuf/wkt";
   import { formatRelative, formatSpan, formatLocalDateTime } from "#lib/shared/format.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
+  import LiveTime from "#lib/shared/ui/LiveTime.svelte";
   import { backgroundStatus, backgroundTimes, type BackgroundEntry } from "../background-tasks.ts";
 
   let {
@@ -12,24 +13,14 @@
     class: className,
   }: { entry: BackgroundEntry; exitCode?: number | undefined; class?: ClassValue } = $props();
 
-  let now = $state(Date.now());
   const running = $derived(entry.item.status === ItemStatus.IN_PROGRESS);
-
-  $effect(() => {
-    if (!running) return;
-    now = Date.now();
-    const timer = setInterval(() => (now = Date.now()), 1000);
-
-    return () => clearInterval(timer);
-  });
 
   const times = $derived(backgroundTimes(entry));
 
-  const elapsed = $derived(
+  const elapsed = (now: number) =>
     times.startedAt !== undefined && (running || times.endedAt !== undefined)
       ? formatSpan(Math.max(0, (times.endedAt ?? now) - times.startedAt))
-      : "Time unavailable",
-  );
+      : "Time unavailable";
 
   // When it ended (e.g. stopped by a worker restart while nobody watched).
   const ended = $derived(!running && times.endedAt !== undefined ? timestampFromMs(times.endedAt) : undefined);
@@ -49,11 +40,10 @@
         : entry.item.status === ItemStatus.COMPLETED
           ? "emerald"
           : "neutral"}
-    class={running ? "t-pulse" : undefined}
+    pulse={running}
   />
-  <span>{backgroundStatus(entry, exitCode).replace(/^Done/, "Completed")}</span><span aria-hidden="true">·</span><span
-    class="tabular-nums">{elapsed}</span
-  >
+  <span>{backgroundStatus(entry, exitCode).replace(/^Done/, "Completed")}</span><span aria-hidden="true">·</span
+  ><LiveTime format={elapsed} active={running} class="tabular-nums" />
   {#if ended}<span aria-hidden="true">·</span><time
       class="tabular-nums"
       datetime={new Date(times.endedAt ?? 0).toISOString()}

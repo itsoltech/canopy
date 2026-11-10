@@ -53,10 +53,11 @@
   {/if}
   <SwapText
     text={thread.title}
+    live={thread.titleGenerating}
     class={[
       "h-5.5 min-w-0 flex-1 overflow-hidden text-base/5.5 sm:h-5 sm:text-sm/5",
       thread.titleGenerating
-        ? "shimmer"
+        ? "text-zinc-500 dark:text-zinc-400"
         : "text-zinc-700 group-aria-[current=page]:text-zinc-950 group-data-calm:opacity-60 group-data-result:text-zinc-950 dark:text-zinc-300 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
     ]}
   />

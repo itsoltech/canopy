@@ -9,6 +9,28 @@ export interface TextFit {
 }
 
 let canvas: CanvasRenderingContext2D | null | undefined;
+const pending = new Map<HTMLElement, (fit: TextFit) => void>();
+let frame = 0;
+
+function flush() {
+  frame = 0;
+
+  // Read every row before publishing anything that may change DOM or invalidate style.
+  const measured = Array.from(pending, ([node, publish]) => ({
+    publish,
+    fit: {
+      clipped:
+        node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight
+          ? node.textContent.trim()
+          : undefined,
+      natural: naturalWidth(node),
+    },
+  }));
+
+  pending.clear();
+
+  for (const { publish, fit } of measured) publish(fit);
+}
 
 function naturalWidth(node: HTMLElement): number {
   canvas ??= document.createElement("canvas").getContext("2d");
@@ -24,14 +46,14 @@ function naturalWidth(node: HTMLElement): number {
 /** Reports how an element's text fits (`TextFit`); again whenever its size, text or fonts change. */
 export function clipped(onchange: (fit: TextFit) => void): Attachment<HTMLElement> {
   return (node) => {
-    const measure = () =>
-      onchange({
-        clipped:
-          node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight
-            ? node.textContent.trim()
-            : undefined,
-        natural: naturalWidth(node),
-      });
+    let mounted = true;
+
+    const measure = () => {
+      if (!mounted) return;
+
+      pending.set(node, onchange);
+      frame ||= requestAnimationFrame(flush);
+    };
 
     const resized = new ResizeObserver(measure);
     const edited = new MutationObserver(measure);
@@ -40,8 +62,14 @@ export function clipped(onchange: (fit: TextFit) => void): Attachment<HTMLElemen
     void document.fonts.ready.then(() => node.isConnected && measure());
 
     return () => {
+      mounted = false;
       resized.disconnect();
       edited.disconnect();
+      pending.delete(node);
+
+      if (pending.size) return;
+      cancelAnimationFrame(frame);
+      frame = 0;
     };
   };
 }

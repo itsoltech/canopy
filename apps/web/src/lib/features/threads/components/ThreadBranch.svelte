@@ -11,6 +11,7 @@
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import PanelField from "./PanelField.svelte";
   import { threadBranches, switchThreadBranch } from "../branches.ts";
+  import { runningAnimation } from "#lib/shared/activity.ts";
 
   let { thread, worker, class: className }: { thread: ui.Thread; worker?: ui.Worker; class?: ClassValue } = $props();
   const overview = useOverview();
@@ -92,7 +93,12 @@
         />
       </p>{/if}
     {#snippet aside()}
-      <Icon name={busy ? "arrow-path" : "chevron-down"} class={["shrink-0", busy && "motion-safe:animate-spin"]} />
+      <span class="flex" {@attach busy ? runningAnimation : undefined}
+        ><Icon
+          name={busy ? "arrow-path" : "chevron-down"}
+          class={["shrink-0", busy && "motion-safe:animate-spin"]}
+        /></span
+      >
     {/snippet}
   </PanelField>
 {/snippet}

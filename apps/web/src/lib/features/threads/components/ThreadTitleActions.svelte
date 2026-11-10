@@ -54,7 +54,7 @@
   ]}
 >
   <div class="min-w-0 flex-1" {@attach tooltip(thread.title || "New thread")}>
-    <SwapText text={thread.title || "New thread"} class={["w-full overflow-hidden", generating && "shimmer"]} />
+    <SwapText text={thread.title || "New thread"} live={generating} class="w-full overflow-hidden" />
   </div>
   <!-- Rename and regenerate are occasional: behind "more", so the panel opens on the title alone. -->
   <DropdownMenu label="Title actions" placement="bottom-end">

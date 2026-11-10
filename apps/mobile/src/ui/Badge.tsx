@@ -7,6 +7,8 @@ import Reanimated, { useAnimatedStyle, withTiming } from "react-native-reanimate
 import { motion, smoothOut, useReducedMotion } from "./motion";
 import { font, styles, useColors } from "./theme";
 import { useTone } from "./tone";
+import { useAppActive } from "./active";
+import { useViewportVisibility } from "./viewport";
 
 /** Small label with a tinted ring (web: Badge): an exit code, a kind, a status. Sized for work rows. */
 export function Badge({
@@ -55,23 +57,33 @@ export function StatusDot({ tone, active = false }: { tone: Tone; active?: boole
   const color = useTone(tone).dot;
   const reduced = useReducedMotion();
   const [ping] = useState(() => new Animated.Value(0));
+  const viewport = useViewportVisibility();
+  const foreground = useAppActive() && viewport.visible;
 
   useEffect(() => {
-    if (!active || reduced) {
+    if (!active || reduced || !foreground) {
       ping.setValue(0);
 
       return;
     }
 
-    const loop = Animated.loop(Animated.timing(ping, { toValue: 1, duration: 1000, useNativeDriver: true }));
+    const loop = Animated.loop(
+      Animated.timing(ping, { toValue: 1, duration: motion.verySlow * 2, useNativeDriver: true, isInteraction: false }),
+    );
 
     loop.start();
 
     return () => loop.stop();
-  }, [active, reduced, ping]);
+  }, [active, reduced, foreground, ping]);
 
   return (
-    <View accessible={false} style={{ width: 6, height: 6 }}>
+    <View
+      ref={viewport.ref}
+      onLayout={viewport.onLayout}
+      collapsable={false}
+      accessible={false}
+      style={{ width: 6, height: 6 }}
+    >
       {active && !reduced && (
         <Animated.View
           style={{

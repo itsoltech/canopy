@@ -12,6 +12,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { motion, useReducedMotion } from "./motion";
 import { useColors } from "./theme";
+import { useAppActive } from "./active";
+import { useViewportVisibility } from "./viewport";
 
 // Narrow clipped copies approximate the web's soft linear gradient without a native mask dependency.
 const slices = Array.from({ length: 24 }, (_, index) => index);
@@ -27,6 +29,8 @@ interface LiveTextProps {
 export function LiveText({ children, style, containerStyle }: LiveTextProps) {
   const c = useColors();
   const reduced = useReducedMotion();
+  const viewport = useViewportVisibility();
+  const active = useAppActive() && viewport.visible;
   const progress = useSharedValue(0);
   const [width, setWidth] = useState(0);
   const [inkWidth, setInkWidth] = useState(0);
@@ -36,7 +40,7 @@ export function LiveText({ children, style, containerStyle }: LiveTextProps) {
     cancelAnimation(progress);
     progress.set(0);
 
-    if (!reduced) {
+    if (active && !reduced) {
       // The live system subscription above owns this guard; Reanimated's default remembers startup only.
       progress.set(
         withRepeat(
@@ -50,10 +54,15 @@ export function LiveText({ children, style, containerStyle }: LiveTextProps) {
     }
 
     return () => cancelAnimation(progress);
-  }, [progress, reduced]);
+  }, [progress, reduced, active]);
 
   return (
-    <View style={[{ minWidth: 0, flexShrink: 1, overflow: "hidden" }, containerStyle]}>
+    <View
+      ref={viewport.ref}
+      onLayout={viewport.onLayout}
+      collapsable={false}
+      style={[{ minWidth: 0, flexShrink: 1, overflow: "hidden" }, containerStyle]}
+    >
       <Text
         numberOfLines={1}
         onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}

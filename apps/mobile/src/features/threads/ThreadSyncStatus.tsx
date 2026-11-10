@@ -11,11 +11,13 @@ import Animated, {
 } from "react-native-reanimated";
 import { Icon } from "../../ui/Icon";
 import { motion, smoothOut, useReducedMotion } from "../../ui/motion";
+import { useAppActive } from "../../ui/active";
 
 /** Reuses the project mark's slot; brief checkpoint refreshes stay invisible and silent. */
 export function ThreadSyncStatus({ syncing, children }: { syncing: boolean; children: ReactNode }) {
   const [shown, setShown] = useState(false);
   const reduced = useReducedMotion();
+  const active = useAppActive();
   const opacity = useSharedValue(0);
   const rotation = useSharedValue(0);
 
@@ -49,7 +51,7 @@ export function ThreadSyncStatus({ syncing, children }: { syncing: boolean; chil
 
     if (reduced) rotation.set(0);
 
-    if (visible && !reduced) {
+    if (active && visible && !reduced) {
       rotation.set(0);
       rotation.set(
         withRepeat(
@@ -67,7 +69,7 @@ export function ThreadSyncStatus({ syncing, children }: { syncing: boolean; chil
     }
 
     return () => cancelAnimation(rotation);
-  }, [visible, reduced, opacity, rotation]);
+  }, [visible, reduced, active, opacity, rotation]);
 
   const markStyle = useAnimatedStyle(() => ({ opacity: 1 - opacity.get() }));
 

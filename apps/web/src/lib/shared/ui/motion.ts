@@ -28,21 +28,19 @@ const fallback: Record<DurationToken, number> = {
   "very-slow": 500,
 };
 
-// Token values read in this frame. Reading the document's style recalculates every style changed since the
-// last read: rows that mount together (each with its own transition) would otherwise pay that once each.
+// Tokens are static CSS, not frame data. Re-reading them after every streaming write forces the entire
+// document's style. Invalidate only when root appearance/scale changes.
 const tokens = new Map<string, string>();
-let tokenFrame = 0;
+let tokenObserver: MutationObserver | undefined;
 
 function rootToken(name: string): string {
   let value = tokens.get(name);
 
   if (value === undefined) {
+    tokenObserver ??= new MutationObserver(() => tokens.clear());
+    tokenObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
     value = getComputedStyle(document.documentElement).getPropertyValue(name);
     tokens.set(name, value);
-    tokenFrame ||= requestAnimationFrame(() => {
-      tokens.clear();
-      tokenFrame = 0;
-    });
   }
 
   return value;

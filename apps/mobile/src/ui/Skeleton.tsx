@@ -11,6 +11,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { inOut, motion, useMotion, useReducedMotion, useTween } from "./motion";
 import { useColors } from "./theme";
+import { useAppActive } from "./active";
+import { useViewportVisibility } from "./viewport";
 
 const Loading = createContext(false);
 
@@ -58,12 +60,14 @@ export function Skeleton({
 /** Mounted only while loading: ordinary controls do not subscribe to accessibility or start animation loops. */
 function SkeletonPulse({ dark }: { dark: boolean }) {
   const reduced = useReducedMotion();
+  const viewport = useViewportVisibility();
+  const active = useAppActive() && viewport.visible;
   const { reveal } = useMotion();
   const opacity = useSharedValue(1);
   const pulse = useAnimatedStyle(() => ({ opacity: opacity.get() }));
 
   useEffect(() => {
-    if (reduced) {
+    if (reduced || !active) {
       opacity.set(1);
 
       return;
@@ -74,10 +78,13 @@ function SkeletonPulse({ dark }: { dark: boolean }) {
     opacity.set(withRepeat(withSequence(withTiming(0.5, half), withTiming(1, half)), -1));
 
     return () => cancelAnimation(opacity);
-  }, [reduced, opacity]);
+  }, [reduced, active, opacity]);
 
   return (
     <Animated.View
+      ref={viewport.ref}
+      onLayout={viewport.onLayout}
+      collapsable={false}
       pointerEvents="none"
       exiting={reveal.exiting}
       style={[
