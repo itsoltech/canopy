@@ -52,6 +52,10 @@ function fixture() {
   copyFileSync(join(root, "scripts/release-expected-version.mjs"), join(cwd, "scripts/release-expected-version.mjs"));
   copyFileSync(join(root, "scripts/semantic-release.mjs"), join(cwd, "scripts/semantic-release.mjs"));
   writeFileSync(
+    join(cwd, "pinned-release.mjs"),
+    'import { releasePinned } from "./scripts/semantic-release.mjs"; import { writeFileSync } from "node:fs"; await releasePinned({ dryRun: process.argv.includes("--dry-run"), createDraft: (body) => writeFileSync("draft.json", JSON.stringify(body)) });\n',
+  );
+  writeFileSync(
     join(cwd, "release.config.mjs"),
     'import config from "./canopy.config.mjs"; export default { ...config, plugins: config.plugins.filter((plugin) => !(Array.isArray(plugin) && plugin[0] === "@semantic-release/github")) };\n',
   );
@@ -102,12 +106,42 @@ function fixture() {
     cwd,
     remoteTags,
     dryRun: () => run(),
-    publishLocally: (expectedVersion?: string) => run(false, expectedVersion),
     cleanup: () => rmSync(dir, { recursive: true, force: true }),
   };
 }
 
-test("Release accepts the event SHA and rejects moved push snapshots and mismatched dispatches", () => {
+async function runPinned(cwd: string, branch: string, sha: string, dry = true, expectedVersion = "") {
+  const child = Bun.spawn(["node", "pinned-release.mjs", "--no-ci", ...(dry ? ["--dry-run"] : [])], {
+    cwd,
+    env: {
+      ...Bun.env,
+      GH_TOKEN: "",
+      GITHUB_TOKEN: "",
+      GITHUB_ACTIONS: "true",
+      CI: "true",
+      GITHUB_REF: `refs/heads/${branch}`,
+      GITHUB_REF_NAME: branch,
+      GITHUB_REF_TYPE: "branch",
+      GITHUB_SHA: sha,
+      EXPECTED_SHA: sha,
+      EXPECTED_VERSION: expectedVersion,
+    },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+
+  if (code !== 0) throw new Error(stdout + stderr);
+
+  return stdout + stderr;
+}
+
+test("Release accepts the event SHA and rejects a checkout that differs from the dispatch", () => {
   const repo = fixture();
   const expected = repo.git("rev-parse", "HEAD");
 
@@ -123,6 +157,7 @@ test("Release accepts the event SHA and rejects moved push snapshots and mismatc
         GITHUB_OUTPUT: join(repo.cwd, "release-output"),
         EXPECTED_SHA: expectedSha,
         GITHUB_REF: "refs/heads/main",
+        GITHUB_REF_NAME: "main",
         GITHUB_REF_TYPE: "branch",
       },
       stdout: "pipe",
@@ -130,18 +165,18 @@ test("Release accepts the event SHA and rejects moved push snapshots and mismatc
     });
 
   const current = run(expected);
-  expect(current.exitCode).toBe(0);
+  expect(current.exitCode, current.stderr.toString()).toBe(0);
   expect(current.stdout.toString()).toContain("published=false");
   repo.git("commit", "--allow-empty", "-m", "fix: branch moved");
   const newer = repo.git("rev-parse", "HEAD");
   repo.git("push", "origin", "main");
   repo.git("checkout", "--detach", expected);
   const push = run(expected);
-  expect(push.exitCode).not.toBe(0);
-  expect(push.stderr.toString()).toContain("Branch moved since Release started");
+  expect(push.exitCode).toBe(0);
+  expect(push.stdout.toString()).toContain("published=false");
   const dispatch = run(newer);
   expect(dispatch.exitCode).not.toBe(0);
-  expect(dispatch.stderr.toString()).toContain("Branch moved since promotion");
+  expect(dispatch.stderr.toString()).toContain("Checkout does not match EXPECTED_SHA");
   expect(repo.remoteTags()).toEqual(["v0.1.0"]);
 });
 
@@ -284,52 +319,100 @@ test("fast-forward promotions retain the base version, and docs-only changes pro
     repo.git("checkout", "dev");
     repo.git("commit", "--allow-empty", "-m", "feat: add a promoted feature");
     repo.git("push", "origin", "dev");
-    expect(await repo.publishLocally()).toContain("Published release 0.2.0-nightly.1 on nightly");
+    expect(await runPinned(repo.cwd, "dev", repo.git("rev-parse", "HEAD"), false)).toContain(
+      "Published release 0.2.0-nightly.1 on nightly",
+    );
     repo.git("checkout", "next");
     repo.git("merge", "--ff-only", "dev");
     repo.git("push", "origin", "next");
-    expect(await repo.publishLocally()).toContain("Published release 0.2.0-beta.1 on beta");
+    expect(await runPinned(repo.cwd, "next", repo.git("rev-parse", "HEAD"), false)).toContain(
+      "Published release 0.2.0-beta.1 on beta",
+    );
     repo.git("checkout", "main");
     repo.git("merge", "--ff-only", "next");
     repo.git("push", "origin", "main");
-    expect(await repo.publishLocally()).toContain("Published release 0.2.0 on default");
+    expect(await runPinned(repo.cwd, "main", repo.git("rev-parse", "HEAD"), false)).toContain(
+      "Published release 0.2.0 on default",
+    );
     repo.git("commit", "--allow-empty", "-m", "docs: explain promotion");
     repo.git("push", "origin", "main");
-    expect(await repo.dryRun()).toContain("no new version is released");
+    expect(await runPinned(repo.cwd, "main", repo.git("rev-parse", "HEAD"))).toContain("no new version is released");
   } finally {
     repo.cleanup();
   }
 }, 60_000);
 
-test("a release publishes only the planned version, and a superseded run publishes nothing", async () => {
-  const repo = fixture();
-
-  try {
-    repo.git("checkout", "dev");
+test.each([
+  ["dev", "0.2.0-nightly.1", "0.2.0-nightly.2"],
+  ["next", "0.2.0-beta.1", "0.2.0-beta.2"],
+  ["main", "0.2.0", "0.2.1"],
+])(
+  "%s releases consecutive pinned snapshots after the branch moves",
+  async (branch, first, second) => {
+    const repo = fixture();
+    repo.git("checkout", branch!);
     repo.git("commit", "--allow-empty", "-m", "feat: first merge");
-    repo.git("push", "origin", "dev");
-    // Run A plans while its checks run; run B's merge lands before A's checks finish and plans the same version.
-    expect(await repo.dryRun()).toContain("Published release 0.2.0-nightly.1 on");
+    const pinned = repo.git("rev-parse", "HEAD");
     repo.git("commit", "--allow-empty", "-m", "fix: second merge");
-    repo.git("push", "origin", "dev");
-    expect(await repo.dryRun()).toContain("Published release 0.2.0-nightly.1 on");
-    // Run A's real release: its commit is behind the branch, so nothing is tagged.
-    const runB = repo.git("rev-parse", "HEAD");
-    repo.git("reset", "--hard", "HEAD~1");
-    expect(await repo.publishLocally("0.2.0-nightly.1")).toContain("is behind the remote one");
+    const newer = repo.git("rev-parse", "HEAD");
+    repo.git("push", "origin", branch!);
+    repo.git("checkout", "--detach", pinned);
+    // The branch has already moved before planning, then moves again during checks/builds.
+    expect(await runPinned(repo.cwd, branch!, pinned)).toContain(`Published release ${first} on`);
     expect(repo.remoteTags()).toEqual(["v0.1.0"]);
-    // Run B: a different version than planned is refused before tagging; the planned one is published.
-    repo.git("reset", "--hard", runB);
-    await expect(repo.publishLocally("0.2.0-nightly.2")).rejects.toThrow(
-      "Planned 0.2.0-nightly.2 but the release would be 0.2.0-nightly.1",
+    repo.git("checkout", branch!);
+    repo.git("reset", "--hard", newer);
+    repo.git("commit", "--allow-empty", "-m", "fix: third merge");
+    const tip = repo.git("rev-parse", "HEAD");
+    repo.git("push", "origin", branch!);
+    repo.git("checkout", "--detach", pinned);
+    await expect(runPinned(repo.cwd, branch!, pinned, false, second)).rejects.toThrow(
+      `Planned ${second} but the release would be ${first}`,
     );
     expect(repo.remoteTags()).toEqual(["v0.1.0"]);
-    expect(await repo.publishLocally("0.2.0-nightly.1")).toContain("Published release 0.2.0-nightly.1 on nightly");
-    expect(repo.remoteTags()).toEqual(["v0.1.0", "v0.2.0-nightly.1"]);
-  } finally {
-    repo.cleanup();
-  }
-}, 60_000);
+    expect(await runPinned(repo.cwd, branch!, pinned, false, first)).toContain(`Published release ${first} on`);
+    expect(repo.git("ls-remote", "origin", `refs/tags/v${first}`)).toBe(`${pinned}\trefs/tags/v${first}`);
+    expect(repo.git("ls-remote", "origin", `refs/heads/${branch}`)).toBe(`${tip}\trefs/heads/${branch}`);
+    const noteRef = `refs/notes/semantic-release-v${first}`;
+    expect(repo.git("ls-remote", "origin", noteRef)).toBe(`${repo.git("rev-parse", noteRef)}\t${noteRef}`);
+    const draft = JSON.parse(readFileSync(join(repo.cwd, "draft.json"), "utf8"));
+    expect(draft).toEqual(
+      expect.objectContaining({
+        tag_name: `v${first}`,
+        target_commitish: pinned,
+        draft: true,
+        prerelease: branch !== "main",
+      }),
+    );
+    expect(draft.body).toContain("first merge");
+    expect(draft.body).not.toContain("second merge");
+    expect(draft.body).not.toContain("canopy-release-snapshot-");
+    expect(draft.body).toContain(`/compare/v0.1.0...v${first}`);
+    // Only after A finishes may B plan. Its own pinned SHA can also be behind the current tip.
+    repo.git("update-ref", "-d", noteRef);
+    repo.git("checkout", "--detach", newer);
+    expect(await runPinned(repo.cwd, branch!, newer)).toContain(`Published release ${second} on`);
+    expect(await runPinned(repo.cwd, branch!, newer, false, second)).toContain(`Published release ${second} on`);
+    expect(repo.git("ls-remote", "origin", `refs/tags/v${second}`)).toBe(`${newer}\trefs/tags/v${second}`);
+    expect(repo.remoteTags()).toEqual(["v0.1.0", `v${first}`, `v${second}`].sort());
+  },
+  60_000,
+);
+
+test("Release refuses a pinned SHA removed from the branch by a force push", async () => {
+  const repo = fixture();
+  repo.git("checkout", "dev");
+  repo.git("commit", "--allow-empty", "-m", "feat: removed feature");
+  const pinned = repo.git("rev-parse", "HEAD");
+  repo.git("push", "origin", "dev");
+  repo.git("reset", "--hard", "v0.1.0");
+  repo.git("commit", "--allow-empty", "-m", "fix: replacement history");
+  repo.git("push", "--force", "origin", "dev");
+  repo.git("checkout", "--detach", pinned);
+  await expect(runPinned(repo.cwd, "dev", pinned)).rejects.toThrow("refusing rewritten history");
+  await expect(runPinned(repo.cwd, "dev", pinned, false)).rejects.toThrow("refusing rewritten history");
+  expect(repo.remoteTags()).toEqual(["v0.1.0"]);
+});
 
 test("server-then-desktop publication keeps checksums.txt and manifest.json consistent and repeatable", async () => {
   const base = mkdtempSync(join(tmpdir(), "canopy-release-stages-unit-"));

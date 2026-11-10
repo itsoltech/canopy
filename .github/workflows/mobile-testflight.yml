@@ -39,21 +39,40 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
+      - id: released
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          released=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID/jobs?per_page=100" \
+            --jq '.jobs[] | select(.name == "release" and .conclusion == "success") | .id')
+          if [ -n "$released" ]; then echo "published=true" >> "$GITHUB_OUTPUT";
+          else echo "Release skipped publication; nothing to ship."; fi
+      - uses: actions/download-artifact@v5
+        if: steps.released.outputs.published == 'true'
+        with:
+          name: release-revision
+          path: ${{ runner.temp }}/release-revision
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Use the exact released commit, including manual expected_sha
+        if: steps.released.outputs.published == 'true'
+        run: |
+          sha=$(cat "$RUNNER_TEMP/release-revision/release-sha")
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then echo 'Invalid released revision'; exit 1; fi
+          echo "HEAD_SHA=$sha" >> "$GITHUB_ENV"
       - uses: actions/checkout@v5
+        if: github.event_name == 'workflow_dispatch' || steps.released.outputs.published == 'true'
         with:
           ref: ${{ env.HEAD_SHA }}
           fetch-depth: 0
       - id: version
+        if: github.event_name == 'workflow_dispatch' || steps.released.outputs.published == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_RUN_ID: ${{ github.event.workflow_run.id }}
           RELEASE_BRANCH: ${{ github.event.workflow_run.head_branch || github.ref_name }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
-            released=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID/jobs?per_page=100" \
-              --jq '.jobs[] | select(.name == "release" and .conclusion == "success") | .id')
-            if [ -z "$released" ]; then echo "Release skipped publication; nothing to ship."; exit 0; fi
-          fi
           case "$RELEASE_BRANCH" in
             dev) channel=nightly; profile=production; pattern='v*-nightly.*' ;;
             next) channel=beta; profile=production-beta; pattern='v*-beta.*' ;;

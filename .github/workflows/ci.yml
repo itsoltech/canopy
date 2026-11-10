@@ -4,6 +4,12 @@ name: CI
 on:
   pull_request:
   workflow_call:
+    inputs:
+      revision:
+        description: Exact Release commit to check
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -27,6 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.revision || github.sha }}
           fetch-depth: 0
       - id: changes
         env:
@@ -58,6 +65,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: ./.github/actions/setup-bun
       - name: Every test file belongs to exactly one shard
         run: bun scripts/test-shards.ts --check
@@ -83,6 +92,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.revision || github.sha }}
           # Local-git release fixtures and scripts/version.ts read release tags.
           fetch-depth: 0
       - uses: actions/setup-node@v5
@@ -117,11 +127,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.revision || github.sha }}
           fetch-depth: 0
       - uses: ./.github/actions/setup-bun
       - name: Version
         id: version
-        run: bun scripts/version.ts --github-output
+        env:
+          RELEASE_REVISION: ${{ inputs.revision || github.sha }}
+        run: GITHUB_SHA="$RELEASE_REVISION" bun scripts/version.ts --github-output
       - name: Web build
         env:
           CANOPY_VERSION: ${{ steps.version.outputs.version }}
@@ -161,6 +174,8 @@ jobs:
           fi
       - uses: actions/checkout@v5
         if: needs.changes.outputs.full == 'true'
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: ./.github/actions/setup-bun
         if: needs.changes.outputs.full == 'true'
         with:

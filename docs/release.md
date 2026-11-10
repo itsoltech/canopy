@@ -258,9 +258,9 @@ bez osobnego przybliżania reguł commitów lub porównywania wyłącznie plikó
 | --- | --- |
 | push do `dev` | bez Release i dodatkowego CI; CI każdego PR pozostaje bez zmian |
 | schedule na domyślnej gałęzi `dev` | plan; CI i buildy tylko dla nowego nightly |
-| dispatch na `dev` | wydanie od razu, przez tę samą bramkę; wymagany `expected_sha` = HEAD |
+| dispatch na `dev` | wydanie od razu, przez tę samą bramkę; wymagany `expected_sha` z historii gałęzi |
 | push na `next` lub `main` | beta / stable dla SHA zdarzenia push, także po promocji i hotfix PR |
-| dispatch na `next` lub `main` | ręczne wydanie z wymaganym `expected_sha` = HEAD |
+| dispatch na `next` lub `main` | ręczne wydanie z wymaganym `expected_sha` z historii gałęzi |
 | push stabilnego tagu `vX.Y.Z` | ręczne stable z historii `main`, z CI i publikacją jak wcześniej |
 
 Nie dodajemy CI po każdym pushu do `dev`: duplikowałoby pełne shardy CI z PR i późniejszego
@@ -268,9 +268,27 @@ wydania. Oznacza to brak natychmiastowego sygnału o błędzie wynikającym z po
 pełne CI uruchomi się przed publikacją releasowalnego nightly. Sam PR nadal wymaga CI.
 Push przez deploy key uruchamia Release, dlatego Promote i Back-merge do `next` nie wykonują
 dodatkowego dispatchu. Back-merge do `dev` nadal dispatchuje Release z `expected_sha` commita merge.
-`plan` i `release` dostają `EXPECTED_SHA` z wejścia dispatchu albo `github.sha`; checkout musi
-wskazywać ten commit, a HEAD zdalnej gałęzi nadal musi być taki sam. Przesunięta gałąź kończy
-przebieg błędem przed planowaniem/tagowaniem zamiast wydania innego commita.
+Wszystkie checkouty, wywołane CI, buildy, metadane obrazów, manifesty i back-merge używają
+`EXPECTED_SHA` z wejścia dispatchu albo `github.sha`. `plan` i `release` sprawdzają zgodność
+checkoutu oraz `git merge-base --is-ancestor <sha> origin/<branch>` po świeżym fetchu.
+Nowe commity na gałęzi nie przerywają wydania: trafiają do następnego przebiegu. Usunięcie
+przypiętego SHA z historii (force push) zatrzymuje przebieg, także tuż przed pushem tagu.
+
+`scripts/semantic-release.mjs` przygotowuje prywatne bare lustro z gałęziami, wszystkimi tagami
+i notes. Wyłącznie ref wydawanej gałęzi w lustrze wskazuje `EXPECTED_SHA`. semantic-release
+25.0.9 dostaje to lustro jako `repositoryUrl`, więc jego kontrola pushu nie odrzuca starszego
+SHA ani nie podciąga nowszych commitów. Analyzer, numeracja kanałów, `EXPECTED_VERSION`
+i format tagu pozostają z `release.config.mjs`. Generator notatek dostaje prawdziwy URL
+repozytorium, aby zachować linki porównań i commitów. Plugin GitHub jest wyłączony w tym
+wywołaniu: z lokalnego URL nie odczytałby owner/repo i sprawdzałby dostęp także w dry runie.
+Po checkach semantic-release tworzy tag i notes w lustrze; wrapper atomowo wysyła do origin
+wyłącznie tag wydania i notes, bez force i bez pushu gałęzi. Następnie API GitHuba tworzy
+ukryty draft z tym samym tytułem, notatkami i flagą prerelease, wskazujący przypięty SHA.
+Artefakt Actions `release-revision` przekazuje ten SHA do osobnego workflow Mobile release;
+`workflow_run.head_sha` może być inne przy dispatchu starszego commita. Mobile pobiera artefakt
+wyłącznie z zakończonego przebiegu z zielonym jobem `release`, przed swoim checkoutem.
+Lustro jest usuwane również po błędzie. Konflikt istniejącego tagu lub notes zatrzymuje push;
+awaria API po pushu może zostawić sam tag, jak w dotychczasowym przepływie.
 
 Wszystkie przebiegi danej gałęzi (push, schedule i dispatch) mają wspólną grupę całego workflow
 z `cancel-in-progress: false`: aktywny przebieg kończy się bez anulowania, a spośród oczekujących
@@ -294,17 +312,17 @@ plan ─┬─ checks ───────────────────�
       ├─ images-build ─────────────┐                 │
       ├─ desktop (macierz) ────────┼─────────────────┼──────────────┐
       └─ release (po checks) ──────┴─ images ─ publish-server ─ publish-desktop
-                └─ stop-builds (checki czerwone / przebieg wyprzedzony)   ├─ nightly-hygiene / backmerge
+                └─ stop-builds (checki czerwone / błąd wydania)          ├─ nightly-hygiene / backmerge
 ```
 
 | Job | Co robi | Kiedy startuje | Publikuje |
 | --- | --- | --- | --- |
 | `checks` | `ci.yml` | po `plan`; na `dev` tylko gdy `published=true` | — |
-| `plan` | semantic-release **`--dry-run`**: `version`, `tag`, `channel`, macierz desktop | od razu; grupa `release-version-<ref>` | nic (sprawdza tylko prawo pushu) |
+| `plan` | semantic-release **`--dry-run`** na przypiętym lustrze: `version`, `tag`, `channel`, macierz desktop | od razu; grupa `release-version-<ref>` | nic (próba pushu tylko do lustra) |
 | `binaries`, `smoke` | cross-compile wszystkich celów; `--version` każdej binarki na jej OS/arch | po `plan`, równolegle z checkami | — (artefakt Actions) |
 | `images-build` | buildx amd64+arm64 do cache GHA (`mode=max`), bez pushu i atestacji | po `plan` | — |
 | `desktop` | Linux, macOS (Apple Silicon), Windows; podpisy i notaryzacja | po `plan` | — (artefakt Actions) |
-| `release` | prawdziwy semantic-release: tag i draft GitHub Release z notatkami | po **zielonych `checks`**; grupa `release-version-<ref>` | tag + ukryty draft |
+| `release` | semantic-release na lustrze, atomowy push tagu/notes i draft przez API GitHuba | po **zielonych `checks`**; grupa `release-version-<ref>` | tag + ukryty draft |
 | `images` | ten sam build z cache, push wyłącznie niezmiennego `vX.Y.Z` (SBOM) | po `release` i `images-build` | obraz `vX.Y.Z` |
 | `publish-server` | binaria, `checksums.txt`, `manifest.json` na drafcie | po `checks`, `release`, `binaries`, `smoke`, `images`; grupa `release-publish-<ref>` | nic publicznego |
 | `publish-desktop` | instalatory, blockmapy, scalone feedy, nowe `checksums.txt`/`manifest.json`; weryfikacja, publikacja, aliasy obrazów | po `publish-server` i sukcesie wymaganych celów desktop; ta sama grupa publikacji | kompletny release |
@@ -314,26 +332,27 @@ plan ─┬─ checks ───────────────────�
 **Nic nie jest publikowane przed zielonymi testami.** Równolegle z `checks` powstają wyłącznie artefakty
 Actions i cache buildx (prywatne dla repozytorium). Tag, GitHub Release, obraz w GHCR, assety
 release i aliasy obrazów zależą od `release`, a ten od `checks`. Dry run nie tworzy tagu ani notes;
-wymaga tylko `contents: write`, bo semantic-release sprawdza prawo pushu (`git push --dry-run`).
+wystarcza `contents: read`, bo próba pushu semantic-release dotyczy lokalnego lustra.
 
 **Wersja z planu.** Buildy dostają wersję z `plan`. `release` uruchamia semantic-release
 z `EXPECTED_VERSION`; plugin `scripts/release-expected-version.mjs` (krok `verifyRelease`, przed
 utworzeniem tagu) odrzuca inną wersję, a krok po nim porównuje wynik jeszcze raz. Rozjazd kończy
 przebieg błędem bez tagu: użyj **Re-run all jobs** (nowy plan i buildy). `plan` i `release`
-dzielą grupę `release-version-<ref>`, więc plan nie liczy wersji w trakcie tagowania innego przebiegu.
+dzielą grupę `release-version-<ref>`. Blokada całego workflow `release-<ref>` obejmuje również
+czas między planem a tagowaniem: drugi przebieg tej gałęzi zaczyna plan dopiero po zakończeniu
+pierwszego i pobiera jego tagi/notes. Nie ma okna na dwa plany tej samej wersji w jednej gałęzi.
 
-**Wyprzedzony przebieg.** semantic-release nie wydaje, gdy gałąź przesunęła się w trakcie
-przebiegu („local branch … is behind the remote one”). Wtedy `stop-builds` anuluje własny przebieg
-(m.in. budowę i notaryzację macOS). Na `dev` commity zbiera następny cykl godzinowy lub dispatch,
-nie sam push. Ciągłe zmiany gałęzi podczas checków mogą odsuwać nightly do spokojniejszego cyklu.
-GitHub w grupie `concurrency` trzyma jeden job oczekujący: nowszy anuluje starszy oczekujący — to też
-oznacza wyprzedzony przebieg. Przy czerwonych checkach `stop-builds` także zatrzymuje buildy;
-nic nie zostało otagowane, więc ponowienie (**Re-run all jobs**) jest bezpieczne.
+**Przesunięta gałąź.** Nowy commit przed `plan` albo podczas checków nie anuluje aktywnego
+wydania. Tag nadal wskazuje SHA startowe. `stop-builds` zatrzymuje buildy i notaryzację przy
+czerwonych checkach, przepisanej historii lub innym błędzie rezerwacji wersji. GitHub nadal
+zastępuje starszy oczekujący przebieg nowszym; aktywnego nie anuluje. Na `dev` późniejsze
+commity zbiera następny cykl godzinowy lub dispatch, nie sam push.
 
 **Atomowa publikacja dla updaterów** (`scripts/release-upload.ts`, oba etapy można powtarzać):
 
-1. Tag musi wskazywać `GITHUB_SHA` przebiegu, a wersja, kanał i flaga prerelease muszą się zgadzać.
-   semantic-release tworzy **draft** (`draftRelease: true`); ścieżka tagowa tworzy draft przy
+1. Tag musi wskazywać `EXPECTED_SHA` (przekazane jako `GITHUB_SHA` do skryptów publikacji),
+   a wersja, kanał i flaga prerelease muszą się zgadzać.
+   Wrapper tworzy **draft**, zachowując semantykę `draftRelease: true`; ścieżka tagowa tworzy draft przy
    pierwszym uploadzie. Hook `addChannel` jest wyłączony: plugin GitHub może w nim utworzyć
    publiczny release mimo `draftRelease`. Promocje beta/stable budują własną wersję przez ten
    sam workflow, bez publikowania pustych kopii ani przełączania istniejących wydań.
@@ -373,7 +392,7 @@ harmonogramu sprawdzeń wymagałaby osobnej polityki.
 **Cele desktopu.** linux-x64, darwin-arm64 i windows-x64 są pełnymi, wymaganymi celami
 nightly, beta i stable. Tylko linux-arm64 pozostaje eksperymentalny (`continue-on-error`):
 buduje go beta i stable, a nightly tylko przy ręcznym dispatchu z `desktop_all_targets: true`
-(dispatch wymaga `expected_sha` = HEAD gałęzi i wydaje tylko, gdy są niewydane commity).
+(dispatch wymaga `expected_sha` z historii gałęzi i wydaje tylko, gdy są niewydane commity).
 
 **Cache.** Pakiety Bun (`~/.bun/install/cache`, klucz z `bun.lock`) we wszystkich jobach z instalacją;
 pobrania Electron/electron-builder w jobach desktop; warstwy obrazów w cache GHA per aplikacja.
@@ -413,12 +432,15 @@ całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie b
 ### Do potwierdzenia na pierwszych przebiegach
 
 GitHub Actions nie da się uruchomić lokalnie. Na pierwszych przebiegach `dev` sprawdź:
-`plan` (dry run z `contents: write`) podaje wersję i nie tworzy tagu; `release` publikuje tę samą wersję;
+`plan` (dry run z `contents: read`) podaje wersję i nie tworzy tagu; `release` rezerwuje tę samą wersję;
 `images` korzysta z cache `images-build` (krótki build); `imagetools inspect` czyta adnotację wersji
 aliasu (log `stays at`/`→`), a `imagetools create` zachowuje obie platformy i SBOM; `release-upload.ts`
 podmienia `manifest.json`/`checksums.txt` przez `.next` (brak pozostałych plików `.next`);
 `publish-desktop` widzi artefakty z poprzedniej próby po **Re-run failed jobs**; `stop-builds`
-anuluje wyprzedzony przebieg. Dwa merge'e przed cyklem dają jeden nightly z obu commitów;
+anuluje przebieg z błędem checków lub wydania. Gdy podczas aktywnego nightly trafi zwykły merge,
+sprawdź, że tag, manifest i rewizja obrazu nadal wskazują SHA startowe, draft pozostaje ukryty
+do pełnej weryfikacji, a kolejny naturalny cykl obejmuje późniejszy commit z kolejnym numerem
+nightly. Nie wymaga to force pushu ani ręcznego dispatchu. Dwa merge'e przed cyklem dają jeden nightly z obu commitów;
 kolejny cykl na tym samym SHA albo po samych `docs` pomija `checks` i buildy.
 Sprawdź też wspólną kolejkę schedule/dispatch i wywołanie Mobile release tylko po rzeczywistej publikacji.
 
@@ -890,8 +912,10 @@ Origin używa `file://`, aby generator notatek miał poprawny URL. Sprawdza brak
 main/next/dev, feat → 0.2.0 / 0.2.0-beta.1 / 0.2.0-nightly.1 oraz breaking w 0.x i po 1.0.0.
 Osobny test publikuje wyłącznie do tego lokalnego bare origin, sprawdzając pełen cykl promocji
 nightly → beta → stable i brak wydania po docs-only. Fixture nie tworzy tagów w repozytorium roboczym.
-Kolejny test odtwarza dwa merge'e w krótkim odstępie: oba plany dają tę samą wersję, wyprzedzony
-przebieg nic nie taguje, inna niż zaplanowana wersja jest odrzucana przed tagiem, a planowana wydana.
+Testy wrappera przesuwają gałąź przed planem i podczas checków dla nightly, beta oraz stable.
+Pierwszy tag wskazuje przypięty SHA, notatki pomijają późniejsze commity, a drugi przebieg
+wydaje późniejszy SHA z kolejnym numerem bez luk ani duplikatów. Draft zapisuje lokalny adapter
+zamiast GitHuba. Inna niż zaplanowana wersja i SHA usunięty przez force push są odrzucane bez tagu.
 Test etapów publikacji liczy sumy i manifest z samymi binariami, potem z jednym celem desktop, potem
 po „ponowieniu” z brakującym celem: każdy asset manifestu istnieje i ma zgodny SHA-256, `checksums.txt`
 obejmuje wszystkie pliki, wpisy serwerowe się nie zmieniają, a powtórka daje ten sam wynik.

@@ -396,6 +396,8 @@ nawet jeżeli sam obraz AVD jest już zainstalowany.
 Workflow `Mobile release` (`.github/workflows/mobile-testflight.yml`) działa po rzeczywistej
 publikacji przez `Release`: `dev` → `nightly`, `next` → `beta`, `main` i stabilne tagi → `stable`.
 Sprawdza sukces joba `release` przez API (`actions: read`) i tag dokładnie na źródłowym SHA.
+Przed checkoutem pobiera SHA z artefaktu `release-revision` tego konkretnego przebiegu.
+Uwzględnia to ręczny `expected_sha` Release, który może różnić się od `workflow_run.head_sha`.
 Cykl Release bez nowej publikacji pomija EAS oraz instalację zależności. Ręczny dispatch wymaga
 wydanego HEAD na gałęzi wydania lub tagu; `force` omija tylko sprawdzenie zmienionych ścieżek,
 nie zgodność runtime, kanał ani deduplikację. Nie wysyła nieotagowanych commitów.
