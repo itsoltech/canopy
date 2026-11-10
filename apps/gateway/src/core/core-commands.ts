@@ -5,6 +5,7 @@ import { STEER_ATTACHMENTS_CAPABILITY } from "@canopy/domain/release/protocol";
 import { CommandResultSchema, CommandSchema, type Command, type CommandResult } from "@canopy/contracts";
 import { AgentBusStore, GatewayStore, SteerStore } from "../store/index.ts";
 import { BotStore } from "../bots/store.ts";
+import { Cause, Effect, Exit } from "effect";
 import type { PendingCommand } from "../store/outbox.ts";
 import { coreState, HARNESS_ERROR_CODES, SETTLE_TURN_ENDED } from "./core-context.ts";
 import { coreEndLostTurns, coreSettle } from "./core-work-loop.ts";
@@ -84,6 +85,18 @@ export async function coreDispatch(
 /** Sends a stored command when the worker is online; offline commands wait in the outbox. */
 export async function coreDeliver(hostContext: GatewayCore, workerId: string, command: Command): Promise<void> {
   if (hostContext[coreState].actions.defer(() => coreDeliver(hostContext, workerId, command))) return;
+
+  // Callers detach delivery. Observe the whole job, including SQL before dispatch and after the ACK,
+  // so disposing the gateway runtime cannot turn interruption into an unhandled promise rejection.
+  const exit = await hostContext[coreState].options.runtime.runPromiseExit(
+    Effect.promise(() => deliverCommand(hostContext, workerId, command)),
+  );
+
+  if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause))
+    coreLog(hostContext, `command ${command.kind.case ?? "unknown"}: delivery or result handling failed`);
+}
+
+async function deliverCommand(hostContext: GatewayCore, workerId: string, command: Command): Promise<void> {
   const connection = hostContext.link.connections.get(workerId);
 
   if (!connection?.isOpen || !command.kind.case) return;
