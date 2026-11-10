@@ -168,10 +168,15 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
 - Listy pickerów mają pionowy inset `py-1` wewnątrz przewijanej treści i `scroll-py-1`
   na kontenerze przewijania. Pierwszy i ostatni wiersz nie dotykają separatorów wyszukiwarki
   ani stopki. Inset przewija się z listą, a lepkie nagłówki pozostają przy `top-0`, bez szczeliny.
-- Rosnące obszary przewijania rezerwują miejsce na pionowy pasek klasą `scroll-stable`
+- Duże, rosnące obszary przewijania (sidebar, panele, ustawienia, oś czasu) rezerwują
+  miejsce na pionowy pasek klasą `scroll-stable`
   (`scrollbar-gutter: stable`, `shared/ui/scroll.css`), również przy krótkiej treści.
-  Rezerwację otrzymuje kontener, który faktycznie przewija listę; otaczający picker popover
-  nie dodaje drugiego guttera. Tło panelu obejmuje gutter, a lepkie nagłówki
-  i stopki pozostają przy krawędzi przewijanego obszaru. Paski nakładkowe nie rezerwują miejsca.
-  `scroll-stable-both` (`stable both-edges`) stosujemy tylko do symetrycznych insetów:
-  wierszy sidebara i kart panelu szczegółów wątku. Pozostałe obszary mają gutter na końcu.
+  Kompaktowe nakładki (menu kontekstowe, dropdowny, małe popovery i tooltipy) nie rezerwują
+  guttera: tła aktywnych wierszy i separatory mają takie same insety z obu stron.
+  Listy pickerów domyślnie również nie rezerwują miejsca. Długa, rosnąca lista w nakładce
+  może je rezerwować wyłącznie na wewnętrznym kontenerze przewijania, z symetrycznymi
+  insetami wierszy; zewnętrzny popover nie dodaje guttera. Tło panelu obejmuje gutter,
+  a lepkie nagłówki i stopki pozostają przy krawędzi przewijanego obszaru.
+  Paski nakładkowe nie rezerwują miejsca.
+  Duże obszary używają `scroll-stable-both` (`stable both-edges`) do symetrycznych insetów
+  wierszy sidebara i kart panelu szczegółów wątku. Pozostałe duże obszary mają gutter na końcu.
