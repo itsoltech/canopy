@@ -1349,12 +1349,13 @@ Symlink wybiera wydanie dla **następnego procesu**; działający serwer nadal u
 
 `vite:preloadError`, odrzucone importy dynamiczne, klientowy `handleError` i błędy importu highlightera uruchamiają ten sam banner. Nie ma automatycznego reloadu przy takim błędzie, więc nie ma pętli odświeżeń ani nieoczekiwanej utraty szkicu. Starsze chunki są dostępne w oknie retencji.
 
-`live-source.ts` sam zamyka uszkodzony EventSource i otwiera nowy z opóźnieniami 1/2/4/8/15 s oraz jitterem 75–100%. Udane otwarcie z resynchronizacją zeruje backoff. Retry czeka w ukrytej/offline karcie; focus, widoczność i online wznawiają je od razu. Zdrowy strumień może działać w tle. Heartbeat ma watchdog 30 s; HTTP 200 bez ramki `ready` nie oznacza połączenia. Overview pobiera świeży stan po przerwie i buforuje równoczesne aktualizacje; wątek dostaje nowy snapshot. Status stopki przechodzi przez Connected / Reconnecting… / Gateway unavailable i wraca sam.
+`live-source.ts` sam zamyka uszkodzony EventSource i otwiera nowy z opóźnieniami 1/2/4/8/16/30 s oraz jitterem 80–100%. Reguły backoffu i zatrzaskiwania stanu są wspólne z mobile (`domain/connection-recovery`, [stany i przejścia](mobile.md#stany-połączenia-i-ponawianie)). Udane otwarcie z resynchronizacją zeruje backoff. Retry czeka w ukrytej/offline karcie; focus, widoczność, online i „Reconnect now” wznawiają je od razu z zerowym backoffem. Zdrowy strumień może działać w tle. Heartbeat ma watchdog 30 s; HTTP 200 bez ramki `ready` nie oznacza połączenia. Overview pobiera świeży stan po przerwie i buforuje równoczesne aktualizacje; wątek dostaje nowy snapshot. Status stopki otwiera popover z aktywnością w stałym wierszu i ręcznym ponowieniem. Popover pozostaje otwarty podczas retry i powrotu połączenia; baner jest nakładką bez przesuwania treści.
 
 Pierwsza porażka, również jawne SSE `failure` i nieudana resynchronizacja, pokazuje
-Reconnecting… przez 12 sekund ciągłego ponawiania. Dopiero potem status przechodzi
-w Gateway unavailable; udana resynchronizacja zeruje ten czas. Widok błędu trasy
-stosuje to samo początkowe okno. Otwarcie SSE overview sprawdza lekkie capabilities,
+Reconnecting… do 3 nieudanych prób lub 12 sekund bez sukcesu. Potem status przechodzi
+w Gateway unavailable i pozostaje w nim do udanej resynchronizacji; kolejna próba,
+focus ani ręczne ponowienie nie cofają go do Reconnecting…. Widok błędu trasy
+stosuje początkowe okno 12 s. Otwarcie SSE overview sprawdza lekkie capabilities,
 zamiast powtarzać agregację; pełny overview i lista wątków mają deadline 10 sekund,
 ale czytają wyłącznie lokalne rekordy, zatwierdzone lustra i cache. Żaden lokalny
 odczyt nie czeka na I/O partnera. Pule HTTP/2 lokalnych i zdalnych unary oraz lokalnych i zdalnych streamów

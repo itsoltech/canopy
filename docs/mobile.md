@@ -179,9 +179,7 @@ mogłoby nadal przyjmować nowe żądania. OkHttp wysyła PING co 60 s i zamyka 
 w kolejnym interwale; zwykłe odczyty strumienia nie mają read timeoutu. Strumień bez
 nagłówków odpowiedzi po 40 s kończy się błędem `timeout` i łączy ponownie (każdy obserwowany strumień
 zaczyna się od snapshotu, z którym idą nagłówki); żądania unary nie mają takiego limitu. Status
-połączenia po wznowieniu pokazuje „Reconnecting…” do pierwszej odpowiedzi, a „Gateway unavailable”
-po 12 s bez odpowiedzi, także gdy połączenie wisi bez błędu. Aktywny wyścig tras opóźnia ten stan,
-chyba że poprzedni zakończony wyścig już uzasadnia wskazówkę Tailscale.
+połączenia używa wspólnej maszyny `@canopy/domain/connection-recovery`, opisanej poniżej.
 „Reconnect now” resetuje transport i backoff wszystkich subskrypcji; sukces streamu
 zeruje jego backoff. Zmiany natywnego probe i puli wymagają nowego builda iOS/Android, nie samego OTA.
 Po zmianie portu zapisuje nowe trasy również z odpowiedzi `UpdateNetworkAccess`, nawet
@@ -189,6 +187,44 @@ bez strumienia overview. Usuwa nieaktualną ostatnią trasę; restart telefonu k
 z nowych adresów, zachowując ten sam pin i token urządzenia.
 Bez żadnej znanej działającej trasy potrzebny jest wspólny VPN lub nowy QR — sama aplikacja
 nie zapewnia relaya ani przejścia przez NAT.
+
+### Stany połączenia i ponawianie
+
+Jedno źródło reguł dla mobile i web/desktop: `packages/domain/src/connection-recovery.ts`.
+Stan dostępności jest niezależny od aktywności próby (`retrying`, `retryAt`):
+
+| Stan | Zdarzenie | Następny stan |
+| --- | --- | --- |
+| `live` | utrata streamu / nowe połączenie po wznowieniu | `reconnecting` |
+| `reconnecting` | 3 nieudane próby lub 12 s bez udanego połączenia | `unavailable` |
+| `reconnecting` / `unavailable` | nowa próba, probe, ręczne ponowienie, zmiana sieci, foreground | ten sam stan |
+| dowolny | snapshot streamu potwierdzający synchronizację (web: `ready` i udana resynchronizacja) | `live` |
+
+`unavailable` jest zatrzaśnięty do sukcesu. Sam handshake, nowe żądanie ani aktywny wyścig
+tras nie cofają tej decyzji. `offline` i `paused` są nakładkami prezentacji: brak sieci lub
+tło wstrzymują subskrypcje bez usuwania zapamiętanego `unavailable`. Nieodwracalne błędy
+uprawnień lub brakującego wątku kończą subskrypcję stanem `error`; odwołanie tokenu usuwa sesję.
+Zaplanowane restarty nadal korzystają z osobnego komunikatu i próby co 2,5 s w ograniczonym oknie.
+
+Backoff: 1 / 2 / 4 / 8 / 16 / 30 s z jitterem 80–100%, nigdy ponad 30 s. Czas oczekiwania
+liczy się od zakończenia nieudanej próby. Sukces, zmiana sieci (`expo-network`, bez nowej
+zależności NetInfo), foreground oraz „Reconnect now” zerują backoff. Reset nie usuwa
+decyzji o niedostępności. Wszystkie żądania telefonu dzielą także cooldown po nieudanym
+wyścigu tras; odczyty i niezależne subskrypcje nie uruchamiają dodatkowych probe w tym oknie.
+Nowe żądanie w cooldownie dostaje ostatni błąd; nie jest kolejkowane do późniejszego wysłania.
+Anulowanie pojedynczego wywołania nie przerywa wspólnego wyścigu. Reset transportu go anuluje
+i odgradza spóźnione wyniki. Żadne RPC, które mogło dotrzeć do gatewaya, nie jest odtwarzane.
+
+Arkusz pokazuje aktywność wyłącznie w zarezerwowanym wierszu „Retrying in N s” / „Retrying…”.
+Opis, ostatni błąd, wiersze tras i przyciski mają stałe sloty; długa lista tras przewija się.
+Każda trasa zachowuje ostatni wynik i czas sprawdzenia podczas kolejnego probe, a mały
+wskaźnik obok oznacza sprawdzanie. Nagłówek „Routes” pozostaje stały. Ruch wskaźników
+respektuje ograniczenie animacji. Retry nie zamyka arkusza ani go nie montuje ponownie,
+również gdy otwarto go z banera i połączenie właśnie wróciło.
+Baner pojawia się przy tej samej decyzji `unavailable` i znika po sukcesie; w sidebarze
+jest nakładką pod nagłówkiem, więc nie przesuwa listy ani jej scrolla. Scrim arkusza
+pozostaje niezależny od kolejnych prób. Web/desktop używa tego samego backoffu i histerezy,
+popovera statusu z ręcznym retry oraz banera nad treścią bez zmiany jej geometrii.
 
 ### Tailscale na telefonie
 
@@ -204,10 +240,11 @@ ponownie w aplikacji Tailscale. Timeout LAN poza domową siecią jest spodziewan
 Ten wzorzec nie dowodzi, że komputer działa; jeśli restart VPN nie pomaga, sprawdź także
 dostępność komputera i jego Network access.
 
-Canopy pokazuje wskazówkę w banerze i arkuszu połączenia wyłącznie wtedy, gdy ostatni
+Canopy pokazuje wskazówkę w opisie arkusza połączenia wyłącznie wtedy, gdy ostatni
 zakończony wyścig nie znalazł żadnej działającej trasy, a wszystkie trasy Tailscale
 zakończyły się błędem DNS lub timeoutem. Niezgodny pin i odmowa połączenia na trasie
-Tailscale wykluczają wskazówkę. **Copy details** nadal kopiuje wyniki wszystkich tras.
+Tailscale wykluczają wskazówkę. Tytuł pozostaje „Gateway unavailable”, a baner z tą wskazówką
+czeka na tę samą decyzję o niedostępności. **Copy details** nadal kopiuje wyniki wszystkich tras.
 Na Androidzie **Open Tailscale** otwiera aplikację przez jej URL nawigacji; jeśli system
 nie obsłuży linku, Canopy prosi o ręczne otwarcie. Na iOS otwórz Tailscale ręcznie.
 
@@ -215,8 +252,8 @@ nie obsłuży linku, Canopy prosi o ręczne otwarcie. Na iOS otwórz Tailscale r
 brak typu `VPN` nie potwierdza wyłączonego tunelu. iOS nie udostępnia osobnego stanu VPN.
 Dlatego komunikat mówi o możliwym wyłączeniu lub zawieszeniu Tailscale. Klucz zmiany sieci
 obejmuje typ, łączność i `isInternetReachable`; na iOS ostatnie pole powtarza łączność.
-Gdy przełączenie VPN nie zmienia tych pól, aktywne subskrypcje podczas wskazówki ponawiają
-wyścig tras po stałej przerwie 5 s zamiast rosnącego backoffu. Same próby nadal mają
+Gdy przełączenie VPN nie zmienia tych pól, aktywne subskrypcje ponawiają wyścig tras
+według wspólnego backoffu, także podczas wskazówki Tailscale. Same próby nadal mają
 dotychczasowe limity czasu. Nowe próby nie startują w tle; powrót do aplikacji resetuje
 transport i wznawia strumienie. Ponawianie obejmuje subskrypcje i handshake, nigdy RPC,
 które mogło dotrzeć do komputera. Zmiana pozostaje w JS/TS i nie wymaga nowego buildu.

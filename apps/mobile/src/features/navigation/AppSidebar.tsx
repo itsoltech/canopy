@@ -307,7 +307,7 @@ export function AppSidebar() {
       header={
         <>
           <SidebarHeader state={state} />
-          <ConnectionBanner />
+          <ConnectionBanner overlay />
         </>
       }
       footer={<SidebarFooter workers={workers} stream={stream} />}

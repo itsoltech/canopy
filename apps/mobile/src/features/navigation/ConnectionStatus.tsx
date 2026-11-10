@@ -17,12 +17,15 @@ import { hasTailscaleFailure } from "../../api/tailscale-hint";
 import { OpenTailscale } from "./OpenTailscale";
 import { departureLabel, useGatewayDeparture } from "../../state/gateway-departure";
 import { GatewayUpdateNotice } from "./GatewayUpdateNotice";
+import { ConnectionActivity } from "./ConnectionActivity";
 
 export interface StreamState {
   readonly connection: Connection;
   readonly retry: () => void;
   readonly issue?: string | undefined;
   readonly detail?: string | undefined;
+  readonly retrying?: boolean | undefined;
+  readonly retryAt?: number | undefined;
 }
 
 /** Web: ConnectionStatus. Starting, syncing and dropped streams all read as reconnecting. */
@@ -54,8 +57,6 @@ const looks: Record<Connection, { tone: Tone; label: string; description: string
 };
 
 const tailscaleLook = {
-  tone: "amber",
-  label: "Check Tailscale",
   description: "Tailscale on this phone may be off or stuck. Turn it off and on in the Tailscale app, then reconnect.",
 } as const;
 
@@ -70,7 +71,7 @@ function useConnectionLook(connection: Connection) {
     };
 
   return tailscale && ["connecting", "reconnecting", "unavailable"].includes(connection)
-    ? tailscaleLook
+    ? { ...looks[connection], description: tailscaleLook.description }
     : looks[connection];
 }
 
@@ -142,29 +143,22 @@ export function ConnectionDetails({
             {planned && departure.value ? departureLabel(departure.value, down) : look.label}
           </Text>
         </SheetDragArea>
-        <Text style={[type.small, { color: c.muted }]}>
-          {planned ? "Canopy reconnects automatically on the same route." : stream.issue || look.description}
-        </Text>
-        {stream.detail && stream.connection !== "live" && !planned ? (
-          <Text selectable style={[type.small, { color: c.muted }]}>
-            Last error: <Text style={{ color: c.soft, fontVariant: ["tabular-nums"] }}>{stream.detail}</Text>
+        <View style={{ height: type.small.lineHeight * 4 }}>
+          <Text numberOfLines={4} style={[type.small, { color: c.muted }]}>
+            {planned ? "Canopy reconnects automatically on the same route." : stream.issue || look.description}
           </Text>
-        ) : null}
+        </View>
+        <Text selectable numberOfLines={1} style={[type.small, { color: c.muted, height: type.small.lineHeight }]}>
+          {stream.detail && stream.connection !== "live" && !planned ? `Last error: ${stream.detail}` : ""}
+        </Text>
+        <ConnectionActivity stream={stream} visible={visible} />
         <ConnectionRoutes />
-        {down && (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
-            {look === tailscaleLook && !planned && <OpenTailscale />}
-            <Button
-              title="Reconnect now"
-              icon="arrow-path"
-              size="sm"
-              onPress={() => {
-                reconnect();
-                onClose();
-              }}
-            />
+        <View style={{ minHeight: 32, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            {down && look.description === tailscaleLook.description && !planned && <OpenTailscale />}
           </View>
-        )}
+          <Button title="Reconnect now" icon="arrow-path" size="sm" disabled={!down} onPress={reconnect} />
+        </View>
       </View>
     </Overlay>
   );
@@ -175,7 +169,8 @@ export function ConnectionDetails({
  * unresponsive gateway or a phone without network wins over a screen's own reconnect; a dropped screen stream shows
  * only when the gateway itself still answers. `Details` opens the status sheet with the native code.
  */
-export function ConnectionBanner({ stream }: { stream?: StreamState }) {
+export function ConnectionBanner({ stream, overlay = false }: { stream?: StreamState; overlay?: boolean }) {
+  const c = useColors();
   const overview = useOverview().stream;
   const tailscale = hasTailscaleFailure(useRouteStatus());
   const departure = useGatewayDeparture();
@@ -183,10 +178,12 @@ export function ConnectionBanner({ stream }: { stream?: StreamState }) {
   const shown = banner(overview, stream, tailscale);
 
   return (
-    <>
-      <GatewayUpdateNotice />
-      {shown && (!departure.visible || overview.connection === "offline") && (
-        <>
+    <View style={overlay ? { height: 0, zIndex: 1 } : undefined}>
+      <View
+        style={overlay ? { position: "absolute", top: 0, left: 0, right: 0, backgroundColor: c.sidebar } : undefined}
+      >
+        <GatewayUpdateNotice />
+        {shown && (!departure.visible || overview.connection === "offline") && (
           <Alert
             banner
             tone={shown.tone}
@@ -201,10 +198,10 @@ export function ConnectionBanner({ stream }: { stream?: StreamState }) {
           >
             {shown.text}
           </Alert>
-          <ConnectionDetails stream={shown.stream} visible={open} onClose={() => setOpen(false)} />
-        </>
-      )}
-    </>
+        )}
+      </View>
+      <ConnectionDetails stream={shown?.stream ?? stream ?? overview} visible={open} onClose={() => setOpen(false)} />
+    </View>
   );
 }
 
@@ -217,7 +214,7 @@ function banner(overview: StreamState, stream: StreamState | undefined, tailscal
       action: "details",
     } as const;
 
-  if (tailscale && ["connecting", "reconnecting", "unavailable"].includes(overview.connection))
+  if (tailscale && overview.connection === "unavailable")
     return { tone: "warning", text: tailscaleLook.description, stream: overview, action: "details" } as const;
 
   if (overview.connection === "unavailable")

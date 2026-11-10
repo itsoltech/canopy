@@ -21,7 +21,7 @@ export function raceRoutes(options: {
   diagnostics.update({
     pending: true,
     active: undefined,
-    routes: diagnostics.snapshot().routes.map(({ address, kind }) => ({ address, kind, outcome: "unchecked" })),
+    retryAt: undefined,
   });
 
   return new Promise<string>((resolve, reject) => {
@@ -34,9 +34,7 @@ export function raceRoutes(options: {
       signal.removeEventListener("abort", abort);
       controller.abort();
 
-      const routes = diagnostics
-        .snapshot()
-        .routes.map((route) => (route.outcome === "probing" ? { ...route, outcome: "canceled" as const } : route));
+      const routes = diagnostics.snapshot().routes.map((route) => ({ ...route, checking: false }));
 
       diagnostics.update({
         pending: false,

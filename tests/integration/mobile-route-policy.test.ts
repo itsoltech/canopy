@@ -36,6 +36,30 @@ function policy() {
 }
 
 describe("sticky mobile route policy", () => {
+  test("failed races share a growing cooldown across independent streams and unary requests", async () => {
+    const { selector, probes, reachable } = policy();
+    reachable.clear();
+    setSystemTime(new Date(100_000));
+
+    for (let attempt = 0; attempt < 8; attempt++) {
+      await expect(selector.select()).rejects.toThrow("Cannot reach");
+      const retryAt = selector.diagnostics.snapshot().retryAt!;
+      const delay = retryAt - Date.now();
+      expect(delay).toBeGreaterThanOrEqual(Math.min(30_000, 1000 * 2 ** attempt) * 0.8);
+      expect(delay).toBeLessThanOrEqual(30_000);
+      const count = probes.length;
+      await Promise.all(Array.from({ length: 20 }, () => expect(selector.select()).rejects.toThrow("Cannot reach")));
+      expect(probes.length).toBe(count);
+      setSystemTime(new Date(retryAt));
+    }
+
+    reachable.add(first);
+    selector.reset();
+    const selected = await selector.select();
+    selector.succeeded(selected);
+    expect(selector.diagnostics.snapshot().retryAt).toBeUndefined();
+  });
+
   test("a verified route survives hours of silence or stream activity without another race", async () => {
     const { selector, probes } = policy();
     const route = await selector.select();

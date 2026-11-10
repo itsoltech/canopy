@@ -142,6 +142,7 @@
     </a>
     <UpdatesIndicator />
     <ConnectionStatus
+      recovery={overview.recovery}
       connection={overview.connection}
       quietWhenLive={capabilities?.ownGateway ?? false}
       class="min-w-0 flex-1 justify-end px-2"
