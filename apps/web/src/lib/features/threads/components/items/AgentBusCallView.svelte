@@ -120,7 +120,7 @@
 {#snippet well(label: string, text: string)}
   <AgentWell>
     <p class="mb-1 text-sm/5 font-medium text-violet-800 sm:text-xs/5 dark:text-violet-300">{label}</p>
-    <Markdown {text} />
+    <Markdown {text} breaks />
   </AgentWell>
 {/snippet}
 

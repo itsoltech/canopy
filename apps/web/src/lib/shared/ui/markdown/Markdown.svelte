@@ -12,7 +12,7 @@
    * injected as HTML: raw HTML in the source shows as text, links are limited to http(s)/mailto and
    * images are not loaded (they render as links).
    *
-   * `breaks`: single newlines break the line (what people type in the composer).
+   * `breaks`: preserve prose whitespace, including single line breaks, spaces and tabs (people and bus messages).
    *
    * `streaming`: the text is still arriving. It shows line by line (`LineReveal`), is parsed again only
    * when a line is revealed, and only blocks that changed render again (`shareTokens`); each new block,
@@ -60,5 +60,5 @@
     className,
   ]}
 >
-  <MarkdownBlocks {tokens} {streaming} />
+  <MarkdownBlocks {tokens} {streaming} {breaks} />
 </div>

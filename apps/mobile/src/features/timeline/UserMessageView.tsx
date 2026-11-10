@@ -67,7 +67,7 @@ export function UserMessageView({
   const placed = new Set(mentions.flatMap((m) => (m.kind === MentionKind.ATTACHMENT ? [m.name] : [])));
   const loose = attachments.filter((a) => a.kind === "image" || !placed.has(a.id));
   const body = !mentions.length && hasPlatformNote(text) ? withoutIds(text) : text;
-  const actions = useMessageActions(body, undefined, !pending);
+  const actions = useMessageActions(body, agent ? "agent_message" : undefined, !pending);
   const color = note?.tone === "amber" ? amber : agent ? violet : c.muted;
 
   const icon =

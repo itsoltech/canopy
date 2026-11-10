@@ -443,6 +443,24 @@ Regresje wiadomości: `tests/integration/agent-bus-messages.test.ts` — przerwa
 - Zestaw zależy od poziomu wątku (`ThreadSpec.depth`). Model wątku bocznego nie widzi `spawn_thread` ani narzędzi sterowania.
 - Worker tylko przekazuje wywołania (`AgentToolCall`) do gateway i niczego nie wykonuje lokalnie.
 
+### Treść wiadomości
+
+`prompt` zachowuje spacje Unicode, tabulatory i zakończenia linii w argumentach narzędzia,
+zapisie gateway i wejściu odbiorcy. Notatka platformy jest osobnym polem; nie zmienia
+tekstu wiadomości. Codex przekazuje kompletny obiekt argumentów w `item/tool/call`,
+a Claude przez serwer MCP SDK. Częściowe `input_json_delta` Claude nie są składane
+przez Canopy; item korzysta z pełnego `tool_use.input` dostarczonego przez SDK.
+
+Web i mobile pokazują pełną treść jako Markdown z zachowaniem pojedynczych nowych
+linii i odstępów. Tylko zwinięty podgląd upraszcza białe znaki do jednej linii.
+`Copy message` kopiuje źródłowy Markdown bez notatki platformy i bez normalizacji
+białych znaków; `Quote message` otwiera komentarz do cytatu. Na mobile te akcje
+są dostępne po przytrzymaniu wiadomości, także gdy jest zwinięta.
+
+Regresja `tests/integration/agent-bus-whitespace.test.ts` obejmuje oba adaptery,
+wiadomość dziecka do rodzica (kolejka i steer), zapis PostgreSQL, dostarczenie przez
+gRPC oraz odtworzenie tekstu z delt przez klienta z koalescencją i serializacją JSON.
+
 ### view_image
 
 Narzędzie platformy, które worker wykonuje sam (nie jest wywołaniem szyny, nie trafia do gateway ani do `agent_bus_calls`). Dostaje je każdy wątek workera, także bez szyny:

@@ -25,7 +25,7 @@
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import AgentSenderLabel from "../AgentSenderLabel.svelte";
-  import AgentMessageBubble from "./AgentMessageBubble.svelte";
+  import ReceivedAgentMessage from "./ReceivedAgentMessage.svelte";
 
   /**
    * A message you (or another agent, over the agent bus) wrote: the input of a turn, or one steered into
@@ -105,13 +105,14 @@
     <MessageAttachments attachments={loose} class={[pending && "opacity-70"]} />
   {/if}
   {#if fromAgent && (message.text.trim() || details || quotes.length > 0)}
-    <AgentMessageBubble
-      text={body.trim() || quotes[0]?.text || ""}
+    <ReceivedAgentMessage
+      text={body || quotes[0]?.text || ""}
       rich={quotes.length > 0 || Boolean(details)}
+      {pending}
       class={[pending && "opacity-70"]}
     >
       {@render content()}
-    </AgentMessageBubble>
+    </ReceivedAgentMessage>
   {:else if message.text.trim() || details || quotes.length > 0}
     <div
       class={[

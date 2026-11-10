@@ -112,6 +112,11 @@ nie jest dostarczany agentowi. Limity i restart opisuje [protocol.md](protocol.m
 
 Dla itemów odziedziczonych z forka, które zmieniały się w źródle po punkcie forka (`changed_after_fork`, np. zadanie w tle), stan w punkcie forka odtwarza się z `thread_timeline`.
 
+Delty tekstu są dopisywane bez przycinania, także gdy zawierają wyłącznie spację,
+tabulator albo nową linię. Koalescencja łączy je w kolejności przez pusty separator;
+nie normalizuje białych znaków. Sanitizacja przed zapisem zastępuje wyłącznie NUL
+i niesparowane surogaty przez U+FFFD. Nie usuwa spacji Unicode ani zakończeń linii.
+
 ## 7. Retencja
 
 - MVP: bez kompaktowania. Delty zostają w `thread_events`.
