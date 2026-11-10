@@ -53,6 +53,11 @@ async function pgCounters() {
   };
 }
 
+async function checkpoint(database: string) {
+  if (process.env["CANOPY_BENCH_CHECKPOINT"] !== "1") return;
+  await command(["docker", "exec", name, "psql", "-U", "postgres", "-d", database, "-Atqc", "CHECKPOINT"]);
+}
+
 async function run(on: boolean, index: number) {
   const database = `diagnostics_${index}_${Number(on)}`;
   await command(["docker", "exec", name, "createdb", "-U", "postgres", database]);
@@ -70,6 +75,7 @@ async function run(on: boolean, index: number) {
 
   if (process.env["CANOPY_BENCH_HISTORY"] === "1")
     console.info(JSON.stringify({ history: await seedDiagnosticsHistory(env) }));
+  await checkpoint(database);
   const beforeStartup = await pgCounters();
   const startupAt = performance.now();
   active = await diagnosticsProcess(env);
@@ -121,6 +127,7 @@ async function run(on: boolean, index: number) {
           : ["idle", "steady"];
 
   for (const phase of phases) {
+    await checkpoint(database);
     const beforePg = await pgCounters();
     const before = await active.run("begin");
     await worker.run("begin");
@@ -136,6 +143,7 @@ async function run(on: boolean, index: number) {
     );
 
     const contention = await finishContention?.();
+    await checkpoint(database);
 
     const after = await active.run("end");
     const workerStats = await worker.run("end");
