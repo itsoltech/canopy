@@ -3,12 +3,16 @@
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import PullRequestPanel from "./PullRequestPanel.svelte";
 
-  let { id, threadId, onclose }: { id: string; threadId: string; onclose: () => void } = $props();
+  let { id, threadId, onclose, onopen }: { id: string; threadId: string; onclose: () => void; onopen: () => void } =
+    $props();
+
   const wide = new MediaQuery("(min-width: 80rem)");
   let open = $state(false);
 
   $effect(() => {
     open = Boolean(id) && !wide.current;
+
+    if (open) onopen();
   });
 
   $effect(() => {

@@ -8,6 +8,7 @@ import { useColors, useTypography } from "../../ui/theme";
 import { confirmAction } from "../settings/resource";
 import { GitHubInstallation } from "./GitHubInstallation";
 import { GitHubAccountRow } from "./GitHubAccountRow";
+import { GitHubUpdateChoice } from "./GitHubUpdateChoice";
 import { useGitHubCatalogue } from "./useGitHubCatalogue";
 
 export function GitHubAccount({
@@ -61,6 +62,7 @@ export function GitHubAccount({
 
   return (
     <View style={{ minWidth: 0 }}>
+      {open && <GitHubUpdateChoice account={account} />}
       <GitHubAccountRow
         account={account}
         installations={catalogue.installationCount}

@@ -14,10 +14,22 @@ export const GITHUB_PR_METHODS = new Set([
   "UnlinkThreadPullRequest",
   "GetPullRequest",
   "RefreshPullRequest",
+  "WatchPullRequest",
+  "ListPullRequestTimeline",
+  "ListPullRequestReviewThreads",
+  "ListPullRequestChecks",
+  "ListPullRequestCheckJobs",
+  "GetPullRequestJobLog",
+  "ListPullRequestCommits",
+  "ListPullRequestFiles",
+  "GetPullRequestDiff",
+  "PreparePullRequestContext",
 ]);
 
 export const GITHUB_METHODS = new Set([
   "ListGitHubAccounts",
+  "GetGitHubUpdateAccount",
+  "SetGitHubUpdateAccount",
   "BeginGitHubDeviceAuth",
   "GetGitHubDeviceAuth",
   "CancelGitHubDeviceAuth",

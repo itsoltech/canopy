@@ -1,6 +1,7 @@
 syntax = "proto3";
 package canopy.ui.v1;
 import "google/protobuf/timestamp.proto";
+import "canopy/ui/v1/attachments.proto";
 
 // All credentials and the OAuth device_code remain encrypted at the home gateway.
 message GitHubAccount {
@@ -135,6 +136,9 @@ message PullRequestCheck {
   string provider = 3;
   string url = 4;
   string head_sha = 5;
+  string node_id = 6;
+  string run_id = 7;
+  string output = 8;
 }
 message PullRequestReviewer {
   string login = 1;
@@ -194,4 +198,150 @@ message UnlinkThreadPullRequestRequest {
 message PullRequestRequest {
   string pull_request_id = 1;
   bool refresh = 2;
+}
+
+// Cursors are issued by the home, bound to access, PR, filters and snapshot.
+message PullRequestPageRequest {
+  string pull_request_id = 1;
+  string cursor = 2;
+  string kind = 3;
+  string author = 4;
+  bool oldest_first = 5;
+  string head_sha = 6;
+  string base_sha = 7;
+  string commit_sha = 8;
+  string resource_id = 9;
+  string path = 10;
+  bool refresh = 11;
+}
+message PullRequestPageInfo {
+  string next_cursor = 1;
+  string head_sha = 2;
+  string base_sha = 3;
+  string completeness = 4;
+  string detail = 5;
+  google.protobuf.Timestamp verified_at = 6;
+  bool stale = 7;
+  string snapshot = 8;
+}
+message PullRequestTimelineEntry {
+  string id = 1;
+  string author = 2;
+  string body = 3;
+  string url = 4;
+  google.protobuf.Timestamp created_at = 5;
+  string state = 6;
+  string sha = 7;
+  string kind = 8;
+}
+message PullRequestTimelineItem {
+  oneof content {
+    PullRequestTimelineEntry comment = 1;
+    PullRequestTimelineEntry review = 2;
+    PullRequestTimelineEntry commit = 3;
+    PullRequestTimelineEntry event = 4;
+  }
+}
+message PullRequestTimelinePage {
+  repeated PullRequestTimelineItem items = 1;
+  PullRequestPageInfo page = 2;
+}
+message PullRequestReviewThread {
+  string id = 1;
+  string path = 2;
+  uint32 line = 3;
+  bool resolved = 4;
+  bool outdated = 5;
+  repeated PullRequestTimelineEntry comments = 6;
+  string replies_cursor = 7;
+  string sha = 8;
+}
+message PullRequestReviewThreadsPage {
+  repeated PullRequestReviewThread threads = 1;
+  PullRequestPageInfo page = 2;
+}
+message PullRequestChecksPage {
+  repeated PullRequestCheck checks = 1;
+  PullRequestPageInfo page = 2;
+}
+message PullRequestJob {
+  string id = 1;
+  string run_id = 2;
+  uint32 attempt = 3;
+  string name = 4;
+  string state = 5;
+  string url = 6;
+  string head_sha = 7;
+}
+message PullRequestJobsPage {
+  repeated PullRequestJob jobs = 1;
+  PullRequestPageInfo page = 2;
+}
+message PullRequestJobLogPage {
+  string text = 1;
+  uint32 first_line = 2;
+  bool truncated = 3;
+  PullRequestPageInfo page = 4;
+}
+message PullRequestFile {
+  string path = 1;
+  string previous_path = 2;
+  string state = 3;
+  uint32 additions = 4;
+  uint32 deletions = 5;
+  string patch_state = 6;
+  string url = 7;
+  uint32 source_page = 8;
+}
+message PullRequestFilesPage {
+  repeated PullRequestFile files = 1;
+  PullRequestPageInfo page = 2;
+}
+message PullRequestDiff {
+  PullRequestFile file = 1;
+  string patch = 2;
+  PullRequestPageInfo page = 3;
+}
+message PullRequestCommit {
+  string sha = 1;
+  string subject = 2;
+  string author = 3;
+}
+message PullRequestCommitsPage {
+  repeated PullRequestCommit commits = 1;
+  PullRequestPageInfo page = 2;
+}
+message WatchPullRequestRequest {
+  string pull_request_id = 1;
+  string revision = 2;
+  // view, panel or background; callers stop watching when hidden.
+  string visibility = 3;
+}
+message PullRequestUpdate {
+  PullRequestSnapshot snapshot = 1;
+  string revision = 2;
+  repeated string invalidated = 3;
+  bool gap = 4;
+}
+message PreparePullRequestContextRequest {
+  string pull_request_id = 1;
+  string thread_id = 2;
+  // question, explain, findings. Preparation never starts a turn.
+  string action = 3;
+  repeated string paths = 4;
+  repeated string finding_ids = 5;
+}
+message PullRequestContextResponse {
+  Attachment attachment = 1;
+  string prompt = 2;
+  string scope = 3;
+}
+message GitHubUpdateAccountRequest {
+  string home_id = 1;
+  string account_id = 2;
+  bool enabled = 3;
+}
+message GitHubUpdateAccountResponse {
+  string account_id = 1;
+  bool enabled = 2;
 }

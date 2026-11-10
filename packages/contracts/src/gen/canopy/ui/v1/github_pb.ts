@@ -6,13 +6,15 @@ import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
+import type { Attachment } from "./attachments_pb.ts";
+import { file_canopy_ui_v1_attachments } from "./attachments_pb.ts";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file canopy/ui/v1/github.proto.
  */
 export const file_canopy_ui_v1_github: GenFile = /*@__PURE__*/
-  fileDesc("ChljYW5vcHkvdWkvdjEvZ2l0aHViLnByb3RvEgxjYW5vcHkudWkudjEikgIKDUdpdEh1YkFjY291bnQSCgoCaWQYASABKAkSFgoOZ2l0aHViX3VzZXJfaWQYAiABKAkSDQoFbG9naW4YAyABKAkSDAoEaG9zdBgEIAEoCRIRCglhdXRoX2tpbmQYBSABKAkSDgoGc3RhdHVzGAYgASgJEhAKCHJldmlzaW9uGAcgASgEEhwKFGNvbm5lY3Rvcl9hY2NvdW50X2lkGAggASgJEjcKE2NhdGFsb2dfdmVyaWZpZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhoKEmluc3RhbGxhdGlvbl9jb3VudBgKIAEoDRIYChByZXBvc2l0b3J5X2NvdW50GAsgASgNIigKFUdpdEh1YkFjY291bnRzUmVxdWVzdBIPCgdob21lX2lkGAEgASgJIkAKEkdpdEh1YlBhdENhbmRpZGF0ZRIcChRjb25uZWN0b3JfYWNjb3VudF9pZBgBIAEoCRIMCgRuYW1lGAIgASgJIqoBChZHaXRIdWJBY2NvdW50c1Jlc3BvbnNlEhIKCmNvbmZpZ3VyZWQYASABKAgSEwoLaW5zdGFsbF91cmwYAiABKAkSLQoIYWNjb3VudHMYAyADKAsyGy5jYW5vcHkudWkudjEuR2l0SHViQWNjb3VudBI4Cg5wYXRfY2FuZGlkYXRlcxgEIAMoCzIgLmNhbm9weS51aS52MS5HaXRIdWJQYXRDYW5kaWRhdGUiYgocQmVnaW5HaXRIdWJEZXZpY2VBdXRoUmVxdWVzdBIPCgdob21lX2lkGAEgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAIgASgJEhYKDmNsaWVudF9iaW5kaW5nGAMgASgJIkUKF0dpdEh1YkRldmljZUF1dGhSZXF1ZXN0EhIKCmF0dGVtcHRfaWQYASABKAkSFgoOY2xpZW50X2JpbmRpbmcYAiABKAkiuAEKEEdpdEh1YkRldmljZUF1dGgSCgoCaWQYASABKAkSDQoFc3RhdGUYAiABKAkSEQoJdXNlcl9jb2RlGAMgASgJEhgKEHZlcmlmaWNhdGlvbl91cmkYBCABKAkSLgoKZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASGAoQaW50ZXJ2YWxfc2Vjb25kcxgGIAEoDRISCgphY2NvdW50X2lkGAcgASgJIl8KGEdpdEh1YkRldmljZUF1dGhSZXNwb25zZRISCgpjb25maWd1cmVkGAEgASgIEi8KB2F0dGVtcHQYAiABKAsyHi5jYW5vcHkudWkudjEuR2l0SHViRGV2aWNlQXV0aCIqChRHaXRIdWJBY2NvdW50UmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJIkUKFUdpdEh1YkFjY291bnRSZXNwb25zZRIsCgdhY2NvdW50GAEgASgLMhsuY2Fub3B5LnVpLnYxLkdpdEh1YkFjY291bnQiRAoTVXNlR2l0SHViUGF0UmVxdWVzdBIcChRjb25uZWN0b3JfYWNjb3VudF9pZBgBIAEoCRIPCgdob21lX2lkGAIgASgJImQKFkdpdEh1YkNhdGFsb2d1ZVJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIXCg9pbnN0YWxsYXRpb25faWQYAiABKAkSDAoEcGFnZRgDIAEoDRIPCgdyZWZyZXNoGAQgASgIIsQCChJHaXRIdWJJbnN0YWxsYXRpb24SFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBWxvZ2luGAIgASgJEhQKDGFjY291bnRfdHlwZRgDIAEoCRIcChRyZXBvc2l0b3J5X3NlbGVjdGlvbhgEIAEoCRIRCglzdXNwZW5kZWQYBSABKAgSRgoLcGVybWlzc2lvbnMYBiADKAsyMS5jYW5vcHkudWkudjEuR2l0SHViSW5zdGFsbGF0aW9uLlBlcm1pc3Npb25zRW50cnkSEgoKbWFuYWdlX3VybBgHIAEoCRIvCgt2ZXJpZmllZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAaMgoQUGVybWlzc2lvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIqgBChtHaXRIdWJJbnN0YWxsYXRpb25zUmVzcG9uc2USNwoNaW5zdGFsbGF0aW9ucxgBIAMoCzIgLmNhbm9weS51aS52MS5HaXRIdWJJbnN0YWxsYXRpb24SEQoJbmV4dF9wYWdlGAIgASgNEg4KBmRldGFpbBgDIAEoCRITCgt0b3RhbF9jb3VudBgEIAEoDRIYChByZXBvc2l0b3J5X2NvdW50GAUgASgNIscBChBHaXRIdWJSZXBvc2l0b3J5EhUKDXJlcG9zaXRvcnlfaWQYASABKAkSEQoJZnVsbF9uYW1lGAIgASgJEg8KB3ByaXZhdGUYAyABKAgSRAoLcGVybWlzc2lvbnMYBCADKAsyLy5jYW5vcHkudWkudjEuR2l0SHViUmVwb3NpdG9yeS5QZXJtaXNzaW9uc0VudHJ5GjIKEFBlcm1pc3Npb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgIOgI4ASJ6ChpHaXRIdWJSZXBvc2l0b3JpZXNSZXNwb25zZRI0CgxyZXBvc2l0b3JpZXMYASADKAsyHi5jYW5vcHkudWkudjEuR2l0SHViUmVwb3NpdG9yeRIRCgluZXh0X3BhZ2UYAiABKA0SEwoLdG90YWxfY291bnQYAyABKA0iSgoeR2l0SHViUmVwb3NpdG9yeUFjY291bnRSZXF1ZXN0Eg8KB2hvbWVfaWQYASABKAkSFwoPcmVwb3NpdG9yeV9uYW1lGAIgASgJIqgBCh9HaXRIdWJSZXBvc2l0b3J5QWNjb3VudFJlc3BvbnNlEhUKDXJlcG9zaXRvcnlfaWQYASABKAkSFwoPcmVwb3NpdG9yeV9uYW1lGAIgASgJEhIKCmFjY291bnRfaWQYAyABKAkSEAoIcmV2aXNpb24YBCABKAQSLwoKY2FuZGlkYXRlcxgFIAMoCzIbLmNhbm9weS51aS52MS5HaXRIdWJBY2NvdW50InwKIVNldEdpdEh1YlJlcG9zaXRvcnlBY2NvdW50UmVxdWVzdBIPCgdob21lX2lkGAEgASgJEhcKD3JlcG9zaXRvcnlfbmFtZRgCIAEoCRISCgphY2NvdW50X2lkGAMgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAQgASgEInsKDlB1bGxSZXF1ZXN0UmVmEgoKAmlkGAEgASgJEgwKBGhvc3QYAiABKAkSFQoNcmVwb3NpdG9yeV9pZBgDIAEoCRIXCg9yZXBvc2l0b3J5X25hbWUYBCABKAkSDgoGbnVtYmVyGAUgASgNEg8KB25vZGVfaWQYBiABKAki/AEKElB1bGxSZXF1ZXN0U3VtbWFyeRIpCgNyZWYYASABKAsyHC5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RSZWYSDQoFdGl0bGUYAiABKAkSDQoFc3RhdGUYAyABKAkSEAoIaGVhZF9zaGEYBCABKAkSFAoMY2hlY2tzX3N0YXRlGAUgASgJEhQKDGNoZWNrc19jb3VudBgGIAEoDRIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgt2ZXJpZmllZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiYAoQUHVsbFJlcXVlc3RDaGVjaxIMCgRuYW1lGAEgASgJEg0KBXN0YXRlGAIgASgJEhAKCHByb3ZpZGVyGAMgASgJEgsKA3VybBgEIAEoCRIQCghoZWFkX3NoYRgFIAEoCSIzChNQdWxsUmVxdWVzdFJldmlld2VyEg0KBWxvZ2luGAEgASgJEg0KBXN0YXRlGAIgASgJIi8KEFB1bGxSZXF1ZXN0TGFiZWwSDAoEbmFtZRgBIAEoCRINCgVjb2xvchgCIAEoCSKtBAoTUHVsbFJlcXVlc3RTbmFwc2hvdBIxCgdzdW1tYXJ5GAEgASgLMiAuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0U3VtbWFyeRIOCgZhdXRob3IYAiABKAkSDAoEYm9keRgDIAEoCRIQCghiYXNlX3JlZhgEIAEoCRIQCghoZWFkX3JlZhgFIAEoCRIQCghiYXNlX3NoYRgGIAEoCRINCgVmaWxlcxgHIAEoDRIRCglhZGRpdGlvbnMYCCABKA0SEQoJZGVsZXRpb25zGAkgASgNEjQKCXJldmlld2VycxgKIAMoCzIhLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFJldmlld2VyEg4KBmxhYmVscxgLIAMoCRIuCgZjaGVja3MYDCADKAsyHi5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RDaGVjaxIUCgxjb21wbGV0ZW5lc3MYDSABKAkSDQoFc3RhbGUYDiABKAgSDgoGZGV0YWlsGA8gASgJEhIKCmFjY291bnRfaWQYECABKAkSFwoPYWNjZXNzX3JldmlzaW9uGBEgASgEEhEKCWFzc2lnbmVlcxgSIAMoCRI1Cg1sYWJlbF9kZXRhaWxzGBMgAygLMh4uY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0TGFiZWwSGgoSaGVhZF9yZXBvc2l0b3J5X2lkGBQgASgJEhwKFGhlYWRfcmVwb3NpdG9yeV9uYW1lGBUgASgJIq4BCg9QdWxsUmVxdWVzdExpbmsSMQoHc3VtbWFyeRgBIAEoCzIgLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFN1bW1hcnkSDgoGc291cmNlGAIgASgJEi4KCmNyZWF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhYKDmN1cnJlbnRfYnJhbmNoGAQgASgIEhAKCGV2aWRlbmNlGAUgASgJIi4KGVRocmVhZFB1bGxSZXF1ZXN0c1JlcXVlc3QSEQoJdGhyZWFkX2lkGAEgASgJInsKGlRocmVhZFB1bGxSZXF1ZXN0c1Jlc3BvbnNlEiwKBWxpbmtzGAEgAygLMh0uY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0TGluaxIQCghyZXZpc2lvbhgCIAEoBBINCgVzdGFsZRgDIAEoCBIOCgZkZXRhaWwYBCABKAkiWQocTGlua1RocmVhZFB1bGxSZXF1ZXN0UmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSCwoDdXJsGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgEImcKHlVubGlua1RocmVhZFB1bGxSZXF1ZXN0UmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkSFwoPcHVsbF9yZXF1ZXN0X2lkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgEIj4KElB1bGxSZXF1ZXN0UmVxdWVzdBIXCg9wdWxsX3JlcXVlc3RfaWQYASABKAkSDwoHcmVmcmVzaBgCIAEoCGIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("ChljYW5vcHkvdWkvdjEvZ2l0aHViLnByb3RvEgxjYW5vcHkudWkudjEikgIKDUdpdEh1YkFjY291bnQSCgoCaWQYASABKAkSFgoOZ2l0aHViX3VzZXJfaWQYAiABKAkSDQoFbG9naW4YAyABKAkSDAoEaG9zdBgEIAEoCRIRCglhdXRoX2tpbmQYBSABKAkSDgoGc3RhdHVzGAYgASgJEhAKCHJldmlzaW9uGAcgASgEEhwKFGNvbm5lY3Rvcl9hY2NvdW50X2lkGAggASgJEjcKE2NhdGFsb2dfdmVyaWZpZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhoKEmluc3RhbGxhdGlvbl9jb3VudBgKIAEoDRIYChByZXBvc2l0b3J5X2NvdW50GAsgASgNIigKFUdpdEh1YkFjY291bnRzUmVxdWVzdBIPCgdob21lX2lkGAEgASgJIkAKEkdpdEh1YlBhdENhbmRpZGF0ZRIcChRjb25uZWN0b3JfYWNjb3VudF9pZBgBIAEoCRIMCgRuYW1lGAIgASgJIqoBChZHaXRIdWJBY2NvdW50c1Jlc3BvbnNlEhIKCmNvbmZpZ3VyZWQYASABKAgSEwoLaW5zdGFsbF91cmwYAiABKAkSLQoIYWNjb3VudHMYAyADKAsyGy5jYW5vcHkudWkudjEuR2l0SHViQWNjb3VudBI4Cg5wYXRfY2FuZGlkYXRlcxgEIAMoCzIgLmNhbm9weS51aS52MS5HaXRIdWJQYXRDYW5kaWRhdGUiYgocQmVnaW5HaXRIdWJEZXZpY2VBdXRoUmVxdWVzdBIPCgdob21lX2lkGAEgASgJEhkKEWNsaWVudF9yZXF1ZXN0X2lkGAIgASgJEhYKDmNsaWVudF9iaW5kaW5nGAMgASgJIkUKF0dpdEh1YkRldmljZUF1dGhSZXF1ZXN0EhIKCmF0dGVtcHRfaWQYASABKAkSFgoOY2xpZW50X2JpbmRpbmcYAiABKAkiuAEKEEdpdEh1YkRldmljZUF1dGgSCgoCaWQYASABKAkSDQoFc3RhdGUYAiABKAkSEQoJdXNlcl9jb2RlGAMgASgJEhgKEHZlcmlmaWNhdGlvbl91cmkYBCABKAkSLgoKZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASGAoQaW50ZXJ2YWxfc2Vjb25kcxgGIAEoDRISCgphY2NvdW50X2lkGAcgASgJIl8KGEdpdEh1YkRldmljZUF1dGhSZXNwb25zZRISCgpjb25maWd1cmVkGAEgASgIEi8KB2F0dGVtcHQYAiABKAsyHi5jYW5vcHkudWkudjEuR2l0SHViRGV2aWNlQXV0aCIqChRHaXRIdWJBY2NvdW50UmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJIkUKFUdpdEh1YkFjY291bnRSZXNwb25zZRIsCgdhY2NvdW50GAEgASgLMhsuY2Fub3B5LnVpLnYxLkdpdEh1YkFjY291bnQiRAoTVXNlR2l0SHViUGF0UmVxdWVzdBIcChRjb25uZWN0b3JfYWNjb3VudF9pZBgBIAEoCRIPCgdob21lX2lkGAIgASgJImQKFkdpdEh1YkNhdGFsb2d1ZVJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIXCg9pbnN0YWxsYXRpb25faWQYAiABKAkSDAoEcGFnZRgDIAEoDRIPCgdyZWZyZXNoGAQgASgIIsQCChJHaXRIdWJJbnN0YWxsYXRpb24SFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBWxvZ2luGAIgASgJEhQKDGFjY291bnRfdHlwZRgDIAEoCRIcChRyZXBvc2l0b3J5X3NlbGVjdGlvbhgEIAEoCRIRCglzdXNwZW5kZWQYBSABKAgSRgoLcGVybWlzc2lvbnMYBiADKAsyMS5jYW5vcHkudWkudjEuR2l0SHViSW5zdGFsbGF0aW9uLlBlcm1pc3Npb25zRW50cnkSEgoKbWFuYWdlX3VybBgHIAEoCRIvCgt2ZXJpZmllZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAaMgoQUGVybWlzc2lvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIqgBChtHaXRIdWJJbnN0YWxsYXRpb25zUmVzcG9uc2USNwoNaW5zdGFsbGF0aW9ucxgBIAMoCzIgLmNhbm9weS51aS52MS5HaXRIdWJJbnN0YWxsYXRpb24SEQoJbmV4dF9wYWdlGAIgASgNEg4KBmRldGFpbBgDIAEoCRITCgt0b3RhbF9jb3VudBgEIAEoDRIYChByZXBvc2l0b3J5X2NvdW50GAUgASgNIscBChBHaXRIdWJSZXBvc2l0b3J5EhUKDXJlcG9zaXRvcnlfaWQYASABKAkSEQoJZnVsbF9uYW1lGAIgASgJEg8KB3ByaXZhdGUYAyABKAgSRAoLcGVybWlzc2lvbnMYBCADKAsyLy5jYW5vcHkudWkudjEuR2l0SHViUmVwb3NpdG9yeS5QZXJtaXNzaW9uc0VudHJ5GjIKEFBlcm1pc3Npb25zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgIOgI4ASJ6ChpHaXRIdWJSZXBvc2l0b3JpZXNSZXNwb25zZRI0CgxyZXBvc2l0b3JpZXMYASADKAsyHi5jYW5vcHkudWkudjEuR2l0SHViUmVwb3NpdG9yeRIRCgluZXh0X3BhZ2UYAiABKA0SEwoLdG90YWxfY291bnQYAyABKA0iSgoeR2l0SHViUmVwb3NpdG9yeUFjY291bnRSZXF1ZXN0Eg8KB2hvbWVfaWQYASABKAkSFwoPcmVwb3NpdG9yeV9uYW1lGAIgASgJIqgBCh9HaXRIdWJSZXBvc2l0b3J5QWNjb3VudFJlc3BvbnNlEhUKDXJlcG9zaXRvcnlfaWQYASABKAkSFwoPcmVwb3NpdG9yeV9uYW1lGAIgASgJEhIKCmFjY291bnRfaWQYAyABKAkSEAoIcmV2aXNpb24YBCABKAQSLwoKY2FuZGlkYXRlcxgFIAMoCzIbLmNhbm9weS51aS52MS5HaXRIdWJBY2NvdW50InwKIVNldEdpdEh1YlJlcG9zaXRvcnlBY2NvdW50UmVxdWVzdBIPCgdob21lX2lkGAEgASgJEhcKD3JlcG9zaXRvcnlfbmFtZRgCIAEoCRISCgphY2NvdW50X2lkGAMgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAQgASgEInsKDlB1bGxSZXF1ZXN0UmVmEgoKAmlkGAEgASgJEgwKBGhvc3QYAiABKAkSFQoNcmVwb3NpdG9yeV9pZBgDIAEoCRIXCg9yZXBvc2l0b3J5X25hbWUYBCABKAkSDgoGbnVtYmVyGAUgASgNEg8KB25vZGVfaWQYBiABKAki/AEKElB1bGxSZXF1ZXN0U3VtbWFyeRIpCgNyZWYYASABKAsyHC5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RSZWYSDQoFdGl0bGUYAiABKAkSDQoFc3RhdGUYAyABKAkSEAoIaGVhZF9zaGEYBCABKAkSFAoMY2hlY2tzX3N0YXRlGAUgASgJEhQKDGNoZWNrc19jb3VudBgGIAEoDRIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgt2ZXJpZmllZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAikQEKEFB1bGxSZXF1ZXN0Q2hlY2sSDAoEbmFtZRgBIAEoCRINCgVzdGF0ZRgCIAEoCRIQCghwcm92aWRlchgDIAEoCRILCgN1cmwYBCABKAkSEAoIaGVhZF9zaGEYBSABKAkSDwoHbm9kZV9pZBgGIAEoCRIOCgZydW5faWQYByABKAkSDgoGb3V0cHV0GAggASgJIjMKE1B1bGxSZXF1ZXN0UmV2aWV3ZXISDQoFbG9naW4YASABKAkSDQoFc3RhdGUYAiABKAkiLwoQUHVsbFJlcXVlc3RMYWJlbBIMCgRuYW1lGAEgASgJEg0KBWNvbG9yGAIgASgJIq0EChNQdWxsUmVxdWVzdFNuYXBzaG90EjEKB3N1bW1hcnkYASABKAsyIC5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RTdW1tYXJ5Eg4KBmF1dGhvchgCIAEoCRIMCgRib2R5GAMgASgJEhAKCGJhc2VfcmVmGAQgASgJEhAKCGhlYWRfcmVmGAUgASgJEhAKCGJhc2Vfc2hhGAYgASgJEg0KBWZpbGVzGAcgASgNEhEKCWFkZGl0aW9ucxgIIAEoDRIRCglkZWxldGlvbnMYCSABKA0SNAoJcmV2aWV3ZXJzGAogAygLMiEuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0UmV2aWV3ZXISDgoGbGFiZWxzGAsgAygJEi4KBmNoZWNrcxgMIAMoCzIeLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdENoZWNrEhQKDGNvbXBsZXRlbmVzcxgNIAEoCRINCgVzdGFsZRgOIAEoCBIOCgZkZXRhaWwYDyABKAkSEgoKYWNjb3VudF9pZBgQIAEoCRIXCg9hY2Nlc3NfcmV2aXNpb24YESABKAQSEQoJYXNzaWduZWVzGBIgAygJEjUKDWxhYmVsX2RldGFpbHMYEyADKAsyHi5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RMYWJlbBIaChJoZWFkX3JlcG9zaXRvcnlfaWQYFCABKAkSHAoUaGVhZF9yZXBvc2l0b3J5X25hbWUYFSABKAkirgEKD1B1bGxSZXF1ZXN0TGluaxIxCgdzdW1tYXJ5GAEgASgLMiAuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0U3VtbWFyeRIOCgZzb3VyY2UYAiABKAkSLgoKY3JlYXRlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFgoOY3VycmVudF9icmFuY2gYBCABKAgSEAoIZXZpZGVuY2UYBSABKAkiLgoZVGhyZWFkUHVsbFJlcXVlc3RzUmVxdWVzdBIRCgl0aHJlYWRfaWQYASABKAkiewoaVGhyZWFkUHVsbFJlcXVlc3RzUmVzcG9uc2USLAoFbGlua3MYASADKAsyHS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RMaW5rEhAKCHJldmlzaW9uGAIgASgEEg0KBXN0YWxlGAMgASgIEg4KBmRldGFpbBgEIAEoCSJZChxMaW5rVGhyZWFkUHVsbFJlcXVlc3RSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCRILCgN1cmwYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAQiZwoeVW5saW5rVGhyZWFkUHVsbFJlcXVlc3RSZXF1ZXN0EhEKCXRocmVhZF9pZBgBIAEoCRIXCg9wdWxsX3JlcXVlc3RfaWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAQiPgoSUHVsbFJlcXVlc3RSZXF1ZXN0EhcKD3B1bGxfcmVxdWVzdF9pZBgBIAEoCRIPCgdyZWZyZXNoGAIgASgIIuEBChZQdWxsUmVxdWVzdFBhZ2VSZXF1ZXN0EhcKD3B1bGxfcmVxdWVzdF9pZBgBIAEoCRIOCgZjdXJzb3IYAiABKAkSDAoEa2luZBgDIAEoCRIOCgZhdXRob3IYBCABKAkSFAoMb2xkZXN0X2ZpcnN0GAUgASgIEhAKCGhlYWRfc2hhGAYgASgJEhAKCGJhc2Vfc2hhGAcgASgJEhIKCmNvbW1pdF9zaGEYCCABKAkSEwoLcmVzb3VyY2VfaWQYCSABKAkSDAoEcGF0aBgKIAEoCRIPCgdyZWZyZXNoGAsgASgIIsYBChNQdWxsUmVxdWVzdFBhZ2VJbmZvEhMKC25leHRfY3Vyc29yGAEgASgJEhAKCGhlYWRfc2hhGAIgASgJEhAKCGJhc2Vfc2hhGAMgASgJEhQKDGNvbXBsZXRlbmVzcxgEIAEoCRIOCgZkZXRhaWwYBSABKAkSLwoLdmVyaWZpZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBXN0YWxlGAcgASgIEhAKCHNuYXBzaG90GAggASgJIqsBChhQdWxsUmVxdWVzdFRpbWVsaW5lRW50cnkSCgoCaWQYASABKAkSDgoGYXV0aG9yGAIgASgJEgwKBGJvZHkYAyABKAkSCwoDdXJsGAQgASgJEi4KCmNyZWF0ZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBXN0YXRlGAYgASgJEgsKA3NoYRgHIAEoCRIMCgRraW5kGAggASgJIowCChdQdWxsUmVxdWVzdFRpbWVsaW5lSXRlbRI5Cgdjb21tZW50GAEgASgLMiYuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0VGltZWxpbmVFbnRyeUgAEjgKBnJldmlldxgCIAEoCzImLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFRpbWVsaW5lRW50cnlIABI4CgZjb21taXQYAyABKAsyJi5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RUaW1lbGluZUVudHJ5SAASNwoFZXZlbnQYBCABKAsyJi5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RUaW1lbGluZUVudHJ5SABCCQoHY29udGVudCKAAQoXUHVsbFJlcXVlc3RUaW1lbGluZVBhZ2USNAoFaXRlbXMYASADKAsyJS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RUaW1lbGluZUl0ZW0SLwoEcGFnZRgCIAEoCzIhLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFBhZ2VJbmZvIsQBChdQdWxsUmVxdWVzdFJldmlld1RocmVhZBIKCgJpZBgBIAEoCRIMCgRwYXRoGAIgASgJEgwKBGxpbmUYAyABKA0SEAoIcmVzb2x2ZWQYBCABKAgSEAoIb3V0ZGF0ZWQYBSABKAgSOAoIY29tbWVudHMYBiADKAsyJi5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RUaW1lbGluZUVudHJ5EhYKDnJlcGxpZXNfY3Vyc29yGAcgASgJEgsKA3NoYRgIIAEoCSKHAQocUHVsbFJlcXVlc3RSZXZpZXdUaHJlYWRzUGFnZRI2Cgd0aHJlYWRzGAEgAygLMiUuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkEi8KBHBhZ2UYAiABKAsyIS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RQYWdlSW5mbyJ4ChVQdWxsUmVxdWVzdENoZWNrc1BhZ2USLgoGY2hlY2tzGAEgAygLMh4uY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0Q2hlY2sSLwoEcGFnZRgCIAEoCzIhLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFBhZ2VJbmZvInkKDlB1bGxSZXF1ZXN0Sm9iEgoKAmlkGAEgASgJEg4KBnJ1bl9pZBgCIAEoCRIPCgdhdHRlbXB0GAMgASgNEgwKBG5hbWUYBCABKAkSDQoFc3RhdGUYBSABKAkSCwoDdXJsGAYgASgJEhAKCGhlYWRfc2hhGAcgASgJInIKE1B1bGxSZXF1ZXN0Sm9ic1BhZ2USKgoEam9icxgBIAMoCzIcLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdEpvYhIvCgRwYWdlGAIgASgLMiEuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0UGFnZUluZm8ifQoVUHVsbFJlcXVlc3RKb2JMb2dQYWdlEgwKBHRleHQYASABKAkSEgoKZmlyc3RfbGluZRgCIAEoDRIRCgl0cnVuY2F0ZWQYAyABKAgSLwoEcGFnZRgEIAEoCzIhLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFBhZ2VJbmZvIqIBCg9QdWxsUmVxdWVzdEZpbGUSDAoEcGF0aBgBIAEoCRIVCg1wcmV2aW91c19wYXRoGAIgASgJEg0KBXN0YXRlGAMgASgJEhEKCWFkZGl0aW9ucxgEIAEoDRIRCglkZWxldGlvbnMYBSABKA0SEwoLcGF0Y2hfc3RhdGUYBiABKAkSCwoDdXJsGAcgASgJEhMKC3NvdXJjZV9wYWdlGAggASgNInUKFFB1bGxSZXF1ZXN0RmlsZXNQYWdlEiwKBWZpbGVzGAEgAygLMh0uY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0RmlsZRIvCgRwYWdlGAIgASgLMiEuY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0UGFnZUluZm8ifgoPUHVsbFJlcXVlc3REaWZmEisKBGZpbGUYASABKAsyHS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RGaWxlEg0KBXBhdGNoGAIgASgJEi8KBHBhZ2UYAyABKAsyIS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RQYWdlSW5mbyJBChFQdWxsUmVxdWVzdENvbW1pdBILCgNzaGEYASABKAkSDwoHc3ViamVjdBgCIAEoCRIOCgZhdXRob3IYAyABKAkiewoWUHVsbFJlcXVlc3RDb21taXRzUGFnZRIwCgdjb21taXRzGAEgAygLMh8uY2Fub3B5LnVpLnYxLlB1bGxSZXF1ZXN0Q29tbWl0Ei8KBHBhZ2UYAiABKAsyIS5jYW5vcHkudWkudjEuUHVsbFJlcXVlc3RQYWdlSW5mbyJYChdXYXRjaFB1bGxSZXF1ZXN0UmVxdWVzdBIXCg9wdWxsX3JlcXVlc3RfaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAkSEgoKdmlzaWJpbGl0eRgDIAEoCSJ8ChFQdWxsUmVxdWVzdFVwZGF0ZRIzCghzbmFwc2hvdBgBIAEoCzIhLmNhbm9weS51aS52MS5QdWxsUmVxdWVzdFNuYXBzaG90EhAKCHJldmlzaW9uGAIgASgJEhMKC2ludmFsaWRhdGVkGAMgAygJEgsKA2dhcBgEIAEoCCKCAQogUHJlcGFyZVB1bGxSZXF1ZXN0Q29udGV4dFJlcXVlc3QSFwoPcHVsbF9yZXF1ZXN0X2lkGAEgASgJEhEKCXRocmVhZF9pZBgCIAEoCRIOCgZhY3Rpb24YAyABKAkSDQoFcGF0aHMYBCADKAkSEwoLZmluZGluZ19pZHMYBSADKAkiaQoaUHVsbFJlcXVlc3RDb250ZXh0UmVzcG9uc2USLAoKYXR0YWNobWVudBgBIAEoCzIYLmNhbm9weS51aS52MS5BdHRhY2htZW50Eg4KBnByb21wdBgCIAEoCRINCgVzY29wZRgDIAEoCSJSChpHaXRIdWJVcGRhdGVBY2NvdW50UmVxdWVzdBIPCgdob21lX2lkGAEgASgJEhIKCmFjY291bnRfaWQYAiABKAkSDwoHZW5hYmxlZBgDIAEoCCJCChtHaXRIdWJVcGRhdGVBY2NvdW50UmVzcG9uc2USEgoKYWNjb3VudF9pZBgBIAEoCRIPCgdlbmFibGVkGAIgASgIYgZwcm90bzM", [file_google_protobuf_timestamp, file_canopy_ui_v1_attachments]);
 
 /**
  * All credentials and the OAuth device_code remain encrypted at the home gateway.
@@ -725,6 +727,21 @@ export type PullRequestCheck = Message<"canopy.ui.v1.PullRequestCheck"> & {
    * @generated from field: string head_sha = 5;
    */
   headSha: string;
+
+  /**
+   * @generated from field: string node_id = 6;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: string run_id = 7;
+   */
+  runId: string;
+
+  /**
+   * @generated from field: string output = 8;
+   */
+  output: string;
 };
 
 /**
@@ -1056,4 +1073,763 @@ export type PullRequestRequest = Message<"canopy.ui.v1.PullRequestRequest"> & {
  */
 export const PullRequestRequestSchema: GenMessage<PullRequestRequest> = /*@__PURE__*/
   messageDesc(file_canopy_ui_v1_github, 30);
+
+/**
+ * Cursors are issued by the home, bound to access, PR, filters and snapshot.
+ *
+ * @generated from message canopy.ui.v1.PullRequestPageRequest
+ */
+export type PullRequestPageRequest = Message<"canopy.ui.v1.PullRequestPageRequest"> & {
+  /**
+   * @generated from field: string pull_request_id = 1;
+   */
+  pullRequestId: string;
+
+  /**
+   * @generated from field: string cursor = 2;
+   */
+  cursor: string;
+
+  /**
+   * @generated from field: string kind = 3;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string author = 4;
+   */
+  author: string;
+
+  /**
+   * @generated from field: bool oldest_first = 5;
+   */
+  oldestFirst: boolean;
+
+  /**
+   * @generated from field: string head_sha = 6;
+   */
+  headSha: string;
+
+  /**
+   * @generated from field: string base_sha = 7;
+   */
+  baseSha: string;
+
+  /**
+   * @generated from field: string commit_sha = 8;
+   */
+  commitSha: string;
+
+  /**
+   * @generated from field: string resource_id = 9;
+   */
+  resourceId: string;
+
+  /**
+   * @generated from field: string path = 10;
+   */
+  path: string;
+
+  /**
+   * @generated from field: bool refresh = 11;
+   */
+  refresh: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestPageRequest.
+ * Use `create(PullRequestPageRequestSchema)` to create a new message.
+ */
+export const PullRequestPageRequestSchema: GenMessage<PullRequestPageRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 31);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestPageInfo
+ */
+export type PullRequestPageInfo = Message<"canopy.ui.v1.PullRequestPageInfo"> & {
+  /**
+   * @generated from field: string next_cursor = 1;
+   */
+  nextCursor: string;
+
+  /**
+   * @generated from field: string head_sha = 2;
+   */
+  headSha: string;
+
+  /**
+   * @generated from field: string base_sha = 3;
+   */
+  baseSha: string;
+
+  /**
+   * @generated from field: string completeness = 4;
+   */
+  completeness: string;
+
+  /**
+   * @generated from field: string detail = 5;
+   */
+  detail: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp verified_at = 6;
+   */
+  verifiedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: bool stale = 7;
+   */
+  stale: boolean;
+
+  /**
+   * @generated from field: string snapshot = 8;
+   */
+  snapshot: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestPageInfo.
+ * Use `create(PullRequestPageInfoSchema)` to create a new message.
+ */
+export const PullRequestPageInfoSchema: GenMessage<PullRequestPageInfo> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 32);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestTimelineEntry
+ */
+export type PullRequestTimelineEntry = Message<"canopy.ui.v1.PullRequestTimelineEntry"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string author = 2;
+   */
+  author: string;
+
+  /**
+   * @generated from field: string body = 3;
+   */
+  body: string;
+
+  /**
+   * @generated from field: string url = 4;
+   */
+  url: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 5;
+   */
+  createdAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string state = 6;
+   */
+  state: string;
+
+  /**
+   * @generated from field: string sha = 7;
+   */
+  sha: string;
+
+  /**
+   * @generated from field: string kind = 8;
+   */
+  kind: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestTimelineEntry.
+ * Use `create(PullRequestTimelineEntrySchema)` to create a new message.
+ */
+export const PullRequestTimelineEntrySchema: GenMessage<PullRequestTimelineEntry> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 33);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestTimelineItem
+ */
+export type PullRequestTimelineItem = Message<"canopy.ui.v1.PullRequestTimelineItem"> & {
+  /**
+   * @generated from oneof canopy.ui.v1.PullRequestTimelineItem.content
+   */
+  content: {
+    /**
+     * @generated from field: canopy.ui.v1.PullRequestTimelineEntry comment = 1;
+     */
+    value: PullRequestTimelineEntry;
+    case: "comment";
+  } | {
+    /**
+     * @generated from field: canopy.ui.v1.PullRequestTimelineEntry review = 2;
+     */
+    value: PullRequestTimelineEntry;
+    case: "review";
+  } | {
+    /**
+     * @generated from field: canopy.ui.v1.PullRequestTimelineEntry commit = 3;
+     */
+    value: PullRequestTimelineEntry;
+    case: "commit";
+  } | {
+    /**
+     * @generated from field: canopy.ui.v1.PullRequestTimelineEntry event = 4;
+     */
+    value: PullRequestTimelineEntry;
+    case: "event";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestTimelineItem.
+ * Use `create(PullRequestTimelineItemSchema)` to create a new message.
+ */
+export const PullRequestTimelineItemSchema: GenMessage<PullRequestTimelineItem> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 34);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestTimelinePage
+ */
+export type PullRequestTimelinePage = Message<"canopy.ui.v1.PullRequestTimelinePage"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.PullRequestTimelineItem items = 1;
+   */
+  items: PullRequestTimelineItem[];
+
+  /**
+   * @generated from field: canopy.ui.v1.PullRequestPageInfo page = 2;
+   */
+  page?: PullRequestPageInfo | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestTimelinePage.
+ * Use `create(PullRequestTimelinePageSchema)` to create a new message.
+ */
+export const PullRequestTimelinePageSchema: GenMessage<PullRequestTimelinePage> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 35);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestReviewThread
+ */
+export type PullRequestReviewThread = Message<"canopy.ui.v1.PullRequestReviewThread"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * @generated from field: uint32 line = 3;
+   */
+  line: number;
+
+  /**
+   * @generated from field: bool resolved = 4;
+   */
+  resolved: boolean;
+
+  /**
+   * @generated from field: bool outdated = 5;
+   */
+  outdated: boolean;
+
+  /**
+   * @generated from field: repeated canopy.ui.v1.PullRequestTimelineEntry comments = 6;
+   */
+  comments: PullRequestTimelineEntry[];
+
+  /**
+   * @generated from field: string replies_cursor = 7;
+   */
+  repliesCursor: string;
+
+  /**
+   * @generated from field: string sha = 8;
+   */
+  sha: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestReviewThread.
+ * Use `create(PullRequestReviewThreadSchema)` to create a new message.
+ */
+export const PullRequestReviewThreadSchema: GenMessage<PullRequestReviewThread> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 36);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestReviewThreadsPage
+ */
+export type PullRequestReviewThreadsPage = Message<"canopy.ui.v1.PullRequestReviewThreadsPage"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.PullRequestReviewThread threads = 1;
+   */
+  threads: PullRequestReviewThread[];
+
+  /**
+   * @generated from field: canopy.ui.v1.PullRequestPageInfo page = 2;
+   */
+  page?: PullRequestPageInfo | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestReviewThreadsPage.
+ * Use `create(PullRequestReviewThreadsPageSchema)` to create a new message.
+ */
+export const PullRequestReviewThreadsPageSchema: GenMessage<PullRequestReviewThreadsPage> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 37);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestChecksPage
+ */
+export type PullRequestChecksPage = Message<"canopy.ui.v1.PullRequestChecksPage"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.PullRequestCheck checks = 1;
+   */
+  checks: PullRequestCheck[];
+
+  /**
+   * @generated from field: canopy.ui.v1.PullRequestPageInfo page = 2;
+   */
+  page?: PullRequestPageInfo | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestChecksPage.
+ * Use `create(PullRequestChecksPageSchema)` to create a new message.
+ */
+export const PullRequestChecksPageSchema: GenMessage<PullRequestChecksPage> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 38);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestJob
+ */
+export type PullRequestJob = Message<"canopy.ui.v1.PullRequestJob"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string run_id = 2;
+   */
+  runId: string;
+
+  /**
+   * @generated from field: uint32 attempt = 3;
+   */
+  attempt: number;
+
+  /**
+   * @generated from field: string name = 4;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string state = 5;
+   */
+  state: string;
+
+  /**
+   * @generated from field: string url = 6;
+   */
+  url: string;
+
+  /**
+   * @generated from field: string head_sha = 7;
+   */
+  headSha: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestJob.
+ * Use `create(PullRequestJobSchema)` to create a new message.
+ */
+export const PullRequestJobSchema: GenMessage<PullRequestJob> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 39);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestJobsPage
+ */
+export type PullRequestJobsPage = Message<"canopy.ui.v1.PullRequestJobsPage"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.PullRequestJob jobs = 1;
+   */
+  jobs: PullRequestJob[];
+
+  /**
+   * @generated from field: canopy.ui.v1.PullRequestPageInfo page = 2;
+   */
+  page?: PullRequestPageInfo | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestJobsPage.
+ * Use `create(PullRequestJobsPageSchema)` to create a new message.
+ */
+export const PullRequestJobsPageSchema: GenMessage<PullRequestJobsPage> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 40);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestJobLogPage
+ */
+export type PullRequestJobLogPage = Message<"canopy.ui.v1.PullRequestJobLogPage"> & {
+  /**
+   * @generated from field: string text = 1;
+   */
+  text: string;
+
+  /**
+   * @generated from field: uint32 first_line = 2;
+   */
+  firstLine: number;
+
+  /**
+   * @generated from field: bool truncated = 3;
+   */
+  truncated: boolean;
+
+  /**
+   * @generated from field: canopy.ui.v1.PullRequestPageInfo page = 4;
+   */
+  page?: PullRequestPageInfo | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestJobLogPage.
+ * Use `create(PullRequestJobLogPageSchema)` to create a new message.
+ */
+export const PullRequestJobLogPageSchema: GenMessage<PullRequestJobLogPage> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 41);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestFile
+ */
+export type PullRequestFile = Message<"canopy.ui.v1.PullRequestFile"> & {
+  /**
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * @generated from field: string previous_path = 2;
+   */
+  previousPath: string;
+
+  /**
+   * @generated from field: string state = 3;
+   */
+  state: string;
+
+  /**
+   * @generated from field: uint32 additions = 4;
+   */
+  additions: number;
+
+  /**
+   * @generated from field: uint32 deletions = 5;
+   */
+  deletions: number;
+
+  /**
+   * @generated from field: string patch_state = 6;
+   */
+  patchState: string;
+
+  /**
+   * @generated from field: string url = 7;
+   */
+  url: string;
+
+  /**
+   * @generated from field: uint32 source_page = 8;
+   */
+  sourcePage: number;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestFile.
+ * Use `create(PullRequestFileSchema)` to create a new message.
+ */
+export const PullRequestFileSchema: GenMessage<PullRequestFile> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 42);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestFilesPage
+ */
+export type PullRequestFilesPage = Message<"canopy.ui.v1.PullRequestFilesPage"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.PullRequestFile files = 1;
+   */
+  files: PullRequestFile[];
+
+  /**
+   * @generated from field: canopy.ui.v1.PullRequestPageInfo page = 2;
+   */
+  page?: PullRequestPageInfo | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestFilesPage.
+ * Use `create(PullRequestFilesPageSchema)` to create a new message.
+ */
+export const PullRequestFilesPageSchema: GenMessage<PullRequestFilesPage> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 43);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestDiff
+ */
+export type PullRequestDiff = Message<"canopy.ui.v1.PullRequestDiff"> & {
+  /**
+   * @generated from field: canopy.ui.v1.PullRequestFile file = 1;
+   */
+  file?: PullRequestFile | undefined;
+
+  /**
+   * @generated from field: string patch = 2;
+   */
+  patch: string;
+
+  /**
+   * @generated from field: canopy.ui.v1.PullRequestPageInfo page = 3;
+   */
+  page?: PullRequestPageInfo | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestDiff.
+ * Use `create(PullRequestDiffSchema)` to create a new message.
+ */
+export const PullRequestDiffSchema: GenMessage<PullRequestDiff> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 44);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestCommit
+ */
+export type PullRequestCommit = Message<"canopy.ui.v1.PullRequestCommit"> & {
+  /**
+   * @generated from field: string sha = 1;
+   */
+  sha: string;
+
+  /**
+   * @generated from field: string subject = 2;
+   */
+  subject: string;
+
+  /**
+   * @generated from field: string author = 3;
+   */
+  author: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestCommit.
+ * Use `create(PullRequestCommitSchema)` to create a new message.
+ */
+export const PullRequestCommitSchema: GenMessage<PullRequestCommit> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 45);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestCommitsPage
+ */
+export type PullRequestCommitsPage = Message<"canopy.ui.v1.PullRequestCommitsPage"> & {
+  /**
+   * @generated from field: repeated canopy.ui.v1.PullRequestCommit commits = 1;
+   */
+  commits: PullRequestCommit[];
+
+  /**
+   * @generated from field: canopy.ui.v1.PullRequestPageInfo page = 2;
+   */
+  page?: PullRequestPageInfo | undefined;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestCommitsPage.
+ * Use `create(PullRequestCommitsPageSchema)` to create a new message.
+ */
+export const PullRequestCommitsPageSchema: GenMessage<PullRequestCommitsPage> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 46);
+
+/**
+ * @generated from message canopy.ui.v1.WatchPullRequestRequest
+ */
+export type WatchPullRequestRequest = Message<"canopy.ui.v1.WatchPullRequestRequest"> & {
+  /**
+   * @generated from field: string pull_request_id = 1;
+   */
+  pullRequestId: string;
+
+  /**
+   * @generated from field: string revision = 2;
+   */
+  revision: string;
+
+  /**
+   * view, panel or background; callers stop watching when hidden.
+   *
+   * @generated from field: string visibility = 3;
+   */
+  visibility: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.WatchPullRequestRequest.
+ * Use `create(WatchPullRequestRequestSchema)` to create a new message.
+ */
+export const WatchPullRequestRequestSchema: GenMessage<WatchPullRequestRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 47);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestUpdate
+ */
+export type PullRequestUpdate = Message<"canopy.ui.v1.PullRequestUpdate"> & {
+  /**
+   * @generated from field: canopy.ui.v1.PullRequestSnapshot snapshot = 1;
+   */
+  snapshot?: PullRequestSnapshot | undefined;
+
+  /**
+   * @generated from field: string revision = 2;
+   */
+  revision: string;
+
+  /**
+   * @generated from field: repeated string invalidated = 3;
+   */
+  invalidated: string[];
+
+  /**
+   * @generated from field: bool gap = 4;
+   */
+  gap: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestUpdate.
+ * Use `create(PullRequestUpdateSchema)` to create a new message.
+ */
+export const PullRequestUpdateSchema: GenMessage<PullRequestUpdate> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 48);
+
+/**
+ * @generated from message canopy.ui.v1.PreparePullRequestContextRequest
+ */
+export type PreparePullRequestContextRequest = Message<"canopy.ui.v1.PreparePullRequestContextRequest"> & {
+  /**
+   * @generated from field: string pull_request_id = 1;
+   */
+  pullRequestId: string;
+
+  /**
+   * @generated from field: string thread_id = 2;
+   */
+  threadId: string;
+
+  /**
+   * question, explain, findings. Preparation never starts a turn.
+   *
+   * @generated from field: string action = 3;
+   */
+  action: string;
+
+  /**
+   * @generated from field: repeated string paths = 4;
+   */
+  paths: string[];
+
+  /**
+   * @generated from field: repeated string finding_ids = 5;
+   */
+  findingIds: string[];
+};
+
+/**
+ * Describes the message canopy.ui.v1.PreparePullRequestContextRequest.
+ * Use `create(PreparePullRequestContextRequestSchema)` to create a new message.
+ */
+export const PreparePullRequestContextRequestSchema: GenMessage<PreparePullRequestContextRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 49);
+
+/**
+ * @generated from message canopy.ui.v1.PullRequestContextResponse
+ */
+export type PullRequestContextResponse = Message<"canopy.ui.v1.PullRequestContextResponse"> & {
+  /**
+   * @generated from field: canopy.ui.v1.Attachment attachment = 1;
+   */
+  attachment?: Attachment | undefined;
+
+  /**
+   * @generated from field: string prompt = 2;
+   */
+  prompt: string;
+
+  /**
+   * @generated from field: string scope = 3;
+   */
+  scope: string;
+};
+
+/**
+ * Describes the message canopy.ui.v1.PullRequestContextResponse.
+ * Use `create(PullRequestContextResponseSchema)` to create a new message.
+ */
+export const PullRequestContextResponseSchema: GenMessage<PullRequestContextResponse> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 50);
+
+/**
+ * @generated from message canopy.ui.v1.GitHubUpdateAccountRequest
+ */
+export type GitHubUpdateAccountRequest = Message<"canopy.ui.v1.GitHubUpdateAccountRequest"> & {
+  /**
+   * @generated from field: string home_id = 1;
+   */
+  homeId: string;
+
+  /**
+   * @generated from field: string account_id = 2;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: bool enabled = 3;
+   */
+  enabled: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.GitHubUpdateAccountRequest.
+ * Use `create(GitHubUpdateAccountRequestSchema)` to create a new message.
+ */
+export const GitHubUpdateAccountRequestSchema: GenMessage<GitHubUpdateAccountRequest> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 51);
+
+/**
+ * @generated from message canopy.ui.v1.GitHubUpdateAccountResponse
+ */
+export type GitHubUpdateAccountResponse = Message<"canopy.ui.v1.GitHubUpdateAccountResponse"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: bool enabled = 2;
+   */
+  enabled: boolean;
+};
+
+/**
+ * Describes the message canopy.ui.v1.GitHubUpdateAccountResponse.
+ * Use `create(GitHubUpdateAccountResponseSchema)` to create a new message.
+ */
+export const GitHubUpdateAccountResponseSchema: GenMessage<GitHubUpdateAccountResponse> = /*@__PURE__*/
+  messageDesc(file_canopy_ui_v1_github, 52);
 

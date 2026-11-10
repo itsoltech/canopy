@@ -28,6 +28,18 @@
   import SteerSendButton from "./SteerSendButton.svelte";
   import ComposerFold from "./ComposerFold.svelte";
   import type { ComposerActivity } from "./composer-compaction.ts";
+  import { tick } from "svelte";
+  import type { github } from "@canopy/contracts";
+
+  export async function acceptContext(context: github.PullRequestContextResponse) {
+    if (!draft || !context.attachment) return;
+    const file = draft.accept(context.attachment, context.scope);
+
+    if (context.prompt) value = `${value}${value ? "\n\n" : ""}${context.prompt}`;
+    await tick();
+    editor?.insertChips([chipOf(file)]);
+    editor?.focus();
+  }
 
   /**
    * Message box: a growing text field and a bottom row with `controls` (pills) and a round
@@ -413,6 +425,11 @@
       </ResizeSlot>
     </div>
   </div>
+  {#each draft?.attached.filter((file) => file.contextScope) ?? [] as file (file.key)}
+    <p role="status" class="px-1 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+      PR context: {file.contextScope}
+    </p>
+  {/each}
   {#if meta}
     <ComposerFold open={!compact}>
       <div class="min-w-0 px-1 pt-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">

@@ -8,6 +8,7 @@ import { GITHUB_ACCOUNTS, GITHUB_PR, REMOTE_THREADS, THREAD_MIRROR, qualifyId } 
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { connectGitHub, githubPrFixture, githubThread } from "./support/github-pr.ts";
+import { readFixture } from "./support/github-read.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("linked PR summaries without replicated credentials", () => {
@@ -21,7 +22,7 @@ describe.skipIf(!dockerAvailable)("linked PR summaries without replicated creden
   let pr: string;
   const qualified = (id: string) => qualifyId(id, lb.hello().nodeId);
   beforeAll(async () => {
-    fixture = githubPrFixture();
+    fixture = readFixture();
     a = await startTestGateway({ role: "desktop", github: { ...fixture.options, clientId: "", slug: "" } });
     b = await startTestGateway({ role: "desktop", github: fixture.options });
     account = await connectGitHub(b, fixture);
@@ -65,12 +66,13 @@ describe.skipIf(!dockerAvailable)("linked PR summaries without replicated creden
     await a?.close();
     await b?.close();
     fixture?.close();
-  });
+  }, 30_000);
 
   test("A reads B through the home and its small mirror, never receiving account secrets", async () => {
     const data = await a.api.getPullRequest({ pullRequestId: qualified(pr) });
     expect(data.summary!.ref!.id).toBe(qualified(pr));
     expect(data.accountId).toBe(qualified(account));
+    expect((await a.api.listPullRequestTimeline({ pullRequestId: qualified(pr) })).items).toHaveLength(50);
     expect((await a.api.listThreadPullRequests({ threadId: qualified(thread) })).links[0]!.summary!.title).toContain(
       "Read-only",
     );
@@ -86,6 +88,42 @@ describe.skipIf(!dockerAvailable)("linked PR summaries without replicated creden
     for (const secret of fixture.secrets) expect(output).not.toContain(secret);
   });
 
+  test("GitHub access failures clear PR pages while preserving unrelated verified peer reads", async () => {
+    await eventually(
+      async () => (await a.api.getOverview({})).workers.some((worker) => worker.nodeId === lb.hello().nodeId),
+      (value) => value,
+    );
+    expect(await failure(a.api.getPullRequest({ pullRequestId: qualified(crypto.randomUUID()) }))).toContain(
+      "not found",
+    );
+
+    for (const link of [la, lb])
+      await link.options.network.update(
+        create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: false }),
+      );
+
+    try {
+      await eventually(
+        async () => !la.reachable().length && !lb.reachable().length,
+        (value) => value,
+      );
+      expect(await failure(a.api.getPullRequest({ pullRequestId: qualified(pr) }))).toContain("Connect to load");
+      expect((await a.api.getOverview({})).workers.some((worker) => worker.nodeId === lb.hello().nodeId)).toBe(true);
+    } finally {
+      for (const link of [la, lb])
+        await link.options.network.update(
+          create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }),
+        );
+    }
+
+    await eventually(
+      async () => la.reachable().includes(lb.hello().nodeId),
+      (value) => value,
+    );
+    await a.api.getPullRequest({ pullRequestId: qualified(pr) });
+    await a.api.listPullRequestTimeline({ pullRequestId: qualified(pr) });
+  }, 30_000);
+
   test("offline retains only a dated mirror, rejects writes without replay, and revoke purges the online projection", async () => {
     await la.options.network.update(
       create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: false }),
@@ -98,6 +136,13 @@ describe.skipIf(!dockerAvailable)("linked PR summaries without replicated creden
       (value) => value,
     );
     const offline = await a.api.listThreadPullRequests({ threadId: qualified(thread) });
+    const cachedPage = await a.api.listPullRequestTimeline({ pullRequestId: qualified(pr) });
+    expect(cachedPage.page?.stale).toBe(true);
+    expect(cachedPage.items).toHaveLength(50);
+    expect((await a.api.getPullRequest({ pullRequestId: qualified(pr) })).stale).toBe(true);
+    expect(await failure(a.api.listPullRequestTimeline({ pullRequestId: qualified(pr), kind: "commit" }))).toContain(
+      "Connect to load",
+    );
     expect(offline.stale).toBe(true);
     expect(offline.links[0]!.summary!.verifiedAt).toBeDefined();
     expect(

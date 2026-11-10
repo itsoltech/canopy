@@ -19,6 +19,9 @@
   import { interruptThread, sendMessage, type Delivery } from "../api.ts";
   import { permissionKey, providerLabel, type PermissionModeKey } from "../labels.ts";
   import ComposerBox from "./ComposerBox.svelte";
+  import { contextDraft } from "#lib/features/github/context-draft.svelte.ts";
+  import { tick, untrack } from "svelte";
+  import { page } from "$app/state";
   import type { ComposerActivity } from "./composer-compaction.ts";
   import PermissionPicker from "./PermissionPicker.svelte";
   import ComposerContextRow from "./ComposerContextRow.svelte";
@@ -111,6 +114,24 @@
   }
 
   let text = $state("");
+  let box = $state<ComposerBox>();
+
+  $effect(() => {
+    const pending = contextDraft.pending;
+
+    // Native modal focus makes the thread editor inert until the PR sheet is removed.
+    if (!box || pending?.threadId !== thread.id || page.url.searchParams.has("pr")) return;
+    const composer = box;
+    untrack(() => {
+      contextDraft.pending = undefined;
+      void tick()
+        .then(() => composer.acceptContext(pending.context))
+        .catch(() => {
+          error = "Could not add PR context. Remove an attachment, then retry.";
+        });
+    });
+  });
+
   let mentions = $state<Mention[]>([]);
 
   // The thread's worker, provider and folder (a side thread has its own); "#" offers every thread but this one.
@@ -221,6 +242,7 @@
 <form class={["grid grid-cols-1 gap-2", className]} onsubmit={submit}>
   {#if error}<Alert tone="error">{error}</Alert>{/if}
   <ComposerBox
+    bind:this={box}
     shell
     {compact}
     {panelsLabel}

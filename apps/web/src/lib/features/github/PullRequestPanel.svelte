@@ -1,12 +1,19 @@
 <script lang="ts">
-  import type { github } from "@canopy/contracts";
+  import { github } from "@canopy/contracts";
+  import { create, fromJsonString } from "@bufbuild/protobuf";
+  import { untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { SharedRead, queries } from "#lib/shared/queries.svelte.ts";
   import { HttpError } from "#lib/shared/http.ts";
   import { formatDateTime } from "#lib/shared/format.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import SegmentedChoice from "#lib/shared/ui/SegmentedChoice.svelte";
+  import PullRequestTabs from "./PullRequestTabs.svelte";
+  import PullRequestTimeline from "./PullRequestTimeline.svelte";
+  import PullRequestCode from "./PullRequestCode.svelte";
+  import { liveSource } from "#lib/shared/live-source.ts";
+  import { contextDraft } from "./context-draft.svelte.ts";
+  import { invalidations } from "./invalidations.ts";
   import PullRequestHeader from "./PullRequestHeader.svelte";
   import PullRequestSummary from "./PullRequestSummary.svelte";
   import * as api from "./api.ts";
@@ -21,6 +28,60 @@
   let busy = $state(false);
   let denied = $state(false);
   let error = $state("");
+  let tab = $state("summary");
+  let visible = $state(false);
+  const prefix = $props.id();
+
+  $effect(() => {
+    const changed = () => (visible = document.visibilityState === "visible");
+    changed();
+    document.addEventListener("visibilitychange", changed);
+
+    return () => document.removeEventListener("visibilitychange", changed);
+  });
+
+  $effect(() => {
+    if (!visible) return;
+    const requestId = id;
+    let revision = "";
+
+    return liveSource(`/api/github/events?id=${encodeURIComponent(requestId)}`, {
+      url: () => `/api/github/events?id=${encodeURIComponent(requestId)}&revision=${revision}`,
+      onmessage: (text) => {
+        const update = fromJsonString(github.PullRequestUpdateSchema, text);
+        const changed = !!revision && revision !== update.revision;
+        revision = update.revision;
+
+        if (update.snapshot) untrack(() => read.set(update.snapshot!));
+
+        if (changed || update.gap) invalidations.publish(requestId);
+      },
+      ondrop: () => {
+        void read.reload().catch(() => {});
+      },
+      onopen: (reconnected) => {
+        if (reconnected) invalidations.publish(requestId);
+      },
+    });
+  });
+
+  async function prepare(action: string) {
+    if (!threadId || busy) return;
+    busy = true;
+
+    try {
+      const context = await api.context(
+        create(github.PreparePullRequestContextRequestSchema, { pullRequestId: id, threadId, action }),
+      );
+
+      contextDraft.pending = { threadId, context };
+      onclose?.();
+    } catch {
+      error = "Could not prepare PR context. Check access and attachment limits, then retry.";
+    } finally {
+      busy = false;
+    }
+  }
 
   const read = $derived(
     new SharedRead<github.PullRequestSnapshot>(queries, `GetPullRequest:${id}`, async () => {
@@ -77,11 +138,15 @@
       onrefresh={() => void refresh()}
       onunlink={threadId ? () => void unlink() : undefined}
       {onclose}
+      oncontext={threadId ? (action) => void prepare(action) : undefined}
     />{/if}
-  <div class="border-b border-zinc-950/5 bg-surface px-4 py-2 dark:border-white/10">
-    <SegmentedChoice label="Pull request view" value="summary" options={[{ value: "summary", label: "Summary" }]} />
-  </div>
-  <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+  <PullRequestTabs bind:value={tab} {prefix} />
+  <div
+    role="tabpanel"
+    id={`${prefix}-${tab}-panel`}
+    aria-labelledby={`${prefix}-${tab}-tab`}
+    class="min-h-0 flex-1 scroll-stable overflow-y-auto overscroll-contain p-4"
+  >
     {#if error || read.snapshot.error}<Alert class="mb-4"
         >{error || "Connect to load this page. Check account access, then retry."}<Button
           size="sm"
@@ -93,11 +158,10 @@
         {data.detail}
         {data.stale ? `Last verified ${formatDateTime(data.summary?.verifiedAt)}.` : ""}
       </p>{/if}
-    {#if data}<PullRequestSummary snapshot={data} />{:else if !read.snapshot.error}<p
-        role="status"
-        class="text-sm text-zinc-500"
-      >
-        Loading pull request…
-      </p>{/if}
+    {#if data}
+      {#if tab === "summary"}<PullRequestSummary snapshot={data} />{:else if tab === "timeline"}<PullRequestTimeline
+          {id}
+        />{:else}<PullRequestCode snapshot={data} />{/if}
+    {:else if !read.snapshot.error}<p role="status" class="text-sm text-zinc-500">Loading pull request…</p>{/if}
   </div>
 </div>

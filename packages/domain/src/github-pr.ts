@@ -25,7 +25,7 @@ export function checkLook(state: string): PullRequestLook {
     case "error":
       return look("Failed", "x-circle", "danger", 0);
     case "timed_out":
-      return look("Timed out", "clock", "danger", 0);
+      return look("Timed out", "hourglass", "danger", 0);
     case "action_required":
       return look("Action required", "exclamation-circle", "warning", 0);
     case "in_progress":
@@ -42,7 +42,7 @@ export function checkLook(state: string): PullRequestLook {
     case "neutral":
       return look("Neutral", "minus", "muted");
     default:
-      return look("Unavailable", "question-mark-circle", "muted");
+      return look("Checks unavailable", "exclamation-circle", "muted");
   }
 }
 
@@ -73,6 +73,32 @@ export function reviewerLook(state: string): PullRequestLook {
       return look("Commented", "chat-bubble-left", "muted");
     default:
       return look("Dismissed", "minus", "muted");
+  }
+}
+
+export function timelineLook(kind: string, state: string, category = ""): PullRequestLook {
+  if (category === "review") return reviewerLook(state);
+
+  if (kind.includes("Check") || kind.includes("Status")) return checkLook(state);
+  const icon = category === "commit" ? "git-fork" : "document-text";
+
+  switch (kind) {
+    case "MergedEvent":
+      return pullRequestLook("merged");
+    case "ClosedEvent":
+      return pullRequestLook("closed");
+    case "ReopenedEvent":
+      return pullRequestLook("open");
+    case "ConvertToDraftEvent":
+      return pullRequestLook("draft");
+    case "ReviewRequestedEvent":
+      return reviewerLook("requested");
+    default:
+      return look(
+        kind.replace(/Event$/, "").replace(/([a-z])([A-Z])/g, "$1 $2"),
+        category === "comment" ? "chat-bubble-left" : icon,
+        "muted",
+      );
   }
 }
 

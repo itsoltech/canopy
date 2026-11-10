@@ -68,7 +68,13 @@ export class GitHubPullRequests {
 
     return snapshot;
   }
-  async load(name: string, number: number, force = false, background = false): Promise<github.PullRequestSnapshot> {
+  async load(
+    name: string,
+    number: number,
+    force = false,
+    background = false,
+    wait = false,
+  ): Promise<github.PullRequestSnapshot> {
     const { run, owner } = this.accounts;
 
     try {
@@ -112,7 +118,7 @@ export class GitHubPullRequests {
         },
       };
 
-      if (!force && cached?.payload) {
+      if (!force && cached?.payload && (!wait || Number(new Date(cached.expires_at)) > this.accounts.http.now())) {
         await this.validate(name, row.id, BigInt(row.revision), BigInt(mapping.revision));
         const snapshot = fromJsonString(github.PullRequestSnapshotSchema, JSON.stringify(cached.payload));
 

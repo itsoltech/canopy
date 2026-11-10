@@ -19,6 +19,7 @@
     onrefresh,
     onunlink,
     onclose,
+    oncontext,
     class: className,
   }: {
     snapshot: github.PullRequestSnapshot;
@@ -26,6 +27,7 @@
     onrefresh: () => void;
     onunlink?: (() => void) | undefined;
     onclose?: (() => void) | undefined;
+    oncontext?: ((action: string) => void) | undefined;
     class?: ClassValue;
   } = $props();
 
@@ -58,7 +60,7 @@
       class="min-w-0 flex-1 truncate font-medium text-zinc-500 hover:underline dark:text-zinc-400"
       >{ref?.repositoryName} <span class="text-zinc-900 dark:text-zinc-100">#{ref?.number}</span></a
     >
-    <PullRequestState state={pr?.state ?? ""} />
+    <PullRequestState state={pr?.state ?? ""} iconOnly />
     <DropdownMenu label="Pull request actions" placement="bottom-end" sheet>
       {#snippet trigger(props)}<IconButton
           icon="ellipsis-horizontal"
@@ -67,6 +69,16 @@
           {...props}
         />{/snippet}
       <MenuItem icon="arrow-path" disabled={busy} onselect={onrefresh}>{busy ? "Refreshing…" : "Refresh"}</MenuItem>
+      {#if oncontext}
+        <MenuItem icon="chat-bubble-left" disabled={busy} onselect={() => oncontext?.("question")}
+          >Ask a question</MenuItem
+        >
+        <MenuItem icon="document-text" disabled={busy} onselect={() => oncontext?.("explain")}>Explain this PR</MenuItem
+        >
+        <MenuItem icon="wrench" disabled={busy} onselect={() => oncontext?.("findings")}
+          >Fix findings in this thread</MenuItem
+        >
+      {/if}
       <MenuItem icon="arrow-top-right-on-square" onselect={() => window.open(url, "_blank", "noopener,noreferrer")}
         >Open on GitHub</MenuItem
       >

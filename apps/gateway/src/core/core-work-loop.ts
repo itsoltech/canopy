@@ -308,6 +308,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
     this.worktreeCleanup.start();
     this.imports.runner.start();
     this.github.device.start();
+    this.github.background.start();
     this.githubDetection.start();
   },
 

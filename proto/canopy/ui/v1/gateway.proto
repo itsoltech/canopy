@@ -29,6 +29,18 @@ service GatewayService {
   rpc UnlinkThreadPullRequest(UnlinkThreadPullRequestRequest) returns (ThreadPullRequestsResponse);
   rpc GetPullRequest(PullRequestRequest) returns (PullRequestSnapshot);
   rpc RefreshPullRequest(PullRequestRequest) returns (PullRequestSnapshot);
+  rpc WatchPullRequest(WatchPullRequestRequest) returns (stream PullRequestUpdate);
+  rpc ListPullRequestTimeline(PullRequestPageRequest) returns (PullRequestTimelinePage);
+  rpc ListPullRequestReviewThreads(PullRequestPageRequest) returns (PullRequestReviewThreadsPage);
+  rpc ListPullRequestChecks(PullRequestPageRequest) returns (PullRequestChecksPage);
+  rpc ListPullRequestCheckJobs(PullRequestPageRequest) returns (PullRequestJobsPage);
+  rpc GetPullRequestJobLog(PullRequestPageRequest) returns (PullRequestJobLogPage);
+  rpc ListPullRequestFiles(PullRequestPageRequest) returns (PullRequestFilesPage);
+  rpc ListPullRequestCommits(PullRequestPageRequest) returns (PullRequestCommitsPage);
+  rpc GetPullRequestDiff(PullRequestPageRequest) returns (PullRequestDiff);
+  rpc PreparePullRequestContext(PreparePullRequestContextRequest) returns (PullRequestContextResponse);
+  rpc GetGitHubUpdateAccount(GitHubAccountsRequest) returns (GitHubUpdateAccountResponse);
+  rpc SetGitHubUpdateAccount(GitHubUpdateAccountRequest) returns (GitHubUpdateAccountResponse);
   rpc ListGitHubAccounts(GitHubAccountsRequest) returns (GitHubAccountsResponse);
   rpc BeginGitHubDeviceAuth(BeginGitHubDeviceAuthRequest) returns (GitHubDeviceAuthResponse);
   rpc GetGitHubDeviceAuth(GitHubDeviceAuthRequest) returns (GitHubDeviceAuthResponse);

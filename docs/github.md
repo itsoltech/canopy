@@ -1,8 +1,9 @@
 # Konto GitHub i pull requesty
 
-Status: **zaakceptowany**, 2026-11-10. Etap 1 w stosie implementuje konta;
-etap 2 dodaje ręczne powiązania PR i Summary tylko do odczytu.
-Pozostałe funkcje PR z kolejnych etapów nie są jeszcze dostępne.
+Status: **zaakceptowany**, 2026-11-10. Etapy 1–3 w stosie implementują konta,
+powiązania ręczne i automatyczne oraz Summary. Etap 4 dodaje pełny odczyt:
+Timeline, review threads, checki/jobs/logi i Code, polling, kontekst composera
+oraz fallback aktualizacji. Zapisy do GitHub pozostają zakresem etapów 5–9.
 Decyzje ustalone po przeglądzie: oficjalna GitHub App Canopy organizacji `itsoltech`, device flow,
 wygasające tokeny użytkownika w domu wątku, pełny zakres zapisów opisany poniżej i Viewed
 synchronizowane z GitHub. Implementacja jako jeden stos PR według §11.

@@ -12,6 +12,7 @@ import workspaceCopy from "./0112_workspace_copy.sql" with { type: "text" };
 import githubAccounts from "./0113_github_accounts.sql" with { type: "text" };
 import githubPullRequests from "./0114_github_pull_requests.sql" with { type: "text" };
 import githubDetection from "./0115_github_detection.sql" with { type: "text" };
+import githubFullRead from "./0116_github_full_read.sql" with { type: "text" };
 import botViewDelta from "./0091_bot_view_delta.sql" with { type: "text" };
 import workerConfig from "./0002_worker_config.sql" with { type: "text" };
 import gatewayRuntime from "./0003_gateway_runtime.sql" with { type: "text" };
@@ -244,6 +245,7 @@ export const migrations = Migrator.fromRecord({
   "0113_github_accounts": sqlFile(githubAccounts),
   "0114_github_pull_requests": sqlFile(githubPullRequests),
   "0115_github_detection": sqlFile(githubDetection),
+  "0116_github_full_read": sqlFile(githubFullRead),
 });
 
 /** Applies pending migrations in a transaction with a lock, safe to call from a deploy step. */

@@ -4,7 +4,7 @@ import { reviewerLook } from "@canopy/domain/github-pr";
 import { useColors, useTypography } from "../../ui/theme";
 import { GitHubAvatar } from "./GitHubAvatar";
 import { PullRequestStatusLook } from "./PullRequestStatus";
-import { Icon } from "../../ui/Icon";
+import { StatusIcon } from "./StatusIcon";
 
 export function PullRequestPeople({ snapshot }: { snapshot: github.PullRequestSnapshot }) {
   const c = useColors();
@@ -21,7 +21,7 @@ export function PullRequestPeople({ snapshot }: { snapshot: github.PullRequestSn
             <Text numberOfLines={1} style={[type.small, { flex: 1, color: c.text }]}>
               {r.login}
             </Text>
-            <PullRequestStatusLook look={reviewerLook(r.state)} />
+            <PullRequestStatusLook look={reviewerLook(r.state)} iconOnly />
           </View>
         ))}
       </View>
@@ -34,7 +34,7 @@ export function PullRequestPeople({ snapshot }: { snapshot: github.PullRequestSn
               <Text numberOfLines={1} style={[type.small, { flex: 1, color: c.text }]}>
                 {login}
               </Text>
-              <Icon name="user" />
+              <StatusIcon name="user" label="Assigned" />
             </View>
           ))}
         </View>

@@ -80,11 +80,11 @@ export class PeerReads {
     for (const entry of this.entries.values()) if (entry.node === node && entry.method.name === method) entry.next = 0;
   }
 
-  forget(node: string) {
-    this.circuits.delete(node);
+  forget(node: string, methods?: ReadonlySet<string>) {
+    if (!methods) this.circuits.delete(node);
 
     for (const [key, entry] of this.entries)
-      if (entry.node === node) {
+      if (entry.node === node && (!methods || methods.has(entry.method.name))) {
         entry.generation++;
         entry.enabled = false;
         entry.pending?.abort();
@@ -102,6 +102,41 @@ export class PeerReads {
     // A normal background refresh still serves the last successful snapshot. Only a failed
     // refresh makes it stale; otherwise every poll briefly adds and removes a waiting message.
     return entry.failed ? "stale" : "fresh";
+  }
+
+  /** Retain a completed explicit read for offline viewing, without scheduling periodic reads. */
+  remember(node: string, method: DescMethod, request: Message, message: Message) {
+    if (this.closed) return;
+    const key = this.key(node, method, request);
+    const previous = this.entries.get(key);
+    const value = toBinary(method.output, message);
+
+    if (value.byteLength > MAX_BYTES) return;
+
+    while (
+      this.entries.size >= MAX_ENTRIES ||
+      this.bytes - (previous?.value?.byteLength ?? 0) + value.byteLength > MAX_BYTES
+    ) {
+      const oldest = [...this.entries].find(([id, entry]) => id !== key && !entry.pending);
+
+      if (!oldest) return;
+      this.bytes -= oldest[1].value?.byteLength ?? 0;
+      this.entries.delete(oldest[0]);
+    }
+
+    previous?.pending?.abort();
+    this.bytes += value.byteLength - (previous?.value?.byteLength ?? 0);
+    this.entries.set(key, {
+      node,
+      method,
+      value,
+      generation: (previous?.generation ?? 0) + 1,
+      next: Infinity,
+      failed: false,
+      timeoutMs: PEER_READ_TIMEOUT_MS,
+      enabled: false,
+      load: async () => message,
+    });
   }
 
   read<A extends Message>(

@@ -34,7 +34,7 @@
   import ThreadModelDialog from "#lib/features/threads/components/ThreadModelDialog.svelte";
   import ThreadPermissionsDialog from "#lib/features/threads/components/ThreadPermissionsDialog.svelte";
   import ThreadPanel from "#lib/features/threads/components/ThreadPanel.svelte";
-  import PullRequestPanel from "#lib/features/github/PullRequestPanel.svelte";
+  import PullRequestPanel from "#lib/features/github/DesktopPullRequestPanel.svelte";
   import ThreadPullRequestSheet from "#lib/features/github/ThreadPullRequestSheet.svelte";
   import { closePullRequest as closePr, toggleThreadPanel } from "#lib/features/github/thread-panel.ts";
   import ThreadTitleActions from "#lib/features/threads/components/ThreadTitleActions.svelte";
@@ -283,6 +283,7 @@
   // Context panel: beside the chat on wide screens (saved on this device), a sheet
   // on narrow ones.
   const selectedPr = $derived(page.url.searchParams.get("pr") ?? "");
+
   const panelOpen = $derived(Boolean(selectedPr) || !device.view.threadPanelCollapsed);
   let panelSheet = $state(false);
 
@@ -813,7 +814,12 @@
   </aside>
 </div>
 
-{#if selectedPr}<ThreadPullRequestSheet id={selectedPr} {threadId} onclose={closePr} />{/if}
+{#if selectedPr}<ThreadPullRequestSheet
+    id={selectedPr}
+    {threadId}
+    onclose={closePr}
+    onopen={() => (panelSheet = false)}
+  />{/if}
 
 {#if thread?.worktree}
   <Dialog bind:open={worktreeDialog} title="Worktree" size="lg">

@@ -8,6 +8,7 @@ import { titleContext } from "./thread-titles.ts";
 import { BotsRuntime } from "../bots/runtime.ts";
 import { botPlatform, describeBotTool, prepareBotTool } from "../bots/platform.ts";
 import { GatewayUpdates } from "../updates/runtime.ts";
+import { githubReleaseFetch } from "../github/release-fetch.ts";
 import { UpdatePersistence } from "../updates/persistence.ts";
 import { coreDeliver, coreRedeliver } from "./core-commands.ts";
 import { coreState, type GatewayCoreOptions } from "./core-context.ts";
@@ -119,8 +120,16 @@ export function createCoreScheduler(core: GatewayCore, options: GatewayCoreOptio
 }
 
 export function createCoreUpdates(core: GatewayCore, options: GatewayCoreOptions): GatewayUpdates {
+  const persistence = new UpdatePersistence(options.runtime, options.userId);
+  const releaseFetch = githubReleaseFetch(core.github, () => persistence.admin(), options.updates?.source?.fetch);
+
   return new GatewayUpdates({
     ...options.updates,
+    source: {
+      ...options.updates?.source,
+      fetch: releaseFetch,
+      cacheScope: releaseFetch.cacheScope,
+    },
     departure: (state, target) => core.departures.announce(state, target),
     recovered: (state, reason, target) => core.departures.recover(state, reason, target),
     bundled: core.role === "desktop",
@@ -137,7 +146,7 @@ export function createCoreUpdates(core: GatewayCore, options: GatewayCoreOptions
           void core.pump(threadId).catch(() => coreLog(core, `thread ${threadId}: queue resume failed`));
       }
     },
-    persistence: new UpdatePersistence(options.runtime, options.userId),
+    persistence,
     changed: () => core.feeds.updatesChanged(),
     authenticate: (credential) => coreRun(core, (s) => s.authenticateWorker(credential)),
   });

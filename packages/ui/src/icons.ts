@@ -4,6 +4,8 @@
  * Values contain only validated inert path data; comments name the upstream glyph.
  */
 export const icons = {
+  // hourglass-high
+  hourglass: ["M6 3h12m-12 18h12M7 3v4a5 5 0 0 0 10 0V3M7 21v-4a5 5 0 0 1 10 0v4"],
   // eye
   eye: ["M10 12a2 2 0 1 0 4 0a2 2 0 0 0-4 0", "M21 12q-3.6 6-9 6t-9-6q3.6-6 9-6t9 6"],
   // eye-off

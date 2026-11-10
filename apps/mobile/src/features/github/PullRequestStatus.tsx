@@ -3,6 +3,7 @@ import { pullRequestLook, type PullRequestLook } from "@canopy/domain/github-pr"
 import { Icon } from "../../ui/Icon";
 import { useColors, useTypography } from "../../ui/theme";
 import { toneColor } from "./presentation";
+import { StatusIcon } from "./StatusIcon";
 
 export function PullRequestStatus({
   state,
@@ -28,6 +29,13 @@ export function PullRequestStatusLook({
   const c = useColors();
   const type = useTypography();
   const color = toneColor(c, look.tone);
+
+  if (iconOnly)
+    return (
+      <View style={style}>
+        <StatusIcon name={look.icon} label={look.label} color={color} />
+      </View>
+    );
 
   return (
     <View accessibilityLabel={look.label} style={[{ flexDirection: "row", alignItems: "center", gap: 6 }, style]}>

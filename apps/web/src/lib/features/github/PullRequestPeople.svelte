@@ -5,6 +5,7 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import GitHubAvatar from "./GitHubAvatar.svelte";
   import { toneClasses } from "./presentation.ts";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
 
   let { snapshot, class: className }: { snapshot: github.PullRequestSnapshot; class?: ClassValue } = $props();
 </script>
@@ -18,8 +19,8 @@
       <div class="flex min-h-8 min-w-0 items-center gap-2">
         <GitHubAvatar userId="" login={reviewer.login} compact />
         <p class="min-w-0 flex-1 truncate" title={reviewer.login}>{reviewer.login}</p>
-        <div class={["flex shrink-0 items-center gap-1.5", toneClasses[look.tone]]}>
-          <Icon name={look.icon} tone="inherit" /><span>{look.label}</span>
+        <div {@attach tooltip(look.label)} class={["flex shrink-0 items-center gap-1.5", toneClasses[look.tone]]}>
+          <Icon name={look.icon} label={look.label} tone="inherit" />
         </div>
       </div>
     {/each}
@@ -29,7 +30,7 @@
       {#each snapshot.assignees as login, i (`${login}:${i}`)}<div class="flex min-h-8 min-w-0 items-center gap-2">
           <GitHubAvatar userId="" {login} compact />
           <p class="min-w-0 flex-1 truncate" title={login}>{login}</p>
-          <Icon name="user" />
+          <span {@attach tooltip("Assigned")}><Icon name="user" label="Assigned" /></span>
         </div>{/each}
     </section>{/if}
 </div>

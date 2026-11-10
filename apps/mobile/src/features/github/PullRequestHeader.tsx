@@ -15,12 +15,14 @@ export function PullRequestHeader({
   onrefresh,
   onunlink,
   onmessage,
+  oncontext,
 }: {
   snapshot: github.PullRequestSnapshot;
   busy: boolean;
   onrefresh: () => void;
   onunlink?: (() => void) | undefined;
   onmessage: (value: string) => void;
+  oncontext?: ((action: string) => void) | undefined;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -52,11 +54,18 @@ export function PullRequestHeader({
             {ref?.repositoryName} <Text style={{ color: c.text }}>#{ref?.number}</Text>
           </Text>
         </Pressable>
-        <PullRequestStatus state={pr?.state ?? ""} />
+        <PullRequestStatus state={pr?.state ?? ""} iconOnly />
         <GitHubActions
           name="Pull request"
           actions={[
             { label: busy ? "Refreshing…" : "Refresh", run: onrefresh, disabled: busy },
+            ...(oncontext
+              ? [
+                  { label: "Ask a question", run: () => oncontext("question"), disabled: busy },
+                  { label: "Explain this PR", run: () => oncontext("explain"), disabled: busy },
+                  { label: "Fix findings in this thread", run: () => oncontext("findings"), disabled: busy },
+                ]
+              : []),
             {
               label: "Open on GitHub",
               run: () =>

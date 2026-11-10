@@ -5,6 +5,7 @@ import { readMessage } from "#lib/server/body.ts";
 import { call } from "#lib/server/gateway.ts";
 import { encode } from "#lib/shared/wire.ts";
 import type { RequestHandler } from "./$types";
+import { githubRead } from "#lib/server/github-read.ts";
 
 /** Only public DTOs cross the BFF. The browser binding lives in an HttpOnly cookie. */
 export const POST: RequestHandler = async ({ params, request, cookies, url }) => {
@@ -24,6 +25,10 @@ export const POST: RequestHandler = async ({ params, request, cookies, url }) =>
   const options = { headers: { "canopy-github-client": binding }, timeoutMs: 120_000 };
 
   const result = await call(async (api) => {
+    const read = await githubRead(api, params.operation, request);
+
+    if (read !== undefined) return read;
+
     switch (params.operation) {
       case "repository-account":
         return encode(
