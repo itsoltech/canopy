@@ -2,6 +2,7 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { useSafeAreaInsets, type EdgeInsets } from "react-native-safe-area-context";
 import { useColors } from "./theme";
+import { AnchoredOverlayHost } from "./AnchoredOverlay";
 
 /** Only the outside edges of a split window need horizontal safe-area padding. */
 export const PaneInsets = createContext<Pick<EdgeInsets, "left" | "right"> | null>(null);
@@ -65,39 +66,41 @@ export function ScreenFrame({
     <PaneInsets.Provider value={insets}>
       <ContentInsets.Provider value={content}>
         <View style={{ flex: 1, backgroundColor: background }}>
-          {children}
-          {header && (
-            <View
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                paddingTop: insets.top,
-                paddingLeft: insets.left,
-                paddingRight: insets.right,
-                backgroundColor: `${background}f2`,
-              }}
-            >
-              <View onLayout={(event) => setHeaderSize(event.nativeEvent.layout.height)}>{header}</View>
-            </View>
-          )}
-          {footer && (
-            <View
-              style={{
-                position: "absolute",
-                bottom: 0,
-                left: 0,
-                right: 0,
-                paddingBottom: insets.bottom,
-                paddingLeft: insets.left,
-                paddingRight: insets.right,
-                backgroundColor: `${background}f2`,
-              }}
-            >
-              <View onLayout={(event) => setFooterSize(event.nativeEvent.layout.height)}>{footer}</View>
-            </View>
-          )}
+          <AnchoredOverlayHost insets={content}>
+            {children}
+            {header && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  paddingTop: insets.top,
+                  paddingLeft: insets.left,
+                  paddingRight: insets.right,
+                  backgroundColor: `${background}f2`,
+                }}
+              >
+                <View onLayout={(event) => setHeaderSize(event.nativeEvent.layout.height)}>{header}</View>
+              </View>
+            )}
+            {footer && (
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  paddingBottom: insets.bottom,
+                  paddingLeft: insets.left,
+                  paddingRight: insets.right,
+                  backgroundColor: `${background}f2`,
+                }}
+              >
+                <View onLayout={(event) => setFooterSize(event.nativeEvent.layout.height)}>{footer}</View>
+              </View>
+            )}
+          </AnchoredOverlayHost>
         </View>
       </ContentInsets.Provider>
     </PaneInsets.Provider>

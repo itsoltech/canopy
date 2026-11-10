@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useRef, useState, type ComponentRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { ItemStatus, type ui } from "@canopy/contracts";
 import { StatusDot } from "../../../ui/Badge";
 import { raised } from "../../../ui/Button";
-import { Sheet } from "../../../ui/components";
+import { AnchoredOverlay } from "../../../ui/AnchoredOverlay";
 import { Icon } from "../../../ui/Icon";
 import { useMotion } from "../../../ui/motion";
 import { styles, useColors } from "../../../ui/theme";
@@ -20,7 +20,7 @@ export function runningTasks(snapshot: ui.ThreadSnapshot | undefined): ui.Timeli
 
 /**
  * "N running in background" above the composer (web: BackgroundTasksChip), on the left edge: it opens the running
- * tasks with their output and Stop; the sheet closes with the last one. It pops in and out without moving the
+ * tasks with their output and Stop; the popover closes with the last one. It pops in and out without moving the
  * composer.
  */
 export function BackgroundTasksChip({
@@ -35,48 +35,57 @@ export function BackgroundTasksChip({
   const c = useColors();
   const { pop } = useMotion();
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<ComponentRef<typeof View>>(null);
   const label = `${tasks.length} running in background`;
 
-  // The sheet closes with the last task and never reopens by itself for a later one.
+  // The popover closes with the last task and never reopens by itself for a later one.
   if (!tasks.length && open) setOpen(false);
 
+  if (!tasks.length) return null;
+
   return (
-    <>
-      {tasks.length > 0 && (
-        <Animated.View entering={pop.entering} exiting={pop.exiting} style={{ alignSelf: "flex-start" }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${label}. Show tasks`}
-            hitSlop={4}
-            onPress={() => setOpen(true)}
-            style={({ pressed }) => [
-              styles.row,
-              {
-                minHeight: 36,
-                gap: 6,
-                paddingLeft: 10,
-                paddingRight: 10,
-                borderRadius: 18,
-                backgroundColor: pressed ? c.controlPressed : c.dark ? c.surface : c.control,
-              },
-              raised(c),
-            ]}
-          >
-            <StatusDot tone="sky" active />
-            <Text numberOfLines={1} style={[styles.meta, { color: c.soft, fontVariant: ["tabular-nums"] }]}>
-              {label}
-            </Text>
-            <Icon name={tasks.length === 1 ? "command-line" : "chevron-up-down"} size={14} color={c.faint} />
-          </Pressable>
-        </Animated.View>
-      )}
-      <Sheet title="Background tasks" visible={open} onClose={() => setOpen(false)}>
-        <View style={{ gap: 12 }}>
-          {tasks.map((entry) => (
-            <TaskRow key={entry.item?.itemId} entry={entry} threadId={threadId} disabled={disabled} />
-          ))}
-        </View>
-      </Sheet>
-    </>
+    <AnchoredOverlay
+      visible={open && tasks.length > 0}
+      onClose={() => setOpen(false)}
+      label="Background tasks"
+      triggerRef={triggerRef}
+      anchor={
+        tasks.length > 0 && (
+          <Animated.View entering={pop.entering} exiting={pop.exiting} style={{ alignSelf: "flex-start" }}>
+            <Pressable
+              ref={triggerRef}
+              accessibilityRole="button"
+              accessibilityLabel={`${label}. Show tasks`}
+              hitSlop={4}
+              onPress={() => setOpen(true)}
+              style={({ pressed }) => [
+                styles.row,
+                {
+                  minHeight: 36,
+                  gap: 6,
+                  paddingLeft: 10,
+                  paddingRight: 10,
+                  borderRadius: 18,
+                  backgroundColor: pressed ? c.controlPressed : c.dark ? c.surface : c.control,
+                },
+                raised(c),
+              ]}
+            >
+              <StatusDot tone="sky" active />
+              <Text numberOfLines={1} style={[styles.meta, { color: c.soft, fontVariant: ["tabular-nums"] }]}>
+                {label}
+              </Text>
+              <Icon name={tasks.length === 1 ? "command-line" : "chevron-up-down"} size={14} color={c.faint} />
+            </Pressable>
+          </Animated.View>
+        )
+      }
+    >
+      <View style={{ gap: 12 }}>
+        {tasks.map((entry) => (
+          <TaskRow key={entry.item?.itemId} entry={entry} threadId={threadId} disabled={disabled} compact />
+        ))}
+      </View>
+    </AnchoredOverlay>
   );
 }

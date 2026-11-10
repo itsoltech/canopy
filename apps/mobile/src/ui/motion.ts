@@ -110,6 +110,13 @@ const rise: Preset = { entering: fadeIn(motion.fast), exiting: fadeOut(motion.qu
 
 function presets(reduced: boolean) {
   return {
+    /** Composer popovers grow upward from their bottom edge; reduced motion skips the transition. */
+    dropdown: reduced
+      ? { entering: undefined, exiting: undefined }
+      : {
+          entering: from({ opacity: 0, scale: motion.scale.medium }, motion.fast),
+          exiting: to({ opacity: 0, scale: motion.scale.tiny }, motion.quick),
+        },
     /** A new row in a list or the timeline (web `rise` / `t-rise`): fade only, so measuring and anchoring hold. */
     rise,
     /** Something just added or newly counted (an attachment, a badge): grows in from `scale.medium` (web `pop`). */

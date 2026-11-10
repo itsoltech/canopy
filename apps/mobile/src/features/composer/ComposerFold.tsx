@@ -14,6 +14,8 @@ export interface ComposerMotion {
   /** The field has focus (React's copy, for touch and accessibility). */
   readonly focused: boolean;
   readonly onFocus: (focused: boolean) => void;
+  /** A short visible viewport temporarily hides the toolbar while retaining its mounted controls. */
+  readonly constrained?: boolean;
 }
 
 /** A composer outside a floating layout (new thread, side-thread creation): always open, controls always shown. */
@@ -61,7 +63,7 @@ export function ComposerFold({
   hideWhileWriting?: boolean;
   children: ReactNode;
 }) {
-  const { progress, writing, room } = useComposerMotion();
+  const { progress, writing, room, constrained } = useComposerMotion();
   const height = useSharedValue(expandedHeight);
   // This row's share of the room, in JS: changes go to the UI thread as deltas, so two rows never race.
   const share = useRef(0);
@@ -87,9 +89,9 @@ export function ComposerFold({
 
   return (
     <Animated.View
-      pointerEvents={open ? "auto" : "none"}
-      accessibilityElementsHidden={!open}
-      importantForAccessibility={open ? "auto" : "no-hide-descendants"}
+      pointerEvents={open && !constrained ? "auto" : "none"}
+      accessibilityElementsHidden={!open || constrained}
+      importantForAccessibility={open && !constrained ? "auto" : "no-hide-descendants"}
       style={[{ overflow: "hidden" }, style]}
     >
       <View

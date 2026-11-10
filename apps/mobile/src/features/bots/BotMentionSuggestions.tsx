@@ -65,6 +65,7 @@ export function BotMentionSuggestions({
 
   return (
     <MentionOptions
+      queryKey={`@:${trigger.query}`}
       options={options}
       loading={!options.length && local && catalog?.id !== id}
       error={catalog?.id === id ? catalog.error : undefined}

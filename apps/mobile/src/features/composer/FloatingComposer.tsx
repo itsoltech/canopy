@@ -7,6 +7,7 @@ import { useColors } from "../../ui/theme";
 import { IconButton } from "../../ui/components";
 import { useContentInsets } from "../../ui/ScreenFrame";
 import { ComposerMotionContext, type ComposerMotion } from "./ComposerFold";
+import { ComposerViewport } from "./ComposerViewport";
 
 /** Web VirtualFeed's bottom overlay: canvas fading over 32 points, with the timeline continuing underneath. */
 export function FloatingComposer({
@@ -50,78 +51,80 @@ export function FloatingComposer({
 
   return (
     <ComposerMotionContext.Provider value={motion}>
-      <Animated.View
-        pointerEvents="box-none"
-        style={[{ position: "absolute", bottom: 0, left: 0, right: 0, justifyContent: "flex-end" }, bounds]}
-      >
-        {onLatest && (
-          // It pops in and out above the composer (web `pop`) without moving it.
-          <Animated.View
-            entering={pop.entering}
-            exiting={pop.exiting}
-            pointerEvents="box-none"
-            style={{ height: 56, flexShrink: 1, alignItems: "center" }}
-          >
+      <ComposerViewport>
+        <Animated.View
+          pointerEvents="box-none"
+          style={[{ position: "absolute", bottom: 0, left: 0, right: 0, justifyContent: "flex-end" }, bounds]}
+        >
+          {onLatest && (
+            // It pops in and out above the composer (web `pop`) without moving it.
+            <Animated.View
+              entering={pop.entering}
+              exiting={pop.exiting}
+              pointerEvents="box-none"
+              style={{ height: 56, flexShrink: 1, alignItems: "center" }}
+            >
+              <View
+                style={{
+                  borderRadius: 22,
+                  backgroundColor: c.surface,
+                  borderWidth: 1,
+                  borderColor: c.line,
+                  boxShadow: "0px 2px 8px #0000001a",
+                }}
+              >
+                <IconButton icon="arrow-down" label="Show latest messages" onPress={onLatest} />
+              </View>
+            </Animated.View>
+          )}
+          <View pointerEvents="box-none" style={{ zIndex: 1, flexShrink: 1, minHeight: 0 }}>
             <View
+              pointerEvents="box-none"
+              style={{ flexShrink: 1, minHeight: 0, marginLeft: 12 + insets.left, marginRight: 12 + insets.right }}
+            >
+              {overlay}
+            </View>
+            {/* Status rows and the tray share the composer's canvas and fade, so the feed passes under them. */}
+            <View
+              pointerEvents="box-none"
+              onLayout={(event) => {
+                setBlock(event.nativeEvent.layout.height);
+                onAccessoryLayout?.(event.nativeEvent.layout.height);
+              }}
               style={{
-                borderRadius: 22,
-                backgroundColor: c.surface,
-                borderWidth: 1,
-                borderColor: c.line,
-                boxShadow: "0px 2px 8px #0000001a",
+                flexShrink: 1,
+                minHeight: 0,
+                gap: 8,
+                paddingLeft: 12 + insets.left,
+                paddingRight: 12 + insets.right,
+                backgroundColor: block > 0 ? c.background : undefined,
               }}
             >
-              <IconButton icon="arrow-down" label="Show latest messages" onPress={onLatest} />
+              {block > 0 && <Fade />}
+              {accessory}
+              {tray}
             </View>
-          </Animated.View>
-        )}
-        <View pointerEvents="box-none" style={{ zIndex: 1, flexShrink: 1, minHeight: 0 }}>
-          <View
-            pointerEvents="box-none"
-            style={{ flexShrink: 1, minHeight: 0, marginLeft: 12 + insets.left, marginRight: 12 + insets.right }}
-          >
-            {overlay}
           </View>
-          {/* Status rows and the tray share the composer's canvas and fade, so the feed passes under them. */}
-          <View
-            pointerEvents="box-none"
-            onLayout={(event) => {
-              setBlock(event.nativeEvent.layout.height);
-              onAccessoryLayout?.(event.nativeEvent.layout.height);
-            }}
-            style={{
-              flexShrink: 1,
-              minHeight: 0,
-              gap: 8,
-              paddingLeft: 12 + insets.left,
-              paddingRight: 12 + insets.right,
-              backgroundColor: block > 0 ? c.background : undefined,
-            }}
-          >
-            {block > 0 && <Fade />}
-            {accessory}
-            {tray}
+          <View style={{ paddingBottom: insets.bottom, backgroundColor: c.background }}>
+            <View
+              onLayout={onLayout}
+              onTouchStart={onExpand}
+              style={{
+                flexShrink: 0,
+                paddingLeft: 12 + insets.left,
+                paddingRight: 12 + insets.right,
+                paddingTop: 8,
+                paddingBottom: 12,
+                gap: 8,
+                backgroundColor: c.background,
+              }}
+            >
+              <Fade />
+              {children}
+            </View>
           </View>
-        </View>
-        <View style={{ paddingBottom: insets.bottom, backgroundColor: c.background }}>
-          <View
-            onLayout={onLayout}
-            onTouchStart={onExpand}
-            style={{
-              flexShrink: 0,
-              paddingLeft: 12 + insets.left,
-              paddingRight: 12 + insets.right,
-              paddingTop: 8,
-              paddingBottom: 12,
-              gap: 8,
-              backgroundColor: c.background,
-            }}
-          >
-            <Fade />
-            {children}
-          </View>
-        </View>
-      </Animated.View>
+        </Animated.View>
+      </ComposerViewport>
     </ComposerMotionContext.Provider>
   );
 }
