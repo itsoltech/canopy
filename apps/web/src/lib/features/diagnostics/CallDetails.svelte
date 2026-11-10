@@ -10,8 +10,9 @@
   }: { call: ui.DiagnosticsCall | undefined; open?: boolean; observedSeconds: number } = $props();
 </script>
 
-<Dialog bind:open title="RPC details" description={call?.method}>
+<Dialog bind:open title="RPC details">
   {#if call}
+    <p class="mb-4 text-sm break-all text-muted">{call.method}</p>
     <dl class="grid grid-cols-2 gap-3 text-sm tabular-nums">
       <div>
         <dt class="text-muted">Layer</dt>

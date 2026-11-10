@@ -115,6 +115,13 @@ describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one rela
   test("validates pages and windows, deduplicates worker batches and separates RTT from heartbeat", async () => {
     expect(await rejectedCode(a.api.getComputerDiagnostics({ limit: 33 }))).toBe(Code.InvalidArgument);
     expect(await rejectedCode(a.api.getDiagnostics({ windowMinutes: 12 }))).toBe(Code.InvalidArgument);
+    expect(
+      await rejectedCode(a.api.getComputerDiagnostics({ methodKeys: Array.from({ length: 33 }, () => "rpc:method") })),
+    ).toBe(Code.InvalidArgument);
+    expect(await rejectedCode(a.api.getComputerDiagnostics({ methodKeys: ["m".repeat(257)] }))).toBe(
+      Code.InvalidArgument,
+    );
+    expect(await rejectedCode(a.api.getComputerDiagnostics({ offset: 385 }))).toBe(Code.InvalidArgument);
 
     const report = create(ui.WorkerLinkDiagnosticsSchema, {
       session: crypto.randomUUID(),
@@ -205,6 +212,38 @@ describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one rela
     expect(measured?.heartbeatIntervalMs?.samples).toBeGreaterThanOrEqual(2n);
     expect(measured?.rttMs?.p95).toBeLessThan(measured!.heartbeatIntervalMs!.p95);
   }, 45_000);
+
+  test("a restarted worker adds a new session without resetting or replaying its previous window", async () => {
+    const link = a.core.diagnostics.links.get(`worker:${a.workerId}`)!;
+    const before = link.snapshot(15, "Worker", true, true).rttMs!.samples;
+    a.worker.link.close();
+
+    const restarted = await a.connect(a.workerId, a.workerCredential, undefined, {
+      hello: { capabilities: ["diagnostics_v1"] },
+    });
+
+    const report = create(ui.WorkerLinkDiagnosticsSchema, {
+      session: crypto.randomUUID(),
+      sequence: 1n,
+      rtt: { indices: [20], counts: [7n], sum: 1, max: 1 },
+      jitter: {},
+    });
+
+    restarted.link.send({ case: "diagnostics", value: report });
+    await ready(() => link.watermark.session === report.session);
+    expect(link.snapshot(15, "Worker", true, true).rttMs!.samples).toBe(before + 7n);
+    restarted.link.send({ case: "diagnostics", value: report });
+    await a.api.getClientCapabilities({});
+    expect(link.snapshot(15, "Worker", true, true).rttMs!.samples).toBe(before + 7n);
+    await a.core.diagnostics.persistence!.flush(true);
+    const persisted = await a.core.diagnostics.persistence!.store.state();
+    expect(
+      persisted?.watermarks.some(
+        (value) =>
+          value.processId === `worker:${a.workerId}` && value.session === report.session && value.sequence === 1n,
+      ),
+    ).toBe(true);
+  });
 
   test("keeps offline snapshots and unsupported computers visible without recursive gathering", async () => {
     await c.api.setDiagnosticsGrant({ originComputerId: nodes[0]!.hello().nodeId, enabled: true });

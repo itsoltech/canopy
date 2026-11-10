@@ -140,6 +140,8 @@ export class RpcCollector {
       for (const ring of [this.short, this.minutes, this.quarters]) ring.cover(this.#lastUtc, utc);
     this.#lastMono = mono;
     this.#lastUtc = utc;
+    this.historyMinutes.expire(Math.floor(utc / 60_000) * 60_000 - 3_540_000);
+    this.historyQuarters.expire(Math.floor(utc / 900_000) * 900_000 - 85_500_000);
   }
 
   restore(process: ui.DiagnosticsProcess, at: number) {
@@ -151,8 +153,26 @@ export class RpcCollector {
     });
 
     // Historical sessions participate in reads, never in this session's persisted minute.
-    if (at >= this.startedAt - 3_600_000) this.historyMinutes.restore(safe, at);
-    this.historyQuarters.restore(safe, at);
+    if (at >= this.startedAt - 3_600_000) this.#restoreHistory(this.historyMinutes, safe, at);
+    this.#restoreHistory(this.historyQuarters, safe, at);
+  }
+
+  #restoreHistory(ring: Buckets, process: ui.DiagnosticsProcess, at: number) {
+    // Restore may shed older detail, but must leave room for new RPCs and minute writes.
+    const limit = Math.floor(this.budget.limit * 0.6);
+
+    while (this.budget.used + ring.restoreBytes(process, at) > limit) {
+      if (this.historyQuarters.evictOldest() || this.historyMinutes.evictOldest()) {
+        this.budget.dropped++;
+        continue;
+      }
+
+      this.budget.dropped += process.series.length;
+
+      return;
+    }
+
+    ring.restore(process, at);
   }
 
   merge(process: ui.DiagnosticsProcess, at = this.clock.utc()) {

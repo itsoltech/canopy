@@ -386,7 +386,11 @@ niepełne pokrycie, także po przełączeniu load balancera. Nie uśredniamy per
 
 Implementacja etapu 1 rozdziela odtworzone kubełki od bieżących w ramach wspólnego
 budżetu pamięci: odczyt je scala, ale zapis nowej sesji nigdy nie utrwala ponownie
-historii poprzedniej. Raporty RTT mają osobne checkpointy sesji nadawcy, zapisane
+historii poprzedniej. Odtworzone szczegóły mogą zająć najwyżej 60% budżetu
+kolektora; najstarsze sloty historyczne ustępują nowszym, a wygasłe są zwalniane.
+Pozostały budżet chroni bieżące próbki i minutowy zapis przed zagłodzeniem przez
+pełną historię. Ograniczenie szczegółów zwiększa `dropped_samples` i zachowuje
+luki pokrycia; zapis w DB pozostaje pod pełną retencją. Raporty RTT mają osobne checkpointy sesji nadawcy, zapisane
 atomowo z agregatem sesji odbiorcy. Dwie ostatnie sesje na łącze mieszczą się w
 ograniczonym stanie deduplikacji także przy reconnect w tej samej minucie.
 

@@ -101,6 +101,33 @@ export class Buckets {
     for (const value of process.series) this.series(at, value.methodId)?.merge(value);
   }
 
+  restoreBytes(process: ui.DiagnosticsProcess, at: number) {
+    const bucket = Math.floor(at / this.width) * this.width;
+    const slot = this.slots.find((value) => value?.at === bucket);
+
+    return (
+      (slot ? 0 : SLOT_BYTES) +
+      process.series.filter((value) => !slot?.series.has(value.methodId)).length * AGGREGATE_BYTES
+    );
+  }
+
+  evictOldest(before = Infinity) {
+    const oldest = this.slots.reduce<Slot | undefined>(
+      (previous, slot) => (slot && slot.at < before && (!previous || slot.at < previous.at) ? slot : previous),
+      undefined,
+    );
+
+    if (!oldest) return false;
+    this.slots[Math.floor(oldest.at / this.width) % this.count] = undefined;
+    this.budget.used -= SLOT_BYTES + oldest.series.size * AGGREGATE_BYTES;
+
+    return true;
+  }
+
+  expire(before: number) {
+    while (this.evictOldest(before)) {}
+  }
+
   between(start: number, end: number) {
     return this.slots.filter((slot): slot is Slot => Boolean(slot && slot.at >= start && slot.at < end));
   }

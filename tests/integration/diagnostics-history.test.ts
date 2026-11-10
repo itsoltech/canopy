@@ -152,6 +152,63 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     ]);
   });
 
+  test("a full restore preserves live collection and writes, then releases expired history", async () => {
+    let now = Math.floor(Date.now() / 60_000) * 60_000;
+    const storage = new DiagnosticsStore(gateway.runtime, gateway.userId, "restore-budget");
+    const state = create(ui.DiagnosticsStateSchema, { schemaVersion: 1, epoch: crypto.randomUUID() });
+    await storage.initialize(state);
+    await storage.write(
+      Array.from({ length: 20 }, (_, index) => {
+        const at = now - (20 - index) * 60_000;
+
+        return {
+          at,
+          processes: [
+            create(ui.DiagnosticsProcessSchema, {
+              processId: "gateway",
+              session: "previous",
+              sequence: BigInt(at),
+              series: [{ methodId: method.id, started: 1n, completed: 1n }],
+              coverage: [{ startMs: BigInt(at), endMs: BigInt(at + 60_000) }],
+            }),
+          ],
+        };
+      }),
+      state,
+    );
+    const budget = new BucketBudget(64 * 1024);
+    const live = new RpcCollector([method], { utc: () => now, monotonic: () => now }, budget);
+    const writer = new DiagnosticsPersistence(storage, live, host);
+    await writer.start();
+    expect(budget.dropped).toBeGreaterThan(0);
+    expect(rpcSnapshot(live, 15).calls[0]?.started).toBeGreaterThan(0n);
+    const call = live.start(method.id);
+    expect(call).toBeDefined();
+    now += 5000;
+    live.tick();
+    call!.finish();
+    await writer.flush(true);
+    expect(writer.status).toBe("saved");
+
+    const rows = await storage.query<{ payload: Uint8Array }>(
+      "SELECT payload FROM diagnostics_rollups WHERE owner_user_id=$1::uuid AND computer_id='restore-budget' ORDER BY bucket_start DESC LIMIT 1",
+      [gateway.userId],
+    );
+
+    const fresh = decodeRollup(rows[0]!.payload).processes.find((process) => process.session === live.session);
+    expect(fresh?.series[0]?.started).toBe(1n);
+    expect(fresh?.series[0]?.completed).toBe(1n);
+    const allocated = budget.used;
+    now += 86_400_000;
+    live.tick();
+    expect(live.historyMinutes.slots.every((slot) => !slot)).toBe(true);
+    expect(live.historyQuarters.slots.every((slot) => !slot)).toBe(true);
+    expect(budget.used).toBeLessThan(allocated);
+    await query("DELETE FROM diagnostics_state WHERE owner_user_id=$1::uuid AND computer_id='restore-budget'", [
+      gateway.userId,
+    ]);
+  });
+
   test("restored overflow samples mark only the affected percentile ranks", async () => {
     const storage = new DiagnosticsStore(gateway.runtime, gateway.userId, "overflow");
     const state = create(ui.DiagnosticsStateSchema, { schemaVersion: 1 });
