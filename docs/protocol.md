@@ -427,6 +427,22 @@ Gateway może potwierdzić scalony PR przez konektor właściciela z grantem wor
 `WorktreeTarget.merged_pr_head` + `merged_pr_repository`; worker uznaje je tylko dla dokładnego HEAD
 i własnego remote. Konektor oraz poświadczenia pozostają w gatewayu. Pola są addytywne.
 
+## Folder i pliki wątku
+
+Capability `reveal_path`: nietrwała `RevealPath` (220) otwiera katalog wątku menedżerem plików
+komputera workera ([worktrees.md](worktrees.md)).
+
+Capability `thread_files_v1`: nietrwałe, nigdy z outboxa `ReadFile` (222), `OpenFile` (223),
+`WriteFile` (224) i `DeleteFile` (225) z `FileRequest`; wynik w `CommandResult.file` (222, `FileContent`).
+UI woła `ReadThreadFile`, `WriteThreadFile`, `DeleteThreadFile` i `OpenThreadFile` z ID wątku i ścieżką;
+względna ścieżka liczy się od `threads.cwd` (`@canopy/domain/thread-files`). Gateway sprawdza właściciela
+i wysyła `roots`: katalog wątku i workspace'y właściciela na tym workerze. Worker dodaje katalog
+załączników wątku, rozwija `~`, rozwiązuje symlinki i przyjmuje tylko istniejący zwykły plik pod jednym
+z korzeni (`FILE_OUTSIDE_ROOTS`). Odczyt zwraca do 2 MiB (`truncated`), plik nie-UTF-8 jako `binary` bez
+treści, oraz SHA-256 całego pliku. Zapis i usunięcie wymagają `expected_sha256` z odczytu; inna treść na
+dysku daje `FILE_CHANGED`, więc edycja nie nadpisze cudzej zmiany. `OpenFile` używa `open`,
+`explorer.exe` albo `xdg-open`. Połączone komputery przekazują te RPC do domu wątku.
+
 ## CLI dostawców
 
 Capability `cli_install`: worker wysyła `CliToolsReport` (ścieżka, wersja, sposób instalacji każdego CLI) po połączeniu, po `ProbeProviders`, po instalacji i co 6 h; nietrwała komenda `InstallCli` (nigdy z outboxa) uruchamia stały przepis, postęp idzie w `CliInstallProgress`, wynik w następnym raporcie. Bez zmiany `WORKER_LINK_PROTOCOL`. Szczegóły i zasady: [provider-cli.md](provider-cli.md).

@@ -51,6 +51,7 @@ export interface CommandOutput {
   readonly importedSessionId?: string;
   readonly importLibraryContent?: MessageInitShape<typeof CommandResultSchema>["importLibraryContent"];
   readonly importSecret?: MessageInitShape<typeof CommandResultSchema>["importSecret"];
+  readonly file?: MessageInitShape<typeof CommandResultSchema>["file"];
 }
 
 export interface WorkerHostOptions {

@@ -77,6 +77,11 @@ const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "scanWorktrees",
   "revealWorktree",
   "revealPath",
+  // Explicit owner actions on one file: answered once, never redelivered.
+  "readFile",
+  "openFile",
+  "writeFile",
+  "deleteFile",
   "scanImportSources",
   "readImportPage",
   "readImportLibraryItem",
