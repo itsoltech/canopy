@@ -31,9 +31,10 @@ export class DiagnosticsPersistence {
       restoreProcess(process: ui.DiagnosticsProcess, at: number): void;
       processes(at: number): ui.DiagnosticsProcess[];
       saved?(state: ui.DiagnosticsState): void;
+      ready?(): void;
     },
   ) {
-    this.#historyAfter = collector.startedAt - 86_400_000 - 1;
+    this.#historyAfter = collector.startedAt - 3_600_000 - 1;
     this.#queuedThrough = Math.floor(collector.startedAt / 60_000) * 60_000 - 60_000;
   }
 
@@ -43,7 +44,14 @@ export class DiagnosticsPersistence {
     return this.#restore;
   }
 
+  get ready() {
+    return this.#stateLoaded;
+  }
+
   async #load() {
+    // Yield until after the listener is ready. Public reads never await this background task.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
     try {
       const state = await this.store.state();
 
@@ -56,7 +64,7 @@ export class DiagnosticsPersistence {
 
       this.#stateLoaded = true;
 
-      for await (const { at, rollup } of this.store.history(this.#historyAfter + 1)) {
+      for await (const { at, rollup } of this.store.history(this.#historyAfter + 1, this.collector.startedAt)) {
         for (const process of rollup.processes) {
           if (process.processId === "gateway") this.collector.restore(process, at);
           else this.host.restoreProcess(process, at);
@@ -74,6 +82,8 @@ export class DiagnosticsPersistence {
       this.status = "unavailable";
     } finally {
       this.restoring = false;
+
+      if (this.#stateLoaded) this.host.ready?.();
     }
   }
 

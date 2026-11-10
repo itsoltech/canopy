@@ -15,7 +15,8 @@ export function addCounter(left: number, right = 1) {
 
 /** Fixed time boundaries in milliseconds; bins 0/129 are underflow/overflow. */
 export class Histogram {
-  readonly counts: Uint32Array | BigUint64Array;
+  readonly indices: number[] = [];
+  readonly counts: bigint[] = [];
   sum = 0;
   max = 0;
   incomplete = false;
@@ -23,9 +24,8 @@ export class Histogram {
   constructor(
     readonly sizes = false,
     readonly wide = false,
-  ) {
-    this.counts = wide ? new BigUint64Array(sizes ? 32 : 130) : new Uint32Array(sizes ? 32 : 130);
-  }
+    readonly reserve?: (bytes: number) => boolean,
+  ) {}
 
   record(value: number) {
     if (!Number.isFinite(value) || value < 0) return;
@@ -36,61 +36,73 @@ export class Histogram {
         ? 0
         : Math.min(129, 1 + Math.max(0, Math.ceil(4 * Math.log2(value * 1000))));
 
-    if (this.counts instanceof BigUint64Array) {
-      this.incomplete ||= this.counts[index] === MAX_COUNT;
-      this.counts[index] = addCount(this.counts[index]!);
-    } else {
-      this.incomplete ||= this.counts[index] === MAX_BUCKET;
-      this.counts[index] = Math.min(MAX_BUCKET, this.counts[index]! + 1);
-    }
+    this.#add(index, 1n);
 
     this.sum = Math.min(Number.MAX_VALUE, this.sum + value);
     this.max = Math.max(this.max, value);
   }
 
   merge(other: ui.DiagnosticsHistogram | Histogram) {
-    if (other instanceof Histogram) {
-      for (let index = 0; index < Math.min(this.counts.length, other.counts.length); index++) {
-        const count = other.counts[index]!;
+    for (let at = 0; at < other.indices.length; at++) {
+      const index = other.indices[at]!;
 
-        if (count) this.#add(index, BigInt(count));
-      }
+      if (index < (this.sizes ? 32 : 130)) this.#add(index, other.counts[at] ?? 0n);
+    }
 
-      this.incomplete ||= other.incomplete;
-    } else
-      for (let at = 0; at < other.indices.length; at++) {
-        const index = other.indices[at]!;
-
-        if (index < this.counts.length) this.#add(index, other.counts[at] ?? 0n);
-      }
+    if (other instanceof Histogram) this.incomplete ||= other.incomplete;
 
     this.sum = Math.min(Number.MAX_VALUE, this.sum + other.sum);
     this.max = Math.max(this.max, other.max);
   }
 
   #add(index: number, value: bigint) {
-    if (this.counts instanceof BigUint64Array) {
-      const count = this.counts[index]! + value;
-      this.incomplete ||= count > MAX_COUNT;
-      this.counts[index] = count > MAX_COUNT ? MAX_COUNT : count;
-    } else {
-      const count = this.counts[index]! + Number(value);
-      this.incomplete ||= count > MAX_BUCKET;
-      this.counts[index] = Math.min(MAX_BUCKET, count);
+    if (!value) return;
+    let at = this.indices.indexOf(index);
+
+    if (at === -1) {
+      if (this.reserve && !this.reserve(48)) {
+        this.incomplete = true;
+
+        return;
+      }
+
+      at = this.indices.findIndex((value) => value > index);
+
+      if (at === -1) at = this.indices.length;
+      this.indices.splice(at, 0, index);
+      this.counts.splice(at, 0, 0n);
     }
+
+    const limit = this.wide ? MAX_COUNT : BigInt(MAX_BUCKET);
+    const count = this.counts[at]! + value;
+    this.incomplete ||= count > limit;
+    this.counts[at] = count > limit ? limit : count;
+  }
+
+  subtract(other: Histogram) {
+    for (let i = 0; i < other.indices.length; i++) {
+      const at = this.indices.indexOf(other.indices[i]!);
+
+      if (at === -1) continue;
+      const next = this.counts[at]! - other.counts[i]!;
+
+      if (next > 0n) this.counts[at] = next;
+      else {
+        this.counts.splice(at, 1);
+        this.indices.splice(at, 1);
+      }
+    }
+
+    this.sum = Math.max(0, this.sum - other.sum);
   }
 
   snapshot() {
-    const indices: number[] = [];
-    const counts: bigint[] = [];
-
-    for (let index = 0; index < this.counts.length; index++) {
-      if (!this.counts[index]) continue;
-      indices.push(index);
-      counts.push(BigInt(this.counts[index]!));
-    }
-
-    return create(ui.DiagnosticsHistogramSchema, { indices, counts, sum: this.sum, max: this.max });
+    return create(ui.DiagnosticsHistogramSchema, {
+      indices: this.indices.slice(),
+      counts: this.counts.slice(),
+      sum: this.sum,
+      max: this.max,
+    });
   }
 }
 

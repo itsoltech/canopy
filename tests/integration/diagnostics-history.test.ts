@@ -105,6 +105,7 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     gateway = await startTestGateway({ diagnostics: true, storage });
     store = new DiagnosticsStore(gateway.runtime, gateway.userId, "local");
     await gateway.core.diagnostics.start();
+    await gateway.core.diagnostics.persistence?.start();
 
     for (const windowMinutes of [15, 60, 1440]) {
       const snapshot = await gateway.api.getComputerDiagnostics({ windowMinutes });
@@ -205,7 +206,6 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     now += 86_400_000;
     live.tick();
     expect(live.historyMinutes.slots.every((slot) => !slot)).toBe(true);
-    expect(live.historyQuarters.slots.every((slot) => !slot)).toBe(true);
     expect(budget.used).toBeLessThan(allocated);
     expect(rpcSnapshot(live, 15).calls).toEqual([]);
     await query("DELETE FROM diagnostics_state WHERE owner_user_id=$1::uuid AND computer_id='restore-budget'", [
@@ -308,7 +308,7 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     expect(
       (
         await query<{ n: number }>(
-          "SELECT count(*)::int n FROM diagnostics_rollups WHERE resolution=60 AND bucket_start<now()-interval '72 hours'",
+          "SELECT count(*)::int n FROM diagnostics_rollups WHERE resolution=60 AND bucket_start<now()-interval '2 hours'",
         )
       )[0]?.n,
     ).toBe(60);
@@ -329,7 +329,7 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     expect(
       (
         await query<{ n: number }>(
-          "SELECT count(*)::int n FROM diagnostics_rollups WHERE resolution=60 AND bucket_start<now()-interval '72 hours'",
+          "SELECT count(*)::int n FROM diagnostics_rollups WHERE resolution=60 AND bucket_start<now()-interval '2 hours'",
         )
       )[0]?.n,
     ).toBe(0);
@@ -510,8 +510,11 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     await writer.flush(true);
     expect((await storage.state())?.watermarks.map((value) => value.sequence)).toEqual([4n, 1n]);
     const restored = new LinkDiagnostics(gateway.workerId, "worker", new BucketBudget());
+    restored.restoring = true;
+    expect(restored.report(report)).toBe(true);
     const reader = new DiagnosticsPersistence(storage, new RpcCollector([method]), makeHost(restored));
     await reader.start();
+    restored.resume();
     expect(restored.report(report)).toBe(false);
     expect(
       restored.report(create(ui.WorkerLinkDiagnosticsSchema, { ...report, session: "second", sequence: 1n })),
@@ -545,7 +548,7 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     const payload = encodeRollup([process]);
     await query(
       `INSERT INTO diagnostics_rollups(owner_user_id,computer_id,resolution,bucket_start,payload)
-      SELECT $1::uuid,'quota',60,to_timestamp($2/1000.0)-n*interval '1 minute',$3 FROM generate_series(1,4320) n`,
+      SELECT $1::uuid,'quota',60,to_timestamp($2/1000.0)-n*interval '1 minute',$3 FROM generate_series(1,180) n`,
       [gateway.userId, at, payload],
     );
     await storage.write([{ at: at - 60_000, processes: [process] }], state);
@@ -556,8 +559,12 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     expect(rpcSnapshot(restored, 15).calls[0]?.started).toBeGreaterThan(0xffff_ffffn);
     expect(rpcSnapshot(restored, 15).calls[0]?.durationMs?.samples).toBeGreaterThan(0xffff_ffffn);
     expect(
-      (await query<{ n: number }>("SELECT count(*)::int n FROM diagnostics_rollups WHERE computer_id='quota'"))[0]?.n,
-    ).toBe(4320);
+      (
+        await query<{ n: number }>(
+          "SELECT count(*)::int n FROM diagnostics_rollups WHERE computer_id='quota' AND resolution=60",
+        )
+      )[0]?.n,
+    ).toBe(180);
     await query("DELETE FROM diagnostics_state WHERE owner_user_id=$1::uuid AND computer_id='quota'", [gateway.userId]);
   });
 });

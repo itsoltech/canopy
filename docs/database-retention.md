@@ -22,6 +22,7 @@ wykonuje `VACUUM FULL` ani nie obiecuje natychmiastowego zmniejszenia pliku bazy
 | `config_history` | Dotychczasowe 90 dni; bieżące rekordy konfiguracji, tombstone'y i kursory synchronizacji zostają. Usuwanie nie działa już pod blokadą publikacji konfiguracji. |
 | `connector_oauth_states` | 7 dni po TTL. Przez ten okres zachowujemy rozróżnienie kodu wygasłego, użytego i zakończonego. Nowe logowanie nadal unieważnia stany tego samego konta właściciela. |
 | `agent_skill_source_previews` | Po TTL, partiami. Zapis nowego preview dodatkowo usuwa do 256 nadmiarowych wpisów poza czterema najnowszymi; nie skanuje globalnie cudzych danych. |
+| `diagnostics_rollups` | Minuty przez 2 h po zapisaniu godziny, godziny przez 30 dni. Zwykła partia minutowa zapisuje też zakończoną godzinę; maintenance uzupełnia brakującą godzinę po crashu i usuwa stare wiersze. Ta sama blokada stanu domu chroni retry, spóźnione minuty i pruning przed podwójnym naliczeniem. Twarde kwoty 180 minut / 720 godzin; szczegóły w `diagnostics.md` §5. |
 
 Migracja backfilluje ACK harnessów i rejestr istniejących generacji. Stary staging
 bez dzierżawy jest zachowany do zmiany subskrypcji. Czynne strumienie starego

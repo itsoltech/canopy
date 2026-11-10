@@ -8,8 +8,9 @@ import { diagnosticsWorker } from "./diagnostics-worker-process.ts";
 import { seedDiagnosticsHistory } from "./seed-diagnostics-history.ts";
 import { diagnosticsLoad, type DiagnosticsPhase } from "./diagnostics-load.ts";
 import { diagnosticsContention } from "./diagnostics-contention.ts";
+import { monitorHost } from "./diagnostics-host.ts";
 
-/** Isolated, durable PostgreSQL. Defaults implement the three alternating ten-minute idle series. */
+/** Isolated, durable PostgreSQL. Five AB/BA pairs; host-noise failures invalidate the entire pair. */
 const forbidden = new Set([17443, 5180, 8444, 17444, 17445, 3000, 7443, 7432, 4443, 7444, 5291, 8081]);
 const pgPort = Number(process.env["CANOPY_BENCH_PG_PORT"] ?? 18191);
 const gatewayPort = Number(process.env["CANOPY_BENCH_GATEWAY_PORT"] ?? 18192);
@@ -22,9 +23,12 @@ if (
 
 const idleMs = Number(process.env["CANOPY_BENCH_IDLE_MS"] ?? 600_000);
 const loadMs = Number(process.env["CANOPY_BENCH_LOAD_MS"] ?? 120_000);
-const series = Number(process.env["CANOPY_BENCH_SERIES"] ?? 3);
+const series = Number(process.env["CANOPY_BENCH_SERIES"] ?? 5);
 
-if (process.env["CANOPY_BENCH_CONTENTION"] === "1" && loadMs < 140_000)
+if (
+  (process.env["CANOPY_BENCH_CONTENTION"] === "1" || process.env["CANOPY_BENCH_ALL_PHASES"] === "1") &&
+  loadMs < 140_000
+)
   throw new Error("Contention phases need 70 seconds of locking and at least 70 seconds of recovery");
 
 const name = `canopy-diagnostics-bench-${process.pid}`;
@@ -33,6 +37,8 @@ const token = randomBytes(32).toString("hex");
 const key = randomBytes(32).toString("base64");
 let active: Awaited<ReturnType<typeof diagnosticsProcess>> | undefined;
 let worker: Awaited<ReturnType<typeof diagnosticsWorker>> | undefined;
+let attempt = 0;
+let host: Awaited<ReturnType<typeof monitorHost>> | undefined;
 
 async function command(args: string[], env = process.env) {
   const child = Bun.spawn(args, { env, stdout: "pipe", stderr: "inherit" });
@@ -75,6 +81,7 @@ async function measuredGateway(env: Record<string, string | undefined>, series: 
     JSON.stringify({
       phase: "startup",
       series,
+      attempt,
       on,
       startupMs,
       pgCpuMicros: after.cpuMicros - before.cpuMicros,
@@ -92,8 +99,24 @@ async function measuredGateway(env: Record<string, string | undefined>, series: 
   return gateway;
 }
 
+function benchmarkApi() {
+  return createClient(
+    ui.GatewayService,
+    createGrpcTransport({
+      baseUrl: `http://127.0.0.1:${gatewayPort}`,
+      interceptors: [
+        (next) => (request) => {
+          request.header.set("authorization", `Bearer ${token}`);
+
+          return next(request);
+        },
+      ],
+    }),
+  );
+}
+
 async function run(on: boolean, index: number) {
-  const database = `diagnostics_${index}_${Number(on)}`;
+  const database = `diagnostics_${index}_${Number(on)}_${attempt}`;
   await command(["docker", "exec", name, "createdb", "-U", "postgres", database]);
 
   const env = {
@@ -118,18 +141,19 @@ async function run(on: boolean, index: number) {
     CANOPY_BENCH_WORKER_CREDENTIAL: seed.worker.credential,
   });
 
-  const api = createClient(
-    ui.GatewayService,
-    createGrpcTransport({
-      baseUrl: `http://127.0.0.1:${gatewayPort}`,
-      interceptors: [
-        (next) => (request) => {
-          request.header.set("authorization", `Bearer ${token}`);
+  const api = benchmarkApi();
 
-          return next(request);
-        },
-      ],
-    }),
+  const readyDeadline = Date.now() + 30_000;
+
+  while ((await api.getComputerDiagnostics({ limit: 1 })).restoring) {
+    host?.assertQuiet();
+
+    if (Date.now() > readyDeadline) throw new Error("Background restore did not complete");
+    await Bun.sleep(10);
+  }
+
+  console.info(
+    JSON.stringify({ phase: "background_restore", series: index + 1, attempt, on, ...(await active.run("sample")) }),
   );
 
   // Warm runtime, database buffers, histograms and the selected application read before every series.
@@ -137,15 +161,19 @@ async function run(on: boolean, index: number) {
   await Bun.sleep(5000);
 
   const phases: DiagnosticsPhase[] =
-    process.env["CANOPY_BENCH_CONTENTION"] === "1"
-      ? ["write_failure", "pool_contention"]
-      : process.env["CANOPY_BENCH_CHURN"] === "1"
-        ? ["churn"]
-        : process.env["CANOPY_BENCH_EXTRA_PHASES"] === "1"
-          ? ["reconnect", "slow_reader"]
-          : ["idle", "steady"];
+    process.env["CANOPY_BENCH_ALL_PHASES"] === "1"
+      ? ["idle", "steady", "reconnect", "slow_reader", "write_failure", "pool_contention"]
+      : process.env["CANOPY_BENCH_CONTENTION"] === "1"
+        ? ["write_failure", "pool_contention"]
+        : process.env["CANOPY_BENCH_CHURN"] === "1"
+          ? ["churn"]
+          : process.env["CANOPY_BENCH_EXTRA_PHASES"] === "1"
+            ? ["reconnect", "slow_reader"]
+            : ["idle", "steady"];
 
   for (const phase of phases) {
+    host?.assertQuiet();
+
     const {
       latencies,
       measurement: { beforePg, before, finishContention },
@@ -166,6 +194,7 @@ async function run(on: boolean, index: number) {
 
         return { beforePg, before, finishContention };
       },
+      host?.signal,
     );
 
     const contention = await finishContention?.();
@@ -179,6 +208,7 @@ async function run(on: boolean, index: number) {
     console.info(
       JSON.stringify({
         series: index + 1,
+        attempt,
         on,
         phase,
         contention,
@@ -201,6 +231,7 @@ async function run(on: boolean, index: number) {
         ...workload,
       }),
     );
+    host?.assertQuiet();
   }
 
   await worker.close();
@@ -211,7 +242,9 @@ async function run(on: boolean, index: number) {
   if (on && process.env["CANOPY_BENCH_HISTORY"] === "1") {
     for (let restart = 0; restart < 3; restart++) {
       active = await diagnosticsProcess(env);
-      console.info(JSON.stringify({ phase: "restart", restart, ...(await active.run("sample")) }));
+      console.info(
+        JSON.stringify({ phase: "restart", series: index + 1, attempt, on, restart, ...(await active.run("sample")) }),
+      );
       await active.close();
       active = undefined;
     }
@@ -227,6 +260,7 @@ try {
       "--rm",
       "--name",
       name,
+      ...(process.env["CANOPY_BENCH_PG_CPU"] ? ["--cpuset-cpus", process.env["CANOPY_BENCH_PG_CPU"]!] : []),
       "-e",
       "POSTGRES_PASSWORD",
       "-p",
@@ -253,10 +287,47 @@ try {
     JSON.stringify({ revision: (await command(["git", "rev-parse", "HEAD"])).trim(), idleMs, loadMs, series }),
   );
 
-  for (let index = 0; index < series; index++) {
-    for (const on of process.env["CANOPY_BENCH_CHURN"] === "1" ? [true] : index % 2 ? [true, false] : [false, true])
-      await run(on, index);
-  }
+  if (process.env["CANOPY_BENCH_SMOKE"] === "1") {
+    console.info(JSON.stringify({ phase: "smoke_only", acceptance: false }));
+    attempt = 1;
+    await run(false, 0);
+    await run(true, 0);
+  } else
+    for (let index = 0; index < series; index++) {
+      let accepted = false;
+
+      for (attempt = 1; attempt <= 3; attempt++) {
+        host = await monitorHost(index + 1, attempt);
+        let completed = false;
+
+        try {
+          await Bun.sleep(5000);
+          host.assertQuiet();
+
+          for (const on of process.env["CANOPY_BENCH_CHURN"] === "1"
+            ? [true]
+            : index % 2
+              ? [true, false]
+              : [false, true])
+            await run(on, index);
+          completed = true;
+        } catch (error) {
+          if (!host.signal.aborted) throw error;
+          console.info(JSON.stringify({ phase: "discarded", pair: index + 1, attempt, reason: "host noise" }));
+        } finally {
+          await worker?.close();
+          worker = undefined;
+          await active?.close();
+          active = undefined;
+          accepted = await host.stop(completed);
+          host = undefined;
+        }
+
+        if (accepted) break;
+      }
+
+      if (!accepted) throw new Error("Three host-noise rejections: a quiet measurement window is unavailable");
+    }
 } finally {
   if (worker) {
     await worker.close();

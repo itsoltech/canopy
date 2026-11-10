@@ -1,4 +1,4 @@
-export { Histogram, percentiles, addCounter, addCount } from "./histogram.ts";
+export { Histogram, percentiles, addCounter, addCount, MAX_COUNT } from "./histogram.ts";
 
 export { Aggregate, mergeAggregates, mergeCoverage } from "./aggregate.ts";
 

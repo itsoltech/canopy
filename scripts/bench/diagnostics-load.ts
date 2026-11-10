@@ -19,22 +19,28 @@ export async function diagnosticsLoad<Measurement>(
   reconnect: () => Promise<object>,
   sample: () => Promise<object>,
   begin: () => Promise<Measurement>,
+  signal?: AbortSignal,
 ) {
   const latencies: number[] = [];
   const workload = { updates: 0, overviewReads: 0, detailReads: 0, reconnects: 0, openedWatches: 0 };
   const abort = new AbortController();
+  const cancel = () => abort.abort();
+  signal?.addEventListener("abort", cancel, { once: true });
   const { watches, watchOpenP95Ms } = await warmWatches(api, thread, phase, abort.signal);
   workload.openedWatches += watches.length;
   const measurement = await begin();
   const until = performance.now() + duration;
 
   if (phase === "idle") {
-    while (performance.now() < until) await Bun.sleep(Math.max(0, Math.min(1000, until - performance.now())));
+    while (performance.now() < until && !signal?.aborted)
+      await Bun.sleep(Math.max(0, Math.min(1000, until - performance.now())));
+    signal?.removeEventListener("abort", cancel);
 
     return { latencies, measurement, watchOpenP95Ms, ...workload };
   }
 
   let changes = 0;
+  const historyReads: number[] = [];
 
   const extra = (async () => {
     let nextReconnect = performance.now() + 5000;
@@ -42,7 +48,7 @@ export async function diagnosticsLoad<Measurement>(
     let nextOverview = performance.now();
     let nextDetails = performance.now();
 
-    while (performance.now() < until) {
+    while (performance.now() < until && !signal?.aborted) {
       const started = performance.now();
 
       if (process.env["CANOPY_BENCH_VIEW"] === "1" && performance.now() >= nextOverview) {
@@ -52,7 +58,9 @@ export async function diagnosticsLoad<Measurement>(
       }
 
       if (process.env["CANOPY_BENCH_VIEW"] === "1" && performance.now() >= nextDetails) {
-        await api.getComputerDiagnostics({ windowMinutes: 15, limit: 32, sortBy: "p95", callKind: "unary" });
+        const start = performance.now();
+        await api.getComputerDiagnostics({ windowMinutes: 1440, limit: 32, sortBy: "p95", callKind: "unary" });
+        historyReads.push(performance.now() - start);
         workload.detailReads++;
         nextDetails = performance.now() + 10_000;
       }
@@ -85,7 +93,7 @@ export async function diagnosticsLoad<Measurement>(
     await Promise.all([
       extra,
       ...Array.from({ length: 4 }, async () => {
-        while (performance.now() < until) {
+        while (performance.now() < until && !signal?.aborted) {
           const start = performance.now();
           await api.getThread({ threadId: thread });
           latencies.push(performance.now() - start);
@@ -93,7 +101,7 @@ export async function diagnosticsLoad<Measurement>(
         }
       }),
       ...Array.from({ length: phase === "slow_reader" ? 4 : 0 }, async () => {
-        while (performance.now() < until) {
+        while (performance.now() < until && !signal?.aborted) {
           const start = performance.now();
           await api.updateThread({ threadId: thread, title: `Synthetic change ${++changes}` });
           workload.updates++;
@@ -102,11 +110,20 @@ export async function diagnosticsLoad<Measurement>(
       }),
     ]);
   } finally {
+    signal?.removeEventListener("abort", cancel);
     abort.abort();
     await Promise.all(watches.map((watch) => watch.return?.().catch(() => undefined)));
   }
 
-  return { latencies, measurement, watchOpenP95Ms, ...workload };
+  historyReads.sort((a, b) => a - b);
+
+  return {
+    latencies,
+    measurement,
+    watchOpenP95Ms,
+    historyReadP95Ms: historyReads[Math.max(0, Math.ceil(historyReads.length * 0.95) - 1)] ?? null,
+    ...workload,
+  };
 }
 
 /** Exclude initial transcript transfer and its warm-up from the steady offered-load interval. */

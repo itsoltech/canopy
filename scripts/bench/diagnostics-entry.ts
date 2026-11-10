@@ -42,6 +42,16 @@ await core.diagnostics.start();
 const restoreMs = performance.now() - restoredAt;
 const restoredCpu = process.cpuUsage(restoreCpu);
 const restoreCpuMicros = restoredCpu.user + restoredCpu.system;
+let backgroundRestoreMs = 0;
+let backgroundRestoreCpuMicros = 0;
+let postRestorePeakRss = 0;
+
+void core.diagnostics.persistence?.start().then(async () => {
+  backgroundRestoreMs = performance.now() - restoredAt;
+  const cpu = process.cpuUsage(restoreCpu);
+  backgroundRestoreCpuMicros = cpu.user + cpu.system;
+  postRestorePeakRss = Number((await Bun.file("/proc/self/status").text()).match(/^VmHWM:\s+(\d+)/m)?.[1] ?? 0) * 1024;
+});
 
 // Linux rusage can include memory inherited before exec; VmHWM belongs to this process image.
 const startupPeakRss =
@@ -110,12 +120,13 @@ async function stats() {
     restoreMs,
     restoreCpuMicros,
     startupPeakRss,
+    backgroundRestoreMs,
+    backgroundRestoreCpuMicros,
+    postRestorePeakRss,
     allocatedSeries: [
       core.diagnostics.collector.short,
       core.diagnostics.collector.minutes,
-      core.diagnostics.collector.quarters,
       core.diagnostics.collector.historyMinutes,
-      core.diagnostics.collector.historyQuarters,
     ].reduce((count, ring) => count + ring.slots.reduce((total, slot) => total + (slot?.series.size ?? 0), 0), 0),
     tableBytes: Number(db.table_bytes),
     indexBytes: Number(db.index_bytes),

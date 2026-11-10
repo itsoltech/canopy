@@ -62,7 +62,7 @@ export const pruneDiagnostics = (sql: SqlClient.SqlClient, owner: string) =>
     touched +=
       (yield* sql`DELETE FROM diagnostics_rollups WHERE (owner_user_id,computer_id,resolution,bucket_start) IN (
     SELECT owner_user_id,computer_id,resolution,bucket_start FROM diagnostics_rollups
-    WHERE owner_user_id=${owner}::uuid AND resolution=60 AND compacted AND bucket_start<now()-interval '72 hours'
+    WHERE owner_user_id=${owner}::uuid AND resolution=60 AND compacted AND bucket_start<now()-interval '2 hours'
     ORDER BY bucket_start LIMIT 131 FOR UPDATE SKIP LOCKED) RETURNING bucket_start`).length;
 
     return touched;

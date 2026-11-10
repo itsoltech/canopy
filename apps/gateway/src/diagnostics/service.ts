@@ -16,6 +16,7 @@ import { LinkDiagnostics } from "./links.ts";
 import { BucketBudget } from "./buckets.ts";
 import { callKey, sortCalls, diagnosticsSorts } from "@canopy/domain/diagnostics";
 import { diagnosticsResponse } from "./response.ts";
+import { DiagnosticsHistory } from "./history.ts";
 
 const METHOD_KEYS = new Set(
   [...RPC_METHODS, ...LINKED_METHODS, ...COMMAND_METHODS].map((method) => `${method.layer}:${method.name}`),
@@ -27,12 +28,16 @@ export class Diagnostics {
   readonly findings = new Findings();
   readonly links = new Map<string, LinkDiagnostics>();
   readonly peers: DiagnosticsPeers;
-  readonly linkBudget = new BucketBudget(8 * 1024 * 1024);
+  readonly linkBudget = new BucketBudget(2 * 1024 * 1024);
   persistence: DiagnosticsPersistence | undefined;
+  history: DiagnosticsHistory | undefined;
   #timer: ReturnType<typeof setInterval> | undefined;
   #minute = 0;
   #unsubscribe: (() => void) | undefined;
-  #snapshots = new Map<number, { at: number; value: ReturnType<typeof rpcSnapshot> }>();
+  #snapshots = new Map<
+    number,
+    { at: number; value: ReturnType<typeof rpcSnapshot>; restored: number; historical: number | undefined }
+  >();
   #workers: readonly { id: string; name: string; supported: boolean }[] = [];
   #workersAt = 0;
   #workersLoading = false;
@@ -56,6 +61,9 @@ export class Diagnostics {
       new DiagnosticsStore(this.options.runtime, this.options.userId, computer),
       this.collector,
       {
+        ready: () => {
+          for (const link of this.links.values()) link.resume();
+        },
         state: () => ({
           findings: [...this.findings.states.values()],
           watermarks: [],
@@ -99,15 +107,21 @@ export class Diagnostics {
     this.#timer.unref();
     void this.peers.catalog().catch(() => {});
     void this.#workerCatalog();
-    await this.persistence.start();
+    this.history = new DiagnosticsHistory(this.persistence.store, (process, id) =>
+      process === "gateway" ? this.collector.methods.has(id) : this.links.has(process) && id >= 1 && id <= 3,
+    );
+
+    for (const link of this.links.values()) link.restoring = true;
+    void this.persistence.start();
   }
 
   link(target: string, kind: "worker" | "computer") {
     const key = `${kind}:${target}`;
     let value = this.links.get(key);
 
-    if (!value && this.links.size < 63) {
+    if (!value && this.links.size < 16) {
       value = new LinkDiagnostics(target, kind, this.linkBudget);
+      value.restoring = this.persistence ? !this.persistence.ready : false;
       this.links.set(key, value);
     }
 
@@ -168,8 +182,18 @@ export class Diagnostics {
     let cached = this.#snapshots.get(minutes);
     const now = this.collector.clock.utc();
 
-    if (!cached || now - cached.at >= 5000) {
-      cached = { at: now, value: rpcSnapshot(this.collector, minutes) };
+    if (
+      !cached ||
+      now - cached.at >= 5000 ||
+      cached.restored !== this.collector.historyRevision ||
+      (minutes === 1440 && cached.historical !== this.history?.revision)
+    ) {
+      cached = {
+        at: now,
+        restored: this.collector.historyRevision,
+        historical: this.history?.revision,
+        value: rpcSnapshot(this.collector, minutes, minutes === 1440 ? this.history?.values.get("gateway") : undefined),
+      };
       this.#snapshots.set(minutes, cached);
     }
 
@@ -214,7 +238,12 @@ export class Diagnostics {
       nextOffset: request.offset + limit < calls.length ? request.offset + limit : 0,
       revision,
       notModified: request.revision === revision,
-      droppedSamples: BigInt(this.collector.budget.dropped + this.linkBudget.dropped + links.dropped),
+      droppedSamples: BigInt(
+        this.collector.budget.dropped +
+          this.linkBudget.dropped +
+          links.dropped +
+          (minutes === 1440 ? (this.history?.dropped ?? 0) : 0),
+      ),
       detailsAvailable: !request.overviewOnly,
       windowMinutes: minutes,
     });
@@ -239,7 +268,15 @@ export class Diagnostics {
       const link = this.link(worker.id, "worker");
 
       if (link)
-        result.push(link.snapshot(minutes, worker.name, worker.supported, this.core.link.connections.has(worker.id)));
+        result.push(
+          link.snapshot(
+            minutes,
+            worker.name,
+            worker.supported,
+            this.core.link.connections.has(worker.id),
+            minutes === 1440 ? this.history?.values.get(`worker:${worker.id}`) : undefined,
+          ),
+        );
       else {
         dropped++;
         result.push(
@@ -264,6 +301,7 @@ export class Diagnostics {
             peer.display_name || peer.name,
             peer.capabilities.includes("diagnostics_v1"),
             this.core.computers?.canCall(peer.node_id) ?? false,
+            minutes === 1440 ? this.history?.values.get(`computer:${peer.node_id}`) : undefined,
           ),
         );
       else {
@@ -289,7 +327,7 @@ export class Diagnostics {
 
     return create(ui.DiagnosticsSnapshotSchema, {
       computers: [
-        this.local(create(ui.ComputerDiagnosticsRequestSchema, { windowMinutes: minutes, overviewOnly: true })),
+        await this.read(create(ui.ComputerDiagnosticsRequestSchema, { windowMinutes: minutes, overviewOnly: true })),
         ...this.peers.peers.map((peer) =>
           this.peers.view(
             peer,
@@ -315,7 +353,7 @@ export class Diagnostics {
       throw new ConnectError("Diagnostics page exceeds budget", Code.InvalidArgument);
 
     if (!request.computerId || request.computerId === (this.core.computers?.hello().nodeId ?? "local"))
-      return this.local(request);
+      return this.read(request);
     await this.peers.catalog();
     const peer = this.peers.peers.find((value) => value.node_id === request.computerId);
 
@@ -330,6 +368,14 @@ export class Diagnostics {
     this.#unsubscribe?.();
     await this.persistence?.stop();
     this.peers.close();
+  }
+
+  async read(request: ui.ComputerDiagnosticsRequest) {
+    if (windowMinutes(request.windowMinutes) === 1440 && this.history) {
+      await this.history.load(this.collector.clock.utc());
+    }
+
+    return this.local(request);
   }
 
   #peerState() {

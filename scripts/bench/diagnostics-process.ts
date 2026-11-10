@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { BenchReply, type BenchCommand, type BenchStats } from "./diagnostics-protocol.ts";
+import { pinnedCommand } from "./diagnostics-host.ts";
 
 /** A separate gateway process keeps driver CPU out of collector measurements. */
 export async function diagnosticsProcess(env: Record<string, string | undefined>) {
@@ -17,26 +18,29 @@ export async function diagnosticsProcess(env: Record<string, string | undefined>
   const profileDirectory = env["CANOPY_BENCH_PROFILE_DIR"];
   const profile = profileDirectory ? ["--cpu-prof", "--cpu-prof-md", `--cpu-prof-dir=${profileDirectory}`] : [];
 
-  const child = Bun.spawn([process.execPath, ...profile, `${import.meta.dir}/diagnostics-entry.ts`], {
-    env,
-    stdout: "ignore",
-    stderr: "inherit",
-    ipc(message) {
-      const reply = Schema.decodeUnknownSync(BenchReply)(message);
+  const child = Bun.spawn(
+    pinnedCommand(env, "GATEWAY", [process.execPath, ...profile, `${import.meta.dir}/diagnostics-entry.ts`]),
+    {
+      env,
+      stdout: "ignore",
+      stderr: "inherit",
+      ipc(message) {
+        const reply = Schema.decodeUnknownSync(BenchReply)(message);
 
-      if (!reply.id) {
-        markReady();
+        if (!reply.id) {
+          markReady();
 
-        return;
-      }
+          return;
+        }
 
-      const request = pending.get(reply.id);
-      pending.delete(reply.id);
+        const request = pending.get(reply.id);
+        pending.delete(reply.id);
 
-      if (!reply.error && reply.stats) request?.resolve(reply.stats);
-      else request?.reject(new Error("Diagnostics benchmark command failed"));
+        if (!reply.error && reply.stats) request?.resolve(reply.stats);
+        else request?.reject(new Error("Diagnostics benchmark command failed"));
+      },
     },
-  });
+  );
 
   void child.exited.then(() => {
     failReady(new Error("Benchmark gateway exited"));

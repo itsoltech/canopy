@@ -17,11 +17,22 @@ export class Aggregate {
   incomplete = false;
   slow = 0n;
 
-  constructor(wide = false) {
-    this.duration = new Histogram(false, wide);
-    this.requestBytes = new Histogram(true, wide);
-    this.responseBytes = new Histogram(true, wide);
-    this.firstMessage = new Histogram(false, wide);
+  constructor(wide = false, reserve?: (bytes: number) => boolean) {
+    this.duration = new Histogram(false, wide, reserve);
+    this.requestBytes = new Histogram(true, wide, reserve);
+    this.responseBytes = new Histogram(true, wide, reserve);
+    this.firstMessage = new Histogram(false, wide, reserve);
+  }
+
+  get bytes() {
+    return (
+      1536 +
+      48 *
+        (this.duration.indices.length +
+          this.requestBytes.indices.length +
+          this.responseBytes.indices.length +
+          this.firstMessage.indices.length)
+    );
   }
 
   snapshot(methodId: number) {
@@ -71,6 +82,22 @@ export class Aggregate {
     this.maxInFlight = Math.max(this.maxInFlight, value.maxInFlight);
     this.incomplete ||= value.incomplete;
     this.slow = addCount(this.slow, value.slow);
+  }
+
+  subtract(value: Aggregate) {
+    this.started -= value.started;
+    this.completed -= value.completed;
+
+    for (let i = 0; i < 17; i++) this.codes[i] = this.codes[i]! - value.codes[i]!;
+
+    for (let i = 0; i < 8; i++) this.messageKinds[i] = this.messageKinds[i]! - value.messageKinds[i]!;
+    this.duration.subtract(value.duration);
+    this.requestBytes.subtract(value.requestBytes);
+    this.responseBytes.subtract(value.responseBytes);
+    this.firstMessage.subtract(value.firstMessage);
+    this.requestMessages -= value.requestMessages;
+    this.responseMessages -= value.responseMessages;
+    this.slow -= value.slow;
   }
 }
 

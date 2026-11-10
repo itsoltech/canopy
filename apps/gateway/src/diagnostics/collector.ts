@@ -1,8 +1,9 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { mergeCoverage, addCount } from "@canopy/domain/diagnostics";
+import { mergeCoverage, addCount, type Histogram } from "@canopy/domain/diagnostics";
 import { BucketBudget, Buckets } from "./buckets.ts";
 import type { RegisteredMethod } from "./registry.ts";
+import { updateWindows } from "./windows.ts";
 
 export type DiagnosticsClock = { monotonic(): number; utc(): number };
 
@@ -13,11 +14,12 @@ export class RpcCollector {
   readonly methods = new Map<number, RegisteredMethod>();
   readonly short: Buckets;
   readonly minutes: Buckets;
-  readonly quarters: Buckets;
   readonly historyMinutes: Buckets;
-  readonly historyQuarters: Buckets;
+  readonly windowBudget = new BucketBudget(512 * 1024);
+  readonly #rings: readonly Buckets[];
   readonly active = new Map<number, Map<number, number>>();
   historyRevision = 0;
+  closedTick = 0;
   readonly session = Bun.randomUUIDv7();
   readonly startedAt: number;
   #lastMono: number;
@@ -31,10 +33,9 @@ export class RpcCollector {
     readonly budget = new BucketBudget(),
   ) {
     this.short = new Buckets(5_000, 12, budget);
-    this.minutes = new Buckets(60_000, 60, budget);
-    this.quarters = new Buckets(900_000, 96, budget);
-    this.historyMinutes = new Buckets(60_000, 60, budget);
-    this.historyQuarters = new Buckets(900_000, 96, budget);
+    this.minutes = new Buckets(60_000, 61, budget);
+    this.historyMinutes = new Buckets(60_000, 61, budget);
+    this.#rings = [this.short, this.minutes];
 
     if (methods.length > 384) throw new Error("Diagnostics method budget exceeded");
 
@@ -124,7 +125,7 @@ export class RpcCollector {
   }
 
   #change(now: number, id: number, change: (value: import("@canopy/domain/diagnostics").Aggregate) => void) {
-    for (const ring of [this.short, this.minutes, this.quarters]) {
+    for (const ring of this.#rings) {
       const value = ring.series(now, id);
 
       if (value) change(value);
@@ -136,38 +137,31 @@ export class RpcCollector {
     const utc = this.clock.utc();
     const elapsed = mono - this.#lastMono;
 
+    if (Math.floor(utc / 60_000) !== Math.floor(this.#lastUtc / 60_000)) this.closedTick++;
+
     // Sleep, event-loop stalls and wall-clock jumps are gaps, never invented observation time.
     if (elapsed >= 0 && elapsed <= 10_000 && Math.abs(utc - this.#lastUtc - elapsed) < 1000)
-      for (const ring of [this.short, this.minutes, this.quarters]) ring.cover(this.#lastUtc, utc);
+      for (const ring of this.#rings) ring.cover(this.#lastUtc, utc);
     this.#lastMono = mono;
     this.#lastUtc = utc;
-    const before = this.budget.used;
     this.historyMinutes.expire(Math.floor(utc / 60_000) * 60_000 - 3_540_000);
-    this.historyQuarters.expire(Math.floor(utc / 900_000) * 900_000 - 85_500_000);
-
-    if (this.budget.used !== before) this.historyRevision++;
+    this.minutes.expire(Math.floor(utc / 60_000) * 60_000 - 3_600_000);
+    updateWindows(this);
   }
 
   restore(process: ui.DiagnosticsProcess, at: number) {
-    if (at >= this.startedAt || at < this.startedAt - 86_400_000) return;
-
-    const safe = create(ui.DiagnosticsProcessSchema, {
-      ...process,
-      series: process.series.filter((value) => this.methods.has(value.methodId)),
-    });
-
+    if (at >= this.startedAt || at < this.startedAt - 3_600_000) return;
     // Historical sessions participate in reads, never in this session's persisted minute.
-    if (at >= this.startedAt - 3_600_000) this.#restoreHistory(this.historyMinutes, safe, at);
-    this.#restoreHistory(this.historyQuarters, safe, at);
+    this.#restoreHistory(this.historyMinutes, process, at);
     this.historyRevision++;
   }
 
   #restoreHistory(ring: Buckets, process: ui.DiagnosticsProcess, at: number) {
     // Restore may shed older detail, but must leave room for new RPCs and minute writes.
-    const limit = Math.floor(this.budget.limit * 0.6);
+    const limit = Math.floor(this.budget.limit * 0.5);
 
     while (this.budget.used + ring.restoreBytes(process, at) > limit) {
-      if (this.historyQuarters.evictOldest() || this.historyMinutes.evictOldest()) {
+      if (this.historyMinutes.evictOldest()) {
         this.budget.dropped++;
         continue;
       }
@@ -177,11 +171,29 @@ export class RpcCollector {
       return;
     }
 
-    ring.restore(process, at);
+    const slot = ring.slot(at);
+
+    if (!slot) return;
+    slot.coverage = mergeCoverage([...slot.coverage, ...process.coverage]);
+
+    for (const value of process.series)
+      if (this.methods.has(value.methodId)) ring.series(at, value.methodId)?.merge(value);
   }
 
   merge(process: ui.DiagnosticsProcess, at = this.clock.utc()) {
-    for (const ring of [this.short, this.minutes, this.quarters]) ring.restore(process, at);
+    for (const ring of this.#rings) ring.restore(process, at);
+  }
+
+  mergeHistogram(id: number, histogram: ui.DiagnosticsHistogram | Histogram, timeouts = 0n) {
+    const at = this.clock.utc();
+
+    for (const ring of this.#rings) {
+      const value = ring.series(at, id);
+
+      if (!value) continue;
+      value.duration.merge(histogram);
+      value.codes[4] = addCount(value.codes[4]!, timeouts);
+    }
   }
 
   rollup(at: number) {

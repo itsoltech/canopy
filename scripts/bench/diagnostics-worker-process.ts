@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { WorkerBenchReply, type BenchCommand, type ProcessStats } from "./diagnostics-protocol.ts";
+import { pinnedCommand } from "./diagnostics-host.ts";
 
 /** Keep worker resource accounting separate from both the gateway and load driver. */
 export async function diagnosticsWorker(env: Record<string, string | undefined>) {
@@ -14,25 +15,28 @@ export async function diagnosticsWorker(env: Record<string, string | undefined>)
 
   const pending = new Map<number, { resolve(value: typeof ProcessStats.Type): void; reject(cause: Error): void }>();
 
-  const child = Bun.spawn([process.execPath, `${import.meta.dir}/diagnostics-worker.ts`], {
-    env,
-    stdout: "ignore",
-    stderr: "inherit",
-    ipc(message) {
-      const reply = Schema.decodeUnknownSync(WorkerBenchReply)(message);
+  const child = Bun.spawn(
+    pinnedCommand(env, "WORKER", [process.execPath, `${import.meta.dir}/diagnostics-worker.ts`]),
+    {
+      env,
+      stdout: "ignore",
+      stderr: "inherit",
+      ipc(message) {
+        const reply = Schema.decodeUnknownSync(WorkerBenchReply)(message);
 
-      if (!reply.id) {
-        ready();
+        if (!reply.id) {
+          ready();
 
-        return;
-      }
+          return;
+        }
 
-      const request = pending.get(reply.id);
-      pending.delete(reply.id);
+        const request = pending.get(reply.id);
+        pending.delete(reply.id);
 
-      if (reply.stats) request?.resolve(reply.stats);
+        if (reply.stats) request?.resolve(reply.stats);
+      },
     },
-  });
+  );
 
   void child.exited.then(() => {
     const cause = new Error("Benchmark worker exited");

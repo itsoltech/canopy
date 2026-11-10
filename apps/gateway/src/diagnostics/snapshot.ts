@@ -4,38 +4,7 @@ import { Aggregate, mergeCoverage, percentiles } from "@canopy/domain/diagnostic
 import { Code, ConnectError } from "@connectrpc/connect";
 import type { RpcCollector } from "./collector.ts";
 import type { Slot } from "./buckets.ts";
-
-const historicalViews = new WeakMap<RpcCollector, { key: string; values: Map<number, Aggregate> }>();
-
-/** One historical view per collector, bounded by the existing descriptor and link limits. */
-function historyView(collector: RpcCollector, slots: readonly Slot[], minutes: number, start: number) {
-  const key = `${minutes}:${start}:${collector.historyRevision}`;
-  const previous = historicalViews.get(collector);
-
-  if (previous?.key === key) return [previous.values];
-
-  if (previous) collector.budget.used -= previous.values.size * 4096;
-  historicalViews.delete(collector);
-  const ids = new Set(slots.flatMap((slot) => [...slot.series.keys()]));
-
-  // Under pressure preserve the read by merging directly, without retaining another allocation.
-  const bytes = ids.size * 4096;
-
-  if (bytes > collector.budget.limit - collector.budget.used) return slots.map((slot) => slot.series);
-  collector.budget.reserve(bytes);
-  const values = new Map<number, Aggregate>();
-
-  for (const slot of slots)
-    for (const [id, value] of slot.series) {
-      const aggregate = values.get(id) ?? new Aggregate(true);
-      aggregate.merge(value);
-      values.set(id, aggregate);
-    }
-
-  historicalViews.set(collector, { key, values });
-
-  return [values];
-}
+import { closedWindow } from "./windows.ts";
 
 export function windowMinutes(value: number) {
   if (!value) return 15;
@@ -46,25 +15,39 @@ export function windowMinutes(value: number) {
   return value;
 }
 
-export function rpcSnapshot(collector: RpcCollector, minutes: number) {
+export function rpcSnapshot(collector: RpcCollector, minutes: number, hourly?: Slot) {
   const now = collector.clock.utc();
-  let ring = collector.minutes;
+  let width = 60_000;
 
-  if (minutes === 1) ring = collector.short;
+  if (minutes === 1) width = 5000;
 
-  if (minutes === 1440) ring = collector.quarters;
-  const start = Math.floor(now / ring.width) * ring.width - (minutes * 60_000 - ring.width);
-  const slots = ring.between(start, now + 1);
+  if (minutes === 1440) width = 3_600_000;
+  const start = Math.floor(now / width) * width - (minutes * 60_000 - width);
+  const current = Math.floor(now / 60_000) * 60_000;
+  const liveStart = minutes === 1440 ? Math.floor(now / 3_600_000) * 3_600_000 : start;
+
+  const slots =
+    minutes === 1
+      ? collector.short.between(start, now + 1)
+      : [...collector.minutes.between(current, now + 1), ...collector.historyMinutes.between(current, now + 1)];
+
   const sources: ReadonlyMap<number, Aggregate>[] = slots.map((slot) => slot.series);
+  let ranges = slots.flatMap((slot) => slot.coverage);
 
   if (minutes !== 1) {
-    const history = minutes === 1440 ? collector.historyQuarters : collector.historyMinutes;
-    const historical = history.between(start, now + 1);
-    sources.unshift(...historyView(collector, historical, minutes, start));
-    slots.push(...historical);
+    const closed = closedWindow(collector, minutes, liveStart, current);
+
+    if (closed.limited) for (const slot of closed.slots) sources.push(slot.series);
+    else sources.push(closed.values);
+    ranges = ranges.concat(closed.coverage);
+
+    if (hourly) {
+      sources.push(hourly.series);
+      ranges = ranges.concat(hourly.coverage);
+    }
   }
 
-  const coverage = mergeCoverage(slots.flatMap((slot) => slot.coverage));
+  const coverage = mergeCoverage(ranges);
   const observedSeconds = coverage.reduce((sum, value) => sum + Number(value.endMs - value.startMs) / 1000, 0);
   const aggregates = new Map<number, Aggregate>();
 
@@ -153,6 +136,6 @@ export function rpcSnapshot(collector: RpcCollector, minutes: number) {
     observedSeconds,
     windowStartMs: BigInt(start),
     windowEndMs: BigInt(now),
-    resolutionSeconds: ring.width / 1000,
+    resolutionSeconds: width / 1000,
   };
 }

@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
 import { decodeRollup, encodeRollup, MAX_PAYLOAD, replaceProcesses, mergeWatermarks } from "./rollup.ts";
+import { downsampleWrite, type RollupRow } from "./downsample.ts";
 
 export type StoredMinute = { at: number; processes: ui.DiagnosticsProcess[] };
 
@@ -48,14 +49,15 @@ export class DiagnosticsStore {
     return state;
   }
 
-  async *history(since: number) {
+  async *history(since: number, until = Date.now()) {
     let after = since - 1;
 
     while (true) {
       const rows = await this.query<{ bucket_start: Date; payload: Uint8Array }>(
         `SELECT bucket_start,payload FROM diagnostics_rollups WHERE owner_user_id=$1::uuid AND computer_id=$2
-         AND resolution=60 AND bucket_start>to_timestamp($3/1000.0) ORDER BY bucket_start LIMIT 8`,
-        [this.owner, this.computer, after],
+         AND resolution=60 AND bucket_start>to_timestamp($3/1000.0) AND bucket_start<=to_timestamp($4/1000.0)
+         ORDER BY bucket_start LIMIT 8`,
+        [this.owner, this.computer, after, until],
       );
 
       for (const row of rows) {
@@ -125,9 +127,9 @@ export class DiagnosticsStore {
             const quota = yield* sql<{ count: string }>`SELECT count(*)::text AS count FROM diagnostics_rollups
           WHERE owner_user_id=${owner}::uuid AND computer_id=${computer} AND resolution=60`;
 
-            if (Number(quota[0]?.count ?? 0) + additions > 4320) throw new Error("Diagnostics retention quota reached");
+            if (Number(quota[0]?.count ?? 0) + additions > 180) throw new Error("Diagnostics retention quota reached");
 
-            const rows = minutes.map((minute, index) => ({
+            const rows: RollupRow[] = minutes.map((minute, index) => ({
               owner_user_id: owner,
               computer_id: computer,
               resolution: 60,
@@ -136,13 +138,21 @@ export class DiagnosticsStore {
               compacted: false,
             }));
 
+            const hours = yield* downsampleWrite(sql, rows, Date.now());
+            rows.push(...hours);
+
             const [first, ...rest] = rows;
 
             if (!first) return;
             yield* sql`WITH saved AS (
           INSERT INTO diagnostics_rollups ${sql.insert([first, ...rest])}
           ON CONFLICT (owner_user_id,computer_id,resolution,bucket_start) DO UPDATE
-          SET payload=EXCLUDED.payload,compacted=false RETURNING bucket_start
+          SET payload=EXCLUDED.payload,compacted=EXCLUDED.compacted RETURNING bucket_start
+        ), compacted AS (
+          UPDATE diagnostics_rollups SET compacted=true
+          WHERE owner_user_id=${owner}::uuid AND computer_id=${computer} AND resolution=60 AND NOT compacted
+            AND date_trunc('hour',bucket_start)=ANY(${hours.map((row) => row.bucket_start)}::timestamptz[])
+            AND NOT (bucket_start=ANY(${minutes.map((minute) => new Date(minute.at))}::timestamptz[]))
         ), peers_saved AS (
           INSERT INTO diagnostics_peer_cache(owner_user_id,computer_id,payload,received_at)
           SELECT ${owner}::uuid,p.node,decode(p.bytes,'hex'),to_timestamp(p.received::double precision/1000.0)

@@ -155,7 +155,7 @@ export async function* computersServeHome(
 
     if (input.computerId)
       throw new ConnectError("Diagnostics reads are local to the receiving home", Code.PermissionDenied);
-    yield hostContext.options.core.diagnostics.local(input);
+    yield await hostContext.options.core.diagnostics.read(input);
 
     return;
   }

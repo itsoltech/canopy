@@ -8,7 +8,7 @@ export type Slot = { at: number; coverage: ui.DiagnosticsCoverage[]; series: Map
 export class BucketBudget {
   used = 0;
   dropped = 0;
-  constructor(readonly limit = 40 * 1024 * 1024) {}
+  constructor(readonly limit = 6 * 1024 * 1024) {}
 
   reserve(bytes: number) {
     if (this.used + bytes > this.limit) {
@@ -24,7 +24,15 @@ export class BucketBudget {
 }
 
 const SLOT_BYTES = 2048;
-const AGGREGATE_BYTES = 4096;
+const AGGREGATE_BYTES = 1536;
+
+function slotBytes(slot: Slot) {
+  let bytes = SLOT_BYTES;
+
+  for (const aggregate of slot.series.values()) bytes += aggregate.bytes;
+
+  return bytes;
+}
 
 export class Buckets {
   readonly slots: (Slot | undefined)[];
@@ -43,7 +51,7 @@ export class Buckets {
 
     if (slot?.at !== at) {
       if (slot) {
-        this.budget.used -= SLOT_BYTES + slot.series.size * AGGREGATE_BYTES;
+        this.budget.used -= slotBytes(slot);
         this.slots[index] = undefined;
       }
 
@@ -62,7 +70,7 @@ export class Buckets {
     let series = slot.series.get(id);
 
     if (!series && this.budget.reserve(AGGREGATE_BYTES)) {
-      series = new Aggregate(true);
+      series = new Aggregate(true, (bytes) => this.budget.reserve(bytes));
       slot.series.set(id, series);
     }
 
@@ -119,7 +127,7 @@ export class Buckets {
 
     if (!oldest) return false;
     this.slots[Math.floor(oldest.at / this.width) % this.count] = undefined;
-    this.budget.used -= SLOT_BYTES + oldest.series.size * AGGREGATE_BYTES;
+    this.budget.used -= slotBytes(oldest);
 
     return true;
   }
