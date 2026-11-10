@@ -7,6 +7,7 @@ Powiązane dokumenty:
 
 - [bots.md](bots.md) — rozmowy botów, trwałość i narzędzia; [bots-harness.md](bots-harness.md) — migracja inferencji na oficjalne harnessy workerów.
 - [connectors.md](connectors.md) — współdzielone konta zewnętrznych MCP, OAuth w gateway, granty workerów/botów i proxy bez poświadczeń na workerze.
+- [github.md](github.md) — projekt konta GitHub App, powiązań PR z wątkami i podglądu PR; propozycja do przeglądu przed implementacją.
 - [protocol.md](protocol.md) — kanał gRPC gateway ↔ worker
 - [data-model.md](data-model.md) — model danych PostgreSQL i reguły dostępu
 - [worker-config.md](worker-config.md) — zdalna konfiguracja workerów (lokalnie tylko połączenie z gateway)
