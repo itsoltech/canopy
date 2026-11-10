@@ -88,6 +88,7 @@ export function buildTimeline(
   notices: readonly TimelineNotice[],
   results: ReadonlyMap<string, TurnResult>,
   nodes?: WeakMap<TimelineEntry, ItemNode>,
+  context?: { readonly lastDay: string; readonly withdrawn: readonly number[] },
 ): TimelineRow[] {
   const byId = new Map(entries.map((e) => [e.id, e]));
   const childrenOf = new Map<string, TimelineEntry[]>();
@@ -123,7 +124,7 @@ export function buildTimeline(
     ...notices.map((notice) => ({ seq: notice.seq, turnId: notice.turnId, notice })),
   ].sort((a, b) => (a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0));
 
-  const withdrawn = turns.filter((t) => t.withdrawn).map((t) => t.ordinal);
+  const withdrawn = [...(context?.withdrawn ?? []), ...turns.filter((t) => t.withdrawn).map((t) => t.ordinal)];
   const number = (turn: ui.Turn) => turn.ordinal - withdrawn.filter((o) => o < turn.ordinal).length;
   turns = orderThreadTurns(turns.filter((t) => !t.withdrawn));
   const position = new Map(turns.map((turn, index) => [turn.id, index]));
@@ -148,7 +149,7 @@ export function buildTimeline(
 
   const empty = turns.filter((turn) => !lastIndex.has(turn.id) && (turn.status !== "queued" || turn.dispatched));
 
-  let lastDay = "";
+  let lastDay = context?.lastDay ?? "";
 
   const open = (turn: ui.Turn) => {
     opened.add(turn.id);

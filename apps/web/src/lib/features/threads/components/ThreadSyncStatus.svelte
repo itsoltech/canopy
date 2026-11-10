@@ -3,6 +3,7 @@
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { duration } from "#lib/shared/ui/motion.ts";
+  import { runningAnimation } from "#lib/shared/activity.ts";
 
   let { syncing, children, class: className }: { syncing: boolean; children: Snippet; class?: ClassValue } = $props();
   let shown = $state(false);
@@ -28,7 +29,7 @@
 </script>
 
 <!-- The project mark keeps its exact slot. Only opacity and the glyph's rotation change. -->
-<span class={["relative inline-flex size-4.5 shrink-0", className]}>
+<span class={["relative inline-flex size-4.5 shrink-0", className]} {@attach visible ? runningAnimation : undefined}>
   <span class="sync-mark flex items-center justify-center" data-syncing={visible}>{@render children()}</span>
   <span
     class="sync-icon absolute inset-0 flex items-center justify-center"

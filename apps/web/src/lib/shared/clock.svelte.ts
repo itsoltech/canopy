@@ -1,20 +1,14 @@
-/**
- * The current time for relative labels ("Working 12m", "3h"), ticking every 30 s in the browser so
- * lists age without a reload. On the server every read is the real time of the request.
- */
+import { createSubscriber } from "svelte/reactivity";
+import { subscribeTime } from "./ticker.ts";
+
+/** Relative labels share a slow clock. It stops when unobserved or the document is hidden. */
 class Clock {
-  #now = $state(Date.now());
-  #started = false;
+  #subscribe = createSubscriber((update) => subscribeTime(update, 30_000));
 
   get now(): number {
-    if (typeof window === "undefined") return Date.now();
+    this.#subscribe();
 
-    if (!this.#started) {
-      this.#started = true;
-      setInterval(() => (this.#now = Date.now()), 30_000);
-    }
-
-    return this.#now;
+    return Date.now();
   }
 }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { stepSwap } from "./motion.ts";
+  import LiveText from "./LiveText.svelte";
 
   /**
    * Text that swaps in place when it changes (motion.ts `stepSwap`): the old text leaves while the new one
@@ -16,9 +17,11 @@
     rank,
     distance = "micro",
     reserve = [],
+    live = false,
     class: className,
   }: {
     text: string;
+    live?: boolean;
     /** The value's place on its scale (direction of the swap); without it the text always rises. */
     rank?: number | undefined;
     distance?: "micro" | "base";
@@ -43,6 +46,8 @@
     <span class="invisible truncate" aria-hidden="true">{each}</span>
   {/each}
   {#key text}
-    <span class="truncate" in:stepSwap={{ step, distance }} out:stepSwap={{ step, distance }}>{text}</span>
+    <span class="truncate" in:stepSwap={{ step, distance }} out:stepSwap={{ step, distance }}>
+      {#if live}<LiveText {text} />{:else}{text}{/if}
+    </span>
   {/key}
 </span>

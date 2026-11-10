@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { runningAnimation } from "#lib/shared/activity.ts";
   import type { ClassValue } from "svelte/elements";
   import Popover from "#lib/shared/ui/Popover.svelte";
   import type { FeedViewport } from "#lib/shared/ui/virtual/viewport.ts";
@@ -121,6 +122,7 @@
           ]}
           style:top="{mark.y}px"
           data-current={active || undefined}
+          {@attach running ? runningAnimation : undefined}
         ></span>
       {/each}
     </div>

@@ -668,6 +668,11 @@
 }
 
 /* --- Skeleton pulse (14): placeholders (and the streaming caret) breathe until their content arrives. -- */
+[data-motion-paused="true"],
+[data-motion-paused="true"] * {
+  animation-play-state: paused !important;
+}
+
 .t-pulse {
   animation: t-pulse calc(var(--duration-very-slow) * 2) var(--ease-linear) infinite;
 }

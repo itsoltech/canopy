@@ -78,10 +78,11 @@
   </span>
   <SwapText
     text={thread.title}
+    live={thread.titleGenerating}
     class={[
       "h-5.5 w-full min-w-0 overflow-hidden text-base/5.5 sm:h-5 sm:text-sm/5",
       thread.titleGenerating
-        ? "shimmer"
+        ? "text-zinc-500 dark:text-zinc-400"
         : "text-zinc-800 group-aria-[current=page]:text-zinc-950 group-data-calm:opacity-60 group-data-result:text-zinc-950 dark:text-zinc-200 dark:group-aria-[current=page]:text-white dark:group-data-result:text-white",
     ]}
   />

@@ -358,17 +358,3 @@ input[type="search"] {
 @utility code-surface {
   @apply scroll-stable overflow-auto font-mono text-[0.8125rem]/5 whitespace-pre [tab-size:4] select-text;
 }
-
-/* Live "working" text: a soft shimmer, static when the user prefers reduced motion. */
-@utility shimmer {
-  @apply bg-[linear-gradient(90deg,var(--color-zinc-500)_0%,var(--color-zinc-500)_40%,var(--color-zinc-300)_50%,var(--color-zinc-500)_60%,var(--color-zinc-500)_100%)] bg-size-[200%_100%] bg-clip-text text-transparent motion-safe:animate-[shimmer_var(--duration-shimmer)_var(--ease-linear)_infinite] motion-reduce:text-zinc-500 dark:bg-[linear-gradient(90deg,var(--color-zinc-400)_0%,var(--color-zinc-400)_40%,var(--color-zinc-100)_50%,var(--color-zinc-400)_60%,var(--color-zinc-400)_100%)];
-}
-
-@keyframes shimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: -100% 0;
-  }
-}

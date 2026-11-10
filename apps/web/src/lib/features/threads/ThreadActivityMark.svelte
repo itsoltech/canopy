@@ -7,6 +7,7 @@
   import { iconSwap, pop } from "#lib/shared/ui/motion.ts";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { workState } from "./activity.ts";
+  import { runningAnimation } from "#lib/shared/activity.ts";
 
   /**
    * The leading mark of a thread in lists: a spinner while a turn runs or the thread starts, a breathing
@@ -49,7 +50,11 @@
   {@attach label ? tooltip(label) : undefined}
 >
   {#key state}
-    <span class="col-start-1 row-start-1 grid place-items-center" in:iconSwap>
+    <span
+      class="col-start-1 row-start-1 grid place-items-center"
+      in:iconSwap
+      {@attach state === "background" ? runningAnimation : undefined}
+    >
       {#if state === "needs" || state === "asks"}
         <Icon
           name="hand-raised"

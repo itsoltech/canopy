@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import { swap } from "#lib/shared/ui/motion.ts";
+  import LiveText from "#lib/shared/ui/LiveText.svelte";
   import { stateForStatus } from "../behaviour-math.ts";
   import type { ParticipantView } from "@canopy/domain/bot-chat";
   import BotAvatar from "./BotAvatar.svelte";
@@ -25,8 +26,8 @@
   <p class="min-w-0 px-1 text-base/6 sm:text-sm/6">
     <span class="sr-only">{bot.name}: </span>
     {#key text}
-      <span class={["inline-block truncate", waiting ? "text-zinc-500 dark:text-zinc-400" : "shimmer"]} in:swap
-        >{text}</span
+      <span class="inline-block truncate text-zinc-500 dark:text-zinc-400" in:swap
+        ><LiveText {text} active={!waiting} /></span
       >
     {/key}
   </p>

@@ -5,6 +5,7 @@
   import type { ItemStatus } from "@canopy/contracts";
   import ItemStatusIcon from "./items/ItemStatusIcon.svelte";
   import { activityHeader, activitySurface } from "./activity-header.ts";
+  import LiveText from "#lib/shared/ui/LiveText.svelte";
 
   let {
     label,
@@ -45,7 +46,7 @@
       /></span
     >
     <span class="flex h-lh shrink-0 items-center"><Icon name={icon} /></span>
-    <span class={["min-w-0 flex-1 truncate", running && "shimmer"]}>{label}</span>
+    <LiveText text={label} active={running} class="min-w-0 flex-1 truncate" />
     <span class="flex h-6 w-10 shrink-0 items-center justify-end text-sm/6 tabular-nums sm:h-5 sm:w-28 sm:text-xs/5"
       ><ItemStatusIcon {status} count={statusCount} /></span
     >

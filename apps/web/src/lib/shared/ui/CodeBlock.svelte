@@ -3,7 +3,8 @@
 
   /**
    * Preformatted text (output, JSON, code). Scrolls inside a capped height; `tabindex` makes the
-   * scroll area reachable by keyboard. Other attributes go on the `<pre>` (e.g. `data-quote-kind`).
+   * scroll area reachable by keyboard. Containment keeps streaming text layout/paint inside this surface.
+   * Other attributes go on the `<pre>` (e.g. `data-quote-kind`).
    */
   let {
     text,
@@ -17,7 +18,7 @@
 <pre
   {...rest}
   class={[
-    "max-h-96 code-surface rounded-lg bg-zinc-950/2.5 p-3 text-zinc-800 focus-ring dark:bg-white/5 dark:text-zinc-200",
+    "max-h-96 code-surface rounded-lg bg-zinc-950/2.5 p-3 text-zinc-800 focus-ring [contain:content] dark:bg-white/5 dark:text-zinc-200",
     className,
   ]}
   tabindex="0"

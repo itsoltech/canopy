@@ -3,6 +3,7 @@
   import { InteractionKind, ItemStatus, Provider, ui } from "@canopy/contracts";
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
+  import LiveText from "#lib/shared/ui/LiveText.svelte";
   import { goto } from "$app/navigation";
   import { contributeCommands } from "#lib/features/commands/commands.svelte.ts";
   import { threadCommands } from "#lib/features/threads/thread-commands.ts";
@@ -547,7 +548,7 @@
         {#if tree && isSide(thread) && tree.main.id !== thread.id}
           <Crumb href="/threads/{tree.main.id}">{tree.main.title}</Crumb>
         {/if}
-        <Crumb><span class={[thread.titleGenerating && "shimmer"]}>{thread.title}</span></Crumb>
+        <Crumb><LiveText text={thread.title} active={thread.titleGenerating} /></Crumb>
         {#if thread.worktree}<li class="flex min-w-0 shrink items-center max-sm:hidden">
             <ThreadWorktree worktree={thread.worktree} class="max-w-48" onclick={manageWorktree} />
           </li>{/if}

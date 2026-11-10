@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import { runningAnimation } from "../activity.ts";
 
   /**
    * A thin progress ring drawn around a small control (e.g. an icon button). `value` is 0–100 and is clamped; without
@@ -21,6 +22,7 @@
   aria-valuemax={100}
   aria-valuenow={percent}
   class={["pointer-events-none -rotate-90", percent === undefined && "progress-ring-turn", className]}
+  {@attach percent === undefined ? runningAnimation : undefined}
 >
   <circle cx="12" cy="12" r={radius} fill="none" stroke-width="1.5" class="stroke-brand-500/15" />
   <circle

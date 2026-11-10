@@ -5,6 +5,7 @@
   import { LineReveal } from "#lib/shared/ui/streaming/line-reveal.svelte.ts";
   import { OUTPUT_LINE_HEIGHT, outputRange, OutputPin } from "./terminal-scroll.ts";
   import { terminalAnsi } from "./terminal-ansi.ts";
+  import { runningAnimation } from "../activity.ts";
 
   /** A terminal tail with fixed-height virtual rows. Reading earlier output never moves with new lines. */
   let {
@@ -109,7 +110,10 @@
           style:top="{lines.length * OUTPUT_LINE_HEIGHT}px"
           class="absolute inset-x-0 h-[20px] whitespace-pre text-zinc-400"
         >
-          {#if running}<span aria-hidden="true" class="t-pulse inline-block h-4 w-2 translate-y-0.5 bg-zinc-400"
+          {#if running}<span
+              aria-hidden="true"
+              class="t-pulse inline-block h-4 w-2 translate-y-0.5 bg-zinc-400"
+              {@attach runningAnimation}
             ></span>{:else}{exitLine}{/if}
         </div>
       </div>
@@ -118,6 +122,7 @@
         {running ? "Waiting for output…" : "No output."}{#if running}<span
             aria-hidden="true"
             class="t-pulse inline-block h-4 w-2 translate-y-0.5 bg-zinc-400"
+            {@attach runningAnimation}
           ></span>{/if}
       </p>
       {#if !running && exitLine}<p class="text-zinc-400">{exitLine}</p>{/if}

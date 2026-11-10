@@ -52,6 +52,38 @@ Podczas pomiaru można pozostawić zwykłą stronę wątku, by oglądać ten sam
 
 ## Web i renderer desktopu
 
+Przy pracy w tle główny wątek ma pozostawać wolny dla wejścia użytkownika:
+
+- Ciągłe animacje używają wyłącznie `transform`/`opacity`. Shimmer to nieruchomy
+  raster tekstu i przesuwana miękka maska z przeciwruchem kopii, bez animowania
+  `background-position`. Nie promuj całych paneli przez `will-change`.
+- Jedna współdzielona kolejka zegara obsługuje czas pracy i etykiety względne.
+  Sekundy aktualizują mały komponent tekstu, nigdy fold, panel ani listę tur.
+  Zakończona praca nie subskrybuje sekund; etykiety względne zachowują wolniejszy rytm.
+- Jeden `IntersectionObserver` zatrzymuje zegary i dekoracje poza widokiem,
+  również w overscanie i zwiniętych panelach. Ukryta karta nie utrzymuje timerów;
+  powrót odczytuje bieżący czas. `prefers-reduced-motion` wyłącza pętle ruchu.
+- Odczyty geometrii i dopasowania tekstu grupuj przed zapisami. Zmiana delty nie
+  może wymuszać kolejnych pomiarów tej samej osi w jednym przebiegu aktualizacji.
+  Tokeny ruchu buforuj do zmiany stylu korzenia, nie tylko do kolejnej klatki.
+  Niezależny, zakończony prefiks feedu zachowuj między deltami. Zmiana historii,
+  wyników, foldów lub zależność przez granicę prefiksu wymaga ponownego obliczenia.
+  Indeksy i animacje wejścia aktualizuj dopiero po zmianie kluczy lub grup wierszy.
+  Wzrost treści obsługuje `ResizeObserver`; delta o stałej wysokości nie wymaga
+  odczytu `scrollHeight`. Izoluj layout wierszy i przewijanych bloków kodu.
+- W mobile pętle działają na UI/native thread, korzystają ze wspólnej kolejki
+  widoczności listy, zatrzymują się w tle, a dekoracyjne
+  `Animated.loop` mają `isInteraction: false`, aby nie blokować batchy listy.
+
+Porównanie animacji wymaga przynajmniej dwóch minut tych samych danych: 1000 tur,
+2–4 pracujących subagentów, otwartego foldu ze strumieniem i kilku aktywnych wątków
+w sidebarze. Zapisz ślady CDP oraz inwentarz `document.getAnimations()` (w tym
+właściwości keyframes) i `will-change`. Podaj busy % głównego wątku, long tasks/min,
+odsetek utraconych klatek, odstęp klatek, style/layout ms/s i próbki heap.
+Znaczniki trace mają częstotliwość ekranu (np. 120 Hz); rAF nie jest pomiarem
+prezentacji kompozytora. Liczby aktywnych elementów i `will-change` nie dają się
+wiarygodnie odtworzyć z samej liczby zdarzeń `Animation` w cudzym śladzie.
+
 Otwórz `/dev/long-thread?turns=1000&inherited=0` w jednej przeglądarce na swoim
 BFF. Trasa używa produkcyjnych komponentów osi czasu, ale dane dostarcza fixture,
 bez pobierania historii z gatewaya. Nie mierzy więc czasu bazy ani sieci.

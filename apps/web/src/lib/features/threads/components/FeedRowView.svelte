@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Rule from "#lib/shared/ui/Rule.svelte";
+  import LiveText from "#lib/shared/ui/LiveText.svelte";
   import type { FeedRow } from "../feed.ts";
   import { useThreadDirectory } from "../thread-directory.ts";
   import ThreadLink from "./items/ThreadLink.svelte";
@@ -127,7 +128,7 @@
     <Rule class="min-w-8" />
   </div>
 {:else if row.kind === "working"}
-  <p class="pb-3 text-base/6 sm:text-sm/6"><span class="inline-block shimmer py-1 font-medium">Working…</span></p>
+  <p class="pb-3 text-base/6 sm:text-sm/6"><LiveText text="Working…" class="py-1 font-medium" /></p>
 {:else}
   <div class="pb-3">
     {#if row.steer.shellCommand !== undefined}
