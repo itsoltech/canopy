@@ -43,6 +43,7 @@ describe.skipIf(!dockerAvailable)("manual GitHub PRs over gRPC and controlled HT
     expect(snapshot.summary!.state).toBe("open");
     expect(snapshot.reviewers).toHaveLength(2);
     expect(snapshot.checks).toHaveLength(16);
+    expect(snapshot.labelDetails[0]?.color).toBe("d73a4a");
     expect(snapshot.body).toContain("<script>"); // Token renderers display this as text, never HTML.
     expect(snapshot.summary!.headSha).toBe("a".repeat(40));
     const other = await githubThread(gw);

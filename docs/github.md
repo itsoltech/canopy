@@ -609,8 +609,11 @@ Pokazane materiały referencyjne przedstawiają neutralny układ: listę PR pod 
 osobny widok z nagłówkiem i trzema zakładkami, a także menu akcji przy danym PR.
 Przenosimy przepływ, korzystając z istniejących paneli, nawigacji i komponentów Canopy.
 Obecny `features/navigation/AppShell.svelte` organizuje widoki trasami, bez ogólnego paska
-kart dokumentów. PR dostaje własny adres i zakładki w tym widoku; nie budujemy przy okazji
-nowego systemu okien. Powrót do wątku zachowuje jego szkic i pozycję przewijania.
+kart dokumentów. PR otwiera się w istniejącej prawej kolumnie wątku na desktopie,
+a na wąskim ekranie w arkuszu; parametr `pr` adresu wątku pozwala wrócić do tego panelu.
+Rozmowa, szkic i pozycja przewijania pozostają zamontowane. Mobile używa pushed screen.
+Nie budujemy nowego systemu okien. Etap 2 pokazuje tylko segment Summary;
+Timeline i Code pojawią się z implementacją ich etapów w tym samym pasku.
 
 1. **Panel wątku.** Pod `ThreadPlacement`/Branch lista **Pull requests**: tytuł, repo gdy potrzebne,
    `#number`, stan i checki. Domyślnie najnowszy PR bieżącej gałęzi według utworzenia;
@@ -619,7 +622,7 @@ nowego systemu okien. Powrót do wątku zachowuje jego szkic i pozycję przewija
    formularz dla gałęzi wątku (§5). Pusty wynik nie jest błędem auth.
 2. **Nagłówek PR.** Repo, numer, tytuł, autor, updated time, `base ← head`, liczba plików, +/−,
    stan Open/Merged/Closed/Draft. `gh pr checkout N` jest kopiowalnym tekstem; dopisek określa repo.
-   Kopiowanie nie uruchamia komendy ani nie zmienia lokalnej gałęzi. Długi tytuł zawija się;
+   Kopiowanie nie uruchamia komendy ani nie zmienia lokalnej gałęzi. Długi tytuł ma dwie linie;
    po przewinięciu nagłówek jest kompaktowy, ale zachowuje stan i nawigację.
 3. **Summary.** Reviewers, assignees i labels z edycją według praw, opis Markdown, checki i komentarze.
    Checki pokazują queued/in progress/success/failure/cancelled/skipped/neutral/timed out,

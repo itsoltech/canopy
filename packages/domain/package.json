@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./connection-recovery": "./src/connection-recovery.ts",
+    "./github-pr": "./src/github-pr.ts",
     "./device-view": "./src/device-view.ts",
     "./coalesce": "./src/coalesce.ts",
     "./attachment-preview": "./src/attachments/preview.ts",

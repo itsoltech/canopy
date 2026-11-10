@@ -140,6 +140,10 @@ message PullRequestReviewer {
   string login = 1;
   string state = 2;
 }
+message PullRequestLabel {
+  string name = 1;
+  string color = 2;
+}
 message PullRequestSnapshot {
   PullRequestSummary summary = 1;
   string author = 2;
@@ -159,6 +163,7 @@ message PullRequestSnapshot {
   string account_id = 16;
   uint64 access_revision = 17;
   repeated string assignees = 18;
+  repeated PullRequestLabel label_details = 19;
 }
 message PullRequestLink {
   PullRequestSummary summary = 1;

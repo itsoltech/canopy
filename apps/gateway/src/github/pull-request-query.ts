@@ -37,7 +37,12 @@ const PullRequest = Schema.Struct({
   changedFiles: Schema.Number,
   additions: Schema.Number,
   deletions: Schema.Number,
-  labels: Schema.NullOr(Schema.Struct({ nodes: Schema.Array(Schema.Struct({ name: Schema.String })), pageInfo: page })),
+  labels: Schema.NullOr(
+    Schema.Struct({
+      nodes: Schema.Array(Schema.Struct({ name: Schema.String, color: Schema.String })),
+      pageInfo: page,
+    }),
+  ),
   assignees: Schema.NullOr(
     Schema.Struct({ nodes: Schema.Array(Schema.Struct({ login: Schema.String })), pageInfo: page }),
   ),
@@ -94,7 +99,7 @@ export const SUMMARY_QUERY = `query CanopyPullRequest($owner:String!,$name:Strin
   repository(owner:$owner,name:$name){ databaseId pullRequest(number:$number){
     id number title state isDraft body author{login} updatedAt createdAt
     baseRefName headRefName baseRefOid headRefOid changedFiles additions deletions
-    labels(first:100){nodes{name} pageInfo{hasNextPage}}
+    labels(first:100){nodes{name color} pageInfo{hasNextPage}}
     assignees(first:100){nodes{login} pageInfo{hasNextPage}}
     reviewRequests(first:100){nodes{requestedReviewer{... on User{login} ... on Team{name slug}}} pageInfo{hasNextPage}}
     latestReviews(first:100){nodes{author{login} state} pageInfo{hasNextPage}}
@@ -185,6 +190,10 @@ export function summarySnapshot(
     additions: pr.additions,
     deletions: pr.deletions,
     labels: pr.labels?.nodes.map((l) => l.name) ?? previous?.labels ?? [],
+    labelDetails:
+      pr.labels?.nodes.map((l) => ({ name: l.name, color: /^[0-9a-f]{6}$/i.test(l.color) ? l.color : "" })) ??
+      previous?.labelDetails ??
+      [],
     assignees: pr.assignees?.nodes.map((a) => a.login) ?? previous?.assignees ?? [],
     reviewers: [
       ...(pr.reviewRequests?.nodes.flatMap((r) =>

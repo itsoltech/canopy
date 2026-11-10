@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 import type { ui, github } from "@canopy/contracts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
@@ -8,13 +8,16 @@ import { useSharedQuery } from "../../state/queries";
 import { Button, Notice } from "../../ui/components";
 import { styles, useColors } from "../../ui/theme";
 import { LinkPullRequest } from "./LinkPullRequest";
+import { PullRequestStatus } from "./PullRequestStatus";
+import { checkLook } from "@canopy/domain/github-pr";
+import { Icon } from "../../ui/Icon";
+import { toneColor } from "./presentation";
 
 export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onClose: () => void }) {
   const { client, queries, online } = useSession();
   const c = useColors();
   const [expanded, setExpanded] = useState(false);
   const [linking, setLinking] = useState(false);
-  const [error, setError] = useState("");
   const key = `ListThreadPullRequests:${thread.id}:${thread.pullRequestRevision}`;
 
   const read = useSharedQuery<github.ThreadPullRequestsResponse>(
@@ -26,24 +29,6 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
 
   const links = read.data?.links ?? (thread.newestPullRequest ? [{ summary: thread.newestPullRequest }] : []);
 
-  async function unlink(id: string) {
-    if (!client) return;
-    setError("");
-
-    try {
-      queries.set(
-        key,
-        await client.api.unlinkThreadPullRequest({
-          threadId: thread.id,
-          pullRequestId: id,
-          expectedRevision: read.data?.revision ?? thread.pullRequestRevision,
-        }),
-      );
-    } catch {
-      setError("Could not unlink this pull request. Refresh, then retry.");
-    }
-  }
-
   return (
     <View style={{ gap: 10, minWidth: 0 }}>
       <Text style={[styles.label, { color: c.text }]}>Pull requests</Text>
@@ -54,34 +39,36 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
         if (!pr?.ref) return null;
 
         return (
-          <View
-            key={pr.ref.id}
-            style={{ gap: 6, minWidth: 0, borderBottomWidth: 1, borderBottomColor: c.line, paddingBottom: 10 }}
-          >
-            <Button
-              title={pr.title || `${pr.ref.repositoryName} #${pr.ref.number}`}
+          <View key={pr.ref.id} style={{ minWidth: 0 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${pr.title}, ${pr.state}, checks ${checkLook(pr.checksState).label}`}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                minHeight: 48,
+                borderRadius: 8,
+                paddingHorizontal: 4,
+                backgroundColor: pressed ? c.pressed : undefined,
+              })}
               onPress={() => {
                 onClose();
                 router.push({ pathname: "/pull-request/[id]", params: { id: pr.ref!.id, threadId: thread.id } });
               }}
-            />
-            <Text selectable style={[styles.meta, { color: c.muted }]}>
-              {pr.ref.repositoryName} #{pr.ref.number} · {pr.state}
-            </Text>
-            <Text style={[styles.meta, { color: c.muted }]}>
-              Checks: {pr.checksState || "unavailable"} · {pr.checksCount}
-            </Text>
+            >
+              <PullRequestStatus state={pr.state} iconOnly />
+              <Text numberOfLines={1} style={[styles.chrome, { flex: 1, color: c.text }]}>
+                {pr.title || pr.ref.repositoryName}
+              </Text>
+              <Text style={[styles.chromeMeta, { color: c.muted }]}>#{pr.ref.number}</Text>
+              <Icon name={checkLook(pr.checksState).icon} color={toneColor(c, checkLook(pr.checksState).tone)} />
+            </Pressable>
             {read.data?.stale && pr.verifiedAt && (
               <Text style={[styles.meta, { color: c.muted }]}>
                 Last verified {timestampDate(pr.verifiedAt).toLocaleString()}
               </Text>
             )}
-            <Button
-              size="sm"
-              title="Unlink"
-              disabled={!online || read.data?.stale}
-              onPress={() => void unlink(pr.ref!.id)}
-            />
           </View>
         );
       })}
@@ -93,9 +80,9 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
         />
       )}
       {!!read.data?.detail && <Text style={[styles.meta, { color: c.muted }]}>{read.data.detail}</Text>}
-      {!!(error || read.error) && (
+      {!!read.error && (
         <>
-          <Notice error>{error || "Could not load pull requests. Check the connection, then retry."}</Notice>
+          <Notice error>Could not load pull requests. Check the connection, then retry.</Notice>
           <Button title="Retry" onPress={() => void read.reload()} />
         </>
       )}

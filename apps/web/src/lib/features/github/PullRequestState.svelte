@@ -1,31 +1,26 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import { pullRequestLook } from "@canopy/domain/github-pr";
+  import Icon from "#lib/shared/ui/Icon.svelte";
+  import { toneClasses } from "./presentation.ts";
 
-  let { state, class: className }: { state: string; class?: ClassValue } = $props();
+  let {
+    state,
+    iconOnly = false,
+    class: className,
+  }: { state: string; iconOnly?: boolean; class?: ClassValue } = $props();
 
-  const label = $derived(
-    state === "open"
-      ? "Open"
-      : state === "draft"
-        ? "Draft"
-        : state === "merged"
-          ? "Merged"
-          : state === "closed"
-            ? "Closed"
-            : "Unavailable",
-  );
+  const look = $derived(pullRequestLook(state));
 </script>
 
 <span
   class={[
-    "shrink-0 rounded-full px-2 py-0.5 font-medium",
-    state === "merged"
-      ? "bg-violet-500/10 text-violet-700 dark:text-violet-300"
-      : state === "closed"
-        ? "bg-red-500/10 text-red-700 dark:text-red-300"
-        : state === "open"
-          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-          : "bg-zinc-500/10 text-zinc-600 dark:text-zinc-300",
+    "inline-flex shrink-0 items-center gap-1.5",
+    !iconOnly && "rounded-md bg-zinc-500/5 py-0.5 pr-2 pl-1",
+    toneClasses[look.tone],
     className,
-  ]}>{label}</span
+  ]}
+  aria-label={iconOnly ? look.label : undefined}
 >
+  <Icon name={look.icon} tone="inherit" />{#if !iconOnly}<span>{look.label}</span>{/if}
+</span>

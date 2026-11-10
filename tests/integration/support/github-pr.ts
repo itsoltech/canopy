@@ -38,6 +38,7 @@ export function githubPrData(number = 42, state = "OPEN", draft = false) {
     labels: {
       nodes: Array.from({ length: 12 }, (_, i) => ({
         name: i === 0 ? "an-extremely-long-label-with-security-and-isolation-details" : `label-${i}`,
+        color: ["d73a4a", "a2eeef", "7057ff", "0e8a16", "fbca04", "ffffff"][i % 6]!,
       })),
       pageInfo,
     },

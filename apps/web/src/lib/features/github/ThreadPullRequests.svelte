@@ -9,6 +9,10 @@
   import LinkPullRequest from "./LinkPullRequest.svelte";
   import PullRequestState from "./PullRequestState.svelte";
   import * as api from "./api.ts";
+  import PanelRow from "#lib/features/threads/components/PanelRow.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
+  import { checkLook } from "@canopy/domain/github-pr";
+  import { pullRequestHref, toneClasses } from "./presentation.ts";
 
   let { thread, class: className }: { thread: ui.Thread; class?: ClassValue } = $props();
   let expanded = $state(false);
@@ -25,16 +29,6 @@
 
   const data = $derived(read.data);
   const links = $derived(data?.links ?? (thread.newestPullRequest ? [{ summary: thread.newestPullRequest }] : []));
-
-  async function unlink(id: string) {
-    error = "";
-
-    try {
-      read.set(await api.unlink(thread.id, id, data?.revision ?? thread.pullRequestRevision));
-    } catch {
-      error = "Could not unlink this pull request. Refresh, then retry.";
-    }
-  }
 </script>
 
 <section aria-label="Pull requests" class={["grid min-w-0 gap-2 px-3 py-2", className]}>
@@ -44,24 +38,16 @@
     {#each expanded ? links : links.slice(0, 1) as link (link.summary?.ref?.id)}
       {@const pr = link.summary}
       {#if pr?.ref}
-        <li class="grid min-w-0 gap-1 text-sm/5 sm:text-xs/5">
-          <a
-            href="/pull-requests/{pr.ref.id}?thread={encodeURIComponent(thread.id)}"
-            class="rounded-md font-medium break-words text-zinc-900 focus-ring hover:underline dark:text-zinc-100"
-            >{pr.title || `${pr.ref.repositoryName} #${pr.ref.number}`}</a
-          >
-          <div class="flex flex-wrap items-center gap-2 text-zinc-500 dark:text-zinc-400">
-            <span class="min-w-0 break-all">{pr.ref.repositoryName} #{pr.ref.number}</span><PullRequestState
-              state={pr.state}
-            />
-          </div>
-          <div class="flex items-center justify-between gap-2 text-zinc-500 dark:text-zinc-400">
-            <span>Checks: {pr.checksState || "unavailable"} · {pr.checksCount}</span><Button
-              size="sm"
-              disabled={data?.stale}
-              onclick={() => unlink(pr.ref!.id)}>Unlink</Button
-            >
-          </div>
+        <li class="min-w-0 text-sm/5 sm:text-xs/5">
+          <PanelRow icon="git-fork" href={pullRequestHref(thread.id, pr.ref.id)}>
+            {#snippet lead()}<PullRequestState state={pr.state} iconOnly />{/snippet}
+            <span title={pr.title}>{pr.title || pr.ref.repositoryName}</span>
+            {#snippet aside()}<span class="shrink-0 text-zinc-500 tabular-nums">#{pr.ref!.number}</span><Icon
+                name={checkLook(pr.checksState).icon}
+                class={toneClasses[checkLook(pr.checksState).tone]}
+                label={`Checks: ${checkLook(pr.checksState).label}`}
+              />{/snippet}
+          </PanelRow>
           {#if data?.stale && pr.verifiedAt}<p class="text-zinc-500 dark:text-zinc-400">
               Last verified {formatTime(pr.verifiedAt)}
             </p>{/if}
