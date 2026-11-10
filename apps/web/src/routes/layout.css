@@ -242,12 +242,27 @@ html[data-canopy-platform]:not(:has(:popover-open, [data-window-no-drag])) {
 :root {
   /* Width of the chat column (Appearance → Chat width). */
   --chat-width: 48rem;
+  --bot-chat-width: var(--chat-width);
+  --chat-bubble-width: 100%;
+  --chat-user-bubble-width: 36rem;
+  --chat-prose-width: 78ch;
 }
 :root[data-chat-width="wide"] {
   --chat-width: 60rem;
 }
 :root[data-chat-width="full"] {
   --chat-width: 100%;
+  /* Keep both sides of a bot conversation together on large screens. */
+  --bot-chat-width: 72rem;
+}
+@media (min-width: 40rem) {
+  :root {
+    --chat-bubble-width: 90%;
+  }
+  :root[data-chat-width="wide"],
+  :root[data-chat-width="full"] {
+    --chat-bubble-width: 92%;
+  }
 }
 
 @layer base {

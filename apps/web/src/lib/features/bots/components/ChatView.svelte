@@ -346,7 +346,7 @@
             {onchangeworker}
             {onreact}
             onreply={conversation.kind === "watch" || conversation.archived ? undefined : reply}
-            class="mx-auto w-full max-w-(--chat-width) px-3 pt-4 pb-6 sm:px-6"
+            class="mx-auto w-full max-w-(--bot-chat-width) px-3 pt-4 pb-6 sm:px-6"
           />
         {/if}
       </div>
@@ -384,7 +384,7 @@
     <div
       bind:this={composerRegion}
       bind:clientHeight={composerHeight}
-      class="absolute inset-x-0 bottom-0 z-10 mx-auto w-full max-w-(--chat-width) px-3 pt-1 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6 sm:pb-4"
+      class="absolute inset-x-0 bottom-0 z-10 mx-auto w-full max-w-(--bot-chat-width) px-3 pt-1 pb-[max(--spacing(3),env(safe-area-inset-bottom))] sm:px-6 sm:pb-4"
     >
       {#if archived && conversation.archived}
         {@render archived()}

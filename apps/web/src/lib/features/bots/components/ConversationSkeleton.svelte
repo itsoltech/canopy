@@ -5,7 +5,7 @@
 <div
   role="status"
   aria-label="Loading conversation"
-  class="mx-auto flex w-full max-w-(--chat-width) flex-col gap-6 px-6 py-8"
+  class="mx-auto flex w-full max-w-(--bot-chat-width) flex-col gap-6 px-6 py-8"
 >
   {#each [0, 1, 2, 3, 4, 5] as row (row)}
     <div class="flex gap-3" class:justify-end={row % 2 === 1}>
