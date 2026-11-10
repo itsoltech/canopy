@@ -79,7 +79,7 @@
         onclick={() => void updates.manage({ action: "update_all" })}
       />{/if}
   </header>
-  <div class="min-h-0 scroll-py-1 overflow-y-auto overscroll-contain px-3 py-1">
+  <div class="min-h-0 scroll-py-1 scroll-stable overflow-y-auto overscroll-contain px-3 py-1">
     {#if error}<p
         class={[
           "break-anywhere py-2 text-xs/5",

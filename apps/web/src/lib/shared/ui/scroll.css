@@ -1,0 +1,9 @@
+/* Keep growing scroll areas the same width with classic scrollbars. Overlay scrollbars use no gutter. */
+@utility scroll-stable {
+  scrollbar-gutter: stable;
+}
+
+/* Balance the inset around sidebar rows and side-panel cards. */
+@utility scroll-stable-both {
+  scrollbar-gutter: stable both-edges;
+}

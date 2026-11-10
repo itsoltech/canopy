@@ -113,7 +113,10 @@
     {/if}
   </div>
 
-  <nav class="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label={section === "threads" ? "Threads" : "Bots"}>
+  <nav
+    class="min-h-0 flex-1 scroll-stable-both overflow-y-auto px-2 pb-3"
+    aria-label={section === "threads" ? "Threads" : "Bots"}
+  >
     {#if section === "threads"}
       <SidebarThreads {currentThreadId} query={queries.threads} />
     {:else}

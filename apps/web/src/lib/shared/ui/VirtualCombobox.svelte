@@ -142,7 +142,7 @@
     bind:this={viewport}
     bind:clientHeight={height}
     onscroll={() => (top = viewport?.scrollTop ?? 0)}
-    class="min-h-0 flex-1 scroll-py-1 overflow-y-auto overscroll-contain"
+    class="min-h-0 flex-1 scroll-py-1 scroll-stable overflow-y-auto overscroll-contain"
   >
     <ul id="{id}-list" role="listbox" aria-label={label} class="grid grid-cols-1 content-start px-1.5 py-1">
       <li role="presentation" style:height="{start * rowHeight}px"></li>

@@ -12,7 +12,7 @@ export const paletteInputClass =
   "h-12 min-w-0 flex-1 bg-transparent text-base/6 text-zinc-950 placeholder:text-zinc-500 focus:outline-none sm:h-11 sm:text-sm/6 dark:text-white dark:placeholder:text-zinc-400";
 
 export const paletteListClass =
-  "min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5 pb-[max(--spacing(1.5),env(safe-area-inset-bottom))] sm:pb-1.5";
+  "scroll-stable min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5 pb-[max(--spacing(1.5),env(safe-area-inset-bottom))] sm:pb-1.5";
 
 export const paletteGroupLabelClass =
   "px-2.5 pt-2.5 pb-0.5 text-sm/5 font-medium text-zinc-500 first:pt-1 sm:text-xs/4 dark:text-zinc-400";

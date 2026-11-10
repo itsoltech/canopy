@@ -53,7 +53,7 @@
       role="region"
       aria-labelledby="{id}-instructions"
       tabindex="0"
-      class="max-h-48 overflow-y-auto overscroll-contain rounded-xl bg-zinc-950/3 p-3 text-base/6 wrap-anywhere whitespace-pre-wrap text-zinc-700 focus-ring select-text sm:text-sm/6 dark:bg-white/5 dark:text-zinc-300"
+      class="max-h-48 scroll-stable overflow-y-auto overscroll-contain rounded-xl bg-zinc-950/3 p-3 text-base/6 wrap-anywhere whitespace-pre-wrap text-zinc-700 focus-ring select-text sm:text-sm/6 dark:bg-white/5 dark:text-zinc-300"
     >
       {proposal.instructions || "No additional instructions."}
     </div>

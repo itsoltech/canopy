@@ -73,7 +73,9 @@
   {#if error}
     <Disclosure class="mt-1 ml-6" summaryClass="text-xs/5 text-rose-600 dark:text-rose-400">
       {#snippet summary()}<span class="break-anywhere line-clamp-2">{error}</span>{/snippet}
-      <p class="break-anywhere max-h-40 overflow-y-auto py-2 text-xs/5 text-rose-600 select-text dark:text-rose-400">
+      <p
+        class="break-anywhere max-h-40 scroll-stable overflow-y-auto py-2 text-xs/5 text-rose-600 select-text dark:text-rose-400"
+      >
         {error}
       </p>
     </Disclosure>

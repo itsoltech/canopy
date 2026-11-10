@@ -39,7 +39,7 @@
     {id}
     class={[
       "min-w-0 font-mono text-sm/5 wrap-anywhere whitespace-pre-wrap",
-      expanded ? "max-h-[30dvh] overflow-y-auto" : "max-h-15 overflow-hidden",
+      expanded ? "max-h-[30dvh] scroll-stable overflow-y-auto" : "max-h-15 overflow-hidden",
     ]}><span class="text-emerald-300" title={cwd}
       >{terminalCwd(
         cwd,

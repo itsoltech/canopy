@@ -74,7 +74,7 @@
       {/if}
     </div>
   {:else}
-    <div class="grid min-h-0 flex-1 place-items-center overflow-y-auto p-6">
+    <div class="grid min-h-0 flex-1 scroll-stable place-items-center overflow-y-auto p-6">
       <div class="flex max-w-md flex-col items-center text-center">
         <Icon name="question-mark-circle" class="fill-zinc-400 dark:fill-zinc-500" />
         <p class="mt-3 font-mono text-sm/6 text-zinc-500 dark:text-zinc-400">{page.status}</p>

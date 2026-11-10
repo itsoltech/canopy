@@ -160,7 +160,7 @@
               : "Choose files to copy"}
   </h2>
 </StepHeader>
-<div class="flex min-h-0 flex-col gap-3 overflow-y-auto p-4 text-base/6 sm:text-sm/5">
+<div class="flex min-h-0 scroll-stable flex-col gap-3 overflow-y-auto p-4 text-base/6 sm:text-sm/5">
   <p class="truncate text-sm text-zinc-500 sm:text-xs dark:text-zinc-400" title="{parent}/{name}">
     To {worker.name} · {name}
   </p>
@@ -201,7 +201,7 @@
     <Button onclick={() => void load()}>Refresh file list</Button>
   {:else if confirming}
     <p>These files may contain passwords, tokens or private keys. Copy them only to a computer you trust.</p>
-    <ul role="list" class="max-h-52 overflow-auto rounded-lg bg-zinc-950/3 p-3 dark:bg-white/5">
+    <ul role="list" class="max-h-52 scroll-stable overflow-auto rounded-lg bg-zinc-950/3 p-3 dark:bg-white/5">
       {#each secrets as entry (entry.path)}<li class="font-mono break-all select-text">{entry.path}</li>{/each}
     </ul>
     <Checkbox

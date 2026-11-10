@@ -217,7 +217,7 @@
           download={file.name}>Download</a
         >
       </div>
-      <div class="max-h-[65dvh] min-w-0 overflow-auto overscroll-contain">
+      <div class="max-h-[65dvh] min-w-0 scroll-stable overflow-auto overscroll-contain">
         <AttachmentContent {file} source={mode === "source"} {wrap} onload={(preview) => (text = preview.text)} />
       </div>
     </div>

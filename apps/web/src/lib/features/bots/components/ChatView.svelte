@@ -312,7 +312,7 @@
     <!-- `relative`: screen-reader labels positioned inside messages stay inside the scroller. -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
-      class="relative min-h-0 flex-1 scroll-pt-14 overflow-y-auto overscroll-contain pt-14 focus:outline-none"
+      class="relative min-h-0 flex-1 scroll-pt-14 scroll-stable overflow-y-auto overscroll-contain pt-14 focus:outline-none"
       style:padding-bottom="{composerHeight}px"
       style:scroll-padding-bottom="{composerHeight}px"
       role="log"

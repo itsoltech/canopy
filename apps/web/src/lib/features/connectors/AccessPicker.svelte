@@ -28,7 +28,7 @@
     bind:checked={all}
   />
   {#if !all}
-    <div class="grid max-h-56 gap-3 overflow-y-auto py-1 pl-7">
+    <div class="grid max-h-56 scroll-stable gap-3 overflow-y-auto py-1 pl-7">
       {#each options as option (option.id)}
         {#if option.group && option === options.find((o) => o.group === option.group)}<p
             class="text-sm font-medium text-zinc-500 dark:text-zinc-400"

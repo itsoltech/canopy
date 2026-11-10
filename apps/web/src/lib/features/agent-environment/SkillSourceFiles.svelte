@@ -44,7 +44,7 @@
   <p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">{artifact.description}</p>
   <ul
     role="list"
-    class="max-h-48 overflow-auto rounded-lg bg-zinc-950/3 p-3 text-base sm:text-sm dark:bg-white/4"
+    class="max-h-48 scroll-stable overflow-auto rounded-lg bg-zinc-950/3 p-3 text-base sm:text-sm dark:bg-white/4"
     aria-label="Source file changes"
   >
     {#each changes as change (change.path)}

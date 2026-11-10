@@ -70,7 +70,7 @@
 >
   <div class="flex h-full">
     <div
-      class="w-(--settings-nav-width) shrink-0 overflow-y-auto border-r border-zinc-950/5 bg-zinc-50 p-3 max-lg:hidden dark:border-white/8 dark:bg-white/2"
+      class="w-(--settings-nav-width) shrink-0 scroll-stable overflow-y-auto border-r border-zinc-950/5 bg-zinc-50 p-3 max-lg:hidden dark:border-white/8 dark:bg-white/2"
     >
       <SettingsNav />
     </div>
@@ -82,7 +82,7 @@
         <SettingsBreadcrumb class="flex-1" />
         <IconButton icon="x-mark" label="Close settings" onclick={onclose} />
       </div>
-      <div class="min-h-0 flex-1 overflow-y-auto">
+      <div class="min-h-0 flex-1 scroll-stable overflow-y-auto">
         <div class="settings-content mx-auto grid grid-cols-1 px-4 py-4 sm:px-6 lg:py-5">
           {#if settings.notice}
             <Alert tone={settings.notice.tone}>

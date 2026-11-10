@@ -596,7 +596,7 @@
   <div
     bind:this={scroller}
     {id}
-    class="relative h-full scroll-pt-2 scroll-pb-(--feed-footer) overflow-y-auto overscroll-contain [overflow-anchor:none] focus-visible:outline-none"
+    class="relative h-full scroll-pt-2 scroll-pb-(--feed-footer) scroll-stable overflow-y-auto overscroll-contain [overflow-anchor:none] focus-visible:outline-none"
     style:--feed-footer="{footerHeight}px"
     role="region"
     aria-label={label}

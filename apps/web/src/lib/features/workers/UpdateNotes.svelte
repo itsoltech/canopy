@@ -75,7 +75,7 @@
 {#if notes.length}
   <Disclosure open={expanded} class={className} summaryClass="py-1 text-sm/5 text-muted">
     {#snippet summary()}{#if compact}What’s new{:else}Release notes · {current} → {target}{/if}{/snippet}
-    <div class={["break-anywhere pt-2", compact && "max-h-60 overflow-y-auto overscroll-contain"]}>
+    <div class={["break-anywhere pt-2", compact && "max-h-60 scroll-stable overflow-y-auto overscroll-contain"]}>
       <UpdateReleaseNotes releases={notes} {channel} {source} />
     </div>
   </Disclosure>

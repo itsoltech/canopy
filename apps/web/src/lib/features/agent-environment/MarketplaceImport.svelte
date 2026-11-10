@@ -74,7 +74,7 @@
         <p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
           Saving the catalog does not enable code. Each plugin has its own review and assignment.
         </p>
-        <ul role="list" class="grid max-h-56 gap-2 overflow-auto text-base sm:text-sm">
+        <ul role="list" class="grid max-h-56 scroll-stable gap-2 overflow-auto text-base sm:text-sm">
           {#each market.plugins as plugin (plugin.artifact?.name)}<li class="wrap-anywhere">
               {plugin.artifact?.name}{plugin.unavailableReason ? ` · ${plugin.unavailableReason}` : ""}
             </li>{/each}

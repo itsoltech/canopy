@@ -178,7 +178,7 @@
   <div id="{id}-details" class="t-acc-panel" data-open={expanded || undefined} inert={!expanded}>
     <div>
       <div
-        class="grid max-h-[40dvh] gap-3 overflow-y-auto border-t border-zinc-950/5 px-3 pt-2.5 pb-3 dark:border-white/10"
+        class="grid max-h-[40dvh] scroll-stable gap-3 overflow-y-auto border-t border-zinc-950/5 px-3 pt-2.5 pb-3 dark:border-white/10"
       >
         <p class="text-base/6 break-words whitespace-pre-wrap text-zinc-950 sm:text-sm/6 dark:text-white">
           {goal.objective}

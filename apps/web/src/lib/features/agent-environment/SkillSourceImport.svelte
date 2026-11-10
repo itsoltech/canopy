@@ -99,7 +99,8 @@
             </p>{/each}
           {#if source.preview.license.trim()}<Disclosure>
               {#snippet summary()}<span class="text-base sm:text-sm">Repository license</span>{/snippet}
-              <pre class="max-h-48 overflow-auto pt-3 font-mono text-base whitespace-pre-wrap sm:text-sm">{source
+              <pre
+                class="max-h-48 scroll-stable overflow-auto pt-3 font-mono text-base whitespace-pre-wrap sm:text-sm">{source
                   .preview.license}</pre>
             </Disclosure>{/if}
           {#each source.preview.skills as item (item.path)}
