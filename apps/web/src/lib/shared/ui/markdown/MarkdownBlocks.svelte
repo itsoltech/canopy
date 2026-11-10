@@ -9,7 +9,12 @@
   import { useInlineElements } from "./inline-elements.ts";
 
   /** `streaming`: the text is still arriving (code blocks reveal per line, `CodeFence`). */
-  let { tokens, streaming = false }: { tokens: Token[]; streaming?: boolean } = $props();
+  let {
+    tokens,
+    streaming = false,
+    breaks = false,
+  }: { tokens: Token[]; streaming?: boolean; breaks?: boolean } = $props();
+
   const elements = useInlineElements();
 
   const headingSize = new Map<number, string>([
@@ -29,13 +34,16 @@
   {#if isMathToken(token)}
     <MathView text={token.text} raw={token.raw} display={token.display} />
   {:else if token.type === "paragraph"}
-    <p><MarkdownInline tokens={inline(token as Tokens.Paragraph)} /></p>
+    <p class={breaks ? "whitespace-pre-wrap" : undefined}>
+      <MarkdownInline tokens={inline(token as Tokens.Paragraph)} />
+    </p>
   {:else if token.type === "heading"}
     {@const heading = token as Tokens.Heading}
     <p
       class={[
         "font-semibold text-zinc-950 dark:text-white",
         headingSize.get(heading.depth) ?? "text-base/6 sm:text-sm/6",
+        breaks && "whitespace-pre-wrap",
       ]}
       role="heading"
       aria-level={Math.min(heading.depth + 2, 6)}
@@ -70,13 +78,15 @@
           {/if}
           <div class="grid min-w-0 gap-2">
             {#if item.loose}
-              <MarkdownBlocks tokens={item.tokens} {streaming} />
+              <MarkdownBlocks tokens={item.tokens} {streaming} {breaks} />
             {:else}
               {#each item.tokens as child, childIndex (childIndex)}
                 {#if child.type === "text"}
-                  <div><MarkdownInline tokens={inline(child as Tokens.Text)} /></div>
+                  <div class={breaks ? "whitespace-pre-wrap" : undefined}>
+                    <MarkdownInline tokens={inline(child as Tokens.Text)} />
+                  </div>
                 {:else}
-                  <MarkdownBlocks tokens={[child]} {streaming} />
+                  <MarkdownBlocks tokens={[child]} {streaming} {breaks} />
                 {/if}
               {/each}
             {/if}
@@ -88,7 +98,7 @@
     <blockquote
       class="grid gap-2 border-l-2 border-zinc-950/10 pl-3 text-zinc-600 dark:border-white/15 dark:text-zinc-400"
     >
-      <MarkdownBlocks tokens={(token as Tokens.Blockquote).tokens} {streaming} />
+      <MarkdownBlocks tokens={(token as Tokens.Blockquote).tokens} {streaming} {breaks} />
     </blockquote>
   {:else if token.type === "table"}
     {@const table = token as Tokens.Table}
@@ -99,8 +109,9 @@
             {#each table.header as cell, cellIndex (cellIndex)}
               <th
                 class={[
-                  "px-2 py-1.5 font-semibold whitespace-nowrap text-zinc-950 first:pl-0 dark:text-white",
+                  "px-2 py-1.5 font-semibold text-zinc-950 first:pl-0 dark:text-white",
                   align(table.align[cellIndex] ?? null),
+                  breaks ? "whitespace-pre-wrap" : "whitespace-nowrap",
                 ]}><MarkdownInline tokens={inline(cell)} /></th
               >
             {/each}
@@ -110,8 +121,12 @@
           {#each table.rows as row, rowIndex (rowIndex)}
             <tr>
               {#each row as cell, cellIndex (cellIndex)}
-                <td class={["px-2 py-1.5 align-top first:pl-0", align(table.align[cellIndex] ?? null)]}
-                  ><MarkdownInline tokens={inline(cell)} /></td
+                <td
+                  class={[
+                    "px-2 py-1.5 align-top first:pl-0",
+                    align(table.align[cellIndex] ?? null),
+                    breaks && "whitespace-pre-wrap",
+                  ]}><MarkdownInline tokens={inline(cell)} /></td
                 >
               {/each}
             </tr>
@@ -122,7 +137,7 @@
   {:else if token.type === "hr"}
     <hr class="border-zinc-950/10 dark:border-white/10" />
   {:else if token.type === "text"}
-    <p><MarkdownInline tokens={inline(token as Tokens.Text)} /></p>
+    <p class={breaks ? "whitespace-pre-wrap" : undefined}><MarkdownInline tokens={inline(token as Tokens.Text)} /></p>
   {:else if token.type === "html"}
     <p class="whitespace-pre-wrap">{token.raw}</p>
   {/if}

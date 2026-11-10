@@ -79,12 +79,12 @@ function skipped(node: QuoteNode): boolean {
   return attr("aria-hidden") === "true" || attr("data-quote-skip") !== null || attr("hidden") !== null;
 }
 
-/** An element whose whitespace shows as typed: `<pre>` and the code surfaces (diff lines). */
+/** An element whose whitespace shows as typed: code surfaces and prose that preserves spaces. */
 export function isPreformatted(node: QuoteNode): boolean {
   if (node.nodeName.toUpperCase() === "PRE") return true;
   const classes = node.getAttribute?.("class") ?? "";
 
-  return /(^|\s)code-surface(\s|$)/.test(classes);
+  return /(^|\s)(code-surface|whitespace-pre-wrap)(\s|$)/.test(classes);
 }
 
 /**
@@ -221,7 +221,7 @@ export function selectedQuote(selection: Selection | null): SelectedQuote | unde
   const source = quoteSourceOf(element);
 
   if (!source || !element) return undefined;
-  const pre = element.closest("pre, .code-surface") !== null;
+  const pre = element.closest("pre, .code-surface, .whitespace-pre-wrap") !== null;
   const text = visibleText(range.cloneContents(), pre);
 
   if (!text.trim()) return undefined;

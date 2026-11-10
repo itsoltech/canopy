@@ -13,6 +13,7 @@ import { BackgroundNoteRow } from "./NoticeRows";
 import { BotSender, SenderLabel } from "./SenderLabel";
 import { UserMessageView } from "./UserMessageView";
 import { MessageAttachments } from "../attachments/MessageAttachments";
+import { useMessageActions } from "./useMessageActions";
 
 const ICONS = new Map<string, IconName>([
   ["task", "sparkles"],
@@ -55,6 +56,7 @@ export function TurnInput({ turn }: { turn: ui.Turn }) {
   const tone: Tone = origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet";
   const look = useTone(tone);
   const text = turn.quotes.length ? turn.messageText : turn.messageText || turn.inputText;
+  const actions = useMessageActions(turn.messageText, "agent_message", fromAgent);
 
   if (origin.kind === "background_task") return <BackgroundNoteRow itemIds={origin.itemIds} />;
 
@@ -129,8 +131,14 @@ export function TurnInput({ turn }: { turn: ui.Turn }) {
         <AgentMessageBubble
           text={turn.messageText || "(no message)"}
           label={origin.kind === "report" ? "Show the whole report" : undefined}
+          actions={actions.trigger}
         >
-          <Markdown text={turn.messageText || "(no message)"} color={look.panel.text} />
+          <Markdown
+            text={turn.messageText || "(no message)"}
+            breaks
+            selectable={!actions.available}
+            color={look.panel.text}
+          />
         </AgentMessageBubble>
       ) : (
         <View
@@ -150,10 +158,11 @@ export function TurnInput({ turn }: { turn: ui.Turn }) {
               The agent here answers it; you can answer in the side thread instead.
             </Text>
           ) : (
-            <Markdown text={turn.messageText} color={look.panel.text} />
+            <Markdown text={turn.messageText} breaks color={look.panel.text} />
           )}
         </View>
       )}
+      {actions.menu}
     </View>
   );
 }

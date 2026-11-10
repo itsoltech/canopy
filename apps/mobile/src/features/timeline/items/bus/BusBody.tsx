@@ -34,7 +34,7 @@ export function AgentWell({ label, text }: { label: string; text: string }) {
       }}
     >
       <Text style={[styles.workMeta, { fontFamily: font.medium, color: violet.text }]}>{label}</Text>
-      <Markdown text={text} />
+      <Markdown text={text} breaks />
     </View>
   );
 }

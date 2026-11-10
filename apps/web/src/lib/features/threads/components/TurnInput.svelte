@@ -11,7 +11,7 @@
   import BackgroundNoteRow from "./BackgroundNoteRow.svelte";
   import ThreadLink from "./items/ThreadLink.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";
-  import AgentMessageBubble from "./items/AgentMessageBubble.svelte";
+  import ReceivedAgentMessage from "./items/ReceivedAgentMessage.svelte";
   import AgentSenderLabel from "./AgentSenderLabel.svelte";
   import ShellMessage from "./ShellMessage.svelte";
   import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
@@ -137,17 +137,13 @@
       <MessageAttachments attachments={turn.attachments} class="w-full" />
     {/if}
     {#if fromAgent}
-      <AgentMessageBubble
+      <ReceivedAgentMessage
         text={parts.message || "(no message)"}
         label={origin.kind === "report" ? "Show the whole report" : undefined}
         class="min-w-0"
       >
-        <Markdown
-          text={parts.message || "(no message)"}
-          breaks={origin.kind !== "report"}
-          class="text-inherit dark:text-inherit"
-        />
-      </AgentMessageBubble>
+        <Markdown text={parts.message || "(no message)"} breaks class="text-inherit dark:text-inherit" />
+      </ReceivedAgentMessage>
     {:else}
       <div
         class={[
