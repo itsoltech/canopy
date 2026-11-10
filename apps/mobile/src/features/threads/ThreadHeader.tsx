@@ -10,12 +10,14 @@ import { styles, useColors } from "../../ui/theme";
 import { Skeleton } from "../../ui/Skeleton";
 import { ThreadSearchSheet } from "./ThreadSearchSheet";
 import { ThreadActionsSheet } from "./ThreadActionsSheet";
+import { ThreadSyncStatus } from "./ThreadSyncStatus";
 
 export function ThreadHeader({
   thread,
   project,
   turns,
   snapshot,
+  syncing,
   onDetails,
   onSideThread,
   onGoal,
@@ -27,6 +29,7 @@ export function ThreadHeader({
   project?: ui.Project;
   turns: ui.Turn[];
   snapshot?: ui.ThreadSnapshot;
+  syncing: boolean;
   onDetails: () => void;
   onSideThread: () => void;
   onGoal?: () => void;
@@ -55,7 +58,7 @@ export function ThreadHeader({
             onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
           />
         )}
-        <ThreadIdentity thread={thread} project={project} />
+        <ThreadIdentity thread={thread} project={project} syncing={syncing} />
         <IconButton icon="magnifying-glass" label="Search thread" onPress={() => setSheet("search")} />
         <IconButton
           icon="ellipsis-horizontal"
@@ -87,12 +90,16 @@ export function ThreadHeader({
   );
 }
 
-function ThreadIdentity({ thread, project }: { thread?: ui.Thread; project?: ui.Project }) {
+function ThreadIdentity({ thread, project, syncing }: { thread?: ui.Thread; project?: ui.Project; syncing: boolean }) {
   const c = useColors();
 
   return (
     <>
-      {project && <ProjectMark name={project.name} kind={project.kind} />}
+      {project && (
+        <ThreadSyncStatus key={thread?.id} syncing={syncing}>
+          <ProjectMark name={project.name} kind={project.kind} />
+        </ThreadSyncStatus>
+      )}
       {project ? (
         <Text numberOfLines={1} style={[styles.body, { color: c.muted, maxWidth: 110, paddingLeft: 8 }]}>
           {project.name}

@@ -541,17 +541,12 @@
               ? "/settings/threads"
               : `/settings/projects/${project.id}`
             : undefined}
-          >{#snippet mark()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}{project?.name ??
-            "Project"}</Crumb
+          >{#snippet mark()}{#key thread.id}<ThreadSyncStatus syncing={!away && view.connection !== "live"}>
+                <ProjectMark name={project?.name ?? "?"} kind={project?.kind} />
+              </ThreadSyncStatus>{/key}{/snippet}{project?.name ?? "Project"}</Crumb
         >
-        {#if thread.nodeId}<li
-            class="relative flex h-12 min-w-16 shrink-0 items-center justify-center pb-2 sm:h-auto sm:min-w-0 sm:justify-start sm:pb-0"
-          >
+        {#if thread.nodeId}<li class="flex min-w-0 shrink-0 items-center">
             <MachineBadge nodeId={thread.nodeId} compact class="max-w-20 sm:max-w-40" />
-            <ThreadSyncStatus
-              syncing={view.connection === "syncing"}
-              class="pointer-events-none absolute inset-x-0 bottom-0 text-center sm:hidden"
-            />
           </li>{/if}
         {#if tree && isSide(thread) && tree.main.id !== thread.id}
           <Crumb href="/threads/{tree.main.id}">{tree.main.title}</Crumb>
@@ -564,10 +559,6 @@
         <Crumb><Skeleton class="h-4 w-48" /></Crumb>
       {/if}
       {#snippet actions()}
-        <ThreadSyncStatus
-          syncing={view.connection === "syncing"}
-          class={["w-16 shrink-0 text-right", thread?.nodeId && "max-sm:hidden"]}
-        />
         {#if thread}
           <DropdownMenu label="Thread actions" placement="bottom-end">
             {#snippet trigger(props)}<IconButton
