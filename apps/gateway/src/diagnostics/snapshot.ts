@@ -19,7 +19,10 @@ function historyView(collector: RpcCollector, slots: readonly Slot[], minutes: n
   const ids = new Set(slots.flatMap((slot) => [...slot.series.keys()]));
 
   // Under pressure preserve the read by merging directly, without retaining another allocation.
-  if (!collector.budget.reserve(ids.size * 4096)) return slots.map((slot) => slot.series);
+  const bytes = ids.size * 4096;
+
+  if (bytes > collector.budget.limit - collector.budget.used) return slots.map((slot) => slot.series);
+  collector.budget.reserve(bytes);
   const values = new Map<number, Aggregate>();
 
   for (const slot of slots)

@@ -456,6 +456,18 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
     expect(findings.snapshot()[0]?.suspended).toBe(false);
     findings.evaluate(healthy, healthy);
     expect(findings.snapshot()).toEqual([]);
+    const afterLoss = new Findings();
+    afterLoss.restore((await storage.state())!.findings);
+    const limited = create(ui.ComputerDiagnosticsSchema, { ...healthy, droppedSamples: 1n });
+    afterLoss.evaluate(limited, limited);
+
+    for (let minute = 0; minute < 14; minute++) afterLoss.evaluate(limited, limited);
+    expect(afterLoss.snapshot()[0]?.suspended).toBe(true);
+    afterLoss.evaluate(limited, limited);
+    expect(afterLoss.snapshot()[0]?.suspended).toBe(false);
+    limited.droppedSamples = 2n;
+    afterLoss.evaluate(limited, limited);
+    expect(afterLoss.snapshot()[0]?.suspended).toBe(true);
     await query("DELETE FROM diagnostics_state WHERE owner_user_id=$1::uuid AND computer_id='findings'", [
       gateway.userId,
     ]);

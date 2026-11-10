@@ -400,6 +400,9 @@ deskryptorów; zmiana okna, odtworzenie lub wygaśnięcie historii go unieważni
 Bajty tego widoku rezerwujemy we wspólnym budżecie kolektora; brak miejsca
 oznacza scalenie bez cache, bez pomijania danych odpowiedzi.
 Bieżące liczniki i gauges są dodawane od nowa, bez modyfikowania tego widoku.
+Odmowa zachowania cache nie zwiększa strat próbek, ponieważ odczyt nadal scala
+pełne dane. Po rzeczywistej stracie findings wznawiają ocenę po 15 kolejnych
+minutowych ocenach bez nowych strat; licznik skumulowany nie blokuje ich na zawsze.
 
 Publiczny interceptor nie ma hooka istniejących zakodowanych bajtów protobuf:
 rozmiary tych RPC pozostają `Not measured`. Wewnętrzne linked RPC wykorzystują

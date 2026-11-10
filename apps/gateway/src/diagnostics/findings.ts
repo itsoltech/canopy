@@ -14,6 +14,8 @@ const FAILURES = [2, 4, 8, 10, 13, 14, 15];
 
 export class Findings {
   readonly states = new Map<string, ui.DiagnosticsFinding>();
+  #observedDrops = 0n;
+  #completeMinutes = 15;
 
   restore(values: ui.DiagnosticsFinding[]) {
     for (const value of values.slice(0, 64))
@@ -29,6 +31,9 @@ export class Findings {
   }
 
   evaluate(snapshot: ui.ComputerDiagnostics, recent = snapshot) {
+    this.#completeMinutes =
+      snapshot.droppedSamples === this.#observedDrops ? Math.min(15, this.#completeMinutes + 1) : 0;
+    this.#observedDrops = snapshot.droppedSamples;
     const evidence: Evidence[] = [];
 
     for (const call of snapshot.calls) {
@@ -83,7 +88,8 @@ export class Findings {
             )
           : recent.calls.some((call) => `${call.layer}:${call.method}` === value.subject && call.completed > 0n);
 
-      const enough = activity && snapshot.observedSeconds >= 600 && !snapshot.restoring && !snapshot.droppedSamples;
+      const enough = activity && snapshot.observedSeconds >= 600 && !snapshot.restoring && this.#completeMinutes >= 15;
+
       const slow = snapshot.calls.find((call) => `${call.layer}:${call.method}` === value.subject)?.slow ?? 0n;
       const above = (value.value > value.threshold && (value.ruleId !== "rpc_slow" || slow >= 5n)) || value.critical;
 
