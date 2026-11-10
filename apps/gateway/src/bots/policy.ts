@@ -191,6 +191,7 @@ const legacyTools: ToolSpec[] = [
       model: str,
       effort: str,
       prompt: str,
+      attachment_ids: { type: "array", items: str },
       title: str,
       permission: { type: "string", enum: ["ask", "read_only", "accept_edits", "full_auto"] },
     },
@@ -199,7 +200,12 @@ const legacyTools: ToolSpec[] = [
   tool(
     "send_message",
     "Send to an existing thread: queue (next turn) or steer (into the running turn, falling back to queue). Completion arrives as a follow-up.",
-    { thread_id: str, text: str, delivery: { type: "string", enum: ["queue", "steer"] } },
+    {
+      thread_id: str,
+      text: str,
+      delivery: { type: "string", enum: ["queue", "steer"] },
+      attachment_ids: { type: "array", items: str },
+    },
     ["thread_id", "text"],
   ),
   tool("rename_thread", "Change a thread title setting.", { thread_id: str, title: str }, ["thread_id", "title"]),

@@ -143,7 +143,7 @@ export class BotTurns {
           ? { url: bus.server.url, headers: Object.fromEntries(bus.server.headers.map((h) => [h.name, h.value])) }
           : { url: "", headers: {} },
       record,
-      images: imagesFor(this.ctx, input),
+      content: imagesFor(this.ctx, input),
       noteHarness: (harness: Parameters<Journal["Service"]["noteHarness"]>[2]) =>
         this.ctx.state.options.runtime.runPromise(
           Journal.use((j) => j.noteHarness(input.botId, input.turnId, harness)),

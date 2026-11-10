@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { grokLaunch } from "../providers/grok/launch.ts";
 import { GrokEventMapper } from "../providers/grok/mapping.ts";
 import { grokStopReason, grokTranscriptPath } from "../providers/grok/transcript.ts";
-import { botPrompt } from "./session.ts";
 import { BotHarnessFailure, type BotHarnessContext } from "./types.ts";
 
 /** ACP owns inference; the only tools exposed by the curated agent are Canopy MCP. */
@@ -42,7 +41,7 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
   try {
     signal.throwIfAborted();
     const info = await client.initialize();
-    const hasImages = input.attachments.length > 0 || input.historyAttachments.length > 0;
+    const hasImages = [...input.attachments, ...input.historyAttachments].some((a) => a.kind === "image");
 
     if (hasImages && !info.agentCapabilities?.promptCapabilities?.image)
       throw new BotHarnessFailure("IMAGE_UNAVAILABLE", "Update the Grok CLI to receive images.");
@@ -89,9 +88,11 @@ export async function runGrokBot(ctx: BotHarnessContext): Promise<void> {
     const mapper = new GrokEventMapper(input.turnId, session.cwd);
     let complete = false;
 
+    const content = await ctx.content(Boolean(resumed));
+
     for await (const event of client.prompt(id, [
-      { type: "text", text: `${input.instructions}\n\n${botPrompt(input, Boolean(resumed))}` },
-      ...(await ctx.images(Boolean(resumed))).map((image) => ({
+      { type: "text", text: `${input.instructions}\n\n${content.text}` },
+      ...content.images.map((image) => ({
         type: "image" as const,
         data: Buffer.from(image.data).toString("base64"),
         mimeType: image.mimeType,

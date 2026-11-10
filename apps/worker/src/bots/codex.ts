@@ -6,7 +6,6 @@ import { CodexAppServer } from "../providers/codex/app-server.ts";
 import { codexAppServerLaunch, codexThreadProvider, type CodexAppServerLaunch } from "../providers/codex/launch.ts";
 import { codexTextOverrides } from "../providers/generate-text.ts";
 import { codexBotCatalog, codexModelEntry } from "./codex-catalog.ts";
-import { botPrompt } from "./session.ts";
 import type { BotHarnessContext } from "./types.ts";
 import { BotHarnessFailure } from "./types.ts";
 import { codexErrorCode } from "../providers/codex/status-mapping.ts";
@@ -75,10 +74,15 @@ function botThreadParams(ctx: BotHarnessContext) {
 }
 
 async function imageInput(ctx: BotHarnessContext, resumed: boolean) {
-  return (await ctx.images(resumed)).map((image) => ({
-    type: "image" as const,
-    url: `data:${image.mimeType};base64,${Buffer.from(image.data).toString("base64")}`,
-  }));
+  const content = await ctx.content(resumed);
+
+  return [
+    { type: "text" as const, text: content.text, text_elements: [] },
+    ...content.images.map((image) => ({
+      type: "image" as const,
+      url: `data:${image.mimeType};base64,${Buffer.from(image.data).toString("base64")}`,
+    })),
+  ];
 }
 
 /** Dedicated official app-server; the bot catalog keeps the model's limits and removes every local tool. */
@@ -187,10 +191,7 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
 
     const turn = yield* server.request("turn/start", {
       threadId: id,
-      input: [
-        { type: "text", text: botPrompt(input, Boolean(resumed)), text_elements: [] },
-        ...(yield* Effect.promise(() => imageInput(ctx, Boolean(resumed)))),
-      ],
+      input: yield* Effect.promise(() => imageInput(ctx, Boolean(resumed))),
       ...(input.effort && { effort: input.effort }),
       approvalPolicy: "never",
       sandboxPolicy: { type: "readOnly", networkAccess: false },

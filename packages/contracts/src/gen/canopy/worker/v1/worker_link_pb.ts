@@ -2734,7 +2734,7 @@ export type RunBotTurn = Message<"canopy.worker.v1.RunBotTurn"> & {
   configurationKey: string;
 
   /**
-   * bot_images_v1: verified files supplied as native image input; never filesystem tools.
+   * bot_images_v1 for images; bot_files_v1 for documents/text/opaque files. No filesystem tools.
    *
    * @generated from field: repeated canopy.worker.v1.InputAttachment attachments = 12;
    */

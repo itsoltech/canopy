@@ -16,7 +16,7 @@ export function attachmentsHandlers(
         if (request.botId) await core.bots.get(request.botId);
 
         return create(ui.UploadAttachmentResponseSchema, {
-          attachment: await core.uploadAttachment(request.name, request.data, Boolean(request.botId)),
+          attachment: await core.uploadAttachment(request.name, request.data),
         });
       }),
 

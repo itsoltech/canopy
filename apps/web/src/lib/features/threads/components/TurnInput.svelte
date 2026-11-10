@@ -14,6 +14,7 @@
   import AgentMessageBubble from "./items/AgentMessageBubble.svelte";
   import AgentSenderLabel from "./AgentSenderLabel.svelte";
   import ShellMessage from "./ShellMessage.svelte";
+  import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
 
   /**
    * The input of a turn with where it came from (the turn's source): you (a plain message), another
@@ -132,6 +133,9 @@
       {/if}
       {#if turn.hops > 0 && !senderLine}{@render hops()}{/if}
     </p>
+    {#if turn.attachments.length > 0}
+      <MessageAttachments attachments={turn.attachments} class="w-full" />
+    {/if}
     {#if fromAgent}
       <AgentMessageBubble
         text={parts.message || "(no message)"}

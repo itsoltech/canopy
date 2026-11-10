@@ -7,7 +7,8 @@ import type { GatewayCore, GatewayCoreOptions } from "../core/core.ts";
 import { GatewayStore, Invalid, NotFound } from "../store/store.ts";
 import { platformError } from "./errors.ts";
 import { BotStore } from "./store.ts";
-import { statusPhrase } from "./policy.ts";
+import { approvalPrompt, statusPhrase } from "./policy.ts";
+import { forwardingApproval, forwardingIds, localForwardTarget } from "../core/bot-files.ts";
 import type { BotTurn, StoredCall, ToolSpec } from "./types.ts";
 import { areaTool } from "./tools/index.ts";
 import { context, validate, type ToolResult } from "./tools/shared.ts";
@@ -89,6 +90,17 @@ export async function prepareBotTool(
   turn: BotTurn,
   call: StoredCall,
 ): Promise<{ prompt?: string } | undefined> {
+  if (call.tool.source === "platform" && ["start_thread", "send_message"].includes(call.tool.name)) {
+    validate(call.tool.parameters, call.arguments);
+
+    return forwardingApproval(
+      core,
+      turn,
+      call,
+      approvalPrompt(call.tool, call.arguments, await describeBotTool(core, call.tool, call.arguments)),
+    );
+  }
+
   const registered = call.tool.source === "platform" ? areaTool.get(call.tool.name) : undefined;
 
   if (!registered?.prepare) return undefined;
@@ -123,6 +135,8 @@ export async function botPlatform(
 
   try {
     validate(call.tool.parameters, args);
+
+    if (["start_thread", "send_message"].includes(call.tool.name)) localForwardTarget(args, forwardingIds(args));
     const linked = await core.linkedAgents.botTool(turn, call);
 
     if (linked !== undefined) return linked;
@@ -191,7 +205,7 @@ export async function botPlatform(
       case "start_thread":
         return await startThread(core, turn, call, { string, optional });
 
-      case "send_message": {
+      case "send_message":
         return await core.sendBotThreadMessage(
           turn,
           call,
@@ -199,8 +213,6 @@ export async function botPlatform(
           string("text"),
           optional("delivery") || "queue",
         );
-      }
-
       case "send_bot_message":
         return await action(BotStore.use((s) => s.sendToBot(user, turn, call)));
       case "schedule_wakeup":

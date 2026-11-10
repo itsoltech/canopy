@@ -32,6 +32,13 @@ nie wymaga dostępnego workera ani zmiany modelu.
 
 ## Obrazy użytkownika
 
+Pozostałe typy plików wymagają `bot_files_v1` i korzystają z tego samego transferu.
+PDF trafia do Claude jako natywny blok dokumentu; Codex i Grok dostają wyciąg
+tekstu (bez OCR, do 50 stron). Pliki UTF-8 są tekstem wejścia, do 64 000 znaków
+na plik i 128 000 na turę, z notatkami o przycięciu. Pozostałe pliki mają
+metadane i referencje do przekazania. Pełna tabela i zasady przekazywania:
+[bots.md](bots.md#szkice-i-załączniki-w-rozmowie).
+
 Gateway wiąże obraz z turą bota atomowo z zapisem wiadomości, po sprawdzeniu
 właściciela, typu, limitów i braku wcześniejszego powiązania. `RunBotTurn`
 przenosi addytywne `attachments` (12) i `history_attachments` (13). Taka komenda
@@ -44,14 +51,14 @@ obraz musi należeć do właściciela bota. Zakończona tura nie uprawnia do pob
 Wspólny `AttachmentFiles` sprawdza ścieżkę, rozmiar i SHA-256 przed zapisem.
 Ścieżki są wyliczane dla aktualnego workera, również po zmianie Runs on.
 
-Notatka platformy wymienia nazwy i ścieżki obrazów. Adapter normalizuje obraz
+Notatka platformy wymienia referencje, nazwy, typy i rozmiary plików. Adapter normalizuje obraz
 jak w wątkach i dostarcza bajty natywnie: Claude SDK jako bloki `image` base64,
 Codex app-server jako wejścia `image` z data URL, Grok ACP jako bloki `image`.
 Grok wymaga `promptCapabilities.image`. Bot nadal nie ma `view_image`, shella
 ani czytania dowolnych plików. Po wznowieniu sesji wysyłamy obrazy bieżącej tury;
-odbudowana sesja dostaje też najnowsze obrazy z historii: najwyżej 10 i 20 MiB
-łącznie, oprócz obrazów bieżącej wiadomości. Pominięte obrazy zastępuje notatka
-z prośbą o ponowne załączenie, jeśli będą potrzebne.
+odbudowana sesja dostaje też najnowsze pliki z historii: najwyżej 10 i 20 MiB
+łącznie, oprócz plików bieżącej wiadomości. Pominięte pliki zastępuje notatka
+z informacją o `list_attachments` i ponownym załączeniu do odczytu treści.
 Sekrety połączeń i dane logowania nigdy nie są częścią promptu.
 
 ## Sesja i kontekst

@@ -5,7 +5,6 @@ import { claudeExecutable } from "../providers/claude/executable.ts";
 import { transcriptPath } from "../providers/claude/transcript.ts";
 import { isClaudeEffort } from "../providers/models.ts";
 import { statSync } from "node:fs";
-import { botPrompt } from "./session.ts";
 import type { BotHarnessContext } from "./types.ts";
 import { BotHarnessFailure } from "./types.ts";
 import { rejectBotToolApproval } from "./failures.ts";
@@ -45,7 +44,7 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   });
   const allowedTools = input.tools.map((t) => `mcp__canopy__${t.name}`);
   const profile = claudeProfileOptions(ctx.profile, process.env);
-  const images = await ctx.images(resumed);
+  const content = await ctx.content(resumed);
   signal.throwIfAborted();
   const harness = botClaudeProcess();
   const abort = new AbortController();
@@ -60,8 +59,13 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
       message: {
         role: "user",
         content: [
-          { type: "text", text: botPrompt(input, resumed) },
-          ...images.map((image) => ({
+          { type: "text", text: content.text },
+          ...content.documents.map((document) => ({
+            type: "document" as const,
+            title: document.name,
+            source: { type: "base64" as const, media_type: "application/pdf" as const, data: document.data },
+          })),
+          ...content.images.map((image) => ({
             type: "image" as const,
             source: {
               type: "base64" as const,
@@ -75,7 +79,7 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   }
 
   const q = query({
-    prompt: images.length ? prompt() : botPrompt(input, resumed),
+    prompt: content.images.length || content.documents.length ? prompt() : content.text,
     options: {
       ...profile,
       env: {

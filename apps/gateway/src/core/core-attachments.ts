@@ -2,15 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { MentionKind, ui, type BlobChunk, type FetchBlob, type Mention } from "@canopy/contracts";
 import { Effect } from "effect";
 import { type WorkerConnection } from "../worker-link/index.ts";
-import {
-  attachmentPath,
-  attachmentsNote,
-  formatSize,
-  orderAttachments,
-  sniff,
-  withAttachmentsNote,
-} from "@canopy/domain";
-import { BOT_IMAGE_TYPES } from "../bots/attachments.ts";
+import { attachmentPath, attachmentsNote, formatSize, orderAttachments, withAttachmentsNote } from "@canopy/domain";
 import { AttachmentRejected, prepareAttachment, sha256Hex } from "../attachments/prepare.ts";
 import { AttachmentStore, toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
 import { NotFound } from "../store/index.ts";
@@ -207,24 +199,17 @@ export function coreAttachments<A, E>(
 }
 
 export interface CoreAttachmentsMethods {
-  uploadAttachment(name: string, data: Uint8Array, imagesOnly?: boolean): Promise<ui.Attachment>;
+  uploadAttachment(name: string, data: Uint8Array): Promise<ui.Attachment>;
   getAttachment(attachmentId: string, thumbnail: boolean, preview?: boolean): Promise<ui.GetAttachmentResponse>;
   getThreadBlob(threadId: string, sha256: string): Promise<ui.GetThreadBlobResponse>;
 }
 
 export const coreAttachmentsMethods: CoreAttachmentsMethods = {
   /** An upload (docs/ui-api.md, "Załączniki"): typed by its content, images cleaned of metadata, owned by the user. */
-  async uploadAttachment(
-    this: GatewayCore,
-    name: string,
-    data: Uint8Array,
-    imagesOnly = false,
-  ): Promise<ui.Attachment> {
+  async uploadAttachment(this: GatewayCore, name: string, data: Uint8Array): Promise<ui.Attachment> {
     let prepared;
 
     try {
-      if (imagesOnly && !BOT_IMAGE_TYPES.has(sniff(data, name).mimeType))
-        throw new InvalidError("Attach a PNG, JPEG, GIF or WebP image.");
       prepared = await prepareAttachment(name, data, await this.attachmentLimits);
     } catch (error) {
       if (error instanceof AttachmentRejected) throw new InvalidError(error.message);

@@ -12,6 +12,7 @@ import { useTimelineDirectory } from "./directory";
 import { BackgroundNoteRow } from "./NoticeRows";
 import { BotSender, SenderLabel } from "./SenderLabel";
 import { UserMessageView } from "./UserMessageView";
+import { MessageAttachments } from "../attachments/MessageAttachments";
 
 const ICONS = new Map<string, IconName>([
   ["task", "sparkles"],
@@ -123,6 +124,7 @@ export function TurnInput({ turn }: { turn: ui.Turn }) {
         {source}
         {hops && !fromAgent ? <Text style={[styles.meta, { color: c.muted }]}>· {hops}</Text> : null}
       </View>
+      {turn.attachments.length > 0 && <MessageAttachments files={turn.attachments} pending={false} />}
       {fromAgent ? (
         <AgentMessageBubble
           text={turn.messageText || "(no message)"}

@@ -4,7 +4,6 @@ import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@canopy/domain
 import { Invalid } from "../store/store.ts";
 import { type AttachmentRow, type StoredAttachment } from "../store/attachments.ts";
 
-export const BOT_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Shared upload storage, revalidated under the sending transaction before binding to a bot turn. */
@@ -13,7 +12,7 @@ export function botImages(sql: SqlClient.SqlClient, user: string, ids: readonly 
     if (!ids.length) return [];
 
     if (!ids.every((id) => UUID.test(id)) || new Set(ids).size !== ids.length)
-      return yield* Effect.fail(new Invalid("Choose each uploaded image once."));
+      return yield* Effect.fail(new Invalid("Choose each uploaded file once."));
 
     const settings = (yield* sql<{
       max_file: string | null;
@@ -32,7 +31,7 @@ export function botImages(sql: SqlClient.SqlClient, user: string, ids: readonly 
         }
       : (limits ?? DEFAULT_ATTACHMENT_LIMITS);
 
-    if (ids.length > max.maxFiles) return yield* Effect.fail(new Invalid(`Attach up to ${max.maxFiles} images.`));
+    if (ids.length > max.maxFiles) return yield* Effect.fail(new Invalid(`Attach up to ${max.maxFiles} files.`));
 
     const rows = yield* sql<AttachmentRow>`SELECT * FROM attachments
       WHERE owner_user_id=${user}::uuid AND id=ANY(${ids}::uuid[]) ORDER BY id FOR UPDATE`;
@@ -44,18 +43,15 @@ export function botImages(sql: SqlClient.SqlClient, user: string, ids: readonly 
       const row = byId.get(id);
 
       if (!row || row.thread_id || row.bot_id)
-        return yield* Effect.fail(new Invalid("This image is unavailable. Upload it again."));
-
-      if (row.kind !== "image" || !BOT_IMAGE_TYPES.has(row.mime_type))
-        return yield* Effect.fail(new Invalid("Attach a PNG, JPEG, GIF or WebP image."));
+        return yield* Effect.fail(new Invalid("This file is unavailable. Upload it again."));
 
       if (Number(row.size_bytes) > max.maxFileBytes)
-        return yield* Effect.fail(new Invalid("This image exceeds the size limit. Choose a smaller image."));
+        return yield* Effect.fail(new Invalid("This file exceeds the size limit. Choose a smaller file."));
       ordered.push(row);
     }
 
     if (ordered.reduce((sum, r) => sum + Number(r.size_bytes), 0) > max.maxMessageBytes)
-      return yield* Effect.fail(new Invalid("These images exceed the message size limit. Remove an image."));
+      return yield* Effect.fail(new Invalid("These files exceed the message size limit. Remove a file."));
 
     return ordered;
   });

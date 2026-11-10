@@ -432,7 +432,7 @@
   {#if intake.dragging}<div
       class="pointer-events-none absolute inset-2 z-30 grid place-items-center rounded-2xl border-2 border-dashed border-brand-500 bg-white/90 dark:bg-zinc-950/90"
     >
-      <p>Drop images to attach</p>
+      <p>Drop files to attach</p>
     </div>{/if}
 </div>
 {#if conversation.kind !== "watch" && !conversation.archived}<CiteLayer

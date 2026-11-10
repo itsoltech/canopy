@@ -93,9 +93,8 @@
 <input
   bind:this={picker}
   type="file"
-  name="botImages"
-  aria-label="Attach images"
-  accept="image/png,image/jpeg,image/gif,image/webp"
+  name="botFiles"
+  aria-label="Attach files"
   multiple
   class="hidden"
   onchange={() => {

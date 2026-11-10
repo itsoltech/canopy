@@ -93,7 +93,11 @@ export async function coreDeliver(hostContext: GatewayCore, workerId: string, co
   if (
     command.kind.case === "runBotTurn" &&
     (command.kind.value.attachments.length || command.kind.value.historyAttachments.length) &&
-    !connection.hello.capabilities.includes("bot_images_v1")
+    !connection.hello.capabilities.includes(
+      [...command.kind.value.attachments, ...command.kind.value.historyAttachments].some((a) => a.kind !== "image")
+        ? "bot_files_v1"
+        : "bot_images_v1",
+    )
   )
     return;
 

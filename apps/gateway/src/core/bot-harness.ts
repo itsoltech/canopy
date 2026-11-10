@@ -127,11 +127,15 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
     if (
       (images.attachments.length || images.historyAttachments.length) &&
       connection?.isOpen &&
-      !connection.hello.capabilities.includes("bot_images_v1")
+      !connection.hello.capabilities.includes(
+        [...images.attachments, ...images.historyAttachments].some((a) => a.kind !== "image")
+          ? "bot_files_v1"
+          : "bot_images_v1",
+      )
     )
       throw new ProviderFailure(
         "configuration",
-        "Update this worker to receive images, or choose another worker.",
+        "Update this worker to receive files, or choose another worker.",
         "platform",
       );
 
@@ -188,11 +192,13 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
       if (
         connection?.isOpen &&
         input.messages.some((m) => m.attachments?.length) &&
-        !connection.hello.capabilities.includes("bot_images_v1")
+        !connection.hello.capabilities.includes(
+          input.messages.some((m) => m.attachments?.some((a) => a.kind !== "image")) ? "bot_files_v1" : "bot_images_v1",
+        )
       )
         throw new ProviderFailure(
           "configuration",
-          "Update this worker to receive images, or choose another worker.",
+          "Update this worker to receive files, or choose another worker.",
           "platform",
         );
 

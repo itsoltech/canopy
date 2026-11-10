@@ -61,7 +61,6 @@ export function useMessageDraft(
       current: options.files,
       keepAlive: Boolean(options.botId),
       botId: options.botId,
-      imagesOnly: Boolean(options.botId),
       onChange: options.onChange,
     },
   );
