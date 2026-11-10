@@ -118,7 +118,6 @@ export function ThreadTimeline({
                   context={context}
                   newDay={days.has(item)}
                   latest={index === 0}
-                  onQueued={(turn) => state.setQueued({ turn, editing: false })}
                 />
               </TimelineDirectoryProvider>
             </ArrivingCell>
@@ -141,7 +140,7 @@ export function ThreadTimeline({
                   </Animated.View>
                 ))}
               </View>
-              <View style={{ height: composer.height }} />
+              <View style={{ height: composer.reserve }} />
             </>
           }
         />

@@ -40,7 +40,7 @@ const VERBS = new Map([
  * message, violet, naming the sender's thread), a report from a thread it follows, a side thread's question, a
  * schedule, a bot, or the platform's note about ended background tasks.
  */
-export function TurnInput({ turn, onActions }: { turn: ui.Turn; onActions?: (() => void) | undefined }) {
+export function TurnInput({ turn }: { turn: ui.Turn }) {
   const c = useColors();
   const type = useTypography();
   const directory = useTimelineDirectory();
@@ -64,7 +64,6 @@ export function TurnInput({ turn, onActions }: { turn: ui.Turn; onActions?: (() 
         attachments={turn.attachments}
         quotes={turn.quotes}
         mentions={turn.messageText ? turn.mentions : []}
-        onActions={onActions}
         note={
           turn.status === "queued"
             ? {

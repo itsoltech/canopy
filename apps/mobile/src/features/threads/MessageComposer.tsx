@@ -28,7 +28,6 @@ export function MessageComposer({
   disabled,
   busy,
   onDetails,
-  onGoal,
   compact = false,
   onExpand,
 }: {
@@ -41,7 +40,6 @@ export function MessageComposer({
   disabled: boolean;
   busy: boolean;
   onDetails: () => void;
-  onGoal: () => void;
   compact?: boolean;
   onExpand?: () => void;
 }) {
@@ -96,7 +94,6 @@ export function MessageComposer({
             ) : (
               <Skeleton style={{ width: 100, height: composerGeometry.secondary }} />
             )}
-            {thread?.goalStatus ? <ComposerPill icon="flag" title="Goal" onPress={onGoal} /> : null}
           </ScrollView>
           <ComposerPill
             icon={look.icon}

@@ -814,7 +814,7 @@ wiadomością (w nagłówku odwróconej listy) stoi rezerwa zmierzonej wysokośc
 kompozytora. Pierwszy render pustego wątku rezerwuje 186 dp: pole 64, toolbar 56,
 dolny wiersz 36, odstęp 8, padding 20 i obramowanie 2. Oba foldy zaczynają z pełną
 wysokością swoich wierszy zamiast zera; późniejszy pomiar nadal obsługuje rzeczywisty
-rozmiar treści. Pomiar nie zawiera safe area, klawiatury ani pustych wierszy statusu. Zwijanie
+rozmiar treści. Pomiar nie zawiera safe area, klawiatury ani wierszy statusu i zasobnika (niżej). Zwijanie
 i rozwijanie zmienia wyłącznie nakładkę; obie strony przejścia zachowują tę samą rezerwę,
 bez końcowej zmiany wysokości nagłówka listy ani korekty scrolla. Dzięki temu ostatnia wiadomość
 ma miejsce przez całe otwieranie. Rezerwa podąża za zmianami rozwiniętej treści (np. długim
@@ -963,38 +963,51 @@ stopień `work` (15/13), komendy są monospace. Tura powłoki (`Turn.shell_comma
 z kodem wyjścia, 4 wierszami wyniku i „Show output”. Po karcie pokazuje tę samą pracę
 i odpowiedź agenta co zwykła tura; odpowiedź pozostaje poza foldem, a zakończona praca
 bez wierszy ma nieinteraktywny nagłówek „Worked for …”. `!` na początku kompozytora włącza tryb
-powłoki (obramowanie rose, nota w miejscu kontrolek). Tura w kolejce pokazuje „Queued”,
-a po `dispatched` „Starting”; pliki tury są odznakami w dymku. Nad kompozytorem jest jeden
-wiersz „Subagents · N running · N finished” z wyróżnionym tekstem „N needs input”. Jego
-miejsce jest nakładką poza pomiarem kompozytora; bez subagentów wiersz ma zerową wysokość.
-Start i koniec pracy nie przesuwają kompozytora ani feedu. Podsumowanie pozostaje widoczne podczas pisania. Dotknięcie rozwija
-listę w nakładce nad tym wierszem, poza pomiarem kompozytora: maksymalnie 240 dp, własne
-przewijanie, bez zamykania klawiatury. Nakładka mieści się między nagłówkiem a kompozytorem
-nawet przy otwartej klawiaturze. To pozwala zachować pole pisania i jego fokus bez dodatkowego
-arkusza. Preferencja urządzenia `subagentsExpanded` zapamiętuje rozwinięcie (domyślnie Off).
-Podpowiedzi wzmianek tymczasowo zajmują to samo miejsce, zachowując tę preferencję.
+powłoki (obramowanie rose, nota w miejscu kontrolek). Wiadomość czekająca w kolejce nie jest
+turą na osi czasu (jak w web): pokazuje ją kolejka w zasobniku, a tura pojawia się po `dispatched`
+z notą „Starting”; pliki tury są odznakami w dymku.
 
-Nakładka i panel szczegółów współdzielą listę oraz webowe grupowanie z `@canopy/domain/subagents`:
+**Zasobnik nad kompozytorem** (`features/threads/tray`, web: `ComposerTop`) to jeden stos paneli
+na powierzchni kompozytora: zaokrąglone tylko górne rogi, wcięcie 16 dp (promień rogu pola),
+więc boki dochodzą do prostej górnej krawędzi pola, a jego obramowanie zamyka stos. Kolejność jak
+w web: cel, subagenci, kolejka, a najbliżej pola to, co czeka na odpowiedź. Każdy panel ma
+nagłówek `TrayHeader` (40 dp, cel dotyku 48 dp, tekst 14, ikona 16, chevron 12) i linię nad sobą;
+obramowanie stosu przykrywa pierwszą. Bez paneli zasobnika nie ma; nie ma go też przy historii
+importu (bez pola). Za wysoki stos przewija się we własnym `ScrollView`, bez zamykania klawiatury.
+Zwinięty kompozytor zwija też treść paneli; nagłówki zostają. Nad zasobnikiem są wiersze statusu
+(„Syncing…”, sekrety, „Sending…”, błąd wysyłki, komputer offline) i chip zadań w tle.
+Wiersze statusu i zasobnik leżą na tle kompozytora z własnym wygaszeniem 32 dp, poza pomiarem
+pola. Ich wysokość wchodzi do rezerwy pod ostatnią wiadomością tylko na końcu feedu
+(`useFloatingComposer.measureAccessory`): tam ostatnia wiadomość przesuwa się razem z nimi,
+a podczas czytania historii nic się nie przesuwa, a zmiana czeka na powrót na koniec.
+Zasobnik wchodzi i wychodzi przez `rise`, wiersze kolejki dodatkowo przez `layout`.
+
+Panel subagentów (`SubagentsPanel`, web: `SubagentsPanel`) pokazuje tylko pracujących
+i czekających na odpowiedź (`subagentsOf` z `@canopy/domain/subagents`). Nagłówek liczy tylko
+aktywnych („2 subagents working · 1 needs you”, ten sam `subagentSummary` co web) i pokazuje ikony
+ich dostawców. Rozwinięcie (accordion `Expand`, chevron `useTween`) pokazuje wiersz na subagenta:
+kropka stanu, tytuł, etykieta stanu i pierwsza linia ostatniej wiadomości. Dotknięcie otwiera
+wątek z historią i możliwością dalszej wiadomości. Zakończeni znikają z zasobnika; pełna linia
+(„N finished”, „Previous subagents”) jest w szczegółach wątku. Preferencja urządzenia
+`subagentsExpanded` zapamiętuje rozwinięcie (domyślnie Off).
+
+Szczegóły wątku pokazują linię subagentów z webowym grupowaniem z `@canopy/domain/subagents`:
 przy „Keep finished subagents in the list” = Off zakończeni, także archiwalni, są pod rozwijanym
 „N finished”. Rozwinięcie zapisuje `finishedSubagentsExpanded` (domyślnie Off). On pozostawia
 ostatnie 10 minut na głównej liście, a starszych pod „Previous subagents” z liczbą nieudanych.
 Wiersz ma ucięty tytuł, stan (w tym „Waiting for an answer”), ikonę dostawcy i model oraz pierwszą
 linię ostatniej wiadomości bez znaczników markdown. Zakończeni mają też względny czas aktywności.
-Nakładka pozostaje zamontowana podczas zamykania i odwraca rozjaśnienie oraz niewielkie
-przesunięcie w górę (`distance.micro`, `fast` / `quick`). Osobny kontener przycina oba kierunki
-animacji nad podsumowaniem; zamknięty panel nie zajmuje miejsca ani nie przyjmuje dotyku.
-Zmiana kierunku w trakcie animacji zachowuje bieżący postęp i pozycję przewinięcia listy.
-Grupy używają `Expand`, chevron `useTween`; ograniczenie ruchu
-przełącza panel i grupy natychmiast. Dotknięcie otwiera
-wątek z historią i możliwością dalszej wiadomości; archiwalny wymaga najpierw „Unarchive”.
+Grupy używają `Expand`, chevron `useTween`; ograniczenie ruchu przełącza je natychmiast.
+Archiwalny wątek wymaga najpierw „Unarchive”.
 Odrzucona przez gateway wiadomość pokazuje jego powód zamiast ogólnej noty o ponowieniu.
 Zdarzenia `turnStarted` / `turnFinished` od dostawcy lub wznowienia odtwarzają w reduktorze
 mobile turę z czasem początku i końca, zanim nadejdzie jej projekcja. „Working for …” zachowuje
 dzięki temu czas także dla tur rozpoczętych przez dostawcę; zapis cache zachowuje te czasy.
 Wiersze osi czasu wyglądają jak w web (`src/features/timeline`): każdy rodzaj itemu ma widok jak `components/items` w web (komendy z kodem wyjścia, narzędzia z tytułem z rejestru, zmiany plików z diffem, rozumowanie, wyszukiwanie, plan/to do, obraz, kompakcja, zdarzenie dostawcy, zapis zgody lub pytania, subagent z zagnieżdżoną pracą, zadanie w tle ze Stop i ogonem wyjścia, wywołania magistrali agentów na fioletowo z kartą subagenta i dostarczenia). Wejście tury pokazuje jego pochodzenie (zadanie, wiadomość, raport od agenta z nadawcą i modelem, pytanie wątku bocznego, harmonogram, bot, notatka o zakończonych zadaniach w tle), steery mają notę, komunikaty dostawcy są wierszami, a nieudana tura pokazuje wyjaśnienie błędu ze szczegółami. Fold „Working for …” / „Worked for …” ma czas, liczniki albo bieżącą czynność, „N still running” i grupy narzędzi („Read 1 file and ran 5 commands”). Etykiety, liczniki i opisy narzędzi pochodzą ze wspólnych modułów `@canopy/domain` (`tools`, `work-summary`, `turn-origin`, `status-look`, `humanize`, `format`, `questions`, `failure-presentation`, `first-line`), tak jak w web. Czat bota używa tego samego układu co web (`@canopy/domain/bot-chat`: `botEntries`, `layoutChat`): linie dat, serie dymków z ciaśniejszymi rogami, linie wymian bot ⇄ bot, zdarzenia, błędy odpowiedzi i karty w kolejności czasu oraz wiersz statusu bota. Ręczne przełączanie foldu trzyma nagłówek w miejscu (timeline-folding.md, „Pozycja przy ręcznym przełączaniu”).
 Pytania Claude `AskUserQuestion`, Codex `request_user_input` i platformy `ask_user`
-obsługuje wiersz „Answer questions” nad kompozytorem. Wiersz i arkusz są poza pomiarem
-kompozytora; bez pytań nie zajmują miejsca ani nie przesuwają czytanego feedu. Wszystkie zestawy
+obsługuje wiersz „Answer questions” / „Review request” w zasobniku, najbliżej pola, z liczbą
+oczekujących i licznikiem „Expires in m:ss” pierwszej prośby; dotknięcie otwiera arkusz.
+Bez próśb wiersza nie ma. Wszystkie zestawy
 mają wspólne parsowanie i kodowanie odpowiedzi z web (`@canopy/domain/questions`):
 jedna/wiele opcji z opisami i rekomendacją, własny tekst, Back, Skip question, Skip all
 oraz Dismiss request dla pytań synchronicznych. Rekomendacja nie zaznacza odpowiedzi.
@@ -1023,8 +1036,13 @@ respektuje ustawienie zachowania podczas trwającej tury. Wzmianki działają ja
 plakietkę w miejsce wpisanego zapytania (`features/composer/useMentionSuggestions.ts`).
 Menu akcji wątku ma „New side thread” (ten sam projekt, worker, folder, agent i model; opcjonalnie
 historia wątku głównego; full access przechodzi w full auto) oraz „Set a goal…” / „Replace the
-goal…” poza Grokiem i wątkami gatewaya. Pigułka Goal otwiera cel z Pause, Resume i Clear
-(z potwierdzeniem) jak pasek celu w web; Codex przyjmuje budżet tokenów (`SetGoal`).
+goal…” poza Grokiem i wątkami gatewaya. Cel jest pierwszym panelem zasobnika (web: `GoalBar`):
+ikona i kolor statusu, treść w jednej linii, kropka ze statusem albo tym, na co czeka
+(„Starting…”, „Pausing…”, „Resuming…”), oraz Pause albo Resume obok. Dotknięcie otwiera arkusz
+celu z pełną treścią, ostatnim werdyktem, Clear (z potwierdzeniem) i „Replace the goal…”.
+Osiągnięty cel można zamknąć (×) do końca wizyty; wyczyszczonego nie ma. Wygląd i akcje statusów
+są wspólne z web (`@canopy/domain/goals`: `goalLook`, `goalActions`, `goalPending`, `showsGoal`).
+Codex przyjmuje budżet tokenów (`SetGoal`).
 Settings → Connectors i panel wątku pokazują status kont jak web; konto z błędem testu
 ma jego komunikat i „Show details” z technicznym opisem.
 New thread to jeden ekran jak w web: kompozytor z modelem, effort i plikami, pod nim projekt,
@@ -1051,12 +1069,20 @@ Edycja dotykająca plakietki usuwa ją w całości razem z plikiem; tekst wpisan
 trafia za nią. Pole tekstowe nie pokazuje postępu, dlatego pliki wysyłane lub odrzucone mają
 nad tekstem chip ze stanem i przyciskiem Remove; zapisany plik ma już tylko plakietkę. Wysłana
 wiadomość pokazuje plakietki w tych samych miejscach (`Turn.mentions`), a chipy tylko dla plików
-spoza tekstu. Własna wiadomość w kolejce ma „…” obok „Queued”: Edit message otwiera edytor
+spoza tekstu. Kolejka jest panelem zasobnika (web: `QueuePanel`), domyślnie rozwiniętym:
+nagłówek „N queued”, wiersz na własną wiadomość użytkownika w kolejności startu (reguły
+`@canopy/domain/queue` wspólne z web), tekst w jednej linii z nazwami plakietek, ostrzeżenie,
+gdy steer nie wszedł do tury, oraz akcje: Steer (`SteerQueuedTurn`, tylko gdy tura trwa, także
+z plikami), Delete (`DeleteQueuedTurn`, toast z „Undo” przez 8 sekund, `RestoreQueuedTurn`)
+i „…”. Arkusz „…” ma notę „Runs with …” z nadpisaniami (model, effort, uprawnienia, pliki,
+cytaty), Edit message, przesuwanie o jedno miejsce i na początek/koniec (`ReorderQueuedTurns`)
+oraz „Turn on/off queueing” (domyślne zachowanie podczas tury). Edit message otwiera edytor
 z tymi samymi plakietkami (`EditQueuedTurn` z `mentions_complete`, linia „‹name› leaves the
-message when you save.”). Menu pozwala przesuwać wiadomość o jedno miejsce lub na początek/koniec
-(`ReorderQueuedTurns`), a wiadomość, również z plikami, przekazać do działającej tury przez „Steer now”
-(`SteerQueuedTurn`). Usunięcie (`DeleteQueuedTurn`) pokazuje „Undo” przez 8 sekund
-(`RestoreQueuedTurn`); nie zmienia domyślnej preferencji steer/queue. Settings → Threads edytuje
+message when you save.”). Zmiany widać od razu (`useQueue`: lokalna kolejność, ukryte usunięte
+i wysterowane); odpowiedź gatewaya trafia do snapshotu, a odmowa przywraca stan i mówi
+dlaczego w toaście. Chip „N running in background” (web: `BackgroundTasksChip`) stoi nad
+zasobnikiem przy lewej krawędzi, gdy działają zadania w tle wątku; otwiera arkusz z działającymi
+zadaniami (status, „Show full output”, „Stop task”), który zamyka się razem z ostatnim. Settings → Threads edytuje
 domyślny workspace, agenta i uprawnienia.
 Są tworzenie wątku, rename/archive/unread, wyszukiwanie treści, zwinięta praca/narzędzia,
 subagents i panel worker/cwd/model/status/schedules/lineage/connectors.

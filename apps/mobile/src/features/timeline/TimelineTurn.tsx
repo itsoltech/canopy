@@ -129,14 +129,12 @@ export function TimelineTurn({
   context,
   newDay,
   latest,
-  onQueued,
 }: {
   turn: ui.Turn;
   entries: readonly ui.TimelineItem[];
   context: TurnContext;
   newDay: boolean;
   latest: boolean;
-  onQueued?: (turn: ui.Turn) => void;
 }) {
   const { workFold } = useDevicePreferences();
   const [folds, setFolds] = useState<ReadonlyMap<number, boolean>>(new Map());
@@ -149,7 +147,6 @@ export function TimelineTurn({
     workFoldOpen(plan[index]?.live ?? false, plan[index]?.answered ?? false, workFold, folds.get(index));
 
   const segments = segmentsOf(turn, body, open);
-  const queued = onQueued && turn.status === "queued" && !turn.dispatched && !turn.fromThreadId;
   const hasInput = Boolean(turn.inputText || turn.messageText || turn.attachments.length || turn.quotes.length);
   const lastAnswer = entries.findLast((entry) => entry.item?.content.case === "agentMessage")?.item?.content;
   const answerText = lastAnswer?.case === "agentMessage" ? lastAnswer.value.text : "";
@@ -169,7 +166,7 @@ export function TimelineTurn({
         {turn.shellCommand !== undefined ? (
           <ShellMessage command={turn.shellCommand} result={turn.shellResult} status={turn.status} error={turn.error} />
         ) : hasInput ? (
-          <TurnInput turn={turn} onActions={queued ? () => onQueued(turn) : undefined} />
+          <TurnInput turn={turn} />
         ) : null}
         {segments.map((segment, index) => {
           const id = foldId(turn.id, index);

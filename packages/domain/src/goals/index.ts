@@ -8,3 +8,13 @@ export {
   type CodexGoalStatus,
   type GoalStatus,
 } from "./goals.ts";
+
+export {
+  goalActions,
+  goalLook,
+  goalPending,
+  isFinishedGoal,
+  showsGoal,
+  type GoalActions,
+  type GoalLook,
+} from "./look.ts";

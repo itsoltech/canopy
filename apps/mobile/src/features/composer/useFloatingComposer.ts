@@ -34,7 +34,9 @@ function animate({ progress, moving, instant }: Fold, compact: boolean) {
  *
  * The timeline retains the measured expanded input height through both directions of the fold. The last message
  * already has room when the composer opens, and reading history never needs a reserve/scroll correction.
- * Status rows, popovers, keyboard and safe areas are separate.
+ * Popovers, keyboard and safe areas are separate. Status rows and the tray above the input join the reserve only at
+ * the end of the feed (`measureAccessory`): there the latest message moves up with them, while reading history
+ * nothing moves and they float over it.
  */
 export function useFloatingComposer<Item>(
   following: ReturnType<typeof useFollowingList<Item>>,
@@ -58,6 +60,8 @@ export function useFloatingComposer<Item>(
   const [focused, setFocused] = useState(false);
   const focusedNow = useRef(false);
   const measured = useRef(0);
+  const accessoryMeasured = useRef(0);
+  const [accessory, setAccessory] = useState(0);
   const motionState = useMemo(() => ({ progress, moving, instant }), [progress, moving, instant]);
 
   const settle = useCallback(() => {
@@ -133,6 +137,18 @@ export function useFloatingComposer<Item>(
     if (protectedDraft) open();
   }, [protectedDraft, guarded, open]);
 
+  // Back at the end, the reserve takes what floated over history while reading.
+  const { atBottom, isFollowing } = following;
+  useEffect(() => {
+    if (atBottom) setAccessory(accessoryMeasured.current);
+  }, [atBottom]);
+
+  function measureAccessory(next: number) {
+    accessoryMeasured.current = next;
+
+    if (isFollowing()) setAccessory(next);
+  }
+
   function measure(event: LayoutChangeEvent) {
     measured.current = event.nativeEvent.layout.height;
 
@@ -161,7 +177,10 @@ export function useFloatingComposer<Item>(
       following.showLatest();
     },
     height,
+    /** The feed's reserve under the latest message: the input and, at the end, what floats above it. */
+    reserve: height + accessory,
     measure,
+    measureAccessory,
     listProps: {
       // FlatList already accounts for ListHeaderComponent; index 0 is the newest turn, not the reserve.
       ...following.listProps,

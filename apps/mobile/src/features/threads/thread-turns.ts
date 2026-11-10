@@ -2,10 +2,13 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { dayKey } from "@canopy/domain/format";
 import { orderThreadTurns } from "@canopy/domain/history-pages";
+import { waitingTurn } from "@canopy/domain/queue";
 
+/** The timeline's turns. Queued messages wait in the tray's queue; a turn shows once the gateway starts it. */
 export function visibleTurns(snapshot: ui.ThreadSnapshot | undefined) {
-  const turns = orderThreadTurns(snapshot?.turns.filter((t) => !t.withdrawn) ?? []);
-  const known = new Set(turns.map((turn) => `${turn.fromThreadId}:${turn.id}`));
+  const all = orderThreadTurns(snapshot?.turns.filter((t) => !t.withdrawn) ?? []);
+  const known = new Set(all.map((turn) => `${turn.fromThreadId}:${turn.id}`));
+  const turns = all.filter((turn) => !waitingTurn(turn));
   const sequences = new Map<string, bigint>();
 
   for (const entry of snapshot?.items ?? []) {

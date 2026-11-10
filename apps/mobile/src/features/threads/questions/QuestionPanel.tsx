@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Text, View } from "react-native";
 import { InteractionKind, type Item, type ui } from "@canopy/contracts";
 import { Button, Sheet } from "../../../ui/components";
-import { Icon } from "../../../ui/Icon";
+import { RequestCountdown } from "../../../ui/RequestCountdown";
 import { styles, useColors } from "../../../ui/theme";
 import { useSession } from "../../../state/session";
 import { useStream } from "../../../state/stream";
 import { applyThread } from "../../../api/thread";
 import { InteractionCard } from "../InteractionCard";
+import { TrayPanel } from "../tray/ComposerTray";
+import { TrayHeader, TrayIcon } from "../tray/TrayHeader";
 import { QuestionForm } from "./QuestionForm";
 import { useQuestionDraft } from "./useQuestionDraft";
 
@@ -82,27 +84,14 @@ function QuestionEditor({
   );
 }
 
-/** Requests float above the measured input. Child subscriptions stay mounted even without a visible row. */
-export function QuestionPanel({
-  interactions,
-  subagents,
-  disabled,
-  style,
-  items = [],
-}: {
-  interactions: readonly ui.Interaction[];
-  subagents: readonly ui.Thread[];
-  disabled: boolean;
-  style?: StyleProp<ViewStyle>;
-  items?: readonly ui.TimelineItem[];
-}) {
-  const c = useColors();
-
+/**
+ * The thread's pending requests, its subagents' included: each subagent's requests come from its own stream, so the
+ * returned watchers must stay mounted. Synchronous requests come first.
+ */
+export function useThreadRequests(interactions: readonly ui.Interaction[], subagents: readonly ui.Thread[]) {
   const [children, setChildren] = useState<Record<string, { requests: ui.Interaction[]; items: ui.TimelineItem[] }>>(
     {},
   );
-
-  const [selected, setSelected] = useState<string>();
 
   const onChange = useCallback((id: string, requests: ui.Interaction[], items: ui.TimelineItem[] = []) => {
     setChildren((previous) => ({ ...previous, [id]: { requests, items } }));
@@ -112,6 +101,32 @@ export function QuestionPanel({
     .filter((q) => q.status === "pending")
     .sort((a, b) => Number(a.asynchronous) - Number(b.asynchronous));
 
+  return {
+    requests,
+    subagents,
+    /** Approval details from a subagent's stream. */
+    items: (threadId: string) => children[threadId]?.items ?? [],
+    watchers: subagents.map((thread) => <ChildQuestions key={thread.id} thread={thread} onChange={onChange} />),
+  };
+}
+
+export type ThreadRequests = ReturnType<typeof useThreadRequests>;
+
+/**
+ * The tray's request row: what waits for you, with the first request's deadline, opening the sheet that answers
+ * questions and reviews approvals one request at a time.
+ */
+export function QuestionPanel({
+  requests: { requests, subagents, items: childItems },
+  disabled,
+  items = [],
+}: {
+  requests: ThreadRequests;
+  disabled: boolean;
+  items?: readonly ui.TimelineItem[];
+}) {
+  const c = useColors();
+  const [selected, setSelected] = useState<string>();
   const active = requests.find((q) => q.requestId === selected) ?? requests[0];
 
   if (!active && selected !== undefined) setSelected(undefined);
@@ -123,69 +138,61 @@ export function QuestionPanel({
 
   const index = requests.findIndex((q) => q.requestId === active?.requestId);
   const source = subagents.find((thread) => thread.id === active?.threadId);
+  const title = active?.kind === InteractionKind.QUESTION ? "Answer questions" : "Review request";
+
+  if (!active) return null;
 
   return (
-    <View style={[{ height: active ? 44 : 0, flexShrink: 0 }, style]}>
-      {subagents.map((thread) => (
-        <ChildQuestions key={thread.id} thread={thread} onChange={onChange} />
-      ))}
-      {active && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled }}
-          disabled={disabled}
-          accessibilityLabel={`${active.kind === InteractionKind.QUESTION ? "Answer questions" : "Review request"}. ${requests.length} pending`}
-          onPress={() => setSelected(active.requestId)}
-          style={({ pressed }) => [
-            styles.row,
-            { flex: 1, paddingHorizontal: 8, borderRadius: 8, backgroundColor: pressed ? c.pressed : undefined },
-          ]}
-        >
-          <Icon name="question-mark-circle" color={c.warning} />
-          <Text numberOfLines={1} style={[styles.chrome, { flex: 1, minWidth: 0, color: c.text }]}>
-            {active.kind === InteractionKind.QUESTION ? "Answer questions" : "Review request"}
-          </Text>
-          <Text style={[styles.chromeMeta, { color: c.muted }]}>{requests.length} pending</Text>
-          <Icon name="chevron-right" color={c.muted} />
-        </Pressable>
-      )}
-      {active && (
-        <QuestionEditor
-          interaction={active}
-          draft={draft}
-          related={
-            [...items, ...(source ? (children[source.id]?.items ?? []) : [])].find(
-              (entry) => entry.item?.itemId === active.itemId,
-            )?.item
-          }
-          visible={!disabled && selected !== undefined}
-          onClose={() => setSelected(undefined)}
-          label={source ? source.title || "Untitled thread" : undefined}
-          navigation={
-            requests.length > 1 && (
-              <View style={[styles.row, { flexWrap: "wrap", gap: 16 }]}>
-                <Text style={[styles.overlayMeta, { color: c.muted }]}>
-                  Request {index + 1} of {requests.length}
-                </Text>
-                <Button
-                  title="Previous"
-                  size="sm"
-                  variant="ghost"
-                  disabled={index === 0}
-                  onPress={() => setSelected(requests[index - 1]?.requestId)}
-                />
-                <Button
-                  title="Next request"
-                  size="sm"
-                  variant="ghost"
-                  disabled={index + 1 === requests.length}
-                  onPress={() => setSelected(requests[index + 1]?.requestId)}
-                />
-              </View>
-            )
-          }
-        />
-      )}
-    </View>
+    <TrayPanel>
+      <TrayHeader
+        label={`${title}. ${requests.length} pending`}
+        opens="sheet"
+        disabled={disabled}
+        onPress={() => setSelected(active.requestId)}
+      >
+        <TrayIcon name="question-mark-circle" color={c.warning} />
+        <Text numberOfLines={1} style={[styles.meta, { flex: 1, minWidth: 0, color: c.text }]}>
+          {title}
+        </Text>
+        <RequestCountdown expiresAt={active.expiresAt} pending style={{ minWidth: 0 }} />
+        <Text style={[styles.overlayMeta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
+          {requests.length} pending
+        </Text>
+      </TrayHeader>
+      <QuestionEditor
+        interaction={active}
+        draft={draft}
+        related={
+          [...items, ...(source ? childItems(source.id) : [])].find((entry) => entry.item?.itemId === active.itemId)
+            ?.item
+        }
+        visible={!disabled && selected !== undefined}
+        onClose={() => setSelected(undefined)}
+        label={source ? source.title || "Untitled thread" : undefined}
+        navigation={
+          requests.length > 1 && (
+            <View style={[styles.row, { flexWrap: "wrap", gap: 16 }]}>
+              <Text style={[styles.overlayMeta, { color: c.muted }]}>
+                Request {index + 1} of {requests.length}
+              </Text>
+              <Button
+                title="Previous"
+                size="sm"
+                variant="ghost"
+                disabled={index === 0}
+                onPress={() => setSelected(requests[index - 1]?.requestId)}
+              />
+              <Button
+                title="Next request"
+                size="sm"
+                variant="ghost"
+                disabled={index + 1 === requests.length}
+                onPress={() => setSelected(requests[index + 1]?.requestId)}
+              />
+            </View>
+          )
+        }
+      />
+    </TrayPanel>
   );
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { MentionKind, type Mention, type ui } from "@canopy/contracts";
 import { hasPlatformNote } from "@canopy/domain/platform";
 import { withoutIds } from "@canopy/domain/humanize";
@@ -48,7 +48,6 @@ export function UserMessageView({
   mentions = [],
   fromAgent = false,
   sender,
-  onActions,
 }: {
   text: string;
   note?: MessageNote | undefined;
@@ -59,8 +58,6 @@ export function UserMessageView({
   mentions?: readonly Mention[];
   fromAgent?: boolean;
   sender?: ui.AgentSender | undefined;
-  /** A queued message's "…": edit or delete it. */
-  onActions?: () => void;
 }) {
   const c = useColors();
   const [selected, setSelected] = useState<ui.Attachment>();
@@ -84,7 +81,7 @@ export function UserMessageView({
 
   return (
     <View style={{ alignItems: "flex-end", gap: 4 }}>
-      {agent || note || onActions ? (
+      {agent || note ? (
         <View style={[styles.row, { gap: 4, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "100%" }]}>
           {(agent || note) && !sender ? icon : null}
           {sender ? (
@@ -100,24 +97,6 @@ export function UserMessageView({
             <Text style={[styles.meta, { flexShrink: 1, color }]}>
               {[agent && "From an agent", note?.text].filter(Boolean).join(" · ")}
             </Text>
-          ) : null}
-          {onActions ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Queued message actions"
-              onPress={onActions}
-              hitSlop={8}
-              style={({ pressed }) => ({
-                width: 32,
-                height: 32,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 8,
-                backgroundColor: pressed ? c.inset : "transparent",
-              })}
-            >
-              <Icon name="ellipsis-horizontal" size={16} color={c.muted} />
-            </Pressable>
           ) : null}
         </View>
       ) : null}

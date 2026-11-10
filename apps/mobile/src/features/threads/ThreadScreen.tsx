@@ -17,10 +17,12 @@ import { ThreadHeader } from "./ThreadHeader";
 import { ThreadTimeline } from "./ThreadTimeline";
 import { ThreadSyncStatus } from "./ThreadSyncStatus";
 import { ConnectionBanner } from "../navigation/ConnectionStatus";
-import { SubagentPanel } from "./SubagentPanel";
 import { useFollowingList } from "../../ui/useFollowingList";
 import { useMessageDraft } from "../composer/useMessageDraft";
 import { isFinishedGoal, takesGoals } from "./GoalSheet";
+import { useThreadTray } from "./tray/useThreadTray";
+import { ThreadTray } from "./tray/ThreadTray";
+import { BackgroundTasksChip, runningTasks } from "./tray/BackgroundTasksChip";
 import { ThreadSheets } from "./ThreadSheets";
 import { useComputerHome } from "../computers/presence";
 import { splitId } from "@canopy/domain/computers";
@@ -54,7 +56,6 @@ function useThreadState(id: string) {
   const [error, setError] = useState("");
   const following = useFollowingList<ui.Turn>(true);
   const [details, setDetails] = useState(false);
-  const [queued, setQueued] = useState<{ turn: ui.Turn; editing: boolean }>();
   const { projects, workers, threads } = useOverview();
   const sending = useRef(false);
   const message = useMessageDraft();
@@ -79,8 +80,8 @@ function useThreadState(id: string) {
   useArchivedThreadDisclosure(thread?.status === "archived" ? thread.id : undefined);
   const home = useComputerHome(thread?.nodeId || splitId(id).node);
   const worker = workers.find((w) => w.id === thread?.workerId);
-  const subagents = threads.filter((t) => t.spawnedByAgent && t.parentThreadId === id && !t.deletedAt);
-  const interactions = snapshot?.interactions.filter((i) => i.status === "pending") ?? [];
+  const tray = useThreadTray({ id, snapshot, setSnapshot, thread, threads });
+
   const turns = useMemo(() => visibleTurns(snapshot), [snapshot]);
 
   async function send(delivery: ui.MessageDelivery, choices?: ComposerPick) {
@@ -165,16 +166,13 @@ function useThreadState(id: string) {
     history,
     thread,
     worker,
-    subagents,
-    interactions,
+    ...tray,
     turns,
     send,
     blocked,
     home,
     message,
     quotes,
-    queued,
-    setQueued,
   };
 }
 
@@ -196,7 +194,7 @@ export function ThreadScreen({ id }: { id: string }) {
 
   const [sheet, setSheet] = useState<"goal" | "side" | null>(null);
 
-  const { session, ready, snapshot, error, following, setDetails, projects, thread, turns, blocked } = state;
+  const { session, ready, snapshot, following, setDetails, projects, thread, turns, blocked } = state;
 
   const { atBottom } = following;
 
@@ -234,26 +232,14 @@ export function ThreadScreen({ id }: { id: string }) {
           <FloatingComposer
             motion={composer.motion}
             onLayout={composer.measure}
+            onAccessoryLayout={composer.measureAccessory}
             onExpand={composer.expand}
             onLatest={atBottom ? undefined : composer.showLatest}
             overlay={<ThreadSuggestions state={state} />}
-            accessory={
-              <>
-                <ThreadSyncStatus state={state} />
-                <ThreadRequests state={state} />
-              </>
-            }
+            accessory={<ThreadStatus state={state} />}
+            tray={<ThreadTray state={state} compact={composer.compact} onGoal={() => setSheet("goal")} />}
           >
-            {state.busy ? (
-              <Notice>{state.waiting ? `Still waiting for ${state.home.name || "this computer"}…` : "Sending…"}</Notice>
-            ) : null}
-            {error ? <Notice error>{error}</Notice> : null}
-            {state.home.away && (
-              <Notice>
-                {state.home.name} · {state.home.status}. Read only until it reconnects.
-              </Notice>
-            )}
-            <ThreadComposer state={state} composer={composer} onGoal={() => setSheet("goal")} />
+            <ThreadComposer state={state} composer={composer} />
           </FloatingComposer>
         </DropZone>
       </ChatKeyboard>
@@ -262,15 +248,33 @@ export function ThreadScreen({ id }: { id: string }) {
   );
 }
 
-function ThreadComposer({
-  state,
-  composer,
-  onGoal,
-}: {
-  state: ThreadState;
-  composer: ReturnType<typeof useThreadComposer>;
-  onGoal: () => void;
-}) {
+/** What floats above the tray: sync, secrets, sending and delivery notes, and running background tasks. */
+function ThreadStatus({ state }: { state: ThreadState }) {
+  const { home, error } = state;
+
+  return (
+    <>
+      <ThreadSyncStatus state={state} />
+      <ThreadRequests state={state} />
+      {state.busy ? (
+        <Notice>{state.waiting ? `Still waiting for ${home.name || "this computer"}…` : "Sending…"}</Notice>
+      ) : null}
+      {error ? <Notice error>{error}</Notice> : null}
+      {home.away && (
+        <Notice>
+          {home.name} · {home.status}. Read only until it reconnects.
+        </Notice>
+      )}
+      <BackgroundTasksChip
+        tasks={runningTasks(state.snapshot)}
+        threadId={state.thread?.id ?? ""}
+        disabled={home.away || state.stream.connection !== "live"}
+      />
+    </>
+  );
+}
+
+function ThreadComposer({ state, composer }: { state: ThreadState; composer: ReturnType<typeof useThreadComposer> }) {
   return (
     <ImportedThreadComposer thread={state.thread} disabled={state.blocked}>
       <SkeletonScope loading={!state.thread}>
@@ -291,7 +295,6 @@ function ThreadComposer({
           disabled={state.blocked}
           busy={state.busy}
           onDetails={() => state.setDetails(true)}
-          onGoal={onGoal}
         />
       </SkeletonScope>
     </ImportedThreadComposer>
@@ -301,8 +304,7 @@ function ThreadComposer({
 function ThreadSuggestions({ state }: { state: ThreadState }) {
   const { thread, message } = state;
 
-  // A typed trigger temporarily takes the same overlay slot; the remembered subagent choice stays intact.
-  if (!message.trigger) return <SubagentPanel threads={state.subagents} />;
+  if (!message.trigger) return null;
 
   return (
     <MentionSuggestions
