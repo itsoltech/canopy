@@ -219,9 +219,23 @@ sequenceDiagram
 
 - zamyka jako `interrupted` każdy item tej tury nadal `in_progress` (także zagnieżdżone, rozumowanie, wywołania narzędzi) oraz itemy bez tury, gdy żadna tura wątku nie działa. Wyjątki: zadania w tle (`background_task`, żyją poza turą; kończy je worker razem z procesem) i komenda, którą takie zadanie kontynuuje (`source_item_id`). Zamknięcie to zdarzenie gateway (`thread_events.origin = 'gateway'`, powód w `raw`: `{"settled_by": "gateway", "reason": …}`), publikowane do UI jak każde inne;
 - oznacza oczekujące interakcje zakończonych tur jako `expired`;
+- odzyskuje steery `pending`/`accepted` bez itemu `user_message` w zakończonej turze, również bez `steer_dropped` od workera: wiadomość użytkownika trafia raz do kolejki, a notatka platformy wraca do własnej ścieżki dostarczenia. Sweep wyszukuje je także w już bezczynnych wątkach;
 - przywraca `idle` wątkowi, który tylko wygląda na zajęty albo zepsuty: `running`/`waiting_input` bez działającej tury (sweep: dopiero po 60 s bez zmian i bez `StartTurn` w drodze), `interrupted`, `failed` z wątkiem dostawcy; kolejka wątku rusza.
 
 Sweep szuka tych samych niespójności w całej bazie i naprawia je tak samo (powód `sweep: the item's turn is over`). Jest idempotentny. Spóźnione zdarzenia workera (np. wynik jego rekoncyliacji) nadal ustawiają prawdziwy stan: `item_completed` zastępuje zamknięcie, `turn_finished` zastępuje koniec.
+
+### 4.3.2 Diagnostyka granic tur
+
+Diagnostyka granic tur: gateway zapisuje pojedyncze linie JSON `message_decision`
+(nowa tura / steer / kolejka i powód), `steer_delivery` (przyjęcie RPC, potwierdzone
+wejście, fallback), `turn_started` i `turn_finished` (`source` = `trigger`, np.
+`user`, `agent_bus`, `background_task`). Pola zawierają identyfikatory i stany,
+bez treści wejść, odpowiedzi, ścieżek i błędów dostawcy. Adapter Codexa ostrzega
+`codex_late_turn_event` raz na zakończoną turę, gdy przyjdzie późny output modelu
+lub ponowne zdarzenie cyklu tury. Sam komunikat `process governor saturated`
+nie wskazuje opóźnienia wejścia do istniejącego app-servera: te RPC nie tworzą
+procesów. Nowy proces harnessu może dostać back-pressure, a krótkie operacje
+przygotowania mogą czekać na własne sloty; liczba `active` nie jest liczbą subagentów.
 
 ### 4.4 Tury agentów czatowych
 

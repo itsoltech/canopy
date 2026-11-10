@@ -20,6 +20,7 @@ import { coreShellInput } from "./core-shell.ts";
 import { storedShellResult } from "../store/shell-input.ts";
 import { coreEnqueueTurn } from "./core-enqueue-turn.ts";
 import { messageReceipt } from "./message-receipt.ts";
+import { threadDiagnostic } from "./thread-diagnostics.ts";
 
 /** Internal linked input, prepared by the peer gateway rather than a public UI request. */
 export interface LinkedMessageInput {
@@ -80,14 +81,31 @@ export async function coreSteerAnswered(
   result: CommandResult,
 ): Promise<void> {
   if (result.ok) {
-    await coreSteers(hostContext, (s) => s.accepted(steerId));
+    const steer = await coreSteers(hostContext, (s) => s.accepted(steerId));
+
+    if (steer.status === "accepted")
+      threadDiagnostic(hostContext, "steer_delivery", {
+        threadId,
+        turnId: steer.turn_id,
+        steerId,
+        outcome: "accepted",
+      });
     await corePublishSteer(hostContext, steerId);
 
     return;
   }
 
   if (result.errorCode.startsWith("SHELL_")) {
-    await coreSteers(hostContext, (s) => s.failed(steerId, result.errorMessage));
+    const steer = await coreSteers(hostContext, (s) => s.failed(steerId, result.errorMessage));
+
+    if (steer.status === "failed")
+      threadDiagnostic(hostContext, "steer_delivery", {
+        threadId,
+        turnId: steer.turn_id,
+        steerId,
+        outcome: "failed",
+        reason: "shell_failed",
+      });
     await corePublishSteer(hostContext, steerId);
 
     return;
@@ -116,6 +134,15 @@ export async function coreQueueSteer(hostContext: GatewayCore, steerId: string, 
       steerId,
       reason || current.reason || "the turn ended before the note could join it",
     );
+
+    if (current.status === "pending" || current.status === "accepted" || current.status === "dropped")
+      threadDiagnostic(hostContext, "steer_delivery", {
+        threadId: current.thread_id,
+        turnId: current.turn_id,
+        steerId,
+        outcome: "released",
+        reason: "not_consumed",
+      });
     await corePublishSteer(hostContext, steerId);
 
     return;
@@ -130,13 +157,31 @@ export async function coreQueueSteer(hostContext: GatewayCore, steerId: string, 
     create(ui.ThreadUpdateSchema, { change: { case: "steer", value: toUiSteer(steer) } }),
   );
 
-  if (turn) await coreBroadcastTurn(hostContext, steer.thread_id, turn.id);
+  if (turn) {
+    threadDiagnostic(hostContext, "steer_delivery", {
+      threadId: steer.thread_id,
+      turnId: steer.turn_id,
+      steerId,
+      outcome: "requeued",
+      reason: "not_consumed",
+      queuedTurnId: turn.id,
+    });
+    await coreBroadcastTurn(hostContext, steer.thread_id, turn.id);
+  }
 }
 
-export async function corePublishSteer(hostContext: GatewayCore, steerId: string): Promise<void> {
+export async function corePublishSteer(hostContext: GatewayCore, steerId: string, consumed = false): Promise<void> {
   const steer = await coreSteers(hostContext, (s) => s.steer(steerId)).catch(() => undefined);
 
   if (!steer) return;
+
+  if (consumed && steer.status === "delivered")
+    threadDiagnostic(hostContext, "steer_delivery", {
+      threadId: steer.thread_id,
+      turnId: steer.turn_id,
+      steerId,
+      outcome: "consumed",
+    });
   hostContext.hub.publishThread(
     steer.thread_id,
     create(ui.ThreadUpdateSchema, { change: { case: "steer", value: toUiSteer(steer) } }),
@@ -253,9 +298,9 @@ const messageActions: CoreMessagesMethods = {
         quotes,
       );
 
-    if (request.delivery === ui.MessageDelivery.STEER) {
-      const running = await coreRun(this, (s) => s.steerTarget(threadId));
+    const running = await coreRun(this, (s) => s.steerTarget(threadId));
 
+    if (request.delivery === ui.MessageDelivery.STEER) {
       if (running && thread.worker_id) {
         const steer = await this[coreState].actions.transaction(async () => {
           const created = await coreSteers(this, (s) =>
@@ -274,6 +319,13 @@ const messageActions: CoreMessagesMethods = {
           );
 
           await coreSendSteer(this, created.id);
+          threadDiagnostic(this, "message_decision", {
+            threadId,
+            turnId: running.id,
+            steerId: created.id,
+            delivery: "steer",
+            reason: "running_turn",
+          });
 
           return created;
         });
@@ -295,6 +347,12 @@ const messageActions: CoreMessagesMethods = {
     });
 
     await this.pump(threadId);
+    threadDiagnostic(this, "message_decision", {
+      threadId,
+      turnId: turn.id,
+      delivery: turn.dispatched ? "new_turn" : "queue",
+      reason: running ? "queue_requested" : turn.dispatched ? "no_running_turn" : "thread_not_ready",
+    });
 
     if (turn.ordinal === 1)
       coreAutoTitle(

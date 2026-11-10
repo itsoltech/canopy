@@ -1,4 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import type { ServerNotification } from "@canopy/codex-protocol";
 import {
   InteractionRequestSchema,
   type AgentToolCall,
@@ -10,7 +11,7 @@ import {
   type ThreadSpec,
 } from "@canopy/contracts";
 import type { ViewImageResult } from "../../images/index.ts";
-import { Predicate, Schema } from "effect";
+import { Predicate, Schema, type Semaphore } from "effect";
 import { Journal, type ThreadEventInit } from "../../journal/index.ts";
 import type { ResolvedProfile } from "../profiles.ts";
 import { CodexAppServer } from "./app-server.ts";
@@ -37,6 +38,8 @@ export interface CodexThreadsOptions {
   importedResumePath?(spec: ThreadSpec, modelProvider: string): string | undefined;
   /** Called after an event is safely in the journal (e.g. send it to the gateway when connected). */
   publish(event: ThreadEvent): void;
+  /** Structured lifecycle diagnostics; never includes input, output, paths or RPC errors. */
+  log?(message: string): void;
   /** A notification has finished journaling; the host may recheck a pending drain. */
   onActivitySettled?(): void;
   /** Asks the platform (gateway -> user or parent agent) and waits for the answer. */
@@ -57,8 +60,14 @@ export interface Entry {
   readonly platformId: string;
   readonly codexId: string;
   readonly mapper: CodexEventMapper;
-  /** Platform turn ids waiting for their Codex turn id (turn/started may arrive before the response). */
+  /** Platform turn ids awaiting the authoritative turn/start response. */
   readonly pendingTurns: string[];
+  /** Notifications wait for admission to bind command turns, without blocking other threads. */
+  readonly pendingNotifications: ServerNotification[];
+  readonly recording: Semaphore.Semaphore;
+  recordingNotifications: boolean;
+  /** Warn at most once per completed turn about unexpected late model events. */
+  readonly warnedLateTurns: Set<string>;
   readonly codexToPlatform: Map<string, string>;
   readonly platformToCodex: Map<string, string>;
   readonly commandTurns: Set<string>;

@@ -157,6 +157,7 @@ export class CodexRuntimes {
           provider,
         ),
       publish: (event) => this.ctx.ops.publish(event),
+      log: (message) => this.ctx.ops.log(message),
       onActivitySettled: () => {
         if (this.ctx.state.staleRuntimes.has(`codex/${name}`)) void this.ctx.ops.reconcileRuntimes().catch(() => {});
       },

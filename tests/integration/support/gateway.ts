@@ -556,6 +556,7 @@ export async function startTestGateway(
     worker?: ScriptedWorkerOptions;
     secretTtlMs?: number;
     watchProbeMs?: number;
+    log?: GatewayCoreOptions["log"];
     storage?: { pg: TestPostgres; secretsKey: Buffer; workerId: string; workerCredential: string };
   } = {},
 ): Promise<TestGateway> {
@@ -632,7 +633,8 @@ export async function startTestGateway(
     ...(options.botClock && { botClock: options.botClock }),
     ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }),
     ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }),
-    log: (m) => (process.env["CANOPY_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m),
+    log:
+      options.log ?? ((m) => (process.env["CANOPY_TEST_LOG"] === "1" || m.startsWith("agent bus")) && console.error(m)),
   });
 
   const grpc = await startGrpcServer({

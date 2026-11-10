@@ -236,7 +236,12 @@ export async function coreIngest(
     }
 
     if (body.case === "turnStarted" || body.case === "turnFinished")
-      await coreBroadcastTurn(hostContext, stored.threadId, stored.event.turnId);
+      await coreBroadcastTurn(
+        hostContext,
+        stored.threadId,
+        stored.event.turnId,
+        body.case === "turnStarted" ? "started" : "finished",
+      );
 
     if (
       body.case === "threadReady" ||
@@ -263,7 +268,7 @@ export async function coreIngest(
     const steerId = steerOf(stored.event);
 
     if (steerId) {
-      await corePublishSteer(hostContext, steerId);
+      await corePublishSteer(hostContext, steerId, body.case === "itemCompleted");
       touched.add(stored.threadId);
     }
   }

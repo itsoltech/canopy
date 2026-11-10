@@ -305,6 +305,7 @@ Model pusty = model `is_default` katalogu. Tura zapisuje rozstrzygnięte wartoś
 - `ok` = dostawca przyjął wejście do tury. Miejsce, w którym weszło, to item `user_message` z `client_id = input_id` w tej turze (Codex `turn/steer` z `clientUserMessageId`, Claude `command_lifecycle started`).
 - Tura już się skończyła albo nie działa na tym workerze: `STEER_NOT_RUNNING`; dostawca odmówił: `STEER_REJECTED`. Gateway kolejkuje wtedy wiadomość jako następną turę z powodem.
 - Claude przyjął wiadomość, ale tura skończyła się bez niej (przerwanie, błąd, brak dalszych zdarzeń przez 60 s po wyniku): `Notice` z `code = steer_dropped` i `data_json {"input_id"}`; gateway też ją kolejkuje.
+- Niezależnie od dostawcy koniec tury bez potwierdzonego `user_message` kieruje steer `pending` lub `accepted` do kolejki. Nie wymaga odmowy RPC ani `steer_dropped`; spóźniony ACK nie cofa fallbacku. To samo działa dla tury pobudki szyny agentów lub zadania w tle. `pump` i startowy/okresowy sweep odnajdują takie wejścia także po restarcie gatewaya.
 
 ## Komendy powłoki właściciela
 
