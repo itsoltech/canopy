@@ -1035,6 +1035,12 @@ z „Expired. The bot no longer needs an answer.” bez akcji; spóźnioną odpo
 odrzuca, a karta pokazuje „This request expired. No answer was sent.”. Picker modeli
 pokazuje same nazwy, bez opisów modeli.
 Kompozytor oferuje wysyłanie, stop, wybór modelu/effort i permissions. Okrągły przycisk
+załączania jest przypięty do lewej krawędzi, poza przewijanym paskiem modelu i effort.
+Pigułki mają szerokość treści i wyrównanie do prawej, więc zmiany katalogu rosną w lewo,
+bez przesuwania przycisku wysyłania. Długie etykiety są skracane; dopiero nadmiar treści
+przewija same pigułki, bez sprężynowania i dodatkowego paddingu w obszarze przewijania.
+Tryb shell nadal zastępuje te kontrolki komunikatem. W czacie bota załączanie pozostaje
+po lewej stronie pola, bez pigułek modelu. Okrągły przycisk
 wysyłania ma kolor `action` jak w web; puste pole podczas tury zamienia go w stop. Gdy tura trwa
 i jest wiadomość, przycisk dzieli się jak webowy `SteerSendButton`: główna część „Steer” albo
 „Queue” (według Settings → Threads → Messages) wysyła w preferowany sposób, przytrzymanie

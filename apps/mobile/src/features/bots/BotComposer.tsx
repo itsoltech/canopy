@@ -42,7 +42,7 @@ export function BotComposer({
           onChange={draft.setText}
           badges={draft.badges}
           files={quotes.length + draft.files.files.length}
-          controls={<AttachButton draft={draft.files} disabled={disabled || busy || !message.loaded} />}
+          attachment={<AttachButton draft={draft.files} disabled={disabled || busy || !message.loaded} />}
           canSend={!draft.files.blocker && message.loaded}
           shellCommands={false}
           label="Message to your bot"
