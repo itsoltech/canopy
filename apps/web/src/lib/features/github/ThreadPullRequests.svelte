@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ui, github } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { SharedRead, queries } from "#lib/shared/queries.svelte.ts";
+  import { SharedRead, queries, revalidateEvery } from "#lib/shared/queries.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import { expand } from "#lib/shared/ui/motion.ts";
@@ -11,6 +11,7 @@
   import * as api from "./api.ts";
   import PanelRow from "#lib/features/threads/components/PanelRow.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import Badge from "#lib/shared/ui/Badge.svelte";
   import { checkLook } from "@canopy/domain/github-pr";
   import { pullRequestHref, toneClasses } from "./presentation.ts";
 
@@ -28,7 +29,13 @@
   );
 
   const data = $derived(read.data);
-  const links = $derived(data?.links ?? (thread.newestPullRequest ? [{ summary: thread.newestPullRequest }] : []));
+
+  $effect(() => revalidateEvery(read.key, 60_000));
+
+  const links = $derived(
+    data?.links ??
+      (thread.newestPullRequest ? [{ summary: thread.newestPullRequest, source: "", currentBranch: false }] : []),
+  );
 </script>
 
 <section aria-label="Pull requests" class={["grid min-w-0 gap-2 px-3 py-2", className]}>
@@ -39,7 +46,11 @@
       {@const pr = link.summary}
       {#if pr?.ref}
         <li class="min-w-0 text-sm/5 sm:text-xs/5">
-          <PanelRow icon="git-fork" href={pullRequestHref(thread.id, pr.ref.id)}>
+          <PanelRow
+            icon="git-fork"
+            href={pullRequestHref(thread.id, pr.ref.id)}
+            class={link.currentBranch ? "bg-zinc-950/5 dark:bg-white/8" : undefined}
+          >
             {#snippet lead()}<PullRequestState state={pr.state} iconOnly />{/snippet}
             <span title={pr.title}>{pr.title || pr.ref.repositoryName}</span>
             {#snippet aside()}<span class="shrink-0 text-zinc-500 tabular-nums">#{pr.ref!.number}</span><Icon
@@ -48,6 +59,12 @@
                 label={`Checks: ${checkLook(pr.checksState).label}`}
               />{/snippet}
           </PanelRow>
+          <div
+            class="flex min-h-5 flex-wrap items-center gap-1.5 px-2 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+          >
+            {#if link.source}<Badge compact>{link.source === "auto" ? "Auto" : "Manual"}</Badge>{/if}
+            <span>{link.currentBranch ? "Current branch" : "History"}</span>
+          </div>
           {#if data?.stale && pr.verifiedAt}<p class="text-zinc-500 dark:text-zinc-400">
               Last verified {formatTime(pr.verifiedAt)}
             </p>{/if}

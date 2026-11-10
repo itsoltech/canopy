@@ -34,6 +34,9 @@ const PullRequest = Schema.Struct({
   headRefName: Schema.String,
   baseRefOid: Schema.String,
   headRefOid: Schema.String,
+  headRepository: Schema.optional(
+    Schema.NullOr(Schema.Struct({ databaseId: Schema.Number, nameWithOwner: Schema.String })),
+  ),
   changedFiles: Schema.Number,
   additions: Schema.Number,
   deletions: Schema.Number,
@@ -99,6 +102,7 @@ export const SUMMARY_QUERY = `query CanopyPullRequest($owner:String!,$name:Strin
   repository(owner:$owner,name:$name){ databaseId pullRequest(number:$number){
     id number title state isDraft body author{login} updatedAt createdAt
     baseRefName headRefName baseRefOid headRefOid changedFiles additions deletions
+    headRepository{databaseId nameWithOwner}
     labels(first:100){nodes{name color} pageInfo{hasNextPage}}
     assignees(first:100){nodes{login} pageInfo{hasNextPage}}
     reviewRequests(first:100){nodes{requestedReviewer{... on User{login} ... on Team{name slug}}} pageInfo{hasNextPage}}
@@ -185,6 +189,8 @@ export function summarySnapshot(
     body: pr.body ?? previous?.body ?? "",
     baseRef: pr.baseRefName,
     headRef: pr.headRefName,
+    headRepositoryId: pr.headRepository ? String(pr.headRepository.databaseId) : "",
+    headRepositoryName: pr.headRepository?.nameWithOwner ?? "",
     baseSha: pr.baseRefOid,
     files: pr.changedFiles,
     additions: pr.additions,

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { AppState, Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 import type { ui, github } from "@canopy/contracts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
@@ -19,6 +19,13 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
   const [expanded, setExpanded] = useState(false);
   const [linking, setLinking] = useState(false);
   const key = `ListThreadPullRequests:${thread.id}:${thread.pullRequestRevision}`;
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (AppState.currentState === "active") queries.invalidate(key);
+    }, 60_000);
+
+    return () => clearInterval(timer);
+  }, [key, queries]);
 
   const read = useSharedQuery<github.ThreadPullRequestsResponse>(
     key,
@@ -27,7 +34,9 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
     60_000,
   );
 
-  const links = read.data?.links ?? (thread.newestPullRequest ? [{ summary: thread.newestPullRequest }] : []);
+  const links =
+    read.data?.links ??
+    (thread.newestPullRequest ? [{ summary: thread.newestPullRequest, source: "", currentBranch: false }] : []);
 
   return (
     <View style={{ gap: 10, minWidth: 0 }}>
@@ -50,7 +59,7 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
                 minHeight: 48,
                 borderRadius: 8,
                 paddingHorizontal: 4,
-                backgroundColor: pressed ? c.pressed : undefined,
+                backgroundColor: pressed ? c.pressed : link.currentBranch ? c.well : undefined,
               })}
               onPress={() => {
                 onClose();
@@ -64,6 +73,30 @@ export function ThreadPullRequests({ thread, onClose }: { thread: ui.Thread; onC
               <Text style={[styles.chromeMeta, { color: c.muted }]}>#{pr.ref.number}</Text>
               <Icon name={checkLook(pr.checksState).icon} color={toneColor(c, checkLook(pr.checksState).tone)} />
             </Pressable>
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 6,
+                minHeight: 22,
+                paddingHorizontal: 4,
+              }}
+            >
+              {!!link.source && (
+                <Text
+                  style={[
+                    styles.chromeMeta,
+                    { color: c.muted, backgroundColor: c.well, borderRadius: 4, paddingHorizontal: 4 },
+                  ]}
+                >
+                  {link.source === "auto" ? "Auto" : "Manual"}
+                </Text>
+              )}
+              <Text style={[styles.chromeMeta, { color: c.muted }]}>
+                {link.currentBranch ? "Current branch" : "History"}
+              </Text>
+            </View>
             {read.data?.stale && pr.verifiedAt && (
               <Text style={[styles.meta, { color: c.muted }]}>
                 Last verified {timestampDate(pr.verifiedAt).toLocaleString()}

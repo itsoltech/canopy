@@ -11,6 +11,18 @@ import { coreWorktreeScope, toUiWorktree } from "./core-worktrees.ts";
 import { cleanupReason, lastActivity, matchesCleanup } from "./cleanup-policy.ts";
 import { discoverWorkspace, mergeWorktrees } from "./discovery.ts";
 import { ownWorkspace } from "./core-worktrees.ts";
+import { githubCleanupProof } from "../github/cleanup-proof.ts";
+
+const mergedProof = async (
+  core: GatewayCore,
+  owner: string,
+  worker: string,
+  repository: string,
+  branch: string,
+  head: string,
+) =>
+  (await githubCleanupProof(core.github, owner, worker, repository, branch, head)) ||
+  core.connectors.worktreeMerged(owner, worker, repository, branch, head);
 
 export function worktreeTarget(row: WorktreeLifecycleRow, settings: ui.WorktreeSettings, status?: WorktreeStatus) {
   return create(WorktreeTargetSchema, {
@@ -106,7 +118,8 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
       entry.status &&
       !entry.detail &&
       !entry.status.merged &&
-      (await core.connectors.worktreeMerged(
+      (await mergedProof(
+        core,
         row.owner_user_id,
         row.worker_id,
         entry.status.githubRepository,
@@ -158,7 +171,8 @@ export async function removeEntry(
 
   const confirmedPr =
     status.githubRepository &&
-    (await core.connectors.worktreeMerged(
+    (await mergedProof(
+      core,
       row.owner_user_id,
       row.worker_id,
       status.githubRepository,

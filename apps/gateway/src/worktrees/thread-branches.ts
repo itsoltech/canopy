@@ -113,6 +113,7 @@ export class ThreadBranches {
     });
 
     for (const event of stored) {
+      this.core.githubDetection.request(event.threadId);
       this.core.hub.publishThread(
         event.threadId,
         create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: event.seq, event: event.event } } }),

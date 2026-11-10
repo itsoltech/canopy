@@ -85,7 +85,12 @@ export function githubPrFixture() {
   let partial = false;
   let gate = Promise.resolve();
   let echo = "";
+  let intercept: ((request: Request, user: number) => Response | Promise<Response> | undefined) | undefined;
+  let pullRequest = (number: number, state: string, draft: boolean) => githubPrData(number, state, draft);
   auth.handler((request, user) => {
+    const response = intercept?.(request, user);
+
+    if (response) return response;
     const url = new URL(request.url);
 
     if (/^\/user\/installations\/\d+\/repositories$/.test(url.pathname))
@@ -144,7 +149,7 @@ export function githubPrFixture() {
         Match.orElse(() => "OPEN"),
       );
 
-      const pr = githubPrData(number, state, number === 45);
+      const pr = pullRequest(number, state, number === 45);
       pr.title += ` · account ${user}${echo}`;
 
       return Response.json({
@@ -159,6 +164,12 @@ export function githubPrFixture() {
 
   return {
     ...auth,
+    intercept: (value: typeof intercept) => {
+      intercept = value;
+    },
+    pullRequest: (value: typeof pullRequest) => {
+      pullRequest = value;
+    },
     get calls() {
       return calls;
     },

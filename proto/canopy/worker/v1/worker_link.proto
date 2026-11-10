@@ -408,6 +408,8 @@ message Command {
     WriteFile write_file = 224;
     FileRequest delete_file = 225;
     CancelCloneRepository cancel_clone_repository = 226;
+    // Read-only, ephemeral, capability git_pr_context_v1. No credentials or network access.
+    ReadGitPrContext read_git_pr_context = 227;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
@@ -676,6 +678,7 @@ message CommandResult {
   ThreadGitHead switched_head = 219;
   // Wynik ReadFile i WriteFile (po zapisie bez treści).
   FileContent file = 222;
+  GitPrContext git_pr_context = 227;
   ProviderAccountsReport provider_accounts = 810;
   // Wynik ScanImportSources (docs/import.md).
   ImportScan import_scan = 850;
@@ -700,6 +703,30 @@ message ReadWorkspaceOrigin {
   string repo_path = 1;
   // Requires workspace_clone_source; return only clone-safe URLs without credentials.
   bool include_clone_url = 2;
+}
+
+message ReadGitPrContext {
+  string repo_path = 1;
+  bool fresh = 2;
+  // Ancestry is checked only against this exact full HEAD; at most ten full OIDs.
+  string expected_head = 3;
+  repeated string ancestor_oids = 4;
+}
+message GitPrRemote {
+  string name = 1;
+  repeated string fetch_repositories = 2;
+  repeated string push_repositories = 3;
+}
+message GitPrContext {
+  string branch = 1;
+  string head_oid = 2;
+  string upstream_remote = 3;
+  string upstream_ref = 4;
+  string push_remote = 5;
+  string push_ref = 6;
+  repeated GitPrRemote remotes = 7;
+  repeated string ancestor_oids = 8;
+  bool ambiguous = 9;
 }
 
 // A new directory `name` inside the existing absolute `parent_path`, then `git init`.

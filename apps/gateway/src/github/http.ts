@@ -96,9 +96,11 @@ export class GitHubHttp {
 
     const text = await bodyText(response);
 
-    const value = Schema.decodeUnknownSync(Schema.JsonObject)(
+    const decoded = Schema.decodeUnknownSync(Schema.Json)(
       JSON.parse(secrets.length ? redactConnector(text, {}, secrets) : text),
     );
+
+    const value = Schema.decodeUnknownSync(Schema.JsonObject)(Array.isArray(decoded) ? { items: decoded } : decoded);
 
     return { status: response.status, headers, value };
   }
