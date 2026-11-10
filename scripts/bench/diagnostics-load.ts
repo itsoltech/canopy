@@ -42,9 +42,21 @@ export async function diagnosticsLoad(
   const extra = (async () => {
     let nextReconnect = performance.now() + 5000;
     let nextSample = performance.now() + 60_000;
+    let nextOverview = performance.now();
+    let nextDetails = performance.now();
     let changes = 0;
 
     while (performance.now() < until) {
+      if (process.env["CANOPY_BENCH_VIEW"] === "1" && performance.now() >= nextOverview) {
+        await api.getDiagnostics({ windowMinutes: 15 });
+        nextOverview = performance.now() + 5000;
+      }
+
+      if (process.env["CANOPY_BENCH_VIEW"] === "1" && performance.now() >= nextDetails) {
+        await api.getComputerDiagnostics({ windowMinutes: 15, limit: 32, sortBy: "p95", callKind: "unary" });
+        nextDetails = performance.now() + 10_000;
+      }
+
       if ((phase === "reconnect" || phase === "churn") && performance.now() >= nextReconnect) {
         await reconnect();
         nextReconnect = performance.now() + 5000;
