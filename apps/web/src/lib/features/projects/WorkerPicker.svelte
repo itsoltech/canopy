@@ -2,7 +2,7 @@
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import { workerLabel } from "#lib/features/overview/worker-label.ts";
+  import { workerChoices } from "@canopy/domain/worker-choices";
   import { workerPresence } from "#lib/features/computers/computers.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import PickerRow from "#lib/shared/ui/PickerRow.svelte";
@@ -36,22 +36,19 @@
   const status = (worker: ui.Worker) => presence(worker).status;
 
   const available = $derived(
-    overview.workers
-      // Until the capabilities load, a linked computer's worker stays listed (only a desktop gateway has them).
-      .filter((worker) => !worker.nodeId || !capabilities?.methods || capabilities.linkedComputers)
-      .map((worker) => ({
-        worker,
+    workerChoices(
+      overview.workers
+        // Until the capabilities load, a linked computer's worker stays listed (only a desktop gateway has them).
+        .filter((worker) => !worker.nodeId || !capabilities?.methods || capabilities.linkedComputers),
+      (worker) => ({ ...presence(worker), computer: computerOf(worker) }),
+    )
+      .map((choice) => ({
+        ...choice,
         workspace:
-          project.workspaces.find((ws) => ws.workerId === worker.id && ws.id === value) ??
-          project.workspaces.find((ws) => ws.workerId === worker.id),
+          project.workspaces.find((ws) => ws.workerId === choice.worker.id && ws.id === value) ??
+          project.workspaces.find((ws) => ws.workerId === choice.worker.id),
       }))
-      .filter((choice) => project.kind === "scratch" || choice.workspace)
-      .sort(
-        (a, b) =>
-          Number(Boolean(a.worker.nodeId)) - Number(Boolean(b.worker.nodeId)) ||
-          computerOf(a.worker).localeCompare(computerOf(b.worker)) ||
-          a.worker.name.localeCompare(b.worker.name),
-      ),
+      .filter((choice) => project.kind === "scratch" || choice.workspace),
   );
 
   const selected = $derived(available.find((choice) => choice.workspace?.id === value));
@@ -74,8 +71,7 @@
     items={available}
     key={(choice) => choice.worker.id}
     text={(choice) => `${choice.worker.name} ${computerOf(choice.worker)}`}
-    groupOf={(choice) => computerOf(choice.worker)}
-    disabled={(choice) => !choice.workspace || Boolean(away(choice.worker))}
+    disabled={(choice) => !choice.workspace || !choice.online}
     value={selected?.worker.id}
     onselect={(choice) => choice.workspace && onselect(choice.workspace)}
     link={{ href: "/settings/workers", label: "Manage workers" }}
@@ -87,14 +83,11 @@
         aria-label={selected
           ? `Worker: ${selected.worker.name}, ${computerOf(selected.worker)}, ${status(selected.worker)}`
           : "Worker: none"}
+        title={selected ? `${selected.worker.name} · on ${selected.computer} · ${selected.status}` : undefined}
       >
         <Icon name="computer-desktop" class="size-3.5" />
         {#if selected}
-          <span class="flex min-w-0 flex-1 items-center gap-1 text-zinc-800 dark:text-zinc-200">
-            <span class="min-w-0 truncate">{workerLabel(selected.worker.name)}</span>
-            <span class="shrink-0" aria-hidden="true">·</span>
-            <span class="min-w-0 truncate">{computerOf(selected.worker)}</span>
-          </span>
+          <span class="min-w-0 flex-1 truncate text-zinc-800 dark:text-zinc-200">{selected.worker.name}</span>
           {#if !online(selected.worker)}<StatusDot tone="neutral" /><span class="shrink-0 @max-[34rem]/context:sr-only"
               >{status(selected.worker)}</span
             >{/if}
@@ -106,7 +99,10 @@
     {#snippet option(choice, state)}
       <PickerRow
         title={choice.worker.name}
-        detail={!choice.workspace ? "No scratch directory. Configure this worker." : away(choice.worker)}
+        suffix={choice.duplicate ? choice.computer : undefined}
+        detail={!choice.workspace
+          ? "No scratch directory. Configure this worker."
+          : (away(choice.worker) ?? (!choice.online ? "Start this worker to use it." : undefined))}
         status={status(choice.worker)}
         selected={state.selected}
       >

@@ -19,7 +19,7 @@
     branchControl?: Snippet;
     permissionControl: Snippet;
     hasWorkspace?: boolean;
-    /** Give the worker and computer names their own row in a narrow new-thread composer. */
+    /** Give the project and worker their own rows in a narrow new-thread composer. */
     stackPlacement?: boolean;
     class?: ClassValue;
   } = $props();

@@ -13,6 +13,7 @@
   let {
     id,
     title,
+    suffix,
     detail,
     status,
     icon,
@@ -25,6 +26,7 @@
   }: {
     id: string;
     title: string;
+    suffix?: string | undefined;
     detail?: string | undefined;
     status?: string | undefined;
     icon?: IconName | undefined;
@@ -53,7 +55,10 @@
 >
   {#if leading}{@render leading()}{:else if icon}<Icon name={icon} class={paletteRowIconClass} />{/if}
   <span class="grid min-w-0 flex-1 gap-0.5">
-    <span class="truncate">{title}</span>
+    <span class="flex min-w-0 gap-1">
+      <span class="truncate" {title}>{title}</span>
+      {#if suffix}<span class="truncate text-zinc-500 dark:text-zinc-400" title={suffix}>· {suffix}</span>{/if}
+    </span>
     {#if detail}<span class="truncate text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{detail}</span>{/if}
   </span>
   {#if status}<span class="shrink-0 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{status}</span>{/if}

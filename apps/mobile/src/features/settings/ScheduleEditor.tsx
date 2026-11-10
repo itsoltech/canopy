@@ -10,7 +10,8 @@ import { SettingsModel } from "./SettingsModels";
 import { ScheduleDate } from "./ScheduleDate";
 import { ScheduleRecurrence } from "./ScheduleRecurrence";
 import { PermissionPickerSheet, permissionLabel } from "../threads/permissions";
-import { useComputerHome, useWorkerPresence } from "../computers/presence";
+import { useComputerHome } from "../computers/presence";
+import { useWorkerOptions } from "../computers/worker-options";
 import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 import { splitId } from "@canopy/domain/computers";
 import { awayReason, formatPresenceTime } from "@canopy/domain/computer-presence";
@@ -216,7 +217,7 @@ function ScheduleThread({
   onChange: (v: ui.NewThreadSchedule) => void;
 }) {
   const { projects, workers, computers } = useOverview();
-  const presence = useWorkerPresence();
+  const workerOptions = useWorkerOptions();
   const [permission, setPermission] = useState(false);
   const draft = create(ui.NewThreadScheduleSchema, value);
 
@@ -256,18 +257,13 @@ function ScheduleThread({
           title="Workspace"
           value={draft.workspaceId}
           onChange={(workspaceId) => change({ workspaceId })}
-          options={
-            project?.workspaces.map((w) => {
-              const state = presence(workers.find((worker) => worker.id === w.workerId));
-
-              return {
+          options={workerOptions(workers.filter((w) => project?.workspaces.some((ws) => ws.workerId === w.id))).flatMap(
+            (option) =>
+              (project?.workspaces.filter((w) => w.workerId === option.value) ?? []).map((w) => ({
+                ...option,
                 value: w.id,
-                label: w.label || w.rootPath,
-                disabled: !state.online,
-                description: state.reason ?? state.status,
-              };
-            }) ?? []
-          }
+              })),
+          )}
         />
       )}
       <SettingsModel

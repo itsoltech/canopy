@@ -1,5 +1,6 @@
 import type { ui } from "@canopy/contracts";
-import { useWorkerLabel, useWorkerPresence } from "../computers/presence";
+import { useWorkerPresence } from "../computers/presence";
+import { useWorkerOptions } from "../computers/worker-options";
 import { SettingChoice } from "./SettingsGroup";
 
 export function WorkspaceSourceChoice({
@@ -18,7 +19,7 @@ export function WorkspaceSourceChoice({
   busy: boolean;
 }) {
   const presence = useWorkerPresence();
-  const workerName = useWorkerLabel();
+  const options = useWorkerOptions()(workers, false);
 
   return (
     <SettingChoice
@@ -35,10 +36,12 @@ export function WorkspaceSourceChoice({
         },
         ...project.workspaces.map((workspace) => {
           const from = workers.find((w) => w.id === workspace.workerId);
+          const option = options.find((o) => o.value === workspace.workerId);
 
           return {
             value: `copy:${workspace.id}`,
-            label: `Copy from ${workerName(workspace.workerId)}`,
+            label: `Copy from ${option?.label ?? "Unknown worker"}`,
+            suffix: option?.suffix,
             disabled: busy || !worker.workspaceCopy || !from?.workspaceCopy || !presence(from).online,
             description:
               !worker.workspaceCopy || !from?.workspaceCopy

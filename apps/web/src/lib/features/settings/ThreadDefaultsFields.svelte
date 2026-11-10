@@ -9,6 +9,7 @@
   import Select from "#lib/shared/ui/Select.svelte";
   import PreferenceRow from "./PreferenceRow.svelte";
   import { modelFor, withModel } from "./thread-defaults.ts";
+  import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
   /**
    * Rows of thread defaults (workspace, agent, profile, model, permissions) for Settings → Threads and a
@@ -29,6 +30,7 @@
   } = $props();
 
   const overview = useOverview();
+  const records = workerRecords(overview);
   let confirming = $state<() => void>();
   const provider = $derived(providerKeyOf(value.provider));
 
@@ -44,7 +46,21 @@
   const set = (change: Partial<Omit<ui.ThreadDefaults, "$typeName">>) =>
     onchange(create(ui.ThreadDefaultsSchema, { ...value, ...change }));
 
-  const workerName = (ws: ui.Workspace) => overview.worker(ws.workerId)?.name ?? "Unknown worker";
+  const workspaceOptions = $derived(
+    workspaces.flatMap((group) =>
+      records
+        .options(
+          overview.workers.filter((worker) =>
+            group.workspaces.some((ws) => !ws.id.includes("~") && ws.workerId === worker.id),
+          ),
+        )
+        .flatMap((option) =>
+          group.workspaces
+            .filter((ws) => !ws.id.includes("~") && ws.workerId === option.value)
+            .map((ws) => ({ ...option, value: ws.id, group: inherited ? undefined : group.project.name })),
+        ),
+    ),
+  );
 </script>
 
 <PreferenceRow
@@ -62,14 +78,7 @@
       value={value.workspaceId}
       onchange={(workspaceId) => set({ workspaceId })}
       class="w-56 sm:w-64"
-      options={[
-        { value: "", label: "Last used" },
-        ...workspaces.flatMap((group) =>
-          group.workspaces
-            .filter((ws) => !ws.id.includes("~"))
-            .map((ws) => ({ value: ws.id, label: workerName(ws), group: group.project.name })),
-        ),
-      ]}
+      options={[{ value: "", label: "Last used" }, ...workspaceOptions]}
     />
   {/snippet}
 </PreferenceRow>

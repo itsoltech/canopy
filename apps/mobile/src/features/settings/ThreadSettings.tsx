@@ -11,15 +11,16 @@ import { DefaultModels } from "./SettingsModels";
 import { DefaultResets } from "./DefaultResets";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { useOverview } from "../../state/overview";
-import type { ProjectChoice } from "@canopy/domain/projects";
 import { useWorkerLabel } from "../computers/presence";
+import { useWorkerOptions } from "../computers/worker-options";
 import { FollowUpSettings } from "./FollowUpSettings";
 
 type Settings = ReturnType<typeof useAppearance>;
 
 export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
-  const { projectChoices: projects } = useOverview();
+  const { projectChoices: projects, workers } = useOverview();
   const workerName = useWorkerLabel();
+  const workerOptions = useWorkerOptions();
   const [picker, setPicker] = useState<"workspace" | "agent" | "permission" | null>(null);
   const defaults = settings.user?.threadDefaults;
   const close = () => setPicker(null);
@@ -91,7 +92,21 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
         search={projects.length > 6 ? "Search projects" : undefined}
         value={defaults?.workspaceId ?? ""}
         onSelect={(workspaceId) => save({ workspaceId })}
-        sections={workspaceOptions(projects, workerName)}
+        sections={[
+          { options: [{ value: "", label: "Last used", description: "Use the workspace you used last." }] },
+          ...projects
+            .filter((p) => !p.archivedAt && p.workspaces.length)
+            .map((p) => ({
+              id: p.id,
+              title: p.name,
+              options: workerOptions(
+                workers.filter((worker) => p.workspaces.some((w) => w.workerId === worker.id)),
+                false,
+              ).flatMap((option) =>
+                p.workspaces.filter((w) => w.workerId === option.value).map((w) => ({ ...option, value: w.id })),
+              ),
+            })),
+        ]}
       />
       <PickerSheet
         title="Agent"
@@ -120,26 +135,4 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
       />
     </View>
   );
-}
-
-function workspaceOptions(projects: ProjectChoice[], workerName: (id: string) => string) {
-  return [
-    { options: [{ value: "", label: "Last used", description: "Use the workspace you used last." }] },
-    ...projects.flatMap((p) =>
-      !p.archivedAt && p.workspaces.length
-        ? [
-            {
-              id: p.id,
-              title: p.name,
-              options: p.workspaces.map((w) => ({
-                value: w.id,
-                label: workerName(w.workerId),
-                description: p.kind === "scratch" ? "Scratch folder" : w.label || w.rootPath,
-                icon: "computer-desktop" as const,
-              })),
-            },
-          ]
-        : [],
-    ),
-  ];
 }

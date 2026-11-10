@@ -9,6 +9,7 @@ import { ProviderForm } from "./ProviderForm";
 import { ProviderWorker } from "./ProviderWorker";
 import { ProviderModels } from "./ProviderModels";
 import { MoveEnvironment } from "./MoveEnvironment";
+import { useWorkerRecordOptions } from "../computers/worker-options";
 
 export function ProviderSettings() {
   const resource = useSettingsResource("ListProviderInstances+ListWorkerRecords", async (api) => {
@@ -22,6 +23,7 @@ export function ProviderSettings() {
   const [editing, setEditing] = useState<ui.ProviderInstance | "new">();
   const [selected, setSelected] = useState<ui.ProviderInstance>();
   const changed = () => void resource.reload();
+  const workerOptions = useWorkerRecordOptions(resource.data?.records ?? []);
 
   const instances =
     resource.data?.instances ??
@@ -35,11 +37,7 @@ export function ProviderSettings() {
         title="Scope"
         value={scope}
         onChange={setScope}
-        options={[
-          { value: "", label: "All workers" },
-          ...(resource.data?.records.map((r) => ({ value: r.workerId, label: r.name, description: r.computerName })) ??
-            []),
-        ]}
+        options={[{ value: "", label: "All workers" }, ...workerOptions]}
       />
       <Button
         title="Refresh providers"

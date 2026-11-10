@@ -55,16 +55,14 @@ export function useWorkerPresence() {
   };
 }
 
-/** Worker names alone are ambiguous once several computers contribute choices. */
+/** Collapsed controls show only the worker; picker rows disambiguate duplicate names. */
 export function useWorkerLabel() {
-  const { workers, computers } = useOverview();
-  const presence = useWorkerPresence();
+  const { workers } = useOverview();
 
   return (id: string) => {
     const worker = workers.find((row) => row.id === id);
-    const name = worker?.name ?? "Unknown worker";
 
-    return computers.length ? `${name} · ${presence(worker).computer}` : name;
+    return worker?.name ?? "Unknown worker";
   };
 }
 

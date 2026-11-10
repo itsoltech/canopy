@@ -1129,8 +1129,13 @@ kompozytorem i informacja o niedostępnym komputerze zachowują własne miejsca.
 New thread to jeden ekran jak w web: kompozytor z modelem, effort i plikami, pod nim projekt,
 worker (offline z notą, która blokuje wysyłkę) i uprawnienia. Wartości startowe biorą domyślne
 projektu nad Settings → Threads, potem ostatnio użyte (`features/new-thread/placement.ts`).
-Picker workera grupuje workspace'y według komputera jak w web: najpierw „This computer”, potem
-połączone komputery po nazwie. Snapshot telefonu zawiera już ich workery, projekty i wątki
+Picker workera pokazuje płaską listę jak w web: dostępne workery najpierw, potem pozostałe,
+w obu grupach po nazwie. Kropka i opis pokazują stan oraz system, a cichy sufiks komputera
+rozróżnia tylko powtarzające się nazwy. Zamknięta kontrolka pokazuje samą nazwę workera.
+Wspólny helper `domain/worker-choices` porządkuje wybory bez zmiany kwalifikowanych id;
+pickery botów, harmonogramów i ustawień stosują te same reguły, zachowując ograniczenia domu.
+Settings → Workers nadal grupuje komputery jako widok zarządzania.
+Snapshot telefonu zawiera już ich workery, projekty i wątki
 oraz `computers`; zdarzenia `computer`, `computer_removed` i `computer_snapshot` je odświeżają
 (`state/overview.tsx`). Worker na komputerze, z którym ten nie ma teraz połączenia, jest
 wyszarzony z powodem z web („Studio Mac is unreachable since 6:45 AM.”); reguły obecności są

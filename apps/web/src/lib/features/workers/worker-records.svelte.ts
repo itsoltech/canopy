@@ -5,6 +5,7 @@ import { sharedRead, type SharedRead } from "#lib/shared/queries.svelte.ts";
 import { awayReason, workerPresence } from "#lib/features/computers/computers.ts";
 import { computerName } from "@canopy/domain/computer-presence";
 import type { SelectOption } from "#lib/shared/ui/listbox.ts";
+import { workerChoices } from "@canopy/domain/worker-choices";
 
 /** A worker of another computer in Settings → Workers: live when its home answers, its record otherwise. */
 export type LinkedWorker = { worker: ui.Worker; record: ui.WorkerRecord; readOnly: string };
@@ -86,28 +87,25 @@ export class WorkerRecords {
   }
 
   options(workers: readonly ui.Worker[] = this.workers, execution = false): SelectOption[] {
-    return [...workers]
-      .sort(
-        (a, b) =>
-          Number(!!a.nodeId) - Number(!!b.nodeId) ||
-          this.name(a).localeCompare(this.name(b)) ||
-          a.name.localeCompare(b.name),
-      )
-      .map((worker) => {
-        const presence = workerPresence(worker, this.overview.computer(worker.nodeId));
+    return workerChoices(workers, (worker) => ({
+      ...workerPresence(worker, this.overview.computer(worker.nodeId)),
+      computer: this.name(worker),
+    })).map(({ worker, duplicate, computer, ...presence }) => {
+      const reason = execution
+        ? worker.nodeId && awayReason(this.overview.computer(worker.nodeId))
+        : this.readOnly(worker.id);
 
-        const reason = execution
-          ? worker.nodeId && awayReason(this.overview.computer(worker.nodeId))
-          : this.readOnly(worker.id);
-
-        return {
-          value: worker.id,
-          label: `${worker.name} · ${this.name(worker)}`,
-          group: this.name(worker),
-          description: reason || presence.status,
-          disabled: execution ? !!reason : false,
-        };
-      });
+      return {
+        value: worker.id,
+        label: worker.name,
+        suffix: duplicate ? computer : undefined,
+        tooltip: `${worker.name} · on ${computer} · ${presence.status}`,
+        online: presence.online,
+        status: presence.status,
+        description: reason || (execution && !presence.online ? "Start this worker to use it." : undefined),
+        disabled: execution ? !presence.online : false,
+      };
+    });
   }
 
   instance(instance: ui.ProviderInstance): ui.ProviderInstance {

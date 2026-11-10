@@ -11,6 +11,7 @@
    */
   let {
     title,
+    suffix,
     detail,
     status,
     selected,
@@ -20,6 +21,8 @@
     trailing,
   }: {
     title: string;
+    /** Muted disambiguation, kept out of the selected trigger. */
+    suffix?: string | undefined;
     /** The line under the name. */
     detail?: string | undefined;
     /** Right of the name ("Online · Linux"). */
@@ -37,7 +40,10 @@
 <div class={["flex items-start gap-2", className]}>
   {#if leading}<div class="flex h-lh shrink-0 items-center">{@render leading()}</div>{/if}
   <div class="grid min-w-0 flex-1">
-    <TruncatedText text={title} class="font-medium" />
+    <div class="flex min-w-0 items-baseline gap-1">
+      <TruncatedText text={title} class="min-w-0 truncate font-medium" />
+      {#if suffix}<TruncatedText text={`· ${suffix}`} class="min-w-0 truncate text-zinc-500 dark:text-zinc-400" />{/if}
+    </div>
     {#if detail}<TruncatedText
         text={detail}
         class={["text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400", detailClass]}

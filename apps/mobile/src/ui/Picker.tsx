@@ -7,10 +7,14 @@ import { Overlay } from "./Overlay";
 import { SheetDragArea } from "./SheetDragArea";
 import { font, styles, useColors, useTypography, type Colors } from "./theme";
 import { Skeleton } from "./Skeleton";
+import { StatusDot } from "./Badge";
 
 export interface PickerOption<T> {
   value: T;
   label: string;
+  /** Muted disambiguation shown only in the open picker. */
+  suffix?: string;
+  online?: boolean;
   /** Local typography choices preview in their own face. */
   fontFamily?: string;
   description?: string;
@@ -165,7 +169,7 @@ function PickerRow<T>({
     <Pressable
       accessibilityRole={checkable ? "radio" : "menuitem"}
       accessibilityState={{ selected, checked: checkable ? selected : undefined, disabled: option.disabled }}
-      accessibilityLabel={[option.label, option.badge, option.description].filter(Boolean).join(", ")}
+      accessibilityLabel={[option.label, option.suffix, option.badge, option.description].filter(Boolean).join(", ")}
       disabled={option.disabled}
       onPress={onPress}
       style={({ pressed }) => ({
@@ -181,7 +185,11 @@ function PickerRow<T>({
         opacity: option.disabled || option.muted ? 0.4 : 1,
       })}
     >
-      {option.leading ?? (option.icon ? <Icon name={option.icon} color={tone ?? c.icon} /> : null)}
+      {option.online !== undefined ? (
+        <StatusDot tone={option.online ? "emerald" : "neutral"} />
+      ) : (
+        (option.leading ?? (option.icon ? <Icon name={option.icon} color={tone ?? c.icon} /> : null))
+      )}
       <View style={{ flex: 1, gap: 2 }}>
         <View style={[styles.row, { gap: 6 }]}>
           <Text
@@ -194,6 +202,11 @@ function PickerRow<T>({
           >
             {option.label}
           </Text>
+          {option.suffix && (
+            <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.muted, flexShrink: 1 }]}>
+              · {option.suffix}
+            </Text>
+          )}
           {option.badge ? (
             <Text numberOfLines={1} style={[styles.caption, { color: tone ?? c.faint, flexShrink: 0 }]}>
               {option.badge}

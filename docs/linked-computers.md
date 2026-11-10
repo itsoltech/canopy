@@ -341,8 +341,9 @@ Telefon i przeglądarka łączą się z jednym gatewayem i widzą przez niego ws
 - Ustawienia wspólne bez znaczka; znaczek „This computer” tylko przy ustawieniach komputera,
   a nazwa workera z komputerem przy ustawieniach workera ([UI](#ui-wspólnej-konfiguracji)).
 - Kompozytor: jeden wiersz projektu na wspólny origin i jeden **No project**. Bez znaczków komputerów
-  i podpisów per komputer przy projektach. Picker workera grupuje workery wszystkich komputerów;
-  jego przycisk pokazuje worker i komputer. Dla projektu pokazuje tylko workery z workspace'em tego
+  i podpisów per komputer przy projektach. Picker workera scala workery wszystkich komputerów w płaską listę;
+  jego przycisk pokazuje samą nazwę workera. Komputer jest w tooltipie, a sufiks rozróżnia powtarzające się nazwy.
+  Dla projektu pokazuje tylko workery z workspace'em tego
   projektu, a dla No project wszystkie workery (brak katalogu scratch oznacza wybór wyłączony).
   Offline pozostaje Offline; nieosiągalny dom pokazuje ogłoszony stan (np. Asleep since …) lub Unreachable,
   z rzeczywistym powodem obecności w szczegółach.
@@ -2356,8 +2357,10 @@ tożsamości. Etap 3 migruje projekty i usuwa tabele `computer_shared_*`, pętl�
   Worker niedostępnego komputera jest wyszarzony, z „Unreachable since 19:42”, a kontrolki są wyłączone
   z tym samym powodem co API.
 - **Picker workera wybiera komputer** w kompozytorze, przy tworzeniu bota i harmonogramu nowego wątku.
-  Nie ma osobnego wyboru komputera. Picker grupuje workery po komputerze i pokazuje Offline albo
-  Unreachable z powodem z obecności.
+  Nie ma osobnego wyboru komputera ani nagłówków komputerów. Płaska lista pokazuje dostępne workery
+  najpierw, potem pozostałe, w obu grupach po nazwie; Offline i Unreachable zachowują powód z obecności.
+  Powtarzające się nazwy rozróżnia cichy sufiks komputera, a zamknięty picker pokazuje samą nazwę workera.
+  Zakresy domu bota, edytowanego harmonogramu i domyślnych ustawień pozostają bez zmian.
 - **Notki:** „Laptop B also changed this at 14:02.” przy elemencie, z Restore i Dismiss, oraz grupa
   „Changed on two computers” w Settings → Linked computers. Instancja pokazuje swoje notki na górze
   szczegółów, Proxies na górze listy, a usunięte instancje grupa „Deleted on another computer” w Providers.

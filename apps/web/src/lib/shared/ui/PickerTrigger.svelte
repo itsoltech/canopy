@@ -4,6 +4,7 @@
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
   import TouchTarget from "./TouchTarget.svelte";
+  import { tooltip } from "./tooltip.ts";
 
   /** Shared form-picker button. It owns padding/positioning; callers size its wrapper.
    * Popover attachments and combobox ARIA attributes pass through to the actual button. */
@@ -15,7 +16,7 @@
     class?: ClassValue;
   };
 
-  let { text, icon, leadingIcon, element = $bindable(), class: className, ...rest }: Props = $props();
+  let { text, icon, leadingIcon, element = $bindable(), class: className, title, ...rest }: Props = $props();
   const field = useField();
 </script>
 
@@ -27,6 +28,7 @@
   id={rest.id ?? field?.id}
   aria-describedby={rest["aria-describedby"] ?? field?.describedBy}
   aria-invalid={rest["aria-invalid"] ?? (field?.invalid || undefined)}
+  {@attach tooltip(title ?? undefined)}
   class={[controlClasses, "ui-control relative flex items-center gap-2 text-left pointer-coarse:min-h-12", className]}
 >
   {#if leadingIcon}<Icon name={leadingIcon} />{/if}
