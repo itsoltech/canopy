@@ -287,6 +287,9 @@ wymuszone sprzątanie grupy lub `taskkill /PID <owned-pid> /T /F`. Nie ma wyszuk
 procesów po nazwie. Kontroler otrzymuje EOF po śmierci Electron i ma 30-sekundowy
 limit całego sprzątania, również podczas trwającego startu. SIGKILL całego drzewa
 procesów lub awaria OS nie daje możliwości wykonania shutdown; trwałość zapewnia WAL.
+Przed instalacją aktualizacji main czeka na wyjście kontrolera. Na Windows także
+35-sekundowy awaryjny limit main kończy całe własne drzewo przez `taskkill /T /F`,
+zamiast zabijać wyłącznie kontroler i pozostawiać procesy blokujące pliki aplikacji.
 
 Jedna baza naraz: Electron trzyma blokadę jednej instancji, a PostgreSQL odmawia startu
 na katalogu danych zajętym przez żywy postmaster. Gdy kontroler zginie bez sprzątania
@@ -912,7 +915,10 @@ Zachowanie platform wynika ze źródeł przypiętej biblioteki:
   automatycznej instalacji przy zamknięciu ani nie zmieniamy flag Squirrel.
 - **Windows / NSIS:** `BaseUpdater.install` i `NsisUpdater.doInstall` używają pliku
   aktualnego `DownloadedUpdateHelper`. Kolejny udany download zastępuje instalator;
-  `quitAndInstall` uruchamia najnowszy zaakceptowany plik.
+  `quitAndInstall(true, true)` uruchamia najnowszy zaakceptowany plik z argumentami
+  `--updated /S --force-run`. Aktualizacja nie otwiera kreatora, a po instalacji
+  automatycznie uruchamia Canopy. Lokalny Restart to update i żądania z gatewaya
+  lub połączonego komputera mają tę samą ścieżkę.
 - **Linux / AppImage:** ten sam helper wskazuje gotowy AppImage; `doInstall` przenosi
   go na miejsce uruchomionego obrazu. Kolejny udany download może zastąpić poprzedni.
 - **Linux / deb:** biblioteka ma `DebUpdater`, ale Canopy wyłącza updater bez `APPIMAGE`.
@@ -935,6 +941,50 @@ podmianę proxy/feedu. Zwykłe zamknięcie i osłona Quit pozostają bez automat
 [AppImage](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/AppImageUpdater.ts),
 [deb](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.3/packages/electron-updater/src/DebUpdater.ts).
 
+**Windows — zakres i ograniczenia.** `oneClick: false`,
+`allowToChangeInstallationDirectory: true` i `perMachine: false` pozostają bez zmian:
+pierwsza instalacja nadal ma kreator i wybór katalogu. Cichy update nie wybiera
+nowego katalogu: `assistedInstaller.nsh/initMultiUser` oraz
+`multiUser.nsh/setInstallModePerUser` odczytują poprzedni `InstallLocation` z HKCU.
+Instalacja dla bieżącego użytkownika nie wymaga UAC. Po wymianie plików
+`installSection.nsh` uruchamia aplikację także dla instalatora assisted, gdy otrzyma
+`/S --force-run`; aplikacja odtwarza usługi i połączenia.
+
+Istniejąca instalacja dla wszystkich użytkowników może wymagać UAC:
+`isAdminRightsRequired` pobranej paczki uruchamia `elevate.exe`, a assisted NSIS
+sam podnosi uprawnienia przy maszynowym `InstallLocation`, również w trybie silent.
+Metadane paczki per-user nie wystarczają więc do wykrycia tego przypadku.
+Przed restartem sprawdzamy także maszynowy wpis NSIS w 64-bitowym rejestrze oraz
+możliwość utworzenia i usunięcia katalogu w katalogu aplikacji. Wykrycie potrzeby
+administratora blokuje instalację: lokalny komunikat oraz zdalny wynik `failed`
+zalecają instalację dla bieżącego użytkownika. Usługi nadal działają; nie zostawiamy
+ukrytego instalatora oczekującego na zgodę. Aktualizację takiej instalacji wykonaj
+ręcznie z uprawnieniami administratora albo zastąp ją instalacją dla bieżącego użytkownika.
+
+NSIS `CHECK_APP_RUNNING` daje procesom czas na wyjście przy `--updated`, potem
+próbuje je zamknąć; w silent ewentualne pytania mają domyślne odpowiedzi.
+Gdy nie może zamknąć aplikacji, domyślnie anuluje instalację. Nie zastępuje to
+naszego shutdown: worker i gateway zamykają stdin, Postgres dostaje
+`pg_ctl stop -m fast`, a nadzorca czeka na zamknięcie procesów i używa
+`taskkill /PID <owned-pid> /T /F` po limicie. Dopiero wyjście kontrolera uruchamia NSIS.
+Źródła **electron-builder 26.18.0**:
+[konfiguracja NSIS](https://github.com/electron-userland/electron-builder/blob/electron-builder%4026.18.0/website/docs/nsis.md),
+[tryb i poprzedni katalog](https://github.com/electron-userland/electron-builder/blob/electron-builder%4026.18.0/packages/app-builder-lib/templates/nsis/assistedInstaller.nsh),
+[katalog użytkownika](https://github.com/electron-userland/electron-builder/blob/electron-builder%4026.18.0/packages/app-builder-lib/templates/nsis/multiUser.nsh),
+[elevacja](https://github.com/electron-userland/electron-builder/blob/electron-builder%4026.18.0/packages/app-builder-lib/templates/nsis/installer.nsi),
+[relaunch](https://github.com/electron-userland/electron-builder/blob/electron-builder%4026.18.0/packages/app-builder-lib/templates/nsis/installSection.nsh),
+[kontrola procesów](https://github.com/electron-userland/electron-builder/blob/electron-builder%4026.18.0/packages/app-builder-lib/templates/nsis/include/allowOnlyOneInstallerInstance.nsh).
+
+Na Windows sprawdź lokalny Restart to update i osobno aktualizację z gatewaya
+oraz połączonego komputera podczas nieobecności użytkownika. W każdym przypadku
+niestandardowy katalog ma pozostać bez zmian, bez kreatora i UAC dla instalacji
+per-user; Canopy ma samoczynnie wrócić z nową wersją oraz działającymi usługami.
+Zdalny journal ma zgłosić `succeeded` i nową wersję po reconnect. Osobno sprawdź
+instalację per-machine: czytelny błąd lokalnie/zdalnie, brak UAC i restartu usług.
+Testy na Linuxie nie potwierdzają działania instalatora, UAC ani restartu Windows.
+Poprawka działa od wersji, która ją zawiera: starszy desktop nadal uruchamia
+instalator według poprzednich reguł podczas pierwszego przejścia na tę wersję.
+
 Na podpisanym Macu sprawdź: pobierz nightly A, bez restartu udostępnij nowszy B,
 użyj Check now oraz osobno Check for updates i poczekaj na Ready → B. Powtórz
 z timerem ustawionym na Every hour. Podczas pobierania B wybierz Restart to update:
@@ -950,8 +1000,8 @@ downgrade oraz czeka na idle własnego workera przed restartem. Właściciel mo�
 jawnie wymusić restart oczekującego żądania; desktop pokazuje powiadomienie.
 Postęp i wynik są widoczne zdalnie i audytowane. Szczegóły:
 [updates.md](updates.md#zdalna-aktualizacja-aplikacji-desktopowej).
-Tryb lokalny, także połączony jako komputer, nie obsługuje aktualizacji przez
-drugi komputer w tym etapie.
+Tryb lokalny obsługuje żądania połączonego komputera przez kanał własnego gatewaya;
+obie ścieżki używają tego samego `RemoteAppUpdate` i journalu.
 
 Na macOS aktualizacje są włączone, gdy aplikację podpisał Developer ID (odczyt podpisującego przez
 `codesign --display`). Pieczęć zasobów nie jest warunkiem: buildy do 0.2.0-nightly.7 nie ustawiały

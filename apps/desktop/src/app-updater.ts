@@ -5,9 +5,10 @@ import { StagedDownloads } from "./staged-downloads.ts";
 import { DownloadedUpdateHelper } from "electron-updater/out/DownloadedUpdateHelper.js";
 import { CancellationError } from "builder-util-runtime";
 import { app } from "electron";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { MacUpdateFeed } from "./mac-update-feed.ts";
+import { checkWindowsUpdateInstall } from "./update-install.ts";
 
 /** Cancelled attempts must not commit files or replace the native macOS feed when they settle late. */
 function cancellable(task: DownloadExecutorTask): DownloadExecutorTask {
@@ -100,6 +101,12 @@ class StagedNsisUpdater extends NsisUpdater {
 
     if (directory) this.downloadedUpdateHelper = new DownloadedUpdateHelper(directory);
   }
+  checkInstall() {
+    checkWindowsUpdateInstall(
+      resolve(process.execPath, ".."),
+      this.downloadedUpdateHelper?.downloadedFileInfo?.isAdminRightsRequired ?? false,
+    );
+  }
   protected override executeDownload(task: DownloadExecutorTask) {
     task = cancellable(task);
 
@@ -111,6 +118,10 @@ class StagedNsisUpdater extends NsisUpdater {
       () => super.executeDownload(task),
     );
   }
+}
+
+export function checkAppUpdateInstall(updater: AppUpdater) {
+  if (updater instanceof StagedNsisUpdater) updater.checkInstall();
 }
 
 class StagedAppImageUpdater extends AppImageUpdater {

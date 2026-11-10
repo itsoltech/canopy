@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, nativeImage, powerMonitor, Tray } from "el
 import { monitorPower } from "./power-events.ts";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { stopController } from "./runtime/process.ts";
 import { join, resolve } from "node:path";
 import type { QuitGuardState, QuitShortcut } from "@canopy/ui/desktop";
 import { initialStatus, serviceEnvironment, type ConfigurationInput } from "./runtime/config.ts";
@@ -301,9 +302,7 @@ app.on("before-quit", (event) => {
     .catch(() => {})
     .finally(() => controller?.stdin.end());
 
-  const timeout = setTimeout(() => {
-    controller?.kill("SIGTERM");
-  }, 35_000);
+  const timeout = setTimeout(() => stopController(controller), 35_000);
 
   if (
     !controller ||

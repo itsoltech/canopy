@@ -15,6 +15,10 @@ import { channelFeed } from "../src/update-releases.ts";
 import { StagedDownloads } from "../src/staged-downloads.ts";
 import { UpdateCheckTimer } from "@canopy/domain/update-checks";
 import { CancellationError } from "builder-util-runtime";
+import { installAppUpdate, checkWindowsUpdateInstall, WINDOWS_UPDATE_ADMIN_MESSAGE } from "../src/update-install.ts";
+import { RemoteAppUpdate } from "../src/remote-app-update.ts";
+import { create } from "@bufbuild/protobuf";
+import { ui } from "@canopy/contracts";
 
 const { machOFiles } = require("../scripts/macho.cjs") as { machOFiles: (directory: string) => string[] };
 
@@ -91,6 +95,7 @@ test("mac update metadata preserves both runner architectures and rejects mismat
 class FeedUpdater extends AppUpdater {
   readonly downloads: { version: string; downgrade: boolean }[] = [];
   readonly installed: string[] = [];
+  readonly installOptions: { silent: boolean; forceRun: boolean }[] = [];
   private readonly staged = new StagedDownloads();
   beforeDownload: () => Promise<void> = async () => {};
   failDownload = false;
@@ -148,10 +153,11 @@ class FeedUpdater extends AppUpdater {
       },
     });
   }
-  quitAndInstall() {
+  quitAndInstall(silent = false, forceRun = false) {
     const file = this.downloadedUpdateHelper?.file;
 
     if (!file) throw new Error("No staged fixture");
+    this.installOptions.push({ silent, forceRun });
     this.installed.push(readFileSync(file, "utf8"));
   }
 }
@@ -209,7 +215,12 @@ async function localFeeds() {
     },
   });
 
-  function fixture(version: string, buildChannel: DesktopChannel, confirm: () => Promise<boolean>) {
+  function fixture(
+    version: string,
+    buildChannel: DesktopChannel,
+    confirm: () => Promise<boolean>,
+    beforeInstall = () => {},
+  ) {
     const data = tempDir("canopy-update-settings-");
     const settings = new UpdateSettings(data);
     const updater = new FeedUpdater(version, data);
@@ -240,6 +251,7 @@ async function localFeeds() {
       },
       changed: () => phases.push(controller.status().phase),
       downloaded() {},
+      beforeInstall,
     });
 
     controller.enable();
@@ -249,6 +261,117 @@ async function localFeeds() {
 
   return { server, requests, fixture, publish };
 }
+
+for (const platform of ["win32", "darwin", "linux"] as const) {
+  test(`local ${platform} restart installs the staged update with the platform's silent and relaunch flags`, async () => {
+    const { server, fixture } = await localFeeds();
+
+    try {
+      const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", async () => false);
+      await controller.check();
+      expect(await controller.prepareInstall()).toBe(true);
+      installAppUpdate(updater, platform);
+      expect(updater.installed).toEqual(["fixture 0.6.0-nightly.1"]);
+      expect(updater.installOptions).toEqual([{ silent: platform === "win32", forceRun: true }]);
+    } finally {
+      await server.stop(true);
+    }
+  });
+}
+
+for (const requestedBy of ["", "Office computer"]) {
+  test(`Windows remote update from ${requestedBy || "gateway"} installs silently and reports success after relaunch`, async () => {
+    const { server, fixture } = await localFeeds();
+    const { controller, updater } = fixture("0.6.0-nightly.0", "nightly", async () => false);
+    const path = join(tempDir("canopy-silent-update-"), "remote-update.json");
+    let version = controller.status().version;
+    const reports: ui.DesktopUpdateState[] = [];
+
+    const boundary = {
+      status: () => ({ ...controller.status(), version }),
+      check: () => controller.checkRemote(),
+      prepareRestart: async () => ((await controller.prepareInstall()) ? controller.status() : undefined),
+      drain: async () => true,
+      notify() {},
+      report: async (state: ui.DesktopUpdateState) => {
+        reports.push(state);
+      },
+      restart() {
+        installAppUpdate(updater, "win32");
+        version = controller.status().stagedVersion!;
+      },
+    };
+
+    const remote = new RemoteAppUpdate(path, boundary);
+
+    try {
+      await remote.command(create(ui.DesktopUpdateCommandSchema, { requestId: "silent-update", requestedBy }));
+      expect(updater.installed).toEqual(["fixture 0.6.0-nightly.1"]);
+      expect(updater.installOptions).toEqual([{ silent: true, forceRun: true }]);
+      expect(remote.snapshot().phase).toBe("restarting");
+      const relaunched = new RemoteAppUpdate(path, boundary);
+      await relaunched.publish();
+      expect(reports.at(-1)).toMatchObject({
+        requestId: "silent-update",
+        phase: "succeeded",
+        version: "0.6.0-nightly.1",
+        targetVersion: "0.6.0-nightly.1",
+        reason: "",
+      });
+      relaunched.stop();
+    } finally {
+      remote.stop();
+      await server.stop(true);
+    }
+  });
+}
+
+test("an update needing Windows elevation reports the reason remotely without stopping services or launching NSIS", async () => {
+  const { server, fixture } = await localFeeds();
+  let machineInstall = true;
+
+  const { controller, updater } = fixture(
+    "0.6.0-nightly.0",
+    "nightly",
+    async () => false,
+    () =>
+      checkWindowsUpdateInstall(
+        "fixture",
+        false,
+        () => ({ status: machineInstall ? 0 : 1 }),
+        () => {},
+      ),
+  );
+
+  const draining: boolean[] = [];
+
+  const remote = new RemoteAppUpdate(join(tempDir("canopy-update-elevation-"), "remote-update.json"), {
+    status: () => controller.status(),
+    check: () => controller.checkRemote(),
+    prepareRestart: async () => ((await controller.prepareInstall()) ? controller.status() : undefined),
+    drain: async (value) => {
+      draining.push(value);
+
+      return true;
+    },
+    notify() {},
+    report: async () => {},
+    restart: () => installAppUpdate(updater, "win32"),
+  });
+
+  try {
+    await remote.command(create(ui.DesktopUpdateCommandSchema, { requestId: "needs-admin" }));
+    expect(remote.snapshot()).toMatchObject({ phase: "failed", reason: WINDOWS_UPDATE_ADMIN_MESSAGE });
+    expect(controller.status()).toMatchObject({ phase: "downloaded", error: WINDOWS_UPDATE_ADMIN_MESSAGE });
+    expect(draining).toEqual([true, false]);
+    expect(updater.installed).toEqual([]);
+    machineInstall = false;
+    expect(await controller.prepareInstall()).toBe(true);
+  } finally {
+    remote.stop();
+    await server.stop(true);
+  }
+});
 
 test.skipIf(process.platform !== "linux")(
   "a ready update can be replaced, unchanged feeds keep it, and restart installs the latest staged bytes",

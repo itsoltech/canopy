@@ -3,6 +3,13 @@ import type { Logs } from "./log.ts";
 
 export const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** Windows SIGTERM kills only the guardian. Finish its owned tree before starting NSIS. */
+export function stopController(child: ChildProcess | undefined) {
+  if (process.platform === "win32" && child?.pid)
+    spawnSync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+  else child?.kill("SIGTERM");
+}
+
 export async function until(check: () => Promise<boolean>, timeout = 60_000, alive: () => boolean = () => true) {
   const end = Date.now() + timeout;
 
