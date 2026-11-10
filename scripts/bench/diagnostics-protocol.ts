@@ -2,7 +2,7 @@ import { Schema } from "effect";
 
 export const BenchCommand = Schema.Struct({
   id: Schema.Number,
-  action: Schema.Literals(["begin", "end", "sample", "stop", "reconnect"]),
+  action: Schema.Literals(["begin", "end", "sample", "gc", "stop", "reconnect"]),
 });
 
 export type BenchCommand = typeof BenchCommand.Type;

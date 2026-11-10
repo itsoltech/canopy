@@ -136,6 +136,11 @@ async function stats() {
 }
 
 async function execute(command: BenchCommand) {
+  if (command.action === "gc") {
+    if (process.env["CANOPY_BENCH_RESOURCES"] !== "1") throw new Error("GC is resource-only");
+    Bun.gc(true);
+  }
+
   if (command.action === "begin") {
     lag.reset();
     lag.enable();

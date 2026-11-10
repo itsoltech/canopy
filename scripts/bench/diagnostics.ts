@@ -178,6 +178,11 @@ async function recordAffinity(gateway: number, worker: number, pair: number, on:
   );
 }
 
+async function resourceHeap(phase: string, on: boolean, series: number) {
+  if (process.env["CANOPY_BENCH_RESOURCES"] !== "1" || !active) return;
+  console.info(JSON.stringify({ phase, series, attempt, on, ...(await active.run("gc")) }));
+}
+
 async function run(on: boolean, index: number) {
   assertRunning();
   const database = `diagnostics_${index}_${Number(on)}_${attempt}`;
@@ -214,6 +219,8 @@ async function run(on: boolean, index: number) {
   console.info(
     JSON.stringify({ phase: "background_restore", series: index + 1, attempt, on, ...(await active.run("sample")) }),
   );
+
+  await resourceHeap("restored_heap_gc", on, index + 1);
 
   // Warm runtime, database buffers, histograms and the selected application read before every series.
   for (let count = 0; count < 300; count++) await api.getThread({ threadId: seed.thread });
@@ -284,6 +291,8 @@ async function run(on: boolean, index: number) {
     assertRunning();
   }
 
+  await resourceHeap("idle_heap_gc", on, index + 1);
+
   await worker.close();
   worker = undefined;
   await active.close();
@@ -297,7 +306,14 @@ async function run(on: boolean, index: number) {
       active = await diagnosticsProcess(env);
       await waitForRestore(benchmarkApi());
       console.info(
-        JSON.stringify({ phase: "restart", series: index + 1, attempt, on, restart, ...(await active.run("sample")) }),
+        JSON.stringify({
+          phase: "restart",
+          series: index + 1,
+          attempt,
+          on,
+          restart,
+          ...(await active.run(process.env["CANOPY_BENCH_RESOURCES"] === "1" ? "gc" : "sample")),
+        }),
       );
       await active.close();
       active = undefined;
