@@ -4,6 +4,7 @@ import { HttpError, requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 import { revealEnvironmentItem } from "./environment-feedback.ts";
 import { sharedRead, type SharedRead } from "#lib/shared/queries.svelte.ts";
+import { libraryWorkers } from "@canopy/domain/environment-library";
 
 /** The library and every worker's view of it, shared by the tab (Agent environment and Workers pages). */
 export const sharedEnvironment = () =>
@@ -22,6 +23,7 @@ export class EnvironmentState {
   constructor(
     initial: ui.AgentEnvironmentSnapshot = create(ui.AgentEnvironmentSnapshotSchema),
     private readonly shared: SharedRead<ui.AgentEnvironmentSnapshot> = sharedEnvironment(),
+    private readonly records: () => readonly ui.WorkerRecord[] = () => [],
   ) {
     this.#local = initial;
     this.workerId = this.#local.workers[0]?.workerId ?? "";
@@ -29,6 +31,10 @@ export class EnvironmentState {
 
   get loaded(): boolean {
     return this.shared.snapshot.loaded;
+  }
+
+  get workers(): ui.EnvironmentWorker[] {
+    return libraryWorkers(this.snapshot.workers, this.records());
   }
 
   /** The newest revision known: the shared read, or a route's initial value until it arrives. */
@@ -108,8 +114,12 @@ export class EnvironmentState {
     await this.mutate("POST", "/resolve", encode(ui.ResolveEnvironmentDriftRequestSchema, body));
   }
 
-  async mutate(method: "POST" | "DELETE", path: string, body: ReturnType<typeof encode>): Promise<boolean> {
-    if (this.busy) return false;
+  async mutate(
+    method: "POST" | "DELETE",
+    path: string,
+    body: ReturnType<typeof encode>,
+  ): Promise<ui.AgentEnvironmentSnapshot | undefined> {
+    if (this.busy) return undefined;
     this.busy = true;
     this.error = "";
     this.notice = "";
@@ -123,13 +133,13 @@ export class EnvironmentState {
       // an older response cannot replace the report already delivered by the overview stream.
       await this.refresh();
 
-      return true;
+      return saved;
     } catch (error) {
       this.error = error instanceof Error ? error.message : "Couldn't save the environment.";
 
       if (error instanceof HttpError && error.status === 409) await this.refresh();
 
-      return false;
+      return undefined;
     } finally {
       this.busy = false;
     }

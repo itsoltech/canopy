@@ -11,6 +11,7 @@
     notice,
     busy = false,
     named = true,
+    library = false,
     onaction,
     class: className,
   }: {
@@ -18,6 +19,7 @@
     busy?: boolean;
     /** Off where the item is already the page's subject. */
     named?: boolean;
+    library?: boolean;
     onaction: (id: string, action: "restore" | "dismiss") => void;
     class?: ClassValue;
   } = $props();
@@ -67,10 +69,16 @@
   </div>
   <div class="flex max-w-full shrink-0 flex-wrap gap-2">
     <Button size="sm" disabled={busy} onclick={() => onaction(notice.id, "restore")}
-      >{choice ? "Use the other’s" : notice.reason === "resurrected" ? "Delete" : "Restore"}</Button
+      >{choice
+        ? "Use the other’s"
+        : notice.reason === "resurrected"
+          ? "Delete"
+          : library && removed
+            ? "Keep"
+            : "Restore"}</Button
     >
     <Button size="sm" variant="ghost" disabled={busy} onclick={() => onaction(notice.id, "dismiss")}
-      >{choice ? "Keep this computer’s" : "Dismiss"}</Button
+      >{choice ? "Keep this computer’s" : library && removed ? "Accept deletion" : "Dismiss"}</Button
     >
   </div>
 </div>

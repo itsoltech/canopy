@@ -96,7 +96,7 @@
     <InstructionText
       class="max-h-96 min-h-32"
       content={current?.content ?? ""}
-      empty="No instructions assigned to this destination."
+      empty="Add a document and assign it to see what agents receive."
     />
     <p class="text-base text-pretty text-zinc-500 tabular-nums sm:text-sm dark:text-zinc-400">
       {loading

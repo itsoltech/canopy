@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { clone, create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { clone, create, fromJson, fromJsonString, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Effect, Option, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -113,7 +113,10 @@ export async function applySkill(core: GatewayCore, row: LibraryRow): Promise<vo
   const skill = create(ui.LibrarySkillSchema, {
     name: row.name,
     harnesses,
-    selector: { workerIds: [row.worker_id] },
+    selector:
+      row.target["selector"] === undefined
+        ? { workerIds: [row.worker_id] }
+        : fromJsonString(ui.EnvironmentSelectorSchema, JSON.stringify(row.target["selector"])),
     // Canopy's own homes of the source worker: the device's CLI folders stay the user's.
     platformHome: true,
     deviceHome: false,

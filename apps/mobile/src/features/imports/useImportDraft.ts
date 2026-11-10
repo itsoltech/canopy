@@ -29,6 +29,8 @@ export function useImportDraft(scan: ui.ScanImportResponse, onStarted: () => voi
   const [mode, setMode] = useState("continue");
   const [targets, setTargets] = useState<Record<string, string>>({});
   const [selectedChoices, setChoices] = useState<LibraryChoices>();
+  const [installTarget, setInstallTarget] = useState("source");
+  const [skillSelector, setSkillSelector] = useState(create(ui.EnvironmentSelectorSchema, { everyone: true }));
 
   const filter = useMemo(
     () =>
@@ -59,8 +61,7 @@ export function useImportDraft(scan: ui.ScanImportResponse, onStarted: () => voi
     );
 
   const count = all ? Math.max(0, (result?.importable ?? 0) - excluded.length) : included.length;
-  const busy = resource.busy;
-  const disabled = busy || !online;
+  const disabled = resource.busy || !online;
 
   function refilter(patch: Partial<Filters>) {
     setFilters({ ...filters, ...patch });
@@ -102,7 +103,17 @@ export function useImportDraft(scan: ui.ScanImportResponse, onStarted: () => voi
                 ]
               : [],
           ),
-          library: Object.entries(choices).map(([key, choice]) => ({ key, ...choice })),
+          library: Object.entries(choices).map(([key, choice]) => ({
+            key,
+            ...choice,
+            skillSelector: installationSelector(
+              library.data?.items ?? [],
+              key,
+              choice.action,
+              installTarget,
+              skillSelector,
+            ),
+          })),
         },
         { timeoutMs: 125_000 },
       ),
@@ -118,7 +129,7 @@ export function useImportDraft(scan: ui.ScanImportResponse, onStarted: () => voi
     resource,
     library,
     count,
-    busy,
+    busy: resource.busy,
     disabled,
     all,
     excluded,
@@ -131,9 +142,30 @@ export function useImportDraft(scan: ui.ScanImportResponse, onStarted: () => voi
     setTargets,
     choices,
     setChoices,
+    installTarget,
+    setInstallTarget,
+    skillSelector,
+    setSkillSelector,
     offset,
     pageSize,
     setOffset,
     start,
   };
+}
+
+function installationSelector(
+  items: readonly ui.ImportLibraryCandidate[],
+  key: string,
+  action: string,
+  target: string,
+  selector: ui.EnvironmentSelector,
+) {
+  if (
+    target === "source" ||
+    action === "replace" ||
+    !items.some((i) => i.key === key && ["skill", "command"].includes(i.kind))
+  )
+    return undefined;
+
+  return target === "all" ? create(ui.EnvironmentSelectorSchema, { everyone: true }) : selector;
 }

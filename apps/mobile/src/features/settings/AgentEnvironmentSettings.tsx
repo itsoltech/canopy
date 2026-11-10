@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ui } from "@canopy/contracts";
-import { Button, Notice, Sheet } from "../../ui/components";
+import { Button, Sheet } from "../../ui/components";
 import { SettingsActions, SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { InstructionEditor } from "./InstructionEditor";
@@ -9,6 +9,11 @@ import { SkillSourceEditor } from "./SkillSourceEditor";
 import { MarketplaceSettings } from "./MarketplaceSettings";
 import { EnvironmentComputer } from "./EnvironmentComputer";
 import { SettingsSkeletonGroups } from "./SettingsSkeleton";
+import { libraryWorkers } from "@canopy/domain/environment-library";
+import { EnvironmentLibrarySummary } from "./EnvironmentLibrarySummary";
+import { EnvironmentSkills } from "./EnvironmentSkills";
+import { EnvironmentItemStatus } from "./EnvironmentItemStatus";
+import { SharedConfiguration } from "./SharedConfiguration";
 
 export function AgentEnvironmentSettings() {
   const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
@@ -17,6 +22,9 @@ export function AgentEnvironmentSettings() {
   const [skill, setSkill] = useState<ui.LibrarySkill>();
   const [workerId, setWorker] = useState("");
   const snapshot = resource.data;
+  const records = useSettingsResource("ListWorkerRecords", (api) => api.listWorkerRecords({}));
+  const computers = useSettingsResource("GetComputers", (api) => api.getComputers({}));
+  const workers = libraryWorkers(snapshot?.workers ?? [], records.data?.records ?? []);
 
   const removeDocument = (id: string) =>
     confirmAction(
@@ -45,6 +53,17 @@ export function AgentEnvironmentSettings() {
       )}
       {snapshot && (
         <>
+          <EnvironmentLibrarySummary snapshot={snapshot} workers={workers} onChanged={() => void resource.reload()} />
+          <SharedConfiguration
+            library
+            notices={(computers.data?.configNotices ?? []).filter((n) =>
+              ["instruction", "skill", "marketplace", "plugin"].includes(n.kind),
+            )}
+            onChanged={() => {
+              void computers.reload();
+              void resource.reload();
+            }}
+          />
           <SettingsGroup
             title="Instructions"
             actions={<Button title="Add instructions" onPress={() => add("instruction")} />}
@@ -52,13 +71,14 @@ export function AgentEnvironmentSettings() {
             {!snapshot.documents.length && (
               <SettingsRow
                 title="No instructions yet"
-                description="Add a document to share instructions across your computers."
+                description="Add a document and assign it to see what agents receive."
               />
             )}
             {snapshot.documents.map((doc) => (
               <InstructionRow
                 key={doc.id}
                 document={doc}
+                workers={workers}
                 busy={resource.busy}
                 onEdit={() => {
                   setDocument(doc);
@@ -68,47 +88,17 @@ export function AgentEnvironmentSettings() {
               />
             ))}
           </SettingsGroup>
-          <SettingsGroup title="Skills" actions={<Button title="Add skill" onPress={() => add("skill")} />}>
-            <Button title="Add from Git" onPress={() => add("source")} />
-            {!snapshot.skills.length && (
-              <SettingsRow title="No skills yet" description="Add a skill folder, ZIP or Git source." />
-            )}
-            {snapshot.skills.map((item) => (
-              <SettingsRow
-                key={item.id}
-                title={item.name}
-                description={`${item.harnesses.join(" · ")} · Version ${item.version} · ${item.artifact?.files.length ?? 0} files${item.source?.pinned ? " · Pinned" : item.source?.autoUpdate ? " · Automatic updates" : ""}`}
-              >
-                <Button
-                  title="Edit skill"
-                  onPress={() => {
-                    setSkill(item);
-                    setEditor("skill");
-                  }}
-                />
-                {item.source && (
-                  <Button
-                    title="Check upstream"
-                    onPress={() => {
-                      setSkill(item);
-                      setEditor("source");
-                    }}
-                  />
-                )}
-                {item.source?.error && <Notice error>Could not check the source. Check upstream to retry.</Notice>}
-                <DeleteEnvironmentItem
-                  title="Delete skill"
-                  disabled={resource.busy}
-                  onDelete={() =>
-                    void resource.run((api) =>
-                      api.deleteLibrarySkill({ id: item.id, expectedRevision: snapshot.revision }),
-                    )
-                  }
-                />
-              </SettingsRow>
-            ))}
-          </SettingsGroup>
-          <MarketplaceSettings snapshot={snapshot} onChanged={() => void resource.reload()} />
+          <EnvironmentSkills
+            snapshot={snapshot}
+            workers={workers}
+            onAdd={add}
+            onEdit={(item, kind) => {
+              setSkill(item);
+              setEditor(kind);
+            }}
+            onChanged={() => void resource.reload()}
+          />
+          <MarketplaceSettings snapshot={snapshot} workers={workers} onChanged={() => void resource.reload()} />
           <EnvironmentComputers
             snapshot={snapshot}
             workerId={workerId}
@@ -132,11 +122,13 @@ export function AgentEnvironmentSettings() {
 
 function InstructionRow({
   document,
+  workers,
   busy,
   onEdit,
   onDelete,
 }: {
   document: ui.InstructionDocument;
+  workers: ui.EnvironmentWorker[];
   busy: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -144,34 +136,20 @@ function InstructionRow({
   return (
     <SettingsRow
       title={document.name}
-      description={`${document.harness} · ${document.fragments.length} ${document.fragments.length === 1 ? "fragment" : "fragments"} · ${document.selector?.everyone ? "All computers" : "Selected computers and tags"}`}
+      description={[
+        document.harness,
+        `${document.fragments.length} ${document.fragments.length === 1 ? "fragment" : "fragments"}`,
+        document.selector?.everyone ? "All computers" : "Selected computers and tags",
+      ]
+        .filter(Boolean)
+        .join(" · ")}
     >
+      <EnvironmentItemStatus item={document} workers={workers} kind="instructions" harness={document.harness} />
       <SettingsActions>
         <Button title="Edit instructions" onPress={onEdit} />
         <Button variant="danger" title="Delete instructions" disabled={busy} onPress={onDelete} />
       </SettingsActions>
     </SettingsRow>
-  );
-}
-
-function DeleteEnvironmentItem({
-  title,
-  disabled,
-  onDelete,
-}: {
-  title: string;
-  disabled: boolean;
-  onDelete: () => void;
-}) {
-  return (
-    <Button
-      variant="danger"
-      title={title}
-      disabled={disabled}
-      onPress={() =>
-        confirmAction(title, "This removes its assignment. Local edits stay available for review.", onDelete)
-      }
-    />
   );
 }
 

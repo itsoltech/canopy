@@ -2,6 +2,7 @@ syntax = "proto3";
 package canopy.ui.v1;
 
 import "canopy/worker/v1/cli_import.proto";
+import "canopy/ui/v1/agent_environment.proto";
 import "google/protobuf/timestamp.proto";
 
 // Settings → Import (docs/import.md): wątki z Claude Code, Codexa i Groka na workerze właściciela.
@@ -254,6 +255,8 @@ message ImportLibraryChoice {
   string action = 2;
   // connector: nagłówki z wartością w pliku CLI, które właściciel zgadza się przenieść (domyślnie żadne).
   repeated string secrets = 3;
+  // Nowe skille/komendy: brak = worker źródłowy. Replace zachowuje istniejące przypisanie.
+  EnvironmentSelector skill_selector = 4;
 }
 
 message ImportLibraryResult {

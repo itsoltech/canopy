@@ -26,7 +26,7 @@ export function EnvironmentAssignment({
   return (
     <SettingsGroup title="Assign computers">
       <SettingToggle
-        title="Every computer"
+        title="All computers"
         description="Includes computers added later."
         value={selector.everyone}
         onChange={(everyone) => change({ everyone })}

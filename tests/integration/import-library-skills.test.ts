@@ -144,6 +144,52 @@ describe.skipIf(!dockerAvailable)("CLI import: skills, commands and marketplaces
     expect((await environment()).skills.find((s) => s.name === "fixture-review")?.version).toBe(1n);
   });
 
+  test("import-time assignment persists all-computers and tag selectors with Undo and rejects foreign workers", async () => {
+    const selection = await library();
+    const candidate = selection.of("skill", "grok-only")[0]!;
+
+    const foreignOwner = await f.gw.runtime.runPromise(
+      GatewayStore.use((store) => store.ensureUser("foreign-import@localhost", "Foreign")),
+    );
+
+    const foreign = await f.gw.runtime.runPromise(
+      GatewayStore.use((store) => store.addWorker({ name: "other-owner", ownerUserId: foreignOwner })),
+    );
+
+    const rejected = await finished(
+      (
+        await f.gw.api.startImport({
+          scanId: selection.scanId,
+          library: [{ key: candidate.key, skillSelector: { workerIds: [foreign.workerId] } }],
+        })
+      ).id,
+    );
+
+    expect(rejected.library[0]?.status).toBe("failed");
+    expect((await environment()).skills.some((s) => s.name === candidate.name)).toBe(false);
+
+    for (const selector of [{ everyone: true }, { tags: ["os:linux"] }]) {
+      const next = await library();
+
+      const run = await finished(
+        (
+          await f.gw.api.startImport({
+            scanId: next.scanId,
+            library: [{ key: next.of("skill", "grok-only")[0]!.key, skillSelector: selector }],
+          })
+        ).id,
+      );
+
+      expect(run.library[0]?.status).toBe("done");
+      const skill = (await environment()).skills.find((s) => s.name === "grok-only")!;
+      expect(skill.selector).toMatchObject(selector);
+      expect(skill.platformHome).toBe(true);
+      expect(skill.deviceHome).toBe(false);
+      await f.gw.api.undoImportRun({ runId: run.id });
+      expect((await environment()).skills.some((s) => s.id === skill.id)).toBe(false);
+    }
+  });
+
   test("Undo removes what the import added and keeps what changed since", async () => {
     const first = (await f.gw.api.listImportRuns({})).runs.find((r) => r.library.some((l) => l.name === "git-commit"))!;
     // The owner uploads a new version of the command skill: it stays.

@@ -5,6 +5,7 @@
   import type { ImportLibraryState } from "./import-library.svelte.ts";
   import ImportLibraryRow from "./ImportLibraryRow.svelte";
   import { counted } from "./labels.ts";
+  import ImportSkillInstall from "./ImportSkillInstall.svelte";
 
   /**
    * Settings and library of the scanned CLIs (docs/import.md, "Ustawienia i biblioteka"): items to import with what
@@ -20,6 +21,7 @@
 {:else if library.items.length === 0}
   <p class="px-4 py-3 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">No settings found.</p>
 {:else}
+  <ImportSkillInstall {library} />
   {#if library.importable.length > 0}
     <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/5">
       {#each library.importable as item (item.key)}

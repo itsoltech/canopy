@@ -93,6 +93,48 @@ async function drift(path: string, text: string) {
   return file;
 }
 
+test("bulk installation through sequential saves keeps revision checks and installs each selected skill", async () => {
+  const ids: string[] = [];
+
+  for (const name of ["bulk-first", "bulk-second"]) {
+    const initial = await save(
+      create(ui.LibrarySkillSchema, { ...librarySkill(), name, selector: create(ui.EnvironmentSelectorSchema) }),
+      skillFiles(name),
+    );
+
+    ids.push(initial.skills.find((s) => s.name === name)!.id);
+  }
+
+  let current = await snapshot();
+  const stale = current.revision;
+
+  for (const id of ids) {
+    const skill = current.skills.find((s) => s.id === id)!;
+    current = await gateway.api.saveLibrarySkill({
+      skill: {
+        ...skill,
+        artifact: undefined,
+        selector: create(ui.EnvironmentSelectorSchema, { workerIds: [linux.workerId] }),
+      },
+      expectedRevision: current.revision,
+    });
+  }
+
+  const worker = await settled();
+
+  for (const id of ids)
+    expect(worker.report?.skills.some((f) => f.skillId === id && f.status === "applied")).toBe(true);
+  expect(
+    await failure(
+      gateway.api.saveLibrarySkill({ skill: current.skills.find((s) => s.id === ids[0])!, expectedRevision: stale }),
+    ),
+  ).toContain("changed");
+
+  for (const id of ids) {
+    current = await gateway.api.deleteLibrarySkill({ id, expectedRevision: current.revision });
+  }
+});
+
 async function resolve(file: EnvironmentSkillStatus, action: string) {
   return gateway.api.resolveSkillDrift({
     workerId: linux.workerId,

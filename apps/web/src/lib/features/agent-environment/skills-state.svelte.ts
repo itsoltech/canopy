@@ -41,15 +41,15 @@ export class SkillsState {
       void revealEnvironmentItem(id || this.environment.snapshot.skills.find((s) => !previousIds.has(s.id))?.id || "");
     }
   }
-  async remove(skill: ui.LibrarySkill): Promise<void> {
-    await this.environment.mutate(
+  async remove(skill: ui.LibrarySkill, revision = this.environment.snapshot.revision) {
+    return this.environment.mutate(
       "DELETE",
       "/skills",
       encode(
         ui.DeleteLibrarySkillRequestSchema,
         create(ui.DeleteLibrarySkillRequestSchema, {
           id: skill.id,
-          expectedRevision: this.environment.snapshot.revision,
+          expectedRevision: revision,
         }),
       ),
     );

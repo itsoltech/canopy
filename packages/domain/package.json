@@ -48,6 +48,7 @@
     "./skill-source": "./src/skill-source.ts",
     "./environment-review": "./src/environment-review.ts",
     "./environment-selectors": "./src/environment-selectors.ts",
+    "./environment-library": "./src/environment-library.ts",
     "./background-tasks": "./src/background-tasks/index.ts",
     "./goals": "./src/goals/index.ts",
     "./queue": "./src/queue.ts",

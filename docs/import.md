@@ -281,8 +281,12 @@ Etap 7 dokłada do skanu biblioteki (`ImportLibraryItem.kind`: `skill`, `command
   `prompts/*.md` dostają wygenerowany `SKILL.md` (opis z frontmattera albo pierwszej linii, treść bez zmian;
   `$ARGUMENTS` → ostrzeżenie). Domyślnie niezaznaczone: tylko na życzenie (rekomendacja 9).
 - **Zapis.** Skill trafia do biblioteki przez `SaveLibrarySkill` (te same walidacje, limity i audyt co upload),
-  przypisany tylko do workera źródłowego, tylko do domów platformy Canopy (`platform_home`, nigdy katalogi
-  CLI urządzenia). Skill o tej nazwie w bibliotece z tym samym checksumem to *Same in Canopy*; z innym:
+  tylko do domów platformy Canopy (`platform_home`, nigdy katalogi CLI urządzenia). Web i mobile pokazują
+  przed importem **Install these skills on**: **This computer** (domyślny worker źródłowy), **All computers**
+  albo **Choose…** (istniejący selektor komputerów i tagów). Addytywne pole `ImportLibraryChoice.skill_selector`
+  przenosi wybór; brak pola zachowuje przypisanie do workera źródłowego. Gateway waliduje własność komputerów
+  przez istniejącą ścieżkę zapisu skilla. Wybór dotyczy nowych skilli i komend zamienianych na skille;
+  **Replace** zachowuje poprzednie przypisanie. Skill o tej nazwie w bibliotece z tym samym checksumem to *Same in Canopy*; z innym:
   **Replace** dodaje nową wersję (przypisanie zostaje). Undo usuwa skill albo wraca do poprzedniej wersji, tylko
   gdy cała definicja (wersja, harnessy, przypisanie i nadpisania maszyn, domy, źródło; odcisk `fingerprint`
   w pokwitowaniu) jest nadal ta z importu; inaczej `kept`. Pokwitowanie Replace zapisuje poprzednią pełną

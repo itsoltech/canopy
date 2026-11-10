@@ -17,11 +17,18 @@
   import type { PageProps } from "./$types";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
   import RemoteEnvironment from "#lib/features/agent-environment/RemoteEnvironment.svelte";
+  import LibrarySummary from "#lib/features/agent-environment/LibrarySummary.svelte";
 
   let { data }: PageProps = $props();
-  const state = new EnvironmentState(untrack(() => data.environment));
   const overview = useOverview();
   const records = workerRecords(overview);
+
+  const state = new EnvironmentState(
+    untrack(() => data.environment),
+    undefined,
+    () => records.records,
+  );
+
   const selectedWorker = $derived(records.workers.find((w) => w.id === state.workerId) ?? records.workers[0]);
 
   const worker = $derived(
@@ -30,10 +37,8 @@
 </script>
 
 <div class="settings-stack">
-  <SettingsHeading
-    title="Agent environment"
-    description="Instructions, skills and plugins that follow your computers. Assign by tag and see exactly what each agent receives."
-  />
+  <SettingsHeading title="Agent environment" description="Assign library items to computers or tags to install them." />
+  <LibrarySummary environment={state} />
   <EnvironmentNotices onchange={() => void state.refresh()} />
   {#if state.error}<Alert tone="error">{state.error}</Alert>{/if}
   {#if state.notice}<Alert>{state.notice}</Alert>{/if}
