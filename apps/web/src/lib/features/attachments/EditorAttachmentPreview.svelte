@@ -29,7 +29,10 @@
 
       if (!chip || !key || (!draft?.file(key) && !attachments.some((attachment) => attachment.id === key)) || open)
         return;
-      selected = { key, anchor: chip };
+
+      // pointerover also fires between the chip's children and when a resizing preview moves away.
+      // Keep the same anchor so its hover listeners are not torn down (which closes the preview).
+      if (selected?.anchor !== chip || selected.key !== key) selected = { key, anchor: chip };
 
       if (opening) open = true;
     };
