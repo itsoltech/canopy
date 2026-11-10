@@ -1,6 +1,7 @@
 import { lstatSync, mkdirSync, realpathSync, rmSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { git, GitError, gitMessage } from "./git.ts";
+import { safeCloneUrl } from "@canopy/domain/clone-url";
 
 /**
  * New project directories (docs/linked-computers.md, "Dodawanie projektu na dowolnym komputerze"): a fresh
@@ -54,29 +55,11 @@ export function newDirectory(parentPath: string, name: string) {
  * and in error messages. The worker's own credential helpers and SSH keys apply instead.
  */
 export function cloneUrl(url: string): string {
-  const value = url.trim();
+  const result = safeCloneUrl(url);
 
-  if (!value || value.startsWith("-") || /\s/.test(value)) throw new GitError("INVALID_URL", "Enter a Git URL.");
+  if ("message" in result) throw new GitError(result.code, result.message);
 
-  if (/^[\w.-]+@[\w.-]+:[^:]/.test(value) && !value.includes("://")) return value;
-  let parsed: URL;
-
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new GitError("INVALID_URL", "Enter a Git URL, e.g. https://github.com/owner/repo.git.");
-  }
-
-  if (!["https:", "http:", "ssh:", "git:", "file:"].includes(parsed.protocol))
-    throw new GitError("INVALID_URL", "Use an https, ssh, git or file URL.");
-
-  if (parsed.password || (parsed.username && parsed.protocol.startsWith("http")))
-    throw new GitError(
-      "URL_HAS_CREDENTIALS",
-      "Remove the credentials from the URL. This computer's Git sign-in is used.",
-    );
-
-  return value;
+  return result.url;
 }
 
 /** `git init` in a new directory; the directory is removed again when git fails. */
@@ -105,9 +88,23 @@ export async function cloneRepository(parentPath: string, name: string, url: str
       env: { GIT_ALLOW_PROTOCOL: ALLOWED_PROTOCOLS },
     });
 
-    if (!result.ok) throw new GitError("CLONE_FAILED", gitMessage(result.stderr));
+    if (!result.ok) {
+      if (
+        /authentication failed|permission denied|could not read (?:username|password)|terminal prompts disabled|repository not found|access denied|publickey/i.test(
+          result.stderr,
+        )
+      )
+        throw new GitError("CLONE_AUTH_FAILED", "Git sign-in is required.");
+      throw new GitError(
+        "CLONE_FAILED",
+        "Could not clone the repository. Check the Git URL and connection, then retry.",
+      );
+    }
   } catch (error) {
     rmSync(target, { recursive: true, force: true });
+
+    if (error instanceof GitError && error.code === "GIT_TIMEOUT")
+      throw new GitError("CLONE_TIMEOUT", "Cloning stopped after 5 minutes. Check the connection and retry.");
     throw error;
   }
 

@@ -300,6 +300,7 @@ export class WorkerHost {
         ...(output.gitRefs && { gitRefs: output.gitRefs }),
         ...(output.switchedHead && { switchedHead: output.switchedHead }),
         ...(output.workspaceOrigin !== undefined && { workspaceOrigin: output.workspaceOrigin }),
+        ...(output.workspaceCloneUrl !== undefined && { workspaceCloneUrl: output.workspaceCloneUrl }),
         ...(output.worktree && { worktree: output.worktree }),
         ...(output.worktreeStatuses && { worktreeStatuses: output.worktreeStatuses }),
         ...(output.worktreeBranchDeleted !== undefined && { worktreeBranchDeleted: output.worktreeBranchDeleted }),

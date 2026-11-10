@@ -1,5 +1,4 @@
 import type { ui } from "@canopy/contracts";
-import type { JsonBody } from "#lib/shared/http.ts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 
 /** Where the new workspace comes from (docs/linked-computers.md, "Dodawanie projektu na dowolnym komputerze"). */
@@ -93,12 +92,7 @@ export function remoteUrl(source: SourceKind, text: string): { url: string } | {
 }
 
 /** The gateway request for a finished choice. */
-export function addRequest(
-  worker: ui.Worker,
-  mode: BrowseMode,
-  target: { dir: string; name: string },
-  url: string,
-): JsonBody {
+export function addRequest(worker: ui.Worker, mode: BrowseMode, target: { dir: string; name: string }, url: string) {
   if (mode === "add") return { workerId: worker.id, directoryPath: target.dir };
 
   if (mode === "create") return { workerId: worker.id, init: { parentPath: target.dir, name: target.name } };

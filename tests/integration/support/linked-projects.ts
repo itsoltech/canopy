@@ -1,14 +1,14 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { REMOTE_THREADS, THREAD_MIRROR } from "@canopy/domain/computers";
-import { remoteServe, uiHandlers } from "@canopy/gateway/api";
+import { REMOTE_THREADS, THREAD_MIRROR, nodeRef } from "@canopy/domain/computers";
+import { remoteServe, sharedHost, uiHandlers } from "@canopy/gateway/api";
 import { ComputerStore } from "../../../apps/gateway/src/computers/store.ts";
 import { linkedComputers } from "./computers.ts";
 import { eventually } from "./gateway.ts";
 import { worktreeFixture } from "./worktrees.ts";
 
 /** Two desktop homes, real Git origin reads over gRPC, and isolated provider stand-ins. */
-export async function linkedProjectFixture(dir: string) {
+export async function linkedProjectFixture(dir: string, options: { shared?: boolean } = {}) {
   mkdirSync(join(dir, "a"));
   mkdirSync(join(dir, "b"));
 
@@ -27,7 +27,9 @@ export async function linkedProjectFixture(dir: string) {
       store: new ComputerStore(fixture.gw.runtime, fixture.gw.userId, fixture.gw.secretsKey),
       host: "127.0.0.1",
       heartbeatMs: 100,
-      capabilities: ["presence", "unlink", REMOTE_THREADS, THREAD_MIRROR],
+      ...(options.shared
+        ? { core: fixture.gw.core, shared: sharedHost(fixture.gw.core, uiHandlers(fixture.gw.core)) }
+        : { capabilities: ["presence", "unlink", REMOTE_THREADS, THREAD_MIRROR, "project_workspaces"] }),
       serve: remoteServe(uiHandlers(fixture.gw.core), fixture.gw.core),
     });
 
@@ -50,12 +52,16 @@ export async function linkedProjectFixture(dir: string) {
   const ready = await eventually(
     () => a.gw.api.getOverview({}),
     (overview) =>
-      overview.projects.some(
-        (project) => project.nodeId === lb.hello().nodeId && project.workspaces.some((ws) => ws.gitOrigin),
+      overview.projects.some((project) =>
+        project.workspaces.some((ws) => ws.workerId === `${b.workerId}~${nodeRef(lb.hello().nodeId)}` && ws.gitOrigin),
       ),
   );
 
-  if (!ready.projects.some((project) => project.nodeId === lb.hello().nodeId))
+  if (
+    !ready.projects.some((project) =>
+      project.workspaces.some((ws) => ws.workerId === `${b.workerId}~${nodeRef(lb.hello().nodeId)}`),
+    )
+  )
     throw new Error("Linked fixture did not connect");
 
   return {

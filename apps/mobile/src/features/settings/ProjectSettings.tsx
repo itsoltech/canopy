@@ -6,7 +6,7 @@ import { useAppearance } from "../../state/appearance";
 import { Button, Field, Notice, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
 import { SettingsTextInput } from "./SettingsTextInput";
-import { ResourceState, confirmAction, useSettingsResource } from "./resource";
+import { ResourceState, useSettingsResource } from "./resource";
 import { DirectoryBrowser } from "./DirectoryBrowser";
 import { DefaultModels } from "./SettingsModels";
 import { DefaultResets } from "./DefaultResets";
@@ -17,17 +17,18 @@ import { SettingsSkeletonGroups } from "./SettingsSkeleton";
 import { useWorkerLabel, useWorkerPresence } from "../computers/presence";
 import { useProjectDetails } from "../computers/project-details";
 import { projectAwayReason } from "@canopy/domain/linked-snapshot";
-import { splitId } from "@canopy/domain/computers";
+import { AddWorkspace } from "./AddWorkspace";
+import { WorkspaceRow } from "./WorkspaceRow";
 
 type ProjectResource = ReturnType<typeof useSettingsResource<ui.GetSettingsResponse>>;
 
 export function ProjectSettings() {
   const { projects: records, projectChoices: projects, workers, computers, loaded } = useOverview();
   const details = useProjectDetails();
-  const workerName = useWorkerLabel();
   const resource = useSettingsResource("GetSettings", (api) => api.getSettings({}));
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ui.Project>();
+  const [addingWorkspace, setAddingWorkspace] = useState(false);
 
   return (
     <ResourceState resource={resource}>
@@ -69,12 +70,14 @@ export function ProjectSettings() {
                 />
               </>
             )}
-            {project.workspaces.map((ws) => (
-              <WorkspaceSettings key={ws.id} workspace={ws} resource={resource} workerName={workerName(ws.workerId)} />
-            ))}
+            <SettingsGroup title="Workspaces">
+              {project.workspaces.map((ws) => (
+                <WorkspaceRow key={ws.id} workspace={ws} />
+              ))}
+              <Button title="Add workspace" onPress={() => setEditing(project)} />
+            </SettingsGroup>
             {!project.nodeId && (
               <>
-                <Button title="Add workspace" onPress={() => setEditing(project)} />
                 <ProjectDefaults
                   project={records.find((record) => record.id === project.id) ?? project}
                   resource={resource}
@@ -86,56 +89,12 @@ export function ProjectSettings() {
       <Sheet title="Add project" visible={adding} onClose={() => setAdding(false)}>
         {adding && <AddProject resource={resource} onSaved={() => setAdding(false)} />}
       </Sheet>
-      <Sheet title="Add workspace" visible={!!editing} onClose={() => setEditing(undefined)}>
-        {editing && <AddWorkspace project={editing} resource={resource} onSaved={() => setEditing(undefined)} />}
+      <Sheet title="Add workspace" visible={!!editing} onClose={() => !addingWorkspace && setEditing(undefined)}>
+        {editing && (
+          <AddWorkspace project={editing} onBusy={setAddingWorkspace} onSaved={() => setEditing(undefined)} />
+        )}
       </Sheet>
     </ResourceState>
-  );
-}
-
-function WorkspaceSettings({
-  workspace,
-  workerName,
-  resource,
-}: {
-  workspace: ui.Workspace;
-  workerName: string;
-  resource: ProjectResource;
-}) {
-  if (splitId(workspace.workerId).node)
-    return <SettingsRow title={workerName} description={`${workspace.label || workspace.rootPath} · Read-only`} />;
-
-  return (
-    <SettingsRow title={workerName} description={workspace.rootPath}>
-      <SettingsTextInput
-        title="Label"
-        value={workspace.label}
-        busy={resource.busy}
-        onSave={async (label) =>
-          !!(await resource.run((api) => api.updateWorkspace({ workspaceId: workspace.id, label })))
-        }
-      />
-      <SettingsTextInput
-        title="Root path"
-        value={workspace.rootPath}
-        busy={resource.busy}
-        onSave={async (rootPath) =>
-          !!(await resource.run((api) => api.updateWorkspace({ workspaceId: workspace.id, rootPath })))
-        }
-      />
-      <Button
-        variant="danger"
-        title="Remove workspace"
-        busy={resource.busy}
-        onPress={() =>
-          confirmAction(
-            "Remove workspace",
-            "New threads cannot use this workspace. Existing threads and files stay.",
-            () => void resource.run((api) => api.removeWorkspace({ workspaceId: workspace.id })),
-          )
-        }
-      />
-    </SettingsRow>
   );
 }
 
@@ -223,57 +182,6 @@ function AddProject({ onSaved, resource }: { onSaved: () => void; resource: Proj
                       : { case: "clone", value: { parentPath: path, name, url: cloneUrl } },
               }),
             )
-            .then((r) => {
-              if (r) onSaved();
-            })
-        }
-      />
-    </ResourceState>
-  );
-}
-
-function AddWorkspace({
-  project,
-  onSaved,
-  resource,
-}: {
-  project: ui.Project;
-  onSaved: () => void;
-  resource: ProjectResource;
-}) {
-  const { workers } = useOverview();
-  const presence = useWorkerPresence();
-  const workerName = useWorkerLabel();
-  const [workerId, setWorker] = useState(workers[0]?.id ?? "");
-  const [rootPath, setPath] = useState("");
-  const [label, setLabel] = useState("");
-  const worker = workers.find((row) => row.id === workerId);
-  const available = Boolean(worker && !worker.nodeId && presence(worker).online);
-
-  return (
-    <ResourceState resource={resource}>
-      <SettingChoice
-        title="Worker"
-        value={workerId}
-        onChange={setWorker}
-        options={workers.map((w) => ({
-          value: w.id,
-          label: workerName(w.id),
-          disabled: Boolean(w.nodeId) || !presence(w).online,
-          description: presence(w).reason ?? (w.nodeId ? "Add workspaces on their own computer." : undefined),
-          badge: presence(w).online ? undefined : presence(w).status,
-        }))}
-      />
-      <Field label="Label" value={label} onChangeText={setLabel} />
-      {available && <DirectoryBrowser workerId={workerId} value={rootPath} onChange={setPath} />}
-      <Button
-        variant="primary"
-        title="Add workspace"
-        busy={resource.busy}
-        disabled={!available || !rootPath.trim()}
-        onPress={() =>
-          void resource
-            .run((api) => api.createWorkspace({ projectId: project.id, workerId, rootPath, label }))
             .then((r) => {
               if (r) onSaved();
             })

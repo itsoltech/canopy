@@ -340,6 +340,7 @@ while (!stopping.signal.aborted) {
           "agent_plugins_v1",
           "worktrees",
           "workspace_origin",
+          "workspace_clone_source",
           "worktree_lifecycle",
           "git_worktree_discovery",
           // git_heads: the live branch of thread checkouts (GitHeads).

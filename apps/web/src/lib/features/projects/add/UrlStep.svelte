@@ -31,6 +31,11 @@
   // Read once: going back to this step mounts it again with the remote typed before.
   let value = $state(untrack(() => initial));
   let error = $state<string>();
+  let touched = $state(false);
+
+  $effect(() => {
+    if (!touched && initial) value = initial;
+  });
 
   $effect(() => input?.focus());
 
@@ -68,7 +73,10 @@
     autocapitalize="off"
     spellcheck="false"
     enterkeyhint="next"
-    oninput={() => (error = undefined)}
+    oninput={() => {
+      touched = true;
+      error = undefined;
+    }}
     {onkeydown}
     class={paletteInputClass}
   />

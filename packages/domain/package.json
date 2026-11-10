@@ -33,6 +33,8 @@
     "./computer-presence": "./src/computer-presence.ts",
     "./linked-snapshot": "./src/linked-snapshot.ts",
     "./projects": "./src/projects.ts",
+    "./workspace-sources": "./src/workspace-sources.ts",
+    "./clone-url": "./src/clone-url.ts",
     "./git-heads": "./src/git-heads.ts",
     "./json": "./src/json.ts",
     "./import-url": "./src/import-url.ts",

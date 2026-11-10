@@ -29,7 +29,7 @@ export class GitCommands {
   async readWorkspaceOrigin(kind: Extract<Command["kind"], { case: "readWorkspaceOrigin" }>): Promise<CommandOutput> {
     this.ctx.ops.checkCwd(kind.value.repoPath);
 
-    return { workspaceOrigin: await workspaceOrigin(kind.value.repoPath) };
+    return workspaceOrigin(kind.value.repoPath, kind.value.includeCloneUrl);
   }
 
   async initRepository(kind: Extract<Command["kind"], { case: "initRepository" }>): Promise<CommandOutput> {

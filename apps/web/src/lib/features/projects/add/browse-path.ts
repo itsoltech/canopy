@@ -25,7 +25,7 @@ const typed = (text: string, sep: string) => (sep === "/" ? text : text.replaceA
 
 /** `~/x` → `/home/me/x`. */
 function expand(text: string, style: PathStyle): string {
-  const home = style.homes[0] ?? "";
+  const home = style.homes.find(Boolean) ?? "";
 
   if (text === "~") return home;
 

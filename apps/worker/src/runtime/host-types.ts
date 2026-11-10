@@ -32,6 +32,7 @@ export type ProfileModelsInit = MessageInitShape<typeof ProfileModelsSchema>;
 export interface CommandOutput {
   readonly switchedHead?: MessageInitShape<typeof CommandResultSchema>["switchedHead"];
   readonly workspaceOrigin?: string;
+  readonly workspaceCloneUrl?: string;
   readonly providerAccounts?: MessageInitShape<typeof CommandResultSchema>["providerAccounts"];
   worktreeStatuses?: MessageInitShape<typeof CommandResultSchema>["worktreeStatuses"];
   worktreeBranchDeleted?: boolean;

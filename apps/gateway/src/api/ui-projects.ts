@@ -2,6 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { type GatewayCore } from "../core/core.ts";
 import { coreAddProject } from "../core/core-add-project.ts";
+import { coreWorkspaceCloneSource } from "../core/workspace-clone-source.ts";
 import { guard } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 
@@ -17,6 +18,7 @@ export function projectsHandlers(
   | "archiveProject"
   | "createWorkspace"
   | "addProject"
+  | "getWorkspaceCloneSource"
   | "updateWorkspace"
   | "removeWorkspace"
 > {
@@ -46,6 +48,7 @@ export function projectsHandlers(
       guard(async () => create(ui.CreateWorkspaceResponseSchema, { workspace: await core.createWorkspace(request) })),
 
     addProject: (request) => guard(() => coreAddProject(core, request)),
+    getWorkspaceCloneSource: (request) => guard(() => coreWorkspaceCloneSource(core, request.workspaceId)),
 
     updateWorkspace: (request) =>
       guard(async () => create(ui.UpdateWorkspaceResponseSchema, { workspace: await core.updateWorkspace(request) })),

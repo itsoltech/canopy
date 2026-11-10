@@ -89,7 +89,16 @@ export async function coreWorkerQuery(
 
   const result = await connection.sendCommand(kind, timeoutMs);
 
-  if (!result.ok) throw new InvalidError(result.errorMessage || result.errorCode);
+  if (!result.ok) {
+    if (kind.case === "cloneRepository" && result.errorCode === "CLONE_AUTH_FAILED") {
+      const worker = (await coreWorkers(hostContext)).find((w) => w.id === workerId);
+      throw new InvalidError(
+        `Sign in to Git on ${worker?.name || "the worker"} (SSH key or credential helper), then retry.`,
+      );
+    }
+
+    throw new InvalidError(result.errorMessage || result.errorCode);
+  }
 
   return result;
 }

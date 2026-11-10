@@ -12,7 +12,7 @@ import {
   upsertLinkedRows,
 } from "@canopy/domain/linked-snapshot";
 import { tempDir } from "@canopy/testing";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { GatewayStore } from "@canopy/gateway/store";
 import { eventually, failure } from "./support/gateway.ts";
@@ -28,6 +28,22 @@ describe.skipIf(!dockerAvailable)("linked projects by Git origin", () => {
   afterAll(async () => {
     await fixture?.close();
   }, 30_000);
+
+  test("explicit workspace attachment requires shared configuration before writing on another home", async () => {
+    const { a, b, lb } = fixture;
+    const name = "unshared-workspace";
+
+    expect(
+      await failure(
+        a.gw.api.addProject({
+          projectId: a.project.id,
+          workerId: `${b.workerId}~${nodeRef(lb.hello().nodeId)}`,
+          source: { case: "clone", value: { parentPath: dir, name, url: `file://${a.origin}` } },
+        }),
+      ),
+    ).toContain("Turn on Share configuration");
+    expect(existsSync(join(dir, name))).toBe(false);
+  });
 
   test("phone reconnects reconcile aggregate snapshots, peer snapshots and legacy upserts by identity", async () => {
     const { a, b, lb } = fixture;

@@ -23,6 +23,7 @@
   import type { AddProjectState } from "./add-project.svelte.ts";
   import BrowseStep from "./BrowseStep.svelte";
   import { repositoryName } from "./browse-path.ts";
+  import { workspaceParent, workspaceDirectoryName } from "@canopy/domain/workspace-sources";
   import ChoiceStep from "./ChoiceStep.svelte";
   import UrlStep from "./UrlStep.svelte";
 
@@ -44,6 +45,8 @@
   let closing = $state(false);
   let closed: ReturnType<typeof setTimeout> | undefined;
   let opener: HTMLElement | undefined;
+  let cloneUrl = $state("");
+  let cloneUrlChosen = $state(false);
 
   const step = $derived<Step>(stack.at(-1) ?? { kind: "worker" });
   const computerOf = (worker: ui.Worker) => overview.machine(worker.nodeId) ?? "This computer";
@@ -59,6 +62,7 @@
       )
       .map((worker) => {
         const presence = workerPresence(worker, overview.computer(worker.nodeId));
+        const existing = flow.project?.workspaces.some((w) => w.workerId === worker.id);
 
         return {
           key: worker.id,
@@ -67,18 +71,18 @@
           detail: presence.online
             ? computerOf(worker)
             : (presence.reason ?? `${computerOf(worker)} · Start the worker to add projects`),
-          status: presence.status,
+          status: existing ? "Already added" : presence.status,
           online: presence.online,
-          disabled: !presence.online,
+          disabled: existing || !presence.online,
         };
       }),
   );
 
   const sourceChoices = (worker: ui.Worker): Choice<SourceChoice>[] =>
-    SOURCES.map((source) => ({
+    SOURCES.filter((source) => !flow.project || source.kind === "directory" || source.kind === "url").map((source) => ({
       key: source.kind,
       value: source,
-      title: source.title,
+      title: flow.project && source.kind === "url" ? "Clone repository" : source.title,
       detail:
         source.creates && !worker.projectSources
           ? `Update Canopy on ${computerOf(worker)} to use this`
@@ -101,6 +105,10 @@
       error = undefined;
       busy = false;
       dialog.showModal();
+      cloneUrl = "";
+      cloneUrlChosen = false;
+
+      if (flow.project) void readCloneUrl(flow.project);
     }
 
     if (!flow.open && dialog.open) {
@@ -146,6 +154,25 @@
     );
   }
 
+  async function readCloneUrl(project: ui.Project) {
+    for (const workspace of project.workspaces) {
+      try {
+        const response = decode(
+          ui.GetWorkspaceCloneSourceResponseSchema,
+          await requestJson("GET", `/api/workspaces/${encodeURIComponent(workspace.id)}/clone-source`),
+        );
+
+        if (response.cloneUrl && flow.project?.id === project.id && !cloneUrlChosen) {
+          cloneUrl = response.cloneUrl;
+
+          return;
+        }
+      } catch {
+        /* Another online workspace may provide the origin. The URL stays editable. */
+      }
+    }
+  }
+
   async function add(worker: ui.Worker, source: SourceKind, url: string, target: { dir: string; name: string }) {
     busy = true;
     error = undefined;
@@ -153,7 +180,12 @@
     try {
       const response = decode(
         ui.AddProjectResponseSchema,
-        await requestJson("POST", "/api/projects", addRequest(worker, browseMode(source), target, url), 6.5 * 60_000),
+        await requestJson(
+          "POST",
+          "/api/projects",
+          { ...addRequest(worker, browseMode(source), target, url), projectId: flow.project?.id },
+          6.5 * 60_000,
+        ),
       );
 
       const project = response.project;
@@ -176,7 +208,7 @@
 <dialog
   use:windowModal
   bind:this={dialog}
-  aria-label="Add project"
+  aria-label={flow.project ? "Add workspace" : "Add project"}
   onclose={() => {
     if (!flow.open) return;
     flow.open = false;
@@ -212,8 +244,13 @@
           {@const { worker, source } = step}
           <UrlStep
             {source}
+            initial={cloneUrl}
             computer={computerOf(worker)}
-            oncontinue={(remote, url) => push({ kind: "browse", worker, source, remote: url || remote })}
+            oncontinue={(remote, url) => {
+              cloneUrl = remote;
+              cloneUrlChosen = true;
+              push({ kind: "browse", worker, source, remote: url || remote });
+            }}
             onback={back}
             onclose={close}
           />
@@ -222,7 +259,13 @@
           <BrowseStep
             {worker}
             mode={browseMode(source)}
-            name={remote ? repositoryName(remote) : ""}
+            actionLabel={flow.project ? (source === "directory" ? "Add workspace" : "Clone workspace") : undefined}
+            name={flow.project
+              ? workspaceDirectoryName(flow.project.workspaces[0]?.rootPath || flow.project.name)
+              : remote
+                ? repositoryName(remote)
+                : ""}
+            parent={flow.project ? workspaceParent(worker, overview.projects) : ""}
             {busy}
             {error}
             onsubmit={(target) => add(worker, source, remote, target)}

@@ -1,71 +1,66 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { workerStatus } from "#lib/features/overview/workers.ts";
-  import Button from "#lib/shared/ui/Button.svelte";
-  import Icon from "#lib/shared/ui/Icon.svelte";
+  import { workerPresence } from "#lib/features/computers/computers.ts";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import CopyButton from "#lib/shared/ui/CopyButton.svelte";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
+  import MiddleTruncatedText from "#lib/shared/ui/MiddleTruncatedText.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
 
-  /**
-   * One worker in a project's settings: its status and the project's directory there (change, remove),
-   * or "Add". Choosing a directory browses the worker, so adding and changing need it online.
-   */
   let {
     worker,
-    workspaces,
+    workspace,
     computer,
-    readonly = false,
-    onadd,
     onmove,
     onremove,
     class: className,
   }: {
     worker: ui.Worker;
+    workspace: ui.Workspace;
     computer: string;
-    readonly?: boolean;
-    /** The project's workspaces on this worker. */
-    workspaces: readonly ui.Workspace[];
-    onadd: () => void;
-    onmove: (workspace: ui.Workspace) => void;
-    onremove: (workspace: ui.Workspace) => void;
+    onmove: () => void;
+    onremove: () => void;
     class?: ClassValue;
   } = $props();
+
+  const overview = useOverview();
+  const presence = $derived(workerPresence(worker, overview.computer(worker.nodeId)));
+
+  const os = $derived(
+    worker.os === "darwin" ? "macOS" : worker.os === "win32" ? "Windows" : worker.os === "linux" ? "Linux" : worker.os,
+  );
 </script>
 
-<div class={["flex items-start gap-3 px-4 py-3.5", className]}>
-  <div class="flex h-lh shrink-0 items-center px-1 text-base/6 sm:text-sm/6">
-    <StatusDot tone={worker.online ? "emerald" : "neutral"} />
-  </div>
-  <div class="min-w-0 flex-1">
-    <p class="truncate text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">{worker.name}</p>
-    <p class="text-sm/5 break-words text-zinc-500 dark:text-zinc-400">{computer}</p>
-    <p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">
-      {workerStatus(worker)}{workspaces.length === 0 && !worker.online ? " · start it to choose a directory" : ""}
+<div class={["@container flex min-w-0 items-center gap-2 px-3 py-2", !presence.online && "opacity-55", className]}>
+  <StatusDot tone={presence.online ? "emerald" : "neutral"} />
+  <div class="grid min-w-0 flex-1 gap-x-3 gap-y-0.5 @xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @xl:items-center">
+    <div class="min-w-0 text-[0.9375rem]/5 sm:text-[0.8125rem]/5">
+      <p class="truncate font-medium text-zinc-950 dark:text-white" title={worker.name}>{worker.name}</p>
+      <p class="flex min-w-0 gap-1 text-zinc-500 dark:text-zinc-400" title={presence.reason}>
+        <span class="truncate">{computer}{os ? ` · ${os}` : ""}</span>
+        {#if !presence.online}
+          <span class="max-w-1/2 shrink-0 truncate">· {presence.reason ? presence.status : "Offline"}</span>
+        {/if}
+      </p>
+    </div>
+    <p class="min-w-0 font-mono text-[0.8125rem]/5 text-zinc-600 select-text dark:text-zinc-400">
+      <MiddleTruncatedText text={workspace.rootPath} />
     </p>
-    {#if workspaces.length > 0}
-      <ul role="list" class="mt-2 grid gap-1">
-        {#each workspaces as ws (ws.id)}
-          <li class="flex min-w-0 items-center gap-2 text-zinc-700 dark:text-zinc-300">
-            <Icon name="folder" class="fill-zinc-400 dark:fill-zinc-500" />
-            <code
-              class="min-w-0 flex-1 font-mono text-sm/6 break-all sm:truncate sm:text-[0.8125rem]/6"
-              title={ws.rootPath}>{ws.rootPath}</code
-            >
-            {#if !readonly}<IconButton
-                icon="pencil-square"
-                size="sm"
-                label={worker.online ? "Change the directory" : `Start ${worker.name} to change the directory`}
-                disabled={!worker.online}
-                onclick={() => onmove(ws)}
-              />
-              <IconButton icon="trash" size="sm" label="Remove from {worker.name}" onclick={() => onremove(ws)} />{/if}
-          </li>
-        {/each}
-      </ul>
-    {/if}
   </div>
-  {#if workspaces.length === 0 && !readonly}
-    <Button size="sm" icon="plus" disabled={!worker.online} onclick={onadd}>Add</Button>
-  {/if}
+  <CopyButton text={workspace.rootPath} label="Copy path" />
+  <DropdownMenu label="Workspace actions" placement="bottom-end" sheet>
+    {#snippet trigger(props)}<IconButton
+        icon="ellipsis-horizontal"
+        label="Workspace actions for {worker.name}"
+        size="sm"
+        {...props}
+      />{/snippet}
+    <MenuItem icon="pencil-square" disabled={!presence.online} onselect={onmove}>Edit path</MenuItem>
+    <MenuItem icon="trash" danger disabled={Boolean(worker.nodeId) && !presence.online} onselect={onremove}
+      >Remove workspace</MenuItem
+    >
+  </DropdownMenu>
 </div>

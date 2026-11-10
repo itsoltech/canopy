@@ -658,6 +658,8 @@ message CommandResult {
   bool worktree_branch_deleted = 214;
   // Normalized identity only; never the raw remote URL or its credentials.
   string workspace_origin = 216;
+  // Credential-free clone URL; only requested by GetWorkspaceCloneSource, never persisted.
+  string workspace_clone_url = 220;
   ThreadGitHead switched_head = 219;
   ProviderAccountsReport provider_accounts = 810;
   // Wynik ScanImportSources (docs/import.md).
@@ -681,6 +683,8 @@ message GetProviderAccounts {
 
 message ReadWorkspaceOrigin {
   string repo_path = 1;
+  // Requires workspace_clone_source; return only clone-safe URLs without credentials.
+  bool include_clone_url = 2;
 }
 
 // A new directory `name` inside the existing absolute `parent_path`, then `git init`.

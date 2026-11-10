@@ -169,6 +169,44 @@ istniejący katalog, klon z lokalnego bare repo przez `file://`, `git init`, do�
 odmowa ścieżek względnych, `..`, symlinku i istniejącej nazwy, URL z poświadczeniami, cudzy worker
 i worker offline bez kolejki). Bez testów UI.
 
+### Workspace istniejącego projektu na kolejnym workerze
+
+Settings → Projects → projekt → **Workspaces** pokazuje jedną zwartą listę: stan, nazwę workera,
+komputer i system, ścieżkę z obciętym środkiem oraz menu **Edit path / Remove workspace**.
+Pełną ścieżkę można zaznaczyć lub skopiować; niedostępny worker pozostaje przygaszony z opisem stanu.
+Usunięcie wymaga potwierdzenia i nie usuwa plików ani katalogów istniejących wątków.
+
+**Add workspace** prowadzi przez worker (także połączonego komputera), źródło i katalog.
+Workery już przypisane do projektu mają stan **Already added**, a niedostępne są wyłączone.
+Źródła to **Existing directory** oraz **Clone repository**. Mobile używa tego samego przepływu w arkuszu.
+Klon podpowiada edytowalny URL `origin` istniejącego workspace'u, nazwę jego katalogu i katalog nadrzędny
+innego projektu na docelowym workerze (albo jego home). Klon kończy się po najwyżej 5 min; błędy i postęp
+są widoczne w dialogu. Po sukcesie workspace pojawia się na liście i w wyborze workera nowego wątku.
+Kopiowanie plików między workspace'ami pozostaje osobnym źródłem do dodania w przyszłości.
+
+`AddProject.project_id` (5) jawnie wskazuje istniejący projekt właściciela. Gateway sprawdza projekt,
+workera i brak workspace'u na tym workerze **przed** operacją na dysku. Wspólny projekt przechodzi
+przez istniejące aliasy konfiguracji do lokalnego rekordu domu workera. Dodanie workspace'u lokalnego
+projektu na drugim komputerze wymaga **Share configuration** po obu stronach łącza; bez niego projekty
+mają osobne rekordy, a żądanie jest odrzucane przed operacją na dysku z instrukcją włączenia tej opcji.
+Łącze wymaga capability
+`project_workspaces`, aby starszy gateway nie zignorował jawnego projektu. Utrata łącza nie kolejkuje klonu.
+
+`GetWorkspaceCloneSource(workspace_id)` odczytuje origin na workerze workspace'u właściciela przez
+istniejące `read_workspace_origin` z `include_clone_url` (2), tylko przy capability `workspace_clone_source`.
+Odpowiedź `workspace_clone_url` (220) jest nietrwała, bez wpisu do overview, lustra ani bazy.
+URL z hasłem, poświadczeniami HTTP, query lub fragmentem daje pustą podpowiedź. Użytkownik może wpisać
+URL sam; zarówno gateway, jak i worker sprawdzają bezpieczeństwo przed klonem. Wersje protokołów bez zmian.
+
+Po błędzie autoryzacji komunikat wskazuje docelowy worker: **Sign in to Git on <worker> (SSH key or
+credential helper), then retry.** Klon korzysta wyłącznie z jego własnych kluczy SSH i credential helpera.
+Przyszła integracja z GitHub App może udostępnić fetch przez proxy gatewaya, gdzie token nigdy nie opuszcza
+gatewaya. Nie jest to część obecnego klonowania; tokeny connectorów nie trafiają na workery.
+
+Testy: `tests/integration/project-workspaces.test.ts` — rzeczywiste workery lokalne i połączone,
+klon z lokalnego bare repo, origin, uruchomienie nowych wątków, duplikaty, owner scoping,
+sprzątanie błędnego klonu, błąd logowania i bezpieczeństwo ścieżek. Bez testów UI.
+
 ## Dostępność: bez kolejkowania
 
 Gdy komputer jest niedostępny, **nie da się do niego nic wysłać**. Powód znamy tylko wtedy,
