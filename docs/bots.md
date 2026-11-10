@@ -770,12 +770,23 @@ wracają łączem, zachowując `hops`; odpowiedź narzędzia na pytanie nadal wy
 Wynik pochodzący z rutyny wraca jako jej ukryte wykonanie na domu, bez przenoszenia crona.
 
 Rozmowy (włącznie z kartami, rutynami i przypomnieniami) są pełnymi, atomowo podmienianymi
-lustrami do odczytu offline. UI blokuje composer, zgody i ustawienia oraz pokazuje powód
+lustrami do odczytu offline. Zatwierdzona lista z lustra jest też fallbackiem online, gdy
+cache odczytu jest zimny lub odświeżenie nie powiodło się: boty nie znikają podczas
+restartu domu ani odbiorcy. Web i mobile odczytują listę po zakończeniu odczytu partnera
+w tle i po commicie lustra, również przy włączonych aktualizacjach push. Aktualizacja
+odbiorcy automatycznie odtwarza listę z zachowanego lustra i odświeża ją z domu;
+nie wymaga nowej wiadomości bota ani ponownego parowania.
+UI blokuje composer, zgody i ustawienia oraz pokazuje powód
 niedostępności z czasem. Nie kolejkuje pisania na później. Narzędzie dostaje od razu czytelny
 błąd; starszy partner — „needs an update”. Raport przy niedostępnym rodzicu jest porzucany,
 pozostaje do odczytu w domu wykonania. Unlink usuwa lustro i odłącza relacje między domami,
 nie usuwa lokalnych botów ani ich historii. Szczegóły i kontrakty:
 [protokół etapu 5](linked-computers.md#konkretny-protokół-etapu-5).
+
+`tests/integration/linked-bots-resync.test.ts` sprawdza dwa rzeczywiste gatewaye z oddzielnymi
+bazami: zimny cache online, restart domu bez zmiany wersji i po aktualizacji, ciągły watch
+klienta oraz świeży odczyt z ostatnimi wiadomościami, restart odbiorcy z trwałym lustrem
+i uzgodnienie usunięć, archiwizacji oraz wiadomości zmienionych podczas niedostępności domu.
 
 `send_bot_message` zapisuje adresata, wymianę i nową turę docelowego bota. Jego odpowiedź
 pozostaje w jego jednej rozmowie i jest też follow-upem nadawcy. W czacie nadawcy

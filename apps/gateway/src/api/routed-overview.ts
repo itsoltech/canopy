@@ -5,7 +5,7 @@ import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError, createHandlerContext, type HandlerContext } from "@connectrpc/connect";
 import { linkedMessage, methodNamed } from "../computers/remote.ts";
 import type { GatewayCore } from "../core/core.ts";
-import { LINKED_FEEDS } from "../core/owner-feeds.ts";
+import { linkedFeeds } from "./routed-feeds.ts";
 import { refreshComputerUpdates } from "../updates/linked.ts";
 import { single, stream, unary, unaryTimeout, withSignal, type Handler } from "./routed-context.ts";
 import { localProjectIds } from "./routed-config.ts";
@@ -113,21 +113,24 @@ export async function gather<A extends Message>(
         return projection;
       }
 
-      if (!reachable.has(nodeId) && name === "ListBots" && computers.capabilities(nodeId).includes(REMOTE_BOTS)) {
-        const projection = await single<A>(forward(core, nodeId, method, request, signal));
-        const mirrored = linkedMessage(bots.ListBotsResponseSchema, projection);
-
-        const cached = computers.reads.read<bots.ListBotsResponse>(
+      if (name === "ListBots" && computers.capabilities(nodeId).includes(REMOTE_BOTS)) {
+        const cached = computers.reads.read<A>(
           nodeId,
           method,
           request,
-          (background) => single(forward(core, nodeId, method, request, background)),
+          (background) => single<A>(forward(core, nodeId, method, request, background, false, true)),
           unaryTimeout(method),
-          false,
+          reachable.has(nodeId),
         );
 
+        if (reachable.has(nodeId) && cached && computers.reads.state(nodeId, method, request) === "fresh")
+          return cached;
+
+        const projection = await single<A>(forward(core, nodeId, method, request, signal));
+        const mirrored = linkedMessage(bots.ListBotsResponseSchema, projection);
+        const previous = cached && linkedMessage(bots.ListBotsResponseSchema, cached);
         const ids = new Set(mirrored.bots.map((bot) => bot.id));
-        mirrored.bots.push(...(cached?.bots.filter((bot) => !ids.has(bot.id)) ?? []));
+        mirrored.bots.push(...(previous?.bots.filter((bot) => !ids.has(bot.id)) ?? []));
 
         return projection;
       }
@@ -323,9 +326,10 @@ export async function* watchOverview(
   const feeds = linkedFeeds(computers, (value) => out.push(value));
   const watchMethod = methodNamed("WatchOverview")!;
 
-  const unsubscribeReads = computers.reads.subscribe((method) =>
-    out.push(create(ui.OverviewUpdateSchema, { change: { case: "linkedReadCompleted", value: method } })),
-  );
+  const completedRead = (value: string) =>
+    out.push(create(ui.OverviewUpdateSchema, { change: { case: "linkedReadCompleted", value } }));
+
+  const unsubscribeReads = computers.reads.subscribe(completedRead);
 
   const watch = (nodeId: string) => {
     const controller = new AbortController();
@@ -377,9 +381,11 @@ export async function* watchOverview(
     feeds.update();
   }
 
-  const unsubscribe = computers.subscribe(({ nodeId, removed }) => {
+  const unsubscribe = computers.subscribe(({ nodeId, removed, botsChanged }) => {
     const revision = (revisions.get(nodeId) ?? 0) + 1;
     revisions.set(nodeId, revision);
+
+    if (botsChanged) completedRead("ListBots");
 
     if (removed) out.push(create(ui.OverviewUpdateSchema, { change: { case: "computerRemoved", value: nodeId } }));
     else
@@ -444,47 +450,6 @@ export async function* watchOverview(
 
     for (const controller of watchers.values()) controller.abort();
   }
-}
-
-/**
- * What this stream pushes completely: this computer's feeds, with `bots` and `updates` only while every reachable
- * computer pushes them too (an older one does not: clients keep polling). Sent again when that changes.
- */
-function linkedFeeds(computers: NonNullable<GatewayCore["computers"]>, push: (update: ui.OverviewUpdate) => void) {
-  let own: readonly string[] | undefined;
-  const peers = new Map<string, readonly string[]>();
-  let sent = "";
-
-  const update = () => {
-    if (!own) return;
-    const reachable = computers.reachable();
-
-    const pushed = own.filter(
-      (feed) => !LINKED_FEEDS.includes(feed) || reachable.every((node) => peers.get(node)?.includes(feed)),
-    );
-
-    const key = pushed.join(",");
-
-    if (key === sent) return;
-    sent = key;
-    push(create(ui.OverviewUpdateSchema, { change: { case: "feeds", value: { pushed } } }));
-  };
-
-  return {
-    update,
-    /** This computer's own feeds; the stream sends the combined ones instead. */
-    local(pushed: readonly string[]) {
-      own = pushed;
-      sent = "\u0000";
-      update();
-
-      return true;
-    },
-    peer(nodeId: string, pushed: readonly string[]) {
-      peers.set(nodeId, pushed);
-      update();
-    },
-  };
 }
 
 /** One message of a linked computer's overview stream, as this stream relays it. */

@@ -200,9 +200,11 @@ export function computersSyncBotMirror(hostContext: LinkedComputers, nodeId: str
           controller.signal,
         ),
         () => {
+          hostContext.reads.due(nodeId, "ListBots");
+
           for (const listener of hostContext[computersState].listeners) {
             try {
-              listener({ nodeId, removed: false });
+              listener({ nodeId, removed: false, botsChanged: true });
             } catch {
               /* subscriber owns errors */
             }

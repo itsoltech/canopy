@@ -678,7 +678,7 @@ odczytu nie powoduje kolejnej próby na każdym pollu. Tick Update all też jest
 | Mobile reconnect `mobile_snapshot`, `computer_snapshot` | Ta sama projekcja i wspólne `retainLinkedRows`, `retainProjects`, `workersWithAvailability`; brak pustej listy w trakcie flappingu, również przed wykryciem utraty łącza. Jawny snapshot domu, usuwanie i unlink nadal uzgadniają usunięcia. |
 | `GetThread`, `WatchThread`, historia i wyszukiwanie w otwartym wątku | Lokalny mirror seed, odczyt offline; wysyłanie, steer i edycje wymagają domu. |
 | `ListModels`, `ListSchedules`, `ListWorktrees`, cele botów/harmonogramów | Ostatnia odpowiedź i odświeżenie w tle; pickery zachowują workery/projekty i wyjaśniają wyłączone akcje. |
-| `ListBots`, Updates, Connectors | Cache / lustro bota i stan dostępności; rekordy kont konektorów są lokalne. |
+| `ListBots`, Updates, Connectors | Cache / lustro bota i stan dostępności; rekordy kont konektorów są lokalne. Zimny lub nieudany odczyt listy botów korzysta z zatwierdzonego lustra także online. |
 | Settings: projekty, providers, connectors, proxies, workers, agent environment, Devices | Lokalne rekordy i współdzielona konfiguracja; edycja zdalnego workera ma osobny jawny RPC i owner-scoping. Pobieranie blobów config-sync jest poza transakcją DB. |
 | Search i wzmianki | Paleta/sidebar przeszukują zachowany overview; `SearchThreads` oraz wzmianki `#` są nadal ograniczone do lokalnego domu. Pliki/katalogi są jawnie przypisane do wybranego workera, nie są zbiorczą listą. |
 | Linked agent catalog/overview oraz narzędzia `list_agents`, `list_threads`, `list_bots` | Ten sam cache i lustra; odpowiedzi w tle, lokalne dane i stan loading/ostatni stan partnera. Narzędzia lokalnego agenta nie czekają na zbieranie list partnerów. |
@@ -710,6 +710,10 @@ nie zapisuje payloadu, nagłówków uwierzytelniania ani transportowego cause.
   (`bot`, `bot_removed`) są przekazywane z kwalifikowanymi id; `feeds` partnera decyduje, czy lokalny
   strumień ogłasza `bots` jako wypychane. Migawka telefonu
   (`include_snapshot`) obejmuje także partnerów.
+- `linked_read_completed("ListBots")` unieważnia listę botów w web i mobile także przy aktywnym
+  feedzie `bots`. Zakończenie odczytu w tle oraz commit lustra powodują ponowny odczyt;
+  commit oznacza też cache partnera do odświeżenia. Restart/aktualizacja A zachowuje lustro,
+  a nowa subskrypcja klienta odczytuje listę bez czekania na nową wiadomość od bota.
 - `ListArchivedThreads` pozostaje lokalne (stronicowanie per komputer); archiwum partnera jest u niego.
 
 W etapie 2 wątki partnera są widoczne **tylko gdy jest połączony** i udostępnia wątki. Gdy zniknie,

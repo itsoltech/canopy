@@ -77,7 +77,7 @@ export type Options = {
 };
 
 /** A peer changed (presence, name, capabilities) or was removed. */
-export type ComputerChange = { nodeId: string; removed: boolean };
+export type ComputerChange = { nodeId: string; removed: boolean; botsChanged?: boolean };
 
 export const ms = (date: Date | null) => (date ? BigInt(new Date(date).getTime()) : 0n);
 

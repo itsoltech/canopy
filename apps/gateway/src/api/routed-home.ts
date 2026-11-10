@@ -121,7 +121,10 @@ export async function* home(
   )
     return;
 
-  if (!computers.reachable().includes(nodeId) && computers.capabilities(nodeId).includes(REMOTE_BOTS)) {
+  if (
+    computers.capabilities(nodeId).includes(REMOTE_BOTS) &&
+    (!computers.reachable().includes(nodeId) || (method.name === "ListBots" && !live))
+  ) {
     if (method.name === "ListBots" || method.name === "GetBot" || method.name === "WatchBotConversation") {
       const snapshots = await computers.botMirror.conversations(nodeId);
 
