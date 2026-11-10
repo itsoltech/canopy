@@ -1,9 +1,9 @@
 # Konto GitHub i pull requesty
 
-Status: **propozycja do przeglądu**, 2026-11-10. Ten dokument nie zatwierdza implementacji.
+Status: **zaakceptowany**, 2026-11-10. Funkcja nie jest jeszcze zaimplementowana.
 Decyzje ustalone po przeglądzie: oficjalna GitHub App Canopy organizacji `itsoltech`, device flow,
 wygasające tokeny użytkownika w domu wątku, pełny zakres zapisów opisany poniżej i Viewed
-synchronizowane z GitHub. Implementacja dopiero po akceptacji zaktualizowanego projektu, jako stos PR.
+synchronizowane z GitHub. Implementacja jako jeden stos PR według §11.
 
 ## 1. Wynik i zakres
 
@@ -828,10 +828,12 @@ hashy/podpisów, mirrora i zamrożonego `update/v1`.
 
 ## 11. Wdrożenie jako stos PR
 
-Implementacja powstaje **po akceptacji zaktualizowanego projektu**. Wariant zachowujący jeden
-stos obejmuje wszystkie 9 etapów poniżej: dolny PR bazuje na aktualnym `dev`, każdy następny
-na poprzednim (`gh stack`, `github/gh-stack`). Wszystkie pozostają draft do zakończenia i weryfikacji
+**Ustalono jeden stos obejmujący etapy 1–9.** Podstawą stosu jest dokumentacyjny
+PR [#485](https://github.com/itsoltech/canopy/pull/485): gałąź `docs/github-integration` celująca w `dev`.
+Etap 1 bazuje na `docs/github-integration`, każdy następny na poprzednim (`gh stack`, `github/gh-stack`).
+Dokument i wszystkie etapy pozostają draft do zakończenia i weryfikacji
 **całego v1**, potem wspólny `gh stack merge <stack> --squash`, bez merge etap po etapie.
+PR #485 scala się razem z całym stosem, nie osobno przed implementacją.
 Każdy etap ma działający kontrakt gatewaya i parytet web/desktop/mobile, własne testy oraz
 przegląd bezpieczeństwa; brakującej funkcji nie zastępuje nieczynny przycisk.
 Rozmiary to orientacyjne linie kodu z testami, bez generowanych kontraktów; zależności są logiczne,
@@ -839,7 +841,7 @@ a w pojedynczym stosie gałęzie pozostają liniowe. Mutacje PR w GitHub dochodz
 
 | Etap | Kompletna granica zmiany | Rozmiar / zależność | Dowód przed gotowością |
 | --- | --- | --- | --- |
-| 1. Konto | Schemat kont/instalacji, device flow, refresh/disconnect, Settings i inline auth we wszystkich klientach | L, 1400–2000 linii; punkt startowy | Migracje, gRPC auth, dwóch ownerów, expiry, równoległy refresh, restart/anulowanie, tokeny poza DTO/logami i partnerami; HTTP fixture |
+| 1. Konto | Schemat kont/instalacji, device flow, refresh/disconnect, Settings i inline auth we wszystkich klientach | L, 1400–2000 linii; na `docs/github-integration` (PR #485) | Migracje, gRPC auth, dwóch ownerów, expiry, równoległy refresh, restart/anulowanie, tokeny poza DTO/logami i partnerami; HTTP fixture |
 | 2. Ręczny PR | Klient GraphQL/REST, wybór konta repo, cache/budżet, link/unlink, panel, Summary read-only, dom i lustro | L, 1600–2400; po 1 | gRPC z prawdziwym store, tombstone race, owner/account/cache, offline/revoke i dwa gatewaye. **Pierwsza wartość PR dla użytkownika**, jeszcze w draft gałęzi |
 | 3. Wykrywanie | Kontekst git, forki/remotes, branch reuse, auto-link, wyniki narzędzi i cleanup proof | L, 1200–1800; po 2 | Gateway↔WorkerHost z rzeczywistymi repo/worktrees, push/ref change, head repo, stos, detached HEAD, tombstone i restart/replay |
 | 4. Pełny odczyt | Stronicowana Timeline/reviews/checki/jobs/logi, Code/commit filter/lazy patch, watch/polling, kontekst trzech akcji composera, retencja/metryki i release fallback po #486 | XL, 3500–5000; po 3 | gRPC paginacji > 100 elementów, 304/429/403/partial, cache/stream gap, binary/truncated/SHA races; SSRF/redakcja/limity logów, attachment/harness, brak tokenu na CDN/redirect; migracje/retencja, restart, p95 i mobile transport |
@@ -849,20 +851,6 @@ a w pojedynczym stosie gałęzie pozostają liniowe. Mutacje PR w GitHub dochodz
 | 8. Metadane | Tytuł/opis, request/re-request user/team, assignees i istniejące labels, jawne Apply we wszystkich klientach | L, 1200–1800; po 5–7 | gRPC owner/repo/user/team ID, brak Members scope, powiadomienia, obca etykieta, konflikt edycji, revoke, receipty i niepewny wynik |
 | 9. Sterowanie CI | Re-run failed/all/job i cancel run na bazie logów z etapu 4; końcowe domknięcie zapisów, dokumentacji i parytetu | L, 1800–2800; po 4–8 | gRPC/security obcego run/job/attempt/SHA, confirmation cancel, job dependencies, accepted ≠ done, brak dispatch/debug/force-cancel, restart/uncertain; pełne migracje/security/linked, p95 i macierz wszystkich akcji mobile |
 
-### Zalecany podział na dwa kompletne stosy
-
-Jeden stos to około 19–27 tys. linii plus kod generowany. Zalecamy **dwa stosy**, aby recenzja
-i weryfikacja odczytu nie czekały na cały zakres mutacji. To propozycja zmiany granicy dostawy,
-**wymaga akceptacji maintenera**; bez niej obowiązuje jeden stos 1–9 i wspólny merge całego v1.
-
-| Stos | Kompletna funkcja i granica merge |
-| --- | --- |
-| A, etapy 1–4 (~8–11 tys. linii) | Konto i pełny podgląd PR: powiązania, autodetekcja, Summary/Timeline/Code, checki/logi, kontekst composera i bezpieczny fallback aktualizacji. Odczyt bez mutacji PR w GitHub, bez aktywnego Viewed i edytorów zapisów. Wszyscy klienci działają samodzielnie, również offline/stale; merge całego A po jego pełnej weryfikacji jako kompletnej funkcji podglądu |
-| B, etapy 5–9 (~11–16 tys. linii) | Pełna obsługa PR: Viewed, komentarze/review, lifecycle, metadane i CI. Bazuje na scalonym A i aktualnym dev; wszystkie PR B draft do zweryfikowania całego zakresu zapisów, potem wspólny merge B. Dopiero A+B stanowi pełne v1 z §1 |
-
-Podział nie oznacza zgody na publikację części A lub B etapami. Dolny PR każdego zatwierdzonego
-stosu celuje w `dev`, wyższe w poprzednią gałąź; merge całego stosu przez `gh stack merge`.
-Rejestracja App zachowuje finalne prawa §2; sam stos A nie wystawia RPC zapisów GitHub.
 Każdy etap utrzymuje zgodność i pionową funkcję w swojej gałęzi. Infrastruktura etapu 1
 nie udaje wartości PR przed etapem 2; wartość na gałęzi nie jest zgodą na wcześniejszy merge.
 Nie dodajemy web UI/component/Playwright testów ani trywialnych testów helperów.
@@ -871,7 +859,7 @@ Testy z rzeczywistym GitHub są wyłącznie opt-in (`CANOPY_LIVE=1`).
 
 Przed gotowością całego stosu pełna lista sprawdzeń z AGENTS.md musi przejść:
 install, gen:check, typecheck, lint, format:check, check:tmp (pełne testy, w tym integracyjne)
-i web build; przy zaakceptowanym podziale dotyczy to osobno całego A i całego B.
+i web build.
 QA UI obejmuje light/dark, desktop/phone/tablet, klawiaturę/czytnik, reduced motion,
 krótkie i długie treści, sticky/scroll oraz iOS/Android z tym samym zestawem funkcji.
 
@@ -880,7 +868,7 @@ obserwacja p95/limitów i dopiero udostępnienie wszystkim. Gateway może wstrzy
 i mutacje bez usuwania powiązań. Rollback wyłącza funkcję i nowe RPC; migracje zostają addytywne,
 starszy klient/gateway nadal obsługuje wątki, a cofnięta funkcja nie ponawia niepewnych zapisów.
 
-## 12. Decyzje po przeglądzie i pozostałe pytania
+## 12. Decyzje po przeglądzie
 
 1. **Auth per dom wątku — zaakceptowane.** Sign-in można rozpocząć z innego komputera;
    tokeny nigdy nie przechodzą między gatewayami. Broker kont jest poza v1.
@@ -896,6 +884,6 @@ starszy klient/gateway nadal obsługuje wątki, a cofnięta funkcja nie ponawia 
    konta gatewaya; bez konta aktualizacje nadal działają. Zalecenie ustawienia: domyślnie on,
    z widocznym wyłączeniem i wyborem własnego konta (§10), bez dodatkowego opt-in.
 
-**Do decyzji: jeden stos czy dwa?** Zalecenie: zaakceptować kompletne stosy A (podgląd i auth)
-oraz B (pełna obsługa zapisów) z §11. Każdy scala się w całości po weryfikacji; granica A jest
-użyteczną funkcją, a pełny zakres v1 pozostaje wymagany po B. Do tej decyzji zachowujemy jeden stos.
+**Jeden stos 1–9 — zaakceptowane.** Dokumentacyjny PR #485 jest podstawą stosu;
+etap 1 bazuje na `docs/github-integration`. Dokument i wszystkie etapy scala się razem
+dopiero po weryfikacji pełnego v1, zgodnie z §11 i AGENTS.md.
