@@ -9,6 +9,7 @@ import { seedDiagnosticsHistory } from "./seed-diagnostics-history.ts";
 import { diagnosticsLoad, type DiagnosticsPhase } from "./diagnostics-load.ts";
 import { diagnosticsContention } from "./diagnostics-contention.ts";
 import { monitorHost } from "./diagnostics-host.ts";
+import { diagnosticsStorage, diagnosticsWrites } from "./diagnostics-storage.ts";
 
 /** Isolated, durable PostgreSQL. Five AB/BA pairs; host-noise failures invalidate the entire pair. */
 const forbidden = new Set([17443, 5180, 8444, 17444, 17445, 3000, 7443, 7432, 4443, 7444, 5291, 8081]);
@@ -39,6 +40,30 @@ let active: Awaited<ReturnType<typeof diagnosticsProcess>> | undefined;
 let worker: Awaited<ReturnType<typeof diagnosticsWorker>> | undefined;
 let attempt = 0;
 let host: Awaited<ReturnType<typeof monitorHost>> | undefined;
+const shutdown = new AbortController();
+
+for (const signal of ["SIGINT", "SIGTERM"] as const)
+  process.once(signal, () => shutdown.abort(new Error("Benchmark stopped by its owner")));
+
+function assertRunning() {
+  shutdown.signal.throwIfAborted();
+  host?.assertQuiet();
+}
+
+function selectedPhases(): DiagnosticsPhase[] {
+  if (process.env["CANOPY_BENCH_RESOURCES"] === "1") return ["idle"];
+
+  if (process.env["CANOPY_BENCH_ALL_PHASES"] === "1")
+    return ["idle", "steady", "reconnect", "slow_reader", "write_failure", "pool_contention"];
+
+  if (process.env["CANOPY_BENCH_CONTENTION"] === "1") return ["write_failure", "pool_contention"];
+
+  if (process.env["CANOPY_BENCH_CHURN"] === "1") return ["churn"];
+
+  if (process.env["CANOPY_BENCH_EXTRA_PHASES"] === "1") return ["reconnect", "slow_reader"];
+
+  return ["idle", "steady"];
+}
 
 async function command(args: string[], env = process.env) {
   const child = Bun.spawn(args, { env, stdout: "pipe", stderr: "inherit" });
@@ -119,7 +144,7 @@ async function waitForRestore(api: ReturnType<typeof benchmarkApi>) {
   const deadline = Date.now() + 30_000;
 
   while ((await api.getComputerDiagnostics({ limit: 1 })).restoring) {
-    host?.assertQuiet();
+    assertRunning();
 
     if (Date.now() > deadline) throw new Error("Background restore did not complete");
     await Bun.sleep(10);
@@ -141,6 +166,7 @@ async function recordAffinity(gateway: number, worker: number, pair: number, on:
 }
 
 async function run(on: boolean, index: number) {
+  assertRunning();
   const database = `diagnostics_${index}_${Number(on)}_${attempt}`;
   await command(["docker", "exec", name, "createdb", "-U", "postgres", database]);
 
@@ -180,19 +206,10 @@ async function run(on: boolean, index: number) {
   for (let count = 0; count < 300; count++) await api.getThread({ threadId: seed.thread });
   await Bun.sleep(5000);
 
-  const phases: DiagnosticsPhase[] =
-    process.env["CANOPY_BENCH_ALL_PHASES"] === "1"
-      ? ["idle", "steady", "reconnect", "slow_reader", "write_failure", "pool_contention"]
-      : process.env["CANOPY_BENCH_CONTENTION"] === "1"
-        ? ["write_failure", "pool_contention"]
-        : process.env["CANOPY_BENCH_CHURN"] === "1"
-          ? ["churn"]
-          : process.env["CANOPY_BENCH_EXTRA_PHASES"] === "1"
-            ? ["reconnect", "slow_reader"]
-            : ["idle", "steady"];
+  const phases = selectedPhases();
 
   for (const phase of phases) {
-    host?.assertQuiet();
+    assertRunning();
 
     const {
       latencies,
@@ -214,7 +231,7 @@ async function run(on: boolean, index: number) {
 
         return { beforePg, before, finishContention };
       },
-      host?.signal,
+      host ? AbortSignal.any([host.signal, shutdown.signal]) : shutdown.signal,
     );
 
     const contention = await finishContention?.();
@@ -251,13 +268,16 @@ async function run(on: boolean, index: number) {
         ...workload,
       }),
     );
-    host?.assertQuiet();
+    assertRunning();
   }
 
   await worker.close();
   worker = undefined;
   await active.close();
   active = undefined;
+
+  if (process.env["CANOPY_BENCH_RESOURCES"] === "1")
+    console.info(JSON.stringify({ phase: "storage", on, resolutions: await diagnosticsStorage(env) }));
 
   if (on && process.env["CANOPY_BENCH_HISTORY"] === "1") {
     for (let restart = 0; restart < 3; restart++) {
@@ -270,6 +290,9 @@ async function run(on: boolean, index: number) {
       active = undefined;
     }
   }
+
+  if (on && process.env["CANOPY_BENCH_RESOURCES"] === "1")
+    console.info(JSON.stringify({ phase: "write_accounting", ...(await diagnosticsWrites(env)) }));
 }
 
 try {
@@ -308,8 +331,13 @@ try {
     JSON.stringify({ revision: (await command(["git", "rev-parse", "HEAD"])).trim(), idleMs, loadMs, series }),
   );
 
-  if (process.env["CANOPY_BENCH_SMOKE"] === "1") {
-    console.info(JSON.stringify({ phase: "smoke_only", acceptance: false }));
+  if (process.env["CANOPY_BENCH_SMOKE"] === "1" || process.env["CANOPY_BENCH_RESOURCES"] === "1") {
+    console.info(
+      JSON.stringify({
+        phase: process.env["CANOPY_BENCH_RESOURCES"] === "1" ? "resources_only" : "smoke_only",
+        acceptance: false,
+      }),
+    );
     attempt = 1;
     await run(false, 0);
     await run(true, 0);
@@ -323,7 +351,7 @@ try {
 
         try {
           await Bun.sleep(30_000);
-          host.assertQuiet();
+          assertRunning();
 
           for (const on of process.env["CANOPY_BENCH_CHURN"] === "1"
             ? [true]
