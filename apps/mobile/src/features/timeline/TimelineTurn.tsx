@@ -107,6 +107,7 @@ function WorkRail({
                 running={row.running}
                 icon={row.icon}
                 status={row.status}
+                statusCount={row.statusCount}
                 onToggle={() => onGroup(row.key)}
               />
               {row.rows.map((inner) => (

@@ -8,7 +8,7 @@ import { font, styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { Chevron } from "../../ui/MotionViews";
 import type { WorkSummary } from "./turn-plan";
-import type { ItemStatus } from "@canopy/contracts";
+import { ItemStatus } from "@canopy/contracts";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "../../ui/Icon";
 import { ItemStatusIcon } from "./ItemStatusIcon";
@@ -127,6 +127,7 @@ export function WorkGroup({
   running,
   icon,
   status,
+  statusCount,
   onToggle,
 }: {
   label: string;
@@ -134,22 +135,35 @@ export function WorkGroup({
   running: boolean;
   icon: IconName;
   status: ItemStatus;
+  statusCount: number;
   onToggle: () => void;
 }) {
   const c = useColors();
   const header = useRef<HostInstance>(null);
   const toggle = useAnchoredToggle();
 
+  const state =
+    status === ItemStatus.FAILED
+      ? "failed"
+      : status === ItemStatus.DECLINED
+        ? "declined"
+        : status === ItemStatus.INTERRUPTED
+          ? "interrupted"
+          : status === ItemStatus.IN_PROGRESS
+            ? "running"
+            : "";
+
   return (
     <View ref={header} collapsable={false}>
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={state ? `${label}, ${statusCount} ${state}` : label}
         accessibilityState={{ expanded: open }}
         onPress={() => toggle(header.current, onToggle)}
         style={({ pressed }) => [
           styles.row,
           activityHeader.row,
-          activitySurface(status, c),
+          activitySurface(c),
           { alignItems: "flex-start" },
           pressed && { backgroundColor: c.pressed },
         ]}
@@ -169,8 +183,8 @@ export function WorkGroup({
             {label}
           </Text>
         )}
-        <View style={{ minHeight: 24, width: 104, justifyContent: "center", alignItems: "flex-end", flexShrink: 0 }}>
-          <ItemStatusIcon status={status} />
+        <View style={{ height: 24, width: 40, justifyContent: "center", alignItems: "flex-end", flexShrink: 0 }}>
+          <ItemStatusIcon status={status} count={statusCount} />
         </View>
       </Pressable>
     </View>

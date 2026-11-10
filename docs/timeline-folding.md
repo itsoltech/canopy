@@ -47,9 +47,12 @@ grupy zachowują ikonę rodzaju pracy, mieszane używają listy kroków. Szczeg�
 zachowują dotychczasowy kompaktowy układ.
 
 Rozumowanie ma ikonę żarówki, stałe miejsce na „Thinking” / „Thought” oraz kursywę
-w jednoliniowym podglądzie. Nie dostaje tła narzędzi. Nieudana, odrzucona lub przerwana
-aktywność ma delikatne tło danger i tekstowy status; zwinięta grupa zachowuje status
-najważniejszego problemu. Wcięcia i krawędzie nie zależą od stanu. Reguły grupowania,
+w jednoliniowym podglądzie. Nie dostaje tła narzędzi. Tło i krawędź aktywności pozostają
+neutralne także po błędzie, odrzuceniu i przerwaniu. Kolor ma tylko ikona lub status.
+Zwarta etykieta grupy podaje liczbę elementów ze statusem o najwyższym priorytecie
+(błąd, odrzucenie, przerwanie, działanie); pozostałe stany widać po rozwinięciu.
+Na telefonie widoczna jest ikona i liczba, pełna etykieta pozostaje dostępna dla czytnika.
+Wcięcia i krawędzie nie zależą od stanu. Reguły grupowania,
 klucze wierszy, pamięć rozwinięcia, kotwiczenie i animacje pozostają wspólne.
 
 ## Pozycja przy ręcznym przełączaniu

@@ -120,6 +120,7 @@ export interface WorkGroupSummary {
   label: string;
   icon: IconName;
   status: ItemStatus;
+  statusCount: number;
 }
 
 /** A run's label, kind icon and most important status, sharing one pass through tool descriptions. */
@@ -127,6 +128,7 @@ export function groupSummary(items: readonly Item[]): WorkGroupSummary {
   const counts = new Map<Activity, number>();
   let first: Activity = "item";
   let priority = STATUS_PRIORITY.length - 1;
+  let statusCount = 0;
 
   for (const item of items) {
     const kind = activity(item);
@@ -135,7 +137,10 @@ export function groupSummary(items: readonly Item[]): WorkGroupSummary {
     counts.set(kind, (counts.get(kind) ?? 0) + 1);
     const rank = STATUS_PRIORITY.indexOf(item.status);
 
-    if (rank >= 0) priority = Math.min(priority, rank);
+    if (rank >= 0 && rank <= priority) {
+      statusCount = rank === priority ? statusCount + 1 : 1;
+      priority = rank;
+    }
   }
 
   const label = [...counts]
@@ -150,6 +155,7 @@ export function groupSummary(items: readonly Item[]): WorkGroupSummary {
     label,
     icon: counts.size === 1 ? ACTIVITY_ICONS[first] : "queue-list",
     status: STATUS_PRIORITY[priority] ?? ItemStatus.COMPLETED,
+    statusCount,
   };
 }
 

@@ -66,7 +66,7 @@
 
 <div class="density-work text-base/6 sm:text-sm/5">
   {#if children || nested()}
-    <Disclosure bind:open remember="frame" summaryClass={[activityHeader, activitySurface(status)]}>
+    <Disclosure bind:open remember="frame" summaryClass={[activityHeader, activitySurface]}>
       {#snippet summary()}{@render row()}{/snippet}
       <div class="mt-1 mb-2 grid grid-cols-[minmax(0,1fr)] gap-2 pl-6">
         {@render children?.()}
@@ -76,6 +76,6 @@
       </div>
     </Disclosure>
   {:else}
-    <div class={["rounded-md pl-8", activityHeader, activitySurface(status)]}>{@render row()}</div>
+    <div class={["rounded-md pl-8", activityHeader, activitySurface]}>{@render row()}</div>
   {/if}
 </div>

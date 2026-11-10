@@ -162,6 +162,7 @@
         running={row.running}
         icon={row.icon}
         status={row.status}
+        statusCount={row.statusCount}
         ontoggle={() => ongroup(row.key.replace(/^history:[^:]+:/, ""), row.key)}
       />
     </div>

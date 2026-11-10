@@ -36,6 +36,7 @@ export type WorkRow =
       readonly running: boolean;
       readonly icon: IconName;
       readonly status: ItemStatus;
+      readonly statusCount: number;
       readonly rows: readonly BodyRow[];
     };
 

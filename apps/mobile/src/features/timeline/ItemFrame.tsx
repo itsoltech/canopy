@@ -69,7 +69,7 @@ export function ItemFrame({
     </View>
   );
 
-  if (!body) return <View style={[activityHeader.row, activitySurface(status, c), { paddingLeft: 32 }]}>{row}</View>;
+  if (!body) return <View style={[activityHeader.row, activitySurface(c), { paddingLeft: 32 }]}>{row}</View>;
 
   return (
     <View>
@@ -81,7 +81,7 @@ export function ItemFrame({
           onPress={() => toggle(header.current, () => setOpen(!open))}
           style={({ pressed }) => [
             activityHeader.row,
-            activitySurface(status, c),
+            activitySurface(c),
             { justifyContent: "center" },
             pressed && { backgroundColor: c.pressed },
           ]}

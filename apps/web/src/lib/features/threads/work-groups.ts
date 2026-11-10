@@ -50,6 +50,7 @@ export type FoldedRow =
       readonly running: boolean;
       readonly icon: IconName;
       readonly status: ItemStatus;
+      readonly statusCount: number;
       readonly items: readonly string[];
     }
   | {
