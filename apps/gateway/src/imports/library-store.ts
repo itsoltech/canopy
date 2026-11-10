@@ -30,6 +30,7 @@ export interface LibraryRow {
 }
 
 export interface NewLibraryItem {
+  readonly target?: { readonly [key: string]: JsonValue };
   readonly agentCli: string;
   readonly rootId: string;
   readonly kind: string;
@@ -50,11 +51,11 @@ export const insertLibraryItems = (
     libraryRows(items),
     (json) => sql`
       INSERT INTO import_library_items (id, run_id, owner_user_id, worker_id, position, agent_cli, root_id, kind, name,
-                                        digest, source_key, value, label, action, status)
+                                        digest, source_key, value, label, action, target, status)
       SELECT x.id,${run.id}::uuid,${run.ownerId}::uuid,${run.workerId}::uuid,x.position,x.agent_cli,x.root_id,x.kind,
-        x.name,x.digest,x.source_key,x.value,x.label,x.action,'pending'
+        x.name,x.digest,x.source_key,x.value,x.label,x.action,x.target,'pending'
       FROM jsonb_to_recordset(${json}::jsonb) AS x(id uuid,position integer,agent_cli text,root_id text,kind text,
-        name text,digest text,source_key text,value text,label text,action text)`,
+        name text,digest text,source_key text,value text,label text,action text,target jsonb)`,
   );
 
 function* libraryRows(items: readonly NewLibraryItem[]) {
@@ -71,6 +72,7 @@ function* libraryRows(items: readonly NewLibraryItem[]) {
       value: item.value,
       label: item.label,
       action: item.action,
+      target: item.target ?? {},
     };
   }
 }

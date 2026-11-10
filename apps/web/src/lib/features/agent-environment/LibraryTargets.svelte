@@ -32,7 +32,10 @@
   );
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_tabindex -- Keyboard focus exposes the full computer and tag list. -->
-<span tabindex="0" class={["rounded-sm whitespace-nowrap focus-ring", className]} {@attach tooltip(description)}>
-  {everyone ? "All computers" : `${matching.length} ${matching.length === 1 ? "computer" : "computers"}`}
-</span>
+{#if matching.length}
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -- Keyboard focus exposes the full computer and tag list. -->
+  <span tabindex="0" class={["rounded-sm whitespace-nowrap focus-ring", className]} {@attach tooltip(description)}>
+    On {matching.length}
+    {matching.length === 1 ? "computer" : "computers"}
+  </span>
+{/if}

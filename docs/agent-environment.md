@@ -13,8 +13,10 @@ konfiguracji konta ([wspólna konfiguracja](linked-computers.md#środowisko-agen
 Biblioteki pokazują dwuwierszowe pozycje: nazwa, mały status i ikonowe akcje
 w pierwszej linii; harnessy, wersja, liczba plików, skrócone źródło i polityka
 aktualizacji w drugiej. Nazwy i metadane są przycinane z tooltipem pełnej treści.
-Przypisanie ma jeden skrót: „All computers” albo liczba komputerów; tooltip
-zawiera pełną listę i tagi. Usuwanie wymaga wyboru akcji z menu wiersza.
+Przypisanie pokazuje „On N computers”; tooltip zawiera pełną listę i tagi.
+„Not installed” oznacza, że selektor z nadpisaniami nie pasuje do żadnego komputera.
+Akcja **Install…** otwiera istniejący picker przypisania z domyślnym **All computers**.
+Usuwanie pojedynczej pozycji jest dostępne w menu wiersza.
 Marketplace i jego pluginy używają tego samego układu.
 Dodawanie oraz edycja otwierają wspólny panel krokowy
 oparty o kitowy `Dialog`: na telefonie pełnoekranowy, na większym ekranie modalny.
@@ -35,6 +37,37 @@ Marketplace ma wybór źródła i zamrożony podgląd katalogu. Plugin ma przegl
 kodu/diff, przypisanie oraz osobne, domyślnie niezaznaczone potwierdzenie checksumu.
 Check upstream także otwiera panel. Dotychczasowe porównania i rozwiązywanie driftu
 pozostają przy statusie komputera. Błędy walidacji i zapisu są widoczne w panelu.
+
+Nad bibliotekami znajduje się zwięzłe podsumowanie skilli z potwierdzoną instalacją,
+przypisanych bez aktualnego potwierdzenia synchronizacji i bez instalacji,
+pluginów oczekujących na przegląd oraz dokumentów instrukcji.
+Biblioteka jest wspólna dla konta i połączonych komputerów, ale obecność elementu
+w bibliotece nie instaluje go na workerach. Instalację zleca dopiero przypisanie:
+wszystkie komputery, wybrane workery albo tagi. Licznik przypisań obejmuje także
+komputery offline; nie jest potwierdzeniem zapisu plików.
+
+Wiersze przypisanych elementów oraz **Computers & preview** używają stanów
+**Synced**, **Syncing**, **Error**. **Synced** wymaga aktualnego raportu zastosowania;
+brak raportu, starsza rewizja lub komputer offline oznacza **Syncing**. Błąd
+kompozycji, zapisu lub lokalna zmiana wymagająca decyzji oznacza **Error**.
+Połączony komputer bez pobranego raportu pozostaje w stanie oczekiwania.
+Plugin z katalogu bez zatwierdzonego przypisania pokazuje **Review required**
+i akcję **Review**. Przypisanie nadal wymaga przeglądu i osobnego potwierdzenia checksumu.
+
+Checkboxy skilli pozwalają wybrać wiele pozycji i użyć **Install on…** albo
+**Remove from library**. Podsumowanie udostępnia też instalację wszystkich skilli
+bez pasującego komputera. Obie ścieżki używają tego samego pickera przypisań,
+zachowują nadpisania maszyn i kontrolę rewizji. Zapisy są kolejno wykonywanymi
+RPC, nie jedną transakcją: po błędzie UI pokazuje częściowy wynik. Usunięcie
+z biblioteki usuwa także zarządzane instalacje na przypisanych komputerach.
+
+Panel **Changed on two computers** dotyczy synchronizacji konfiguracji
+połączonych komputerów. Przy usunięciu **Keep** przywraca element do wspólnej
+biblioteki, a **Accept deletion** pozostawia go usuniętego i zamyka powiadomienie.
+Dla wielu usunięć dostępne jest rozstrzygnięcie wszystkich usunięć; konflikty
+wartości nadal wymagają osobnego wyboru. Pusta biblioteka instrukcji i pusty
+podgląd wskazują kolejny krok: dodać dokument i przypisać go komputerowi.
+Web i aplikacja mobilna udostępniają te same akcje.
 
 Po udanym zapisie panel zamyka się, lista przewija do elementu, przenosi fokus
 i krótko wyróżnia jego wiersz. Dodanie fragmentu również przewija i ustawia fokus.

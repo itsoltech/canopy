@@ -1,6 +1,8 @@
 import type { ui } from "@canopy/contracts";
 import { listImportLibrary } from "./api.ts";
 import { suggestedImportKeys } from "@canopy/domain/import-look";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { ui as contracts } from "@canopy/contracts";
 
 /** Kinds that become library skills (a skill name is one skill). */
 const SKILLS: ReadonlySet<string> = new Set(["skill", "command"]);
@@ -19,6 +21,8 @@ export class ImportLibraryState {
   chosen = $state(new Map<string, string>());
   /** key → header names whose value the owner chose to bring from the CLI file (none by default). */
   secrets = $state(new Map<string, ReadonlySet<string>>());
+  installTarget = $state("source");
+  selector = $state(create(contracts.EnvironmentSelectorSchema, { everyone: true }));
 
   async load(scanId: string): Promise<void> {
     this.loading = true;
@@ -41,6 +45,8 @@ export class ImportLibraryState {
     this.items = [];
     this.chosen = new Map();
     this.error = "";
+    this.installTarget = "source";
+    this.selector = create(contracts.EnvironmentSelectorSchema, { everyone: true });
   }
 
   /** Items that can be imported now: new ones and conflicts. */
@@ -81,8 +87,20 @@ export class ImportLibraryState {
     return this.chosen.get(key) ?? "";
   }
 
-  choices(): { key: string; action: string; secrets: string[] }[] {
-    return [...this.chosen].map(([key, action]) => ({ key, action, secrets: [...(this.secrets.get(key) ?? [])] }));
+  choices(): MessageInitShape<typeof contracts.ImportLibraryChoiceSchema>[] {
+    return [...this.chosen].map(([key, action]) => ({
+      key,
+      action,
+      secrets: [...(this.secrets.get(key) ?? [])],
+      skillSelector:
+        this.items.some((i) => i.key === key && SKILLS.has(i.kind)) &&
+        this.installTarget !== "source" &&
+        action !== "replace"
+          ? this.installTarget === "all"
+            ? { everyone: true }
+            : this.selector
+          : undefined,
+    }));
   }
 
   hasSecret(key: string, name: string): boolean {

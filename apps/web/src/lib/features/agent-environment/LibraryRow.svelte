@@ -13,6 +13,7 @@
     status,
     targets,
     actions,
+    selection,
     onedit,
     onremove,
     disabled = false,
@@ -26,6 +27,7 @@
     status: Snippet;
     targets?: Snippet;
     actions?: Snippet;
+    selection?: Snippet;
     onedit: () => void;
     onremove?: () => void;
     disabled?: boolean;
@@ -40,17 +42,18 @@
   data-library-row
   class={["grid min-w-0 gap-0.5 rounded-lg py-2", className]}
 >
-  <div class="flex min-w-0 items-center gap-2">
+  <div class="flex min-w-0 flex-wrap items-center gap-2">
+    {#if selection}{@render selection()}{/if}
     <button
       type="button"
       data-item-focus
       {disabled}
-      class="min-w-0 flex-1 truncate rounded-md text-left text-sm/6 font-medium focus-ring hover:text-accent disabled:opacity-50"
+      class="min-w-0 flex-1 basis-1/2 truncate rounded-md text-left text-sm/6 font-medium focus-ring hover:text-accent disabled:opacity-50 sm:basis-0"
       onclick={onedit}
       {@attach tooltip(name)}>{name}</button
     >
     <div class="min-w-0 shrink-0">{@render status()}</div>
-    <div class="flex shrink-0 items-center gap-0.5 pointer-coarse:gap-3">
+    <div class="flex shrink-0 items-center justify-end gap-0.5 max-sm:basis-full pointer-coarse:gap-3">
       {#if actions}{@render actions()}{/if}
       <IconButton icon="pencil-square" label={editLabel} size="sm" {disabled} onclick={onedit} />
       {#if onremove}<DropdownMenu label="Item actions" placement="bottom-end">

@@ -29,7 +29,7 @@
 <div class={["grid gap-4", className]}>
   <Checkbox
     name="environment-everyone"
-    label="Every computer"
+    label="All computers"
     description="Includes computers added later."
     bind:checked={selector.everyone}
   />

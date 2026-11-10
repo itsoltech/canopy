@@ -9,6 +9,7 @@
   import InstructionDiff from "./InstructionDiff.svelte";
   import ComputerSkills from "./ComputerSkills.svelte";
   import type { EnvironmentState } from "./environment-state.svelte.ts";
+  import { workerSyncState } from "@canopy/domain/environment-library";
 
   let {
     worker,
@@ -22,6 +23,12 @@
 </script>
 
 <div class={["settings-stack", className]}>
+  <div role="status">
+    <Badge
+      tone={workerSyncState(worker) === "Synced" ? "emerald" : workerSyncState(worker) === "Error" ? "rose" : "neutral"}
+      >{workerSyncState(worker)}</Badge
+    >
+  </div>
   <div class="grid gap-3">
     <div class="flex flex-wrap gap-1.5" aria-label="Worker tags">
       {#each worker.automaticTags as tag (tag)}<Badge class="max-w-full break-all whitespace-normal">{tag}</Badge
@@ -43,7 +50,7 @@
       >Local instructions are kept on this computer. Compare versions below to return to the library.</Alert
     >
   {:else if problems.length === 0}<p class="text-base text-emerald-700 sm:text-sm dark:text-emerald-400">
-      Up to date · New agent sessions use the saved instructions.
+      New agent sessions use the saved instructions.
     </p>{/if}
   <InstructionPreview {worker} draft={environment.draft} />
   <section aria-label="Files on this computer" class="grid min-w-0 gap-4">

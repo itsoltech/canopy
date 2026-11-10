@@ -6,6 +6,7 @@ import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { EnvironmentFiles } from "./EnvironmentFiles";
 import { VersionComparison } from "./VersionComparison";
+import { workerSyncState } from "@canopy/domain/environment-library";
 
 export function EnvironmentComputer({
   worker,
@@ -53,6 +54,7 @@ export function EnvironmentComputer({
 
   return (
     <ResourceState resource={resource}>
+      <SettingsValue title="Sync status" value={workerSyncState(worker)} />
       <SettingsValue title="Automatic tags" value={worker.automaticTags.join(", ")} />
       <SettingsValue title="Manual tags" value={worker.manualTags.join(", ")} />
       <Link href="/settings?section=workers">Edit in Workers</Link>
@@ -66,6 +68,9 @@ export function EnvironmentComputer({
         <Notice>Waiting for this computer to report the saved instructions.</Notice>
       ) : (
         <Notice>New agent sessions use the saved instructions after sync.</Notice>
+      )}
+      {!worker.preview.some((item) => item.content) && (
+        <Notice>Add a document and assign it to see what agents receive.</Notice>
       )}
       {worker.preview.map((item, index) => (
         <SettingsValue

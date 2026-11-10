@@ -7,6 +7,7 @@ import { ResourceState } from "../settings/resource";
 import { ImportLibraryChoices } from "./ImportLibraryChoices";
 import { ImportThreadChoices } from "./ImportThreadChoices";
 import { useImportDraft } from "./useImportDraft";
+import { ImportSkillInstall } from "./ImportSkillInstall";
 
 export function ImportReview({ scan, onStarted }: { scan: ui.ScanImportResponse; onStarted: () => void }) {
   const draft = useImportDraft(scan, onStarted);
@@ -69,6 +70,7 @@ export function ImportReview({ scan, onStarted }: { scan: ui.ScanImportResponse;
         <ImportThreadChoices draft={draft} workerId={scan.workerId} />
       </SettingsGroup>
       <ResourceState resource={library}>
+        <ImportSkillInstall draft={draft} />
         <ImportLibraryChoices
           items={library.data?.items ?? []}
           choices={draft.choices}

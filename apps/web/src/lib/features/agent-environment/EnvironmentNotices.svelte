@@ -6,4 +6,4 @@
   const kinds = new Set(["instruction", "skill", "marketplace", "plugin"]);
 </script>
 
-<ConfigNotices match={(n) => kinds.has(n.kind)} {onchange} />
+<ConfigNotices match={(n) => kinds.has(n.kind)} library {onchange} />

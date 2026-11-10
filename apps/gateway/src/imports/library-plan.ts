@@ -1,8 +1,9 @@
-import type { ImportLibraryItem, ui } from "@canopy/contracts";
+import { ui, type ImportLibraryItem } from "@canopy/contracts";
 import { InvalidError } from "../core/core-context.ts";
 import { choosable } from "./library.ts";
 import type { NewLibraryItem } from "./library-store.ts";
 import { unsafeConnectorUrl, unsafeMarketplaceSource } from "./library-kinds.ts";
+import { toJson } from "@bufbuild/protobuf";
 
 /**
  * The settings and library items of StartImport (docs/import.md, "Ustawienia i biblioteka"): only keys of the scan
@@ -64,6 +65,9 @@ export function planLibrary(
     if (choice.secrets.some((name) => !literal.has(name)) || new Set(choice.secrets).size !== choice.secrets.length)
       throw new InvalidError(`Choose only headers of ${candidate.name} that have a value in the CLI file.`);
 
+    if (choice.skillSelector && !SKILLS.has(item.kind))
+      throw new InvalidError("Choose installation computers only for skills.");
+
     return {
       agentCli: item.agentCli,
       rootId: item.rootId,
@@ -74,6 +78,10 @@ export function planLibrary(
       value: valueOf(item, candidate, choice.secrets),
       label: candidate.name,
       action,
+      target:
+        choice.skillSelector && action !== "replace"
+          ? { selector: toJson(ui.EnvironmentSelectorSchema, choice.skillSelector) }
+          : {},
     };
   });
 

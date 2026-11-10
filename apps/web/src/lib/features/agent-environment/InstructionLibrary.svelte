@@ -39,7 +39,7 @@
       >
         {#snippet status()}
           <ItemStatus
-            workers={state.snapshot.workers}
+            workers={state.workers}
             selector={document.selector}
             disabled={document.overrides.filter((o) => o.disabled).map((o) => o.workerId)}
             kind="instructions"
@@ -49,7 +49,7 @@
         {/snippet}
         {#snippet targets()}<LibraryTargets
             selector={document.selector}
-            workers={state.snapshot.workers}
+            workers={state.workers}
             disabled={document.overrides.filter((o) => o.disabled).map((o) => o.workerId)}
           />{/snippet}
       </LibraryRow>
@@ -57,7 +57,7 @@
       <div class="grid gap-3 rounded-xl bg-zinc-950/3 p-5 dark:bg-white/4">
         <h3 class="font-medium text-balance">Make every agent feel at home</h3>
         <p class="text-base text-pretty text-muted sm:text-sm">
-          Add your working style, write instructions, then choose the tags or computers that receive them.
+          Add a document and assign it to see what agents receive.
         </p>
         <div><Button onclick={() => state.edit()}>Add your first document</Button></div>
       </div>
