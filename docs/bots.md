@@ -895,12 +895,15 @@ ustawieniach i przy przenoszeniu bota, gdzie wskazuje miejsce wykonywania akcji.
 - **Dymki** (`ChatBubble`, `MessageRow`): Twoje wiadomości w ciemnym neutralnym kolorze
   (zinc‑900; w trybie ciemnym jasne zinc‑100), bota na miękkiej szarości (zinc‑100 / zinc‑800).
   Kolejne wiadomości jednego nadawcy w odstępie < 5 min tworzą serię: mniejsze odstępy,
-  ciaśniejsze narożniki od strony sąsiadów, awatar tylko przy ostatniej. Szerokość dymków
+  ciaśniejsze narożniki od strony sąsiadów, awatar tylko przy ostatniej. Maksymalna szerokość dymków
   bota i kart pytań/zgód podąża za Appearance → Chat width: 90% kolumny domyślnej
   (48rem), 92% szerszej (60rem). W trybie Full rozmowa i kompozytor są wyśrodkowane
   w kolumnie do 72rem, z dymkami do 92%, aby strony rozmowy nie rozchodziły się na krańce
-  ekranu. Na telefonie wykorzystują dostępną szerokość. Dymek bota ma szerokość niezależną
-  od długości tekstu, również podczas strumieniowania; miejsce na akcje jest zarezerwowane.
+  ekranu. Na telefonie ogranicza je dostępna szerokość. Krótkie wiadomości obu stron dopasowują
+  szerokość do treści, również w seriach jednego nadawcy; karty zachowują wspólną szerokość.
+  Podczas strumieniowania dymek może rosnąć, ale zachowuje największą osiągniętą szerokość,
+  aby ponowne parsowanie markdown nie powodowało zwężania. Limit nadal reaguje na zmianę
+  szerokości okna. Po zakończeniu odpowiedź dopasowuje się do treści; miejsce na akcje jest zarezerwowane.
   Akapity i listy markdown mają limit 78ch, tabele i kod korzystają z całej szerokości dymka.
   Twoje wiadomości pozostają po prawej, do 36rem. Inne boty wymienione z nazwy w tekście są
   chipami z awatarem w ich kolorze (`BotChip`, `mentions.ts`). W Twoich wiadomościach chipy
