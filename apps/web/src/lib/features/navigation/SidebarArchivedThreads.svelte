@@ -14,7 +14,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import SidebarArchivedSkeleton from "./SidebarArchivedSkeleton.svelte";
   import SidebarArchivedThread from "./SidebarArchivedThread.svelte";
-  import { ArchivedThreadsPager, type ArchivedPageState } from "@canopy/domain/archived-threads";
+  import { ArchivedThreadsPager, changesArchived, type ArchivedPageState } from "@canopy/domain/archived-threads";
   import SidebarThreadChildren from "./SidebarThreadChildren.svelte";
   import { collapsedArchivedThread, isArchivedSidebarThread, sidebarChildren } from "@canopy/domain/sidebar-threads";
 
@@ -81,13 +81,16 @@
     shown.before = roots.length;
   });
 
-  // Refresh the same number of loaded pages after lifecycle/title/project changes. Reconnects also
+  // Refresh the same number of loaded pages after lifecycle/title/project changes that reach the archive. Reconnects also
   // invalidate cursors; generations in the pager discard responses for an old filter or disclosure.
   $effect(() => {
     let timer: ReturnType<typeof setTimeout>;
 
-    const unsubscribe = overview.subscribe((update) => {
-      if (update.change.case !== "thread" && update.change.case !== "project") return;
+    // Listeners run before the index applies the update, so it still holds the thread as it was.
+    const unsubscribe = overview.subscribe(({ change }) => {
+      if (change.case !== "thread" && change.case !== "project") return;
+
+      if (change.case === "thread" && !changesArchived(change.value, (id) => overview.threads.get(id))) return;
       clearTimeout(timer);
       timer = setTimeout(() => revision++, 100);
     });

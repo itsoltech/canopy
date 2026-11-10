@@ -9,7 +9,9 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import SidebarThreadChildren from "./SidebarThreadChildren.svelte";
   import SidebarThread from "./SidebarThread.svelte";
-  import { sidebarThreads, sidebarChildren } from "@canopy/domain/sidebar-threads";
+  import { sidebarThreads } from "@canopy/domain/sidebar-threads";
+  import { sameSidebarRow, sidebarRows, type SidebarRow } from "@canopy/domain/sidebar-rows";
+  import { Keyed } from "#lib/shared/keyed.svelte.ts";
   import SidebarArchivedThreads from "./SidebarArchivedThreads.svelte";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
@@ -66,8 +68,6 @@
     }),
   );
 
-  const rootIds = $derived(new Set(filtered.roots.map((t) => t.id)));
-
   let workingOpen = $state(false);
   const entries = $derived(sidebarEntries(filtered, settings.sidebar, overview.projectChoices, workingOpen));
 
@@ -84,7 +84,18 @@
     return order;
   });
 
-  const byKey = $derived(new Map(entries.map((entry) => [entry.key, entry])));
+  // Every event replaces the thread index, so a row reading the whole list would rerun with every event (hundreds of
+  // rows). Each row reads only its own slot, written when something the row shows changed.
+  const rows = new Keyed<SidebarRow>(sameSidebarRow);
+
+  $effect.pre(() => {
+    rows.sync(
+      sidebarRows(entries, filtered, openTree, {
+        project: (id) => overview.project(id),
+        worker: (id) => overview.worker(id),
+      }).map((row) => [row.key, row]),
+    );
+  });
 
   // About a screenful of rows renders with the list, the rest a few at a time when the browser is idle: the
   // frame that shows the sidebar does not also build every row's menu and preview card, and no chunk holds
@@ -125,23 +136,26 @@
   {:else}
     <ul role="list" class="grid gap-0.5" aria-label="Thread inbox">
       {#each shown as key, index (key)}
-        {@const entry = byKey.get(key)}
-        <li animate:reorder in:rise={{ delay: stagger(index), instant: !filled }} out:expand>
+        {@const entry = rows.get(key)}
+        <li
+          class={entry?.thread && "sidebar-entry"}
+          animate:reorder
+          in:rise={{ delay: stagger(index), instant: !filled }}
+          out:expand
+        >
           {#if entry?.thread}
-            {@const thread = entry.thread}
-            {@const children = filtered.sides.get(thread.id) ?? []}
-            {@const { sides, subagentsNeedingInput } = sidebarChildren(children, rootIds)}
+            {@const { thread, sides } = entry}
             <div class="relative">
               <SidebarThread
                 {thread}
-                {subagentsNeedingInput}
-                project={overview.project(thread.projectId)}
-                worker={overview.worker(thread.workerId)}
-                sides={openTree === thread.id ? 0 : sides.active.length}
+                subagentsNeedingInput={entry.subagentsNeedingInput}
+                project={entry.project}
+                worker={entry.worker}
+                sides={entry.open ? 0 : sides.active.length}
                 current={thread.id === currentThreadId}
               />
             </div>
-            {#if openTree === thread.id && (sides.active.length || sides.previous.length)}
+            {#if entry.open && (sides.active.length || sides.previous.length)}
               <SidebarThreadChildren {sides} title={thread.title} {currentThreadId} class="mt-0.5 mb-1 ml-5" />
             {/if}
           {:else if entry?.working}<Button

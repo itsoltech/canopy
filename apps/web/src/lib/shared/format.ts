@@ -23,9 +23,23 @@ export function clockOptions(): Intl.DateTimeFormatOptions {
 }
 
 const date = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+/** One formatter per locale and options: creating one costs far more than formatting, and lists format per row. */
+function dateTimeFormat(locale: string | undefined, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${locale ?? ""}|${JSON.stringify(options)}`;
+  let formatter = formatters.get(key);
+
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options);
+    formatters.set(key, formatter);
+  }
+
+  return formatter;
+}
 
 export const formatLocalDateTime = (value: Date, timeZone?: string): string =>
-  new Intl.DateTimeFormat(undefined, {
+  dateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
     ...clockOptions(),
@@ -38,14 +52,14 @@ export const formatDateTime = (timestamp: Timestamp | undefined, timeZone?: stri
 /** English date text with the device's selected clock and local time zone. */
 export const formatEnglishDateTime = (timestamp: Timestamp | undefined): string =>
   timestamp
-    ? new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", ...clockOptions() }).format(
+    ? dateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", ...clockOptions() }).format(
         timestampDate(timestamp),
       )
     : "";
 
 export const formatTime = (timestamp: Timestamp | undefined, timeZone?: string): string =>
   timestamp
-    ? new Intl.DateTimeFormat(undefined, {
+    ? dateTimeFormat(undefined, {
         timeStyle: "short",
         ...clockOptions(),
         ...(timeZone && { timeZone }),

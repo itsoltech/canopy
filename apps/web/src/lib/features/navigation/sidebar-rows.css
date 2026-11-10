@@ -12,6 +12,20 @@
   --text-xs: var(--type-sidebar-meta);
 }
 
+/* Inbox rows off screen skip style, layout and paint (docs/client-performance.md). Until a row was laid out once,
+   it counts as one row of the inbox. Focus rings outside the row stay visible. */
+.sidebar-entry {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 5.125rem;
+  overflow-clip-margin: 0.25rem;
+}
+
+@media (width >= 40rem) {
+  .sidebar-entry {
+    contain-intrinsic-size: auto 4.875rem;
+  }
+}
+
 .sidebar-row [data-project-mark],
 .sidebar-project-choice [data-project-mark],
 .sidebar-row-activity {

@@ -12,6 +12,8 @@
     "./composer-choices": "./src/composer-choices.ts",
     "./sidebar-threads": "./src/sidebar-threads.ts",
     "./sidebar-entries": "./src/sidebar-entries.ts",
+    "./sidebar-rows": "./src/sidebar-rows.ts",
+    "./same-items": "./src/same-items.ts",
     "./archived-threads": "./src/archived-threads.ts",
     "./thread-activity": "./src/thread-activity.ts",
     "./subagents": "./src/subagents.ts",
