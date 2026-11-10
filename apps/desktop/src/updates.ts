@@ -19,7 +19,7 @@ export class DesktopUpdates {
     return (this.checkSettings ??= new UpdateCheckSettings(app.getPath("userData")));
   }
   private readonly identity = desktopIdentity();
-  private readonly feed = new DesktopUpdateFeed();
+  private readonly feed = new DesktopUpdateFeed(() => app.getVersion());
   private updater = createAppUpdater();
   private stagedUpdater = this.updater;
   private wakeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -97,13 +97,15 @@ export class DesktopUpdates {
     return this.controller;
   }
   status() {
+    const state = this.control.status();
+
     return {
-      ...this.control.status(),
+      ...state,
       checkIntervalMinutes: this.schedule.minutes,
       lastCheckedAt: this.schedule.lastChecked,
       ...(this.enabled &&
         this.schedule.minutes !== 0 && {
-          nextCheckAt: nextUpdateCheck(this.schedule.lastChecked, this.schedule.minutes, Date.now()),
+          nextCheckAt: state.retryAt ?? nextUpdateCheck(this.schedule.lastChecked, this.schedule.minutes, Date.now()),
         }),
     };
   }

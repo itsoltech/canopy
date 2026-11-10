@@ -564,6 +564,16 @@ jobs:
       - name: Image channel aliases (forward only)
         run: GITHUB_SHA="$EXPECTED_SHA" bun scripts/image-aliases.ts
 
+  release-index:
+    needs: [release, publish-desktop]
+    uses: ./.github/workflows/pages.yml
+    with:
+      release_tag: ${{ needs.release.outputs.tag }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
   backmerge:
     needs: [release, publish-desktop]
     if: needs.release.outputs.channel == 'stable'

@@ -883,7 +883,7 @@ najnowszą najpierw, według wybranego kanału. Sprawdzanie respektuje reduced m
 Brak feedu platformy dla nowszego wydania jest wyjaśniony osobnym komunikatem;
 nie oznacza braku nowej wersji serwera. Web bez bridge nie pokazuje sekcji własnej aplikacji.
 
-`electron-updater` **6.8.3** sprawdza publiczne GitHub Releases przy starcie i domyślnie co
+Resolver Canopy czyta indeks GitHub Pages przy starcie i domyślnie co
 6 godzin, także po pobraniu gotowej paczki. Settings → **App updates** pozwala zmienić
 częstotliwość (Never wyłącza automatyczne sprawdzanie i pobieranie) i pokazuje
 wersję/kanał buildu, własny combobox Stable/Beta/Nightly, Check for updates,
@@ -1012,8 +1012,13 @@ Squirrel weryfikuje nowy. Od tej wersji binarka z `resources/runtime/` zawsze ma
 sprawdzeniem wymagania (`--test-requirement` bez `=`) nie aktualizują się wcale: trzeba raz
 zainstalować nowy DMG ręcznie.
 
-Resolver wybiera najwyższą wersję SemVer z publicznych GitHub Releases (do 1000
-ostatnich), bez draftów, z feedem platformy i końcowym `manifest.json`.
+Resolver wybiera najwyższą wersję SemVer ze statycznego indeksu
+`https://itsoltech.github.io/canopy/releases/v1.json`, bez draftów, z feedem platformy
+i końcowym `manifest.json`. Wspólny klient metadanych ma cache 15 min, ETag i deduplikację;
+sprawdzenie z połączonego komputera korzysta z tego samego klienta co lokalne.
+Tylko awaria indeksu uruchamia fallback do REST API, z backoffem według nagłówków
+limitu. UI pokazuje „Checks paused” i czas następnej próby, bez „Failed”.
+Gotowy instalator zachowuje możliwość restartu. Szczegóły: [updates.md](updates.md#release-i-mirror).
 Przekazuje niezmienny URL konkretnego release do generic providera electron-updater.
 Nie używa zmiennego GitHub `/latest`, który nie obsługuje poprawnie nightly.
 

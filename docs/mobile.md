@@ -466,7 +466,10 @@ bez treści szkiców; uwzględnia też kompozytory pozostawione pod Settings.
 Wiersz pokazuje kanał, skrócone ID działającego OTA, datę oraz wersję docelowego JS
 z `manifest.extra.expoClient.extra.canopyVersion`. Wbudowany bundle ma status `Bundled`,
 klient developerski `Development build` bez akcji aktualizacji. „Read release notes”
-odczytuje treść dokładnego tagu z GitHub Releases, tego samego źródła co changelog desktopu.
+odczytuje treść dokładnego tagu ze statycznego indeksu GitHub Pages, tego samego źródła
+co changelog desktopu. Cache, ETag i fallback z backoffem opisuje
+[updates.md](updates.md#release-i-mirror). Limit sprawdzeń aplikacji komputerów ma
+neutralny stan „Checks paused” z czasem wznowienia.
 Nie zastępuje jej nowszym wydaniem kanału, które może nie być zgodne z runtime telefonu.
 Przy rollbacku lub braku metadanych pokazuje brak notatek i link do wydań;
 błąd sieci pozwala ponowić odczyt.

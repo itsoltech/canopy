@@ -24,6 +24,8 @@ import type { UpdatePersistence, WorkerUpdateRow } from "./persistence.ts";
 import { GatewayUpdateService } from "./service.ts";
 import { GatewayReleaseMirror, UpdateCache } from "./cache.ts";
 import { updateBusyState, versionAhead } from "./versions.ts";
+import { ReleaseRateLimit } from "@canopy/domain/release/http";
+import { workerUpdateSnapshot } from "./worker-snapshot.ts";
 
 export interface GatewayUpdatesOptions {
   persistence: Pick<
@@ -63,6 +65,7 @@ export class GatewayUpdates {
   #checkedAt = "";
   #checkError = "";
   #timer: ReturnType<typeof setInterval> | undefined;
+  #retryTimer: ReturnType<typeof setTimeout> | undefined;
   #stopping = new AbortController();
   #draining = false;
   #ready = false;
@@ -130,6 +133,7 @@ export class GatewayUpdates {
     this.#ready = false;
 
     if (this.#timer) clearInterval(this.#timer);
+    clearTimeout(this.#retryTimer);
     this.#stopping.abort();
     this.service.close();
     this.#cache.close();
@@ -173,6 +177,7 @@ export class GatewayUpdates {
 
     return (this.#checking ??= (async () => {
       try {
+        clearTimeout(this.#retryTimer);
         this.#available = await this.source.resolve(this.#channel);
         this.#checkError = "";
 
@@ -184,6 +189,11 @@ export class GatewayUpdates {
           });
         }
       } catch (error) {
+        if (error instanceof ReleaseRateLimit && !this.#stopping.signal.aborted) {
+          this.#retryTimer = setTimeout(() => void this.check(), Math.max(0, error.retryAt - Date.now()));
+          this.#retryTimer.unref?.();
+        }
+
         this.#checkError = error instanceof Error ? error.message : "Could not check releases";
 
         if (!["waiting_idle", "downloading", "restarting", "failed"].includes(this.#state))
@@ -216,37 +226,9 @@ export class GatewayUpdates {
       checkedAt: this.#checkedAt,
       checkError: this.#checkError,
       gatewayBundled: !!this.options.bundled,
-      workers: workers.map((w) => ({
-        workerId: w.id,
-        name: w.name,
-        bundled: !!this.options.bundled && w.bundled === true,
-        version: w.version,
-        installKind: w.status.installKind ?? "unknown",
-        compatibility: workerLinkCompatible(w.status.minWorkerLinkProtocol ?? 0, w.status.workerLinkProtocol ?? 0)
-          ? "compatible"
-          : "update_required",
-        ...(this.#ahead(w.version) && !updateBusyState(w.status.state)
-          ? {
-              // Newer than this gateway (e.g. a desktop app on a newer channel): nothing to do here; never a downgrade.
-              state: "ahead",
-              reason: `Newer than this gateway. Update the gateway to ${w.version} or later.`,
-            }
-          : {
-              state:
-                w.status.state === "succeeded" && w.version !== this.version
-                  ? "idle"
-                  : (w.status.state ??
-                    (w.status.installKind && w.status.installKind !== "binary" ? "managed_externally" : "idle")),
-              reason:
-                w.status.reason ??
-                (w.status.installKind && w.status.installKind !== "binary"
-                  ? managedInstructions(w.status.installKind)
-                  : !w.status.installKind
-                    ? "This worker has not reported to the update channel. Older installations need one manual upgrade."
-                    : ""),
-            }),
-        connected: this.service.connections.has(w.id),
-      })),
+      workers: workers.map((w) =>
+        workerUpdateSnapshot(w, this.version, !!this.options.bundled, this.service.connections.has(w.id)),
+      ),
     });
   }
   async manage(request: ui.ManageUpdatesRequest): Promise<ui.UpdatesSnapshot> {

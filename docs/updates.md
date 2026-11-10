@@ -101,8 +101,10 @@ potwierdzenia. Wyniki przebiegu można rozwinąć tylko, gdy istnieją kroki.
 Brak notatek wydania (także pusty wynik lub niedostępne źródło) ukrywa
 „What’s new”; interfejs nie pokazuje pustych akordeonów ani objaśnień tego braku.
 
-Proces main pobiera publiczne GitHub Releases bez tokena, z paginacją i cache
-60 sekund. Notatki obejmują `(wersja zainstalowana, wersja pobierana]`, zgodnie
+Proces main, gateway i web BFF czytają statyczny indeks wydań z CDN GitHub Pages,
+bez tokena i bez limitu REST API. Każdy proces współdzieli cache 15 min oraz trwające
+żądania między oknami, kartami i sprawdzeniami z połączonych komputerów.
+Notatki obejmują `(wersja zainstalowana, wersja pobierana]`, zgodnie
 z wybranym kanałem, w malejącej kolejności SemVer. Istniejący renderer Markdown
 nie wstrzykuje HTML, ogranicza schematy linków i nie ładuje obrazów. Retencja
 nightly może usunąć starsze notatki; panel jawnie wskazuje to ograniczenie.
@@ -418,7 +420,30 @@ Nie ma możliwości zdalnego dodania kanału do procesu, który go jeszcze nie z
 
 ## Release i mirror
 
-Źródło domyślne: `https://api.github.com/repos/itsoltech/canopy/releases…`.
+Źródło domyślne: `https://itsoltech.github.io/canopy/releases/v1.json`.
+Wersjonowany indeks (`schema: 1`, `releases`) zawiera tag, flagę prerelease,
+czas publikacji, notatki i listę nazw/URL-i wszystkich assetów, w tym `manifest.json`.
+Nie zastępuje manifestu, hashy ani weryfikacji podpisów instalatora i przypiętego TLS.
+Klient odrzuca drafty, duplikaty tagów, nieznany schemat, błędne daty i niebezpieczne URL-e.
+
+Tylko niedostępny lub błędny indeks uruchamia fallback do publicznego REST API.
+Brak kanału lub dokładnego tagu w poprawnym indeksie nie wywołuje API.
+Jawny mirror `baseUrl` zachowuje układ API; może wskazać własne `indexUrl`.
+Cache metadanych trwa 15 min; po jego wygaśnięciu klient wysyła `If-None-Match`,
+a `304` zachowuje poprzednią treść. Równoległe żądania tego samego URL-a są scalane.
+Manifest konkretnego, niezmiennego wydania ma cache w resolverze; błędy nie zostają w nim.
+
+`403` z `x-ratelimit-remaining: 0` lub `retry-after`, a także `429`, zatrzymuje
+żądania całego hosta API do późniejszego z resetu i Retry-After (minimum 60 s).
+UI pokazuje neutralne „Checks paused” oraz „GitHub is limiting update checks from this network.
+Next check at ….” z czasem i strefą. Ręczne/zdalne ponowienia nie omijają blokady;
+automatyczne sprawdzanie wraca po resecie. Never nadal wyłącza automatyczne próby desktopu.
+Gotowy instalator pozostaje dostępny. Raport partnera przekazuje komunikat istniejącym
+`updater_error` bez zmiany faz ani protokołów; nowy klient mapuje go na stan neutralny.
+Cache i backoff są procesowe, restart procesu je zeruje. Stare klienty nadal używają API.
+Notatki Claude/Codex nadal pochodzą z API dostawcy, ale współdzielą ten sam cache,
+ETag i backoff hosta w BFF. Telefon czyta notatki konkretnej wersji z indeksu.
+
 Kanały: `stable` wybiera najwyższe stabilne semver, `beta` najwyższe ze stable/beta,
 `nightly` najwyższe ze wszystkich wydań (z paginacją i porównaniem semver, nie datą publikacji).
 `vX` / `vX.Y` wybierają najwyższe stable z prefiksem, `vX.Y.Z` wskazuje dokładny stabilny tag

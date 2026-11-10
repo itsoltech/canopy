@@ -2,6 +2,7 @@ import type { ui } from "@canopy/contracts";
 import { compareVersions } from "@canopy/updater/release";
 import { presenceLabel, formatPresenceTime } from "@canopy/domain/computer-presence";
 import { Match } from "effect";
+import { appCheckPause } from "@canopy/domain/release/update-actions";
 
 const newerVersion = (target: string, current: string): boolean => {
   try {
@@ -101,6 +102,9 @@ export function computerUpdate(computer: ui.ComputerUpdate, time = formatPresenc
   const requested = REQUESTED.includes(app.phase);
   // Its own updater, unless a requested update runs or failed; empty from apps that don't report it.
   const own = requested || app.phase === "failed" ? "" : app.updaterPhase;
+  const paused = appCheckPause(app);
+
+  if (paused && !failedDeparture) return { ...base, status: "Checks paused", detail: paused };
   const downloading = app.phase === "downloading" || own === "downloading";
   const ready = app.ready || own === "downloaded";
 

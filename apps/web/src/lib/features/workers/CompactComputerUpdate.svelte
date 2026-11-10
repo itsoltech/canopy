@@ -29,6 +29,7 @@
   status={view.status}
   tone={updateTone(view)}
   detail={view.detail}
+  notice={view.status === "Checks paused" ? view.detail : ""}
   error={view.failed ? view.detail : ""}
   busy={view.busy}
   progress={view.progress}

@@ -4,6 +4,7 @@
   import UpdateItem from "./UpdateItem.svelte";
   import { gatewayCurrent } from "./compact-updates.ts";
   import { updateBusy, updateStateLabel, updateTone, type UpdatesState } from "./updates.svelte.ts";
+  import { isRateLimitMessage } from "@canopy/domain/release/http";
 
   let { updates, class: className }: { updates: UpdatesState; class?: ClassValue } = $props();
   const snapshot = $derived(updates.snapshot);
@@ -24,15 +25,18 @@
       ? "Checking"
       : busy || snapshot.gatewayState === "failed"
         ? updateStateLabel(snapshot.gatewayState, true)
-        : external && snapshot.gatewayUpdateAvailable
-          ? "Managed externally"
-          : current
-            ? "Up to date"
-            : snapshot.gatewayUpdateAvailable
-              ? "Available"
-              : "Not checked"}
+        : isRateLimitMessage(snapshot.checkError)
+          ? "Checks paused"
+          : external && snapshot.gatewayUpdateAvailable
+            ? "Managed externally"
+            : current
+              ? "Up to date"
+              : snapshot.gatewayUpdateAvailable
+                ? "Available"
+                : "Not checked"}
     tone={updateTone({ failed: snapshot.gatewayState === "failed", busy, current })}
     error={snapshot.gatewayState === "failed" ? reason : ""}
+    notice={isRateLimitMessage(snapshot.checkError) ? snapshot.checkError : ""}
     {busy}
     class={className}
   >

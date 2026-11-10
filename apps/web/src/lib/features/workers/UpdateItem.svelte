@@ -18,6 +18,7 @@
     status,
     tone = "neutral",
     detail = "",
+    notice = "",
     error = "",
     busy = false,
     progress,
@@ -33,6 +34,7 @@
     status: string;
     tone?: Tone;
     detail?: string;
+    notice?: string;
     error?: string;
     busy?: boolean;
     progress?: number;
@@ -67,6 +69,7 @@
     </div>
   </div>
   {#if busy}<UpdateProgress label={`${name}: ${status}`} value={progress} class="mt-1.5 ml-6" />{/if}
+  {#if notice}<p class="mt-1 ml-6 text-xs/5 wrap-anywhere text-muted" role="status">{notice}</p>{/if}
   {#if error}
     <Disclosure class="mt-1 ml-6" summaryClass="text-xs/5 text-rose-600 dark:text-rose-400">
       {#snippet summary()}<span class="break-anywhere line-clamp-2">{error}</span>{/snippet}

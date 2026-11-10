@@ -45,25 +45,28 @@
     metadata={updateCheckLabel(status.lastCheckedAt, presenceTime)}
     status={status.phase === "downloaded"
       ? "Ready"
-      : status.phase === "downloading"
-        ? `${Math.round(status.progress ?? 0)}%`
-        : status.phase === "checking"
-          ? "Checking"
-          : status.phase === "error"
-            ? "Failed"
-            : status.phase === "disabled"
-              ? "Disabled"
-              : status.publishing
-                ? "Publishing"
-                : status.updateVersion
-                  ? "Available"
-                  : "Up to date"}
+      : status.retryAt
+        ? "Checks paused"
+        : status.phase === "downloading"
+          ? `${Math.round(status.progress ?? 0)}%`
+          : status.phase === "checking"
+            ? "Checking"
+            : status.phase === "error"
+              ? "Failed"
+              : status.phase === "disabled"
+                ? "Disabled"
+                : status.publishing
+                  ? "Publishing"
+                  : status.updateVersion
+                    ? "Available"
+                    : "Up to date"}
     tone={updateTone({
       failed: status.phase === "error",
       busy,
       current: status.phase === "downloaded" || appCurrent(status),
     })}
     detail={status.publishing || status.message}
+    notice={status.retryAt ? status.publishing || status.message : ""}
     error={updates.error || status.error || (status.phase === "error" ? status.message : "")}
     {busy}
     progress={status.phase === "downloading" ? status.progress : undefined}

@@ -1,4 +1,4 @@
-# Publishes site/ to GitHub Pages: the fixed OAuth redirect page (docs/connectors.md).
+# Publishes the OAuth redirect page and the complete public release index.
 name: Pages
 
 on:
@@ -7,9 +7,16 @@ on:
     paths:
       - site/**
       - scripts/build-site.ts
+      - scripts/release-index.ts
+      - packages/domain/src/release/catalog.ts
       - packages/domain/src/oauth-return.ts
       - .github/workflows/pages.yml
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_tag:
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -29,10 +36,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
-      - uses: ./.github/actions/setup-bun
         with:
-          install: "false"
+          # All channels publish the current site, so a stable release cannot restore older OAuth pages.
+          ref: dev
+      - uses: ./.github/actions/setup-bun
       - run: bun scripts/build-site.ts
+      # Regenerate on ordinary site changes too, so a site deployment cannot remove the index.
+      # Only public releases are read; Release calls this workflow after all verification/publication.
+      - run: bun scripts/release-index.ts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANOPY_RELEASE_TAG: ${{ inputs.release_tag || '' }}
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist/site

@@ -2,6 +2,7 @@ import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import type { ui } from "@canopy/contracts";
 import { listedWorkers, updatesAvailable, externalUpdatesAvailable } from "./compact-updates.ts";
 import { computerUpdate } from "./computer-updates.ts";
+import { isRateLimitMessage } from "@canopy/domain/release/http";
 
 export function updateIndicator(
   app: DesktopUpdateStatus | undefined,
@@ -20,7 +21,7 @@ export function updateIndicator(
 
   const failed =
     error ||
-    snapshot?.checkError ||
+    (isRateLimitMessage(snapshot?.checkError ?? "") ? "" : snapshot?.checkError) ||
     (app?.phase === "error" ? app.message || "App update failed" : "") ||
     (["failed", "blocked"].includes(run?.state ?? "") ? run?.reason || "Updates stopped" : "") ||
     (snapshot?.gatewayState === "failed" && !snapshot.gatewayBundled
@@ -61,6 +62,14 @@ export function updateIndicator(
 
   if (app?.phase === "downloaded")
     return { phase: "ready", message: "Canopy update ready. Restart to install it.", progress: 100 };
+
+  const paused = [
+    app?.publishing ?? "",
+    snapshot?.checkError ?? "",
+    ...computers.map((c) => (c.view.status === "Checks paused" ? c.view.detail : "")),
+  ].find(isRateLimitMessage);
+
+  if (paused) return { phase: "paused", message: paused, progress: undefined };
 
   if (
     app?.phase === "checking" ||

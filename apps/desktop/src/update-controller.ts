@@ -6,6 +6,8 @@ import { channelFeed, channelRank, isDesktopChannel } from "./update-releases.ts
 import { gt } from "semver";
 import { UpdateOperation, UpdateResumed, updateTimeouts } from "./update-operation.ts";
 import type { CheckClock } from "@canopy/domain/update-checks";
+import { systemCheckClock } from "@canopy/domain/update-checks";
+import { ReleaseRateLimit } from "@canopy/domain/release/http";
 
 export type Updater = Pick<
   AppUpdater,
@@ -53,6 +55,7 @@ export class UpdateController {
   private staged: DesktopUpdateStatus | undefined;
   private downloadedVersion: string | undefined;
   private cancelDownload: (() => void) | undefined;
+  private cancelRetry: (() => void) | undefined;
   constructor(
     private updater: Updater,
     private readonly options: Options,
@@ -179,6 +182,11 @@ export class UpdateController {
   setAutomaticUpdates(enabled: boolean): void {
     this.automaticEnabled = enabled;
 
+    if (!enabled) {
+      this.cancelRetry?.();
+      this.cancelRetry = undefined;
+    }
+
     if (!enabled && this.runningAutomatic) {
       this.updater.autoDownload = false;
       this.cancelDownload?.();
@@ -226,6 +234,11 @@ export class UpdateController {
     if (this.running && this.operation) return this.operation;
 
     if (!this.enabled || this.installing) return Promise.resolve(this.status());
+
+    if ((this.state.retryAt ?? 0) > (this.options.clock ?? systemCheckClock).now())
+      return Promise.resolve(this.status());
+    this.cancelRetry?.();
+    this.cancelRetry = undefined;
     const operation = Promise.withResolvers<DesktopUpdateStatus>();
     this.operation = operation.promise;
     void this.performCheck(allowDowngrade, automatic).then(operation.resolve, operation.reject);
@@ -261,6 +274,24 @@ export class UpdateController {
           await this.performAttempt(allowDowngrade, automatic, attempt);
           break;
         } catch (error) {
+          if (error instanceof ReleaseRateLimit) {
+            this.settle(error.message);
+            this.publish({ retryAt: error.retryAt, publishing: error.message });
+
+            if (this.automaticEnabled) {
+              const clock = this.options.clock ?? systemCheckClock;
+              this.cancelRetry = clock.schedule(
+                () => {
+                  this.cancelRetry = undefined;
+                  void this.checkAutomatically();
+                },
+                Math.max(0, error.retryAt - clock.now()),
+              );
+            }
+
+            break;
+          }
+
           if (attempt.signal.aborted) {
             this.interrupted = true;
             this.updater.allowDowngrade = false;
@@ -312,6 +343,7 @@ export class UpdateController {
       error: undefined,
       releases: undefined,
       publishing: undefined,
+      retryAt: undefined,
     });
     this.configure(allowDowngrade);
 

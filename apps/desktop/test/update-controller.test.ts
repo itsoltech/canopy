@@ -10,6 +10,9 @@ import { join } from "node:path";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { writeFileSync } from "node:fs";
+import { ReleaseRateLimit } from "@canopy/domain/release/http";
+import { computerUpdate } from "../../web/src/lib/features/workers/computer-updates.ts";
+import { appPhase, computerAction } from "../../mobile/src/features/updates/model.ts";
 
 class Clock implements CheckClock {
   time = 0;
@@ -133,6 +136,80 @@ test("remote, manual and automatic checks share a running check and report its a
   updater.emit("update-downloaded", { version: updater.version });
   finish.resolve([]);
   expect(await first).toMatchObject({ phase: "downloaded", stagedVersion: updater.version });
+});
+
+test("a rate-limited check stays neutral locally and on linked computers, coalesces retries and resumes at reset", async () => {
+  const { controller, prepare, clock } = fixture();
+  let checks = 0;
+  prepare(async () => {
+    checks++;
+
+    if (clock.now() < 1000) throw new ReleaseRateLimit(1000);
+
+    return false;
+  });
+  const status = await controller.checkRemote();
+  expect(status).toMatchObject({ phase: "idle", retryAt: 1000, error: undefined });
+  expect(status.message).toStartWith("GitHub is limiting update checks from this network.");
+
+  const remote = new RemoteAppUpdate(join(tempDir("canopy-limit-"), "state.json"), {
+    status: () => controller.status(),
+    check: () => controller.checkRemote(),
+    drain: async () => false,
+    restart() {},
+    notify() {},
+    report: async () => {},
+  });
+
+  const computer = create(ui.ComputerUpdateSchema, {
+    presence: "connected",
+    remoteUpdate: true,
+    updates: { app: { ...remote.snapshot(), connected: true } },
+  });
+
+  const view = computerUpdate(computer);
+
+  expect(view).toMatchObject({
+    status: "Checks paused",
+    failed: false,
+    current: false,
+    busy: false,
+    detail: status.message,
+  });
+  expect(appPhase(computer.updates?.app)).toBe("paused");
+  expect(computerAction(computer)).toBeUndefined();
+  await Promise.all(Array.from({ length: 10 }, () => controller.checkRemote()));
+  expect(checks).toBe(1);
+  expect(clock.timers.size).toBe(1);
+  clock.advance(999);
+  expect(checks).toBe(1);
+  clock.advance(1);
+  await controller.checkRemote();
+  expect(checks).toBe(2);
+  expect(controller.status()).toMatchObject({ phase: "idle", message: "Up to date", retryAt: undefined });
+  expect(clock.timers.size).toBe(0);
+
+  // A previous discovery pause must never hide a genuine failure to install a signed update.
+  computer.updates!.app!.phase = "failed";
+  computer.updates!.app!.reason = "The installer signature is invalid.";
+  expect(computerUpdate(computer)).toMatchObject({ status: "Failed", failed: true });
+  expect(appPhase(computer.updates?.app)).toBe("failed");
+});
+
+test("Never cancels the rate-limit retry while a staged installer remains ready", async () => {
+  const { controller, prepare, clock } = fixture();
+  await controller.check();
+  prepare(async () => {
+    throw new ReleaseRateLimit(1000);
+  });
+  expect(await controller.check()).toMatchObject({
+    phase: "downloaded",
+    stagedVersion: "0.3.0-nightly.2",
+    retryAt: 1000,
+  });
+  controller.setAutomaticUpdates(false);
+  expect(clock.timers.size).toBe(0);
+  expect(await controller.prepareInstall()).toBe(true);
 });
 
 test("a hung prepare times out, aborts its request and releases the running check", async () => {

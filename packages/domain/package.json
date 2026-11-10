@@ -51,6 +51,8 @@
     "./queue": "./src/queue.ts",
     "./model-name": "./src/model-name.ts",
     "./release/protocol": "./src/release/protocol.ts",
+    "./release/catalog": "./src/release/catalog.ts",
+    "./release/http": "./src/release/http.ts",
     "./release/update-actions": "./src/release/update-actions.ts",
     "./release/version": "./src/release/version.ts",
     "./release/identity": "./src/release/identity.ts",
