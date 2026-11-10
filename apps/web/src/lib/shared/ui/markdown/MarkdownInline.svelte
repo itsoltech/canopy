@@ -4,9 +4,13 @@
   import { isMathToken, safeHref } from "@canopy/domain/markdown";
   import MarkdownInline from "./MarkdownInline.svelte";
   import { splitSentinels, useInlineElements } from "./inline-elements.ts";
+  import { tooltip } from "../tooltip.ts";
+  import { useFileLinks } from "./file-links.ts";
+  import { fileHrefOf, filePathOf } from "./file-paths.ts";
 
   let { tokens }: { tokens: Token[] } = $props();
   const elements = useInlineElements();
+  const files = useFileLinks();
 </script>
 
 {#each tokens as token, index (index)}
@@ -21,14 +25,34 @@
   {:else if token.type === "del"}
     <del><MarkdownInline tokens={(token as Tokens.Del).tokens} /></del>
   {:else if token.type === "codespan"}
-    <code
-      class="rounded-sm bg-zinc-950/5 box-decoration-clone px-1 py-px font-mono text-[0.875em] text-zinc-950 dark:bg-white/10 dark:text-white"
-      >{elements ? elements.restore((token as Tokens.Codespan).text) : (token as Tokens.Codespan).text}</code
-    >
+    {@const text = elements ? elements.restore((token as Tokens.Codespan).text) : (token as Tokens.Codespan).text}
+    {@const path = files ? filePathOf(text) : undefined}
+    {#if files && path}
+      <!-- A file the agent named: opens in the viewer or the default app (docs/ui-api.md, "Pliki wątku"). -->
+      <button
+        type="button"
+        class="cursor-pointer rounded-sm bg-zinc-950/5 box-decoration-clone px-1 py-px text-left font-mono text-[0.875em] text-sky-700 underline decoration-sky-700/30 decoration-dotted underline-offset-2 focus-ring hover:decoration-sky-700 dark:bg-white/10 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:decoration-sky-400"
+        onclick={() => files.open(path)}
+        {@attach tooltip(`Open ${path}`)}>{text}</button
+      >
+    {:else}
+      <code
+        class="rounded-sm bg-zinc-950/5 box-decoration-clone px-1 py-px font-mono text-[0.875em] text-zinc-950 dark:bg-white/10 dark:text-white"
+        >{text}</code
+      >
+    {/if}
   {:else if token.type === "link"}
     {@const link = token as Tokens.Link}
     {@const href = safeHref(link.href)}
-    {#if href}
+    {@const path = files ? fileHrefOf(link.href) : undefined}
+    {#if files && path}
+      <button
+        type="button"
+        class="cursor-pointer text-left font-medium text-sky-700 underline decoration-sky-700/30 underline-offset-2 focus-ring hover:decoration-sky-700 dark:text-sky-400 dark:decoration-sky-400/30 dark:hover:decoration-sky-400"
+        onclick={() => files.open(path)}
+        {@attach tooltip(`Open ${path}`)}><MarkdownInline tokens={link.tokens} /></button
+      >
+    {:else if href}
       <a
         {href}
         target="_blank"
