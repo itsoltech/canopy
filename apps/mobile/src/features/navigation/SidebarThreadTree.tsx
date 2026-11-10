@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useGlobalSearchParams, usePathname } from "expo-router";
 import type { ui } from "@canopy/contracts";
 import { sidebarChildren } from "@canopy/domain/sidebar-threads";
 import { isSide } from "@canopy/domain/thread-tree";
+import { sameItems } from "@canopy/domain/same-items";
 import { needsYou } from "@canopy/domain/thread-activity";
 import { useLayout } from "../../state/layout";
 import { styles, useColors } from "../../ui/theme";
@@ -14,30 +15,45 @@ import { useComputerHome } from "../computers/presence";
 import { SidebarUnread } from "./SidebarUnread";
 import { useSidebarTypography } from "./sidebar-scale";
 
-/** One tree owns its side rows and attention, including when the same tree is pinned or archived. */
-export function SidebarThreadTree({
-  thread,
-  sideThreads,
-  rootIds,
-  current,
-  projects,
-  workers,
-  archived = false,
-}: {
+interface TreeProps {
   thread: ui.Thread;
   sideThreads: readonly ui.Thread[];
   rootIds?: ReadonlySet<string>;
-  current?: ui.Thread;
+  current?: ui.Thread | undefined;
   projects: ui.Project[];
   workers: ui.Worker[];
   archived?: boolean;
-}) {
+  /** The list's render time: the row also rerenders when one of its age labels changes with it. */
+  now?: number;
+}
+
+const openTree = (current: ui.Thread | undefined) => current && (isSide(current) ? current.parentThreadId : current.id);
+
+/**
+ * Every overview event renders the list again; a row renders only when what it shows changed: its thread, side
+ * threads, place in the open tree, project, worker or an age label at the list's new render time.
+ */
+const sameTree = (a: TreeProps, b: TreeProps) =>
+  a.thread === b.thread &&
+  a.archived === b.archived &&
+  sameItems(a.sideThreads, b.sideThreads) &&
+  a.sideThreads.every((side) => Boolean(a.rootIds?.has(side.id)) === Boolean(b.rootIds?.has(side.id))) &&
+  (openTree(a.current) === a.thread.id) === (openTree(b.current) === b.thread.id) &&
+  a.projects.find((p) => p.id === a.thread.projectId) === b.projects.find((p) => p.id === b.thread.projectId) &&
+  a.workers.find((w) => w.id === a.thread.workerId) === b.workers.find((w) => w.id === b.thread.workerId) &&
+  [a.thread.lastActivityAt ?? a.thread.createdAt, ...a.sideThreads.map((side) => side.archivedAt)].every(
+    (at) => age(at?.seconds, a.now) === age(at?.seconds, b.now),
+  );
+
+export const SidebarThreadTreeRow = memo(SidebarThreadTree, sameTree);
+
+/** One tree owns its side rows and attention, including when the same tree is pinned or archived. */
+function SidebarThreadTree({ thread, sideThreads, rootIds, current, projects, workers, archived = false }: TreeProps) {
   const { sides, subagentsNeedingInput } = sidebarChildren(sideThreads, rootIds);
   const type = useSidebarTypography();
-  const openTree = current && (isSide(current) ? current.parentThreadId : current.id);
   const [expanded, setExpanded] = useState<boolean>();
   const [previousOpen, setPreviousOpen] = useState(false);
-  const open = expanded ?? (archived || openTree === thread.id);
+  const open = expanded ?? (archived || openTree(current) === thread.id);
   const c = useColors();
   const hasSides = sides.active.length + sides.previous.length > 0;
 

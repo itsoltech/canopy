@@ -137,7 +137,7 @@ export function tooltip(
     };
 
     const outside = (event: PointerEvent) => {
-      if (touch === "tap" && event.target instanceof Node && !node.contains(event.target)) hide();
+      if (event.target instanceof Node && !node.contains(event.target)) hide();
     };
 
     const onfocus = () => {
@@ -156,7 +156,10 @@ export function tooltip(
     node.addEventListener("focus", onfocus);
     node.addEventListener("blur", hide);
     node.addEventListener("keydown", onkeydown);
-    document.addEventListener("pointerdown", outside);
+
+    // Only a tip a tap opened closes on a press elsewhere: lists hold a tooltip per row, so the others do not
+    // listen to every press in the document.
+    if (touch === "tap") document.addEventListener("pointerdown", outside);
 
     return () => {
       hide();

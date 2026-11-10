@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ui } from "@canopy/contracts";
 import { Pressable, Text, View } from "react-native";
-import { ArchivedThreadsPager } from "@canopy/domain/archived-threads";
+import { ArchivedThreadsPager, indexChangesArchived } from "@canopy/domain/archived-threads";
 import { collapsedArchivedThread, isArchivedSidebarThread } from "@canopy/domain/sidebar-threads";
 import { useSession } from "../../state/session";
 import { useDevicePreferences } from "../settings/device-preferences";
@@ -46,12 +47,22 @@ export function useArchivedThreads(navigation: ReturnType<typeof useSidebarThrea
     [client, archivedCache, online, filter],
   );
 
+  // Status and activity of active threads leave the archive as it is: only changes that reach it fetch pages again.
+  const [archivedChanges, setArchivedChanges] = useState(0);
+  const indexed = useRef<ReadonlyMap<string, ui.Thread>>(new Map());
+  useEffect(() => {
+    const before = indexed.current;
+    indexed.current = new Map(threads.map((thread) => [thread.id, thread]));
+
+    if (indexChangesArchived(before, threads)) setArchivedChanges((value) => value + 1);
+  }, [threads]);
+
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     const timer = setTimeout(() => setRevision((value) => value + 1), 100);
 
     return () => clearTimeout(timer);
-  }, [threads, epoch, linkedReads, stream.connection]);
+  }, [archivedChanges, epoch, linkedReads, stream.connection]);
   useEffect(() => {
     void pager.refresh(filter, expanded, String(revision));
   }, [pager, filter, expanded, revision]);

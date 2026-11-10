@@ -23,9 +23,9 @@ const rowStyle: ViewStyle = {
   borderWidth: 1,
 };
 
-export function age(seconds?: bigint) {
+export function age(seconds?: bigint, now = Date.now()) {
   if (!seconds) return "";
-  const minutes = Math.max(0, Math.floor((Date.now() / 1000 - Number(seconds)) / 60));
+  const minutes = Math.max(0, Math.floor((now / 1000 - Number(seconds)) / 60));
 
   return minutes < 1
     ? "now"

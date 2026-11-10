@@ -31,6 +31,22 @@ export function changesArchived(thread: ui.Thread, known: (id: string) => ui.Thr
   return Boolean(thread.parentThreadId) && known(thread.parentThreadId)?.status === "archived";
 }
 
+/** The same judgement for a whole index that replaced `before` (clients that hold the list, not its events). */
+export function indexChangesArchived(before: ReadonlyMap<string, ui.Thread>, after: readonly ui.Thread[]): boolean {
+  let kept = 0;
+
+  for (const thread of after) {
+    const previous = before.get(thread.id);
+
+    if (previous) kept += 1;
+
+    if (previous !== thread && changesArchived(thread, (id) => before.get(id))) return true;
+  }
+
+  // A thread left the index (deleted, or its computer unlinked).
+  return kept !== before.size;
+}
+
 type Load = (
   request: ArchivedFilter & { pageToken: string; countOnly: boolean },
 ) => Promise<ui.ListArchivedThreadsResponse>;
