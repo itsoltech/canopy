@@ -65,7 +65,7 @@ describe.skipIf(!dockerAvailable)("independent desktop and paired phone thread s
   const clients: Awaited<ReturnType<typeof follow>>[] = [];
 
   beforeAll(async () => {
-    gateway = await startTestGateway({ role: "desktop" });
+    gateway = await startTestGateway({ role: "desktop", watchProbeMs: 100 });
     network = new NetworkAccess({
       store: new ComputerStore(gateway.runtime, gateway.userId, gateway.secretsKey),
       host: "127.0.0.1",
@@ -213,11 +213,15 @@ describe.skipIf(!dockerAvailable)("independent desktop and paired phone thread s
         args: { questions: [{ id: "sso", header: "SSO", question: "Which settings?", kind: "text" }], wait: true },
       });
 
-      await eventually(
+      const questions = await eventually(
         () =>
-          gateway.core.linkedAgents.query("SELECT id FROM turns WHERE interaction_request_id=$1::uuid", [questionId]),
+          gateway.core.linkedAgents.query<{ id: string }>(
+            "SELECT id FROM turns WHERE interaction_request_id=$1::uuid",
+            [questionId],
+          ),
         (rows) => rows.length === 1,
       );
+
       await phone.api.sendMessage({
         threadId,
         text: "Phone steer",
@@ -229,17 +233,21 @@ describe.skipIf(!dockerAvailable)("independent desktop and paired phone thread s
       await cache.write(generation, key, toBinary(ui.ThreadSnapshotSchema, web.state));
       await web.close();
       await gateway.api.interruptThread({ threadId });
+      // Releasing the parent lets its queued question start; that next turn must not inherit the fixture hold.
+      gateway.worker.holdTurns = false;
       gateway.worker.emit(threadId, parentTurn.id, {
         case: "turnFinished",
         value: { outcome: TurnOutcome.INTERRUPTED },
       });
+      await mobileClient.until((state) =>
+        state.turns.some((turn) => turn.id === questions[0]!.id && turn.status === "completed"),
+      );
       await phone.api.answerInteraction({
         requestId: questionId,
         answerJson: JSON.stringify({ answers: [{ id: "sso", kind: "text", text: "Use defaults" }] }),
       });
       expect(JSON.parse((await waiting).content).status).toBe("answered");
       gateway.worker.finish(child.thread_id, child.turn_id, "Settings checked");
-      gateway.worker.holdTurns = false;
       await mobileClient.close();
       mobileClient = await mobile();
 
@@ -249,16 +257,30 @@ describe.skipIf(!dockerAvailable)("independent desktop and paired phone thread s
       );
 
       const resumed = await desktop(restored);
-      await gateway.api.sendMessage({
+
+      const reply = await gateway.api.sendMessage({
         threadId,
         text: "Can you see my replies?",
         clientRequestId: crypto.randomUUID(),
       });
-      await resumed.until((state) => hasAnswer(state, "Echo: Can you see my replies?"));
-      await mobileClient.until((state) => hasAnswer(state, "Echo: Can you see my replies?"));
+
+      const replied = (state: ui.ThreadSnapshot) =>
+        hasAnswer(state, "Echo: Can you see my replies?") &&
+        state.turns.some((turn) => turn.id === reply.turn!.id && turn.status === "completed");
+
+      await mobileClient.until(replied);
+      // Revision probes may legitimately resubscribe. Compare both clients after recovery and turn completion.
+      await resumed.until(
+        (state) =>
+          replied(state) &&
+          !resumed.updates.at(-1)?.syncing &&
+          !mobileClient.updates.at(-1)?.syncing &&
+          Bun.deepEquals(state.items, mobileClient.state.items) &&
+          Bun.deepEquals(state.turns, mobileClient.state.turns),
+      );
       expect(resumed.state.items).toEqual(mobileClient.state.items);
       expect(resumed.state.turns).toEqual(mobileClient.state.turns);
-      expect(resumed.updates.some((update) => update.syncing)).toBe(false);
+      expect(resumed.updates.at(-1)?.syncing).toBe(false);
       await resumed.close();
     } finally {
       gateway.worker.holdTurns = false;

@@ -134,7 +134,7 @@ export class GitCommands {
       try {
         statuses.push(
           await withProcessPriority(kind.value.background ? "background" : "user", () =>
-            scanWorktree(this.managedRoots, target, kind.value.fetch),
+            freshGit(() => scanWorktree(this.managedRoots, target, kind.value.fetch)),
           ),
         );
       } catch (error) {

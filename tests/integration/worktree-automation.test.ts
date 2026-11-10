@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { readFileSync, rmSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
@@ -33,11 +33,18 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
     await f?.close();
   });
 
-  const idle = (thread: ui.Thread) =>
-    eventually(
-      () => f.gw.api.getThread({ threadId: thread.id }),
-      (r) => r.thread?.status === "idle",
+  // threadReady can report idle while the automation's queued turn or command is still outstanding.
+  const settled = async (thread: ui.Thread) => {
+    const entry = await eventually(
+      () => f.entry(thread.worktree!.id),
+      (entry) => !entry.busy && entry.status !== undefined,
     );
+
+    expect(entry.busy).toBe(false);
+    expect(entry.status).toBeDefined();
+
+    return entry;
+  };
 
   const spawn = async (parent: ui.Thread, extra: JsonObject = {}, callId?: string) => {
     const result = await f.callTool(
@@ -196,7 +203,7 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
 
     await f.settings({ defaultMode: ui.WorkspaceMode.NEW_WORKTREE });
     const isolated = await runBot({});
-    await idle(isolated);
+    await settled(isolated);
     expect(readFileSync(join(isolated.cwd, "worker-started.txt"), "utf8")).toBe(isolated.cwd);
     const inherited = await runBot({ workspace_mode: "inherit_parent", parent_thread_id: isolated.id });
     expect([inherited.cwd, inherited.worktree?.id]).toEqual([isolated.cwd, isolated.worktree!.id]);
@@ -208,11 +215,17 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
   test("automation trees participate in deleted-thread cleanup and foreign source threads are refused", async () => {
     const parent = await f.tree();
     const child = await spawn(parent, { workspace_mode: "new_worktree" });
-    await idle(child);
+    expect((await settled(child)).status?.dirtyFiles).toBe(1);
     rmSync(join(child.cwd, "worker-started.txt"));
     await f.gw.api.deleteThread({ threadId: child.id });
     await f.settings({ cleanupDeletedThreads: true });
-    expect((await f.entry(child.worktree!.id)).wouldRemove).toBe(true);
+    expect(await f.entry(child.worktree!.id)).toMatchObject({ wouldRemove: true, status: { dirtyFiles: 0 } });
+    // A preview must notice external edits in both directions, even immediately after another scan.
+    const localChange = join(child.cwd, "local-change.txt");
+    writeFileSync(localChange, "Keep this worktree");
+    expect(await f.entry(child.worktree!.id)).toMatchObject({ wouldRemove: false, status: { dirtyFiles: 1 } });
+    rmSync(localChange);
+    expect(await f.entry(child.worktree!.id)).toMatchObject({ wouldRemove: true, status: { dirtyFiles: 0 } });
     expect((await f.cleanup(false)).entries.find((e) => e.worktree?.id === child.worktree!.id)?.removed).toBe(true);
     const foreign = await f.gw.runtime.runPromise(GatewayStore.use((s) => s.ensureUser("foreign@x", "Foreign")));
     const foreignProject = await f.gw.runtime.runPromise(GatewayStore.use((s) => s.createProject(foreign, "Foreign")));
@@ -253,7 +266,7 @@ describe.skipIf(!dockerAvailable)("automation worktrees over gRPC", () => {
 
   test("settled scheduled threads can be cleaned up and unknown linked computers are refused", async () => {
     const thread = await fire(await schedule({ workspaceMode: ui.WorkspaceMode.NEW_WORKTREE }));
-    await idle(thread);
+    await settled(thread);
     rmSync(join(thread.cwd, "worker-started.txt"));
     await f.gw.api.setThreadArchived({ threadId: thread.id, archived: true });
     await f.settings({ cleanupSettled: true, cleanupDeletedThreads: false });
