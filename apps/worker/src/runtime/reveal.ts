@@ -1,11 +1,11 @@
 import { runProcess } from "@canopy/process-governor";
 import { CommandError } from "./host-types.ts";
 
-/** The system file manager's command for a folder: Finder selects it, Explorer and xdg-open open it. */
-function revealArgs(path: string): string[] {
+/** The system's opener: Finder selects a folder (`-R`) or opens a file; Explorer and xdg-open open either. */
+function openerArgs(path: string, select: boolean): string[] {
   switch (process.platform) {
     case "darwin":
-      return ["open", "-R", path];
+      return select ? ["open", "-R", path] : ["open", path];
     case "win32":
       return ["explorer.exe", path];
     default:
@@ -13,23 +13,34 @@ function revealArgs(path: string): string[] {
   }
 }
 
-/**
- * Opens a folder in the file manager of this worker's computer (the caller checked the path). Explorer exits
- * with 1 even when it opened the folder, so on Windows only a failed start counts.
- */
-export async function revealInFileManager(path: string): Promise<void> {
+/** Explorer exits with 1 even when it opened the path, so on Windows only a failed start counts. */
+async function openWithSystem(path: string, select: boolean, what: "folder" | "file"): Promise<void> {
   let code: number | null;
 
   try {
-    ({ code } = await runProcess({ argv: revealArgs(path), timeoutMs: 5_000 }, { kind: "utility" }));
+    ({ code } = await runProcess({ argv: openerArgs(path, select), timeoutMs: 5_000 }, { kind: "utility" }));
   } catch {
     throw new CommandError(
       "REVEAL_UNAVAILABLE",
-      "No file manager is available on this computer. Copy the path instead.",
+      what === "folder"
+        ? "No file manager is available on this computer. Copy the path instead."
+        : "This computer cannot open files with another app. Copy the path instead.",
       true,
     );
   }
 
   if (code !== 0 && process.platform !== "win32")
-    throw new CommandError("REVEAL_FAILED", "The file manager could not open the folder. Copy the path instead.", true);
+    throw new CommandError(
+      "REVEAL_FAILED",
+      what === "folder"
+        ? "The file manager could not open the folder. Copy the path instead."
+        : "No app on this computer opened the file. Copy the path instead.",
+      true,
+    );
 }
+
+/** Opens a folder in the file manager of this worker's computer (the caller checked the path). */
+export const revealInFileManager = (path: string): Promise<void> => openWithSystem(path, true, "folder");
+
+/** Opens a file in its default app on this worker's computer (the caller checked the path). */
+export const openInDefaultApp = (path: string): Promise<void> => openWithSystem(path, false, "file");

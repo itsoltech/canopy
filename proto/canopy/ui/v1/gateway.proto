@@ -224,6 +224,13 @@ service GatewayService {
   rpc SwitchThreadBranch(SwitchThreadBranchRequest) returns (SwitchThreadBranchResponse);
   // Otwiera katalog wątku menedżerem plików na komputerze workera (capability reveal_path).
   rpc RevealThreadDirectory(ThreadBranchesRequest) returns (google.protobuf.Empty);
+  // Pliki wątku (capability thread_files_v1): ścieżka względna liczy się od katalogu wątku;
+  // dostęp tylko pod katalogiem wątku, workspace'ami właściciela na tym workerze i katalogami workera.
+  rpc ReadThreadFile(ThreadFileRequest) returns (ThreadFile);
+  rpc WriteThreadFile(WriteThreadFileRequest) returns (ThreadFile);
+  rpc DeleteThreadFile(ThreadFileRequest) returns (google.protobuf.Empty);
+  // Otwiera plik w domyślnej aplikacji systemu na komputerze workera.
+  rpc OpenThreadFile(ThreadFileRequest) returns (google.protobuf.Empty);
   rpc GetThreadBlob(GetThreadBlobRequest) returns (GetThreadBlobResponse);
 
   // Kolejka (sekcja na końcu pliku): wiadomości czekające za turą w toku — kolejność, edycja, usunięcie
@@ -2388,6 +2395,31 @@ message ListGitRefsRequest {
 
 message ThreadBranchesRequest {
   string thread_id = 1;
+}
+
+message ThreadFileRequest {
+  string thread_id = 1;
+  string path = 2;
+  // Usunięcie: SHA-256 z odczytu; plik zmieniony od tego czasu nie zostanie usunięty.
+  string expected_sha256 = 3;
+}
+
+message WriteThreadFileRequest {
+  string thread_id = 1;
+  string path = 2;
+  bytes content = 3;
+  // SHA-256 z odczytu; inna treść na dysku odrzuca zapis (konflikt).
+  string expected_sha256 = 4;
+}
+
+message ThreadFile {
+  string path = 1;
+  bytes content = 2;
+  uint64 size = 3;
+  string sha256 = 4;
+  int64 modified_ms = 5;
+  bool binary = 6;
+  bool truncated = 7;
 }
 
 message SwitchThreadBranchRequest {

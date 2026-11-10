@@ -399,6 +399,12 @@ message Command {
     RevealPath reveal_path = 220;
     // Capability workspace_copy_v1. Transient, including all file bytes and results.
     WorkspaceCopyOperation workspace_copy = 221;
+    // Capability thread_files_v1: pliki wskazane przez właściciela wątku (przeglądarka i edytor). Nietrwałe.
+    FileRequest read_file = 222;
+    // Otwiera plik w domyślnej aplikacji systemu na komputerze workera.
+    FileRequest open_file = 223;
+    WriteFile write_file = 224;
+    FileRequest delete_file = 225;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
@@ -665,6 +671,8 @@ message CommandResult {
   string workspace_clone_url = 220;
   WorkspaceCopyResult workspace_copy = 221;
   ThreadGitHead switched_head = 219;
+  // Wynik ReadFile i WriteFile (po zapisie bez treści).
+  FileContent file = 222;
   ProviderAccountsReport provider_accounts = 810;
   // Wynik ScanImportSources (docs/import.md).
   ImportScan import_scan = 850;
@@ -1694,6 +1702,36 @@ message ThreadGitHead {
 // sprawdzeniu właściciela; worker otwiera ją menedżerem plików systemu.
 message RevealPath {
   string path = 1;
+}
+
+// Plik wątku. Worker rozwija `~`, rozwiązuje symlinki i przyjmuje tylko istniejący zwykły plik
+// pod jednym z `roots` (katalog wątku i workspace'y właściciela na tym workerze, wybrane przez
+// gateway) albo pod katalogiem załączników, scratch lub worktree tego workera.
+message FileRequest {
+  string thread_id = 1;
+  string path = 2;
+  repeated string roots = 3;
+  // Zapis i usunięcie: SHA-256 treści z odczytu; inna treść na dysku daje FILE_CHANGED.
+  string expected_sha256 = 4;
+  // Odczyt: limit bajtów treści (0 = domyślny 2 MiB); dłuższy plik wraca obcięty.
+  uint32 max_bytes = 5;
+}
+
+message WriteFile {
+  FileRequest target = 1;
+  bytes content = 2;
+}
+
+message FileContent {
+  // Rzeczywista ścieżka po rozwiązaniu symlinków.
+  string path = 1;
+  bytes content = 2;
+  uint64 size = 3;
+  string sha256 = 4;
+  int64 modified_ms = 5;
+  // Treść nie jest tekstem UTF-8 (wtedy content jest pusty).
+  bool binary = 6;
+  bool truncated = 7;
 }
 
 // Rekord znany gatewayowi; location to korzeń utrwalony przy tworzeniu.

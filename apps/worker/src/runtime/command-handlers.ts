@@ -10,6 +10,7 @@ import type { HostContext } from "./host-context.ts";
 import { providerAccounts } from "./account-commands.ts";
 import { withProcessPriority } from "@canopy/process-governor";
 import { revealInFileManager } from "./reveal.ts";
+import { isFileCommand, runFileCommand } from "./file-commands.ts";
 
 export class CommandHandlers {
   constructor(readonly ctx: HostContext) {}
@@ -17,6 +18,8 @@ export class CommandHandlers {
     const kind = command.kind;
 
     if (kind.case === "listDirectory") return this.ctx.ops.listDirectory(kind.value.path);
+
+    if (isFileCommand(kind)) return runFileCommand(this.ctx, kind);
 
     if (kind.case === "getProviderAccounts")
       return {

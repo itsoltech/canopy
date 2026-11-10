@@ -16,6 +16,9 @@ export const REVEAL_PATH_CAPABILITY = "reveal_path";
 /** Bounded transient workspace file transfers, negotiated without breaking protocol 1. */
 export const WORKSPACE_COPY_CAPABILITY = "workspace_copy_v1";
 
+/** Explicit owner actions on a thread's files: read, write, delete, open in the default app. */
+export const THREAD_FILES_CAPABILITY = "thread_files_v1";
+
 /** Frozen canopy.update.v1; never bump this for WorkerLink or application releases. */
 export const UPDATE_PROTOCOL = 1;
 
