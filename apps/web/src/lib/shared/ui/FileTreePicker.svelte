@@ -99,7 +99,7 @@
     bind:this={viewport}
     bind:clientHeight={height}
     onscroll={(e) => (scroll = e.currentTarget.scrollTop)}
-    class="h-72 min-h-36 overflow-auto overscroll-contain rounded-lg border border-zinc-950/10 dark:border-white/10"
+    class="h-72 min-h-36 scroll-stable overflow-auto overscroll-contain rounded-lg border border-zinc-950/10 dark:border-white/10"
     role="tree"
     aria-label="Files to copy"
     aria-multiselectable="true"

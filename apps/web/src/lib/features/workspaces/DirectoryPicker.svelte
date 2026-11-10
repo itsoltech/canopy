@@ -154,7 +154,7 @@
     {#if error}
       <div class="p-2"><Alert tone="error">{error}</Alert></div>
     {/if}
-    <ul role="list" class="h-56 overflow-y-auto py-1" aria-busy={loading} aria-label="Subdirectories">
+    <ul role="list" class="h-56 scroll-stable overflow-y-auto py-1" aria-busy={loading} aria-label="Subdirectories">
       {#if loading}
         <!-- Rows as tall as an entry. -->
         {#each ["w-3/5", "w-2/5", "w-3/4", "w-1/2", "w-1/3"] as width (width)}

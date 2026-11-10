@@ -15,7 +15,10 @@
   } = $props();
 </script>
 
-<div class={["grid max-h-[45dvh] min-w-0 gap-2 overflow-y-auto p-px", className]} aria-label="Thread secrets">
+<div
+  class={["grid max-h-[45dvh] min-w-0 scroll-stable gap-2 overflow-y-auto p-px", className]}
+  aria-label="Thread secrets"
+>
   {#each secrets as secret (secret.requestId)}
     <div in:rise><ThreadSecretCard {secret} {onchange} /></div>
   {/each}

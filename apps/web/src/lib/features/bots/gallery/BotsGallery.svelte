@@ -121,7 +121,7 @@
 
 <div class={["flex h-full flex-col", className]}>
   <TopBar><Crumb current={false}>Dev</Crumb><Crumb>Bots gallery</Crumb></TopBar>
-  <div class="min-h-0 flex-1 overflow-y-auto">
+  <div class="min-h-0 flex-1 scroll-stable overflow-y-auto">
     <div class="mx-auto grid max-w-6xl gap-10 px-4 pt-4 pb-16 sm:px-6">
       <div class="grid gap-2">
         <h1 class="text-2xl font-semibold tracking-tight text-balance">Bots components</h1>
@@ -177,7 +177,7 @@
                 bind:value={query}
               />
             </div>
-            <div class="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+            <div class="min-h-0 flex-1 scroll-stable overflow-y-auto px-2 pb-3">
               <BotsNav
                 conversations={list}
                 hrefOf={(c) => `#${c.id}`}

@@ -10,7 +10,7 @@
   }: { message: string; desktopActions?: boolean; class?: ClassValue } = $props();
 </script>
 
-<div class={["grid h-full place-items-center overflow-y-auto p-6", className]}>
+<div class={["grid h-full scroll-stable place-items-center overflow-y-auto p-6", className]}>
   <div class="grid max-w-md gap-5">
     <Alert title="Canopy needs your attention">{message}</Alert>
     {#if desktopActions}<p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">

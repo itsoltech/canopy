@@ -85,7 +85,7 @@
   {#if desktop}
     <aside {id} aria-label="Bot details" class="shrink-0 overflow-hidden" class:is-open={open} inert={!open}>
       <div
-        class="t-panel-slide h-full w-84 overflow-y-auto overscroll-contain border-l border-zinc-950/6 bg-zinc-50/60 dark:border-white/8 dark:bg-zinc-950/60"
+        class="t-panel-slide h-full w-84 scroll-stable overflow-y-auto overscroll-contain border-l border-zinc-950/6 bg-zinc-50/60 dark:border-white/8 dark:bg-zinc-950/60"
         data-open={open ? "true" : "false"}
       >
         {@render panel()}

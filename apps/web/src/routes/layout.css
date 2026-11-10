@@ -3,6 +3,7 @@
 @import "../lib/shared/ui/code/syntax.css";
 @import "../lib/shared/ui/scale.css";
 @import "../lib/shared/ui/selection.css";
+@import "../lib/shared/ui/scroll.css";
 @import "../lib/features/settings/themes.css";
 @import "../lib/features/settings/device-appearance.css";
 @import "katex/dist/katex.min.css";
@@ -355,7 +356,7 @@ input[type="search"] {
 
 /* Scrollable code / output surfaces: monospace, keeps whitespace, scrolls instead of wrapping. */
 @utility code-surface {
-  @apply overflow-auto font-mono text-[0.8125rem]/5 whitespace-pre [tab-size:4] select-text;
+  @apply scroll-stable overflow-auto font-mono text-[0.8125rem]/5 whitespace-pre [tab-size:4] select-text;
 }
 
 /* Live "working" text: a soft shimmer, static when the user prefers reduced motion. */

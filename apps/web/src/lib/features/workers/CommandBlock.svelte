@@ -31,7 +31,7 @@
     tabindex="0"
     aria-label={label}
     class={[
-      "max-h-72 min-w-0 overflow-auto p-4 font-mono text-xs/6 focus-ring select-text",
+      "max-h-72 min-w-0 scroll-stable overflow-auto p-4 font-mono text-xs/6 focus-ring select-text",
       wrap && "wrap-anywhere whitespace-pre-wrap",
     ]}><code>{text}</code></pre>
 </div>

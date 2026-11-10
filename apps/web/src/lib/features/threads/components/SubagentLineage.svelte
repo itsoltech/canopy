@@ -61,7 +61,7 @@
           {currentId}
           label="Finished subagents"
           finished
-          class="max-h-64 overflow-y-auto overscroll-contain"
+          class="max-h-64 scroll-stable overflow-y-auto overscroll-contain"
         />
       </Disclosure>
     {/if}

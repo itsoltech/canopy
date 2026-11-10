@@ -24,7 +24,7 @@
     {#if run.steps.length}
       <Disclosure summaryClass="text-sm/5 text-muted">
         {#snippet summary()}Update results · {done}/{run.steps.length}{/snippet}
-        <ol class="max-h-64 divide-y divide-divider overflow-y-auto pt-2">
+        <ol class="max-h-64 scroll-stable divide-y divide-divider overflow-y-auto pt-2">
           {#each run.steps as step, i (`${run.id}/${i}`)}
             <li class="min-w-0 py-2 text-sm/5">
               <div class="flex min-w-0 items-start gap-2">

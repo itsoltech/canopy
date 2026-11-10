@@ -318,7 +318,7 @@
       />
     </div>
     <!-- Scroll the inset list, not a padded viewport: sticky headings must meet the search divider. -->
-    <div data-listbox-scroll class="min-h-0 flex-1 scroll-py-1 overflow-y-auto overscroll-contain">
+    <div data-listbox-scroll class="min-h-0 flex-1 scroll-py-1 scroll-stable overflow-y-auto overscroll-contain">
       {@render list()}
     </div>
   </div>

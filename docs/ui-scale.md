@@ -168,3 +168,10 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
 - Listy pickerów mają pionowy inset `py-1` wewnątrz przewijanej treści i `scroll-py-1`
   na kontenerze przewijania. Pierwszy i ostatni wiersz nie dotykają separatorów wyszukiwarki
   ani stopki. Inset przewija się z listą, a lepkie nagłówki pozostają przy `top-0`, bez szczeliny.
+- Rosnące obszary przewijania rezerwują miejsce na pionowy pasek klasą `scroll-stable`
+  (`scrollbar-gutter: stable`, `shared/ui/scroll.css`), również przy krótkiej treści.
+  Rezerwację otrzymuje kontener, który faktycznie przewija listę; otaczający picker popover
+  nie dodaje drugiego guttera. Tło panelu obejmuje gutter, a lepkie nagłówki
+  i stopki pozostają przy krawędzi przewijanego obszaru. Paski nakładkowe nie rezerwują miejsca.
+  `scroll-stable-both` (`stable both-edges`) stosujemy tylko do symetrycznych insetów:
+  wierszy sidebara i kart panelu szczegółów wątku. Pozostałe obszary mają gutter na końcu.

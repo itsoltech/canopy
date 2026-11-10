@@ -13,7 +13,7 @@
   }: { retry: () => void; retrying?: boolean; icon?: IconName; title?: string; description?: string } = $props();
 </script>
 
-<div class="grid h-full place-items-center overflow-y-auto p-6">
+<div class="grid h-full scroll-stable place-items-center overflow-y-auto p-6">
   <div class="flex max-w-md flex-col items-center text-center">
     <Icon name={icon} class="fill-zinc-400 dark:fill-zinc-500" />
     <h1 class="mt-3 text-2xl font-semibold tracking-tight text-balance">{title}</h1>

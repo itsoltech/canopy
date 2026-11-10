@@ -57,7 +57,7 @@
       {#if view.history.error}<p role="status" class="text-sm text-red-600 dark:text-red-400">
           {view.history.error}
         </p>{/if}
-      <div class="max-h-80 space-y-1 overflow-y-auto">
+      <div class="max-h-80 scroll-stable space-y-1 overflow-y-auto">
         {#each matches as hit (hit.key)}
           <button
             type="button"

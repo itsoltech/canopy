@@ -50,7 +50,10 @@
       <ul
         {id}
         role="list"
-        class={["grid min-w-0 grid-cols-1 gap-0.5", compact && "max-h-64 overflow-y-auto overscroll-contain"]}
+        class={[
+          "grid min-w-0 grid-cols-1 gap-0.5",
+          compact && "max-h-64 scroll-stable overflow-y-auto overscroll-contain",
+        ]}
         transition:expand={{ instantReduced: true }}
       >
         {#each threads as thread (thread.id)}<li>{@render row(thread)}</li>{/each}

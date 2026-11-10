@@ -793,7 +793,7 @@
       <div class="hidden desktop:block" data-window-end>
         {#if thread}<ThreadTitleActions {thread} titlebar />{:else}<div class="h-12" data-window-drag></div>{/if}
       </div>
-      <div class="min-h-0 flex-1 overflow-y-auto py-3 pr-3 pl-1">
+      <div class="min-h-0 flex-1 scroll-stable-both overflow-y-auto px-1 py-3">
         <!-- What the overview already knows (worker, model, status, lineage) shows at once; usage and tasks fill in. -->
         {#if thread && tree}
           <ThreadPanel

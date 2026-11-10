@@ -62,7 +62,7 @@
   {#if open || closing}
     <figure class="grid gap-3">
       <div
-        class="max-h-[calc(var(--window-safe-height)-11rem)] max-w-[96vw] overflow-auto rounded-lg sm:max-h-[calc(var(--window-safe-height)-8rem)]"
+        class="max-h-[calc(var(--window-safe-height)-11rem)] max-w-[96vw] scroll-stable overflow-auto rounded-lg sm:max-h-[calc(var(--window-safe-height)-8rem)]"
       >
         <AttachmentImage
           {src}

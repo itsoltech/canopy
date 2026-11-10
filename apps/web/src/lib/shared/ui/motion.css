@@ -416,6 +416,7 @@
   min-height: --spacing(16);
   max-height: --spacing(72);
   overflow-y: auto;
+  scrollbar-gutter: stable;
   transition:
     min-height var(--duration-slow) var(--ease-smooth-out),
     max-height var(--duration-slow) var(--ease-smooth-out);

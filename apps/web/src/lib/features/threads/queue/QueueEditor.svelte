@@ -101,7 +101,7 @@
       bind:mentions
       bind:editor
       {onkeydown}
-      class="max-h-40 min-h-0 overflow-y-auto text-base/6 sm:text-sm/6"
+      class="max-h-40 min-h-0 scroll-stable overflow-y-auto text-base/6 sm:text-sm/6"
     />
   </div>
   <div class="flex items-center justify-end gap-2">

@@ -50,7 +50,7 @@
         {#snippet summary()}<div class="text-base font-medium sm:text-sm">
             Or choose specific computers ({selector.workerIds.length})
           </div>{/snippet}
-        <div class="grid max-h-52 gap-3 overflow-auto py-3 pl-6">
+        <div class="grid max-h-52 scroll-stable gap-3 overflow-auto py-3 pl-6">
           {#each workers as worker (worker.workerId)}
             <Checkbox
               name="assign-{worker.workerId}"

@@ -45,7 +45,7 @@
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
     bind:this={viewport}
-    class="min-h-0 overflow-y-auto overscroll-contain focus-ring"
+    class="min-h-0 scroll-stable overflow-y-auto overscroll-contain focus-ring"
     role="region"
     aria-label={label}
     tabindex="0"

@@ -71,7 +71,7 @@
         <!-- Own the scrolling here: kit Popover carries its own fixed positioning/padding. -->
         <div
           data-mention-scroll
-          class="max-h-[40dvh] touch-pan-y scroll-py-1 overflow-y-auto overscroll-contain"
+          class="max-h-[40dvh] touch-pan-y scroll-py-1 scroll-stable overflow-y-auto overscroll-contain"
           style:max-height={viewportHeight === undefined ? undefined : `${viewportHeight * 0.4}px`}
         >
           {@render children()}

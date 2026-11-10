@@ -191,7 +191,7 @@
     suggestionsClass="col-span-3 row-start-2 min-w-0 overflow-hidden rounded-t-3xl"
     placeholder={disabled && disabledReason ? disabledReason : placeholder}
     class={[
-      "max-h-[min(40dvh,16rem)] min-h-9 overflow-y-auto overscroll-contain px-2 py-1.5 text-base/6 sm:min-h-8 sm:text-sm/6",
+      "max-h-[min(40dvh,16rem)] min-h-9 scroll-stable overflow-y-auto overscroll-contain px-2 py-1.5 text-base/6 sm:min-h-8 sm:text-sm/6",
       disabled && "cursor-not-allowed",
     ]}
     onkeydown={(event) => {
