@@ -10,7 +10,7 @@
   import ModelControls from "#lib/features/models/ModelControls.svelte";
   import { useThreadModels } from "#lib/features/models/model-catalog.svelte.ts";
   import Crumb from "#lib/features/navigation/Crumb.svelte";
-  import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
+  import { awayReason } from "#lib/features/computers/computers.ts";
   import ProjectMark from "#lib/shared/ui/ProjectMark.svelte";
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -31,6 +31,7 @@
   const settings = useSettings();
   const worker = $derived(overview.worker(main.workerId));
   const project = $derived(overview.project(main.projectId));
+  const away = $derived(main.nodeId ? awayReason(overview.computer(main.nodeId)) : undefined);
   const offer = useThreadModels(() => ({ thread: main, worker }));
   let picked = $state<ModelOption>();
   const option = $derived(picked ?? offer.current);
@@ -73,7 +74,7 @@
 <svelte:window {onkeydown} />
 
 <div class={["flex h-full min-w-0 flex-col", className]}>
-  <TopBar>
+  <TopBar description={away ? `Read-only. ${away}` : undefined}>
     <Crumb
       href={project
         ? project.kind === "scratch"
@@ -83,9 +84,6 @@
       >{#snippet mark()}<ProjectMark name={project?.name ?? "?"} kind={project?.kind} />{/snippet}{project?.name ??
         "Project"}</Crumb
     >
-    {#if main.nodeId}<li class="flex shrink-0 items-center">
-        <MachineBadge nodeId={main.nodeId} compact class="max-w-20 sm:max-w-40" />
-      </li>{/if}
     <Crumb {href}>{main.title || "Untitled thread"}</Crumb>
     <Crumb>New side thread</Crumb>
     {#snippet actions()}

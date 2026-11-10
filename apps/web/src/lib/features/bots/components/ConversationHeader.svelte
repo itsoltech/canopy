@@ -12,7 +12,6 @@
   import { openBotSettings } from "../settings/open.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
   import { useBotHome } from "../home.svelte.ts";
-  import MachineBadge from "#lib/features/computers/MachineBadge.svelte";
 
   /**
    * Top bar of a bot chat, left-aligned like a messenger: the bot's avatar and name (1:1), the group's
@@ -41,6 +40,7 @@
   } = $props();
 
   const shell = useShell();
+  const descriptionId = $props.id();
   const title = $derived(conversationTitle(conversation));
   const home = useBotHome(() => conversation.nodeId);
 </script>
@@ -91,6 +91,7 @@
     <div class="min-w-0 flex-1">
       <h1
         class="flex min-w-0 items-center gap-1.5 text-base/5 font-semibold text-zinc-950 sm:text-sm/5 dark:text-white"
+        aria-describedby={home.reason ? descriptionId : undefined}
       >
         {#if conversation.kind === "watch" && conversation.bots.length === 2}
           <span class="max-w-[45%] shrink-0 truncate">{conversation.bots[0]!.name}</span>
@@ -110,15 +111,9 @@
             >{/if}
         {/if}
       </h1>
-      {#if subtitle || conversation.nodeId}
-        <div class="flex min-w-0 items-center gap-1.5">
-          {#if conversation.nodeId}<MachineBadge
-              nodeId={conversation.nodeId}
-              compact
-              class="max-w-28 sm:max-w-40"
-            />{/if}
-          {#if subtitle}<p class="truncate text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{subtitle}</p>{/if}
-        </div>
+      {#if home.reason}<p id={descriptionId} class="sr-only">Read-only. {home.reason}</p>{/if}
+      {#if subtitle}
+        <p class="truncate text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">{subtitle}</p>
       {/if}
     </div>
   </div>
