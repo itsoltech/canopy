@@ -3,7 +3,7 @@
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
-  import { threadActions, type ThreadActionId } from "../thread-actions.ts";
+  import { onThisComputer, threadActions, type ThreadActionId } from "../thread-actions.ts";
   import { useThreadActions } from "../thread-actions.svelte.ts";
   import type { ClassValue } from "svelte/elements";
   import { awayReason } from "#lib/features/computers/computers.ts";
@@ -27,6 +27,7 @@
       actions.settings.sidebar.pinnedThreadIds.includes(thread.id),
       Boolean(away),
       capabilities?.linkedComputers ?? false,
+      onThisComputer(thread, actions.overview.worker(thread.workerId), capabilities?.ownGateway ?? false),
     ).filter((item) => !omit.includes(item.id)),
   );
 </script>

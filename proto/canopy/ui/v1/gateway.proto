@@ -442,6 +442,9 @@ message Worker {
   // Worker tworzy katalogi nowych projektów i klony (capability "project_sources").
   bool project_sources = 805;
   bool workspace_copy = 860;
+  // Wbudowany worker aplikacji desktop w trybie lokalnym (capability desktop_bundled): działa na komputerze,
+  // na którym działa gateway; tylko wtedy desktop otwiera jego foldery i pliki w systemie.
+  bool desktop_bundled = 861;
   // Domyślny folder nowych worktree zgłoszony przez workera (Hello.worktrees_root); pusty = brak worktrees.
   string worktrees_root = 806;
   // Worker importuje dane CLI (capability "cli_import_v1", docs/import.md).

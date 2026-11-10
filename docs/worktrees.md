@@ -262,15 +262,20 @@ staje się niezarządzany ani nieusuwalny. Worktree ze skonfigurowanym `location
 `--force` występuje wyłącznie przy ręcznie potwierdzonym odrzuceniu zmian. Worker zapisuje dokładny
 zamiar usunięcia przed operacją git, a wynik w journalu komend; ponowienie po zerwanym połączeniu
 lub awarii między usunięciem a zapisem wyniku nie usuwa innej ścieżki ani nie powiela audytu.
-Reveal otwiera folder menedżerem plików na komputerze workera (`open -R`, `explorer.exe`, `xdg-open`);
-bez menedżera zwraca komunikat z zaleceniem skopiowania ścieżki. Explorer kończy się kodem 1 także
-po otwarciu folderu, więc na Windows błędem jest tylko nieudany start.
+Reveal otwiera folder menedżerem plików na komputerze workera (`open`, `explorer.exe`, `xdg-open`);
+bez menedżera zwraca komunikat z zaleceniem skopiowania ścieżki. Opener startuje odłączony, z widocznym
+oknem, poza przechwytywaniem `runProcess`: jego `windowsHide` uruchamiał Explorer w ukrytym oknie.
+Explorer kończy się kodem 1 także po otwarciu folderu, więc na Windows błędem jest tylko nieudany start;
+gdzie indziej decyduje kod wyjścia openera.
 
 **Open folder** (menu kontekstowe wątku i ikona przy „Directory”/„Worktree” w szczegółach wątku)
 otwiera tak samo katalog wątku: `RevealThreadDirectory` sprawdza właściciela i aktywny wątek, a gateway
 wysyła nietrwałą komendę `RevealPath` (capability `reveal_path`) z `threads.cwd`; worker wymaga
 bezwzględnego, istniejącego katalogu. Starszy worker dostaje prośbę o aktualizację, offline — o połączenie.
-Wątek połączonego komputera otwiera folder na komputerze swojego domu.
+Akcja jest widoczna tylko wtedy, gdy folder leży na komputerze, który go pokazuje: aplikacja desktop ma własny
+gateway (tryb lokalny), wątek nie pochodzi z połączonego komputera, a jego worker to wbudowany worker
+aplikacji (`Worker.desktop_bundled`). Inaczej folder otworzyłby się na innej maszynie. Gateway nie przekazuje
+`RevealThreadDirectory` połączonym komputerom.
 
 ## Nazwy gałęzi
 
