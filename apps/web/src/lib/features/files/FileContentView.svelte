@@ -14,13 +14,22 @@
     name,
     loading,
     rendered,
-  }: { file: ui.ThreadFile | undefined; text: string; name: string; loading: boolean; rendered: boolean } = $props();
+    local,
+  }: {
+    file: ui.ThreadFile | undefined;
+    text: string;
+    name: string;
+    loading: boolean;
+    rendered: boolean;
+    /** The file is on this computer: its default app can show what Canopy cannot. */
+    local: boolean;
+  } = $props();
 </script>
 
 {#if !file}
   {#if loading}<p role="status" class="p-4 text-muted">Opening the file…</p>{/if}
 {:else if file.binary}
-  <p class="p-4 text-muted">Canopy cannot show this file. Open it in its default app.</p>
+  <p class="p-4 text-muted">Canopy cannot show this file.{local ? " Open it in its default app." : ""}</p>
 {:else if rendered}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div class="min-h-full p-4 focus-ring" tabindex="0" role="region" aria-label={name} data-select-content>

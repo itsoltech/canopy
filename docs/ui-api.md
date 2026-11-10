@@ -1627,7 +1627,7 @@ ustawia `provideThreadDirectory`, więc działa tylko w wątku; poza nim ścież
 
 Ustawienie urządzenia **Open files in** (Settings → Interface, `fileLinks`): **Canopy** otwiera
 przeglądarkę (`features/files/FileViewer.svelte`, jedna naraz, host w głównym layoucie), **Default app**
-od razu prosi worker o otwarcie pliku w domyślnej aplikacji jego komputera.
+otwiera plik od razu w domyślnej aplikacji, ale tylko gdy plik leży na tym komputerze (`onThisComputer`: własny gateway desktopu, wątek bez `nodeId`, worker `desktop_bundled`); plik innej maszyny zawsze otwiera się w przeglądarce, a przycisk **Open in default app** jest wtedy ukryty.
 
 Przeglądarka czyta plik przez `GET /api/threads/:id/files?path=` (`ReadThreadFile`, do 2 MiB). Markdown
 ma widok Rendered/Source (wspólny z podglądem załączników), reszta jest podświetlona Shiki według

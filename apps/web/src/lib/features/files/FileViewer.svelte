@@ -105,7 +105,9 @@
         <Button size="sm" variant="ghost" disabled={viewer.loading} onclick={() => void viewer.load()}>Reload</Button>
       {/if}
       <span class="grow"></span>
-      <Button size="sm" variant="ghost" onclick={() => void openInApp(target)}>Open in default app</Button>
+      {#if target.local}<Button size="sm" variant="ghost" onclick={() => void openInApp(target)}
+          >Open in default app</Button
+        >{/if}
       <span class="inline-flex size-8 items-center justify-center"
         ><CopyButton text={viewer.file?.path || target.path} label="Copy path" /></span
       >
@@ -128,7 +130,7 @@
     {#if viewer.file && !viewer.editable && !viewer.editing && !viewer.file.binary}
       <p class="text-sm/5 text-muted">
         {viewer.file.truncated
-          ? "Showing the first 2 MB. Open the file in its default app to see all of it."
+          ? `Showing the first 2 MB.${target.local ? " Open the file in its default app to see all of it." : ""}`
           : `Files over ${formatSize(EDIT_LIMIT_BYTES)} open read-only.`}
       </p>
     {/if}
@@ -144,6 +146,7 @@
         />
       {:else}
         <FileContentView
+          local={target.local}
           file={viewer.file}
           text={viewer.text}
           {name}

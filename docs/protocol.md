@@ -441,7 +441,7 @@ załączników wątku, rozwija `~`, rozwiązuje symlinki i przyjmuje tylko istni
 z korzeni (`FILE_OUTSIDE_ROOTS`). Odczyt zwraca do 2 MiB (`truncated`), plik nie-UTF-8 jako `binary` bez
 treści, oraz SHA-256 całego pliku. Zapis i usunięcie wymagają `expected_sha256` z odczytu; inna treść na
 dysku daje `FILE_CHANGED`, więc edycja nie nadpisze cudzej zmiany. `OpenFile` używa `open`,
-`explorer.exe` albo `xdg-open`. Połączone komputery przekazują te RPC do domu wątku.
+`explorer.exe` albo `xdg-open`. Połączone komputery przekazują do domu wątku odczyt, zapis i usunięcie, ale nie `OpenThreadFile`: plik otworzyłby się na innym komputerze.
 
 ## CLI dostawców
 
