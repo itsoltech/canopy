@@ -34,6 +34,8 @@ describe.skipIf(!dockerAvailable)("GitHub accounts over gRPC with local HTTP", (
     await gw.core.github.device.tick();
     const result = await gw.api.getGitHubDeviceAuth({ attemptId: started.attempt!.id }, client);
     expect(result.attempt!.state).toBe("connected");
+    // Settle the initial catalogue before a test jumps the clock or changes upstream behavior.
+    await gw.api.listGitHubInstallations({ accountId: result.attempt!.accountId });
 
     return result.attempt!.accountId;
   }
@@ -165,10 +167,14 @@ describe.skipIf(!dockerAvailable)("GitHub accounts over gRPC with local HTTP", (
     ]);
     expect(fixture.refreshes).toBe(previous + 1);
     fixture.apiStatus(401);
-    expect(await failure(gw.api.listGitHubInstallations({ accountId: id, refresh: true }))).toContain("Reconnect");
-    expect(fixture.refreshes).toBe(previous + 2);
-    expect((await gw.api.listGitHubAccounts({})).accounts.find((a) => a.id === id)!.status).toBe("needs_reconnect");
-    fixture.apiStatus(200);
+
+    try {
+      expect(await failure(gw.api.listGitHubInstallations({ accountId: id, refresh: true }))).toContain("Reconnect");
+      expect(fixture.refreshes).toBe(previous + 2);
+      expect((await gw.api.listGitHubAccounts({})).accounts.find((a) => a.id === id)!.status).toBe("needs_reconnect");
+    } finally {
+      fixture.apiStatus(200);
+    }
   });
 
   test("disconnect fences an in-flight refresh and deletes credentials", async () => {
