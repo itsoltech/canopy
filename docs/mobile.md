@@ -1029,8 +1029,14 @@ wątku znika jak w web. Karta bota widziana w czasie oczekiwania zostaje do koń
 z „Expired. The bot no longer needs an answer.” bez akcji; spóźnioną odpowiedź gateway
 odrzuca, a karta pokazuje „This request expired. No answer was sent.”. Picker modeli
 pokazuje same nazwy, bez opisów modeli.
-Kompozytor oferuje Queue, Send now/steer, stop, wybór modelu/effort i permissions;
-respektuje ustawienie zachowania podczas trwającej tury. Wzmianki działają jak w web:
+Kompozytor oferuje wysyłanie, stop, wybór modelu/effort i permissions. Okrągły przycisk
+wysyłania ma kolor `action` jak w web; puste pole podczas tury zamienia go w stop. Gdy tura trwa
+i jest wiadomość, przycisk dzieli się jak webowy `SteerSendButton`: główna część „Steer” albo
+„Queue” (według Settings → Threads → Messages) wysyła w preferowany sposób, przytrzymanie
+w drugi, a chevron otwiera arkusz „How to send” z „Steer into this turn” i „Queue for the next
+turn” oraz opisem każdej drogi. Przycisk ma stałą minimalną szerokość, więc zmiana etykiety
+nie przesuwa pól; pigułki paska przesuwają się na jego miejsce przez `fast` (przy ograniczeniu
+ruchu od razu). Wzmianki działają jak w web:
 `/` komendy, `$` skille i pluginy z `ListMentionCatalog` (raz na zakres), `@` pliki
 (`SearchFiles`) i `#` wątki (`SearchThreads`) pokazują listę nad kompozytorem, a wybór wstawia
 plakietkę w miejsce wpisanego zapytania (`features/composer/useMentionSuggestions.ts`).

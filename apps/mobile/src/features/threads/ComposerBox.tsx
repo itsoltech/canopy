@@ -11,7 +11,8 @@ import { ComposerFold, useComposerMotion } from "../composer/ComposerFold";
 import { useChatInputID } from "../composer/ChatKeyboard";
 import { useKeyboardBlur } from "../composer/useKeyboardBlur";
 import { composerGeometry } from "../composer/geometry";
-import { SendButtons } from "./SendButtons";
+import { SendButtons, SPLIT_SEND_WIDTH } from "./SendButtons";
+import { useTween } from "../../ui/motion";
 
 /** What each trigger character does, as on the web; no-break spaces keep each item on one line. */
 const TRIGGER_HINT = ["/ commands", "$ skills", "@ files", "# threads", "! shell"]
@@ -122,7 +123,11 @@ export function ComposerBox({
       />
       {!inline && (
         <ComposerFold open={!compact} expandedHeight={composerGeometry.toolbar} hideWhileWriting={false}>
-          <ComposerControls shell={shell} files={files} sendWidth={running && !empty && onAlternate ? 92 : 60}>
+          <ComposerControls
+            shell={shell}
+            files={files}
+            sendWidth={running && !empty && onAlternate ? SPLIT_SEND_WIDTH + 14 : 60}
+          >
             {controls}
           </ComposerControls>
         </ComposerFold>
@@ -151,7 +156,7 @@ export function ComposerBox({
   );
 }
 
-/** The toolbar folds without unmounting its attachment and model pickers. */
+/** The toolbar folds without unmounting its attachment and model pickers; the pills glide aside for the send slot. */
 function ComposerControls({
   shell,
   files,
@@ -164,14 +169,11 @@ function ComposerControls({
   children: ReactNode;
 }) {
   const c = useColors();
+  const room = useTween(sendWidth);
+  const slot = useAnimatedStyle(() => ({ paddingRight: room.get() }));
 
   return (
-    <View
-      style={[
-        styles.row,
-        { minHeight: composerGeometry.toolbar, padding: 10, paddingLeft: 12, paddingRight: sendWidth },
-      ]}
-    >
+    <Animated.View style={[styles.row, { minHeight: composerGeometry.toolbar, padding: 10, paddingLeft: 12 }, slot]}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -187,7 +189,7 @@ function ComposerControls({
           children
         )}
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 }
 
