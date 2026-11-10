@@ -35,10 +35,14 @@ const server = await startGrpcServer({
 });
 
 const restoredAt = performance.now();
+const restoreCpu = process.cpuUsage();
 
 await core.diagnostics.start();
 
 const restoreMs = performance.now() - restoredAt;
+const restoredCpu = process.cpuUsage(restoreCpu);
+const restoreCpuMicros = restoredCpu.user + restoredCpu.system;
+const startupPeakRss = process.resourceUsage().maxRSS * 1024;
 const maintenance = new DatabaseMaintenance(runtime, owner);
 
 maintenance.start();
@@ -96,6 +100,15 @@ async function stats() {
     allocatedBytes: core.diagnostics.collector.budget.used + core.diagnostics.linkBudget.used,
     dropped: core.diagnostics.collector.budget.dropped + core.diagnostics.linkBudget.dropped,
     restoreMs,
+    restoreCpuMicros,
+    startupPeakRss,
+    allocatedSeries: [
+      core.diagnostics.collector.short,
+      core.diagnostics.collector.minutes,
+      core.diagnostics.collector.quarters,
+      core.diagnostics.collector.historyMinutes,
+      core.diagnostics.collector.historyQuarters,
+    ].reduce((count, ring) => count + ring.slots.reduce((total, slot) => total + (slot?.series.size ?? 0), 0), 0),
     tableBytes: Number(db.table_bytes),
     indexBytes: Number(db.index_bytes),
     deadTuples: Number(db.dead_tuples),

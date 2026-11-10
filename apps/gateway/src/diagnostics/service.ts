@@ -17,6 +17,10 @@ import { BucketBudget } from "./buckets.ts";
 import { callKey, sortCalls, diagnosticsSorts } from "@canopy/domain/diagnostics";
 import { diagnosticsResponse } from "./response.ts";
 
+const METHOD_KEYS = new Set(
+  [...RPC_METHODS, ...LINKED_METHODS, ...COMMAND_METHODS].map((method) => `${method.layer}:${method.name}`),
+);
+
 export class Diagnostics {
   readonly collector = new RpcCollector([...RPC_METHODS, ...LINKED_METHODS, ...COMMAND_METHODS]);
   readonly interceptor = diagnosticsInterceptor(this.collector);
@@ -154,7 +158,8 @@ export class Diagnostics {
     if (
       (request.sortBy && !diagnosticsSorts.some((sort) => sort.value === request.sortBy)) ||
       (request.callKind && !["unary", "stream"].includes(request.callKind)) ||
-      request.methodKeys.length > 32
+      request.methodKeys.length > 32 ||
+      request.methodKeys.some((key) => !METHOD_KEYS.has(key))
     )
       throw new ConnectError("Choose an available call view", Code.InvalidArgument);
 
@@ -301,6 +306,7 @@ export class Diagnostics {
     if (
       request.methodKeys.length > 32 ||
       request.methodKeys.some((key) => key.length > 256) ||
+      request.methodKeys.some((key) => !METHOD_KEYS.has(key)) ||
       request.sortBy.length > 16 ||
       request.callKind.length > 8 ||
       request.offset > 384 ||

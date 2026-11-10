@@ -46,6 +46,13 @@ export async function seedDiagnosticsHistory(env: Record<string, string | undefi
       [owner, payload],
     );
 
+    if (env["CANOPY_BENCH_COMPACTION"] === "1")
+      await store.query(
+        `UPDATE diagnostics_rollups SET compacted=false WHERE owner_user_id=$1::uuid AND resolution=60
+        AND bucket_start>=date_trunc('hour',now())-interval '1 hour' AND bucket_start<date_trunc('hour',now())`,
+        [owner],
+      );
+
     return { minuteRows: 4320, hourRows: 720, payloadBytes: payload.length };
   } finally {
     await runtime.dispose();

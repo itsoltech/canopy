@@ -122,6 +122,12 @@ describe.skipIf(!dockerAvailable)("owner diagnostics over real gRPC and one rela
       Code.InvalidArgument,
     );
     expect(await rejectedCode(a.api.getComputerDiagnostics({ offset: 385 }))).toBe(Code.InvalidArgument);
+    expect(await rejectedCode(a.api.getComputerDiagnostics({ methodKeys: ["rpc:/private/prompt"] }))).toBe(
+      Code.InvalidArgument,
+    );
+    expect(
+      await rejectedCode(a.api.getComputerDiagnostics({ computerId: target(), methodKeys: ["rpc:/private/prompt"] })),
+    ).toBe(Code.InvalidArgument);
 
     const report = create(ui.WorkerLinkDiagnosticsSchema, {
       session: crypto.randomUUID(),

@@ -70,7 +70,22 @@ async function run(on: boolean, index: number) {
 
   if (process.env["CANOPY_BENCH_HISTORY"] === "1")
     console.info(JSON.stringify({ history: await seedDiagnosticsHistory(env) }));
+  const beforeStartup = await pgCounters();
+  const startupAt = performance.now();
   active = await diagnosticsProcess(env);
+  const startupMs = performance.now() - startupAt;
+  const afterStartup = await pgCounters();
+  console.info(
+    JSON.stringify({
+      phase: "startup",
+      series: index + 1,
+      on,
+      startupMs,
+      pgCpuMicros: afterStartup.cpuMicros - beforeStartup.cpuMicros,
+      ioBytes: afterStartup.writeBytes - beforeStartup.writeBytes,
+      ...(await active.run("sample")),
+    }),
+  );
   worker = await diagnosticsWorker({
     ...env,
     CANOPY_BENCH_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
