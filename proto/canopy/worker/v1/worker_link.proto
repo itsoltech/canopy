@@ -746,7 +746,7 @@ message RunBotTurn {
   // Stabilny fingerprint ustawień bota; bez czasu i kontekstu bieżącej tury.
   // Starszy worker ignoruje pole; puste pole oznacza komendę starszego gatewaya.
   string configuration_key = 11;
-  // bot_images_v1: verified files supplied as native image input; never filesystem tools.
+  // bot_images_v1 for images; bot_files_v1 for documents/text/opaque files. No filesystem tools.
   repeated InputAttachment attachments = 12;
   repeated InputAttachment history_attachments = 13;
 }

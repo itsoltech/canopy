@@ -172,7 +172,7 @@
       {/each}
     </ul>
   {/if}
-  {#if message.attachments?.length}<MessageAttachments attachments={message.attachments} />{/if}
+  {#if message.attachments?.length}<MessageAttachments attachments={message.attachments} class="w-full" />{/if}
   {#if message.delivery}
     <p
       class={[

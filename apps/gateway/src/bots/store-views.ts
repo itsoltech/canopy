@@ -112,7 +112,12 @@ export const approvalView = (row: ApprovalRow) =>
     fields: row.prepared
       ? [{ label: "Proposed answer", value: row.prompt.slice(row.prompt.indexOf("\n") + 1) }]
       : row.arguments
-        ? approvalFields(row.arguments)
+        ? [
+            ...approvalFields(row.arguments).filter((field) => field.label !== "Attachment ids"),
+            ...(row.prompt.includes("\nFiles:\n")
+              ? [{ label: "Files", value: row.prompt.slice(row.prompt.lastIndexOf("\nFiles:\n") + 8) }]
+              : []),
+          ]
         : [],
     status: row.status,
     answer: row.answer,

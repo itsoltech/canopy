@@ -62,7 +62,7 @@ test.skipIf(!Bun.which("grok"))(
           },
           mcp: { url: "", headers: {} },
           record: async () => {},
-          images: async () => [],
+          content: async () => ({ text: input.input, images: [], documents: [] }),
           noteHarness: async (value) => {
             harness = value;
           },

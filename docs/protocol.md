@@ -325,9 +325,11 @@ Wywołania narzędzi szyny (`spawn_thread`, `send_message`, `wait_threads`, ... 
 
 Boty używają tych samych blobów i weryfikacji plików. Addytywne
 `RunBotTurn.attachments` / `history_attachments` (12/13) wymagają capability
-`bot_images_v1`. `FetchBlob.bot_id` / `bot_turn_id` (4/5) zastępują dla nich
-`thread_id`; gateway sprawdza właściciela obrazu i aktywną komendę tego workera.
-Adaptery dostarczają obrazy natywnie, bez udostępniania botom narzędzi dyskowych.
+`bot_images_v1` dla obrazów, `bot_files_v1` dla pozostałych plików.
+`FetchBlob.bot_id` / `bot_turn_id` (4/5) zastępują dla nich
+`thread_id`; gateway sprawdza właściciela pliku i aktywną komendę tego workera.
+Adaptery dostarczają obrazy natywnie, PDF jako dokument Claude albo wyciąg tekstu,
+a UTF-8 jako ograniczony tekst, bez udostępniania botom narzędzi dyskowych.
 Szczegóły: [bots-harness.md](bots-harness.md#obrazy-użytkownika).
 
 Pliki, które użytkownik dołącza do wiadomości ([ui-api.md](ui-api.md#załączniki)). Gateway trzyma bajty (blob), worker pobiera je, zanim przekaże turę harnessowi.

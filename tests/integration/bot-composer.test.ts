@@ -118,7 +118,7 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
     await f.settled(bot.id);
   }, 20_000);
 
-  test("drafts, uploads, binding and worker blob reads are owner-scoped and image-limited", async () => {
+  test("drafts, uploads, binding and worker blob reads are owner-scoped and limited", async () => {
     const bot = await f.add(Provider.CODEX);
 
     const other = await f.gw.runtime.runPromise(
@@ -138,9 +138,9 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
     ).toContain("not found");
     expect(
       await failure(
-        f.gw.api.uploadAttachment({ botId: bot.id, name: "fake.png", data: new TextEncoder().encode("not an image") }),
+        f.gw.api.uploadAttachment({ botId: bot.id, name: "program.exe", data: new Uint8Array([0x4d, 0x5a, 0]) }),
       ),
-    ).toContain("PNG");
+    ).toContain("program");
     const huge = new Uint8Array(limits.maxFileBytes + 1);
     huge.set(png);
     expect(await failure(f.gw.api.uploadAttachment({ botId: bot.id, name: "huge.png", data: huge }))).toContain(
@@ -192,7 +192,7 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
       });
       const parts = f.inputs().slice(before).at(-1)!.parts;
       expect(parts.some((p) => p.type === "image")).toBe(true);
-      expect(parts.find((p) => p.type === "text")?.text).toContain("Canopy attached images");
+      expect(parts.find((p) => p.type === "text")?.text).toContain("Canopy attached files");
       expect(parts.find((p) => p.type === "text")?.text).toContain(image.name);
       expect((await f.gw.api.getAttachment({ attachmentId: image.id, thumbnail: true })).mimeType).toBe("image/webp");
 
@@ -253,6 +253,6 @@ describe.skipIf(!dockerAvailable)("bot composer drafts and images", () => {
     await f.settled(bot.id);
     const parts = f.inputs().at(-1)!.parts;
     expect(parts.filter((p) => p.type === "image")).toHaveLength(9);
-    expect(parts.find((p) => p.type === "text")?.text).toContain("omitted earlier images");
+    expect(parts.find((p) => p.type === "text")?.text).toContain("omitted earlier attachments");
   }, 30_000);
 });

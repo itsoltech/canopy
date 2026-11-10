@@ -1,14 +1,16 @@
+import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
-import { GatewayStore, SteerStore } from "../store/index.ts";
+import { GatewayStore } from "../store/index.ts";
 import { BotStore } from "../bots/store.ts";
 import type { BotTurn, StoredCall } from "../bots/types.ts";
 import { coreRedeliver } from "./core-commands.ts";
-import { coreState, InvalidError, TTL } from "./core-context.ts";
+import { coreState, InvalidError } from "./core-context.ts";
 import { corePublishSteer } from "./core-messages.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreBroadcastThread } from "./core-broadcast.ts";
 import { SqlClient } from "effect/sql";
+import { copyConversationFiles, forwardedNotice } from "./bot-files.ts";
 
 export interface CoreBotThreadsMethods {
   startBotThread(
@@ -41,7 +43,12 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
   /** Bot actions use the UI's validation, with creation, worker outbox, watch and result in one transaction. */
   async startBotThread(this: GatewayCore, turn: BotTurn, call: StoredCall, request: ui.CreateThreadRequest) {
     return this.botAction(turn, call, async () => {
-      const thread = await this.createThread(request);
+      const initialAttachmentIds = await copyConversationFiles(this, turn, call);
+
+      const thread = await this.createThread(
+        create(ui.CreateThreadRequestSchema, { ...request, initialAttachmentIds }),
+      );
+
       await this[coreState].actions.run(
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
@@ -49,6 +56,7 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
         }),
       );
       const turnId = await this.watchBotThread(turn, call, thread.id);
+      await forwardedNotice(this, turn, call, thread.title);
 
       return { thread_id: thread.id, turn_id: turnId, worker_id: thread.workerId };
     });
@@ -90,72 +98,41 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
     delivery: string,
   ) {
     if (delivery !== "queue" && delivery !== "steer") throw new InvalidError("delivery must be queue or steer");
-    const user = this[coreState].options.userId;
 
-    const result = await this[coreState].options.runtime.runPromise(
-      BotStore.use((bots) =>
-        bots.action(
-          turn,
-          call,
-          Effect.gen(function* () {
-            const store = yield* GatewayStore;
-            const row = yield* store.thread(threadId);
+    const result = await this.botAction(turn, call, async () => {
+      const thread = await this.getThread(threadId);
+      const attachmentIds = await copyConversationFiles(this, turn, call);
 
-            if (row.owner_user_id !== user || row.archived_at || !row.worker_id)
-              return yield* Effect.fail(new InvalidError("thread not found or unavailable"));
-            const running = delivery === "steer" ? yield* store.runningTurn(threadId) : undefined;
+      const sent = await this.sendMessage(
+        create(ui.SendMessageRequestSchema, {
+          threadId,
+          text,
+          attachmentIds,
+          clientRequestId: call.id,
+          delivery: delivery === "steer" ? ui.MessageDelivery.STEER : ui.MessageDelivery.QUEUE,
+        }),
+      );
 
-            if (running) {
-              const steer = yield* SteerStore.use((s) =>
-                s.create({
-                  threadId,
-                  turnId: running.id,
-                  text,
-                  userId: user,
-                  clientRequestId: call.id,
-                  model: "",
-                  effort: "",
-                  permissionMode: "",
-                }),
-              );
+      const target = sent.steer?.turnId || sent.turn?.id;
 
-              yield* bots.watchSteer(turn, call, threadId, steer.id);
-              yield* store.enqueueCommand({
-                workerId: row.worker_id,
-                threadId,
-                ttlSeconds: TTL.steerTurn,
-                command: {
-                  commandId: steer.id,
-                  kind: {
-                    case: "steerTurn",
-                    value: { threadId, turnId: running.id, inputId: steer.id, input: { text } },
-                  },
-                },
-              });
-
-              return {
-                thread_id: threadId,
-                turn_id: running.id,
-                steer_id: steer.id,
-                delivery: "steer",
-                worker_id: row.worker_id,
-              };
-            }
-
-            const target = yield* store.enqueueTurn({ threadId, text, userId: user, clientRequestId: call.id });
-            yield* bots.watchThread(turn, call, threadId, target.id);
-
-            return {
-              thread_id: threadId,
-              turn_id: target.id,
-              steer_id: "",
-              delivery: "queue",
-              worker_id: row.worker_id,
-            };
-          }),
+      if (!target) throw new InvalidError("The message did not start a turn. Send a message without commands.");
+      await this[coreState].actions.run(
+        BotStore.use((bots) =>
+          sent.steer
+            ? bots.watchSteer(turn, call, threadId, sent.steer.id)
+            : bots.watchThread(turn, call, threadId, target),
         ),
-      ),
-    );
+      );
+      await forwardedNotice(this, turn, call, thread.title);
+
+      return {
+        thread_id: threadId,
+        turn_id: target,
+        steer_id: sent.steer?.id ?? "",
+        delivery: sent.steer ? "steer" : "queue",
+        worker_id: thread.workerId,
+      };
+    });
 
     if (result.delivery === "steer") {
       await coreRedeliver(this, result.worker_id);

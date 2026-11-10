@@ -26,7 +26,7 @@ export class BotComposerDraft {
     limits: () => AttachmentLimits,
   ) {
     this.quoteKey = `bot:${botId}`;
-    this.files = new AttachmentDraft(limits, { botId, imagesOnly: true, onUploaded: () => this.persist() });
+    this.files = new AttachmentDraft(limits, { botId, onUploaded: () => this.persist() });
     const path = `/api/bots/${encodeURIComponent(botId)}/draft`;
     this.sync = new BotComposerSync(
       botId,

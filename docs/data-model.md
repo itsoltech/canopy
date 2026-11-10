@@ -185,9 +185,9 @@ Uzasadnienie osobnego modelu i niezmienniki: [bots.md](bots.md).
 Migracja `0102_bot_composer` dodaje `bot_composer_drafts`: jeden prywatny szkic
 na bota, właściciel, payload protobuf i rewizja do zapisu CAS. Blokada bota
 serializuje zapis szkicu z wysłaniem wiadomości. Przyjęcie wiadomości czyści
-tylko pasującą rewizję. `bot_messages.attachments` zachowuje metadane obrazów;
+tylko pasującą rewizję. `bot_messages.attachments` zachowuje metadane plików;
 `attachments.bot_id` / `bot_turn_id` są ustawiane atomowo i wykluczają powiązanie
-z wątkiem. Szkic odwołuje się do własnych, jeszcze niewysłanych obrazów.
+z wątkiem. Szkic odwołuje się do własnych, jeszcze niewysłanych plików.
 
 Migracja `0026_sidebar_threads` dodaje do `threads`: `deleted_at`, `deletion_batch_id`,
 `archived_by` (`user` / `agent`) i `archived_by_thread_id`. Soft delete obejmuje rodzica i dzieci;

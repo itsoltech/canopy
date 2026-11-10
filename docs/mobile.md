@@ -1421,11 +1421,12 @@ i komunikatem ponowienia po błędzie. Długie przytrzymanie treści bota nie ko
 z natywnym zaznaczaniem tekstu kodu ani diffu; pełne przeglądarki zachowują zaznaczanie.
 
 Szkic bota jest trwały w bazie gatewaya przez `GetBotDraft` / `SaveBotDraft`,
-z kontrolą rewizji. Tekst, strukturalne wzmianki, cytaty i obrazy wracają po nawigacji;
+z kontrolą rewizji. Tekst, strukturalne wzmianki, cytaty i pliki wracają po nawigacji;
 trwające uploady zachowuje stan powiązany z klientem i botem. Przyjęcie wiadomości
 czyści tylko jej rewizję, błąd zachowuje szkic. **Load saved draft** pozwala rozwiązać
 konflikt z innym urządzeniem po skopiowaniu lokalnych zmian. Kompozytor przyjmuje
-PNG, JPEG, GIF i WebP przez istniejące wklejanie, wybór zdjęć lub plików i upuszczanie.
+wszystkie typy plików obsługiwane przez wątki przez istniejące wklejanie,
+wybór zdjęć lub plików i upuszczanie.
 Korzysta ze wspólnych limitów, miniaturek i przeglądarek załączników; nie zmienia
 modułów natywnych, konfiguracji ani zależności aplikacji.
 

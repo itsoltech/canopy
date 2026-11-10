@@ -40,7 +40,7 @@ for (const [provider, name, run] of [
       signal: abort.signal,
       clientVersion: "test",
       mcp: { url: "", headers: {} },
-      images: async () => [],
+      content: async () => ({ text: input.input, images: [], documents: [] }),
       noteHarness: async () => {},
       record: async (event) => {
         if (event.body?.case === "itemDelta") partial.resolve();

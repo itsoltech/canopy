@@ -168,8 +168,8 @@
   <div class="col-start-1 row-start-3 flex">
     <RoundButton
       icon="plus"
-      label="Attach images"
-      tooltip={files || onattach ? "Attach images" : "Attachments are coming soon"}
+      label="Attach files"
+      tooltip={files || onattach ? "Attach files" : "Attachments are coming soon"}
       variant="secondary"
       unavailable={disabled || sending || (!files && !onattach)}
       onclick={files ? () => intake?.pick() : onattach}

@@ -55,11 +55,11 @@ Niedostępny gateway odrzuca zdalną akcję od razu; nic nie czeka na ponowne po
 
 Kod: `apps/gateway/src/bots`, `apps/worker/src/bots`; kontrakty: boty UI i WorkerLink.
 
-## Szkice i obrazy w rozmowie
+## Szkice i załączniki w rozmowie
 
 Szkic wiadomości bota jest zapisywany w bazie gatewaya (`bot_composer_drafts`),
 osobno dla bota i właściciela. Obejmuje tekst, strukturalne wzmianki, cytaty
-z komentarzami i identyfikatory wgranych obrazów. Web, desktop i mobile używają
+z komentarzami i identyfikatory wgranych plików. Web, desktop i mobile używają
 tych samych RPC `GetBotDraft` / `SaveBotDraft`, z opóźnieniem zapisu 350 ms
 i kontrolą rewizji. Zmiana Threads/Bots oraz nawigacja zachowują również trwające
 uploady w pamięci sesji; po zakończeniu uploadu szkic zapisuje jego metadane w DB.
@@ -72,19 +72,53 @@ transportu nie kasują treści ani klucza idempotencji. Przyjęta wiadomość cz
 wyłącznie wysyłaną rewizję; nowszy szkic zapisany na drugim urządzeniu pozostaje.
 Konflikt zapisu jest jawny i nie nadpisuje drugiego urządzenia.
 
-Pierwszy zakres załączników obejmuje PNG, JPEG, GIF i WebP. Web/desktop przyjmują
-obrazy przez wklejenie, upuszczenie i **Attach images**; mobile przez istniejący
-intake wklejania, zdjęć i plików. Upload korzysta z blobów gatewaya, limitów
-rozmiaru pliku, sumy wiadomości i liczby plików z ustawień oraz wspólnych
-miniatur i przeglądarek. Typ jest rozpoznawany z bajtów. Inne typy są odrzucane.
-Wiadomość może zawierać sam obraz; rozmowa nadal ma układ komunikatora.
-Obrazy docierają do oficjalnego harnessu natywnie, bez nowych narzędzi dyskowych
-bota: [bots-harness.md](bots-harness.md#obrazy-użytkownika).
+Bot przyjmuje wszystkie typy obsługiwane przez wątki: obrazy, tekst, kod, PDF,
+archiwa i inne pliki binarne. Programy wykonywalne są odrzucane. Web/desktop
+przyjmują je przez wklejenie, upuszczenie i **Attach files**; mobile przez
+istniejący intake zdjęć i plików. Upload używa tych samych blobów, miniaturek,
+podglądów i limitów co wątki (domyślnie 20 MiB na plik, 50 MiB i 10 plików
+na wiadomość; ustawienia właściciela mogą je zmienić). Typ rozpoznajemy z bajtów.
+Wiadomość może składać się z samych plików. Bot nadal nie ma narzędzi dyskowych.
 
-Przeniesienie bota między komputerami obejmuje szkic, wgrane obrazy szkicu,
-obrazy rozmowy i miniatury. Wymaga `remote_bot_composer_v1` na komputerze
+| Typ | Claude Agent SDK | Codex app-server | Grok ACP |
+|---|---|---|---|
+| PNG, JPEG, GIF, WebP oraz obrazy po wspólnej konwersji | natywne bloki `image` | natywne wejście `image` | natywne części `image`; CLI musi ogłaszać obsługę obrazów |
+| Markdown, tekst, kod, JSON, CSV, HTML/SVG jako tekst i pozostałe UTF-8 | tekst w wejściu tury | tekst w wejściu tury | tekst w wejściu tury |
+| PDF | natywny blok `document` z bajtami PDF | tekst wydobyty przez parser PDF | tekst wydobyty przez parser PDF |
+| Archiwa i inne pliki binarne | metadane i referencja do przekazania | metadane i referencja do przekazania | metadane i referencja do przekazania |
+
+Tekst pliku jest oznaczony jako niezaufane dane: do 64 000 znaków na plik
+i 128 000 łącznie na wejście. PDF w Codex/Grok: najwyżej 50 pierwszych stron,
+bez OCR; błąd parsowania albo brak tekstu daje jawną notatkę i zachowuje
+oryginał do przekazania. Przycięcie ma osobną notatkę. Odbudowa sesji dodaje
+najnowsze historyczne załączniki do 10 plików / 20 MiB; pominięcie wyjaśnia
+notatka. Wznowiona sesja dostaje tylko nowe bajty. Wymagane capability workera:
+`bot_images_v1` dla samych obrazów, `bot_files_v1` dla pozostałych plików;
+starszy worker wymaga aktualizacji. `WORKER_LINK_PROTOCOL` pozostaje 1.
+
+### Przekazywanie do wątków
+
+Wejście tury podaje stabilne `[id]`, nazwę, typ i rozmiar załączników. Narzędzie
+`list_attachments` odczytuje referencje wyłącznie wysłanych plików bieżącej
+rozmowy i właściciela, także starszych niż budżet wejścia. Szkice nie są źródłem.
+`start_thread` i `send_message` przyjmują opcjonalne `attachment_ids`.
+Gateway ponownie sprawdza właściciela, rozmowę, duplikaty i bieżące limity
+przed zgodą i przy wykonaniu. Zgoda jest tą samą zgodą co uruchomienie lub
+wiadomość wątku, a karta wymienia nazwy, typy i rozmiary plików.
+
+Akcja tworzy nowe referencje do istniejących blobów (bez uploadu modelu),
+wiąże je z turą wątku i zapisuje wynik w jednej transakcji z fencingiem bota.
+Wiadomość ma zwykłe załączniki, notatkę ścieżek i autora bota; worker pobiera
+pliki zwykłym pipeline'em załączników. `send_message delivery=steer` używa
+tych samych reguł capability i fallbacku do kolejki co wiadomość użytkownika.
+Rozmowa bota dostaje trwałą notatkę „Sent report.pdf to “Thread””.
+Przekazanie plików do wątku na innym połączonym komputerze jest jawnie
+odrzucane przed zgodą i bez skutków ubocznych; wybierz wątek w domu bota.
+
+Przeniesienie bota między komputerami obejmuje szkic, wgrane pliki szkicu,
+pliki rozmowy i miniatury. Wymaga `remote_bot_composer_v1` na komputerze
 docelowym; starsza wersja odmawia przeniesienia z instrukcją aktualizacji.
-Obrazy muszą zmieścić się w limicie transferu 40 MiB, tak jak pliki wątku.
+Pliki muszą zmieścić się w limicie transferu 40 MiB, tak jak pliki wątku.
 
 ## Zmiana modelu — ukryte przekazanie kontekstu
 
@@ -885,7 +919,7 @@ JSON i składanych logów pracy.
   Szczegóły nie zawierają endpointów, stderr ani sekretów; surowe komunikaty błędów
   modeli nie są zapisywane w gatewayu.
   Lista boczna pokazuje „Couldn't reply”.
-- **Composer** (`BotComposer`): jedna zaokrąglona „pigułka”: „+” (**Attach images**),
+- **Composer** (`BotComposer`): jedna zaokrąglona „pigułka”: „+” (**Attach files**),
   wspólny `MentionEditor` z Threads zamiast textarea.
   Markdown na żywo: pogrubienie, kursywa, kod inline i bloki kodu; wklejanie jako czysty tekst.
   Pole „Message ‹Bot›” rośnie do `min(40dvh,16rem)`; dopiero po osiągnięciu limitu ma
@@ -897,7 +931,7 @@ JSON i składanych logów pracy.
 - **Autouzupełnianie**: tylko `@`, pozostałe boty użytkownika bez bieżącego: awatar,
   kolor, nazwa, model jako opis, filtr fuzzy. ↑↓ i Enter/Tab wybierają, Esc zamyka;
   dotknięcie wybiera bez utraty fokusu. Desktop ma popover, telefon/wskaźnik coarse panel
-  nad edytorem wewnątrz composera. Obrazy mają plakietki załączników; brak przeglądania
+  nad edytorem wewnątrz composera. Pliki mają plakietki załączników; brak przeglądania
   systemu plików, skillsów oraz wyzwalaczy `/`, `$`, `#`.
   `MentionSourceSet` oddziela edytor od źródeł. Typowany `BotMentionRegistry` ma grupy
   `bots` i `connectors`; druga pobiera połączone konta z grantów bieżącego bota.
@@ -1007,5 +1041,5 @@ Widoki UI sprawdzamy ręcznie w obu motywach i przy szerokości desktopu/telefon
 zgodnie z polityką repozytorium. Uwzględnij karty interakcji, Edit/Retry, archiwum,
 Undo i kontrolki kompozytora; brak błędów transportu nie dowodzi poprawnego układu.
 
-Dalej: reakcje i odpowiedzi w API, liczniki nieprzeczytanych, inne typy załączników, harmonogramy cykliczne
+Dalej: reakcje i odpowiedzi w API, liczniki nieprzeczytanych, harmonogramy cykliczne
 botów, kompakcja kontekstu, stronicowanie i wirtualizacja długich rozmów.
