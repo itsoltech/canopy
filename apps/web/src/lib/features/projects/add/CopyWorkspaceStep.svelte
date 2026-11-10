@@ -50,6 +50,48 @@
   const done = $derived(progress?.status === "completed");
   const percent = $derived(progress?.totalBytes ? Number((progress.bytes * 100n) / progress.totalBytes) : 0);
 
+  const actionLabel = $derived(
+    done
+      ? "Done"
+      : error || cancelled
+        ? "Refresh file list"
+        : confirming
+          ? "Copy these files"
+          : secrets.length
+            ? "Review secrets"
+            : "Copy workspace",
+  );
+
+  const disabledReason = $derived(
+    done || error || cancelled
+      ? undefined
+      : loading
+        ? "Reading the file list…"
+        : confirming && !confirmed
+          ? "Confirm that you want to copy these files."
+          : metadataMissing
+            ? "Include all Git metadata to copy this checkout."
+            : !totals.files
+              ? "Choose files to copy."
+              : undefined,
+  );
+
+  function submit() {
+    if (busy || disabledReason) return;
+
+    if (done) onclose();
+    else if (error || cancelled) void load();
+    else void copy();
+  }
+
+  function onkeydown(event: KeyboardEvent) {
+    if (event.isComposing || event.key !== "Enter") return;
+
+    if (event.target instanceof HTMLElement && event.target.closest("button, input, [role=tree]")) return;
+    event.preventDefault();
+    submit();
+  }
+
   onMount(() => {
     void load();
   });
@@ -135,6 +177,8 @@
   }
 </script>
 
+<svelte:window {onkeydown} />
+
 <StepHeader
   onback={!busy && !done
     ? () => {
@@ -145,6 +189,10 @@
       }
     : undefined}
   {onclose}
+  onsubmit={submit}
+  {actionLabel}
+  {disabledReason}
+  busy={busy || loading}
 >
   <h2 class="min-w-0 flex-1 truncate py-3 font-medium" title={name}>
     {done
@@ -173,7 +221,6 @@
       )}.
     </p>
     <p class="text-zinc-500 dark:text-zinc-400">The workspace is ready for new threads.</p>
-    <Button variant="primary" onclick={onclose}>Done</Button>
   {:else if busy}
     <p role="status">{progress?.status === "finishing" ? "Adding the workspace…" : "Copying files…"}</p>
     <div
@@ -198,7 +245,6 @@
     <p role={error ? "alert" : "status"} class={error ? "text-rose-700 select-text dark:text-rose-400" : ""}>
       {error || "Copy cancelled. Partial files are removed automatically."}
     </p>
-    <Button onclick={() => void load()}>Refresh file list</Button>
   {:else if confirming}
     <p>These files may contain passwords, tokens or private keys. Copy them only to a computer you trust.</p>
     <ul role="list" class="max-h-52 scroll-stable overflow-auto rounded-lg bg-zinc-950/3 p-3 dark:bg-white/5">
@@ -209,7 +255,6 @@
       label="I want to copy these files to {worker.name}"
       bind:checked={confirmed}
     />
-    <Button variant="primary" disabled={!confirmed} onclick={() => void copy()}>Copy these files</Button>
   {:else if manifest}
     <p class="text-zinc-500 dark:text-zinc-400">
       Git metadata preserves the branch and local changes. Ignored build files start excluded.
@@ -233,8 +278,5 @@
         Include all Git metadata to copy this checkout. Wait for Git operations to finish, then refresh.
       </p>
     {/if}
-    <Button variant="primary" disabled={!totals.files || metadataMissing} onclick={() => void copy()}
-      >{secrets.length ? "Review secrets" : "Copy workspace"}</Button
-    >
   {/if}
 </div>
