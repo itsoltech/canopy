@@ -99,16 +99,30 @@ export function copySelection(entries: readonly WorkspaceCopyEntry[], ignored: R
   return entries.filter((e) => !copySelectable(e) || ignored.has(e.path));
 }
 
+export function copyUnavailableReason(entries: readonly WorkspaceCopyEntry[]) {
+  if (entries.some((e) => e.blocked))
+    return "Some repository files cannot be copied. Resolve unsafe paths or active Git operations, then refresh.";
+
+  if (copyTotals(entries).bytes > COPY_MAX_BYTES || entries.some((e) => e.size > COPY_MAX_FILE_BYTES))
+    return "Choose up to 20 GB in total and 8 GB per file.";
+
+  return entries.some((e) => !e.directory) ? "" : "No files to copy. Refresh the file list.";
+}
+
 export function copyRepositorySummary(manifest: WorkspaceCopyManifest) {
   const totals = copyTotals(manifest.entries.filter((e) => !copySelectable(e)));
   const commits = manifest.unpushedCommits;
 
-  return [
-    `Repository: ${copyFileCount(totals.files)} · ${copySize(totals.bytes)}`,
-    manifest.branch ? `branch ${manifest.branch}` : "Detached HEAD",
-    ...(commits === undefined ? [] : [`${commits.toLocaleString()} unpushed ${commits === 1 ? "commit" : "commits"}`]),
-    `${manifest.changedFiles.toLocaleString()} changed ${manifest.changedFiles === 1 ? "file" : "files"}`,
-  ].join(" · ");
+  return {
+    overview: `Repository · ${copyFileCount(totals.files)} · ${copySize(totals.bytes)}`,
+    branch: manifest.branch || "Detached HEAD",
+    changes: [
+      ...(commits === undefined
+        ? []
+        : [`${commits.toLocaleString()} unpushed ${commits === 1 ? "commit" : "commits"}`]),
+      `${manifest.changedFiles.toLocaleString()} changed ${manifest.changedFiles === 1 ? "file" : "files"}`,
+    ].join(" · "),
+  };
 }
 
 export function copySkippedSummary(directories: readonly string[]) {

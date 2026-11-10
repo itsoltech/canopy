@@ -5,6 +5,7 @@
   import ChoiceControl from "./ChoiceControl.svelte";
   import Icon from "./Icon.svelte";
   import SearchField from "./SearchField.svelte";
+  import IconButton from "./IconButton.svelte";
 
   let {
     roots,
@@ -146,13 +147,20 @@
           />
           <div class="min-w-0 flex-1" title={node.blocked || node.path || node.label}>
             <div class="truncate">{node.label}{node.children.length ? ` (${node.files.toLocaleString()})` : ""}</div>
-            {#if node.secret && !node.blocked}<span class="block text-xs text-zinc-500 sm:hidden dark:text-zinc-400"
-                >May contain secrets</span
-              >{/if}
           </div>
-          <div class="shrink-0 text-sm text-zinc-500 sm:text-xs dark:text-zinc-400">
-            {#if node.blocked}Unavailable{:else if node.secret}<span class="hidden sm:inline">May contain secrets</span
-              >{/if}
+          <div class="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+            {#if node.blocked}Unavailable{:else if node.secretFiles && node.path}
+              {#if node.children.length}
+                {node.secretFiles.toLocaleString()} may contain secrets
+              {:else}
+                <IconButton
+                  icon="lock-closed"
+                  size="sm"
+                  label="May contain secrets: {node.path}"
+                  tooltipOptions={{ touch: "tap" }}
+                />
+              {/if}
+            {/if}
           </div>
           <div
             class="w-16 shrink-0 text-right text-sm text-zinc-500 tabular-nums sm:text-xs dark:text-zinc-400"

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ConnectError } from "@connectrpc/connect";
 import { ui, type WorkspaceCopyManifest } from "@canopy/contracts";
-import { copySelection, copySelectable, copyTotals } from "@canopy/domain/workspace-copy";
+import { copySelection, copySelectable, copyTotals, copyUnavailableReason } from "@canopy/domain/workspace-copy";
 import * as Crypto from "expo-crypto";
 import { useSession } from "../../state/session";
 
@@ -33,7 +33,7 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
   const manifestToken = useRef("");
   const entries = useMemo(() => copySelection(manifest?.entries ?? [], selected), [manifest, selected]);
   const totals = useMemo(() => copyTotals(entries), [entries]);
-  const repositoryBlocked = manifest?.entries.some((e) => !copySelectable(e) && e.blocked);
+  const disabledReason = copyUnavailableReason(entries);
   const secrets = useMemo(() => entries.filter((e) => e.secret && !e.directory), [entries]);
 
   const skipped = useMemo(
@@ -77,7 +77,7 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
   }
 
   async function copy() {
-    if (!client || !manifest || busy) return;
+    if (!client || !manifest || busy || disabledReason) return;
 
     if (secrets.length && !confirmed) {
       setConfirming(true);
@@ -139,7 +139,7 @@ export function useWorkspaceCopy(props: WorkspaceCopyProps) {
     cancelled,
     progress,
     totals,
-    repositoryBlocked,
+    disabledReason,
     secrets,
     skipped,
     load,

@@ -11,8 +11,9 @@ używa dialogu, mobile arkusza z dotykowym, wirtualizowanym drzewem plików.
 Podgląd odczytuje metadane, bez treści. Repozytorium jest niepodzielne: komplet
 `.git`, istniejące śledzone pliki oraz nieśledzone pliki nieobjęte ignorowaniem
 z `git ls-files --cached --others --exclude-standard` są zawsze kopiowane.
-UI pokazuje je w jednym podsumowaniu z rozmiarem, gałęzią, liczbą nieopublikowanych
-commitów nieosiągalnych z refów remote i zmianami z `git status`.
+UI pokazuje je w zwartym bloku: liczba plików i rozmiar, osobno gałąź monospace
+(skrócona z dostępem do pełnej nazwy), a pod nią liczba nieopublikowanych
+commitów nieosiągalnych z refów remote i zmian z `git status`.
 Nie ma drzewa ani checkboxów repozytorium.
 
 Picker obejmuje wyłącznie pliki ignorowane. Domyślnie zaznacza lokalne
@@ -23,9 +24,15 @@ w `packages/domain/src/workspace-copy.ts` obejmuje zależności, build i cache
 ma pierwszeństwo przed tą listą. Ignorowane zależności i wynik builda są pomijane
 podczas skanowania, bez schodzenia do ich wnętrza. Nie trafiają do manifestu ani
 pickera; UI podaje pominięte katalogi w rozwijanej notatce. Drzewo plików ignorowanych
-pokazuje rozmiary, liczby plików i oznaczenia sekretów. Grupy katalogów zaczynają
+pokazuje rozmiary i liczby plików. Pliki mogące zawierać sekrety mają ikonę kłódki
+z objaśnieniem, a katalogi — liczbę takich plików; korzeń nie powtarza ostrzeżenia.
+Grupy katalogów zaczynają
 zwinięte. Powyżej 200 plików picker wyświetla wskazówkę, aby sprawdzić zależności
 oraz wynik builda; długą płaską listę też pokazuje jako zwiniętą grupę.
+Notatka pominiętych katalogów używa disclosure z kitu i wspólnych tokenów ruchu.
+Stopka z główną akcją pozostaje poza przewijaną listą, także przy potwierdzaniu
+sekretów i podczas transferu. Zablokowana akcja podaje powód, a transfer pokazuje
+stan zajętości i możliwość anulowania.
 
 Preset w `workspace_copy_presets` w domu źródła zawiera tylko SHA-256 ścieżek
 zaznaczonych i pominiętych plików ignorowanych, bez nazw i treści. Stare presety

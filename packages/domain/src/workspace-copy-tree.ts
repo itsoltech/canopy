@@ -10,7 +10,7 @@ export interface CopyTreeNode {
   members: string[];
   bytes: bigint;
   files: number;
-  secret: boolean;
+  secretFiles: number;
   blocked: string;
   ignored: boolean;
 }
@@ -43,7 +43,7 @@ export function copyTree(entries: readonly WorkspaceCopyEntry[]) {
           members: [],
           bytes: 0n,
           files: 0,
-          secret: false,
+          secretFiles: 0,
           blocked: "",
           ignored: group === "ignored",
         };
@@ -57,7 +57,8 @@ export function copyTree(entries: readonly WorkspaceCopyEntry[]) {
       node.bytes += entry.size;
 
       if (!entry.directory) node.files++;
-      node.secret ||= entry.secret;
+
+      if (!entry.directory && entry.secret) node.secretFiles++;
 
       if (depth === chain.length - 1) node.blocked = entry.blocked;
       parent = node;
