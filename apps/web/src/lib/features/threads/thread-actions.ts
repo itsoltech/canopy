@@ -8,6 +8,7 @@ export type ThreadActionId =
   | "rename"
   | "regenerate"
   | "read"
+  | "reveal"
   | "filter"
   | "settings"
   | "move"
@@ -51,6 +52,8 @@ export function threadActions(
       icon: "chat-bubble-left",
       group: 1,
     },
+    // The worker's computer opens the thread's directory (worktree or checkout) in its file manager.
+    ...(thread.cwd ? [{ id: "reveal" as const, label: "Open folder", icon: "folder" as const, group: 2 }] : []),
     { id: "filter", label: `Filter by ${projectName}`, icon: "bars-3", group: 2 },
     { id: "settings", label: "Project settings", icon: "cog-6-tooth", group: 2 },
     // Stage 8: only this computer's own main threads; side threads move with their parent.

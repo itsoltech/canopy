@@ -394,6 +394,8 @@ message Command {
     CloneRepository clone_repository = 218;
     // Capability git_branch_switch_v1; tylko jawna akcja właściciela, nigdy z outboxa.
     SwitchThreadBranch switch_thread_branch = 219;
+    // Capability reveal_path; otwiera katalog menedżerem plików na komputerze workera. Nietrwała.
+    RevealPath reveal_path = 220;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Nietrwałe metadane konta; capability provider_account_status, bez journala/outboxa.
@@ -1678,6 +1680,12 @@ message ThreadGitHead {
   string branch = 2;
   // Skrócony commit odłączonego HEAD.
   string detached_commit = 3;
+}
+
+// Bezwzględna ścieżka istniejącego katalogu (np. katalogu wątku), którą gateway wybrał po
+// sprawdzeniu właściciela; worker otwiera ją menedżerem plików systemu.
+message RevealPath {
+  string path = 1;
 }
 
 // Rekord znany gatewayowi; location to korzeń utrwalony przy tworzeniu.

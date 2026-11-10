@@ -345,6 +345,8 @@ while (!stopping.signal.aborted) {
           // git_heads: the live branch of thread checkouts (GitHeads).
           "git_heads",
           "git_branch_switch_v1",
+          // reveal_path: RevealPath opens a thread's directory in this computer's file manager.
+          "reveal_path",
           // provisional_branches: RenameWorktreeBranch.provisional keeps pushed or switched branches.
           "provisional_branches",
           "project_sources",

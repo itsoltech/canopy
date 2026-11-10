@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { GIT_BRANCH_SWITCH_CAPABILITY } from "@canopy/domain/release/protocol";
+import { GIT_BRANCH_SWITCH_CAPABILITY, REVEAL_PATH_CAPABILITY } from "@canopy/domain/release/protocol";
 import type { GatewayCore } from "../core/core.ts";
 import { coreRun, coreBroadcastThread } from "../core/core-broadcast.ts";
 import { coreState, InvalidError } from "../core/core-context.ts";
@@ -47,6 +47,18 @@ export class ThreadBranches {
     );
 
     return create(ui.ListGitRefsResponseSchema, { supported: Boolean(result.gitRefs?.isRepo), refs: result.gitRefs });
+  }
+
+  /** Opens the thread's directory in the file manager of its worker's computer. */
+  async reveal(request: ui.ThreadBranchesRequest): Promise<void> {
+    const thread = await this.#thread(request.threadId);
+    const connection = this.core.link.connections.get(thread.worker_id);
+
+    if (!connection?.isOpen) throw new InvalidError("This computer is offline. Reconnect it to open the folder.");
+
+    if (!connection.hello.capabilities.includes(REVEAL_PATH_CAPABILITY))
+      throw new InvalidError("Update this computer to open folders from Canopy.");
+    await coreWorkerQuery(this.core, thread.worker_id, { case: "revealPath", value: { path: thread.cwd } }, 20_000);
   }
 
   async switch(request: ui.SwitchThreadBranchRequest): Promise<ui.SwitchThreadBranchResponse> {

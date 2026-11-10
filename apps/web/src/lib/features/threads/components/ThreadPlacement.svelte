@@ -4,6 +4,9 @@
   import { placementPath } from "@canopy/domain/git-heads";
   import { osLabel } from "#lib/features/overview/workers.ts";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import { toast } from "#lib/shared/ui/toast.svelte.ts";
+  import { revealThreadDirectory } from "../api.ts";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
@@ -19,6 +22,20 @@
   }: { thread: ui.Thread; worker?: ui.Worker; onworktree: () => void; class?: ClassValue } = $props();
 
   const path = $derived(placementPath(thread.cwd, worker?.homeDirectory));
+  let revealing = $state(false);
+
+  /** The worker's computer opens the directory in its file manager. */
+  async function reveal() {
+    revealing = true;
+
+    try {
+      await revealThreadDirectory(thread.id);
+    } catch (cause) {
+      toast(cause instanceof Error ? cause.message : "Could not open the folder", { tone: "error" });
+    } finally {
+      revealing = false;
+    }
+  }
 </script>
 
 <section aria-label="Placement" class={["grid min-w-0 grid-cols-1 px-1.5 pb-1", className]}>
@@ -36,8 +53,9 @@
     </p>
     {#snippet aside()}
       <div
-        class="shrink-0 pointer-fine:opacity-0 pointer-fine:group-focus-within/path:opacity-100 pointer-fine:group-hover/path:opacity-100"
+        class="flex shrink-0 items-center pointer-fine:opacity-0 pointer-fine:group-focus-within/path:opacity-100 pointer-fine:group-hover/path:opacity-100"
       >
+        <IconButton icon="folder-open" label="Open folder" size="sm" loading={revealing} onclick={reveal} />
         <CopyButton text={thread.cwd} label="Copy working directory" />
       </div>
     {/snippet}

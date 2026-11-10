@@ -7,7 +7,7 @@ import type { SettingsState } from "#lib/features/settings/settings-state.svelte
 import { requestJson } from "#lib/shared/http.ts";
 import { decode } from "#lib/shared/wire.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
-import { updateThread } from "./api.ts";
+import { revealThreadDirectory, updateThread } from "./api.ts";
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 import { requestTitleRegeneration } from "./title-actions.ts";
 import type { ThreadActionId } from "./thread-actions.ts";
@@ -82,6 +82,9 @@ export class ThreadActions {
           break;
         case "read":
           await this.lifecycle(thread.id, thread.markedUnread || thread.unseenResult ? "read" : "unread");
+          break;
+        case "reveal":
+          await revealThreadDirectory(thread.id);
           break;
         case "filter":
           if (thread.status === "archived") devicePreferences.setView({ archivedThreadsExpanded: true });

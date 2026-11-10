@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { isWithin } from "../git/worktrees.ts";
 import { recoverRemoval } from "../git/remove-worktree.ts";
 import { freshGit, gitOk, GitError } from "../git/git.ts";
-import { runProcess, withProcessPriority } from "@canopy/process-governor";
+import { withProcessPriority } from "@canopy/process-governor";
 import { listGitRefs, repoRoot } from "../git/refs.ts";
 import { matchingCheckoutPaths } from "../git/checkout-paths.ts";
 import { createWorktree, renameWorktreeBranch } from "../git/worktrees.ts";
@@ -16,6 +16,7 @@ import { createWorktree, renameWorktreeBranch } from "../git/worktrees.ts";
 import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import { workspaceOrigin } from "../git/origin.ts";
+import { revealInFileManager } from "./reveal.ts";
 import { cloneRepository, initRepository } from "../git/project-sources.ts";
 import { WorktreeDiscovery, withKnownPaths } from "../git/discovery.ts";
 
@@ -202,34 +203,10 @@ export class GitCommands {
   async revealWorktree(kind: Extract<Command["kind"], { case: "revealWorktree" }>): Promise<CommandOutput> {
     return gitStep(async () => {
       const { path } = await checkedWorktree(this.managedRoots, kind.value);
-
-      const args = revealArgs(path);
-
-      try {
-        const result = await runProcess({ argv: args, timeoutMs: 5_000 }, { kind: "utility" });
-
-        if (result.code !== 0)
-          throw new GitError("REVEAL_FAILED", "The file manager could not open the folder. Copy the path instead.");
-      } catch {
-        throw new GitError(
-          "REVEAL_UNAVAILABLE",
-          "No file manager is available on this computer. Copy the path instead.",
-        );
-      }
+      await revealInFileManager(path);
 
       return {};
     });
-  }
-}
-
-function revealArgs(path: string): string[] {
-  switch (process.platform) {
-    case "darwin":
-      return ["open", "-R", path];
-    case "win32":
-      return ["explorer.exe", path];
-    default:
-      return ["xdg-open", path];
   }
 }
 
