@@ -97,7 +97,17 @@ export class RemoteAppUpdate {
     };
   }
   snapshot() {
-    return { ...this.durable(), ...updater(this.boundary.status()) };
+    // Older apps persisted overlap as a failed installation. Keep that journal entry,
+    // but let the live updater describe a check that never failed or installed anything.
+    const overlap =
+      this.state.phase === "failed" &&
+      this.state.reason === "Wait for the current app update operation to finish, then retry.";
+
+    return {
+      ...this.durable(),
+      ...(overlap && { phase: "idle", reason: "", targetVersion: "" }),
+      ...updater(this.boundary.status()),
+    };
   }
   async publish() {
     const next = this.durable();

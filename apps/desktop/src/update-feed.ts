@@ -14,14 +14,14 @@ import {
 export class DesktopUpdateFeed {
   private cached?: { at: number; releases: DesktopRelease[] };
 
-  private async releases() {
+  private async releases(signal: AbortSignal) {
     if (this.cached && Date.now() - this.cached.at < 60_000) return this.cached.releases;
     const releases: DesktopRelease[] = [];
 
     for (let page = 1; page <= 10; page++) {
       const response = await fetch(`https://api.github.com/repos/itsoltech/canopy/releases?per_page=100&page=${page}`, {
         headers: { Accept: "application/vnd.github+json", "User-Agent": `canopy/${app.getVersion()}` },
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
       });
 
       if (!response.ok) throw new Error("Release feed unavailable");
@@ -40,7 +40,7 @@ export class DesktopUpdateFeed {
     throw new Error("Release history is too large to load completely");
   }
 
-  async resolve(channel: DesktopChannel, allowDowngrade: boolean) {
+  async resolve(channel: DesktopChannel, allowDowngrade: boolean, signal: AbortSignal) {
     const suffix =
       process.platform === "darwin"
         ? "-mac"
@@ -50,7 +50,7 @@ export class DesktopUpdateFeed {
 
     const feed = channelFeed(channel);
     const feedFile = `${feed}${suffix}.yml`;
-    const releases = await this.releases();
+    const releases = await this.releases(signal);
     const current = app.getVersion();
     const release = newestRelease(releases, current, channel, feedFile, allowDowngrade);
     const latest = channelReleases(releases, channel)[0];

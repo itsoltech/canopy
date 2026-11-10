@@ -1,30 +1,36 @@
 import type { AppUpdater } from "electron-updater";
+import type { AppUpdaterEvents } from "electron-updater/out/AppUpdater.js";
 import type { DesktopUpdateStatus, DesktopReleaseNote } from "@canopy/ui/desktop";
 import type { DesktopChannel } from "./identity.ts";
 import { channelFeed, channelRank, isDesktopChannel } from "./update-releases.ts";
 import { gt } from "semver";
+import { UpdateOperation, UpdateResumed, updateTimeouts } from "./update-operation.ts";
+import type { CheckClock } from "@canopy/domain/update-checks";
 
-type Updater = Pick<
+export type Updater = Pick<
   AppUpdater,
   | "channel"
   | "allowPrerelease"
   | "allowDowngrade"
   | "autoDownload"
   | "autoInstallOnAppQuit"
-  | "on"
   | "checkForUpdates"
   | "downloadUpdate"
->;
+> & { on<K extends keyof AppUpdaterEvents>(event: K, listener: AppUpdaterEvents[K]): void };
 
 interface Options {
   version: string;
   buildChannel: DesktopChannel;
   channel: DesktopChannel;
+  recover(): Updater;
+  clock?: CheckClock;
+  timeouts?: typeof updateTimeouts;
   save(channel: DesktopChannel): void;
   confirmDowngrade(channel: DesktopChannel): Promise<boolean>;
   prepare(
     channel: DesktopChannel,
     allowDowngrade: boolean,
+    signal: AbortSignal,
   ): Promise<boolean | { available: boolean; releases: DesktopReleaseNote[]; publishing: string | undefined }>;
   changed(): void;
   checking?(): void;
@@ -39,12 +45,15 @@ export class UpdateController {
   private automaticEnabled = true;
   private runningAutomatic = false;
   private operation?: Promise<DesktopUpdateStatus>;
+  private channelOperation: Promise<DesktopUpdateStatus> | undefined;
+  private attempt: UpdateOperation | undefined;
+  private interrupted = false;
   private installing = false;
   private staged: DesktopUpdateStatus | undefined;
   private downloadedVersion: string | undefined;
   private cancelDownload: (() => void) | undefined;
   constructor(
-    private readonly updater: Updater,
+    private updater: Updater,
     private readonly options: Options,
   ) {
     this.state = {
@@ -55,24 +64,30 @@ export class UpdateController {
       message: "Updates are available in installed builds",
       changingChannel: false,
     };
+    this.listen(updater);
+  }
+  private listen(updater: Updater) {
+    const active = () => this.running && this.updater === updater && this.attempt?.active;
     // Check metadata before touching pending: the feed may still point at the staged version.
     updater.autoDownload = false;
     updater.autoInstallOnAppQuit = false;
     this.configure(false);
     updater.on("error", () => {
-      if (this.running) this.publish({ phase: "error", message: "Update failed. Check again to retry." });
+      // The promise owns failures; a late error from a retired updater cannot change the new attempt.
     });
     updater.on("download-progress", (progress) => {
-      if (this.running)
+      if (active()) {
+        this.attempt?.progress(progress.transferred);
         this.publish({
           phase: "downloading",
           message: "Downloading update…",
           progress: Math.max(0, Math.min(100, progress.percent)),
         });
+      }
     });
     updater.on("update-available", (info) => {
       if (
-        this.running &&
+        active() &&
         (!this.state.stagedVersion || gt(info.version, this.state.stagedVersion) || updater.allowDowngrade)
       )
         this.publish({
@@ -83,7 +98,7 @@ export class UpdateController {
         });
     });
     updater.on("update-downloaded", (info) => {
-      if (!this.running) return;
+      if (!active()) return;
       // executeDownload can still fail after this event. Commit only after its promise resolves.
       this.downloadedVersion = info.version;
     });
@@ -105,11 +120,28 @@ export class UpdateController {
     this.enabled = !reason;
     this.publish({ phase: reason ? "disabled" : "idle", message: reason ?? "Not checked yet" });
   }
-  async setChannel(raw: string) {
-    if (!isDesktopChannel(raw)) throw new Error("Invalid update channel");
+  setChannel(raw: string): Promise<DesktopUpdateStatus> {
+    if (!isDesktopChannel(raw)) return Promise.reject(new Error("Invalid update channel"));
+    const previous = this.channelOperation;
 
-    if (this.running || this.installing || this.state.changingChannel)
-      throw new Error("Wait for the current update operation to finish");
+    const next = (async () => {
+      await previous?.catch(() => {});
+      await this.operation;
+
+      return this.switchChannel(raw);
+    })();
+
+    this.channelOperation = next;
+    void next
+      .finally(() => {
+        if (this.channelOperation === next) this.channelOperation = undefined;
+      })
+      .catch(() => {});
+
+    return next;
+  }
+  private async switchChannel(raw: DesktopChannel) {
+    if (this.installing) return this.status();
 
     if (raw === this.state.channel) return this.status();
     const downgrade = channelRank[raw] < channelRank[this.state.channel];
@@ -141,7 +173,7 @@ export class UpdateController {
     return this.status();
   }
   check() {
-    return this.state.changingChannel ? Promise.resolve(this.status()) : this.runCheck(false);
+    return this.channelOperation ?? this.runCheck(false);
   }
   setAutomaticUpdates(enabled: boolean): void {
     this.automaticEnabled = enabled;
@@ -152,15 +184,19 @@ export class UpdateController {
     }
   }
   checkAutomatically() {
-    return this.automaticEnabled && !this.state.changingChannel
+    return this.automaticEnabled && !this.channelOperation
       ? this.runCheck(false, true)
       : Promise.resolve(this.status());
   }
   checkRemote() {
-    if (this.running || this.installing || this.state.changingChannel)
-      throw new Error("Wait for the current app update operation to finish, then retry.");
+    return this.check();
+  }
+  resume() {
+    this.attempt?.recover();
 
-    return this.runCheck(false);
+    if (!this.running && this.interrupted && this.automaticEnabled) return this.checkAutomatically();
+
+    return this.running && this.operation ? this.operation : Promise.resolve(this.status());
   }
   async prepareInstall() {
     if (!this.state.stagedVersion || this.state.changingChannel || this.installing) return false;
@@ -173,8 +209,12 @@ export class UpdateController {
     return false;
   }
   private runCheck(allowDowngrade: boolean, automatic = false): Promise<DesktopUpdateStatus> {
-    if (!this.enabled || this.running || this.installing) return Promise.resolve(this.status());
-    this.operation = this.performCheck(allowDowngrade, automatic);
+    if (this.running && this.operation) return this.operation;
+
+    if (!this.enabled || this.installing) return Promise.resolve(this.status());
+    const operation = Promise.withResolvers<DesktopUpdateStatus>();
+    this.operation = operation.promise;
+    void this.performCheck(allowDowngrade, automatic).then(operation.resolve, operation.reject);
 
     return this.operation;
   }
@@ -190,13 +230,66 @@ export class UpdateController {
             releases: this.staged.releases,
             error,
           }
-        : { phase: error ? "error" : "idle", message: error ?? message, progress: undefined },
+        : { phase: error ? "error" : "idle", message: error ?? message, error, progress: undefined },
     );
   }
   private async performCheck(allowDowngrade: boolean, automatic: boolean) {
     this.running = true;
-    this.downloadedVersion = undefined;
+    this.interrupted = false;
     this.runningAutomatic = automatic;
+
+    try {
+      for (;;) {
+        const attempt = new UpdateOperation(this.options.clock, this.options.timeouts);
+        this.attempt = attempt;
+
+        try {
+          await this.performAttempt(allowDowngrade, automatic, attempt);
+          break;
+        } catch (error) {
+          if (attempt.signal.aborted) {
+            this.interrupted = true;
+            this.updater.allowDowngrade = false;
+            this.updater = this.options.recover();
+            this.listen(this.updater);
+          }
+
+          if (error instanceof UpdateResumed) {
+            this.interrupted = false;
+
+            if (!automatic || this.automaticEnabled) continue;
+            this.settle("Automatic checks and downloads are off");
+            break;
+          }
+
+          this.settle(
+            "",
+            attempt.signal.aborted && error instanceof Error ? error.message : "Update failed. Check again to retry.",
+          );
+          break;
+        } finally {
+          attempt.close();
+
+          if (this.cancelDownload) attempt.signal.removeEventListener("abort", this.cancelDownload);
+          this.cancelDownload = undefined;
+        }
+      }
+    } catch {
+      this.settle("", "Update failed. Check again to retry.");
+    } finally {
+      this.updater.allowDowngrade = false;
+      this.running = false;
+      this.runningAutomatic = false;
+      this.cancelDownload = undefined;
+      this.attempt = undefined;
+      this.options.changed();
+    }
+
+    return this.status();
+  }
+  private async performAttempt(allowDowngrade: boolean, automatic: boolean, attempt: UpdateOperation) {
+    const updater = this.updater;
+    this.downloadedVersion = undefined;
     this.publish({
       phase: "checking",
       message: "Checking for updates…",
@@ -208,64 +301,63 @@ export class UpdateController {
     });
     this.configure(allowDowngrade);
 
-    try {
-      this.options.checking?.();
-      const prepared = await this.options.prepare(this.state.channel, allowDowngrade);
+    this.options.checking?.();
 
-      if (automatic && !this.automaticEnabled) {
-        this.settle("Automatic checks and downloads are off");
+    const prepared = await attempt.wait("prepare", () =>
+      this.options.prepare(this.state.channel, allowDowngrade, attempt.signal),
+    );
 
-        return this.status();
-      }
+    if (automatic && !this.automaticEnabled) {
+      this.settle("Automatic checks and downloads are off");
 
-      const available = prepared === true || (prepared !== false && prepared.available);
-
-      if (prepared !== true && prepared !== false)
-        this.publish({ releases: prepared.releases, publishing: prepared.publishing });
-
-      if (!available) {
-        this.settle(this.state.publishing);
-
-        return this.status();
-      }
-
-      const result = await this.updater.checkForUpdates();
-      this.cancelDownload = () => result?.cancellationToken?.cancel();
-
-      if (automatic && !this.automaticEnabled) this.cancelDownload();
-
-      if (
-        result?.isUpdateAvailable &&
-        (!automatic || this.automaticEnabled) &&
-        (!this.staged?.updateVersion || allowDowngrade || gt(result.updateInfo.version, this.staged.updateVersion))
-      ) {
-        await this.updater.downloadUpdate(result.cancellationToken);
-
-        if (this.downloadedVersion) {
-          this.publish({
-            phase: "downloaded",
-            message: "An update is ready to install",
-            updateVersion: this.downloadedVersion,
-            stagedVersion: this.downloadedVersion,
-            error: undefined,
-            progress: 100,
-          });
-          this.staged = this.status();
-          this.options.downloaded();
-        }
-      }
-
-      if (["checking", "downloading"].includes(this.state.phase)) this.settle();
-    } catch {
-      this.settle("", "Update failed. Check again to retry.");
-    } finally {
-      this.updater.allowDowngrade = false;
-      this.running = false;
-      this.runningAutomatic = false;
-      this.cancelDownload = undefined;
-      this.options.changed();
+      return;
     }
 
-    return this.status();
+    const available = prepared === true || (prepared !== false && prepared.available);
+
+    if (prepared !== true && prepared !== false)
+      this.publish({ releases: prepared.releases, publishing: prepared.publishing });
+
+    if (!available) {
+      this.settle(this.state.publishing);
+
+      return;
+    }
+
+    const result = await attempt.wait("check", () =>
+      updater.checkForUpdates().then((result) => {
+        if (attempt.signal.aborted) result?.cancellationToken?.cancel();
+
+        return result;
+      }),
+    );
+
+    this.cancelDownload = () => result?.cancellationToken?.cancel();
+    attempt.signal.addEventListener("abort", this.cancelDownload, { once: true });
+
+    if (automatic && !this.automaticEnabled) this.cancelDownload();
+
+    if (
+      result?.isUpdateAvailable &&
+      (!automatic || this.automaticEnabled) &&
+      (!this.staged?.updateVersion || allowDowngrade || gt(result.updateInfo.version, this.staged.updateVersion))
+    ) {
+      await attempt.wait("download", () => updater.downloadUpdate(result.cancellationToken));
+
+      if (this.downloadedVersion) {
+        this.publish({
+          phase: "downloaded",
+          message: "An update is ready to install",
+          updateVersion: this.downloadedVersion,
+          stagedVersion: this.downloadedVersion,
+          error: undefined,
+          progress: 100,
+        });
+        this.staged = this.status();
+        this.options.downloaded();
+      }
+    }
+
+    if (["checking", "downloading"].includes(this.state.phase)) this.settle();
   }
 }
