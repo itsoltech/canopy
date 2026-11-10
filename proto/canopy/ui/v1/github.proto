@@ -93,3 +93,96 @@ message GitHubRepositoriesResponse {
   uint32 next_page = 2;
   uint32 total_count = 3;
 }
+
+message GitHubRepositoryAccountRequest {
+  string home_id = 1;
+  string repository_name = 2;
+}
+message GitHubRepositoryAccountResponse {
+  string repository_id = 1;
+  string repository_name = 2;
+  string account_id = 3;
+  uint64 revision = 4;
+  repeated GitHubAccount candidates = 5;
+}
+message SetGitHubRepositoryAccountRequest {
+  string home_id = 1;
+  string repository_name = 2;
+  string account_id = 3;
+  uint64 expected_revision = 4;
+}
+message PullRequestRef {
+  string id = 1;
+  string host = 2;
+  string repository_id = 3;
+  string repository_name = 4;
+  uint32 number = 5;
+  string node_id = 6;
+}
+message PullRequestSummary {
+  PullRequestRef ref = 1;
+  string title = 2;
+  string state = 3;
+  string head_sha = 4;
+  string checks_state = 5;
+  uint32 checks_count = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  google.protobuf.Timestamp verified_at = 8;
+}
+message PullRequestCheck {
+  string name = 1;
+  string state = 2;
+  string provider = 3;
+  string url = 4;
+  string head_sha = 5;
+}
+message PullRequestReviewer {
+  string login = 1;
+  string state = 2;
+}
+message PullRequestSnapshot {
+  PullRequestSummary summary = 1;
+  string author = 2;
+  string body = 3;
+  string base_ref = 4;
+  string head_ref = 5;
+  string base_sha = 6;
+  uint32 files = 7;
+  uint32 additions = 8;
+  uint32 deletions = 9;
+  repeated PullRequestReviewer reviewers = 10;
+  repeated string labels = 11;
+  repeated PullRequestCheck checks = 12;
+  string completeness = 13;
+  bool stale = 14;
+  string detail = 15;
+  string account_id = 16;
+  uint64 access_revision = 17;
+  repeated string assignees = 18;
+}
+message PullRequestLink {
+  PullRequestSummary summary = 1;
+  string source = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+message ThreadPullRequestsRequest { string thread_id = 1; }
+message ThreadPullRequestsResponse {
+  repeated PullRequestLink links = 1;
+  uint64 revision = 2;
+  bool stale = 3;
+  string detail = 4;
+}
+message LinkThreadPullRequestRequest {
+  string thread_id = 1;
+  string url = 2;
+  uint64 expected_revision = 3;
+}
+message UnlinkThreadPullRequestRequest {
+  string thread_id = 1;
+  string pull_request_id = 2;
+  uint64 expected_revision = 3;
+}
+message PullRequestRequest {
+  string pull_request_id = 1;
+  bool refresh = 2;
+}

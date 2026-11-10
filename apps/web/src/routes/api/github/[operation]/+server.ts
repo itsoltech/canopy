@@ -25,6 +25,48 @@ export const POST: RequestHandler = async ({ params, request, cookies, url }) =>
 
   const result = await call(async (api) => {
     switch (params.operation) {
+      case "repository-account":
+        return encode(
+          github.GitHubRepositoryAccountResponseSchema,
+          await api.getGitHubRepositoryAccount(
+            await readMessage(request, github.GitHubRepositoryAccountRequestSchema),
+            options,
+          ),
+        );
+      case "choose-account":
+        return encode(
+          github.GitHubRepositoryAccountResponseSchema,
+          await api.setGitHubRepositoryAccount(
+            await readMessage(request, github.SetGitHubRepositoryAccountRequestSchema),
+            options,
+          ),
+        );
+      case "pull-requests":
+        return encode(
+          github.ThreadPullRequestsResponseSchema,
+          await api.listThreadPullRequests(await readMessage(request, github.ThreadPullRequestsRequestSchema), options),
+        );
+      case "link":
+        return encode(
+          github.ThreadPullRequestsResponseSchema,
+          await api.linkThreadPullRequest(
+            await readMessage(request, github.LinkThreadPullRequestRequestSchema),
+            options,
+          ),
+        );
+      case "unlink":
+        return encode(
+          github.ThreadPullRequestsResponseSchema,
+          await api.unlinkThreadPullRequest(
+            await readMessage(request, github.UnlinkThreadPullRequestRequestSchema),
+            options,
+          ),
+        );
+      case "pull-request":
+        return encode(
+          github.PullRequestSnapshotSchema,
+          await api.getPullRequest(await readMessage(request, github.PullRequestRequestSchema), options),
+        );
       case "accounts":
         return encode(
           github.GitHubAccountsResponseSchema,

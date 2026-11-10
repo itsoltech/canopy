@@ -16,6 +16,10 @@
   import { useThreadDirectory } from "../thread-directory.ts";
   import ThreadTitleActions from "./ThreadTitleActions.svelte";
   import ThreadPlacement from "./ThreadPlacement.svelte";
+  import ThreadPullRequests from "#lib/features/github/ThreadPullRequests.svelte";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+
+  const capabilities = useGatewayCapabilities();
 
   /**
    * Context of a thread: where it runs, its scheduled tasks (pause, resume, cancel, schedule another),
@@ -83,6 +87,11 @@
   <!-- Connector accounts are per computer (stage 4); a linked computer's thread uses that computer's. -->
   {#if !thread.nodeId}<ThreadConnectors threadId={thread.id} />{/if}
   <ThreadPlacement {thread} {worker} {onworktree} />
+  {#if capabilities?.supports("/pull-requests") !== false}<ThreadPullRequests {thread} />{:else}<p
+      class="px-3 py-2 text-sm text-zinc-500"
+    >
+      Update Canopy on your gateway to link pull requests
+    </p>{/if}
 
   {#if onbackground}<BackgroundTasksSection
       tasks={backgroundTasks}

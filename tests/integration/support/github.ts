@@ -47,6 +47,7 @@ export function githubFixture() {
   let catalogueCount = 1;
   let longNames = false;
   let echoSecrets = false;
+  let apiHandler: ((request: Request, user: number) => Response | Promise<Response> | undefined) | undefined;
   const codes = new Map<string, number>();
   const tokens = new Map<string, number>();
   const refreshTokens = new Map<string, number>();
@@ -131,6 +132,10 @@ export function githubFixture() {
             (echoSecrets ? `-${access}-${secrets.at(-1)}` : ""),
         });
 
+      const custom = apiHandler?.(request, user);
+
+      if (custom) return custom;
+
       return catalogueResponse(url, user, catalogueCount, longNames, echoSecrets ? `-${access}-${secrets.at(-1)}` : "");
     },
   });
@@ -156,6 +161,9 @@ export function githubFixture() {
 
   return {
     options,
+    handler: (value: typeof apiHandler) => {
+      apiHandler = value;
+    },
     secrets,
     echo: (value: boolean) => {
       echoSecrets = value;

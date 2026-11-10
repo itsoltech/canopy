@@ -37,11 +37,24 @@ const workerSignature = (worker: ui.Worker) =>
 /** Applies overview updates to one session's shared reads. One instance per session. */
 export class OverviewInvalidation {
   readonly #workers = new Map<string, string>();
+  readonly #pullRequests = new Map<string, bigint>();
 
   constructor(private readonly queries: QueryCache) {}
 
   apply(update: ui.OverviewUpdate): void {
     const change = update.change;
+
+    if (change.case === "thread") {
+      const thread = change.value;
+      const previous = this.#pullRequests.get(thread.id);
+      this.#pullRequests.set(thread.id, thread.pullRequestRevision);
+
+      if (previous !== thread.pullRequestRevision)
+        this.queries.forget(named(["GetPullRequest", "ListThreadPullRequests"]));
+    }
+
+    if (["computerRemoved", "computerSnapshot", "mobileSnapshot"].includes(change.case ?? ""))
+      this.queries.forget(named(["GetPullRequest", "ListThreadPullRequests"]));
 
     if (change.case === "linkedReadCompleted") {
       this.queries.invalidate(named([change.value]));
@@ -71,6 +84,9 @@ export class OverviewInvalidation {
 
     for (const worker of workers) this.#workers.set(worker.id, workerSignature(worker));
 
-    if (gap) this.queries.invalidate(() => true);
+    if (gap) {
+      this.queries.forget(named(["GetPullRequest", "ListThreadPullRequests"]));
+      this.queries.invalidate(() => true);
+    }
   }
 }

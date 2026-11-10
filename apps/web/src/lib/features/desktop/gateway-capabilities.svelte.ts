@@ -4,12 +4,14 @@ import { requestJson } from "#lib/shared/http.ts";
 import { clearHistory } from "./history.ts";
 import { threadCache } from "../threads/thread-cache.ts";
 import { botCache } from "../bots/cache.ts";
+import { queries } from "#lib/shared/queries.svelte.ts";
 
 const sections = {
   "/bots": ["ListBots", "GetBot", "SendBotMessage"],
   "/settings/providers": ["ListProviderInstances", "SaveProviderInstance"],
   "/settings/connectors": ["ListConnectors", "SaveConnectorAccount"],
   "/settings/github": ["ListGitHubAccounts", "BeginGitHubDeviceAuth"],
+  "/pull-requests": ["GetPullRequest", "LinkThreadPullRequest"],
   "/settings/workers": ["GetWorkerSetup", "CreateWorkerEnrollment"],
   "/settings/network": ["GetNetworkAccess", "UpdateNetworkAccess"],
   "/settings/mobile": ["GetMobileDevices", "CreateDesktopPairing"],
@@ -62,6 +64,7 @@ export class GatewayCapabilities {
       this.state = value["state"];
 
       if (this.state === "pairing") {
+        queries.forget((key) => key.startsWith("GetPullRequest:") || key.startsWith("ListThreadPullRequests:"));
         threadCache.clear();
         botCache.clear();
         clearHistory();

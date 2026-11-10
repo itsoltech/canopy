@@ -112,10 +112,13 @@ export class GitHubAccess {
     throw reconnect();
   }
   async get(id: string, path: string, signal?: AbortSignal) {
+    return this.authorized(id, (access) => this.http.get(path, access.token, signal, access.secrets));
+  }
+  async authorized<A>(id: string, use: (access: AccessToken) => Promise<A>) {
     let access = await this.token(id);
 
     try {
-      const value = await this.http.get(path, access.token, signal, access.secrets);
+      const value = await use(access);
       await this.#valid(access.row);
 
       return { value, row: access.row };
@@ -131,7 +134,7 @@ export class GitHubAccess {
     access = await this.token(id, access.row.revision);
 
     try {
-      const value = await this.http.get(path, access.token, signal, access.secrets);
+      const value = await use(access);
       await this.#valid(access.row);
 
       return { value, row: access.row };

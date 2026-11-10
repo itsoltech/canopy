@@ -4,7 +4,17 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { bots, computerLink as link, ui } from "@canopy/contracts";
 import { REMOTE_BOTS, REMOTE_BOT_COMPOSER } from "@canopy/domain/computers";
-import { GITHUB_ACCOUNTS } from "@canopy/domain/computers";
+import { GITHUB_ACCOUNTS, GITHUB_PR } from "@canopy/domain/computers";
+
+export const GITHUB_PR_METHODS = new Set([
+  "GetGitHubRepositoryAccount",
+  "SetGitHubRepositoryAccount",
+  "ListThreadPullRequests",
+  "LinkThreadPullRequest",
+  "UnlinkThreadPullRequest",
+  "GetPullRequest",
+  "RefreshPullRequest",
+]);
 
 export const GITHUB_METHODS = new Set([
   "ListGitHubAccounts",
@@ -19,6 +29,8 @@ export const GITHUB_METHODS = new Set([
 
 export function botFeature(method: { name: string }, request: Message): string | undefined {
   if (GITHUB_METHODS.has(method.name)) return GITHUB_ACCOUNTS;
+
+  if (GITHUB_PR_METHODS.has(method.name)) return GITHUB_PR;
   const send = method.name === "SendBotMessage" ? linkedMessage(bots.SendBotMessageRequestSchema, request) : undefined;
 
   if (
@@ -36,6 +48,7 @@ export function botFeature(method: { name: string }, request: Message): string |
  * GitHub account DTOs contain no credentials; generic credential and connector administration stays local. */
 export const SERVED = new Set([
   ...GITHUB_METHODS,
+  ...GITHUB_PR_METHODS,
   "GetOverview",
   "WatchOverview",
   "ListThreads",

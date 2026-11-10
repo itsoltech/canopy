@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { pruneGitHubCache } from "../github/prune-cache.ts";
 
 const BATCH = 256;
 
@@ -19,6 +20,7 @@ export const pruneDatabase = (owner: string) =>
 
         if (!claimed.length) return 0;
         let touched = 0;
+        touched += yield* pruneGitHubCache(sql, owner);
 
         touched += (yield* sql`DELETE FROM github_device_auth WHERE id IN (
           SELECT id FROM github_device_auth WHERE owner_user_id=${owner}::uuid AND expires_at<now()-interval '24 hours'

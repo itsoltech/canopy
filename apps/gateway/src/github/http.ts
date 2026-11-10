@@ -21,6 +21,7 @@ export class GitHubHttpFailure extends Error {
   constructor(
     readonly status: number,
     readonly retryAt: number,
+    readonly headers = new Headers(),
   ) {
     super("GitHub request failed");
   }
@@ -60,7 +61,7 @@ export class GitHubHttp {
     this.#fetch = options.fetch ?? fetch;
     this.now = options.now ?? Date.now;
   }
-  async request(path: string, init: RequestInit, secrets: readonly string[] = []) {
+  async detailed(path: string, init: RequestInit, secrets: readonly string[] = []) {
     const origin = path.startsWith("/login/") ? "https://github.com" : "https://api.github.com";
 
     const response = await this.#fetch(`${origin}${path}`, {
@@ -70,23 +71,43 @@ export class GitHubHttp {
       headers: { Accept: "application/json", "X-GitHub-Api-Version": "2022-11-28", ...init.headers },
     });
 
+    const headers = new Headers(response.headers);
+
+    if (secrets.length) for (const [name, value] of headers) headers.set(name, redactConnector(value, {}, secrets));
+
+    if (response.status === 304) return { status: 304, headers, value: null };
+
     if (!response.ok) {
-      await response.body?.cancel();
+      const message = await bodyText(response).catch(() => "");
       const retry = Number(response.headers.get("retry-after"));
       const reset = Number(response.headers.get("x-ratelimit-reset")) * 1000;
 
       const limited =
         response.status === 429 ||
-        (response.status === 403 && (response.headers.get("x-ratelimit-remaining") === "0" || retry > 0));
+        (response.status === 403 &&
+          (response.headers.get("x-ratelimit-remaining") === "0" || retry > 0 || /rate limit|abuse/i.test(message)));
 
-      throw new GitHubHttpFailure(response.status, limited ? Math.max(this.now() + (retry || 60) * 1000, reset) : 0);
+      throw new GitHubHttpFailure(
+        response.status,
+        limited ? Math.max(this.now() + (retry || 60) * 1000, reset) : 0,
+        headers,
+      );
     }
 
     const text = await bodyText(response);
 
-    return Schema.decodeUnknownSync(Schema.JsonObject)(
+    const value = Schema.decodeUnknownSync(Schema.JsonObject)(
       JSON.parse(secrets.length ? redactConnector(text, {}, secrets) : text),
     );
+
+    return { status: response.status, headers, value };
+  }
+  async request(path: string, init: RequestInit, secrets: readonly string[] = []) {
+    const result = await this.detailed(path, init, secrets);
+
+    if (!result.value) throw new Error("Empty GitHub response");
+
+    return result.value;
   }
   post(path: string, fields: Record<string, string>) {
     return this.request(path, {

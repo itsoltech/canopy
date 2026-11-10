@@ -4,6 +4,8 @@ import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "../store/secrets.t
 import { accountView, notFound, TokenPair, type AccountRow } from "./records.ts";
 import { githubAttempts } from "./store-attempts.ts";
 import { githubCatalogue } from "./store-catalogue.ts";
+import { githubCache } from "./store-cache.ts";
+import { githubPullRequests } from "./store-pull-requests.ts";
 
 export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
   const seal = (value: TokenPair) => encryptSecret(key, JSON.stringify(value));
@@ -35,6 +37,12 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
 
         if (!rows[0]) return yield* Effect.fail(notFound());
         yield* sql`DELETE FROM github_installations WHERE owner_user_id=${owner}::uuid AND account_id=${id}::uuid`;
+        yield* sql`DELETE FROM github_pr_cache WHERE owner_user_id=${owner}::uuid AND account_id=${id}::uuid`;
+        yield* sql`UPDATE threads SET newest_pull_request=NULL,pull_request_revision=pull_request_revision+1
+          WHERE owner_user_id=${owner}::uuid AND id IN (SELECT l.thread_id FROM thread_pull_requests l
+          JOIN github_pull_requests p ON p.owner_user_id=l.owner_user_id AND p.id=l.pull_request_id
+          JOIN github_repository_accounts r ON r.owner_user_id=p.owner_user_id AND r.repository_id=p.repository_id
+          WHERE r.owner_user_id=${owner}::uuid AND r.account_id=${id}::uuid)`;
         yield* audit(owner, status, id);
 
         return accountView(rows[0]);
@@ -80,6 +88,8 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
       ),
     ...githubAttempts(sql, key, saveAccount, audit),
     ...githubCatalogue(sql),
+    ...githubCache(sql),
+    ...githubPullRequests(sql),
   };
 }
 

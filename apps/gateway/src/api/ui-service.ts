@@ -19,6 +19,7 @@ import { worktreesHandlers } from "./ui-worktrees.ts";
 import { importsHandlers } from "./ui-imports.ts";
 import { workspaceCopyHandlers } from "./ui-workspace-copy.ts";
 import { githubHandlers } from "./ui-github.ts";
+import { pullRequestHandlers } from "./ui-pull-requests.ts";
 
 export { toConnectError } from "./ui-errors.ts";
 
@@ -80,5 +81,6 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     ...importsHandlers(core),
     ...workspaceCopyHandlers(core),
     ...githubHandlers(core),
+    ...pullRequestHandlers(core),
   });
 }

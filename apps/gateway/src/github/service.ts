@@ -10,6 +10,7 @@ import { GitHubCatalogue } from "./catalogue.ts";
 import { accountView, reconnect } from "./records.ts";
 import { User } from "./schemas.ts";
 import { GitHubPat } from "./pat.ts";
+import { GitHubPullRequests } from "./pull-requests.ts";
 
 /** Product GitHub access. No worker, agent tool or shared-config adapter receives this service. */
 export class GitHubAccounts {
@@ -19,10 +20,12 @@ export class GitHubAccounts {
   readonly device: GitHubDeviceFlow;
   readonly catalogue: GitHubCatalogue;
   readonly pat: GitHubPat;
+  readonly prs: GitHubPullRequests;
   constructor(
     readonly runtime: CoreRuntime,
     readonly owner: string,
     options: GitHubOptions = {},
+    publish: (ids: readonly string[]) => Promise<void> = async () => {},
   ) {
     this.run = async (use) => {
       const result = await runtime.runPromise(Effect.exit(GatewayStore.use((s) => use(s.github))));
@@ -47,7 +50,8 @@ export class GitHubAccounts {
         throw reconnect();
       }
     });
-    this.catalogue = new GitHubCatalogue(this.access);
+    this.prs = new GitHubPullRequests(this, publish);
+    this.catalogue = new GitHubCatalogue(this.access, this.prs.client);
     this.device = new GitHubDeviceFlow(this.run, this.http, owner, (id) => this.catalogue.refresh(id));
   }
   async list() {
@@ -64,12 +68,15 @@ export class GitHubAccounts {
     });
   }
   async stop() {
+    await this.prs.client.stop();
     await this.device.stop();
     await this.catalogue.stop();
   }
   async disconnect(id: string) {
+    this.prs.client.abort(id);
     const account = await this.run((s) => s.clear(this.owner, id, "disconnected"));
     this.catalogue.abort(id);
+    await this.prs.changed();
 
     return create(github.GitHubAccountResponseSchema, { account });
   }

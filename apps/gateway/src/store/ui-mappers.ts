@@ -1,6 +1,6 @@
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { InteractionKind, PermissionMode, UsageSchema, ui } from "@canopy/contracts";
+import { InteractionKind, PermissionMode, UsageSchema, ui, github } from "@canopy/contracts";
 import { storedShellResult } from "./shell-input.ts";
 import { fromJson } from "@bufbuild/protobuf";
 import { Match, Predicate } from "effect";
@@ -59,6 +59,11 @@ export function permissionModeName(mode: PermissionMode): string {
 
 export function toUiThread(row: ThreadRow): ui.Thread {
   return create(ui.ThreadSchema, {
+    ...(row.newest_pull_request && {
+      newestPullRequest: fromJson(github.PullRequestSummarySchema, row.newest_pull_request),
+    }),
+    pullRequestCount: row.pull_request_count ?? 0,
+    pullRequestRevision: BigInt(row.pull_request_revision ?? 0),
     id: row.id,
     projectId: row.project_id,
     kind: row.kind === "side" || row.remote_parent_ref ? ui.ThreadKind.SIDE : ui.ThreadKind.MAIN,

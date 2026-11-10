@@ -7,13 +7,17 @@ import { GitHubAccess } from "./access.ts";
 import { Installations, Repositories, type Installation, type Repository } from "./schemas.ts";
 import { reconnect } from "./records.ts";
 import { GitHubHttpFailure } from "./http.ts";
+import { GitHubClient } from "./client.ts";
 
 export class GitHubCatalogue {
   #flights = new Map<string, Promise<void>>();
   #controllers = new Map<string, AbortController>();
   #retry = new Map<string, number>();
   #stopped = false;
-  constructor(readonly access: GitHubAccess) {}
+  constructor(
+    readonly access: GitHubAccess,
+    readonly client: GitHubClient,
+  ) {}
   async stop() {
     this.#stopped = true;
 
@@ -21,6 +25,7 @@ export class GitHubCatalogue {
     await Promise.allSettled(this.#flights.values());
   }
   abort(id: string) {
+    this.client.abort(id);
     this.#controllers.get(id)?.abort();
     this.#retry.delete(id);
   }
@@ -61,7 +66,7 @@ export class GitHubCatalogue {
     let revision: bigint | undefined;
 
     for (let page = 1; page <= 10; page++) {
-      const result = await this.access.get(id, `/user/installations?per_page=100&page=${page}`, signal);
+      const result = await this.#read(id, `/user/installations?per_page=100&page=${page}`, signal);
 
       if (revision && revision !== result.row.revision) throw reconnect();
       revision = result.row.revision;
@@ -72,7 +77,7 @@ export class GitHubCatalogue {
 
         if (!installation.suspended_at)
           for (let repoPage = 1; repoPage <= 100; repoPage++) {
-            const result = await this.access.get(
+            const result = await this.#read(
               id,
               `/user/installations/${installation.id}/repositories?per_page=100&page=${repoPage}`,
               signal,
@@ -108,6 +113,17 @@ export class GitHubCatalogue {
     if (signal.aborted || row.revision !== revision || row.status !== "connected") throw reconnect();
 
     if (!(await this.access.run((s) => s.saveCatalogue(row, catalogue, this.access.http.now())))) throw reconnect();
+  }
+  async #read(id: string, path: string, signal: AbortSignal) {
+    signal.throwIfAborted();
+    const { row } = await this.access.token(id);
+    const result = await this.client.read(id, { key: `catalogue:${path}`, path, ttl: 900_000 }, true);
+    signal.throwIfAborted();
+    const current = await this.access.run((s) => s.owned(this.access.owner, id));
+
+    if (current.status !== "connected" || current.revision !== row.revision) throw reconnect();
+
+    return { row: current, value: result.payload };
   }
   async installations(request: github.GitHubCatalogueRequest) {
     await this.refresh(request.accountId, request.refresh);

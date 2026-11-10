@@ -3,6 +3,7 @@ import { GitHubAccounts } from "../github/service.ts";
 import { create } from "@bufbuild/protobuf";
 import { createCoreBots, createCoreBus, createCoreScheduler, createCoreUpdates } from "./core-composition.ts";
 import { ui } from "@canopy/contracts";
+
 import { SettingsStore } from "../store/index.ts";
 import { createWorkerLink, type WorkerLink } from "../worker-link/index.ts";
 import { DEFAULT_ATTACHMENT_LIMITS, type AttachmentLimits } from "@canopy/domain";
@@ -74,6 +75,9 @@ export {
   type CoreServices,
   type GatewayCoreOptions,
 } from "./core-context.ts";
+
+const createCoreGitHub = (core: GatewayCore, options: GatewayCoreOptions) =>
+  new GitHubAccounts(options.runtime, options.userId, options.github, (ids) => core.threadsChanged(ids));
 
 export class GatewayCore {
   readonly accounts = new ProviderAccounts(this);
@@ -246,7 +250,7 @@ export class GatewayCore {
       userId: options.userId,
       interaction: (interaction) => corePublishInteraction(this, interaction),
     });
-    this.github = new GitHubAccounts(options.runtime, options.userId, options.github);
+    this.github = createCoreGitHub(this, options);
     this.bots = createCoreBots(this, options);
     this.link = createWorkerLink({
       authenticate: (credential) => coreRun(this, (s) => s.authenticateWorker(credential)),

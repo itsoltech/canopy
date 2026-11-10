@@ -27,3 +27,35 @@ export const installations = async (accountId: string, page = 0, refresh = false
 
 export const repositories = async (accountId: string, installationId: string, page = 0) =>
   decode(github.GitHubRepositoriesResponseSchema, await post("repositories", { accountId, installationId, page }));
+
+export const repositoryAccount = async (homeId: string, repositoryName: string) =>
+  decode(github.GitHubRepositoryAccountResponseSchema, await post("repository-account", { homeId, repositoryName }));
+
+export const chooseAccount = async (
+  homeId: string,
+  repositoryName: string,
+  accountId: string,
+  expectedRevision: bigint,
+) =>
+  decode(
+    github.GitHubRepositoryAccountResponseSchema,
+    await post("choose-account", { homeId, repositoryName, accountId, expectedRevision: String(expectedRevision) }),
+  );
+
+export const pullRequests = async (threadId: string) =>
+  decode(github.ThreadPullRequestsResponseSchema, await post("pull-requests", { threadId }));
+
+export const link = async (threadId: string, url: string, expectedRevision: bigint) =>
+  decode(
+    github.ThreadPullRequestsResponseSchema,
+    await post("link", { threadId, url, expectedRevision: String(expectedRevision) }),
+  );
+
+export const unlink = async (threadId: string, pullRequestId: string, expectedRevision: bigint) =>
+  decode(
+    github.ThreadPullRequestsResponseSchema,
+    await post("unlink", { threadId, pullRequestId, expectedRevision: String(expectedRevision) }),
+  );
+
+export const pullRequest = async (pullRequestId: string, refresh = false) =>
+  decode(github.PullRequestSnapshotSchema, await post("pull-request", { pullRequestId, refresh }));

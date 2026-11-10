@@ -1,5 +1,5 @@
 import { clone, create, type DescMethod, type Message } from "@bufbuild/protobuf";
-import { bots, MentionKind, MentionSchema, ui, type Mention } from "@canopy/contracts";
+import { bots, github, MentionKind, MentionSchema, ui, type Mention } from "@canopy/contracts";
 import {
   INLINE_ATTACHMENTS,
   STEER_ATTACHMENTS,
@@ -111,6 +111,22 @@ export async function* home(
   const computers = core.computers;
 
   if (!computers) throw new ConnectError("That computer is no longer linked", Code.NotFound);
+
+  if (!computers.reachable().includes(nodeId) && method.name === "ListThreadPullRequests") {
+    const id = splitId(linkedMessage(github.ThreadPullRequestsRequestSchema, request).threadId).id;
+    const thread = await computers.mirror.thread(nodeId, id);
+
+    if (thread) {
+      yield create(github.ThreadPullRequestsResponseSchema, {
+        stale: true,
+        revision: thread.pullRequestRevision,
+        detail: "This computer is offline. Only the latest mirrored pull request is available.",
+        links: thread.newestPullRequest ? [{ summary: thread.newestPullRequest, source: "manual" }] : [],
+      });
+
+      return;
+    }
+  }
 
   if (method.name === "WatchThread") linkedMessage(ui.WatchThreadRequestSchema, request).mirrorCursor = "";
 

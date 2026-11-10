@@ -23,8 +23,9 @@
     "sharp": "0.35.5"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "1.32.2",
     "@canopy/testing": "workspace:*",
-    "@types/dns-packet": "5.6.5"
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@types/dns-packet": "5.6.5",
+    "graphql": "16.11.0"
   }
 }

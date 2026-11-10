@@ -27,6 +27,9 @@ export function refuseForeignAdministration(method: DescMethod, request: Message
 
 /** Calls that only read: allowed on a thread or bot frozen for a move (stage 8). */
 export const READS = new Set([
+  "GetGitHubRepositoryAccount",
+  "ListThreadPullRequests",
+  "GetPullRequest",
   "GetOverview",
   "WatchOverview",
   "ListThreads",
