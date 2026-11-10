@@ -1,5 +1,14 @@
 # Połączone komputery
 
+Rozłączenie lokalnego workera zmienia dostępność workera, nie obecność komputera.
+Obecność partnera wynika z jego własnego łącza i heartbeatów. Zmiana metadanych
+workera może natomiast zwiększyć rewizję lustra i wywołać ponowną subskrypcję
+historii (`reason: revision`); ten wpis sam w sobie nie oznacza zerwania łącza
+komputerów. Trwały błąd treści zdarzenia nie powinien rozłączać workera
+([obsługa zapisu i kwarantanny](protocol.md#dostarczanie-transkryptu-at-least-once--idempotencja)).
+Zapis `last_seen_at` z heartbeatów również uruchamia wspólną rewizję metadanych;
+takie odświeżenia mogą występować przy stabilnym łączu, bez rozłączeń workera.
+
 **Wyłącznie aplikacje Canopy Desktop w trybie lokalnym.** Łącze łączy dwa lub więcej
 lokalnych gatewayów desktopu. Gateway serwerowy (Docker lub samodzielna binarka)
 nie oferuje parowania komputerów, łącza, wykrywania LAN/mDNS, luster, wspólnej

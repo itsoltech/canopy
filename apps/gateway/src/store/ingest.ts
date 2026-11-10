@@ -4,6 +4,8 @@ import { SqlClient, type SqlError } from "effect/sql";
 import { ENDED, applySideEffects, applySteer, insertEvent, resolveTurn } from "./ingest-events.ts";
 import { settleThread, stuckThread } from "./ingest-settle.ts";
 import { applyShellInput } from "./shell-input.ts";
+import { storageEvent } from "./event-text.ts";
+import { dataErrorCode, quarantineEvent } from "./event-quarantine.ts";
 
 /**
  * Writes worker events into the thread timeline (docs/transcript.md, "Zapis po stronie gateway").
@@ -53,6 +55,7 @@ export const ingestThread = (
   journalId: string,
   threadId: string,
   events: readonly ThreadEvent[],
+  origin: "worker" | "gateway" = "worker",
 ) =>
   sql.withTransaction(
     Effect.gen(function* () {
@@ -78,8 +81,8 @@ export const ingestThread = (
         if (known.has(incoming.eventId)) continue;
         known.add(incoming.eventId);
         const seq = ++last;
-        const event = yield* resolveTurn(sql, threadId, incoming);
-        yield* insertEvent(sql, threadId, seq, event, "worker");
+        const event = yield* resolveTurn(sql, threadId, storageEvent(incoming));
+        yield* insertEvent(sql, threadId, seq, event, origin);
         yield* applySideEffects(sql, threadId, seq, event);
         yield* applySteer(sql, threadId, seq, event);
 
@@ -171,9 +174,13 @@ export class Ingest extends Context.Service<
           const failedThreads: { threadId: string; error: SqlError.SqlError }[] = [];
 
           for (const [threadId, threadEvents] of byThread) {
-            // One thread's failure must not stop the others (or the worker link): it is not acked, so the
-            // worker keeps its events and resends them after reconnecting (the core asks it to).
+            // Isolate data exceptions; other failures keep the thread unacked for redelivery.
             const result = yield* ingestThread(sql, workerId, journalId, threadId, threadEvents).pipe(
+              Effect.catchTag("SqlError", (error) =>
+                dataErrorCode(error)
+                  ? isolateDataErrors(sql, workerId, journalId, threadId, threadEvents)
+                  : Effect.fail(error),
+              ),
               Effect.catchTag("SqlError", (error) => Effect.sync(() => void failedThreads.push({ threadId, error }))),
             );
 
@@ -194,3 +201,51 @@ export class Ingest extends Context.Service<
     }),
   );
 }
+
+/** Slow path only: isolate bad events with savepoints, then commit originals, markers and cursor together. */
+const isolateDataErrors = (
+  sql: SqlClient.SqlClient,
+  workerId: string,
+  journalId: string,
+  threadId: string,
+  events: readonly ThreadEvent[],
+) =>
+  sql.withTransaction(
+    Effect.gen(function* () {
+      const stored: StoredEvent[] = [];
+      let ack = 0n;
+
+      for (const event of events) {
+        const result = yield* ingestThread(sql, workerId, journalId, threadId, [event]).pipe(
+          Effect.catchTag("SqlError", (error) => {
+            const code = dataErrorCode(error);
+
+            if (!code) return Effect.fail(error);
+
+            return Effect.gen(function* () {
+              const marker = yield* quarantineEvent(sql, workerId, journalId, event, code);
+              const saved = yield* ingestThread(sql, workerId, journalId, threadId, [marker], "gateway");
+              yield* sql.afterCommit(
+                Effect.logWarning("Worker event quarantined", {
+                  workerId,
+                  threadId,
+                  eventId: event.eventId,
+                  journalSeq: String(event.journalSeq),
+                  sqlstate: code,
+                }),
+              );
+
+              return saved;
+            });
+          }),
+        );
+
+        if (!result) return undefined;
+
+        if (result.ack > ack) ack = result.ack;
+        stored.push(...result.stored);
+      }
+
+      return { ack, stored };
+    }),
+  );

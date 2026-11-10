@@ -1,5 +1,12 @@
 # Model danych (PostgreSQL)
 
+Migracja `0111_worker_event_quarantine` przechowuje oryginalne bajty protobuf
+zdarzeń odrzuconych przez błąd danych SQLSTATE `22xxx`. Kluczem deduplikacji jest
+`event_id`; rekord wskazuje worker, journal, wątek lub bot oraz `journal_seq`.
+Nie ma publicznego API odczytu tej tabeli. Oryginał, ostrzeżenie i checkpoint
+powstają atomowo; fizyczne usunięcie workera usuwa kwarantannę kaskadowo.
+Nie zmienia to istniejących migracji ani protokołu workera.
+
 Migracja `0100_history_read_indexes` indeksuje niewidziane tury, itemy stron
 historii, ostatnie odpowiedzi oraz komunikaty. Nie zmienia danych
 ani retencji. Indeksy powstają w transakcji migratora i wymagają uwzględnienia blokad

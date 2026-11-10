@@ -9,6 +9,7 @@ import { providerOf } from "./instance-config.ts";
 import type { ThreadRow } from "./rows.ts";
 import { listThreadSelect, threadSelect } from "./thread-select.ts";
 import { permissionModeOf } from "./ui-mappers.ts";
+import { storageText } from "./event-text.ts";
 
 export interface ThreadStore {
   /** `id`: a thread moved here from a linked computer keeps its id (docs/linked-computers.md, stage 8). */
@@ -191,7 +192,7 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
                 RETURNING *`.pipe(Effect.map((rows) => rows[0])),
 
     finishTitle: (threadId, revision, title) =>
-      sql`UPDATE threads SET title = ${title}, title_source = 'generated'
+      sql`UPDATE threads SET title = ${storageText(title)}, title_source = 'generated'
                  WHERE id = ${threadId}::uuid AND title_revision = ${revision} AND archived_at IS NULL
                  RETURNING id`.pipe(Effect.map((rows) => rows.length > 0)),
   };

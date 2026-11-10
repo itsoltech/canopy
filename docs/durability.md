@@ -47,6 +47,22 @@ Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [dat
 
 `bun:sqlite` w trybie WAL z `synchronous = FULL`, żeby przetrwać zanik zasilania, nie tylko awarię procesu. `journal_seq` rośnie per wątek i nigdy się nie cofa (tabela `thread_seq`), także po potwierdzeniu wszystkich zdarzeń i restarcie. Tabele: `threads`, `journal`, `processed_commands`, `pending_interactions`, `pending_bus_calls`. Jeden plik w katalogu danych workera z uprawnieniami 0600.
 
+Granica zapisu gatewaya zastępuje NUL i niesparowane surogaty znakiem U+FFFD.
+PostgreSQL odrzuca je w `jsonb` (NUL także w `text`); ponawianie niezmienionego
+zdarzenia nie mogłoby się zakończyć. Normalizacja odbywa się przed projekcjami,
+także dla botów. Nie usuwa zdarzenia ani nie wymaga naprawiania SQLite użytkownika.
+
+Inne błędy danych SQLSTATE `22xxx` mają trwały wynik zastępczy: oryginalne bajty
+protobuf w `worker_event_quarantine` (migracja `0111_worker_event_quarantine`),
+widoczne ostrzeżenie i kursor zapisane atomowo. Kwarantanna nie wykonuje efektów
+odrzuconego zdarzenia; jego oryginał pozostaje dostępny administratorowi bazy.
+Ostrzeżenie wątku ma pochodzenie `gateway` oraz oryginalny `event_id`, a bot dopisuje
+je do tekstu tury. ACK oznacza wtedy trwałe przyjęcie do kwarantanny, a nie poprawne
+zastosowanie wszystkich projekcji. Nie ma automatycznego ponawiania danych
+z kwarantanny. Rekord nie jest wystawiany przez API ani logi; usuwa go kaskada przy
+fizycznym usunięciu workera. Zwykłe błędy transportu lub transakcji nadal nie dostają
+ACK i korzystają z replay. Szczegóły: [protocol.md](protocol.md#dostarczanie-transkryptu-at-least-once--idempotencja).
+
 ### 3.2 Wątki dostawców
 
 - **Claude:** nowy wątek startuje z `sessionId = thread_id` platformy (identyfikator znany przed pierwszym zdarzeniem); fork przez `forkSession` daje nowy identyfikator. `persistSession: true`. Wznowienie przez `resume: provider_thread_id`.

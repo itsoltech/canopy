@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { Fx } from "./errors.ts";
 import type { OutboxRow } from "./rows.ts";
+import { storageJson } from "./event-text.ts";
 
 export interface PendingCommand {
   readonly command: Command;
@@ -65,7 +66,7 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
 
     commandDone: (commandId, ok, result) =>
       sql`
-              UPDATE worker_commands SET status = ${ok ? "completed" : "failed"}, result = ${JSON.stringify(result)}::jsonb, completed_at = now()
+              UPDATE worker_commands SET status = ${ok ? "completed" : "failed"}, result = ${JSON.stringify(storageJson(result))}::jsonb, completed_at = now()
                WHERE id = ${commandId}::uuid`.pipe(Effect.asVoid),
   };
 }
