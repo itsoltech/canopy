@@ -3,6 +3,7 @@ import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Schema } from "effect";
 import { jsonMessage, type ReadScope } from "./read-scope.ts";
+import { viewedFiles } from "./viewed.ts";
 
 const file = Schema.Struct({
   filename: Schema.String,
@@ -129,8 +130,26 @@ export async function files(scope: ReadScope) {
   const raw = await rawFiles(scope, page);
   const limited = page === 100 && raw.more;
 
+  const viewed = await viewedFiles(
+    scope.prs,
+    scope.row,
+    scope.pr,
+    scope.head,
+    scope.snapshot.baseSha,
+    scope.request.refresh,
+  );
+
+  await scope.fresh();
+
   return create(github.PullRequestFilesPageSchema, {
-    files: raw.items.map((f) => ({ ...fileInfo(f, page), patchState: f.patch_state })),
+    files: raw.items.map((f) => ({
+      ...fileInfo(f, page),
+      patchState: f.patch_state,
+      viewerViewedState: viewed.states.get(f.filename) ?? "",
+    })),
+    viewedCount: viewed.count,
+    viewedTotal: viewed.states.size,
+    viewedComplete: viewed.complete,
     page: scope.page(
       raw.more && !limited ? String(page + 1) : "",
       limited,

@@ -9,6 +9,16 @@ const date = "2026-11-10T12:00:00Z";
 const author = { login: "fixture-reviewer" };
 const source = "https://github.com/itsoltech/canopy/pull/42";
 
+export function fixtureFilePath(i: number) {
+  if (i === 0) return "src/safe.ts";
+
+  if (i === 1) return "assets/binary.png";
+
+  if (i === 2) return "renamed.ts";
+
+  return `src/file-${i}.ts`;
+}
+
 const input = Schema.Struct({
   query: Schema.String,
   variables: Schema.Struct({
@@ -37,7 +47,13 @@ function connection<T>(items: T[], position = "", size = 50, reverse = false) {
   };
 }
 
-export function readFixture() {
+export function readFixture(
+  graph?: (
+    query: string,
+    variables: Schema.JsonObject,
+    user: number,
+  ) => Response | undefined | Promise<Response | undefined>,
+) {
   const fixture = githubPrFixture();
   let head = readHead;
   let status = 200;
@@ -125,15 +141,24 @@ export function readFixture() {
   });
 
   fixture.pullRequest((number, state, draft) => ({ ...githubPrData(number, state, draft), headRefOid: head }));
-  fixture.intercept((request) => {
+  fixture.intercept((request, user) => {
     const url = new URL(request.url);
     const key = url.pathname;
     counts.set(key, (counts.get(key) ?? 0) + 1);
 
     if (key === "/graphql")
       return (async () => {
-        const { query, variables: v } = Schema.decodeUnknownSync(input)(await request.json());
+        const raw = await request.json();
+        const { query, variables: v } = Schema.decodeUnknownSync(input)(raw);
         parse(query);
+
+        if (graph) {
+          const variables = Schema.decodeUnknownSync(Schema.Struct({ variables: Schema.JsonObject }))(raw).variables;
+          const extra = await graph(query, variables, user);
+
+          if (extra) return extra;
+        }
+
         const kind = query.match(/query (\w+)/)?.[1] ?? "";
         counts.set(kind, (counts.get(kind) ?? 0) + 1);
 
@@ -181,6 +206,24 @@ export function readFixture() {
                   Array.from({ length: 113 }, (_, i) => review(`THREAD_${i}`)),
                   v.after,
                   30,
+                ),
+              },
+            },
+          };
+        else if (kind === "CanopyViewed")
+          value = {
+            repository: {
+              pullRequest: {
+                id: pr.id,
+                headRefOid: head,
+                baseRefOid: readBase,
+                files: connection(
+                  Array.from({ length: 300 }, (_, i) => ({
+                    path: fixtureFilePath(i),
+                    viewerViewedState: "UNVIEWED",
+                  })),
+                  v.after,
+                  100,
                 ),
               },
             },

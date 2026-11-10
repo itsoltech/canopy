@@ -13,6 +13,8 @@ const comment = Schema.Struct({
   createdAt: Schema.String,
   author: Schema.NullOr(Schema.Struct({ login: Schema.String })),
   originalCommit: Schema.NullOr(Schema.Struct({ oid: Schema.String })),
+  viewerCanUpdate: Schema.optional(Schema.Boolean),
+  viewerCanDelete: Schema.optional(Schema.Boolean),
 });
 
 const thread = Schema.Struct({
@@ -46,7 +48,7 @@ const envelope = Schema.Struct({
 });
 
 const fields = `id path line isResolved isOutdated pullRequest{id}
-comments(first:50,after:$reply){pageInfo{hasNextPage endCursor} nodes{id body url createdAt author{login} originalCommit{oid}}}`;
+comments(first:50,after:$reply){pageInfo{hasNextPage endCursor} nodes{id body url createdAt author{login} originalCommit{oid} viewerCanUpdate viewerCanDelete}}`;
 
 export const REVIEW_THREADS_QUERY = `query CanopyReviewThreads($owner:String!,$name:String!,$number:Int!,$after:String,$reply:String){
 rateLimit{cost remaining resetAt} repository(owner:$owner,name:$name){pullRequest(number:$number){id
@@ -90,6 +92,8 @@ export async function reviewThreads(scope: ReadScope) {
               id: c.id,
               author: c.author?.login ?? "Deleted user",
               body: c.body,
+              viewerCanUpdate: c.viewerCanUpdate ?? false,
+              viewerCanDelete: c.viewerCanDelete ?? false,
               url: c.url,
               sha: c.originalCommit?.oid ?? "",
               createdAt: timestampFromDate(new Date(c.createdAt)),

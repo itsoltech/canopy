@@ -10,9 +10,14 @@
   import MiddleTruncatedText from "#lib/shared/ui/MiddleTruncatedText.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { toneClasses } from "./presentation.ts";
+  import ViewedCheckbox from "./ViewedCheckbox.svelte";
 
   let {
     file,
+    snapshot,
+    stale,
+    onstate,
+    onsettled,
     active,
     patch,
     busy,
@@ -24,6 +29,10 @@
     class: className,
   }: {
     file: github.PullRequestFile;
+    snapshot: github.PullRequestSnapshot;
+    stale: boolean;
+    onstate: (path: string, state: string) => void;
+    onsettled: () => Promise<void>;
     active: boolean;
     patch?: github.PullRequestDiff | undefined;
     busy: boolean;
@@ -43,7 +52,7 @@
 <li class={["min-w-0", className]}>
   <div
     class={[
-      "flex min-w-0 items-center gap-1 border-b border-zinc-950/5 bg-surface dark:border-white/10",
+      "grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-1 border-b border-zinc-950/5 bg-surface dark:border-white/10",
       active && "sticky top-12 z-20",
     ]}
     style:padding-left={`${Math.min(depth, 6) * 12}px`}
@@ -64,12 +73,15 @@
         <span class="text-rose-700 dark:text-rose-400">−{file.deletions}</span></span
       >
     </button>
-    {#if active && href}<IconButton
-        icon="arrow-top-right-on-square"
-        label="Open file on GitHub"
-        size="sm"
-        onclick={() => window.open(href, "_blank", "noopener,noreferrer")}
-      />{/if}
+    <ViewedCheckbox {file} {snapshot} {stale} {onstate} {onsettled} />
+    <div class="col-start-3 row-start-1 w-7">
+      {#if active && href}<IconButton
+          icon="arrow-top-right-on-square"
+          label="Open file on GitHub"
+          size="sm"
+          onclick={() => window.open(href, "_blank", "noopener,noreferrer")}
+        />{/if}
+    </div>
   </div>
   {#if active}<div class="grid min-w-0 gap-2 py-2">
       {#if busy}<p role="status" class="text-sm text-zinc-500 sm:text-xs">Loading patch…</p>{/if}

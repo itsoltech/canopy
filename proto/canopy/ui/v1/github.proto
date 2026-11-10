@@ -170,6 +170,7 @@ message PullRequestSnapshot {
   repeated PullRequestLabel label_details = 19;
   string head_repository_id = 20;
   string head_repository_name = 21;
+  string viewer_login = 22;
 }
 message PullRequestLink {
   PullRequestSummary summary = 1;
@@ -233,6 +234,8 @@ message PullRequestTimelineEntry {
   string state = 6;
   string sha = 7;
   string kind = 8;
+  bool viewer_can_update = 9;
+  bool viewer_can_delete = 10;
 }
 message PullRequestTimelineItem {
   oneof content {
@@ -292,10 +295,15 @@ message PullRequestFile {
   string patch_state = 6;
   string url = 7;
   uint32 source_page = 8;
+  // GitHub per-account source of truth: VIEWED, UNVIEWED, DISMISSED.
+  string viewer_viewed_state = 9;
 }
 message PullRequestFilesPage {
   repeated PullRequestFile files = 1;
   PullRequestPageInfo page = 2;
+  uint32 viewed_count = 3;
+  uint32 viewed_total = 4;
+  bool viewed_complete = 5;
 }
 message PullRequestDiff {
   PullRequestFile file = 1;
@@ -344,4 +352,39 @@ message GitHubUpdateAccountRequest {
 message GitHubUpdateAccountResponse {
   string account_id = 1;
   bool enabled = 2;
+}
+
+// No client-provided actor, endpoint or GraphQL. Bindings are replaced by authenticated routing.
+message PullRequestMutationRequest {
+  string pull_request_id = 1;
+  string client_request_id = 2;
+  string account_id = 3;
+  uint64 access_revision = 4;
+  string head_sha = 5;
+  string expected_state = 6;
+  // create_comment, reply, update_comment, delete_comment, viewed.
+  string action = 7;
+  string resource_id = 8;
+  // issue or review for comment edits/deletions.
+  string comment_kind = 9;
+  string body = 10;
+  string path = 11;
+  bool viewed = 12;
+  string confirmation_id = 13;
+  string client_binding = 14;
+}
+message PullRequestMutationRequestRef {
+  string pull_request_id = 1;
+  string client_request_id = 2;
+  string client_binding = 3;
+}
+message PullRequestMutationReceipt {
+  string client_request_id = 1;
+  string state = 2;
+  string action = 3;
+  string detail = 4;
+  string upstream_id = 5;
+  string confirmation_id = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  string viewer_viewed_state = 8;
 }

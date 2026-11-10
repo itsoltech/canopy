@@ -4,7 +4,17 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { bots, computerLink as link, ui } from "@canopy/contracts";
 import { REMOTE_BOTS, REMOTE_BOT_COMPOSER } from "@canopy/domain/computers";
-import { GITHUB_ACCOUNTS, GITHUB_PR } from "@canopy/domain/computers";
+import { GITHUB_ACCOUNTS, GITHUB_PR, GITHUB_COMMENTS } from "@canopy/domain/computers";
+
+export const GITHUB_MUTATION_METHODS = new Set([
+  "PreparePullRequestMutation",
+  "GetPullRequestMutation",
+  "CreatePullRequestComment",
+  "ReplyPullRequestReviewThread",
+  "UpdatePullRequestComment",
+  "DeletePullRequestComment",
+  "SetPullRequestFileViewed",
+]);
 
 export const GITHUB_PR_METHODS = new Set([
   "GetGitHubRepositoryAccount",
@@ -40,6 +50,8 @@ export const GITHUB_METHODS = new Set([
 ]);
 
 export function botFeature(method: { name: string }, request: Message): string | undefined {
+  if (GITHUB_MUTATION_METHODS.has(method.name)) return GITHUB_COMMENTS;
+
   if (GITHUB_METHODS.has(method.name)) return GITHUB_ACCOUNTS;
 
   if (GITHUB_PR_METHODS.has(method.name)) return GITHUB_PR;
@@ -61,6 +73,7 @@ export function botFeature(method: { name: string }, request: Message): string |
 export const SERVED = new Set([
   ...GITHUB_METHODS,
   ...GITHUB_PR_METHODS,
+  ...GITHUB_MUTATION_METHODS,
   "GetOverview",
   "WatchOverview",
   "ListThreads",

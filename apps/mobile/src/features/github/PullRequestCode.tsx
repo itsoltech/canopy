@@ -9,6 +9,8 @@ import { useCodeRead } from "./useCodeRead";
 import { PageControls } from "./PageControls";
 import { CodeToolbar, CommitFilter } from "./CodeToolbar";
 import { CodeFileHeader, CodeFileDiff } from "./CodeFile";
+import { ViewedCheckbox } from "./ViewedCheckbox";
+import { useViewedCount } from "./useViewedCount";
 
 export function PullRequestCode({ snapshot, header }: { snapshot: github.PullRequestSnapshot; header: ReactNode }) {
   const c = useColors();
@@ -20,6 +22,7 @@ export function PullRequestCode({ snapshot, header }: { snapshot: github.PullReq
   const [collapsed, setCollapsed] = useState(new Set<string>());
   const files = pages.current?.files ?? [];
   const rows = fileRows(files, tree, collapsed);
+  const viewed = useViewedCount(pages.current);
 
   return (
     <>
@@ -42,6 +45,7 @@ export function PullRequestCode({ snapshot, header }: { snapshot: github.PullReq
               tree={tree}
               onTree={() => setTree(!tree)}
               onCommit={() => setPicker(true)}
+              viewed={viewed.label}
             />
             {!!commitSha && (
               <Text style={[type.meta, { color: c.muted }]}>Changes against this commit’s first parent</Text>
@@ -76,12 +80,23 @@ export function PullRequestCode({ snapshot, header }: { snapshot: github.PullReq
               <Text style={[type.meta, { color: c.text }]}>{section.name}</Text>
             </Pressable>
           ) : (
-            <CodeFileHeader
-              file={section.file}
-              depth={section.depth}
-              active={selected?.path === section.file.path}
-              onPress={() => toggle(section.file)}
-            />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.background }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <CodeFileHeader
+                  file={section.file}
+                  depth={section.depth}
+                  active={selected?.path === section.file.path}
+                  onPress={() => toggle(section.file)}
+                />
+              </View>
+              <ViewedCheckbox
+                file={section.file}
+                snapshot={snapshot}
+                stale={!!pages.current?.page?.stale}
+                onState={viewed.change}
+                onSettled={() => pages.read(false, true)}
+              />
+            </View>
           )
         }
         renderItem={({ item }) => (

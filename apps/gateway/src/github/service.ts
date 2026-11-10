@@ -12,6 +12,7 @@ import { User } from "./schemas.ts";
 import { GitHubPat } from "./pat.ts";
 import { GitHubPullRequests } from "./pull-requests.ts";
 import { GitHubBackground } from "./background.ts";
+import { GitHubMutations } from "./mutations.ts";
 
 /** Product GitHub access. No worker, agent tool or shared-config adapter receives this service. */
 export class GitHubAccounts {
@@ -23,6 +24,7 @@ export class GitHubAccounts {
   readonly pat: GitHubPat;
   readonly prs: GitHubPullRequests;
   readonly background: GitHubBackground;
+  readonly mutations: GitHubMutations;
   constructor(
     readonly runtime: CoreRuntime,
     readonly owner: string,
@@ -53,6 +55,7 @@ export class GitHubAccounts {
       }
     });
     this.prs = new GitHubPullRequests(this, publish);
+    this.mutations = new GitHubMutations(this.prs);
     this.background = new GitHubBackground(this.prs);
     this.catalogue = new GitHubCatalogue(this.access, this.prs.client);
     this.device = new GitHubDeviceFlow(this.run, this.http, owner, (id) => this.catalogue.refresh(id));

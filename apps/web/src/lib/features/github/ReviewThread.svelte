@@ -10,12 +10,20 @@
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import ActivityHeader from "./ActivityHeader.svelte";
   import { reviewerLook } from "@canopy/domain/github-pr";
+  import CommentComposer from "./CommentComposer.svelte";
+  import CommentActions from "./CommentActions.svelte";
 
   let {
     id,
     thread,
+    snapshot,
     class: className,
-  }: { id: string; thread: github.PullRequestReviewThread; class?: ClassValue } = $props();
+  }: {
+    id: string;
+    thread: github.PullRequestReviewThread;
+    snapshot: github.PullRequestSnapshot;
+    class?: ClassValue;
+  } = $props();
 
   let visible = $state(3);
   let current = $state<github.PullRequestReviewThread>();
@@ -92,7 +100,10 @@
     {#if data.outdated}<span {@attach tooltip("Outdated")}><Icon name="clock" label="Outdated" /></span>{/if}
   </div>
   {#each comments.slice(0, visible) as comment, index (comment.id)}<div
-      class={["grid min-w-0 gap-2", index > 0 && "ml-3 border-l border-zinc-950/10 pl-3 dark:border-white/10"]}
+      class={[
+        "grid min-w-0 gap-2 [&>div]:[overflow-wrap:anywhere]",
+        index > 0 && "ml-3 border-l border-zinc-950/10 pl-3 dark:border-white/10",
+      ]}
     >
       <ActivityHeader
         author={comment.author}
@@ -100,7 +111,8 @@
         url={safeHref(comment.url)}
         look={reviewerLook("commented")}
       />
-      <Markdown text={comment.body} />
+      <Markdown text={comment.body} class="min-w-0" />
+      <CommentActions {snapshot} {comment} kind="review" />
     </div>{/each}
   {#if error}<p role="alert">{error}</p>{/if}
   <div class="flex gap-2">
@@ -111,4 +123,5 @@
         onclick={more}>{busy ? "Loading replies…" : "Show more replies"}</Button
       >{/if}
   </div>
+  {#key `${snapshot.accountId}:${thread.id}`}<CommentComposer {snapshot} resourceId={thread.id} />{/key}
 </div>

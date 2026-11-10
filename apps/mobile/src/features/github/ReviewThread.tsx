@@ -9,8 +9,18 @@ import { Icon } from "../../ui/Icon";
 import { useColors, useTypography } from "../../ui/theme";
 import { StatusIcon } from "./StatusIcon";
 import { ActivityHeader } from "./ActivityHeader";
+import { CommentComposer } from "./CommentComposer";
+import { CommentActions } from "./CommentActions";
 
-export function ReviewThread({ id, thread }: { id: string; thread: github.PullRequestReviewThread }) {
+export function ReviewThread({
+  id,
+  thread,
+  snapshot,
+}: {
+  id: string;
+  thread: github.PullRequestReviewThread;
+  snapshot: github.PullRequestSnapshot;
+}) {
   const { client } = useSession();
   const c = useColors();
   const type = useTypography();
@@ -103,6 +113,7 @@ export function ReviewThread({ id, thread }: { id: string; thread: github.PullRe
             url={comment.url}
           />
           <Markdown text={comment.body} />
+          <CommentActions snapshot={snapshot} comment={comment} kind="review" />
         </View>
       ))}
       {!!error && <Notice error>{error}</Notice>}
@@ -114,6 +125,7 @@ export function ReviewThread({ id, thread }: { id: string; thread: github.PullRe
           onPress={() => void more()}
         />
       )}
+      <CommentComposer key={`${snapshot.accountId}:${thread.id}`} snapshot={snapshot} resourceId={thread.id} />
     </View>
   );
 }

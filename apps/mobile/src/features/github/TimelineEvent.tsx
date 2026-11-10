@@ -6,8 +6,15 @@ import { safeHref } from "@canopy/domain/markdown";
 import { Markdown } from "../../ui/markdown/Markdown";
 import { useColors, useTypography } from "../../ui/theme";
 import { ActivityHeader } from "./ActivityHeader";
+import { CommentActions } from "./CommentActions";
 
-export function TimelineEvent({ items }: { items: github.PullRequestTimelineItem[] }) {
+export function TimelineEvent({
+  items,
+  snapshot,
+}: {
+  items: github.PullRequestTimelineItem[];
+  snapshot: github.PullRequestSnapshot;
+}) {
   const c = useColors();
   const type = useTypography();
   const first = items[0];
@@ -56,6 +63,7 @@ export function TimelineEvent({ items }: { items: github.PullRequestTimelineItem
         !!entry.body && (
           <View style={{ padding: 12, borderWidth: 1, borderColor: c.line, backgroundColor: c.inset, borderRadius: 8 }}>
             <Markdown text={entry.body} />
+            {first?.content.case === "comment" && <CommentActions snapshot={snapshot} comment={entry} kind="issue" />}
           </View>
         )
       )}

@@ -4,8 +4,17 @@ import { useColors } from "../../ui/theme";
 import { GitHubAvatar } from "./GitHubAvatar";
 import { ReviewThread } from "./ReviewThread";
 import { TimelineEvent } from "./TimelineEvent";
+import type { github } from "@canopy/contracts";
 
-export function ActivityRow({ id, row }: { id: string; row: Activity }) {
+export function ActivityRow({
+  id,
+  row,
+  snapshot,
+}: {
+  id: string;
+  row: Activity;
+  snapshot: github.PullRequestSnapshot;
+}) {
   const c = useColors();
   const author = row.kind === "thread" ? row.thread.comments[0]?.author : row.items[0]?.content.value?.author;
 
@@ -16,7 +25,11 @@ export function ActivityRow({ id, row }: { id: string; row: Activity }) {
         <GitHubAvatar userId="" login={author || "GH"} />
       </View>
       <View style={{ flex: 1, minWidth: 0, paddingTop: 6 }}>
-        {row.kind === "thread" ? <ReviewThread id={id} thread={row.thread} /> : <TimelineEvent items={row.items} />}
+        {row.kind === "thread" ? (
+          <ReviewThread id={id} snapshot={snapshot} thread={row.thread} />
+        ) : (
+          <TimelineEvent snapshot={snapshot} items={row.items} />
+        )}
       </View>
     </View>
   );

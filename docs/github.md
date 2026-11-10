@@ -3,7 +3,9 @@
 Status: **zaakceptowany**, 2026-11-10. Etapy 1–3 w stosie implementują konta,
 powiązania ręczne i automatyczne oraz Summary. Etap 4 dodaje pełny odczyt:
 Timeline, review threads, checki/jobs/logi i Code, polling, kontekst composera
-oraz fallback aktualizacji. Zapisy do GitHub pozostają zakresem etapów 5–9.
+oraz fallback aktualizacji. Etap 5 dodaje jawne komentarze (post/reply/edit/delete)
+i Viewed synchronizowane z GitHub, ze wspólnym preflightem, receiptami i audytem.
+Pozostałe zapisy do GitHub pozostają zakresem etapów 6–9.
 Decyzje ustalone po przeglądzie: oficjalna GitHub App Canopy organizacji `itsoltech`, device flow,
 wygasające tokeny użytkownika w domu wątku, pełny zakres zapisów opisany poniżej i Viewed
 synchronizowane z GitHub. Implementacja jako jeden stos PR według §11.
@@ -300,11 +302,24 @@ Każdy zapis, również Viewed, ma trwały receipt: prepared → in_flight → s
 a operacja asynchroniczna także accepted do potwierdzenia wyniku. Request ID wiąże owner,
 klienta, konto, akcję, docelowe ID, parametry i oczekiwane SHA/rewizje; inny fingerprint jest błędem.
 Intent zapisujemy przed HTTP. Powtórzenie tego ID odczytuje receipt, nie wykonuje drugiego POST.
-Timeout lub restart po wysłaniu oznacza **Outcome unknown. Check the current state.**
+Timeout lub restart po wysłaniu oznacza **Couldn't confirm. Check on GitHub**.
 Read-only reconcile porównuje GitHub ID/status i stan docelowy; sama równa treść nie dowodzi
 wykonania konkretnego żądania. Gdy brak dowodu, użytkownik rozstrzyga po odświeżeniu.
 `clientMutationId` GraphQL nie jest gwarancją idempotencji GitHub. Nie ma replay przy reconnect,
-refresh tokenu ani zmianie konta; szkic użytkownika pozostaje dostępny.
+refresh tokenu ani zmianie konta. Szkice i niepewne wyniki komentarzy pozostają w pamięci
+klienta (do 100 edytorów, izolacja account/PR/target), także po zmianie zakładki i odświeżeniu
+Timeline. Zamknięcie procesu usuwa lokalny szkic; trwały receipt pozostaje w gatewayu.
+Po sprawdzeniu źródła użytkownik może jawnie rozpocząć pusty komentarz/odpowiedź
+albo ponownie otworzyć edycję; ta akcja nie wysyła poprzedniego szkicu.
+W etapie 5 receipt jest związany także z uwierzytelnionym urządzeniem lub przeglądarką;
+linked-home kwalifikuje potwierdzenie i odsyła odczyt receiptu do domu PR.
+Potwierdzenie usunięcia wygasa po 60 s. Nierozstrzygnięty intent po wygaśnięciu
+dzierżawy staje się uncertain, także po restarcie; nie uruchamia drugiego HTTP.
+Odczyt Viewed po odświeżeniu rozstrzyga bieżący checkbox, lecz nie przypisuje sukcesu
+konkretnej niepotwierdzonej operacji. Identyczna treść komentarza również tego nie dowodzi.
+Migracja `0117_github_mutations.sql` dodaje receipty oraz wspólne tempo zapisów.
+Numer jest kolejnym po bazie stosu; jeżeli diagnostyka wprowadzi swoją migrację
+wcześniej, niezaaplikowane migracje stosu wymagają ponownej numeracji przed merge.
 
 ### Polling bez webhooków
 
@@ -550,6 +565,10 @@ w `ui.Thread`; pełną listę pobiera osobno. Odrębna rewizja PR nie zwiększa 
 Pending review i jego liczniki są prywatnym odczytem konta, bez publikacji w lustrze wątku
 ani owner feed dostępnym przy innym kontekście konta. Capability zapisu jest ogłaszana dopiero
 po dostarczeniu całej grupy v1; starszy dom z samym odczytem nie przyjmuje nowych mutacji.
+Etap 5 ogłasza węższą capability `github_pr_comments_v1` dla siedmiu RPC
+preflight/receipt/comment/Viewed. Nie ogłasza jeszcze `github_pr_write_v1`, która
+oznacza kompletny zakres zapisów. Allowlista linked computers wymaga tej węższej
+capability; workery i boty nie mają dostępu do mutacji przez GatewayService.
 
 Timeline pobiera ostatnie 50 zdarzeń (`last/before`), pokazuje je od najnowszych i doczytuje starsze.
 Normalizuje otwarcie/zamknięcie/merge/reopen, commity, komentarze, review, zmiany reviewerów,
@@ -659,7 +678,7 @@ Timeline i Code pojawią się z implementacją ich etapów w tym samym pasku.
    ścieżkę (przy rename starą → nową) i +/−. Patch rozwija się bezpośrednio pod wierszem,
    którego nagłówek pozostaje przyklejony podczas przewijania. Link do GitHub jest ikoną
    w nagłówku; binarne/duże pliki mają krótki komunikat i akcję. Foldery drzewa są zwijane.
-   W etapie 4 Viewed pozostaje ukryte. Stan całego PR ma ikonę i tekst w nagłówku;
+   Etap 5 dodaje Viewed do wiersza i licznik X/N viewed do paska Code. Stan całego PR ma ikonę i tekst w nagłówku;
    pojedyncze statusy wierszy pozostają ikonami z etykietami dostępnymi i tooltipami.
    Checki używają jednego „Show more”, które przezroczyście doczytuje kolejne strony.
 
