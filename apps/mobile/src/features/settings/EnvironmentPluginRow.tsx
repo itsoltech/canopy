@@ -18,7 +18,7 @@ export function EnvironmentPluginRow({
   return (
     <SettingsRow
       title={assignment?.name || candidate.artifact?.name || "Plugin"}
-      description={candidate.unavailableReason || candidate.harnesses.join(" · ")}
+      description={candidate.unavailableReason || candidate.harnesses.filter(Boolean).join(" · ")}
     >
       {assignment ? (
         <EnvironmentItemStatus item={assignment} workers={workers} kind="plugins" />

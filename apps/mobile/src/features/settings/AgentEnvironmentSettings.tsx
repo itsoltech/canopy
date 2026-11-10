@@ -136,7 +136,13 @@ function InstructionRow({
   return (
     <SettingsRow
       title={document.name}
-      description={`${document.harness} · ${document.fragments.length} ${document.fragments.length === 1 ? "fragment" : "fragments"} · ${document.selector?.everyone ? "All computers" : "Selected computers and tags"}`}
+      description={[
+        document.harness,
+        `${document.fragments.length} ${document.fragments.length === 1 ? "fragment" : "fragments"}`,
+        document.selector?.everyone ? "All computers" : "Selected computers and tags",
+      ]
+        .filter(Boolean)
+        .join(" · ")}
     >
       <EnvironmentItemStatus item={document} workers={workers} kind="instructions" harness={document.harness} />
       <SettingsActions>

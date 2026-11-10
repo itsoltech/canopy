@@ -31,7 +31,13 @@ export function EnvironmentSkillRow({
   return (
     <SettingsRow
       title={skill.name}
-      description={`${skill.harnesses.join(" · ")} · Version ${skill.version} · ${files} ${files === 1 ? "file" : "files"}`}
+      description={[
+        skill.harnesses.filter(Boolean).join(" · "),
+        `Version ${skill.version}`,
+        `${files} ${files === 1 ? "file" : "files"}`,
+      ]
+        .filter(Boolean)
+        .join(" · ")}
     >
       <Checkbox label={`Select ${skill.name}`} disabled={busy} checked={selected} onChange={onToggle} />
       <EnvironmentItemStatus item={skill} workers={workers} kind="skills" />

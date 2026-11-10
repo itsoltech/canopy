@@ -155,7 +155,21 @@
       <LibraryRow
         id={skill.id}
         name={skill.name}
-        meta={`${skill.harnesses.join(" / ")} · v${skill.version} · ${files} ${files === 1 ? "file" : "files"} · ${librarySource(skill.source?.url)}${skill.source ? ` · ${skill.source.pinned ? "Pinned" : skill.source.autoUpdate ? "Automatic updates" : "Manual updates"}` : ""}`}
+        meta={[
+          skill.harnesses.filter(Boolean).join(" / "),
+          `v${skill.version}`,
+          `${files} ${files === 1 ? "file" : "files"}`,
+          librarySource(skill.source?.url),
+          skill.source
+            ? skill.source.pinned
+              ? "Pinned"
+              : skill.source.autoUpdate
+                ? "Automatic updates"
+                : "Manual updates"
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         disabled={environment.busy}
         editLabel="Edit skill"
         removeLabel="Delete skill"

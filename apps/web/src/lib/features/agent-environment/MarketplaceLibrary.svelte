@@ -53,7 +53,14 @@
         <LibraryRow
           id={market.id}
           name={market.name}
-          meta={`${market.plugins.length} ${market.plugins.length === 1 ? "plugin" : "plugins"} · ${librarySource(market.source?.url)} · ${market.source?.ref ?? ""} · ${market.source?.commit.slice(0, 12) ?? ""}`}
+          meta={[
+            `${market.plugins.length} ${market.plugins.length === 1 ? "plugin" : "plugins"}`,
+            librarySource(market.source?.url),
+            market.source?.ref,
+            market.source?.commit.slice(0, 12),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
           disabled={controller.busy || environment.busy}
           editLabel="Review marketplace"
           removeLabel="Remove marketplace"

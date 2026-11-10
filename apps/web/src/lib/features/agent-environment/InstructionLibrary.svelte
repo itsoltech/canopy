@@ -30,7 +30,14 @@
       <LibraryRow
         id={document.id}
         name={document.name}
-        meta={`${document.harness === "claude" ? "CLAUDE.md" : "AGENTS.md"} · v${document.revision} · ${document.fragments.length} ${document.fragments.length === 1 ? "fragment" : "fragments"} · Library`}
+        meta={[
+          document.harness === "claude" ? "CLAUDE.md" : "AGENTS.md",
+          `v${document.revision}`,
+          `${document.fragments.length} ${document.fragments.length === 1 ? "fragment" : "fragments"}`,
+          "Library",
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         disabled={state.busy}
         onedit={() => state.edit(document)}
         onremove={() => void state.remove(document)}

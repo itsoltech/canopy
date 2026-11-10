@@ -31,7 +31,11 @@ export function MarketplaceSettings({
         <EmptyState title="No marketplaces yet" description="Add a repository to review its plugins." />
       )}
       {snapshot.marketplaces.map((market) => (
-        <SettingsGroup key={market.id} title={market.name} description={market.source?.url}>
+        <SettingsGroup
+          key={market.id}
+          title={market.name}
+          description={[market.source?.url, market.source?.ref].filter(Boolean).join(" · ")}
+        >
           <SettingsValue title="Catalog commit" value={market.source?.commit} />
           <Button title="Check upstream" onPress={() => setAdding(market)} />
           {market.plugins.map((candidate) => (
@@ -180,7 +184,7 @@ function MarketplaceImport({
             <SettingsValue
               key={p.artifact?.name}
               title={p.artifact?.name || "Plugin"}
-              value={p.unavailableReason || p.harnesses.join(" · ")}
+              value={p.unavailableReason || p.harnesses.filter(Boolean).join(" · ")}
             />
           ))}
           <Notice>Saving the catalog keeps enabled plugins on their approved versions.</Notice>
