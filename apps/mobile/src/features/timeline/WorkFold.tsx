@@ -8,6 +8,11 @@ import { font, styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { Chevron } from "../../ui/MotionViews";
 import type { WorkSummary } from "./turn-plan";
+import { ItemStatus } from "@canopy/contracts";
+import type { IconName } from "@canopy/ui/icons";
+import { Icon } from "../../ui/Icon";
+import { ItemStatusIcon } from "./ItemStatusIcon";
+import { activityHeader, activitySurface } from "./activity-header";
 
 export type { WorkSummary } from "./turn-plan";
 
@@ -120,37 +125,67 @@ export function WorkGroup({
   label,
   open,
   running,
+  icon,
+  status,
+  statusCount,
   onToggle,
 }: {
   label: string;
   open: boolean;
   running: boolean;
+  icon: IconName;
+  status: ItemStatus;
+  statusCount: number;
   onToggle: () => void;
 }) {
   const c = useColors();
   const header = useRef<HostInstance>(null);
   const toggle = useAnchoredToggle();
 
+  const state =
+    status === ItemStatus.FAILED
+      ? "failed"
+      : status === ItemStatus.DECLINED
+        ? "declined"
+        : status === ItemStatus.INTERRUPTED
+          ? "interrupted"
+          : status === ItemStatus.IN_PROGRESS
+            ? "running"
+            : "";
+
   return (
     <View ref={header} collapsable={false}>
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={state ? `${label}, ${statusCount} ${state}` : label}
         accessibilityState={{ expanded: open }}
         onPress={() => toggle(header.current, onToggle)}
-        style={[styles.row, { alignItems: "flex-start", minHeight: 44, paddingVertical: 10 }]}
+        style={({ pressed }) => [
+          styles.row,
+          activityHeader.row,
+          activitySurface(c),
+          { alignItems: "flex-start" },
+          pressed && { backgroundColor: c.pressed },
+        ]}
       >
         <View style={{ height: 24, justifyContent: "center" }}>
           <Chevron open={open} color={c.faint} />
         </View>
+        <View style={{ height: 24, justifyContent: "center" }}>
+          <Icon name={icon} color={c.icon} />
+        </View>
         {running ? (
-          <LiveText containerStyle={{ flex: 1 }} style={styles.body}>
+          <LiveText containerStyle={{ flex: 1, minWidth: 0 }} style={styles.work}>
             {label}
           </LiveText>
         ) : (
-          <Text numberOfLines={1} style={[styles.body, { flex: 1, color: c.muted }]}>
+          <Text numberOfLines={1} style={[styles.work, { flex: 1, minWidth: 0, color: c.soft }]}>
             {label}
           </Text>
         )}
+        <View style={{ height: 24, width: 40, justifyContent: "center", alignItems: "flex-end", flexShrink: 0 }}>
+          <ItemStatusIcon status={status} count={statusCount} />
+        </View>
       </Pressable>
     </View>
   );

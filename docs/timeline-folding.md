@@ -38,6 +38,23 @@ Przed automatycznym zamknięciem `WorkFolds` sprawdza `VirtualFeed.reading()`. J
 
 Grupy i itemy są osobnymi wirtualnymi wierszami; zamknięte grupy nie montują dzieci. `ResizeObserver` mierzy zmiany wysokości `AnswerSlot`, a obecne kotwiczenie utrzymuje czytany wiersz. Klucze foldu, grupy (pierwszy item) i odpowiedzi pozostają stabilne między deltami. „Pokaż źródło” cytatu otwiera historię, fold oraz właściwą grupę przed przewinięciem do itemu; rozpoznaje też stały wiersz odpowiedzi.
 
+## Hierarchia treści pracy
+
+Web/desktop i mobile pokazują tekst agenta zwykłą typografią wiadomości, także wewnątrz
+foldu. Odpowiedź pozostaje w osobnym slocie pod pracą. Narzędzia i ich grupy mają mniejszy
+tekst kontekstu pracy, ikonę Tabler, neutralne tło oraz cienką lewą krawędź. Jednorodne
+grupy zachowują ikonę rodzaju pracy, mieszane używają listy kroków. Szczegóły narzędzi
+zachowują dotychczasowy kompaktowy układ.
+
+Rozumowanie ma ikonę żarówki, stałe miejsce na „Thinking” / „Thought” oraz kursywę
+w jednoliniowym podglądzie. Nie dostaje tła narzędzi. Tło i krawędź aktywności pozostają
+neutralne także po błędzie, odrzuceniu i przerwaniu. Kolor ma tylko ikona lub status.
+Zwarta etykieta grupy podaje liczbę elementów ze statusem o najwyższym priorytecie
+(błąd, odrzucenie, przerwanie, działanie); pozostałe stany widać po rozwinięciu.
+Na telefonie widoczna jest ikona i liczba, pełna etykieta pozostaje dostępna dla czytnika.
+Wcięcia i krawędzie nie zależą od stanu. Reguły grupowania,
+klucze wierszy, pamięć rozwinięcia, kotwiczenie i animacje pozostają wspólne.
+
 ## Pozycja przy ręcznym przełączaniu
 
 Strona historii kończy się wyłącznie między turami. Wejście, segmenty

@@ -4,6 +4,7 @@ import type { ui } from "@canopy/contracts";
 import type { TimelineEntry } from "./thread-types.ts";
 import type { ItemNode, TimelineRow } from "./timeline.ts";
 import { currentWorkHint, groupSummary, isToolItem, workCounts } from "@canopy/domain/work-summary";
+import type { IconName } from "@canopy/ui/icons";
 import { blank } from "./work-segments.ts";
 import { foldId, turnProgress, workSegments, type BodyRow, type WorkSegment } from "@canopy/domain/work-fold";
 
@@ -47,6 +48,9 @@ export type FoldedRow =
       readonly open: boolean;
       readonly label: string;
       readonly running: boolean;
+      readonly icon: IconName;
+      readonly status: ItemStatus;
+      readonly statusCount: number;
       readonly items: readonly string[];
     }
   | {
@@ -287,7 +291,7 @@ function workRows(
         key,
         turn,
         open,
-        label: groupSummary(itemsOf(tools)),
+        ...groupSummary(itemsOf(tools)),
         running: tools.some((r) => r.kind === "item" && r.node.entry.item.status === ItemStatus.IN_PROGRESS),
         items: tools.map((r) => r.key),
       });

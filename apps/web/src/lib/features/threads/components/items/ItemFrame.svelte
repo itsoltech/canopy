@@ -7,6 +7,7 @@
   import { useItemAwaiting } from "../../thread-directory.ts";
   import ItemStatusIcon from "./ItemStatusIcon.svelte";
   import { useItemChildren } from "./item-context.ts";
+  import { activityHeader, activitySurface } from "../activity-header.ts";
 
   /**
    * One-line activity row (tool, command, file change …) that expands to its details.
@@ -40,7 +41,7 @@
       ? "text-violet-500 dark:text-violet-400"
       : tone === "rose" || status === ItemStatus.FAILED
         ? "text-rose-500 dark:text-rose-400"
-        : "fill-zinc-400 dark:fill-zinc-500",
+        : "text-zinc-500 dark:text-zinc-400",
   );
 </script>
 
@@ -65,11 +66,7 @@
 
 <div class="density-work text-base/6 sm:text-sm/5">
   {#if children || nested()}
-    <Disclosure
-      bind:open
-      remember="frame"
-      summaryClass="-mx-1.5 px-1.5 py-1 hover:bg-zinc-950/2.5 dark:hover:bg-white/5"
-    >
+    <Disclosure bind:open remember="frame" summaryClass={[activityHeader, activitySurface]}>
       {#snippet summary()}{@render row()}{/snippet}
       <div class="mt-1 mb-2 grid grid-cols-[minmax(0,1fr)] gap-2 pl-6">
         {@render children?.()}
@@ -79,6 +76,6 @@
       </div>
     </Disclosure>
   {:else}
-    <div class="py-1 pl-6">{@render row()}</div>
+    <div class={["rounded-md pl-8", activityHeader, activitySurface]}>{@render row()}</div>
   {/if}
 </div>

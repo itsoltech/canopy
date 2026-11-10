@@ -1,6 +1,7 @@
 import { ItemStatus, type Item, type ui } from "@canopy/contracts";
 import { turnProgress, workSegments, type WorkSegment } from "@canopy/domain/work-fold";
 import { currentWorkHint, groupSummary, isToolItem, workCounts } from "@canopy/domain/work-summary";
+import type { IconName } from "@canopy/ui/icons";
 import { itemNodes, type ItemNode } from "./item-nodes";
 
 /** What a fold says about its work (web: work-groups.ts WorkSummary). */
@@ -33,6 +34,9 @@ export type WorkRow =
       readonly key: string;
       readonly label: string;
       readonly running: boolean;
+      readonly icon: IconName;
+      readonly status: ItemStatus;
+      readonly statusCount: number;
       readonly rows: readonly BodyRow[];
     };
 
@@ -130,7 +134,7 @@ export function workRows(work: readonly BodyRow[], groupOpen: (key: string) => b
       out.push({
         kind: "group",
         key,
-        label: groupSummary(rows.flatMap(itemOf)),
+        ...groupSummary(rows.flatMap(itemOf)),
         running: rows.some((r) => r.kind === "item" && r.node.item.status === ItemStatus.IN_PROGRESS),
         rows: groupOpen(key) ? rows : [],
       });

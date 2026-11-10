@@ -7,7 +7,7 @@ import { styles } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 
 /** In progress, failed, declined or interrupted; completed shows nothing, the default state (web: ItemStatusIcon). */
-export function ItemStatusIcon({ status }: { status: ItemStatus }) {
+export function ItemStatusIcon({ status, count }: { status: ItemStatus; count?: number }) {
   const sky = useTone("sky").text;
   const rose = useTone("rose").text;
   const orange = useTone("orange").text;
@@ -15,8 +15,9 @@ export function ItemStatusIcon({ status }: { status: ItemStatus }) {
   if (status === ItemStatus.IN_PROGRESS)
     // The label stays for screen readers only, as on a phone-width web page.
     return (
-      <View accessibilityLabel="Running">
+      <View style={[styles.row, { gap: 4 }]} accessibilityLabel={count === undefined ? "Running" : `${count} running`}>
         <Spinner color={sky} />
+        {count !== undefined && <Text style={[styles.workMeta, { color: sky }]}>{count}</Text>}
       </View>
     );
 
@@ -32,9 +33,12 @@ export function ItemStatusIcon({ status }: { status: ItemStatus }) {
   if (!look) return null;
 
   return (
-    <View style={[styles.row, { gap: 4 }]}>
+    <View
+      style={[styles.row, { gap: 4 }]}
+      accessibilityLabel={count === undefined ? undefined : `${count} ${look.label.toLowerCase()}`}
+    >
       <Icon name={look.icon} size={14} color={look.color} />
-      <Text style={[styles.workMeta, { color: look.color }]}>{look.label}</Text>
+      <Text style={[styles.workMeta, { color: look.color }]}>{count ?? look.label}</Text>
     </View>
   );
 }
