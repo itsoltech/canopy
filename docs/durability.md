@@ -196,6 +196,7 @@ sequenceDiagram
 
 - Każda komenda ma `expires_at` zależne od typu. `InterruptTurn` i `UnloadThread` mają sens krótko. `CreateThread` i `StartTurn` mogą czekać na powrót workera. Przeterminowana komenda kończy się błędem widocznym w UI.
 - Po `Welcome` instancja dosyła wszystkie `pending` i `delivered` bez wyniku. Worker deduplikuje po `command_id` i odsyła zapamiętany wynik.
+- Dostarczanie komend w tle obejmuje także zapis ACK i obsługę wyniku. Zamknięcie runtime'u gatewaya przerywa tę pracę bez nieobsłużonego odrzucenia Promise ani logu błędu przerwania. Jeśli zapis ACK nie został zatwierdzony, komenda pozostaje w outboxie i wraca po reconnect. Błędy bazy lub rozliczenia wyniku są logowane bez treści komendy.
 - **Własność połączenia:** `worker_connections(worker_id, instance_id, epoch)`. Nowe połączenie podbija `epoch`, a stara instancja zamyka swoje (fencing). Wynik komendy z nieaktualnego `epoch` jest ignorowany.
 
 - **Jedna tura startuje raz.** Planista tur działa z wielu miejsc naraz (koniec tury, nowa wiadomość, kilka instancji). Unikalny indeks `worker_commands_one_start` dopuszcza jeden żywy `StartTurn` na turę; przegrany przebieg uznaje, że turę wystartował ktoś inny (wcześniej dwa przebiegi mogły wystartować tę samą turę dwa razy).
