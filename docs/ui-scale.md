@@ -66,6 +66,26 @@ kontekstu (np. `sm` w nagłówku dialogu).
 Na telefonie nakładki z `sheet` otwierają się jako dolny arkusz. Zostają przy tekście nakładki
 (15 / 13), ale wiersze mają co najmniej 40 px (menu 44 px przy dotyku), a pola 16 px.
 
+## Zaznaczanie tekstu
+
+Chrome aplikacji domyślnie nie pozwala zaznaczać tekstu (`shared/ui/selection.css`): dotyczy to
+nawigacji, etykiet, przycisków, menu, badge i pustych stanów. Treść do czytania (wiadomości,
+markdown, rozwinięte szczegóły narzędzi, kod, diffy, cytaty, podglądy plików i terminal) włącza
+`select-text` na wspólnej granicy treści. Kontrolki wewnątrz takiego obszaru nadal nie są
+zaznaczalne. Pola tekstowe i edytowalne obszary zawsze zachowują natywne zaznaczanie.
+
+Wartości do kopiowania w chrome (ścieżki, gałęzie, identyfikatory, adresy, wersje, błędy i logi)
+muszą mieć `select-text` na samej wartości lub przycisk kopiowania; etykieta pozostaje
+niezaznaczalna. Nie blokujemy zdarzeń myszy ani przeciągania tekstu: cytowanie zaznaczenia
+i upuszczanie tekstu do composera korzystają z natywnej selekcji. W React Native `selectable`
+pozostaje wyłącznie na treści i kopiowalnych wartościach, nigdy na chrome.
+
+Cmd+A / Ctrl+A przy fokusie w osi rozmowy (`VirtualFeed`) zaznacza treść zamontowanych
+wierszy tej rozmowy, bez sidebara, panelu bocznego i composera. Wirtualizowana historia
+nie jest eksportem całego wątku; niezamontowane i zwinięte fragmenty nie są zaznaczane.
+W polach i composerze skrót zaznacza tylko ich zawartość; poza osią rozmowy zachowuje
+natywne działanie przeglądarki na zaznaczalnych obszarach.
+
 ## Implementacja
 
 - `shared/ui/scale.css` definiuje stopnie (`--type-*`), ikony (`--icon-*`) i wysokości

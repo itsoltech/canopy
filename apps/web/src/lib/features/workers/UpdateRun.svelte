@@ -18,7 +18,7 @@
         value={run.steps.length ? (done / run.steps.length) * 100 : undefined}
       />
     {/if}
-    {#if run.reason}<p class="break-anywhere text-sm/5 text-rose-600 dark:text-rose-400" role="status">
+    {#if run.reason}<p class="break-anywhere text-sm/5 text-rose-600 select-text dark:text-rose-400" role="status">
         {run.reason}
       </p>{/if}
     {#if run.steps.length}
@@ -38,8 +38,8 @@
                       : "neutral"}>{step.state}</Badge
                 >
               </div>
-              <p class="break-anywhere font-mono text-xs/5 text-muted">{step.version || "App channel"}</p>
-              {#if step.reason}<p class="break-anywhere text-muted">{step.reason}</p>{/if}
+              <p class="break-anywhere font-mono text-xs/5 text-muted select-text">{step.version || "App channel"}</p>
+              {#if step.reason}<p class="break-anywhere text-muted select-text">{step.reason}</p>{/if}
             </li>
           {/each}
         </ol>

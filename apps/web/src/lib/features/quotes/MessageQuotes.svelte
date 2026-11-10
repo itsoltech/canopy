@@ -52,7 +52,7 @@
           {@render passage(quote)}
         </div>
       {/if}
-      {#if quote.comment}<p class="whitespace-pre-wrap">{quote.comment}</p>{/if}
+      {#if quote.comment}<p class="whitespace-pre-wrap select-text">{quote.comment}</p>{/if}
     </li>
   {/each}
 </ul>
@@ -60,7 +60,7 @@
 {#snippet passage(quote: ui.Quote)}
   <span
     class={[
-      "line-clamp-3 break-words",
+      "line-clamp-3 break-words select-text",
       isCodeQuote(quote.sourceKind) ? "font-mono text-[0.8125rem]/5 whitespace-pre-wrap" : "whitespace-pre-line",
     ]}>{quote.text}</span
   >

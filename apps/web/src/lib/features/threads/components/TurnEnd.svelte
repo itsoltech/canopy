@@ -150,7 +150,10 @@
         ><Icon name={icon} tone="inherit" class="size-3.5" />{look.label}</span
       >
       {#if detail}<span
-          class={turn.status === "failed" ? "text-rose-700 dark:text-rose-400" : "text-zinc-500 dark:text-zinc-400"}
+          class={[
+            "select-text",
+            turn.status === "failed" ? "text-rose-700 dark:text-rose-400" : "text-zinc-500 dark:text-zinc-400",
+          ]}
           title={turn.errorCode
             ? `Error code: ${turn.errorCode}`
             : turn.interruptSource === "user" && reason && reason !== "interrupted" && reason !== "user"

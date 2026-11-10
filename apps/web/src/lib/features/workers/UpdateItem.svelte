@@ -54,7 +54,7 @@
         <Badge compact {tone}>{status}</Badge>
       </div>
       <p
-        class="flex min-w-0 gap-1 font-mono text-xs/4 text-muted"
+        class="flex min-w-0 gap-1 font-mono text-xs/4 text-muted select-text"
         title={`${current || "Version unknown"}${target && target !== current ? ` → ${target}` : ""}`}
       >
         <span class="min-w-0 truncate">{current || "Version unknown"}</span>
@@ -73,7 +73,9 @@
   {#if error}
     <Disclosure class="mt-1 ml-6" summaryClass="text-xs/5 text-rose-600 dark:text-rose-400">
       {#snippet summary()}<span class="break-anywhere line-clamp-2">{error}</span>{/snippet}
-      <p class="break-anywhere max-h-40 overflow-y-auto py-2 text-xs/5 text-rose-600 dark:text-rose-400">{error}</p>
+      <p class="break-anywhere max-h-40 overflow-y-auto py-2 text-xs/5 text-rose-600 select-text dark:text-rose-400">
+        {error}
+      </p>
     </Disclosure>
   {/if}
   {#if children}<div class="ml-6 min-w-0">{@render children()}</div>{/if}

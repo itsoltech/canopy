@@ -22,7 +22,7 @@
 </script>
 
 {#if node.kind === "object"}
-  <dl class={["grid gap-y-1.5 text-base/6 sm:text-sm/6", className]}>
+  <dl class={["grid gap-y-1.5 text-base/6 select-text sm:text-sm/6", className]}>
     {#each fields as field (field.key)}
       {#if isInline(field.node)}
         <RequestField label={field.label}><LeafValue node={field.node} /></RequestField>
@@ -59,9 +59,9 @@
     {/each}
   </dl>
 {:else if node.kind === "list"}
-  <div class={["grid gap-1.5 text-base/6 sm:text-sm/6", className]}>
+  <div class={["grid gap-1.5 text-base/6 select-text sm:text-sm/6", className]}>
     {#if node.items.length === 0}
-      <p class="text-zinc-400 dark:text-zinc-500">None</p>
+      <p class="text-zinc-400 select-none dark:text-zinc-500">None</p>
     {:else if scalarList}
       <ul role="list" class="grid gap-0.5 text-zinc-600 dark:text-zinc-400">
         {#each items as item, index (index)}<li class="min-w-0"><LeafValue node={item} /></li>{/each}
@@ -80,7 +80,7 @@
     {/if}
   </div>
 {:else}
-  <div class={["min-w-0 text-base/6 text-zinc-700 sm:text-sm/6 dark:text-zinc-300", className]}>
+  <div class={["min-w-0 text-base/6 text-zinc-700 select-text sm:text-sm/6 dark:text-zinc-300", className]}>
     <LeafValue {node} />
   </div>
 {/if}

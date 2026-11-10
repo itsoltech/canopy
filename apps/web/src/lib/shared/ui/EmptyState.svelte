@@ -16,7 +16,7 @@
 
 <div
   class={[
-    "flex flex-col items-center rounded-xl border border-dashed border-zinc-950/15 px-6 py-10 text-center dark:border-white/15",
+    "flex flex-col items-center rounded-xl border border-dashed border-zinc-950/15 px-6 py-10 text-center select-none dark:border-white/15",
     className,
   ]}
 >

@@ -1,0 +1,36 @@
+/* App chrome opts out; reading surfaces and copyable values opt back in with select-text.
+ * Keep controls inside reading surfaces out of drag selection too. Utilities can opt a
+ * value inside a control back in (for example the current branch or a quoted passage). */
+@layer base {
+  body,
+  :where(
+    button,
+    .ui-button,
+    summary,
+    label,
+    dt,
+    time,
+    dialog,
+    [popover],
+    [data-quote-skip],
+    .density-overlay,
+    [role="button"],
+    [role="tab"],
+    [role="menuitem"],
+    [role="option"],
+    [role="toolbar"],
+    [role="listbox"],
+    [role="switch"],
+    [role="checkbox"],
+    [role="radio"]
+  ) {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Native editing, diagnostics and quote regions work in every shell and overlay. */
+  :where(input, textarea, [contenteditable]:not([contenteditable="false"]), pre, [role="alert"], [data-quote-kind]) {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}

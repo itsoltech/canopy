@@ -70,7 +70,7 @@
     {:else if compact}
       <pre class="overflow-hidden font-mono text-xs/5 break-all whitespace-pre-wrap">{excerpt}</pre>
     {:else}
-      <div class="overflow-x-auto rounded-lg bg-zinc-950/3 py-3 font-mono text-sm/6 dark:bg-white/5">
+      <div class="overflow-x-auto rounded-lg bg-zinc-950/3 py-3 font-mono text-sm/6 select-text dark:bg-white/5">
         {#each lines as line, i (i)}
           <div class="flex min-w-full items-start">
             <span

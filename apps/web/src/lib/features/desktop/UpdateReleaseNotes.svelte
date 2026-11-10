@@ -23,7 +23,7 @@
     <h3 class="text-base font-medium text-zinc-950 sm:text-sm dark:text-white">What’s new · {channel}</h3>
     {#each notes as release (release.version)}
       <section class="grid min-w-0 gap-2">
-        <h4 class="text-base font-medium tabular-nums sm:text-sm">{release.version}</h4>
+        <h4 class="text-base font-medium tabular-nums select-text sm:text-sm">{release.version}</h4>
         <Markdown text={release.markdown} />
         <a
           href={`https://github.com/${source === "claude" ? "anthropics/claude-code" : source === "codex" ? "openai/codex" : "itsoltech/canopy"}/releases/tag/${source === "codex" ? "rust-v" : "v"}${encodeURIComponent(release.version)}`}

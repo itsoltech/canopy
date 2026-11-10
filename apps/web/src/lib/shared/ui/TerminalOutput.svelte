@@ -65,7 +65,7 @@
     aria-label="Terminal output"
     tabindex="0"
     data-autofocus
-    class="min-h-0 w-full overflow-auto overscroll-contain p-4 font-mono text-(length:--canopy-mono-size)/[20px] text-zinc-200 focus-ring [overflow-anchor:none]"
+    class="min-h-0 w-full overflow-auto overscroll-contain p-4 font-mono text-(length:--canopy-mono-size)/[20px] text-zinc-200 focus-ring select-text [overflow-anchor:none]"
     onscroll={() => {
       if (!viewport) return;
       // Resizing can clamp scrollTop upward; that is not a reader scrolling away from the tail.

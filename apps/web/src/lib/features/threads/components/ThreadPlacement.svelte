@@ -29,7 +29,7 @@
       </div>{/snippet}
   </PanelRow>
   <PanelField icon="folder" label={thread.worktree ? "Worktree" : "Directory"} class="group/path">
-    <p class="font-mono text-sm/5 wrap-anywhere sm:text-xs/5" {@attach tooltip(thread.cwd)}>
+    <p class="font-mono text-sm/5 wrap-anywhere select-text sm:text-xs/5" {@attach tooltip(thread.cwd)}>
       <span class="text-zinc-500 dark:text-zinc-400">{path.parent}</span><strong
         class="font-semibold text-zinc-800 dark:text-zinc-200">{path.name}</strong
       >

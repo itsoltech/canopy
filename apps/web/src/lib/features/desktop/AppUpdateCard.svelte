@@ -18,10 +18,10 @@
   {#if status}
     <div class="grid gap-1">
       <h3 class="text-base font-medium sm:text-sm">This Canopy app</h3>
-      <p class="text-base/6 text-zinc-500 tabular-nums sm:text-sm/6 dark:text-zinc-400">
+      <p class="text-base/6 text-zinc-500 tabular-nums select-text sm:text-sm/6 dark:text-zinc-400">
         {status.version} · {status.channel}{status.updateVersion ? ` → ${status.updateVersion}` : ""}
       </p>
-      <p class="text-base/6 text-pretty text-zinc-600 sm:text-sm/6 dark:text-zinc-300" role="status">
+      <p class="text-base/6 text-pretty text-zinc-600 select-text sm:text-sm/6 dark:text-zinc-300" role="status">
         {status.message}
       </p>
     </div>
