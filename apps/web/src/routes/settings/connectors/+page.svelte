@@ -10,6 +10,8 @@
   import ConnectAccountDialog from "#lib/features/connectors/ConnectAccountDialog.svelte";
   import AccountDetail from "#lib/features/connectors/AccountDetail.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
+  import InsetList from "#lib/shared/ui/InsetList.svelte";
   import { decode } from "#lib/shared/wire.ts";
   import { completeConnectorOAuth, listConnectors } from "#lib/features/connectors/api.ts";
   import type { PageProps } from "./$types";
@@ -175,39 +177,40 @@
     >{/if}
   <section aria-label="Connect an app" class="grid gap-4">
     <h2 class="text-lg font-semibold text-balance">Add an account</h2>
-    <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div class="flex flex-wrap gap-2">
       {#each catalog.types as entry (entry.id)}
-        <button
-          type="button"
+        <Button
+          size="sm"
           onclick={() => {
             selected = entry.id;
             connecting = true;
           }}
-          class="relative flex min-h-(--settings-target) min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-base/5 ring-1 ring-zinc-950/10 focus-ring hover:bg-zinc-950/4 sm:text-sm/5 dark:ring-white/10 dark:hover:bg-white/5"
-          ><ConnectorIcon type={entry.id} class="shrink-0" /><span class="min-w-0 text-pretty">{entry.name}</span
-          ></button
+          class="max-w-full"
+          ><ConnectorIcon type={entry.id} class="shrink-0" /><span class="min-w-0 truncate">{entry.name}</span></Button
         >
       {/each}
     </div>
   </section>
   <section aria-label="Connected accounts" class="grid gap-4">
     <h2 class="text-lg font-semibold text-balance">Your accounts</h2>
-    {#each accounts as account (account.id)}
-      {@const entry = catalog.types.find((t) => t.id === account.connectorType)}
-      {#if entry}<div>
-          <AccountDetail
-            {account}
-            type={entry}
-            {workers}
-            {bots}
-            {oauthCompletion}
-            onupdate={update}
-            onremove={remove}
-          />
-        </div>{/if}
-    {:else}<p class="py-4 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+    {#if accounts.length}<InsetList label="Your accounts">
+        {#each accounts as account (account.id)}
+          {@const entry = catalog.types.find((t) => t.id === account.connectorType)}
+          {#if entry}<li>
+              <AccountDetail
+                {account}
+                type={entry}
+                {workers}
+                {bots}
+                {oauthCompletion}
+                onupdate={update}
+                onremove={remove}
+              />
+            </li>{/if}
+        {/each}
+      </InsetList>{:else}<p class="py-4 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
         No accounts connected yet. Pick an app above to connect one.
-      </p>{/each}
+      </p>{/if}
   </section>
 </div>
 {#if connecting && type}<ConnectAccountDialog bind:open={connecting} {type} {oauthCompletion} onsave={update} />{/if}

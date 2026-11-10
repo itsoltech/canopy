@@ -10,7 +10,6 @@
   role="status"
   class={["grid gap-3 rounded-lg bg-zinc-950/3 p-3 text-base/6 sm:text-sm/6 dark:bg-white/4", className]}
 >
-  <p class="font-medium">Connection verified · {tools.length} tools</p>
   <ul role="list" class="grid gap-2">
     {#each tools as tool (tool.name)}
       <li class="min-w-0">
