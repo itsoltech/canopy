@@ -11,6 +11,7 @@ import { approvalView, botConfiguration, uuid, type ApprovalRow } from "./store-
 import type { BotCore } from "./store-queue.ts";
 import { botRules } from "./store-rules.ts";
 import { BOT_APPROVAL_OPTIONS } from "@canopy/domain/bot-chat";
+import { interruptBot } from "./store-interrupt.ts";
 
 function requireWaitingHarness(sql: SqlClient.SqlClient, turnId: string) {
   return Effect.gen(function* () {
@@ -37,7 +38,7 @@ function startRemoteCall(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn,
 
 /** Running turns: leases, checkpoints and tool calls. */
 export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
-  const { owned, changed, active, fenced } = core;
+  const { changed, active, fenced } = core;
 
   return {
     claim: (user: string) =>
@@ -135,15 +136,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
           return (yield* sql<StoredCall>`SELECT * FROM bot_tool_calls WHERE id = ${call.id}::uuid`)[0]!.result;
         }),
       ),
-    interrupt: (user: string, id: string) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          yield* owned(user, id, true);
-          yield* sql`UPDATE bot_turns SET status = 'interrupted', lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = (SELECT id FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND status IN ('running','waiting','queued') ORDER BY created_at, id LIMIT 1)`;
-          yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now() WHERE bot_id = ${id}::uuid AND status = 'pending' AND turn_id IN (SELECT id FROM bot_turns WHERE status = 'interrupted')`;
-          yield* sql`UPDATE bots SET status_line = '', revision = revision + 1 WHERE id = ${id}::uuid`;
-        }),
-      ),
+    interrupt: (user: string, id: string) => interruptBot(sql, core, user, id),
     retry: (user: string, id: string) =>
       sql.withTransaction(
         Effect.gen(function* () {

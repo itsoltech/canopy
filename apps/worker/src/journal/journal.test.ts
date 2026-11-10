@@ -25,6 +25,20 @@ const delta = (chunk: string): ThreadEventInit => ({
 });
 
 describe("Journal", () => {
+  test("Stop overtaking bot admission survives reopening and fences a replayed run", async () => {
+    const path = freshPath();
+    await withJournal(path, (j) => j.noteInterrupt("bot", "stopped"));
+    await withJournal(path, (j) =>
+      Effect.gen(function* () {
+        expect(yield* j.admitBotTurn("run-stopped", "bot", "stopped")).toBeUndefined();
+        expect(yield* j.admitBotTurn("run-stopped", "bot", "stopped")).toBeUndefined();
+        expect(yield* j.openTurns()).toEqual([]);
+        expect(yield* j.admitBotTurn("run-next", "bot", "next")).toBeDefined();
+        expect((yield* j.openTurns()).map((t) => t.turnId)).toEqual(["next"]);
+      }),
+    );
+  });
+
   test("append assigns increasing journal_seq per thread and unique event ids", async () => {
     const events = await withJournal(freshPath(), (j) =>
       Effect.all([j.append("t1", delta("a")), j.append("t1", delta("b")), j.append("t2", delta("c"))]),

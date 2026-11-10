@@ -38,6 +38,9 @@
     disabled = false,
     disabledReason,
     sending = false,
+    running = false,
+    stopping = false,
+    onstop,
     onsend,
     onattach,
     files,
@@ -52,6 +55,9 @@
     disabled?: boolean;
     disabledReason?: string | undefined;
     sending?: boolean;
+    running?: boolean;
+    stopping?: boolean;
+    onstop?: (() => void) | undefined;
     onsend: (text: string, mentions: Mention[], quotes: ui.Quote[]) => void;
     onattach?: (() => void) | undefined;
     files?: AttachmentDraft | undefined;
@@ -123,7 +129,7 @@
   }
 
   function send() {
-    if (!ready) return;
+    if (!ready || running) return;
     const trimmed = trimValue({ text: value, mentions });
     onsend(
       trimmed.text,
@@ -207,9 +213,27 @@
       {/if}
     {/snippet}
   </MentionEditor>
-  {#if value.trim() || quotes.length > 0 || files?.attached.length}
+  {#if running || value.trim() || quotes.length > 0 || files?.attached.length}
     <span class="col-start-3 row-start-3 flex" in:iconSwap>
-      <RoundButton icon="arrow-up" label="Send" variant="primary" unavailable={!ready} busy={sending} onclick={send} />
+      {#if running}
+        <RoundButton
+          icon="stop"
+          label="Stop reply"
+          variant="primary"
+          unavailable={!onstop}
+          busy={stopping}
+          onclick={onstop}
+        />
+      {:else}
+        <RoundButton
+          icon="arrow-up"
+          label="Send"
+          variant="primary"
+          unavailable={!ready}
+          busy={sending}
+          onclick={send}
+        />
+      {/if}
     </span>
   {/if}
 </div>

@@ -54,6 +54,7 @@
   const expiredNotice = $derived(connection === "This request expired. No answer was sent.");
   let sending = $state(false);
   let retrying = $state(false);
+  let stopping = $state(false);
   let answering = $state<Record<string, string>>({});
   let ruleDialog = $state(false);
 
@@ -370,10 +371,15 @@
   }
 
   async function interrupt() {
+    if (stopping) return;
+    stopping = true;
+
     try {
       await requestJson("POST", `/api/bots/${data.bot.id}/interrupt`, {});
     } catch {
-      connection = "Could not stop the bot";
+      connection = "Could not stop the reply. Check the connection and retry.";
+    } finally {
+      stopping = false;
     }
   }
 </script>
@@ -416,6 +422,9 @@
           : undefined}
         {status}
         {sending}
+        running={snapshot.working}
+        {stopping}
+        onstop={canAct ? interrupt : undefined}
         {answering}
         {retrying}
         {policy}
@@ -444,9 +453,6 @@
           {/if}
         {/snippet}
         {#snippet actions()}
-          {#if snapshot.working}<Button size="sm" variant="ghost" icon="stop" disabled={!canAct} onclick={interrupt}
-              >Stop</Button
-            >{/if}
           <IconButton
             icon="information-circle"
             label="Bot details"

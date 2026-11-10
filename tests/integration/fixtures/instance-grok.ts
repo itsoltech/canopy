@@ -42,6 +42,15 @@ async function turn(
   );
   const text = params.prompt.map((p) => p.text ?? "").join("\n");
   transcript(params.sessionId, { sessionUpdate: "user_message_chunk", content: { type: "text", text } });
+
+  if (text.split("\n\nCurrent input:\n").at(-1)?.includes("STOP_REPLY"))
+    send({
+      method: "session/update",
+      params: {
+        sessionId: params.sessionId,
+        update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Partial reply" } },
+      },
+    });
   await releaseProbe(text);
   const failure = process.env["BOT_TRACE"] ? botFailure(text) : undefined;
 

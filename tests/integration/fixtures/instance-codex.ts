@@ -74,6 +74,9 @@ async function turn(
   send({ id, result: { turn: { id: turnId, status: "inProgress", items: [], error: null } } });
   notify("turn/started", { threadId, turn: { id: turnId, status: "inProgress", items: [], error: null } });
   recordProbe("codex", "turn", threadId, providers.get(threadId));
+
+  if (text.split("\n\nCurrent input:\n").at(-1)?.includes("STOP_REPLY"))
+    notify("item/agentMessage/delta", { threadId, turnId, itemId: `answer-${turnId}`, delta: "Partial reply" });
   await releaseProbe(text);
 
   if (interrupted.delete(turnId)) return;

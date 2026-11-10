@@ -38,7 +38,19 @@ function useBotChat(id: string) {
   const history = useBotSnapshot(id);
   const { snapshot: conversation, stream } = history;
   const [details, setDetails] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const following = useFollowingList<ChatRow>(true);
+
+  const stop = async () => {
+    if (stopping || !client) return;
+    setStopping(true);
+
+    try {
+      await client.api.interruptBot({ botId: id });
+    } finally {
+      setStopping(false);
+    }
+  };
 
   // Your other bots name the counterparts of bot ⇄ bot exchanges: the shared list keeps them current.
   useBotList();
@@ -50,6 +62,8 @@ function useBotChat(id: string) {
     conversation,
     details,
     setDetails,
+    stopping,
+    stop,
     following,
     stream,
     seen: history.seen,
@@ -178,11 +192,10 @@ function BotConversation({ id, rule }: { id: string; rule: string }) {
                 compact={composer.compact}
                 onExpand={composer.expand}
                 running={conversation?.working ?? false}
+                stopping={chat.stopping}
                 onStop={() => {
                   if (live)
-                    void chat.client?.api
-                      .interruptBot({ botId: id })
-                      .catch(() => setError("Could not stop the bot. Check the connection and retry."));
+                    void chat.stop().catch(() => setError("Could not stop the reply. Check the connection and retry."));
                 }}
                 disabled={!live || !chat.online || !conversation}
               />

@@ -1,4 +1,4 @@
-import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import { query, type SDKUserMessage, type SpawnOptions } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeEventMapper } from "../providers/claude/mapping.ts";
 import { claudeProfileOptions } from "../providers/claude/profile.ts";
 import { claudeExecutable } from "../providers/claude/executable.ts";
@@ -9,10 +9,29 @@ import { botPrompt } from "./session.ts";
 import type { BotHarnessContext } from "./types.ts";
 import { BotHarnessFailure } from "./types.ts";
 import { rejectBotToolApproval } from "./failures.ts";
+import { spawnClaude } from "../providers/claude/spawn.ts";
+
+function botClaudeProcess() {
+  let done = Promise.resolve();
+
+  return {
+    spawn: (options: SpawnOptions) => {
+      const child = spawnClaude(options);
+      done = new Promise<void>((resolve) => {
+        child.once("exit", () => resolve());
+        child.once("error", () => resolve());
+      });
+
+      return child;
+    },
+    closed: () => done,
+  };
+}
 
 /** Official Claude SDK, with an empty built-in tool set and only Canopy MCP. */
 export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
   const { input, session, signal } = ctx;
+  signal.throwIfAborted();
   const resumed = Boolean(session.id && transcriptPath(session.home, session.id));
   const id = resumed ? session.id : crypto.randomUUID();
   session.save(id);
@@ -24,14 +43,14 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
     offset: path ? statSync(path).size : 0,
     providerTurn: "",
   });
-  const abort = new AbortController();
-  const cancel = () => abort.abort();
-  signal.addEventListener("abort", cancel, { once: true });
-
-  if (signal.aborted) cancel();
   const allowedTools = input.tools.map((t) => `mcp__canopy__${t.name}`);
   const profile = claudeProfileOptions(ctx.profile, process.env);
   const images = await ctx.images(resumed);
+  signal.throwIfAborted();
+  const harness = botClaudeProcess();
+  const abort = new AbortController();
+  const cancel = () => abort.abort();
+  signal.addEventListener("abort", cancel, { once: true });
 
   async function* prompt(): AsyncGenerator<SDKUserMessage> {
     yield {
@@ -81,6 +100,7 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
       maxTurns: 32,
       includePartialMessages: true,
       abortController: abort,
+      spawnClaudeCodeProcess: harness.spawn,
     },
   });
 
@@ -89,6 +109,8 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
 
   try {
     for await (const message of q) {
+      signal.throwIfAborted();
+
       if (message.type === "assistant") {
         if (message.error)
           throw new BotHarnessFailure(
@@ -131,5 +153,6 @@ export async function runClaudeBot(ctx: BotHarnessContext): Promise<void> {
     signal.removeEventListener("abort", cancel);
     abort.abort();
     q.close();
+    await harness.closed();
   }
 }

@@ -176,6 +176,34 @@ describe.skipIf(!dockerAvailable)("linked bots and agent bus: two independent ho
     expect(await failure(a.core.bots.get(botB))).toBeTruthy();
   }, 20000);
 
+  test("Stop from A interrupts the bot at its home B and fences a late model reply", async () => {
+    let running: ModelInput | undefined;
+    const finished = Promise.withResolvers<ReturnType<typeof reply>>();
+    modelB = async (i) => {
+      running = i;
+
+      return finished.promise;
+    };
+
+    try {
+      await a.api.sendBotMessage({ botId: q(botB), text: "Stop this remote reply", clientRequestId: id() });
+      expect(await eventually(async () => Boolean(running), Boolean)).toBe(true);
+      await a.api.interruptBot({ botId: q(botB) });
+      expect((await read(b, botB)).working).toBe(false);
+      expect((await read(b, botB)).messages.at(-1)?.text).toBe("Stopped by you");
+      expect(await eventually(async () => running?.signal.aborted, Boolean)).toBe(true);
+      finished.resolve(reply("Late remote reply"));
+      modelB = async (i) => reply(`B: ${input(i)}`);
+      await a.api.sendBotMessage({ botId: q(botB), text: "Next remote message", clientRequestId: id() });
+      const result = await settle(b, botB);
+      expect(result.messages.at(-1)?.text).toBe("B: Next remote message");
+      expect(result.messages.some((m) => m.text === "Late remote reply")).toBe(false);
+    } finally {
+      finished.resolve(reply("Late remote reply"));
+      modelB = async (i) => reply(`B: ${input(i)}`);
+    }
+  }, 20000);
+
   test("a question card on B can be answered from A", async () => {
     modelB = async (i) =>
       i.messages.at(-1)?.role === "tool"
