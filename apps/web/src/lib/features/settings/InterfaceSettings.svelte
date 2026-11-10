@@ -42,3 +42,12 @@
     { value: "off", label: "Off" },
   ]}
 />
+<DeviceChoiceRow
+  preference="fileLinks"
+  title="Open files in"
+  description="Where a file path in an agent's message opens when you click it. Files on another computer open in Canopy."
+  options={[
+    { value: "canopy", label: "Canopy" },
+    { value: "app", label: "Default app" },
+  ]}
+/>
