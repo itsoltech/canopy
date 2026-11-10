@@ -3,6 +3,7 @@
 # tagged, pushed to GHCR or uploaded before `checks` pass. Server artifacts are staged on a draft;
 # publication waits for desktop builds, feeds and verification. All dev events share one active run and only the newest pending run;
 # each branch has its own queue. GITHUB_TOKEN tags do not trigger another workflow.
+# Every checkout/build uses EXPECTED_SHA; later branch commits belong to the next run.
 name: Release
 
 on:
@@ -18,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: Expected branch HEAD (manual release or dev back-merge; reject a moved branch)
+        description: Commit to release (must remain in the selected branch history)
         required: true
         type: string
       desktop_all_targets:
@@ -40,6 +41,7 @@ env:
   # Keep in sync with mise.toml.
   BUN_VERSION: 1.4.4
   IMAGE_NAMESPACE: ghcr.io/itsoltech
+  EXPECTED_SHA: ${{ inputs.expected_sha || github.sha }}
 
 jobs:
   checks:
@@ -47,6 +49,8 @@ jobs:
     # Keep main/next/tag checks even for no-release runs; dev pays for CI only for a planned nightly.
     if: needs.plan.outputs.published == 'true' || github.ref != 'refs/heads/dev'
     uses: ./.github/workflows/ci.yml
+    with:
+      revision: ${{ inputs.expected_sha || github.sha }}
 
   # Dry run: the version this run will release. Shares the per-branch group with `release`, so it never plans
   # while another run of the branch is tagging.
@@ -60,8 +64,8 @@ jobs:
       group: release-version-${{ github.ref }}
       cancel-in-progress: false
     permissions:
-      # semantic-release checks push access (`git push --dry-run`) even in a dry run; nothing is written.
-      contents: write
+      # Planning probes push access only to its disposable local mirror.
+      contents: read
     outputs:
       published: ${{ steps.plan.outputs.published }}
       version: ${{ steps.plan.outputs.version }}
@@ -71,6 +75,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ env.EXPECTED_SHA }}
           fetch-depth: 0
       - uses: ./.github/actions/setup-bun
       - uses: actions/setup-node@v5
@@ -94,7 +99,7 @@ jobs:
           echo "value={\"include\":[$targets]}" >> "$GITHUB_OUTPUT"
 
   # Reserve the version: tag and draft GitHub Release after checks, only with the planned version
-  # (EXPECTED_VERSION, scripts/release-expected-version.mjs). A branch that moved meanwhile gives no release.
+  # (EXPECTED_VERSION, scripts/release-expected-version.mjs). Refuse rewritten history, allow newer commits.
   release:
     needs: [plan, checks]
     if: needs.plan.outputs.published == 'true'
@@ -113,6 +118,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ env.EXPECTED_SHA }}
           fetch-depth: 0
       - uses: ./.github/actions/setup-bun
       - uses: actions/setup-node@v5
@@ -134,8 +140,20 @@ jobs:
             echo "::error::Planned $PLANNED, released $RELEASED"
             exit 1
           fi
+      # workflow_run.head_sha is the dispatch ref, which can differ from expected_sha.
+      - name: Record released revision for Mobile release
+        if: steps.release.outputs.published == 'true'
+        run: printf '%s\n' "$EXPECTED_SHA" > "$RUNNER_TEMP/release-sha"
+      - uses: actions/upload-artifact@v4
+        if: steps.release.outputs.published == 'true'
+        with:
+          name: release-revision
+          path: ${{ runner.temp }}/release-sha
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
 
-  # Nothing of this run will be published: the checks failed, or the branch moved meanwhile.
+  # Nothing of this run will be published: checks failed or the release could not reserve its version.
   # A later scheduled/dispatched dev run picks up the commits. Stop builds, including macOS notarization.
   stop-builds:
     needs: [plan, checks, release]
@@ -163,6 +181,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
       - uses: ./.github/actions/setup-bun
       # Cross-compiled for every target; sharp's native build per target comes from the npm registry.
       - name: Build
@@ -221,6 +241,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
@@ -236,7 +258,7 @@ jobs:
           sbom: false
           build-args: |
             CANOPY_VERSION=${{ needs.plan.outputs.version }}
-            CANOPY_REVISION=${{ github.sha }}
+            CANOPY_REVISION=${{ env.EXPECTED_SHA }}
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
 
@@ -256,6 +278,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -274,6 +298,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=canopy-${{ matrix.app }}
             org.opencontainers.image.version=${{ needs.release.outputs.version }}
+            org.opencontainers.image.revision=${{ env.EXPECTED_SHA }}
           annotations: |
             org.opencontainers.image.version=${{ needs.release.outputs.version }}
       - uses: docker/build-push-action@v6
@@ -289,7 +314,7 @@ jobs:
           annotations: ${{ steps.meta.outputs.annotations }}
           build-args: |
             CANOPY_VERSION=${{ needs.release.outputs.version }}
-            CANOPY_REVISION=${{ github.sha }}
+            CANOPY_REVISION=${{ env.EXPECTED_SHA }}
           sbom: true
           cache-from: type=gha,scope=${{ matrix.app }}
 
@@ -304,6 +329,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
       # Restore downloads before dependency installation, so Electron install hooks can reuse them too.
       - uses: actions/cache@v4
         with:
@@ -465,6 +492,8 @@ jobs:
       CANOPY_RELEASE_TAG: ${{ needs.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
       # The staging scripts have no runtime package dependencies.
       - uses: ./.github/actions/setup-bun
         with:
@@ -475,12 +504,12 @@ jobs:
           path: release-assets
       - name: checksums.txt and manifest.json
         run: |
-          bun scripts/release-manifest.ts release-assets
+          GITHUB_SHA="$EXPECTED_SHA" bun scripts/release-manifest.ts release-assets
           ls -l release-assets
           echo "### Canopy $CANOPY_VERSION ($CANOPY_RELEASE_TAG): server" >> "$GITHUB_STEP_SUMMARY"
           sed 's/^/    /' release-assets/checksums.txt >> "$GITHUB_STEP_SUMMARY"
       - name: Stage server assets on draft (manifest last)
-        run: bun scripts/release-upload.ts release-assets
+        run: GITHUB_SHA="$EXPECTED_SHA" bun scripts/release-upload.ts release-assets
 
   # Stage 2: required desktop targets must succeed. Upload and verify the complete set before publishing
   # the draft or moving image aliases. Failed jobs can resume the same draft without exposing partial feeds.
@@ -502,6 +531,8 @@ jobs:
       CANOPY_RELEASE_TAG: ${{ needs.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
       - uses: ./.github/actions/setup-bun
       - uses: actions/download-artifact@v5
         with:
@@ -518,12 +549,12 @@ jobs:
       # Keep binaries locally for complete verification; matching draft assets are not uploaded again.
       - name: checksums.txt and manifest.json
         run: |
-          bun scripts/release-manifest.ts release-assets
+          GITHUB_SHA="$EXPECTED_SHA" bun scripts/release-manifest.ts release-assets
           ls -l release-assets
           echo "### Canopy $CANOPY_VERSION ($CANOPY_RELEASE_TAG): server and desktop" >> "$GITHUB_STEP_SUMMARY"
           sed 's/^/    /' release-assets/checksums.txt >> "$GITHUB_STEP_SUMMARY"
       - name: Upload and verify all assets, then publish release
-        run: bun scripts/release-upload.ts release-assets --publish
+        run: GITHUB_SHA="$EXPECTED_SHA" bun scripts/release-upload.ts release-assets --publish
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -531,14 +562,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Image channel aliases (forward only)
-        run: bun scripts/image-aliases.ts
+        run: GITHUB_SHA="$EXPECTED_SHA" bun scripts/image-aliases.ts
 
   backmerge:
     needs: [release, publish-desktop]
     if: needs.release.outputs.channel == 'stable'
     uses: ./.github/workflows/backmerge.yml
     with:
-      stable_sha: ${{ github.sha }}
+      stable_sha: ${{ inputs.expected_sha || github.sha }}
     secrets:
       RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
     permissions:
