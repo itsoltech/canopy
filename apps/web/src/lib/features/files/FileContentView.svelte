@@ -4,7 +4,10 @@
   import { languageOfPath } from "#lib/shared/ui/code/languages.ts";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
 
-  /** A read file, read-only: Markdown rendered, everything else highlighted by its extension. */
+  /**
+   * A read file, read-only: Markdown rendered, everything else highlighted by its extension with line numbers
+   * (not selectable). Mod+A in the focused content selects only the file's text (FileViewer, select-all.ts).
+   */
   let {
     file,
     text,
@@ -19,9 +22,20 @@
 {:else if file.binary}
   <p class="p-4 text-muted">Canopy cannot show this file. Open it in its default app.</p>
 {:else if rendered}
-  <div class="p-4"><Markdown {text} /></div>
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+  <div class="min-h-full p-4 focus-ring" tabindex="0" role="region" aria-label={name} data-select-content>
+    <Markdown {text} />
+  </div>
 {:else if text}
-  <CodeView code={text} lang={languageOfPath(name)} label={name} max={Number.MAX_SAFE_INTEGER} class="min-h-full" />
+  <CodeView
+    code={text}
+    lang={languageOfPath(name)}
+    label={name}
+    start={1}
+    max={Number.MAX_SAFE_INTEGER}
+    fill
+    class="min-h-full"
+  />
 {:else}
   <p class="p-4 text-muted">This file is empty.</p>
 {/if}

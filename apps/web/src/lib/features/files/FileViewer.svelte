@@ -7,6 +7,7 @@
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import SegmentedChoice from "#lib/shared/ui/SegmentedChoice.svelte";
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
+  import { clearSelection, confineSelectAll } from "#lib/shared/ui/select-all.ts";
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import { fileName } from "#lib/shared/ui/markdown/file-paths.ts";
   import CodeEditor from "./CodeEditor.svelte";
@@ -43,8 +44,14 @@
     if (viewer.dirty) {
       open = true;
       confirmClose = true;
-    } else onclose();
+    } else close();
   });
+
+  /** Leaves no selection behind in the page (Mod+A inside the viewer). */
+  function close() {
+    clearSelection();
+    onclose();
+  }
 
   async function save() {
     if (await viewer.save()) toast("Saved");
@@ -54,11 +61,19 @@
     if (!(await viewer.remove())) return;
     confirmDelete = false;
     toast(`Deleted ${name}`);
-    onclose();
+    close();
   }
 </script>
 
-<Dialog bind:open title={name} description={detail} size="output" fullscreen dismissible={!viewer.busy}>
+<Dialog
+  bind:open
+  title={name}
+  description={detail}
+  size="output"
+  fullscreen
+  dismissible={!viewer.busy}
+  onkeydown={confineSelectAll}
+>
   <div class="grid min-w-0 gap-3">
     <div class="flex flex-wrap items-center gap-2">
       {#if viewer.editing}
@@ -157,7 +172,7 @@
       onclick={() => {
         viewer.discard();
         confirmClose = false;
-        onclose();
+        close();
       }}>Discard changes</Button
     >
   </div>
